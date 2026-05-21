@@ -240,4 +240,46 @@ WQIDAQAB
       return { success: true, data: null };
     }
   });
+
+  // ==================== Consumer Mode User ID Storage ====================
+  // Store consumer mode user ID for telemetry reporting
+
+  const CONSUMER_USER_ID_FILE = 'consumer_user_id.txt';
+
+  ipcBridge.sudoworkAuth.saveConsumerUserId.provider(async ({ userId }) => {
+    try {
+      const dataPath = getDataPath();
+      const filePath = path.join(dataPath, CONSUMER_USER_ID_FILE);
+      await fsPromises.writeFile(filePath, userId, 'utf-8');
+      mainLog('Sudowork Auth', 'Consumer user ID saved');
+      return { success: true };
+    } catch (error) {
+      mainError('Sudowork Auth', 'Failed to save consumer user ID:', error);
+      return { success: false, msg: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  });
+
+  ipcBridge.sudoworkAuth.getConsumerUserId.provider(async () => {
+    try {
+      const dataPath = getDataPath();
+      const filePath = path.join(dataPath, CONSUMER_USER_ID_FILE);
+      const userId = await fsPromises.readFile(filePath, 'utf-8');
+      return { success: true, data: userId.trim() };
+    } catch {
+      return { success: true, data: null };
+    }
+  });
+
+  ipcBridge.sudoworkAuth.clearConsumerUserId.provider(async () => {
+    try {
+      const dataPath = getDataPath();
+      const filePath = path.join(dataPath, CONSUMER_USER_ID_FILE);
+      await fsPromises.unlink(filePath);
+      mainLog('Sudowork Auth', 'Consumer user ID file deleted');
+      return { success: true };
+    } catch {
+      // File doesn't exist, that's fine
+      return { success: true };
+    }
+  });
 }

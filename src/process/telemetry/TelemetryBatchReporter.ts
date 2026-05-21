@@ -26,26 +26,33 @@ import {
   PerfTelemetryEvent,
   ConversationTelemetryEvent,
   InstallTelemetryEvent,
+  TurnTelemetryEvent,
+  StepTelemetryEvent,
   PerfData,
   ConversationData,
   InstallData,
+  TurnData,
+  StepData,
   mapElectronArch,
 } from '../../shared/types/telemetry';
 import { DEFAULT_TELEMETRY_CONFIG } from '../../shared/types/telemetry';
 import { mainLog, mainWarn, mainError } from '../utils/mainLogger';
 import { getTelemetryEncryptor, initTelemetryEncryptor, isEncryptionAvailable, EncryptedPayload } from './TelemetryEncryptor';
 import { ENCRYPTION_CONFIG } from './keys';
+import { getUserContextSync } from './UserContext';
 
 // ============================================================
 // 类型定义
 // ============================================================
 
-type TelemetryEventType = 'perf' | 'conversation' | 'install';
+type TelemetryEventType = 'perf' | 'conversation' | 'install' | 'turn' | 'step';
 
 interface TelemetryEventPayloadMap {
   perf: import('../../shared/types/telemetry').PerfData;
   conversation: import('../../shared/types/telemetry').ConversationData;
   install: import('../../shared/types/telemetry').InstallData;
+  turn: import('../../shared/types/telemetry').TurnData;
+  step: import('../../shared/types/telemetry').StepData;
 }
 
 // ============================================================
@@ -155,11 +162,15 @@ export class TelemetryBatchReporter {
    *
    * @param type - 事件类型
    * @param data - 事件数据
+   * @param agentType - Agent 类型 (sudocode, claude 等)
    */
-  public record<K extends TelemetryEventType>(type: K, data: TelemetryEventPayloadMap[K]): void {
+  public record<K extends TelemetryEventType>(type: K, data: TelemetryEventPayloadMap[K], agentType?: string): void {
     if (!this.enabled || !this.initialized) {
       return;
     }
+
+    // 获取用户上下文
+    const userContext = getUserContextSync();
 
     const storedEvent: StoredTelemetryEvent = {
       id: this.generateEventId(),
@@ -170,6 +181,13 @@ export class TelemetryBatchReporter {
       version: buildVersion,
       platform: process.platform as 'darwin' | 'win32',
       arch: mapElectronArch(process.arch),
+      org_id: userContext.org_id,
+      user_id: userContext.user_id,
+      tenant_id: userContext.tenant_id,
+      login_mode: userContext.login_mode,
+      agent_type: agentType,
+      user_nickname: userContext.user_nickname,
+      user_phone: userContext.user_phone,
       data,
     };
 
@@ -284,34 +302,52 @@ export class TelemetryBatchReporter {
       const batch = this.eventQueue.slice(0, this.config.batchSize);
       // Convert stored events to TelemetryEvent format
       const events: TelemetryEvent[] = batch.map((stored): TelemetryEvent => {
+        // 基础字段
+        const baseEvent = {
+          timestamp: stored.timestamp,
+          version: stored.version,
+          platform: stored.platform,
+          arch: stored.arch,
+          org_id: stored.org_id,
+          user_id: stored.user_id,
+          tenant_id: stored.tenant_id,
+          login_mode: stored.login_mode,
+          agent_type: stored.agent_type,
+          user_nickname: stored.user_nickname,
+          user_phone: stored.user_phone,
+        };
+
         // Create specific event type based on stored.type
         if (stored.type === 'perf') {
           return {
             type: 'perf',
-            timestamp: stored.timestamp,
-            version: stored.version,
-            platform: stored.platform,
-            arch: stored.arch,
+            ...baseEvent,
             data: stored.data as PerfData,
           } as PerfTelemetryEvent;
         } else if (stored.type === 'conversation') {
           return {
             type: 'conversation',
-            timestamp: stored.timestamp,
-            version: stored.version,
-            platform: stored.platform,
-            arch: stored.arch,
+            ...baseEvent,
             data: stored.data as ConversationData,
           } as ConversationTelemetryEvent;
-        } else {
+        } else if (stored.type === 'install') {
           return {
             type: 'install',
-            timestamp: stored.timestamp,
-            version: stored.version,
-            platform: stored.platform,
-            arch: stored.arch,
+            ...baseEvent,
             data: stored.data as InstallData,
           } as InstallTelemetryEvent;
+        } else if (stored.type === 'turn') {
+          return {
+            type: 'turn',
+            ...baseEvent,
+            data: stored.data as TurnData,
+          } as TurnTelemetryEvent;
+        } else {
+          return {
+            type: 'step',
+            ...baseEvent,
+            data: stored.data as StepData,
+          } as StepTelemetryEvent;
         }
       });
 

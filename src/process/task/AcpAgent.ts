@@ -23,7 +23,7 @@ import { appendNexusFilesMarker } from '@/common/nexusFiles';
 import type { IResponseMessage } from '@/common/ipcBridge';
 import { NavigationInterceptor } from '@/common/navigation';
 import { parseError, uuid } from '@/common/utils';
-import type { AcpBackend, AcpError, AcpModelInfo, AcpPermissionOption, AcpPermissionRequest, AcpPromptResponseUsage, AcpQuestionRequest, AcpQuestionResponseAnswer, AcpResult, AcpSessionConfigOption, AcpSessionUpdate, AvailableCommandsUpdate, ToolCallUpdate } from '@/types/acpTypes';
+import type { AcpBackend, AcpError, AcpModelInfo, AcpPermissionOption, AcpPermissionRequest, AcpPromptResponseUsage, AcpQuestionRequest, AcpQuestionResponseAnswer, AcpResult, AcpSessionConfigOption, AcpSessionUpdate, AvailableCommandsUpdate, ToolCallUpdate, ToolCallUpdateStatus } from '@/types/acpTypes';
 import { ACP_BACKENDS_ALL, AcpErrorType, createAcpError } from '@/types/acpTypes';
 import { ExtensionRegistry } from '@/extensions';
 import { spawn } from 'child_process';
@@ -46,6 +46,24 @@ import BaseAgent from './BaseAgent';
 
 // Telemetry imports for conversation tracking
 import { startConversationTracking, endConversationSuccess, endConversationError, endConversationUserCancel } from '../telemetry';
+
+// Telemetry imports for turn/step tracking
+import {
+  startTurnTracking,
+  updateTurnTokens,
+  endTurnSuccess,
+  endTurnError,
+  getCurrentTurnId,
+} from '../telemetry';
+import {
+  startToolCallTracking,
+  endToolCallTracking,
+  startPermissionRequestTracking,
+  endPermissionRequestTracking,
+  recordFileOperationStep,
+  startThinkingTracking,
+  endThinkingTracking,
+} from '../telemetry';
 
 // CrashReporter imports for breadcrumb tracking
 import { conversationBreadcrumbs, apiBreadcrumbs, systemBreadcrumbs, mcpBreadcrumbs } from '../telemetry/BreadcrumbTracker';
@@ -138,7 +156,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
   private pendingPermissions = new Map<string, { resolve: (response: { optionId: string }) => void; reject: (error: Error) => void }>();
   private pendingQuestions = new Map<string, { resolve: (response: { answers: AcpQuestionResponseAnswer[] }) => void; reject: (error: Error) => void; msgId: string }>();
   private approvalStore = new AcpApprovalStore();
-  private permissionRequestMeta = new Map<string, { kind?: string; title?: string; rawInput?: Record<string, unknown> }>();
+  private permissionRequestMeta = new Map<string, { kind?: string; title?: string; rawInput?: Record<string, unknown>; stepId?: string }>();
   private pendingNavigationTools = new Set<string>();
   private statusMessageId: string | null = null;
   private _lastConnectionStatus: string | null = null;
@@ -662,6 +680,9 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
       const modelProvider = this.options.backend === 'openclaw-gateway' ? 'sudoclaw' : this.options.backend;
       startConversationTracking(this.conversation_id, modelId, modelProvider);
 
+      // Start telemetry turn tracking
+      startTurnTracking(this.conversation_id, modelId, modelProvider, this.options.backend);
+
       // Breadcrumb: conversation started
       conversationBreadcrumbs.start(this.conversation_id, modelId, modelProvider);
 
@@ -1100,8 +1121,14 @@ This identity statement takes priority over the default identity in USER.md.
       const { resolve } = this.pendingPermissions.get(callId)!;
       this.pendingPermissions.delete(callId);
 
+      // Telemetry: end permission request step tracking
+      const meta = this.permissionRequestMeta.get(callId);
+      if (meta?.stepId) {
+        const approved = data.optionId === 'allow' || data.optionId === 'allow_always';
+        endPermissionRequestTracking(meta.stepId, approved);
+      }
+
       if (data.optionId === 'allow_always') {
-        const meta = this.permissionRequestMeta.get(callId);
         if (meta) {
           const approvalKey = createAcpApprovalKey({
             kind: meta.kind,
@@ -1151,6 +1178,9 @@ This identity statement takes priority over the default identity in USER.md.
   }
 
   private async performStop(): Promise<void> {
+    // Telemetry: end turn tracking (user cancel)
+    endTurnError(this.conversation_id, 'USER_CANCEL');
+
     // Telemetry: end conversation tracking (user cancel)
     endConversationUserCancel(this.conversation_id);
 
@@ -1713,6 +1743,14 @@ This identity statement takes priority over the default identity in USER.md.
         // Breadcrumb: MCP/tool call started
         mcpBreadcrumbs.toolCall(toolName, 'acp', this.conversation_id);
 
+        // Telemetry: start tool call step tracking
+        const turnId = getCurrentTurnId(this.conversation_id);
+        if (turnId && toolCallId) {
+          // Determine tool kind based on tool name
+          const toolKind = this.getToolKind(toolName);
+          startToolCallTracking(this.conversation_id, turnId, toolCallId, toolName, toolKind, this.options.backend);
+        }
+
         // Store tool call meta for file_send detection
         if (toolCallId) {
           this.toolCallMeta.set(toolCallId, {
@@ -1741,13 +1779,20 @@ This identity statement takes priority over the default identity in USER.md.
       }
 
       if (data.update?.sessionUpdate === 'tool_call_update') {
-        const statusUpdate = data as import('@/types/acpTypes').ToolCallUpdateStatus;
+        const statusUpdate = data as ToolCallUpdateStatus;
         const toolCallId = statusUpdate.update?.toolCallId;
         const toolStatus = statusUpdate.update?.status;
 
         // Breadcrumb: MCP/tool call result
         if (toolStatus === 'completed' || toolStatus === 'failed') {
           mcpBreadcrumbs.toolResult(toolCallId || 'unknown', toolStatus === 'completed');
+        }
+
+        // Telemetry: end tool call step tracking
+        if (toolStatus === 'completed' || toolStatus === 'failed') {
+          if (toolCallId) {
+            endToolCallTracking(toolCallId, toolStatus === 'completed' ? 'success' : 'error');
+          }
         }
 
         // Generate user message for SendUserMessage/AskUserQuestion tool results
@@ -1907,14 +1952,29 @@ This identity statement takes priority over the default identity in USER.md.
       }
       const requestId = data.toolCall.toolCallId;
 
+      // Telemetry: start permission request step tracking
+      const turnId = getCurrentTurnId(this.conversation_id);
+      let stepId: string | undefined;
+      if (turnId && data.toolCall.kind) {
+        stepId = startPermissionRequestTracking(this.conversation_id, turnId, data.toolCall.kind, this.options.backend);
+      }
+
       // In yolo/bypassPermissions mode, auto-approve all permission requests
       if (this.yoloMode) {
+        // Telemetry: end permission request step tracking (auto-approved)
+        if (stepId) {
+          endPermissionRequestTracking(stepId, true);
+        }
         resolve({ optionId: 'allow_always' });
         return;
       }
 
       const approvalKey = createAcpApprovalKey(data.toolCall);
       if (this.approvalStore.isApprovedForSession(approvalKey)) {
+        // Telemetry: end permission request step tracking (pre-approved)
+        if (stepId) {
+          endPermissionRequestTracking(stepId, true);
+        }
         resolve({ optionId: 'allow_always' });
         return;
       }
@@ -1927,6 +1987,7 @@ This identity statement takes priority over the default identity in USER.md.
         kind: data.toolCall.kind,
         title: data.toolCall.title,
         rawInput: data.toolCall.rawInput,
+        stepId, // Store stepId for ending tracking on confirm
       });
 
       const toolName = data.toolCall?.title || '';
@@ -2127,6 +2188,9 @@ This identity statement takes priority over the default identity in USER.md.
 
   private handleEndTurn(): void {
     if (!this.userCancelled) {
+      // Telemetry: end turn tracking (success)
+      endTurnSuccess(this.conversation_id);
+
       // Telemetry: end conversation tracking (success)
       endConversationSuccess(this.conversation_id);
 
@@ -2149,6 +2213,9 @@ This identity statement takes priority over the default identity in USER.md.
   }
 
   private handlePromptUsage(usage: AcpPromptResponseUsage): void {
+    // Telemetry: update turn token usage
+    updateTurnTokens(this.conversation_id, usage);
+
     if (this.hasReceivedUsageUpdate) return;
     this.handleStreamEvent({
       type: 'acp_context_usage',
@@ -2162,6 +2229,13 @@ This identity statement takes priority over the default identity in USER.md.
   }
 
   private handleFileOperation(operation: { method: string; path: string; content?: string; sessionId: string }): void {
+    // Telemetry: record file operation step
+    const turnId = getCurrentTurnId(this.conversation_id);
+    if (turnId) {
+      const operationType = operation.method.includes('write') ? 'write' : operation.method.includes('read') ? 'read' : 'delete';
+      recordFileOperationStep(this.conversation_id, turnId, operationType, operation.path, 'success', this.options.backend);
+    }
+
     let text: string;
     switch (operation.method) {
       case 'fs/write_text_file':
@@ -2190,6 +2264,9 @@ This identity statement takes priority over the default identity in USER.md.
 
     const errorMsg = `${this.extra.backend} process disconnected unexpectedly ` + `(code: ${error.code}, signal: ${error.signal}). ` + `Please try sending a new message to reconnect.`;
     this.emitErrorMessage(errorMsg);
+
+    // Telemetry: end turn tracking (error)
+    endTurnError(this.conversation_id, 'E001');
 
     // Telemetry: end conversation tracking (connection error)
     endConversationError(this.conversation_id, 'E001');
@@ -2568,6 +2645,26 @@ This identity statement takes priority over the default identity in USER.md.
     const firstSentence = content.split('.')[0];
     if (firstSentence.length < 100) return firstSentence;
     return 'Thinking';
+  }
+
+  /**
+   * Determine tool kind for telemetry tracking
+   * - read: tools that read files or data
+   * - edit: tools that modify files
+   * - execute: tools that run commands or other operations
+   */
+  private getToolKind(toolName: string): 'read' | 'edit' | 'execute' {
+    const name = toolName.toLowerCase();
+    // Read tools
+    if (/read|get|fetch|list|search|find|glob|grep|cat|head|tail|view/.test(name)) {
+      return 'read';
+    }
+    // Edit tools
+    if (/write|edit|create|delete|remove|move|copy|rename|mkdir|rmdir/.test(name)) {
+      return 'edit';
+    }
+    // Default to execute for bash, permission, and other tools
+    return 'execute';
   }
 
   // ========== Private Helpers ==========
