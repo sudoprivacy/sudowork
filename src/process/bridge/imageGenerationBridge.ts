@@ -287,17 +287,28 @@ export async function callChatCompletionsWithImage(baseUrl: string, apiKey: stri
 
 /**
  * Generate a user-center avatar image.
- * Reuses resolveImageConfig / callImagesGenerations / saveImageResult.
+ * Reuses readSudorouterCredentials / callImagesGenerations / saveImageResult.
  * Unlike generateImage, this does NOT emit any tool_group message into a conversation.
  */
 async function generateUserAvatar({ prompt }: { prompt: string }): Promise<IBridgeResponse<{ localPath: string; dataUrl: string }>> {
   try {
-    const cfg = await resolveImageConfig();
-    if (!cfg) {
+    // 凭据：复用 readSudorouterCredentials（已优先读 sudocode.json）
+    const creds = readSudorouterCredentials();
+    // 模型：直接读 sudocode.json 的 tools.imageGenerationModel（由 AuthContext 登录时写入）
+    let model: string | undefined;
+    try {
+      const raw = fsSync.readFileSync(SUDOCODE_CONFIG_PATH, 'utf-8');
+      const config = JSON.parse(raw) as { tools?: { imageGenerationModel?: string } };
+      model = config?.tools?.imageGenerationModel;
+      if (typeof model === 'string' && model.includes('/')) model = model.split('/').pop();
+    } catch {
+      // ignored
+    }
+    if (!creds || !model || !model.trim()) {
       return { success: false, msg: '图像生成功能尚未配置，无法生成头像' };
     }
 
-    const imageUrl = await callImagesGenerations(cfg.baseUrl, cfg.apiKey, cfg.model, prompt, '1024x1024', 1);
+    const imageUrl = await callImagesGenerations(creds.baseUrl, creds.apiKey, model, prompt, '1024x1024', 1);
 
     const saveDir = path.join(app.getPath('userData'), 'user-avatars');
     const saved = await saveImageResult(imageUrl, saveDir);
