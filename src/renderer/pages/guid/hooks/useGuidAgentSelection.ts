@@ -44,6 +44,86 @@ function hasExplicitIdentity(rules: string): boolean {
   return zhPatterns.some((p) => p.test(rules)) || enPatterns.some((p) => p.test(rules));
 }
 
+type CloudAssistant = {
+  key: string;
+  name: string;
+  avatar?: string;
+  emoji?: string;
+  description?: string;
+  isBuiltin?: boolean;
+  isHubInstalled?: boolean;
+  sourceType?: string | null;
+  tag?: string;
+};
+
+function getCloudAssistantSourceType(assistant: CloudAssistant): string {
+  return assistant.sourceType || assistant.tag || (assistant.isHubInstalled ? 'hub' : '');
+}
+
+function isSelectableCloudAssistant(assistant: CloudAssistant): boolean {
+  if (!assistant.key || assistant.isBuiltin) return false;
+  const sourceType = getCloudAssistantSourceType(assistant);
+  return assistant.isHubInstalled || sourceType === 'hub' || sourceType === 'custom' || sourceType === 'upload';
+}
+
+function getAssistantDisplayName(agent: Pick<AcpBackendConfig, 'name' | 'nameI18n'>): string {
+  return agent.nameI18n?.['zh-CN'] || agent.nameI18n?.['en-US'] || agent.name;
+}
+
+function getAssistantDedupeKey(agent: Pick<AcpBackendConfig, 'id' | 'name' | 'nameI18n'>): string {
+  return getAssistantDisplayName(agent).trim().toLowerCase() || agent.id;
+}
+
+function dedupeAssistantConfigs(agents: AcpBackendConfig[]): AcpBackendConfig[] {
+  const seen = new Set<string>();
+  const deduped: AcpBackendConfig[] = [];
+  for (const agent of agents) {
+    const keys = [agent.id, getAssistantDedupeKey(agent)].filter(Boolean);
+    if (keys.some((key) => seen.has(key))) continue;
+    for (const key of keys) {
+      seen.add(key);
+    }
+    deduped.push(agent);
+  }
+  return deduped;
+}
+
+function toCloudAssistantConfig(assistant: CloudAssistant): AcpBackendConfig {
+  const id = assistant.key || assistant.name;
+  const avatar = assistant.avatar || assistant.emoji;
+  return {
+    id,
+    name: assistant.name || id,
+    nameI18n: { 'zh-CN': assistant.name || id, 'en-US': assistant.name || id },
+    description: assistant.description,
+    avatar,
+    enabled: true,
+    isPreset: true,
+    presetAgentType: 'remote-agent',
+  };
+}
+
+function mergeAssistantConfigs(localAgents: AcpBackendConfig[], cloudAssistants: CloudAssistant[]): AcpBackendConfig[] {
+  const merged = dedupeAssistantConfigs(localAgents);
+  const seen = new Set<string>();
+  for (const agent of merged) {
+    seen.add(agent.id);
+    seen.add(getAssistantDedupeKey(agent));
+  }
+
+  for (const assistant of cloudAssistants) {
+    if (!isSelectableCloudAssistant(assistant)) continue;
+    const cloudConfig = toCloudAssistantConfig(assistant);
+    const keys = [cloudConfig.id, getAssistantDedupeKey(cloudConfig)].filter(Boolean);
+    if (keys.some((key) => seen.has(key))) continue;
+    merged.push(cloudConfig);
+    for (const key of keys) {
+      seen.add(key);
+    }
+  }
+  return merged;
+}
+
 /** Save preferred mode to the agent's own config key */
 async function savePreferredMode(agentKey: string, mode: string): Promise<void> {
   try {
@@ -198,7 +278,7 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
   // 仅企业模式需要 sessionMode，C端用户无需初始化
   useEffect(() => {
     if (!isEnterprise) return;
-    ConfigStorage.get('guid.sessionMode').then(async (stored) => {
+    void ConfigStorage.get('guid.sessionMode').then(async (stored) => {
       let mode = stored ?? 'remote';
       // Validate localModeAvailable: fallback to remote if 'local' persisted but user lacks permission
       if (mode === 'local') {
@@ -453,10 +533,12 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
   // 企业 Remote 模式下，这些目录已从 Moss server 同步，因此无需另走云端接口。
   useEffect(() => {
     let isActive = true;
-    Promise.all([fetchAssistantsAsConfigs(), ipcBridge.extensions.getAssistants.invoke().catch(() => [] as Record<string, unknown>[])])
-      .then(([agents, extAssistants]) => {
+    Promise.all([fetchAssistantsAsConfigs(), ipcBridge.extensions.getAssistants.invoke().catch(() => [] as Record<string, unknown>[]), isEnterprise && sessionMode === 'remote' ? ipcBridge.eeclaw.getCloudAssistants.invoke().catch(() => ({ data: [] as CloudAssistant[] })) : Promise.resolve({ data: [] as CloudAssistant[] })])
+      .then(([agents, extAssistants, cloudAssistantsResult]) => {
         if (!isActive) return;
-        const list = agents.filter((agent: AcpBackendConfig) => {
+        const cloudAssistants = Array.isArray(cloudAssistantsResult?.data) ? (cloudAssistantsResult.data as CloudAssistant[]) : [];
+        const mergedAgents = isEnterprise && sessionMode === 'remote' ? mergeAssistantConfigs(agents, cloudAssistants) : agents;
+        const list = mergedAgents.filter((agent: AcpBackendConfig) => {
           // Keep preset assistants (builtin + hub-installed) visible on Guid homepage
           // even when ACP detection has not produced custom IDs yet.
           if (agent.isPreset) return true;
@@ -944,11 +1026,12 @@ This identity statement takes priority over the default identity in USER.md.
         await mutate('acp.agents.available');
       }
 
-      // Reload customAgents state from assistantHub
-      const agents = await fetchAssistantsAsConfigs();
+      const [agents, cloudAssistantsResult] = await Promise.all([fetchAssistantsAsConfigs(), isEnterprise && sessionMode === 'remote' ? ipcBridge.eeclaw.getCloudAssistants.invoke().catch(() => ({ data: [] as CloudAssistant[] })) : Promise.resolve({ data: [] as CloudAssistant[] })]);
+      const cloudAssistants = Array.isArray(cloudAssistantsResult?.data) ? (cloudAssistantsResult.data as CloudAssistant[]) : [];
+      const mergedAgents = isEnterprise && sessionMode === 'remote' ? mergeAssistantConfigs(agents, cloudAssistants) : agents;
 
       // Apply presetAgentType fallback for builtin assistants
-      for (const agent of agents) {
+      for (const agent of mergedAgents) {
         if (agent.id.startsWith('builtin-') && !agent.presetAgentType) {
           const presetId = agent.id.replace('builtin-', '');
           const preset = getPresetById(presetId);
@@ -958,7 +1041,7 @@ This identity statement takes priority over the default identity in USER.md.
         }
       }
 
-      setCustomAgents(agents);
+      setCustomAgents(mergedAgents);
     } catch (error) {
       console.error('Failed to refresh custom agents:', error);
     }

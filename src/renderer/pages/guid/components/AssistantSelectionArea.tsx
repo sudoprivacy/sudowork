@@ -24,6 +24,21 @@ type AssistantSelectionAreaProps = {
   isEnterprise?: boolean;
 };
 
+function dedupeAssistantsForDisplay(agents: AcpBackendConfig[], localeKey: string): AcpBackendConfig[] {
+  const seen = new Set<string>();
+  const deduped: AcpBackendConfig[] = [];
+  for (const agent of agents) {
+    const displayName = agent.nameI18n?.[localeKey] || agent.nameI18n?.['zh-CN'] || agent.nameI18n?.['en-US'] || agent.name;
+    const keys = [agent.id, displayName.trim().toLowerCase()].filter(Boolean);
+    if (keys.some((key) => seen.has(key))) continue;
+    for (const key of keys) {
+      seen.add(key);
+    }
+    deduped.push(agent);
+  }
+  return deduped;
+}
+
 /**
  * Renders the assistant selection grid (pill list) when no assistant is selected.
  * The selected assistant view (header, description, prompts) is now handled
@@ -36,7 +51,10 @@ const AssistantSelectionArea: React.FC<AssistantSelectionAreaProps> = ({ customA
   // Enterprise Remote mode: render assistants from customAgents
   // E端 Remote 模式：助手来自本地 hub/system/custom/tenant 文件夹，id 为 UUID，存放在 customAgents
   if (isEnterprise && sessionMode === 'remote') {
-    const cloudAssistants = (customAgents || []).filter((a) => a.enabled !== false);
+    const cloudAssistants = dedupeAssistantsForDisplay(
+      (customAgents || []).filter((a) => a.enabled !== false),
+      localeKey
+    );
     if (cloudAssistants.length === 0) return null;
 
     return (
@@ -73,7 +91,7 @@ const AssistantSelectionArea: React.FC<AssistantSelectionAreaProps> = ({ customA
   const hubInstalledPresets = presetAgents.filter((a) => !a.id.startsWith('builtin-'));
 
   // Combine: allowed builtin presets + hub-installed presets + user-created custom assistants
-  const filteredAgents = [...allowedBuiltinPresets, ...hubInstalledPresets, ...userCreatedAgents];
+  const filteredAgents = dedupeAssistantsForDisplay([...allowedBuiltinPresets, ...hubInstalledPresets, ...userCreatedAgents], localeKey);
 
   // Assistant List View
   return (
