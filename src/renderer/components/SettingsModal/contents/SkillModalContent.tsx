@@ -60,7 +60,12 @@ interface SkillLatestVersion {
   version: string;
   sourceUrl: string;
   checksum: string;
+  /** Timestamp when this version info was fetched (for cache expiration) */
+  fetchedAt: number;
 }
+
+/** Cache expiration time in milliseconds (5 minutes) */
+const VERSION_CACHE_TTL = 5 * 60 * 1000;
 
 type SkillDetailResponse = { success: boolean; data?: ISkillHubDetail; msg?: string };
 
@@ -169,7 +174,11 @@ const SkillCard: React.FC<{
   hasUpdate?: boolean;
   onUpdate?: (e: React.MouseEvent) => void;
   updating?: boolean;
-}> = ({ skill, isInstalled, hasVersion, installing, installProgress, onInstall, onClick, hasUpdate, onUpdate, updating }) => {
+  /** Latest version info for personal mode skill store display */
+  latestVersion?: string;
+  /** Whether version info is still loading (for personal mode) */
+  loadingVersion?: boolean;
+}> = ({ skill, isInstalled, hasVersion, installing, installProgress, onInstall, onClick, hasUpdate, onUpdate, updating, latestVersion, loadingVersion }) => {
   const { t } = useTranslation();
 
   return (
@@ -184,6 +193,8 @@ const SkillCard: React.FC<{
       <div className='flex-1 min-w-0'>
         <div className='flex items-center gap-6px pr-58px min-w-0'>
           <span className='flex-1 min-w-0 font-medium text-13px text-t-primary truncate'>{skill.display_name}</span>
+          {loadingVersion && !latestVersion && <span className='px-5px py-0px bg-fill-3 text-t-tertiary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px animate-pulse'>...</span>}
+          {latestVersion && <span className='px-5px py-0px bg-fill-3 text-t-secondary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px'>v{latestVersion}</span>}
         </div>
         <div className='text-11px text-t-secondary mt-3px line-clamp-2 leading-relaxed'>{skill.description}</div>
       </div>
@@ -580,6 +591,8 @@ const SkillModalContent: React.FC = () => {
   const [uninstallingSkillName, setUninstallingSkillName] = useState<string | null>(null);
   const [togglingSkillName, setTogglingSkillName] = useState<string | null>(null);
   const [updatingSkillId, setUpdatingSkillId] = useState<string | null>(null);
+  /** Track skill IDs that are currently fetching version info (for loading state in SkillCard) */
+  const [loadingVersionIds, setLoadingVersionIds] = useState<Set<string>>(new Set());
 
   // Installed tab state
   const [installedList, setInstalledList] = useState<IInstalledSkillInfo[]>([]);
@@ -887,56 +900,85 @@ const SkillModalContent: React.FC = () => {
   // ---- Fetch latest versions ----
   // Only used in personal mode to check for skill updates
   // Enterprise mode doesn't need this - versions are managed by Moss Server
-  const fetchLatestVersions = useCallback(async (skillList: ISkillHubSkill[], existingMap?: Map<string, SkillLatestVersion>) => {
-    // Skip in enterprise mode
-    console.log('[SkillModalContent] fetchLatestVersions called, isEnterprise:', isEnterprise);
-    if (isEnterprise) {
-      return existingMap || new Map<string, SkillLatestVersion>();
-    }
-
-    const versionMap = existingMap ? new Map(existingMap) : new Map<string, SkillLatestVersion>();
-    const toFetch = skillList.filter((s) => !versionMap.has(s.id));
-    if (toFetch.length === 0) {
-      setLatestVersions(versionMap);
-      return versionMap;
-    }
-
-    const batchSize = 5;
-    for (let i = 0; i < toFetch.length; i += batchSize) {
-      const batch = toFetch.slice(i, i + batchSize);
-      const results = await Promise.all(
-        batch.map(async (skill) => {
-          try {
-            let res: SkillDetailResponse;
-            if (isElectronDesktop()) {
-              res = await skillHub.fetchSkillDetail.invoke({ skillId: skill.id });
-            } else {
-              res = await fetchSkillDetailHttp(skill.id);
-            }
-            if (res.success && res.data?.versions?.[0]) {
-              const latest = res.data.versions[0];
-              return {
-                skillId: skill.id,
-                versionInfo: {
-                  version: latest.version,
-                  sourceUrl: latest.source_url,
-                  checksum: latest.checksum,
-                } as SkillLatestVersion,
-              };
-            }
-          } catch {
-            // ignore
-          }
-          return null;
-        })
-      );
-      for (const r of results) {
-        if (r) versionMap.set(r.skillId, r.versionInfo);
+  const fetchLatestVersions = useCallback(
+    async (skillList: ISkillHubSkill[], existingMap?: Map<string, SkillLatestVersion>) => {
+      // Skip in enterprise mode
+      if (isEnterprise) {
+        return existingMap || new Map<string, SkillLatestVersion>();
       }
-    }
-    setLatestVersions(versionMap);
-    return versionMap;
-  }, []);
+
+      const now = Date.now();
+      const versionMap = existingMap ? new Map(existingMap) : new Map<string, SkillLatestVersion>();
+
+      // Filter skills that need fetching: not in cache OR cache expired
+      const toFetch = skillList.filter((s) => {
+        const cached = versionMap.get(s.id);
+        if (!cached) return true;
+        // Check if cache is expired (older than VERSION_CACHE_TTL)
+        return now - cached.fetchedAt > VERSION_CACHE_TTL;
+      });
+
+      if (toFetch.length === 0) {
+        setLatestVersions(versionMap);
+        return versionMap;
+      }
+
+      // Mark skills as loading
+      const idsToFetch = toFetch.map((s) => s.id);
+      setLoadingVersionIds((prev) => {
+        const next = new Set(prev);
+        idsToFetch.forEach((id) => next.add(id));
+        return next;
+      });
+
+      try {
+        const batchSize = 10;
+        for (let i = 0; i < toFetch.length; i += batchSize) {
+          const batch = toFetch.slice(i, i + batchSize);
+          const results = await Promise.all(
+            batch.map(async (skill) => {
+              try {
+                let res: SkillDetailResponse;
+                if (isElectronDesktop()) {
+                  res = await skillHub.fetchSkillDetail.invoke({ skillId: skill.id });
+                } else {
+                  res = await fetchSkillDetailHttp(skill.id);
+                }
+                if (res.success && res.data?.versions?.[0]) {
+                  const latest = res.data.versions[0];
+                  return {
+                    skillId: skill.id,
+                    versionInfo: {
+                      version: latest.version,
+                      sourceUrl: latest.source_url,
+                      checksum: latest.checksum,
+                      fetchedAt: Date.now(),
+                    } as SkillLatestVersion,
+                  };
+                }
+              } catch {
+                // ignore
+              }
+              return null;
+            })
+          );
+          for (const r of results) {
+            if (r) versionMap.set(r.skillId, r.versionInfo);
+          }
+        }
+        setLatestVersions(versionMap);
+        return versionMap;
+      } finally {
+        // Clear loading state for all fetched skills
+        setLoadingVersionIds((prev) => {
+          const next = new Set(prev);
+          idsToFetch.forEach((id) => next.delete(id));
+          return next;
+        });
+      }
+    },
+    [isEnterprise]
+  );
 
   // ---- Fetch skills list ----
   // Reads selectedCategory / searchQuery / latestVersions from refs so this callback is stable.
@@ -1109,10 +1151,7 @@ const SkillModalContent: React.FC = () => {
   useEffect(() => {
     if (!isEnterprise || !isElectronDesktop()) return;
 
-    const handleSyncCompleted = (data: {
-      skills: { hub: { installed: string[]; skipped: string[]; failed: Array<{ id: string; name: string; error: string }> }; tenant: { installed: string[]; skipped: string[]; failed: Array<{ id: string; name: string; error: string }> } };
-      assistants: { hub: { installed: string[]; skipped: string[]; failed: Array<{ id: string; name: string; error: string }> }; tenant: { installed: string[]; skipped: string[]; failed: Array<{ id: string; name: string; error: string }> } };
-    }) => {
+    const handleSyncCompleted = (data: { skills: { hub: { installed: string[]; skipped: string[]; failed: Array<{ id: string; name: string; error: string }> }; tenant: { installed: string[]; skipped: string[]; failed: Array<{ id: string; name: string; error: string }> } }; assistants: { hub: { installed: string[]; skipped: string[]; failed: Array<{ id: string; name: string; error: string }> }; tenant: { installed: string[]; skipped: string[]; failed: Array<{ id: string; name: string; error: string }> } } }) => {
       // Merge hub and tenant results for display
       const mergedSkills = {
         installed: [...data.skills.hub.installed, ...data.skills.tenant.installed],
@@ -1149,7 +1188,8 @@ const SkillModalContent: React.FC = () => {
     syncTriggeredRef.current = true;
     setSyncStatus({ syncing: true, skills: { installed: [], skipped: [], failed: [] }, assistants: { installed: [], skipped: [], failed: [] } });
 
-    eeclaw.syncFromRemote.invoke()
+    eeclaw.syncFromRemote
+      .invoke()
       .then((res) => {
         if (!res.success) {
           // Sync failed, reset status (syncCompleted event won't be emitted)
@@ -1691,11 +1731,12 @@ const SkillModalContent: React.FC = () => {
               <div className='grid gap-8px pb-16px' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
                 {skills.map((skill) => {
                   const isInstalled = installedSkills.has(skill.name) || installedSkills.has(skill.id);
-                  const hasVersion = latestVersions.has(skill.id);
+                  const latestVer = latestVersions.get(skill.id);
+                  const hasVersion = !!latestVer;
+                  const isLoadingVersion = loadingVersionIds.has(skill.id);
                   const isInstalling = installingSkillId === skill.id;
                   const isUpdating = updatingSkillId === skill.id;
                   const installedVer = normalizeSkillVersion(installedSkills.get(skill.id) || installedSkills.get(skill.name));
-                  const latestVer = latestVersions.get(skill.id);
                   const skillHasUpdate = isInstalled && !!latestVer && (!installedVer || latestVer.version !== installedVer);
                   return (
                     <SkillCard
@@ -1716,6 +1757,8 @@ const SkillModalContent: React.FC = () => {
                         void handleUpdate(skill.id);
                       }}
                       updating={isUpdating}
+                      latestVersion={latestVer?.version}
+                      loadingVersion={isLoadingVersion}
                     />
                   );
                 })}
