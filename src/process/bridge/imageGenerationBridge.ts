@@ -7,9 +7,11 @@
 import fs from 'fs/promises';
 import fsSync from 'fs';
 import path from 'path';
+import { app } from 'electron';
 import { DEFAULT_IMAGE_BASE_URL } from '../../common/storage';
 import { detectImageMimeType } from '../../common/imageUtils';
 import { ipcBridge } from '../../common';
+import type { IBridgeResponse } from '../../common/ipcBridge';
 import { ProcessConfig } from '../initStorage';
 import { SUDOCLAW_DIR } from '../services/sudoclaw/SudoclawInstallService';
 import { SCODE_DIR } from '../services/scode/ScodeInstallService';
@@ -283,6 +285,52 @@ export async function callChatCompletionsWithImage(baseUrl: string, apiKey: stri
   return content;
 }
 
+/**
+ * Generate a user-center avatar image.
+ * Reuses readSudorouterCredentials / callImagesGenerations / saveImageResult.
+ * Unlike generateImage, this does NOT emit any tool_group message into a conversation.
+ */
+async function generateUserAvatar({ prompt }: { prompt: string }): Promise<IBridgeResponse<{ localPath: string; dataUrl: string }>> {
+  try {
+    // 凭据：复用 readSudorouterCredentials（已优先读 sudocode.json）
+    const creds = readSudorouterCredentials();
+    // 模型：直接读 sudocode.json 的 tools.imageGenerationModel（由 AuthContext 登录时写入）
+    let model: string | undefined;
+    try {
+      const raw = fsSync.readFileSync(SUDOCODE_CONFIG_PATH, 'utf-8');
+      const config = JSON.parse(raw) as { tools?: { imageGenerationModel?: string } };
+      model = config?.tools?.imageGenerationModel;
+      if (typeof model === 'string' && model.includes('/')) model = model.split('/').pop();
+    } catch {
+      // ignored
+    }
+    if (!creds || !model || !model.trim()) {
+      return { success: false, msg: '图像生成功能尚未配置，无法生成头像' };
+    }
+
+    const imageUrl = await callImagesGenerations(creds.baseUrl, creds.apiKey, model, prompt, '1024x1024', 1);
+
+    const saveDir = path.join(app.getPath('userData'), 'user-avatars');
+    const saved = await saveImageResult(imageUrl, saveDir);
+
+    // b64_json 路径返回的已是带前缀的 dataURL，直接透传；remote URL 路径则读盘转 dataURL
+    let dataUrl: string;
+    if (imageUrl.startsWith('data:')) {
+      dataUrl = imageUrl;
+    } else {
+      const buf = await fs.readFile(saved.imgUrl);
+      const mime = detectMimeType(buf).mime;
+      dataUrl = `data:${mime};base64,${buf.toString('base64')}`;
+    }
+
+    return { success: true, data: { localPath: saved.imgUrl, dataUrl } };
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error('[generateUserAvatar]', msg);
+    return { success: false, msg };
+  }
+}
+
 export function initImageGenerationBridge(): void {
   ipcBridge.tools.generateImage.provider(async ({ prompt, conversation_id, workspace, size = '1024x1024', n = 1 }) => {
     try {
@@ -319,4 +367,6 @@ export function initImageGenerationBridge(): void {
       return { success: false, msg };
     }
   });
+
+  ipcBridge.tools.generateUserAvatar.provider(generateUserAvatar);
 }

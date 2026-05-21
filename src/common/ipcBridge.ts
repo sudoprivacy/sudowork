@@ -1515,6 +1515,8 @@ import type { SafetyStatus, BlacklistConfig } from '@/common/safetyTypes';
 export const tools = {
   /** Generate image via /v1/images/generations API */
   generateImage: bridge.buildProvider<IBridgeResponse<{ img_url: string; relative_path: string }>, { prompt: string; conversation_id: string; workspace: string; size?: string; n?: number }>('tools.generate-image'),
+  /** Generate a user-center avatar image; saves to userData and returns local path + dataUrl */
+  generateUserAvatar: bridge.buildProvider<IBridgeResponse<{ localPath: string; dataUrl: string }>, { prompt: string }>('tools.generate-user-avatar'),
 };
 
 export const safety = {

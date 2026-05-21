@@ -5,6 +5,7 @@ import { Avatar, Button, Modal, Input, Message, Spin } from '@arco-design/web-re
 import { User, Phone, Edit } from '@icon-park/react';
 import SettingsPageWrapper from './components/SettingsPageWrapper';
 import WeeklyModelUsageChart from './components/WeeklyModelUsageChart';
+import ConsumerAvatar from './components/ConsumerAvatar';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
 import { useAppMode } from '../../hooks/useAppMode';
@@ -208,9 +209,7 @@ const UserProfile: React.FC = () => {
           <>
             {/* Consumer: Identity */}
             <div className='flex items-center gap-20px p-24px bg-fill-0 rd-16px border border-border-base'>
-              <Avatar size={64} className='bg-primary/10'>
-                <User theme='outline' size={32} className='text-primary' />
-              </Avatar>
+              <ConsumerAvatar />
               <div className='flex-1'>
                 <div className='flex items-center gap-8px'>
                   <div className='text-18px font-600 text-t-primary'>{profile?.nickname || currentUser?.nickname || 'Sudowork 用户'}</div>
