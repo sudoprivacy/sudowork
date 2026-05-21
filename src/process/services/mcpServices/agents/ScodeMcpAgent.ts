@@ -14,6 +14,28 @@ import os from 'os';
 
 const TAG = 'ScodeMcpAgent';
 export const SCODE_SETTINGS_PATH = path.join(os.homedir(), '.nexus', 'sudocode', 'settings.json');
+const SCODE_DISABLED_MCP_SERVERS = new Set(['chrome-devtools']);
+
+function isDisabledForScode(serverName: string): boolean {
+  return SCODE_DISABLED_MCP_SERVERS.has(serverName);
+}
+
+export function removeDisabledMcpServersFromSettings(settings: Record<string, unknown>): boolean {
+  const mcpServers = settings.mcpServers as Record<string, unknown> | undefined;
+  if (!mcpServers || typeof mcpServers !== 'object') return false;
+
+  let changed = false;
+  for (const serverName of SCODE_DISABLED_MCP_SERVERS) {
+    if (serverName in mcpServers) {
+      delete mcpServers[serverName];
+      changed = true;
+    }
+  }
+  if (changed) {
+    settings.mcpServers = mcpServers;
+  }
+  return changed;
+}
 
 /**
  * Read existing settings.json, returns empty object on failure.
@@ -100,6 +122,7 @@ export class ScodeMcpAgent extends AbstractMcpAgent {
 
         const result: IMcpServer[] = [];
         for (const [name, config] of Object.entries(mcpServers)) {
+          if (isDisabledForScode(name)) continue;
           const type = (config.type as string) || 'stdio';
           const transport: IMcpServer['transport'] =
             type === 'stdio'
@@ -148,7 +171,15 @@ export class ScodeMcpAgent extends AbstractMcpAgent {
         const existing = (settings.mcpServers as Record<string, unknown>) || {};
         const mcpConfig: Record<string, unknown> = { ...existing };
 
+        for (const serverName of SCODE_DISABLED_MCP_SERVERS) {
+          delete mcpConfig[serverName];
+        }
+
         for (const server of mcpServers) {
+          if (isDisabledForScode(server.name)) {
+            delete mcpConfig[server.name];
+            continue;
+          }
           if (!server.enabled) {
             delete mcpConfig[server.name];
             continue;

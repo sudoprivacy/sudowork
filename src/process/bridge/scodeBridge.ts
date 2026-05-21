@@ -13,7 +13,7 @@
 
 import { ipcBridge } from '@/common';
 import { SCODE_DIR, isScodeInstalled, getScodeVersionState, ensureScodeInstalled } from '@process/services/scode/ScodeInstallService';
-import { readSettings, writeSettings } from '@process/services/mcpServices/agents/ScodeMcpAgent';
+import { readSettings, removeDisabledMcpServersFromSettings, writeSettings } from '@process/services/mcpServices/agents/ScodeMcpAgent';
 import fs from 'fs';
 import path from 'path';
 import { mainLog, mainWarn } from '@process/utils/mainLogger';
@@ -109,9 +109,7 @@ export async function syncScodeModelsFromPricing(): Promise<void> {
     return;
   }
 
-  const modelIds = json.data
-    .map((m) => (typeof m.model_id === 'string' ? m.model_id.trim() : ''))
-    .filter(Boolean);
+  const modelIds = json.data.map((m) => (typeof m.model_id === 'string' ? m.model_id.trim() : '')).filter(Boolean);
   if (modelIds.length === 0) {
     mainWarn(TAG, 'specific_pricing returned empty model list, keeping existing models');
     return;
@@ -164,10 +162,14 @@ async function ensureSettingsModelOnStartup(): Promise<void> {
   try {
     const { DEFAULT_SCODE_MODEL_ID } = await import('@/common/acp/defaultModels');
     const settings = readSettings();
+    let changed = removeDisabledMcpServersFromSettings(settings);
     if (!settings.model) {
       settings.model = DEFAULT_SCODE_MODEL_ID;
-      writeSettings(settings);
+      changed = true;
       mainLog(TAG, `Initialized settings.json model to "${DEFAULT_SCODE_MODEL_ID}"`);
+    }
+    if (changed) {
+      writeSettings(settings);
     }
   } catch (err) {
     mainWarn(TAG, `Failed to ensure settings model: ${err instanceof Error ? err.message : String(err)}`);
