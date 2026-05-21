@@ -1093,6 +1093,20 @@ export class ActionExecutor {
             }
           }
         }
+      } else if (supportsEdit && thinkingMsgId) {
+        // Stream ended without content (e.g., user cancelled during thinking phase).
+        // Finalize the thinking AI Card with cancel message so it stops spinning.
+        const cancelMessage: IUnifiedOutgoingMessage = {
+          type: 'text',
+          text: '请求已被用户终止',
+          parseMode: 'HTML',
+          replyMarkup: getResponseActionsMarkup(context.platform as PluginType, '请求已被用户终止'),
+        };
+        try {
+          await context.editMessage(thinkingMsgId, cancelMessage);
+        } catch {
+          // Ignore edit errors
+        }
       } else {
         console.log(`[ActionExecutor] 📤 Stream ended, no lastMessageContent`);
       }
