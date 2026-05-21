@@ -279,7 +279,7 @@ export function registerScodeBridge(): void {
       } else {
         ipcBridge.scode.installResult.emit({ success: false, msg: 'Scode installation failed' });
       }
-      return { success: true };
+      return ok ? { success: true } : { success: false, msg: 'Sudo Code 安装失败' };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       mainWarn(TAG, `Scode install error: ${msg}`);
