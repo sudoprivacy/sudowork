@@ -36,13 +36,22 @@ export function mapElectronArch(arch: string): TelemetryArch {
 }
 
 /** 遥测事件类型 */
-export type TelemetryEventType = 'perf' | 'conversation' | 'install';
+export type TelemetryEventType = 'perf' | 'conversation' | 'install' | 'turn' | 'step';
 
 /** 性能指标类型 */
 export type PerfMetricType = 'cold_start' | 'first_screen' | 'first_token';
 
 /** 对话状态 */
 export type ConversationStatus = 'success' | 'error' | 'user_cancel';
+
+/** Turn 状态 */
+export type TurnStatus = 'success' | 'error';
+
+/** Step 状态 */
+export type StepStatus = 'success' | 'error' | 'pending';
+
+/** Step 类型 */
+export type StepType = 'tool_call' | 'permission_request' | 'file_operation' | 'thinking';
 
 /** 安装状态 */
 export type InstallStatus = 'success' | 'failed';
@@ -52,6 +61,12 @@ export type InstallType = 'fresh' | 'update';
 
 /** 模型提供商 */
 export type ModelProvider = 'openai' | 'anthropic' | 'google' | (string & {});
+
+/** Agent 类型 - 数据来源标识 */
+export type AgentType = 'sudocode' | 'claude' | 'qwen' | 'gemini' | 'codex' | 'scode' | 'openclaw-gateway' | (string & {});
+
+/** 登录模式 */
+export type LoginMode = 'enterprise' | 'personal';
 
 // ============================================================
 // 错误码定义 (E001-E010)
@@ -133,6 +148,35 @@ export interface InstallData {
   error_message?: string; // 如果是 failed
 }
 
+/** Turn 数据 - 单次用户输入到 AI 响应 */
+export interface TurnData {
+  turn_id: string;
+  session_id: string;
+  model_id: string;
+  model_provider?: ModelProvider;
+  input_tokens?: number;
+  output_tokens?: number;
+  total_tokens?: number;
+  duration_ms: number;
+  status: TurnStatus;
+  error_code?: string;
+}
+
+/** Step 数据 - Turn 内的具体操作 */
+export interface StepData {
+  step_id: string;
+  turn_id: string;
+  session_id: string;
+  step_type: StepType;
+  tool_name?: string; // tool_call 专用
+  tool_kind?: 'read' | 'edit' | 'execute'; // tool_call 专用
+  file_path?: string; // file_operation 专用
+  permission_kind?: string; // permission_request 专用
+  thinking_tokens?: number; // thinking 专用
+  duration_ms?: number;
+  status: StepStatus;
+}
+
 // ============================================================
 // 遥测事件定义
 // ============================================================
@@ -144,6 +188,20 @@ export interface TelemetryEventBase {
   version: string; // 客户端版本
   platform: TelemetryPlatform;
   arch: TelemetryArch;
+  /** 组织 ID - 从 JWT Token 解析 */
+  org_id?: string;
+  /** 用户 ID - 从 JWT Token 解析 */
+  user_id?: string;
+  /** 租户 ID - 从 JWT Token 解析 (如果有) */
+  tenant_id?: string;
+  /** 登录模式 - 企业模式/个人模式 */
+  login_mode?: LoginMode;
+  /** Agent 类型 - 数据来源标识 (sudocode, claude, qwen 等) */
+  agent_type?: AgentType;
+  /** 用户昵称 */
+  user_nickname?: string;
+  /** 用户手机号 */
+  user_phone?: string;
 }
 
 /** 性能事件 */
@@ -164,8 +222,25 @@ export interface InstallTelemetryEvent extends TelemetryEventBase {
   data: InstallData;
 }
 
+/** Turn 事件 */
+export interface TurnTelemetryEvent extends TelemetryEventBase {
+  type: 'turn';
+  data: TurnData;
+}
+
+/** Step 事件 */
+export interface StepTelemetryEvent extends TelemetryEventBase {
+  type: 'step';
+  data: StepData;
+}
+
 /** 遥测事件联合类型 */
-export type TelemetryEvent = PerfTelemetryEvent | ConversationTelemetryEvent | InstallTelemetryEvent;
+export type TelemetryEvent =
+  | PerfTelemetryEvent
+  | ConversationTelemetryEvent
+  | InstallTelemetryEvent
+  | TurnTelemetryEvent
+  | StepTelemetryEvent;
 
 // ============================================================
 // 批量上报请求结构
@@ -223,5 +298,12 @@ export interface StoredTelemetryEvent {
   version: string;
   platform: TelemetryPlatform;
   arch: TelemetryArch;
-  data: PerfData | ConversationData | InstallData;
+  org_id?: string;
+  user_id?: string;
+  tenant_id?: string;
+  login_mode?: LoginMode;
+  agent_type?: AgentType;
+  user_nickname?: string;
+  user_phone?: string;
+  data: PerfData | ConversationData | InstallData | TurnData | StepData;
 }

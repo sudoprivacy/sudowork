@@ -1578,6 +1578,12 @@ export const sudoworkAuth = {
   saveUserNickname: bridge.buildProvider<IBridgeResponse, { nickname: string }>('sudowork-auth.save-user-nickname'),
   /** Get stored user nickname */
   getUserNickname: bridge.buildProvider<IBridgeResponse<string | null>, void>('sudowork-auth.get-user-nickname'),
+  /** Save consumer mode user ID for telemetry */
+  saveConsumerUserId: bridge.buildProvider<IBridgeResponse, { userId: string }>('sudowork-auth.save-consumer-user-id'),
+  /** Get stored consumer mode user ID */
+  getConsumerUserId: bridge.buildProvider<IBridgeResponse<string | null>, void>('sudowork-auth.get-consumer-user-id'),
+  /** Clear stored consumer mode user ID on logout */
+  clearConsumerUserId: bridge.buildProvider<IBridgeResponse, void>('sudowork-auth.clear-consumer-user-id'),
 };
 
 // ==================== Secret Management API ====================

@@ -29,16 +29,25 @@ export type {
   TelemetryEventType,
   PerfMetricType,
   ConversationStatus,
+  TurnStatus,
+  StepStatus,
+  StepType,
   InstallStatus,
   InstallType,
   ModelProvider,
+  AgentType,
+  LoginMode,
   TelemetryErrorCode,
   PerfData,
   ConversationData,
+  TurnData,
+  StepData,
   InstallData,
   TelemetryEventBase,
   PerfTelemetryEvent,
   ConversationTelemetryEvent,
+  TurnTelemetryEvent,
+  StepTelemetryEvent,
   InstallTelemetryEvent,
   TelemetryEvent,
   TelemetryBatchRequest,
@@ -168,3 +177,45 @@ export {
   systemBreadcrumbs,
   trackBreadcrumb,
 } from './BreadcrumbTracker';
+
+// ============================================================
+// UserContext 导出
+// ============================================================
+
+export {
+  getUserContext,
+  getUserContextSync,
+  hasUserContext,
+} from './UserContext';
+
+export type { UserContext } from './UserContext';
+
+// ============================================================
+// TurnTracker 导出
+// ============================================================
+
+export {
+  TurnTracker,
+  getTurnTracker,
+  startTurnTracking,
+  updateTurnTokens,
+  endTurnSuccess,
+  endTurnError,
+  getCurrentTurnId,
+} from './TurnTracker';
+
+// ============================================================
+// StepTracker 导出
+// ============================================================
+
+export {
+  StepTracker,
+  getStepTracker,
+  startToolCallTracking,
+  endToolCallTracking,
+  startPermissionRequestTracking,
+  endPermissionRequestTracking,
+  recordFileOperationStep,
+  startThinkingTracking,
+  endThinkingTracking,
+} from './StepTracker';

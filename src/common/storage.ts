@@ -184,6 +184,8 @@ export interface IConfigStorageRefer {
   'eeclaw.userInfo'?: { id: string; username: string; role?: string };
   // Enterprise auth token for main process (no user field, unlike localStorage eeclaw_auth_v1)
   'eeclaw.authStorage'?: { access_token: string; refresh_token: string; expires_at: number; device_id: string };
+  // Consumer (personal) mode user info for telemetry / 个人模式用户信息（用于遥测）
+  'consumer.userInfo'?: { id: string; nickname?: string; phone?: string; tenant_id?: string };
 }
 
 export interface IEnvStorageRefer {

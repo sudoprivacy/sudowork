@@ -283,6 +283,21 @@ async function handleLoginSuccess(data: LoginSuccessResponse, setUser: SetAuthUs
     });
   }
 
+  // 同步用户 ID 到主进程，用于遥测上报 (个人模式)
+  if (isDesktopRuntime && authData.id) {
+    ipcBridge.sudoworkAuth.saveConsumerUserId.invoke({ userId: authData.id }).catch((error) => {
+      console.error('[Auth] Failed to save consumer user ID:', error);
+    });
+    // 同步用户信息到 ConfigStorage，供主进程遥测使用
+    ConfigStorage.set('consumer.userInfo', {
+      id: authData.id,
+      nickname: authData.nickname,
+      phone: authData.phone,
+    }).catch((error) => {
+      console.error('[Auth] Failed to save consumer userInfo to ConfigStorage:', error);
+    });
+  }
+
   if (isDesktopRuntime) {
     if (!loginSudoclawPayload) {
       setUser(null);
@@ -652,6 +667,21 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
           });
         }
 
+        // 从 localStorage 恢复登录状态时，也同步用户 ID 到主进程 (个人模式)
+        if (isDesktopRuntime && authStorage.user.id) {
+          ipcBridge.sudoworkAuth.saveConsumerUserId.invoke({ userId: authStorage.user.id }).catch((error) => {
+            console.error('[Auth] Failed to save consumer user ID on restore:', error);
+          });
+          // 同步用户信息到 ConfigStorage，供主进程遥测使用
+          ConfigStorage.set('consumer.userInfo', {
+            id: authStorage.user.id,
+            nickname: authStorage.user.nickname,
+            phone: authStorage.user.phone,
+          }).catch((error) => {
+            console.error('[Auth] Failed to save consumer userInfo to ConfigStorage on restore:', error);
+          });
+        }
+
         // 检查 token 是否需要刷新
         if (authStorage.expires_at && Date.now() > authStorage.expires_at - 5 * 60 * 1000) {
           await refreshTokens();
@@ -689,6 +719,20 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         if (isDesktopRuntime && parsed.nickname) {
           ipcBridge.sudoworkAuth.saveUserNickname.invoke({ nickname: parsed.nickname }).catch((error) => {
             console.error('[Auth] Failed to sync user nickname on restore:', error);
+          });
+        }
+
+        if (isDesktopRuntime && parsed.id) {
+          ipcBridge.sudoworkAuth.saveConsumerUserId.invoke({ userId: parsed.id }).catch((error) => {
+            console.error('[Auth] Failed to save consumer user ID on restore:', error);
+          });
+          // 同步用户信息到 ConfigStorage，供主进程遥测使用
+          ConfigStorage.set('consumer.userInfo', {
+            id: parsed.id,
+            nickname: parsed.nickname,
+            phone: parsed.phone,
+          }).catch((error) => {
+            console.error('[Auth] Failed to save consumer userInfo to ConfigStorage on restore:', error);
           });
         }
         return;
@@ -1049,12 +1093,15 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     localStorage.removeItem(AUTH_STORAGE_KEY);
     localStorage.removeItem('sudowork_auth_v1');
 
-    // 清除用户手机号文件
+    // 清除用户手机号文件和用户 ID 文件
     if (isDesktopRuntime) {
       try {
         await ipcBridge.sudoworkAuth.clearUserPhone.invoke();
+        await ipcBridge.sudoworkAuth.clearConsumerUserId.invoke();
+        // 清除 ConfigStorage 中的用户信息
+        await ConfigStorage.set('consumer.userInfo', undefined);
       } catch (error) {
-        console.error('[Auth] Failed to clear user phone:', error);
+        console.error('[Auth] Failed to clear user data:', error);
       }
 
       setUser(null);
