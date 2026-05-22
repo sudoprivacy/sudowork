@@ -1125,8 +1125,14 @@ app.on('before-quit', (event) => {
   }, QUIT_CLEANUP_TIMEOUT_MS);
 
   void (async () => {
-    // Clean up work processes (per-conversation agents)
-    WorkerManage.clear();
+    // Clean up work processes (per-conversation agents).
+    // Await to ensure child processes (especially scode on Windows) are terminated
+    // before the app exits, preventing orphaned processes.
+    try {
+      await WorkerManage.clear();
+    } catch (error) {
+      console.error('[App] Failed to clear work processes:', error);
+    }
 
     // Stop all managed services (Nexus, OpenClaw gateway)
     try {

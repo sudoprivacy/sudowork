@@ -49,18 +49,37 @@ export async function killChild(child: ChildProcess, isDetached: boolean): Promi
     } catch (forceError) {
       console.warn(`[ACP] taskkill /T /F failed for PID ${pid}:`, forceError);
     }
+
+    // Wait for the process to exit after taskkill.
+    // Use a longer timeout (5s) to give taskkill time to propagate through
+    // the process tree (cmd.exe → scode.exe and its children).
+    await waitForProcessExit(pid, 5000);
+
+    // Fallback: if the scode process is still alive after tree kill,
+    // it may have been orphaned from the cmd.exe shell wrapper.
+    // Kill by image name as a last resort.
+    if (isProcessAlive(pid)) {
+      console.warn(`[ACP] PID ${pid} still alive after tree kill, attempting scode image name kill`);
+      try {
+        await execFile('taskkill', ['/IM', 'scode.exe', '/F'], { windowsHide: true, timeout: 5000 });
+      } catch {
+        // scode.exe not found or already exited — this is expected if the process was not scode
+      }
+    }
   } else if (isDetached && pid) {
     try {
       process.kill(-pid, 'SIGTERM');
     } catch {
       child.kill('SIGTERM');
     }
+    if (pid) {
+      await waitForProcessExit(pid, 3000);
+    }
   } else {
     child.kill('SIGTERM');
-  }
-
-  if (pid) {
-    await waitForProcessExit(pid, 3000);
+    if (pid) {
+      await waitForProcessExit(pid, 3000);
+    }
   }
 }
 

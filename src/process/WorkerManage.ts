@@ -199,11 +199,21 @@ const kill = (id: string) => {
   taskList.splice(index, 1);
 };
 
-const clear = () => {
-  taskList.forEach((item) => {
-    item.task.kill();
+const clear = async (): Promise<void> => {
+  const killPromises = taskList.map((item) => {
+    try {
+      const result = item.task.kill();
+      // kill() may return a Promise (e.g. AcpAgent) or void (e.g. OpenClawAgent)
+      return result instanceof Promise ? result : Promise.resolve();
+    } catch (err) {
+      mainError('WorkerManage', `Failed to kill task ${item.id}:`, err);
+      return Promise.resolve();
+    }
   });
   taskList.length = 0;
+  // Wait for all agent child processes to terminate.
+  // This prevents orphaned scode processes on Windows when the app quits.
+  await Promise.allSettled(killPromises);
 };
 
 const addTask = (id: string, task: AgentBaseTask<unknown>) => {
