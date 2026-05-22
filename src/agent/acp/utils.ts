@@ -72,13 +72,28 @@ export async function killChild(child: ChildProcess, isDetached: boolean): Promi
     } catch {
       child.kill('SIGTERM');
     }
-    if (pid) {
-      await waitForProcessExit(pid, 3000);
+    await waitForProcessExit(pid, 2000);
+    // Escalate to SIGKILL if the process didn't exit after SIGTERM.
+    // Some child processes (e.g. scode) may catch SIGTERM and keep running.
+    if (isProcessAlive(pid)) {
+      console.warn(`[ACP] PID ${pid} still alive after SIGTERM, sending SIGKILL`);
+      try {
+        process.kill(-pid, 'SIGKILL');
+      } catch {
+        try { child.kill('SIGKILL'); } catch { /* already dead */ }
+      }
+      await waitForProcessExit(pid, 1000);
     }
   } else {
     child.kill('SIGTERM');
     if (pid) {
-      await waitForProcessExit(pid, 3000);
+      await waitForProcessExit(pid, 2000);
+      // Escalate to SIGKILL if the process didn't exit after SIGTERM
+      if (isProcessAlive(pid)) {
+        console.warn(`[ACP] PID ${pid} still alive after SIGTERM, sending SIGKILL`);
+        try { child.kill('SIGKILL'); } catch { /* already dead */ }
+        await waitForProcessExit(pid, 1000);
+      }
     }
   }
 }

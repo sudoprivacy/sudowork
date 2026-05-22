@@ -243,6 +243,17 @@ process.on('unhandledRejection', (reason, _promise) => {
   }
 });
 
+// Route SIGINT (Ctrl+C) and SIGTERM through Electron's quit lifecycle so that
+// the before-quit handler runs and cleans up child processes (scode, etc.).
+// Without this, Node.js default signal handling kills the process immediately,
+// bypassing before-quit and leaving child processes orphaned.
+for (const sig of ['SIGINT', 'SIGTERM'] as const) {
+  process.on(sig, () => {
+    console.log(`[Sudowork] Received ${sig}, triggering app.quit()`);
+    app.quit();
+  });
+}
+
 const hasSwitch = (flag: string) => process.argv.includes(`--${flag}`) || app.commandLine.hasSwitch(flag);
 const getSwitchValue = (flag: string): string | undefined => {
   const withEqualsPrefix = `--${flag}=`;
