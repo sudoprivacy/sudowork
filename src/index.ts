@@ -8,6 +8,16 @@
 // Reduces startup time by 40-60% on subsequent launches
 import 'v8-compile-cache';
 
+// Initialize the process supervisor as early as possible, before any child
+// processes are spawned. It registers a synchronous `process.on('exit')`
+// handler that guarantees all tracked child processes are killed when the
+// parent exits — regardless of whether async cleanup (before-quit, etc.)
+// succeeds or not.
+// 尽早初始化进程监管器。它注册同步 process.on('exit') 回调，保证父进程退出时
+// 所有被追踪的子进程都会被杀死，不依赖异步清理是否成功。
+import { processSupervisor } from './process/ProcessSupervisor';
+processSupervisor.initialize();
+
 import './utils/configureChromium';
 import { app, BrowserWindow, Menu, nativeImage, net, powerMonitor, protocol, screen, Tray } from 'electron';
 import fixPath from 'fix-path';

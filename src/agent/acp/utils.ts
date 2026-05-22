@@ -38,34 +38,30 @@ export async function waitForProcessExit(pid: number, timeoutMs: number): Promis
 }
 
 /**
- * Kill a child process with platform-specific handling.
- * Windows: taskkill tree kill. POSIX detached: process group kill. Otherwise: SIGTERM.
+ * Gracefully kill a child process with platform-specific handling.
+ *
+ * This is the *graceful* termination path: SIGTERM first, escalate to SIGKILL
+ * if the process doesn't exit in time. It is called during normal application
+ * shutdown (before-quit → WorkerManage.clear → AcpAgent.kill).
+ *
+ * The ProcessSupervisor provides a separate, *synchronous* safety net via
+ * `process.on('exit')` that force-kills all tracked children. So even if this
+ * async function never completes (timeout, crash, etc.), children will still
+ * be cleaned up by the OS-level exit handler.
+ *
+ * 优雅终止子进程。先发 SIGTERM，超时后升级为 SIGKILL。
+ * ProcessSupervisor 通过 process.on('exit') 提供同步安全网，即使本函数
+ * 未能完成，子进程也会被清理。
  */
 export async function killChild(child: ChildProcess, isDetached: boolean): Promise<void> {
   const pid = child.pid;
   if (process.platform === 'win32' && pid) {
     try {
       await execFile('taskkill', ['/PID', String(pid), '/T', '/F'], { windowsHide: true, timeout: 5000 });
-    } catch (forceError) {
-      console.warn(`[ACP] taskkill /T /F failed for PID ${pid}:`, forceError);
+    } catch {
+      // Process may already be dead
     }
-
-    // Wait for the process to exit after taskkill.
-    // Use a longer timeout (5s) to give taskkill time to propagate through
-    // the process tree (cmd.exe → scode.exe and its children).
-    await waitForProcessExit(pid, 5000);
-
-    // Fallback: if the scode process is still alive after tree kill,
-    // it may have been orphaned from the cmd.exe shell wrapper.
-    // Kill by image name as a last resort.
-    if (isProcessAlive(pid)) {
-      console.warn(`[ACP] PID ${pid} still alive after tree kill, attempting scode image name kill`);
-      try {
-        await execFile('taskkill', ['/IM', 'scode.exe', '/F'], { windowsHide: true, timeout: 5000 });
-      } catch {
-        // scode.exe not found or already exited — this is expected if the process was not scode
-      }
-    }
+    await waitForProcessExit(pid, 3000);
   } else if (isDetached && pid) {
     try {
       process.kill(-pid, 'SIGTERM');
@@ -73,26 +69,19 @@ export async function killChild(child: ChildProcess, isDetached: boolean): Promi
       child.kill('SIGTERM');
     }
     await waitForProcessExit(pid, 2000);
-    // Escalate to SIGKILL if the process didn't exit after SIGTERM.
-    // Some child processes (e.g. scode) may catch SIGTERM and keep running.
     if (isProcessAlive(pid)) {
-      console.warn(`[ACP] PID ${pid} still alive after SIGTERM, sending SIGKILL`);
       try {
         process.kill(-pid, 'SIGKILL');
       } catch {
         try { child.kill('SIGKILL'); } catch { /* already dead */ }
       }
-      await waitForProcessExit(pid, 1000);
     }
   } else {
     child.kill('SIGTERM');
     if (pid) {
       await waitForProcessExit(pid, 2000);
-      // Escalate to SIGKILL if the process didn't exit after SIGTERM
       if (isProcessAlive(pid)) {
-        console.warn(`[ACP] PID ${pid} still alive after SIGTERM, sending SIGKILL`);
         try { child.kill('SIGKILL'); } catch { /* already dead */ }
-        await waitForProcessExit(pid, 1000);
       }
     }
   }
