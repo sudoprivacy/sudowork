@@ -2,15 +2,15 @@
   "id": "49740ab6-fe96-48e5-b824-3ca3b179c39b",
   "name": "skill-creator",
   "display_name": "技能创建",
-  "description": "创建有效技能的指南。用于创建或更新扩展Claude能力的技能包",
+  "description": "创建、更新并打包 Sudowork 自定义技能，支持修改名称、描述、头像和技能能力",
   "icon": "icon.svg",
   "emoji": "🔧",
   "category": "",
   "categories": [
     "开发"
   ],
-  "applicable_scenarios": "[\"技能开发：创建新的技能扩展Claude的能力\",\"技能优化：改进现有技能的效果和效率\",\"最佳实践：学习技能设计的核心原则\"]",
-  "core_features": "[{\"title\": \"完整指南\", \"desc\": \"从规划到打包的完整流程\"}, {\"title\": \"最佳实践\", \"desc\": \"上下文优化和渐进式设计\"}, {\"title\": \"自动打包\", \"desc\": \"验证并打包为可分发的.skill文件\"}]",
+  "applicable_scenarios": "[\"技能开发：创建新的 Sudowork 自定义技能\",\"技能更新：修改已有技能的名称、描述、头像和能力\",\"技能优化：改进现有技能的效果和效率\",\"最佳实践：学习技能设计的核心原则\",\"自定义技能对接：生成展示元数据并打包为可导入自定义技能\"]",
+  "core_features": "[{\"title\": \"创建技能\", \"desc\": \"从规划到初始化的完整流程\"}, {\"title\": \"更新技能\", \"desc\": \"同步修改名称、描述、头像和技能能力\"}, {\"title\": \"最佳实践\", \"desc\": \"学习技能设计的核心原则\"}, {\"title\": \"Sudowork 对接\", \"desc\": \"生成展示元数据并打包为可导入自定义技能\"}]",
   "homepage": null,
   "author_id": "None",
   "is_builtin": true,

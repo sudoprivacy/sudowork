@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-Skill Packager - Creates a distributable .skill file of a skill folder
+Skill Packager - 将技能文件夹打包为 Sudowork 可导入的 .zip
 
 Usage:
-    python utils/package_skill.py <path/to/skill-folder> [output-directory]
+    python scripts/package_skill.py <path/to/skill-folder> [output-directory]
 
 Example:
-    python utils/package_skill.py skills/public/my-skill
-    python utils/package_skill.py skills/public/my-skill ./dist
+    python scripts/package_skill.py skills/public/my-skill
+    python scripts/package_skill.py skills/public/my-skill ./dist
 """
 
 import sys
@@ -16,16 +16,32 @@ from pathlib import Path
 from quick_validate import validate_skill
 
 
+EXCLUDED_DIRS = {'__pycache__', '.git', '.svn', '.hg'}
+EXCLUDED_FILE_SUFFIXES = {'.pyc', '.pyo'}
+EXCLUDED_FILE_NAMES = {'.DS_Store'}
+
+
+def should_include_file(file_path):
+    """Return whether a file should be included in the distributable package."""
+    if any(part in EXCLUDED_DIRS for part in file_path.parts):
+        return False
+    if file_path.name in EXCLUDED_FILE_NAMES:
+        return False
+    if file_path.suffix in EXCLUDED_FILE_SUFFIXES:
+        return False
+    return True
+
+
 def package_skill(skill_path, output_dir=None):
     """
-    Package a skill folder into a .skill file.
+    Package a skill folder into a Sudowork-importable .zip file.
 
     Args:
         skill_path: Path to the skill folder
-        output_dir: Optional output directory for the .skill file (defaults to current directory)
+        output_dir: Optional output directory for the .zip file (defaults to current directory)
 
     Returns:
-        Path to the created .skill file, or None if error
+        Path to the created .zip file, or None if error
     """
     skill_path = Path(skill_path).resolve()
 
@@ -61,41 +77,46 @@ def package_skill(skill_path, output_dir=None):
     else:
         output_path = Path.cwd()
 
-    skill_filename = output_path / f"{skill_name}.skill"
+    skill_filename = output_path / f"{skill_name}.zip"
 
-    # Create the .skill file (zip format)
+    # Create the .zip file with one top-level skill directory. Sudowork's
+    # local import flow strips this prefix and installs the skill as custom.
     try:
         with zipfile.ZipFile(skill_filename, 'w', zipfile.ZIP_DEFLATED) as zipf:
             # Walk through the skill directory
             for file_path in skill_path.rglob('*'):
-                if file_path.is_file():
-                    # Calculate the relative path within the zip
-                    arcname = file_path.relative_to(skill_path.parent)
-                    zipf.write(file_path, arcname)
-                    print(f"  Added: {arcname}")
+                if not file_path.is_file() or not should_include_file(file_path):
+                    continue
+                if file_path.resolve() == skill_filename.resolve():
+                    continue
+                # Calculate the relative path within the zip
+                arcname = file_path.relative_to(skill_path.parent)
+                zipf.write(file_path, arcname)
+                print(f"  Added: {arcname}")
 
         print(f"\n✅ Successfully packaged skill to: {skill_filename}")
+        print("   下一步可运行 install_skill.py 将 zip 安装到 ~/.nexus/skills/_my-custom-skill。")
         return skill_filename
 
     except Exception as e:
-        print(f"❌ Error creating .skill file: {e}")
+        print(f"❌ Error creating .zip file: {e}")
         return None
 
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python utils/package_skill.py <path/to/skill-folder> [output-directory]")
+        print("Usage: python scripts/package_skill.py <path/to/skill-folder> [output-directory]")
         print("\nExample:")
-        print("  python utils/package_skill.py skills/public/my-skill")
-        print("  python utils/package_skill.py skills/public/my-skill ./dist")
+        print("  python scripts/package_skill.py skills/public/my-skill")
+        print("  python scripts/package_skill.py skills/public/my-skill ./dist")
         sys.exit(1)
 
     skill_path = sys.argv[1]
     output_dir = sys.argv[2] if len(sys.argv) > 2 else None
 
-    print(f"📦 Packaging skill: {skill_path}")
+    print(f"📦 打包技能: {skill_path}")
     if output_dir:
-        print(f"   Output directory: {output_dir}")
+        print(f"   输出目录: {output_dir}")
     print()
 
     result = package_skill(skill_path, output_dir)
