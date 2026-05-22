@@ -66,6 +66,21 @@ interface SkillSelectorMenuProps {
 const SkillSelectorMenu: React.FC<SkillSelectorMenuProps> = ({ title, hint, items, selectedKeys, activeIndex, loading = false, loadingText, onHoverItem, onSelectItem, emptyText, showTabs = false, activeTab = 'skills', onTabChange, fileItems = [], onSelectFile, filesTabTitle = 'Files', skillsTabTitle = 'Skills', filesEmptyText = 'No files', searchQuery = '', onSearchChange, onDismiss, skillsSearchPlaceholder = '搜索技能...', filesSearchPlaceholder = '搜索文件...', noSearchResultsText = '未找到匹配结果' }) => {
   const { t } = useTranslation();
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Close the menu when clicking outside
+  useEffect(() => {
+    if (!onDismiss) return;
+    const handleMouseDown = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        onDismiss();
+      }
+    };
+    document.addEventListener('mousedown', handleMouseDown);
+    return () => {
+      document.removeEventListener('mousedown', handleMouseDown);
+    };
+  }, [onDismiss]);
 
   // Use i18n loading text if not provided
   const resolvedLoadingText = loadingText || t('common.loadingSkills');
@@ -112,6 +127,7 @@ const SkillSelectorMenu: React.FC<SkillSelectorMenuProps> = ({ title, hint, item
 
   return (
     <div
+      ref={menuRef}
       className='rounded-14px border border-solid shadow-[0_8px_24px_rgba(0,0,0,0.12)] overflow-hidden'
       style={{
         borderColor: 'var(--color-border-2)',
