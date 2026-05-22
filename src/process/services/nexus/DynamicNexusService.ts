@@ -9,6 +9,7 @@ import { promisify } from 'util';
 import * as net from 'net';
 import { getDataPath } from '@process/utils';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
+import { processSupervisor } from '@process/ProcessSupervisor';
 import { extractTarGzWithProgress, extractZipWithProgress, listTarGzEntries, listZipEntries } from '../archiveProgress';
 import runtimeVersions from '@/shared/runtime-versions.json';
 
@@ -692,6 +693,7 @@ class DynamicNexusService {
     this.emitSetup('starting', `Starting server from: ${nexusdBin} on port ${this._port}`);
     mainLog('Nexus', `Spawning: ${launchCommand.command} ${launchCommand.args.join(' ')}`);
     this.process = spawn(launchCommand.command, launchCommand.args, { stdio: 'pipe', env: nexusEnv });
+    processSupervisor.track(this.process);
 
     this.process.stdout?.on('data', (d: Buffer) => {
       const msg = d.toString().trim();

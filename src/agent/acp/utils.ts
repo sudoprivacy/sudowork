@@ -38,29 +38,52 @@ export async function waitForProcessExit(pid: number, timeoutMs: number): Promis
 }
 
 /**
- * Kill a child process with platform-specific handling.
- * Windows: taskkill tree kill. POSIX detached: process group kill. Otherwise: SIGTERM.
+ * Gracefully kill a child process with platform-specific handling.
+ *
+ * This is the *graceful* termination path: SIGTERM first, escalate to SIGKILL
+ * if the process doesn't exit in time. It is called during normal application
+ * shutdown (before-quit → WorkerManage.clear → AcpAgent.kill).
+ *
+ * The ProcessSupervisor provides a separate, *synchronous* safety net via
+ * `process.on('exit')` that force-kills all tracked children. So even if this
+ * async function never completes (timeout, crash, etc.), children will still
+ * be cleaned up by the OS-level exit handler.
+ *
+ * 优雅终止子进程。先发 SIGTERM，超时后升级为 SIGKILL。
+ * ProcessSupervisor 通过 process.on('exit') 提供同步安全网，即使本函数
+ * 未能完成，子进程也会被清理。
  */
 export async function killChild(child: ChildProcess, isDetached: boolean): Promise<void> {
   const pid = child.pid;
   if (process.platform === 'win32' && pid) {
     try {
       await execFile('taskkill', ['/PID', String(pid), '/T', '/F'], { windowsHide: true, timeout: 5000 });
-    } catch (forceError) {
-      console.warn(`[ACP] taskkill /T /F failed for PID ${pid}:`, forceError);
+    } catch {
+      // Process may already be dead
     }
+    await waitForProcessExit(pid, 3000);
   } else if (isDetached && pid) {
     try {
       process.kill(-pid, 'SIGTERM');
     } catch {
       child.kill('SIGTERM');
     }
+    await waitForProcessExit(pid, 2000);
+    if (isProcessAlive(pid)) {
+      try {
+        process.kill(-pid, 'SIGKILL');
+      } catch {
+        try { child.kill('SIGKILL'); } catch { /* already dead */ }
+      }
+    }
   } else {
     child.kill('SIGTERM');
-  }
-
-  if (pid) {
-    await waitForProcessExit(pid, 3000);
+    if (pid) {
+      await waitForProcessExit(pid, 2000);
+      if (isProcessAlive(pid)) {
+        try { child.kill('SIGKILL'); } catch { /* already dead */ }
+      }
+    }
   }
 }
 

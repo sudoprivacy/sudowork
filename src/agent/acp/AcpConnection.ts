@@ -20,6 +20,7 @@ import { ACP_PERF_LOG, connectClaude, connectCodebuddy, connectCodex, prepareCle
 import { getAuthProxyPort, registerToken, revokeToken } from '@process/services/authProxy';
 import type { SpawnResult } from './acpConnectors';
 import { killChild, readTextFile, writeJsonRpcMessage, writeJsonRpcMessageLsp, writeTextFile } from './utils';
+import { processSupervisor } from '@process/ProcessSupervisor';
 
 const execFile = promisify(execFileCb);
 
@@ -101,7 +102,11 @@ export class AcpConnection {
       return;
     }
 
+    const pid = this.child.pid;
     await killChild(this.child, this.isDetached);
+    // Untrack from supervisor after successful termination so the exit
+    // handler won't try to kill an already-dead process.
+    if (pid) processSupervisor.untrack(pid);
     this.child = null;
     this.isDetached = false;
   }
@@ -113,6 +118,12 @@ export class AcpConnection {
   private async spawnAndSetup(result: SpawnResult, backend: string): Promise<void> {
     this.child = result.child;
     this.isDetached = result.isDetached;
+
+    // Register with ProcessSupervisor so the OS-level exit handler will
+    // kill this child if the parent exits unexpectedly.
+    // 注册到 ProcessSupervisor，确保父进程异常退出时子进程也会被终止。
+    processSupervisor.track(this.child, this.isDetached);
+
     // Register Auth Proxy token now that child.pid is available
     if (this.proxyToken && this.child?.pid) {
       registerToken(this.proxyToken, this.child.pid);

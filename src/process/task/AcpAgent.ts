@@ -1445,14 +1445,12 @@ This identity statement takes priority over the default identity in USER.md.
     addOrUpdateMessage(this.conversation_id, tMessage, this.options.backend);
   }
 
-  kill() {
+  kill(): Promise<void> {
     this.streamTextBuffer.flushAll();
     this.toolCallMeta.clear();
     this.workspaceFileSnapshot.clear();
 
-    let killed = false;
-    const GRACE_PERIOD_MS = 500;
-    const HARD_TIMEOUT_MS = 1500;
+    const HARD_TIMEOUT_MS = 3000;
 
     const waiters = this.acpAvailableSlashWaiters.splice(0, this.acpAvailableSlashWaiters.length);
     for (const resolve of waiters) {
@@ -1460,20 +1458,24 @@ This identity statement takes priority over the default identity in USER.md.
     }
     this.acpAvailableSlashCommands = [];
 
-    const doKill = () => {
-      if (killed) return;
-      killed = true;
-      clearTimeout(hardTimer);
-    };
+    // Return a promise that resolves when the child process is terminated.
+    // This allows callers (e.g. WorkerManage.clear → before-quit) to await
+    // cleanup and prevents orphaned scode processes on Windows.
+    return new Promise<void>((resolve) => {
+      const hardTimer = setTimeout(() => {
+        mainWarn('[AcpAgent]', 'kill(): hard timeout reached, resolving anyway');
+        resolve();
+      }, HARD_TIMEOUT_MS);
 
-    const hardTimer = setTimeout(doKill, HARD_TIMEOUT_MS);
-
-    void (this.connection?.disconnect?.() || Promise.resolve())
-      .catch((err) => {
-        mainWarn('[AcpAgent]', 'connection.disconnect() failed during kill', err);
-      })
-      .then(() => new Promise<void>((r) => setTimeout(r, GRACE_PERIOD_MS)))
-      .finally(doKill);
+      (this.connection?.disconnect?.() || Promise.resolve())
+        .catch((err) => {
+          mainWarn('[AcpAgent]', 'connection.disconnect() failed during kill', err);
+        })
+        .finally(() => {
+          clearTimeout(hardTimer);
+          resolve();
+        });
+    });
   }
 
   /**
