@@ -48,22 +48,8 @@ import BaseAgent from './BaseAgent';
 import { startConversationTracking, endConversationSuccess, endConversationError, endConversationUserCancel } from '../telemetry';
 
 // Telemetry imports for turn/step tracking
-import {
-  startTurnTracking,
-  updateTurnTokens,
-  endTurnSuccess,
-  endTurnError,
-  getCurrentTurnId,
-} from '../telemetry';
-import {
-  startToolCallTracking,
-  endToolCallTracking,
-  startPermissionRequestTracking,
-  endPermissionRequestTracking,
-  recordFileOperationStep,
-  startThinkingTracking,
-  endThinkingTracking,
-} from '../telemetry';
+import { startTurnTracking, updateTurnTokens, endTurnSuccess, endTurnError, getCurrentTurnId } from '../telemetry';
+import { startToolCallTracking, endToolCallTracking, startPermissionRequestTracking, endPermissionRequestTracking, recordFileOperationStep, startThinkingTracking, endThinkingTracking } from '../telemetry';
 
 // CrashReporter imports for breadcrumb tracking
 import { conversationBreadcrumbs, apiBreadcrumbs, systemBreadcrumbs, mcpBreadcrumbs } from '../telemetry/BreadcrumbTracker';
@@ -360,8 +346,13 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
         cdpPort,
       });
       customEnv = { ...customEnv, ...presetResult.envOverrides };
-      if (presetResult.contextAppendix && this.options.presetContext) {
-        this.options.presetContext += presetResult.contextAppendix;
+      // Always fold the runtime context appendix (auto-discovered scripts /
+      // ops entry point) into presetContext — even when presetContext started
+      // empty. Gating this on a non-empty presetContext dropped the absolute
+      // script paths for assistants whose rule file produced no context,
+      // forcing the agent to `find` for its own scripts.
+      if (presetResult.contextAppendix) {
+        this.options.presetContext = (this.options.presetContext || '') + presetResult.contextAppendix;
       }
 
       // Store resolved config for connection
@@ -799,6 +790,32 @@ This identity statement takes priority over the default identity in USER.md.
 
           // Update presetContext with the fresh rules (for subsequent use)
           this.options.presetContext = loadedRules;
+
+          // Re-append the preset runtime context appendix (auto-discovered
+          // scripts/ absolute paths + ops entry point). This block reloads the
+          // rule file on every message and would otherwise overwrite the
+          // appendix that applyPresetRuntime injected at init — leaving the
+          // assistant unable to locate its own scripts and forcing a `find`.
+          try {
+            let cdpPort = 9230;
+            try {
+              // eslint-disable-next-line @typescript-eslint/no-var-requires
+              cdpPort = require('@/utils/configureChromium').cdpPort || 9230;
+            } catch {
+              /* use default */
+            }
+            const reloadPresetResult = await applyPresetRuntime({
+              presetAssistantId: this.options.presetAssistantId,
+              backend: this.extra.backend,
+              workspace: this.extra.workspace,
+              cdpPort,
+            });
+            if (reloadPresetResult.contextAppendix) {
+              this.options.presetContext = (this.options.presetContext || '') + reloadPresetResult.contextAppendix;
+            }
+          } catch (appendixError) {
+            mainWarn('[AcpAgent]', 'Failed to re-append preset runtime appendix:', appendixError);
+          }
 
           // Also update agentName for placeholder display
           if (latestAgentName) {
