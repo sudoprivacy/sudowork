@@ -265,6 +265,30 @@ export class AssistantManager {
   }
 
   /**
+   * Read an assistant's metadata together with its resolved on-disk directory.
+   *
+   * `getAssistantMeta` discards the directory `findAssistantDir` resolved, which
+   * forces downstream code (e.g. presetRuntime) to fall back to the relative
+   * `resourceDir` field in the meta JSON — that relative path is wrong once the
+   * assistant is installed under hub/custom/system. Callers that need to locate
+   * the assistant's `scripts/` or ops entry point on disk must use this method
+   * and resolve paths against `dir`.
+   */
+  async getAssistantMetaWithDir(name: string): Promise<{ meta: IAssistantMeta; dir: string; category: AssistantCategory } | null> {
+    const result = this.findAssistantDir(name);
+    if (!result) return null;
+
+    const metaResult = await this.readAssistantMetaFile(result.dir);
+    if (!metaResult) return null;
+
+    return {
+      meta: JSON.parse(metaResult.content) as IAssistantMeta,
+      dir: result.dir,
+      category: result.category,
+    };
+  }
+
+  /**
    * Merge partial updates into an assistant's metadata file.
    */
   async updateAssistantMeta(name: string, updates: Partial<IAssistantMeta>, category?: AssistantCategory): Promise<{ success: boolean; msg?: string }> {
