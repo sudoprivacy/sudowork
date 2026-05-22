@@ -111,15 +111,12 @@ export function getUserContext(): UserContext {
       user_nickname = consumerUserInfo?.nickname;
       user_phone = consumerUserInfo?.phone;
       tenant_id = consumerUserInfo?.tenant_id; // 个人模式下也可能有 tenant_id
-      mainLog(TAG, `[DEBUG] Personal mode - userInfo from ConfigStorage: ${JSON.stringify(consumerUserInfo)}`);
 
       // 个人模式下，org_id 应为空
       org_id = undefined;
     }
 
-    if (user_id) {
-      mainLog(TAG, `User context resolved: user_id=${user_id}, org_id=${org_id || 'N/A'}, tenant_id=${tenant_id || 'N/A'}, login_mode=${login_mode}, nickname=${user_nickname || 'N/A'}, phone=${user_phone || 'N/A'}`);
-    } else {
+    if (!user_id) {
       mainWarn(TAG, `User context not resolved: appMode=${appMode}, login_mode=${login_mode}`);
     }
 

@@ -16,6 +16,7 @@ import { useTranslation } from 'react-i18next';
 import useSWR from 'swr';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { ThemeSwitcher } from '@/renderer/components/ThemeSwitcher';
+import { useAppMode } from '@/renderer/hooks/useAppMode';
 import { useSettingsViewMode } from '../settingsViewContext';
 
 /** Default prompt timeout in seconds */
@@ -122,6 +123,7 @@ const SystemModalContent: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const viewMode = useSettingsViewMode();
   const isPageMode = viewMode === 'page';
+  const { isEnterprise } = useAppMode();
   const initializingRef = useRef(true);
 
   // 关闭到托盘状态 / Close to tray state
@@ -173,6 +175,13 @@ const SystemModalContent: React.FC = () => {
 
   // 获取产品体验改进计划设置 / Fetch product improvement setting
   useEffect(() => {
+    if (isEnterprise) {
+      setProductImprovementEnabled(false);
+      setProductImprovementLoading(false);
+      setShowProductImprovementDialog(false);
+      return;
+    }
+
     ipcBridge.telemetry.getStatus
       .invoke()
       .then((res) => {
@@ -184,7 +193,7 @@ const SystemModalContent: React.FC = () => {
       .finally(() => {
         setProductImprovementLoading(false);
       });
-  }, []);
+  }, [isEnterprise]);
 
   // 处理产品体验改进计划开关变更 / Handle product improvement toggle change
   const handleProductImprovementChange = useCallback((checked: boolean) => {
@@ -284,16 +293,16 @@ const SystemModalContent: React.FC = () => {
       hint: t('settings.avatarEnabledDesc'),
       component: <Switch checked={avatarEnabled} onChange={handleAvatarEnabledChange} />,
     },
-    {
-      key: 'productImprovement',
-      label: t('settings.productImprovement.title'),
-      hint: t('settings.productImprovement.hint'),
-      component: productImprovementLoading ? (
-        <div style={{ width: 44, height: 22 }} />
-      ) : (
-        <Switch checked={productImprovementEnabled} onChange={handleProductImprovementChange} />
-      ),
-    },
+    ...(isEnterprise
+      ? []
+      : [
+          {
+            key: 'productImprovement',
+            label: t('settings.productImprovement.title'),
+            hint: t('settings.productImprovement.hint'),
+            component: productImprovementLoading ? <div style={{ width: 44, height: 22 }} /> : <Switch checked={productImprovementEnabled} onChange={handleProductImprovementChange} />,
+          },
+        ]),
     {
       key: 'promptTimeout',
       label: t('settings.promptTimeout'),

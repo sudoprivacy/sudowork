@@ -29,6 +29,11 @@ const Main = () => {
 
   // Check if opt-in dialog should be shown when init is ready (only for new users)
   useEffect(() => {
+    if (isEnterprise) {
+      setShowOptInDialog(false);
+      return;
+    }
+
     if (initReady && !optInChecked) {
       ipcBridge.telemetry.getOptInShown
         .invoke()
@@ -44,7 +49,7 @@ const Main = () => {
           setOptInChecked(true);
         });
     }
-  }, [initReady, optInChecked]);
+  }, [initReady, isEnterprise, optInChecked]);
 
   // Handle opt-in dialog close
   const handleOptInClose = useCallback(async (confirmed: boolean) => {

@@ -71,6 +71,8 @@ const MAX_QUEUE_SIZE = 500;
 /** 存储事件最大年龄 (毫秒) - 超过此时间的事件将被丢弃 */
 const MAX_EVENT_AGE = 7 * 24 * 60 * 60 * 1000; // 7 天
 
+const isPersonalMode = (): boolean => getUserContextSync().login_mode === 'personal';
+
 // ============================================================
 // TelemetryBatchReporter 类
 // ============================================================
@@ -111,6 +113,15 @@ export class TelemetryBatchReporter {
   public async initialize(): Promise<void> {
     if (this.initialized) {
       mainWarn('Telemetry', 'Already initialized, skipping');
+      return;
+    }
+
+    if (!isPersonalMode()) {
+      this.enabled = false;
+      this.initialized = true;
+      this.eventQueue = [];
+      await this.clearCacheFile();
+      mainLog('Telemetry', 'Telemetry disabled outside personal mode');
       return;
     }
 
@@ -165,7 +176,7 @@ export class TelemetryBatchReporter {
    * @param agentType - Agent 类型 (sudocode, claude 等)
    */
   public record<K extends TelemetryEventType>(type: K, data: TelemetryEventPayloadMap[K], agentType?: string): void {
-    if (!this.enabled || !this.initialized) {
+    if (!isPersonalMode() || !this.enabled || !this.initialized) {
       return;
     }
 
@@ -206,6 +217,12 @@ export class TelemetryBatchReporter {
    * 用于应用退出前上报剩余事件
    */
   public async flushAll(): Promise<void> {
+    if (!isPersonalMode()) {
+      this.eventQueue = [];
+      await this.clearCacheFile();
+      return;
+    }
+
     if (this.eventQueue.length === 0) {
       return;
     }
@@ -217,6 +234,16 @@ export class TelemetryBatchReporter {
    * 更新启用状态
    */
   public async setEnabled(enabled: boolean): Promise<void> {
+    if (!isPersonalMode()) {
+      this.enabled = false;
+      this.stopFlushTimer();
+      this.eventQueue = [];
+      await this.clearCacheFile();
+      await ProcessConfig.set('telemetry.enabled', false);
+      mainLog('Telemetry', 'Telemetry remains disabled outside personal mode');
+      return;
+    }
+
     this.enabled = enabled;
 
     if (enabled && !this.flushTimer) {
@@ -291,6 +318,12 @@ export class TelemetryBatchReporter {
 
   /** 执行批量上报 */
   private async flush(): Promise<void> {
+    if (!isPersonalMode()) {
+      this.eventQueue = [];
+      await this.clearCacheFile();
+      return;
+    }
+
     if (this.isFlushing || this.eventQueue.length === 0) {
       return;
     }
