@@ -4,7 +4,7 @@ import { useLayoutContext } from '@/renderer/context/LayoutContext';
 import { SettingsViewModeProvider } from '@/renderer/components/SettingsModal/settingsViewContext';
 import { isElectronDesktop, resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import { extensions as extensionsIpc, type IExtensionSettingsTab } from '@/common/ipcBridge';
-import { Communication, Computer, Earth, HardDiskOne, Info, Lightning, Peoples, Puzzle, Robot, Shield, System, Toolkit, User, BuildingTwo } from '@icon-park/react';
+import { Communication, Computer, Dollar, Earth, HardDiskOne, Info, Lightning, Peoples, Puzzle, Robot, Shield, System, Toolkit, User, BuildingTwo } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useExtI18n } from '@/renderer/hooks/useExtI18n';
@@ -45,6 +45,7 @@ const SettingsPageWrapper: React.FC<SettingsPageWrapperProps> = ({ children, cla
     const builtinMap: Record<string, NavItem> = {
       profile: { id: 'profile', label: t('settings.profile', { defaultValue: '用户中心' }), icon: <User theme='outline' size='16' />, path: 'profile' },
       enterprise: { id: 'enterprise', label: t('settings.enterprise', { defaultValue: '企业设置' }), icon: <BuildingTwo theme='outline' size='16' />, path: 'enterprise' },
+      recharge: { id: 'recharge', label: t('settings.rechargeCenter') || '充值中心', icon: <Dollar theme='outline' size='16' />, path: 'recharge' },
       members: { id: 'members', label: t('settings.memberManagement', { defaultValue: '成员管理' }), icon: <Peoples theme='outline' size='16' />, path: 'members', hidden: true },
       agent: { id: 'agent', label: '数字助手', icon: <Robot theme='outline' size='16' />, path: 'agent' },
       tools: { id: 'tools', label: '工具', icon: <Toolkit theme='outline' size='16' />, path: 'tools' },
@@ -59,7 +60,7 @@ const SettingsPageWrapper: React.FC<SettingsPageWrapperProps> = ({ children, cla
     };
 
     // Use the same order as SettingsSider / 使用与 SettingsSider 相同的顺序
-    const BUILTIN_TAB_IDS = ['profile', 'members', 'agent', 'tools', 'skill', 'security', 'display', 'webui', 'runtime', 'system', 'about'] as const; // 隐藏'copilot', 'cron'已移至左侧边栏
+    const BUILTIN_TAB_IDS = ['profile', 'recharge', 'members', 'agent', 'tools', 'skill', 'security', 'display', 'webui', 'runtime', 'system', 'about'] as const; // 隐藏'copilot', 'cron'已移至左侧边栏
     const activeBuiltinTabIds = isEnterprise ? ENTERPRISE_BUILTIN_TAB_IDS : BUILTIN_TAB_IDS;
     const builtins: NavItem[] = activeBuiltinTabIds.map((id) => builtinMap[id]).filter((item) => !item.hidden);
 
