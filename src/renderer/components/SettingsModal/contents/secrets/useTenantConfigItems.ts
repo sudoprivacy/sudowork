@@ -229,6 +229,14 @@ export function useTenantConfigItems(refreshTrigger?: number): UseTenantConfigIt
     };
   }, [refresh]);
 
+  // Subscribe to enabled state changes from Auth Proxy secrets API
+  useEffect(() => {
+    const unsub = authProxy.enabledStateChanged.on(() => {
+      void refresh();
+    });
+    return unsub;
+  }, [refresh]);
+
   // Handle external refresh trigger
   useEffect(() => {
     if (refreshTrigger !== undefined && refreshTrigger > 0) {
