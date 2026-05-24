@@ -16,6 +16,7 @@ import { mainLog } from '@process/utils/mainLogger';
 import { injectAuth, injectMultiAuth } from './authInjectors';
 import { validateRemoteUrl } from './ssrfGuard';
 import { findRuleForUrl, getRules } from './configItemsLoader';
+import { handleSecretsRequest } from './secretsApi';
 
 // ============================================================================
 // Types
@@ -132,6 +133,21 @@ export class AuthProxyServer {
     if (req.method === 'GET' && req.url === '/health') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ status: 'ok', port: this.port }));
+      return;
+    }
+
+    // Secrets CRUD endpoints (token-authenticated)
+    const parsedUrl = new URL(req.url ?? '/', 'http://127.0.0.1');
+    const pathname = parsedUrl.pathname;
+
+    if (pathname === '/secrets' || pathname.startsWith('/secrets/')) {
+      const info = this.parseRequestInfo(req);
+      if (!info.token || !this.isValidToken(info.token)) {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid or missing proxy token' }));
+        return;
+      }
+      await handleSecretsRequest(req, res, pathname, parsedUrl);
       return;
     }
 

@@ -207,6 +207,7 @@ export class AcpConnection {
       this.proxyToken = crypto.randomUUID();
       const envWithProxy = { ...customEnv };
       envWithProxy.SUDOWORK_AUTH_PROXY_URL = `http://127.0.0.1:${authProxyPort}/proxy`;
+      envWithProxy.SUDOWORK_AUTH_PROXY_BASE_URL = `http://127.0.0.1:${authProxyPort}`;
       envWithProxy.SUDOWORK_AUTH_PROXY_TOKEN = this.proxyToken;
       customEnv = envWithProxy;
     }

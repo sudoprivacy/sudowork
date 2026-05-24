@@ -6,7 +6,7 @@
 import type { AuthProxyRule } from '@/common/types/authProxy';
 import { SUDOWORK_SERVER_BASE_URL } from '@/common/sudoworkServer';
 import { mainLog, mainWarn } from '@process/utils/mainLogger';
-import { adaptConfigItems } from './configItemsAdapter';
+import { adaptConfigItems, adaptConfigItem } from './configItemsAdapter';
 
 // ============================================================================
 // Cache
@@ -16,6 +16,31 @@ const CONFIG_ITEMS_API = `${SUDOWORK_SERVER_BASE_URL}/api/v1/config/items`;
 
 let rulesCache: Map<number, AuthProxyRule> = new Map();
 let lastSuccessfulRules: AuthProxyRule[] = [];
+let rawConfigItemsCache: RawConfigItem[] = [];
+
+// ============================================================================
+// Types (mirror configItemsAdapter internal types for raw cache)
+// ============================================================================
+
+interface ConfigEntry {
+  id: number;
+  config_key: string;
+  name: string;
+  config_desc: string | null;
+  required: number;
+}
+
+export interface RawConfigItem {
+  id: number;
+  name: string;
+  icon: string | null;
+  icon_url: string | null;
+  pinyin: string | null;
+  url_pattern: string | null;
+  scheme: string | null;
+  bearer_prefix: string | null;
+  entries: ConfigEntry[];
+}
 
 // ============================================================================
 // Public API
@@ -71,6 +96,16 @@ export async function refreshRules(
     }
 
     const result = await response.json();
+
+    // Business-level validation before touching raw cache
+    if (!result.success || !Array.isArray(result.data)) {
+      mainWarn('ConfigItemsLoader', `API business failure or invalid data shape: success=${result.success}`);
+      return lastSuccessfulRules;
+    }
+
+    // Fill raw cache only after validation passes
+    rawConfigItemsCache = result.data;
+
     const rules = adaptConfigItems(result, enabledConfigItemIds);
 
     // Update cache
@@ -87,4 +122,35 @@ export async function refreshRules(
     // Degrade: return last successful cache
     return lastSuccessfulRules;
   }
+}
+
+/**
+ * Find a raw ConfigItem by its namespace.
+ * C端 namespace format: `service:{pinyin}` — strip `service:` prefix to get pinyin,
+ * then match against rawConfigItemsCache.
+ */
+export function findConfigItemByNamespace(namespace: string): RawConfigItem | null {
+  const pinyin = namespace.replace(/^service:/, '');
+  return rawConfigItemsCache.find((item) => item.pinyin === pinyin) ?? null;
+}
+
+/**
+ * Build an AuthProxyRule from a raw ConfigItem (using singular adaptConfigItem).
+ */
+export function buildRuleFromRawItem(item: RawConfigItem): AuthProxyRule {
+  return adaptConfigItem(item);
+}
+
+/**
+ * Add a single rule to the rulesCache.
+ */
+export function addRuleToCache(rule: AuthProxyRule): void {
+  rulesCache.set(rule.configItemId, rule);
+}
+
+/**
+ * Remove a rule from rulesCache by configItemId.
+ */
+export function removeRuleFromCache(configItemId: number): void {
+  rulesCache.delete(configItemId);
 }
