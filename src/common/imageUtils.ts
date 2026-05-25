@@ -31,11 +31,11 @@ export function modelInputForModelId(modelId: string): string[] {
  * Flash/lightweight models have smaller context windows — compress images
  * more aggressively to avoid "content too large" errors.
  */
-const FLASH_MODEL_PATTERN = /flash-lite|flash-preview|3\.5-flash/i;
+const GEMINI_MODEL_PATTERN = /gemini/i;
 
 export function getImageTargetSize(modelId: string | null | undefined): number {
   if (!modelId) return IMAGE_TARGET_RAW_SIZE;
-  return FLASH_MODEL_PATTERN.test(modelId) ? 128 * 1024 : IMAGE_TARGET_RAW_SIZE;
+  return GEMINI_MODEL_PATTERN.test(modelId) ? 128 * 1024 : IMAGE_TARGET_RAW_SIZE;
 }
 
 /**
