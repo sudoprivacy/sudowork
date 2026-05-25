@@ -17,6 +17,7 @@ const VISION_MODEL_PREFIXES = ['claude-3', 'claude-sonnet', 'claude-opus', 'gemi
 export function isVisionModel(modelId: string): boolean {
   const lower = modelId.toLowerCase();
   if (lower.includes('flash-lite')) return false;
+  if (lower.includes('codex')) return false;
   return VISION_MODEL_PREFIXES.some((prefix) => lower.startsWith(prefix) || lower.includes(prefix.toLowerCase()));
 }
 
