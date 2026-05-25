@@ -1,16 +1,19 @@
 #!/usr/bin/env python3
-"""
-Quick validation script for skills - minimal version
-"""
+"""Quick validation script for Sudowork custom skills."""
 
-import sys
-import os
+import json
 import re
+import sys
 import yaml
 from pathlib import Path
 
+
+META_FILE_NAME = '_sudowork_meta.json'
+META_SOURCE_TYPES = {'upload', 'custom', 'hub', 'tenant'}
+
+
 def validate_skill(skill_path):
-    """Basic validation of a skill"""
+    """Basic validation of a Sudowork-compatible skill."""
     skill_path = Path(skill_path)
 
     # Check SKILL.md exists
@@ -83,7 +86,67 @@ def validate_skill(skill_path):
         if len(description) > 1024:
             return False, f"Description is too long ({len(description)} characters). Maximum is 1024 characters."
 
+    meta_path = skill_path / META_FILE_NAME
+    if meta_path.exists():
+        valid, message = validate_sudowork_meta(meta_path, name, skill_path.name)
+        if not valid:
+            return False, message
+
     return True, "Skill is valid!"
+
+
+def validate_sudowork_meta(meta_path, skill_name, dir_name):
+    """Validate Sudowork UI metadata used by custom-skill import/display."""
+    try:
+        meta = json.loads(meta_path.read_text(encoding='utf-8'))
+    except json.JSONDecodeError as e:
+        return False, f"Invalid JSON in {META_FILE_NAME}: {e}"
+
+    if not isinstance(meta, dict):
+        return False, f"{META_FILE_NAME} must contain a JSON object"
+
+    meta_name = str(meta.get('name', '')).strip()
+    if not meta_name:
+        return False, f"{META_FILE_NAME} missing required field: name"
+    if skill_name and meta_name != skill_name:
+        return False, f"{META_FILE_NAME} name '{meta_name}' must match SKILL.md name '{skill_name}'"
+    if dir_name and meta_name != dir_name:
+        return False, f"{META_FILE_NAME} name '{meta_name}' must match directory name '{dir_name}'"
+
+    display_name = meta.get('display_name')
+    if display_name is not None and not isinstance(display_name, str):
+        return False, f"{META_FILE_NAME} display_name must be a string"
+
+    meta_description = meta.get('description')
+    if meta_description is not None and not isinstance(meta_description, str):
+        return False, f"{META_FILE_NAME} description must be a string"
+
+    categories = meta.get('categories')
+    if categories is not None and not (isinstance(categories, list) and all(isinstance(item, str) for item in categories)):
+        return False, f"{META_FILE_NAME} categories must be an array of strings"
+
+    is_builtin = meta.get('is_builtin') is True
+    source_type = meta.get('source_type')
+    if source_type is not None and source_type not in META_SOURCE_TYPES:
+        return False, f"{META_FILE_NAME} source_type must be one of: {', '.join(sorted(META_SOURCE_TYPES))}"
+
+    if not is_builtin and source_type in (None, 'custom'):
+        return False, f"{META_FILE_NAME} source_type should be 'upload' for Sudowork local custom skills"
+
+    if not is_builtin and meta.get('is_builtin') is True:
+        return False, f"{META_FILE_NAME} is_builtin must be false for custom skills"
+
+    if not is_builtin and meta.get('enabled') is False:
+        return False, f"{META_FILE_NAME} enabled should be true for newly created custom skills"
+
+    icon = meta.get('icon')
+    if isinstance(icon, str) and icon and not re.match(r'^(https?://|/|aion-asset://|data:|file://)', icon):
+        icon_path = meta_path.parent / icon
+        if not icon_path.exists():
+            return False, f"{META_FILE_NAME} icon points to missing file: {icon}"
+
+    return True, "Sudowork metadata is valid"
+
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:

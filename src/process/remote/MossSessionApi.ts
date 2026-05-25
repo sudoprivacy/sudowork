@@ -473,7 +473,7 @@ export class MossSessionApi {
    * GET /api/v1/users/{userId}/model
    */
   // 返回类型：用户偏好 + 系统默认模型
-// 保持返回类型声明不变，或者改成更完整的结构
+  // 保持返回类型声明不变，或者改成更完整的结构
   async getUserModelPreference(): Promise<{
     modelId: string;
     updatedAt: number;
@@ -1019,12 +1019,31 @@ export interface MossSession {
  * Global Moss API instance for enterprise mode
  */
 let mossApiInstance: MossSessionApi | null = null;
+let mossApiServerUrl: string | null = null;
 
 export function getMossApi(): MossSessionApi | null {
   return mossApiInstance;
 }
 
+/**
+ * Reset Moss API instance (call when server URL changes)
+ * 重置 Moss API 实例（当服务器 URL 变化时调用）
+ */
+export function resetMossApi(): void {
+  mossApiInstance = null;
+  mossApiServerUrl = null;
+}
+
 export function initMossApi(serverUrl: string): MossSessionApi {
   mossApiInstance = new MossSessionApi(serverUrl);
+  mossApiServerUrl = serverUrl;
   return mossApiInstance;
+}
+
+/**
+ * Get current Moss API server URL
+ * 获取当前 Moss API 服务器 URL
+ */
+export function getMossApiServerUrl(): string | null {
+  return mossApiServerUrl;
 }

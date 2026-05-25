@@ -148,8 +148,6 @@ async function refreshAuthProxyRulesAfterLogin(): Promise<void> {
       ? Object.entries(enabledMap).filter(([, v]) => v).map(([k]) => Number(k))
       : [];
 
-    if (enabledIds.length === 0) return;
-
     const stored = localStorage.getItem(AUTH_STORAGE_KEY);
     if (!stored) return;
     const authStorage: AuthStorage = JSON.parse(stored);

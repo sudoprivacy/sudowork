@@ -33,37 +33,25 @@ import { getEnhancedEnv, resolveNpxPath } from '@process/utils/shellEnv';
 import { applyPresetRuntime } from '@process/task/presetRuntime';
 import { assistantManager } from '@/process/AssistantManager';
 import { getDatabase } from '@process/database';
-import { ProcessConfig } from '../initStorage';
+import { clearSkillsCache, getCustomSkillsDir, ProcessConfig } from '../initStorage';
 import { addMessage, addOrUpdateMessage, nextTickToLocalFinish } from '../message';
 import { handlePreviewOpenEvent } from '../utils/previewUtils';
 import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
 import { mainLog, mainWarn, mainError } from '../utils/mainLogger';
 import { translateLLMError } from '@process/utils/llmErrorTranslation';
 import { injectSkillsDirectoryHint, prepareFirstMessageWithSkillsIndex } from './agentUtils';
+import { AcpSkillManager } from './AcpSkillManager';
 import { cleanupIntermediateFiles, cleanupDraftsOnCancel, detectFileIntent, matchesDraftPattern } from './draftsCleanup';
 import { mergeScodeProxyModelInfo } from '@process/services/scode/scodeProxyModels';
+import { installWorkspaceSkillsFromTrackedFiles } from './workspaceSkillInstaller';
 import BaseAgent from './BaseAgent';
 
 // Telemetry imports for conversation tracking
 import { startConversationTracking, endConversationSuccess, endConversationError, endConversationUserCancel } from '../telemetry';
 
 // Telemetry imports for turn/step tracking
-import {
-  startTurnTracking,
-  updateTurnTokens,
-  endTurnSuccess,
-  endTurnError,
-  getCurrentTurnId,
-} from '../telemetry';
-import {
-  startToolCallTracking,
-  endToolCallTracking,
-  startPermissionRequestTracking,
-  endPermissionRequestTracking,
-  recordFileOperationStep,
-  startThinkingTracking,
-  endThinkingTracking,
-} from '../telemetry';
+import { startTurnTracking, updateTurnTokens, endTurnSuccess, endTurnError, getCurrentTurnId } from '../telemetry';
+import { startToolCallTracking, endToolCallTracking, startPermissionRequestTracking, endPermissionRequestTracking, recordFileOperationStep, startThinkingTracking, endThinkingTracking } from '../telemetry';
 
 // CrashReporter imports for breadcrumb tracking
 import { conversationBreadcrumbs, apiBreadcrumbs, systemBreadcrumbs, mcpBreadcrumbs } from '../telemetry/BreadcrumbTracker';
@@ -185,6 +173,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
 
   // Workspace file tracking for channel file_send messages
   private workspaceFileSnapshot = new Map<string, number>();
+  private customSkillsSnapshot = new Set<string>();
 
   // Turn-level file tracking for precise cleanup on cancel
   private currentTurnFiles: Map<string, { path: string; intent: 'draft' | 'final'; kind: 'create' | 'edit' }> = new Map();
@@ -249,7 +238,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
       return this.handleQuestionRequest(data);
     };
     this.connection.onEndTurn = () => {
-      this.handleEndTurn();
+      void this.handleEndTurn();
     };
     this.connection.onPromptUsage = (usage: AcpPromptResponseUsage) => {
       this.handlePromptUsage(usage);
@@ -360,8 +349,13 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
         cdpPort,
       });
       customEnv = { ...customEnv, ...presetResult.envOverrides };
-      if (presetResult.contextAppendix && this.options.presetContext) {
-        this.options.presetContext += presetResult.contextAppendix;
+      // Always fold the runtime context appendix (auto-discovered scripts /
+      // ops entry point) into presetContext — even when presetContext started
+      // empty. Gating this on a non-empty presetContext dropped the absolute
+      // script paths for assistants whose rule file produced no context,
+      // forcing the agent to `find` for its own scripts.
+      if (presetResult.contextAppendix) {
+        this.options.presetContext = (this.options.presetContext || '') + presetResult.contextAppendix;
       }
 
       // Store resolved config for connection
@@ -667,6 +661,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
     // 重置 Turn 级别文件追踪，开始新的 Turn
     this.currentTurnFiles.clear();
     this.workspaceFileSnapshot = this.getWorkspaceFiles();
+    this.customSkillsSnapshot = this.getCustomSkillNames();
     mainLog('[AcpAgent]', `[TURN-START] Reset file tracking, snapshot size: ${this.workspaceFileSnapshot.size}`);
 
     try {
@@ -799,6 +794,32 @@ This identity statement takes priority over the default identity in USER.md.
 
           // Update presetContext with the fresh rules (for subsequent use)
           this.options.presetContext = loadedRules;
+
+          // Re-append the preset runtime context appendix (auto-discovered
+          // scripts/ absolute paths + ops entry point). This block reloads the
+          // rule file on every message and would otherwise overwrite the
+          // appendix that applyPresetRuntime injected at init — leaving the
+          // assistant unable to locate its own scripts and forcing a `find`.
+          try {
+            let cdpPort = 9230;
+            try {
+              // eslint-disable-next-line @typescript-eslint/no-var-requires
+              cdpPort = require('@/utils/configureChromium').cdpPort || 9230;
+            } catch {
+              /* use default */
+            }
+            const reloadPresetResult = await applyPresetRuntime({
+              presetAssistantId: this.options.presetAssistantId,
+              backend: this.extra.backend,
+              workspace: this.extra.workspace,
+              cdpPort,
+            });
+            if (reloadPresetResult.contextAppendix) {
+              this.options.presetContext = (this.options.presetContext || '') + reloadPresetResult.contextAppendix;
+            }
+          } catch (appendixError) {
+            mainWarn('[AcpAgent]', 'Failed to re-append preset runtime appendix:', appendixError);
+          }
 
           // Also update agentName for placeholder display
           if (latestAgentName) {
@@ -1445,14 +1466,12 @@ This identity statement takes priority over the default identity in USER.md.
     addOrUpdateMessage(this.conversation_id, tMessage, this.options.backend);
   }
 
-  kill() {
+  kill(): Promise<void> {
     this.streamTextBuffer.flushAll();
     this.toolCallMeta.clear();
     this.workspaceFileSnapshot.clear();
 
-    let killed = false;
-    const GRACE_PERIOD_MS = 500;
-    const HARD_TIMEOUT_MS = 1500;
+    const HARD_TIMEOUT_MS = 3000;
 
     const waiters = this.acpAvailableSlashWaiters.splice(0, this.acpAvailableSlashWaiters.length);
     for (const resolve of waiters) {
@@ -1460,20 +1479,24 @@ This identity statement takes priority over the default identity in USER.md.
     }
     this.acpAvailableSlashCommands = [];
 
-    const doKill = () => {
-      if (killed) return;
-      killed = true;
-      clearTimeout(hardTimer);
-    };
+    // Return a promise that resolves when the child process is terminated.
+    // This allows callers (e.g. WorkerManage.clear → before-quit) to await
+    // cleanup and prevents orphaned scode processes on Windows.
+    return new Promise<void>((resolve) => {
+      const hardTimer = setTimeout(() => {
+        mainWarn('[AcpAgent]', 'kill(): hard timeout reached, resolving anyway');
+        resolve();
+      }, HARD_TIMEOUT_MS);
 
-    const hardTimer = setTimeout(doKill, HARD_TIMEOUT_MS);
-
-    void (this.connection?.disconnect?.() || Promise.resolve())
-      .catch((err) => {
-        mainWarn('[AcpAgent]', 'connection.disconnect() failed during kill', err);
-      })
-      .then(() => new Promise<void>((r) => setTimeout(r, GRACE_PERIOD_MS)))
-      .finally(doKill);
+      (this.connection?.disconnect?.() || Promise.resolve())
+        .catch((err) => {
+          mainWarn('[AcpAgent]', 'connection.disconnect() failed during kill', err);
+        })
+        .finally(() => {
+          clearTimeout(hardTimer);
+          resolve();
+        });
+    });
   }
 
   /**
@@ -2186,7 +2209,7 @@ This identity statement takes priority over the default identity in USER.md.
     return latestAskUserQuestion?.[0] || requestToolCallId;
   }
 
-  private handleEndTurn(): void {
+  private async handleEndTurn(): Promise<void> {
     if (!this.userCancelled) {
       // Telemetry: end turn tracking (success)
       endTurnSuccess(this.conversation_id);
@@ -2196,6 +2219,10 @@ This identity statement takes priority over the default identity in USER.md.
 
       // Breadcrumb: conversation ended (success)
       conversationBreadcrumbs.end(this.conversation_id, 'success');
+    }
+
+    if (!this.userCancelled) {
+      await this.installTrackedWorkspaceSkills();
     }
 
     // Clear turn-level file tracking for next turn
@@ -2210,6 +2237,74 @@ This identity statement takes priority over the default identity in USER.md.
       data: null,
     };
     void this.handleSignalEvent(msg);
+  }
+
+  private async installTrackedWorkspaceSkills(): Promise<void> {
+    if (!this.workspace) {
+      return;
+    }
+
+    try {
+      const results = await installWorkspaceSkillsFromTrackedFiles(this.workspace, this.currentTurnFiles, {
+        getCustomSkillsDir,
+        existingCustomSkillNames: this.customSkillsSnapshot,
+        clearSkillsCache,
+        resetAcpSkillManager: () => AcpSkillManager.resetInstance(),
+      });
+      const installed = results.filter((result) => result.status === 'installed');
+      const registered = results.filter((result) => result.status === 'registered');
+      const changed = [...installed, ...registered];
+
+      if (changed.length === 0) {
+        if (results.length > 0) {
+          mainLog('[AcpAgent]', '[SKILL-INSTALL] No workspace skills installed', {
+            skipped: results.map((result) => ({
+              sourceDir: result.sourceDir,
+              reason: result.status === 'skipped' ? result.reason : undefined,
+              skillName: result.skillName,
+            })),
+          });
+        }
+        return;
+      }
+
+      for (const result of changed) {
+        mainLog('[AcpAgent]', `[SKILL-INSTALL] ${result.status === 'installed' ? 'Installed' : 'Registered'} workspace skill "${result.skillName}"`, {
+          sourceDir: result.sourceDir,
+          targetDir: result.targetDir,
+          installedVersion: result.installedVersion,
+          status: result.status,
+        });
+        ipcBridge.skillHub.changed.emit({
+          skillName: result.skillName,
+          source: 'workspace',
+        });
+      }
+      this.emitWorkspaceSkillInstallMessage(changed);
+    } catch (error) {
+      mainWarn('[AcpAgent]', '[SKILL-INSTALL] Failed to install workspace skills', error);
+    }
+  }
+
+  private emitWorkspaceSkillInstallMessage(skills: Array<{ skillName: string; targetDir: string }>): void {
+    const skillNames = Array.from(new Set(skills.map((skill) => skill.skillName))).filter(Boolean);
+    if (skillNames.length === 0) {
+      return;
+    }
+
+    const skillList = skillNames.map((skillName) => `- ${skillName}`).join('\n');
+    const content = skillNames.length === 1 ? `技能已安装到自定义技能：${skillNames[0]}\n\n你可以在“技能商店 > 我的技能 > 自定义技能”中查看。` : `以下技能已安装到自定义技能：\n\n${skillList}\n\n你可以在“技能商店 > 我的技能 > 自定义技能”中查看。`;
+
+    this.emitMessage({
+      id: uuid(),
+      msg_id: uuid(),
+      conversation_id: this.conversation_id,
+      type: 'text',
+      position: 'left',
+      createdAt: Date.now(),
+      status: 'finish',
+      content: { content },
+    });
   }
 
   private handlePromptUsage(usage: AcpPromptResponseUsage): void {
@@ -2236,6 +2331,8 @@ This identity statement takes priority over the default identity in USER.md.
       recordFileOperationStep(this.conversation_id, turnId, operationType, operation.path, 'success', this.options.backend);
     }
 
+    this.trackWrittenWorkspaceFile(operation);
+
     let text: string;
     switch (operation.method) {
       case 'fs/write_text_file':
@@ -2259,11 +2356,60 @@ This identity statement takes priority over the default identity in USER.md.
     this.emitMessage(message);
   }
 
+  private getCustomSkillNames(): Set<string> {
+    const names = new Set<string>();
+    const customSkillsDir = getCustomSkillsDir();
+
+    try {
+      if (!fs.existsSync(customSkillsDir)) {
+        return names;
+      }
+
+      for (const entry of fs.readdirSync(customSkillsDir, { withFileTypes: true })) {
+        if (entry.isDirectory()) {
+          names.add(entry.name);
+        }
+      }
+    } catch (error) {
+      mainWarn('[AcpAgent]', '[SKILL-INSTALL] Failed to snapshot custom skills', error);
+    }
+
+    return names;
+  }
+
+  private trackWrittenWorkspaceFile(operation: { method: string; path: string; content?: string }): void {
+    if (!this.workspace || operation.method !== 'fs/write_text_file') {
+      return;
+    }
+
+    const workspaceRoot = nodePath.resolve(this.workspace);
+    const actualPath = nodePath.isAbsolute(operation.path) ? nodePath.resolve(operation.path) : nodePath.resolve(workspaceRoot, operation.path);
+    const relativePath = nodePath.relative(workspaceRoot, actualPath);
+    if (!relativePath || relativePath.startsWith('..') || nodePath.isAbsolute(relativePath)) {
+      return;
+    }
+
+    let intent: 'draft' | 'final' = matchesDraftPattern(relativePath) ? 'draft' : 'final';
+    if (typeof operation.content === 'string') {
+      const intentResult = detectFileIntent(relativePath, operation.content);
+      if (intentResult.intent === 'draft' || intentResult.intent === 'final') {
+        intent = intentResult.intent;
+      }
+    }
+
+    this.currentTurnFiles.set(relativePath, {
+      path: actualPath,
+      intent,
+      kind: fs.existsSync(actualPath) ? 'edit' : 'create',
+    });
+    mainLog('[AcpAgent]', `[TRACK-FILE-OP] File: ${relativePath}, intent: ${intent}, actualPath: ${actualPath}`);
+  }
+
   private handleDisconnect(error: { code: number | null; signal: NodeJS.Signals | null }): void {
     this.emitStatusMessage('disconnected');
 
     const errorMsg = `${this.extra.backend} process disconnected unexpectedly ` + `(code: ${error.code}, signal: ${error.signal}). ` + `Please try sending a new message to reconnect.`;
-    this.emitErrorMessage(errorMsg);
+    this.emitErrorMessage(errorMsg, false); // Skip finish, will send below
 
     // Telemetry: end turn tracking (error)
     endTurnError(this.conversation_id, 'E001');
@@ -2350,11 +2496,17 @@ This identity statement takes priority over the default identity in USER.md.
       saveContextUsage(this.conversation_id, usageData);
     }
 
-    if (message.type !== 'thought' && message.type !== 'acp_model_info' && message.type !== 'acp_context_usage') {
-      const tMessage = transformMessage(message as IResponseMessage);
+    const filteredMessage = preprocessContentMessage(message as IResponseMessage);
+
+    if (message.type === 'content' && filteredMessage.type === 'content' && filteredMessage.data === '') {
+      return;
+    }
+
+    if (filteredMessage.type !== 'thought' && filteredMessage.type !== 'acp_model_info' && filteredMessage.type !== 'acp_context_usage') {
+      const tMessage = transformMessage(filteredMessage as IResponseMessage);
 
       if (tMessage) {
-        const isStreamTextChunk = tMessage.type === 'text' && message.type === 'content';
+        const isStreamTextChunk = tMessage.type === 'text' && filteredMessage.type === 'content';
         if (isStreamTextChunk) {
           this.streamTextBuffer.queue(tMessage, this.options.backend);
         } else {
@@ -2368,8 +2520,6 @@ This identity statement takes priority over the default identity in USER.md.
         }
       }
     }
-
-    const filteredMessage = preprocessContentMessage(message as IResponseMessage);
 
     ipcBridge.acpConversation.responseStream.emit(filteredMessage);
 
@@ -2552,7 +2702,7 @@ This identity statement takes priority over the default identity in USER.md.
     });
   }
 
-  private emitErrorMessage(error: string): void {
+  private emitErrorMessage(error: string, withFinish: boolean = true): void {
     const errorMessage: TMessage = {
       id: uuid(),
       conversation_id: this.conversation_id,
@@ -2565,6 +2715,23 @@ This identity statement takes priority over the default identity in USER.md.
       },
     };
     this.emitMessage(errorMessage);
+
+    // Emit finish event to reset frontend processing state (unless skipped)
+    // Clear processingStartTime immediately on error (no delay)
+    // 发送 finish 事件以重置前端处理状态（除非跳过），错误时立即清除 processingStartTime（不延迟）
+    if (withFinish) {
+      // Immediately clear processingStartTime on error
+      // 错误时立即清除 processingStartTime
+      this.processingStartTime = undefined;
+
+      const finishMessage: IResponseMessage = {
+        type: 'finish',
+        conversation_id: this.conversation_id,
+        msg_id: uuid(),
+        data: null,
+      };
+      ipcBridge.acpConversation.responseStream.emit(finishMessage);
+    }
   }
 
   private emitModelInfoEvent(): void {

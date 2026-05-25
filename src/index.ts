@@ -8,6 +8,16 @@
 // Reduces startup time by 40-60% on subsequent launches
 import 'v8-compile-cache';
 
+// Initialize the process supervisor as early as possible, before any child
+// processes are spawned. It registers a synchronous `process.on('exit')`
+// handler that guarantees all tracked child processes are killed when the
+// parent exits — regardless of whether async cleanup (before-quit, etc.)
+// succeeds or not.
+// 尽早初始化进程监管器。它注册同步 process.on('exit') 回调，保证父进程退出时
+// 所有被追踪的子进程都会被杀死，不依赖异步清理是否成功。
+import { processSupervisor } from './process/ProcessSupervisor';
+processSupervisor.initialize();
+
 import './utils/configureChromium';
 import { app, BrowserWindow, Menu, nativeImage, net, powerMonitor, protocol, screen, Tray } from 'electron';
 import fixPath from 'fix-path';
@@ -242,6 +252,17 @@ process.on('unhandledRejection', (reason, _promise) => {
     captureException(error, { process_type: 'main', component: 'unhandledRejection' });
   }
 });
+
+// Route SIGINT (Ctrl+C) and SIGTERM through Electron's quit lifecycle so that
+// the before-quit handler runs and cleans up child processes (scode, etc.).
+// Without this, Node.js default signal handling kills the process immediately,
+// bypassing before-quit and leaving child processes orphaned.
+for (const sig of ['SIGINT', 'SIGTERM'] as const) {
+  process.on(sig, () => {
+    console.log(`[Sudowork] Received ${sig}, triggering app.quit()`);
+    app.quit();
+  });
+}
 
 const hasSwitch = (flag: string) => process.argv.includes(`--${flag}`) || app.commandLine.hasSwitch(flag);
 const getSwitchValue = (flag: string): string | undefined => {
@@ -1125,8 +1146,14 @@ app.on('before-quit', (event) => {
   }, QUIT_CLEANUP_TIMEOUT_MS);
 
   void (async () => {
-    // Clean up work processes (per-conversation agents)
-    WorkerManage.clear();
+    // Clean up work processes (per-conversation agents).
+    // Await to ensure child processes (especially scode on Windows) are terminated
+    // before the app exits, preventing orphaned processes.
+    try {
+      await WorkerManage.clear();
+    } catch (error) {
+      console.error('[App] Failed to clear work processes:', error);
+    }
 
     // Stop all managed services (Nexus, OpenClaw gateway)
     try {

@@ -275,6 +275,7 @@ const skillFilePattern = (id: string, loc: string) => `${id}-skills.${loc}.md`;
 
 // 在文件顶部添加一个新的 Map 来跟踪每个目录的 AbortController
 const directoryAbortControllers = new Map<string, AbortController>();
+const FILE_SELECTOR_MAX_DEPTH = 10;
 
 export function initFsBridge(): void {
   const canceledZipRequests = new Set<string>();
@@ -299,7 +300,10 @@ export function initFsBridge(): void {
     directoryAbortControllers.set(dir, abortController);
 
     try {
-      const tree = await readDirectoryRecursive(dir, { abortController });
+      const tree = await readDirectoryRecursive(dir, {
+        abortController,
+        maxDepth: FILE_SELECTOR_MAX_DEPTH,
+      });
 
       // 请求完成后清理 abort controller
       directoryAbortControllers.delete(dir);

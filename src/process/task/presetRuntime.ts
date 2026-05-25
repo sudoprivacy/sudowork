@@ -38,39 +38,84 @@ export interface PresetRuntimeResult {
 export async function applyPresetRuntime(ctx: PresetRuntimeContext): Promise<PresetRuntimeResult> {
   const result: PresetRuntimeResult = { envOverrides: {}, contextAppendix: '' };
 
-  if (!ctx.presetAssistantId) return result;
+  if (!ctx.presetAssistantId) {
+    mainLog('[PresetRuntime]', 'no presetAssistantId — skipping');
+    return result;
+  }
 
-  // Look up from AssistantManager (reads _sudowork_meta.json)
+  // Look up from AssistantManager (reads _sudowork_meta.json). Use the
+  // *WithDir variant so we get the assistant's real on-disk directory —
+  // the relative `resourceDir` in the meta JSON is wrong once the assistant
+  // is installed under hub/custom/system.
   const strippedId = ctx.presetAssistantId.startsWith('builtin-') ? ctx.presetAssistantId.slice('builtin-'.length) : ctx.presetAssistantId;
-  const meta = await assistantManager.getAssistantMeta(strippedId);
-  if (!meta) return result;
+  const found = await assistantManager.getAssistantMetaWithDir(strippedId);
+  if (!found) {
+    mainWarn('[PresetRuntime]', `getAssistantMetaWithDir("${strippedId}") returned null — scripts/ context will be missing`);
+    return result;
+  }
 
-  return applyPresetRuntimeFromMeta(meta, ctx);
+  const applied = applyPresetRuntimeFromMeta(found.meta, ctx, found.dir);
+  mainLog('[PresetRuntime]', `id=${strippedId} dir=${found.dir} contextAppendix=${applied.contextAppendix.length}B`);
+  return applied;
+}
+
+/**
+ * Resolve the assistant's `scripts/` directory.
+ *
+ * Prefers the real install directory (`installDir`) when known — that is
+ * always correct regardless of where the assistant was installed. Falls back
+ * to resolving the meta's relative `resourceDir` against CWD only when the
+ * install directory is unavailable (legacy callers).
+ */
+function resolveScriptsDir(installDir: string | undefined, resourceDir: string | undefined): string | null {
+  if (installDir) {
+    return path.join(installDir, 'scripts');
+  }
+  if (resourceDir) {
+    return path.resolve(resourceDir, 'scripts');
+  }
+  return null;
 }
 
 /**
  * Apply preset runtime from a pre-loaded IAssistantMeta.
- * Useful when the caller already has the meta (avoids redundant disk read).
+ *
+ * `installDir` is the assistant's resolved on-disk directory. When provided,
+ * the assistant's `scripts/` are located under it (correct for hub / custom /
+ * system installs). When omitted, paths fall back to the meta's relative
+ * `resourceDir`, which only works when CWD happens to be the repo root.
  */
-export function applyPresetRuntimeFromMeta(meta: IAssistantMeta, ctx: PresetRuntimeContext): PresetRuntimeResult {
+export function applyPresetRuntimeFromMeta(meta: IAssistantMeta, ctx: PresetRuntimeContext, installDir?: string): PresetRuntimeResult {
   const result: PresetRuntimeResult = { envOverrides: {}, contextAppendix: '' };
 
-  // 1. opsEntryPoint → AI_DEV_BROWSER_REDIRECT env var
+  // opsEntryPoint → AI_DEV_BROWSER_REDIRECT env var + context entry.
+  // Prefer resolving it inside the assistant's install dir; fall back to a
+  // CWD-relative resolve for entry points that live outside the assistant.
+  let absOpsPath: string | null = null;
   if (meta.opsEntryPoint) {
-    const absOpsPath = path.resolve(meta.opsEntryPoint).replace(/\\/g, '/');
+    const candidates: string[] = [];
+    if (installDir) {
+      candidates.push(path.join(installDir, meta.opsEntryPoint));
+    }
+    candidates.push(path.resolve(meta.opsEntryPoint));
+    absOpsPath = (candidates.find((p) => fs.existsSync(p)) ?? candidates[candidates.length - 1]).replace(/\\/g, '/');
+  }
+
+  if (absOpsPath) {
     result.envOverrides.AI_DEV_BROWSER_REDIRECT = `Direct tool access is disabled for this assistant. Use: python "${absOpsPath}" --port ${ctx.cdpPort} --op <tool_name> [args]`;
   }
 
-  // 2. resourceDir/scripts/ → auto-append to context, plus resolved ops path
-  if (meta.resourceDir) {
-    result.contextAppendix = discoverScripts(meta.resourceDir);
+  // scripts/ → auto-append an absolute-path listing to the context so the
+  // assistant never has to `find` for its own scripts.
+  const scriptsDir = resolveScriptsDir(installDir, meta.resourceDir);
+  if (scriptsDir) {
+    result.contextAppendix = discoverScripts(scriptsDir);
   }
-  if (meta.opsEntryPoint) {
-    const absOpsPath = path.resolve(meta.opsEntryPoint).replace(/\\/g, '/');
+  if (absOpsPath) {
     result.contextAppendix += `\n\n## Ops Entry Point\n\n\`\`\`\npython "${absOpsPath}" --port ${ctx.cdpPort} --op <name> [args]\n\`\`\`\n`;
   }
 
-  // 3. modelConfigs → .gemini/settings.json
+  // modelConfigs → .gemini/settings.json
   if (ctx.backend === 'gemini' && meta.modelConfigs && ctx.workspace) {
     writeGeminiConfig(meta.modelConfigs, ctx.workspace);
   }
@@ -78,10 +123,9 @@ export function applyPresetRuntimeFromMeta(meta: IAssistantMeta, ctx: PresetRunt
   return result;
 }
 
-/** Scan resourceDir/scripts/ and return markdown listing with absolute paths. */
-function discoverScripts(resourceDir: string): string {
+/** Scan a scripts directory and return a markdown listing with absolute paths. */
+function discoverScripts(scriptsDir: string): string {
   try {
-    const scriptsDir = path.resolve(resourceDir, 'scripts');
     const entries = fs.readdirSync(scriptsDir).filter((e) => e.endsWith('.py') || e.endsWith('.sh'));
     if (entries.length > 0) {
       const lines = entries.map((s) => `python ${path.join(scriptsDir, s)} --help`);

@@ -6,8 +6,7 @@
 
 import { ipcBridge } from '@/common';
 import { isEnterpriseMode, getEnterpriseConfig } from '@/common/enterpriseDebugConfig';
-import { initMossApi, getMossApi } from '../remote/MossSessionApi';
-import type { MossSessionApi, type MossSession } from '../remote/MossSessionApi';
+import { initMossApi, getMossApi, getMossApiServerUrl, resetMossApi, type MossSessionApi, type MossSession } from '../remote/MossSessionApi';
 import { mainLog, mainError } from '@process/utils/mainLogger';
 import type { IResponseMessage } from '@/common/ipcBridge';
 import { uuid } from '@/common/utils';
@@ -22,26 +21,43 @@ import { uuid } from '@/common/utils';
 /**
  * Ensure Moss API is initialized with enterprise config
  * Returns the API instance or null if initialization fails
+ *
+ * If server URL has changed since last initialization, resets and re-initializes.
+ * 如果服务器 URL 自上次初始化后发生变化，重置并重新初始化。
  */
 async function ensureMossApiInitialized(): Promise<MossSessionApi | null> {
-  let api = getMossApi();
-  if (api) {
+  const config = getEnterpriseConfig();
+
+  // Check if server URL has changed since last initialization
+  // 检查服务器 URL 自上次初始化后是否发生变化
+  const currentServerUrl = getMossApiServerUrl();
+  const api = getMossApi();
+
+  if (api && currentServerUrl === config.mossServerUrl) {
+    // URL unchanged, return existing instance
+    // URL 未变化，返回现有实例
     return api;
   }
 
+  if (api && currentServerUrl !== config.mossServerUrl) {
+    // URL changed, reset existing instance
+    // URL 变化，重置现有实例
+    mainLog('MossBridge', `Server URL changed from ${currentServerUrl} to ${config.mossServerUrl}, resetting Moss API`);
+    resetMossApi();
+  }
+
   // Initialize from enterprise config
-  const config = getEnterpriseConfig();
   if (!config.mossServerUrl) {
     mainError('MossBridge', 'Moss Server URL not configured');
     return null;
   }
 
-  api = initMossApi(config.mossServerUrl);
+  const newApi = initMossApi(config.mossServerUrl);
   if (config.authToken) {
-    api.setAccessToken(config.authToken);
+    newApi.setAccessToken(config.authToken);
   }
 
-  return api;
+  return newApi;
 }
 
 export function initMossBridge(): void {
