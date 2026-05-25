@@ -30,10 +30,18 @@ const formatFileSize = (bytes: number): string => {
 };
 
 const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg', 'ico', 'tif', 'tiff', 'avif']);
+const VIDEO_EXTENSIONS = new Set(['mp4', 'webm', 'mov', 'm4v', 'ogv', 'avi', 'mkv', 'wmv', 'flv']);
+const AUDIO_EXTENSIONS = new Set(['mp3', 'wav', 'flac', 'aac', 'm4a', 'ogg', 'oga', 'opus', 'amr', 'wma']);
 const OFFICE_EXTENSIONS: Record<string, PreviewContentType> = {
-  ppt: 'ppt', pptx: 'ppt', odp: 'ppt',
-  doc: 'word', docx: 'word', odt: 'word',
-  xls: 'excel', xlsx: 'excel', ods: 'excel',
+  ppt: 'ppt',
+  pptx: 'ppt',
+  odp: 'ppt',
+  doc: 'word',
+  docx: 'word',
+  odt: 'word',
+  xls: 'excel',
+  xlsx: 'excel',
+  ods: 'excel',
 };
 
 const getContentTypeFromExt = (ext: string): PreviewContentType => {
@@ -45,6 +53,8 @@ const getContentTypeFromExt = (ext: string): PreviewContentType => {
   if (e === 'csv') return 'code';
   if (e === 'html' || e === 'htm') return 'html';
   if (IMAGE_EXTENSIONS.has(e)) return 'image';
+  if (VIDEO_EXTENSIONS.has(e)) return 'video';
+  if (AUDIO_EXTENSIONS.has(e)) return 'audio';
   return 'code';
 };
 
@@ -78,7 +88,7 @@ const FilePreview: React.FC<FilePreviewProps> = ({ path, onRemove, readonly = fa
     if (!readonly || loading || fileError) return;
     const ext = getFileExtension(path).replace('.', '');
     const contentType = getContentTypeFromExt(ext);
-    launchPreview({
+    void launchPreview({
       originalPath: path,
       fileName,
       contentType,
@@ -149,14 +159,8 @@ const FilePreview: React.FC<FilePreviewProps> = ({ path, onRemove, readonly = fa
 
   return (
     <div className='relative inline-block mb-10px'>
-      <div
-        className={readonly && !fileError ? 'h-60px flex items-center gap-12px px-12px rd-8px bg-bg-2 border border-solid cursor-pointer select-none' : 'h-60px flex items-center gap-12px px-12px rd-8px bg-bg-2 border border-solid'}
-        style={{ borderColor: 'var(--border-base)', boxShadow: 'var(--shadow-sm)' }}
-        onClick={handlePreviewClick}
-      >
-        <div className='w-40px h-40px rd-8px flex items-center justify-center flex-shrink-0'>
-          {resolveFileIcon(fileName, { size: 28, theme: 'filled' })}
-        </div>
+      <div className={readonly && !fileError ? 'h-60px flex items-center gap-12px px-12px rd-8px bg-bg-2 border border-solid cursor-pointer select-none' : 'h-60px flex items-center gap-12px px-12px rd-8px bg-bg-2 border border-solid'} style={{ borderColor: 'var(--border-base)', boxShadow: 'var(--shadow-sm)' }} onClick={handlePreviewClick}>
+        <div className='w-40px h-40px rd-8px flex items-center justify-center flex-shrink-0'>{resolveFileIcon(fileName, { size: 28, theme: 'filled' })}</div>
         <div className='flex flex-col gap-2px min-w-0'>
           <span className='text-14px text-t-primary max-w-150px truncate'>{fileName}</span>
           <span className='text-12px text-t-secondary'>

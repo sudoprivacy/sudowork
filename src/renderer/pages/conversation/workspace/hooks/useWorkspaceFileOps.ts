@@ -317,6 +317,8 @@ export function useWorkspaceFileOps(options: UseWorkspaceFileOpsOptions) {
 
         // 支持的图片格式列表 / List of supported image formats
         const imageExtensions = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg', 'ico', 'tif', 'tiff', 'avif'];
+        const videoExtensions = ['mp4', 'webm', 'mov', 'm4v', 'ogv', 'avi', 'mkv', 'wmv', 'flv'];
+        const audioExtensions = ['mp3', 'wav', 'flac', 'aac', 'm4a', 'ogg', 'oga', 'opus', 'amr', 'wma'];
 
         // Office 文件扩展名 / Office file extensions
         const pptExtensions = ['ppt', 'pptx', 'odp'];
@@ -348,6 +350,10 @@ export function useWorkspaceFileOps(options: UseWorkspaceFileOpsOptions) {
           contentType = 'html';
         } else if (imageExtensions.includes(ext)) {
           contentType = 'image';
+        } else if (videoExtensions.includes(ext)) {
+          contentType = 'video';
+        } else if (audioExtensions.includes(ext)) {
+          contentType = 'audio';
         } else if (['js', 'ts', 'tsx', 'jsx', 'py', 'java', 'go', 'rs', 'c', 'cpp', 'h', 'hpp', 'css', 'scss', 'json', 'xml', 'yaml', 'yml', 'txt', 'log', 'sh', 'bash', 'zsh', 'fish', 'sql', 'rb', 'php', 'swift', 'kt', 'scala', 'r', 'lua', 'vim', 'toml', 'ini', 'cfg', 'conf', 'env', 'gitignore', 'dockerignore', 'editorconfig'].includes(ext)) {
           contentType = 'code';
         } else {
@@ -368,6 +374,8 @@ export function useWorkspaceFileOps(options: UseWorkspaceFileOpsOptions) {
 
         // 根据文件类型读取内容 / Read content based on file type
         if (contentType === 'pdf') {
+          content = '';
+        } else if (contentType === 'video' || contentType === 'audio') {
           content = '';
         } else if (contentType === 'word' || contentType === 'excel' || contentType === 'ppt') {
           // Office 文件：读取原始二进制内容
@@ -408,9 +416,8 @@ export function useWorkspaceFileOps(options: UseWorkspaceFileOpsOptions) {
           filePath: nodeData.fullPath,
           workspace: workspace,
           language: ext,
-          // Markdown 和图片文件默认为只读模式
-          // Markdown and image files default to read-only mode
-          editable: contentType === 'markdown' || contentType === 'image' || isLargeTextTruncated ? false : undefined,
+          // Markdown and media files default to read-only mode
+          editable: contentType === 'markdown' || contentType === 'image' || contentType === 'video' || contentType === 'audio' || isLargeTextTruncated ? false : undefined,
         });
       } catch (error) {
         messageApi.error(t('conversation.workspace.contextMenu.previewFailed'));

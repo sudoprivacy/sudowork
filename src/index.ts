@@ -19,15 +19,14 @@ import { processSupervisor } from './process/ProcessSupervisor';
 processSupervisor.initialize();
 
 import './utils/configureChromium';
-import { app, BrowserWindow, Menu, nativeImage, net, powerMonitor, protocol, screen, Tray } from 'electron';
+import { app, BrowserWindow, Menu, nativeImage, powerMonitor, protocol, screen, Tray } from 'electron';
 import fixPath from 'fix-path';
 import * as fs from 'fs';
 import * as path from 'path';
-import { pathToFileURL } from 'url';
 import { initMainAdapterWithWindow } from './adapter/main';
 import { createAvatarWindow } from './process/avatarWindow';
 import { ipcBridge } from './common';
-import { AION_ASSET_PROTOCOL } from './extensions/assetProtocol';
+import { AION_ASSET_PROTOCOL, createAssetProtocolResponse } from './extensions/assetProtocol';
 import { initializeProcess } from './process';
 import { ProcessConfig } from './process/initStorage';
 import { loadShellEnvironmentAsync, mergePaths } from './process/utils/shellEnv';
@@ -49,13 +48,7 @@ import electronSquirrelStartup from 'electron-squirrel-startup';
 // Mark app start time as early as possible for cold_start metric
 import { markAppStart, markFirstWindowShow, initializeTelemetry, shutdownTelemetry } from './process/telemetry';
 // CrashReporter for native crash and JS exception reporting
-import {
-  initCrashReporter,
-  captureRendererCrash,
-  captureException,
-  systemBreadcrumbs,
-  windowBreadcrumbs,
-} from './process/telemetry';
+import { initCrashReporter, captureRendererCrash, captureException, systemBreadcrumbs, windowBreadcrumbs } from './process/telemetry';
 markAppStart();
 
 // 记录应用启动
@@ -216,7 +209,7 @@ if (electronSquirrelStartup) {
 
 // ============ Custom Asset Protocol ============
 // Register aion-asset:// as a privileged scheme BEFORE app.whenReady().
-// This protocol serves local extension assets (icons, covers) bypassing
+// This protocol serves local files/assets bypassing
 // the browser security policy that blocks file:// URLs from http://localhost.
 protocol.registerSchemesAsPrivileged([
   {
@@ -226,6 +219,7 @@ protocol.registerSchemesAsPrivileged([
       secure: true,
       supportFetchAPI: true,
       corsEnabled: true,
+      stream: true,
     },
   },
 ]);
@@ -666,10 +660,7 @@ const createWindow = (): void => {
       const { x, y, width, height } = display.bounds;
       const avatarBounds = avatarWindow.getBounds();
       // Position avatar at bottom-right of the fullscreen display
-      avatarWindow.setPosition(
-        x + width - avatarBounds.width - 16,
-        y + height - avatarBounds.height - 16
-      );
+      avatarWindow.setPosition(x + width - avatarBounds.width - 16, y + height - avatarBounds.height - 16);
     }
   });
 
@@ -678,10 +669,7 @@ const createWindow = (): void => {
       // Restore avatar to work area position
       const workArea = screen.getPrimaryDisplay().workArea;
       const avatarBounds = avatarWindow.getBounds();
-      avatarWindow.setPosition(
-        workArea.x + workArea.width - avatarBounds.width - 16,
-        workArea.y + workArea.height - avatarBounds.height - 16
-      );
+      avatarWindow.setPosition(workArea.x + workArea.width - avatarBounds.width - 16, workArea.y + workArea.height - avatarBounds.height - 16);
     }
   });
 
@@ -839,18 +827,7 @@ const handleAppReady = async (): Promise<void> => {
     return;
   }
 
-  // Register aion-asset:// protocol handler.
-  // Converts aion-asset://asset/C:/path/to/file.svg → file:///C:/path/to/file.svg
-  // and serves the local file through Electron's net module.
-  protocol.handle(AION_ASSET_PROTOCOL, (request) => {
-    const url = new URL(request.url);
-    // pathname is /C:/path/to/file.svg - strip leading slash on Windows
-    let filePath = decodeURIComponent(url.pathname);
-    if (process.platform === 'win32' && filePath.startsWith('/') && /^\/[A-Za-z]:/.test(filePath)) {
-      filePath = filePath.slice(1);
-    }
-    return net.fetch(pathToFileURL(filePath).href);
-  });
+  protocol.handle(AION_ASSET_PROTOCOL, createAssetProtocolResponse);
 
   // Set dock icon in development mode on macOS
   // In production, the icon is set via forge.config.ts packagerConfig.icon
