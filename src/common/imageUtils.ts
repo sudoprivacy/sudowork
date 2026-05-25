@@ -31,7 +31,7 @@ export function modelInputForModelId(modelId: string): string[] {
  * Flash/lightweight models have smaller context windows — compress images
  * more aggressively to avoid "content too large" errors.
  */
-const LOW_IMAGE_TARGET_PATTERN = /gemini|claude-sonnet-4\.6|claude-opus-4/i;
+const LOW_IMAGE_TARGET_PATTERN = /gemini|claude/i;
 
 export function getImageTargetSize(modelId: string | null | undefined): number {
   if (!modelId) return IMAGE_TARGET_RAW_SIZE;
