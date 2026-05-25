@@ -32,7 +32,7 @@ skill-name/
 - 本地创建的自定义技能中，`_sudowork_meta.json` 的 `source_type` 使用 `upload`，`is_builtin` 使用 `false`，`enabled` 使用 `true`。
 - 打包为 `.zip`，因为 Sudowork 本地导入入口支持 zip 包和文件夹。
 - 创建或更新技能时先写入当前会话的临时空间，也就是 Sudowork 会话页面右侧的文件空间；不要直接写入 workspace skill 同步目录。
-- 完成后使用 `scripts/install_skill.py` 安装到 `~/.nexus/skills/_my-custom-skill/<skill-name>/`，然后重启或 reload Sudowork 让运行时重新扫描。
+- 完成前必须使用 `scripts/install_skill.py` 安装到 `~/.nexus/skills/_my-custom-skill/<skill-name>/`。除非用户明确要求只生成包、不安装，否则不能只创建临时目录或 zip 后结束，也不能只把安装命令交给用户。
 
 不要把用户创建的技能放入 hub 或 system 技能目录；这些目录分别保留给商店技能和内置技能。
 
@@ -235,6 +235,8 @@ scripts/package_skill.py <path/to/skill-folder> ./skill-packages
 
 当前只使用个人自定义技能目录。不要写入企业模式 `custom` 目录。
 
+这是创建或更新 Sudowork 自定义技能的必做收尾步骤。临时空间中的技能目录只是草稿；任务完成标准是技能已经进入 `~/.nexus/skills/_my-custom-skill/<skill-name>/` 并可被 Sudowork 重新扫描。不要把“已生成临时目录”“已生成 zip”或“告诉用户运行安装命令”当作完成。
+
 从临时技能目录安装：
 
 ```bash
@@ -260,7 +262,7 @@ scripts/install_skill.py ./skill-packages/data-reporter.zip
 scripts/install_skill.py <path/to/staged-skill-or-zip> --replace
 ```
 
-安装后重启或 reload Sudowork，使运行时重新扫描技能。
+安装后重启或 reload Sudowork，使运行时重新扫描技能。如果环境权限阻止安装，最终回复必须说明具体阻塞点和应执行的完整安装命令。
 
 ### 8. 迭代
 
@@ -353,4 +355,4 @@ scripts/install_skill.py <path/to/skill-folder-or-zip> --replace
 - 如更新了 name、description、icon 或展示字段，已运行 `scripts/update_skill.py` 或手动同步 `SKILL.md` 与 `_sudowork_meta.json`。
 - `scripts/quick_validate.py <skill-dir>` 通过。
 - `scripts/package_skill.py <skill-dir>` 能生成 `.zip`。
-- `scripts/install_skill.py <skill-dir-or-zip>` 已安装到 `~/.nexus/skills/_my-custom-skill/<skill-name>/`，或已向用户说明安装命令和是否需要 `--replace`。
+- `scripts/install_skill.py <skill-dir-or-zip>` 已成功安装到 `~/.nexus/skills/_my-custom-skill/<skill-name>/`；只有用户明确要求不安装或环境权限阻止安装时，才说明未安装原因和是否需要 `--replace`。

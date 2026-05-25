@@ -33,37 +33,25 @@ import { getEnhancedEnv, resolveNpxPath } from '@process/utils/shellEnv';
 import { applyPresetRuntime } from '@process/task/presetRuntime';
 import { assistantManager } from '@/process/AssistantManager';
 import { getDatabase } from '@process/database';
-import { ProcessConfig } from '../initStorage';
+import { clearSkillsCache, getCustomSkillsDir, ProcessConfig } from '../initStorage';
 import { addMessage, addOrUpdateMessage, nextTickToLocalFinish } from '../message';
 import { handlePreviewOpenEvent } from '../utils/previewUtils';
 import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
 import { mainLog, mainWarn, mainError } from '../utils/mainLogger';
 import { translateLLMError } from '@process/utils/llmErrorTranslation';
 import { injectSkillsDirectoryHint, prepareFirstMessageWithSkillsIndex } from './agentUtils';
+import { AcpSkillManager } from './AcpSkillManager';
 import { cleanupIntermediateFiles, cleanupDraftsOnCancel, detectFileIntent, matchesDraftPattern } from './draftsCleanup';
 import { mergeScodeProxyModelInfo } from '@process/services/scode/scodeProxyModels';
+import { installWorkspaceSkillsFromTrackedFiles } from './workspaceSkillInstaller';
 import BaseAgent from './BaseAgent';
 
 // Telemetry imports for conversation tracking
 import { startConversationTracking, endConversationSuccess, endConversationError, endConversationUserCancel } from '../telemetry';
 
 // Telemetry imports for turn/step tracking
-import {
-  startTurnTracking,
-  updateTurnTokens,
-  endTurnSuccess,
-  endTurnError,
-  getCurrentTurnId,
-} from '../telemetry';
-import {
-  startToolCallTracking,
-  endToolCallTracking,
-  startPermissionRequestTracking,
-  endPermissionRequestTracking,
-  recordFileOperationStep,
-  startThinkingTracking,
-  endThinkingTracking,
-} from '../telemetry';
+import { startTurnTracking, updateTurnTokens, endTurnSuccess, endTurnError, getCurrentTurnId } from '../telemetry';
+import { startToolCallTracking, endToolCallTracking, startPermissionRequestTracking, endPermissionRequestTracking, recordFileOperationStep, startThinkingTracking, endThinkingTracking } from '../telemetry';
 
 // CrashReporter imports for breadcrumb tracking
 import { conversationBreadcrumbs, apiBreadcrumbs, systemBreadcrumbs, mcpBreadcrumbs } from '../telemetry/BreadcrumbTracker';
@@ -185,6 +173,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
 
   // Workspace file tracking for channel file_send messages
   private workspaceFileSnapshot = new Map<string, number>();
+  private customSkillsSnapshot = new Set<string>();
 
   // Turn-level file tracking for precise cleanup on cancel
   private currentTurnFiles: Map<string, { path: string; intent: 'draft' | 'final'; kind: 'create' | 'edit' }> = new Map();
@@ -249,7 +238,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
       return this.handleQuestionRequest(data);
     };
     this.connection.onEndTurn = () => {
-      this.handleEndTurn();
+      void this.handleEndTurn();
     };
     this.connection.onPromptUsage = (usage: AcpPromptResponseUsage) => {
       this.handlePromptUsage(usage);
@@ -667,6 +656,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
     // 重置 Turn 级别文件追踪，开始新的 Turn
     this.currentTurnFiles.clear();
     this.workspaceFileSnapshot = this.getWorkspaceFiles();
+    this.customSkillsSnapshot = this.getCustomSkillNames();
     mainLog('[AcpAgent]', `[TURN-START] Reset file tracking, snapshot size: ${this.workspaceFileSnapshot.size}`);
 
     try {
@@ -2186,7 +2176,7 @@ This identity statement takes priority over the default identity in USER.md.
     return latestAskUserQuestion?.[0] || requestToolCallId;
   }
 
-  private handleEndTurn(): void {
+  private async handleEndTurn(): Promise<void> {
     if (!this.userCancelled) {
       // Telemetry: end turn tracking (success)
       endTurnSuccess(this.conversation_id);
@@ -2196,6 +2186,10 @@ This identity statement takes priority over the default identity in USER.md.
 
       // Breadcrumb: conversation ended (success)
       conversationBreadcrumbs.end(this.conversation_id, 'success');
+    }
+
+    if (!this.userCancelled) {
+      await this.installTrackedWorkspaceSkills();
     }
 
     // Clear turn-level file tracking for next turn
@@ -2210,6 +2204,52 @@ This identity statement takes priority over the default identity in USER.md.
       data: null,
     };
     void this.handleSignalEvent(msg);
+  }
+
+  private async installTrackedWorkspaceSkills(): Promise<void> {
+    if (!this.workspace || this.currentTurnFiles.size === 0) {
+      return;
+    }
+
+    try {
+      const results = await installWorkspaceSkillsFromTrackedFiles(this.workspace, this.currentTurnFiles, {
+        getCustomSkillsDir,
+        existingCustomSkillNames: this.customSkillsSnapshot,
+        clearSkillsCache,
+        resetAcpSkillManager: () => AcpSkillManager.resetInstance(),
+      });
+      const installed = results.filter((result) => result.status === 'installed');
+      const registered = results.filter((result) => result.status === 'registered');
+      const changed = [...installed, ...registered];
+
+      if (changed.length === 0) {
+        if (results.length > 0) {
+          mainLog('[AcpAgent]', '[SKILL-INSTALL] No workspace skills installed', {
+            skipped: results.map((result) => ({
+              sourceDir: result.sourceDir,
+              reason: result.status === 'skipped' ? result.reason : undefined,
+              skillName: result.skillName,
+            })),
+          });
+        }
+        return;
+      }
+
+      for (const result of changed) {
+        mainLog('[AcpAgent]', `[SKILL-INSTALL] ${result.status === 'installed' ? 'Installed' : 'Registered'} workspace skill "${result.skillName}"`, {
+          sourceDir: result.sourceDir,
+          targetDir: result.targetDir,
+          installedVersion: result.installedVersion,
+          status: result.status,
+        });
+        ipcBridge.skillHub.changed.emit({
+          skillName: result.skillName,
+          source: 'workspace',
+        });
+      }
+    } catch (error) {
+      mainWarn('[AcpAgent]', '[SKILL-INSTALL] Failed to install workspace skills', error);
+    }
   }
 
   private handlePromptUsage(usage: AcpPromptResponseUsage): void {
@@ -2236,6 +2276,8 @@ This identity statement takes priority over the default identity in USER.md.
       recordFileOperationStep(this.conversation_id, turnId, operationType, operation.path, 'success', this.options.backend);
     }
 
+    this.trackWrittenWorkspaceFile(operation);
+
     let text: string;
     switch (operation.method) {
       case 'fs/write_text_file':
@@ -2257,6 +2299,55 @@ This identity statement takes priority over the default identity in USER.md.
       content: { content: text },
     };
     this.emitMessage(message);
+  }
+
+  private getCustomSkillNames(): Set<string> {
+    const names = new Set<string>();
+    const customSkillsDir = getCustomSkillsDir();
+
+    try {
+      if (!fs.existsSync(customSkillsDir)) {
+        return names;
+      }
+
+      for (const entry of fs.readdirSync(customSkillsDir, { withFileTypes: true })) {
+        if (entry.isDirectory()) {
+          names.add(entry.name);
+        }
+      }
+    } catch (error) {
+      mainWarn('[AcpAgent]', '[SKILL-INSTALL] Failed to snapshot custom skills', error);
+    }
+
+    return names;
+  }
+
+  private trackWrittenWorkspaceFile(operation: { method: string; path: string; content?: string }): void {
+    if (!this.workspace || operation.method !== 'fs/write_text_file') {
+      return;
+    }
+
+    const workspaceRoot = nodePath.resolve(this.workspace);
+    const actualPath = nodePath.isAbsolute(operation.path) ? nodePath.resolve(operation.path) : nodePath.resolve(workspaceRoot, operation.path);
+    const relativePath = nodePath.relative(workspaceRoot, actualPath);
+    if (!relativePath || relativePath.startsWith('..') || nodePath.isAbsolute(relativePath)) {
+      return;
+    }
+
+    let intent: 'draft' | 'final' = matchesDraftPattern(relativePath) ? 'draft' : 'final';
+    if (typeof operation.content === 'string') {
+      const intentResult = detectFileIntent(relativePath, operation.content);
+      if (intentResult.intent === 'draft' || intentResult.intent === 'final') {
+        intent = intentResult.intent;
+      }
+    }
+
+    this.currentTurnFiles.set(relativePath, {
+      path: actualPath,
+      intent,
+      kind: fs.existsSync(actualPath) ? 'edit' : 'create',
+    });
+    mainLog('[AcpAgent]', `[TRACK-FILE-OP] File: ${relativePath}, intent: ${intent}, actualPath: ${actualPath}`);
   }
 
   private handleDisconnect(error: { code: number | null; signal: NodeJS.Signals | null }): void {

@@ -1,0 +1,327 @@
+/**
+ * @license
+ * Copyright 2025 Sudowork (sudowork.ai)
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import fs from 'fs/promises';
+import os from 'os';
+import path from 'path';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { collectWorkspaceSkillCandidateRoots, installWorkspaceSkillsFromTrackedFiles, type TrackedWorkspaceFile } from '@/process/task/workspaceSkillInstaller';
+
+describe('workspaceSkillInstaller', () => {
+  let tempRoot: string;
+  let workspace: string;
+  let customSkillsDir: string;
+
+  beforeEach(async () => {
+    tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'sudowork-skill-installer-'));
+    workspace = path.join(tempRoot, 'workspace');
+    customSkillsDir = path.join(tempRoot, 'skills', '_my-custom-skill');
+    await fs.mkdir(workspace, { recursive: true });
+  });
+
+  afterEach(async () => {
+    await fs.rm(tempRoot, { recursive: true, force: true });
+  });
+
+  it('collects candidate skill roots from tracked workspace files', async () => {
+    const skillDir = path.join(workspace, 'video-generation');
+    const trackedFiles = new Map<string, TrackedWorkspaceFile>([
+      [
+        'video-generation/SKILL.md',
+        {
+          path: path.join(skillDir, 'SKILL.md'),
+          intent: 'final',
+          kind: 'create',
+        },
+      ],
+      [
+        '.nexus/sudocode/skills/browser/SKILL.md',
+        {
+          path: path.join(workspace, '.nexus', 'sudocode', 'skills', 'browser', 'SKILL.md'),
+          intent: 'final',
+          kind: 'create',
+        },
+      ],
+    ]);
+
+    expect(collectWorkspaceSkillCandidateRoots(workspace, trackedFiles)).toContain(skillDir);
+    expect(collectWorkspaceSkillCandidateRoots(workspace, trackedFiles).some((candidate) => candidate.includes(`${path.sep}.nexus${path.sep}`))).toBe(false);
+  });
+
+  it('installs a generated skill directory into custom skills', async () => {
+    const skillDir = path.join(workspace, 'video-generation');
+    await fs.mkdir(path.join(skillDir, 'assets'), { recursive: true });
+    await fs.writeFile(
+      path.join(skillDir, 'SKILL.md'),
+      `---
+name: video-generation
+display_name: Video Generation
+description: "Create product videos"
+version: 2.0.0
+---
+
+# Video Generation
+`,
+      'utf-8'
+    );
+    await fs.writeFile(
+      path.join(skillDir, '_sudowork_meta.json'),
+      JSON.stringify({
+        name: 'video-generation',
+        display_name: 'Video Generation',
+        description: 'Create product videos',
+        icon: 'icon.svg',
+        source_type: 'upload',
+        enabled: true,
+      }),
+      'utf-8'
+    );
+    await fs.writeFile(path.join(skillDir, 'assets', 'example.txt'), 'example', 'utf-8');
+
+    const clearSkillsCache = vi.fn();
+    const resetAcpSkillManager = vi.fn();
+    const results = await installWorkspaceSkillsFromTrackedFiles(
+      workspace,
+      new Map<string, TrackedWorkspaceFile>([
+        [
+          'video-generation/SKILL.md',
+          {
+            path: path.join(skillDir, 'SKILL.md'),
+            intent: 'final',
+            kind: 'create',
+          },
+        ],
+      ]),
+      {
+        getCustomSkillsDir: () => customSkillsDir,
+        clearSkillsCache,
+        resetAcpSkillManager,
+        now: () => new Date('2026-05-25T00:00:00.000Z'),
+      }
+    );
+
+    expect(results).toEqual([
+      expect.objectContaining({
+        status: 'installed',
+        skillName: 'video-generation',
+        installedVersion: '2.0.0',
+        targetDir: path.join(customSkillsDir, 'video-generation'),
+      }),
+    ]);
+    await expect(fs.readFile(path.join(customSkillsDir, 'video-generation', 'assets', 'example.txt'), 'utf-8')).resolves.toBe('example');
+    await expect(fs.readFile(path.join(customSkillsDir, 'video-generation', 'SKILL.md'), 'utf-8')).resolves.toContain('Video Generation');
+
+    const meta = JSON.parse(await fs.readFile(path.join(customSkillsDir, 'video-generation', '_sudowork_meta.json'), 'utf-8'));
+    expect(meta).toMatchObject({
+      name: 'video-generation',
+      display_name: 'Video Generation',
+      source_type: 'upload',
+      enabled: true,
+      installed_version: '2.0.0',
+      installed_at: '2026-05-25T00:00:00.000Z',
+    });
+    expect(clearSkillsCache).toHaveBeenCalledTimes(1);
+    expect(resetAcpSkillManager).toHaveBeenCalledTimes(1);
+  });
+
+  it('skips installing over an existing custom skill', async () => {
+    const skillDir = path.join(workspace, 'video-generation');
+    await fs.mkdir(skillDir, { recursive: true });
+    await fs.writeFile(
+      path.join(skillDir, 'SKILL.md'),
+      `---
+name: video-generation
+---
+`,
+      'utf-8'
+    );
+    await fs.writeFile(path.join(skillDir, '_sudowork_meta.json'), JSON.stringify({ name: 'video-generation' }), 'utf-8');
+    await fs.mkdir(path.join(customSkillsDir, 'video-generation'), { recursive: true });
+
+    const clearSkillsCache = vi.fn();
+    const results = await installWorkspaceSkillsFromTrackedFiles(
+      workspace,
+      new Map<string, TrackedWorkspaceFile>([
+        [
+          'video-generation/SKILL.md',
+          {
+            path: path.join(skillDir, 'SKILL.md'),
+            intent: 'final',
+            kind: 'create',
+          },
+        ],
+      ]),
+      {
+        getCustomSkillsDir: () => customSkillsDir,
+        existingCustomSkillNames: new Set(['video-generation']),
+        clearSkillsCache,
+      }
+    );
+
+    expect(results).toEqual([
+      {
+        status: 'skipped',
+        sourceDir: skillDir,
+        reason: 'custom-skill-already-exists',
+        skillName: 'video-generation',
+      },
+    ]);
+    expect(clearSkillsCache).not.toHaveBeenCalled();
+  });
+
+  it('registers a skill already moved into custom skills by the install script', async () => {
+    const sourceDir = path.join(workspace, 'video-generation');
+    const targetDir = path.join(customSkillsDir, 'video-generation');
+    await fs.mkdir(targetDir, { recursive: true });
+    await fs.writeFile(
+      path.join(targetDir, 'SKILL.md'),
+      `---
+name: video-generation
+description: "Create product videos"
+version: 2.0.0
+---
+`,
+      'utf-8'
+    );
+    await fs.writeFile(path.join(targetDir, '_sudowork_meta.json'), JSON.stringify({ name: 'video-generation', source_type: 'upload' }), 'utf-8');
+
+    const clearSkillsCache = vi.fn();
+    const resetAcpSkillManager = vi.fn();
+    const results = await installWorkspaceSkillsFromTrackedFiles(
+      workspace,
+      new Map<string, TrackedWorkspaceFile>([
+        [
+          'video-generation/SKILL.md',
+          {
+            path: path.join(sourceDir, 'SKILL.md'),
+            intent: 'final',
+            kind: 'create',
+          },
+        ],
+      ]),
+      {
+        getCustomSkillsDir: () => customSkillsDir,
+        existingCustomSkillNames: new Set(),
+        clearSkillsCache,
+        resetAcpSkillManager,
+      }
+    );
+
+    expect(results).toEqual([
+      expect.objectContaining({
+        status: 'registered',
+        skillName: 'video-generation',
+        installedVersion: '2.0.0',
+        sourceDir,
+        targetDir,
+      }),
+    ]);
+    expect(clearSkillsCache).toHaveBeenCalledTimes(1);
+    expect(resetAcpSkillManager).toHaveBeenCalledTimes(1);
+  });
+
+  it('registers a skill installed by script without moving the staged directory', async () => {
+    const sourceDir = path.join(workspace, 'video-generation');
+    const targetDir = path.join(customSkillsDir, 'video-generation');
+    await fs.mkdir(sourceDir, { recursive: true });
+    await fs.writeFile(
+      path.join(sourceDir, 'SKILL.md'),
+      `---
+name: video-generation
+description: "Create product videos"
+version: 2.0.0
+---
+`,
+      'utf-8'
+    );
+    await fs.writeFile(path.join(sourceDir, '_sudowork_meta.json'), JSON.stringify({ name: 'video-generation' }), 'utf-8');
+    await fs.mkdir(targetDir, { recursive: true });
+    await fs.writeFile(
+      path.join(targetDir, 'SKILL.md'),
+      `---
+name: video-generation
+description: "Create product videos"
+version: 2.0.0
+---
+`,
+      'utf-8'
+    );
+    await fs.writeFile(path.join(targetDir, '_sudowork_meta.json'), JSON.stringify({ name: 'video-generation', source_type: 'upload' }), 'utf-8');
+
+    const results = await installWorkspaceSkillsFromTrackedFiles(
+      workspace,
+      new Map<string, TrackedWorkspaceFile>([
+        [
+          'video-generation/SKILL.md',
+          {
+            path: path.join(sourceDir, 'SKILL.md'),
+            intent: 'final',
+            kind: 'create',
+          },
+        ],
+      ]),
+      {
+        getCustomSkillsDir: () => customSkillsDir,
+        existingCustomSkillNames: new Set(),
+      }
+    );
+
+    expect(results).toEqual([
+      expect.objectContaining({
+        status: 'registered',
+        skillName: 'video-generation',
+        installedVersion: '2.0.0',
+        sourceDir,
+        targetDir,
+      }),
+    ]);
+  });
+
+  it('does not register a pre-existing custom skill when staged source is gone', async () => {
+    const sourceDir = path.join(workspace, 'video-generation');
+    const targetDir = path.join(customSkillsDir, 'video-generation');
+    await fs.mkdir(targetDir, { recursive: true });
+    await fs.writeFile(
+      path.join(targetDir, 'SKILL.md'),
+      `---
+name: video-generation
+version: 2.0.0
+---
+`,
+      'utf-8'
+    );
+    await fs.writeFile(path.join(targetDir, '_sudowork_meta.json'), JSON.stringify({ name: 'video-generation', source_type: 'upload' }), 'utf-8');
+
+    const clearSkillsCache = vi.fn();
+    const results = await installWorkspaceSkillsFromTrackedFiles(
+      workspace,
+      new Map<string, TrackedWorkspaceFile>([
+        [
+          'video-generation/SKILL.md',
+          {
+            path: path.join(sourceDir, 'SKILL.md'),
+            intent: 'final',
+            kind: 'create',
+          },
+        ],
+      ]),
+      {
+        getCustomSkillsDir: () => customSkillsDir,
+        existingCustomSkillNames: new Set(['video-generation']),
+        clearSkillsCache,
+      }
+    );
+
+    expect(results).toEqual([
+      {
+        status: 'skipped',
+        sourceDir,
+        reason: 'not-directory',
+      },
+    ]);
+    expect(clearSkillsCache).not.toHaveBeenCalled();
+  });
+});
