@@ -89,6 +89,11 @@
     "loadFailed": "載入 PDF 失敗",
     "unableDisplay": "無法載入 PDF 文件"
   },
+  "video": {
+    "title": "影片",
+    "pathMissing": "影片檔案路徑為空",
+    "loadFailed": "無法在內建播放器中播放此影片，可嘗試使用系統預設應用程式開啟。"
+  },
   "html": {
     "elementSelected": "已選取元素: {{path}}",
     "copySuccess": "已複製該段 HTML",

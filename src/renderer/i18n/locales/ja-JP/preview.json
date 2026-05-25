@@ -89,6 +89,11 @@
     "loadFailed": "PDF の読み込みに失敗しました",
     "unableDisplay": "PDF ファイルを表示できません"
   },
+  "video": {
+    "title": "動画",
+    "pathMissing": "動画ファイルのパスがありません",
+    "loadFailed": "内蔵プレーヤーでこの動画を再生できません。システム既定のアプリで開いてください。"
+  },
   "html": {
     "elementSelected": "選択中の要素: {{path}}",
     "copySuccess": "HTML をコピーしました",

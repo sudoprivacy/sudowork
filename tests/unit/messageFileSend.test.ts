@@ -41,6 +41,13 @@ describe('getContentTypeFromExt', () => {
     }
   });
 
+  it('maps common video extensions to video', () => {
+    const videoExts = ['mp4', 'webm', 'mov', 'm4v', 'ogv', 'ogg', 'avi', 'mkv', 'wmv', 'flv'];
+    for (const ext of videoExts) {
+      expect(getContentTypeFromExt(ext)).toBe('video');
+    }
+  });
+
   // 代码类型
   it('maps code extensions to code', () => {
     const codeExts = ['ts', 'tsx', 'js', 'jsx', 'py', 'java', 'go', 'rs', 'c', 'cpp', 'json', 'yaml', 'txt', 'sh'];
@@ -80,6 +87,7 @@ describe('getContentTypeFromExt', () => {
     expect(getContentTypeFromExt('Pdf')).toBe('pdf');
     expect(getContentTypeFromExt('DOCX')).toBe('word');
     expect(getContentTypeFromExt('MD')).toBe('markdown');
+    expect(getContentTypeFromExt('MP4')).toBe('video');
     expect(getContentTypeFromExt('TS')).toBe('code');
   });
 });

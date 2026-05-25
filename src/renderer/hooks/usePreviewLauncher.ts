@@ -117,7 +117,7 @@ export const usePreviewLauncher = () => {
               return;
             }
 
-            const binaryOnlyTypes: PreviewContentType[] = ['pdf', 'ppt', 'word', 'excel'];
+            const binaryOnlyTypes: PreviewContentType[] = ['pdf', 'ppt', 'word', 'excel', 'video'];
             if (binaryOnlyTypes.includes(contentType)) {
               // 这类格式仅依赖文件路径渲染，不需要实际读取内容
               // These formats rely on file path; no need to read file content

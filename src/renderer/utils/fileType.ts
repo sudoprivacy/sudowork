@@ -50,6 +50,17 @@ const EXTENSION_MAP: Record<string, FileTypeInfo> = {
   tif: { contentType: 'image', editable: false, language: 'image' },
   tiff: { contentType: 'image', editable: false, language: 'image' },
   avif: { contentType: 'image', editable: false, language: 'image' },
+  // Video
+  mp4: { contentType: 'video', editable: false, language: 'video' },
+  webm: { contentType: 'video', editable: false, language: 'video' },
+  mov: { contentType: 'video', editable: false, language: 'video' },
+  m4v: { contentType: 'video', editable: false, language: 'video' },
+  ogv: { contentType: 'video', editable: false, language: 'video' },
+  ogg: { contentType: 'video', editable: false, language: 'video' },
+  avi: { contentType: 'video', editable: false, language: 'video' },
+  mkv: { contentType: 'video', editable: false, language: 'video' },
+  wmv: { contentType: 'video', editable: false, language: 'video' },
+  flv: { contentType: 'video', editable: false, language: 'video' },
 };
 
 /**

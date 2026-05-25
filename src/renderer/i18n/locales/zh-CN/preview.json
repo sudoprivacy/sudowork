@@ -126,6 +126,11 @@
     "loadFailed": "加载 PDF 失败",
     "unableDisplay": "无法加载 PDF 文件"
   },
+  "video": {
+    "title": "视频",
+    "pathMissing": "视频文件路径为空",
+    "loadFailed": "无法在内置播放器中播放此视频，可尝试使用系统默认应用打开。"
+  },
   "html": {
     "elementSelected": "已选中元素: {{path}}",
     "copySuccess": "已复制该段 HTML",

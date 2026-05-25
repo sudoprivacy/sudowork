@@ -706,6 +706,17 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
       'tif',
       'tiff',
       'avif',
+      // Video formats
+      'mp4',
+      'webm',
+      'mov',
+      'm4v',
+      'ogv',
+      'ogg',
+      'avi',
+      'mkv',
+      'wmv',
+      'flv',
     ];
     return supportedExts.includes(ext);
   })();
@@ -1084,15 +1095,19 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                 icon={<FolderOpen theme='outline' size='48' fill='var(--color-text-3)' />}
                 title={searchText ? t('conversation.workspace.search.empty') : t('conversation.workspace.empty')}
                 description={!searchText ? t('conversation.workspace.emptyDescription') : undefined}
-                actions={!searchText ? [
-                  {
-                    label: t('conversation.welcome.linkFolder'),
-                    onClick: () => {
-                      setShowDirectorySelector(true);
-                    },
-                    type: 'primary',
-                  },
-                ] : undefined}
+                actions={
+                  !searchText
+                    ? [
+                        {
+                          label: t('conversation.welcome.linkFolder'),
+                          onClick: () => {
+                            setShowDirectorySelector(true);
+                          },
+                          type: 'primary',
+                        },
+                      ]
+                    : undefined
+                }
                 simple
               />
             ) : (
@@ -1130,8 +1145,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                     <div
                       className='flex items-center justify-between gap-6px min-w-0'
                       style={{ color: 'inherit' }}
-                      onClick={() => {
-                      }}
+                      onClick={() => {}}
                       onDoubleClick={() => {
                         if (isFile) {
                           fileOpsHook.handleAddToChat(nodeData);
@@ -1290,104 +1304,33 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
       </div>
 
       {/* Context Menu - rendered via Portal to avoid overflow clipping */}
-      {modalsHook.contextMenu.visible && contextMenuNode && contextMenuStyle && typeof document !== 'undefined' && createPortal(
-        <div
-          className='fixed z-[9999] min-w-200px max-w-240px rounded-12px bg-base/95 shadow-[0_12px_40px_rgba(15,23,42,0.16)] backdrop-blur-sm p-6px'
-          style={{ top: contextMenuStyle.top, left: contextMenuStyle.left }}
-          onClick={(event) => event.stopPropagation()}
-          onContextMenu={(event) => {
-            event.preventDefault();
-            event.stopPropagation();
-          }}
-        >
-          <div className='flex flex-col gap-4px'>
-            {isContextMenuNodeRoot ? (
-              <>
-                <button
-                  type='button'
-                  className={menuButtonBase}
-                  onClick={() => {
-                    void fileOpsHook.handleOpenNode(contextMenuNode);
-                    modalsHook.closeContextMenu();
-                  }}
-                >
-                  {t('conversation.workspace.contextMenu.open')}
-                </button>
-                <button
-                  type='button'
-                  className={menuButtonBase}
-                  onClick={() => {
-                    openNewFolderModal(contextMenuNode);
-                  }}
-                >
-                  {t('conversation.workspace.contextMenu.newFolder')}
-                </button>
-                <button
-                  type='button'
-                  className={menuButtonBase}
-                  onClick={() => {
-                    setWsRenameModal({ visible: true, name: workspaceDisplayName });
-                    modalsHook.closeContextMenu();
-                  }}
-                >
-                  {t('conversation.workspace.contextMenu.rename')}
-                </button>
-                <div className='h-1px bg-3 my-2px'></div>
-                <button
-                  type='button'
-                  className={menuButtonBase}
-                  onClick={() => {
-                    showBdpanUploadPicker(contextMenuNode);
-                  }}
-                >
-                  {t('conversation.workspace.contextMenu.uploadToBdpan')}
-                </button>
-              </>
-            ) : (
-              <>
-                <button
-                  type='button'
-                  className={menuButtonBase}
-                  onClick={() => {
-                    fileOpsHook.handleAddToChat(contextMenuNode);
-                  }}
-                >
-                  {t('conversation.workspace.contextMenu.addToChat')}
-                </button>
-                <button
-                  type='button'
-                  className={menuButtonBase}
-                  onClick={() => {
-                    void fileOpsHook.handleOpenNode(contextMenuNode);
-                    modalsHook.closeContextMenu();
-                  }}
-                >
-                  {t('conversation.workspace.contextMenu.open')}
-                </button>
-                {isContextMenuNodeFile && (
+      {modalsHook.contextMenu.visible &&
+        contextMenuNode &&
+        contextMenuStyle &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <div
+            className='fixed z-[9999] min-w-200px max-w-240px rounded-12px bg-base/95 shadow-[0_12px_40px_rgba(15,23,42,0.16)] backdrop-blur-sm p-6px'
+            style={{ top: contextMenuStyle.top, left: contextMenuStyle.left }}
+            onClick={(event) => event.stopPropagation()}
+            onContextMenu={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+            }}
+          >
+            <div className='flex flex-col gap-4px'>
+              {isContextMenuNodeRoot ? (
+                <>
                   <button
                     type='button'
                     className={menuButtonBase}
                     onClick={() => {
-                      void fileOpsHook.handleRevealNode(contextMenuNode);
+                      void fileOpsHook.handleOpenNode(contextMenuNode);
                       modalsHook.closeContextMenu();
                     }}
                   >
-                    {t('conversation.workspace.contextMenu.openLocation')}
+                    {t('conversation.workspace.contextMenu.open')}
                   </button>
-                )}
-                {isContextMenuNodeFile && isPreviewSupported && (
-                  <button
-                    type='button'
-                    className={menuButtonBase}
-                    onClick={() => {
-                      void fileOpsHook.handlePreviewFile(contextMenuNode);
-                    }}
-                  >
-                    {t('conversation.workspace.contextMenu.preview')}
-                  </button>
-                )}
-                {!isContextMenuNodeFile && (
                   <button
                     type='button'
                     className={menuButtonBase}
@@ -1397,46 +1340,121 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                   >
                     {t('conversation.workspace.contextMenu.newFolder')}
                   </button>
-                )}
-                <div className='h-1px bg-3 my-2px'></div>
-                <button
-                  type='button'
-                  className={menuButtonBase}
-                  onClick={() => {
-                    showBdpanUploadPicker(contextMenuNode);
-                  }}
-                >
-                  {t('conversation.workspace.contextMenu.uploadToBdpan')}
-                </button>
-                <div className='h-1px bg-3 my-2px'></div>
-                {!isContextMenuNodeDrafts && (
                   <button
                     type='button'
                     className={menuButtonBase}
                     onClick={() => {
-                      fileOpsHook.handleDeleteNode(contextMenuNode);
-                    }}
-                  >
-                    {t('common.delete')}
-                  </button>
-                )}
-                {!isContextMenuNodeDrafts && (
-                  <button
-                    type='button'
-                    className={menuButtonBase}
-                    onClick={() => {
-                      fileOpsHook.openRenameModal(contextMenuNode);
+                      setWsRenameModal({ visible: true, name: workspaceDisplayName });
+                      modalsHook.closeContextMenu();
                     }}
                   >
                     {t('conversation.workspace.contextMenu.rename')}
                   </button>
-                )}
-              </>
-            )}
-          </div>
-        </div>,
-        document.body
-      )}
+                  <div className='h-1px bg-3 my-2px'></div>
+                  <button
+                    type='button'
+                    className={menuButtonBase}
+                    onClick={() => {
+                      showBdpanUploadPicker(contextMenuNode);
+                    }}
+                  >
+                    {t('conversation.workspace.contextMenu.uploadToBdpan')}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    type='button'
+                    className={menuButtonBase}
+                    onClick={() => {
+                      fileOpsHook.handleAddToChat(contextMenuNode);
+                    }}
+                  >
+                    {t('conversation.workspace.contextMenu.addToChat')}
+                  </button>
+                  <button
+                    type='button'
+                    className={menuButtonBase}
+                    onClick={() => {
+                      void fileOpsHook.handleOpenNode(contextMenuNode);
+                      modalsHook.closeContextMenu();
+                    }}
+                  >
+                    {t('conversation.workspace.contextMenu.open')}
+                  </button>
+                  {isContextMenuNodeFile && (
+                    <button
+                      type='button'
+                      className={menuButtonBase}
+                      onClick={() => {
+                        void fileOpsHook.handleRevealNode(contextMenuNode);
+                        modalsHook.closeContextMenu();
+                      }}
+                    >
+                      {t('conversation.workspace.contextMenu.openLocation')}
+                    </button>
+                  )}
+                  {isContextMenuNodeFile && isPreviewSupported && (
+                    <button
+                      type='button'
+                      className={menuButtonBase}
+                      onClick={() => {
+                        void fileOpsHook.handlePreviewFile(contextMenuNode);
+                      }}
+                    >
+                      {t('conversation.workspace.contextMenu.preview')}
+                    </button>
+                  )}
+                  {!isContextMenuNodeFile && (
+                    <button
+                      type='button'
+                      className={menuButtonBase}
+                      onClick={() => {
+                        openNewFolderModal(contextMenuNode);
+                      }}
+                    >
+                      {t('conversation.workspace.contextMenu.newFolder')}
+                    </button>
+                  )}
+                  <div className='h-1px bg-3 my-2px'></div>
+                  <button
+                    type='button'
+                    className={menuButtonBase}
+                    onClick={() => {
+                      showBdpanUploadPicker(contextMenuNode);
+                    }}
+                  >
+                    {t('conversation.workspace.contextMenu.uploadToBdpan')}
+                  </button>
+                  <div className='h-1px bg-3 my-2px'></div>
+                  {!isContextMenuNodeDrafts && (
+                    <button
+                      type='button'
+                      className={menuButtonBase}
+                      onClick={() => {
+                        fileOpsHook.handleDeleteNode(contextMenuNode);
+                      }}
+                    >
+                      {t('common.delete')}
+                    </button>
+                  )}
+                  {!isContextMenuNodeDrafts && (
+                    <button
+                      type='button'
+                      className={menuButtonBase}
+                      onClick={() => {
+                        fileOpsHook.openRenameModal(contextMenuNode);
+                      }}
+                    >
+                      {t('conversation.workspace.contextMenu.rename')}
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          </div>,
+          document.body
+        )}
     </>
   );
 };

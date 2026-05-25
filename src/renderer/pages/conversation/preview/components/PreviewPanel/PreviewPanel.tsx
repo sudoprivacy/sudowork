@@ -9,7 +9,7 @@ import { useLayoutContext } from '@/renderer/context/LayoutContext';
 import { PreviewToolbarExtrasProvider, type PreviewToolbarExtras } from '../../context/PreviewToolbarExtrasContext';
 import { usePreviewContext } from '../../context/PreviewContext';
 import { useResizableSplit } from '@/renderer/hooks/useResizableSplit';
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState, useEffect } from 'react';
 import CodePreview from '../viewers/CodeViewer';
 import DiffPreview from '../viewers/DiffViewer';
 import ExcelPreview from '../viewers/ExcelViewer';
@@ -21,13 +21,13 @@ import MarkdownPreview from '../viewers/MarkdownViewer';
 import PDFPreview from '../viewers/PDFViewer';
 import PPTPreview from '../viewers/PPTViewer';
 import TextEditor from '../editors/TextEditor';
+import VideoPreview from '../viewers/VideoViewer';
 import WordPreview from '../viewers/WordViewer';
 import URLViewer from '../viewers/URLViewer';
 import { PreviewTabs, PreviewToolbar, PreviewContextMenu, PreviewConfirmModals, PreviewHistoryDropdown, type ContextMenuState, type CloseTabConfirmState, type PreviewTab } from '.';
 import { DEFAULT_SPLIT_RATIO, FILE_TYPES_WITH_BUILTIN_OPEN, MAX_SPLIT_WIDTH, MIN_SPLIT_WIDTH } from '../../constants';
 import { usePreviewHistory, usePreviewKeyboardShortcuts, useScrollSync, useTabOverflow, useThemeDetection } from '../../hooks';
 import { useTranslation } from 'react-i18next';
-import { useEffect } from 'react';
 
 /**
  * 预览面板主组件
@@ -293,7 +293,7 @@ const PreviewPanel: React.FC = () => {
       // ArrayBuffer 在 JSON 序列化时会丢失（变为 {}），导致下载得到空文件。
       // Note: Cannot use readFileBuffer because the IPC bridge serializes data via JSON.stringify,
       // and ArrayBuffer is lost during JSON serialization (becomes {}), resulting in empty downloads.
-      const binaryContentTypes = ['word', 'ppt', 'excel', 'pdf'];
+      const binaryContentTypes = ['word', 'ppt', 'excel', 'pdf', 'video'];
       if (binaryContentTypes.includes(contentType) && metadata?.filePath) {
         const base64 = await ipcBridge.fs.readFileBase64.invoke({ path: metadata.filePath });
         // 将 Base64 字符串解码为二进制数据 / Decode Base64 string to binary data
@@ -308,6 +308,7 @@ const PreviewPanel: React.FC = () => {
           ppt: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
           excel: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
           pdf: 'application/pdf',
+          video: nameExt ? `video/${nameExt === 'ogv' ? 'ogg' : nameExt}` : 'video/mp4',
         };
         blob = new Blob([bytes], { type: mimeTypes[contentType] || 'application/octet-stream' });
         ext = nameExt || contentType;
@@ -568,6 +569,8 @@ const PreviewPanel: React.FC = () => {
       return <ExcelPreview filePath={metadata?.filePath} content={content} />;
     } else if (contentType === 'image') {
       return <ImagePreview filePath={metadata?.filePath} content={content} fileName={metadata?.fileName || metadata?.title} />;
+    } else if (contentType === 'video') {
+      return <VideoPreview filePath={metadata?.filePath} content={content} fileName={metadata?.fileName || metadata?.title} />;
     } else if (contentType === 'url') {
       // URL 预览模式 / URL preview mode
       return <URLViewer url={content} title={metadata?.title} />;

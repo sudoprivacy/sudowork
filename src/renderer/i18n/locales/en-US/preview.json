@@ -126,6 +126,11 @@
     "loadFailed": "Failed to load PDF document",
     "unableDisplay": "Unable to display PDF file"
   },
+  "video": {
+    "title": "Video",
+    "pathMissing": "Video file path is missing",
+    "loadFailed": "Unable to play this video in the built-in player. Try opening it with the system default app."
+  },
   "html": {
     "elementSelected": "Selected element: {{path}}",
     "copySuccess": "Copied HTML snippet",
