@@ -30,7 +30,6 @@ import type { IInstalledSkillInfo } from '@/common/ipcBridge';
 import { isElectronDesktop } from '@/renderer/utils/platform';
 import { skillHub } from '@/common/ipcBridge';
 import { resolveSkillIcon, getInstalledSkillDisplay } from '@/renderer/utils/skillDisplay';
-import { iconColors } from '@/renderer/theme/colors';
 import { addEventListener } from '@/renderer/utils/emitter';
 
 const constVoid = (): void => undefined;
@@ -404,10 +403,7 @@ const SendBox: React.FC<{
     <Tooltip content={t('conversation.welcome.addSkill', { defaultValue: '添加技能' })} position='top'>
       <Button className='sendbox-model-btn' shape='round' size='small' onClick={handleTriggerSkillSelector}>
         <span className='flex items-center gap-6px min-w-0'>
-          <span className='shrink-0' style={{ color: iconColors.secondary, fontSize: 14, fontWeight: 700, lineHeight: 1 }}>
-            @
-          </span>
-          <span>{t('conversation.welcome.skill', { defaultValue: '技能' })}</span>
+          <span className='truncate'>{t('messages.skills.triggerLabel', { defaultValue: '@ Skills / Files' })}</span>
         </span>
       </Button>
     </Tooltip>

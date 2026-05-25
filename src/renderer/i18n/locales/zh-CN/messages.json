@@ -37,6 +37,9 @@
   "questionSkipped": "已跳过",
   "yes": "是",
   "no": "否",
+  "skills": {
+    "triggerLabel": "@ 技能 / 文件"
+  },
   "confirmation": {
     "applyChange": "应用此更改？",
     "allowExecution": "允许执行？",
