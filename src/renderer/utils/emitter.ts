@@ -43,6 +43,8 @@ interface EventTypes {
   'staroffice.install.finished': [{ conversationId: string }];
   // 技能列表变更事件 / Skills list changed event (install, uninstall, update, import, toggle)
   'skills.changed': void;
+  // Assistants list/meta changed event (create, update, delete, toggle)
+  'assistants.changed': void;
   // Guide 页面重置事件 / Guide page reset event (triggered by "New Conversation")
   'guid.reset': void;
   // Command palette events

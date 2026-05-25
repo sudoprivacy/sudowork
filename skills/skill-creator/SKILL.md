@@ -1,355 +1,365 @@
 ---
 name: skill-creator
-description: Guide for creating effective skills. This skill should be used when users want to create a new skill (or update an existing skill) that extends Claude's capabilities with specialized knowledge, workflows, or tool integrations.
+description: 创建或更新 Sudowork 自定义技能，同时保留核心 skill creation / skill-design 最佳实践。用于用户要求创建新技能、优化已有技能、打包导入 Sudowork，或让技能展示在我的技能自定义技能中。
 license: Complete terms in LICENSE.txt
 ---
 
-# Skill Creator
+# 技能创建
 
-This skill provides guidance for creating effective skills.
+使用这个 skill 创建可以在 Sudowork 中作为自定义技能使用的有效技能包。
 
-## About Skills
+产物必须仍然是一个标准 skill：根目录包含聚焦的 `SKILL.md`，并可按需附带 `scripts/`、`references/`、`assets/`。同时，产物还必须包含 Sudowork 所需的展示元数据和打包约定，确保可以导入并显示在 Sudowork 的“我的技能 / 自定义技能”中。
 
-Skills are modular, self-contained packages that extend Claude's capabilities by providing
-specialized knowledge, workflows, and tools. Think of them as "onboarding guides" for specific
-domains or tasks—they transform Claude from a general-purpose agent into a specialized agent
-equipped with procedural knowledge that no model can fully possess.
+## Sudowork 兼容约定
 
-### What Skills Provide
+Sudowork 自定义技能包应是一个文件夹或 zip 包，结构如下：
 
-1. Specialized workflows - Multi-step procedures for specific domains
-2. Tool integrations - Instructions for working with specific file formats or APIs
-3. Domain expertise - Company-specific knowledge, schemas, business logic
-4. Bundled resources - Scripts, references, and assets for complex and repetitive tasks
-
-## Core Principles
-
-### Concise is Key
-
-The context window is a public good. Skills share the context window with everything else Claude needs: system prompt, conversation history, other Skills' metadata, and the actual user request.
-
-**Default assumption: Claude is already very smart.** Only add context Claude doesn't already have. Challenge each piece of information: "Does Claude really need this explanation?" and "Does this paragraph justify its token cost?"
-
-Prefer concise examples over verbose explanations.
-
-### Set Appropriate Degrees of Freedom
-
-Match the level of specificity to the task's fragility and variability:
-
-**High freedom (text-based instructions)**: Use when multiple approaches are valid, decisions depend on context, or heuristics guide the approach.
-
-**Medium freedom (pseudocode or scripts with parameters)**: Use when a preferred pattern exists, some variation is acceptable, or configuration affects behavior.
-
-**Low freedom (specific scripts, few parameters)**: Use when operations are fragile and error-prone, consistency is critical, or a specific sequence must be followed.
-
-Think of Claude as exploring a path: a narrow bridge with cliffs needs specific guardrails (low freedom), while an open field allows many routes (high freedom).
-
-### Anatomy of a Skill
-
-Every skill consists of a required SKILL.md file and optional bundled resources:
-
-```
+```text
 skill-name/
-├── SKILL.md (required)
-│   ├── YAML frontmatter metadata (required)
-│   │   ├── name: (required)
-│   │   └── description: (required)
-│   └── Markdown instructions (required)
-└── Bundled Resources (optional)
-    ├── scripts/          - Executable code (Python/Bash/etc.)
-    ├── references/       - Documentation intended to be loaded into context as needed
-    └── assets/           - Files used in output (templates, icons, fonts, etc.)
+├── SKILL.md
+├── _sudowork_meta.json
+├── icon.svg or icon.png (推荐但非必需)
+├── scripts/ (可选)
+├── references/ (可选)
+└── assets/ (可选)
 ```
 
-#### SKILL.md (required)
+为了正确显示在 `Sudowork > 设置 > 技能 > 我的技能 > 自定义技能`：
 
-Every SKILL.md consists of:
+- 将 `SKILL.md` 放在技能根目录。
+- 在 `SKILL.md` frontmatter 中使用 hyphen-case 的 `name`，并让它与文件夹名一致。
+- 提供 `_sudowork_meta.json`，包含 `display_name`、`description`、`icon`、`emoji`、`categories`、`source_type`、`enabled` 等展示字段。
+- 本地创建的自定义技能中，`_sudowork_meta.json` 的 `source_type` 使用 `upload`，`is_builtin` 使用 `false`，`enabled` 使用 `true`。
+- 打包为 `.zip`，因为 Sudowork 本地导入入口支持 zip 包和文件夹。
+- 创建或更新技能时先写入当前会话的临时空间，也就是 Sudowork 会话页面右侧的文件空间；不要直接写入 workspace skill 同步目录。
+- 完成前必须使用 `scripts/install_skill.py` 安装到 `~/.nexus/skills/_my-custom-skill/<skill-name>/`。除非用户明确要求只生成包、不安装，否则不能只创建临时目录或 zip 后结束，也不能只把安装命令交给用户。
+- 安装完成后保留会话临时空间里的最终技能目录 `<skill-name>/`，用于 Sudowork 在 turn 结束时校验并同步；不要删除该技能目录。删除 `skill-packages/` 中间打包目录以及其中的 zip 文件，避免临时空间残留打包产物。
 
-- **Frontmatter** (YAML): Contains `name` and `description` fields. These are the only fields that Claude reads to determine when the skill gets used, thus it is very important to be clear and comprehensive in describing what the skill is, and when it should be used.
-- **Body** (Markdown): Instructions and guidance for using the skill. Only loaded AFTER the skill triggers (if at all).
+不要把用户创建的技能放入 hub 或 system 技能目录；这些目录分别保留给商店技能和内置技能。
 
-#### Bundled Resources (optional)
+## 核心设计原则
 
-##### Scripts (`scripts/`)
+### 保持精炼
 
-Executable code (Python/Bash/etc.) for tasks that require deterministic reliability or are repeatedly rewritten.
+上下文窗口会同时承载系统提示、对话历史、skill 元数据和任务文件。只写入 agent 难以稳定推断出的流程知识、领域细节和可复用资源。
 
-- **When to include**: When the same code is being rewritten repeatedly or deterministic reliability is needed
-- **Example**: `scripts/rotate_pdf.py` for PDF rotation tasks
-- **Benefits**: Token efficient, deterministic, may be executed without loading into context
-- **Note**: Scripts may still need to be read by Claude for patching or environment-specific adjustments
+优先使用简短示例，而不是长篇解释。大型 schema、政策、API 参考、详细示例应移入 `references/`。
 
-##### References (`references/`)
+### 匹配自由度与风险
 
-Documentation and reference material intended to be loaded as needed into context to inform Claude's process and thinking.
+根据任务脆弱程度选择约束强度：
 
-- **When to include**: For documentation that Claude should reference while working
-- **Examples**: `references/finance.md` for financial schemas, `references/mnda.md` for company NDA template, `references/policies.md` for company policies, `references/api_docs.md` for API specifications
-- **Use cases**: Database schemas, API documentation, domain knowledge, company policies, detailed workflow guides
-- **Benefits**: Keeps SKILL.md lean, loaded only when Claude determines it's needed
-- **Best practice**: If files are large (>10k words), include grep search patterns in SKILL.md
-- **Avoid duplication**: Information should live in either SKILL.md or references files, not both. Prefer references files for detailed information unless it's truly core to the skill—this keeps SKILL.md lean while making information discoverable without hogging the context window. Keep only essential procedural instructions and workflow guidance in SKILL.md; move detailed reference material, schemas, and examples to references files.
+- 高自由度：当多个方案都合理时，用文字原则和启发式说明。
+- 中自由度：当存在推荐模式但需要少量变化时，用伪代码或参数化脚本。
+- 低自由度：当流程脆弱、重复、或需要稳定结果时，提供明确脚本和严格步骤。
 
-##### Assets (`assets/`)
+### 渐进式披露
 
-Files not intended to be loaded into context, but rather used within the output Claude produces.
+技能按层加载：
 
-- **When to include**: When the skill needs files that will be used in the final output
-- **Examples**: `assets/logo.png` for brand assets, `assets/slides.pptx` for PowerPoint templates, `assets/frontend-template/` for HTML/React boilerplate, `assets/font.ttf` for typography
-- **Use cases**: Templates, images, icons, boilerplate code, fonts, sample documents that get copied or modified
-- **Benefits**: Separates output resources from documentation, enables Claude to use files without loading them into context
+1. Frontmatter 元数据（`name` 和 `description`）始终可见。
+2. `SKILL.md` 正文只在 skill 触发后加载。
+3. Bundled resources 只在需要时读取或执行。
 
-#### What to Not Include in a Skill
+保持 `SKILL.md` 精简。若引用额外文档，应直接链接一层以内的 reference 文件，并说明什么时候读取。
 
-A skill should only contain essential files that directly support its functionality. Do NOT create extraneous documentation or auxiliary files, including:
+### 最佳实践检查清单
 
-- README.md
-- INSTALLATION_GUIDE.md
-- QUICK_REFERENCE.md
-- CHANGELOG.md
-- etc.
+在认为技能完成前，检查它是否符合这些核心原则：
 
-The skill should only contain the information needed for an AI agent to do the job at hand. It should not contain auxilary context about the process that went into creating it, setup and testing procedures, user-facing documentation, etc. Creating additional documentation files just adds clutter and confusion.
+- 触发清晰：frontmatter 的 `description` 同时说明技能做什么、什么时候使用。
+- 范围聚焦：一个技能只解决一个连贯的问题，不要变成通用资料堆。
+- 上下文节省：核心流程写在 `SKILL.md`，大块细节放入 `references/`。
+- 资源复用：重复或脆弱操作应沉淀为脚本、模板或 reference。
+- 可验证：用真实提示测试技能，并在打包前运行校验脚本。
 
-### Progressive Disclosure Design Principle
+## 技能结构
 
-Skills use a three-level loading system to manage context efficiently:
+### SKILL.md
 
-1. **Metadata (name + description)** - Always in context (~100 words)
-2. **SKILL.md body** - When skill triggers (<5k words)
-3. **Bundled resources** - As needed by Claude (Unlimited because scripts can be executed without reading into context window)
+必需。它包含：
 
-#### Progressive Disclosure Patterns
+- YAML frontmatter，其中至少包含 `name` 和 `description`。
+- Markdown 正文，说明 agent 应如何完成任务。
 
-Keep SKILL.md body to the essentials and under 500 lines to minimize context bloat. Split content into separate files when approaching this limit. When splitting out content into other files, it is very important to reference them from SKILL.md and describe clearly when to read them, to ensure the reader of the skill knows they exist and when to use them.
+`description` 是主要触发机制。它应同时包含技能能力和使用场景。不要把“什么时候使用本技能”只写在正文里；正文只有在触发后才会加载。
 
-**Key principle:** When a skill supports multiple variations, frameworks, or options, keep only the core workflow and selection guidance in SKILL.md. Move variant-specific details (patterns, examples, configuration) into separate reference files.
+除非目标运行时明确要求更多字段，否则 frontmatter 保持如下结构：
 
-**Pattern 1: High-level guide with references**
-
-```markdown
-# PDF Processing
-
-## Quick start
-
-Extract text with pdfplumber:
-[code example]
-
-## Advanced features
-
-- **Form filling**: See [FORMS.md](FORMS.md) for complete guide
-- **API reference**: See [REFERENCE.md](REFERENCE.md) for all methods
-- **Examples**: See [EXAMPLES.md](EXAMPLES.md) for common patterns
+```yaml
+---
+name: my-skill
+description: 清晰说明这个技能做什么，以及什么时候应该使用它。
+---
 ```
 
-Claude loads FORMS.md, REFERENCE.md, or EXAMPLES.md only when needed.
+### _sudowork_meta.json
 
-**Pattern 2: Domain-specific organization**
+建议每个 Sudowork 自定义技能都提供。它控制技能卡片展示和导入元数据。
 
-For Skills with multiple domains, organize content by domain to avoid loading irrelevant context:
+使用这个结构：
 
-```
-bigquery-skill/
-├── SKILL.md (overview and navigation)
-└── reference/
-    ├── finance.md (revenue, billing metrics)
-    ├── sales.md (opportunities, pipeline)
-    ├── product.md (API usage, features)
-    └── marketing.md (campaigns, attribution)
-```
-
-When a user asks about sales metrics, Claude only reads sales.md.
-
-Similarly, for skills supporting multiple frameworks or variants, organize by variant:
-
-```
-cloud-deploy/
-├── SKILL.md (workflow + provider selection)
-└── references/
-    ├── aws.md (AWS deployment patterns)
-    ├── gcp.md (GCP deployment patterns)
-    └── azure.md (Azure deployment patterns)
-```
-
-When the user chooses AWS, Claude only reads aws.md.
-
-**Pattern 3: Conditional details**
-
-Show basic content, link to advanced content:
-
-```markdown
-# DOCX Processing
-
-## Creating documents
-
-Use docx-js for new documents. See [DOCX-JS.md](DOCX-JS.md).
-
-## Editing documents
-
-For simple edits, modify the XML directly.
-
-**For tracked changes**: See [REDLINING.md](REDLINING.md)
-**For OOXML details**: See [OOXML.md](OOXML.md)
+```json
+{
+  "id": "",
+  "name": "my-skill",
+  "display_name": "我的技能",
+  "description": "简短的用户可读描述。",
+  "icon": "icon.svg",
+  "emoji": null,
+  "category": "开发",
+  "categories": ["开发"],
+  "applicable_scenarios": null,
+  "core_features": null,
+  "homepage": null,
+  "author_id": "",
+  "source_type": "upload",
+  "is_builtin": false,
+  "enabled": true,
+  "installed_version": "1.0.0",
+  "installed_at": "2026-01-01T00:00:00.000Z"
+}
 ```
 
-Claude reads REDLINING.md or OOXML.md only when the user needs those features.
+说明：
 
-**Important guidelines:**
+- `display_name` 是用户在 UI 中看到的名称。
+- `description` 是技能卡片和详情里的描述。
+- `icon` 可以是本地文件，例如 `icon.svg`；缺失时 Sudowork 可以回退到上传技能默认图标。
+- `categories` 用于面向用户的分类展示。
+- `installed_at` 在包内可以使用任意 ISO 时间；Sudowork 导入时会刷新它。
 
-- **Avoid deeply nested references** - Keep references one level deep from SKILL.md. All reference files should link directly from SKILL.md.
-- **Structure longer reference files** - For files longer than 100 lines, include a table of contents at the top so Claude can see the full scope when previewing.
+### Bundled Resources
 
-## Skill Creation Process
+只保留直接支持技能能力的资源。
 
-Skill creation involves these steps:
+- `scripts/`：用于确定性或重复操作的可执行 helper。
+- `references/`：只在需要时加载的详细文档。
+- `assets/`：模板、图片、字体、boilerplate 或输出中会复制使用的文件。
 
-1. Understand the skill with concrete examples
-2. Plan reusable skill contents (scripts, references, assets)
-3. Initialize the skill (run init_skill.py)
-4. Edit the skill (implement resources and write SKILL.md)
-5. Package the skill (run package_skill.py)
-6. Iterate based on real usage
+除非技能运行时确实需要，否则不要额外添加 `README.md`、`INSTALLATION_GUIDE.md`、`CHANGELOG.md` 等辅助文档。
 
-Follow these steps in order, skipping only if there is a clear reason why they are not applicable.
+## 创建流程
 
-### Step 1: Understanding the Skill with Concrete Examples
+除非某一步明显不适用，否则按顺序执行。
 
-Skip this step only when the skill's usage patterns are already clearly understood. It remains valuable even when working with an existing skill.
+### 1. 理解技能
 
-To create an effective skill, clearly understand concrete examples of how the skill will be used. This understanding can come from either direct user examples or generated examples that are validated with user feedback.
+收集具体例子：
 
-For example, when building an image-editor skill, relevant questions include:
+- 技能要帮助用户做什么？
+- 哪些用户表达应触发它？
+- 哪些输入、文件、服务或领域规则重要？
+- Agent 最终应产出什么？
 
-- "What functionality should the image-editor skill support? Editing, rotating, anything else?"
-- "Can you give some examples of how this skill would be used?"
-- "I can imagine users asking for things like 'Remove the red-eye from this image' or 'Rotate this image'. Are there other ways you imagine this skill being used?"
-- "What would a user say that should trigger this skill?"
+只问必要问题。若用户已经给出足够上下文，直接继续。
 
-To avoid overwhelming users, avoid asking too many questions in a single message. Start with the most important questions and follow up as needed for better effectiveness.
+### 2. 规划可复用内容
 
-Conclude this step when there is a clear sense of the functionality the skill should support.
+针对每个例子，判断内容应放在哪里：
 
-### Step 2: Planning the Reusable Skill Contents
+- `SKILL.md`：核心流程和决策规则。
+- `scripts/`：重复、确定性的操作。
+- `references/`：详细 schema、API、政策或示例。
+- `assets/`：模板和可复用输出素材。
 
-To turn concrete examples into an effective skill, analyze each example by:
+多步骤或分支流程可参考 `references/workflows.md`。需要稳定输出格式时可参考 `references/output-patterns.md`。
 
-1. Considering how to execute on the example from scratch
-2. Identifying what scripts, references, and assets would be helpful when executing these workflows repeatedly
+### 3. 初始化技能
 
-Example: When building a `pdf-editor` skill to handle queries like "Help me rotate this PDF," the analysis shows:
+使用内置初始化脚本。它会创建 `SKILL.md`、`_sudowork_meta.json`、默认图标和示例资源目录。
 
-1. Rotating a PDF requires re-writing the same code each time
-2. A `scripts/rotate_pdf.py` script would be helpful to store in the skill
-
-Example: When designing a `frontend-webapp-builder` skill for queries like "Build me a todo app" or "Build me a dashboard to track my steps," the analysis shows:
-
-1. Writing a frontend webapp requires the same boilerplate HTML/React each time
-2. An `assets/hello-world/` template containing the boilerplate HTML/React project files would be helpful to store in the skill
-
-Example: When building a `big-query` skill to handle queries like "How many users have logged in today?" the analysis shows:
-
-1. Querying BigQuery requires re-discovering the table schemas and relationships each time
-2. A `references/schema.md` file documenting the table schemas would be helpful to store in the skill
-
-To establish the skill's contents, analyze each concrete example to create a list of the reusable resources to include: scripts, references, and assets.
-
-### Step 3: Initializing the Skill
-
-At this point, it is time to actually create the skill.
-
-Skip this step only if the skill being developed already exists, and iteration or packaging is needed. In this case, continue to the next step.
-
-When creating a new skill from scratch, always run the `init_skill.py` script. The script conveniently generates a new template skill directory that automatically includes everything a skill requires, making the skill creation process much more efficient and reliable.
-
-Usage:
+默认不要传 `--path`，让脚本在当前工作目录中生成草稿。Sudowork Agent 的当前工作目录应是会话 workspace，对应会话页面右侧的“临时空间”。只有用户明确指定另一个会话内目录时才传 `--path`。不要把新技能直接创建到 workspace skill 同步目录，也不要直接创建到 `~/.nexus/skills/_my-custom-skill`。
 
 ```bash
-scripts/init_skill.py <skill-name> --path <output-directory>
+scripts/init_skill.py <skill-name>
 ```
 
-The script:
+推荐带上展示字段：
 
-- Creates the skill directory at the specified path
-- Generates a SKILL.md template with proper frontmatter and TODO placeholders
-- Creates example resource directories: `scripts/`, `references/`, and `assets/`
-- Adds example files in each directory that can be customized or deleted
+```bash
+scripts/init_skill.py data-reporter --display-name "数据报告助手" --description "生成结构化数据分析报告。" --category "数据分析" --emoji "📊"
+```
 
-After initialization, customize or remove the generated SKILL.md and example files as needed.
+初始化后：
 
-### Step 4: Edit the Skill
+- 完成 `SKILL.md` 中的 TODO。
+- 更新 `_sudowork_meta.json`，使展示字段匹配最终技能。
+- 保留或替换 `icon.svg`。
+- 删除未使用的示例文件和空资源目录。
 
-When editing the (newly-generated or existing) skill, remember that the skill is being created for another instance of Claude to use. Include information that would be beneficial and non-obvious to Claude. Consider what procedural knowledge, domain-specific details, or reusable assets would help another Claude instance execute these tasks more effectively.
+相关脚本：
 
-#### Learn Proven Design Patterns
+- `scripts/init_skill.py`：创建新自定义技能。
+- `scripts/update_skill.py`：更新已有自定义技能的 name、description、display name、icon、分类等展示字段。
+- `scripts/quick_validate.py`：校验技能结构和 Sudowork 元数据。
+- `scripts/package_skill.py`：打包为 Sudowork 可导入 zip。
+- `scripts/install_skill.py`：把临时目录或 zip 安装到 `~/.nexus/skills/_my-custom-skill/<skill-name>/`。
 
-Consult these helpful guides based on your skill's needs:
+### 4. 实现技能
 
-- **Multi-step processes**: See references/workflows.md for sequential workflows and conditional logic
-- **Specific output formats or quality standards**: See references/output-patterns.md for template and example patterns
+为未来会使用该技能的 agent 编写说明：
 
-These files contain established best practices for effective skill design.
+- 明确写出非显而易见的步骤、约束和质量标准。
+- 工作流说明使用命令式表达。
+- 当可靠性重要时添加脚本。
+- 新增脚本后实际运行测试。
+- 在 `SKILL.md` 中让 reference 文件保持可发现。
 
-#### Start with Reusable Skill Contents
+### 5. 校验技能
 
-To begin implementation, start with the reusable resources identified above: `scripts/`, `references/`, and `assets/` files. Note that this step may require user input. For example, when implementing a `brand-guidelines` skill, the user may need to provide brand assets or templates to store in `assets/`, or documentation to store in `references/`.
+运行：
 
-Added scripts must be tested by actually running them to ensure there are no bugs and that the output matches what is expected. If there are many similar scripts, only a representative sample needs to be tested to ensure confidence that they all work while balancing time to completion.
+```bash
+scripts/quick_validate.py <path/to/skill-folder>
+```
 
-Any example files and directories not needed for the skill should be deleted. The initialization script creates example files in `scripts/`, `references/`, and `assets/` to demonstrate structure, but most skills won't need all of them.
+打包前修复所有校验错误。校验会检查 `SKILL.md` frontmatter、命名规则，以及 `_sudowork_meta.json` 的 Sudowork 元数据一致性。
 
-#### Update SKILL.md
+### 6. 打包为 Sudowork 可导入格式
 
-**Writing Guidelines:** Always use imperative/infinitive form.
-
-##### Frontmatter
-
-Write the YAML frontmatter with `name` and `description`:
-
-- `name`: The skill name
-- `description`: This is the primary triggering mechanism for your skill, and helps Claude understand when to use the skill.
-  - Include both what the Skill does and specific triggers/contexts for when to use it.
-  - Include all "when to use" information here - Not in the body. The body is only loaded after triggering, so "When to Use This Skill" sections in the body are not helpful to Claude.
-  - Example description for a `docx` skill: "Comprehensive document creation, editing, and analysis with support for tracked changes, comments, formatting preservation, and text extraction. Use when Claude needs to work with professional documents (.docx files) for: (1) Creating new documents, (2) Modifying or editing content, (3) Working with tracked changes, (4) Adding comments, or any other document tasks"
-
-Do not include any other fields in YAML frontmatter.
-
-##### Body
-
-Write instructions for using the skill and its bundled resources.
-
-### Step 5: Packaging a Skill
-
-Once development of the skill is complete, it must be packaged into a distributable .skill file that gets shared with the user. The packaging process automatically validates the skill first to ensure it meets all requirements:
+运行：
 
 ```bash
 scripts/package_skill.py <path/to/skill-folder>
 ```
 
-Optional output directory specification:
+或指定会话临时空间下的输出目录：
 
 ```bash
-scripts/package_skill.py <path/to/skill-folder> ./dist
+scripts/package_skill.py <path/to/skill-folder> ./skill-packages
 ```
 
-The packaging script will:
+打包脚本会先校验，再创建 `<skill-name>.zip`。zip 会保留单个顶层技能目录，符合 Sudowork 本地导入逻辑。
 
-1. **Validate** the skill automatically, checking:
-   - YAML frontmatter format and required fields
-   - Skill naming conventions and directory structure
-   - Description completeness and quality
-   - File organization and resource references
+### 7. 安装到 Sudowork 自定义技能
 
-2. **Package** the skill if validation passes, creating a .skill file named after the skill (e.g., `my-skill.skill`) that includes all files and maintains the proper directory structure for distribution. The .skill file is a zip file with a .skill extension.
+当前只使用个人自定义技能目录。不要写入企业模式 `custom` 目录。
 
-If validation fails, the script will report the errors and exit without creating a package. Fix any validation errors and run the packaging command again.
+这是创建或更新 Sudowork 自定义技能的必做收尾步骤。临时空间中的技能目录只是草稿；任务完成标准是技能已经进入 `~/.nexus/skills/_my-custom-skill/<skill-name>/` 并可被 Sudowork 重新扫描。不要把“已生成临时目录”“已生成 zip”或“告诉用户运行安装命令”当作完成。
 
-### Step 6: Iterate
+安装后保留临时技能目录，等待 Sudowork 自动校验和同步。不要运行 `rm -rf <skill-dir>` 清理最终技能目录。若存在 `skill-packages/`，安装成功后删除整个 `skill-packages/` 目录及其中的 zip：
 
-After testing the skill, users may request improvements. Often this happens right after using the skill, with fresh context of how the skill performed.
+```bash
+rm -rf ./skill-packages
+```
 
-**Iteration workflow:**
+从临时技能目录安装：
 
-1. Use the skill on real tasks
-2. Notice struggles or inefficiencies
-3. Identify how SKILL.md or bundled resources should be updated
-4. Implement changes and test again
+```bash
+scripts/install_skill.py ./data-reporter --move
+```
+
+或从 zip 安装：
+
+```bash
+scripts/install_skill.py ./skill-packages/data-reporter.zip
+```
+
+预期结果：
+
+- 技能安装到 `~/.nexus/skills/_my-custom-skill/<skill-name>/`。
+- 安装脚本写入或刷新 `_sudowork_meta.json`，确保 `source_type: "upload"`、`is_builtin: false`、`enabled: true`。
+- 技能出现在 `我的技能 > 自定义技能`。
+- 技能默认启用，除非用户手动禁用。
+
+若同名技能已经存在，先确认这是用户想覆盖的目标，再使用：
+
+```bash
+scripts/install_skill.py <path/to/staged-skill-or-zip> --replace
+```
+
+安装后重启或 reload Sudowork，使运行时重新扫描技能。如果环境权限阻止安装，最终回复必须说明具体阻塞点和应执行的完整安装命令。
+
+### 8. 迭代
+
+真实使用后：
+
+1. 识别 agent 卡住、误判或低效的位置。
+2. 更新 `SKILL.md`、脚本、references 或 assets。
+3. 重新运行校验。
+4. 重新打包并导入 zip 或文件夹。
+
+## 更新已有自定义技能
+
+当用户要求修改已创建的自定义技能时，先把技能复制到当前会话临时空间中更新，完成后再用 `scripts/install_skill.py --replace` 安装回 `~/.nexus/skills/_my-custom-skill/<skill-name>/`。常见修改包括：
+
+- 技能 name：更新文件夹名、`SKILL.md` frontmatter 的 `name`、`_sudowork_meta.json` 的 `name`。
+- 技能 description：同时更新 `SKILL.md` frontmatter 的 `description` 和 `_sudowork_meta.json` 的 `description`，确保触发说明与 UI 展示一致。
+- 技能头像 / icon：替换 `icon.svg`、`icon.png` 等文件，并更新 `_sudowork_meta.json` 的 `icon` 字段。
+- 技能显示名称：更新 `_sudowork_meta.json` 的 `display_name`，不一定需要改技能 `name`。
+- 技能标题：更新 `SKILL.md` 的首个 H1 标题，让文件内容与展示名称一致。
+- 技能能力：更新 `SKILL.md` 的流程说明、触发场景、质量标准，以及相关 `scripts/`、`references/`、`assets/`。
+- 分类、emoji、版本：更新 `_sudowork_meta.json` 的 `category`、`categories`、`emoji`、`installed_version`。
+
+### 使用更新脚本
+
+对于 metadata 和头像类更新，优先使用脚本避免漏改字段：
+
+```bash
+scripts/update_skill.py <path/to/skill-folder> \
+  --name new-skill-name \
+  --display-name "新的显示名称" \
+  --description "新的技能描述" \
+  --icon ./path/to/icon.svg \
+  --title "新的文档标题" \
+  --category "开发" \
+  --emoji "🛠️" \
+  --version 1.1.0
+```
+
+脚本会：
+
+- 校验新的 hyphen-case `name`。
+- 必要时重命名技能目录。
+- 更新 `SKILL.md` frontmatter 中的 `name` 和 `description`。
+- 更新 `SKILL.md` 的首个 H1 标题；若未传 `--title`，默认跟随 `--display-name` 或 `--name`。
+- 更新 `_sudowork_meta.json` 中的展示字段。
+- 复制新的 icon 文件到技能目录并更新 `icon` 引用。
+- 保持 `source_type: "upload"`、`is_builtin: false`、`enabled: true` 等自定义技能字段。
+
+### 手动更新能力
+
+修改技能本身能力时，不能只改展示 metadata；必须同步更新实际能力来源：
+
+- 改触发和适用场景：更新 `SKILL.md` frontmatter `description`。
+- 改执行流程：更新 `SKILL.md` 正文对应章节。
+- 改确定性操作：更新或新增 `scripts/`，并实际运行测试。
+- 改详细知识：更新 `references/`，并确保 `SKILL.md` 说明什么时候读取。
+- 改模板/素材：更新 `assets/`，并删除不再使用的旧资源。
+
+### 更新后的必做检查
+
+每次更新后运行：
+
+```bash
+scripts/quick_validate.py <path/to/skill-folder>
+scripts/package_skill.py <path/to/skill-folder> ./skill-packages
+scripts/install_skill.py <path/to/skill-folder-or-zip> --replace
+```
+
+如果技能已经导入 Sudowork：
+
+- 使用 `scripts/install_skill.py --replace` 重新安装到 `~/.nexus/skills/_my-custom-skill/<skill-name>/`。
+- 更新后重启或 reload Sudowork。
+- 如果修改了 `name`，旧名称对应的已安装技能可能需要先卸载或手动清理，避免新旧技能同时存在。
+
+## 命名规则
+
+- 只使用小写字母、数字和连字符。
+- 将用户给出的标题规范化为 hyphen-case，例如 `Plan Mode` 变为 `plan-mode`。
+- 名称控制在 64 个字符以内。
+- 优先使用短的动作名或领域名，例如 `pdf-redactor`、`salesforce-query`、`brand-review`。
+
+## 交付检查
+
+交付给用户前确认：
+
+- `SKILL.md` 包含有效的 `name` 和 `description`。
+- `_sudowork_meta.json` 存在，并与技能内容匹配。
+- 未使用的模板资源已删除。
+- 如有脚本，已经实际测试。
+- 如更新了 name、description、icon 或展示字段，已运行 `scripts/update_skill.py` 或手动同步 `SKILL.md` 与 `_sudowork_meta.json`。
+- `scripts/quick_validate.py <skill-dir>` 通过。
+- `scripts/package_skill.py <skill-dir>` 能生成 `.zip`。
+- `scripts/install_skill.py <skill-dir-or-zip>` 已成功安装到 `~/.nexus/skills/_my-custom-skill/<skill-name>/`；只有用户明确要求不安装或环境权限阻止安装时，才说明未安装原因和是否需要 `--replace`。

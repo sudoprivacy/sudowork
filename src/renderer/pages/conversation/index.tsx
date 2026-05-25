@@ -70,7 +70,7 @@ const ChatConversationIndex: React.FC = () => {
   useEffect(() => {
     if (!id) return;
 
-    return addEventListener('skills.changed', () => {
+    const handleSkillsChanged = () => {
       if (!data || !shouldSyncWorkspaceSkills(data)) {
         return;
       }
@@ -84,7 +84,17 @@ const ChatConversationIndex: React.FC = () => {
         .catch((error) => {
           console.warn('Failed to sync workspace skills after skills.changed:', error);
         });
+    };
+
+    const removeSkillHubChanged = ipcBridge.skillHub.changed.on(() => {
+      emitter.emit('skills.changed');
     });
+    const removeSkillsChanged = addEventListener('skills.changed', handleSkillsChanged);
+
+    return () => {
+      removeSkillHubChanged();
+      removeSkillsChanged();
+    };
   }, [id, data, mutate]);
 
   // 当会话数据加载完成后，自动打开 tab

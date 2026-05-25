@@ -31,6 +31,7 @@ import { isElectronDesktop } from '@/renderer/utils/platform';
 import { skillHub } from '@/common/ipcBridge';
 import { resolveSkillIcon, getInstalledSkillDisplay } from '@/renderer/utils/skillDisplay';
 import { iconColors } from '@/renderer/theme/colors';
+import { addEventListener } from '@/renderer/utils/emitter';
 
 const constVoid = (): void => undefined;
 // 临界值：超过该字符数直接切换至多行模式，避免为超长文本做昂贵的宽度测量
@@ -243,7 +244,7 @@ const SendBox: React.FC<{
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
   const [loadingSkills, setLoadingSkills] = useState(false);
 
-  // Fetch installed skills on mount
+  // Fetch installed skills on mount and after agent-created skills are installed.
   useEffect(() => {
     const fetchInstalledSkills = async () => {
       if (!isElectronDesktop()) return;
@@ -260,6 +261,14 @@ const SendBox: React.FC<{
       }
     };
     void fetchInstalledSkills();
+
+    const removeSkillsChanged = addEventListener('skills.changed', () => {
+      void fetchInstalledSkills();
+    });
+
+    return () => {
+      removeSkillsChanged();
+    };
   }, []);
 
   // Notify parent when skills change

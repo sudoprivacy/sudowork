@@ -6,7 +6,7 @@
 
 import { ipcBridge, skillHub, assistantHub } from '@/common';
 import { eeclaw } from '@/common/ipcBridge';
-import type { IInstalledSkillInfo, IAssistantHubSkill, IAssistantHubListResponse, IAssistantHubDetail, IAssistantInstallResult, ISkillHubSkill, TProviderWithModel } from '@/common/ipcBridge';
+import type { IInstalledSkillInfo, IAssistantHubSkill, IAssistantHubDetail, ISkillHubSkill } from '@/common/ipcBridge';
 import { toBackendConfig, resolveAssistantName } from '@/renderer/shared/agents/assistantAdapter';
 import type { AssistantCategory } from '@/process/AssistantManager';
 import { resolveLocaleKey, uuid } from '@/common/utils';
@@ -1016,10 +1016,7 @@ const AgentModalContent: React.FC = () => {
   useEffect(() => {
     if (!isEnterprise || !isElectronDesktop()) return;
 
-    const handleSyncCompleted = (data: {
-      skills: { hub: { installed: string[]; skipped: string[]; failed: Array<{ id: string; name: string; error: string }> }; tenant: { installed: string[]; skipped: string[]; failed: Array<{ id: string; name: string; error: string }> } };
-      assistants: { hub: { installed: string[]; skipped: string[]; failed: Array<{ id: string; name: string; error: string }> }; tenant: { installed: string[]; skipped: string[]; failed: Array<{ id: string; name: string; error: string }> } };
-    }) => {
+    const handleSyncCompleted = (data: { skills: { hub: { installed: string[]; skipped: string[]; failed: Array<{ id: string; name: string; error: string }> }; tenant: { installed: string[]; skipped: string[]; failed: Array<{ id: string; name: string; error: string }> } }; assistants: { hub: { installed: string[]; skipped: string[]; failed: Array<{ id: string; name: string; error: string }> }; tenant: { installed: string[]; skipped: string[]; failed: Array<{ id: string; name: string; error: string }> } } }) => {
       // Merge hub and tenant results for display
       const mergedSkills = {
         installed: [...data.skills.hub.installed, ...data.skills.tenant.installed],
@@ -1056,7 +1053,8 @@ const AgentModalContent: React.FC = () => {
     syncTriggeredRef.current = true;
     setSyncStatus({ syncing: true, skills: { installed: [], skipped: [], failed: [] }, assistants: { installed: [], skipped: [], failed: [] } });
 
-    eeclaw.syncFromRemote.invoke()
+    eeclaw.syncFromRemote
+      .invoke()
       .then((res) => {
         if (!res.success) {
           // Sync failed, reset status (syncCompleted event won't be emitted)
@@ -1138,6 +1136,8 @@ const AgentModalContent: React.FC = () => {
       } else {
         await ipcBridge.acpConversation.refreshCustomAgents.invoke();
         await mutate('acp.agents.available');
+        await mutate('assistantHub.installed');
+        emitter.emit('assistants.changed');
       }
     } catch {
       // ignore
@@ -1316,13 +1316,7 @@ const AgentModalContent: React.FC = () => {
   }, []);
 
   // Open duplicate confirm modal for tenant assistant (enterprise mode)
-  const handleOpenDuplicateModalFromTenant = useCallback((assistant: {
-    id: string;
-    name: string;
-    displayName?: string;
-    description?: string;
-    enabledSkills?: string[];
-  }) => {
+  const handleOpenDuplicateModalFromTenant = useCallback((assistant: { id: string; name: string; displayName?: string; description?: string; enabledSkills?: string[] }) => {
     setDuplicateAssistant(null);
     setDuplicateInstalledAssistant(null);
     setDuplicateTenantAssistant(assistant);
