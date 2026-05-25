@@ -137,6 +137,31 @@ export function prepareCleanEnv({ injectSafetyHook = true }: PrepareCleanEnvOpti
     }
   }
 
+  // On Windows, inject UTF-8 environment variables to ensure child processes
+  // output UTF-8 regardless of the system's default code page (e.g. CP936/GBK
+  // on Chinese Windows 10).  This replaces the previous approach of running
+  // `chcp 65001` through a cmd.exe shell wrapper and covers the most common
+  // runtimes that scode (or its skill scripts) may spawn:
+  //   - Python:  PYTHONUTF8 (PEP 540) + PYTHONIOENCODING
+  //   - Node.js / Go / Rust: already UTF-8 on pipes, but LANG/LC_ALL helps
+  //     when they call libc locale functions
+  //   - Ruby / Perl / other POSIX-aware tools: read LANG / LC_ALL
+  //
+  // 在 Windows 上注入 UTF-8 环境变量，确保子进程无论系统默认代码页如何都输出
+  // UTF-8。这替代了之前通过 cmd.exe 执行 `chcp 65001` 的方式，覆盖了绝大部分
+  // 运行时。即使 sudowork 异常退出，因为不再依赖 cmd.exe 中介，进程清理也能
+  // 正常工作。
+  if (process.platform === 'win32') {
+    // Python 3.7+ UTF-8 mode (PEP 540) — forces stdin/stdout/stderr to UTF-8
+    if (!cleanEnv.PYTHONUTF8) cleanEnv.PYTHONUTF8 = '1';
+    // Explicit Python I/O encoding fallback (covers Python < 3.7 and edge cases)
+    if (!cleanEnv.PYTHONIOENCODING) cleanEnv.PYTHONIOENCODING = 'utf-8';
+    // POSIX locale — many cross-platform runtimes (Ruby, Perl, Rust locale crate,
+    // git, etc.) check LANG / LC_ALL even on Windows
+    if (!cleanEnv.LANG) cleanEnv.LANG = 'C.UTF-8';
+    if (!cleanEnv.LC_ALL) cleanEnv.LC_ALL = 'C.UTF-8';
+  }
+
   // Default ai-dev-browser to headless and point it to SudoWork's CDP port
   cleanEnv.AI_DEV_BROWSER_HEADLESS = '1';
   try {
@@ -252,23 +277,19 @@ export function createGenericSpawnConfig(cliPath: string, workingDir: string, ac
   let spawnCommand: string;
   let spawnArgs: string[];
 
-  if (cliPath.startsWith('npx ')) {
+  // Whether this is an npx-based command that needs cmd.exe to run .cmd batch files
+  const isNpxCommand = cliPath.startsWith('npx ');
+
+  if (isNpxCommand) {
     // For "npx @package/name [extra-args]", split into command and arguments
     const parts = cliPath.split(' ').filter(Boolean);
     spawnCommand = resolveNpxPath(env);
     spawnArgs = [...parts.slice(1), ...effectiveAcpArgs];
-  } else if (isWindows) {
-    // On Windows with shell: true, let cmd.exe handle the full command string.
-    // This correctly supports paths with spaces (e.g., "C:\Program Files\agent.exe")
-    // and commands with inline args (e.g., "goose acp" or "node path/to/file.js").
-    //
-    // chcp 65001: switch console to UTF-8 so stderr/stdout doesn't get garbled
-    // (Chinese Windows defaults to CP936/GBK).
-    spawnCommand = `chcp 65001 >nul && ${cliPath}`;
-    spawnArgs = effectiveAcpArgs;
   } else {
-    // Unix: simple command or path. If cliPath contains spaces (e.g., "goose acp"),
-    // parse into command + inline args.
+    // Direct CLI command or path (e.g., "scode", "/usr/local/bin/goose",
+    // "C:\Users\xxx\.nexus\sudocode\scode.exe").
+    // If cliPath contains inline args (e.g., "goose acp"), parse into
+    // command + args by splitting on whitespace.
     const parts = cliPath.split(/\s+/);
     spawnCommand = parts[0];
     spawnArgs = [...parts.slice(1), ...effectiveAcpArgs];
@@ -278,7 +299,21 @@ export function createGenericSpawnConfig(cliPath: string, workingDir: string, ac
     cwd: workingDir,
     stdio: ['pipe', 'pipe', 'pipe'],
     env,
-    shell: isWindows,
+    // On Windows, only use shell for npx-based commands (npx.cmd is a batch file
+    // that requires cmd.exe to execute).  For direct executables (scode.exe,
+    // goose.exe, etc.), spawn without cmd.exe intermediary so that:
+    //   1. ProcessSupervisor tracks the actual runtime PID (not cmd.exe)
+    //   2. taskkill /T is no longer needed to kill the process tree
+    //   3. Cleanup on abnormal exit is reliable — the OS kills the direct child
+    //
+    // UTF-8 encoding is handled via environment variables (PYTHONUTF8, LANG,
+    // etc.) injected by prepareCleanEnv() instead of the previous `chcp 65001`
+    // through cmd.exe.
+    //
+    // 在 Windows 上，仅在运行 npx 批处理文件时使用 shell。对于直接可执行文件
+    // （scode.exe 等），直接 spawn 而不经过 cmd.exe 中介，从而确保异常退出时
+    // 进程清理可靠工作。
+    shell: isWindows && isNpxCommand,
   };
 
   return {
@@ -328,13 +363,11 @@ export function spawnNpxBackend(
   // Required for backends (e.g. CodeBuddy) that write to /dev/tty — without it, SIGTTOU
   // would suspend the entire Electron process group and freeze the UI.
   //
-  // chcp 65001: switch console code page to UTF-8 before launching the backend.
-  // On Chinese Windows 10 (default CP936/GBK), child processes inherit the system
-  // code page and UTF-8 output from the backend gets garbled into question marks
-  // or mojibake.  Windows 11 handles this natively, but older systems need the
-  // explicit switch.  This mirrors the same treatment in createGenericSpawnConfig.
-  const effectiveCommand = isWindows ? `chcp 65001 >nul && ${npxCommand}` : npxCommand;
-  const child = spawn(effectiveCommand, spawnArgs, {
+  // UTF-8 encoding: previously used `chcp 65001 >nul && ${npxCommand}` on Windows
+  // to switch the console code page. Now handled via environment variables
+  // (PYTHONUTF8, LANG, LC_ALL, etc.) injected by prepareCleanEnv(), which
+  // covers all major runtimes without requiring a cmd.exe code-page switch.
+  const child = spawn(npxCommand, spawnArgs, {
     cwd: workingDir,
     stdio: ['pipe', 'pipe', 'pipe'],
     env: cleanEnv,

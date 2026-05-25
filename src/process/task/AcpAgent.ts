@@ -349,8 +349,13 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
         cdpPort,
       });
       customEnv = { ...customEnv, ...presetResult.envOverrides };
-      if (presetResult.contextAppendix && this.options.presetContext) {
-        this.options.presetContext += presetResult.contextAppendix;
+      // Always fold the runtime context appendix (auto-discovered scripts /
+      // ops entry point) into presetContext — even when presetContext started
+      // empty. Gating this on a non-empty presetContext dropped the absolute
+      // script paths for assistants whose rule file produced no context,
+      // forcing the agent to `find` for its own scripts.
+      if (presetResult.contextAppendix) {
+        this.options.presetContext = (this.options.presetContext || '') + presetResult.contextAppendix;
       }
 
       // Store resolved config for connection
@@ -789,6 +794,32 @@ This identity statement takes priority over the default identity in USER.md.
 
           // Update presetContext with the fresh rules (for subsequent use)
           this.options.presetContext = loadedRules;
+
+          // Re-append the preset runtime context appendix (auto-discovered
+          // scripts/ absolute paths + ops entry point). This block reloads the
+          // rule file on every message and would otherwise overwrite the
+          // appendix that applyPresetRuntime injected at init — leaving the
+          // assistant unable to locate its own scripts and forcing a `find`.
+          try {
+            let cdpPort = 9230;
+            try {
+              // eslint-disable-next-line @typescript-eslint/no-var-requires
+              cdpPort = require('@/utils/configureChromium').cdpPort || 9230;
+            } catch {
+              /* use default */
+            }
+            const reloadPresetResult = await applyPresetRuntime({
+              presetAssistantId: this.options.presetAssistantId,
+              backend: this.extra.backend,
+              workspace: this.extra.workspace,
+              cdpPort,
+            });
+            if (reloadPresetResult.contextAppendix) {
+              this.options.presetContext = (this.options.presetContext || '') + reloadPresetResult.contextAppendix;
+            }
+          } catch (appendixError) {
+            mainWarn('[AcpAgent]', 'Failed to re-append preset runtime appendix:', appendixError);
+          }
 
           // Also update agentName for placeholder display
           if (latestAgentName) {
@@ -1435,14 +1466,12 @@ This identity statement takes priority over the default identity in USER.md.
     addOrUpdateMessage(this.conversation_id, tMessage, this.options.backend);
   }
 
-  kill() {
+  kill(): Promise<void> {
     this.streamTextBuffer.flushAll();
     this.toolCallMeta.clear();
     this.workspaceFileSnapshot.clear();
 
-    let killed = false;
-    const GRACE_PERIOD_MS = 500;
-    const HARD_TIMEOUT_MS = 1500;
+    const HARD_TIMEOUT_MS = 3000;
 
     const waiters = this.acpAvailableSlashWaiters.splice(0, this.acpAvailableSlashWaiters.length);
     for (const resolve of waiters) {
@@ -1450,20 +1479,24 @@ This identity statement takes priority over the default identity in USER.md.
     }
     this.acpAvailableSlashCommands = [];
 
-    const doKill = () => {
-      if (killed) return;
-      killed = true;
-      clearTimeout(hardTimer);
-    };
+    // Return a promise that resolves when the child process is terminated.
+    // This allows callers (e.g. WorkerManage.clear → before-quit) to await
+    // cleanup and prevents orphaned scode processes on Windows.
+    return new Promise<void>((resolve) => {
+      const hardTimer = setTimeout(() => {
+        mainWarn('[AcpAgent]', 'kill(): hard timeout reached, resolving anyway');
+        resolve();
+      }, HARD_TIMEOUT_MS);
 
-    const hardTimer = setTimeout(doKill, HARD_TIMEOUT_MS);
-
-    void (this.connection?.disconnect?.() || Promise.resolve())
-      .catch((err) => {
-        mainWarn('[AcpAgent]', 'connection.disconnect() failed during kill', err);
-      })
-      .then(() => new Promise<void>((r) => setTimeout(r, GRACE_PERIOD_MS)))
-      .finally(doKill);
+      (this.connection?.disconnect?.() || Promise.resolve())
+        .catch((err) => {
+          mainWarn('[AcpAgent]', 'connection.disconnect() failed during kill', err);
+        })
+        .finally(() => {
+          clearTimeout(hardTimer);
+          resolve();
+        });
+    });
   }
 
   /**
@@ -2376,7 +2409,7 @@ This identity statement takes priority over the default identity in USER.md.
     this.emitStatusMessage('disconnected');
 
     const errorMsg = `${this.extra.backend} process disconnected unexpectedly ` + `(code: ${error.code}, signal: ${error.signal}). ` + `Please try sending a new message to reconnect.`;
-    this.emitErrorMessage(errorMsg);
+    this.emitErrorMessage(errorMsg, false); // Skip finish, will send below
 
     // Telemetry: end turn tracking (error)
     endTurnError(this.conversation_id, 'E001');
@@ -2669,7 +2702,7 @@ This identity statement takes priority over the default identity in USER.md.
     });
   }
 
-  private emitErrorMessage(error: string): void {
+  private emitErrorMessage(error: string, withFinish: boolean = true): void {
     const errorMessage: TMessage = {
       id: uuid(),
       conversation_id: this.conversation_id,
@@ -2682,6 +2715,23 @@ This identity statement takes priority over the default identity in USER.md.
       },
     };
     this.emitMessage(errorMessage);
+
+    // Emit finish event to reset frontend processing state (unless skipped)
+    // Clear processingStartTime immediately on error (no delay)
+    // 发送 finish 事件以重置前端处理状态（除非跳过），错误时立即清除 processingStartTime（不延迟）
+    if (withFinish) {
+      // Immediately clear processingStartTime on error
+      // 错误时立即清除 processingStartTime
+      this.processingStartTime = undefined;
+
+      const finishMessage: IResponseMessage = {
+        type: 'finish',
+        conversation_id: this.conversation_id,
+        msg_id: uuid(),
+        data: null,
+      };
+      ipcBridge.acpConversation.responseStream.emit(finishMessage);
+    }
   }
 
   private emitModelInfoEvent(): void {

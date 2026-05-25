@@ -96,8 +96,9 @@ class BaseAgent<Data, ConfirmationOption extends any = any> {
 
   /**
    * Kill the agent and clean up resources. Subclasses should override.
+   * May return a Promise if cleanup is asynchronous (e.g. terminating child processes).
    */
-  kill(): void {
+  kill(): void | Promise<void> {
     // Base implementation is a no-op; subclasses handle cleanup.
   }
 

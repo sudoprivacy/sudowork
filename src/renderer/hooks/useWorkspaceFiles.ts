@@ -11,6 +11,9 @@ import { DRAFTS_DIR_NAME } from '@/common/constants';
 import { useConversationContextSafe } from '@/renderer/context/ConversationContext';
 import { useAddEventListener } from '@/renderer/utils/emitter';
 
+const HIDDEN_PATH_PREFIXES = ['skills/', '.nexus/', '.scode/', '.claude/'];
+const HIDDEN_PATHS = new Set(['skills', '.nexus', '.scode', '.claude']);
+
 /**
  * Flattened workspace file item for @ mention selection
  */
@@ -32,6 +35,11 @@ export interface WorkspaceFileItem {
  */
 function flattenFileTree(nodes: IDirOrFile[], result: WorkspaceFileItem[] = []): WorkspaceFileItem[] {
   for (const node of nodes) {
+    const relativePath = node.relativePath.replace(/\\/g, '/');
+    if (HIDDEN_PATHS.has(relativePath) || HIDDEN_PATH_PREFIXES.some((prefix) => relativePath.startsWith(prefix))) {
+      continue;
+    }
+
     if (node.isFile) {
       result.push({
         name: node.name,

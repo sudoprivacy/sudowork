@@ -1733,6 +1733,8 @@ export const authProxy = {
   refreshRules: bridge.buildProvider<IBridgeResponse<void>, { accessToken: string; enabledConfigItemIds: number[] }>('authProxy.refreshRules'),
   /** Get Auth Proxy server running status and port */
   getStatus: bridge.buildProvider<IBridgeResponse<{ running: boolean; port: number | null }>, void>('authProxy.getStatus'),
+  /** Emitted when enabled state changes via Auth Proxy secrets API */
+  enabledStateChanged: bridge.buildEmitter<void>('authProxy.enabledStateChanged'),
 };
 
 // ==================== Crash API ====================
