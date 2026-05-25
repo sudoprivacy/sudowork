@@ -94,6 +94,11 @@
     "pathMissing": "動画ファイルのパスがありません",
     "loadFailed": "内蔵プレーヤーでこの動画を再生できません。システム既定のアプリで開いてください。"
   },
+  "audio": {
+    "title": "音声",
+    "pathMissing": "音声ファイルのパスがありません",
+    "loadFailed": "内蔵プレーヤーでこの音声を再生できません。システム既定のアプリで開いてください。"
+  },
   "html": {
     "elementSelected": "選択中の要素: {{path}}",
     "copySuccess": "HTML をコピーしました",

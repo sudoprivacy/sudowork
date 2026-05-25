@@ -94,6 +94,11 @@
     "pathMissing": "影片檔案路徑為空",
     "loadFailed": "無法在內建播放器中播放此影片，可嘗試使用系統預設應用程式開啟。"
   },
+  "audio": {
+    "title": "音訊",
+    "pathMissing": "音訊檔案路徑為空",
+    "loadFailed": "無法在內建播放器中播放此音訊，可嘗試使用系統預設應用程式開啟。"
+  },
   "html": {
     "elementSelected": "已選取元素: {{path}}",
     "copySuccess": "已複製該段 HTML",

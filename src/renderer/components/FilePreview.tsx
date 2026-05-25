@@ -30,7 +30,8 @@ const formatFileSize = (bytes: number): string => {
 };
 
 const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg', 'ico', 'tif', 'tiff', 'avif']);
-const VIDEO_EXTENSIONS = new Set(['mp4', 'webm', 'mov', 'm4v', 'ogv', 'ogg', 'avi', 'mkv', 'wmv', 'flv']);
+const VIDEO_EXTENSIONS = new Set(['mp4', 'webm', 'mov', 'm4v', 'ogv', 'avi', 'mkv', 'wmv', 'flv']);
+const AUDIO_EXTENSIONS = new Set(['mp3', 'wav', 'flac', 'aac', 'm4a', 'ogg', 'oga', 'opus', 'amr', 'wma']);
 const OFFICE_EXTENSIONS: Record<string, PreviewContentType> = {
   ppt: 'ppt',
   pptx: 'ppt',
@@ -53,6 +54,7 @@ const getContentTypeFromExt = (ext: string): PreviewContentType => {
   if (e === 'html' || e === 'htm') return 'html';
   if (IMAGE_EXTENSIONS.has(e)) return 'image';
   if (VIDEO_EXTENSIONS.has(e)) return 'video';
+  if (AUDIO_EXTENSIONS.has(e)) return 'audio';
   return 'code';
 };
 

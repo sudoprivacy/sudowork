@@ -84,4 +84,21 @@ describe('createAssetProtocolResponse', () => {
       await rm(dir, { recursive: true, force: true });
     }
   });
+
+  it('sets audio content type for audio files', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'sudowork-asset-protocol-'));
+    const filePath = join(dir, 'clip.mp3');
+
+    try {
+      await writeFile(filePath, Buffer.from('audio'));
+
+      const response = await createAssetProtocolResponse(new Request(`aion-asset://asset/${filePath}`));
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get('content-type')).toBe('audio/mpeg');
+      expect(await response.text()).toBe('audio');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
 });

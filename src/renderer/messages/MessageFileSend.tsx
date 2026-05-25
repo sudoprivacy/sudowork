@@ -36,15 +36,25 @@ const FILE_TYPE_LABELS: Record<string, string> = {
   '.mov': '视频文件',
   '.m4v': '视频文件',
   '.ogv': '视频文件',
-  '.ogg': '视频文件',
   '.avi': '视频文件',
   '.mkv': '视频文件',
   '.wmv': '视频文件',
   '.flv': '视频文件',
+  '.mp3': '音频文件',
+  '.wav': '音频文件',
+  '.flac': '音频文件',
+  '.aac': '音频文件',
+  '.m4a': '音频文件',
+  '.ogg': '音频文件',
+  '.oga': '音频文件',
+  '.opus': '音频文件',
+  '.amr': '音频文件',
+  '.wma': '音频文件',
 };
 
 const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg', 'ico', 'tif', 'tiff', 'avif']);
-const VIDEO_EXTENSIONS = new Set(['mp4', 'webm', 'mov', 'm4v', 'ogv', 'ogg', 'avi', 'mkv', 'wmv', 'flv']);
+const VIDEO_EXTENSIONS = new Set(['mp4', 'webm', 'mov', 'm4v', 'ogv', 'avi', 'mkv', 'wmv', 'flv']);
+const AUDIO_EXTENSIONS = new Set(['mp3', 'wav', 'flac', 'aac', 'm4a', 'ogg', 'oga', 'opus', 'amr', 'wma']);
 const OFFICE_EXTENSIONS: Record<string, PreviewContentType> = {
   ppt: 'ppt',
   pptx: 'ppt',
@@ -67,6 +77,7 @@ export const getContentTypeFromExt = (ext: string): PreviewContentType => {
   if (e === 'html' || e === 'htm') return 'html';
   if (IMAGE_EXTENSIONS.has(e)) return 'image';
   if (VIDEO_EXTENSIONS.has(e)) return 'video';
+  if (AUDIO_EXTENSIONS.has(e)) return 'audio';
   return 'code';
 };
 

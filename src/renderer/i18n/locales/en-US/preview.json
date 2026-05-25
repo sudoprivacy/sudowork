@@ -131,6 +131,11 @@
     "pathMissing": "Video file path is missing",
     "loadFailed": "Unable to play this video in the built-in player. Try opening it with the system default app."
   },
+  "audio": {
+    "title": "Audio",
+    "pathMissing": "Audio file path is missing",
+    "loadFailed": "Unable to play this audio in the built-in player. Try opening it with the system default app."
+  },
   "html": {
     "elementSelected": "Selected element: {{path}}",
     "copySuccess": "Copied HTML snippet",

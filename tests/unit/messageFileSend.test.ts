@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { getContentTypeFromExt } from '@/renderer/messages/MessageFileSend';
 
 // --- getContentTypeFromExt 纯函数测试 ---
@@ -42,9 +42,16 @@ describe('getContentTypeFromExt', () => {
   });
 
   it('maps common video extensions to video', () => {
-    const videoExts = ['mp4', 'webm', 'mov', 'm4v', 'ogv', 'ogg', 'avi', 'mkv', 'wmv', 'flv'];
+    const videoExts = ['mp4', 'webm', 'mov', 'm4v', 'ogv', 'avi', 'mkv', 'wmv', 'flv'];
     for (const ext of videoExts) {
       expect(getContentTypeFromExt(ext)).toBe('video');
+    }
+  });
+
+  it('maps common audio extensions to audio', () => {
+    const audioExts = ['mp3', 'wav', 'flac', 'aac', 'm4a', 'ogg', 'oga', 'opus', 'amr', 'wma'];
+    for (const ext of audioExts) {
+      expect(getContentTypeFromExt(ext)).toBe('audio');
     }
   });
 
@@ -88,6 +95,7 @@ describe('getContentTypeFromExt', () => {
     expect(getContentTypeFromExt('DOCX')).toBe('word');
     expect(getContentTypeFromExt('MD')).toBe('markdown');
     expect(getContentTypeFromExt('MP4')).toBe('video');
+    expect(getContentTypeFromExt('MP3')).toBe('audio');
     expect(getContentTypeFromExt('TS')).toBe('code');
   });
 });

@@ -22,3 +22,4 @@ export { default as WordViewer } from './WordViewer';
 export { default as PPTViewer } from './PPTViewer';
 export { default as ImageViewer } from './ImageViewer';
 export { default as VideoViewer } from './VideoViewer';
+export { default as AudioViewer } from './AudioViewer';
