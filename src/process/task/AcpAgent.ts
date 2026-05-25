@@ -14,6 +14,7 @@ import { acpDetector } from '@/agent/acp/AcpDetector';
 import { getClaudeModel } from '@/agent/acp/utils';
 import { buildAcpModelInfo, summarizeAcpModelInfo } from '@/agent/acp/modelInfo';
 import { channelEventBus } from '@/channels/agent/ChannelEventBus';
+import { DEFAULT_IMAGE_PARSING_MODEL } from '@/common/storage';
 import { ipcBridge } from '@/common';
 import type { AcpQuestionData, CronMessageMeta, TMessage } from '@/common/chatLib';
 import type { SlashCommandItem } from '@/common/slash/types';
@@ -41,7 +42,7 @@ import { mainLog, mainWarn, mainError } from '../utils/mainLogger';
 import { translateLLMError } from '@process/utils/llmErrorTranslation';
 import { injectSkillsDirectoryHint, prepareFirstMessageWithSkillsIndex } from './agentUtils';
 import { cleanupIntermediateFiles, cleanupDraftsOnCancel, detectFileIntent, matchesDraftPattern } from './draftsCleanup';
-import { mergeScodeProxyModelInfo } from '@process/services/scode/scodeProxyModels';
+import { mergeScodeProxyModelInfo, isModelVisionCapable, findFirstVisionModel } from '@process/services/scode/scodeProxyModels';
 import BaseAgent from './BaseAgent';
 
 // Telemetry imports for conversation tracking
@@ -66,7 +67,7 @@ import { extractTextFromMessage, processCronInMessage } from './MessageMiddlewar
 import { processAtFileReferences } from './acp/AcpAtFileProcessor';
 import { StreamTextBuffer, CronTextAccumulator, filterThinkTagsFromMessage, preprocessContentMessage } from './acp/AcpMessagePipeline';
 import { saveAcpSessionId, saveSessionMode, saveModelId, saveContextUsage } from './acp/AcpPersistence';
-import { resolveImageConfig, callImagesGenerations, callImagesEdits, saveImageResult, resolveChatModel, callChatCompletionsWithImage, readSudorouterCredentials } from '../bridge/imageGenerationBridge';
+import { resolveImageConfig, callImagesGenerations, callImagesEdits, saveImageResult, resolveChatModel, callChatCompletionsWithImage, callChatCompletionsWithImageBase64, readSudorouterCredentials } from '../bridge/imageGenerationBridge';
 import { resolveWorkspaceSkillsDir } from '../utils/workspaceSkillsDir';
 import { readAssistantResource, ruleFilePattern } from '@process/utils/assistantResources';
 import { app } from 'electron';
@@ -859,6 +860,41 @@ This identity statement takes priority over the default identity in USER.md.
           mainLog('AcpAgent', `sendMessage: sending ${processed.images.length} image(s) as content blocks, mimeTypes=[${processed.images.map((i) => i.mimeType).join(', ')}]`);
         }
 
+        let finalImages: typeof processed.images = processed.images;
+
+        if (processed.images.length > 0 && this.options.backend === 'scode') {
+          const currentModel = this.persistedModelId || this.getModelInfo()?.currentModelId;
+          if (!isModelVisionCapable(currentModel)) {
+            mainLog('AcpAgent', `sendMessage: model "${currentModel}" does not support vision, falling back to image analysis via dedicated vision model`);
+            try {
+              const creds = readSudorouterCredentials();
+              const visionModel = findFirstVisionModel() ?? DEFAULT_IMAGE_PARSING_MODEL;
+              if (creds) {
+                const imageAnalysisParts: string[] = [];
+                for (let i = 0; i < processed.images.length; i++) {
+                  const img = processed.images[i];
+                  mainLog('AcpAgent', `sendMessage: analyzing image ${i + 1}/${processed.images.length} with vision model "${visionModel}"`);
+                  const analysisPrompt = 'Please describe this image in detail, including all visible text, layout, and content.';
+                  try {
+                    const analysisResult = await callChatCompletionsWithImageBase64(creds.baseUrl, creds.apiKey, visionModel, img.data, img.mimeType, analysisPrompt);
+                    imageAnalysisParts.push(`[Image ${i + 1} analysis]\n${analysisResult}`);
+                  } catch (imgErr) {
+                    mainWarn('AcpAgent', `sendMessage: image analysis failed for image ${i + 1}: ${imgErr instanceof Error ? imgErr.message : String(imgErr)}`);
+                    imageAnalysisParts.push(`[Image ${i + 1} analysis failed: ${imgErr instanceof Error ? imgErr.message : String(imgErr)}]`);
+                  }
+                }
+                contentToSend = contentToSend + '\n\n' + imageAnalysisParts.join('\n\n');
+                finalImages = [];
+                mainLog('AcpAgent', `sendMessage: image analysis complete, sending text description to model "${currentModel}" instead of image content blocks`);
+              } else {
+                mainWarn('AcpAgent', 'sendMessage: no sudorouter credentials available for image analysis fallback, sending images directly');
+              }
+            } catch (fallbackErr) {
+              mainWarn('AcpAgent', `sendMessage: image analysis fallback failed: ${fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr)}`);
+            }
+          }
+        }
+
         if (this.isFirstMessage) {
           contentToSend = await prepareFirstMessageWithSkillsIndex(contentToSend, {
             presetContext: this.options.presetContext,
@@ -905,7 +941,7 @@ This identity statement takes priority over the default identity in USER.md.
         }
 
         const agentSendStart = Date.now();
-        const result = await this.sendToConnection(contentToSend, data.msg_id, processed.images);
+        const result = await this.sendToConnection(contentToSend, data.msg_id, finalImages);
         if (ACP_PERF_LOG) mainLog('ACP-PERF', `manager: sendMessage completed ${Date.now() - agentSendStart}ms (total: ${Date.now() - managerSendStart}ms)`);
         if (this.isFirstMessage) {
           this.isFirstMessage = false;

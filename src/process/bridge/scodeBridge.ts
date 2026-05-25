@@ -12,6 +12,7 @@
  */
 
 import { ipcBridge } from '@/common';
+import { modelInputForModelId } from '@/common/imageUtils';
 import { SCODE_DIR, isScodeInstalled, getScodeVersionState, ensureScodeInstalled } from '@process/services/scode/ScodeInstallService';
 import { readSettings, removeDisabledMcpServersFromSettings, writeSettings } from '@process/services/mcpServices/agents/ScodeMcpAgent';
 import fs from 'fs';
@@ -122,7 +123,7 @@ export async function syncScodeModelsFromPricing(): Promise<void> {
     models[modelId] = {
       alias: modelId,
       name: modelId,
-      input: ['text'],
+      input: modelInputForModelId(modelId),
       providers: {
         proxy: { provider: 'sudorouter', model: modelId, api: 'openai-completions' },
       },
