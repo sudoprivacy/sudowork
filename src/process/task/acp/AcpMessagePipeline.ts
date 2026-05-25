@@ -135,13 +135,15 @@ export function normalizeWindowsImagePaths(content: string): string {
   // Match markdown image syntax where the path starts with an optional \\?\ prefix
   // followed by a Windows drive letter (e.g. \\?\C:\ or C:\).
   // The \\?\ prefix is a Windows extended-length path prefix and must be stripped.
-  return content.replace(
-    /!\[([^\]]*)\]\((?:\\\\\?\\)?([A-Za-z]:\\[^)]+)\)/g,
-    (_match, alt: string, imagePath: string) => {
-      const normalizedPath = imagePath.replace(/\\/g, '/');
-      return `![${alt}](${normalizedPath})`;
-    },
-  );
+  return content.replace(/!\[([^\]]*)\]\((?:\\\\\?\\)?([A-Za-z]:\\[^)]+)\)/g, (_match, alt: string, imagePath: string) => {
+    const normalizedPath = imagePath.replace(/\\/g, '/');
+    return `![${alt}](${normalizedPath})`;
+  });
+}
+
+export function isRawToolCallText(content: string): boolean {
+  const trimmed = content.trim();
+  return /^call:[\w.:-]+\{[\s\S]*\}$/.test(trimmed);
 }
 
 /**
@@ -154,6 +156,10 @@ export function preprocessContentMessage(message: IResponseMessage): IResponseMe
   }
 
   let data = message.data;
+
+  if (isRawToolCallText(data)) {
+    return { ...message, data: '' };
+  }
 
   // 1. Filter think tags
   if (/<\s*\/?\s*think(?:ing)?\s*>/i.test(data)) {
