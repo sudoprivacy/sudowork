@@ -50,6 +50,27 @@ const EXTENSION_MAP: Record<string, FileTypeInfo> = {
   tif: { contentType: 'image', editable: false, language: 'image' },
   tiff: { contentType: 'image', editable: false, language: 'image' },
   avif: { contentType: 'image', editable: false, language: 'image' },
+  // Video
+  mp4: { contentType: 'video', editable: false, language: 'video' },
+  webm: { contentType: 'video', editable: false, language: 'video' },
+  mov: { contentType: 'video', editable: false, language: 'video' },
+  m4v: { contentType: 'video', editable: false, language: 'video' },
+  ogv: { contentType: 'video', editable: false, language: 'video' },
+  avi: { contentType: 'video', editable: false, language: 'video' },
+  mkv: { contentType: 'video', editable: false, language: 'video' },
+  wmv: { contentType: 'video', editable: false, language: 'video' },
+  flv: { contentType: 'video', editable: false, language: 'video' },
+  // Audio
+  mp3: { contentType: 'audio', editable: false, language: 'audio' },
+  wav: { contentType: 'audio', editable: false, language: 'audio' },
+  flac: { contentType: 'audio', editable: false, language: 'audio' },
+  aac: { contentType: 'audio', editable: false, language: 'audio' },
+  m4a: { contentType: 'audio', editable: false, language: 'audio' },
+  ogg: { contentType: 'audio', editable: false, language: 'audio' },
+  oga: { contentType: 'audio', editable: false, language: 'audio' },
+  opus: { contentType: 'audio', editable: false, language: 'audio' },
+  amr: { contentType: 'audio', editable: false, language: 'audio' },
+  wma: { contentType: 'audio', editable: false, language: 'audio' },
 };
 
 /**

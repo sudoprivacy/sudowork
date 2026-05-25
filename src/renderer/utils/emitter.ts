@@ -35,7 +35,13 @@ interface EventTypes {
   // 会话删除事件 / Conversation deletion event
   'conversation.deleted': [string]; // conversationId
   // 预览面板事件 / Preview panel events
-  'preview.open': [{ content: string; contentType: PreviewContentType; metadata?: { title?: string; fileName?: string } }];
+  'preview.open': [
+    {
+      content: string;
+      contentType: PreviewContentType;
+      metadata?: { title?: string; fileName?: string; filePath?: string; workspace?: string; language?: string; editable?: boolean };
+    },
+  ];
   // 填充输入框事件 / Fill sendbox input event
   'sendbox.fill': [string]; // prompt text to fill
   'agent.connection.status': [string, string]; // [conversationId, status]
