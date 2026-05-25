@@ -853,13 +853,13 @@ This identity statement takes priority over the default identity in USER.md.
           mainLog('AcpAgent', `sendMessage: no skills to process, data.skills=${JSON.stringify(data.skills)}`);
         }
 
-        const processed = await processAtFileReferences(contentToSend, this.workspace, data.files);
+        const processed = await processAtFileReferences(contentToSend, this.workspace, data.files, this.persistedModelId);
         contentToSend = processed.text;
         if (processed.images.length > 0) {
           mainLog('AcpAgent', `sendMessage: sending ${processed.images.length} image(s) as content blocks, mimeTypes=[${processed.images.map((i) => i.mimeType).join(', ')}]`);
         }
 
-        let finalImages: typeof processed.images = processed.images;
+        const finalImages = processed.images;
 
         if (processed.images.length > 0 && this.options.backend === 'scode') {
           const currentModel = this.persistedModelId || this.getModelInfo()?.currentModelId;
@@ -871,7 +871,7 @@ This identity statement takes priority over the default identity in USER.md.
               ?.join(', ');
             const tip = `当前模型 "${modelLabel}" 不支持图片分析，请切换到支持视觉的模型${visionModels ? `（如 ${visionModels}）` : ''}后再发送图片。`;
             this.emitErrorMessage(tip);
-            finalImages = [];
+            return { success: false, message: tip };
           }
         }
 

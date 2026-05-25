@@ -6,6 +6,7 @@
 
 import { extractAtPaths, parseAllAtCommands, reconstructQuery } from '@/common/atCommandParser';
 import { detectImageMimeType, resizeImageForContext, IMAGE_TARGET_RAW_SIZE } from '@/common/imageUtils';
+import { getImageTargetSize } from '@/common/imageUtils';
 import type { AcpImageContentBlock } from '@/types/acpTypes';
 import { promises as fs } from 'fs';
 import * as path from 'path';
@@ -20,15 +21,15 @@ export interface ProcessedImageWithSource extends AcpImageContentBlock {
  * Images exceeding size/dimension limits are automatically resized and compressed.
  * Returns the image content block if it is an image, null otherwise.
  */
-async function tryReadAsImage(filePath: string): Promise<ProcessedImageWithSource | null> {
+async function tryReadAsImage(filePath: string, maxBytes: number = IMAGE_TARGET_RAW_SIZE): Promise<ProcessedImageWithSource | null> {
   try {
     const buffer = await fs.readFile(filePath);
     const detected = detectImageMimeType(buffer);
     mainWarn('AcpAtFile', `tryReadAsImage: ${filePath}, size=${buffer.length}, detected=${detected ? detected.mime : 'not-image'}`);
     if (detected) {
-      if (buffer.length > IMAGE_TARGET_RAW_SIZE) {
+      if (buffer.length > maxBytes) {
         try {
-          const result = await resizeImageForContext(buffer);
+          const result = await resizeImageForContext(buffer, maxBytes);
           mainWarn('AcpAtFile', `tryReadAsImage: resized ${filePath} from ${buffer.length} to ${result.buffer.length} bytes, mediaType=${result.mediaType}`);
           return {
             type: 'image',
@@ -64,7 +65,7 @@ export interface ProcessedAtFileResult {
  * reads their content, and appends it to the message.
  * Image files (detected by magic bytes) are returned as separate content blocks.
  */
-export async function processAtFileReferences(content: string, workspace: string | undefined, uploadedFiles?: string[]): Promise<ProcessedAtFileResult> {
+export async function processAtFileReferences(content: string, workspace: string | undefined, uploadedFiles?: string[], modelId?: string): Promise<ProcessedAtFileResult> {
   if (!workspace) {
     return { text: content, images: [] };
   }
@@ -83,6 +84,8 @@ export async function processAtFileReferences(content: string, workspace: string
   const images: ProcessedImageWithSource[] = [];
   const imageReferences: Set<string> = new Set();
 
+  const maxImageBytes = getImageTargetSize(modelId);
+
   for (const atPath of atPaths) {
     const matchedUploadFile = uploadedFiles?.find((filePath) => {
       const normalizedFilePath = filePath.replace(/\\/g, '/');
@@ -92,8 +95,7 @@ export async function processAtFileReferences(content: string, workspace: string
     });
 
     if (matchedUploadFile) {
-      // Try reading as image via magic bytes
-      const imageBlock = await tryReadAsImage(matchedUploadFile);
+      const imageBlock = await tryReadAsImage(matchedUploadFile, maxImageBytes);
       if (imageBlock) {
         images.push(imageBlock);
         imageReferences.add(atPath);
@@ -108,7 +110,7 @@ export async function processAtFileReferences(content: string, workspace: string
 
     if (resolvedPath) {
       // Try reading as image via magic bytes
-      const imageBlock = await tryReadAsImage(resolvedPath);
+      const imageBlock = await tryReadAsImage(resolvedPath, maxImageBytes);
       if (imageBlock) {
         images.push(imageBlock);
         imageReferences.add(atPath);

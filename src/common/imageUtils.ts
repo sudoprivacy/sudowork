@@ -28,6 +28,17 @@ export function modelInputForModelId(modelId: string): string[] {
 }
 
 /**
+ * Flash/lightweight models have smaller context windows — compress images
+ * more aggressively to avoid "content too large" errors.
+ */
+const FLASH_MODEL_PATTERN = /flash-lite|flash-preview|3\.5-flash/i;
+
+export function getImageTargetSize(modelId: string | null | undefined): number {
+  if (!modelId) return IMAGE_TARGET_RAW_SIZE;
+  return FLASH_MODEL_PATTERN.test(modelId) ? 128 * 1024 : IMAGE_TARGET_RAW_SIZE;
+}
+
+/**
  * Detect image MIME type from magic bytes.
  * Returns null if the buffer does not match any known image format.
  */
@@ -83,7 +94,7 @@ export interface ResizeResult {
  * 4. Last resort: max 800px wide, JPEG quality 20
  * 5. Fallback on sharp failure: pass through if base64 size is under API limit
  */
-export async function resizeImageForContext(imageBuffer: Buffer): Promise<ResizeResult> {
+export async function resizeImageForContext(imageBuffer: Buffer, maxBytes: number = IMAGE_TARGET_RAW_SIZE): Promise<ResizeResult> {
   if (imageBuffer.length === 0) {
     return { buffer: imageBuffer, mediaType: 'image/png' };
   }
@@ -104,7 +115,7 @@ export async function resizeImageForContext(imageBuffer: Buffer): Promise<Resize
     const metadata = await image.metadata();
 
     if (!metadata.width || !metadata.height) {
-      if (imageBuffer.length > IMAGE_TARGET_RAW_SIZE) {
+      if (imageBuffer.length > maxBytes) {
         const compressed = await sharp(imageBuffer).jpeg({ quality: 80 }).toBuffer();
         return { buffer: compressed, mediaType: 'image/jpeg' };
       }
@@ -117,7 +128,7 @@ export async function resizeImageForContext(imageBuffer: Buffer): Promise<Resize
     const normalizedMediaType = format === 'jpg' ? 'jpeg' : format;
 
     // Fast path: already within limits
-    if (imageBuffer.length <= IMAGE_TARGET_RAW_SIZE && originalWidth <= IMAGE_MAX_WIDTH && originalHeight <= IMAGE_MAX_HEIGHT) {
+    if (imageBuffer.length <= maxBytes && originalWidth <= IMAGE_MAX_WIDTH && originalHeight <= IMAGE_MAX_HEIGHT) {
       return {
         buffer: imageBuffer,
         mediaType: `image/${normalizedMediaType}`,
@@ -132,10 +143,10 @@ export async function resizeImageForContext(imageBuffer: Buffer): Promise<Resize
     const needsDimensionResize = originalWidth > IMAGE_MAX_WIDTH || originalHeight > IMAGE_MAX_HEIGHT;
 
     // Compression-only path (dimensions OK but file too large)
-    if (!needsDimensionResize && imageBuffer.length > IMAGE_TARGET_RAW_SIZE) {
+    if (!needsDimensionResize && imageBuffer.length > maxBytes) {
       if (isPng) {
         const pngCompressed = await sharp(imageBuffer).png({ compressionLevel: 9, palette: true }).toBuffer();
-        if (pngCompressed.length <= IMAGE_TARGET_RAW_SIZE) {
+        if (pngCompressed.length <= maxBytes) {
           return {
             buffer: pngCompressed,
             mediaType: 'image/png',
@@ -148,7 +159,7 @@ export async function resizeImageForContext(imageBuffer: Buffer): Promise<Resize
       }
       for (const quality of [80, 60, 40, 20] as const) {
         const compressed = await sharp(imageBuffer).jpeg({ quality }).toBuffer();
-        if (compressed.length <= IMAGE_TARGET_RAW_SIZE) {
+        if (compressed.length <= maxBytes) {
           return {
             buffer: compressed,
             mediaType: 'image/jpeg',
@@ -176,10 +187,10 @@ export async function resizeImageForContext(imageBuffer: Buffer): Promise<Resize
     const resized = await sharp(imageBuffer).resize(width, height, { fit: 'inside', withoutEnlargement: true }).toBuffer();
 
     // Post-resize compression if still over size limit
-    if (resized.length > IMAGE_TARGET_RAW_SIZE) {
+    if (resized.length > maxBytes) {
       if (isPng) {
         const pngCompressed = await sharp(imageBuffer).resize(width, height, { fit: 'inside', withoutEnlargement: true }).png({ compressionLevel: 9, palette: true }).toBuffer();
-        if (pngCompressed.length <= IMAGE_TARGET_RAW_SIZE) {
+        if (pngCompressed.length <= maxBytes) {
           return {
             buffer: pngCompressed,
             mediaType: 'image/png',
@@ -193,7 +204,7 @@ export async function resizeImageForContext(imageBuffer: Buffer): Promise<Resize
 
       for (const quality of [80, 60, 40, 20] as const) {
         const compressed = await sharp(imageBuffer).resize(width, height, { fit: 'inside', withoutEnlargement: true }).jpeg({ quality }).toBuffer();
-        if (compressed.length <= IMAGE_TARGET_RAW_SIZE) {
+        if (compressed.length <= maxBytes) {
           return {
             buffer: compressed,
             mediaType: 'image/jpeg',
