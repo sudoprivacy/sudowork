@@ -37,6 +37,9 @@
   "questionSkipped": "Skipped",
   "yes": "Yes",
   "no": "No",
+  "skills": {
+    "triggerLabel": "@ Skills / Files"
+  },
   "confirmation": {
     "applyChange": "Apply this change?",
     "allowExecution": "Allow execution?",
