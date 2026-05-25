@@ -89,6 +89,16 @@
     "loadFailed": "PDF belgesi yüklenemedi",
     "unableDisplay": "PDF dosyası görüntülenemiyor"
   },
+  "video": {
+    "title": "Video",
+    "pathMissing": "Video dosya yolu eksik",
+    "loadFailed": "Bu video yerleşik oynatıcıda oynatılamıyor. Sistem varsayılan uygulamasıyla açmayı deneyin."
+  },
+  "audio": {
+    "title": "Ses",
+    "pathMissing": "Ses dosya yolu eksik",
+    "loadFailed": "Bu ses yerleşik oynatıcıda oynatılamıyor. Sistem varsayılan uygulamasıyla açmayı deneyin."
+  },
   "html": {
     "elementSelected": "Seçilen öğe: {{path}}",
     "copySuccess": "HTML parçacığı kopyalandı",
