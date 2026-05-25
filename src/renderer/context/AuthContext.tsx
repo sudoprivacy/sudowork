@@ -45,6 +45,8 @@ interface EeclawAuthStorage {
   expires_at: number;
   user: AuthUser;
   device_id: string;
+  /** How this session was established; drives which grant_type is used on refresh. */
+  session_type?: 'password' | 'api_key' | 'oauth2';
 }
 
 interface LoginParams {
@@ -126,6 +128,7 @@ interface AuthContextValue {
   ensureValidToken: (forceRefresh?: boolean) => Promise<string | null>;
   forceRefreshToken: () => Promise<string | null>;
   enterpriseLogin: (params: EnterpriseLoginParams | EnterpriseLoginParamsByKey) => Promise<LoginResult>;
+  enterpriseLoginWithOAuth2: (params: Record<string, string>) => Promise<LoginResult>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -492,9 +495,17 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
 
           if (forceRefresh || (expires_at && Date.now() > expires_at - 5 * 60 * 1000)) {
             const refreshed = await refreshTokens();
-            if (!refreshed) return null;
-            const newStorage = JSON.parse(localStorage.getItem(EECLAW_AUTH_STORAGE_KEY) || '{}');
-            return newStorage.access_token || null;
+            if (refreshed) {
+              const newStorage = JSON.parse(localStorage.getItem(EECLAW_AUTH_STORAGE_KEY) || '{}');
+              return newStorage.access_token || null;
+            }
+            // Refresh failed (e.g. provider has no refresh API). Keep using the
+            // current access_token while it is still valid; only give up once it
+            // has actually expired, at which point re-login is required.
+            if (!forceRefresh && expires_at && Date.now() < expires_at) {
+              return access_token;
+            }
+            return null;
           }
 
           return access_token;
@@ -887,28 +898,14 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     }
   }, []);
 
-  // Enterprise login — independent from C-side login flow
-  const enterpriseLogin = useCallback(async (params: EnterpriseLoginParams | EnterpriseLoginParamsByKey): Promise<LoginResult> => {
-    try {
-      const serverUrl = await ConfigStorage.get('eeclaw.serverUrl');
-      if (!serverUrl) {
-        return { success: false, message: '未配置企业服务器地址' };
-      }
-
-      const deviceId = getDeviceId();
-      // Build MOSS-compatible request body with grant_type
-      const isApiKeyLogin = 'api_key' in params;
-      const requestBody = isApiKeyLogin
-        ? { grant_type: 'api_key', api_key: (params as EnterpriseLoginParamsByKey).api_key }
-        : { grant_type: 'password', username: (params as EnterpriseLoginParams).username, password: (params as EnterpriseLoginParams).password };
-
-      // Use IPC bridge to avoid CORS (main process has no CORS restrictions)
-      const result = await ipcBridge.eeclaw.login.invoke({
-        serverUrl,
-        body: requestBody,
-        deviceId,
-      });
-
+  // Shared post-login handling for all enterprise grant types (password / api_key / oauth2).
+  // Persists tokens, sets up scode/session mode, and updates auth state.
+  const finalizeEnterpriseLogin = useCallback(
+    async (
+      result: Awaited<ReturnType<typeof ipcBridge.eeclaw.login.invoke>>,
+      deviceId: string,
+      sessionType: 'password' | 'api_key' | 'oauth2',
+    ): Promise<LoginResult> => {
       if (!result.success || !result.data) {
         return {
           success: false,
@@ -934,6 +931,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         expires_at: Date.now() + (data.expires_in || 3600) * 1000,
         user: mappedUser,
         device_id: deviceId,
+        session_type: sessionType,
       };
       localStorage.setItem(EECLAW_AUTH_STORAGE_KEY, JSON.stringify(eeclawAuthStorage));
 
@@ -972,23 +970,20 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       }
 
       // Sync token to ConfigStorage for eeclawBridge
+      const configAuthStorage = {
+        access_token: data.access_token,
+        refresh_token: data.refresh_token || '',
+        expires_at: eeclawAuthStorage.expires_at,
+        device_id: deviceId,
+        session_type: sessionType,
+      };
       try {
-        await ConfigStorage.set('eeclaw.authStorage', {
-          access_token: data.access_token,
-          refresh_token: data.refresh_token || '',
-          expires_at: eeclawAuthStorage.expires_at,
-          device_id: deviceId,
-        });
+        await ConfigStorage.set('eeclaw.authStorage', configAuthStorage);
       } catch (e) {
         console.warn('[Auth] Failed to sync eeclaw auth to ConfigStorage (will retry):', e);
         // Retry once
         try {
-          await ConfigStorage.set('eeclaw.authStorage', {
-            access_token: data.access_token,
-            refresh_token: data.refresh_token || '',
-            expires_at: eeclawAuthStorage.expires_at,
-            device_id: deviceId,
-          });
+          await ConfigStorage.set('eeclaw.authStorage', configAuthStorage);
         } catch (e2) {
           console.error('[Auth] Failed to sync eeclaw auth to ConfigStorage after retry:', e2);
         }
@@ -1000,6 +995,33 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       setReady(true);
 
       return { success: true };
+    },
+    [],
+  );
+
+  // Enterprise login — independent from C-side login flow
+  const enterpriseLogin = useCallback(async (params: EnterpriseLoginParams | EnterpriseLoginParamsByKey): Promise<LoginResult> => {
+    try {
+      const serverUrl = await ConfigStorage.get('eeclaw.serverUrl');
+      if (!serverUrl) {
+        return { success: false, message: '未配置企业服务器地址' };
+      }
+
+      const deviceId = getDeviceId();
+      // Build MOSS-compatible request body with grant_type
+      const isApiKeyLogin = 'api_key' in params;
+      const requestBody = isApiKeyLogin
+        ? { grant_type: 'api_key', api_key: (params as EnterpriseLoginParamsByKey).api_key }
+        : { grant_type: 'password', username: (params as EnterpriseLoginParams).username, password: (params as EnterpriseLoginParams).password };
+
+      // Use IPC bridge to avoid CORS (main process has no CORS restrictions)
+      const result = await ipcBridge.eeclaw.login.invoke({
+        serverUrl,
+        body: requestBody,
+        deviceId,
+      });
+
+      return finalizeEnterpriseLogin(result, deviceId, isApiKeyLogin ? 'api_key' : 'password');
     } catch (error) {
       console.error('[Auth] Enterprise login failed:', error);
       return {
@@ -1008,7 +1030,38 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         code: 'networkError',
       };
     }
-  }, []);
+  }, [finalizeEnterpriseLogin]);
+
+  // Enterprise OAuth2 login — completes after the browser redirects back via the
+  // sudowork:// deep link. `params` is the opaque dict of deep-link query params
+  // (code / access_token / refresh_token / …); moss hands it to the credential script.
+  const enterpriseLoginWithOAuth2 = useCallback(
+    async (params: Record<string, string>): Promise<LoginResult> => {
+      try {
+        const serverUrl = await ConfigStorage.get('eeclaw.serverUrl');
+        if (!serverUrl) {
+          return { success: false, message: '未配置企业服务器地址' };
+        }
+
+        const deviceId = getDeviceId();
+        const result = await ipcBridge.eeclaw.login.invoke({
+          serverUrl,
+          body: { grant_type: 'oauth2', params },
+          deviceId,
+        });
+
+        return finalizeEnterpriseLogin(result, deviceId, 'oauth2');
+      } catch (error) {
+        console.error('[Auth] Enterprise OAuth2 login failed:', error);
+        return {
+          success: false,
+          message: error instanceof Error ? error.message : '连接到企业服务器失败',
+          code: 'networkError',
+        };
+      }
+    },
+    [finalizeEnterpriseLogin],
+  );
 
   const logout = useCallback(async () => {
     // Enterprise mode logout
@@ -1142,8 +1195,9 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       ensureValidToken,
       forceRefreshToken,
       enterpriseLogin,
+      enterpriseLoginWithOAuth2,
     }),
-    [login, register, logout, ready, refresh, status, syncMessage, user, ensureValidToken, forceRefreshToken, enterpriseLogin]
+    [login, register, logout, ready, refresh, status, syncMessage, user, ensureValidToken, forceRefreshToken, enterpriseLogin, enterpriseLoginWithOAuth2]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
