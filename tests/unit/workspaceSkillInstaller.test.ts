@@ -324,4 +324,52 @@ version: 2.0.0
     ]);
     expect(clearSkillsCache).not.toHaveBeenCalled();
   });
+
+  it('promotes skills installed into the sandbox home custom skill directory', async () => {
+    const sandboxSkillDir = path.join(workspace, '.sandbox-home', '.nexus', 'skills', '_my-custom-skill', 'audio-transcription');
+    await fs.mkdir(path.join(sandboxSkillDir, 'scripts'), { recursive: true });
+    await fs.writeFile(
+      path.join(sandboxSkillDir, 'SKILL.md'),
+      `---
+name: audio-transcription
+description: "Transcribe audio files"
+version: 1.0.0
+---
+`,
+      'utf-8'
+    );
+    await fs.writeFile(
+      path.join(sandboxSkillDir, '_sudowork_meta.json'),
+      JSON.stringify({
+        name: 'audio-transcription',
+        display_name: '音频转写',
+        description: 'Transcribe audio files',
+        source_type: 'upload',
+        enabled: true,
+      }),
+      'utf-8'
+    );
+    await fs.writeFile(path.join(sandboxSkillDir, 'scripts', 'transcribe_audio.py'), '# example', 'utf-8');
+
+    const clearSkillsCache = vi.fn();
+    const resetAcpSkillManager = vi.fn();
+    const results = await installWorkspaceSkillsFromTrackedFiles(workspace, new Map(), {
+      getCustomSkillsDir: () => customSkillsDir,
+      existingCustomSkillNames: new Set(),
+      clearSkillsCache,
+      resetAcpSkillManager,
+      now: () => new Date('2026-05-25T00:00:00.000Z'),
+    });
+
+    expect(results).toEqual([
+      expect.objectContaining({
+        status: 'installed',
+        skillName: 'audio-transcription',
+        targetDir: path.join(customSkillsDir, 'audio-transcription'),
+      }),
+    ]);
+    await expect(fs.readFile(path.join(customSkillsDir, 'audio-transcription', 'scripts', 'transcribe_audio.py'), 'utf-8')).resolves.toBe('# example');
+    expect(clearSkillsCache).toHaveBeenCalledTimes(1);
+    expect(resetAcpSkillManager).toHaveBeenCalledTimes(1);
+  });
 });

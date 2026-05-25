@@ -2207,7 +2207,7 @@ This identity statement takes priority over the default identity in USER.md.
   }
 
   private async installTrackedWorkspaceSkills(): Promise<void> {
-    if (!this.workspace || this.currentTurnFiles.size === 0) {
+    if (!this.workspace) {
       return;
     }
 
@@ -2247,9 +2247,31 @@ This identity statement takes priority over the default identity in USER.md.
           source: 'workspace',
         });
       }
+      this.emitWorkspaceSkillInstallMessage(changed);
     } catch (error) {
       mainWarn('[AcpAgent]', '[SKILL-INSTALL] Failed to install workspace skills', error);
     }
+  }
+
+  private emitWorkspaceSkillInstallMessage(skills: Array<{ skillName: string; targetDir: string }>): void {
+    const skillNames = Array.from(new Set(skills.map((skill) => skill.skillName))).filter(Boolean);
+    if (skillNames.length === 0) {
+      return;
+    }
+
+    const skillList = skillNames.map((skillName) => `- ${skillName}`).join('\n');
+    const content = skillNames.length === 1 ? `技能已安装到自定义技能：${skillNames[0]}\n\n你可以在“技能商店 > 我的技能 > 自定义技能”中查看。` : `以下技能已安装到自定义技能：\n\n${skillList}\n\n你可以在“技能商店 > 我的技能 > 自定义技能”中查看。`;
+
+    this.emitMessage({
+      id: uuid(),
+      msg_id: uuid(),
+      conversation_id: this.conversation_id,
+      type: 'text',
+      position: 'left',
+      createdAt: Date.now(),
+      status: 'finish',
+      content: { content },
+    });
   }
 
   private handlePromptUsage(usage: AcpPromptResponseUsage): void {
@@ -2441,11 +2463,17 @@ This identity statement takes priority over the default identity in USER.md.
       saveContextUsage(this.conversation_id, usageData);
     }
 
-    if (message.type !== 'thought' && message.type !== 'acp_model_info' && message.type !== 'acp_context_usage') {
-      const tMessage = transformMessage(message as IResponseMessage);
+    const filteredMessage = preprocessContentMessage(message as IResponseMessage);
+
+    if (message.type === 'content' && filteredMessage.type === 'content' && filteredMessage.data === '') {
+      return;
+    }
+
+    if (filteredMessage.type !== 'thought' && filteredMessage.type !== 'acp_model_info' && filteredMessage.type !== 'acp_context_usage') {
+      const tMessage = transformMessage(filteredMessage as IResponseMessage);
 
       if (tMessage) {
-        const isStreamTextChunk = tMessage.type === 'text' && message.type === 'content';
+        const isStreamTextChunk = tMessage.type === 'text' && filteredMessage.type === 'content';
         if (isStreamTextChunk) {
           this.streamTextBuffer.queue(tMessage, this.options.backend);
         } else {
@@ -2459,8 +2487,6 @@ This identity statement takes priority over the default identity in USER.md.
         }
       }
     }
-
-    const filteredMessage = preprocessContentMessage(message as IResponseMessage);
 
     ipcBridge.acpConversation.responseStream.emit(filteredMessage);
 

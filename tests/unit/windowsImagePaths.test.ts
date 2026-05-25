@@ -4,7 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+
+vi.mock('@process/message', () => ({
+  addOrUpdateMessage: vi.fn(),
+}));
+
 import { normalizeWindowsImagePaths, preprocessContentMessage } from '@process/task/acp/AcpMessagePipeline';
 import { defaultUrlTransform } from 'react-markdown';
 
@@ -180,5 +185,27 @@ describe('preprocessContentMessage', () => {
     };
     const result = preprocessContentMessage(message);
     expect(result.data).toBe('![](C:/Users/zouqi/.nexus/scode-temp-1778554568911/cute_little_girl.png)');
+  });
+
+  it('should blank raw tool call text content', () => {
+    const message = {
+      type: 'content' as const,
+      conversation_id: 'test-conv',
+      msg_id: 'test-msg',
+      data: 'call:default_api:read_file{limit:100,path:/tmp/weather-query/SKILL.md}',
+    };
+    const result = preprocessContentMessage(message);
+    expect(result.data).toBe('');
+  });
+
+  it('should not blank normal text that mentions tool calls', () => {
+    const message = {
+      type: 'content' as const,
+      conversation_id: 'test-conv',
+      msg_id: 'test-msg',
+      data: '工具调用已完成：call:default_api:read_file{limit:100,path:/tmp/weather-query/SKILL.md}',
+    };
+    const result = preprocessContentMessage(message);
+    expect(result).toBe(message);
   });
 });

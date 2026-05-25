@@ -33,6 +33,7 @@ skill-name/
 - 打包为 `.zip`，因为 Sudowork 本地导入入口支持 zip 包和文件夹。
 - 创建或更新技能时先写入当前会话的临时空间，也就是 Sudowork 会话页面右侧的文件空间；不要直接写入 workspace skill 同步目录。
 - 完成前必须使用 `scripts/install_skill.py` 安装到 `~/.nexus/skills/_my-custom-skill/<skill-name>/`。除非用户明确要求只生成包、不安装，否则不能只创建临时目录或 zip 后结束，也不能只把安装命令交给用户。
+- 安装完成后保留会话临时空间里的最终技能目录 `<skill-name>/`，用于 Sudowork 在 turn 结束时校验并同步；不要删除该技能目录。删除 `skill-packages/` 中间打包目录以及其中的 zip 文件，避免临时空间残留打包产物。
 
 不要把用户创建的技能放入 hub 或 system 技能目录；这些目录分别保留给商店技能和内置技能。
 
@@ -236,6 +237,12 @@ scripts/package_skill.py <path/to/skill-folder> ./skill-packages
 当前只使用个人自定义技能目录。不要写入企业模式 `custom` 目录。
 
 这是创建或更新 Sudowork 自定义技能的必做收尾步骤。临时空间中的技能目录只是草稿；任务完成标准是技能已经进入 `~/.nexus/skills/_my-custom-skill/<skill-name>/` 并可被 Sudowork 重新扫描。不要把“已生成临时目录”“已生成 zip”或“告诉用户运行安装命令”当作完成。
+
+安装后保留临时技能目录，等待 Sudowork 自动校验和同步。不要运行 `rm -rf <skill-dir>` 清理最终技能目录。若存在 `skill-packages/`，安装成功后删除整个 `skill-packages/` 目录及其中的 zip：
+
+```bash
+rm -rf ./skill-packages
+```
 
 从临时技能目录安装：
 

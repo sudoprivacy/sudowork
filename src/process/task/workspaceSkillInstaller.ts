@@ -78,6 +78,7 @@ type WorkspaceSkillMeta = {
 
 const SKILL_META_FILES = new Set([SKILL_HUB_META_FILE, MOSS_SKILL_META_FILE]);
 const IGNORED_WORKSPACE_ROOTS = new Set(['.git', '.nexus', '.claude', '.drafts', 'node_modules', '__pycache__', '.venv', 'venv']);
+const SANDBOX_CUSTOM_SKILLS_RELATIVE_PATH = ['.sandbox-home', '.nexus', 'skills', '_my-custom-skill'];
 
 function isPathInside(parent: string, child: string): boolean {
   const relative = path.relative(parent, child);
@@ -124,6 +125,19 @@ export function collectWorkspaceSkillCandidateRoots(workspace: string, trackedFi
   }
 
   return Array.from(candidates).sort((left, right) => left.localeCompare(right));
+}
+
+async function collectSandboxInstalledSkillRoots(workspace: string, existingCustomSkillNames?: ReadonlySet<string>): Promise<string[]> {
+  const sandboxCustomSkillsDir = path.join(workspace, ...SANDBOX_CUSTOM_SKILLS_RELATIVE_PATH);
+  const entries = await fs.readdir(sandboxCustomSkillsDir, { withFileTypes: true }).catch((): null => null);
+  if (!entries) {
+    return [];
+  }
+
+  return entries
+    .filter((entry) => entry.isDirectory() && !existingCustomSkillNames?.has(entry.name))
+    .map((entry) => path.join(sandboxCustomSkillsDir, entry.name))
+    .sort((left, right) => left.localeCompare(right));
 }
 
 function sanitizeSkillName(rawName: string, fallbackName: string): string {
@@ -290,7 +304,7 @@ async function inspectInstalledTargetForSource(customSkillsDir: string, sourceDi
 }
 
 export async function installWorkspaceSkillsFromTrackedFiles(workspace: string, trackedFiles: TrackedWorkspaceFiles, deps: WorkspaceSkillInstallerDeps): Promise<WorkspaceSkillInstallResult[]> {
-  const candidateRoots = collectWorkspaceSkillCandidateRoots(workspace, trackedFiles);
+  const candidateRoots = Array.from(new Set([...collectWorkspaceSkillCandidateRoots(workspace, trackedFiles), ...(await collectSandboxInstalledSkillRoots(workspace, deps.existingCustomSkillNames))]));
   if (candidateRoots.length === 0) {
     return [];
   }
