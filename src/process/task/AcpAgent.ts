@@ -2298,7 +2298,7 @@ This identity statement takes priority over the default identity in USER.md.
     this.emitStatusMessage('disconnected');
 
     const errorMsg = `${this.extra.backend} process disconnected unexpectedly ` + `(code: ${error.code}, signal: ${error.signal}). ` + `Please try sending a new message to reconnect.`;
-    this.emitErrorMessage(errorMsg);
+    this.emitErrorMessage(errorMsg, false); // Skip finish, will send below
 
     // Telemetry: end turn tracking (error)
     endTurnError(this.conversation_id, 'E001');
@@ -2587,7 +2587,7 @@ This identity statement takes priority over the default identity in USER.md.
     });
   }
 
-  private emitErrorMessage(error: string): void {
+  private emitErrorMessage(error: string, withFinish: boolean = true): void {
     const errorMessage: TMessage = {
       id: uuid(),
       conversation_id: this.conversation_id,
@@ -2600,6 +2600,23 @@ This identity statement takes priority over the default identity in USER.md.
       },
     };
     this.emitMessage(errorMessage);
+
+    // Emit finish event to reset frontend processing state (unless skipped)
+    // Clear processingStartTime immediately on error (no delay)
+    // 发送 finish 事件以重置前端处理状态（除非跳过），错误时立即清除 processingStartTime（不延迟）
+    if (withFinish) {
+      // Immediately clear processingStartTime on error
+      // 错误时立即清除 processingStartTime
+      this.processingStartTime = undefined;
+
+      const finishMessage: IResponseMessage = {
+        type: 'finish',
+        conversation_id: this.conversation_id,
+        msg_id: uuid(),
+        data: null,
+      };
+      ipcBridge.acpConversation.responseStream.emit(finishMessage);
+    }
   }
 
   private emitModelInfoEvent(): void {
