@@ -869,7 +869,7 @@ This identity statement takes priority over the default identity in USER.md.
               ?.availableModels?.filter((m) => isModelVisionCapable(m.id))
               ?.map((m) => m.label || m.id)
               ?.join(', ');
-            const tip = `The current model "${modelLabel}" does not support image analysis. Please switch to a model that supports vision${visionModels ? ` (e.g., ${visionModels})` : ''} to analyze images.`;
+            const tip = `当前模型 "${modelLabel}" 不支持图片分析，请切换到支持视觉的模型${visionModels ? `（如 ${visionModels}）` : ''}后再发送图片。`;
             this.emitErrorMessage(tip);
             finalImages = [];
           }
