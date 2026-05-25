@@ -10,21 +10,45 @@ import { RemoteConversationProvider } from './RemoteConversationProvider';
 import { isEnterpriseMode, getEnterpriseConfig, getCachedSessionMode } from '@/common/enterpriseDebugConfig';
 import { mainLog } from '@process/utils/mainLogger';
 import { ProcessConfig } from '@process/initStorage';
+import { resetMossApi } from '@process/remote/MossSessionApi';
 
 let currentProvider: IConversationProvider | null = null;
 let currentProviderType: 'local' | 'remote' | null = null;
+let currentServerUrl: string | null = null;
 
 export function getConversationProvider(sessionMode?: 'remote' | 'local'): IConversationProvider {
   const isEnterprise = isEnterpriseMode();
   // Determine effective target provider type based on sessionMode parameter or cache
   // 根据 sessionMode 参数或缓存确定有效的目标 Provider 类型
-  const effectiveMode = isEnterprise
-    ? (sessionMode ?? getCachedSessionMode())
-    : 'local'; // C端始终 local
+  const effectiveMode = isEnterprise ? (sessionMode ?? getCachedSessionMode()) : 'local'; // C端始终 local
   const targetType: 'local' | 'remote' = effectiveMode === 'remote' ? 'remote' : 'local';
 
   if (currentProvider && currentProviderType === targetType) {
-    return currentProvider;
+    // For remote provider, check if serverUrl has changed
+    // 对于 remote provider，检查 serverUrl 是否变化
+    if (targetType === 'remote') {
+      try {
+        const storedUrl = ProcessConfig.getSync('eeclaw.serverUrl');
+        if (storedUrl && storedUrl !== currentServerUrl) {
+          mainLog('Provider', `Server URL changed from ${currentServerUrl} to ${storedUrl}, resetting provider`);
+          resetConversationProvider();
+          // Continue to create new provider below
+          // 继续在下面创建新的 provider
+        } else {
+          // URL unchanged, return existing provider
+          // URL 未变化，返回现有 provider
+          return currentProvider;
+        }
+      } catch {
+        // On error, return existing provider
+        // 出错时返回现有 provider
+        return currentProvider;
+      }
+    } else {
+      // Local provider, return existing instance
+      // Local provider，返回现有实例
+      return currentProvider;
+    }
   }
 
   if (targetType === 'remote') {
@@ -42,7 +66,9 @@ export function getConversationProvider(sessionMode?: 'remote' | 'local'): IConv
       if (storedUrl) {
         serverUrl = storedUrl;
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
 
     mainLog('Provider', `Using REMOTE provider (Enterprise Mode) - Server: ${serverUrl || 'not set'}, Token: ${freshestToken ? 'set' : 'not set'}`);
 
@@ -61,12 +87,14 @@ export function getConversationProvider(sessionMode?: 'remote' | 'local'): IConv
       mossServerUrl: serverUrl,
     });
     currentProviderType = 'remote';
+    currentServerUrl = serverUrl;
     return currentProvider;
   }
 
   mainLog('Provider', 'Using LOCAL provider (Local Mode)');
   currentProvider = new LocalConversationProvider();
   currentProviderType = 'local';
+  currentServerUrl = null;
   return currentProvider;
 }
 
@@ -82,7 +110,11 @@ export function getConversationProvider(sessionMode?: 'remote' | 'local'): IConv
 export function resetConversationProvider(): void {
   currentProvider = null;
   currentProviderType = null;
-  mainLog('Provider', 'Provider reset - will create new instance on next call');
+  currentServerUrl = null;
+  // Also reset MossSessionApi singleton to ensure fresh initialization
+  // 同时重置 MossSessionApi 单例以确保重新初始化
+  resetMossApi();
+  mainLog('Provider', 'Provider and Moss API reset - will create new instance on next call');
 }
 
 /**
