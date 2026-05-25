@@ -9,6 +9,7 @@ import type { ICronJob } from '@/common/ipcBridge';
 import { ConfigStorage, type TChatConversation } from '@/common/storage';
 import { DEFAULT_PRESET_AGENT_TYPE, resolvePresetAgentBackend, type AcpBackendAll, type AcpBackendConfig } from '@/types/acpTypes';
 import { fetchAssistantsAsConfigs } from '@/renderer/shared/agents/assistantAdapter';
+import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { useAllCronJobs } from '@/renderer/pages/cron/hooks/useCronJobs';
 import { type FrequencyPreset, FREQUENCY_PRESETS, WEEKDAYS, frequencyToSchedule, getJobStatusFlags, scheduleToFrequency } from '@/renderer/pages/cron/utils/cronUtils';
@@ -214,7 +215,14 @@ const CronJobDetail: React.FC<{
         <div>
           <div className='text-13px text-t-secondary mb-4px'>{t('cron.create.agent', { defaultValue: '数字助手' })}</div>
           <div className='text-14px text-t-primary flex items-center gap-6px'>
-            {selectedAssistant?.avatar && <span>{selectedAssistant.avatar}</span>}
+            {(() => {
+              const avatarValue = selectedAssistant?.avatar?.trim();
+              if (!avatarValue) return null;
+              const resolvedAvatar = resolveExtensionAssetUrl(avatarValue);
+              const avatarImage = resolvedAvatar || avatarValue;
+              const isImageAvatar = /\.(svg|png|jpe?g|webp|gif)$/i.test(avatarImage) || /^(https?:|aion-asset:\/\/|file:\/\/|data:)/i.test(avatarImage);
+              return isImageAvatar ? <img src={avatarImage} alt='' width={16} height={16} style={{ objectFit: 'contain' }} /> : <span style={{ fontSize: 14, lineHeight: '16px' }}>{avatarValue}</span>;
+            })()}
             <span>{assistantName}</span>
           </div>
         </div>
@@ -606,14 +614,20 @@ const CronJobFormDrawer: React.FC<{
                     <Select.Option value={DEFAULT_ASSISTANT}>
                       <span className='text-t-secondary'>{t('cron.create.agentPlaceholder', { defaultValue: '默认 (Sudo Code)' })}</span>
                     </Select.Option>
-                    {assistants.map((a) => (
-                      <Select.Option key={a.id} value={a.id}>
-                        <span className='flex items-center gap-6px'>
-                          {a.avatar && <span>{a.avatar}</span>}
-                          <span>{a.nameI18n?.[localeKey] || a.name}</span>
-                        </span>
-                      </Select.Option>
-                    ))}
+                    {assistants.map((a) => {
+                      const avatarValue = a.avatar?.trim();
+                      const resolvedAvatar = avatarValue ? resolveExtensionAssetUrl(avatarValue) : undefined;
+                      const avatarImage = resolvedAvatar || avatarValue;
+                      const isImageAvatar = Boolean(avatarImage && (/\.(svg|png|jpe?g|webp|gif)$/i.test(avatarImage) || /^(https?:|aion-asset:\/\/|file:\/\/|data:)/i.test(avatarImage)));
+                      return (
+                        <Select.Option key={a.id} value={a.id}>
+                          <span className='flex items-center gap-6px'>
+                            {isImageAvatar ? <img src={avatarImage} alt='' width={16} height={16} style={{ objectFit: 'contain' }} /> : avatarValue ? <span style={{ fontSize: 14, lineHeight: '16px' }}>{avatarValue}</span> : null}
+                            <span>{a.nameI18n?.[localeKey] || a.name}</span>
+                          </span>
+                        </Select.Option>
+                      );
+                    })}
                   </Select>
                 </div>
               )}
