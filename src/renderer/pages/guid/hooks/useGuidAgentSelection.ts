@@ -1051,6 +1051,16 @@ This identity statement takes priority over the default identity in USER.md.
     void refreshCustomAgents();
   }, [refreshCustomAgents]);
 
+  useEffect(() => {
+    const handler = () => {
+      void refreshCustomAgents();
+    };
+    emitter.on('assistants.changed', handler);
+    return () => {
+      emitter.off('assistants.changed', handler);
+    };
+  }, [refreshCustomAgents]);
+
   // Defensive: re-scan available agents whenever the user clicks "New Chat"
   // so that newly installed agents (e.g. Claude Code) appear even if the
   // Guid page was never unmounted and the mount-only effect didn't re-run.
