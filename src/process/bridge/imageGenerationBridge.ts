@@ -9,7 +9,7 @@ import fsSync from 'fs';
 import path from 'path';
 import { app } from 'electron';
 import { DEFAULT_IMAGE_BASE_URL } from '../../common/storage';
-import { detectImageMimeType } from '../../common/imageUtils';
+import { detectImageMimeType, IMAGE_TARGET_RAW_SIZE } from '../../common/imageUtils';
 import { ipcBridge } from '../../common';
 import type { IBridgeResponse } from '../../common/ipcBridge';
 import { ProcessConfig } from '../initStorage';
@@ -235,17 +235,30 @@ export function resolveChatModel(): string | null {
 }
 
 /**
- * Call /chat/completions with an image for analysis/understanding.
+ * Call /chat/completions with a base64-encoded image for analysis/understanding.
  */
-export async function callChatCompletionsWithImage(baseUrl: string, apiKey: string, model: string, imagePath: string, prompt: string): Promise<string> {
-  const endpoint = `${baseUrl}/chat/completions`;
-  console.log('[ImageAnalyze] POST', endpoint, 'model:', model, 'image:', imagePath);
-  console.log('[ImageAnalyze] prompt:', prompt.slice(0, 80));
+export async function callChatCompletionsWithImageBase64(baseUrl: string, apiKey: string, model: string, base64Data: string, mimeType: string, prompt: string): Promise<string> {
+  let effectiveBase64 = base64Data;
+  let effectiveMimeType = mimeType;
 
-  const imageBuffer = await fs.readFile(imagePath);
-  const { mime } = detectMimeType(imageBuffer);
-  const b64 = imageBuffer.toString('base64');
-  console.log('[ImageAnalyze] image size:', imageBuffer.length, 'mime:', mime);
+  try {
+    const rawBuffer = Buffer.from(base64Data, 'base64');
+    if (rawBuffer.length > IMAGE_TARGET_RAW_SIZE) {
+      const { resizeImageForContext } = await import('@/common/imageUtils');
+      const result = await resizeImageForContext(rawBuffer);
+      if (result.buffer.length < rawBuffer.length) {
+        effectiveBase64 = result.buffer.toString('base64');
+        effectiveMimeType = result.mediaType;
+        console.log('[ImageAnalyze] resized image from', rawBuffer.length, 'to', result.buffer.length, 'bytes for', model);
+      }
+    }
+  } catch (resizeErr) {
+    console.log('[ImageAnalyze] image resize skipped:', resizeErr instanceof Error ? resizeErr.message : String(resizeErr));
+  }
+
+  const endpoint = `${baseUrl}/chat/completions`;
+  console.log('[ImageAnalyze] POST', endpoint, 'model:', model, 'image: (base64)', 'mime:', effectiveMimeType);
+  console.log('[ImageAnalyze] prompt:', prompt.slice(0, 80));
 
   const body = JSON.stringify({
     model,
@@ -254,7 +267,7 @@ export async function callChatCompletionsWithImage(baseUrl: string, apiKey: stri
         role: 'user',
         content: [
           { type: 'text', text: prompt },
-          { type: 'image_url', image_url: { url: `data:${mime};base64,${b64}` } },
+          { type: 'image_url', image_url: { url: `data:${effectiveMimeType};base64,${effectiveBase64}` } },
         ],
       },
     ],
@@ -283,6 +296,18 @@ export async function callChatCompletionsWithImage(baseUrl: string, apiKey: stri
   }
 
   return content;
+}
+
+/**
+ * Call /chat/completions with an image for analysis/understanding.
+ */
+export async function callChatCompletionsWithImage(baseUrl: string, apiKey: string, model: string, imagePath: string, prompt: string): Promise<string> {
+  const imageBuffer = await fs.readFile(imagePath);
+  const { mime } = detectMimeType(imageBuffer);
+  const b64 = imageBuffer.toString('base64');
+  console.log('[ImageAnalyze] POST', `${baseUrl}/chat/completions`, 'model:', model, 'image:', imagePath, 'size:', imageBuffer.length, 'mime:', mime);
+
+  return callChatCompletionsWithImageBase64(baseUrl, apiKey, model, b64, mime, prompt);
 }
 
 /**
