@@ -21,6 +21,9 @@ export async function getValidToken(forceRefresh = false): Promise<string> {
   }
 
   const { access_token, refresh_token, expires_at, device_id } = authStorage;
+  // OAuth2 sessions refresh via a distinct grant so MOSS routes them through the
+  // credential script; password/api_key sessions use the standard refresh grant.
+  const refreshGrantType = authStorage.session_type === 'oauth2' ? 'oauth2_refresh_token' : 'refresh_token';
 
   const now = Date.now();
   const remainingMs = expires_at - now;
@@ -43,6 +46,14 @@ export async function getValidToken(forceRefresh = false): Promise<string> {
         throw new Error('No refresh token available');
       }
 
+      // OAuth2 sessions send the provider refresh_token inside a generic `params`
+      // dict (moss forwards it to the credential script); other sessions send the
+      // moss refresh_token at the top level as before.
+      const refreshBody =
+        refreshGrantType === 'oauth2_refresh_token'
+          ? { grant_type: refreshGrantType, params: { refresh_token } }
+          : { grant_type: refreshGrantType, refresh_token };
+
       mainLog('eeclawBridge', `[getValidToken] Sending refresh request to ${serverUrl}/api/v1/auth/token`);
       const response = await fetch(`${serverUrl}/api/v1/auth/token`, {
         method: 'POST',
@@ -50,10 +61,7 @@ export async function getValidToken(forceRefresh = false): Promise<string> {
           'Content-Type': 'application/json',
           'X-Device-Id': device_id,
         },
-        body: JSON.stringify({
-          grant_type: 'refresh_token',
-          refresh_token,
-        }),
+        body: JSON.stringify(refreshBody),
         signal: AbortSignal.timeout(15000),
       });
 
@@ -68,16 +76,17 @@ export async function getValidToken(forceRefresh = false): Promise<string> {
           const latestAuth = ProcessConfig.getSync('eeclaw.authStorage');
           if (latestAuth?.refresh_token && latestAuth.refresh_token !== refresh_token) {
             mainLog('eeclawBridge', `[getValidToken] Found different refresh_token in file, retrying with ${latestAuth.refresh_token.slice(0, 20)}...`);
+            const retryBody =
+              latestAuth.session_type === 'oauth2'
+                ? { grant_type: 'oauth2_refresh_token', params: { refresh_token: latestAuth.refresh_token } }
+                : { grant_type: 'refresh_token', refresh_token: latestAuth.refresh_token };
             const retryResponse = await fetch(`${serverUrl}/api/v1/auth/token`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
                 'X-Device-Id': latestAuth.device_id,
               },
-              body: JSON.stringify({
-                grant_type: 'refresh_token',
-                refresh_token: latestAuth.refresh_token,
-              }),
+              body: JSON.stringify(retryBody),
               signal: AbortSignal.timeout(15000),
             });
             const retryData = await retryResponse.json();
@@ -87,6 +96,7 @@ export async function getValidToken(forceRefresh = false): Promise<string> {
                 refresh_token: retryData.refresh_token || latestAuth.refresh_token,
                 expires_at: Date.now() + (retryData.expires_in || 3600) * 1000,
                 device_id: latestAuth.device_id,
+                session_type: latestAuth.session_type,
               };
               mainLog('eeclawBridge', `[getValidToken] Retry refresh successful! new_expires_at=${newAuthStorage.expires_at}`);
               await ProcessConfig.set('eeclaw.authStorage', newAuthStorage);
@@ -116,6 +126,7 @@ export async function getValidToken(forceRefresh = false): Promise<string> {
         refresh_token: data.refresh_token || refresh_token,
         expires_at: Date.now() + (data.expires_in || 3600) * 1000,
         device_id,
+        session_type: authStorage.session_type,
       };
 
       mainLog('eeclawBridge', `[getValidToken] Refresh successful! new_expires_at=${newAuthStorage.expires_at}, new_refresh_token=${newAuthStorage.refresh_token ? newAuthStorage.refresh_token.slice(0, 20) + '...' : 'NONE'}`);
@@ -199,6 +210,29 @@ export function initEeclawBridge(): void {
     }
   });
 
+  ipcBridge.eeclaw.oauth2Config.provider(async ({ serverUrl }) => {
+    try {
+      const response = await fetch(`${serverUrl}/api/v1/auth/oauth2/config`, {
+        method: 'GET',
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!response.ok) {
+        return { success: false, error: 'server_error' as const, data: undefined };
+      }
+      const data = await response.json();
+      return {
+        success: true,
+        data: {
+          enabled: data?.enabled === true,
+          authorize_url: typeof data?.authorize_url === 'string' ? data.authorize_url : undefined,
+        },
+      };
+    } catch (error) {
+      mainWarn('eeclawBridge', 'oauth2Config error:', error);
+      return { success: false, error: 'network_error' as const, data: undefined };
+    }
+  });
+
   ipcBridge.eeclaw.login.provider(async ({ serverUrl, body, deviceId }) => {
     try {
       const response = await fetch(`${serverUrl}/api/v1/auth/login`, {
@@ -219,12 +253,15 @@ export function initEeclawBridge(): void {
 
       // Save server URL and auth storage to ProcessConfig
       // 将服务器 URL 和认证存储保存到 ProcessConfig
+      const sessionType: 'password' | 'api_key' | 'oauth2' =
+        body.grant_type === 'oauth2' ? 'oauth2' : body.grant_type === 'api_key' ? 'api_key' : 'password';
       await ProcessConfig.set('eeclaw.serverUrl', serverUrl);
       await ProcessConfig.set('eeclaw.authStorage', {
         access_token: data.access_token,
         refresh_token: data.refresh_token,
         expires_at: Date.now() + (data.expires_in || 3600) * 1000,
         device_id: deviceId,
+        session_type: sessionType,
       });
 
       // Update enterprise cache for synchronous access

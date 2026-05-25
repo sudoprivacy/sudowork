@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import * as path from 'path';
 
 /**
  * AionUI应用程序共用常量
@@ -215,8 +214,21 @@ export const COMMENT_SYNTAX_MAP: Record<string, string> = {
  * Get comment prefix for a file extension
  */
 export function getCommentPrefix(filePath: string): string {
-  const ext = path.extname(filePath).toLowerCase();
+  const ext = fileExtname(filePath).toLowerCase();
   return COMMENT_SYNTAX_MAP[ext] || COMMENT_SYNTAX_MAP.default;
+}
+
+/**
+ * Browser-safe equivalent of node's path.extname: returns the extension
+ * including the leading dot (e.g. ".ts"), or "" when there is none. Avoids
+ * importing node:path so this shared module bundles cleanly in the renderer.
+ */
+function fileExtname(filePath: string): string {
+  const base = filePath.replace(/\\/g, '/').split('/').pop() ?? '';
+  const dot = base.lastIndexOf('.');
+  // No dot, or a leading dot (dotfile like ".gitignore") → no extension.
+  if (dot <= 0) return '';
+  return base.slice(dot);
 }
 
 // ===== AI Provider 相关常量 =====

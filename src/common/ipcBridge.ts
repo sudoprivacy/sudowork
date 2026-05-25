@@ -1820,8 +1820,13 @@ export const eeclaw = {
       model_service_url?: string;
       models?: string[];
     }>,
-    { serverUrl: string; body: { grant_type: string; username?: string; password?: string; api_key?: string }; deviceId: string }
+    { serverUrl: string; body: { grant_type: string; username?: string; password?: string; api_key?: string; params?: Record<string, string> }; deviceId: string }
   >('eeclaw.login'),
+  /** Check whether OAuth2 login is enabled on the MOSS server and get the ready-to-open authorize URL (runs in main process to avoid CORS) */
+  oauth2Config: bridge.buildProvider<
+    IBridgeResponse<{ enabled: boolean; authorize_url?: string }>,
+    { serverUrl: string }
+  >('eeclaw.oauth2-config'),
   /** Set app mode and update main process cache */
   setAppMode: bridge.buildProvider<void, { mode: 'c' | 'e' }>('eeclaw.set-app-mode'),
   /** Set session mode (remote/local) for enterprise mode and update main process cache */
