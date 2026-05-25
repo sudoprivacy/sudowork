@@ -21,6 +21,7 @@ import { getAuthProxyPort, registerToken, revokeToken } from '@process/services/
 import type { SpawnResult } from './acpConnectors';
 import { killChild, readTextFile, writeJsonRpcMessage, writeJsonRpcMessageLsp, writeTextFile } from './utils';
 import { processSupervisor } from '@process/ProcessSupervisor';
+import { assignProcessToJob } from '@process/WindowsJobManager';
 
 const execFile = promisify(execFileCb);
 
@@ -123,6 +124,18 @@ export class AcpConnection {
     // kill this child if the parent exits unexpectedly.
     // 注册到 ProcessSupervisor，确保父进程异常退出时子进程也会被终止。
     processSupervisor.track(this.child, this.isDetached);
+
+    // Belt-and-suspenders: explicitly assign to Windows Job Object.
+    // Child processes should already inherit job membership automatically,
+    // but explicit assignment ensures coverage for edge cases (e.g., if the
+    // child was created with CREATE_BREAKAWAY_FROM_JOB by a parent shell).
+    //
+    // 额外保险：显式将子进程加入 Windows Job Object。
+    // 子进程通常会自动继承 Job 成员资格，但显式分配确保边缘情况的覆盖
+    // （如子进程被父 shell 以 CREATE_BREAKAWAY_FROM_JOB 创建）。
+    if (this.child?.pid && process.platform === 'win32') {
+      assignProcessToJob(this.child.pid);
+    }
 
     // Register Auth Proxy token now that child.pid is available
     if (this.proxyToken && this.child?.pid) {

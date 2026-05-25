@@ -30,6 +30,10 @@ files:
   - native/nexus-napi/*.node
   - native/nexus-napi/index.js
   - native/nexus-napi/index.d.ts
+  # Rust napi addon (Windows Job Object for child process cleanup)
+  - native/win-job-object/*.node
+  - native/win-job-object/index.js
+  - native/win-job-object/index.d.ts
   # Native modules and their runtime dependencies
   - node_modules/better-sqlite3/**/*
   - node_modules/bcrypt/**/*
@@ -247,6 +251,7 @@ nodeGypRebuild: false
 
 asarUnpack:
   - 'native/nexus-napi/*.node'
+  - 'native/win-job-object/*.node'
   - '**/node_modules/better-sqlite3/**/*'
   - '**/node_modules/bcrypt/**/*'
   - '**/node_modules/node-pty/**/*'

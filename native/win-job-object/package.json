@@ -1,0 +1,11 @@
+{
+  "name": "win-job-object",
+  "version": "0.1.0",
+  "private": true,
+  "napi": {
+    "binaryName": "win-job-object",
+    "targets": [
+      "x86_64-pc-windows-msvc"
+    ]
+  }
+}
