@@ -91,11 +91,11 @@ export class RemoteConversationProvider implements IConversationProvider {
       if (this.config.authToken) {
         api.setAccessToken(this.config.authToken);
       }
-      
+
       // Ensure the token is valid, triggering a refresh if needed
       // If authToken was empty, getValidToken will attempt to refresh from ProcessConfig
       await api.ensureAuthenticated();
-      
+
       this.mossApi = api;
       mainLog('RemoteProvider', 'Moss API initialized with JWT token');
       return api;
@@ -278,6 +278,9 @@ export class RemoteConversationProvider implements IConversationProvider {
    */
   async listConversations(page = 0, pageSize = 10000): Promise<TChatConversation[]> {
     const db = getDatabase();
+    await this.syncCronSessions().catch((error) => {
+      mainError('RemoteProvider', `Failed to sync cron sessions: ${error instanceof Error ? error.message : String(error)}`);
+    });
     const result = db.getUserConversations(undefined, page, pageSize);
 
     if (!result.data || result.data.length === 0) {
@@ -296,17 +299,94 @@ export class RemoteConversationProvider implements IConversationProvider {
     return conversations;
   }
 
+  private parseCronSource(source?: string): { cronJobId?: string; cronJobName?: string; cronRunId?: string } | null {
+    if (!source) return null;
+    try {
+      const data = JSON.parse(source) as { source?: string; cronJobId?: string; cronJobName?: string; cronRunId?: string };
+      if (data.source !== 'cron' || !data.cronJobId) return null;
+      return data;
+    } catch {
+      return null;
+    }
+  }
+
+  private findLocalConversationByMossSessionId(mossSessionId: string): TChatConversation | null {
+    const db = getDatabase();
+    const direct = db.getConversation(mossSessionId);
+    if (direct.success && direct.data) {
+      return direct.data;
+    }
+
+    const conversations = db.getUserConversations(undefined, 0, 10000);
+    return (
+      conversations.data?.find((conversation) => {
+        const extra = conversation.extra as { mossSessionId?: string } | undefined;
+        return extra?.mossSessionId === mossSessionId;
+      }) ?? null
+    );
+  }
+
+  private async syncCronSessions(): Promise<void> {
+    const api = await this.ensureMossApi();
+    const sessions = await api.listSessions({ source: 'cron' });
+    if (sessions.length === 0) return;
+
+    const db = getDatabase();
+    for (const session of sessions) {
+      const mossSessionId = session.sessionId || session.session_id;
+      if (!mossSessionId) continue;
+
+      const cronSource = this.parseCronSource(session.source);
+      if (!cronSource?.cronJobId) continue;
+
+      const existingConversation = this.findLocalConversationByMossSessionId(mossSessionId);
+      const now = Date.now();
+      const modifyTime = session.lastActiveAt || session.last_active_at || session.updatedAt || session.updated_at || now;
+      const existingExtra = existingConversation?.extra as Record<string, unknown> | undefined;
+      const conversation: TChatConversation = {
+        id: existingConversation?.id || mossSessionId,
+        name: existingConversation?.name || cronSource.cronJobName || session.assistantName || session.assistant_name || 'Cron Session',
+        type: 'remote-agent',
+        createTime: existingConversation?.createTime || session.createdAt || session.created_at || modifyTime,
+        modifyTime,
+        status: session.status === 'ended' || session.status === 'terminated' ? 'finished' : 'running',
+        source: 'aionui',
+        extra: {
+          ...existingExtra,
+          workspace: session.workDir || session.work_dir || session.cwd,
+          backend: 'remote-agent',
+          mossServerUrl: this.config.mossServerUrl,
+          authToken: this.config.authToken,
+          runtimeType: this.config.runtimeType,
+          agentName: session.assistantName || session.assistant_name,
+          sessionMode: 'remote',
+          mossSessionId,
+          mossSessionPending: false,
+          mossSessionUpdatedAt: modifyTime,
+          cronJobId: cronSource.cronJobId,
+          cronJobName: cronSource.cronJobName,
+        },
+      };
+
+      if (existingConversation) {
+        void db.updateConversation(existingConversation.id, {
+          modifyTime: conversation.modifyTime,
+          status: conversation.status,
+          extra: conversation.extra,
+        });
+      } else {
+        void db.createConversation(conversation);
+      }
+    }
+  }
+
   // ========== Messages / 消息 ==========
 
   /**
    * Convert Moss Server messages to TMessage format (reusable)
    * 将 Moss Server 消息转换为 TMessage 格式（可复用）
    */
-  private convertMossMessagesToTMessages(
-    allMessages: any[],
-    conversationId: string,
-    mossSessionId: string,
-  ): { messages: TMessage[]; foundModel: string } {
+  private convertMossMessagesToTMessages(allMessages: any[], conversationId: string, mossSessionId: string): { messages: TMessage[]; foundModel: string } {
     const messages: TMessage[] = [];
     let messageIndex = 0;
     let foundModel = '';
@@ -335,7 +415,9 @@ export class RemoteConversationProvider implements IConversationProvider {
               .filter((c: any) => c?.type === 'text')
               .map((c: any) => c.text || '')
               .join('\n')
-          : typeof contentArray === 'string' ? contentArray : '';
+          : typeof contentArray === 'string'
+            ? contentArray
+            : '';
         messages.push({
           id: `${conversationId}-${messageIndex++}`,
           conversation_id: conversationId,
@@ -411,7 +493,9 @@ export class RemoteConversationProvider implements IConversationProvider {
               .filter((c: any) => c?.type === 'text')
               .map((c: any) => c.text || '')
               .join('\n')
-          : typeof contentArray === 'string' ? contentArray : '';
+          : typeof contentArray === 'string'
+            ? contentArray
+            : '';
         if (textContent && textContent.trim()) {
           messages.push({
             id: `${conversationId}-${messageIndex++}`,

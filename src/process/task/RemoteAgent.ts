@@ -13,11 +13,11 @@ import type { TChatConversation } from '@/common/storage';
 import { uuid } from '@/common/utils';
 import { mainLog, mainError } from '../utils/mainLogger';
 import { getDatabase } from '../database/export';
-import { getConversationProvider } from '../providers';
 import { addOrUpdateMessage } from '../message';
 import { detectFileIntent, matchesDraftPattern } from './draftsCleanup';
 import * as nodePath from 'node:path';
 import * as fs from 'node:fs';
+import { initMossApi } from '../remote/MossSessionApi';
 
 /**
  * RemoteAgent data interface
@@ -191,6 +191,49 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
 
         this.mossSessionId = this.connection.getSessionId();
         this.mossWsUrl = this.connection.getWsUrl();
+      } else if (this.options.sessionId) {
+        // Resume by Moss session ID when local cache does not have a current wsUrl.
+        // This happens for sessions created by remote cron and synced back later.
+        mainLog('RemoteAgent', `RESUME LOOKUP MODE: requesting wsUrl for session ${this.options.sessionId}`);
+
+        const api = initMossApi(this.options.serverUrl);
+        if (this.options.authToken) {
+          api.setAccessToken(this.options.authToken);
+        }
+        const { wsUrl, session } = await api.resumeSession(this.options.sessionId);
+
+        this.options.wsUrl = wsUrl;
+        this.mossSessionId = this.options.sessionId;
+        this.mossWsUrl = wsUrl;
+        await this.updateConversationWithResumeInfo(this.options.sessionId, wsUrl, session);
+
+        const config: MossWsConnectionConfig = {
+          serverUrl: this.options.serverUrl,
+          authToken: this.options.authToken,
+          username: this.options.username,
+          password: this.options.password,
+          cwd: this.workspace,
+          assistantName: this.options.assistantName,
+          dangerouslySkipPermissions: this.options.dangerouslySkipPermissions ?? this.yoloMode,
+          runtimeType: this.options.runtimeType,
+          wsUrl,
+          sessionId: this.options.sessionId,
+          enabledSkills: this.options.enabledSkills,
+        };
+
+        mainLog('RemoteAgent', `MossWsConnection config: resumeLookup=true, sessionId=${config.sessionId}, enabledSkills=${config.enabledSkills?.length || 0}`);
+
+        const callbacks: MossWsCallbacks = {
+          onMessage: (msg) => this.handleStreamMessage(msg),
+          onPermissionRequest: (req, requestId) => this.handlePermissionRequest(req, requestId),
+          onConnected: () => this.handleConnected(),
+          onDisconnected: () => this.handleDisconnected(),
+          onReconnecting: (attempt, max) => this.handleReconnecting(attempt, max),
+          onError: (err) => this.handleError(err),
+        };
+
+        this.connection = new MossWsConnection(config, callbacks);
+        await this.connection.connect();
       } else {
         // No wsUrl and not pending - need to check conversation status
         // 没有 wsUrl 且不是 pending - 需要检查会话状态
@@ -206,6 +249,35 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
     })();
 
     return this.bootstrap;
+  }
+
+  private async updateConversationWithResumeInfo(mossSessionId: string, wsUrl: string, sessionData: unknown): Promise<void> {
+    try {
+      const db = getDatabase();
+      const existing = db.getConversation(this.conversation_id);
+      if (!existing.success || !existing.data) return;
+
+      const session = sessionData as {
+        workDir?: string;
+        work_dir?: string;
+        assistantName?: string;
+        assistant_name?: string;
+      };
+      void db.updateConversation(this.conversation_id, {
+        extra: {
+          ...existing.data.extra,
+          mossSessionId,
+          acpWsUrl: wsUrl,
+          mossSessionPending: false,
+          workspace: session.workDir || session.work_dir || existing.data.extra?.workspace,
+          agentName: session.assistantName || session.assistant_name || existing.data.extra?.agentName,
+        },
+        status: 'finished',
+        modifyTime: Date.now(),
+      } as Partial<TChatConversation>);
+    } catch (error) {
+      mainError('RemoteAgent', `Failed to update resumed Moss session info: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 
   /**

@@ -32,6 +32,7 @@ interface EventTypes {
   'nanobot.selected.file.clear': void;
   'nanobot.workspace.refresh': void;
   'chat.history.refresh': void;
+  'sessionMode.changed': ['remote' | 'local'];
   // 会话删除事件 / Conversation deletion event
   'conversation.deleted': [string]; // conversationId
   // 预览面板事件 / Preview panel events

@@ -29,6 +29,10 @@ export function getRendererSessionMode(): 'remote' | 'local' {
   return rendererCachedSessionMode;
 }
 
+export function setRendererSessionMode(mode: 'remote' | 'local'): void {
+  rendererCachedSessionMode = mode;
+}
+
 /**
  * Check if rules contain explicit identity statement like "你是 XX 助手" or "You are XX"
  * Also detects [Identity Override] blocks that we inject

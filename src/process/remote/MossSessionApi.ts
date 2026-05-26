@@ -9,6 +9,7 @@ import { getValidToken } from '@process/bridge/eeclawBridge';
 import { ProcessConfig } from '@process/initStorage';
 import WebSocket from 'ws';
 import { uuid } from '@/common/utils';
+import { ipcBridge } from '@/common';
 import type { IResponseMessage } from '@/common/ipcBridge';
 
 /**
@@ -105,8 +106,9 @@ export class MossSessionApi {
    * This method is kept for future administrative/debugging purposes only.
    * 此方法仅保留用于未来的管理/调试目的。
    */
-  async listSessions(): Promise<MossSession[]> {
-    const response = await this.fetchWithRetry(`${this.serverUrl}/api/v1/sessions`, {
+  async listSessions(params?: { source?: string }): Promise<MossSession[]> {
+    const query = params?.source ? `?source=${encodeURIComponent(params.source)}` : '';
+    const response = await this.fetchWithRetry(`${this.serverUrl}/api/v1/sessions${query}`, {
       method: 'GET',
     });
 
@@ -686,7 +688,6 @@ export class MossSessionApi {
         mainLog('MossSessionApi', `Model changed to: ${modelName} for session: ${sessionId}`);
         // Emit model_changed event to frontend via IPC
         // 通过 IPC 发送 model_changed 事件到前端
-        const { ipcBridge } = require('@/common');
         ipcBridge.moss.modelChanged.emit({
           sessionId,
           model: modelName,
@@ -1013,6 +1014,7 @@ export interface MossSession {
   orgId?: string;
   role?: string;
   scopes?: string[];
+  source?: string;
 }
 
 /**
