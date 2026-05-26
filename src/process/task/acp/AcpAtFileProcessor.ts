@@ -5,31 +5,47 @@
  */
 
 import { extractAtPaths, parseAllAtCommands, reconstructQuery } from '@/common/atCommandParser';
-import { detectImageMimeType } from '@/common/imageUtils';
+import { detectImageMimeType, resizeImageForContext, IMAGE_TARGET_RAW_SIZE } from '@/common/imageUtils';
+import { getImageTargetSize } from '@/common/imageUtils';
 import type { AcpImageContentBlock } from '@/types/acpTypes';
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { mainWarn } from '@process/utils/mainLogger';
 
-export interface ProcessedAtFileResult {
-  text: string;
-  images: AcpImageContentBlock[];
+export interface ProcessedImageWithSource extends AcpImageContentBlock {
+  filePath?: string;
 }
 
 /**
  * Try to read a file and detect if it's an image via magic bytes.
+ * Images exceeding size/dimension limits are automatically resized and compressed.
  * Returns the image content block if it is an image, null otherwise.
  */
-async function tryReadAsImage(filePath: string): Promise<AcpImageContentBlock | null> {
+async function tryReadAsImage(filePath: string, maxBytes: number = IMAGE_TARGET_RAW_SIZE): Promise<ProcessedImageWithSource | null> {
   try {
     const buffer = await fs.readFile(filePath);
     const detected = detectImageMimeType(buffer);
     mainWarn('AcpAtFile', `tryReadAsImage: ${filePath}, size=${buffer.length}, detected=${detected ? detected.mime : 'not-image'}`);
     if (detected) {
+      if (buffer.length > maxBytes) {
+        try {
+          const result = await resizeImageForContext(buffer, maxBytes);
+          mainWarn('AcpAtFile', `tryReadAsImage: resized ${filePath} from ${buffer.length} to ${result.buffer.length} bytes, mediaType=${result.mediaType}`);
+          return {
+            type: 'image',
+            data: result.buffer.toString('base64'),
+            mimeType: result.mediaType,
+            filePath,
+          };
+        } catch (resizeErr) {
+          mainWarn('AcpAtFile', `tryReadAsImage: resize failed for ${filePath}: ${resizeErr instanceof Error ? resizeErr.message : String(resizeErr)}, sending original`);
+        }
+      }
       return {
         type: 'image',
         data: buffer.toString('base64'),
         mimeType: detected.mime,
+        filePath,
       };
     }
   } catch (err) {
@@ -38,13 +54,18 @@ async function tryReadAsImage(filePath: string): Promise<AcpImageContentBlock | 
   return null;
 }
 
+export interface ProcessedAtFileResult {
+  text: string;
+  images: ProcessedImageWithSource[];
+}
+
 /**
  * Process @ file references in the message content.
  * Resolves @ references to actual files in the workspace,
  * reads their content, and appends it to the message.
  * Image files (detected by magic bytes) are returned as separate content blocks.
  */
-export async function processAtFileReferences(content: string, workspace: string | undefined, uploadedFiles?: string[]): Promise<ProcessedAtFileResult> {
+export async function processAtFileReferences(content: string, workspace: string | undefined, uploadedFiles?: string[], modelId?: string): Promise<ProcessedAtFileResult> {
   if (!workspace) {
     return { text: content, images: [] };
   }
@@ -60,8 +81,10 @@ export async function processAtFileReferences(content: string, workspace: string
 
   const resolvedFiles: Map<string, string> = new Map();
   const referencesToRemove: Set<string> = new Set();
-  const images: AcpImageContentBlock[] = [];
+  const images: ProcessedImageWithSource[] = [];
   const imageReferences: Set<string> = new Set();
+
+  const maxImageBytes = getImageTargetSize(modelId);
 
   for (const atPath of atPaths) {
     const matchedUploadFile = uploadedFiles?.find((filePath) => {
@@ -72,8 +95,7 @@ export async function processAtFileReferences(content: string, workspace: string
     });
 
     if (matchedUploadFile) {
-      // Try reading as image via magic bytes
-      const imageBlock = await tryReadAsImage(matchedUploadFile);
+      const imageBlock = await tryReadAsImage(matchedUploadFile, maxImageBytes);
       if (imageBlock) {
         images.push(imageBlock);
         imageReferences.add(atPath);
@@ -88,7 +110,7 @@ export async function processAtFileReferences(content: string, workspace: string
 
     if (resolvedPath) {
       // Try reading as image via magic bytes
-      const imageBlock = await tryReadAsImage(resolvedPath);
+      const imageBlock = await tryReadAsImage(resolvedPath, maxImageBytes);
       if (imageBlock) {
         images.push(imageBlock);
         imageReferences.add(atPath);

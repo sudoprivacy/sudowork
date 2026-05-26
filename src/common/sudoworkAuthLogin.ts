@@ -1,3 +1,5 @@
+import { modelInputForModelId } from './imageUtils';
+
 export type LoginSudoclawPayload = {
   sudorouterKey?: string;
   modelServiceUrl?: string;
@@ -73,7 +75,7 @@ export function buildScodeConfigFromLoginPayload(payload: LoginSudoclawPayload):
     models[modelId] = {
       alias: modelId,
       name: modelId,
-      input: ['text'],
+      input: modelInputForModelId(modelId),
       providers: {
         proxy: { provider: 'sudorouter', model: modelId, api: 'openai-completions' },
       },
@@ -130,7 +132,7 @@ export function buildScodeConfigFromSudoclawConfig(config: import('./ipcBridge')
     models[modelId] = {
       alias: modelId,
       name: modelId,
-      input: ['text'],
+      input: modelInputForModelId(modelId),
       providers: {
         proxy: { provider: 'sudorouter', model: modelId, api: 'openai-completions' },
       },

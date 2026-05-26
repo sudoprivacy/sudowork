@@ -42,7 +42,7 @@ import { translateLLMError } from '@process/utils/llmErrorTranslation';
 import { injectSkillsDirectoryHint, prepareFirstMessageWithSkillsIndex } from './agentUtils';
 import { AcpSkillManager } from './AcpSkillManager';
 import { cleanupIntermediateFiles, cleanupDraftsOnCancel, detectFileIntent, matchesDraftPattern } from './draftsCleanup';
-import { mergeScodeProxyModelInfo } from '@process/services/scode/scodeProxyModels';
+import { mergeScodeProxyModelInfo, isModelVisionCapable, getScodeProxyModelInfoSync } from '@process/services/scode/scodeProxyModels';
 import { installWorkspaceSkillsFromTrackedFiles } from './workspaceSkillInstaller';
 import BaseAgent from './BaseAgent';
 
@@ -857,10 +857,26 @@ This identity statement takes priority over the default identity in USER.md.
           mainLog('AcpAgent', `sendMessage: no skills to process, data.skills=${JSON.stringify(data.skills)}`);
         }
 
-        const processed = await processAtFileReferences(contentToSend, this.workspace, data.files);
+        const processed = await processAtFileReferences(contentToSend, this.workspace, data.files, this.persistedModelId);
         contentToSend = processed.text;
         if (processed.images.length > 0) {
           mainLog('AcpAgent', `sendMessage: sending ${processed.images.length} image(s) as content blocks, mimeTypes=[${processed.images.map((i) => i.mimeType).join(', ')}]`);
+        }
+
+        const finalImages = processed.images;
+
+        if (processed.images.length > 0 && this.options.backend === 'scode') {
+          const currentModel = this.persistedModelId || this.getModelInfo()?.currentModelId;
+          if (!isModelVisionCapable(currentModel)) {
+            const modelLabel = this.getModelInfo()?.currentModelLabel || currentModel || 'unknown';
+            const visionModels = getScodeProxyModelInfoSync()
+              ?.availableModels?.filter((m) => isModelVisionCapable(m.id))
+              ?.map((m) => m.label || m.id)
+              ?.join(', ');
+            const tip = `当前模型 "${modelLabel}" 不支持图片分析，请切换到支持视觉的模型${visionModels ? `（如 ${visionModels}）` : ''}后再发送图片。`;
+            this.emitErrorMessage(tip);
+            return { success: false, message: tip };
+          }
         }
 
         if (this.isFirstMessage) {
@@ -909,7 +925,7 @@ This identity statement takes priority over the default identity in USER.md.
         }
 
         const agentSendStart = Date.now();
-        const result = await this.sendToConnection(contentToSend, data.msg_id, processed.images);
+        const result = await this.sendToConnection(contentToSend, data.msg_id, finalImages);
         if (ACP_PERF_LOG) mainLog('ACP-PERF', `manager: sendMessage completed ${Date.now() - agentSendStart}ms (total: ${Date.now() - managerSendStart}ms)`);
         if (this.isFirstMessage) {
           this.isFirstMessage = false;

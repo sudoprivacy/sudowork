@@ -12,6 +12,7 @@
  */
 
 import { ipcBridge } from '@/common';
+import { modelInputForModelId } from '@/common/imageUtils';
 import { SCODE_DIR, isScodeInstalled, getScodeVersionState, ensureScodeInstalled } from '@process/services/scode/ScodeInstallService';
 import { readSettings, removeDisabledMcpServersFromSettings, writeSettings } from '@process/services/mcpServices/agents/ScodeMcpAgent';
 import fs from 'fs';
@@ -122,7 +123,7 @@ export async function syncScodeModelsFromPricing(): Promise<void> {
     models[modelId] = {
       alias: modelId,
       name: modelId,
-      input: ['text'],
+      input: modelInputForModelId(modelId),
       providers: {
         proxy: { provider: 'sudorouter', model: modelId, api: 'openai-completions' },
       },
@@ -176,9 +177,42 @@ async function ensureSettingsModelOnStartup(): Promise<void> {
   }
 }
 
+/**
+ * Migrate existing sudocode.json models: add 'image' to input array
+ * for vision-capable models that are missing it.
+ */
+async function migrateVisionInputOnStartup(): Promise<void> {
+  try {
+    const config = readExistingConfig();
+    const models = config.models as Record<string, Record<string, unknown>> | undefined;
+    if (!models || typeof models !== 'object') return;
+
+    let changed = false;
+    for (const [key, model] of Object.entries(models)) {
+      const input = model?.input;
+      if (Array.isArray(input) && !input.includes('image')) {
+        const modelId = (typeof model.alias === 'string' ? model.alias : key) || key;
+        if (modelInputForModelId(modelId).includes('image')) {
+          model.input = ['text', 'image'];
+          changed = true;
+          mainLog(TAG, `Migrated model "${modelId}": added 'image' to input`);
+        }
+      }
+    }
+
+    if (changed) {
+      writeConfig(config);
+      mainLog(TAG, 'Migrated vision input for existing models in sudocode.json');
+    }
+  } catch (err) {
+    mainWarn(TAG, `Failed to migrate vision input: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
 export function registerScodeBridge(): void {
   void syncImageModelOnStartup();
   void ensureSettingsModelOnStartup();
+  void migrateVisionInputOnStartup();
   ipcBridge.scode.getConfig.provider(async () => {
     try {
       const config = readExistingConfig();

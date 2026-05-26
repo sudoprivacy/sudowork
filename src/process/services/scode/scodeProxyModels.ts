@@ -5,6 +5,7 @@
  */
 
 import { getDefaultAcpModelId } from '@/common/acp/defaultModels';
+import { isVisionModel } from '@/common/imageUtils';
 import type { AcpModelInfo } from '@/types/acpTypes';
 import fs from 'fs';
 import os from 'os';
@@ -70,7 +71,9 @@ function readScodeDefaultModelFromConfig(): string | null {
     if (typeof parsed.default_model === 'string' && parsed.default_model.trim()) {
       return parsed.default_model.trim();
     }
-  } catch {}
+  } catch {
+    // ignored
+  }
   return null;
 }
 
@@ -96,6 +99,75 @@ export function getScodeProxyModelInfoSync(currentModelId?: string | null): AcpM
   };
 }
 
+type ScodeModelDef = {
+  id: string;
+  label: string;
+  hasVision: boolean;
+};
+
+function readScodeModelsWithVisionFromConfig(): ScodeModelDef[] {
+  try {
+    const raw = fs.readFileSync(SUDOCODE_CONFIG_PATH, 'utf-8');
+    const parsed = JSON.parse(raw) as { models?: unknown };
+    const models = asRecord(parsed.models);
+    if (!models) {
+      return [];
+    }
+
+    const seen = new Set<string>();
+    const result: ScodeModelDef[] = [];
+
+    for (const [key, value] of Object.entries(models)) {
+      const model = asRecord(value);
+      const providers = asRecord(model?.providers);
+      const proxyProvider = asRecord(providers?.proxy);
+      if (!proxyProvider) {
+        continue;
+      }
+
+      const alias = typeof model?.alias === 'string' && model.alias.trim() ? model.alias.trim() : key.trim();
+      if (!alias || seen.has(alias)) {
+        continue;
+      }
+
+      const name = typeof model?.name === 'string' && model.name.trim() ? model.name.trim() : alias;
+
+      let hasVision = false;
+      if (Array.isArray(model?.input)) {
+        hasVision = (model.input as string[]).includes('image');
+      }
+
+      seen.add(alias);
+      result.push({ id: alias, label: name, hasVision });
+    }
+
+    return result;
+  } catch {
+    return [];
+  }
+}
+
+export function isModelVisionCapable(modelId: string | null | undefined): boolean {
+  if (!modelId) return false;
+  // First check sudocode.json config (explicit input field)
+  const models = readScodeModelsWithVisionFromConfig();
+  const model = models.find((m) => m.id === modelId);
+  if (model?.hasVision) return true;
+  // Fallback to name-based detection
+  return isVisionModel(modelId);
+}
+
+export function findFirstVisionModel(): string | null {
+  const models = readScodeModelsWithVisionFromConfig();
+  // Prefer config-marked vision models
+  const fromConfig = models.find((m) => m.hasVision);
+  if (fromConfig) return fromConfig.id;
+  // Fallback: find first model matching name-based vision pattern
+  const byPattern = models.find((m) => isVisionModel(m.id));
+  if (byPattern) return byPattern.id;
+  return null;
+}
+
 export function mergeScodeProxyModelInfo(modelInfo: AcpModelInfo | null, currentModelId?: string | null): AcpModelInfo | null {
   const proxyModelInfo = getScodeProxyModelInfoSync(modelInfo?.currentModelId || currentModelId);
   if (!proxyModelInfo) {
@@ -103,8 +175,7 @@ export function mergeScodeProxyModelInfo(modelInfo: AcpModelInfo | null, current
   }
 
   const effectiveCurrentModelId = modelInfo?.currentModelId || proxyModelInfo.currentModelId;
-  const effectiveCurrentModelLabel =
-    proxyModelInfo.availableModels.find((model) => model.id === effectiveCurrentModelId)?.label || modelInfo?.currentModelLabel || effectiveCurrentModelId;
+  const effectiveCurrentModelLabel = proxyModelInfo.availableModels.find((model) => model.id === effectiveCurrentModelId)?.label || modelInfo?.currentModelLabel || effectiveCurrentModelId;
 
   return {
     ...proxyModelInfo,
