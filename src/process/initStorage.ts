@@ -537,7 +537,7 @@ const resolveAiDevBrowserPackageDir = (): string | null => {
  * regardless of installation layout.
  */
 const linkAiDevBrowserIntoSystemSkill = (systemSkillsDir: string): void => {
-  const browserSkillDir = path.join(systemSkillsDir, 'browser');
+  const browserSkillDir = path.join(systemSkillsDir, '_builtin', 'browser');
   if (!existsSync(browserSkillDir)) return;
 
   const target = resolveAiDevBrowserPackageDir();
