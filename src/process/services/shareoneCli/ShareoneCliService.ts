@@ -294,8 +294,32 @@ export class ShareoneCliService {
       mainError('ShareOne', `CLI error: ${result.message} (code=${errorCode})`);
       throw Object.assign(new Error(result.message || 'ShareOne CLI error'), { code: errorCode });
     } catch (err: unknown) {
-      if (err instanceof Error && 'code' in err) throw err;
-      const message = err instanceof Error ? err.message : String(err);
+      // If error already has code (from our throw above), re-throw it
+      if (err instanceof Error && 'code' in err && (err as Record<string, unknown>).code) {
+        throw err;
+      }
+
+      // Try to parse error from stdout/stderr for execFileAsync errors
+      if (err instanceof Error) {
+        const errWithStd = err as Error & { stdout?: string; stderr?: string };
+        const output = errWithStd.stdout || errWithStd.stderr || '';
+        // Try to extract JSON error response
+        const jsonMatch = output.match(/\{[\s\S]*"ok"\s*:\s*false[\s\S]*\}/);
+        if (jsonMatch) {
+          try {
+            const result = JSON.parse(jsonMatch[0]);
+            if (result.message) {
+              throw Object.assign(new Error(result.message), { code: result.code || 'UNKNOWN_ERROR' });
+            }
+          } catch (parseErr) {
+            // JSON parse failed, fall through
+          }
+        }
+        mainError('ShareOne', `execShareonePublish failed: ${err.message}`);
+        throw new Error(err.message);
+      }
+
+      const message = String(err);
       mainError('ShareOne', `execShareonePublish failed: ${message}`);
       throw new Error(message);
     } finally {
