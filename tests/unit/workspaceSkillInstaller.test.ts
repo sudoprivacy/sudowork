@@ -127,21 +127,73 @@ version: 2.0.0
     expect(resetAcpSkillManager).toHaveBeenCalledTimes(1);
   });
 
-  it('skips installing over an existing custom skill', async () => {
+  it('updates an existing custom skill in the installed custom skills directory', async () => {
     const skillDir = path.join(workspace, 'video-generation');
-    await fs.mkdir(skillDir, { recursive: true });
+    const targetDir = path.join(customSkillsDir, 'video-generation');
+    await fs.mkdir(path.join(skillDir, 'scripts'), { recursive: true });
     await fs.writeFile(
       path.join(skillDir, 'SKILL.md'),
       `---
 name: video-generation
+display_name: A Share Hot Rank
+description: "New skill description"
+version: 2.0.0
 ---
+
+# A Share Hot Rank
+
+Updated workflow instructions.
 `,
       'utf-8'
     );
-    await fs.writeFile(path.join(skillDir, '_sudowork_meta.json'), JSON.stringify({ name: 'video-generation' }), 'utf-8');
-    await fs.mkdir(path.join(customSkillsDir, 'video-generation'), { recursive: true });
+    await fs.writeFile(
+      path.join(skillDir, '_sudowork_meta.json'),
+      JSON.stringify({
+        name: 'video-generation',
+        display_name: 'A Share Hot Rank',
+        description: 'New skill description',
+        icon: 'icon.svg',
+        enabled: true,
+      }),
+      'utf-8'
+    );
+    await fs.writeFile(path.join(skillDir, 'icon.svg'), '<svg>new icon</svg>', 'utf-8');
+    await fs.writeFile(path.join(skillDir, 'scripts', 'run.ts'), 'export const version = 2;', 'utf-8');
+    await fs.mkdir(targetDir, { recursive: true });
+    await fs.writeFile(
+      path.join(targetDir, 'SKILL.md'),
+      `---
+name: video-generation
+display_name: Old Name
+description: "Old skill description"
+version: 1.0.0
+---
+
+# Old Name
+
+Old workflow instructions.
+`,
+      'utf-8'
+    );
+    await fs.writeFile(
+      path.join(targetDir, '_sudowork_meta.json'),
+      JSON.stringify({
+        name: 'video-generation',
+        display_name: 'Old Name',
+        description: 'Old skill description',
+        icon: 'old-icon.svg',
+        source_type: 'upload',
+        enabled: false,
+        installed_version: '1.0.0',
+        installed_at: '2026-05-01T00:00:00.000Z',
+      }),
+      'utf-8'
+    );
+    await fs.writeFile(path.join(targetDir, 'old-icon.svg'), '<svg>old icon</svg>', 'utf-8');
+    await fs.writeFile(path.join(targetDir, 'obsolete.txt'), 'remove me', 'utf-8');
 
     const clearSkillsCache = vi.fn();
+    const resetAcpSkillManager = vi.fn();
     const results = await installWorkspaceSkillsFromTrackedFiles(
       workspace,
       new Map<string, TrackedWorkspaceFile>([
@@ -158,18 +210,37 @@ name: video-generation
         getCustomSkillsDir: () => customSkillsDir,
         existingCustomSkillNames: new Set(['video-generation']),
         clearSkillsCache,
+        resetAcpSkillManager,
       }
     );
 
     expect(results).toEqual([
-      {
-        status: 'skipped',
-        sourceDir: skillDir,
-        reason: 'custom-skill-already-exists',
+      expect.objectContaining({
+        status: 'updated',
         skillName: 'video-generation',
-      },
+        installedVersion: '2.0.0',
+        sourceDir: skillDir,
+        targetDir,
+      }),
     ]);
-    expect(clearSkillsCache).not.toHaveBeenCalled();
+    await expect(fs.readFile(path.join(targetDir, 'SKILL.md'), 'utf-8')).resolves.toContain('Updated workflow instructions.');
+    await expect(fs.readFile(path.join(targetDir, 'icon.svg'), 'utf-8')).resolves.toBe('<svg>new icon</svg>');
+    await expect(fs.readFile(path.join(targetDir, 'scripts', 'run.ts'), 'utf-8')).resolves.toBe('export const version = 2;');
+    await expect(fs.access(path.join(targetDir, 'obsolete.txt'))).rejects.toThrow();
+
+    const meta = JSON.parse(await fs.readFile(path.join(targetDir, '_sudowork_meta.json'), 'utf-8'));
+    expect(meta).toMatchObject({
+      name: 'video-generation',
+      display_name: 'A Share Hot Rank',
+      description: 'New skill description',
+      icon: 'icon.svg',
+      source_type: 'upload',
+      enabled: false,
+      installed_version: '2.0.0',
+      installed_at: '2026-05-01T00:00:00.000Z',
+    });
+    expect(clearSkillsCache).toHaveBeenCalledTimes(1);
+    expect(resetAcpSkillManager).toHaveBeenCalledTimes(1);
   });
 
   it('registers a skill already moved into custom skills by the install script', async () => {

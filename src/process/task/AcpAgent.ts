@@ -2253,7 +2253,8 @@ This identity statement takes priority over the default identity in USER.md.
       });
       const installed = results.filter((result) => result.status === 'installed');
       const registered = results.filter((result) => result.status === 'registered');
-      const changed = [...installed, ...registered];
+      const updated = results.filter((result) => result.status === 'updated');
+      const changed = [...installed, ...registered, ...updated];
 
       if (changed.length === 0) {
         if (results.length > 0) {
@@ -2269,7 +2270,8 @@ This identity statement takes priority over the default identity in USER.md.
       }
 
       for (const result of changed) {
-        mainLog('[AcpAgent]', `[SKILL-INSTALL] ${result.status === 'installed' ? 'Installed' : 'Registered'} workspace skill "${result.skillName}"`, {
+        const action = result.status === 'installed' ? 'Installed' : result.status === 'updated' ? 'Updated' : 'Registered';
+        mainLog('[AcpAgent]', `[SKILL-INSTALL] ${action} workspace skill "${result.skillName}"`, {
           sourceDir: result.sourceDir,
           targetDir: result.targetDir,
           installedVersion: result.installedVersion,
@@ -2286,14 +2288,16 @@ This identity statement takes priority over the default identity in USER.md.
     }
   }
 
-  private emitWorkspaceSkillInstallMessage(skills: Array<{ skillName: string; targetDir: string }>): void {
+  private emitWorkspaceSkillInstallMessage(skills: Array<{ skillName: string; targetDir: string; status?: 'installed' | 'registered' | 'updated' }>): void {
     const skillNames = Array.from(new Set(skills.map((skill) => skill.skillName))).filter(Boolean);
     if (skillNames.length === 0) {
       return;
     }
 
     const skillList = skillNames.map((skillName) => `- ${skillName}`).join('\n');
-    const content = skillNames.length === 1 ? `技能已安装到自定义技能：${skillNames[0]}\n\n你可以在“技能商店 > 我的技能 > 自定义技能”中查看。` : `以下技能已安装到自定义技能：\n\n${skillList}\n\n你可以在“技能商店 > 我的技能 > 自定义技能”中查看。`;
+    const allUpdated = skills.every((skill) => skill.status === 'updated');
+    const actionText = allUpdated ? '更新' : '安装/更新';
+    const content = skillNames.length === 1 ? `技能已${actionText}到自定义技能：${skillNames[0]}\n\n你可以在“技能商店 > 我的技能 > 自定义技能”中查看。` : `以下技能已${actionText}到自定义技能：\n\n${skillList}\n\n你可以在“技能商店 > 我的技能 > 自定义技能”中查看。`;
 
     this.emitMessage({
       id: uuid(),

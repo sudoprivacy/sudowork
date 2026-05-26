@@ -14,7 +14,7 @@ import { Button, Spin, Message, Input, Progress, Modal, Popconfirm, Switch, Tool
 import { Download, Search, Delete, Close, Shield, Lightning, UploadOne, Install, Share, Plus, Check } from '@icon-park/react';
 import classNames from 'classnames';
 import { isElectronDesktop } from '@/renderer/utils/platform';
-import { emitter } from '@/renderer/utils/emitter';
+import { addEventListener, emitter } from '@/renderer/utils/emitter';
 import type { ISkillHubSkill, ISkillHubDetail, ISkillHubListResponse, IInstalledSkillInfo, ISkillHubMeta } from '@/common/ipcBridge';
 import { useAuth } from '@/renderer/context/AuthContext';
 import { useTranslation } from 'react-i18next';
@@ -596,6 +596,7 @@ const SkillModalContent: React.FC = () => {
 
   // Installed tab state
   const [installedList, setInstalledList] = useState<IInstalledSkillInfo[]>([]);
+  const [installedListRevision, setInstalledListRevision] = useState(0);
   const [installedLoading, setInstalledLoading] = useState(false);
 
   // Installed skill detail modal state (separate from store detail modal)
@@ -702,6 +703,7 @@ const SkillModalContent: React.FC = () => {
       const res = await skillHub.getInstalledSkills.invoke();
       if (res.success && res.data) {
         setInstalledList(res.data);
+        setInstalledListRevision((revision) => revision + 1);
       }
     } catch (err) {
       console.error('Failed to fetch installed list:', err);
@@ -1147,6 +1149,23 @@ const SkillModalContent: React.FC = () => {
     void fetchInstalledList();
   }, [fetchInstalledList]);
 
+  // Refresh installed skills after agent-created skill changes.
+  useEffect(() => {
+    if (!isElectronDesktop()) return;
+
+    const refreshInstalledList = () => {
+      void fetchInstalledList();
+    };
+
+    const removeSkillHubChanged = skillHub.changed.on(refreshInstalledList);
+    const removeSkillsChanged = addEventListener('skills.changed', refreshInstalledList);
+
+    return () => {
+      removeSkillHubChanged();
+      removeSkillsChanged();
+    };
+  }, [fetchInstalledList]);
+
   // Listen for sync completed event (enterprise mode)
   useEffect(() => {
     if (!isEnterprise || !isElectronDesktop()) return;
@@ -1534,7 +1553,7 @@ const SkillModalContent: React.FC = () => {
         const skillCategory = skill.category as 'custom' | 'hub' | 'system' | 'tenant' | undefined;
         return (
           <InstalledSkillCard
-            key={skill.name}
+            key={`${skill.name}:${installedListRevision}`}
             skill={skill}
             onUninstall={() => void handleUninstall(skill.name, skillCategory)}
             uninstalling={uninstallingSkillName === skill.name}
@@ -1595,7 +1614,7 @@ const SkillModalContent: React.FC = () => {
 
         return (
           <InstalledSkillCard
-            key={skill.name}
+            key={`${skill.name}:${installedListRevision}`}
             skill={skill}
             onUninstall={() => void handleUninstall(skill.name, skillCategory)}
             uninstalling={uninstallingSkillName === skill.name}
@@ -1629,7 +1648,16 @@ const SkillModalContent: React.FC = () => {
           <button className={classNames('px-12px py-5px text-13px rd-6px transition-colors cursor-pointer border-none outline-none', activeTab === 'exclusive' ? 'bg-base text-t-primary font-medium shadow-sm' : 'bg-transparent text-t-secondary hover:text-t-primary')} onClick={() => setActiveTab('exclusive')}>
             {t('settings.skill.exclusiveTab', { defaultValue: '专属技能' })}
           </button>
-          <button className={classNames('px-12px py-5px text-13px rd-6px transition-colors cursor-pointer border-none outline-none', activeTab === 'installed' ? 'bg-base text-t-primary font-medium shadow-sm' : 'bg-transparent text-t-secondary hover:text-t-primary')} onClick={() => setActiveTab('installed')}>
+          <button
+            className={classNames('px-12px py-5px text-13px rd-6px transition-colors cursor-pointer border-none outline-none', activeTab === 'installed' ? 'bg-base text-t-primary font-medium shadow-sm' : 'bg-transparent text-t-secondary hover:text-t-primary')}
+            onClick={() => {
+              if (activeTab === 'installed') {
+                void fetchInstalledList();
+                return;
+              }
+              setActiveTab('installed');
+            }}
+          >
             {t('settings.skill.installedTab', { defaultValue: '我的技能' })}
             {getInstalledSkillBadgeCount(installedList) > 0 && <span className='ml-5px px-5px py-0px bg-primary text-white text-10px rd-full leading-16px'>{getInstalledSkillBadgeCount(installedList)}</span>}
           </button>
@@ -1692,7 +1720,7 @@ const SkillModalContent: React.FC = () => {
                     // Tenant skills have category 'tenant'
                     return (
                       <InstalledSkillCard
-                        key={skill.name}
+                        key={`${skill.name}:${installedListRevision}`}
                         skill={skill}
                         onUninstall={() => void handleUninstall(skill.name, 'tenant')}
                         uninstalling={uninstallingSkillName === skill.name}
