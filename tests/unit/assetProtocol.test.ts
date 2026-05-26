@@ -76,7 +76,10 @@ describe('createAssetProtocolResponse', () => {
 
       expect(response.status).toBe(206);
       expect(response.headers.get('accept-ranges')).toBe('bytes');
+      expect(response.headers.get('cache-control')).toBe('no-store');
       expect(response.headers.get('content-type')).toBe('video/mp4');
+      expect(response.headers.get('expires')).toBe('0');
+      expect(response.headers.get('pragma')).toBe('no-cache');
       expect(response.headers.get('content-length')).toBe('4');
       expect(response.headers.get('content-range')).toBe('bytes 2-5/10');
       expect(await response.text()).toBe('2345');
