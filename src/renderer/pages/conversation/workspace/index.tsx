@@ -8,7 +8,7 @@ import { ipcBridge } from '@/common';
 import type { IDirOrFile } from '@/common/ipcBridge';
 import { DRAFTS_DIR_NAME } from '@/common/constants';
 import { STORAGE_KEYS } from '@/common/storageKeys';
-import { copyText } from '@/renderer/utils/clipboard';
+import { showShareLoading, updateShareSuccess, updateShareError } from '@/renderer/utils/shareNotify';
 import FlexFullContainer from '@/renderer/components/FlexFullContainer';
 import EmptyState from '@/renderer/components/base/EmptyState';
 import { useLayoutContext } from '@/renderer/context/LayoutContext';
@@ -667,24 +667,21 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
   const handleShareFile = useCallback(
     async (node: IDirOrFile) => {
       if (!node.fullPath || !node.isFile) return;
-      Message.loading({ content: t('messages.sharing', { defaultValue: 'Sharing…' }), id: 'share-file' });
+      const notifyId = showShareLoading();
       try {
         const res = await ipcBridge.shareoneCli.publishFile.invoke({ filePath: node.fullPath });
-        Message.clear();
         if (res?.success && res.data) {
-          await copyText(res.data.url);
-          messageApi.success(t('messages.shareSuccessShort', { defaultValue: 'Shared (link copied)' }));
-        } else if (res?.code === 'AUTH_REQUIRED') {
-          messageApi.warning(t('messages.shareAuthRequired'));
+          updateShareSuccess(notifyId, res.data.url);
+        } else if (res?.code === 'AUTH_FAILED') {
+          updateShareError(notifyId, res.msg || t('messages.shareAuthRequired'));
         } else {
-          messageApi.error(res?.msg || t('messages.shareFailed', { msg: '' }));
+          updateShareError(notifyId, res?.msg || t('messages.shareFailed', { msg: '' }));
         }
       } catch (err) {
-        Message.clear();
-        messageApi.error(t('messages.shareFailed', { msg: String(err) }));
+        updateShareError(notifyId, String(err));
       }
     },
-    [messageApi, t]
+    [t]
   );
 
   // Check if file supports preview
@@ -760,6 +757,31 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
       'flv',
     ];
     return supportedExts.includes(ext);
+  })();
+
+  // Check if file supports ShareOne sharing
+  const isShareoneSupported = (() => {
+    if (!contextMenuNode?.isFile || !contextMenuNode.name) return false;
+    const ext = contextMenuNode.name.toLowerCase().split('.').pop() || '';
+    const shareoneSupportedExts = [
+      // HTML formats
+      'html',
+      'htm',
+      // Markdown formats
+      'md',
+      'markdown',
+      // PDF format
+      'pdf',
+      // Word formats
+      'doc',
+      'docx',
+      'odt',
+      // PPT formats
+      'ppt',
+      'pptx',
+      'odp',
+    ];
+    return shareoneSupportedExts.includes(ext);
   })();
 
   const menuButtonBase = 'w-full flex items-center gap-8px px-14px py-6px text-13px text-left text-t-primary rounded-md transition-colors duration-150 hover:bg-2 border-none bg-transparent appearance-none focus:outline-none focus-visible:outline-none';
@@ -1479,7 +1501,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                   >
                     {t('conversation.workspace.contextMenu.uploadToBdpan')}
                   </button>
-                  {isContextMenuNodeFile && shareoneInstalled && (
+                  {isContextMenuNodeFile && shareoneInstalled && isShareoneSupported && (
                     <button
                       type='button'
                       className={menuButtonBase}

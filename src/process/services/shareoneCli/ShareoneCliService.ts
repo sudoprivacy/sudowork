@@ -279,7 +279,7 @@ export class ShareoneCliService {
       }
 
       mainLog('ShareOne', `Running: ${cliPath} ${args.join(' ')}`);
-      const { stdout, stderr } = await execFileAsync(cliPath, args, { timeout: 60000, maxBuffer: 10 * 1024 * 1024 });
+      const { stdout, stderr } = await execFileAsync(cliPath, args, { timeout: 120000, maxBuffer: 10 * 1024 * 1024 });
 
       if (stderr) {
         mainLog('ShareOne', `CLI stderr: ${stderr.slice(0, 500)}`);
