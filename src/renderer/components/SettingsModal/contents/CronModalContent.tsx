@@ -393,6 +393,7 @@ const CronJobFormDrawer: React.FC<{
       // When a conversation is bound in reuse mode, assistant & workspace come from
       // that conversation — ignore the form values.
       const isBoundConversation = conversationMode === 'reuse' && !!selectedConversationId;
+      const useBoundConversationDefaults = sessionMode !== 'remote' && isBoundConversation;
 
       // Derive agentType from selected assistant's presetAgentType; default to scode
       const isDefaultAssistant = selectedAssistantId === DEFAULT_ASSISTANT;
@@ -421,14 +422,14 @@ const CronJobFormDrawer: React.FC<{
             target: { payload: { kind: 'message', text: values.prompt } },
             metadata: {
               ...editJob.metadata,
-              agentType: isBoundConversation ? editJob.metadata.agentType : agentType,
+              agentType: useBoundConversationDefaults ? editJob.metadata.agentType : agentType,
               conversationMode,
               // Bind/unbind conversation for reuse mode. New mode keeps the
               // existing conversationId untouched (it's auto-managed via state.lastConversationId).
               conversationId: conversationMode === 'reuse' ? reuseConvId : editJob.metadata.conversationId,
               conversationTitle: conversationMode === 'reuse' ? reuseConvTitle : editJob.metadata.conversationTitle,
-              workspace: isBoundConversation ? editJob.metadata.workspace : effectiveWorkspace,
-              presetAssistantId: isBoundConversation ? editJob.metadata.presetAssistantId : isDefaultAssistant ? null : effectiveAssistantId,
+              workspace: useBoundConversationDefaults ? editJob.metadata.workspace : effectiveWorkspace,
+              presetAssistantId: useBoundConversationDefaults ? editJob.metadata.presetAssistantId : isDefaultAssistant ? null : effectiveAssistantId,
             },
           },
         });
@@ -613,11 +614,11 @@ const CronJobFormDrawer: React.FC<{
                 </div>
               )}
 
-              {/* Agent/Assistant selector — hidden when a conversation is bound in reuse mode */}
-              {sessionMode !== 'remote' && !(conversationMode === 'reuse' && selectedConversationId) && (
+              {/* Agent/Assistant selector */}
+              {!(sessionMode !== 'remote' && conversationMode === 'reuse' && selectedConversationId) && (
                 <div>
                   <div className='text-13px text-t-secondary mb-4px'>{t('cron.create.agent', { defaultValue: '数字助手' })}</div>
-                  <Select value={selectedAssistantId} onChange={(v) => setSelectedAssistantId(v as string)} disabled={editJob != null && conversationMode === 'reuse'}>
+                  <Select value={selectedAssistantId} onChange={(v) => setSelectedAssistantId(v as string)} disabled={sessionMode !== 'remote' && editJob != null && conversationMode === 'reuse'}>
                     <Select.Option value={DEFAULT_ASSISTANT}>
                       <span className='text-t-secondary'>{t('cron.create.agentPlaceholder', { defaultValue: '默认 (Sudo Code)' })}</span>
                     </Select.Option>
@@ -644,8 +645,8 @@ const CronJobFormDrawer: React.FC<{
                 </div>
               )}
 
-              {/* Workspace selector — hidden when a conversation is bound in reuse mode */}
-              {!(conversationMode === 'reuse' && selectedConversationId) && (
+              {/* Workspace selector — local mode only */}
+              {sessionMode !== 'remote' && !(conversationMode === 'reuse' && selectedConversationId) && (
                 <div>
                   <div className='text-13px text-t-secondary mb-4px'>{t('cron.create.workspace', { defaultValue: '工作目录' })}</div>
                   <Button long onClick={handleSelectFolder} className='!justify-start !text-left' disabled={editJob != null && conversationMode === 'reuse'}>
