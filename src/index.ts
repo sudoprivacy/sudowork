@@ -69,6 +69,11 @@ if (process.env.ELECTRON_RUN_AS_NODE === '1' && process.platform === 'darwin' &&
 // ============ Deep Link Protocol ============
 // Register aionui:// protocol scheme for external app integration (e.g., New API token quick-add)
 const PROTOCOL_SCHEME = 'aionui';
+// Additional schemes the app also handles. `sudowork` is what the packaged
+// macOS/Windows build registers in its manifest (electron-builder.yml), so the
+// OAuth2 redirect (sudowork://oauth2-callback) routes to a packaged app.
+const PROTOCOL_SCHEMES = [PROTOCOL_SCHEME, 'sudowork'];
+const isDeepLinkArg = (arg: string): boolean => PROTOCOL_SCHEMES.some((s) => arg.startsWith(`${s}://`));
 
 /**
  * Parse an aionui:// URL into action and params.
@@ -79,7 +84,7 @@ const PROTOCOL_SCHEME = 'aionui';
 const parseDeepLinkUrl = (url: string): { action: string; params: Record<string, string> } | null => {
   try {
     const parsed = new URL(url);
-    if (parsed.protocol !== `${PROTOCOL_SCHEME}:`) return null;
+    if (!PROTOCOL_SCHEMES.some((s) => parsed.protocol === `${s}:`)) return null;
 
     // Build action from hostname + pathname, e.g. "provider/add" or "add-provider"
     const hostname = parsed.hostname || '';
@@ -112,7 +117,7 @@ const parseDeepLinkUrl = (url: string): { action: string; params: Record<string,
 };
 
 /** Pending deep-link URL received before the window was ready */
-let pendingDeepLinkUrl: string | null = process.argv.find((arg) => arg.startsWith(`${PROTOCOL_SCHEME}://`)) || null;
+let pendingDeepLinkUrl: string | null = process.argv.find(isDeepLinkArg) || null;
 
 /**
  * Send the deep-link payload to the renderer via IPC bridge.
@@ -137,7 +142,7 @@ const handleDeepLinkUrl = (url: string) => {
 // When a second instance starts (e.g. from protocol URL), it sends its data
 // to the first instance via second-instance event, then quits.
 const isE2ETestMode = process.env.NEXUS_E2E_TEST === '1';
-const deepLinkFromArgv = process.argv.find((arg) => arg.startsWith(`${PROTOCOL_SCHEME}://`));
+const deepLinkFromArgv = process.argv.find(isDeepLinkArg);
 const gotTheLock = isE2ETestMode ? true : app.requestSingleInstanceLock({ deepLinkUrl: deepLinkFromArgv });
 
 if (!gotTheLock) {
@@ -146,7 +151,7 @@ if (!gotTheLock) {
 } else {
   app.on('second-instance', (_event, argv, _workingDirectory, additionalData) => {
     // Prefer additionalData (reliable on all platforms), fallback to argv scan
-    const deepLinkUrl = (additionalData as { deepLinkUrl?: string })?.deepLinkUrl || argv.find((arg) => arg.startsWith(`${PROTOCOL_SCHEME}://`));
+    const deepLinkUrl = (additionalData as { deepLinkUrl?: string })?.deepLinkUrl || argv.find(isDeepLinkArg);
     if (deepLinkUrl) {
       handleDeepLinkUrl(deepLinkUrl);
     }
@@ -1041,12 +1046,15 @@ const handleAppReady = async (): Promise<void> => {
 };
 
 // ============ Protocol Registration ============
-// Register aionui:// as the default protocol client
-if (process.defaultApp) {
-  // Dev mode: need to pass execPath explicitly
-  app.setAsDefaultProtocolClient(PROTOCOL_SCHEME, process.execPath, [path.resolve(process.argv[1])]);
-} else {
-  app.setAsDefaultProtocolClient(PROTOCOL_SCHEME);
+// Register all supported schemes (aionui:// for legacy integrations, sudowork://
+// for the packaged-app manifest used by the OAuth2 redirect) as default clients.
+for (const scheme of PROTOCOL_SCHEMES) {
+  if (process.defaultApp) {
+    // Dev mode: need to pass execPath explicitly
+    app.setAsDefaultProtocolClient(scheme, process.execPath, [path.resolve(process.argv[1])]);
+  } else {
+    app.setAsDefaultProtocolClient(scheme);
+  }
 }
 
 // macOS: handle aionui:// URLs via the open-url event

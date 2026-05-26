@@ -25,8 +25,8 @@ try {
   JSZip = require('jszip');
 }
 
-const SKILL_HUB_BASE_URL = 'https://sudoclawhub.sudoprivacy.com/api/skills';
-const SKILL_HUB_CURSOR_URL = 'https://sudoclawhub.sudoprivacy.com/api/skills/cursor';
+const SKILL_HUB_BASE_URL = 'https://sudoworkhub.sudoprivacy.com/api/skills';
+const SKILL_HUB_CURSOR_URL = 'https://sudoworkhub.sudoprivacy.com/api/skills/cursor';
 const AUTHORIZATION = 'sud0@sudo';
 
 const NEXUS_DIR = path.join(os.homedir(), '.nexus');
@@ -272,7 +272,7 @@ function listInstalledSkills() {
       try {
         const meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8'));
         skills.push(meta);
-      } catch {}
+      } catch { }
     }
   }
 

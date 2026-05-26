@@ -17,6 +17,7 @@ const VISION_MODEL_PREFIXES = ['claude-3', 'claude-sonnet', 'claude-opus', 'gemi
 export function isVisionModel(modelId: string): boolean {
   const lower = modelId.toLowerCase();
   if (lower.includes('flash-lite')) return false;
+  if (lower.includes('codex')) return false;
   return VISION_MODEL_PREFIXES.some((prefix) => lower.startsWith(prefix) || lower.includes(prefix.toLowerCase()));
 }
 
@@ -31,11 +32,11 @@ export function modelInputForModelId(modelId: string): string[] {
  * Flash/lightweight models have smaller context windows — compress images
  * more aggressively to avoid "content too large" errors.
  */
-const FLASH_MODEL_PATTERN = /flash-lite|flash-preview|3\.5-flash/i;
+const LOW_IMAGE_TARGET_PATTERN = /gemini|claude/i;
 
 export function getImageTargetSize(modelId: string | null | undefined): number {
   if (!modelId) return IMAGE_TARGET_RAW_SIZE;
-  return FLASH_MODEL_PATTERN.test(modelId) ? 128 * 1024 : IMAGE_TARGET_RAW_SIZE;
+  return LOW_IMAGE_TARGET_PATTERN.test(modelId) ? 128 * 1024 : IMAGE_TARGET_RAW_SIZE;
 }
 
 /**

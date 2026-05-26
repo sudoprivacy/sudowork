@@ -292,6 +292,15 @@ scripts/install_skill.py <path/to/staged-skill-or-zip> --replace
 - 技能能力：更新 `SKILL.md` 的流程说明、触发场景、质量标准，以及相关 `scripts/`、`references/`、`assets/`。
 - 分类、emoji、版本：更新 `_sudowork_meta.json` 的 `category`、`categories`、`emoji`、`installed_version`。
 
+字段边界必须严格：
+
+- 用户说“修改技能名称”“改名”“显示成 XXX”时，默认只修改 UI 展示名称，也就是 `_sudowork_meta.json` 的 `display_name`；可同步更新 `SKILL.md` 首个 H1 标题，但不要修改 `SKILL.md` frontmatter 的 `description` 或 `_sudowork_meta.json` 的 `description`。
+- 只有用户明确要求修改“描述”“说明”“触发场景”“适用场景”时，才修改 description。
+- 只有用户明确要求修改“技能能力”“执行流程”“怎么做”“规则”时，才修改 `SKILL.md` 正文、`scripts/`、`references/` 或 `assets/`。
+- 只有用户明确要求修改 hyphen-case 技能 ID、目录名、内部 name，或给出类似 `ashare-hot-rank` 的名字时，才修改 `SKILL.md` frontmatter 的 `name`、`_sudowork_meta.json` 的 `name` 和目录名。
+- 安装或覆盖后，必须读取 `~/.nexus/skills/_my-custom-skill/<skill-name>/_sudowork_meta.json` 和 `~/.nexus/skills/_my-custom-skill/<skill-name>/SKILL.md` 核验最终落盘值。
+- 更新完成回复必须只列出安装目录中实际改变的字段；没有修改 description 时，不要声称 description 已修改。如果请求修改 description 但安装目录核验不一致，必须报告失败并继续修正。
+
 ### 使用更新脚本
 
 对于 metadata 和头像类更新，优先使用脚本避免漏改字段：
@@ -312,7 +321,8 @@ scripts/update_skill.py <path/to/skill-folder> \
 
 - 校验新的 hyphen-case `name`。
 - 必要时重命名技能目录。
-- 更新 `SKILL.md` frontmatter 中的 `name` 和 `description`。
+- 仅在传入 `--name` 时更新 `SKILL.md` frontmatter 中的 `name`。
+- 仅在传入 `--description` 时更新 `SKILL.md` frontmatter 和 metadata 中的 `description`。
 - 更新 `SKILL.md` 的首个 H1 标题；若未传 `--title`，默认跟随 `--display-name` 或 `--name`。
 - 更新 `_sudowork_meta.json` 中的展示字段。
 - 复制新的 icon 文件到技能目录并更新 `icon` 引用。

@@ -166,7 +166,10 @@ export const resolveAssetByteRange = (rangeHeader: string | null, fileSize: numb
 const createRangeHeaders = (filePath: string, range: AssetByteRangeResult): Headers => {
   const headers = new Headers({
     'Accept-Ranges': 'bytes',
+    'Cache-Control': 'no-store',
     'Content-Type': getAssetContentType(filePath),
+    Expires: '0',
+    Pragma: 'no-cache',
   });
 
   if (range.status === 416) {

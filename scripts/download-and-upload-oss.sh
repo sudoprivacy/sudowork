@@ -109,4 +109,4 @@ rmdir "$DOWNLOAD_DIR" 2>/dev/null || true
 
 echo ""
 echo "========== 全部完成 =========="
-echo "OSS 地址前缀: https://sudoclaw-1309794936.cos.ap-beijing.myqcloud.com/sudoclaw/"
+echo "OSS 地址前缀: https://sudoworkhub-1309794936.cos.ap-beijing.myqcloud.com/sudoclaw/"

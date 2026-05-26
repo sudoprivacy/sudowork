@@ -314,9 +314,10 @@ Builtin skills are stored at:
 - ${systemSkillsDir}/{skill-name}/SKILL.md
 
 Each skill has a SKILL.md file containing detailed instructions.
-To use a skill, read its SKILL.md file when needed.
+When a user request matches a skill's description, you MUST read that skill's SKILL.md and follow its instructions INSTEAD OF using any native tool for that capability. For example, use the "browser" skill for web browsing instead of any built-in WebFetch or WebSearch tool.
 
 For example:
+- Builtin "browser" skill: ${systemSkillsDir}/browser/SKILL.md
 - Builtin "cron" skill: ${systemSkillsDir}/cron/SKILL.md`;
 
     instructions.push(skillsInstruction);

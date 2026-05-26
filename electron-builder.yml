@@ -34,6 +34,8 @@ files:
   - node_modules/better-sqlite3/**/*
   - node_modules/bcrypt/**/*
   - node_modules/node-pty/**/*
+  - node_modules/sharp/**/*
+  - node_modules/@img/**/*
   - node_modules/@mapbox/**/*
   - node_modules/detect-libc/**/*
   - node_modules/prebuild-install/**/*
@@ -88,8 +90,7 @@ files:
   - '!**/{appveyor.yml,.travis.yml,circle.yml}'
   - '!**/{npm-debug.log,yarn.lock,.yarn-metadata.json,yarn-error.log}'
   # Exclude large packages
-  - '!**/node_modules/{@img,@emnapi}/**'
-  - '!**/node_modules/@img/sharp-*/**'
+  - '!**/node_modules/{@emnapi}/**'
   - '!**/node_modules/@anthropic-ai/claude-code/vendor/**'
   - '!**/node_modules/@anthropic-ai/claude-agent-sdk/vendor/**'
   # Exclude JAR files and JNI libraries that cause notarization issues
@@ -252,6 +253,8 @@ asarUnpack:
   - '**/node_modules/better-sqlite3/**/*'
   - '**/node_modules/bcrypt/**/*'
   - '**/node_modules/node-pty/**/*'
+  - '**/node_modules/sharp/**/*'
+  - '**/node_modules/@img/**/*'
   - '**/node_modules/@mapbox/**/*'
   - '**/node_modules/detect-libc/**/*'
   - '**/node_modules/prebuild-install/**/*'

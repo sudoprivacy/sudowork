@@ -31,6 +31,13 @@ export type WorkspaceSkillInstallResult =
       targetDir: string;
     }
   | {
+      status: 'updated';
+      skillName: string;
+      installedVersion: string;
+      sourceDir: string;
+      targetDir: string;
+    }
+  | {
       status: 'skipped';
       sourceDir: string;
       reason: string;
@@ -220,6 +227,54 @@ async function copySkillDirectory(sourceDir: string, targetDir: string): Promise
   }
 }
 
+function createSiblingTempPath(targetDir: string, purpose: string): string {
+  const parentDir = path.dirname(targetDir);
+  const baseName = path.basename(targetDir);
+  const unique = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  return path.join(parentDir, `.${baseName}-${purpose}-${unique}`);
+}
+
+async function replaceSkillDirectory(sourceDir: string, targetDir: string, metaFileName: string, meta: WorkspaceSkillMeta): Promise<void> {
+  const targetStat = await fs.lstat(targetDir).catch((): null => null);
+  if (targetStat && (!targetStat.isDirectory() || targetStat.isSymbolicLink())) {
+    throw new Error(`Target skill path is not a directory: ${targetDir}`);
+  }
+
+  const tempDir = createSiblingTempPath(targetDir, 'update');
+  const backupDir = createSiblingTempPath(targetDir, 'backup');
+  let hasBackup = false;
+
+  try {
+    await copySkillDirectory(sourceDir, tempDir);
+    await fs.writeFile(path.join(tempDir, metaFileName), JSON.stringify(meta, null, 2), 'utf-8');
+
+    if (targetStat) {
+      await fs.rename(targetDir, backupDir);
+      hasBackup = true;
+    }
+
+    await fs.rename(tempDir, targetDir);
+
+    if (hasBackup) {
+      await fs.rm(backupDir, { recursive: true, force: true });
+      hasBackup = false;
+    }
+  } catch (error) {
+    await fs.rm(tempDir, { recursive: true, force: true }).catch((): void => undefined);
+
+    if (hasBackup && !(await pathExists(targetDir))) {
+      await fs.rename(backupDir, targetDir).catch((): void => undefined);
+      hasBackup = false;
+    }
+
+    throw error;
+  } finally {
+    if (hasBackup) {
+      await fs.rm(backupDir, { recursive: true, force: true }).catch((): void => undefined);
+    }
+  }
+}
+
 async function inspectCandidateSkill(sourceDir: string): Promise<InspectedWorkspaceSkill> {
   const stat = await fs.lstat(sourceDir).catch((): null => null);
   if (!stat?.isDirectory() || stat.isSymbolicLink()) {
@@ -343,6 +398,31 @@ export async function installWorkspaceSkillsFromTrackedFiles(workspace: string, 
     }
 
     if (await pathExists(targetDir)) {
+      if (deps.existingCustomSkillNames?.has(inspected.skillName)) {
+        try {
+          const existingMeta = await readSkillMeta(targetDir);
+          inspected.meta.installed_at = existingMeta?.meta.installed_at || inspected.meta.installed_at;
+          inspected.meta.installed_version = inspected.installedVersion;
+          inspected.meta.enabled = existingMeta?.meta.enabled !== false;
+          await replaceSkillDirectory(sourceDir, targetDir, inspected.metaFileName, inspected.meta);
+          results.push({
+            status: 'updated',
+            skillName: inspected.skillName,
+            installedVersion: inspected.installedVersion,
+            sourceDir,
+            targetDir,
+          });
+        } catch (error) {
+          results.push({
+            status: 'skipped',
+            sourceDir,
+            reason: error instanceof Error ? error.message : String(error),
+            skillName: inspected.skillName,
+          });
+        }
+        continue;
+      }
+
       if (!deps.existingCustomSkillNames?.has(inspected.skillName)) {
         results.push({
           status: 'registered',
@@ -381,7 +461,7 @@ export async function installWorkspaceSkillsFromTrackedFiles(workspace: string, 
     }
   }
 
-  if (results.some((result) => result.status === 'installed' || result.status === 'registered')) {
+  if (results.some((result) => result.status === 'installed' || result.status === 'registered' || result.status === 'updated')) {
     deps.clearSkillsCache?.();
     deps.resetAcpSkillManager?.();
   }

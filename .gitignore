@@ -215,6 +215,9 @@ resources/installerHeader.bmp
 tests/e2e/ops/__pycache__/
 tests/e2e/ops/__pycache__/
 tests/e2e/screenshots/
+# Rust build artifacts (nexus-napi)
+native/nexus-napi/target/
+
 # Sudo Code local artifacts
 .nexus/sudocode/settings.local.json
 .scode/sessions/

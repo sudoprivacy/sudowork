@@ -113,7 +113,7 @@ SudoClaw skill hub 提供丰富的技能资源：
 
 ## 注意事项
 
-- **数据来源**：所有技能均从 SudoClaw skill hub (https://sudoclawhub.sudoprivacy.com) 获取
+- **数据来源**：所有技能均从 SudoClaw skill hub (https://sudoworkhub.sudoprivacy.com) 获取
 - **安装位置**：技能安装在 `~/.nexus/skills/_hub/` 目录
 - **即时生效**：安装完成后技能立即可在对话中使用
 - **勿用 clawhub**：不要使用 clawhub 进行安装请求，clawhub 仅用于发布操作
