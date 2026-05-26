@@ -279,7 +279,40 @@ export class ShareoneCliService {
       }
 
       mainLog('ShareOne', `Running: ${cliPath} ${args.join(' ')}`);
-      const { stdout, stderr } = await execFileAsync(cliPath, args, { timeout: 120000, maxBuffer: 10 * 1024 * 1024 });
+      let stdout: string;
+      let stderr: string;
+      try {
+        const result = await execFileAsync(cliPath, args, { timeout: 120000, maxBuffer: 10 * 1024 * 1024 });
+        stdout = result.stdout;
+        stderr = result.stderr;
+      } catch (execErr: unknown) {
+        // execFileAsync throws error with stdout/stderr when command fails
+        const err = execErr as Error & { stdout?: string; stderr?: string };
+        mainError('ShareOne', `CLI exec failed: ${err.message}`);
+        mainError('ShareOne', `CLI stdout: ${(err.stdout || '').slice(0, 500)}`);
+        mainError('ShareOne', `CLI stderr: ${(err.stderr || '').slice(0, 500)}`);
+
+        // Try to parse JSON from stdout - CLI outputs JSON even on error
+        const output = err.stdout || '';
+        const jsonMatch = output.match(/\{[\s\S]*"ok"\s*:\s*false[\s\S]*\}/);
+        if (jsonMatch) {
+          try {
+            const parsedResult = JSON.parse(jsonMatch[0]);
+            if (parsedResult.message) {
+              const apiError = Object.assign(new Error(parsedResult.message), { code: parsedResult.code || 'UNKNOWN_ERROR' });
+              mainError('ShareOne', `Extracted API error: ${parsedResult.message} (code=${parsedResult.code})`);
+              throw apiError;
+            }
+          } catch (parseErr) {
+            // If it's our API error, re-throw it
+            if (parseErr instanceof Error && 'code' in parseErr) {
+              throw parseErr;
+            }
+            // JSON parse failed, fall through
+          }
+        }
+        throw new Error(err.message);
+      }
 
       if (stderr) {
         mainLog('ShareOne', `CLI stderr: ${stderr.slice(0, 500)}`);
@@ -299,29 +332,8 @@ export class ShareoneCliService {
         throw err;
       }
 
-      // Try to parse error from stdout/stderr for execFileAsync errors
-      if (err instanceof Error) {
-        const errWithStd = err as Error & { stdout?: string; stderr?: string };
-        const output = errWithStd.stdout || errWithStd.stderr || '';
-        // Try to extract JSON error response
-        const jsonMatch = output.match(/\{[\s\S]*"ok"\s*:\s*false[\s\S]*\}/);
-        if (jsonMatch) {
-          try {
-            const result = JSON.parse(jsonMatch[0]);
-            if (result.message) {
-              throw Object.assign(new Error(result.message), { code: result.code || 'UNKNOWN_ERROR' });
-            }
-          } catch (parseErr) {
-            // JSON parse failed, fall through
-          }
-        }
-        mainError('ShareOne', `execShareonePublish failed: ${err.message}`);
-        throw new Error(err.message);
-      }
-
-      const message = String(err);
-      mainError('ShareOne', `execShareonePublish failed: ${message}`);
-      throw new Error(message);
+      mainError('ShareOne', `execShareonePublish unexpected error: ${err instanceof Error ? err.message : String(err)}`);
+      throw err;
     } finally {
       if (proxyToken) {
         revokeToken(proxyToken);
