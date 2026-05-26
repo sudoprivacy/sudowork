@@ -47,6 +47,9 @@ function buildMessageIndex(list: TMessage[]): MessageIndex {
     if (msg.type === 'acp_tool_call' && msg.content?.update?.toolCallId) {
       toolCallIdIndex.set(msg.content.update.toolCallId, i);
     }
+    if (msg.type === 'context_recovery' && msg.msg_id) {
+      msgIdIndex.set(msg.msg_id, i);
+    }
   }
 
   return { msgIdIndex, callIdIndex, toolCallIdIndex };
@@ -214,6 +217,12 @@ function composeMessageWithIndex(message: TMessage, list: TMessage[], index: Mes
       } as TMessage;
       return newList;
     }
+  }
+
+  if (message.type === 'context_recovery') {
+    const newIdx = list.length;
+    if (message.msg_id) index.msgIdIndex.set(message.msg_id, newIdx);
+    return list.concat(message);
   }
 
   // Other types: fallback to last message check

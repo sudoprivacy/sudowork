@@ -37,6 +37,21 @@
   "questionSkipped": "Skipped",
   "yes": "Yes",
   "no": "No",
+  "contextRecovery": {
+    "overflowTitle": "This model session has exceeded its context limit",
+    "overflowDescription": "Messages can no longer be sent to the original session. You can compress the history and continue, or start a blank model context.",
+    "nearLimitTitle": "This conversation is close to the model context limit",
+    "nearLimitDescription": "Continuing may fail. You can compress the context now or keep going for now.",
+    "errorPrefix": "Error: ",
+    "recoverFailed": "Failed to recover context",
+    "compressSuccess": "Previous context compressed. You can continue.",
+    "freshSuccess": "Started a new model context.",
+    "compressAndContinue": "Compress and continue",
+    "compressLater": "Compress then continue",
+    "freshSession": "Start blank context",
+    "freshContinue": "New context",
+    "dismiss": "Continue current session"
+  },
   "confirmation": {
     "applyChange": "Apply this change?",
     "allowExecution": "Allow execution?",

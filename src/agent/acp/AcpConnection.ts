@@ -660,10 +660,10 @@ export class AcpConnection {
         this.handleIncomingRequest(message as AcpIncomingMessage).catch((_error) => {
           // Handle request errors silently
         });
-      } else if ('id' in message && typeof message.id === 'number' && this.pendingRequests.has(message.id)) {
+      } else if ('id' in message && this.pendingRequests.has(message.id as number)) {
         // This is a response to a previous request
-        const { resolve, reject } = this.pendingRequests.get(message.id)!;
-        this.pendingRequests.delete(message.id);
+        const { resolve, reject } = this.pendingRequests.get(message.id as number)!;
+        this.pendingRequests.delete(message.id as number);
 
         if ('result' in message) {
           // Check for end_turn message and extract usage data
@@ -682,7 +682,10 @@ export class AcpConnection {
           }
           resolve(message.result);
         } else if ('error' in message) {
-          const errorMsg = message.error?.message || 'Unknown ACP error';
+          // Error message may be in message.error.message or message.error.data
+          const errorData = message.error;
+          const errorMsg = errorData?.data ? (typeof errorData.data === 'string' ? errorData.data : JSON.stringify(errorData.data)) : errorData?.message || 'Unknown ACP error';
+          console.log(`[ACP] Error response for request ${message.id}: ${errorMsg}`);
           reject(new Error(errorMsg));
         }
       } else {

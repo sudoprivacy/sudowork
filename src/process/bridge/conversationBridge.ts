@@ -37,6 +37,7 @@ import { ConversationManageWithDB } from '../message';
 import { setupChannelResponseRouting } from '@/channels/agent/ChannelResponseRouter';
 import { startConversationTracking, endConversationSuccess, endConversationError } from '../telemetry';
 import { getConversationProvider, isRemoteProvider } from '../providers';
+import { addContextRecoveryTip, buildLocalContextSummary, emitContextRecoveryMessage, loadConversationMessagesForSummary, updateConversationContextRecovery } from '../utils/contextRecovery';
 
 const workspaceSkillSyncTasks = new Map<string, Promise<void>>();
 
@@ -712,9 +713,9 @@ export function initConversationBridge(): void {
 
   ipcBridge.conversation.reset.provider(({ id }) => {
     if (id) {
-      WorkerManage.kill(id);
+      void WorkerManage.kill(id);
     } else {
-      WorkerManage.clear();
+      void WorkerManage.clear();
     }
     return Promise.resolve();
   });
@@ -791,6 +792,83 @@ export function initConversationBridge(): void {
       return { success: false, msg: 'unsupported conversation type' };
     } catch (error) {
       mainWarn('[conversationBridge]', 'restartAndConnect failed:', error);
+      return { success: false, msg: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcBridge.conversation.recoverContext.provider(async ({ conversation_id, strategy }) => {
+    try {
+      const db = getDatabase();
+      const convResult = db.getConversation(conversation_id);
+      if (!convResult.success || !convResult.data || convResult.data.type !== 'acp') {
+        return { success: false, msg: 'conversation not found' };
+      }
+
+      const conversation = convResult.data;
+      const task = WorkerManage.getTaskById(conversation_id) as AcpAgent | undefined;
+      const failedSessionId = task?.type === 'acp' ? task.getCurrentSessionId() || conversation.extra.acpSessionId : conversation.extra.acpSessionId;
+
+      if (strategy === 'fresh') {
+        if (task?.type === 'acp') {
+          task.clearPersistedSession();
+        }
+        WorkerManage.kill(conversation_id);
+        const updatedExtra: TChatConversation['extra'] = { ...conversation.extra };
+        if ('acpSessionId' in updatedExtra) delete updatedExtra.acpSessionId;
+        if ('acpSessionUpdatedAt' in updatedExtra) delete updatedExtra.acpSessionUpdatedAt;
+        if ('contextRecovery' in updatedExtra) delete updatedExtra.contextRecovery;
+        db.updateConversation(conversation_id, { extra: updatedExtra } as Partial<TChatConversation>);
+        addContextRecoveryTip(conversation_id, '已开启新的模型上下文。聊天记录仍保留，但旧上下文不会自动带入模型。');
+        return { success: true };
+      }
+
+      updateConversationContextRecovery(conversation, {
+        status: 'compressing',
+        failedSessionId,
+        failedAt: conversation.extra.contextRecovery?.failedAt || Date.now(),
+      });
+
+      const messages = loadConversationMessagesForSummary(conversation_id);
+      const summary = buildLocalContextSummary(messages);
+      const summaryMessage = addContextRecoveryTip(conversation_id, `已压缩此前上下文，可以继续对话。\n\n${summary}`, 'success');
+
+      if (task?.type === 'acp') {
+        task.clearPersistedSession();
+      }
+      WorkerManage.kill(conversation_id);
+
+      const updatedExtra: TChatConversation['extra'] = {
+        ...conversation.extra,
+        contextRecovery: {
+          status: 'compressed' as const,
+          failedSessionId,
+          recoveredAt: Date.now(),
+          summaryMessageId: summaryMessage.id,
+          summary,
+        },
+      };
+      if ('acpSessionId' in updatedExtra) delete updatedExtra.acpSessionId;
+      if ('acpSessionUpdatedAt' in updatedExtra) delete updatedExtra.acpSessionUpdatedAt;
+      db.updateConversation(conversation_id, { extra: updatedExtra } as Partial<TChatConversation>);
+      return { success: true, data: { summary } };
+    } catch (error) {
+      mainWarn('[conversationBridge]', 'recoverContext failed:', error);
+      try {
+        const db = getDatabase();
+        const convResult = db.getConversation(conversation_id);
+        if (convResult.success && convResult.data && convResult.data.type === 'acp') {
+          updateConversationContextRecovery(convResult.data, {
+            status: 'failed',
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      } catch {
+        // ignore recovery state failure
+      }
+      emitContextRecoveryMessage(conversation_id, 'failed', {
+        msgId: 'context-recovery-failed',
+        error: error instanceof Error ? error.message : String(error),
+      });
       return { success: false, msg: error instanceof Error ? error.message : String(error) };
     }
   });
@@ -888,6 +966,19 @@ export function initConversationBridge(): void {
       return { success: false, msg: 'conversation not found' };
     }
     mainLog('conversationBridge', `sendMessage: found task type=${task.type}, status=${task.status}`);
+
+    try {
+      const convResult = getDatabase().getConversation(conversation_id);
+      if (convResult.success && convResult.data?.type === 'acp' && convResult.data.extra.contextRecovery?.status === 'overflowed') {
+        emitContextRecoveryMessage(conversation_id, 'overflowed', {
+          msgId: 'context-recovery-overflowed',
+          error: convResult.data.extra.contextRecovery.error,
+        });
+        return { success: false, msg: 'context_overflow_requires_recovery' };
+      }
+    } catch (error) {
+      mainWarn('conversationBridge', 'Failed to check context recovery state:', error);
+    }
 
     // 复制文件到工作空间（所有 agents 统一处理）
     let filesToProcess = files ?? [];

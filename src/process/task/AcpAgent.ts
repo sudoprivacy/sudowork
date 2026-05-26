@@ -16,6 +16,8 @@ import { buildAcpModelInfo, summarizeAcpModelInfo } from '@/agent/acp/modelInfo'
 import { channelEventBus } from '@/channels/agent/ChannelEventBus';
 import { ipcBridge } from '@/common';
 import type { AcpQuestionData, CronMessageMeta, TMessage } from '@/common/chatLib';
+import type { ContextRecoveryMessageData, ContextRecoveryState } from '@/common/contextRecovery';
+import { isContextOverflowError } from '@/common/contextRecovery';
 import type { SlashCommandItem } from '@/common/slash/types';
 import { transformMessage } from '@/common/chatLib';
 import { NEXUS_FILES_MARKER } from '@/common/constants';
@@ -39,6 +41,7 @@ import { handlePreviewOpenEvent } from '../utils/previewUtils';
 import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
 import { mainLog, mainWarn, mainError } from '../utils/mainLogger';
 import { translateLLMError } from '@process/utils/llmErrorTranslation';
+import { updateConversationContextRecovery } from '@process/utils/contextRecovery';
 import { injectSkillsDirectoryHint, prepareFirstMessageWithSkillsIndex } from './agentUtils';
 import { cleanupIntermediateFiles, cleanupDraftsOnCancel, detectFileIntent, matchesDraftPattern } from './draftsCleanup';
 import { mergeScodeProxyModelInfo } from '@process/services/scode/scodeProxyModels';
@@ -866,6 +869,18 @@ This identity statement takes priority over the default identity in USER.md.
             workspace: this.workspace,
             presetAgentType: this.options.backend,
           });
+          const db = getDatabase();
+          const convResult = db.getConversation(this.conversation_id);
+          const recovery = convResult.success && convResult.data?.type === 'acp' ? convResult.data.extra.contextRecovery : undefined;
+          if (recovery?.status === 'compressed' && recovery.summary) {
+            contentToSend = `以下是此前对话的压缩摘要。请把它作为当前会话上下文继续工作，不要要求用户重复说明。\n\n` + `<compressed_context>\n${recovery.summary}\n</compressed_context>\n\n` + `[User Request]\n${contentToSend}`;
+            this.updateContextRecovery({
+              ...recovery,
+              summary: undefined,
+              recoveredSessionId: this.connection.currentSessionId || recovery.recoveredSessionId,
+              status: 'normal',
+            });
+          }
 
           if (this.options.backend === 'claude' || this.options.backend === 'scode') {
             const skillsDir = resolveWorkspaceSkillsDir({
@@ -1095,6 +1110,17 @@ This identity statement takes priority over the default identity in USER.md.
       return { success: true, data: null };
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
+      console.log(`[AcpAgent] sendToConnection error: ${errorMsg.substring(0, 200)}`);
+      if (isContextOverflowError(errorMsg)) {
+        console.log(`[AcpAgent] Detected context overflow error, calling markContextOverflow`);
+        this.markContextOverflow(msg_id, errorMsg);
+        apiBreadcrumbs.responseError(`session/prompt`, 400, errorMsg);
+        return {
+          success: false,
+          error: createAcpError(AcpErrorType.UNKNOWN, errorMsg, false),
+        };
+      }
+
       if (errorMsg.includes('Internal error') && this.extra.backend === 'qwen') {
         const enhancedMsg = `Qwen ACP Internal Error: This usually means authentication failed or ` + `the Qwen CLI has compatibility issues. Please try: 1) Restart the application ` + `2) Use 'npx @qwen-code/qwen-code' instead of global qwen 3) Check if you have valid Qwen credentials.`;
         this.emitErrorMessage(enhancedMsg);
@@ -1512,6 +1538,84 @@ This identity statement takes priority over the default identity in USER.md.
     this.statusMessageId = null;
     // Re-initialize agent connection
     await this.initAgent();
+  }
+
+  getCurrentSessionId(): string | null {
+    return this.connection.currentSessionId;
+  }
+
+  clearPersistedSession(): void {
+    this.extra.acpSessionId = undefined;
+    this.options.acpSessionId = undefined;
+    this.bootstrap = undefined;
+  }
+
+  private updateContextRecovery(state: ContextRecoveryState | null): void {
+    try {
+      const db = getDatabase();
+      const result = db.getConversation(this.conversation_id);
+      if (!result.success || !result.data || result.data.type !== 'acp') return;
+      const success = updateConversationContextRecovery(result.data, state);
+      console.log(`[AcpAgent] updateContextRecovery: status=${state?.status}, success=${success}`);
+    } catch (error) {
+      mainWarn('[AcpAgent]', 'Failed to update context recovery state:', error);
+    }
+  }
+
+  private emitContextRecoveryCard(reason: ContextRecoveryMessageData['reason'], options?: { msgId?: string; error?: string }): void {
+    const actions: ContextRecoveryMessageData['actions'] =
+      reason === 'overflowed' || reason === 'failed'
+        ? [
+            { id: 'compress', label: '压缩并继续' },
+            { id: 'fresh', label: '开启空白新会话' },
+          ]
+        : [
+            { id: 'compress', label: '压缩后继续' },
+            { id: 'fresh', label: '新会话继续' },
+            { id: 'dismiss', label: '继续当前会话' },
+          ];
+
+    const message: IResponseMessage = {
+      type: 'context_recovery',
+      conversation_id: this.conversation_id,
+      msg_id: options?.msgId || `context-recovery-${reason}`,
+      data: {
+        reason,
+        error: options?.error,
+        actions,
+      } satisfies ContextRecoveryMessageData,
+    };
+
+    const tMessage = transformMessage(message);
+    if (tMessage) {
+      addOrUpdateMessage(this.conversation_id, tMessage, this.options.backend);
+    }
+    ipcBridge.acpConversation.responseStream.emit(message);
+    channelEventBus.emitAgentMessage(this.conversation_id, message);
+  }
+
+  private markContextOverflow(msgId: string | undefined, error: string): void {
+    this.updateContextRecovery({
+      status: 'overflowed',
+      failedSessionId: this.connection.currentSessionId || this.extra.acpSessionId,
+      failedAt: Date.now(),
+      lastFailedMsgId: msgId,
+      error,
+    });
+    this.emitContextRecoveryCard('overflowed', {
+      msgId: 'context-recovery-overflowed',
+      error,
+    });
+    this.status = 'finished';
+    this.turnActive = false;
+    this.processingStartTime = undefined;
+    cronBusyGuard.setProcessing(this.conversation_id, false);
+    void this.handleSignalEvent({
+      type: 'finish',
+      conversation_id: this.conversation_id,
+      msg_id: uuid(),
+      data: null,
+    });
   }
 
   async ensureYoloMode(): Promise<boolean> {
@@ -2281,8 +2385,14 @@ This identity statement takes priority over the default identity in USER.md.
   private handleDisconnect(error: { code: number | null; signal: NodeJS.Signals | null }): void {
     this.emitStatusMessage('disconnected');
 
-    const errorMsg = `${this.extra.backend} process disconnected unexpectedly ` + `(code: ${error.code}, signal: ${error.signal}). ` + `Please try sending a new message to reconnect.`;
-    this.emitErrorMessage(errorMsg, false); // Skip finish, will send below
+    // Check if this is a context recovery termination (SIGTERM from recoverContext)
+    // 检查是否是 context recovery 导致的终止（recoverContext 发送的 SIGTERM）
+    const isContextRecoveryTermination = error.signal === 'SIGTERM' && this.extra.contextRecovery?.status === 'compressing';
+
+    if (!isContextRecoveryTermination) {
+      const errorMsg = `${this.extra.backend} process disconnected unexpectedly ` + `(code: ${error.code}, signal: ${error.signal}). ` + `Please try sending a new message to reconnect.`;
+      this.emitErrorMessage(errorMsg, false); // Skip finish, will send below
+    }
 
     // Telemetry: end turn tracking (error)
     endTurnError(this.conversation_id, 'E001');
@@ -2291,7 +2401,7 @@ This identity statement takes priority over the default identity in USER.md.
     endConversationError(this.conversation_id, 'E001');
 
     // Breadcrumb: conversation ended (disconnect)
-    conversationBreadcrumbs.error(this.conversation_id, 'E001', errorMsg);
+    conversationBreadcrumbs.error(this.conversation_id, 'E001', `disconnected: code=${error.code}, signal=${error.signal}`);
 
     const finishMsg: IResponseMessage = {
       type: 'finish',
@@ -2321,6 +2431,16 @@ This identity statement takes priority over the default identity in USER.md.
     }
 
     const pipelineStart = Date.now();
+
+    // Check for context overflow error in stream messages
+    // 检测流消息中的上下文超限错误
+    if (message.type === 'error' || message.type === 'tips') {
+      const errorText = typeof message.data === 'string' ? message.data : (message.data as { content?: string })?.content || '';
+      if (errorText && isContextOverflowError(errorText)) {
+        this.markContextOverflow(message.msg_id, errorText);
+        return;
+      }
+    }
 
     if (message.type === 'agent_status') {
       const status = (message.data as { status?: string } | null)?.status;
@@ -2367,6 +2487,27 @@ This identity statement takes priority over the default identity in USER.md.
     if (message.type === 'acp_context_usage') {
       const usageData = message.data as { used: number; size: number };
       saveContextUsage(this.conversation_id, usageData);
+      if (usageData.size > 0) {
+        const ratio = usageData.used / usageData.size;
+        const reason: ContextRecoveryMessageData['reason'] | null = ratio >= 0.95 ? 'critical' : ratio >= 0.85 ? 'near_limit' : null;
+        if (reason) {
+          try {
+            const db = getDatabase();
+            const result = db.getConversation(this.conversation_id);
+            const currentRecovery = result.success && result.data?.type === 'acp' ? result.data.extra.contextRecovery : undefined;
+            if (!currentRecovery || currentRecovery.status === 'normal' || currentRecovery.status === 'near_limit' || currentRecovery.status === 'critical') {
+              this.updateContextRecovery({
+                status: reason,
+              });
+              this.emitContextRecoveryCard(reason, {
+                msgId: 'context-recovery-near-limit',
+              });
+            }
+          } catch (error) {
+            mainWarn('[AcpAgent]', 'Failed to emit context usage recovery card:', error);
+          }
+        }
+      }
     }
 
     if (message.type !== 'thought' && message.type !== 'acp_model_info' && message.type !== 'acp_context_usage') {
@@ -2619,6 +2760,16 @@ This identity statement takes priority over the default identity in USER.md.
   }
 
   private emitMessage(message: TMessage): void {
+    // Check for context overflow error in tips/error messages
+    // 检测 tips/error 消息中的上下文超限错误
+    if (message.type === 'tips') {
+      const content = message.content as { type?: string; content: string };
+      if (content.content && isContextOverflowError(content.content)) {
+        this.markContextOverflow(message.msg_id || message.id, content.content);
+        return;
+      }
+    }
+
     const responseMessage: IResponseMessage = {
       type: '',
       data: null,

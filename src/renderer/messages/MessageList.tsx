@@ -24,6 +24,7 @@ import { Virtuoso } from 'react-virtuoso';
 import { uuid } from '../utils/common';
 import HOC from '../utils/HOC';
 import MessageCodexToolCall from './codex/MessageCodexToolCall';
+import MessageContextRecovery from './MessageContextRecovery';
 import type { FileChangeInfo } from './codex/MessageFileChanges';
 import MessageFileChanges, { parseDiff } from './codex/MessageFileChanges';
 import MessageFileSend from './MessageFileSend';
@@ -100,7 +101,7 @@ const MessageItem: React.FC<{ message: TMessage; isStreaming?: boolean }> = Reac
         })}
       >
         {isAiMessage && (
-          <div className="flex-shrink-0 mr-12px mt-4px w-24px h-24px relative">
+          <div className='flex-shrink-0 mr-12px mt-4px w-24px h-24px relative'>
             <img src={streamingAvatar} alt='AI Avatar' className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 ${isStreaming ? 'w-40px h-40px max-w-none' : 'w-24px h-24px'} object-contain`} />
           </div>
         )}
@@ -135,6 +136,8 @@ const MessageItem: React.FC<{ message: TMessage; isStreaming?: boolean }> = Reac
         return <MessagePlan message={message}></MessagePlan>;
       case 'file_send':
         return <MessageFileSend message={message}></MessageFileSend>;
+      case 'context_recovery':
+        return <MessageContextRecovery message={message}></MessageContextRecovery>;
       case 'available_commands':
         return null;
       default:
@@ -386,7 +389,7 @@ const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = fal
     if (shouldShowLoading) {
       withTimeSeparators.push({
         type: 'loading_indicator',
-        id: 'temp-loading-indicator'
+        id: 'temp-loading-indicator',
       });
     }
 
@@ -452,7 +455,7 @@ const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = fal
       const streamingAvatarForSummary = isStreamingForSummary ? (isDarkMode() ? sudoclawProDark : sudoclawProWhite) : sudoworkIconDark;
       return (
         <div key={item.id} data-message-id={item.id} className={'min-w-0 flex items-start message-item px-8px m-t-10px max-w-full md:max-w-780px mx-auto ' + item.type}>
-          <div className="flex-shrink-0 mr-12px mt-4px w-24px h-24px relative">
+          <div className='flex-shrink-0 mr-12px mt-4px w-24px h-24px relative'>
             <img src={streamingAvatarForSummary} alt='AI Avatar' className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 ${isStreamingForSummary ? 'w-40px h-40px max-w-none' : 'w-24px h-24px'} object-contain`} />
           </div>
           <div className='flex-1 min-w-0'>

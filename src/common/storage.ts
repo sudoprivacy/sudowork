@@ -5,6 +5,7 @@
  */
 
 import type { AcpBackend, AcpBackendAll, AcpBackendConfig } from '@/types/acpTypes';
+import type { ContextRecoveryState } from './contextRecovery';
 import { storage } from '@office-ai/platform';
 
 /**
@@ -252,6 +253,8 @@ export type TChatConversation =
           lastTokenUsage?: TokenUsageData;
           /** Context window capacity from usage_update */
           lastContextLimit?: number;
+          /** Context overflow recovery state / 上下文超限恢复状态 */
+          contextRecovery?: ContextRecoveryState;
           /** Persisted session mode for resume support / 持久化的会话模式，用于恢复 */
           sessionMode?: string;
           /** Persisted model ID for resume support / 持久化的模型 ID，用于恢复 */

@@ -334,6 +334,13 @@ const useAcpMessage = (conversation_id: string) => {
           }
           break;
         }
+        case 'context_recovery':
+          setRunning(false);
+          runningRef.current = false;
+          setAiProcessing(false);
+          aiProcessingRef.current = false;
+          addOrUpdateMessage(transformedMessage);
+          break;
         case 'request_trace':
           {
             const trace = message.data as Record<string, unknown>;

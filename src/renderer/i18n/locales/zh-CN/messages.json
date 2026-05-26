@@ -37,6 +37,21 @@
   "questionSkipped": "已跳过",
   "yes": "是",
   "no": "否",
+  "contextRecovery": {
+    "overflowTitle": "当前模型会话已超过上下文限制",
+    "overflowDescription": "无法继续向原会话发送消息。你可以压缩历史后继续，或开启一个空白模型上下文继续。",
+    "nearLimitTitle": "当前对话上下文接近模型上限",
+    "nearLimitDescription": "继续发送可能失败。你可以现在压缩上下文，或稍后继续。",
+    "errorPrefix": "错误信息：",
+    "recoverFailed": "恢复上下文失败",
+    "compressSuccess": "已压缩此前上下文，可以继续对话",
+    "freshSuccess": "已开启新的模型上下文",
+    "compressAndContinue": "压缩并继续",
+    "compressLater": "压缩后继续",
+    "freshSession": "开启空白新会话",
+    "freshContinue": "新会话继续",
+    "dismiss": "继续当前会话"
+  },
   "confirmation": {
     "applyChange": "应用此更改？",
     "allowExecution": "允许执行？",
