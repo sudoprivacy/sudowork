@@ -288,7 +288,7 @@ jobs:
         env:
           TENCENT_SECRET_ID: ${{ secrets.TENCENT_SECRET_ID }}
           TENCENT_SECRET_KEY: ${{ secrets.TENCENT_SECRET_KEY }}
-          COS_BUCKET: sudoclaw-download-1309794936
+          COS_BUCKET: sudowork-download-1309794936
           COS_REGION: ap-beijing
         run: |
           echo "📦 Installing coscmd..."
