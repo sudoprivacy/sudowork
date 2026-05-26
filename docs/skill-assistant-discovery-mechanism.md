@@ -271,9 +271,9 @@ export interface IAssistantInfo {
 ### 3.1 Hub API 端点
 
 ```
-技能商店 API: https://sudoclawhub.sudoprivacy.com/api/skills
-助手商店 API: https://sudoclawhub.sudoprivacy.com/api/assistants
-分类 API: https://sudoclawhub.sudoprivacy.com/api/categories
+技能商店 API: https://sudoworkhub.sudoprivacy.com/api/skills
+助手商店 API: https://sudoworkhub.sudoprivacy.com/api/assistants
+分类 API: https://sudoworkhub.sudoprivacy.com/api/categories
 ```
 
 ### 3.2 技能商店桥接
@@ -413,7 +413,7 @@ ipcBridge.assistantHub.downloadAndInstallAssistant.provider(async ({ assistantNa
       }
 
       // 从Hub获取技能详情并下载安装
-      const skillDetailResponse = await fetch(`https://sudoclawhub.sudoprivacy.com/api/skills/${skillId}`);
+      const skillDetailResponse = await fetch(`https://sudoworkhub.sudoprivacy.com/api/skills/${skillId}`);
       // ... 下载安装技能
       installedSkillNames.push(skillName);
     }

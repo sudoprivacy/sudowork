@@ -276,7 +276,7 @@ export interface TelemetryConfig {
 /** 默认遥测配置 */
 export const DEFAULT_TELEMETRY_CONFIG: TelemetryConfig = {
   enabled: true,
-  serverUrl: 'https://sudoclaw-qms.sudoprivacy.com/api/v1/telemetry/batch',
+  serverUrl: 'https://sudowork-qms.sudoprivacy.com/api/v1/telemetry/batch',
   batchSize: 50,
   flushInterval: 30000, // 30 秒
   maxRetries: 3,
