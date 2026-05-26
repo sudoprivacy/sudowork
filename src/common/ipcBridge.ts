@@ -604,6 +604,17 @@ export const nodeRuntime = {
   installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('node-runtime.install-result'),
 };
 
+// ShareOne CLI installer & publish
+export type IShareoneResponse = { success: boolean; msg?: string; code?: string };
+export const shareoneCli = {
+  checkInstalled: bridge.buildProvider<IBridgeResponse<ICliStatus>, void>('shareone.check-installed'),
+  install: bridge.buildProvider<IBridgeResponse<void>, void>('shareone.install'),
+  installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('shareone.install-result'),
+  installProgress: bridge.buildEmitter<{ phase: 'downloading' | 'extracting' | 'configuring'; percent?: number }>('shareone.install-progress'),
+  publishTurn: bridge.buildProvider<IShareoneResponse & IBridgeResponse<{ url: string }>, { markdown: string; title: string }>('shareone.publish-turn'),
+  publishFile: bridge.buildProvider<IShareoneResponse & IBridgeResponse<{ url: string }>, { filePath: string }>('shareone.publish-file'),
+};
+
 // LibreOffice installer / LibreOffice 在线安装
 export type ILibreOfficeInstallPhase = 'downloading' | 'mounting' | 'copying' | 'unmounting' | 'installing' | 'extracting' | 'cleanup';
 export type ISudoclawInstallPhase = 'extracting' | 'installing' | 'configuring';

@@ -8,6 +8,7 @@ import { ipcBridge } from '@/common';
 import type { IDirOrFile } from '@/common/ipcBridge';
 import { DRAFTS_DIR_NAME } from '@/common/constants';
 import { STORAGE_KEYS } from '@/common/storageKeys';
+import { copyText } from '@/renderer/utils/clipboard';
 import FlexFullContainer from '@/renderer/components/FlexFullContainer';
 import EmptyState from '@/renderer/components/base/EmptyState';
 import { useLayoutContext } from '@/renderer/context/LayoutContext';
@@ -645,6 +646,46 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
   // Drafts directory (.drafts/) should not be renameable or deleteable
   // 草稿箱目录不支持重命名和删除
   const isContextMenuNodeDrafts = !!contextMenuNode && contextMenuNode.name === '.drafts' && !contextMenuNode.isFile;
+
+  // ShareOne CLI installation state
+  const [shareoneInstalled, setShareoneInstalled] = useState(false);
+
+  useEffect(() => {
+    void ipcBridge.shareoneCli.checkInstalled.invoke().then((res) => {
+      if (res?.success && res.data?.installed) {
+        setShareoneInstalled(true);
+      }
+    });
+    const unsub = ipcBridge.shareoneCli.installResult.on(() => {
+      void ipcBridge.shareoneCli.checkInstalled.invoke().then((res) => {
+        setShareoneInstalled(res?.success === true && res.data?.installed === true);
+      });
+    });
+    return unsub;
+  }, []);
+
+  const handleShareFile = useCallback(
+    async (node: IDirOrFile) => {
+      if (!node.fullPath || !node.isFile) return;
+      Message.loading({ content: t('messages.sharing', { defaultValue: 'Sharing…' }), id: 'share-file' });
+      try {
+        const res = await ipcBridge.shareoneCli.publishFile.invoke({ filePath: node.fullPath });
+        Message.clear();
+        if (res?.success && res.data) {
+          await copyText(res.data.url);
+          messageApi.success(t('messages.shareSuccessShort', { defaultValue: 'Shared (link copied)' }));
+        } else if (res?.code === 'AUTH_REQUIRED') {
+          messageApi.warning(t('messages.shareAuthRequired'));
+        } else {
+          messageApi.error(res?.msg || t('messages.shareFailed', { msg: '' }));
+        }
+      } catch (err) {
+        Message.clear();
+        messageApi.error(t('messages.shareFailed', { msg: String(err) }));
+      }
+    },
+    [messageApi, t]
+  );
 
   // Check if file supports preview
   const isPreviewSupported = (() => {
@@ -1360,6 +1401,18 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                   >
                     {t('conversation.workspace.contextMenu.uploadToBdpan')}
                   </button>
+                  {shareoneInstalled && (
+                    <button
+                      type='button'
+                      className={menuButtonBase}
+                      onClick={() => {
+                        void handleShareFile(contextMenuNode);
+                        modalsHook.closeContextMenu();
+                      }}
+                    >
+                      {t('conversation.workspace.contextMenu.shareone', { defaultValue: 'ShareOne' })}
+                    </button>
+                  )}
                 </>
               ) : (
                 <>
@@ -1426,6 +1479,18 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                   >
                     {t('conversation.workspace.contextMenu.uploadToBdpan')}
                   </button>
+                  {isContextMenuNodeFile && shareoneInstalled && (
+                    <button
+                      type='button'
+                      className={menuButtonBase}
+                      onClick={() => {
+                        void handleShareFile(contextMenuNode);
+                        modalsHook.closeContextMenu();
+                      }}
+                    >
+                      {t('conversation.workspace.contextMenu.shareone', { defaultValue: 'ShareOne' })}
+                    </button>
+                  )}
                   <div className='h-1px bg-3 my-2px'></div>
                   {!isContextMenuNodeDrafts && (
                     <button

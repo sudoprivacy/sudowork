@@ -223,6 +223,44 @@ export class CliInstallService {
   // ── private helpers ──────────────────────────────────────────────────────
 
   /**
+   * Convert an absolute path under ~/.nexus to a $HOME-relative shell path.
+   * e.g. "/Users/bob/.nexus/cli/shareone/..." → "$HOME/.nexus/cli/shareone/..."
+   * This makes wrapper scripts resilient to home directory changes.
+   */
+  private toHomeRelative(absPath: string): string {
+    const homeDir = app.getPath('home');
+    const nexusDir = getNexusDir();
+    // Paths under nexusDir may be a symlink (macOS), so compare against both
+    if (absPath.startsWith(nexusDir)) {
+      const rel = absPath.slice(nexusDir.length);
+      return `$HOME/.nexus${rel}`;
+    }
+    if (absPath.startsWith(homeDir)) {
+      const rel = absPath.slice(homeDir.length);
+      return `$HOME${rel}`;
+    }
+    // Outside home dir — return absolute (e.g. /usr/local/bin/node)
+    return absPath;
+  }
+
+  /**
+   * Convert an absolute path under %USERPROFILE%\.nexus to a %USERPROFILE%-relative path.
+   */
+  private toUserProfileRelative(absPath: string): string {
+    const homeDir = app.getPath('home');
+    const nexusDir = getNexusDir();
+    if (absPath.startsWith(nexusDir)) {
+      const rel = absPath.slice(nexusDir.length).replace(/\//g, '\\');
+      return `%USERPROFILE%\\.nexus${rel}`;
+    }
+    if (absPath.startsWith(homeDir)) {
+      const rel = absPath.slice(homeDir.length).replace(/\//g, '\\');
+      return `%USERPROFILE%${rel}`;
+    }
+    return absPath;
+  }
+
+  /**
    * Check if the entry file needs Node.js to run (based on file extension).
    * JS/MJS/CJS files require a Node.js runtime; native executables (e.g. .exe)
    * can be invoked directly.
@@ -256,7 +294,7 @@ export class CliInstallService {
     const needsNode = this.needsNodeRuntime(entryFile);
 
     // Build wrapper script
-    const lines = ['#!/bin/sh', `# ${this.cfg.name} wrapper — managed by Sudowork`, `CLI="${entryFile}"`];
+    const lines = ['#!/bin/sh', `# ${this.cfg.name} wrapper — managed by Sudowork`, `CLI="${this.toHomeRelative(entryFile)}"`];
 
     if (!needsNode) {
       // Native executable (e.g. compiled binary) — run directly without Node.js
@@ -276,7 +314,7 @@ export class CliInstallService {
     // JS entry file — needs Node.js runtime
     if (this.cfg.useBundledNode) {
       const nodePath = getNodeBinaryPath();
-      lines.push(`BUNDLED_NODE="${nodePath}"`);
+      lines.push(`BUNDLED_NODE="${this.toHomeRelative(nodePath)}"`);
       lines.push('');
       lines.push('# 1. Bundled Node.js (no Dock bounce on macOS)');
       lines.push('if [ -x "$BUNDLED_NODE" ]; then');
@@ -328,7 +366,7 @@ export class CliInstallService {
     const wrapperPath = path.join(getBinDir(), `${this.cfg.name}.cmd`);
     const needsNode = this.needsNodeRuntime(entryFile);
 
-    const lines = ['@echo off', 'setlocal enabledelayedexpansion', `set "CLI=${entryFile}"`, 'set "ARGS=%*"'];
+    const lines = ['@echo off', 'setlocal enabledelayedexpansion', `set "CLI=${this.toUserProfileRelative(entryFile)}"`, 'set "ARGS=%*"'];
 
     if (!needsNode) {
       // Native executable (e.g., claude.exe) — run directly without Node.js
@@ -351,7 +389,7 @@ export class CliInstallService {
       const nodePath = getNodeBinaryPath();
       lines.push('');
       lines.push(':: 1. Bundled Node.js');
-      lines.push(`set "BUNDLED_NODE=${nodePath}"`);
+      lines.push(`set "BUNDLED_NODE=${this.toUserProfileRelative(nodePath)}"`);
       lines.push('if exist "%BUNDLED_NODE%" (');
       lines.push('  "%BUNDLED_NODE%" "%CLI%" !ARGS!');
       lines.push('  exit /b !ERRORLEVEL!');
@@ -389,10 +427,10 @@ export class CliInstallService {
   }
 
   private async updateShellConfig(): Promise<void> {
-    const binDir = getBinDir();
     if (process.platform === 'win32') {
       // Use PowerShell to safely update the User PATH without the 1024-char limit of setx.
       // Use case-insensitive comparison and trim whitespace for robustness.
+      const binDir = getBinDir();
       const psCommand = `
         $binDir = "${binDir}"
         $path = [Environment]::GetEnvironmentVariable('Path', 'User')
@@ -414,16 +452,17 @@ export class CliInstallService {
         mainLog('CLI', `Windows PATH update: ${stdout.trim()}`);
       } catch (err) {
         mainError('CLI', 'Failed to update Windows PATH via PowerShell:', err);
-        // Fallback to notifying user or trying setx (though setx is risky)
       }
       return;
     }
 
-    const exportLine = `\n# added by Sudowork\nexport PATH="${binDir}:$PATH"\n`;
+    const exportLine = `\n# added by Sudowork\nexport PATH="$HOME/.nexus/bin:$PATH"\n`;
+    const binDir = getBinDir();
     for (const rc of [path.join(os.homedir(), '.zshrc'), path.join(os.homedir(), '.bashrc')]) {
       try {
         const content = fs.existsSync(rc) ? fs.readFileSync(rc, 'utf-8') : '';
-        if (!content.includes(binDir)) fs.appendFileSync(rc, exportLine);
+        // Match either absolute path or $HOME-relative form
+        if (!content.includes(binDir) && !content.includes('$HOME/.nexus/bin')) fs.appendFileSync(rc, exportLine);
       } catch {
         // ignore unwritable rc files
       }
