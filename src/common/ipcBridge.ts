@@ -1738,7 +1738,7 @@ export const authProxy = {
 };
 
 // ==================== Crash API ====================
-// Crash/Exception reporting for sudoclaw-qms CrashReporter
+// Crash/Exception reporting for sudowork-qms CrashReporter
 // Crash/异常上报 (替代 Sentry SDK)
 
 export interface ICrashExceptionData {

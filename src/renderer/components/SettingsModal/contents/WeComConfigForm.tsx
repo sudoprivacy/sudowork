@@ -59,7 +59,7 @@ interface WeComConfigFormProps {
   onCredentialsChange?: (credentials: { botId: string; secret: string }) => void;
 }
 
-const WECOM_DEV_DOCS_URL = 'https://sudoclaw.sudoprivacy.com/guides/wecom.html';
+const WECOM_DEV_DOCS_URL = 'https://sudowork.sudoprivacy.com/guides/wecom.html';
 const WeComConfigForm: React.FC<WeComConfigFormProps> = ({ pluginStatus, modelSelection, onStatusChange, onCredentialsChange }) => {
   const { t } = useTranslation();
   const { isEnterprise } = useAppMode();
@@ -520,49 +520,49 @@ const WeComConfigForm: React.FC<WeComConfigFormProps> = ({ pluginStatus, modelSe
 
       {/* Agent Selection - hidden in enterprise mode (uses Moss remote agent) */}
       {!isEnterprise && (
-      <div className='flex flex-col gap-8px'>
-        <PreferenceRow label={t('settings.wecom.agent', 'Agent')} description={t('settings.wecom.agentDesc', 'Used for WeCom conversations')}>
-          <Dropdown
-            trigger='click'
-            position='br'
-            droplist={
-              <Menu selectedKeys={[selectedAgent.customAgentId ? `${selectedAgent.backend}|${selectedAgent.customAgentId}` : selectedAgent.backend]}>
-                {agentOptions.map((a) => {
-                  const key = a.customAgentId ? `${a.backend}|${a.customAgentId}` : a.backend;
-                  return (
-                    <Menu.Item
-                      key={key}
-                      onClick={() => {
-                        const currentKey = selectedAgent.customAgentId ? `${selectedAgent.backend}|${selectedAgent.customAgentId}` : selectedAgent.backend;
-                        if (key === currentKey) {
-                          return;
-                        }
-                        const next = { backend: a.backend, customAgentId: a.customAgentId, name: a.name };
-                        setSelectedAgent(next);
-                        void persistSelectedAgent(next);
-                      }}
-                    >
-                      {a.name}
-                    </Menu.Item>
-                  );
-                })}
-              </Menu>
-            }
-          >
-            <Button type='secondary' className='min-w-160px flex items-center justify-between gap-8px'>
-              <span className='truncate'>{agentOptions[0]?.name || 'Sudo Code'}</span>
-              <Down theme='outline' size={14} />
-            </Button>
-          </Dropdown>
-        </PreferenceRow>
-      </div>
+        <div className='flex flex-col gap-8px'>
+          <PreferenceRow label={t('settings.wecom.agent', 'Agent')} description={t('settings.wecom.agentDesc', 'Used for WeCom conversations')}>
+            <Dropdown
+              trigger='click'
+              position='br'
+              droplist={
+                <Menu selectedKeys={[selectedAgent.customAgentId ? `${selectedAgent.backend}|${selectedAgent.customAgentId}` : selectedAgent.backend]}>
+                  {agentOptions.map((a) => {
+                    const key = a.customAgentId ? `${a.backend}|${a.customAgentId}` : a.backend;
+                    return (
+                      <Menu.Item
+                        key={key}
+                        onClick={() => {
+                          const currentKey = selectedAgent.customAgentId ? `${selectedAgent.backend}|${selectedAgent.customAgentId}` : selectedAgent.backend;
+                          if (key === currentKey) {
+                            return;
+                          }
+                          const next = { backend: a.backend, customAgentId: a.customAgentId, name: a.name };
+                          setSelectedAgent(next);
+                          void persistSelectedAgent(next);
+                        }}
+                      >
+                        {a.name}
+                      </Menu.Item>
+                    );
+                  })}
+                </Menu>
+              }
+            >
+              <Button type='secondary' className='min-w-160px flex items-center justify-between gap-8px'>
+                <span className='truncate'>{agentOptions[0]?.name || 'Sudo Code'}</span>
+                <Down theme='outline' size={14} />
+              </Button>
+            </Dropdown>
+          </PreferenceRow>
+        </div>
       )}
 
       {/* Default Model Selection - hidden in enterprise mode */}
       {!isEnterprise && (
-      <PreferenceRow label={t('settings.assistant.defaultModel', 'Model')} description={t('settings.wecom.defaultModelDesc', 'Used for Agent conversations')}>
-        <GeminiModelSelector selection={isGeminiAgent ? modelSelection : undefined} disabled={!isGeminiAgent} label={!isGeminiAgent ? t('settings.assistant.autoFollowCliModel', 'Auto-follow CLI runtime model') : undefined} variant='settings' />
-      </PreferenceRow>
+        <PreferenceRow label={t('settings.assistant.defaultModel', 'Model')} description={t('settings.wecom.defaultModelDesc', 'Used for Agent conversations')}>
+          <GeminiModelSelector selection={isGeminiAgent ? modelSelection : undefined} disabled={!isGeminiAgent} label={!isGeminiAgent ? t('settings.assistant.autoFollowCliModel', 'Auto-follow CLI runtime model') : undefined} variant='settings' />
+        </PreferenceRow>
       )}
 
       {/* Connection Status - always show when enabled */}

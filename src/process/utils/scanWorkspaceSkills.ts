@@ -10,7 +10,7 @@ import path from 'path';
 import { toAssetUrl } from '@/extensions/assetProtocol';
 
 /** COS base URL for Hub skill icons */
-const HUB_SKILL_ICON_COS_BASE = 'https://sudoclaw-1309794936.cos.ap-beijing.myqcloud.com/';
+const HUB_SKILL_ICON_COS_BASE = 'https://sudoworkhub-1309794936.cos.ap-beijing.myqcloud.com/';
 
 export type ScannedWorkspaceSkill = {
   name: string;

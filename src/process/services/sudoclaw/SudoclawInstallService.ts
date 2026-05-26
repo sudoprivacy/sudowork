@@ -55,7 +55,7 @@ const SUDOCLAW_WORKSPACE_DIR = path.join(SUDOCLAW_DIR, 'workspace');
 const SUDOCLAW_INSTALL_MANIFEST_PATH = path.join(SUDOCLAW_DIR, 'install-manifest.json');
 
 /** COS base URL for downloading sudoclaw archives at runtime */
-const SUDOCLAW_COS_BASE_URL = 'https://sudoclaw-1309794936.cos.ap-beijing.myqcloud.com';
+const SUDOCLAW_COS_BASE_URL = 'https://sudoworkhub-1309794936.cos.ap-beijing.myqcloud.com';
 /** GitHub base URL for downloading sudoclaw archives at runtime */
 const SUDOCLAW_GITHUB_RELEASE_BASE_URL = 'https://github.com/sudoprivacy/sudorepo/releases/download';
 

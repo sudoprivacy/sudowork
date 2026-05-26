@@ -5,7 +5,7 @@
  *
  * Downloads from GitHub releases with COS fallback:
  * - GitHub: https://github.com/sudoprivacy/sudorepo/releases/download/v{version}/v{version}-sudoclaw-{platform}-{arch}.tgz
- * - COS:   https://sudoclaw-1309794936.cos.ap-beijing.myqcloud.com/v{version}/v{version}-sudoclaw-{platform}-{arch}.tgz
+ * - COS:   https://sudoworkhub-1309794936.cos.ap-beijing.myqcloud.com/v{version}/v{version}-sudoclaw-{platform}-{arch}.tgz
  *
  * Saves to: resources/v{version}-sudoclaw-{platform}-{arch}.tgz
  * Also writes: resources/v{version}-sudoclaw-{platform}-{arch}.manifest.json
@@ -26,7 +26,7 @@ const SUDOCLAW_VERSION = runtimeVersions.sudoclaw;
 const SUDOCLAW_RELEASE_VERSION = SUDOCLAW_VERSION.split('-')[0];
 
 const GITHUB_BASE_URL = `https://github.com/sudoprivacy/sudorepo/releases/download/${SUDOCLAW_RELEASE_VERSION}`;
-const COS_BASE_URL = `https://sudoclaw-1309794936.cos.ap-beijing.myqcloud.com/${SUDOCLAW_RELEASE_VERSION}`;
+const COS_BASE_URL = `https://sudoworkhub-1309794936.cos.ap-beijing.myqcloud.com/${SUDOCLAW_RELEASE_VERSION}`;
 
 // Platform mappings: Node.js platform-arch → sudoclaw archive name
 const PLATFORMS = {
