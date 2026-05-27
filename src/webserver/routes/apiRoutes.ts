@@ -15,7 +15,7 @@ import { ExtensionRegistry } from '@/extensions';
 import directoryApi from '../directoryApi';
 import { apiRateLimiter } from '../middleware/security';
 
-const SKILL_HUB_BASE_URL = 'https://sudoclawhub.sudoprivacy.com/api/skills';
+const SKILL_HUB_BASE_URL = 'https://sudoworkhub.sudoprivacy.com/api/skills';
 const SKILL_HUB_AUTHORIZATION = 'sud0@sudo';
 
 function normalizeMountPath(input: string): string {
@@ -278,7 +278,7 @@ export function registerApiRoutes(app: Express): void {
       if (category) params.set('category', category);
       if (tenantId) params.set('tenant_id', tenantId);
 
-      const response = await fetch(`https://sudoclawhub.sudoprivacy.com/api/skills/cursor?${params}`, {
+      const response = await fetch(`https://sudoworkhub.sudoprivacy.com/api/skills/cursor?${params}`, {
         headers: { Authorization: SKILL_HUB_AUTHORIZATION },
       });
       const result = await response.json();
@@ -292,7 +292,7 @@ export function registerApiRoutes(app: Express): void {
 
   app.get('/api/categories', apiRateLimiter, validateApiAccess, async (_req: Request, res: Response) => {
     try {
-      const response = await fetch('https://sudoclawhub.sudoprivacy.com/api/categories', {
+      const response = await fetch('https://sudoworkhub.sudoprivacy.com/api/categories', {
         headers: { Authorization: SKILL_HUB_AUTHORIZATION },
       });
       const data = await response.json();

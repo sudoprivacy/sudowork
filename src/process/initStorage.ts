@@ -537,7 +537,7 @@ const resolveAiDevBrowserPackageDir = (): string | null => {
  * regardless of installation layout.
  */
 const linkAiDevBrowserIntoSystemSkill = (systemSkillsDir: string): void => {
-  const browserSkillDir = path.join(systemSkillsDir, 'browser');
+  const browserSkillDir = path.join(systemSkillsDir, '_builtin', 'browser');
   if (!existsSync(browserSkillDir)) return;
 
   const target = resolveAiDevBrowserPackageDir();
@@ -576,6 +576,28 @@ const linkAiDevBrowserIntoSystemSkill = (systemSkillsDir: string): void => {
   }
 };
 
+const clearBuiltinSkillsCacheDir = async (systemSkillsDir: string): Promise<void> => {
+  if (!existsSync(systemSkillsDir)) return;
+
+  const entries = await fs.readdir(systemSkillsDir);
+  await Promise.all(
+    entries.map(async (entry) => {
+      const entryPath = path.join(systemSkillsDir, entry);
+      try {
+        const stat = await fs.lstat(entryPath);
+        if (stat.isSymbolicLink() || !stat.isDirectory()) {
+          await fs.unlink(entryPath);
+          return;
+        }
+      } catch {
+        // Fall back to rm below when the entry changes while syncing.
+      }
+
+      await fs.rm(entryPath, { recursive: true, force: true });
+    })
+  );
+};
+
 const syncBuiltinSkillsToUserDir = async (): Promise<void> => {
   const builtinSkillsDir = resolveBuiltinResourceDir('skills');
   if (!existsSync(builtinSkillsDir)) {
@@ -593,10 +615,13 @@ const syncBuiltinSkillsToUserDir = async (): Promise<void> => {
     if (!existsSync(userSystemSkillsDir)) {
       mkdirSync(userSystemSkillsDir);
     }
+    // Mirror bundled skills into _system/. This removes stale builtin skills
+    // that existed in an older app version but no longer ship in the bundle.
+    await clearBuiltinSkillsCacheDir(userSystemSkillsDir);
     // 复制 skills/* 到 _system/，其中资源目录自带 _builtin 子目录
     // Copy skills/* into _system/; the bundled resources already contain the _builtin subdirectory
     await copyDirectoryRecursively(builtinSkillsDir, userSystemSkillsDir, { overwrite: true });
-    mainLog('Sudowork', 'Builtin skills synced to _system/ (overwrite)');
+    mainLog('Sudowork', 'Builtin skills synced to _system/ (mirror overwrite)');
 
     // Remove image-analysis skill from user dir — it's config-disabled (see
     // SudoclawInstallService ensureDefaultConfig/repairOpenClawConfig) because

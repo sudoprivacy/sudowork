@@ -104,18 +104,24 @@ export class MossWsConnection {
     this.state = 'connecting';
     mainLog('MossWsConnection', `Connecting to ${this.config.serverUrl}`);
 
-    const isResumeMode = !!this.config.wsUrl;
+    const isResumeMode = !!(this.config.wsUrl || this.wsUrl || this.config.sessionId || this.sessionId);
 
     try {
       this.accessToken = await this.exchangeToken();
 
       if (isResumeMode) {
-        this.sessionId = this.config.sessionId!;
-        this.wsUrl = this.config.wsUrl!;
+        this.sessionId = this.config.sessionId || this.sessionId!;
+        this.wsUrl = this.config.wsUrl || this.wsUrl!;
+        mainLog('MossWsConnection', `Resuming session: ${this.sessionId}`);
       } else {
         const sessionData = await this.createMossSession();
         this.sessionId = sessionData.session_id;
         this.wsUrl = sessionData.ws_url;
+        // CRITICAL: Persist created session details back to config
+        // This ensures reconnects/scheduleReconnect() enter resume mode
+        // instead of creating duplicate sessions (the "session storm")
+        this.config.wsUrl = sessionData.ws_url;
+        this.config.sessionId = sessionData.session_id;
         mainLog('MossWsConnection', `Session created: ${this.sessionId}`);
       }
 

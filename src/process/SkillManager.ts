@@ -9,7 +9,7 @@ import { existsSync, mkdirSync, existsSync as fsExistsSync } from 'fs';
 import { app } from 'electron';
 import { getSkillsDir, getSystemSkillsDir, getHubSkillsDir, getCustomSkillsDir } from './initStorage';
 import { toAssetUrl } from '@/extensions/assetProtocol';
-import { mainLog, mainError } from './utils/mainLogger';
+import { mainLog, mainWarn, mainError } from './utils/mainLogger';
 import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
 import { MOSS_SKILL_META_FILE } from './constants/skillStorage';
 import { getEnterpriseTenantSkillsDir } from './constants/enterpriseStorage';
@@ -257,7 +257,26 @@ export class SkillManager {
 
     const metaResult = await this.readSkillMetaFile(skillDir);
     if (metaResult) {
-      meta = JSON.parse(metaResult.content) as ISkillMeta;
+      try {
+        meta = JSON.parse(metaResult.content) as ISkillMeta;
+      } catch (parseError) {
+        mainWarn('SkillManager', `Invalid JSON in metadata file for skill "${dirName}" at ${skillDir}: ${parseError instanceof Error ? parseError.message : String(parseError)}`);
+        // Treat as if no metadata file exists — use defaults
+        meta = { source_type: 'upload' };
+        isHubInstalled = false;
+
+        return {
+          name: dirName,
+          version,
+          isBuiltin,
+          isAutoInjectedBuiltin: skillDir.startsWith(`${builtinDir}${path.sep}`) || skillDir === builtinDir,
+          isHubInstalled,
+          enabled,
+          category,
+          status: 'enabled',
+          meta,
+        };
+      }
 
       if (!forceBuiltin && meta.is_builtin !== undefined) {
         isBuiltin = meta.is_builtin === true;
@@ -324,12 +343,16 @@ export class SkillManager {
     // 1. 扫描所有启用的技能目录
     const enabledDirs = await this.scanAllSkillDirs();
     for (const skillDir of enabledDirs) {
-      const category = this.getCategoryFromPath(skillDir);
-      const isSystem = category === 'system';
-      const skill = await this.readSkillInfo(skillDir, category, isSystem);
-      if (skill) {
-        skill.status = 'enabled';
-        skills.push(skill);
+      try {
+        const category = this.getCategoryFromPath(skillDir);
+        const isSystem = category === 'system';
+        const skill = await this.readSkillInfo(skillDir, category, isSystem);
+        if (skill) {
+          skill.status = 'enabled';
+          skills.push(skill);
+        }
+      } catch (error) {
+        mainError('SkillManager', `Failed to read skill from "${skillDir}", skipping: ${error instanceof Error ? error.message : String(error)}`);
       }
     }
 
@@ -337,13 +360,17 @@ export class SkillManager {
     const disabledResults = await this.scanDisabledSkillDirs();
     for (const { skillDirs } of disabledResults) {
       for (const skillDir of skillDirs) {
-        const category = this.getCategoryFromPath(skillDir);
-        const isSystem = category === 'system';
-        const skill = await this.readSkillInfo(skillDir, category, isSystem);
-        if (skill) {
-          skill.status = 'disabled';
-          skill.enabled = false;
-          skills.push(skill);
+        try {
+          const category = this.getCategoryFromPath(skillDir);
+          const isSystem = category === 'system';
+          const skill = await this.readSkillInfo(skillDir, category, isSystem);
+          if (skill) {
+            skill.status = 'disabled';
+            skill.enabled = false;
+            skills.push(skill);
+          }
+        } catch (error) {
+          mainError('SkillManager', `Failed to read disabled skill from "${skillDir}", skipping: ${error instanceof Error ? error.message : String(error)}`);
         }
       }
     }
@@ -456,9 +483,14 @@ export class SkillManager {
       // 检查是否为内置技能
       const metaResult = await this.readSkillMetaFile(skillDir);
       if (metaResult) {
-        const meta = JSON.parse(metaResult.content) as ISkillMeta;
-        if (meta.is_builtin === true) {
-          return { success: false, msg: '内置技能无法禁用' };
+        try {
+          const meta = JSON.parse(metaResult.content) as ISkillMeta;
+          if (meta.is_builtin === true) {
+            return { success: false, msg: '内置技能无法禁用' };
+          }
+        } catch (parseError) {
+          mainWarn('SkillManager', `Invalid JSON in metadata file for skill "${skillName}": ${parseError instanceof Error ? parseError.message : String(parseError)}`);
+          // Cannot determine if builtin, proceed with disable
         }
       }
 
@@ -493,7 +525,12 @@ export class SkillManager {
       // 修改 meta
       const existingMeta = await this.readSkillMetaFile(destDir);
       if (existingMeta) {
-        const meta = JSON.parse(existingMeta.content) as ISkillMeta;
+        let meta: ISkillMeta;
+        try {
+          meta = JSON.parse(existingMeta.content) as ISkillMeta;
+        } catch {
+          meta = { source_type: 'upload' };
+        }
         meta.enabled = false;
         await this.writeSkillMetaFile(destDir, meta);
       } else {
@@ -550,7 +587,12 @@ export class SkillManager {
       // 修改 meta
       const existingMeta = await this.readSkillMetaFile(destDir);
       if (existingMeta) {
-        const meta = JSON.parse(existingMeta.content) as ISkillMeta;
+        let meta: ISkillMeta;
+        try {
+          meta = JSON.parse(existingMeta.content) as ISkillMeta;
+        } catch {
+          meta = { source_type: 'upload' };
+        }
         meta.enabled = true;
         await this.writeSkillMetaFile(destDir, meta);
       } else {
@@ -580,9 +622,14 @@ export class SkillManager {
       // 检查是否为内置技能
       const metaResult = await this.readSkillMetaFile(skillDir);
       if (metaResult) {
-        const meta = JSON.parse(metaResult.content) as ISkillMeta;
-        if (meta.is_builtin === true) {
-          return { success: false, msg: '内置技能无法卸载' };
+        try {
+          const meta = JSON.parse(metaResult.content) as ISkillMeta;
+          if (meta.is_builtin === true) {
+            return { success: false, msg: '内置技能无法卸载' };
+          }
+        } catch (parseError) {
+          mainWarn('SkillManager', `Invalid JSON in metadata file for skill "${skillName}": ${parseError instanceof Error ? parseError.message : String(parseError)}`);
+          // Cannot determine if builtin, proceed with uninstall
         }
       }
 

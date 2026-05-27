@@ -12,6 +12,8 @@ import { getDataPath } from '@/process/utils';
 import type { BotInfo, IChannelPluginConfig, IUnifiedIncomingMessage, IUnifiedOutgoingMessage, PluginType } from '../../types';
 import { BasePlugin } from '../BasePlugin';
 import { extractCardAction, LARK_MESSAGE_LIMIT, toLarkSendParams, toUnifiedIncomingMessage } from './LarkAdapter';
+import { mainWarn } from '@/process/utils/mainLogger';
+import { detectImageMimeType } from '@/common/imageUtils';
 
 /**
  * LarkPlugin - Lark/Feishu Bot integration for Personal Assistant
@@ -475,29 +477,61 @@ export class LarkPlugin extends BasePlugin {
         : 'file';
 
       try {
-        const response = await this.client.im.messageResource.get({
-          params: { type: resourceType },
-          path: { message_id: messageId, file_key: attachment.fileId },
-        });
+        const response = await this.downloadWithRetry(messageId, attachment.fileId, resourceType);
 
         if (!response) {
-          console.warn(`[LarkPlugin] Failed to download resource: ${attachment.fileId}, no response`);
+          mainWarn('LarkPlugin', `Failed to download resource: ${attachment.fileId}, no response`);
+          attachment.fileId = '';
           continue;
         }
 
-        // Determine file extension based on attachment type
-        const ext = attachment.type === 'photo' ? '.png'
-          : attachment.fileName ? path.extname(attachment.fileName)
-          : attachment.type === 'audio' ? '.ogg'
-          : attachment.type === 'video' ? '.mp4'
-          : '.bin';
+        if (attachment.type === 'photo') {
+          // Download to temp file first, detect actual format via magic bytes, then rename
+          const tempPath = path.join(mediaDir, `${attachment.fileId}.tmp`);
+          await response.writeFile(tempPath);
 
-        const localPath = path.join(mediaDir, `${attachment.fileId}${ext}`);
-        await response.writeFile(localPath);
-        attachment.fileId = localPath;
+          const buffer = fs.readFileSync(tempPath);
+          const detected = detectImageMimeType(buffer);
+          const ext = detected ? `.${detected.ext}` : '.png'; // fallback to .png if unknown format
+
+          const finalPath = path.join(mediaDir, `${attachment.fileId}${ext}`);
+          fs.renameSync(tempPath, finalPath);
+          attachment.fileId = finalPath;
+        } else {
+          // Determine file extension based on attachment type (non-photo)
+          const ext = attachment.fileName ? path.extname(attachment.fileName)
+            : attachment.type === 'audio' ? '.ogg'
+            : attachment.type === 'video' ? '.mp4'
+            : '.bin';
+
+          const localPath = path.join(mediaDir, `${attachment.fileId}${ext}`);
+          await response.writeFile(localPath);
+          attachment.fileId = localPath;
+        }
       } catch (error) {
-        console.warn(`[LarkPlugin] Failed to download media ${attachment.fileId}:`, error);
+        mainWarn('LarkPlugin', `Failed to download media ${attachment.fileId}`, error);
+        attachment.fileId = '';
       }
+    }
+  }
+
+  /**
+   * Download media with a single retry after 1 second delay.
+   * Covers transient Feishu API failures (network timeout, token refresh).
+   */
+  private async downloadWithRetry(messageId: string, fileKey: string, resourceType: string): Promise<any> {
+    try {
+      return await this.client!.im.messageResource.get({
+        params: { type: resourceType },
+        path: { message_id: messageId, file_key: fileKey },
+      });
+    } catch (error) {
+      mainWarn('LarkPlugin', `Download failed, retrying in 1s: ${fileKey}`, error);
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      return await this.client!.im.messageResource.get({
+        params: { type: resourceType },
+        path: { message_id: messageId, file_key: fileKey },
+      });
     }
   }
 

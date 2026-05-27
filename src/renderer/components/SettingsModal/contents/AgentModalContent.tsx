@@ -597,7 +597,7 @@ const AssistantDetailModal: React.FC<{
                             skillIconUrl = resolveExtensionAssetUrl(skill.icon) || skill.icon;
                           } else {
                             // Hub skills: if icon is relative path, prepend COS URL
-                            skillIconUrl = skill.icon && !skill.icon.startsWith('http') && !skill.icon.startsWith('data:') && !skill.icon.startsWith('/') && !skill.icon.startsWith('aion-asset://') && !skill.icon.startsWith('file://') ? `https://sudoclaw-1309794936.cos.ap-beijing.myqcloud.com/${skill.icon}` : skill.icon;
+                            skillIconUrl = skill.icon && !skill.icon.startsWith('http') && !skill.icon.startsWith('data:') && !skill.icon.startsWith('/') && !skill.icon.startsWith('aion-asset://') && !skill.icon.startsWith('file://') ? `https://sudoworkhub-1309794936.cos.ap-beijing.myqcloud.com/${skill.icon}` : skill.icon;
                           }
                           return (
                             <div key={skill.id} className='flex items-center gap-10px p-8px bg-fill-2 rd-8px'>

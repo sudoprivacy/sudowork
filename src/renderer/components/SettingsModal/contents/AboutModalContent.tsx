@@ -17,8 +17,8 @@ import OpsModal from '@/renderer/components/OpsModal';
 import sudoIcon from '@/renderer/assets/sudowork-icon-dark.svg';
 import { openExternalUrl } from '@/renderer/utils/platform';
 
-const OFFICIAL_WEBSITE_URL = 'https://sudoclaw.sudoprivacy.com';
-const PRIVACY_POLICY_URL = 'https://sudoclaw.sudoprivacy.com/privacy.html';
+const OFFICIAL_WEBSITE_URL = 'https://sudowork.sudoprivacy.com';
+const PRIVACY_POLICY_URL = 'https://sudowork.sudoprivacy.com/privacy.html';
 
 const AboutModalContent: React.FC = () => {
   const viewMode = useSettingsViewMode();

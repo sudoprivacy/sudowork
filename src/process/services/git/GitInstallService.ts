@@ -31,8 +31,8 @@ const TAG = 'GitInstall';
 // ── Git for Windows download URLs ────────────────────────────────────────────
 const GIT_WIN_VERSION = '2.47.1';
 const GIT_WIN_URLS: Record<string, string> = {
-  x64: `https://sudoclaw-1309794936.cos.ap-beijing.myqcloud.com/sudoclaw/Git-2.47.1-64-bit.exe`,
-  arm64: `https://sudoclaw-1309794936.cos.ap-beijing.myqcloud.com/sudoclaw/Git-2.47.1-arm64.exe`,
+  x64: `https://sudoworkhub-1309794936.cos.ap-beijing.myqcloud.com/sudoclaw/Git-2.47.1-64-bit.exe`,
+  arm64: `https://sudoworkhub-1309794936.cos.ap-beijing.myqcloud.com/sudoclaw/Git-2.47.1-arm64.exe`,
 };
 
 // ── Public API ───────────────────────────────────────────────────────────────

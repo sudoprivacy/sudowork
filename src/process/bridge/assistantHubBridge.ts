@@ -23,9 +23,9 @@ import JSZip from 'jszip';
 const { existsSync } = fsSync;
 
 // Hub API constants (same service as Skill Hub)
-const ASSISTANT_HUB_BASE_URL = 'https://sudoclawhub.sudoprivacy.com/api/assistants';
-const ASSISTANT_HUB_CURSOR_URL = 'https://sudoclawhub.sudoprivacy.com/api/assistants/cursor';
-const ASSISTANT_CATEGORY_URL = 'https://sudoclawhub.sudoprivacy.com/api/categories';
+const ASSISTANT_HUB_BASE_URL = 'https://sudoworkhub.sudoprivacy.com/api/assistants';
+const ASSISTANT_HUB_CURSOR_URL = 'https://sudoworkhub.sudoprivacy.com/api/assistants/cursor';
+const ASSISTANT_CATEGORY_URL = 'https://sudoworkhub.sudoprivacy.com/api/categories';
 const AUTHORIZATION = 'sud0@sudo';
 const ASSISTANT_META_FILE = '_sudowork_meta.json';
 const MOSS_ASSISTANT_META_FILE = '_moss_meta.json';
@@ -599,7 +599,7 @@ export function initAssistantHubBridge(): void {
       const responses = await Promise.all(
         skillIds.map(async (id) => {
           try {
-            const response = await fetch(`https://sudoclawhub.sudoprivacy.com/api/skills/${id}`, {
+            const response = await fetch(`https://sudoworkhub.sudoprivacy.com/api/skills/${id}`, {
               headers: { Authorization: AUTHORIZATION },
             });
             const data = await response.json();
@@ -690,7 +690,7 @@ export function initAssistantHubBridge(): void {
 
           // Fetch skill detail from Hub to get name and download URL (for non-builtin skills)
           try {
-            const skillDetailResponse = await fetch(`https://sudoclawhub.sudoprivacy.com/api/skills/${skillId}`, {
+            const skillDetailResponse = await fetch(`https://sudoworkhub.sudoprivacy.com/api/skills/${skillId}`, {
               headers: { Authorization: AUTHORIZATION },
             });
             const skillDetailData = await skillDetailResponse.json();
