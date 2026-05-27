@@ -395,6 +395,79 @@ export class MossWsConnection {
       return;
     }
 
+    if (msg.type === 'tool_use') {
+      const toolName = msg.name || msg.tool_name || '';
+      const toolUseId = msg.tool_use_id || msg.id || msg.uuid || uuid(36);
+      const responseToolUseId = msg.uuid || toolUseId;
+      const rawInput = this.parseToolInput(msg.input);
+      // For AskUserQuestion, we need the _request_id to send RPC response
+      const requestId = msg._request_id;
+      // Check if this is a completion status update
+      const toolStatus = msg.status;
+
+      if (toolName === 'AskUserQuestion') {
+        const question = typeof rawInput.question === 'string' ? rawInput.question : '';
+        const description = typeof rawInput.description === 'string' ? rawInput.description : undefined;
+        const options = Array.isArray(rawInput.options) ? rawInput.options.filter((option): option is string => typeof option === 'string') : [];
+
+        this.callbacks.onMessage({
+          type: 'acp_question',
+          msg_id: toolUseId,
+          conversation_id: '',
+          data: {
+            question: question || description || 'Question',
+            intro: description,
+            options,
+            conversationId: '',
+            toolCallId: toolUseId,
+            responseToolCallId: responseToolUseId,
+            answered: false,
+            // Pass requestId so the answer can be sent as RPC response
+            _request_id: requestId,
+          },
+        });
+        return;
+      }
+
+      // If status is 'completed', send as tool_call_update to mark tool as complete
+      if (toolStatus === 'completed') {
+        this.callbacks.onMessage({
+          type: 'acp_tool_call',
+          msg_id: toolUseId,
+          conversation_id: '',
+          data: {
+            sessionId: this.sessionId || '',
+            update: {
+              sessionUpdate: 'tool_call_update',
+              toolCallId: toolUseId,
+              status: 'completed',
+              content: [],
+            },
+          },
+        });
+        return;
+      }
+
+      this.callbacks.onMessage({
+        type: 'acp_tool_call',
+        msg_id: toolUseId,
+        conversation_id: '',
+        data: {
+          sessionId: this.sessionId || '',
+          update: {
+            sessionUpdate: 'tool_call',
+            toolCallId: toolUseId,
+            status: 'pending',
+            title: toolName || 'Tool',
+            kind: 'execute',
+            rawInput,
+            content: [],
+          },
+        },
+      });
+      return;
+    }
+
     if (msg.type === 'assistant') {
       if (this.isUserAbortSession) return;
 
@@ -551,6 +624,19 @@ export class MossWsConnection {
       .join('');
   }
 
+  private parseToolInput(input: unknown): Record<string, unknown> {
+    if (!input) return {};
+    if (typeof input === 'string') {
+      try {
+        const parsed = JSON.parse(input);
+        return parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : {};
+      } catch {
+        return { input };
+      }
+    }
+    return typeof input === 'object' ? (input as Record<string, unknown>) : { input };
+  }
+
   sendMessage(payload: { content: string; files?: string[]; msg_id?: string }): { success: boolean; msg?: string } {
     if (this.state !== 'connected' || !this.ws) {
       return { success: false, msg: 'Not connected' };
@@ -569,6 +655,30 @@ export class MossWsConnection {
       };
 
       this.ws.send(JSON.stringify(mossMessage));
+      return { success: true };
+    } catch (err) {
+      return { success: false, msg: String(err) };
+    }
+  }
+
+  sendQuestionAnswer(answer: string, parentToolUseId?: string): { success: boolean; msg?: string } {
+    if (this.state !== 'connected' || !this.ws) {
+      return { success: false, msg: 'Not connected' };
+    }
+
+    try {
+      this.ws.send(
+        JSON.stringify({
+          type: 'user',
+          message: {
+            role: 'user',
+            content: [{ type: 'text', text: answer }],
+          },
+          parent_tool_use_id: parentToolUseId || null,
+          session_id: this.sessionId || '',
+          uuid: uuid(36),
+        })
+      );
       return { success: true };
     } catch (err) {
       return { success: false, msg: String(err) };

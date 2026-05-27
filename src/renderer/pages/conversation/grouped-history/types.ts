@@ -22,8 +22,10 @@ export type WorkspaceGroup = {
 };
 
 export type ScheduledGroup = {
+  jobId: string;
   jobName: string;
   conversations: ConversationItem[]; // sorted newest-first
+  latestConversationTime: number;
 };
 
 export type TimelineItem = {

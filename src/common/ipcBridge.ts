@@ -64,7 +64,7 @@ export const conversation = {
   // Add a single message to the database (used for saving pending messages before unmount)
   addMessage: bridge.buildProvider<void, { conversation_id: string; message: import('@/common/chatLib').TMessage }>('conversation.add-message'),
   // Sync messages from Moss Server to local DB (enterprise mode, triggered on conversation click)
-  syncMessages: bridge.buildProvider<IBridgeResponse<{ syncedCount: number; nameUpdated: boolean }>, { conversation_id: string }>('conversation.sync-messages'),
+  syncMessages: bridge.buildProvider<IBridgeResponse<{ syncedCount: number; nameUpdated: boolean; conversationStatus?: string }>, { conversation_id: string }>('conversation.sync-messages'),
   confirmation: {
     add: bridge.buildEmitter<IConfirmation<any> & { conversation_id: string }>('confirmation.add'),
     update: bridge.buildEmitter<IConfirmation<any> & { conversation_id: string }>('confirmation.update'),
@@ -1834,10 +1834,7 @@ export const eeclaw = {
     { serverUrl: string; body: { grant_type: string; username?: string; password?: string; api_key?: string; params?: Record<string, string> }; deviceId: string }
   >('eeclaw.login'),
   /** Check whether OAuth2 login is enabled on the MOSS server and get the ready-to-open authorize URL (runs in main process to avoid CORS) */
-  oauth2Config: bridge.buildProvider<
-    IBridgeResponse<{ enabled: boolean; authorize_url?: string }>,
-    { serverUrl: string }
-  >('eeclaw.oauth2-config'),
+  oauth2Config: bridge.buildProvider<IBridgeResponse<{ enabled: boolean; authorize_url?: string }>, { serverUrl: string }>('eeclaw.oauth2-config'),
   /** Set app mode and update main process cache */
   setAppMode: bridge.buildProvider<void, { mode: 'c' | 'e' }>('eeclaw.set-app-mode'),
   /** Set session mode (remote/local) for enterprise mode and update main process cache */

@@ -243,6 +243,8 @@ export interface AcpQuestionData {
   conversationId: string;
   /** The originating tool call ID */
   toolCallId?: string;
+  /** The Moss ACP prompt id to use when replying with a tool_result */
+  responseToolCallId?: string;
   /** Whether the question has been answered */
   answered?: boolean;
   /** Whether the question was cancelled (user stopped or timed out) before being answered */
@@ -469,7 +471,10 @@ export const transformMessage = (message: IResponseMessage): TMessage => {
         msg_id: message.msg_id,
         position: 'left',
         conversation_id: message.conversation_id,
-        content: message.data as any,
+        content: {
+          ...(message.data as Record<string, unknown>),
+          conversationId: (message.data as { conversationId?: string }).conversationId || message.conversation_id,
+        } as any,
       };
     }
     case 'acp_tool_call': {

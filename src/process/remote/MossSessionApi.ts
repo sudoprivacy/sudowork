@@ -9,6 +9,7 @@ import { getValidToken } from '@process/bridge/eeclawBridge';
 import { ProcessConfig } from '@process/initStorage';
 import WebSocket from 'ws';
 import { uuid } from '@/common/utils';
+import { ipcBridge } from '@/common';
 import type { IResponseMessage } from '@/common/ipcBridge';
 
 /**
@@ -105,8 +106,9 @@ export class MossSessionApi {
    * This method is kept for future administrative/debugging purposes only.
    * 此方法仅保留用于未来的管理/调试目的。
    */
-  async listSessions(): Promise<MossSession[]> {
-    const response = await this.fetchWithRetry(`${this.serverUrl}/api/v1/sessions`, {
+  async listSessions(params?: { source?: string }): Promise<MossSession[]> {
+    const query = params?.source ? `?source=${encodeURIComponent(params.source)}` : '';
+    const response = await this.fetchWithRetry(`${this.serverUrl}/api/v1/sessions${query}`, {
       method: 'GET',
     });
 
@@ -315,6 +317,99 @@ export class MossSessionApi {
       wsUrl,
       session: data.session || {},
     };
+  }
+
+  private getWsUrlWithRefreshToken(wsUrl: string): string {
+    try {
+      const authStorage = ProcessConfig.getSync('eeclaw.authStorage');
+      if (authStorage?.refresh_token) {
+        const separator = wsUrl.includes('?') ? '&' : '?';
+        return `${wsUrl}${separator}refresh_token=${encodeURIComponent(authStorage.refresh_token)}`;
+      }
+    } catch {
+      /* ignore */
+    }
+    return wsUrl;
+  }
+
+  private async ensureSessionWebSocket(sessionId: string, onMessage?: (msg: IResponseMessage) => void, onFinish?: () => void, onError?: (err: Error) => void): Promise<WebSocket> {
+    const existing = this.wsConnections.get(sessionId);
+    if (existing?.readyState === WebSocket.OPEN) {
+      return existing;
+    }
+
+    const token = await this.ensureAuthenticated();
+    const { wsUrl } = await this.resumeSession(sessionId);
+    const ws = new WebSocket(this.getWsUrlWithRefreshToken(wsUrl), {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    this.wsConnections.set(sessionId, ws);
+
+    ws.on('message', (data) => {
+      if (!onMessage) return;
+      const lines = data
+        .toString()
+        .split('\n')
+        .filter((line) => line.trim());
+      for (const line of lines) {
+        try {
+          const parsed = JSON.parse(line);
+          this.processMessage(parsed, onMessage, onFinish || (() => {}));
+        } catch {
+          onMessage({
+            type: 'content',
+            msg_id: uuid(36),
+            conversation_id: sessionId,
+            data: line,
+          });
+        }
+      }
+    });
+
+    ws.on('error', (err) => {
+      mainError('MossSessionApi', `WebSocket error: ${err.message}`);
+      onError?.(err);
+    });
+
+    ws.on('close', (code, reason) => {
+      mainLog('MossSessionApi', `WebSocket closed: code=${code}, reason=${reason}`);
+      this.wsConnections.delete(sessionId);
+      onFinish?.();
+    });
+
+    await new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error('WebSocket connection timeout'));
+      }, 30000);
+
+      ws.on('open', () => {
+        clearTimeout(timeout);
+        resolve();
+      });
+
+      ws.on('error', (err) => {
+        clearTimeout(timeout);
+        reject(err);
+      });
+    });
+
+    return ws;
+  }
+
+  async sendInputToSession(sessionId: string, input: string): Promise<void> {
+    const ws = await this.ensureSessionWebSocket(sessionId);
+    await new Promise<void>((resolve, reject) => {
+      ws.send(input, (error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        resolve();
+      });
+    });
   }
 
   /**
@@ -686,7 +781,6 @@ export class MossSessionApi {
         mainLog('MossSessionApi', `Model changed to: ${modelName} for session: ${sessionId}`);
         // Emit model_changed event to frontend via IPC
         // 通过 IPC 发送 model_changed 事件到前端
-        const { ipcBridge } = require('@/common');
         ipcBridge.moss.modelChanged.emit({
           sessionId,
           model: modelName,
@@ -1013,6 +1107,7 @@ export interface MossSession {
   orgId?: string;
   role?: string;
   scopes?: string[];
+  source?: string;
 }
 
 /**
