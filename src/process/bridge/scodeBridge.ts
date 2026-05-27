@@ -13,6 +13,7 @@
 
 import { ipcBridge } from '@/common';
 import { modelInputForModelId } from '@/common/imageUtils';
+import type { ScodeModelEntry } from '@/common/ipcBridge';
 import { SCODE_DIR, isScodeInstalled, getScodeVersionState, ensureScodeInstalled } from '@process/services/scode/ScodeInstallService';
 import { readSettings, removeDisabledMcpServersFromSettings, writeSettings } from '@process/services/mcpServices/agents/ScodeMcpAgent';
 import fs from 'fs';
@@ -116,9 +117,15 @@ export async function syncScodeModelsFromPricing(): Promise<void> {
     return;
   }
 
-  // Rebuild the models dict — same ScodeModelEntry shape as
-  // buildScodeConfigFromLoginPayload (sudoworkAuthLogin.ts).
-  const models: Record<string, unknown> = {};
+  const existing = readExistingConfig();
+  const existingModels = (existing.models && typeof existing.models === 'object' ? existing.models : {}) as Record<string, ScodeModelEntry>;
+  const models: Record<string, ScodeModelEntry> = {};
+  for (const [alias, entry] of Object.entries(existingModels)) {
+    if (entry?.providers?.proxy?.provider !== 'sudorouter') {
+      models[alias] = entry;
+    }
+  }
+
   for (const modelId of modelIds) {
     models[modelId] = {
       alias: modelId,
@@ -130,10 +137,17 @@ export async function syncScodeModelsFromPricing(): Promise<void> {
     };
   }
 
-  const existing = readExistingConfig();
   existing.models = models; // only replace `models`; other keys preserved
+  if (typeof existing.default_model === 'string' && !models[existing.default_model]) {
+    const fallbackModel = modelIds[0];
+    if (fallbackModel) {
+      existing.default_model = fallbackModel;
+    } else {
+      delete existing.default_model;
+    }
+  }
   writeConfig(existing);
-  mainLog(TAG, `Synced ${modelIds.length} models from specific_pricing into sudocode.json`);
+  mainLog(TAG, `Synced ${modelIds.length} sudorouter models from specific_pricing into sudocode.json`);
 }
 
 /**

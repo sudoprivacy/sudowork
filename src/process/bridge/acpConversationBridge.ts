@@ -351,7 +351,6 @@ export function initAcpConversationBridge(): void {
       // Support both AcpAgent and RemoteAgent
       if (task instanceof AcpAgent) {
         mainLog('AcpConversationBridge', `setModel: Task is AcpAgent`);
-        const modelInfo = await task.setModel(modelId);
 
         // Persist default model to sudocode.json and settings.json when switching scode models
         const conv = getDatabase().getConversation(conversationId);
@@ -363,6 +362,8 @@ export function initAcpConversationBridge(): void {
             /* best-effort */
           }
         }
+
+        const modelInfo = await task.setModel(modelId);
 
         return { success: true, data: { modelInfo } };
       }

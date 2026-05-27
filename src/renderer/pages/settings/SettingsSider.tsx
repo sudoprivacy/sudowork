@@ -3,18 +3,16 @@ import { isElectronDesktop, resolveExtensionAssetUrl } from '@/renderer/utils/pl
 import { extensions as extensionsIpc, type IExtensionSettingsTab } from '@/common/ipcBridge';
 import { useExtI18n } from '@/renderer/hooks/useExtI18n';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
-import { Cloudy, Communication, Computer, Config, Dollar, Earth, HardDiskOne, Info, Lightning, LinkCloud, Peoples, Puzzle, Robot, Shield, System, Toolkit, User, BuildingTwo } from '@icon-park/react';
-import OpenClawLogo from '@/renderer/assets/logos/openclaw.svg';
+import { Communication, Computer, Dollar, Earth, HardDiskOne, Info, Lightning, LinkCloud, Peoples, Puzzle, Robot, Shield, System, Toolkit, User, BuildingTwo } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Tooltip } from '@arco-design/web-react';
 import { getSiderTooltipProps } from '@/renderer/utils/siderTooltip';
-import { useAuth } from '../../context/AuthContext';
 
 /** Builtin settings tab IDs in display order (must match router paths). */
-const BUILTIN_TAB_IDS = ['profile', 'recharge', 'members', 'agent', 'tools', 'skill', 'security', 'display', 'webui', 'runtime', 'system', 'about'] as const; // 隐藏'copilot', 'cron'已移至左侧边栏
+const BUILTIN_TAB_IDS = ['profile', 'recharge', 'members', 'model', 'agent', 'tools', 'skill', 'security', 'display', 'webui', 'runtime', 'system', 'about'] as const; // 隐藏'copilot', 'cron'已移至左侧边栏
 
 /** Enterprise mode builtin tab IDs (restricted subset). */
 const ENTERPRISE_BUILTIN_TAB_IDS = ['profile', 'enterprise', 'display', 'webui', 'system', 'about'] as const;
@@ -34,7 +32,6 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
   const { t } = useTranslation();
   const { pathname } = useLocation();
   const isDesktop = isElectronDesktop();
-  const { user: currentUser } = useAuth();
   const { isEnterprise } = useAppMode();
 
   const [extensionTabs, setExtensionTabs] = useState<IExtensionSettingsTab[]>([]);
@@ -108,8 +105,7 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
         path: 'members',
         hidden: true, // 固定隐藏，服务端已只有一个企业
       },
-      sudorouter: { id: 'sudorouter', label: t('settings.sudorouter'), icon: <Cloudy />, path: 'sudorouter' },
-      // model: { id: 'model', label: t('settings.model'), icon: <LinkCloud />, path: 'model' },
+      model: { id: 'model', label: t('settings.model'), icon: <LinkCloud />, path: 'model' },
       agent: { id: 'agent', label: t('settings.agent'), icon: <Robot />, path: 'agent' },
       tools: { id: 'tools', label: t('settings.tools'), icon: <Toolkit />, path: 'tools' },
       skill: { id: 'skill', label: t('settings.skill'), icon: <Lightning />, path: 'skill' },
