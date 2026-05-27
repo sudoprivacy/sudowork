@@ -634,16 +634,19 @@ export function initConversationBridge(): void {
       const convResult = db.getConversation(id);
       const conversation = convResult.data;
       const source = conversation?.source;
+      const isCronExecutionConversation = !!(conversation?.extra as { cronJobId?: string } | undefined)?.cronJobId;
 
       // Kill the running task if exists
       WorkerManage.kill(id);
 
       // Delete associated cron jobs
       try {
-        const jobs = await cronService.listJobsByConversation(id);
-        for (const job of jobs) {
-          await cronService.removeJob(job.id);
-          ipcBridge.cron.onJobRemoved.emit({ jobId: job.id });
+        if (!isCronExecutionConversation) {
+          const jobs = await cronService.listJobsByConversation(id);
+          for (const job of jobs) {
+            await cronService.removeJob(job.id);
+            ipcBridge.cron.onJobRemoved.emit({ jobId: job.id });
+          }
         }
       } catch (cronError) {
         mainWarn('conversationBridge', 'Failed to cleanup cron jobs:', cronError);
@@ -714,7 +717,7 @@ export function initConversationBridge(): void {
     if (id) {
       WorkerManage.kill(id);
     } else {
-      WorkerManage.clear();
+      void WorkerManage.clear();
     }
     return Promise.resolve();
   });

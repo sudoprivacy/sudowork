@@ -14,6 +14,9 @@ import WorkerManage from '@process/WorkerManage';
 import { initMossApi, type MossSessionApi } from '@process/remote/MossSessionApi';
 import { mainLog, mainError } from '@process/utils/mainLogger';
 import { uuid } from '@/common/utils';
+import { ProcessConfig } from '@process/initStorage';
+
+const HIDDEN_CRON_SESSIONS_KEY = 'remote.hiddenCronSessionIds';
 
 /**
  * Remote Conversation Provider
@@ -241,6 +244,8 @@ export class RemoteConversationProvider implements IConversationProvider {
 
       const existing = db.getConversation(id);
       const extra = existing.data?.extra as { mossSessionPending?: boolean; mossSessionId?: string } | undefined;
+      const mossSessionId = extra?.mossSessionId || (existing.success && existing.data ? existing.data.id : id);
+      const isCronSession = !!(existing.data?.extra as { cronJobId?: string } | undefined)?.cronJobId;
 
       // Try to terminate Moss session if exists (optional, failure should not block local delete)
       // 尝试终止 Moss session（可选，失败不应阻止本地删除）
@@ -254,6 +259,10 @@ export class RemoteConversationProvider implements IConversationProvider {
           // Moss Server 错误 - 记录日志但继续本地删除
           mainError('RemoteProvider', `Failed to terminate Moss session (continuing with local delete): ${mossError instanceof Error ? mossError.message : String(mossError)}`);
         }
+      }
+
+      if (isCronSession && mossSessionId) {
+        await this.hideCronSession(mossSessionId);
       }
 
       // Delete from local database (always attempt this)
@@ -270,6 +279,21 @@ export class RemoteConversationProvider implements IConversationProvider {
       mainError('RemoteProvider', 'Failed to delete conversation:', error);
       return false;
     }
+  }
+
+  private async hideCronSession(mossSessionId: string): Promise<void> {
+    try {
+      const hidden = ((await ProcessConfig.get(HIDDEN_CRON_SESSIONS_KEY)) || {}) as Record<string, number>;
+      hidden[mossSessionId] = Date.now();
+      await ProcessConfig.set(HIDDEN_CRON_SESSIONS_KEY, hidden);
+    } catch (error) {
+      mainError('RemoteProvider', `Failed to remember hidden cron session ${mossSessionId}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  private isCronSessionHidden(mossSessionId: string): boolean {
+    const hidden = (ProcessConfig.getSync(HIDDEN_CRON_SESSIONS_KEY) || {}) as Record<string, number>;
+    return Object.prototype.hasOwnProperty.call(hidden, mossSessionId);
   }
 
   /**
@@ -338,16 +362,18 @@ export class RemoteConversationProvider implements IConversationProvider {
 
       const cronSource = this.parseCronSource(session.source);
       if (!cronSource?.cronJobId) continue;
+      if (this.isCronSessionHidden(mossSessionId)) continue;
 
       const existingConversation = this.findLocalConversationByMossSessionId(mossSessionId);
       const now = Date.now();
       const modifyTime = session.lastActiveAt || session.last_active_at || session.updatedAt || session.updated_at || now;
+      const createTime = existingConversation?.createTime || session.createdAt || session.created_at || modifyTime;
       const existingExtra = existingConversation?.extra as Record<string, unknown> | undefined;
       const conversation: TChatConversation = {
         id: existingConversation?.id || mossSessionId,
-        name: existingConversation?.name || cronSource.cronJobName || session.assistantName || session.assistant_name || 'Cron Session',
+        name: existingConversation?.name || this.formatCronSessionTitle(cronSource.cronJobName, createTime),
         type: 'remote-agent',
-        createTime: existingConversation?.createTime || session.createdAt || session.created_at || modifyTime,
+        createTime,
         modifyTime,
         status: session.status === 'ended' || session.status === 'terminated' ? 'finished' : 'running',
         source: 'aionui',
@@ -365,6 +391,7 @@ export class RemoteConversationProvider implements IConversationProvider {
           mossSessionUpdatedAt: modifyTime,
           cronJobId: cronSource.cronJobId,
           cronJobName: cronSource.cronJobName,
+          cronRunId: cronSource.cronRunId,
         },
       };
 
@@ -378,6 +405,22 @@ export class RemoteConversationProvider implements IConversationProvider {
         void db.createConversation(conversation);
       }
     }
+  }
+
+  private formatCronSessionTitle(jobName: string | undefined, timestamp: number): string {
+    const name = jobName || 'Cron Session';
+    const date = new Date(timestamp || Date.now());
+    const runTime = date
+      .toLocaleString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      })
+      .replace(/\//g, '-');
+    return `${name} ${runTime}`;
   }
 
   // ========== Messages / 消息 ==========
@@ -395,9 +438,64 @@ export class RemoteConversationProvider implements IConversationProvider {
       const msgType = msg.type;
       const innerRole = msg.message?.role;
       const msgModel = msg.message?.model;
+      const timestamp = new Date(msg.timestamp || Date.now()).getTime();
 
       if (msgType === 'assistant' && msgModel) {
         foundModel = msgModel;
+      }
+
+      if (msgType === 'tool_use') {
+        const toolCallId = msg.tool_use_id || msg.id || msg.uuid || `${conversationId}-${messageIndex}`;
+        const responseToolCallId = msg.uuid || toolCallId;
+        const toolName = msg.name || 'Tool';
+        const rawInput = this.parseMossToolInput(msg.input);
+
+        if (toolName === 'AskUserQuestion') {
+          const question = typeof rawInput.question === 'string' ? rawInput.question : '';
+          const description = typeof rawInput.description === 'string' ? rawInput.description : undefined;
+          const options = Array.isArray(rawInput.options) ? rawInput.options.filter((option): option is string => typeof option === 'string') : [];
+
+          messages.push({
+            id: `${conversationId}-${messageIndex++}`,
+            msg_id: toolCallId,
+            conversation_id: conversationId,
+            type: 'acp_question',
+            position: 'left',
+            content: {
+              question,
+              intro: description,
+              options,
+              conversationId,
+              toolCallId,
+              responseToolCallId,
+            },
+            create_time: timestamp,
+            status: 'finished',
+          } as unknown as TMessage);
+        } else {
+          messages.push({
+            id: `${conversationId}-${messageIndex++}`,
+            msg_id: toolCallId,
+            conversation_id: conversationId,
+            type: 'acp_tool_call',
+            position: 'left',
+            content: {
+              sessionId: mossSessionId,
+              update: {
+                sessionUpdate: 'tool_call',
+                toolCallId,
+                status: 'completed',
+                title: toolName,
+                kind: this.getMossToolKind(toolName),
+                rawInput,
+                content: [],
+              },
+            },
+            create_time: timestamp,
+            status: 'finished',
+          } as unknown as TMessage);
+        }
+        continue;
       }
 
       if (msgType !== 'user' && msgType !== 'assistant' && innerRole !== 'user' && innerRole !== 'assistant') {
@@ -405,7 +503,6 @@ export class RemoteConversationProvider implements IConversationProvider {
       }
 
       const contentArray = msg.message?.content || msg.content || [];
-      const timestamp = new Date(msg.timestamp || Date.now()).getTime();
       const isError = msg.error || msg.isApiErrorMessage;
       const msgRole = msgType || innerRole || 'unknown';
 
@@ -530,27 +627,54 @@ export class RemoteConversationProvider implements IConversationProvider {
               } as unknown as TMessage);
             }
           } else if (block?.type === 'tool_use') {
-            messages.push({
-              id: `${conversationId}-${messageIndex++}`,
-              msg_id: block.id || `${conversationId}-${messageIndex}`,
-              conversation_id: conversationId,
-              type: 'acp_tool_call',
-              position: 'left',
-              content: {
-                sessionId: mossSessionId,
-                update: {
-                  sessionUpdate: 'tool_call',
-                  toolCallId: block.id || `${conversationId}-${messageIndex}`,
-                  status: 'completed',
-                  title: block.name,
-                  kind: 'execute',
-                  rawInput: block.input,
-                  content: [],
+            const toolCallId = block.id || `${conversationId}-${messageIndex}`;
+            const responseToolCallId = block.uuid || toolCallId;
+            const rawInput = this.parseMossToolInput(block.input);
+            if (block.name === 'AskUserQuestion') {
+              const question = typeof rawInput.question === 'string' ? rawInput.question : '';
+              const description = typeof rawInput.description === 'string' ? rawInput.description : undefined;
+              const options = Array.isArray(rawInput.options) ? rawInput.options.filter((option): option is string => typeof option === 'string') : [];
+
+              messages.push({
+                id: `${conversationId}-${messageIndex++}`,
+                msg_id: toolCallId,
+                conversation_id: conversationId,
+                type: 'acp_question',
+                position: 'left',
+                content: {
+                  question,
+                  intro: description,
+                  options,
+                  conversationId,
+                  toolCallId,
+                  responseToolCallId,
                 },
-              },
-              create_time: timestamp,
-              status: 'finished',
-            } as unknown as TMessage);
+                create_time: timestamp,
+                status: 'finished',
+              } as unknown as TMessage);
+            } else {
+              messages.push({
+                id: `${conversationId}-${messageIndex++}`,
+                msg_id: toolCallId,
+                conversation_id: conversationId,
+                type: 'acp_tool_call',
+                position: 'left',
+                content: {
+                  sessionId: mossSessionId,
+                  update: {
+                    sessionUpdate: 'tool_call',
+                    toolCallId,
+                    status: 'completed',
+                    title: block.name,
+                    kind: this.getMossToolKind(block.name || ''),
+                    rawInput,
+                    content: [],
+                  },
+                },
+                create_time: timestamp,
+                status: 'finished',
+              } as unknown as TMessage);
+            }
           }
         }
       } else if (msgRole === 'assistant') {
@@ -571,6 +695,26 @@ export class RemoteConversationProvider implements IConversationProvider {
     }
 
     return { messages, foundModel };
+  }
+
+  private parseMossToolInput(input: unknown): Record<string, unknown> {
+    if (!input) return {};
+    if (typeof input === 'string') {
+      try {
+        const parsed = JSON.parse(input);
+        return parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : {};
+      } catch {
+        return { input };
+      }
+    }
+    return typeof input === 'object' ? (input as Record<string, unknown>) : { input };
+  }
+
+  private getMossToolKind(toolName: string): 'read' | 'edit' | 'execute' {
+    const normalized = toolName.toLowerCase();
+    if (normalized.includes('read')) return 'read';
+    if (normalized.includes('write') || normalized.includes('edit') || normalized.includes('patch')) return 'edit';
+    return 'execute';
   }
 
   /**

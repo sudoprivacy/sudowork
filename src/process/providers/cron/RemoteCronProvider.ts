@@ -5,13 +5,17 @@
  */
 
 import type { ICronProvider } from './types';
-import { MossCronApi, type MossCronJob } from '@process/remote/MossCronApi';
+import { MossCronApi, type MossCronJob, type MossCronJobRun } from '@process/remote/MossCronApi';
 import { getEnterpriseConfig } from '@/common/enterpriseDebugConfig';
 import type { CronJob, CronSchedule } from '@process/services/cron/CronStore';
 import type { CreateCronJobParams } from '@process/services/cron/CronService';
-import { mainError } from '@process/utils/mainLogger';
+import { mainError, mainLog } from '@process/utils/mainLogger';
 import type { AcpBackendAll } from '@/types/acpTypes';
 import { getDatabase } from '@process/database';
+import { getConversationProvider } from '@process/providers';
+import type { TChatConversation } from '@/common/storage';
+import WorkerManage from '@process/WorkerManage';
+import type RemoteAgent from '@process/task/RemoteAgent';
 
 const MOSS_SESSION_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -42,6 +46,37 @@ function getLocalConversationIdByMossSessionId(mossSessionId: string | null | un
     const extra = conversation.extra as RemoteConversationExtra | undefined;
     return extra?.mossSessionId === mossSessionId;
   })?.id;
+}
+
+function getLatestLocalCronConversation(jobId: string): TChatConversation | undefined {
+  const conversations = getDatabase().getUserConversations(undefined, 0, 10000);
+  return conversations.data
+    ?.filter((conversation) => {
+      const extra = conversation.extra as { cronJobId?: string } | undefined;
+      return extra?.cronJobId === jobId;
+    })
+    .sort((a, b) => {
+      const aTime = a.createTime || 0;
+      const bTime = b.createTime || 0;
+      if (bTime !== aTime) return bTime - aTime;
+      return b.id.localeCompare(a.id);
+    })[0];
+}
+
+function formatCronRunTitle(jobName: string | undefined, timestamp: number): string {
+  const name = jobName || 'Cron Session';
+  const date = new Date(timestamp || Date.now());
+  const runTime = date
+    .toLocaleString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    })
+    .replace(/\//g, '-');
+  return `${name} ${runTime}`;
 }
 
 /**
@@ -89,7 +124,9 @@ function mossJobToLocal(mossJob: MossCronJob): CronJob {
 
   const agentType: AcpBackendAll = 'remote-agent';
   const boundConversationId = getLocalConversationIdByMossSessionId(mossJob.boundSessionId) || mossJob.boundSessionId || '';
-  const lastConversationId = getLocalConversationIdByMossSessionId(mossJob.lastSessionId) || mossJob.lastSessionId || undefined;
+  const localLastConversationId = getLocalConversationIdByMossSessionId(mossJob.lastSessionId) || mossJob.lastSessionId || undefined;
+  const latestLocalCronConversation = mossJob.conversationMode === 'new' ? getLatestLocalCronConversation(mossJob.id) : undefined;
+  const lastConversationId = latestLocalCronConversation?.id || localLastConversationId;
 
   return {
     id: mossJob.id,
@@ -288,7 +325,17 @@ export class RemoteCronProvider implements ICronProvider {
 
   async triggerJob(jobId: string): Promise<void> {
     try {
-      await this.mossCronApi.triggerJob(jobId);
+      const run = await this.mossCronApi.triggerJob(jobId);
+      await this.syncCronSessionsToLocal();
+
+      const sessionId = await this.resolveTriggeredSessionId(jobId, run);
+      if (sessionId) {
+        await this.startTriggeredRunObservation(jobId, { ...run, sessionId });
+      }
+
+      if (run.status === 'error' && run.error) {
+        throw new Error(run.error);
+      }
     } catch (error) {
       mainError('RemoteCronProvider', 'Failed to trigger job:', error);
       throw error;
@@ -346,5 +393,123 @@ export class RemoteCronProvider implements ICronProvider {
       mainError('RemoteCronProvider', `Failed to normalize bound session for job ${job.id}:`, error);
       return job;
     }
+  }
+
+  private async syncCronSessionsToLocal(): Promise<void> {
+    try {
+      const provider = getConversationProvider('remote');
+      if (provider.type === 'remote') {
+        await provider.listConversations(0, 10000);
+      }
+    } catch (error) {
+      mainError('RemoteCronProvider', 'Failed to sync cron sessions after trigger:', error);
+    }
+  }
+
+  private async resolveTriggeredSessionId(jobId: string, run: MossCronJobRun): Promise<string | null> {
+    if (run.sessionId) return run.sessionId;
+
+    for (let attempt = 0; attempt < 10; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      try {
+        const latestJob = await this.mossCronApi.getJob(jobId);
+        if (latestJob.lastSessionId) return latestJob.lastSessionId;
+      } catch (error) {
+        mainLog('RemoteCronProvider', `Failed to poll cron job session for ${jobId}: ${error instanceof Error ? error.message : String(error)}`);
+      }
+
+      try {
+        const runs = await this.mossCronApi.listRuns(jobId, 5);
+        const latestRun = runs.find((item) => item.id === run.id) || runs[0];
+        if (latestRun?.sessionId) return latestRun.sessionId;
+      } catch (error) {
+        mainLog('RemoteCronProvider', `Failed to poll cron run session for ${jobId}: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+
+    return null;
+  }
+
+  private async startTriggeredRunObservation(jobId: string, run: MossCronJobRun & { sessionId: string }): Promise<void> {
+    if (!run.sessionId) return;
+
+    const localConversation = await this.ensureTriggeredRunConversation(jobId, run.sessionId);
+    if (!localConversation) {
+      mainLog('RemoteCronProvider', `No local conversation found for triggered run ${run.id}`);
+      return;
+    }
+
+    const task = (await WorkerManage.getTaskByIdRollbackBuild(localConversation.id)) as RemoteAgent | undefined;
+    if (!task || task.type !== 'remote-agent' || typeof (task as RemoteAgent).observeExistingSession !== 'function') {
+      mainLog('RemoteCronProvider', `Unable to build remote-agent task for cron run conversation ${localConversation.id}`);
+      return;
+    }
+
+    const startedAt = run.startedAt ?? run.createdAt ?? Date.now();
+    void (task as RemoteAgent).observeExistingSession({ startedAt }).then((result) => {
+      if (!result.success) {
+        mainLog('RemoteCronProvider', `observeExistingSession failed for run ${run.id}: ${result.msg ?? 'unknown error'}`);
+      }
+    });
+  }
+
+  private async ensureTriggeredRunConversation(jobId: string, mossSessionId: string): Promise<TChatConversation | null> {
+    await this.syncCronSessionsToLocal();
+
+    const db = getDatabase();
+    const existingId = getLocalConversationIdByMossSessionId(mossSessionId);
+    if (existingId) {
+      const existing = db.getConversation(existingId);
+      if (existing.success && existing.data) {
+        return existing.data;
+      }
+    }
+
+    const job = await this.mossCronApi.getJob(jobId);
+    const provider = getConversationProvider('remote');
+    if (provider.type !== 'remote') return null;
+
+    await provider.listConversations(0, 10000);
+
+    const syncedId = getLocalConversationIdByMossSessionId(mossSessionId);
+    if (syncedId) {
+      const synced = db.getConversation(syncedId);
+      if (synced.success && synced.data) {
+        return synced.data;
+      }
+    }
+
+    const now = Date.now();
+    const createTime = job.lastRunAt || now;
+    const conversation: TChatConversation = {
+      id: mossSessionId,
+      name: formatCronRunTitle(job.name, createTime),
+      type: 'remote-agent',
+      createTime,
+      modifyTime: now,
+      status: 'running',
+      source: 'aionui',
+      extra: {
+        workspace: job.workspace ?? undefined,
+        backend: 'remote-agent',
+        mossServerUrl: getEnterpriseConfig().mossServerUrl,
+        agentName: job.assistantName ?? undefined,
+        presetAssistantId: job.assistantId ?? undefined,
+        sessionMode: 'remote',
+        mossSessionId,
+        mossSessionPending: false,
+        cronJobId: job.id,
+        cronJobName: job.name,
+      },
+    } as TChatConversation;
+
+    const created = db.createConversation(conversation);
+    if (!created.success) {
+      mainError('RemoteCronProvider', `Failed to create local conversation for cron run: ${created.error}`);
+      return null;
+    }
+
+    return conversation;
   }
 }

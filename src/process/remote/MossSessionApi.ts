@@ -319,6 +319,99 @@ export class MossSessionApi {
     };
   }
 
+  private getWsUrlWithRefreshToken(wsUrl: string): string {
+    try {
+      const authStorage = ProcessConfig.getSync('eeclaw.authStorage');
+      if (authStorage?.refresh_token) {
+        const separator = wsUrl.includes('?') ? '&' : '?';
+        return `${wsUrl}${separator}refresh_token=${encodeURIComponent(authStorage.refresh_token)}`;
+      }
+    } catch {
+      /* ignore */
+    }
+    return wsUrl;
+  }
+
+  private async ensureSessionWebSocket(sessionId: string, onMessage?: (msg: IResponseMessage) => void, onFinish?: () => void, onError?: (err: Error) => void): Promise<WebSocket> {
+    const existing = this.wsConnections.get(sessionId);
+    if (existing?.readyState === WebSocket.OPEN) {
+      return existing;
+    }
+
+    const token = await this.ensureAuthenticated();
+    const { wsUrl } = await this.resumeSession(sessionId);
+    const ws = new WebSocket(this.getWsUrlWithRefreshToken(wsUrl), {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    this.wsConnections.set(sessionId, ws);
+
+    ws.on('message', (data) => {
+      if (!onMessage) return;
+      const lines = data
+        .toString()
+        .split('\n')
+        .filter((line) => line.trim());
+      for (const line of lines) {
+        try {
+          const parsed = JSON.parse(line);
+          this.processMessage(parsed, onMessage, onFinish || (() => {}));
+        } catch {
+          onMessage({
+            type: 'content',
+            msg_id: uuid(36),
+            conversation_id: sessionId,
+            data: line,
+          });
+        }
+      }
+    });
+
+    ws.on('error', (err) => {
+      mainError('MossSessionApi', `WebSocket error: ${err.message}`);
+      onError?.(err);
+    });
+
+    ws.on('close', (code, reason) => {
+      mainLog('MossSessionApi', `WebSocket closed: code=${code}, reason=${reason}`);
+      this.wsConnections.delete(sessionId);
+      onFinish?.();
+    });
+
+    await new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error('WebSocket connection timeout'));
+      }, 30000);
+
+      ws.on('open', () => {
+        clearTimeout(timeout);
+        resolve();
+      });
+
+      ws.on('error', (err) => {
+        clearTimeout(timeout);
+        reject(err);
+      });
+    });
+
+    return ws;
+  }
+
+  async sendInputToSession(sessionId: string, input: string): Promise<void> {
+    const ws = await this.ensureSessionWebSocket(sessionId);
+    await new Promise<void>((resolve, reject) => {
+      ws.send(input, (error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        resolve();
+      });
+    });
+  }
+
   /**
    * Connect to session WebSocket and send message
    * Returns a promise that resolves when connection is established

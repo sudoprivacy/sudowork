@@ -8,7 +8,8 @@ import BaseAgent from './BaseAgent';
 import { MossWsConnection, type MossWsConnectionConfig, type MossWsCallbacks } from '@/agent/remote/MossWsConnection';
 import { ipcBridge } from '@/common';
 import type { IResponseMessage } from '@/common/ipcBridge';
-import type { TMessage } from '@/common/chatLib';
+import type { AcpQuestionAnswerItem, TMessage } from '@/common/chatLib';
+import type { AcpQuestionResponseAnswer } from '@/types/acpTypes';
 import type { TChatConversation } from '@/common/storage';
 import { uuid } from '@/common/utils';
 import { mainLog, mainError } from '../utils/mainLogger';
@@ -68,6 +69,7 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
   private stopPromise: Promise<void> | null = null;
   private turnActive = false;
   private userCancelled = false;
+  private pendingQuestions = new Map<string, { msgId: string; responseToolCallId?: string; toolCallId: string }>();
 
   /** Workspace path for this agent */
   workspace: string;
@@ -402,6 +404,45 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
   }
 
   /**
+   * Attach to an already-started Moss session and mirror its stream into the
+   * local conversation UI. Used by remote cron runs where Moss sends the prompt.
+   */
+  async observeExistingSession(options?: { startedAt?: number }): Promise<{ success: boolean; msg?: string }> {
+    mainLog('RemoteAgent', `observeExistingSession called for conversation ${this.conversation_id}`);
+    this.status = 'running';
+    this.processingStartTime = options?.startedAt ?? Date.now();
+    this.turnActive = true;
+    this.userCancelled = false;
+    this.stopPromise = null;
+    this.currentTurnFiles.clear();
+    this.workspaceFileSnapshot = this.getWorkspaceFiles();
+
+    try {
+      await this.initAgent();
+
+      if (!this.connection?.isConnected()) {
+        throw new Error('Connection not ready');
+      }
+
+      ipcBridge.conversation.responseStream.emit({
+        type: 'start',
+        conversation_id: this.conversation_id,
+        msg_id: uuid(36),
+        data: { processingStartTime: this.processingStartTime },
+      });
+
+      return { success: true };
+    } catch (error) {
+      this.status = 'finished';
+      this.turnActive = false;
+      this.processingStartTime = undefined;
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      this.emitErrorMessage(errorMsg);
+      return { success: false, msg: errorMsg };
+    }
+  }
+
+  /**
    * Stop streaming response
    */
   async stop(): Promise<void> {
@@ -532,6 +573,31 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
     this.connection?.respondToPermissionRequest(callId, data);
   }
 
+  async answerQuestion(toolCallId: string, answers: AcpQuestionResponseAnswer[]): Promise<void> {
+    const pending = this.pendingQuestions.get(toolCallId);
+    if (pending) {
+      this.pendingQuestions.delete(pending.toolCallId);
+      if (pending.responseToolCallId) {
+        this.pendingQuestions.delete(pending.responseToolCallId);
+      }
+      this.emitQuestionAnswered(pending.msgId, answers);
+    }
+
+    await this.initAgent();
+    if (!this.connection?.isConnected()) {
+      throw new Error('Connection not ready');
+    }
+
+    const answerText = answers
+      .map((answer) => answer.value)
+      .filter(Boolean)
+      .join('\n');
+    const result = this.connection.sendQuestionAnswer(answerText, pending?.responseToolCallId || toolCallId);
+    if (!result.success) {
+      throw new Error(result.msg || 'Failed to send question answer');
+    }
+  }
+
   /**
    * Set model for current session
    * Returns immediately after sending the request - actual confirmation comes via model_changed event
@@ -571,6 +637,25 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
         }
       } catch (err) {
         mainLog('RemoteAgent', `Failed to persist stream message to local DB: ${err}`);
+      }
+    }
+
+    if (msg.type === 'acp_question') {
+      const data = msg.data as { responseToolCallId?: string; toolCallId?: string };
+      if (data?.toolCallId) {
+        const pendingQuestion = { msgId: msg.msg_id, responseToolCallId: data.responseToolCallId, toolCallId: data.toolCallId };
+        this.pendingQuestions.set(data.toolCallId, pendingQuestion);
+        if (data.responseToolCallId) {
+          this.pendingQuestions.set(data.responseToolCallId, pendingQuestion);
+        }
+      }
+      try {
+        const tMessage = this.streamMsgToTMessage(enrichedMsg);
+        if (tMessage) {
+          addOrUpdateMessage(this.conversation_id, tMessage);
+        }
+      } catch (err) {
+        mainLog('RemoteAgent', `Failed to persist question message to local DB: ${err}`);
       }
     }
 
@@ -783,6 +868,18 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
           conversation_id: msg.conversation_id,
           content: msg.data as any,
         } as any;
+      case 'acp_question':
+        return {
+          id: uuid(),
+          type: 'acp_question',
+          msg_id: msg.msg_id,
+          position: 'left',
+          conversation_id: msg.conversation_id,
+          content: {
+            ...(msg.data as Record<string, unknown>),
+            conversationId: msg.conversation_id,
+          },
+        } as any;
       case 'error':
         return {
           id: uuid(),
@@ -811,6 +908,29 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
         { label: 'Always Allow', value: 'allow_always' },
         { label: 'Reject', value: 'reject_once' },
       ],
+    });
+  }
+
+  private emitQuestionAnswered(msgId: string, answers: AcpQuestionResponseAnswer[]): void {
+    const answerItems: AcpQuestionAnswerItem[] = answers.map((answer, index) => ({
+      id: answer.id,
+      index: index + 1,
+      submissionValue: answer.value,
+      displayValue: answer.label || answer.value,
+      skipped: answer.value === '[skipped]',
+    }));
+
+    const selectedAnswer = answerItems.map((answer) => `${answer.index}. ${answer.skipped ? '[skipped]' : answer.displayValue}`).join('\n');
+
+    ipcBridge.conversation.responseStream.emit({
+      type: 'acp_question',
+      conversation_id: this.conversation_id,
+      msg_id: msgId,
+      data: {
+        answered: true,
+        selectedAnswer,
+        answerItems,
+      },
     });
   }
 
