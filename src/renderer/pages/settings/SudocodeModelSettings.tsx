@@ -8,7 +8,7 @@ import { ipcBridge } from '@/common';
 import type { ScodeConfig, ScodeModelEntry } from '@/common/ipcBridge';
 import { mergeCustomProviderIntoScodeConfig, removeCustomProviderFromScodeConfig, type ScodeCustomModelProvider } from '@/common/scodeConfig';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
-import { Button, Checkbox, Form, Input, InputNumber, Message, Modal, Popconfirm, Select, Space, Spin, Switch, Tag, Typography } from '@arco-design/web-react';
+import { Button, Checkbox, Form, Input, InputNumber, Message, Modal, Popconfirm, Select, Space, Spin, Tag, Typography } from '@arco-design/web-react';
 import { Delete, LinkCloud, PreviewOpen, Plus, Refresh, SettingTwo } from '@icon-park/react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import SettingsPageWrapper from './components/SettingsPageWrapper';
@@ -282,16 +282,6 @@ const SudocodeModelSettingsContent: React.FC = () => {
     [config, saveConfig]
   );
 
-  const handleSetDefaultModel = useCallback(async (modelId: string) => {
-    const res = await ipcBridge.scode.setDefaultModel.invoke({ modelId });
-    if (!res?.success) {
-      Message.error(res?.msg || '设置默认模型失败');
-      return;
-    }
-    setConfig((prev) => ({ ...(prev || {}), default_model: modelId }));
-    Message.success('默认模型已更新');
-  }, []);
-
   if (loading) {
     return (
       <div className='h-full flex items-center justify-center'>
@@ -378,7 +368,6 @@ const SudocodeModelSettingsContent: React.FC = () => {
                   {provider.modelIds.map((modelId) => {
                     const entry = config?.models?.[modelId] || Object.values(config?.models || {}).find((item) => item.alias === modelId);
                     const input = entry?.input || [];
-                    const isDefault = config?.default_model === modelId;
                     return (
                       <div key={modelId} className='px-16px py-12px flex items-center justify-between gap-12px flex-wrap'>
                         <div className='min-w-0'>
@@ -400,10 +389,7 @@ const SudocodeModelSettingsContent: React.FC = () => {
                             </Tag>
                           </div>
                         </div>
-                        <div className='flex items-center gap-8px'>
-                          <span className='text-12px text-t-secondary'>默认</span>
-                          <Switch checked={isDefault} onChange={(checked) => checked && void handleSetDefaultModel(modelId)} />
-                        </div>
+                        <div />
                       </div>
                     );
                   })}
