@@ -394,6 +394,10 @@ export class MossWsConnection {
       const toolUseId = msg.tool_use_id || msg.id || msg.uuid || uuid(36);
       const responseToolUseId = msg.uuid || toolUseId;
       const rawInput = this.parseToolInput(msg.input);
+      // For AskUserQuestion, we need the _request_id to send RPC response
+      const requestId = msg._request_id;
+      // Check if this is a completion status update
+      const toolStatus = msg.status;
 
       if (toolName === 'AskUserQuestion') {
         const question = typeof rawInput.question === 'string' ? rawInput.question : '';
@@ -412,6 +416,27 @@ export class MossWsConnection {
             toolCallId: toolUseId,
             responseToolCallId: responseToolUseId,
             answered: false,
+            // Pass requestId so the answer can be sent as RPC response
+            _request_id: requestId,
+          },
+        });
+        return;
+      }
+
+      // If status is 'completed', send as tool_call_update to mark tool as complete
+      if (toolStatus === 'completed') {
+        this.callbacks.onMessage({
+          type: 'acp_tool_call',
+          msg_id: toolUseId,
+          conversation_id: '',
+          data: {
+            sessionId: this.sessionId || '',
+            update: {
+              sessionUpdate: 'tool_call_update',
+              toolCallId: toolUseId,
+              status: 'completed',
+              content: [],
+            },
           },
         });
         return;
