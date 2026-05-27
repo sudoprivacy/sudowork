@@ -243,9 +243,13 @@ async function resolveInstalledSkillDirAllSubdirs(userSkillsDir: string, skillNa
         const skillDir = path.join(parentDir, entry.name);
         const metaResult = await readSkillMetaFileWithFallback(skillDir);
         if (metaResult) {
-          const meta = JSON.parse(metaResult.content) as import('@/common/ipcBridge').ISkillHubMeta;
-          if (meta.name === skillName || meta.display_name === skillName) {
-            return skillDir;
+          try {
+            const meta = JSON.parse(metaResult.content) as import('@/common/ipcBridge').ISkillHubMeta;
+            if (meta.name === skillName || meta.display_name === skillName) {
+              return skillDir;
+            }
+          } catch {
+            mainWarn('SkillHub', `Invalid JSON in metadata file at ${skillDir}, skipping`);
           }
         }
       }
@@ -414,7 +418,12 @@ async function readSkillManifestFromDirectory(
 async function readSkillHubMetaFromDirectory(skillDir: string): Promise<SkillHubMeta | null> {
   const metaResult = await readSkillMetaFileWithFallback(skillDir);
   if (metaResult) {
-    return JSON.parse(metaResult.content) as SkillHubMeta;
+    try {
+      return JSON.parse(metaResult.content) as SkillHubMeta;
+    } catch {
+      mainWarn('SkillHub', `Invalid JSON in metadata file at ${skillDir}`);
+      return null;
+    }
   }
   return null;
 }
@@ -632,7 +641,13 @@ export function initSkillHubBridge(): void {
             // Read metadata first for search filtering
             const metaResult = await readSkillMetaFileWithFallback(skillDir);
             if (metaResult) {
-              const meta = JSON.parse(metaResult.content) as SkillHubMeta;
+              let meta: SkillHubMeta;
+              try {
+                meta = JSON.parse(metaResult.content) as SkillHubMeta;
+              } catch {
+                mainWarn('SkillHub', `Invalid JSON in metadata file for skill "${dirName}" at ${skillDir}, skipping`);
+                continue;
+              }
 
               // Use meta.name if available (same logic as SkillManager.readSkillInfo)
               const skillName = meta.name?.trim() || dirName;
@@ -725,11 +740,15 @@ export function initSkillHubBridge(): void {
             const skillDir = path.join(hubSkillsDir, entry.name);
             const metaResult = await readSkillMetaFileWithFallback(skillDir);
             if (metaResult) {
-              const meta = JSON.parse(metaResult.content) as SkillHubMeta;
-              if (meta.categories) {
-                for (const cat of meta.categories) {
-                  categoriesSet.add(cat);
+              try {
+                const meta = JSON.parse(metaResult.content) as SkillHubMeta;
+                if (meta.categories) {
+                  for (const cat of meta.categories) {
+                    categoriesSet.add(cat);
+                  }
                 }
+              } catch {
+                mainWarn('SkillHub', `Invalid JSON in metadata file for skill "${entry.name}" at ${skillDir}, skipping`);
               }
             }
           }
@@ -766,7 +785,13 @@ export function initSkillHubBridge(): void {
             const skillDir = path.join(hubSkillsDir, entry.name);
             const metaResult = await readSkillMetaFileWithFallback(skillDir);
             if (metaResult) {
-              const meta = JSON.parse(metaResult.content) as SkillHubMeta;
+              let meta: SkillHubMeta;
+              try {
+                meta = JSON.parse(metaResult.content) as SkillHubMeta;
+              } catch {
+                mainWarn('SkillHub', `Invalid JSON in metadata file for skill "${entry.name}" at ${skillDir}, skipping`);
+                continue;
+              }
               // 匹配 id 或 name (use meta.name for name matching)
               const skillName = meta.name?.trim() || entry.name;
               if (meta.id === skillId || skillName === skillId || entry.name === skillId) {
