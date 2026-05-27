@@ -7,8 +7,9 @@
 import { ipcBridge } from '@/common';
 import type { ScodeConfig, ScodeModelEntry } from '@/common/ipcBridge';
 import { mergeCustomProviderIntoScodeConfig, removeCustomProviderFromScodeConfig, type ScodeCustomModelProvider } from '@/common/scodeConfig';
+import AionModal from '@/renderer/components/base/AionModal';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
-import { Button, Checkbox, Form, Input, InputNumber, Message, Modal, Popconfirm, Select, Space, Spin, Tag, Typography } from '@arco-design/web-react';
+import { Button, Checkbox, Form, Input, InputNumber, Message, Popconfirm, Select, Space, Spin, Tag, Typography } from '@arco-design/web-react';
 import { Delete, LinkCloud, PreviewOpen, Plus, Refresh, SettingTwo } from '@icon-park/react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import SettingsPageWrapper from './components/SettingsPageWrapper';
@@ -177,7 +178,7 @@ const AddModelDialog: React.FC<{
   };
 
   return (
-    <Modal visible={visible} title='添加模型' style={{ width: 760, maxWidth: '92vw' }} onCancel={onClose} onOk={handleSubmit} confirmLoading={saving} okText='保存' cancelText='取消' unmountOnExit>
+    <AionModal visible={visible} header={{ title: '添加模型', showClose: true }} style={{ width: 760 }} contentStyle={{ background: 'var(--bg-1)', padding: '20px 24px 16px', overflow: 'auto' }} onCancel={onClose} footer={null}>
       <div className='mb-16px flex items-center gap-8px'>
         <Tag bordered>仅支持 OpenAI 兼容协议 API</Tag>
       </div>
@@ -223,7 +224,15 @@ const AddModelDialog: React.FC<{
           </Form.Item>
         </div>
       </Form>
-    </Modal>
+      <div className='flex justify-end gap-10px mt-10px'>
+        <Button onClick={onClose} className='px-20px min-w-80px' style={{ borderRadius: 'var(--radius-md)' }}>
+          取消
+        </Button>
+        <Button type='primary' onClick={handleSubmit} loading={saving} className='px-20px min-w-80px' style={{ borderRadius: 'var(--radius-md)' }}>
+          保存
+        </Button>
+      </div>
+    </AionModal>
   );
 };
 
