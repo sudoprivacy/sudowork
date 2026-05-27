@@ -11,18 +11,21 @@ type Draft =
       content: string;
       atPath: Array<string | FileOrFolderItem>;
       uploadFile: string[];
+      selectedSkills: string[];
     }
   | {
       _type: 'openclaw-gateway';
       content: string;
       atPath: Array<string | FileOrFolderItem>;
       uploadFile: string[];
+      selectedSkills: string[];
     }
   | {
       _type: 'remote-agent';
       content: string;
       atPath: Array<string | FileOrFolderItem>;
       uploadFile: string[];
+      selectedSkills: string[];
     };
 
 /**

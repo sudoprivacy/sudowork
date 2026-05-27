@@ -397,7 +397,7 @@ const DingTalkConfigForm: React.FC<DingTalkConfigFormProps> = ({ pluginStatus, m
                   handleCredentialsChange();
                 }}
                 onBlur={() => setTouched((prev) => ({ ...prev, clientId: true }))}
-                placeholder={hasExistingUsers || pluginStatus?.hasToken ? '••••••••••••••••' : 'dingxxxxxxxxxx'}
+                placeholder={hasExistingUsers ? '••••••••••••••••' : 'dingxxxxxxxxxx'}
                 style={{ width: 240 }}
                 status={touched.clientId && !clientId.trim() && !pluginStatus?.hasToken ? 'error' : undefined}
                 disabled={hasExistingUsers}
@@ -412,7 +412,7 @@ const DingTalkConfigForm: React.FC<DingTalkConfigFormProps> = ({ pluginStatus, m
               handleCredentialsChange();
             }}
             onBlur={() => setTouched((prev) => ({ ...prev, clientId: true }))}
-            placeholder={hasExistingUsers || pluginStatus?.hasToken ? '••••••••••••••••' : 'dingxxxxxxxxxx'}
+            placeholder={hasExistingUsers ? '••••••••••••••••' : 'dingxxxxxxxxxx'}
             style={{ width: 240 }}
             status={touched.clientId && !clientId.trim() && !pluginStatus?.hasToken ? 'error' : undefined}
             disabled={hasExistingUsers}
@@ -450,7 +450,7 @@ const DingTalkConfigForm: React.FC<DingTalkConfigFormProps> = ({ pluginStatus, m
                   handleCredentialsChange();
                 }}
                 onBlur={() => setTouched((prev) => ({ ...prev, clientSecret: true }))}
-                placeholder={hasExistingUsers || pluginStatus?.hasToken ? '••••••••••••••••' : 'xxxxxxxxxxxxxxxxxx'}
+                placeholder={hasExistingUsers ? '••••••••••••••••' : 'xxxxxxxxxxxxxxxxxx'}
                 style={{ width: 240 }}
                 status={touched.clientSecret && !clientSecret.trim() && !pluginStatus?.hasToken ? 'error' : undefined}
                 visibilityToggle
@@ -466,7 +466,7 @@ const DingTalkConfigForm: React.FC<DingTalkConfigFormProps> = ({ pluginStatus, m
               handleCredentialsChange();
             }}
             onBlur={() => setTouched((prev) => ({ ...prev, clientSecret: true }))}
-            placeholder={hasExistingUsers || pluginStatus?.hasToken ? '••••••••••••••••' : 'xxxxxxxxxxxxxxxxxx'}
+            placeholder={hasExistingUsers ? '••••••••••••••••' : 'xxxxxxxxxxxxxxxxxx'}
             style={{ width: 240 }}
             status={touched.clientSecret && !clientSecret.trim() && !pluginStatus?.hasToken ? 'error' : undefined}
             visibilityToggle

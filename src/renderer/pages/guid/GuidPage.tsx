@@ -40,6 +40,7 @@ import { useGuidMention } from './hooks/useGuidMention';
 import { useGuidModelSelection } from './hooks/useGuidModelSelection';
 import { useGuidSend } from './hooks/useGuidSend';
 import { useTypewriterPlaceholder } from './hooks/useTypewriterPlaceholder';
+import { getGuidDraft, setGuidDraft } from './hooks/useGuidDraft';
 import type { AcpBackendConfig } from './types';
 import { DEFAULT_PRESET_AGENT_TYPE, normalizePresetAgentType } from '@/types/acpTypes';
 import { ConfigProvider, Message } from '@arco-design/web-react';
@@ -62,6 +63,7 @@ const GuidPage: React.FC = () => {
   const localeKey = resolveLocaleKey(i18n.language);
   const { isEnterprise } = useAppMode();
   const { user } = useAuth();
+  const draft = getGuidDraft();
   // Read current menu and skill from URL query params
   const searchParams = new URLSearchParams(location.search);
   const selectedMenu = searchParams.get('menu');
@@ -70,7 +72,7 @@ const GuidPage: React.FC = () => {
 
   // Skill selector state
   const [installedSkills, setInstalledSkills] = useState<any[]>([]);
-  const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
+  const [selectedSkills, setSelectedSkills] = useState<string[]>(draft?.selectedSkills ?? []);
   const [cursorPosition, setCursorPosition] = useState(0);
 
   // Edit drawer state
@@ -128,6 +130,10 @@ const GuidPage: React.FC = () => {
       void navigate('/guid', { replace: true, state: location.state });
     }
   }, [skillParam, installedSkillsLoaded]);
+
+  useEffect(() => {
+    setGuidDraft({ selectedSkills });
+  }, [selectedSkills]);
 
   // Open external link
   const openLink = useCallback(async (url: string) => {
@@ -299,13 +305,9 @@ const GuidPage: React.FC = () => {
     t,
   });
 
-  // Listen for guid.reset event to reset all user input state
+  // Listen for guid.reset event to reset agent/mention state only
   const handleGuidReset = useCallback(() => {
-    guidInput.setInput('');
-    guidInput.setFiles([]);
-    guidInput.setDir('');
     agentSelection.resetSelection();
-    setSelectedSkills([]);
     setCursorPosition(0);
     mention.setMentionOpen(false);
     mention.setMentionQuery(null);
@@ -313,7 +315,7 @@ const GuidPage: React.FC = () => {
     mention.setMentionSelectorOpen(false);
     mention.setMentionActiveIndex(0);
     prefilledAssistantRef.current = null;
-  }, [guidInput, agentSelection, mention]);
+  }, [agentSelection, mention]);
 
   useAddEventListener('guid.reset', handleGuidReset, [handleGuidReset]);
 
