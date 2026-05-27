@@ -10,7 +10,7 @@ import uploadSkillDefaultIcon from '../../../resources/upload_skill_default.svg'
 import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 
 /** COS base URL for Hub skill icons */
-const HUB_SKILL_ICON_COS_BASE = 'https://sudoclaw-1309794936.cos.ap-beijing.myqcloud.com/';
+const HUB_SKILL_ICON_COS_BASE = 'https://sudoworkhub-1309794936.cos.ap-beijing.myqcloud.com/';
 
 export function buildSkillDisplayName(skillName: string): string {
   return skillName

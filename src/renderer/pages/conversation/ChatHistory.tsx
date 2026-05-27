@@ -68,10 +68,7 @@ const useScrollIntoView = (id: string) => {
 const SCHEDULED_FOLDER_KEY = 'cron_sidebar_expanded_';
 
 // Virtuoso 列表项类型
-type ChatHistoryListItem =
-  | { type: 'section-header'; id: string; title: string }
-  | { type: 'folder-header'; id: string; title: string; isExpanded: boolean }
-  | { type: 'conversation'; id: string; data: TChatConversation; isIndented: boolean };
+type ChatHistoryListItem = { type: 'section-header'; id: string; title: string } | { type: 'folder-header'; id: string; jobId: string; title: string; isExpanded: boolean; count: number } | { type: 'conversation'; id: string; data: TChatConversation; isIndented: boolean };
 
 const ChatHistory: React.FC<{ onSessionClick?: () => void; collapsed?: boolean }> = ({ onSessionClick, collapsed = false }) => {
   const layout = useLayoutContext();
@@ -198,9 +195,9 @@ const ChatHistory: React.FC<{ onSessionClick?: () => void; collapsed?: boolean }
     }
   };
 
-  const toggleFolder = (jobName: string) => {
+  const toggleFolder = useCallback((jobId: string) => {
     setExpandedFolders((prev) => {
-      const next = { ...prev, [jobName]: !prev[jobName] };
+      const next = { ...prev, [jobId]: !prev[jobId] };
       try {
         localStorage.setItem(SCHEDULED_FOLDER_KEY + 'state', JSON.stringify(next));
       } catch {
@@ -208,7 +205,7 @@ const ChatHistory: React.FC<{ onSessionClick?: () => void; collapsed?: boolean }
       }
       return next;
     });
-  };
+  }, []);
 
   const formatTimeline = useTimeline();
 
@@ -217,40 +214,44 @@ const ChatHistory: React.FC<{ onSessionClick?: () => void; collapsed?: boolean }
 
   // Recent section: exclude cron-created run records (tagged with `extra.cronJobId`).
   // Pre-bound user conversations stay in their original timeline slot.
-  const recentConvs = chatHistory.filter((c) => !(c.extra as any)?.cronJobId);
+  const recentConvs = useMemo(() => chatHistory.filter((c) => !(c.extra as { cronJobId?: string } | undefined)?.cronJobId), [chatHistory]);
 
   // Scheduled section: one group per cron job, sourced from the cron jobs table
   // so a single conversation bound to multiple jobs appears in multiple groups.
-  const convById = new Map(chatHistory.map((c) => [c.id, c]));
-  const runRecordsByJob = new Map<string, TChatConversation[]>();
-  chatHistory.forEach((conv) => {
-    const jobId = (conv.extra as any)?.cronJobId as string | undefined;
-    if (!jobId) return;
-    if (!runRecordsByJob.has(jobId)) runRecordsByJob.set(jobId, []);
-    runRecordsByJob.get(jobId)!.push(conv);
-  });
-  const scheduledGroups: { jobName: string; convs: TChatConversation[] }[] = [];
-  cronJobs.forEach((job) => {
-    const convs: TChatConversation[] = [];
-    const seen = new Set<string>();
-    if (job.metadata.conversationId) {
-      const bound = convById.get(job.metadata.conversationId);
-      if (bound) {
-        convs.push(bound);
-        seen.add(bound.id);
-      }
-    }
-    (runRecordsByJob.get(job.id) || []).forEach((conv) => {
-      if (!seen.has(conv.id)) {
-        convs.push(conv);
-        seen.add(conv.id);
-      }
+  const scheduledGroups = useMemo(() => {
+    const convById = new Map(chatHistory.map((c) => [c.id, c]));
+    const runRecordsByJob = new Map<string, TChatConversation[]>();
+    chatHistory.forEach((conv) => {
+      const jobId = (conv.extra as { cronJobId?: string } | undefined)?.cronJobId;
+      if (!jobId) return;
+      if (!runRecordsByJob.has(jobId)) runRecordsByJob.set(jobId, []);
+      runRecordsByJob.get(jobId)!.push(conv);
     });
-    if (convs.length === 0) return;
-    convs.sort((a, b) => getActivityTime(b) - getActivityTime(a));
-    scheduledGroups.push({ jobName: job.name, convs });
-  });
-  scheduledGroups.sort((a, b) => getActivityTime(b.convs[0]) - getActivityTime(a.convs[0]));
+
+    const groups: { jobId: string; jobName: string; convs: TChatConversation[] }[] = [];
+    cronJobs.forEach((job) => {
+      const convs: TChatConversation[] = [];
+      const seen = new Set<string>();
+      if (job.metadata.conversationId) {
+        const bound = convById.get(job.metadata.conversationId);
+        if (bound) {
+          convs.push(bound);
+          seen.add(bound.id);
+        }
+      }
+      (runRecordsByJob.get(job.id) || []).forEach((conv) => {
+        if (!seen.has(conv.id)) {
+          convs.push(conv);
+          seen.add(conv.id);
+        }
+      });
+      if (convs.length === 0) return;
+      convs.sort((a, b) => getActivityTime(b) - getActivityTime(a));
+      groups.push({ jobId: job.id, jobName: job.name, convs });
+    });
+    groups.sort((a, b) => getActivityTime(b.convs[0]) - getActivityTime(a.convs[0]));
+    return groups;
+  }, [chatHistory, cronJobs]);
 
   // 扁平化所有列表项用于虚拟滚动
   const listItems = useMemo<ChatHistoryListItem[]>(() => {
@@ -266,13 +267,15 @@ const ChatHistory: React.FC<{ onSessionClick?: () => void; collapsed?: boolean }
       });
 
       // 添加每个定时任务的文件夹和会话
-      scheduledGroups.forEach(({ jobName, convs }) => {
-        const isExpanded = expandedFolders[jobName] !== false;
+      scheduledGroups.forEach(({ jobId, jobName, convs }) => {
+        const isExpanded = expandedFolders[jobId] !== false;
         items.push({
           type: 'folder-header',
-          id: `folder-${jobName}`,
+          id: `folder-${jobId}`,
+          jobId,
           title: jobName,
           isExpanded,
+          count: convs.length,
         });
 
         if (isExpanded) {
@@ -310,147 +313,147 @@ const ChatHistory: React.FC<{ onSessionClick?: () => void; collapsed?: boolean }
   }, [scheduledGroups, recentConvs, expandedFolders, formatTimeline, t]);
 
   // 处理文件夹点击
-  const handleFolderClick = useCallback((jobName: string) => {
-    toggleFolder(jobName);
-  }, [toggleFolder]);
+  const handleFolderClick = useCallback((jobId: string) => toggleFolder(jobId), [toggleFolder]);
 
-  const renderConversation = useCallback((conversation: TChatConversation, isIndented: boolean) => {
-    const isSelected = id === conversation.id;
-    const isEditing = editingId === conversation.id;
-    const cronStatus = getJobStatus(conversation.id);
-    const activityTime = getActivityTime(conversation);
-    const timeLabel = activityTime ? formatSessionTime(activityTime, i18n.language, t('conversation.history.yesterday')) : '';
+  const renderConversation = useCallback(
+    (conversation: TChatConversation, isIndented: boolean) => {
+      const isSelected = id === conversation.id;
+      const isEditing = editingId === conversation.id;
+      const cronStatus = getJobStatus(conversation.id);
+      const activityTime = getActivityTime(conversation);
+      const timeLabel = activityTime ? formatSessionTime(activityTime, i18n.language, t('conversation.history.yesterday')) : '';
 
-    return (
-      <Tooltip {...siderTooltipProps} content={conversation.name || t('conversation.welcome.newConversation')} position='right'>
-        <div
-          id={'c-' + conversation.id}
-          className={classNames('chat-history__item hover:bg-hover px-12px py-8px rd-8px flex justify-start items-center group cursor-pointer relative overflow-hidden group shrink-0 conversation-item [&.conversation-item+&.conversation-item]:mt-2px', {
-            '!bg-active ': isSelected,
-            'pl-16px': isIndented,
-          })}
-          onClick={handleSelect.bind(null, conversation)}
-        >
-          <MessageOne theme='outline' size='20' className='mt-2px flex' />
-          <FlexFullContainer className='h-24px collapsed-hidden ml-10px min-w-0'>
-            {isEditing ? (
-              <Input className='chat-history__item-editor text-14px lh-24px h-24px w-full' value={editingName} onChange={setEditingName} onKeyDown={handleEditKeyDown} onBlur={handleEditSave} autoFocus size='small' />
-            ) : (
-              <div className='flex items-center gap-4px w-full'>
-                <div className='chat-history__item-name text-nowrap overflow-hidden text-ellipsis inline-block flex-1 text-14px lh-24px whitespace-nowrap min-w-0'>{conversation.name}</div>
-                <CronJobIndicator status={cronStatus} size={14} />
-                {timeLabel && !collapsed && <span className='text-11px text-[color:var(--color-text-4)] whitespace-nowrap shrink-0 group-hover:hidden'>{timeLabel}</span>}
-              </div>
-            )}
-          </FlexFullContainer>
-          {!isEditing && (
-            <div
-              className={classNames('absolute right-0px top-0px h-full w-70px items-center justify-end hidden group-hover:flex !collapsed-hidden pr-12px')}
-              style={{
-                backgroundImage: isSelected ? `linear-gradient(to right, transparent, var(--aou-2) 50%)` : `linear-gradient(to right, transparent, var(--aou-1) 50%)`,
-              }}
-              onClick={(event) => {
-                event.stopPropagation();
-              }}
-            >
-              {!isEditing && (
-                <span
-                  className='flex-center mr-8px'
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    handleEditStart(conversation);
-                  }}
-                  role='button'
-                  aria-label={t('common.ariaLabel.edit')}
-                  tabIndex={0}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' || event.key === ' ') {
-                      event.preventDefault();
-                      handleEditStart(conversation);
-                    }
-                  }}
-                >
-                  <EditOne theme='outline' size='20' className='flex' />
-                </span>
+      return (
+        <Tooltip {...siderTooltipProps} content={conversation.name || t('conversation.welcome.newConversation')} position='right'>
+          <div
+            id={'c-' + conversation.id}
+            className={classNames('chat-history__item hover:bg-hover px-12px py-8px rd-8px flex justify-start items-center group cursor-pointer relative overflow-hidden group shrink-0 conversation-item [&.conversation-item+&.conversation-item]:mt-2px', {
+              '!bg-active ': isSelected,
+              'pl-16px': isIndented,
+            })}
+            onClick={handleSelect.bind(null, conversation)}
+          >
+            <MessageOne theme='outline' size='20' className='mt-2px flex' />
+            <FlexFullContainer className='h-24px collapsed-hidden ml-10px min-w-0'>
+              {isEditing ? (
+                <Input className='chat-history__item-editor text-14px lh-24px h-24px w-full' value={editingName} onChange={setEditingName} onKeyDown={handleEditKeyDown} onBlur={handleEditSave} autoFocus size='small' />
+              ) : (
+                <div className='flex items-center gap-4px w-full'>
+                  <div className='chat-history__item-name text-nowrap overflow-hidden text-ellipsis inline-block flex-1 text-14px lh-24px whitespace-nowrap min-w-0'>{conversation.name}</div>
+                  <CronJobIndicator status={cronStatus} size={14} />
+                  {timeLabel && !collapsed && <span className='text-11px text-[color:var(--color-text-4)] whitespace-nowrap shrink-0 group-hover:hidden'>{timeLabel}</span>}
+                </div>
               )}
-              {!isEditing && (
-                <Popconfirm
-                  title={t('conversation.history.deleteTitle')}
-                  content={t('conversation.history.deleteConfirm')}
-                  okText={t('conversation.history.confirmDelete')}
-                  cancelText={t('conversation.history.cancelDelete')}
-                  onOk={(event) => {
-                    event.stopPropagation();
-                    handleRemoveConversation(conversation.id);
-                  }}
-                  onCancel={(event) => {
-                    event.stopPropagation();
-                  }}
-                >
+            </FlexFullContainer>
+            {!isEditing && (
+              <div
+                className={classNames('absolute right-0px top-0px h-full w-70px items-center justify-end hidden group-hover:flex !collapsed-hidden pr-12px')}
+                style={{
+                  backgroundImage: isSelected ? `linear-gradient(to right, transparent, var(--aou-2) 50%)` : `linear-gradient(to right, transparent, var(--aou-1) 50%)`,
+                }}
+                onClick={(event) => {
+                  event.stopPropagation();
+                }}
+              >
+                {!isEditing && (
                   <span
-                    className='flex-center'
+                    className='flex-center mr-8px'
                     onClick={(event) => {
                       event.stopPropagation();
+                      handleEditStart(conversation);
                     }}
                     role='button'
-                    aria-label={t('common.ariaLabel.delete')}
+                    aria-label={t('common.ariaLabel.edit')}
                     tabIndex={0}
                     onKeyDown={(event) => {
                       if (event.key === 'Enter' || event.key === ' ') {
                         event.preventDefault();
-                        // Trigger popconfirm by clicking the span
-                        event.currentTarget.click();
+                        handleEditStart(conversation);
                       }
                     }}
                   >
-                    <DeleteOne theme='outline' size='20' className='flex' />
+                    <EditOne theme='outline' size='20' className='flex' />
                   </span>
-                </Popconfirm>
-              )}
-            </div>
-          )}
-        </div>
-      </Tooltip>
-    );
-  }, [id, editingId, editingName, collapsed, siderTooltipProps, i18n.language, t, handleSelect, handleEditKeyDown, handleEditSave, handleEditStart, handleRemoveConversation]);
+                )}
+                {!isEditing && (
+                  <Popconfirm
+                    title={t('conversation.history.deleteTitle')}
+                    content={t('conversation.history.deleteConfirm')}
+                    okText={t('conversation.history.confirmDelete')}
+                    cancelText={t('conversation.history.cancelDelete')}
+                    onOk={(event) => {
+                      event.stopPropagation();
+                      handleRemoveConversation(conversation.id);
+                    }}
+                    onCancel={(event) => {
+                      event.stopPropagation();
+                    }}
+                  >
+                    <span
+                      className='flex-center'
+                      onClick={(event) => {
+                        event.stopPropagation();
+                      }}
+                      role='button'
+                      aria-label={t('common.ariaLabel.delete')}
+                      tabIndex={0}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          // Trigger popconfirm by clicking the span
+                          event.currentTarget.click();
+                        }
+                      }}
+                    >
+                      <DeleteOne theme='outline' size='20' className='flex' />
+                    </span>
+                  </Popconfirm>
+                )}
+              </div>
+            )}
+          </div>
+        </Tooltip>
+      );
+    },
+    [id, editingId, editingName, collapsed, siderTooltipProps, i18n.language, t, getJobStatus, handleSelect, handleEditKeyDown, handleEditSave, handleEditStart, handleRemoveConversation]
+  );
 
   // Virtuoso item renderer
-  const renderListItem = useCallback((index: number, item: ChatHistoryListItem) => {
-    switch (item.type) {
-      case 'section-header':
-        return (
-          <div className='chat-history__section px-12px py-8px text-13px text-t-secondary font-bold collapsed-hidden' key={item.id}>
-            {item.title}
-          </div>
-        );
-      case 'folder-header':
-        return (
-          <div
-            className='chat-history__item hover:bg-hover px-12px py-8px rd-8px flex items-center gap-6px cursor-pointer shrink-0 collapsed-hidden'
-            onClick={() => handleFolderClick(item.title)}
-            key={item.id}
-          >
-            <span className={classNames('text-t-secondary text-12px transition-transform', { 'rotate-90': item.isExpanded })}>▶</span>
-            <span className='text-14px text-t-primary truncate flex-1'>{item.title}</span>
-          </div>
-        );
-      case 'conversation':
-        return renderConversation(item.data, item.isIndented);
-      default:
-        return null;
-    }
-  }, [renderConversation, handleFolderClick]);
+  const renderListItem = useCallback(
+    (index: number, item: ChatHistoryListItem) => {
+      switch (item.type) {
+        case 'section-header':
+          return (
+            <div className='chat-history__section px-12px py-8px text-13px text-t-secondary font-bold collapsed-hidden' key={item.id}>
+              {item.title}
+            </div>
+          );
+        case 'folder-header':
+          return (
+            <div className='chat-history__item hover:bg-hover px-12px py-8px rd-8px flex items-center gap-6px cursor-pointer shrink-0 collapsed-hidden' onClick={() => handleFolderClick(item.jobId)} key={item.id}>
+              <span className={classNames('text-t-secondary text-12px transition-transform', { 'rotate-90': item.isExpanded })}>▶</span>
+              <span className='text-14px text-t-primary truncate flex-1'>{item.title}</span>
+              <span className='text-11px text-[color:var(--color-text-4)] shrink-0'>{item.count}</span>
+            </div>
+          );
+        case 'conversation':
+          return renderConversation(item.data, item.isIndented);
+        default:
+          return null;
+      }
+    },
+    [renderConversation, handleFolderClick]
+  );
 
   return (
     <FlexFullContainer>
       <div
         className={classNames('size-full chat-history', {
-          'flex-center': !chatHistory.length,
-          'flex flex-col overflow-y-auto': !!chatHistory.length,
+          'flex-center': !listItems.length,
           'chat-history--collapsed': collapsed,
         })}
       >
-        {!chatHistory.length ? (
+        {!listItems.length ? (
           <EmptyState
             icon={<MessageOne theme='outline' size='48' fill='var(--color-text-3)' />}
             title={t('conversation.history.noHistory')}
@@ -458,7 +461,9 @@ const ChatHistory: React.FC<{ onSessionClick?: () => void; collapsed?: boolean }
               {
                 label: t('conversation.history.actionNewConversation'),
                 onClick: () => {
-                  navigate('/');
+                  void Promise.resolve(navigate('/')).catch((error) => {
+                    console.error('Navigation failed:', error);
+                  });
                 },
                 type: 'primary',
               },
@@ -466,44 +471,7 @@ const ChatHistory: React.FC<{ onSessionClick?: () => void; collapsed?: boolean }
             simple
           />
         ) : (
-          <>
-            {/* ── SCHEDULED SECTION ── */}
-            {scheduledGroups.length > 0 && (
-              <>
-                <div className='chat-history__section px-12px py-8px text-13px text-t-secondary font-bold collapsed-hidden'>{t('cron.sidebar.scheduled', { defaultValue: 'Scheduled' })}</div>
-                {scheduledGroups.map(({ jobName, convs }) => {
-                  const isExpanded = expandedFolders[jobName] !== false; // default open
-                  return (
-                    <React.Fragment key={jobName}>
-                      {/* Folder header */}
-                      <div className='chat-history__item hover:bg-hover px-12px py-8px rd-8px flex items-center gap-6px cursor-pointer shrink-0 collapsed-hidden' onClick={() => toggleFolder(jobName)}>
-                        <span className={classNames('text-t-secondary text-12px transition-transform', { 'rotate-90': isExpanded })}>▶</span>
-                        <span className='text-14px text-t-primary truncate flex-1'>{jobName}</span>
-                      </div>
-                      {/* Conversations under this folder */}
-                      {isExpanded &&
-                        convs.map((conv) => (
-                          <div key={conv.id} className='pl-16px'>
-                            {renderConversation(conv, true)}
-                          </div>
-                        ))}
-                    </React.Fragment>
-                  );
-                })}
-              </>
-            )}
-
-            {/* ── RECENTS SECTION ── */}
-            {recentConvs.map((item) => {
-              const timeline = formatTimeline(item);
-              return (
-                <React.Fragment key={item.id}>
-                  {timeline && <div className='chat-history__section px-12px py-8px text-13px text-t-secondary font-bold'>{timeline}</div>}
-                  {renderConversation(item, false)}
-                </React.Fragment>
-              );
-            })}
-          </>
+          <Virtuoso ref={virtuosoRef} className='size-full' data={listItems} itemContent={renderListItem} increaseViewportBy={400} />
         )}
       </div>
     </FlexFullContainer>

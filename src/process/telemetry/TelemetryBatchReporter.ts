@@ -59,7 +59,7 @@ interface TelemetryEventPayloadMap {
 // 常量定义
 // ============================================================
 
-/** sudoclaw-qms API Key - 用于认证上报请求 */
+/** sudowork-qms API Key - 用于认证上报请求 */
 const API_KEY = 'sk-8f3a2b1c9d5e7f6a4b3c2d1e8f9a0b7c';
 
 /** 本地存储文件名 */
@@ -536,7 +536,7 @@ export class TelemetryBatchReporter {
       const userDataPath = app.getPath('userData');
       const cachePath = path.join(userDataPath, STORAGE_FILE_NAME);
 
-      await fs.unlink(cachePath).catch(() => {});
+      await fs.unlink(cachePath).catch(() => { });
     } catch (error) {
       // 忽略删除错误
     }

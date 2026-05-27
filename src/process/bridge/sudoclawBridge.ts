@@ -92,7 +92,7 @@ function syncToClaudeSettings(config: SudoclawConfig): void {
     env: {
       ANTHROPIC_BASE_URL: 'https://hk.sudorouter.ai',
       ANTHROPIC_AUTH_TOKEN: apiKey,
-      ANTHROPIC_MODEL: modelId || 'gemini-3-flash-preview',
+      ANTHROPIC_MODEL: modelId || 'gemini-3.5-flash',
     },
   };
 

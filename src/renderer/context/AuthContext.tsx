@@ -327,7 +327,7 @@ async function handleLoginSuccess(data: LoginSuccessResponse, setUser: SetAuthUs
             ...patch.agents?.defaults,
             model: {
               ...patch.agents?.defaults?.model,
-              primary: getSudorouterPrimaryModelPath('gemini-3-flash-preview'),
+              primary: getSudorouterPrimaryModelPath('gemini-3.5-flash'),
             },
           },
         };

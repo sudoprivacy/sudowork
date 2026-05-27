@@ -48,12 +48,13 @@ const ALLOWED_DOWNLOAD_HOSTS = new Set<string>([
   'github-releases.githubusercontent.com',
   'release-assets.githubusercontent.com',
   // COS mirror for Chinese users
-  'sudoclaw-download-1309794936.cos.ap-beijing.myqcloud.com',
+  'sudowork-download-1309794936.cos.ap-beijing.myqcloud.com',
+  'sudowork-download-1309794936.cos.accelerate.myqcloud.com',
 ]);
 const MAX_REDIRECTS = 8;
 
 /** COS mirror base URL for Chinese users */
-const COS_MIRROR_BASE = 'https://sudoclaw-download-1309794936.cos.ap-beijing.myqcloud.com/sudowork/release/latest';
+const COS_MIRROR_BASE = 'https://sudowork-download-1309794936.cos.ap-beijing.myqcloud.com/sudowork/release/latest';
 
 /** COS yml file structure */
 interface COSYmlInfo {

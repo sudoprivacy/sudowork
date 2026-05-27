@@ -82,6 +82,8 @@ export interface IConfigStorageRefer {
   'migration.builtinDefaultSkillsAdded_v2'?: boolean;
   // 迁移标记：为所有内置助手添加 promptsI18n / Migration flag: add promptsI18n for all builtin assistants
   'migration.promptsI18nAdded'?: boolean;
+  /** Locally hidden remote cron execution sessions keyed by Moss session ID. */
+  'remote.hiddenCronSessionIds'?: Record<string, number>;
   /** Migration flag: skill subdirectory restructuring completed */
   'migration.skillSubdirectoriesMigrated'?: boolean;
   /** Migration flag: channel agent migrated from openclaw-gateway (Sudoclaw) to scode (Sudo Code) */
@@ -264,6 +266,8 @@ export type TChatConversation =
           cronJobId?: string;
           /** Cron job name that created this conversation */
           cronJobName?: string;
+          /** Cron run ID that created this conversation */
+          cronRunId?: string;
           /** Cron job ID this conversation is pre-bound to (reuse mode, user-selected existing conversation) */
           cronJobBoundId?: string;
           /** Cron job name this conversation is pre-bound to */
@@ -327,6 +331,8 @@ export type TChatConversation =
           cronJobId?: string;
           /** Cron job name that created this conversation */
           cronJobName?: string;
+          /** Cron run ID that created this conversation */
+          cronRunId?: string;
           /** Cron job ID this conversation is pre-bound to (reuse mode, user-selected existing conversation) */
           cronJobBoundId?: string;
           /** Cron job name this conversation is pre-bound to */
@@ -398,6 +404,8 @@ export type TChatConversation =
           cronJobId?: string;
           /** Cron job name that created this conversation */
           cronJobName?: string;
+          /** Cron run ID that created this conversation */
+          cronRunId?: string;
           /** Cron job ID this conversation is pre-bound to */
           cronJobBoundId?: string;
           /** Cron job name this conversation is pre-bound to */
@@ -497,7 +505,7 @@ export type TProviderWithModel = Omit<IProvider, 'model'> & { useModel: string }
 export const DEFAULT_IMAGE_BASE_URL = 'https://hk.sudorouter.ai/v1';
 
 /** Default model used for image parsing/understanding (看图) via SudoRouter */
-export const DEFAULT_IMAGE_PARSING_MODEL = 'gemini-3-flash-preview';
+export const DEFAULT_IMAGE_PARSING_MODEL = 'gemini-3.5-flash';
 
 /** Default model used for image generation (生图) */
 export const DEFAULT_IMAGE_GENERATION_MODEL = 'gpt-image-1.5';

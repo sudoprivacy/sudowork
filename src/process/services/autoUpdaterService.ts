@@ -10,7 +10,7 @@ import log from 'electron-log';
 import { EventEmitter } from 'events';
 
 /** COS mirror base URL for Chinese users */
-const COS_MIRROR_BASE = 'https://sudoclaw-download-1309794936.cos.ap-beijing.myqcloud.com/sudowork/release/latest';
+const COS_MIRROR_BASE = 'https://sudowork-download-1309794936.cos.ap-beijing.myqcloud.com/sudowork/release/latest';
 
 /** Timeout for GitHub API accessibility check */
 const GITHUB_API_TIMEOUT = 5000; // 5 seconds

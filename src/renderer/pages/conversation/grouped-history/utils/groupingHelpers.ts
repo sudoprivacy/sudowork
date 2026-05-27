@@ -36,6 +36,25 @@ export const getConversationPinnedTab = (conversation: ConversationItem): Sideba
   return extra?.pinnedTab;
 };
 
+const compareConversationsByLatestActivity = (a: TChatConversation, b: TChatConversation): number => {
+  const activityDiff = getActivityTime(b) - getActivityTime(a);
+  if (activityDiff !== 0) return activityDiff;
+
+  const createTimeDiff = (b.createTime || 0) - (a.createTime || 0);
+  if (createTimeDiff !== 0) return createTimeDiff;
+
+  return b.id.localeCompare(a.id);
+};
+
+const getCronConversationTime = (conversation: TChatConversation): number => conversation.createTime || getActivityTime(conversation);
+
+const compareCronConversationsByCreatedTime = (a: TChatConversation, b: TChatConversation): number => {
+  const createTimeDiff = getCronConversationTime(b) - getCronConversationTime(a);
+  if (createTimeDiff !== 0) return createTimeDiff;
+
+  return b.id.localeCompare(a.id);
+};
+
 export const groupConversationsByTimelineAndWorkspace = (conversations: ConversationItem[], t: (key: string) => string): TimelineSection[] => {
   console.log('[groupConversationsByTimelineAndWorkspace] Input conversations:', conversations.length);
   const allWorkspaceGroups = new Map<string, ConversationItem[]>();
@@ -58,7 +77,7 @@ export const groupConversationsByTimelineAndWorkspace = (conversations: Conversa
   const workspaceGroupsByTimeline = new Map<string, WorkspaceGroup[]>();
 
   allWorkspaceGroups.forEach((convList, workspace) => {
-    const sortedConvs = [...convList].sort((a, b) => getActivityTime(b as TChatConversation) - getActivityTime(a as TChatConversation));
+    const sortedConvs = [...convList].sort((a, b) => compareConversationsByLatestActivity(a as TChatConversation, b as TChatConversation));
     const latestConv = sortedConvs[0];
     const timeline = getConversationTimelineLabel(latestConv, t);
 
@@ -179,12 +198,21 @@ const buildScheduledGroups = (conversations: ConversationItem[], cronJobs: ICron
     });
 
     if (convs.length === 0) return;
-    convs.sort((a, b) => getActivityTime(b) - getActivityTime(a));
-    groups.push({ jobName: job.name, conversations: convs });
+    convs.sort(compareCronConversationsByCreatedTime);
+    groups.push({
+      jobId: job.id,
+      jobName: job.name,
+      conversations: convs,
+      latestConversationTime: getCronConversationTime(convs[0]),
+    });
   });
 
-  // Sort groups by most recent conversation within each group.
-  groups.sort((a, b) => getActivityTime(b.conversations[0] as TChatConversation) - getActivityTime(a.conversations[0] as TChatConversation));
+  // Sort groups by most recent conversation within each group, with stable fallbacks.
+  groups.sort((a, b) => {
+    const timeDiff = b.latestConversationTime - a.latestConversationTime;
+    if (timeDiff !== 0) return timeDiff;
+    return b.jobId.localeCompare(a.jobId);
+  });
   return groups;
 };
 
@@ -231,7 +259,11 @@ export const buildGroupedHistory = (conversations: ConversationItem[], t: (key: 
     scheduledGroups: buildScheduledGroups(conversations, cronJobs),
   };
 
-  console.log('[buildGroupedHistory] Result timelineSections:', result.timelineSections.length, result.timelineSections.map(s => ({ timeline: s.timeline, itemsCount: s.items.length })));
+  console.log(
+    '[buildGroupedHistory] Result timelineSections:',
+    result.timelineSections.length,
+    result.timelineSections.map((s) => ({ timeline: s.timeline, itemsCount: s.items.length }))
+  );
 
   return result;
 };

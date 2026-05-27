@@ -55,7 +55,7 @@ const SUDOCLAW_WORKSPACE_DIR = path.join(SUDOCLAW_DIR, 'workspace');
 const SUDOCLAW_INSTALL_MANIFEST_PATH = path.join(SUDOCLAW_DIR, 'install-manifest.json');
 
 /** COS base URL for downloading sudoclaw archives at runtime */
-const SUDOCLAW_COS_BASE_URL = 'https://sudoclaw-1309794936.cos.ap-beijing.myqcloud.com';
+const SUDOCLAW_COS_BASE_URL = 'https://sudoworkhub-1309794936.cos.ap-beijing.myqcloud.com';
 /** GitHub base URL for downloading sudoclaw archives at runtime */
 const SUDOCLAW_GITHUB_RELEASE_BASE_URL = 'https://github.com/sudoprivacy/sudorepo/releases/download';
 
@@ -637,7 +637,7 @@ export function ensureDefaultConfig(): void {
     agents: {
       defaults: {
         workspace: SUDOCLAW_WORKSPACE_DIR,
-        model: { primary: 'sudorouter/gemini-3-flash-preview', fallbacks: [] as string[] },
+        model: { primary: 'sudorouter/gemini-3.5-flash', fallbacks: [] as string[] },
         models: {},
       },
       list: [{ id: 'main', identity: { name: 'SudoClaw', emoji: '🦞' } }],
@@ -648,12 +648,12 @@ export function ensureDefaultConfig(): void {
         sudorouter: {
           baseUrl: 'https://hk.sudorouter.ai/v1',
           api: 'google-generative-ai',
-          models: [{ id: 'gemini-3-flash-preview', name: 'gemini-3-flash-preview', input: ['text', 'image'] }],
+          models: [{ id: 'gemini-3.5-flash', name: 'gemini-3.5-flash', input: ['text', 'image'] }],
         },
-        'sudorouter-gemini-3-flash-preview': {
+        'sudorouter-gemini-3.5-flash': {
           baseUrl: 'https://hk.sudorouter.ai/v1',
           api: 'google-generative-ai',
-          models: [{ id: 'gemini-3-flash-preview', name: 'gemini-3-flash-preview', input: ['text', 'image'] }],
+          models: [{ id: 'gemini-3.5-flash', name: 'gemini-3.5-flash', input: ['text', 'image'] }],
         },
       },
     },
