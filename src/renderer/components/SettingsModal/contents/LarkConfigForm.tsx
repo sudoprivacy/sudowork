@@ -408,7 +408,7 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
                   handleCredentialsChange();
                 }}
                 onBlur={() => setTouched((prev) => ({ ...prev, appId: true }))}
-                placeholder={hasExistingUsers || pluginStatus?.hasToken ? '••••••••••••••••' : 'cli_xxxxxxxxxx'}
+                placeholder={hasExistingUsers ? '••••••••••••••••' : 'cli_xxxxxxxxxx'}
                 style={{ width: 240 }}
                 status={touched.appId && !appId.trim() && !pluginStatus?.hasToken ? 'error' : undefined}
                 disabled={hasExistingUsers}
@@ -423,7 +423,7 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
               handleCredentialsChange();
             }}
             onBlur={() => setTouched((prev) => ({ ...prev, appId: true }))}
-            placeholder={hasExistingUsers || pluginStatus?.hasToken ? '••••••••••••••••' : 'cli_xxxxxxxxxx'}
+            placeholder={hasExistingUsers ? '••••••••••••••••' : 'cli_xxxxxxxxxx'}
             style={{ width: 240 }}
             status={touched.appId && !appId.trim() && !pluginStatus?.hasToken ? 'error' : undefined}
             disabled={hasExistingUsers}
@@ -461,7 +461,7 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
                   handleCredentialsChange();
                 }}
                 onBlur={() => setTouched((prev) => ({ ...prev, appSecret: true }))}
-                placeholder={hasExistingUsers || pluginStatus?.hasToken ? '••••••••••••••••' : 'xxxxxxxxxxxxxxxxxx'}
+                placeholder={hasExistingUsers ? '••••••••••••••••' : 'xxxxxxxxxxxxxxxxxx'}
                 style={{ width: 240 }}
                 status={touched.appSecret && !appSecret.trim() && !pluginStatus?.hasToken ? 'error' : undefined}
                 visibilityToggle
@@ -477,7 +477,7 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
               handleCredentialsChange();
             }}
             onBlur={() => setTouched((prev) => ({ ...prev, appSecret: true }))}
-            placeholder={hasExistingUsers || pluginStatus?.hasToken ? '••••••••••••••••' : 'xxxxxxxxxxxxxxxxxx'}
+            placeholder={hasExistingUsers ? '••••••••••••••••' : 'xxxxxxxxxxxxxxxxxx'}
             style={{ width: 240 }}
             status={touched.appSecret && !appSecret.trim() && !pluginStatus?.hasToken ? 'error' : undefined}
             visibilityToggle

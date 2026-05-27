@@ -9,6 +9,7 @@ import { usePasteService } from '@/renderer/hooks/usePasteService';
 import { allSupportedExts, type FileMetadata } from '@/renderer/services/FileService';
 import { measureCaretTop, scrollCaretToLastLine } from '../utils/caretUtils';
 import { useCallback, useEffect, useState } from 'react';
+import { getGuidDraft, setGuidDraft } from './useGuidDraft';
 
 export type GuidInputResult = {
   input: string;
@@ -38,18 +39,44 @@ type UseGuidInputOptions = {
  * Hook that manages input state, file handling, and drag/paste for the Guid page.
  */
 export const useGuidInput = ({ locationState }: UseGuidInputOptions): GuidInputResult => {
-  const [input, setInput] = useState('');
-  const [files, setFiles] = useState<string[]>([]);
-  const [dir, setDir] = useState<string>('');
+  const draft = getGuidDraft();
+  const [input, setInputState] = useState(draft?.input ?? '');
+  const [files, setFilesState] = useState<string[]>(draft?.files ?? []);
+  const [dir, setDirState] = useState<string>(draft?.dir ?? '');
   const [isInputFocused, setIsInputFocused] = useState(false);
   const [loading, setLoading] = useState(false);
 
   // Read workspace from location.state (passed from tabs add button)
   useEffect(() => {
     if (locationState?.workspace) {
-      setDir(locationState.workspace);
+      setDirState(locationState.workspace);
+      setGuidDraft({ dir: locationState.workspace });
     }
   }, [locationState]);
+
+  const setInput = useCallback((value: string | ((prev: string) => string)) => {
+    setInputState((prev) => {
+      const next = typeof value === 'function' ? value(prev) : value;
+      setGuidDraft({ input: next });
+      return next;
+    });
+  }, []);
+
+  const setFiles = useCallback((value: string[] | ((prev: string[]) => string[])) => {
+    setFilesState((prev) => {
+      const next = typeof value === 'function' ? value(prev) : value;
+      setGuidDraft({ files: next });
+      return next;
+    });
+  }, []);
+
+  const setDir = useCallback((value: string | ((prev: string) => string)) => {
+    setDirState((prev) => {
+      const next = typeof value === 'function' ? value(prev) : value;
+      setGuidDraft({ dir: next });
+      return next;
+    });
+  }, []);
 
   // Handle pasted files (append mode to support multiple pastes)
   const handleFilesPasted = useCallback((pastedFiles: FileMetadata[]) => {
