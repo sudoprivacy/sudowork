@@ -162,6 +162,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
   private pendingModelSwitchNotice: string | null = null;
   private hasReceivedUsageUpdate = false;
   private lastUserMessage: string | null = null;
+  private plannedRestartInProgress = false;
 
   // Slash commands
   private acpAvailableSlashCommands: SlashCommandItem[] = [];
@@ -359,6 +360,13 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
       }
 
       // Store resolved config for connection
+      if (data.backend === 'scode' && this.persistedModelId) {
+        customEnv = {
+          ...customEnv,
+          SUDOCODE_CURRENT_MODEL_ID: this.persistedModelId,
+        };
+      }
+
       this.extra = {
         ...this.extra,
         cliPath,
@@ -1521,17 +1529,22 @@ This identity statement takes priority over the default identity in USER.md.
    */
   async restartAndConnect(): Promise<void> {
     // Disconnect current connection (kills process, clears session state)
-    await this.connection.disconnect();
-    // Clear bootstrap so initAgent creates a fresh connection
-    this.bootstrap = undefined;
-    // Clear pending state
-    this.pendingPermissions.clear();
-    this.permissionRequestMeta.clear();
-    this.approvalStore.clear();
-    this.pendingNavigationTools.clear();
-    this.statusMessageId = null;
-    // Re-initialize agent connection
-    await this.initAgent();
+    this.plannedRestartInProgress = true;
+    try {
+      await this.connection.disconnect();
+      // Clear bootstrap so initAgent creates a fresh connection
+      this.bootstrap = undefined;
+      // Clear pending state
+      this.pendingPermissions.clear();
+      this.permissionRequestMeta.clear();
+      this.approvalStore.clear();
+      this.pendingNavigationTools.clear();
+      this.statusMessageId = null;
+      // Re-initialize agent connection
+      await this.initAgent();
+    } finally {
+      this.plannedRestartInProgress = false;
+    }
   }
 
   async ensureYoloMode(): Promise<boolean> {
@@ -1585,6 +1598,11 @@ This identity statement takes priority over the default identity in USER.md.
   }
 
   async setModel(modelId: string): Promise<AcpModelInfo | null> {
+    const normalizedModelId = modelId.trim();
+    if (!normalizedModelId) {
+      return this.getModelInfo();
+    }
+
     if (!this.connection?.isConnected) {
       try {
         await this.initAgent(this.options);
@@ -1592,10 +1610,39 @@ This identity statement takes priority over the default identity in USER.md.
         return null;
       }
     }
-    const result = await this.setModelByConfigOption(modelId);
+
+    if (this.options.backend === 'scode') {
+      this.persistedModelId = normalizedModelId;
+      this.userModelOverride = normalizedModelId;
+      this.pendingModelSwitchNotice = normalizedModelId;
+      saveModelId(this.conversation_id, normalizedModelId);
+      this.options.currentModelId = normalizedModelId;
+      this.extra.customEnv = {
+        ...this.extra.customEnv,
+        SUDOCODE_CURRENT_MODEL_ID: normalizedModelId,
+      };
+    }
+
+    let result: AcpModelInfo | null = null;
+    try {
+      result = await this.setModelByConfigOption(normalizedModelId);
+    } catch (error) {
+      if (this.options.backend !== 'scode') {
+        throw error;
+      }
+      mainWarn('[AcpAgent]', `scode: setModel("${normalizedModelId}") failed, restarting connection to apply model/auth mode: ${error instanceof Error ? error.message : String(error)}`);
+      try {
+        await this.restartAndConnect();
+        result = this.getModelInfo();
+      } catch (restartError) {
+        mainWarn('[AcpAgent]', `scode: restart after model switch failed: ${restartError instanceof Error ? restartError.message : String(restartError)}`);
+        throw error;
+      }
+    }
+
     if (result) {
-      this.persistedModelId = result.currentModelId;
-      saveModelId(this.conversation_id, result.currentModelId);
+      this.persistedModelId = result.currentModelId || normalizedModelId;
+      saveModelId(this.conversation_id, this.persistedModelId);
       if (result.availableModels?.length > 0) {
         void this.cacheModelList(result);
       }
@@ -2426,6 +2473,18 @@ This identity statement takes priority over the default identity in USER.md.
   }
 
   private handleDisconnect(error: { code: number | null; signal: NodeJS.Signals | null }): void {
+    if (this.plannedRestartInProgress) {
+      mainLog('[AcpAgent]', `Ignoring planned ${this.extra.backend} disconnect during restart (code: ${error.code}, signal: ${error.signal})`);
+      this.emitStatusMessage('disconnected');
+      this.pendingPermissions.clear();
+      this.permissionRequestMeta.clear();
+      this.approvalStore.clear();
+      this.pendingNavigationTools.clear();
+      this.statusMessageId = null;
+      this.bootstrap = undefined;
+      return;
+    }
+
     this.emitStatusMessage('disconnected');
 
     const errorMsg = `${this.extra.backend} process disconnected unexpectedly ` + `(code: ${error.code}, signal: ${error.signal}). ` + `Please try sending a new message to reconnect.`;
