@@ -189,6 +189,7 @@
     "mammoth": "^1.11.0",
     "mdast-util-from-markdown": "^2.0.3",
     "mdast-util-gfm": "^3.1.0",
+    "mermaid": "^11.15.0",
     "minimatch": "^9.0.6",
     "officeparser": "^5.2.2",
     "openai": "^5.12.2",
