@@ -100,7 +100,7 @@ const CopilotModalContent: React.FC = () => {
       if (configRes?.success && configRes.data) {
         const c = configRes.data;
         form.setFieldsValue({
-          primaryModel: c.agents?.defaults?.model?.primary || 'sudorouter/gemini-3-flash-preview',
+          primaryModel: c.agents?.defaults?.model?.primary || 'sudorouter/gemini-3.5-flash',
           modelsMode: c.models?.mode || 'merge',
         });
         const prov = c.models?.providers || {};
@@ -114,7 +114,7 @@ const CopilotModalContent: React.FC = () => {
         );
       } else {
         form.setFieldsValue({
-          primaryModel: 'sudorouter/gemini-3-flash-preview',
+          primaryModel: 'sudorouter/gemini-3.5-flash',
           modelsMode: 'merge',
         });
         setProviders([]);
@@ -152,7 +152,7 @@ const CopilotModalContent: React.FC = () => {
       agents: {
         defaults: {
           model: {
-            primary: values.primaryModel || 'sudorouter/gemini-3-flash-preview',
+            primary: values.primaryModel || 'sudorouter/gemini-3.5-flash',
           },
         },
       },
@@ -214,7 +214,7 @@ const CopilotModalContent: React.FC = () => {
           key: defaultKey,
           provider: {
             baseUrl: DEFAULT_BASE_URL,
-            models: [{ id: 'gemini-3-flash-preview', name: 'gemini-3-flash-preview' }],
+            models: [{ id: 'gemini-3.5-flash', name: 'gemini-3.5-flash' }],
           },
         },
       ];

@@ -505,7 +505,7 @@ export type TProviderWithModel = Omit<IProvider, 'model'> & { useModel: string }
 export const DEFAULT_IMAGE_BASE_URL = 'https://hk.sudorouter.ai/v1';
 
 /** Default model used for image parsing/understanding (看图) via SudoRouter */
-export const DEFAULT_IMAGE_PARSING_MODEL = 'gemini-3-flash-preview';
+export const DEFAULT_IMAGE_PARSING_MODEL = 'gemini-3.5-flash';
 
 /** Default model used for image generation (生图) */
 export const DEFAULT_IMAGE_GENERATION_MODEL = 'gpt-image-1.5';

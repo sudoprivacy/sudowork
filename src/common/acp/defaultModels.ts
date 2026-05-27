@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export const DEFAULT_SCODE_MODEL_ID = 'gemini-3.1-pro-preview';
+export const DEFAULT_SCODE_MODEL_ID = 'gemini-3.5-flash';
 
 export function getDefaultAcpModelId(backend: string | null | undefined): string | null {
   switch (backend) {
