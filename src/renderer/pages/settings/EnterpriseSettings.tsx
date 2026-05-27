@@ -9,6 +9,7 @@ import { Button, Input, Message, Spin } from '@arco-design/web-react';
 import { BuildingTwo, Success, Close } from '@icon-park/react';
 import { ConfigStorage } from '@/common/storage';
 import { ipcBridge } from '@/common';
+import { TENANT_CONFIG_STORAGE_KEY, resolveTenantConfig } from '@/common/types/tenantConfig';
 import { useAuth } from '@/renderer/context/AuthContext';
 import SettingsPageWrapper from './components/SettingsPageWrapper';
 
@@ -24,10 +25,7 @@ const EnterpriseSettings: React.FC = () => {
   useEffect(() => {
     const loadConfig = async () => {
       try {
-        const [name, url] = await Promise.all([
-          ConfigStorage.get('eeclaw.tenantName'),
-          ConfigStorage.get('eeclaw.serverUrl'),
-        ]);
+        const [name, url] = await Promise.all([ConfigStorage.get('eeclaw.tenantName'), ConfigStorage.get('eeclaw.serverUrl')]);
         setTenantName(name || '');
         setServerUrl(url || '');
         setEditingServerUrl(url || '');
@@ -63,11 +61,14 @@ const EnterpriseSettings: React.FC = () => {
         return;
       }
 
+      const tenantConfig = resolveTenantConfig(result.data);
+
       // Step 2: Update ConfigStorage
       await ConfigStorage.set('eeclaw.serverUrl', normalizedUrl);
-      await ConfigStorage.set('eeclaw.tenantName', result.data.app_company_name);
+      await ConfigStorage.set('eeclaw.tenantName', tenantConfig.app_company_name);
+      localStorage.setItem(TENANT_CONFIG_STORAGE_KEY, JSON.stringify(tenantConfig));
       setServerUrl(normalizedUrl);
-      setTenantName(result.data.app_company_name);
+      setTenantName(tenantConfig.app_company_name);
       setEditingServerUrl(normalizedUrl);
 
       // Step 3: Clear auth data (SECURITY-2)
@@ -120,38 +121,18 @@ const EnterpriseSettings: React.FC = () => {
           {/* Connection Status */}
           <div className='flex items-center justify-between py-8px'>
             <div className='flex items-center gap-8px'>
-              {connectionStatus === 'connected' ? (
-                <Success theme='filled' size={16} fill={['#00b42a']} />
-              ) : connectionStatus === 'checking' ? (
-                <Spin size={16} />
-              ) : (
-                <Close theme='filled' size={16} fill={['#f53f3f']} />
-              )}
+              {connectionStatus === 'connected' ? <Success theme='filled' size={16} fill={['#00b42a']} /> : connectionStatus === 'checking' ? <Spin size={16} /> : <Close theme='filled' size={16} fill={['#f53f3f']} />}
               <span className='text-14px text-t-secondary'>连接状态</span>
             </div>
-            <span className={`text-14px font-500 ${connectionStatus === 'connected' ? 'text-[rgb(var(--green-6))]' : connectionStatus === 'disconnected' ? 'text-[rgb(var(--red-6))]' : 'text-[var(--color-text-3)]'}`}>
-              {connectionStatus === 'connected' ? '已连接' : connectionStatus === 'checking' ? '检查中...' : '未连接'}
-            </span>
+            <span className={`text-14px font-500 ${connectionStatus === 'connected' ? 'text-[rgb(var(--green-6))]' : connectionStatus === 'disconnected' ? 'text-[rgb(var(--red-6))]' : 'text-[var(--color-text-3)]'}`}>{connectionStatus === 'connected' ? '已连接' : connectionStatus === 'checking' ? '检查中...' : '未连接'}</span>
           </div>
 
           {/* Server URL (editable) */}
           <div className='flex flex-col gap-8px pt-8px'>
             <span className='text-14px text-t-secondary'>服务器地址</span>
             <div className='flex gap-8px'>
-              <Input
-                value={editingServerUrl}
-                onChange={setEditingServerUrl}
-                placeholder='https://your-company-server.com'
-                className='flex-1 h-[32px] rounded-8px bg-[var(--fill-0)]'
-                disabled={saving}
-              />
-              <Button
-                type='primary'
-                size='small'
-                loading={saving}
-                onClick={() => void handleSaveServerUrl()}
-                disabled={editingServerUrl.trim() === serverUrl.trim() || !editingServerUrl.trim()}
-              >
+              <Input value={editingServerUrl} onChange={setEditingServerUrl} placeholder='https://your-company-server.com' className='flex-1 h-[32px] rounded-8px bg-[var(--fill-0)]' disabled={saving} />
+              <Button type='primary' size='small' loading={saving} onClick={() => void handleSaveServerUrl()} disabled={editingServerUrl.trim() === serverUrl.trim() || !editingServerUrl.trim()}>
                 保存
               </Button>
             </div>

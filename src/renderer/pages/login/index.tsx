@@ -5,7 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import { Button, Input, Message, Space } from '@arco-design/web-react';
 import { Phone, Protect, Key, User, Lock } from '@icon-park/react';
 import { SUDOWORK_SERVER_BASE_URL } from '@/common/sudoworkServer';
-import { DEFAULT_TENANT_CONFIG } from '@/common/types/tenantConfig';
+import { DEFAULT_TENANT_CONFIG, TENANT_CONFIG_STORAGE_KEY, resolveTenantConfig } from '@/common/types/tenantConfig';
 import SudoworkIcon from '@/renderer/assets/sudowork-icon-dark.svg';
 import WindowControls from '../../components/WindowControls';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
@@ -38,10 +38,10 @@ function isValidPhone(phone: string): boolean {
 // 从 localStorage 读取缓存的租户配置
 function getCachedTenantConfig(): Required<typeof DEFAULT_TENANT_CONFIG> {
   try {
-    const cached = localStorage.getItem('sudowork_tenant_config');
+    const cached = localStorage.getItem(TENANT_CONFIG_STORAGE_KEY);
     if (cached) {
       const parsed = JSON.parse(cached);
-      return { ...DEFAULT_TENANT_CONFIG, ...parsed };
+      return resolveTenantConfig(parsed);
     }
   } catch {
     // ignore
@@ -51,7 +51,7 @@ function getCachedTenantConfig(): Required<typeof DEFAULT_TENANT_CONFIG> {
 
 const LoginPage: React.FC = () => {
   const navigate = useNavigate();
-  const { status, login, register, enterpriseLogin, enterpriseLoginWithOAuth2, logout } = useAuth();
+  const { status, login, register, enterpriseLogin, enterpriseLoginWithOAuth2 } = useAuth();
   const { isEnterprise } = useAppMode();
 
   // Enterprise login state
@@ -59,7 +59,6 @@ const LoginPage: React.FC = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [apiKey, setApiKey] = useState('');
-  const [tenantName, setTenantName] = useState<string>('');
 
   // OAuth2 login state
   const [oauth2Config, setOauth2Config] = useState<{ enabled: boolean; authorize_url?: string } | null>(null);
@@ -70,19 +69,12 @@ const LoginPage: React.FC = () => {
   // 从 localStorage 读取缓存的租户配置
   const tenantConfig = getCachedTenantConfig();
 
-  // Enterprise: load tenantName on mount
-  useEffect(() => {
-    if (isEnterprise) {
-      ConfigStorage.get('eeclaw.tenantName').then(setTenantName);
-    }
-  }, [isEnterprise]);
-
   // OAuth2: fetch config from MOSS when the OAuth2 tab is selected
   useEffect(() => {
     if (!isEnterprise || loginTab !== 'oauth2' || oauth2Config) return;
     let cancelled = false;
     setOauth2Loading(true);
-    (async () => {
+    void (async () => {
       try {
         const serverUrl = await ConfigStorage.get('eeclaw.serverUrl');
         if (!serverUrl) {
@@ -143,9 +135,7 @@ const LoginPage: React.FC = () => {
     const state = generateOAuth2State();
     oauth2StateRef.current = state;
     // moss returns the authorize URL with {state} placeholder (or none); fill/append it.
-    const url = oauth2Config.authorize_url.includes('{state}')
-      ? oauth2Config.authorize_url.replace('{state}', encodeURIComponent(state))
-      : `${oauth2Config.authorize_url}${oauth2Config.authorize_url.includes('?') ? '&' : '?'}state=${encodeURIComponent(state)}`;
+    const url = oauth2Config.authorize_url.includes('{state}') ? oauth2Config.authorize_url.replace('{state}', encodeURIComponent(state)) : `${oauth2Config.authorize_url}${oauth2Config.authorize_url.includes('?') ? '&' : '?'}state=${encodeURIComponent(state)}`;
     setOauth2Waiting(true);
     try {
       await ipcBridge.shell.openExternal.invoke(url);
@@ -463,13 +453,14 @@ const LoginPage: React.FC = () => {
   const handleBackToModeSelect = async () => {
     try {
       // Clear all enterprise-related ConfigStorage keys
-      await ConfigStorage.remove('eeclaw.authStorage' as any);
-      await ConfigStorage.remove('eeclaw.userInfo' as any);
-      await ConfigStorage.remove('eeclaw.serverUrl' as any);
-      await ConfigStorage.remove('eeclaw.tenantName' as any);
-      await ConfigStorage.remove('system.appMode' as any);
+      await ConfigStorage.set('eeclaw.authStorage', undefined);
+      await ConfigStorage.set('eeclaw.userInfo', undefined);
+      await ConfigStorage.set('eeclaw.serverUrl', undefined);
+      await ConfigStorage.set('eeclaw.tenantName', undefined);
+      await ConfigStorage.set('system.appMode', undefined);
       // Clear enterprise auth from localStorage
       localStorage.removeItem('eeclaw_auth_v1');
+      localStorage.removeItem(TENANT_CONFIG_STORAGE_KEY);
       // Clear C-side auth to avoid falling into authenticated state
       localStorage.removeItem('sudowork_auth_v2');
       localStorage.removeItem('sudowork_auth_v1');
@@ -495,14 +486,10 @@ const LoginPage: React.FC = () => {
         <div className='login-page__card'>
           <div className='login-page__header'>
             <div className='login-page__logo'>
-              <img
-                src={SudoworkIcon}
-                alt={tenantName || 'SudoWork'}
-                className='w-64px h-64px object-contain'
-              />
+              <img src={tenantConfig.logo || SudoworkIcon} alt={tenantConfig.app_name} className='w-64px h-64px object-contain' />
             </div>
-            <h1 className='text-28px font-800 tracking-tighter bg-gradient-to-br from-primary to-purple-600 bg-clip-text text-transparent mb-8px'>{tenantName || 'SudoWork'}</h1>
-            <p className='text-13px text-t-secondary'>企业版登录</p>
+            <h1 className='text-28px font-800 tracking-tighter bg-gradient-to-br from-primary to-purple-600 bg-clip-text text-transparent mb-8px'>{tenantConfig.app_name}</h1>
+            <p className='text-13px text-t-secondary'>{tenantConfig.login_desp}</p>
           </div>
 
           {/* Enterprise login tabs: password / key / oauth2 */}
@@ -536,26 +523,11 @@ const LoginPage: React.FC = () => {
                 <Input size='large' prefix={<Key className='text-t-tertiary' />} placeholder='moss_sk_xxx.yyy' value={apiKey} onChange={setApiKey} className='login-input !rd-12px h-48px' />
               </div>
             ) : (
-              <div className='flex flex-col gap-8px text-center'>
-                {oauth2Loading ? (
-                  <div className='text-13px text-t-tertiary py-12px'>正在检查 OAuth2 配置…</div>
-                ) : oauth2Config?.enabled ? (
-                  <div className='text-13px text-t-secondary py-4px'>点击下方按钮，将在浏览器中完成身份认证。</div>
-                ) : (
-                  <div className='text-13px text-t-tertiary py-12px'>管理员未启用 OAuth2 登录</div>
-                )}
-              </div>
+              <div className='flex flex-col gap-8px text-center'>{oauth2Loading ? <div className='text-13px text-t-tertiary py-12px'>正在检查 OAuth2 配置…</div> : oauth2Config?.enabled ? <div className='text-13px text-t-secondary py-4px'>点击下方按钮，将在浏览器中完成身份认证。</div> : <div className='text-13px text-t-tertiary py-12px'>管理员未启用 OAuth2 登录</div>}</div>
             )}
 
             {loginTab === 'oauth2' ? (
-              <Button
-                type='primary'
-                size='large'
-                loading={oauth2Waiting}
-                disabled={oauth2Loading || !oauth2Config?.enabled}
-                onClick={() => handleOAuth2Login()}
-                className='login-btn-primary !rd-12px h-52px mt-12px font-700 text-16px'
-              >
+              <Button type='primary' size='large' loading={oauth2Waiting} disabled={oauth2Loading || !oauth2Config?.enabled} onClick={() => handleOAuth2Login()} className='login-btn-primary !rd-12px h-52px mt-12px font-700 text-16px'>
                 {oauth2Waiting ? '等待浏览器授权…' : '通过浏览器登录'}
               </Button>
             ) : (
@@ -565,10 +537,7 @@ const LoginPage: React.FC = () => {
             )}
 
             <div className='text-center mt-12px'>
-              <span
-                className='text-12px text-t-tertiary cursor-pointer hover:text-t-secondary transition-colors'
-                onClick={handleBackToModeSelect}
-              >
+              <span className='text-12px text-t-tertiary cursor-pointer hover:text-t-secondary transition-colors' onClick={handleBackToModeSelect}>
                 ← 返回模式选择
               </span>
             </div>
@@ -593,11 +562,7 @@ const LoginPage: React.FC = () => {
       <div className='login-page__card'>
         <div className='login-page__header'>
           <div className='login-page__logo'>
-            <img
-              src={tenantConfig.logo || SudoworkIcon}
-              alt={tenantConfig.app_name}
-              className='w-64px h-64px object-contain'
-            />
+            <img src={tenantConfig.logo || SudoworkIcon} alt={tenantConfig.app_name} className='w-64px h-64px object-contain' />
           </div>
           <h1 className='text-28px font-800 tracking-tighter bg-gradient-to-br from-primary to-purple-600 bg-clip-text text-transparent mb-8px'>{tenantConfig.app_name}</h1>
           <p className='text-13px text-t-secondary'>{tenantConfig.login_desp}</p>
@@ -648,10 +613,7 @@ const LoginPage: React.FC = () => {
           </Button>
 
           <div className='text-center mt-12px'>
-            <span
-              className='text-12px text-t-tertiary cursor-pointer hover:text-t-secondary transition-colors'
-              onClick={handleBackToModeSelect}
-            >
+            <span className='text-12px text-t-tertiary cursor-pointer hover:text-t-secondary transition-colors' onClick={handleBackToModeSelect}>
               ← 返回模式选择
             </span>
           </div>

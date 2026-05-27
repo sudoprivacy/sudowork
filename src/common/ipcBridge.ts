@@ -1790,12 +1790,12 @@ export const crash = {
 
 export interface TenantConfigData {
   id: string;
-  logo: string;
-  app_name: string;
-  top_name: string;
-  about_name: string;
-  app_company_name: string;
-  login_desp: string;
+  logo: string | null;
+  app_name: string | null;
+  top_name: string | null;
+  about_name: string | null;
+  app_company_name: string | null;
+  login_desp: string | null;
   updated_at: number;
 }
 
