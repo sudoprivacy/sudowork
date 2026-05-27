@@ -7,7 +7,7 @@
 /**
  * Crash Types - Crash/异常上报数据类型定义
  *
- * 用于 sudoclaw-qms 替代 Sentry 的 Crash 捕获功能
+ * 用于 sudowork-qms 替代 Sentry 的 Crash 捕获功能
  */
 
 // ============================================================
@@ -225,7 +225,7 @@ export interface CrashReporterConfig {
 /** 默认 CrashReporter 配置 */
 export const DEFAULT_CRASH_REPORTER_CONFIG: CrashReporterConfig = {
   enabled: true,
-  serverUrl: 'https://sudoclaw-qms.sudoprivacy.com/api/v1/crash/events/batch',
+  serverUrl: 'https://sudowork-qms.sudoprivacy.com/api/v1/crash/events/batch',
   batchSize: 20,
   flushInterval: 60000, // 60 秒
   maxRetries: 3,

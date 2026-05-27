@@ -56,7 +56,7 @@ type IMessageVO =
       id: string;
       messages: Array<IMessageToolGroup | IMessageAcpToolCall>;
     }
-  | { type: 'turn_actions'; id: string; turnTexts: string[]; conversationId?: string }
+  | { type: 'turn_actions'; id: string; turnTexts: string[]; turnTextsRaw: string[]; conversationId?: string }
   | { type: 'time_separator'; id: string; timestamp: number }
   | { type: 'loading_indicator'; id: string };
 
@@ -100,7 +100,7 @@ const MessageItem: React.FC<{ message: TMessage; isStreaming?: boolean }> = Reac
         })}
       >
         {isAiMessage && (
-          <div className="flex-shrink-0 mr-12px mt-4px w-24px h-24px relative">
+          <div className='flex-shrink-0 mr-12px mt-4px w-24px h-24px relative'>
             <img src={streamingAvatar} alt='AI Avatar' className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 ${isStreaming ? 'w-40px h-40px max-w-none' : 'w-24px h-24px'} object-contain`} />
           </div>
         )}
@@ -268,12 +268,14 @@ const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = fal
     let diffsChanges: FileChangeInfo[] = [];
     let toolList: Array<IMessageToolGroup | IMessageAcpToolCall> = [];
     let turnTexts: string[] = [];
+    let turnTextsRaw: string[] = [];
     let lastAiTextId = '';
 
     const flushTurnActions = () => {
       if (turnTexts.length > 0) {
-        result.push({ type: 'turn_actions', id: `turn-actions-${lastAiTextId}`, turnTexts, conversationId: conversationContext?.conversationId });
+        result.push({ type: 'turn_actions', id: `turn-actions-${lastAiTextId}`, turnTexts, turnTextsRaw, conversationId: conversationContext?.conversationId });
         turnTexts = [];
+        turnTextsRaw = [];
         lastAiTextId = '';
       }
     };
@@ -319,9 +321,13 @@ const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = fal
           let cleaned = hasThinkTags(rawContent) ? stripThinkTags(rawContent) : rawContent;
           const markerIdx = cleaned.indexOf(NEXUS_FILES_MARKER);
           if (markerIdx !== -1) cleaned = cleaned.slice(0, markerIdx).trimEnd();
+          // Keep raw markdown with images for sharing
+          const rawCleaned = cleaned;
+          // Strip image syntax for plain text copy
           cleaned = cleaned.replace(/!\[[^\]]*\]\(([^)]+)\)/g, '$1');
           if (cleaned.trim()) {
             turnTexts.push(cleaned);
+            turnTextsRaw.push(rawCleaned);
             lastAiTextId = message.id;
           }
         }
@@ -386,7 +392,7 @@ const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = fal
     if (shouldShowLoading) {
       withTimeSeparators.push({
         type: 'loading_indicator',
-        id: 'temp-loading-indicator'
+        id: 'temp-loading-indicator',
       });
     }
 
@@ -452,7 +458,7 @@ const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = fal
       const streamingAvatarForSummary = isStreamingForSummary ? (isDarkMode() ? sudoclawProDark : sudoclawProWhite) : sudoworkIconDark;
       return (
         <div key={item.id} data-message-id={item.id} className={'min-w-0 flex items-start message-item px-8px m-t-10px max-w-full md:max-w-780px mx-auto ' + item.type}>
-          <div className="flex-shrink-0 mr-12px mt-4px w-24px h-24px relative">
+          <div className='flex-shrink-0 mr-12px mt-4px w-24px h-24px relative'>
             <img src={streamingAvatarForSummary} alt='AI Avatar' className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 ${isStreamingForSummary ? 'w-40px h-40px max-w-none' : 'w-24px h-24px'} object-contain`} />
           </div>
           <div className='flex-1 min-w-0'>
@@ -488,7 +494,7 @@ const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = fal
     if ('type' in item && item.type === 'turn_actions') {
       return (
         <div key={item.id} className='group min-w-0 message-item px-8px max-w-full md:max-w-780px mx-auto'>
-          <TurnActions turnTexts={(item as Extract<IMessageVO, { type: 'turn_actions' }>).turnTexts} conversationId={(item as Extract<IMessageVO, { type: 'turn_actions' }>).conversationId} />
+          <TurnActions turnTexts={(item as Extract<IMessageVO, { type: 'turn_actions' }>).turnTexts} turnTextsRaw={(item as Extract<IMessageVO, { type: 'turn_actions' }>).turnTextsRaw} conversationId={(item as Extract<IMessageVO, { type: 'turn_actions' }>).conversationId} />
         </div>
       );
     }

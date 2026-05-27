@@ -144,6 +144,8 @@ extraResources:
   # CLI tools (bundled at build time via scripts/download-*.js)
   - from: resources/claude-code.tgz
     to: claude-code.tgz
+  - from: resources/shareone.tgz
+    to: shareone.tgz
   - from: resources/mcporter.tgz
     to: mcporter.tgz
   # Nexus binary - versioned, optional (may not be available for all platforms)

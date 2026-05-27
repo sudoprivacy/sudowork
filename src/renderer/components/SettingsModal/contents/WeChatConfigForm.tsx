@@ -18,7 +18,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { QRCodeSVG } from 'qrcode.react';
 
-const WECHAT_GUIDE_URL = 'https://sudoclaw.sudoprivacy.com/guides/weixin-clawbot.html';
+const WECHAT_GUIDE_URL = 'https://sudowork.sudoprivacy.com/guides/weixin-clawbot.html';
 
 /**
  * Preference row component (matches DingTalk pattern)
@@ -182,7 +182,7 @@ const WeChatConfigForm: React.FC<WeChatConfigFormProps> = ({ pluginStatus, model
   // Cancel QR login on unmount
   useEffect(() => {
     return () => {
-      void channel.wechatCancelQrLogin.invoke().catch(() => {});
+      void channel.wechatCancelQrLogin.invoke().catch(() => { });
     };
   }, []);
 
@@ -274,49 +274,49 @@ const WeChatConfigForm: React.FC<WeChatConfigFormProps> = ({ pluginStatus, model
 
       {/* Agent Selection - hidden in enterprise mode (uses Moss remote agent) */}
       {!isEnterprise && (
-      <div className='flex flex-col gap-8px'>
-        <PreferenceRow label={t('settings.channels.wechat.agent', 'Agent')} description={t('settings.channels.wechat.agentDesc', 'Used for WeChat conversations')}>
-          <Dropdown
-            trigger='click'
-            position='br'
-            droplist={
-              <Menu selectedKeys={[selectedAgent.customAgentId ? `${selectedAgent.backend}|${selectedAgent.customAgentId}` : selectedAgent.backend]}>
-                {agentOptions.map((a) => {
-                  const key = a.customAgentId ? `${a.backend}|${a.customAgentId}` : a.backend;
-                  return (
-                    <Menu.Item
-                      key={key}
-                      onClick={() => {
-                        const currentKey = selectedAgent.customAgentId ? `${selectedAgent.backend}|${selectedAgent.customAgentId}` : selectedAgent.backend;
-                        if (key === currentKey) {
-                          return;
-                        }
-                        const next = { backend: a.backend, customAgentId: a.customAgentId, name: a.name };
-                        setSelectedAgent(next);
-                        void persistSelectedAgent(next);
-                      }}
-                    >
-                      {a.name}
-                    </Menu.Item>
-                  );
-                })}
-              </Menu>
-            }
-          >
-            <Button type='secondary' className='min-w-160px flex items-center justify-between gap-8px'>
-              <span className='truncate'>{agentOptions[0]?.name || 'Sudo Code'}</span>
-              <Down theme='outline' size={14} />
-            </Button>
-          </Dropdown>
-        </PreferenceRow>
-      </div>
+        <div className='flex flex-col gap-8px'>
+          <PreferenceRow label={t('settings.channels.wechat.agent', 'Agent')} description={t('settings.channels.wechat.agentDesc', 'Used for WeChat conversations')}>
+            <Dropdown
+              trigger='click'
+              position='br'
+              droplist={
+                <Menu selectedKeys={[selectedAgent.customAgentId ? `${selectedAgent.backend}|${selectedAgent.customAgentId}` : selectedAgent.backend]}>
+                  {agentOptions.map((a) => {
+                    const key = a.customAgentId ? `${a.backend}|${a.customAgentId}` : a.backend;
+                    return (
+                      <Menu.Item
+                        key={key}
+                        onClick={() => {
+                          const currentKey = selectedAgent.customAgentId ? `${selectedAgent.backend}|${selectedAgent.customAgentId}` : selectedAgent.backend;
+                          if (key === currentKey) {
+                            return;
+                          }
+                          const next = { backend: a.backend, customAgentId: a.customAgentId, name: a.name };
+                          setSelectedAgent(next);
+                          void persistSelectedAgent(next);
+                        }}
+                      >
+                        {a.name}
+                      </Menu.Item>
+                    );
+                  })}
+                </Menu>
+              }
+            >
+              <Button type='secondary' className='min-w-160px flex items-center justify-between gap-8px'>
+                <span className='truncate'>{agentOptions[0]?.name || 'Sudo Code'}</span>
+                <Down theme='outline' size={14} />
+              </Button>
+            </Dropdown>
+          </PreferenceRow>
+        </div>
       )}
 
       {/* Default Model Selection - hidden in enterprise mode */}
       {!isEnterprise && (
-      <PreferenceRow label={t('settings.assistant.defaultModel', 'Model')} description={t('settings.channels.wechat.defaultModelDesc', 'Used for Agent conversations')}>
-        <GeminiModelSelector selection={isGeminiAgent ? modelSelection : undefined} disabled={!isGeminiAgent} label={!isGeminiAgent ? t('settings.assistant.autoFollowCliModel', 'Auto-follow CLI runtime model') : undefined} variant='settings' />
-      </PreferenceRow>
+        <PreferenceRow label={t('settings.assistant.defaultModel', 'Model')} description={t('settings.channels.wechat.defaultModelDesc', 'Used for Agent conversations')}>
+          <GeminiModelSelector selection={isGeminiAgent ? modelSelection : undefined} disabled={!isGeminiAgent} label={!isGeminiAgent ? t('settings.assistant.autoFollowCliModel', 'Auto-follow CLI runtime model') : undefined} variant='settings' />
+        </PreferenceRow>
       )}
     </div>
   );
