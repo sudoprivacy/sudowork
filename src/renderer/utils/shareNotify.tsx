@@ -36,8 +36,14 @@ export function showShareLoading(options?: ShareNotifyOptions): string {
 
 /**
  * Update notification to show success with share URL
+ * Note: URL is automatically copied to clipboard before showing the notification
  */
 export function updateShareSuccess(id: string, url: string): void {
+  // Auto copy URL to clipboard
+  copyText(url).catch(() => {
+    // Silently ignore copy errors - user can still manually copy from notification
+  });
+
   const handleCopy = () => {
     copyText(url);
     Notification.success({
@@ -54,7 +60,7 @@ export function updateShareSuccess(id: string, url: string): void {
     title: 'ShareOne',
     content: React.createElement('div', { className: 'flex flex-col gap-8px' },
       React.createElement('div', { className: 'flex items-center gap-8px' },
-        React.createElement('span', { className: 'text-13px color-success font-500' }, '分享成功')
+        React.createElement('span', { className: 'text-13px color-success font-500' }, '分享成功，链接已复制')
       ),
       React.createElement('div', { className: 'flex items-center gap-8px' },
         React.createElement('a', {
