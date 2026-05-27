@@ -23,6 +23,7 @@ import { useNavigate } from 'react-router-dom';
 import { useSettingsViewMode } from '../settingsViewContext';
 import { useAppMode } from '@renderer/hooks/useAppMode';
 import { useEnterpriseSessionMode } from '@renderer/hooks/useEnterpriseSessionMode';
+import { emitter } from '@renderer/utils/emitter';
 
 // Sentinel for "no assistant selected" (default → Sudo Code). Using an explicit
 // sentinel instead of '' because Arco Select treats empty string as unset and
@@ -34,6 +35,17 @@ function throwIfCronError(result: unknown): void {
   if (errorEnvelope && typeof errorEnvelope === 'object' && typeof errorEnvelope.__error === 'string') {
     throw new Error(errorEnvelope.__error);
   }
+}
+
+function unwrapCronResult<T>(result: T): T {
+  throwIfCronError(result);
+  return result;
+}
+
+function getCronJobConversationTarget(job: ICronJob): string | undefined {
+  const isNewMode = (job.metadata.conversationMode ?? 'new') === 'new';
+  if (isNewMode) return job.state.lastConversationId;
+  return job.metadata.conversationId || job.state.lastConversationId;
 }
 
 // ─── Hook: load preset assistants ───
@@ -256,17 +268,14 @@ const CronJobDetail: React.FC<{
       {/* Conversation link */}
       {(() => {
         const isNewMode = (job.metadata.conversationMode ?? 'new') === 'new';
-        let targetConvId: string | undefined;
+        const targetConvId = getCronJobConversationTarget(job);
         let targetConvTitle: string;
         if (isNewMode) {
-          targetConvId = job.state.lastConversationId;
           targetConvTitle = t('cron.goToLastConversation', { defaultValue: '查看最近执行会话' });
         } else if (job.metadata.conversationId) {
-          targetConvId = job.metadata.conversationId;
           targetConvTitle = job.metadata.conversationTitle || t('cron.goToConversationLink', { defaultValue: '查看会话' });
         } else {
           // reuse mode without pre-binding — fall back to lastConversationId
-          targetConvId = job.state.lastConversationId;
           targetConvTitle = t('cron.goToConversationLink', { defaultValue: '查看会话' });
         }
         if (!targetConvId) return null;
@@ -738,8 +747,17 @@ const CronModalContent: React.FC = () => {
 
   const handleTrigger = async (jobId: string) => {
     try {
-      throwIfCronError(await ipcBridge.cron.triggerJob.invoke({ jobId }));
+      unwrapCronResult(await ipcBridge.cron.triggerJob.invoke({ jobId }));
+      const updatedJob = unwrapCronResult(await ipcBridge.cron.getJob.invoke({ jobId }));
       Message.success(t('cron.runNowSuccess'));
+      emitter.emit('chat.history.refresh');
+      const targetConversationId = updatedJob ? getCronJobConversationTarget(updatedJob) : undefined;
+      if (targetConversationId) {
+        void navigate(`/conversation/${targetConversationId}`);
+        emitter.emit('conversation.remote.sync', targetConversationId);
+        window.setTimeout(() => emitter.emit('conversation.remote.sync', targetConversationId), 1000);
+        window.setTimeout(() => emitter.emit('conversation.remote.sync', targetConversationId), 3000);
+      }
       void refetch();
     } catch (err) {
       Message.error(String(err));

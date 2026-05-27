@@ -95,6 +95,10 @@ export function initCronBridge(): void {
       const provider = getCronProvider();
       mainLog('CronBridge', `Triggering job ${jobId} via ${provider.type} provider`);
       await provider.triggerJob(jobId);
+      const updatedJob = await provider.getJob(jobId);
+      if (updatedJob) {
+        ipcBridge.cron.onJobUpdated.emit(updatedJob);
+      }
     } catch (err) {
       mainError('CronBridge', 'triggerJob failed:', err);
       return { __error: err instanceof Error ? err.message : String(err) } as never;
