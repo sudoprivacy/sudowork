@@ -59,6 +59,7 @@ export default defineConfig({
         // Process / bridge
         'src/process/services/autoUpdaterService.ts',
         'src/process/services/conversionService.ts',
+        'src/process/services/scode/scodeProxyModels.ts',
         'src/process/services/sudoclaw/sudoclawRuntimeSync.ts',
         'src/process/services/pwdLogin/errors.ts',
         'src/process/services/pwdLogin/memorySafety.ts',
@@ -76,6 +77,7 @@ export default defineConfig({
         // Common
         'src/common/chatLib.ts',
         'src/common/nexusFiles.ts',
+        'src/common/scodeConfig.ts',
         'src/common/sudoworkAuthLogin.ts',
         'src/common/update/models/VersionInfo.ts',
         'src/common/types/conversion.ts',

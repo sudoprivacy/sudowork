@@ -4,7 +4,8 @@ import { ConfigStorage, DEFAULT_IMAGE_GENERATION_MODEL } from '@/common/storage'
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { withCsrfToken } from '@/webserver/middleware/csrfClient';
 import { getSudorouterPrimaryModelPath, mergeSudorouterProvidersIntoConfig } from '@/common/sudoclawModelConfig';
-import { extractLoginSudoclawPayload, mergeLoginUserData, buildScodeConfigFromLoginPayload } from '@/common/sudoworkAuthLogin';
+import { buildScodeConfigFromLoginPayload } from '@/common/scodeConfig';
+import { extractLoginSudoclawPayload, mergeLoginUserData } from '@/common/sudoworkAuthLogin';
 
 type AuthStatus = 'checking' | 'syncing' | 'authenticated' | 'unauthenticated';
 
@@ -339,15 +340,15 @@ async function handleLoginSuccess(data: LoginSuccessResponse, setUser: SetAuthUs
 
       // 同步写入 sudocode.json（C 端登录，与 sudoclaw.json 并行过渡期）
       if (loginSudoclawPayload) {
-        const scodeConfig = buildScodeConfigFromLoginPayload(loginSudoclawPayload);
+        const currentScodeConfig = await ipcBridge.scode.getConfig.invoke().catch((): null => null);
+        const scodeConfig = buildScodeConfigFromLoginPayload(loginSudoclawPayload, currentScodeConfig?.data);
         await ipcBridge.scode.saveConfig.invoke({ config: scodeConfig }).catch((err) => {
           console.warn('[Auth] Failed to save scode config:', err);
         });
         await ipcBridge.scode.setImageModel.invoke({ modelId: DEFAULT_IMAGE_GENERATION_MODEL }).catch(() => {});
-        // 同步 settings.json 模型为 C端第一个有效模型，防止 E端残留模型 ID 导致 scode 崩溃
-        const firstModel = loginSudoclawPayload.models[0];
-        if (firstModel) {
-          await ipcBridge.scode.setDefaultModel.invoke({ modelId: firstModel }).catch(() => {});
+        // 同步 settings.json 模型到合并后的默认模型；保留用户已选择的自定义模型。
+        if (scodeConfig.default_model) {
+          await ipcBridge.scode.setDefaultModel.invoke({ modelId: scodeConfig.default_model }).catch(() => {});
         }
       }
     } catch (error) {
@@ -938,15 +939,15 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         if (localModeAvailable) {
           const loginSudoclawPayload = extractLoginSudoclawPayload(result);
           if (loginSudoclawPayload) {
-            const scodeConfig = buildScodeConfigFromLoginPayload(loginSudoclawPayload);
+            const currentScodeConfig = await ipcBridge.scode.getConfig.invoke().catch((): null => null);
+            const scodeConfig = buildScodeConfigFromLoginPayload(loginSudoclawPayload, currentScodeConfig?.data);
             await ipcBridge.scode.saveConfig.invoke({ config: scodeConfig }).catch((err) => {
               console.warn('[Auth] Failed to save scode config on enterprise login:', err);
             });
             await ipcBridge.scode.setImageModel.invoke({ modelId: DEFAULT_IMAGE_GENERATION_MODEL }).catch(() => {});
-            // Sync settings.json model to first enterprise model so scode uses a valid model on startup
-            const firstModel = loginSudoclawPayload.models[0];
-            if (firstModel) {
-              await ipcBridge.scode.setDefaultModel.invoke({ modelId: firstModel }).catch(() => {});
+            // Sync settings.json to the merged default model while preserving a user-selected custom model.
+            if (scodeConfig.default_model) {
+              await ipcBridge.scode.setDefaultModel.invoke({ modelId: scodeConfig.default_model }).catch(() => {});
             }
           }
         } else {

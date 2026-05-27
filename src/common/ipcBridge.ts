@@ -722,6 +722,12 @@ export type ScodeModelEntry = {
   alias?: string;
   name?: string;
   input?: string[];
+  supports_tools?: boolean;
+  supports_reasoning?: boolean;
+  context?: {
+    input?: number;
+    output?: number;
+  };
   providers?: {
     subscription?: ScodeModelProvider;
     proxy?: ScodeModelProvider;

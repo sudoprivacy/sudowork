@@ -7,6 +7,7 @@
 import { ipcBridge } from '@/common';
 import type { SudoclawConfig, SudoclawProvider, ISudoclawStatus } from '@/common/ipcBridge';
 import { buildScodeConfigFromSudoclawConfig } from '@/common/sudoworkAuthLogin';
+import { mergeSudorouterIntoScodeConfig } from '@/common/scodeConfig';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { Alert, Button, Card, Collapse, Form, Input, Message, Modal, Popconfirm, Select, Space, Spin, Tag, Tooltip, Typography } from '@arco-design/web-react';
 import { Delete, Edit, Folder, Plus, Refresh, Robot, User } from '@icon-park/react';
@@ -165,8 +166,14 @@ const CopilotModalContent: React.FC = () => {
       const patch = buildPatchFromForm();
 
       // 主：写入 sudocode.json
-      const scodeConfig = buildScodeConfigFromSudoclawConfig(patch);
-      if (scodeConfig) {
+      const sudorouterScodeConfig = buildScodeConfigFromSudoclawConfig(patch);
+      if (sudorouterScodeConfig?.auth_modes?.proxy?.sudorouter && sudorouterScodeConfig.models) {
+        const currentScodeConfig = await ipcBridge.scode.getConfig.invoke().catch((): null => null);
+        const scodeConfig = mergeSudorouterIntoScodeConfig(currentScodeConfig?.data || {}, {
+          sudorouterKey: sudorouterScodeConfig.auth_modes.proxy.sudorouter.apiKey,
+          modelServiceUrl: sudorouterScodeConfig.auth_modes.proxy.sudorouter.baseUrl,
+          models: Object.keys(sudorouterScodeConfig.models),
+        });
         const scodeRes = await ipcBridge.scode.saveConfig.invoke({ config: scodeConfig });
         if (!scodeRes?.success) {
           Message.error(scodeRes?.msg || t('common.saveFailed', { defaultValue: 'Save failed' }));
