@@ -13,6 +13,7 @@ import type { AcpModelInfo } from '@/types/acpTypes';
 import { useLayoutContext } from '@/renderer/context/LayoutContext';
 import { usePreviewContext } from '@/renderer/pages/conversation/preview';
 import { getModelDisplayLabel } from '@/renderer/utils/agentUiDisplay';
+import { buildProviderModelGroups } from '@/renderer/utils/modelProviderGroups';
 import { Button, Dropdown, Menu, Message, Tooltip } from '@arco-design/web-react';
 import { IconRefresh } from '@arco-design/web-react/icon';
 import classNames from 'classnames';
@@ -401,6 +402,8 @@ const AcpModelSelector: React.FC<{
   // 获取模型配置数据（包含健康状态）
   const { data: modelConfig } = useSWR<IProvider[]>('model.config', () => ipcBridge.mode.getModelConfig.invoke());
 
+  const providerModelGroups = React.useMemo(() => buildProviderModelGroups(modelInfo?.availableModels || [], modelConfig), [modelInfo?.availableModels, modelConfig]);
+
   // 获取当前模型的健康状态
   const currentModelHealth = React.useMemo(() => {
     if (!modelInfo?.currentModelId || !modelConfig) return { status: 'unknown', color: 'bg-gray-400' };
@@ -444,30 +447,31 @@ const AcpModelSelector: React.FC<{
       droplist={
         <Menu>
           {backend === 'scode' && (
-            <div
-              className='flex items-center justify-end px-12px py-4px border-b border-[var(--color-border-2)]'
-              onClick={(e) => e.stopPropagation()}
-            >
+            <div className='flex items-center justify-end px-12px py-4px border-b border-[var(--color-border-2)]' onClick={(e) => e.stopPropagation()}>
               <Tooltip content={t('common.refresh')} position='top'>
                 <Button size='mini' shape='circle' type='text' icon={<IconRefresh spin={refreshingModels} />} loading={refreshingModels} onClick={handleRefreshModels} />
               </Tooltip>
             </div>
           )}
-          {modelInfo.availableModels.map((model) => {
-            // 获取模型健康状态
-            const providerConfig = modelConfig?.find((p) => p.platform?.includes(backend || ''));
-            const healthStatus = providerConfig?.modelHealth?.[model.id]?.status || 'unknown';
-            const healthColor = healthStatus === 'healthy' ? 'bg-green-500' : healthStatus === 'unhealthy' ? 'bg-red-500' : 'bg-gray-400';
+          {providerModelGroups.map((group) => (
+            <Menu.ItemGroup title={group.name || t('common.other', { defaultValue: 'Other' })} key={group.key}>
+              {group.models.map((model) => {
+                // 获取模型健康状态
+                const providerConfig = group.provider || modelConfig?.find((p) => p.platform?.includes(backend || ''));
+                const healthStatus = providerConfig?.modelHealth?.[model.id]?.status || 'unknown';
+                const healthColor = healthStatus === 'healthy' ? 'bg-green-500' : healthStatus === 'unhealthy' ? 'bg-red-500' : 'bg-gray-400';
 
-            return (
-              <Menu.Item key={model.id} className={model.id === modelInfo.currentModelId ? 'bg-2!' : ''} onClick={() => handleSelectModel(model.id)}>
-                <div className='flex items-center gap-8px w-full'>
-                  {healthStatus !== 'unknown' && <div className={`w-6px h-6px rounded-full shrink-0 ${healthColor}`} />}
-                  <span>{model.label}</span>
-                </div>
-              </Menu.Item>
-            );
-          })}
+                return (
+                  <Menu.Item key={`${group.key}-${model.id}`} className={model.id === modelInfo.currentModelId ? 'bg-2!' : ''} onClick={() => handleSelectModel(model.id)}>
+                    <div className='flex items-center gap-8px w-full'>
+                      {healthStatus !== 'unknown' && <div className={`w-6px h-6px rounded-full shrink-0 ${healthColor}`} />}
+                      <span>{model.label}</span>
+                    </div>
+                  </Menu.Item>
+                );
+              })}
+            </Menu.ItemGroup>
+          ))}
         </Menu>
       }
     >

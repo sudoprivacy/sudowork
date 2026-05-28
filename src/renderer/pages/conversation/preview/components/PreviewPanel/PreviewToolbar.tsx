@@ -83,6 +83,18 @@ interface PreviewToolbarProps {
   snapshotSaving: boolean;
 
   /**
+   * 是否显示快照/历史入口
+   * Whether to show snapshot/history actions
+   */
+  showHistoryControls?: boolean;
+
+  /**
+   * 是否允许切换到原文/分屏编辑视图
+   * Whether source/split editor views are available
+   */
+  sourceViewEnabled?: boolean;
+
+  /**
    * 设置视图模式
    * Set view mode
    */
@@ -193,7 +205,7 @@ interface PreviewToolbarProps {
  * Contains filename, view mode toggle, edit button, snapshot/history buttons, download button, close button, etc.
  */
 // eslint-disable-next-line max-len
-const PreviewToolbar: React.FC<PreviewToolbarProps> = ({ contentType, isMarkdown, isHTML, isEditable, isEditMode, viewMode, isSplitScreenEnabled, fileName, showOpenInSystemButton, historyTarget, snapshotSaving, onViewModeChange, onSplitScreenToggle, onEditClick, onExitEdit, onSaveSnapshot, onRefreshHistory, renderHistoryDropdown, onOpenInSystem, onDownload, onClose, inspectMode, onInspectModeToggle, leftExtra, rightExtra, isDirty, onSave, isSaving }) => {
+const PreviewToolbar: React.FC<PreviewToolbarProps> = ({ contentType, isMarkdown, isHTML, isEditable, isEditMode, viewMode, isSplitScreenEnabled, fileName, showOpenInSystemButton, historyTarget, snapshotSaving, showHistoryControls = true, sourceViewEnabled = true, onViewModeChange, onSplitScreenToggle, onEditClick, onExitEdit, onSaveSnapshot, onRefreshHistory, renderHistoryDropdown, onOpenInSystem, onDownload, onClose, inspectMode, onInspectModeToggle, leftExtra, rightExtra, isDirty, onSave, isSaving }) => {
   const { t } = useTranslation();
   const isDiff = contentType === 'diff';
   const preferActionButtonsInFront = Boolean(leftExtra);
@@ -207,7 +219,7 @@ const PreviewToolbar: React.FC<PreviewToolbarProps> = ({ contentType, isMarkdown
       <div className='flex items-center justify-between gap-8px w-full' style={{ minWidth: 'max-content' }}>
         {/* 左侧：Tabs（Markdown/HTML）+ 文件名 / Left: Tabs (Markdown/HTML) + Filename */}
         <div className='flex items-center h-full gap-8px'>
-          {(isMarkdown || isHTML || isDiff) && (
+          {(isMarkdown || isHTML || isDiff) && sourceViewEnabled && (
             <>
               <div className='flex items-center h-full gap-0'>
                 <div
@@ -269,7 +281,13 @@ const PreviewToolbar: React.FC<PreviewToolbarProps> = ({ contentType, isMarkdown
             </>
           )}
 
-          {contentType === 'code' && isEditable && (
+          {(isMarkdown || isHTML || isDiff) && !sourceViewEnabled && (
+            <div className='flex items-center h-full gap-0'>
+              <div className='flex items-center h-full px-10px text-12px font-medium text-brand bg-aou-2 border-b-4 border-brand'>{t('preview.preview')}</div>
+            </div>
+          )}
+
+          {contentType === 'code' && isEditable && sourceViewEnabled && (
             <div className={`${toolbarBtn} ${isEditMode ? toolbarBtnActive : ''}`} onClick={() => (isEditMode ? onExitEdit() : onEditClick())} title={isEditMode ? t('preview.exitEdit') : t('preview.edit')}>
               <svg width={toolbarIconSize} height={toolbarIconSize} viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='1.8' className={isEditMode ? 'text-white' : 'text-t-secondary'}>
                 <path d='M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7' />
@@ -336,7 +354,7 @@ const PreviewToolbar: React.FC<PreviewToolbarProps> = ({ contentType, isMarkdown
         <div className='flex items-center gap-4px flex-shrink-0'>
           {rightExtra}
 
-          {((contentType === 'markdown' && (viewMode === 'source' || isSplitScreenEnabled)) || (contentType === 'html' && (viewMode === 'source' || isSplitScreenEnabled)) || (contentType === 'code' && isEditable && isEditMode)) && (
+          {showHistoryControls && ((contentType === 'markdown' && (viewMode === 'source' || isSplitScreenEnabled)) || (contentType === 'html' && (viewMode === 'source' || isSplitScreenEnabled)) || (contentType === 'code' && isEditable && isEditMode)) && (
             <>
               <div className={`${toolbarBtn} ${historyTarget ? '' : '!cursor-not-allowed opacity-50'} ${snapshotSaving ? 'opacity-60' : ''}`} onClick={historyTarget && !snapshotSaving ? onSaveSnapshot : undefined} title={historyTarget ? t('preview.saveSnapshot') : t('preview.snapshotNotSupported')}>
                 <svg width={toolbarIconSize} height={toolbarIconSize} viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='1.8' className='text-t-secondary'>

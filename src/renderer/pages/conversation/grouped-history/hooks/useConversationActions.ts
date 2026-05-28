@@ -8,8 +8,8 @@ import { ipcBridge } from '@/common';
 import type { TChatConversation } from '@/common/storage';
 import { emitter } from '@/renderer/utils/emitter';
 import { blockMobileInputFocus, blurActiveElement } from '@/renderer/utils/focus';
-import { Message, Modal } from '@arco-design/web-react';
-import { useCallback, useEffect, useState } from 'react';
+import { Checkbox, Message, Modal } from '@arco-design/web-react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
 
@@ -99,8 +99,8 @@ export const useConversationActions = ({ batchMode, onSessionClick, onBatchModeC
    * Goes through Provider abstraction layer
    */
   const removeConversation = useCallback(
-    async (conversation: TChatConversation) => {
-      const success = await ipcBridge.conversation.remove.invoke({ id: conversation.id });
+    async (conversation: TChatConversation, deleteWorkspace?: boolean) => {
+      const success = await ipcBridge.conversation.remove.invoke({ id: conversation.id, deleteWorkspace });
       if (!success) {
         return false;
       }
@@ -116,15 +116,24 @@ export const useConversationActions = ({ batchMode, onSessionClick, onBatchModeC
 
   const handleDeleteClick = useCallback(
     (conversation: TChatConversation) => {
+      const hasWorkspace = !!(conversation.extra as { workspace?: string } | undefined)?.workspace;
+      const deleteWorkspaceRef = { current: false };
+
       Modal.confirm({
         title: t('conversation.history.deleteTitle'),
-        content: t('conversation.history.deleteConfirm'),
+        content: React.createElement('div', null,
+          React.createElement('div', null, t('conversation.history.deleteConfirm')),
+          hasWorkspace && React.createElement(Checkbox, {
+            onChange: (checked: boolean) => { deleteWorkspaceRef.current = checked; },
+            style: { marginTop: 12 },
+          }, t('conversation.history.deleteWorkspaceOption'))
+        ),
         okText: t('conversation.history.confirmDelete'),
         cancelText: t('conversation.history.cancelDelete'),
         okButtonProps: { status: 'warning' },
         onOk: async () => {
           try {
-            const success = await removeConversation(conversation);
+            const success = await removeConversation(conversation, deleteWorkspaceRef.current);
             if (success) {
               emitter.emit('chat.history.refresh');
               Message.success(t('conversation.history.deleteSuccess'));
@@ -151,17 +160,26 @@ export const useConversationActions = ({ batchMode, onSessionClick, onBatchModeC
         return;
       }
 
+      const selectedIds = Array.from(selectedConversationIds);
+      const selectedConvs = conversations.filter(c => selectedIds.includes(c.id));
+      const hasAnyWorkspace = selectedConvs.some(c => !!(c.extra as { workspace?: string } | undefined)?.workspace);
+      const deleteWorkspaceRef = { current: false };
+
       Modal.confirm({
         title: t('conversation.history.batchDelete'),
-        content: t('conversation.history.batchDeleteConfirm', { count: selectedConversationIds.size }),
+        content: React.createElement('div', null,
+          React.createElement('div', null, t('conversation.history.batchDeleteConfirm', { count: selectedConversationIds.size })),
+          hasAnyWorkspace && React.createElement(Checkbox, {
+            onChange: (checked: boolean) => { deleteWorkspaceRef.current = checked; },
+            style: { marginTop: 12 },
+          }, t('conversation.history.deleteWorkspaceOption'))
+        ),
         okText: t('conversation.history.confirmDelete'),
         cancelText: t('conversation.history.cancelDelete'),
         okButtonProps: { status: 'warning' },
         onOk: async () => {
-          const selectedIds = Array.from(selectedConversationIds);
-          const selectedConvs = conversations.filter(c => selectedIds.includes(c.id));
           try {
-            const results = await Promise.all(selectedConvs.map((conv) => removeConversation(conv)));
+            const results = await Promise.all(selectedConvs.map((conv) => removeConversation(conv, deleteWorkspaceRef.current)));
             const successCount = results.filter(Boolean).length;
             if (successCount > 0) {
               emitter.emit('chat.history.refresh');

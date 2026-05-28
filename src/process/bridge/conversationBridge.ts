@@ -8,6 +8,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { spawn } from 'child_process';
 import type { TChatConversation } from '@/common/storage';
+import type { IDirOrFile, MossSessionAvailableSkill, MossWorkspaceNode } from '@/common/ipcBridge';
 import fs from 'fs/promises';
 import { getDatabase } from '@process/database';
 import { cronService } from '@process/services/cron/CronService';
@@ -37,8 +38,63 @@ import { ConversationManageWithDB } from '../message';
 import { setupChannelResponseRouting } from '@/channels/agent/ChannelResponseRouter';
 import { startConversationTracking, endConversationSuccess, endConversationError } from '../telemetry';
 import { getConversationProvider, isRemoteProvider } from '../providers';
+import { getMossApi, getMossApiServerUrl, initMossApi } from '../remote/MossSessionApi';
 
 const workspaceSkillSyncTasks = new Map<string, Promise<void>>();
+
+type RemoteConversationExtra = NonNullable<TChatConversation['extra']> & {
+  mossSessionId?: string;
+  mossSessionPending?: boolean;
+  mossServerUrl?: string;
+  authToken?: string;
+};
+
+function convertMossWorkspaceNode(node: MossWorkspaceNode): IDirOrFile {
+  return {
+    name: node.name,
+    fullPath: node.fullPath,
+    relativePath: node.relativePath,
+    isDir: node.isDir,
+    isFile: node.isFile,
+    children: node.children?.map(convertMossWorkspaceNode),
+  };
+}
+
+function getRemoteConversationSession(conversationId: string): { conversation: TChatConversation; extra: RemoteConversationExtra; mossSessionId?: string; pending: boolean } {
+  const db = getDatabase();
+  const result = db.getConversation(conversationId);
+  if (!result.success || !result.data) {
+    throw new Error('conversation not found');
+  }
+
+  const conversation = result.data;
+  if (conversation.type !== 'remote-agent') {
+    throw new Error('conversation is not remote-agent');
+  }
+
+  const extra = (conversation.extra ?? {}) as RemoteConversationExtra;
+  const mossSessionId = extra.mossSessionId;
+  return {
+    conversation,
+    extra,
+    mossSessionId,
+    pending: Boolean(extra.mossSessionPending || !mossSessionId),
+  };
+}
+
+function getRemoteConversationMossApi(extra: RemoteConversationExtra) {
+  const serverUrl = extra.mossServerUrl;
+  if (!serverUrl) {
+    throw new Error('Moss Server URL not configured');
+  }
+
+  const currentApi = getMossApi();
+  const api = currentApi && getMossApiServerUrl() === serverUrl ? currentApi : initMossApi(serverUrl);
+  if (extra.authToken) {
+    api.setAccessToken(extra.authToken);
+  }
+  return api;
+}
 
 async function syncConversationWorkspaceSkills(conversation: TChatConversation | undefined, requestedSkillNames?: string[]): Promise<void> {
   if (!shouldSyncWorkspaceSkills(conversation, requestedSkillNames)) return;
@@ -627,13 +683,14 @@ export function initConversationBridge(): void {
     }
   });
 
-  ipcBridge.conversation.remove.provider(async ({ id }) => {
+  ipcBridge.conversation.remove.provider(async ({ id, deleteWorkspace }) => {
     try {
       // Get conversation to check source before deletion
       const db = getDatabase();
       const convResult = db.getConversation(id);
       const conversation = convResult.data;
       const source = conversation?.source;
+      const workspacePath = (conversation?.extra as { workspace?: string } | undefined)?.workspace;
       const isCronExecutionConversation = !!(conversation?.extra as { cronJobId?: string } | undefined)?.cronJobId;
 
       // Kill the running task if exists
@@ -663,6 +720,17 @@ export function initConversationBridge(): void {
           }
         } catch (cleanupError) {
           mainWarn('conversationBridge', 'Failed to cleanup channel resources:', cleanupError);
+        }
+      }
+
+      // Delete workspace folder if requested
+      // 如果用户选择了同时删除工作区文件夹，则删除
+      if (deleteWorkspace && workspacePath) {
+        try {
+          await fs.rm(workspacePath, { recursive: true, force: true });
+          mainLog('conversationBridge', `Deleted workspace folder: ${workspacePath}`);
+        } catch (workspaceError) {
+          mainWarn('conversationBridge', `Failed to delete workspace folder ${workspacePath}:`, workspaceError);
         }
       }
 
@@ -830,6 +898,60 @@ export function initConversationBridge(): void {
         mainWarn('conversationBridge', 'getWorkspace failed:', error.message);
       }
       return [];
+    }
+  });
+
+  ipcBridge.conversation.getRemoteWorkspace.provider(async ({ conversation_id, search, path: relativePath }) => {
+    try {
+      const { extra, mossSessionId, pending } = getRemoteConversationSession(conversation_id);
+      if (pending || !mossSessionId) {
+        return { success: true, data: { files: [], pending: true } };
+      }
+
+      const api = getRemoteConversationMossApi(extra);
+      const root = await api.getSessionWorkspaceTree(mossSessionId, {
+        path: relativePath,
+        search: search || undefined,
+      });
+      return { success: true, data: { files: [convertMossWorkspaceNode(root)], pending: false } };
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      mainWarn('conversationBridge', 'getRemoteWorkspace failed:', msg);
+      return { success: false, msg, data: { files: [], pending: false } };
+    }
+  });
+
+  ipcBridge.conversation.previewRemoteWorkspaceFile.provider(async ({ conversation_id, path: relativePath }) => {
+    try {
+      const { extra, mossSessionId, pending } = getRemoteConversationSession(conversation_id);
+      if (pending || !mossSessionId) {
+        return { success: false, msg: 'Moss session is pending' };
+      }
+
+      const api = getRemoteConversationMossApi(extra);
+      const preview = await api.getSessionWorkspaceFile(mossSessionId, { path: relativePath });
+      return { success: true, data: preview };
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      mainWarn('conversationBridge', 'previewRemoteWorkspaceFile failed:', msg);
+      return { success: false, msg };
+    }
+  });
+
+  ipcBridge.conversation.getRemoteAvailableSkills.provider(async ({ conversation_id }) => {
+    try {
+      const { extra, mossSessionId, pending } = getRemoteConversationSession(conversation_id);
+      if (pending || !mossSessionId) {
+        return { success: true, data: { skills: [], pending: true } };
+      }
+
+      const api = getRemoteConversationMossApi(extra);
+      const skills: MossSessionAvailableSkill[] = await api.getSessionAvailableSkills(mossSessionId);
+      return { success: true, data: { skills, pending: false } };
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      mainWarn('conversationBridge', 'getRemoteAvailableSkills failed:', msg);
+      return { success: false, msg, data: { skills: [], pending: false } };
     }
   });
 

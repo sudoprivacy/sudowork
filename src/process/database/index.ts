@@ -15,6 +15,7 @@ import type { IConversationRow, IMessageRow, IPaginatedResult, IQueryResult, IUs
 import { conversationToRow, messageToRow, rowToConversation, rowToMessage } from './types';
 import { mainLog, mainError } from '@process/utils/mainLogger';
 import type { IChannelPluginConfig, IChannelUser, IChannelSession, IChannelPairingRequest, IChannelUserRow, IChannelSessionRow, IChannelPairingCodeRow, PluginType, PluginStatus } from '@/channels/types';
+import type { ScodeCustomModelProvider } from '@/common/scodeConfig';
 import type { ConversationSource, TProviderWithModel } from '@/common/storage';
 import { rowToChannelUser, rowToChannelSession, rowToPairingRequest } from '@/channels/types';
 import { resolveSecret, cachePut } from '@common/nexus/secret-cache';
@@ -1355,6 +1356,52 @@ export class AionUIDatabase {
       type: string;
       config: string;
     }>;
+  }
+
+  getScodeCustomModelProviders(userId: string): ScodeCustomModelProvider[] {
+    const rows = this.db
+      .prepare(
+        `SELECT provider_id, base_url, api_key, models
+         FROM scode_custom_model_providers
+         WHERE user_id = ?
+         ORDER BY provider_id ASC`
+      )
+      .all(userId) as Array<{ provider_id: string; base_url: string; api_key: string; models: string }>;
+
+    return rows.map((row) => {
+      let models: ScodeCustomModelProvider['models'] = [];
+      try {
+        const parsed = JSON.parse(row.models);
+        models = Array.isArray(parsed) ? parsed : [];
+      } catch {
+        models = [];
+      }
+
+      return {
+        providerId: row.provider_id,
+        baseUrl: row.base_url,
+        apiKey: row.api_key,
+        models,
+      };
+    });
+  }
+
+  replaceScodeCustomModelProviders(userId: string, providers: ScodeCustomModelProvider[]): void {
+    const now = Date.now();
+    const deleteStmt = this.db.prepare('DELETE FROM scode_custom_model_providers WHERE user_id = ?');
+    const insertStmt = this.db.prepare(`
+      INSERT INTO scode_custom_model_providers (user_id, provider_id, base_url, api_key, models, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    const transaction = this.db.transaction(() => {
+      deleteStmt.run(userId);
+      for (const provider of providers) {
+        insertStmt.run(userId, provider.providerId, provider.baseUrl, provider.apiKey, JSON.stringify(provider.models), now, now);
+      }
+    });
+
+    transaction();
   }
 }
 

@@ -668,6 +668,7 @@ const AcpSendBox: React.FC<{
           // Initial message sent successfully
           void checkAndUpdateTitle(conversation_id, input);
           emitter.emit('chat.history.refresh');
+          if (backend === 'remote-agent') emitter.emit('remote-agent.workspace.refresh');
         } else {
           // Handle send failure
           // Create error message in UI
@@ -774,7 +775,9 @@ const AcpSendBox: React.FC<{
 
     // Clear selected files (similar to GeminiSendBox)
     emitter.emit('acp.selected.file.clear');
-    if (allFiles.length) {
+    if (backend === 'remote-agent') {
+      emitter.emit('remote-agent.workspace.refresh');
+    } else if (allFiles.length) {
       emitter.emit('acp.workspace.refresh');
     }
   };
