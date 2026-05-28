@@ -184,6 +184,8 @@ export interface IConfigStorageRefer {
   'eeclaw.tenantName'?: string;
   // Enterprise user info / 企业用户信息
   'eeclaw.userInfo'?: { id: string; username: string; role?: string };
+  // Whether enterprise local mode is available for the current user / 当前用户是否可用企业本地模式
+  'eeclaw.localModeAvailable'?: boolean;
   // Enterprise auth token for main process (no user field, unlike localStorage eeclaw_auth_v1)
   'eeclaw.authStorage'?: { access_token: string; refresh_token: string; expires_at: number; device_id: string; session_type?: 'password' | 'api_key' | 'oauth2' };
   // Consumer (personal) mode user info for telemetry / 个人模式用户信息（用于遥测）

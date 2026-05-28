@@ -626,6 +626,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
               expires_at: finalExpiresAt,
               device_id: authStorage.device_id,
             });
+            await ConfigStorage.set('eeclaw.localModeAvailable', authStorage.user.localModeAvailable === true);
 
             // If ProcessConfig had a newer token, also update localStorage
             if (finalRefreshToken !== authStorage.refresh_token || finalExpiresAt !== authStorage.expires_at) {
@@ -974,6 +975,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
           username: data.user.name,
           role: data.user.role,
         });
+        await ConfigStorage.set('eeclaw.localModeAvailable', localModeAvailable);
       } catch (e) {
         console.warn('[Auth] Failed to save enterprise user info:', e);
       }
@@ -1124,6 +1126,9 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       } catch { /* noop */ }
       try {
         await ConfigStorage.set('eeclaw.userInfo', undefined);
+      } catch { /* noop */ }
+      try {
+        await ConfigStorage.set('eeclaw.localModeAvailable', undefined);
       } catch { /* noop */ }
 
       setUser(null);
