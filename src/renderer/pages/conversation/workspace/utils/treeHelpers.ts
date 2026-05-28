@@ -5,6 +5,7 @@
  */
 
 import type { IDirOrFile } from '@/common/ipcBridge';
+import { DRAFTS_DIR_NAME } from '@/common/constants';
 import type { NodeInstance } from '@arco-design/web-react/es/Tree/interface';
 
 /**
@@ -71,6 +72,67 @@ export function findNodeByKey(list: IDirOrFile[], key: string): IDirOrFile | nul
     }
   }
   return null;
+}
+
+/**
+ * 更新指定目录节点的子节点
+ * Update children for a specific directory node
+ */
+export function updateTreeNodeChildren(list: IDirOrFile[], key: string, children: IDirOrFile[] | undefined): IDirOrFile[] {
+  return list.map((node) => {
+    const nodeKey = node.relativePath || node.fullPath;
+    if (nodeKey === key) {
+      return {
+        ...node,
+        children,
+      };
+    }
+
+    if (node.children && node.children.length > 0) {
+      return {
+        ...node,
+        children: updateTreeNodeChildren(node.children, key, children),
+      };
+    }
+
+    return node;
+  });
+}
+
+/**
+ * Ensure a synthetic root includes the reserved drafts directory.
+ * Used for read-only remote session workspaces where the backend may not
+ * create `.drafts` until the first draft file appears.
+ */
+export function ensureDraftsDirectoryNode(list: IDirOrFile[]): IDirOrFile[] {
+  if (list.length !== 1) return list;
+
+  const root = list[0];
+  if (!root || !root.isDir || root.relativePath !== '') return list;
+
+  const children = root.children ?? [];
+  if (children.some((child) => child.name === DRAFTS_DIR_NAME || child.relativePath === DRAFTS_DIR_NAME)) {
+    return list;
+  }
+
+  const separator = getPathSeparator(root.fullPath);
+  const fullPath = root.fullPath ? `${root.fullPath}${separator}${DRAFTS_DIR_NAME}` : DRAFTS_DIR_NAME;
+  return [
+    {
+      ...root,
+      children: [
+        ...children,
+        {
+          name: DRAFTS_DIR_NAME,
+          fullPath,
+          relativePath: DRAFTS_DIR_NAME,
+          isDir: true,
+          isFile: false,
+          children: [],
+        },
+      ],
+    },
+  ];
 }
 
 /**

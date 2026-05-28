@@ -54,6 +54,9 @@ export const conversation = {
   confirmMessage: bridge.buildProvider<IBridgeResponse, IConfirmMessageParams>('conversation.confirm.message'), // 通用确认消息
   responseStream: bridge.buildEmitter<IResponseMessage>('chat.response.stream'), // 接收消息（统一接口）
   getWorkspace: bridge.buildProvider<IDirOrFile[], { conversation_id: string; workspace: string; path: string; search?: string }>('conversation.get-workspace'),
+  getRemoteWorkspace: bridge.buildProvider<IRemoteWorkspaceResponse, { conversation_id: string; path?: string; search?: string }>('conversation.get-remote-workspace'),
+  previewRemoteWorkspaceFile: bridge.buildProvider<IBridgeResponse<MossWorkspaceFilePreview>, { conversation_id: string; path: string }>('conversation.preview-remote-workspace-file'),
+  getRemoteAvailableSkills: bridge.buildProvider<IRemoteAvailableSkillsResponse, { conversation_id: string }>('conversation.get-remote-available-skills'),
   responseSearchWorkSpace: bridge.buildProvider<void, { file: number; dir: number; match?: IDirOrFile }>('conversation.response.search.workspace'),
   reloadContext: bridge.buildProvider<IBridgeResponse, { conversation_id: string }>('conversation.reload-context'),
   getConnectionStatus: bridge.buildProvider<IBridgeResponse<{ status: string | null }>, { conversation_id: string }>('conversation.get-connection-status'),
@@ -295,6 +298,59 @@ export interface MossSessionInfo {
   createdAt?: number;
   updatedAt?: number;
 }
+
+export interface MossWorkspaceNode {
+  name: string;
+  relativePath: string;
+  fullPath: string;
+  isFile: boolean;
+  isDir: boolean;
+  size?: number;
+  mtime?: number;
+  children?: MossWorkspaceNode[];
+}
+
+export type MossWorkspaceFilePreview =
+  | {
+      kind: 'text';
+      name: string;
+      relativePath: string;
+      mime: string;
+      encoding: 'utf8';
+      content: string;
+      size: number;
+      truncated: boolean;
+    }
+  | {
+      kind: 'base64';
+      name: string;
+      relativePath: string;
+      mime: string;
+      contentBase64: string;
+      size: number;
+    };
+
+export interface MossSessionAvailableSkill {
+  name: string;
+  displayName?: string;
+  description: string;
+  icon?: string;
+  iconUrl?: string;
+  color?: string;
+  emoji?: string | null;
+  source?: string;
+  path?: string;
+}
+
+export type IRemoteWorkspaceResponse = IBridgeResponse<{
+  files: IDirOrFile[];
+  pending?: boolean;
+}>;
+
+export type IRemoteAvailableSkillsResponse = IBridgeResponse<{
+  skills: MossSessionAvailableSkill[];
+  pending?: boolean;
+}>;
 
 export const moss = {
   /** Check if enterprise mode is enabled */
