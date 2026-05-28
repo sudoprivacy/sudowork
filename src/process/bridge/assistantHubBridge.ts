@@ -367,7 +367,7 @@ export function initAssistantHubBridge(): void {
             if (metaResult) {
               const meta = JSON.parse(metaResult.content) as AssistantHubMeta;
 
-              const displayName = meta.nameI18n?.['en-US'] || meta.nameI18n?.['zh-CN'] || assistantName;
+              const displayName = meta.nameI18n?.['en-US'] || meta.nameI18n?.['zh-CN'] || meta.display_name || meta.name || assistantName;
               const description = meta.descriptionI18n?.['en-US'] || meta.descriptionI18n?.['zh-CN'] || '';
 
               // Search filter: search by name, display_name, and description

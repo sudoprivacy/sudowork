@@ -24,7 +24,7 @@ export function toBackendConfig(info: IAssistantInfo): AcpBackendConfig {
   const isPreset = info.isBuiltin || info.isHubInstalled;
   return {
     id,
-    name: meta.nameI18n?.['zh-CN'] || meta.nameI18n?.['en-US'] || meta.name || meta.id || info.name,
+    name: meta.nameI18n?.['zh-CN'] || meta.nameI18n?.['en-US'] || meta.display_name || meta.name || meta.id || info.name,
     nameI18n: meta.nameI18n,
     descriptionI18n: meta.descriptionI18n,
     avatar: meta.avatar,

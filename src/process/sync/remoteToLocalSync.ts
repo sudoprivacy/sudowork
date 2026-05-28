@@ -29,7 +29,7 @@ import JSZip from 'jszip';
 import { skillManager } from '@process/SkillManager';
 import { assistantManager } from '@process/AssistantManager';
 import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
-import { initEnterpriseDirs, getEnterpriseHubSkillsDir, getEnterpriseHubAssistantsDir, getEnterpriseTenantSkillsDir, getEnterpriseTenantAssistantsDir, getSkillMetaFileName, getAssistantMetaFileName } from '@/process/constants/enterpriseStorage';
+import { initEnterpriseDirs, getEnterpriseHubSkillsDir, getEnterpriseHubAssistantsDir, getEnterpriseTenantSkillsDir, getEnterpriseTenantAssistantsDir, getSkillMetaFileName, getAssistantMetaFileName, getAssistantInstallDir, getSkillInstallDir } from '@/process/constants/enterpriseStorage';
 import { SKILL_HUB_META_FILE } from '@/process/constants/skillStorage';
 import type { IAssistantMeta } from '@/process/constants/assistantStorage';
 import { ASSISTANT_META_FILE } from '@/process/constants/assistantStorage';
@@ -40,6 +40,7 @@ import type { ISkillHubMeta } from '@/common/ipcBridge';
 export type SyncResult = {
   installed: string[];
   skipped: string[];
+  deleted: string[];
   failed: Array<{ id: string; name: string; error: string }>;
 };
 
@@ -171,8 +172,12 @@ function getRemoteAssistantSourceType(assistant: RemoteAssistantInfo): string {
   return assistant.sourceType || assistant.meta?.source_type || assistant.tag || assistant.meta?.tag || (assistant.isHubInstalled ? 'hub' : '');
 }
 
-function getLocalAssistantSourceType(assistant: RemoteAssistantInfo): 'hub' | 'custom' {
-  return getRemoteAssistantSourceType(assistant) === 'custom' ? 'custom' : 'hub';
+function getLocalAssistantSourceType(assistant: RemoteAssistantInfo): 'hub' | 'custom' | 'tenant' {
+  const remoteType = getRemoteAssistantSourceType(assistant);
+  // Map remote source_type to local directory
+  if (remoteType === 'custom') return 'custom';
+  if (remoteType === 'tenant') return 'tenant';
+  return 'hub'; // Default for hub, upload, and unknown
 }
 
 function isSyncableInstalledAssistant(assistant: RemoteAssistantInfo): boolean {
@@ -746,11 +751,12 @@ async function installAssistantById(assistant: RemoteAssistantInfo, serverUrl: s
     initEnterpriseDirs();
   }
 
-  // Get hub assistants directory (mode-aware)
-  const hubAssistantsDir = await getHubAssistantsDirForMode();
-  await fs.mkdir(hubAssistantsDir, { recursive: true });
+  // Determine source type and get appropriate install directory
+  const assistantSourceType = getLocalAssistantSourceType(assistant);
+  const assistantDir = getAssistantInstallDir(assistantName, assistantSourceType);
+  mainLog('remoteToLocalSync', `Install directory for ${assistantName}: ${assistantDir} (source_type: ${assistantSourceType})`);
 
-  const assistantDir = path.join(hubAssistantsDir, assistantName);
+  await fs.mkdir(path.dirname(assistantDir), { recursive: true });
 
   // Remove existing if present
   try {
@@ -788,7 +794,6 @@ async function installAssistantById(assistant: RemoteAssistantInfo, serverUrl: s
   }
 
   // Merge existing meta with remote info
-  const assistantSourceType = getLocalAssistantSourceType(assistant);
   const meta: IAssistantMeta = {
     // Start with existing meta or defaults
     id: existingMeta?.id || assistant.id,
@@ -867,6 +872,111 @@ async function getLocalInstalledAssistants(): Promise<Set<string>> {
   return new Set(assistants.map((a) => a.name));
 }
 
+// ============ 删除远程已删除项目的逻辑 ============
+
+type LocalItemDetail = {
+  id: string;
+  name: string;
+  path: string;
+  category: string;
+};
+
+/**
+ * 获取本地 hub 技能详情列表（包含路径）
+ */
+async function getLocalHubSkillDetails(): Promise<LocalItemDetail[]> {
+  const skills = await skillManager.getInstalledSkills();
+  return skills
+    .filter((s) => s.category === 'hub' || s.meta?.source_type === 'hub')
+    .map((s) => ({
+      id: s.meta?.id || s.name,
+      name: s.name,
+      path: '', // SkillManager 不提供路径，需要通过名称构建
+      category: 'hub',
+    }));
+}
+
+/**
+ * 获取本地 hub 助手详情列表（包含路径）
+ */
+async function getLocalHubAssistantDetails(): Promise<LocalItemDetail[]> {
+  const assistants = await assistantManager.getInstalledAssistants();
+  return assistants
+    .filter((a) => a.category === 'hub' || a.meta?.source_type === 'hub')
+    .map((a) => {
+      const hubDir = getEnterpriseHubAssistantsDir();
+      return {
+        id: a.meta?.id || a.id || a.name,
+        name: a.name,
+        path: path.join(hubDir, a.name),
+        category: 'hub',
+      };
+    });
+}
+
+/**
+ * 获取本地 tenant 技能详情列表（包含路径）
+ */
+async function getLocalTenantSkillDetails(): Promise<LocalItemDetail[]> {
+  const skills = await skillManager.getInstalledSkills();
+  return skills
+    .filter((s) => s.category === 'tenant')
+    .map((s) => ({
+      id: s.meta?.id || s.name,
+      name: s.name,
+      path: '', // SkillManager 不提供路径
+      category: 'tenant',
+    }));
+}
+
+/**
+ * 获取本地 tenant 助手详情列表（包含路径）
+ */
+async function getLocalTenantAssistantDetails(): Promise<LocalItemDetail[]> {
+  const assistants = await assistantManager.getInstalledAssistants();
+  return assistants
+    .filter((a) => a.category === 'tenant' || a.meta?.source_type === 'tenant')
+    .map((a) => {
+      const tenantDir = getEnterpriseTenantAssistantsDir();
+      return {
+        id: a.meta?.id || a.id || a.name,
+        name: a.name,
+        path: path.join(tenantDir, a.meta?.id || a.name),
+        category: 'tenant',
+      };
+    });
+}
+
+/**
+ * 删除远程已删除的项目
+ * 只删除 hub 和 tenant 类型，custom 类型不删除
+ */
+async function deleteRemoteDeletedItems(remoteIds: Set<string>, localItems: LocalItemDetail[], itemType: 'skill' | 'assistant'): Promise<string[]> {
+  const toDelete = localItems.filter((item) => !remoteIds.has(item.id));
+  const deleted: string[] = [];
+
+  for (const item of toDelete) {
+    try {
+      if (item.path) {
+        await fs.rm(item.path, { recursive: true, force: true });
+        mainLog('remoteToLocalSync', `Deleted ${itemType} (remote removed): ${item.name} (${item.id})`);
+        deleted.push(item.name);
+      } else {
+        // 对于技能，通过 SkillManager 删除
+        if (itemType === 'skill') {
+          await skillManager.uninstallSkill(item.name, item.category as 'hub' | 'tenant' | 'custom' | 'system');
+          mainLog('remoteToLocalSync', `Deleted skill (remote removed): ${item.name} (${item.id})`);
+          deleted.push(item.name);
+        }
+      }
+    } catch (error) {
+      mainWarn('remoteToLocalSync', `Failed to delete ${itemType} ${item.name}:`, error);
+    }
+  }
+
+  return deleted;
+}
+
 // ============ 核心同步逻辑 ============
 
 /**
@@ -907,6 +1017,7 @@ export async function syncRemoteSkillsToLocal(): Promise<SyncResult> {
   const result: SyncResult = {
     installed: [],
     skipped: alreadyInstalled.map((s) => s.name),
+    deleted: [],
     failed: [],
   };
 
@@ -933,7 +1044,13 @@ export async function syncRemoteSkillsToLocal(): Promise<SyncResult> {
     }
   }
 
-  mainLog('remoteToLocalSync', `Skill sync completed: installed=${result.installed.length}, skipped=${result.skipped.length}, failed=${result.failed.length}`);
+  // 5. 删除远程已删除的本地 hub 技能
+  const remoteSkillIds = new Set(hubSkills.map((s) => s.id));
+  const localHubSkills = await getLocalHubSkillDetails();
+  const deletedSkills = await deleteRemoteDeletedItems(remoteSkillIds, localHubSkills, 'skill');
+  result.deleted = deletedSkills;
+
+  mainLog('remoteToLocalSync', `Skill sync completed: installed=${result.installed.length}, skipped=${result.skipped.length}, deleted=${result.deleted.length}, failed=${result.failed.length}`);
 
   return result;
 }
@@ -975,6 +1092,7 @@ export async function syncRemoteAssistantsToLocal(): Promise<SyncResult> {
   const result: SyncResult = {
     installed: [],
     skipped: alreadyInstalled.map((a) => a.name),
+    deleted: [],
     failed: [],
   };
 
@@ -1001,7 +1119,13 @@ export async function syncRemoteAssistantsToLocal(): Promise<SyncResult> {
     }
   }
 
-  mainLog('remoteToLocalSync', `Assistant sync completed: installed=${result.installed.length}, skipped=${result.skipped.length}, failed=${result.failed.length}`);
+  // 5. 删除远程已删除的本地 hub 助手
+  const remoteAssistantIds = new Set(syncableAssistants.map((a) => a.id));
+  const localHubAssistants = await getLocalHubAssistantDetails();
+  const deletedAssistants = await deleteRemoteDeletedItems(remoteAssistantIds, localHubAssistants, 'assistant');
+  result.deleted = deletedAssistants;
+
+  mainLog('remoteToLocalSync', `Assistant sync completed: installed=${result.installed.length}, skipped=${result.skipped.length}, deleted=${result.deleted.length}, failed=${result.failed.length}`);
 
   return result;
 }
@@ -1018,19 +1142,19 @@ export async function syncAllFromRemote(): Promise<SyncAllResult> {
   const [hubSkills, hubAssistants, tenantSkills, tenantAssistants] = await Promise.all([
     syncRemoteSkillsToLocal().catch((error) => {
       mainError('remoteToLocalSync', 'Hub skill sync failed:', error);
-      return { installed: [] as string[], skipped: [] as string[], failed: [] as Array<{ id: string; name: string; error: string }> };
+      return { installed: [] as string[], skipped: [] as string[], deleted: [] as string[], failed: [] as Array<{ id: string; name: string; error: string }> };
     }),
     syncRemoteAssistantsToLocal().catch((error) => {
       mainError('remoteToLocalSync', 'Hub assistant sync failed:', error);
-      return { installed: [] as string[], skipped: [] as string[], failed: [] as Array<{ id: string; name: string; error: string }> };
+      return { installed: [] as string[], skipped: [] as string[], deleted: [] as string[], failed: [] as Array<{ id: string; name: string; error: string }> };
     }),
     syncTenantSkillsToLocal().catch((error) => {
       mainError('remoteToLocalSync', 'Tenant skill sync failed:', error);
-      return { installed: [] as string[], skipped: [] as string[], failed: [] as Array<{ id: string; name: string; error: string }> };
+      return { installed: [] as string[], skipped: [] as string[], deleted: [] as string[], failed: [] as Array<{ id: string; name: string; error: string }> };
     }),
     syncTenantAssistantsToLocal().catch((error) => {
       mainError('remoteToLocalSync', 'Tenant assistant sync failed:', error);
-      return { installed: [] as string[], skipped: [] as string[], failed: [] as Array<{ id: string; name: string; error: string }> };
+      return { installed: [] as string[], skipped: [] as string[], deleted: [] as string[], failed: [] as Array<{ id: string; name: string; error: string }> };
     }),
   ]);
 
@@ -1085,6 +1209,7 @@ async function syncTenantSkillsToLocal(): Promise<SyncResult> {
   const result: SyncResult = {
     installed: [],
     skipped: alreadyInstalled.map((s) => s.name),
+    deleted: [],
     failed: [],
   };
 
@@ -1111,7 +1236,13 @@ async function syncTenantSkillsToLocal(): Promise<SyncResult> {
     }
   }
 
-  mainLog('remoteToLocalSync', `Tenant skill sync completed: installed=${result.installed.length}, skipped=${result.skipped.length}, failed=${result.failed.length}`);
+  // 5. 删除远程已删除的本地 tenant 技能
+  const remoteSkillIds = new Set(approvedSkills.map((s) => s.id));
+  const localTenantSkills = await getLocalTenantSkillDetails();
+  const deletedSkills = await deleteRemoteDeletedItems(remoteSkillIds, localTenantSkills, 'skill');
+  result.deleted = deletedSkills;
+
+  mainLog('remoteToLocalSync', `Tenant skill sync completed: installed=${result.installed.length}, skipped=${result.skipped.length}, deleted=${result.deleted.length}, failed=${result.failed.length}`);
 
   return result;
 }
@@ -1141,6 +1272,7 @@ async function syncTenantAssistantsToLocal(): Promise<SyncResult> {
   const result: SyncResult = {
     installed: [],
     skipped: alreadyInstalled.map((a) => a.name),
+    deleted: [],
     failed: [],
   };
 
@@ -1167,7 +1299,13 @@ async function syncTenantAssistantsToLocal(): Promise<SyncResult> {
     }
   }
 
-  mainLog('remoteToLocalSync', `Tenant assistant sync completed: installed=${result.installed.length}, skipped=${result.skipped.length}, failed=${result.failed.length}`);
+  // 5. 删除远程已删除的本地 tenant 助手
+  const remoteAssistantIds = new Set(approvedAssistants.map((a) => a.id));
+  const localTenantAssistants = await getLocalTenantAssistantDetails();
+  const deletedAssistants = await deleteRemoteDeletedItems(remoteAssistantIds, localTenantAssistants, 'assistant');
+  result.deleted = deletedAssistants;
+
+  mainLog('remoteToLocalSync', `Tenant assistant sync completed: installed=${result.installed.length}, skipped=${result.skipped.length}, deleted=${result.deleted.length}, failed=${result.failed.length}`);
 
   return result;
 }

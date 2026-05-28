@@ -49,10 +49,7 @@ export async function getValidToken(forceRefresh = false): Promise<string> {
       // OAuth2 sessions send the provider refresh_token inside a generic `params`
       // dict (moss forwards it to the credential script); other sessions send the
       // moss refresh_token at the top level as before.
-      const refreshBody =
-        refreshGrantType === 'oauth2_refresh_token'
-          ? { grant_type: refreshGrantType, params: { refresh_token } }
-          : { grant_type: refreshGrantType, refresh_token };
+      const refreshBody = refreshGrantType === 'oauth2_refresh_token' ? { grant_type: refreshGrantType, params: { refresh_token } } : { grant_type: refreshGrantType, refresh_token };
 
       mainLog('eeclawBridge', `[getValidToken] Sending refresh request to ${serverUrl}/api/v1/auth/token`);
       const response = await fetch(`${serverUrl}/api/v1/auth/token`, {
@@ -76,10 +73,7 @@ export async function getValidToken(forceRefresh = false): Promise<string> {
           const latestAuth = ProcessConfig.getSync('eeclaw.authStorage');
           if (latestAuth?.refresh_token && latestAuth.refresh_token !== refresh_token) {
             mainLog('eeclawBridge', `[getValidToken] Found different refresh_token in file, retrying with ${latestAuth.refresh_token.slice(0, 20)}...`);
-            const retryBody =
-              latestAuth.session_type === 'oauth2'
-                ? { grant_type: 'oauth2_refresh_token', params: { refresh_token: latestAuth.refresh_token } }
-                : { grant_type: 'refresh_token', refresh_token: latestAuth.refresh_token };
+            const retryBody = latestAuth.session_type === 'oauth2' ? { grant_type: 'oauth2_refresh_token', params: { refresh_token: latestAuth.refresh_token } } : { grant_type: 'refresh_token', refresh_token: latestAuth.refresh_token };
             const retryResponse = await fetch(`${serverUrl}/api/v1/auth/token`, {
               method: 'POST',
               headers: {
@@ -253,8 +247,7 @@ export function initEeclawBridge(): void {
 
       // Save server URL and auth storage to ProcessConfig
       // 将服务器 URL 和认证存储保存到 ProcessConfig
-      const sessionType: 'password' | 'api_key' | 'oauth2' =
-        body.grant_type === 'oauth2' ? 'oauth2' : body.grant_type === 'api_key' ? 'api_key' : 'password';
+      const sessionType: 'password' | 'api_key' | 'oauth2' = body.grant_type === 'oauth2' ? 'oauth2' : body.grant_type === 'api_key' ? 'api_key' : 'password';
       await ProcessConfig.set('eeclaw.serverUrl', serverUrl);
       await ProcessConfig.set('eeclaw.authStorage', {
         access_token: data.access_token,
@@ -461,8 +454,8 @@ export function initEeclawBridge(): void {
       return {
         success: false,
         data: {
-          skills: { hub: { installed: [], skipped: [], failed: [] }, tenant: { installed: [], skipped: [], failed: [] } },
-          assistants: { hub: { installed: [], skipped: [], failed: [] }, tenant: { installed: [], skipped: [], failed: [] } },
+          skills: { hub: { installed: [], skipped: [], deleted: [], failed: [] }, tenant: { installed: [], skipped: [], deleted: [], failed: [] } },
+          assistants: { hub: { installed: [], skipped: [], deleted: [], failed: [] }, tenant: { installed: [], skipped: [], deleted: [], failed: [] } },
         },
         msg: error instanceof Error ? error.message : String(error),
       };
