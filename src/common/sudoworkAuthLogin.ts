@@ -1,10 +1,7 @@
-import { modelInputForModelId } from './imageUtils';
+export type { LoginSudoclawPayload } from './scodeConfig';
 
-export type LoginSudoclawPayload = {
-  sudorouterKey?: string;
-  modelServiceUrl?: string;
-  models: string[];
-};
+import { buildScodeConfigFromLoginPayload } from './scodeConfig';
+import type { LoginSudoclawPayload } from './scodeConfig';
 
 type LoginResponseData = {
   user?: Record<string, unknown>;
@@ -66,37 +63,6 @@ export function extractLoginSudoclawPayload(payload: unknown): LoginSudoclawPayl
 }
 
 /**
- * Build sudocode.json config from C-端 login payload.
- * Format follows sudocode.sample.json schema.
- */
-export function buildScodeConfigFromLoginPayload(payload: LoginSudoclawPayload): import('./ipcBridge').ScodeConfig {
-  const models: Record<string, import('./ipcBridge').ScodeModelEntry> = {};
-  for (const modelId of payload.models) {
-    models[modelId] = {
-      alias: modelId,
-      name: modelId,
-      input: modelInputForModelId(modelId),
-      providers: {
-        proxy: { provider: 'sudorouter', model: modelId, api: 'openai-completions' },
-      },
-    };
-  }
-  return {
-    auth_modes: {
-      proxy: {
-        sudorouter: { baseUrl: payload.modelServiceUrl, apiKey: payload.sudorouterKey },
-      },
-    },
-    models,
-    web_search: {
-      provider: 'tavily',
-      apiUrl: 'https://hk.sudorouter.ai/search/tavily/search',
-      apiKey: payload.sudorouterKey ?? '',
-    },
-  };
-}
-
-/**
  * Build sudocode.json config from SudoclawConfig (CopilotModalContent settings save).
  * Extracts sudorouter provider credentials and model list from sudoclaw format.
  */
@@ -127,29 +93,9 @@ export function buildScodeConfigFromSudoclawConfig(config: import('./ipcBridge')
 
   if (!baseUrl || !apiKey || allModelIds.length === 0) return null;
 
-  const models: Record<string, import('./ipcBridge').ScodeModelEntry> = {};
-  for (const modelId of allModelIds) {
-    models[modelId] = {
-      alias: modelId,
-      name: modelId,
-      input: modelInputForModelId(modelId),
-      providers: {
-        proxy: { provider: 'sudorouter', model: modelId, api: 'openai-completions' },
-      },
-    };
-  }
-
-  return {
-    auth_modes: {
-      proxy: {
-        sudorouter: { baseUrl, apiKey },
-      },
-    },
-    models,
-    web_search: {
-      provider: 'tavily',
-      apiUrl: 'https://hk.sudorouter.ai/search/tavily/search',
-      apiKey: apiKey ?? '',
-    },
-  };
+  return buildScodeConfigFromLoginPayload({
+    sudorouterKey: apiKey,
+    modelServiceUrl: baseUrl,
+    models: allModelIds,
+  });
 }

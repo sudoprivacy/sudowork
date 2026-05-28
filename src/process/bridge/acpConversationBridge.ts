@@ -351,7 +351,6 @@ export function initAcpConversationBridge(): void {
       // Support both AcpAgent and RemoteAgent
       if (task instanceof AcpAgent) {
         mainLog('AcpConversationBridge', `setModel: Task is AcpAgent`);
-        const modelInfo = await task.setModel(modelId);
 
         // Persist default model to sudocode.json and settings.json when switching scode models
         const conv = getDatabase().getConversation(conversationId);
@@ -363,6 +362,8 @@ export function initAcpConversationBridge(): void {
             /* best-effort */
           }
         }
+
+        const modelInfo = await task.setModel(modelId);
 
         return { success: true, data: { modelInfo } };
       }
@@ -430,9 +431,7 @@ export function initAcpConversationBridge(): void {
   });
 
   ipcBridge.acpConversation.answerQuestion.provider(async ({ conversationId, toolCallId, answers }) => {
-    mainLog(
-      `[acpConversationBridge] answerQuestion called conv=${conversationId} toolCallId=${toolCallId} answerCount=${Array.isArray(answers) ? answers.length : 'N/A'}`,
-    );
+    mainLog('acpConversationBridge', `answerQuestion called conv=${conversationId} toolCallId=${toolCallId} answerCount=${Array.isArray(answers) ? answers.length : 'N/A'}`);
     if (!conversationId || typeof conversationId !== 'string') {
       return { success: false, msg: 'Invalid conversationId' };
     }
@@ -462,9 +461,12 @@ export function initAcpConversationBridge(): void {
       });
     }
 
-    const task = WorkerManage.getTaskById(conversationId);
-    if (!task || !(task instanceof AcpAgent)) {
-      return { success: false, msg: 'Conversation not found or not an ACP agent' };
+    let task = WorkerManage.getTaskById(conversationId);
+    if (!task) {
+      task = await WorkerManage.getTaskByIdRollbackBuild(conversationId);
+    }
+    if (!task || (!(task instanceof AcpAgent) && !(task instanceof RemoteAgent))) {
+      return { success: false, msg: 'Conversation not found or does not support question answers' };
     }
 
     try {

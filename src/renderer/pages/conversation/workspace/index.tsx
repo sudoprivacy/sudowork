@@ -8,6 +8,7 @@ import { ipcBridge } from '@/common';
 import type { IDirOrFile } from '@/common/ipcBridge';
 import { DRAFTS_DIR_NAME } from '@/common/constants';
 import { STORAGE_KEYS } from '@/common/storageKeys';
+import { showShareLoading, updateShareSuccess, updateShareError } from '@/renderer/utils/shareNotify';
 import FlexFullContainer from '@/renderer/components/FlexFullContainer';
 import EmptyState from '@/renderer/components/base/EmptyState';
 import { useLayoutContext } from '@/renderer/context/LayoutContext';
@@ -706,6 +707,43 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
   // 草稿箱目录不支持重命名和删除
   const isContextMenuNodeDrafts = !!contextMenuNode && contextMenuNode.name === '.drafts' && !contextMenuNode.isFile;
 
+  // ShareOne CLI installation state
+  const [shareoneInstalled, setShareoneInstalled] = useState(false);
+
+  useEffect(() => {
+    void ipcBridge.shareoneCli.checkInstalled.invoke().then((res) => {
+      if (res?.success && res.data?.installed) {
+        setShareoneInstalled(true);
+      }
+    });
+    const unsub = ipcBridge.shareoneCli.installResult.on(() => {
+      void ipcBridge.shareoneCli.checkInstalled.invoke().then((res) => {
+        setShareoneInstalled(res?.success === true && res.data?.installed === true);
+      });
+    });
+    return unsub;
+  }, []);
+
+  const handleShareFile = useCallback(
+    async (node: IDirOrFile) => {
+      if (!node.fullPath || !node.isFile) return;
+      const notifyId = showShareLoading();
+      try {
+        const res = await ipcBridge.shareoneCli.publishFile.invoke({ filePath: node.fullPath });
+        if (res?.success && res.data) {
+          updateShareSuccess(notifyId, res.data.url);
+        } else if (res?.code === 'AUTH_FAILED') {
+          updateShareError(notifyId, res.msg || t('messages.shareAuthRequired'));
+        } else {
+          updateShareError(notifyId, res?.msg || t('messages.shareFailed', { msg: '' }));
+        }
+      } catch (err) {
+        updateShareError(notifyId, String(err));
+      }
+    },
+    [t]
+  );
+
   // Check if file supports preview
   const isPreviewSupported = (() => {
     if (!contextMenuNode?.isFile || !contextMenuNode.name) return false;
@@ -779,6 +817,31 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
       'flv',
     ];
     return supportedExts.includes(ext);
+  })();
+
+  // Check if file supports ShareOne sharing
+  const isShareoneSupported = (() => {
+    if (!contextMenuNode?.isFile || !contextMenuNode.name) return false;
+    const ext = contextMenuNode.name.toLowerCase().split('.').pop() || '';
+    const shareoneSupportedExts = [
+      // HTML formats
+      'html',
+      'htm',
+      // Markdown formats
+      'md',
+      'markdown',
+      // PDF format
+      'pdf',
+      // Word formats
+      'doc',
+      'docx',
+      'odt',
+      // PPT formats
+      'ppt',
+      'pptx',
+      'odp',
+    ];
+    return shareoneSupportedExts.includes(ext);
   })();
 
   const menuButtonBase = 'w-full flex items-center gap-8px px-14px py-6px text-13px text-left text-t-primary rounded-md transition-colors duration-150 hover:bg-2 border-none bg-transparent appearance-none focus:outline-none focus-visible:outline-none';
@@ -1438,6 +1501,18 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                   >
                     {t('conversation.workspace.contextMenu.uploadToBdpan')}
                   </button>
+                  {shareoneInstalled && (
+                    <button
+                      type='button'
+                      className={menuButtonBase}
+                      onClick={() => {
+                        void handleShareFile(contextMenuNode);
+                        modalsHook.closeContextMenu();
+                      }}
+                    >
+                      {t('conversation.workspace.contextMenu.shareone', { defaultValue: 'ShareOne' })}
+                    </button>
+                  )}
                 </>
               ) : (
                 <>
@@ -1504,6 +1579,18 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                   >
                     {t('conversation.workspace.contextMenu.uploadToBdpan')}
                   </button>
+                  {isContextMenuNodeFile && shareoneInstalled && isShareoneSupported && (
+                    <button
+                      type='button'
+                      className={menuButtonBase}
+                      onClick={() => {
+                        void handleShareFile(contextMenuNode);
+                        modalsHook.closeContextMenu();
+                      }}
+                    >
+                      {t('conversation.workspace.contextMenu.shareone', { defaultValue: 'ShareOne' })}
+                    </button>
+                  )}
                   <div className='h-1px bg-3 my-2px'></div>
                   {!isContextMenuNodeDrafts && (
                     <button

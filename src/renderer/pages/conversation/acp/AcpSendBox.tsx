@@ -39,6 +39,7 @@ const useAcpSendBoxDraft = getSendBoxDraftHook('acp', {
   atPath: [],
   content: '',
   uploadFile: [],
+  selectedSkills: [],
 });
 
 const useAcpMessage = (conversation_id: string) => {
@@ -501,6 +502,17 @@ const useSendBoxDraft = (conversation_id: string) => {
   const atPath = data?.atPath ?? EMPTY_AT_PATH;
   const uploadFile = data?.uploadFile ?? EMPTY_UPLOAD_FILES;
   const content = data?.content ?? '';
+  const selectedSkills = data?.selectedSkills ?? [];
+  const setSelectedSkills = useCallback(
+    (skills: string[] | ((prev: string[]) => string[])) => {
+      mutate((prev) => {
+        const previousSkills = prev?.selectedSkills ?? [];
+        const nextSkills = typeof skills === 'function' ? skills(previousSkills) : skills;
+        return { ...(prev as { selectedSkills?: string[] }), selectedSkills: nextSkills };
+      });
+    },
+    [mutate]
+  );
 
   const setAtPath = useCallback(
     (atPath: Array<string | FileOrFolderItem>) => {
@@ -525,6 +537,8 @@ const useSendBoxDraft = (conversation_id: string) => {
     setUploadFile,
     content,
     setContent,
+    selectedSkills,
+    setSelectedSkills,
   };
 };
 
@@ -540,10 +554,8 @@ const AcpSendBox: React.FC<{
   const workspaceFiles = useWorkspaceFiles();
   const { checkAndUpdateTitle } = useAutoTitle();
   const slashCommands = useSlashCommands(conversation_id, { agentStatus: acpStatus });
-  const { atPath, uploadFile, setAtPath, setUploadFile, content, setContent } = useSendBoxDraft(conversation_id);
+  const { atPath, uploadFile, setAtPath, setUploadFile, content, setContent, selectedSkills, setSelectedSkills } = useSendBoxDraft(conversation_id);
   const { setSendBoxHandler } = usePreviewContext();
-  const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
-
   // Sync local aiProcessing state to parent via onAiProcessingChange
   // 将本地 aiProcessing 状态同步到父组件
   useEffect(() => {
@@ -855,6 +867,7 @@ const AcpSendBox: React.FC<{
       <SendBox
         value={content}
         onChange={setContent}
+        initialSelectedSkills={selectedSkills}
         loading={running || aiProcessing}
         disabled={false}
         placeholder={t('acp.sendbox.placeholder', { backend: agentName || backend, defaultValue: `Send message to {{backend}}...` })}

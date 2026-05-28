@@ -70,6 +70,10 @@ type PrepareCleanEnvOptions = {
   injectSafetyHook?: boolean;
 };
 
+type ScodeAuthMode = 'subscription' | 'proxy' | 'api-key';
+
+const SCODE_AUTH_MODE_PRIORITY: ScodeAuthMode[] = ['subscription', 'proxy', 'api-key'];
+
 function scodeCliPathIncludesAuthFlag(cliPath: string): boolean {
   return /(?:^|\s)--auth(?:\s|$)/.test(cliPath);
 }
@@ -78,11 +82,15 @@ function scodeArgsIncludeAuthFlag(args: string[] | undefined): boolean {
   return Array.isArray(args) && args.includes('--auth');
 }
 
-export function resolveScodeAcpArgs(cliPath: string, acpArgs: string[] | undefined, env: Record<string, string | undefined>): string[] | undefined {
+export function resolveScodeAcpArgs(cliPath: string, acpArgs: string[] | undefined, env: Record<string, string | undefined>, authMode?: ScodeAuthMode | null): string[] | undefined {
   const baseArgs = acpArgs ?? ['acp'];
 
   if (scodeCliPathIncludesAuthFlag(cliPath) || scodeArgsIncludeAuthFlag(baseArgs)) {
     return baseArgs;
+  }
+
+  if (authMode) {
+    return ['--auth', authMode, ...baseArgs];
   }
 
   if (env.PROXY_AUTH_TOKEN && env.PROXY_BASE_URL) {
@@ -90,6 +98,60 @@ export function resolveScodeAcpArgs(cliPath: string, acpArgs: string[] | undefin
   }
 
   return baseArgs;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null;
+  }
+  return value as Record<string, unknown>;
+}
+
+export function resolveScodeAuthModeFromConfig(config: unknown, settings: unknown, modelOverride?: string | null): ScodeAuthMode | null {
+  const configRecord = asRecord(config);
+  if (!configRecord) return null;
+
+  const settingsRecord = asRecord(settings);
+  const currentModel =
+    typeof modelOverride === 'string' && modelOverride.trim()
+      ? modelOverride.trim()
+      : typeof settingsRecord?.model === 'string' && settingsRecord.model.trim()
+        ? settingsRecord.model.trim()
+        : typeof configRecord.default_model === 'string' && configRecord.default_model.trim()
+          ? configRecord.default_model.trim()
+          : null;
+  if (!currentModel) return null;
+
+  const models = asRecord(configRecord.models);
+  if (!models) return null;
+
+  const modelEntry =
+    asRecord(models[currentModel]) ||
+    Object.values(models)
+      .map(asRecord)
+      .find((entry) => entry && typeof entry.alias === 'string' && entry.alias === currentModel);
+  const providers = asRecord(modelEntry?.providers);
+  if (!providers) return null;
+
+  return SCODE_AUTH_MODE_PRIORITY.find((mode) => asRecord(providers[mode])) || null;
+}
+
+function readScodeAuthModeFromDisk(modelOverride?: string | null): ScodeAuthMode | null {
+  try {
+    const scodeDir = path.join(os.homedir(), '.nexus', 'sudocode');
+    const configPath = path.join(scodeDir, 'sudocode.json');
+    const settingsPath = path.join(scodeDir, 'settings.json');
+    const config = JSON.parse(readFileSync(configPath, 'utf-8')) as unknown;
+    let settings: unknown = {};
+    try {
+      settings = JSON.parse(readFileSync(settingsPath, 'utf-8')) as unknown;
+    } catch {
+      // settings.json is optional; default_model in sudocode.json is enough.
+    }
+    return resolveScodeAuthModeFromConfig(config, settings, modelOverride);
+  } catch {
+    return null;
+  }
 }
 
 function removePathEntry(envPath: string | undefined, entry: string): string | undefined {
@@ -201,7 +263,7 @@ export function prepareCleanEnv({ injectSafetyHook = true }: PrepareCleanEnvOpti
   // PYTHONPATH for ai_dev_browser module resolution (browser tool).
   // The browser skill dir contains ai_dev_browser (symlinked from vendor).
   // Python silently ignores non-existent entries, so no existence check needed.
-  const browserSkillDir = path.join(os.homedir(), '.nexus', 'skills', '_system', 'browser');
+  const browserSkillDir = path.join(os.homedir(), '.nexus', 'skills', '_system', '_builtin', 'browser');
   const prevPythonPath = cleanEnv.PYTHONPATH || '';
   cleanEnv.PYTHONPATH = prevPythonPath ? `${browserSkillDir}${path.delimiter}${prevPythonPath}` : browserSkillDir;
 
@@ -531,9 +593,12 @@ export async function spawnGenericBackend(backend: string, cliPath: string, work
     Object.assign(cleanEnv, customEnv);
   }
 
+  const requestedScodeModel = backend === 'scode' && typeof cleanEnv.SUDOCODE_CURRENT_MODEL_ID === 'string' && cleanEnv.SUDOCODE_CURRENT_MODEL_ID.trim() ? cleanEnv.SUDOCODE_CURRENT_MODEL_ID.trim() : null;
+  const scodeAuthMode = backend === 'scode' ? readScodeAuthModeFromDisk(requestedScodeModel) : null;
+
   // Inject proxy credentials for scode - scode uses PROXY_AUTH_TOKEN + PROXY_BASE_URL
   // for proxy mode, not ANTHROPIC_API_KEY (which triggers direct api.anthropic.com)
-  if (backend === 'scode' && !cleanEnv.PROXY_AUTH_TOKEN && !cleanEnv.ANTHROPIC_API_KEY) {
+  if (backend === 'scode' && scodeAuthMode === 'proxy' && !cleanEnv.PROXY_AUTH_TOKEN && !cleanEnv.ANTHROPIC_API_KEY) {
     // Prefer sudocode.json, fallback to sudoclaw.json (transition period)
     const sudocodeCreds = readProxyCredsFromSudocode();
     const creds = sudocodeCreds ?? readAnthropicCredsFromSudoclaw();
@@ -616,29 +681,47 @@ export async function spawnGenericBackend(backend: string, cliPath: string, work
       const scodeDir = path.join(os.homedir(), '.nexus', 'sudocode');
       const settingsPath = path.join(scodeDir, 'settings.json');
       let settings: Record<string, unknown> = {};
-      try { settings = JSON.parse(readFileSync(settingsPath, 'utf-8')); } catch { /* no settings */ }
+      try {
+        settings = JSON.parse(readFileSync(settingsPath, 'utf-8'));
+      } catch {
+        /* no settings */
+      }
       const scodeConfigPath = path.join(scodeDir, 'sudocode.json');
       let scodeConfig: Record<string, unknown> = {};
-      try { scodeConfig = JSON.parse(readFileSync(scodeConfigPath, 'utf-8')); } catch { /* no config */ }
-      const availableModels = scodeConfig.models && typeof scodeConfig.models === 'object'
-        ? Object.keys(scodeConfig.models as Record<string, unknown>) : [];
+      try {
+        scodeConfig = JSON.parse(readFileSync(scodeConfigPath, 'utf-8'));
+      } catch {
+        /* no config */
+      }
+      const availableModels = scodeConfig.models && typeof scodeConfig.models === 'object' ? Object.keys(scodeConfig.models as Record<string, unknown>) : [];
       const currentModel = typeof settings.model === 'string' ? settings.model : undefined;
+      if (requestedScodeModel && availableModels.includes(requestedScodeModel) && currentModel !== requestedScodeModel) {
+        settings.model = requestedScodeModel;
+        mkdirSync(scodeDir, { recursive: true });
+        writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf-8');
+        mainLog('[ACP scode]', `Synced settings.json model to requested model "${requestedScodeModel}" before spawn`);
+      } else if (requestedScodeModel && availableModels.length > 0 && !availableModels.includes(requestedScodeModel)) {
+        mainWarn('[ACP scode]', `Requested model "${requestedScodeModel}" is not in sudocode.json models`);
+      }
 
-      if (currentModel && availableModels.length > 0 && !availableModels.includes(currentModel)) {
+      const effectiveCurrentModel = typeof settings.model === 'string' ? settings.model : currentModel;
+      if (effectiveCurrentModel && availableModels.length > 0 && !availableModels.includes(effectiveCurrentModel)) {
         settings.model = availableModels[0];
         mkdirSync(scodeDir, { recursive: true });
         writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf-8');
-        mainLog('[ACP scode]', `Corrected settings.json model from "${currentModel}" to "${availableModels[0]}"`);
+        mainLog('[ACP scode]', `Corrected settings.json model from "${effectiveCurrentModel}" to "${availableModels[0]}"`);
       }
-    } catch { /* best-effort */ }
+    } catch {
+      /* best-effort */
+    }
   }
 
   ensureMinNodeVersion(cleanEnv, 18, 17, `${backend} ACP`);
 
   const spawnStart = Date.now();
-  const effectiveAcpArgs = backend === 'scode' ? resolveScodeAcpArgs(cliPath, acpArgs, cleanEnv) : acpArgs;
-  if (backend === 'scode' && effectiveAcpArgs !== acpArgs && effectiveAcpArgs?.includes('proxy')) {
-    mainLog('[ACP scode]', 'Forcing proxy auth mode because proxy credentials are available');
+  const effectiveAcpArgs = backend === 'scode' ? resolveScodeAcpArgs(cliPath, acpArgs, cleanEnv, scodeAuthMode) : acpArgs;
+  if (backend === 'scode' && scodeAuthMode && effectiveAcpArgs !== acpArgs) {
+    mainLog('[ACP scode]', `Using ${scodeAuthMode} auth mode for current model`);
   }
   const config = createGenericSpawnConfig(cliPath, workingDir, effectiveAcpArgs, undefined, cleanEnv as Record<string, string>);
   const child = spawn(config.command, config.args, config.options);

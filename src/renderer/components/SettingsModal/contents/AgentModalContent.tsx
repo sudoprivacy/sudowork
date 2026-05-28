@@ -307,7 +307,7 @@ const TenantAssistantCard: React.FC<{
 }> = ({ assistant, isInstalled, installing, installProgress, onDuplicate, onClick }) => {
   const { t } = useTranslation();
 
-  const displayName = assistant.displayName || assistant.name;
+  const displayName = assistant.displayName || (assistant as { display_name?: string }).display_name || assistant.name;
 
   // Tenant assistants are synced from server and always considered installed
   // Show "已安装" badge and duplicate button (same as hub installed assistants)
@@ -597,7 +597,7 @@ const AssistantDetailModal: React.FC<{
                             skillIconUrl = resolveExtensionAssetUrl(skill.icon) || skill.icon;
                           } else {
                             // Hub skills: if icon is relative path, prepend COS URL
-                            skillIconUrl = skill.icon && !skill.icon.startsWith('http') && !skill.icon.startsWith('data:') && !skill.icon.startsWith('/') && !skill.icon.startsWith('aion-asset://') && !skill.icon.startsWith('file://') ? `https://sudoclaw-1309794936.cos.ap-beijing.myqcloud.com/${skill.icon}` : skill.icon;
+                            skillIconUrl = skill.icon && !skill.icon.startsWith('http') && !skill.icon.startsWith('data:') && !skill.icon.startsWith('/') && !skill.icon.startsWith('aion-asset://') && !skill.icon.startsWith('file://') ? `https://sudoworkhub-1309794936.cos.ap-beijing.myqcloud.com/${skill.icon}` : skill.icon;
                           }
                           return (
                             <div key={skill.id} className='flex items-center gap-10px p-8px bg-fill-2 rd-8px'>
@@ -762,9 +762,9 @@ const AgentModalContent: React.FC = () => {
   // Sync status state
   const [syncStatus, setSyncStatus] = useState<{
     syncing: boolean;
-    skills: { installed: string[]; skipped: string[]; failed: Array<{ id: string; name: string; error: string }> };
-    assistants: { installed: string[]; skipped: string[]; failed: Array<{ id: string; name: string; error: string }> };
-  }>({ syncing: false, skills: { installed: [], skipped: [], failed: [] }, assistants: { installed: [], skipped: [], failed: [] } });
+    skills: { installed: string[]; skipped: string[]; deleted: string[]; failed: Array<{ id: string; name: string; error: string }> };
+    assistants: { installed: string[]; skipped: string[]; deleted: string[]; failed: Array<{ id: string; name: string; error: string }> };
+  }>({ syncing: false, skills: { installed: [], skipped: [], deleted: [], failed: [] }, assistants: { installed: [], skipped: [], deleted: [], failed: [] } });
 
   const avatarImageMap = React.useMemo<Record<string, string>>(
     () => ({
@@ -1016,21 +1016,25 @@ const AgentModalContent: React.FC = () => {
   useEffect(() => {
     if (!isEnterprise || !isElectronDesktop()) return;
 
-    const handleSyncCompleted = (data: { skills: { hub: { installed: string[]; skipped: string[]; failed: Array<{ id: string; name: string; error: string }> }; tenant: { installed: string[]; skipped: string[]; failed: Array<{ id: string; name: string; error: string }> } }; assistants: { hub: { installed: string[]; skipped: string[]; failed: Array<{ id: string; name: string; error: string }> }; tenant: { installed: string[]; skipped: string[]; failed: Array<{ id: string; name: string; error: string }> } } }) => {
+    const handleSyncCompleted = (data: { skills: { hub: { installed: string[]; skipped: string[]; deleted: string[]; failed: Array<{ id: string; name: string; error: string }> }; tenant: { installed: string[]; skipped: string[]; deleted: string[]; failed: Array<{ id: string; name: string; error: string }> } }; assistants: { hub: { installed: string[]; skipped: string[]; deleted: string[]; failed: Array<{ id: string; name: string; error: string }> }; tenant: { installed: string[]; skipped: string[]; deleted: string[]; failed: Array<{ id: string; name: string; error: string }> } } }) => {
       // Merge hub and tenant results for display
       const mergedSkills = {
         installed: [...data.skills.hub.installed, ...data.skills.tenant.installed],
         skipped: [...data.skills.hub.skipped, ...data.skills.tenant.skipped],
+        deleted: [...data.skills.hub.deleted, ...data.skills.tenant.deleted],
         failed: [...data.skills.hub.failed, ...data.skills.tenant.failed],
       };
       const mergedAssistants = {
         installed: [...data.assistants.hub.installed, ...data.assistants.tenant.installed],
         skipped: [...data.assistants.hub.skipped, ...data.assistants.tenant.skipped],
+        deleted: [...data.assistants.hub.deleted, ...data.assistants.tenant.deleted],
         failed: [...data.assistants.hub.failed, ...data.assistants.tenant.failed],
       };
       setSyncStatus({ syncing: false, skills: mergedSkills, assistants: mergedAssistants });
       // Refresh installed list after sync
       void fetchInstalledAssistantNames();
+      // Refresh local assistants list (for "我的助手" tab)
+      void loadAssistants();
     };
 
     const unsubscribe = eeclaw.syncCompleted.on(handleSyncCompleted);
@@ -1051,7 +1055,7 @@ const AgentModalContent: React.FC = () => {
 
     // Mark as triggered and start sync
     syncTriggeredRef.current = true;
-    setSyncStatus({ syncing: true, skills: { installed: [], skipped: [], failed: [] }, assistants: { installed: [], skipped: [], failed: [] } });
+    setSyncStatus({ syncing: true, skills: { installed: [], skipped: [], deleted: [], failed: [] }, assistants: { installed: [], skipped: [], deleted: [], failed: [] } });
 
     eeclaw.syncFromRemote
       .invoke()
@@ -1059,13 +1063,13 @@ const AgentModalContent: React.FC = () => {
         if (!res.success) {
           // Sync failed, reset status (syncCompleted event won't be emitted)
           console.error('Sync failed:', res.msg);
-          setSyncStatus({ syncing: false, skills: { installed: [], skipped: [], failed: [] }, assistants: { installed: [], skipped: [], failed: [] } });
+          setSyncStatus({ syncing: false, skills: { installed: [], skipped: [], deleted: [], failed: [] }, assistants: { installed: [], skipped: [], deleted: [], failed: [] } });
         }
         // If success, syncCompleted event will be emitted and handled separately
       })
       .catch((err) => {
         console.error('Failed to trigger sync:', err);
-        setSyncStatus({ syncing: false, skills: { installed: [], skipped: [], failed: [] }, assistants: { installed: [], skipped: [], failed: [] } });
+        setSyncStatus({ syncing: false, skills: { installed: [], skipped: [], deleted: [], failed: [] }, assistants: { installed: [], skipped: [], deleted: [], failed: [] } });
       });
   }, [isEnterprise, activeTab]);
 

@@ -67,7 +67,7 @@ export const conversation = {
   // Add a single message to the database (used for saving pending messages before unmount)
   addMessage: bridge.buildProvider<void, { conversation_id: string; message: import('@/common/chatLib').TMessage }>('conversation.add-message'),
   // Sync messages from Moss Server to local DB (enterprise mode, triggered on conversation click)
-  syncMessages: bridge.buildProvider<IBridgeResponse<{ syncedCount: number; nameUpdated: boolean }>, { conversation_id: string }>('conversation.sync-messages'),
+  syncMessages: bridge.buildProvider<IBridgeResponse<{ syncedCount: number; nameUpdated: boolean; conversationStatus?: string }>, { conversation_id: string }>('conversation.sync-messages'),
   confirmation: {
     add: bridge.buildEmitter<IConfirmation<any> & { conversation_id: string }>('confirmation.add'),
     update: bridge.buildEmitter<IConfirmation<any> & { conversation_id: string }>('confirmation.update'),
@@ -660,6 +660,17 @@ export const nodeRuntime = {
   installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('node-runtime.install-result'),
 };
 
+// ShareOne CLI installer & publish
+export type IShareoneResponse = { success: boolean; msg?: string; code?: string };
+export const shareoneCli = {
+  checkInstalled: bridge.buildProvider<IBridgeResponse<ICliStatus>, void>('shareone.check-installed'),
+  install: bridge.buildProvider<IBridgeResponse<void>, void>('shareone.install'),
+  installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('shareone.install-result'),
+  installProgress: bridge.buildEmitter<{ phase: 'downloading' | 'extracting' | 'configuring'; percent?: number }>('shareone.install-progress'),
+  publishTurn: bridge.buildProvider<IShareoneResponse & IBridgeResponse<{ url: string }>, { markdown: string; title: string }>('shareone.publish-turn'),
+  publishFile: bridge.buildProvider<IShareoneResponse & IBridgeResponse<{ url: string }>, { filePath: string }>('shareone.publish-file'),
+};
+
 // LibreOffice installer / LibreOffice 在线安装
 export type ILibreOfficeInstallPhase = 'downloading' | 'mounting' | 'copying' | 'unmounting' | 'installing' | 'extracting' | 'cleanup';
 export type ISudoclawInstallPhase = 'extracting' | 'installing' | 'configuring';
@@ -767,6 +778,12 @@ export type ScodeModelEntry = {
   alias?: string;
   name?: string;
   input?: string[];
+  supports_tools?: boolean;
+  supports_reasoning?: boolean;
+  context?: {
+    input?: number;
+    output?: number;
+  };
   providers?: {
     subscription?: ScodeModelProvider;
     proxy?: ScodeModelProvider;
@@ -1794,7 +1811,7 @@ export const authProxy = {
 };
 
 // ==================== Crash API ====================
-// Crash/Exception reporting for sudoclaw-qms CrashReporter
+// Crash/Exception reporting for sudowork-qms CrashReporter
 // Crash/异常上报 (替代 Sentry SDK)
 
 export interface ICrashExceptionData {
@@ -1835,12 +1852,12 @@ export const crash = {
 
 export interface TenantConfigData {
   id: string;
-  logo: string;
-  app_name: string;
-  top_name: string;
-  about_name: string;
-  app_company_name: string;
-  login_desp: string;
+  logo: string | null;
+  app_name: string | null;
+  top_name: string | null;
+  about_name: string | null;
+  app_company_name: string | null;
+  login_desp: string | null;
   updated_at: number;
 }
 

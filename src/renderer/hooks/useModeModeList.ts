@@ -58,6 +58,7 @@ export const getGeminiModeList = (options?: GeminiModeListOptions): GeminiModeOp
       // DEFAULT_GEMINI_FLASH_MODEL = 'gemini-2.5-flash'
       // DEFAULT_GEMINI_FLASH_LITE_MODEL = 'gemini-2.5-flash-lite'
       subModels: [
+        { label: 'gemini-3.5-flash', value: 'gemini-3.5-flash' },
         { label: 'gemini-3.1-pro-preview', value: 'gemini-3.1-pro-preview' },
         { label: 'gemini-3-flash-preview', value: 'gemini-3-flash-preview' },
         { label: 'gemini-2.5-pro', value: 'gemini-2.5-pro' },

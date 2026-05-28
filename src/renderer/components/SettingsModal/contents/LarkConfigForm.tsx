@@ -59,7 +59,7 @@ interface LarkConfigFormProps {
   onCredentialsChange?: (creds: { appId: string; appSecret: string; encryptKey?: string; verificationToken?: string }) => void;
 }
 
-const LARK_DEV_DOCS_URL = 'https://sudoclaw.sudoprivacy.com/guides/feishu.html';
+const LARK_DEV_DOCS_URL = 'https://sudowork.sudoprivacy.com/guides/feishu.html';
 const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSelection, onStatusChange, onCredentialsChange }) => {
   const { t } = useTranslation();
   const { isEnterprise } = useAppMode();
@@ -408,7 +408,7 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
                   handleCredentialsChange();
                 }}
                 onBlur={() => setTouched((prev) => ({ ...prev, appId: true }))}
-                placeholder={hasExistingUsers || pluginStatus?.hasToken ? '••••••••••••••••' : 'cli_xxxxxxxxxx'}
+                placeholder={hasExistingUsers ? '••••••••••••••••' : 'cli_xxxxxxxxxx'}
                 style={{ width: 240 }}
                 status={touched.appId && !appId.trim() && !pluginStatus?.hasToken ? 'error' : undefined}
                 disabled={hasExistingUsers}
@@ -423,7 +423,7 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
               handleCredentialsChange();
             }}
             onBlur={() => setTouched((prev) => ({ ...prev, appId: true }))}
-            placeholder={hasExistingUsers || pluginStatus?.hasToken ? '••••••••••••••••' : 'cli_xxxxxxxxxx'}
+            placeholder={hasExistingUsers ? '••••••••••••••••' : 'cli_xxxxxxxxxx'}
             style={{ width: 240 }}
             status={touched.appId && !appId.trim() && !pluginStatus?.hasToken ? 'error' : undefined}
             disabled={hasExistingUsers}
@@ -461,7 +461,7 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
                   handleCredentialsChange();
                 }}
                 onBlur={() => setTouched((prev) => ({ ...prev, appSecret: true }))}
-                placeholder={hasExistingUsers || pluginStatus?.hasToken ? '••••••••••••••••' : 'xxxxxxxxxxxxxxxxxx'}
+                placeholder={hasExistingUsers ? '••••••••••••••••' : 'xxxxxxxxxxxxxxxxxx'}
                 style={{ width: 240 }}
                 status={touched.appSecret && !appSecret.trim() && !pluginStatus?.hasToken ? 'error' : undefined}
                 visibilityToggle
@@ -477,7 +477,7 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
               handleCredentialsChange();
             }}
             onBlur={() => setTouched((prev) => ({ ...prev, appSecret: true }))}
-            placeholder={hasExistingUsers || pluginStatus?.hasToken ? '••••••••••••••••' : 'xxxxxxxxxxxxxxxxxx'}
+            placeholder={hasExistingUsers ? '••••••••••••••••' : 'xxxxxxxxxxxxxxxxxx'}
             style={{ width: 240 }}
             status={touched.appSecret && !appSecret.trim() && !pluginStatus?.hasToken ? 'error' : undefined}
             visibilityToggle
@@ -577,49 +577,49 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
 
       {/* Agent Selection - hidden in enterprise mode (uses Moss remote agent) */}
       {!isEnterprise && (
-      <div className='flex flex-col gap-8px'>
-        <PreferenceRow label={t('settings.lark.agent', 'Agent')} description={t('settings.lark.agentDesc', 'Used for Lark conversations')}>
-          <Dropdown
-            trigger='click'
-            position='br'
-            droplist={
-              <Menu selectedKeys={[selectedAgent.customAgentId ? `${selectedAgent.backend}|${selectedAgent.customAgentId}` : selectedAgent.backend]}>
-                {agentOptions.map((a) => {
-                  const key = a.customAgentId ? `${a.backend}|${a.customAgentId}` : a.backend;
-                  return (
-                    <Menu.Item
-                      key={key}
-                      onClick={() => {
-                        const currentKey = selectedAgent.customAgentId ? `${selectedAgent.backend}|${selectedAgent.customAgentId}` : selectedAgent.backend;
-                        if (key === currentKey) {
-                          return;
-                        }
-                        const next = { backend: a.backend, customAgentId: a.customAgentId, name: a.name };
-                        setSelectedAgent(next);
-                        void persistSelectedAgent(next);
-                      }}
-                    >
-                      {a.name}
-                    </Menu.Item>
-                  );
-                })}
-              </Menu>
-            }
-          >
-            <Button type='secondary' className='min-w-160px flex items-center justify-between gap-8px'>
-              <span className='truncate'>{agentOptions[0]?.name || 'Sudo Code'}</span>
-              <Down theme='outline' size={14} />
-            </Button>
-          </Dropdown>
-        </PreferenceRow>
-      </div>
+        <div className='flex flex-col gap-8px'>
+          <PreferenceRow label={t('settings.lark.agent', 'Agent')} description={t('settings.lark.agentDesc', 'Used for Lark conversations')}>
+            <Dropdown
+              trigger='click'
+              position='br'
+              droplist={
+                <Menu selectedKeys={[selectedAgent.customAgentId ? `${selectedAgent.backend}|${selectedAgent.customAgentId}` : selectedAgent.backend]}>
+                  {agentOptions.map((a) => {
+                    const key = a.customAgentId ? `${a.backend}|${a.customAgentId}` : a.backend;
+                    return (
+                      <Menu.Item
+                        key={key}
+                        onClick={() => {
+                          const currentKey = selectedAgent.customAgentId ? `${selectedAgent.backend}|${selectedAgent.customAgentId}` : selectedAgent.backend;
+                          if (key === currentKey) {
+                            return;
+                          }
+                          const next = { backend: a.backend, customAgentId: a.customAgentId, name: a.name };
+                          setSelectedAgent(next);
+                          void persistSelectedAgent(next);
+                        }}
+                      >
+                        {a.name}
+                      </Menu.Item>
+                    );
+                  })}
+                </Menu>
+              }
+            >
+              <Button type='secondary' className='min-w-160px flex items-center justify-between gap-8px'>
+                <span className='truncate'>{agentOptions[0]?.name || 'Sudo Code'}</span>
+                <Down theme='outline' size={14} />
+              </Button>
+            </Dropdown>
+          </PreferenceRow>
+        </div>
       )}
 
       {/* Default Model Selection - hidden in enterprise mode */}
       {!isEnterprise && (
-      <PreferenceRow label={t('settings.assistant.defaultModel', '对话模型')} description={t('settings.lark.defaultModelDesc', '用于Agent对话时调用')}>
-        <GeminiModelSelector selection={isGeminiAgent ? modelSelection : undefined} disabled={!isGeminiAgent} label={!isGeminiAgent ? t('settings.assistant.autoFollowCliModel', '自动跟随CLI运行时的模型') : undefined} variant='settings' />
-      </PreferenceRow>
+        <PreferenceRow label={t('settings.assistant.defaultModel', '对话模型')} description={t('settings.lark.defaultModelDesc', '用于Agent对话时调用')}>
+          <GeminiModelSelector selection={isGeminiAgent ? modelSelection : undefined} disabled={!isGeminiAgent} label={!isGeminiAgent ? t('settings.assistant.autoFollowCliModel', '自动跟随CLI运行时的模型') : undefined} variant='settings' />
+        </PreferenceRow>
       )}
 
       {/* Connection Status - show when bot is enabled */}

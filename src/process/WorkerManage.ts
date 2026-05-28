@@ -75,7 +75,9 @@ const buildConversation = (conversation: TChatConversation, options?: BuildConve
           if (authStorage?.access_token) {
             authToken = authStorage.access_token;
           }
-        } catch { /* ignore */ }
+        } catch {
+          /* ignore */
+        }
       }
       const wsUrl = extra?.acpWsUrl;
       const mossSessionPending = extra?.mossSessionPending;
@@ -95,7 +97,7 @@ const buildConversation = (conversation: TChatConversation, options?: BuildConve
         // Resume mode: use existing wsUrl and sessionId
         // 恢复模式：使用已有的 wsUrl 和 sessionId
         wsUrl,
-        sessionId: wsUrl ? mossSessionId || conversation.id : undefined,
+        sessionId: mossSessionPending ? undefined : mossSessionId || conversation.id,
         // Lazy creation: pass mossSessionPending flag
         // 延迟创建：传递 mossSessionPending 标志
         mossSessionPending,
@@ -194,7 +196,7 @@ const kill = (id: string) => {
   if (index === -1) return;
   const task = taskList[index];
   if (task) {
-    task.task.kill();
+    void task.task.kill();
   }
   taskList.splice(index, 1);
 };

@@ -13,7 +13,7 @@ import path from 'path';
 
 const SUDOCODE_CONFIG_PATH = path.join(os.homedir(), '.nexus', 'sudocode', 'sudocode.json');
 
-type ScodeProxyModel = {
+type ScodeConfiguredModel = {
   id: string;
   label: string;
 };
@@ -25,9 +25,13 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return value as Record<string, unknown>;
 }
 
-function readScodeProxyModelsFromConfig(): ScodeProxyModel[] {
+function hasRunnableProvider(providers: Record<string, unknown> | null): boolean {
+  return !!(asRecord(providers?.proxy) || asRecord(providers?.['api-key']));
+}
+
+function readScodeModelsFromConfig(configPath = SUDOCODE_CONFIG_PATH): ScodeConfiguredModel[] {
   try {
-    const raw = fs.readFileSync(SUDOCODE_CONFIG_PATH, 'utf-8');
+    const raw = fs.readFileSync(configPath, 'utf-8');
     const parsed = JSON.parse(raw) as { models?: unknown };
     const models = asRecord(parsed.models);
     if (!models) {
@@ -35,13 +39,12 @@ function readScodeProxyModelsFromConfig(): ScodeProxyModel[] {
     }
 
     const seen = new Set<string>();
-    const result: ScodeProxyModel[] = [];
+    const result: ScodeConfiguredModel[] = [];
 
     for (const [key, value] of Object.entries(models)) {
       const model = asRecord(value);
       const providers = asRecord(model?.providers);
-      const proxyProvider = asRecord(providers?.proxy);
-      if (!proxyProvider) {
+      if (!hasRunnableProvider(providers)) {
         continue;
       }
 
@@ -64,9 +67,9 @@ function readScodeProxyModelsFromConfig(): ScodeProxyModel[] {
   }
 }
 
-function readScodeDefaultModelFromConfig(): string | null {
+function readScodeDefaultModelFromConfig(configPath = SUDOCODE_CONFIG_PATH): string | null {
   try {
-    const raw = fs.readFileSync(SUDOCODE_CONFIG_PATH, 'utf-8');
+    const raw = fs.readFileSync(configPath, 'utf-8');
     const parsed = JSON.parse(raw) as { default_model?: unknown };
     if (typeof parsed.default_model === 'string' && parsed.default_model.trim()) {
       return parsed.default_model.trim();
@@ -77,15 +80,15 @@ function readScodeDefaultModelFromConfig(): string | null {
   return null;
 }
 
-export function getScodeProxyModelInfoSync(currentModelId?: string | null): AcpModelInfo | null {
-  const availableModels = readScodeProxyModelsFromConfig();
+export function getScodeProxyModelInfoSync(currentModelId?: string | null, configPath = SUDOCODE_CONFIG_PATH): AcpModelInfo | null {
+  const availableModels = readScodeModelsFromConfig(configPath);
   if (availableModels.length === 0) {
     return null;
   }
 
   const explicitModelId = typeof currentModelId === 'string' && currentModelId.trim() ? currentModelId.trim() : null;
   // Prefer default_model from sudocode.json (persisted user choice), fallback to hardcoded default
-  const defaultModelId = readScodeDefaultModelFromConfig() ?? getDefaultAcpModelId('scode');
+  const defaultModelId = readScodeDefaultModelFromConfig(configPath) ?? getDefaultAcpModelId('scode');
   const defaultInList = defaultModelId ? availableModels.some((model) => model.id === defaultModelId) : false;
   const effectiveCurrentModelId = explicitModelId || (defaultInList ? defaultModelId : availableModels[0].id);
   const effectiveCurrentModelLabel = availableModels.find((model) => model.id === effectiveCurrentModelId)?.label || effectiveCurrentModelId;
@@ -105,9 +108,9 @@ type ScodeModelDef = {
   hasVision: boolean;
 };
 
-function readScodeModelsWithVisionFromConfig(): ScodeModelDef[] {
+function readScodeModelsWithVisionFromConfig(configPath = SUDOCODE_CONFIG_PATH): ScodeModelDef[] {
   try {
-    const raw = fs.readFileSync(SUDOCODE_CONFIG_PATH, 'utf-8');
+    const raw = fs.readFileSync(configPath, 'utf-8');
     const parsed = JSON.parse(raw) as { models?: unknown };
     const models = asRecord(parsed.models);
     if (!models) {
@@ -120,8 +123,7 @@ function readScodeModelsWithVisionFromConfig(): ScodeModelDef[] {
     for (const [key, value] of Object.entries(models)) {
       const model = asRecord(value);
       const providers = asRecord(model?.providers);
-      const proxyProvider = asRecord(providers?.proxy);
-      if (!proxyProvider) {
+      if (!hasRunnableProvider(providers)) {
         continue;
       }
 

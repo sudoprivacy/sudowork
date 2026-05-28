@@ -43,15 +43,9 @@ function toOption(raw: unknown): AcpQuestionItemOption | null {
   return null;
 }
 
-function normalizeItem(
-  item: AcpQuestionItem,
-  fallbackIndex: number,
-  booleanFallback: { yes: string; no: string },
-): NormalizedItem {
+function normalizeItem(item: AcpQuestionItem, fallbackIndex: number, booleanFallback: { yes: string; no: string }): NormalizedItem {
   const rawOptions = (item.options as unknown[] | undefined) || [];
-  let options = rawOptions
-    .map((opt) => toOption(opt))
-    .filter((opt): opt is AcpQuestionItemOption => Boolean(opt));
+  let options = rawOptions.map((opt) => toOption(opt)).filter((opt): opt is AcpQuestionItemOption => Boolean(opt));
   // Boolean kind has no options in the model schema; supply Yes/No fallbacks
   // so the renderer always has selectable choices for yes/no questions.
   if (item.kind === 'boolean' && options.length === 0) {
@@ -67,10 +61,7 @@ function normalizeItem(
   };
 }
 
-function normalizeItems(
-  message: IMessageAcpQuestion,
-  booleanFallback: { yes: string; no: string },
-): NormalizedItem[] {
+function normalizeItems(message: IMessageAcpQuestion, booleanFallback: { yes: string; no: string }): NormalizedItem[] {
   const items = message.content?.items;
   if (items && items.length > 0) {
     return items.map((item, index) => normalizeItem(item, index, booleanFallback));
@@ -138,27 +129,27 @@ function parseStructuredAnswer(answer: string, items: NormalizedItem[]): AcpQues
   }
 
   if (items.length === 1) {
-    return [{
-      id: items[0].id,
-      index: 1,
-      submissionValue: normalized,
-      displayValue: normalized === '[skipped]' ? '' : normalized,
-      skipped: normalized === '[skipped]',
-    }];
+    return [
+      {
+        id: items[0].id,
+        index: 1,
+        submissionValue: normalized,
+        displayValue: normalized === '[skipped]' ? '' : normalized,
+        skipped: normalized === '[skipped]',
+      },
+    ];
   }
 
   return [];
 }
 
 const MessageAcpQuestion: React.FC<MessageAcpQuestionProps> = React.memo(({ message }) => {
-  const { question, intro, conversationId } = message.content || {};
+  const { question, intro } = message.content || {};
+  const conversationId = message.content?.conversationId || message.conversation_id;
   const { t } = useTranslation();
   const yesLabel = t('messages.yes');
   const noLabel = t('messages.no');
-  const items = useMemo(
-    () => normalizeItems(message, { yes: yesLabel, no: noLabel }),
-    [message, yesLabel, noLabel],
-  );
+  const items = useMemo(() => normalizeItems(message, { yes: yesLabel, no: noLabel }), [message, yesLabel, noLabel]);
 
   const hydratedAnswers = useMemo(() => {
     if (message.content?.answerItems && message.content.answerItems.length > 0) {
@@ -177,9 +168,7 @@ const MessageAcpQuestion: React.FC<MessageAcpQuestionProps> = React.memo(({ mess
       const item = items[answer.index - 1];
       if (!item) return;
       if (resolveKind(item) === 'multi_select') return;
-      const hit = item.options.find(
-        (opt) => opt.label === answer.displayValue || opt.value === answer.submissionValue || opt.value === answer.displayValue
-      );
+      const hit = item.options.find((opt) => opt.label === answer.displayValue || opt.value === answer.submissionValue || opt.value === answer.displayValue);
       if (hit) map[item.id] = hit.label;
     });
     return map;
@@ -190,7 +179,10 @@ const MessageAcpQuestion: React.FC<MessageAcpQuestionProps> = React.memo(({ mess
     hydratedAnswers.forEach((answer) => {
       const item = items[answer.index - 1];
       if (!item || resolveKind(item) !== 'multi_select') return;
-      const labels = (answer.displayValue || '').split(' / ').map((part) => part.trim()).filter(Boolean);
+      const labels = (answer.displayValue || '')
+        .split(' / ')
+        .map((part) => part.trim())
+        .filter(Boolean);
       if (labels.length > 0) map[item.id] = labels;
     });
     return map;
@@ -204,9 +196,7 @@ const MessageAcpQuestion: React.FC<MessageAcpQuestionProps> = React.memo(({ mess
       if (!item) return;
       const kind = resolveKind(item);
       if (kind === 'multi_select') return;
-      const matched = item.options.some(
-        (opt) => opt.label === answer.displayValue || opt.value === answer.submissionValue || opt.value === answer.displayValue
-      );
+      const matched = item.options.some((opt) => opt.label === answer.displayValue || opt.value === answer.submissionValue || opt.value === answer.displayValue);
       if (!matched) map[item.id] = answer.displayValue;
     });
     return map;
@@ -303,7 +293,7 @@ const MessageAcpQuestion: React.FC<MessageAcpQuestionProps> = React.memo(({ mess
 
     if (answers.some((part) => part === null)) return null;
 
-    const resolved = answers.filter(Boolean) as NonNullable<typeof answers[number]>[];
+    const resolved = answers.filter(Boolean) as NonNullable<(typeof answers)[number]>[];
     if (resolved.length === 0) return null;
 
     if (resolved.length === 1) {
@@ -311,13 +301,15 @@ const MessageAcpQuestion: React.FC<MessageAcpQuestionProps> = React.memo(({ mess
       return {
         submission: only.submissionValue,
         display: only.displayValue || '[skipped]',
-        answerItems: [{
-          id: only.id,
-          index: only.index,
-          submissionValue: only.submissionValue,
-          displayValue: only.displayValue,
-          skipped: only.skipped,
-        }],
+        answerItems: [
+          {
+            id: only.id,
+            index: only.index,
+            submissionValue: only.submissionValue,
+            displayValue: only.displayValue,
+            skipped: only.skipped,
+          },
+        ],
       };
     }
 
@@ -350,7 +342,7 @@ const MessageAcpQuestion: React.FC<MessageAcpQuestionProps> = React.memo(({ mess
       const result = message.content?.toolCallId
         ? await acpConversation.answerQuestion.invoke({
             conversationId,
-            toolCallId: message.content.toolCallId,
+            toolCallId: message.content.responseToolCallId || message.content.toolCallId,
             answers: answerPayload.answerItems.map((answer) => ({
               id: answer.id,
               value: answer.submissionValue,
@@ -386,17 +378,9 @@ const MessageAcpQuestion: React.FC<MessageAcpQuestionProps> = React.memo(({ mess
   }
 
   const currentMulti = currentItem ? selectedMulti[currentItem.id] || [] : [];
-  const currentValueLabel = currentItem
-    ? currentKind === 'multi_select'
-      ? currentMulti.join(' / ')
-      : selectedOptions[currentItem.id] || customAnswers[currentItem.id] || ''
-    : '';
-  const canGoNext = currentItem
-    ? currentItem.optional || (currentKind === 'multi_select' ? currentMulti.length > 0 || Boolean(customAnswers[currentItem.id]?.trim()) : Boolean(currentValueLabel.trim()))
-    : false;
-  const shouldShowCustomInput = currentItem
-    ? currentKind === 'text' || (currentItem.allowCustomInput && (currentItem.options.length === 0 || customInputEnabled[currentItem.id]))
-    : false;
+  const currentValueLabel = currentItem ? (currentKind === 'multi_select' ? currentMulti.join(' / ') : selectedOptions[currentItem.id] || customAnswers[currentItem.id] || '') : '';
+  const canGoNext = currentItem ? currentItem.optional || (currentKind === 'multi_select' ? currentMulti.length > 0 || Boolean(customAnswers[currentItem.id]?.trim()) : Boolean(currentValueLabel.trim())) : false;
+  const shouldShowCustomInput = currentItem ? currentKind === 'text' || (currentItem.allowCustomInput && (currentItem.options.length === 0 || customInputEnabled[currentItem.id])) : false;
 
   const renderOptionExtras = (option: AcpQuestionItemOption) => (
     <>
@@ -419,9 +403,7 @@ const MessageAcpQuestion: React.FC<MessageAcpQuestionProps> = React.memo(({ mess
         {!hasResponded && !isCancelled && (
           <>
             <div className='mt-10px'>
-              <Text className='text-xs text-t-secondary'>
-                {items.length > 1 ? `${currentStep + 1}/${items.length}` : t('messages.chooseAction')}
-              </Text>
+              <Text className='text-xs text-t-secondary'>{items.length > 1 ? `${currentStep + 1}/${items.length}` : t('messages.chooseAction')}</Text>
             </div>
 
             {currentItem ? (
@@ -432,28 +414,14 @@ const MessageAcpQuestion: React.FC<MessageAcpQuestionProps> = React.memo(({ mess
                   {currentKind !== 'text' && currentItem.options.length > 0 ? (
                     <div className='flex flex-wrap gap-8px'>
                       {currentItem.options.map((option) => {
-                        const isSelected =
-                          currentKind === 'multi_select'
-                            ? currentMulti.includes(option.label)
-                            : selectedOptions[currentItem.id] === option.label;
+                        const isSelected = currentKind === 'multi_select' ? currentMulti.includes(option.label) : selectedOptions[currentItem.id] === option.label;
                         return (
                           <div key={`${currentItem.id}-${option.value}`} className='flex flex-col gap-2px'>
-                            <Button
-                              type={isSelected ? 'primary' : 'outline'}
-                              size='small'
-                              disabled={isResponding}
-                              onClick={() =>
-                                currentKind === 'multi_select'
-                                  ? handleMultiOptionToggle(currentItem, option)
-                                  : handleSingleOptionClick(currentItem, option)
-                              }
-                            >
+                            <Button type={isSelected ? 'primary' : 'outline'} size='small' disabled={isResponding} onClick={() => (currentKind === 'multi_select' ? handleMultiOptionToggle(currentItem, option) : handleSingleOptionClick(currentItem, option))}>
                               {option.label}
                               {renderOptionExtras(option)}
                             </Button>
-                            {option.description ? (
-                              <Text className='text-xs text-t-secondary pl-4px'>{option.description}</Text>
-                            ) : null}
+                            {option.description ? <Text className='text-xs text-t-secondary pl-4px'>{option.description}</Text> : null}
                           </div>
                         );
                       })}
@@ -500,22 +468,13 @@ const MessageAcpQuestion: React.FC<MessageAcpQuestionProps> = React.memo(({ mess
 
                 <div className='flex gap-8px pt-4px'>
                   {currentStep > 0 ? (
-                    <Button
-                      size='small'
-                      disabled={isResponding}
-                      onClick={() => setCurrentStep((prev) => Math.max(0, prev - 1))}
-                    >
+                    <Button size='small' disabled={isResponding} onClick={() => setCurrentStep((prev) => Math.max(0, prev - 1))}>
                       {t('common.ariaLabel.back')}
                     </Button>
                   ) : null}
 
                   {currentStep < items.length - 1 ? (
-                    <Button
-                      type='primary'
-                      size='small'
-                      disabled={isResponding || !canGoNext}
-                      onClick={() => setCurrentStep((prev) => Math.min(items.length - 1, prev + 1))}
-                    >
+                    <Button type='primary' size='small' disabled={isResponding || !canGoNext} onClick={() => setCurrentStep((prev) => Math.min(items.length - 1, prev + 1))}>
                       {t('common.ariaLabel.next')}
                     </Button>
                   ) : (
@@ -548,10 +507,7 @@ const MessageAcpQuestion: React.FC<MessageAcpQuestionProps> = React.memo(({ mess
                     {items.length > 1 ? `${idx + 1}. ` : ''}
                     {item.prompt}
                   </div>
-                  <Text
-                    className='text-sm whitespace-pre-wrap'
-                    style={{ color: skipped ? 'var(--color-text-3)' : 'rgb(var(--success-6))' }}
-                  >
+                  <Text className='text-sm whitespace-pre-wrap' style={{ color: skipped ? 'var(--color-text-3)' : 'rgb(var(--success-6))' }}>
                     {skipped ? `⊘ ${t('messages.questionSkipped')}` : `✓ ${displayValue}`}
                   </Text>
                 </div>

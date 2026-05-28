@@ -8,16 +8,17 @@ import BaseAgent from './BaseAgent';
 import { MossWsConnection, type MossWsConnectionConfig, type MossWsCallbacks } from '@/agent/remote/MossWsConnection';
 import { ipcBridge } from '@/common';
 import type { IResponseMessage } from '@/common/ipcBridge';
-import type { TMessage } from '@/common/chatLib';
+import type { AcpQuestionAnswerItem, TMessage } from '@/common/chatLib';
+import type { AcpQuestionResponseAnswer } from '@/types/acpTypes';
 import type { TChatConversation } from '@/common/storage';
 import { uuid } from '@/common/utils';
 import { mainLog, mainError } from '../utils/mainLogger';
 import { getDatabase } from '../database/export';
-import { getConversationProvider } from '../providers';
 import { addOrUpdateMessage } from '../message';
 import { detectFileIntent, matchesDraftPattern } from './draftsCleanup';
 import * as nodePath from 'node:path';
 import * as fs from 'node:fs';
+import { initMossApi } from '../remote/MossSessionApi';
 
 /**
  * RemoteAgent data interface
@@ -68,6 +69,7 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
   private stopPromise: Promise<void> | null = null;
   private turnActive = false;
   private userCancelled = false;
+  private pendingQuestions = new Map<string, { msgId: string; responseToolCallId?: string; toolCallId: string }>();
 
   /** Workspace path for this agent, when the user explicitly selected one. */
   workspace?: string;
@@ -191,6 +193,49 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
 
         this.mossSessionId = this.connection.getSessionId();
         this.mossWsUrl = this.connection.getWsUrl();
+      } else if (this.options.sessionId) {
+        // Resume by Moss session ID when local cache does not have a current wsUrl.
+        // This happens for sessions created by remote cron and synced back later.
+        mainLog('RemoteAgent', `RESUME LOOKUP MODE: requesting wsUrl for session ${this.options.sessionId}`);
+
+        const api = initMossApi(this.options.serverUrl);
+        if (this.options.authToken) {
+          api.setAccessToken(this.options.authToken);
+        }
+        const { wsUrl, session } = await api.resumeSession(this.options.sessionId);
+
+        this.options.wsUrl = wsUrl;
+        this.mossSessionId = this.options.sessionId;
+        this.mossWsUrl = wsUrl;
+        await this.updateConversationWithResumeInfo(this.options.sessionId, wsUrl, session);
+
+        const config: MossWsConnectionConfig = {
+          serverUrl: this.options.serverUrl,
+          authToken: this.options.authToken,
+          username: this.options.username,
+          password: this.options.password,
+          cwd: this.workspace,
+          assistantName: this.options.assistantName,
+          dangerouslySkipPermissions: this.options.dangerouslySkipPermissions ?? this.yoloMode,
+          runtimeType: this.options.runtimeType,
+          wsUrl,
+          sessionId: this.options.sessionId,
+          enabledSkills: this.options.enabledSkills,
+        };
+
+        mainLog('RemoteAgent', `MossWsConnection config: resumeLookup=true, sessionId=${config.sessionId}, enabledSkills=${config.enabledSkills?.length || 0}`);
+
+        const callbacks: MossWsCallbacks = {
+          onMessage: (msg) => this.handleStreamMessage(msg),
+          onPermissionRequest: (req, requestId) => this.handlePermissionRequest(req, requestId),
+          onConnected: () => this.handleConnected(),
+          onDisconnected: () => this.handleDisconnected(),
+          onReconnecting: (attempt, max) => this.handleReconnecting(attempt, max),
+          onError: (err) => this.handleError(err),
+        };
+
+        this.connection = new MossWsConnection(config, callbacks);
+        await this.connection.connect();
       } else {
         // No wsUrl and not pending - need to check conversation status
         // 没有 wsUrl 且不是 pending - 需要检查会话状态
@@ -206,6 +251,35 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
     })();
 
     return this.bootstrap;
+  }
+
+  private async updateConversationWithResumeInfo(mossSessionId: string, wsUrl: string, sessionData: unknown): Promise<void> {
+    try {
+      const db = getDatabase();
+      const existing = db.getConversation(this.conversation_id);
+      if (!existing.success || !existing.data) return;
+
+      const session = sessionData as {
+        workDir?: string;
+        work_dir?: string;
+        assistantName?: string;
+        assistant_name?: string;
+      };
+      void db.updateConversation(this.conversation_id, {
+        extra: {
+          ...existing.data.extra,
+          mossSessionId,
+          acpWsUrl: wsUrl,
+          mossSessionPending: false,
+          workspace: session.workDir || session.work_dir || existing.data.extra?.workspace,
+          agentName: session.assistantName || session.assistant_name || existing.data.extra?.agentName,
+        },
+        status: 'finished',
+        modifyTime: Date.now(),
+      } as Partial<TChatConversation>);
+    } catch (error) {
+      mainError('RemoteAgent', `Failed to update resumed Moss session info: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 
   /**
@@ -319,6 +393,45 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
       }
 
       return result;
+    } catch (error) {
+      this.status = 'finished';
+      this.turnActive = false;
+      this.processingStartTime = undefined;
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      this.emitErrorMessage(errorMsg);
+      return { success: false, msg: errorMsg };
+    }
+  }
+
+  /**
+   * Attach to an already-started Moss session and mirror its stream into the
+   * local conversation UI. Used by remote cron runs where Moss sends the prompt.
+   */
+  async observeExistingSession(options?: { startedAt?: number }): Promise<{ success: boolean; msg?: string }> {
+    mainLog('RemoteAgent', `observeExistingSession called for conversation ${this.conversation_id}`);
+    this.status = 'running';
+    this.processingStartTime = options?.startedAt ?? Date.now();
+    this.turnActive = true;
+    this.userCancelled = false;
+    this.stopPromise = null;
+    this.currentTurnFiles.clear();
+    this.workspaceFileSnapshot = this.getWorkspaceFiles();
+
+    try {
+      await this.initAgent();
+
+      if (!this.connection?.isConnected()) {
+        throw new Error('Connection not ready');
+      }
+
+      ipcBridge.conversation.responseStream.emit({
+        type: 'start',
+        conversation_id: this.conversation_id,
+        msg_id: uuid(36),
+        data: { processingStartTime: this.processingStartTime },
+      });
+
+      return { success: true };
     } catch (error) {
       this.status = 'finished';
       this.turnActive = false;
@@ -460,6 +573,31 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
     this.connection?.respondToPermissionRequest(callId, data);
   }
 
+  async answerQuestion(toolCallId: string, answers: AcpQuestionResponseAnswer[]): Promise<void> {
+    const pending = this.pendingQuestions.get(toolCallId);
+    if (pending) {
+      this.pendingQuestions.delete(pending.toolCallId);
+      if (pending.responseToolCallId) {
+        this.pendingQuestions.delete(pending.responseToolCallId);
+      }
+      this.emitQuestionAnswered(pending.msgId, answers);
+    }
+
+    await this.initAgent();
+    if (!this.connection?.isConnected()) {
+      throw new Error('Connection not ready');
+    }
+
+    const answerText = answers
+      .map((answer) => answer.value)
+      .filter(Boolean)
+      .join('\n');
+    const result = this.connection.sendQuestionAnswer(answerText, pending?.responseToolCallId || toolCallId);
+    if (!result.success) {
+      throw new Error(result.msg || 'Failed to send question answer');
+    }
+  }
+
   /**
    * Set model for current session
    * Returns immediately after sending the request - actual confirmation comes via model_changed event
@@ -499,6 +637,25 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
         }
       } catch (err) {
         mainLog('RemoteAgent', `Failed to persist stream message to local DB: ${err}`);
+      }
+    }
+
+    if (msg.type === 'acp_question') {
+      const data = msg.data as { responseToolCallId?: string; toolCallId?: string };
+      if (data?.toolCallId) {
+        const pendingQuestion = { msgId: msg.msg_id, responseToolCallId: data.responseToolCallId, toolCallId: data.toolCallId };
+        this.pendingQuestions.set(data.toolCallId, pendingQuestion);
+        if (data.responseToolCallId) {
+          this.pendingQuestions.set(data.responseToolCallId, pendingQuestion);
+        }
+      }
+      try {
+        const tMessage = this.streamMsgToTMessage(enrichedMsg);
+        if (tMessage) {
+          addOrUpdateMessage(this.conversation_id, tMessage);
+        }
+      } catch (err) {
+        mainLog('RemoteAgent', `Failed to persist question message to local DB: ${err}`);
       }
     }
 
@@ -714,6 +871,18 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
           conversation_id: msg.conversation_id,
           content: msg.data as any,
         } as any;
+      case 'acp_question':
+        return {
+          id: uuid(),
+          type: 'acp_question',
+          msg_id: msg.msg_id,
+          position: 'left',
+          conversation_id: msg.conversation_id,
+          content: {
+            ...(msg.data as Record<string, unknown>),
+            conversationId: msg.conversation_id,
+          },
+        } as any;
       case 'error':
         return {
           id: uuid(),
@@ -742,6 +911,29 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
         { label: 'Always Allow', value: 'allow_always' },
         { label: 'Reject', value: 'reject_once' },
       ],
+    });
+  }
+
+  private emitQuestionAnswered(msgId: string, answers: AcpQuestionResponseAnswer[]): void {
+    const answerItems: AcpQuestionAnswerItem[] = answers.map((answer, index) => ({
+      id: answer.id,
+      index: index + 1,
+      submissionValue: answer.value,
+      displayValue: answer.label || answer.value,
+      skipped: answer.value === '[skipped]',
+    }));
+
+    const selectedAnswer = answerItems.map((answer) => `${answer.index}. ${answer.skipped ? '[skipped]' : answer.displayValue}`).join('\n');
+
+    ipcBridge.conversation.responseStream.emit({
+      type: 'acp_question',
+      conversation_id: this.conversation_id,
+      msg_id: msgId,
+      data: {
+        answered: true,
+        selectedAnswer,
+        answerItems,
+      },
     });
   }
 

@@ -5,8 +5,8 @@
  */
 
 import { ipcBridge } from '@/common';
-import { cronService } from '@process/services/cron/CronService';
-import { mainError } from '@process/utils/mainLogger';
+import { getCronProvider } from '@process/providers/cron';
+import { mainError, mainLog } from '@process/utils/mainLogger';
 
 /**
  * The @office-ai/platform bridge does not forward provider rejections to the
@@ -15,74 +15,120 @@ import { mainError } from '@process/utils/mainLogger';
  * response; a thrown Error is converted to `{ error: message }` and surfaced
  * back through the Promise so the UI can show a toast instead of hanging.
  */
-async function safeAddJob(params: Parameters<typeof cronService.addJob>[0]) {
-  try {
-    const job = await cronService.addJob(params);
-    ipcBridge.cron.onJobCreated.emit(job);
-    return job;
-  } catch (err) {
-    mainError('CronBridge', 'addJob failed:', err);
-    // Throwing here would hang the renderer — return an error envelope.
-    // The renderer unwraps this and shows a toast.
-    return { __error: err instanceof Error ? err.message : String(err) } as never;
-  }
-}
-
-async function safeUpdateJob({ jobId, updates }: { jobId: string; updates: Parameters<typeof cronService.updateJob>[1] }) {
-  try {
-    const job = await cronService.updateJob(jobId, updates);
-    ipcBridge.cron.onJobUpdated.emit(job);
-    return job;
-  } catch (err) {
-    mainError('CronBridge', 'updateJob failed:', err);
-    return { __error: err instanceof Error ? err.message : String(err) } as never;
-  }
-}
 
 /**
  * Initialize cron IPC bridge handlers
  */
 export function initCronBridge(): void {
-  // Query handlers
+  // Query handlers - use provider factory for routing
   ipcBridge.cron.listJobs.provider(async () => {
-    return cronService.listJobs();
+    try {
+      const provider = getCronProvider();
+      return provider.listJobs();
+    } catch (err) {
+      mainError('CronBridge', 'listJobs failed:', err);
+      return { __error: err instanceof Error ? err.message : String(err) } as never;
+    }
   });
 
   ipcBridge.cron.listJobsByConversation.provider(async ({ conversationId }) => {
-    return cronService.listJobsByConversation(conversationId);
+    try {
+      const provider = getCronProvider();
+      return provider.listJobsByConversation(conversationId);
+    } catch (err) {
+      mainError('CronBridge', 'listJobsByConversation failed:', err);
+      return { __error: err instanceof Error ? err.message : String(err) } as never;
+    }
   });
 
   ipcBridge.cron.getJob.provider(async ({ jobId }) => {
-    return cronService.getJob(jobId);
+    try {
+      const provider = getCronProvider();
+      return provider.getJob(jobId);
+    } catch (err) {
+      mainError('CronBridge', 'getJob failed:', err);
+      return { __error: err instanceof Error ? err.message : String(err) } as never;
+    }
   });
 
-  // CRUD handlers — wrapped so renderer errors surface as rejections, not hangs.
-  ipcBridge.cron.addJob.provider(safeAddJob);
-  ipcBridge.cron.updateJob.provider(safeUpdateJob);
+  // CRUD handlers - wrapped so renderer errors surface as rejections, not hangs
+  ipcBridge.cron.addJob.provider(async (params) => {
+    try {
+      const provider = getCronProvider();
+      mainLog('CronBridge', `Adding job via ${provider.type} provider`);
+      const job = await provider.addJob(params);
+      ipcBridge.cron.onJobCreated.emit(job);
+      return job;
+    } catch (err) {
+      mainError('CronBridge', 'addJob failed:', err);
+      return { __error: err instanceof Error ? err.message : String(err) } as never;
+    }
+  });
+
+  ipcBridge.cron.updateJob.provider(async ({ jobId, updates }) => {
+    try {
+      const provider = getCronProvider();
+      mainLog('CronBridge', `Updating job ${jobId} via ${provider.type} provider`);
+      const job = await provider.updateJob(jobId, updates);
+      ipcBridge.cron.onJobUpdated.emit(job);
+      return job;
+    } catch (err) {
+      mainError('CronBridge', 'updateJob failed:', err);
+      return { __error: err instanceof Error ? err.message : String(err) } as never;
+    }
+  });
 
   ipcBridge.cron.removeJob.provider(async ({ jobId }) => {
     try {
-      await cronService.removeJob(jobId);
+      const provider = getCronProvider();
+      mainLog('CronBridge', `Removing job ${jobId} via ${provider.type} provider`);
+      await provider.removeJob(jobId);
       ipcBridge.cron.onJobRemoved.emit({ jobId });
     } catch (err) {
       mainError('CronBridge', 'removeJob failed:', err);
+      return { __error: err instanceof Error ? err.message : String(err) } as never;
     }
   });
 
   ipcBridge.cron.triggerJob.provider(async ({ jobId }) => {
     try {
-      await cronService.triggerJob(jobId);
+      const provider = getCronProvider();
+      mainLog('CronBridge', `Triggering job ${jobId} via ${provider.type} provider`);
+      await provider.triggerJob(jobId);
+      const updatedJob = await provider.getJob(jobId);
+      if (updatedJob) {
+        ipcBridge.cron.onJobUpdated.emit(updatedJob);
+      }
     } catch (err) {
       mainError('CronBridge', 'triggerJob failed:', err);
+      return { __error: err instanceof Error ? err.message : String(err) } as never;
     }
   });
 
-  // Power management handlers
+  // Power management handlers - only available in local provider
   ipcBridge.cron.getPowerSaveActive.provider(async () => {
-    return cronService.getPowerSaveActive();
+    try {
+      const provider = getCronProvider();
+      if (provider.getPowerSaveActive) {
+        return provider.getPowerSaveActive();
+      }
+      // Remote provider doesn't support power save
+      return false;
+    } catch (err) {
+      mainError('CronBridge', 'getPowerSaveActive failed:', err);
+      return false;
+    }
   });
 
   ipcBridge.cron.setPowerSave.provider(async ({ enabled }) => {
-    cronService.setPowerSave(enabled);
+    try {
+      const provider = getCronProvider();
+      if (provider.setPowerSave) {
+        await provider.setPowerSave(enabled);
+      }
+      // Remote provider doesn't support power save - no-op
+    } catch (err) {
+      mainError('CronBridge', 'setPowerSave failed:', err);
+    }
   });
 }

@@ -25,8 +25,8 @@ import { scanSkillDirectory, readAuditReport } from '@/process/services/safety/S
 import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
 import { SKILLS_ROOT_DIR, ENTERPRISE_SKILL_SUBDIRS } from '@/process/constants/enterpriseStorage';
 
-const SKILL_HUB_BASE_URL = 'https://sudoclawhub.sudoprivacy.com/api/skills';
-const SKILL_HUB_CURSOR_URL = 'https://sudoclawhub.sudoprivacy.com/api/skills/cursor';
+const SKILL_HUB_BASE_URL = 'https://sudoworkhub.sudoprivacy.com/api/skills';
+const SKILL_HUB_CURSOR_URL = 'https://sudoworkhub.sudoprivacy.com/api/skills/cursor';
 const AUTHORIZATION = 'sud0@sudo';
 const VERSION_FILE_NAME = 'sudowork-version';
 /** Metadata file saved alongside installed hub skills. Prefixed to avoid conflicts with skill content. */
@@ -243,9 +243,13 @@ async function resolveInstalledSkillDirAllSubdirs(userSkillsDir: string, skillNa
         const skillDir = path.join(parentDir, entry.name);
         const metaResult = await readSkillMetaFileWithFallback(skillDir);
         if (metaResult) {
-          const meta = JSON.parse(metaResult.content) as import('@/common/ipcBridge').ISkillHubMeta;
-          if (meta.name === skillName || meta.display_name === skillName) {
-            return skillDir;
+          try {
+            const meta = JSON.parse(metaResult.content) as import('@/common/ipcBridge').ISkillHubMeta;
+            if (meta.name === skillName || meta.display_name === skillName) {
+              return skillDir;
+            }
+          } catch {
+            mainWarn('SkillHub', `Invalid JSON in metadata file at ${skillDir}, skipping`);
           }
         }
       }
@@ -414,7 +418,12 @@ async function readSkillManifestFromDirectory(
 async function readSkillHubMetaFromDirectory(skillDir: string): Promise<SkillHubMeta | null> {
   const metaResult = await readSkillMetaFileWithFallback(skillDir);
   if (metaResult) {
-    return JSON.parse(metaResult.content) as SkillHubMeta;
+    try {
+      return JSON.parse(metaResult.content) as SkillHubMeta;
+    } catch {
+      mainWarn('SkillHub', `Invalid JSON in metadata file at ${skillDir}`);
+      return null;
+    }
   }
   return null;
 }
@@ -632,7 +641,13 @@ export function initSkillHubBridge(): void {
             // Read metadata first for search filtering
             const metaResult = await readSkillMetaFileWithFallback(skillDir);
             if (metaResult) {
-              const meta = JSON.parse(metaResult.content) as SkillHubMeta;
+              let meta: SkillHubMeta;
+              try {
+                meta = JSON.parse(metaResult.content) as SkillHubMeta;
+              } catch {
+                mainWarn('SkillHub', `Invalid JSON in metadata file for skill "${dirName}" at ${skillDir}, skipping`);
+                continue;
+              }
 
               // Use meta.name if available (same logic as SkillManager.readSkillInfo)
               const skillName = meta.name?.trim() || dirName;
@@ -725,11 +740,15 @@ export function initSkillHubBridge(): void {
             const skillDir = path.join(hubSkillsDir, entry.name);
             const metaResult = await readSkillMetaFileWithFallback(skillDir);
             if (metaResult) {
-              const meta = JSON.parse(metaResult.content) as SkillHubMeta;
-              if (meta.categories) {
-                for (const cat of meta.categories) {
-                  categoriesSet.add(cat);
+              try {
+                const meta = JSON.parse(metaResult.content) as SkillHubMeta;
+                if (meta.categories) {
+                  for (const cat of meta.categories) {
+                    categoriesSet.add(cat);
+                  }
                 }
+              } catch {
+                mainWarn('SkillHub', `Invalid JSON in metadata file for skill "${entry.name}" at ${skillDir}, skipping`);
               }
             }
           }
@@ -739,7 +758,7 @@ export function initSkillHubBridge(): void {
       }
 
       // 个人模式：从 SudoPrivacy Skill Hub API 获取分类
-      const response = await fetch('https://sudoclawhub.sudoprivacy.com/api/categories', {
+      const response = await fetch('https://sudoworkhub.sudoprivacy.com/api/categories', {
         headers: { Authorization: AUTHORIZATION },
       });
       const data = await response.json();
@@ -766,7 +785,13 @@ export function initSkillHubBridge(): void {
             const skillDir = path.join(hubSkillsDir, entry.name);
             const metaResult = await readSkillMetaFileWithFallback(skillDir);
             if (metaResult) {
-              const meta = JSON.parse(metaResult.content) as SkillHubMeta;
+              let meta: SkillHubMeta;
+              try {
+                meta = JSON.parse(metaResult.content) as SkillHubMeta;
+              } catch {
+                mainWarn('SkillHub', `Invalid JSON in metadata file for skill "${entry.name}" at ${skillDir}, skipping`);
+                continue;
+              }
               // 匹配 id 或 name (use meta.name for name matching)
               const skillName = meta.name?.trim() || entry.name;
               if (meta.id === skillId || skillName === skillId || entry.name === skillId) {
@@ -980,23 +1005,23 @@ export function initSkillHubBridge(): void {
         category: skill.category,
         meta: skill.meta
           ? {
-              ...skill.meta,
-              // 补充 ISkillHubMeta 必填字段
-              name: skill.meta.name || skill.name,
-              id: skill.meta.id || skill.name,
-              display_name: skill.meta.display_name || skill.name,
-              description: skill.meta.description || '',
-              icon: skill.meta.icon || '',
-              emoji: skill.meta.emoji ?? null,
-              category: skill.meta.category || '',
-              categories: skill.meta.categories || [],
-              applicable_scenarios: skill.meta.applicable_scenarios ?? null,
-              core_features: skill.meta.core_features ?? null,
-              homepage: skill.meta.homepage ?? null,
-              author_id: skill.meta.author_id || '',
-              installed_version: skill.meta.installed_version || skill.version,
-              installed_at: skill.meta.installed_at || '',
-            }
+            ...skill.meta,
+            // 补充 ISkillHubMeta 必填字段
+            name: skill.meta.name || skill.name,
+            id: skill.meta.id || skill.name,
+            display_name: skill.meta.display_name || skill.name,
+            description: skill.meta.description || '',
+            icon: skill.meta.icon || '',
+            emoji: skill.meta.emoji ?? null,
+            category: skill.meta.category || '',
+            categories: skill.meta.categories || [],
+            applicable_scenarios: skill.meta.applicable_scenarios ?? null,
+            core_features: skill.meta.core_features ?? null,
+            homepage: skill.meta.homepage ?? null,
+            author_id: skill.meta.author_id || '',
+            installed_version: skill.meta.installed_version || skill.version,
+            installed_at: skill.meta.installed_at || '',
+          }
           : undefined,
       }));
       return { success: true, data: result };

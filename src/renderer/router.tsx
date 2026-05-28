@@ -11,7 +11,7 @@ const About = React.lazy(() => import('./pages/settings/About'));
 const AgentSettings = React.lazy(() => import('./pages/settings/AgentSettings'));
 const DisplaySettings = React.lazy(() => import('./pages/settings/DisplaySettings'));
 const GeminiSettings = React.lazy(() => import('./pages/settings/GeminiSettings'));
-const ModeSettings = React.lazy(() => import('./pages/settings/ModeSettings'));
+const SudocodeModelSettings = React.lazy(() => import('./pages/settings/SudocodeModelSettings'));
 const SkillSettings = React.lazy(() => import('./pages/settings/SkillSettings'));
 const CopilotSettings = React.lazy(() => import('./pages/settings/CopilotSettings'));
 const RuntimeSettings = React.lazy(() => import('./pages/settings/RuntimeSettings'));
@@ -85,7 +85,7 @@ const PanelRoute: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
           <Route path='/conversation/:id' element={withRouteFallback(Conversation)} />
           <Route path='/moss-session/:sessionId' element={withRouteFallback(MossSessionPage)} />
           <Route path='/settings/gemini' element={withRouteFallback(GeminiSettings)} />
-          <Route path='/settings/model' element={withRouteFallback(ModeSettings)} />
+          <Route path='/settings/model' element={withRouteFallback(SudocodeModelSettings)} />
           <Route path='/settings/agent' element={withRouteFallback(AgentSettings)} />
           <Route path='/settings/display' element={withRouteFallback(DisplaySettings)} />
           <Route path='/settings/webui' element={withRouteFallback(WebuiSettings)} />

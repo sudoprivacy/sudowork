@@ -56,11 +56,13 @@ const SendBox: React.FC<{
   slashCommands?: SlashCommandItem[];
   onSlashBuiltinCommand?: (name: string) => void;
   onSkillsChange?: (skills: string[]) => void;
+  /** Initial selected skills restored from draft state */
+  initialSelectedSkills?: string[];
   /** Workspace files for @ file references */
   workspaceFiles?: WorkspaceFileItem[];
   /** Called when a file is selected via @ selector, allowing parent to track the file */
   onAtFileSelected?: (file: WorkspaceFileItem) => void;
-}> = ({ onSend, onStop, prefix, className, loading, tools, disabled, placeholder, value: input = '', onChange: setInput = constVoid, onFilesAdded, supportedExts = allSupportedExts, defaultMultiLine = false, lockMultiLine = false, sendButtonPrefix, slashCommands = [], onSlashBuiltinCommand, onSkillsChange, workspaceFiles, onAtFileSelected }) => {
+}> = ({ onSend, onStop, prefix, className, loading, tools, disabled, placeholder, value: input = '', onChange: setInput = constVoid, onFilesAdded, supportedExts = allSupportedExts, defaultMultiLine = false, lockMultiLine = false, sendButtonPrefix, slashCommands = [], onSlashBuiltinCommand, onSkillsChange, initialSelectedSkills = [], workspaceFiles, onAtFileSelected }) => {
   const layout = useLayoutContext();
   const isMobile = layout?.isMobile ?? false;
   const { t } = useTranslation();
@@ -240,7 +242,7 @@ const SendBox: React.FC<{
 
   // Skill selector state
   const [installedSkills, setInstalledSkills] = useState<IInstalledSkillInfo[]>([]);
-  const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
+  const [selectedSkills, setSelectedSkills] = useState<string[]>(() => initialSelectedSkills);
   const [loadingSkills, setLoadingSkills] = useState(false);
 
   // Fetch installed skills on mount and after agent-created skills are installed.

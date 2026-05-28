@@ -10,7 +10,7 @@ import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { useSettingsViewMode } from '../settingsViewContext';
-import { nexus as nexusIpc, claudeCli as claudeCliIpc, libreOffice as libreOfficeIpc, scode as scodeIpc, nodeRuntime as nodeRuntimeIpc, acpConversation } from '@/common/ipcBridge';
+import { nexus as nexusIpc, claudeCli as claudeCliIpc, libreOffice as libreOfficeIpc, scode as scodeIpc, nodeRuntime as nodeRuntimeIpc, acpConversation, shareoneCli } from '@/common/ipcBridge';
 import { mutate } from 'swr';
 import type { ICliStatus, ILibreOfficeInstallPhase, NexusInstallPhase } from '@/common/ipcBridge';
 import { getRuntimeActions, getStatusInfo, isInstalled, type LoadState, type ToolRow } from './runtimeStatus';
@@ -48,6 +48,9 @@ const RuntimeModalContent: React.FC = () => {
 
   const [scodeStatus, setScodeStatus] = useState<ICliStatus | null>(null);
   const [scodeLoad, setScodeLoad] = useState<LoadState>('idle');
+
+  const [shareoneStatus, setShareoneStatus] = useState<ICliStatus | null>(null);
+  const [shareoneLoad, setShareoneLoad] = useState<LoadState>('idle');
 
   const [nexusVersion, setNexusVersion] = useState<string | undefined>(undefined);
 
@@ -252,6 +255,36 @@ const RuntimeModalContent: React.FC = () => {
     }
   }, [refreshScode, t]);
 
+  const refreshShareone = useCallback(async () => {
+    try {
+      const res = await shareoneCli.checkInstalled.invoke();
+      if (res?.success && res.data) {
+        setShareoneStatus(res.data);
+      } else {
+        setShareoneStatus({ installed: false, source: 'none' });
+      }
+    } catch {
+      setShareoneStatus({ installed: false, source: 'none' });
+    }
+  }, []);
+
+  const installShareone = useCallback(async () => {
+    setShareoneLoad('installing');
+    try {
+      const res = await shareoneCli.install.invoke();
+      if (res?.success) {
+        await refreshShareone();
+        Message.success(t('settings.runtimeSettings.installSuccess', { name: 'ShareOne' }));
+      } else {
+        Message.error(res?.msg || t('settings.runtimeSettings.installFailed', { name: 'ShareOne' }));
+      }
+    } catch (e) {
+      Message.error(e instanceof Error ? e.message : t('settings.runtimeSettings.installFailed', { name: 'ShareOne' }));
+    } finally {
+      setShareoneLoad('idle');
+    }
+  }, [refreshShareone, t]);
+
   const refreshNexus = useCallback(async () => {
     try {
       const res = await nexusIpc.getStatus.invoke();
@@ -329,9 +362,9 @@ const RuntimeModalContent: React.FC = () => {
 
   const refreshRuntimePage = useCallback(
     async (options?: RefreshOptions) => {
-      await Promise.all([refreshNode(options), refreshClaude(options), refreshScode(), refreshNexus(), refreshLibreOffice(options)]);
+      await Promise.all([refreshNode(options), refreshClaude(options), refreshScode(), refreshShareone(), refreshNexus(), refreshLibreOffice(options)]);
     },
-    [refreshClaude, refreshLibreOffice, refreshNexus, refreshNode, refreshScode]
+    [refreshClaude, refreshLibreOffice, refreshNexus, refreshNode, refreshScode, refreshShareone]
   );
 
   // Load all on mount; also restore install state if an install is already in progress
@@ -375,6 +408,10 @@ const RuntimeModalContent: React.FC = () => {
       setScodeLoad('idle');
       void refreshScode();
     });
+    const unsubShareoneResult = shareoneCli.installResult.on(() => {
+      setShareoneLoad('idle');
+      void refreshShareone();
+    });
     const unsubNexusProgress = nexusIpc.installProgress.on(({ phase, percent }) => {
       setNexusPhase(phase);
       if (percent != null) setNexusPercent(percent);
@@ -391,12 +428,13 @@ const RuntimeModalContent: React.FC = () => {
       unsubClaudeProgress();
       unsubScodeProgress();
       unsubScodeResult();
+      unsubShareoneResult();
       unsubNexusProgress();
       unsubNexusResult();
       unsubLoProgress();
       unsubLoResult();
     };
-  }, [refreshNode, refreshClaude, refreshAvailableAgents, refreshNexus, refreshScode, refreshLibreOffice]);
+  }, [refreshNode, refreshClaude, refreshAvailableAgents, refreshNexus, refreshScode, refreshShareone, refreshLibreOffice]);
 
   const tableData: ToolRow[] = [
     {
@@ -446,6 +484,16 @@ const RuntimeModalContent: React.FC = () => {
       onInstall: scodeStatus?.installed ? undefined : installScode,
     },
     {
+      key: 'shareone',
+      displayName: 'ShareOne',
+      command: 'shareone',
+      badge: 'SO',
+      status: shareoneStatus,
+      loadState: shareoneLoad,
+      onRefresh: refreshShareone,
+      onInstall: shareoneStatus?.installed ? undefined : installShareone,
+    },
+    {
       key: 'nexus',
       displayName: 'Nexus Server',
       command: 'nexusd',
@@ -470,6 +518,7 @@ const RuntimeModalContent: React.FC = () => {
     claude: 'bg-orange-1 color-orange-6 border border-orange-3',
     libreoffice: 'bg-green-1 color-green-6 border border-green-3',
     sudocode: 'bg-purple-1 color-purple-6 border border-purple-3',
+    shareone: 'bg-blue-1 color-blue-6 border border-blue-3',
     nexus: 'text-[#f6c65b] border border-[#6f5520] bg-[#2b2212]',
   };
 

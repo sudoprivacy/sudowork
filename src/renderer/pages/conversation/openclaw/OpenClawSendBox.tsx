@@ -40,6 +40,7 @@ interface OpenClawDraftData {
   atPath: Array<string | FileOrFolderItem>;
   content: string;
   uploadFile: string[];
+  selectedSkills: string[];
 }
 
 const useOpenClawSendBoxDraft = getSendBoxDraftHook('openclaw-gateway', {
@@ -47,6 +48,7 @@ const useOpenClawSendBoxDraft = getSendBoxDraftHook('openclaw-gateway', {
   atPath: [],
   content: '',
   uploadFile: [],
+  selectedSkills: [],
 });
 
 /**
@@ -114,8 +116,6 @@ const OpenClawSendBox: React.FC<{
   const slashCommands = useSlashCommands(conversation_id);
   const addOrUpdateMessage = useAddOrUpdateMessage();
   const { setSendBoxHandler } = usePreviewContext();
-  const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
-
   const [aiProcessing, setAiProcessing] = useState(false);
   const [openclawStatus, setOpenClawStatus] = useState<string | null>(null);
   const [thought, setThought] = useState<ThoughtData>({
@@ -205,6 +205,18 @@ const OpenClawSendBox: React.FC<{
   const atPath = draftData?.atPath ?? EMPTY_AT_PATH;
   const uploadFile = draftData?.uploadFile ?? EMPTY_UPLOAD_FILES;
   const content = draftData?.content ?? '';
+  const selectedSkills = draftData?.selectedSkills ?? [];
+
+  const setSelectedSkills = useCallback(
+    (skills: string[] | ((prev: string[]) => string[])) => {
+      mutateDraft((prev) => {
+        const previousSkills = prev?.selectedSkills ?? [];
+        const nextSkills = typeof skills === 'function' ? skills(previousSkills) : skills;
+        return { ...(prev as OpenClawDraftData), selectedSkills: nextSkills };
+      });
+    },
+    [mutateDraft]
+  );
 
   const setAtPath = useCallback(
     (val: Array<string | FileOrFolderItem>) => {
@@ -665,6 +677,7 @@ const OpenClawSendBox: React.FC<{
       <SendBox
         value={content}
         onChange={setContent}
+        initialSelectedSkills={selectedSkills}
         loading={aiProcessing}
         disabled={false}
         className='z-10'
