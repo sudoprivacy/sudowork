@@ -40,7 +40,8 @@ import { initSudoclawBridge } from './sudoclawBridge';
 import { initInitBridge } from './initBridge';
 import { initSudoworkServerBridge } from './sudoworkServerBridge';
 import { initNodeRuntimeBridge } from './nodeRuntimeBridge';
-import { initSafetyBridge } from './safetyBridge';
+// TODO: 安全hook功能暂时隐藏，后续恢复时取消注释
+// import { initSafetyBridge } from './safetyBridge';
 import { initBdpanBridge } from './bdpanBridge';
 import { initHealthMonitorBridge } from './healthMonitorBridge';
 import { initImageGenerationBridge } from './imageGenerationBridge';
@@ -97,7 +98,8 @@ export function initAllBridges(): void {
   initSudoclawBridge();
   initNodeRuntimeBridge();
   initSudoworkServerBridge();
-  initSafetyBridge();
+  // TODO: 安全hook功能暂时隐藏，后续恢复时取消注释
+  // initSafetyBridge();
   initBdpanBridge();
   initHealthMonitorBridge();
   initImageGenerationBridge();
