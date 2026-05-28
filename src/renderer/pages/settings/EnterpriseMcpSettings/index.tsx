@@ -48,11 +48,24 @@ const EnterpriseMcpSettings: React.FC = () => {
     };
   }, []);
 
-  // §8.4 — 16-field whitelist has no template_id → cannot reliably mark "installed".
-  // We pass undefined so the badge is skipped (UI degrades gracefully).
-  const installedTemplateIds = useMemo<Set<string> | undefined>(() => undefined, []);
-
   const templates = templatesPage?.data ?? [];
+
+  // Server DTO has no template_id. On install, the backend mints server.name as
+  // `<template.name>-<random-suffix>` (e.g., template "github-mcp" → server
+  // "github-mcp-3a8f1cde") to allow multiple installs of the same template.
+  // Match by exact equality (no suffix) or by `template.name + '-'` prefix.
+  // Use longest-prefix wins so a server never double-counts when template names
+  // overlap (e.g., "github" vs "github-mcp").
+  const installedTemplateIds = useMemo<Set<string>>(() => {
+    const ids = new Set<string>();
+    if (servers.length === 0 || templates.length === 0) return ids;
+    const sortedTpls = [...templates].sort((a, b) => b.name.length - a.name.length);
+    for (const s of servers) {
+      const matched = sortedTpls.find((t) => s.name === t.name || s.name.startsWith(`${t.name}-`));
+      if (matched) ids.add(matched.id);
+    }
+    return ids;
+  }, [servers, templates]);
 
   // === Install callback ===
   const handleInstall = useCallback(

@@ -122,9 +122,15 @@ const McpLibraryTab: React.FC<McpLibraryTabProps> = ({ templates, installedTempl
                   </div>
                 </div>
                 <div className='shrink-0'>
-                  <Button type='outline' size='small' icon={<DownloadOne theme='outline' size='14' />} onClick={() => handleClickInstall(tpl)}>
-                    安装
-                  </Button>
+                  {installed ? (
+                    <Button type='outline' size='small' disabled icon={<CheckOne theme='outline' size='14' />}>
+                      已安装
+                    </Button>
+                  ) : (
+                    <Button type='outline' size='small' icon={<DownloadOne theme='outline' size='14' />} onClick={() => handleClickInstall(tpl)}>
+                      安装
+                    </Button>
+                  )}
                 </div>
               </div>
             );
