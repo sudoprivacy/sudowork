@@ -45,6 +45,8 @@ export interface IAssistantMeta {
   id?: string;
   /** Assistant name (directory name, used as identifier) */
   name?: string;
+  /** Display name from API (may be snake_case) */
+  display_name?: string;
   nameI18n?: Record<string, string>;
   descriptionI18n?: Record<string, string>;
   promptsI18n?: Record<string, string[]>;
