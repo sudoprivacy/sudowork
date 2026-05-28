@@ -24,6 +24,7 @@ import { useSettingsViewMode } from '../settingsViewContext';
 import { useAppMode } from '@renderer/hooks/useAppMode';
 import { useEnterpriseSessionMode } from '@renderer/hooks/useEnterpriseSessionMode';
 import { emitter } from '@renderer/utils/emitter';
+import { useAuth } from '@/renderer/context/AuthContext';
 
 // Sentinel for "no assistant selected" (default → Sudo Code). Using an explicit
 // sentinel instead of '' because Arco Select treats empty string as unset and
@@ -681,7 +682,12 @@ const CronModalContent: React.FC = () => {
   const isPageMode = viewMode === 'page';
   const navigate = useNavigate();
   const { isEnterprise } = useAppMode();
-  const { sessionMode, setSessionMode } = useEnterpriseSessionMode();
+  const { user } = useAuth();
+  const canUseLocalCronMode = !isEnterprise || user?.localModeAvailable === true;
+  const { sessionMode, setSessionMode } = useEnterpriseSessionMode({
+    localModeAvailable: canUseLocalCronMode,
+    remoteModeAvailable: isEnterprise,
+  });
   const { jobs, loading, error, pauseJob, resumeJob, deleteJob, refetch } = useAllCronJobs();
 
   // Keep-awake toggle state (only for local mode)
@@ -806,9 +812,11 @@ const CronModalContent: React.FC = () => {
                   <span>{t('cron.mode.select', { defaultValue: '数据存储位置' })}</span>
                 </div>
                 <div className='flex items-center gap-4px'>
-                  <Button size='small' shape='round' type={sessionMode === 'local' ? 'primary' : 'text'} onClick={() => setSessionMode('local')}>
-                    {t('cron.mode.local', { defaultValue: '本地' })}
-                  </Button>
+                  {canUseLocalCronMode && (
+                    <Button size='small' shape='round' type={sessionMode === 'local' ? 'primary' : 'text'} onClick={() => setSessionMode('local')}>
+                      {t('cron.mode.local', { defaultValue: '本地' })}
+                    </Button>
+                  )}
                   <Button size='small' shape='round' type={sessionMode === 'remote' ? 'primary' : 'text'} onClick={() => setSessionMode('remote')}>
                     {t('cron.mode.remote', { defaultValue: '云端' })}
                   </Button>

@@ -7,7 +7,7 @@
 import { ipcBridge } from '@/common';
 import { ProcessConfig } from '@process/initStorage';
 import { mainWarn, mainLog, mainError } from '@process/utils/mainLogger';
-import { setCachedAuthToken, setCachedServerUrl, setCachedAppMode, setCachedSessionMode } from '@/common/enterpriseDebugConfig';
+import { setCachedAuthToken, setCachedServerUrl, setCachedAppMode, setCachedLocalModeAvailable, setCachedSessionMode } from '@/common/enterpriseDebugConfig';
 import { resetConversationProvider } from '../providers';
 
 let refreshPromise: Promise<string> | null = null;
@@ -179,9 +179,11 @@ export function initEeclawBridge(): void {
   // Set session mode (remote/local) for enterprise mode
   // 设置 session 模式（remote/local），用于企业模式
   ipcBridge.eeclaw.setSessionMode.provider(async ({ mode }) => {
-    setCachedSessionMode(mode);
+    const localModeAvailable = ProcessConfig.getSync('eeclaw.localModeAvailable');
+    const resolvedMode = mode === 'local' && localModeAvailable === false ? 'remote' : mode;
+    setCachedSessionMode(resolvedMode);
     resetConversationProvider();
-    mainLog('eeclawBridge', `Session mode set to: ${mode}`);
+    mainLog('eeclawBridge', `Session mode set to: ${resolvedMode}`);
   });
 
   ipcBridge.eeclaw.verifyServer.provider(async ({ serverUrl }) => {
@@ -248,6 +250,8 @@ export function initEeclawBridge(): void {
         return { success: false, error: (data?.error || 'login_failed') as string, data: undefined };
       }
 
+      const localModeAvailable = !!(data.user.localAuth && data.sudorouter_key && data.model_service_url && Array.isArray(data.models) && data.models.length > 0);
+
       // Save server URL and auth storage to ProcessConfig
       // 将服务器 URL 和认证存储保存到 ProcessConfig
       const sessionType: 'password' | 'api_key' | 'oauth2' = body.grant_type === 'oauth2' ? 'oauth2' : body.grant_type === 'api_key' ? 'api_key' : 'password';
@@ -259,12 +263,14 @@ export function initEeclawBridge(): void {
         device_id: deviceId,
         session_type: sessionType,
       });
+      await ProcessConfig.set('eeclaw.localModeAvailable', localModeAvailable);
 
       // Update enterprise cache for synchronous access
       // 更新企业配置缓存以供同步访问
       setCachedServerUrl(serverUrl);
       setCachedAuthToken(data.access_token);
       setCachedAppMode('e');
+      setCachedLocalModeAvailable(localModeAvailable);
 
       // Reset provider singleton so next call creates RemoteConversationProvider
       // 重置 Provider 单例，下次调用时会创建 RemoteConversationProvider
@@ -434,7 +440,9 @@ export function initEeclawBridge(): void {
     } finally {
       // Always clear local state even if server request fails
       await ProcessConfig.set('eeclaw.authStorage', null);
+      await ProcessConfig.set('eeclaw.localModeAvailable', null);
       setCachedAuthToken('');
+      setCachedLocalModeAvailable(null);
       resetConversationProvider();
       mainLog('eeclawBridge', 'Logged out, local storage cleared');
     }

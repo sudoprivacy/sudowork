@@ -7,7 +7,7 @@
 import type { ICronProvider } from './types';
 import { LocalCronProvider } from './LocalCronProvider';
 import { RemoteCronProvider } from './RemoteCronProvider';
-import { getCachedSessionMode, isEnterpriseMode } from '@/common/enterpriseDebugConfig';
+import { getCachedLocalModeAvailable, getCachedSessionMode, isEnterpriseMode } from '@/common/enterpriseDebugConfig';
 import { mainLog } from '@process/utils/mainLogger';
 
 /**
@@ -22,7 +22,10 @@ import { mainLog } from '@process/utils/mainLogger';
  */
 export function getCronProvider(): ICronProvider {
   const isEnterprise = isEnterpriseMode();
-  const mode = isEnterprise ? getCachedSessionMode() : 'local';
+  let mode = isEnterprise ? getCachedSessionMode() : 'local';
+  if (isEnterprise && mode === 'local' && getCachedLocalModeAvailable() === false) {
+    mode = 'remote';
+  }
 
   mainLog('CronProvider', `Provider selected: ${mode} (enterprise: ${isEnterprise})`);
 

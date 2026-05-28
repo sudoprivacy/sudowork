@@ -10,6 +10,23 @@ import { ipcBridge } from '@/common';
 import { addEventListener, emitter } from '@renderer/utils/emitter';
 import { getRendererSessionMode, setRendererSessionMode } from '@/renderer/pages/guid/hooks/useGuidAgentSelection';
 
+type EnterpriseSessionMode = 'remote' | 'local';
+
+type EnterpriseSessionModeOptions = {
+  localModeAvailable?: boolean;
+  remoteModeAvailable?: boolean;
+};
+
+function resolveAllowedSessionMode(mode: EnterpriseSessionMode, options?: EnterpriseSessionModeOptions): EnterpriseSessionMode {
+  const localModeAvailable = options?.localModeAvailable !== false;
+  const remoteModeAvailable = options?.remoteModeAvailable !== false;
+
+  if (mode === 'local' && localModeAvailable) return 'local';
+  if (mode === 'remote' && remoteModeAvailable) return 'remote';
+  if (remoteModeAvailable) return 'remote';
+  return 'local';
+}
+
 /**
  * Lightweight enterprise session mode hook
  * 轻量企业模式 session mode hook
@@ -21,39 +38,56 @@ import { getRendererSessionMode, setRendererSessionMode } from '@/renderer/pages
  * - Trigger cron job refetch
  * - Trigger chat.history.refresh
  */
-export function useEnterpriseSessionMode() {
-  const [sessionMode, setSessionModeState] = useState<'remote' | 'local'>(() => {
-    return getRendererSessionMode();
+export function useEnterpriseSessionMode(options?: EnterpriseSessionModeOptions) {
+  const localModeAvailable = options?.localModeAvailable;
+  const remoteModeAvailable = options?.remoteModeAvailable;
+
+  const [sessionMode, setSessionModeState] = useState<EnterpriseSessionMode>(() => {
+    return resolveAllowedSessionMode(getRendererSessionMode(), { localModeAvailable, remoteModeAvailable });
   });
 
-  const setSessionMode = useCallback(async (mode: 'remote' | 'local') => {
+  const setSessionMode = useCallback(async (mode: EnterpriseSessionMode) => {
+    const nextMode = resolveAllowedSessionMode(mode, { localModeAvailable, remoteModeAvailable });
+
     // 1. Save to local storage
-    await ConfigStorage.set('guid.sessionMode', mode);
-    setSessionModeState(mode);
-    setRendererSessionMode(mode);
+    await ConfigStorage.set('guid.sessionMode', nextMode);
+    setSessionModeState(nextMode);
+    setRendererSessionMode(nextMode);
 
     // 2. Notify main process
     try {
-      await ipcBridge.eeclaw.setSessionMode.invoke({ mode });
+      await ipcBridge.eeclaw.setSessionMode.invoke({ mode: nextMode });
     } catch (error) {
       console.error('[useEnterpriseSessionMode] Failed to notify main process:', error);
     }
 
     // 3. Trigger refresh events
-    emitter.emit('sessionMode.changed', mode);
+    emitter.emit('sessionMode.changed', nextMode);
     emitter.emit('chat.history.refresh');
-  }, []);
+  }, [localModeAvailable, remoteModeAvailable]);
+
+  useEffect(() => {
+    const nextMode = resolveAllowedSessionMode(sessionMode, { localModeAvailable, remoteModeAvailable });
+    if (nextMode !== sessionMode) {
+      void setSessionMode(nextMode);
+    }
+  }, [localModeAvailable, remoteModeAvailable, sessionMode, setSessionMode]);
 
   // Listen for session mode changes from other parts of the app
   useEffect(() => {
-    const handleSessionModeChanged = (mode: 'remote' | 'local') => {
-      if (mode !== sessionMode) {
-        setSessionModeState(mode);
+    const handleSessionModeChanged = (mode: EnterpriseSessionMode) => {
+      const nextMode = resolveAllowedSessionMode(mode, { localModeAvailable, remoteModeAvailable });
+      if (nextMode !== mode) {
+        void setSessionMode(nextMode);
+        return;
+      }
+      if (nextMode !== sessionMode) {
+        setSessionModeState(nextMode);
       }
     };
 
     return addEventListener('sessionMode.changed', handleSessionModeChanged);
-  }, [sessionMode]);
+  }, [localModeAvailable, remoteModeAvailable, sessionMode, setSessionMode]);
 
   return { sessionMode, setSessionMode };
 }
