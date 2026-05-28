@@ -81,6 +81,22 @@ export function initSchema(db: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_messages_conversation_created ON messages(conversation_id, created_at);
   `);
 
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS scode_custom_model_providers (
+      user_id TEXT NOT NULL,
+      provider_id TEXT NOT NULL,
+      base_url TEXT NOT NULL,
+      api_key TEXT NOT NULL,
+      models TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      PRIMARY KEY (user_id, provider_id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_scode_custom_model_providers_user_id
+      ON scode_custom_model_providers(user_id);
+  `);
+
   mainLog('Database', 'Schema initialized successfully');
 }
 
@@ -109,4 +125,4 @@ export function setDatabaseVersion(db: Database.Database, version: number): void
  * Current database schema version
  * Update this when adding new migrations in migrations.ts
  */
-export const CURRENT_DB_VERSION = 21;
+export const CURRENT_DB_VERSION = 22;

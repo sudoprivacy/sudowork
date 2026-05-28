@@ -9,6 +9,7 @@ import { bridge } from '@office-ai/platform';
 import type { OpenDialogOptions } from 'electron';
 import type { McpSource } from '../process/services/mcpServices/McpProtocol';
 import type { AcpBackend, AcpBackendAll, AcpModelInfo, PresetAgentType } from '../types/acpTypes';
+import type { ScodeCustomModelProvider } from './scodeConfig';
 import type { SlashCommandItem } from './slash/types';
 import type { IMcpServer, IProvider, TChatConversation, TProviderWithModel, ICssTheme } from './storage';
 import type { PreviewHistoryTarget, PreviewSnapshotInfo } from './types/preview';
@@ -754,6 +755,10 @@ export const scode = {
   getConfig: bridge.buildProvider<IBridgeResponse<ScodeConfig>, void>('scode.get-config'),
   /** Save full scode config to ~/.nexus/sudocode/sudocode.json (overwrite) */
   saveConfig: bridge.buildProvider<IBridgeResponse<void>, { config: ScodeConfig }>('scode.save-config'),
+  /** Save custom OpenAI-compatible scode model providers for the signed-in user */
+  saveCustomModelProviders: bridge.buildProvider<IBridgeResponse<void>, { userId: string; providers: ScodeCustomModelProvider[] }>('scode.save-custom-model-providers'),
+  /** Restore signed-in user's custom scode model providers into sudocode.json */
+  restoreCustomModelProviders: bridge.buildProvider<IBridgeResponse<ScodeConfig>, { userId: string; baseConfig?: ScodeConfig }>('scode.restore-custom-model-providers'),
   /** Update only the default_model field in sudocode.json */
   setDefaultModel: bridge.buildProvider<IBridgeResponse<void>, { modelId: string }>('scode.set-default-model'),
   /** Fetch live model list from sudorouter specific_pricing, rewrite sudocode.json models, return resolved model info */

@@ -70,6 +70,50 @@ function buildCustomApiKeyModelEntry(providerId: string, model: ScodeCustomModel
   };
 }
 
+function getCustomApiKeyProviderIds(config: ScodeConfig | null | undefined): string[] {
+  return Object.keys(config?.auth_modes?.['api-key'] || {});
+}
+
+function modelFromCustomApiKeyEntry(alias: string, entry: ScodeModelEntry): ScodeCustomModelProvider['models'][number] {
+  const modelId = entry.providers?.['api-key']?.model || entry.alias || alias;
+  return {
+    id: modelId,
+    name: entry.name || modelId,
+    input: entry.input,
+    supportsTools: entry.supports_tools,
+    supportsReasoning: entry.supports_reasoning,
+    inputContext: entry.context?.input,
+    outputContext: entry.context?.output,
+  };
+}
+
+export function extractCustomProvidersFromScodeConfig(config: ScodeConfig | null | undefined): ScodeCustomModelProvider[] {
+  const customProviderIds = getCustomApiKeyProviderIds(config);
+  if (customProviderIds.length === 0) return [];
+
+  return customProviderIds
+    .map((providerId) => {
+      const authProvider = config?.auth_modes?.['api-key']?.[providerId];
+      const models = Object.entries(config?.models || {})
+        .filter(([, entry]) => isCustomApiKeyModelEntry(entry, providerId))
+        .map(([alias, entry]) => modelFromCustomApiKeyEntry(alias, entry))
+        .sort((a, b) => a.id.localeCompare(b.id));
+
+      return {
+        providerId,
+        baseUrl: authProvider?.baseUrl || '',
+        apiKey: authProvider?.apiKey || '',
+        models,
+      };
+    })
+    .filter((provider) => provider.models.length > 0 || provider.baseUrl || provider.apiKey)
+    .sort((a, b) => a.providerId.localeCompare(b.providerId));
+}
+
+export function mergeCustomProvidersIntoScodeConfig(existing: ScodeConfig | null | undefined, customProviders: ScodeCustomModelProvider[]): ScodeConfig {
+  return customProviders.reduce<ScodeConfig>((nextConfig, provider) => mergeCustomProviderIntoScodeConfig(nextConfig, provider), existing || {});
+}
+
 export function buildScodeConfigFromLoginPayload(payload: LoginSudoclawPayload, existing?: ScodeConfig | null): ScodeConfig {
   return mergeSudorouterIntoScodeConfig(existing || {}, payload);
 }

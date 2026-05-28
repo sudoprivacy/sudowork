@@ -6,12 +6,13 @@
 
 import { ipcBridge } from '@/common';
 import type { ScodeConfig, ScodeModelEntry } from '@/common/ipcBridge';
-import { mergeCustomProviderIntoScodeConfig, removeCustomProviderFromScodeConfig, type ScodeCustomModelProvider } from '@/common/scodeConfig';
+import { extractCustomProvidersFromScodeConfig, mergeCustomProviderIntoScodeConfig, removeCustomProviderFromScodeConfig, type ScodeCustomModelProvider } from '@/common/scodeConfig';
 import AionModal from '@/renderer/components/base/AionModal';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { Button, Checkbox, Form, Input, InputNumber, Message, Popconfirm, Select, Space, Spin, Tag, Typography } from '@arco-design/web-react';
 import { Delete, Edit, LinkCloud, PreviewOpen, Plus, Refresh, SettingTwo } from '@icon-park/react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useAuth } from '@/renderer/context/AuthContext';
 import SettingsPageWrapper from './components/SettingsPageWrapper';
 
 const { Title, Text } = Typography;
@@ -315,6 +316,7 @@ const AddModelDialog: React.FC<{
 };
 
 const SudocodeModelSettingsContent: React.FC = () => {
+  const { user } = useAuth();
   const [config, setConfig] = useState<ScodeConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -350,12 +352,19 @@ const SudocodeModelSettingsContent: React.FC = () => {
         Message.error(res?.msg || '保存模型配置失败');
         return;
       }
+      if (user?.id) {
+        const persistRes = await ipcBridge.scode.saveCustomModelProviders.invoke({ userId: user.id, providers: extractCustomProvidersFromScodeConfig(nextConfig) });
+        if (!persistRes?.success) {
+          Message.error(persistRes?.msg || '保存第三方模型配置失败');
+          return;
+        }
+      }
       setConfig(nextConfig);
       Message.success('模型配置已保存');
     } finally {
       setSaving(false);
     }
-  }, []);
+  }, [user?.id]);
 
   const openAddDialog = useCallback(() => {
     setEditingTarget(null);

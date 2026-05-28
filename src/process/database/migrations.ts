@@ -1318,6 +1318,38 @@ const migration_v21: IMigration = {
   },
 };
 
+const migration_v22: IMigration = {
+  version: 22,
+  name: 'Add scode custom model provider storage',
+  up: (db) => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS scode_custom_model_providers (
+        user_id TEXT NOT NULL,
+        provider_id TEXT NOT NULL,
+        base_url TEXT NOT NULL,
+        api_key TEXT NOT NULL,
+        models TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        PRIMARY KEY (user_id, provider_id)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_scode_custom_model_providers_user_id
+        ON scode_custom_model_providers(user_id);
+    `);
+
+    mainLog('Migration v22', 'Added scode custom model provider storage');
+  },
+  down: (db) => {
+    db.exec(`
+      DROP INDEX IF EXISTS idx_scode_custom_model_providers_user_id;
+      DROP TABLE IF EXISTS scode_custom_model_providers;
+    `);
+
+    mainLog('Migration v22', 'Rolled back: Removed scode custom model provider storage');
+  },
+};
+
 /**
  * All migrations in order
  */
@@ -1326,7 +1358,7 @@ export const ALL_MIGRATIONS: IMigration[] = [
   migration_v1, migration_v2, migration_v3, migration_v4, migration_v5, migration_v6,
   migration_v7, migration_v8, migration_v9, migration_v10, migration_v11, migration_v12,
   migration_v13, migration_v14, migration_v15, migration_v16, migration_v17, migration_v18,
-  migration_v19, migration_v20, migration_v21,
+  migration_v19, migration_v20, migration_v21, migration_v22,
 ];
 
 /**

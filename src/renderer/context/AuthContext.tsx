@@ -345,10 +345,15 @@ async function handleLoginSuccess(data: LoginSuccessResponse, setUser: SetAuthUs
         await ipcBridge.scode.saveConfig.invoke({ config: scodeConfig }).catch((err) => {
           console.warn('[Auth] Failed to save scode config:', err);
         });
+        const restoreRes = await ipcBridge.scode.restoreCustomModelProviders.invoke({ userId: authData.id }).catch((err): null => {
+          console.warn('[Auth] Failed to restore custom scode models:', err);
+          return null;
+        });
         await ipcBridge.scode.setImageModel.invoke({ modelId: DEFAULT_IMAGE_GENERATION_MODEL }).catch(() => {});
         // 同步 settings.json 模型到合并后的默认模型；保留用户已选择的自定义模型。
-        if (scodeConfig.default_model) {
-          await ipcBridge.scode.setDefaultModel.invoke({ modelId: scodeConfig.default_model }).catch(() => {});
+        const defaultModel = restoreRes?.data?.default_model || scodeConfig.default_model;
+        if (defaultModel) {
+          await ipcBridge.scode.setDefaultModel.invoke({ modelId: defaultModel }).catch(() => {});
         }
       }
     } catch (error) {
@@ -944,10 +949,15 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
             await ipcBridge.scode.saveConfig.invoke({ config: scodeConfig }).catch((err) => {
               console.warn('[Auth] Failed to save scode config on enterprise login:', err);
             });
+            const restoreRes = await ipcBridge.scode.restoreCustomModelProviders.invoke({ userId: mappedUser.id }).catch((err): null => {
+              console.warn('[Auth] Failed to restore custom scode models on enterprise login:', err);
+              return null;
+            });
             await ipcBridge.scode.setImageModel.invoke({ modelId: DEFAULT_IMAGE_GENERATION_MODEL }).catch(() => {});
             // Sync settings.json to the merged default model while preserving a user-selected custom model.
-            if (scodeConfig.default_model) {
-              await ipcBridge.scode.setDefaultModel.invoke({ modelId: scodeConfig.default_model }).catch(() => {});
+            const defaultModel = restoreRes?.data?.default_model || scodeConfig.default_model;
+            if (defaultModel) {
+              await ipcBridge.scode.setDefaultModel.invoke({ modelId: defaultModel }).catch(() => {});
             }
           }
         } else {
@@ -1150,6 +1160,8 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       try {
         await ipcBridge.sudoworkAuth.clearUserPhone.invoke();
         await ipcBridge.sudoworkAuth.clearConsumerUserId.invoke();
+        await ipcBridge.scode.saveConfig.invoke({ config: {} }).catch(() => {});
+        await ConfigStorage.set('guid.sessionMode', 'remote').catch(() => {});
         // 清除 ConfigStorage 中的用户信息
         await ConfigStorage.set('consumer.userInfo', undefined);
       } catch (error) {
