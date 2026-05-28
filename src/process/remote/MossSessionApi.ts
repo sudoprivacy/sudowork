@@ -9,7 +9,8 @@ import { getValidToken } from '@process/bridge/eeclawBridge';
 import { ProcessConfig } from '@process/initStorage';
 import WebSocket from 'ws';
 import { uuid } from '@/common/utils';
-import type { IResponseMessage } from '@/common/ipcBridge';
+import { ipcBridge } from '@/common';
+import type { IResponseMessage, MossSessionAvailableSkill, MossWorkspaceFilePreview, MossWorkspaceNode } from '@/common/ipcBridge';
 
 /**
  * Moss Server Session API client
@@ -127,10 +128,12 @@ export class MossSessionApi {
     mainLog('MossSessionApi', `Creating session: cwd=${params.cwd}, assistant=${params.assistantName || 'default'}`);
 
     const body: Record<string, unknown> = {
-      cwd: params.cwd || process.cwd(),
       dangerously_skip_permissions: params.dangerouslySkipPermissions ?? false,
       assistant_name: params.assistantName,
     };
+    if (params.cwd) {
+      body.cwd = params.cwd;
+    }
 
     if (params.runtimeType) {
       body.runtime = { type: params.runtimeType };
@@ -172,6 +175,66 @@ export class MossSessionApi {
     // API returns {"session": {...}, "ws_url": "..."} - extract the session object
     // API 返回 {"session": {...}, "ws_url": "..."} - 提取 session 对象
     return (data.session || data) as MossSession;
+  }
+
+  /**
+   * Get the read-only workspace tree for a Moss session.
+   * GET /api/v1/sessions/{sessionId}/workspace/tree
+   */
+  async getSessionWorkspaceTree(sessionId: string, params: { path?: string; search?: string } = {}): Promise<MossWorkspaceNode> {
+    const query = new URLSearchParams();
+    if (params.path) query.set('path', params.path);
+    if (params.search) query.set('search', params.search);
+    const suffix = query.toString() ? `?${query.toString()}` : '';
+
+    const response = await this.fetchWithRetry(`${this.serverUrl}/api/v1/sessions/${encodeURIComponent(sessionId)}/workspace/tree${suffix}`, {
+      method: 'GET',
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Failed to get session workspace tree: ${response.status} ${text}`);
+    }
+
+    const data = await response.json();
+    return (data.root || data) as MossWorkspaceNode;
+  }
+
+  /**
+   * Preview a read-only file from a Moss session workspace.
+   * GET /api/v1/sessions/{sessionId}/workspace/file
+   */
+  async getSessionWorkspaceFile(sessionId: string, params: { path: string }): Promise<MossWorkspaceFilePreview> {
+    const query = new URLSearchParams({ path: params.path });
+
+    const response = await this.fetchWithRetry(`${this.serverUrl}/api/v1/sessions/${encodeURIComponent(sessionId)}/workspace/file?${query.toString()}`, {
+      method: 'GET',
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Failed to preview session workspace file: ${response.status} ${text}`);
+    }
+
+    return (await response.json()) as MossWorkspaceFilePreview;
+  }
+
+  /**
+   * Get session-scoped skills that are actually available to the Moss backend.
+   * GET /api/v1/sessions/{sessionId}/skills/available
+   */
+  async getSessionAvailableSkills(sessionId: string): Promise<MossSessionAvailableSkill[]> {
+    const response = await this.fetchWithRetry(`${this.serverUrl}/api/v1/sessions/${encodeURIComponent(sessionId)}/skills/available`, {
+      method: 'GET',
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Failed to get session available skills: ${response.status} ${text}`);
+    }
+
+    const data = await response.json();
+    return (data.skills || data) as MossSessionAvailableSkill[];
   }
 
   /**
@@ -686,7 +749,6 @@ export class MossSessionApi {
         mainLog('MossSessionApi', `Model changed to: ${modelName} for session: ${sessionId}`);
         // Emit model_changed event to frontend via IPC
         // 通过 IPC 发送 model_changed 事件到前端
-        const { ipcBridge } = require('@/common');
         ipcBridge.moss.modelChanged.emit({
           sessionId,
           model: modelName,

@@ -39,7 +39,7 @@ import { useWorkspaceDragImport } from './hooks/useWorkspaceDragImport';
 import WorkspaceSkills, { type WorkspaceSkillsHandle } from './WorkspaceSkills';
 import { resolveWorkspaceSkillRoot } from './skillRoots';
 import type { WorkspaceProps } from './types';
-import { extractNodeData, extractNodeKey, findNodeByKey, getTargetFolderPath, sortTreeNodes } from './utils/treeHelpers';
+import { extractNodeData, extractNodeKey, findNodeByKey, getTargetFolderPath, sortTreeNodes, updateTreeNodeChildren } from './utils/treeHelpers';
 import './workspace-card.css';
 
 const WORKSPACE_FOLDER_ICON_COLOR = '#f59e0b';
@@ -73,7 +73,7 @@ const ChangeWorkspaceIcon: React.FC<React.SVGProps<SVGSVGElement>> = ({ classNam
   );
 };
 
-const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, eventPrefix = 'acp', backend, messageApi: externalMessageApi, workspaceDisplayName: storedDisplayName }) => {
+const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, eventPrefix = 'acp', backend, dataSource = 'local', readonly = false, messageApi: externalMessageApi, workspaceDisplayName: storedDisplayName }) => {
   const { t } = useTranslation();
   const layout = useLayoutContext();
   const isMobile = layout?.isMobile ?? false;
@@ -138,6 +138,13 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
     const refreshCount = async () => {
       lastSkillScanAtRef.current = Date.now();
       try {
+        if (dataSource === 'moss-session') {
+          const result = await ipcBridge.conversation.getRemoteAvailableSkills.invoke({ conversation_id }).catch((): undefined => undefined);
+          if (cancelled) return;
+          setSkillCount(result?.success ? (result.data?.skills.length ?? 0) : 0);
+          return;
+        }
+
         const skillRoot = resolveWorkspaceSkillRoot(workspace, eventPrefix, backend);
         const result = await ipcBridge.fs.scanForSkills.invoke({ folderPath: skillRoot.path }).catch((): undefined => undefined);
         if (cancelled) return;
@@ -147,6 +154,55 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
       }
     };
     void refreshCount();
+    if (dataSource === 'moss-session') {
+      let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+      const scheduleRefresh = (delay = 300) => {
+        if (refreshTimer) clearTimeout(refreshTimer);
+        refreshTimer = setTimeout(() => {
+          refreshTimer = null;
+          void refreshCount();
+        }, delay);
+      };
+
+      const unsubscribeStream = ipcBridge.conversation.responseStream.on((message) => {
+        if (message.conversation_id !== conversation_id) return;
+
+        if (message.type === 'agent_status') {
+          const status = (message.data as { status?: string } | undefined)?.status;
+          if (status === 'session_active') {
+            scheduleRefresh();
+          }
+          return;
+        }
+
+        if (message.type === 'finish') {
+          scheduleRefresh(800);
+        }
+      });
+
+      const unsubscribeConversation = ipcBridge.database.conversationChanged.on((event) => {
+        if (event.conversationId === conversation_id && event.action === 'updated') {
+          scheduleRefresh();
+        }
+      });
+
+      const handleWorkspaceRefresh = () => {
+        scheduleRefresh();
+      };
+      emitter.on('remote-agent.workspace.refresh', handleWorkspaceRefresh);
+
+      return () => {
+        cancelled = true;
+        if (refreshTimer) {
+          clearTimeout(refreshTimer);
+          refreshTimer = null;
+        }
+        unsubscribeStream();
+        unsubscribeConversation();
+        emitter.off('remote-agent.workspace.refresh', handleWorkspaceRefresh);
+      };
+    }
+
     let debounce: ReturnType<typeof setTimeout> | null = null;
     const unsubscribe = ipcBridge.fileWatch.dirChanged.on((payload) => {
       // Only react to events from our workspace watcher — not all watchers
@@ -166,7 +222,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
       if (debounce) clearTimeout(debounce);
       unsubscribe();
     };
-  }, [workspace, eventPrefix, backend]);
+  }, [workspace, eventPrefix, backend, conversation_id, dataSource]);
 
   // Workspace rename modal state (for root directory rename)
   const [wsRenameModal, setWsRenameModal] = useState<{ visible: boolean; name: string }>({ visible: false, name: '' });
@@ -227,7 +283,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
   const prevTreeLoadingRef = useRef(false);
 
   // Initialize all hooks
-  const treeHook = useWorkspaceTree({ workspace, conversation_id, eventPrefix, backend });
+  const treeHook = useWorkspaceTree({ workspace, conversation_id, eventPrefix, backend, dataSource });
   const modalsHook = useWorkspaceModals();
 
   // Bump `lastSyncAt` whenever the file tree just finished loading
@@ -334,7 +390,9 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
   const fileOpsHook = useWorkspaceFileOps({
     workspace,
     eventPrefix,
-    conversation_id: eventPrefix === 'openclaw-gateway' ? conversation_id : undefined,
+    conversation_id: eventPrefix === 'openclaw-gateway' || eventPrefix === 'remote-agent' ? conversation_id : undefined,
+    dataSource,
+    readonly,
     messageApi,
     t,
     setFiles: treeHook.setFiles,
@@ -375,6 +433,8 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
     setContextMenu: modalsHook.setContextMenu,
     closeRenameModal: modalsHook.closeRenameModal,
     closeDeleteModal: modalsHook.closeDeleteModal,
+    readonly,
+    dataSource,
   });
 
   // Debounced search handler
@@ -401,7 +461,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
   const visibleTreeData = useMemo(() => {
     let data = rawTreeData;
 
-    if (isTemporaryWorkspace || isChannelWorkspace) {
+    if (isTemporaryWorkspace || isChannelWorkspace || dataSource === 'moss-session') {
       const filterNodes = (nodes: IDirOrFile[]): IDirOrFile[] =>
         nodes
           .filter((node) => !isHiddenWorkspaceEntry(node.name))
@@ -415,7 +475,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
 
     // 按文件名正序排列（文件夹优先）/ Sort by filename ascending (directories first)
     return sortTreeNodes(data);
-  }, [isTemporaryWorkspace, isChannelWorkspace, rawTreeData]);
+  }, [isTemporaryWorkspace, isChannelWorkspace, rawTreeData, dataSource]);
 
   const treeData = useMemo(() => {
     const decorateNodes = (nodes: IDirOrFile[]): IDirOrFile[] =>
@@ -451,11 +511,11 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
     if (storedDisplayName) {
       return storedDisplayName;
     }
-    if (isTemporaryWorkspace) {
+    if (isTemporaryWorkspace || dataSource === 'moss-session') {
       return t('conversation.workspace.temporarySpace');
     }
     return getDisplayName(workspace);
-  }, [storedDisplayName, workspace, isTemporaryWorkspace, t]);
+  }, [storedDisplayName, workspace, isTemporaryWorkspace, dataSource, t]);
 
   // Workspace migration handlers
   // const handleOpenMigrationModal = useCallback(() => {
@@ -722,8 +782,6 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
   })();
 
   const menuButtonBase = 'w-full flex items-center gap-8px px-14px py-6px text-13px text-left text-t-primary rounded-md transition-colors duration-150 hover:bg-2 border-none bg-transparent appearance-none focus:outline-none focus-visible:outline-none';
-  const menuButtonDisabled = 'opacity-40 cursor-not-allowed hover:bg-transparent';
-
   const openNodeContextMenu = useCallback(
     (node: IDirOrFile, x: number, y: number) => {
       treeHook.ensureNodeSelected(node);
@@ -749,11 +807,11 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
       <div
         className='chat-workspace workspace-card size-full flex flex-col relative'
         tabIndex={0}
-        onFocus={pasteHook.onFocusPaste}
-        onClick={pasteHook.onFocusPaste}
-        {...dragImportHook.dragHandlers}
+        onFocus={readonly ? undefined : pasteHook.onFocusPaste}
+        onClick={readonly ? undefined : pasteHook.onFocusPaste}
+        {...(readonly ? {} : dragImportHook.dragHandlers)}
         style={
-          dragImportHook.isDragging
+          !readonly && dragImportHook.isDragging
             ? {
                 border: '1px dashed rgb(var(--primary-6))',
                 borderRadius: '18px',
@@ -763,7 +821,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
             : undefined
         }
       >
-        {dragImportHook.isDragging && (
+        {!readonly && dragImportHook.isDragging && (
           <div className='absolute inset-0 pointer-events-none z-30 flex items-center justify-center px-32px'>
             <div
               className='w-full max-w-480px text-center text-white rounded-16px px-32px py-28px'
@@ -792,220 +850,232 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
           </div>
         )}
         {/* Paste Confirm Modal */}
-        <Modal
-          visible={modalsHook.pasteConfirm.visible}
-          title={null}
-          onCancel={() => {
-            modalsHook.closePasteConfirm();
-          }}
-          footer={null}
-          style={{ borderRadius: '12px' }}
-          className='paste-confirm-modal'
-          alignCenter
-          getPopupContainer={() => document.body}
-        >
-          <div className='px-24px py-20px'>
-            {/* Title area */}
-            <div className='flex items-center gap-12px mb-20px'>
-              <div className='flex items-center justify-center w-48px h-48px rounded-full' style={{ backgroundColor: 'rgb(var(--primary-1))' }}>
-                <FileText theme='outline' size='24' fill='rgb(var(--primary-6))' />
-              </div>
-              <div>
-                <div className='text-16px font-semibold mb-4px'>{t('conversation.workspace.pasteConfirm_title')}</div>
-                <div className='text-13px' style={{ color: 'var(--color-text-3)' }}>
-                  {modalsHook.pasteConfirm.filesToPaste.length > 1 ? t('conversation.workspace.pasteConfirm_multipleFiles', { count: modalsHook.pasteConfirm.filesToPaste.length }) : t('conversation.workspace.pasteConfirm_title')}
+        {!readonly && (
+          <Modal
+            visible={modalsHook.pasteConfirm.visible}
+            title={null}
+            onCancel={() => {
+              modalsHook.closePasteConfirm();
+            }}
+            footer={null}
+            style={{ borderRadius: '12px' }}
+            className='paste-confirm-modal'
+            alignCenter
+            getPopupContainer={() => document.body}
+          >
+            <div className='px-24px py-20px'>
+              {/* Title area */}
+              <div className='flex items-center gap-12px mb-20px'>
+                <div className='flex items-center justify-center w-48px h-48px rounded-full' style={{ backgroundColor: 'rgb(var(--primary-1))' }}>
+                  <FileText theme='outline' size='24' fill='rgb(var(--primary-6))' />
                 </div>
-              </div>
-            </div>
-
-            {/* Content area */}
-            <div className='mb-20px px-12px py-16px rounded-8px' style={{ backgroundColor: 'var(--color-fill-2)' }}>
-              <div className='flex items-start gap-12px mb-12px'>
-                <FileText theme='outline' size='18' fill='var(--color-text-2)' style={{ marginTop: '2px' }} />
-                <div className='flex-1'>
-                  <div className='text-13px mb-4px' style={{ color: 'var(--color-text-3)' }}>
-                    {t('conversation.workspace.pasteConfirm_fileName')}
-                  </div>
-                  <div className='text-14px font-medium break-all' style={{ color: 'var(--color-text-1)' }}>
-                    {modalsHook.pasteConfirm.fileName}
+                <div>
+                  <div className='text-16px font-semibold mb-4px'>{t('conversation.workspace.pasteConfirm_title')}</div>
+                  <div className='text-13px' style={{ color: 'var(--color-text-3)' }}>
+                    {modalsHook.pasteConfirm.filesToPaste.length > 1 ? t('conversation.workspace.pasteConfirm_multipleFiles', { count: modalsHook.pasteConfirm.filesToPaste.length }) : t('conversation.workspace.pasteConfirm_title')}
                   </div>
                 </div>
               </div>
-              <div className='flex items-start gap-12px'>
-                <FolderOpen theme='outline' size='18' fill='var(--color-text-2)' style={{ marginTop: '2px' }} />
-                <div className='flex-1'>
-                  <div className='text-13px mb-4px' style={{ color: 'var(--color-text-3)' }}>
-                    {t('conversation.workspace.pasteConfirm_targetFolder')}
+
+              {/* Content area */}
+              <div className='mb-20px px-12px py-16px rounded-8px' style={{ backgroundColor: 'var(--color-fill-2)' }}>
+                <div className='flex items-start gap-12px mb-12px'>
+                  <FileText theme='outline' size='18' fill='var(--color-text-2)' style={{ marginTop: '2px' }} />
+                  <div className='flex-1'>
+                    <div className='text-13px mb-4px' style={{ color: 'var(--color-text-3)' }}>
+                      {t('conversation.workspace.pasteConfirm_fileName')}
+                    </div>
+                    <div className='text-14px font-medium break-all' style={{ color: 'var(--color-text-1)' }}>
+                      {modalsHook.pasteConfirm.fileName}
+                    </div>
                   </div>
-                  <div className='text-14px font-medium font-mono break-all' style={{ color: 'rgb(var(--primary-6))' }}>
-                    {targetFolderPathForModal.fullPath}
+                </div>
+                <div className='flex items-start gap-12px'>
+                  <FolderOpen theme='outline' size='18' fill='var(--color-text-2)' style={{ marginTop: '2px' }} />
+                  <div className='flex-1'>
+                    <div className='text-13px mb-4px' style={{ color: 'var(--color-text-3)' }}>
+                      {t('conversation.workspace.pasteConfirm_targetFolder')}
+                    </div>
+                    <div className='text-14px font-medium font-mono break-all' style={{ color: 'rgb(var(--primary-6))' }}>
+                      {targetFolderPathForModal.fullPath}
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
 
-            {/* Checkbox area */}
-            <div className='mb-20px'>
-              <Checkbox checked={modalsHook.pasteConfirm.doNotAsk} onChange={(v) => modalsHook.setPasteConfirm((prev) => ({ ...prev, doNotAsk: v }))}>
-                <span className='text-13px' style={{ color: 'var(--color-text-2)' }}>
-                  {t('conversation.workspace.pasteConfirm_noAsk')}
-                </span>
-              </Checkbox>
-            </div>
+              {/* Checkbox area */}
+              <div className='mb-20px'>
+                <Checkbox checked={modalsHook.pasteConfirm.doNotAsk} onChange={(v) => modalsHook.setPasteConfirm((prev) => ({ ...prev, doNotAsk: v }))}>
+                  <span className='text-13px' style={{ color: 'var(--color-text-2)' }}>
+                    {t('conversation.workspace.pasteConfirm_noAsk')}
+                  </span>
+                </Checkbox>
+              </div>
 
-            {/* Button area */}
-            <div className='flex gap-12px justify-end'>
-              <button
-                className='px-16px py-8px rounded-6px text-14px font-medium transition-all'
-                style={{
-                  border: '1px solid var(--color-border-2)',
-                  backgroundColor: 'transparent',
-                  color: 'var(--color-text-1)',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = 'var(--color-fill-2)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = 'transparent';
-                }}
-                onClick={() => {
-                  modalsHook.closePasteConfirm();
-                }}
-              >
-                {t('conversation.workspace.pasteConfirm_cancel')}
-              </button>
-              <button
-                className='px-16px py-8px rounded-6px text-14px font-medium transition-all'
-                style={{
-                  border: 'none',
-                  backgroundColor: 'rgb(var(--primary-6))',
-                  color: 'white',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = 'rgb(var(--primary-5))';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = 'rgb(var(--primary-6))';
-                }}
-                onClick={async () => {
-                  await pasteHook.handlePasteConfirm();
-                }}
-              >
-                {t('conversation.workspace.pasteConfirm_paste')}
-              </button>
+              {/* Button area */}
+              <div className='flex gap-12px justify-end'>
+                <button
+                  className='px-16px py-8px rounded-6px text-14px font-medium transition-all'
+                  style={{
+                    border: '1px solid var(--color-border-2)',
+                    backgroundColor: 'transparent',
+                    color: 'var(--color-text-1)',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = 'var(--color-fill-2)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                  }}
+                  onClick={() => {
+                    modalsHook.closePasteConfirm();
+                  }}
+                >
+                  {t('conversation.workspace.pasteConfirm_cancel')}
+                </button>
+                <button
+                  className='px-16px py-8px rounded-6px text-14px font-medium transition-all'
+                  style={{
+                    border: 'none',
+                    backgroundColor: 'rgb(var(--primary-6))',
+                    color: 'white',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = 'rgb(var(--primary-5))';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'rgb(var(--primary-6))';
+                  }}
+                  onClick={async () => {
+                    await pasteHook.handlePasteConfirm();
+                  }}
+                >
+                  {t('conversation.workspace.pasteConfirm_paste')}
+                </button>
+              </div>
             </div>
-          </div>
-        </Modal>
+          </Modal>
+        )}
 
         {/* Rename Modal */}
-        <Modal visible={modalsHook.renameModal.visible} title={t('conversation.workspace.contextMenu.renameTitle')} onCancel={modalsHook.closeRenameModal} onOk={fileOpsHook.handleRenameConfirm} okText={t('common.confirm')} cancelText={t('common.cancel')} confirmLoading={modalsHook.renameLoading} style={{ borderRadius: '12px' }} alignCenter getPopupContainer={() => document.body}>
-          <Input autoFocus value={modalsHook.renameModal.value} onChange={(value) => modalsHook.setRenameModal((prev) => ({ ...prev, value }))} onPressEnter={fileOpsHook.handleRenameConfirm} placeholder={t('conversation.workspace.contextMenu.renamePlaceholder')} />
-        </Modal>
+        {!readonly && (
+          <Modal visible={modalsHook.renameModal.visible} title={t('conversation.workspace.contextMenu.renameTitle')} onCancel={modalsHook.closeRenameModal} onOk={fileOpsHook.handleRenameConfirm} okText={t('common.confirm')} cancelText={t('common.cancel')} confirmLoading={modalsHook.renameLoading} style={{ borderRadius: '12px' }} alignCenter getPopupContainer={() => document.body}>
+            <Input autoFocus value={modalsHook.renameModal.value} onChange={(value) => modalsHook.setRenameModal((prev) => ({ ...prev, value }))} onPressEnter={fileOpsHook.handleRenameConfirm} placeholder={t('conversation.workspace.contextMenu.renamePlaceholder')} />
+          </Modal>
+        )}
 
         {/* Workspace Rename Modal (root directory) */}
-        <Modal title={t('conversation.workspace.renameWorkspace.title')} visible={wsRenameModal.visible} onOk={handleWorkspaceRenameConfirm} onCancel={() => setWsRenameModal({ visible: false, name: '' })} okText={t('common.confirm')} cancelText={t('common.cancel')} confirmLoading={wsRenameLoading} okButtonProps={{ disabled: !wsRenameModal.name.trim() }} style={{ borderRadius: '12px' }} alignCenter getPopupContainer={() => document.body}>
-          <div className='text-13px text-t-secondary mb-8px'>{t('conversation.workspace.renameWorkspace.hint')}</div>
-          <Input autoFocus value={wsRenameModal.name} onChange={(v) => setWsRenameModal((prev) => ({ ...prev, name: v }))} onPressEnter={handleWorkspaceRenameConfirm} placeholder={t('conversation.workspace.renameWorkspace.placeholder')} />
-        </Modal>
+        {!readonly && (
+          <Modal title={t('conversation.workspace.renameWorkspace.title')} visible={wsRenameModal.visible} onOk={handleWorkspaceRenameConfirm} onCancel={() => setWsRenameModal({ visible: false, name: '' })} okText={t('common.confirm')} cancelText={t('common.cancel')} confirmLoading={wsRenameLoading} okButtonProps={{ disabled: !wsRenameModal.name.trim() }} style={{ borderRadius: '12px' }} alignCenter getPopupContainer={() => document.body}>
+            <div className='text-13px text-t-secondary mb-8px'>{t('conversation.workspace.renameWorkspace.hint')}</div>
+            <Input autoFocus value={wsRenameModal.name} onChange={(v) => setWsRenameModal((prev) => ({ ...prev, name: v }))} onPressEnter={handleWorkspaceRenameConfirm} placeholder={t('conversation.workspace.renameWorkspace.placeholder')} />
+          </Modal>
+        )}
 
         {/* New Folder Modal */}
-        <Modal title={t('conversation.workspace.newFolder.title')} visible={newFolderModal.visible} onOk={handleNewFolderConfirm} onCancel={() => setNewFolderModal({ visible: false, name: '', parentPath: '' })} okText={t('common.confirm')} cancelText={t('common.cancel')} confirmLoading={newFolderLoading} okButtonProps={{ disabled: !newFolderModal.name.trim() }} style={{ borderRadius: '12px' }} alignCenter getPopupContainer={() => document.body}>
-          <div className='text-13px text-t-secondary mb-8px'>{t('conversation.workspace.newFolder.hint')}</div>
-          <Input autoFocus value={newFolderModal.name} onChange={(v) => setNewFolderModal((prev) => ({ ...prev, name: v }))} onPressEnter={handleNewFolderConfirm} placeholder={t('conversation.workspace.newFolder.placeholder')} />
-        </Modal>
+        {!readonly && (
+          <Modal title={t('conversation.workspace.newFolder.title')} visible={newFolderModal.visible} onOk={handleNewFolderConfirm} onCancel={() => setNewFolderModal({ visible: false, name: '', parentPath: '' })} okText={t('common.confirm')} cancelText={t('common.cancel')} confirmLoading={newFolderLoading} okButtonProps={{ disabled: !newFolderModal.name.trim() }} style={{ borderRadius: '12px' }} alignCenter getPopupContainer={() => document.body}>
+            <div className='text-13px text-t-secondary mb-8px'>{t('conversation.workspace.newFolder.hint')}</div>
+            <Input autoFocus value={newFolderModal.name} onChange={(v) => setNewFolderModal((prev) => ({ ...prev, name: v }))} onPressEnter={handleNewFolderConfirm} placeholder={t('conversation.workspace.newFolder.placeholder')} />
+          </Modal>
+        )}
 
         {/* Delete Modal */}
-        <Modal visible={modalsHook.deleteModal.visible} title={t('conversation.workspace.contextMenu.deleteTitle')} onCancel={modalsHook.closeDeleteModal} onOk={fileOpsHook.handleDeleteConfirm} okText={t('common.confirm')} cancelText={t('common.cancel')} confirmLoading={modalsHook.deleteModal.loading} style={{ borderRadius: '12px' }} alignCenter getPopupContainer={() => document.body}>
-          <div className='text-14px text-t-secondary'>{t('conversation.workspace.contextMenu.deleteConfirm')}</div>
-        </Modal>
+        {!readonly && (
+          <Modal visible={modalsHook.deleteModal.visible} title={t('conversation.workspace.contextMenu.deleteTitle')} onCancel={modalsHook.closeDeleteModal} onOk={fileOpsHook.handleDeleteConfirm} okText={t('common.confirm')} cancelText={t('common.cancel')} confirmLoading={modalsHook.deleteModal.loading} style={{ borderRadius: '12px' }} alignCenter getPopupContainer={() => document.body}>
+            <div className='text-14px text-t-secondary'>{t('conversation.workspace.contextMenu.deleteConfirm')}</div>
+          </Modal>
+        )}
 
         {/* Workspace Migration Modal */}
-        <Modal visible={showMigrationModal} title={t('conversation.workspace.migration.title')} onCancel={handleCloseMigrationModal} footer={null} style={{ borderRadius: '12px' }} className='workspace-migration-modal' alignCenter getPopupContainer={() => document.body}>
-          <div className='py-8px'>
-            {/* Current workspace info */}
-            <div className='text-14px mb-16px' style={{ color: 'var(--color-text-3)' }}>
-              {t('conversation.workspace.migration.currentWorkspaceLabel')}
-              <span className='font-mono'>/{getLastDirectoryName(workspace)}</span>
-            </div>
-
-            {/* Target folder selection card */}
-            <div className='mb-16px p-16px rounded-12px' style={{ backgroundColor: 'var(--color-fill-1)' }}>
-              <div className='text-14px mb-8px' style={{ color: 'var(--color-text-1)' }}>
-                {t('conversation.workspace.migration.moveToNewFolder')}
+        {!readonly && (
+          <Modal visible={showMigrationModal} title={t('conversation.workspace.migration.title')} onCancel={handleCloseMigrationModal} footer={null} style={{ borderRadius: '12px' }} className='workspace-migration-modal' alignCenter getPopupContainer={() => document.body}>
+            <div className='py-8px'>
+              {/* Current workspace info */}
+              <div className='text-14px mb-16px' style={{ color: 'var(--color-text-3)' }}>
+                {t('conversation.workspace.migration.currentWorkspaceLabel')}
+                <span className='font-mono'>/{getLastDirectoryName(workspace)}</span>
               </div>
-              <div
-                className='flex items-center justify-between px-12px py-10px rounded-8px cursor-pointer transition-colors hover:bg-[var(--color-fill-2)]'
-                style={{
-                  backgroundColor: 'var(--color-bg-1)',
-                  border: '1px solid var(--color-border-2)',
-                }}
-                onClick={handleSelectFolder}
-              >
-                <span className='text-14px' style={{ color: selectedTargetPath ? 'var(--color-text-1)' : 'var(--color-text-3)' }}>
-                  {selectedTargetPath || t('conversation.workspace.migration.selectFolder')}
-                </span>
-                <FolderOpen theme='outline' size='18' fill='var(--color-text-3)' />
+
+              {/* Target folder selection card */}
+              <div className='mb-16px p-16px rounded-12px' style={{ backgroundColor: 'var(--color-fill-1)' }}>
+                <div className='text-14px mb-8px' style={{ color: 'var(--color-text-1)' }}>
+                  {t('conversation.workspace.migration.moveToNewFolder')}
+                </div>
+                <div
+                  className='flex items-center justify-between px-12px py-10px rounded-8px cursor-pointer transition-colors hover:bg-[var(--color-fill-2)]'
+                  style={{
+                    backgroundColor: 'var(--color-bg-1)',
+                    border: '1px solid var(--color-border-2)',
+                  }}
+                  onClick={handleSelectFolder}
+                >
+                  <span className='text-14px' style={{ color: selectedTargetPath ? 'var(--color-text-1)' : 'var(--color-text-3)' }}>
+                    {selectedTargetPath || t('conversation.workspace.migration.selectFolder')}
+                  </span>
+                  <FolderOpen theme='outline' size='18' fill='var(--color-text-3)' />
+                </div>
+              </div>
+
+              {/* Hint */}
+              <div className='flex items-center gap-8px mb-20px text-14px' style={{ color: 'var(--color-text-3)' }}>
+                <span>💡</span>
+                <span>{t('conversation.workspace.migration.hint')}</span>
+              </div>
+
+              {/* Button area */}
+              <div className='flex gap-12px justify-end'>
+                <button
+                  className='px-24px py-8px rounded-20px text-14px font-medium transition-all'
+                  style={{
+                    border: '1px solid var(--color-border-2)',
+                    backgroundColor: 'var(--color-fill-2)',
+                    color: 'var(--color-text-1)',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = 'var(--color-fill-3)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'var(--color-fill-2)';
+                  }}
+                  onClick={handleCloseMigrationModal}
+                  disabled={migrationLoading}
+                >
+                  {t('common.cancel')}
+                </button>
+                <button
+                  className='px-24px py-8px rounded-20px text-14px font-medium transition-all'
+                  style={{
+                    border: 'none',
+                    backgroundColor: migrationLoading ? 'var(--color-fill-3)' : 'var(--color-text-1)',
+                    color: 'var(--color-bg-1)',
+                    cursor: migrationLoading ? 'not-allowed' : 'pointer',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!migrationLoading) {
+                      e.currentTarget.style.opacity = '0.85';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!migrationLoading) {
+                      e.currentTarget.style.opacity = '1';
+                    }
+                  }}
+                  onClick={handleMigrationConfirm}
+                  disabled={migrationLoading || !selectedTargetPath}
+                >
+                  {migrationLoading ? t('conversation.workspace.migration.migrating') : t('common.confirm')}
+                </button>
               </div>
             </div>
-
-            {/* Hint */}
-            <div className='flex items-center gap-8px mb-20px text-14px' style={{ color: 'var(--color-text-3)' }}>
-              <span>💡</span>
-              <span>{t('conversation.workspace.migration.hint')}</span>
-            </div>
-
-            {/* Button area */}
-            <div className='flex gap-12px justify-end'>
-              <button
-                className='px-24px py-8px rounded-20px text-14px font-medium transition-all'
-                style={{
-                  border: '1px solid var(--color-border-2)',
-                  backgroundColor: 'var(--color-fill-2)',
-                  color: 'var(--color-text-1)',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = 'var(--color-fill-3)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = 'var(--color-fill-2)';
-                }}
-                onClick={handleCloseMigrationModal}
-                disabled={migrationLoading}
-              >
-                {t('common.cancel')}
-              </button>
-              <button
-                className='px-24px py-8px rounded-20px text-14px font-medium transition-all'
-                style={{
-                  border: 'none',
-                  backgroundColor: migrationLoading ? 'var(--color-fill-3)' : 'var(--color-text-1)',
-                  color: 'var(--color-bg-1)',
-                  cursor: migrationLoading ? 'not-allowed' : 'pointer',
-                }}
-                onMouseEnter={(e) => {
-                  if (!migrationLoading) {
-                    e.currentTarget.style.opacity = '0.85';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!migrationLoading) {
-                    e.currentTarget.style.opacity = '1';
-                  }
-                }}
-                onClick={handleMigrationConfirm}
-                disabled={migrationLoading || !selectedTargetPath}
-              >
-                {migrationLoading ? t('conversation.workspace.migration.migrating') : t('common.confirm')}
-              </button>
-            </div>
-          </div>
-        </Modal>
+          </Modal>
+        )}
 
         {/* Directory Selection Modal (for WebUI only) */}
-        <DirectorySelectionModal visible={showDirectorySelector} onConfirm={handleSelectDirectoryFromModal} onCancel={() => setShowDirectorySelector(false)} />
+        {!readonly && <DirectorySelectionModal visible={showDirectorySelector} onConfirm={handleSelectDirectoryFromModal} onCancel={() => setShowDirectorySelector(false)} />}
 
         {/* Bdpan Upload Dir Picker */}
-        <BdpanDirPicker visible={bdpanUploadPickerVisible} localPath={bdpanUploadLocalPath} onCancel={() => setBdpanUploadPickerVisible(false)} onConfirm={handleBdpanUploadConfirm} />
+        {!readonly && <BdpanDirPicker visible={bdpanUploadPickerVisible} localPath={bdpanUploadLocalPath} onCancel={() => setBdpanUploadPickerVisible(false)} onConfirm={handleBdpanUploadConfirm} />}
 
         {/* Tabs header — mirrors ui.zip `components/task-panel.tsx` layout:
             two equal tabs sit at the very top of the card (no separate status-
@@ -1016,6 +1086,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
           role='tablist'
           aria-label={t('conversation.workspace.tabsAria', { defaultValue: '工作空间视图切换' })}
           onContextMenu={(event) => {
+            if (readonly) return;
             // Preserve the "right-click on workspace header to get root-level
             // context menu" behaviour from the previous header.
             const rootNode = treeHook.files[0];
@@ -1079,7 +1150,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
         {/* Main content area — Skills grid OR Search + Tree. */}
         {activeTab === 'skills' && (
           <FlexFullContainer containerClassName='workspace-card__body workspace-card__body--skills overflow-y-auto'>
-            <WorkspaceSkills ref={skillsHandleRef} workspace={workspace} eventPrefix={eventPrefix} backend={backend} searchQuery={searchText} onLoadingChange={setSkillsLoading} onSynced={() => setLastSyncAt(Date.now())} watchIdRef={watchIdRef} />
+            <WorkspaceSkills ref={skillsHandleRef} workspace={workspace} eventPrefix={eventPrefix} backend={backend} conversationId={conversation_id} dataSource={dataSource === 'moss-session' ? 'moss-session' : 'workspace'} searchQuery={searchText} onLoadingChange={setSkillsLoading} onSynced={() => setLastSyncAt(Date.now())} onCountChange={setSkillCount} watchIdRef={watchIdRef} />
           </FlexFullContainer>
         )}
 
@@ -1093,10 +1164,10 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
             {!hasOriginalFiles ? (
               <EmptyState
                 icon={<FolderOpen theme='outline' size='48' fill='var(--color-text-3)' />}
-                title={searchText ? t('conversation.workspace.search.empty') : t('conversation.workspace.empty')}
-                description={!searchText ? t('conversation.workspace.emptyDescription') : undefined}
+                title={searchText ? t('conversation.workspace.search.empty') : readonly ? t('conversation.workspace.remotePendingTitle', { defaultValue: '会话开始后显示临时空间' }) : t('conversation.workspace.empty')}
+                description={!searchText ? (readonly ? t('conversation.workspace.remotePendingDescription', { defaultValue: '首次消息创建会话后，将从 Moss Server 加载临时空间和草稿箱。' }) : t('conversation.workspace.emptyDescription')) : undefined}
                 actions={
-                  !searchText
+                  !searchText && !readonly
                     ? [
                         {
                           label: t('conversation.welcome.linkFolder'),
@@ -1125,16 +1196,10 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                   isLeaf: 'isFile',
                 }}
                 multiple
-                onRightClick={(node, event) => {
-                  const nodeData = node.dataRef as IDirOrFile;
-                  event.preventDefault();
-                  event.stopPropagation();
-                  openNodeContextMenu(nodeData, event.clientX, event.clientY);
-                }}
                 renderTitle={(node) => {
                   const relativePath = node.dataRef.relativePath;
                   const isFile = node.dataRef.isFile;
-                  const isPasteTarget = !isFile && pasteHook.pasteTargetFolder === relativePath;
+                  const isPasteTarget = !readonly && !isFile && pasteHook.pasteTargetFolder === relativePath;
                   const nodeData = node.dataRef as IDirOrFile;
                   const directFileCount = !isFile ? (nodeData.children ?? []).filter((child) => child.isFile && !isHiddenWorkspaceEntry(child.name)).length : 0;
                   // Display .drafts with i18n name / 草稿箱目录显示本地化名称
@@ -1147,7 +1212,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                       style={{ color: 'inherit' }}
                       onClick={() => {}}
                       onDoubleClick={() => {
-                        if (isFile) {
+                        if (isFile && !readonly) {
                           fileOpsHook.handleAddToChat(nodeData);
                         }
                       }}
@@ -1256,7 +1321,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                   }
                   if (eventPrefix === 'openclaw-gateway') {
                     emitter.emit('openclaw-gateway.selected.file', conversation_id, items);
-                  } else {
+                  } else if (eventPrefix === 'acp') {
                     emitter.emit('acp.selected.file', items);
                   }
                 }}
@@ -1264,10 +1329,12 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                   treeHook.setExpandedKeys(keys);
                 }}
                 loadMore={(treeNode) => {
-                  const path = treeNode.props.dataRef.fullPath;
-                  return ipcBridge.conversation.getWorkspace.invoke({ conversation_id, workspace, path }).then((res) => {
-                    treeNode.props.dataRef.children = res[0].children;
-                    treeHook.setFiles([...treeHook.files]);
+                  const nodeData = treeNode.props.dataRef as IDirOrFile;
+                  const path = dataSource === 'moss-session' ? nodeData.relativePath : nodeData.fullPath;
+                  const loadPromise = dataSource === 'moss-session' ? ipcBridge.conversation.getRemoteWorkspace.invoke({ conversation_id, path }).then((res) => (res?.success ? (res.data?.files ?? []) : [])) : ipcBridge.conversation.getWorkspace.invoke({ conversation_id, workspace, path });
+                  return loadPromise.then((res) => {
+                    const children = res[0]?.children ?? [];
+                    treeHook.setFiles((prev) => updateTreeNodeChildren(prev, nodeData.relativePath || nodeData.fullPath, children));
                   });
                 }}
               ></Tree>
@@ -1307,6 +1374,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
       {modalsHook.contextMenu.visible &&
         contextMenuNode &&
         contextMenuStyle &&
+        (!readonly || (isContextMenuNodeFile && isPreviewSupported)) &&
         typeof document !== 'undefined' &&
         createPortal(
           <div
@@ -1319,7 +1387,17 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
             }}
           >
             <div className='flex flex-col gap-4px'>
-              {isContextMenuNodeRoot ? (
+              {readonly ? (
+                <button
+                  type='button'
+                  className={menuButtonBase}
+                  onClick={() => {
+                    void fileOpsHook.handlePreviewFile(contextMenuNode);
+                  }}
+                >
+                  {t('conversation.workspace.contextMenu.preview')}
+                </button>
+              ) : isContextMenuNodeRoot ? (
                 <>
                   <button
                     type='button'

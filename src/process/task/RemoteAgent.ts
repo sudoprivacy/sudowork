@@ -69,8 +69,8 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
   private turnActive = false;
   private userCancelled = false;
 
-  /** Workspace path for this agent */
-  workspace: string;
+  /** Workspace path for this agent, when the user explicitly selected one. */
+  workspace?: string;
 
   /** Turn-level file tracking for precise cleanup on cancel */
   private currentTurnFiles: Map<string, { path: string; intent: 'draft' | 'final'; kind: 'create' | 'edit' }> = new Map();
@@ -80,7 +80,7 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
     this.conversation_id = data.conversation_id;
     this.options = data;
     this.status = 'pending';
-    this.workspace = data.workspace || process.cwd();
+    this.workspace = data.workspace?.trim() || undefined;
     // Initialize full workspace snapshot for Bash file tracking
     // 初始化完整工作空间快照用于 Bash 文件追踪
     this.workspaceFileSnapshot = this.getWorkspaceFiles();
@@ -130,7 +130,7 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
           enabledSkills: this.options.enabledSkills,
         };
 
-        mainLog('RemoteAgent', `MossWsConnection config: cwd=${config.cwd}, assistant=${config.assistantName || 'default'}, enabledSkills=${config.enabledSkills?.length || 0}`);
+        mainLog('RemoteAgent', `MossWsConnection config: cwd=${config.cwd ?? '<server-default>'}, assistant=${config.assistantName || 'default'}, enabledSkills=${config.enabledSkills?.length || 0}`);
 
         const callbacks: MossWsCallbacks = {
           onMessage: (msg) => this.handleStreamMessage(msg),
@@ -539,6 +539,7 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
 
     // Track write_file/edit_file operations
     if (toolName === 'write_file' || toolName === 'edit_file') {
+      if (!this.workspace) return;
       const inputPath = rawInput?.path as string | undefined;
       const content = rawInput?.content as string | undefined;
       if (!inputPath) return;
@@ -583,6 +584,7 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
    */
   private trackBashGeneratedFiles(): void {
     try {
+      if (!this.workspace) return;
       const currentSnapshot = this.getWorkspaceFiles();
 
       // Compare with previous snapshot to find new files
@@ -635,6 +637,7 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
     const snapshot = new Map<string, number>();
 
     try {
+      if (!this.workspace) return snapshot;
       // Scan workspace root
       const scanDir = (dir: string) => {
         if (!fs.existsSync(dir)) return;
