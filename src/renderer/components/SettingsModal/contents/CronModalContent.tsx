@@ -56,7 +56,7 @@ function useAssistantsForCron(): AcpBackendConfig[] {
     Promise.all([fetchAssistantsAsConfigs(), ipcBridge.extensions.getAssistants.invoke().catch(() => [] as Record<string, unknown>[])])
       .then(([local, ext]) => {
         const merged: AcpBackendConfig[] = [...local, ...((ext as unknown as AcpBackendConfig[]) || [])];
-        setAssistants(merged.filter((a) => a.isPreset === true));
+        setAssistants(merged.filter((a) => a.enabled !== false));
       })
       .catch(() => {});
   }, []);
