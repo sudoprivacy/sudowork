@@ -219,6 +219,9 @@ export function initEeclawBridge(): void {
         data: {
           enabled: data?.enabled === true,
           authorize_url: typeof data?.authorize_url === 'string' ? data.authorize_url : undefined,
+          // Default true when absent — older moss builds didn't send this field
+          // and we should preserve the CSRF check in that case.
+          require_state: data?.require_state !== false,
         },
       };
     } catch (error) {

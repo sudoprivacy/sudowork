@@ -61,7 +61,9 @@ const LoginPage: React.FC = () => {
   const [apiKey, setApiKey] = useState('');
 
   // OAuth2 login state
-  const [oauth2Config, setOauth2Config] = useState<{ enabled: boolean; authorize_url?: string } | null>(null);
+  // `require_state` defaults to true on the moss side; older moss builds omit
+  // the field, so the absence is treated as "verify state" for backwards safety.
+  const [oauth2Config, setOauth2Config] = useState<{ enabled: boolean; authorize_url?: string; require_state?: boolean } | null>(null);
   const [oauth2Loading, setOauth2Loading] = useState(false);
   const [oauth2Waiting, setOauth2Waiting] = useState(false);
   const oauth2StateRef = React.useRef<string | null>(null);
@@ -101,7 +103,13 @@ const LoginPage: React.FC = () => {
     return ipcBridge.deepLink.received.on((payload) => {
       if (payload.action !== 'oauth2-callback') return;
       const { state, ...rest } = payload.params || {};
-      if (!oauth2StateRef.current || state !== oauth2StateRef.current) {
+      // When the moss admin has disabled state verification (`require_state: false`),
+      // skip the local equality check. Trusted-internal deployments use this to
+      // accept logins even when the IdP rewrites or drops `state` on round-trip.
+      // We still generate + carry state on the outbound authorize URL for IdP
+      // compatibility — only the CSRF check on return is bypassed.
+      const verifyState = oauth2Config?.require_state !== false;
+      if (verifyState && (!oauth2StateRef.current || state !== oauth2StateRef.current)) {
         setOauth2Waiting(false);
         Message.error('授权回调验证失败,请重试');
         return;
@@ -128,7 +136,7 @@ const LoginPage: React.FC = () => {
         }
       })();
     });
-  }, [isEnterprise, enterpriseLoginWithOAuth2, navigate]);
+  }, [isEnterprise, enterpriseLoginWithOAuth2, navigate, oauth2Config]);
 
   const handleOAuth2Login = async () => {
     if (!oauth2Config?.enabled || !oauth2Config.authorize_url) return;
