@@ -6,7 +6,7 @@
 
 import { ipcBridge } from '@/common';
 import type { IDirOrFile } from '@/common/ipcBridge';
-import { DRAFTS_DIR_NAME } from '@/common/constants';
+import { DRAFTS_DIR_NAME, isReservedDraftsDirName } from '@/common/constants';
 import { STORAGE_KEYS } from '@/common/storageKeys';
 import { showShareLoading, updateShareSuccess, updateShareError } from '@/renderer/utils/shareNotify';
 import FlexFullContainer from '@/renderer/components/FlexFullContainer';
@@ -330,8 +330,8 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
       Message.error(t('conversation.workspace.newFolder.invalidName'));
       return;
     }
-    // Prevent creating folder named .drafts (reserved)
-    if (folderName === DRAFTS_DIR_NAME) {
+    // Prevent creating folders that conflict with the reserved drafts directory.
+    if (isReservedDraftsDirName(folderName)) {
       Message.error(t('conversation.workspace.newFolder.reservedName'));
       return;
     }
@@ -705,7 +705,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
   const isContextMenuNodeRoot = !!contextMenuNode && (!contextMenuNode.relativePath || contextMenuNode.relativePath === '');
   // Drafts directory (.drafts/) should not be renameable or deleteable
   // 草稿箱目录不支持重命名和删除
-  const isContextMenuNodeDrafts = !!contextMenuNode && contextMenuNode.name === '.drafts' && !contextMenuNode.isFile;
+  const isContextMenuNodeDrafts = !!contextMenuNode && contextMenuNode.name === DRAFTS_DIR_NAME && !contextMenuNode.isFile;
 
   // ShareOne CLI installation state
   const [shareoneInstalled, setShareoneInstalled] = useState(false);
@@ -1266,7 +1266,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                   const nodeData = node.dataRef as IDirOrFile;
                   const directFileCount = !isFile ? (nodeData.children ?? []).filter((child) => child.isFile && !isHiddenWorkspaceEntry(child.name)).length : 0;
                   // Display .drafts with i18n name / 草稿箱目录显示本地化名称
-                  const isDraftsDir = node.title === '.drafts' && !isFile;
+                  const isDraftsDir = node.title === DRAFTS_DIR_NAME && !isFile;
                   const displayTitle = isDraftsDir ? t('conversation.workspace.drafts.title') : node.title;
 
                   return (

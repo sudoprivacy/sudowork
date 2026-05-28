@@ -27,6 +27,7 @@ const UserProfile = React.lazy(() => import('./pages/settings/UserProfile'));
 const RechargeCenter = React.lazy(() => import('./pages/settings/RechargeCenter'));
 const MemberManagement = React.lazy(() => import('./pages/settings/MemberManagement'));
 const EnterpriseSettings = React.lazy(() => import('./pages/settings/EnterpriseSettings'));
+const EnterpriseMcpSettings = React.lazy(() => import('./pages/settings/EnterpriseMcpSettings'));
 const ComponentsShowcase = React.lazy(() => import('./pages/test/ComponentsShowcase'));
 
 const withRouteFallback = (Component: React.LazyExoticComponent<React.ComponentType>) => (
@@ -36,7 +37,7 @@ const withRouteFallback = (Component: React.LazyExoticComponent<React.ComponentT
 );
 
 // Enterprise-allowed settings paths
-const ENTERPRISE_ALLOWED_PATHS = ['/settings/profile', '/settings/enterprise', '/settings/display', '/settings/webui', '/settings/system', '/settings/about'];
+const ENTERPRISE_ALLOWED_PATHS = ['/settings/profile', '/settings/enterprise', '/settings/mcp', '/settings/display', '/settings/webui', '/settings/system', '/settings/about'];
 
 // Mode-aware default settings route
 const SettingsDefaultRoute: React.FC = () => {
@@ -101,6 +102,7 @@ const PanelRoute: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
           <Route path='/settings/recharge' element={withRouteFallback(RechargeCenter)} />
           <Route path='/settings/members' element={withRouteFallback(MemberManagement)} />
           <Route path='/settings/enterprise' element={withRouteFallback(EnterpriseSettings)} />
+          <Route path='/settings/mcp' element={withRouteFallback(EnterpriseMcpSettings)} />
           <Route path='/settings/ext/:tabId' element={withRouteFallback(ExtensionSettingsPage)} />
           <Route path='/settings' element={<SettingsDefaultRoute />} />
           <Route path='/test/components' element={withRouteFallback(ComponentsShowcase)} />
