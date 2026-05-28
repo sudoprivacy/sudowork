@@ -16,6 +16,8 @@ const SUDOCODE_CONFIG_PATH = path.join(os.homedir(), '.nexus', 'sudocode', 'sudo
 type ScodeConfiguredModel = {
   id: string;
   label: string;
+  provider?: string;
+  providerLabel?: string;
 };
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -27,6 +29,21 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 
 function hasRunnableProvider(providers: Record<string, unknown> | null): boolean {
   return !!(asRecord(providers?.proxy) || asRecord(providers?.['api-key']));
+}
+
+function getScodeModelProviderInfo(providers: Record<string, unknown> | null): Pick<ScodeConfiguredModel, 'provider' | 'providerLabel'> {
+  const providerConfig = asRecord(providers?.proxy) || asRecord(providers?.['api-key']);
+  const provider = typeof providerConfig?.provider === 'string' && providerConfig.provider.trim() ? providerConfig.provider.trim() : undefined;
+
+  if (provider === 'sudorouter') {
+    return { provider, providerLabel: 'SudoRouter' };
+  }
+
+  if (provider) {
+    return { provider, providerLabel: provider };
+  }
+
+  return {};
 }
 
 function readScodeModelsFromConfig(configPath = SUDOCODE_CONFIG_PATH): ScodeConfiguredModel[] {
@@ -58,6 +75,7 @@ function readScodeModelsFromConfig(configPath = SUDOCODE_CONFIG_PATH): ScodeConf
       result.push({
         id: alias,
         label: name,
+        ...getScodeModelProviderInfo(providers),
       });
     }
 

@@ -8,6 +8,7 @@ import { ipcBridge } from '@/common';
 import type { IProvider, TProviderWithModel } from '@/common/storage';
 import { iconColors } from '@/renderer/theme/colors';
 import { getModelDisplayLabel } from '@/renderer/utils/agentUiDisplay';
+import { buildProviderModelGroups } from '@/renderer/utils/modelProviderGroups';
 import type { AcpModelInfo } from '../types';
 import { getAvailableModels } from '../utils/modelUtils';
 import { Button, Dropdown, Menu, Tooltip } from '@arco-design/web-react';
@@ -81,6 +82,8 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({ isGeminiMode, mod
       fallbackLabel: defaultModelLabel,
     });
   }, [acpSelectedLabel, currentAcpCachedModelInfo?.currentModelId, defaultModelLabel, selectedAcpModel]);
+
+  const acpProviderModelGroups = React.useMemo(() => buildProviderModelGroups(currentAcpCachedModelInfo?.availableModels || [], modelConfig), [currentAcpCachedModelInfo?.availableModels, modelConfig]);
 
   if (isGeminiMode) {
     return (
@@ -212,22 +215,26 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({ isGeminiMode, mod
           trigger='click'
           droplist={
             <Menu selectedKeys={selectedAcpModel ? [selectedAcpModel] : []}>
-              {currentAcpCachedModelInfo.availableModels.map((model) => {
-                // 获取模型健康状态
-                const backend = currentAcpCachedModelInfo.source;
-                const providerConfig = modelConfig?.find((p) => p.platform?.includes(backend || ''));
-                const healthStatus = providerConfig?.modelHealth?.[model.id]?.status || 'unknown';
-                const healthColor = healthStatus === 'healthy' ? 'bg-green-500' : healthStatus === 'unhealthy' ? 'bg-red-500' : 'bg-gray-400';
+              {acpProviderModelGroups.map((group) => (
+                <Menu.ItemGroup title={group.name || t('common.other', { defaultValue: 'Other' })} key={group.key}>
+                  {group.models.map((model) => {
+                    // 获取模型健康状态
+                    const backend = currentAcpCachedModelInfo.source;
+                    const providerConfig = group.provider || modelConfig?.find((p) => p.platform?.includes(backend || ''));
+                    const healthStatus = providerConfig?.modelHealth?.[model.id]?.status || 'unknown';
+                    const healthColor = healthStatus === 'healthy' ? 'bg-green-500' : healthStatus === 'unhealthy' ? 'bg-red-500' : 'bg-gray-400';
 
-                return (
-                  <Menu.Item key={model.id} className={model.id === selectedAcpModel ? '!bg-2' : ''} onClick={() => setSelectedAcpModel(model.id)}>
-                    <div className='flex items-center gap-8px w-full'>
-                      {healthStatus !== 'unknown' && <div className={`w-6px h-6px rounded-full shrink-0 ${healthColor}`} />}
-                      <span>{model.label}</span>
-                    </div>
-                  </Menu.Item>
-                );
-              })}
+                    return (
+                      <Menu.Item key={model.id} className={model.id === selectedAcpModel ? '!bg-2' : ''} onClick={() => setSelectedAcpModel(model.id)}>
+                        <div className='flex items-center gap-8px w-full'>
+                          {healthStatus !== 'unknown' && <div className={`w-6px h-6px rounded-full shrink-0 ${healthColor}`} />}
+                          <span>{model.label}</span>
+                        </div>
+                      </Menu.Item>
+                    );
+                  })}
+                </Menu.ItemGroup>
+              ))}
             </Menu>
           }
         >

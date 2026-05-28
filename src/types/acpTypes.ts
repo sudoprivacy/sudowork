@@ -838,7 +838,7 @@ export interface AcpModelInfo {
   /** Display label for the current model */
   currentModelLabel: string | null;
   /** Available models for switching */
-  availableModels: Array<{ id: string; label: string }>;
+  availableModels: Array<{ id: string; label: string; provider?: string; providerLabel?: string }>;
   /** Whether the user can switch models */
   canSwitch: boolean;
   /** Source of the model info: 'configOption' (stable) or 'models' (unstable) */
