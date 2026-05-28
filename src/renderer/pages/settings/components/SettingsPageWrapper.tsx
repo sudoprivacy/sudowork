@@ -4,14 +4,14 @@ import { useLayoutContext } from '@/renderer/context/LayoutContext';
 import { SettingsViewModeProvider } from '@/renderer/components/SettingsModal/settingsViewContext';
 import { isElectronDesktop, resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import { extensions as extensionsIpc, type IExtensionSettingsTab } from '@/common/ipcBridge';
-import { Communication, Computer, Dollar, Earth, HardDiskOne, Info, Lightning, LinkCloud, Peoples, Puzzle, Robot, Shield, System, Toolkit, User, BuildingTwo } from '@icon-park/react';
+import { Communication, Computer, Connection, Dollar, Earth, HardDiskOne, Info, Lightning, LinkCloud, Peoples, Puzzle, Robot, Shield, System, Toolkit, User, BuildingTwo } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useExtI18n } from '@/renderer/hooks/useExtI18n';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
 
 /** Enterprise mode builtin tab IDs (restricted subset) - synced with SettingsSider */
-const ENTERPRISE_BUILTIN_TAB_IDS = ['profile', 'enterprise', 'display', 'webui', 'system', 'about'] as const;
+const ENTERPRISE_BUILTIN_TAB_IDS = ['profile', 'enterprise', 'mcp', 'display', 'webui', 'system', 'about'] as const;
 interface SettingsPageWrapperProps {
   children: React.ReactNode;
   className?: string;
@@ -45,6 +45,7 @@ const SettingsPageWrapper: React.FC<SettingsPageWrapperProps> = ({ children, cla
     const builtinMap: Record<string, NavItem> = {
       profile: { id: 'profile', label: t('settings.profile', { defaultValue: '用户中心' }), icon: <User theme='outline' size='16' />, path: 'profile' },
       enterprise: { id: 'enterprise', label: t('settings.enterprise', { defaultValue: '企业设置' }), icon: <BuildingTwo theme='outline' size='16' />, path: 'enterprise' },
+      mcp: { id: 'mcp', label: t('settings.mcpService', { defaultValue: 'MCP 服务' }), icon: <Connection theme='outline' size='16' />, path: 'mcp' },
       recharge: { id: 'recharge', label: t('settings.rechargeCenter') || '充值中心', icon: <Dollar theme='outline' size='16' />, path: 'recharge' },
       members: { id: 'members', label: t('settings.memberManagement', { defaultValue: '成员管理' }), icon: <Peoples theme='outline' size='16' />, path: 'members', hidden: true },
       model: { id: 'model', label: t('settings.model'), icon: <LinkCloud theme='outline' size='16' />, path: 'model' },
