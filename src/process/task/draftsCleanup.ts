@@ -13,17 +13,18 @@
  * directly to the workspace root instead of .drafts/.
  */
 
-import { DRAFTS_DIR_NAME, FILE_INTENT_MARKERS, COMMENT_SYNTAX_MAP, DRAFT_FILE_PATTERNS, FINAL_FILE_PATTERNS, DRAFT_EXTENSIONS, FINAL_EXTENSIONS } from '@/common/constants';
+import { DRAFTS_DIR_ALIASES, DRAFTS_DIR_NAME, FILE_INTENT_MARKERS, COMMENT_SYNTAX_MAP, DRAFT_FILE_PATTERNS, FINAL_FILE_PATTERNS, DRAFT_EXTENSIONS, FINAL_EXTENSIONS } from '@/common/constants';
 import { mainLog, mainError } from '@process/utils/mainLogger';
 import fs from 'fs/promises';
 import fsSync from 'fs';
+import type { Dirent } from 'fs';
 import path from 'path';
 
 /**
  * Files/directories that should never be moved
  * 永远不应被移动的文件/目录
  */
-const EXCLUDED_NAMES = new Set([DRAFTS_DIR_NAME, '.git', '.gitignore', '.env', '.env.local', 'README.md', 'readme.md', 'LICENSE', 'package.json', 'package-lock.json', 'node_modules', '.DS_Store', 'Thumbs.db']);
+const EXCLUDED_NAMES = new Set([DRAFTS_DIR_NAME, ...DRAFTS_DIR_ALIASES, '.git', '.gitignore', '.env', '.env.local', 'README.md', 'readme.md', 'LICENSE', 'package.json', 'package-lock.json', 'node_modules', '.DS_Store', 'Thumbs.db']);
 
 /**
  * 检测文件意图标记结果
@@ -89,6 +90,64 @@ function matchesFinalPattern(fileName: string): boolean {
   }
 
   return false;
+}
+
+function appendTimestamp(filePath: string, attempt: number = 0): string {
+  const dir = path.dirname(filePath);
+  const ext = path.extname(filePath);
+  const base = path.basename(filePath, ext);
+  const suffix = attempt > 0 ? `_${attempt}` : '';
+  return path.join(dir, `${base}_${Date.now()}${suffix}${ext}`);
+}
+
+async function moveWithTimestampCollision(srcPath: string, destPath: string): Promise<string> {
+  let finalDestPath = destPath;
+  let attempt = 0;
+  while (fsSync.existsSync(finalDestPath)) {
+    finalDestPath = appendTimestamp(destPath, attempt);
+    attempt++;
+  }
+  await fs.rename(srcPath, finalDestPath);
+  return finalDestPath;
+}
+
+async function normalizeDraftsAliasDirectories(workspace: string, draftsDir: string, entries: Dirent[]): Promise<number> {
+  const aliasEntries = entries.filter((entry) => entry.isDirectory() && DRAFTS_DIR_ALIASES.some((alias) => alias.toLowerCase() === entry.name.toLowerCase()));
+  if (aliasEntries.length === 0) {
+    return 0;
+  }
+
+  await fs.mkdir(draftsDir, { recursive: true });
+
+  let movedCount = 0;
+  for (const aliasEntry of aliasEntries) {
+    const aliasDir = path.join(workspace, aliasEntry.name);
+    const children = await fs.readdir(aliasDir, { withFileTypes: true });
+
+    for (const child of children) {
+      const srcPath = path.join(aliasDir, child.name);
+      const destPath = path.join(draftsDir, child.name);
+      try {
+        const finalDestPath = await moveWithTimestampCollision(srcPath, destPath);
+        movedCount++;
+        mainLog('draftsCleanup', `Moved misplaced drafts alias entry ${aliasEntry.name}/${child.name} to ${path.relative(workspace, finalDestPath)}`);
+      } catch (err) {
+        mainError('draftsCleanup', `Failed to move misplaced drafts alias entry ${aliasEntry.name}/${child.name}:`, err);
+      }
+    }
+
+    try {
+      const remaining = await fs.readdir(aliasDir);
+      if (remaining.length === 0) {
+        await fs.rmdir(aliasDir);
+        mainLog('draftsCleanup', `Removed empty drafts alias directory ${aliasEntry.name}`);
+      }
+    } catch (err) {
+      mainError('draftsCleanup', `Failed to remove drafts alias directory ${aliasEntry.name}:`, err);
+    }
+  }
+
+  return movedCount;
 }
 
 /**
@@ -180,6 +239,7 @@ export async function cleanupIntermediateFiles(workspace: string): Promise<void>
     }
 
     const entries = await fs.readdir(workspace, { withFileTypes: true });
+    const movedAliasCount = await normalizeDraftsAliasDirectories(workspace, draftsDir, entries);
     const filesToMove: Array<{ name: string; reason: string }> = [];
     const filesToKeep: Array<{ name: string; reason: string }> = [];
 
@@ -255,6 +315,9 @@ export async function cleanupIntermediateFiles(workspace: string): Promise<void>
 
     // 如果没有需要移动的文件，直接返回
     if (filesToMove.length === 0) {
+      if (movedAliasCount > 0) {
+        mainLog('draftsCleanup', `Cleanup completed: normalized ${movedAliasCount} misplaced drafts alias entr${movedAliasCount === 1 ? 'y' : 'ies'}`);
+      }
       return;
     }
 
@@ -271,9 +334,7 @@ export async function cleanupIntermediateFiles(workspace: string): Promise<void>
 
       // Handle name collision: append timestamp
       if (fsSync.existsSync(destPath)) {
-        const ext = path.extname(name);
-        const base = path.basename(name, ext);
-        destPath = path.join(draftsDir, `${base}_${Date.now()}${ext}`);
+        destPath = appendTimestamp(destPath);
       }
 
       try {

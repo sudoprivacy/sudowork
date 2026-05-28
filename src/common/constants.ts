@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-
 /**
  * AionUI应用程序共用常量
  */
@@ -54,6 +53,15 @@ export const DEFAULT_IMAGE_EXTENSION = '.png';
 
 /** 草稿箱物理目录名（固定，不随语言变化）/ Drafts directory name (fixed, language-independent) */
 export const DRAFTS_DIR_NAME = '.drafts';
+
+/** 草稿箱常见误写别名（不应作为普通目录创建）/ Common mistaken aliases for the drafts directory */
+export const DRAFTS_DIR_ALIASES = ['drafts', 'Drafts', '草稿箱'] as const;
+
+/** 判断目录名是否指向草稿箱保留目录 / Check whether a directory name is reserved for drafts */
+export function isReservedDraftsDirName(name: string): boolean {
+  const normalized = name.toLowerCase();
+  return normalized === DRAFTS_DIR_NAME || DRAFTS_DIR_ALIASES.some((alias) => alias.toLowerCase() === normalized);
+}
 
 /**
  * 文件意图标记系统

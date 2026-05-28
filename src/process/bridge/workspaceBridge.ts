@@ -9,7 +9,7 @@
  * 工作空间管理桥接 - 处理工作空间重命名和草稿箱操作
  */
 
-import { DRAFTS_DIR_NAME } from '@/common/constants';
+import { DRAFTS_DIR_NAME, isReservedDraftsDirName } from '@/common/constants';
 import { ipcBridge } from '@/common';
 import { isValidDirectoryName } from '@/common/utils/pathValidation';
 import { getDatabase } from '@process/database';
@@ -31,7 +31,7 @@ export function initWorkspaceBridge(): void {
   ipcBridge.workspaceManage.renameDirectory.provider(async ({ oldPath, newName }) => {
     try {
       // 1. Validate new name
-      if (!isValidDirectoryName(newName)) {
+      if (!isValidDirectoryName(newName) || isReservedDraftsDirName(newName)) {
         return { success: false, error: 'Invalid directory name' };
       }
 
