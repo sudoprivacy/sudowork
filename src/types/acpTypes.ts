@@ -558,6 +558,8 @@ export enum AcpErrorType {
   NETWORK_ERROR = 'NETWORK_ERROR',
   TIMEOUT = 'TIMEOUT',
   PERMISSION_DENIED = 'PERMISSION_DENIED',
+  CONTEXT_WINDOW_EXCEEDED = 'CONTEXT_WINDOW_EXCEEDED',
+  REQUEST_TOO_LARGE = 'REQUEST_TOO_LARGE',
   UNKNOWN = 'UNKNOWN',
 }
 
@@ -812,6 +814,10 @@ export interface AcpPromptResponseUsage {
   cachedWriteTokens?: number | null;
   /** Reasoning/thinking tokens */
   thoughtTokens?: number | null;
+  /** Current model context window size, supplied by Sudocode metadata when available */
+  contextWindowTokens?: number | null;
+  /** Estimated tokens currently held in the model runtime context */
+  estimatedSessionTokens?: number | null;
 }
 
 // ===== ACP Models types (unstable API) =====

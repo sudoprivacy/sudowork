@@ -27,6 +27,24 @@ export function saveAcpSessionId(conversationId: string, sessionId: string): voi
   }
 }
 
+/** Clear ACP session ID so the next send starts a fresh backend runtime session. */
+export function clearAcpSessionId(conversationId: string): void {
+  try {
+    const db = getDatabase();
+    const result = db.getConversation(conversationId);
+    if (result.success && result.data && result.data.type === 'acp') {
+      const conversation = result.data;
+      const updatedExtra = { ...conversation.extra };
+      delete updatedExtra.acpSessionId;
+      delete updatedExtra.acpSessionUpdatedAt;
+      db.updateConversation(conversationId, { extra: updatedExtra } as Partial<typeof conversation>);
+      mainLog('[AcpAgent]', `Cleared ACP session ID for conversation: ${conversationId}`);
+    }
+  } catch (error) {
+    mainError('[AcpAgent]', 'Failed to clear ACP session ID', error);
+  }
+}
+
 /** Save session mode to database for resume support. */
 export function saveSessionMode(conversationId: string, mode: string): void {
   try {
