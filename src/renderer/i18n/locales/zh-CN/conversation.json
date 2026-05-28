@@ -30,6 +30,7 @@
     "actionNewConversation": "新会话",
     "deleteTitle": "删除",
     "deleteConfirm": "确定删除该对话吗？",
+    "deleteWorkspaceOption": "同时删除工作区文件夹",
     "confirmDelete": "删除",
     "cancelDelete": "取消",
     "editName": "编辑名称",

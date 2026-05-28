@@ -30,6 +30,7 @@
     "actionNewConversation": "新しい会話",
     "deleteTitle": "削除",
     "deleteConfirm": "このチャットを削除してもよろしいですか？",
+    "deleteWorkspaceOption": "ワークスペースフォルダも削除する",
     "confirmDelete": "削除",
     "cancelDelete": "キャンセル",
     "editName": "名前を編集",

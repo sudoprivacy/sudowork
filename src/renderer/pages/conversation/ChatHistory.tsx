@@ -14,7 +14,7 @@ import { blockMobileInputFocus, blurActiveElement } from '@/renderer/utils/focus
 import { cleanupSiderTooltips, getSiderTooltipProps } from '@/renderer/utils/siderTooltip';
 import { getActivityTime, createTimelineGrouper } from '@/renderer/utils/timeline';
 import { formatSessionTime } from '@/renderer/utils/messageTime';
-import { Popconfirm, Input, Tooltip } from '@arco-design/web-react';
+import { Checkbox, Input, Message, Modal, Tooltip } from '@arco-design/web-react';
 import EmptyState from '@/renderer/components/base/EmptyState';
 import { DeleteOne, MessageOne, EditOne } from '@icon-park/react';
 import classNames from 'classnames';
@@ -139,21 +139,49 @@ const ChatHistory: React.FC<{ onSessionClick?: () => void; collapsed?: boolean }
     return addEventListener('chat.history.refresh', refresh);
   }, [isConversation]);
 
-  const handleRemoveConversation = (id: string) => {
+  const handleRemoveConversation = (id: string, deleteWorkspace?: boolean) => {
     void ipcBridge.conversation.remove
-      .invoke({ id })
+      .invoke({ id, deleteWorkspace })
       .then((success) => {
         if (success) {
           // Trigger refresh to reload from database
           emitter.emit('chat.history.refresh');
+          Message.success(t('conversation.history.deleteSuccess'));
           void Promise.resolve(navigate('/')).catch((error) => {
             console.error('Navigation failed:', error);
           });
+        } else {
+          Message.error(t('conversation.history.deleteFailed'));
         }
       })
       .catch((error) => {
         console.error('Failed to remove conversation:', error);
+        Message.error(t('conversation.history.deleteFailed'));
       });
+  };
+
+  const handleDeleteClick = (conversation: TChatConversation) => {
+    const hasWorkspace = !!(conversation.extra as { workspace?: string } | undefined)?.workspace;
+    const deleteWorkspaceRef = { current: false };
+
+    Modal.confirm({
+      title: t('conversation.history.deleteTitle'),
+      content: React.createElement('div', null,
+        React.createElement('div', null, t('conversation.history.deleteConfirm')),
+        hasWorkspace && React.createElement(Checkbox, {
+          onChange: (checked: boolean) => { deleteWorkspaceRef.current = checked; },
+          style: { marginTop: 12 },
+        }, t('conversation.history.deleteWorkspaceOption'))
+      ),
+      okText: t('conversation.history.confirmDelete'),
+      cancelText: t('conversation.history.cancelDelete'),
+      okButtonProps: { status: 'warning' },
+      onOk: () => {
+        handleRemoveConversation(conversation.id, deleteWorkspaceRef.current);
+      },
+      style: { borderRadius: '12px' },
+      alignCenter: true,
+    });
   };
 
   const handleEditStart = (conversation: TChatConversation) => {
@@ -376,23 +404,11 @@ const ChatHistory: React.FC<{ onSessionClick?: () => void; collapsed?: boolean }
                   </span>
                 )}
                 {!isEditing && (
-                  <Popconfirm
-                    title={t('conversation.history.deleteTitle')}
-                    content={t('conversation.history.deleteConfirm')}
-                    okText={t('conversation.history.confirmDelete')}
-                    cancelText={t('conversation.history.cancelDelete')}
-                    onOk={(event) => {
-                      event.stopPropagation();
-                      handleRemoveConversation(conversation.id);
-                    }}
-                    onCancel={(event) => {
-                      event.stopPropagation();
-                    }}
-                  >
                     <span
                       className='flex-center'
                       onClick={(event) => {
                         event.stopPropagation();
+                        handleDeleteClick(conversation);
                       }}
                       role='button'
                       aria-label={t('common.ariaLabel.delete')}
@@ -400,14 +416,12 @@ const ChatHistory: React.FC<{ onSessionClick?: () => void; collapsed?: boolean }
                       onKeyDown={(event) => {
                         if (event.key === 'Enter' || event.key === ' ') {
                           event.preventDefault();
-                          // Trigger popconfirm by clicking the span
-                          event.currentTarget.click();
+                          handleDeleteClick(conversation);
                         }
                       }}
                     >
                       <DeleteOne theme='outline' size='20' className='flex' />
                     </span>
-                  </Popconfirm>
                 )}
               </div>
             )}
@@ -415,7 +429,7 @@ const ChatHistory: React.FC<{ onSessionClick?: () => void; collapsed?: boolean }
         </Tooltip>
       );
     },
-    [id, editingId, editingName, collapsed, siderTooltipProps, i18n.language, t, getJobStatus, handleSelect, handleEditKeyDown, handleEditSave, handleEditStart, handleRemoveConversation]
+    [id, editingId, editingName, collapsed, siderTooltipProps, i18n.language, t, getJobStatus, handleSelect, handleEditKeyDown, handleEditSave, handleEditStart, handleDeleteClick]
   );
 
   // Virtuoso item renderer

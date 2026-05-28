@@ -683,13 +683,14 @@ export function initConversationBridge(): void {
     }
   });
 
-  ipcBridge.conversation.remove.provider(async ({ id }) => {
+  ipcBridge.conversation.remove.provider(async ({ id, deleteWorkspace }) => {
     try {
       // Get conversation to check source before deletion
       const db = getDatabase();
       const convResult = db.getConversation(id);
       const conversation = convResult.data;
       const source = conversation?.source;
+      const workspacePath = (conversation?.extra as { workspace?: string } | undefined)?.workspace;
       const isCronExecutionConversation = !!(conversation?.extra as { cronJobId?: string } | undefined)?.cronJobId;
 
       // Kill the running task if exists
@@ -719,6 +720,17 @@ export function initConversationBridge(): void {
           }
         } catch (cleanupError) {
           mainWarn('conversationBridge', 'Failed to cleanup channel resources:', cleanupError);
+        }
+      }
+
+      // Delete workspace folder if requested
+      // 如果用户选择了同时删除工作区文件夹，则删除
+      if (deleteWorkspace && workspacePath) {
+        try {
+          await fs.rm(workspacePath, { recursive: true, force: true });
+          mainLog('conversationBridge', `Deleted workspace folder: ${workspacePath}`);
+        } catch (workspaceError) {
+          mainWarn('conversationBridge', `Failed to delete workspace folder ${workspacePath}:`, workspaceError);
         }
       }
 

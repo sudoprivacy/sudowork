@@ -30,6 +30,7 @@
     "actionNewConversation": "새 대화",
     "deleteTitle": "삭제",
     "deleteConfirm": "이 채팅을 삭제하시겠습니까?",
+    "deleteWorkspaceOption": "작업 공간 폴더도 함께 삭제",
     "confirmDelete": "삭제",
     "cancelDelete": "취소",
     "editName": "이름 편집",

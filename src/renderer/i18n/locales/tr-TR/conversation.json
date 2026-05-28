@@ -29,6 +29,7 @@
     "noHistory": "Sohbet geçmişi yok",
     "deleteTitle": "Sil",
     "deleteConfirm": "Bu sohbeti silmek istediğinizden emin misiniz?",
+    "deleteWorkspaceOption": "Çalışma alanı klasörünü de sil",
     "confirmDelete": "Sil",
     "cancelDelete": "İptal",
     "editName": "İsmi Düzenle",
