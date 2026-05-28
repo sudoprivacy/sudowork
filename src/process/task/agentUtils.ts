@@ -137,6 +137,13 @@ export function buildDraftsInstruction(workspace: string): string {
 Your workspace is: ${workspace}
 A drafts directory exists at: ${draftsPath}
 
+**Drafts path mapping**:
+- "草稿箱" and "Drafts" are UI display names only.
+- The real filesystem directory is always ${draftsPath}
+- When the user says "copy/move to 草稿箱" or "copy/move to Drafts", use ${DRAFTS_DIR_NAME}/
+- Never create or use "drafts/", "Drafts/", or "草稿箱/" directories.
+- Correct command example: \`cp file.ext ${DRAFTS_DIR_NAME}/\`
+
 **CORE RULE: When creating files using write() tool, ALWAYS add intent markers**
 
 **Intent Markers** (add as FIRST LINE in file content):

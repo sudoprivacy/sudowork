@@ -160,4 +160,37 @@ describe('cleanupIntermediateFiles with markers', () => {
     expect(fsSync.existsSync(path.join(testWorkspace, '.drafts', 'package.json'))).toBe(true);
     expect(fsSync.existsSync(path.join(testWorkspace, 'node_modules'))).toBe(false);
   });
+
+  test('normalizes files copied to drafts alias directory into .drafts/', async () => {
+    await fs.mkdir(path.join(testWorkspace, 'drafts'));
+    await fs.writeFile(path.join(testWorkspace, 'drafts', 'helper.js'), '// helper');
+
+    await cleanupIntermediateFiles(testWorkspace);
+
+    expect(fsSync.existsSync(path.join(testWorkspace, '.drafts', 'helper.js'))).toBe(true);
+    expect(fsSync.existsSync(path.join(testWorkspace, 'drafts'))).toBe(false);
+  });
+
+  test('normalizes files copied to Chinese drafts alias directory into .drafts/', async () => {
+    await fs.mkdir(path.join(testWorkspace, '草稿箱'));
+    await fs.writeFile(path.join(testWorkspace, '草稿箱', 'notes.md'), 'draft notes');
+
+    await cleanupIntermediateFiles(testWorkspace);
+
+    expect(fsSync.existsSync(path.join(testWorkspace, '.drafts', 'notes.md'))).toBe(true);
+    expect(fsSync.existsSync(path.join(testWorkspace, '草稿箱'))).toBe(false);
+  });
+
+  test('preserves existing .drafts file when normalizing alias directory collisions', async () => {
+    await fs.writeFile(path.join(testWorkspace, '.drafts', 'helper.js'), 'existing');
+    await fs.mkdir(path.join(testWorkspace, 'drafts'));
+    await fs.writeFile(path.join(testWorkspace, 'drafts', 'helper.js'), 'new');
+
+    await cleanupIntermediateFiles(testWorkspace);
+
+    expect(await fs.readFile(path.join(testWorkspace, '.drafts', 'helper.js'), 'utf-8')).toBe('existing');
+    const draftsFiles = await fs.readdir(path.join(testWorkspace, '.drafts'));
+    expect(draftsFiles.some((name) => /^helper_\d+\.js$/.test(name))).toBe(true);
+    expect(fsSync.existsSync(path.join(testWorkspace, 'drafts'))).toBe(false);
+  });
 });
