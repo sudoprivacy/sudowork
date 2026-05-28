@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildScodeConfigFromLoginPayload, mergeCustomProviderIntoScodeConfig, removeCustomProviderFromScodeConfig } from '@/common/scodeConfig';
+import { buildScodeConfigFromLoginPayload, extractCustomProvidersFromScodeConfig, mergeCustomProviderIntoScodeConfig, mergeCustomProvidersIntoScodeConfig, removeCustomProviderFromScodeConfig } from '@/common/scodeConfig';
 
 describe('scodeConfig', () => {
   it('preserves custom api-key providers and models when login refreshes sudorouter models', () => {
@@ -102,5 +102,38 @@ describe('scodeConfig', () => {
     expect(next.models?.['gemini-3-flash-preview']).toBeTruthy();
     expect(next.models?.['gpt-4o']).toBeUndefined();
     expect(next.default_model).toBe('gemini-3-flash-preview');
+  });
+
+  it('extracts and reapplies custom providers for database-backed scode settings', () => {
+    const withCustom = mergeCustomProviderIntoScodeConfig(
+      buildScodeConfigFromLoginPayload({
+        sudorouterKey: 'router-key',
+        modelServiceUrl: 'https://hk.sudorouter.ai/v1',
+        models: ['gemini-3-flash-preview'],
+      }),
+      {
+        providerId: 'custom-openai',
+        baseUrl: 'https://api.example.com/v1',
+        apiKey: 'custom-key',
+        models: [{ id: 'gpt-4o', input: ['text', 'image'], supportsTools: true, supportsReasoning: false, inputContext: 128, outputContext: 16 }],
+      }
+    );
+
+    const customProviders = extractCustomProvidersFromScodeConfig(withCustom);
+    const restored = mergeCustomProvidersIntoScodeConfig({}, customProviders);
+
+    expect(customProviders).toEqual([
+      {
+        providerId: 'custom-openai',
+        baseUrl: 'https://api.example.com/v1',
+        apiKey: 'custom-key',
+        models: [{ id: 'gpt-4o', name: 'gpt-4o', input: ['text', 'image'], supportsTools: true, supportsReasoning: false, inputContext: 128, outputContext: 16 }],
+      },
+    ]);
+    expect(restored.auth_modes?.['api-key']?.['custom-openai']).toEqual({
+      baseUrl: 'https://api.example.com/v1',
+      apiKey: 'custom-key',
+    });
+    expect(restored.models?.['gpt-4o']?.providers?.['api-key']?.provider).toBe('custom-openai');
   });
 });

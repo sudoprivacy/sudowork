@@ -14,8 +14,10 @@
 import { ipcBridge } from '@/common';
 import { modelInputForModelId } from '@/common/imageUtils';
 import type { ScodeModelEntry } from '@/common/ipcBridge';
+import { extractCustomProvidersFromScodeConfig, mergeCustomProvidersIntoScodeConfig, type ScodeCustomModelProvider } from '@/common/scodeConfig';
 import { SCODE_DIR, isScodeInstalled, getScodeVersionState, ensureScodeInstalled } from '@process/services/scode/ScodeInstallService';
 import { readSettings, removeDisabledMcpServersFromSettings, writeSettings } from '@process/services/mcpServices/agents/ScodeMcpAgent';
+import { getDatabase } from '@process/database';
 import fs from 'fs';
 import path from 'path';
 import { mainLog, mainWarn } from '@process/utils/mainLogger';
@@ -43,6 +45,16 @@ function writeConfig(config: Record<string, unknown>): void {
       /* ignore */
     }
   }
+}
+
+function getCustomProvidersForUser(userId: string): ScodeCustomModelProvider[] {
+  return getDatabase().getScodeCustomModelProviders(userId);
+}
+
+function restoreCustomProvidersForUser(userId: string, config: Record<string, unknown>): Record<string, unknown> {
+  const customProviders = getCustomProvidersForUser(userId);
+  if (customProviders.length === 0) return config;
+  return mergeCustomProvidersIntoScodeConfig(config, customProviders) as unknown as Record<string, unknown>;
 }
 
 /**
@@ -254,6 +266,30 @@ export function registerScodeBridge(): void {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       mainWarn(TAG, `Failed to save sudocode.json: ${msg}`);
+      return { success: false, msg };
+    }
+  });
+
+  ipcBridge.scode.saveCustomModelProviders.provider(async ({ userId, providers }) => {
+    try {
+      getDatabase().replaceScodeCustomModelProviders(userId, providers);
+      return { success: true };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      mainWarn(TAG, `Failed to save custom scode models for user ${userId}: ${msg}`);
+      return { success: false, msg };
+    }
+  });
+
+  ipcBridge.scode.restoreCustomModelProviders.provider(async ({ userId, baseConfig }) => {
+    try {
+      const currentConfig = (baseConfig || readExistingConfig()) as unknown as Record<string, unknown>;
+      const nextConfig = restoreCustomProvidersForUser(userId, currentConfig);
+      writeConfig(nextConfig);
+      return { success: true, data: nextConfig };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      mainWarn(TAG, `Failed to restore custom scode models for user ${userId}: ${msg}`);
       return { success: false, msg };
     }
   });
