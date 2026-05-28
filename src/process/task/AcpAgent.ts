@@ -39,6 +39,7 @@ import { handlePreviewOpenEvent } from '../utils/previewUtils';
 import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
 import { mainLog, mainWarn, mainError } from '../utils/mainLogger';
 import { translateLLMError } from '@process/utils/llmErrorTranslation';
+import { classifyLlmError } from '@process/utils/llmErrorClassification';
 import { injectSkillsDirectoryHint, prepareFirstMessageWithSkillsIndex } from './agentUtils';
 import { AcpSkillManager } from './AcpSkillManager';
 import { cleanupIntermediateFiles, cleanupDraftsOnCancel, detectFileIntent, matchesDraftPattern } from './draftsCleanup';
@@ -62,12 +63,15 @@ const DEFAULT_PROMPT_TIMEOUT_SECONDS = 300;
 /** Prompt timeout range (seconds) */
 const PROMPT_TIMEOUT_MIN_SECONDS = 30;
 const PROMPT_TIMEOUT_MAX_SECONDS = 3600;
+const TEXT_ATTACHMENT_BLOCK_BYTES = 1024 * 1024;
+const CONTEXT_OVERFLOW_REASONS = new Set(['context_window_exceeded', 'single_request_too_large', 'request_body_too_large']);
+const CONTEXT_RISK_TEXT_EXTENSIONS = new Set(['.txt', '.md', '.markdown', '.json', '.jsonl', '.csv', '.tsv', '.xml', '.yaml', '.yml', '.log']);
 import { hasCronCommands } from './CronCommandDetector';
 import { detectChannelQueryIntent, executeChannelInfoCommand, type ChannelQueryCommand } from './ChannelInfoDetector';
 import { extractTextFromMessage, processCronInMessage } from './MessageMiddleware';
 import { processAtFileReferences } from './acp/AcpAtFileProcessor';
 import { StreamTextBuffer, CronTextAccumulator, filterThinkTagsFromMessage, preprocessContentMessage } from './acp/AcpMessagePipeline';
-import { saveAcpSessionId, saveSessionMode, saveModelId, saveContextUsage } from './acp/AcpPersistence';
+import { clearAcpSessionId, saveAcpSessionId, saveSessionMode, saveModelId, saveContextUsage } from './acp/AcpPersistence';
 import { resolveImageConfig, callImagesGenerations, callImagesEdits, saveImageResult, resolveChatModel, callChatCompletionsWithImage, readSudorouterCredentials } from '../bridge/imageGenerationBridge';
 import { resolveWorkspaceSkillsDir } from '../utils/workspaceSkillsDir';
 import { readAssistantResource, ruleFilePattern } from '@process/utils/assistantResources';
@@ -89,6 +93,12 @@ function hasExplicitIdentity(rules: string): boolean {
   // English patterns: "You are XX assistant", "I am XX", "Your identity is"
   const enPatterns = [/You are\s+.{1,20}assistant/i, /I am\s+.{1,20}(assistant|helper|agent)/i, /Your identity is[:]?/i];
   return zhPatterns.some((p) => p.test(rules)) || enPatterns.some((p) => p.test(rules));
+}
+
+function formatBytesForMessage(bytes: number): string {
+  if (bytes < 1024) return `${bytes}B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)}KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
 }
 
 /**
@@ -163,6 +173,8 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
   private hasReceivedUsageUpdate = false;
   private lastUserMessage: string | null = null;
   private plannedRestartInProgress = false;
+  private contextOverflowRecoveryPending = false;
+  private streamedContextErrorBuffer = '';
 
   // Slash commands
   private acpAvailableSlashCommands: SlashCommandItem[] = [];
@@ -755,7 +767,11 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
       }
 
       const initStart = Date.now();
-      await this.initAgent(this.options);
+      if (this.contextOverflowRecoveryPending) {
+        await this.resetRuntimeSessionAfterContextOverflow();
+      } else {
+        await this.initAgent(this.options);
+      }
       if (ACP_PERF_LOG) mainLog('ACP-PERF', `manager: initAgent completed ${Date.now() - initStart}ms`);
 
       // Guard against stale agent after CLI crash
@@ -863,6 +879,15 @@ This identity statement takes priority over the default identity in USER.md.
           mainLog('AcpAgent', `sendMessage: added skill tags to content, contentToSend starts with: ${contentToSend.substring(0, 100)}`);
         } else {
           mainLog('AcpAgent', `sendMessage: no skills to process, data.skills=${JSON.stringify(data.skills)}`);
+        }
+
+        const attachmentGuard = this.validateAttachmentContextRisk(data.files);
+        if (attachmentGuard) {
+          this.emitErrorMessage(attachmentGuard);
+          return {
+            success: false,
+            msg: attachmentGuard,
+          };
         }
 
         const processed = await processAtFileReferences(contentToSend, this.workspace, data.files, this.persistedModelId);
@@ -1084,6 +1109,7 @@ This identity statement takes priority over the default identity in USER.md.
       });
 
       this.adapter.resetMessageTracking();
+      this.streamedContextErrorBuffer = '';
       let processedContent = content;
 
       // Re-assert model override
@@ -1134,7 +1160,20 @@ This identity statement takes priority over the default identity in USER.md.
 
       let errorType: AcpErrorType = AcpErrorType.UNKNOWN;
       let retryable = false;
-      if (errorMsg.includes('authentication') || errorMsg.includes('认证失败') || errorMsg.includes('[ACP-AUTH-')) {
+      const classification = classifyLlmError(error);
+      if (classification.type === 'context_window_exceeded') {
+        errorType = AcpErrorType.CONTEXT_WINDOW_EXCEEDED;
+        retryable = true;
+        if (classification.recoverableByNewSession) {
+          await this.markRuntimeContextPoisoned(classification.userMessage, 'context_window_exceeded');
+        }
+      } else if (classification.type === 'single_request_too_large' || classification.type === 'request_body_too_large') {
+        errorType = AcpErrorType.REQUEST_TOO_LARGE;
+        retryable = classification.recoverableByNewSession;
+        if (classification.recoverableByNewSession) {
+          await this.markRuntimeContextPoisoned(classification.userMessage, classification.type);
+        }
+      } else if (errorMsg.includes('authentication') || errorMsg.includes('认证失败') || errorMsg.includes('[ACP-AUTH-')) {
         errorType = AcpErrorType.AUTHENTICATION_FAILED;
       } else if (errorMsg.includes('timeout') || errorMsg.includes('Timeout') || errorMsg.includes('timed out')) {
         errorType = AcpErrorType.TIMEOUT;
@@ -1146,7 +1185,7 @@ This identity statement takes priority over the default identity in USER.md.
         retryable = true;
       }
 
-      this.emitErrorMessage(translateLLMError(errorMsg));
+      this.emitErrorMessage(classification.type === 'unknown' ? translateLLMError(errorMsg) : classification.userMessage);
 
       // Breadcrumb: API response error
       apiBreadcrumbs.responseError(`session/prompt`, errorType === AcpErrorType.TIMEOUT ? 408 : 500, errorMsg);
@@ -1155,6 +1194,107 @@ This identity statement takes priority over the default identity in USER.md.
         success: false,
         error: createAcpError(errorType, errorMsg, retryable),
       };
+    }
+  }
+
+  private async markRuntimeContextPoisoned(userMessage: string, reason: 'context_window_exceeded' | 'request_body_too_large' | 'single_request_too_large', options: { disconnectNow?: boolean } = {}): Promise<void> {
+    if (this.contextOverflowRecoveryPending) {
+      return;
+    }
+
+    this.contextOverflowRecoveryPending = true;
+    this.extra.acpSessionId = undefined;
+    this.options.acpSessionId = undefined;
+
+    try {
+      const db = getDatabase();
+      const result = db.getConversation(this.conversation_id);
+      if (result.success && result.data && result.data.type === 'acp') {
+        const conversation = result.data;
+        const updatedExtra = { ...conversation.extra };
+        delete updatedExtra.acpSessionId;
+        delete updatedExtra.acpSessionUpdatedAt;
+        updatedExtra.acpContextHealth = {
+          poisoned: true,
+          reason,
+          poisonedAt: Date.now(),
+          recoverableByNewSession: true,
+        };
+        db.updateConversation(this.conversation_id, { extra: updatedExtra } as Partial<typeof conversation>);
+      }
+    } catch (err) {
+      mainWarn('[AcpAgent]', `Failed to persist context overflow recovery state: ${err instanceof Error ? err.message : String(err)}`);
+    }
+
+    clearAcpSessionId(this.conversation_id);
+    if (options.disconnectNow !== false) {
+      try {
+        await this.connection.disconnect();
+      } catch (err) {
+        mainWarn('[AcpAgent]', `Failed to disconnect poisoned ACP session: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+    this.bootstrap = undefined;
+    this.isFirstMessage = true;
+    mainWarn('[AcpAgent]', `Marked ACP runtime context as poisoned for ${this.conversation_id}: ${reason}. ${userMessage}`);
+  }
+
+  private validateAttachmentContextRisk(files?: string[]): string | null {
+    if (!files || files.length === 0) return null;
+
+    for (const filePath of files) {
+      const ext = nodePath.extname(filePath).toLowerCase();
+      if (!CONTEXT_RISK_TEXT_EXTENSIONS.has(ext)) continue;
+
+      try {
+        const stat = fs.statSync(filePath);
+        if (!stat.isFile() || stat.size < TEXT_ATTACHMENT_BLOCK_BYTES) continue;
+
+        const fileName = nodePath.basename(filePath);
+        return `附件 "${fileName}" 大小为 ${formatBytesForMessage(stat.size)}，读取全文很可能超过当前模型上下文限制。请拆分文件、只发送相关片段，或先让模型按章节/行号读取。`;
+      } catch (err) {
+        mainWarn('[AcpAgent]', `Failed to inspect attachment size for ${filePath}: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+
+    return null;
+  }
+
+  private async resetRuntimeSessionAfterContextOverflow(): Promise<void> {
+    this.contextOverflowRecoveryPending = false;
+    this.streamedContextErrorBuffer = '';
+    this.extra.acpSessionId = undefined;
+    this.options.acpSessionId = undefined;
+    clearAcpSessionId(this.conversation_id);
+
+    if (this.connection.isConnected) {
+      try {
+        await this.connection.disconnect();
+      } catch (err) {
+        mainWarn('[AcpAgent]', `Failed to disconnect before fresh context session: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+
+    this.bootstrap = undefined;
+    this.isFirstMessage = true;
+    await this.initAgent(this.options);
+
+    try {
+      const db = getDatabase();
+      const result = db.getConversation(this.conversation_id);
+      if (result.success && result.data && result.data.type === 'acp') {
+        const conversation = result.data;
+        const updatedExtra = {
+          ...conversation.extra,
+          acpContextHealth: {
+            poisoned: false,
+            recoverableByNewSession: false,
+          },
+        };
+        db.updateConversation(this.conversation_id, { extra: updatedExtra } as Partial<typeof conversation>);
+      }
+    } catch (err) {
+      mainWarn('[AcpAgent]', `Failed to clear context overflow recovery state: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 
@@ -2022,6 +2162,8 @@ This identity statement takes priority over the default identity in USER.md.
         this.emitModelInfoEvent();
       }
 
+      this.handleStreamedContextLimitError(data);
+
       const messages = this.adapter.convertSessionUpdate(data);
       for (let i = 0; i < messages.length; i++) {
         this.emitMessage(messages[i]);
@@ -2029,6 +2171,21 @@ This identity statement takes priority over the default identity in USER.md.
     } catch (error) {
       this.emitErrorMessage(`Failed to process session update: ${error instanceof Error ? error.message : String(error)}`);
     }
+  }
+
+  private handleStreamedContextLimitError(data: AcpSessionUpdate): void {
+    if (data.update?.sessionUpdate !== 'agent_message_chunk') return;
+
+    const content = data.update.content as { text?: string } | undefined;
+    const text = content?.text;
+    if (!text) return;
+
+    this.streamedContextErrorBuffer = (this.streamedContextErrorBuffer + text).slice(-4000);
+    const classification = classifyLlmError(this.streamedContextErrorBuffer);
+    if (!CONTEXT_OVERFLOW_REASONS.has(classification.type)) return;
+
+    const reason = classification.type === 'request_body_too_large' ? 'request_body_too_large' : classification.type === 'single_request_too_large' ? 'single_request_too_large' : 'context_window_exceeded';
+    void this.markRuntimeContextPoisoned(classification.userMessage, reason, { disconnectNow: false });
   }
 
   private handlePermissionRequest(data: AcpPermissionRequest): Promise<{ optionId: string }> {
@@ -2379,13 +2536,15 @@ This identity statement takes priority over the default identity in USER.md.
     updateTurnTokens(this.conversation_id, usage);
 
     if (this.hasReceivedUsageUpdate) return;
+    const used = usage.estimatedSessionTokens ?? usage.totalTokens;
+    const size = usage.contextWindowTokens ?? 0;
     this.handleStreamEvent({
       type: 'acp_context_usage',
       conversation_id: this.conversation_id,
       msg_id: uuid(),
       data: {
-        used: usage.totalTokens,
-        size: 0,
+        used,
+        size,
       },
     });
   }

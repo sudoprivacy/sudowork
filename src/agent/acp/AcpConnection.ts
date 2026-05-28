@@ -37,6 +37,8 @@ interface PendingRequest<T = unknown> {
   timeoutDuration: number;
 }
 
+const numberOrUndefined = (value: unknown): number | undefined => (typeof value === 'number' && Number.isFinite(value) ? value : undefined);
+
 export class AcpConnection {
   private child: ChildProcess | null = null;
   private pendingRequests = new Map<number, PendingRequest<unknown>>();
@@ -640,7 +642,7 @@ export class AcpConnection {
   private sendResponseMessage(response: AcpResponse): void {
     if (this.child) {
       try {
-        mainLog(`[ACP-DIAG] sendResponseMessage id=${JSON.stringify((response as { id?: unknown }).id)} hasResult=${'result' in response} hasError=${'error' in response} preview=${JSON.stringify(response).slice(0, 400)}`);
+        mainLog('[ACP-DIAG]', `sendResponseMessage id=${JSON.stringify((response as { id?: unknown }).id)} hasResult=${'result' in response} hasError=${'error' in response} preview=${JSON.stringify(response).slice(0, 400)}`);
       } catch {
         // ignore log errors
       }
@@ -672,8 +674,16 @@ export class AcpConnection {
             // Extract PromptResponse.usage (per-turn token data from codex-acp / PR #167)
             if (promptResult.usage && typeof promptResult.usage === 'object') {
               const usage = promptResult.usage as AcpPromptResponseUsage;
+              const meta = promptResult._meta as Record<string, unknown> | undefined;
+              const sudocodeMeta = meta?.sudocode as Record<string, unknown> | undefined;
+              const contextWindowTokens = numberOrUndefined(sudocodeMeta?.contextWindowTokens);
+              const estimatedSessionTokens = numberOrUndefined(sudocodeMeta?.estimatedSessionTokens);
               if (typeof usage.totalTokens === 'number') {
-                this.onPromptUsage(usage);
+                this.onPromptUsage({
+                  ...usage,
+                  ...(contextWindowTokens !== undefined && { contextWindowTokens }),
+                  ...(estimatedSessionTokens !== undefined && { estimatedSessionTokens }),
+                });
               }
             }
             if (promptResult.stopReason === 'end_turn' || promptResult.stopReason === 'cancelled') {

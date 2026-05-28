@@ -254,6 +254,13 @@ export type TChatConversation =
           lastTokenUsage?: TokenUsageData;
           /** Context window capacity from usage_update */
           lastContextLimit?: number;
+          /** ACP runtime context health after recoverable model context errors */
+          acpContextHealth?: {
+            poisoned: boolean;
+            reason?: 'context_window_exceeded' | 'request_body_too_large' | 'single_request_too_large';
+            poisonedAt?: number;
+            recoverableByNewSession?: boolean;
+          };
           /** Persisted session mode for resume support / 持久化的会话模式，用于恢复 */
           sessionMode?: string;
           /** Persisted model ID for resume support / 持久化的模型 ID，用于恢复 */
