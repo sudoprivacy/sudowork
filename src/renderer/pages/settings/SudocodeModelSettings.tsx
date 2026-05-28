@@ -10,7 +10,7 @@ import { mergeCustomProviderIntoScodeConfig, removeCustomProviderFromScodeConfig
 import AionModal from '@/renderer/components/base/AionModal';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { Button, Checkbox, Form, Input, InputNumber, Message, Popconfirm, Select, Space, Spin, Tag, Typography } from '@arco-design/web-react';
-import { Delete, LinkCloud, PreviewOpen, Plus, Refresh, SettingTwo } from '@icon-park/react';
+import { Delete, Edit, LinkCloud, PreviewOpen, Plus, Refresh, SettingTwo } from '@icon-park/react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import SettingsPageWrapper from './components/SettingsPageWrapper';
 
@@ -21,6 +21,13 @@ type ProviderRow = {
   baseUrl: string;
   apiKey: string;
   modelIds: string[];
+};
+
+type EditableModel = ScodeCustomModelProvider['models'][number];
+
+type EditingModelTarget = {
+  provider: ProviderRow;
+  modelId: string;
 };
 
 const PROVIDER_PRESETS = [
@@ -100,20 +107,82 @@ function contextLabel(input?: number, output?: number): string {
   return `${inputText} / ${outputText}`;
 }
 
+function findModelEntry(config: ScodeConfig | null, modelId: string): ScodeModelEntry | undefined {
+  return config?.models?.[modelId] || Object.values(config?.models || {}).find((entry) => entry.alias === modelId);
+}
+
+function getConfiguredModelIds(config: ScodeConfig | null): string[] {
+  return Object.entries(config?.models || {}).map(([alias, entry]) => entry.alias || alias);
+}
+
+function presetValueForProvider(provider?: ProviderRow): string {
+  if (!provider) return 'custom';
+  return PROVIDER_PRESETS.find((item) => item.providerId === provider.id && (!item.baseUrl || item.baseUrl === provider.baseUrl))?.value || 'custom';
+}
+
+function editableModelFromEntry(config: ScodeConfig | null, modelId: string): EditableModel {
+  const entry = findModelEntry(config, modelId);
+  const providerModelId = entry?.providers?.['api-key']?.model || modelId;
+  return {
+    id: providerModelId,
+    name: entry?.name || providerModelId,
+    input: entry?.input,
+    supportsTools: entry?.supports_tools,
+    supportsReasoning: entry?.supports_reasoning,
+    inputContext: entry?.context?.input,
+    outputContext: entry?.context?.output,
+  };
+}
+
+function normalizeDefaultModel(config: ScodeConfig, previousModelId?: string, nextModelId?: string): ScodeConfig {
+  if (previousModelId && nextModelId && config.default_model === previousModelId && config.models?.[nextModelId]) {
+    return { ...config, default_model: nextModelId };
+  }
+  if (config.default_model && !config.models?.[config.default_model]) {
+    const nextConfig = { ...config };
+    delete nextConfig.default_model;
+    return nextConfig;
+  }
+  return config;
+}
+
 const AddModelDialog: React.FC<{
   visible: boolean;
   onClose: () => void;
-  onSubmit: (provider: ScodeCustomModelProvider) => Promise<void>;
+  onSubmit: (provider: ScodeCustomModelProvider, previousProviderId?: string, previousModelId?: string, nextModelId?: string) => Promise<void>;
   existingProviderIds: string[];
-}> = ({ visible, onClose, onSubmit, existingProviderIds }) => {
+  existingModelIds: string[];
+  config: ScodeConfig | null;
+  editingTarget: EditingModelTarget | null;
+}> = ({ visible, onClose, onSubmit, existingProviderIds, existingModelIds, config, editingTarget }) => {
   const [form] = Form.useForm();
   const [saving, setSaving] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
   const providerPreset = Form.useWatch('providerPreset', form);
   const selectedPreset = useMemo(() => PROVIDER_PRESETS.find((item) => item.value === providerPreset), [providerPreset]);
+  const isEditing = Boolean(editingTarget);
 
   useEffect(() => {
     if (!visible) return;
+    if (editingTarget) {
+      const entry = findModelEntry(config, editingTarget.modelId);
+      const input = entry?.input || [];
+      form.setFieldsValue({
+        providerPreset: presetValueForProvider(editingTarget.provider),
+        providerId: editingTarget.provider.id,
+        baseUrl: editingTarget.provider.baseUrl,
+        apiKey: editingTarget.provider.apiKey,
+        modelId: editingTarget.modelId,
+        supportsTools: entry?.supports_tools !== false,
+        supportsVision: input.includes('image'),
+        supportsReasoning: Boolean(entry?.supports_reasoning),
+        inputContext: entry?.context?.input,
+        outputContext: entry?.context?.output,
+      });
+      setShowApiKey(false);
+      return;
+    }
+
     form.setFieldsValue({
       providerPreset: 'custom',
       providerId: 'custom-openai',
@@ -128,23 +197,29 @@ const AddModelDialog: React.FC<{
   }, [form, visible]);
 
   useEffect(() => {
+    if (isEditing) return;
     const preset = PROVIDER_PRESETS.find((item) => item.value === providerPreset);
     if (!preset) return;
     form.setFieldsValue({
       providerId: preset.providerId,
       baseUrl: preset.baseUrl,
     });
-  }, [form, providerPreset]);
+  }, [form, isEditing, providerPreset]);
 
   const handleSubmit = async () => {
     const values = await form.validate();
     const providerId = sanitizeProviderId(values.providerId);
+    const modelId = String(values.modelId || '').trim();
     if (!providerId) {
       Message.error('Provider ID 无效');
       return;
     }
-    if (existingProviderIds.includes(providerId)) {
+    if (existingProviderIds.some((item) => item === providerId && item !== editingTarget?.provider.id)) {
       Message.error('Provider ID 已存在，请换一个名称');
+      return;
+    }
+    if (existingModelIds.some((item) => item === modelId && item !== editingTarget?.modelId)) {
+      Message.error('模型名称已存在，请换一个名称');
       return;
     }
 
@@ -152,6 +227,19 @@ const AddModelDialog: React.FC<{
     if (values.supportsVision) {
       input.push('image');
     }
+    const nextModel: EditableModel = {
+      id: modelId,
+      name: modelId,
+      input,
+      supportsTools: values.supportsTools,
+      supportsReasoning: values.supportsReasoning,
+      inputContext: values.inputContext,
+      outputContext: values.outputContext,
+    };
+
+    const models = editingTarget
+      ? editingTarget.provider.modelIds.map((item) => (item === editingTarget.modelId ? nextModel : editableModelFromEntry(config, item)))
+      : [nextModel];
 
     setSaving(true);
     try {
@@ -159,18 +247,8 @@ const AddModelDialog: React.FC<{
         providerId,
         baseUrl: values.baseUrl,
         apiKey: values.apiKey || '',
-        models: [
-          {
-            id: values.modelId,
-            name: values.modelId,
-            input,
-            supportsTools: values.supportsTools,
-            supportsReasoning: values.supportsReasoning,
-            inputContext: values.inputContext,
-            outputContext: values.outputContext,
-          },
-        ],
-      });
+        models,
+      }, editingTarget?.provider.id, editingTarget?.modelId, modelId);
       onClose();
     } finally {
       setSaving(false);
@@ -178,7 +256,7 @@ const AddModelDialog: React.FC<{
   };
 
   return (
-    <AionModal visible={visible} header={{ title: '添加模型', showClose: true }} style={{ width: 760 }} contentStyle={{ background: 'var(--bg-1)', padding: '20px 24px 16px', overflow: 'auto' }} onCancel={onClose} footer={null}>
+    <AionModal visible={visible} header={{ title: isEditing ? '编辑模型' : '添加模型', showClose: true }} style={{ width: 760 }} contentStyle={{ background: 'var(--bg-1)', padding: '20px 24px 16px', overflow: 'auto' }} onCancel={onClose} footer={null}>
       <div className='mb-16px flex items-center gap-8px'>
         <Tag bordered>仅支持 OpenAI 兼容协议 API</Tag>
       </div>
@@ -241,6 +319,7 @@ const SudocodeModelSettingsContent: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [dialogVisible, setDialogVisible] = useState(false);
+  const [editingTarget, setEditingTarget] = useState<EditingModelTarget | null>(null);
 
   const loadConfig = useCallback(async () => {
     setLoading(true);
@@ -261,6 +340,7 @@ const SudocodeModelSettingsContent: React.FC = () => {
   }, [loadConfig]);
 
   const { sudorouterModels, customProviders } = useMemo(() => buildProviderRows(config), [config]);
+  const configuredModelIds = useMemo(() => getConfiguredModelIds(config), [config]);
 
   const saveConfig = useCallback(async (nextConfig: ScodeConfig) => {
     setSaving(true);
@@ -277,9 +357,26 @@ const SudocodeModelSettingsContent: React.FC = () => {
     }
   }, []);
 
-  const handleAddProvider = useCallback(
-    async (provider: ScodeCustomModelProvider) => {
-      await saveConfig(mergeCustomProviderIntoScodeConfig(config || {}, provider));
+  const openAddDialog = useCallback(() => {
+    setEditingTarget(null);
+    setDialogVisible(true);
+  }, []);
+
+  const openEditDialog = useCallback((provider: ProviderRow, modelId: string) => {
+    setEditingTarget({ provider, modelId });
+    setDialogVisible(true);
+  }, []);
+
+  const closeDialog = useCallback(() => {
+    setDialogVisible(false);
+    setEditingTarget(null);
+  }, []);
+
+  const handleSubmitProvider = useCallback(
+    async (provider: ScodeCustomModelProvider, previousProviderId?: string, previousModelId?: string, nextModelId?: string) => {
+      const sourceConfig = previousProviderId && previousProviderId !== provider.providerId ? removeCustomProviderFromScodeConfig(config || {}, previousProviderId) : config || {};
+      const nextConfig = normalizeDefaultModel(mergeCustomProviderIntoScodeConfig(sourceConfig, provider), previousModelId, nextModelId);
+      await saveConfig(nextConfig);
     },
     [config, saveConfig]
   );
@@ -313,7 +410,7 @@ const SudocodeModelSettingsContent: React.FC = () => {
             <Button icon={<Refresh />} onClick={loadConfig}>
               刷新
             </Button>
-            <Button type='primary' icon={<Plus />} onClick={() => setDialogVisible(true)}>
+            <Button type='primary' icon={<Plus />} onClick={openAddDialog}>
               添加模型
             </Button>
           </Space>
@@ -375,7 +472,7 @@ const SudocodeModelSettingsContent: React.FC = () => {
                 </div>
                 <div className='divide-y divide-border-2'>
                   {provider.modelIds.map((modelId) => {
-                    const entry = config?.models?.[modelId] || Object.values(config?.models || {}).find((item) => item.alias === modelId);
+                    const entry = findModelEntry(config, modelId);
                     const input = entry?.input || [];
                     return (
                       <div key={modelId} className='px-16px py-12px flex items-center justify-between gap-12px flex-wrap'>
@@ -398,7 +495,9 @@ const SudocodeModelSettingsContent: React.FC = () => {
                             </Tag>
                           </div>
                         </div>
-                        <div />
+                        <Button icon={<Edit />} loading={saving} onClick={() => openEditDialog(provider, modelId)}>
+                          编辑
+                        </Button>
                       </div>
                     );
                   })}
@@ -409,7 +508,7 @@ const SudocodeModelSettingsContent: React.FC = () => {
         </div>
       </div>
 
-      <AddModelDialog visible={dialogVisible} onClose={() => setDialogVisible(false)} onSubmit={handleAddProvider} existingProviderIds={customProviders.map((provider) => provider.id)} />
+      <AddModelDialog visible={dialogVisible} onClose={closeDialog} onSubmit={handleSubmitProvider} existingProviderIds={customProviders.map((provider) => provider.id)} existingModelIds={configuredModelIds} config={config} editingTarget={editingTarget} />
     </AionScrollArea>
   );
 };
