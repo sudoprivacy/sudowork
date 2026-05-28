@@ -29,6 +29,7 @@
     "noHistory": "暫無對話記錄",
     "deleteTitle": "刪除",
     "deleteConfirm": "確定要刪除此對話嗎？",
+    "deleteWorkspaceOption": "同時刪除工作區資料夾",
     "confirmDelete": "刪除",
     "cancelDelete": "取消",
     "editName": "編輯名稱",
