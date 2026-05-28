@@ -6,7 +6,7 @@
 
 export type WorkspaceSkillSource = 'skills' | 'claude-skills' | 'scode-skills';
 
-export function resolveWorkspaceSkillRoot(workspace: string, eventPrefix: 'acp' | 'openclaw-gateway' = 'acp', backend?: string): { path: string; source: WorkspaceSkillSource } {
+export function resolveWorkspaceSkillRoot(workspace: string, eventPrefix: 'acp' | 'openclaw-gateway' | 'remote-agent' = 'acp', backend?: string): { path: string; source: WorkspaceSkillSource } {
   const normalizedWorkspace = workspace.replace(/\/$/, '');
   if (eventPrefix === 'openclaw-gateway') {
     return {

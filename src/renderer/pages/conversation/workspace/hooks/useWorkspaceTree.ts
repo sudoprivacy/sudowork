@@ -10,20 +10,21 @@ import { emitter } from '@/renderer/utils/emitter';
 import { dispatchWorkspaceHasFilesEvent } from '@/renderer/utils/workspaceEvents';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { SelectedNodeRef } from '../types';
-import { filterValidExpandedKeys, getAllDirKeys, getFirstLevelKeys, getLimitedDepthKeys } from '../utils/treeHelpers';
+import { ensureDraftsDirectoryNode, filterValidExpandedKeys, getAllDirKeys, getFirstLevelKeys, getLimitedDepthKeys } from '../utils/treeHelpers';
 
 interface UseWorkspaceTreeOptions {
   workspace: string;
   conversation_id: string;
-  eventPrefix: 'acp' | 'openclaw-gateway';
+  eventPrefix: 'acp' | 'openclaw-gateway' | 'remote-agent';
   backend?: string;
+  dataSource?: 'local' | 'moss-session';
 }
 
-export function filterHiddenWorkspaceDirs(nodes: IDirOrFile[], options: { eventPrefix: 'acp' | 'openclaw-gateway'; backend?: string; isRoot?: boolean }): IDirOrFile[] {
+export function filterHiddenWorkspaceDirs(nodes: IDirOrFile[], options: { eventPrefix: 'acp' | 'openclaw-gateway' | 'remote-agent'; backend?: string; isRoot?: boolean }): IDirOrFile[] {
   const { eventPrefix, backend, isRoot = true } = options;
   const hiddenNames = new Set<string>();
 
-  if (isRoot) {
+  if (isRoot && eventPrefix !== 'remote-agent') {
     if (eventPrefix === 'openclaw-gateway') {
       hiddenNames.add('skills');
     }
@@ -60,7 +61,7 @@ export function filterHiddenWorkspaceDirs(nodes: IDirOrFile[], options: { eventP
  * useWorkspaceTree - 合并树状态管理和选择逻辑
  * Merge tree state management and selection logic
  */
-export function useWorkspaceTree({ workspace, conversation_id, eventPrefix, backend }: UseWorkspaceTreeOptions) {
+export function useWorkspaceTree({ workspace, conversation_id, eventPrefix, backend, dataSource = 'local' }: UseWorkspaceTreeOptions) {
   // Tree state / 树状态
   const [files, setFiles] = useState<IDirOrFile[]>([]);
   const [loading, setLoading] = useState(false);
@@ -87,32 +88,35 @@ export function useWorkspaceTree({ workspace, conversation_id, eventPrefix, back
 
   // 包装 setExpandedKeys，自动同步 state 和 ref 以及 localStorage
   // Wrap setExpandedKeys to auto-sync state, ref and localStorage
-  const setExpandedKeys = useCallback((keys: string[] | ((prev: string[]) => string[])) => {
-    if (typeof keys === 'function') {
-      _setExpandedKeys((prev) => {
-        const newKeys = keys(prev);
-        expandedKeysRef.current = newKeys;
+  const setExpandedKeys = useCallback(
+    (keys: string[] | ((prev: string[]) => string[])) => {
+      if (typeof keys === 'function') {
+        _setExpandedKeys((prev) => {
+          const newKeys = keys(prev);
+          expandedKeysRef.current = newKeys;
+          if (conversation_id) {
+            try {
+              localStorage.setItem(`workspace-expanded-keys-${conversation_id}`, JSON.stringify(newKeys));
+            } catch {
+              // ignore
+            }
+          }
+          return newKeys;
+        });
+      } else {
+        expandedKeysRef.current = keys;
+        _setExpandedKeys(keys);
         if (conversation_id) {
           try {
-            localStorage.setItem(`workspace-expanded-keys-${conversation_id}`, JSON.stringify(newKeys));
+            localStorage.setItem(`workspace-expanded-keys-${conversation_id}`, JSON.stringify(keys));
           } catch {
             // ignore
           }
         }
-        return newKeys;
-      });
-    } else {
-      expandedKeysRef.current = keys;
-      _setExpandedKeys(keys);
-      if (conversation_id) {
-        try {
-          localStorage.setItem(`workspace-expanded-keys-${conversation_id}`, JSON.stringify(keys));
-        } catch {
-          // ignore
-        }
       }
-    }
-  }, [conversation_id]);
+    },
+    [conversation_id]
+  );
 
   // Selection state / 选中状态
   const [selected, setSelected] = useState<string[]>([]);
@@ -174,10 +178,21 @@ export function useWorkspaceTree({ workspace, conversation_id, eventPrefix, back
     (path: string, search?: string) => {
       const seq = ++loadSeqRef.current;
       setLoadingHandler(true);
-      return ipcBridge.conversation.getWorkspace
-        .invoke({ path, workspace, conversation_id, search: search || '' })
+      const workspacePromise =
+        dataSource === 'moss-session'
+          ? ipcBridge.conversation.getRemoteWorkspace.invoke({ conversation_id, path: path === workspace ? undefined : path, search: search || '' }).then((res) => {
+              if (!res?.success) {
+                throw new Error(res?.msg || 'Failed to load remote workspace');
+              }
+              return res.data?.files ?? [];
+            })
+          : ipcBridge.conversation.getWorkspace.invoke({ path, workspace, conversation_id, search: search || '' });
+
+      return workspacePromise
         .then((res) => {
-          const filteredRes = filterHiddenWorkspaceDirs(res, { eventPrefix, backend });
+          const shouldEnsureRemoteDrafts = dataSource === 'moss-session' && !search && path === workspace;
+          const normalizedRes = shouldEnsureRemoteDrafts ? ensureDraftsDirectoryNode(res) : res;
+          const filteredRes = filterHiddenWorkspaceDirs(normalizedRes, { eventPrefix, backend });
 
           // Ignore stale responses from aborted requests:
           // The backend aborts previous getWorkspace calls, returning [].
@@ -235,16 +250,17 @@ export function useWorkspaceTree({ workspace, conversation_id, eventPrefix, back
           // 根据是否有文件决定工作空间面板的展开/折叠状态
           // Determine workspace panel expand/collapse state based on files
           const hasFiles = filteredRes.length > 0 && (filteredRes[0]?.children?.length ?? 0) > 0;
+          const shouldShowWorkspace = dataSource === 'moss-session' || hasFiles;
 
           if (isFirstLoadRef.current) {
             // 首次加载（切换会话或打开会话）：有文件展开，没文件折叠
             // First load (switch or open conversation): expand if has files, collapse if not
-            dispatchWorkspaceHasFilesEvent(hasFiles, conversation_id);
+            dispatchWorkspaceHasFilesEvent(shouldShowWorkspace, conversation_id);
             isFirstLoadRef.current = false;
           } else {
             // 后续刷新（Agent 生成文件等）：有文件就展开，不主动折叠
             // Subsequent refresh (agent generates files, etc.): expand if has files, never collapse
-            if (hasFiles) {
+            if (shouldShowWorkspace) {
               dispatchWorkspaceHasFilesEvent(true, conversation_id);
             }
           }
@@ -259,7 +275,7 @@ export function useWorkspaceTree({ workspace, conversation_id, eventPrefix, back
           }
         });
     },
-    [backend, conversation_id, eventPrefix, workspace, setLoadingHandler]
+    [backend, conversation_id, dataSource, eventPrefix, workspace, setLoadingHandler]
   );
 
   /**
@@ -300,13 +316,13 @@ export function useWorkspaceTree({ workspace, conversation_id, eventPrefix, back
           ];
           if (eventPrefix === 'openclaw-gateway') {
             emitter.emit('openclaw-gateway.selected.file', conversation_id, payload);
-          } else {
+          } else if (eventPrefix === 'acp') {
             emitter.emit('acp.selected.file', payload);
           }
         } else if (shouldEmit) {
           if (eventPrefix === 'openclaw-gateway') {
             emitter.emit('openclaw-gateway.selected.file', conversation_id, []);
-          } else {
+          } else if (eventPrefix === 'acp') {
             emitter.emit('acp.selected.file', []);
           }
         }
@@ -333,7 +349,7 @@ export function useWorkspaceTree({ workspace, conversation_id, eventPrefix, back
           ];
           if (eventPrefix === 'openclaw-gateway') {
             emitter.emit('openclaw-gateway.selected.file', conversation_id, payload);
-          } else {
+          } else if (eventPrefix === 'acp') {
             emitter.emit('acp.selected.file', payload);
           }
         }
@@ -351,13 +367,13 @@ export function useWorkspaceTree({ workspace, conversation_id, eventPrefix, back
           ];
           if (eventPrefix === 'openclaw-gateway') {
             emitter.emit('openclaw-gateway.selected.file', conversation_id, payload);
-          } else {
+          } else if (eventPrefix === 'acp') {
             emitter.emit('acp.selected.file', payload);
           }
         }
       }
     },
-    [eventPrefix]
+    [eventPrefix, conversation_id]
   );
 
   /**

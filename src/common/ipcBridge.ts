@@ -46,7 +46,7 @@ export const conversation = {
   createWithConversation: bridge.buildProvider<TChatConversation, { conversation: TChatConversation; sourceConversationId?: string }>('create-conversation-with-conversation'), // Create new conversation from history (supports migration) / 通过历史会话创建新对话（支持迁移）
   get: bridge.buildProvider<TChatConversation | undefined, { id: string }>('get-conversation'), // 获取对话信息
   getAssociateConversation: bridge.buildProvider<TChatConversation[], { conversation_id: string }>('get-associated-conversation'), // 获取关联对话
-  remove: bridge.buildProvider<boolean, { id: string }>('remove-conversation'), // 删除对话
+  remove: bridge.buildProvider<boolean, { id: string; deleteWorkspace?: boolean }>('remove-conversation'), // 删除对话
   update: bridge.buildProvider<boolean, { id: string; updates: Partial<TChatConversation>; mergeExtra?: boolean }>('update-conversation'), // 更新对话信息
   reset: bridge.buildProvider<void, IResetConversationParams>('reset-conversation'), // 重置对话
   stop: bridge.buildProvider<IBridgeResponse<{}>, { conversation_id: string }>('chat.stop.stream'), // 停止会话
@@ -55,6 +55,9 @@ export const conversation = {
   confirmMessage: bridge.buildProvider<IBridgeResponse, IConfirmMessageParams>('conversation.confirm.message'), // 通用确认消息
   responseStream: bridge.buildEmitter<IResponseMessage>('chat.response.stream'), // 接收消息（统一接口）
   getWorkspace: bridge.buildProvider<IDirOrFile[], { conversation_id: string; workspace: string; path: string; search?: string }>('conversation.get-workspace'),
+  getRemoteWorkspace: bridge.buildProvider<IRemoteWorkspaceResponse, { conversation_id: string; path?: string; search?: string }>('conversation.get-remote-workspace'),
+  previewRemoteWorkspaceFile: bridge.buildProvider<IBridgeResponse<MossWorkspaceFilePreview>, { conversation_id: string; path: string }>('conversation.preview-remote-workspace-file'),
+  getRemoteAvailableSkills: bridge.buildProvider<IRemoteAvailableSkillsResponse, { conversation_id: string }>('conversation.get-remote-available-skills'),
   responseSearchWorkSpace: bridge.buildProvider<void, { file: number; dir: number; match?: IDirOrFile }>('conversation.response.search.workspace'),
   reloadContext: bridge.buildProvider<IBridgeResponse, { conversation_id: string }>('conversation.reload-context'),
   getConnectionStatus: bridge.buildProvider<IBridgeResponse<{ status: string | null }>, { conversation_id: string }>('conversation.get-connection-status'),
@@ -296,6 +299,59 @@ export interface MossSessionInfo {
   createdAt?: number;
   updatedAt?: number;
 }
+
+export interface MossWorkspaceNode {
+  name: string;
+  relativePath: string;
+  fullPath: string;
+  isFile: boolean;
+  isDir: boolean;
+  size?: number;
+  mtime?: number;
+  children?: MossWorkspaceNode[];
+}
+
+export type MossWorkspaceFilePreview =
+  | {
+      kind: 'text';
+      name: string;
+      relativePath: string;
+      mime: string;
+      encoding: 'utf8';
+      content: string;
+      size: number;
+      truncated: boolean;
+    }
+  | {
+      kind: 'base64';
+      name: string;
+      relativePath: string;
+      mime: string;
+      contentBase64: string;
+      size: number;
+    };
+
+export interface MossSessionAvailableSkill {
+  name: string;
+  displayName?: string;
+  description: string;
+  icon?: string;
+  iconUrl?: string;
+  color?: string;
+  emoji?: string | null;
+  source?: string;
+  path?: string;
+}
+
+export type IRemoteWorkspaceResponse = IBridgeResponse<{
+  files: IDirOrFile[];
+  pending?: boolean;
+}>;
+
+export type IRemoteAvailableSkillsResponse = IBridgeResponse<{
+  skills: MossSessionAvailableSkill[];
+  pending?: boolean;
+}>;
 
 export const moss = {
   /** Check if enterprise mode is enabled */

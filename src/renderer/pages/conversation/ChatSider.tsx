@@ -18,19 +18,15 @@ const ChatSider: React.FC<{
   const extra = conversation?.extra as { workspace?: string; workspaceDisplayName?: string; backend?: string } | undefined;
   const workspace = extra?.workspace;
 
-  // Show workspace for all conversation types that have workspace
-  // 为所有有 workspace 的会话类型显示工作空间
-  // NOTE: remote-agent type is temporarily disabled until Moss Server provides workspace management API
-  // 注意：remote-agent 类型暂时禁用，等待 Moss Server 提供临时空间管理 API
+  // Local conversations use local workspaces; remote-agent reads its workspace
+  // from the Moss session API and may not have a local workspace path.
   if (conversation?.type === 'acp' && workspace) {
     workspaceNode = <ChatWorkspace conversation_id={conversation.id} workspace={workspace} workspaceDisplayName={extra.workspaceDisplayName} eventPrefix='acp' backend={extra.backend} messageApi={messageApi}></ChatWorkspace>;
   } else if (conversation?.type === 'openclaw-gateway' && workspace) {
     workspaceNode = <ChatWorkspace conversation_id={conversation.id} workspace={workspace} workspaceDisplayName={extra.workspaceDisplayName} eventPrefix='openclaw-gateway' backend='openclaw-gateway' messageApi={messageApi}></ChatWorkspace>;
+  } else if (conversation?.type === 'remote-agent') {
+    workspaceNode = <ChatWorkspace conversation_id={conversation.id} workspace={workspace || conversation.id} workspaceDisplayName={extra?.workspaceDisplayName} eventPrefix='remote-agent' backend='remote-agent' dataSource='moss-session' readonly messageApi={messageApi}></ChatWorkspace>;
   }
-  // remote-agent: temporarily disable workspace panel
-  // // else if (conversation?.type === 'remote-agent' && workspace) {
-  // //   workspaceNode = <ChatWorkspace conversation_id={conversation.id} workspace={workspace} workspaceDisplayName={extra.workspaceDisplayName} eventPrefix='acp' backend='remote-agent' messageApi={messageApi}></ChatWorkspace>;
-  // // }
 
   return (
     <>
