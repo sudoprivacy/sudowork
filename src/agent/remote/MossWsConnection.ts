@@ -28,8 +28,8 @@ export interface MossWsConnectionConfig {
   username?: string;
   /** Password for password login (when authToken is empty) */
   password?: string;
-  /** Working directory */
-  cwd: string;
+  /** Working directory. When omitted, Moss Server allocates the session workspace. */
+  cwd?: string;
   /** Agent name (optional) */
   assistantName?: string;
   /** Skip permission confirmation */
@@ -194,12 +194,14 @@ export class MossWsConnection {
     runtime: { type: string; configDir?: string };
   }> {
     const body: Record<string, unknown> = {
-      cwd: this.config.cwd,
       dangerously_skip_permissions: this.config.dangerouslySkipPermissions ?? false,
       assistant_name: this.config.assistantName,
       // 新增: 发送启用的 skill 列表（仅当显式指定时）
       enabled_skills: this.config.enabledSkills,
     };
+    if (this.config.cwd) {
+      body.cwd = this.config.cwd;
+    }
 
     if (this.config.runtimeType) {
       body.runtime = { type: this.config.runtimeType };

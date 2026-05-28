@@ -27,6 +27,11 @@ export interface PreviewMetadata {
   filePath?: string; // 工作空间文件的绝对路径 / Absolute file path in workspace
   workspace?: string; // 工作空间根目录 / Workspace root directory
   editable?: boolean; // 是否可编辑 / Whether editable
+  remote?: boolean; // 是否来自远程工作空间 / Whether sourced from remote workspace
+  relativePath?: string; // 远程工作空间相对路径 / Relative path in remote workspace
+  localPreviewFilePath?: string; // 远程文件落地后的本地只读预览路径 / Local read-only preview path for remote files
+  downloadBase64?: string; // 下载使用的原始二进制内容 / Original binary content for download
+  downloadMime?: string; // 下载使用的 MIME 类型 / MIME type for download
 }
 
 export interface PreviewTab {
