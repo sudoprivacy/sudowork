@@ -13,12 +13,13 @@
  * directly to the workspace root instead of .drafts/.
  */
 
-import { DRAFTS_DIR_ALIASES, DRAFTS_DIR_NAME, FILE_INTENT_MARKERS, COMMENT_SYNTAX_MAP, DRAFT_FILE_PATTERNS, FINAL_FILE_PATTERNS, DRAFT_EXTENSIONS, FINAL_EXTENSIONS } from '@/common/constants';
+import { DRAFTS_DIR_ALIASES, DRAFTS_DIR_NAME } from '@/common/constants';
 import { mainLog, mainError } from '@process/utils/mainLogger';
 import fs from 'fs/promises';
 import fsSync from 'fs';
 import type { Dirent } from 'fs';
 import path from 'path';
+import { FileIntentClassifier, detectFileIntent, matchesDraftPattern, matchesFinalPattern, type FileIntent, type FileIntentSource } from './FileIntentClassifier';
 
 /**
  * Files/directories that should never be moved
@@ -26,71 +27,19 @@ import path from 'path';
  */
 const EXCLUDED_NAMES = new Set([DRAFTS_DIR_NAME, ...DRAFTS_DIR_ALIASES, '.git', '.gitignore', '.env', '.env.local', 'README.md', 'readme.md', 'LICENSE', 'package.json', 'package-lock.json', 'node_modules', '.DS_Store', 'Thumbs.db']);
 
-/**
- * 检测文件意图标记结果
- * File intent detection result
- */
-interface FileIntentResult {
-  intent: 'final' | 'draft' | 'unknown';
+export { detectFileIntent, matchesDraftPattern, matchesFinalPattern };
+
+export interface TrackedTurnFile {
+  actualPath: string;
+  path: string;
+  requestedPath: string;
+  intent: FileIntent;
   reason: string;
-  marker?: string; // 检测到的具体标记
-  line?: number; // 标记所在行号
+  source: FileIntentSource;
+  kind: 'create' | 'edit';
 }
 
-/**
- * Check if file name matches draft patterns
- * 检查文件名是否匹配草稿模式
- */
-export function matchesDraftPattern(fileName: string): boolean {
-  const lower = fileName.toLowerCase();
-
-  // Check prefix patterns
-  for (const prefix of DRAFT_FILE_PATTERNS.prefixes) {
-    if (lower.startsWith(prefix)) {
-      return true;
-    }
-  }
-
-  // Check suffix patterns (before extension)
-  const ext = path.extname(lower);
-  const baseName = lower.slice(0, lower.length - ext.length);
-  for (const suffix of DRAFT_FILE_PATTERNS.suffixes) {
-    if (baseName.endsWith(suffix)) {
-      return true;
-    }
-  }
-
-  // Check extension
-  if (DRAFT_EXTENSIONS.includes(ext)) {
-    return true;
-  }
-
-  return false;
-}
-
-/**
- * Check if file name matches final patterns
- * 检查文件名是否匹配最终文件模式
- */
-function matchesFinalPattern(fileName: string): boolean {
-  const lower = fileName.toLowerCase();
-  const ext = path.extname(lower);
-  const baseName = lower.slice(0, lower.length - ext.length);
-
-  // Check suffix patterns
-  for (const suffix of FINAL_FILE_PATTERNS.suffixes) {
-    if (baseName.endsWith(suffix)) {
-      return true;
-    }
-  }
-
-  // Check extension
-  if (FINAL_EXTENSIONS.includes(ext)) {
-    return true;
-  }
-
-  return false;
-}
+const fileIntentClassifier = new FileIntentClassifier();
 
 function appendTimestamp(filePath: string, attempt: number = 0): string {
   const dir = path.dirname(filePath);
@@ -109,6 +58,31 @@ async function moveWithTimestampCollision(srcPath: string, destPath: string): Pr
   }
   await fs.rename(srcPath, finalDestPath);
   return finalDestPath;
+}
+
+function isPathInside(parent: string, child: string): boolean {
+  const relative = path.relative(parent, child);
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+}
+
+function resolveTrackedPath(file: TrackedTurnFile): string {
+  return file.path || file.actualPath;
+}
+
+function resolveRootDestination(workspace: string, filePath: string, requestedPath: string): string {
+  const relative = path.isAbsolute(requestedPath) ? path.basename(requestedPath) : requestedPath;
+  const normalized = relative.replace(/\\/g, '/').replace(/^\.\//, '');
+  if (!normalized || normalized.startsWith('../') || normalized.includes('/../')) {
+    return path.join(workspace, path.basename(filePath));
+  }
+  if (normalized.startsWith(`${DRAFTS_DIR_NAME}/`)) {
+    return path.join(workspace, path.basename(filePath));
+  }
+  return path.join(workspace, normalized);
+}
+
+function isScriptFile(fileName: string): boolean {
+  return ['.py', '.js', '.ts', '.tsx', '.jsx', '.mjs', '.cjs', '.sh', '.bash', '.zsh', '.rb', '.php', '.lua'].includes(path.extname(fileName).toLowerCase());
 }
 
 async function normalizeDraftsAliasDirectories(workspace: string, draftsDir: string, entries: Dirent[]): Promise<number> {
@@ -151,73 +125,6 @@ async function normalizeDraftsAliasDirectories(workspace: string, draftsDir: str
 }
 
 /**
- * 检测文件意图标记
- * Detect file intent markers from file content
- *
- * Scans the first 10 lines for comment markers like '@final' or '@draft'
- *
- * @param filePath - 文件路径
- * @param content - 文件内容
- * @returns 意图检测结果
- */
-export function detectFileIntent(filePath: string, content: string): FileIntentResult {
-  // 1. 获取文件的注释语法
-  const ext = path.extname(filePath).toLowerCase();
-  const commentPrefix = COMMENT_SYNTAX_MAP[ext] || COMMENT_SYNTAX_MAP.default;
-
-  // 2. 只扫描前10行（标记应该在文件头部）
-  const lines = content.split('\n').slice(0, 10);
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim();
-
-    // HTML/XML comment handling
-    if (commentPrefix === '<!--') {
-      if (line.startsWith('<!--') && line.endsWith('-->')) {
-        const commentContent = line.slice(4, -3).trim();
-
-        // 检测 final 标记
-        for (const marker of FILE_INTENT_MARKERS.final) {
-          if (commentContent.includes(marker)) {
-            return { intent: 'final', reason: `Detected ${marker} marker at line ${i + 1}`, marker, line: i + 1 };
-          }
-        }
-
-        // 检测 draft 标记
-        for (const marker of FILE_INTENT_MARKERS.draft) {
-          if (commentContent.includes(marker)) {
-            return { intent: 'draft', reason: `Detected ${marker} marker at line ${i + 1}`, marker, line: i + 1 };
-          }
-        }
-      }
-    } else {
-      // Regular single-line comment: # @final or // @draft
-      if (!line.startsWith(commentPrefix)) continue;
-
-      // 提取注释内容（去掉注释符号）
-      const commentContent = line.slice(commentPrefix.length).trim();
-
-      // 检测 final 标记
-      for (const marker of FILE_INTENT_MARKERS.final) {
-        if (commentContent.includes(marker)) {
-          return { intent: 'final', reason: `Detected ${marker} marker at line ${i + 1}`, marker, line: i + 1 };
-        }
-      }
-
-      // 检测 draft 标记
-      for (const marker of FILE_INTENT_MARKERS.draft) {
-        if (commentContent.includes(marker)) {
-          return { intent: 'draft', reason: `Detected ${marker} marker at line ${i + 1}`, marker, line: i + 1 };
-        }
-      }
-    }
-  }
-
-  // 无标记 → unknown（默认视为 final）
-  return { intent: 'unknown', reason: 'No marker found' };
-}
-
-/**
  * Move draft files from workspace root to .drafts/ directory
  * 将草稿文件从工作空间根目录移动到 .drafts/ 目录
  *
@@ -252,8 +159,6 @@ export async function cleanupIntermediateFiles(workspace: string): Promise<void>
       if (EXCLUDED_NAMES.has(entry.name)) continue;
 
       const filePath = path.join(workspace, entry.name);
-      let intentResult: FileIntentResult;
-
       // Try to read file content for marker detection
       let content: string | null = null;
       try {
@@ -263,54 +168,28 @@ export async function cleanupIntermediateFiles(workspace: string): Promise<void>
         mainLog('draftsCleanup', `Cannot read ${entry.name}, using pattern detection only`);
       }
 
-      // Priority 1: Check for markers in content
-      if (content) {
-        intentResult = detectFileIntent(filePath, content);
-        if (intentResult.intent === 'draft') {
-          filesToMove.push({
-            name: entry.name,
-            reason: `Detected @draft marker at line ${intentResult.line}`,
-          });
-          hasDraftScripts = true;
-          mainLog('draftsCleanup', `[MARKER] ${entry.name}: @draft detected at line ${intentResult.line}, will move to .drafts/`);
-          continue;
-        } else if (intentResult.intent === 'final') {
-          filesToKeep.push({
-            name: entry.name,
-            reason: `Detected @final marker at line ${intentResult.line}`,
-          });
-          mainLog('draftsCleanup', `[MARKER] ${entry.name}: @final detected at line ${intentResult.line}, will keep in workspace root`);
-          continue;
-        }
-      }
+      const classification = fileIntentClassifier.classify({
+        filePath,
+        requestedPath: entry.name,
+        content,
+        source: 'cleanup',
+      });
 
-      // Priority 2: Check final patterns (override draft patterns)
-      if (matchesFinalPattern(entry.name)) {
-        filesToKeep.push({
-          name: entry.name,
-          reason: 'Matches final file pattern',
-        });
-        mainLog('draftsCleanup', `[PATTERN] ${entry.name}: matches final pattern, keeping in workspace root`);
-        continue;
-      }
-
-      // Priority 3: Check draft patterns
-      if (matchesDraftPattern(entry.name)) {
+      if (classification.intent === 'draft') {
         filesToMove.push({
           name: entry.name,
-          reason: 'Matches draft file pattern',
+          reason: classification.reason,
         });
-        hasDraftScripts = true;
-        mainLog('draftsCleanup', `[PATTERN] ${entry.name}: matches draft pattern, will move to .drafts/`);
+        hasDraftScripts ||= isScriptFile(entry.name);
+        mainLog('draftsCleanup', `[CLASSIFY] ${entry.name}: draft (${classification.reason}), will move to .drafts/`);
         continue;
       }
 
-      // Priority 4: Default - keep in workspace root (safe default)
       filesToKeep.push({
         name: entry.name,
-        reason: 'No marker or pattern match, defaulting to final',
+        reason: classification.reason,
       });
-      mainLog('draftsCleanup', `[DEFAULT] ${entry.name}: no marker/pattern, treating as final (safe default)`);
+      mainLog('draftsCleanup', `[CLASSIFY] ${entry.name}: final (${classification.reason}), keeping in workspace root`);
     }
 
     // 如果没有需要移动的文件，直接返回
@@ -386,6 +265,86 @@ export async function cleanupIntermediateFiles(workspace: string): Promise<void>
   } catch (err) {
     mainError('draftsCleanup', 'Cleanup failed:', err);
   }
+}
+
+export async function archiveTurnFiles(workspace: string, trackedFiles: ReadonlyMap<string, TrackedTurnFile>): Promise<void> {
+  if (!fsSync.existsSync(workspace)) {
+    return;
+  }
+
+  const workspaceRoot = path.resolve(workspace);
+  const draftsDir = path.join(workspaceRoot, DRAFTS_DIR_NAME);
+  let movedDrafts = 0;
+  let movedFinals = 0;
+
+  for (const [trackedKey, file] of trackedFiles) {
+    const srcPath = path.resolve(resolveTrackedPath(file));
+    if (!fsSync.existsSync(srcPath)) {
+      continue;
+    }
+    if (!isPathInside(workspaceRoot, srcPath)) {
+      mainLog('draftsCleanup', `[TURN-ARCHIVE] Skipping outside-workspace file ${srcPath}`);
+      continue;
+    }
+
+    const inDrafts = isPathInside(draftsDir, srcPath);
+    const destPath =
+      file.intent === 'draft'
+        ? path.join(draftsDir, path.basename(srcPath))
+        : resolveRootDestination(workspaceRoot, srcPath, file.requestedPath || trackedKey);
+
+    const resolvedDestPath = path.resolve(destPath);
+    if (srcPath === resolvedDestPath) {
+      continue;
+    }
+
+    try {
+      await fs.mkdir(path.dirname(resolvedDestPath), { recursive: true });
+      const finalDestPath = await moveWithTimestampCollision(srcPath, resolvedDestPath);
+      if (file.intent === 'draft') {
+        movedDrafts++;
+      } else if (inDrafts || path.dirname(srcPath) !== path.dirname(finalDestPath)) {
+        movedFinals++;
+      }
+      mainLog('draftsCleanup', `[TURN-ARCHIVE] Moved ${trackedKey} to ${path.relative(workspaceRoot, finalDestPath)} (${file.intent}: ${file.reason})`);
+    } catch (err) {
+      mainError('draftsCleanup', `[TURN-ARCHIVE] Failed to move ${trackedKey}:`, err);
+    }
+  }
+
+  if (movedDrafts > 0 || movedFinals > 0) {
+    mainLog('draftsCleanup', `[TURN-ARCHIVE] Completed: moved ${movedDrafts} draft file(s), restored ${movedFinals} final file(s)`);
+  }
+}
+
+export async function cleanupTrackedDraftsOnCancel(workspace: string, trackedFiles: ReadonlyMap<string, TrackedTurnFile>): Promise<number> {
+  if (!fsSync.existsSync(workspace)) {
+    return 0;
+  }
+
+  const workspaceRoot = path.resolve(workspace);
+  let removedCount = 0;
+
+  for (const [trackedKey, file] of trackedFiles) {
+    if (file.intent !== 'draft') {
+      continue;
+    }
+
+    const filePath = path.resolve(resolveTrackedPath(file));
+    if (!isPathInside(workspaceRoot, filePath) || !fsSync.existsSync(filePath)) {
+      continue;
+    }
+
+    try {
+      await fs.rm(filePath, { recursive: true, force: true });
+      removedCount++;
+      mainLog('draftsCleanup', `[CANCEL] Removed current-turn draft: ${trackedKey}`);
+    } catch (err) {
+      mainError('draftsCleanup', `Failed to remove current-turn draft ${trackedKey}:`, err);
+    }
+  }
+
+  return removedCount;
 }
 
 /**

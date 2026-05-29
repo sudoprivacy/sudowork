@@ -18,7 +18,7 @@ import { ipcBridge } from '@/common';
 import type { AcpQuestionData, CronMessageMeta, TMessage } from '@/common/chatLib';
 import type { SlashCommandItem } from '@/common/slash/types';
 import { transformMessage } from '@/common/chatLib';
-import { NEXUS_FILES_MARKER } from '@/common/constants';
+import { DRAFTS_DIR_NAME, NEXUS_FILES_MARKER } from '@/common/constants';
 import { appendNexusFilesMarker } from '@/common/nexusFiles';
 import type { IResponseMessage } from '@/common/ipcBridge';
 import { NavigationInterceptor } from '@/common/navigation';
@@ -42,7 +42,8 @@ import { translateLLMError } from '@process/utils/llmErrorTranslation';
 import { classifyLlmError } from '@process/utils/llmErrorClassification';
 import { injectSkillsDirectoryHint, prepareFirstMessageWithSkillsIndex } from './agentUtils';
 import { AcpSkillManager } from './AcpSkillManager';
-import { cleanupIntermediateFiles, cleanupDraftsOnCancel, detectFileIntent, matchesDraftPattern } from './draftsCleanup';
+import { archiveTurnFiles, cleanupIntermediateFiles, cleanupTrackedDraftsOnCancel, type TrackedTurnFile } from './draftsCleanup';
+import { FileIntentClassifier, type FileIntentSource } from './FileIntentClassifier';
 import { mergeScodeProxyModelInfo, isModelVisionCapable, getScodeProxyModelInfoSync } from '@process/services/scode/scodeProxyModels';
 import { installWorkspaceSkillsFromTrackedFiles } from './workspaceSkillInstaller';
 import BaseAgent from './BaseAgent';
@@ -189,7 +190,8 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
   private customSkillsSnapshot = new Set<string>();
 
   // Turn-level file tracking for precise cleanup on cancel
-  private currentTurnFiles: Map<string, { path: string; intent: 'draft' | 'final'; kind: 'create' | 'edit' }> = new Map();
+  private currentTurnFiles: Map<string, TrackedTurnFile> = new Map();
+  private readonly fileIntentClassifier = new FileIntentClassifier();
 
   // Extra config passed to connection
   private extra: {
@@ -1429,9 +1431,9 @@ This identity statement takes priority over the default identity in USER.md.
       mainLog('[AcpAgent]', `[STOP] currentTurnFiles size: ${this.currentTurnFiles.size}`);
       if (this.currentTurnFiles.size > 0) {
         for (const [path, file] of this.currentTurnFiles) {
-          mainLog('[AcpAgent]', `[STOP] Tracked file: ${path}, intent: ${file.intent}`);
+          mainLog('[AcpAgent]', `[STOP] Tracked file: ${path}, intent: ${file.intent}, source: ${file.source}, reason: ${file.reason}`);
         }
-        this.cleanupTrackedFiles().catch((err) => {
+        this.cleanupTrackedDraftFiles().catch((err) => {
           mainError('[AcpAgent]', 'Failed to cleanup tracked files:', err);
         });
       } else {
@@ -1463,35 +1465,72 @@ This identity statement takes priority over the default identity in USER.md.
   }
 
   /**
-   * Clean up all tracked files from current turn (both draft and final)
-   * 清理当前 Turn 追踪到的所有文件（包括 draft 和 final）
+   * Clean up current-turn draft files on cancel. Final files are preserved.
+   * 取消时只清理当前 Turn 的草稿文件，保留最终交付文件。
    */
-  private async cleanupTrackedFiles(): Promise<number> {
-    let removedCount = 0;
-
-    for (const [requestedPath, file] of this.currentTurnFiles) {
-      try {
-        const fullPath = file.path;
-        if (fs.existsSync(fullPath)) {
-          await fs.promises.unlink(fullPath);
-          removedCount++;
-          mainLog('[AcpAgent]', `[CLEANUP] Removed tracked file: ${requestedPath} (intent: ${file.intent}, actual: ${fullPath})`);
-        } else {
-          mainLog('[AcpAgent]', `[CLEANUP] File already removed: ${fullPath}`);
-        }
-      } catch (err) {
-        mainError('[AcpAgent]', `Failed to remove file ${requestedPath}:`, err);
-      }
-    }
-
-    // Clear tracking
+  private async cleanupTrackedDraftFiles(): Promise<number> {
+    const removedCount = await cleanupTrackedDraftsOnCancel(this.workspace, this.currentTurnFiles);
     this.currentTurnFiles.clear();
 
     if (removedCount > 0) {
-      mainLog('[AcpAgent]', `[CLEANUP] Total tracked files removed: ${removedCount}`);
+      mainLog('[AcpAgent]', `[CLEANUP] Total current-turn draft files removed: ${removedCount}`);
     }
 
     return removedCount;
+  }
+
+  private async archiveCurrentTurnFiles(): Promise<void> {
+    if (!this.workspace || this.currentTurnFiles.size === 0) {
+      return;
+    }
+
+    await archiveTurnFiles(this.workspace, this.currentTurnFiles);
+    this.currentTurnFiles.clear();
+    mainLog('[AcpAgent]', '[TURN-ARCHIVE] Archived currentTurnFiles and cleared tracking');
+  }
+
+  private resolveWorkspacePath(requestedPath: string, intent: 'draft' | 'final' = 'final'): string {
+    const workspaceRoot = nodePath.resolve(this.workspace);
+    const trimmedPath = requestedPath.trim();
+    const resolvedPath = nodePath.isAbsolute(trimmedPath) ? nodePath.resolve(trimmedPath) : nodePath.resolve(workspaceRoot, trimmedPath);
+    const relativePath = nodePath.relative(workspaceRoot, resolvedPath);
+
+    if (relativePath && !relativePath.startsWith('..') && !nodePath.isAbsolute(relativePath)) {
+      return resolvedPath;
+    }
+
+    const fallbackDir = intent === 'draft' ? nodePath.join(workspaceRoot, DRAFTS_DIR_NAME) : workspaceRoot;
+    return nodePath.join(fallbackDir, nodePath.basename(trimmedPath));
+  }
+
+  private trackTurnFile(input: { requestedPath: string; actualPath?: string; content?: string | null; source: FileIntentSource; kind: 'create' | 'edit' }): void {
+    if (!this.workspace || !input.requestedPath) {
+      return;
+    }
+
+    const preliminaryPath = input.actualPath || this.resolveWorkspacePath(input.requestedPath);
+    const classification = this.fileIntentClassifier.classify({
+      filePath: preliminaryPath,
+      requestedPath: input.requestedPath,
+      content: input.content,
+      userMessage: this.lastUserMessage,
+      source: input.source,
+    });
+    const actualPath = input.actualPath || this.resolveWorkspacePath(input.requestedPath);
+    const workspaceRoot = nodePath.resolve(this.workspace);
+    const relativePath = nodePath.relative(workspaceRoot, nodePath.resolve(actualPath));
+    const trackingKey = relativePath && !relativePath.startsWith('..') && !nodePath.isAbsolute(relativePath) ? relativePath : input.requestedPath;
+
+    this.currentTurnFiles.set(trackingKey, {
+      actualPath,
+      path: actualPath,
+      requestedPath: input.requestedPath,
+      intent: classification.intent,
+      reason: classification.reason,
+      source: input.source,
+      kind: input.kind,
+    });
+    mainLog('[AcpAgent]', `[TRACK] File: ${trackingKey}, intent: ${classification.intent}, source: ${input.source}, reason: ${classification.reason}, actualPath: ${actualPath}`);
   }
 
   /**
@@ -1518,18 +1557,24 @@ This identity statement takes priority over the default identity in USER.md.
     try {
       const currentSnapshot = this.getWorkspaceFiles();
 
-      // Compare with previous snapshot to find new files
+      // Compare with previous snapshot to find new and modified files
       const previousSnapshot = this.workspaceFileSnapshot;
-      const newFiles: string[] = [];
+      const changedFiles: Array<{ path: string; kind: 'create' | 'edit' }> = [];
 
       for (const [file, time] of currentSnapshot) {
         if (!previousSnapshot.has(file)) {
-          newFiles.push(file);
+          changedFiles.push({ path: file, kind: 'create' });
+          continue;
+        }
+
+        const previousTime = previousSnapshot.get(file);
+        if (previousTime !== undefined && time > previousTime) {
+          changedFiles.push({ path: file, kind: 'edit' });
         }
       }
 
-      // Track new files
-      for (const file of newFiles) {
+      for (const changedFile of changedFiles) {
+        const file = changedFile.path;
         const fileName = nodePath.basename(file);
         const relativePath = nodePath.relative(this.workspace, file);
 
@@ -1537,23 +1582,27 @@ This identity statement takes priority over the default identity in USER.md.
         const EXCLUDED = new Set(['.git', '.gitignore', '.env', '.env.local', 'node_modules', '.DS_Store', 'Thumbs.db', '.nexus']);
         if (EXCLUDED.has(fileName) || fileName.startsWith('.nexus')) continue;
 
-        // Detect intent based on file name pattern
-        const intent = matchesDraftPattern(fileName) ? 'draft' : 'final';
+        let content: string | null = null;
+        try {
+          content = fs.readFileSync(file, 'utf-8');
+        } catch {
+          content = null;
+        }
 
-        // Track the file
-        this.currentTurnFiles.set(relativePath, {
-          path: file,
-          intent,
-          kind: 'create',
+        this.trackTurnFile({
+          requestedPath: relativePath,
+          actualPath: file,
+          content,
+          source: 'bash-generated',
+          kind: changedFile.kind,
         });
-        mainLog('[AcpAgent]', `[TRACK-BASH] New file detected: ${relativePath}, intent: ${intent}`);
       }
 
       // Update snapshot for next comparison
       this.workspaceFileSnapshot = currentSnapshot;
 
-      if (newFiles.length > 0) {
-        mainLog('[AcpAgent]', `[TRACK-BASH] Total new files tracked: ${newFiles.length}`);
+      if (changedFiles.length > 0) {
+        mainLog('[AcpAgent]', `[TRACK-BASH] Total changed files tracked: ${changedFiles.length}`);
       }
     } catch (err) {
       mainError('[AcpAgent]', 'Failed to track Bash generated files:', err);
@@ -2044,31 +2093,12 @@ This identity statement takes priority over the default identity in USER.md.
               const inputPath = rawInput?.path as string | undefined;
               const content = rawInput?.content as string | undefined;
               if (inputPath) {
-                // Detect file intent
-                let intent: 'draft' | 'final' = 'final';
-                if (content) {
-                  const intentResult = detectFileIntent(inputPath, content);
-                  if (intentResult.intent === 'draft') {
-                    intent = 'draft';
-                  } else if (intentResult.intent === 'final') {
-                    intent = 'final';
-                  } else {
-                    // Use pattern matching as fallback
-                    intent = matchesDraftPattern(inputPath) ? 'draft' : 'final';
-                  }
-                } else {
-                  intent = matchesDraftPattern(inputPath) ? 'draft' : 'final';
-                }
-
-                // Track the file
-                const actualPath = intent === 'draft' ? nodePath.join(this.workspace, '.drafts', nodePath.basename(inputPath)) : nodePath.join(this.workspace, inputPath);
-
-                this.currentTurnFiles.set(inputPath, {
-                  path: actualPath,
-                  intent,
+                this.trackTurnFile({
+                  requestedPath: inputPath,
+                  content,
+                  source: n === 'write_file' ? 'write' : 'edit',
                   kind: n === 'write_file' ? 'create' : 'edit',
                 });
-                mainLog('[AcpAgent]', `[TRACK] File: ${inputPath}, intent: ${intent}, actualPath: ${actualPath}`);
               }
             }
 
@@ -2443,12 +2473,8 @@ This identity statement takes priority over the default identity in USER.md.
 
     if (!this.userCancelled) {
       await this.installTrackedWorkspaceSkills();
+      await this.archiveCurrentTurnFiles();
     }
-
-    // Clear turn-level file tracking for next turn
-    // 清空 Turn 级别文件追踪，为下一个 Turn 做准备
-    this.currentTurnFiles.clear();
-    mainLog('[AcpAgent]', '[END_TURN] Cleared currentTurnFiles for next turn');
 
     const msg: IResponseMessage = {
       type: 'finish',
@@ -2615,20 +2641,13 @@ This identity statement takes priority over the default identity in USER.md.
       return;
     }
 
-    let intent: 'draft' | 'final' = matchesDraftPattern(relativePath) ? 'draft' : 'final';
-    if (typeof operation.content === 'string') {
-      const intentResult = detectFileIntent(relativePath, operation.content);
-      if (intentResult.intent === 'draft' || intentResult.intent === 'final') {
-        intent = intentResult.intent;
-      }
-    }
-
-    this.currentTurnFiles.set(relativePath, {
-      path: actualPath,
-      intent,
+    this.trackTurnFile({
+      requestedPath: operation.path,
+      actualPath,
+      content: operation.content,
+      source: 'write',
       kind: fs.existsSync(actualPath) ? 'edit' : 'create',
     });
-    mainLog('[AcpAgent]', `[TRACK-FILE-OP] File: ${relativePath}, intent: ${intent}, actualPath: ${actualPath}`);
   }
 
   private handleDisconnect(error: { code: number | null; signal: NodeJS.Signals | null }): void {
@@ -2815,6 +2834,10 @@ This identity statement takes priority over the default identity in USER.md.
       setTimeout(() => {
         this.processingStartTime = undefined;
       }, 1500);
+
+      await this.archiveCurrentTurnFiles().catch((err) => {
+        mainError('AcpAgent', 'Turn archive failed:', err);
+      });
 
       // Post-cleanup: move intermediate files from workspace root to .drafts/
       if (this.workspace) {
