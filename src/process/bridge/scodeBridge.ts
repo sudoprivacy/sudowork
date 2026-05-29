@@ -14,7 +14,12 @@
 import { ipcBridge } from '@/common';
 import { modelInputForModelId } from '@/common/imageUtils';
 import type { ScodeModelEntry } from '@/common/ipcBridge';
-import { extractCustomProvidersFromScodeConfig, mergeCustomProvidersIntoScodeConfig, type ScodeCustomModelProvider } from '@/common/scodeConfig';
+import {
+  extractCustomProvidersFromScodeConfig,
+  mergeCustomProvidersIntoScodeConfig,
+  normalizeCustomApiKeyModelsInScodeConfig,
+  type ScodeCustomModelProvider,
+} from '@/common/scodeConfig';
 import { SCODE_DIR, isScodeInstalled, getScodeVersionState, ensureScodeInstalled } from '@process/services/scode/ScodeInstallService';
 import { readSettings, removeDisabledMcpServersFromSettings, writeSettings } from '@process/services/mcpServices/agents/ScodeMcpAgent';
 import { getDatabase } from '@process/database';
@@ -62,7 +67,7 @@ function restoreCustomProvidersForUser(userId: string, config: Record<string, un
  * Callable directly from main process code (no IPC needed).
  */
 export function writeScodeDefaultModel(modelId: string): void {
-  const existing = readExistingConfig();
+  const existing = normalizeCustomApiKeyModelsInScodeConfig(readExistingConfig()) as unknown as Record<string, unknown>;
   existing.default_model = modelId;
   writeConfig(existing);
   mainLog(TAG, `Updated default_model to "${modelId}"`);
@@ -84,7 +89,7 @@ export function writeScodeDefaultModel(modelId: string): void {
  * bash script can read it without depending on sudoclaw.json.
  */
 export function writeScodeImageModel(modelId: string): void {
-  const existing = readExistingConfig();
+  const existing = normalizeCustomApiKeyModelsInScodeConfig(readExistingConfig()) as unknown as Record<string, unknown>;
   const tools = (existing.tools as Record<string, unknown>) || {};
   existing.tools = { ...tools, imageGenerationModel: modelId };
   writeConfig(existing);
@@ -130,7 +135,9 @@ export async function syncScodeModelsFromPricing(): Promise<void> {
   }
 
   const existing = readExistingConfig();
-  const existingModels = (existing.models && typeof existing.models === 'object' ? existing.models : {}) as Record<string, ScodeModelEntry>;
+  const normalizedExisting = normalizeCustomApiKeyModelsInScodeConfig(existing);
+  const normalizedExistingModels = normalizedExisting.models || {};
+  const existingModels = (normalizedExistingModels && typeof normalizedExistingModels === 'object' ? normalizedExistingModels : {}) as Record<string, ScodeModelEntry>;
   const models: Record<string, ScodeModelEntry> = {};
   for (const [alias, entry] of Object.entries(existingModels)) {
     if (entry?.providers?.proxy?.provider !== 'sudorouter') {
@@ -149,16 +156,16 @@ export async function syncScodeModelsFromPricing(): Promise<void> {
     };
   }
 
-  existing.models = models; // only replace `models`; other keys preserved
-  if (typeof existing.default_model === 'string' && !models[existing.default_model]) {
+  normalizedExisting.models = models; // only replace `models`; other keys preserved
+  if (typeof normalizedExisting.default_model === 'string' && !models[normalizedExisting.default_model]) {
     const fallbackModel = modelIds[0];
     if (fallbackModel) {
-      existing.default_model = fallbackModel;
+      normalizedExisting.default_model = fallbackModel;
     } else {
-      delete existing.default_model;
+      delete normalizedExisting.default_model;
     }
   }
-  writeConfig(existing);
+  writeConfig(normalizedExisting as unknown as Record<string, unknown>);
   mainLog(TAG, `Synced ${modelIds.length} sudorouter models from specific_pricing into sudocode.json`);
 }
 
@@ -235,9 +242,23 @@ async function migrateVisionInputOnStartup(): Promise<void> {
   }
 }
 
+async function migrateCustomApiKeyModelsOnStartup(): Promise<void> {
+  try {
+    const config = readExistingConfig();
+    const normalizedConfig = normalizeCustomApiKeyModelsInScodeConfig(config) as unknown as Record<string, unknown>;
+    if (JSON.stringify(config) !== JSON.stringify(normalizedConfig)) {
+      writeConfig(normalizedConfig);
+      mainLog(TAG, 'Normalized custom api-key models in sudocode.json');
+    }
+  } catch (err) {
+    mainWarn(TAG, `Failed to normalize custom api-key models: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
 export function registerScodeBridge(): void {
   void syncImageModelOnStartup();
   void ensureSettingsModelOnStartup();
+  void migrateCustomApiKeyModelsOnStartup();
   void migrateVisionInputOnStartup();
   ipcBridge.scode.getConfig.provider(async () => {
     try {
@@ -260,7 +281,7 @@ export function registerScodeBridge(): void {
           incoming.web_search = existing.web_search;
         }
       }
-      writeConfig(incoming);
+      writeConfig(normalizeCustomApiKeyModelsInScodeConfig(incoming) as unknown as Record<string, unknown>);
       mainLog(TAG, 'Saved sudocode.json config');
       return { success: true };
     } catch (err) {
