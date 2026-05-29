@@ -46,6 +46,12 @@ function getScodeModelProviderInfo(providers: Record<string, unknown> | null): P
   return {};
 }
 
+function getScodeApiKeyProviderModel(providers: Record<string, unknown> | null): string | undefined {
+  const providerConfig = asRecord(providers?.['api-key']);
+  const providerModel = typeof providerConfig?.model === 'string' && providerConfig.model.trim() ? providerConfig.model.trim() : undefined;
+  return providerModel;
+}
+
 function readScodeModelsFromConfig(configPath = SUDOCODE_CONFIG_PATH): ScodeConfiguredModel[] {
   try {
     const raw = fs.readFileSync(configPath, 'utf-8');
@@ -70,7 +76,8 @@ function readScodeModelsFromConfig(configPath = SUDOCODE_CONFIG_PATH): ScodeConf
         continue;
       }
 
-      const name = typeof model?.name === 'string' && model.name.trim() ? model.name.trim() : alias;
+      const apiKeyProviderModel = getScodeApiKeyProviderModel(providers);
+      const name = apiKeyProviderModel || (typeof model?.name === 'string' && model.name.trim() ? model.name.trim() : alias);
       seen.add(alias);
       result.push({
         id: alias,
@@ -150,7 +157,8 @@ function readScodeModelsWithVisionFromConfig(configPath = SUDOCODE_CONFIG_PATH):
         continue;
       }
 
-      const name = typeof model?.name === 'string' && model.name.trim() ? model.name.trim() : alias;
+      const apiKeyProviderModel = getScodeApiKeyProviderModel(providers);
+      const name = apiKeyProviderModel || (typeof model?.name === 'string' && model.name.trim() ? model.name.trim() : alias);
 
       let hasVision = false;
       if (Array.isArray(model?.input)) {

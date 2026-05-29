@@ -46,8 +46,39 @@ describe('scodeProxyModels', () => {
 
     expect(info?.currentModelId).toBe('gpt-4o');
     expect(info?.availableModels).toEqual([
-      { id: 'gemini-3-flash-preview', label: 'Gemini 3 Flash' },
-      { id: 'gpt-4o', label: 'GPT 4o' },
+      { id: 'gemini-3-flash-preview', label: 'Gemini 3 Flash', provider: 'sudorouter', providerLabel: 'SudoRouter' },
+      { id: 'gpt-4o', label: 'gpt-4o', provider: 'custom-openai', providerLabel: 'custom-openai' },
+    ]);
+  });
+
+  it('uses the upstream provider model as the label for provider-scoped custom aliases', () => {
+    const configPath = writeConfig({
+      default_model: 'custom-openai/gpt-4o',
+      models: {
+        'gpt-4o': {
+          alias: 'gpt-4o',
+          name: 'gpt-4o',
+          providers: {
+            proxy: { provider: 'sudorouter', model: 'gpt-4o', api: 'openai-completions' },
+          },
+        },
+        'custom-openai/gpt-4o': {
+          alias: 'custom-openai/gpt-4o',
+          name: 'custom-openai/gpt-4o',
+          providers: {
+            'api-key': { provider: 'custom-openai', model: 'gpt-4o', api: 'openai-completions' },
+          },
+        },
+      },
+    });
+
+    const info = getScodeProxyModelInfoSync(null, configPath);
+
+    expect(info?.currentModelId).toBe('custom-openai/gpt-4o');
+    expect(info?.currentModelLabel).toBe('gpt-4o');
+    expect(info?.availableModels).toEqual([
+      { id: 'gpt-4o', label: 'gpt-4o', provider: 'sudorouter', providerLabel: 'SudoRouter' },
+      { id: 'custom-openai/gpt-4o', label: 'gpt-4o', provider: 'custom-openai', providerLabel: 'custom-openai' },
     ]);
   });
 });

@@ -8,7 +8,6 @@ import type { IProvider } from '@/common/storage';
 import { uuid } from '@/common/utils';
 import { type ProtocolDetectionRequest, type ProtocolDetectionResponse, type ProtocolType, type MultiKeyTestResult, parseApiKeys, maskApiKey, normalizeBaseUrl, removeApiPathSuffix, guessProtocolFromUrl, guessProtocolFromKey, getProtocolDisplayName } from '@/common/utils/protocolDetector';
 import { isGoogleApisHost } from '@/common/utils/urlValidation';
-import OpenAI from 'openai';
 import { isNewApiPlatform } from '@/common/utils/platformConstants';
 import { ipcBridge } from '../../common';
 import { ProcessConfig } from '../initStorage';
@@ -34,6 +33,54 @@ const API_PATH_PATTERNS = [
   '/api/v3', // 火山引擎 Ark / Volcengine
   '/api/paas/v4', // 智谱 / Zhipu
 ];
+
+const OPENAI_MODELS_UNSUPPORTED_MESSAGE = '该供应商不支持获取模型列表，请手动输入模型名称';
+
+type OpenAIModelsResponse = {
+  data?: Array<{ id?: unknown }>;
+};
+
+function hasKnownOpenAIBasePath(baseUrl: string): boolean {
+  return API_PATH_PATTERNS.some((pattern) => baseUrl.endsWith(pattern));
+}
+
+function buildOpenAIModelsEndpoint(baseUrl: string): string {
+  const trimmed = baseUrl.trim().replace(/\/+$/, '');
+  if (!trimmed) {
+    throw new Error('Base URL is required');
+  }
+  return hasKnownOpenAIBasePath(trimmed) ? `${trimmed}/models` : `${trimmed}/v1/models`;
+}
+
+function parseOpenAIModelIds(data: OpenAIModelsResponse): string[] {
+  const modelIds = (Array.isArray(data.data) ? data.data : [])
+    .map((model) => (typeof model?.id === 'string' ? model.id.trim() : ''))
+    .filter(Boolean);
+  return Array.from(new Set(modelIds)).sort((a, b) => a.localeCompare(b));
+}
+
+async function fetchOpenAICompatibleModels(baseUrl: string, apiKey: string): Promise<string[]> {
+  const response = await fetch(buildOpenAIModelsEndpoint(baseUrl), {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+      'User-Agent': 'AionUI/1.0',
+    },
+    signal: AbortSignal.timeout(15000),
+  });
+
+  if (!response.ok) {
+    throw new Error(`OpenAI models endpoint returned HTTP ${response.status}`);
+  }
+
+  const data = (await response.json()) as OpenAIModelsResponse;
+  const models = parseOpenAIModelIds(data);
+  if (models.length === 0) {
+    throw new Error('OpenAI models endpoint returned no data[].id values');
+  }
+  return models;
+}
 
 /**
  * Bedrock model ID to friendly name mapping
@@ -164,28 +211,12 @@ export function initModelBridge(): void {
     // new-api 暴露标准的 /v1/models 端点，直接走 OpenAI 路径
     // new-api exposes standard /v1/models endpoint, use OpenAI path directly
     if (isNewApiPlatform(platform)) {
-      // 确保 base_url 带有 /v1 后缀 / Ensure base_url has /v1 suffix
-      let openaiBaseUrl = base_url?.replace(/\/+$/, '') || '';
-      if (openaiBaseUrl && !openaiBaseUrl.endsWith('/v1')) {
-        openaiBaseUrl = `${openaiBaseUrl}/v1`;
-      }
-
-      const openai = new OpenAI({
-        baseURL: openaiBaseUrl,
-        apiKey: actualApiKey,
-        defaultHeaders: {
-          'User-Agent': 'AionUI/1.0',
-        },
-      });
-
       try {
-        const res = await openai.models.list();
-        if (res.data?.length === 0) {
-          throw new Error('Invalid response: empty data');
-        }
-        return { success: true, data: { mode: res.data.map((v) => v.id) } };
+        const models = await fetchOpenAICompatibleModels(base_url || '', actualApiKey || '');
+        return { success: true, data: { mode: models } };
       } catch (e: any) {
-        return { success: false, msg: e.message || e.toString() };
+        mainWarn('ModelBridge', `Failed to fetch new-api models: ${e.message || e.toString()}`);
+        return { success: false, msg: OPENAI_MODELS_UNSUPPORTED_MESSAGE };
       }
     }
 
@@ -315,26 +346,12 @@ export function initModelBridge(): void {
       }
     }
 
-    const openai = new OpenAI({
-      baseURL: base_url,
-      apiKey: actualApiKey,
-      // 使用自定义 User-Agent，避免某些 API 中转站（如 packyapi）拦截 OpenAI SDK 默认的 User-Agent
-      // Use custom User-Agent to avoid some API proxies (like packyapi) blocking OpenAI SDK's default User-Agent
-      defaultHeaders: {
-        'User-Agent': 'AionUI/1.0',
-      },
-    });
-
     try {
-      const res = await openai.models.list();
-      // 检查返回的数据是否有效，LM Studio 获取失败时仍会返回空数据
-      // Check if response data is valid, LM Studio returns empty data on failure
-      if (res.data?.length === 0) {
-        throw new Error('Invalid response: empty data');
-      }
-      return { success: true, data: { mode: res.data.map((v) => v.id) } };
+      const models = await fetchOpenAICompatibleModels(base_url || '', actualApiKey || '');
+      return { success: true, data: { mode: models } };
     } catch (e) {
-      const errRes = { success: false, msg: e.message || e.toString() };
+      mainWarn('ModelBridge', `Failed to fetch OpenAI-compatible models: ${e.message || e.toString()}`);
+      const errRes = { success: false, msg: OPENAI_MODELS_UNSUPPORTED_MESSAGE };
 
       if (!try_fix) return errRes;
 
