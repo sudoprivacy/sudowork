@@ -14,9 +14,13 @@ interface MyMcpTabProps {
   onDelete?: (server: EnterpriseMcpServerDto) => Promise<void> | void;
   /** Phase B 注入：用 servers.getUserConfig 读取 schema+values */
   loadUserConfig?: (serverId: string) => Promise<{ schema: EnterpriseMcpUserConfigItem[]; values: Record<string, string> }>;
+  /** Phase B 注入：批量 PUT 保存用户配置 */
+  saveUserConfig?: (serverId: string, config_values: Record<string, string>) => Promise<void>;
+  /** 由父组件根据 server↔template 匹配派生：true 才显示"修改配置"按钮（未匹配到模板的 server 缺省按 false 处理） */
+  serverHasUserConfig?: Map<string, boolean>;
 }
 
-const MyMcpTab: React.FC<MyMcpTabProps> = ({ servers, loading = false, onToggleEnabled, onDelete, loadUserConfig }) => {
+const MyMcpTab: React.FC<MyMcpTabProps> = ({ servers, loading = false, onToggleEnabled, onDelete, loadUserConfig, saveUserConfig, serverHasUserConfig }) => {
   const filtered = useMemo(() => servers.filter((s) => s.scope === 'user'), [servers]);
   const [editing, setEditing] = useState<EnterpriseMcpServerDto | null>(null);
 
@@ -62,9 +66,11 @@ const MyMcpTab: React.FC<MyMcpTabProps> = ({ servers, loading = false, onToggleE
             {srv.description && <div className='text-12px text-t-tertiary mt-2px truncate'>{srv.description}</div>}
           </div>
           <div className='shrink-0 flex items-center gap-4px'>
-            <Button type='text' size='mini' icon={<Edit theme='outline' size='14' />} onClick={() => setEditing(srv)}>
-              修改配置
-            </Button>
+            {serverHasUserConfig?.get(srv.id) && (
+              <Button type='text' size='mini' icon={<Edit theme='outline' size='14' />} onClick={() => setEditing(srv)}>
+                修改配置
+              </Button>
+            )}
             <Switch checked={srv.enabled} onChange={(v) => void handleToggle(srv, v)} size='small' />
             <Popconfirm title='确认删除该 MCP？' content='此操作不可撤销，已写入的配置将被一并清除。' onOk={() => void handleDelete(srv)} okText='删除' cancelText='取消' okButtonProps={{ status: 'danger' }}>
               <Button type='text' size='mini' status='danger' icon={<Delete theme='outline' size='14' />} />
@@ -73,7 +79,7 @@ const MyMcpTab: React.FC<MyMcpTabProps> = ({ servers, loading = false, onToggleE
         </div>
       ))}
 
-      <EditConfigModal visible={editing !== null} server={editing} loadConfig={loadUserConfig} onCancel={() => setEditing(null)} />
+      <EditConfigModal visible={editing !== null} server={editing} loadConfig={loadUserConfig} saveConfig={saveUserConfig} onCancel={() => setEditing(null)} />
     </div>
   );
 };

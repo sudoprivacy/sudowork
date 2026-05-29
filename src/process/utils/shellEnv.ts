@@ -269,6 +269,19 @@ export function getEnhancedEnv(customEnv?: Record<string, string>): Record<strin
     mergedPath = mergePaths(mergedPath, winExtraPaths.join(';'));
   }
 
+  // Append managed (bundled) Node.js bin directory to PATH as fallback.
+  // This ensures agents, skills, and assistant tool calls can find `node`,
+  // `npm`, and `npx` even when no system Node.js is installed.
+  // Appended (not prepended) so that a user's system Node takes priority.
+  //
+  // 将托管的 Node.js bin 目录追加到 PATH（作为 fallback）。
+  // 确保 agent、skills 和助手调用工具时能找到 `node`、`npm`、`npx`，
+  // 即使系统未安装 Node.js。追加而非前置，以便用户系统 Node 优先。
+  if (isNodeInstalled()) {
+    const managedNodeBinDir = path.dirname(getNodeBinaryPath());
+    mergedPath = mergePaths(mergedPath, managedNodeBinDir);
+  }
+
   const enhancedEnv = {
     ...process.env,
     ...shellEnv,

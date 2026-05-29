@@ -101,6 +101,30 @@ The mcporter config is at: ${MCPORTER_CONFIG_PATH}`;
 }
 
 /**
+ * 构建 Node.js 运行时提示词
+ * Build Node.js runtime hint for agent prompts
+ *
+ * 告诉 agent 托管的 Node.js 可用路径，使其在调用工具时能直接使用 node/npm/npx。
+ * Informs the agent about the managed Node.js runtime path so it can use
+ * node/npm/npx directly when calling tools.
+ */
+export function buildNodeRuntimeHint(): string | null {
+  if (!isNodeInstalled()) {
+    return null;
+  }
+
+  const nodePath = getNodeBinaryPath();
+  const nodeBinDir = path.dirname(nodePath);
+
+  return `[Node.js Runtime]
+A managed Node.js runtime is available in your environment and has been added to PATH.
+- Node.js binary: ${nodePath}
+- Bin directory (contains node, npm, npx): ${nodeBinDir}
+You can use \`node\`, \`npm\`, and \`npx\` commands directly in your tool calls.
+If PATH resolution fails, use the full path: ${nodePath}`;
+}
+
+/**
  * 首次消息处理配置
  * First message processing configuration
  */
@@ -235,6 +259,12 @@ export async function buildSystemInstructions(config: FirstMessageConfig): Promi
     instructions.push(buildDraftsInstruction(config.workspace));
   }
 
+  // 添加 Node.js 运行时提示 / Add Node.js runtime hint
+  const nodeHintForGemini = buildNodeRuntimeHint();
+  if (nodeHintForGemini) {
+    instructions.push(nodeHintForGemini);
+  }
+
   // 加载并添加 skills 内容 / Load and add skills content
   if (config.enabledSkills && config.enabledSkills.length > 0) {
     const skillsContent = await loadSkillsContent(config.enabledSkills);
@@ -302,6 +332,12 @@ export async function prepareFirstMessageWithSkillsIndex(content: string, config
     instructions.push(buildDraftsInstruction(config.workspace));
   }
 
+  // 1.8 添加 Node.js 运行时提示 / Add Node.js runtime hint
+  const nodeHint = buildNodeRuntimeHint();
+  if (nodeHint) {
+    instructions.push(nodeHint);
+  }
+
   // 2. 仅加载内置 skills 索引
   // Load builtin skills index only
   const skillManager = AcpSkillManager.getInstance();
@@ -357,6 +393,12 @@ export async function prepareOpenClawFirstMessage(content: string, config: First
   // 1. 添加预设规则 / Add preset rules
   if (config.presetContext) {
     instructions.push(config.presetContext);
+  }
+
+  // 1.5 添加 Node.js 运行时提示 / Add Node.js runtime hint
+  const nodeHintForOpenClaw = buildNodeRuntimeHint();
+  if (nodeHintForOpenClaw) {
+    instructions.push(nodeHintForOpenClaw);
   }
 
   // 2. 加载内置 skills 索引 — 告诉 agent 直接读取 SKILL.md，不使用 [LOAD_SKILL:] 协议
@@ -453,6 +495,12 @@ export async function buildSystemInstructionsWithSkillsIndex(config: FirstMessag
   // 添加草稿箱使用指令 / Add drafts box instructions
   if (config.workspace) {
     instructions.push(buildDraftsInstruction(config.workspace));
+  }
+
+  // 添加 Node.js 运行时提示 / Add Node.js runtime hint
+  const nodeHintForGeminiIndex = buildNodeRuntimeHint();
+  if (nodeHintForGeminiIndex) {
+    instructions.push(nodeHintForGeminiIndex);
   }
 
   // 加载 skills 索引（包括内置 skills + 可选 skills）
