@@ -100,6 +100,9 @@ const EditConfigModal: React.FC<EditConfigModalProps> = ({ visible, server, load
     <AionModal
       visible={visible}
       size='medium'
+      // size='medium' 预设含 height: 400px，但本弹窗内容（少量配置项）高度通常远小于此值，
+      // 会在按钮下方留下空白；用 height: 'auto' 覆盖让其按内容自适应。
+      style={{ height: 'auto' }}
       header={`修改配置 · ${server.display_name || server.name}`}
       onCancel={onCancel}
       footer={
