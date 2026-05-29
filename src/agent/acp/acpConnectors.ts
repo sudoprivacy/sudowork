@@ -24,6 +24,10 @@ import { app } from 'electron';
 
 const execFile = promisify(execFileCb);
 
+// Safety hooks are temporarily disabled because the current implementation is obsolete.
+// Keep the injection path intact for future restoration.
+const SAFETY_HOOKS_ENABLED = false;
+
 /** Enable ACP performance diagnostics via ACP_PERF=1 */
 export const ACP_PERF_LOG = process.env.ACP_PERF === '1';
 
@@ -112,14 +116,7 @@ export function resolveScodeAuthModeFromConfig(config: unknown, settings: unknow
   if (!configRecord) return null;
 
   const settingsRecord = asRecord(settings);
-  const currentModel =
-    typeof modelOverride === 'string' && modelOverride.trim()
-      ? modelOverride.trim()
-      : typeof settingsRecord?.model === 'string' && settingsRecord.model.trim()
-        ? settingsRecord.model.trim()
-        : typeof configRecord.default_model === 'string' && configRecord.default_model.trim()
-          ? configRecord.default_model.trim()
-          : null;
+  const currentModel = typeof modelOverride === 'string' && modelOverride.trim() ? modelOverride.trim() : typeof settingsRecord?.model === 'string' && settingsRecord.model.trim() ? settingsRecord.model.trim() : typeof configRecord.default_model === 'string' && configRecord.default_model.trim() ? configRecord.default_model.trim() : null;
   if (!currentModel) return null;
 
   const models = asRecord(configRecord.models);
@@ -247,7 +244,7 @@ export function prepareCleanEnv({ injectSafetyHook = true }: PrepareCleanEnvOpti
   // Inject safety hook via NODE_OPTIONS if enabled.
   // Also set SUDOWORK_ACP_CHILD=1 so the hook skips in ACP bridge child processes
   // (the hook is inherited via NODE_OPTIONS but must not intercept stdio JSON-RPC).
-  if (injectSafetyHook && isSafetyHookEnabled()) {
+  if (SAFETY_HOOKS_ENABLED && injectSafetyHook && isSafetyHookEnabled()) {
     const hookJsPath = getHookJsPath();
     const hookOption = buildRequireNodeOption(hookJsPath);
     cleanEnv.NODE_OPTIONS = hookOption;

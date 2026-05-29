@@ -484,7 +484,7 @@ const PreviewPanel: React.FC = () => {
         if (layout?.isMobile) {
           return (
             <div className='flex-1 overflow-hidden'>
-              <HTMLRenderer content={content} filePath={metadata?.filePath} copySuccessMessage={t('preview.html.copySuccess')} inspectMode={inspectMode} onElementSelected={handleElementSelected} />
+              <HTMLRenderer content={content} filePath={previewFilePath} copySuccessMessage={t('preview.html.copySuccess')} inspectMode={inspectMode} onElementSelected={handleElementSelected} />
             </div>
           );
         }
@@ -512,7 +512,7 @@ const PreviewPanel: React.FC = () => {
               <div className='flex flex-col flex-1 overflow-hidden'>
                 {/* prettier-ignore */}
                 {/* eslint-disable-next-line max-len */}
-                <HTMLRenderer content={content} filePath={metadata?.filePath} containerRef={previewContainerRef} onScroll={handlePreviewScroll} inspectMode={inspectMode} copySuccessMessage={t('preview.html.copySuccess')} onElementSelected={handleElementSelected} />
+                <HTMLRenderer content={content} filePath={previewFilePath} containerRef={previewContainerRef} onScroll={handlePreviewScroll} inspectMode={inspectMode} copySuccessMessage={t('preview.html.copySuccess')} onElementSelected={handleElementSelected} />
               </div>
             </div>
           </div>
@@ -530,7 +530,7 @@ const PreviewPanel: React.FC = () => {
         // 预览模式 / Preview mode
         return (
           <div className='flex-1 overflow-hidden'>
-            <HTMLRenderer content={content} filePath={metadata?.filePath} inspectMode={inspectMode} copySuccessMessage={t('preview.html.copySuccess')} onElementSelected={handleElementSelected} />
+            <HTMLRenderer content={content} filePath={previewFilePath} inspectMode={inspectMode} copySuccessMessage={t('preview.html.copySuccess')} onElementSelected={handleElementSelected} />
           </div>
         );
       }
