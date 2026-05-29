@@ -152,6 +152,18 @@ async function createRemoteLocalPreviewFile(fileName: string, contentBase64: str
   return localPreviewFilePath;
 }
 
+async function createRemoteTextPreviewFile(fileName: string, content: string): Promise<string> {
+  const localPreviewFilePath = await ipcBridge.fs.createTempFile.invoke({ fileName });
+  const written = await ipcBridge.fs.writeFile.invoke({
+    path: localPreviewFilePath,
+    data: content,
+  });
+  if (!written) {
+    throw new Error(`Failed to prepare remote preview for ${fileName}`);
+  }
+  return localPreviewFilePath;
+}
+
 /**
  * useWorkspaceFileOps - 文件操作逻辑（打开、删除、重命名、预览、添加到聊天）
  * File operations logic (open, delete, rename, preview, add to chat)
@@ -460,6 +472,9 @@ export function useWorkspaceFileOps(options: UseWorkspaceFileOpsOptions) {
             } else {
               content = contentType === 'image' ? textToDataUrl(remotePreview.mime, remotePreview.content) : remotePreview.content;
             }
+            if (contentType === 'html') {
+              localPreviewFilePath = await createRemoteTextPreviewFile(nodeData.name, content);
+            }
             isLargeTextTruncated = Boolean(remotePreview.truncated);
           } else if (contentType === 'image') {
             content = toDataUrl(remotePreview.mime, remotePreview.contentBase64);
@@ -469,6 +484,9 @@ export function useWorkspaceFileOps(options: UseWorkspaceFileOpsOptions) {
             if (textContent && textPreviewType) {
               contentType = textPreviewType;
               content = textContent;
+              if (contentType === 'html') {
+                localPreviewFilePath = await createRemoteTextPreviewFile(nodeData.name, content);
+              }
             } else {
               content = remotePreview.contentBase64;
               localPreviewFilePath = await createRemoteLocalPreviewFile(nodeData.name, remotePreview.contentBase64);
