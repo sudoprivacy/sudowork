@@ -11,6 +11,16 @@ import { DRAFTS_DIR_NAME } from '@/common/constants';
 import { useConversationContextSafe } from '@/renderer/context/ConversationContext';
 import { useAddEventListener } from '@/renderer/utils/emitter';
 
+// Hidden directories that should never appear in @ file selector
+// 隐藏目录列表：这些目录不应出现在 @ 文件选择器中
+const HIDDEN_DIR_NAMES = new Set(['.git', '.nexus', '.scode', '.claude', '.sandbox-home', '.sandbox-tmp', '.idea', '.vscode', '.venv', '.next', '.pyc']);
+
+// Common build/output directories to hide
+// 常见构建/输出目录
+const BUILD_DIR_NAMES = new Set(['dist', 'build', 'out', '__pycache__', 'venv', 'node_modules']);
+
+const isHiddenOrBuildDir = (name: string): boolean => HIDDEN_DIR_NAMES.has(name) || BUILD_DIR_NAMES.has(name) || (name.startsWith('.') && name !== DRAFTS_DIR_NAME);
+
 /**
  * Flattened workspace file item for @ mention selection
  */
@@ -32,6 +42,13 @@ export interface WorkspaceFileItem {
  */
 function flattenFileTree(nodes: IDirOrFile[], result: WorkspaceFileItem[] = []): WorkspaceFileItem[] {
   for (const node of nodes) {
+    const normalizedPath = node.relativePath.replace(/\\/g, '/');
+    const topDir = normalizedPath.split('/')[0];
+
+    // Skip hidden/build directories and files inside them (allow .drafts)
+    if (!node.isFile && isHiddenOrBuildDir(node.name)) continue;
+    if (node.isFile && isHiddenOrBuildDir(topDir)) continue;
+
     if (node.isFile) {
       result.push({
         name: node.name,
@@ -65,10 +82,7 @@ export function useWorkspaceFiles(): WorkspaceFileItem[] {
     try {
       // Fetch workspace files and draft files in parallel
       // 并行获取工作空间文件和草稿箱文件
-      const [result, draftsResult] = await Promise.all([
-        ipcBridge.fs.getFilesByDir.invoke({ dir: workspace, root: workspace }),
-        ipcBridge.workspaceManage.listDrafts.invoke({ workspace }).catch((): null => null),
-      ]);
+      const [result, draftsResult] = await Promise.all([ipcBridge.fs.getFilesByDir.invoke({ dir: workspace, root: workspace }), ipcBridge.workspaceManage.listDrafts.invoke({ workspace }).catch((): null => null)]);
 
       const flatList = result && result.length > 0 && result[0].children ? flattenFileTree(result[0].children) : [];
 
