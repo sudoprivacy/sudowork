@@ -192,6 +192,18 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
   // Turn-level file tracking for precise cleanup on cancel
   private currentTurnFiles: Map<string, TrackedTurnFile> = new Map();
   private readonly fileIntentClassifier = new FileIntentClassifier();
+  private static readonly WORKSPACE_TRACKING_SKIP_DIRS = new Set([
+    '.codex',
+    '.drafts',
+    '.git',
+    '.nexus',
+    '.scode',
+    'node_modules',
+    '__pycache__',
+    '.venv',
+    'venv',
+  ]);
+  private static readonly WORKSPACE_TRACKING_SKIP_FILES = new Set(['.gitignore', '.env', '.env.local', '.DS_Store', 'Thumbs.db']);
 
   // Extra config passed to connection
   private extra: {
@@ -1575,12 +1587,9 @@ This identity statement takes priority over the default identity in USER.md.
 
       for (const changedFile of changedFiles) {
         const file = changedFile.path;
-        const fileName = nodePath.basename(file);
         const relativePath = nodePath.relative(this.workspace, file);
 
-        // Skip excluded files and directories
-        const EXCLUDED = new Set(['.git', '.gitignore', '.env', '.env.local', 'node_modules', '.DS_Store', 'Thumbs.db', '.nexus']);
-        if (EXCLUDED.has(fileName) || fileName.startsWith('.nexus')) continue;
+        if (this.shouldSkipWorkspaceTrackingPath(relativePath)) continue;
 
         let content: string | null = null;
         try {
@@ -1624,13 +1633,14 @@ This identity statement takes priority over the default identity in USER.md.
         const entries = fs.readdirSync(dir, { withFileTypes: true });
         for (const entry of entries) {
           const fullPath = nodePath.join(dir, entry.name);
+          const relativePath = nodePath.relative(baseDir, fullPath);
 
           // Skip certain directories
           if (entry.isDirectory()) {
-            const skipDirs = new Set(['.git', 'node_modules', '.nexus', '__pycache__', '.venv', 'venv']);
-            if (skipDirs.has(entry.name)) continue;
+            if (this.shouldSkipWorkspaceTrackingPath(relativePath)) continue;
             scanDir(fullPath, baseDir);
           } else if (entry.isFile()) {
+            if (this.shouldSkipWorkspaceTrackingPath(relativePath)) continue;
             try {
               const stat = fs.statSync(fullPath);
               snapshot.set(fullPath, stat.mtimeMs);
@@ -1647,6 +1657,17 @@ This identity statement takes priority over the default identity in USER.md.
     }
 
     return snapshot;
+  }
+
+  private shouldSkipWorkspaceTrackingPath(relativePath: string): boolean {
+    const normalizedPath = relativePath.replace(/\\/g, '/');
+    if (!normalizedPath || normalizedPath.startsWith('..') || nodePath.isAbsolute(normalizedPath)) return true;
+
+    const parts = normalizedPath.split('/').filter(Boolean);
+    if (parts.some((part) => AcpAgent.WORKSPACE_TRACKING_SKIP_DIRS.has(part))) return true;
+
+    const fileName = parts.at(-1) ?? normalizedPath;
+    return AcpAgent.WORKSPACE_TRACKING_SKIP_FILES.has(fileName);
   }
 
   /**
