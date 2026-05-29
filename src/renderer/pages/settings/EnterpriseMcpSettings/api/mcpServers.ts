@@ -34,6 +34,7 @@ export interface McpServersApi {
   remove(id: string): Promise<void>;
   test(id: string): Promise<TestResponse['data']>;
   getUserConfig(id: string): Promise<UserConfigResponse['data']>;
+  updateUserConfig(id: string, config_values: Record<string, string>): Promise<void>;
 }
 
 export function createMcpServersApi(client: EnterpriseMcpClient): McpServersApi {
@@ -63,6 +64,12 @@ export function createMcpServersApi(client: EnterpriseMcpClient): McpServersApi 
     async getUserConfig(id) {
       const res = await client.request<UserConfigResponse>(`/api/v1/me/mcp-servers/${encodeURIComponent(id)}/user-config`);
       return res.data;
+    },
+    async updateUserConfig(id, config_values) {
+      await client.request<{ success: true }>(`/api/v1/me/mcp-servers/${encodeURIComponent(id)}/user-config`, {
+        method: 'PUT',
+        body: { config_values },
+      });
     },
   };
 }
