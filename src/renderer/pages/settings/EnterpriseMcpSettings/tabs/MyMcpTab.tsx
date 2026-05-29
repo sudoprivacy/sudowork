@@ -71,7 +71,7 @@ const MyMcpTab: React.FC<MyMcpTabProps> = ({ servers, loading = false, onToggleE
                 修改配置
               </Button>
             )}
-            <Switch checked={srv.enabled} onChange={(v) => void handleToggle(srv, v)} size='small' />
+            <Switch checked={!srv.user_disabled} onChange={(v) => void handleToggle(srv, v)} size='small' />
             <Popconfirm title='确认删除该 MCP？' content='此操作不可撤销，已写入的配置将被一并清除。' onOk={() => void handleDelete(srv)} okText='删除' cancelText='取消' okButtonProps={{ status: 'danger' }}>
               <Button type='text' size='mini' status='danger' icon={<Delete theme='outline' size='14' />} />
             </Popconfirm>
