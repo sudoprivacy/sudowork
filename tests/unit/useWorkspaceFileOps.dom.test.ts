@@ -242,7 +242,6 @@ describe('useWorkspaceFileOps', () => {
   it.each([
     ['README.md', 'markdown', '# Title'],
     ['changes.diff', 'diff', '-old\n+new'],
-    ['index.html', 'html', '<main>hello</main>'],
     ['main.ts', 'code', 'const value = 1;'],
   ] as const)('opens remote text %s as %s without creating a local preview file', async (fileName, contentType, content) => {
     mockRemoteTextFile(fileName, content);
@@ -261,6 +260,31 @@ describe('useWorkspaceFileOps', () => {
         remote: true,
         editable: false,
         localPreviewFilePath: undefined,
+      })
+    );
+  });
+
+  it('opens remote text HTML with a local read-only preview file', async () => {
+    const content = '<!doctype html><html><body><main>hello</main></body></html>';
+    mockRemoteTextFile('index.html', content, { mime: 'text/html' });
+    const openPreview = vi.fn();
+    const { result } = renderHook(() => useWorkspaceFileOps(createOptions(openPreview)));
+
+    await result.current.handlePreviewFile(createFile('index.html'));
+
+    expect(mocks.createTempFile).toHaveBeenCalledWith({ fileName: 'index.html' });
+    expect(mocks.writeFile).toHaveBeenCalledWith({
+      path: '/tmp/sudowork/index.html',
+      data: content,
+    });
+    expect(openPreview).toHaveBeenCalledWith(
+      content,
+      'html',
+      expect.objectContaining({
+        fileName: 'index.html',
+        remote: true,
+        editable: false,
+        localPreviewFilePath: '/tmp/sudowork/index.html',
       })
     );
   });
