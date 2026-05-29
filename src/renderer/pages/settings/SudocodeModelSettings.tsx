@@ -6,12 +6,19 @@
 
 import { ipcBridge } from '@/common';
 import type { ScodeConfig, ScodeModelEntry } from '@/common/ipcBridge';
-import { extractCustomProvidersFromScodeConfig, mergeCustomProviderIntoScodeConfig, removeCustomProviderFromScodeConfig, type ScodeCustomModelProvider } from '@/common/scodeConfig';
+import {
+  buildCustomModelAlias,
+  extractCustomProvidersFromScodeConfig,
+  mergeCustomProviderIntoScodeConfig,
+  removeCustomProviderFromScodeConfig,
+  type ScodeCustomModelProvider,
+} from '@/common/scodeConfig';
 import AionModal from '@/renderer/components/base/AionModal';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { Button, Checkbox, Form, Input, InputNumber, Message, Popconfirm, Select, Space, Spin, Tag, Typography } from '@arco-design/web-react';
-import { Delete, Edit, LinkCloud, PreviewOpen, Plus, Refresh, SettingTwo } from '@icon-park/react';
+import { Delete, Download, Edit, LinkCloud, PreviewOpen, Plus, Refresh, SettingTwo } from '@icon-park/react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/renderer/context/AuthContext';
 import SettingsPageWrapper from './components/SettingsPageWrapper';
 
@@ -156,24 +163,29 @@ const AddModelDialog: React.FC<{
   config: ScodeConfig | null;
   editingTarget: EditingModelTarget | null;
 }> = ({ visible, onClose, onSubmit, existingProviderIds, existingModelIds, config, editingTarget }) => {
+  const { t } = useTranslation();
   const [form] = Form.useForm();
   const [saving, setSaving] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
+  const [fetchingModels, setFetchingModels] = useState(false);
+  const [providerModels, setProviderModels] = useState<string[]>([]);
   const providerPreset = Form.useWatch('providerPreset', form);
   const selectedPreset = useMemo(() => PROVIDER_PRESETS.find((item) => item.value === providerPreset), [providerPreset]);
   const isEditing = Boolean(editingTarget);
+  const modelOptions = useMemo(() => providerModels.map((model) => ({ label: model, value: model })), [providerModels]);
 
   useEffect(() => {
     if (!visible) return;
     if (editingTarget) {
       const entry = findModelEntry(config, editingTarget.modelId);
+      const editableModel = editableModelFromEntry(config, editingTarget.modelId);
       const input = entry?.input || [];
       form.setFieldsValue({
         providerPreset: presetValueForProvider(editingTarget.provider),
         providerId: editingTarget.provider.id,
         baseUrl: editingTarget.provider.baseUrl,
         apiKey: editingTarget.provider.apiKey,
-        modelId: editingTarget.modelId,
+        modelId: editableModel.id,
         supportsTools: entry?.supports_tools !== false,
         supportsVision: input.includes('image'),
         supportsReasoning: Boolean(entry?.supports_reasoning),
@@ -181,6 +193,7 @@ const AddModelDialog: React.FC<{
         outputContext: entry?.context?.output,
       });
       setShowApiKey(false);
+      setProviderModels([]);
       return;
     }
 
@@ -195,6 +208,7 @@ const AddModelDialog: React.FC<{
       supportsReasoning: false,
     });
     setShowApiKey(false);
+    setProviderModels([]);
   }, [form, visible]);
 
   useEffect(() => {
@@ -205,12 +219,55 @@ const AddModelDialog: React.FC<{
       providerId: preset.providerId,
       baseUrl: preset.baseUrl,
     });
+    setProviderModels([]);
   }, [form, isEditing, providerPreset]);
+
+  const handleFetchProviderModels = async () => {
+    const baseUrl = String(form.getFieldValue('baseUrl') || '').trim();
+    const apiKey = String(form.getFieldValue('apiKey') || '').trim();
+    if (!baseUrl) {
+      Message.warning(t('settings.pleaseEnterBaseUrl'));
+      return;
+    }
+    if (selectedPreset?.apiKeyRequired !== false && !apiKey) {
+      Message.warning(t('settings.pleaseEnterApiKey'));
+      return;
+    }
+
+    setFetchingModels(true);
+    try {
+      const res = await ipcBridge.mode.fetchModelList.invoke({
+        base_url: baseUrl,
+        api_key: apiKey,
+        platform: 'custom',
+      });
+      const models =
+        res.data?.mode
+          ?.map((item) => (typeof item === 'string' ? item : item.id))
+          .map((item) => item.trim())
+          .filter(Boolean) || [];
+
+      if (!res.success || models.length === 0) {
+        setProviderModels([]);
+        Message.warning(res.msg || t('settings.fetchModelListUnsupported'));
+        return;
+      }
+
+      setProviderModels(Array.from(new Set(models)));
+      Message.success(t('settings.fetchModelListSuccess', { count: models.length }));
+    } catch {
+      setProviderModels([]);
+      Message.warning(t('settings.fetchModelListUnsupported'));
+    } finally {
+      setFetchingModels(false);
+    }
+  };
 
   const handleSubmit = async () => {
     const values = await form.validate();
     const providerId = sanitizeProviderId(values.providerId);
     const modelId = String(values.modelId || '').trim();
+    const modelAlias = buildCustomModelAlias(providerId, modelId);
     if (!providerId) {
       Message.error('Provider ID 无效');
       return;
@@ -219,7 +276,7 @@ const AddModelDialog: React.FC<{
       Message.error('Provider ID 已存在，请换一个名称');
       return;
     }
-    if (existingModelIds.some((item) => item === modelId && item !== editingTarget?.modelId)) {
+    if (existingModelIds.some((item) => item === modelAlias && item !== editingTarget?.modelId)) {
       Message.error('模型名称已存在，请换一个名称');
       return;
     }
@@ -249,7 +306,7 @@ const AddModelDialog: React.FC<{
         baseUrl: values.baseUrl,
         apiKey: values.apiKey || '',
         models,
-      }, editingTarget?.provider.id, editingTarget?.modelId, modelId);
+      }, editingTarget?.provider.id, editingTarget?.modelId, modelAlias);
       onClose();
     } finally {
       setSaving(false);
@@ -279,8 +336,31 @@ const AddModelDialog: React.FC<{
         <Form.Item label='API Key' field='apiKey' rules={selectedPreset?.apiKeyRequired === false ? [] : [{ required: true }]}>
           <Input type={showApiKey ? 'text' : 'password'} placeholder={selectedPreset?.apiKeyRequired === false ? '本地服务可留空' : '输入你的 API Key'} suffix={<Button type='text' size='mini' icon={<PreviewOpen />} onClick={() => setShowApiKey((prev) => !prev)} />} />
         </Form.Item>
-        <Form.Item label='模型名称' field='modelId' rules={[{ required: true }]}>
-          <Input placeholder='例如 gpt-4o 或 openai/gpt-4o' />
+        <Form.Item
+          label={
+            <div className='flex items-center justify-between gap-12px w-full'>
+              <span>模型名称</span>
+              <Button size='mini' icon={<Download />} loading={fetchingModels} onClick={() => void handleFetchProviderModels()}>
+                {t('settings.fetchModelList')}
+              </Button>
+            </div>
+          }
+          field='modelId'
+          rules={[{ required: true }]}
+          extra={providerModels.length > 0 ? t('settings.modelListSelectOrManualHint') : t('settings.modelListFetchHint')}
+        >
+          <Select
+            showSearch
+            allowCreate
+            options={modelOptions}
+            loading={fetchingModels}
+            placeholder='例如 gpt-4o 或 openai/gpt-4o'
+            notFoundContent={fetchingModels ? <Spin size={16} /> : t('settings.modelListManualInputHint')}
+            filterOption={(inputValue, option) => {
+              const value = String((option as React.ReactElement<{ value?: string }>)?.props?.value || '');
+              return value.toLowerCase().includes(inputValue.toLowerCase());
+            }}
+          />
         </Form.Item>
         <div className='mb-8px text-14px font-600 text-t-primary'>高级配置</div>
         <div className='grid grid-cols-1 md:grid-cols-3 gap-12px mb-16px'>
@@ -482,11 +562,12 @@ const SudocodeModelSettingsContent: React.FC = () => {
                 <div className='divide-y divide-border-2'>
                   {provider.modelIds.map((modelId) => {
                     const entry = findModelEntry(config, modelId);
+                    const displayModelId = entry?.providers?.['api-key']?.model || entry?.name || modelId;
                     const input = entry?.input || [];
                     return (
                       <div key={modelId} className='px-16px py-12px flex items-center justify-between gap-12px flex-wrap'>
                         <div className='min-w-0'>
-                          <div className='text-14px font-600 text-t-primary truncate'>{modelId}</div>
+                          <div className='text-14px font-600 text-t-primary truncate'>{displayModelId}</div>
                           <div className='mt-6px flex flex-wrap gap-6px'>
                             {entry?.supports_tools !== false && <Tag size='small'>工具调用</Tag>}
                             {input.includes('image') && (

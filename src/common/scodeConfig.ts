@@ -14,6 +14,7 @@ export type ScodeCustomModelProvider = {
   models: Array<{
     id: string;
     name?: string;
+    api?: string;
     input?: string[];
     supportsTools?: boolean;
     supportsReasoning?: boolean;
@@ -24,6 +25,7 @@ export type ScodeCustomModelProvider = {
 
 const SUDOROUTER_PROVIDER_ID = 'sudorouter';
 const OPENAI_COMPAT_API = 'openai-completions';
+const OPENAI_RESPONSES_API = 'openai-responses';
 
 function uniqueStrings(values: string[]): string[] {
   return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
@@ -31,6 +33,35 @@ function uniqueStrings(values: string[]): string[] {
 
 function normalizeModelAlias(modelId: string): string {
   return modelId.trim();
+}
+
+export function buildCustomModelAlias(providerId: string, modelId: string): string {
+  const normalizedProviderId = providerId.trim();
+  const normalizedModelId = normalizeModelAlias(modelId);
+  return `${normalizedProviderId}/${normalizedModelId}`;
+}
+
+function shouldUseOpenAIResponsesApi(modelId: string): boolean {
+  return /^gpt-5\.(4|5)(?:$|-)/i.test(modelId.trim());
+}
+
+function getCustomApiType(modelId: string, api?: string): string {
+  const modelApi = api?.trim();
+  if (shouldUseOpenAIResponsesApi(modelId)) {
+    return OPENAI_RESPONSES_API;
+  }
+  return modelApi || OPENAI_COMPAT_API;
+}
+
+function resolveDefaultModelAlias(
+  existingDefaultModel: string | undefined,
+  models: Record<string, ScodeModelEntry>
+): string | undefined {
+  const defaultModel = existingDefaultModel?.trim();
+  if (!defaultModel) return undefined;
+  if (models[defaultModel]) return defaultModel;
+
+  return Object.entries(models).find(([, entry]) => entry.providers?.['api-key']?.model === defaultModel)?.[0];
 }
 
 function isSudorouterModelEntry(entry: ScodeModelEntry | undefined): boolean {
@@ -52,11 +83,11 @@ function buildSudorouterModelEntry(modelId: string): ScodeModelEntry {
   };
 }
 
-function buildCustomApiKeyModelEntry(providerId: string, model: ScodeCustomModelProvider['models'][number]): ScodeModelEntry {
+function buildCustomApiKeyModelEntry(providerId: string, model: ScodeCustomModelProvider['models'][number], alias: string): ScodeModelEntry {
   const modelId = model.id.trim();
   return {
-    alias: normalizeModelAlias(modelId),
-    name: model.name?.trim() || modelId,
+    alias,
+    name: alias,
     input: model.input?.length ? model.input : modelInputForModelId(modelId),
     supports_tools: model.supportsTools,
     supports_reasoning: model.supportsReasoning,
@@ -65,7 +96,7 @@ function buildCustomApiKeyModelEntry(providerId: string, model: ScodeCustomModel
       output: model.outputContext,
     },
     providers: {
-      'api-key': { provider: providerId, model: modelId, api: OPENAI_COMPAT_API },
+      'api-key': { provider: providerId, model: modelId, api: getCustomApiType(modelId, model.api) },
     },
   };
 }
@@ -78,7 +109,8 @@ function modelFromCustomApiKeyEntry(alias: string, entry: ScodeModelEntry): Scod
   const modelId = entry.providers?.['api-key']?.model || entry.alias || alias;
   return {
     id: modelId,
-    name: entry.name || modelId,
+    name: modelId,
+    api: entry.providers?.['api-key']?.api,
     input: entry.input,
     supportsTools: entry.supports_tools,
     supportsReasoning: entry.supports_reasoning,
@@ -114,6 +146,56 @@ export function mergeCustomProvidersIntoScodeConfig(existing: ScodeConfig | null
   return customProviders.reduce<ScodeConfig>((nextConfig, provider) => mergeCustomProviderIntoScodeConfig(nextConfig, provider), existing || {});
 }
 
+export function normalizeCustomApiKeyModelsInScodeConfig(config: ScodeConfig | null | undefined): ScodeConfig {
+  const nextConfig: ScodeConfig = { ...(config || {}) };
+  const existingModels = config?.models || {};
+  const nextModels: Record<string, ScodeModelEntry> = {};
+  const existingDefaultModel = config?.default_model?.trim();
+  let nextDefaultModel = existingDefaultModel;
+
+  for (const [alias, entry] of Object.entries(existingModels)) {
+    const apiKeyProvider = entry.providers?.['api-key'];
+    const providerId = apiKeyProvider?.provider?.trim();
+    const providerModelId = apiKeyProvider?.model?.trim();
+
+    if (!providerId || !providerModelId) {
+      nextModels[alias] = entry;
+      continue;
+    }
+
+    const nextAlias = buildCustomModelAlias(providerId, providerModelId);
+    nextModels[nextAlias] = {
+      ...entry,
+      alias: nextAlias,
+      name: nextAlias,
+      providers: {
+        ...entry.providers,
+        'api-key': {
+          ...apiKeyProvider,
+          provider: providerId,
+          model: providerModelId,
+          api: getCustomApiType(providerModelId, apiKeyProvider.api),
+        },
+      },
+    };
+
+    if (existingDefaultModel === alias || existingDefaultModel === entry.alias) {
+      nextDefaultModel = nextAlias;
+    } else if (existingDefaultModel === providerModelId && !existingModels[existingDefaultModel]) {
+      nextDefaultModel = nextAlias;
+    }
+  }
+
+  nextConfig.models = nextModels;
+  if (nextDefaultModel && nextModels[nextDefaultModel]) {
+    nextConfig.default_model = nextDefaultModel;
+  } else {
+    delete nextConfig.default_model;
+  }
+
+  return nextConfig;
+}
+
 export function buildScodeConfigFromLoginPayload(payload: LoginSudoclawPayload, existing?: ScodeConfig | null): ScodeConfig {
   return mergeSudorouterIntoScodeConfig(existing || {}, payload);
 }
@@ -133,7 +215,7 @@ export function mergeSudorouterIntoScodeConfig(existing: ScodeConfig | null | un
     nextModels[normalizeModelAlias(modelId)] = buildSudorouterModelEntry(modelId);
   }
 
-  const defaultModel = existing?.default_model && nextModels[existing.default_model] ? existing.default_model : modelIds[0];
+  const defaultModel = resolveDefaultModelAlias(existing?.default_model, nextModels) || modelIds[0];
   const nextConfig: ScodeConfig = {
     ...existing,
     auth_modes: {
@@ -177,11 +259,13 @@ export function mergeCustomProviderIntoScodeConfig(existing: ScodeConfig | null 
   }
 
   for (const model of models) {
-    const alias = normalizeModelAlias(model.id);
-    nextModels[alias] = buildCustomApiKeyModelEntry(providerId, model);
+    const alias = buildCustomModelAlias(providerId, model.id);
+    nextModels[alias] = buildCustomApiKeyModelEntry(providerId, model, alias);
   }
 
-  return {
+  const defaultModel = resolveDefaultModelAlias(existing?.default_model, nextModels);
+
+  const nextConfig: ScodeConfig = {
     ...existing,
     auth_modes: {
       ...(existing?.auth_modes || {}),
@@ -195,6 +279,14 @@ export function mergeCustomProviderIntoScodeConfig(existing: ScodeConfig | null 
     },
     models: nextModels,
   };
+
+  if (defaultModel) {
+    nextConfig.default_model = defaultModel;
+  } else {
+    delete nextConfig.default_model;
+  }
+
+  return nextConfig;
 }
 
 export function removeCustomProviderFromScodeConfig(existing: ScodeConfig | null | undefined, providerId: string): ScodeConfig {
