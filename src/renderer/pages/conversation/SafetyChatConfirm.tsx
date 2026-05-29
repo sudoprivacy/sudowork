@@ -5,7 +5,6 @@
  */
 
 import React, { type PropsWithChildren } from 'react';
-import { useSafetyCheck } from '../../hooks/useSafetyCheck';
 
 export interface SafetyChatConfirmProps {
   conversation_id?: string;
@@ -26,14 +25,8 @@ export interface SafetyChatConfirmProps {
  * ```
  */
 export const SafetyChatConfirm: React.FC<PropsWithChildren<SafetyChatConfirmProps>> = ({ children }) => {
-  const { hasEvent } = useSafetyCheck();
-
-  return (
-    <>
-      {/* Chat input area - hidden when event is detected */}
-      {hasEvent ? null : children}
-    </>
-  );
+  // Safety hooks are temporarily disabled; keep the wrapper as a restore point.
+  return <>{children}</>;
 };
 
 export default SafetyChatConfirm;

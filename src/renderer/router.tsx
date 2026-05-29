@@ -18,7 +18,8 @@ const RuntimeSettings = React.lazy(() => import('./pages/settings/RuntimeSetting
 const SystemSettings = React.lazy(() => import('./pages/settings/SystemSettings'));
 const ToolsSettings = React.lazy(() => import('./pages/settings/ToolsSettings'));
 const WebuiSettings = React.lazy(() => import('./pages/settings/WebuiSettings'));
-const SecuritySettings = React.lazy(() => import('./pages/settings/SecuritySettings'));
+// Security settings are temporarily hidden while safety hooks are disabled.
+// const SecuritySettings = React.lazy(() => import('./pages/settings/SecuritySettings'));
 const CronSettings = React.lazy(() => import('./pages/settings/CronSettings'));
 const ExtensionSettingsPage = React.lazy(() => import('./pages/settings/ExtensionSettingsPage'));
 const LoginPage = React.lazy(() => import('./pages/login'));
@@ -96,7 +97,7 @@ const PanelRoute: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
           <Route path='/settings/about' element={withRouteFallback(About)} />
           <Route path='/settings/tools' element={withRouteFallback(ToolsSettings)} />
           <Route path='/settings/skill' element={withRouteFallback(SkillSettings)} />
-          <Route path='/settings/security' element={withRouteFallback(SecuritySettings)} />
+          <Route path='/settings/security' element={<Navigate to='/settings/agent' replace />} />
           <Route path='/settings/cron' element={withRouteFallback(CronSettings)} />
           <Route path='/settings/profile' element={withRouteFallback(UserProfile)} />
           <Route path='/settings/recharge' element={withRouteFallback(RechargeCenter)} />

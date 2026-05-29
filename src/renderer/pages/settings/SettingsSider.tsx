@@ -110,7 +110,7 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
       agent: { id: 'agent', label: t('settings.agent'), icon: <Robot />, path: 'agent' },
       tools: { id: 'tools', label: t('settings.tools'), icon: <Toolkit />, path: 'tools' },
       skill: { id: 'skill', label: t('settings.skill'), icon: <Lightning />, path: 'skill' },
-      security: { id: 'security', label: t('settings.security'), icon: <Shield />, path: 'security' },
+      security: { id: 'security', label: t('settings.security'), icon: <Shield />, path: 'security', hidden: true }, // Safety hooks are temporarily disabled.
       display: { id: 'display', label: t('settings.display'), icon: <Computer />, path: 'display' },
       // copilot: { id: 'copilot', label: t('settings.copilot'), icon: <Config />, path: 'copilot' },
       webui: { id: 'webui', label: t('settings.webui'), icon: isDesktop ? <Earth /> : <Communication />, path: 'webui' },

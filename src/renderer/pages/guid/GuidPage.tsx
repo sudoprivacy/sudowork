@@ -25,7 +25,8 @@ import { AgentPillBarSkeleton, AssistantsSkeleton } from './components/GuidSkele
 import GuidActionRow from './components/GuidActionRow';
 import SkillSettings from '../settings/SkillSettings';
 import AgentSettings from '../settings/AgentSettings';
-import SecuritySettings from '../settings/SecuritySettings';
+// Security settings are temporarily hidden while safety hooks are disabled.
+// import SecuritySettings from '../settings/SecuritySettings';
 import WebuiSettings from '../settings/WebuiSettings';
 import CronSettings from '../settings/CronSettings';
 import GuidInputCard from './components/GuidInputCard';
@@ -82,6 +83,12 @@ const GuidPage: React.FC = () => {
   const handleBackToChat = useCallback(() => {
     void navigate('/guid', { replace: true });
   }, [navigate]);
+
+  useEffect(() => {
+    if (selectedMenu === 'security') {
+      void navigate('/guid', { replace: true });
+    }
+  }, [navigate, selectedMenu]);
 
   // Load installed skills
   const [installedSkillsLoaded, setInstalledSkillsLoaded] = useState(false);
@@ -612,7 +619,7 @@ const GuidPage: React.FC = () => {
           <div className={styles.functionMenuContainer}>
             {selectedMenu === 'skill-store' && <SkillSettings />}
             {selectedMenu === 'agent' && <AgentSettings />}
-            {selectedMenu === 'security' && <SecuritySettings />}
+            {/* Security settings panel is hidden while safety hooks are disabled. */}
             {selectedMenu === 'webui' && <WebuiSettings />}
             {selectedMenu === 'cron' && <CronSettings />}
           </div>
@@ -704,7 +711,25 @@ const GuidPage: React.FC = () => {
               mentionSelectorBadge={<MentionSelectorBadge visible={mention.mentionSelectorVisible} open={mention.mentionSelectorOpen} onOpenChange={mention.setMentionSelectorOpen} agentLabel={mention.selectedAgentLabel} mentionMenu={mentionDropdownNode} onResetQuery={() => mention.setMentionQuery(null)} />}
               mentionDropdown={mentionDropdownNode}
               skillSelectorOpen={skillSelectorController.isOpen}
-              skillSelectorMenu={skillSelectorController.isOpen ? <SkillSelectorMenu title={t('guid.skillSelectorTitle')} items={skillMenuItems} selectedKeys={selectedSkills} activeIndex={skillSelectorController.activeIndex} onHoverItem={(index) => skillSelectorController.setActiveIndex(index)} onSelectItem={(_item) => skillSelectorController.onSelectByIndex(skillSelectorController.activeIndex)} emptyText={t('guid.noSkills')} searchQuery={skillSelectorController.searchQuery} onSearchChange={skillSelectorController.setSearchQuery} onDismiss={() => { skillSelectorController.setDismissed(true); guidInput.setInput(stripAtQuery(guidInput.input, cursorPosition)); }} /> : null}
+              skillSelectorMenu={
+                skillSelectorController.isOpen ? (
+                  <SkillSelectorMenu
+                    title={t('guid.skillSelectorTitle')}
+                    items={skillMenuItems}
+                    selectedKeys={selectedSkills}
+                    activeIndex={skillSelectorController.activeIndex}
+                    onHoverItem={(index) => skillSelectorController.setActiveIndex(index)}
+                    onSelectItem={(_item) => skillSelectorController.onSelectByIndex(skillSelectorController.activeIndex)}
+                    emptyText={t('guid.noSkills')}
+                    searchQuery={skillSelectorController.searchQuery}
+                    onSearchChange={skillSelectorController.setSearchQuery}
+                    onDismiss={() => {
+                      skillSelectorController.setDismissed(true);
+                      guidInput.setInput(stripAtQuery(guidInput.input, cursorPosition));
+                    }}
+                  />
+                ) : null
+              }
               selectedSkills={selectedSkills}
               onRemoveSkill={(skillName) => setSelectedSkills(selectedSkills.filter((s) => s !== skillName))}
               getSkillDisplayName={(skillName) => {

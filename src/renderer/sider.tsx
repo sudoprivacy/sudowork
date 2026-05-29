@@ -1,4 +1,4 @@
-import { AlarmClock, ArrowCircleLeft, Down, Earth, Lightning, ListCheckbox, Logout, Plus, Robot, SettingTwo, Shield, Toolkit } from '@icon-park/react';
+import { AlarmClock, ArrowCircleLeft, Down, Earth, Lightning, ListCheckbox, Logout, Plus, Robot, SettingTwo, Toolkit } from '@icon-park/react';
 import { IconHome } from '@arco-design/web-react/icon';
 import classNames from 'classnames';
 import React, { Suspense, useEffect, useRef, useState } from 'react';
@@ -87,7 +87,8 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
   const functionMenus = [
     { id: 'agent', label: t('common.siderMenu.agent'), icon: Robot, path: '/settings/agent' },
     { id: 'skill-store', label: t('common.siderMenu.skillStore'), icon: Lightning, path: '/settings/skill' },
-    { id: 'security', label: t('common.siderMenu.security'), icon: Shield, path: '/settings/security' },
+    // Security hook entry is hidden while the feature is disabled.
+    // { id: 'security', label: t('common.siderMenu.security'), icon: Shield, path: '/settings/security' },
     ...(!isEnterprise ? [{ id: 'webui' as const, label: t('common.siderMenu.webui'), icon: Earth, path: '/settings/webui' }] : []),
     { id: 'cron', label: t('common.siderMenu.cron'), icon: AlarmClock, path: '/settings/cron' },
   ];
@@ -231,21 +232,14 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
             {/* Session history tabs + batch mode button */}
             <div className={classNames('mb-8px px-8px flex items-center', collapsed ? 'justify-center' : 'justify-between')}>
               {!collapsed && (
-                <div className="flex items-center gap-1px flex-1">
+                <div className='flex items-center gap-1px flex-1'>
                   {(['timeline', 'scheduled'] as const).map((tab) => {
                     const isActive = activeTab === tab;
-                    const label = tab === 'timeline'
-                      ? t('conversation.history.timeline', { defaultValue: '对话' })
-                      : t('conversation.history.scheduledTab', { defaultValue: '定时任务' });
+                    const label = tab === 'timeline' ? t('conversation.history.timeline', { defaultValue: '对话' }) : t('conversation.history.scheduledTab', { defaultValue: '定时任务' });
                     return (
                       <div
                         key={tab}
-                        className={classNames(
-                          'flex-1 text-center text-13px py-8px rd-8px cursor-pointer transition-colors select-none',
-                          isActive
-                            ? 'bg-aou-2 text-aou-6 font-medium'
-                            : 'text-t-secondary hover:text-t-primary hover:bg-hover'
-                        )}
+                        className={classNames('flex-1 text-center text-13px py-8px rd-8px cursor-pointer transition-colors select-none', isActive ? 'bg-aou-2 text-aou-6 font-medium' : 'text-t-secondary hover:text-t-primary hover:bg-hover')}
                         onClick={() => {
                           setActiveTab(tab);
                           try {

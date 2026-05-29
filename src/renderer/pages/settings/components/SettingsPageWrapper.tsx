@@ -52,7 +52,7 @@ const SettingsPageWrapper: React.FC<SettingsPageWrapperProps> = ({ children, cla
       agent: { id: 'agent', label: '数字助手', icon: <Robot theme='outline' size='16' />, path: 'agent' },
       tools: { id: 'tools', label: '工具', icon: <Toolkit theme='outline' size='16' />, path: 'tools' },
       skill: { id: 'skill', label: '技能商店', icon: <Lightning theme='outline' size='16' />, path: 'skill' },
-      security: { id: 'security', label: '安全防护', icon: <Shield theme='outline' size='16' />, path: 'security' },
+      security: { id: 'security', label: '安全防护', icon: <Shield theme='outline' size='16' />, path: 'security', hidden: true }, // Safety hooks are temporarily disabled.
       display: { id: 'display', label: t('settings.display'), icon: <Computer theme='outline' size='16' />, path: 'display' },
       // copilot: { id: 'copilot', label: t('settings.copilot', { defaultValue: 'Copilot' }), icon: <Config theme='outline' size='16' />, path: 'copilot' },
       webui: { id: 'webui', label: '远程连接', icon: isDesktop ? <Earth theme='outline' size='16' /> : <Communication theme='outline' size='16' />, path: 'webui' },
