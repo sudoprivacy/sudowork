@@ -25,8 +25,7 @@ import { AgentPillBarSkeleton, AssistantsSkeleton } from './components/GuidSkele
 import GuidActionRow from './components/GuidActionRow';
 import SkillSettings from '../settings/SkillSettings';
 import AgentSettings from '../settings/AgentSettings';
-// Security settings are temporarily hidden while safety hooks are disabled.
-// import SecuritySettings from '../settings/SecuritySettings';
+import SecuritySettings from '../settings/SecuritySettings';
 import WebuiSettings from '../settings/WebuiSettings';
 import CronSettings from '../settings/CronSettings';
 import GuidInputCard from './components/GuidInputCard';
@@ -83,12 +82,6 @@ const GuidPage: React.FC = () => {
   const handleBackToChat = useCallback(() => {
     void navigate('/guid', { replace: true });
   }, [navigate]);
-
-  useEffect(() => {
-    if (selectedMenu === 'security') {
-      void navigate('/guid', { replace: true });
-    }
-  }, [navigate, selectedMenu]);
 
   // Load installed skills
   const [installedSkillsLoaded, setInstalledSkillsLoaded] = useState(false);
@@ -619,7 +612,7 @@ const GuidPage: React.FC = () => {
           <div className={styles.functionMenuContainer}>
             {selectedMenu === 'skill-store' && <SkillSettings />}
             {selectedMenu === 'agent' && <AgentSettings />}
-            {/* Security settings panel is hidden while safety hooks are disabled. */}
+            {selectedMenu === 'security' && <SecuritySettings />}
             {selectedMenu === 'webui' && <WebuiSettings />}
             {selectedMenu === 'cron' && <CronSettings />}
           </div>
