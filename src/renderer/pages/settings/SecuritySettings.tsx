@@ -9,6 +9,7 @@ import SettingsPageWrapper from './components/SettingsPageWrapper';
 
 const Option = Select.Option;
 const TextArea = Input.TextArea;
+const SAFETY_HOOK_SETTINGS_VISIBLE = false;
 
 // Generate unique ID for rules
 const generateRuleId = (): string => `rule_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -36,6 +37,11 @@ const SecuritySettings: React.FC = () => {
 
   // 初始化时获取安全 Hook 实际状态
   useEffect(() => {
+    if (!SAFETY_HOOK_SETTINGS_VISIBLE) {
+      setIsHookLoading(false);
+      return;
+    }
+
     const loadHookStatus = async () => {
       try {
         const result = await ipcBridge.safety.getEnabled.invoke();
@@ -53,6 +59,10 @@ const SecuritySettings: React.FC = () => {
 
   // Load blacklist config
   useEffect(() => {
+    if (!SAFETY_HOOK_SETTINGS_VISIBLE) {
+      return;
+    }
+
     const loadBlacklist = async () => {
       try {
         const result = await ipcBridge.safety.getBlacklist.invoke();
@@ -307,171 +317,175 @@ const SecuritySettings: React.FC = () => {
           </div>
         </Card>
 
-        {/* 安全 Hook 防护 */}
-        <Card size='small' className='rd-12px hover:shadow-md transition-shadow'>
-          <div className='flex items-start gap-10px'>
-            <div className='w-42px h-42px rounded-8px bg-[#722ed115] flex items-center justify-center flex-shrink-0 mt-1px'>
-              <AllApplication theme='outline' size='24' fill='#722ed1' />
-            </div>
-            <div className='flex-1 mt--4px'>
-              <div className='flex items-center gap-6px mb-2px'>
-                <h3 className='text-15px font-600 text-t-primary'>安全 Hook 防护</h3>
-                <Tag color='purple' size='small' className='rd-4px'>
-                  <CheckOne theme='filled' size='12' className='mr-4px' />
-                  实时拦截
-                </Tag>
-              </div>
-              <p className='text-13px text-t-secondary my-0px leading-relaxed'>监控第三方 AI 工具的文件访问和网络请求，仅对黑名单中的规则进行拦截，匹配时弹出确认框，经您授权后才允许执行。</p>
+        {SAFETY_HOOK_SETTINGS_VISIBLE && (
+          <>
+            {/* 安全 Hook 防护 */}
+            <Card size='small' className='rd-12px hover:shadow-md transition-shadow'>
+              <div className='flex items-start gap-10px'>
+                <div className='w-42px h-42px rounded-8px bg-[#722ed115] flex items-center justify-center flex-shrink-0 mt-1px'>
+                  <AllApplication theme='outline' size='24' fill='#722ed1' />
+                </div>
+                <div className='flex-1 mt--4px'>
+                  <div className='flex items-center gap-6px mb-2px'>
+                    <h3 className='text-15px font-600 text-t-primary'>安全 Hook 防护</h3>
+                    <Tag color='purple' size='small' className='rd-4px'>
+                      <CheckOne theme='filled' size='12' className='mr-4px' />
+                      实时拦截
+                    </Tag>
+                  </div>
+                  <p className='text-13px text-t-secondary my-0px leading-relaxed'>监控第三方 AI 工具的文件访问和网络请求，仅对黑名单中的规则进行拦截，匹配时弹出确认框，经您授权后才允许执行。</p>
 
-              {/* 主开关 */}
-              <div className='flex items-center justify-end gap-10px'>
-                <Tag color={hookEnabled ? 'green' : 'gray'} size='small' className='rd-12px px-10px'>
-                  <span className='w-5px h-5px rd-50% inline-block mr-5px' style={{ backgroundColor: hookEnabled ? '#52c41a' : '#999' }}></span>
-                  {hookEnabled ? '保护中' : '已关闭'}
-                </Tag>
-                <Switch checked={hookEnabled} onChange={handleToggleHook} size='small' />
-              </div>
+                  {/* 主开关 */}
+                  <div className='flex items-center justify-end gap-10px'>
+                    <Tag color={hookEnabled ? 'green' : 'gray'} size='small' className='rd-12px px-10px'>
+                      <span className='w-5px h-5px rd-50% inline-block mr-5px' style={{ backgroundColor: hookEnabled ? '#52c41a' : '#999' }}></span>
+                      {hookEnabled ? '保护中' : '已关闭'}
+                    </Tag>
+                    <Switch checked={hookEnabled} onChange={handleToggleHook} size='small' />
+                  </div>
 
-              {/* 黑名单规则 - 关闭时显示提示，开启时显示规则列表 */}
-              <div className='border-t border-t-[var(--color-border-2)] pt-8px'>
-                {!hookEnabled ? (
-                  <div className='text-center py-8px text-t-tertiary text-13px'>安全 Hook 防护已关闭</div>
-                ) : (
-                  <>
-                    {/* 规则说明 */}
-                    <div className='mb-6px'>
-                      <span className='text-13px text-t-secondary'>
-                        当前黑名单规则：{blacklistConfig.rules.filter((r) => r.enabled).length} 条生效
-                        {blacklistConfig.rules.length === 0 && '（为空时不拦截任何请求）'}
-                      </span>
-                    </div>
-
-                    {/* Rules section */}
-                    <div className='flex items-center justify-between mb-6px'>
-                      <h4 className='text-15px font-500 text-t-primary my-4px'>拦截规则</h4>
-                      <Button type='primary' size='small' icon={<Plus theme='outline' size='14' />} onClick={openAddModal}>
-                        添加规则
-                      </Button>
-                    </div>
-
-                    {blacklistConfig.rules.length === 0 ? (
-                      <div className='text-center py-10px text-t-tertiary bg-[var(--color-fill-1)] rd-8px'>暂无拦截规则</div>
+                  {/* 黑名单规则 - 关闭时显示提示，开启时显示规则列表 */}
+                  <div className='border-t border-t-[var(--color-border-2)] pt-8px'>
+                    {!hookEnabled ? (
+                      <div className='text-center py-8px text-t-tertiary text-13px'>安全 Hook 防护已关闭</div>
                     ) : (
-                      <Table
-                        data={blacklistConfig.rules}
-                        rowKey='id'
-                        size='small'
-                        pagination={false}
-                        columns={[
-                          {
-                            title: '类型',
-                            dataIndex: 'type',
-                            width: 80,
-                            render: (type) => {
-                              const typeConfig: Record<string, { color: string; label: string }> = {
-                                network: { color: 'blue', label: '网络' },
-                                file: { color: 'green', label: '文件' },
-                                process: { color: 'orange', label: '进程' },
-                              };
-                              const config = typeConfig[type] || { color: 'gray', label: type };
-                              return (
-                                <Tag color={config.color} size='small'>
-                                  {config.label}
-                                </Tag>
-                              );
-                            },
-                          },
-                          {
-                            title: '匹配',
-                            dataIndex: 'matchType',
-                            width: 70,
-                            render: (matchType: BlacklistMatchType) => {
-                              const labels: Record<BlacklistMatchType, string> = {
-                                exact: '精确',
-                                wildcard: '通配',
-                              };
-                              return labels[matchType];
-                            },
-                          },
-                          {
-                            title: '规则',
-                            dataIndex: 'pattern',
-                            ellipsis: true,
-                            render: (pattern) => (
-                              <Tooltip content={pattern}>
-                                <span className='font-mono text-12px'>{pattern}</span>
-                              </Tooltip>
-                            ),
-                          },
-                          {
-                            title: '启用',
-                            dataIndex: 'enabled',
-                            width: 60,
-                            render: (enabled, record) => <Switch size='small' checked={enabled} onChange={(checked) => handleToggleRule(record.id, checked)} />,
-                          },
-                          {
-                            title: '操作',
-                            width: 80,
-                            render: (_, record) => (
-                              <Space size='small'>
-                                <Button type='text' size='mini' icon={<Edit theme='outline' size='14' />} onClick={() => openEditModal(record)} />
-                                <Popconfirm title='确认删除此规则？' onOk={() => handleDeleteRule(record.id)}>
-                                  <Button type='text' size='mini' status='danger' icon={<Delete theme='outline' size='14' />} />
-                                </Popconfirm>
-                              </Space>
-                            ),
-                          },
-                        ]}
-                      />
+                      <>
+                        {/* 规则说明 */}
+                        <div className='mb-6px'>
+                          <span className='text-13px text-t-secondary'>
+                            当前黑名单规则：{blacklistConfig.rules.filter((r) => r.enabled).length} 条生效
+                            {blacklistConfig.rules.length === 0 && '（为空时不拦截任何请求）'}
+                          </span>
+                        </div>
+
+                        {/* Rules section */}
+                        <div className='flex items-center justify-between mb-6px'>
+                          <h4 className='text-15px font-500 text-t-primary my-4px'>拦截规则</h4>
+                          <Button type='primary' size='small' icon={<Plus theme='outline' size='14' />} onClick={openAddModal}>
+                            添加规则
+                          </Button>
+                        </div>
+
+                        {blacklistConfig.rules.length === 0 ? (
+                          <div className='text-center py-10px text-t-tertiary bg-[var(--color-fill-1)] rd-8px'>暂无拦截规则</div>
+                        ) : (
+                          <Table
+                            data={blacklistConfig.rules}
+                            rowKey='id'
+                            size='small'
+                            pagination={false}
+                            columns={[
+                              {
+                                title: '类型',
+                                dataIndex: 'type',
+                                width: 80,
+                                render: (type) => {
+                                  const typeConfig: Record<string, { color: string; label: string }> = {
+                                    network: { color: 'blue', label: '网络' },
+                                    file: { color: 'green', label: '文件' },
+                                    process: { color: 'orange', label: '进程' },
+                                  };
+                                  const config = typeConfig[type] || { color: 'gray', label: type };
+                                  return (
+                                    <Tag color={config.color} size='small'>
+                                      {config.label}
+                                    </Tag>
+                                  );
+                                },
+                              },
+                              {
+                                title: '匹配',
+                                dataIndex: 'matchType',
+                                width: 70,
+                                render: (matchType: BlacklistMatchType) => {
+                                  const labels: Record<BlacklistMatchType, string> = {
+                                    exact: '精确',
+                                    wildcard: '通配',
+                                  };
+                                  return labels[matchType];
+                                },
+                              },
+                              {
+                                title: '规则',
+                                dataIndex: 'pattern',
+                                ellipsis: true,
+                                render: (pattern) => (
+                                  <Tooltip content={pattern}>
+                                    <span className='font-mono text-12px'>{pattern}</span>
+                                  </Tooltip>
+                                ),
+                              },
+                              {
+                                title: '启用',
+                                dataIndex: 'enabled',
+                                width: 60,
+                                render: (enabled, record) => <Switch size='small' checked={enabled} onChange={(checked) => handleToggleRule(record.id, checked)} />,
+                              },
+                              {
+                                title: '操作',
+                                width: 80,
+                                render: (_, record) => (
+                                  <Space size='small'>
+                                    <Button type='text' size='mini' icon={<Edit theme='outline' size='14' />} onClick={() => openEditModal(record)} />
+                                    <Popconfirm title='确认删除此规则？' onOk={() => handleDeleteRule(record.id)}>
+                                      <Button type='text' size='mini' status='danger' icon={<Delete theme='outline' size='14' />} />
+                                    </Popconfirm>
+                                  </Space>
+                                ),
+                              },
+                            ]}
+                          />
+                        )}
+                      </>
                     )}
-                  </>
-                )}
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
-        </Card>
+            </Card>
 
-        {/* Rule Modal */}
-        <Modal
-          title={editingRule ? '编辑规则' : '添加规则'}
-          visible={showRuleModal}
-          onOk={handleSaveRule}
-          onCancel={() => {
-            setShowRuleModal(false);
-            setEditingRule(null);
-          }}
-          autoFocus={false}
-          focusLock={true}
-        >
-          <div className='flex flex-col gap-16px'>
-            <div>
-              <label className='block text-14px text-t-secondary mb-4px'>类型</label>
-              <Select value={ruleForm.type} onChange={(val) => setRuleForm({ ...ruleForm, type: val })} style={{ width: '100%' }}>
-                <Option value='network'>网络请求 (域名/IP)</Option>
-                <Option value='file'>文件操作 (路径)</Option>
-                <Option value='process'>进程执行 (命令)</Option>
-              </Select>
-            </div>
+            {/* Rule Modal */}
+            <Modal
+              title={editingRule ? '编辑规则' : '添加规则'}
+              visible={showRuleModal}
+              onOk={handleSaveRule}
+              onCancel={() => {
+                setShowRuleModal(false);
+                setEditingRule(null);
+              }}
+              autoFocus={false}
+              focusLock={true}
+            >
+              <div className='flex flex-col gap-16px'>
+                <div>
+                  <label className='block text-14px text-t-secondary mb-4px'>类型</label>
+                  <Select value={ruleForm.type} onChange={(val) => setRuleForm({ ...ruleForm, type: val })} style={{ width: '100%' }}>
+                    <Option value='network'>网络请求 (域名/IP)</Option>
+                    <Option value='file'>文件操作 (路径)</Option>
+                    <Option value='process'>进程执行 (命令)</Option>
+                  </Select>
+                </div>
 
-            <div>
-              <label className='block text-14px text-t-secondary mb-4px'>匹配方式</label>
-              <Select value={ruleForm.matchType} onChange={(val) => setRuleForm({ ...ruleForm, matchType: val })} style={{ width: '100%' }}>
-                <Option value='exact'>精确匹配</Option>
-                <Option value='wildcard'>通配符匹配</Option>
-              </Select>
-            </div>
+                <div>
+                  <label className='block text-14px text-t-secondary mb-4px'>匹配方式</label>
+                  <Select value={ruleForm.matchType} onChange={(val) => setRuleForm({ ...ruleForm, matchType: val })} style={{ width: '100%' }}>
+                    <Option value='exact'>精确匹配</Option>
+                    <Option value='wildcard'>通配符匹配</Option>
+                  </Select>
+                </div>
 
-            <div>
-              <label className='block text-14px text-t-secondary mb-4px'>{ruleForm.type === 'network' ? '域名/IP 模式' : ruleForm.type === 'file' ? '路径模式' : '命令模式'}</label>
-              <Input placeholder={ruleForm.type === 'network' ? '例如: *.example.com 或 192.168.1.*' : ruleForm.type === 'file' ? '例如: /etc/* 或 ~/.ssh/*' : '例如: rm* 或 npm*'} value={ruleForm.pattern} onChange={(val) => setRuleForm({ ...ruleForm, pattern: val })} />
-            </div>
+                <div>
+                  <label className='block text-14px text-t-secondary mb-4px'>{ruleForm.type === 'network' ? '域名/IP 模式' : ruleForm.type === 'file' ? '路径模式' : '命令模式'}</label>
+                  <Input placeholder={ruleForm.type === 'network' ? '例如: *.example.com 或 192.168.1.*' : ruleForm.type === 'file' ? '例如: /etc/* 或 ~/.ssh/*' : '例如: rm* 或 npm*'} value={ruleForm.pattern} onChange={(val) => setRuleForm({ ...ruleForm, pattern: val })} />
+                </div>
 
-            <div>
-              <label className='block text-14px text-t-secondary mb-4px'>描述 (可选)</label>
-              <TextArea placeholder='规则说明' value={ruleForm.description} onChange={(val) => setRuleForm({ ...ruleForm, description: val })} autoSize={{ minRows: 2, maxRows: 4 }} />
-            </div>
-          </div>
-        </Modal>
+                <div>
+                  <label className='block text-14px text-t-secondary mb-4px'>描述 (可选)</label>
+                  <TextArea placeholder='规则说明' value={ruleForm.description} onChange={(val) => setRuleForm({ ...ruleForm, description: val })} autoSize={{ minRows: 2, maxRows: 4 }} />
+                </div>
+              </div>
+            </Modal>
+          </>
+        )}
 
         {/* 底部提示 */}
         <div className='flex items-center justify-center gap-8px text-14px text-t-tertiary mt-16px'>

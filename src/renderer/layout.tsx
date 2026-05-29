@@ -7,10 +7,8 @@
 import { ipcBridge } from '@/common';
 import { ConfigStorage, type ICssTheme } from '@/common/storage';
 import PwaPullToRefresh from '@/renderer/components/PwaPullToRefresh';
-import { SafetyWarningModal } from '@/renderer/components/SafetyWarningModal';
 import CommandPalette from '@/renderer/components/CommandPalette';
 import { useCommandPalette } from '@/renderer/hooks/useCommandPalette';
-import { useSafetyCheck } from '@/renderer/hooks/useSafetyCheck';
 import Titlebar from '@/renderer/components/Titlebar';
 import { Layout as ArcoLayout } from '@arco-design/web-react';
 import { MenuFold, MenuUnfold } from '@icon-park/react';
@@ -84,7 +82,6 @@ const Layout: React.FC<{
   sider: React.ReactNode;
   onSessionClick?: () => void;
 }> = ({ sider, onSessionClick: _onSessionClick }) => {
-  const { hasEvent, status, confirm, cancel } = useSafetyCheck();
   const { config } = useTenantConfig(); // 获取租户配置
   const { visible: commandPaletteVisible, close: closeCommandPalette } = useCommandPalette();
   const [collapsed, setCollapsed] = useState(false);
@@ -369,7 +366,7 @@ const Layout: React.FC<{
             <Suspense fallback={null}>
               <UpdateModal />
             </Suspense>
-            <SafetyWarningModal visible={hasEvent} status={status} onConfirm={confirm} onCancel={cancel} />
+            {/* Safety warning modal is hidden while the safety hook feature is disabled. */}
             <CommandPalette visible={commandPaletteVisible} onClose={closeCommandPalette} />
           </ArcoLayout.Content>
         </ArcoLayout>

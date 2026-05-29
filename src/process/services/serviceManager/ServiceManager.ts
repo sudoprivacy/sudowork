@@ -112,7 +112,9 @@ export class ServiceManager {
       await this.verifyStartupReadiness();
       initStatusManager.setStatus('ready', '初始化完成', 100);
       initStatusManager.clearRetry();
-      void this.startSafetyPolling();
+      // Safety hooks are temporarily disabled; keep the polling service entry
+      // available so the feature can be restored without rebuilding it.
+      // void this.startSafetyPolling();
 
       // Start health monitor for auto-healing components
       const { componentHealthMonitor } = await import('./ComponentHealthMonitor');
