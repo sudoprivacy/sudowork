@@ -833,10 +833,14 @@ export class DingTalkPlugin extends BasePlugin {
    */
   private async sendLocalImages(chatId: string, imagePaths: string[]): Promise<void> {
     const { type: chatType, id } = parseChatId(chatId);
+    // Local image paths extracted from markdown (e.g. ![](caterpillar.png)) are relative to the
+    // session workspace, not the process cwd. Resolve them against the media dir before upload.
+    const mediaBase = await this.ensureMediaDir();
     for (const imgPath of imagePaths) {
       try {
-        const uploadType = getUploadMediaType(imgPath);
-        const mediaId = await this.uploadMedia(imgPath, uploadType);
+        const resolvedPath = path.isAbsolute(imgPath) ? imgPath : path.resolve(mediaBase, imgPath);
+        const uploadType = getUploadMediaType(resolvedPath);
+        const mediaId = await this.uploadMedia(resolvedPath, uploadType);
         await this.sendMediaViaAPI(chatType, id, 'image', mediaId);
       } catch (error) {
         mainError('DingTalkPlugin', 'Failed to send extracted local image', error);
