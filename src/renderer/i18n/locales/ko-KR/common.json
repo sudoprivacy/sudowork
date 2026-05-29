@@ -44,6 +44,9 @@
   "deleteFailed": "삭제 실패",
   "default": "기본",
   "defaultModel": "기본 모델",
+  "modelSwitchSuccess": "{{model}}(으)로 전환되었습니다",
+  "modelListRefreshed": "모델 목록이 새로고침되었습니다",
+  "modelListRefreshFailed": "모델 목록 새로고침 실패",
   "escToCancel": "취소하려면 esc",
   "create": "생성",
   "createSuccess": "생성 성공",
@@ -60,6 +63,13 @@
   "refresh": "새로고침",
   "tray.showWindow": "Sudowork 표시",
   "tray.quit": "종료",
+  "siderMenu": {
+    "agent": "디지털 어시스턴트",
+    "skillStore": "스킬 스토어",
+    "security": "보안",
+    "webui": "원격 접속",
+    "cron": "예약 작업"
+  },
   "ariaLabel": {
     "close": "닫기",
     "edit": "편집",

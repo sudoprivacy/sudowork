@@ -17,7 +17,7 @@ import classNames from 'classnames';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 
-import type { ConversationRowProps } from './types';
+import type { ConversationRowProps, ConversationItem } from './types';
 import { getBackendKeyFromConversation } from './utils/exportHelpers';
 import { isConversationPinned } from './utils/groupingHelpers';
 
@@ -27,8 +27,16 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
   const isMobile = layout?.isMobile ?? false;
   const { onToggleChecked, onConversationClick, onOpenMenu, onMenuVisibleChange, onEditStart, onDelete, onExport, onTogglePin, getJobStatus } = props;
   const { t } = useTranslation();
-  const { info: assistantInfo } = usePresetAssistantInfo(conversation);
-  const isPinned = isConversationPinned(conversation);
+
+  // Check if this is a Moss session
+  const isMossSession = 'isMossSession' in conversation && conversation.isMossSession === true;
+
+  // Only use preset assistant info for local conversations
+  const { info: assistantInfo } = usePresetAssistantInfo(isMossSession ? null : conversation as TChatConversation);
+  // For Moss sessions, use isPinned property; for local conversations, use isConversationPinned
+  const isPinned = isMossSession
+    ? (conversation as { isPinned?: boolean }).isPinned ?? false
+    : isConversationPinned(conversation as TChatConversation);
   const cronStatus = getJobStatus(conversation.id);
   const siderTooltipProps = getSiderTooltipProps(tooltipEnabled);
   const inlineNameTooltipEnabled = !collapsed && !isMobile && !!conversation.name;
@@ -45,7 +53,15 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
       return <img src={assistantInfo.logo} alt={assistantInfo.name} className='w-20px h-20px rounded-50% flex-shrink-0' />;
     }
 
-    const backendKey = getBackendKeyFromConversation(conversation);
+    // For Moss sessions, use remote-agent logo
+    if (isMossSession) {
+      const mossLogo = getAgentLogo('remote-agent');
+      if (mossLogo) {
+        return <img src={mossLogo} alt="Moss Server" className='w-20px h-20px rounded-50% flex-shrink-0' />;
+      }
+    }
+
+    const backendKey = getBackendKeyFromConversation(conversation as TChatConversation);
     const logo = getAgentLogo(backendKey);
     if (logo) {
       return <img src={logo} alt={`${backendKey || 'agent'} logo`} className='w-20px h-20px rounded-50% flex-shrink-0' />;
@@ -57,7 +73,7 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
   const handleRowClick = () => {
     cleanupSiderTooltips();
     if (batchMode) {
-      onToggleChecked(conversation);
+      onToggleChecked(conversation as TChatConversation);
       return;
     }
     onConversationClick(conversation);
@@ -79,7 +95,7 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
             className='mr-8px flex-center'
             onClick={(event) => {
               event.stopPropagation();
-              onToggleChecked(conversation);
+              onToggleChecked(conversation as TChatConversation);
             }}
           >
             <Checkbox checked={checked} />
@@ -123,32 +139,37 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
                       return;
                     }
                     if (key === 'export') {
-                      onExport(conversation);
+                      onExport(conversation as TChatConversation);
                       return;
                     }
                     if (key === 'delete') {
-                      onDelete(conversation.id);
+                      onDelete(conversation);
                     }
                   }}
                 >
+                  {/* Pin menu - available for both local and Moss sessions */}
                   <Menu.Item key='pin'>
                     <div className='flex items-center gap-8px'>
                       <Pushpin theme='outline' size='14' />
                       <span>{isPinned ? t('conversation.history.unpin') : t('conversation.history.pin')}</span>
                     </div>
                   </Menu.Item>
+                  {/* Rename menu - available for all sessions (including Moss sessions saved locally) */}
                   <Menu.Item key='rename'>
                     <div className='flex items-center gap-8px'>
                       <EditOne theme='outline' size='14' />
                       <span>{t('conversation.history.rename')}</span>
                     </div>
                   </Menu.Item>
-                  <Menu.Item key='export'>
-                    <div className='flex items-center gap-8px'>
-                      <Export theme='outline' size='14' />
-                      <span>{t('conversation.history.export')}</span>
-                    </div>
-                  </Menu.Item>
+                  {/* Export menu - only for local sessions */}
+                  {!isMossSession && (
+                    <Menu.Item key='export'>
+                      <div className='flex items-center gap-8px'>
+                        <Export theme='outline' size='14' />
+                        <span>{t('conversation.history.export')}</span>
+                      </div>
+                    </Menu.Item>
+                  )}
                   <Menu.Item key='delete'>
                     <div className='flex items-center gap-8px text-[rgb(var(--warning-6))]'>
                       <DeleteOne theme='outline' size='14' />
@@ -174,7 +195,7 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
                   onOpenMenu(conversation);
                 }}
               >
-                <div className='flex flex-col gap-2px items-center justify-center' style={{ width: '16px', height: '16px' }}>
+                <div className='flex flex-row gap-1 items-center justify-center' style={{ width: '20px', height: '16px' }}>
                   <div className='w-2px h-2px rounded-full bg-current'></div>
                   <div className='w-2px h-2px rounded-full bg-current'></div>
                   <div className='w-2px h-2px rounded-full bg-current'></div>

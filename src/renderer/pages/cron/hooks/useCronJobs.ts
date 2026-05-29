@@ -6,8 +6,9 @@
 
 import { ipcBridge } from '@/common';
 import type { ICronJob } from '@/common/ipcBridge';
-import { emitter } from '@/renderer/utils/emitter';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { addEventListener, emitter } from '@/renderer/utils/emitter';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useAppMode } from '@renderer/hooks/useAppMode';
 
 /**
  * Common cron job actions
@@ -55,7 +56,7 @@ function useCronJobActions(onJobUpdated?: (jobId: string, job: ICronJob) => void
 
   const deleteJob = useCallback(
     async (jobId: string) => {
-      await ipcBridge.cron.removeJob.invoke({ jobId });
+      unwrapCronResult(await ipcBridge.cron.removeJob.invoke({ jobId }));
       onJobDeleted?.(jobId);
     },
     [onJobDeleted]
@@ -120,7 +121,7 @@ export function useCronJobs(conversationId?: string) {
 
     try {
       const result = await ipcBridge.cron.listJobsByConversation.invoke({ conversationId });
-      setJobs(result || []);
+      setJobs(unwrapCronResult(result) || []);
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Failed to fetch cron jobs'));
       setJobs([]);
@@ -178,19 +179,32 @@ export function useCronJobs(conversationId?: string) {
 
 /**
  * Hook for managing all cron jobs across all conversations
+ * Supports sessionMode change triggering refetch for enterprise mode
  */
 export function useAllCronJobs() {
   const [jobs, setJobs] = useState<ICronJob[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+  const { isEnterprise } = useAppMode();
 
   // Fetch all jobs
   const fetchJobs = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const allJobs = await ipcBridge.cron.listJobs.invoke();
-      setJobs(allJobs || []);
+      // Handle error envelope
+      const envelope = allJobs as { __error?: unknown } | null | undefined;
+      if (envelope && typeof envelope === 'object' && typeof envelope.__error === 'string') {
+        setError(new Error(envelope.__error));
+        setJobs([]);
+      } else {
+        setJobs(allJobs || []);
+      }
     } catch (err) {
       console.error('[useAllCronJobs] Failed to fetch jobs:', err);
+      setError(err instanceof Error ? err : new Error('Failed to fetch'));
+      setJobs([]);
     } finally {
       setLoading(false);
     }
@@ -200,6 +214,17 @@ export function useAllCronJobs() {
   useEffect(() => {
     void fetchJobs();
   }, [fetchJobs]);
+
+  // Listen for sessionMode changes (enterprise mode) to trigger refetch
+  useEffect(() => {
+    if (!isEnterprise) return;
+
+    const handleSessionModeChanged = () => {
+      void fetchJobs();
+    };
+
+    return addEventListener('sessionMode.changed', handleSessionModeChanged);
+  }, [isEnterprise, fetchJobs]);
 
   // Event handlers
   const eventHandlers = useMemo<CronJobEventHandlers>(
@@ -237,6 +262,7 @@ export function useAllCronJobs() {
   return {
     jobs,
     loading,
+    error,
     activeCount,
     hasError,
     refetch: fetchJobs,

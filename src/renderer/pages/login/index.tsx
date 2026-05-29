@@ -3,12 +3,22 @@ import { useNavigate } from 'react-router-dom';
 import AppLoader from '../../components/AppLoader';
 import { useAuth } from '../../context/AuthContext';
 import { Button, Input, Message, Space } from '@arco-design/web-react';
-import { Phone, Protect, Key, User } from '@icon-park/react';
+import { Phone, Protect, Key, User, Lock } from '@icon-park/react';
 import { SUDOWORK_SERVER_BASE_URL } from '@/common/sudoworkServer';
-import { DEFAULT_TENANT_CONFIG } from '@/common/types/tenantConfig';
+import { DEFAULT_TENANT_CONFIG, TENANT_CONFIG_STORAGE_KEY, resolveTenantConfig } from '@/common/types/tenantConfig';
 import SudoworkIcon from '@/renderer/assets/sudowork-icon-dark.svg';
 import WindowControls from '../../components/WindowControls';
+import { useAppMode } from '@/renderer/hooks/useAppMode';
+import { ConfigStorage } from '@/common/storage';
+import { ipcBridge } from '@/common';
 import './LoginPage.css';
+
+// Generate a random state token to bind the OAuth2 authorize request to its callback.
+function generateOAuth2State(): string {
+  const bytes = new Uint8Array(16);
+  (globalThis.crypto || window.crypto).getRandomValues(bytes);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+}
 
 // 运行时判断 / Runtime check
 const isDesktopRuntime = typeof window !== 'undefined' && Boolean(window.electronAPI);
@@ -28,10 +38,10 @@ function isValidPhone(phone: string): boolean {
 // 从 localStorage 读取缓存的租户配置
 function getCachedTenantConfig(): Required<typeof DEFAULT_TENANT_CONFIG> {
   try {
-    const cached = localStorage.getItem('sudowork_tenant_config');
+    const cached = localStorage.getItem(TENANT_CONFIG_STORAGE_KEY);
     if (cached) {
       const parsed = JSON.parse(cached);
-      return { ...DEFAULT_TENANT_CONFIG, ...parsed };
+      return resolveTenantConfig(parsed);
     }
   } catch {
     // ignore
@@ -41,10 +51,107 @@ function getCachedTenantConfig(): Required<typeof DEFAULT_TENANT_CONFIG> {
 
 const LoginPage: React.FC = () => {
   const navigate = useNavigate();
-  const { status, login, register } = useAuth();
+  const { status, login, register, enterpriseLogin, enterpriseLoginWithOAuth2 } = useAuth();
+  const { isEnterprise } = useAppMode();
+
+  // Enterprise login state
+  const [loginTab, setLoginTab] = useState<'password' | 'key' | 'oauth2'>('password');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [apiKey, setApiKey] = useState('');
+
+  // OAuth2 login state
+  // `require_state` defaults to true on the moss side; older moss builds omit
+  // the field, so the absence is treated as "verify state" for backwards safety.
+  const [oauth2Config, setOauth2Config] = useState<{ enabled: boolean; authorize_url?: string; require_state?: boolean } | null>(null);
+  const [oauth2Loading, setOauth2Loading] = useState(false);
+  const [oauth2Waiting, setOauth2Waiting] = useState(false);
+  const oauth2StateRef = React.useRef<string | null>(null);
 
   // 从 localStorage 读取缓存的租户配置
   const tenantConfig = getCachedTenantConfig();
+
+  // OAuth2: fetch config from MOSS when the OAuth2 tab is selected
+  useEffect(() => {
+    if (!isEnterprise || loginTab !== 'oauth2' || oauth2Config) return;
+    let cancelled = false;
+    setOauth2Loading(true);
+    void (async () => {
+      try {
+        const serverUrl = await ConfigStorage.get('eeclaw.serverUrl');
+        if (!serverUrl) {
+          if (!cancelled) setOauth2Config({ enabled: false });
+          return;
+        }
+        const res = await ipcBridge.eeclaw.oauth2Config.invoke({ serverUrl });
+        if (cancelled) return;
+        setOauth2Config(res.success && res.data ? res.data : { enabled: false });
+      } finally {
+        if (!cancelled) setOauth2Loading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isEnterprise, loginTab, oauth2Config]);
+
+  // OAuth2: listen for the sudowork://oauth2-callback deep link and complete login.
+  // The provider redirects straight back to the desktop app (no server-side callback page).
+  // `sudowork` is the scheme the packaged app registers, so this routes in production.
+  useEffect(() => {
+    if (!isEnterprise) return;
+    return ipcBridge.deepLink.received.on((payload) => {
+      if (payload.action !== 'oauth2-callback') return;
+      const { state, ...rest } = payload.params || {};
+      // When the moss admin has disabled state verification (`require_state: false`),
+      // skip the local equality check. Trusted-internal deployments use this to
+      // accept logins even when the IdP rewrites or drops `state` on round-trip.
+      // We still generate + carry state on the outbound authorize URL for IdP
+      // compatibility — only the CSRF check on return is bypassed.
+      const verifyState = oauth2Config?.require_state !== false;
+      if (verifyState && (!oauth2StateRef.current || state !== oauth2StateRef.current)) {
+        setOauth2Waiting(false);
+        Message.error('授权回调验证失败,请重试');
+        return;
+      }
+      oauth2StateRef.current = null;
+      // Forward ALL non-state params to moss as an opaque dict — supports both
+      // standard (code) and non-standard (access_token/refresh_token) providers.
+      const params: Record<string, string> = {};
+      for (const [k, v] of Object.entries(rest)) {
+        if (typeof v === 'string' && v.length > 0) params[k] = v;
+      }
+      if (Object.keys(params).length === 0) {
+        setOauth2Waiting(false);
+        Message.error('OAuth2 登录失败');
+        return;
+      }
+      void (async () => {
+        const result = await enterpriseLoginWithOAuth2(params);
+        setOauth2Waiting(false);
+        if (result.success) {
+          setTimeout(() => navigate('/guid', { replace: true }), 300);
+        } else {
+          Message.error(result.message || 'OAuth2 登录失败');
+        }
+      })();
+    });
+  }, [isEnterprise, enterpriseLoginWithOAuth2, navigate, oauth2Config]);
+
+  const handleOAuth2Login = async () => {
+    if (!oauth2Config?.enabled || !oauth2Config.authorize_url) return;
+    const state = generateOAuth2State();
+    oauth2StateRef.current = state;
+    // moss returns the authorize URL with {state} placeholder (or none); fill/append it.
+    const url = oauth2Config.authorize_url.includes('{state}') ? oauth2Config.authorize_url.replace('{state}', encodeURIComponent(state)) : `${oauth2Config.authorize_url}${oauth2Config.authorize_url.includes('?') ? '&' : '?'}state=${encodeURIComponent(state)}`;
+    setOauth2Waiting(true);
+    try {
+      await ipcBridge.shell.openExternal.invoke(url);
+    } catch {
+      setOauth2Waiting(false);
+      Message.error('无法打开浏览器');
+    }
+  };
 
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [loginPhone, setLoginPhone] = useState('');
@@ -153,6 +260,45 @@ const LoginPage: React.FC = () => {
 
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
+
+    // Enterprise mode login
+    if (isEnterprise) {
+      if (loginTab === 'password') {
+        if (!username.trim() || !password.trim()) {
+          Message.warning('请填写所有必填项');
+          return;
+        }
+        setLoading(true);
+        try {
+          const result = await enterpriseLogin({ username: username.trim(), password: password.trim() });
+          if (result.success) {
+            setTimeout(() => navigate('/guid', { replace: true }), 300);
+          } else {
+            Message.error(result.message || '登录失败');
+          }
+        } finally {
+          setLoading(false);
+        }
+      } else {
+        if (!apiKey.trim()) {
+          Message.warning('请输入 API Key');
+          return;
+        }
+        setLoading(true);
+        try {
+          const result = await enterpriseLogin({ api_key: apiKey.trim() });
+          if (result.success) {
+            setTimeout(() => navigate('/guid', { replace: true }), 300);
+          } else {
+            Message.error(result.message || '登录失败');
+          }
+        } finally {
+          setLoading(false);
+        }
+      }
+      return;
+    }
+
     if (!currentPhone || !code) {
       Message.warning('请填写所有必填项');
       return;
@@ -311,6 +457,104 @@ const LoginPage: React.FC = () => {
     );
   }
 
+  // Enterprise mode: return mode selection handler
+  const handleBackToModeSelect = async () => {
+    try {
+      // Clear all enterprise-related ConfigStorage keys
+      await ConfigStorage.set('eeclaw.authStorage', undefined);
+      await ConfigStorage.set('eeclaw.userInfo', undefined);
+      await ConfigStorage.set('eeclaw.serverUrl', undefined);
+      await ConfigStorage.set('eeclaw.tenantName', undefined);
+      await ConfigStorage.set('system.appMode', undefined);
+      // Clear enterprise auth from localStorage
+      localStorage.removeItem('eeclaw_auth_v1');
+      localStorage.removeItem(TENANT_CONFIG_STORAGE_KEY);
+      // Clear C-side auth to avoid falling into authenticated state
+      localStorage.removeItem('sudowork_auth_v2');
+      localStorage.removeItem('sudowork_auth_v1');
+      // Reload page instead of restarting app
+      window.location.reload();
+    } catch (error) {
+      console.error('[LoginPage] Failed to reset mode:', error);
+    }
+  };
+
+  // Enterprise login UI
+  if (isEnterprise) {
+    return (
+      <div className='login-page'>
+        {isDesktopRuntime && <WindowControls />}
+
+        <div className='login-page__background'>
+          <div className='login-page__background-circle login-page__background-circle--lg' />
+          <div className='login-page__background-circle login-page__background-circle--md' />
+          <div className='login-page__background-circle login-page__background-circle--sm' />
+        </div>
+
+        <div className='login-page__card'>
+          <div className='login-page__header'>
+            <div className='login-page__logo'>
+              <img src={tenantConfig.logo || SudoworkIcon} alt={tenantConfig.app_name} className='w-64px h-64px object-contain' />
+            </div>
+            <h1 className='text-28px font-800 tracking-tighter bg-gradient-to-br from-primary to-purple-600 bg-clip-text text-transparent mb-8px'>{tenantConfig.app_name}</h1>
+            <p className='text-13px text-t-secondary'>{tenantConfig.login_desp}</p>
+          </div>
+
+          {/* Enterprise login tabs: password / key / oauth2 */}
+          <div className='login-tabs'>
+            <button type='button' className={`login-tab ${loginTab === 'password' ? 'login-tab--active' : ''}`} onClick={() => setLoginTab('password')}>
+              密码登录
+            </button>
+            <button type='button' className={`login-tab ${loginTab === 'key' ? 'login-tab--active' : ''}`} onClick={() => setLoginTab('key')}>
+              密钥登录
+            </button>
+            <button type='button' className={`login-tab ${loginTab === 'oauth2' ? 'login-tab--active' : ''}`} onClick={() => setLoginTab('oauth2')}>
+              OAuth2 登录
+            </button>
+          </div>
+
+          <div className='flex flex-col gap-20px mt-24px'>
+            {loginTab === 'password' ? (
+              <>
+                <div className='flex flex-col gap-8px'>
+                  <div className='text-12px font-600 text-t-secondary ml-4px'>用户名</div>
+                  <Input size='large' prefix={<User className='text-t-tertiary' />} placeholder='请输入用户名' value={username} onChange={setUsername} className='login-input !rd-12px h-48px' />
+                </div>
+                <div className='flex flex-col gap-8px'>
+                  <div className='text-12px font-600 text-t-secondary ml-4px'>密码</div>
+                  <Input.Password size='large' prefix={<Lock className='text-t-tertiary' />} placeholder='请输入密码' value={password} onChange={setPassword} className='login-input !rd-12px h-48px' />
+                </div>
+              </>
+            ) : loginTab === 'key' ? (
+              <div className='flex flex-col gap-8px'>
+                <div className='text-12px font-600 text-t-secondary ml-4px'>API Key</div>
+                <Input size='large' prefix={<Key className='text-t-tertiary' />} placeholder='moss_sk_xxx.yyy' value={apiKey} onChange={setApiKey} className='login-input !rd-12px h-48px' />
+              </div>
+            ) : (
+              <div className='flex flex-col gap-8px text-center'>{oauth2Loading ? <div className='text-13px text-t-tertiary py-12px'>正在检查 OAuth2 配置…</div> : oauth2Config?.enabled ? <div className='text-13px text-t-secondary py-4px'>点击下方按钮，将在浏览器中完成身份认证。</div> : <div className='text-13px text-t-tertiary py-12px'>管理员未启用 OAuth2 登录</div>}</div>
+            )}
+
+            {loginTab === 'oauth2' ? (
+              <Button type='primary' size='large' loading={oauth2Waiting} disabled={oauth2Loading || !oauth2Config?.enabled} onClick={() => handleOAuth2Login()} className='login-btn-primary !rd-12px h-52px mt-12px font-700 text-16px'>
+                {oauth2Waiting ? '等待浏览器授权…' : '通过浏览器登录'}
+              </Button>
+            ) : (
+              <Button type='primary' size='large' loading={loading} onClick={() => handleSubmit()} className='login-btn-primary !rd-12px h-52px mt-12px font-700 text-16px'>
+                登录
+              </Button>
+            )}
+
+            <div className='text-center mt-12px'>
+              <span className='text-12px text-t-tertiary cursor-pointer hover:text-t-secondary transition-colors' onClick={handleBackToModeSelect}>
+                ← 返回模式选择
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className='login-page'>
       {/* 桌面端窗口控制按钮 / Window controls for desktop */}
@@ -326,11 +570,7 @@ const LoginPage: React.FC = () => {
       <div className='login-page__card'>
         <div className='login-page__header'>
           <div className='login-page__logo'>
-            <img
-              src={tenantConfig.logo || SudoworkIcon}
-              alt={tenantConfig.app_name}
-              className='w-64px h-64px object-contain'
-            />
+            <img src={tenantConfig.logo || SudoworkIcon} alt={tenantConfig.app_name} className='w-64px h-64px object-contain' />
           </div>
           <h1 className='text-28px font-800 tracking-tighter bg-gradient-to-br from-primary to-purple-600 bg-clip-text text-transparent mb-8px'>{tenantConfig.app_name}</h1>
           <p className='text-13px text-t-secondary'>{tenantConfig.login_desp}</p>
@@ -379,6 +619,12 @@ const LoginPage: React.FC = () => {
           <Button type='primary' size='large' loading={loading} onClick={() => handleSubmit()} className='login-btn-primary !rd-12px h-52px mt-12px font-700 text-16px'>
             {mode === 'login' ? '登录' : '注册'}
           </Button>
+
+          <div className='text-center mt-12px'>
+            <span className='text-12px text-t-tertiary cursor-pointer hover:text-t-secondary transition-colors' onClick={handleBackToModeSelect}>
+              ← 返回模式选择
+            </span>
+          </div>
         </div>
       </div>
     </div>

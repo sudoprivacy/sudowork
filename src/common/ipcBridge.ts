@@ -9,11 +9,13 @@ import { bridge } from '@office-ai/platform';
 import type { OpenDialogOptions } from 'electron';
 import type { McpSource } from '../process/services/mcpServices/McpProtocol';
 import type { AcpBackend, AcpBackendAll, AcpModelInfo, PresetAgentType } from '../types/acpTypes';
+import type { ScodeCustomModelProvider } from './scodeConfig';
 import type { SlashCommandItem } from './slash/types';
 import type { IMcpServer, IProvider, TChatConversation, TProviderWithModel, ICssTheme } from './storage';
 import type { PreviewHistoryTarget, PreviewSnapshotInfo } from './types/preview';
 import type { UpdateCheckRequest, UpdateCheckResult, UpdateDownloadProgressEvent, UpdateDownloadRequest, UpdateDownloadResult, AutoUpdateStatus } from './updateTypes';
 import type { ProtocolDetectionRequest, ProtocolDetectionResponse } from './utils/protocolDetector';
+import type { SyncAllResult } from '../process/sync/remoteToLocalSync';
 
 // OpenClaw model pricing API response type
 export interface IOpenClawModelsResponse {
@@ -42,9 +44,9 @@ export const openclaw = {
 export const conversation = {
   create: bridge.buildProvider<TChatConversation, ICreateConversationParams>('create-conversation'), // 创建对话
   createWithConversation: bridge.buildProvider<TChatConversation, { conversation: TChatConversation; sourceConversationId?: string }>('create-conversation-with-conversation'), // Create new conversation from history (supports migration) / 通过历史会话创建新对话（支持迁移）
-  get: bridge.buildProvider<TChatConversation, { id: string }>('get-conversation'), // 获取对话信息
+  get: bridge.buildProvider<TChatConversation | undefined, { id: string }>('get-conversation'), // 获取对话信息
   getAssociateConversation: bridge.buildProvider<TChatConversation[], { conversation_id: string }>('get-associated-conversation'), // 获取关联对话
-  remove: bridge.buildProvider<boolean, { id: string }>('remove-conversation'), // 删除对话
+  remove: bridge.buildProvider<boolean, { id: string; deleteWorkspace?: boolean }>('remove-conversation'), // 删除对话
   update: bridge.buildProvider<boolean, { id: string; updates: Partial<TChatConversation>; mergeExtra?: boolean }>('update-conversation'), // 更新对话信息
   reset: bridge.buildProvider<void, IResetConversationParams>('reset-conversation'), // 重置对话
   stop: bridge.buildProvider<IBridgeResponse<{}>, { conversation_id: string }>('chat.stop.stream'), // 停止会话
@@ -53,6 +55,9 @@ export const conversation = {
   confirmMessage: bridge.buildProvider<IBridgeResponse, IConfirmMessageParams>('conversation.confirm.message'), // 通用确认消息
   responseStream: bridge.buildEmitter<IResponseMessage>('chat.response.stream'), // 接收消息（统一接口）
   getWorkspace: bridge.buildProvider<IDirOrFile[], { conversation_id: string; workspace: string; path: string; search?: string }>('conversation.get-workspace'),
+  getRemoteWorkspace: bridge.buildProvider<IRemoteWorkspaceResponse, { conversation_id: string; path?: string; search?: string }>('conversation.get-remote-workspace'),
+  previewRemoteWorkspaceFile: bridge.buildProvider<IBridgeResponse<MossWorkspaceFilePreview>, { conversation_id: string; path: string }>('conversation.preview-remote-workspace-file'),
+  getRemoteAvailableSkills: bridge.buildProvider<IRemoteAvailableSkillsResponse, { conversation_id: string }>('conversation.get-remote-available-skills'),
   responseSearchWorkSpace: bridge.buildProvider<void, { file: number; dir: number; match?: IDirOrFile }>('conversation.response.search.workspace'),
   reloadContext: bridge.buildProvider<IBridgeResponse, { conversation_id: string }>('conversation.reload-context'),
   getConnectionStatus: bridge.buildProvider<IBridgeResponse<{ status: string | null }>, { conversation_id: string }>('conversation.get-connection-status'),
@@ -62,6 +67,8 @@ export const conversation = {
   flushPendingMessages: bridge.buildProvider<void, { conversation_id: string }>('conversation.flush-pending-messages'),
   // Add a single message to the database (used for saving pending messages before unmount)
   addMessage: bridge.buildProvider<void, { conversation_id: string; message: import('@/common/chatLib').TMessage }>('conversation.add-message'),
+  // Sync messages from Moss Server to local DB (enterprise mode, triggered on conversation click)
+  syncMessages: bridge.buildProvider<IBridgeResponse<{ syncedCount: number; nameUpdated: boolean; conversationStatus?: string }>, { conversation_id: string }>('conversation.sync-messages'),
   confirmation: {
     add: bridge.buildEmitter<IConfirmation<any> & { conversation_id: string }>('confirmation.add'),
     update: bridge.buildEmitter<IConfirmation<any> & { conversation_id: string }>('confirmation.update'),
@@ -107,6 +114,8 @@ export interface ICdpConfig {
 
 export const application = {
   restart: bridge.buildProvider<void, void>('restart-app'), // 重启应用
+  /** Start consumer-mode services (serviceManager + ChannelManager) without restarting the app. */
+  startConsumerServices: bridge.buildProvider<IBridgeResponse<void>, void>('start-consumer-services'),
   openDevTools: bridge.buildProvider<boolean, void>('open-dev-tools'), // 打开/关闭开发者工具，返回操作后的状态
   isDevToolsOpened: bridge.buildProvider<boolean, void>('is-dev-tools-opened'), // 获取 DevTools 当前状态
   systemInfo: bridge.buildProvider<{ cacheDir: string; workDir: string; platform: string; arch: string }, void>('system.info'), // 获取系统信息
@@ -192,6 +201,7 @@ export const fs = {
   fetchRemoteImage: bridge.buildProvider<string, { url: string }>('fetch-remote-image'), // 远程图片转base64
   readFile: bridge.buildProvider<string, { path: string }>('read-file'), // 读取文件内容（UTF-8）
   readFileBuffer: bridge.buildProvider<ArrayBuffer, { path: string }>('read-file-buffer'), // 读取二进制文件为 ArrayBuffer
+  readFileBase64: bridge.buildProvider<string, { path: string }>('read-file-base64'), // 读取二进制文件为 Base64 字符串（适用于 IPC JSON 序列化场景）
   createTempFile: bridge.buildProvider<string, { fileName: string }>('create-temp-file'), // 创建临时文件
   createDir: bridge.buildProvider<boolean, { path: string }>('create-dir'), // 创建目录
   writeFile: bridge.buildProvider<boolean, { path: string; data: Uint8Array | string }>('write-file'), // 写入文件
@@ -279,6 +289,138 @@ export const bedrock = {
   testConnection: bridge.buildProvider<IBridgeResponse<{ msg?: string }>, { bedrockConfig: { authMethod: 'accessKey' | 'profile'; region: string; accessKeyId?: string; secretAccessKey?: string; profile?: string } }>('bedrock.test-connection'),
 };
 
+// Moss Server (Enterprise) interfaces - 企业模式下会话由 Moss Server 管理
+export interface MossSessionInfo {
+  sessionId: string;
+  wsUrl: string;
+  workDir?: string;
+  assistantName?: string;
+  status?: 'active' | 'idle' | 'terminated' | 'ended';
+  createdAt?: number;
+  updatedAt?: number;
+}
+
+export interface MossWorkspaceNode {
+  name: string;
+  relativePath: string;
+  fullPath: string;
+  isFile: boolean;
+  isDir: boolean;
+  size?: number;
+  mtime?: number;
+  children?: MossWorkspaceNode[];
+}
+
+export type MossWorkspaceFilePreview =
+  | {
+      kind: 'text';
+      name: string;
+      relativePath: string;
+      mime: string;
+      encoding: 'utf8';
+      content: string;
+      size: number;
+      truncated: boolean;
+    }
+  | {
+      kind: 'base64';
+      name: string;
+      relativePath: string;
+      mime: string;
+      contentBase64: string;
+      size: number;
+    };
+
+export interface MossSessionAvailableSkill {
+  name: string;
+  displayName?: string;
+  description: string;
+  icon?: string;
+  iconUrl?: string;
+  color?: string;
+  emoji?: string | null;
+  source?: string;
+  path?: string;
+}
+
+export type IRemoteWorkspaceResponse = IBridgeResponse<{
+  files: IDirOrFile[];
+  pending?: boolean;
+}>;
+
+export type IRemoteAvailableSkillsResponse = IBridgeResponse<{
+  skills: MossSessionAvailableSkill[];
+  pending?: boolean;
+}>;
+
+export const moss = {
+  /** Check if enterprise mode is enabled */
+  isEnterpriseMode: bridge.buildProvider<boolean, void>('moss.is-enterprise-mode'),
+  /** Get Moss Server URL and auth config */
+  getConfig: bridge.buildProvider<
+    {
+      serverUrl: string;
+      hasToken: boolean;
+    },
+    void
+  >('moss.get-config'),
+  /** Set JWT auth token directly (no conversion needed) */
+  setAuthToken: bridge.buildProvider<
+    IBridgeResponse,
+    {
+      authToken: string;
+    }
+  >('moss.set-auth-token'),
+  /** List all sessions from Moss Server */
+  listSessions: bridge.buildProvider<IBridgeResponse<MossSessionInfo[]>, void>('moss.list-sessions'),
+  /** Create a new session on Moss Server */
+  createSession: bridge.buildProvider<
+    IBridgeResponse<MossSessionInfo>,
+    {
+      cwd?: string;
+      assistantName?: string;
+      dangerouslySkipPermissions?: boolean;
+      runtimeType?: 'host' | 'docker';
+    }
+  >('moss.create-session'),
+  /** Get session details */
+  getSession: bridge.buildProvider<IBridgeResponse<MossSessionInfo>, { sessionId: string }>('moss.get-session'),
+  /** Delete a session */
+  deleteSession: bridge.buildProvider<IBridgeResponse, { sessionId: string }>('moss.delete-session'),
+  /** Update session metadata (e.g., title) */
+  updateSession: bridge.buildProvider<IBridgeResponse<MossSessionInfo>, { sessionId: string; title?: string }>('moss.update-session'),
+  /** Resume an existing session to get WebSocket URL */
+  resumeSession: bridge.buildProvider<IBridgeResponse<{ wsUrl: string; session: MossSessionInfo }>, { sessionId: string }>('moss.resume-session'),
+  /** Send message to session (WebSocket) */
+  sendMessage: bridge.buildProvider<
+    IBridgeResponse,
+    {
+      sessionId: string;
+      wsUrl: string;
+      content: string;
+      files?: string[];
+    }
+  >('moss.send-message'),
+  /** Stream response from Moss Server */
+  responseStream: bridge.buildEmitter<IResponseMessage>('moss.response-stream'),
+  /** Stop/interrupt current operation */
+  stop: bridge.buildProvider<IBridgeResponse, { sessionId: string }>('moss.stop'),
+  /** Respond to permission request */
+  respondPermission: bridge.buildProvider<IBridgeResponse, { sessionId: string; requestId: string; optionId: string }>('moss.respond-permission'),
+
+  // === Model Management ===
+  /** Get available models from Moss Server */
+  getAvailableModels: bridge.buildProvider<IBridgeResponse<Array<{ id: string; name: string; ratio: number }>>, void>('moss.get-available-models'),
+  /** Get user's model preference */
+  getUserModel: bridge.buildProvider<IBridgeResponse<{ modelId: string; updatedAt: number; systemDefaultModel: string } | null>, void>('moss.get-user-model'),
+  /** Set user's model preference */
+  setUserModel: bridge.buildProvider<IBridgeResponse<{ modelId: string; updatedAt: number }>, { modelId: string }>('moss.set-user-model'),
+  /** Set model for current session (via WebSocket) */
+  setModel: bridge.buildProvider<IBridgeResponse, { sessionId: string; modelId: string }>('moss.set-model'),
+  /** Model changed event (emitted when model switch completes) */
+  modelChanged: bridge.buildEmitter<{ sessionId: string; model: string }>('moss.model-changed'),
+};
+
 export const mode = {
   fetchModelList: bridge.buildProvider<IBridgeResponse<{ mode: Array<string | { id: string; name: string }>; fix_base_url?: string }>, { base_url?: string; api_key: string; try_fix?: boolean; platform?: string; bedrockConfig?: { authMethod: 'accessKey' | 'profile'; region: string; accessKeyId?: string; secretAccessKey?: string; profile?: string } }>('mode.get-model-list'),
   saveModelConfig: bridge.buildProvider<IBridgeResponse, IProvider[]>('mode.save-model-config'),
@@ -291,11 +433,12 @@ export const mode = {
 export const acpConversation = {
   sendMessage: conversation.sendMessage,
   responseStream: conversation.responseStream,
+  answerQuestion: bridge.buildProvider<IBridgeResponse<void>, { conversationId: string; toolCallId: string; answers: Array<{ id: string; value: string; label?: string }> }>('acp.answer-question'),
   detectCliPath: bridge.buildProvider<IBridgeResponse<{ path?: string }>, { backend: AcpBackend }>('acp.detect-cli-path'),
   getAvailableAgents: bridge.buildProvider<
     IBridgeResponse<
       Array<{
-        backend: AcpBackend;
+        backend: AcpBackendAll;
         name: string;
         cliPath?: string;
         customAgentId?: string;
@@ -307,6 +450,12 @@ export const acpConversation = {
         supportedTransports?: string[];
         isExtension?: boolean;
         extensionName?: string;
+        // Enterprise-specific metadata for remote-agent
+        enterpriseMetadata?: {
+          mossServerUrl?: string;
+          authMode?: 'api_key' | 'password' | 'access_token';
+          runtimeType?: 'host' | 'docker';
+        };
       }>
     >,
     void
@@ -446,7 +595,7 @@ export const openclawConversation = {
 // Database operations
 export const database = {
   getConversationMessages: bridge.buildProvider<import('@/common/chatLib').TMessage[], { conversation_id: string; page?: number; pageSize?: number }>('database.get-conversation-messages'),
-  getUserConversations: bridge.buildProvider<import('@/common/storage').TChatConversation[], { page?: number; pageSize?: number }>('database.get-user-conversations'),
+  getUserConversations: bridge.buildProvider<import('@/common/storage').TChatConversation[], { page?: number; pageSize?: number; sessionMode?: 'remote' | 'local' }>('database.get-user-conversations'),
   /** 渠道对话创建/更新/删除时，主进程通知渲染进程刷新对话列表 */
   conversationChanged: bridge.buildEmitter<{
     conversationId: string;
@@ -481,6 +630,8 @@ export const document = {
   libreOffice: {
     isAvailable: bridge.buildProvider<boolean, void>('document.libreoffice.is-available'),
   },
+  /** 获取文件最后修改时间 (mtime) / Get file last modification time */
+  getFileMtime: bridge.buildProvider<number, { filePath: string }>('document.get-file-mtime'),
 };
 
 export interface ICliStatus {
@@ -508,6 +659,17 @@ export const nodeRuntime = {
   uninstall: bridge.buildProvider<IBridgeResponse<void>, void>('node-runtime.uninstall'),
   /** Emitted by main process when installation completes (success or failure) */
   installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('node-runtime.install-result'),
+};
+
+// ShareOne CLI installer & publish
+export type IShareoneResponse = { success: boolean; msg?: string; code?: string };
+export const shareoneCli = {
+  checkInstalled: bridge.buildProvider<IBridgeResponse<ICliStatus>, void>('shareone.check-installed'),
+  install: bridge.buildProvider<IBridgeResponse<void>, void>('shareone.install'),
+  installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('shareone.install-result'),
+  installProgress: bridge.buildEmitter<{ phase: 'downloading' | 'extracting' | 'configuring'; percent?: number }>('shareone.install-progress'),
+  publishTurn: bridge.buildProvider<IShareoneResponse & IBridgeResponse<{ url: string }>, { markdown: string; title: string }>('shareone.publish-turn'),
+  publishFile: bridge.buildProvider<IShareoneResponse & IBridgeResponse<{ url: string }>, { filePath: string }>('shareone.publish-file'),
 };
 
 // LibreOffice installer / LibreOffice 在线安装
@@ -606,6 +768,69 @@ export const sudoclaw = {
   wechatInstallProgress: bridge.buildEmitter<{ phase: 'installing' | 'qrcode' | 'scanning' | 'success' | 'error'; message?: string; qrData?: string; qrUrl?: string }>('sudoclaw.wechat-install-progress'),
 };
 
+// Scode config (~/.nexus/sudocode/sudocode.json)
+// Matches sudocode.json schema: auth_modes, models, default_model
+export type ScodeModelProvider = {
+  provider?: string;
+  model?: string;
+  api?: string;
+};
+export type ScodeModelEntry = {
+  alias?: string;
+  name?: string;
+  input?: string[];
+  supports_tools?: boolean;
+  supports_reasoning?: boolean;
+  context?: {
+    input?: number;
+    output?: number;
+  };
+  providers?: {
+    subscription?: ScodeModelProvider;
+    proxy?: ScodeModelProvider;
+    'api-key'?: ScodeModelProvider;
+  };
+};
+export type ScodeConfig = {
+  auth_modes?: {
+    subscription?: Record<string, { baseUrl?: string; token?: string; authFile?: string }>;
+    proxy?: Record<string, { baseUrl?: string; apiKey?: string }>;
+    'api-key'?: Record<string, { baseUrl?: string; apiKey?: string }>;
+  };
+  default_model?: string;
+  models?: Record<string, ScodeModelEntry>;
+  web_search?: {
+    provider?: string;
+    apiUrl?: string;
+    apiKey?: string;
+  };
+};
+
+export const scode = {
+  /** Read scode config from ~/.nexus/sudocode/sudocode.json */
+  getConfig: bridge.buildProvider<IBridgeResponse<ScodeConfig>, void>('scode.get-config'),
+  /** Save full scode config to ~/.nexus/sudocode/sudocode.json (overwrite) */
+  saveConfig: bridge.buildProvider<IBridgeResponse<void>, { config: ScodeConfig }>('scode.save-config'),
+  /** Save custom OpenAI-compatible scode model providers for the signed-in user */
+  saveCustomModelProviders: bridge.buildProvider<IBridgeResponse<void>, { userId: string; providers: ScodeCustomModelProvider[] }>('scode.save-custom-model-providers'),
+  /** Restore signed-in user's custom scode model providers into sudocode.json */
+  restoreCustomModelProviders: bridge.buildProvider<IBridgeResponse<ScodeConfig>, { userId: string; baseConfig?: ScodeConfig }>('scode.restore-custom-model-providers'),
+  /** Update only the default_model field in sudocode.json */
+  setDefaultModel: bridge.buildProvider<IBridgeResponse<void>, { modelId: string }>('scode.set-default-model'),
+  /** Fetch live model list from sudorouter specific_pricing, rewrite sudocode.json models, return resolved model info */
+  refreshModels: bridge.buildProvider<IBridgeResponse<AcpModelInfo>, void>('scode.refresh-models'),
+  /** Sync image generation model to sudocode.json tools.imageGenerationModel */
+  setImageModel: bridge.buildProvider<IBridgeResponse<void>, { modelId: string | null }>('scode.set-image-model'),
+  /** Get scode installation status */
+  getStatus: bridge.buildProvider<IBridgeResponse<{ installed: boolean; version?: string }>, void>('scode.get-status'),
+  /** Install or reinstall scode binary */
+  install: bridge.buildProvider<IBridgeResponse<void>, void>('scode.install'),
+  /** Emitted during installation to report progress */
+  installProgress: bridge.buildEmitter<{ phase: string; percent?: number }>('scode.install-progress'),
+  /** Emitted once when installation completes (success or failure) */
+  installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('scode.install-result'),
+};
+
 // Initialization status for runtime dependencies
 export type InitPhase = 'pending' | 'installing' | 'ready' | 'error';
 export type InitStepStatus = 'pending' | 'active' | 'done' | 'error';
@@ -623,7 +848,7 @@ export interface InitStatus {
   /** Which loading UI should be rendered. */
   displayMode?: 'full' | 'startup';
   error?: string;
-  /** Current installation step id: 'git' | 'node' | 'claude' | 'sudoclaw' | 'nexus' | 'bdpan' */
+  /** Current installation step id: 'git' | 'node' | 'claude' | 'scode' | 'nexus' | 'bdpan' */
   step?: string;
   /** Detail message for current step */
   detail?: string;
@@ -645,7 +870,7 @@ export const init = {
   /** Retry startup checks without reinstalling runtimes */
   retryStartup: bridge.buildProvider<IBridgeResponse<void>, void>('init.retry-startup'),
   /** Manually reinstall a failed runtime component and rerun startup checks */
-  reinstallComponent: bridge.buildProvider<IBridgeResponse<void>, { component: 'sudoclaw' | 'nexus' }>('init.reinstall-component'),
+  reinstallComponent: bridge.buildProvider<IBridgeResponse<void>, { component: 'scode' | 'nexus' }>('init.reinstall-component'),
   /** Subscribe to initialization status changes */
   onStatusChange: bridge.buildEmitter<InitStatus>('init.status-change'),
   /** Quit the entire application */
@@ -675,6 +900,16 @@ export const nexus = {
   stop: bridge.buildProvider<IBridgeResponse<void>, void>('nexus.stop'),
 };
 
+// ManagedAgent gRPC service (nexusd :2028) / 托管代理 gRPC 服务
+export const managedAgent = {
+  /** Start a new managed agent session */
+  startSession: bridge.buildProvider<IBridgeResponse<{ sessionId: string; workspacePath: string }>, { agentId: string; repos: string[]; model: string; ownerId?: string; zoneId?: string }>('managed-agent.start-session'),
+  /** Cancel a running managed agent session */
+  cancelSession: bridge.buildProvider<IBridgeResponse<{ cancelled: boolean }>, { sessionId: string; mode: 'graceful' | 'force' }>('managed-agent.cancel-session'),
+  /** Get the status of a managed agent session */
+  getSession: bridge.buildProvider<IBridgeResponse<{ sessionId: string; agentId: string; workspacePath: string; model: string; state: string }>, { sessionId: string }>('managed-agent.get-session'),
+};
+
 // Deep link protocol handling / 深度链接协议处理
 export const deepLink = {
   /** Emitted when app is opened via aionui:// protocol URL */
@@ -698,6 +933,10 @@ export const windowControls = {
 export const systemSettings = {
   getCloseToTray: bridge.buildProvider<boolean, void>('system-settings:get-close-to-tray'),
   setCloseToTray: bridge.buildProvider<void, { enabled: boolean }>('system-settings:set-close-to-tray'),
+  // Floating desktop avatar window — independent transparent BrowserWindow
+  // that reflects active ACP conversation state. See src/process/avatarWindow.ts.
+  getAvatarEnabled: bridge.buildProvider<boolean, void>('system-settings:get-avatar-enabled'),
+  setAvatarEnabled: bridge.buildProvider<void, { enabled: boolean }>('system-settings:set-avatar-enabled'),
   changeLanguage: bridge.buildProvider<void, { language: string }>('system-settings:change-language'),
   // Broadcast language change to all renderers (desktop + WebUI) for real-time sync
   languageChanged: bridge.buildEmitter<{ language: string }>('system-settings:language-changed'),
@@ -807,7 +1046,7 @@ export interface ICreateCronJobParams {
   presetAssistantId?: string | null;
 }
 
-interface ISendMessageParams {
+export interface ISendMessageParams {
   input: string;
   msg_id: string;
   conversation_id: string;
@@ -826,7 +1065,7 @@ export interface IConfirmMessageParams {
 }
 
 export interface ICreateConversationParams {
-  type: 'acp' | 'openclaw-gateway';
+  type: 'acp' | 'openclaw-gateway' | 'remote-agent';
   id?: string;
   name?: string;
   model: TProviderWithModel;
@@ -855,6 +1094,8 @@ export interface ICreateConversationParams {
     presetAssistantId?: string;
     /** Initial session mode selected on Guid page (from AgentModeSelector) */
     sessionMode?: string;
+    /** Session mode (remote/local) for enterprise mode Provider selection - distinct from sessionMode (yolo/auto) */
+    sessionModeParam?: 'remote' | 'local';
     /** Pre-selected ACP model from Guid page (cached model list) */
     currentModelId?: string;
     /** Runtime validation snapshot used for post-switch strong checks (OpenClaw) */
@@ -877,6 +1118,27 @@ export interface ICreateConversationParams {
     cronJobBoundId?: string;
     /** Cron job name this conversation is pre-bound to */
     cronJobBoundName?: string;
+    // ========== Remote-agent (Moss Server) specific fields ==========
+    /** Moss Server URL (e.g. http://127.0.0.1:43127) */
+    mossServerUrl?: string;
+    /** Auth token for Moss Server (API Key or JWT access_token) */
+    authToken?: string;
+    /** Username for password login (when authToken is empty) */
+    username?: string;
+    /** Password for password login (when authToken is empty) */
+    password?: string;
+    /** Runtime type for Moss Server */
+    runtimeType?: 'host' | 'docker';
+    /** Enterprise code */
+    enterpriseCode?: string;
+    /** Organization ID */
+    orgId?: string;
+    /** User ID */
+    userId?: string;
+    /** Skip permission confirmation */
+    dangerouslySkipPermissions?: boolean;
+    /** WebSocket URL from Moss Server session (for reconnecting) */
+    acpWsUrl?: string;
   };
 }
 interface IResetConversationParams {
@@ -1050,6 +1312,14 @@ export interface ISkillHubSkill {
   core_features: string | null;
   created_at: string;
   updated_at: string;
+  /** Enterprise mode: visibility configuration */
+  visible_to?: { department_ids: string[] | null } | null;
+  /** Enterprise mode: download URL */
+  source_url?: string | null;
+  /** Enterprise mode: checksum for verification */
+  checksum?: string | null;
+  /** Enterprise mode: version */
+  version?: string;
 }
 
 export interface ISkillHubVersion {
@@ -1100,11 +1370,21 @@ export interface ISkillHubMeta {
   core_features: string | null;
   homepage: string | null;
   author_id: string;
-  source_type?: 'hub' | 'upload';
+  source_type?: 'hub' | 'upload' | 'custom' | 'tenant';
   is_builtin?: boolean;
   enabled?: boolean;
   installed_version: string;
   installed_at: string;
+  /** Visibility configuration for enterprise skills (department_ids filter) */
+  visible_to?: { department_ids: string[] | null } | null;
+  /** Whether this skill has been uploaded to Moss Server */
+  uploaded?: boolean;
+  /** Timestamp when uploaded to Moss Server */
+  uploaded_at?: string;
+  /** Publish status for tenant-exclusive skills */
+  publish_status?: 'pending' | 'approved' | 'rejected';
+  /** Timestamp when published as tenant-exclusive */
+  published_at?: string;
 }
 
 /** Info returned for each locally installed skill */
@@ -1120,6 +1400,8 @@ export interface IInstalledSkillInfo {
   isAutoInjectedBuiltin?: boolean;
   /** Whether this skill is currently enabled at runtime */
   enabled: boolean;
+  /** Category of the skill (custom, hub, system, tenant) */
+  category?: 'custom' | 'hub' | 'system' | 'tenant';
   /** Rich metadata from _sudowork_meta.json (hub-installed only) */
   meta?: ISkillHubMeta;
 }
@@ -1127,6 +1409,8 @@ export interface IInstalledSkillInfo {
 export const skillHub = {
   /** Fetch skills list from Skill Hub API with cursor-based pagination */
   fetchSkills: bridge.buildProvider<IBridgeResponse<ISkillHubListResponse>, { cursor?: string; limit?: number; query?: string; category?: string; tenantId?: string }>('skill-hub.fetch-skills'),
+  /** Emitted when installed skills change outside renderer-initiated actions */
+  changed: bridge.buildEmitter<{ skillName?: string; source?: 'workspace' | 'hub' | 'import' | 'toggle' | 'uninstall' }>('skill-hub.changed'),
   /** Fetch skill categories from Skill Hub API */
   fetchCategories: bridge.buildProvider<IBridgeResponse<string[]>, void>('skill-hub.fetch-categories'),
   /** Fetch skill detail from Skill Hub API */
@@ -1139,10 +1423,10 @@ export const skillHub = {
   importLocalSkill: bridge.buildProvider<IBridgeResponse<ISkillInstallResult>, { sourcePath: string }>('skill-hub.import-local-skill'),
   /** Get installed skills with rich metadata */
   getInstalledSkills: bridge.buildProvider<IBridgeResponse<IInstalledSkillInfo[]>, void>('skill-hub.get-installed-skills'),
-  /** Enable or disable a custom installed skill */
-  setSkillEnabled: bridge.buildProvider<IBridgeResponse<void>, { skillName: string; enabled: boolean }>('skill-hub.set-skill-enabled'),
-  /** Uninstall a hub-installed skill by directory name (builtin skills are rejected) */
-  uninstallSkill: bridge.buildProvider<IBridgeResponse<void>, { skillName: string }>('skill-hub.uninstall-skill'),
+  /** Enable or disable a custom installed skill. Optionally specify category to disambiguate skills with same name in different directories. */
+  setSkillEnabled: bridge.buildProvider<IBridgeResponse<void>, { skillName: string; enabled: boolean; category?: 'custom' | 'hub' | 'system' | 'tenant' }>('skill-hub.set-skill-enabled'),
+  /** Uninstall a hub-installed skill by directory name (builtin skills are rejected). Optionally specify category to disambiguate skills with same name in different directories. */
+  uninstallSkill: bridge.buildProvider<IBridgeResponse<void>, { skillName: string; category?: 'custom' | 'hub' | 'system' | 'tenant' }>('skill-hub.uninstall-skill'),
   /** Get security audit report for a skill */
   getSkillAuditReport: bridge.buildProvider<IBridgeResponse<import('@/common/skillAuditTypes').SkillAuditReport>, { skillName: string }>('skill-hub.get-skill-audit-report'),
   /** Run security audit for a skill (re-scan) */
@@ -1180,6 +1464,10 @@ export interface IAssistantHubSkill {
   defaultInitPrompt?: string | null;
   /** Internal: download URL from API (mapped from sourceUrl) */
   _sourceUrl?: string;
+  /** Enterprise mode: visibility configuration */
+  visible_to?: { department_ids: string[] | null } | null;
+  /** Enterprise mode: version */
+  version?: string;
 }
 
 export interface IAssistantHubVersion {
@@ -1216,22 +1504,22 @@ export interface IAssistantInstallResult {
 export const assistantHub = {
   /** Get all installed assistants (enabled + disabled) with full metadata */
   getInstalledAssistants: bridge.buildProvider<IBridgeResponse<IAssistantInfo[]>, void>('assistant-hub.get-installed-assistants'),
-  /** Enable an assistant (set meta.enabled = true) */
-  enableAssistant: bridge.buildProvider<IBridgeResponse<void>, { name: string }>('assistant-hub.enable-assistant'),
-  /** Disable an assistant (set meta.enabled = false) */
-  disableAssistant: bridge.buildProvider<IBridgeResponse<void>, { name: string }>('assistant-hub.disable-assistant'),
+  /** Enable an assistant (set meta.enabled = true). Optionally specify category to disambiguate assistants with same name in different directories. */
+  enableAssistant: bridge.buildProvider<IBridgeResponse<void>, { name: string; category?: 'custom' | 'hub' | 'system' | 'tenant' }>('assistant-hub.enable-assistant'),
+  /** Disable an assistant (set meta.enabled = false). Optionally specify category to disambiguate assistants with same name in different directories. */
+  disableAssistant: bridge.buildProvider<IBridgeResponse<void>, { name: string; category?: 'custom' | 'hub' | 'system' | 'tenant' }>('assistant-hub.disable-assistant'),
   /** Merge partial updates into an assistant's _sudowork_meta.json */
-  updateAssistantMeta: bridge.buildProvider<IBridgeResponse<void>, { name: string; updates: Partial<IAssistantMeta> }>('assistant-hub.update-assistant-meta'),
+  updateAssistantMeta: bridge.buildProvider<IBridgeResponse<void>, { name: string; updates: Partial<IAssistantMeta>; category?: 'custom' | 'hub' | 'system' | 'tenant' }>('assistant-hub.update-assistant-meta'),
   /** Read _sudowork_meta.json for a specific assistant */
   getAssistantMeta: bridge.buildProvider<IBridgeResponse<IAssistantMeta | null>, { name: string }>('assistant-hub.get-assistant-meta'),
   /** Create a new custom assistant with metadata and optional rule content */
   createAssistant: bridge.buildProvider<IBridgeResponse<void>, { meta: IAssistantMeta; ruleContent?: string }>('assistant-hub.create-assistant'),
-  /** Uninstall an assistant (delete directory; blocks builtins) */
-  uninstallAssistant: bridge.buildProvider<IBridgeResponse<void>, { name: string }>('assistant-hub.uninstall-assistant'),
+  /** Uninstall an assistant (delete directory; blocks builtins). Optionally specify category to disambiguate assistants with same name in different directories. */
+  uninstallAssistant: bridge.buildProvider<IBridgeResponse<void>, { name: string; category?: 'custom' | 'hub' | 'system' | 'tenant' }>('assistant-hub.uninstall-assistant'),
 
   // === Hub API methods (parallel to skillHub) ===
   /** Fetch assistants list from Assistant Hub API with cursor-based pagination */
-  fetchAssistants: bridge.buildProvider<IBridgeResponse<IAssistantHubListResponse>, { cursor?: string; limit?: number; query?: string; category?: string; tenantId?: string }>('assistant-hub.fetch-assistants'),
+  fetchAssistants: bridge.buildProvider<IBridgeResponse<IAssistantHubListResponse>, { cursor?: string; limit?: number; query?: string; category?: string; tenantId?: string; sourceType?: 'hub' | 'tenant' }>('assistant-hub.fetch-assistants'),
   /** Fetch assistant categories from Assistant Hub API (type=1 for assistants) */
   fetchCategories: bridge.buildProvider<IBridgeResponse<string[]>, void>('assistant-hub.fetch-categories'),
   /** Fetch assistant detail from Assistant Hub API */
@@ -1307,6 +1595,8 @@ import type { SafetyStatus, BlacklistConfig } from '@/common/safetyTypes';
 export const tools = {
   /** Generate image via /v1/images/generations API */
   generateImage: bridge.buildProvider<IBridgeResponse<{ img_url: string; relative_path: string }>, { prompt: string; conversation_id: string; workspace: string; size?: string; n?: number }>('tools.generate-image'),
+  /** Generate a user-center avatar image; saves to userData and returns local path + dataUrl */
+  generateUserAvatar: bridge.buildProvider<IBridgeResponse<{ localPath: string; dataUrl: string }>, { prompt: string }>('tools.generate-user-avatar'),
 };
 
 export const safety = {
@@ -1366,6 +1656,16 @@ export const sudoworkAuth = {
   clearUserPhone: bridge.buildProvider<IBridgeResponse, void>('sudowork-auth.clear-user-phone'),
   /** Get public key for encryption */
   getPublicKey: bridge.buildProvider<IBridgeResponse<string>, void>('sudowork-auth.get-public-key'),
+  /** Save user nickname - triggers USER.md update for AI addressing */
+  saveUserNickname: bridge.buildProvider<IBridgeResponse, { nickname: string }>('sudowork-auth.save-user-nickname'),
+  /** Get stored user nickname */
+  getUserNickname: bridge.buildProvider<IBridgeResponse<string | null>, void>('sudowork-auth.get-user-nickname'),
+  /** Save consumer mode user ID for telemetry */
+  saveConsumerUserId: bridge.buildProvider<IBridgeResponse, { userId: string }>('sudowork-auth.save-consumer-user-id'),
+  /** Get stored consumer mode user ID */
+  getConsumerUserId: bridge.buildProvider<IBridgeResponse<string | null>, void>('sudowork-auth.get-consumer-user-id'),
+  /** Clear stored consumer mode user ID on logout */
+  clearConsumerUserId: bridge.buildProvider<IBridgeResponse, void>('sudowork-auth.clear-consumer-user-id'),
 };
 
 // ==================== Secret Management API ====================
@@ -1394,4 +1694,279 @@ export const secret = {
   delete: bridge.buildProvider<IBridgeResponse<boolean>, { namespace: string; key: string }>('secret.delete'),
   /** Restore a soft-deleted secret */
   restore: bridge.buildProvider<IBridgeResponse<boolean>, { namespace: string; key: string }>('secret.restore'),
+};
+
+/**
+ * pwd_login: agent-level auto-login using credentials stored in nexus
+ * PasswordVaultService. Plaintext never enters the renderer or the agent
+ * LLM context — fetch happens in main process, bytes flow to the browser
+ * subprocess as base64 over sidechannel, then Buffer is zeroed.
+ *
+ * Phase 1: user-initiated via /login <title> slash command.
+ * Phase 2: agent-initiated (tool registration TBD).
+ */
+export interface IPwdLoginParams {
+  /** Vault entry title (matches nexus PasswordVaultService primary key) */
+  title: string;
+  /**
+   * Approval decision chosen by the user in the dialog. If missing, the
+   * backend checks ApprovalStore for a cached allow_always; otherwise
+   * returns {ok: false, error: approval_rejected} and expects the renderer
+   * to open the approval modal first.
+   */
+  optionId?: 'allow_once' | 'allow_always' | 'reject_once' | 'reject_always';
+  /** Conversation context for logging / audit only; no permission scoping */
+  conversation_id?: string;
+  /**
+   * Optional URL override. If absent, the adapter's canonical loginUrl is used.
+   */
+  url?: string;
+}
+
+export interface IPwdLoginResult {
+  ok: boolean;
+  /** CDP target id returned by ai-dev-browser after successful fill (Phase 1: absent — sidechannel dispatch blocked on browser-ai) */
+  tab_id?: string;
+  /** Structured error code (string from PwdLoginErrorCode enum) when ok=false */
+  error?: string;
+  /** Non-sensitive diagnostic detail — MUST NOT contain password bytes or derivatives */
+  detail?: string;
+}
+
+export const pwdLogin = {
+  /** Kick off pwd_login flow. Renderer calls with optionId after the approval modal resolves. */
+  start: bridge.buildProvider<IPwdLoginResult, IPwdLoginParams>('pwd.login.start'),
+};
+
+// ==================== Telemetry API ====================
+// Telemetry data collection and reporting
+// 遥测数据收集和上报
+
+export interface ITelemetryStatus {
+  enabled: boolean;
+  queueSize: number;
+  isFlushing: boolean;
+}
+
+export interface ITelemetryPerfData {
+  metric: 'cold_start' | 'first_screen' | 'first_token';
+  value_ms: number;
+  session_id?: string;
+}
+
+export interface ITelemetryConversationStartData {
+  session_id: string;
+  model_id: string;
+  model_provider?: string;
+}
+
+export interface ITelemetryConversationEndData {
+  session_id: string;
+  status: 'success' | 'error' | 'user_cancel';
+  error_code?: string; // 错误码如 E001-E010
+  tokens_used?: number;
+  input_tokens?: number;
+  output_tokens?: number;
+}
+
+export interface ITelemetryTokenUpdateData {
+  session_id: string;
+  tokens_used?: number;
+  input_tokens?: number;
+  output_tokens?: number;
+}
+
+export const telemetry = {
+  /** Get telemetry status */
+  getStatus: bridge.buildProvider<IBridgeResponse<ITelemetryStatus>, void>('telemetry.get-status'),
+  /** Enable/disable telemetry */
+  setEnabled: bridge.buildProvider<IBridgeResponse, { enabled: boolean }>('telemetry.set-enabled'),
+  /** Check if opt-in dialog has been shown */
+  getOptInShown: bridge.buildProvider<IBridgeResponse<boolean>, void>('telemetry.get-opt-in-shown'),
+  /** Mark opt-in dialog as shown */
+  setOptInShown: bridge.buildProvider<IBridgeResponse, void>('telemetry.set-opt-in-shown'),
+  /** Mark renderer ready (first screen time) */
+  markRendererReady: bridge.buildProvider<IBridgeResponse, void>('telemetry.mark-renderer-ready'),
+  /** Record first token time */
+  recordFirstToken: bridge.buildProvider<IBridgeResponse, { session_id: string; duration_ms?: number }>('telemetry.record-first-token'),
+  /** Start conversation tracking */
+  startConversation: bridge.buildProvider<IBridgeResponse, ITelemetryConversationStartData>('telemetry.start-conversation'),
+  /** Update conversation tokens */
+  updateConversationTokens: bridge.buildProvider<IBridgeResponse, ITelemetryTokenUpdateData>('telemetry.update-conversation-tokens'),
+  /** End conversation tracking */
+  endConversation: bridge.buildProvider<IBridgeResponse, ITelemetryConversationEndData>('telemetry.end-conversation'),
+  /** Flush all pending telemetry events */
+  flush: bridge.buildProvider<IBridgeResponse, void>('telemetry.flush'),
+};
+
+// ==================== Auth Proxy API ====================
+// Manage Auth Proxy server lifecycle, rules cache, and status
+
+import type { AuthProxyRule } from '@/common/types/authProxy';
+
+export const authProxy = {
+  /** Get all cached Config Items rules */
+  getRules: bridge.buildProvider<IBridgeResponse<AuthProxyRule[]>, void>('authProxy.getRules'),
+  /** Refresh Config Items rules from sudowork-server */
+  refreshRules: bridge.buildProvider<IBridgeResponse<void>, { accessToken: string; enabledConfigItemIds: number[] }>('authProxy.refreshRules'),
+  /** Get Auth Proxy server running status and port */
+  getStatus: bridge.buildProvider<IBridgeResponse<{ running: boolean; port: number | null }>, void>('authProxy.getStatus'),
+  /** Emitted when enabled state changes via Auth Proxy secrets API */
+  enabledStateChanged: bridge.buildEmitter<void>('authProxy.enabledStateChanged'),
+};
+
+// ==================== Crash API ====================
+// Crash/Exception reporting for sudowork-qms CrashReporter
+// Crash/异常上报 (替代 Sentry SDK)
+
+export interface ICrashExceptionData {
+  error_name: string;
+  error_message: string;
+  stack_trace?: string;
+  context?: Record<string, unknown>;
+}
+
+export interface ICrashBreadcrumbData {
+  category: string;
+  message: string;
+  data?: Record<string, unknown>;
+  level?: 'debug' | 'info' | 'warning' | 'error';
+}
+
+export interface ICrashReporterStatus {
+  enabled: boolean;
+  queueSize: number;
+  breadcrumbCount: number;
+  isFlushing: boolean;
+}
+
+export const crash = {
+  /** Report JS exception from renderer */
+  reportException: bridge.buildProvider<IBridgeResponse, ICrashExceptionData>('crash.report-exception'),
+  /** Add breadcrumb from renderer */
+  addBreadcrumb: bridge.buildProvider<IBridgeResponse, ICrashBreadcrumbData>('crash.add-breadcrumb'),
+  /** Get crash reporter status */
+  getStatus: bridge.buildProvider<IBridgeResponse<ICrashReporterStatus>, void>('crash.get-status'),
+  /** Clear breadcrumbs */
+  clearBreadcrumbs: bridge.buildProvider<IBridgeResponse, void>('crash.clear-breadcrumbs'),
+  /** Flush all pending crash events */
+  flush: bridge.buildProvider<IBridgeResponse, void>('crash.flush'),
+};
+
+// --- Enterprise mode (eeclaw) IPC namespace ---
+
+export interface TenantConfigData {
+  id: string;
+  logo: string | null;
+  app_name: string | null;
+  top_name: string | null;
+  about_name: string | null;
+  app_company_name: string | null;
+  login_desp: string | null;
+  updated_at: number;
+}
+
+export interface UserProfileUsageData {
+  input_tokens: number;
+  output_tokens: number;
+  total_tokens: number;
+  session_count: number;
+}
+
+export interface UserProfileData {
+  username: string;
+  department: string;
+  role: string;
+  usage: UserProfileUsageData;
+}
+
+export const eeclaw = {
+  /** Fetch enterprise cloud assistants from the enterprise server */
+  getCloudAssistants: bridge.buildProvider<IBridgeResponse<Array<{ key: string; name: string; avatar?: string; emoji?: string; description?: string }>>, void>('eeclaw.get-cloud-assistants'),
+  /** Verify enterprise server connectivity via /api/v1/tenant/config (runs in main process to avoid CORS) */
+  verifyServer: bridge.buildProvider<IBridgeResponse<TenantConfigData>, { serverUrl: string }>('eeclaw.verify-server'),
+  /** Get current user profile from enterprise server (runs in main process to avoid CORS) */
+  getUserProfile: bridge.buildProvider<IBridgeResponse<UserProfileData>, void>('eeclaw.get-user-profile'),
+  /** Login to MOSS enterprise server (runs in main process to avoid CORS) */
+  login: bridge.buildProvider<
+    IBridgeResponse<{
+      access_token: string;
+      refresh_token?: string;
+      expires_in: number;
+      user: { id: string; name: string; role: string; orgId: string; localAuth: boolean };
+      sudorouter_key?: string;
+      model_service_url?: string;
+      models?: string[];
+    }>,
+    { serverUrl: string; body: { grant_type: string; username?: string; password?: string; api_key?: string; params?: Record<string, string> }; deviceId: string }
+  >('eeclaw.login'),
+  /** Check whether OAuth2 login is enabled on the MOSS server and get the ready-to-open authorize URL (runs in main process to avoid CORS) */
+  oauth2Config: bridge.buildProvider<IBridgeResponse<{ enabled: boolean; authorize_url?: string; require_state?: boolean }>, { serverUrl: string }>('eeclaw.oauth2-config'),
+  /** Set app mode and update main process cache */
+  setAppMode: bridge.buildProvider<void, { mode: 'c' | 'e' }>('eeclaw.set-app-mode'),
+  /** Set session mode (remote/local) for enterprise mode and update main process cache */
+  setSessionMode: bridge.buildProvider<void, { mode: 'remote' | 'local' }>('eeclaw.set-session-mode'),
+  /** Logout from enterprise server and clear local credentials */
+  logout: bridge.buildProvider<IBridgeResponse<{}>, void>('eeclaw.logout'),
+  /** Emitted when the main process refreshes the enterprise auth token */
+  tokenRefreshed: bridge.buildEmitter<{ access_token: string; refresh_token: string; expires_at: number }>('eeclaw.token-refreshed'),
+  /** Refresh enterprise auth token via main process (single entry point to avoid race conditions) */
+  refreshToken: bridge.buildProvider<IBridgeResponse<{ access_token: string; refresh_token?: string; expires_at: number }>, void>('eeclaw.refresh-token'),
+  /** Trigger manual sync of remote skills and assistants to local (for Local mode) */
+  syncFromRemote: bridge.buildProvider<IBridgeResponse<SyncAllResult>, void>('eeclaw.sync-from-remote'),
+  /** Emitted when background sync completes after enterprise login */
+  syncCompleted: bridge.buildEmitter<SyncAllResult>('eeclaw.sync-completed'),
+
+  // === Custom Skill/Assistant Upload ===
+  /** Upload custom skill to Moss Server */
+  uploadCustomSkill: bridge.buildProvider<IBridgeResponse<{ id: string; name: string; status: string }>, { skillName: string; displayName: string; description?: string; version?: string; sourcePath?: string }>('eeclaw.upload-custom-skill'),
+  /** Upload custom assistant to Moss Server */
+  uploadCustomAssistant: bridge.buildProvider<IBridgeResponse<{ id: string; name: string; status: string }>, { assistantName: string; assistantId: string; displayName: string; description?: string; version?: string; enabledSkills?: string[]; memoryMode?: 'session' | 'user'; sourcePath?: string }>('eeclaw.upload-custom-assistant'),
+
+  // === Tenant Skill/Assistant ===
+  /** Fetch tenant-exclusive skills from Moss Server */
+  getTenantSkills: bridge.buildProvider<
+    IBridgeResponse<
+      Array<{
+        id: string;
+        name: string;
+        displayName?: string;
+        description?: string;
+        version?: string;
+        status: 'pending' | 'approved' | 'rejected';
+        author?: string;
+        authorName?: string;
+        approvedAt?: string;
+        installed?: boolean;
+      }>
+    >,
+    void
+  >('eeclaw.get-tenant-skills'),
+  /** Fetch tenant-exclusive assistants from Moss Server */
+  getTenantAssistants: bridge.buildProvider<
+    IBridgeResponse<
+      Array<{
+        id: string;
+        name: string;
+        displayName?: string;
+        description?: string;
+        version?: string;
+        status: 'pending' | 'approved' | 'rejected';
+        author?: string;
+        authorName?: string;
+        enabledSkills?: string[];
+        approvedAt?: string;
+        installed?: boolean;
+      }>
+    >,
+    void
+  >('eeclaw.get-tenant-assistants'),
+  /** Install tenant skill to local */
+  installTenantSkill: bridge.buildProvider<IBridgeResponse<{ name: string }>, { skillId: string }>('eeclaw.install-tenant-skill'),
+  /** Install tenant assistant to local */
+  installTenantAssistant: bridge.buildProvider<IBridgeResponse<{ name: string }>, { assistantId: string }>('eeclaw.install-tenant-assistant'),
+  /** Publish skill as tenant-exclusive */
+  publishTenantSkill: bridge.buildProvider<IBridgeResponse<{ id: string; skillId: string; skillName: string; status: string; message?: string }>, { skillId: string; publishNote?: string }>('eeclaw.publish-tenant-skill'),
+  /** Publish assistant as tenant-exclusive */
+  publishTenantAssistant: bridge.buildProvider<IBridgeResponse<{ id: string; assistantId: string; assistantName: string; status: string; message?: string }>, { assistantId: string; publishNote?: string }>('eeclaw.publish-tenant-assistant'),
 };

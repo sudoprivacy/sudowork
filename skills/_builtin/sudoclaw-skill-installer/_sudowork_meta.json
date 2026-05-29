@@ -1,8 +1,8 @@
 {
-  "id": "skill-installer-sudoclaw",
-  "name": "sudoclaw-skill-installer",
+  "id": "skill-installer-sudowork",
+  "name": "sudowork-skill-installer",
   "display_name": "技能安装助手",
-  "description": "从 SudoClaw skill hub 搜索和安装技能。当用户需要安装新技能时自动触发，提供一键安装体验。",
+  "description": "从 Sudo Hub 搜索和安装技能。当用户需要安装新技能时自动触发，提供一键安装体验。",
   "icon": "",
   "emoji": "⚡",
   "category": "",

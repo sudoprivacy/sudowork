@@ -2,21 +2,25 @@
  * Assistant Manager - Unified management of assistant preset install, disable, enable, list.
  * Parallel to SkillManager.ts for skills.
  *
- * _sudowork_meta.json is the SSOT. No ConfigStorage involved.
+ * Metadata file: _moss_meta.json (enterprise) or _sudowork_meta.json (personal)
  * Enable/disable = flip meta.enabled field (no directory moves).
  */
 
 import fs from 'fs/promises';
 import path from 'path';
 import { existsSync, mkdirSync } from 'fs';
-import { getAssistantsDir } from './initStorage';
-import { ASSISTANT_SUBDIRS, ASSISTANT_META_FILE } from './constants/assistantStorage';
-import { mainLog, mainError } from './utils/mainLogger';
+import { getAssistantsDir, getHubAssistantsDir, getSystemAssistantsDir, getCustomAssistantsDir } from './initStorage';
+import { ASSISTANT_META_FILE, MOSS_ASSISTANT_META_FILE } from './constants/assistantStorage';
+import { mainLog, mainWarn, mainError } from './utils/mainLogger';
 import type { IAssistantMeta } from './constants/assistantStorage';
+import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
+import { getEnterpriseTenantAssistantsDir } from './constants/enterpriseStorage';
 
-export type AssistantCategory = 'custom' | 'hub' | 'system';
+export type AssistantCategory = 'custom' | 'hub' | 'system' | 'tenant';
 
 export interface IAssistantInfo {
+  /** Unique identifier from server */
+  id?: string;
   /** Directory name (used as lookup key) */
   name: string;
   isBuiltin: boolean;
@@ -30,41 +34,62 @@ export interface IAssistantInfo {
  * Assistant Manager class
  */
 export class AssistantManager {
-  private _hubDir?: string;
-  private _systemDir?: string;
-  private _customDir?: string;
-  private _initialized = false;
-
-  /** Lazy init — safe to construct before initStorage has run */
-  private init(): void {
-    if (this._initialized) return;
-    const base = getAssistantsDir();
-    this._hubDir = path.join(base, ASSISTANT_SUBDIRS.hub);
-    this._systemDir = path.join(base, ASSISTANT_SUBDIRS.system);
-    this._customDir = path.join(base, ASSISTANT_SUBDIRS.custom);
-    this.ensureDirs();
-    this._initialized = true;
-  }
-
+  // Use getters for dynamic directory resolution based on current mode
   private get hubDir(): string {
-    this.init();
-    return this._hubDir!;
+    return getHubAssistantsDir();
   }
   private get systemDir(): string {
-    this.init();
-    return this._systemDir!;
+    return getSystemAssistantsDir();
   }
   private get customDir(): string {
-    this.init();
-    return this._customDir!;
+    return getCustomAssistantsDir();
+  }
+  private get tenantDir(): string {
+    return getEnterpriseTenantAssistantsDir();
   }
 
   private ensureDirs(): void {
-    for (const dir of [getAssistantsDir(), this._hubDir!, this._systemDir!, this._customDir!]) {
+    const dirs = [getAssistantsDir(), this.hubDir, this.systemDir, this.customDir];
+    // Add tenant dir in enterprise mode
+    if (isEnterpriseMode()) {
+      dirs.push(this.tenantDir);
+    }
+    for (const dir of dirs) {
       if (!existsSync(dir)) {
         mkdirSync(dir, { recursive: true });
       }
     }
+  }
+
+  /**
+   * Read assistant metadata file, trying both Moss and Sudowork meta file names
+   * Enterprise mode: _moss_meta.json (primary), _sudowork_meta.json (fallback)
+   * Personal mode: _sudowork_meta.json (primary), _moss_meta.json (fallback)
+   */
+  private async readAssistantMetaFile(assistantDir: string): Promise<{ content: string; fileName: string } | null> {
+    const isEnterprise = isEnterpriseMode();
+    const metaFiles = isEnterprise ? [MOSS_ASSISTANT_META_FILE, ASSISTANT_META_FILE] : [ASSISTANT_META_FILE, MOSS_ASSISTANT_META_FILE];
+
+    for (const fileName of metaFiles) {
+      const filePath = path.join(assistantDir, fileName);
+      try {
+        const content = await fs.readFile(filePath, 'utf-8');
+        return { content, fileName };
+      } catch {
+        // Try next file
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Write assistant metadata file, using correct file name based on current mode
+   */
+  private async writeAssistantMetaFile(assistantDir: string, meta: IAssistantMeta): Promise<void> {
+    const isEnterprise = isEnterpriseMode();
+    const fileName = isEnterprise ? MOSS_ASSISTANT_META_FILE : ASSISTANT_META_FILE;
+    const filePath = path.join(assistantDir, fileName);
+    await fs.writeFile(filePath, JSON.stringify(meta, null, 2), 'utf-8');
   }
 
   /**
@@ -93,6 +118,7 @@ export class AssistantManager {
   private getCategoryFromPath(assistantPath: string): AssistantCategory {
     if (assistantPath.startsWith(this.systemDir)) return 'system';
     if (assistantPath.startsWith(this.hubDir)) return 'hub';
+    if (isEnterpriseMode() && assistantPath.startsWith(this.tenantDir)) return 'tenant';
     return 'custom';
   }
 
@@ -102,11 +128,12 @@ export class AssistantManager {
   private async readAssistantInfo(assistantDir: string, category: AssistantCategory): Promise<IAssistantInfo | null> {
     const dirName = path.basename(assistantDir);
 
-    try {
-      const raw = await fs.readFile(path.join(assistantDir, ASSISTANT_META_FILE), 'utf-8');
-      const meta = JSON.parse(raw) as IAssistantMeta;
+    const metaResult = await this.readAssistantMetaFile(assistantDir);
+    if (metaResult) {
+      const meta = JSON.parse(metaResult.content) as IAssistantMeta;
 
       return {
+        id: meta.id,
         name: dirName,
         isBuiltin: meta.is_builtin === true,
         isHubInstalled: meta.source_type === 'hub',
@@ -114,9 +141,10 @@ export class AssistantManager {
         category,
         meta,
       };
-    } catch {
+    } else {
       // No valid metadata — treat as custom with defaults
       return {
+        id: dirName,
         name: dirName,
         isBuiltin: false,
         isHubInstalled: false,
@@ -131,12 +159,19 @@ export class AssistantManager {
 
   /**
    * Get all installed assistants (enabled + disabled).
-   * Scans _system/, _hub/, _my-custom-assistant/ directories.
+   * Scans system/, hub/, custom/, tenant/ directories (enterprise) or _system/, _hub/, _my-custom-assistant/ (personal).
    */
   async getInstalledAssistants(): Promise<IAssistantInfo[]> {
+    this.ensureDirs();
     const assistants: IAssistantInfo[] = [];
 
-    for (const baseDir of [this.systemDir, this.hubDir, this.customDir]) {
+    const baseDirs = [this.systemDir, this.hubDir, this.customDir];
+    // Add tenant directory in enterprise mode
+    if (isEnterpriseMode()) {
+      baseDirs.push(this.tenantDir);
+    }
+
+    for (const baseDir of baseDirs) {
       const dirs = await this.scanAssistantDirs(baseDir);
       for (const assistantDir of dirs) {
         const category = this.getCategoryFromPath(assistantDir);
@@ -150,14 +185,19 @@ export class AssistantManager {
 
   /**
    * Find an assistant directory by name (or id) across all categories.
-   * Searches: custom → hub → system. Also tries stripping 'builtin-' prefix for system lookup.
+   * Searches: custom → tenant → hub → system. Also tries stripping 'builtin-' prefix for system lookup.
    */
   findAssistantDir(name: string): { dir: string; category: AssistantCategory } | null {
-    const searchDirs = [
-      { dir: this.customDir, category: 'custom' as AssistantCategory },
-      { dir: this.hubDir, category: 'hub' as AssistantCategory },
-      { dir: this.systemDir, category: 'system' as AssistantCategory },
+    const searchDirs: Array<{ dir: string; category: AssistantCategory }> = [
+      { dir: this.customDir, category: 'custom' },
+      { dir: this.hubDir, category: 'hub' },
+      { dir: this.systemDir, category: 'system' },
     ];
+
+    // Add tenant directory in enterprise mode
+    if (isEnterpriseMode()) {
+      searchDirs.splice(1, 0, { dir: this.tenantDir, category: 'tenant' }); // Insert after custom
+    }
 
     for (const { dir, category } of searchDirs) {
       const assistantDir = path.join(dir, name);
@@ -179,38 +219,98 @@ export class AssistantManager {
   }
 
   /**
-   * Read _sudowork_meta.json for a specific assistant.
+   * Find an assistant directory by name and category (precise lookup).
+   * If category is specified, only searches in that category's directory.
+   */
+  findAssistantDirByCategory(name: string, category?: AssistantCategory): { dir: string; category: AssistantCategory } | null {
+    // If category is specified, search only in that directory
+    if (category) {
+      const categoryDirMap: Record<AssistantCategory, string> = {
+        custom: this.customDir,
+        hub: this.hubDir,
+        system: this.systemDir,
+        tenant: this.tenantDir,
+      };
+      const baseDir = categoryDirMap[category];
+      const assistantDir = path.join(baseDir, name);
+      if (existsSync(assistantDir)) {
+        return { dir: assistantDir, category };
+      }
+      // Try stripping 'builtin-' prefix for system dir lookup
+      if (category === 'system' && name.startsWith('builtin-')) {
+        const stripped = name.slice('builtin-'.length);
+        const systemPath = path.join(this.systemDir, stripped);
+        if (existsSync(systemPath)) {
+          return { dir: systemPath, category: 'system' };
+        }
+      }
+      return null;
+    }
+    // No category specified, use default search order
+    return this.findAssistantDir(name);
+  }
+
+  /**
+   * Read metadata file for a specific assistant.
    */
   async getAssistantMeta(name: string): Promise<IAssistantMeta | null> {
     const result = this.findAssistantDir(name);
     if (!result) return null;
 
-    try {
-      const raw = await fs.readFile(path.join(result.dir, ASSISTANT_META_FILE), 'utf-8');
-      return JSON.parse(raw) as IAssistantMeta;
-    } catch {
-      return null;
+    const metaResult = await this.readAssistantMetaFile(result.dir);
+    if (metaResult) {
+      return JSON.parse(metaResult.content) as IAssistantMeta;
     }
+    return null;
   }
 
   /**
-   * Merge partial updates into an assistant's _sudowork_meta.json.
+   * Read an assistant's metadata together with its resolved on-disk directory.
+   *
+   * `getAssistantMeta` discards the directory `findAssistantDir` resolved, which
+   * forces downstream code (e.g. presetRuntime) to fall back to the relative
+   * `resourceDir` field in the meta JSON — that relative path is wrong once the
+   * assistant is installed under hub/custom/system. Callers that need to locate
+   * the assistant's `scripts/` or ops entry point on disk must use this method
+   * and resolve paths against `dir`.
    */
-  async updateAssistantMeta(name: string, updates: Partial<IAssistantMeta>): Promise<{ success: boolean; msg?: string }> {
-    try {
-      const result = this.findAssistantDir(name);
-      if (!result) return { success: false, msg: 'Assistant not found' };
+  async getAssistantMetaWithDir(name: string): Promise<{ meta: IAssistantMeta; dir: string; category: AssistantCategory } | null> {
+    const result = this.findAssistantDir(name);
+    if (!result) return null;
 
-      const metaPath = path.join(result.dir, ASSISTANT_META_FILE);
+    const metaResult = await this.readAssistantMetaFile(result.dir);
+    if (!metaResult) return null;
+
+    return {
+      meta: JSON.parse(metaResult.content) as IAssistantMeta,
+      dir: result.dir,
+      category: result.category,
+    };
+  }
+
+  /**
+   * Merge partial updates into an assistant's metadata file.
+   */
+  async updateAssistantMeta(name: string, updates: Partial<IAssistantMeta>, category?: AssistantCategory): Promise<{ success: boolean; msg?: string }> {
+    try {
+      mainLog('AssistantManager', `updateAssistantMeta called: name=${name}, category=${category || 'auto'}`);
+      const result = this.findAssistantDirByCategory(name, category);
+      if (!result) {
+        mainWarn('AssistantManager', `Assistant not found: ${name} (category: ${category || 'auto'})`);
+        return { success: false, msg: 'Assistant not found' };
+      }
+
+      mainLog('AssistantManager', `Found assistant at: ${result.dir} (category: ${result.category})`);
+
       let meta: IAssistantMeta = {};
-      try {
-        meta = JSON.parse(await fs.readFile(metaPath, 'utf-8')) as IAssistantMeta;
-      } catch {
-        // Start fresh if corrupted
+      const metaResult = await this.readAssistantMetaFile(result.dir);
+      if (metaResult) {
+        meta = JSON.parse(metaResult.content) as IAssistantMeta;
       }
 
       const merged = { ...meta, ...updates };
-      await fs.writeFile(metaPath, JSON.stringify(merged, null, 2), 'utf-8');
+      await this.writeAssistantMetaFile(result.dir, merged);
+      mainLog('AssistantManager', `Successfully updated meta for: ${name}`);
       return { success: true };
     } catch (error) {
       mainError('AssistantManager', 'Failed to update assistant meta:', error);
@@ -221,36 +321,36 @@ export class AssistantManager {
   /**
    * Enable an assistant (set meta.enabled = true).
    */
-  async enableAssistant(name: string): Promise<{ success: boolean; msg?: string }> {
-    mainLog('AssistantManager', `Enabling assistant: ${name}`);
-    return this.updateAssistantMeta(name, { enabled: true });
+  async enableAssistant(name: string, category?: AssistantCategory): Promise<{ success: boolean; msg?: string }> {
+    mainLog('AssistantManager', `Enabling assistant: ${name} (category: ${category || 'auto'})`);
+    return this.updateAssistantMeta(name, { enabled: true }, category);
   }
 
   /**
    * Disable an assistant (set meta.enabled = false).
    */
-  async disableAssistant(name: string): Promise<{ success: boolean; msg?: string }> {
-    mainLog('AssistantManager', `Disabling assistant: ${name}`);
-    return this.updateAssistantMeta(name, { enabled: false });
+  async disableAssistant(name: string, category?: AssistantCategory): Promise<{ success: boolean; msg?: string }> {
+    mainLog('AssistantManager', `Disabling assistant: ${name} (category: ${category || 'auto'})`);
+    return this.updateAssistantMeta(name, { enabled: false }, category);
   }
 
   /**
    * Update enabled skills for an assistant.
    */
-  async setEnabledSkills(name: string, skills: string[]): Promise<{ success: boolean; msg?: string }> {
-    return this.updateAssistantMeta(name, { enabledSkills: skills });
+  async setEnabledSkills(name: string, skills: string[], category?: AssistantCategory): Promise<{ success: boolean; msg?: string }> {
+    return this.updateAssistantMeta(name, { enabledSkills: skills }, category);
   }
 
   /**
    * Update preset agent type for an assistant.
    */
-  async setPresetAgentType(name: string, agentType: string): Promise<{ success: boolean; msg?: string }> {
-    return this.updateAssistantMeta(name, { presetAgentType: agentType });
+  async setPresetAgentType(name: string, agentType: string, category?: AssistantCategory): Promise<{ success: boolean; msg?: string }> {
+    return this.updateAssistantMeta(name, { presetAgentType: agentType }, category);
   }
 
   /**
-   * Create a new custom assistant in _my-custom-assistant/{id}/.
-   * Writes _sudowork_meta.json and optionally AGENT.md.
+   * Create a new custom assistant in custom directory.
+   * Writes metadata file and optionally AGENT.md.
    */
   async createAssistant(meta: IAssistantMeta, ruleContent?: string): Promise<{ success: boolean; msg?: string }> {
     try {
@@ -267,8 +367,12 @@ export class AssistantManager {
       // If ruleContent provided, write AGENT.md and set ruleFile
       let ruleFile: string | undefined = undefined;
       if (ruleContent) {
+        mainLog('AssistantManager', `Writing AGENT.md for assistant: ${id}, ruleContent length: ${ruleContent.length}`);
         await fs.writeFile(path.join(assistantDir, 'AGENT.md'), ruleContent, 'utf-8');
         ruleFile = 'AGENT.md';
+        mainLog('AssistantManager', `AGENT.md written successfully for: ${id}`);
+      } else {
+        mainLog('AssistantManager', `No ruleContent provided for assistant: ${id}, skipping AGENT.md`);
       }
 
       const fullMeta: IAssistantMeta = {
@@ -277,9 +381,9 @@ export class AssistantManager {
         ruleFile: ruleFile,
         ...meta,
       };
-      await fs.writeFile(path.join(assistantDir, ASSISTANT_META_FILE), JSON.stringify(fullMeta, null, 2), 'utf-8');
+      await this.writeAssistantMetaFile(assistantDir, fullMeta);
 
-      mainLog('AssistantManager', `Created assistant: ${id}`);
+      mainLog('AssistantManager', `Created assistant: ${id} at ${assistantDir}`);
       return { success: true };
     } catch (error) {
       mainError('AssistantManager', 'Failed to create assistant:', error);
@@ -290,24 +394,23 @@ export class AssistantManager {
   /**
    * Uninstall an assistant (delete directory; blocks builtins).
    */
-  async uninstallAssistant(name: string): Promise<{ success: boolean; msg?: string }> {
+  async uninstallAssistant(name: string, category?: AssistantCategory): Promise<{ success: boolean; msg?: string }> {
     try {
-      const result = this.findAssistantDir(name);
+      const result = this.findAssistantDirByCategory(name, category);
       if (!result) return { success: false, msg: 'Assistant not found' };
 
       // Block uninstalling builtins
-      try {
-        const raw = await fs.readFile(path.join(result.dir, ASSISTANT_META_FILE), 'utf-8');
-        const meta = JSON.parse(raw) as IAssistantMeta;
+      const metaResult = await this.readAssistantMetaFile(result.dir);
+      if (metaResult) {
+        const meta = JSON.parse(metaResult.content) as IAssistantMeta;
         if (meta.is_builtin === true) {
           return { success: false, msg: 'Builtin assistants cannot be uninstalled' };
         }
-      } catch {
-        // No metadata file, allow uninstall
       }
 
       await fs.rm(result.dir, { recursive: true, force: true });
-      mainLog('AssistantManager', `Uninstalled assistant: ${name}`);
+      mainLog('AssistantManager', `Uninstalled assistant: ${name} from ${result.category}`);
+
       return { success: true };
     } catch (error) {
       mainError('AssistantManager', 'Failed to uninstall assistant:', error);

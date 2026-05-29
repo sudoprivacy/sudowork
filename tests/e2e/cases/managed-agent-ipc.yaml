@@ -1,0 +1,88 @@
+name: "managed agent IPC bridge"
+description: >
+  Smoke test for the managedAgent IPC bridge. Verifies that the
+  managed-agent.start-session, managed-agent.get-session, and
+  managed-agent.cancel-session IPC channels are registered and
+  return the expected response shape. Requires: sudowork running
+  with nexusd active.
+
+steps:
+  # ── Phase 0: Wait for app startup ──
+  - op: wait_for_app_ready
+    timeout: 300
+
+  # ── Helper: inject bridgeInvoke globally ──
+  - op: js_eval
+    timeout: 10
+    code: >
+      (function() {
+        var e = window.__bridgeEmitter;
+        window.__bridgeInvoke = function(ch, data) {
+          var id = ch + Math.random().toString(16).slice(2, 10);
+          return new Promise(function(resolve) {
+            var key = 'subscribe.callback-' + ch + id;
+            var h = function(r) { e.off(key, h); resolve(r); };
+            e.on(key, h);
+            window.electronAPI.emit('subscribe-' + ch, {id: id, data: data});
+          });
+        };
+        return 'bridgeInvoke injected';
+      })()
+
+  # ── Phase 1: Ensure nexusd is running ──
+  - op: js_eval
+    timeout: 60
+    code: >
+      (async function() {
+        var st = await window.__bridgeInvoke('nexus.get-status', null);
+        if (!st.data.running) {
+          await window.__bridgeInvoke('nexus.start', null);
+          await new Promise(function(r) { setTimeout(r, 3000); });
+        }
+        return 'nexusd ready';
+      })()
+
+  # ── Phase 2: Test startSession ──
+  - op: js_eval
+    timeout: 20
+    code: >
+      (async function() {
+        var r = await window.__bridgeInvoke('managed-agent.start-session',
+          {agentId: 'e2e-test', repos: ['/tmp'], model: 'test'});
+        if (typeof r.success !== 'boolean')
+          throw new Error('bad response shape: ' + JSON.stringify(r));
+        return 'startSession: success=' + r.success + (r.msg ? ' msg=' + r.msg : '');
+      })()
+
+  - op: screenshot
+    path: "screenshots/managed-agent-01-start-session.png"
+
+  # ── Phase 3: Test getSession ──
+  - op: js_eval
+    timeout: 20
+    code: >
+      (async function() {
+        var r = await window.__bridgeInvoke('managed-agent.get-session',
+          {sessionId: 'nonexistent'});
+        if (typeof r.success !== 'boolean')
+          throw new Error('bad response shape: ' + JSON.stringify(r));
+        return 'getSession: success=' + r.success + (r.msg ? ' msg=' + r.msg : '');
+      })()
+
+  - op: screenshot
+    path: "screenshots/managed-agent-02-get-session.png"
+
+  # ── Phase 4: Test cancelSession ──
+  - op: js_eval
+    timeout: 20
+    code: >
+      (async function() {
+        var r = await window.__bridgeInvoke('managed-agent.cancel-session',
+          {sessionId: 'nonexistent', mode: 'graceful'});
+        if (typeof r.success !== 'boolean')
+          throw new Error('bad response shape: ' + JSON.stringify(r));
+        return 'cancelSession: success=' + r.success + (r.msg ? ' msg=' + r.msg : '');
+      })()
+
+  - op: screenshot
+    path: "screenshots/managed-agent-03-cancel-session.png"

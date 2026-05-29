@@ -54,7 +54,7 @@ export const joinPath = (basePath: string, relativePath: string): string => {
  * @description 跟对话相关的消息类型申明 及相关处理
  */
 
-type TMessageType = 'text' | 'tips' | 'tool_call' | 'tool_group' | 'agent_status' | 'acp_permission' | 'acp_tool_call' | 'codex_permission' | 'codex_tool_call' | 'plan' | 'available_commands' | 'file_send';
+type TMessageType = 'text' | 'tips' | 'tool_call' | 'tool_group' | 'agent_status' | 'acp_permission' | 'acp_question' | 'acp_tool_call' | 'codex_permission' | 'codex_tool_call' | 'plan' | 'available_commands' | 'file_send';
 
 interface IMessage<T extends TMessageType, Content extends Record<string, any>> {
   /**
@@ -186,6 +186,77 @@ export type IMessageAgentStatus = IMessage<
 
 export type IMessageAcpPermission = IMessage<'acp_permission', AcpPermissionRequest>;
 
+export type AcpQuestionItemKind = 'single_select' | 'multi_select' | 'text' | 'boolean';
+
+export interface AcpQuestionItemOption {
+  /** User-facing label */
+  label: string;
+  /** Backing submission value */
+  value: string;
+  /** Optional explanatory description */
+  description?: string;
+  /** Recommended option highlighted in UI */
+  recommended?: boolean;
+}
+
+export interface AcpQuestionItem {
+  /** Stable key for local form state */
+  id: string;
+  /** Prompt text for the individual question */
+  prompt: string;
+  /** Question kind controlling UI rendering */
+  kind?: AcpQuestionItemKind;
+  /** Suggested or strict options for this question */
+  options?: AcpQuestionItemOption[];
+  /** Whether free-form input is allowed */
+  allowCustomInput?: boolean;
+  /** Optional hint shown when custom input is enabled */
+  customInputHint?: string;
+  /** Whether the question can be left blank */
+  optional?: boolean;
+}
+
+export interface AcpQuestionAnswerItem {
+  /** Stable key matching AcpQuestionItem.id */
+  id: string;
+  /** Question index starting from 1 */
+  index: number;
+  /** User-visible display value */
+  displayValue: string;
+  /** Structured submission value */
+  submissionValue: string;
+  /** Whether the answer was skipped */
+  skipped?: boolean;
+}
+
+/** ACP Question request data (from AskUserQuestion tool) */
+export interface AcpQuestionData {
+  /** The question text to display */
+  question: string;
+  /** Optional intro/header text for multi-question prompts */
+  intro?: string;
+  /** Clickable options for the user to select (legacy single-question shape) */
+  options: string[];
+  /** Parsed question items for multi-question prompts */
+  items?: AcpQuestionItem[];
+  /** The conversation ID to send the answer back to */
+  conversationId: string;
+  /** The originating tool call ID */
+  toolCallId?: string;
+  /** The Moss ACP prompt id to use when replying with a tool_result */
+  responseToolCallId?: string;
+  /** Whether the question has been answered */
+  answered?: boolean;
+  /** Whether the question was cancelled (user stopped or timed out) before being answered */
+  cancelled?: boolean;
+  /** The selected answer (set after user responds) */
+  selectedAnswer?: string;
+  /** Per-question answer state for consistent hydration */
+  answerItems?: AcpQuestionAnswerItem[];
+}
+
+export type IMessageAcpQuestion = IMessage<'acp_question', AcpQuestionData>;
+
 export type IMessageAcpToolCall = IMessage<'acp_tool_call', ToolCallUpdate>;
 
 export type IMessageCodexPermission = IMessage<'codex_permission', CodexPermissionRequest>;
@@ -294,7 +365,7 @@ export interface IFileSendData {
 export type IMessageFileSend = IMessage<'file_send', IFileSendData>;
 
 // eslint-disable-next-line max-len
-export type TMessage = IMessageText | IMessageTips | IMessageToolCall | IMessageToolGroup | IMessageAgentStatus | IMessageAcpPermission | IMessageAcpToolCall | IMessageCodexPermission | IMessageCodexToolCall | IMessagePlan | IMessageAvailableCommands | IMessageFileSend;
+export type TMessage = IMessageText | IMessageTips | IMessageToolCall | IMessageToolGroup | IMessageAgentStatus | IMessageAcpPermission | IMessageAcpQuestion | IMessageAcpToolCall | IMessageCodexPermission | IMessageCodexToolCall | IMessagePlan | IMessageAvailableCommands | IMessageFileSend;
 
 // 统一所有需要用户交互的用户类型
 export interface IConfirmation<Option extends any = any> {
@@ -325,7 +396,9 @@ export const transformMessage = (message: IResponseMessage): TMessage => {
         id: uuid(),
         type: 'tips',
         msg_id: message.msg_id,
-        position: 'center',
+        // Position: 'left' to show AI avatar on the left side (consistent with assistant messages)
+        // Position: 'left' 以在左侧显示 AI 头像（与 assistant 消息保持一致）
+        position: 'left',
         conversation_id: message.conversation_id,
         content: {
           content: message.data as string,
@@ -343,7 +416,13 @@ export const transformMessage = (message: IResponseMessage): TMessage => {
         msg_id: message.msg_id,
         position: message.type === 'content' ? 'left' : 'right',
         conversation_id: message.conversation_id,
-        content: isRichData ? { content: (data as { content: string; cronMeta?: CronMessageMeta }).content, cronMeta: (data as { cronMeta?: CronMessageMeta }).cronMeta } : { content: data as string },
+        content: isRichData
+          ? {
+              content: (data as any).content,
+              ...((data as any).cronMeta ? { cronMeta: (data as any).cronMeta } : {}),
+              ...((data as any).skills ? { skills: (data as any).skills } : {}),
+            }
+          : { content: data as string },
       };
     }
     case 'tool_call': {
@@ -383,6 +462,19 @@ export const transformMessage = (message: IResponseMessage): TMessage => {
         position: 'left',
         conversation_id: message.conversation_id,
         content: message.data as any,
+      };
+    }
+    case 'acp_question': {
+      return {
+        id: uuid(),
+        type: 'acp_question',
+        msg_id: message.msg_id,
+        position: 'left',
+        conversation_id: message.conversation_id,
+        content: {
+          ...(message.data as Record<string, unknown>),
+          conversationId: (message.data as { conversationId?: string }).conversationId || message.conversation_id,
+        } as any,
       };
     }
     case 'acp_tool_call': {
@@ -433,6 +525,20 @@ export const transformMessage = (message: IResponseMessage): TMessage => {
         position: 'left',
         conversation_id: message.conversation_id,
         content: message.data as IFileSendData,
+      };
+    }
+    case 'tips': {
+      const data = message.data as { type?: string; content: string };
+      return {
+        id: uuid(),
+        type: 'tips',
+        msg_id: message.msg_id,
+        position: 'center',
+        conversation_id: message.conversation_id,
+        content: {
+          content: data.content,
+          type: (data.type || 'warning') as 'error' | 'success' | 'warning',
+        },
       };
     }
     // Disabled: available_commands messages are too noisy and distracting in the chat UI
@@ -558,6 +664,18 @@ export const composeMessage = (message: TMessage | undefined, list: TMessage[] |
     return pushMessage(message);
   }
 
+  // Handle acp_question message merging by msg_id so cancel/timeout updates patch the original card
+  if (message.type === 'acp_question' && message.msg_id) {
+    for (let i = 0, len = list.length; i < len; i++) {
+      const msg = list[i];
+      if (msg.type === 'acp_question' && msg.msg_id === message.msg_id) {
+        const merged = { ...msg.content, ...message.content };
+        return updateMessage(i, { ...msg, content: merged });
+      }
+    }
+    return pushMessage(message);
+  }
+
   // Handle acp_tool_call message merging (same logic as codex_tool_call)
   if (message.type === 'acp_tool_call') {
     for (let i = 0, len = list.length; i < len; i++) {
@@ -611,8 +729,10 @@ export const handleImageGenerationWithWorkspace = (message: TMessage, workspace:
           return match;
         }
         // Windows 绝对路径：标准化反斜杠为正斜杠
+        // 同时去除 Windows 扩展长度路径前缀 \\?\
         if (/^[A-Za-z]:/.test(imagePath) || imagePath.startsWith('\\')) {
-          const normalizedPath = imagePath.replace(/\\/g, '/');
+          const cleanPath = imagePath.replace(/^\\\\\?\\/, '');
+          const normalizedPath = cleanPath.replace(/\\/g, '/');
           return `![${alt}](${normalizedPath})`;
         }
         // Unix 绝对路径，保持不变

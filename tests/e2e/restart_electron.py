@@ -1,0 +1,130 @@
+#!/usr/bin/env python3
+"""
+Restart Electron app with specified config for E2E testing.
+
+Usage:
+    python restart_electron.py --clean                    # Clean state (new user)
+    python restart_electron.py --enterprise              # Enterprise mode (no auth)
+    python restart_electron.py --enterprise --auth       # Enterprise mode with auth
+    python restart_electron.py --consumer                # Consumer mode
+"""
+
+import argparse
+import subprocess
+import sys
+import time
+import os
+import urllib.request
+
+# Add parent dir to path for imports
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from ops._enterprise_config import (
+    clear_enterprise_config,
+    set_enterprise_config,
+    set_consumer_mode_config,
+    set_enterprise_auth_config,
+)
+
+
+def kill_electron():
+    """Kill any running Electron processes."""
+    print("Killing Electron processes...")
+    if sys.platform == 'win32':
+        # Use shell=True to avoid Git Bash path-munging of /F, /IM flags
+        subprocess.run('taskkill /F /IM electron.exe',
+                       shell=True, capture_output=True, timeout=10)
+    else:
+        subprocess.run(['pkill', '-f', 'electron'], capture_output=True, timeout=10)
+    time.sleep(3)
+
+
+def launch_electron():
+    """Launch Electron app in dev mode."""
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    launch_script = os.path.join(project_root, 'scripts', 'launch-dev.js')
+
+    print(f"Launching Electron from {project_root}...")
+    env = os.environ.copy()
+    env['NEXUS_CDP_PORT'] = '9232'
+
+    if sys.platform == 'win32':
+        proc = subprocess.Popen(
+            ['node', launch_script, 'start'],
+            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS,
+            env=env,
+            cwd=project_root,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    else:
+        proc = subprocess.Popen(
+            ['node', launch_script, 'start'],
+            start_new_session=True,
+            env=env,
+            cwd=project_root,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    return proc
+
+
+def wait_for_cdp(port=9232, timeout=60):
+    """Wait for CDP port to be ready."""
+    print(f"Waiting for CDP on port {port}...")
+    for i in range(timeout // 2):
+        time.sleep(2)
+        try:
+            req = urllib.request.urlopen(f'http://localhost:{port}/json/version', timeout=2)
+            if req.status == 200:
+                print(f"CDP ready on port {port}")
+                return True
+        except Exception:
+            if i % 5 == 0:
+                print(f"  ... still waiting ({i*2}s)")
+    return False
+
+
+def main():
+    parser = argparse.ArgumentParser(description='Restart Electron for E2E testing')
+    parser.add_argument('--clean', action='store_true', help='Clean state (new user)')
+    parser.add_argument('--enterprise', action='store_true', help='Enterprise mode')
+    parser.add_argument('--consumer', action='store_true', help='Consumer mode')
+    parser.add_argument('--auth', action='store_true', help='Set enterprise auth')
+    parser.add_argument('--server-url', default='http://localhost:18923', help='Enterprise server URL')
+    parser.add_argument('--tenant-name', default='E2E测试科技有限公司', help='Tenant name')
+    parser.add_argument('--port', type=int, default=9232, help='CDP port')
+    args = parser.parse_args()
+
+    # Kill existing Electron
+    kill_electron()
+
+    # Modify config
+    if args.clean or (not args.enterprise and not args.consumer):
+        print("Setting clean state...")
+        clear_enterprise_config()
+    elif args.consumer:
+        print("Setting consumer mode...")
+        clear_enterprise_config()
+        set_consumer_mode_config()
+    elif args.enterprise:
+        print(f"Setting enterprise mode (server: {args.server_url})...")
+        clear_enterprise_config()
+        set_enterprise_config(args.server_url, args.tenant_name)
+        if args.auth:
+            print("Setting enterprise auth...")
+            set_enterprise_auth_config()
+
+    # Launch
+    proc = launch_electron()
+
+    # Wait for CDP
+    if wait_for_cdp(args.port):
+        print("Electron restarted successfully!")
+        return 0
+    else:
+        print("ERROR: Electron did not start in time")
+        return 1
+
+
+if __name__ == '__main__':
+    sys.exit(main())

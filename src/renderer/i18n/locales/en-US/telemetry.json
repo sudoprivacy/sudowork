@@ -1,0 +1,21 @@
+{
+  "optIn": {
+    "title": "Help us improve Sudowork",
+    "description": "To continuously optimize your experience, we would like to collect anonymous usage data.",
+    "privacy": "When enabled, performance metrics will be anonymously collected for product improvement only. We do not collect your conversation content or personal information. You can turn off this feature at any time in settings.",
+    "checkbox": "Allow collecting anonymous usage data",
+    "skip": "Remind me later",
+    "confirm": "Confirm"
+  },
+  "status": {
+    "enabled": "Telemetry enabled",
+    "disabled": "Telemetry disabled",
+    "queueSize": "Pending events: {{count}}"
+  },
+  "settings": {
+    "title": "Usage Data Collection",
+    "description": "Allow Sudowork to collect anonymous usage data to help improve the product",
+    "enable": "Enable telemetry",
+    "disable": "Disable telemetry"
+  }
+}

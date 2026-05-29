@@ -8,12 +8,13 @@ import { ipcBridge } from '@/common';
 import type { TChatConversation } from '@/common/storage';
 import { emitter } from '@/renderer/utils/emitter';
 import { blockMobileInputFocus, blurActiveElement } from '@/renderer/utils/focus';
-import { Message, Modal } from '@arco-design/web-react';
-import { useCallback, useEffect, useState } from 'react';
+import { Checkbox, Message, Modal } from '@arco-design/web-react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
 
 import { useConversationTabs } from '../../context/ConversationTabsContext';
+import type { SidebarTabKey } from '../types';
 import { isConversationPinned } from '../utils/groupingHelpers';
 
 type UseConversationActionsParams = {
@@ -24,9 +25,20 @@ type UseConversationActionsParams = {
   setSelectedConversationIds: React.Dispatch<React.SetStateAction<Set<string>>>;
   toggleSelectedConversation: (conversation: TChatConversation) => void;
   markAsRead: (conversationId: string) => void;
+  activeTab: SidebarTabKey;
 };
 
-export const useConversationActions = ({ batchMode, onSessionClick, onBatchModeChange, selectedConversationIds, setSelectedConversationIds, toggleSelectedConversation, markAsRead }: UseConversationActionsParams) => {
+/**
+ * Unified conversation actions hook
+ *
+ * All operations now go through Provider abstraction layer:
+ * - ipcBridge.conversation.remove → Provider.deleteConversation
+ * - ipcBridge.conversation.update → Provider.updateConversation
+ *
+ * Enterprise mode (remote-agent) conversations are cached locally,
+ * so all UI operations work the same way.
+ */
+export const useConversationActions = ({ batchMode, onSessionClick, onBatchModeChange, selectedConversationIds, setSelectedConversationIds, toggleSelectedConversation, markAsRead, activeTab }: UseConversationActionsParams) => {
   const [renameModalVisible, setRenameModalVisible] = useState(false);
   const [renameModalName, setRenameModalName] = useState<string>('');
   const [renameModalId, setRenameModalId] = useState<string | null>(null);
@@ -35,7 +47,7 @@ export const useConversationActions = ({ batchMode, onSessionClick, onBatchModeC
   const { id } = useParams();
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { openTab, closeAllTabs, activeTab, updateTabName } = useConversationTabs();
+  const { openTab, closeAllTabs, activeTab: conversationTab, updateTabName } = useConversationTabs();
 
   // Close dropdown when entering batch mode
   useEffect(() => {
@@ -45,7 +57,7 @@ export const useConversationActions = ({ batchMode, onSessionClick, onBatchModeC
   }, [batchMode]);
 
   const handleConversationClick = useCallback(
-    (conversation: TChatConversation) => {
+    async (conversation: TChatConversation) => {
       setDropdownVisibleId(null);
       if (batchMode) {
         toggleSelectedConversation(conversation);
@@ -68,7 +80,7 @@ export const useConversationActions = ({ batchMode, onSessionClick, onBatchModeC
         return;
       }
 
-      const currentWorkspace = activeTab?.workspace;
+      const currentWorkspace = conversationTab?.workspace;
       if (!currentWorkspace || currentWorkspace !== newWorkspace) {
         closeAllTabs();
       }
@@ -79,18 +91,22 @@ export const useConversationActions = ({ batchMode, onSessionClick, onBatchModeC
         onSessionClick();
       }
     },
-    [batchMode, toggleSelectedConversation, markAsRead, closeAllTabs, navigate, onSessionClick, activeTab, openTab]
+    [batchMode, toggleSelectedConversation, markAsRead, closeAllTabs, navigate, onSessionClick, conversationTab, openTab]
   );
 
+  /**
+   * Remove conversation - unified for both local and enterprise mode
+   * Goes through Provider abstraction layer
+   */
   const removeConversation = useCallback(
-    async (conversationId: string) => {
-      const success = await ipcBridge.conversation.remove.invoke({ id: conversationId });
+    async (conversation: TChatConversation, deleteWorkspace?: boolean) => {
+      const success = await ipcBridge.conversation.remove.invoke({ id: conversation.id, deleteWorkspace });
       if (!success) {
         return false;
       }
 
-      emitter.emit('conversation.deleted', conversationId);
-      if (id === conversationId) {
+      emitter.emit('conversation.deleted', conversation.id);
+      if (id === conversation.id) {
         void navigate('/');
       }
       return true;
@@ -99,16 +115,25 @@ export const useConversationActions = ({ batchMode, onSessionClick, onBatchModeC
   );
 
   const handleDeleteClick = useCallback(
-    (conversationId: string) => {
+    (conversation: TChatConversation) => {
+      const hasWorkspace = !!(conversation.extra as { workspace?: string } | undefined)?.workspace;
+      const deleteWorkspaceRef = { current: false };
+
       Modal.confirm({
         title: t('conversation.history.deleteTitle'),
-        content: t('conversation.history.deleteConfirm'),
+        content: React.createElement('div', null,
+          React.createElement('div', null, t('conversation.history.deleteConfirm')),
+          hasWorkspace && React.createElement(Checkbox, {
+            onChange: (checked: boolean) => { deleteWorkspaceRef.current = checked; },
+            style: { marginTop: 12 },
+          }, t('conversation.history.deleteWorkspaceOption'))
+        ),
         okText: t('conversation.history.confirmDelete'),
         cancelText: t('conversation.history.cancelDelete'),
         okButtonProps: { status: 'warning' },
         onOk: async () => {
           try {
-            const success = await removeConversation(conversationId);
+            const success = await removeConversation(conversation, deleteWorkspaceRef.current);
             if (success) {
               emitter.emit('chat.history.refresh');
               Message.success(t('conversation.history.deleteSuccess'));
@@ -128,42 +153,55 @@ export const useConversationActions = ({ batchMode, onSessionClick, onBatchModeC
     [removeConversation, t]
   );
 
-  const handleBatchDelete = useCallback(() => {
-    if (selectedConversationIds.size === 0) {
-      Message.warning(t('conversation.history.batchNoSelection'));
-      return;
-    }
+  const handleBatchDelete = useCallback(
+    (conversations: TChatConversation[]) => {
+      if (selectedConversationIds.size === 0) {
+        Message.warning(t('conversation.history.batchNoSelection'));
+        return;
+      }
 
-    Modal.confirm({
-      title: t('conversation.history.batchDelete'),
-      content: t('conversation.history.batchDeleteConfirm', { count: selectedConversationIds.size }),
-      okText: t('conversation.history.confirmDelete'),
-      cancelText: t('conversation.history.cancelDelete'),
-      okButtonProps: { status: 'warning' },
-      onOk: async () => {
-        const selectedIds = Array.from(selectedConversationIds);
-        try {
-          const results = await Promise.all(selectedIds.map((conversationId) => removeConversation(conversationId)));
-          const successCount = results.filter(Boolean).length;
-          emitter.emit('chat.history.refresh');
-          if (successCount > 0) {
-            Message.success(t('conversation.history.batchDeleteSuccess', { count: successCount }));
-          } else {
+      const selectedIds = Array.from(selectedConversationIds);
+      const selectedConvs = conversations.filter(c => selectedIds.includes(c.id));
+      const hasAnyWorkspace = selectedConvs.some(c => !!(c.extra as { workspace?: string } | undefined)?.workspace);
+      const deleteWorkspaceRef = { current: false };
+
+      Modal.confirm({
+        title: t('conversation.history.batchDelete'),
+        content: React.createElement('div', null,
+          React.createElement('div', null, t('conversation.history.batchDeleteConfirm', { count: selectedConversationIds.size })),
+          hasAnyWorkspace && React.createElement(Checkbox, {
+            onChange: (checked: boolean) => { deleteWorkspaceRef.current = checked; },
+            style: { marginTop: 12 },
+          }, t('conversation.history.deleteWorkspaceOption'))
+        ),
+        okText: t('conversation.history.confirmDelete'),
+        cancelText: t('conversation.history.cancelDelete'),
+        okButtonProps: { status: 'warning' },
+        onOk: async () => {
+          try {
+            const results = await Promise.all(selectedConvs.map((conv) => removeConversation(conv, deleteWorkspaceRef.current)));
+            const successCount = results.filter(Boolean).length;
+            if (successCount > 0) {
+              emitter.emit('chat.history.refresh');
+              Message.success(t('conversation.history.batchDeleteSuccess', { count: successCount }));
+            } else {
+              Message.error(t('conversation.history.deleteFailed'));
+            }
+          } catch (error) {
+            console.error('Failed to batch delete conversations:', error);
             Message.error(t('conversation.history.deleteFailed'));
+          } finally {
+            setSelectedConversationIds(new Set());
+            onBatchModeChange?.(false);
           }
-        } catch (error) {
-          console.error('Failed to batch delete conversations:', error);
-          Message.error(t('conversation.history.deleteFailed'));
-        } finally {
-          setSelectedConversationIds(new Set());
-          onBatchModeChange?.(false);
-        }
-      },
-      style: { borderRadius: '12px' },
-      alignCenter: true,
-      getPopupContainer: () => document.body,
-    });
-  }, [onBatchModeChange, removeConversation, selectedConversationIds, t, setSelectedConversationIds]);
+        },
+        style: { borderRadius: '12px' },
+        alignCenter: true,
+        getPopupContainer: () => document.body,
+      });
+    },
+    [onBatchModeChange, removeConversation, selectedConversationIds, t, setSelectedConversationIds]
+  );
 
   const handleEditStart = useCallback((conversation: TChatConversation) => {
     setRenameModalId(conversation.id);
@@ -171,6 +209,11 @@ export const useConversationActions = ({ batchMode, onSessionClick, onBatchModeC
     setRenameModalVisible(true);
   }, []);
 
+  /**
+   * Rename conversation - unified for both local and enterprise mode
+   * Goes through Provider abstraction layer
+   * Remote-agent conversations cache name locally
+   */
   const handleRenameConfirm = useCallback(async () => {
     if (!renameModalId || !renameModalName.trim()) return;
 
@@ -205,6 +248,11 @@ export const useConversationActions = ({ batchMode, onSessionClick, onBatchModeC
     setRenameModalName('');
   }, []);
 
+  /**
+   * Toggle pin - unified for both local and enterprise mode
+   * Goes through Provider abstraction layer
+   * Remote-agent conversations cache pin status locally
+   */
   const handleTogglePin = useCallback(
     async (conversation: TChatConversation) => {
       const pinned = isConversationPinned(conversation);
@@ -216,6 +264,7 @@ export const useConversationActions = ({ batchMode, onSessionClick, onBatchModeC
             extra: {
               pinned: !pinned,
               pinnedAt: pinned ? undefined : Date.now(),
+              pinnedTab: !pinned ? activeTab : undefined,
             } as Partial<TChatConversation['extra']>,
           } as Partial<TChatConversation>,
           mergeExtra: true,
@@ -231,7 +280,7 @@ export const useConversationActions = ({ batchMode, onSessionClick, onBatchModeC
         Message.error(t('conversation.history.pinFailed'));
       }
     },
-    [t]
+    [t, activeTab]
   );
 
   const handleMenuVisibleChange = useCallback((conversationId: string, visible: boolean) => {

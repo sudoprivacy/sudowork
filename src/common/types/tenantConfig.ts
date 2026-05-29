@@ -36,15 +36,30 @@ export interface TenantConfigResponse {
   msg?: string;
 }
 
+export type TenantConfigInput = Partial<Record<keyof TenantConfig, string | null | undefined>>;
+
+export const TENANT_CONFIG_STORAGE_KEY = 'sudowork_tenant_config';
+
 /**
  * 默认租户配置
  * 当接口未返回或字段为空时使用此默认值
  */
 export const DEFAULT_TENANT_CONFIG: Required<TenantConfig> = {
   logo: undefined,
-  app_name: 'SudoClaw',
-  top_name: 'SudoClaw',
+  app_name: 'SudoWork',
+  top_name: 'SudoWork',
   login_desp: 'AgentOps | 办公专家',
-  about_name: 'SudoClaw',
+  about_name: 'SudoWork',
   app_company_name: '北京数牍科技有限公司',
 };
+
+export function resolveTenantConfig(config?: TenantConfigInput | null): Required<TenantConfig> {
+  return {
+    logo: config?.logo || DEFAULT_TENANT_CONFIG.logo,
+    app_name: config?.app_name || DEFAULT_TENANT_CONFIG.app_name,
+    top_name: config?.top_name || DEFAULT_TENANT_CONFIG.top_name,
+    login_desp: config?.login_desp || DEFAULT_TENANT_CONFIG.login_desp,
+    about_name: config?.about_name || DEFAULT_TENANT_CONFIG.about_name,
+    app_company_name: config?.app_company_name || DEFAULT_TENANT_CONFIG.app_company_name,
+  };
+}

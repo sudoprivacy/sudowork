@@ -213,7 +213,7 @@ export async function readDirectoryRecursive(
   result.children.sort((a, b) => {
     if (a.isDir && !b.isDir) return -1;
     if (!a.isDir && b.isDir) return 1;
-    return a.name.localeCompare(b.name);
+    return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
   });
   return result;
 }

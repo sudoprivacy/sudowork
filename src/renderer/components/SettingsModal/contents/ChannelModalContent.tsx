@@ -16,6 +16,7 @@ import { Input, InputNumber, Message, Select, Switch } from '@arco-design/web-re
 import { CheckOne } from '@icon-park/react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useAppMode } from '@/renderer/hooks/useAppMode';
 import { useSettingsViewMode } from '../settingsViewContext';
 import ChannelItem from './channels/ChannelItem';
 import type { ChannelConfig } from './channels/types';
@@ -119,7 +120,7 @@ const useChannelModelSelection = (configKey: ChannelModelConfigKey): GeminiModel
           })
           .catch((err) => console.warn(`[ChannelSettings] syncChannelSettings failed for ${platform}:`, err));
 
-        Message.success(t('settings.assistant.modelSwitched', 'Model switched successfully'));
+        // Toast notification is handled by useGeminiModelSelection hook
         return true;
       } catch (error) {
         console.error(`[ChannelSettings] Failed to save model for ${configKey}:`, error);
@@ -139,6 +140,7 @@ const useChannelModelSelection = (configKey: ChannelModelConfigKey): GeminiModel
 const ChannelModalContent: React.FC = () => {
   const { t } = useTranslation();
   const viewMode = useSettingsViewMode();
+  const { isEnterprise } = useAppMode();
   const isPageMode = viewMode === 'page';
 
   // Plugin state
@@ -163,6 +165,12 @@ const ChannelModalContent: React.FC = () => {
 
   // Track the token entered in TelegramConfigForm so the toggle handler can use it
   const telegramTokenRef = React.useRef<string>('');
+
+  // Track Lark credentials entered in LarkConfigForm (for enterprise mode switch toggle)
+  const larkCredentialsRef = React.useRef<{ appId: string; appSecret: string; encryptKey?: string; verificationToken?: string }>({ appId: '', appSecret: '' });
+
+  // Track DingTalk credentials entered in DingTalkConfigForm (for enterprise mode switch toggle)
+  const dingtalkCredentialsRef = React.useRef<{ clientId: string; clientSecret: string }>({ clientId: '', clientSecret: '' });
 
   // Track WeCom credentials entered in WeComConfigForm
   const wecomCredentialsRef = React.useRef<{ botId: string; secret: string }>({ botId: '', secret: '' });
@@ -326,19 +334,29 @@ const ChannelModalContent: React.FC = () => {
 
   // Enable/Disable Lark plugin
   const handleToggleLarkPlugin = async (enabled: boolean) => {
-    setLarkEnableLoading(true);
-    try {
-      if (enabled) {
-        // Check if we have credentials - already saved in database
-        if (!larkPluginStatus?.hasToken) {
-          Message.warning(t('settings.lark.credentialsRequired', 'Please configure Lark credentials first'));
-          setLarkEnableLoading(false);
-          return;
-        }
+    if (enabled) {
+      const hasPendingCreds = !!(larkCredentialsRef.current.appId.trim() && larkCredentialsRef.current.appSecret.trim());
+
+      // In enterprise mode, credentials may exist on Moss Server even if hasToken is false
+      // (e.g. after page refresh before status refreshes). Try to enable with empty config
+      // which will preserve server-side credentials.
+      if (!isEnterprise && !larkPluginStatus?.hasToken && !hasPendingCreds) {
+        setCollapseKeys((prev) => ({ ...prev, lark: false }));
+        return;
+      }
+
+      setLarkEnableLoading(true);
+      try {
+        // Pass pending credentials from form if available
+        const pendingCreds = larkCredentialsRef.current;
+        const hasFormCreds = !!(pendingCreds.appId.trim() && pendingCreds.appSecret.trim());
+        const config = hasFormCreds
+          ? { appId: pendingCreds.appId.trim(), appSecret: pendingCreds.appSecret.trim(), encryptKey: pendingCreds.encryptKey, verificationToken: pendingCreds.verificationToken }
+          : {};
 
         const result = await channel.enablePlugin.invoke({
           pluginId: 'lark_default',
-          config: {},
+          config,
         });
 
         if (result.success) {
@@ -347,7 +365,14 @@ const ChannelModalContent: React.FC = () => {
         } else {
           Message.error(result.msg || t('settings.lark.enableFailed', 'Failed to enable Lark plugin'));
         }
-      } else {
+      } catch (error: any) {
+        Message.error(error.message);
+      } finally {
+        setLarkEnableLoading(false);
+      }
+    } else {
+      setLarkEnableLoading(true);
+      try {
         const result = await channel.disablePlugin.invoke({ pluginId: 'lark_default' });
 
         if (result.success) {
@@ -356,28 +381,38 @@ const ChannelModalContent: React.FC = () => {
         } else {
           Message.error(result.msg || t('settings.assistant.disableFailed', 'Failed to disable plugin'));
         }
+      } catch (error: any) {
+        Message.error(error.message);
+      } finally {
+        setLarkEnableLoading(false);
       }
-    } catch (error: any) {
-      Message.error(error.message);
-    } finally {
-      setLarkEnableLoading(false);
     }
   };
 
   // Enable/Disable DingTalk plugin
   const handleToggleDingtalkPlugin = async (enabled: boolean) => {
-    setDingtalkEnableLoading(true);
-    try {
-      if (enabled) {
-        if (!dingtalkPluginStatus?.hasToken) {
-          Message.warning(t('settings.dingtalk.credentialsRequired', 'Please configure DingTalk credentials first'));
-          setDingtalkEnableLoading(false);
-          return;
-        }
+    if (enabled) {
+      const hasPendingCreds = !!(dingtalkCredentialsRef.current.clientId.trim() && dingtalkCredentialsRef.current.clientSecret.trim());
+
+      // In enterprise mode, credentials may exist on Moss Server even if hasToken is false.
+      // Try to enable with empty config which will preserve server-side credentials.
+      if (!isEnterprise && !dingtalkPluginStatus?.hasToken && !hasPendingCreds) {
+        setCollapseKeys((prev) => ({ ...prev, dingtalk: false }));
+        return;
+      }
+
+      setDingtalkEnableLoading(true);
+      try {
+        // Pass pending credentials from form if available
+        const pendingCreds = dingtalkCredentialsRef.current;
+        const hasFormCreds = !!(pendingCreds.clientId.trim() && pendingCreds.clientSecret.trim());
+        const config = hasFormCreds
+          ? { clientId: pendingCreds.clientId.trim(), clientSecret: pendingCreds.clientSecret.trim() }
+          : {};
 
         const result = await channel.enablePlugin.invoke({
           pluginId: 'dingtalk_default',
-          config: {},
+          config,
         });
 
         if (result.success) {
@@ -386,7 +421,14 @@ const ChannelModalContent: React.FC = () => {
         } else {
           Message.error(result.msg || t('settings.dingtalk.enableFailed', 'Failed to enable DingTalk plugin'));
         }
-      } else {
+      } catch (error: any) {
+        Message.error(error.message);
+      } finally {
+        setDingtalkEnableLoading(false);
+      }
+    } else {
+      setDingtalkEnableLoading(true);
+      try {
         const result = await channel.disablePlugin.invoke({ pluginId: 'dingtalk_default' });
 
         if (result.success) {
@@ -395,19 +437,20 @@ const ChannelModalContent: React.FC = () => {
         } else {
           Message.error(result.msg || t('settings.dingtalk.disableFailed', 'Failed to disable DingTalk plugin'));
         }
+      } catch (error: any) {
+        Message.error(error.message);
+      } finally {
+        setDingtalkEnableLoading(false);
       }
-    } catch (error: any) {
-      Message.error(error.message);
-    } finally {
-      setDingtalkEnableLoading(false);
     }
   };
 
   // WeChat toggle handler — uses standard channel enable/disable flow
   const handleToggleWechatPlugin = async (enabled: boolean) => {
     if (enabled) {
-      // If not yet configured, expand to show config form
-      if (!wechatPluginStatus?.hasToken) {
+      // In enterprise mode, credentials may exist on Moss Server even if hasToken is false.
+      // Try to enable with empty config which will preserve server-side credentials.
+      if (!isEnterprise && !wechatPluginStatus?.hasToken) {
         setCollapseKeys((prev) => ({ ...prev, wechat: false }));
         return;
       }
@@ -693,7 +736,7 @@ const ChannelModalContent: React.FC = () => {
       disabled: larkEnableLoading,
       isConnected: larkPluginStatus?.connected || false,
       defaultModel: larkModelSelection.currentModel?.useModel,
-      content: <LarkConfigForm pluginStatus={larkPluginStatus} modelSelection={larkModelSelection} onStatusChange={setLarkPluginStatus} />,
+      content: <LarkConfigForm pluginStatus={larkPluginStatus} modelSelection={larkModelSelection} onStatusChange={setLarkPluginStatus} onCredentialsChange={(creds) => { larkCredentialsRef.current = creds; }} />,
     };
 
     const dingtalkChannel: ChannelConfig = {
@@ -705,7 +748,7 @@ const ChannelModalContent: React.FC = () => {
       disabled: dingtalkEnableLoading,
       isConnected: dingtalkPluginStatus?.connected || false,
       defaultModel: dingtalkModelSelection.currentModel?.useModel,
-      content: <DingTalkConfigForm pluginStatus={dingtalkPluginStatus} modelSelection={dingtalkModelSelection} onStatusChange={setDingtalkPluginStatus} />,
+      content: <DingTalkConfigForm pluginStatus={dingtalkPluginStatus} modelSelection={dingtalkModelSelection} onStatusChange={setDingtalkPluginStatus} onCredentialsChange={(creds) => { dingtalkCredentialsRef.current = creds; }} />,
     };
 
     const wechatChannel: ChannelConfig = {

@@ -37,6 +37,10 @@ interface GatewayManagerEvents {
 /** Registry of running Sudoclaw gateway managers (port -> manager) — internal bookkeeping */
 const gatewayRegistry = new Map<number, OpenClawGatewayManager>();
 
+// Safety hooks are temporarily disabled because the current implementation is obsolete.
+// Keep hook loading paths in place so the feature can be restored later.
+const SAFETY_HOOKS_ENABLED = false;
+
 /**
  * Get path to hook.js for gateway safety interception.
  * The hook will self-regulate by polling /safe/config/enabled from Nexus.
@@ -210,8 +214,8 @@ export class OpenClawGatewayManager extends EventEmitter {
 
     // Load safety hook before gateway entry (for in-process mode)
     // Hook will self-regulate by polling /safe/config/enabled from Nexus
-    const hookJsPath = getHookJsPath();
-    if (fs.existsSync(hookJsPath)) {
+    const hookJsPath = SAFETY_HOOKS_ENABLED ? getHookJsPath() : null;
+    if (hookJsPath && fs.existsSync(hookJsPath)) {
       try {
         console.log('[OpenClawGatewayManager] Loading safety hook for in-process gateway:', hookJsPath);
         await import(pathToFileURL(hookJsPath).href);
@@ -286,25 +290,27 @@ export class OpenClawGatewayManager extends EventEmitter {
 
       // Inject safety hook for Sudoclaw gateway process
       // Hook will self-regulate by polling /safe/config/enabled from Nexus
-      const hookJsPath = getHookJsPath();
-      const hookExists = fs.existsSync(hookJsPath);
-      const nodeArgs = hookExists ? ['-r', hookJsPath, launcherPath] : [launcherPath];
+      const hookJsPath = SAFETY_HOOKS_ENABLED ? getHookJsPath() : undefined;
+      const hookExists = hookJsPath ? fs.existsSync(hookJsPath) : false;
+      const nodeArgs = hookExists && hookJsPath ? ['-r', hookJsPath, launcherPath] : [launcherPath];
 
-      if (hookExists) {
+      if (hookExists && hookJsPath) {
         console.log('[OpenClawGatewayManager] Injecting safety hook:', hookJsPath);
         // Also set NODE_OPTIONS so child processes (agents) inherit the hook
         // The hook will self-regulate by polling /safe/config/enabled from Nexus
         const requireHookOption = buildRequireNodeOption(hookJsPath);
         env.NODE_OPTIONS = env.NODE_OPTIONS?.trim() ? `${requireHookOption} ${env.NODE_OPTIONS}` : requireHookOption;
-      } else {
+      } else if (SAFETY_HOOKS_ENABLED && hookJsPath) {
         console.warn('[OpenClawGatewayManager] Safety hook not found, starting without:', hookJsPath);
         mainWarn('OpenClawGatewayManager', 'Safety hook not found, starting without preload hook', { hookJsPath });
       }
 
-      const pythonpath = getHookPythonPath();
-      env.HOOK_PYTHON_WHL = getHookPythonWhlPath();
-      env.PYTHONPATH = pythonpath;
-      console.log('[OpenClawGatewayManager] Injecting python safety hook:', pythonpath);
+      if (SAFETY_HOOKS_ENABLED) {
+        const pythonpath = getHookPythonPath();
+        env.HOOK_PYTHON_WHL = getHookPythonWhlPath();
+        env.PYTHONPATH = pythonpath;
+        console.log('[OpenClawGatewayManager] Injecting python safety hook:', pythonpath);
+      }
 
       console.log(`[OpenClawGatewayManager] Starting: ${bundledNode} ${nodeArgs.join(' ')} ${args.join(' ')}`);
       this.lastLaunchCommand = {

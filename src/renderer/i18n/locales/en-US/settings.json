@@ -23,6 +23,8 @@
   "game3dAssistantName": "3D Game",
   "game3dAssistantDesc": "Generate a complete 3D platform collection game in one HTML file.",
   "editAssistant": "Assistant Details",
+  "viewAssistantDetails": "View Details",
+  "editAssistantDetails": "Edit",
   "assistantNameAvatar": "Name & Avatar",
   "assistantDescription": "Assistant Description",
   "assistantDescriptionPlaceholder": "What can this assistant help with?",
@@ -107,6 +109,8 @@
   "cacheClearFailed": "Failed to clear cache",
   "language": "Language",
   "closeToTray": "Close to Tray",
+  "avatarEnabled": "Floating avatar",
+  "avatarEnabledDesc": "Show a floating desktop companion that reflects your active conversation",
   "gemini": "Gemini",
   "model": "Model",
   "runtime": "Runtime",
@@ -381,7 +385,6 @@
   "assistant.copyCode": "Copy pairing code",
   "assistant.modelSaved": "Model saved",
   "assistant.modelSaveFailed": "Failed to save model",
-  "assistant.tokenLocked": "Please close the Channel and delete all authorized users before modifying the configuration",
   "assistant.tokenValid": "Token valid",
   "assistant.defaultModel": "Default Model",
   "assistant.defaultModelDesc": "Model used for Telegram conversations. Default uses GEMINI CLI as Agent",
@@ -407,6 +410,7 @@
   "channels.zentaoDesc": "Connect Zentao project management, AI can read and create bugs",
   "channels.wechat.install": "Connect WeChat",
   "channels.wechat.installDesc": "Scan the QR code with WeChat to connect your personal WeChat account.",
+  "channels.wechat.privacyWarning": "Note: All messages sent via WeChat will pass through WeChat servers first.",
   "channels.wechat.installing": "Generating QR code...",
   "channels.wechat.installSuccess": "WeChat connected successfully",
   "channels.wechat.installFailed": "Login failed",
@@ -521,6 +525,7 @@
   "feedback": "Feedback",
   "contactMe": "Contact Me",
   "officialWebsite": "Official Website",
+  "privacyPolicy": "Privacy Policy",
   "checkForUpdates": "Check for updates",
   "includePrereleaseUpdates": "Include prerelease/dev builds",
   "saveModelConfigFailed": "Failed to save model configuration",
@@ -599,6 +604,13 @@
   "skillScanFailed": "Failed to scan skills",
   "quickScan": "Quick Scan Common Paths",
   "assistant": {
+    "view": "View",
+    "edit": "Edit",
+    "upload": "Upload",
+    "duplicate": "Duplicate",
+    "install": "Install",
+    "installed": "Installed",
+    "delete": "Delete",
     "tokenRequired": "Please enter a bot token",
     "pluginEnabled": "Telegram bot enabled",
     "pluginDisabled": "Telegram bot disabled",
@@ -641,7 +653,8 @@
     "agentDescTelegram": "Used for Telegram conversations",
     "autoFollowCliModel": "Automatically follow the model when CLI is running",
     "agentSwitched": "Agent switched successfully",
-    "modelSwitched": "Model switched successfully"
+    "modelSwitched": "Model switched successfully",
+    "tokenLocked": "Please close the Channel and delete all authorized users before modifying the configuration"
   },
   "lark": {
     "appId": "App ID",
@@ -899,5 +912,14 @@
   "promptTimeout": "LLM Request Timeout",
   "promptTimeoutDesc": "Maximum wait time for Agent-to-LLM communication. Range: 30-3600 seconds",
   "idleTimeout": "Agent Idle Timeout",
-  "idleTimeoutDesc": "Idle Agent process recycling time for memory release. Range: 1-60 minutes"
+  "idleTimeoutDesc": "Idle Agent process recycling time for memory release. Range: 1-60 minutes",
+  "productImprovement": {
+    "title": "Join Product Improvement Program",
+    "description": "Help us continuously improve the product experience for better service.",
+    "hint": "When enabled, we do not collect your conversation content or personal information. You can turn off this feature at any time.",
+    "dialogTitle": "Product Improvement Program",
+    "privacy": "When enabled, SudoWork performance metrics will be anonymously collected for product improvement only. We do not collect your conversation content or personal information. You can turn off this feature at any time.",
+    "confirm": "Enable",
+    "cancel": "Not Now"
+  }
 }

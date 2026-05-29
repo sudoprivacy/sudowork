@@ -12,6 +12,12 @@
 
 set -euo pipefail
 
+# Detect available Python command (python3 may be a non-functional stub on Windows)
+PYTHON_CMD="python3"
+if ! command -v python3 >/dev/null 2>&1 || ! python3 -c "pass" 2>/dev/null; then
+  PYTHON_CMD="python"
+fi
+
 MODE="${1:-}"
 if [ "$MODE" != "gen" ] && [ "$MODE" != "edit" ]; then
   echo "Usage:" >&2
@@ -66,9 +72,30 @@ if [ "$MODE" = "edit" ] && [ ! -f "$IMAGE_PATH" ]; then
   exit 1
 fi
 
-# Read BASE_URL, API_KEY, and IMAGE_MODEL from sudoclaw.json (with env var overrides)
-if [ -n "${SUDOCLAW_CONFIG_PATH:-}" ] && [ -f "$SUDOCLAW_CONFIG_PATH" ]; then
-  eval "$(python3 -c "
+# Read BASE_URL, API_KEY, and IMAGE_MODEL from config files (with env var overrides)
+# Priority: sudocode.json (new), fallback to sudoclaw.json (legacy)
+_SUDOCODE_CFG="${SUDOCODE_CONFIG_PATH:-$HOME/.nexus/sudocode/sudocode.json}"
+if [ -f "$_SUDOCODE_CFG" ]; then
+  eval "$($PYTHON_CMD -c "
+import json, sys
+try:
+    c = json.load(open(sys.argv[1]))
+    sr = c.get('auth_modes',{}).get('proxy',{}).get('sudorouter',{})
+    base_url = sr.get('baseUrl','')
+    api_key = sr.get('apiKey','')
+    image_model = c.get('tools',{}).get('imageGenerationModel','')
+    if isinstance(image_model, str) and '/' in image_model:
+        image_model = image_model.rsplit('/', 1)[-1]
+    print(f'_CFG_BASE_URL={repr(base_url.rstrip(\"/\"))}')
+    print(f'_CFG_API_KEY={repr(api_key)}')
+    print(f'_CFG_IMAGE_MODEL={repr(image_model)}')
+except: pass
+" "$_SUDOCODE_CFG" 2>/dev/null)"
+fi
+
+# Fallback: sudoclaw.json (legacy)
+if [ -z "${_CFG_API_KEY:-}" ] && [ -n "${SUDOCLAW_CONFIG_PATH:-}" ] && [ -f "$SUDOCLAW_CONFIG_PATH" ]; then
+  eval "$($PYTHON_CMD -c "
 import json, sys
 try:
     c = json.load(open(sys.argv[1]))
@@ -76,8 +103,6 @@ try:
     base_url = sr.get('baseUrl','')
     api_key = sr.get('apiKey','')
     image_model = c.get('agents',{}).get('defaults',{}).get('imageGenerationModel','')
-    # Strip any 'provider/' prefix (e.g. 'sudorouter/gpt-image-1.5' -> 'gpt-image-1.5');
-    # sudorouter /images/generations expects the bare model id.
     if isinstance(image_model, str) and '/' in image_model:
         image_model = image_model.rsplit('/', 1)[-1]
     print(f'_CFG_BASE_URL={repr(base_url.rstrip(\"/\"))}')
@@ -116,7 +141,7 @@ if [ "$MODE" = "gen" ]; then
   ENDPOINT="${BASE_URL}/images/generations"
   echo "[generate_image] POST $ENDPOINT" >&2
 
-  RESPONSE=$(python3 -c "
+  RESPONSE=$($PYTHON_CMD -c "
 import json, sys
 payload = {
     'model': sys.argv[1],
@@ -138,7 +163,7 @@ else
 
   # Pad non-square images to a square with white background so the full image
   # fits in the output without cropping (letterbox for landscape, pillarbox for portrait).
-  PADDED_PATH=$(python3 -c "
+  PADDED_PATH=$($PYTHON_CMD -c "
 import sys
 from PIL import Image
 
@@ -187,9 +212,58 @@ fi
 echo "[generate_image] Response length: ${#RESPONSE}" >&2
 echo "[generate_image] Response preview: ${RESPONSE:0:200}" >&2
 
+WATERMARK_TEXT="${WATERMARK_TEXT:-Sudo Code}"
+
+# Add watermark to image
+add_watermark() {
+  $PYTHON_CMD -c "
+import sys, os
+try:
+    from PIL import Image, ImageDraw, ImageFont
+except ImportError:
+    print('[watermark] PIL not available, skipping watermark', file=sys.stderr)
+    sys.exit(0)
+
+path = sys.argv[1]
+text = sys.argv[2]
+scale = float(sys.argv[3])
+
+img = Image.open(path).convert('RGBA')
+w, h = img.size
+
+# Font size scales with image size, min 12px
+font_size = max(int(min(w, h) * scale * 0.05), 12)
+
+try:
+    font = ImageFont.truetype('/System/Library/Fonts/Helvetica.ttc', font_size)
+except:
+    font = ImageFont.load_default()
+
+# Add text shadow for readability on any background
+txt_layer = Image.new('RGBA', img.size, (0, 0, 0, 0))
+draw = ImageDraw.Draw(txt_layer)
+
+# Position: bottom-right with padding
+bbox = draw.textbbox((0, 0), text, font=font)
+tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+padding = int(min(w, h) * 0.02)
+x = w - tw - padding
+y = h - th - padding
+
+# Shadow
+draw.text((x + 1, y + 1), text, font=font, fill=(0, 0, 0, 128))
+# Main text (white with dark outline)
+draw.text((x, y), text, font=font, fill=(255, 255, 255, 230))
+
+out = Image.alpha_composite(img, txt_layer)
+out.convert('RGB').save(path)
+print(f'[watermark] Added \"{text}\" at {x},{y} font_size={font_size}', file=sys.stderr)
+" "$1" "$WATERMARK_TEXT" "${WATERMARK_SCALE:-0.8}"
+}
+
 # Extract image data, save to file, and print the path
 # Response is piped via stdin to avoid OS command-line arg size limits (b64 data can be 2.5MB+)
-echo "$RESPONSE" | python3 -c "
+SAVED_FILE=$(echo "$RESPONSE" | $PYTHON_CMD -c "
 import json, sys, base64, os, urllib.request
 
 response = json.load(sys.stdin)
@@ -248,4 +322,12 @@ with open(filename, 'wb') as f:
 
 print(f'[generate_image] Saved: {filename} ({len(image_bytes)} bytes)', file=sys.stderr)
 print(filename)
-" "$FILENAME"
+" "$FILENAME")
+
+# Add watermark after save (non-fatal — skip if PIL unavailable)
+if [ -f "$SAVED_FILE" ]; then
+  add_watermark "$SAVED_FILE" || echo "[generate_image] Watermark skipped (PIL unavailable)" >&2
+fi
+
+# Print saved file path to stdout so the caller (scode) can display the image
+echo "$SAVED_FILE"

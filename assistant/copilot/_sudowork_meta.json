@@ -21,7 +21,7 @@
     ]
   },
   "avatar": "🧭",
-  "presetAgentType": "sudoclaw",
+  "presetAgentType": "scode",
   "resourceDir": "assistant/copilot",
   "ruleFile": "copilot.md",
   "is_builtin": true,

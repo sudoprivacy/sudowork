@@ -24,6 +24,7 @@ type GuidInputCardProps = {
   onPaste: React.ClipboardEventHandler;
   onFocus: () => void;
   onBlur: () => void;
+  onSelect?: (e: React.SyntheticEvent<HTMLTextAreaElement>) => void;
   placeholder: string;
 
   // Styling
@@ -58,7 +59,7 @@ type GuidInputCardProps = {
   actionRow: React.ReactNode;
 };
 
-const GuidInputCard: React.FC<GuidInputCardProps> = ({ input, onInputChange, onKeyDown, onPaste, onFocus, onBlur, placeholder, isInputActive, isFileDragging, activeBorderColor, inactiveBorderColor, activeShadow, dragHandlers, mentionOpen, mentionSelectorBadge, mentionDropdown, skillSelectorOpen, skillSelectorMenu, selectedSkills, onRemoveSkill, getSkillDisplayName, files, onRemoveFile, dir, onClearDir, actionRow }) => {
+const GuidInputCard: React.FC<GuidInputCardProps> = ({ input, onInputChange, onKeyDown, onPaste, onFocus, onBlur, onSelect, placeholder, isInputActive, isFileDragging, activeBorderColor, inactiveBorderColor, activeShadow, dragHandlers, mentionOpen, mentionSelectorBadge, mentionDropdown, skillSelectorOpen, skillSelectorMenu, selectedSkills, onRemoveSkill, getSkillDisplayName, files, onRemoveFile, dir, onClearDir, actionRow }) => {
   const layout = useLayoutContext();
   const isMobile = layout?.isMobile ?? false;
   const { t } = useTranslation();
@@ -160,7 +161,7 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({ input, onInputChange, onK
           </div>
         </div>
       )}
-      <Input.TextArea autoSize={textareaAutoSize} placeholder={placeholder} className={`text-16px focus:b-none rounded-xl !bg-transparent !b-none !resize-none !p-0 ${styles.lightPlaceholder}`} value={input} onChange={onInputChange} onPaste={onPaste} onFocus={onFocus} onBlur={onBlur} {...compositionHandlers} onKeyDown={handleKeyDown} onContextMenu={handleContextMenu} />
+      <Input.TextArea autoSize={textareaAutoSize} placeholder={placeholder} className={`text-16px focus:b-none rounded-xl !bg-transparent !b-none !resize-none !p-0 ${styles.lightPlaceholder}`} value={input} onChange={onInputChange} onPaste={onPaste} onFocus={onFocus} onBlur={onBlur} onSelect={onSelect} {...compositionHandlers} onKeyDown={handleKeyDown} onContextMenu={handleContextMenu} />
       {mentionOpen && (
         <div className='absolute z-50' style={{ left: 16, top: 44 }}>
           {mentionDropdown}

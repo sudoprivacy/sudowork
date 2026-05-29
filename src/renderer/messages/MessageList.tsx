@@ -11,6 +11,7 @@ import { CHAT_MESSAGE_JUMP_EVENT, type ChatMessageJumpDetail } from '@/renderer/
 import { Image, Message } from '@arco-design/web-react';
 import { Down } from '@icon-park/react';
 import MessageAcpPermission from '@renderer/messages/acp/MessageAcpPermission';
+import MessageAcpQuestion from '@renderer/messages/acp/MessageAcpQuestion';
 import MessageAcpToolCall from '@renderer/messages/acp/MessageAcpToolCall';
 import MessageAgentStatus from '@renderer/messages/MessageAgentStatus';
 import classNames from 'classnames';
@@ -43,6 +44,7 @@ import { stripThinkTags, hasThinkTags } from '../utils/thinkTagFilter';
 import { NEXUS_FILES_MARKER } from '@/common/constants';
 import { shouldShowTimeSeparator } from '@/renderer/utils/messageTime';
 import MessageTimeSeparator from './MessageTimeSeparator';
+import MessageLoadingIndicator from './MessageLoadingIndicator';
 
 type TurnDiffContent = Extract<CodexToolCallUpdate, { subtype: 'turn_diff' }>;
 
@@ -54,8 +56,9 @@ type IMessageVO =
       id: string;
       messages: Array<IMessageToolGroup | IMessageAcpToolCall>;
     }
-  | { type: 'turn_actions'; id: string; turnTexts: string[]; conversationId?: string }
-  | { type: 'time_separator'; id: string; timestamp: number };
+  | { type: 'turn_actions'; id: string; turnTexts: string[]; turnTextsRaw: string[]; conversationId?: string }
+  | { type: 'time_separator'; id: string; timestamp: number }
+  | { type: 'loading_indicator'; id: string };
 
 // Image preview context
 export const ImagePreviewContext = createContext<{ inPreviewGroup: boolean }>({ inPreviewGroup: false });
@@ -64,6 +67,11 @@ export const ImagePreviewContext = createContext<{ inPreviewGroup: boolean }>({ 
 const isDarkMode = () => {
   if (typeof document === 'undefined') return false;
   return document.documentElement.getAttribute('data-theme') === 'dark';
+};
+
+const isUserFacingAcpToolCall = (message: IMessageAcpToolCall): boolean => {
+  const title = message.content?.update?.title;
+  return title === 'AskUserQuestion' || title === 'SendUserMessage';
 };
 
 const MessageItem: React.FC<{ message: TMessage; isStreaming?: boolean }> = React.memo(
@@ -81,7 +89,7 @@ const MessageItem: React.FC<{ message: TMessage; isStreaming?: boolean }> = Reac
     }, []);
 
     const streamingAvatar = isStreaming ? (darkMode ? sudoclawProDark : sudoclawProWhite) : sudoworkIconDark;
-    const avatarSize = isStreaming ? 'w-40px h-40px' : 'w-24px h-24px';
+
     return (
       <div
         data-message-id={message.id}
@@ -91,7 +99,11 @@ const MessageItem: React.FC<{ message: TMessage; isStreaming?: boolean }> = Reac
           'justify-start': message.position === 'left',
         })}
       >
-        {isAiMessage && <img src={streamingAvatar} alt='AI Avatar' className={`flex-shrink-0 mr-12px mt-4px ${avatarSize} object-contain`} />}
+        {isAiMessage && (
+          <div className='flex-shrink-0 mr-12px mt-4px w-24px h-24px relative'>
+            <img src={streamingAvatar} alt='AI Avatar' className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 ${isStreaming ? 'w-40px h-40px max-w-none' : 'w-24px h-24px'} object-contain`} />
+          </div>
+        )}
         {props.children}
       </div>
     );
@@ -110,6 +122,8 @@ const MessageItem: React.FC<{ message: TMessage; isStreaming?: boolean }> = Reac
         return <MessageAgentStatus message={message}></MessageAgentStatus>;
       case 'acp_permission':
         return <MessageAcpPermission message={message}></MessageAcpPermission>;
+      case 'acp_question':
+        return <MessageAcpQuestion message={message}></MessageAcpQuestion>;
       case 'acp_tool_call':
         return <MessageAcpToolCall message={message}></MessageAcpToolCall>;
       case 'codex_permission':
@@ -254,12 +268,14 @@ const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = fal
     let diffsChanges: FileChangeInfo[] = [];
     let toolList: Array<IMessageToolGroup | IMessageAcpToolCall> = [];
     let turnTexts: string[] = [];
+    let turnTextsRaw: string[] = [];
     let lastAiTextId = '';
 
     const flushTurnActions = () => {
       if (turnTexts.length > 0) {
-        result.push({ type: 'turn_actions', id: `turn-actions-${lastAiTextId}`, turnTexts, conversationId: conversationContext?.conversationId });
+        result.push({ type: 'turn_actions', id: `turn-actions-${lastAiTextId}`, turnTexts, turnTextsRaw, conversationId: conversationContext?.conversationId });
         turnTexts = [];
+        turnTextsRaw = [];
         lastAiTextId = '';
       }
     };
@@ -305,9 +321,13 @@ const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = fal
           let cleaned = hasThinkTags(rawContent) ? stripThinkTags(rawContent) : rawContent;
           const markerIdx = cleaned.indexOf(NEXUS_FILES_MARKER);
           if (markerIdx !== -1) cleaned = cleaned.slice(0, markerIdx).trimEnd();
+          // Keep raw markdown with images for sharing
+          const rawCleaned = cleaned;
+          // Strip image syntax for plain text copy
           cleaned = cleaned.replace(/!\[[^\]]*\]\(([^)]+)\)/g, '$1');
           if (cleaned.trim()) {
             turnTexts.push(cleaned);
+            turnTextsRaw.push(rawCleaned);
             lastAiTextId = message.id;
           }
         }
@@ -329,6 +349,11 @@ const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = fal
         continue;
       }
       if (message.type === 'acp_tool_call') {
+        if (isUserFacingAcpToolCall(message)) {
+          toolList = [];
+          diffsChanges = [];
+          continue;
+        }
         pushToolList(message);
         continue;
       }
@@ -363,13 +388,21 @@ const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = fal
       }
     }
 
+    const shouldShowLoading = aiProcessing && list.length > 0 && list[list.length - 1].position === 'right';
+    if (shouldShowLoading) {
+      withTimeSeparators.push({
+        type: 'loading_indicator',
+        id: 'temp-loading-indicator',
+      });
+    }
+
     return withTimeSeparators;
-  }, [list]);
+  }, [list, aiProcessing]);
 
   // Use auto-scroll hook
   const { virtuosoRef, handleScroll, handleAtBottomStateChange, handleFollowOutput, handleScrollerRef, showScrollButton, scrollToBottom, hideScrollButton, bottomSpacerHeight } = useAutoScroll({
     messages: list,
-    itemCount: processedList.length,
+    items: processedList,
   });
 
   useEffect(() => {
@@ -379,7 +412,7 @@ const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = fal
       if (!conversationContext?.conversationId || detail.conversationId !== conversationContext.conversationId) return;
 
       const targetIndex = processedList.findIndex((item) => {
-        if ((item as { type?: string }).type === 'file_summary' || (item as { type?: string }).type === 'tool_summary' || (item as { type?: string }).type === 'turn_actions' || (item as { type?: string }).type === 'time_separator') {
+        if ((item as { type?: string }).type === 'file_summary' || (item as { type?: string }).type === 'tool_summary' || (item as { type?: string }).type === 'turn_actions' || (item as { type?: string }).type === 'time_separator' || (item as { type?: string }).type === 'loading_indicator') {
           return false;
         }
         const message = item as TMessage;
@@ -412,6 +445,9 @@ const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = fal
   };
 
   const renderItem = (_index: number, item: (typeof processedList)[0]) => {
+    if ('type' in item && item.type === 'loading_indicator') {
+      return <MessageLoadingIndicator key={item.id} />;
+    }
     // Render time separator
     if ('type' in item && item.type === 'time_separator') {
       return <MessageTimeSeparator key={item.id} timestamp={(item as { type: 'time_separator'; id: string; timestamp: number }).timestamp} />;
@@ -420,10 +456,11 @@ const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = fal
       const isLastItemSummary = _index >= processedList.length - 2;
       const isStreamingForSummary = item.type === 'tool_summary' && (item.messages.some((m) => m.id === lastAiMessageId) || (aiProcessing && isLastItemSummary));
       const streamingAvatarForSummary = isStreamingForSummary ? (isDarkMode() ? sudoclawProDark : sudoclawProWhite) : sudoworkIconDark;
-      const avatarSizeForSummary = isStreamingForSummary ? 'w-40px h-40px' : 'w-24px h-24px';
       return (
         <div key={item.id} data-message-id={item.id} className={'min-w-0 flex items-start message-item px-8px m-t-10px max-w-full md:max-w-780px mx-auto ' + item.type}>
-          <img src={streamingAvatarForSummary} alt='AI Avatar' className={`flex-shrink-0 mr-12px mt-4px ${avatarSizeForSummary} object-contain`} />
+          <div className='flex-shrink-0 mr-12px mt-4px w-24px h-24px relative'>
+            <img src={streamingAvatarForSummary} alt='AI Avatar' className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 ${isStreamingForSummary ? 'w-40px h-40px max-w-none' : 'w-24px h-24px'} object-contain`} />
+          </div>
           <div className='flex-1 min-w-0'>
             {item.type === 'file_summary' && <MessageFileChanges diffsChanges={item.diffs} />}
             {item.type === 'tool_summary' &&
@@ -457,7 +494,7 @@ const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = fal
     if ('type' in item && item.type === 'turn_actions') {
       return (
         <div key={item.id} className='group min-w-0 message-item px-8px max-w-full md:max-w-780px mx-auto'>
-          <TurnActions turnTexts={(item as Extract<IMessageVO, { type: 'turn_actions' }>).turnTexts} conversationId={(item as Extract<IMessageVO, { type: 'turn_actions' }>).conversationId} />
+          <TurnActions turnTexts={(item as Extract<IMessageVO, { type: 'turn_actions' }>).turnTexts} turnTextsRaw={(item as Extract<IMessageVO, { type: 'turn_actions' }>).turnTextsRaw} conversationId={(item as Extract<IMessageVO, { type: 'turn_actions' }>).conversationId} />
         </div>
       );
     }

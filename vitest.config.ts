@@ -59,10 +59,16 @@ export default defineConfig({
         // Process / bridge
         'src/process/services/autoUpdaterService.ts',
         'src/process/services/conversionService.ts',
+        'src/process/services/scode/scodeProxyModels.ts',
         'src/process/services/sudoclaw/sudoclawRuntimeSync.ts',
+        'src/process/services/pwdLogin/errors.ts',
+        'src/process/services/pwdLogin/memorySafety.ts',
+        'src/process/services/pwdLogin/pwdAdapters.ts',
+        'src/process/services/pwdLogin/pwdLoginService.ts',
         'src/process/bridge/updateBridge.ts',
         'src/process/bridge/applicationBridge.ts',
         'src/process/bridge/documentBridge.ts',
+        'src/process/bridge/pwdLoginBridge.ts',
         'src/utils/configureChromium.ts',
         // ACP
         'src/agent/acp/AcpAdapter.ts',
@@ -71,6 +77,7 @@ export default defineConfig({
         // Common
         'src/common/chatLib.ts',
         'src/common/nexusFiles.ts',
+        'src/common/scodeConfig.ts',
         'src/common/sudoworkAuthLogin.ts',
         'src/common/update/models/VersionInfo.ts',
         'src/common/types/conversion.ts',

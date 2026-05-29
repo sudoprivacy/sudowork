@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { AcpBackend, AcpIncomingMessage, AcpMessage, AcpNotification, AcpPermissionRequest, AcpPromptResponseUsage, AcpRequest, AcpResponse, AcpSessionConfigOption, AcpSessionModels, AcpSessionUpdate } from '@/types/acpTypes';
+import type { AcpBackend, AcpIncomingMessage, AcpMessage, AcpNotification, AcpPermissionRequest, AcpPromptResponseUsage, AcpQuestionRequest, AcpQuestionResponseAnswer, AcpRequest, AcpResponse, AcpSessionConfigOption, AcpSessionModels, AcpSessionUpdate } from '@/types/acpTypes';
 import { ACP_METHODS, JSONRPC_VERSION } from '@/types/acpTypes';
 import type { ChildProcess } from 'child_process';
 import { execFile as execFileCb } from 'child_process';
@@ -15,9 +15,12 @@ import path from 'path';
 import { buildAcpModelInfo, summarizeAcpModelInfo } from './modelInfo';
 import { mainLog } from '@process/utils/mainLogger';
 import { resolveNpxPath } from '@process/utils/shellEnv';
+import { recordFirstToken } from '@process/telemetry';
 import { ACP_PERF_LOG, connectClaude, connectCodebuddy, connectCodex, prepareCleanEnv, spawnGenericBackend } from './acpConnectors';
+import { getAuthProxyPort, registerToken, revokeToken } from '@process/services/authProxy';
 import type { SpawnResult } from './acpConnectors';
-import { killChild, readTextFile, writeJsonRpcMessage, writeTextFile } from './utils';
+import { killChild, readTextFile, writeJsonRpcMessage, writeJsonRpcMessageLsp, writeTextFile } from './utils';
+import { processSupervisor } from '@process/ProcessSupervisor';
 
 const execFile = promisify(execFileCb);
 
@@ -33,6 +36,8 @@ interface PendingRequest<T = unknown> {
   startTime: number;
   timeoutDuration: number;
 }
+
+const numberOrUndefined = (value: unknown): number | undefined => (typeof value === 'number' && Number.isFinite(value) ? value : undefined);
 
 export class AcpConnection {
   private child: ChildProcess | null = null;
@@ -59,6 +64,9 @@ export class AcpConnection {
   public onPermissionRequest: (data: AcpPermissionRequest) => Promise<{
     optionId: string;
   }> = () => Promise.resolve({ optionId: 'allow' }); // Returns a resolved Promise for interface consistency
+  public onQuestionRequest: (data: AcpQuestionRequest) => Promise<{
+    answers: AcpQuestionResponseAnswer[];
+  }> = () => Promise.resolve({ answers: [] });
   public onEndTurn: () => void = () => {}; // Handler for end_turn messages
   public onPromptUsage: (usage: AcpPromptResponseUsage) => void = () => {}; // Handler for PromptResponse.usage (per-turn token data)
   public onFileOperation: (operation: { method: string; path: string; content?: string; sessionId: string }) => void = () => {};
@@ -71,18 +79,36 @@ export class AcpConnection {
   // Track if child process was spawned with detached: true (needs process group kill)
   private isDetached = false;
 
+  // Use LSP Content-Length framing instead of newline-delimited JSON.
+  // Sudo Code's current stdio ACP transport is newline-delimited JSON-RPC,
+  // so scode must NOT be routed through this path.
+  private useLspFraming = false;
+
+  // Auth Proxy token for this child process (generated before spawn, registered after)
+  private proxyToken: string | null = null;
+
   /**
    * Kill the current child process (if any) and clear process-related state.
    * Used by both disconnect() and retry paths. Does NOT reset session-level
    * state (sessionId, backend, etc.) — that is disconnect()'s responsibility.
    */
   private async terminateChild(): Promise<void> {
+    // Revoke Auth Proxy token before killing child
+    if (this.proxyToken) {
+      revokeToken(this.proxyToken);
+      this.proxyToken = null;
+    }
+
     if (!this.child) {
       this.isDetached = false;
       return;
     }
 
+    const pid = this.child.pid;
     await killChild(this.child, this.isDetached);
+    // Untrack from supervisor after successful termination so the exit
+    // handler won't try to kill an already-dead process.
+    if (pid) processSupervisor.untrack(pid);
     this.child = null;
     this.isDetached = false;
   }
@@ -94,6 +120,16 @@ export class AcpConnection {
   private async spawnAndSetup(result: SpawnResult, backend: string): Promise<void> {
     this.child = result.child;
     this.isDetached = result.isDetached;
+
+    // Register with ProcessSupervisor so the OS-level exit handler will
+    // kill this child if the parent exits unexpectedly.
+    // 注册到 ProcessSupervisor，确保父进程异常退出时子进程也会被终止。
+    processSupervisor.track(this.child, this.isDetached);
+
+    // Register Auth Proxy token now that child.pid is available
+    if (this.proxyToken && this.child?.pid) {
+      registerToken(this.proxyToken, this.child.pid);
+    }
     await this.setupChildProcessHandlers(backend);
   }
 
@@ -162,8 +198,20 @@ export class AcpConnection {
     }
 
     this.backend = backend;
+    this.useLspFraming = false;
     if (workingDir) {
       this.workingDir = workingDir;
+    }
+
+    // Auth Proxy: generate token and inject into child process env
+    const authProxyPort = getAuthProxyPort();
+    if (authProxyPort) {
+      this.proxyToken = crypto.randomUUID();
+      const envWithProxy = { ...customEnv };
+      envWithProxy.SUDOWORK_AUTH_PROXY_URL = `http://127.0.0.1:${authProxyPort}/proxy`;
+      envWithProxy.SUDOWORK_AUTH_PROXY_BASE_URL = `http://127.0.0.1:${authProxyPort}`;
+      envWithProxy.SUDOWORK_AUTH_PROXY_TOKEN = this.proxyToken;
+      customEnv = envWithProxy;
     }
 
     // Shared hooks for npx backends: wire spawned child into this connection
@@ -183,11 +231,11 @@ export class AcpConnection {
         break;
 
       case 'codebuddy':
-        await connectCodebuddy(workingDir, npxHooks);
+        await connectCodebuddy(workingDir, npxHooks, customEnv);
         break;
 
       case 'codex':
-        await connectCodex(workingDir, npxHooks);
+        await connectCodex(workingDir, npxHooks, customEnv);
         break;
 
       case 'gemini':
@@ -198,10 +246,10 @@ export class AcpConnection {
       case 'auggie':
       case 'kimi':
       case 'opencode':
+      case 'scode':
       case 'copilot':
       case 'qoder':
       case 'vibe':
-      case 'nexus':
       case 'nanobot':
         if (!cliPath) {
           throw new Error(`CLI path is required for ${backend} backend`);
@@ -317,18 +365,40 @@ export class AcpConnection {
     }
 
     // Handle messages from ACP server
-    let buffer = '';
-    child.stdout?.on('data', (data: Buffer) => {
-      const dataStr = data.toString();
-      buffer += dataStr;
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-
-      for (const line of lines) {
-        if (line.trim()) {
+    if (this.useLspFraming) {
+      // LSP Content-Length framed reader for backends that explicitly require it
+      let lspBuffer = Buffer.alloc(0);
+      let expectedLength = -1;
+      child.stdout?.on('data', (data: Buffer) => {
+        lspBuffer = Buffer.concat([lspBuffer, data]);
+        while (lspBuffer.length > 0) {
+          if (expectedLength === -1) {
+            // Look for header separator \r\n\r\n or \n\n
+            const bufStr = lspBuffer.toString('utf-8');
+            let sepIdx = bufStr.indexOf('\r\n\r\n');
+            let sepLen = 4;
+            if (sepIdx === -1) {
+              sepIdx = bufStr.indexOf('\n\n');
+              sepLen = 2;
+            }
+            if (sepIdx === -1) break; // Need more data for complete header
+            const header = bufStr.slice(0, sepIdx);
+            const match = header.match(/Content-Length:\s*(\d+)/i);
+            if (!match) {
+              // Not a valid header, skip past separator
+              lspBuffer = Buffer.from(bufStr.slice(sepIdx + sepLen), 'utf-8');
+              continue;
+            }
+            expectedLength = parseInt(match[1], 10);
+            lspBuffer = Buffer.from(bufStr.slice(sepIdx + sepLen), 'utf-8');
+          }
+          if (lspBuffer.length < expectedLength) break; // Need more data for body
+          const body = lspBuffer.slice(0, expectedLength).toString('utf-8');
+          lspBuffer = lspBuffer.slice(expectedLength);
+          expectedLength = -1;
           try {
             const handleStart = ACP_PERF_LOG ? Date.now() : 0;
-            const message = JSON.parse(line) as AcpMessage;
+            const message = JSON.parse(body) as AcpMessage;
             this.handleMessage(message);
             if (ACP_PERF_LOG) {
               const handleDuration = Date.now() - handleStart;
@@ -336,12 +406,39 @@ export class AcpConnection {
                 console.log(`[ACP-PERF] stream: handleMessage ${handleDuration}ms method=${'method' in message ? (message as AcpIncomingMessage).method : 'response'}`);
               }
             }
-          } catch (error) {
-            // Ignore parsing errors for non-JSON messages
+          } catch {
+            // Ignore parsing errors
           }
         }
-      }
-    });
+      });
+    } else {
+      // Newline-delimited JSON reader (default for most ACP backends)
+      let buffer = '';
+      child.stdout?.on('data', (data: Buffer) => {
+        const dataStr = data.toString();
+        buffer += dataStr;
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.trim()) {
+            try {
+              const handleStart = ACP_PERF_LOG ? Date.now() : 0;
+              const message = JSON.parse(line) as AcpMessage;
+              this.handleMessage(message);
+              if (ACP_PERF_LOG) {
+                const handleDuration = Date.now() - handleStart;
+                if (handleDuration > 5) {
+                  console.log(`[ACP-PERF] stream: handleMessage ${handleDuration}ms method=${'method' in message ? (message as AcpIncomingMessage).method : 'response'}`);
+                }
+              }
+            } catch (error) {
+              // Ignore parsing errors for non-JSON messages
+            }
+          }
+        }
+      });
+    }
 
     // Initialize protocol with timeout, also racing against early process exit
     const initStart = Date.now();
@@ -373,6 +470,12 @@ export class AcpConnection {
    * Similar to Codex's handleProcessExit implementation
    */
   private handleProcessExit(code: number | null, signal: NodeJS.Signals | null): void {
+    // Revoke Auth Proxy token (parallel cleanup path to terminateChild)
+    if (this.proxyToken) {
+      revokeToken(this.proxyToken);
+      this.proxyToken = null;
+    }
+
     // 1. Reject all pending requests with clear error message
     for (const [_id, request] of this.pendingRequests) {
       if (request.timeoutId) {
@@ -387,6 +490,7 @@ export class AcpConnection {
     this.isInitialized = false;
     this.isSetupComplete = false;
     this.isDetached = false;
+    this.useLspFraming = false;
     this.backend = null;
     this.initializeResponse = null;
     this.configOptions = null;
@@ -527,13 +631,26 @@ export class AcpConnection {
 
   private sendMessage(message: AcpRequest | AcpNotification): void {
     if (this.child) {
-      writeJsonRpcMessage(this.child, message);
+      if (this.useLspFraming) {
+        writeJsonRpcMessageLsp(this.child, message);
+      } else {
+        writeJsonRpcMessage(this.child, message);
+      }
     }
   }
 
   private sendResponseMessage(response: AcpResponse): void {
     if (this.child) {
-      writeJsonRpcMessage(this.child, response);
+      try {
+        mainLog('[ACP-DIAG]', `sendResponseMessage id=${JSON.stringify((response as { id?: unknown }).id)} hasResult=${'result' in response} hasError=${'error' in response} preview=${JSON.stringify(response).slice(0, 400)}`);
+      } catch {
+        // ignore log errors
+      }
+      if (this.useLspFraming) {
+        writeJsonRpcMessageLsp(this.child, response);
+      } else {
+        writeJsonRpcMessage(this.child, response);
+      }
     }
   }
 
@@ -554,15 +671,23 @@ export class AcpConnection {
           // Check for end_turn message and extract usage data
           if (message.result && typeof message.result === 'object') {
             const promptResult = message.result as Record<string, unknown>;
-            if (promptResult.stopReason === 'end_turn' || promptResult.stopReason === 'cancelled') {
-              this.onEndTurn();
-            }
             // Extract PromptResponse.usage (per-turn token data from codex-acp / PR #167)
             if (promptResult.usage && typeof promptResult.usage === 'object') {
               const usage = promptResult.usage as AcpPromptResponseUsage;
+              const meta = promptResult._meta as Record<string, unknown> | undefined;
+              const sudocodeMeta = meta?.sudocode as Record<string, unknown> | undefined;
+              const contextWindowTokens = numberOrUndefined(sudocodeMeta?.contextWindowTokens);
+              const estimatedSessionTokens = numberOrUndefined(sudocodeMeta?.estimatedSessionTokens);
               if (typeof usage.totalTokens === 'number') {
-                this.onPromptUsage(usage);
+                this.onPromptUsage({
+                  ...usage,
+                  ...(contextWindowTokens !== undefined && { contextWindowTokens }),
+                  ...(estimatedSessionTokens !== undefined && { estimatedSessionTokens }),
+                });
               }
+            }
+            if (promptResult.stopReason === 'end_turn' || promptResult.stopReason === 'cancelled') {
+              this.onEndTurn();
             }
           }
           resolve(message.result);
@@ -588,7 +713,12 @@ export class AcpConnection {
           // Track first chunk latency since prompt was sent
           if (!this.firstChunkReceived && this.lastPromptSentAt > 0) {
             this.firstChunkReceived = true;
-            if (ACP_PERF_LOG) console.log(`[ACP-PERF] stream: first chunk received ${Date.now() - this.lastPromptSentAt}ms (since prompt sent)`);
+            const firstTokenLatency = Date.now() - this.lastPromptSentAt;
+            if (ACP_PERF_LOG) console.log(`[ACP-PERF] stream: first chunk received ${firstTokenLatency}ms (since prompt sent)`);
+            // Telemetry: record first token time
+            if (this.sessionId) {
+              recordFirstToken(this.sessionId, firstTokenLatency);
+            }
           }
           // Reset timeout on streaming updates - LLM is still processing
           this.resetSessionPromptTimeouts();
@@ -604,6 +734,9 @@ export class AcpConnection {
         case ACP_METHODS.REQUEST_PERMISSION:
           result = await this.handlePermissionRequest(message.params);
           break;
+        case ACP_METHODS.ASK_USER_QUESTION:
+          result = await this.handleQuestionRequest(message.params);
+          break;
         case ACP_METHODS.READ_TEXT_FILE:
           result = await this.handleReadOperation(message.params);
           break;
@@ -612,8 +745,14 @@ export class AcpConnection {
           break;
       }
 
-      // If this is a request (has id), send response
-      if ('id' in message && typeof message.id === 'number') {
+      // If this is a request (has id), send response.
+      // JSON-RPC 2.0 allows id to be either a number or a string. The ACP
+      // Rust SDK (agent-client-protocol) allocates request ids as uuid
+      // strings via `Id::String(uuid::Uuid::new_v4().to_string())`, so we
+      // MUST accept string ids — narrowing to `number` here silently drops
+      // every response and hangs scode's `.await` for ext methods like
+      // `_scode/ask_user_question`.
+      if ('id' in message && (typeof message.id === 'number' || typeof message.id === 'string')) {
         this.sendResponseMessage({
           jsonrpc: JSONRPC_VERSION,
           id: message.id,
@@ -621,7 +760,7 @@ export class AcpConnection {
         });
       }
     } catch (error) {
-      if ('id' in message && typeof message.id === 'number') {
+      if ('id' in message && (typeof message.id === 'number' || typeof message.id === 'string')) {
         this.sendResponseMessage({
           jsonrpc: JSONRPC_VERSION,
           id: message.id,
@@ -663,6 +802,17 @@ export class AcpConnection {
       };
     } finally {
       // 无论成功还是失败，都恢复 session/prompt 请求的超时计时器
+      this.resumeSessionPromptTimeouts();
+    }
+  }
+
+  private async handleQuestionRequest(params: AcpQuestionRequest): Promise<{
+    answers: AcpQuestionResponseAnswer[];
+  }> {
+    this.pauseSessionPromptTimeouts();
+    try {
+      return await this.onQuestionRequest(params);
+    } finally {
       this.resumeSessionPromptTimeouts();
     }
   }
@@ -815,7 +965,8 @@ export class AcpConnection {
     // Some CLIs require absolute paths for cwd
     // - Copilot: "Directory path must be absolute: ."
     // - Codex (via codex-acp): "cwd is not absolute: ."
-    if (this.backend === 'copilot' || this.backend === 'codex') {
+    // - Scode: "params.cwd must be an absolute path"
+    if (this.backend === 'copilot' || this.backend === 'codex' || this.backend === 'scode') {
       return path.resolve(cwd);
     }
 
@@ -836,7 +987,7 @@ export class AcpConnection {
     return defaultPath;
   }
 
-  async sendPrompt(prompt: string, images?: Array<{ type: 'image'; data: string; mimeType: string }>): Promise<AcpResponse> {
+  async sendPrompt(prompt: string, images?: Array<{ type: 'image'; data: string; mimeType: string }>, traceId?: string): Promise<AcpResponse> {
     if (!this.sessionId) {
       throw new Error('No active ACP session');
     }
@@ -852,11 +1003,12 @@ export class AcpConnection {
       }
     }
 
-    console.log(`[ACP] sendPrompt: ${promptBlocks.length} block(s) [${promptBlocks.map((b) => (b.type === 'image' ? `image(${b.mimeType}, ${b.data?.length ?? 0} b64 chars)` : `text(${b.text?.length ?? 0} chars)`)).join(', ')}]`);
+    console.log(`[ACP] sendPrompt: ${promptBlocks.length} block(s) [${promptBlocks.map((b) => (b.type === 'image' ? `image(${b.mimeType}, ${b.data?.length ?? 0} b64 chars)` : `text(${b.text?.length ?? 0} chars)`)).join(', ')}]${traceId ? ` traceId=${traceId}` : ''}`);
 
     return await this.sendRequest('session/prompt', {
       sessionId: this.sessionId,
       prompt: promptBlocks,
+      _meta: traceId ? { traceId } : undefined,
     });
   }
 
@@ -935,7 +1087,7 @@ export class AcpConnection {
    * by responding to the pending session/prompt with stopReason: 'cancelled'.
    * Falls back to disconnect() if the backend doesn't respond within timeout.
    */
-  async cancel(timeoutMs: number = 3000): Promise<'cancelled' | 'disconnected'> {
+  async cancel(timeoutMs: number = 3000): Promise<'cancelled' | 'abandoned' | 'disconnected'> {
     if (!this.child || !this.sessionId) {
       await this.disconnect();
       return 'disconnected';
@@ -960,12 +1112,28 @@ export class AcpConnection {
     const resolved = await this.waitForRequestResolution(pendingPromptId, timeoutMs);
 
     if (!resolved) {
-      // Backend didn't respond in time — force kill
-      await this.disconnect();
-      return 'disconnected';
+      // Backend didn't acknowledge cancel in time. Abandon the local wait,
+      // keep the session alive, and ignore the eventual late response.
+      this.resolvePendingPromptAsCancelled(pendingPromptId);
+      return 'abandoned';
     }
 
     return 'cancelled';
+  }
+
+  private resolvePendingPromptAsCancelled(requestId: number): void {
+    const request = this.pendingRequests.get(requestId);
+    if (!request) {
+      return;
+    }
+
+    if (request.timeoutId) {
+      clearTimeout(request.timeoutId);
+    }
+    this.pendingRequests.delete(requestId);
+    request.resolve({
+      stopReason: 'cancelled',
+    });
   }
 
   /** Find the request ID of a pending session/prompt request, if any. */
@@ -1023,6 +1191,7 @@ export class AcpConnection {
     this.sessionId = null;
     this.isInitialized = false;
     this.isSetupComplete = false;
+    this.useLspFraming = false;
     this.backend = null;
     this.initializeResponse = null;
     this.configOptions = null;

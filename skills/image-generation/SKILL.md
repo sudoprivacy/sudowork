@@ -38,7 +38,7 @@ Trigger this skill when the user asks to:
 **For generation (new image):**
 
 1.  **Determine output path stem**: run `pwd` first to get the session workspace path, then construct an absolute path with a concise name (e.g. `/session/workspace/white_cat`). If the user specifies a location, use that absolute path instead.
-2.  **Execute**:
+2.  **Execute** (use `timeout: 180000`):
     ```bash
     bash skills/image-generation/scripts/generate_image.sh gen "<prompt>" "<absolute_filepath_no_ext>" [size]
     ```
@@ -46,7 +46,7 @@ Trigger this skill when the user asks to:
 **For editing (modify existing image):**
 
 1.  **Determine output path stem**: use the session workspace path from `pwd` with the source filename and a timestamp (e.g. `/session/workspace/abc_1712123456`). If the user specifies a location, use that absolute path instead.
-2.  **Execute**:
+2.  **Execute** (use `timeout: 180000`):
     ```bash
     bash skills/image-generation/scripts/generate_image.sh edit "<prompt>" "<image_path>" "<absolute_filepath_no_ext>" [size]
     ```
@@ -54,8 +54,8 @@ Trigger this skill when the user asks to:
 The script appends the correct extension (`.png`, `.jpg`, `.webp`) based on the output image data.
 
 - `size` is optional, defaults to `1024x1024`. Common sizes: `1024x1024`, `1024x1536`, `1536x1024`.
-- The script reads API credentials and image model from `sudoclaw.json` via `SUDOCLAW_CONFIG_PATH`. No manual configuration needed.
-- The image model is read from `sudoclaw.json` (set via Tools settings). If not configured, the script will report an error asking the user to set the image model in Tools settings.
+- The script reads API credentials and image model from `~/.nexus/sudocode/sudocode.json` automatically. No manual configuration needed.
+- The image model is read from `sudocode.json` (set via Tools settings). **Always run the script directly** — it will report any configuration errors itself.
 
 The script prints the saved image file path on success, or an error message on failure.
 

@@ -40,12 +40,23 @@ import { initSudoclawBridge } from './sudoclawBridge';
 import { initInitBridge } from './initBridge';
 import { initSudoworkServerBridge } from './sudoworkServerBridge';
 import { initNodeRuntimeBridge } from './nodeRuntimeBridge';
-import { initSafetyBridge } from './safetyBridge';
+// Safety hook IPC is temporarily disabled; keep safetyBridge.ts for restoration.
+// import { initSafetyBridge } from './safetyBridge';
 import { initBdpanBridge } from './bdpanBridge';
 import { initHealthMonitorBridge } from './healthMonitorBridge';
 import { initImageGenerationBridge } from './imageGenerationBridge';
 import { initSecretBridge } from './secretBridge';
+import { initPwdLoginBridge } from './pwdLoginBridge';
 import { initWorkspaceBridge } from './workspaceBridge';
+import { initTelemetryBridge } from './telemetryBridge';
+import { initAuthProxyBridge } from './authProxyBridge';
+import { initMossBridge } from './mossBridge';
+import { initShareoneCliBridge } from './shareoneCliBridge';
+// Crash bridge is initialized early in src/process/index.ts before storage
+// to handle renderer errors during startup
+import { initEeclawBridge } from './eeclawBridge';
+import { initManagedAgentBridge } from './managedAgentBridge';
+import { registerScodeBridge } from './scodeBridge';
 
 /**
  * 初始化所有IPC桥接模块
@@ -87,12 +98,22 @@ export function initAllBridges(): void {
   initSudoclawBridge();
   initNodeRuntimeBridge();
   initSudoworkServerBridge();
-  initSafetyBridge();
+  // Safety hook IPC is hidden while the feature is disabled.
+  // initSafetyBridge();
   initBdpanBridge();
   initHealthMonitorBridge();
   initImageGenerationBridge();
   initSecretBridge();
+  initAuthProxyBridge();
+  initPwdLoginBridge();
   initWorkspaceBridge();
+  initTelemetryBridge();
+  initMossBridge();
+  initShareoneCliBridge();
+  // Note: initCrashBridge() is called early in src/process/index.ts before storage
+  initEeclawBridge();
+  initManagedAgentBridge();
+  registerScodeBridge();
 }
 
 /**

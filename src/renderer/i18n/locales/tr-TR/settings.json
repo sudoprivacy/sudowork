@@ -105,6 +105,8 @@
   "cacheClearFailed": "Önbellek temizlenemedi",
   "language": "Dil",
   "closeToTray": "Tepsiye Kapat",
+  "avatarEnabled": "Yüzen Avatar",
+  "avatarEnabledDesc": "Aktif konuşmanızı yansıtan yüzen masaüstü yardımcısını göster",
   "gemini": "Gemini",
   "model": "Model",
   "runtime": "Çalışma Zamanı",
@@ -370,7 +372,6 @@
   "assistant.copyCode": "Eşleştirme kodunu kopyala",
   "assistant.modelSaved": "Model kaydedildi",
   "assistant.modelSaveFailed": "Model kaydedilemedi",
-  "assistant.tokenLocked": "Yapılandırmayı değiştirmeden önce lütfen Channel'ı kapatın ve tüm yetkili kullanıcıları silin",
   "assistant.tokenValid": "Token geçerli",
   "assistant.defaultModel": "Varsayılan Model",
   "assistant.defaultModelDesc": "Telegram sohbetleri için kullanılan model. Varsayılan olarak GEMINI CLI Ajanı kullanılır.",
@@ -500,6 +501,7 @@
   "feedback": "Geri Bildirim",
   "contactMe": "Bana Ulaşın",
   "officialWebsite": "Resmi Web Sitesi",
+  "privacyPolicy": "Gizlilik Politikası",
   "checkForUpdates": "Güncellemeleri kontrol et",
   "includePrereleaseUpdates": "Ön sürüm/geliştirici sürümlerini dahil et",
   "saveModelConfigFailed": "Model yapılandırması kaydedilemedi",
@@ -620,7 +622,8 @@
     "agentDescTelegram": "Telegram sohbetleri icin kullanilir",
     "autoFollowCliModel": "CLI calisirken modeli otomatik olarak takip et",
     "agentSwitched": "Agent basariyla degistirildi",
-    "modelSwitched": "Model basariyla degistirildi"
+    "modelSwitched": "Model basariyla degistirildi",
+    "tokenLocked": "Yapılandırmayı değiştirmeden önce lütfen Channel'ı kapatın ve tüm yetkili kullanıcıları silin"
   },
   "lark": {
     "appId": "App ID",

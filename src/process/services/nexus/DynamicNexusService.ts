@@ -9,6 +9,7 @@ import { promisify } from 'util';
 import * as net from 'net';
 import { getDataPath } from '@process/utils';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
+import { processSupervisor } from '@process/ProcessSupervisor';
 import { extractTarGzWithProgress, extractZipWithProgress, listTarGzEntries, listZipEntries } from '../archiveProgress';
 import runtimeVersions from '@/shared/runtime-versions.json';
 
@@ -20,9 +21,10 @@ const NEXUS_READY_MARKER = '.nexus-bin-ready';
 const NEXUS_HEALTHCHECK_TIMEOUT_MS = 1000; // 1 second
 const NEXUS_POLL_INTERVAL_MS = 200;
 const NEXUS_DEFAULT_PORT = 12012;
+const NEXUS_DEFAULT_GRPC_PORT = 2028;
 
 /** OSS base URL for downloading Nexus binaries at runtime */
-const NEXUS_OSS_BASE_URL = 'https://sudoclaw-1309794936.cos.ap-beijing.myqcloud.com';
+const NEXUS_OSS_BASE_URL = 'https://sudoworkhub-1309794936.cos.ap-beijing.myqcloud.com';
 const NEXUS_GITHUB_RELEASE_BASE_URL = 'https://github.com/nexi-lab/nexus/releases/download';
 
 /** Platform name mapping: Node.js process.platform → Nexus binary OS name */
@@ -93,7 +95,7 @@ class DynamicNexusService {
 
   /**
    * Get the OSS download URL for the current platform's Nexus archive.
-   * e.g. https://sudoclaw-1309794936.cos.ap-beijing.myqcloud.com/v0.9.29/nexus-cluster-macos-arm64.tar.gz
+   * e.g. https://sudoworkhub-1309794936.cos.ap-beijing.myqcloud.com/v0.9.29/nexus-cluster-macos-arm64.tar.gz
    */
   private getOssDownloadUrl(): string {
     const version = this.getNexusVersion();
@@ -128,8 +130,24 @@ class DynamicNexusService {
     return this._running;
   }
 
+  /** Reset running state - used when process is killed externally */
+  resetRunningState(): void {
+    this._running = false;
+    this.process = null;
+  }
+
   get port(): number {
     return this._port;
+  }
+
+  /** gRPC Call handler port (default 2028, override via NEXUS_GRPC_PORT env). */
+  get grpcPort(): number {
+    const env = process.env.NEXUS_GRPC_PORT;
+    if (env) {
+      const parsed = parseInt(env, 10);
+      if (!isNaN(parsed) && parsed > 0) return parsed;
+    }
+    return NEXUS_DEFAULT_GRPC_PORT;
   }
 
   get setupStage(): NexusSetupStage {
@@ -675,6 +693,7 @@ class DynamicNexusService {
     this.emitSetup('starting', `Starting server from: ${nexusdBin} on port ${this._port}`);
     mainLog('Nexus', `Spawning: ${launchCommand.command} ${launchCommand.args.join(' ')}`);
     this.process = spawn(launchCommand.command, launchCommand.args, { stdio: 'pipe', env: nexusEnv });
+    processSupervisor.track(this.process);
 
     this.process.stdout?.on('data', (d: Buffer) => {
       const msg = d.toString().trim();

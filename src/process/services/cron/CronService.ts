@@ -10,7 +10,7 @@ import { uuid } from '@/common/utils';
 import { getDatabase } from '@process/database';
 import { ProcessConfig } from '@process/initStorage';
 import { addMessage } from '@process/message';
-import type { AcpBackendAll } from '@/types/acpTypes';
+import { DEFAULT_PRESET_AGENT_TYPE, resolvePresetAgentBackend, type AcpBackendAll } from '@/types/acpTypes';
 import { powerSaveBlocker, app } from 'electron';
 import { Cron } from 'croner';
 import WorkerManage from '../../WorkerManage';
@@ -19,6 +19,7 @@ import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import { readAssistantResource, ruleFilePattern, skillFilePattern } from '@process/utils/assistantResources';
 import { acpDetector } from '@/agent/acp/AcpDetector';
 import { assistantManager } from '@/process/AssistantManager';
+import { setupChannelResponseRouting } from '@/channels/agent/ChannelResponseRouter';
 import { cronBusyGuard } from './CronBusyGuard';
 import { cronStore, type CronJob, type CronSchedule } from './CronStore';
 import { createConversation } from '../conversationService';
@@ -386,7 +387,7 @@ class CronService {
       const storedAgentType = job.metadata.agentType;
       const normalizedAgentType: AcpBackendAll = !storedAgentType || (storedAgentType as string) === 'sudoclaw-gateway' ? 'openclaw-gateway' : storedAgentType;
       let resolvedAgentType: AcpBackendAll = normalizedAgentType;
-      // convType must be 'openclaw-gateway' or 'acp' — default to openclaw-gateway (Sudoclaw)
+      // convType must be 'openclaw-gateway' or 'acp' — preserve openclaw-gateway for legacy stored jobs
       let convType: string = normalizedAgentType === 'openclaw-gateway' ? 'openclaw-gateway' : 'acp';
 
       if (presetAssistantId) {
@@ -411,9 +412,10 @@ class CronService {
           presetAgentName = meta?.nameI18n?.['en-US'];
 
           // 4. Determine correct conversation type from presetAgentType
-          const presetAgentType = meta?.presetAgentType || 'sudoclaw';
+          const presetAgentType = meta?.presetAgentType || DEFAULT_PRESET_AGENT_TYPE;
+          const presetBackend = resolvePresetAgentBackend(presetAgentType);
 
-          if (presetAgentType === 'sudoclaw') {
+          if (presetBackend === 'openclaw-gateway') {
             resolvedAgentType = 'openclaw-gateway';
             convType = 'openclaw-gateway';
           } else {
@@ -422,18 +424,27 @@ class CronService {
             // installed), fall back to Sudoclaw so the job still runs instead of
             // silently failing inside AcpAgent.initAgent.
             const detected = acpDetector.getDetectedAgents();
-            const hasCli = detected.some((a) => a.backend === presetAgentType && !!a.cliPath);
+            const hasCli = detected.some((a) => a.backend === presetBackend && !!a.cliPath);
             if (hasCli) {
-              resolvedAgentType = presetAgentType as AcpBackendAll;
+              resolvedAgentType = presetBackend as AcpBackendAll;
               convType = 'acp';
             } else {
-              mainWarn('CronService', `Preset ${presetAssistantId} requested backend '${presetAgentType}' but no CLI was detected; falling back to sudoclaw`);
+              mainWarn('CronService', `Preset ${presetAssistantId} requested backend '${presetBackend}' but no CLI was detected; falling back to Sudoclaw gateway`);
               resolvedAgentType = 'openclaw-gateway';
               convType = 'openclaw-gateway';
             }
           }
         } catch (err) {
           mainWarn('CronService', `Failed to resolve preset assistant resources for ${presetAssistantId}:`, err);
+        }
+      }
+
+      if (resolvedAgentType === 'scode') {
+        const hasScodeCli = acpDetector.getDetectedAgents().some((agent) => agent.backend === 'scode' && !!agent.cliPath);
+        if (!hasScodeCli) {
+          mainWarn('CronService', 'Scode is selected for cron execution but no CLI was detected; falling back to Sudoclaw gateway');
+          resolvedAgentType = 'openclaw-gateway';
+          convType = 'openclaw-gateway';
         }
       }
 
@@ -562,6 +573,15 @@ class CronService {
 
       if (!task) {
         throw new Error('Failed to initialize task');
+      }
+
+      // Set up channel response routing if conversation source is a channel type
+      const db = getDatabase();
+      const convResult = db.getConversation(activeConversationId);
+      mainLog('CronService', `Setting up routing check for convId=${activeConversationId}, success=${convResult.success}, hasData=${!!convResult.data}`);
+      if (convResult.success && convResult.data) {
+        mainLog('CronService', `Conversation data: source=${convResult.data.source}, chatId=${convResult.data.channelChatId}`);
+        setupChannelResponseRouting(convResult.data);
       }
 
       mainLog('CronService', `Sending message to conversationId=${activeConversationId}`);

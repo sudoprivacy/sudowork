@@ -15,43 +15,17 @@ const ChatSider: React.FC<{
   const [messageApi, messageContext] = Message.useMessage({ maxCount: 1 });
 
   let workspaceNode: React.ReactNode = null;
-  if (conversation?.type === 'acp' && conversation.extra?.workspace) {
-    workspaceNode = <ChatWorkspace conversation_id={conversation.id} workspace={conversation.extra.workspace} workspaceDisplayName={conversation.extra.workspaceDisplayName} eventPrefix='acp' backend={conversation.extra.backend} messageApi={messageApi}></ChatWorkspace>;
-  } else if (conversation?.type === 'openclaw-gateway' && conversation.extra?.workspace) {
-    workspaceNode = <ChatWorkspace conversation_id={conversation.id} workspace={conversation.extra.workspace} workspaceDisplayName={conversation.extra.workspaceDisplayName} eventPrefix='openclaw-gateway' backend='openclaw-gateway' messageApi={messageApi}></ChatWorkspace>;
-  }
+  const extra = conversation?.extra as { workspace?: string; workspaceDisplayName?: string; backend?: string } | undefined;
+  const workspace = extra?.workspace;
 
-  if (!workspaceNode) {
-    // DEBUG: 显示调试信息
-    const debugInfo = {
-      conversationId: conversation?.id,
-      type: conversation?.type,
-      extra: conversation?.extra,
-      hasWorkspace: !!(conversation?.extra as { workspace?: string })?.workspace,
-    };
-    return (
-      <div style={{ padding: '12px', fontSize: '12px', color: 'var(--color-text-3)' }}>
-        <button
-          type='button'
-          onClick={() => {
-            console.log('[ChatSider DEBUG]', debugInfo);
-            alert(JSON.stringify(debugInfo, null, 2));
-          }}
-          style={{
-            padding: '4px 8px',
-            fontSize: '11px',
-            cursor: 'pointer',
-            border: '1px solid var(--color-border-2)',
-            borderRadius: '4px',
-            background: 'var(--color-fill-2)',
-            color: 'var(--color-text-2)',
-            width: '100%',
-          }}
-        >
-          🔍 Debug: 点击查看面板状态
-        </button>
-      </div>
-    );
+  // Local conversations use local workspaces; remote-agent reads its workspace
+  // from the Moss session API and may not have a local workspace path.
+  if (conversation?.type === 'acp' && workspace) {
+    workspaceNode = <ChatWorkspace conversation_id={conversation.id} workspace={workspace} workspaceDisplayName={extra.workspaceDisplayName} eventPrefix='acp' backend={extra.backend} messageApi={messageApi}></ChatWorkspace>;
+  } else if (conversation?.type === 'openclaw-gateway' && workspace) {
+    workspaceNode = <ChatWorkspace conversation_id={conversation.id} workspace={workspace} workspaceDisplayName={extra.workspaceDisplayName} eventPrefix='openclaw-gateway' backend='openclaw-gateway' messageApi={messageApi}></ChatWorkspace>;
+  } else if (conversation?.type === 'remote-agent') {
+    workspaceNode = <ChatWorkspace conversation_id={conversation.id} workspace={workspace || conversation.id} workspaceDisplayName={extra?.workspaceDisplayName} eventPrefix='remote-agent' backend='remote-agent' dataSource='moss-session' readonly messageApi={messageApi}></ChatWorkspace>;
   }
 
   return (

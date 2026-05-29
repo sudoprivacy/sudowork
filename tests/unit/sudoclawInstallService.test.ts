@@ -326,7 +326,7 @@ describe('SudoclawInstallService', () => {
 
     const repaired = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
     expect(repaired.tools.web).toEqual({ search: { provider: 'tavily' } });
-    expect(repaired.tools.deny).toEqual(['browser', 'image']);
+    expect(repaired.tools.deny).toEqual(['browser', 'image', 'canvas']);
   });
 
   it('preserves existing tools.web.search.provider value', async () => {
@@ -351,6 +351,90 @@ describe('SudoclawInstallService', () => {
 
     const repaired = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
     expect(repaired.tools.web.search.provider).toBe('custom-provider');
+  });
+
+  it('backfills tavily webSearch apiKey and baseUrl during repair', async () => {
+    const sudoclawDir = path.join(homeDir, '.nexus', 'sudoclaw');
+    fs.mkdirSync(sudoclawDir, { recursive: true });
+    const configPath = path.join(sudoclawDir, 'sudoclaw.json');
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify(
+        {
+          agents: { defaults: { workspace: '/tmp/ws' } },
+          models: {
+            providers: {
+              sudorouter: {
+                apiKey: 'router-key',
+              },
+            },
+          },
+          gateway: { port: 17863, mode: 'local', auth: { mode: 'none' }, reload: { mode: 'hot' } },
+          plugins: {
+            entries: {
+              tavily: {
+                config: {
+                  webSearch: {},
+                },
+              },
+            },
+          },
+        },
+        null,
+        2
+      )
+    );
+
+    const module = await import('@/process/services/sudoclaw/SudoclawInstallService');
+    module.repairOpenClawConfig();
+
+    const repaired = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+    expect(repaired.plugins.entries.tavily).toMatchObject({
+      enabled: true,
+      config: {
+        webSearch: {
+          apiKey: 'router-key',
+          baseUrl: 'https://hk.sudorouter.ai/search/tavily',
+        },
+      },
+    });
+  });
+
+  it('backfills tavily webSearch baseUrl without overwriting existing apiKey', async () => {
+    const sudoclawDir = path.join(homeDir, '.nexus', 'sudoclaw');
+    fs.mkdirSync(sudoclawDir, { recursive: true });
+    const configPath = path.join(sudoclawDir, 'sudoclaw.json');
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify(
+        {
+          agents: { defaults: { workspace: '/tmp/ws' } },
+          gateway: { port: 17863, mode: 'local', auth: { mode: 'none' }, reload: { mode: 'hot' } },
+          plugins: {
+            entries: {
+              tavily: {
+                config: {
+                  webSearch: {
+                    apiKey: 'plugin-key',
+                  },
+                },
+              },
+            },
+          },
+        },
+        null,
+        2
+      )
+    );
+
+    const module = await import('@/process/services/sudoclaw/SudoclawInstallService');
+    module.repairOpenClawConfig();
+
+    const repaired = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+    expect(repaired.plugins.entries.tavily.config.webSearch).toEqual({
+      apiKey: 'plugin-key',
+      baseUrl: 'https://hk.sudorouter.ai/search/tavily',
+    });
   });
 
   it('does not delete legacy dir when new sudoclaw dir already exists', async () => {

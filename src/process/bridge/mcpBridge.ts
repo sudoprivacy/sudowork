@@ -8,6 +8,9 @@ import { ipcBridge } from '../../common';
 import { mcpService } from '@process/services/mcpServices/McpService';
 import { mcpOAuthService } from '@process/services/mcpServices/McpOAuthService';
 
+// CrashReporter imports for breadcrumb tracking
+import { mcpBreadcrumbs } from '../telemetry/BreadcrumbTracker';
+
 export function initMcpBridge(): void {
   // MCP 服务相关 IPC 处理程序
   ipcBridge.mcpService.getAgentMcpConfigs.provider(async (agents) => {
@@ -25,8 +28,15 @@ export function initMcpBridge(): void {
   ipcBridge.mcpService.testMcpConnection.provider(async (server) => {
     try {
       const result = await mcpService.testMcpConnection(server);
+
+      // Breadcrumb: MCP server connect result
+      mcpBreadcrumbs.serverConnect(server.name || 'unknown', result.success ? 'success' : 'error');
+
       return { success: true, data: result };
     } catch (error) {
+      // Breadcrumb: MCP server connect error
+      mcpBreadcrumbs.serverConnect(server.name || 'unknown', 'error');
+
       return {
         success: false,
         msg: error instanceof Error ? error.message : 'Unknown error testing MCP connection',

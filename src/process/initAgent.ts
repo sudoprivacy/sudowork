@@ -5,6 +5,7 @@
  */
 
 import type { ICreateConversationParams } from '@/common/ipcBridge';
+import { getDefaultAcpModelId } from '@/common/acp/defaultModels';
 import type { TChatConversation } from '@/common/storage';
 import { uuid } from '@/common/utils';
 import fs from 'fs/promises';
@@ -48,6 +49,7 @@ const buildWorkspaceWidthFiles = async (defaultWorkspaceName: string, workspace?
 export const createAcpAgent = async (options: ICreateConversationParams): Promise<TChatConversation> => {
   const { extra } = options;
   const { workspace, customWorkspace } = await buildWorkspaceWidthFiles(`${extra.backend}-temp-${Date.now()}`, extra.workspace, extra.defaultFiles, extra.customWorkspace);
+  const currentModelId = extra.currentModelId || getDefaultAcpModelId(extra.backend) || undefined;
   return {
     type: 'acp',
     extra: {
@@ -66,7 +68,7 @@ export const createAcpAgent = async (options: ICreateConversationParams): Promis
       // Initial session mode selected on Guid page (from AgentModeSelector)
       sessionMode: extra.sessionMode,
       // Pre-selected model from Guid page (cached model list)
-      currentModelId: extra.currentModelId,
+      currentModelId,
       // Explicit marker for temporary health-check conversations
       isHealthCheck: extra.isHealthCheck,
       // Cron job metadata (set when conversation is created by a cron execution)
@@ -107,7 +109,11 @@ export const createOpenClawAgent = async (options: ICreateConversationParams): P
     await fs.mkdir(resolvedWorkspace, { recursive: true });
   }
   const { workspace, customWorkspace } = await buildWorkspaceWidthFiles(tempName, resolvedWorkspace, extra.defaultFiles, extra.customWorkspace);
-  const expectedIdentityHash = await computeOpenClawIdentityHash(workspace);
+  // Compute identity hash from the shared workspace root (where IDENTITY.md/SOUL.md live),
+  // not from the per-session temp directory. The temp workspace is only for task-specific files;
+  // identity and memory persist in the parent workspace across all sessions.
+  const sharedWorkspaceRoot = getSudoclawWorkspaceRoot();
+  const expectedIdentityHash = await computeOpenClawIdentityHash(sharedWorkspaceRoot);
 
   const stateDir = SUDOCLAW_DIR;
 
@@ -143,6 +149,45 @@ export const createOpenClawAgent = async (options: ICreateConversationParams): P
       // Pre-selected model from Guid page
       currentModelId: extra.currentModelId,
       // Cron job metadata (set when conversation is created by a cron execution)
+      cronJobId: extra.cronJobId,
+      cronJobName: extra.cronJobName,
+    },
+    createTime: Date.now(),
+    modifyTime: Date.now(),
+    name: workspace,
+    id: uuid(),
+  };
+};
+
+/**
+ * Create Remote Agent conversation (Moss Server enterprise mode)
+ * Remote agent doesn't need CLI detection - connection is established lazily when sendMessage is called
+ */
+export const createRemoteAgent = async (options: ICreateConversationParams): Promise<TChatConversation> => {
+  const { extra } = options;
+  const tempName = `moss-temp-${Date.now()}`;
+  const { workspace, customWorkspace } = await buildWorkspaceWidthFiles(tempName, extra.workspace, extra.defaultFiles, extra.customWorkspace);
+
+  return {
+    type: 'remote-agent',
+    extra: {
+      workspace: workspace,
+      customWorkspace,
+      // Moss Server specific fields
+      mossServerUrl: extra.mossServerUrl,
+      authToken: extra.authToken,
+      username: extra.username,
+      password: extra.password,
+      runtimeType: extra.runtimeType,
+      dangerouslySkipPermissions: extra.dangerouslySkipPermissions,
+      // Agent identification
+      agentName: extra.agentName,
+      customAgentId: extra.customAgentId,
+      presetAssistantId: extra.presetAssistantId,
+      presetContext: extra.presetContext,
+      enabledSkills: extra.enabledSkills,
+      sessionMode: extra.sessionMode,
+      // Cron job metadata
       cronJobId: extra.cronJobId,
       cronJobName: extra.cronJobName,
     },

@@ -180,6 +180,26 @@ function composeMessageWithIndex(message: TMessage, list: TMessage[], index: Mes
     return list.concat(message);
   }
 
+  // acp_question: merge content by msg_id (shallow merge to preserve original question/options)
+  // acp_question: 按 msg_id 合并内容（浅合并保留原始 question/options）
+  if (message.type === 'acp_question' && message.msg_id) {
+    const existingIdx = index.msgIdIndex.get(message.msg_id);
+    if (existingIdx !== undefined && existingIdx < list.length) {
+      const existingMsg = list[existingIdx];
+      if (existingMsg.type === 'acp_question') {
+        const newList = list.slice();
+        // Shallow merge content to preserve original question/options/items
+        const merged = { ...existingMsg.content, ...message.content };
+        newList[existingIdx] = { ...existingMsg, content: merged } as TMessage;
+        return newList;
+      }
+    }
+    // Not found, add as new message and update index
+    const newIdx = list.length;
+    index.msgIdIndex.set(message.msg_id, newIdx);
+    return list.concat(message);
+  }
+
   // agent_status / tips / plan and other msg_id-based messages:
   // replace the existing item in place instead of appending duplicates.
   if (message.msg_id) {

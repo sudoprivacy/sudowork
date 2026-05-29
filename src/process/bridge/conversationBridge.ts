@@ -8,6 +8,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { spawn } from 'child_process';
 import type { TChatConversation } from '@/common/storage';
+import type { IDirOrFile, MossSessionAvailableSkill, MossWorkspaceNode } from '@/common/ipcBridge';
 import fs from 'fs/promises';
 import { getDatabase } from '@process/database';
 import { cronService } from '@process/services/cron/CronService';
@@ -28,13 +29,72 @@ import { listWorkspaceSkillTargets, resolveConversationEnabledSkillNames } from 
 import { areSkillSelectionsEqual, resolveLatestConversationEnabledSkills } from '../utils/conversationAssistantSkills';
 import { copyFilesToDirectory, readDirectoryRecursive } from '../utils';
 import { computeOpenClawIdentityHash } from '../utils/openclawUtils';
+import { getSudoclawWorkspaceRoot } from '../initAgent';
 import { resolveWorkspaceSkillsDir } from '../utils/workspaceSkillsDir';
 import WorkerManage from '../WorkerManage';
 import { migrateConversationToDatabase } from './migrationUtils';
 import { skillManager } from '../SkillManager';
 import { ConversationManageWithDB } from '../message';
+import { setupChannelResponseRouting } from '@/channels/agent/ChannelResponseRouter';
+import { startConversationTracking, endConversationSuccess, endConversationError } from '../telemetry';
+import { getConversationProvider, isRemoteProvider } from '../providers';
+import { getMossApi, getMossApiServerUrl, initMossApi } from '../remote/MossSessionApi';
 
 const workspaceSkillSyncTasks = new Map<string, Promise<void>>();
+
+type RemoteConversationExtra = NonNullable<TChatConversation['extra']> & {
+  mossSessionId?: string;
+  mossSessionPending?: boolean;
+  mossServerUrl?: string;
+  authToken?: string;
+};
+
+function convertMossWorkspaceNode(node: MossWorkspaceNode): IDirOrFile {
+  return {
+    name: node.name,
+    fullPath: node.fullPath,
+    relativePath: node.relativePath,
+    isDir: node.isDir,
+    isFile: node.isFile,
+    children: node.children?.map(convertMossWorkspaceNode),
+  };
+}
+
+function getRemoteConversationSession(conversationId: string): { conversation: TChatConversation; extra: RemoteConversationExtra; mossSessionId?: string; pending: boolean } {
+  const db = getDatabase();
+  const result = db.getConversation(conversationId);
+  if (!result.success || !result.data) {
+    throw new Error('conversation not found');
+  }
+
+  const conversation = result.data;
+  if (conversation.type !== 'remote-agent') {
+    throw new Error('conversation is not remote-agent');
+  }
+
+  const extra = (conversation.extra ?? {}) as RemoteConversationExtra;
+  const mossSessionId = extra.mossSessionId;
+  return {
+    conversation,
+    extra,
+    mossSessionId,
+    pending: Boolean(extra.mossSessionPending || !mossSessionId),
+  };
+}
+
+function getRemoteConversationMossApi(extra: RemoteConversationExtra) {
+  const serverUrl = extra.mossServerUrl;
+  if (!serverUrl) {
+    throw new Error('Moss Server URL not configured');
+  }
+
+  const currentApi = getMossApi();
+  const api = currentApi && getMossApiServerUrl() === serverUrl ? currentApi : initMossApi(serverUrl);
+  if (extra.authToken) {
+    api.setAccessToken(extra.authToken);
+  }
+  return api;
+}
 
 async function syncConversationWorkspaceSkills(conversation: TChatConversation | undefined, requestedSkillNames?: string[]): Promise<void> {
   if (!shouldSyncWorkspaceSkills(conversation, requestedSkillNames)) return;
@@ -159,40 +219,64 @@ async function syncConversationWorkspaceSkills(conversation: TChatConversation |
   });
 }
 
+function queueConversationWorkspaceSkillSync(conversation: TChatConversation | undefined, requestedSkillNames?: string[]): Promise<void> {
+  if (!shouldSyncWorkspaceSkills(conversation, requestedSkillNames)) {
+    return Promise.resolve();
+  }
+
+  const workspace = conversation.extra.workspace;
+  const previousTask = workspaceSkillSyncTasks.get(workspace) ?? Promise.resolve();
+  const task = previousTask.then(
+    async () => {
+      await syncConversationWorkspaceSkills(conversation, requestedSkillNames);
+    },
+    async () => {
+      await syncConversationWorkspaceSkills(conversation, requestedSkillNames);
+    }
+  );
+
+  workspaceSkillSyncTasks.set(workspace, task);
+
+  return task.finally(() => {
+    if (workspaceSkillSyncTasks.get(workspace) === task) {
+      workspaceSkillSyncTasks.delete(workspace);
+    }
+  });
+}
+
+function ensureConversationWorkspaceSkillSync(conversation: TChatConversation | undefined): Promise<void> {
+  if (!shouldSyncWorkspaceSkills(conversation)) {
+    return Promise.resolve();
+  }
+
+  const existingTask = workspaceSkillSyncTasks.get(conversation.extra.workspace);
+  if (existingTask) {
+    return existingTask;
+  }
+
+  return queueConversationWorkspaceSkillSync(conversation);
+}
+
 function scheduleConversationWorkspaceSkillSync(conversation: TChatConversation | undefined): void {
   if (!shouldSyncWorkspaceSkills(conversation)) return;
   const workspace = conversation.extra.workspace;
 
-  const existingTask = workspaceSkillSyncTasks.get(workspace);
-  if (existingTask) {
-    mainLog('ConversationSkillSync', 'scheduleConversationWorkspaceSkillSync skipped: task already running', {
-      conversationId: conversation?.id,
-      workspace,
-    });
-    return;
-  }
-
   mainLog('ConversationSkillSync', 'scheduleConversationWorkspaceSkillSync queued', {
     conversationId: conversation?.id,
     workspace,
+    hasPendingTask: workspaceSkillSyncTasks.has(workspace),
   });
 
-  const task = Promise.resolve()
-    .then(async () => {
-      await syncConversationWorkspaceSkills(conversation);
-    })
+  void ensureConversationWorkspaceSkillSync(conversation)
     .catch((error) => {
       mainWarn('ConversationSkillSync', 'Failed to sync workspace skills', error);
     })
     .finally(() => {
-      workspaceSkillSyncTasks.delete(workspace);
       mainLog('ConversationSkillSync', 'scheduleConversationWorkspaceSkillSync finished', {
         conversationId: conversation?.id,
         workspace,
       });
     });
-
-  workspaceSkillSyncTasks.set(workspace, task);
 }
 
 export function initConversationBridge(): void {
@@ -214,7 +298,9 @@ export function initConversationBridge(): void {
       await task.bootstrap.catch(() => {});
 
       const diagnostics = task.getDiagnostics();
-      const identityHash = await computeOpenClawIdentityHash(diagnostics.workspace || conversation.extra?.workspace);
+      // Compute identity hash from the shared workspace root (where IDENTITY.md/SOUL.md live),
+      // not from the per-session temp directory.
+      const identityHash = await computeOpenClawIdentityHash(getSudoclawWorkspaceRoot());
       const conversationModel = (conversation as { model?: { useModel?: string } }).model;
       const resolvedModel = diagnostics.model || conversation.extra?.openclawModelId || conversation.extra?.runtimeValidation?.expectedModel || conversationModel?.useModel;
 
@@ -431,19 +517,32 @@ export function initConversationBridge(): void {
   });
 
   ipcBridge.conversation.create.provider(async (params): Promise<TChatConversation> => {
-    // 使用 ConversationService 创建会话 / Use ConversationService to create conversation
-    const result = await ConversationService.createConversation({
-      ...params,
-      source: 'aionui', // AionUI 创建的会话标记为 aionui / Mark conversations created by AionUI as aionui
-    });
+    // Use Provider abstraction layer for conversation creation
+    // 使用 Provider 抽象层创建会话
+    mainLog('conversationBridge', `Creating conversation: type=${params.type}, name=${params.name}`);
 
-    if (!result.success || !result.conversation) {
-      throw new Error(result.error || 'Failed to create conversation');
+    // Read sessionMode from extra.sessionModeParam (rendered process passes it explicitly)
+    // 从 extra.sessionModeParam 读取 sessionMode（渲染进程显式传递）
+    const sessionMode = params.extra?.sessionModeParam as 'remote' | 'local' | undefined;
+
+    // Enterprise mode Remote session: force remote-agent type for all conversations
+    // 企业模式 Remote 会话：强制使用 remote-agent 类型
+    // Local session in enterprise mode should NOT be forced to remote-agent
+    // 企业模式 Local 会话不应强制为 remote-agent
+    let finalParams = params;
+    if (isRemoteProvider(sessionMode) && params.type !== 'remote-agent') {
+      mainLog('conversationBridge', `Enterprise remote mode: forcing remote-agent type`);
+      finalParams = { ...params, type: 'remote-agent' };
     }
 
-    scheduleConversationWorkspaceSkillSync(result.conversation);
+    const provider = getConversationProvider(sessionMode);
+    const conversation = await provider.createConversation(finalParams);
 
-    return result.conversation;
+    mainLog('conversationBridge', `Conversation created successfully: id=${conversation.id}`);
+
+    scheduleConversationWorkspaceSkillSync(conversation);
+
+    return conversation;
   });
 
   // Reload context is not supported for ACP or OpenClaw agents
@@ -576,7 +675,7 @@ export function initConversationBridge(): void {
         return { success: false, msg: 'Conversation not found' };
       }
 
-      scheduleConversationWorkspaceSkillSync(result.data);
+      await ensureConversationWorkspaceSkillSync(result.data);
       return { success: true };
     } catch (error) {
       mainError('conversationBridge', 'Failed to sync workspace skills:', error);
@@ -584,24 +683,27 @@ export function initConversationBridge(): void {
     }
   });
 
-  ipcBridge.conversation.remove.provider(async ({ id }) => {
+  ipcBridge.conversation.remove.provider(async ({ id, deleteWorkspace }) => {
     try {
-      const db = getDatabase();
-
       // Get conversation to check source before deletion
+      const db = getDatabase();
       const convResult = db.getConversation(id);
       const conversation = convResult.data;
       const source = conversation?.source;
+      const workspacePath = (conversation?.extra as { workspace?: string } | undefined)?.workspace;
+      const isCronExecutionConversation = !!(conversation?.extra as { cronJobId?: string } | undefined)?.cronJobId;
 
       // Kill the running task if exists
       WorkerManage.kill(id);
 
       // Delete associated cron jobs
       try {
-        const jobs = await cronService.listJobsByConversation(id);
-        for (const job of jobs) {
-          await cronService.removeJob(job.id);
-          ipcBridge.cron.onJobRemoved.emit({ jobId: job.id });
+        if (!isCronExecutionConversation) {
+          const jobs = await cronService.listJobsByConversation(id);
+          for (const job of jobs) {
+            await cronService.removeJob(job.id);
+            ipcBridge.cron.onJobRemoved.emit({ jobId: job.id });
+          }
         }
       } catch (cronError) {
         mainWarn('conversationBridge', 'Failed to cleanup cron jobs:', cronError);
@@ -621,10 +723,24 @@ export function initConversationBridge(): void {
         }
       }
 
-      // Delete conversation from database (will cascade delete messages due to foreign key)
-      const result = db.deleteConversation(id);
-      if (!result.success) {
-        mainError('conversationBridge', 'Failed to delete conversation from database:', result.error);
+      // Delete workspace folder if requested
+      // 如果用户选择了同时删除工作区文件夹，则删除
+      if (deleteWorkspace && workspacePath) {
+        try {
+          await fs.rm(workspacePath, { recursive: true, force: true });
+          mainLog('conversationBridge', `Deleted workspace folder: ${workspacePath}`);
+        } catch (workspaceError) {
+          mainWarn('conversationBridge', `Failed to delete workspace folder ${workspacePath}:`, workspaceError);
+        }
+      }
+
+      // Use Provider abstraction layer for deletion (will cascade delete messages due to foreign key)
+      // 使用 Provider 抽象层删除会话（由于外键约束会级联删除消息）
+      const provider = getConversationProvider();
+      const success = await provider.deleteConversation(id);
+
+      if (!success) {
+        mainError('conversationBridge', 'Failed to delete conversation');
         return false;
       }
 
@@ -637,35 +753,28 @@ export function initConversationBridge(): void {
 
   ipcBridge.conversation.update.provider(async ({ id, updates, mergeExtra }: { id: string; updates: Partial<TChatConversation>; mergeExtra?: boolean }) => {
     try {
+      // Check for model change (local mode only) / 检查模型变更（仅本地模式）
       const db = getDatabase();
       const existing = db.getConversation(id);
       const prevModel = existing.success && existing.data && 'model' in existing.data ? existing.data.model : undefined;
       const nextModel = 'model' in updates ? updates.model : undefined;
       const modelChanged = !!nextModel && JSON.stringify(prevModel) !== JSON.stringify(nextModel);
 
-      let finalUpdates = updates;
-      if (mergeExtra && updates.extra && existing.success && existing.data) {
-        finalUpdates = {
-          ...updates,
-          extra: {
-            ...existing.data.extra,
-            ...updates.extra,
-          },
-        } as Partial<TChatConversation>;
-      }
-
-      const result = await Promise.resolve(db.updateConversation(id, finalUpdates));
+      // Use Provider abstraction layer / 使用 Provider 抽象层
+      const provider = getConversationProvider();
+      const success = await provider.updateConversation(id, updates, mergeExtra);
 
       // If model changed, kill running task to force rebuild with new model on next send
-      if (result.success && modelChanged) {
+      // 如果模型变更，终止运行中的任务以在下次发送时强制重建
+      if (success && modelChanged) {
         try {
           WorkerManage.kill(id);
-        } catch (killErr) {
-          // ignore kill error, will lazily rebuild later
+        } catch {
+          // ignore kill error, will lazily rebuild later / 忽略终止错误，稍后延迟重建
         }
       }
 
-      return result.success;
+      return success;
     } catch (error) {
       mainError('conversationBridge', 'Failed to update conversation:', error);
       return false;
@@ -676,35 +785,27 @@ export function initConversationBridge(): void {
     if (id) {
       WorkerManage.kill(id);
     } else {
-      WorkerManage.clear();
+      void WorkerManage.clear();
     }
     return Promise.resolve();
   });
 
-  ipcBridge.conversation.get.provider(async ({ id }) => {
+  ipcBridge.conversation.get.provider(async ({ id }): Promise<TChatConversation | undefined> => {
     try {
-      const db = getDatabase();
+      // Use Provider abstraction layer / 使用 Provider 抽象层
+      const provider = getConversationProvider();
+      const conversation = await provider.getConversation(id);
 
-      const result = db.getConversation(id);
-      if (result.success && result.data) {
-        const conversation = result.data;
-        const task = WorkerManage.getTaskById(id);
-        const taskStatus = task?.status === 'idle' ? 'finished' : task?.status;
-        conversation.status = taskStatus || 'finished';
-        return conversation;
-      }
-
-      const history = await ProcessChat.get('chat.history');
-      const conversation = (history || []).find((item) => item.id === id);
       if (conversation) {
+        // Update status from running task / 从运行中的任务更新状态
         const task = WorkerManage.getTaskById(id);
         const taskStatus = task?.status === 'idle' ? 'finished' : task?.status;
         conversation.status = taskStatus || 'finished';
-        void migrateConversationToDatabase(conversation);
-        return conversation;
+        // Update processingStartTime from running task / 从运行中的任务更新处理开始时间
+        conversation.processingStartTime = task?.processingStartTime;
       }
 
-      return undefined;
+      return conversation;
     } catch (error) {
       mainError('conversationBridge', 'Failed to get conversation:', error);
       return undefined;
@@ -800,10 +901,64 @@ export function initConversationBridge(): void {
     }
   });
 
+  ipcBridge.conversation.getRemoteWorkspace.provider(async ({ conversation_id, search, path: relativePath }) => {
+    try {
+      const { extra, mossSessionId, pending } = getRemoteConversationSession(conversation_id);
+      if (pending || !mossSessionId) {
+        return { success: true, data: { files: [], pending: true } };
+      }
+
+      const api = getRemoteConversationMossApi(extra);
+      const root = await api.getSessionWorkspaceTree(mossSessionId, {
+        path: relativePath,
+        search: search || undefined,
+      });
+      return { success: true, data: { files: [convertMossWorkspaceNode(root)], pending: false } };
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      mainWarn('conversationBridge', 'getRemoteWorkspace failed:', msg);
+      return { success: false, msg, data: { files: [], pending: false } };
+    }
+  });
+
+  ipcBridge.conversation.previewRemoteWorkspaceFile.provider(async ({ conversation_id, path: relativePath }) => {
+    try {
+      const { extra, mossSessionId, pending } = getRemoteConversationSession(conversation_id);
+      if (pending || !mossSessionId) {
+        return { success: false, msg: 'Moss session is pending' };
+      }
+
+      const api = getRemoteConversationMossApi(extra);
+      const preview = await api.getSessionWorkspaceFile(mossSessionId, { path: relativePath });
+      return { success: true, data: preview };
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      mainWarn('conversationBridge', 'previewRemoteWorkspaceFile failed:', msg);
+      return { success: false, msg };
+    }
+  });
+
+  ipcBridge.conversation.getRemoteAvailableSkills.provider(async ({ conversation_id }) => {
+    try {
+      const { extra, mossSessionId, pending } = getRemoteConversationSession(conversation_id);
+      if (pending || !mossSessionId) {
+        return { success: true, data: { skills: [], pending: true } };
+      }
+
+      const api = getRemoteConversationMossApi(extra);
+      const skills: MossSessionAvailableSkill[] = await api.getSessionAvailableSkills(mossSessionId);
+      return { success: true, data: { skills, pending: false } };
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      mainWarn('conversationBridge', 'getRemoteAvailableSkills failed:', msg);
+      return { success: false, msg, data: { skills: [], pending: false } };
+    }
+  });
+
   ipcBridge.conversation.stop.provider(async ({ conversation_id }) => {
     const task = WorkerManage.getTaskById(conversation_id);
     if (!task) return { success: true, msg: 'conversation not found' };
-    if (task.type !== 'acp' && task.type !== 'openclaw-gateway') {
+    if (task.type !== 'acp' && task.type !== 'openclaw-gateway' && task.type !== 'remote-agent') {
       return { success: false, msg: 'not support' };
     }
     await task.stop();
@@ -821,7 +976,7 @@ export function initConversationBridge(): void {
       const imageCommand: import('@/common/slash/types').SlashCommandItem = { name: 'image', description: 'Generate an image', hint: 'generate an image', kind: 'template', source: 'builtin' };
 
       const conversation = convResult.data;
-      if (conversation.type === 'openclaw-gateway') {
+      if (conversation.type === 'openclaw-gateway' || conversation.type === 'remote-agent') {
         return { success: true, data: { commands: [imageCommand] } };
       }
 
@@ -845,9 +1000,9 @@ export function initConversationBridge(): void {
   ipcBridge.conversation.sendMessage.provider(async ({ conversation_id, files, ...other }) => {
     mainLog('conversationBridge', `sendMessage called: conversation_id=${conversation_id}, msg_id=${other.msg_id}`);
 
-    let task: AcpAgent | OpenClawAgent | undefined;
+    let task: AcpAgent | OpenClawAgent | import('../task/RemoteAgent').default | undefined;
     try {
-      task = (await WorkerManage.getTaskByIdRollbackBuild(conversation_id)) as AcpAgent | OpenClawAgent | undefined;
+      task = (await WorkerManage.getTaskByIdRollbackBuild(conversation_id)) as AcpAgent | OpenClawAgent | import('../task/RemoteAgent').default | undefined;
     } catch (err) {
       mainLog('conversationBridge', `sendMessage: failed to get/build task: ${conversation_id}`, err);
       return { success: false, msg: err instanceof Error ? err.message : 'conversation not found' };
@@ -868,7 +1023,7 @@ export function initConversationBridge(): void {
     }
 
     // Download bdpan:// files to workspace before copying
-    const workspace = task.workspace ?? '';
+    const workspace = (task as any).workspace ?? '';
     const resolvedFiles: string[] = [];
     for (const f of filesToProcess) {
       if (f.startsWith('bdpan://')) {
@@ -1019,7 +1174,7 @@ This identity statement takes priority over the default identity in USER.md.
 
     // Ensure workspace skills symlinks exist before dispatching to the gateway.
     // syncConversationWorkspaceSkills is idempotent — it skips symlinks that are already correct.
-    await syncConversationWorkspaceSkills(conversation, other.skills);
+    await queueConversationWorkspaceSkillSync(conversation, other.skills);
 
     try {
       // Build the unified payload for both ACP and OpenClaw agents
@@ -1067,8 +1222,18 @@ This identity statement takes priority over the default identity in USER.md.
       }
 
       mainLog('conversationBridge', `sendMessage: about to call task.sendMessage for ${conversation_id}`);
-      await task.sendMessage(payload);
-      mainLog('conversationBridge', `sendMessage: task.sendMessage completed for ${conversation_id}`);
+
+      // Set up channel response routing if conversation source is a channel type
+      if (conversation) {
+        setupChannelResponseRouting(conversation);
+      }
+
+      try {
+        await task.sendMessage(payload);
+        mainLog('conversationBridge', `sendMessage: task.sendMessage completed for ${conversation_id}`);
+      } finally {
+        // Listener will self-cleanup on 'finish' event
+      }
       return { success: true };
     } catch (err: unknown) {
       return { success: false, msg: err instanceof Error ? err.message : String(err) };
@@ -1113,6 +1278,31 @@ This identity statement takes priority over the default identity in USER.md.
     } catch (error) {
       mainError('conversationBridge', 'Error adding message:', error);
       return Promise.resolve();
+    }
+  });
+
+  // Sync messages from Moss Server to local DB (enterprise mode, triggered on conversation click)
+  ipcBridge.conversation.syncMessages.provider(async ({ conversation_id }) => {
+    try {
+      const provider = getConversationProvider();
+      if (provider.type !== 'remote' || !provider.syncFromMossServer) {
+        return { success: true, data: { syncedCount: 0, nameUpdated: false } };
+      }
+
+      const result = await provider.syncFromMossServer(conversation_id);
+
+      if (result.nameUpdated) {
+        ipcBridge.database.conversationChanged.emit({
+          conversationId: conversation_id,
+          source: 'aionui',
+          action: 'updated',
+        });
+      }
+
+      return { success: true, data: result };
+    } catch (error) {
+      mainError('conversationBridge', 'Error syncing messages from Moss Server:', error);
+      return { success: false, msg: error instanceof Error ? error.message : String(error), data: { syncedCount: 0, nameUpdated: false } };
     }
   });
 }

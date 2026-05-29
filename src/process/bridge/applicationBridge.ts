@@ -11,8 +11,11 @@ import { copyDirectoryRecursively } from '../utils';
 import WorkerManage from '../WorkerManage';
 import { getZoomFactor, setZoomFactor } from '../utils/zoom';
 import { getCdpStatus, updateCdpConfig, verifyCdpReady } from '../../utils/configureChromium';
+import { initStatusManager } from '../services/initStatus';
+import { getChannelManager } from '../../channels';
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
+import { mainLog, mainError } from '../utils/mainLogger';
 
 export function initApplicationBridge(): void {
   ipcBridge.application.restart.provider(() => {
@@ -22,6 +25,33 @@ export function initApplicationBridge(): void {
     app.relaunch();
     app.exit(0);
     return Promise.resolve();
+  });
+
+  // Start consumer-mode services without restarting the app.
+  // Called from ModeSetup when user selects "普通用户" — avoids a full app relaunch.
+  ipcBridge.application.startConsumerServices.provider(async () => {
+    try {
+      mainLog('Application', 'Starting consumer services (hot-start from ModeSetup)...');
+
+      // Reset status so InitLoading shows after renderer reloads
+      initStatusManager.setStatus('pending', '正在启动核心服务...', 0);
+      initStatusManager.setDisplayMode('full');
+
+      // Dynamically import and start serviceManager (same as initializeProcess consumer branch)
+      const { serviceManager } = await import('../services/serviceManager');
+      void serviceManager.startup();
+
+      // Start ChannelManager
+      getChannelManager().initialize().catch((error) => {
+        mainError('Application', 'Failed to initialize ChannelManager (hot-start):', error);
+      });
+
+      mainLog('Application', 'Consumer services start requested successfully');
+      return { success: true };
+    } catch (error) {
+      mainError('Application', 'Failed to start consumer services:', error);
+      return { success: false, msg: error instanceof Error ? error.message : String(error) };
+    }
   });
 
   ipcBridge.application.updateSystemInfo.provider(async ({ cacheDir, workDir }) => {

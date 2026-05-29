@@ -10,7 +10,7 @@ import path from 'path';
 import { toAssetUrl } from '@/extensions/assetProtocol';
 
 /** COS base URL for Hub skill icons */
-const HUB_SKILL_ICON_COS_BASE = 'https://sudoclaw-1309794936.cos.ap-beijing.myqcloud.com/';
+const HUB_SKILL_ICON_COS_BASE = 'https://sudoworkhub-1309794936.cos.ap-beijing.myqcloud.com/';
 
 export type ScannedWorkspaceSkill = {
   name: string;
@@ -100,6 +100,12 @@ function resolveDeclaredIconUrl(skillPath: string, icon?: string): string | unde
   const normalized = icon?.trim();
   if (!normalized) return undefined;
 
+  // Keep the upload fallback icon token intact so the renderer can map it to
+  // the bundled local asset instead of treating it as a Hub CDN path.
+  if (normalized === 'upload_skill_default.svg') {
+    return normalized;
+  }
+
   // Absolute URLs and protocol URLs: return directly
   if (normalized.startsWith('http://') || normalized.startsWith('https://') || normalized.startsWith('/') || normalized.startsWith('aion-asset://') || normalized.startsWith('data:') || normalized.startsWith('file://')) {
     return normalized;
@@ -139,7 +145,14 @@ async function readSkillMeta(skillPath: string): Promise<SkillMeta | undefined> 
 export async function scanWorkspaceSkills(folderPath: string): Promise<ScannedWorkspaceSkill[]> {
   const skills: ScannedWorkspaceSkill[] = [];
 
-  await fs.access(folderPath);
+  try {
+    await fs.access(folderPath);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      return skills;
+    }
+    throw error;
+  }
   const entries = await fs.readdir(folderPath, { withFileTypes: true });
 
   for (const entry of entries) {

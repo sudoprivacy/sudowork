@@ -7,6 +7,7 @@
 import { ipcBridge, type IOpenClawModelsResponse } from '../../common';
 import type { SudoclawConfig } from '@/common/ipcBridge';
 import { mainLog, mainError } from '@/process/utils/mainLogger';
+import { userBreadcrumbs } from '@process/telemetry/BreadcrumbTracker';
 
 const MODEL_API_URL = 'https://hk.sudorouter.ai/api/specific_pricing';
 
@@ -56,6 +57,9 @@ export function initOpenClawBridge(): void {
   });
 
   ipcBridge.openclaw.selectModel.provider(async (params) => {
+    // Breadcrumb: model selected
+    userBreadcrumbs.selectModel(params.modelId, 'openclaw');
+
     mainLog('OpenClawBridge', 'Model selected', {
       conversationId: params.conversationId,
       modelId: params.modelId,

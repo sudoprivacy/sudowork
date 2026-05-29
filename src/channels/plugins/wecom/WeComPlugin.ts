@@ -297,15 +297,15 @@ export class WeComPlugin extends BasePlugin {
     }
 
     // Otherwise, use proactive push (aibot_send_msg)
-    const { type: chatType } = parseChatId(chatId);
+    const { type: chatType, id: pureId } = parseChatId(chatId);
     const sendReqId = this.generateReqId();
-    console.log(`[WeComPlugin] sendMessage: using proactive push, chatType=${chatType}, sendReqId=${sendReqId}`);
+    console.log(`[WeComPlugin] sendMessage: using proactive push, chatType=${chatType}, pureId=${pureId}, sendReqId=${sendReqId}`);
 
     this.send({
       cmd: 'aibot_send_msg',
       headers: { req_id: sendReqId },
       body: {
-        chatid: chatId,
+        chatid: pureId,
         chat_type: chatType === 'group' ? 2 : 1,
         msgtype: 'markdown',
         markdown: { content: truncatedContent },
@@ -410,14 +410,14 @@ export class WeComPlugin extends BasePlugin {
       });
     } else {
       // Proactive push
-      const { type: chatType } = parseChatId(chatId);
+      const { type: chatType, id: pureId } = parseChatId(chatId);
       const sendReqId = this.generateReqId();
 
       this.send({
         cmd: 'aibot_send_msg',
         headers: { req_id: sendReqId },
         body: {
-          chatid: chatId,
+          chatid: pureId,
           chat_type: chatType === 'group' ? 2 : 1,
           msgtype: 'image',
           image: { media_id: mediaId },
@@ -450,14 +450,14 @@ export class WeComPlugin extends BasePlugin {
       });
     } else {
       // Proactive push
-      const { type: chatType } = parseChatId(chatId);
+      const { type: chatType, id: pureId } = parseChatId(chatId);
       const sendReqId = this.generateReqId();
 
       this.send({
         cmd: 'aibot_send_msg',
         headers: { req_id: sendReqId },
         body: {
-          chatid: chatId,
+          chatid: pureId,
           chat_type: chatType === 'group' ? 2 : 1,
           msgtype: 'file',
           file: { media_id: mediaId },

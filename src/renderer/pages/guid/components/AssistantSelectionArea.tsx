@@ -5,7 +5,7 @@
  */
 
 import { CUSTOM_AVATAR_IMAGE_MAP } from '../constants';
-import type { AcpBackendConfig } from '../types';
+import type { AcpBackendConfig, AvailableAgent } from '../types';
 import { Plus, Robot } from '@icon-park/react';
 import React from 'react';
 import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
@@ -16,30 +16,82 @@ type AssistantSelectionAreaProps = {
   customAgents: AcpBackendConfig[];
   localeKey: string;
   onSelectAssistant: (assistantId: string) => void;
+  /** Enterprise mode available agents (cloud assistants) for Remote mode */
+  availableAgents?: AvailableAgent[];
+  /** Current session mode (remote/local) for enterprise mode */
+  sessionMode?: 'remote' | 'local';
+  /** Whether the app is in enterprise mode */
+  isEnterprise?: boolean;
 };
+
+function dedupeAssistantsForDisplay(agents: AcpBackendConfig[], localeKey: string): AcpBackendConfig[] {
+  const seen = new Set<string>();
+  const deduped: AcpBackendConfig[] = [];
+  for (const agent of agents) {
+    const displayName = agent.nameI18n?.[localeKey] || agent.nameI18n?.['zh-CN'] || agent.nameI18n?.['en-US'] || agent.name;
+    const keys = [agent.id, displayName.trim().toLowerCase()].filter(Boolean);
+    if (keys.some((key) => seen.has(key))) continue;
+    for (const key of keys) {
+      seen.add(key);
+    }
+    deduped.push(agent);
+  }
+  return deduped;
+}
 
 /**
  * Renders the assistant selection grid (pill list) when no assistant is selected.
  * The selected assistant view (header, description, prompts) is now handled
  * directly in GuidPage for proper layout ordering.
  */
-const AssistantSelectionArea: React.FC<AssistantSelectionAreaProps> = ({ customAgents, localeKey, onSelectAssistant }) => {
+const AssistantSelectionArea: React.FC<AssistantSelectionAreaProps> = ({ customAgents, localeKey, onSelectAssistant, availableAgents, sessionMode, isEnterprise }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
 
-  // Only render if there are any assistants (preset or user-created)
+  // Enterprise Remote mode: render assistants from customAgents
+  // E端 Remote 模式：助手来自本地 hub/system/custom/tenant 文件夹，id 为 UUID，存放在 customAgents
+  if (isEnterprise && sessionMode === 'remote') {
+    const cloudAssistants = dedupeAssistantsForDisplay(
+      (customAgents || []).filter((a) => a.enabled !== false),
+      localeKey
+    );
+    if (cloudAssistants.length === 0) return null;
+
+    return (
+      <div className='mt-16px w-full'>
+        <div className='flex flex-wrap gap-8px justify-center'>
+          {cloudAssistants.map((assistant) => {
+            const avatarValue = assistant.avatar?.trim();
+            const mappedAvatar = avatarValue ? CUSTOM_AVATAR_IMAGE_MAP[avatarValue] : undefined;
+            const resolvedAvatar = avatarValue ? resolveExtensionAssetUrl(avatarValue) : undefined;
+            const avatarImage = mappedAvatar || resolvedAvatar;
+            const isImageAvatar = Boolean(avatarImage && (/\.(svg|png|jpe?g|webp|gif)$/i.test(avatarImage) || /^(https?:|aion-asset:\/\/|file:\/\/|data:)/i.test(avatarImage)));
+            return (
+              <div key={assistant.id} className='h-28px group flex items-center gap-8px px-16px rd-100px cursor-pointer transition-all b-1 b-solid bg-fill-0 hover:bg-fill-1 select-none' style={{ borderWidth: '1px', borderColor: 'var(--bg-3)' }} onClick={() => onSelectAssistant(`custom:${assistant.id}`)}>
+                {isImageAvatar ? <img src={avatarImage} alt='' width={16} height={16} style={{ objectFit: 'contain' }} /> : avatarValue ? <span style={{ fontSize: 16, lineHeight: '18px' }}>{avatarValue}</span> : <Robot theme='outline' size={16} />}
+                <span className='text-14px text-2 hover:text-1'>{assistant.nameI18n?.[localeKey] || assistant.name}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  // Local mode / C端：需要 customAgents 数据才能渲染
   if (!customAgents || customAgents.length === 0) return null;
 
   // Separate preset assistants (builtin + hub-installed) from user-created custom assistants
   const presetAgents = customAgents.filter((a) => a.isPreset);
   const userCreatedAgents = customAgents.filter((a) => !a.isPreset);
 
-  const allowedPresetIds = ['builtin-ui-ux-pro-max', 'builtin-planning-with-files', 'builtin-beautiful-mermaid', 'builtin-moltbook', 'builtin-copilot', 'builtin-doctor', 'builtin-jiansheku'];
-  const allowedBuiltinPresets = presetAgents.filter((a) => allowedPresetIds.includes(a.id));
+  // const allowedPresetIds = ['builtin-ui-ux-pro-max', 'builtin-planning-with-files', 'builtin-beautiful-mermaid', 'builtin-moltbook', 'builtin-copilot', 'builtin-doctor', 'builtin-jiansheku'];
+  // const allowedBuiltinPresets = presetAgents.filter((a) => allowedPresetIds.includes(a.id));
+  const allowedBuiltinPresets: AcpBackendConfig[] = []; // Hidden: builtin assistants temporarily disabled
   const hubInstalledPresets = presetAgents.filter((a) => !a.id.startsWith('builtin-'));
 
   // Combine: allowed builtin presets + hub-installed presets + user-created custom assistants
-  const filteredAgents = [...allowedBuiltinPresets, ...hubInstalledPresets, ...userCreatedAgents];
+  const filteredAgents = dedupeAssistantsForDisplay([...allowedBuiltinPresets, ...hubInstalledPresets, ...userCreatedAgents], localeKey);
 
   // Assistant List View
   return (

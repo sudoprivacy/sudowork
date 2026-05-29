@@ -13,11 +13,15 @@ import http from 'node:http';
 import { app } from 'electron';
 import JSZip from 'jszip';
 import { ipcBridge } from '../../common';
-import { getSystemDir, getAssistantsDir, getSkillsDir } from '../initStorage';
-import { ASSISTANT_SUBDIRS, ASSISTANT_META_FILE } from '../constants/assistantStorage';
+import { getSystemDir, getAssistantsDir, getSkillsDir, getHubAssistantsDir, getSystemAssistantsDir, getCustomAssistantsDir } from '../initStorage';
+import { ASSISTANT_SUBDIRS, ENTERPRISE_ASSISTANT_SUBDIRS, ASSISTANT_META_FILE } from '../constants/assistantStorage';
+import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
 import { readDirectoryRecursive } from '../utils';
 import { scanWorkspaceSkills } from '../utils/scanWorkspaceSkills';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
+
+// CrashReporter imports for breadcrumb tracking
+import { fileBreadcrumbs } from '../telemetry/BreadcrumbTracker';
 
 // ============================================================================
 // Helper functions for builtin resource directory resolution
@@ -115,16 +119,17 @@ async function readBuiltinResource(resourceType: ResourceType, fileName: string)
  * 读取助手资源文件，支持语言回退
  *
  * Directory structure:
- * - Hub: _hub/{name}/{ruleFile} or {ruleFileBase}.{locale}.md
- * - System: _system/{name}/{ruleFile} or {ruleFileBase}.{locale}.md
- * - Custom: _my-custom-assistant/{id}/AGENT.md
+ * Enterprise mode: hub/{name}, system/{name}, custom/{id}
+ * Personal mode: _hub/{name}, _system/{name}, _my-custom-assistant/{id}
  */
 async function readAssistantResource(resourceType: ResourceType, assistantId: string, locale: string, fileNamePattern: (id: string, loc: string) => string): Promise<string> {
   const assistantsDir = getAssistantsDir();
   const locales = [locale, 'en-US', 'zh-CN'].filter((l, i, arr) => arr.indexOf(l) === i);
 
-  // 1. Try new directory structure (hub, system, custom)
-  const subdirs = [ASSISTANT_SUBDIRS.hub, ASSISTANT_SUBDIRS.system, ASSISTANT_SUBDIRS.custom];
+  // 1. Try new directory structure (hub, system, custom) - mode-aware
+  const subdirs = isEnterpriseMode()
+    ? [ENTERPRISE_ASSISTANT_SUBDIRS.hub, ENTERPRISE_ASSISTANT_SUBDIRS.system, ENTERPRISE_ASSISTANT_SUBDIRS.custom]
+    : [ASSISTANT_SUBDIRS.hub, ASSISTANT_SUBDIRS.system, ASSISTANT_SUBDIRS.custom];
   for (const subdir of subdirs) {
     const assistantDir = path.join(assistantsDir, subdir, assistantId);
     try {
@@ -207,8 +212,9 @@ async function readAssistantResource(resourceType: ResourceType, assistantId: st
  * Write assistant resource file to user directory
  * 写入助手资源文件到用户目录
  *
- * New directory structure for custom assistants:
- * - Custom: _my-custom-assistant/{id}/AGENT.md
+ * Directory structure:
+ * Enterprise mode: custom/{id}/AGENT.md
+ * Personal mode: _my-custom-assistant/{id}/AGENT.md
  */
 async function writeAssistantResource(resourceType: ResourceType, assistantId: string, content: string, locale: string, fileNamePattern: (id: string, loc: string) => string): Promise<boolean> {
   try {
@@ -217,7 +223,9 @@ async function writeAssistantResource(resourceType: ResourceType, assistantId: s
     // Check if the assistant directory exists in any of the new subdirs (hub, system, custom).
     // This ensures writes go to the same location that readAssistantResource() reads from,
     // preventing a read/write path mismatch where edits would be silently lost.
-    const subdirs = [ASSISTANT_SUBDIRS.custom, ASSISTANT_SUBDIRS.hub, ASSISTANT_SUBDIRS.system];
+    const subdirs = isEnterpriseMode()
+      ? [ENTERPRISE_ASSISTANT_SUBDIRS.custom, ENTERPRISE_ASSISTANT_SUBDIRS.hub, ENTERPRISE_ASSISTANT_SUBDIRS.system]
+      : [ASSISTANT_SUBDIRS.custom, ASSISTANT_SUBDIRS.hub, ASSISTANT_SUBDIRS.system];
     for (const subdir of subdirs) {
       const assistantDir = path.join(assistantsDir, subdir, assistantId);
       try {
@@ -267,6 +275,7 @@ const skillFilePattern = (id: string, loc: string) => `${id}-skills.${loc}.md`;
 
 // 在文件顶部添加一个新的 Map 来跟踪每个目录的 AbortController
 const directoryAbortControllers = new Map<string, AbortController>();
+const FILE_SELECTOR_MAX_DEPTH = 10;
 
 export function initFsBridge(): void {
   const canceledZipRequests = new Set<string>();
@@ -291,7 +300,10 @@ export function initFsBridge(): void {
     directoryAbortControllers.set(dir, abortController);
 
     try {
-      const tree = await readDirectoryRecursive(dir, { abortController });
+      const tree = await readDirectoryRecursive(dir, {
+        abortController,
+        maxDepth: FILE_SELECTOR_MAX_DEPTH,
+      });
 
       // 请求完成后清理 abort controller
       directoryAbortControllers.delete(dir);
@@ -328,6 +340,7 @@ export function initFsBridge(): void {
       const base64 = await fs.readFile(filePath, { encoding: 'base64' });
       return `data:${mime};base64,${base64}`;
     } catch (error) {
+      mainWarn('fsBridge', 'getImageBase64 failed', { path: filePath, error: String(error) });
       // Return a placeholder data URL instead of throwing
       return 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZGRkIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkltYWdlIG5vdCBmb3VuZDwvdGV4dD48L3N2Zz4=';
     }
@@ -446,6 +459,9 @@ export function initFsBridge(): void {
   // 读取文件内容（UTF-8编码）/ Read file content (UTF-8 encoding)
   ipcBridge.fs.readFile.provider(async ({ path: filePath }) => {
     try {
+      // Breadcrumb: file read
+      fileBreadcrumbs.read(filePath);
+
       const content = await fs.readFile(filePath, 'utf-8');
       return content;
     } catch (error) {
@@ -454,6 +470,10 @@ export function initFsBridge(): void {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
         return '';
       }
+
+      // Breadcrumb: file read error
+      fileBreadcrumbs.error('read', filePath, (error as Error).message);
+
       mainError('fsBridge', 'Failed to read file:', error);
       throw error;
     }
@@ -462,12 +482,35 @@ export function initFsBridge(): void {
   // 读取二进制文件为 ArrayBuffer / Read binary file as ArrayBuffer
   ipcBridge.fs.readFileBuffer.provider(async ({ path: filePath }) => {
     try {
+      // Breadcrumb: file read (binary)
+      fileBreadcrumbs.read(filePath);
+
       const buffer = await fs.readFile(filePath);
       // 将 Node.js Buffer 转换为 ArrayBuffer
       // Convert Node.js Buffer to ArrayBuffer
       return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
     } catch (error) {
+      // Breadcrumb: file read error
+      fileBreadcrumbs.error('read', filePath, (error as Error).message);
+
       mainError('fsBridge', 'Failed to read file buffer:', error);
+      throw error;
+    }
+  });
+
+  // 读取二进制文件为 Base64 字符串（可安全通过 JSON 序列化的 IPC 传输）
+  // Read binary file as Base64 string (safe for JSON-serialized IPC transport)
+  ipcBridge.fs.readFileBase64.provider(async ({ path: filePath }) => {
+    try {
+      // Breadcrumb: file read (base64)
+      fileBreadcrumbs.read(filePath);
+
+      return await fs.readFile(filePath, { encoding: 'base64' });
+    } catch (error) {
+      // Breadcrumb: file read error
+      fileBreadcrumbs.error('read', filePath, (error as Error).message);
+
+      mainError('fsBridge', 'Failed to read file as base64:', error);
       throw error;
     }
   });
@@ -475,6 +518,9 @@ export function initFsBridge(): void {
   // 写入文件
   ipcBridge.fs.writeFile.provider(async ({ path: filePath, data }) => {
     try {
+      // Breadcrumb: file write
+      const dataSize = typeof data === 'string' ? data.length : (data as Uint8Array)?.byteLength || 0;
+      fileBreadcrumbs.write(filePath, dataSize);
       // 处理字符串类型 / Handle string type
       if (typeof data === 'string') {
         await fs.writeFile(filePath, data, 'utf-8');
@@ -529,6 +575,9 @@ export function initFsBridge(): void {
       await fs.writeFile(filePath, bufferData);
       return true;
     } catch (error) {
+      // Breadcrumb: file write error
+      fileBreadcrumbs.error('write', filePath, (error as Error).message);
+
       mainError('fsBridge', 'Failed to write file:', error);
       return false;
     }
@@ -537,9 +586,15 @@ export function initFsBridge(): void {
   // 创建目录
   ipcBridge.fs.createDir.provider(async ({ path: dirPath }) => {
     try {
+      // Breadcrumb: directory created
+      fileBreadcrumbs.createDir(dirPath);
+
       await fs.mkdir(dirPath, { recursive: true });
       return true;
     } catch (error) {
+      // Breadcrumb: directory create error
+      fileBreadcrumbs.error('create_dir', dirPath, (error as Error).message);
+
       mainError('fsBridge', 'Failed to create directory:', error);
       return false;
     }
@@ -760,6 +815,9 @@ export function initFsBridge(): void {
   // Delete file or directory on disk (删除磁盘上的文件或文件夹)
   ipcBridge.fs.removeEntry.provider(async ({ path: targetPath }) => {
     try {
+      // Breadcrumb: file delete
+      fileBreadcrumbs.delete(targetPath);
+
       const stats = await fs.lstat(targetPath);
       if (stats.isDirectory()) {
         await fs.rm(targetPath, { recursive: true, force: true });
@@ -786,6 +844,9 @@ export function initFsBridge(): void {
       }
       return { success: true };
     } catch (error) {
+      // Breadcrumb: file delete error
+      fileBreadcrumbs.error('delete', targetPath, (error as Error).message);
+
       mainError('fsBridge', 'Failed to remove entry:', error);
       return { success: false, msg: error instanceof Error ? error.message : 'Unknown error' };
     }

@@ -8,7 +8,7 @@ import fs from 'fs';
 import path from 'path';
 import type { TMessage } from '@/common/chatLib';
 import { database as databaseBridge } from '@/common/ipcBridge';
-import { appendNexusFilesMarker, parseNexusFilesMarker } from '@/common/nexusFiles';
+import { parseNexusFilesMarker } from '@/common/nexusFiles';
 import { getDatabase } from '@/process/database';
 import { ProcessConfig } from '@/process/initStorage';
 import { getDataPath } from '@/process/utils';
@@ -31,6 +31,7 @@ import { createMainMenuKeyboard, createToolConfirmationKeyboard } from '../plugi
 import { escapeHtml } from '../plugins/telegram/TelegramAdapter';
 import type { PluginManager } from './PluginManager';
 import type { AcpBackend } from '@/types/acpTypes';
+import { acpDetector } from '@/agent/acp/AcpDetector';
 
 function getChannelWorkspacePath(platform: string): string {
   const dir = path.join(getDataPath(), 'channel-media', platform);
@@ -488,7 +489,7 @@ export class ActionExecutor {
         } catch {
           // ignore
         }
-        const backend = (savedAgent && typeof savedAgent === 'object' && typeof (savedAgent as any).backend === 'string' ? (savedAgent as any).backend : 'openclaw-gateway') as string;
+        const backend = (savedAgent && typeof savedAgent === 'object' && typeof (savedAgent as any).backend === 'string' ? (savedAgent as any).backend : 'scode') as string;
         const customAgentId = savedAgent && typeof savedAgent === 'object' ? ((savedAgent as any).customAgentId as string | undefined) : undefined;
         const agentName = savedAgent && typeof savedAgent === 'object' ? ((savedAgent as any).name as string | undefined) : undefined;
 
@@ -497,6 +498,10 @@ export class ActionExecutor {
 
         // Map backend to conversation type for lookup
         const { convType, convBackend } = resolveChannelConvType(backend);
+
+        // Resolve cliPath from detected agents so AcpAgent can spawn the CLI correctly
+        const detectedAgent = acpDetector.getDetectedAgents().find((a) => a.backend === backend);
+        const cliPath = detectedAgent?.cliPath;
 
         // Build human-readable conversation name (just the user's display name)
         // TODO: WeChat API doesn't provide user display names in messages — find a way to resolve human-readable names (e.g., via a contacts/profile API)
@@ -510,28 +515,20 @@ export class ActionExecutor {
 
         const result = existing
           ? { success: true as const, conversation: existing }
-          : backend === 'openclaw-gateway'
-            ? await ConversationService.createConversation({
-                type: 'openclaw-gateway',
-                model,
-                name: conversationName,
-                source,
-                channelChatId: chatId,
-                extra: { workspace: getChannelWorkspacePath(source) },
-              })
-            : await ConversationService.createConversation({
-                type: 'acp',
-                model,
-                name: conversationName,
-                source,
-                channelChatId: chatId,
-                extra: {
-                  backend: backend as AcpBackend,
-                  customAgentId,
-                  agentName,
-                  workspace: getChannelWorkspacePath(source),
-                },
-              });
+          : await ConversationService.createConversation({
+              type: 'acp',
+              model,
+              name: conversationName,
+              source,
+              channelChatId: chatId,
+              extra: {
+                backend: backend as AcpBackend,
+                cliPath,
+                customAgentId,
+                agentName,
+                workspace: getChannelWorkspacePath(source),
+              },
+            });
 
         if (result.success && result.conversation) {
           const { convType: agentType } = resolveChannelConvType(backend);
@@ -576,9 +573,7 @@ export class ActionExecutor {
         // paths into image content blocks via processAtFileReferences().
         const files = content.attachments?.map((a) => a.fileId).filter((id) => !!id) || [];
         const plainText = content.text || `[${content.type} message]`;
-        const workspacePath = session.workspace || getChannelWorkspacePath(platform);
-        const displayMessage = appendNexusFilesMarker(plainText, files, workspacePath);
-        await this.handleChatMessage(context, displayMessage, files);
+        await this.handleChatMessage(context, plainText, files);
       } else {
         // Unsupported content type
         await context.sendMessage({
@@ -821,6 +816,8 @@ export class ActionExecutor {
             // Lark/DingTalk/Telegram: send immediately (keep original behavior)
             if (streamOutgoing.type === 'image' || streamOutgoing.type === 'file') {
               const isWeCom = context.platform === 'wecom';
+              const isDingTalk = context.platform === 'dingtalk';
+              const isLark = context.platform === 'lark';
 
               // 检查是否是用户输入的文件，避免发回给用户
               // Check if this is a user input file to avoid sending back to user
@@ -847,14 +844,14 @@ export class ActionExecutor {
               if (streamOutgoing.fileUrl && isValidFilePath(streamOutgoing.fileUrl)) sentFiles.add(streamOutgoing.fileUrl);
               if (streamOutgoing.imageUrl && isValidFilePath(streamOutgoing.imageUrl)) sentFiles.add(streamOutgoing.imageUrl);
 
-              if (isWeCom) {
-                // WeCom: 缓存文件，等流结束后发送
-                // WeCom: buffer file to send after stream ends
-                console.log(`[ActionExecutor] 📎 file_send buffered (WeCom): type=${streamOutgoing.type}, imageUrl=${imageUrl || 'none'}, fileUrl=${fileUrl || 'none'}`);
+              if (isWeCom || isDingTalk || isLark) {
+                // WeCom/DingTalk/Lark: 缓存文件，等流结束后发送
+                // WeCom/DingTalk/Lark: buffer file to send after stream ends
+                console.log(`[ActionExecutor] 📎 file_send buffered (WeCom/DingTalk/Lark): type=${streamOutgoing.type}, imageUrl=${imageUrl || 'none'}, fileUrl=${fileUrl || 'none'}`);
                 pendingFilesToSend.push(streamOutgoing);
-                // 标记 thinking 已更新，让后续文本 INSERT 转为 UPDATE 路径
-                // Mark thinking as updated so subsequent text INSERTs go to UPDATE path
-                if (!thinkingUpdated && thinkingMsgId) {
+                // WeCom 不支持 edit，需要标记 thinkingUpdated 让后续文本走新消息路径
+                // DingTalk/Lark 支持 edit，不设置 thinkingUpdated，让第一条 text 继续编辑 thinking 卡片
+                if (isWeCom && !thinkingUpdated && thinkingMsgId) {
                   thinkingUpdated = true;
                 }
                 return;
@@ -893,13 +890,34 @@ export class ActionExecutor {
               // Ignore send errors
             }
           } else {
-            // For non-edit platforms (WeChat), we accumulate text and send at isInsert or end.
-            // But if it's a NEW block, we might want to send the PREVIOUS one if we accumulated it.
-            // However, WeChat is better served by sending the full interaction result at the end
-            // to avoid multiple messages for one response.
-            // So we just track that we HAVE content.
-            if (sentMessageIds.length === 0) {
-              sentMessageIds.push('wechat_placeholder');
+            // For non-edit platforms (WeChat), buffer files to send after text.
+            // Text messages are accumulated and sent at the end via lastMessageContent,
+            // then files are sent to ensure proper order (text first, files last).
+            if (streamOutgoing.type === 'image' || streamOutgoing.type === 'file') {
+              const fileUrl = streamOutgoing.fileUrl;
+              const imageUrl = streamOutgoing.imageUrl;
+              const isUserInputFile = (fileUrl && userInputFiles.has(fileUrl)) || (imageUrl && userInputFiles.has(imageUrl));
+
+              if (isUserInputFile) {
+                console.log(`[ActionExecutor] 📎 file_send SKIPPED (WeChat user input): type=${streamOutgoing.type}, fileUrl=${fileUrl || 'none'}, imageUrl=${imageUrl || 'none'}`);
+                if (fileUrl) sentFiles.add(fileUrl);
+                if (imageUrl) sentFiles.add(imageUrl);
+                return;
+              }
+
+              // Buffer image/file for WeChat to send after text (ensures text first, files last)
+              if ((imageUrl && isValidFilePath(imageUrl) && !sentFiles.has(imageUrl)) || (fileUrl && isValidFilePath(fileUrl) && !sentFiles.has(fileUrl))) {
+                if (imageUrl) sentFiles.add(imageUrl);
+                if (fileUrl) sentFiles.add(fileUrl);
+                console.log(`[ActionExecutor] 📎 file_send buffered (WeChat): type=${streamOutgoing.type}, imageUrl=${imageUrl || 'none'}, fileUrl=${fileUrl || 'none'}, pendingFilesToSend.length before=${pendingFilesToSend.length}`);
+                pendingFilesToSend.push(streamOutgoing);
+                console.log(`[ActionExecutor] 📎 file_send buffered (WeChat): pendingFilesToSend.length after=${pendingFilesToSend.length}`);
+              }
+            } else {
+              // Track that we have content for text messages
+              if (sentMessageIds.length === 0) {
+                sentMessageIds.push('wechat_placeholder');
+              }
             }
           }
         } else {
@@ -1031,6 +1049,7 @@ export class ActionExecutor {
       // 流结束后，更新最后一条消息添加操作按钮（保留原内容）
       // After stream ends, update last message with action buttons (keep original content)
       if (lastMessageContent) {
+        console.log(`[ActionExecutor] 📤 Stream ended, lastMessageContent: type=${lastMessageContent.type}, text=${lastMessageContent.text?.slice(0, 50) || 'none'}...`);
         // Skip edit for non-text messages (file/image) — these were already sent via sendMessage
         // and cannot be edited (LarkPlugin.editMessage only supports card messages)
         if (lastMessageContent.type === 'file' || lastMessageContent.type === 'image') {
@@ -1041,6 +1060,17 @@ export class ActionExecutor {
             const finalMessage: IUnifiedOutgoingMessage = { ...lastTextContent, replyMarkup: responseMarkup };
             const lastMsgId = sentMessageIds[sentMessageIds.length - 1];
             await context.editMessage(lastMsgId, finalMessage);
+          } else if (!supportsEdit && lastTextContent) {
+            // For WeChat (supportsEdit=false), send the last text content as a new message
+            const responseMarkup = getResponseActionsMarkup(context.platform as PluginType, lastTextContent.text);
+            const finalMessage: IUnifiedOutgoingMessage = { ...lastTextContent, replyMarkup: responseMarkup };
+            console.log(`[ActionExecutor] 📤 Sending final text message (WeChat file stream ended): type=${finalMessage.type}, text=${finalMessage.text?.slice(0, 50) || 'none'}...`);
+            try {
+              const result = await context.sendMessage(finalMessage);
+              console.log(`[ActionExecutor] 📤 Final text message result: ${result}`);
+            } catch (err) {
+              console.error(`[ActionExecutor] 📤 Final text message error: ${err}`);
+            }
           }
         } else {
           const responseMarkup = getResponseActionsMarkup(context.platform as PluginType, lastMessageContent.text);
@@ -1049,22 +1079,49 @@ export class ActionExecutor {
           if (supportsEdit && sentMessageIds.length > 0) {
             const lastMsgId = sentMessageIds[sentMessageIds.length - 1];
             await context.editMessage(lastMsgId, finalMessage);
+          } else if (context.platform === 'lark' && supportsEdit && thinkingMsgId) {
+            // 飞书：文件缓冲后 sentMessageIds 为空，回退到 thinkingMsgId 编辑原卡片，避免重复发送文字
+            await context.editMessage(thinkingMsgId, finalMessage);
           } else {
             // For WeChat or if no message was sent yet, send the final content as a new message
-            await context.sendMessage(finalMessage);
+            console.log(`[ActionExecutor] 📤 Sending final message (WeChat/no sentMessageIds): type=${finalMessage.type}, text=${finalMessage.text?.slice(0, 50) || 'none'}...`);
+            try {
+              const result = await context.sendMessage(finalMessage);
+              console.log(`[ActionExecutor] 📤 Final message result: ${result}`);
+            } catch (err) {
+              console.error(`[ActionExecutor] 📤 Final message error: ${err}`);
+            }
           }
         }
+      } else if (supportsEdit && thinkingMsgId) {
+        // Stream ended without content (e.g., user cancelled during thinking phase).
+        // Finalize the thinking AI Card with cancel message so it stops spinning.
+        const cancelMessage: IUnifiedOutgoingMessage = {
+          type: 'text',
+          text: '请求已被用户终止',
+          parseMode: 'HTML',
+          replyMarkup: getResponseActionsMarkup(context.platform as PluginType, '请求已被用户终止'),
+        };
+        try {
+          await context.editMessage(thinkingMsgId, cancelMessage);
+        } catch {
+          // Ignore edit errors
+        }
+      } else {
+        console.log(`[ActionExecutor] 📤 Stream ended, no lastMessageContent`);
       }
 
       // 流结束后发送缓存的文件（保证文本先输出完整，文件最后发送）
       // Send buffered files after stream ends (ensure text outputs first, files last)
+      console.log(`[ActionExecutor] 📁 Checking buffered files: pendingFilesToSend.length=${pendingFilesToSend.length}`);
       if (pendingFilesToSend.length > 0) {
         console.log(`[ActionExecutor] 📁 Sending ${pendingFilesToSend.length} buffered files after stream ends`);
         for (const fileMsg of pendingFilesToSend) {
           try {
-            await context.sendMessage(fileMsg);
-          } catch {
-            // Ignore file send errors
+            const result = await context.sendMessage(fileMsg);
+            console.log(`[ActionExecutor] 📁 Buffered file sent: type=${fileMsg.type}, result=${result}`);
+          } catch (err) {
+            console.error(`[ActionExecutor] 📁 Buffered file error: type=${fileMsg.type}, error=${err}`);
           }
         }
         pendingFilesToSend.length = 0; // Clear buffer

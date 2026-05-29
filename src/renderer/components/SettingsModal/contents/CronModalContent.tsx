@@ -6,9 +6,10 @@
 
 import { ipcBridge } from '@/common';
 import type { ICronJob } from '@/common/ipcBridge';
-import { ConfigStorage, type TChatConversation } from '@/common/storage';
-import type { AcpBackendAll, AcpBackendConfig } from '@/types/acpTypes';
+import type { TChatConversation } from '@/common/storage';
+import { DEFAULT_PRESET_AGENT_TYPE, resolvePresetAgentBackend, type AcpBackendAll, type AcpBackendConfig } from '@/types/acpTypes';
 import { fetchAssistantsAsConfigs } from '@/renderer/shared/agents/assistantAdapter';
+import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { useAllCronJobs } from '@/renderer/pages/cron/hooks/useCronJobs';
 import { type FrequencyPreset, FREQUENCY_PRESETS, WEEKDAYS, frequencyToSchedule, getJobStatusFlags, scheduleToFrequency } from '@/renderer/pages/cron/utils/cronUtils';
@@ -20,11 +21,33 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useSettingsViewMode } from '../settingsViewContext';
+import { useAppMode } from '@renderer/hooks/useAppMode';
+import { useEnterpriseSessionMode } from '@renderer/hooks/useEnterpriseSessionMode';
+import { emitter } from '@renderer/utils/emitter';
+import { useAuth } from '@/renderer/context/AuthContext';
 
-// Sentinel for "no assistant selected" (default → Sudoclaw). Using an explicit
+// Sentinel for "no assistant selected" (default → Sudo Code). Using an explicit
 // sentinel instead of '' because Arco Select treats empty string as unset and
 // won't reliably fire onChange when switching back to it.
 const DEFAULT_ASSISTANT = '__default__';
+
+function throwIfCronError(result: unknown): void {
+  const errorEnvelope = result as { __error?: string } | null | undefined;
+  if (errorEnvelope && typeof errorEnvelope === 'object' && typeof errorEnvelope.__error === 'string') {
+    throw new Error(errorEnvelope.__error);
+  }
+}
+
+function unwrapCronResult<T>(result: T): T {
+  throwIfCronError(result);
+  return result;
+}
+
+function getCronJobConversationTarget(job: ICronJob): string | undefined {
+  const isNewMode = (job.metadata.conversationMode ?? 'new') === 'new';
+  if (isNewMode) return job.state.lastConversationId;
+  return job.metadata.conversationId || job.state.lastConversationId;
+}
 
 // ─── Hook: load preset assistants ───
 
@@ -34,7 +57,7 @@ function useAssistantsForCron(): AcpBackendConfig[] {
     Promise.all([fetchAssistantsAsConfigs(), ipcBridge.extensions.getAssistants.invoke().catch(() => [] as Record<string, unknown>[])])
       .then(([local, ext]) => {
         const merged: AcpBackendConfig[] = [...local, ...((ext as unknown as AcpBackendConfig[]) || [])];
-        setAssistants(merged.filter((a) => a.isPreset === true));
+        setAssistants(merged.filter((a) => a.enabled !== false));
       })
       .catch(() => {});
   }, []);
@@ -148,7 +171,7 @@ const CronJobDetail: React.FC<{
   const assistants = useAssistantsForCron();
   const localeKey = i18n.language?.startsWith('zh') ? 'zh-CN' : 'en-US';
   const selectedAssistant = job.metadata.presetAssistantId ? assistants.find((a) => a.id === job.metadata.presetAssistantId) : undefined;
-  const assistantName = selectedAssistant ? selectedAssistant.nameI18n?.[localeKey] || selectedAssistant.name || 'Sudoclaw' : 'Sudoclaw';
+  const assistantName = selectedAssistant ? selectedAssistant.nameI18n?.[localeKey] || selectedAssistant.name || 'Sudo Code' : job.metadata.presetAssistantId || 'Sudo Code';
 
   return (
     <div className='space-y-24px'>
@@ -214,7 +237,14 @@ const CronJobDetail: React.FC<{
         <div>
           <div className='text-13px text-t-secondary mb-4px'>{t('cron.create.agent', { defaultValue: '数字助手' })}</div>
           <div className='text-14px text-t-primary flex items-center gap-6px'>
-            {selectedAssistant?.avatar && <span>{selectedAssistant.avatar}</span>}
+            {(() => {
+              const avatarValue = selectedAssistant?.avatar?.trim();
+              if (!avatarValue) return null;
+              const resolvedAvatar = resolveExtensionAssetUrl(avatarValue);
+              const avatarImage = resolvedAvatar || avatarValue;
+              const isImageAvatar = /\.(svg|png|jpe?g|webp|gif)$/i.test(avatarImage) || /^(https?:|aion-asset:\/\/|file:\/\/|data:)/i.test(avatarImage);
+              return isImageAvatar ? <img src={avatarImage} alt='' width={16} height={16} style={{ objectFit: 'contain' }} /> : <span style={{ fontSize: 14, lineHeight: '16px' }}>{avatarValue}</span>;
+            })()}
             <span>{assistantName}</span>
           </div>
         </div>
@@ -239,17 +269,14 @@ const CronJobDetail: React.FC<{
       {/* Conversation link */}
       {(() => {
         const isNewMode = (job.metadata.conversationMode ?? 'new') === 'new';
-        let targetConvId: string | undefined;
+        const targetConvId = getCronJobConversationTarget(job);
         let targetConvTitle: string;
         if (isNewMode) {
-          targetConvId = job.state.lastConversationId;
           targetConvTitle = t('cron.goToLastConversation', { defaultValue: '查看最近执行会话' });
         } else if (job.metadata.conversationId) {
-          targetConvId = job.metadata.conversationId;
           targetConvTitle = job.metadata.conversationTitle || t('cron.goToConversationLink', { defaultValue: '查看会话' });
         } else {
           // reuse mode without pre-binding — fall back to lastConversationId
-          targetConvId = job.state.lastConversationId;
           targetConvTitle = t('cron.goToConversationLink', { defaultValue: '查看会话' });
         }
         if (!targetConvId) return null;
@@ -274,9 +301,10 @@ const CronJobDetail: React.FC<{
 const CronJobFormDrawer: React.FC<{
   visible: boolean;
   editJob?: ICronJob | null;
+  sessionMode: 'local' | 'remote';
   onClose: () => void;
   onSaved: () => void;
-}> = ({ visible, editJob, onClose, onSaved }) => {
+}> = ({ visible, editJob, sessionMode, onClose, onSaved }) => {
   const { t } = useTranslation();
   const frequencyLabels = useFrequencyLabels();
   const weekdayLabels = useWeekdayLabels();
@@ -375,18 +403,20 @@ const CronJobFormDrawer: React.FC<{
       // When a conversation is bound in reuse mode, assistant & workspace come from
       // that conversation — ignore the form values.
       const isBoundConversation = conversationMode === 'reuse' && !!selectedConversationId;
+      const useBoundConversationDefaults = sessionMode !== 'remote' && isBoundConversation;
 
-      // Derive agentType from selected assistant's presetAgentType; default to openclaw-gateway (Sudoclaw)
+      // Derive agentType from selected assistant's presetAgentType; default to scode
       const isDefaultAssistant = selectedAssistantId === DEFAULT_ASSISTANT;
       const effectiveAssistantId = isDefaultAssistant ? undefined : selectedAssistantId;
       const selectedAssistant = effectiveAssistantId ? assistants.find((a) => a.id === effectiveAssistantId) : undefined;
-      const presetAgentType = selectedAssistant?.presetAgentType || 'sudoclaw';
-      const agentType = (presetAgentType === 'sudoclaw' ? 'openclaw-gateway' : presetAgentType) as AcpBackendAll;
+      const presetAgentType = selectedAssistant?.presetAgentType || DEFAULT_PRESET_AGENT_TYPE;
+      const agentType = resolvePresetAgentBackend(presetAgentType) as AcpBackendAll;
 
       // For reuse mode, allow optionally binding an existing conversation so the
       // very first run appends to it. New mode ignores the picker entirely.
       const reuseConvId = conversationMode === 'reuse' ? selectedConversationId : '';
       const reuseConvTitle = reuseConvId ? conversations.find((c) => c.id === reuseConvId)?.name : undefined;
+      const effectiveWorkspace = sessionMode === 'remote' ? undefined : workspace || undefined;
 
       let result: unknown;
       if (editJob) {
@@ -402,14 +432,14 @@ const CronJobFormDrawer: React.FC<{
             target: { payload: { kind: 'message', text: values.prompt } },
             metadata: {
               ...editJob.metadata,
-              agentType: isBoundConversation ? editJob.metadata.agentType : agentType,
+              agentType: useBoundConversationDefaults ? editJob.metadata.agentType : agentType,
               conversationMode,
               // Bind/unbind conversation for reuse mode. New mode keeps the
               // existing conversationId untouched (it's auto-managed via state.lastConversationId).
               conversationId: conversationMode === 'reuse' ? reuseConvId : editJob.metadata.conversationId,
               conversationTitle: conversationMode === 'reuse' ? reuseConvTitle : editJob.metadata.conversationTitle,
-              workspace: isBoundConversation ? editJob.metadata.workspace : workspace || undefined,
-              presetAssistantId: isBoundConversation ? editJob.metadata.presetAssistantId : isDefaultAssistant ? null : effectiveAssistantId,
+              workspace: useBoundConversationDefaults ? editJob.metadata.workspace : effectiveWorkspace,
+              presetAssistantId: useBoundConversationDefaults ? editJob.metadata.presetAssistantId : isDefaultAssistant ? null : effectiveAssistantId,
             },
           },
         });
@@ -423,18 +453,14 @@ const CronJobFormDrawer: React.FC<{
           agentType,
           createdBy: 'user',
           conversationMode,
-          workspace: workspace || undefined,
+          workspace: effectiveWorkspace,
           presetAssistantId: effectiveAssistantId,
         });
       }
 
       // The cron bridge wraps provider errors in an envelope so the IPC layer
       // (which has no rejection path) doesn't hang the UI. Unwrap it here.
-      const errorEnvelope = result as { __error?: string } | null | undefined;
-      if (errorEnvelope && typeof errorEnvelope === 'object' && typeof errorEnvelope.__error === 'string') {
-        Message.error(errorEnvelope.__error);
-        return;
-      }
+      throwIfCronError(result);
 
       Message.success(t('cron.drawer.saveSuccess'));
       onSaved();
@@ -598,28 +624,39 @@ const CronJobFormDrawer: React.FC<{
                 </div>
               )}
 
-              {/* Agent/Assistant selector — hidden when a conversation is bound in reuse mode */}
-              {!(conversationMode === 'reuse' && selectedConversationId) && (
+              {/* Agent/Assistant selector */}
+              {!(sessionMode !== 'remote' && conversationMode === 'reuse' && selectedConversationId) && (
                 <div>
                   <div className='text-13px text-t-secondary mb-4px'>{t('cron.create.agent', { defaultValue: '数字助手' })}</div>
-                  <Select value={selectedAssistantId} onChange={(v) => setSelectedAssistantId(v as string)} disabled={editJob != null && conversationMode === 'reuse'}>
+                  <Select value={selectedAssistantId} onChange={(v) => setSelectedAssistantId(v as string)} disabled={sessionMode !== 'remote' && editJob != null && conversationMode === 'reuse'}>
                     <Select.Option value={DEFAULT_ASSISTANT}>
-                      <span className='text-t-secondary'>{t('cron.create.agentPlaceholder', { defaultValue: '默认 (Sudoclaw)' })}</span>
+                      <span className='text-t-secondary'>{t('cron.create.agentPlaceholder', { defaultValue: '默认 (Sudo Code)' })}</span>
                     </Select.Option>
-                    {assistants.map((a) => (
-                      <Select.Option key={a.id} value={a.id}>
-                        <span className='flex items-center gap-6px'>
-                          {a.avatar && <span>{a.avatar}</span>}
-                          <span>{a.nameI18n?.[localeKey] || a.name}</span>
-                        </span>
+                    {selectedAssistantId !== DEFAULT_ASSISTANT && !assistants.some((a) => a.id === selectedAssistantId) && (
+                      <Select.Option value={selectedAssistantId}>
+                        <span>{selectedAssistantId}</span>
                       </Select.Option>
-                    ))}
+                    )}
+                    {assistants.map((a) => {
+                      const avatarValue = a.avatar?.trim();
+                      const resolvedAvatar = avatarValue ? resolveExtensionAssetUrl(avatarValue) : undefined;
+                      const avatarImage = resolvedAvatar || avatarValue;
+                      const isImageAvatar = Boolean(avatarImage && (/\.(svg|png|jpe?g|webp|gif)$/i.test(avatarImage) || /^(https?:|aion-asset:\/\/|file:\/\/|data:)/i.test(avatarImage)));
+                      return (
+                        <Select.Option key={a.id} value={a.id}>
+                          <span className='flex items-center gap-6px'>
+                            {isImageAvatar ? <img src={avatarImage} alt='' width={16} height={16} style={{ objectFit: 'contain' }} /> : avatarValue ? <span style={{ fontSize: 14, lineHeight: '16px' }}>{avatarValue}</span> : null}
+                            <span>{a.nameI18n?.[localeKey] || a.name}</span>
+                          </span>
+                        </Select.Option>
+                      );
+                    })}
                   </Select>
                 </div>
               )}
 
-              {/* Workspace selector — hidden when a conversation is bound in reuse mode */}
-              {!(conversationMode === 'reuse' && selectedConversationId) && (
+              {/* Workspace selector — local mode only */}
+              {sessionMode !== 'remote' && !(conversationMode === 'reuse' && selectedConversationId) && (
                 <div>
                   <div className='text-13px text-t-secondary mb-4px'>{t('cron.create.workspace', { defaultValue: '工作目录' })}</div>
                   <Button long onClick={handleSelectFolder} className='!justify-start !text-left' disabled={editJob != null && conversationMode === 'reuse'}>
@@ -644,18 +681,26 @@ const CronModalContent: React.FC = () => {
   const viewMode = useSettingsViewMode();
   const isPageMode = viewMode === 'page';
   const navigate = useNavigate();
-  const { jobs, loading, pauseJob, resumeJob, deleteJob, refetch } = useAllCronJobs();
+  const { isEnterprise } = useAppMode();
+  const { user } = useAuth();
+  const canUseLocalCronMode = !isEnterprise || user?.localModeAvailable === true;
+  const { sessionMode, setSessionMode } = useEnterpriseSessionMode({
+    localModeAvailable: canUseLocalCronMode,
+    remoteModeAvailable: isEnterprise,
+  });
+  const { jobs, loading, error, pauseJob, resumeJob, deleteJob, refetch } = useAllCronJobs();
 
-  // Keep-awake toggle state
+  // Keep-awake toggle state (only for local mode)
   const [keepAwake, setKeepAwake] = useState(false);
   useEffect(() => {
+    if (sessionMode === 'remote') return; // Remote mode doesn't support power save
     ipcBridge.cron.getPowerSaveActive
       .invoke()
       .then((active) => {
         setKeepAwake(active);
       })
       .catch(() => {});
-  }, []);
+  }, [sessionMode]);
 
   const handleKeepAwakeChange = async (checked: boolean) => {
     setKeepAwake(checked);
@@ -708,8 +753,17 @@ const CronModalContent: React.FC = () => {
 
   const handleTrigger = async (jobId: string) => {
     try {
-      await ipcBridge.cron.triggerJob.invoke({ jobId });
+      unwrapCronResult(await ipcBridge.cron.triggerJob.invoke({ jobId }));
+      const updatedJob = unwrapCronResult(await ipcBridge.cron.getJob.invoke({ jobId }));
       Message.success(t('cron.runNowSuccess'));
+      emitter.emit('chat.history.refresh');
+      const targetConversationId = updatedJob ? getCronJobConversationTarget(updatedJob) : undefined;
+      if (targetConversationId) {
+        void navigate(`/conversation/${targetConversationId}`);
+        emitter.emit('conversation.remote.sync', targetConversationId);
+        window.setTimeout(() => emitter.emit('conversation.remote.sync', targetConversationId), 1000);
+        window.setTimeout(() => emitter.emit('conversation.remote.sync', targetConversationId), 3000);
+      }
       void refetch();
     } catch (err) {
       Message.error(String(err));
@@ -721,6 +775,10 @@ const CronModalContent: React.FC = () => {
     setDrawerVisible(true);
   };
 
+  const handleBackToList = useCallback(() => {
+    setSelectedJob(null);
+  }, []);
+
   const handleCreate = () => {
     setEditingJob(null);
     setDrawerVisible(true);
@@ -731,7 +789,7 @@ const CronModalContent: React.FC = () => {
       <AionScrollArea className='flex-1 min-h-0 pb-16px' disableOverflow={isPageMode}>
         {/* ── DETAIL VIEW ── */}
         {currentJob ? (
-          <CronJobDetail job={currentJob} onBack={() => setSelectedJob(null)} onEdit={handleEdit} onDelete={handleDelete} onToggle={handleToggle} onTrigger={handleTrigger} onNavigate={handleNavigate} />
+          <CronJobDetail job={currentJob} onBack={handleBackToList} onEdit={handleEdit} onDelete={handleDelete} onToggle={handleToggle} onTrigger={handleTrigger} onNavigate={handleNavigate} />
         ) : (
           /* ── LIST VIEW ── */
           <div className='space-y-16px'>
@@ -746,18 +804,53 @@ const CronModalContent: React.FC = () => {
               </Button>
             </div>
 
-            {/* Info banner */}
-            <div className='bg-2 rd-12px px-16px py-12px flex items-center justify-between'>
-              <div className='flex items-center gap-8px text-13px text-t-secondary'>
-                <Info theme='outline' size={16} fill={iconColors.secondary} />
-                <span>{t('cron.create.awakeBanner', { defaultValue: '定时任务仅在电脑唤醒时运行' })}</span>
+            {/* Enterprise mode: Remote/Local switcher */}
+            {isEnterprise && (
+              <div className='bg-2 rd-12px px-16px py-12px flex items-center justify-between'>
+                <div className='flex items-center gap-8px text-13px text-t-secondary'>
+                  <Info theme='outline' size={16} fill={iconColors.secondary} />
+                  <span>{t('cron.mode.select', { defaultValue: '数据存储位置' })}</span>
+                </div>
+                <div className='flex items-center gap-4px'>
+                  {canUseLocalCronMode && (
+                    <Button size='small' shape='round' type={sessionMode === 'local' ? 'primary' : 'text'} onClick={() => setSessionMode('local')}>
+                      {t('cron.mode.local', { defaultValue: '本地' })}
+                    </Button>
+                  )}
+                  <Button size='small' shape='round' type={sessionMode === 'remote' ? 'primary' : 'text'} onClick={() => setSessionMode('remote')}>
+                    {t('cron.mode.remote', { defaultValue: '云端' })}
+                  </Button>
+                </div>
               </div>
-              <div className='flex items-center gap-8px text-13px text-t-secondary'>
-                <Sun theme='outline' size={16} />
-                <span>{t('cron.create.keepAwake', { defaultValue: '保持唤醒' })}</span>
-                <Switch size='small' checked={keepAwake} onChange={handleKeepAwakeChange} />
+            )}
+
+            {/* Error state (remote mode: Moss API unavailable) */}
+            {error && sessionMode === 'remote' && (
+              <div className='bg-red-1 rd-12px px-16px py-12px flex items-center justify-between'>
+                <div className='flex items-center gap-8px text-13px text-red-6'>
+                  <Info theme='outline' size={16} />
+                  <span>{t('cron.error.serverUnavailable', { defaultValue: '无法连接服务器' })}</span>
+                </div>
+                <Button size='small' shape='round' onClick={() => void refetch()}>
+                  {t('common.retry', { defaultValue: '重试' })}
+                </Button>
               </div>
-            </div>
+            )}
+
+            {/* Info banner (local mode only) */}
+            {sessionMode === 'local' && (
+              <div className='bg-2 rd-12px px-16px py-12px flex items-center justify-between'>
+                <div className='flex items-center gap-8px text-13px text-t-secondary'>
+                  <Info theme='outline' size={16} fill={iconColors.secondary} />
+                  <span>{t('cron.create.awakeBanner', { defaultValue: '定时任务仅在电脑唤醒时运行' })}</span>
+                </div>
+                <div className='flex items-center gap-8px text-13px text-t-secondary'>
+                  <Sun theme='outline' size={16} />
+                  <span>{t('cron.create.keepAwake', { defaultValue: '保持唤醒' })}</span>
+                  <Switch size='small' checked={keepAwake} onChange={handleKeepAwakeChange} />
+                </div>
+              </div>
+            )}
 
             {/* Job cards or empty state */}
             {!loading && jobs.length === 0 ? (
@@ -774,7 +867,7 @@ const CronModalContent: React.FC = () => {
         )}
       </AionScrollArea>
 
-      <CronJobFormDrawer visible={drawerVisible} editJob={editingJob} onClose={() => setDrawerVisible(false)} onSaved={() => void refetch()} />
+      <CronJobFormDrawer visible={drawerVisible} editJob={editingJob} sessionMode={sessionMode} onClose={() => setDrawerVisible(false)} onSaved={() => void refetch()} />
     </div>
   );
 };

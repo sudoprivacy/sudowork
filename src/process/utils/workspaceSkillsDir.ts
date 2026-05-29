@@ -21,5 +21,9 @@ export function resolveWorkspaceSkillsDir(conversation: Pick<TChatConversation, 
     return path.join(workspace, '.claude', 'skills');
   }
 
+  if (conversation.extra?.backend === 'scode') {
+    return path.join(workspace, '.nexus', 'sudocode', 'skills');
+  }
+
   return path.join(workspace, 'skills');
 }

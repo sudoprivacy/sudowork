@@ -39,7 +39,6 @@ export class ServiceManager {
   private nexusStartPromise: Promise<void> | null = null;
   private readonly STARTUP_READINESS_TIMEOUT_MS = 600_000;
   private readonly STARTUP_READINESS_POLL_MS = 500;
-  private readonly SUDOCLAW_START_TIMEOUT_MS = 90_000;
   private readonly SUDOCLAW_START_ATTEMPTS = 3;
   private readonly NEXUS_START_ATTEMPTS = 3;
 
@@ -84,17 +83,25 @@ export class ServiceManager {
 
     this.shuttingDown = false;
     this.startupInProgress = true;
+
+    // 提前创建 secrets promise，让消费者可以立即 await
+    // Promise 在 startNexusOnce() 中通过 initializeSecrets() resolve
+    if (!this.secretsReadyPromise) {
+      this.secretsReadyPromise = new Promise<boolean>((resolve) => {
+        this.secretsReadyResolve = resolve;
+      });
+    }
+
     runtimeInstaller.primeStatusForStartup();
     initStatusManager.clearRetry();
 
     if (initStatusManager.getStatus().displayMode === 'startup') {
       initStatusManager.setStatus('installing', '正在启动核心服务...', 90);
-      initStatusManager.setDetail('正在检查 Sudoclaw 与 Nexus 服务状态...');
+      initStatusManager.setDetail('正在检查 Sudocode 与 Nexus 服务状态...');
     }
 
     try {
       const ok = await runtimeInstaller.ensureAll({
-        startSudoclaw: this.startOpenClawForStartup.bind(this),
         startNexus: this.startNexusForStartup.bind(this),
       });
       if (!ok) {
@@ -105,7 +112,9 @@ export class ServiceManager {
       await this.verifyStartupReadiness();
       initStatusManager.setStatus('ready', '初始化完成', 100);
       initStatusManager.clearRetry();
-      void this.startSafetyPolling();
+      // Safety hooks are temporarily disabled; keep the polling service entry
+      // available so the feature can be restored without rebuilding it.
+      // void this.startSafetyPolling();
 
       // Start health monitor for auto-healing components
       const { componentHealthMonitor } = await import('./ComponentHealthMonitor');
@@ -117,6 +126,7 @@ export class ServiceManager {
       initStatusManager.setDetail('核心服务启动失败，请手动点击重试或重装。');
       initStatusManager.addLog(`⚠ 启动失败：${message}`);
       mainError('ServiceManager', 'Startup readiness verification failed', err);
+      this.secretsReadyResolve?.(false);
     } finally {
       this.startupInProgress = false;
     }
@@ -128,6 +138,13 @@ export class ServiceManager {
 
   async shutdown(): Promise<void> {
     this.shuttingDown = true;
+    // Stop Auth Proxy first — no new requests should be accepted after shutdown begins
+    try {
+      const { stopAuthProxy } = await import('@process/services/authProxy');
+      await stopAuthProxy();
+    } catch {
+      /* ignore */
+    }
     try {
       const { componentHealthMonitor } = await import('./ComponentHealthMonitor');
       await componentHealthMonitor.stop();
@@ -176,6 +193,9 @@ export class ServiceManager {
       for (let attempt = 1; attempt <= attempts; attempt += 1) {
         try {
           await this.preparePortForStart(12012, 'Nexus');
+          // Reset Nexus running state after killing port processes
+          // because preparePortForStart may have killed the process externally
+          dynamicNexusService.resetRunningState();
           const startupDetail = attempt > 1 ? (phase === 'reinstall' ? `重装后正在启动 Nexus 服务（第 ${attempt}/${attempts} 次）...` : `正在启动 Nexus 服务（第 ${attempt}/${attempts} 次）...`) : phase === 'reinstall' ? '重装后正在启动 Nexus 服务...' : '正在启动 Nexus 服务...';
           initStatusManager.setStepState('nexus', 'active', startupDetail);
           initStatusManager.setStepProgress('nexus', 92, initStatusManager.getStatus().stepDetails?.nexus);
@@ -230,11 +250,21 @@ export class ServiceManager {
 
       // Initialize secrets system after Nexus is healthy
       // This runs migration (if needed) and preloads the secret cache
-      this.secretsReadyPromise = new Promise<boolean>((resolve) => {
-        this.secretsReadyResolve = resolve;
-      });
+      // secretsReadyPromise 已在 startup() 入口处创建
       this.initializeSecrets()
-        .then(() => this.secretsReadyResolve?.(true))
+        .then(async () => {
+          // Start Auth Proxy after secrets are initialized
+          try {
+            const { startAuthProxy } = await import('@process/services/authProxy');
+            const port = await startAuthProxy();
+            if (port > 0) {
+              mainLog('ServiceManager', `Auth Proxy started on port ${port}`);
+            }
+          } catch (err) {
+            mainWarn('ServiceManager', 'Auth Proxy start failed (non-critical):', err);
+          }
+          this.secretsReadyResolve?.(true);
+        })
         .catch((err) => {
           mainWarn('ServiceManager', 'Secrets initialization failed (non-critical):', err);
           this.secretsReadyResolve?.(false);
@@ -295,10 +325,6 @@ export class ServiceManager {
     await this.openClawStartPromise;
   }
 
-  private async startOpenClawForStartup(_timeoutMs = this.SUDOCLAW_START_TIMEOUT_MS): Promise<void> {
-    await this.startOpenClawWithRetries();
-  }
-
   private async startOpenClawWithRetries(): Promise<void> {
     const startAttempts = async (attempts: number, phase: 'normal' | 'reinstall'): Promise<void> => {
       let lastError: unknown;
@@ -342,7 +368,7 @@ export class ServiceManager {
     try {
       mainLog('ServiceManager', 'Starting Sudoclaw gateway...');
       const { OpenClawGatewayManager } = await import('@/agent/openclaw');
-      const { SUDOCLAW_DIR, SUDOCLAW_DEFAULT_PORT, SUDOCLAW_CONFIG_PATH, ensureDefaultConfig, repairOpenClawConfig, getSudoclawVersionState, ensureSudoclawInstalled, ensureUserMdSafetyRules, ensureUserMdIdentityStatement, ensureUserMdNoGeneratedByStatement, ensureUserMdNoExposeUserMdStatement, ensureUserMdFileSendInstruction } = await import('../sudoclaw/SudoclawInstallService');
+      const { SUDOCLAW_DIR, SUDOCLAW_DEFAULT_PORT, SUDOCLAW_CONFIG_PATH, ensureDefaultConfig, repairOpenClawConfig, getSudoclawVersionState, ensureSudoclawInstalled, ensureUserMdSafetyRules, ensureUserMdIdentityStatement, ensureUserMdNoGeneratedByStatement, ensureUserMdNoExposeUserMdStatement, ensureUserMdFileSendInstruction, ensureUserMdVersionInfoStatement } = await import('../sudoclaw/SudoclawInstallService');
       await this.ensureNodeReadyForSudoclawStart();
 
       const versionState = getSudoclawVersionState();
@@ -499,6 +525,7 @@ export class ServiceManager {
         ensureUserMdNoGeneratedByStatement();
         ensureUserMdNoExposeUserMdStatement();
         ensureUserMdFileSendInstruction();
+        ensureUserMdVersionInfoStatement();
       } catch (err) {
         mainWarn('ServiceManager', 'Failed to ensure USER.md safety rules after Sudoclaw start', err);
       }
@@ -554,6 +581,13 @@ export class ServiceManager {
 
       fs.writeFileSync(sudoclawConfigPath, JSON.stringify(config, null, 2), 'utf-8');
       mainLog('ServiceManager', `Synced image models to sudoclaw.json — parsing: ${DEFAULT_IMAGE_PARSING_MODEL}, generation: ${generationModel}`);
+
+      // Also sync generation model to sudocode.json so the image-generation skill
+      // bash script can read it without depending on sudoclaw.json.
+      if (generationModel) {
+        const { writeScodeImageModel } = await import('@process/bridge/scodeBridge');
+        writeScodeImageModel(generationModel);
+      }
     } catch (err) {
       mainError('ServiceManager', 'Failed to sync image model to sudoclaw.json', err);
     }
@@ -732,26 +766,41 @@ export class ServiceManager {
 
   private async verifyStartupReadiness(): Promise<void> {
     const startupOnlyChecks = initStatusManager.getStatus().displayMode === 'startup';
-    const serviceModules = await Promise.all([import('../sudoclaw/SudoclawInstallService'), import('../nexus/DynamicNexusService')]);
-    const [sudoclawModule, nexusModule] = serviceModules;
-    const { isSudoclawInstalled, SUDOCLAW_DEFAULT_PORT } = sudoclawModule;
+    const serviceModules = await Promise.all([import('../scode/ScodeInstallService'), import('../nexus/DynamicNexusService')]);
+    const [scodeModule, nexusModule] = serviceModules;
+    const { isScodeInstalled } = scodeModule;
     const { dynamicNexusService } = nexusModule;
     const deadline = startupOnlyChecks ? Number.POSITIVE_INFINITY : Date.now() + this.STARTUP_READINESS_TIMEOUT_MS;
     let lastFailedNames: string[] = [];
 
+    mainLog('ServiceManager', `Verifying startup readiness (startupOnlyChecks=${startupOnlyChecks})...`);
+
     while (Date.now() < deadline) {
-      const sudoclawHealthyPromise = this.isSudoclawHealthy(SUDOCLAW_DEFAULT_PORT);
+      const scodeReadyPromise = Promise.resolve(isScodeInstalled());
       const nexusHealthyPromise = dynamicNexusService.checkActualRunning();
-      const [sudoclawHealthy, nexusHealthy] = await Promise.all([sudoclawHealthyPromise, nexusHealthyPromise]);
+      const [scodeReady, nexusHealthy] = await Promise.all([scodeReadyPromise, nexusHealthyPromise]);
+
+      mainLog('ServiceManager', `Readiness check: Sudocode=${scodeReady}, Nexus=${nexusHealthy}`);
 
       const readinessChecks = [
-        { name: 'Sudoclaw', ok: isSudoclawInstalled() && sudoclawHealthy },
+        { name: 'Sudocode', ok: scodeReady },
         { name: 'Nexus', ok: nexusHealthy },
       ];
 
       const failed = readinessChecks.filter((item) => !item.ok).map((item) => item.name);
       if (failed.length === 0) {
+        mainLog('ServiceManager', 'All components ready, exiting verifyStartupReadiness');
         return;
+      }
+
+      // Update UI to show actual waiting state instead of misleading 100%
+      if (failed.includes('Sudocode')) {
+        initStatusManager.setStepState('scode', 'active', '等待 Sudocode 服务就绪...');
+        initStatusManager.setStepProgress('scode', 95, '等待 Sudocode 服务就绪...');
+      }
+      if (failed.includes('Nexus')) {
+        initStatusManager.setStepState('nexus', 'active', '等待 Nexus 服务就绪...');
+        initStatusManager.setStepProgress('nexus', 95, '等待 Nexus 服务就绪...');
       }
 
       if (failed.join('、') !== lastFailedNames.join('、')) {
@@ -848,19 +897,12 @@ export class ServiceManager {
   /**
    * Wait for the secrets system to be initialized.
    * Channel plugins call this before loading to ensure credentials are available.
-   * Polls until the promise is created (Nexus may still be starting),
-   * then awaits its resolution.
+   * secretsReadyPromise 在 startup() 入口处创建，此处直接 await 其 resolve。
    */
   async waitForSecrets(): Promise<boolean> {
-    // Poll until the promise is created by startNexusOnce()
-    const POLL_INTERVAL_MS = 200;
-    while (!this.secretsReadyPromise) {
-      await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
-      // startup 已结束但未创建 secretsReadyPromise → startup 在到达 startNexusOnce 之前失败
-      if (!this.startupInProgress) {
-        mainWarn('ServiceManager', 'waitForSecrets: startup completed without creating secretsReadyPromise');
-        return false;
-      }
+    if (!this.secretsReadyPromise) {
+      // startup 未被调用（如 enterprise 模式或新用户模式）
+      return false;
     }
     return this.secretsReadyPromise;
   }

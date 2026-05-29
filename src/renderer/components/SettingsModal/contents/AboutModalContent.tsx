@@ -17,7 +17,8 @@ import OpsModal from '@/renderer/components/OpsModal';
 import sudoIcon from '@/renderer/assets/sudowork-icon-dark.svg';
 import { openExternalUrl } from '@/renderer/utils/platform';
 
-const OFFICIAL_WEBSITE_URL = 'https://sudoclaw.sudoprivacy.com';
+const OFFICIAL_WEBSITE_URL = 'https://sudowork.sudoprivacy.com';
+const PRIVACY_POLICY_URL = 'https://sudowork.sudoprivacy.com/privacy.html';
 
 const AboutModalContent: React.FC = () => {
   const viewMode = useSettingsViewMode();
@@ -38,10 +39,17 @@ const AboutModalContent: React.FC = () => {
               {config.about_name}
             </Typography.Title>
             <div className='text-12px text-t-tertiary'>{config.app_company_name}</div>
-            <button type='button' className='mt-6px mb-10px inline-flex items-center gap-4px bg-transparent border-none p-0 text-12px text-primary cursor-pointer underline-offset-3 hover:underline' onClick={() => void openExternalUrl(OFFICIAL_WEBSITE_URL).catch(console.error)}>
-              <span>{t('settings.officialWebsite')}</span>
-              <IconLink className='text-12px' />
-            </button>
+            <div className='flex items-center gap-12px mt-6px mb-10px'>
+              <button type='button' className='inline-flex items-center gap-4px bg-transparent border-none p-0 text-12px text-primary cursor-pointer underline-offset-3 hover:underline' onClick={() => void openExternalUrl(OFFICIAL_WEBSITE_URL).catch(console.error)}>
+                <span>{t('settings.officialWebsite')}</span>
+                <IconLink className='text-12px' />
+              </button>
+              <span className='text-12px text-t-quaternary'>·</span>
+              <button type='button' className='inline-flex items-center gap-4px bg-transparent border-none p-0 text-12px text-primary cursor-pointer underline-offset-3 hover:underline' onClick={() => void openExternalUrl(PRIVACY_POLICY_URL).catch(console.error)}>
+                <span>{t('settings.privacyPolicy')}</span>
+                <IconLink className='text-12px' />
+              </button>
+            </div>
             <div className='flex items-center gap-6px'>
               <span className='px-10px py-3px rd-20px text-12px bg-fill-2 text-t-secondary font-mono font-500'>{buildVersion}</span>
               {isNightlyBuild && <span className='px-8px py-2px rd-10px text-11px bg-orange-1 text-orange-6 font-500 dark:bg-orange-9/20'>{t('update.nightlyBadge', { defaultValue: 'Nightly Preview' })}</span>}

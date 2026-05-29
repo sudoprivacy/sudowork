@@ -23,6 +23,8 @@
   "game3dAssistantName": "3D 游戏生成",
   "game3dAssistantDesc": "用单个 HTML 文件生成完整的 3D 平台收集游戏。",
   "editAssistant": "助手详情",
+  "viewAssistantDetails": "查看详情",
+  "editAssistantDetails": "编辑",
   "assistantNameAvatar": "名称及头像",
   "assistantDescription": "助手描述",
   "assistantDescriptionPlaceholder": "帮你解决什么问题",
@@ -46,7 +48,7 @@
   "promptPreview": "预览",
   "promptPreviewEmpty": "暂无内容可预览",
   "deleteAssistantTitle": "删除助手",
-  "deleteAssistantConfirm": "删除该助手将会同步删除已关联该助手的会话，是否确认删除？",
+  "deleteAssistantConfirm": "删除该助手会一并删除已关联会话。如需保留，请导出会话进行备份。是否确认删除？",
   "cannotDeleteBuiltin": "无法删除内置助手",
   "duplicateAssistant": "复制新建",
   "assistantMainAgent": "主代理",
@@ -107,6 +109,8 @@
   "cacheClearFailed": "缓存清理失败",
   "language": "语言",
   "closeToTray": "关闭到托盘",
+  "avatarEnabled": "桌面 Avatar 浮窗",
+  "avatarEnabledDesc": "在桌面显示一个跟随当前对话状态的浮动伙伴",
   "gemini": "Gemini",
   "model": "模型",
   "runtime": "运行环境",
@@ -381,7 +385,6 @@
   "assistant.copyCode": "复制配对码",
   "assistant.modelSaved": "模型已保存",
   "assistant.modelSaveFailed": "保存模型失败",
-  "assistant.tokenLocked": "请先关闭 Channel 并删除所有已授权用户后，再尝试修改",
   "assistant.tokenValid": "Token 有效",
   "assistant.defaultModel": "对话模型",
   "assistant.defaultModelDesc": "用于Agent对话时调用",
@@ -407,6 +410,7 @@
   "channels.zentaoDesc": "连接禅道项目管理系统，AI 可读取和创建 Bug",
   "channels.wechat.install": "连接微信",
   "channels.wechat.installDesc": "扫描二维码，将你的个人微信连接到 Sudowork。",
+  "channels.wechat.privacyWarning": "注意：所有通过微信发送的消息都会先经过微信服务器。",
   "channels.wechat.installing": "正在生成二维码...",
   "channels.wechat.installSuccess": "微信连接成功",
   "channels.wechat.installFailed": "登录失败",
@@ -521,6 +525,7 @@
   "feedback": "意见反馈",
   "contactMe": "联系我",
   "officialWebsite": "官网",
+  "privacyPolicy": "隐私声明",
   "checkForUpdates": "检查更新",
   "includePrereleaseUpdates": "包含预发布/dev 版本",
   "saveModelConfigFailed": "保存模型配置失败",
@@ -599,6 +604,13 @@
   "skillScanFailed": "扫描技能失败",
   "quickScan": "快速扫描常用路径",
   "assistant": {
+    "view": "查看",
+    "edit": "编辑",
+    "upload": "上传",
+    "duplicate": "复制",
+    "install": "安装",
+    "installed": "已安装",
+    "delete": "删除",
     "tokenRequired": "请输入 Bot Token",
     "pluginEnabled": "Telegram 机器人已启用",
     "pluginDisabled": "Telegram 机器人已禁用",
@@ -641,7 +653,8 @@
     "agentDescTelegram": "用于与Channel进行对话",
     "autoFollowCliModel": "自动跟随CLI运行时的模型",
     "agentSwitched": "Agent 切换成功",
-    "modelSwitched": "模型切换成功"
+    "modelSwitched": "模型切换成功",
+    "tokenLocked": "请先关闭 Channel 并删除所有已授权用户后，再尝试修改"
   },
   "lark": {
     "appId": "App ID",
@@ -901,5 +914,14 @@
   "promptTimeout": "LLM 请求超时",
   "promptTimeoutDesc": "Agent 与大模型通信的最大等待时间。范围：30-3600 秒",
   "idleTimeout": "Agent 空闲超时",
-  "idleTimeoutDesc": "空闲 Agent 进程回收时间，用于释放内存。范围：1-60 分钟"
+  "idleTimeoutDesc": "空闲 Agent 进程回收时间，用于释放内存。范围：1-60 分钟",
+  "productImprovement": {
+    "title": "参与产品体验改进计划",
+    "description": "帮助我们持续优化产品体验，为您带来更好的服务。",
+    "hint": "开启后不会收集您的对话内容或个人信息，您可以随时关闭此功能。",
+    "dialogTitle": "产品体验改进计划",
+    "privacy": "开启后将匿名收集 SudoWork 性能指标，仅用于产品改进，不会收集您的对话内容或个人信息。您可以随时关闭此功能。",
+    "confirm": "确认开启",
+    "cancel": "暂不开启"
+  }
 }

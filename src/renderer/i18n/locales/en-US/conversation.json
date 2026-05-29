@@ -13,7 +13,7 @@
     "specifyWorkspace": "Chat in Folder",
     "currentWorkspace": "Current Workspace",
     "clearWorkspace": "Remove folder",
-    "addSkill": "Add Skill",
+    "addSkill": "Add Skill / Files",
     "skill": "Skill",
     "openFolder": "Open Folder",
     "none": "None",
@@ -30,6 +30,7 @@
     "actionNewConversation": "New Conversation",
     "deleteTitle": "Delete",
     "deleteConfirm": "Are you sure you want to delete this chat?",
+    "deleteWorkspaceOption": "Also delete workspace folder",
     "confirmDelete": "Delete",
     "cancelDelete": "Cancel",
     "editName": "Edit Name",
@@ -67,7 +68,9 @@
     "pinFailed": "Pin operation failed",
     "pinnedSection": "Pinned",
     "deleteSuccess": "Deleted successfully",
-    "deleteFailed": "Delete failed"
+    "deleteFailed": "Delete failed",
+    "timeline": "Chat",
+    "scheduledTab": "Scheduled"
   },
   "tabs": {
     "closeAll": "Close All",
@@ -94,6 +97,10 @@
     "pasteConfirm_multipleFiles": "{{count}} files",
     "empty": "It's empty",
     "emptyDescription": "Files will appear here after uploading files or opening a folder",
+    "remotePendingTitle": "Temporary space appears after the session starts",
+    "remotePendingDescription": "After the first message creates the session, Sudowork loads the temporary space and Drafts from Moss Server.",
+    "remoteSkillsPendingDesc": "Available backend skills appear after the session starts",
+    "remotePreviewBinaryUnsupported": "Built-in preview is not available for this remote file yet. View the original file in the session workspace.",
     "searchPlaceholder": "Search files...",
     "createNewConversation": "Create new chat in current workspace",
     "search.empty": "The search result is empty",
@@ -267,5 +274,6 @@
     "request_sent": "Request sent to agent",
     "failed": "Failed to generate",
     "preset_registered": "Agent preset registered successfully!"
-  }
+  },
+  "userCancelled": "Request cancelled by user"
 }

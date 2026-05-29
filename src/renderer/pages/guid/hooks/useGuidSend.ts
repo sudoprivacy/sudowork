@@ -12,6 +12,7 @@ import { isAcpRoutedPresetType, type PresetAgentType } from '@/types/acpTypes';
 import { getPresetByAgentId, resolveSessionMode } from '@/common/presets/presetResolver';
 import { Message } from '@arco-design/web-react';
 import { useCallback } from 'react';
+import { useAppMode } from '@/renderer/hooks/useAppMode';
 import { type TFunction } from 'i18next';
 import type { NavigateFunction } from 'react-router-dom';
 import type { AcpBackend, AvailableAgent, EffectiveAgentInfo } from '../types';
@@ -35,6 +36,9 @@ export type GuidSendDeps = {
   selectedMode: string;
   selectedAcpModel: string | null;
   currentModel: TProviderWithModel | undefined;
+
+  /** Current session mode (remote/local) for enterprise mode */
+  sessionMode: 'remote' | 'local';
 
   // Agent helpers
   findAgentByKey: (key: string) => AvailableAgent | undefined;
@@ -73,7 +77,9 @@ export type GuidSendResult = {
  * Hook that manages the send logic for all conversation types (acp/openclaw-gateway).
  */
 export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
-  const { input, setInput, files, setFiles, dir, setDir, setLoading, selectedSkills, selectedAgent, selectedAgentKey, selectedAgentInfo, isPresetAgent, selectedMode, selectedAcpModel, currentModel, findAgentByKey, getEffectiveAgentType, resolvePresetRulesAndSkills, resolveEnabledSkills, isMainAgentAvailable, getAvailableFallbackAgent, currentEffectiveAgentInfo, isGoogleAuth, setMentionOpen, setMentionQuery, setMentionSelectorOpen, setMentionActiveIndex, resetAgentSelection, setSelectedSkills, navigate, closeAllTabs, openTab, t } = deps;
+  const { input, setInput, files, setFiles, dir, setDir, setLoading, selectedSkills, selectedAgent, selectedAgentKey, selectedAgentInfo, isPresetAgent, selectedMode, selectedAcpModel, currentModel, sessionMode, findAgentByKey, getEffectiveAgentType, resolvePresetRulesAndSkills, resolveEnabledSkills, isMainAgentAvailable, getAvailableFallbackAgent, currentEffectiveAgentInfo, isGoogleAuth, setMentionOpen, setMentionQuery, setMentionSelectorOpen, setMentionActiveIndex, resetAgentSelection, setSelectedSkills, navigate, closeAllTabs, openTab, t } = deps;
+
+  const { isEnterprise } = useAppMode();
 
   const handleSend = useCallback(async () => {
     const isCustomWorkspace = !!dir;
@@ -86,14 +92,13 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
 
     const { rules: presetRules } = await resolvePresetRulesAndSkills(agentInfo);
     const enabledSkills = resolveEnabledSkills(agentInfo);
+    const scodeAgentInfo = findAgentByKey('scode');
+    const hasScodeCli = Boolean(scodeAgentInfo?.cliPath);
 
     let finalEffectiveAgentType = effectiveAgentType;
     if (isPreset && !isMainAgentAvailable(effectiveAgentType)) {
-      // Only fallback within the same routing category:
-      // ACP types (claude, qwen, codebuddy, etc.) can fallback to each other,
-      // but never to sudoclaw (OpenClaw Gateway) — they have different capabilities.
       const fallback = getAvailableFallbackAgent();
-      const isSameCategory = fallback && fallback !== 'sudoclaw' && effectiveAgentType !== 'sudoclaw';
+      const isSameCategory = fallback && fallback !== 'openclaw-gateway' && effectiveAgentType !== 'openclaw-gateway';
       if (fallback && fallback !== effectiveAgentType && isSameCategory) {
         finalEffectiveAgentType = fallback;
         Message.info(
@@ -106,12 +111,87 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
       }
     }
 
-    // OpenClaw Gateway path (sudoclaw backend or preset with sudoclaw agent type)
-    if (selectedAgent === 'openclaw-gateway' || finalEffectiveAgentType === 'sudoclaw') {
-      const openclawAgentInfo = agentInfo || findAgentByKey(selectedAgentKey);
+    // Enterprise Remote mode: route through remote-agent
+    // 企业 Remote 模式：使用 remote-agent
+    // Local mode in enterprise: use ACP scode path (same as consumer)
+    // 企业 Local 模式：使用 ACP scode 路径（与 C 端相同）
+    if ((isEnterprise && sessionMode === 'remote') || selectedAgentKey === 'remote-agent') {
+      console.log('Enterprise mode: Creating remote-agent conversation');
 
-      // For sudoclaw preset, find the openclaw-gateway agent info
-      const actualAgentInfo = finalEffectiveAgentType === 'sudoclaw' ? findAgentByKey('openclaw-gateway') : openclawAgentInfo;
+      try {
+        // Directly call conversation.create, Provider handles Moss API internally
+        // 直接调用 conversation.create，Provider 内部处理 Moss API 调用
+        // This avoids duplicate Moss session creation
+        // 这避免了重复创建 Moss session
+        const conversation = await ipcBridge.conversation.create.invoke({
+          type: 'remote-agent',
+          name: input,
+          model: {} as TProviderWithModel,
+          extra: {
+            workspace: finalWorkspace,
+            backend: 'remote-agent',
+            agentName: agentInfo?.name || 'Moss Server',
+            presetAssistantId: agentInfo?.customAgentId || agentInfo?.name || 'Moss Server',
+            sessionMode: selectedMode,
+            dangerouslySkipPermissions: selectedMode === 'yolo',
+            sessionModeParam: 'remote',
+          },
+        });
+
+        if (!conversation || !conversation.id) {
+          alert('Failed to create remote agent conversation');
+          return;
+        }
+
+        console.log(`Remote agent conversation created: ${conversation.id}`);
+
+        // Store initial message for AcpSendBox to read
+        // 存储初始消息供 AcpSendBox 使用
+        const initialMessageData = {
+          input,
+          files: files.length > 0 ? files : undefined,
+          skills: selectedSkills || [],
+        };
+        sessionStorage.setItem(`remote_initial_message_${conversation.id}`, JSON.stringify(initialMessageData));
+
+        // Navigate to conversation page
+        // 导航到会话页面
+        await navigate(`/conversation/${conversation.id}`);
+        emitter.emit('chat.history.refresh');
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        alert(`Failed to create remote agent conversation: ${errorMessage}`);
+        throw error;
+      }
+      return;
+    }
+
+    // Non-enterprise: scode fallback check
+    if ((selectedAgent === 'scode' || finalEffectiveAgentType === 'scode') && !hasScodeCli) {
+      const gatewayAgentInfo = findAgentByKey('openclaw-gateway');
+      if (gatewayAgentInfo) {
+        Message.info(
+          t('guid.autoSwitchedAgent', {
+            defaultValue: 'scode is not available, switched to openclaw-gateway',
+            from: 'scode',
+            to: 'openclaw-gateway',
+          })
+        );
+        finalEffectiveAgentType = 'openclaw-gateway';
+      } else {
+        Message.error(
+          t('guid.agentNotAvailable', {
+            defaultValue: 'Sudo Code is not available. Please install or repair the runtime.',
+          })
+        );
+        return;
+      }
+    }
+
+    // OpenClaw Gateway path (explicit gateway selection or preset that still routes to gateway)
+    if (selectedAgent === 'openclaw-gateway' || finalEffectiveAgentType === 'openclaw-gateway') {
+      const openclawAgentInfo = agentInfo || findAgentByKey(selectedAgentKey);
+      const actualAgentInfo = finalEffectiveAgentType === 'openclaw-gateway' ? findAgentByKey('openclaw-gateway') : openclawAgentInfo;
 
       try {
         const conversation = await ipcBridge.conversation.create.invoke({
@@ -174,6 +254,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
 
     // ACP path (including preset with claude agent type)
     {
+      // Local mode: ACP path
       // Agent-type fallback only applies to preset assistants whose primary agent
       // was unavailable and got switched (e.g. claude → gemini).  For non-preset
       // agents (including extension-contributed ACP adapters with backend='custom'),
@@ -208,6 +289,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
             presetAssistantId: isPreset ? agentInfo?.customAgentId || acpAgentInfo?.customAgentId : undefined,
             sessionMode: isPreset ? resolveSessionMode(getPresetByAgentId(agentInfo?.customAgentId)?.defaultMode, acpBackend, selectedMode) : selectedMode,
             currentModelId: selectedAcpModel || undefined,
+            sessionModeParam: 'local',
           },
         });
 
@@ -237,7 +319,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
         throw error;
       }
     }
-  }, [input, files, dir, selectedAgent, selectedAgentKey, selectedAgentInfo, isPresetAgent, selectedMode, selectedAcpModel, currentModel, findAgentByKey, getEffectiveAgentType, resolvePresetRulesAndSkills, resolveEnabledSkills, isMainAgentAvailable, getAvailableFallbackAgent, navigate, closeAllTabs, openTab, t]);
+  }, [input, files, dir, selectedAgent, selectedAgentKey, selectedAgentInfo, isPresetAgent, selectedMode, selectedAcpModel, currentModel, sessionMode, findAgentByKey, getEffectiveAgentType, resolvePresetRulesAndSkills, resolveEnabledSkills, isMainAgentAvailable, getAvailableFallbackAgent, navigate, closeAllTabs, openTab, t]);
 
   const sendMessageHandler = useCallback(() => {
     setLoading(true);

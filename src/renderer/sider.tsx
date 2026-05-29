@@ -11,11 +11,26 @@ import { useLayoutContext } from './context/LayoutContext';
 import { blurActiveElement } from './utils/focus';
 import { isElectronDesktop } from './utils/platform';
 import { useAuth } from './context/AuthContext';
-import { emitter } from './utils/emitter';
+import { addEventListener, emitter } from './utils/emitter';
 import { ConfigStorage } from '@/common/storage';
+import { useAppMode } from './hooks/useAppMode';
 
 const WorkspaceGroupedHistory = React.lazy(() => import('./pages/conversation/WorkspaceGroupedHistory'));
 const SettingsSider = React.lazy(() => import('./pages/settings/SettingsSider'));
+
+/**
+ * 手机号脱敏：保留前 3 位和后 4 位，中间用 **** 替代。
+ * 例：13812345678 → 138****5678
+ */
+function maskPhone(phone: string): string {
+  if (!phone) return '';
+  // 仅对 11 位纯数字手机号做脱敏，其他格式原样返回
+  const digits = phone.replace(/\D/g, '');
+  if (digits.length === 11) {
+    return `${digits.slice(0, 3)}****${digits.slice(7)}`;
+  }
+  return phone;
+}
 
 interface SiderProps {
   onSessionClick?: () => void;
@@ -30,26 +45,46 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { logout, user: currentUser } = useAuth();
+  const { isEnterprise } = useAppMode();
   const [isBatchMode, setIsBatchMode] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+
+  // Sidebar tab state: 'timeline' or 'scheduled'
+  const SIDER_TAB_STORAGE_KEY = 'aionui_sider_tab';
+  const [activeTab, setActiveTab] = useState<'timeline' | 'scheduled'>(() => {
+    try {
+      const stored = localStorage.getItem(SIDER_TAB_STORAGE_KEY);
+      if (stored === 'scheduled') return 'scheduled';
+    } catch {
+      // ignore
+    }
+    return 'timeline';
+  });
+
+  // Listen for command palette tab switch events
+  useEffect(() => {
+    const removeListener = addEventListener('sider.tab.switch', (tab) => {
+      setActiveTab(tab);
+      try {
+        localStorage.setItem(SIDER_TAB_STORAGE_KEY, tab);
+      } catch {
+        // ignore
+      }
+    });
+    return removeListener;
+  }, []);
   const isSettings = pathname.startsWith('/settings');
   const lastNonSettingsPathRef = useRef('/guid');
 
-  // 从 AuthContext 获取实际用户信息
+  // 从 AuthContext 获取实际用户信息（手机号脱敏展示）
   const userInfo = {
-    email: currentUser?.phone || '',
+    email: maskPhone(currentUser?.phone || ''),
     name: currentUser?.nickname || 'Sudowork 用户',
     avatar: null as string | null,
   };
 
   // 功能菜单项定义 / Function menu items definition
-  const functionMenus = [
-    { id: 'agent', label: '数字助手', icon: Robot, path: '/settings/agent' },
-    { id: 'skill-store', label: '技能商店', icon: Lightning, path: '/settings/skill' },
-    { id: 'security', label: '安全防护', icon: Shield, path: '/settings/security' },
-    { id: 'webui', label: '远程连接', icon: Earth, path: '/settings/webui' },
-    { id: 'cron', label: '定时任务', icon: AlarmClock, path: '/settings/cron' },
-  ];
+  const functionMenus = [{ id: 'agent', label: t('common.siderMenu.agent'), icon: Robot, path: '/settings/agent' }, { id: 'skill-store', label: t('common.siderMenu.skillStore'), icon: Lightning, path: '/settings/skill' }, { id: 'security', label: t('common.siderMenu.security'), icon: Shield, path: '/settings/security' }, ...(!isEnterprise ? [{ id: 'webui' as const, label: t('common.siderMenu.webui'), icon: Earth, path: '/settings/webui' }] : []), { id: 'cron', label: t('common.siderMenu.cron'), icon: AlarmClock, path: '/settings/cron' }];
 
   // 处理功能菜单点击 — 在 GuidPage 内联显示，通过 query param 传递 menuId
   const handleFunctionMenuClick = (menuId: string) => {
@@ -94,7 +129,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
     },
     batchMode: isBatchMode,
     onBatchModeChange: setIsBatchMode,
-    showTitle: false, // 我们已经在上面渲染了标题
+    activeTab,
   };
   const tooltipEnabled = collapsed && !isMobile;
   const siderTooltipProps = getSiderTooltipProps(tooltipEnabled);
@@ -187,9 +222,32 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
               })}
             </div>
 
-            {/* 所有对话标题 + 批量管理按钮 / All records title + Batch mode button */}
+            {/* Session history tabs + batch mode button */}
             <div className={classNames('mb-8px px-8px flex items-center', collapsed ? 'justify-center' : 'justify-between')}>
-              {!collapsed && <span className='text-13px font-medium text-t-secondary'>{t('conversation.history.allRecords', { defaultValue: '所有对话' })}</span>}
+              {!collapsed && (
+                <div className='flex items-center gap-1px flex-1'>
+                  {(['timeline', 'scheduled'] as const).map((tab) => {
+                    const isActive = activeTab === tab;
+                    const label = tab === 'timeline' ? t('conversation.history.timeline', { defaultValue: '对话' }) : t('conversation.history.scheduledTab', { defaultValue: '定时任务' });
+                    return (
+                      <div
+                        key={tab}
+                        className={classNames('flex-1 text-center text-13px py-8px rd-8px cursor-pointer transition-colors select-none', isActive ? 'bg-aou-2 text-aou-6 font-medium' : 'text-t-secondary hover:text-t-primary hover:bg-hover')}
+                        onClick={() => {
+                          setActiveTab(tab);
+                          try {
+                            localStorage.setItem(SIDER_TAB_STORAGE_KEY, tab);
+                          } catch {
+                            // ignore
+                          }
+                        }}
+                      >
+                        {label}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
               <Tooltip {...siderTooltipProps} content={isBatchMode ? t('conversation.history.batchModeExit') : t('conversation.history.batchManage')} position='right'>
                 <div className={classNames('w-32px h-32px flex items-center justify-center rd-8px cursor-pointer transition-all shrink-0', isBatchMode ? 'bg-[rgba(var(--primary-6),0.12)] text-primary-6' : 'hover:bg-hover active:bg-fill-2 text-t-secondary')} onClick={handleToggleBatchMode}>
                   <ListCheckbox theme='outline' size='18' className='block leading-none' />
@@ -231,7 +289,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
                     className='flex items-center gap-8px text-[rgb(var(--danger-6))]'
                     onClick={async () => {
                       await logout();
-                      Message.success('已退出登录');
+                      Message.success(t('login.logoutSuccess'));
                       void navigate('/login', { replace: true });
                     }}
                   >

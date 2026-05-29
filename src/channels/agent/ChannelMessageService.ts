@@ -17,8 +17,11 @@ import type { IResponseMessage } from '../../common/ipcBridge';
  */
 export type StreamCallback = (chunk: TMessage, insert: boolean) => void;
 
-/** Maximum time (ms) to wait for a stream to complete before auto-cleaning */
+/** Maximum time (ms) to wait for a stream to complete before sending timeout warning */
 const STREAM_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+
+/** Maximum time (ms) to wait before force-cleaning a stream (hard timeout) */
+const STREAM_HARD_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 
 /**
  * 消息流状态
@@ -34,8 +37,12 @@ interface IStreamState {
   turnCount: number;
   /** Number of 'finish' events received */
   finishCount: number;
-  /** Timer that auto-cleans this stream if no finish event arrives */
+  /** Timer that sends timeout warning */
   timeoutTimer: ReturnType<typeof setTimeout>;
+  /** Timer that force-cleans the stream */
+  hardTimeoutTimer: ReturnType<typeof setTimeout>;
+  /** Whether timeout warning has been sent */
+  timedOut: boolean;
   /** Draining state: finish received, waiting for microtask to flush pending messages */
   draining: boolean;
   /** Pending messages buffered during draining phase */
@@ -124,6 +131,7 @@ export class ChannelMessageService {
       stream.finishCount++;
       if (stream.turnCount === 0 || stream.finishCount >= stream.turnCount) {
         clearTimeout(stream.timeoutTimer);
+        clearTimeout(stream.hardTimeoutTimer);
         // Mark stream as draining to buffer any late-arriving messages
         stream.draining = true;
         // Use microtask to defer stream deletion and resolution
@@ -234,26 +242,37 @@ export class ChannelMessageService {
       if (existingStream) {
         console.warn(`[ChannelMessageService] Cleaning up existing stream (msgId=${existingStream.msgId}) before registering new stream for conversation ${conversationId}`);
         clearTimeout(existingStream.timeoutTimer);
+        clearTimeout(existingStream.hardTimeoutTimer);
         this.activeStreams.delete(conversationId);
         this.messageListMap.delete(conversationId);
         // Resolve the old promise so its caller's post-stream cleanup runs normally
         existingStream.resolve(existingStream.msgId);
       }
 
-      // Auto-clean stream if no finish event arrives within the timeout.
-      // This prevents hung promises when an agent crashes mid-stream.
+      // Send timeout warning but keep stream alive for late-arriving messages.
+      // Agent might still be running and will send finish event later.
       const timeoutTimer = setTimeout(() => {
         const staleStream = this.activeStreams.get(conversationId);
-        // Stream ownership check: only clean up if this timer's stream is still the active one.
-        // A newer stream may have replaced it, in which case we must not touch it.
-        if (staleStream && staleStream.msgId === msgId && !staleStream.draining) {
+        // Stream ownership check: only warn if this timer's stream is still the active one.
+        if (staleStream && staleStream.msgId === msgId && !staleStream.draining && !staleStream.timedOut) {
           console.warn(`[ChannelMessageService] Stream timed out after ${STREAM_TIMEOUT_MS / 1000}s for conversation ${conversationId}`);
-          this.activeStreams.delete(conversationId);
-          this.messageListMap.delete(conversationId);
+          staleStream.timedOut = true;
+          // Send timeout warning to user
           staleStream.callback({ type: 'tips', id: uuid(), conversation_id: conversationId, content: { type: 'error', content: 'Response timed out. Please try again.' } }, true);
-          staleStream.resolve(staleStream.msgId);
+          console.log(`[ChannelMessageService] Keeping stream alive for late-arriving messages, conversationId=${conversationId}`);
         }
       }, STREAM_TIMEOUT_MS);
+
+      // Hard timeout: force cleanup if agent never finishes
+      const hardTimeoutTimer = setTimeout(() => {
+        const staleStream = this.activeStreams.get(conversationId);
+        if (staleStream && staleStream.msgId === msgId && !staleStream.draining) {
+          console.warn(`[ChannelMessageService] Stream hard timeout after ${STREAM_HARD_TIMEOUT_MS / 1000}s for conversation ${conversationId}`);
+          this.activeStreams.delete(conversationId);
+          this.messageListMap.delete(conversationId);
+          staleStream.resolve(staleStream.msgId);
+        }
+      }, STREAM_HARD_TIMEOUT_MS);
 
       // 注册流状态
       // Register stream state
@@ -266,6 +285,8 @@ export class ChannelMessageService {
         turnCount: 0,
         finishCount: 0,
         timeoutTimer,
+        hardTimeoutTimer,
+        timedOut: false,
         draining: false,
         pendingMessages: [],
       });
@@ -282,6 +303,7 @@ export class ChannelMessageService {
         console.error(`[ChannelMessageService] Send error:`, error);
         onStream({ type: 'tips', id: uuid(), conversation_id: conversationId, content: { type: 'error', content: errorMessage } }, true);
         clearTimeout(timeoutTimer);
+        clearTimeout(hardTimeoutTimer);
         this.activeStreams.delete(conversationId);
         this.messageListMap.delete(conversationId);
         reject(error);
@@ -307,6 +329,7 @@ export class ChannelMessageService {
     const stream = this.activeStreams.get(conversationId);
     if (!stream) return;
     clearTimeout(stream.timeoutTimer);
+    clearTimeout(stream.hardTimeoutTimer);
     this.activeStreams.delete(conversationId);
     // Resolve (not reject) so the caller's post-stream cleanup runs normally
     // (e.g., ActionExecutor finalizing the card with action buttons).

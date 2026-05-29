@@ -15,6 +15,8 @@
   "languageToggle": "언어 변경",
   "footerPrimary": "명령줄 AI의 혁신",
   "footerSecondary": "현대적이고 효율적인",
+  "logout": "로그아웃",
+  "logoutSuccess": "로그아웃되었습니다",
   "errors": {
     "empty": "사용자 이름과 비밀번호를 입력하세요",
     "invalidCredentials": "잘못된 사용자 이름 또는 비밀번호",

@@ -26,15 +26,22 @@ import { getSudoclawWorkspaceRoot } from '@process/initAgent';
 import { SUDOCLAW_DIR } from '@process/services/sudoclaw/SudoclawInstallService';
 import BaseAgent from '@process/task/BaseAgent';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
+import { translateLLMError } from '@process/utils/llmErrorTranslation';
 import { resolveImageConfig, callImagesGenerations, callImagesEdits, saveImageResult, resolveChatModel, callChatCompletionsWithImage, readSudorouterCredentials } from '../bridge/imageGenerationBridge';
 import { buildDraftsInstruction, hasMcpServersConfigured, buildMcporterCommandHint } from './agentUtils';
 import { normalizeWindowsImagePaths } from './acp/AcpMessagePipeline';
-import { cleanupIntermediateFiles, cleanupMisplacedFiles } from './draftsCleanup';
+import { cleanupIntermediateFiles } from './draftsCleanup';
 import { inferToolFailure } from '@/agent/acp/inferToolFailure';
 import { createHash } from 'node:crypto';
 import * as nodePath from 'node:path';
 import { ProcessConfig } from '@process/initStorage';
 import { serviceManager } from '@process/services/serviceManager';
+
+// Telemetry imports for conversation tracking
+import { startConversationTracking, endConversationSuccess, endConversationError, endConversationUserCancel } from '../telemetry';
+
+// CrashReporter imports for breadcrumb tracking
+import { conversationBreadcrumbs, apiBreadcrumbs, systemBreadcrumbs } from '../telemetry/BreadcrumbTracker';
 
 /** Default prompt timeout in seconds */
 const DEFAULT_PROMPT_TIMEOUT_SECONDS = 300;
@@ -168,6 +175,9 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
   private isFirstMessage: boolean = true;
   private expectReconnectOnClose = false;
   private hasEmittedTerminalConnectionError = false;
+  private userCancelled = false;
+  private stopPromise: Promise<void> | null = null;
+  private turnActive = false;
 
   /** Snapshot of known deliverable files and their mtime, used to detect new files created by Bash/execute tools */
   private workspaceFileSnapshot: Map<string, number> = new Map();
@@ -439,10 +449,21 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
   async sendMessage(data: { content: string; agentContent?: string; files?: string[]; msg_id?: string; skills?: string[] }) {
     cronBusyGuard.setProcessing(this.conversation_id, true);
     this.status = 'running';
+    this.processingStartTime = Date.now();
+    this.turnActive = true;
+    this.userCancelled = false;
+    this.stopPromise = null;
     mainLog('OpenClawAgent', `sendMessage called: content="${data.content?.substring(0, 50)}..."`);
     try {
       await this.bootstrap;
       mainLog('OpenClawAgent', 'sendMessage: bootstrap completed');
+
+      // Start telemetry conversation tracking
+      const modelId = this.options.model || 'unknown';
+      startConversationTracking(this.conversation_id, modelId, 'sudoclaw');
+
+      // Breadcrumb: conversation started
+      conversationBreadcrumbs.start(this.conversation_id, modelId, 'sudoclaw');
 
       // Auto-reconnect if needed
       if (!this.connection?.isConnected || !this.connection?.sessionKey) {
@@ -500,21 +521,29 @@ class OpenClawAgent extends BaseAgent<OpenClawAgentData> {
       if (this.workspace) {
         const configuredWorkspace = getSudoclawWorkspaceRoot();
         const draftsInstruction = buildDraftsInstruction(this.workspace);
-        const workspaceDirective = `[CRITICAL: Workspace Path - MUST VERIFY ON EVERY FILE OPERATION]
+        const workspaceDirective = `[CRITICAL: Workspace & Identity - MUST VERIFY ON EVERY FILE OPERATION]
 
 ⚠️ PATH VERIFICATION CHECKLIST (apply to EVERY write/exec/bash operation):
 
-1. Your ONLY valid workspace is: ${this.workspace}
-2. FORBIDDEN path (DO NOT use): ${configuredWorkspace}
-3. Before any file write, VERIFY the path starts with '${this.workspace}'
-4. If you find your OWN output files in ${configuredWorkspace}, MOVE them to ${this.workspace}
-   - EXCLUDE system files (DO NOT move): AGENTS.md, SOUL.md, USER.md, IDENTITY.md, HEARTBEAT.md, TOOLS.md, memory/, .openclaw/
-   - These are Agent identity/session config files, NOT your output files
+1. Your task workspace (for task-specific output files) is: ${this.workspace}
+2. Before any file write, VERIFY the path starts with '${this.workspace}'
+3. All NEW files you create (scripts, documents, deliverables) MUST go into: ${this.workspace}
 
-[System: This directive applies even after errors/retries. The session workspace does NOT change.]
+[System: This directive applies even after errors/retries. The session task workspace does NOT change.]
 
-Your working directory for this session ONLY is '${this.workspace}'.
-All file operations, bash commands, and output (when calling write() tool) MUST use this path.
+## Task Workspace vs Shared Identity/Memory
+
+Your task workspace '${this.workspace}' is a **project directory** created for THIS specific task/session.
+It is used ONLY for storing files generated during this task (scripts, documents, reports, etc.).
+
+Your **identity, soul, and memory** persist across all sessions in the shared workspace:
+- Identity: ${configuredWorkspace}/IDENTITY.md
+- Soul: ${configuredWorkspace}/SOUL.md
+- Memory: ${configuredWorkspace}/memory/
+
+You are NOT a separate clone — you are the same OpenClaw entity across sessions.
+When you need to read or update your identity/soul/memory, access them from '${configuredWorkspace}'.
+When you create task output files, write them to '${this.workspace}'.
 
 ${draftsInstruction}`;
         processedContent = `${workspaceDirective}\n\n${processedContent}`;
@@ -540,6 +569,9 @@ ${draftsInstruction}`;
       this.applyPromptTimeoutFromConfig();
       mainLog('OpenClawAgent', 'sendMessage: applyPromptTimeoutFromConfig completed');
 
+      // Breadcrumb: API request
+      apiBreadcrumbs.request('chatSend', 'POST', this.conversation_id);
+
       // Send chat message
       mainLog('OpenClawAgent', `sendMessage: about to call chatSend with sessionKey=${this.connection!.sessionKey}`);
       await this.connection!.chatSend({
@@ -548,24 +580,49 @@ ${draftsInstruction}`;
       });
       mainLog('OpenClawAgent', 'sendMessage: chatSend completed');
 
+      // Breadcrumb: API response success
+      apiBreadcrumbs.responseSuccess('chatSend', 200);
+
       return { success: true, data: null } as AcpResult;
     } catch (error) {
       cronBusyGuard.setProcessing(this.conversation_id, false);
       this.status = 'finished';
+      this.turnActive = false;
+      this.processingStartTime = undefined;
+
+      // Telemetry: end conversation tracking (error)
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      let errorCode: string | undefined;
+      if (errorMsg.includes('timeout') || errorMsg.includes('Timeout') || errorMsg.includes('timed out')) {
+        errorCode = 'E002';
+        endConversationError(this.conversation_id, 'E002');
+      } else if (errorMsg.includes('interrupted') || errorMsg.includes('SSE') || errorMsg.includes('stream')) {
+        errorCode = 'E003';
+        endConversationError(this.conversation_id, 'E003');
+      } else if (errorMsg.includes('parse') || errorMsg.includes('JSON') || errorMsg.includes('invalid response')) {
+        errorCode = 'E005';
+        endConversationError(this.conversation_id, 'E005');
+      } else if (errorMsg.includes('Connection') || errorMsg.includes('Gateway')) {
+        errorCode = 'E001';
+        endConversationError(this.conversation_id, 'E001');
+      } else {
+        errorCode = 'E009';
+        endConversationError(this.conversation_id, 'E009');
+      }
+
+      // Breadcrumb: conversation ended (error)
+      conversationBreadcrumbs.error(this.conversation_id, errorCode || 'unknown', errorMsg);
+
+      // Breadcrumb: API response error
+      apiBreadcrumbs.responseError('chatSend', errorCode === 'E002' ? 408 : errorCode === 'E001' ? 503 : 500, errorMsg);
 
       // Post-cleanup on error: move intermediate files from workspace root to .drafts/
-      // Also cleanup misplaced files from parent workspace directory
       if (this.workspace) {
         cleanupIntermediateFiles(this.workspace).catch((err) => {
           mainError('OpenClawAgent', 'Post-cleanup on error failed:', err);
         });
-        const parentWorkspace = getSudoclawWorkspaceRoot();
-        cleanupMisplacedFiles(this.workspace, parentWorkspace).catch((err) => {
-          mainError('OpenClawAgent', 'Misplaced files cleanup on error failed:', err);
-        });
       }
 
-      const errorMsg = error instanceof Error ? error.message : String(error);
       if (!this.shouldSuppressTransientGatewayError(errorMsg)) {
         this.emitErrorMessage(`Failed to send Sudoclaw message: ${errorMsg}`);
       }
@@ -590,13 +647,76 @@ ${draftsInstruction}`;
   }
 
   async stop(): Promise<void> {
+    if (this.stopPromise) {
+      return this.stopPromise;
+    }
+    if (!this.turnActive) {
+      return;
+    }
+
+    this.stopPromise = this.performStop().finally(() => {
+      this.stopPromise = null;
+    });
+    return this.stopPromise;
+  }
+
+  private async performStop(): Promise<void> {
+    // Telemetry: end conversation tracking (user cancel)
+    endConversationUserCancel(this.conversation_id);
+
+    // Breadcrumb: conversation ended (user cancel)
+    conversationBreadcrumbs.userCancel(this.conversation_id);
+    this.userCancelled = true;
+
+    // Send abort request to gateway
     if (this.connection?.isConnected && this.connection?.sessionKey) {
       try {
         await this.connection.chatAbort({ sessionKey: this.connection.sessionKey });
       } catch (err) {
         mainWarn('OpenClawAgent', 'chatAbort failed:', err);
+        // If abort fails, disconnect to force stop
+        this.connection.stop();
       }
     }
+
+    // Emit user cancelled message
+    this.emitUserCancelledMessage();
+
+    // Emit finish to ensure UI state is reset
+    this.handleEndTurn();
+  }
+
+  /**
+   * Emit user cancelled message as content type
+   * 发送用户终止消息（作为 content 类型，会显示在对话历史中）
+   */
+  private emitUserCancelledMessage(): void {
+    // Emit as 'content' type so it appears in conversation history
+    // and user can continue the conversation
+    const msg: IResponseMessage = {
+      type: 'content',
+      conversation_id: this.conversation_id,
+      msg_id: uuid(),
+      data: '请求已被用户终止',
+    };
+
+    // Direct emit to bypass any message filtering
+    ipcBridge.openclawConversation.responseStream.emit(msg);
+
+    // Also emit to generic conversation stream for channel clients
+    ipcBridge.conversation.responseStream.emit(msg);
+
+    // Persist to local DB
+    const tMessage: TMessage = {
+      id: msg.msg_id,
+      msg_id: msg.msg_id,
+      type: 'text',
+      position: 'left',
+      conversation_id: this.conversation_id,
+      content: { content: msg.data as string },
+      createdAt: Date.now(),
+    };
+    addOrUpdateMessage(this.conversation_id, tMessage);
   }
 
   private async handleImageCommand(args: string): Promise<AcpResult> {
@@ -607,7 +727,7 @@ ${draftsInstruction}`;
       type: 'start',
       conversation_id: this.conversation_id,
       msg_id: responseMsgId,
-      data: null,
+      data: { processingStartTime: this.processingStartTime },
     });
 
     try {
@@ -717,6 +837,8 @@ ${draftsInstruction}`;
       data: null,
     });
     this.status = 'finished';
+    this.turnActive = false;
+    this.processingStartTime = undefined;
     cronBusyGuard.setProcessing(this.conversation_id, false);
     return { success: true, data: null };
   }
@@ -788,9 +910,14 @@ ${draftsInstruction}`;
           break;
       }
     } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
       mainError('OpenClawAgent', `Unhandled error in event handler (${evt.event}):`, error);
+      // Telemetry: end conversation tracking (internal error)
+      endConversationError(this.conversation_id);
+      // Breadcrumb: conversation ended (internal error)
+      conversationBreadcrumbs.error(this.conversation_id, 'E008', errorMsg);
       // Emit error to UI and force end turn to prevent hanging
-      this.emitErrorMessage(`Internal error processing event: ${error instanceof Error ? error.message : String(error)}`);
+      this.emitErrorMessage(`Internal error processing event: ${errorMsg}`);
       this.handleEndTurn();
     }
   }
@@ -851,8 +978,11 @@ ${draftsInstruction}`;
       case 'final': {
         if (event.message) {
           const finalText = this.extractTextFromMessage(event.message);
-          // Filter out NO_REPLY — internal agent protocol signal, not user-facing
-          if (finalText?.trim() === 'NO_REPLY') {
+          // Filter out NO_REPLY and its prefixes — internal agent protocol signal, not user-facing.
+          // A standalone NO_REPLY prefix (e.g. "NO") as the entire text content of a turn
+          // is an internal protocol artifact, not a meaningful user response.
+          const trimmedFinal = finalText?.trim() || '';
+          if (trimmedFinal && 'NO_REPLY'.startsWith(trimmedFinal)) {
             this.noReplyBuffering = false;
             this.currentStreamMsgId = null;
             this.accumulatedAssistantText = '';
@@ -899,20 +1029,34 @@ ${draftsInstruction}`;
         this.handleEndTurn();
         break;
 
-      case 'error':
-        mainError('OpenClawAgent', '[DIAG] ChatEvent error received:', JSON.stringify({
-          runId: event.runId,
-          sessionKey: event.sessionKey,
-          seq: event.seq,
-          state: event.state,
-          stopReason: event.stopReason,
-          errorMessage: event.errorMessage,
-          message: event.message,
-          usage: event.usage,
-        }, null, 2));
-        this.emitErrorMessage(event.errorMessage || 'Unknown error');
+      case 'error': {
+        mainError(
+          'OpenClawAgent',
+          '[DIAG] ChatEvent error received:',
+          JSON.stringify(
+            {
+              runId: event.runId,
+              sessionKey: event.sessionKey,
+              seq: event.seq,
+              state: event.state,
+              stopReason: event.stopReason,
+              errorMessage: event.errorMessage,
+              message: event.message,
+              usage: event.usage,
+            },
+            null,
+            2
+          )
+        );
+        // Telemetry: end conversation tracking (error)
+        endConversationError(this.conversation_id);
+        // Breadcrumb: conversation ended (chat error)
+        conversationBreadcrumbs.error(this.conversation_id, 'E008', event.errorMessage || 'Chat error');
+        const translatedError = translateLLMError(event.errorMessage || 'Unknown error');
+        this.emitErrorMessage(translatedError);
         this.handleEndTurn();
         break;
+      }
 
       default:
         mainWarn('OpenClawAgent', 'handleChatEvent: unknown state:', (event as { state: unknown }).state);
@@ -956,6 +1100,13 @@ ${draftsInstruction}`;
 
       case 'tool':
       case 'tool_call': {
+        // If a tool call arrives while buffering a NO_REPLY prefix (e.g. "NO"),
+        // the buffered text is an internal protocol artifact, not user-facing content — discard it.
+        if (this.noReplyBuffering) {
+          this.noReplyBuffering = false;
+          this.accumulatedAssistantText = '';
+          this.currentStreamMsgId = null;
+        }
         if (!event.data) break;
         void this.handleToolCallEvent(event.data as ToolEventData);
         break;
@@ -967,7 +1118,9 @@ ${draftsInstruction}`;
       case 'assistant': {
         if (!event.data) break;
         const text = (event.data.text as string) || '';
-        if (text && text.trim() !== 'NO_REPLY') {
+        // Filter out NO_REPLY and its prefixes ("N", "NO", "NO_", …) from fallback text
+        const trimmedAssistant = text.trim();
+        if (text && trimmedAssistant && !'NO_REPLY'.startsWith(trimmedAssistant)) {
           this.agentAssistantFallbackText = text;
         }
         break;
@@ -1069,16 +1222,23 @@ ${draftsInstruction}`;
   }
 
   private handleEndTurn(): void {
-    // Flush any content that was buffered for NO_REPLY prefix detection
-    // (e.g. "NO" that turned out to be a real response, not NO_REPLY)
-    if (this.noReplyBuffering && this.accumulatedAssistantText && this.currentStreamMsgId) {
-      this.handleStreamMessage({
-        type: 'content',
-        conversation_id: this.conversation_id,
-        msg_id: this.currentStreamMsgId,
-        data: this.accumulatedAssistantText,
-      });
+    if (!this.userCancelled) {
+      // Telemetry: end conversation tracking (success)
+      endConversationSuccess(this.conversation_id);
+
+      // Breadcrumb: conversation ended (success)
+      conversationBreadcrumbs.end(this.conversation_id, 'success');
     }
+
+    this.status = 'finished';
+    this.turnActive = false;
+    this.processingStartTime = undefined;
+
+    // If still buffering a NO_REPLY prefix at end of turn, discard it silently.
+    // A partial NO_REPLY prefix (e.g. "NO") that was never completed or diverged is
+    // an internal protocol artifact, not meaningful user-facing content.
+    // Previously this buffer was flushed to the user, which caused "NO" to leak
+    // into visible messages (see issue #513).
 
     this.currentStreamMsgId = null;
     this.accumulatedAssistantText = '';
@@ -1096,14 +1256,9 @@ ${draftsInstruction}`;
     cronBusyGuard.setProcessing(this.conversation_id, false);
 
     // Post-cleanup: move intermediate files from workspace root to .drafts/
-    // Also cleanup misplaced files from parent workspace directory
     if (this.workspace) {
       cleanupIntermediateFiles(this.workspace).catch((err) => {
         mainError('OpenClawAgent', 'Post-cleanup failed:', err);
-      });
-      const parentWorkspace = getSudoclawWorkspaceRoot();
-      cleanupMisplacedFiles(this.workspace, parentWorkspace).catch((err) => {
-        mainError('OpenClawAgent', 'Misplaced files cleanup failed:', err);
       });
     }
 
@@ -1117,19 +1272,19 @@ ${draftsInstruction}`;
     if (!retrying) {
       this.emitStatusMessage('disconnected');
     }
+    const errorMsg = `Gateway disconnected: ${reason}`;
     if (!retrying && !this.hasEmittedTerminalConnectionError && !this.shouldSuppressTransientGatewayClose(code, reason)) {
-      this.emitErrorMessage(`Gateway disconnected: ${reason}`, 'disconnect');
+      this.emitErrorMessage(errorMsg, 'disconnect');
+      // Telemetry: end conversation tracking (gateway disconnect)
+      endConversationError(this.conversation_id, 'E010');
+      // Breadcrumb: conversation ended (disconnect)
+      conversationBreadcrumbs.error(this.conversation_id, 'E010', errorMsg);
     }
 
     // Post-cleanup on disconnect: move intermediate files from workspace root to .drafts/
-    // Also cleanup misplaced files from parent workspace directory
     if (this.workspace) {
       cleanupIntermediateFiles(this.workspace).catch((err) => {
         mainError('OpenClawAgent', 'Post-cleanup on disconnect failed:', err);
-      });
-      const parentWorkspace = getSudoclawWorkspaceRoot();
-      cleanupMisplacedFiles(this.workspace, parentWorkspace).catch((err) => {
-        mainError('OpenClawAgent', 'Misplaced files cleanup on disconnect failed:', err);
       });
     }
 
@@ -1254,6 +1409,11 @@ ${draftsInstruction}`;
 
   /** Handle stream messages: DB persist + UI emit + channel emit */
   private handleStreamMessage(message: IResponseMessage): void {
+    if (this.userCancelled && message.type !== 'finish') {
+      mainLog('OpenClawAgent', `Ignoring stream message after user cancel: type=${message.type}`);
+      return;
+    }
+
     // Normalize Windows backslash paths in content messages before emission
     let msg: IResponseMessage = { ...message, conversation_id: this.conversation_id };
     if (msg.type === 'content' && typeof msg.data === 'string') {
@@ -1286,6 +1446,11 @@ ${draftsInstruction}`;
 
   /** Handle signal messages (permissions, finish) */
   private handleSignalMessage(message: IResponseMessage): void {
+    if (this.userCancelled && message.type !== 'finish') {
+      mainLog('OpenClawAgent', `Ignoring signal message after user cancel: type=${message.type}`);
+      return;
+    }
+
     const msg = { ...message, conversation_id: this.conversation_id };
 
     // Emit signal events to frontend
@@ -1743,14 +1908,10 @@ ${draftsInstruction}`;
   }
 
   /** Document extensions that should trigger file sending to channel clients */
-  private static readonly DOCUMENT_EXTENSIONS = new Set([
-    '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.csv', '.txt', '.md', '.html',
-  ]);
+  private static readonly DOCUMENT_EXTENSIONS = new Set(['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.csv', '.txt', '.md', '.html']);
 
   /** Image extensions */
-  private static readonly IMAGE_EXTENSIONS = new Set([
-    '.jpg', '.jpeg', '.png', '.webp', '.gif', '.tiff', '.bmp', '.ico', '.svg',
-  ]);
+  private static readonly IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.tiff', '.bmp', '.ico', '.svg']);
 
   /**
    * Extract file path from a tool call if it represents a file-creation operation.

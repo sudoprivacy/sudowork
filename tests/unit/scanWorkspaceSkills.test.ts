@@ -32,6 +32,14 @@ afterEach(async () => {
 });
 
 describe('scanWorkspaceSkills', () => {
+  it('returns an empty list when the skills directory does not exist', async () => {
+    const missingDir = path.join(os.tmpdir(), `scan-workspace-skills-missing-${Date.now()}-${Math.random().toString(16).slice(2)}`);
+
+    const skills = await scanWorkspaceSkills(missingDir);
+
+    expect(skills).toEqual([]);
+  });
+
   it('finds direct subdirectory skills', async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), 'scan-workspace-skills-'));
     createdDirs.push(root);

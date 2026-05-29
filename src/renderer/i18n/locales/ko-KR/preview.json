@@ -89,6 +89,16 @@
     "loadFailed": "PDF 문서를 불러오지 못했습니다",
     "unableDisplay": "PDF 파일을 표시할 수 없습니다"
   },
+  "video": {
+    "title": "동영상",
+    "pathMissing": "동영상 파일 경로가 누락되었습니다",
+    "loadFailed": "내장 플레이어에서 이 동영상을 재생할 수 없습니다. 시스템 기본 앱으로 열어 보세요."
+  },
+  "audio": {
+    "title": "오디오",
+    "pathMissing": "오디오 파일 경로가 누락되었습니다",
+    "loadFailed": "내장 플레이어에서 이 오디오를 재생할 수 없습니다. 시스템 기본 앱으로 열어 보세요."
+  },
   "html": {
     "elementSelected": "선택된 요소: {{path}}",
     "copySuccess": "HTML 스니펫 복사됨",

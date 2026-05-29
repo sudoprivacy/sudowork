@@ -43,6 +43,9 @@
   "deleteFailed": "刪除失敗",
   "default": "預設",
   "defaultModel": "預設模型",
+  "modelSwitchSuccess": "已切換為 {{model}}",
+  "modelListRefreshed": "模型清單已更新",
+  "modelListRefreshFailed": "模型清單更新失敗",
   "escToCancel": "按 ESC 取消",
   "create": "建立",
   "createSuccess": "建立成功",
@@ -58,5 +61,12 @@
   "setupContinuesInBackground": "先進入應用程式，執行環境會繼續在背景安裝。",
   "refresh": "重新整理",
   "tray.showWindow": "顯示 Sudowork",
-  "tray.quit": "結束"
+  "tray.quit": "結束",
+  "siderMenu": {
+    "agent": "數位助手",
+    "skillStore": "技能商店",
+    "security": "安全防護",
+    "webui": "遠端連線",
+    "cron": "排程任務"
+  }
 }

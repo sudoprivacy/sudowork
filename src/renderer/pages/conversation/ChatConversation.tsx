@@ -108,7 +108,9 @@ const ChatConversation: React.FC<{
 }> = ({ conversation }) => {
   const { t } = useTranslation();
   const { openPreview } = usePreviewContext();
-  const workspaceEnabled = Boolean(conversation?.extra?.workspace);
+  // Remote-agent workspaces are loaded from Moss Server, so they may not have a
+  // local workspace path in conversation.extra.
+  const workspaceEnabled = Boolean(conversation && (conversation.type === 'remote-agent' || conversation.extra?.workspace));
 
   // 使用统一的 Hook 获取预设助手信息（ACP 会话）
   // Use unified hook for preset assistant info (ACP conversations)
@@ -125,6 +127,11 @@ const ChatConversation: React.FC<{
         return <AcpChat key={conversation.id} conversation_id={conversation.id} workspace={conversation.extra?.workspace} backend={conversation.extra?.backend || 'claude'} sessionMode={conversation.extra?.sessionMode} agentName={resolvedAgentName}></AcpChat>;
       case 'openclaw-gateway':
         return <OpenClawChat key={conversation.id} conversation_id={conversation.id} workspace={conversation.extra?.workspace} agentName={resolvedAgentName} />;
+      case 'remote-agent': {
+        // Remote-agent uses AcpChat with backend='remote-agent' (handled by conversationBridge.sendMessage)
+        const remoteExtra = conversation.extra as { mossServerUrl?: string; agentName?: string };
+        return <AcpChat key={conversation.id} conversation_id={conversation.id} workspace={conversation.extra?.workspace} backend={'remote-agent'} sessionMode={conversation.extra?.sessionMode} agentName={resolvedAgentName || remoteExtra.agentName || 'Moss Server'}></AcpChat>;
+      }
       default:
         return null;
     }
@@ -138,6 +145,12 @@ const ChatConversation: React.FC<{
     }
     if (conversation.type === 'openclaw-gateway') {
       return <OpenClawModelSelector conversationId={conversation.id} />;
+    }
+    // For remote-agent, show placeholder model selector for UI consistency
+    // remote-agent 类型显示占位模型选择器以保持 UI 一致
+    if (conversation.type === 'remote-agent') {
+      const extra = conversation.extra as { currentModelId?: string };
+      return <AcpModelSelector conversationId={conversation.id} backend='remote-agent' initialModelId={extra.currentModelId} />;
     }
     return undefined;
   }, [conversation]);
@@ -153,7 +166,7 @@ const ChatConversation: React.FC<{
     : isLoadingPreset
       ? {} // Still loading custom agents — avoid showing backend logo prematurely
       : {
-          backend: conversation?.type === 'acp' ? conversation?.extra?.backend : conversation?.type === 'openclaw-gateway' ? 'openclaw-gateway' : undefined,
+          backend: conversation?.type === 'acp' ? conversation?.extra?.backend : conversation?.type === 'openclaw-gateway' ? 'openclaw-gateway' : conversation?.type === 'remote-agent' ? 'remote-agent' : undefined,
           agentName: (conversation?.extra as { agentName?: string })?.agentName,
         };
 

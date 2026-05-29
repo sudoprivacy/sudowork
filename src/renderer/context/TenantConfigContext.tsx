@@ -7,10 +7,12 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { ipcBridge } from '@/common';
 import { SUDOWORK_SERVER_BASE_URL } from '@/common/sudoworkServer';
-import { TenantConfig, TenantConfigResponse, DEFAULT_TENANT_CONFIG } from '@/common/types/tenantConfig';
+import { ConfigStorage } from '@/common/storage';
+import type { TenantConfig, TenantConfigResponse } from '@/common/types/tenantConfig';
+import { DEFAULT_TENANT_CONFIG, TENANT_CONFIG_STORAGE_KEY, resolveTenantConfig } from '@/common/types/tenantConfig';
 import { useAuth } from './AuthContext';
+import { useAppMode } from '@/renderer/hooks/useAppMode';
 
-const TENANT_CONFIG_STORAGE_KEY = 'sudowork_tenant_config';
 const POLL_INTERVAL_MS = 10 * 60 * 1000; // 10 分钟
 
 interface TenantConfigContextValue {
@@ -34,6 +36,7 @@ const TenantConfigContext = createContext<TenantConfigContextValue | undefined>(
  */
 export const TenantConfigProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
   const { user, status, ensureValidToken } = useAuth();
+  const { isEnterprise } = useAppMode();
 
   // 初始化时从 localStorage 加载缓存
   const [config, setConfig] = useState<Required<TenantConfig>>(() => {
@@ -41,7 +44,7 @@ export const TenantConfigProvider: React.FC<React.PropsWithChildren> = ({ childr
       const cached = localStorage.getItem(TENANT_CONFIG_STORAGE_KEY);
       if (cached) {
         const parsed = JSON.parse(cached);
-        return { ...DEFAULT_TENANT_CONFIG, ...parsed };
+        return resolveTenantConfig(parsed);
       }
     } catch {
       // ignore parse error
@@ -57,8 +60,12 @@ export const TenantConfigProvider: React.FC<React.PropsWithChildren> = ({ childr
    * 从服务端获取租户配置
    */
   const fetchConfig = useCallback(async () => {
-    // 未登录或缺少 enterprise_code，不请求
-    if (status !== 'authenticated' || !user?.enterprise_code) {
+    if (status !== 'authenticated') {
+      return;
+    }
+
+    // Personal mode still depends on sudowork-server enterprise_code.
+    if (!isEnterprise && !user?.enterprise_code) {
       return;
     }
 
@@ -68,19 +75,40 @@ export const TenantConfigProvider: React.FC<React.PropsWithChildren> = ({ childr
     setLoading(true);
 
     try {
+      if (isEnterprise) {
+        const configuredServerUrl = await ConfigStorage.get('eeclaw.serverUrl');
+        const serverUrl = configuredServerUrl?.trim().replace(/\/+$/, '');
+
+        if (!serverUrl) {
+          console.warn('[TenantConfig] No enterprise server URL configured');
+          return;
+        }
+
+        const data = await ipcBridge.eeclaw.verifyServer.invoke({ serverUrl });
+
+        if (data.success && data.data) {
+          const mergedConfig = resolveTenantConfig(data.data);
+          setConfig(mergedConfig);
+          localStorage.setItem(TENANT_CONFIG_STORAGE_KEY, JSON.stringify(mergedConfig));
+          await ConfigStorage.set('eeclaw.tenantName', mergedConfig.app_company_name);
+          console.log('[TenantConfig] Enterprise config updated:', mergedConfig);
+        } else {
+          console.warn('[TenantConfig] Enterprise API returned unsuccessful:', data.msg);
+        }
+        return;
+      }
+
       const serverConfig = await ipcBridge.sudoworkServer.getConfig.invoke();
       const baseUrl = serverConfig.baseUrl || SUDOWORK_SERVER_BASE_URL;
       const token = await ensureValidToken();
 
       if (!token) {
         console.warn('[TenantConfig] No valid token');
-        isRefreshing.current = false;
-        setLoading(false);
         return;
       }
 
       // 使用 enterprise_code 作为租户 code 参数
-      const url = `${baseUrl}/api/v1/tenant/config?code=${user.enterprise_code}`;
+      const url = `${baseUrl}/api/v1/tenant/config?code=${user?.enterprise_code}`;
 
       const response = await fetch(url, {
         method: 'GET',
@@ -92,23 +120,13 @@ export const TenantConfigProvider: React.FC<React.PropsWithChildren> = ({ childr
 
       if (!response.ok) {
         console.warn('[TenantConfig] API response not OK:', response.status);
-        isRefreshing.current = false;
-        setLoading(false);
         return;
       }
 
       const data: TenantConfigResponse = await response.json();
 
       if (data.success && data.data) {
-        // 合并默认值，空字段使用默认值
-        const mergedConfig: Required<TenantConfig> = {
-          logo: data.data.logo || DEFAULT_TENANT_CONFIG.logo,
-          app_name: data.data.app_name || DEFAULT_TENANT_CONFIG.app_name,
-          top_name: data.data.top_name || DEFAULT_TENANT_CONFIG.top_name,
-          login_desp: data.data.login_desp || DEFAULT_TENANT_CONFIG.login_desp,
-          about_name: data.data.about_name || DEFAULT_TENANT_CONFIG.about_name,
-          app_company_name: data.data.app_company_name || DEFAULT_TENANT_CONFIG.app_company_name,
-        };
+        const mergedConfig = resolveTenantConfig(data.data);
         setConfig(mergedConfig);
         // 缓存到 localStorage
         localStorage.setItem(TENANT_CONFIG_STORAGE_KEY, JSON.stringify(mergedConfig));
@@ -118,11 +136,11 @@ export const TenantConfigProvider: React.FC<React.PropsWithChildren> = ({ childr
       }
     } catch (error) {
       console.error('[TenantConfig] Fetch failed:', error);
+    } finally {
+      isRefreshing.current = false;
+      setLoading(false);
     }
-
-    isRefreshing.current = false;
-    setLoading(false);
-  }, [status, user?.enterprise_code, ensureValidToken]);
+  }, [status, isEnterprise, user?.enterprise_code, ensureValidToken]);
 
   /**
    * 启动定时轮询
@@ -150,7 +168,7 @@ export const TenantConfigProvider: React.FC<React.PropsWithChildren> = ({ childr
 
   // 监听登录状态变化
   useEffect(() => {
-    if (status === 'authenticated' && user?.enterprise_code) {
+    if (status === 'authenticated' && (isEnterprise || user?.enterprise_code)) {
       // 登录成功 → 立即刷新 + 启动轮询
       void fetchConfig();
       startPolling();
@@ -160,7 +178,7 @@ export const TenantConfigProvider: React.FC<React.PropsWithChildren> = ({ childr
       setConfig(DEFAULT_TENANT_CONFIG);
       stopPolling();
     }
-  }, [status, user?.enterprise_code, fetchConfig, startPolling, stopPolling]);
+  }, [status, isEnterprise, user?.enterprise_code, fetchConfig, startPolling, stopPolling]);
 
   // 清理定时器
   useEffect(() => {
@@ -178,11 +196,7 @@ export const TenantConfigProvider: React.FC<React.PropsWithChildren> = ({ childr
     [config, loading, fetchConfig]
   );
 
-  return (
-    <TenantConfigContext.Provider value={value}>
-      {children}
-    </TenantConfigContext.Provider>
-  );
+  return <TenantConfigContext.Provider value={value}>{children}</TenantConfigContext.Provider>;
 };
 
 /**

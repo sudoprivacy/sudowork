@@ -6,6 +6,8 @@
 
 import { ipcBridge } from '@/common';
 import type { SudoclawConfig, SudoclawProvider, ISudoclawStatus } from '@/common/ipcBridge';
+import { buildScodeConfigFromSudoclawConfig } from '@/common/sudoworkAuthLogin';
+import { mergeSudorouterIntoScodeConfig } from '@/common/scodeConfig';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { Alert, Button, Card, Collapse, Form, Input, Message, Modal, Popconfirm, Select, Space, Spin, Tag, Tooltip, Typography } from '@arco-design/web-react';
 import { Delete, Edit, Folder, Plus, Refresh, Robot, User } from '@icon-park/react';
@@ -99,7 +101,7 @@ const CopilotModalContent: React.FC = () => {
       if (configRes?.success && configRes.data) {
         const c = configRes.data;
         form.setFieldsValue({
-          primaryModel: c.agents?.defaults?.model?.primary || 'sudorouter/gemini-3-flash-preview',
+          primaryModel: c.agents?.defaults?.model?.primary || 'sudorouter/gemini-3.5-flash',
           modelsMode: c.models?.mode || 'merge',
         });
         const prov = c.models?.providers || {};
@@ -113,7 +115,7 @@ const CopilotModalContent: React.FC = () => {
         );
       } else {
         form.setFieldsValue({
-          primaryModel: 'sudorouter/gemini-3-flash-preview',
+          primaryModel: 'sudorouter/gemini-3.5-flash',
           modelsMode: 'merge',
         });
         setProviders([]);
@@ -151,7 +153,7 @@ const CopilotModalContent: React.FC = () => {
       agents: {
         defaults: {
           model: {
-            primary: values.primaryModel || 'sudorouter/gemini-3-flash-preview',
+            primary: values.primaryModel || 'sudorouter/gemini-3.5-flash',
           },
         },
       },
@@ -162,29 +164,46 @@ const CopilotModalContent: React.FC = () => {
     setSaving(true);
     try {
       const patch = buildPatchFromForm();
-      const res = await ipcBridge.sudoclaw.saveConfig.invoke({ config: patch });
-      if (res?.success) {
-        // Prompt user to restart Gateway
-        Modal.confirm({
-          title: '配置已保存',
-          content: '配置已保存成功。需要重启 Gateway 才能生效，是否立即重启？',
-          okText: '重启 Gateway',
-          cancelText: '稍后重启',
-          onOk: async () => {
-            const restartRes = await ipcBridge.sudoclaw.restartGateway.invoke();
-            if (restartRes?.success) {
-              Message.success('Gateway 重启中...');
-              setTimeout(() => {
-                void loadConfig();
-              }, 3000);
-            } else {
-              Message.error(restartRes?.msg || '重启失败');
-            }
-          },
+
+      // 主：写入 sudocode.json
+      const sudorouterScodeConfig = buildScodeConfigFromSudoclawConfig(patch);
+      if (sudorouterScodeConfig?.auth_modes?.proxy?.sudorouter && sudorouterScodeConfig.models) {
+        const currentScodeConfig = await ipcBridge.scode.getConfig.invoke().catch((): null => null);
+        const scodeConfig = mergeSudorouterIntoScodeConfig(currentScodeConfig?.data || {}, {
+          sudorouterKey: sudorouterScodeConfig.auth_modes.proxy.sudorouter.apiKey,
+          modelServiceUrl: sudorouterScodeConfig.auth_modes.proxy.sudorouter.baseUrl,
+          models: Object.keys(sudorouterScodeConfig.models),
         });
-      } else {
-        Message.error(res?.msg || t('common.saveFailed', { defaultValue: 'Save failed' }));
+        const scodeRes = await ipcBridge.scode.saveConfig.invoke({ config: scodeConfig });
+        if (!scodeRes?.success) {
+          Message.error(scodeRes?.msg || t('common.saveFailed', { defaultValue: 'Save failed' }));
+          return;
+        }
       }
+
+      // 备：同步写入 sudoclaw.json
+      await ipcBridge.sudoclaw.saveConfig.invoke({ config: patch }).catch((err) => {
+        console.warn('[CopilotSettings] Failed to sync sudoclaw.json (backup):', err);
+      });
+
+      // Prompt user to restart Gateway
+      Modal.confirm({
+        title: '配置已保存',
+        content: '配置已保存成功。需要重启 Gateway 才能生效，是否立即重启？',
+        okText: '重启 Gateway',
+        cancelText: '稍后重启',
+        onOk: async () => {
+          const restartRes = await ipcBridge.sudoclaw.restartGateway.invoke();
+          if (restartRes?.success) {
+            Message.success('Gateway 重启中...');
+            setTimeout(() => {
+              void loadConfig();
+            }, 3000);
+          } else {
+            Message.error(restartRes?.msg || '重启失败');
+          }
+        },
+      });
     } catch (err) {
       Message.error(err instanceof Error ? err.message : String(err));
     } finally {
@@ -202,7 +221,7 @@ const CopilotModalContent: React.FC = () => {
           key: defaultKey,
           provider: {
             baseUrl: DEFAULT_BASE_URL,
-            models: [{ id: 'gemini-3-flash-preview', name: 'gemini-3-flash-preview' }],
+            models: [{ id: 'gemini-3.5-flash', name: 'gemini-3.5-flash' }],
           },
         },
       ];
@@ -377,7 +396,7 @@ const CopilotModalContent: React.FC = () => {
               Copilot
             </Title>
             <Text type='secondary' className='text-13px'>
-              配置 SudoClaw
+              配置 Sudo Code
             </Text>
           </div>
           <Space>

@@ -10,10 +10,11 @@ import { openExternalUrl, isElectronDesktop, resolveExtensionAssetUrl } from '@/
 import { useConversationTabs } from '@/renderer/pages/conversation/context/ConversationTabsContext';
 import { ThemeSwitcher } from '@/renderer/components/ThemeSwitcher';
 import { getInstalledSkillDisplay, resolveSkillIcon } from '@/renderer/utils/skillDisplay';
-import { useSkillSelectorController, type SkillSelectorItem } from '@/renderer/hooks/useSkillSelectorController';
+import { useSkillSelectorController, type SkillSelectorItem, stripAtQuery } from '@/renderer/hooks/useSkillSelectorController';
 import SkillSelectorMenu, { type SkillSelectorMenuItem } from '@/renderer/components/SkillSelectorMenu';
 import { resolveAssistantName } from '@/renderer/shared/agents/assistantAdapter';
 import { ipcBridge } from '@/common';
+import { useAuth } from '@/renderer/context/AuthContext';
 import { skillHub } from '@/common/ipcBridge';
 import AgentPillBar from './components/AgentPillBar';
 import AssistantSelectionArea from './components/AssistantSelectionArea';
@@ -33,19 +34,22 @@ import MentionDropdown from './components/MentionDropdown';
 import MentionSelectorBadge from './components/MentionSelectorBadge';
 import PromptTemplates from './components/PromptTemplates';
 import QuickActionButtons from './components/QuickActionButtons';
-import { useGuidAgentSelection } from './hooks/useGuidAgentSelection';
+import { useGuidAgentSelection, getRendererSessionMode } from './hooks/useGuidAgentSelection';
 import { useGuidInput } from './hooks/useGuidInput';
 import { useGuidMention } from './hooks/useGuidMention';
 import { useGuidModelSelection } from './hooks/useGuidModelSelection';
 import { useGuidSend } from './hooks/useGuidSend';
 import { useTypewriterPlaceholder } from './hooks/useTypewriterPlaceholder';
+import { getGuidDraft, setGuidDraft } from './hooks/useGuidDraft';
 import type { AcpBackendConfig } from './types';
+import { DEFAULT_PRESET_AGENT_TYPE, normalizePresetAgentType } from '@/types/acpTypes';
 import { ConfigProvider, Message } from '@arco-design/web-react';
 import { EditTwo, Left, Robot } from '@icon-park/react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAddEventListener } from '@/renderer/utils/emitter';
+import { useAppMode } from '@/renderer/hooks/useAppMode';
 import { mutate } from 'swr';
 import styles from './index.module.css';
 
@@ -57,6 +61,9 @@ const GuidPage: React.FC = () => {
   const { closeAllTabs, openTab } = useConversationTabs();
   const { activeBorderColor, inactiveBorderColor, activeShadow } = useInputFocusRing();
   const localeKey = resolveLocaleKey(i18n.language);
+  const { isEnterprise } = useAppMode();
+  const { user } = useAuth();
+  const draft = getGuidDraft();
   // Read current menu and skill from URL query params
   const searchParams = new URLSearchParams(location.search);
   const selectedMenu = searchParams.get('menu');
@@ -65,7 +72,8 @@ const GuidPage: React.FC = () => {
 
   // Skill selector state
   const [installedSkills, setInstalledSkills] = useState<any[]>([]);
-  const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
+  const [selectedSkills, setSelectedSkills] = useState<string[]>(draft?.selectedSkills ?? []);
+  const [cursorPosition, setCursorPosition] = useState(0);
 
   // Edit drawer state
   const [editDrawerVisible, setEditDrawerVisible] = useState(false);
@@ -115,13 +123,17 @@ const GuidPage: React.FC = () => {
       const skillExists = installedSkills.some((s) => s.name === skillParam);
       if (skillExists && !selectedSkills.includes(skillParam)) {
         setSelectedSkills([...selectedSkills, skillParam]);
-        Message.success(`已添加技能：${skillParam}`);
+        Message.success(t('guid.skillAdded', { name: skillParam }));
       } else if (!skillExists) {
-        Message.warning(`技能未安装：${skillParam}`);
+        Message.warning(t('guid.skillNotInstalled', { name: skillParam }));
       }
       void navigate('/guid', { replace: true, state: location.state });
     }
   }, [skillParam, installedSkillsLoaded]);
+
+  useEffect(() => {
+    setGuidDraft({ selectedSkills });
+  }, [selectedSkills]);
 
   // Open external link
   const openLink = useCallback(async (url: string) => {
@@ -205,13 +217,15 @@ const GuidPage: React.FC = () => {
   // Skill selector controller
   const skillSelectorController = useSkillSelectorController({
     input: guidInput.input,
+    cursorPosition,
     skills: skillSelectorItems,
     selectedSkills,
     onSelectSkill: (skillName) => {
       if (!selectedSkills.includes(skillName)) {
         setSelectedSkills([...selectedSkills, skillName]);
       }
-      guidInput.setInput('');
+      // Strip the @query from input when selecting a skill, preserving user's other text
+      guidInput.setInput(stripAtQuery(guidInput.input, cursorPosition));
     },
     onRemoveSkill: (skillName) => {
       setSelectedSkills(selectedSkills.filter((s) => s !== skillName));
@@ -235,7 +249,7 @@ const GuidPage: React.FC = () => {
   );
 
   const mention = useGuidMention({
-    availableAgents: agentSelection.availableAgents,
+    availableAgents: agentSelection.mentionAvailableAgents,
     customAgentAvatarMap: agentSelection.customAgentAvatarMap,
     selectedAgentKey: agentSelection.selectedAgentKey,
     setSelectedAgentKey: agentSelection.setSelectedAgentKey,
@@ -262,6 +276,7 @@ const GuidPage: React.FC = () => {
     selectedMode: agentSelection.selectedMode,
     selectedAcpModel: agentSelection.selectedAcpModel,
     currentModel: modelSelection.currentModel,
+    sessionMode: agentSelection.sessionMode,
 
     // Agent helpers
     findAgentByKey: agentSelection.findAgentByKey,
@@ -290,28 +305,36 @@ const GuidPage: React.FC = () => {
     t,
   });
 
-  // Listen for guid.reset event to reset all user input state
+  // Listen for guid.reset event to reset agent/mention state only
   const handleGuidReset = useCallback(() => {
-    guidInput.setInput('');
-    guidInput.setFiles([]);
-    guidInput.setDir('');
     agentSelection.resetSelection();
-    setSelectedSkills([]);
+    setCursorPosition(0);
     mention.setMentionOpen(false);
     mention.setMentionQuery(null);
     mention.setMentionSelectorVisible(false);
     mention.setMentionSelectorOpen(false);
     mention.setMentionActiveIndex(0);
     prefilledAssistantRef.current = null;
-  }, [guidInput, agentSelection, mention]);
+  }, [agentSelection, mention]);
 
   useAddEventListener('guid.reset', handleGuidReset, [handleGuidReset]);
 
   // Trigger skill selector via @ button
   const handleTriggerSkillSelector = useCallback(() => {
-    guidInput.setInput('@');
-    guidInput.handleTextareaFocus();
-  }, [guidInput.setInput, guidInput.handleTextareaFocus]);
+    const currentInput = guidInput.input;
+    const newInput = currentInput.trim() ? `${currentInput} @` : '@';
+    guidInput.setInput(newInput);
+    setCursorPosition(newInput.length);
+    // Focus the textarea and move cursor to end so skill selector opens immediately
+    setTimeout(() => {
+      const textarea = guidContainerRef.current?.querySelector('textarea');
+      if (textarea) {
+        textarea.focus();
+        const len = newInput.length;
+        textarea.setSelectionRange(len, len);
+      }
+    }, 0);
+  }, [guidInput.input, guidInput.setInput]);
 
   // --- Coordinated handlers (depend on multiple hooks) ---
   const handleInputChange = useCallback(
@@ -398,7 +421,12 @@ const GuidPage: React.FC = () => {
   const handleSelectAgentFromPillBar = useCallback(
     (key: string) => {
       // If clicking on the currently selected agent, deselect it and clear input
+      // BUT: when only one agent is available (enterprise mode), don't allow deselection
       if (agentSelection.selectedAgentKey === key) {
+        // Skip deselection when only one agent available (enterprise mode: single remote-agent)
+        if (agentSelection.availableAgents && agentSelection.availableAgents.length === 1) {
+          return;
+        }
         agentSelection.resetSelection();
         guidInput.setInput('');
         prefilledAssistantRef.current = null;
@@ -410,7 +438,7 @@ const GuidPage: React.FC = () => {
       mention.setMentionSelectorOpen(false);
       mention.setMentionActiveIndex(0);
     },
-    [agentSelection.selectedAgentKey, agentSelection.setSelectedAgentKey, agentSelection.resetSelection, guidInput.setInput, mention.setMentionOpen, mention.setMentionQuery, mention.setMentionSelectorOpen, mention.setMentionActiveIndex]
+    [agentSelection.selectedAgentKey, agentSelection.availableAgents, agentSelection.setSelectedAgentKey, agentSelection.resetSelection, guidInput.setInput, mention.setMentionOpen, mention.setMentionQuery, mention.setMentionSelectorOpen, mention.setMentionActiveIndex]
   );
 
   const handleSelectAssistant = useCallback(
@@ -527,8 +555,9 @@ const GuidPage: React.FC = () => {
     const customAgents = agentSelection.customAgents.filter((a) => !a.isPreset);
 
     // Filter builtin presets to allowed list
-    const allowedPresetIds = ['builtin-ui-ux-pro-max', 'builtin-planning-with-files', 'builtin-beautiful-mermaid', 'builtin-moltbook', 'builtin-copilot', 'builtin-doctor', 'builtin-jiansheku'];
-    const allowedBuiltinPresets = presetAgents.filter((a) => allowedPresetIds.includes(a.id));
+    // const allowedPresetIds = ['builtin-ui-ux-pro-max', 'builtin-planning-with-files', 'builtin-beautiful-mermaid', 'builtin-moltbook', 'builtin-copilot', 'builtin-doctor', 'builtin-jiansheku'];
+    // const allowedBuiltinPresets = presetAgents.filter((a) => allowedPresetIds.includes(a.id));
+    const allowedBuiltinPresets: AcpBackendConfig[] = []; // Hidden: builtin assistants temporarily disabled
     const hubInstalledPresets = presetAgents.filter((a) => !a.id.startsWith('builtin-'));
 
     // Combine: allowed builtin presets + hub-installed presets + user-created custom assistants
@@ -549,11 +578,19 @@ const GuidPage: React.FC = () => {
     return { avatarValue, avatarImage, isImageAvatar };
   }, [selectedAssistantConfig]);
 
-  // Resolve current assistant agent type for dropdown
+  // Resolve current assistant agent type for dropdown.
+  // In enterprise mode, the runtime backend is determined by sessionMode (remote-agent / scode),
+  // not by the assistant metadata's presetAgentType. Display the actual backend so the logo
+  // matches the conversation that will be created (app logo for enterprise users).
+  // 企业模式下真正的后端由 sessionMode 决定（remote-agent / scode），与助手元数据中的 presetAgentType 无关，
+  // 这里按实际后端展示，避免本地元数据里残留的 'claude' 导致 logo 误显示。
   const currentAssistantAgentType = useMemo(() => {
-    if (!selectedAssistantConfig) return 'sudoclaw';
-    return selectedAssistantConfig.presetAgentType || 'sudoclaw';
-  }, [selectedAssistantConfig]);
+    if (!selectedAssistantConfig) return DEFAULT_PRESET_AGENT_TYPE;
+    if (isEnterprise) {
+      return agentSelection.sessionMode === 'remote' ? 'remote-agent' : 'scode';
+    }
+    return normalizePresetAgentType(selectedAssistantConfig.presetAgentType) || DEFAULT_PRESET_AGENT_TYPE;
+  }, [selectedAssistantConfig, isEnterprise, agentSelection.sessionMode]);
 
   // Whether we are in selected assistant mode (preset or user-created custom)
   const isAssistantMode = selectedAssistantConfig !== null;
@@ -632,7 +669,7 @@ const GuidPage: React.FC = () => {
                   {t('conversation.welcome.title')}
                 </p>
 
-                {agentSelection.availableAgents === undefined ? <AgentPillBarSkeleton /> : agentSelection.availableAgents.length > 0 ? <AgentPillBar availableAgents={agentSelection.availableAgents} selectedAgentKey={agentSelection.selectedAgentKey} getAgentKey={agentSelection.getAgentKey} onSelectAgent={handleSelectAgentFromPillBar} /> : null}
+                {agentSelection.availableAgents === undefined ? <AgentPillBarSkeleton /> : agentSelection.availableAgents.length > 0 ? <AgentPillBar availableAgents={agentSelection.availableAgents} selectedAgentKey={agentSelection.selectedAgentKey} getAgentKey={agentSelection.getAgentKey} onSelectAgent={handleSelectAgentFromPillBar} sessionMode={agentSelection.sessionMode} onSessionModeChange={agentSelection.setSessionMode} isEnterprise={isEnterprise} localModeAvailable={user?.localModeAvailable} /> : null}
 
                 <PromptTemplates
                   visible={!agentSelection.isPresetAgent && !guidInput.input.trim()}
@@ -652,6 +689,10 @@ const GuidPage: React.FC = () => {
               onPaste={guidInput.onPaste}
               onFocus={guidInput.handleTextareaFocus}
               onBlur={guidInput.handleTextareaBlur}
+              onSelect={(e) => {
+                const target = e.currentTarget as HTMLTextAreaElement;
+                setCursorPosition(target.selectionStart);
+              }}
               placeholder={`${mention.selectedAgentLabel}, ${typewriterPlaceholder || t('conversation.welcome.placeholder')}`}
               isInputActive={guidInput.isInputFocused}
               isFileDragging={guidInput.isFileDragging}
@@ -663,7 +704,25 @@ const GuidPage: React.FC = () => {
               mentionSelectorBadge={<MentionSelectorBadge visible={mention.mentionSelectorVisible} open={mention.mentionSelectorOpen} onOpenChange={mention.setMentionSelectorOpen} agentLabel={mention.selectedAgentLabel} mentionMenu={mentionDropdownNode} onResetQuery={() => mention.setMentionQuery(null)} />}
               mentionDropdown={mentionDropdownNode}
               skillSelectorOpen={skillSelectorController.isOpen}
-              skillSelectorMenu={skillSelectorController.isOpen ? <SkillSelectorMenu title='技能' items={skillMenuItems} selectedKeys={selectedSkills} activeIndex={skillSelectorController.activeIndex} onHoverItem={(index) => skillSelectorController.setActiveIndex(index)} onSelectItem={(_item) => skillSelectorController.onSelectByIndex(skillSelectorController.activeIndex)} emptyText='暂无技能' searchQuery={skillSelectorController.searchQuery} onSearchChange={skillSelectorController.setSearchQuery} onDismiss={() => skillSelectorController.setDismissed(true)} /> : null}
+              skillSelectorMenu={
+                skillSelectorController.isOpen ? (
+                  <SkillSelectorMenu
+                    title={t('guid.skillSelectorTitle')}
+                    items={skillMenuItems}
+                    selectedKeys={selectedSkills}
+                    activeIndex={skillSelectorController.activeIndex}
+                    onHoverItem={(index) => skillSelectorController.setActiveIndex(index)}
+                    onSelectItem={(_item) => skillSelectorController.onSelectByIndex(skillSelectorController.activeIndex)}
+                    emptyText={t('guid.noSkills')}
+                    searchQuery={skillSelectorController.searchQuery}
+                    onSearchChange={skillSelectorController.setSearchQuery}
+                    onDismiss={() => {
+                      skillSelectorController.setDismissed(true);
+                      guidInput.setInput(stripAtQuery(guidInput.input, cursorPosition));
+                    }}
+                  />
+                ) : null
+              }
               selectedSkills={selectedSkills}
               onRemoveSkill={(skillName) => setSelectedSkills(selectedSkills.filter((s) => s !== skillName))}
               getSkillDisplayName={(skillName) => {
@@ -709,7 +768,7 @@ const GuidPage: React.FC = () => {
               )
             ) : (
               /* Assistant selection grid */
-              <>{agentSelection.availableAgents === undefined ? <AssistantsSkeleton /> : <AssistantSelectionArea customAgents={agentSelection.customAgents} localeKey={localeKey} onSelectAssistant={handleSelectAssistant} />}</>
+              <>{agentSelection.availableAgents === undefined ? <AssistantsSkeleton /> : <AssistantSelectionArea customAgents={agentSelection.customAgents} localeKey={localeKey} onSelectAssistant={handleSelectAssistant} availableAgents={agentSelection.availableAgents} sessionMode={agentSelection.sessionMode} isEnterprise={isEnterprise} />}</>
             )}
           </div>
         )}
