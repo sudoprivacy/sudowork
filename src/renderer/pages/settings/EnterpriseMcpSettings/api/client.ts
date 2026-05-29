@@ -125,12 +125,13 @@ async function normalizeResponse<T>(res: Response): Promise<T> {
 
   // Success
   if (typeof json === 'object' && json !== null && 'success' in json) {
-    const env = json as { success: boolean; data?: unknown };
+    const env = json as { success: boolean; data?: unknown; error?: { code?: string; message?: string } };
     if (!env.success) {
+      const err = env.error;
       throw new EnterpriseMcpError(
         {
-          code: 'unknown_error',
-          message: '请求失败',
+          code: err?.code || 'unknown_error',
+          message: err?.message || '请求失败',
           httpStatus: res.status,
         },
         json

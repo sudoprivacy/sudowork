@@ -26,8 +26,10 @@ export interface EnterpriseMcpServerDto {
   bound_skills: string[] | null;
   allow_read: boolean;
   allow_write: boolean;
+  allow_user_disable: boolean;
   enabled: boolean;
   status: EnterpriseMcpStatus;
+  user_disabled: boolean;
 }
 
 export type EnterpriseMcpUserConfigTarget = 'env' | 'headers';
