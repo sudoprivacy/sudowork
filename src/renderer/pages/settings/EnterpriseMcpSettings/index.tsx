@@ -56,15 +56,27 @@ const EnterpriseMcpSettings: React.FC = () => {
   // Match by exact equality (no suffix) or by `template.name + '-'` prefix.
   // Use longest-prefix wins so a server never double-counts when template names
   // overlap (e.g., "github" vs "github-mcp").
-  const installedTemplateIds = useMemo<Set<string>>(() => {
+  // 同一份匹配结果同时派生 installedTemplateIds（给 MCP 库展示已安装态）
+  // 和 serverHasUserConfig（给"我的 MCP"决定是否显示"修改配置"按钮）。
+  const { installedTemplateIds, serverHasUserConfig } = useMemo<{
+    installedTemplateIds: Set<string>;
+    serverHasUserConfig: Map<string, boolean>;
+  }>(() => {
     const ids = new Set<string>();
-    if (servers.length === 0 || templates.length === 0) return ids;
+    const hasConfigMap = new Map<string, boolean>();
+    if (servers.length === 0 || templates.length === 0) {
+      return { installedTemplateIds: ids, serverHasUserConfig: hasConfigMap };
+    }
     const sortedTpls = [...templates].sort((a, b) => b.name.length - a.name.length);
     for (const s of servers) {
       const matched = sortedTpls.find((t) => s.name === t.name || s.name.startsWith(`${t.name}-`));
-      if (matched) ids.add(matched.id);
+      if (matched) {
+        ids.add(matched.id);
+        hasConfigMap.set(s.id, (matched.user_config_items?.length ?? 0) > 0);
+      }
+      // 未匹配到模板的 server 在 Map 中缺省，调用方按 false 处理（保守策略：不显示"修改配置"）
     }
-    return ids;
+    return { installedTemplateIds: ids, serverHasUserConfig: hasConfigMap };
   }, [servers, templates]);
 
   // === Install callback ===
@@ -125,6 +137,9 @@ const EnterpriseMcpSettings: React.FC = () => {
   // === Load user config for EditConfigModal ===
   const loadUserConfig = useCallback((serverId: string) => serversApi.getUserConfig(serverId), [serversApi]);
 
+  // === Save user config (batch PUT) for EditConfigModal ===
+  const saveUserConfig = useCallback((serverId: string, config_values: Record<string, string>) => serversApi.updateUserConfig(serverId, config_values), [serversApi]);
+
   const renderTabContent = (key: string) => {
     if (key === 'enterprise') {
       if (serversLoading && servers.length === 0) {
@@ -151,7 +166,7 @@ const EnterpriseMcpSettings: React.FC = () => {
       if (serversError) {
         return <ErrorBlock message={describeMcpError(serversError)} />;
       }
-      return <MyMcpTab servers={servers} loading={serversLoading} onToggleEnabled={handleToggleEnabled} onDelete={handleDelete} loadUserConfig={loadUserConfig} />;
+      return <MyMcpTab servers={servers} loading={serversLoading} onToggleEnabled={handleToggleEnabled} onDelete={handleDelete} loadUserConfig={loadUserConfig} saveUserConfig={saveUserConfig} serverHasUserConfig={serverHasUserConfig} />;
     }
     if (key === 'policy') {
       if (policyLoading && !policy) {
