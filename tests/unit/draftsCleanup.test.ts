@@ -1,6 +1,7 @@
 import { describe, test, expect, beforeEach, afterEach } from 'vitest';
 import { FILE_INTENT_MARKERS, COMMENT_SYNTAX_MAP, getCommentPrefix } from '@/common/constants';
-import { detectFileIntent, cleanupIntermediateFiles } from '@/process/task/draftsCleanup';
+import { archiveTurnFiles, cleanupIntermediateFiles, cleanupTrackedDraftsOnCancel, detectFileIntent, type TrackedTurnFile } from '@/process/task/draftsCleanup';
+import { FileIntentClassifier } from '@/process/task/FileIntentClassifier';
 import fs from 'fs/promises';
 import fsSync from 'fs';
 import path from 'path';
@@ -76,6 +77,54 @@ describe('detectFileIntent function', () => {
     const content = 'line1\nline2\nline3\nline4\nline5\nline6\nline7\nline8\nline9\nline10\nline11\n# @draft';
     const result = detectFileIntent('test.py', content);
     expect(result.intent).toBe('unknown');
+  });
+});
+
+describe('FileIntentClassifier', () => {
+  const classifier = new FileIntentClassifier();
+
+  test('treats bash-generated files as draft by default', () => {
+    const result = classifier.classify({
+      filePath: 'analysis.csv',
+      source: 'bash-generated',
+    });
+
+    expect(result.intent).toBe('draft');
+    expect(result.reason).toContain('Bash-generated');
+  });
+
+  test('promotes bash-generated file when it matches requested target type', () => {
+    const result = classifier.classify({
+      filePath: 'report.pdf',
+      userMessage: '请生成一个 PDF 文档',
+      source: 'bash-generated',
+    });
+
+    expect(result.intent).toBe('final');
+    expect(result.reason).toContain('target type');
+  });
+
+  test('promotes file when it matches explicitly requested file name', () => {
+    const result = classifier.classify({
+      filePath: 'workspace/output/analysis.csv',
+      requestedPath: 'output/analysis.csv',
+      userMessage: '请生成 `analysis.csv`',
+      source: 'bash-generated',
+    });
+
+    expect(result.intent).toBe('final');
+    expect(result.reason).toContain('requested file name');
+  });
+
+  test('classifies helper script for non-script deliverable as draft', () => {
+    const result = classifier.classify({
+      filePath: 'generate_report.py',
+      userMessage: '请生成一个 PDF 报告',
+      source: 'write',
+    });
+
+    expect(result.intent).toBe('draft');
+    expect(result.reason).toContain('Helper script');
   });
 });
 
@@ -192,5 +241,103 @@ describe('cleanupIntermediateFiles with markers', () => {
     const draftsFiles = await fs.readdir(path.join(testWorkspace, '.drafts'));
     expect(draftsFiles.some((name) => /^helper_\d+\.js$/.test(name))).toBe(true);
     expect(fsSync.existsSync(path.join(testWorkspace, 'drafts'))).toBe(false);
+  });
+});
+
+describe('turn-level archive and cancel cleanup', () => {
+  let testWorkspace: string;
+
+  beforeEach(async () => {
+    testWorkspace = path.join(os.tmpdir(), `turn-files-test-${Date.now()}`);
+    await fs.mkdir(testWorkspace, { recursive: true });
+    await fs.mkdir(path.join(testWorkspace, '.drafts'), { recursive: true });
+  });
+
+  afterEach(async () => {
+    await fs.rm(testWorkspace, { recursive: true, force: true });
+  });
+
+  test('archiveTurnFiles moves tracked drafts into .drafts and restores finals to root', async () => {
+    const draftPath = path.join(testWorkspace, 'generate_report.py');
+    const finalPath = path.join(testWorkspace, '.drafts', 'report.pdf');
+    await fs.writeFile(draftPath, 'print("build report")');
+    await fs.writeFile(finalPath, 'pdf bytes');
+
+    const trackedFiles = new Map<string, TrackedTurnFile>([
+      [
+        'generate_report.py',
+        {
+          actualPath: draftPath,
+          path: draftPath,
+          requestedPath: 'generate_report.py',
+          intent: 'draft',
+          reason: 'Helper script',
+          source: 'write',
+          kind: 'create',
+        },
+      ],
+      [
+        '.drafts/report.pdf',
+        {
+          actualPath: finalPath,
+          path: finalPath,
+          requestedPath: 'report.pdf',
+          intent: 'final',
+          reason: 'Matches requested target type .pdf',
+          source: 'bash-generated',
+          kind: 'create',
+        },
+      ],
+    ]);
+
+    await archiveTurnFiles(testWorkspace, trackedFiles);
+
+    expect(fsSync.existsSync(path.join(testWorkspace, '.drafts', 'generate_report.py'))).toBe(true);
+    expect(fsSync.existsSync(draftPath)).toBe(false);
+    expect(fsSync.existsSync(path.join(testWorkspace, 'report.pdf'))).toBe(true);
+    expect(fsSync.existsSync(finalPath)).toBe(false);
+  });
+
+  test('cleanupTrackedDraftsOnCancel removes only current-turn drafts', async () => {
+    const draftPath = path.join(testWorkspace, 'temp_payload.json');
+    const finalPath = path.join(testWorkspace, 'result.json');
+    const historicalDraftPath = path.join(testWorkspace, '.drafts', 'old_helper.py');
+    await fs.writeFile(draftPath, '{}');
+    await fs.writeFile(finalPath, '{}');
+    await fs.writeFile(historicalDraftPath, 'print("old")');
+
+    const trackedFiles = new Map<string, TrackedTurnFile>([
+      [
+        'temp_payload.json',
+        {
+          actualPath: draftPath,
+          path: draftPath,
+          requestedPath: 'temp_payload.json',
+          intent: 'draft',
+          reason: 'Matches draft file pattern',
+          source: 'bash-generated',
+          kind: 'create',
+        },
+      ],
+      [
+        'result.json',
+        {
+          actualPath: finalPath,
+          path: finalPath,
+          requestedPath: 'result.json',
+          intent: 'final',
+          reason: 'Matches requested file name',
+          source: 'write',
+          kind: 'create',
+        },
+      ],
+    ]);
+
+    const removedCount = await cleanupTrackedDraftsOnCancel(testWorkspace, trackedFiles);
+
+    expect(removedCount).toBe(1);
+    expect(fsSync.existsSync(draftPath)).toBe(false);
+    expect(fsSync.existsSync(finalPath)).toBe(true);
+    expect(fsSync.existsSync(historicalDraftPath)).toBe(true);
   });
 });
