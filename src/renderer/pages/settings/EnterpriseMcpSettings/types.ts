@@ -30,6 +30,7 @@ export interface EnterpriseMcpServerDto {
   enabled: boolean;
   status: EnterpriseMcpStatus;
   user_disabled: boolean;
+  _requires_approval?: boolean;
 }
 
 export type EnterpriseMcpUserConfigTarget = 'env' | 'headers';

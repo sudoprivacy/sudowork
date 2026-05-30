@@ -37,6 +37,7 @@ export interface McpServersApi {
   updateUserConfig(id: string, config_values: Record<string, string>): Promise<void>;
   enable(id: string): Promise<void>;
   disable(id: string): Promise<void>;
+  installJson(json_config: string, name?: string): Promise<EnterpriseMcpServerDto>;
 }
 
 export function createMcpServersApi(client: EnterpriseMcpClient): McpServersApi {
@@ -82,6 +83,16 @@ export function createMcpServersApi(client: EnterpriseMcpClient): McpServersApi 
       await client.request<{ success: true }>(`/api/v1/me/mcp-servers/${encodeURIComponent(id)}/disable`, {
         method: 'PUT',
       });
+    },
+    async installJson(json_config, name) {
+      const res = await client.request<{ success: true; data: EnterpriseMcpServerDto }>(
+        '/api/v1/me/mcp-servers/install-json',
+        {
+          method: 'POST',
+          body: { json_config, ...(name ? { name } : {}) },
+        },
+      );
+      return res.data;
     },
   };
 }
