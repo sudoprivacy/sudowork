@@ -164,7 +164,7 @@ const EnterpriseMcpSettings: React.FC = () => {
       if (serversError) {
         return <ErrorBlock message={describeMcpError(serversError)} />;
       }
-      return <MyMcpTab servers={servers} loading={serversLoading} onToggleEnabled={handleToggleEnabled} onDelete={handleDelete} loadUserConfig={loadUserConfig} saveUserConfig={saveUserConfig} serverHasUserConfig={serverHasUserConfig} />;
+      return <MyMcpTab servers={servers} loading={serversLoading} onToggleEnabled={handleToggleEnabled} onDelete={handleDelete} loadUserConfig={loadUserConfig} saveUserConfig={saveUserConfig} serverHasUserConfig={serverHasUserConfig} allowInstall={policy?.allow_personal_mcp} onInstalled={() => void mutateServers()} />;
     }
     if (key === 'policy') {
       if (policyLoading && !policy) {

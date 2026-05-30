@@ -1,10 +1,12 @@
 import React, { useMemo, useState } from 'react';
 import { Switch, Button, Popconfirm, Message } from '@arco-design/web-react';
 import { Edit, Delete } from '@icon-park/react';
+import { useTranslation } from 'react-i18next';
 import EmptyState from '@/renderer/components/base/EmptyState';
 import McpIcon from '../components/McpIcon';
 import RiskLevelTag from '../components/RiskLevelTag';
 import EditConfigModal from '../components/EditConfigModal';
+import InstallJsonModal from '../components/InstallJsonModal';
 import type { EnterpriseMcpServerDto, EnterpriseMcpUserConfigItem } from '../types';
 
 interface MyMcpTabProps {
@@ -18,14 +20,32 @@ interface MyMcpTabProps {
   saveUserConfig?: (serverId: string, config_values: Record<string, string>) => Promise<void>;
   /** 由父组件根据 server↔template 匹配派生：true 才显示"修改配置"按钮（未匹配到模板的 server 缺省按 false 处理） */
   serverHasUserConfig?: Map<string, boolean>;
+  /** 企业策略是否允许安装个人 MCP */
+  allowInstall?: boolean;
+  /** 安装成功后的刷新回调 */
+  onInstalled?: () => void;
 }
 
-const MyMcpTab: React.FC<MyMcpTabProps> = ({ servers, loading = false, onToggleEnabled, onDelete, loadUserConfig, saveUserConfig, serverHasUserConfig }) => {
+const MyMcpTab: React.FC<MyMcpTabProps> = ({ servers, loading = false, onToggleEnabled, onDelete, loadUserConfig, saveUserConfig, serverHasUserConfig, allowInstall, onInstalled }) => {
+  const { t } = useTranslation();
   const filtered = useMemo(() => servers.filter((s) => s.scope === 'user'), [servers]);
   const [editing, setEditing] = useState<EnterpriseMcpServerDto | null>(null);
+  const [installVisible, setInstallVisible] = useState(false);
 
   if (!loading && filtered.length === 0) {
-    return <EmptyState illustrationType='default' title='暂无个人 MCP' description='前往「MCP 库」浏览并安装。' simple />;
+    return (
+      <>
+        {allowInstall && (
+          <div className='mb-8px'>
+            <Button type='primary' size='small' onClick={() => setInstallVisible(true)}>
+              {t('settings.mcpInstallJsonButton', { defaultValue: '安装 MCP' })}
+            </Button>
+          </div>
+        )}
+        <EmptyState illustrationType='default' title='暂无个人 MCP' description='前往「MCP 库」浏览并安装，或点击上方按钮通过 JSON 安装。' simple />
+        <InstallJsonModal visible={installVisible} onCancel={() => setInstallVisible(false)} onSuccess={() => { setInstallVisible(false); onInstalled?.(); }} />
+      </>
+    );
   }
 
   const handleToggle = async (srv: EnterpriseMcpServerDto, enabled: boolean) => {
@@ -55,6 +75,13 @@ const MyMcpTab: React.FC<MyMcpTabProps> = ({ servers, loading = false, onToggleE
 
   return (
     <div className='flex flex-col gap-10px'>
+      {allowInstall && (
+        <div>
+          <Button type='primary' size='small' onClick={() => setInstallVisible(true)}>
+            {t('settings.mcpInstallJsonButton', { defaultValue: '安装 MCP' })}
+          </Button>
+        </div>
+      )}
       {filtered.map((srv) => (
         <div key={srv.id} className='flex items-center gap-12px px-16px py-12px rd-12px bg-1 hover:bg-2 transition-colors'>
           <McpIcon icon={srv.icon} size={40} />
@@ -80,6 +107,7 @@ const MyMcpTab: React.FC<MyMcpTabProps> = ({ servers, loading = false, onToggleE
       ))}
 
       <EditConfigModal visible={editing !== null} server={editing} loadConfig={loadUserConfig} saveConfig={saveUserConfig} onCancel={() => setEditing(null)} />
+      <InstallJsonModal visible={installVisible} onCancel={() => setInstallVisible(false)} onSuccess={() => { setInstallVisible(false); onInstalled?.(); }} />
     </div>
   );
 };

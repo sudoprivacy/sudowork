@@ -34,6 +34,12 @@ export function normalizeInstallError(err: unknown): NormalizedInstallError {
         return { ...base, message: '登录已失效，请重新登录' };
       case 'server_url_missing':
         return { ...base, message: '尚未配置企业服务地址' };
+      case 'connection_test_failed':
+        return { ...base, message: err.message || 'MCP 连接测试失败' };
+      case 'name_conflict':
+        return { ...base, message: '名称冲突，请重试' };
+      case 'bad_request':
+        return { ...base, message: err.message || '请求参数错误' };
       default:
         return base;
     }
