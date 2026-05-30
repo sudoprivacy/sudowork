@@ -9,23 +9,36 @@ import type { EnterpriseMcpServerDto } from '../types';
 interface EnterpriseMcpTabProps {
   servers: EnterpriseMcpServerDto[];
   loading?: boolean;
+  onToggleUserDisabled?: (server: EnterpriseMcpServerDto, enabled: boolean) => Promise<void> | void;
 }
 
 /**
  * Tab1 — 企业 MCP：列出 scope=org/department 的实例。
- * 已知缺口 §8.2：员工对企业 MCP 的启停 API 不存在。Switch 暂作 UI 占位，
- * 点击会弹 toast 提示，不发请求。Phase B 接 PATCH 后预期 403 → toast。
+ * allow_user_disable=false 的 MCP 排在最上面，不显示开关；
+ * allow_user_disable=true 的 MCP 显示开关，基于 user_disabled 字段驱动状态。
  */
-const EnterpriseMcpTab: React.FC<EnterpriseMcpTabProps> = ({ servers, loading = false }) => {
-  const filtered = useMemo(() => servers.filter((s) => s.scope === 'org' || s.scope === 'department'), [servers]);
+const EnterpriseMcpTab: React.FC<EnterpriseMcpTabProps> = ({ servers, loading = false, onToggleUserDisabled }) => {
+  const filtered = useMemo(() => {
+    const orgDept = servers.filter((s) => s.scope === 'org' || s.scope === 'department');
+    // allow_user_disable=false 排最上面，同组保持原始顺序
+    return orgDept.sort((a, b) => {
+      if (a.allow_user_disable === b.allow_user_disable) return 0;
+      return a.allow_user_disable ? 1 : -1;
+    });
+  }, [servers]);
 
   if (!loading && filtered.length === 0) {
     return <EmptyState illustrationType='default' title='暂无企业 MCP' description='管理员尚未发布任何企业级或部门级 MCP 实例。' simple />;
   }
 
-  const handleToggle = () => {
-    // §8.2: backend gap — UI only.
-    Message.info('该 MCP 暂不支持自助开关，请联系管理员');
+  const handleToggle = async (srv: EnterpriseMcpServerDto, enabled: boolean) => {
+    if (onToggleUserDisabled) {
+      try {
+        await onToggleUserDisabled(srv, enabled);
+      } catch (err) {
+        Message.error(err instanceof Error ? err.message : '操作失败');
+      }
+    }
   };
 
   return (
@@ -44,9 +57,13 @@ const EnterpriseMcpTab: React.FC<EnterpriseMcpTabProps> = ({ servers, loading = 
             <ScopeBadge scope={srv.scope} />
           </div>
           <div className='shrink-0 w-44px flex justify-end'>
-            <Tooltip content='当前版本暂不支持员工自助启停企业 MCP'>
-              <Switch checked={srv.enabled} onChange={handleToggle} size='small' />
-            </Tooltip>
+            {srv.allow_user_disable ? (
+              <Switch checked={!srv.user_disabled} onChange={(v: boolean) => void handleToggle(srv, v)} size='small' />
+            ) : (
+              <Tooltip content='管理员已锁定该 MCP，不允许员工自行启停'>
+                <Switch checked={!srv.user_disabled} size='small' disabled />
+              </Tooltip>
+            )}
           </div>
         </div>
       ))}
