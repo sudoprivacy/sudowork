@@ -45,11 +45,21 @@ def _browser_skill_dir() -> pathlib.Path:
     helper self-sufficient and decouples it from openclaw's env-security
     policy.
     """
+    # Resolve the real home directory, ignoring sandbox HOME overrides.
+    # In scode sandbox mode, HOME is rewritten to .sandbox-home/ which
+    # doesn't contain ~/.nexus/skills/. Use the passwd entry (real home)
+    # to find the actual skill directory.
+    real_home = pathlib.Path(os.path.expanduser("~"))
+    try:
+        import pwd
+        real_home = pathlib.Path(pwd.getpwuid(os.getuid()).pw_dir)
+    except Exception:
+        pass
     # Check _builtin location first (current), fall back to legacy flat location
-    builtin = pathlib.Path.home() / ".nexus" / "skills" / "_system" / "_builtin" / "browser"
+    builtin = real_home / ".nexus" / "skills" / "_system" / "_builtin" / "browser"
     if builtin.is_dir():
         return builtin
-    return pathlib.Path.home() / ".nexus" / "skills" / "_system" / "browser"
+    return real_home / ".nexus" / "skills" / "_system" / "browser"
 
 
 def _ensure_ai_dev_browser_on_sys_path() -> None:
