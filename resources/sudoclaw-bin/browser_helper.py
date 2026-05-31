@@ -45,6 +45,10 @@ def _browser_skill_dir() -> pathlib.Path:
     helper self-sufficient and decouples it from openclaw's env-security
     policy.
     """
+    # Check _builtin location first (current), fall back to legacy flat location
+    builtin = pathlib.Path.home() / ".nexus" / "skills" / "_system" / "_builtin" / "browser"
+    if builtin.is_dir():
+        return builtin
     return pathlib.Path.home() / ".nexus" / "skills" / "_system" / "browser"
 
 
