@@ -3,13 +3,18 @@
  * Download Nexus binary for bundling with the app.
  * Run during build process: bun run nexus:download
  *
- * Downloads Nexus from: https://github.com/nexi-lab/nexus/releases/download/v{version}/
- * Saves with versioned filename:
- * - Windows: resources/v{version}-nexus-cluster-{os}-{arch}.zip
- * - macOS/Linux: resources/v{version}-nexus-cluster-{os}-{arch}.tar.gz
+ * Downloads nexusd-cluster from:
+ *   https://github.com/nexi-lab/nexus/releases/download/v{version}/
  *
- * NOTE: Download failures are non-fatal (exit 0) to allow builds to proceed
- * when platform-specific binaries are not yet available.
+ * v0.10.0+ ships raw binaries (no archive wrapper):
+ *   - macOS/Linux: nexusd-cluster-{os}-{arch}
+ *   - Windows: nexusd-cluster-{os}-{arch}.exe
+ *
+ * Saved with versioned filename:
+ *   resources/v{version}-nexusd-cluster-{os}-{arch}[.exe]
+ *
+ * NOTE: Download failures are non-fatal (exit 0) to allow builds to
+ * proceed when platform-specific binaries are not yet available.
  */
 
 const fs = require('fs');
@@ -21,39 +26,19 @@ const RESOURCES_DIR = path.join(__dirname, '..', 'resources');
 
 const NEXUS_VERSION = runtimeVersions.nexus;
 
-/**
- * Create an empty placeholder file for the current platform so electron-builder doesn't fail.
- * Used when binaries are not available for the platform or download fails.
- */
-function createFallbackPlaceholder(platform) {
-  fs.mkdirSync(RESOURCES_DIR, { recursive: true });
-  let outputFile;
-  if (platform && PLATFORMS[platform]) {
-    outputFile = getOutputFile(platform);
-  } else {
-    const osName = process.platform === 'win32' ? 'windows' : process.platform === 'darwin' ? 'macos' : process.platform;
-    const archName = process.arch === 'x64' ? 'x86_64' : process.arch;
-    const archiveExt = process.platform === 'win32' ? '.zip' : '.tar.gz';
-    outputFile = path.join(RESOURCES_DIR, `v${NEXUS_VERSION}-nexus-cluster-${osName}-${archName}${archiveExt}`);
-  }
-  fs.writeFileSync(outputFile, Buffer.alloc(0));
-  return outputFile;
-}
-
 const BASE_URL = `https://github.com/nexi-lab/nexus/releases/download/v${NEXUS_VERSION}`;
 
-// Platform mappings: archive downloads (.tar.gz for macOS/Linux, .zip for Windows)
-// Linux is included for completeness but archives may not be available.
+// Platform mappings: raw binaries (v0.10.0+)
 const PLATFORMS = {
-  'darwin-arm64': { name: 'nexus-cluster-macos-arm64.tar.gz' },
-  'darwin-x64': { name: 'nexus-cluster-macos-x86_64.tar.gz' },
-  'win32-x64': { name: 'nexus-cluster-windows-x86_64.zip' },
-  'linux-x64': { name: 'nexus-cluster-linux-x86_64.tar.gz' },
+  'darwin-arm64': { name: 'nexusd-cluster-macos-arm64' },
+  'darwin-x64': { name: 'nexusd-cluster-macos-x86_64' },
+  'win32-x64': { name: 'nexusd-cluster-windows-x86_64.exe' },
+  'linux-x64': { name: 'nexusd-cluster-linux-x86_64' },
 };
 
 /**
  * Get the versioned output filename for the given platform.
- * e.g. v0.9.28-nexus-cluster-macos-arm64
+ * e.g. v0.10.1-nexusd-cluster-macos-arm64
  */
 function getVersionedFileName(platform) {
   const config = PLATFORMS[platform];
@@ -69,6 +54,25 @@ function getDownloadUrl(platform) {
   const config = PLATFORMS[platform];
   if (!config) throw new Error(`Unknown platform: ${platform}`);
   return `${BASE_URL}/${config.name}`;
+}
+
+/**
+ * Create an empty placeholder file for the current platform so
+ * electron-builder doesn't fail.
+ */
+function createFallbackPlaceholder(platform) {
+  fs.mkdirSync(RESOURCES_DIR, { recursive: true });
+  let outputFile;
+  if (platform && PLATFORMS[platform]) {
+    outputFile = getOutputFile(platform);
+  } else {
+    const osName = process.platform === 'win32' ? 'windows' : process.platform === 'darwin' ? 'macos' : process.platform;
+    const archName = process.arch === 'x64' ? 'x86_64' : process.arch;
+    const ext = process.platform === 'win32' ? '.exe' : '';
+    outputFile = path.join(RESOURCES_DIR, `v${NEXUS_VERSION}-nexusd-cluster-${osName}-${archName}${ext}`);
+  }
+  fs.writeFileSync(outputFile, Buffer.alloc(0));
+  return outputFile;
 }
 
 function downloadFile(url, dest) {
@@ -113,7 +117,6 @@ function downloadFile(url, dest) {
             downloaded += chunk.length;
             if (totalSize > 0) {
               const percent = Math.round((downloaded / totalSize) * 100);
-              // Only print every 5%
               if (percent - lastPrintedPercent >= 5 || percent === 100) {
                 lastPrintedPercent = percent;
                 process.stdout.write(`\rDownloading: ${percent}%`);
@@ -154,13 +157,16 @@ async function downloadNexus(platform, force = false) {
   // Ensure resources directory exists
   fs.mkdirSync(RESOURCES_DIR, { recursive: true });
 
-  // Download
   const url = getDownloadUrl(platform);
 
   try {
     await downloadFile(url, outputFile);
 
-    // No chmod needed - this is an archive, not an executable
+    // Make executable on Unix platforms (raw binary, not archive)
+    if (process.platform !== 'win32') {
+      fs.chmodSync(outputFile, 0o755);
+    }
+
     console.log(`Saved to: ${outputFile}`);
     return true;
   } catch (err) {
@@ -173,7 +179,6 @@ async function downloadNexus(platform, force = false) {
       console.warn(`\n⚠️  Nexus binary not available for platform ${platform}`);
       console.warn('   Creating empty placeholder file.');
       console.warn('   Users can install Nexus manually from the About page.');
-      // Create empty placeholder file so electron-builder doesn't fail
       fs.writeFileSync(outputFile, Buffer.alloc(0));
       return false;
     }
@@ -209,7 +214,7 @@ async function main() {
     }
   }
 
-  console.log(`Downloading Nexus for ${platform}...`);
+  console.log(`Downloading Nexus v${NEXUS_VERSION} for ${platform}...`);
   console.log('');
 
   try {
@@ -223,7 +228,6 @@ async function main() {
     console.error(`\n❌ Failed to download:`, err.message);
     console.warn('   Creating empty placeholder file.');
     createFallbackPlaceholder(platform);
-    // Exit 0 to allow build to continue
   }
 
   process.exit(0);
@@ -235,6 +239,5 @@ main().catch((err) => {
   try {
     createFallbackPlaceholder(null);
   } catch {}
-  // Exit 0 to allow build to continue
   process.exit(0);
 });
