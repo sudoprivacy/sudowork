@@ -690,6 +690,21 @@ export const libreOffice = {
   installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('libreoffice.install-result'),
 };
 
+// Python runtime installer / Python 运行环境安装
+export type IPythonInstallPhase = 'downloading' | 'installing' | 'configuring' | 'cleanup';
+
+export const pythonRuntime = {
+  checkInstalled: bridge.buildProvider<IBridgeResponse<ICliStatus>, void>('python-runtime.check-installed'),
+  install: bridge.buildProvider<IBridgeResponse<void>, void>('python-runtime.install'),
+  uninstall: bridge.buildProvider<IBridgeResponse<void>, void>('python-runtime.uninstall'),
+  /** Returns the current install state so the UI can restore progress after navigation */
+  getInstallState: bridge.buildProvider<IBridgeResponse<{ installing: boolean; phase?: IPythonInstallPhase; percent?: number }>, void>('python-runtime.get-install-state'),
+  /** Emitted periodically during installation with current phase and download percent */
+  installProgress: bridge.buildEmitter<{ phase: IPythonInstallPhase; percent?: number }>('python-runtime.install-progress'),
+  /** Emitted once when installation completes (success or failure) */
+  installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('python-runtime.install-result'),
+};
+
 // Sudoclaw config (~/.nexus/sudoclaw) / OpenClaw 配置
 // Matches sudoclaw.json schema: models.providers, agents.defaults, etc.
 export type SudoclawProviderModel = { id: string; name?: string; input?: string[] };

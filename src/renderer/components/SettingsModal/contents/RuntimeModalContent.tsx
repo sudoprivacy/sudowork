@@ -10,9 +10,9 @@ import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { useSettingsViewMode } from '../settingsViewContext';
-import { nexus as nexusIpc, claudeCli as claudeCliIpc, libreOffice as libreOfficeIpc, scode as scodeIpc, nodeRuntime as nodeRuntimeIpc, acpConversation, shareoneCli } from '@/common/ipcBridge';
+import { nexus as nexusIpc, claudeCli as claudeCliIpc, libreOffice as libreOfficeIpc, pythonRuntime as pythonRuntimeIpc, scode as scodeIpc, nodeRuntime as nodeRuntimeIpc, acpConversation, shareoneCli } from '@/common/ipcBridge';
 import { mutate } from 'swr';
-import type { ICliStatus, ILibreOfficeInstallPhase, NexusInstallPhase } from '@/common/ipcBridge';
+import type { ICliStatus, ILibreOfficeInstallPhase, IPythonInstallPhase, NexusInstallPhase } from '@/common/ipcBridge';
 import { getRuntimeActions, getStatusInfo, isInstalled, type LoadState, type ToolRow } from './runtimeStatus';
 
 type RefreshOptions = {
@@ -45,6 +45,11 @@ const RuntimeModalContent: React.FC = () => {
   const [libreOfficeLoad, setLibreOfficeLoad] = useState<LoadState>('idle');
   const [libreOfficePhase, setLibreOfficePhase] = useState<ILibreOfficeInstallPhase | undefined>(undefined);
   const [libreOfficePercent, setLibreOfficePercent] = useState<number | undefined>(undefined);
+
+  const [pythonStatus, setPythonStatus] = useState<ICliStatus | null>(null);
+  const [pythonLoad, setPythonLoad] = useState<LoadState>('idle');
+  const [pythonPhase, setPythonPhase] = useState<IPythonInstallPhase | undefined>(undefined);
+  const [pythonPercent, setPythonPercent] = useState<number | undefined>(undefined);
 
   const [scodeStatus, setScodeStatus] = useState<ICliStatus | null>(null);
   const [scodeLoad, setScodeLoad] = useState<LoadState>('idle');
@@ -224,6 +229,56 @@ const RuntimeModalContent: React.FC = () => {
     }
   }, [refreshLibreOffice, t]);
 
+  const refreshPython = useCallback(async (options?: RefreshOptions) => {
+    if (!options?.silent) {
+      setPythonLoad('loading');
+    }
+    try {
+      const res = await pythonRuntimeIpc.checkInstalled.invoke();
+      if (res?.success && res.data) setPythonStatus(res.data);
+    } finally {
+      if (!options?.silent) {
+        setPythonLoad('idle');
+      }
+    }
+  }, []);
+
+  const installPython = useCallback(async () => {
+    setPythonLoad('installing');
+    try {
+      const res = await pythonRuntimeIpc.install.invoke();
+      if (res?.success) {
+        await refreshPython();
+        Message.success(t('settings.runtimeSettings.installSuccess', { name: 'Python' }));
+      } else {
+        Message.error(res?.msg || t('settings.runtimeSettings.installFailed', { name: 'Python' }));
+      }
+    } catch (e) {
+      Message.error(e instanceof Error ? e.message : t('settings.runtimeSettings.installFailed', { name: 'Python' }));
+    } finally {
+      setPythonLoad('idle');
+      setPythonPhase(undefined);
+      setPythonPercent(undefined);
+    }
+  }, [refreshPython, t]);
+
+  const uninstallPython = useCallback(async () => {
+    setPythonLoad('loading');
+    try {
+      const res = await pythonRuntimeIpc.uninstall.invoke();
+      if (res?.success) {
+        Message.success(t('settings.runtimeSettings.uninstallSuccess', { name: 'Python' }));
+        await refreshPython();
+      } else {
+        Message.error(res?.msg || t('settings.runtimeSettings.uninstallFailed', { name: 'Python' }));
+      }
+    } catch (e) {
+      Message.error(e instanceof Error ? e.message : t('settings.runtimeSettings.uninstallFailed', { name: 'Python' }));
+    } finally {
+      setPythonLoad('idle');
+    }
+  }, [refreshPython, t]);
+
   const refreshScode = useCallback(async () => {
     try {
       const res = await scodeIpc.getStatus.invoke();
@@ -362,9 +417,9 @@ const RuntimeModalContent: React.FC = () => {
 
   const refreshRuntimePage = useCallback(
     async (options?: RefreshOptions) => {
-      await Promise.all([refreshNode(options), refreshClaude(options), refreshScode(), refreshShareone(), refreshNexus(), refreshLibreOffice(options)]);
+      await Promise.all([refreshNode(options), refreshClaude(options), refreshScode(), refreshShareone(), refreshNexus(), refreshLibreOffice(options), refreshPython(options)]);
     },
-    [refreshClaude, refreshLibreOffice, refreshNexus, refreshNode, refreshScode, refreshShareone]
+    [refreshClaude, refreshLibreOffice, refreshNexus, refreshNode, refreshPython, refreshScode, refreshShareone]
   );
 
   // Load all on mount; also restore install state if an install is already in progress
@@ -375,6 +430,13 @@ const RuntimeModalContent: React.FC = () => {
         setLibreOfficeLoad('installing');
         if (res.data.phase) setLibreOfficePhase(res.data.phase);
         if (res.data.percent != null) setLibreOfficePercent(res.data.percent);
+      }
+    });
+    void pythonRuntimeIpc.getInstallState.invoke().then((res) => {
+      if (res?.success && res.data?.installing) {
+        setPythonLoad('installing');
+        if (res.data.phase) setPythonPhase(res.data.phase);
+        if (res.data.percent != null) setPythonPercent(res.data.percent);
       }
     });
   }, [refreshRuntimePage]);
@@ -422,6 +484,11 @@ const RuntimeModalContent: React.FC = () => {
       if (percent != null) setLibreOfficePercent((prev) => (prev != null ? Math.max(prev, percent) : percent));
     });
     const unsubLoResult = libreOfficeIpc.installResult.on(() => void refreshLibreOffice());
+    const unsubPyProgress = pythonRuntimeIpc.installProgress.on(({ phase, percent }) => {
+      setPythonPhase(phase);
+      if (percent != null) setPythonPercent((prev) => (prev != null ? Math.max(prev, percent) : percent));
+    });
+    const unsubPyResult = pythonRuntimeIpc.installResult.on(() => void refreshPython());
     return () => {
       unsubNode();
       unsubClaude();
@@ -433,8 +500,10 @@ const RuntimeModalContent: React.FC = () => {
       unsubNexusResult();
       unsubLoProgress();
       unsubLoResult();
+      unsubPyProgress();
+      unsubPyResult();
     };
-  }, [refreshNode, refreshClaude, refreshAvailableAgents, refreshNexus, refreshScode, refreshShareone, refreshLibreOffice]);
+  }, [refreshNode, refreshClaude, refreshAvailableAgents, refreshNexus, refreshScode, refreshShareone, refreshLibreOffice, refreshPython]);
 
   const tableData: ToolRow[] = [
     {
@@ -472,6 +541,19 @@ const RuntimeModalContent: React.FC = () => {
       onRefresh: refreshLibreOffice,
       onInstall: installLibreOffice,
       onUninstall: uninstallLibreOffice,
+    },
+    {
+      key: 'python',
+      displayName: 'Python',
+      command: 'python3',
+      badge: 'PY',
+      status: pythonStatus,
+      loadState: pythonLoad,
+      installPhase: pythonPhase,
+      installPercent: pythonPercent,
+      onRefresh: refreshPython,
+      onInstall: installPython,
+      onUninstall: uninstallPython,
     },
     {
       key: 'sudocode',
@@ -517,6 +599,7 @@ const RuntimeModalContent: React.FC = () => {
     node: 'bg-cyan-1 color-cyan-6 border border-cyan-3',
     claude: 'bg-orange-1 color-orange-6 border border-orange-3',
     libreoffice: 'bg-green-1 color-green-6 border border-green-3',
+    python: 'bg-[#fef3c7] color-[#d97706] border border-[#fcd34d]',
     sudocode: 'bg-purple-1 color-purple-6 border border-purple-3',
     shareone: 'bg-blue-1 color-blue-6 border border-blue-3',
     nexus: 'text-[#f6c65b] border border-[#6f5520] bg-[#2b2212]',
