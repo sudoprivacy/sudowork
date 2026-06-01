@@ -21,8 +21,10 @@ export const MOCK_ENTERPRISE_SERVERS: EnterpriseMcpServerDto[] = [
     bound_skills: null,
     allow_read: true,
     allow_write: false,
+    allow_user_disable: true,
     enabled: true,
     status: 'enabled',
+    user_disabled: false,
   },
   {
     id: 'srv-org-002',
@@ -39,8 +41,10 @@ export const MOCK_ENTERPRISE_SERVERS: EnterpriseMcpServerDto[] = [
     bound_skills: null,
     allow_read: true,
     allow_write: false,
+    allow_user_disable: true,
     enabled: true,
     status: 'enabled',
+    user_disabled: false,
   },
   {
     id: 'srv-dept-001',
@@ -57,8 +61,10 @@ export const MOCK_ENTERPRISE_SERVERS: EnterpriseMcpServerDto[] = [
     bound_skills: null,
     allow_read: true,
     allow_write: false,
+    allow_user_disable: false,
     enabled: false,
     status: 'disabled',
+    user_disabled: false,
   },
 ];
 
@@ -78,8 +84,10 @@ export const MOCK_PERSONAL_SERVERS: EnterpriseMcpServerDto[] = [
     bound_skills: null,
     allow_read: true,
     allow_write: true,
+    allow_user_disable: true,
     enabled: true,
     status: 'enabled',
+    user_disabled: false,
   },
   {
     id: 'srv-user-002',
@@ -96,8 +104,10 @@ export const MOCK_PERSONAL_SERVERS: EnterpriseMcpServerDto[] = [
     bound_skills: null,
     allow_read: true,
     allow_write: false,
+    allow_user_disable: true,
     enabled: false,
     status: 'disabled',
+    user_disabled: true,
   },
 ];
 

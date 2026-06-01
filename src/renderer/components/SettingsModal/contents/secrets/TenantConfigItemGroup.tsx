@@ -41,14 +41,7 @@ interface TenantConfigItemGroupProps {
   onSave: (values: TenantConfigValues) => Promise<boolean>;
 }
 
-const TenantConfigItemGroup: React.FC<TenantConfigItemGroupProps> = ({
-  configItem,
-  values: externalValues,
-  enabled,
-  saving,
-  onToggleEnabled,
-  onSave,
-}) => {
+const TenantConfigItemGroup: React.FC<TenantConfigItemGroupProps> = ({ configItem, values: externalValues, enabled, saving, onToggleEnabled, onSave }) => {
   const { t } = useTranslation();
   const [collapsed, setCollapsed] = useState(true);
   const [localValues, setLocalValues] = useState<TenantConfigValues>(externalValues);
@@ -68,7 +61,7 @@ const TenantConfigItemGroup: React.FC<TenantConfigItemGroupProps> = ({
         t('settings.secrets.tenantFieldRequiredSpecific', '请填写：{{configItemName}} - {{entryName}}', {
           configItemName: configItem.name,
           entryName: emptyRequiredEntry.name,
-        }),
+        })
       );
       return;
     }
@@ -95,15 +88,13 @@ const TenantConfigItemGroup: React.FC<TenantConfigItemGroupProps> = ({
           return local !== '' && local !== external;
         });
         if (hasNewValues) {
-          const emptyRequired = configItem.entries.find(
-            (e) => e.required === 1 && !localValues[e.config_key]?.trim(),
-          );
+          const emptyRequired = configItem.entries.find((e) => e.required === 1 && !localValues[e.config_key]?.trim());
           if (emptyRequired) {
             Message.warning(
               t('settings.secrets.tenantFieldRequiredSpecific', '请填写：{{configItemName}} - {{entryName}}', {
                 configItemName: configItem.name,
                 entryName: emptyRequired.name,
-              }),
+              })
             );
             return;
           }
@@ -120,15 +111,11 @@ const TenantConfigItemGroup: React.FC<TenantConfigItemGroupProps> = ({
         }
       }
     },
-    [localValues, externalValues, onSave, onToggleEnabled, t, configItem.entries, configItem.name],
+    [localValues, externalValues, onSave, onToggleEnabled, t, configItem.entries, configItem.name]
   );
 
   return (
-    <Collapse
-      activeKey={collapsed ? [] : [`tenant-${configItem.id}`]}
-      onChange={() => setCollapsed((prev) => !prev)}
-      className='[&_div.arco-collapse-item-header-title]:flex-1'
-    >
+    <Collapse activeKey={collapsed ? [] : [`tenant-${configItem.id}`]} onChange={() => setCollapsed((prev) => !prev)} className='[&_div.arco-collapse-item-header-title]:flex-1'>
       <Collapse.Item
         header={
           <div className='flex items-center justify-between group'>
@@ -137,11 +124,7 @@ const TenantConfigItemGroup: React.FC<TenantConfigItemGroupProps> = ({
               <span className='text-14px text-t-primary'>{configItem.name}</span>
             </div>
             <div className='flex items-center gap-2' onClick={(e) => e.stopPropagation()}>
-              <Switch
-                size='small'
-                checked={enabled}
-                onChange={handleToggle}
-              />
+              <Switch size='small' checked={enabled} onChange={handleToggle} />
             </div>
           </div>
         }
@@ -152,13 +135,7 @@ const TenantConfigItemGroup: React.FC<TenantConfigItemGroupProps> = ({
           <div className='bg-fill-1 rd-12px pt-16px pr-16px pb-16px pl-0'>
             {configItem.entries.map((entry) => (
               <PreferenceRow key={entry.id} label={entry.name} description={entry.config_desc || undefined} required={entry.required === 1}>
-                <Input.Password
-                  value={localValues[entry.config_key] || ''}
-                  onChange={(val) => handleValueChange(entry.config_key, val)}
-                  placeholder={`请输入${entry.name}`}
-                  style={{ width: 240 }}
-                  disabled={enabled || saving}
-                />
+                <Input.Password value={localValues[entry.config_key] || ''} onChange={(val) => handleValueChange(entry.config_key, val)} placeholder={`请输入${entry.name}`} style={{ width: 240 }} disabled={enabled || saving} />
               </PreferenceRow>
             ))}
           </div>

@@ -11,14 +11,7 @@ interface ModalWrapperProps extends Omit<ModalProps, 'title'> {
 
 const ModalWrapper: React.FC<ModalWrapperProps> = ({ children, title, showCustomClose = true, onCancel, className = '', ...props }) => {
   return (
-    <Modal
-      {...props}
-      title={null}
-      closable={false}
-      escToExit
-      onCancel={onCancel}
-      className={`aionui-modal ${className}`}
-    >
+    <Modal {...props} title={null} closable={false} escToExit onCancel={onCancel} className={`aionui-modal ${className}`}>
       <div>
         {showCustomClose && title && (
           <div className='aionui-modal-header'>

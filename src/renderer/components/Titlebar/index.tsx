@@ -18,13 +18,7 @@ interface TitlebarProps {
   workspaceAvailable: boolean;
 }
 
-const AionLogoMark: React.FC<{ config: Required<typeof DEFAULT_TENANT_CONFIG> }> = ({ config }) => (
-  <img
-    src={config.logo || SudoworkIcon}
-    alt={config.app_name}
-    className='app-titlebar__brand-logo w-5 h-5 object-contain'
-  />
-);
+const AionLogoMark: React.FC<{ config: Required<typeof DEFAULT_TENANT_CONFIG> }> = ({ config }) => <img src={config.logo || SudoworkIcon} alt={config.app_name} className='app-titlebar__brand-logo w-5 h-5 object-contain' />;
 
 const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
   const { t } = useTranslation();

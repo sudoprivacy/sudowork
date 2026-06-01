@@ -83,14 +83,7 @@ export class StepTracker {
    * @param agentType - Agent 类型 (sudocode, claude 等)
    * @returns stepId
    */
-  public startToolCall(
-    sessionId: string,
-    turnId: string,
-    toolCallId: string,
-    toolName: string,
-    kind: 'read' | 'edit' | 'execute',
-    agentType?: AgentType
-  ): string {
+  public startToolCall(sessionId: string, turnId: string, toolCallId: string, toolName: string, kind: 'read' | 'edit' | 'execute', agentType?: AgentType): string {
     const stepId = `step_tc_${toolCallId}`;
 
     const state: StepTrackingState = {
@@ -201,26 +194,23 @@ export class StepTracker {
    * @param status - 状态
    * @param agentType - Agent 类型 (sudocode, claude 等)
    */
-  public recordFileOperation(
-    sessionId: string,
-    turnId: string,
-    operation: 'read' | 'write' | 'delete',
-    filePath: string,
-    status: 'success' | 'error' = 'success',
-    agentType?: AgentType
-  ): string {
+  public recordFileOperation(sessionId: string, turnId: string, operation: 'read' | 'write' | 'delete', filePath: string, status: 'success' | 'error' = 'success', agentType?: AgentType): string {
     const stepId = `step_file_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
 
     // 直接上报，无需等待结束
-    getTelemetryReporter().record('step', {
-      step_id: stepId,
-      turn_id: turnId,
-      session_id: sessionId,
-      step_type: 'file_operation',
-      file_path: filePath,
-      duration_ms: 0, // 文件操作通常很快，不追踪时长
-      status,
-    }, agentType);
+    getTelemetryReporter().record(
+      'step',
+      {
+        step_id: stepId,
+        turn_id: turnId,
+        session_id: sessionId,
+        step_type: 'file_operation',
+        file_path: filePath,
+        duration_ms: 0, // 文件操作通常很快，不追踪时长
+        status,
+      },
+      agentType
+    );
 
     mainLog(TAG, `File operation recorded: ${stepId} (${operation}: ${filePath})`);
 
@@ -286,19 +276,23 @@ export class StepTracker {
     const duration = Date.now() - state.startTime;
 
     // 上报 Step 事件
-    getTelemetryReporter().record('step', {
-      step_id: state.stepId,
-      turn_id: state.turnId,
-      session_id: state.sessionId,
-      step_type: state.stepType,
-      tool_name: state.toolName,
-      tool_kind: state.toolKind,
-      file_path: state.filePath,
-      permission_kind: state.permissionKind,
-      thinking_tokens: thinkingTokens,
-      duration_ms: duration,
-      status: state.status,
-    }, state.agentType);
+    getTelemetryReporter().record(
+      'step',
+      {
+        step_id: state.stepId,
+        turn_id: state.turnId,
+        session_id: state.sessionId,
+        step_type: state.stepType,
+        tool_name: state.toolName,
+        tool_kind: state.toolKind,
+        file_path: state.filePath,
+        permission_kind: state.permissionKind,
+        thinking_tokens: thinkingTokens,
+        duration_ms: duration,
+        status: state.status,
+      },
+      state.agentType
+    );
 
     // 清理追踪状态
     this.activeSteps.delete(state.stepId);
@@ -331,14 +325,7 @@ export const getStepTracker = (): StepTracker => {
 };
 
 /** 开始工具调用追踪 */
-export const startToolCallTracking = (
-  sessionId: string,
-  turnId: string,
-  toolCallId: string,
-  toolName: string,
-  kind: 'read' | 'edit' | 'execute',
-  agentType?: AgentType
-): string => {
+export const startToolCallTracking = (sessionId: string, turnId: string, toolCallId: string, toolName: string, kind: 'read' | 'edit' | 'execute', agentType?: AgentType): string => {
   return getStepTracker().startToolCall(sessionId, turnId, toolCallId, toolName, kind, agentType);
 };
 
@@ -358,14 +345,7 @@ export const endPermissionRequestTracking = (stepId: string, approved: boolean):
 };
 
 /** 记录文件操作 */
-export const recordFileOperationStep = (
-  sessionId: string,
-  turnId: string,
-  operation: 'read' | 'write' | 'delete',
-  filePath: string,
-  status?: 'success' | 'error',
-  agentType?: AgentType
-): string => {
+export const recordFileOperationStep = (sessionId: string, turnId: string, operation: 'read' | 'write' | 'delete', filePath: string, status?: 'success' | 'error', agentType?: AgentType): string => {
   return getStepTracker().recordFileOperation(sessionId, turnId, operation, filePath, status, agentType);
 };
 

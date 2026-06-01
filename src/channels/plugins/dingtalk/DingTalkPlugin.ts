@@ -29,7 +29,7 @@ const EVENT_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 const EVENT_CACHE_CLEANUP_INTERVAL = 60 * 1000; // 1 minute
 
 // Reconnection settings
-const RECONNECT_INITIAL_DELAY = 1000;  // 1 second
+const RECONNECT_INITIAL_DELAY = 1000; // 1 second
 const RECONNECT_MAX_DELAY = 60 * 1000; // 60 seconds
 const RECONNECT_BACKOFF_FACTOR = 2;
 const HEALTH_CHECK_INTERVAL = 30 * 1000; // 30 seconds
@@ -248,7 +248,9 @@ export class DingTalkPlugin extends BasePlugin {
     if (this.client) {
       try {
         this.client.disconnect();
-      } catch {}
+      } catch {
+        // Disconnect may fail if client is already disconnected or in error state
+      }
       this.client = null;
     }
 
@@ -283,10 +285,7 @@ export class DingTalkPlugin extends BasePlugin {
         })
         .catch((error) => {
           mainError('DingTalkPlugin', 'Reconnection failed:', error);
-          this.reconnectDelay = Math.min(
-            this.reconnectDelay * RECONNECT_BACKOFF_FACTOR,
-            RECONNECT_MAX_DELAY
-          );
+          this.reconnectDelay = Math.min(this.reconnectDelay * RECONNECT_BACKOFF_FACTOR, RECONNECT_MAX_DELAY);
           this.scheduleReconnect();
         });
     }, this.reconnectDelay);
@@ -479,7 +478,7 @@ export class DingTalkPlugin extends BasePlugin {
     await this.ensureAccessToken();
 
     const { rawText } = toDingTalkSendParams(message);
-    let text = rawText || message.text || '';
+    const text = rawText || message.text || '';
 
     // Extract local image refs to avoid gray placeholder in AI Card
     const { cleanText, imagePaths } = this.extractLocalImageRefs(text);
@@ -814,17 +813,20 @@ export class DingTalkPlugin extends BasePlugin {
    */
   private extractLocalImageRefs(text: string): { cleanText: string; imagePaths: string[] } {
     const imagePaths: string[] = [];
-    const cleanText = text.replace(/!\[[^\]]*\]\(([^)]+)\)/g, (match, imgPath: string) => {
-      if (/^(https?:|data:|file:)/i.test(imgPath)) {
+    const cleanText = text
+      .replace(/!\[[^\]]*\]\(([^)]+)\)/g, (match, imgPath: string) => {
+        if (/^(https?:|data:|file:)/i.test(imgPath)) {
+          return match;
+        }
+        const ext = path.extname(imgPath).toLowerCase();
+        if (LOCAL_IMAGE_EXTENSIONS.includes(ext)) {
+          imagePaths.push(imgPath);
+          return '';
+        }
         return match;
-      }
-      const ext = path.extname(imgPath).toLowerCase();
-      if (LOCAL_IMAGE_EXTENSIONS.includes(ext)) {
-        imagePaths.push(imgPath);
-        return '';
-      }
-      return match;
-    }).replace(/\n{3,}/g, '\n\n').trim();
+      })
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
     return { cleanText, imagePaths };
   }
 
@@ -1245,14 +1247,7 @@ export class DingTalkPlugin extends BasePlugin {
     const fileData = fileBuffer.toString('binary');
 
     // Build multipart/form-data body
-    const body =
-      `--${boundary}${CRLF}` +
-      `Content-Disposition: form-data; name="media"; filename="${fileName}"${CRLF}` +
-      `Content-Type: application/octet-stream${CRLF}` +
-      CRLF +
-      fileData +
-      CRLF +
-      `--${boundary}--${CRLF}`;
+    const body = `--${boundary}${CRLF}` + `Content-Disposition: form-data; name="media"; filename="${fileName}"${CRLF}` + `Content-Type: application/octet-stream${CRLF}` + CRLF + fileData + CRLF + `--${boundary}--${CRLF}`;
 
     const url = `${DingTalkPlugin.DINGTALK_OAPI_BASE}/media/upload?access_token=${encodeURIComponent(token)}&type=${uploadType}`;
 
@@ -1307,14 +1302,7 @@ export class DingTalkPlugin extends BasePlugin {
    * Send image or file message via DingTalk robot API.
    * Uses the new api.dingtalk.com endpoint with header-based auth.
    */
-  private async sendMediaViaAPI(
-    chatType: 'user' | 'group',
-    id: string,
-    mediaType: 'image' | 'file',
-    mediaId: string,
-    fileName?: string,
-    fileType?: string,
-  ): Promise<string> {
+  private async sendMediaViaAPI(chatType: 'user' | 'group', id: string, mediaType: 'image' | 'file', mediaId: string, fileName?: string, fileType?: string): Promise<string> {
     const token = await this.getAccessToken();
 
     let msgKey: string;

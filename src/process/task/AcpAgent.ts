@@ -192,17 +192,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
   // Turn-level file tracking for precise cleanup on cancel
   private currentTurnFiles: Map<string, TrackedTurnFile> = new Map();
   private readonly fileIntentClassifier = new FileIntentClassifier();
-  private static readonly WORKSPACE_TRACKING_SKIP_DIRS = new Set([
-    '.codex',
-    '.drafts',
-    '.git',
-    '.nexus',
-    '.scode',
-    'node_modules',
-    '__pycache__',
-    '.venv',
-    'venv',
-  ]);
+  private static readonly WORKSPACE_TRACKING_SKIP_DIRS = new Set(['.codex', '.drafts', '.git', '.nexus', '.scode', 'node_modules', '__pycache__', '.venv', 'venv']);
   private static readonly WORKSPACE_TRACKING_SKIP_FILES = new Set(['.gitignore', '.env', '.env.local', '.DS_Store', 'Thumbs.db']);
 
   // Extra config passed to connection

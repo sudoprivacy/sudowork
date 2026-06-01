@@ -56,9 +56,7 @@ const LibreOfficeInstallPrompt: React.FC<LibreOfficeInstallPromptProps> = ({ fil
               {phase && ` — ${t(`preview.libreOffice.phase.${phase}`, { defaultValue: phase })}`}
             </div>
             <Progress percent={percent ?? 0} status='normal' showText={false} strokeWidth={6} className='!mb-4px !max-w-280px !mx-auto' />
-            {percent !== undefined && (
-              <div className='text-12px text-t-tertiary'>{percent}%</div>
-            )}
+            {percent !== undefined && <div className='text-12px text-t-tertiary'>{percent}%</div>}
           </>
         )}
 

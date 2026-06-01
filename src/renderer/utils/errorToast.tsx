@@ -81,11 +81,7 @@ export const showInfoToast = (message: string, options?: ErrorToastOptions): voi
  * @param defaultMessage 默认错误消息
  * @param options 配置选项
  */
-export const handleErrorResponse = (
-  error: unknown,
-  defaultMessage = 'common.operationFailed',
-  options?: ErrorToastOptions
-): void => {
+export const handleErrorResponse = (error: unknown, defaultMessage = 'common.operationFailed', options?: ErrorToastOptions): void => {
   const { t, duration = 3000, closable = true } = options || {};
 
   let errorMessage = t ? t(defaultMessage) : defaultMessage;
@@ -160,11 +156,7 @@ export const FormFieldErrorKeys = {
  * @param options 配置选项
  * @deprecated 请使用 showErrorToast 并在外部处理重试逻辑
  */
-export const showErrorToastWithRetry = (
-  message: string,
-  _onRetry: () => void | Promise<void>,
-  options?: ErrorToastOptions
-): void => {
+export const showErrorToastWithRetry = (message: string, _onRetry: () => void | Promise<void>, options?: ErrorToastOptions): void => {
   // Arco Design Message 不支持自定义 footer，使用普通错误消息
   showErrorToast(message, options);
 };

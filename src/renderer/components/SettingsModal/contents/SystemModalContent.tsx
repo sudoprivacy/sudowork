@@ -281,11 +281,7 @@ const SystemModalContent: React.FC = () => {
     {
       key: 'closeToTray',
       label: t('settings.closeToTray'),
-      component: closeToTrayLoading ? (
-        <div style={{ width: 44, height: 22 }} />
-      ) : (
-        <Switch checked={closeToTray} onChange={handleCloseToTrayChange} />
-      ),
+      component: closeToTrayLoading ? <div style={{ width: 44, height: 22 }} /> : <Switch checked={closeToTray} onChange={handleCloseToTrayChange} />,
     },
     {
       key: 'avatarEnabled',

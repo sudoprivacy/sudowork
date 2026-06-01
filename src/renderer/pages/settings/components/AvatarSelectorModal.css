@@ -78,7 +78,10 @@
   cursor: pointer;
   display: inline-flex;
   align-items: center;
-  transition: background 0.15s ease, color 0.15s ease, transform 0.1s ease;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    transform 0.1s ease;
 }
 .avatar-selector-chip:hover {
   background: var(--color-fill-3);
@@ -224,7 +227,10 @@
   background: var(--color-fill-1);
   border: 1px solid transparent;
   cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    transform 0.1s ease;
 }
 .avatar-selector-preset-card:hover {
   background: var(--color-fill-2);

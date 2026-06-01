@@ -53,9 +53,7 @@ function buildOpenAIModelsEndpoint(baseUrl: string): string {
 }
 
 function parseOpenAIModelIds(data: OpenAIModelsResponse): string[] {
-  const modelIds = (Array.isArray(data.data) ? data.data : [])
-    .map((model) => (typeof model?.id === 'string' ? model.id.trim() : ''))
-    .filter(Boolean);
+  const modelIds = (Array.isArray(data.data) ? data.data : []).map((model) => (typeof model?.id === 'string' ? model.id.trim() : '')).filter(Boolean);
   return Array.from(new Set(modelIds)).sort((a, b) => a.localeCompare(b));
 }
 

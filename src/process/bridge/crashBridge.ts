@@ -14,11 +14,7 @@
 
 import { ipcMain } from 'electron';
 import { ipcBridge } from '../../common';
-import {
-  getCrashReporter,
-  addCrashBreadcrumb,
-  flushCrashReporter,
-} from '../telemetry/CrashReporter';
+import { getCrashReporter, addCrashBreadcrumb, flushCrashReporter } from '../telemetry/CrashReporter';
 
 export function initCrashBridge(): void {
   // 注册直接 IPC handlers (preload.ts 使用 ipcRenderer.invoke 直接调用)

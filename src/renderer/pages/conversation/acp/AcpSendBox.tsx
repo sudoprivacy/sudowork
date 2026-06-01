@@ -508,7 +508,7 @@ const useSendBoxDraft = (conversation_id: string) => {
       mutate((prev) => {
         const previousSkills = prev?.selectedSkills ?? [];
         const nextSkills = typeof skills === 'function' ? skills(previousSkills) : skills;
-        return { ...(prev as { selectedSkills?: string[] }), selectedSkills: nextSkills };
+        return { ...prev!, selectedSkills: nextSkills };
       });
     },
     [mutate]

@@ -99,29 +99,12 @@ const InstallJsonModal: React.FC<InstallJsonModalProps> = ({ visible, onCancel, 
   const canSubmit = !loading;
 
   return (
-    <AionModal
-      visible={visible}
-      onCancel={onCancel}
-      onOk={handleSubmit}
-      okText="安装"
-      cancelText="取消"
-      okButtonProps={{ disabled: !canSubmit, loading }}
-      header={{ title: t('settings.mcpInstallJsonTitle', { defaultValue: '安装 MCP' }), showClose: true }}
-      style={{ width: 600, height: 520 }}
-      contentStyle={{ borderRadius: 16, padding: '24px', background: 'var(--bg-1)', overflow: 'auto', height: 490 - 80 }}
-    >
+    <AionModal visible={visible} onCancel={onCancel} onOk={handleSubmit} okText='安装' cancelText='取消' okButtonProps={{ disabled: !canSubmit, loading }} header={{ title: t('settings.mcpInstallJsonTitle', { defaultValue: '安装 MCP' }), showClose: true }} style={{ width: 600, height: 520 }} contentStyle={{ borderRadius: 16, padding: '24px', background: 'var(--bg-1)', overflow: 'auto', height: 490 - 80 }}>
       <div className='space-y-12px'>
         {/* 名称输入框 */}
         <div>
-          <div className='mb-2 text-sm text-t-secondary'>
-            {t('settings.mcpInstallJsonName', { defaultValue: '名称（选填）' })}
-          </div>
-          <Input
-            value={name}
-            onChange={setName}
-            placeholder={t('settings.mcpInstallJsonNamePlaceholder', { defaultValue: '留空则从 JSON 中自动提取' })}
-            style={{ marginBottom: 12 }}
-          />
+          <div className='mb-2 text-sm text-t-secondary'>{t('settings.mcpInstallJsonName', { defaultValue: '名称（选填）' })}</div>
+          <Input value={name} onChange={setName} placeholder={t('settings.mcpInstallJsonNamePlaceholder', { defaultValue: '留空则从 JSON 中自动提取' })} style={{ marginBottom: 12 }} />
         </div>
 
         {/* JSON 编辑器 */}
@@ -197,9 +180,7 @@ const InstallJsonModal: React.FC<InstallJsonModalProps> = ({ visible, onCancel, 
           </div>
 
           {/* JSON 格式错误提示 */}
-          {!validation.isValid && jsonInput.trim() && (
-            <div className='mt-2 text-sm text-red-600'>{t('settings.mcpJsonFormatError') || 'JSON format error'}</div>
-          )}
+          {!validation.isValid && jsonInput.trim() && <div className='mt-2 text-sm text-red-600'>{t('settings.mcpJsonFormatError') || 'JSON format error'}</div>}
         </div>
 
         <Alert

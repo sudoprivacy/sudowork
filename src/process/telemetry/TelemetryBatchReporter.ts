@@ -17,24 +17,7 @@
 import { app } from 'electron';
 import { ProcessConfig } from '../initStorage';
 import { buildVersion } from '../../common/buildInfo';
-import {
-  TelemetryEvent,
-  TelemetryBatchRequest,
-  TelemetryBatchResponse,
-  TelemetryConfig,
-  StoredTelemetryEvent,
-  PerfTelemetryEvent,
-  ConversationTelemetryEvent,
-  InstallTelemetryEvent,
-  TurnTelemetryEvent,
-  StepTelemetryEvent,
-  PerfData,
-  ConversationData,
-  InstallData,
-  TurnData,
-  StepData,
-  mapElectronArch,
-} from '../../shared/types/telemetry';
+import { TelemetryEvent, TelemetryBatchRequest, TelemetryBatchResponse, TelemetryConfig, StoredTelemetryEvent, PerfTelemetryEvent, ConversationTelemetryEvent, InstallTelemetryEvent, TurnTelemetryEvent, StepTelemetryEvent, PerfData, ConversationData, InstallData, TurnData, StepData, mapElectronArch } from '../../shared/types/telemetry';
 import { DEFAULT_TELEMETRY_CONFIG } from '../../shared/types/telemetry';
 import { mainLog, mainWarn, mainError } from '../utils/mainLogger';
 import { getTelemetryEncryptor, initTelemetryEncryptor, isEncryptionAvailable, EncryptedPayload } from './TelemetryEncryptor';
@@ -408,9 +391,7 @@ export class TelemetryBatchReporter {
         });
 
         // 超过最大重试次数的事件将被丢弃
-        this.eventQueue = this.eventQueue.filter(
-          (event) => event.retryCount < this.config.maxRetries && Date.now() - event.storedAt < MAX_EVENT_AGE,
-        );
+        this.eventQueue = this.eventQueue.filter((event) => event.retryCount < this.config.maxRetries && Date.now() - event.storedAt < MAX_EVENT_AGE);
 
         mainWarn('Telemetry', `Flush failed: ${response.error}, retries pending: ${this.eventQueue.length}`);
       }
@@ -513,9 +494,7 @@ export class TelemetryBatchReporter {
       const cachedEvents: StoredTelemetryEvent[] = JSON.parse(content);
 
       // 过滤过期事件
-      const validEvents = cachedEvents.filter(
-        (event) => Date.now() - event.storedAt < MAX_EVENT_AGE && event.retryCount < this.config.maxRetries,
-      );
+      const validEvents = cachedEvents.filter((event) => Date.now() - event.storedAt < MAX_EVENT_AGE && event.retryCount < this.config.maxRetries);
 
       this.eventQueue = validEvents;
 
@@ -536,7 +515,7 @@ export class TelemetryBatchReporter {
       const userDataPath = app.getPath('userData');
       const cachePath = path.join(userDataPath, STORAGE_FILE_NAME);
 
-      await fs.unlink(cachePath).catch(() => { });
+      await fs.unlink(cachePath).catch(() => {});
     } catch (error) {
       // 忽略删除错误
     }
@@ -558,10 +537,7 @@ export const initTelemetry = async (): Promise<void> => {
 };
 
 /** 记录事件 */
-export const recordTelemetry = <K extends TelemetryEventType>(
-  type: K,
-  data: TelemetryEventPayloadMap[K],
-): void => {
+export const recordTelemetry = <K extends TelemetryEventType>(type: K, data: TelemetryEventPayloadMap[K]): void => {
   getTelemetryReporter().record(type, data);
 };
 

@@ -14,7 +14,7 @@ import { adaptConfigItems, adaptConfigItem } from './configItemsAdapter';
 
 const CONFIG_ITEMS_API = `${SUDOWORK_SERVER_BASE_URL}/api/v1/config/items`;
 
-let rulesCache: Map<number, AuthProxyRule> = new Map();
+const rulesCache: Map<number, AuthProxyRule> = new Map();
 let lastSuccessfulRules: AuthProxyRule[] = [];
 let rawConfigItemsCache: RawConfigItem[] = [];
 
@@ -80,10 +80,7 @@ export function findRuleForUrl(url: string, minimatchFn: (str: string, pattern: 
  * @param accessToken - User's access token for sudowork-server API
  * @param enabledConfigItemIds - IDs of config items the user has enabled
  */
-export async function refreshRules(
-  accessToken: string,
-  enabledConfigItemIds: number[],
-): Promise<AuthProxyRule[]> {
+export async function refreshRules(accessToken: string, enabledConfigItemIds: number[]): Promise<AuthProxyRule[]> {
   try {
     const response = await fetch(CONFIG_ITEMS_API, {
       headers: { Authorization: `Bearer ${accessToken}` },

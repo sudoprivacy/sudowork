@@ -350,9 +350,7 @@ const ChannelModalContent: React.FC = () => {
         // Pass pending credentials from form if available
         const pendingCreds = larkCredentialsRef.current;
         const hasFormCreds = !!(pendingCreds.appId.trim() && pendingCreds.appSecret.trim());
-        const config = hasFormCreds
-          ? { appId: pendingCreds.appId.trim(), appSecret: pendingCreds.appSecret.trim(), encryptKey: pendingCreds.encryptKey, verificationToken: pendingCreds.verificationToken }
-          : {};
+        const config = hasFormCreds ? { appId: pendingCreds.appId.trim(), appSecret: pendingCreds.appSecret.trim(), encryptKey: pendingCreds.encryptKey, verificationToken: pendingCreds.verificationToken } : {};
 
         const result = await channel.enablePlugin.invoke({
           pluginId: 'lark_default',
@@ -406,9 +404,7 @@ const ChannelModalContent: React.FC = () => {
         // Pass pending credentials from form if available
         const pendingCreds = dingtalkCredentialsRef.current;
         const hasFormCreds = !!(pendingCreds.clientId.trim() && pendingCreds.clientSecret.trim());
-        const config = hasFormCreds
-          ? { clientId: pendingCreds.clientId.trim(), clientSecret: pendingCreds.clientSecret.trim() }
-          : {};
+        const config = hasFormCreds ? { clientId: pendingCreds.clientId.trim(), clientSecret: pendingCreds.clientSecret.trim() } : {};
 
         const result = await channel.enablePlugin.invoke({
           pluginId: 'dingtalk_default',
@@ -736,7 +732,16 @@ const ChannelModalContent: React.FC = () => {
       disabled: larkEnableLoading,
       isConnected: larkPluginStatus?.connected || false,
       defaultModel: larkModelSelection.currentModel?.useModel,
-      content: <LarkConfigForm pluginStatus={larkPluginStatus} modelSelection={larkModelSelection} onStatusChange={setLarkPluginStatus} onCredentialsChange={(creds) => { larkCredentialsRef.current = creds; }} />,
+      content: (
+        <LarkConfigForm
+          pluginStatus={larkPluginStatus}
+          modelSelection={larkModelSelection}
+          onStatusChange={setLarkPluginStatus}
+          onCredentialsChange={(creds) => {
+            larkCredentialsRef.current = creds;
+          }}
+        />
+      ),
     };
 
     const dingtalkChannel: ChannelConfig = {
@@ -748,7 +753,16 @@ const ChannelModalContent: React.FC = () => {
       disabled: dingtalkEnableLoading,
       isConnected: dingtalkPluginStatus?.connected || false,
       defaultModel: dingtalkModelSelection.currentModel?.useModel,
-      content: <DingTalkConfigForm pluginStatus={dingtalkPluginStatus} modelSelection={dingtalkModelSelection} onStatusChange={setDingtalkPluginStatus} onCredentialsChange={(creds) => { dingtalkCredentialsRef.current = creds; }} />,
+      content: (
+        <DingTalkConfigForm
+          pluginStatus={dingtalkPluginStatus}
+          modelSelection={dingtalkModelSelection}
+          onStatusChange={setDingtalkPluginStatus}
+          onCredentialsChange={(creds) => {
+            dingtalkCredentialsRef.current = creds;
+          }}
+        />
+      ),
     };
 
     const wechatChannel: ChannelConfig = {

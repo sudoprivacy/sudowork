@@ -70,10 +70,7 @@ export function useGlobalShortcut(shortcut: ShortcutHandler): void {
 
       // Check if we should allow in input elements
       const target = event.target as HTMLElement;
-      const isInput =
-        target.tagName === 'INPUT' ||
-        target.tagName === 'TEXTAREA' ||
-        target.isContentEditable;
+      const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
 
       if (!options?.allowInInput && isInput) {
         return;

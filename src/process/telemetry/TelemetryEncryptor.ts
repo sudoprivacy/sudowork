@@ -153,7 +153,7 @@ export class TelemetryEncryptor {
           padding: crypto.constants.RSA_PKCS1_OAEP_PADDING,
           oaepHash: config.rsa.hash,
         },
-        aesKey,
+        aesKey
       );
 
       // Step 6: Base64 编码

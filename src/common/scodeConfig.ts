@@ -53,10 +53,7 @@ function getCustomApiType(modelId: string, api?: string): string {
   return modelApi || OPENAI_COMPAT_API;
 }
 
-function resolveDefaultModelAlias(
-  existingDefaultModel: string | undefined,
-  models: Record<string, ScodeModelEntry>
-): string | undefined {
+function resolveDefaultModelAlias(existingDefaultModel: string | undefined, models: Record<string, ScodeModelEntry>): string | undefined {
   const defaultModel = existingDefaultModel?.trim();
   if (!defaultModel) return undefined;
   if (models[defaultModel]) return defaultModel;

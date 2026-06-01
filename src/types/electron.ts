@@ -55,19 +55,9 @@ export interface ElectronBridgeAPI {
   webuiGenerateQRToken?: () => Promise<WebUIGenerateQRTokenResult>;
   // ==================== Crash Reporter ====================
   // 上报 JS 异常到主进程 CrashReporter / Report JS exception to main process
-  crashReportException?: (data: {
-    error_name: string;
-    error_message: string;
-    stack_trace?: string;
-    context?: Record<string, unknown>;
-  }) => Promise<void>;
+  crashReportException?: (data: { error_name: string; error_message: string; stack_trace?: string; context?: Record<string, unknown> }) => Promise<void>;
   // 添加面包屑到主进程 CrashReporter / Add breadcrumb to main process
-  crashAddBreadcrumb?: (data: {
-    category: string;
-    message: string;
-    data?: Record<string, unknown>;
-    level?: 'debug' | 'info' | 'warning' | 'error';
-  }) => Promise<void>;
+  crashAddBreadcrumb?: (data: { category: string; message: string; data?: Record<string, unknown>; level?: 'debug' | 'info' | 'warning' | 'error' }) => Promise<void>;
 }
 
 declare global {

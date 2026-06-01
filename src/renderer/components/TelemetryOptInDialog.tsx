@@ -62,19 +62,11 @@ const TelemetryOptInDialog: React.FC<TelemetryOptInDialogProps> = ({ visible, on
   }, [onClose]);
 
   const footer = (
-    <div className="flex justify-end gap-12px pt-16px border-t border-[var(--bg-3)]">
-      <Button
-        onClick={handleSkip}
-        className="px-20px min-w-80px rd-8px"
-      >
+    <div className='flex justify-end gap-12px pt-16px border-t border-[var(--bg-3)]'>
+      <Button onClick={handleSkip} className='px-20px min-w-80px rd-8px'>
         {t('telemetry.optIn.skip', '稍后提醒')}
       </Button>
-      <Button
-        type="primary"
-        onClick={handleConfirm}
-        loading={loading}
-        className="px-20px min-w-80px rd-8px"
-      >
+      <Button type='primary' onClick={handleConfirm} loading={loading} className='px-20px min-w-80px rd-8px'>
         {t('telemetry.optIn.confirm', '确认')}
       </Button>
     </div>
@@ -82,57 +74,29 @@ const TelemetryOptInDialog: React.FC<TelemetryOptInDialogProps> = ({ visible, on
 
   const header = {
     render: () => (
-      <div className="flex items-center justify-between w-full pb-20px border-b border-[var(--bg-3)]">
-        <h3 className="text-16px font-600 text-t-primary m-0">
-          {t('telemetry.optIn.title', '帮助我们改进 Sudowork')}
-        </h3>
-        <button
-          onClick={handleSkip}
-          className="w-32px h-32px flex items-center justify-center rd-8px transition-colors cursor-pointer border-0 bg-transparent p-0 hover:bg-2 focus:outline-none"
-          aria-label="Close"
-        >
-          <Close size={20} fill="#86909c" />
+      <div className='flex items-center justify-between w-full pb-20px border-b border-[var(--bg-3)]'>
+        <h3 className='text-16px font-600 text-t-primary m-0'>{t('telemetry.optIn.title', '帮助我们改进 Sudowork')}</h3>
+        <button onClick={handleSkip} className='w-32px h-32px flex items-center justify-center rd-8px transition-colors cursor-pointer border-0 bg-transparent p-0 hover:bg-2 focus:outline-none' aria-label='Close'>
+          <Close size={20} fill='#86909c' />
         </button>
       </div>
     ),
   };
 
   return (
-    <AionModal
-      visible={visible}
-      onCancel={handleSkip}
-      header={header}
-      footer={{ render: () => footer, style: { padding: '0 20px 20px' } }}
-      size="small"
-      contentStyle={{ padding: '20px' }}
-      className="telemetry-opt-in-dialog"
-    >
-      <div className="flex flex-col gap-16px">
+    <AionModal visible={visible} onCancel={handleSkip} header={header} footer={{ render: () => footer, style: { padding: '0 20px 20px' } }} size='small' contentStyle={{ padding: '20px' }} className='telemetry-opt-in-dialog'>
+      <div className='flex flex-col gap-16px'>
         {/* 说明内容 */}
-        <div className="text-14px text-t-secondary leading-relaxed">
-          {t(
-            'telemetry.optIn.description',
-            '为了持续优化您的使用体验，我们希望收集匿名使用数据。'
-          )}
-        </div>
+        <div className='text-14px text-t-secondary leading-relaxed'>{t('telemetry.optIn.description', '为了持续优化您的使用体验，我们希望收集匿名使用数据。')}</div>
 
         {/* 隐私保障 */}
-        <div className="flex items-start gap-10px p-12px rd-10px bg-[var(--bg-2)]">
-          <Shield size={18} fill="var(--color-success-6)" className="flex-shrink-0 mt-1px" />
-          <div className="text-13px text-t-secondary leading-relaxed">
-            {t(
-              'telemetry.optIn.privacy',
-              '开启后将匿名收集性能指标数据，仅用于产品改进，不会收集您的对话内容或个人信息。您可以随时在设置中关闭此功能。'
-            )}
-          </div>
+        <div className='flex items-start gap-10px p-12px rd-10px bg-[var(--bg-2)]'>
+          <Shield size={18} fill='var(--color-success-6)' className='flex-shrink-0 mt-1px' />
+          <div className='text-13px text-t-secondary leading-relaxed'>{t('telemetry.optIn.privacy', '开启后将匿名收集性能指标数据，仅用于产品改进，不会收集您的对话内容或个人信息。您可以随时在设置中关闭此功能。')}</div>
         </div>
 
         {/* 勾选框 */}
-        <Checkbox
-          checked={allowTelemetry}
-          onChange={(checked) => setAllowTelemetry(checked)}
-          className="text-14px"
-        >
+        <Checkbox checked={allowTelemetry} onChange={(checked) => setAllowTelemetry(checked)} className='text-14px'>
           {t('telemetry.optIn.checkbox', '允许收集匿名使用数据')}
         </Checkbox>
       </div>

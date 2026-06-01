@@ -77,10 +77,7 @@ export function injectAuth(params: InjectAuthParams): InjectAuthResult {
  * Inject multiple headers for header/query schemes with multiple entries.
  * Each entry has its own configKey as the header name / query param name.
  */
-export function injectMultiAuth(
-  scheme: string,
-  entries: Array<{ configKey: string; secret: string }>,
-): InjectAuthResult {
+export function injectMultiAuth(scheme: string, entries: Array<{ configKey: string; secret: string }>): InjectAuthResult {
   const headers: Record<string, string> = {};
   const queryParts: string[] = [];
 

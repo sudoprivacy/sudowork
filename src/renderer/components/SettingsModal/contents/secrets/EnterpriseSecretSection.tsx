@@ -24,7 +24,9 @@ function resolveIconUrl(iconUrl: string | null): string {
 const ConfigItemIcon: React.FC<{ iconUrl?: string; name: string }> = ({ iconUrl, name }) => {
   const [useDefault, setUseDefault] = React.useState(false);
 
-  React.useEffect(() => { setUseDefault(false); }, [iconUrl]);
+  React.useEffect(() => {
+    setUseDefault(false);
+  }, [iconUrl]);
 
   const src = useDefault ? configItemDefaultIcon : resolveIconUrl(iconUrl ?? null);
   return <img src={src} alt={name} className='w-14px h-14px object-contain shrink-0' onError={() => setUseDefault(true)} />;
@@ -49,7 +51,7 @@ export const EnterpriseSecretSection: React.FC = () => {
       const authRes = await fetch(`${serverUrl}/api/v1/me/authorized-system-configs`, { headers });
       const authData = await authRes.json();
       if (!authData.success) return;
-      const authorizedIds = new Set((authData.data as Array<{ id: number }>).map(i => i.id));
+      const authorizedIds = new Set((authData.data as Array<{ id: number }>).map((i) => i.id));
       if (authorizedIds.size === 0) return;
 
       // 2. Get full config items with entries, filter to authorized system items
@@ -57,9 +59,7 @@ export const EnterpriseSecretSection: React.FC = () => {
       const itemsData = await itemsRes.json();
       if (!itemsData.success) return;
 
-      const systemItems: TenantConfigItem[] = itemsData.data
-        .filter((item: TenantConfigItem) => item.scope === 'system' && authorizedIds.has(item.id))
-        .map((item: TenantConfigItem) => item);
+      const systemItems: TenantConfigItem[] = itemsData.data.filter((item: TenantConfigItem) => item.scope === 'system' && authorizedIds.has(item.id)).map((item: TenantConfigItem) => item);
 
       setItems(systemItems);
     } catch {
@@ -80,12 +80,8 @@ export const EnterpriseSecretSection: React.FC = () => {
       <div className='flex items-center gap-8px mb-4px'>
         <span className='text-13px font-500 text-t-secondary'>{t('settings.secrets.enterprise.title', '企业凭据')}</span>
       </div>
-      {items.map(item => (
-        <Collapse
-          key={item.id}
-          defaultActiveKey={[]}
-          className='[&_div.arco-collapse-item-header-title]:flex-1'
-        >
+      {items.map((item) => (
+        <Collapse key={item.id} defaultActiveKey={[]} className='[&_div.arco-collapse-item-header-title]:flex-1'>
           <Collapse.Item
             header={
               <div className='flex items-center justify-between group'>
@@ -103,11 +99,7 @@ export const EnterpriseSecretSection: React.FC = () => {
                 {item.entries.map((entry) => (
                   <PreferenceRow key={entry.id} label={entry.name} description={entry.config_desc || undefined} required={entry.required === 1}>
                     <Tooltip content={LOCKED_TIP}>
-                      <Input.Password
-                        value='••••••••'
-                        style={{ width: 240 }}
-                        disabled
-                      />
+                      <Input.Password value='••••••••' style={{ width: 240 }} disabled />
                     </Tooltip>
                   </PreferenceRow>
                 ))}

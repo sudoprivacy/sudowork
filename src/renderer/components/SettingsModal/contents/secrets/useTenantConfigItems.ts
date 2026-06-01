@@ -51,101 +51,109 @@ export function useTenantConfigItems(refreshTrigger?: number): UseTenantConfigIt
 
   const mountedRef = useRef(true);
 
-  const loadEnabledStates = useCallback(async (items: TenantConfigItem[], token: string) => {
-    if (isEnterprise && user?.id) {
-      // B端: use MossSecretClient.listSecrets() for enabled status
+  const loadEnabledStates = useCallback(
+    async (items: TenantConfigItem[], token: string) => {
+      if (isEnterprise && user?.id) {
+        // B端: use MossSecretClient.listSecrets() for enabled status
+        try {
+          const serverUrl = await ConfigStorage.get('eeclaw.serverUrl');
+          const mossClient = new MossSecretClient(serverUrl, token, user.id);
+          const allSecrets = await mossClient.listSecrets();
+          const newMap: Record<number, boolean> = {};
+          for (const item of items) {
+            const namespace = buildNamespace(item.pinyin!, user.id);
+            const itemEntries = allSecrets.filter((s) => s.namespace === namespace);
+            newMap[item.id] = itemEntries.length > 0 && itemEntries.some((s) => s.enabled);
+          }
+          if (mountedRef.current) {
+            setEnabledMap(newMap);
+          }
+        } catch {
+          // Fall back to all disabled
+          if (mountedRef.current) {
+            const newMap: Record<number, boolean> = {};
+            for (const item of items) {
+              newMap[item.id] = false;
+            }
+            setEnabledMap(newMap);
+          }
+        }
+        return;
+      }
+
+      // C端: read from ConfigStorage
       try {
-        const serverUrl = await ConfigStorage.get('eeclaw.serverUrl');
-        const mossClient = new MossSecretClient(serverUrl, token, user.id);
-        const allSecrets = await mossClient.listSecrets();
+        const stored = await ConfigStorage.get(TENANT_ENABLED_STORAGE_KEY);
+        const storedMap = (stored || {}) as Record<number, boolean>;
         const newMap: Record<number, boolean> = {};
         for (const item of items) {
-          const namespace = buildNamespace(item.pinyin!, user.id);
-          const itemEntries = allSecrets.filter(s => s.namespace === namespace);
-          newMap[item.id] = itemEntries.length > 0 && itemEntries.some(s => s.enabled);
+          newMap[item.id] = storedMap[item.id] ?? false;
         }
         if (mountedRef.current) {
           setEnabledMap(newMap);
         }
       } catch {
-        // Fall back to all disabled
-        if (mountedRef.current) {
-          const newMap: Record<number, boolean> = {};
-          for (const item of items) { newMap[item.id] = false; }
-          setEnabledMap(newMap);
-        }
+        // Ignore storage read errors
       }
-      return;
-    }
+    },
+    [isEnterprise, user?.id]
+  );
 
-    // C端: read from ConfigStorage
-    try {
-      const stored = await ConfigStorage.get(TENANT_ENABLED_STORAGE_KEY);
-      const storedMap = (stored || {}) as Record<number, boolean>;
-      const newMap: Record<number, boolean> = {};
-      for (const item of items) {
-        newMap[item.id] = storedMap[item.id] ?? false;
-      }
-      if (mountedRef.current) {
-        setEnabledMap(newMap);
-      }
-    } catch {
-      // Ignore storage read errors
-    }
-  }, [isEnterprise, user?.id]);
+  const loadValuesFromNexus = useCallback(
+    async (items: TenantConfigItem[], token: string) => {
+      const newValuesMap: Record<number, TenantConfigValues> = {};
+      const userId = user?.id;
 
-  const loadValuesFromNexus = useCallback(async (items: TenantConfigItem[], token: string) => {
-    const newValuesMap: Record<number, TenantConfigValues> = {};
-    const userId = user?.id;
+      if (isEnterprise && userId) {
+        // B端: use MossSecretClient to GET values from moss API
+        const serverUrl = await ConfigStorage.get('eeclaw.serverUrl');
+        const mossClient = new MossSecretClient(serverUrl, token, userId);
 
-    if (isEnterprise && userId) {
-      // B端: use MossSecretClient to GET values from moss API
-      const serverUrl = await ConfigStorage.get('eeclaw.serverUrl');
-      const mossClient = new MossSecretClient(serverUrl, token, userId);
-
-      for (const item of items) {
-        if (!item.pinyin) continue;
-        const namespace = buildNamespace(item.pinyin, userId);
-        const values: TenantConfigValues = {};
-        for (const entry of item.entries) {
-          try {
-            const value = await mossClient.getSecret(namespace, entry.config_key);
-            if (value) {
-              values[entry.config_key] = value;
-            }
-          } catch {
-            // Secret not found, skip
-          }
-        }
-        newValuesMap[item.id] = values;
-      }
-    } else {
-      // C端: use IPC to local nexusd
-      const promises: Promise<void>[] = [];
-      for (const item of items) {
-        if (!item.pinyin) continue;
-        const namespace = buildNamespace(item.pinyin);
-        const values: TenantConfigValues = {};
-        for (const entry of item.entries) {
-          const p = secret.get
-            .invoke({ namespace, key: entry.config_key })
-            .then((res) => {
-              if (res.success && res.data) {
-                values[entry.config_key] = res.data;
+        for (const item of items) {
+          if (!item.pinyin) continue;
+          const namespace = buildNamespace(item.pinyin, userId);
+          const values: TenantConfigValues = {};
+          for (const entry of item.entries) {
+            try {
+              const value = await mossClient.getSecret(namespace, entry.config_key);
+              if (value) {
+                values[entry.config_key] = value;
               }
-            })
-            .catch(() => {});
-          promises.push(p);
+            } catch {
+              // Secret not found, skip
+            }
+          }
+          newValuesMap[item.id] = values;
         }
-        newValuesMap[item.id] = values;
+      } else {
+        // C端: use IPC to local nexusd
+        const promises: Promise<void>[] = [];
+        for (const item of items) {
+          if (!item.pinyin) continue;
+          const namespace = buildNamespace(item.pinyin);
+          const values: TenantConfigValues = {};
+          for (const entry of item.entries) {
+            const p = secret.get
+              .invoke({ namespace, key: entry.config_key })
+              .then((res) => {
+                if (res.success && res.data) {
+                  values[entry.config_key] = res.data;
+                }
+              })
+              .catch(() => {});
+            promises.push(p);
+          }
+          newValuesMap[item.id] = values;
+        }
+        await Promise.all(promises);
       }
-      await Promise.all(promises);
-    }
 
-    if (mountedRef.current) {
-      setValuesMap(newValuesMap);
-    }
-  }, [isEnterprise, user?.id]);
+      if (mountedRef.current) {
+        setValuesMap(newValuesMap);
+      }
+    },
+    [isEnterprise, user?.id]
+  );
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -255,7 +263,7 @@ export function useTenantConfigItems(refreshTrigger?: number): UseTenantConfigIt
           const token = await ensureValidToken();
           const serverUrl = await ConfigStorage.get('eeclaw.serverUrl');
           const mossClient = new MossSecretClient(serverUrl, token, user.id);
-          const item = configItems.find(i => i.id === configItemId);
+          const item = configItems.find((i) => i.id === configItemId);
           if (item?.pinyin) {
             const namespace = buildNamespace(item.pinyin, user.id);
             for (const entry of item.entries) {
@@ -277,7 +285,9 @@ export function useTenantConfigItems(refreshTrigger?: number): UseTenantConfigIt
         await ConfigStorage.set(TENANT_ENABLED_STORAGE_KEY, newMap);
         const token = await ensureValidToken();
         if (token) {
-          const enabledIds = Object.entries(newMap).filter(([, v]) => v).map(([k]) => Number(k));
+          const enabledIds = Object.entries(newMap)
+            .filter(([, v]) => v)
+            .map(([k]) => Number(k));
           authProxy.refreshRules.invoke({ accessToken: token, enabledConfigItemIds: enabledIds }).catch((err) => {
             console.warn('[TenantConfig] Failed to refresh Auth Proxy rules:', err);
           });
@@ -286,7 +296,7 @@ export function useTenantConfigItems(refreshTrigger?: number): UseTenantConfigIt
         console.error('[TenantConfig] Failed to save enabled state:', err);
       }
     },
-    [enabledMap, ensureValidToken, isEnterprise, user?.id, configItems],
+    [enabledMap, ensureValidToken, isEnterprise, user?.id, configItems]
   );
 
   const saveItem = useCallback(
@@ -316,9 +326,9 @@ export function useTenantConfigItems(refreshTrigger?: number): UseTenantConfigIt
               } catch {
                 return { success: false as const };
               }
-            }),
+            })
           );
-          const allSuccess = results.every(r => r.success);
+          const allSuccess = results.every((r) => r.success);
           return allSuccess;
         }
 
@@ -335,6 +345,7 @@ export function useTenantConfigItems(refreshTrigger?: number): UseTenantConfigIt
                 await secret.delete.invoke({ namespace, key: entry.config_key });
                 return { success: true as const };
               } catch {
+                // Delete failed, but that's okay - secret may not exist
                 return { success: true as const };
               }
             }
@@ -344,12 +355,16 @@ export function useTenantConfigItems(refreshTrigger?: number): UseTenantConfigIt
               if (!getResult.success) {
                 try {
                   await secret.restore.invoke({ namespace, key: entry.config_key });
-                } catch {}
+                } catch {
+                  // Restore failed, will try to put anyway
+                }
               }
             } catch {
               try {
                 await secret.restore.invoke({ namespace, key: entry.config_key });
-              } catch {}
+              } catch {
+                // Restore failed, will try to put anyway
+              }
             }
 
             try {
@@ -358,9 +373,9 @@ export function useTenantConfigItems(refreshTrigger?: number): UseTenantConfigIt
             } catch {
               return { success: false as const };
             }
-          }),
+          })
         );
-        const allSuccess = results.every(r => r.success);
+        const allSuccess = results.every((r) => r.success);
         return allSuccess;
       } catch (err) {
         console.error('[TenantConfig] Failed to save config item:', err);
@@ -371,7 +386,7 @@ export function useTenantConfigItems(refreshTrigger?: number): UseTenantConfigIt
         }
       }
     },
-    [isEnterprise, user?.id, ensureValidToken],
+    [isEnterprise, user?.id, ensureValidToken]
   );
 
   return {

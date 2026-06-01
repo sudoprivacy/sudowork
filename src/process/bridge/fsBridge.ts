@@ -127,9 +127,7 @@ async function readAssistantResource(resourceType: ResourceType, assistantId: st
   const locales = [locale, 'en-US', 'zh-CN'].filter((l, i, arr) => arr.indexOf(l) === i);
 
   // 1. Try new directory structure (hub, system, custom) - mode-aware
-  const subdirs = isEnterpriseMode()
-    ? [ENTERPRISE_ASSISTANT_SUBDIRS.hub, ENTERPRISE_ASSISTANT_SUBDIRS.system, ENTERPRISE_ASSISTANT_SUBDIRS.custom]
-    : [ASSISTANT_SUBDIRS.hub, ASSISTANT_SUBDIRS.system, ASSISTANT_SUBDIRS.custom];
+  const subdirs = isEnterpriseMode() ? [ENTERPRISE_ASSISTANT_SUBDIRS.hub, ENTERPRISE_ASSISTANT_SUBDIRS.system, ENTERPRISE_ASSISTANT_SUBDIRS.custom] : [ASSISTANT_SUBDIRS.hub, ASSISTANT_SUBDIRS.system, ASSISTANT_SUBDIRS.custom];
   for (const subdir of subdirs) {
     const assistantDir = path.join(assistantsDir, subdir, assistantId);
     try {
@@ -223,9 +221,7 @@ async function writeAssistantResource(resourceType: ResourceType, assistantId: s
     // Check if the assistant directory exists in any of the new subdirs (hub, system, custom).
     // This ensures writes go to the same location that readAssistantResource() reads from,
     // preventing a read/write path mismatch where edits would be silently lost.
-    const subdirs = isEnterpriseMode()
-      ? [ENTERPRISE_ASSISTANT_SUBDIRS.custom, ENTERPRISE_ASSISTANT_SUBDIRS.hub, ENTERPRISE_ASSISTANT_SUBDIRS.system]
-      : [ASSISTANT_SUBDIRS.custom, ASSISTANT_SUBDIRS.hub, ASSISTANT_SUBDIRS.system];
+    const subdirs = isEnterpriseMode() ? [ENTERPRISE_ASSISTANT_SUBDIRS.custom, ENTERPRISE_ASSISTANT_SUBDIRS.hub, ENTERPRISE_ASSISTANT_SUBDIRS.system] : [ASSISTANT_SUBDIRS.custom, ASSISTANT_SUBDIRS.hub, ASSISTANT_SUBDIRS.system];
     for (const subdir of subdirs) {
       const assistantDir = path.join(assistantsDir, subdir, assistantId);
       try {

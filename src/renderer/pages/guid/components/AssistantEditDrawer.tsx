@@ -140,7 +140,12 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
           return false;
         });
         if (cancelled || !foundInfo) {
-          console.warn('[AssistantEditDrawer] Assistant not found:', assistantId, 'Available:', res.data.map(a => ({ name: a.name, metaId: a.meta?.id, displayName: a.meta?.nameI18n?.['zh-CN'] || a.meta?.name })));
+          console.warn(
+            '[AssistantEditDrawer] Assistant not found:',
+            assistantId,
+            'Available:',
+            res.data.map((a) => ({ name: a.name, metaId: a.meta?.id, displayName: a.meta?.nameI18n?.['zh-CN'] || a.meta?.name }))
+          );
           return;
         }
 

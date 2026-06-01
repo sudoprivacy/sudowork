@@ -605,7 +605,10 @@ const SendBox: React.FC<{
               filesEmptyText={t('messages.skills.filesEmpty', { defaultValue: 'No files in workspace' })}
               searchQuery={skillSelectorController.searchQuery}
               onSearchChange={skillSelectorController.setSearchQuery}
-              onDismiss={() => { skillSelectorController.setDismissed(true); setInput(stripAtQuery(input, cursorPosition)); }}
+              onDismiss={() => {
+                skillSelectorController.setDismissed(true);
+                setInput(stripAtQuery(input, cursorPosition));
+              }}
               skillsSearchPlaceholder={t('messages.skills.searchSkills', { defaultValue: '搜索技能...' })}
               filesSearchPlaceholder={t('messages.skills.searchFiles', { defaultValue: '搜索文件...' })}
               noSearchResultsText={t('messages.skills.noSearchResults', { defaultValue: '未找到匹配结果' })}

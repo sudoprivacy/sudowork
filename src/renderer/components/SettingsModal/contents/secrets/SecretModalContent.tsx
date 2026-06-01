@@ -26,9 +26,7 @@ const SecretModalContent: React.FC = () => {
 
   const [refreshCounter, setRefreshCounter] = useState(0);
 
-  const guideText = isEnterprise
-    ? t('settings.secrets.description.enterprise', '管理您的凭据，凭据安全存储在服务端。')
-    : t('settings.secrets.description', '管理各服务的秘钥凭证，秘钥安全存储在本地 Nexus 密钥库中。');
+  const guideText = isEnterprise ? t('settings.secrets.description.enterprise', '管理您的凭据，凭据安全存储在服务端。') : t('settings.secrets.description', '管理各服务的秘钥凭证，秘钥安全存储在本地 Nexus 密钥库中。');
   const setupSteps = [t('settings.secrets.step1', '选择服务并填写秘钥信息。'), t('settings.secrets.step2', '点击保存完成配置。')];
 
   const handleRefresh = useCallback(() => {
