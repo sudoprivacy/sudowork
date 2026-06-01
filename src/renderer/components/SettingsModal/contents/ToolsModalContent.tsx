@@ -21,6 +21,17 @@ import { useSettingsViewMode } from '../settingsViewContext';
 
 type MessageInstance = ReturnType<typeof Message.useMessage>[0];
 
+const LEGACY_DEFAULT_IMAGE_GENERATION_MODEL = 'gpt-image-1.5';
+
+const IMAGE_GENERATION_MODEL_OPTIONS = [
+  { label: 'gemini-3.1-flash-image-preview', value: 'gemini-3.1-flash-image-preview' },
+  { label: 'gemini-3-pro-image-preview', value: 'gemini-3-pro-image-preview' },
+  { label: 'gemini-2.5-flash-image', value: 'gemini-2.5-flash-image' },
+  { label: 'gpt-image-1.5', value: 'gpt-image-1.5' },
+  { label: 'gpt-image-1', value: 'gpt-image-1' },
+  { label: 'doubao-seedream-4-0-250828', value: 'doubao-seedream-4-0-250828' },
+];
+
 const ModalMcpManagementSection: React.FC<{ message: MessageInstance; isPageMode?: boolean }> = ({ message, isPageMode }) => {
   const { t } = useTranslation();
   const { mcpServers, extensionMcpServers, saveMcpServers } = useMcpServers();
@@ -245,21 +256,35 @@ const ToolsModalContent: React.FC = () => {
       }));
   }, [data]);
 
+  const syncImageGenerationModel = useCallback((modelConfig: Partial<IConfigStorageRefer['tools.imageGenerationModel']>) => {
+    const modelId = modelConfig.switch && modelConfig.useModel ? modelConfig.useModel : null;
+    openclaw.updateImageModel.invoke({ modelId }).catch(console.error);
+    scode.setImageModel.invoke({ modelId }).catch(console.error);
+  }, []);
+
   useEffect(() => {
     const loadConfigs = async () => {
       try {
         const saved = await ConfigStorage.get('tools.imageGenerationModel');
         if (saved) {
           // Always ensure useModel is set
-          if (!saved.useModel) {
-            saved.useModel = DEFAULT_IMAGE_GENERATION_MODEL;
+          if (!saved.useModel || saved.useModel === LEGACY_DEFAULT_IMAGE_GENERATION_MODEL) {
+            const nextConfig = {
+              ...saved,
+              useModel: DEFAULT_IMAGE_GENERATION_MODEL,
+            };
+            setImageGenerationModel(nextConfig);
+            ConfigStorage.set('tools.imageGenerationModel', nextConfig).catch(() => {});
+            syncImageGenerationModel(nextConfig);
+          } else {
+            setImageGenerationModel(saved);
           }
-          setImageGenerationModel(saved);
         } else {
           // Default: switch on, hardcoded model
           const defaultConfig = { useModel: DEFAULT_IMAGE_GENERATION_MODEL, switch: true } as IConfigStorageRefer['tools.imageGenerationModel'];
           setImageGenerationModel(defaultConfig);
           ConfigStorage.set('tools.imageGenerationModel', defaultConfig).catch(() => {});
+          syncImageGenerationModel(defaultConfig);
         }
       } catch (error) {
         console.error('Failed to load image generation model config:', error);
@@ -267,7 +292,7 @@ const ToolsModalContent: React.FC = () => {
     };
 
     void loadConfigs();
-  }, []);
+  }, [syncImageGenerationModel]);
 
   const handleImageGenerationModelChange = (value: Partial<IConfigStorageRefer['tools.imageGenerationModel']>) => {
     setImageGenerationModel((prev) => {
@@ -275,11 +300,7 @@ const ToolsModalContent: React.FC = () => {
       ConfigStorage.set('tools.imageGenerationModel', newImageGenerationModel).catch((error) => {
         console.error('Failed to update image generation model config:', error);
       });
-      // Persist to sudoclaw.json agents.defaults.imageModel so skill scripts pick it up dynamically
-      const modelId = newImageGenerationModel.switch && newImageGenerationModel.useModel ? newImageGenerationModel.useModel : null;
-      openclaw.updateImageModel.invoke({ modelId }).catch(console.error);
-      // Sync to sudocode.json tools.imageGenerationModel for scode skill bash scripts
-      scode.setImageModel.invoke({ modelId }).catch(console.error);
+      syncImageGenerationModel(newImageGenerationModel);
       return newImageGenerationModel;
     });
   };
@@ -316,15 +337,10 @@ const ToolsModalContent: React.FC = () => {
                 <AionSelect
                   value={imageGenerationModel?.useModel || DEFAULT_IMAGE_GENERATION_MODEL}
                   disabled={!imageGenerationModel?.switch}
-                  onChange={(val) => handleImageGenerationModelChange({ useModel: val as string })}
-                  options={[
-                    // { label: 'gemini-3.1-flash-image-preview', value: 'gemini-3.1-flash-image-preview' },
-                    // { label: 'gemini-3-pro-image-preview', value: 'gemini-3-pro-image-preview' },
-                    // { label: 'gemini-2.5-flash-image', value: 'gemini-2.5-flash-image' },
-                    { label: 'gpt-image-1.5', value: 'gpt-image-1.5' },
-                    { label: 'gpt-image-1', value: 'gpt-image-1' },
-                    { label: 'doubao-seedream-4-0-250828', value: 'doubao-seedream-4-0-250828' },
-                  ]}
+                  onChange={(val) => {
+                    handleImageGenerationModelChange({ useModel: val as string });
+                  }}
+                  options={IMAGE_GENERATION_MODEL_OPTIONS}
                   style={{ minWidth: 260 }}
                 />
               </Form.Item>
