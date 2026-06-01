@@ -40,6 +40,7 @@ import { initSudoclawBridge } from './sudoclawBridge';
 import { initInitBridge } from './initBridge';
 import { initSudoworkServerBridge } from './sudoworkServerBridge';
 import { initNodeRuntimeBridge } from './nodeRuntimeBridge';
+import { initPythonRuntimeBridge } from './pythonRuntimeBridge';
 // Safety hook IPC is temporarily disabled; keep safetyBridge.ts for restoration.
 // import { initSafetyBridge } from './safetyBridge';
 import { initBdpanBridge } from './bdpanBridge';
@@ -97,6 +98,7 @@ export function initAllBridges(): void {
   initAssistantHubBridge();
   initSudoclawBridge();
   initNodeRuntimeBridge();
+  initPythonRuntimeBridge();
   initSudoworkServerBridge();
   // Safety hook IPC is hidden while the feature is disabled.
   // initSafetyBridge();

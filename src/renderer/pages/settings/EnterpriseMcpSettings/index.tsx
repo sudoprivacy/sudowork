@@ -99,25 +99,23 @@ const EnterpriseMcpSettings: React.FC = () => {
     [templatesApi, mutateServers]
   );
 
-  // === Toggle enabled on personal MCP ===
+  // === Toggle user-level enabled/disabled on MCP ===
   const handleToggleEnabled = useCallback(
     async (srv: EnterpriseMcpServerDto, enabled: boolean) => {
-      // optimistic update
-      const prev = servers;
-      const next = prev.map((s) => (s.id === srv.id ? { ...s, enabled } : s));
-      await mutateServers(); // ensure baseline
       try {
-        await serversApi.patch(srv.id, { enabled });
+        if (enabled) {
+          await serversApi.enable(srv.id);
+        } else {
+          await serversApi.disable(srv.id);
+        }
         await mutateServers();
       } catch (err) {
         Message.error(describeMcpError(err));
-        // revert by re-fetching authoritative state
         await mutateServers();
         throw err;
       }
-      void next; // (no SWR optimistic api used to keep this simple — re-fetch is authoritative)
     },
-    [serversApi, mutateServers, servers]
+    [serversApi, mutateServers]
   );
 
   // === Delete personal MCP ===
@@ -148,7 +146,7 @@ const EnterpriseMcpSettings: React.FC = () => {
       if (serversError) {
         return <ErrorBlock message={describeMcpError(serversError)} />;
       }
-      return <EnterpriseMcpTab servers={servers} loading={serversLoading} />;
+      return <EnterpriseMcpTab servers={servers} loading={serversLoading} onToggleUserDisabled={handleToggleEnabled} />;
     }
     if (key === 'library') {
       if (templatesLoading && templates.length === 0) {
@@ -166,7 +164,7 @@ const EnterpriseMcpSettings: React.FC = () => {
       if (serversError) {
         return <ErrorBlock message={describeMcpError(serversError)} />;
       }
-      return <MyMcpTab servers={servers} loading={serversLoading} onToggleEnabled={handleToggleEnabled} onDelete={handleDelete} loadUserConfig={loadUserConfig} saveUserConfig={saveUserConfig} serverHasUserConfig={serverHasUserConfig} />;
+      return <MyMcpTab servers={servers} loading={serversLoading} onToggleEnabled={handleToggleEnabled} onDelete={handleDelete} loadUserConfig={loadUserConfig} saveUserConfig={saveUserConfig} serverHasUserConfig={serverHasUserConfig} allowInstall={policy?.allow_personal_mcp} onInstalled={() => void mutateServers()} />;
     }
     if (key === 'policy') {
       if (policyLoading && !policy) {

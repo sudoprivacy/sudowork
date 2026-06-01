@@ -11,4 +11,4 @@
 # the `aidb --list` output alone.
 
 set -euo pipefail
-exec python "$(dirname "$0")/browser_helper.py" "$@"
+exec python3 "$(dirname "$0")/browser_helper.py" "$@"

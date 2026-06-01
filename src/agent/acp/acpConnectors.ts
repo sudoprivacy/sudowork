@@ -264,6 +264,13 @@ export function prepareCleanEnv({ injectSafetyHook = true }: PrepareCleanEnvOpti
   const prevPythonPath = cleanEnv.PYTHONPATH || '';
   cleanEnv.PYTHONPATH = prevPythonPath ? `${browserSkillDir}${path.delimiter}${prevPythonPath}` : browserSkillDir;
 
+  // Add sudoclaw/bin to PATH so the `browser` CLI wrapper is available to ACP agents.
+  const sudoclawBinDir = path.join(os.homedir(), '.nexus', 'sudoclaw', 'bin');
+  const prevPath = cleanEnv.PATH || '';
+  if (!prevPath.includes(sudoclawBinDir)) {
+    cleanEnv.PATH = `${sudoclawBinDir}${path.delimiter}${prevPath}`;
+  }
+
   return cleanEnv;
 }
 

@@ -74,7 +74,19 @@ class DynamicNexusService {
   }
 
   /**
-   * Get the platform-specific archive name used in download URLs and versioned resource filenames.
+   * Get the platform-specific raw binary name (v0.10.0+).
+   * e.g. 'nexusd-cluster-macos-arm64' or 'nexusd-cluster-windows-x86_64.exe'
+   */
+  getPlatformBinaryName(): string {
+    const osName = OS_NAME_MAP[process.platform];
+    const archName = ARCH_NAME_MAP[process.arch];
+    if (!osName || !archName) throw new Error(`Unsupported platform: ${process.platform}-${process.arch}`);
+    const ext = this.isWindows ? '.exe' : '';
+    return `nexusd-cluster-${osName}-${archName}${ext}`;
+  }
+
+  /**
+   * Get the platform-specific archive name (pre-v0.10.0 compat).
    * e.g. 'nexus-cluster-macos-arm64.tar.gz' or 'nexus-cluster-windows-x86_64.zip'
    */
   getPlatformArchiveName(): string {
@@ -86,25 +98,30 @@ class DynamicNexusService {
 
   /**
    * Get the versioned resource filename for the current platform and bundled version.
-   * e.g. 'v0.9.29-nexus-cluster-macos-arm64.tar.gz'
+   * Tries raw binary name first (v0.10.0+), falls back to archive name.
    */
+  getVersionedResourceName(): string {
+    const version = this.getNexusVersion();
+    return `v${version}-${this.getPlatformBinaryName()}`;
+  }
+
+  /** @deprecated Use getVersionedResourceName() — kept for backward compat */
   getVersionedArchiveName(): string {
     const version = this.getNexusVersion();
     return `v${version}-${this.getPlatformArchiveName()}`;
   }
 
   /**
-   * Get the OSS download URL for the current platform's Nexus archive.
-   * e.g. https://sudoworkhub-1309794936.cos.ap-beijing.myqcloud.com/v0.9.29/nexus-cluster-macos-arm64.tar.gz
+   * Get the OSS download URL for the current platform's Nexus binary.
    */
   private getOssDownloadUrl(): string {
     const version = this.getNexusVersion();
-    return `${NEXUS_OSS_BASE_URL}/v${version}/${this.getPlatformArchiveName()}`;
+    return `${NEXUS_OSS_BASE_URL}/v${version}/${this.getPlatformBinaryName()}`;
   }
 
   private getGitHubDownloadUrl(): string {
     const version = this.getNexusVersion();
-    return `${NEXUS_GITHUB_RELEASE_BASE_URL}/v${version}/${this.getPlatformArchiveName()}`;
+    return `${NEXUS_GITHUB_RELEASE_BASE_URL}/v${version}/${this.getPlatformBinaryName()}`;
   }
 
   /**
@@ -267,34 +284,82 @@ class DynamicNexusService {
   }
 
   /**
-   * Get the bundled Nexus resource path (the versioned archive file in resources).
-   * Looks for versioned filename e.g. v0.9.29-nexus-cluster-macos-arm64.tar.gz.
+   * Get the bundled Nexus resource path.
+   * Tries raw binary name first (v0.10.0+), then archive name (pre-v0.10.0).
    * Returns null if not found or too small (placeholder).
    */
   private getBundledNexusPath(): string | null {
-    const versionedName = this.getVersionedArchiveName();
+    // Try both naming conventions: raw binary (new) then archive (legacy)
+    const candidates = [this.getVersionedResourceName(), this.getVersionedArchiveName()];
 
-    // Packaged app: check resourcesPath
-    if (app.isPackaged) {
-      const packagedPath = path.join(process.resourcesPath, versionedName);
-      if (fs.existsSync(packagedPath)) {
-        const stats = fs.statSync(packagedPath);
+    for (const versionedName of candidates) {
+      // Packaged app: check resourcesPath
+      if (app.isPackaged) {
+        const packagedPath = path.join(process.resourcesPath, versionedName);
+        if (fs.existsSync(packagedPath)) {
+          const stats = fs.statSync(packagedPath);
+          if (stats.size >= 1024 * 1024) {
+            return packagedPath;
+          }
+        }
+      }
+
+      // Development mode: check resources directory
+      const devPath = path.join(app.getAppPath(), 'resources', versionedName);
+      if (fs.existsSync(devPath)) {
+        const stats = fs.statSync(devPath);
         if (stats.size >= 1024 * 1024) {
-          return packagedPath;
+          return devPath;
         }
       }
     }
 
-    // Development mode: check resources directory
-    const devPath = path.join(app.getAppPath(), 'resources', versionedName);
-    if (fs.existsSync(devPath)) {
-      const stats = fs.statSync(devPath);
-      if (stats.size >= 1024 * 1024) {
-        return devPath;
-      }
-    }
-
     return null;
+  }
+
+  /**
+   * Check if a bundled resource is a raw binary (not an archive).
+   */
+  private isRawBinary(resourcePath: string): boolean {
+    return !resourcePath.endsWith('.tar.gz') && !resourcePath.endsWith('.tgz') && !resourcePath.endsWith('.zip');
+  }
+
+  /**
+   * Install Nexus from a raw binary file (v0.10.0+ format).
+   * Simply copies the binary to ~/.nexus/bin/nexusd and sets permissions.
+   */
+  async installFromBinary(binaryPath: string): Promise<void> {
+    this.deletePidFile();
+    this.deleteReadyFile();
+
+    const binDir = path.join(getDataPath(), 'bin');
+    const nexusdName = this.getNexusdName();
+    const targetPath = path.join(binDir, nexusdName);
+
+    try {
+      this.emitSetup('installing', 'Installing Nexus binary...', 10);
+
+      fs.mkdirSync(binDir, { recursive: true });
+
+      // Copy binary to target
+      fs.copyFileSync(binaryPath, targetPath);
+
+      // Set executable permissions (Unix only)
+      if (!this.isWindows) {
+        fs.chmodSync(targetPath, 0o755);
+      }
+
+      // Write version marker
+      const markerFile = this.getReadyMarkerPath();
+      fs.writeFileSync(markerFile, this.getNexusVersion());
+
+      this.emitSetup('idle', 'Nexus installation completed successfully', 100);
+      mainLog('Nexus', `Binary installed: ${targetPath}`);
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      this.emitSetup('error', `Installation failed: ${errorMsg}`);
+      throw err;
+    }
   }
 
   /**
@@ -596,8 +661,13 @@ class DynamicNexusService {
       }
     }
 
-    mainLog('Nexus', `Installing Nexus from archive: ${archivePath}...`);
-    await this.installFromArchive(archivePath);
+    if (this.isRawBinary(archivePath)) {
+      mainLog('Nexus', `Installing Nexus from binary: ${archivePath}...`);
+      await this.installFromBinary(archivePath);
+    } else {
+      mainLog('Nexus', `Installing Nexus from archive: ${archivePath}...`);
+      await this.installFromArchive(archivePath);
+    }
 
     // Clean up downloaded archive (not the bundled one)
     if (archivePath === downloadDest && fs.existsSync(downloadDest)) {
