@@ -250,7 +250,7 @@ WQIDAQAB
     try {
       const dataPath = getDataPath();
       const filePath = path.join(dataPath, CONSUMER_USER_ID_FILE);
-      await fsPromises.writeFile(filePath, userId, 'utf-8');
+      await fsPromises.writeFile(filePath, String(userId), 'utf-8');
       mainLog('Sudowork Auth', 'Consumer user ID saved');
       return { success: true };
     } catch (error) {

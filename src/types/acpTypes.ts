@@ -609,6 +609,7 @@ export interface AcpResponse {
   error?: {
     code: number;
     message: string;
+    data?: unknown;
   };
 }
 
