@@ -192,6 +192,34 @@ describe('AcpConnection prompt response ordering', () => {
     });
   });
 
+  it('includes ACP error data when rejecting pending requests', async () => {
+    const { AcpConnection } = await loadAcpConnection();
+    const connection = new AcpConnection();
+    const harness = connection as unknown as AcpConnectionTestHarness;
+    const reject = vi.fn();
+
+    harness.pendingRequests.set(4, {
+      resolve: vi.fn(),
+      reject,
+      method: 'session/new',
+      isPaused: false,
+      startTime: Date.now(),
+      timeoutDuration: 300000,
+    });
+
+    harness.handleMessage({
+      jsonrpc: '2.0',
+      id: 4,
+      error: {
+        code: -32603,
+        message: 'Internal error',
+        data: 'failed to build runtime: missing sudocode config',
+      },
+    });
+
+    expect(reject).toHaveBeenCalledWith(new Error('Internal error: failed to build runtime: missing sudocode config'));
+  });
+
   it('abandons cancel locally after timeout without disconnecting the session', async () => {
     const { AcpConnection } = await loadAcpConnection();
     const connection = new AcpConnection();

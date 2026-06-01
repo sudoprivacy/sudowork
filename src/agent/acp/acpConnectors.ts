@@ -13,7 +13,7 @@
 import type { ChildProcess, SpawnOptions } from 'child_process';
 import { execFile as execFileCb, execFileSync, spawn } from 'child_process';
 import { promisify } from 'util';
-import { mkdirSync, promises as fs, readFileSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, promises as fs, readFileSync, writeFileSync } from 'fs';
 import os from 'os';
 import path from 'path';
 import { CLAUDE_ACP_NPX_PACKAGE, CODEBUDDY_ACP_NPX_PACKAGE, CODEX_ACP_BRIDGE_VERSION, CODEX_ACP_NPX_PACKAGE } from '@/types/acpTypes';
@@ -267,7 +267,7 @@ export function prepareCleanEnv({ injectSafetyHook = true }: PrepareCleanEnvOpti
   // Add sudoclaw/bin to PATH so the `browser` CLI wrapper is available to ACP agents.
   const sudoclawBinDir = path.join(os.homedir(), '.nexus', 'sudoclaw', 'bin');
   const prevPath = cleanEnv.PATH || '';
-  if (!prevPath.includes(sudoclawBinDir)) {
+  if (existsSync(sudoclawBinDir) && !prevPath.includes(sudoclawBinDir)) {
     cleanEnv.PATH = `${sudoclawBinDir}${path.delimiter}${prevPath}`;
   }
 

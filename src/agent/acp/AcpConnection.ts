@@ -39,6 +39,22 @@ interface PendingRequest<T = unknown> {
 
 const numberOrUndefined = (value: unknown): number | undefined => (typeof value === 'number' && Number.isFinite(value) ? value : undefined);
 
+function formatAcpErrorMessage(error: AcpResponse['error']): string {
+  const message = error?.message || 'Unknown ACP error';
+  const data = error?.data;
+
+  if (data === undefined || data === null) {
+    return message;
+  }
+
+  const detail = typeof data === 'string' ? data : JSON.stringify(data);
+  if (!detail || detail === message) {
+    return message;
+  }
+
+  return `${message}: ${detail.slice(0, 2000)}`;
+}
+
 export class AcpConnection {
   private child: ChildProcess | null = null;
   private pendingRequests = new Map<number, PendingRequest<unknown>>();
@@ -692,7 +708,7 @@ export class AcpConnection {
           }
           resolve(message.result);
         } else if ('error' in message) {
-          const errorMsg = message.error?.message || 'Unknown ACP error';
+          const errorMsg = formatAcpErrorMessage(message.error);
           reject(new Error(errorMsg));
         }
       } else {
