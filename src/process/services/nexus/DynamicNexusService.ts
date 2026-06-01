@@ -19,7 +19,8 @@ const NEXUS_READY_MARKER = '.nexus-bin-ready';
 
 const NEXUS_HEALTHCHECK_TIMEOUT_MS = 1000; // 1 second
 const NEXUS_POLL_INTERVAL_MS = 200;
-const NEXUS_DEFAULT_PORT = 12012;
+const NEXUS_DEFAULT_PORT = 2126; // nexusd-cluster gRPC bind port (VFS + federation co-hosted)
+const NEXUS_DEFAULT_GRPC_PORT = 2126;
 
 /** OSS base URL for downloading Nexus binaries at runtime */
 const NEXUS_OSS_BASE_URL = 'https://sudoclaw-1309794936.cos.ap-beijing.myqcloud.com';
@@ -623,12 +624,12 @@ class DynamicNexusService {
     throw new Error('Nexus not installed. Please install it first.');
   }
 
-  private resolveStartCommand(port = NEXUS_DEFAULT_PORT): { command: string; args: string[] } {
+  private resolveStartCommand(): { command: string; args: string[] } {
     const newPath = this.getInstalledNexusdPath();
     if (fs.existsSync(newPath)) {
       return {
         command: newPath,
-        args: ['--host', 'localhost', '--profile=cluster', '--auth-type', 'none', '--port', String(port)],
+        args: ['--no-tls', '--bootstrap-mode', 'static'],
       };
     }
 
@@ -643,12 +644,11 @@ class DynamicNexusService {
   async start(): Promise<void> {
     if (this._running) return;
 
-    // 使用固定端口 12012
     this._port = NEXUS_DEFAULT_PORT;
     this._running = false;
 
     const nexusdBin = this.resolveNexusdBinForExec();
-    const launchCommand = this.resolveStartCommand(this._port);
+    const launchCommand = this.resolveStartCommand();
 
     if (fs.existsSync(this.getPidFilePath())) {
       const stopped = await this.stopManagedPidFromFile('before startup');
@@ -670,11 +670,13 @@ class DynamicNexusService {
       throw new Error(`Port ${this._port} is still in use after pre-start PID stop${pidSummary}`);
     }
 
-    // Point Nexus RecordStore to its own SQLite database under ~/.nexus/
-    const nexusDbPath = path.join(getDataPath(), 'nexus_record_store.db');
+    // nexusd-cluster configuration via env vars
+    const dataDir = path.join(getDataPath(), 'data');
+    fs.mkdirSync(dataDir, { recursive: true });
     const nexusEnv = {
       ...process.env,
-      NEXUS_DATABASE_URL: `sqlite:///${nexusDbPath.replace(/\\/g, '/')}`,
+      NEXUS_BIND_ADDR: `127.0.0.1:${this._port}`,
+      NEXUS_DATA_DIR: dataDir,
     };
 
     const spawnStart = Date.now();
@@ -683,7 +685,9 @@ class DynamicNexusService {
     this.process = spawn(launchCommand.command, launchCommand.args, { stdio: 'pipe', env: nexusEnv });
 
     this.process.stdout?.on('data', (d: Buffer) => {
-      mainLog('Nexus:stdout', d.toString().trim());
+      const msg = d.toString().trim();
+      if (!msg) return;
+      mainLog('Nexus:stdout', msg);
     });
     this.process.stderr?.on('data', (d: Buffer) => {
       const msg = d.toString().trim();
@@ -708,11 +712,11 @@ class DynamicNexusService {
     const elapsed = Date.now() - spawnStart;
     mainLog('Nexus', `Server ready — port=${this._port} startup=${elapsed}ms`);
     this._running = true;
-    this.emitSetup('ready', `Server ready on http://127.0.0.1:${this._port}`);
+    this.emitSetup('ready', `Server ready on 127.0.0.1:${this._port} (gRPC)`);
   }
 
-  getStartCommandPreview(port = NEXUS_DEFAULT_PORT): { command: string; args: string[] } {
-    return this.resolveStartCommand(port);
+  getStartCommandPreview(): { command: string; args: string[] } {
+    return this.resolveStartCommand();
   }
 
   /**
@@ -942,9 +946,9 @@ class DynamicNexusService {
   }
 
   /**
-   * Probes whether nexusd is actually reachable on its port.
-   * "Running" must mean the HTTP health endpoint responds with status=healthy;
-   * a live child-process reference alone is not sufficient.
+   * Probes whether nexusd is actually reachable on its gRPC port.
+   * A live child-process reference alone is not sufficient — the port
+   * must be accepting connections.
    */
   async checkActualRunning(): Promise<boolean> {
     const port = this._port > 0 ? this._port : NEXUS_DEFAULT_PORT;
@@ -956,16 +960,23 @@ class DynamicNexusService {
     return healthy;
   }
 
-  private async isHealthyNexusServer(port: number): Promise<boolean> {
-    try {
-      const response = await fetch(`http://127.0.0.1:${port}/health`, {
-        signal: AbortSignal.timeout(NEXUS_HEALTHCHECK_TIMEOUT_MS),
+  /**
+   * TCP connect check on the gRPC port. nexusd-cluster is gRPC-only
+   * (no HTTP /health endpoint) — if the port accepts connections the
+   * server is ready.
+   */
+  private isHealthyNexusServer(port: number): Promise<boolean> {
+    return new Promise((resolve) => {
+      const socket = net.connect(port, '127.0.0.1', () => {
+        socket.destroy();
+        resolve(true);
       });
-      const payload = (await response.json()) as { status?: string };
-      return payload.status === 'healthy';
-    } catch {
-      return false;
-    }
+      socket.on('error', () => resolve(false));
+      socket.setTimeout(NEXUS_HEALTHCHECK_TIMEOUT_MS, () => {
+        socket.destroy();
+        resolve(false);
+      });
+    });
   }
 
   private async waitForHealthyServer(port: number, timeoutMs?: number): Promise<void> {

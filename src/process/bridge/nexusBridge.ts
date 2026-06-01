@@ -5,7 +5,7 @@ import { mainLog, mainError } from '@process/utils/mainLogger';
 
 export function initNexusBridge(): void {
   ipcBridge.nexus.getStatus.provider(async () => {
-    // Treat Nexus as running only when /health returns a healthy response.
+    // Treat Nexus as running only when the gRPC port accepts connections.
     const [running, installedByFiles] = await Promise.all([dynamicNexusService.checkActualRunning(), dynamicNexusService.checkInstalled()]);
     const installed = running || installedByFiles;
     const version = installedByFiles ? await dynamicNexusService.getInstalledVersion() : undefined;

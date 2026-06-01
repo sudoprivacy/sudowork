@@ -255,7 +255,7 @@ export class ServiceManager {
       // start() already waits until /health reports healthy before resolving.
       // Do not immediately probe again here; a duplicate one-shot check can race
       // with post-start stabilization and incorrectly flip the UI back to failed.
-      initStatusManager.addLog(`[Nexus] Nexus service is healthy on http://127.0.0.1:${dynamicNexusService.port}`);
+      initStatusManager.addLog(`[Nexus] Nexus service is healthy on 127.0.0.1:${dynamicNexusService.port} (gRPC)`);
       initStatusManager.setStepProgress('nexus', 100, 'Nexus 服务已就绪');
 
       // Initialize secrets system after Nexus is healthy
