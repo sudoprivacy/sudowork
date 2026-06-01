@@ -18,6 +18,8 @@ import { SCODE_DIR } from '../services/scode/ScodeInstallService';
 const SUDOCLAW_CONFIG_PATH = path.join(SUDOCLAW_DIR, 'sudoclaw.json');
 const SUDOCODE_CONFIG_PATH = path.join(SCODE_DIR, 'sudocode.json');
 
+const GEMINI_IMAGE_GENERATION_MODELS = new Set(['gemini-3.1-flash-image-preview', 'gemini-3-pro-image-preview', 'gemini-2.5-flash-image']);
+
 /**
  * Detect image MIME type and file extension from magic bytes.
  * Falls back to image/png for unknown formats (used in image generation context where input is always an image).
@@ -32,6 +34,51 @@ function detectMimeType(buffer: Buffer | Uint8Array): { mime: string; ext: strin
 function detectMimeTypeFromBase64(b64: string): { mime: string; ext: string } {
   const decoded = Buffer.from(b64.slice(0, 24), 'base64');
   return detectMimeType(decoded);
+}
+
+function stripProviderPrefix(model: string): string {
+  return model.includes('/') ? model.split('/').pop()! : model;
+}
+
+function isGeminiImageGenerationModel(model: string): boolean {
+  return GEMINI_IMAGE_GENERATION_MODELS.has(stripProviderPrefix(model));
+}
+
+function getGeminiGenerateContentEndpoint(baseUrl: string, model: string): string {
+  const trimmedBaseUrl = baseUrl.replace(/\/+$/, '');
+  const v1BetaBaseUrl = trimmedBaseUrl.endsWith('/v1') ? trimmedBaseUrl.replace(/\/v1$/, '/v1beta') : trimmedBaseUrl.endsWith('/v1beta') ? trimmedBaseUrl : `${trimmedBaseUrl}/v1beta`;
+
+  return `${v1BetaBaseUrl}/models/${encodeURIComponent(stripProviderPrefix(model))}:generateContent`;
+}
+
+function getGeminiImageConfig(size: string): { aspectRatio: string; imageSize: string } {
+  const match = size.match(/^(\d+)x(\d+)$/);
+  if (!match) {
+    return { aspectRatio: '1:1', imageSize: '1K' };
+  }
+
+  const width = Number(match[1]);
+  const height = Number(match[2]);
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+    return { aspectRatio: '1:1', imageSize: '1K' };
+  }
+
+  const divisor = gcd(width, height);
+  const aspectRatio = `${width / divisor}:${height / divisor}`;
+  const imageSize = Math.max(width, height) > 1024 ? '2K' : '1K';
+
+  return { aspectRatio, imageSize };
+}
+
+function gcd(a: number, b: number): number {
+  let x = Math.abs(a);
+  let y = Math.abs(b);
+  while (y !== 0) {
+    const next = x % y;
+    x = y;
+    y = next;
+  }
+  return x || 1;
 }
 
 /**
@@ -134,10 +181,78 @@ export async function saveImageResult(imageUrl: string, saveDir: string): Promis
   return { imgUrl: filePath, relativePath: fileName };
 }
 
+async function callGeminiGenerateContentImage(baseUrl: string, apiKey: string, model: string, prompt: string, size: string, inlineImage?: { mimeType: string; data: string }): Promise<string> {
+  const endpoint = getGeminiGenerateContentEndpoint(baseUrl, model);
+  const imageConfig = getGeminiImageConfig(size);
+  console.log('[ImageGen] POST', endpoint, 'model:', stripProviderPrefix(model), 'prompt:', prompt.slice(0, 80));
+
+  const parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [{ text: prompt }];
+  if (inlineImage) {
+    parts.push({ inlineData: inlineImage });
+  }
+
+  const body = JSON.stringify({
+    contents: [{ role: 'user', parts }],
+    generationConfig: {
+      responseModalities: ['IMAGE'],
+      imageConfig,
+    },
+  });
+
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+    body,
+  });
+
+  console.log('[ImageGen] Gemini response status:', response.status);
+
+  if (!response.ok) {
+    const errText = await response.text().catch(() => response.statusText);
+    console.log('[ImageGen] Gemini error body:', errText.slice(0, 200));
+    throw new Error(`Gemini image generation API error ${response.status}: ${errText}`);
+  }
+
+  const json = (await response.json()) as {
+    error?: { message?: string };
+    candidates?: Array<{
+      content?: {
+        parts?: Array<{
+          inlineData?: { mimeType?: string; data?: string };
+          inline_data?: { mime_type?: string; data?: string };
+        }>;
+      };
+    }>;
+  };
+
+  if (json.error) {
+    throw new Error(`Gemini image generation API error: ${json.error.message || JSON.stringify(json.error)}`);
+  }
+
+  for (const candidate of json.candidates || []) {
+    for (const part of candidate.content?.parts || []) {
+      const inlineData = part.inlineData;
+      const inlineDataSnakeCase = part.inline_data;
+      const data = inlineData?.data || inlineDataSnakeCase?.data;
+      const mimeType = inlineData?.mimeType || inlineDataSnakeCase?.mime_type || 'image/png';
+      if (data) {
+        console.log('[ImageGen] Gemini got inlineData, length:', data.length);
+        return `data:${mimeType};base64,${data}`;
+      }
+    }
+  }
+
+  throw new Error('Gemini image generation returned no image data');
+}
+
 /**
- * Call /images/generations and return a data URL or remote URL of the generated image.
+ * Call the configured image-generation endpoint and return a data URL or remote URL of the generated image.
  */
 export async function callImagesGenerations(baseUrl: string, apiKey: string, model: string, prompt: string, size: string, n: number): Promise<string> {
+  if (isGeminiImageGenerationModel(model)) {
+    return callGeminiGenerateContentImage(baseUrl, apiKey, model, prompt, size);
+  }
+
   const endpoint = `${baseUrl}/images/generations`;
   console.log('[ImageGen] POST', endpoint, 'model:', model, 'prompt:', prompt.slice(0, 80));
 
@@ -176,6 +291,15 @@ export async function callImagesGenerations(baseUrl: string, apiKey: string, mod
  * Call /images/edits and return a data URL or remote URL of the edited image.
  */
 export async function callImagesEdits(baseUrl: string, apiKey: string, model: string, imagePath: string, prompt: string, size: string, n: number): Promise<string> {
+  if (isGeminiImageGenerationModel(model)) {
+    const imageBuffer = await fs.readFile(imagePath);
+    const { mime } = detectMimeType(imageBuffer);
+    return callGeminiGenerateContentImage(baseUrl, apiKey, model, prompt, size, {
+      mimeType: mime,
+      data: imageBuffer.toString('base64'),
+    });
+  }
+
   const endpoint = `${baseUrl}/images/edits`;
   console.log('[ImageGen] POST', endpoint, 'model:', model, 'prompt:', prompt.slice(0, 80));
 
