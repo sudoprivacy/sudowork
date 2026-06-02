@@ -1,0 +1,47 @@
+name: "browser crawl net-a-porter"
+description: >
+  End-to-end: agent crawls net-a-porter.com shoes listing autonomously.
+  Given only a URL, agent should use browser skill to explore the site,
+  extract product data across multiple pages, and save structured JSON.
+  Validates browser anti-detection (Akamai bypass), pagination handling,
+  and structured data output quality.
+
+tags: [browser, crawl]
+
+steps:
+  - op: wait_for_app_ready
+    timeout: 300
+
+  # Send crawl request — minimal prompt, agent figures out the rest
+  - op: type_text
+    text: "Crawl all products from https://www.net-a-porter.com/en-gu/shop/shoes (all pages). Save to products.json."
+
+  - op: press_key
+    key: "Enter"
+    wait: 3
+
+  # Wait up to 20 min for full crawl (32 pages)
+  - op: wait_for_response
+    timeout: 1200
+
+  - op: screenshot
+    path: "screenshots/browser-crawl-nap-result.png"
+
+  # Assert agent mentioned products.json and product/brand keywords
+  - op: judge
+    expect: "products.json saved product brand"
+
+  # Assert tool usage: at least browser_start + page_goto + js_evaluate
+  - op: db_audit
+    assert_metrics:
+      tool_calls: ">= 5"
+      browser_start_calls: ">= 1"
+      js_evaluate_calls: ">= 1"
+
+  # Assert output file: valid JSON, 100+ products, correct structure
+  - op: validate_crawl_json
+    filename: "products.json"
+    min_items: 100
+    required_fields: "brand,name,price,url"
+    price_pattern: "\\$[\\d,]+"
+    url_contains: "net-a-porter.com"
