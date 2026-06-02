@@ -45,7 +45,7 @@ export function initSchema(db: Database.Database): void {
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
       name TEXT NOT NULL,
-      type TEXT NOT NULL CHECK(type IN ('acp', 'openclaw-gateway', 'remote-agent')),
+      type TEXT NOT NULL CHECK(type IN ('acp', 'remote-agent')),
       extra TEXT NOT NULL,
       model TEXT,
       status TEXT CHECK(status IN ('pending', 'running', 'finished')),

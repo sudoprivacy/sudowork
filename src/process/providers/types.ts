@@ -74,7 +74,7 @@ export interface IConversationProvider {
 
   /**
    * Send message to conversation / 发送消息到会话
-   * Dispatches to appropriate agent (ACP, OpenClaw, or Remote) / 分发到相应的 Agent（ACP、OpenClaw 或 Remote）
+   * Dispatches to appropriate agent (ACP or Remote) / 分发到相应的 Agent（ACP 或 Remote）
    * @param params Message parameters (content, files, conversation_id, etc.) / 消息参数（内容、文件、会话 ID 等）
    * @returns Response with success status / 响应状态
    */

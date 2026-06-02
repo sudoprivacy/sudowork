@@ -7,7 +7,7 @@
 import type { ICreateConversationParams } from '@/common/ipcBridge';
 import type { ConversationSource, TChatConversation, TProviderWithModel } from '@/common/storage';
 import { getDatabase } from '@process/database';
-import { createAcpAgent, createOpenClawAgent } from '../initAgent';
+import { createAcpAgent } from '../initAgent';
 import WorkerManage from '../WorkerManage';
 import { mainLog, mainError } from '@process/utils/mainLogger';
 
@@ -68,8 +68,6 @@ export class ConversationService {
         } as TChatConversation;
       } else if (type === 'acp') {
         conversation = await createAcpAgent(params);
-      } else if (type === 'openclaw-gateway') {
-        conversation = await createOpenClawAgent(params);
       } else {
         return { success: false, error: `Invalid conversation type: ${type}` };
       }

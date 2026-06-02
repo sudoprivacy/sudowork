@@ -1,0 +1,39 @@
+name: '✓PR Integration Smoke'
+
+on:
+  pull_request:
+    branches: [main, dev]
+
+concurrency:
+  group: pr-integration-smoke-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  browser-port-isolation:
+    name: Browser Port Isolation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          submodules: true
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb
+          pip install websockets websocket-client Pillow deprecated
+
+      - name: Run browser port isolation test
+        run: |
+          Xvfb :99 -screen 0 1280x1024x24 &
+          sleep 2
+          python3 tests/integration/browser_port_isolation.py
+        env:
+          DISPLAY: ':99'
+          PYTHONPATH: ${{ github.workspace }}/vendor/ai-dev-browser

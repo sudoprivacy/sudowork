@@ -375,11 +375,11 @@ function isTempWorkspace(name: string): boolean {
  * @param maxAgeMs - Maximum file age to consider (default: 5 minutes)
  */
 export async function cleanupMisplacedFiles(sessionWorkspace: string, parentWorkspace: string, maxAgeMs: number = 5 * 60 * 1000): Promise<void> {
-  // Files that should NEVER be moved from parent workspace (OpenClaw system files + EXCLUDED_NAMES)
-  // 永远不应从父工作空间移动的文件（OpenClaw 系统文件 + EXCLUDED_NAMES）
+  // Files that should NEVER be moved from parent workspace (system files + EXCLUDED_NAMES)
+  // 永远不应从父工作空间移动的文件（系统文件 + EXCLUDED_NAMES）
   const PARENT_EXCLUDED_NAMES = new Set([
     ...EXCLUDED_NAMES,
-    // OpenClaw system configuration files
+    // Agent system configuration files
     'AGENTS.md',
     'HEARTBEAT.md',
     'IDENTITY.md',
@@ -387,7 +387,6 @@ export async function cleanupMisplacedFiles(sessionWorkspace: string, parentWork
     'TOOLS.md',
     'USER.md',
     'memory',
-    '.openclaw',
     'agent_task',
     // Other common project files that should NOT be excluded (they are user-generated)
   ]);

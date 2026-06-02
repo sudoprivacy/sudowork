@@ -23,10 +23,6 @@ interface EventTypes {
   'codex.selected.file.append': [Array<string | FileOrFolderItem>];
   'codex.selected.file.clear': void;
   'codex.workspace.refresh': void;
-  'openclaw-gateway.selected.file': [string, Array<string | FileOrFolderItem>]; // [conversation_id, items]
-  'openclaw-gateway.selected.file.append': [string, Array<string | FileOrFolderItem>]; // [conversation_id, items]
-  'openclaw-gateway.selected.file.clear': void;
-  'openclaw-gateway.workspace.refresh': void;
   'remote-agent.selected.file': [string, Array<string | FileOrFolderItem>]; // typed for shared workspace listeners; remote workspace does not emit selected file refs
   'remote-agent.selected.file.clear': void;
   'remote-agent.workspace.refresh': void;

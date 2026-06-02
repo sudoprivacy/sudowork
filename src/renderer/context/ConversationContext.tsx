@@ -27,7 +27,7 @@ export interface ConversationContextValue {
    * Conversation type
    * 会话类型
    */
-  type: 'acp' | 'openclaw-gateway' | 'remote-agent';
+  type: 'acp' | 'remote-agent';
 }
 
 /**

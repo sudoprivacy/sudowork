@@ -624,7 +624,7 @@ const syncBuiltinSkillsToUserDir = async (): Promise<void> => {
     mainLog('Sudowork', 'Builtin skills synced to _system/ (mirror overwrite)');
 
     // Remove image-analysis skill from user dir — it's config-disabled (see
-    // SudoclawInstallService ensureDefaultConfig/repairOpenClawConfig) because
+    // SudoclawInstallService ensureDefaultConfig/repairSudoclawConfig) because
     // it spawns a separate LLM subprocess that breaks the orchestrating LLM's
     // browser-session context. But if we leave the files on disk, the LLM can
     // (and empirically does) bypass the skill registry by invoking the bash
@@ -1135,8 +1135,8 @@ const initStorage = async () => {
   // Wait for both assistant config and database init to complete
   await Promise.all([assistantsPromise, dbPromise]);
 
-  // 7. Migrate channel agent from openclaw-gateway (Sudoclaw) to scode (Sudo Code)
-  // 渠道 agent 从 openclaw-gateway (Sudoclaw) 迁移到 scode (Sudo Code)
+  // 7. Migrate channel agent to scode (Sudo Code)
+  // 渠道 agent 迁移到 scode (Sudo Code)
   const CHANNEL_AGENT_MIGRATION_KEY = 'migration.channelAgentMigratedToScode';
   const channelAgentMigrationDone = await configFile.get(CHANNEL_AGENT_MIGRATION_KEY).catch(() => false);
   if (!channelAgentMigrationDone) {

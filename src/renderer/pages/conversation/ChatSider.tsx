@@ -22,8 +22,6 @@ const ChatSider: React.FC<{
   // from the Moss session API and may not have a local workspace path.
   if (conversation?.type === 'acp' && workspace) {
     workspaceNode = <ChatWorkspace conversation_id={conversation.id} workspace={workspace} workspaceDisplayName={extra.workspaceDisplayName} eventPrefix='acp' backend={extra.backend} messageApi={messageApi}></ChatWorkspace>;
-  } else if (conversation?.type === 'openclaw-gateway' && workspace) {
-    workspaceNode = <ChatWorkspace conversation_id={conversation.id} workspace={workspace} workspaceDisplayName={extra.workspaceDisplayName} eventPrefix='openclaw-gateway' backend='openclaw-gateway' messageApi={messageApi}></ChatWorkspace>;
   } else if (conversation?.type === 'remote-agent') {
     workspaceNode = <ChatWorkspace conversation_id={conversation.id} workspace={workspace || conversation.id} workspaceDisplayName={extra?.workspaceDisplayName} eventPrefix='remote-agent' backend='remote-agent' dataSource='moss-session' readonly messageApi={messageApi}></ChatWorkspace>;
   }

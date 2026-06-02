@@ -152,15 +152,5 @@ export function useWorkspaceFiles(): WorkspaceFileItem[] {
     [conversationType, loadFiles]
   );
 
-  useAddEventListener(
-    'openclaw-gateway.workspace.refresh',
-    () => {
-      if (conversationType === 'openclaw-gateway') {
-        void loadFiles();
-      }
-    },
-    [conversationType, loadFiles]
-  );
-
   return files;
 }

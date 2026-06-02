@@ -39,7 +39,7 @@ type UseAgentReadinessCheckOptions = {
   // The backend type to check (for ACP conversations)
   backend?: AcpBackendAll;
   // Conversation type
-  conversationType: 'acp' | 'openclaw-gateway';
+  conversationType: 'acp';
   // Whether to auto-check on mount
   autoCheck?: boolean;
   // Callback when a ready agent is found

@@ -101,7 +101,7 @@ const ChatConversationIndex: React.FC = () => {
         .invoke({ conversation_id: data.id })
         .then(() => {
           void mutate();
-          emitter.emit(data.type === 'openclaw-gateway' ? 'openclaw-gateway.workspace.refresh' : 'acp.workspace.refresh');
+          emitter.emit('acp.workspace.refresh');
         })
         .catch((error) => {
           console.warn('Failed to sync workspace skills after skills.changed:', error);

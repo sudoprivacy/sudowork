@@ -1140,7 +1140,7 @@ app.on('before-quit', (event) => {
       console.error('[App] Failed to clear work processes:', error);
     }
 
-    // Stop all managed services (Nexus, OpenClaw gateway)
+    // Stop all managed services (Nexus, Sudoclaw gateway)
     try {
       const { serviceManager } = await import('./process/services/serviceManager');
       await serviceManager.shutdown();

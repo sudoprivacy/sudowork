@@ -391,7 +391,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
   const fileOpsHook = useWorkspaceFileOps({
     workspace,
     eventPrefix,
-    conversation_id: eventPrefix === 'openclaw-gateway' || eventPrefix === 'remote-agent' ? conversation_id : undefined,
+    conversation_id: eventPrefix === 'remote-agent' ? conversation_id : undefined,
     dataSource,
     readonly,
     messageApi,
@@ -1382,9 +1382,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                       });
                     }
                   }
-                  if (eventPrefix === 'openclaw-gateway') {
-                    emitter.emit('openclaw-gateway.selected.file', conversation_id, items);
-                  } else if (eventPrefix === 'acp') {
+                  if (eventPrefix === 'acp') {
                     emitter.emit('acp.selected.file', items);
                   }
                 }}

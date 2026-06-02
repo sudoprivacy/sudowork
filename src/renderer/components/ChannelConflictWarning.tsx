@@ -12,15 +12,15 @@ const { Paragraph, Text } = Typography;
 
 interface ChannelConflictWarningProps {
   platform: 'lark' | 'telegram';
-  openclawConfigPath: string;
-  onDisableOpenClaw?: () => void;
+  sudoclawConfigPath: string;
+  onDisableSudoclaw?: () => void;
   onIgnore?: () => void;
 }
 
 /**
- * Warning component when OpenClaw channel conflicts with Sudowork Channels
+ * Warning component when Sudoclaw channel conflicts with Sudowork Channels
  */
-export const ChannelConflictWarning: React.FC<ChannelConflictWarningProps> = ({ platform, openclawConfigPath, onDisableOpenClaw, onIgnore }) => {
+export const ChannelConflictWarning: React.FC<ChannelConflictWarningProps> = ({ platform, sudoclawConfigPath, onDisableSudoclaw, onIgnore }) => {
   const platformName = platform === 'lark' ? 'Lark/Feishu' : 'Telegram';
   const channelKey = platform === 'lark' ? 'feishu' : 'telegram';
 
@@ -32,20 +32,20 @@ export const ChannelConflictWarning: React.FC<ChannelConflictWarningProps> = ({ 
       content={
         <Space direction='vertical' size='medium' style={{ width: '100%' }}>
           <Paragraph>
-            <Text bold>OpenClaw is handling {platformName} messages, not Sudowork.</Text>
+            <Text bold>Sudoclaw is handling {platformName} messages, not Sudowork.</Text>
           </Paragraph>
 
           <Paragraph>
-            Your {platformName} bot credentials are also configured in OpenClaw. This means:
+            Your {platformName} bot credentials are also configured in Sudoclaw. This means:
             <ul>
               <li>
                 <Text type='error'>✗ Switching agents in Sudowork will have no effect</Text>
               </li>
               <li>
-                <Text type='error'>✗ Messages are processed by OpenClaw's agent</Text>
+                <Text type='error'>✗ Messages are processed by Sudoclaw's agent</Text>
               </li>
               <li>
-                <Text type='success'>✓ Messages still work (via OpenClaw)</Text>
+                <Text type='success'>✓ Messages still work (via Sudoclaw)</Text>
               </li>
             </ul>
           </Paragraph>
@@ -55,13 +55,13 @@ export const ChannelConflictWarning: React.FC<ChannelConflictWarningProps> = ({ 
           </Paragraph>
 
           <Paragraph>
-            <Text type='secondary'>Option 1: Disable OpenClaw {platformName} (Recommended)</Text>
+            <Text type='secondary'>Option 1: Disable Sudoclaw {platformName} (Recommended)</Text>
             <br />
-            Edit: <Text code>{openclawConfigPath}</Text>
+            Edit: <Text code>{sudoclawConfigPath}</Text>
             <br />
             Set: <Text code>{`channels.${channelKey}.enabled = false`}</Text>
             <br />
-            Then restart OpenClaw and Sudowork.
+            Then restart Sudoclaw and Sudowork.
           </Paragraph>
 
           <Paragraph>
@@ -71,15 +71,15 @@ export const ChannelConflictWarning: React.FC<ChannelConflictWarningProps> = ({ 
           </Paragraph>
 
           <Paragraph>
-            <Text type='secondary'>Option 3: Keep using OpenClaw</Text>
+            <Text type='secondary'>Option 3: Keep using Sudoclaw</Text>
             <br />
-            Disable {platformName} in Sudowork Channels and continue using OpenClaw's integration.
+            Disable {platformName} in Sudowork Channels and continue using Sudoclaw's integration.
           </Paragraph>
 
           <Space>
-            {onDisableOpenClaw && (
-              <Button type='primary' onClick={onDisableOpenClaw}>
-                Help me disable OpenClaw {platformName}
+            {onDisableSudoclaw && (
+              <Button type='primary' onClick={onDisableSudoclaw}>
+                Help me disable Sudoclaw {platformName}
               </Button>
             )}
             {onIgnore && (
@@ -107,7 +107,7 @@ export const ChannelConflictBanner: React.FC<{ platform: 'lark' | 'telegram'; on
       type='warning'
       content={
         <Space>
-          <Text>⚠️ OpenClaw {platformName} conflict detected - Agent switching won't work.</Text>
+          <Text>⚠️ Sudoclaw {platformName} conflict detected - Agent switching won't work.</Text>
           <Link onClick={onLearnMore}>Learn more</Link>
         </Space>
       }
