@@ -48,7 +48,7 @@ jobs:
           sudo apt-get install -y libgbm-dev xvfb
 
       - name: Install Python dependencies for ai-dev-browser
-        run: pip install deprecated pyyaml
+        run: pip install websockets websocket-client Pillow deprecated pyyaml
 
       - name: Build and start Sudowork under xvfb
         run: |
