@@ -50,15 +50,28 @@ jobs:
       - name: Install Python dependencies for ai-dev-browser
         run: pip install websockets websocket-client Pillow deprecated pyyaml
 
-      - name: Build and start Sudowork under xvfb
+      - name: Start Xvfb
         run: |
-          export DISPLAY=:99
           Xvfb :99 -screen 0 1280x1024x24 &
           sleep 2
-          NEXUS_CDP_PORT=9232 bun run start &
-          sleep 30
+
+      - name: Build and start Sudowork
+        run: |
+          bun run start &
+          # Wait for CDP port to become available
+          for i in $(seq 1 60); do
+            if curl -sf http://127.0.0.1:9232/json/version > /dev/null 2>&1; then
+              echo "Sudowork CDP ready after ${i}s"
+              break
+            fi
+            sleep 2
+          done
+          # Verify it's actually ready
+          curl -sf http://127.0.0.1:9232/json/version || echo "WARNING: CDP not responding"
         env:
           CI: true
+          DISPLAY: ':99'
+          NEXUS_CDP_PORT: '9232'
 
       - name: Run smoke tests (no-api tag only)
         run: |
