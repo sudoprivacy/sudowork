@@ -23,6 +23,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+        with:
+          submodules: true
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -45,20 +47,23 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libgbm-dev xvfb
 
-      - name: Build and start Sudowork
+      - name: Build and start Sudowork under xvfb
         run: |
-          bun run start &
+          export DISPLAY=:99
+          Xvfb :99 -screen 0 1280x1024x24 &
+          sleep 2
+          NEXUS_CDP_PORT=9232 bun run start &
           sleep 30
         env:
           CI: true
-          NEXUS_CDP_PORT: '9232'
 
       - name: Run smoke tests (no-api tag only)
         run: |
           cd tests/e2e
-          xvfb-run --auto-servernum python3 runner.py --port 9232 --tag no-api
+          python3 runner.py --port 9232 --tag no-api
         env:
           CI: true
+          DISPLAY: ':99'
           E2E_SCREENSHOTS: '1'
           PYTHONPATH: ${{ github.workspace }}/vendor/ai-dev-browser:${{ github.workspace }}/skills/_builtin/browser
 

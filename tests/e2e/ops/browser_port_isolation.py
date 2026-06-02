@@ -31,9 +31,6 @@ import subprocess
 import threading
 import urllib.request
 from http.server import HTTPServer, SimpleHTTPRequestHandler
-from io import BytesIO
-
-from ai_dev_browser.core.page import js_evaluate
 
 
 # ──────────────────────────────────────────────────────────────
@@ -261,8 +258,10 @@ async def browser_port_isolation(tab, sudowork_cdp_port: int = 9230) -> dict:
             failures.append("Screenshot file not created")
 
         # ── Step 6: Sudowork renderer still on localhost ──
-        r = await js_evaluate(tab, "window.location.href")
-        sudowork_url = r.get("result", "")
+        try:
+            sudowork_url = await tab.evaluate("window.location.href")
+        except Exception:
+            sudowork_url = ""
         details["sudowork_url_after"] = sudowork_url
 
         if "localhost" not in sudowork_url and "127.0.0.1" not in sudowork_url:
