@@ -43,7 +43,14 @@ const MyMcpTab: React.FC<MyMcpTabProps> = ({ servers, loading = false, onToggleE
           </div>
         )}
         <EmptyState illustrationType='default' title='暂无个人 MCP' description='前往「MCP 库」浏览并安装，或点击上方按钮通过 JSON 安装。' simple />
-        <InstallJsonModal visible={installVisible} onCancel={() => setInstallVisible(false)} onSuccess={() => { setInstallVisible(false); onInstalled?.(); }} />
+        <InstallJsonModal
+          visible={installVisible}
+          onCancel={() => setInstallVisible(false)}
+          onSuccess={() => {
+            setInstallVisible(false);
+            onInstalled?.();
+          }}
+        />
       </>
     );
   }
@@ -107,7 +114,14 @@ const MyMcpTab: React.FC<MyMcpTabProps> = ({ servers, loading = false, onToggleE
       ))}
 
       <EditConfigModal visible={editing !== null} server={editing} loadConfig={loadUserConfig} saveConfig={saveUserConfig} onCancel={() => setEditing(null)} />
-      <InstallJsonModal visible={installVisible} onCancel={() => setInstallVisible(false)} onSuccess={() => { setInstallVisible(false); onInstalled?.(); }} />
+      <InstallJsonModal
+        visible={installVisible}
+        onCancel={() => setInstallVisible(false)}
+        onSuccess={() => {
+          setInstallVisible(false);
+          onInstalled?.();
+        }}
+      />
     </div>
   );
 };

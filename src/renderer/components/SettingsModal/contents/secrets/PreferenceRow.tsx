@@ -9,12 +9,7 @@ import React from 'react';
 /**
  * Shared preference row component for settings forms.
  */
-const PreferenceRow: React.FC<{ label: string; description?: React.ReactNode; required?: boolean; children: React.ReactNode }> = ({
-  label,
-  description,
-  required,
-  children,
-}) => (
+const PreferenceRow: React.FC<{ label: string; description?: React.ReactNode; required?: boolean; children: React.ReactNode }> = ({ label, description, required, children }) => (
   <div className='flex items-center justify-between gap-24px py-12px'>
     <div className='flex-1'>
       <div className='flex items-center gap-8px'>

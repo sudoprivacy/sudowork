@@ -6,13 +6,7 @@
 
 import { ipcBridge } from '@/common';
 import type { ScodeConfig, ScodeModelEntry } from '@/common/ipcBridge';
-import {
-  buildCustomModelAlias,
-  extractCustomProvidersFromScodeConfig,
-  mergeCustomProviderIntoScodeConfig,
-  removeCustomProviderFromScodeConfig,
-  type ScodeCustomModelProvider,
-} from '@/common/scodeConfig';
+import { buildCustomModelAlias, extractCustomProvidersFromScodeConfig, mergeCustomProviderIntoScodeConfig, removeCustomProviderFromScodeConfig, type ScodeCustomModelProvider } from '@/common/scodeConfig';
 import AionModal from '@/renderer/components/base/AionModal';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { Button, Checkbox, Form, Input, InputNumber, Message, Popconfirm, Select, Space, Spin, Tag, Typography } from '@arco-design/web-react';
@@ -295,18 +289,21 @@ const AddModelDialog: React.FC<{
       outputContext: values.outputContext,
     };
 
-    const models = editingTarget
-      ? editingTarget.provider.modelIds.map((item) => (item === editingTarget.modelId ? nextModel : editableModelFromEntry(config, item)))
-      : [nextModel];
+    const models = editingTarget ? editingTarget.provider.modelIds.map((item) => (item === editingTarget.modelId ? nextModel : editableModelFromEntry(config, item))) : [nextModel];
 
     setSaving(true);
     try {
-      await onSubmit({
-        providerId,
-        baseUrl: values.baseUrl,
-        apiKey: values.apiKey || '',
-        models,
-      }, editingTarget?.provider.id, editingTarget?.modelId, modelAlias);
+      await onSubmit(
+        {
+          providerId,
+          baseUrl: values.baseUrl,
+          apiKey: values.apiKey || '',
+          models,
+        },
+        editingTarget?.provider.id,
+        editingTarget?.modelId,
+        modelAlias
+      );
       onClose();
     } finally {
       setSaving(false);
@@ -424,27 +421,30 @@ const SudocodeModelSettingsContent: React.FC = () => {
   const { sudorouterModels, customProviders } = useMemo(() => buildProviderRows(config), [config]);
   const configuredModelIds = useMemo(() => getConfiguredModelIds(config), [config]);
 
-  const saveConfig = useCallback(async (nextConfig: ScodeConfig) => {
-    setSaving(true);
-    try {
-      const res = await ipcBridge.scode.saveConfig.invoke({ config: nextConfig });
-      if (!res?.success) {
-        Message.error(res?.msg || '保存模型配置失败');
-        return;
-      }
-      if (user?.id) {
-        const persistRes = await ipcBridge.scode.saveCustomModelProviders.invoke({ userId: user.id, providers: extractCustomProvidersFromScodeConfig(nextConfig) });
-        if (!persistRes?.success) {
-          Message.error(persistRes?.msg || '保存第三方模型配置失败');
+  const saveConfig = useCallback(
+    async (nextConfig: ScodeConfig) => {
+      setSaving(true);
+      try {
+        const res = await ipcBridge.scode.saveConfig.invoke({ config: nextConfig });
+        if (!res?.success) {
+          Message.error(res?.msg || '保存模型配置失败');
           return;
         }
+        if (user?.id) {
+          const persistRes = await ipcBridge.scode.saveCustomModelProviders.invoke({ userId: user.id, providers: extractCustomProvidersFromScodeConfig(nextConfig) });
+          if (!persistRes?.success) {
+            Message.error(persistRes?.msg || '保存第三方模型配置失败');
+            return;
+          }
+        }
+        setConfig(nextConfig);
+        Message.success('模型配置已保存');
+      } finally {
+        setSaving(false);
       }
-      setConfig(nextConfig);
-      Message.success('模型配置已保存');
-    } finally {
-      setSaving(false);
-    }
-  }, [user?.id]);
+    },
+    [user?.id]
+  );
 
   const openAddDialog = useCallback(() => {
     setEditingTarget(null);

@@ -26,7 +26,7 @@ const execFile = promisify(execFileCb);
 
 // Safety hooks are temporarily disabled because the current implementation is obsolete.
 // Keep the injection path intact for future restoration.
-const SAFETY_HOOKS_ENABLED = false;
+const SAFETY_HOOKS_ENABLED = true;
 
 /** Enable ACP performance diagnostics via ACP_PERF=1 */
 export const ACP_PERF_LOG = process.env.ACP_PERF === '1';
@@ -260,7 +260,7 @@ export function prepareCleanEnv({ injectSafetyHook = true }: PrepareCleanEnvOpti
   // PYTHONPATH for ai_dev_browser module resolution (browser tool).
   // The browser skill dir contains ai_dev_browser (symlinked from vendor).
   // Python silently ignores non-existent entries, so no existence check needed.
-  const browserSkillDir = path.join(os.homedir(), '.nexus', 'skills', '_system', '_builtin', 'browser');
+  const browserSkillDir = path.join(os.homedir(), '.nexus', 'skills', '_system', 'browser');
   const prevPythonPath = cleanEnv.PYTHONPATH || '';
   cleanEnv.PYTHONPATH = prevPythonPath ? `${browserSkillDir}${path.delimiter}${prevPythonPath}` : browserSkillDir;
 

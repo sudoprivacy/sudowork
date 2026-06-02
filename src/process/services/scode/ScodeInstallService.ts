@@ -494,11 +494,7 @@ function updateMarkerBlock(existingContent: string, marker: string, newBlock: st
   }
 
   // Find all markers in the file to determine boundaries
-  const markers = [
-    AGENTS_MD_SAFETY_MARKER,
-    AGENTS_MD_IDENTITY_MARKER,
-    AGENTS_MD_DATE_TIME_MARKER,
-  ].filter((m) => existingContent.includes(m));
+  const markers = [AGENTS_MD_SAFETY_MARKER, AGENTS_MD_IDENTITY_MARKER, AGENTS_MD_DATE_TIME_MARKER].filter((m) => existingContent.includes(m));
 
   // Find the start of this block (marker line)
   const markerIndex = existingContent.indexOf(marker);

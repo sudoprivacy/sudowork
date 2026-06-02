@@ -288,10 +288,7 @@ export async function archiveTurnFiles(workspace: string, trackedFiles: Readonly
     }
 
     const inDrafts = isPathInside(draftsDir, srcPath);
-    const destPath =
-      file.intent === 'draft'
-        ? path.join(draftsDir, path.basename(srcPath))
-        : resolveRootDestination(workspaceRoot, srcPath, file.requestedPath || trackedKey);
+    const destPath = file.intent === 'draft' ? path.join(draftsDir, path.basename(srcPath)) : resolveRootDestination(workspaceRoot, srcPath, file.requestedPath || trackedKey);
 
     const resolvedDestPath = path.resolve(destPath);
     if (srcPath === resolvedDestPath) {

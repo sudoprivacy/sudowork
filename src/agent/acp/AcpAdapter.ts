@@ -208,22 +208,24 @@ export class AcpAdapter {
         const prompt = typeof candidate.prompt === 'string' ? candidate.prompt.trim() : '';
         if (!prompt) return null;
         const options = Array.isArray(candidate.options)
-          ? candidate.options.map((option) => {
-              if (!option || typeof option !== 'object') return null;
-              const optionRecord = option as Record<string, unknown>;
-              const label = typeof optionRecord.label === 'string' ? optionRecord.label.trim() : '';
-              const value = typeof optionRecord.value === 'string' ? optionRecord.value.trim() : '';
-              const finalLabel = label || value;
-              const finalValue = value || label;
-              if (!finalLabel && !finalValue) return null;
-              const normalized: AcpQuestionItemOption = {
-                label: finalLabel,
-                value: finalValue,
-                description: typeof optionRecord.description === 'string' ? optionRecord.description : undefined,
-                recommended: optionRecord.recommended === true,
-              };
-              return normalized;
-            }).filter((option): option is AcpQuestionItemOption => Boolean(option))
+          ? candidate.options
+              .map((option) => {
+                if (!option || typeof option !== 'object') return null;
+                const optionRecord = option as Record<string, unknown>;
+                const label = typeof optionRecord.label === 'string' ? optionRecord.label.trim() : '';
+                const value = typeof optionRecord.value === 'string' ? optionRecord.value.trim() : '';
+                const finalLabel = label || value;
+                const finalValue = value || label;
+                if (!finalLabel && !finalValue) return null;
+                const normalized: AcpQuestionItemOption = {
+                  label: finalLabel,
+                  value: finalValue,
+                  description: typeof optionRecord.description === 'string' ? optionRecord.description : undefined,
+                  recommended: optionRecord.recommended === true,
+                };
+                return normalized;
+              })
+              .filter((option): option is AcpQuestionItemOption => Boolean(option))
           : [];
 
         const normalized: AcpQuestionItem = {
@@ -248,12 +250,14 @@ export class AcpAdapter {
       return {
         question: legacyQuestion,
         options: [],
-        items: [{
-          id: 'q1',
-          prompt: legacyQuestion,
-          allowCustomInput: true,
-          optional: false,
-        }],
+        items: [
+          {
+            id: 'q1',
+            prompt: legacyQuestion,
+            allowCustomInput: true,
+            optional: false,
+          },
+        ],
         conversationId: this.conversationId,
         toolCallId,
         answered: false,
@@ -309,22 +313,21 @@ export class AcpAdapter {
     }
 
     if (items.length === 1) {
-      return [{
-        id: items[0].id,
-        index: 1,
-        submissionValue: normalized,
-        displayValue: normalized === '[skipped]' ? '' : normalized,
-        skipped: normalized === '[skipped]',
-      }];
+      return [
+        {
+          id: items[0].id,
+          index: 1,
+          submissionValue: normalized,
+          displayValue: normalized === '[skipped]' ? '' : normalized,
+          skipped: normalized === '[skipped]',
+        },
+      ];
     }
 
     return undefined;
   }
 
-  private buildAnswerItemsFromStructuredAnswers(
-    answers: Array<{ id?: string; value?: string; label?: string }>,
-    items?: AcpQuestionItem[]
-  ): AcpQuestionData['answerItems'] {
+  private buildAnswerItemsFromStructuredAnswers(answers: Array<{ id?: string; value?: string; label?: string }>, items?: AcpQuestionItem[]): AcpQuestionData['answerItems'] {
     if (!items || items.length === 0 || answers.length === 0) return undefined;
 
     const itemById = new Map(items.map((item, index) => [item.id, { item, index }]));
@@ -538,16 +541,12 @@ export class AcpAdapter {
       if (toolName === 'AskUserQuestion' && (result.questions || result.question)) {
         const questionMessage = this.buildQuestionMessageFromToolCall(update);
         if (questionMessage) {
-          const answerItems = Array.isArray(result.answers) && result.answers.length > 0
-            ? this.buildAnswerItemsFromStructuredAnswers(result.answers, questionMessage.content.items)
-            : this.buildAnswerItems(result.answer || '', questionMessage.content.items);
+          const answerItems = Array.isArray(result.answers) && result.answers.length > 0 ? this.buildAnswerItemsFromStructuredAnswers(result.answers, questionMessage.content.items) : this.buildAnswerItems(result.answer || '', questionMessage.content.items);
 
           if (answerItems && answerItems.length > 0) {
             questionMessage.content.answered = true;
             questionMessage.content.answerItems = answerItems;
-            questionMessage.content.selectedAnswer = answerItems
-              .map((answer) => `${answer.index}. ${answer.skipped ? '[skipped]' : answer.displayValue}`)
-              .join('\n');
+            questionMessage.content.selectedAnswer = answerItems.map((answer) => `${answer.index}. ${answer.skipped ? '[skipped]' : answer.displayValue}`).join('\n');
             return questionMessage;
           }
 

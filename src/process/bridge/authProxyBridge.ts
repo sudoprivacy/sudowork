@@ -3,11 +3,7 @@
  */
 
 import { ipcBridge } from '@/common';
-import {
-  getAuthProxyRules,
-  refreshAuthProxyRules,
-  getAuthProxyPort,
-} from '@process/services/authProxy';
+import { getAuthProxyRules, refreshAuthProxyRules, getAuthProxyPort } from '@process/services/authProxy';
 import { mainError } from '@process/utils/mainLogger';
 
 export function initAuthProxyBridge(): void {

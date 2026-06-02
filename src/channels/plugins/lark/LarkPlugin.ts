@@ -471,10 +471,7 @@ export class LarkPlugin extends BasePlugin {
       if (!attachment.fileId) continue;
 
       // Map attachment type to Feishu resource type for the API
-      const resourceType = attachment.type === 'photo' ? 'image'
-        : attachment.type === 'audio' ? 'audio'
-        : attachment.type === 'video' ? 'video'
-        : 'file';
+      const resourceType = attachment.type === 'photo' ? 'image' : attachment.type === 'audio' ? 'audio' : attachment.type === 'video' ? 'video' : 'file';
 
       try {
         const response = await this.downloadWithRetry(messageId, attachment.fileId, resourceType);
@@ -499,10 +496,7 @@ export class LarkPlugin extends BasePlugin {
           attachment.fileId = finalPath;
         } else {
           // Determine file extension based on attachment type (non-photo)
-          const ext = attachment.fileName ? path.extname(attachment.fileName)
-            : attachment.type === 'audio' ? '.ogg'
-            : attachment.type === 'video' ? '.mp4'
-            : '.bin';
+          const ext = attachment.fileName ? path.extname(attachment.fileName) : attachment.type === 'audio' ? '.ogg' : attachment.type === 'video' ? '.mp4' : '.bin';
 
           const localPath = path.join(mediaDir, `${attachment.fileId}${ext}`);
           await response.writeFile(localPath);
@@ -527,7 +521,7 @@ export class LarkPlugin extends BasePlugin {
       });
     } catch (error) {
       mainWarn('LarkPlugin', `Download failed, retrying in 1s: ${fileKey}`, error);
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
       return await this.client!.im.messageResource.get({
         params: { type: resourceType },
         path: { message_id: messageId, file_key: fileKey },
@@ -590,10 +584,16 @@ export class LarkPlugin extends BasePlugin {
     const ext = path.extname(fileName).toLowerCase();
     const map: Record<string, 'opus' | 'mp4' | 'pdf' | 'doc' | 'xls' | 'ppt'> = {
       '.pdf': 'pdf',
-      '.doc': 'doc', '.docx': 'doc',
-      '.xls': 'xls', '.xlsx': 'xls', '.csv': 'xls',
-      '.ppt': 'ppt', '.pptx': 'ppt',
-      '.mp3': 'opus', '.opus': 'opus', '.ogg': 'opus',
+      '.doc': 'doc',
+      '.docx': 'doc',
+      '.xls': 'xls',
+      '.xlsx': 'xls',
+      '.csv': 'xls',
+      '.ppt': 'ppt',
+      '.pptx': 'ppt',
+      '.mp3': 'opus',
+      '.opus': 'opus',
+      '.ogg': 'opus',
       '.mp4': 'mp4',
     };
     return map[ext] || 'stream';

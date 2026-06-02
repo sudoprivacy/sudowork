@@ -68,71 +68,71 @@ const MossSessionPage: React.FC = () => {
   }, [sessionId]);
 
   // Listen to Moss response stream
-  useAddEventListener(
-    'moss.response-stream' as any,
+  useAddEventListener('moss.response-stream' as any, (msg: IResponseMessage) => {
+    if (msg.conversation_id !== sessionId) return;
+
+    handleStreamMessage(msg);
+  });
+
+  const handleStreamMessage = useCallback(
     (msg: IResponseMessage) => {
-      if (msg.conversation_id !== sessionId) return;
+      switch (msg.type) {
+        case 'content':
+          if (msg.msg_id && msg.data) {
+            const tMessage: TMessage = {
+              id: msg.msg_id,
+              msg_id: msg.msg_id,
+              type: 'text' as const,
+              position: 'left' as const,
+              conversation_id: sessionId!,
+              content: { content: msg.data as string },
+              createdAt: Date.now(),
+            };
+            // Add/update message in context (in-memory only for enterprise mode)
+            updateMessageList((list) => {
+              const existingIdx = list.findIndex((m) => m.msg_id === msg.msg_id);
+              if (existingIdx >= 0) {
+                // Update existing message
+                const updated = [...list];
+                const existing = updated[existingIdx];
+                if (existing.type === 'text') {
+                  updated[existingIdx] = {
+                    ...existing,
+                    content: { content: msg.data as string },
+                  } as TMessage;
+                }
+                return updated;
+              }
+              return [...list, tMessage];
+            });
+          }
+          setRunning(false);
+          runningRef.current = false;
+          break;
 
-      handleStreamMessage(msg);
-    }
-  );
+        case 'finish':
+          setRunning(false);
+          runningRef.current = false;
+          break;
 
-  const handleStreamMessage = useCallback((msg: IResponseMessage) => {
-    switch (msg.type) {
-      case 'content':
-        if (msg.msg_id && msg.data) {
-          const tMessage: TMessage = {
-            id: msg.msg_id,
-            msg_id: msg.msg_id,
-            type: 'text' as const,
-            position: 'left' as const,
+        case 'error':
+          setRunning(false);
+          runningRef.current = false;
+          const errorMsg: TMessage = {
+            id: uuid(36),
+            msg_id: uuid(36),
+            type: 'tips' as const,
+            position: 'center' as const,
             conversation_id: sessionId!,
-            content: { content: msg.data as string },
+            content: { content: msg.data as string, type: 'error' as const },
             createdAt: Date.now(),
           };
-          // Add/update message in context (in-memory only for enterprise mode)
-          updateMessageList((list) => {
-            const existingIdx = list.findIndex(m => m.msg_id === msg.msg_id);
-            if (existingIdx >= 0) {
-              // Update existing message
-              const updated = [...list];
-              const existing = updated[existingIdx];
-              if (existing.type === 'text') {
-                updated[existingIdx] = {
-                  ...existing,
-                  content: { content: msg.data as string },
-                } as TMessage;
-              }
-              return updated;
-            }
-            return [...list, tMessage];
-          });
-        }
-        setRunning(false);
-        runningRef.current = false;
-        break;
-
-      case 'finish':
-        setRunning(false);
-        runningRef.current = false;
-        break;
-
-      case 'error':
-        setRunning(false);
-        runningRef.current = false;
-        const errorMsg: TMessage = {
-          id: uuid(36),
-          msg_id: uuid(36),
-          type: 'tips' as const,
-          position: 'center' as const,
-          conversation_id: sessionId!,
-          content: { content: msg.data as string, type: 'error' as const },
-          createdAt: Date.now(),
-        };
-        updateMessageList((list) => [...list, errorMsg]);
-        break;
-    }
-  }, [sessionId, updateMessageList]);
+          updateMessageList((list) => [...list, errorMsg]);
+          break;
+      }
+    },
+    [sessionId, updateMessageList]
+  );
 
   const sendMessageInternal = async (msgContent: string, files?: string[], _skills?: string[]) => {
     if (!sessionId || !wsUrl || runningRef.current) return;
@@ -187,7 +187,7 @@ const MossSessionPage: React.FC = () => {
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center h-full gap-4">
+      <div className='flex flex-col items-center justify-center h-full gap-4'>
         <Typography.Title heading={4}>Session Error</Typography.Title>
         <Typography.Text>{error}</Typography.Text>
         <Button onClick={handleBack}>Back to Guid</Button>
@@ -197,47 +197,36 @@ const MossSessionPage: React.FC = () => {
 
   if (!wsUrl) {
     return (
-      <div className="flex items-center justify-center h-full">
+      <div className='flex items-center justify-center h-full'>
         <Spin size={40} />
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className='flex flex-col h-full'>
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-[var(--color-border)]">
+      <div className='flex items-center justify-between px-4 py-2 border-b border-[var(--color-border)]'>
         <Typography.Text bold>Moss Server Session</Typography.Text>
-        <Typography.Text type="secondary">{sessionId?.slice(0, 8)}...</Typography.Text>
+        <Typography.Text type='secondary'>{sessionId?.slice(0, 8)}...</Typography.Text>
       </div>
 
       {/* Message List */}
-      <div className="flex-1 overflow-hidden">
+      <div className='flex-1 overflow-hidden'>
         <FlexFullContainer>
-          <MessageList className="flex-1" aiProcessing={running} />
+          <MessageList className='flex-1' aiProcessing={running} />
         </FlexFullContainer>
       </div>
 
       {/* Send Box */}
-      <div className="flex items-center gap-2 px-4 py-3 border-t border-[var(--color-border)]">
-        <Input
-          value={input}
-          onChange={setInput}
-          placeholder="Send message to Moss Server..."
-          disabled={running}
-          className="flex-1"
-        />
+      <div className='flex items-center gap-2 px-4 py-3 border-t border-[var(--color-border)]'>
+        <Input value={input} onChange={setInput} placeholder='Send message to Moss Server...' disabled={running} className='flex-1' />
         {running ? (
-          <Button type="primary" onClick={handleStop}>
+          <Button type='primary' onClick={handleStop}>
             Stop
           </Button>
         ) : (
-          <Button
-            type="primary"
-            icon={<SendOne theme="filled" size="18" fill={iconColors.primary} />}
-            onClick={handleSend}
-            disabled={!input.trim()}
-          />
+          <Button type='primary' icon={<SendOne theme='filled' size='18' fill={iconColors.primary} />} onClick={handleSend} disabled={!input.trim()} />
         )}
       </div>
     </div>

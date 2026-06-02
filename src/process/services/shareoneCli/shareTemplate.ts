@@ -5,10 +5,7 @@
  */
 
 export function renderShareTemplate(opts: { title: string; contentHtml: string; timestamp: string }): string {
-  return TEMPLATE
-    .replaceAll('{{TITLE}}', escapeHtml(opts.title))
-    .replaceAll('{{CONTENT_HTML}}', opts.contentHtml)
-    .replaceAll('{{TIMESTAMP}}', escapeHtml(opts.timestamp));
+  return TEMPLATE.replaceAll('{{TITLE}}', escapeHtml(opts.title)).replaceAll('{{CONTENT_HTML}}', opts.contentHtml).replaceAll('{{TIMESTAMP}}', escapeHtml(opts.timestamp));
 }
 
 function escapeHtml(s: string): string {

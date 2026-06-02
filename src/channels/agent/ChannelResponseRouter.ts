@@ -119,10 +119,14 @@ export function setupChannelResponseRouting(conversation: TChatConversation): ()
             // DingTalk AI Card: finalize to remove loading indicator
             // Strip local image markdown from text to prevent editMessage from re-extracting and re-sending images
             if (channelSource === 'dingtalk' && msgId) {
-              const cleanForEdit = accumulatedText.trim().replace(/!\[[^\]]*\]\(([^)]+)\)/g, (match, imgPath: string) => {
-                if (/^(https?:|data:|file:)/i.test(imgPath)) return match;
-                return '';
-              }).replace(/\n{3,}/g, '\n\n').trim();
+              const cleanForEdit = accumulatedText
+                .trim()
+                .replace(/!\[[^\]]*\]\(([^)]+)\)/g, (match, imgPath: string) => {
+                  if (/^(https?:|data:|file:)/i.test(imgPath)) return match;
+                  return '';
+                })
+                .replace(/\n{3,}/g, '\n\n')
+                .trim();
               await plugin.editMessage(channelChatId, msgId, { type: 'text', text: cleanForEdit, parseMode: 'HTML', replyMarkup: {} as any });
             }
           }

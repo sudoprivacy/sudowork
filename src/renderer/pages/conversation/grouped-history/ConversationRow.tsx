@@ -32,11 +32,9 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
   const isMossSession = 'isMossSession' in conversation && conversation.isMossSession === true;
 
   // Only use preset assistant info for local conversations
-  const { info: assistantInfo } = usePresetAssistantInfo(isMossSession ? null : conversation as TChatConversation);
+  const { info: assistantInfo } = usePresetAssistantInfo(isMossSession ? null : (conversation as TChatConversation));
   // For Moss sessions, use isPinned property; for local conversations, use isConversationPinned
-  const isPinned = isMossSession
-    ? (conversation as { isPinned?: boolean }).isPinned ?? false
-    : isConversationPinned(conversation as TChatConversation);
+  const isPinned = isMossSession ? ((conversation as { isPinned?: boolean }).isPinned ?? false) : isConversationPinned(conversation as TChatConversation);
   const cronStatus = getJobStatus(conversation.id);
   const siderTooltipProps = getSiderTooltipProps(tooltipEnabled);
   const inlineNameTooltipEnabled = !collapsed && !isMobile && !!conversation.name;
@@ -57,7 +55,7 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
     if (isMossSession) {
       const mossLogo = getAgentLogo('remote-agent');
       if (mossLogo) {
-        return <img src={mossLogo} alt="Moss Server" className='w-20px h-20px rounded-50% flex-shrink-0' />;
+        return <img src={mossLogo} alt='Moss Server' className='w-20px h-20px rounded-50% flex-shrink-0' />;
       }
     }
 

@@ -13,12 +13,13 @@
 // from the app root (app.getAppPath()) so the path survives bundling.
 function loadNativeBinding(): typeof import('../../../native/nexus-napi') {
   try {
+    // Dynamic require needed for native module loading at runtime
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { app } = require('electron');
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const path = require('path');
-    const appRoot = app.isPackaged
-      ? app.getAppPath().replace('app.asar', 'app.asar.unpacked')
-      : app.getAppPath();
+    const appRoot = app.isPackaged ? app.getAppPath().replace('app.asar', 'app.asar.unpacked') : app.getAppPath();
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
     return require(path.join(appRoot, 'native', 'nexus-napi'));
   } catch {
     throw new Error('nexus-napi native module not available. Run `bun run build:native` first.');

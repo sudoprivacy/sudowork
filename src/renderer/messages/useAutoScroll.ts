@@ -253,16 +253,13 @@ export function useAutoScroll({ messages, items }: UseAutoScrollOptions): UseAut
   // without external scrollToIndex calls that cause jitter. Disabled while we
   // are pinning the user prompt at the top, so the empty spacer below gets
   // filled instead of scrolling the prompt off the screen.
-  const handleFollowOutput = useCallback(
-    (isAtBottom: boolean): false | 'auto' => {
-      if (userScrolledRef.current || !isAtBottom) return false;
-      if (isPinnedRef.current) return false;
+  const handleFollowOutput = useCallback((isAtBottom: boolean): false | 'auto' => {
+    if (userScrolledRef.current || !isAtBottom) return false;
+    if (isPinnedRef.current) return false;
 
-      // Always follow output when aiProcessing is active and we are near bottom
-      return 'auto';
-    },
-    []
-  );
+    // Always follow output when aiProcessing is active and we are near bottom
+    return 'auto';
+  }, []);
 
   // Reliable bottom state detection from Virtuoso
   const handleAtBottomStateChange = useCallback((atBottom: boolean) => {

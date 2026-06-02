@@ -1036,7 +1036,7 @@ const initStorage = async () => {
 
       // 首先清理不再存在于内置列表中的旧内置助手
       // First, clean up old built-in assistants that are no longer in the built-in list
-      const builtinIds = new Set(builtinAssistants.map(a => a.id));
+      const builtinIds = new Set(builtinAssistants.map((a) => a.id));
       for (let i = updatedAgents.length - 1; i >= 0; i--) {
         const agent = updatedAgents[i];
         // 如果是以 builtin- 开头，但在当前内置列表中找不到，则删除

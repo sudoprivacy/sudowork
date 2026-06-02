@@ -21,14 +21,7 @@ export type CrashEventType = 'native_crash' | 'renderer_crash' | 'js_exception';
 export type CrashProcessType = 'main' | 'renderer';
 
 /** Crash 原因类型 (Electron Details.reason) */
-export type CrashReason =
-  | 'clean-exit'
-  | 'abnormal-exit'
-  | 'killed'
-  | 'crashed'
-  | 'oom'
-  | 'launch-failed'
-  | 'integrity-failure';
+export type CrashReason = 'clean-exit' | 'abnormal-exit' | 'killed' | 'crashed' | 'oom' | 'launch-failed' | 'integrity-failure';
 
 /** 环境 */
 export type CrashEnvironment = 'development' | 'production';
@@ -38,15 +31,7 @@ export type CrashEnvironment = 'development' | 'production';
 // ============================================================
 
 /** 面包屑分类 */
-export type BreadcrumbCategory =
-  | 'conversation'
-  | 'api'
-  | 'mcp'
-  | 'file'
-  | 'window'
-  | 'navigation'
-  | 'user'
-  | 'system';
+export type BreadcrumbCategory = 'conversation' | 'api' | 'mcp' | 'file' | 'window' | 'navigation' | 'user' | 'system';
 
 /** 面包屑记录 */
 export interface Breadcrumb {

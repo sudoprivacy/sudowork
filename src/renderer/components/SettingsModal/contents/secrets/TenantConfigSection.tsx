@@ -16,8 +16,7 @@ interface TenantConfigSectionProps {
 
 const TenantConfigSection: React.FC<TenantConfigSectionProps> = ({ refreshTrigger }) => {
   const { t } = useTranslation();
-  const { configItems, valuesMap, enabledMap, loading, savingId, error, refresh, toggleEnabled, saveItem } =
-    useTenantConfigItems(refreshTrigger);
+  const { configItems, valuesMap, enabledMap, loading, savingId, error, refresh, toggleEnabled, saveItem } = useTenantConfigItems(refreshTrigger);
 
   if (loading) {
     return (
@@ -39,23 +38,13 @@ const TenantConfigSection: React.FC<TenantConfigSectionProps> = ({ refreshTrigge
   }
 
   if (configItems.length === 0) {
-    return (
-      <div className='text-13px text-t-tertiary py-16px'>{t('settings.secrets.emptyHint', '暂无凭据配置项')}</div>
-    );
+    return <div className='text-13px text-t-tertiary py-16px'>{t('settings.secrets.emptyHint', '暂无凭据配置项')}</div>;
   }
 
   return (
     <div className='space-y-12px'>
       {configItems.map((item) => (
-        <TenantConfigItemGroup
-          key={item.id}
-          configItem={item}
-          values={valuesMap[item.id] || {}}
-          enabled={enabledMap[item.id] ?? false}
-          saving={savingId === item.id}
-          onToggleEnabled={(enabled) => void toggleEnabled(item.id, enabled)}
-          onSave={(values) => saveItem(item.id, item.pinyin!, item.entries, values, valuesMap[item.id] || {})}
-        />
+        <TenantConfigItemGroup key={item.id} configItem={item} values={valuesMap[item.id] || {}} enabled={enabledMap[item.id] ?? false} saving={savingId === item.id} onToggleEnabled={(enabled) => void toggleEnabled(item.id, enabled)} onSave={(values) => saveItem(item.id, item.pinyin!, item.entries, values, valuesMap[item.id] || {})} />
       ))}
     </div>
   );

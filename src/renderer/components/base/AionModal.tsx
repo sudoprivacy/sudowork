@@ -338,7 +338,11 @@ const AionModal: React.FC<AionModalProps> = ({
 
     return (
       <div className={headerClassName} style={headerStyle}>
-        {headerConfig.title && <h3 className={TITLE_BASE_CLASS} id='aion-modal-title'>{headerConfig.title}</h3>}
+        {headerConfig.title && (
+          <h3 className={TITLE_BASE_CLASS} id='aion-modal-title'>
+            {headerConfig.title}
+          </h3>
+        )}
         {headerConfig.showClose && (
           <button onClick={onCancel} className={CLOSE_BUTTON_CLASS} aria-label={headerConfig.closeIcon ? t('common.ariaLabel.close') : t('common.ariaLabel.close')}>
             {headerConfig.closeIcon || <Close size={20} fill='#86909c' />}
@@ -367,17 +371,7 @@ const AionModal: React.FC<AionModalProps> = ({
   };
 
   return (
-    <Modal
-      {...props}
-      title={null}
-      closable={false}
-      footer={null}
-      escToExit={escToExitProp}
-      onCancel={onCancel}
-      className={`aionui-modal ${className}`}
-      style={finalStyle}
-      getPopupContainer={() => document.body}
-    >
+    <Modal {...props} title={null} closable={false} footer={null} escToExit={escToExitProp} onCancel={onCancel} className={`aionui-modal ${className}`} style={finalStyle} getPopupContainer={() => document.body}>
       <div className='aionui-modal-wrapper' style={{ borderRadius: borderRadiusVal }} role='dialog' aria-modal='true' aria-labelledby={headerConfig.title ? 'aion-modal-title' : undefined}>
         {renderHeader()}
         <div className='aionui-modal-body-content' style={bodyInlineStyle}>

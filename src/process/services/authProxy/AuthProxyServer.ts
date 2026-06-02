@@ -36,17 +36,7 @@ interface ProxyRequestInfo {
 // Headers to strip before forwarding
 // ============================================================================
 
-const CONTROL_HEADERS = [
-  'authorization',
-  'x-secret-namespace',
-  'x-secret-key',
-  'x-auth-scheme',
-  'x-auth-header',
-  'x-auth-prefix',
-  'x-remote-url',
-  'host',
-  'connection',
-];
+const CONTROL_HEADERS = ['authorization', 'x-secret-namespace', 'x-secret-key', 'x-auth-scheme', 'x-auth-header', 'x-auth-prefix', 'x-remote-url', 'host', 'connection'];
 
 const UPSTREAM_TIMEOUT_MS = 30_000;
 
@@ -215,9 +205,7 @@ export class AuthProxyServer {
   // Auth resolution
   // --------------------------------------------------------------------------
 
-  private async resolveAndInjectAuth(
-    info: ProxyRequestInfo,
-  ): Promise<{ headers: Record<string, string>; url?: string; error?: string; statusCode?: number }> {
+  private async resolveAndInjectAuth(info: ProxyRequestInfo): Promise<{ headers: Record<string, string>; url?: string; error?: string; statusCode?: number }> {
     let secretValue: string;
     let scheme: string | null;
     let bearerPrefix: string | null;
@@ -272,10 +260,7 @@ export class AuthProxyServer {
     });
   }
 
-  private resolveMultiEntryAuth(
-    rule: AuthProxyRule,
-    scheme: string,
-  ): { headers: Record<string, string>; url?: string; error?: string; statusCode?: number } {
+  private resolveMultiEntryAuth(rule: AuthProxyRule, scheme: string): { headers: Record<string, string>; url?: string; error?: string; statusCode?: number } {
     const entries: Array<{ configKey: string; secret: string }> = [];
 
     for (const entry of rule.entries) {
@@ -312,10 +297,7 @@ export class AuthProxyServer {
     };
   }
 
-  private buildUpstreamHeaders(
-    req: IncomingMessage,
-    authHeaders: Record<string, string>,
-  ): Record<string, string> {
+  private buildUpstreamHeaders(req: IncomingMessage, authHeaders: Record<string, string>): Record<string, string> {
     const headers: Record<string, string> = {};
 
     // Copy original headers, excluding control headers
@@ -342,12 +324,7 @@ export class AuthProxyServer {
     return headers;
   }
 
-  private proxyRequest(
-    targetUrl: string,
-    req: IncomingMessage,
-    res: ServerResponse,
-    headers: Record<string, string>,
-  ): Promise<void> {
+  private proxyRequest(targetUrl: string, req: IncomingMessage, res: ServerResponse, headers: Record<string, string>): Promise<void> {
     return new Promise((resolve) => {
       const parsed = new URL(targetUrl);
 

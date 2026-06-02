@@ -1005,23 +1005,23 @@ export function initSkillHubBridge(): void {
         category: skill.category,
         meta: skill.meta
           ? {
-            ...skill.meta,
-            // 补充 ISkillHubMeta 必填字段
-            name: skill.meta.name || skill.name,
-            id: skill.meta.id || skill.name,
-            display_name: skill.meta.display_name || skill.name,
-            description: skill.meta.description || '',
-            icon: skill.meta.icon || '',
-            emoji: skill.meta.emoji ?? null,
-            category: skill.meta.category || '',
-            categories: skill.meta.categories || [],
-            applicable_scenarios: skill.meta.applicable_scenarios ?? null,
-            core_features: skill.meta.core_features ?? null,
-            homepage: skill.meta.homepage ?? null,
-            author_id: skill.meta.author_id || '',
-            installed_version: skill.meta.installed_version || skill.version,
-            installed_at: skill.meta.installed_at || '',
-          }
+              ...skill.meta,
+              // 补充 ISkillHubMeta 必填字段
+              name: skill.meta.name || skill.name,
+              id: skill.meta.id || skill.name,
+              display_name: skill.meta.display_name || skill.name,
+              description: skill.meta.description || '',
+              icon: skill.meta.icon || '',
+              emoji: skill.meta.emoji ?? null,
+              category: skill.meta.category || '',
+              categories: skill.meta.categories || [],
+              applicable_scenarios: skill.meta.applicable_scenarios ?? null,
+              core_features: skill.meta.core_features ?? null,
+              homepage: skill.meta.homepage ?? null,
+              author_id: skill.meta.author_id || '',
+              installed_version: skill.meta.installed_version || skill.version,
+              installed_at: skill.meta.installed_at || '',
+            }
           : undefined,
       }));
       return { success: true, data: result };

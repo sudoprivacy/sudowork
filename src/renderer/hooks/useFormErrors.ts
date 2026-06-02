@@ -21,10 +21,7 @@ export interface FormFieldError {
  * @param initialErrors 初始错误状态
  * @param autoClearOnInput 是否在值变化时自动清除错误（默认 true）
  */
-export const useFormErrors = <T extends Record<string, string>>(
-  initialErrors: Partial<Record<keyof T, string>> = {},
-  autoClearOnInput = true
-) => {
+export const useFormErrors = <T extends Record<string, string>>(initialErrors: Partial<Record<keyof T, string>> = {}, autoClearOnInput = true) => {
   const [errors, setErrors] = useState<Partial<Record<keyof T, string>>>(initialErrors);
 
   /**
@@ -79,33 +76,27 @@ export const useFormErrors = <T extends Record<string, string>>(
   /**
    * 验证表单
    */
-  const validate = useCallback(
-    (
-      values: T,
-      rules: Partial<Record<keyof T, Array<(value: string, values: T) => string | undefined>>>
-    ): boolean => {
-      const newErrors: Partial<Record<keyof T, string>> = {};
+  const validate = useCallback((values: T, rules: Partial<Record<keyof T, Array<(value: string, values: T) => string | undefined>>>): boolean => {
+    const newErrors: Partial<Record<keyof T, string>> = {};
 
-      (Object.keys(rules) as Array<keyof T>).forEach((field) => {
-        const fieldRules = rules[field];
-        const fieldValue = values[field];
+    (Object.keys(rules) as Array<keyof T>).forEach((field) => {
+      const fieldRules = rules[field];
+      const fieldValue = values[field];
 
-        if (fieldRules) {
-          for (const rule of fieldRules) {
-            const errorMessage = rule(fieldValue as string, values);
-            if (errorMessage) {
-              newErrors[field] = errorMessage;
-              break;
-            }
+      if (fieldRules) {
+        for (const rule of fieldRules) {
+          const errorMessage = rule(fieldValue as string, values);
+          if (errorMessage) {
+            newErrors[field] = errorMessage;
+            break;
           }
         }
-      });
+      }
+    });
 
-      setErrors(newErrors);
-      return Object.keys(newErrors).length === 0;
-    },
-    []
-  );
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  }, []);
 
   /**
    * 获取字段错误状态
@@ -162,84 +153,94 @@ export const FormValidators = {
   /**
    * 必填验证
    */
-  required: (message = '此项为必填项') => (value: string): string | undefined => {
-    if (!value || value.trim() === '') {
-      return message;
-    }
-    return undefined;
-  },
+  required:
+    (message = '此项为必填项') =>
+    (value: string): string | undefined => {
+      if (!value || value.trim() === '') {
+        return message;
+      }
+      return undefined;
+    },
 
   /**
    * 邮箱格式验证
    */
-  email: (message = '请输入有效的邮箱地址') => (value: string): string | undefined => {
-    if (!value) return undefined; // 空值由 required 处理
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(value)) {
-      return message;
-    }
-    return undefined;
-  },
+  email:
+    (message = '请输入有效的邮箱地址') =>
+    (value: string): string | undefined => {
+      if (!value) return undefined; // 空值由 required 处理
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(value)) {
+        return message;
+      }
+      return undefined;
+    },
 
   /**
    * 手机号格式验证（中国大陆）
    */
-  phone: (message = '请输入有效的手机号') => (value: string): string | undefined => {
-    if (!value) return undefined;
-    const phoneRegex = /^1[3-9]\d{9}$/;
-    if (!phoneRegex.test(value)) {
-      return message;
-    }
-    return undefined;
-  },
+  phone:
+    (message = '请输入有效的手机号') =>
+    (value: string): string | undefined => {
+      if (!value) return undefined;
+      const phoneRegex = /^1[3-9]\d{9}$/;
+      if (!phoneRegex.test(value)) {
+        return message;
+      }
+      return undefined;
+    },
 
   /**
    * 最小长度验证
    */
-  minLength: (min: number, message: (min: number) => string = (min) => `至少需要 ${min} 个字符`) => (
-    value: string
-  ): string | undefined => {
-    if (!value) return undefined;
-    if (value.length < min) {
-      return message(min);
-    }
-    return undefined;
-  },
+  minLength:
+    (min: number, message: (min: number) => string = (min) => `至少需要 ${min} 个字符`) =>
+    (value: string): string | undefined => {
+      if (!value) return undefined;
+      if (value.length < min) {
+        return message(min);
+      }
+      return undefined;
+    },
 
   /**
    * 最大长度验证
    */
-  maxLength: (max: number, message: (max: number) => string = (max) => `最多 ${max} 个字符`) => (
-    value: string
-  ): string | undefined => {
-    if (!value) return undefined;
-    if (value.length > max) {
-      return message(max);
-    }
-    return undefined;
-  },
+  maxLength:
+    (max: number, message: (max: number) => string = (max) => `最多 ${max} 个字符`) =>
+    (value: string): string | undefined => {
+      if (!value) return undefined;
+      if (value.length > max) {
+        return message(max);
+      }
+      return undefined;
+    },
 
   /**
    * URL 格式验证
    */
-  url: (message = '请输入有效的 URL 地址') => (value: string): string | undefined => {
-    if (!value) return undefined;
-    try {
-      new URL(value);
-      return undefined;
-    } catch {
-      return message;
-    }
-  },
+  url:
+    (message = '请输入有效的 URL 地址') =>
+    (value: string): string | undefined => {
+      if (!value) return undefined;
+      try {
+        new URL(value);
+        return undefined;
+      } catch {
+        return message;
+      }
+    },
 
   /**
    * 自定义正则验证
    */
-  pattern: (regex: RegExp, message = '格式不正确') => (value: string): string | undefined => {
-    if (!value) return undefined;
-    if (!regex.test(value)) {
-      return message;
-    }
-    return undefined;
-  },
+  pattern:
+    (regex: RegExp, message = '格式不正确') =>
+    (value: string): string | undefined => {
+      if (!value) return undefined;
+      if (!regex.test(value)) {
+        return message;
+      }
+      return undefined;
+    },
 };

@@ -11,7 +11,7 @@
  */
 export function buildNamespace(pinyin: string, userId?: string): string {
   if (userId) {
-    return `user:${userId}:${pinyin}`
+    return `user:${userId}:${pinyin}`;
   }
-  return `service:${pinyin}`
+  return `service:${pinyin}`;
 }

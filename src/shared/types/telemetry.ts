@@ -235,12 +235,7 @@ export interface StepTelemetryEvent extends TelemetryEventBase {
 }
 
 /** 遥测事件联合类型 */
-export type TelemetryEvent =
-  | PerfTelemetryEvent
-  | ConversationTelemetryEvent
-  | InstallTelemetryEvent
-  | TurnTelemetryEvent
-  | StepTelemetryEvent;
+export type TelemetryEvent = PerfTelemetryEvent | ConversationTelemetryEvent | InstallTelemetryEvent | TurnTelemetryEvent | StepTelemetryEvent;
 
 // ============================================================
 // 批量上报请求结构

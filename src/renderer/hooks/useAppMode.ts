@@ -15,25 +15,27 @@ let appModeWasNull = false; // true when ConfigStorage had no appMode (true new 
 let cachedMode: 'c' | 'e' | null = null; // cache for synchronous access
 
 if (typeof window !== 'undefined') {
-  initialModePromise = getAppMode().then((mode) => {
-    initialModeResolved = true;
-    cachedMode = mode ?? 'c';
-    appModeWasNull = mode === null; // null = new user who never chose a mode
-    // Old user upgrade: has sudowork_auth_v2 but no appMode → auto-set 'c'
-    if (mode === null && localStorage.getItem('sudowork_auth_v2')) {
-      setAppMode('c').catch((e) => {
-        console.error('[useAppMode] Failed to auto-set consumer mode for upgrading user:', e);
-      });
-    }
-    return cachedMode;
-    // getAppMode() returns null for new users, fallback to 'c'
-    // needsSetup is determined by appModeWasNull, not by the mode value itself
-  }).catch((error) => {
-    console.error('[useAppMode] Failed to get initial mode:', error);
-    initialModeResolved = true;
-    cachedMode = 'c';
-    return 'c' as const;
-  });
+  initialModePromise = getAppMode()
+    .then((mode) => {
+      initialModeResolved = true;
+      cachedMode = mode ?? 'c';
+      appModeWasNull = mode === null; // null = new user who never chose a mode
+      // Old user upgrade: has sudowork_auth_v2 but no appMode → auto-set 'c'
+      if (mode === null && localStorage.getItem('sudowork_auth_v2')) {
+        setAppMode('c').catch((e) => {
+          console.error('[useAppMode] Failed to auto-set consumer mode for upgrading user:', e);
+        });
+      }
+      return cachedMode;
+      // getAppMode() returns null for new users, fallback to 'c'
+      // needsSetup is determined by appModeWasNull, not by the mode value itself
+    })
+    .catch((error) => {
+      console.error('[useAppMode] Failed to get initial mode:', error);
+      initialModeResolved = true;
+      cachedMode = 'c';
+      return 'c' as const;
+    });
 }
 
 export function useAppMode(): { mode: 'c' | 'e'; isEnterprise: boolean; needsSetup: boolean } {
@@ -58,9 +60,7 @@ export function useAppMode(): { mode: 'c' | 'e'; isEnterprise: boolean; needsSet
   // Uses appModeWasNull to determine: ConfigStorage has no appMode = true new user
   // Old user upgrade scenario: appMode null + sudowork_auth_v2 exists → main.tsx auto-sets 'c'
   // After restart: appMode = 'c' → appModeWasNull = false → needsSetup = false
-  const needsSetup = initialModeResolved && appModeWasNull
-    && typeof window !== 'undefined'
-    && !localStorage.getItem('sudowork_auth_v2');
+  const needsSetup = initialModeResolved && appModeWasNull && typeof window !== 'undefined' && !localStorage.getItem('sudowork_auth_v2');
 
   return { mode, isEnterprise, needsSetup };
 }

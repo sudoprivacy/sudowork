@@ -295,12 +295,7 @@ export class CrashReporter {
    *
    * @param data - IPC 上报数据
    */
-  public captureRendererException(data: {
-    error_name: string;
-    error_message: string;
-    stack_trace?: string;
-    context?: CrashContext;
-  }): void {
+  public captureRendererException(data: { error_name: string; error_message: string; stack_trace?: string; context?: CrashContext }): void {
     // 开发环境不上报
     if (!app.isPackaged) {
       return;
@@ -344,12 +339,7 @@ export class CrashReporter {
    * @param data - 额外数据
    * @param level - 日志级别
    */
-  public addBreadcrumb(
-    category: string,
-    message: string,
-    data?: Record<string, unknown>,
-    level?: 'debug' | 'info' | 'warning' | 'error',
-  ): void {
+  public addBreadcrumb(category: string, message: string, data?: Record<string, unknown>, level?: 'debug' | 'info' | 'warning' | 'error'): void {
     if (!isPersonalMode() || !this.enabled) {
       return;
     }
@@ -589,9 +579,7 @@ export class CrashReporter {
         });
 
         // 超过最大重试次数的事件将被丢弃
-        this.eventQueue = this.eventQueue.filter(
-          (event) => event.retryCount < this.config.maxRetries && Date.now() - event.storedAt < MAX_EVENT_AGE,
-        );
+        this.eventQueue = this.eventQueue.filter((event) => event.retryCount < this.config.maxRetries && Date.now() - event.storedAt < MAX_EVENT_AGE);
 
         mainWarn('CrashReporter', `Flush failed: ${response.error}, retries pending: ${this.eventQueue.length}`);
       }
@@ -693,9 +681,7 @@ export class CrashReporter {
       const cachedEvents: StoredCrashEvent[] = JSON.parse(content);
 
       // 过滤过期事件
-      const validEvents = cachedEvents.filter(
-        (event) => Date.now() - event.storedAt < MAX_EVENT_AGE && event.retryCount < this.config.maxRetries,
-      );
+      const validEvents = cachedEvents.filter((event) => Date.now() - event.storedAt < MAX_EVENT_AGE && event.retryCount < this.config.maxRetries);
 
       this.eventQueue = validEvents;
 
@@ -715,7 +701,7 @@ export class CrashReporter {
       const userDataPath = app.getPath('userData');
       const cachePath = path.join(userDataPath, STORAGE_FILE_NAME);
 
-      await fs.unlink(cachePath).catch(() => { });
+      await fs.unlink(cachePath).catch(() => {});
     } catch (error) {
       // 忽略删除错误
     }
@@ -752,12 +738,7 @@ export const captureException = (error: Error, context?: Partial<CrashContext>):
 };
 
 /** 添加面包屑 */
-export const addCrashBreadcrumb = (
-  category: string,
-  message: string,
-  data?: Record<string, unknown>,
-  level?: 'debug' | 'info' | 'warning' | 'error',
-): void => {
+export const addCrashBreadcrumb = (category: string, message: string, data?: Record<string, unknown>, level?: 'debug' | 'info' | 'warning' | 'error'): void => {
   getCrashReporter().addBreadcrumb(category, message, data, level);
 };
 
