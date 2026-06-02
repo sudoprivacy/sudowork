@@ -80,7 +80,7 @@ async def run_case(tab, case_path: Path) -> dict:
     return {"name": name, "passed": passed, "failed": failed, "results": results}
 
 
-async def main(port: int, case_filter: str = None):
+async def main(port: int, case_filter: str = None, tag: str = None):
     """Run E2E tests."""
     from ops.connect import connect
     print(f"Connecting to Sudowork CDP on port {port}...")
@@ -92,8 +92,19 @@ async def main(port: int, case_filter: str = None):
     if case_filter:
         case_files = [f for f in case_files if case_filter in f.stem]
 
+    # Filter by tag if specified
+    if tag:
+        filtered = []
+        for f in case_files:
+            with open(f) as fh:
+                case = yaml.safe_load(fh)
+            tags = case.get("tags", [])
+            if tag in tags:
+                filtered.append(f)
+        case_files = filtered
+
     if not case_files:
-        print(f"No test cases found in {CASES_DIR}")
+        print(f"No test cases found in {CASES_DIR}" + (f" with tag '{tag}'" if tag else ""))
         return False
 
     total_passed = 0
@@ -115,7 +126,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Sudowork E2E test runner")
     parser.add_argument("--port", type=int, default=9232, help="CDP port")
     parser.add_argument("--case", type=str, help="Run specific case (name filter)")
+    parser.add_argument("--tag", type=str, help="Run only cases with this tag (e.g. no-api, smoke)")
     args = parser.parse_args()
 
-    success = asyncio.run(main(port=args.port, case_filter=args.case))
+    success = asyncio.run(main(port=args.port, case_filter=args.case, tag=args.tag))
     sys.exit(0 if success else 1)

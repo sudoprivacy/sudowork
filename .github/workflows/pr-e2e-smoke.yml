@@ -1,0 +1,72 @@
+name: '✓PR E2E Smoke (no API key)'
+
+on:
+  pull_request:
+    branches: [main, dev]
+
+concurrency:
+  group: pr-e2e-smoke-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  BUN_INSTALL_REGISTRY: 'https://registry.npmjs.org/'
+
+jobs:
+  e2e-smoke:
+    name: E2E Smoke Tests (no API key)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --no-frozen-lockfile
+
+      - name: Run postinstall
+        run: npm run postinstall || true
+
+      - name: Install Linux display dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgbm-dev xvfb
+
+      - name: Build and start Sudowork
+        run: |
+          bun run start &
+          sleep 30
+        env:
+          CI: true
+          NEXUS_CDP_PORT: '9232'
+
+      - name: Run smoke tests (no-api tag only)
+        run: |
+          cd tests/e2e
+          xvfb-run --auto-servernum python3 runner.py --port 9232 --tag no-api
+        env:
+          CI: true
+          E2E_SCREENSHOTS: '1'
+          PYTHONPATH: ${{ github.workspace }}/vendor/ai-dev-browser:${{ github.workspace }}/skills/_builtin/browser
+
+      - name: Upload smoke test screenshots
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: e2e-smoke-screenshots
+          path: tests/e2e/screenshots/
+          retention-days: 7
+          if-no-files-found: ignore
