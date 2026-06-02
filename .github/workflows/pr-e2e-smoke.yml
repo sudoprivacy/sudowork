@@ -47,6 +47,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libgbm-dev xvfb
 
+      - name: Install uv (Python package manager for hook:build)
+        uses: astral-sh/setup-uv@v6
+
       - name: Install Python dependencies for ai-dev-browser
         run: pip install websockets websocket-client Pillow deprecated pyyaml
 
