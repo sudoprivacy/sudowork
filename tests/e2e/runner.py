@@ -40,6 +40,18 @@ async def run_case(tab, case_path: Path) -> dict:
     passed = 0
     failed = 0
 
+    # Lint: e2e cases must contain at least one UI interaction op.
+    # Pure js_eval / IPC tests belong in tests/integration/, not here.
+    UI_OPS = {"click", "type_text", "mouse_click", "press_key",
+              "pointer_down", "pointer_up", "pointer_move", "scroll",
+              "key_down", "key_up", "wait_for_response"}
+    step_ops = {s.get("op") for s in steps}
+    if not step_ops & UI_OPS:
+        print(f"  SKIP: {name} — no UI ops (belongs in tests/integration/, not e2e)")
+        return {"name": name, "passed": 0, "failed": 1,
+                "results": [{"step": 0, "op": "lint",
+                             "error": "e2e case has no UI ops — move to tests/integration/"}]}
+
     # Mark case start so ops like db_audit can filter messages "since this run"
     state.CASE_START_MS = int(time.time() * 1000)
     state.CASE_NAME = name
