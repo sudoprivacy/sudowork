@@ -25,6 +25,10 @@ const AVATAR_ALLOWED_BROADCAST_NAMES: ReadonlySet<string> = new Set<string>([
   // / error in MVP-0; expanded to 7 states in MVP-1). Channel is named via
   // ipcBridge.acpConversation.responseStream definition in src/common/ipcBridge.ts.
   'chat.response.stream',
+  // Screen capture result from wiggle detection — sent by avatarWiggleCapture.ts
+  // directly via webContents.send (not through forwardBroadcastToAvatars), but
+  // listed here for documentation completeness of the avatar:bridge channel namespace.
+  // 'avatar.screen.capture',
 ]);
 
 const avatarWindows: BrowserWindow[] = [];

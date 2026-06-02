@@ -25,6 +25,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { initMainAdapterWithWindow } from './adapter/main';
 import { createAvatarWindow } from './process/avatarWindow';
+import { startWiggleCapture } from './process/avatarWiggleCapture';
 import { ipcBridge } from './common';
 import { AION_ASSET_PROTOCOL, createAssetProtocolResponse } from './extensions/assetProtocol';
 import { initializeProcess } from './process';
@@ -362,6 +363,7 @@ let isExplicitQuit = false;
 
 let mainWindow: BrowserWindow;
 let avatarWindow: BrowserWindow | null = null;
+let stopWiggleCapture: (() => void) | null = null;
 let tray: Tray | null = null;
 
 /**
@@ -379,7 +381,10 @@ function openAvatarWindow(): void {
   if (avatarWindow && !avatarWindow.isDestroyed()) return;
   try {
     avatarWindow = createAvatarWindow();
+    stopWiggleCapture = startWiggleCapture(avatarWindow);
     avatarWindow.on('closed', () => {
+      stopWiggleCapture?.();
+      stopWiggleCapture = null;
       avatarWindow = null;
     });
   } catch (error) {
@@ -388,6 +393,8 @@ function openAvatarWindow(): void {
 }
 
 function closeAvatarWindow(): void {
+  stopWiggleCapture?.();
+  stopWiggleCapture = null;
   if (avatarWindow && !avatarWindow.isDestroyed()) {
     avatarWindow.close();
   }
