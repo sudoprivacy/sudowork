@@ -221,12 +221,14 @@ export function prepareCleanEnv({ injectSafetyHook = true }: PrepareCleanEnvOpti
     if (!cleanEnv.LC_ALL) cleanEnv.LC_ALL = 'C.UTF-8';
   }
 
-  // Default ai-dev-browser to headless mode.
   // Do NOT set AI_DEV_BROWSER_PORT — let ai-dev-browser launch its own
   // Chrome instance (port 9350+) via browser_start instead of connecting
   // to Sudowork's Electron CDP port, which would navigate the app's own
   // renderer tab and break the UI.
-  cleanEnv.AI_DEV_BROWSER_HEADLESS = '1';
+  // Do NOT force AI_DEV_BROWSER_HEADLESS — let the agent decide. Sites
+  // with strict bot detection (Akamai, Cloudflare) detect headless mode
+  // beyond navigator.webdriver. Non-headless is the default, matching
+  // real user behavior.
 
   const basePythonPath = removePathEntry(cleanEnv.PYTHONPATH, getHookPythonPath());
   if (basePythonPath) {
