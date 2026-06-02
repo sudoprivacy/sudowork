@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { CodexToolCallUpdate, IMessageAcpToolCall, IMessageToolGroup, TMessage } from '@/common/chatLib';
+import type { CodexToolCallUpdate, IMessageAcpToolCall, IMessageToolGroup, TMessage, TurnTokenUsage } from '@/common/chatLib';
 import { useConversationContextSafe } from '@/renderer/context/ConversationContext';
 import { iconColors } from '@/renderer/theme/colors';
 import { CHAT_MESSAGE_JUMP_EVENT, type ChatMessageJumpDetail } from '@/renderer/utils/chatMinimapEvents';
@@ -56,7 +56,7 @@ type IMessageVO =
       id: string;
       messages: Array<IMessageToolGroup | IMessageAcpToolCall>;
     }
-  | { type: 'turn_actions'; id: string; turnTexts: string[]; turnTextsRaw: string[]; conversationId?: string }
+  | { type: 'turn_actions'; id: string; turnTexts: string[]; turnTextsRaw: string[]; conversationId?: string; tokenUsage?: TurnTokenUsage }
   | { type: 'time_separator'; id: string; timestamp: number }
   | { type: 'loading_indicator'; id: string };
 
@@ -269,13 +269,15 @@ const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = fal
     let toolList: Array<IMessageToolGroup | IMessageAcpToolCall> = [];
     let turnTexts: string[] = [];
     let turnTextsRaw: string[] = [];
+    let turnTokenUsage: TurnTokenUsage | undefined;
     let lastAiTextId = '';
 
     const flushTurnActions = () => {
       if (turnTexts.length > 0) {
-        result.push({ type: 'turn_actions', id: `turn-actions-${lastAiTextId}`, turnTexts, turnTextsRaw, conversationId: conversationContext?.conversationId });
+        result.push({ type: 'turn_actions', id: `turn-actions-${lastAiTextId}`, turnTexts, turnTextsRaw, conversationId: conversationContext?.conversationId, tokenUsage: turnTokenUsage });
         turnTexts = [];
         turnTextsRaw = [];
+        turnTokenUsage = undefined;
         lastAiTextId = '';
       }
     };
@@ -317,6 +319,9 @@ const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = fal
       // Collect AI text content for turn-level copy
       if (message.type === 'text' && message.position === 'left') {
         const rawContent = message.content.content;
+        if (message.content.tokenUsage) {
+          turnTokenUsage = message.content.tokenUsage;
+        }
         if (typeof rawContent === 'string' && rawContent.trim()) {
           let cleaned = hasThinkTags(rawContent) ? stripThinkTags(rawContent) : rawContent;
           const markerIdx = cleaned.indexOf(NEXUS_FILES_MARKER);
@@ -494,7 +499,7 @@ const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = fal
     if ('type' in item && item.type === 'turn_actions') {
       return (
         <div key={item.id} className='group min-w-0 message-item px-8px max-w-full md:max-w-780px mx-auto'>
-          <TurnActions turnTexts={(item as Extract<IMessageVO, { type: 'turn_actions' }>).turnTexts} turnTextsRaw={(item as Extract<IMessageVO, { type: 'turn_actions' }>).turnTextsRaw} conversationId={(item as Extract<IMessageVO, { type: 'turn_actions' }>).conversationId} />
+          <TurnActions turnTexts={(item as Extract<IMessageVO, { type: 'turn_actions' }>).turnTexts} turnTextsRaw={(item as Extract<IMessageVO, { type: 'turn_actions' }>).turnTextsRaw} conversationId={(item as Extract<IMessageVO, { type: 'turn_actions' }>).conversationId} tokenUsage={(item as Extract<IMessageVO, { type: 'turn_actions' }>).tokenUsage} />
         </div>
       );
     }
