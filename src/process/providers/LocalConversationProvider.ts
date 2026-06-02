@@ -21,8 +21,8 @@ import { mainLog, mainError } from '@process/utils/mainLogger';
  *
  * Wraps existing database-backed conversation and message logic.
  * 包装现有的数据库会话和消息逻辑。
- * Used for local mode (ACP, OpenClaw agents).
- * 用于本地模式（ACP、OpenClaw Agent）。
+ * Used for local mode (ACP agents).
+ * 用于本地模式（ACP Agent）。
  */
 export class LocalConversationProvider implements IConversationProvider {
   readonly type = 'local' as const;
@@ -135,8 +135,8 @@ export class LocalConversationProvider implements IConversationProvider {
 
       // Filter out enterprise mode conversations (remote-agent)
       // 过滤掉企业模式会话（remote-agent）
-      // Local mode should only show acp and openclaw-gateway types
-      // 本地模式只显示 acp 和 openclaw-gateway 类型
+      // Local mode should only show acp types
+      // 本地模式只显示 acp 类型
       const localDbConversations = dbConversations.filter(
         (c) => c.type !== 'remote-agent' && c.extra?.backend !== 'remote-agent'
       );
@@ -204,7 +204,7 @@ export class LocalConversationProvider implements IConversationProvider {
       if (!task) {
         return { success: true, msg: 'conversation not found' };
       }
-      if (task.type !== 'acp' && task.type !== 'openclaw-gateway' && task.type !== 'remote-agent') {
+      if (task.type !== 'acp' && task.type !== 'remote-agent') {
         return { success: false, msg: 'not support' };
       }
       await task.stop();

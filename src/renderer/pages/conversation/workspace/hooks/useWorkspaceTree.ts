@@ -15,19 +15,16 @@ import { ensureDraftsDirectoryNode, filterValidExpandedKeys, getAllDirKeys, getF
 interface UseWorkspaceTreeOptions {
   workspace: string;
   conversation_id: string;
-  eventPrefix: 'acp' | 'openclaw-gateway' | 'remote-agent';
+  eventPrefix: 'acp' | 'remote-agent';
   backend?: string;
   dataSource?: 'local' | 'moss-session';
 }
 
-export function filterHiddenWorkspaceDirs(nodes: IDirOrFile[], options: { eventPrefix: 'acp' | 'openclaw-gateway' | 'remote-agent'; backend?: string; isRoot?: boolean }): IDirOrFile[] {
+export function filterHiddenWorkspaceDirs(nodes: IDirOrFile[], options: { eventPrefix: 'acp' | 'remote-agent'; backend?: string; isRoot?: boolean }): IDirOrFile[] {
   const { eventPrefix, backend, isRoot = true } = options;
   const hiddenNames = new Set<string>();
 
   if (isRoot && eventPrefix !== 'remote-agent') {
-    if (eventPrefix === 'openclaw-gateway') {
-      hiddenNames.add('skills');
-    }
     if (eventPrefix === 'acp' && backend === 'claude') {
       hiddenNames.add('.claude');
     }
@@ -314,15 +311,11 @@ export function useWorkspaceTree({ workspace, conversation_id, eventPrefix, back
               relativePath: nodeData.relativePath,
             },
           ];
-          if (eventPrefix === 'openclaw-gateway') {
-            emitter.emit('openclaw-gateway.selected.file', conversation_id, payload);
-          } else if (eventPrefix === 'acp') {
+          if (eventPrefix === 'acp') {
             emitter.emit('acp.selected.file', payload);
           }
         } else if (shouldEmit) {
-          if (eventPrefix === 'openclaw-gateway') {
-            emitter.emit('openclaw-gateway.selected.file', conversation_id, []);
-          } else if (eventPrefix === 'acp') {
+          if (eventPrefix === 'acp') {
             emitter.emit('acp.selected.file', []);
           }
         }
@@ -347,9 +340,7 @@ export function useWorkspaceTree({ workspace, conversation_id, eventPrefix, back
               relativePath: nodeData.relativePath,
             },
           ];
-          if (eventPrefix === 'openclaw-gateway') {
-            emitter.emit('openclaw-gateway.selected.file', conversation_id, payload);
-          } else if (eventPrefix === 'acp') {
+          if (eventPrefix === 'acp') {
             emitter.emit('acp.selected.file', payload);
           }
         }
@@ -365,9 +356,7 @@ export function useWorkspaceTree({ workspace, conversation_id, eventPrefix, back
               relativePath: nodeData.relativePath,
             },
           ];
-          if (eventPrefix === 'openclaw-gateway') {
-            emitter.emit('openclaw-gateway.selected.file', conversation_id, payload);
-          } else if (eventPrefix === 'acp') {
+          if (eventPrefix === 'acp') {
             emitter.emit('acp.selected.file', payload);
           }
         }

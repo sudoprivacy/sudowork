@@ -6,7 +6,6 @@
 
 import type { TChatConversation } from '@/common/storage';
 import AcpAgent from './task/AcpAgent';
-import OpenClawAgent from './task/OpenClawAgent';
 import RemoteAgent from './task/RemoteAgent';
 import { ProcessChat, ProcessConfig } from './initStorage';
 import type AgentBaseTask from './task/BaseAgent';
@@ -125,25 +124,6 @@ const buildConversation = (conversation: TChatConversation, options?: BuildConve
       }
       return task;
     }
-    case 'openclaw-gateway': {
-      // Try to get model from multiple sources (priority: openclawModelId > runtimeValidation > model)
-      const modelFromOpenClawModelId = (conversation.extra as any).openclawModelId;
-      const modelFromRuntimeValidation = (conversation.extra as any).runtimeValidation?.expectedModel;
-      const modelFromConfig = (conversation.extra as any).model;
-
-      const task = new OpenClawAgent({
-        ...conversation.extra,
-        conversation_id: conversation.id,
-        // Extract model: prefer openclawModelId (per-conversation), then runtimeValidation, then model
-        model: modelFromOpenClawModelId || modelFromRuntimeValidation || modelFromConfig,
-        // Runtime options / 运行时选项
-        yoloMode: options?.yoloMode,
-      });
-      if (!options?.skipCache) {
-        taskList.push({ id: conversation.id, task });
-      }
-      return task;
-    }
     default: {
       return null;
     }
@@ -205,7 +185,6 @@ const clear = async (): Promise<void> => {
   const killPromises = taskList.map((item) => {
     try {
       const result = item.task.kill();
-      // kill() may return a Promise (e.g. AcpAgent) or void (e.g. OpenClawAgent)
       return result instanceof Promise ? result : Promise.resolve();
     } catch (err) {
       mainError('WorkerManage', `Failed to kill task ${item.id}:`, err);
@@ -258,35 +237,6 @@ const updateActiveAgentWorkspace = (oldPath: string, newPath: string): number =>
   return updatedCount;
 };
 
-/** Send SIGUSR1 to the ServiceManager-owned Sudoclaw gateway for hot-reload (skills) */
-const reloadOpenClawSkills = async (): Promise<void> => {
-  const { serviceManager } = await import('./services/serviceManager');
-  serviceManager.sendReloadSignal();
-};
-
-/** Restart the Sudoclaw gateway (via ServiceManager) and reconnect all agent WebSockets */
-const restartOpenClawGateways = async (): Promise<void> => {
-  const { serviceManager } = await import('./services/serviceManager');
-  await serviceManager.restartOpenClaw();
-  // restartOpenClaw() already calls reconnectOpenClawAgents()
-};
-
-/** Reconnect all active openclaw-gateway agents' WebSocket connections (no gateway restart) */
-const reconnectOpenClawAgents = (): void => {
-  const openclawTasks = taskList.filter((item) => item.task.type === 'openclaw-gateway');
-  for (const { id, task } of openclawTasks) {
-    const agent = task as OpenClawAgent;
-    agent
-      .restartGateway()
-      .then(() => {
-        mainLog('WorkerManage', 'Reconnected OpenClaw agent for', id);
-      })
-      .catch((err) => {
-        mainError('WorkerManage', `Failed to reconnect OpenClaw agent for ${id}`, err);
-      });
-  }
-};
-
 const WorkerManage = {
   buildConversation,
   getTaskById,
@@ -296,9 +246,6 @@ const WorkerManage = {
   kill,
   clear,
   updateActiveAgentWorkspace,
-  reloadOpenClawSkills,
-  restartOpenClawGateways,
-  reconnectOpenClawAgents,
 };
 
 export default WorkerManage;

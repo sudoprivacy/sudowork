@@ -8,8 +8,7 @@
  * Scode Install Service
  *
  * Installs the bundled/downloaded scode CLI into its dedicated runtime root at
- * ~/.nexus/sudocode so startup can verify the default ACP runtime without
- * depending on the legacy Sudoclaw/OpenClaw gateway bootstrap path.
+ * ~/.nexus/sudocode so startup can verify the default ACP runtime.
  */
 
 import { app } from 'electron';

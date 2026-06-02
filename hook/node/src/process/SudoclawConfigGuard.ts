@@ -1,5 +1,5 @@
 /**
- * Architectural block for the LLM re-enabling openclaw's builtin browser.
+ * Architectural block for the LLM re-enabling sudoclaw's builtin browser.
  *
  * Openclaw exposes a `gateway` tool with `config.patch` / `config.apply`
  * actions — the LLM can (and does, empirically) flip
@@ -31,7 +31,7 @@ const fs: typeof fsNs = (() => {
 })();
 
 // Matches both the final file and any atomic-write `.tmp` companion
-// (openclaw names them `sudoclaw.json.<pid>.<uuid>.tmp`).
+// (sudoclaw names them `sudoclaw.json.<pid>.<uuid>.tmp`).
 const SUDOCLAW_JSON_PATH_RE = /[\\/]sudoclaw\.json(?:\.\d+\.[\w-]+\.tmp)?$/i;
 
 function looksLikeSudoclawConfigObj(obj: unknown): obj is Record<string, unknown> {
@@ -70,7 +70,7 @@ function guardPayload(data: string | Uint8Array | Buffer): string | Uint8Array |
   }
 
   // Invariant 2: tools.deny must include both 'browser' and 'image'.
-  // These control what's in the LLM's tool catalog (openclaw's
+  // These control what's in the LLM's tool catalog (sudoclaw's
   // filterToolsByPolicy). If the LLM drops either, re-add.
   const tools = (cfg.tools ?? {}) as { deny?: unknown };
   const denyArr = Array.isArray(tools.deny) ? (tools.deny as unknown[]).slice() : [];

@@ -74,7 +74,7 @@ export type GuidSendResult = {
 };
 
 /**
- * Hook that manages the send logic for all conversation types (acp/openclaw-gateway).
+ * Hook that manages the send logic for all conversation types.
  */
 export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
   const { input, setInput, files, setFiles, dir, setDir, setLoading, selectedSkills, selectedAgent, selectedAgentKey, selectedAgentInfo, isPresetAgent, selectedMode, selectedAcpModel, currentModel, sessionMode, findAgentByKey, getEffectiveAgentType, resolvePresetRulesAndSkills, resolveEnabledSkills, isMainAgentAvailable, getAvailableFallbackAgent, currentEffectiveAgentInfo, isGoogleAuth, setMentionOpen, setMentionQuery, setMentionSelectorOpen, setMentionActiveIndex, resetAgentSelection, setSelectedSkills, navigate, closeAllTabs, openTab, t } = deps;
@@ -98,8 +98,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
     let finalEffectiveAgentType = effectiveAgentType;
     if (isPreset && !isMainAgentAvailable(effectiveAgentType)) {
       const fallback = getAvailableFallbackAgent();
-      const isSameCategory = fallback && fallback !== 'openclaw-gateway' && effectiveAgentType !== 'openclaw-gateway';
-      if (fallback && fallback !== effectiveAgentType && isSameCategory) {
+      if (fallback && fallback !== effectiveAgentType) {
         finalEffectiveAgentType = fallback;
         Message.info(
           t('guid.autoSwitchedAgent', {
@@ -166,89 +165,13 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
       return;
     }
 
-    // Non-enterprise: scode fallback check
+    // Non-enterprise: scode availability check
     if ((selectedAgent === 'scode' || finalEffectiveAgentType === 'scode') && !hasScodeCli) {
-      const gatewayAgentInfo = findAgentByKey('openclaw-gateway');
-      if (gatewayAgentInfo) {
-        Message.info(
-          t('guid.autoSwitchedAgent', {
-            defaultValue: 'scode is not available, switched to openclaw-gateway',
-            from: 'scode',
-            to: 'openclaw-gateway',
-          })
-        );
-        finalEffectiveAgentType = 'openclaw-gateway';
-      } else {
-        Message.error(
-          t('guid.agentNotAvailable', {
-            defaultValue: 'Sudo Code is not available. Please install or repair the runtime.',
-          })
-        );
-        return;
-      }
-    }
-
-    // OpenClaw Gateway path (explicit gateway selection or preset that still routes to gateway)
-    if (selectedAgent === 'openclaw-gateway' || finalEffectiveAgentType === 'openclaw-gateway') {
-      const openclawAgentInfo = agentInfo || findAgentByKey(selectedAgentKey);
-      const actualAgentInfo = finalEffectiveAgentType === 'openclaw-gateway' ? findAgentByKey('openclaw-gateway') : openclawAgentInfo;
-
-      try {
-        const conversation = await ipcBridge.conversation.create.invoke({
-          type: 'openclaw-gateway',
-          name: input,
-          model: currentModel!,
-          extra: {
-            defaultFiles: files,
-            workspace: finalWorkspace,
-            customWorkspace: isCustomWorkspace,
-            backend: actualAgentInfo?.backend,
-            cliPath: actualAgentInfo?.cliPath,
-            agentName: actualAgentInfo?.name,
-            customAgentId: isPreset ? agentInfo?.customAgentId : undefined,
-            runtimeValidation: {
-              expectedWorkspace: finalWorkspace,
-              expectedBackend: actualAgentInfo?.backend,
-              expectedAgentName: actualAgentInfo?.name,
-              expectedCliPath: actualAgentInfo?.cliPath,
-              expectedModel: currentModel?.useModel,
-              switchedAt: Date.now(),
-            },
-            enabledSkills: isPreset ? enabledSkills : undefined,
-            // Use original agentInfo's customAgentId for preset assistant
-            presetAssistantId: isPreset ? agentInfo?.customAgentId || openclawAgentInfo?.customAgentId : undefined,
-            presetContext: isPreset ? presetRules : undefined,
-            sessionMode: selectedMode,
-            currentModelId: selectedAcpModel || undefined,
-          },
-        });
-
-        if (!conversation || !conversation.id) {
-          alert('Failed to create Sudoclaw conversation. Please ensure the Sudoclaw Gateway is running.');
-          return;
-        }
-
-        if (isCustomWorkspace) {
-          closeAllTabs();
-          updateWorkspaceTime(finalWorkspace);
-          openTab(conversation);
-        }
-
-        emitter.emit('chat.history.refresh');
-
-        const initialMessage = {
-          input,
-          files: files.length > 0 ? files : undefined,
-          skills: selectedSkills || [],
-        };
-        sessionStorage.setItem(`openclaw_initial_message_${conversation.id}`, JSON.stringify(initialMessage));
-
-        await navigate(`/conversation/${conversation.id}`);
-      } catch (error: unknown) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        alert(`Failed to create Sudoclaw conversation: ${errorMessage}`);
-        throw error;
-      }
+      Message.error(
+        t('guid.agentNotAvailable', {
+          defaultValue: 'Sudo Code is not available. Please install or repair the runtime.',
+        })
+      );
       return;
     }
 

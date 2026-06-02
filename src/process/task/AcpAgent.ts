@@ -705,8 +705,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
       // Start telemetry conversation tracking
       const modelInfo = this.getModelInfo();
       const modelId = modelInfo?.currentModelId || this.persistedModelId || 'unknown';
-      // Map openclaw-gateway to sudoclaw for telemetry
-      const modelProvider = this.options.backend === 'openclaw-gateway' ? 'sudoclaw' : this.options.backend;
+      const modelProvider = this.options.backend;
       startConversationTracking(this.conversation_id, modelId, modelProvider);
 
       // Start telemetry turn tracking

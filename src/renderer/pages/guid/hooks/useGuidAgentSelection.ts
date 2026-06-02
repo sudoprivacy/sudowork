@@ -1112,16 +1112,12 @@ This identity statement takes priority over the default identity in USER.md.
       return;
     }
 
-    // Consumer mode: check for scode/openclaw-gateway availability
+    // Consumer mode: check for scode availability
     const agents = availableAgentsRef.current;
     const scodeAvailable = agents?.some((a) => a.backend === 'scode');
-    const openclawAvailable = agents?.some((a) => a.backend === 'openclaw-gateway');
     if (scodeAvailable) {
       _setSelectedAgentKey('scode');
       selectedAgentKeyRef.current = 'scode';
-    } else if (openclawAvailable) {
-      _setSelectedAgentKey('openclaw-gateway');
-      selectedAgentKeyRef.current = 'openclaw-gateway';
     } else if (agents && agents.length > 0) {
       const firstAgent = agents[0];
       const firstKey = firstAgent.backend === 'custom' && firstAgent.customAgentId ? `custom:${firstAgent.customAgentId}` : firstAgent.backend;

@@ -54,8 +54,8 @@ async function checkLibreOfficeAvailable(): Promise<boolean> {
 
 interface UseWorkspaceFileOpsOptions {
   workspace: string;
-  eventPrefix: 'acp' | 'openclaw-gateway' | 'remote-agent';
-  /** Required when eventPrefix is 'openclaw-gateway' for scoped events */
+  eventPrefix: 'acp' | 'remote-agent';
+  /** Required when eventPrefix is 'remote-agent' for scoped events */
   conversation_id?: string;
   dataSource?: 'local' | 'moss-session';
   readonly?: boolean;
@@ -237,9 +237,7 @@ export function useWorkspaceFileOps(options: UseWorkspaceFileOpsOptions) {
       setSelected([]);
       selectedKeysRef.current = [];
       selectedNodeRef.current = null;
-      if (eventPrefix === 'openclaw-gateway' && conversation_id) {
-        emitter.emit('openclaw-gateway.selected.file', conversation_id, []);
-      } else if (eventPrefix === 'acp') {
+      if (eventPrefix === 'acp') {
         emitter.emit('acp.selected.file', []);
       }
       // Notify @file selector to refresh / 通知 @文件 选择器刷新
@@ -331,9 +329,7 @@ export function useWorkspaceFileOps(options: UseWorkspaceFileOpsOptions) {
           relativePath: newRelativePath,
           fullPath: newFullPath,
         };
-        if (eventPrefix === 'openclaw-gateway' && conversation_id) {
-          emitter.emit('openclaw-gateway.selected.file', conversation_id, []);
-        } else if (eventPrefix === 'acp') {
+        if (eventPrefix === 'acp') {
           emitter.emit('acp.selected.file', []);
         }
       } else {
@@ -371,9 +367,7 @@ export function useWorkspaceFileOps(options: UseWorkspaceFileOpsOptions) {
         relativePath: nodeData.relativePath || undefined,
       };
 
-      if (eventPrefix === 'openclaw-gateway' && conversation_id) {
-        emitter.emit('openclaw-gateway.selected.file.append', conversation_id, [payload]);
-      } else if (eventPrefix === 'acp') {
+      if (eventPrefix === 'acp') {
         emitter.emit('acp.selected.file.append', [payload]);
       }
       messageApi.success(t('conversation.workspace.contextMenu.addedToChat'));

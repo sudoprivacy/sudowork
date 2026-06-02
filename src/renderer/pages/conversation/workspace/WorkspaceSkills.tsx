@@ -11,7 +11,7 @@
  * icon square tinted by the skill-author-specified color.
  *
  * Sources:
- *   - OpenClaw agents  → `<workspace>/skills/`
+ *   - Default (ACP)    → `<workspace>/skills/`
  *   - Claude Code      → `<workspace>/.claude/skills/`
  *   - Sudo Code        → `<workspace>/.nexus/sudocode/skills/`
  *
@@ -49,10 +49,10 @@ export interface WorkspaceSkillsProps {
   workspace: string;
   /**
    * Which agent backend is driving this workspace — determines whether skills
-   * live under `skills/` (OpenClaw / most ACP), `.claude/skills/`
+   * live under `skills/` (most ACP), `.claude/skills/`
    * (Claude Code), or `.nexus/sudocode/skills/` (Sudo Code).
    */
-  eventPrefix?: 'acp' | 'openclaw-gateway' | 'remote-agent';
+  eventPrefix?: 'acp' | 'remote-agent';
   backend?: string;
   conversationId?: string;
   dataSource?: 'workspace' | 'moss-session';
@@ -93,16 +93,10 @@ interface SkillItem {
   emoji?: string | null;
 }
 
-const resolveEmptyDescription = (eventPrefix: 'acp' | 'openclaw-gateway' | 'remote-agent' | undefined, backend: string | undefined, dataSource: 'workspace' | 'moss-session', t: ReturnType<typeof useTranslation>['t']): string => {
+const resolveEmptyDescription = (eventPrefix: 'acp' | 'remote-agent' | undefined, backend: string | undefined, dataSource: 'workspace' | 'moss-session', t: ReturnType<typeof useTranslation>['t']): string => {
   if (dataSource === 'moss-session') {
     return t('conversation.workspace.remoteSkillsPendingDesc', {
       defaultValue: '会话开始后显示当前 backend 可用技能',
-    });
-  }
-
-  if (eventPrefix === 'openclaw-gateway') {
-    return t('conversation.workspace.skillsEmptyDescOpenClaw', {
-      defaultValue: '在 skills/ 目录下添加 SKILL.md 后会自动显示',
     });
   }
 
@@ -272,7 +266,7 @@ const pickIconByHeuristic = (name: string): IconComponent => {
   if (/book|wiki|note|jianshu|jiansheku|blog/.test(n)) return Book;
   if (/leave|calendar|schedule/.test(n)) return Calendar;
   if (/mermaid|flow|graph|diagram/.test(n)) return Branch;
-  if (/setup|config|setting|install|openclaw/.test(n)) return SettingConfig;
+  if (/setup|config|setting|install/.test(n)) return SettingConfig;
   if (/skill|creator|wand|magic|tool/.test(n)) return Tool;
   if (/folder|dir|workspace/.test(n)) return FolderOpen;
   if (/story|role|character/.test(n)) return Star;

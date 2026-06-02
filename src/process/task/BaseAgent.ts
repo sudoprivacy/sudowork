@@ -7,10 +7,10 @@
 import { ipcBridge } from '../../common';
 import type { IConfirmation } from '../../common/chatLib';
 
-type AgentType = 'acp' | 'openclaw-gateway' | 'remote-agent';
+type AgentType = 'acp' | 'remote-agent';
 
 /**
- * Base class for agent runtime instances (ACP and OpenClaw).
+ * Base class for agent runtime instances (ACP).
  * Each conversation has one agent that owns its transport connection.
  */
 class BaseAgent<Data, ConfirmationOption extends any = any> {

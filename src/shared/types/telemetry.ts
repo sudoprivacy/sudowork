@@ -63,7 +63,7 @@ export type InstallType = 'fresh' | 'update';
 export type ModelProvider = 'openai' | 'anthropic' | 'google' | (string & {});
 
 /** Agent 类型 - 数据来源标识 */
-export type AgentType = 'sudocode' | 'claude' | 'qwen' | 'gemini' | 'codex' | 'scode' | 'openclaw-gateway' | (string & {});
+export type AgentType = 'sudocode' | 'claude' | 'qwen' | 'gemini' | 'codex' | 'scode' | (string & {});
 
 /** 登录模式 */
 export type LoginMode = 'enterprise' | 'personal';
@@ -80,13 +80,13 @@ export type LoginMode = 'enterprise' | 'personal';
  * | E001 | HTTP 5xx / 连接错 | RotatingApiClient.ts | nova-gateway |
  * | E002 | HTTP 超时 | RotatingApiClient.ts | nova-gateway |
  * | E003 | SSE 中断 | AcpConnection.ts | acp |
- * | E004 | 空响应 | AcpAgent.ts | openclaw |
+ * | E004 | 空响应 | AcpAgent.ts | acp |
  * | E005 | ACP 解析错 | AcpMessagePipeline.ts | acp |
  * | E006 | Gateway 鉴权 | AuthService.ts | nova-gateway |
  * | E007 | Gateway 余额 | BillingService.ts | nova-gateway |
  * | E008 | 渲染 crash | ConversationPage.tsx | client |
- * | E009 | Agent 内部错 | AcpAgent.ts / OpenClawAgent.ts | client |
- * | E010 | Gateway 断开 | OpenClawAgent.ts | sudoclaw |
+ * | E009 | Agent 内部错 | AcpAgent.ts | client |
+ * | E010 | Gateway 断开 | (reserved) | sudoclaw |
  */
 export type TelemetryErrorCode =
   | 'E001' // HTTP 5xx 错误 / 网络连接错误

@@ -45,11 +45,6 @@ const resolveAgentIdentity = (conversation: TChatConversation): { backend: strin
     const agentName = String(conversation.extra?.agentName || backend);
     return { backend, agentName };
   }
-  if (conversation.type === 'openclaw-gateway') {
-    const backend = String(conversation.extra?.backend || 'openclaw');
-    const agentName = String(conversation.extra?.agentName || 'Sudoclaw');
-    return { backend, agentName };
-  }
   return { backend: 'unknown', agentName: 'Unknown' };
 };
 

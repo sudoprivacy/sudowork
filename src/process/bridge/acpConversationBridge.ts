@@ -82,7 +82,7 @@ export function initAcpConversationBridge(): void {
         });
       }
 
-      // Local mode: return all detected local agents (ACP, OpenClaw, etc.)
+      // Local mode: return all detected local agents (ACP, etc.)
       const agents = acpDetector.getDetectedAgents();
       const enriched = agents.map((agent) => ({
         ...agent,

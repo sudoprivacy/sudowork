@@ -106,7 +106,7 @@ export function initApplicationBridge(): void {
     }
   });
 
-  // Execute shell command (for OpenClaw CLI commands)
+  // Execute shell command
   ipcBridge.application.execCommand.provider(async ({ command, cwd }) => {
     try {
       const execAsync = promisify(exec);

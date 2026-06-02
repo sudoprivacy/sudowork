@@ -28,15 +28,6 @@ function root(children?: IDirOrFile[]): IDirOrFile {
 }
 
 describe('filterHiddenWorkspaceDirs', () => {
-  it('hides root skills directory for openclaw workspaces only', () => {
-    const result = filterHiddenWorkspaceDirs([dir('skills'), dir('src')], {
-      eventPrefix: 'openclaw-gateway',
-      isRoot: true,
-    });
-
-    expect(result.map((node: IDirOrFile) => node.name)).toEqual(['src']);
-  });
-
   it('hides root .claude directory for claude acp workspaces only', () => {
     const result = filterHiddenWorkspaceDirs([dir('.claude'), dir('docs')], {
       eventPrefix: 'acp',
@@ -45,25 +36,6 @@ describe('filterHiddenWorkspaceDirs', () => {
     });
 
     expect(result.map((node: IDirOrFile) => node.name)).toEqual(['docs']);
-  });
-
-  it('does not hide nested directories with the same names', () => {
-    const result = filterHiddenWorkspaceDirs([dir('src', [dir('skills'), dir('.claude')]), dir('skills')], {
-      eventPrefix: 'openclaw-gateway',
-      isRoot: true,
-    });
-
-    expect(result.map((node: IDirOrFile) => node.name)).toEqual(['src']);
-    expect(result[0]?.children?.map((node) => node.name)).toEqual(['skills', '.claude']);
-  });
-
-  it('hides root children under the synthetic workspace root node', () => {
-    const result = filterHiddenWorkspaceDirs([root([dir('skills'), dir('docs')])], {
-      eventPrefix: 'openclaw-gateway',
-      isRoot: true,
-    });
-
-    expect(result[0]?.children?.map((node) => node.name)).toEqual(['docs']);
   });
 
   it('does not apply local backend skill-root hiding to remote-agent workspaces', () => {
