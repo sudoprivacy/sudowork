@@ -1143,7 +1143,7 @@ const initStorage = async () => {
     try {
       const CHANNEL_AGENT_KEYS = ['assistant.telegram.agent', 'assistant.lark.agent', 'assistant.dingtalk.agent', 'assistant.wechat.agent', 'assistant.wecom.agent'] as const;
       for (const key of CHANNEL_AGENT_KEYS) {
-        const saved = await configFile.get(key).catch(() => undefined);
+        const saved = await configFile.get(key).catch((): undefined => undefined);
         if (saved && typeof saved === 'object' && (saved as any).backend === 'openclaw-gateway') {
           (saved as any).backend = 'scode';
           (saved as any).name = 'Sudo Code';

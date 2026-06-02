@@ -144,6 +144,9 @@ export class ScodeMcpAgent extends AbstractMcpAgent {
             transport,
             enabled: true,
             status: 'disconnected',
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            originalJson: JSON.stringify(config),
           });
         }
 
