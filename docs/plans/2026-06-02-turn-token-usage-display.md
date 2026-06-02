@@ -50,7 +50,7 @@ The badge appears in the existing action row below the assistant answer, next to
 12.4K tokens · in 10.8K / out 1.6K
 ```
 
-When available, reasoning, cache, and context details are shown in the tooltip to keep the transcript quiet.
+When available, reasoning and cache details are shown in the tooltip to keep the transcript quiet. Context window usage is intentionally not shown here because the send box already has the context usage indicator.
 
 ## Fallback Behavior
 

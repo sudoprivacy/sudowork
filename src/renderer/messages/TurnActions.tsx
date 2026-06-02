@@ -103,17 +103,14 @@ const TurnActions: React.FC<{ turnTexts: string[]; turnTextsRaw: string[]; conve
   const cachedReadTokens = tokenUsage?.cachedReadTokens ? formatTokenCount(tokenUsage.cachedReadTokens) : null;
   const cachedWriteTokens = tokenUsage?.cachedWriteTokens ? formatTokenCount(tokenUsage.cachedWriteTokens) : null;
   const thoughtTokens = tokenUsage?.thoughtTokens ? formatTokenCount(tokenUsage.thoughtTokens) : null;
-  const estimatedSessionTokens = formatTokenCount(tokenUsage?.estimatedSessionTokens);
-  const contextWindowTokens = formatTokenCount(tokenUsage?.contextWindowTokens);
   const usageTooltip = tokenUsage ? (
     <div className='text-12px leading-18px'>
       <div>{t('messages.tokenUsageTotal', { defaultValue: 'Total: {{value}} tokens', value: new Intl.NumberFormat().format(tokenUsage.totalTokens) })}</div>
       {typeof tokenUsage.inputTokens === 'number' && <div>{t('messages.tokenUsageInput', { defaultValue: 'Input: {{value}}', value: new Intl.NumberFormat().format(tokenUsage.inputTokens) })}</div>}
       {typeof tokenUsage.outputTokens === 'number' && <div>{t('messages.tokenUsageOutput', { defaultValue: 'Output: {{value}}', value: new Intl.NumberFormat().format(tokenUsage.outputTokens) })}</div>}
       {typeof tokenUsage.thoughtTokens === 'number' && <div>{t('messages.tokenUsageThought', { defaultValue: 'Reasoning: {{value}}', value: new Intl.NumberFormat().format(tokenUsage.thoughtTokens) })}</div>}
-      {typeof tokenUsage.cachedReadTokens === 'number' && <div>{t('messages.tokenUsageCachedRead', { defaultValue: 'Cache read: {{value}}', value: new Intl.NumberFormat().format(tokenUsage.cachedReadTokens) })}</div>}
-      {typeof tokenUsage.cachedWriteTokens === 'number' && <div>{t('messages.tokenUsageCachedWrite', { defaultValue: 'Cache write: {{value}}', value: new Intl.NumberFormat().format(tokenUsage.cachedWriteTokens) })}</div>}
-      {typeof tokenUsage.estimatedSessionTokens === 'number' && typeof tokenUsage.contextWindowTokens === 'number' && <div>{t('messages.tokenUsageContext', { defaultValue: 'Context: {{used}} / {{limit}}', used: new Intl.NumberFormat().format(tokenUsage.estimatedSessionTokens), limit: new Intl.NumberFormat().format(tokenUsage.contextWindowTokens) })}</div>}
+      {typeof tokenUsage.cachedReadTokens === 'number' && tokenUsage.cachedReadTokens > 0 && <div>{t('messages.tokenUsageCachedRead', { defaultValue: 'Cache read: {{value}}', value: new Intl.NumberFormat().format(tokenUsage.cachedReadTokens) })}</div>}
+      {typeof tokenUsage.cachedWriteTokens === 'number' && tokenUsage.cachedWriteTokens > 0 && <div>{t('messages.tokenUsageCachedWrite', { defaultValue: 'Cache write: {{value}}', value: new Intl.NumberFormat().format(tokenUsage.cachedWriteTokens) })}</div>}
     </div>
   ) : null;
 
@@ -143,7 +140,6 @@ const TurnActions: React.FC<{ turnTexts: string[]; turnTextsRaw: string[]; conve
               {thoughtTokens ? ` · ${t('messages.tokenUsageReasoningShort', { defaultValue: 'reasoning {{value}}', value: thoughtTokens })}` : ''}
               {cachedReadTokens ? ` · ${t('messages.tokenUsageCacheReadShort', { defaultValue: 'cache {{value}}', value: cachedReadTokens })}` : ''}
               {cachedWriteTokens ? ` · ${t('messages.tokenUsageCacheWriteShort', { defaultValue: 'write {{value}}', value: cachedWriteTokens })}` : ''}
-              {estimatedSessionTokens && contextWindowTokens ? ` · ${estimatedSessionTokens}/${contextWindowTokens}` : ''}
             </div>
           </Tooltip>
         )}
