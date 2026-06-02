@@ -47,6 +47,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libgbm-dev xvfb
 
+      - name: Install Python dependencies for ai-dev-browser
+        run: pip install deprecated pyyaml
+
       - name: Build and start Sudowork under xvfb
         run: |
           export DISPLAY=:99
