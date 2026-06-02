@@ -310,9 +310,9 @@ export async function prepareFirstMessage(content: string, config: FirstMessageC
  * 用于 ACP agents (Claude/OpenCode) 和 Codex，Agent 通过 Read 工具按需读取 skill 文件
  * Used for ACP agents (Claude/OpenCode) and Codex, Agent reads skill files on-demand using Read tool
  *
- * 注意：针对 ACP/OpenClaw 数字助手，这里只暴露 _system/_builtin 下的内置 skills。
+ * 注意：针对 ACP 数字助手，这里只暴露 _system/_builtin 下的内置 skills。
  * Hub/custom/system 下的非 builtin skills 不会通过首条消息注入给 agent。
- * Note: For ACP/OpenClaw assistants, only builtin skills under _system/_builtin are exposed here.
+ * Note: For ACP assistants, only builtin skills under _system/_builtin are exposed here.
  * Non-builtin skills from hub/custom/system are not injected via the first message.
  *
  * @param content - 原始消息内容 / Original message content
@@ -375,59 +375,8 @@ For example:
 }
 
 /**
- * 为 OpenClaw (openclaw-gateway) 准备首条消息内容。
- * Prepare first message content for OpenClaw (openclaw-gateway) agents.
- *
- * OpenClaw agents have a file read tool and can read SKILL.md files directly.
- * Do NOT inject [LOAD_SKILL:] instructions — those are for Gemini ACP agents only.
- * Only inject presetContext + builtin skills location hint (read-based, not tag-based).
- * Workspace skills are handled separately by injectSkillsDirectoryHint.
- *
- * @param content - 原始消息内容 / Original message content
- * @param config - 首次消息配置 / First message configuration
- * @returns 注入系统指令后的消息内容 / Message content with system instructions injected
- */
-export async function prepareOpenClawFirstMessage(content: string, config: FirstMessageConfig): Promise<string> {
-  const instructions: string[] = [];
-
-  // 1. 添加预设规则 / Add preset rules
-  if (config.presetContext) {
-    instructions.push(config.presetContext);
-  }
-
-  // 1.5 添加 Node.js 运行时提示 / Add Node.js runtime hint
-  const nodeHintForOpenClaw = buildNodeRuntimeHint();
-  if (nodeHintForOpenClaw) {
-    instructions.push(nodeHintForOpenClaw);
-  }
-
-  // 2. 加载内置 skills 索引 — 告诉 agent 直接读取 SKILL.md，不使用 [LOAD_SKILL:] 协议
-  // Load builtin skills index — tell agent to read SKILL.md directly, no [LOAD_SKILL:] protocol
-  const skillManager = AcpSkillManager.getInstance();
-  await skillManager.discoverBuiltinSkills();
-
-  const builtinSkillsIndex = skillManager.getBuiltinSkillsIndex();
-  if (builtinSkillsIndex.length > 0) {
-    const systemSkillsDir = getBuiltinSkillsDir();
-    const lines = builtinSkillsIndex.map((s) => `- ${s.name} (${s.description}): ${systemSkillsDir}/${s.name}/SKILL.md`);
-    const skillsInstruction = `[Builtin Skills]
-The following builtin skills are available. When a user request matches a skill's description, you MUST read that skill's SKILL.md and follow its instructions INSTEAD OF using any native tool for that capability.
-
-${lines.join('\n')}`;
-    instructions.push(skillsInstruction);
-  }
-
-  if (instructions.length === 0) {
-    return content;
-  }
-
-  const systemInstructions = instructions.join('\n\n');
-  return `[Assistant Rules - You MUST follow these instructions]\n${systemInstructions}\n\n[User Request]\n${content}`;
-}
-
-/**
- * 为首条消息补充 workspace skills 目录提示，供 OpenClaw 自行读取非 builtin skills。
- * Add workspace skills directory hint so OpenClaw can discover non-builtin skills by itself.
+ * 为首条消息补充 workspace skills 目录提示，供 agent 自行读取非 builtin skills。
+ * Add workspace skills directory hint so the agent can discover non-builtin skills by itself.
  *
  * Enumerates enabled skill names so the agent knows exactly which skills exist
  * and where to find their SKILL.md files — mirroring the builtin skills instruction.

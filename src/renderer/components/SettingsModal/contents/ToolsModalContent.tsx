@@ -5,7 +5,7 @@
  */
 
 import { ConfigStorage, DEFAULT_IMAGE_GENERATION_MODEL, type IConfigStorageRefer, type IMcpServer } from '@/common/storage';
-import { acpConversation, openclaw, scode } from '@/common/ipcBridge';
+import { acpConversation, scode } from '@/common/ipcBridge';
 import { Divider, Form, Switch, Tooltip, Message, Button, Dropdown, Menu, Modal } from '@arco-design/web-react';
 import { Help, Down, Plus } from '@icon-park/react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
@@ -258,7 +258,6 @@ const ToolsModalContent: React.FC = () => {
 
   const syncImageGenerationModel = useCallback((modelConfig: Partial<IConfigStorageRefer['tools.imageGenerationModel']>) => {
     const modelId = modelConfig.switch && modelConfig.useModel ? modelConfig.useModel : null;
-    openclaw.updateImageModel.invoke({ modelId }).catch(console.error);
     scode.setImageModel.invoke({ modelId }).catch(console.error);
   }, []);
 

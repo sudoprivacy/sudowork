@@ -195,7 +195,7 @@ describe('SudoclawInstallService', () => {
     fs.writeFileSync(path.join(pkgRoot, 'package.json'), JSON.stringify({ version: bundledVersion }, null, 2));
     fs.writeFileSync(path.join(pkgRoot, 'dist', 'entry.mjs'), 'export {};');
     fs.writeFileSync(path.join(pkgRoot, 'launcher.mjs'), 'export {};');
-    fs.writeFileSync(path.join(pkgRoot, 'bin', 'openclaw.cmd'), '@echo off');
+    fs.writeFileSync(path.join(pkgRoot, 'bin', 'sudoclaw.cmd'), '@echo off');
     fs.writeFileSync(
       path.join(homeDir, '.nexus', 'sudoclaw', 'install-manifest.json'),
       JSON.stringify(
@@ -239,7 +239,7 @@ describe('SudoclawInstallService', () => {
     expect(fs.existsSync(path.join(homeDir, '.nexus', 'sudoclaw', 'install-manifest.json'))).toBe(false);
   });
 
-  it('fails install when bundled openclaw manifest version does not match runtime version', async () => {
+  it('fails install when bundled manifest version does not match runtime version', async () => {
     fs.writeFileSync(
       path.join(resourcesDir, resourceManifestName),
       JSON.stringify(
@@ -446,7 +446,7 @@ describe('SudoclawInstallService', () => {
     fs.writeFileSync(path.join(newPkgRoot, 'package.json'), JSON.stringify({ version: bundledVersion }, null, 2));
     fs.writeFileSync(path.join(newPkgRoot, 'dist', 'entry.mjs'), 'export {};');
     fs.writeFileSync(path.join(newPkgRoot, 'launcher.mjs'), 'export {};');
-    fs.writeFileSync(path.join(newPkgRoot, 'bin', 'openclaw.cmd'), '@echo off');
+    fs.writeFileSync(path.join(newPkgRoot, 'bin', 'sudoclaw.cmd'), '@echo off');
     fs.writeFileSync(
       path.join(homeDir, '.nexus', 'sudoclaw', 'install-manifest.json'),
       JSON.stringify(
@@ -478,7 +478,7 @@ describe('SudoclawInstallService', () => {
     const configPath = path.join(sudoclawDir, 'sudoclaw.json');
     fs.mkdirSync(cliDir, { recursive: true });
     fs.mkdirSync(workspaceDir, { recursive: true });
-    fs.writeFileSync(path.join(cliDir, 'openclaw.cmd'), '@echo off');
+    fs.writeFileSync(path.join(cliDir, 'sudoclaw.cmd'), '@echo off');
     fs.writeFileSync(path.join(workspaceDir, 'note.txt'), 'workspace');
     fs.writeFileSync(configPath, JSON.stringify({ foo: 'bar' }, null, 2));
 

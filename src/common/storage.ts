@@ -86,7 +86,7 @@ export interface IConfigStorageRefer {
   'remote.hiddenCronSessionIds'?: Record<string, number>;
   /** Migration flag: skill subdirectory restructuring completed */
   'migration.skillSubdirectoriesMigrated'?: boolean;
-  /** Migration flag: channel agent migrated from openclaw-gateway (Sudoclaw) to scode (Sudo Code) */
+  /** Migration flag: channel agent migrated to scode (Sudo Code) */
   'migration.channelAgentMigratedToScode'?: boolean;
   // 关闭窗口时最小化到系统托盘 / Minimize to system tray when closing window
   'system.closeToTray'?: boolean;
@@ -269,71 +269,6 @@ export type TChatConversation =
           currentModelId?: string;
           /** Explicit marker for temporary health-check conversations */
           isHealthCheck?: boolean;
-          /** Display name override for workspace (rename without physical path change) / 工作空间显示名（重命名时只改显示名，不改物理路径） */
-          workspaceDisplayName?: string;
-          /** Cron job ID that created this conversation (for "new conversation per run" mode) */
-          cronJobId?: string;
-          /** Cron job name that created this conversation */
-          cronJobName?: string;
-          /** Cron run ID that created this conversation */
-          cronRunId?: string;
-          /** Cron job ID this conversation is pre-bound to (reuse mode, user-selected existing conversation) */
-          cronJobBoundId?: string;
-          /** Cron job name this conversation is pre-bound to */
-          cronJobBoundName?: string;
-        }
-      >,
-      'model'
-    >
-  | Omit<
-      IChatConversation<
-        'openclaw-gateway',
-        {
-          workspace?: string;
-          backend?: AcpBackendAll;
-          agentName?: string;
-          customWorkspace?: boolean;
-          customAgentId?: string; // UUID for identifying specific custom agent
-          presetContext?: string; // 智能助手的预设规则/提示词 / Preset context from smart assistant
-          /** Gateway configuration */
-          gateway?: {
-            host?: string;
-            port?: number;
-            token?: string;
-            password?: string;
-            useExternalGateway?: boolean;
-            cliPath?: string;
-            /** OpenClaw state directory (e.g. ~/.nexus/sudoclaw) */
-            stateDir?: string;
-          };
-          /** Session key for resume */
-          sessionKey?: string;
-          /** Runtime validation snapshot used for post-switch strong checks */
-          runtimeValidation?: {
-            expectedWorkspace?: string;
-            expectedBackend?: string;
-            expectedAgentName?: string;
-            expectedCliPath?: string;
-            expectedModel?: string;
-            expectedIdentityHash?: string | null;
-            switchedAt?: number;
-          };
-          /** 启用的 skills 列表 / Enabled skills list */
-          enabledSkills?: string[];
-          /** 预设助手 ID / Preset assistant ID */
-          presetAssistantId?: string;
-          /** Persisted session mode for resume support / 持久化的会话模式，用于恢复 */
-          sessionMode?: string;
-          /** Persisted model ID for resume support / 持久化的模型 ID，用于恢复 */
-          currentModelId?: string;
-          /** 是否置顶会话 / Whether this conversation is pinned */
-          pinned?: boolean;
-          /** 置顶时间戳（毫秒）/ Pin timestamp in milliseconds */
-          pinnedAt?: number;
-          /** Explicit marker for temporary health-check conversations */
-          isHealthCheck?: boolean;
-          /** Selected OpenClaw model ID / 选中的 OpenClaw 模型 ID */
-          openclawModelId?: string;
           /** Display name override for workspace (rename without physical path change) / 工作空间显示名（重命名时只改显示名，不改物理路径） */
           workspaceDisplayName?: string;
           /** Cron job ID that created this conversation (for "new conversation per run" mode) */

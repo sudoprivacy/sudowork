@@ -221,18 +221,12 @@ export function prepareCleanEnv({ injectSafetyHook = true }: PrepareCleanEnvOpti
     if (!cleanEnv.LC_ALL) cleanEnv.LC_ALL = 'C.UTF-8';
   }
 
-  // Default ai-dev-browser to headless and point it to SudoWork's CDP port
+  // Default ai-dev-browser to headless mode.
+  // Do NOT set AI_DEV_BROWSER_PORT — let ai-dev-browser launch its own
+  // Chrome instance (port 9350+) via browser_start instead of connecting
+  // to Sudowork's Electron CDP port, which would navigate the app's own
+  // renderer tab and break the UI.
   cleanEnv.AI_DEV_BROWSER_HEADLESS = '1';
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { cdpPort } = require('@/utils/configureChromium');
-    if (cdpPort) {
-      cleanEnv.AI_DEV_BROWSER_PORT = String(cdpPort);
-    }
-  } catch {
-    // Fallback: use default CDP port
-    cleanEnv.AI_DEV_BROWSER_PORT = '9230';
-  }
 
   const basePythonPath = removePathEntry(cleanEnv.PYTHONPATH, getHookPythonPath());
   if (basePythonPath) {

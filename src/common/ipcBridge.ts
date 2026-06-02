@@ -17,27 +17,10 @@ import type { UpdateCheckRequest, UpdateCheckResult, UpdateDownloadProgressEvent
 import type { ProtocolDetectionRequest, ProtocolDetectionResponse } from './utils/protocolDetector';
 import type { SyncAllResult } from '../process/sync/remoteToLocalSync';
 
-// OpenClaw model pricing API response type
-export interface IOpenClawModelsResponse {
-  data: Array<{
-    model_id: string;
-    model_ratio: number;
-    isPrimary?: boolean;
-  }>;
-  success: boolean;
-}
-
 export const shell = {
   openFile: bridge.buildProvider<void, string>('open-file'), // 使用系统默认程序打开文件
   showItemInFolder: bridge.buildProvider<void, string>('show-item-in-folder'), // 打开文件夹
   openExternal: bridge.buildProvider<void, string>('open-external'), // 使用系统默认程序打开外部链接
-};
-
-// OpenClaw model selector - fetch models from pricing API (bypasses CORS)
-export const openclaw = {
-  getModels: bridge.buildProvider<IOpenClawModelsResponse, void>('openclaw.get-models'),
-  selectModel: bridge.buildProvider<void, { conversationId: string; modelId: string; modelRatio: number }>('openclaw.select-model'),
-  updateImageModel: bridge.buildProvider<void, { modelId: string | null }>('openclaw.update-image-model'),
 };
 
 //通用会话能力
@@ -130,7 +113,7 @@ export const application = {
   logStream: bridge.buildEmitter<{ level: 'log' | 'warn' | 'error'; tag: string; message: string; data?: unknown }>('app.log-stream'),
   // DevTools state change notification
   devToolsStateChanged: bridge.buildEmitter<{ isOpen: boolean }>('app.devtools-state-changed'),
-  // Execute shell command (for OpenClaw CLI commands)
+  // Execute shell command
   execCommand: bridge.buildProvider<IBridgeResponse<{ stdout?: string; stderr?: string }>, { command: string; cwd?: string }>('app.exec-command'),
 };
 
@@ -520,77 +503,6 @@ export const mcporterService = {
   initialize: bridge.buildProvider<IBridgeResponse<void>, IMcpServer[]>('mcporter.initialize'),
 };
 
-// OpenClaw 对话相关接口 - 复用统一的conversation接口
-export const openclawConversation = {
-  sendMessage: conversation.sendMessage,
-  responseStream: bridge.buildEmitter<IResponseMessage>('openclaw.response.stream'),
-  getRuntime: bridge.buildProvider<
-    IBridgeResponse<{
-      conversationId: string;
-      runtime: {
-        workspace?: string;
-        backend?: string;
-        agentName?: string;
-        cliPath?: string;
-        model?: string;
-        sessionKey?: string | null;
-        isConnected?: boolean;
-        hasActiveSession?: boolean;
-        identityHash?: string | null;
-      };
-      expected?: {
-        expectedWorkspace?: string;
-        expectedBackend?: string;
-        expectedAgentName?: string;
-        expectedCliPath?: string;
-        expectedModel?: string;
-        expectedIdentityHash?: string | null;
-        switchedAt?: number;
-      };
-    }>,
-    { conversation_id: string }
-  >('openclaw.get-runtime'),
-  // Get global OpenClaw Gateway status (independent of conversation)
-  getGatewayStatus: bridge.buildProvider<
-    IBridgeResponse<{
-      gatewayRunning: boolean;
-      gatewayPort: number;
-      gatewayHost: string;
-      gatewayUrl: string;
-      isConnected: boolean;
-      hasActiveSession: boolean;
-      sessionKey: string | null;
-      workspace?: string;
-      agentName?: string;
-      model?: string;
-      cliPath?: string;
-      version?: string;
-      error?: string;
-    }>,
-    void
-  >('openclaw.get-gateway-status'),
-  // Get OpenClaw info via CLI (local execution)
-  getCliInfo: bridge.buildProvider<
-    IBridgeResponse<{
-      version?: string;
-      workspace?: string;
-      gatewayPort?: number;
-      gatewayHost?: string;
-      agentName?: string;
-      model?: string;
-      isConnected?: boolean;
-      error?: string;
-    }>,
-    void
-  >('openclaw.get-cli-info'),
-  setSessionModel: bridge.buildProvider<
-    IBridgeResponse<{
-      sessionKey: string;
-      model: string;
-    }>,
-    { conversation_id: string; modelId: string }
-  >('openclaw.set-session-model'),
-};
 
 // Database operations
 export const database = {
@@ -705,7 +617,7 @@ export const pythonRuntime = {
   installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('python-runtime.install-result'),
 };
 
-// Sudoclaw config (~/.nexus/sudoclaw) / OpenClaw 配置
+// Sudoclaw config (~/.nexus/sudoclaw) / Sudoclaw 配置
 // Matches sudoclaw.json schema: models.providers, agents.defaults, etc.
 export type SudoclawProviderModel = { id: string; name?: string; input?: string[] };
 export type SudoclawProvider = {
@@ -758,7 +670,7 @@ export const sudoclaw = {
   saveConfig: bridge.buildProvider<IBridgeResponse<void>, { config: SudoclawConfig }>('sudoclaw.save-config'),
   /** Get Sudoclaw install status */
   getStatus: bridge.buildProvider<IBridgeResponse<ISudoclawStatus>, void>('sudoclaw.get-status'),
-  /** Test OpenClaw gateway connection (start gateway, verify ready, then stop) */
+  /** Test Sudoclaw gateway connection (start gateway, verify ready, then stop) */
   testGateway: bridge.buildProvider<IBridgeResponse<SudoclawTestGatewayResult>, void>('sudoclaw.test-gateway'),
   /** Restart Sudoclaw gateway */
   restartGateway: bridge.buildProvider<IBridgeResponse<void>, void>('sudoclaw.restart-gateway'),
@@ -1080,7 +992,7 @@ export interface IConfirmMessageParams {
 }
 
 export interface ICreateConversationParams {
-  type: 'acp' | 'openclaw-gateway' | 'remote-agent';
+  type: 'acp' | 'remote-agent';
   id?: string;
   name?: string;
   model: TProviderWithModel;
@@ -1113,7 +1025,7 @@ export interface ICreateConversationParams {
     sessionModeParam?: 'remote' | 'local';
     /** Pre-selected ACP model from Guid page (cached model list) */
     currentModelId?: string;
-    /** Runtime validation snapshot used for post-switch strong checks (OpenClaw) */
+    /** Runtime validation snapshot used for post-switch strong checks */
     runtimeValidation?: {
       expectedWorkspace?: string;
       expectedBackend?: string;

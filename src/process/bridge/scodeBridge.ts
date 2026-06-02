@@ -96,7 +96,7 @@ export function writeScodeImageModel(modelId: string): void {
   mainLog(TAG, `Updated tools.imageGenerationModel to "${modelId}"`);
 }
 
-/** Live model-list endpoint — same as the legacy OpenClaw model source. */
+/** Live model-list endpoint for proxy model discovery. */
 const SPECIFIC_PRICING_URL = 'https://hk.sudorouter.ai/api/specific_pricing';
 
 type SpecificPricingResponse = {
@@ -171,7 +171,7 @@ export async function syncScodeModelsFromPricing(): Promise<void> {
 
 /**
  * Sync image generation model from ProcessConfig to sudocode.json on startup.
- * This runs independently of sudoclaw so it works even when openclaw is not used.
+ * This runs independently of sudoclaw.
  */
 async function syncImageModelOnStartup(): Promise<void> {
   try {

@@ -42,26 +42,6 @@ const AgentStatusDot: React.FC<{ conversation_id: string; conversationType?: TCh
 
   useEffect(() => {
     setStatus('');
-    if (conversationType === 'openclaw-gateway') {
-      let disposed = false;
-
-      const syncGatewayStatus = () => {
-        void ipcBridge.openclawConversation.getGatewayStatus
-          .invoke()
-          .then((res) => {
-            if (disposed || !res?.success || !res.data) return;
-            setStatus(resolveGatewayHealthStatus(!!res.data.gatewayRunning));
-          })
-          .catch(() => {});
-      };
-
-      syncGatewayStatus();
-      const timer = window.setInterval(syncGatewayStatus, 5000);
-      return () => {
-        disposed = true;
-        window.clearInterval(timer);
-      };
-    }
 
     void ipcBridge.conversation.getConnectionStatus
       .invoke({ conversation_id })
@@ -76,9 +56,6 @@ const AgentStatusDot: React.FC<{ conversation_id: string; conversationType?: TCh
   useAddEventListener(
     'agent.connection.status',
     (convId: string, newStatus: string) => {
-      if (conversationType === 'openclaw-gateway') {
-        return;
-      }
       if (convId === conversation_id) {
         setStatus(newStatus);
       }

@@ -1,5 +1,6 @@
 name: "/model command"
 description: "Test /model slash command: list models, autocomplete, switch, verify"
+tags: [no-api]
 
 steps:
   # Start fresh — click "新会话"

@@ -13,7 +13,7 @@ import { getAllDirKeys } from '../utils/treeHelpers';
 
 interface UseWorkspaceEventsOptions {
   conversation_id: string;
-  eventPrefix: 'acp' | 'openclaw-gateway' | 'remote-agent';
+  eventPrefix: 'acp' | 'remote-agent';
   // Absolute workspace root path — used to install an inotify-style recursive
   // directory watcher so the tree refreshes automatically when files change
   // outside of the agent event stream (manual file ops, external tools, etc.).
@@ -78,9 +78,7 @@ export function useWorkspaceEvents(options: UseWorkspaceEventsOptions) {
     closeRenameModal();
     closeDeleteModal();
     refreshWorkspace();
-    if (eventPrefix === 'openclaw-gateway') {
-      emitter.emit('openclaw-gateway.selected.file', conversation_id, []);
-    } else if (eventPrefix === 'acp') {
+    if (eventPrefix === 'acp') {
       emitter.emit('acp.selected.file', []);
     }
   }, [conversation_id, eventPrefix]); // Only depend on conversation_id to avoid infinite loop
@@ -88,7 +86,6 @@ export function useWorkspaceEvents(options: UseWorkspaceEventsOptions) {
   /**
    * 监听 Agent 响应流 - 自动刷新工作空间
    * Listen to agent response stream - auto refresh workspace
-   * OpenClaw uses ACP protocol, emits acp_tool_call on tool calls
    */
   useEffect(() => {
     if (dataSource === 'moss-session') {
@@ -101,11 +98,9 @@ export function useWorkspaceEvents(options: UseWorkspaceEventsOptions) {
       }
     };
     const unsubscribeAcp = ipcBridge.acpConversation.responseStream.on(handleAcpResponse);
-    const unsubscribeOpenClaw = ipcBridge.openclawConversation.responseStream.on(handleAcpResponse);
 
     return () => {
       unsubscribeAcp();
-      unsubscribeOpenClaw();
     };
   }, [dataSource]); // event listeners are stable, refreshWorkspace is captured from closure
 
@@ -266,15 +261,13 @@ export function useWorkspaceEvents(options: UseWorkspaceEventsOptions) {
   /**
    * 监听选中文件变化事件（sendbox 中关闭标签时同步状态）(#1083)
    * Listen to selected files change event (sync state when closing tags in sendbox)
-   * OpenClaw uses (conversation_id, items) format; ACP uses (items) only.
    */
   useAddEventListener(
     `${eventPrefix}.selected.file`,
     (...args: [Array<{ path: string; name: string; isFile: boolean; relativePath?: string }>] | [string, Array<{ path: string; name: string; isFile: boolean; relativePath?: string }>]) => {
       if (eventPrefix === 'remote-agent') return;
-      const items = eventPrefix === 'openclaw-gateway' ? (args[1] as Array<{ path: string; name: string; isFile: boolean; relativePath?: string }>) : (args[0] as Array<{ path: string; name: string; isFile: boolean; relativePath?: string }>);
+      const items = args[0] as Array<{ path: string; name: string; isFile: boolean; relativePath?: string }>;
       if (!Array.isArray(items)) return;
-      if (eventPrefix === 'openclaw-gateway' && args[0] !== conversation_id) return;
 
       // Extract relative paths from items, filter out files (only keep folders in tree selection)
       // 从 items 中提取相对路径，过滤掉文件（树选中状态只保留文件夹）

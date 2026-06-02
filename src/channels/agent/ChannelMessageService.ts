@@ -291,7 +291,7 @@ export class ChannelMessageService {
         pendingMessages: [],
       });
 
-      // Build payload — both ACP and OpenClaw use { content }.
+      // Build payload — ACP agents use { content }.
       // Include files (local paths) when media attachments are present.
       const payload: { content: string; msg_id: string; files?: string[] } = { content: message, msg_id: msgId };
       if (files && files.length > 0) {

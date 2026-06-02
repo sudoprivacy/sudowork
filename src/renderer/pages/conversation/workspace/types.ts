@@ -17,7 +17,7 @@ export type MessageApi = ReturnType<typeof Message.useMessage>[0];
 export interface WorkspaceProps {
   workspace: string;
   conversation_id: string;
-  eventPrefix?: 'acp' | 'openclaw-gateway' | 'remote-agent';
+  eventPrefix?: 'acp' | 'remote-agent';
   backend?: string;
   dataSource?: 'local' | 'moss-session';
   readonly?: boolean;

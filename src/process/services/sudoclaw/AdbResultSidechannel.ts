@@ -6,19 +6,19 @@
 
 /**
  * Sidechannel HTTP server that collects full stdout of ai-dev-browser tool
- * invocations from inside the openclaw gateway process, so the sudowork UI
+ * invocations from inside the sudoclaw gateway process, so the sudowork UI
  * and the embedded LLM can both see the real Python output instead of the
- * short `meta` description openclaw forwards over its WebSocket.
+ * short `meta` description the gateway forwards over its WebSocket.
  *
- * Lifecycle is tied to the gateway — started before `OpenClawGatewayManager`
+ * Lifecycle is tied to the gateway — started before `SudoclawGatewayManager`
  * spawns and stopped when the gateway stops. The port and shared secret are
  * passed into the gateway via `customEnv` as `AI_DEV_BROWSER_SIDECHANNEL_URL`
  * and `AI_DEV_BROWSER_SIDECHANNEL_SECRET`; from there they inherit into
- * whatever `python -m ai_dev_browser.tools.*` children openclaw spawns.
+ * whatever `python -m ai_dev_browser.tools.*` children the gateway spawns.
  *
  * The Node-level hook (`hook/node/src/process/AdbStdoutCapture.ts`) POSTs
  * `AdbResultEntry` JSON to `/capture`, authenticating via the shared secret.
- * `OpenClawAgent` then calls `waitForCmd(cmdHash, windowMs)` to reconcile an
+ * Agents call `waitForCmd(cmdHash, windowMs)` to reconcile an
  * inbound `tool_call` result event with the captured payload.
  */
 
@@ -61,7 +61,7 @@ export class AdbResultSidechannel {
   private readonly waitersByHash = new Map<string, WaiterRecord[]>();
   // Waiters that don't care about cmdHash — they consume the next entry
   // from the global FIFO across all hashes. Used by sudowork when the
-  // openclaw meta is truncated and we can't reconstruct the hook-side hash.
+  // gateway meta is truncated and we can't reconstruct the hook-side hash.
   private readonly globalWaiters: WaiterRecord[] = [];
 
   async start(): Promise<{ port: number; secret: string }> {
@@ -146,7 +146,7 @@ export class AdbResultSidechannel {
   /**
    * Wait for the next captured ai-dev-browser entry in global FIFO order
    * (across all cmdHashes). Used when the caller can't reconstruct the
-   * hook's hashInput — e.g. openclaw truncates the `meta` field, so the
+   * hook's hashInput — e.g. the gateway truncates the `meta` field, so the
    * sudowork side can't reproduce the hash the hook computed. Callers that
    * DO have a reliable key should still use `waitForCmd` for precise match.
    */

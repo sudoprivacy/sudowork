@@ -5,6 +5,7 @@ description: >
   managed-agent.cancel-session IPC channels are registered and
   return the expected response shape. Requires: sudowork running
   with nexusd active.
+tags: [smoke, no-api]
 
 steps:
   # ── Phase 0: Wait for app startup ──

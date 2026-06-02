@@ -287,7 +287,7 @@ async function reloadSkillRuntime(): Promise<void> {
   }
 
   mainLog('SkillHub', 'Hot-reload not supported, restarting gateway...');
-  await serviceManager.restartOpenClaw();
+  await serviceManager.restartSudoclaw();
 }
 
 async function extractSkillZipToDirectory(zipBuffer: Buffer, skillDir: string): Promise<{ extractedFiles: string[] }> {
@@ -526,7 +526,7 @@ async function installImportedSkillFromPreparedDirectory(skillDir: string, impor
       await reloadSkillRuntime();
     } catch (err) {
       mainWarn('SkillHub', 'Reload after local skill import failed:', err);
-      await WorkerManage.restartOpenClawGateways();
+      await serviceManager.restartSudoclaw();
     }
   })();
 
@@ -902,7 +902,7 @@ export function initSkillHubBridge(): void {
           await reloadSkillRuntime();
         } catch (err) {
           mainWarn('SkillHub', 'Reload failed:', err);
-          await WorkerManage.restartOpenClawGateways();
+          await serviceManager.restartSudoclaw();
         }
       })();
 
@@ -1041,7 +1041,7 @@ export function initSkillHubBridge(): void {
             await reloadSkillRuntime();
           } catch (err) {
             mainWarn('SkillHub', 'Reload after uninstall failed:', err);
-            await WorkerManage.restartOpenClawGateways();
+            await serviceManager.restartSudoclaw();
           }
         })();
       }
@@ -1062,7 +1062,7 @@ export function initSkillHubBridge(): void {
             await reloadSkillRuntime();
           } catch (err) {
             mainWarn('SkillHub', 'Reload after enable toggle failed:', err);
-            await WorkerManage.restartOpenClawGateways();
+            await serviceManager.restartSudoclaw();
           }
         })();
       }

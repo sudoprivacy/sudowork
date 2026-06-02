@@ -14,7 +14,6 @@ import path from 'path';
 import { DRAFTS_DIR_NAME } from '@/common/constants';
 import { getSystemDir } from './initStorage';
 import { SUDOCLAW_DIR } from './services/sudoclaw/SudoclawInstallService';
-import { computeOpenClawIdentityHash } from './utils/openclawUtils';
 
 /**
  * 创建工作空间目录（不复制文件）
@@ -96,68 +95,6 @@ export function getSudoclawWorkspaceRoot(): string {
   }
   return getSystemDir().workDir;
 }
-
-export const createOpenClawAgent = async (options: ICreateConversationParams): Promise<TChatConversation> => {
-  const { extra } = options;
-  // Use workspace root from sudoclaw.json so the agent's working dir matches the UI workspace panel.
-  // Falls back to getSystemDir().workDir if sudoclaw.json is missing or has no workspace configured.
-  const tempName = `sudoclaw-temp-${Date.now()}`;
-  let resolvedWorkspace = extra.workspace;
-  if (!resolvedWorkspace) {
-    const root = getSudoclawWorkspaceRoot();
-    resolvedWorkspace = path.join(root, tempName);
-    await fs.mkdir(resolvedWorkspace, { recursive: true });
-  }
-  const { workspace, customWorkspace } = await buildWorkspaceWidthFiles(tempName, resolvedWorkspace, extra.defaultFiles, extra.customWorkspace);
-  // Compute identity hash from the shared workspace root (where IDENTITY.md/SOUL.md live),
-  // not from the per-session temp directory. The temp workspace is only for task-specific files;
-  // identity and memory persist in the parent workspace across all sessions.
-  const sharedWorkspaceRoot = getSudoclawWorkspaceRoot();
-  const expectedIdentityHash = await computeOpenClawIdentityHash(sharedWorkspaceRoot);
-
-  const stateDir = SUDOCLAW_DIR;
-
-  return {
-    type: 'openclaw-gateway',
-    extra: {
-      workspace: workspace,
-      backend: extra.backend,
-      agentName: extra.agentName,
-      customWorkspace,
-      gateway: {
-        stateDir,
-      },
-      runtimeValidation: {
-        expectedWorkspace: workspace,
-        expectedBackend: extra.backend,
-        expectedAgentName: extra.agentName,
-        // Note: model is not used by openclaw-gateway, so skip expectedModel to avoid
-        // validation mismatch (conversation object doesn't store model for this type)
-        expectedIdentityHash,
-        switchedAt: extra.runtimeValidation?.switchedAt ?? Date.now(),
-      },
-      // Custom agent ID for preset assistant identification
-      customAgentId: extra.customAgentId,
-      // Preset context/rules for preset assistants
-      presetContext: extra.presetContext,
-      // Enabled skills list (loaded via SkillManager)
-      enabledSkills: extra.enabledSkills,
-      // Preset assistant ID for displaying name and avatar in conversation panel
-      presetAssistantId: extra.presetAssistantId,
-      // Initial session mode selected on Guid page
-      sessionMode: extra.sessionMode,
-      // Pre-selected model from Guid page
-      currentModelId: extra.currentModelId,
-      // Cron job metadata (set when conversation is created by a cron execution)
-      cronJobId: extra.cronJobId,
-      cronJobName: extra.cronJobName,
-    },
-    createTime: Date.now(),
-    modifyTime: Date.now(),
-    name: workspace,
-    id: uuid(),
-  };
-};
 
 /**
  * Create Remote Agent conversation (Moss Server enterprise mode)

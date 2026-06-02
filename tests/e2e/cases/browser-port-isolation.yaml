@@ -1,0 +1,33 @@
+name: "browser port isolation"
+description: >
+  End-to-end smoke test for browser tool port isolation. Starts a local
+  HTTP server, then invokes browser_start → page_goto → click_by_text →
+  page_screenshot via the same CLI path the agent uses. Verifies:
+    - Chrome launches on a separate port (not Sudowork's 9230)
+    - page_goto loads the local test page correctly
+    - click_by_text navigates within the test page
+    - page_screenshot produces a valid file
+    - Sudowork's renderer tab is never navigated away
+    - Sudowork's CDP tabs never contain the test page URL
+  Does NOT require an API key or external network access.
+
+tags: [smoke, no-api]
+
+steps:
+  # ── Wait for Sudowork to fully load ──
+  - op: wait_for_app_ready
+    timeout: 300
+
+  # ── Baseline screenshot (Sudowork UI before test) ──
+  - op: screenshot
+    path: "screenshots/browser-port-isolation-00-baseline.png"
+
+  # ── Full port isolation test ──
+  # Starts local HTTP server, browser_start, page_goto, click, screenshot,
+  # then verifies Sudowork UI is unaffected
+  - op: browser_port_isolation
+    sudowork_cdp_port: 9230
+
+  # ── Post-test screenshot (Sudowork UI after test — should be unchanged) ──
+  - op: screenshot
+    path: "screenshots/browser-port-isolation-01-after.png"

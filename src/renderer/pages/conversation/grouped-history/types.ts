@@ -10,7 +10,7 @@ import type { TChatConversation } from '@/common/storage';
  * Unified conversation type for sidebar rendering
  *
  * With Provider abstraction layer, all conversations are TChatConversation:
- * - Local conversations (acp, openclaw-gateway): stored in database
+ * - Local conversations (acp): stored in database
  * - Enterprise conversations (remote-agent): cached locally as TChatConversation
  */
 export type ConversationItem = TChatConversation;

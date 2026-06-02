@@ -3,17 +3,13 @@ import type { TChatConversation } from '@/common/storage';
 /**
  * Workspace skill linking is supported when the conversation has a workspace and
  * either:
- * 1. it's an OpenClaw conversation, or
- * 2. the preset assistant explicitly declares enabled skills, or
- * 3. the current message requests ad-hoc skills.
+ * 1. the preset assistant explicitly declares enabled skills, or
+ * 2. the current message requests ad-hoc skills, or
+ * 3. it's a supported ACP backend (claude, scode).
  */
 export function shouldSyncWorkspaceSkills(conversation?: TChatConversation, requestedSkillNames?: string[]): boolean {
   if (!conversation?.extra?.workspace) {
     return false;
-  }
-
-  if (conversation.type === 'openclaw-gateway') {
-    return true;
   }
 
   if (conversation.type === 'acp' && conversation.extra?.backend === 'claude') {

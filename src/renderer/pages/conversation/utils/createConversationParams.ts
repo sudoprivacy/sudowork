@@ -53,15 +53,9 @@ export async function getDefaultGeminiModel(): Promise<TProviderWithModel> {
  * codex uses ACP path (type: 'acp' + extra.backend = 'codex').
  */
 export function getConversationTypeForBackend(backend: string): ICreateConversationParams['type'] {
-  switch (backend) {
-    case 'openclaw-gateway':
-    case 'openclaw':
-      return 'openclaw-gateway';
-    default:
-      // claude, gemini, qwen, codex, iflow, goose, auggie, kimi, opencode, copilot, qoder, codebuddy, droid, vibe, etc.
-      // All backends use ACP protocol.
-      return 'acp';
-  }
+  // All backends use ACP protocol.
+  // claude, gemini, qwen, codex, iflow, goose, auggie, kimi, opencode, copilot, qoder, codebuddy, droid, vibe, etc.
+  return 'acp';
 }
 
 /**
@@ -69,7 +63,7 @@ export function getConversationTypeForBackend(backend: string): ICreateConversat
  * Legacy sudoclaw preset metadata is normalized to scode.
  */
 export function getConversationTypeForPreset(presetAgentType: string | undefined): ICreateConversationParams['type'] {
-  return resolvePresetAgentBackend(presetAgentType) === 'openclaw-gateway' ? 'openclaw-gateway' : 'acp';
+  return 'acp';
 }
 
 /**
@@ -87,13 +81,13 @@ export async function buildCliAgentParams(agent: AvailableAgent, workspace: stri
     customWorkspace: true,
   };
 
-  if (type === 'acp' || type === 'openclaw-gateway') {
+  if (type === 'acp') {
     extra.backend = backend as AcpBackendAll;
     extra.agentName = agentName;
     if (cliPath) extra.cliPath = cliPath;
   }
 
-  // ACP/OpenClaw agents don't use the model field at the conversation level
+  // ACP agents don't use the model field at the conversation level
   const model = {} as TProviderWithModel;
 
   return { type, model, name: agentName, extra };

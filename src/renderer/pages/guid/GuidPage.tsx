@@ -163,7 +163,7 @@ const GuidPage: React.FC = () => {
   const prefilledAssistantRef = useRef<string | null>(null);
   useEffect(() => {
     if (!assistantParam || !agentSelection.customAgents || agentSelection.customAgents.length === 0) return;
-    if (agentSelection.selectedAgentKey === 'openclaw-gateway' || !agentSelection.selectedAgentKey.startsWith('custom:')) return;
+    if (!agentSelection.selectedAgentKey.startsWith('custom:')) return;
 
     const assistantId = agentSelection.selectedAgentKey.slice(7);
 
