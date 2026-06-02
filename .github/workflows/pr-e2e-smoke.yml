@@ -36,44 +36,34 @@ jobs:
         with:
           bun-version: latest
 
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+
       - name: Install dependencies
         run: bun install --no-frozen-lockfile
 
       - name: Run postinstall
         run: npm run postinstall || true
 
-      - name: Install Linux display dependencies
+      - name: Install system dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y libgbm-dev xvfb
+          pip install websockets websocket-client Pillow deprecated pyyaml
+          # Electron SUID sandbox for CI
+          sudo chown root:root node_modules/electron/dist/chrome-sandbox 2>/dev/null || true
+          sudo chmod 4755 node_modules/electron/dist/chrome-sandbox 2>/dev/null || true
 
-      - name: Install uv (Python package manager for hook:build)
-        uses: astral-sh/setup-uv@v6
-
-      - name: Install Python dependencies for ai-dev-browser
-        run: pip install websockets websocket-client Pillow deprecated pyyaml
-
-      - name: Start Xvfb
+      - name: Start Xvfb and Sudowork
         run: |
           Xvfb :99 -screen 0 1280x1024x24 &
           sleep 2
-
-      - name: Build and start Sudowork
-        run: |
-          # Fix Electron sandbox permissions for CI
-          sudo chown root:root node_modules/electron/dist/chrome-sandbox 2>/dev/null || true
-          sudo chmod 4755 node_modules/electron/dist/chrome-sandbox 2>/dev/null || true
           bun run start &
-          # Wait for CDP port to become available
           for i in $(seq 1 60); do
-            if curl -sf http://127.0.0.1:9232/json/version > /dev/null 2>&1; then
-              echo "Sudowork CDP ready after ${i}s"
-              break
-            fi
+            curl -sf http://127.0.0.1:9232/json/version > /dev/null 2>&1 && echo "CDP ready (${i}×2s)" && break
             sleep 2
           done
-          # Verify it's actually ready
-          curl -sf http://127.0.0.1:9232/json/version || echo "WARNING: CDP not responding"
+          curl -sf http://127.0.0.1:9232/json/version || { echo "::error::Sudowork CDP not responding"; exit 1; }
         env:
           CI: true
           DISPLAY: ':99'
@@ -84,12 +74,10 @@ jobs:
           cd tests/e2e
           python3 runner.py --port 9232 --tag no-api
         env:
-          CI: true
           DISPLAY: ':99'
-          E2E_SCREENSHOTS: '1'
           PYTHONPATH: ${{ github.workspace }}/vendor/ai-dev-browser:${{ github.workspace }}/skills/_builtin/browser
 
-      - name: Upload smoke test screenshots
+      - name: Upload screenshots
         if: always()
         uses: actions/upload-artifact@v6
         with:
