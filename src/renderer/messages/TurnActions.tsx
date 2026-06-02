@@ -22,6 +22,11 @@ const formatTokenCount = (value?: number | null) => {
   return new Intl.NumberFormat().format(value);
 };
 
+const formatPointCount = (tokens?: number | null) => {
+  if (typeof tokens !== 'number' || !Number.isFinite(tokens)) return null;
+  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(tokens / 500);
+};
+
 const TurnActions: React.FC<{ turnTexts: string[]; turnTextsRaw: string[]; conversationId?: string; tokenUsage?: TurnTokenUsage }> = ({ turnTexts, turnTextsRaw, conversationId, tokenUsage }) => {
   const { t } = useTranslation();
   const [showCopyAlert, setShowCopyAlert] = useState(false);
@@ -98,6 +103,7 @@ const TurnActions: React.FC<{ turnTexts: string[]; turnTextsRaw: string[]; conve
   }, [turnTextsRaw, shareoneInstalled, sharing, t]);
 
   const totalTokens = formatTokenCount(tokenUsage?.totalTokens);
+  const points = formatPointCount(tokenUsage?.totalTokens);
   const inputTokens = formatTokenCount(tokenUsage?.inputTokens);
   const outputTokens = formatTokenCount(tokenUsage?.outputTokens);
   const cachedReadTokens = tokenUsage?.cachedReadTokens ? formatTokenCount(tokenUsage.cachedReadTokens) : null;
@@ -106,6 +112,7 @@ const TurnActions: React.FC<{ turnTexts: string[]; turnTextsRaw: string[]; conve
   const usageTooltip = tokenUsage ? (
     <div className='text-12px leading-18px'>
       <div>{t('messages.tokenUsageTotal', { defaultValue: 'Total: {{value}} tokens', value: new Intl.NumberFormat().format(tokenUsage.totalTokens) })}</div>
+      {points && <div>{t('messages.tokenUsagePoints', { defaultValue: 'Points: {{value}}', value: points })}</div>}
       {typeof tokenUsage.inputTokens === 'number' && <div>{t('messages.tokenUsageInput', { defaultValue: 'Input: {{value}}', value: new Intl.NumberFormat().format(tokenUsage.inputTokens) })}</div>}
       {typeof tokenUsage.outputTokens === 'number' && <div>{t('messages.tokenUsageOutput', { defaultValue: 'Output: {{value}}', value: new Intl.NumberFormat().format(tokenUsage.outputTokens) })}</div>}
       {typeof tokenUsage.thoughtTokens === 'number' && <div>{t('messages.tokenUsageThought', { defaultValue: 'Reasoning: {{value}}', value: new Intl.NumberFormat().format(tokenUsage.thoughtTokens) })}</div>}
@@ -136,6 +143,7 @@ const TurnActions: React.FC<{ turnTexts: string[]; turnTextsRaw: string[]; conve
           <Tooltip content={usageTooltip}>
             <div className='ml-4px max-w-full truncate text-11px leading-18px px-6px py-1px rd-4px border border-solid border-[var(--color-border-2)] text-t-secondary bg-[var(--color-fill-1)]'>
               {t('messages.tokenUsageSummary', { defaultValue: '{{total}} tokens', total: totalTokens })}
+              {points ? ` · ${t('messages.tokenUsagePointsShort', { defaultValue: '{{value}} points', value: points })}` : ''}
               {inputTokens && outputTokens ? ` · ${t('messages.tokenUsageInOut', { defaultValue: 'in {{input}} / out {{output}}', input: inputTokens, output: outputTokens })}` : ''}
               {thoughtTokens ? ` · ${t('messages.tokenUsageReasoningShort', { defaultValue: 'reasoning {{value}}', value: thoughtTokens })}` : ''}
               {cachedReadTokens ? ` · ${t('messages.tokenUsageCacheReadShort', { defaultValue: 'cache {{value}}', value: cachedReadTokens })}` : ''}

@@ -47,10 +47,10 @@ The metadata lives on `IMessageText.content.tokenUsage` so it is persisted with 
 The badge appears in the existing action row below the assistant answer, next to copy/share actions:
 
 ```text
-12.4K tokens · in 10.8K / out 1.6K
+12.4K tokens · 24.8 积分 · in 10.8K / out 1.6K
 ```
 
-When available, reasoning and cache details are shown in the tooltip to keep the transcript quiet. Context window usage is intentionally not shown here because the send box already has the context usage indicator.
+Points are calculated from `totalTokens / 500` and displayed with one decimal place. The tooltip shows the point value without the conversion formula. When available, reasoning and non-zero cache details are shown in the tooltip to keep the transcript quiet. Context window usage is intentionally not shown here because the send box already has the context usage indicator.
 
 ## Fallback Behavior
 
