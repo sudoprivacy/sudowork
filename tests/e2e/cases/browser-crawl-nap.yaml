@@ -31,8 +31,9 @@ steps:
   - op: judge
     expect: "products.json saved product brand"
 
-  # Assert tool usage: at least browser_start + page_goto + js_evaluate
+  # Assert tool usage: enough to work, not so many it's flailing
   - op: db_audit
+    max_tool_calls: 40
     assert_metrics:
       tool_calls: ">= 5"
       browser_start_calls: ">= 1"
