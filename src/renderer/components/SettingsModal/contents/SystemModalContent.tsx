@@ -281,17 +281,13 @@ const SystemModalContent: React.FC = () => {
     {
       key: 'closeToTray',
       label: t('settings.closeToTray'),
-      component: closeToTrayLoading ? (
-        <div style={{ width: 44, height: 22 }} />
-      ) : (
-        <Switch checked={closeToTray} onChange={handleCloseToTrayChange} />
-      ),
+      component: closeToTrayLoading ? <div style={{ width: 44, height: 22 }} /> : <Switch checked={closeToTray} onChange={handleCloseToTrayChange} className='settings-accent-switch' style={closeToTray ? { backgroundColor: 'var(--ui-accent-orange)' } : undefined} />,
     },
     {
       key: 'avatarEnabled',
       label: t('settings.avatarEnabled'),
       hint: t('settings.avatarEnabledDesc'),
-      component: <Switch checked={avatarEnabled} onChange={handleAvatarEnabledChange} />,
+      component: <Switch checked={avatarEnabled} onChange={handleAvatarEnabledChange} className='settings-accent-switch' style={avatarEnabled ? { backgroundColor: 'var(--ui-accent-orange)' } : undefined} />,
     },
     ...(isEnterprise
       ? []
@@ -300,7 +296,7 @@ const SystemModalContent: React.FC = () => {
             key: 'productImprovement',
             label: t('settings.productImprovement.title'),
             hint: t('settings.productImprovement.hint'),
-            component: productImprovementLoading ? <div style={{ width: 44, height: 22 }} /> : <Switch checked={productImprovementEnabled} onChange={handleProductImprovementChange} />,
+            component: productImprovementLoading ? <div style={{ width: 44, height: 22 }} /> : <Switch checked={productImprovementEnabled} onChange={handleProductImprovementChange} className='settings-accent-switch' style={productImprovementEnabled ? { backgroundColor: 'var(--ui-accent-orange)' } : undefined} />,
           },
         ]),
     {

@@ -87,7 +87,7 @@ const TurnActions: React.FC<{ turnTexts: string[]; turnTextsRaw: string[]; conve
     } finally {
       setSharing(false);
     }
-  }, [turnTexts, shareoneInstalled, sharing, t]);
+  }, [turnTextsRaw, shareoneInstalled, sharing, t]);
 
   return (
     <>

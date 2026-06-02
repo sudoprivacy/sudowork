@@ -122,7 +122,7 @@ const InstalledAssistantCard: React.FC<{
   const description = assistant.descriptionI18n?.[localeKey] || assistant.description || '';
 
   return (
-    <div className={classNames('bg-fill-1 rd-12px border border-line p-12px flex items-start gap-12px relative overflow-hidden transition-colors cursor-pointer hover:bg-fill-2', !isEnabled && 'opacity-65')} onClick={onClick}>
+    <div className={classNames('settings-library-card group bg-fill-1 rd-12px border border-line p-12px flex items-start gap-12px relative overflow-hidden transition-colors cursor-pointer hover:bg-fill-2', !isEnabled && 'opacity-65')} onClick={onClick}>
       {/* Avatar */}
       <div className='w-48px flex-shrink-0'>
         <div className='w-48px h-48px rd-8px overflow-hidden bg-fill-2'>
@@ -152,48 +152,40 @@ const InstalledAssistantCard: React.FC<{
             <span className='text-10px text-t-tertiary'>{t('settings.assistant.relatedSkills', { count: assistant.enabledSkills.length, defaultValue: `${assistant.enabledSkills.length} 个关联技能` })}</span>
           </div>
         )}
-        {/* Toggle + Enterprise publish button row - at the bottom */}
-        {isCustom && (
-          <div className='mt-8px flex items-center justify-between'>
-            <div
-              onClick={(e) => {
-                e.stopPropagation();
-              }}
-            >
-              <Switch size='small' checked={isEnabled} onChange={(checked) => onToggleEnabled(checked)} className={isEnabled ? '!bg-primary !border-primary' : ''} />
-            </div>
-            {/* Enterprise publish button - at the rightmost, same row as toggle */}
-            {enterprisePublishButton}
-          </div>
-        )}
       </div>
 
       {/* Top-right: edit/view + upload (custom only) + duplicate button + shield (builtin) or delete (custom) */}
       <div className='absolute top-10px right-10px flex items-center gap-6px' onClick={(e) => e.stopPropagation()}>
         {/* Edit/View button - custom assistants show edit, readonly assistants show view */}
-        <button type='button' className='group h-24px px-8px rd-full border-none bg-fill-2 text-t-secondary text-11px font-medium flex items-center justify-center gap-4px cursor-pointer transition-colors hover:bg-fill-3 hover:text-t-primary' onClick={onClick}>
-          {isReadonly ? <PreviewOpen size='13' /> : <Edit size='13' />}
-          <span className='max-w-0 overflow-hidden whitespace-nowrap opacity-0 transition-all duration-180 group-hover:max-w-40px group-hover:opacity-100'>{isReadonly ? t('settings.assistant.view', { defaultValue: '查看' }) : t('settings.assistant.edit', { defaultValue: '编辑' })}</span>
-        </button>
+        <Tooltip content={isReadonly ? t('settings.assistant.view', { defaultValue: '查看' }) : t('settings.assistant.edit', { defaultValue: '编辑' })}>
+          <button type='button' className='store-action-icon' onClick={onClick}>
+            {isReadonly ? <PreviewOpen size='13' /> : <Edit size='13' />}
+          </button>
+        </Tooltip>
         {/* Upload button - only for custom assistants */}
         {isCustom && onUpload && (
-          <button type='button' className='group h-24px px-8px rd-full border-none bg-fill-2 text-t-secondary text-11px font-medium flex items-center justify-center gap-4px cursor-pointer transition-colors hover:bg-fill-3 hover:text-t-primary' onClick={onUpload}>
-            <Upload size='13' />
-            <span className='max-w-0 overflow-hidden whitespace-nowrap opacity-0 transition-all duration-180 group-hover:max-w-40px group-hover:opacity-100'>{t('settings.assistant.upload', { defaultValue: '上传' })}</span>
-          </button>
+          <Tooltip content={t('settings.assistant.upload', { defaultValue: '上传' })}>
+            <button type='button' className='store-action-icon' onClick={onUpload}>
+              <Upload size='13' />
+            </button>
+          </Tooltip>
         )}
         {/* Duplicate button - available for all assistant types */}
-        <button type='button' className='group h-24px px-8px rd-full border-none bg-fill-2 text-t-secondary text-11px font-medium flex items-center justify-center gap-4px cursor-pointer transition-colors hover:bg-fill-3 hover:text-t-primary' onClick={onDuplicate}>
-          <Copy size='13' />
-          <span className='max-w-0 overflow-hidden whitespace-nowrap opacity-0 transition-all duration-180 group-hover:max-w-40px group-hover:opacity-100'>{t('settings.assistant.duplicate', { defaultValue: '复制' })}</span>
-        </button>
+        <Tooltip content={t('settings.assistant.duplicate', { defaultValue: '复制' })}>
+          <button type='button' className='store-action-icon' onClick={onDuplicate}>
+            <Copy size='13' />
+          </button>
+        </Tooltip>
+        {enterprisePublishButton}
+        {isCustom && <Switch size='small' checked={isEnabled} onChange={(checked) => onToggleEnabled(checked)} className={isEnabled ? '!bg-[var(--ui-accent-orange)] !border-[var(--ui-accent-orange)]' : ''} />}
         {/* Delete button - only for custom assistants that are not readonly */}
         {!isReadonly && (
           <Popconfirm title={t('settings.deleteAssistantConfirmTitle', { defaultValue: '删除该助手会一并删除已关联会话。如需保留，请导出会话进行备份。是否确认删除？' })} onOk={onDelete} okText={t('common.delete', { defaultValue: '删除' })} cancelText={t('common.cancel', { defaultValue: '取消' })} okButtonProps={{ status: 'danger' }}>
-            <button type='button' className='group h-24px px-8px rd-full border-none bg-fill-2 text-t-secondary text-11px font-medium flex items-center justify-center gap-4px cursor-pointer transition-colors hover:bg-fill-3 hover:text-danger'>
-              <Delete size='13' />
-              <span className='max-w-0 overflow-hidden whitespace-nowrap opacity-0 transition-all duration-180 group-hover:max-w-40px group-hover:opacity-100'>{t('settings.assistant.delete', { defaultValue: '删除' })}</span>
-            </button>
+            <Tooltip content={t('settings.assistant.delete', { defaultValue: '删除' })}>
+              <button type='button' className='store-action-icon store-action-icon--danger'>
+                <Delete size='13' />
+              </button>
+            </Tooltip>
           </Popconfirm>
         )}
       </div>
@@ -223,7 +215,7 @@ const HubAssistantCard: React.FC<{
   const hasDownloadUrl = Boolean(assistant._sourceUrl);
 
   return (
-    <div className='group bg-fill-1 rd-12px cursor-pointer hover:bg-fill-2 transition-colors border border-line p-12px flex items-start gap-12px relative overflow-hidden' onClick={onClick}>
+    <div className='settings-library-card group bg-fill-1 rd-12px cursor-pointer hover:bg-fill-2 transition-colors border border-line p-12px flex items-start gap-12px relative overflow-hidden' onClick={onClick}>
       {/* Icon */}
       <div className='w-48px flex-shrink-0 flex flex-col items-center'>
         <div className='w-48px h-48px rd-8px overflow-hidden bg-fill-2'>
@@ -241,7 +233,6 @@ const HubAssistantCard: React.FC<{
             </div>
           )}
         </div>
-        {isInstalled && <span className='mt-6px px-5px py-0px bg-primary-light text-primary text-10px rd-3px whitespace-nowrap leading-18px'>{t('settings.assistant.installed', { defaultValue: '已安装' })}</span>}
       </div>
 
       {/* Content */}
@@ -262,10 +253,16 @@ const HubAssistantCard: React.FC<{
       <div className='absolute top-10px right-10px flex items-center gap-6px' onClick={(e) => e.stopPropagation()}>
         {/* Duplicate button - only for installed assistants */}
         {isInstalled && (
-          <button type='button' className='h-24px px-8px rd-full border-none bg-fill-2 text-t-secondary text-11px font-medium flex items-center justify-center gap-4px cursor-pointer transition-colors hover:bg-fill-3 hover:text-t-primary' onClick={onDuplicate}>
-            <Copy size='13' />
-            <span className='max-w-0 overflow-hidden whitespace-nowrap opacity-0 transition-all duration-180 group-hover:max-w-40px group-hover:opacity-100'>{t('settings.assistant.duplicate', { defaultValue: '复制' })}</span>
-          </button>
+          <>
+            <span className='store-action-badge' style={{ backgroundColor: 'rgba(var(--ui-accent-orange-rgb), 0.10)', color: 'var(--ui-accent-orange)' }}>
+              {t('settings.assistant.installed', { defaultValue: '已安装' })}
+            </span>
+            <Tooltip content={t('settings.assistant.duplicate', { defaultValue: '复制' })}>
+              <button type='button' className='store-action-icon' onClick={onDuplicate}>
+                <Copy size='13' />
+              </button>
+            </Tooltip>
+          </>
         )}
         {/* Install button or progress - only show if hasDownloadUrl */}
         {installing ? (
@@ -273,10 +270,11 @@ const HubAssistantCard: React.FC<{
             <Progress percent={installProgress} size='mini' />
           </div>
         ) : !isInstalled && hasDownloadUrl ? (
-          <button type='button' className='h-24px px-8px rd-full border-none bg-fill-2 text-t-secondary text-11px font-medium flex items-center justify-center gap-4px cursor-pointer transition-colors hover:bg-fill-3 hover:text-t-primary' onClick={onInstall}>
-            <Install size='13' />
-            <span className='max-w-0 overflow-hidden whitespace-nowrap opacity-0 transition-all duration-180 group-hover:max-w-40px group-hover:opacity-100'>{t('settings.assistant.install', { defaultValue: '安装' })}</span>
-          </button>
+          <Tooltip content={t('settings.assistant.install', { defaultValue: '安装' })}>
+            <button type='button' className='store-action-icon' onClick={onInstall}>
+              <Install size='13' />
+            </button>
+          </Tooltip>
         ) : null}
       </div>
     </div>
@@ -322,7 +320,6 @@ const TenantAssistantCard: React.FC<{
           </div>
         </div>
         {/* Tenant assistants are always installed after sync */}
-        <span className='mt-6px px-5px py-0px bg-primary-light text-primary text-10px rd-3px whitespace-nowrap leading-18px'>{t('settings.assistant.installed', { defaultValue: '已安装' })}</span>
       </div>
 
       {/* Content */}
@@ -340,7 +337,7 @@ const TenantAssistantCard: React.FC<{
       </div>
 
       {/* Actions - top right */}
-      <div className='absolute top-10px right-10px flex items-center' onClick={(e) => e.stopPropagation()}>
+      <div className='absolute top-10px right-10px flex items-center gap-6px' onClick={(e) => e.stopPropagation()}>
         {/* Installing progress */}
         {installing ? (
           <div className='w-52px'>
@@ -348,10 +345,16 @@ const TenantAssistantCard: React.FC<{
           </div>
         ) : (
           /* Duplicate button - tenant assistants are always installed, show duplicate like hub */
-          <button type='button' className='h-24px px-8px rd-full border-none bg-fill-2 text-t-secondary text-11px font-medium flex items-center justify-center gap-4px cursor-pointer transition-colors hover:bg-fill-3 hover:text-t-primary' onClick={onDuplicate}>
-            <Copy size='13' />
-            <span className='max-w-0 overflow-hidden whitespace-nowrap opacity-0 transition-all duration-180 group-hover:max-w-40px group-hover:opacity-100'>{t('settings.assistant.duplicate', { defaultValue: '复制' })}</span>
-          </button>
+          <>
+            <span className='store-action-badge' style={{ backgroundColor: 'rgba(var(--ui-accent-orange-rgb), 0.10)', color: 'var(--ui-accent-orange)' }}>
+              {t('settings.assistant.installed', { defaultValue: '已安装' })}
+            </span>
+            <Tooltip content={t('settings.assistant.duplicate', { defaultValue: '复制' })}>
+              <button type='button' className='store-action-icon' onClick={onDuplicate}>
+                <Copy size='13' />
+              </button>
+            </Tooltip>
+          </>
         )}
       </div>
     </div>
@@ -1981,7 +1984,7 @@ const AgentModalContent: React.FC = () => {
           isEnterprise && !publishStatus ? (
             <Tooltip content={t('settings.assistant.publishAsTenant', { defaultValue: '发布为专属助手' })}>
               <button
-                className='w-20px h-20px rd-4px flex items-center justify-center bg-fill-2 hover:bg-primary hover:text-white transition-colors cursor-pointer border-none'
+                className='store-action-icon'
                 onClick={(e) => {
                   e.stopPropagation();
                   void handlePublishTenantAssistant(assistantId, assistant.name);
@@ -1993,11 +1996,11 @@ const AgentModalContent: React.FC = () => {
             </Tooltip>
           ) : isEnterprise && publishStatus === 'pending' ? (
             <Tooltip content={t('settings.assistant.publishPending', { defaultValue: '发布审批中' })}>
-              <span className='w-20px h-20px rd-4px flex items-center justify-center bg-warning text-white text-10px'>⏳</span>
+              <span className='store-action-badge'>{t('settings.assistant.publishPendingShort', { defaultValue: '审核中' })}</span>
             </Tooltip>
           ) : isEnterprise && publishStatus === 'approved' ? (
             <Tooltip content={t('settings.assistant.publishApproved', { defaultValue: '已发布为专属助手' })}>
-              <span className='w-20px h-20px rd-4px flex items-center justify-center bg-success text-white text-10px'>✓</span>
+              <span className='store-action-badge text-success'>{t('settings.assistant.publishedShort', { defaultValue: '已发布' })}</span>
             </Tooltip>
           ) : undefined;
 
@@ -2015,16 +2018,16 @@ const AgentModalContent: React.FC = () => {
       {/* Header: tabs + search + create button */}
       <div className='flex items-center gap-12px mb-12px'>
         {/* Tab switcher */}
-        <div className='flex items-center bg-fill-2 rd-8px p-2px gap-1px flex-shrink-0'>
-          <button className={classNames('px-12px py-5px text-13px rd-6px transition-colors cursor-pointer border-none outline-none', activeTab === 'store' ? 'bg-base text-t-primary font-medium shadow-sm' : 'bg-transparent text-t-secondary hover:text-t-primary')} onClick={() => setActiveTab('store')}>
+        <div className='settings-store-tabs flex-shrink-0'>
+          <button className={classNames('settings-store-tabs__item', activeTab === 'store' && 'settings-store-tabs__item--active')} onClick={() => setActiveTab('store')}>
             {t('settings.assistant.storeTab', { defaultValue: '助手库' })}
           </button>
-          <button className={classNames('px-12px py-5px text-13px rd-6px transition-colors cursor-pointer border-none outline-none', activeTab === 'exclusive' ? 'bg-base text-t-primary font-medium shadow-sm' : 'bg-transparent text-t-secondary hover:text-t-primary')} onClick={() => setActiveTab('exclusive')}>
+          <button className={classNames('settings-store-tabs__item', activeTab === 'exclusive' && 'settings-store-tabs__item--active')} onClick={() => setActiveTab('exclusive')}>
             {t('settings.assistant.exclusiveTab', { defaultValue: '专属助手' })}
           </button>
-          <button className={classNames('px-12px py-5px text-13px rd-6px transition-colors cursor-pointer border-none outline-none', activeTab === 'installed' ? 'bg-base text-t-primary font-medium shadow-sm' : 'bg-transparent text-t-secondary hover:text-t-primary')} onClick={() => setActiveTab('installed')}>
+          <button className={classNames('settings-store-tabs__item', activeTab === 'installed' && 'settings-store-tabs__item--active')} onClick={() => setActiveTab('installed')}>
             {t('settings.assistant.installedTab', { defaultValue: '我的助手' })}
-            {assistants.length > 0 && <span className='ml-5px px-5px py-0px bg-primary text-white text-10px rd-full leading-16px'>{assistants.length}</span>}
+            {assistants.length > 0 && <span className='settings-store-tabs__badge'>{assistants.length}</span>}
           </button>
         </div>
 
@@ -2067,7 +2070,7 @@ const AgentModalContent: React.FC = () => {
           {/* Category filter */}
           <div className='flex gap-6px mb-14px overflow-x-auto pb-2px flex-shrink-0 scrollbar-hide'>
             {[{ key: 'all', label: t('settings.assistant.allCategories', { defaultValue: '全部分类' }) }, ...hubCategories.map((c) => ({ key: c, label: c }))].map(({ key, label }) => (
-              <span key={key} className={classNames('px-12px py-4px rd-16px text-12px cursor-pointer transition-colors whitespace-nowrap flex-shrink-0', selectedHubCategory === key ? 'bg-primary text-white' : 'bg-fill-2 text-t-secondary hover:bg-fill-3 hover:text-t-primary')} onClick={() => setSelectedHubCategory(key)}>
+              <span key={key} className={classNames('settings-store-category-chip flex-shrink-0', selectedHubCategory === key && 'settings-store-category-chip--active')} onClick={() => setSelectedHubCategory(key)}>
                 {label}
               </span>
             ))}

@@ -14,8 +14,7 @@ const FINISH_TO_IDLE_DEBOUNCE_MS = 1000;
 
 type AcpResponseMessage = { type: string };
 
-const isAcpResponseMessage = (data: unknown): data is AcpResponseMessage =>
-  typeof data === 'object' && data !== null && 'type' in data && typeof (data as { type: unknown }).type === 'string';
+const isAcpResponseMessage = (data: unknown): data is AcpResponseMessage => typeof data === 'object' && data !== null && 'type' in data && typeof (data as { type: unknown }).type === 'string';
 
 const App: React.FC = () => {
   const [fsmState, setFsmState] = useState<AvatarFsmState>('idle');
@@ -62,7 +61,10 @@ const App: React.FC = () => {
       }
     });
 
-    return () => { clearDebounce(); unsubscribe(); };
+    return () => {
+      clearDebounce();
+      unsubscribe();
+    };
   }, []);
 
   const isThinking = fsmState === 'thinking';
@@ -71,9 +73,8 @@ const App: React.FC = () => {
   return (
     <div className='avatar-container'>
       <div className={`avatar-wrapper avatar-wrapper--${fsmState}`}>
-
         {/* 粒子环绕 — 外圈顺时针 + 内圈逆时针 */}
-        {(
+        {
           <>
             <div className='avatar-particles avatar-particles--outer'>
               <span className='avatar-particle p1' />
@@ -93,7 +94,7 @@ const App: React.FC = () => {
               <span className='avatar-particle q5' />
             </div>
           </>
-        )}
+        }
 
         {/* 拖尾残影 */}
         {isThinking ? (
@@ -111,12 +112,7 @@ const App: React.FC = () => {
         )}
 
         {/* 主 logo */}
-        <img
-          src={isThinking ? thinkingGif : staticLogo}
-          alt='avatar'
-          className={`avatar-img${isThinking ? ' avatar-img--thinking' : ' avatar-img--static'}`}
-          draggable={false}
-        />
+        <img src={isThinking ? thinkingGif : staticLogo} alt='avatar' className={`avatar-img${isThinking ? ' avatar-img--thinking' : ' avatar-img--static'}`} draggable={false} />
       </div>
     </div>
   );

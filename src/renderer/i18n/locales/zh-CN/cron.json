@@ -71,6 +71,7 @@
   "create.workspace": "工作目录",
   "create.selectFolder": "选择文件夹",
   "create.listSubtitle": "设定定时任务，让 Agent 按计划自动执行",
+  "create.emptyHint": "创建自动执行的 Agent 任务",
   "create.editTitle": "编辑定时任务",
   "create.cancel": "取消",
   "create.awakeBanner": "定时任务仅在电脑唤醒时运行",

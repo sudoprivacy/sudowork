@@ -10,6 +10,7 @@ import { getAgentModes, supportsModeSwitch, type AgentModeOption } from '@/rende
 import { useLayoutContext } from '@/renderer/context/LayoutContext';
 import { getCleanFileNames } from '@/renderer/services/FileService';
 import { iconColors } from '@/renderer/theme/colors';
+import ActionChip from '@/renderer/components/ui/ActionChip';
 import type { AcpBackend, AcpBackendConfig, AvailableAgent } from '../types';
 import PresetAgentTag from './PresetAgentTag';
 import { Button, Dropdown, Menu, Tooltip } from '@arco-design/web-react';
@@ -124,26 +125,26 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({ files, onFilesUploaded, o
               </Menu>
             }
           >
-            <span className='flex items-center gap-4px cursor-pointer lh-[1]'>
-              <Button type='text' shape='circle' className={isPlusDropdownOpen ? styles.plusButtonRotate : ''} icon={<Plus theme='outline' size='14' strokeWidth={2} fill={iconColors.primary} />}></Button>
+            <span className='inline-flex cursor-pointer'>
+              <button type='button' className='icon-tool-button relative' title={t('conversation.welcome.downloadLocalFile')}>
+                <span className='flex h-full w-full items-center justify-center leading-none'>
+                  <Plus theme='outline' size='14' strokeWidth={2} fill='currentColor' className={isPlusDropdownOpen ? styles.plusButtonRotate : 'block'} />
+                </span>
+                {files.length > 0 && <span className='absolute -right-3px -top-3px min-w-14px h-14px rd-999px bg-[var(--ui-accent-orange)] px-3px text-9px leading-14px text-white font-600'>{files.length}</span>}
+              </button>
               {files.length > 0 && (
                 <Tooltip className={'!max-w-max'} content={<span className='whitespace-break-spaces'>{getCleanFileNames(files).join('\n')}</span>}>
-                  <span className='text-t-primary'>File({files.length})</span>
+                  <span className='sr-only'>File({files.length})</span>
                 </Tooltip>
               )}
             </span>
           </Dropdown>
 
           {onTriggerSkillSelector && (
-            <Tooltip content={t('conversation.welcome.addSkill', { defaultValue: '添加技能' })} position='top'>
-              <Button className={'sendbox-model-btn guid-config-btn'} shape='round' size='small' onClick={onTriggerSkillSelector}>
-                <span className='flex items-center gap-6px min-w-0'>
-                  <span className='shrink-0' style={{ color: iconColors.secondary, fontSize: 14, fontWeight: 700, lineHeight: 1 }}>
-                    @
-                  </span>
-                  <span>{t('conversation.welcome.skill', { defaultValue: '技能' })}</span>
-                </span>
-              </Button>
+            <Tooltip content={t('guid.addSkillTooltip', { defaultValue: '添加技能' })} position='top'>
+              <span className='ml-8px'>
+                <ActionChip icon={<span className='text-14px font-700 leading-none'>@</span>} label={t('conversation.welcome.skill', { defaultValue: '技能' })} onClick={onTriggerSkillSelector} />
+              </span>
             </Tooltip>
           )}
 
@@ -161,8 +162,9 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({ files, onFilesUploaded, o
             disabled={isButtonDisabled}
             className='send-button-custom'
             style={{
-              backgroundColor: isButtonDisabled ? undefined : '#000000',
-              borderColor: isButtonDisabled ? undefined : '#000000',
+              backgroundColor: isButtonDisabled ? undefined : 'var(--ui-accent-orange)',
+              borderColor: isButtonDisabled ? undefined : 'var(--ui-accent-orange)',
+              boxShadow: isButtonDisabled ? undefined : '0 8px 18px rgba(var(--ui-accent-orange-rgb),0.24)',
             }}
             icon={<ArrowUp theme='filled' size='14' fill='white' strokeWidth={5} />}
             onClick={onSend}

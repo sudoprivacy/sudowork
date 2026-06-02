@@ -29,9 +29,9 @@ const AboutModalContent: React.FC = () => {
 
   return (
     <div className='flex flex-col h-full w-full'>
-      <div className={classNames('flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-24px', isPageMode && 'px-0 overflow-visible')}>
-        <div className='flex flex-col max-w-540px mx-auto'>
-          <div className='flex flex-col items-center py-28px'>
+      <div className={classNames('flex flex-1 min-h-0 items-center justify-center overflow-y-auto overflow-x-hidden px-24px', isPageMode && 'px-0 overflow-visible')}>
+        <div className='flex flex-col items-center justify-center max-w-540px w-full mx-auto text-center py-24px gap-10px'>
+          <div className='flex flex-col items-center'>
             <div className='w-48px h-48px flex items-center justify-center mb-12px'>
               <img src={config.logo || sudoIcon} alt={config.about_name} className='w-42px h-42px' />
             </div>
@@ -40,12 +40,12 @@ const AboutModalContent: React.FC = () => {
             </Typography.Title>
             <div className='text-12px text-t-tertiary'>{config.app_company_name}</div>
             <div className='flex items-center gap-12px mt-6px mb-10px'>
-              <button type='button' className='inline-flex items-center gap-4px bg-transparent border-none p-0 text-12px text-primary cursor-pointer underline-offset-3 hover:underline' onClick={() => void openExternalUrl(OFFICIAL_WEBSITE_URL).catch(console.error)}>
+              <button type='button' className='inline-flex items-center gap-4px bg-transparent border-none p-0 text-12px text-[var(--ui-accent-orange)] cursor-pointer underline-offset-3 hover:underline hover:text-[var(--ui-accent-orange-hover)]' onClick={() => void openExternalUrl(OFFICIAL_WEBSITE_URL).catch(console.error)}>
                 <span>{t('settings.officialWebsite')}</span>
                 <IconLink className='text-12px' />
               </button>
               <span className='text-12px text-t-quaternary'>·</span>
-              <button type='button' className='inline-flex items-center gap-4px bg-transparent border-none p-0 text-12px text-primary cursor-pointer underline-offset-3 hover:underline' onClick={() => void openExternalUrl(PRIVACY_POLICY_URL).catch(console.error)}>
+              <button type='button' className='inline-flex items-center gap-4px bg-transparent border-none p-0 text-12px text-[var(--ui-accent-orange)] cursor-pointer underline-offset-3 hover:underline hover:text-[var(--ui-accent-orange-hover)]' onClick={() => void openExternalUrl(PRIVACY_POLICY_URL).catch(console.error)}>
                 <span>{t('settings.privacyPolicy')}</span>
                 <IconLink className='text-12px' />
               </button>
@@ -59,8 +59,8 @@ const AboutModalContent: React.FC = () => {
                 {t('update.buildDate', { defaultValue: 'Build date' })}: {buildDate} · {buildCommit}
               </div>
             )}
-            <div className='flex items-center gap-4px mt-14px'>
-              <Button size='small' type='outline' onClick={() => window.dispatchEvent(new Event('aionui-open-update-modal'))}>
+            <div className='flex items-center gap-8px mt-14px'>
+              <Button size='small' type='outline' className='!bg-[var(--color-bg-1)] !border-[var(--color-border-2)] !text-t-primary hover:!bg-[var(--fill-0)] hover:!border-[var(--color-border-2)]' onClick={() => window.dispatchEvent(new Event('aionui-open-update-modal'))}>
                 {t('settings.checkForUpdates')}
               </Button>
               <Button size='small' type='text' className='opacity-50 hover:opacity-100 transition-opacity' onClick={() => setOpsVisible(true)} icon={<Setting theme='outline' size='14' />} />

@@ -53,6 +53,7 @@
     }
   },
   "skillSelectorTitle": "Skills",
+  "addSkillTooltip": "Add Skill",
   "noSkills": "No skills available",
   "skillAdded": "Skill added: {{name}}",
   "skillNotInstalled": "Skill not installed: {{name}}",

@@ -2,7 +2,8 @@ import { DatePicker, Spin, Message } from '@arco-design/web-react';
 import ReactECharts from 'echarts-for-react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import dayjs, { Dayjs } from 'dayjs';
+import type { Dayjs } from 'dayjs';
+import dayjs from 'dayjs';
 import { useModelUsageStats } from '@/renderer/hooks/useModelUsageStats';
 
 const { RangePicker } = DatePicker;
@@ -205,7 +206,7 @@ const WeeklyModelUsageChart: React.FC<WeeklyModelUsageChartProps> = ({ className
   };
 
   return (
-    <div className={`p-24px bg-fill-0 rd-16px border border-border-base ${className || ''}`}>
+    <div className={`p-24px bg-2 rd-16px border border-[var(--color-border-2)] ${className || ''}`}>
       <div className='text-14px font-600 text-t-primary mb-16px'>{t('settings.modelUsage.title') || '模型用量'}</div>
 
       <div className='mb-16px'>

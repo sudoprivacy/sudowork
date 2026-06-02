@@ -45,7 +45,7 @@
   "yes": "Yes",
   "no": "No",
   "skills": {
-    "triggerLabel": "@ Skills / Files"
+    "triggerLabel": "Skills / Files"
   },
   "confirmation": {
     "applyChange": "Apply this change?",

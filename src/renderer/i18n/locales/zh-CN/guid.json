@@ -53,6 +53,7 @@
     }
   },
   "skillSelectorTitle": "技能",
+  "addSkillTooltip": "添加技能",
   "noSkills": "暂无技能",
   "skillAdded": "已添加技能：{{name}}",
   "skillNotInstalled": "技能未安装：{{name}}",

@@ -9,11 +9,11 @@
      ======================================== */
 
   /* Border Radius Scale / 圆角系统 */
-  --radius-sm: 6px;      /* 小圆角 - 按钮、小组件 */
-  --radius-md: 8px;      /* 中圆角 - 卡片、输入框 */
-  --radius-lg: 12px;     /* 大圆角 - 模态框、大卡片 */
-  --radius-xl: 16px;     /* 超大圆角 - 特殊容器 */
-  --radius-full: 999px;  /* 胶囊/圆形 */
+  --radius-sm: 6px; /* 小圆角 - 按钮、小组件 */
+  --radius-md: 8px; /* 中圆角 - 卡片、输入框 */
+  --radius-lg: 12px; /* 大圆角 - 模态框、大卡片 */
+  --radius-xl: 16px; /* 超大圆角 - 特殊容器 */
+  --radius-full: 999px; /* 胶囊/圆形 */
 
   /* Spacing Scale / 间距系统 (4px 倍数) */
   --space-1: 4px;
@@ -25,19 +25,28 @@
   --space-8: 32px;
 
   /* Font Size Scale / 字号系统 */
-  --text-xs: 10px;       /* 极小文字 - 标签、辅助信息 */
-  --text-sm: 12px;       /* 小文字 - 辅助说明、错误提示 */
-  --text-base: 14px;     /* 正文字 - 主要文本 */
-  --text-lg: 16px;       /* 大文字 - 标题、强调 */
-  --text-xl: 18px;       /* 超大文字 - 次级标题 */
-  --text-2xl: 24px;      /* 特大文字 - 主标题 */
+  --text-xs: 10px; /* 极小文字 - 标签、辅助信息 */
+  --text-sm: 12px; /* 小文字 - 辅助说明、错误提示 */
+  --text-base: 14px; /* 正文字 - 主要文本 */
+  --text-lg: 16px; /* 大文字 - 标题、强调 */
+  --text-xl: 18px; /* 超大文字 - 次级标题 */
+  --text-2xl: 24px; /* 特大文字 - 主标题 */
 
   /* Shadow Scale / 阴影系统 */
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);           /* 小阴影 - 按钮、小组件 */
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);           /* 中阴影 - 卡片、下拉菜单 */
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);          /* 大阴影 - 模态框、浮层 */
-  --shadow-xl: 0 12px 36px rgba(0, 0, 0, 0.16);         /* 超大阴影 - 重要浮层 */
-  --shadow-focus: 0 0 0 2px rgba(var(--primary-6, 22, 93, 255), 0.15);  /* 焦点阴影 */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08); /* 小阴影 - 按钮、小组件 */
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1); /* 中阴影 - 卡片、下拉菜单 */
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12); /* 大阴影 - 模态框、浮层 */
+  --shadow-xl: 0 12px 36px rgba(0, 0, 0, 0.16); /* 超大阴影 - 重要浮层 */
+  --shadow-focus: 0 0 0 2px rgba(var(--primary-6, 22, 93, 255), 0.15); /* 焦点阴影 */
+
+  --ui-accent-orange: #f97316;
+  --ui-accent-orange-hover: #ea580c;
+  --ui-accent-orange-rgb: 249, 115, 22;
+  --ui-border-strong: color-mix(in srgb, var(--border-base) 72%, var(--text-secondary));
+}
+
+[data-theme='dark'] {
+  --ui-border-strong: color-mix(in srgb, var(--border-base) 82%, var(--text-secondary));
 }
 
 /* Global font family / 全局字体 */
@@ -456,6 +465,158 @@ body,
   }
 }
 
+.cron-create-chip,
+.cron-create-chip.arco-btn-primary {
+  min-height: 34px !important;
+  padding: 0 14px !important;
+  border-radius: 999px !important;
+  background: var(--ui-accent-orange) !important;
+  border-color: var(--ui-accent-orange) !important;
+  color: #fff !important;
+  box-shadow: 0 8px 18px rgba(var(--ui-accent-orange-rgb), 0.18) !important;
+}
+
+.cron-create-chip:hover,
+.cron-create-chip:focus-visible,
+.cron-create-chip.arco-btn-primary:hover,
+.cron-create-chip.arco-btn-primary:focus-visible {
+  background: var(--ui-accent-orange-hover) !important;
+  border-color: var(--ui-accent-orange-hover) !important;
+  color: #fff !important;
+}
+
+.cron-create-chip .arco-btn-content {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.cron-create-chip svg,
+.cron-create-chip svg * {
+  color: #fff !important;
+  stroke: currentColor !important;
+  fill: none !important;
+}
+
+.cron-keep-awake-switch.arco-switch-checked {
+  background-color: var(--ui-accent-orange) !important;
+}
+
+.cron-keep-awake-switch.arco-switch-checked .arco-switch-handle {
+  background-color: #fff !important;
+}
+
+.settings-accent-switch.arco-switch-checked {
+  background-color: var(--ui-accent-orange) !important;
+}
+
+.settings-accent-switch.arco-switch-checked .arco-switch-handle {
+  background-color: #fff !important;
+}
+
+/* Settings store/assistant tabs */
+.settings-store-tabs {
+  display: flex;
+  align-items: flex-end;
+  gap: 20px;
+  min-height: 42px;
+  border-bottom: 1px solid var(--color-border-2);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.settings-store-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.settings-store-tabs__item {
+  position: relative;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  height: 42px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--color-text-2);
+  font-size: 14px;
+  line-height: 20px;
+  white-space: nowrap;
+  cursor: pointer;
+  outline: none;
+  transition: color 0.16s ease;
+}
+
+.settings-store-tabs__item:hover {
+  color: var(--color-text-1);
+}
+
+.settings-store-tabs__item--active {
+  color: var(--ui-accent-orange);
+  font-weight: 600;
+}
+
+.settings-store-tabs__item--active::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 999px 999px 0 0;
+  background: var(--ui-accent-orange);
+}
+
+.settings-store-tabs__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  margin-left: 5px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--ui-accent-orange);
+  color: #fff;
+  font-size: 10px;
+  line-height: 16px;
+}
+
+/* Settings store/category chips */
+.settings-store-category-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: 16px;
+  background: var(--color-fill-2);
+  color: var(--color-text-2);
+  font-size: 12px;
+  line-height: 18px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color 0.16s ease,
+    border-color 0.16s ease,
+    color 0.16s ease;
+}
+
+.settings-store-category-chip:hover {
+  background: var(--color-fill-3);
+  color: var(--color-text-1);
+}
+
+.settings-store-category-chip--active {
+  background: var(--color-bg-1);
+  border-color: var(--ui-accent-orange);
+  color: var(--ui-accent-orange);
+}
+
 @keyframes bg-animate {
   0% {
     background-color: var(--bg-2);
@@ -584,11 +745,147 @@ body,
   overflow-x: hidden;
   box-shadow: none !important;
   border-right: 1px solid var(--border-base);
+  background: color-mix(in srgb, var(--color-fill-1) 72%, var(--color-bg-1)) !important;
   /* 侧边栏收起展开动画优化 / Sidebar collapse/expand animation */
   transition:
     width 0.3s cubic-bezier(0.4, 0, 0.2, 1),
     transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   will-change: width, transform;
+}
+
+.sidebar-nav-item {
+  border-radius: 10px;
+  border: 1px solid transparent;
+}
+
+.sidebar-nav-item--selected {
+  background: transparent !important;
+  box-shadow: none;
+}
+
+.sidebar-nav-item--selected:hover {
+  background: transparent !important;
+}
+
+.sidebar-nav-item--selected .sidebar-nav-item__rail {
+  background: var(--ui-accent-orange) !important;
+}
+
+.sidebar-nav-item__rail {
+  top: 9px;
+  height: 22px;
+}
+
+.sidebar-nav-item--selected .sidebar-nav-item__icon {
+  color: var(--ui-accent-orange) !important;
+}
+
+.sidebar-nav-item--selected .sidebar-nav-item__icon svg,
+.sidebar-nav-item--selected .sidebar-nav-item__icon svg * {
+  color: var(--ui-accent-orange) !important;
+  stroke: currentColor !important;
+  fill: none !important;
+}
+
+.sidebar-nav-item__icon {
+  transform: translateY(1px);
+}
+
+.sidebar-segmented-control {
+  border-radius: 10px;
+}
+
+.sidebar-segmented-control__item {
+  color: var(--text-secondary);
+}
+
+.sidebar-segmented-control__item--active {
+  background: color-mix(in srgb, var(--ui-accent-orange) 12%, var(--color-bg-1)) !important;
+  color: var(--ui-accent-orange) !important;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.sidebar-segmented-control__item--active:hover {
+  background: color-mix(in srgb, var(--ui-accent-orange) 12%, var(--color-bg-1)) !important;
+}
+
+.channel-settings-collapse .arco-collapse-item-icon,
+.channel-settings-collapse .arco-collapse-item-header-icon {
+  display: none !important;
+}
+
+.icon-tool-button {
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  padding: 0;
+  border: 1px solid var(--ui-border-strong);
+  border-radius: 999px;
+  background: var(--color-bg-1);
+  color: var(--text-secondary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    background-color 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease;
+}
+
+.icon-tool-button:hover {
+  background: var(--color-fill-1);
+  color: var(--text-primary);
+}
+
+.icon-tool-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.store-action-icon {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: var(--color-fill-2);
+  color: var(--text-secondary);
+  line-height: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition:
+    background-color 0.18s ease,
+    color 0.18s ease,
+    opacity 0.18s ease;
+}
+
+.store-action-icon:hover {
+  background: var(--color-fill-3);
+  color: var(--text-primary);
+}
+
+.store-action-icon > svg {
+  display: block;
+}
+
+.store-action-icon--danger:hover {
+  color: var(--color-danger);
+}
+
+.store-action-badge {
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--color-fill-2);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
 }
 
 .layout-sider.collapsed .arco-layout-sider-children,
@@ -923,10 +1220,32 @@ body,
   background-color: var(--fill-0) !important;
 }
 
+/* Send button state - keep the primary action orange across themes */
+.send-button-custom:not(:disabled),
+.send-button-custom.arco-btn-primary:not(:disabled) {
+  width: 34px !important;
+  height: 34px !important;
+  min-width: 34px !important;
+  background-color: var(--ui-accent-orange) !important;
+  border-color: var(--ui-accent-orange) !important;
+  color: #fff !important;
+  box-shadow: 0 8px 18px rgba(var(--ui-accent-orange-rgb), 0.24) !important;
+}
+
+.send-button-custom:not(:disabled):hover,
+.send-button-custom.arco-btn-primary:not(:disabled):hover,
+.send-button-custom:not(:disabled):focus-visible,
+.send-button-custom.arco-btn-primary:not(:disabled):focus-visible {
+  background-color: var(--ui-accent-orange-hover) !important;
+  border-color: var(--ui-accent-orange-hover) !important;
+}
+
 /* Send button disabled state - override Arco Design default disabled styles */
 /* 发送按钮禁用状态 - 覆盖 Arco Design 默认的禁用样式 */
-/* Note: Active state is handled via style prop in component */
 .send-button-custom:disabled {
+  width: 34px !important;
+  height: 34px !important;
+  min-width: 34px !important;
   background-color: #d3d4d9 !important;
   border-color: #d3d4d9 !important;
   opacity: 1 !important;

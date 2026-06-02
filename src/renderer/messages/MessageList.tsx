@@ -88,23 +88,20 @@ const MessageItem: React.FC<{ message: TMessage; isStreaming?: boolean }> = Reac
       return () => observer.disconnect();
     }, []);
 
-    const streamingAvatar = isStreaming ? (darkMode ? sudoclawProDark : sudoclawProWhite) : sudoworkIconDark;
+    const streamingAvatar = darkMode ? sudoclawProDark : sudoclawProWhite;
+    const staticAvatar = sudoworkIconDark;
 
     return (
       <div
         data-message-id={message.id}
-        className={classNames('min-w-0 flex items-start message-item [&>div]:max-w-full px-8px m-t-10px max-w-full md:max-w-780px mx-auto group', message.type, {
+        className={classNames('min-w-0 flex w-full items-start box-border message-item [&>div]:max-w-full m-t-10px max-w-full md:max-w-800px mx-auto group', message.type, {
           'justify-center': message.position === 'center',
           'justify-end': message.position === 'right',
           'justify-start': message.position === 'left',
         })}
       >
-        {isAiMessage && (
-          <div className='flex-shrink-0 mr-12px mt-4px w-24px h-24px relative'>
-            <img src={streamingAvatar} alt='AI Avatar' className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 ${isStreaming ? 'w-40px h-40px max-w-none' : 'w-24px h-24px'} object-contain`} />
-          </div>
-        )}
-        {props.children}
+        {isAiMessage ? <div className='flex-shrink-0 mr-4px mt-4px w-40px h-40px relative'>{isStreaming ? <img src={streamingAvatar} alt='AI Avatar' className='absolute top-1/2 left-1/2 w-40px h-40px max-w-none -translate-x-1/2 -translate-y-1/2 object-contain' /> : message.type === 'text' ? <img src={staticAvatar} alt='AI Avatar' className='absolute top-1/2 left-1/2 w-24px h-24px max-w-none -translate-x-1/2 -translate-y-1/2 object-contain' /> : null}</div> : <div className='flex-shrink-0 mr-8px mt-4px w-40px h-40px' aria-hidden='true' />}
+        <div className={classNames('min-w-0', isAiMessage ? 'flex flex-1 justify-start' : 'flex-none w-fit')}>{props.children}</div>
       </div>
     );
   })(({ message, isStreaming }) => {
@@ -455,13 +452,10 @@ const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = fal
     if ('type' in item && ['file_summary', 'tool_summary'].includes(item.type)) {
       const isLastItemSummary = _index >= processedList.length - 2;
       const isStreamingForSummary = item.type === 'tool_summary' && (item.messages.some((m) => m.id === lastAiMessageId) || (aiProcessing && isLastItemSummary));
-      const streamingAvatarForSummary = isStreamingForSummary ? (isDarkMode() ? sudoclawProDark : sudoclawProWhite) : sudoworkIconDark;
       return (
-        <div key={item.id} data-message-id={item.id} className={'min-w-0 flex items-start message-item px-8px m-t-10px max-w-full md:max-w-780px mx-auto ' + item.type}>
-          <div className='flex-shrink-0 mr-12px mt-4px w-24px h-24px relative'>
-            <img src={streamingAvatarForSummary} alt='AI Avatar' className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 ${isStreamingForSummary ? 'w-40px h-40px max-w-none' : 'w-24px h-24px'} object-contain`} />
-          </div>
-          <div className='flex-1 min-w-0'>
+        <div key={item.id} data-message-id={item.id} className={'min-w-0 flex w-full items-start box-border message-item m-t-10px max-w-full md:max-w-800px mx-auto ' + item.type}>
+          <div className='flex-shrink-0 mr-4px mt-4px w-40px h-40px relative'>{isStreamingForSummary && <img src={isDarkMode() ? sudoclawProDark : sudoclawProWhite} alt='AI Avatar' className='absolute top-1/2 left-1/2 w-40px h-40px max-w-none -translate-x-1/2 -translate-y-1/2 object-contain' />}</div>
+          <div className='flex flex-1 min-w-0 justify-start'>
             {item.type === 'file_summary' && <MessageFileChanges diffsChanges={item.diffs} />}
             {item.type === 'tool_summary' &&
               (() => {
@@ -493,7 +487,7 @@ const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = fal
     }
     if ('type' in item && item.type === 'turn_actions') {
       return (
-        <div key={item.id} className='group min-w-0 message-item px-8px max-w-full md:max-w-780px mx-auto'>
+        <div key={item.id} className='group min-w-0 message-item w-full box-border max-w-full md:max-w-800px mx-auto'>
           <TurnActions turnTexts={(item as Extract<IMessageVO, { type: 'turn_actions' }>).turnTexts} turnTextsRaw={(item as Extract<IMessageVO, { type: 'turn_actions' }>).turnTextsRaw} conversationId={(item as Extract<IMessageVO, { type: 'turn_actions' }>).conversationId} />
         </div>
       );
@@ -517,7 +511,7 @@ const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = fal
             // atBottom must encompass the dynamic spacer so "at bottom" still
             // means "the last message is in view" while the user prompt is
             // pinned at the top with an empty canvas below it.
-            atBottomThreshold={bottomSpacerHeight + 100}
+            atBottomThreshold={bottomSpacerHeight + BOTTOM_BUFFER_PX}
             increaseViewportBy={200}
             itemContent={renderItem}
             followOutput={handleFollowOutput}

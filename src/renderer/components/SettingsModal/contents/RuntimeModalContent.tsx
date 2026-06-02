@@ -9,6 +9,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
+import { ShareOne } from '@icon-park/react';
 import { useSettingsViewMode } from '../settingsViewContext';
 import { nexus as nexusIpc, claudeCli as claudeCliIpc, libreOffice as libreOfficeIpc, pythonRuntime as pythonRuntimeIpc, scode as scodeIpc, nodeRuntime as nodeRuntimeIpc, acpConversation, shareoneCli } from '@/common/ipcBridge';
 import { mutate } from 'swr';
@@ -621,36 +622,38 @@ const RuntimeModalContent: React.FC = () => {
                 const version = record.status?.version;
                 const loading = record.loadState !== 'idle';
                 const installed = isInstalled(record);
+                const isShareOne = record.key === 'shareone';
+                const isShareOneDisabled = isShareOne && statusText === t('settings.runtimeSettings.status.disabled', { defaultValue: '未启用' });
                 const source = record.status?.source;
                 const sourceLabel = source && source !== 'none' ? t(`settings.runtimeSettings.source.${source}`, { defaultValue: source }) : undefined;
                 const actions = getRuntimeActions(record, t);
 
                 return (
-                  <div key={record.key} className='py-16px first:pt-0 last:pb-0'>
-                    <div className='flex flex-col gap-14px md:flex-row md:items-center md:justify-between md:gap-20px'>
-                      <div className='flex items-start gap-12px min-w-0 flex-1'>
-                        <div className={classNames('w-44px h-44px rd-12px flex items-center justify-center flex-shrink-0 text-11px md:text-12px font-700 shadow-sm', badgeColors[record.key] || 'bg-blue-1 color-blue-6 border border-blue-3')}>{record.badge}</div>
+                  <div key={record.key} className='py-14px first:pt-0 last:pb-0'>
+                    <div className='flex flex-col gap-12px md:flex-row md:items-center md:justify-between md:gap-16px'>
+                      <div className='flex items-center gap-12px min-w-0 flex-1'>
+                        <div className={classNames('w-28px h-28px rd-8px flex items-center justify-center flex-shrink-0 text-9px md:text-10px font-700 shadow-sm', badgeColors[record.key] || 'bg-blue-1 color-blue-6 border border-blue-3')}>{record.key === 'shareone' ? <ShareOne theme='outline' size={16} className='block' /> : record.badge}</div>
 
-                        <div className='min-w-0 flex-1 space-y-8px'>
-                          <div className='flex flex-col gap-8px lg:flex-row lg:items-center lg:gap-10px'>
-                            <span className='text-15px md:text-16px font-600 text-t-primary leading-22px md:leading-24px'>{record.displayName}</span>
-                            <span className='w-fit px-8px py-2px rd-999px text-11px md:text-12px font-mono bg-fill-1 text-t-secondary border border-border-2'>{record.command}</span>
+                        <div className='min-w-0 flex-1 space-y-4px'>
+                          <div className='flex flex-col gap-4px lg:flex-row lg:items-center lg:gap-8px'>
+                            <span className='text-14px font-600 text-t-primary leading-none'>{record.displayName}</span>
+                            <span className='w-fit px-8px py-2px rd-999px text-10px font-mono leading-none bg-fill-1 text-t-secondary border border-border-2'>{record.command}</span>
                           </div>
 
-                          <div className='flex flex-wrap items-center gap-8px'>
-                            <span className='inline-flex items-center gap-6px px-8px py-3px rd-999px bg-fill-1 text-12px md:text-13px text-t-secondary border border-border-2'>
+                          <div className='flex flex-wrap items-center gap-6px'>
+                            <span className={classNames('inline-flex items-center gap-6px px-8px py-2px rd-999px text-11px border border-border-2', isShareOneDisabled ? 'bg-[var(--color-primary-light-1)] text-[var(--color-primary-6)] border-[var(--color-primary-light-3)]' : 'bg-fill-1 text-t-secondary')}>
                               <span className={classNames('w-6px h-6px rd-full flex-shrink-0', dotColor)} />
                               <span className='leading-none font-500'>{statusText}</span>
                             </span>
-                            {version && <span className='px-8px py-3px rd-999px text-11px md:text-12px font-500 bg-fill-1 text-t-secondary border border-border-2 whitespace-nowrap'>{version}</span>}
-                            {sourceLabel && installed && <span className='px-8px py-3px rd-999px text-11px md:text-12px font-500 bg-[var(--color-primary-light-1)] text-[var(--color-primary-6)] border border-[var(--color-primary-light-3)] whitespace-nowrap'>{sourceLabel}</span>}
+                            {version && <span className='px-8px py-2px rd-999px text-10px font-500 bg-fill-1 text-t-secondary border border-border-2 whitespace-nowrap'>{version}</span>}
+                            {sourceLabel && installed && <span className='px-8px py-2px rd-999px text-10px font-500 bg-[var(--color-primary-light-1)] text-[var(--color-primary-6)] border border-[var(--color-primary-light-3)] whitespace-nowrap'>{sourceLabel}</span>}
                           </div>
                         </div>
                       </div>
 
-                      <div className='flex flex-wrap items-center gap-8px md:justify-end md:max-w-280px'>
+                      <div className='flex flex-wrap items-center gap-6px md:justify-end md:max-w-280px'>
                         {actions.map((action) => (
-                          <Button key={`${record.key}-${action.key}`} type={action.type === 'primary' ? 'primary' : 'outline'} size='small' status={action.status} disabled={loading} onClick={action.onClick} className={classNames('min-w-84px !rd-8px !text-12px md:!text-13px !font-500', action.type === 'secondary' && '!border-[var(--color-primary-light-3)] !text-[var(--color-primary-6)] !bg-[var(--color-primary-light-1)] hover:!bg-[var(--color-primary-light-2)]', action.type === 'outline' && action.status !== 'warning' && '!bg-transparent')}>
+                          <Button key={`${record.key}-${action.key}`} type='outline' size='small' status={action.status} disabled={loading} onClick={action.onClick} className='min-w-72px !rd-8px !text-11px !font-500 !bg-[var(--color-bg-1)] !border-[var(--color-border-2)] !text-t-primary hover:!bg-[var(--fill-0)] hover:!border-[var(--color-border-2)]'>
                             {action.label}
                           </Button>
                         ))}

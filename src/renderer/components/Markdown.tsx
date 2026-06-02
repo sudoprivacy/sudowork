@@ -140,9 +140,12 @@ function CodeBlock(props: any) {
     const diffLines = isDiff ? formattedContent.split('\n') : [];
 
     return (
-      <div style={{ width: '100%', minWidth: 0, maxWidth: '100%', ...(props.codeStyle || {}) }}>
+      <div style={{ width: '100%', minWidth: 0, maxWidth: '100%', overflowX: 'auto', ...(props.codeStyle || {}) }}>
         <div
           style={{
+            width: '100%',
+            minWidth: 0,
+            maxWidth: '100%',
             border: '1px solid var(--bg-3)',
             borderRadius: '0.3rem',
             overflow: 'hidden',
@@ -211,6 +214,8 @@ function CodeBlock(props: any) {
                     : undefined
                 }
                 customStyle={{
+                  width: '100%',
+                  minWidth: 0,
                   marginTop: '0',
                   margin: '0',
                   borderTopLeftRadius: '0',
@@ -222,6 +227,7 @@ function CodeBlock(props: any) {
                   color: 'var(--text-primary)',
                   overflowX: 'auto',
                   maxWidth: '100%',
+                  whiteSpace: 'pre',
                 }}
                 codeTagProps={{
                   style: {
@@ -556,10 +562,7 @@ const MarkdownView: React.FC<MarkdownViewProps> = ({ hiddenCodeCopyButton, codeS
       // Without this, the markdown parser treats backslashes as escape characters,
       // corrupting paths like C:\Users\...\image.png (e.g. \. becomes just .)
       // Also strips the Windows extended-length path prefix \\?\ if present.
-      text = text.replace(
-        /!\[([^\]]*)\]\((?:\\\\\?\\)?([A-Za-z]:\\[^)]+)\)/g,
-        (_match, alt: string, imagePath: string) => `![${alt}](${imagePath.replace(/\\/g, '/')})`,
-      );
+      text = text.replace(/!\[([^\]]*)\]\((?:\\\\\?\\)?([A-Za-z]:\\[^)]+)\)/g, (_match, alt: string, imagePath: string) => `![${alt}](${imagePath.replace(/\\/g, '/')})`);
       text = convertLatexDelimiters(text);
       return text;
     }

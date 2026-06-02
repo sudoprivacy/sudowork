@@ -182,11 +182,10 @@ const SkillCard: React.FC<{
   const { t } = useTranslation();
 
   return (
-    <div className='group bg-fill-1 rd-12px cursor-pointer hover:bg-fill-2 transition-colors border border-line p-12px flex items-start gap-12px relative overflow-hidden' onClick={onClick}>
+    <div className='settings-library-card group bg-fill-1 rd-12px cursor-pointer hover:bg-fill-2 transition-colors border border-line p-12px flex items-start gap-12px relative overflow-hidden' onClick={onClick}>
       {/* Icon */}
       <div className='w-48px flex-shrink-0 flex flex-col items-center'>
         <div className='w-48px h-48px rd-8px overflow-hidden bg-fill-2'>{skill.icon ? <img src={skill.icon} alt={skill.display_name} className='w-full h-full object-cover' /> : <div className='w-full h-full flex items-center justify-center text-22px'>{skill.emoji || '📦'}</div>}</div>
-        {isInstalled && <span className={classNames('mt-6px px-5px py-0px text-10px rd-3px whitespace-nowrap leading-18px', hasUpdate ? 'bg-warning-light text-warning' : 'bg-primary-light text-primary')}>{hasUpdate ? t('settings.skill.updateAvailable', { defaultValue: '可更新' }) : t('settings.skill.installed', { defaultValue: '已安装' })}</span>}
       </div>
 
       {/* Content */}
@@ -206,15 +205,21 @@ const SkillCard: React.FC<{
             <Progress percent={installProgress} size='mini' />
           </div>
         ) : isInstalled && hasUpdate ? (
-          <button type='button' className='h-24px px-8px rd-full border-none bg-warning-light text-warning text-11px font-medium flex items-center justify-center gap-4px cursor-pointer transition-colors hover:opacity-80' onClick={onUpdate}>
-            <Install size='13' />
-            <span className='max-w-0 overflow-hidden whitespace-nowrap opacity-0 transition-all duration-180 group-hover:max-w-40px group-hover:opacity-100'>{t('settings.skill.update', { defaultValue: '更新' })}</span>
-          </button>
+          <Tooltip content={t('settings.skill.update', { defaultValue: '更新' })}>
+            <button type='button' className='store-action-icon' onClick={onUpdate}>
+              <Install size='13' />
+            </button>
+          </Tooltip>
+        ) : isInstalled ? (
+          <span className='store-action-badge' style={{ backgroundColor: 'rgba(var(--ui-accent-orange-rgb), 0.10)', color: 'var(--ui-accent-orange)' }}>
+            {t('settings.skill.installed', { defaultValue: '已安装' })}
+          </span>
         ) : !isInstalled && hasVersion ? (
-          <button type='button' className='h-24px px-8px rd-full border-none bg-fill-2 text-t-secondary text-11px font-medium flex items-center justify-center gap-4px cursor-pointer transition-colors hover:bg-fill-3 hover:text-t-primary' onClick={onInstall}>
-            <Install size='13' />
-            <span className='max-w-0 overflow-hidden whitespace-nowrap opacity-0 transition-all duration-180 group-hover:max-w-40px group-hover:opacity-100'>{t('settings.skill.install', { defaultValue: '安装' })}</span>
-          </button>
+          <Tooltip content={t('settings.skill.install', { defaultValue: '安装' })}>
+            <button type='button' className='store-action-icon' onClick={onInstall}>
+              <Install size='13' />
+            </button>
+          </Tooltip>
         ) : null}
       </div>
     </div>
@@ -247,7 +252,7 @@ const InstalledSkillCard: React.FC<{
   const { t } = useTranslation();
 
   return (
-    <div className={classNames('bg-fill-1 rd-12px border border-line p-12px flex items-start gap-12px relative overflow-hidden transition-colors', !isEnabled && 'opacity-65', hasDetail ? 'cursor-pointer hover:bg-fill-2' : 'hover:bg-fill-2')} onClick={hasDetail ? onClick : undefined}>
+    <div className={classNames('settings-library-card bg-fill-1 rd-12px border border-line p-12px flex items-start gap-12px relative overflow-hidden transition-colors', !isEnabled && 'opacity-65', hasDetail ? 'cursor-pointer hover:bg-fill-2' : 'hover:bg-fill-2')} onClick={hasDetail ? onClick : undefined}>
       {/* Icon */}
       <div className='w-48px flex-shrink-0'>
         <div className='w-48px h-48px rd-8px overflow-hidden bg-fill-2'>
@@ -265,57 +270,52 @@ const InstalledSkillCard: React.FC<{
 
       {/* Content */}
       <div className='flex-1 min-w-0'>
-        <div className='h-20px flex items-center'>
-          <span className='font-medium text-13px text-t-primary truncate'>{displayName}</span>
-        </div>
-        <div className='h-18px mt-2px flex items-center gap-4px'>
+        <div className='flex items-center gap-6px pr-58px min-w-0'>
+          <span className='flex-1 min-w-0 font-medium text-13px text-t-primary truncate'>{displayName}</span>
           {!skill.isBuiltin && displayVersion && <span className='px-5px py-0px bg-fill-3 text-t-secondary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px'>v{displayVersion}</span>}
-          {hasUpdate && (
-            <span
-              className='px-5px py-0px bg-warning-light text-warning text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px cursor-pointer hover:opacity-80 transition-opacity'
+        </div>
+        <div className='mt-3px min-h-30px'>{description ? <div className='text-11px text-t-secondary line-clamp-2 leading-15px'>{description}</div> : <div className='text-11px text-t-tertiary italic line-clamp-2 leading-15px'>{skill.name}</div>}</div>
+      </div>
+
+      {/* Actions - top right */}
+      <div className='absolute top-10px right-10px flex items-center gap-6px' onClick={(e) => e.stopPropagation()}>
+        {hasUpdate && (
+          <Tooltip content={t('settings.skill.updateAvailable', { defaultValue: '可更新' })}>
+            <button
+              type='button'
+              className='store-action-icon'
               onClick={(e) => {
                 e.stopPropagation();
                 onUpdate?.();
               }}
             >
-              {updating ? <Spin size={10} /> : t('settings.skill.updateAvailable', { defaultValue: '可更新' })}
-            </span>
-          )}
-        </div>
-        <div className='mt-3px min-h-30px'>{description ? <div className='text-11px text-t-secondary line-clamp-2 leading-15px'>{description}</div> : <div className='text-11px text-t-tertiary italic line-clamp-2 leading-15px'>{skill.name}</div>}</div>
-        {/* Toggle + Enterprise publish button row - at the bottom */}
-        {canToggleEnabled && (
-          <div className='mt-8px flex items-center justify-between'>
-            <div
-              onClick={(e) => {
-                e.stopPropagation();
-              }}
-            >
-              <Switch size='small' checked={isEnabled} loading={togglingEnabled} onChange={(checked) => onToggleEnabled?.(checked)} className={isEnabled ? '!bg-primary !border-primary' : ''} />
-            </div>
-            {/* Enterprise publish button - at the rightmost, same row as toggle */}
-            {enterprisePublishButton}
-          </div>
+              {updating ? <Spin size={10} /> : <Install size='13' />}
+            </button>
+          </Tooltip>
         )}
-      </div>
-
-      {/* Uninstall / builtin indicator - top right */}
-      <div className='absolute top-10px right-10px' onClick={(e) => e.stopPropagation()}>
+        {enterprisePublishButton}
+        {canToggleEnabled && <Switch size='small' checked={isEnabled} loading={togglingEnabled} onChange={(checked) => onToggleEnabled?.(checked)} className={isEnabled ? '!bg-[var(--ui-accent-orange)] !border-[var(--ui-accent-orange)]' : ''} />}
         {skill.isBuiltin ? (
-          <div className='w-22px h-22px flex items-center justify-center text-primary' title='内置技能'>
-            <Shield size='15' />
-          </div>
+          <Tooltip content='内置技能'>
+            <div className='store-action-icon cursor-default'>
+              <Shield size='15' />
+            </div>
+          </Tooltip>
         ) : !canUninstall ? (
-          <div className='w-22px h-22px flex items-center justify-center text-t-tertiary opacity-30' title='内置技能无法卸载'>
-            <Shield size='14' />
-          </div>
+          <Tooltip content='内置技能无法卸载'>
+            <div className='store-action-icon cursor-default opacity-30'>
+              <Shield size='14' />
+            </div>
+          </Tooltip>
         ) : uninstalling ? (
           <Spin size={14} />
         ) : (
           <Popconfirm title='确认卸载该技能？' onOk={onUninstall} okText='卸载' cancelText='取消' okButtonProps={{ status: 'danger' }}>
-            <div className='w-22px h-22px flex items-center justify-center text-t-tertiary hover:text-danger cursor-pointer transition-colors'>
-              <Delete size='15' />
-            </div>
+            <Tooltip content={t('common.delete', { defaultValue: '删除' })}>
+              <div className='store-action-icon store-action-icon--danger'>
+                <Delete size='15' />
+              </div>
+            </Tooltip>
           </Popconfirm>
         )}
       </div>
@@ -499,12 +499,14 @@ const SkillDetailModal: React.FC<{
             {isInstalled ? (
               <>
                 {hasUpdate ? (
-                  <Button type='primary' long size='large' className='flex-1' loading={updating} onClick={onUpdate}>
-                    <span className='flex items-center gap-6px justify-center'>
-                      <Install size='15' />
-                      {t('settings.skill.updateTo', { version: latestVersionInfo?.version, defaultValue: `更新至 v${latestVersionInfo?.version || ''}` })}
-                    </span>
-                  </Button>
+                  <Tooltip content={t('settings.skill.updateTo', { version: latestVersionInfo?.version, defaultValue: `更新至 v${latestVersionInfo?.version || ''}` })}>
+                    <Button type='primary' long size='large' className='flex-1' loading={updating} onClick={onUpdate}>
+                      <span className='flex items-center gap-6px justify-center'>
+                        <Install size='15' />
+                        {t('settings.skill.updateTo', { version: latestVersionInfo?.version, defaultValue: `更新至 v${latestVersionInfo?.version || ''}` })}
+                      </span>
+                    </Button>
+                  </Tooltip>
                 ) : (
                   <Button type='primary' long size='large' className='flex-1' onClick={onGoUse || onClose}>
                     {t('settings.skill.goUse', { defaultValue: '去使用' })}
@@ -517,9 +519,11 @@ const SkillDetailModal: React.FC<{
                     </div>
                   ) : (
                     <Popconfirm title='确认卸载该技能？' onOk={onUninstall} okText='卸载' cancelText='取消' okButtonProps={{ status: 'danger' }}>
-                      <div className='w-36px h-36px flex items-center justify-center rd-8px border border-line hover:bg-fill-2 cursor-pointer transition-colors text-t-secondary'>
-                        <Delete size='16' />
-                      </div>
+                      <Tooltip content={t('common.delete', { defaultValue: '删除' })}>
+                        <div className='w-36px h-36px flex items-center justify-center rd-8px border border-line hover:bg-fill-2 cursor-pointer transition-colors text-t-secondary'>
+                          <Delete size='16' />
+                        </div>
+                      </Tooltip>
                     </Popconfirm>
                   ))}
               </>
@@ -529,18 +533,22 @@ const SkillDetailModal: React.FC<{
               </div>
             ) : hasVersion ? (
               <>
-                <Button type='primary' long size='large' onClick={onInstall} disabled={downloading}>
-                  <span className='flex items-center gap-6px justify-center'>
-                    <Install size='15' />
-                    {t('settings.skill.install', { defaultValue: '安装技能' })}
-                  </span>
-                </Button>
-                <Button size='large' onClick={onDownload} loading={downloading} disabled={installing}>
-                  <span className='flex items-center gap-6px justify-center'>
-                    <Download size='15' />
-                    {t('common.download', { defaultValue: '下载' })}
-                  </span>
-                </Button>
+                <Tooltip content={t('settings.skill.install', { defaultValue: '安装技能' })}>
+                  <Button type='primary' long size='large' onClick={onInstall} disabled={downloading}>
+                    <span className='flex items-center gap-6px justify-center'>
+                      <Install size='15' />
+                      {t('settings.skill.install', { defaultValue: '安装技能' })}
+                    </span>
+                  </Button>
+                </Tooltip>
+                <Tooltip content={t('common.download', { defaultValue: '下载' })}>
+                  <Button size='large' onClick={onDownload} loading={downloading} disabled={installing}>
+                    <span className='flex items-center gap-6px justify-center'>
+                      <Download size='15' />
+                      {t('common.download', { defaultValue: '下载' })}
+                    </span>
+                  </Button>
+                </Tooltip>
               </>
             ) : null}
           </div>
@@ -1594,7 +1602,7 @@ const SkillModalContent: React.FC = () => {
           isEnterprise && !publishStatus ? (
             <Tooltip content={t('settings.skill.publishAsTenant', { defaultValue: '发布为专属技能' })}>
               <button
-                className='w-20px h-20px rd-4px flex items-center justify-center bg-fill-2 hover:bg-primary hover:text-white transition-colors cursor-pointer border-none'
+                className='store-action-icon'
                 onClick={(e) => {
                   e.stopPropagation();
                   if (skillHubId) void handlePublishTenantSkill(skillHubId, skill.name);
@@ -1606,11 +1614,11 @@ const SkillModalContent: React.FC = () => {
             </Tooltip>
           ) : isEnterprise && publishStatus === 'pending' ? (
             <Tooltip content={t('settings.skill.publishPending', { defaultValue: '发布审批中' })}>
-              <span className='w-20px h-20px rd-4px flex items-center justify-center bg-warning text-white text-10px'>⏳</span>
+              <span className='store-action-badge'>{t('settings.skill.publishPendingShort', { defaultValue: '审核中' })}</span>
             </Tooltip>
           ) : isEnterprise && publishStatus === 'approved' ? (
             <Tooltip content={t('settings.skill.publishApproved', { defaultValue: '已发布为专属技能' })}>
-              <span className='w-20px h-20px rd-4px flex items-center justify-center bg-success text-white text-10px'>✓</span>
+              <span className='store-action-badge text-success'>{t('settings.skill.publishedShort', { defaultValue: '已发布' })}</span>
             </Tooltip>
           ) : undefined;
 
@@ -1643,15 +1651,15 @@ const SkillModalContent: React.FC = () => {
       {/* Header: tabs + search + create button */}
       <div className='flex items-center gap-12px mb-12px'>
         {/* Tab switcher */}
-        <div className='flex items-center bg-fill-2 rd-8px p-2px gap-1px flex-shrink-0'>
-          <button className={classNames('px-12px py-5px text-13px rd-6px transition-colors cursor-pointer border-none outline-none', activeTab === 'store' ? 'bg-base text-t-primary font-medium shadow-sm' : 'bg-transparent text-t-secondary hover:text-t-primary')} onClick={() => setActiveTab('store')}>
+        <div className='settings-store-tabs flex-shrink-0'>
+          <button className={classNames('settings-store-tabs__item', activeTab === 'store' && 'settings-store-tabs__item--active')} onClick={() => setActiveTab('store')}>
             {t('settings.skill.storeTab', { defaultValue: '技能库' })}
           </button>
-          <button className={classNames('px-12px py-5px text-13px rd-6px transition-colors cursor-pointer border-none outline-none', activeTab === 'exclusive' ? 'bg-base text-t-primary font-medium shadow-sm' : 'bg-transparent text-t-secondary hover:text-t-primary')} onClick={() => setActiveTab('exclusive')}>
+          <button className={classNames('settings-store-tabs__item', activeTab === 'exclusive' && 'settings-store-tabs__item--active')} onClick={() => setActiveTab('exclusive')}>
             {t('settings.skill.exclusiveTab', { defaultValue: '专属技能' })}
           </button>
           <button
-            className={classNames('px-12px py-5px text-13px rd-6px transition-colors cursor-pointer border-none outline-none', activeTab === 'installed' ? 'bg-base text-t-primary font-medium shadow-sm' : 'bg-transparent text-t-secondary hover:text-t-primary')}
+            className={classNames('settings-store-tabs__item', activeTab === 'installed' && 'settings-store-tabs__item--active')}
             onClick={() => {
               if (activeTab === 'installed') {
                 void fetchInstalledList();
@@ -1661,7 +1669,7 @@ const SkillModalContent: React.FC = () => {
             }}
           >
             {t('settings.skill.installedTab', { defaultValue: '我的技能' })}
-            {getInstalledSkillBadgeCount(installedList) > 0 && <span className='ml-5px px-5px py-0px bg-primary text-white text-10px rd-full leading-16px'>{getInstalledSkillBadgeCount(installedList)}</span>}
+            {getInstalledSkillBadgeCount(installedList) > 0 && <span className='settings-store-tabs__badge'>{getInstalledSkillBadgeCount(installedList)}</span>}
           </button>
         </div>
 
@@ -1700,7 +1708,7 @@ const SkillModalContent: React.FC = () => {
           {/* Category filter */}
           <div className='flex gap-6px mb-14px overflow-x-auto pb-2px flex-shrink-0 scrollbar-hide'>
             {[{ key: 'all', label: t('settings.skill.allCategories', { defaultValue: '精选' }) }, ...categories.map((c) => ({ key: c, label: c }))].map(({ key, label }) => (
-              <span key={key} className={classNames('px-12px py-4px rd-16px text-12px cursor-pointer transition-colors whitespace-nowrap flex-shrink-0', selectedCategory === key ? 'bg-primary text-white' : 'bg-fill-2 text-t-secondary hover:bg-fill-3 hover:text-t-primary')} onClick={() => setSelectedCategory(key)}>
+              <span key={key} className={classNames('settings-store-category-chip flex-shrink-0', selectedCategory === key && 'settings-store-category-chip--active')} onClick={() => setSelectedCategory(key)}>
                 {label}
               </span>
             ))}
