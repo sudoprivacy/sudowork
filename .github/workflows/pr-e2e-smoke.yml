@@ -60,6 +60,9 @@ jobs:
 
       - name: Build and start Sudowork
         run: |
+          # Fix Electron sandbox permissions for CI
+          sudo chown root:root node_modules/electron/dist/chrome-sandbox 2>/dev/null || true
+          sudo chmod 4755 node_modules/electron/dist/chrome-sandbox 2>/dev/null || true
           bun run start &
           # Wait for CDP port to become available
           for i in $(seq 1 60); do
