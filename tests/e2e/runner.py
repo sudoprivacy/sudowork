@@ -60,9 +60,10 @@ async def run_case(tab, case_path: Path) -> dict:
         # Use shared invoke_op (same code path as run_op.py)
         result = await invoke_op(tab, op_name, OPS, **kwargs)
 
-        # Check result
-        if op_name in ("judge", "db_audit"):
-            if result.get("pass"):
+        # Check result — ops with a "pass" key are assertions (judge, db_audit,
+        # check_port_isolation, etc.); everything else is a plain action.
+        if "pass" in result:
+            if result["pass"]:
                 passed += 1
                 status = "PASS"
             else:
