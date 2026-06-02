@@ -15,6 +15,7 @@ import { app } from 'electron';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import * as crypto from 'crypto';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import runtimeVersions from '@/shared/runtime-versions.json';
 import { extractTarGzWithProgress, extractZipWithProgress, listTarGzEntries, listZipEntries } from '../archiveProgress';
@@ -32,7 +33,16 @@ export const SCODE_DIR = path.join(os.homedir(), '.nexus', 'sudocode');
 /** Marker filename to record installed version */
 const SCODE_READY_MARKER = '.scode-bin-ready';
 
-/** GitHub release base URL for scode downloads */
+/**
+ * Tencent COS mirror root for scode downloads (default source). The mirror is
+ * rolling-latest only (no versioned dirs): the "latest" segment and artifact
+ * filename are appended per request. Integrity is enforced against the
+ * SHA256SUMS.txt published alongside the artifacts. Override the full base with
+ * SCODE_DOWNLOAD_BASE_URL.
+ */
+const SCODE_COS_RELEASE_ROOT_URL = 'https://sudoclaw-download-1309794936.cos.ap-beijing.myqcloud.com/sudocode/release';
+
+/** GitHub release base URL — opt-in only via SUDOWORK_USE_GITHUB_FALLBACK=1. */
 const SCODE_GITHUB_RELEASE_BASE_URL = 'https://github.com/sudoprivacy/sudocode/releases/download';
 const SCODE_SKILLS_DIR = path.join(SCODE_DIR, 'skills');
 const SCODE_LEGACY_MANAGED_SKILLS_FILE = path.join(SCODE_DIR, '.sudowork-managed-skills.json');
@@ -361,7 +371,82 @@ async function downloadScode(url: string, destPath: string, onProgress?: (percen
   });
 }
 
-/** Get GitHub download URL for scode */
+/** Fetch a small text resource (SHA256SUMS.txt), following redirects. */
+async function fetchText(url: string): Promise<string> {
+  const https = await import('https');
+  const http = await import('http');
+  return new Promise<string>((resolve, reject) => {
+    let redirects = 0;
+    const doRequest = (requestUrl: string): void => {
+      if (redirects > 10) {
+        reject(new Error('Too many redirects'));
+        return;
+      }
+      const mod = requestUrl.startsWith('https') ? https : http;
+      mod
+        .get(requestUrl, (response: import('http').IncomingMessage) => {
+          if ([301, 302, 307, 308].includes(response.statusCode!) && response.headers.location) {
+            redirects++;
+            doRequest(response.headers.location);
+            return;
+          }
+          if (response.statusCode !== 200) {
+            reject(new Error(`HTTP ${response.statusCode}`));
+            return;
+          }
+          let data = '';
+          response.setEncoding('utf8');
+          response.on('data', (chunk: string) => {
+            data += chunk;
+          });
+          response.on('end', () => resolve(data));
+        })
+        .on('error', reject);
+    };
+    doRequest(url);
+  });
+}
+
+/** Parse a SHA256SUMS.txt body and return the lowercase hex hash for `filename`. */
+function expectedHashFor(sumsText: string, filename: string): string | null {
+  for (const line of sumsText.split('\n')) {
+    const match = line.trim().match(/^([0-9a-fA-F]{64})\s+\*?(.+)$/);
+    if (match && match[2].trim() === filename) return match[1].toLowerCase();
+  }
+  return null;
+}
+
+/**
+ * Verify a downloaded archive against the SHA256SUMS.txt next to it.
+ * Throws on any verification failure so the install aborts rather than
+ * installing a corrupted or tampered binary.
+ */
+async function verifyArchiveIntegrity(artifactUrl: string, filePath: string, filename: string): Promise<void> {
+  const sumsUrl = artifactUrl.replace(/[^/]+$/, 'SHA256SUMS.txt');
+  let sumsText: string;
+  try {
+    sumsText = await fetchText(sumsUrl);
+  } catch (err) {
+    throw new Error(`Could not fetch SHA256SUMS.txt from ${sumsUrl}: ${err instanceof Error ? err.message : String(err)}`);
+  }
+  const expected = expectedHashFor(sumsText, filename);
+  if (!expected) {
+    throw new Error(`No SHA256 entry for ${filename} in ${sumsUrl}`);
+  }
+  const actual = crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
+  if (actual !== expected) {
+    throw new Error(`SHA256 mismatch for ${filename}: expected ${expected}, got ${actual}`);
+  }
+  mainLog(TAG, `SHA256 verified: ${filename}`);
+}
+
+/** Get COS mirror download URL for scode (default source, rolling-latest). */
+function getCosDownloadUrl(): string {
+  const base = process.env.SCODE_DOWNLOAD_BASE_URL?.replace(/\/+$/, '') || `${SCODE_COS_RELEASE_ROOT_URL}/latest`;
+  return `${base}/${getPlatformArchiveName()}`;
+}
+
+/** Get GitHub download URL for scode (opt-in fallback only). */
 function getGitHubDownloadUrl(): string {
   const version = getScodeVersion();
   return `${SCODE_GITHUB_RELEASE_BASE_URL}/v${version}/${getPlatformArchiveName()}`;
@@ -393,11 +478,14 @@ export async function ensureScodeInstalled(options?: { forceReinstall?: boolean;
     mainLog(TAG, `Using bundled scode archive from ${bundledPath}`);
     options?.onProgress?.(5);
   } else {
-    // Download from GitHub
-    mainLog(TAG, 'Bundled scode not found, attempting download from GitHub...');
+    // Download from the COS mirror (GitHub only when explicitly opted in).
+    mainLog(TAG, 'Bundled scode not found, attempting download from COS mirror...');
     fs.mkdirSync(downloadDir, { recursive: true });
 
-    const downloadAttempts = [{ label: 'GitHub', url: getGitHubDownloadUrl() }];
+    const downloadAttempts = [{ label: 'COS', url: getCosDownloadUrl() }];
+    if (process.env.SUDOWORK_USE_GITHUB_FALLBACK === '1') {
+      downloadAttempts.push({ label: 'GitHub', url: getGitHubDownloadUrl() });
+    }
 
     let lastError: string | null = null;
     for (const attempt of downloadAttempts) {
@@ -407,12 +495,29 @@ export async function ensureScodeInstalled(options?: { forceReinstall?: boolean;
           const mapped = Math.max(5, Math.min(45, Math.round((percent / 100) * 45)));
           options?.onProgress?.(mapped);
         });
-        archivePath = downloadDest;
-        break;
       } catch (err) {
         lastError = err instanceof Error ? err.message : String(err);
         mainWarn(TAG, `${attempt.label} download failed: ${lastError}`);
+        continue;
       }
+
+      // Download succeeded — verify integrity before accepting the archive.
+      // A hash mismatch is a hard stop: refuse to install a corrupted/tampered binary.
+      try {
+        await verifyArchiveIntegrity(attempt.url, downloadDest, getPlatformArchiveName());
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        mainError(TAG, `Integrity verification failed (${attempt.label}): ${msg}`);
+        try {
+          fs.unlinkSync(downloadDest);
+        } catch {
+          /* ignore */
+        }
+        return false;
+      }
+
+      archivePath = downloadDest;
+      break;
     }
 
     if (!archivePath) {
