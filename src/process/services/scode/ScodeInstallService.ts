@@ -48,6 +48,11 @@ const AGENTS_MD_IDENTITY_MARKER = '<!-- SUDOCODE_IDENTITY_STATEMENT -->';
 /** Marker used to identify the date-time-query section inside AGENTS.md */
 const AGENTS_MD_DATE_TIME_MARKER = '<!-- SUDOCODE_DATE_TIME_QUERY -->';
 
+/** Marker used to identify the memory-storage section inside AGENTS.md */
+const AGENTS_MD_MEMORY_MARKER = '<!-- SUDOCODE_MEMORY_STORAGE -->';
+
+const AGENTS_MD_MANAGED_MARKERS = [AGENTS_MD_SAFETY_MARKER, AGENTS_MD_IDENTITY_MARKER, AGENTS_MD_DATE_TIME_MARKER, AGENTS_MD_MEMORY_MARKER];
+
 function readLegacyManagedScodeSkillEntries(): Map<string, string> {
   try {
     const raw = fs.readFileSync(SCODE_LEGACY_MANAGED_SKILLS_FILE, 'utf-8');
@@ -494,11 +499,7 @@ function updateMarkerBlock(existingContent: string, marker: string, newBlock: st
   }
 
   // Find all markers in the file to determine boundaries
-  const markers = [
-    AGENTS_MD_SAFETY_MARKER,
-    AGENTS_MD_IDENTITY_MARKER,
-    AGENTS_MD_DATE_TIME_MARKER,
-  ].filter((m) => existingContent.includes(m));
+  const markers = AGENTS_MD_MANAGED_MARKERS.filter((m) => existingContent.includes(m));
 
   // Find the start of this block (marker line)
   const markerIndex = existingContent.indexOf(marker);
@@ -518,14 +519,7 @@ function updateMarkerBlock(existingContent: string, marker: string, newBlock: st
   return existingContent.slice(0, blockStart) + newBlock + existingContent.slice(blockEnd);
 }
 
-/**
- * Ensure AGENTS.md contains identity statement and safety rules.
- * Creates the file if missing, updates if marker exists, appends otherwise.
- */
-export function ensureAgentsMdRules(): void {
-  const agentsMdPath = path.join(SCODE_DIR, 'AGENTS.md');
-  mainLog(TAG, `ensureAgentsMdRules called, path: ${agentsMdPath}`);
-
+function getManagedAgentsMdBlocks(): string[] {
   const identityBlock = `
 ${AGENTS_MD_IDENTITY_MARKER}
 ## Identity / 身份
@@ -583,18 +577,47 @@ When users ask about current date/time (e.g., "What day is today?", "今天几�
 - User: "现在几点?" → Execute \`date "+%H:%M:%S"\` → Reply with actual time
 `;
 
+  const memoryBlock = `
+${AGENTS_MD_MEMORY_MARKER}
+## Memory Storage / 记忆存储
+
+Conversation memories and user-specific long-term instructions are instruction-file content, not runtime settings.
+会话记忆、用户偏好和长期规则属于指令文件内容，不属于运行时配置。
+
+When the user asks you to remember, save, update, or persist a preference/rule/identity detail/workflow:
+当用户要求记住、保存、更新或持久化偏好/规则/身份信息/工作流时：
+1. Update the AGENTS.md file that applies to the current workspace. Prefer \`.nexus/sudocode/AGENTS.md\` under the current working directory unless the user explicitly names another AGENTS.md file.
+   更新当前工作区对应的 AGENTS.md。除非用户明确指定其他 AGENTS.md，否则优先写入当前工作目录下的 \`.nexus/sudocode/AGENTS.md\`。
+2. Store memories as Markdown instructions under a clear "Memory" section.
+   以 Markdown 指令形式存放在清晰的 "Memory" 小节下。
+3. Do NOT use the Config tool for memory operations.
+   不要使用 Config 工具处理记忆写入。
+4. Do NOT write memories or natural-language instructions to \`settings.json\`, \`settings.local.json\`, \`sudocode.json\`, or \`scode.json\`; those files are machine-readable runtime configuration only.
+   不要把记忆或自然语言指令写入 \`settings.json\`、\`settings.local.json\`、\`sudocode.json\` 或 \`scode.json\`；这些文件只用于机器可读的运行时配置。
+5. Use Config only when the user explicitly asks to change Sudo Code runtime settings such as model or permission mode.
+   仅当用户明确要求修改 Sudo Code 运行时设置（如模型或权限模式）时才使用 Config。
+`;
+
+  return [identityBlock, dateTimeBlock, memoryBlock, safetyBlock];
+}
+
+function ensureAgentsMdRulesAt(agentsMdPath: string): void {
+  mainLog(TAG, `ensureAgentsMdRules called, path: ${agentsMdPath}`);
+
   try {
+    fs.mkdirSync(path.dirname(agentsMdPath), { recursive: true });
     const fileExists = fs.existsSync(agentsMdPath);
     mainLog(TAG, `AGENTS.md exists: ${fileExists}`);
     if (!fileExists) {
-      // AGENTS.md does not exist — create it with all blocks
-      const content = identityBlock + dateTimeBlock + safetyBlock;
+      const content = getManagedAgentsMdBlocks().join('');
       fs.writeFileSync(agentsMdPath, content, 'utf-8');
-      mainLog(TAG, 'Created AGENTS.md with identity, date/time, and safety rules');
+      mainLog(TAG, 'Created AGENTS.md with managed scode rules');
     } else {
       const existing = fs.readFileSync(agentsMdPath, 'utf-8');
+      const [identityBlock, dateTimeBlock, memoryBlock, safetyBlock] = getManagedAgentsMdBlocks();
       let updated = updateMarkerBlock(existing, AGENTS_MD_IDENTITY_MARKER, identityBlock);
       updated = updateMarkerBlock(updated, AGENTS_MD_DATE_TIME_MARKER, dateTimeBlock);
+      updated = updateMarkerBlock(updated, AGENTS_MD_MEMORY_MARKER, memoryBlock);
       updated = updateMarkerBlock(updated, AGENTS_MD_SAFETY_MARKER, safetyBlock);
       if (updated !== existing) {
         fs.writeFileSync(agentsMdPath, updated, 'utf-8');
@@ -604,6 +627,21 @@ When users ask about current date/time (e.g., "What day is today?", "今天几�
   } catch (err) {
     mainWarn(TAG, `Failed to ensure AGENTS.md rules: ${err instanceof Error ? err.message : String(err)}`);
   }
+}
+
+/**
+ * Ensure the user-level AGENTS.md contains managed rules.
+ */
+export function ensureAgentsMdRules(): void {
+  ensureAgentsMdRulesAt(path.join(SCODE_DIR, 'AGENTS.md'));
+}
+
+/**
+ * Ensure the current scode workspace has rules that scode actually loads from
+ * its AGENTS.md ancestry scan.
+ */
+export function ensureWorkspaceAgentsMdRules(workspace: string): void {
+  ensureAgentsMdRulesAt(path.join(workspace, '.nexus', 'sudocode', 'AGENTS.md'));
 }
 
 /** Remove managed runtime artifacts while preserving user-managed config and skills. */
