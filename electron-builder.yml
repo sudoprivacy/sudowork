@@ -25,6 +25,8 @@ files:
   - rules/**/*
   - skills/**/*
   - assistant/**/*
+  # ai-dev-browser Python package (browser skill runtime)
+  - vendor/ai-dev-browser/ai_dev_browser/**/*
   - package.json
   # Rust napi addon (nexus gRPC client)
   - native/nexus-napi/*.node

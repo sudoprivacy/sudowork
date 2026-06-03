@@ -123,6 +123,14 @@ def _cdp_tabs(port: int) -> list[str]:
 
 def run_test(sudowork_port: int = 9230) -> tuple[bool, str]:
     """Run the full port isolation test. Returns (passed, message)."""
+    # 0. Verify browser_helper.py can find ai_dev_browser tools
+    helper = _find_helper()
+    if not os.path.isfile(helper):
+        return False, f"browser_helper.py not found at {helper}"
+    check = _run("--list", timeout=10)
+    if check["exit"] != 0 or "page_goto" not in check["stdout"]:
+        return False, f"browser --list failed (tools not installed): {check['stderr'] or check['stdout']}"
+
     server, test_port = _start_server()
     test_url = f"http://127.0.0.1:{test_port}"
     chrome_port = None
