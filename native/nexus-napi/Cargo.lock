@@ -574,8 +574,8 @@ dependencies = [
 
 [[package]]
 name = "nexus-vfs-client"
-version = "0.1.4"
-source = "git+https://github.com/sudoprivacy/sudocode?rev=0686ed9b#0686ed9bb1b55674d9b298615e212cecb7e8579a"
+version = "0.1.10"
+source = "git+https://github.com/sudoprivacy/sudocode?rev=869d571#869d5718c1f7f8b2af8d17ea8160a005514d48b9"
 dependencies = [
  "prost",
  "protoc-bin-vendored",
