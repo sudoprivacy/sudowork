@@ -675,7 +675,7 @@ class McporterService {
   }
 
   /**
-   * Wrapper script 目录（复用 sudoclaw 的 bin 目录）
+   * Wrapper script 目录（~/.nexus/bin）
    */
   private getBinDir(): string {
     return path.join(os.homedir(), '.nexus', 'bin');

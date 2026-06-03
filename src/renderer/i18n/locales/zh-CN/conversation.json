@@ -114,7 +114,7 @@
     "skillsEmpty": "工作空间暂无可用技能",
     "skillsSearchEmpty": "未找到匹配的技能",
     "skillsLoading": "正在扫描技能...",
-    "skillsEmptyDescOpenClaw": "在 skills/ 目录下添加 SKILL.md 后会自动显示",
+    "skillsEmptyDescDefault": "在 skills/ 目录下添加 SKILL.md 后会自动显示",
     "skillsEmptyDescClaude": "在 .claude/skills/ 目录下添加 SKILL.md 后会自动显示",
     "lastSyncPrefix": "上次同步",
     "lastSyncJustNow": "刚刚",

@@ -240,7 +240,7 @@ const ZentaoConfigForm: React.FC<{ pluginStatus?: IChannelPluginStatus | null; o
           {pluginStatus?.connected && (
             <div className='text-14px text-t-secondary space-y-8px'>
               <p className='m-0 font-500'>下一步操作：</p>
-              <p className='m-0'>可以和 Sudoclaw 对话，直接使用禅道技能进行项目问题的跟踪与处理。</p>
+              <p className='m-0'>可以和 Sudo Code 对话，直接使用禅道技能进行项目问题的跟踪与处理。</p>
             </div>
           )}
           {!pluginStatus?.connected && !pluginStatus?.error && <div className='text-14px text-t-secondary'>正在建立连接，请稍候...</div>}

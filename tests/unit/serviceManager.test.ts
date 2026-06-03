@@ -38,7 +38,6 @@ import { initStatusManager } from '@/process/services/initStatus';
 
 type TestableServiceManager = ServiceManager & {
   startNexusWithRetries: () => Promise<void>;
-  startOpenClawWithRetries: () => Promise<void>;
   verifyStartupReadiness: () => Promise<void>;
   startSafetyPolling: () => Promise<void>;
 };
@@ -47,20 +46,6 @@ describe('ServiceManager', () => {
   afterEach(() => {
     vi.clearAllMocks();
     vi.restoreAllMocks();
-  });
-
-  it('deduplicates concurrent Sudoclaw starts', async () => {
-    const manager = new ServiceManager() as TestableServiceManager;
-    const startOpenClawWithRetries = vi.spyOn(manager, 'startOpenClawWithRetries').mockImplementation(
-      async () =>
-        await new Promise<void>((resolve) => {
-          setTimeout(resolve, 20);
-        })
-    );
-
-    await Promise.all([manager.startOpenClaw(), manager.startOpenClaw(), manager.startOpenClaw()]);
-
-    expect(startOpenClawWithRetries).toHaveBeenCalledTimes(1);
   });
 
   it('deduplicates concurrent Nexus starts', async () => {

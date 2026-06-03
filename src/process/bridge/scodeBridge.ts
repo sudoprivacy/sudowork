@@ -86,7 +86,7 @@ export function writeScodeDefaultModel(modelId: string): void {
 /**
  * Update the image generation model in sudocode.json tools.imageGenerationModel.
  * Used by ServiceManager to keep the model in sync so the image-generation skill
- * bash script can read it without depending on sudoclaw.json.
+ * bash script can read it from sudocode.json.
  */
 export function writeScodeImageModel(modelId: string): void {
   const existing = normalizeCustomApiKeyModelsInScodeConfig(readExistingConfig()) as unknown as Record<string, unknown>;
@@ -171,7 +171,6 @@ export async function syncScodeModelsFromPricing(): Promise<void> {
 
 /**
  * Sync image generation model from ProcessConfig to sudocode.json on startup.
- * This runs independently of sudoclaw.
  */
 async function syncImageModelOnStartup(): Promise<void> {
   try {

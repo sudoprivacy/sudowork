@@ -13,9 +13,7 @@ import { detectImageMimeType, IMAGE_TARGET_RAW_SIZE } from '../../common/imageUt
 import { ipcBridge } from '../../common';
 import type { IBridgeResponse } from '../../common/ipcBridge';
 import { ProcessConfig } from '../initStorage';
-import { SUDOCLAW_DIR } from '../services/sudoclaw/SudoclawInstallService';
 import { SCODE_DIR } from '../services/scode/ScodeInstallService';
-const SUDOCLAW_CONFIG_PATH = path.join(SUDOCLAW_DIR, 'sudoclaw.json');
 const SUDOCODE_CONFIG_PATH = path.join(SCODE_DIR, 'sudocode.json');
 
 const GEMINI_IMAGE_GENERATION_MODELS = new Set(['gemini-3.1-flash-image-preview', 'gemini-3-pro-image-preview', 'gemini-2.5-flash-image']);
@@ -85,11 +83,10 @@ function gcd(a: number, b: number): number {
  * Resolve baseUrl and apiKey for image generation.
  * Priority:
  * 1. User-configured imageGenerationModel (switch must be on)
- * 2. sudorouter provider in sudoclaw.json
+ * 2. sudorouter provider in sudocode.json
  * 3. Any model.config provider whose baseUrl contains sudorouter.ai
  */
 export function readSudorouterCredentials(): { baseUrl: string; apiKey: string } | null {
-  // Priority: sudocode.json (new), fallback to sudoclaw.json (legacy)
   try {
     const raw = fsSync.readFileSync(SUDOCODE_CONFIG_PATH, 'utf-8');
     const config = JSON.parse(raw) as { auth_modes?: { proxy?: Record<string, { baseUrl?: string; apiKey?: string }> } };
@@ -98,45 +95,21 @@ export function readSudorouterCredentials(): { baseUrl: string; apiKey: string }
       const baseUrl = (sr.baseUrl || DEFAULT_IMAGE_BASE_URL).replace(/\/+$/, '');
       return { baseUrl, apiKey: sr.apiKey };
     }
-  } catch {
-    // ignored
-  }
-  try {
-    const raw = fsSync.readFileSync(SUDOCLAW_CONFIG_PATH, 'utf-8');
-    const config = JSON.parse(raw) as { models?: { providers?: Record<string, { baseUrl?: string; apiKey?: string }> } };
-    const sr = config?.models?.providers?.sudorouter;
-    if (sr?.apiKey) {
-      const baseUrl = (sr.baseUrl || DEFAULT_IMAGE_BASE_URL).replace(/\/+$/, '');
-      return { baseUrl, apiKey: sr.apiKey };
-    }
   } catch (e) {
-    console.log('[ImageGen] sudoclaw.json read failed:', e instanceof Error ? e.message : String(e));
+    console.log('[ImageGen] sudocode.json read failed:', e instanceof Error ? e.message : String(e));
   }
   return null;
 }
 
 export async function resolveImageConfig(): Promise<{ baseUrl: string; apiKey: string; model: string } | null> {
-  // Primary: read image generation model from sudoclaw.json agents.defaults.imageGenerationModel
+  // Read image generation model from user config (ProcessConfig).
   let imageModelId: string | null = null;
-  try {
-    const raw = fsSync.readFileSync(SUDOCLAW_CONFIG_PATH, 'utf-8');
-    const config = JSON.parse(raw);
-    const imageModel = config?.agents?.defaults?.imageGenerationModel;
-    const model = typeof imageModel === 'string' ? imageModel : imageModel?.primary;
-    if (model && typeof model === 'string' && model.trim()) imageModelId = model;
-  } catch {
-    // ignored
+  const imageModel = await ProcessConfig.get('tools.imageGenerationModel').catch((): null => null);
+  if (!imageModel?.switch || !imageModel.useModel) {
+    console.log('[ImageGen] image generation switch is off or no model selected');
+    return null;
   }
-
-  // Fallback: ProcessConfig (before user has changed settings in this session)
-  if (!imageModelId) {
-    const imageModel = await ProcessConfig.get('tools.imageGenerationModel').catch((): null => null);
-    if (!imageModel?.switch || !imageModel.useModel) {
-      console.log('[ImageGen] image generation switch is off or no model selected');
-      return null;
-    }
-    imageModelId = imageModel.useModel;
-  }
+  imageModelId = imageModel.useModel;
 
   // Route user-selected model through sudorouter
   const sr = readSudorouterCredentials();
@@ -338,14 +311,14 @@ export async function callImagesEdits(baseUrl: string, apiKey: string, model: st
 }
 
 /**
- * Resolve the current chat model from sudoclaw.json (agents.defaults.model.primary).
+ * Resolve the current chat model from sudocode.json (default_model).
  * Returns null if not configured.
  */
 export function resolveChatModel(): string | null {
   try {
-    const raw = fsSync.readFileSync(SUDOCLAW_CONFIG_PATH, 'utf-8');
-    const config = JSON.parse(raw) as { agents?: { defaults?: { model?: { primary?: string } } } };
-    let model = config?.agents?.defaults?.model?.primary;
+    const raw = fsSync.readFileSync(SUDOCODE_CONFIG_PATH, 'utf-8');
+    const config = JSON.parse(raw) as { default_model?: string };
+    let model = config?.default_model;
     if (!model) return null;
     // Strip provider prefix (e.g. "sudorouter-gemini-3-pro/gemini-3-pro" → "gemini-3-pro")
     if (model.includes('/')) {
@@ -353,7 +326,7 @@ export function resolveChatModel(): string | null {
     }
     return model;
   } catch (e) {
-    console.log('[ImageAnalyze] sudoclaw.json read failed:', e instanceof Error ? e.message : String(e));
+    console.log('[ImageAnalyze] sudocode.json read failed:', e instanceof Error ? e.message : String(e));
     return null;
   }
 }

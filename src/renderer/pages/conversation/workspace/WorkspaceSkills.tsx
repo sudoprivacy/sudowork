@@ -112,7 +112,7 @@ const resolveEmptyDescription = (eventPrefix: 'acp' | 'remote-agent' | undefined
     });
   }
 
-  return t('conversation.workspace.skillsEmptyDescOpenClaw', {
+  return t('conversation.workspace.skillsEmptyDescDefault', {
     defaultValue: '在 skills/ 目录下添加 SKILL.md 后会自动显示',
   });
 };

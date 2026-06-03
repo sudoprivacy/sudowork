@@ -49,7 +49,6 @@ const AGENT_LOGO_MAP = {
   opencode: OpenCodeLogoLight,
   scode: ScodeLogo,
   copilot: GitHubLogo,
-  sudoclaw: SudoworkLogo,
   vibe: MistralLogo,
   nanobot: NanobotLogo,
   qoder: QoderLogo,

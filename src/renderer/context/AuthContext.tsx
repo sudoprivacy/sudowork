@@ -3,7 +3,6 @@ import { SUDOWORK_SERVER_BASE_URL } from '@/common/sudoworkServer';
 import { ConfigStorage, DEFAULT_IMAGE_GENERATION_MODEL } from '@/common/storage';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { withCsrfToken } from '@/webserver/middleware/csrfClient';
-import { getSudorouterPrimaryModelPath, mergeSudorouterProvidersIntoConfig } from '@/common/sudoclawModelConfig';
 import { buildScodeConfigFromLoginPayload } from '@/common/scodeConfig';
 import { extractLoginSudoclawPayload, mergeLoginUserData } from '@/common/sudoworkAuthLogin';
 
@@ -172,15 +171,17 @@ async function refreshAuthProxyRulesAfterLogin(): Promise<void> {
   }
 }
 
-function hasSudoclawApiKey(config: { models?: { providers?: Record<string, { apiKey?: string }> } } | null | undefined): boolean {
-  return Object.values(config?.models?.providers || {}).some((provider) => !!provider?.apiKey?.trim());
+function hasScodeApiKey(config: { auth_modes?: { proxy?: Record<string, { apiKey?: string }>; 'api-key'?: Record<string, { apiKey?: string }> } } | null | undefined): boolean {
+  const proxy = Object.values(config?.auth_modes?.proxy || {}).some((entry) => !!entry?.apiKey?.trim());
+  const apiKey = Object.values(config?.auth_modes?.['api-key'] || {}).some((entry) => !!entry?.apiKey?.trim());
+  return proxy || apiKey;
 }
 
 async function invokeWithTimeout<T>(fn: () => Promise<T>, timeoutMs: number): Promise<T> {
   return Promise.race([fn(), new Promise<never>((_, reject) => setTimeout(() => reject(new Error(`IPC timeout after ${timeoutMs}ms`)), timeoutMs))]);
 }
 
-async function ensureSudoclawHasApiKey(): Promise<boolean> {
+async function ensureScodeHasApiKey(): Promise<boolean> {
   if (!isDesktopRuntime) {
     return true;
   }
@@ -190,17 +191,17 @@ async function ensureSudoclawHasApiKey(): Promise<boolean> {
 
   for (let i = 0; i < maxRetries; i++) {
     try {
-      const res = await invokeWithTimeout(() => ipcBridge.sudoclaw.getConfig.invoke(), timeoutMs);
-      return hasSudoclawApiKey(res?.data);
+      const res = await invokeWithTimeout(() => ipcBridge.scode.getConfig.invoke(), timeoutMs);
+      return hasScodeApiKey(res?.data);
     } catch (error) {
-      console.warn(`[Auth] getConfig attempt ${i + 1}/${maxRetries} failed:`, error);
+      console.warn(`[Auth] scode getConfig attempt ${i + 1}/${maxRetries} failed:`, error);
       if (i < maxRetries - 1) {
         await new Promise((resolve) => setTimeout(resolve, 500));
       }
     }
   }
 
-  console.error('[Auth] ensureSudoclawHasApiKey failed after all retries, treating as no api key');
+  console.error('[Auth] ensureScodeHasApiKey failed after all retries, treating as no api key');
   return false;
 }
 
@@ -307,7 +308,7 @@ async function handleLoginSuccess(data: LoginSuccessResponse, setUser: SetAuthUs
       setUser(null);
       setStatus('unauthenticated');
       setReady(true);
-      throw new Error('登录响应缺少 Sudoclaw API Key 配置');
+      throw new Error('登录响应缺少 API Key 配置');
     }
 
     setReady(true);
@@ -330,38 +331,6 @@ async function handleLoginSuccess(data: LoginSuccessResponse, setUser: SetAuthUs
       if (defaultModel) {
         await ipcBridge.scode.setDefaultModel.invoke({ modelId: defaultModel }).catch(() => {});
       }
-
-      // Sync sudoclaw.json only for legacy gateway compatibility. Failure must not block Sudocode.
-      try {
-        const currentConfig = await ipcBridge.sudoclaw.getConfig.invoke();
-        const hadSudoclawApiKey = hasSudoclawApiKey(currentConfig?.data);
-        const patch = mergeSudorouterProvidersIntoConfig(currentConfig?.data, {
-          modelIds: loginSudoclawPayload.models,
-          apiKey: loginSudoclawPayload.sudorouterKey,
-          baseUrl: loginSudoclawPayload.modelServiceUrl,
-          preservePrimary: hadSudoclawApiKey,
-        });
-
-        if (!hadSudoclawApiKey) {
-          patch.agents = {
-            ...patch.agents,
-            defaults: {
-              ...patch.agents?.defaults,
-              model: {
-                ...patch.agents?.defaults?.model,
-                primary: getSudorouterPrimaryModelPath('gemini-3.5-flash'),
-              },
-            },
-          };
-        }
-
-        const saveRes = await ipcBridge.sudoclaw.saveConfig.invoke({ config: patch });
-        if (!saveRes?.success) {
-          throw new Error(saveRes?.msg || 'Sudoclaw saveConfig failed');
-        }
-      } catch (error) {
-        console.warn('[Auth] Failed to sync sudoclaw backup config:', error);
-      }
     } catch (error) {
       setSyncMessage(null);
       setUser(null);
@@ -376,29 +345,6 @@ async function handleLoginSuccess(data: LoginSuccessResponse, setUser: SetAuthUs
   setUser(authData);
   setStatus('authenticated');
   setReady(true);
-
-  if (isDesktopRuntime) {
-    void restartSudoclawGatewayIfInstalled();
-  }
-}
-
-async function restartSudoclawGatewayIfInstalled(): Promise<void> {
-  try {
-    const statusRes = await ipcBridge.sudoclaw.getStatus.invoke();
-    if (!statusRes?.success || !statusRes.data?.installed) {
-      console.warn('[Auth] Sudoclaw gateway restart skipped because Sudoclaw CLI is not installed');
-      return;
-    }
-
-    const restartRes = await ipcBridge.sudoclaw.restartGateway.invoke();
-    if (!restartRes?.success) {
-      console.error('[Auth] Sudoclaw 后台重启失败:', restartRes?.msg || 'Sudoclaw restartGateway failed');
-      return;
-    }
-    console.log('[Auth] Sudoclaw 正在后台重启');
-  } catch (error) {
-    console.error('[Auth] Sudoclaw 后台重启失败:', error);
-  }
 }
 
 export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
@@ -670,7 +616,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     if (stored) {
       try {
         const authStorage: AuthStorage = JSON.parse(stored);
-        const hasApiKey = await ensureSudoclawHasApiKey();
+        const hasApiKey = await ensureScodeHasApiKey();
         if (!hasApiKey) {
           setSyncMessage(null);
           setUser(null);
@@ -727,7 +673,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     if (oldStored) {
       try {
         const parsed = JSON.parse(oldStored);
-        const hasApiKey = await ensureSudoclawHasApiKey();
+        const hasApiKey = await ensureScodeHasApiKey();
         if (!hasApiKey) {
           setSyncMessage(null);
           setUser(null);

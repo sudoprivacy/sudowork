@@ -4,19 +4,20 @@ import type { TChatConversation } from '@/common/storage';
 import { shouldSyncWorkspaceSkills } from '@/common/utils/workspaceSkillSync';
 
 describe('workspace skill sync gating', () => {
-  it('enables workspace skill sync for openclaw conversations with a workspace', () => {
+  it('enables workspace skill sync for scode acp conversations with a workspace', () => {
     const conversation = {
-      id: 'conv-openclaw',
-      name: 'OpenClaw',
-      type: 'openclaw-gateway',
+      id: 'conv-scode',
+      name: 'Scode',
+      type: 'acp',
       createTime: Date.now(),
       modifyTime: Date.now(),
       extra: {
-        workspace: '/tmp/openclaw-workspace',
+        workspace: '/tmp/scode-workspace',
+        backend: 'scode',
       },
       model: {
         id: 'default',
-        platform: 'openclaw',
+        platform: 'scode',
         name: 'default',
         baseUrl: '',
         apiKey: '',
@@ -149,17 +150,17 @@ describe('workspace skill sync gating', () => {
     expect(shouldSyncWorkspaceSkills(conversation)).toBe(false);
   });
 
-  it('disables workspace skill sync when openclaw conversation has no workspace', () => {
+  it('disables workspace skill sync when scode conversation has no workspace', () => {
     const conversation = {
-      id: 'conv-openclaw-no-workspace',
-      name: 'OpenClaw',
-      type: 'openclaw-gateway',
+      id: 'conv-scode-no-workspace',
+      name: 'Scode',
+      type: 'acp',
       createTime: Date.now(),
       modifyTime: Date.now(),
-      extra: {},
+      extra: { backend: 'scode' },
       model: {
         id: 'default',
-        platform: 'openclaw',
+        platform: 'scode',
         name: 'default',
         baseUrl: '',
         apiKey: '',

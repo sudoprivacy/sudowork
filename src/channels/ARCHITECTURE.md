@@ -2,7 +2,7 @@
 
 ## 1. 概述
 
-Channels 是 Sudowork 的多平台 AI 助手框架，将 Sudowork 的 AI 能力（ACP、OpenClaw）通过即时通讯平台暴露给远程用户。目前支持三个平台：
+Channels 是 Sudowork 的多平台 AI 助手框架，将 Sudowork 的 AI 能力（ACP）通过即时通讯平台暴露给远程用户。目前支持三个平台：
 
 | 平台                 | SDK                     | 连接方式              | 消息更新                        |
 | -------------------- | ----------------------- | --------------------- | ------------------------------- |
@@ -125,7 +125,7 @@ graph TB
         WM["WorkerManage
         Agent 进程管理"]
         AGT["Agent Task
-        ACP / OpenClaw"]
+        ACP"]
         DB[("SQLite Database")]
         IPC["ipcBridge
         Renderer - Main"]
@@ -244,7 +244,7 @@ interface IRegisteredAction {
 ### 4.4 Session 与 Agent
 
 ```typescript
-type ChannelAgentType = 'acp' | 'openclaw-gateway';
+type ChannelAgentType = 'acp';
 
 interface IChannelSession {
   id: string;
@@ -466,7 +466,7 @@ CREATE TABLE assistant_users (
 CREATE TABLE assistant_sessions (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL,
-  agent_type TEXT NOT NULL CHECK(agent_type IN ('acp','openclaw-gateway')),
+  agent_type TEXT NOT NULL CHECK(agent_type IN ('acp')),
   conversation_id TEXT,
   workspace TEXT,
   chat_id TEXT,                   -- per-chat 隔离键

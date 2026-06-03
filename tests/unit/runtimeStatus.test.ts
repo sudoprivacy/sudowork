@@ -58,13 +58,14 @@ describe('runtimeStatus helpers', () => {
     });
   });
 
-  it('renders service runtime as running only from actual runtime data', () => {
+  it('renders nexus runtime as running from actual runtime data', () => {
     const record = createRecord({
-      key: 'sudoclaw',
+      key: 'nexus',
       status: { installed: true, source: 'managed', version: '1.2.3' },
       statusResolved: true,
-      sudoclawGatewayRunning: true,
-      sudoclawGatewayPort: 7331,
+      nexusInstalled: true,
+      nexusRunning: true,
+      nexusPort: 7331,
     });
 
     expect(resolveRuntimeStatus(record)).toBe('running');

@@ -43,7 +43,7 @@ export function registerAssistantMetas(metas: IAssistantMeta[]): void {
   }
 }
 
-/** O(1) lookup by preset ID (e.g. 'copilot', 'sudoclaw-doctor'). */
+/** O(1) lookup by preset ID (e.g. 'copilot'). */
 export function getPresetById(presetId: string): IAssistantMeta | undefined {
   return presetRegistry.get(presetId);
 }

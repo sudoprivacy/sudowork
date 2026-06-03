@@ -56,8 +56,8 @@ export class RemoteConversationProvider implements IConversationProvider {
    * Initialize Moss API client with JWT access token
    * 初始化 Moss API 客户端并设置 JWT access token
    *
-   * Uses sudoclaw JWT token directly as Bearer token for authentication.
-   * 直接使用 sudoclaw JWT token 作为 Bearer token 进行认证。
+   * Uses the sudowork login JWT token directly as Bearer token for authentication.
+   * 直接使用 sudowork 登录 JWT token 作为 Bearer token 进行认证。
    * No need to convert API-KEY to auth-token.
    * 无需将 API-KEY 转换为 auth-token。
    */

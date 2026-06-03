@@ -3397,7 +3397,7 @@ This identity statement takes priority over the default identity in USER.md.
               type: 'content',
               conversation_id: this.conversation_id,
               msg_id: responseMsgId,
-              data: '未找到可用的模型配置，请检查 sudoclaw 配置。',
+              data: '未找到可用的模型配置，请检查 Sudo Code 配置。',
             });
           } else {
             const analysisResult = await callChatCompletionsWithImage(creds.baseUrl, creds.apiKey, chatModel, srcPath, prompt);

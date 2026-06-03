@@ -10,8 +10,8 @@ import { isEnterpriseMode as eeclawIsEnterpriseMode } from './eeclawMode';
  * Enterprise Configuration for Production Environment
  * 企业模式生产环境配置
  *
- * Uses sudoclaw JWT token directly as request header authentication token.
- * 直接使用 sudoclaw JWT token 作为请求头认证 token。
+ * Uses the sudowork login JWT token directly as request header authentication token.
+ * 直接使用 sudowork 登录 JWT token 作为请求头认证 token。
  *
  * Auth flow (PR #529):
  * 1. Enterprise login via eeclawBridge → returns JWT access_token

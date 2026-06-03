@@ -1,6 +1,5 @@
 export type { LoginSudoclawPayload } from './scodeConfig';
 
-import { buildScodeConfigFromLoginPayload } from './scodeConfig';
 import type { LoginSudoclawPayload } from './scodeConfig';
 
 type LoginResponseData = {
@@ -60,42 +59,4 @@ export function extractLoginSudoclawPayload(payload: unknown): LoginSudoclawPayl
     modelServiceUrl,
     models,
   };
-}
-
-/**
- * Build sudocode.json config from SudoclawConfig (CopilotModalContent settings save).
- * Extracts sudorouter provider credentials and model list from sudoclaw format.
- */
-export function buildScodeConfigFromSudoclawConfig(config: import('./ipcBridge').SudoclawConfig): import('./ipcBridge').ScodeConfig | null {
-  const providers = config?.models?.providers;
-  if (!providers || typeof providers !== 'object') return null;
-
-  // Find the sudorouter provider (the main one with baseUrl and apiKey)
-  let baseUrl: string | undefined;
-  let apiKey: string | undefined;
-  const allModelIds: string[] = [];
-
-  for (const [, provider] of Object.entries(providers)) {
-    if (provider.baseUrl?.includes('sudorouter') && provider.apiKey) {
-      if (!baseUrl) {
-        baseUrl = provider.baseUrl;
-        apiKey = provider.apiKey;
-      }
-      if (provider.models) {
-        for (const m of provider.models) {
-          if (m.id && !allModelIds.includes(m.id)) {
-            allModelIds.push(m.id);
-          }
-        }
-      }
-    }
-  }
-
-  if (!baseUrl || !apiKey || allModelIds.length === 0) return null;
-
-  return buildScodeConfigFromLoginPayload({
-    sudorouterKey: apiKey,
-    modelServiceUrl: baseUrl,
-    models: allModelIds,
-  });
 }

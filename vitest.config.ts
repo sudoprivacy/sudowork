@@ -60,7 +60,6 @@ export default defineConfig({
         'src/process/services/autoUpdaterService.ts',
         'src/process/services/conversionService.ts',
         'src/process/services/scode/scodeProxyModels.ts',
-        'src/process/services/sudoclaw/sudoclawRuntimeSync.ts',
         'src/process/services/pwdLogin/errors.ts',
         'src/process/services/pwdLogin/memorySafety.ts',
         'src/process/services/pwdLogin/pwdAdapters.ts',

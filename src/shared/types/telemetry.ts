@@ -86,7 +86,7 @@ export type LoginMode = 'enterprise' | 'personal';
  * | E007 | Gateway 余额 | BillingService.ts | nova-gateway |
  * | E008 | 渲染 crash | ConversationPage.tsx | client |
  * | E009 | Agent 内部错 | AcpAgent.ts | client |
- * | E010 | Gateway 断开 | (reserved) | sudoclaw |
+ * | E010 | Gateway 断开 | (reserved) | (legacy) |
  */
 export type TelemetryErrorCode =
   | 'E001' // HTTP 5xx 错误 / 网络连接错误

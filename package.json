@@ -24,8 +24,6 @@
     "cli:download:force": "bun run claude:download:force && bun run nexus:download:force && bun run nexus-vfs:download:force && bun run scode:download:force && bun run node:download:force",
     "claude:download": "node scripts/download-claude-code.js",
     "claude:download:force": "node scripts/download-claude-code.js --force",
-    "openclaw:download": "node scripts/download-openclaw.js",
-    "openclaw:download:force": "node scripts/download-openclaw.js --force",
     "nexus:download": "node scripts/download-nexus.js",
     "nexus:download:force": "node scripts/download-nexus.js --force",
     "nexus-vfs:download": "node scripts/download-nexus-vfs.js",

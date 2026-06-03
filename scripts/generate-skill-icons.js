@@ -22,7 +22,6 @@ const SKILL_ICON_PROMPTS = {
   'star-office-helper': 'A star icon with an office building silhouette inside, gold and blue colors. Represents office productivity and monitoring.',
   'x-recruiter': 'A bird (X/Twitter logo style) with a briefcase, blue and white colors. Represents job posting on X platform.',
   'xiaohongshu-recruiter': 'A red book icon with a small heart, representing Xiaohongshu platform job posting. Modern social media style.',
-  'openclaw-setup': 'A robot head icon with gear settings, teal and white colors. Represents AI assistant configuration.',
   'sudowork-webui-setup': 'A monitor screen with WiFi signal icon, blue and white colors. Represents web UI and remote access configuration.'
 };
 

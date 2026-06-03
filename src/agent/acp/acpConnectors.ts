@@ -13,7 +13,7 @@
 import type { ChildProcess, SpawnOptions } from 'child_process';
 import { execFile as execFileCb, execFileSync, spawn } from 'child_process';
 import { promisify } from 'util';
-import { existsSync, mkdirSync, promises as fs, readFileSync, writeFileSync } from 'fs';
+import { mkdirSync, promises as fs, readFileSync, writeFileSync } from 'fs';
 import os from 'os';
 import path from 'path';
 import { CLAUDE_ACP_NPX_PACKAGE, CODEBUDDY_ACP_NPX_PACKAGE, CODEX_ACP_BRIDGE_VERSION, CODEX_ACP_NPX_PACKAGE } from '@/types/acpTypes';
@@ -259,13 +259,6 @@ export function prepareCleanEnv({ injectSafetyHook = true }: PrepareCleanEnvOpti
   const browserSkillDir = path.join(os.homedir(), '.nexus', 'skills', '_system', '_builtin', 'browser');
   const prevPythonPath = cleanEnv.PYTHONPATH || '';
   cleanEnv.PYTHONPATH = prevPythonPath ? `${browserSkillDir}${path.delimiter}${prevPythonPath}` : browserSkillDir;
-
-  // Add sudoclaw/bin to PATH so the `browser` CLI wrapper is available to ACP agents.
-  const sudoclawBinDir = path.join(os.homedir(), '.nexus', 'sudoclaw', 'bin');
-  const prevPath = cleanEnv.PATH || '';
-  if (existsSync(sudoclawBinDir) && !prevPath.includes(sudoclawBinDir)) {
-    cleanEnv.PATH = `${sudoclawBinDir}${path.delimiter}${prevPath}`;
-  }
 
   return cleanEnv;
 }
@@ -549,31 +542,6 @@ function readProxyCredsFromSudocode(): { apiKey: string; baseUrl: string } | nul
 }
 
 /**
- * Read Anthropic-compatible credentials from sudoclaw.json providers.
- * Looks for the first provider with api=anthropic-messages and returns
- * its apiKey and baseUrl (with /v1 suffix stripped since scode appends it).
- */
-function readAnthropicCredsFromSudoclaw(): { apiKey: string; baseUrl: string } | null {
-  try {
-    const configPath = path.join(os.homedir(), '.nexus', 'sudoclaw', 'sudoclaw.json');
-    const content = readFileSync(configPath, 'utf-8');
-    const config = JSON.parse(content);
-    const providers = config?.models?.providers;
-    if (!providers || typeof providers !== 'object') return null;
-    for (const provider of Object.values(providers) as Array<Record<string, unknown>>) {
-      if (provider.api === 'anthropic-messages' && typeof provider.apiKey === 'string' && typeof provider.baseUrl === 'string') {
-        // Strip trailing /v1 since scode appends it internally
-        const baseUrl = (provider.baseUrl as string).replace(/\/v1\/?$/, '');
-        return { apiKey: provider.apiKey as string, baseUrl };
-      }
-    }
-  } catch {
-    // sudoclaw.json not found or unreadable — fall through
-  }
-  return null;
-}
-
-/**
  * Spawn a generic ACP backend with clean env and Node version check.
  * Many generic backends are Node.js CLIs (#!/usr/bin/env node) that break
  * when Electron's inherited env resolves to an old Node version.
@@ -599,10 +567,8 @@ export async function spawnGenericBackend(backend: string, cliPath: string, work
   // Inject proxy credentials for scode - scode uses PROXY_AUTH_TOKEN + PROXY_BASE_URL
   // for proxy mode, not ANTHROPIC_API_KEY (which triggers direct api.anthropic.com)
   if (backend === 'scode' && scodeAuthMode === 'proxy' && !cleanEnv.PROXY_AUTH_TOKEN && !cleanEnv.ANTHROPIC_API_KEY) {
-    // Prefer sudocode.json, fallback to sudoclaw.json (transition period)
-    const sudocodeCreds = readProxyCredsFromSudocode();
-    const creds = sudocodeCreds ?? readAnthropicCredsFromSudoclaw();
-    const source = sudocodeCreds ? 'sudocode.json' : 'sudoclaw.json';
+    const creds = readProxyCredsFromSudocode();
+    const source = 'sudocode.json';
     if (creds) {
       // Detect if baseUrl is a proxy (e.g., sudorouter) and use proxy env vars
       // Otherwise fall back to direct API key injection

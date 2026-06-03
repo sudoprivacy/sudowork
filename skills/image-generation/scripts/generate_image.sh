@@ -3,10 +3,8 @@
 # Usage:
 #   generate_image.sh gen "<prompt>" [<filename_no_ext>] [size]
 #   generate_image.sh edit "<prompt>" "<image_path>" [<filename_no_ext>] [size]
-# Reads config from sudoclaw.json via SUDOCLAW_CONFIG_PATH env var.
-# IMAGE_MODEL is read from agents.defaults.imageGenerationModel in sudoclaw.json.
-# (Note: agents.defaults.imageModel is the image *parsing* model for the gateway;
-#  image generation uses the separate imageGenerationModel field.)
+# Reads config from sudocode.json (~/.nexus/sudocode/sudocode.json) or SUDOCODE_CONFIG_PATH.
+# IMAGE_MODEL is read from tools.imageGenerationModel in sudocode.json.
 # Any leading "provider/" prefix is stripped before sending to the image API.
 # Overrides: PROVIDER_BASE_URL, PROVIDER_API_KEY, IMAGE_MODEL
 
@@ -90,8 +88,7 @@ if [ "$MODE" = "edit" ] && [ ! -f "$IMAGE_PATH" ]; then
   exit 1
 fi
 
-# Read BASE_URL, API_KEY, and IMAGE_MODEL from config files (with env var overrides)
-# Priority: sudocode.json (new), fallback to sudoclaw.json (legacy)
+# Read BASE_URL, API_KEY, and IMAGE_MODEL from sudocode.json (with env var overrides)
 _SUDOCODE_CFG="${SUDOCODE_CONFIG_PATH:-$HOME/.nexus/sudocode/sudocode.json}"
 if [ -f "$_SUDOCODE_CFG" ]; then
   eval "$($PYTHON_CMD -c "
@@ -109,25 +106,6 @@ try:
     print(f'_CFG_IMAGE_MODEL={repr(image_model)}')
 except: pass
 " "$_SUDOCODE_CFG" 2>/dev/null)"
-fi
-
-# Fallback: sudoclaw.json (legacy)
-if [ -z "${_CFG_API_KEY:-}" ] && [ -n "${SUDOCLAW_CONFIG_PATH:-}" ] && [ -f "$SUDOCLAW_CONFIG_PATH" ]; then
-  eval "$($PYTHON_CMD -c "
-import json, sys
-try:
-    c = json.load(open(sys.argv[1]))
-    sr = c.get('models',{}).get('providers',{}).get('sudorouter',{})
-    base_url = sr.get('baseUrl','')
-    api_key = sr.get('apiKey','')
-    image_model = c.get('agents',{}).get('defaults',{}).get('imageGenerationModel','')
-    if isinstance(image_model, str) and '/' in image_model:
-        image_model = image_model.rsplit('/', 1)[-1]
-    print(f'_CFG_BASE_URL={repr(base_url.rstrip(\"/\"))}')
-    print(f'_CFG_API_KEY={repr(api_key)}')
-    print(f'_CFG_IMAGE_MODEL={repr(image_model)}')
-except: pass
-" "$SUDOCLAW_CONFIG_PATH" 2>/dev/null)"
 fi
 
 BASE_URL="${PROVIDER_BASE_URL:-${_CFG_BASE_URL:-}}"

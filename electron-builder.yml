@@ -131,18 +131,13 @@ extraResources:
     to: upload_skill_default.svg
   - from: THIRD_PARTY_LICENSES.txt
     to: THIRD_PARTY_LICENSES.txt
-  # Safety hook for Sudoclaw gateway interception
+  # Safety hook injected into ACP agent child processes
   - from: hook/node/dist/hook.js
     to: hook.js
   - from: hook/python/dist/hook-0.0.1-py3-none-any.whl
     to: hook-0.0.1-py3-none-any.whl
   - from: hook/python/pythonpath/sitecustomize.py
     to: pythonpath/sitecustomize.py
-  # sudowork-owned aidb dispatcher (bash + cmd) — installed to
-  # ~/.nexus/sudoclaw/bin/ at startup and put on PATH so LLM can write
-  # `aidb <tool>` instead of `python -m ai_dev_browser.tools.<tool>`.
-  - from: resources/sudoclaw-bin
-    to: sudoclaw-bin
   # CLI tools (bundled at build time via scripts/download-*.js)
   - from: resources/claude-code.tgz
     to: claude-code.tgz

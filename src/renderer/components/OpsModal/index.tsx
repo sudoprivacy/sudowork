@@ -67,28 +67,6 @@ const OpsModal: React.FC<OpsModalProps> = ({ visible, onClose, onConfigSaved }) 
     }
   }, [configContent, onConfigSaved]);
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const restartGateway = useCallback(async () => {
-    try {
-      Modal.confirm({
-        title: '重启 Sudo Code Gateway',
-        content: '确定要重启 Sudo Code Gateway 吗？这可能会中断正在进行的对话。',
-        okText: '确定',
-        cancelText: '取消',
-        onOk: async () => {
-          const res = await ipcBridge.sudoclaw.restartGateway.invoke();
-          if (res?.success) {
-            Message.success('Gateway 重启中...');
-          } else {
-            Message.error(res?.msg || '重启失败');
-          }
-        },
-      });
-    } catch (error) {
-      Message.error('重启失败');
-    }
-  }, []);
-
   return (
     <>
       <Modal

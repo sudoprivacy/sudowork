@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Sudowork built-in image analysis script
 # Usage: analyze_image.sh <image_path> [prompt]
-# Reads config from sudoclaw.json via SUDOCLAW_CONFIG_PATH (required) env var.
+# Reads config from sudocode.json (~/.nexus/sudocode/sudocode.json) or SUDOCODE_CONFIG_PATH.
 # Overrides with optional env vars: PROVIDER_BASE_URL, PROVIDER_API_KEY, CHAT_MODEL
 
 set -euo pipefail
@@ -25,22 +25,23 @@ if [ ! -f "$IMAGE_PATH" ]; then
   exit 1
 fi
 
-# Read BASE_URL, API_KEY, and MODEL from sudoclaw.json (with env var overrides)
-if [ -n "${SUDOCLAW_CONFIG_PATH:-}" ] && [ -f "$SUDOCLAW_CONFIG_PATH" ]; then
+# Read BASE_URL, API_KEY, and MODEL from sudocode.json (with env var overrides)
+_SUDOCODE_CFG="${SUDOCODE_CONFIG_PATH:-$HOME/.nexus/sudocode/sudocode.json}"
+if [ -f "$_SUDOCODE_CFG" ]; then
   eval "$($PYTHON_CMD -c "
 import json, sys
 try:
     c = json.load(open(sys.argv[1]))
-    sr = c.get('models',{}).get('providers',{}).get('sudorouter',{})
+    sr = c.get('auth_modes',{}).get('proxy',{}).get('sudorouter',{})
     base_url = sr.get('baseUrl','')
     api_key = sr.get('apiKey','')
-    m = c.get('agents',{}).get('defaults',{}).get('imageModel','')
+    m = c.get('default_model','')
     model = m.split('/')[-1] if '/' in m else m
     print(f'_CFG_BASE_URL={repr(base_url.rstrip(\"/\"))}')
     print(f'_CFG_API_KEY={repr(api_key)}')
     print(f'_CFG_MODEL={repr(model)}')
 except: pass
-" "$SUDOCLAW_CONFIG_PATH" 2>/dev/null)"
+" "$_SUDOCODE_CFG" 2>/dev/null)"
 fi
 
 BASE_URL="${PROVIDER_BASE_URL:-${_CFG_BASE_URL:-}}"

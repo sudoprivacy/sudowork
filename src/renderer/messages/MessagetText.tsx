@@ -148,7 +148,7 @@ const MessageText: React.FC<{ message: IMessageText; isStreaming?: boolean }> = 
           className={classNames('min-w-0 box-border overflow-hidden [&>p:first-child]:mt-0px [&>p:last-child]:mb-0px p-8px border border-solid transition-colors duration-200', {
             'w-fit max-w-full': isUserMessage || !hasCodeLikeContent,
             'w-full max-w-full': !isUserMessage && hasCodeLikeContent,
-            // 用户消息使用 OpenClaw 风格的粉色调
+            // 用户消息使用粉色调背景
             'bg-[var(--message-user-bg)] text-[var(--message-user-text)] border-[var(--message-user-border)] hover:bg-[var(--message-user-hover)]': isUserMessage,
             // 助手消息使用白色/深灰色调
             'bg-[var(--message-assistant-bg)] text-[var(--message-assistant-text)] border-[var(--message-assistant-border)] hover:bg-[var(--message-assistant-hover)]': !isUserMessage,

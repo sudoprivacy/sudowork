@@ -114,7 +114,7 @@
     "skillsEmpty": "No skills available in this workspace",
     "skillsSearchEmpty": "No matching skills",
     "skillsLoading": "Scanning skills...",
-    "skillsEmptyDescOpenClaw": "Skills placed under skills/ with a SKILL.md file will show up here automatically",
+    "skillsEmptyDescDefault": "Skills placed under skills/ with a SKILL.md file will show up here automatically",
     "skillsEmptyDescClaude": "Skills placed under .claude/skills/ with a SKILL.md file will show up here automatically",
     "lastSyncPrefix": "Last synced",
     "lastSyncJustNow": "just now",

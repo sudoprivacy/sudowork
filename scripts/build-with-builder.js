@@ -411,10 +411,10 @@ function buildSafetyHook() {
 }
 
 try {
-  // 0. Build safety hook first (required for Sudoclaw gateway interception)
+  // 0. Build safety hook first (injected into ACP agent child processes)
   const hookBuilt = buildSafetyHook();
   if (!hookBuilt) {
-    console.log('⚠️  Continuing without safety hook. Sudoclaw interception will not work.');
+    console.log('⚠️  Continuing without safety hook. Child-process interception will not work.');
   }
 
   // 1. Ensure package.json main entry is correct for electron-vite

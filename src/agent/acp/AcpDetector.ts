@@ -17,7 +17,6 @@ import { ProcessConfig } from '@/process/initStorage';
 import { assistantManager } from '@/process/AssistantManager';
 import { ExtensionRegistry } from '@/extensions';
 import { getEnhancedEnv } from '@process/utils/shellEnv';
-import { SUDOCLAW_BIN_DIR } from '@/process/services/sudoclaw/SudoclawInstallService';
 import { getScodePath } from '@/process/services/scode/ScodeInstallService';
 
 /** Nexus bin directory for Claude/Gemini CLI symlinks */
@@ -27,7 +26,7 @@ const NEXUS_BIN_DIR = path.join(os.homedir(), '.nexus', 'bin');
 const SCODE_BIN_DIR = path.join(os.homedir(), '.nexus', 'sudocode');
 
 /** Priority bin directories for CLI detection (scode first to prefer ~/.nexus/sudocode over ~/.nexus/bin) */
-const PRIORITY_BIN_DIRS = [SCODE_BIN_DIR, NEXUS_BIN_DIR, SUDOCLAW_BIN_DIR];
+const PRIORITY_BIN_DIRS = [SCODE_BIN_DIR, NEXUS_BIN_DIR];
 
 interface DetectedAgent {
   backend: AcpBackendAll;
