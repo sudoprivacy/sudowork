@@ -8,6 +8,7 @@ import * as fs from 'node:fs';
 import * as http from 'node:http';
 import * as path from 'node:path';
 import { mainLog, mainError, mainWarn } from '@process/utils/mainLogger';
+import { isReuseDaemonsMode } from '@process/utils';
 import { initStatusManager } from '../initStatus';
 import { isSudoclawHealthPayload, SUDOCLAW_HEALTH_TIMEOUT_MS, type SudoclawHealthPayload } from '../sudoclaw/sudoclawHealth';
 import { AdbResultSidechannel } from '../sudoclaw/AdbResultSidechannel';
@@ -197,6 +198,14 @@ export class ServiceManager {
   private async startNexusWithRetries(): Promise<void> {
     const { dynamicNexusService } = await import('../nexus/DynamicNexusService');
 
+    if (isReuseDaemonsMode()) {
+      // Reuse mode: never kill the shared daemon and never retry. The
+      // service-level start() probe attaches to the primary's Nexus if it is
+      // healthy, otherwise throws a clear "start a primary instance first" error.
+      await this.startNexusOnce();
+      return;
+    }
+
     const startAttempts = async (attempts: number, phase: 'normal' | 'reinstall'): Promise<void> => {
       let lastError: unknown;
 
@@ -364,6 +373,20 @@ export class ServiceManager {
       mainWarn('ServiceManager', 'Skipping Sudoclaw start because shutdown is in progress');
       return;
     }
+    // Client-only / reuse mode: never spawn or kill a gateway. Attach to the
+    // primary instance's gateway on the fixed port; agents connect over
+    // ws://127.0.0.1:17863 just like normal.
+    if (isReuseDaemonsMode()) {
+      if (this.sudoclawStartPromise) {
+        await this.sudoclawStartPromise;
+        return;
+      }
+      this.sudoclawStartPromise = this.attachToSharedSudoclaw().finally(() => {
+        this.sudoclawStartPromise = null;
+      });
+      await this.sudoclawStartPromise;
+      return;
+    }
     if (this.sudoclawStartPromise) {
       await this.sudoclawStartPromise;
       return;
@@ -373,6 +396,35 @@ export class ServiceManager {
       this.sudoclawStartPromise = null;
     });
     await this.sudoclawStartPromise;
+  }
+
+  /**
+   * Reuse-mode counterpart to startSudoclawWithRetries: verify the primary
+   * instance's gateway is healthy on the fixed port and resolve the gateway
+   * readiness promise so agents can connect. Never spawns a gateway, starts a
+   * sidechannel, or touches the port. `this.gateway` stays null — getGateway()
+   * returns null, which only disables this instance's hot-reload path (safe).
+   */
+  private async attachToSharedSudoclaw(): Promise<void> {
+    const { SUDOCLAW_DEFAULT_PORT } = await import('../sudoclaw/SudoclawInstallService');
+    this.gatewayReadyPromise = new Promise<{ host: string; port: number } | null>((resolve) => {
+      this.gatewayReadyResolve = resolve;
+    });
+    initStatusManager.setStepState('sudoclaw', 'active', '正在连接已有 Sudoclaw 服务...');
+
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      const health = await this.checkSudoclawHealth(SUDOCLAW_DEFAULT_PORT);
+      if (health.healthy) {
+        initStatusManager.setStepProgress('sudoclaw', 100, 'Sudoclaw 服务已就绪');
+        mainLog('ServiceManager', `Reuse mode: attached to shared Sudoclaw gateway on 127.0.0.1:${SUDOCLAW_DEFAULT_PORT}`);
+        this.gatewayReadyResolve?.({ host: 'localhost', port: SUDOCLAW_DEFAULT_PORT });
+        return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+
+    this.gatewayReadyResolve?.(null);
+    throw new Error('SUDOWORK_REUSE_DAEMONS=1 but no healthy Sudoclaw gateway on 17863; start a primary instance first.');
   }
 
   private async startSudoclawWithRetries(): Promise<void> {
@@ -759,6 +811,13 @@ export class ServiceManager {
   }
 
   private async preparePortForStart(port: number, label: 'Sudoclaw' | 'Nexus'): Promise<void> {
+    // Reuse mode: the daemon on this port is owned by the primary instance.
+    // This helper must never kill anything — the service-level start() reuse
+    // probe decides whether a healthy primary daemon is present.
+    if (isReuseDaemonsMode()) {
+      mainLog('ServiceManager', `Reuse mode: ${label} not preparing port ${port} (never kills shared daemons)`);
+      return;
+    }
     const occupied = await this.isPortOccupied(port);
     if (!occupied) {
       return;

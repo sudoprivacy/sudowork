@@ -7,7 +7,7 @@ import { app } from 'electron';
 import { spawn, exec } from 'child_process';
 import { promisify } from 'util';
 import * as net from 'net';
-import { getDataPath } from '@process/utils';
+import { getDataPath, isReuseDaemonsMode } from '@process/utils';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import { processSupervisor } from '@process/ProcessSupervisor';
 import { extractTarGzWithProgress, extractZipWithProgress, listTarGzEntries, listZipEntries } from '../archiveProgress';
@@ -725,6 +725,23 @@ class DynamicNexusService {
   async start(): Promise<void> {
     if (this._running) return;
 
+    // Client-only / reuse mode: a secondary instance attaches to the primary
+    // instance's nexusd on the fixed port instead of spawning or killing one.
+    if (isReuseDaemonsMode()) {
+      this._port = NEXUS_DEFAULT_PORT;
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        if (await this.isHealthyNexusServer(this._port)) {
+          this.process = null;
+          this._running = true;
+          mainLog('Nexus', `Reuse mode: attached to existing nexusd on http://127.0.0.1:${this._port}`);
+          this.emitSetup('ready', `Reusing shared Nexus on http://127.0.0.1:${this._port}`);
+          return;
+        }
+        await new Promise<void>((resolve) => setTimeout(resolve, 500));
+      }
+      throw new Error('SUDOWORK_REUSE_DAEMONS=1 but no healthy nexusd on 12012; start a primary instance first.');
+    }
+
     // 使用固定端口 12012
     this._port = NEXUS_DEFAULT_PORT;
     this._running = false;
@@ -811,6 +828,12 @@ class DynamicNexusService {
    */
   async stop(): Promise<void> {
     this._running = false;
+    // Reuse mode never owns the daemon process — just drop local state, never
+    // signal the shared nexusd to stop.
+    if (isReuseDaemonsMode()) {
+      this.process = null;
+      return;
+    }
     const stopped = await this.stopManagedPidFromFile('on stop');
     if (!stopped) {
       mainWarn('Nexus', 'nexusd.pid not found or does not reference a managed nexusd process, skipping Nexus stop');

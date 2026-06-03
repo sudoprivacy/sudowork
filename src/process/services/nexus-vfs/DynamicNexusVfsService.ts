@@ -8,6 +8,7 @@ import { app } from 'electron';
 import { spawn, exec } from 'child_process';
 import { promisify } from 'util';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
+import { isReuseDaemonsMode } from '@process/utils';
 import { processSupervisor } from '@process/ProcessSupervisor';
 import { extractTarGzWithProgress, extractZipWithProgress } from '../archiveProgress';
 import runtimeVersions from '@/shared/runtime-versions.json';
@@ -351,6 +352,25 @@ class DynamicNexusVfsService {
   async start(): Promise<void> {
     if (this._running) return;
 
+    // Client-only / reuse mode: attach to the primary instance's nexus-vfs
+    // daemon on the fixed gRPC port. Critically, this skips the
+    // forceKillProcessesOnPort path below, which would otherwise kill the
+    // primary instance's daemon.
+    if (isReuseDaemonsMode()) {
+      this._port = NEXUS_VFS_DEFAULT_PORT;
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        if (await this.isPortInUse(this._port)) {
+          this.process = null;
+          this._running = true;
+          mainLog('NexusVfs', `Reuse mode: attached to existing nexus-vfs on ${NEXUS_VFS_BIND_HOST}:${this._port}`);
+          this.emit('ready', `Reusing shared nexus-vfs on ${NEXUS_VFS_BIND_HOST}:${this._port}`);
+          return;
+        }
+        await new Promise<void>((resolve) => setTimeout(resolve, 500));
+      }
+      throw new Error('SUDOWORK_REUSE_DAEMONS=1 but no nexus-vfs on 12022; start a primary instance first.');
+    }
+
     this._port = NEXUS_VFS_DEFAULT_PORT;
     this._running = false;
 
@@ -408,6 +428,12 @@ class DynamicNexusVfsService {
 
   async stop(): Promise<void> {
     this._running = false;
+    // Reuse mode never owns the daemon process — just drop local state, never
+    // signal or force-kill the shared nexus-vfs daemon.
+    if (isReuseDaemonsMode()) {
+      this.process = null;
+      return;
+    }
     const proc = this.process;
     if (proc && proc.exitCode === null && !proc.killed) {
       await new Promise<void>((resolve) => {

@@ -17,6 +17,17 @@ export const getTempPath = () => {
 };
 
 /**
+ * "Client-only" / daemon-reuse mode. When SUDOWORK_REUSE_DAEMONS=1 this Electron
+ * instance is a secondary instance that connects to the shared daemons (Nexus
+ * 12012, nexus-vfs 12022, Sudoclaw 17863) already started by a primary instance,
+ * instead of spawning or killing them. The renderer/HTTP clients keep hitting the
+ * same fixed ports — they just talk to the primary's daemons.
+ */
+export const isReuseDaemonsMode = (): boolean => {
+  return process.env.SUDOWORK_REUSE_DAEMONS === '1';
+};
+
+/**
  * Ensure CLI-safe symlink exists and return the symlink path.
  * On macOS, creates a symlink in home directory to avoid spaces in paths.
  * CLI tools like Qwen can't handle spaces in paths properly.
