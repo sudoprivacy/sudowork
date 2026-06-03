@@ -11,6 +11,7 @@ import { getDataPath } from '@process/utils';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import { extractTarGzWithProgress, extractZipWithProgress, listTarGzEntries, listZipEntries } from '../archiveProgress';
 import runtimeVersions from '@/shared/runtime-versions.json';
+import { COS_RUNTIME_BASE, COS_LEGACY_NEXUS_BASE } from '@/shared/cos';
 
 const execAsync = promisify(exec);
 
@@ -21,8 +22,6 @@ const NEXUS_HEALTHCHECK_TIMEOUT_MS = 1000; // 1 second
 const NEXUS_POLL_INTERVAL_MS = 200;
 const NEXUS_DEFAULT_PORT = 12012;
 
-/** OSS base URL for downloading Nexus binaries at runtime */
-const NEXUS_OSS_BASE_URL = 'https://sudoclaw-1309794936.cos.ap-beijing.myqcloud.com';
 const NEXUS_GITHUB_RELEASE_BASE_URL = 'https://github.com/nexi-lab/nexus/releases/download';
 
 /** Platform name mapping: Node.js process.platform → Nexus binary OS name */
@@ -92,12 +91,21 @@ class DynamicNexusService {
   }
 
   /**
-   * Get the OSS download URL for the current platform's Nexus archive.
-   * e.g. https://sudoclaw-1309794936.cos.ap-beijing.myqcloud.com/v0.9.29/nexus-cluster-macos-arm64.tar.gz
+   * Primary download URL: the role-based runtime COS bucket.
+   * e.g. https://sudowork-runtime-1309794936.cos.ap-beijing.myqcloud.com/nexus/v0.9.43/nexus-cluster-macos-arm64.tar.gz
    */
-  private getOssDownloadUrl(): string {
+  private getRuntimeDownloadUrl(): string {
     const version = this.getNexusVersion();
-    return `${NEXUS_OSS_BASE_URL}/v${version}/${this.getPlatformArchiveName()}`;
+    return `${COS_RUNTIME_BASE}/nexus/v${version}/${this.getPlatformArchiveName()}`;
+  }
+
+  /**
+   * Fallback download URL: the legacy COS bucket (kept live during deprecation).
+   * e.g. https://sudoclaw-1309794936.cos.ap-beijing.myqcloud.com/v0.9.43/nexus-cluster-macos-arm64.tar.gz
+   */
+  private getLegacyOssDownloadUrl(): string {
+    const version = this.getNexusVersion();
+    return `${COS_LEGACY_NEXUS_BASE}/v${version}/${this.getPlatformArchiveName()}`;
   }
 
   private getGitHubDownloadUrl(): string {
@@ -534,7 +542,7 @@ class DynamicNexusService {
 
   /**
    * Installs nexus for the current platform.
-   * Prefers bundled resources, then OSS, then GitHub release assets.
+   * Prefers bundled resources, then COS mirrors, then GitHub release assets.
    * Downloads the archive, extracts it, and installs contents to ~/.nexus/bin/.
    */
   async install(): Promise<void> {
@@ -556,7 +564,8 @@ class DynamicNexusService {
       fs.mkdirSync(downloadDir, { recursive: true });
 
       const downloadAttempts = [
-        { label: 'OSS', url: this.getOssDownloadUrl() },
+        { label: 'Runtime COS', url: this.getRuntimeDownloadUrl() },
+        { label: 'Legacy COS', url: this.getLegacyOssDownloadUrl() },
         { label: 'GitHub', url: this.getGitHubDownloadUrl() },
       ];
 
@@ -580,7 +589,7 @@ class DynamicNexusService {
       if (!archivePath) {
         const errorMsg = lastError ?? 'unknown error';
         this.emitSetup('error', `Failed to download Nexus runtime: ${errorMsg}`);
-        throw new Error(`Nexus archive not available for platform ${platformKey}. Resource missing, OSS download failed, and GitHub download failed: ${errorMsg}`);
+        throw new Error(`Nexus archive not available for platform ${platformKey}. Resource missing, all COS mirrors failed, and GitHub download failed: ${errorMsg}`);
       }
     }
 

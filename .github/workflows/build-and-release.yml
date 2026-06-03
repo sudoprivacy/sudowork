@@ -288,14 +288,16 @@ jobs:
         env:
           TENCENT_SECRET_ID: ${{ secrets.TENCENT_SECRET_ID }}
           TENCENT_SECRET_KEY: ${{ secrets.TENCENT_SECRET_KEY }}
-          COS_BUCKET: sudowork-download-1309794936
+          COS_BUCKET: sudowork-release-1309794936
           COS_REGION: ap-beijing
         run: |
           echo "📦 Installing coscmd..."
           pip install coscmd
 
           echo "🔐 Configuring coscmd..."
-          coscmd config -a $TENCENT_SECRET_ID -s $TENCENT_SECRET_KEY -b $COS_BUCKET -e cos.accelerate.myqcloud.com
+          # Regional endpoint (global acceleration is not enabled on the release bucket;
+          # re-enable in the COS console and switch back to cos.accelerate.myqcloud.com to speed up uploads).
+          coscmd config -a $TENCENT_SECRET_ID -s $TENCENT_SECRET_KEY -b $COS_BUCKET -e cos.$COS_REGION.myqcloud.com
 
           COS_PATH="sudowork/release/latest"
 
