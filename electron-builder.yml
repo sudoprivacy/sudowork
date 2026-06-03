@@ -154,7 +154,7 @@ extraResources:
   - from: resources
     to: .
     filter:
-      - v*-nexus-cluster-macos-*
+      - v*-nexusd-cluster-macos-*
   # Scode binary - versioned, optional
   - from: resources
     to: .
@@ -180,7 +180,7 @@ win:
     - from: resources
       to: .
       filter:
-        - v*-nexus-cluster-windows-*
+        - v*-nexusd-cluster-windows-*
     # Scode binary for Windows - versioned
     - from: resources
       to: .

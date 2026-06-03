@@ -3,10 +3,10 @@
  * Download Nexus binary for bundling with the app.
  * Run during build process: bun run nexus:download
  *
- * Downloads Nexus from: https://github.com/nexi-lab/nexus/releases/download/v{version}/
+ * Downloads Nexus from: https://github.com/nexi-lab/nexus-vfs/releases/download/v{version}/
  * Saves with versioned filename:
- * - Windows: resources/v{version}-nexus-cluster-{os}-{arch}.zip
- * - macOS/Linux: resources/v{version}-nexus-cluster-{os}-{arch}.tar.gz
+ * - Windows: resources/v{version}-nexusd-cluster-{os}-{arch}.zip
+ * - macOS/Linux: resources/v{version}-nexusd-cluster-{os}-{arch}.tar.gz
  *
  * NOTE: Download failures are non-fatal (exit 0) to allow builds to proceed
  * when platform-specific binaries are not yet available.
@@ -19,7 +19,7 @@ const runtimeVersions = require('../src/shared/runtime-versions.json');
 
 const RESOURCES_DIR = path.join(__dirname, '..', 'resources');
 
-const NEXUS_VERSION = runtimeVersions.nexus;
+const NEXUS_VERSION = runtimeVersions["nexus-vfs"];
 
 /**
  * Create an empty placeholder file for the current platform so electron-builder doesn't fail.
@@ -34,26 +34,26 @@ function createFallbackPlaceholder(platform) {
     const osName = process.platform === 'win32' ? 'windows' : process.platform === 'darwin' ? 'macos' : process.platform;
     const archName = process.arch === 'x64' ? 'x86_64' : process.arch;
     const archiveExt = process.platform === 'win32' ? '.zip' : '.tar.gz';
-    outputFile = path.join(RESOURCES_DIR, `v${NEXUS_VERSION}-nexus-cluster-${osName}-${archName}${archiveExt}`);
+    outputFile = path.join(RESOURCES_DIR, `v${NEXUS_VERSION}-nexusd-cluster-${osName}-${archName}${archiveExt}`);
   }
   fs.writeFileSync(outputFile, Buffer.alloc(0));
   return outputFile;
 }
 
-const BASE_URL = `https://github.com/nexi-lab/nexus/releases/download/v${NEXUS_VERSION}`;
+const BASE_URL = `https://github.com/nexi-lab/nexus-vfs/releases/download/v${NEXUS_VERSION}`;
 
 // Platform mappings: archive downloads (.tar.gz for macOS/Linux, .zip for Windows)
 // Linux is included for completeness but archives may not be available.
 const PLATFORMS = {
-  'darwin-arm64': { name: 'nexus-cluster-macos-arm64.tar.gz' },
-  'darwin-x64': { name: 'nexus-cluster-macos-x86_64.tar.gz' },
-  'win32-x64': { name: 'nexus-cluster-windows-x86_64.zip' },
-  'linux-x64': { name: 'nexus-cluster-linux-x86_64.tar.gz' },
+  'darwin-arm64': { name: 'nexusd-cluster-macos-aarch64.tar.gz' },
+  'darwin-x64': { name: 'nexusd-cluster-macos-x86_64.tar.gz' },
+  'win32-x64': { name: 'nexusd-cluster-windows-x86_64.zip' },
+  'linux-x64': { name: 'nexusd-cluster-linux-x86_64.tar.gz' },
 };
 
 /**
  * Get the versioned output filename for the given platform.
- * e.g. v0.9.28-nexus-cluster-macos-arm64
+ * e.g. v0.1.0-nexusd-cluster-macos-aarch64
  */
 function getVersionedFileName(platform) {
   const config = PLATFORMS[platform];

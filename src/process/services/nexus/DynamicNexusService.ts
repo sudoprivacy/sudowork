@@ -23,12 +23,12 @@ const NEXUS_DEFAULT_PORT = 12012;
 
 /** OSS base URL for downloading Nexus binaries at runtime */
 const NEXUS_OSS_BASE_URL = 'https://sudoclaw-1309794936.cos.ap-beijing.myqcloud.com';
-const NEXUS_GITHUB_RELEASE_BASE_URL = 'https://github.com/nexi-lab/nexus/releases/download';
+const NEXUS_GITHUB_RELEASE_BASE_URL = 'https://github.com/nexi-lab/nexus-vfs/releases/download';
 
 /** Platform name mapping: Node.js process.platform → Nexus binary OS name */
 const OS_NAME_MAP: Record<string, string> = { darwin: 'macos', win32: 'windows', linux: 'linux' };
 /** Architecture mapping: Node.js process.arch → Nexus binary arch name */
-const ARCH_NAME_MAP: Record<string, string> = { arm64: 'arm64', x64: 'x86_64' };
+const ARCH_NAME_MAP: Record<string, string> = { arm64: 'aarch64', x64: 'x86_64' };
 
 export type NexusSetupStage =
   | 'idle'
@@ -73,18 +73,18 @@ class DynamicNexusService {
 
   /**
    * Get the platform-specific archive name used in download URLs and versioned resource filenames.
-   * e.g. 'nexus-cluster-macos-arm64.tar.gz' or 'nexus-cluster-windows-x86_64.zip'
+   * e.g. 'nexusd-cluster-macos-aarch64.tar.gz' or 'nexusd-cluster-windows-x86_64.zip'
    */
   getPlatformArchiveName(): string {
     const osName = OS_NAME_MAP[process.platform];
     const archName = ARCH_NAME_MAP[process.arch];
     if (!osName || !archName) throw new Error(`Unsupported platform: ${process.platform}-${process.arch}`);
-    return `nexus-cluster-${osName}-${archName}${this.getArchiveExtension()}`;
+    return `nexusd-cluster-${osName}-${archName}${this.getArchiveExtension()}`;
   }
 
   /**
    * Get the versioned resource filename for the current platform and bundled version.
-   * e.g. 'v0.9.29-nexus-cluster-macos-arm64.tar.gz'
+   * e.g. 'v0.1.0-nexusd-cluster-macos-aarch64.tar.gz'
    */
   getVersionedArchiveName(): string {
     const version = this.getNexusVersion();
@@ -93,7 +93,7 @@ class DynamicNexusService {
 
   /**
    * Get the OSS download URL for the current platform's Nexus archive.
-   * e.g. https://sudoclaw-1309794936.cos.ap-beijing.myqcloud.com/v0.9.29/nexus-cluster-macos-arm64.tar.gz
+   * e.g. https://sudoclaw-1309794936.cos.ap-beijing.myqcloud.com/v0.1.0/nexusd-cluster-macos-aarch64.tar.gz
    */
   private getOssDownloadUrl(): string {
     const version = this.getNexusVersion();
@@ -147,7 +147,7 @@ class DynamicNexusService {
   }
 
   getBundledVersion(): string | undefined {
-    const value = runtimeVersions.nexus;
+    const value = runtimeVersions["nexus-vfs"];
     return typeof value === 'string' && value.trim() ? value.trim() : undefined;
   }
 
@@ -256,7 +256,7 @@ class DynamicNexusService {
 
   /**
    * Get the bundled Nexus resource path (the versioned archive file in resources).
-   * Looks for versioned filename e.g. v0.9.29-nexus-cluster-macos-arm64.tar.gz.
+   * Looks for versioned filename e.g. v0.1.0-nexusd-cluster-macos-aarch64.tar.gz.
    * Returns null if not found or too small (placeholder).
    */
   private getBundledNexusPath(): string | null {
