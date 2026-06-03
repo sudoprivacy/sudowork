@@ -5,10 +5,16 @@
  */
 
 export const TOKENS_PER_USAGE_POINT = 500;
+export const COST_UNITS_PER_USAGE_POINT = 500;
 
 export const tokensToUsagePoints = (tokens?: number | null): number | null => {
   if (typeof tokens !== 'number' || !Number.isFinite(tokens)) return null;
   return tokens / TOKENS_PER_USAGE_POINT;
+};
+
+export const costToUsagePoints = (cost?: number | null): number | null => {
+  if (typeof cost !== 'number' || !Number.isFinite(cost)) return null;
+  return Math.round(cost / COST_UNITS_PER_USAGE_POINT);
 };
 
 export const usagePointsFromTokensOrFallback = (tokens?: number | null, fallbackPoints?: number | null): number => {

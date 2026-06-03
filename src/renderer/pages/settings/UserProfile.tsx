@@ -1,6 +1,6 @@
 import { ipcBridge } from '@/common';
 import type { UserProfileData } from '@/common/ipcBridge';
-import { formatUsagePoints, usagePointsFromTokensOrFallback } from '@/common/tokenUsage';
+import { formatUsagePoints } from '@/common/tokenUsage';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Avatar, Button, Modal, Input, Message, Spin } from '@arco-design/web-react';
 import { User, Phone, Edit } from '@icon-park/react';
@@ -175,7 +175,7 @@ const UserProfile: React.FC = () => {
 
   const todayPoints = useMemo(() => {
     const usageToday = stats?.usage_today;
-    return formatUsagePoints(usagePointsFromTokensOrFallback(usageToday?.tokens, usageToday?.cost_points)) ?? '0';
+    return formatUsagePoints(usageToday?.cost_points) ?? '0';
   }, [stats?.usage_today]);
 
   return (
