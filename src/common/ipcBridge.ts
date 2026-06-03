@@ -503,7 +503,6 @@ export const mcporterService = {
   initialize: bridge.buildProvider<IBridgeResponse<void>, IMcpServer[]>('mcporter.initialize'),
 };
 
-
 // Database operations
 export const database = {
   getConversationMessages: bridge.buildProvider<import('@/common/chatLib').TMessage[], { conversation_id: string; page?: number; pageSize?: number }>('database.get-conversation-messages'),
@@ -860,6 +859,9 @@ export const windowControls = {
 export const systemSettings = {
   getCloseToTray: bridge.buildProvider<boolean, void>('system-settings:get-close-to-tray'),
   setCloseToTray: bridge.buildProvider<void, { enabled: boolean }>('system-settings:set-close-to-tray'),
+  getShowTokenUsageBadges: bridge.buildProvider<boolean, void>('system-settings:get-show-token-usage-badges'),
+  setShowTokenUsageBadges: bridge.buildProvider<void, { enabled: boolean }>('system-settings:set-show-token-usage-badges'),
+  showTokenUsageBadgesChanged: bridge.buildEmitter<{ enabled: boolean }>('system-settings:show-token-usage-badges-changed'),
   // Floating desktop avatar window — independent transparent BrowserWindow
   // that reflects active ACP conversation state. See src/process/avatarWindow.ts.
   getAvatarEnabled: bridge.buildProvider<boolean, void>('system-settings:get-avatar-enabled'),

@@ -71,6 +71,21 @@ export function initSystemSettingsBridge(): void {
     _changeListener?.(enabled);
   });
 
+  // 获取每轮 token / 积分用量 badge 显示开关，默认显示
+  // Get per-turn token / points usage badge visibility, enabled by default
+  ipcBridge.systemSettings.getShowTokenUsageBadges.provider(async () => {
+    const value = await ProcessConfig.get('system.showTokenUsageBadges');
+    return value ?? true;
+  });
+
+  // 设置每轮 token / 积分用量 badge 显示开关，只影响 UI 显示
+  // Set per-turn token / points usage badge visibility. This only affects UI display.
+  ipcBridge.systemSettings.setShowTokenUsageBadges.provider(async ({ enabled }) => {
+    userBreadcrumbs.settingsChange('showTokenUsageBadges', enabled);
+    await ProcessConfig.set('system.showTokenUsageBadges', enabled);
+    ipcBridge.systemSettings.showTokenUsageBadgesChanged.emit({ enabled });
+  });
+
   // 获取 avatar 浮窗开关 / Get floating avatar window enabled setting
   ipcBridge.systemSettings.getAvatarEnabled.provider(async () => {
     const value = await ProcessConfig.get('avatar.enabled');

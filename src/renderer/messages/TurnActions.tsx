@@ -6,6 +6,7 @@
 
 import { iconColors } from '@/renderer/theme/colors';
 import type { TurnTokenUsage } from '@/common/chatLib';
+import { formatUsagePoints, tokensToUsagePoints } from '@/common/tokenUsage';
 import { copyText } from '@/renderer/utils/clipboard';
 import { ipcBridge } from '@/common';
 import { emitter } from '@/renderer/utils/emitter';
@@ -22,12 +23,15 @@ const formatTokenCount = (value?: number | null) => {
   return new Intl.NumberFormat().format(value);
 };
 
-const formatPointCount = (tokens?: number | null) => {
-  if (typeof tokens !== 'number' || !Number.isFinite(tokens)) return null;
-  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(tokens / 500);
+type TurnActionsProps = {
+  turnTexts: string[];
+  turnTextsRaw: string[];
+  conversationId?: string;
+  tokenUsage?: TurnTokenUsage;
+  showTokenUsageBadge?: boolean;
 };
 
-const TurnActions: React.FC<{ turnTexts: string[]; turnTextsRaw: string[]; conversationId?: string; tokenUsage?: TurnTokenUsage }> = ({ turnTexts, turnTextsRaw, conversationId, tokenUsage }) => {
+const TurnActions: React.FC<TurnActionsProps> = ({ turnTexts, turnTextsRaw, conversationId, tokenUsage, showTokenUsageBadge = true }) => {
   const { t } = useTranslation();
   const [showCopyAlert, setShowCopyAlert] = useState(false);
   const [converting, setConverting] = useState(false);
@@ -103,7 +107,7 @@ const TurnActions: React.FC<{ turnTexts: string[]; turnTextsRaw: string[]; conve
   }, [turnTextsRaw, shareoneInstalled, sharing, t]);
 
   const totalTokens = formatTokenCount(tokenUsage?.totalTokens);
-  const points = formatPointCount(tokenUsage?.totalTokens);
+  const points = formatUsagePoints(tokensToUsagePoints(tokenUsage?.totalTokens));
   const inputTokens = formatTokenCount(tokenUsage?.inputTokens);
   const outputTokens = formatTokenCount(tokenUsage?.outputTokens);
   const cachedReadTokens = tokenUsage?.cachedReadTokens ? formatTokenCount(tokenUsage.cachedReadTokens) : null;
@@ -139,7 +143,7 @@ const TurnActions: React.FC<{ turnTexts: string[]; turnTextsRaw: string[]; conve
             <ShareOne theme='outline' size='16' fill={sharing ? iconColors.disabled : iconColors.secondary} />
           </div>
         </Tooltip>
-        {totalTokens && (
+        {showTokenUsageBadge && totalTokens && (
           <Tooltip content={usageTooltip}>
             <div className='ml-4px max-w-full truncate text-11px leading-18px px-6px py-1px rd-4px border border-solid border-[var(--color-border-2)] text-t-secondary bg-[var(--color-fill-1)]'>
               {t('messages.tokenUsageSummary', { defaultValue: '{{total}} tokens', total: totalTokens })}

@@ -1,6 +1,7 @@
 import { ipcBridge } from '@/common';
 import type { UserProfileData } from '@/common/ipcBridge';
-import React, { useState, useEffect, useCallback } from 'react';
+import { formatUsagePoints, usagePointsFromTokensOrFallback } from '@/common/tokenUsage';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Avatar, Button, Modal, Input, Message, Spin } from '@arco-design/web-react';
 import { User, Phone, Edit } from '@icon-park/react';
 import SettingsPageWrapper from './components/SettingsPageWrapper';
@@ -10,12 +11,22 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
 import { useAppMode } from '../../hooks/useAppMode';
 
+interface ConsumerUsageToday {
+  tokens?: number | null;
+  cost_points?: number | null;
+  requests?: number | null;
+}
+
+interface ConsumerDashboardStats {
+  usage_today?: ConsumerUsageToday | null;
+}
+
 const UserProfile: React.FC = () => {
   const { t } = useTranslation();
   const { user: currentUser, refresh, ensureValidToken, forceRefreshToken } = useAuth();
   const { isEnterprise } = useAppMode();
   const [profile, setProfile] = useState<any>(null);
-  const [stats, setStats] = useState<any>(null);
+  const [stats, setStats] = useState<ConsumerDashboardStats | null>(null);
   const [loading, setLoading] = useState(false);
   const [editingNickname, setEditingNickname] = useState('');
   const [editModalVisible, setEditModalVisible] = useState(false);
@@ -162,6 +173,11 @@ const UserProfile: React.FC = () => {
     }
   };
 
+  const todayPoints = useMemo(() => {
+    const usageToday = stats?.usage_today;
+    return formatUsagePoints(usagePointsFromTokensOrFallback(usageToday?.tokens, usageToday?.cost_points)) ?? '0';
+  }, [stats?.usage_today]);
+
   return (
     <SettingsPageWrapper contentClassName='max-w-800px'>
       <div className='flex flex-col gap-24px py-8px'>
@@ -227,19 +243,19 @@ const UserProfile: React.FC = () => {
 
             {/* Consumer: Today Stats */}
             <div className='p-24px bg-2 rd-16px border border-[var(--color-border-2)]'>
-              <div className='text-14px font-600 text-t-primary mb-16px'>今日使用</div>
+              <div className='text-14px font-600 text-t-primary mb-16px'>{t('settings.userProfile.todayUsage')}</div>
               <div className='grid grid-cols-3 gap-16px'>
                 <div className='text-center'>
                   <div className='text-24px font-700 text-t-primary'>{stats?.usage_today?.tokens?.toLocaleString() || 0}</div>
-                  <div className='text-12px text-t-tertiary'>Tokens</div>
+                  <div className='text-12px text-t-tertiary'>{t('settings.userProfile.tokens')}</div>
                 </div>
                 <div className='text-center'>
-                  <div className='text-24px font-700 text-primary'>{stats?.usage_today?.cost_points || 0}</div>
-                  <div className='text-12px text-t-tertiary'>消耗积分</div>
+                  <div className='text-24px font-700 text-primary'>{todayPoints}</div>
+                  <div className='text-12px text-t-tertiary'>{t('settings.userProfile.consumedPoints')}</div>
                 </div>
                 <div className='text-center'>
                   <div className='text-24px font-700 text-t-primary'>{stats?.usage_today?.requests || 0}</div>
-                  <div className='text-12px text-t-tertiary'>请求数</div>
+                  <div className='text-12px text-t-tertiary'>{t('settings.userProfile.requests')}</div>
                 </div>
               </div>
             </div>

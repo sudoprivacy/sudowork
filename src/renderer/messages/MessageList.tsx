@@ -5,6 +5,7 @@
  */
 
 import type { CodexToolCallUpdate, IMessageAcpToolCall, IMessageToolGroup, TMessage, TurnTokenUsage } from '@/common/chatLib';
+import { ipcBridge } from '@/common';
 import { useConversationContextSafe } from '@/renderer/context/ConversationContext';
 import { iconColors } from '@/renderer/theme/colors';
 import { CHAT_MESSAGE_JUMP_EVENT, type ChatMessageJumpDetail } from '@/renderer/utils/chatMinimapEvents';
@@ -151,9 +152,20 @@ const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = fal
   const conversationContext = useConversationContextSafe();
   const { t } = useTranslation();
   const [contextMenu, setContextMenu] = React.useState<{ x: number; y: number; items: ContextMenuItem[] } | null>(null);
+  const [showTokenUsageBadges, setShowTokenUsageBadges] = React.useState(true);
   // Track expanded/collapsed state for each tool_summary by id
   // 保存每个 tool_summary 的展开/折叠状态
   const [toolSummaryStates, setToolSummaryStates] = React.useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    void ipcBridge.systemSettings.getShowTokenUsageBadges
+      .invoke()
+      .then(setShowTokenUsageBadges)
+      .catch(() => {});
+    return ipcBridge.systemSettings.showTokenUsageBadgesChanged.on(({ enabled }) => {
+      setShowTokenUsageBadges(enabled);
+    });
+  }, []);
 
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -493,7 +505,7 @@ const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = fal
     if ('type' in item && item.type === 'turn_actions') {
       return (
         <div key={item.id} className='group min-w-0 message-item w-full box-border max-w-full md:max-w-800px mx-auto'>
-          <TurnActions turnTexts={(item as Extract<IMessageVO, { type: 'turn_actions' }>).turnTexts} turnTextsRaw={(item as Extract<IMessageVO, { type: 'turn_actions' }>).turnTextsRaw} conversationId={(item as Extract<IMessageVO, { type: 'turn_actions' }>).conversationId} tokenUsage={(item as Extract<IMessageVO, { type: 'turn_actions' }>).tokenUsage} />
+          <TurnActions turnTexts={(item as Extract<IMessageVO, { type: 'turn_actions' }>).turnTexts} turnTextsRaw={(item as Extract<IMessageVO, { type: 'turn_actions' }>).turnTextsRaw} conversationId={(item as Extract<IMessageVO, { type: 'turn_actions' }>).conversationId} tokenUsage={(item as Extract<IMessageVO, { type: 'turn_actions' }>).tokenUsage} showTokenUsageBadge={showTokenUsageBadges} />
         </div>
       );
     }

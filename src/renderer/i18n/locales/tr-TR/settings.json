@@ -105,6 +105,8 @@
   "cacheClearFailed": "Önbellek temizlenemedi",
   "language": "Dil",
   "closeToTray": "Tepsiye Kapat",
+  "showTokenUsageBadges": "Token / puan kullanımını göster",
+  "showTokenUsageBadgesDesc": "Her yanıtın altında o turun Token ve puan tüketimini göster",
   "avatarEnabled": "Yüzen Avatar",
   "avatarEnabledDesc": "Aktif konuşmanızı yansıtan yüzen masaüstü yardımcısını göster",
   "gemini": "Gemini",
@@ -709,6 +711,25 @@
     "statusError": "Hata",
     "statusConnecting": "Bağlanıyor...",
     "connectedDesc": "Zentao bağlandı. AI artık hataları okuyup oluşturabilir."
+  },
+  "modelUsage": {
+    "title": "Model Kullanımı",
+    "pointsTitle": "Puan Kullanımı",
+    "tokensTitle": "Token Kullanımı",
+    "points": "Puan",
+    "total": "Toplam",
+    "totalTokens": "Toplam Token",
+    "startDate": "Başlangıç Tarihi",
+    "endDate": "Bitiş Tarihi",
+    "loadFailed": "Model kullanım verileri yüklenemedi",
+    "maxRangeWarning": "Tarih aralığı 30 günü aşamaz",
+    "noData": "Model kullanım verisi yok"
+  },
+  "userProfile": {
+    "todayUsage": "Bugünkü Kullanım",
+    "tokens": "Tokens",
+    "consumedPoints": "Tüketilen Puan",
+    "requests": "İstekler"
   },
   "extensionAssistantReadonly": "Uzantı asistanları salt okunurdur. Kopyalayıp düzenleyebilirsiniz.",
   "secrets": "Gizli Anahtarlar",
