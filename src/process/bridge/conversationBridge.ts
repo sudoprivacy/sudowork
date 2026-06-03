@@ -31,6 +31,7 @@ import { setupChannelResponseRouting } from '@/channels/agent/ChannelResponseRou
 import { startConversationTracking, endConversationSuccess, endConversationError } from '../telemetry';
 import { getConversationProvider, isRemoteProvider } from '../providers';
 import { getMossApi, getMossApiServerUrl, initMossApi } from '../remote/MossSessionApi';
+import { getSudoworkAcpSlashCommands } from '@/common/slash/sudoworkCommands';
 
 const workspaceSkillSyncTasks = new Map<string, Promise<void>>();
 
@@ -709,11 +710,9 @@ export function initConversationBridge(): void {
         return { success: true, data: { commands: [] } };
       }
 
-      const imageCommand: import('@/common/slash/types').SlashCommandItem = { name: 'image', description: 'Generate an image', hint: 'generate an image', kind: 'template', source: 'builtin' };
-
       const conversation = convResult.data;
       if (conversation.type === 'remote-agent') {
-        return { success: true, data: { commands: [imageCommand] } };
+        return { success: true, data: { commands: getSudoworkAcpSlashCommands() } };
       }
 
       if (conversation.type !== 'acp') {
@@ -722,11 +721,11 @@ export function initConversationBridge(): void {
 
       const task = WorkerManage.getTaskById(conversation_id) as AcpAgent | undefined;
       if (!task || task.type !== 'acp') {
-        return { success: true, data: { commands: [imageCommand] } };
+        return { success: true, data: { commands: getSudoworkAcpSlashCommands() } };
       }
 
       const commands = await task.loadAcpSlashCommands();
-      return { success: true, data: { commands: [imageCommand, ...commands] } };
+      return { success: true, data: { commands: [...getSudoworkAcpSlashCommands(), ...commands] } };
     } catch (error) {
       return { success: false, msg: error instanceof Error ? error.message : String(error) };
     }
