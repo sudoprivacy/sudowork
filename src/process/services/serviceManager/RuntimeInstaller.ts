@@ -24,12 +24,8 @@ const TAG = 'RuntimeInstaller';
  */
 class RuntimeInstaller {
   primeStatusForStartup(): void {
-    const fastNodeOk = isNodeInstalled();
-    const fastScodeOk = isInstalledScode();
-    const fastNexusOk = installedNexusService.checkInstalledSync();
-    const fastScodeNeedsUpgrade = fastScodeOk && getScodeVersionState().needsUpgrade;
-
-    initStatusManager.setDisplayMode(fastNodeOk && fastScodeOk && fastNexusOk && !fastScodeNeedsUpgrade ? 'startup' : 'full');
+    // Always use 'startup' mode for simpler UI
+    initStatusManager.setDisplayMode('startup');
   }
 
   /**
@@ -154,7 +150,7 @@ class RuntimeInstaller {
     const willInstallNexus = !nexusInstalled || nexusVersionState.needsUpgrade;
 
     if (willInstallNode || willInstallScode || willInstallNexus) {
-      initStatusManager.setDisplayMode('full');
+      initStatusManager.setDisplayMode('startup');
       initStatusManager.setStatus('installing', '正在并行准备运行环境...', 5);
     }
 
