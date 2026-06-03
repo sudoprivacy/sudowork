@@ -48,7 +48,7 @@ export class SecretStoreClient {
   private readonly client: FetchClient;
 
   constructor(options: SecretStoreClientOptions) {
-    const resolvedBaseUrl = options.baseUrl ?? 'http://localhost:12012';
+    const resolvedBaseUrl = options.baseUrl ?? 'http://localhost:12022';
     console.log('[SecretStoreClient] Created with baseUrl:', resolvedBaseUrl, 'apiKey length:', options.apiKey?.length ?? 0);
     this.client = new FetchClient({
       apiKey: options.apiKey ?? '',
