@@ -129,7 +129,7 @@ const SystemModalContent: React.FC = () => {
   // 关闭到托盘状态 / Close to tray state
   const [closeToTray, setCloseToTray] = useState(false);
   const [closeToTrayLoading, setCloseToTrayLoading] = useState(true);
-  const [showTokenUsageBadges, setShowTokenUsageBadges] = useState(true);
+  const [showTokenUsageBadges, setShowTokenUsageBadges] = useState(false);
   const [showTokenUsageBadgesLoading, setShowTokenUsageBadgesLoading] = useState(true);
 
   // 获取关闭到托盘设置 / Fetch close-to-tray setting

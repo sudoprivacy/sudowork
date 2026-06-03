@@ -31,7 +31,7 @@ type TurnActionsProps = {
   showTokenUsageBadge?: boolean;
 };
 
-const TurnActions: React.FC<TurnActionsProps> = ({ turnTexts, turnTextsRaw, conversationId, tokenUsage, showTokenUsageBadge = true }) => {
+const TurnActions: React.FC<TurnActionsProps> = ({ turnTexts, turnTextsRaw, conversationId, tokenUsage, showTokenUsageBadge = false }) => {
   const { t } = useTranslation();
   const [showCopyAlert, setShowCopyAlert] = useState(false);
   const [converting, setConverting] = useState(false);

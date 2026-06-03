@@ -71,11 +71,11 @@ export function initSystemSettingsBridge(): void {
     _changeListener?.(enabled);
   });
 
-  // 获取每轮 token / 积分用量 badge 显示开关，默认显示
-  // Get per-turn token / points usage badge visibility, enabled by default
+  // 获取每轮 token / 积分用量 badge 显示开关，默认不显示
+  // Get per-turn token / points usage badge visibility, disabled by default
   ipcBridge.systemSettings.getShowTokenUsageBadges.provider(async () => {
     const value = await ProcessConfig.get('system.showTokenUsageBadges');
-    return value ?? true;
+    return value ?? false;
   });
 
   // 设置每轮 token / 积分用量 badge 显示开关，只影响 UI 显示

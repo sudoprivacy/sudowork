@@ -9,7 +9,7 @@
 ## Config Key
 
 - `system.showTokenUsageBadges` stores whether token and points badges below assistant turns are visible.
-- The default is `true` when the key is missing.
+- The default is `false` when the key is missing.
 - The setting is exposed through `ipcBridge.systemSettings` so settings changes can be broadcast to active renderer views.
 
 ## UI Behavior

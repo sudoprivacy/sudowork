@@ -152,7 +152,7 @@ const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = fal
   const conversationContext = useConversationContextSafe();
   const { t } = useTranslation();
   const [contextMenu, setContextMenu] = React.useState<{ x: number; y: number; items: ContextMenuItem[] } | null>(null);
-  const [showTokenUsageBadges, setShowTokenUsageBadges] = React.useState(true);
+  const [showTokenUsageBadges, setShowTokenUsageBadges] = React.useState(false);
   // Track expanded/collapsed state for each tool_summary by id
   // 保存每个 tool_summary 的展开/折叠状态
   const [toolSummaryStates, setToolSummaryStates] = React.useState<Record<string, boolean>>({});
