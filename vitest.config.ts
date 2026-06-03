@@ -78,6 +78,7 @@ export default defineConfig({
         'src/common/chatLib.ts',
         'src/common/nexusFiles.ts',
         'src/common/scodeConfig.ts',
+        'src/common/slash/sudoworkCommands.ts',
         'src/common/sudoworkAuthLogin.ts',
         'src/common/update/models/VersionInfo.ts',
         'src/common/types/conversion.ts',

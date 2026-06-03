@@ -77,6 +77,7 @@ import { resolveImageConfig, callImagesGenerations, callImagesEdits, saveImageRe
 import { resolveWorkspaceSkillsDir } from '../utils/workspaceSkillsDir';
 import { readAssistantResource, ruleFilePattern } from '@process/utils/assistantResources';
 import { app } from 'electron';
+import { protectUnsupportedAcpSlashPrompt } from '@/common/slash/sudoworkCommands';
 
 /** Enable ACP performance diagnostics via ACP_PERF=1 */
 const ACP_PERF_LOG = process.env.ACP_PERF === '1';
@@ -768,16 +769,16 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
         ipcBridge.acpConversation.responseStream.emit(userResponseMessage);
       }
 
-      // Intercept /model slash command
+      // Intercept /model slash command locally so model switching does not depend on backend command support.
       const modelMatch = data.content.trim().match(/^\/model(?:\s+(.*))?$/);
       if (modelMatch !== null) {
         return await this.handleModelCommand(modelMatch, data);
       }
 
       // Intercept /image sub-commands
-      const imageMatch = data.content.trim().match(/^\/image\s+([\s\S]+)$/);
+      const imageMatch = data.content.trim().match(/^\/image(?:\s+([\s\S]+))?$/);
       if (imageMatch !== null) {
-        return await this.handleImageCommand(imageMatch[1].trim(), data);
+        return await this.handleImageCommand((imageMatch[1] || '').trim(), data);
       }
 
       // Intercept channel query intent (natural language)
@@ -1158,6 +1159,11 @@ This identity statement takes priority over the default identity in USER.md.
       const promptStart = Date.now();
       // Breadcrumb: API request
       apiBreadcrumbs.request(`session/prompt`, 'POST', this.conversation_id);
+
+      processedContent = protectUnsupportedAcpSlashPrompt(
+        processedContent,
+        this.acpAvailableSlashCommands.map((command) => command.name)
+      );
 
       await this.connection.sendPrompt(processedContent, images, msg_id);
       if (ACP_PERF_LOG) mainLog('ACP-PERF', `send: sendPrompt completed ${Date.now() - promptStart}ms (total send: ${Date.now() - sendStart}ms)`);
@@ -3281,77 +3287,86 @@ This identity statement takes priority over the default identity in USER.md.
     });
 
     try {
-      // Parse sub-command: analyze, edit, gen/generate
-      const analyzeMatch = args.match(/^analyze\s+(?:"([^"]+)"|'([^']+)'|(\S+))\s+([\s\S]+)$/);
-
-      if (analyzeMatch) {
-        // Image analysis: use chat model + /chat/completions
-        const rawPath = analyzeMatch[1] ?? analyzeMatch[2] ?? analyzeMatch[3];
-        const srcPath = nodePath.isAbsolute(rawPath) ? rawPath : nodePath.join(saveDir, rawPath);
-        const prompt = analyzeMatch[4].trim();
-
-        const creds = readSudorouterCredentials();
-        const chatModel = resolveChatModel();
-        if (!creds || !chatModel) {
-          ipcBridge.acpConversation.responseStream.emit({
-            type: 'content',
-            conversation_id: this.conversation_id,
-            msg_id: responseMsgId,
-            data: '未找到可用的模型配置，请检查 sudoclaw 配置。',
-          });
-        } else {
-          const analysisResult = await callChatCompletionsWithImage(creds.baseUrl, creds.apiKey, chatModel, srcPath, prompt);
-          const contentMsg = {
-            type: 'content' as const,
-            conversation_id: this.conversation_id,
-            msg_id: responseMsgId,
-            data: analysisResult,
-          };
-          ipcBridge.acpConversation.responseStream.emit(contentMsg);
-          ipcBridge.conversation.responseStream.emit(contentMsg);
-          const tMessage = transformMessage(contentMsg);
-          if (tMessage) addOrUpdateMessage(this.conversation_id, tMessage);
-        }
+      if (!args) {
+        ipcBridge.acpConversation.responseStream.emit({
+          type: 'content',
+          conversation_id: this.conversation_id,
+          msg_id: responseMsgId,
+          data: 'Usage: `/image <prompt>`, `/image generate <prompt>`, `/image edit <path> <prompt>`, or `/image analyze <path> <prompt>`.',
+        });
       } else {
-        // Image generation/edit: use image model
-        const config = await resolveImageConfig();
-        if (!config) {
-          ipcBridge.acpConversation.responseStream.emit({
-            type: 'content',
-            conversation_id: this.conversation_id,
-            msg_id: responseMsgId,
-            data: '未找到可用的图像生成模型配置，请在工具设置中配置图像模型。',
-          });
-        } else {
-          const genMatch = args.match(/^(?:gen|generate)\s+([\s\S]+)$/);
-          const editMatch = args.match(/^edit\s+(?:"([^"]+)"|'([^']+)'|(\S+))\s+([\s\S]+)$/);
+        // Parse sub-command: analyze, edit, gen/generate
+        const analyzeMatch = args.match(/^analyze\s+(?:"([^"]+)"|'([^']+)'|(\S+))\s+([\s\S]+)$/);
 
-          let imageUrls: string[];
+        if (analyzeMatch) {
+          // Image analysis: use chat model + /chat/completions
+          const rawPath = analyzeMatch[1] ?? analyzeMatch[2] ?? analyzeMatch[3];
+          const srcPath = nodePath.isAbsolute(rawPath) ? rawPath : nodePath.join(saveDir, rawPath);
+          const prompt = analyzeMatch[4].trim();
 
-          if (editMatch) {
-            const rawPath = editMatch[1] ?? editMatch[2] ?? editMatch[3];
-            const srcPath = nodePath.isAbsolute(rawPath) ? rawPath : nodePath.join(saveDir, rawPath);
-            const prompt = editMatch[4].trim();
-            const imageUrl = await callImagesEdits(config.baseUrl, config.apiKey, config.model, srcPath, prompt, '1024x1024', 1);
-            imageUrls = [imageUrl];
+          const creds = readSudorouterCredentials();
+          const chatModel = resolveChatModel();
+          if (!creds || !chatModel) {
+            ipcBridge.acpConversation.responseStream.emit({
+              type: 'content',
+              conversation_id: this.conversation_id,
+              msg_id: responseMsgId,
+              data: '未找到可用的模型配置，请检查 sudoclaw 配置。',
+            });
           } else {
-            const prompt = genMatch ? genMatch[1].trim() : args;
-            const imageUrl = await callImagesGenerations(config.baseUrl, config.apiKey, config.model, prompt, '1024x1024', 1);
-            imageUrls = [imageUrl];
+            const analysisResult = await callChatCompletionsWithImage(creds.baseUrl, creds.apiKey, chatModel, srcPath, prompt);
+            const contentMsg = {
+              type: 'content' as const,
+              conversation_id: this.conversation_id,
+              msg_id: responseMsgId,
+              data: analysisResult,
+            };
+            ipcBridge.acpConversation.responseStream.emit(contentMsg);
+            ipcBridge.conversation.responseStream.emit(contentMsg);
+            const tMessage = transformMessage(contentMsg);
+            if (tMessage) addOrUpdateMessage(this.conversation_id, tMessage);
           }
+        } else {
+          // Image generation/edit: use image model
+          const config = await resolveImageConfig();
+          if (!config) {
+            ipcBridge.acpConversation.responseStream.emit({
+              type: 'content',
+              conversation_id: this.conversation_id,
+              msg_id: responseMsgId,
+              data: '未找到可用的图像生成模型配置，请在工具设置中配置图像模型。',
+            });
+          } else {
+            const genMatch = args.match(/^(?:gen|generate)\s+([\s\S]+)$/);
+            const editMatch = args.match(/^edit\s+(?:"([^"]+)"|'([^']+)'|(\S+))\s+([\s\S]+)$/);
 
-          const savedImages = await Promise.all(imageUrls.map((url) => saveImageResult(url, saveDir)));
-          const imgContent = savedImages.map(({ imgUrl }) => `![](${imgUrl})`).join('\n');
-          const contentMsg = {
-            type: 'content' as const,
-            conversation_id: this.conversation_id,
-            msg_id: responseMsgId,
-            data: imgContent,
-          };
-          ipcBridge.acpConversation.responseStream.emit(contentMsg);
-          ipcBridge.conversation.responseStream.emit(contentMsg);
-          const tMessage = transformMessage(contentMsg);
-          if (tMessage) addOrUpdateMessage(this.conversation_id, tMessage);
+            let imageUrls: string[];
+
+            if (editMatch) {
+              const rawPath = editMatch[1] ?? editMatch[2] ?? editMatch[3];
+              const srcPath = nodePath.isAbsolute(rawPath) ? rawPath : nodePath.join(saveDir, rawPath);
+              const prompt = editMatch[4].trim();
+              const imageUrl = await callImagesEdits(config.baseUrl, config.apiKey, config.model, srcPath, prompt, '1024x1024', 1);
+              imageUrls = [imageUrl];
+            } else {
+              const prompt = genMatch ? genMatch[1].trim() : args;
+              const imageUrl = await callImagesGenerations(config.baseUrl, config.apiKey, config.model, prompt, '1024x1024', 1);
+              imageUrls = [imageUrl];
+            }
+
+            const savedImages = await Promise.all(imageUrls.map((url) => saveImageResult(url, saveDir)));
+            const imgContent = savedImages.map(({ imgUrl }) => `![](${imgUrl})`).join('\n');
+            const contentMsg = {
+              type: 'content' as const,
+              conversation_id: this.conversation_id,
+              msg_id: responseMsgId,
+              data: imgContent,
+            };
+            ipcBridge.acpConversation.responseStream.emit(contentMsg);
+            ipcBridge.conversation.responseStream.emit(contentMsg);
+            const tMessage = transformMessage(contentMsg);
+            if (tMessage) addOrUpdateMessage(this.conversation_id, tMessage);
+          }
         }
       }
     } catch (error) {
