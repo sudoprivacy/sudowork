@@ -21,8 +21,8 @@ const NEXUS_HEALTHCHECK_TIMEOUT_MS = 1000; // 1 second
 const NEXUS_POLL_INTERVAL_MS = 200;
 const NEXUS_DEFAULT_PORT = 12012;
 
-/** OSS base URL for downloading Nexus binaries at runtime */
-const NEXUS_OSS_BASE_URL = 'https://sudoclaw-1309794936.cos.ap-beijing.myqcloud.com';
+/** OSS base URL for downloading Nexus binaries at runtime (COS bucket populated by nexus-vfs release.yml) */
+const NEXUS_OSS_BASE_URL = 'https://sudoclaw-download-1309794936.cos.ap-beijing.myqcloud.com';
 const NEXUS_GITHUB_RELEASE_BASE_URL = 'https://github.com/nexi-lab/nexus-vfs/releases/download';
 
 /** Platform name mapping: Node.js process.platform → Nexus binary OS name */
@@ -93,11 +93,11 @@ class DynamicNexusService {
 
   /**
    * Get the OSS download URL for the current platform's Nexus archive.
-   * e.g. https://sudoclaw-1309794936.cos.ap-beijing.myqcloud.com/v0.1.0/nexusd-cluster-macos-aarch64.tar.gz
+   * e.g. https://sudoclaw-download-1309794936.cos.ap-beijing.myqcloud.com/nexus-vfs/release/v0.1.0/nexusd-cluster-macos-aarch64.tar.gz
    */
   private getOssDownloadUrl(): string {
     const version = this.getNexusVersion();
-    return `${NEXUS_OSS_BASE_URL}/v${version}/${this.getPlatformArchiveName()}`;
+    return `${NEXUS_OSS_BASE_URL}/nexus-vfs/release/v${version}/${this.getPlatformArchiveName()}`;
   }
 
   private getGitHubDownloadUrl(): string {
