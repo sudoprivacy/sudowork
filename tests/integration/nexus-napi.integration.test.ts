@@ -71,7 +71,7 @@ async function waitForPort(port: number, timeoutMs = 15000): Promise<void> {
 /** Locate the nexusd-cluster binary. Checks several known paths. */
 function findNexusdBinary(): string | null {
   const candidates = [
-    // Development install via download-nexus.js
+    // Development install via download-nexus-vfs.js
     path.join(os.homedir(), '.nexus', 'bin', 'nexusd'),
     // Repo resources directory
     path.join(__dirname, '..', '..', 'resources', 'nexusd'),
