@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import type { Dayjs } from 'dayjs';
 import dayjs from 'dayjs';
 import { useModelUsageStats } from '@/renderer/hooks/useModelUsageStats';
-import { formatUsagePoints, tokensToUsagePoints } from '@/common/tokenUsage';
+import { costToUsagePoints, formatUsagePoints } from '@/common/tokenUsage';
 
 const { RangePicker } = DatePicker;
 
@@ -57,15 +57,18 @@ const WeeklyModelUsageChart: React.FC<WeeklyModelUsageChartProps> = ({ className
     dates: string[];
     models: string[];
     series: { name: string; type: string; stack: string; color: string; data: number[] }[];
+    pointSeries: { name: string; type: string; stack: string; color: string; data: number[]; barMaxWidth: number }[];
     totals: number[];
     pointTotals: number[];
     dateMap: Map<string, Map<string, number>>;
+    pointDateMap: Map<string, Map<string, number>>;
   }
 
   const chartData = useMemo<ChartDataResult>(() => {
-    if (!data.length) return { dates: [], models: [], series: [], totals: [], pointTotals: [], dateMap: new Map() };
+    if (!data.length) return { dates: [], models: [], series: [], pointSeries: [], totals: [], pointTotals: [], dateMap: new Map(), pointDateMap: new Map() };
 
     const dateMap = new Map<string, Map<string, number>>();
+    const costDateMap = new Map<string, Map<string, number>>();
     const modelsSet = new Set<string>();
 
     for (const item of data) {
@@ -73,8 +76,15 @@ const WeeklyModelUsageChart: React.FC<WeeklyModelUsageChartProps> = ({ className
       if (!dateMap.has(item.date)) {
         dateMap.set(item.date, new Map());
       }
+      if (!costDateMap.has(item.date)) {
+        costDateMap.set(item.date, new Map());
+      }
       const modelData = dateMap.get(item.date)!;
       modelData.set(item.model, (modelData.get(item.model) || 0) + item.total_tokens);
+      if (typeof item.cost === 'number' && Number.isFinite(item.cost)) {
+        const costModelData = costDateMap.get(item.date)!;
+        costModelData.set(item.model, (costModelData.get(item.model) || 0) + item.cost);
+      }
     }
 
     const dates = Array.from(dateMap.keys()).sort();
@@ -87,7 +97,6 @@ const WeeklyModelUsageChart: React.FC<WeeklyModelUsageChartProps> = ({ className
       modelData.forEach((v) => (sum += v));
       return sum;
     });
-    const pointTotals = totals.map((total) => tokensToUsagePoints(total) ?? 0);
 
     // 计算每个模型的总用量，用于排序（大用量放底部，小用量放顶部更显眼）
     const modelTotals = new Map<string, number>();
@@ -121,7 +130,34 @@ const WeeklyModelUsageChart: React.FC<WeeklyModelUsageChartProps> = ({ className
       }),
     }));
 
-    return { dates, models: sortedModels, series, totals, pointTotals, dateMap };
+    const pointDateMap = new Map<string, Map<string, number>>();
+    for (const date of dates) {
+      const costModelData = costDateMap.get(date);
+      const pointModelData = new Map<string, number>();
+      sortedModels.forEach((model) => {
+        const cost = costModelData?.get(model) || 0;
+        pointModelData.set(model, costToUsagePoints(cost) ?? 0);
+      });
+      pointDateMap.set(date, pointModelData);
+    }
+
+    const pointTotals = dates.map((date) => {
+      const modelData = pointDateMap.get(date)!;
+      let sum = 0;
+      modelData.forEach((v) => (sum += v));
+      return sum;
+    });
+
+    const pointSeries = sortedModels.map((model, index) => ({
+      name: model,
+      type: 'bar',
+      stack: 'points',
+      color: CHART_COLORS[index % CHART_COLORS.length],
+      data: dates.map((date) => pointDateMap.get(date)?.get(model) || 0),
+      barMaxWidth: 36,
+    }));
+
+    return { dates, models: sortedModels, series, pointSeries, totals, pointTotals, dateMap, pointDateMap };
   }, [data]);
 
   const modelChartOption = useMemo(() => {
@@ -219,16 +255,24 @@ const WeeklyModelUsageChart: React.FC<WeeklyModelUsageChartProps> = ({ className
           if (!params || !params.length) return '';
           const dataIndex = params[0].dataIndex;
           const date = chartData.dates[dataIndex];
-          const points = chartData.pointTotals[dataIndex] || 0;
-          const tokens = chartData.totals[dataIndex] || 0;
-          return `<div style="font-weight:600;margin-bottom:8px">${date}</div><div style="display:flex;justify-content:space-between;gap:12px"><span>${t('settings.modelUsage.points')}</span><span style="font-weight:600">${formatUsagePoints(points) || '0'}</span></div><div style="display:flex;justify-content:space-between;gap:12px;margin-top:4px"><span>${t('settings.modelUsage.totalTokens')}</span><span style="font-weight:600">${tokens.toLocaleString()}</span></div>`;
+          const totalPoints = chartData.pointTotals[dataIndex] || 0;
+          const items = params
+            .filter((p) => p.value > 0)
+            .map((p) => `<div style="display:flex;justify-content:space-between;gap:12px"><span>${p.seriesName}</span><span style="font-weight:600">${formatUsagePoints(p.value) || '0'}</span></div>`)
+            .join('');
+          return `<div style="font-weight:600;margin-bottom:8px">${date}</div>${items}<div style="display:flex;justify-content:space-between;gap:12px;margin-top:8px;border-top:1px solid var(--border-base);padding-top:8px"><span>${t('settings.modelUsage.total')}</span><span style="font-weight:600">${formatUsagePoints(totalPoints) || '0'}</span></div>`;
         },
+      },
+      legend: {
+        show: chartData.models.length > 1,
+        top: 0,
+        textStyle: { color: getCSSVar('--text-secondary') || '#86909c', fontFamily: 'PingFang SC, Microsoft YaHei, sans-serif' },
       },
       grid: {
         left: '3%',
         right: '4%',
         bottom: '3%',
-        top: '20px',
+        top: chartData.models.length > 1 ? '40px' : '20px',
         containLabel: true,
       },
       xAxis: {
@@ -247,15 +291,7 @@ const WeeklyModelUsageChart: React.FC<WeeklyModelUsageChartProps> = ({ className
         axisLine: { lineStyle: { color: getCSSVar('--border-base') || '#e5e6eb' } },
         splitLine: { lineStyle: { color: getCSSVar('--bg-3') || '#e5e6eb', type: 'dashed' } },
       },
-      series: [
-        {
-          name: t('settings.modelUsage.points'),
-          type: 'bar',
-          color: '#ff7d00',
-          data: chartData.pointTotals,
-          barMaxWidth: 36,
-        },
-      ],
+      series: chartData.pointSeries,
     };
   }, [chartData, t]);
 
