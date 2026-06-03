@@ -125,27 +125,27 @@ async def _wait_db(timeout: float, idle_seconds: float,
             shutil.rmtree(db_path.parent, ignore_errors=True)
 
         # ── Step 2: Check agent task status via IPC (primary signal) ──
+        # Query task.status through the renderer's IPC bridge. When the
+        # agent finishes its turn, WorkerManage sets status='finished'.
+        # Uses tab.evaluate with await_promise=True (js_evaluate doesn't
+        # await Promises).
         if tab and conv_id:
             try:
-                r = await js_evaluate(tab, f"""
+                task_status = await tab.evaluate(f"""
                     (async function() {{
-                        try {{
-                            var conv = await window.__bridgeEmitter && new Promise(function(resolve) {{
-                                var ch = 'get-conversation';
-                                var id = ch + Math.random().toString(16).slice(2, 10);
-                                var key = 'subscribe.callback-' + ch + id;
-                                var h = function(r) {{ window.__bridgeEmitter.off(key, h); resolve(r); }};
-                                window.__bridgeEmitter.on(key, h);
-                                window.electronAPI.emit('subscribe-' + ch, {{id: id, data: {{id: '{conv_id}'}}}});
-                                setTimeout(function() {{ window.__bridgeEmitter.off(key, h); resolve(null); }}, 3000);
-                            }});
-                            return conv && conv.status ? conv.status : 'unknown';
-                        }} catch(e) {{
-                            return 'error:' + e.message;
-                        }}
+                        var e = window.__bridgeEmitter;
+                        if (!e) return 'no_emitter';
+                        return new Promise(function(resolve) {{
+                            var ch = 'get-conversation';
+                            var id = ch + '_' + Date.now();
+                            var key = 'subscribe.callback-' + ch + id;
+                            var h = function(r) {{ e.off(key, h); resolve(r && r.status ? r.status : 'unknown'); }};
+                            e.on(key, h);
+                            window.electronAPI.emit('subscribe-' + ch, {{id: id, data: {{id: '{conv_id}'}}}});
+                            setTimeout(function() {{ e.off(key, h); resolve('ipc_timeout'); }}, 3000);
+                        }});
                     }})()
-                """)
-                task_status = r.get("result", "unknown")
+                """, await_promise=True, return_by_value=True, timeout=5)
                 if task_status == "finished":
                     return {"done": True, "mode": "db", "conversation_id": conv_id,
                             "signal": "task_status=finished",
