@@ -11,6 +11,7 @@ import type { AtMentionTab } from '@/renderer/hooks/useSkillSelectorController';
 import type { WorkspaceFileItem } from '@/renderer/hooks/useWorkspaceFiles';
 import SkillSelectorSkeleton from './base/SkillSelectorSkeleton';
 import { Virtuoso } from 'react-virtuoso';
+import { handleSkillIconError } from '@/renderer/utils/skillDisplay';
 
 export interface SkillSelectorMenuItem {
   key: string;
@@ -241,7 +242,7 @@ const SkillSelectorMenu: React.FC<SkillSelectorMenuProps> = ({ title, hint, item
                   >
                     <div className='flex items-center gap-8px'>
                       {/* Icon / Emoji */}
-                      <div className='w-28px h-28px flex-shrink-0 rd-6px overflow-hidden bg-fill-2 flex items-center justify-center text-16px'>{item.icon ? <img src={item.icon} alt={item.displayName} className='w-full h-full object-cover' /> : <span>{item.emoji || '⚡'}</span>}</div>
+                      <div className='w-28px h-28px flex-shrink-0 rd-6px overflow-hidden bg-fill-2 flex items-center justify-center text-16px'>{item.icon ? <img src={item.icon} alt={item.displayName} className='w-full h-full object-cover' onError={handleSkillIconError} /> : <span>{item.emoji || '⚡'}</span>}</div>
                       {/* Content */}
                       <div className='min-w-0 flex-1'>
                         <div className='flex items-center gap-6px min-w-0'>

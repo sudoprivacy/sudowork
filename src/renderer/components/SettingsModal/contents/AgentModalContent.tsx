@@ -15,7 +15,8 @@ import EmojiPicker from '@/renderer/components/EmojiPicker';
 import MarkdownView from '@/renderer/components/Markdown';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { getSelectableAssistantSkills, isAutoInjectedBuiltinSkill, sanitizeAssistantEnabledSkills } from '@/renderer/pages/settings/assistantSkillSelection';
-import { getInstalledSkillDisplay, normalizeSkillVersion } from '@/renderer/utils/skillDisplay';
+import { getInstalledSkillDisplay, normalizeSkillVersion, handleSkillIconError } from '@/renderer/utils/skillDisplay';
+import { COS_HUB_BASE } from '@/shared/cos';
 import { isElectronDesktop, resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import { DEFAULT_PRESET_AGENT_TYPE, normalizePresetAgentType, type AcpBackendConfig } from '@/types/acpTypes';
 import { Avatar, Button, Checkbox, Collapse, Drawer, Input, Message, Modal, Popconfirm, Progress, Select, Spin, Switch, Tag, Tooltip, Typography } from '@arco-design/web-react';
@@ -600,13 +601,13 @@ const AssistantDetailModal: React.FC<{
                             skillIconUrl = resolveExtensionAssetUrl(skill.icon) || skill.icon;
                           } else {
                             // Hub skills: if icon is relative path, prepend COS URL
-                            skillIconUrl = skill.icon && !skill.icon.startsWith('http') && !skill.icon.startsWith('data:') && !skill.icon.startsWith('/') && !skill.icon.startsWith('aion-asset://') && !skill.icon.startsWith('file://') ? `https://sudoworkhub-1309794936.cos.ap-beijing.myqcloud.com/${skill.icon}` : skill.icon;
+                            skillIconUrl = skill.icon && !skill.icon.startsWith('http') && !skill.icon.startsWith('data:') && !skill.icon.startsWith('/') && !skill.icon.startsWith('aion-asset://') && !skill.icon.startsWith('file://') ? `${COS_HUB_BASE}/${skill.icon}` : skill.icon;
                           }
                           return (
                             <div key={skill.id} className='flex items-center gap-10px p-8px bg-fill-2 rd-8px'>
                               <div className='w-32px h-32px flex-shrink-0 rd-6px overflow-hidden bg-fill-3'>
                                 {skillIconUrl ? (
-                                  <img src={skillIconUrl} alt={skillDisplayName} className='w-full h-full object-cover' />
+                                  <img src={skillIconUrl} alt={skillDisplayName} className='w-full h-full object-cover' onError={handleSkillIconError} />
                                 ) : skill.emoji ? (
                                   <div className='w-full h-full flex items-center justify-center text-16px'>{skill.emoji}</div>
                                 ) : (
