@@ -14,6 +14,8 @@ import json
 import os
 import re
 
+import state
+
 
 async def json_audit(
     tab,
@@ -42,10 +44,14 @@ async def json_audit(
     failures = []
     details = {}
 
-    # Find the most recent matching file
+    # Find the most recent matching file, only considering files modified
+    # after case start (avoids matching stale output from previous runs)
     candidates = glob.glob(os.path.expanduser(f"~/.nexus/scode-temp-*/{filename}"))
+    if state.CASE_START_MS:
+        cutoff = state.CASE_START_MS / 1000  # ms → seconds epoch
+        candidates = [c for c in candidates if os.path.getmtime(c) > cutoff]
     if not candidates:
-        return {"pass": False, "reason": f"{filename} not found in any scode workspace", "details": {}}
+        return {"pass": False, "reason": f"{filename} not found (modified after case start) in any scode workspace", "details": {}}
 
     filepath = max(candidates, key=os.path.getmtime)
     details["filepath"] = filepath

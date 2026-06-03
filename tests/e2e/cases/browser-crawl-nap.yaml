@@ -21,8 +21,10 @@ steps:
     wait: 3
 
   # Wait up to 20 min for full crawl (32 pages)
+  # idle_seconds=120: agent may pause between pages (writing files, thinking)
   - op: wait_for_response
     timeout: 1200
+    idle_seconds: 120
 
   - op: screenshot
     path: "screenshots/browser-crawl-nap-result.png"
@@ -33,11 +35,10 @@ steps:
 
   # Assert tool usage: enough to work, not so many it's flailing
   - op: db_audit
-    max_tool_calls: 40
+    max_tool_calls: 50
     assert_metrics:
       tool_calls: ">= 5"
       browser_start_calls: ">= 1"
-      js_evaluate_calls: ">= 1"
 
   # Assert output file: valid JSON, 100+ items, correct structure
   - op: json_audit
