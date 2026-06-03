@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import type { Dayjs } from 'dayjs';
 import dayjs from 'dayjs';
 import { useModelUsageStats } from '@/renderer/hooks/useModelUsageStats';
+import { formatUsagePoints, tokensToUsagePoints } from '@/common/tokenUsage';
 
 const { RangePicker } = DatePicker;
 
@@ -18,6 +19,12 @@ const CHART_COLORS = [
   '#f53f3f', // danger
   '#b5bcd6', // aou-4
 ];
+
+interface EChartsTooltipParam {
+  dataIndex: number;
+  seriesName: string;
+  value: number;
+}
 
 interface WeeklyModelUsageChartProps {
   className?: string;
@@ -51,11 +58,12 @@ const WeeklyModelUsageChart: React.FC<WeeklyModelUsageChartProps> = ({ className
     models: string[];
     series: { name: string; type: string; stack: string; color: string; data: number[] }[];
     totals: number[];
+    pointTotals: number[];
     dateMap: Map<string, Map<string, number>>;
   }
 
   const chartData = useMemo<ChartDataResult>(() => {
-    if (!data.length) return { dates: [], models: [], series: [], totals: [], dateMap: new Map() };
+    if (!data.length) return { dates: [], models: [], series: [], totals: [], pointTotals: [], dateMap: new Map() };
 
     const dateMap = new Map<string, Map<string, number>>();
     const modelsSet = new Set<string>();
@@ -79,6 +87,7 @@ const WeeklyModelUsageChart: React.FC<WeeklyModelUsageChartProps> = ({ className
       modelData.forEach((v) => (sum += v));
       return sum;
     });
+    const pointTotals = totals.map((total) => tokensToUsagePoints(total) ?? 0);
 
     // 计算每个模型的总用量，用于排序（大用量放底部，小用量放顶部更显眼）
     const modelTotals = new Map<string, number>();
@@ -106,17 +115,16 @@ const WeeklyModelUsageChart: React.FC<WeeklyModelUsageChartProps> = ({ className
         const value = modelData?.get(model) || 0;
         const total = totals[dateIndex];
         if (value === 0) return 0;
-        const percent = (value / total) * 100;
         // 如果占比小于最小百分比，设置最小可见高度（总量的 5%）
         const minValue = total * (MIN_PERCENT / 100);
         return Math.max(value, minValue);
       }),
     }));
 
-    return { dates, models: sortedModels, series, totals, dateMap };
+    return { dates, models: sortedModels, series, totals, pointTotals, dateMap };
   }, [data]);
 
-  const chartOption = useMemo(() => {
+  const modelChartOption = useMemo(() => {
     const getCSSVar = (name: string) => {
       const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
       return value || '#1d2129';
@@ -140,21 +148,21 @@ const WeeklyModelUsageChart: React.FC<WeeklyModelUsageChartProps> = ({ className
         backgroundColor: getCSSVar('--fill-0') || '#ffffff',
         borderColor: getCSSVar('--border-base') || '#e5e6eb',
         textStyle: { color: getCSSVar('--text-primary') || '#1d2129', fontFamily: 'PingFang SC, Microsoft YaHei, sans-serif' },
-        formatter: (params: any) => {
+        formatter: (params: EChartsTooltipParam[]) => {
           if (!params || !params.length) return '';
           const dataIndex = params[0].dataIndex;
           const dayRaw = rawData[dataIndex];
           const date = dayRaw.date;
           const total = dayRaw.total;
           const items = params
-            .filter((p: any) => p.value > 0)
-            .map((p: any) => {
+            .filter((p) => p.value > 0)
+            .map((p) => {
               const rawValue = dayRaw.models[p.seriesName] || 0;
               const percent = total > 0 ? ((rawValue / total) * 100).toFixed(1) : '0';
               return `<div style="display:flex;justify-content:space-between;gap:12px"><span>${p.seriesName}</span><span style="font-weight:600">${percent}% (${rawValue.toLocaleString()})</span></div>`;
             })
             .join('');
-          return `<div style="font-weight:600;margin-bottom:8px">${date}</div>${items}<div style="display:flex;justify-content:space-between;gap:12px;margin-top:8px;border-top:1px solid var(--border-base);padding-top:8px"><span>总计</span><span style="font-weight:600">${total.toLocaleString()}</span></div>`;
+          return `<div style="font-weight:600;margin-bottom:8px">${date}</div>${items}<div style="display:flex;justify-content:space-between;gap:12px;margin-top:8px;border-top:1px solid var(--border-base);padding-top:8px"><span>${t('settings.modelUsage.total')}</span><span style="font-weight:600">${total.toLocaleString()}</span></div>`;
         },
       },
       legend: {
@@ -191,7 +199,65 @@ const WeeklyModelUsageChart: React.FC<WeeklyModelUsageChartProps> = ({ className
       },
       series: chartData.series,
     };
-  }, [chartData]);
+  }, [chartData, t]);
+
+  const pointsChartOption = useMemo(() => {
+    const getCSSVar = (name: string) => {
+      const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+      return value || '#1d2129';
+    };
+
+    return {
+      backgroundColor: 'transparent',
+      tooltip: {
+        trigger: 'axis',
+        axisPointer: { type: 'shadow' },
+        backgroundColor: getCSSVar('--fill-0') || '#ffffff',
+        borderColor: getCSSVar('--border-base') || '#e5e6eb',
+        textStyle: { color: getCSSVar('--text-primary') || '#1d2129', fontFamily: 'PingFang SC, Microsoft YaHei, sans-serif' },
+        formatter: (params: EChartsTooltipParam[]) => {
+          if (!params || !params.length) return '';
+          const dataIndex = params[0].dataIndex;
+          const date = chartData.dates[dataIndex];
+          const points = chartData.pointTotals[dataIndex] || 0;
+          const tokens = chartData.totals[dataIndex] || 0;
+          return `<div style="font-weight:600;margin-bottom:8px">${date}</div><div style="display:flex;justify-content:space-between;gap:12px"><span>${t('settings.modelUsage.points')}</span><span style="font-weight:600">${formatUsagePoints(points) || '0'}</span></div><div style="display:flex;justify-content:space-between;gap:12px;margin-top:4px"><span>${t('settings.modelUsage.totalTokens')}</span><span style="font-weight:600">${tokens.toLocaleString()}</span></div>`;
+        },
+      },
+      grid: {
+        left: '3%',
+        right: '4%',
+        bottom: '3%',
+        top: '20px',
+        containLabel: true,
+      },
+      xAxis: {
+        type: 'category',
+        data: chartData.dates.map((d) => dayjs(d).format('MM-DD')),
+        axisLabel: { color: getCSSVar('--text-secondary') || '#86909c', fontFamily: 'PingFang SC, Microsoft YaHei, sans-serif' },
+        axisLine: { lineStyle: { color: getCSSVar('--border-base') || '#e5e6eb' } },
+      },
+      yAxis: {
+        type: 'value',
+        axisLabel: {
+          color: getCSSVar('--text-secondary') || '#86909c',
+          fontFamily: 'PingFang SC, Microsoft YaHei, sans-serif',
+          formatter: (value: number) => formatUsagePoints(value) || '0',
+        },
+        axisLine: { lineStyle: { color: getCSSVar('--border-base') || '#e5e6eb' } },
+        splitLine: { lineStyle: { color: getCSSVar('--bg-3') || '#e5e6eb', type: 'dashed' } },
+      },
+      series: [
+        {
+          name: t('settings.modelUsage.points'),
+          type: 'bar',
+          color: '#ff7d00',
+          data: chartData.pointTotals,
+          barMaxWidth: 36,
+        },
+      ],
+    };
+  }, [chartData, t]);
 
   const handleDateChange = (dateString: string[], date: Dayjs[]) => {
     if (date && date.length === 2) {
@@ -220,7 +286,17 @@ const WeeklyModelUsageChart: React.FC<WeeklyModelUsageChartProps> = ({ className
       ) : !data.length ? (
         <div className='py-60px text-center text-t-tertiary text-14px'>{t('settings.modelUsage.noData') || '暂无模型用量数据'}</div>
       ) : (
-        <ReactECharts option={chartOption} style={{ height: '300px' }} opts={{ renderer: 'canvas' }} />
+        <div className='flex flex-col gap-20px'>
+          <div>
+            <div className='text-13px font-600 text-t-secondary mb-8px'>{t('settings.modelUsage.pointsTitle')}</div>
+            <ReactECharts option={pointsChartOption} style={{ height: '220px' }} opts={{ renderer: 'canvas' }} />
+          </div>
+          <div className='h-1px bg-border-2' />
+          <div>
+            <div className='text-13px font-600 text-t-secondary mb-8px'>{t('settings.modelUsage.tokensTitle')}</div>
+            <ReactECharts option={modelChartOption} style={{ height: '300px' }} opts={{ renderer: 'canvas' }} />
+          </div>
+        </div>
       )}
     </div>
   );

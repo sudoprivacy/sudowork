@@ -90,6 +90,8 @@ export interface IConfigStorageRefer {
   'migration.channelAgentMigratedToScode'?: boolean;
   // 关闭窗口时最小化到系统托盘 / Minimize to system tray when closing window
   'system.closeToTray'?: boolean;
+  // 每轮消息下方是否显示 token / 积分用量 / Whether to show per-turn token / points usage badges
+  'system.showTokenUsageBadges'?: boolean;
   // 桌面 avatar 浮窗开关 / Floating desktop avatar window enabled
   'avatar.enabled'?: boolean;
   // Avatar 浮窗最近一次的位置（屏幕坐标）/ Last-known avatar window bounds (screen coords)

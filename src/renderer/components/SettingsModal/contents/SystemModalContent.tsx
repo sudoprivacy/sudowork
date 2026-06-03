@@ -129,6 +129,8 @@ const SystemModalContent: React.FC = () => {
   // 关闭到托盘状态 / Close to tray state
   const [closeToTray, setCloseToTray] = useState(false);
   const [closeToTrayLoading, setCloseToTrayLoading] = useState(true);
+  const [showTokenUsageBadges, setShowTokenUsageBadges] = useState(false);
+  const [showTokenUsageBadgesLoading, setShowTokenUsageBadgesLoading] = useState(true);
 
   // 获取关闭到托盘设置 / Fetch close-to-tray setting
   useEffect(() => {
@@ -148,6 +150,23 @@ const SystemModalContent: React.FC = () => {
     ipcBridge.systemSettings.setCloseToTray.invoke({ enabled: checked }).catch(() => {
       // 失败时回滚 UI 状态
       setCloseToTray(!checked);
+    });
+  }, []);
+
+  useEffect(() => {
+    ipcBridge.systemSettings.getShowTokenUsageBadges
+      .invoke()
+      .then((enabled) => setShowTokenUsageBadges(enabled))
+      .catch(() => {})
+      .finally(() => {
+        setShowTokenUsageBadgesLoading(false);
+      });
+  }, []);
+
+  const handleShowTokenUsageBadgesChange = useCallback((checked: boolean) => {
+    setShowTokenUsageBadges(checked);
+    ipcBridge.systemSettings.setShowTokenUsageBadges.invoke({ enabled: checked }).catch(() => {
+      setShowTokenUsageBadges(!checked);
     });
   }, []);
 
@@ -282,6 +301,12 @@ const SystemModalContent: React.FC = () => {
       key: 'closeToTray',
       label: t('settings.closeToTray'),
       component: closeToTrayLoading ? <div style={{ width: 44, height: 22 }} /> : <Switch checked={closeToTray} onChange={handleCloseToTrayChange} className='settings-accent-switch' style={closeToTray ? { backgroundColor: 'var(--ui-accent-orange)' } : undefined} />,
+    },
+    {
+      key: 'showTokenUsageBadges',
+      label: t('settings.showTokenUsageBadges'),
+      hint: t('settings.showTokenUsageBadgesDesc'),
+      component: showTokenUsageBadgesLoading ? <div style={{ width: 44, height: 22 }} /> : <Switch checked={showTokenUsageBadges} onChange={handleShowTokenUsageBadgesChange} className='settings-accent-switch' style={showTokenUsageBadges ? { backgroundColor: 'var(--ui-accent-orange)' } : undefined} />,
     },
     {
       key: 'avatarEnabled',

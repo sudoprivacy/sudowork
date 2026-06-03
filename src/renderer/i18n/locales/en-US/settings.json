@@ -109,6 +109,8 @@
   "cacheClearFailed": "Failed to clear cache",
   "language": "Language",
   "closeToTray": "Close to Tray",
+  "showTokenUsageBadges": "Show token / points usage",
+  "showTokenUsageBadgesDesc": "Show per-turn token and points usage below each assistant response",
   "avatarEnabled": "Floating avatar",
   "avatarEnabledDesc": "Show a floating desktop companion that reflects your active conversation",
   "gemini": "Gemini",
@@ -853,11 +855,22 @@
   "rechargeCenter": "Recharge Center",
   "modelUsage": {
     "title": "Model Usage",
+    "pointsTitle": "Points Usage",
+    "tokensTitle": "Token Usage",
+    "points": "Points",
+    "total": "Total",
+    "totalTokens": "Total Tokens",
     "startDate": "Start Date",
     "endDate": "End Date",
     "loadFailed": "Failed to load model usage data",
     "maxRangeWarning": "Date range cannot exceed 30 days",
     "noData": "No model usage data"
+  },
+  "userProfile": {
+    "todayUsage": "Today's Usage",
+    "tokens": "Tokens",
+    "consumedPoints": "Consumed Points",
+    "requests": "Requests"
   },
   "recharge": {
     "title": "Recharge Points",
