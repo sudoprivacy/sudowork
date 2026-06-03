@@ -15,7 +15,7 @@ import { getClaudeModel } from '@/agent/acp/utils';
 import { buildAcpModelInfo, summarizeAcpModelInfo } from '@/agent/acp/modelInfo';
 import { channelEventBus } from '@/channels/agent/ChannelEventBus';
 import { ipcBridge } from '@/common';
-import type { AcpQuestionData, CronMessageMeta, TMessage } from '@/common/chatLib';
+import type { AcpQuestionData, CronMessageMeta, TMessage, TurnTokenUsage } from '@/common/chatLib';
 import type { SlashCommandItem } from '@/common/slash/types';
 import { transformMessage } from '@/common/chatLib';
 import { DRAFTS_DIR_NAME, NEXUS_FILES_MARKER } from '@/common/constants';
@@ -124,6 +124,20 @@ function normalizeToolCallStatus(status: string | undefined): 'pending' | 'in_pr
   return status as 'pending' | 'in_progress' | 'completed' | 'failed';
 }
 
+function normalizePromptUsageForMessage(usage: AcpPromptResponseUsage): TurnTokenUsage | null {
+  if (typeof usage.totalTokens !== 'number') return null;
+  return {
+    totalTokens: usage.totalTokens,
+    ...(typeof usage.inputTokens === 'number' && { inputTokens: usage.inputTokens }),
+    ...(typeof usage.outputTokens === 'number' && { outputTokens: usage.outputTokens }),
+    ...(usage.cachedReadTokens !== undefined && { cachedReadTokens: usage.cachedReadTokens }),
+    ...(usage.cachedWriteTokens !== undefined && { cachedWriteTokens: usage.cachedWriteTokens }),
+    ...(usage.thoughtTokens !== undefined && { thoughtTokens: usage.thoughtTokens }),
+    ...(usage.contextWindowTokens !== undefined && { contextWindowTokens: usage.contextWindowTokens }),
+    ...(usage.estimatedSessionTokens !== undefined && { estimatedSessionTokens: usage.estimatedSessionTokens }),
+  };
+}
+
 export interface AcpAgentData {
   workspace?: string;
   backend: AcpBackend;
@@ -173,6 +187,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
   private userModelOverride: string | null = null;
   private pendingModelSwitchNotice: string | null = null;
   private hasReceivedUsageUpdate = false;
+  private lastAssistantTextMsgId: string | null = null;
   private lastUserMessage: string | null = null;
   private plannedRestartInProgress = false;
   private contextOverflowRecoveryPending = false;
@@ -681,6 +696,8 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
     // Reset user cancelled flag for new message
     this.userCancelled = false;
     this.stopPromise = null;
+    this.hasReceivedUsageUpdate = false;
+    this.lastAssistantTextMsgId = null;
 
     // ★ Reset turn-level file tracking for new turn
     // 重置 Turn 级别文件追踪，开始新的 Turn
@@ -2577,6 +2594,25 @@ This identity statement takes priority over the default identity in USER.md.
     // Telemetry: update turn token usage
     updateTurnTokens(this.conversation_id, usage);
 
+    const tokenUsage = normalizePromptUsageForMessage(usage);
+    if (tokenUsage && this.lastAssistantTextMsgId) {
+      this.streamTextBuffer.flushAll();
+      const usagePatch: IResponseMessage = {
+        type: 'content',
+        conversation_id: this.conversation_id,
+        msg_id: this.lastAssistantTextMsgId,
+        data: {
+          content: '',
+          tokenUsage,
+        },
+      };
+      const tMessage = transformMessage(usagePatch);
+      if (tMessage) {
+        addOrUpdateMessage(this.conversation_id, tMessage, this.options.backend);
+      }
+      ipcBridge.acpConversation.responseStream.emit(usagePatch);
+    }
+
     if (this.hasReceivedUsageUpdate) return;
     const used = usage.estimatedSessionTokens ?? usage.totalTokens;
     const size = usage.contextWindowTokens ?? 0;
@@ -3036,6 +3072,9 @@ This identity statement takes priority over the default identity in USER.md.
 
     switch (message.type) {
       case 'text':
+        if (message.position === 'left') {
+          this.lastAssistantTextMsgId = message.msg_id || message.id;
+        }
         responseMessage.type = 'content';
         responseMessage.data = message.content.content;
         break;

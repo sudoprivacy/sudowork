@@ -4,7 +4,7 @@
  * Run during build process: bun run nexus:download
  *
  * Downloads nexusd-cluster from:
- *   https://github.com/nexi-lab/nexus/releases/download/v{version}/
+ *   https://github.com/nexi-lab/nexus-vfs/releases/download/v{version}/
  *
  * v0.10.0+ ships raw binaries (no archive wrapper):
  *   - macOS/Linux: nexusd-cluster-{os}-{arch}
@@ -26,7 +26,7 @@ const RESOURCES_DIR = path.join(__dirname, '..', 'resources');
 
 const NEXUS_VERSION = runtimeVersions.nexus;
 
-const BASE_URL = `https://github.com/nexi-lab/nexus/releases/download/v${NEXUS_VERSION}`;
+const BASE_URL = `https://github.com/nexi-lab/nexus-vfs/releases/download/v${NEXUS_VERSION}`;
 
 // Platform mappings: raw binaries (v0.10.0+)
 const PLATFORMS = {

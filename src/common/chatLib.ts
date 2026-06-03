@@ -97,7 +97,18 @@ export type CronMessageMeta = {
   triggeredAt: number;
 };
 
-export type IMessageText = IMessage<'text', { content: string; cronMeta?: CronMessageMeta; skills?: string[] }>;
+export interface TurnTokenUsage {
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens: number;
+  cachedReadTokens?: number | null;
+  cachedWriteTokens?: number | null;
+  thoughtTokens?: number | null;
+  contextWindowTokens?: number | null;
+  estimatedSessionTokens?: number | null;
+}
+
+export type IMessageText = IMessage<'text', { content: string; cronMeta?: CronMessageMeta; skills?: string[]; tokenUsage?: TurnTokenUsage }>;
 
 export type IMessageTips = IMessage<'tips', { content: string; type: 'error' | 'success' | 'warning' }>;
 
@@ -421,6 +432,7 @@ export const transformMessage = (message: IResponseMessage): TMessage => {
               content: (data as any).content,
               ...((data as any).cronMeta ? { cronMeta: (data as any).cronMeta } : {}),
               ...((data as any).skills ? { skills: (data as any).skills } : {}),
+              ...((data as any).tokenUsage ? { tokenUsage: (data as any).tokenUsage } : {}),
             }
           : { content: data as string },
       };
@@ -707,7 +719,11 @@ export const composeMessage = (message: TMessage | undefined, list: TMessage[] |
     return pushMessage(message);
   }
   if (message.type === 'text' && last.type === 'text') {
-    message.content.content = last.content.content + message.content.content;
+    message.content = {
+      ...last.content,
+      ...message.content,
+      content: last.content.content + message.content.content,
+    };
   }
   return updateMessage(list.length - 1, Object.assign({}, last, message));
 };

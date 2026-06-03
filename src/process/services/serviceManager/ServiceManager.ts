@@ -129,6 +129,10 @@ export class ServiceManager {
       this.secretsReadyResolve?.(false);
     } finally {
       this.startupInProgress = false;
+      // Start the nexus-vfs runtime independently of the core (Nexus/Sudocode)
+      // startup outcome. Additive and best-effort: it runs even if core startup
+      // failed, and a nexus-vfs failure never blocks or alters core startup.
+      void this.startNexusVfs();
     }
   }
 
@@ -155,6 +159,12 @@ export class ServiceManager {
     try {
       const { dynamicNexusService } = await import('../nexus/DynamicNexusService');
       await dynamicNexusService.stop();
+    } catch {
+      /* ignore */
+    }
+    try {
+      const { dynamicNexusVfsService } = await import('../nexus-vfs/DynamicNexusVfsService');
+      await dynamicNexusVfsService.stop();
     } catch {
       /* ignore */
     }
@@ -285,6 +295,46 @@ export class ServiceManager {
     } catch (err) {
       mainError('ServiceManager', 'Failed to stop Nexus', err);
       throw err;
+    }
+  }
+
+  // ────────────────────────────────────────────────────────────────────────────
+  //  nexus-vfs — third managed runtime (gRPC daemon on 127.0.0.1:12022)
+  // ────────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Installs (if needed) and starts the nexus-vfs daemon. Best-effort: errors are
+   * logged but not rethrown, so a nexus-vfs problem never blocks the rest of the
+   * app. Runs independently of the Nexus runtime on port 12012.
+   */
+  async startNexusVfs(): Promise<void> {
+    if (this.shuttingDown) {
+      mainWarn('ServiceManager', 'Skipping nexus-vfs start because shutdown is in progress');
+      return;
+    }
+    try {
+      const { dynamicNexusVfsService } = await import('../nexus-vfs/DynamicNexusVfsService');
+      if (!(await dynamicNexusVfsService.checkInstalled())) {
+        mainLog('ServiceManager', 'Installing nexus-vfs runtime...');
+        await dynamicNexusVfsService.install();
+      }
+      const launchCommand = dynamicNexusVfsService.getStartCommandPreview();
+      mainLog('ServiceManager', `Starting nexus-vfs service... (${launchCommand.command} ${launchCommand.args.join(' ')})`);
+      await dynamicNexusVfsService.start();
+      mainLog('ServiceManager', `nexus-vfs service is listening on 127.0.0.1:${dynamicNexusVfsService.port}`);
+    } catch (err) {
+      mainError('ServiceManager', 'Failed to start nexus-vfs (non-critical)', err);
+    }
+  }
+
+  async stopNexusVfs(): Promise<void> {
+    try {
+      const { dynamicNexusVfsService } = await import('../nexus-vfs/DynamicNexusVfsService');
+      mainLog('ServiceManager', 'Stopping nexus-vfs service...');
+      await dynamicNexusVfsService.stop();
+      mainLog('ServiceManager', 'nexus-vfs service stopped');
+    } catch (err) {
+      mainError('ServiceManager', 'Failed to stop nexus-vfs', err);
     }
   }
 
