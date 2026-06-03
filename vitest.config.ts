@@ -81,6 +81,7 @@ export default defineConfig({
         'src/common/scodeConfig.ts',
         'src/common/slash/sudoworkCommands.ts',
         'src/common/sudoworkAuthLogin.ts',
+        'src/common/tokenUsage.ts',
         'src/common/update/models/VersionInfo.ts',
         'src/common/types/conversion.ts',
         // Renderer utils
