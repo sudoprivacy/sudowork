@@ -8,6 +8,9 @@ import { CliInstallService } from '../claudeCli/CliInstallService';
 import { ipcBridge } from '@/common';
 import { mainLog, mainError } from '@process/utils/mainLogger';
 import { getAuthProxyPort, registerToken, revokeToken } from '@process/services/authProxy';
+import { isEnterpriseMode, getUserId, getMossServerUrl, getAuthToken } from '@/common/enterpriseDebugConfig';
+import { buildNamespace } from '@/common/nexus/namespace';
+import { MossSecretClient } from '@/common/nexus/moss-secret-client';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -72,6 +75,43 @@ async function loadLocalResourceAsDataUrl(filePath: string): Promise<string> {
     return `data:${mime};base64,${base64}`;
   } catch {
     return '';
+  }
+}
+
+/**
+ * Get ShareOne API key for enterprise mode.
+ * Uses MossSecretClient to fetch from Moss Server.
+ */
+async function getShareoneApiKeyEnterprise(): Promise<string | null> {
+  const userId = getUserId();
+  const mossServerUrl = getMossServerUrl();
+  const authToken = getAuthToken();
+
+  mainLog('ShareOne', `Enterprise mode: userId=${userId}, mossServerUrl=${mossServerUrl ? 'present' : 'missing'}, authToken=${authToken ? 'present' : 'missing'}`);
+
+  if (!userId || !mossServerUrl || !authToken) {
+    mainLog('ShareOne', 'Enterprise mode: missing userId, mossServerUrl, or authToken');
+    return null;
+  }
+
+  try {
+    const mossClient = new MossSecretClient(mossServerUrl, authToken, userId);
+    const namespace = buildNamespace('shareone', userId);
+    mainLog('ShareOne', `Enterprise mode: fetching API key from namespace ${namespace}`);
+    // Try shareone_key first (B端 convention), fallback to api_key
+    let apiKey = await mossClient.getSecret(namespace, 'shareone_key');
+    if (!apiKey) {
+      apiKey = await mossClient.getSecret(namespace, 'api_key');
+    }
+    if (apiKey) {
+      mainLog('ShareOne', `Enterprise mode: got API key from Moss Server (namespace: ${namespace})`);
+    } else {
+      mainLog('ShareOne', `Enterprise mode: no API key found in Moss Server (namespace: ${namespace})`);
+    }
+    return apiKey;
+  } catch (err) {
+    mainError('ShareOne', `Enterprise mode: failed to get API key from Moss Server: ${err instanceof Error ? err.message : String(err)}`);
+    return null;
   }
 }
 
@@ -271,18 +311,35 @@ export class ShareoneCliService {
     try {
       const args = ['publish', absFile, '--json'];
 
-      const authProxyPort = getAuthProxyPort();
-      if (authProxyPort) {
-        proxyToken = crypto.randomUUID();
-        registerToken(proxyToken, process.pid);
-        args.push('--auth-mode', 'proxy', '--proxy-url', `http://127.0.0.1:${authProxyPort}/proxy`, '--proxy-token', proxyToken);
+      // Enterprise mode: use SHAREONE_API_KEY env var instead of auth proxy
+      const enterpriseMode = isEnterpriseMode();
+      let envOverride: Record<string, string> | undefined;
+
+      if (enterpriseMode) {
+        // Enterprise mode: fetch API key from Moss Server via MossSecretClient
+        const shareoneApiKey = await getShareoneApiKeyEnterprise();
+        if (shareoneApiKey) {
+          envOverride = { SHAREONE_API_KEY: shareoneApiKey };
+        }
+      } else {
+        // Non-enterprise mode: use auth proxy if available
+        const authProxyPort = getAuthProxyPort();
+        if (authProxyPort) {
+          proxyToken = crypto.randomUUID();
+          registerToken(proxyToken, process.pid);
+          args.push('--auth-mode', 'proxy', '--proxy-url', `http://127.0.0.1:${authProxyPort}/proxy`, '--proxy-token', proxyToken);
+        }
       }
 
       mainLog('ShareOne', `Running: ${cliPath} ${args.join(' ')}`);
       let stdout: string;
       let stderr: string;
       try {
-        const result = await execFileAsync(cliPath, args, { timeout: 120000, maxBuffer: 10 * 1024 * 1024 });
+        const result = await execFileAsync(cliPath, args, {
+          timeout: 120000,
+          maxBuffer: 10 * 1024 * 1024,
+          env: envOverride ? { ...process.env, ...envOverride } : process.env,
+        });
         stdout = result.stdout;
         stderr = result.stderr;
       } catch (execErr: unknown) {
