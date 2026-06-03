@@ -60,6 +60,7 @@ export class MossWsConnection {
   private ws: WebSocket | null = null;
   private sessionId: string | null = null;
   private wsUrl: string | null = null;
+  private workDir: string | null = null;
   private accessToken: string | null = null;
   private state: 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'closed' = 'idle';
   private reconnectAttempts = 0;
@@ -117,12 +118,13 @@ export class MossWsConnection {
         const sessionData = await this.createMossSession();
         this.sessionId = sessionData.session_id;
         this.wsUrl = sessionData.ws_url;
+        this.workDir = sessionData.work_dir;
         // CRITICAL: Persist created session details back to config
         // This ensures reconnects/scheduleReconnect() enter resume mode
         // instead of creating duplicate sessions (the "session storm")
         this.config.wsUrl = sessionData.ws_url;
         this.config.sessionId = sessionData.session_id;
-        mainLog('MossWsConnection', `Session created: ${this.sessionId}`);
+        mainLog('MossWsConnection', `Session created: ${this.sessionId}, workDir: ${this.workDir}`);
       }
 
       await this.openWebSocket();
@@ -886,5 +888,9 @@ export class MossWsConnection {
 
   getWsUrl(): string | null {
     return this.wsUrl;
+  }
+
+  getWorkDir(): string | null {
+    return this.workDir;
   }
 }
