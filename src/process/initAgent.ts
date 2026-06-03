@@ -14,6 +14,7 @@ import path from 'path';
 import { DRAFTS_DIR_NAME } from '@/common/constants';
 import { getSystemDir } from './initStorage';
 import { SUDOCLAW_DIR } from './services/sudoclaw/SudoclawInstallService';
+import { ensureWorkspaceAgentsMdRules } from './services/scode/ScodeInstallService';
 
 /**
  * 创建工作空间目录（不复制文件）
@@ -48,6 +49,9 @@ const buildWorkspaceWidthFiles = async (defaultWorkspaceName: string, workspace?
 export const createAcpAgent = async (options: ICreateConversationParams): Promise<TChatConversation> => {
   const { extra } = options;
   const { workspace, customWorkspace } = await buildWorkspaceWidthFiles(`${extra.backend}-temp-${Date.now()}`, extra.workspace, extra.defaultFiles, extra.customWorkspace);
+  if (extra.backend === 'scode') {
+    ensureWorkspaceAgentsMdRules(workspace);
+  }
   const currentModelId = extra.currentModelId || getDefaultAcpModelId(extra.backend) || undefined;
   return {
     type: 'acp',

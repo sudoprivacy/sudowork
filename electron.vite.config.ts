@@ -86,6 +86,7 @@ export default defineConfig(({ mode }) => {
         // 'v8-compile-cache' excluded so it can cache all subsequent requires (reduces startup 40-60%).
         externalizeDepsPlugin({
           exclude: ['fix-path', 'v8-compile-cache', 'unified', 'remark-parse', 'remark-gfm', 'mdast-util-from-markdown', 'mdast-util-gfm', 'docx'],
+          include: ['nexus-napi'],
         }),
         ...(!isDevelopment
           ? [
