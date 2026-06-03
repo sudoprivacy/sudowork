@@ -301,6 +301,10 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
         return;
       }
 
+      // Get workDir from Moss session if available
+      // 从 Moss session 获取 workDir（如果可用）
+      const sessionWorkDir = this.connection?.getWorkDir?.();
+
       const updatedConversation = {
         ...existing.data,
         extra: {
@@ -308,13 +312,16 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
           mossSessionId: this.mossSessionId,
           acpWsUrl: this.mossWsUrl,
           mossSessionPending: false,
+          // Update workspace with Moss session's workDir if available
+          // 使用 Moss session 的 workDir 更新 workspace（如果可用）
+          workspace: sessionWorkDir || existing.data.extra?.workspace,
         },
         status: 'finished',
         modifyTime: Date.now(),
       } as unknown as TChatConversation;
 
       db.updateConversation(this.conversation_id, updatedConversation);
-      mainLog('RemoteAgent', `Updated conversation ${this.conversation_id} with Moss session: ${this.mossSessionId}`);
+      mainLog('RemoteAgent', `Updated conversation ${this.conversation_id} with Moss session: ${this.mossSessionId}, workspace: ${sessionWorkDir || existing.data.extra?.workspace}`);
 
       // Emit refresh event to update sidebar
       // 发送刷新事件更新侧边栏
