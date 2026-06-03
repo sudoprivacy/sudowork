@@ -74,6 +74,7 @@ export default defineConfig({
         'src/agent/acp/AcpAdapter.ts',
         'src/agent/acp/AcpConnection.ts',
         'src/agent/acp/modelInfo.ts',
+        'src/process/task/acpWorkspaceTracking.ts',
         // Common
         'src/common/chatLib.ts',
         'src/common/nexusFiles.ts',

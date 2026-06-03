@@ -40,7 +40,7 @@ const TARGET_TYPE_EXTENSIONS: Array<{ pattern: RegExp; extensions: string[] }> =
   { pattern: /\b(pdf|PDF)\b|文档.*pdf|pdf.*文档/i, extensions: ['.pdf'] },
   { pattern: /\b(docx|word)\b|Word|文档/i, extensions: ['.docx'] },
   { pattern: /\b(pptx|powerpoint|slides?|deck)\b|幻灯片|演示文稿/i, extensions: ['.pptx'] },
-  { pattern: /\b(xlsx|excel|spreadsheet)\b|表格/i, extensions: ['.xlsx'] },
+  { pattern: /\b(xlsx|excel|execl|spreadsheet)\b|表格/i, extensions: ['.xlsx'] },
   { pattern: /\b(csv)\b/i, extensions: ['.csv'] },
   { pattern: /\b(json)\b/i, extensions: ['.json'] },
   { pattern: /\b(html|webpage|website)\b|网页/i, extensions: ['.html', '.htm'] },
