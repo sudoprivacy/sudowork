@@ -58,22 +58,21 @@ async def wait_for_response(tab, timeout: float = 120, mode: str = "db",
         return await _wait_llm(tab, timeout, expect)
     if mode == "programmatic":
         return await _wait_programmatic(tab, timeout)
-    return await _wait_db(timeout, idle_seconds, poll_interval)
+    return await _wait_db(timeout, idle_seconds, poll_interval, tab=tab)
 
 
 async def _wait_db(timeout: float, idle_seconds: float,
-                   poll_interval: float) -> dict:
-    """Poll sudowork.db for activity. Done when:
-      (a) no new messages in the latest conversation for `idle_seconds`, AND
-      (b) no acp_tool_call message has status 'in_progress'.
+                   poll_interval: float, tab=None) -> dict:
+    """Poll agent task status + DB activity. Done when:
+      (a) agent task status is 'finished' (via IPC bridge), OR
+      (b) no new messages for `idle_seconds` AND no in_progress tool_call
+          (fallback when IPC is unavailable)
 
-    Stronger than DOM text stability because it's the DB's own state —
-    the UI indicator can blink between tool calls but the DB tells the
-    truth about what the agent is doing.
+    Primary signal: `ipcBridge.conversation.get` returns status from the
+    live task object (WorkerManage). This is the ground truth — the agent
+    sets status='finished' when its turn ends.
 
-    Uses state.CASE_START_MS as the lower bound when picking "which
-    conversation is this test run in." Falls back to "latest activity"
-    if state is unset (e.g. run_op.py direct invocation).
+    Fallback: DB message activity gap (for cases where tab is unavailable).
     """
     if state.CASE_START_MS == 0:
         return {"timeout": True, "mode": "db",
@@ -90,14 +89,12 @@ async def _wait_db(timeout: float, idle_seconds: float,
         await asyncio.sleep(poll_interval)
         poll_count += 1
 
+        # ── Step 1: Find the conversation ID from DB ──
         db_path = _copy_wal(nexus_dir)
         try:
             con = sqlite3.connect(str(db_path))
             cur = con.cursor()
 
-            # Pick the conversation carrying this run's messages — pinned
-            # to the first one we see, so late side-activity in other
-            # convs (notifications etc) doesn't confuse us.
             if conv_id is None:
                 row = cur.execute(
                     "SELECT conversation_id, MAX(created_at) FROM messages "
@@ -110,7 +107,7 @@ async def _wait_db(timeout: float, idle_seconds: float,
 
             if conv_id is None:
                 con.close()
-                continue  # agent hasn't written anything yet
+                continue
 
             latest = cur.execute(
                 "SELECT MAX(created_at) FROM messages WHERE conversation_id = ?",
@@ -127,6 +124,36 @@ async def _wait_db(timeout: float, idle_seconds: float,
         finally:
             shutil.rmtree(db_path.parent, ignore_errors=True)
 
+        # ── Step 2: Check agent task status via IPC (primary signal) ──
+        if tab and conv_id:
+            try:
+                r = await js_evaluate(tab, f"""
+                    (async function() {{
+                        try {{
+                            var conv = await window.__bridgeEmitter && new Promise(function(resolve) {{
+                                var ch = 'get-conversation';
+                                var id = ch + Math.random().toString(16).slice(2, 10);
+                                var key = 'subscribe.callback-' + ch + id;
+                                var h = function(r) {{ window.__bridgeEmitter.off(key, h); resolve(r); }};
+                                window.__bridgeEmitter.on(key, h);
+                                window.electronAPI.emit('subscribe-' + ch, {{id: id, data: {{id: '{conv_id}'}}}});
+                                setTimeout(function() {{ window.__bridgeEmitter.off(key, h); resolve(null); }}, 3000);
+                            }});
+                            return conv && conv.status ? conv.status : 'unknown';
+                        }} catch(e) {{
+                            return 'error:' + e.message;
+                        }}
+                    }})()
+                """)
+                task_status = r.get("result", "unknown")
+                if task_status == "finished":
+                    return {"done": True, "mode": "db", "conversation_id": conv_id,
+                            "signal": "task_status=finished",
+                            "polls": poll_count}
+            except Exception:
+                pass  # fall through to DB-based check
+
+        # ── Step 3: Fallback — DB activity gap check ──
         if in_progress:
             idle_start = None
             last_max_ts = latest_ts
@@ -141,6 +168,7 @@ async def _wait_db(timeout: float, idle_seconds: float,
             idle_start = time.time()
         elif time.time() - idle_start >= idle_seconds:
             return {"done": True, "mode": "db", "conversation_id": conv_id,
+                    "signal": "idle_timeout",
                     "idle_seconds": round(time.time() - idle_start, 1),
                     "polls": poll_count}
 

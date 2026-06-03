@@ -21,10 +21,9 @@ steps:
     wait: 3
 
   # Wait up to 20 min for full crawl (32 pages)
-  # idle_seconds=120: agent may pause between pages (writing files, thinking)
+  # Primary signal: polls task.status via IPC until 'finished'
   - op: wait_for_response
     timeout: 1200
-    idle_seconds: 120
 
   - op: screenshot
     path: "screenshots/browser-crawl-nap-result.png"
