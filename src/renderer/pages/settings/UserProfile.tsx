@@ -170,7 +170,7 @@ const UserProfile: React.FC = () => {
         {isEnterprise ? (
           <>
             {/* Enterprise: Identity */}
-            <div className='flex items-center gap-20px p-24px bg-fill-0 rd-16px border border-border-base'>
+            <div className='flex items-center gap-20px p-24px bg-2 rd-16px border border-[var(--color-border-2)]'>
               <Avatar size={64} className='bg-primary/10'>
                 <User theme='outline' size={32} className='text-primary' />
               </Avatar>
@@ -183,7 +183,7 @@ const UserProfile: React.FC = () => {
             </div>
 
             {/* Enterprise: Usage Stats */}
-            <div className='p-24px bg-fill-0 rd-16px border border-border-base'>
+            <div className='p-24px bg-2 rd-16px border border-[var(--color-border-2)]'>
               <div className='text-14px font-600 text-t-primary mb-16px'>资源使用</div>
               <div className='grid grid-cols-4 gap-16px'>
                 <div className='text-center'>
@@ -208,7 +208,7 @@ const UserProfile: React.FC = () => {
         ) : (
           <>
             {/* Consumer: Identity */}
-            <div className='flex items-center gap-20px p-24px bg-fill-0 rd-16px border border-border-base'>
+            <div className='flex items-center gap-20px p-24px bg-2 rd-16px border border-[var(--color-border-2)]'>
               <ConsumerAvatar />
               <div className='flex-1'>
                 <div className='flex items-center gap-8px'>
@@ -226,7 +226,7 @@ const UserProfile: React.FC = () => {
             </div>
 
             {/* Consumer: Today Stats */}
-            <div className='p-24px bg-fill-0 rd-16px border border-border-base'>
+            <div className='p-24px bg-2 rd-16px border border-[var(--color-border-2)]'>
               <div className='text-14px font-600 text-t-primary mb-16px'>今日使用</div>
               <div className='grid grid-cols-3 gap-16px'>
                 <div className='text-center'>

@@ -52,6 +52,8 @@
   "modelListRefreshFailed": "Failed to refresh model list",
   "escToCancel": "esc to cancel",
   "create": "Create",
+  "enabled": "Enabled",
+  "disabled": "Disabled",
   "createSuccess": "Created successfully",
   "failed": "Failed",
   "browse": "Browse",

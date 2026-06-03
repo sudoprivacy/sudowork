@@ -1,7 +1,7 @@
 import { ipcBridge } from '@/common';
 import { useAuth } from '@/renderer/context/AuthContext';
 import { Button, Message, Spin, Tabs } from '@arco-design/web-react';
-import { Alipay, Wechat, Refresh, CheckOne, CloseOne } from '@icon-park/react';
+import { Alipay, Wechat, Refresh, CheckOne, CheckSmall, CloseOne } from '@icon-park/react';
 import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import SettingsPageWrapper from './components/SettingsPageWrapper';
@@ -407,7 +407,7 @@ const RechargeCenter: React.FC = () => {
 
   // Render package selection
   const renderPackageSelection = () => (
-    <div className='p-24px bg-fill-0 rd-16px border border-border-base'>
+    <div className='p-24px bg-2 rd-16px border border-[var(--color-border-2)]'>
       <div className='text-14px font-600 text-t-primary mb-16px'>{t('settings.recharge.selectPackageRecharge') || '选择套餐充值'}</div>
 
       {loading && packages.length === 0 ? (
@@ -422,15 +422,15 @@ const RechargeCenter: React.FC = () => {
               onClick={() => setSelectedPackage(pkg)}
               className={`
                 relative p-16px rd-12px border transition-all cursor-pointer text-left
-                ${selectedPackage?.amount === pkg.amount ? 'border-border-base bg-fill-1 ring-2 ring-[#7583b2]/30' : 'border-border-base bg-fill-0 hover:bg-fill-1'}
+                ${selectedPackage?.amount === pkg.amount ? 'border-[var(--color-border-2)] bg-[color-mix(in_srgb,var(--color-bg-2)_88%,transparent)] ring-2 ring-[#7583b2]/30' : 'border-[var(--color-border-2)] bg-[color-mix(in_srgb,var(--color-bg-2)_50%,transparent)] hover:bg-[var(--color-bg-1)]'}
               `}
             >
               <div className='text-22px font-700 text-t-primary'>{formatCurrency(pkg.amount_cny, 'CNY')}</div>
               <div className='text-15px font-600 text-brand mt-12px'>{(pkg.points + pkg.bonus).toLocaleString()} PTS</div>
               {pkg.description && <div className='text-12px text-t-secondary mt-6px truncate'>{pkg.description}</div>}
               {selectedPackage?.amount === pkg.amount && (
-                <div className='absolute top-8px right-8px w-16px h-16px rd-full bg-brand flex items-center justify-center'>
-                  <CheckOne size={12} className='text-white' theme='filled' />
+                <div className='absolute top-8px right-8px w-16px h-16px rd-full bg-[var(--ui-accent-orange)] flex items-center justify-center'>
+                  <CheckSmall theme='outline' size='10' fill='#fff' />
                 </div>
               )}
             </button>
@@ -445,8 +445,8 @@ const RechargeCenter: React.FC = () => {
             <Alipay size={18} fill={['#1677FF']} theme='filled' />
             <span className='text-14px text-t-primary'>{t('settings.recharge.alipay') || '支付宝'}</span>
             {paymentMethod === 'ALIPAY' && (
-              <div className='absolute -top-4px -right-4px w-14px h-14px rd-full bg-brand flex items-center justify-center'>
-                <CheckOne size={10} className='text-white' theme='filled' />
+              <div className='absolute -top-4px -right-4px w-14px h-14px rd-full bg-[var(--ui-accent-orange)] flex items-center justify-center'>
+                <CheckSmall theme='outline' size='9' fill='#fff' />
               </div>
             )}
           </button>
@@ -454,8 +454,8 @@ const RechargeCenter: React.FC = () => {
             <Wechat size={18} fill={['#07C160']} theme='filled' />
             <span className='text-14px text-t-primary'>{t('settings.recharge.wechat') || '微信支付'}</span>
             {paymentMethod === 'WECHAT' && (
-              <div className='absolute -top-4px -right-4px w-14px h-14px rd-full bg-brand flex items-center justify-center'>
-                <CheckOne size={10} className='text-white' theme='filled' />
+              <div className='absolute -top-4px -right-4px w-14px h-14px rd-full bg-[var(--ui-accent-orange)] flex items-center justify-center'>
+                <CheckSmall theme='outline' size='9' fill='#fff' />
               </div>
             )}
           </button>
@@ -474,12 +474,12 @@ const RechargeCenter: React.FC = () => {
 
   // Render paying state
   const renderPaying = () => (
-    <div className='p-24px bg-fill-0 rd-16px border border-border-base'>
+    <div className='p-24px bg-2 rd-16px border border-[var(--color-border-2)]'>
       <div className='text-center'>
         <div className='text-14px text-t-secondary mb-8px'>{t('settings.recharge.scanToPay', { method: paymentMethod === 'ALIPAY' ? '支付宝' : '微信' }) || `请使用${paymentMethod === 'ALIPAY' ? '支付宝' : '微信'}扫码支付`}</div>
 
         {/* QR Code */}
-        <div className='inline-block p-16px bg-white rd-12px border border-border-base'>
+        <div className='inline-block p-16px bg-white rd-12px border border-[var(--color-border-2)]'>
           <Suspense
             fallback={
               <div className='w-200px h-200px flex items-center justify-center'>
@@ -522,7 +522,7 @@ const RechargeCenter: React.FC = () => {
 
   // Render success state
   const renderSuccess = () => (
-    <div className='p-24px bg-fill-0 rd-16px border border-border-base flex flex-col items-center py-40px space-y-16px'>
+    <div className='p-24px bg-2 rd-16px border border-[var(--color-border-2)] flex flex-col items-center py-40px space-y-16px'>
       <CheckOne size={64} className='text-success' />
       <div className='text-20px font-600 text-t-primary'>{t('settings.recharge.success') || '充值成功'}</div>
       <div className='text-14px text-t-secondary'>{t('settings.recharge.successDesc') || '积分已到账，请查收'}</div>
@@ -534,7 +534,7 @@ const RechargeCenter: React.FC = () => {
 
   // Render failed state
   const renderFailed = () => (
-    <div className='p-24px bg-fill-0 rd-16px border border-border-base flex flex-col items-center py-40px space-y-16px'>
+    <div className='p-24px bg-2 rd-16px border border-[var(--color-border-2)] flex flex-col items-center py-40px space-y-16px'>
       <CloseOne size={64} className='text-danger' />
       <div className='text-20px font-600 text-t-primary'>{t('settings.recharge.failed') || '充值失败'}</div>
       <div className='text-14px text-t-secondary'>{error}</div>

@@ -85,6 +85,8 @@ export function useAutoScroll({ messages, items }: UseAutoScrollOptions): UseAut
   const lastScrollTopRef = useRef(0);
   const previousListLengthRef = useRef(messages.length);
   const lastProgrammaticScrollTimeRef = useRef(0);
+  const bottomStateDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastAtBottomRef = useRef(true);
 
   // Turn-mode refs — track the "pin user prompt to top" state.
   const turnStartMsgIdRef = useRef<string | null>(null);
@@ -220,6 +222,10 @@ export function useAutoScroll({ messages, items }: UseAutoScrollOptions): UseAut
         resizeObserverRef.current.disconnect();
         resizeObserverRef.current = null;
       }
+      if (bottomStateDebounceRef.current) {
+        clearTimeout(bottomStateDebounceRef.current);
+        bottomStateDebounceRef.current = null;
+      }
     };
   }, []);
 
@@ -253,24 +259,28 @@ export function useAutoScroll({ messages, items }: UseAutoScrollOptions): UseAut
   // without external scrollToIndex calls that cause jitter. Disabled while we
   // are pinning the user prompt at the top, so the empty spacer below gets
   // filled instead of scrolling the prompt off the screen.
-  const handleFollowOutput = useCallback(
-    (isAtBottom: boolean): false | 'auto' => {
-      if (userScrolledRef.current || !isAtBottom) return false;
-      if (isPinnedRef.current) return false;
+  const handleFollowOutput = useCallback((isAtBottom: boolean): false | 'auto' => {
+    if (userScrolledRef.current || !isAtBottom) return false;
+    if (isPinnedRef.current) return false;
 
-      // Always follow output when aiProcessing is active and we are near bottom
-      return 'auto';
-    },
-    []
-  );
+    // Always follow output when aiProcessing is active and we are near bottom
+    return 'auto';
+  }, []);
 
   // Reliable bottom state detection from Virtuoso
   const handleAtBottomStateChange = useCallback((atBottom: boolean) => {
-    setShowScrollButton(!atBottom);
-
-    if (atBottom) {
-      userScrolledRef.current = false;
+    lastAtBottomRef.current = atBottom;
+    if (bottomStateDebounceRef.current) {
+      clearTimeout(bottomStateDebounceRef.current);
     }
+    bottomStateDebounceRef.current = setTimeout(() => {
+      if (lastAtBottomRef.current !== atBottom) return;
+      setShowScrollButton(!atBottom);
+      if (atBottom) {
+        userScrolledRef.current = false;
+      }
+      bottomStateDebounceRef.current = null;
+    }, 80);
   }, []);
 
   // Detect user scrolling up
@@ -383,32 +393,6 @@ export function useAutoScroll({ messages, items }: UseAutoScrollOptions): UseAut
     // Once the turn overflows the viewport, `recomputeSpacer` clears
     // `isPinnedRef` and subsequent updates fall through to the follow branch.
     if (isPinnedRef.current) return;
-
-    // Auto-scroll to the absolute bottom of the scroller so the Virtuoso
-    // Footer is visible at the bottom of the viewport — this leaves a real,
-    // visible breathing margin between the last message's bottom border and
-    // the SendBox below, preventing the bottom border from being clipped
-    // against the input box during streaming. Unless the user has manually
-    // scrolled up, in which case we respect their reading position.
-    //
-    // Note: we intentionally do NOT update lastProgrammaticScrollTimeRef here.
-    // Auto-follow always scrolls DOWN (scrollTop increases → delta > 0), so it
-    // cannot be misdetected as a user scroll-up in handleScroll. Skipping the
-    // guard update keeps user scroll-up detection responsive during high-
-    // frequency streaming updates where the guard window would otherwise
-    // never close.
-    if (!userScrolledRef.current && lastMessage?.position === 'left') {
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          if (virtuosoRef.current) {
-            virtuosoRef.current.scrollTo({
-              top: Number.MAX_SAFE_INTEGER,
-              behavior: 'auto',
-            });
-          }
-        });
-      });
-    }
   }, [messages, itemCount, items, recomputeSpacer, resetTurnMode]);
 
   // Hide scroll button handler

@@ -13,7 +13,7 @@ import { useModelProviderList } from '@/renderer/hooks/useModelProviderList';
 import type { GeminiModelSelection } from '@/renderer/pages/conversation/gemini/useGeminiModelSelection';
 import { useGeminiModelSelection } from '@/renderer/pages/conversation/gemini/useGeminiModelSelection';
 import { Input, InputNumber, Message, Select, Switch } from '@arco-design/web-react';
-import { CheckOne } from '@icon-park/react';
+import classNames from 'classnames';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
@@ -350,9 +350,7 @@ const ChannelModalContent: React.FC = () => {
         // Pass pending credentials from form if available
         const pendingCreds = larkCredentialsRef.current;
         const hasFormCreds = !!(pendingCreds.appId.trim() && pendingCreds.appSecret.trim());
-        const config = hasFormCreds
-          ? { appId: pendingCreds.appId.trim(), appSecret: pendingCreds.appSecret.trim(), encryptKey: pendingCreds.encryptKey, verificationToken: pendingCreds.verificationToken }
-          : {};
+        const config = hasFormCreds ? { appId: pendingCreds.appId.trim(), appSecret: pendingCreds.appSecret.trim(), encryptKey: pendingCreds.encryptKey, verificationToken: pendingCreds.verificationToken } : {};
 
         const result = await channel.enablePlugin.invoke({
           pluginId: 'lark_default',
@@ -406,9 +404,7 @@ const ChannelModalContent: React.FC = () => {
         // Pass pending credentials from form if available
         const pendingCreds = dingtalkCredentialsRef.current;
         const hasFormCreds = !!(pendingCreds.clientId.trim() && pendingCreds.clientSecret.trim());
-        const config = hasFormCreds
-          ? { clientId: pendingCreds.clientId.trim(), clientSecret: pendingCreds.clientSecret.trim() }
-          : {};
+        const config = hasFormCreds ? { clientId: pendingCreds.clientId.trim(), clientSecret: pendingCreds.clientSecret.trim() } : {};
 
         const result = await channel.enablePlugin.invoke({
           pluginId: 'dingtalk_default',
@@ -736,7 +732,16 @@ const ChannelModalContent: React.FC = () => {
       disabled: larkEnableLoading,
       isConnected: larkPluginStatus?.connected || false,
       defaultModel: larkModelSelection.currentModel?.useModel,
-      content: <LarkConfigForm pluginStatus={larkPluginStatus} modelSelection={larkModelSelection} onStatusChange={setLarkPluginStatus} onCredentialsChange={(creds) => { larkCredentialsRef.current = creds; }} />,
+      content: (
+        <LarkConfigForm
+          pluginStatus={larkPluginStatus}
+          modelSelection={larkModelSelection}
+          onStatusChange={setLarkPluginStatus}
+          onCredentialsChange={(creds) => {
+            larkCredentialsRef.current = creds;
+          }}
+        />
+      ),
     };
 
     const dingtalkChannel: ChannelConfig = {
@@ -748,7 +753,16 @@ const ChannelModalContent: React.FC = () => {
       disabled: dingtalkEnableLoading,
       isConnected: dingtalkPluginStatus?.connected || false,
       defaultModel: dingtalkModelSelection.currentModel?.useModel,
-      content: <DingTalkConfigForm pluginStatus={dingtalkPluginStatus} modelSelection={dingtalkModelSelection} onStatusChange={setDingtalkPluginStatus} onCredentialsChange={(creds) => { dingtalkCredentialsRef.current = creds; }} />,
+      content: (
+        <DingTalkConfigForm
+          pluginStatus={dingtalkPluginStatus}
+          modelSelection={dingtalkModelSelection}
+          onStatusChange={setDingtalkPluginStatus}
+          onCredentialsChange={(creds) => {
+            dingtalkCredentialsRef.current = creds;
+          }}
+        />
+      ),
     };
 
     const wechatChannel: ChannelConfig = {
@@ -798,8 +812,6 @@ const ChannelModalContent: React.FC = () => {
         content: renderExtensionConfigForm(status),
       }));
 
-    const extensionTypeSet = new Set(extensionChannels.map((channel) => String(channel.id).toLowerCase()));
-
     return [telegramChannel, larkChannel, dingtalkChannel, wechatChannel, wecomChannel, ...extensionChannels];
   }, [pluginStatus, larkPluginStatus, dingtalkPluginStatus, wechatPluginStatus, wecomPluginStatus, extensionStatuses, extensionLoadingMap, telegramModelSelection, larkModelSelection, dingtalkModelSelection, wechatModelSelection, wecomModelSelection, wechatEnableLoading, wecomEnableLoading, enableLoading, larkEnableLoading, dingtalkEnableLoading, renderExtensionConfigForm, t]);
 
@@ -817,27 +829,28 @@ const ChannelModalContent: React.FC = () => {
     }
     return undefined;
   };
-  const channelGuideText = t('settings.webui.featureChannelsDesc', { defaultValue: 'Connect Telegram, Lark, DingTalk, and WeChat to interact with Sudowork from IM apps.' });
+  const channelGuideText = t('settings.webui.featureChannelsDesc', {
+    defaultValue: 'Connect Telegram, Lark, DingTalk, and WeChat to interact with Sudowork from IM apps.',
+  });
   const channelSetupSteps = [t('settings.channels.selectFirst', { defaultValue: 'Select a channel and configure credentials.' }), t('settings.channels.enableAfterConfig', { defaultValue: 'Enable it and start chatting with your AI agent.' })];
 
   return (
     <AionScrollArea className={isPageMode ? 'h-full' : ''}>
-      <div className='px-[12px] md:px-[28px]'>
-        <h2 className='text-20px font-500 text-t-primary m-0'>{t('settings.channels.title', 'Channels')}</h2>
-        <div className='space-y-8px mt-10px'>
+      <div className={classNames('mx-auto w-full max-w-820px pb-18px', isPageMode ? 'px-12px sm:px-16px md:px-0' : 'px-14px sm:px-18px md:px-24px')}>
+        <h2 className='text-20px font-600 text-t-primary m-0'>{t('settings.channels.title', 'Channels')}</h2>
+        <div className='space-y-8px mt-8px'>
           <div className='text-13px text-t-secondary leading-relaxed'>{channelGuideText}</div>
           <div className='flex flex-wrap gap-x-12px gap-y-6px'>
             {channelSetupSteps.map((stepLabel, idx) => (
               <div key={stepLabel} className='inline-flex items-center gap-6px'>
-                <span className='inline-flex items-center justify-center w-16px h-16px rd-50% text-10px font-600 bg-[rgba(var(--primary-6),0.12)] text-[rgb(var(--primary-6))]'>{idx + 1}</span>
-                <CheckOne theme='outline' size='12' className='text-[rgb(var(--primary-6))]' />
+                <span className='inline-flex items-center justify-center w-16px h-16px rd-50% text-10px font-600 bg-[rgba(var(--ui-accent-orange-rgb),0.12)] text-[var(--ui-accent-orange)]'>{idx + 1}</span>
                 <span className='text-12px text-t-secondary'>{stepLabel}</span>
               </div>
             ))}
           </div>
         </div>
 
-        <div className='space-y-12px mt-12px'>
+        <div className='mt-16px overflow-hidden rd-12px border border-solid border-[var(--ui-border-strong)] bg-bg-1'>
           {channels.map((channelConfig) => (
             <ChannelItem key={channelConfig.id} channel={channelConfig} isCollapsed={collapseKeys[channelConfig.id] || false} onToggleCollapse={() => handleToggleCollapse(channelConfig.id)} onToggleEnabled={getToggleHandler(channelConfig.id)} />
           ))}

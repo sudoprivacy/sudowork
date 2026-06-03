@@ -1,7 +1,7 @@
 {
   "welcome": {
     "title": "Hi, what's your plan for today?",
-    "placeholder": "Send a message, upload files, open a folder, or create a scheduled task...",
+    "placeholder": "Send a message, upload files, or open a folder...",
     "downloadLocalFile": "Import Local Files",
     "downloadBdpanFile": "Import Baidu Netdisk Files",
     "linkFolder": "Open Folder",

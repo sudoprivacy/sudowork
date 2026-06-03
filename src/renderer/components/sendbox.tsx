@@ -23,6 +23,7 @@ import { useDragUpload } from '../hooks/useDragUpload';
 import { useLatestRef } from '../hooks/useLatestRef';
 import { usePasteService } from '../hooks/usePasteService';
 import ContextMenu, { type ContextMenuItem } from '@/renderer/components/ContextMenu';
+import ActionChip from '@/renderer/components/ui/ActionChip';
 import { IconPaste } from '@arco-design/web-react/icon';
 import type { FileMetadata } from '../services/FileService';
 import { allSupportedExts } from '../services/FileService';
@@ -403,11 +404,9 @@ const SendBox: React.FC<{
   // Skill trigger button - shown when running in Electron desktop
   const skillTriggerButton = isElectronDesktop() ? (
     <Tooltip content={t('conversation.welcome.addSkill', { defaultValue: '添加技能 / 文件' })} position='top'>
-      <Button className='sendbox-model-btn' shape='round' size='small' onClick={handleTriggerSkillSelector}>
-        <span className='flex items-center gap-6px min-w-0'>
-          <span className='truncate'>{t('messages.skills.triggerLabel', { defaultValue: '@ Skills / Files' })}</span>
-        </span>
-      </Button>
+      <span className='inline-flex ml-8px'>
+        <ActionChip icon={<span className='text-14px font-700 leading-none'>@</span>} label={t('messages.skills.triggerLabel', { defaultValue: 'Skills / Files' })} onClick={handleTriggerSkillSelector} />
+      </span>
     </Tooltip>
   ) : null;
 
@@ -509,8 +508,9 @@ const SendBox: React.FC<{
   // Calculate button disabled state and style
   const isButtonDisabled = disabled || isStopping || (!input.trim() && domSnippets.length === 0);
   const buttonStyle = {
-    backgroundColor: isButtonDisabled ? undefined : '#000000',
-    borderColor: isButtonDisabled ? undefined : '#000000',
+    backgroundColor: isButtonDisabled ? undefined : 'var(--ui-accent-orange)',
+    borderColor: isButtonDisabled ? undefined : 'var(--ui-accent-orange)',
+    boxShadow: isButtonDisabled ? undefined : '0 8px 18px rgba(var(--ui-accent-orange-rgb),0.24)',
   };
 
   // Reusable send button component
@@ -539,8 +539,8 @@ const SendBox: React.FC<{
           borderRadius: '0 0 20px 20px',
           ...(isFileDragging
             ? {
-                backgroundColor: 'var(--color-primary-light-1)',
-                borderColor: 'rgb(var(--primary-3))',
+                backgroundColor: 'rgba(var(--ui-accent-orange-rgb), 0.08)',
+                borderColor: 'rgba(var(--ui-accent-orange-rgb), 0.42)',
                 borderWidth: '1px',
               }
             : {
@@ -605,7 +605,10 @@ const SendBox: React.FC<{
               filesEmptyText={t('messages.skills.filesEmpty', { defaultValue: 'No files in workspace' })}
               searchQuery={skillSelectorController.searchQuery}
               onSearchChange={skillSelectorController.setSearchQuery}
-              onDismiss={() => { skillSelectorController.setDismissed(true); setInput(stripAtQuery(input, cursorPosition)); }}
+              onDismiss={() => {
+                skillSelectorController.setDismissed(true);
+                setInput(stripAtQuery(input, cursorPosition));
+              }}
               skillsSearchPlaceholder={t('messages.skills.searchSkills', { defaultValue: '搜索技能...' })}
               filesSearchPlaceholder={t('messages.skills.searchFiles', { defaultValue: '搜索文件...' })}
               noSearchResultsText={t('messages.skills.noSearchResults', { defaultValue: '未找到匹配结果' })}
@@ -629,7 +632,7 @@ const SendBox: React.FC<{
           {selectedSkills.length > 0 && (
             <div className='flex flex-col gap-6px mb-8px'>
               <div className='flex items-center gap-4px text-11px text-t-secondary'>
-                <Lightning size='12' className='text-primary' />
+                <Lightning size='12' className='text-[var(--ui-accent-orange)]' />
                 <span>{t('messages.skills.activeSkills', { defaultValue: '当前使用技能' })}</span>
               </div>
               <div className='flex flex-wrap gap-6px'>
@@ -641,20 +644,19 @@ const SendBox: React.FC<{
                       .split(/[-_]/)
                       .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
                       .join(' ');
-                  const emoji = skillInfo?.meta?.emoji || '⚡';
                   return (
                     <Tag
                       key={skillName}
                       closable
                       closeIcon={<CloseSmall theme='outline' size='12' />}
                       onClose={() => setSelectedSkills(selectedSkills.filter((s) => s !== skillName))}
-                      className='text-12px bg-primary-light b-1 b-solid b-border-2 rd-4px'
+                      className='text-12px b-1 b-solid rd-4px'
                       style={{
-                        backgroundColor: 'var(--color-primary-light-1)',
-                        borderColor: 'var(--color-primary-light-2)',
+                        backgroundColor: 'rgba(var(--ui-accent-orange-rgb), 0.1)',
+                        borderColor: 'rgba(var(--ui-accent-orange-rgb), 0.32)',
                       }}
                     >
-                      <span className='mr-4px'>{emoji}</span>
+                      <Lightning size='12' className='mr-4px text-[var(--ui-accent-orange)]' />
                       {displayName}
                     </Tag>
                   );

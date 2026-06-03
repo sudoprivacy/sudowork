@@ -117,7 +117,7 @@ const McpServerHeader: React.FC<McpServerHeaderProps> = ({ server, agentInstallS
               <Button size='mini' icon={<SettingOne size={'14'} />} />
             </Dropdown>
           </div>
-          <Switch checked={server.enabled} onChange={(checked) => onToggleServer(server.id, checked)} size='small' disabled={server.status === 'testing'} />
+          <Switch checked={server.enabled} onChange={(checked) => onToggleServer(server.id, checked)} size='small' disabled={server.status === 'testing'} className='settings-accent-switch' style={server.enabled ? { backgroundColor: 'var(--ui-accent-orange)' } : undefined} />
         </div>
       )}
     </div>

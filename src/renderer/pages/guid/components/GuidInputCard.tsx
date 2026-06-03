@@ -116,8 +116,8 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({ input, onInputChange, onK
         marginRight: isMobile ? -14 : undefined,
         ...(isFileDragging
           ? {
-              backgroundColor: 'var(--color-primary-light-1)',
-              borderColor: 'rgb(var(--primary-3))',
+              backgroundColor: 'rgba(var(--ui-accent-orange-rgb), 0.08)',
+              borderColor: 'rgba(var(--ui-accent-orange-rgb), 0.42)',
               borderWidth: '1px',
             }
           : {
@@ -133,27 +133,26 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({ input, onInputChange, onK
       {selectedSkills && selectedSkills.length > 0 && (
         <div className='flex flex-col gap-6px mb-8px'>
           <div className='flex items-center gap-4px text-11px text-t-secondary'>
-            <Lightning size='12' className='text-primary' />
+            <Lightning size='12' className='text-[var(--ui-accent-orange)]' />
             <span>当前使用技能</span>
           </div>
           <div className='flex flex-wrap gap-6px'>
             {selectedSkills.map((skillName) => {
               const skillInfo = getSkillDisplayName?.(skillName);
               const displayName = skillInfo?.displayName || skillName;
-              const emoji = skillInfo?.emoji || '⚡';
               return (
                 <Tag
                   key={skillName}
                   closable
                   closeIcon={<CloseSmall theme='outline' size='12' />}
                   onClose={() => onRemoveSkill?.(skillName)}
-                  className='text-12px bg-primary-light b-1 b-solid b-border-2 rd-4px'
+                  className='text-12px b-1 b-solid rd-4px'
                   style={{
-                    backgroundColor: 'var(--color-primary-light-1)',
-                    borderColor: 'var(--color-primary-light-2)',
+                    backgroundColor: 'rgba(var(--ui-accent-orange-rgb), 0.1)',
+                    borderColor: 'rgba(var(--ui-accent-orange-rgb), 0.32)',
                   }}
                 >
-                  <span className='mr-4px'>{emoji}</span>
+                  <Lightning size='12' className='mr-4px text-[var(--ui-accent-orange)]' />
                   {displayName}
                 </Tag>
               );

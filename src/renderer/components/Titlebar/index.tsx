@@ -4,41 +4,23 @@ import { ArrowCircleLeft, ExpandLeft, ExpandRight, MenuFold, MenuUnfold, Plus } 
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 
-import { ipcBridge } from '@/common';
 import WindowControls from '../WindowControls';
 import { WORKSPACE_STATE_EVENT, dispatchWorkspaceToggleEvent } from '@renderer/utils/workspaceEvents';
 import type { WorkspaceStateDetail } from '@renderer/utils/workspaceEvents';
 import { useLayoutContext } from '@/renderer/context/LayoutContext';
 import { isElectronDesktop, isMacOS } from '@/renderer/utils/platform';
-import { useTenantConfig } from '@/renderer/context/TenantConfigContext';
-import { DEFAULT_TENANT_CONFIG } from '@/common/types/tenantConfig';
-import SudoworkIcon from '@/renderer/assets/sudowork-icon-dark.svg';
 
 interface TitlebarProps {
   workspaceAvailable: boolean;
 }
 
-const AionLogoMark: React.FC<{ config: Required<typeof DEFAULT_TENANT_CONFIG> }> = ({ config }) => (
-  <img
-    src={config.logo || SudoworkIcon}
-    alt={config.app_name}
-    className='app-titlebar__brand-logo w-5 h-5 object-contain'
-  />
-);
-
 const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
   const { t } = useTranslation();
-  const { config } = useTenantConfig();
-  const appTitle = useMemo(() => config.top_name, [config.top_name]);
   const [workspaceCollapsed, setWorkspaceCollapsed] = useState(true);
-  const [mobileCenterTitle, setMobileCenterTitle] = useState(appTitle);
-  const [mobileCenterOffset, setMobileCenterOffset] = useState(0);
   const layout = useLayoutContext();
   const location = useLocation();
   const navigate = useNavigate();
-  const containerRef = useRef<HTMLDivElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
-  const toolbarRef = useRef<HTMLDivElement | null>(null);
   const lastNonSettingsPathRef = useRef('/guid');
 
   // 监听工作空间折叠状态，保持按钮图标一致 / Sync workspace collapsed state for toggle button
@@ -122,69 +104,6 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
     }
   }, [isSettingsRoute, location.pathname, location.search, location.hash]);
 
-  useEffect(() => {
-    if (!layout?.isMobile) {
-      setMobileCenterTitle((prev) => (prev !== appTitle ? appTitle : prev));
-      return;
-    }
-
-    const match = location.pathname.match(/^\/conversation\/([^/]+)/);
-    const conversationId = match?.[1];
-    if (!conversationId) {
-      setMobileCenterTitle((prev) => (prev !== appTitle ? appTitle : prev));
-      return;
-    }
-
-    let cancelled = false;
-    void ipcBridge.conversation.get
-      .invoke({ id: conversationId })
-      .then((conversation) => {
-        if (cancelled) return;
-        setMobileCenterTitle((prev) => (prev !== (conversation?.name || appTitle) ? conversation?.name || appTitle : prev));
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setMobileCenterTitle((prev) => (prev !== appTitle ? appTitle : prev));
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [appTitle, layout?.isMobile, location.pathname]);
-
-  useEffect(() => {
-    if (!layout?.isMobile) {
-      setMobileCenterOffset((prev) => (prev !== 0 ? 0 : prev));
-      return;
-    }
-
-    const updateOffset = () => {
-      const leftWidth = menuRef.current?.offsetWidth || 0;
-      const rightWidth = toolbarRef.current?.offsetWidth || 0;
-      setMobileCenterOffset((prev) => (prev !== (leftWidth - rightWidth) / 2 ? (leftWidth - rightWidth) / 2 : prev));
-    };
-
-    updateOffset();
-
-    if (typeof ResizeObserver === 'undefined') {
-      window.addEventListener('resize', updateOffset);
-      return () => window.removeEventListener('resize', updateOffset);
-    }
-
-    const observer = new ResizeObserver(() => updateOffset());
-    if (containerRef.current) observer.observe(containerRef.current);
-    if (menuRef.current) observer.observe(menuRef.current);
-    if (toolbarRef.current) observer.observe(toolbarRef.current);
-
-    return () => observer.disconnect();
-  }, [layout?.isMobile, showBackToChatButton, showNewConversationButton, showWorkspaceButton, mobileCenterTitle]);
-
-  const mobileCenterStyle = layout?.isMobile
-    ? ({
-        '--app-titlebar-mobile-center-offset': `${workspaceAvailable ? mobileCenterOffset : 0}px`,
-      } as React.CSSProperties)
-    : undefined;
-
   const menuStyle: React.CSSProperties = useMemo(() => {
     if (!isMacRuntime || !showSiderToggle) return {};
 
@@ -197,8 +116,6 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
 
   return (
     <div
-      ref={containerRef}
-      style={mobileCenterStyle}
       className={classNames('flex items-center gap-8px app-titlebar bg-2 border-b border-[var(--border-base)]', {
         'app-titlebar--mobile': layout?.isMobile,
         'app-titlebar--mobile-conversation': layout?.isMobile && workspaceAvailable,
@@ -218,17 +135,7 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
           </button>
         )}
       </div>
-      <div className='app-titlebar__brand' aria-label={layout?.isMobile ? mobileCenterTitle : appTitle} title={layout?.isMobile ? mobileCenterTitle : appTitle}>
-        {layout?.isMobile ? (
-          <span className='app-titlebar__brand-mobile'>
-            <AionLogoMark config={config} />
-            <span className='app-titlebar__brand-text'>{mobileCenterTitle}</span>
-          </span>
-        ) : (
-          appTitle
-        )}
-      </div>
-      <div ref={toolbarRef} className='app-titlebar__toolbar'>
+      <div className='app-titlebar__toolbar'>
         {showNewConversationButton && (
           <button type='button' className={classNames('app-titlebar__button', layout?.isMobile && 'app-titlebar__button--mobile')} onClick={handleCreateConversation} aria-label={newConversationTooltip}>
             <Plus theme='outline' size={iconSize} fill='currentColor' />

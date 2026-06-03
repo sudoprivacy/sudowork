@@ -11,11 +11,13 @@ import { DEFAULT_PRESET_AGENT_TYPE, resolvePresetAgentBackend, type AcpBackendAl
 import { fetchAssistantsAsConfigs } from '@/renderer/shared/agents/assistantAdapter';
 import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
+import EmptyState from '@/renderer/components/base/EmptyState';
+import { SettingsList, SettingsListItem } from '@/renderer/components/ui/SettingsList';
 import { useAllCronJobs } from '@/renderer/pages/cron/hooks/useCronJobs';
 import { type FrequencyPreset, FREQUENCY_PRESETS, WEEKDAYS, frequencyToSchedule, getJobStatusFlags, scheduleToFrequency } from '@/renderer/pages/cron/utils/cronUtils';
 import { iconColors } from '@/renderer/theme/colors';
-import { Button, Drawer, Empty, Form, Input, Message, Popconfirm, Select, Switch, Tag } from '@arco-design/web-react';
-import { Add, ArrowLeft, Close, DeleteOne, Edit, Info, PlayOne, Sun } from '@icon-park/react';
+import { Button, Drawer, Form, Input, Message, Popconfirm, Select, Switch, Tag } from '@arco-design/web-react';
+import { Add, AlarmClock, ArrowLeft, Close, DeleteOne, Edit, Info, PlayOne, Sun } from '@icon-park/react';
 import dayjs from 'dayjs';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -25,6 +27,7 @@ import { useAppMode } from '@renderer/hooks/useAppMode';
 import { useEnterpriseSessionMode } from '@renderer/hooks/useEnterpriseSessionMode';
 import { emitter } from '@renderer/utils/emitter';
 import { useAuth } from '@/renderer/context/AuthContext';
+import { useConversationTabs } from '@/renderer/pages/conversation/context/ConversationTabsContext';
 
 // Sentinel for "no assistant selected" (default → Sudo Code). Using an explicit
 // sentinel instead of '' because Arco Select treats empty string as unset and
@@ -683,6 +686,7 @@ const CronModalContent: React.FC = () => {
   const navigate = useNavigate();
   const { isEnterprise } = useAppMode();
   const { user } = useAuth();
+  const { openTab } = useConversationTabs();
   const canUseLocalCronMode = !isEnterprise || user?.localModeAvailable === true;
   const { sessionMode, setSessionMode } = useEnterpriseSessionMode({
     localModeAvailable: canUseLocalCronMode,
@@ -784,6 +788,25 @@ const CronModalContent: React.FC = () => {
     setDrawerVisible(true);
   };
 
+  const handleSelectJob = useCallback(
+    async (job: ICronJob) => {
+      setSelectedJob(job);
+      const targetConversationId = getCronJobConversationTarget(job);
+      if (targetConversationId) {
+        try {
+          const result = (await ipcBridge.conversation.get.invoke({ id: targetConversationId })) as TChatConversation | null;
+          if (result) {
+            openTab(result);
+          }
+        } catch (error) {
+          console.warn('Failed to open cron target conversation:', error);
+        }
+        emitter.emit('conversation.remote.sync', targetConversationId);
+      }
+    },
+    [openTab]
+  );
+
   return (
     <div className='flex flex-col h-full w-full'>
       <AionScrollArea className='flex-1 min-h-0 pb-16px' disableOverflow={isPageMode}>
@@ -794,14 +817,19 @@ const CronModalContent: React.FC = () => {
           /* ── LIST VIEW ── */
           <div className='space-y-16px'>
             {/* Header */}
-            <div className='flex items-start justify-between'>
-              <div>
+            <div className='flex items-center justify-between gap-16px'>
+              <div className='min-w-0'>
                 <h2 className='text-20px font-bold text-t-primary m-0 mb-4px'>{t('cron.scheduledTasks')}</h2>
                 <div className='text-13px text-t-secondary'>{t('cron.create.listSubtitle', { defaultValue: '设定定时任务，让 Agent 按计划自动执行' })}</div>
               </div>
-              <Button type='primary' shape='round' icon={<Add theme='outline' size={14} />} onClick={handleCreate}>
-                {t('cron.create.button', { defaultValue: '新建任务' })}
-              </Button>
+              {jobs.length > 0 && (
+                <Button type='primary' shape='round' className='cron-create-chip' onClick={handleCreate}>
+                  <span className='inline-flex items-center justify-center gap-4px'>
+                    <Add theme='outline' size={14} className='block' />
+                    <span>{t('cron.create.button', { defaultValue: '新建任务' })}</span>
+                  </span>
+                </Button>
+              )}
             </div>
 
             {/* Enterprise mode: Remote/Local switcher */}
@@ -839,30 +867,13 @@ const CronModalContent: React.FC = () => {
 
             {/* Info banner (local mode only) */}
             {sessionMode === 'local' && (
-              <div className='bg-2 rd-12px px-16px py-12px flex items-center justify-between'>
-                <div className='flex items-center gap-8px text-13px text-t-secondary'>
-                  <Info theme='outline' size={16} fill={iconColors.secondary} />
-                  <span>{t('cron.create.awakeBanner', { defaultValue: '定时任务仅在电脑唤醒时运行' })}</span>
-                </div>
-                <div className='flex items-center gap-8px text-13px text-t-secondary'>
-                  <Sun theme='outline' size={16} />
-                  <span>{t('cron.create.keepAwake', { defaultValue: '保持唤醒' })}</span>
-                  <Switch size='small' checked={keepAwake} onChange={handleKeepAwakeChange} />
-                </div>
-              </div>
+              <SettingsList>
+                <SettingsListItem icon={<Sun theme='outline' size={20} />} title={t('cron.create.keepAwake', { defaultValue: '保持唤醒' })} description={t('cron.create.awakeBanner', { defaultValue: '定时任务仅在电脑唤醒时运行' })} status={<span className='text-13px text-t-secondary'>{keepAwake ? t('common.enabled', { defaultValue: '已启用' }) : t('common.disabled', { defaultValue: '已关闭' })}</span>} action={<Switch size='small' className='cron-keep-awake-switch' checked={keepAwake} onChange={handleKeepAwakeChange} />} />
+              </SettingsList>
             )}
 
             {/* Job cards or empty state */}
-            {!loading && jobs.length === 0 ? (
-              <div className='bg-2 rd-12px px-16px py-40px flex flex-col items-center gap-16px'>
-                <Empty description={t('cron.noTasks', { defaultValue: '暂无定时任务' })} />
-                <Button type='primary' shape='round' icon={<Add theme='outline' size={14} />} onClick={handleCreate}>
-                  {t('cron.create.button', { defaultValue: '新建任务' })}
-                </Button>
-              </div>
-            ) : (
-              <CronJobCardGrid jobs={jobs} onSelectJob={setSelectedJob} />
-            )}
+            {!loading && jobs.length === 0 ? <EmptyState simple icon={<AlarmClock theme='outline' size={56} className='text-[var(--ui-accent-orange)]' />} title={t('cron.noTasks', { defaultValue: '暂无定时任务' })} description={t('cron.create.emptyHint', { defaultValue: '创建自动执行的 Agent 任务' })} actions={[{ label: t('cron.create.button', { defaultValue: '新建任务' }), onClick: handleCreate, className: 'cron-create-chip' }]} /> : <CronJobCardGrid jobs={jobs} onSelectJob={handleSelectJob} />}
           </div>
         )}
       </AionScrollArea>

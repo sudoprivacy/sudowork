@@ -52,6 +52,8 @@
   "modelListRefreshFailed": "模型列表更新失败",
   "escToCancel": "按 ESC 取消",
   "create": "创建",
+  "enabled": "已启用",
+  "disabled": "已关闭",
   "createSuccess": "创建成功",
   "failed": "失败",
   "browse": "浏览",

@@ -1499,18 +1499,18 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                   >
                     {t('conversation.workspace.contextMenu.uploadToBdpan')}
                   </button>
-                  {shareoneInstalled && (
-                    <button
-                      type='button'
-                      className={menuButtonBase}
-                      onClick={() => {
-                        void handleShareFile(contextMenuNode);
-                        modalsHook.closeContextMenu();
-                      }}
-                    >
-                      {t('conversation.workspace.contextMenu.shareone', { defaultValue: 'ShareOne' })}
-                    </button>
-                  )}
+                  <button
+                    type='button'
+                    className={menuButtonBase}
+                    disabled={!shareoneInstalled}
+                    onClick={() => {
+                      if (!shareoneInstalled) return;
+                      void handleShareFile(contextMenuNode);
+                      modalsHook.closeContextMenu();
+                    }}
+                  >
+                    {shareoneInstalled ? t('conversation.workspace.contextMenu.shareone', { defaultValue: 'ShareOne' }) : t('settings.runtimeSettings.status.disabled', { defaultValue: '未启用' })}
+                  </button>
                 </>
               ) : (
                 <>
@@ -1577,16 +1577,18 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                   >
                     {t('conversation.workspace.contextMenu.uploadToBdpan')}
                   </button>
-                  {isContextMenuNodeFile && shareoneInstalled && isShareoneSupported && (
+                  {isContextMenuNodeFile && (
                     <button
                       type='button'
                       className={menuButtonBase}
+                      disabled={!shareoneInstalled || !isShareoneSupported}
                       onClick={() => {
+                        if (!shareoneInstalled || !isShareoneSupported) return;
                         void handleShareFile(contextMenuNode);
                         modalsHook.closeContextMenu();
                       }}
                     >
-                      {t('conversation.workspace.contextMenu.shareone', { defaultValue: 'ShareOne' })}
+                      {shareoneInstalled && isShareoneSupported ? t('conversation.workspace.contextMenu.shareone', { defaultValue: 'ShareOne' }) : t('settings.runtimeSettings.status.disabled', { defaultValue: '未启用' })}
                     </button>
                   )}
                   <div className='h-1px bg-3 my-2px'></div>

@@ -84,6 +84,8 @@ export function resolveRuntimeStatus(record: ToolRow): RuntimeResolvedStatus {
 
 export function getStatusInfo(record: ToolRow, t: TranslateFn): { dotColor: string; statusText: string } {
   const resolvedStatus = resolveRuntimeStatus(record);
+  const isShareOne = record.key === 'shareone';
+  const shareOneStatusText = t('settings.runtimeSettings.status.disabled', { defaultValue: '未启用' });
 
   switch (resolvedStatus) {
     case 'installing': {
@@ -103,7 +105,7 @@ export function getStatusInfo(record: ToolRow, t: TranslateFn): { dotColor: stri
     case 'installed':
       return {
         dotColor: 'bg-gray-4',
-        statusText: record.key === 'nexus' ? t('settings.runtimeSettings.status.notRunning') : t('settings.runtimeSettings.status.installed'),
+        statusText: isShareOne ? shareOneStatusText : record.key === 'nexus' ? t('settings.runtimeSettings.status.notRunning') : t('settings.runtimeSettings.status.installed'),
       };
     case 'checking':
       return {
@@ -114,7 +116,7 @@ export function getStatusInfo(record: ToolRow, t: TranslateFn): { dotColor: stri
     default:
       return {
         dotColor: 'bg-gray-4',
-        statusText: t('settings.runtimeSettings.status.notInstalled'),
+        statusText: isShareOne ? shareOneStatusText : t('settings.runtimeSettings.status.notInstalled'),
       };
   }
 }

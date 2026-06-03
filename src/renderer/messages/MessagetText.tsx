@@ -73,6 +73,8 @@ const MessageText: React.FC<{ message: IMessageText; isStreaming?: boolean }> = 
   const { t } = useTranslation();
   const [showCopyAlert, setShowCopyAlert] = useState(false);
   const isUserMessage = message.position === 'right';
+  const hasCodeFence = typeof contentToRender === 'string' ? /```/.test(contentToRender) : false;
+  const hasCodeLikeContent = json || hasCodeFence;
   const skills = message.content.skills || [];
 
   // 获取已安装的技能信息用于显示
@@ -125,7 +127,7 @@ const MessageText: React.FC<{ message: IMessageText; isStreaming?: boolean }> = 
 
   return (
     <>
-      <div className={classNames('min-w-0 flex flex-col', isUserMessage ? 'items-end' : 'items-start')}>
+      <div className={classNames('min-w-0 flex max-w-full flex-col', isUserMessage ? 'items-end' : 'items-start', !isUserMessage && hasCodeLikeContent && 'w-full')}>
         {cronMeta && <MessageCronBadge meta={cronMeta} />}
         {visibleFiles.length > 0 && (
           <div className={classNames('mt-6px', { 'self-end': isUserMessage })}>
@@ -143,8 +145,10 @@ const MessageText: React.FC<{ message: IMessageText; isStreaming?: boolean }> = 
           </div>
         )}
         <div
-          className={classNames('min-w-0 [&>p:first-child]:mt-0px [&>p:last-child]:mb-0px md:max-w-780px p-8px border border-solid transition-colors duration-200', {
-            // 用户消息使用粉色调
+          className={classNames('min-w-0 box-border overflow-hidden [&>p:first-child]:mt-0px [&>p:last-child]:mb-0px p-8px border border-solid transition-colors duration-200', {
+            'w-fit max-w-full': isUserMessage || !hasCodeLikeContent,
+            'w-full max-w-full': !isUserMessage && hasCodeLikeContent,
+            // 用户消息使用 OpenClaw 风格的粉色调
             'bg-[var(--message-user-bg)] text-[var(--message-user-text)] border-[var(--message-user-border)] hover:bg-[var(--message-user-hover)]': isUserMessage,
             // 助手消息使用白色/深灰色调
             'bg-[var(--message-assistant-bg)] text-[var(--message-assistant-text)] border-[var(--message-assistant-border)] hover:bg-[var(--message-assistant-hover)]': !isUserMessage,
@@ -153,6 +157,7 @@ const MessageText: React.FC<{ message: IMessageText; isStreaming?: boolean }> = 
           })}
           style={{
             borderRadius: isUserMessage ? '16px 16px 16px 16px' : '16px 16px 16px 16px',
+            maxWidth: '100%',
           }}
         >
           {/* JSON 内容使用折叠组件 Use CollapsibleContent for JSON content */}

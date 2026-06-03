@@ -123,6 +123,7 @@
       "notInstalled": "未安装",
       "installed": "已安装",
       "running": "运行中 :{{port}}",
+      "disabled": "未启用",
       "notRunning": "未运行",
       "checking": "检查中…"
     },
@@ -284,6 +285,9 @@
   "installed": "已安装",
   "builtin": "内置",
   "channels": "频道",
+  "channels.connected": "已连接",
+  "channels.enabled": "已启用",
+  "channels.disabled": "未启用",
   "webui.description": "把 Sudowork 当作\"7*24小时的远程助手\"，随时随地用远程设备安排任务。",
   "webui.steps": "步骤 1. 打开 WebUI 开关;  步骤 2. 复制访问地址;  步骤 3.远程浏览器打开",
   "webui.configuration": "WebUI 配置",
@@ -928,6 +932,25 @@
   "promptTimeoutDesc": "Agent 与大模型通信的最大等待时间。范围：30-3600 秒",
   "idleTimeout": "Agent 空闲超时",
   "idleTimeoutDesc": "空闲 Agent 进程回收时间，用于释放内存。范围：1-60 分钟",
+  "securitySettings": {
+    "subtitle": "全方位保护您的系统和数据安全",
+    "protecting": "保护中",
+    "envProtection": {
+      "title": "电脑环境安全防护",
+      "tag": "主动防御",
+      "description": "当智能体调用各类工具时，系统会进行全过程的安全管控，识别并拦截高风险行为。"
+    },
+    "infoProtection": {
+      "title": "用户信息安全保护",
+      "tag": "智能识别",
+      "description": "对输入给智能体的任务和提示词进行安全识别，检测隐私、密钥和账号凭证等高风险信息。"
+    },
+    "skillScan": {
+      "title": "Skill 技能安全扫描",
+      "tag": "多层检测",
+      "description": "所有 Skill 在安装和接入前进行来源可信度、代码审查和权限评估。"
+    }
+  },
   "productImprovement": {
     "title": "参与产品体验改进计划",
     "description": "帮助我们持续优化产品体验，为您带来更好的服务。",

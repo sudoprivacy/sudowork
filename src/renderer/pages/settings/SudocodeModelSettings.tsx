@@ -6,13 +6,7 @@
 
 import { ipcBridge } from '@/common';
 import type { ScodeConfig, ScodeModelEntry } from '@/common/ipcBridge';
-import {
-  buildCustomModelAlias,
-  extractCustomProvidersFromScodeConfig,
-  mergeCustomProviderIntoScodeConfig,
-  removeCustomProviderFromScodeConfig,
-  type ScodeCustomModelProvider,
-} from '@/common/scodeConfig';
+import { buildCustomModelAlias, extractCustomProvidersFromScodeConfig, mergeCustomProviderIntoScodeConfig, removeCustomProviderFromScodeConfig, type ScodeCustomModelProvider } from '@/common/scodeConfig';
 import AionModal from '@/renderer/components/base/AionModal';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { Button, Checkbox, Form, Input, InputNumber, Message, Popconfirm, Select, Space, Spin, Tag, Typography } from '@arco-design/web-react';
@@ -295,18 +289,21 @@ const AddModelDialog: React.FC<{
       outputContext: values.outputContext,
     };
 
-    const models = editingTarget
-      ? editingTarget.provider.modelIds.map((item) => (item === editingTarget.modelId ? nextModel : editableModelFromEntry(config, item)))
-      : [nextModel];
+    const models = editingTarget ? editingTarget.provider.modelIds.map((item) => (item === editingTarget.modelId ? nextModel : editableModelFromEntry(config, item))) : [nextModel];
 
     setSaving(true);
     try {
-      await onSubmit({
-        providerId,
-        baseUrl: values.baseUrl,
-        apiKey: values.apiKey || '',
-        models,
-      }, editingTarget?.provider.id, editingTarget?.modelId, modelAlias);
+      await onSubmit(
+        {
+          providerId,
+          baseUrl: values.baseUrl,
+          apiKey: values.apiKey || '',
+          models,
+        },
+        editingTarget?.provider.id,
+        editingTarget?.modelId,
+        modelAlias
+      );
       onClose();
     } finally {
       setSaving(false);
@@ -424,27 +421,30 @@ const SudocodeModelSettingsContent: React.FC = () => {
   const { sudorouterModels, customProviders } = useMemo(() => buildProviderRows(config), [config]);
   const configuredModelIds = useMemo(() => getConfiguredModelIds(config), [config]);
 
-  const saveConfig = useCallback(async (nextConfig: ScodeConfig) => {
-    setSaving(true);
-    try {
-      const res = await ipcBridge.scode.saveConfig.invoke({ config: nextConfig });
-      if (!res?.success) {
-        Message.error(res?.msg || '保存模型配置失败');
-        return;
-      }
-      if (user?.id) {
-        const persistRes = await ipcBridge.scode.saveCustomModelProviders.invoke({ userId: user.id, providers: extractCustomProvidersFromScodeConfig(nextConfig) });
-        if (!persistRes?.success) {
-          Message.error(persistRes?.msg || '保存第三方模型配置失败');
+  const saveConfig = useCallback(
+    async (nextConfig: ScodeConfig) => {
+      setSaving(true);
+      try {
+        const res = await ipcBridge.scode.saveConfig.invoke({ config: nextConfig });
+        if (!res?.success) {
+          Message.error(res?.msg || '保存模型配置失败');
           return;
         }
+        if (user?.id) {
+          const persistRes = await ipcBridge.scode.saveCustomModelProviders.invoke({ userId: user.id, providers: extractCustomProvidersFromScodeConfig(nextConfig) });
+          if (!persistRes?.success) {
+            Message.error(persistRes?.msg || '保存第三方模型配置失败');
+            return;
+          }
+        }
+        setConfig(nextConfig);
+        Message.success('模型配置已保存');
+      } finally {
+        setSaving(false);
       }
-      setConfig(nextConfig);
-      Message.success('模型配置已保存');
-    } finally {
-      setSaving(false);
-    }
-  }, [user?.id]);
+    },
+    [user?.id]
+  );
 
   const openAddDialog = useCallback(() => {
     setEditingTarget(null);
@@ -499,30 +499,30 @@ const SudocodeModelSettingsContent: React.FC = () => {
             <Button icon={<Refresh />} onClick={loadConfig}>
               刷新
             </Button>
-            <Button type='primary' icon={<Plus />} onClick={openAddDialog}>
+            <Button type='primary' icon={<Plus theme='outline' size='16' fill='white' strokeWidth={2} />} onClick={openAddDialog} className='!bg-[var(--ui-accent-orange)] !border-[var(--ui-accent-orange)] !text-white hover:!bg-[var(--ui-accent-orange-hover)] hover:!border-[var(--ui-accent-orange-hover)] hover:!text-white'>
               添加模型
             </Button>
           </Space>
         </div>
 
         <div className='grid grid-cols-1 md:grid-cols-3 gap-12px mb-20px'>
-          <div className='bg-2 rd-8px border border-solid border-border-2 p-16px'>
+          <div className='bg-2 rd-8px border border-solid border-[var(--color-border-2)] p-16px'>
             <div className='text-12px text-t-secondary mb-6px'>默认模型</div>
             <div className='text-16px font-600 text-t-primary truncate'>{config?.default_model || '未设置'}</div>
           </div>
-          <div className='bg-2 rd-8px border border-solid border-border-2 p-16px'>
+          <div className='bg-2 rd-8px border border-solid border-[var(--color-border-2)] p-16px'>
             <div className='text-12px text-t-secondary mb-6px'>Sudorouter 模型</div>
             <div className='text-16px font-600 text-t-primary'>{sudorouterModels.length}</div>
           </div>
-          <div className='bg-2 rd-8px border border-solid border-border-2 p-16px'>
+          <div className='bg-2 rd-8px border border-solid border-[var(--color-border-2)] p-16px'>
             <div className='text-12px text-t-secondary mb-6px'>第三方提供商</div>
             <div className='text-16px font-600 text-t-primary'>{customProviders.length}</div>
           </div>
         </div>
 
         <div className='space-y-16px'>
-          <section className='border border-solid border-border-2 rd-8px overflow-hidden bg-1'>
-            <div className='px-16px py-12px border-b border-solid border-border-2 flex items-center justify-between'>
+          <section className='border border-solid border-[var(--color-border-2)] rd-8px overflow-hidden bg-2'>
+            <div className='px-16px py-12px flex items-center justify-between'>
               <div className='flex items-center gap-8px font-600 text-t-primary'>
                 <LinkCloud theme='outline' size='18' />
                 Sudorouter
@@ -533,15 +533,15 @@ const SudocodeModelSettingsContent: React.FC = () => {
           </section>
 
           {customProviders.length === 0 ? (
-            <div className='border border-dashed border-border-2 rd-8px bg-1 py-48px text-center'>
+            <div className='border border-dashed border-[var(--color-border-2)] rd-8px bg-2 py-48px text-center'>
               <SettingTwo theme='outline' size='42' className='text-t-tertiary mb-12px' />
               <div className='text-15px font-600 text-t-primary mb-4px'>还没有第三方模型</div>
               <Text type='secondary'>添加 OpenAI 兼容 API 后，可在 Sudo Code 模型下拉中选择。</Text>
             </div>
           ) : (
             customProviders.map((provider) => (
-              <section key={provider.id} className='border border-solid border-border-2 rd-8px overflow-hidden bg-1'>
-                <div className='px-16px py-12px border-b border-solid border-border-2 flex items-center justify-between gap-12px flex-wrap'>
+              <section key={provider.id} className='border border-solid border-[var(--color-border-2)] rd-8px overflow-hidden bg-2'>
+                <div className='px-16px py-12px border-b border-solid border-[var(--color-border-2)] flex items-center justify-between gap-12px flex-wrap'>
                   <div className='min-w-0'>
                     <div className='flex items-center gap-8px font-600 text-t-primary'>
                       <LinkCloud theme='outline' size='18' />
@@ -559,7 +559,7 @@ const SudocodeModelSettingsContent: React.FC = () => {
                     </Popconfirm>
                   </Space>
                 </div>
-                <div className='divide-y divide-border-2'>
+                <div className='divide-y divide-[var(--color-border-2)]'>
                   {provider.modelIds.map((modelId) => {
                     const entry = findModelEntry(config, modelId);
                     const displayModelId = entry?.providers?.['api-key']?.model || entry?.name || modelId;

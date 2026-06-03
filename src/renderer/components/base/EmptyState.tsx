@@ -18,6 +18,8 @@ export interface EmptyStateAction {
   type?: 'primary' | 'secondary' | 'dashed' | 'text' | 'outline';
   /** 是否禁用 */
   disabled?: boolean;
+  /** 额外类名 */
+  className?: string;
 }
 
 export interface EmptyStateProps {
@@ -54,15 +56,7 @@ export interface EmptyStateProps {
  * />
  * ```
  */
-const EmptyState: React.FC<EmptyStateProps> = ({
-  icon,
-  title,
-  description,
-  actions,
-  className,
-  simple = false,
-  illustrationType = 'default',
-}) => {
+const EmptyState: React.FC<EmptyStateProps> = ({ icon, title, description, actions, className, simple = false, illustrationType = 'default' }) => {
   // 默认空状态插图（当未提供 icon 时）
   // Default empty state illustration (when icon is not provided)
   const getIllustration = () => {
@@ -131,36 +125,19 @@ const EmptyState: React.FC<EmptyStateProps> = ({
       )}
     >
       {/* 图标区域 / Icon area */}
-      <div className='empty-state__icon mb-24px text-t-tertiary'>
-        {icon || defaultIcon}
-      </div>
+      <div className='empty-state__icon mb-24px text-t-tertiary'>{icon || defaultIcon}</div>
 
       {/* 标题 / Title */}
-      {title && (
-        <div className='empty-state__title text-16px font-500 text-t-primary mb-8px text-center'>
-          {title}
-        </div>
-      )}
+      {title && <div className='empty-state__title text-16px font-500 text-t-primary mb-8px text-center'>{title}</div>}
 
       {/* 描述 / Description */}
-      {description && (
-        <div className='empty-state__description text-13px text-t-secondary mb-20px text-center max-w-300px'>
-          {description}
-        </div>
-      )}
+      {description && <div className='empty-state__description text-13px text-t-secondary mb-20px text-center max-w-300px'>{description}</div>}
 
       {/* 操作按钮 / Action buttons */}
       {actions && actions.length > 0 && (
         <div className='empty-state__actions flex gap-12px flex-wrap justify-center'>
           {actions.map((action, index) => (
-            <Button
-              key={index}
-              type={action.type || 'primary'}
-              onClick={action.onClick}
-              disabled={action.disabled}
-              className='empty-state__action-btn px-20px min-w-100px'
-              style={{ borderRadius: 'var(--radius-md)' }}
-            >
+            <Button key={index} type={action.type || 'primary'} onClick={action.onClick} disabled={action.disabled} className={classNames('empty-state__action-btn px-20px min-w-100px', action.className)} style={{ borderRadius: 'var(--radius-md)' }}>
               {action.label}
             </Button>
           ))}

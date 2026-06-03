@@ -123,6 +123,7 @@
       "notInstalled": "Not installed",
       "installed": "Installed",
       "running": "Running :{{port}}",
+      "disabled": "Disabled",
       "notRunning": "Not running",
       "checking": "Checking…"
     },
@@ -284,6 +285,9 @@
   "installed": "Installed",
   "builtin": "Built-in",
   "channels": "Channels",
+  "channels.connected": "Connected",
+  "channels.enabled": "Enabled",
+  "channels.disabled": "Not enabled",
   "webui.description": "Use Sudowork as your \"24/7 Remote Assistant\" - arrange tasks from any remote device, anytime, anywhere.",
   "webui.steps": "Step 1. Turn on WebUI; Step 2. Copy the access URL; Step 3. Open in remote browser",
   "webui.configuration": "WebUI Configuration",
@@ -926,6 +930,25 @@
   "promptTimeoutDesc": "Maximum wait time for Agent-to-LLM communication. Range: 30-3600 seconds",
   "idleTimeout": "Agent Idle Timeout",
   "idleTimeoutDesc": "Idle Agent process recycling time for memory release. Range: 1-60 minutes",
+  "securitySettings": {
+    "subtitle": "Comprehensive protection for your system and data",
+    "protecting": "Protected",
+    "envProtection": {
+      "title": "Computer Environment Protection",
+      "tag": "Active Defense",
+      "description": "When agents call tools, the system applies end-to-end safety controls to identify and block high-risk behavior."
+    },
+    "infoProtection": {
+      "title": "User Information Protection",
+      "tag": "Smart Detection",
+      "description": "Tasks and prompts sent to agents are checked for privacy data, secrets, account credentials, and other high-risk information."
+    },
+    "skillScan": {
+      "title": "Skill Security Scan",
+      "tag": "Layered Checks",
+      "description": "All Skills are checked for source trust, code safety, and permissions before installation and use."
+    }
+  },
   "productImprovement": {
     "title": "Join Product Improvement Program",
     "description": "Help us continuously improve the product experience for better service.",

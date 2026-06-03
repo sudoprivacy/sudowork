@@ -58,7 +58,7 @@ const useDebug = () => {
 
 const UpdateModal = React.lazy(() => import('@/renderer/components/UpdateModal'));
 
-const DEFAULT_SIDER_WIDTH = 250;
+const DEFAULT_SIDER_WIDTH = 260;
 const MOBILE_SIDER_WIDTH_RATIO = 0.67;
 const MOBILE_SIDER_MIN_WIDTH = 260;
 const MOBILE_SIDER_MAX_WIDTH = 420;
@@ -305,12 +305,12 @@ const Layout: React.FC<{
             }
           >
             <ArcoLayout.Header
-              className={classNames('flex items-center justify-start py-10px px-16px pl-20px gap-12px layout-sider-header', isMobile && 'layout-sider-header--mobile', {
+              className={classNames('flex items-center justify-start py-8px px-16px pl-18px gap-10px layout-sider-header', isMobile && 'layout-sider-header--mobile', {
                 'cursor-pointer group ': collapsed,
               })}
             >
               <div
-                className={classNames('shrink-0 size-40px relative rd-0.5rem flex items-center justify-center', {
+                className={classNames('shrink-0 size-34px relative rd-0.5rem flex items-center justify-center', {
                   '!size-24px': collapsed,
                 })}
                 onClick={onClick}
@@ -319,13 +319,13 @@ const Layout: React.FC<{
                   src={config.logo || SudoworkIcon}
                   alt={config.app_name}
                   className={classNames('absolute inset-0 m-auto', {
-                    'w-5.5 h-5.5 p-1 scale-140': !collapsed,
+                    'w-5 h-5 p-0.5 scale-130': !collapsed,
                     'w-4 h-4 p-0.5': collapsed,
                   })}
                   style={{ objectFit: 'contain' }}
                 />
               </div>
-              <div className='flex-1 text-20px text-1 collapsed-hidden font-bold'>{config.app_name}</div>
+              <div className='flex-1 text-18px text-1 collapsed-hidden font-700'>{config.app_name}</div>
               {isMobile && !collapsed && (
                 <button type='button' className='app-titlebar__button' onClick={() => setCollapsed(true)} aria-label='Collapse sidebar'>
                   {collapsed ? <MenuUnfold theme='outline' size='18' fill='currentColor' /> : <MenuFold theme='outline' size='18' fill='currentColor' />}
@@ -333,7 +333,7 @@ const Layout: React.FC<{
               )}
               {/* 侧栏折叠改由标题栏统一控制 / Sidebar folding handled by Titlebar toggle */}
             </ArcoLayout.Header>
-            <ArcoLayout.Content className={classNames('p-8px layout-sider-content', !isMobile && 'h-[calc(100%-72px-16px)]')}>
+            <ArcoLayout.Content className={classNames('p-10px layout-sider-content', !isMobile && 'h-[calc(100%-58px-16px)]')}>
               {React.isValidElement(sider)
                 ? React.cloneElement(sider, {
                     onSessionClick: () => {

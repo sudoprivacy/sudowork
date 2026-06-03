@@ -14,6 +14,8 @@ import { useAuth } from './context/AuthContext';
 import { addEventListener, emitter } from './utils/emitter';
 import { ConfigStorage } from '@/common/storage';
 import { useAppMode } from './hooks/useAppMode';
+import SidebarNavItem from './components/ui/SidebarNavItem';
+import SidebarSegmentedControl from './components/ui/SidebarSegmentedControl';
 
 const WorkspaceGroupedHistory = React.lazy(() => import('./pages/conversation/WorkspaceGroupedHistory'));
 const SettingsSider = React.lazy(() => import('./pages/settings/SettingsSider'));
@@ -88,6 +90,13 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
 
   // 处理功能菜单点击 — 在 GuidPage 内联显示，通过 query param 传递 menuId
   const handleFunctionMenuClick = (menuId: string) => {
+    const nextTab: 'timeline' | 'scheduled' = menuId === 'cron' ? 'scheduled' : 'timeline';
+    setActiveTab(nextTab);
+    try {
+      localStorage.setItem(SIDER_TAB_STORAGE_KEY, nextTab);
+    } catch {
+      // ignore
+    }
     void navigate(`/guid?menu=${menuId}`);
   };
 
@@ -170,7 +179,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
                 </div>
               ) : (
                 <div
-                  className={classNames('h-40px flex items-center gap-10px px-16px mb-12px rd-10px cursor-pointer transition-all border border-solid', 'border-[var(--color-border-2)] bg-1 hover:bg-hover hover:border-[var(--color-border-3)] active:bg-fill-2')}
+                  className={classNames('h-40px flex items-center gap-10px px-16px mb-12px rd-10px cursor-pointer transition-all border border-solid', 'border-[var(--ui-border-strong)] bg-1 hover:bg-hover active:bg-fill-2')}
                   onClick={() => {
                     cleanupSiderTooltips();
                     blurActiveElement();
@@ -194,15 +203,16 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
             </Tooltip>
 
             {/* 功能菜单区域 / Function menu area */}
-            <div className='mb-16px flex flex-col gap-1px'>
+            <div className='mb-16px flex flex-col gap-2px'>
               {functionMenus.map((menu) => {
                 const isSelected = pathname.startsWith('/guid') && new URLSearchParams(search).get('menu') === menu.id;
                 return (
                   <Tooltip key={menu.id} {...siderTooltipProps} content={collapsed ? menu.label : undefined} position='right'>
-                    <div
-                      className={classNames('flex items-center gap-12px px-8px py-10px rd-8px cursor-pointer transition-colors hover:bg-hover active:bg-fill-2', collapsed && 'justify-center px-0', {
-                        '!bg-aou-2': isSelected,
-                      })}
+                    <SidebarNavItem
+                      icon={<menu.icon theme='outline' size='20' className='block leading-none' />}
+                      label={menu.label}
+                      selected={isSelected}
+                      collapsed={collapsed}
                       onClick={() => {
                         cleanupSiderTooltips();
                         blurActiveElement();
@@ -211,12 +221,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
                           onSessionClick();
                         }
                       }}
-                    >
-                      <div className={classNames('w-20px h-20px flex items-center justify-center shrink-0', isSelected ? 'text-aou-6' : 'text-t-secondary')}>
-                        <menu.icon theme='outline' size='20' className='block leading-none' />
-                      </div>
-                      {!collapsed && <span className={classNames('flex-1 text-14px leading-24px whitespace-nowrap overflow-hidden text-ellipsis', isSelected ? 'text-aou-6 font-medium' : 'text-t-primary')}>{menu.label}</span>}
-                    </div>
+                    />
                   </Tooltip>
                 );
               })}
@@ -225,31 +230,25 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
             {/* Session history tabs + batch mode button */}
             <div className={classNames('mb-8px px-8px flex items-center', collapsed ? 'justify-center' : 'justify-between')}>
               {!collapsed && (
-                <div className='flex items-center gap-1px flex-1'>
-                  {(['timeline', 'scheduled'] as const).map((tab) => {
-                    const isActive = activeTab === tab;
-                    const label = tab === 'timeline' ? t('conversation.history.timeline', { defaultValue: '对话' }) : t('conversation.history.scheduledTab', { defaultValue: '定时任务' });
-                    return (
-                      <div
-                        key={tab}
-                        className={classNames('flex-1 text-center text-13px py-8px rd-8px cursor-pointer transition-colors select-none', isActive ? 'bg-aou-2 text-aou-6 font-medium' : 'text-t-secondary hover:text-t-primary hover:bg-hover')}
-                        onClick={() => {
-                          setActiveTab(tab);
-                          try {
-                            localStorage.setItem(SIDER_TAB_STORAGE_KEY, tab);
-                          } catch {
-                            // ignore
-                          }
-                        }}
-                      >
-                        {label}
-                      </div>
-                    );
-                  })}
-                </div>
+                <SidebarSegmentedControl
+                  className='flex-1'
+                  value={activeTab}
+                  options={[
+                    { value: 'timeline', label: t('conversation.history.timeline', { defaultValue: '对话' }) },
+                    { value: 'scheduled', label: t('conversation.history.scheduledTab', { defaultValue: '定时任务' }) },
+                  ]}
+                  onChange={(tab) => {
+                    setActiveTab(tab);
+                    try {
+                      localStorage.setItem(SIDER_TAB_STORAGE_KEY, tab);
+                    } catch {
+                      // ignore
+                    }
+                  }}
+                />
               )}
               <Tooltip {...siderTooltipProps} content={isBatchMode ? t('conversation.history.batchModeExit') : t('conversation.history.batchManage')} position='right'>
-                <div className={classNames('w-32px h-32px flex items-center justify-center rd-8px cursor-pointer transition-all shrink-0', isBatchMode ? 'bg-[rgba(var(--primary-6),0.12)] text-primary-6' : 'hover:bg-hover active:bg-fill-2 text-t-secondary')} onClick={handleToggleBatchMode}>
+                <div className={classNames('w-32px h-32px flex items-center justify-center rd-8px cursor-pointer transition-all shrink-0', isBatchMode ? 'bg-[rgba(var(--ui-accent-orange-rgb),0.12)] text-[var(--ui-accent-orange)]' : 'hover:bg-hover active:bg-fill-2 text-t-secondary')} onClick={handleToggleBatchMode}>
                   <ListCheckbox theme='outline' size='18' className='block leading-none' />
                 </div>
               </Tooltip>
@@ -304,7 +303,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
             popupVisible={userMenuOpen}
             onVisibleChange={setUserMenuOpen}
           >
-            <div className={classNames('flex items-center gap-10px px-8px py-10px rd-8px cursor-pointer transition-colors', collapsed ? 'justify-center px-2px w-40px h-40px hover:bg-hover active:bg-fill-2' : 'w-full border border-solid border-[var(--color-border-2)] hover:bg-hover active:bg-fill-2')}>
+            <div className={classNames('flex items-center gap-10px px-8px py-10px rd-8px cursor-pointer transition-colors', collapsed ? 'justify-center px-2px w-40px h-40px hover:bg-hover active:bg-fill-2' : 'w-full border border-solid border-[var(--ui-border-strong)] hover:bg-hover active:bg-fill-2')}>
               <div className='w-32px h-32px rd-50% bg-[var(--color-fill-3)] flex items-center justify-center text-t-primary text-14px font-bold shrink-0'>{userInfo.avatar ? <img src={userInfo.avatar} alt={userInfo.name} className='w-full h-full rd-50% object-cover' /> : <span>{userInfo.name.charAt(0).toUpperCase()}</span>}</div>
               {!collapsed && (
                 <>
