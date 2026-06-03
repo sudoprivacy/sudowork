@@ -188,6 +188,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
   private pendingModelSwitchNotice: string | null = null;
   private hasReceivedUsageUpdate = false;
   private lastAssistantTextMsgId: string | null = null;
+  private turnHadVisibleAssistantContent = false;
   private lastUserMessage: string | null = null;
   private plannedRestartInProgress = false;
   private contextOverflowRecoveryPending = false;
@@ -210,6 +211,11 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
   private readonly fileIntentClassifier = new FileIntentClassifier();
   private static readonly WORKSPACE_TRACKING_SKIP_DIRS = new Set(['.codex', '.drafts', '.git', '.nexus', '.scode', 'node_modules', '__pycache__', '.venv', 'venv']);
   private static readonly WORKSPACE_TRACKING_SKIP_FILES = new Set(['.gitignore', '.env', '.env.local', '.DS_Store', 'Thumbs.db']);
+  private static readonly SCODE_COMPLETION_REMINDER = `<system-reminder>
+When the requested work is complete, always send a normal assistant message summarizing the result and listing any generated files. Do not end the turn with only tool calls.
+</system-reminder>
+
+`;
 
   // Extra config passed to connection
   private extra: {
@@ -698,6 +704,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
     this.stopPromise = null;
     this.hasReceivedUsageUpdate = false;
     this.lastAssistantTextMsgId = null;
+    this.turnHadVisibleAssistantContent = false;
 
     // ★ Reset turn-level file tracking for new turn
     // 重置 Turn 级别文件追踪，开始新的 Turn
@@ -1164,6 +1171,9 @@ This identity statement takes priority over the default identity in USER.md.
         processedContent,
         this.acpAvailableSlashCommands.map((command) => command.name)
       );
+      if (this.extra.backend === 'scode') {
+        processedContent = AcpAgent.SCODE_COMPLETION_REMINDER + processedContent;
+      }
 
       await this.connection.sendPrompt(processedContent, images, msg_id);
       if (ACP_PERF_LOG) mainLog('ACP-PERF', `send: sendPrompt completed ${Date.now() - promptStart}ms (total send: ${Date.now() - sendStart}ms)`);
@@ -1511,6 +1521,88 @@ This identity statement takes priority over the default identity in USER.md.
     await archiveTurnFiles(this.workspace, this.currentTurnFiles);
     this.currentTurnFiles.clear();
     mainLog('[AcpAgent]', '[TURN-ARCHIVE] Archived currentTurnFiles and cleared tracking');
+  }
+
+  private getCurrentTurnFinalFileSummaries(): Array<{ path: string; reason: string }> {
+    if (!this.workspace || this.currentTurnFiles.size === 0) {
+      return [];
+    }
+
+    const workspaceRoot = nodePath.resolve(this.workspace);
+    const seen = new Set<string>();
+    const summaries: Array<{ path: string; reason: string }> = [];
+
+    for (const file of this.currentTurnFiles.values()) {
+      if (file.intent !== 'final') {
+        continue;
+      }
+
+      const finalPath = this.resolveFinalFileDisplayPath(file, workspaceRoot);
+      if (seen.has(finalPath)) {
+        continue;
+      }
+
+      seen.add(finalPath);
+      summaries.push({
+        path: finalPath,
+        reason: file.reason,
+      });
+    }
+
+    return summaries.sort((a, b) => a.path.localeCompare(b.path));
+  }
+
+  private resolveFinalFileDisplayPath(file: TrackedTurnFile, workspaceRoot: string): string {
+    const resolvedActualPath = nodePath.resolve(file.actualPath);
+    const actualRelativePath = nodePath.relative(workspaceRoot, resolvedActualPath);
+
+    if (actualRelativePath && !actualRelativePath.startsWith('..') && !nodePath.isAbsolute(actualRelativePath) && !actualRelativePath.startsWith(`${DRAFTS_DIR_NAME}${nodePath.sep}`)) {
+      return actualRelativePath.replace(/\\/g, '/');
+    }
+
+    const requestedPath = file.requestedPath || nodePath.basename(file.actualPath);
+    const normalizedRequestedPath = requestedPath.replace(/\\/g, '/').replace(/^\.\//, '');
+    if (!normalizedRequestedPath || normalizedRequestedPath.startsWith('../') || normalizedRequestedPath.includes('/../') || normalizedRequestedPath.startsWith(`${DRAFTS_DIR_NAME}/`)) {
+      return nodePath.basename(file.actualPath);
+    }
+
+    return normalizedRequestedPath;
+  }
+
+  private emitFallbackCompletionMessage(finalFiles: Array<{ path: string; reason: string }>): void {
+    if (this.userCancelled || this.turnHadVisibleAssistantContent) {
+      return;
+    }
+
+    let content = '执行已完成，但模型没有返回总结。';
+    if (finalFiles.length > 0) {
+      const fileList = finalFiles.map((file) => `- ${file.path}`).join('\n');
+      content = `执行已完成。\n\n生成或更新的文件：\n${fileList}`;
+    }
+
+    this.emitMessage({
+      id: uuid(),
+      msg_id: uuid(),
+      conversation_id: this.conversation_id,
+      type: 'text',
+      position: 'left',
+      createdAt: Date.now(),
+      status: 'finish',
+      content: { content },
+    });
+  }
+
+  private hasVisibleAssistantContent(data: unknown): boolean {
+    if (typeof data === 'string') {
+      return data.trim().length > 0;
+    }
+
+    if (!data || typeof data !== 'object' || !('content' in data)) {
+      return false;
+    }
+
+    const content = (data as { content?: unknown }).content;
+    return typeof content === 'string' && content.trim().length > 0;
   }
 
   private resolveWorkspacePath(requestedPath: string, intent: 'draft' | 'final' = 'final'): string {
@@ -2493,6 +2585,8 @@ This identity statement takes priority over the default identity in USER.md.
   }
 
   private async handleEndTurn(): Promise<void> {
+    const finalFiles = !this.userCancelled ? this.getCurrentTurnFinalFileSummaries() : [];
+
     if (!this.userCancelled) {
       // Telemetry: end turn tracking (success)
       endTurnSuccess(this.conversation_id);
@@ -2507,6 +2601,7 @@ This identity statement takes priority over the default identity in USER.md.
     if (!this.userCancelled) {
       await this.installTrackedWorkspaceSkills();
       await this.archiveCurrentTurnFiles();
+      this.emitFallbackCompletionMessage(finalFiles);
     }
 
     const msg: IResponseMessage = {
@@ -2809,6 +2904,10 @@ This identity statement takes priority over the default identity in USER.md.
 
     if (message.type === 'content' && filteredMessage.type === 'content' && filteredMessage.data === '') {
       return;
+    }
+
+    if (filteredMessage.type === 'content' && this.hasVisibleAssistantContent(filteredMessage.data)) {
+      this.turnHadVisibleAssistantContent = true;
     }
 
     if (filteredMessage.type !== 'thought' && filteredMessage.type !== 'acp_model_info' && filteredMessage.type !== 'acp_context_usage') {

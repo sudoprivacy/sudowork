@@ -104,6 +104,17 @@ describe('FileIntentClassifier', () => {
     expect(result.reason).toContain('target type');
   });
 
+  test('promotes bash-generated xlsx when user misspells excel as execl', () => {
+    const result = classifier.classify({
+      filePath: 'browser_tool_test_cases.xlsx',
+      userMessage: '输出文件为execl',
+      source: 'bash-generated',
+    });
+
+    expect(result.intent).toBe('final');
+    expect(result.reason).toContain('target type');
+  });
+
   test('promotes file when it matches explicitly requested file name', () => {
     const result = classifier.classify({
       filePath: 'workspace/output/analysis.csv',
