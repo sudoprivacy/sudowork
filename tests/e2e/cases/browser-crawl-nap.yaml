@@ -39,10 +39,10 @@ steps:
       browser_start_calls: ">= 1"
       js_evaluate_calls: ">= 1"
 
-  # Assert output file: valid JSON, 100+ products, correct structure
-  - op: validate_crawl_json
+  # Assert output file: valid JSON, 100+ items, correct structure
+  - op: json_audit
     filename: "products.json"
     min_items: 100
     required_fields: "brand,name,price,url"
-    price_pattern: "\\$[\\d,]+"
-    url_contains: "net-a-porter.com"
+    unique_field: "url"
+    field_patterns: "price=[$][0-9,]+|url=net-a-porter"
