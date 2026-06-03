@@ -9,7 +9,7 @@ crate-type = ["cdylib"]
 [dependencies]
 napi = { version = "3", features = ["napi9"] }
 napi-derive = "3"
-nexus-vfs-client = { git = "https://github.com/sudoprivacy/sudocode", rev = "0686ed9b" }
+nexus-vfs-client = { git = "https://github.com/sudoprivacy/sudocode", rev = "869d571" }
 
 [build-dependencies]
 napi-build = "2"
