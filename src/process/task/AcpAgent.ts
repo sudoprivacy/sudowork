@@ -44,6 +44,7 @@ import { injectSkillsDirectoryHint, prepareFirstMessageWithSkillsIndex } from '.
 import { AcpSkillManager } from './AcpSkillManager';
 import { archiveTurnFiles, cleanupIntermediateFiles, cleanupTrackedDraftsOnCancel, type TrackedTurnFile } from './draftsCleanup';
 import { FileIntentClassifier, type FileIntentSource } from './FileIntentClassifier';
+import { SCODE_COMPLETION_REMINDER, shouldSkipAcpWorkspaceTrackingPath } from './acpWorkspaceTracking';
 import { mergeScodeProxyModelInfo, isModelVisionCapable, getScodeProxyModelInfoSync } from '@process/services/scode/scodeProxyModels';
 import { installWorkspaceSkillsFromTrackedFiles } from './workspaceSkillInstaller';
 import BaseAgent from './BaseAgent';
@@ -209,13 +210,6 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
   // Turn-level file tracking for precise cleanup on cancel
   private currentTurnFiles: Map<string, TrackedTurnFile> = new Map();
   private readonly fileIntentClassifier = new FileIntentClassifier();
-  private static readonly WORKSPACE_TRACKING_SKIP_DIRS = new Set(['.codex', '.drafts', '.git', '.nexus', '.scode', 'node_modules', '__pycache__', '.venv', 'venv']);
-  private static readonly WORKSPACE_TRACKING_SKIP_FILES = new Set(['.gitignore', '.env', '.env.local', '.DS_Store', 'Thumbs.db']);
-  private static readonly SCODE_COMPLETION_REMINDER = `<system-reminder>
-When the requested work is complete, always send a normal assistant message summarizing the result and listing any generated files. Do not end the turn with only tool calls.
-</system-reminder>
-
-`;
 
   // Extra config passed to connection
   private extra: {
@@ -1172,7 +1166,7 @@ This identity statement takes priority over the default identity in USER.md.
         this.acpAvailableSlashCommands.map((command) => command.name)
       );
       if (this.extra.backend === 'scode') {
-        processedContent = AcpAgent.SCODE_COMPLETION_REMINDER + processedContent;
+        processedContent = SCODE_COMPLETION_REMINDER + processedContent;
       }
 
       await this.connection.sendPrompt(processedContent, images, msg_id);
@@ -1764,14 +1758,7 @@ This identity statement takes priority over the default identity in USER.md.
   }
 
   private shouldSkipWorkspaceTrackingPath(relativePath: string): boolean {
-    const normalizedPath = relativePath.replace(/\\/g, '/');
-    if (!normalizedPath || normalizedPath.startsWith('..') || nodePath.isAbsolute(normalizedPath)) return true;
-
-    const parts = normalizedPath.split('/').filter(Boolean);
-    if (parts.some((part) => AcpAgent.WORKSPACE_TRACKING_SKIP_DIRS.has(part))) return true;
-
-    const fileName = parts.at(-1) ?? normalizedPath;
-    return AcpAgent.WORKSPACE_TRACKING_SKIP_FILES.has(fileName);
+    return shouldSkipAcpWorkspaceTrackingPath(relativePath);
   }
 
   /**
