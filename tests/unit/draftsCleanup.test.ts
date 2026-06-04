@@ -85,12 +85,34 @@ describe('FileIntentClassifier', () => {
 
   test('treats bash-generated files as draft by default', () => {
     const result = classifier.classify({
-      filePath: 'analysis.csv',
+      filePath: 'analysis.bin',
       source: 'bash-generated',
     });
 
     expect(result.intent).toBe('draft');
     expect(result.reason).toContain('Bash-generated');
+  });
+
+  test('keeps bash-generated PDF deliverables in workspace root without current user intent', () => {
+    const result = classifier.classify({
+      filePath: '20260604_具身智能发展趋势报告.pdf',
+      userMessage: '?',
+      source: 'bash-generated',
+    });
+
+    expect(result.intent).toBe('final');
+    expect(result.reason).toContain('deliverable file type .pdf');
+  });
+
+  test('keeps draft-named bash-generated PDFs as draft', () => {
+    const result = classifier.classify({
+      filePath: 'temp_report.pdf',
+      userMessage: '?',
+      source: 'bash-generated',
+    });
+
+    expect(result.intent).toBe('draft');
+    expect(result.reason).toContain('draft file pattern');
   });
 
   test('promotes bash-generated file when it matches requested target type', () => {

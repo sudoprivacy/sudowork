@@ -190,6 +190,9 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
   private hasReceivedUsageUpdate = false;
   private lastAssistantTextMsgId: string | null = null;
   private turnHadVisibleAssistantContent = false;
+  private turnEventSequence = 0;
+  private lastVisibleAssistantContentSequence = 0;
+  private lastToolCompletionSequence = 0;
   private lastUserMessage: string | null = null;
   private plannedRestartInProgress = false;
   private contextOverflowRecoveryPending = false;
@@ -700,6 +703,9 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
     this.hasReceivedUsageUpdate = false;
     this.lastAssistantTextMsgId = null;
     this.turnHadVisibleAssistantContent = false;
+    this.turnEventSequence = 0;
+    this.lastVisibleAssistantContentSequence = 0;
+    this.lastToolCompletionSequence = 0;
 
     // ★ Reset turn-level file tracking for new turn
     // 重置 Turn 级别文件追踪，开始新的 Turn
@@ -1597,7 +1603,8 @@ This identity statement takes priority over the default identity in USER.md.
   }
 
   private emitFallbackCompletionMessage(finalFiles: Array<{ path: string; reason: string }>): void {
-    if (this.userCancelled || this.turnHadVisibleAssistantContent) {
+    const hasVisibleContentAfterLastTool = this.turnHadVisibleAssistantContent && this.lastVisibleAssistantContentSequence > this.lastToolCompletionSequence;
+    if (this.userCancelled || hasVisibleContentAfterLastTool) {
       return;
     }
 
@@ -1716,6 +1723,7 @@ This identity statement takes priority over the default identity in USER.md.
         }
       }
 
+      let trackedCount = 0;
       for (const changedFile of changedFiles) {
         const file = changedFile.path;
         const relativePath = nodePath.relative(this.workspace, file);
@@ -1736,13 +1744,14 @@ This identity statement takes priority over the default identity in USER.md.
           source: 'bash-generated',
           kind: changedFile.kind,
         });
+        trackedCount++;
       }
 
       // Update snapshot for next comparison
       this.workspaceFileSnapshot = currentSnapshot;
 
-      if (changedFiles.length > 0) {
-        mainLog('[AcpAgent]', `[TRACK-BASH] Total changed files tracked: ${changedFiles.length}`);
+      if (trackedCount > 0) {
+        mainLog('[AcpAgent]', `[TRACK-BASH] Total changed files tracked: ${trackedCount}`);
       }
     } catch (err) {
       mainError('[AcpAgent]', 'Failed to track Bash generated files:', err);
@@ -2202,6 +2211,9 @@ This identity statement takes priority over the default identity in USER.md.
         const statusUpdate = data as ToolCallUpdateStatus;
         const toolCallId = statusUpdate.update?.toolCallId;
         const toolStatus = statusUpdate.update?.status;
+        if (toolStatus === 'completed' || toolStatus === 'failed') {
+          this.lastToolCompletionSequence = ++this.turnEventSequence;
+        }
 
         // Breadcrumb: MCP/tool call result
         if (toolStatus === 'completed' || toolStatus === 'failed') {
@@ -2928,6 +2940,7 @@ This identity statement takes priority over the default identity in USER.md.
 
     if (filteredMessage.type === 'content' && this.hasVisibleAssistantContent(filteredMessage.data)) {
       this.turnHadVisibleAssistantContent = true;
+      this.lastVisibleAssistantContentSequence = ++this.turnEventSequence;
     }
 
     if (filteredMessage.type !== 'thought' && filteredMessage.type !== 'acp_model_info' && filteredMessage.type !== 'acp_context_usage') {

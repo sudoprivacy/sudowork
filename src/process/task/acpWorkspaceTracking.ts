@@ -1,6 +1,6 @@
 import * as nodePath from 'node:path';
 
-export const ACP_WORKSPACE_TRACKING_SKIP_DIRS = new Set(['.codex', '.drafts', '.git', '.nexus', '.sandbox-home', '.scode', 'node_modules', '__pycache__', '.venv', 'venv']);
+export const ACP_WORKSPACE_TRACKING_SKIP_DIRS = new Set(['.codex', '.drafts', '.git', '.nexus', '.sandbox-home', '.sandbox-tmp', '.scode', 'node_modules', '__pycache__', '.venv', 'venv']);
 
 export const ACP_WORKSPACE_TRACKING_SKIP_FILES = new Set(['.gitignore', '.env', '.env.local', '.DS_Store', 'Thumbs.db']);
 
