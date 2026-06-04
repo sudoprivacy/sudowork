@@ -26,6 +26,8 @@ export type ScodeCustomModelProvider = {
 const SUDOROUTER_PROVIDER_ID = 'sudorouter';
 const OPENAI_COMPAT_API = 'openai-completions';
 const OPENAI_RESPONSES_API = 'openai-responses';
+export const SCODE_AUTO_MODEL_ALIAS = 'auto';
+export const SCODE_AUTO_ROUTER_MODEL_ID = 'claude-opus-4-8';
 
 function uniqueStrings(values: string[]): string[] {
   return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
@@ -53,10 +55,7 @@ function getCustomApiType(modelId: string, api?: string): string {
   return modelApi || OPENAI_COMPAT_API;
 }
 
-function resolveDefaultModelAlias(
-  existingDefaultModel: string | undefined,
-  models: Record<string, ScodeModelEntry>
-): string | undefined {
+function resolveDefaultModelAlias(existingDefaultModel: string | undefined, models: Record<string, ScodeModelEntry>): string | undefined {
   const defaultModel = existingDefaultModel?.trim();
   if (!defaultModel) return undefined;
   if (models[defaultModel]) return defaultModel;
@@ -72,15 +71,20 @@ function isCustomApiKeyModelEntry(entry: ScodeModelEntry | undefined, providerId
   return entry?.providers?.['api-key']?.provider === providerId;
 }
 
-function buildSudorouterModelEntry(modelId: string): ScodeModelEntry {
+function buildSudorouterModelEntry(modelId: string, alias = modelId): ScodeModelEntry {
   return {
-    alias: modelId,
-    name: modelId,
+    alias,
+    name: alias,
     input: modelInputForModelId(modelId),
     providers: {
       proxy: { provider: SUDOROUTER_PROVIDER_ID, model: modelId, api: OPENAI_COMPAT_API },
     },
   };
+}
+
+export function addScodeAutoModel(models: Record<string, ScodeModelEntry>): Record<string, ScodeModelEntry> {
+  models[SCODE_AUTO_MODEL_ALIAS] = buildSudorouterModelEntry(SCODE_AUTO_ROUTER_MODEL_ID, SCODE_AUTO_MODEL_ALIAS);
+  return models;
 }
 
 function buildCustomApiKeyModelEntry(providerId: string, model: ScodeCustomModelProvider['models'][number], alias: string): ScodeModelEntry {
@@ -211,6 +215,7 @@ export function mergeSudorouterIntoScodeConfig(existing: ScodeConfig | null | un
     }
   }
 
+  addScodeAutoModel(nextModels);
   for (const modelId of modelIds) {
     nextModels[normalizeModelAlias(modelId)] = buildSudorouterModelEntry(modelId);
   }
