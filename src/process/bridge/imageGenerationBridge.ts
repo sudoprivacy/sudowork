@@ -13,10 +13,10 @@ import { detectImageMimeType, IMAGE_TARGET_RAW_SIZE } from '../../common/imageUt
 import { ipcBridge } from '../../common';
 import type { IBridgeResponse } from '../../common/ipcBridge';
 import { ProcessConfig } from '../initStorage';
-import { SUDOCLAW_DIR } from '../services/sudoclaw/SudoclawInstallService';
-import { SCODE_DIR } from '../services/scode/ScodeInstallService';
-const SUDOCLAW_CONFIG_PATH = path.join(SUDOCLAW_DIR, 'sudoclaw.json');
-const SUDOCODE_CONFIG_PATH = path.join(SCODE_DIR, 'sudocode.json');
+import { getSudoclawDir } from '../services/sudoclaw/SudoclawInstallService';
+import { getScodeDir } from '../services/scode/ScodeInstallService';
+const getSudoclawConfigPath = (): string => path.join(getSudoclawDir(), 'sudoclaw.json');
+const getSudocodeConfigPath = (): string => path.join(getScodeDir(), 'sudocode.json');
 
 const GEMINI_IMAGE_GENERATION_MODELS = new Set(['gemini-3.1-flash-image', 'gemini-3-pro-image', 'gemini-2.5-flash-image']);
 
@@ -91,7 +91,7 @@ function gcd(a: number, b: number): number {
 export function readSudorouterCredentials(): { baseUrl: string; apiKey: string } | null {
   // Priority: sudocode.json (new), fallback to sudoclaw.json (legacy)
   try {
-    const raw = fsSync.readFileSync(SUDOCODE_CONFIG_PATH, 'utf-8');
+    const raw = fsSync.readFileSync(getSudocodeConfigPath(), 'utf-8');
     const config = JSON.parse(raw) as { auth_modes?: { proxy?: Record<string, { baseUrl?: string; apiKey?: string }> } };
     const sr = config?.auth_modes?.proxy?.sudorouter;
     if (sr?.apiKey) {
@@ -102,7 +102,7 @@ export function readSudorouterCredentials(): { baseUrl: string; apiKey: string }
     // ignored
   }
   try {
-    const raw = fsSync.readFileSync(SUDOCLAW_CONFIG_PATH, 'utf-8');
+    const raw = fsSync.readFileSync(getSudoclawConfigPath(), 'utf-8');
     const config = JSON.parse(raw) as { models?: { providers?: Record<string, { baseUrl?: string; apiKey?: string }> } };
     const sr = config?.models?.providers?.sudorouter;
     if (sr?.apiKey) {
@@ -119,7 +119,7 @@ export async function resolveImageConfig(): Promise<{ baseUrl: string; apiKey: s
   // Primary: read image generation model from sudoclaw.json agents.defaults.imageGenerationModel
   let imageModelId: string | null = null;
   try {
-    const raw = fsSync.readFileSync(SUDOCLAW_CONFIG_PATH, 'utf-8');
+    const raw = fsSync.readFileSync(getSudoclawConfigPath(), 'utf-8');
     const config = JSON.parse(raw);
     const imageModel = config?.agents?.defaults?.imageGenerationModel;
     const model = typeof imageModel === 'string' ? imageModel : imageModel?.primary;
@@ -343,7 +343,7 @@ export async function callImagesEdits(baseUrl: string, apiKey: string, model: st
  */
 export function resolveChatModel(): string | null {
   try {
-    const raw = fsSync.readFileSync(SUDOCLAW_CONFIG_PATH, 'utf-8');
+    const raw = fsSync.readFileSync(getSudoclawConfigPath(), 'utf-8');
     const config = JSON.parse(raw) as { agents?: { defaults?: { model?: { primary?: string } } } };
     let model = config?.agents?.defaults?.model?.primary;
     if (!model) return null;
@@ -446,7 +446,7 @@ async function generateUserAvatar({ prompt }: { prompt: string }): Promise<IBrid
     // 模型：直接读 sudocode.json 的 tools.imageGenerationModel（由 AuthContext 登录时写入）
     let model: string | undefined;
     try {
-      const raw = fsSync.readFileSync(SUDOCODE_CONFIG_PATH, 'utf-8');
+      const raw = fsSync.readFileSync(getSudocodeConfigPath(), 'utf-8');
       const config = JSON.parse(raw) as { tools?: { imageGenerationModel?: string } };
       model = config?.tools?.imageGenerationModel;
       if (typeof model === 'string' && model.includes('/')) model = model.split('/').pop();

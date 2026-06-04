@@ -111,6 +111,11 @@ export const application = {
   updateCdpConfig: bridge.buildProvider<IBridgeResponse<ICdpConfig>, Partial<ICdpConfig>>('app.update-cdp-config'), // 更新 CDP 配置
   // Bridge Main Process logs to Renderer F12 Console
   logStream: bridge.buildEmitter<{ level: 'log' | 'warn' | 'error'; tag: string; message: string; data?: unknown }>('app.log-stream'),
+  modeSwitchStart: bridge.buildEmitter<{ switchId: string; mode: 'c' | 'e' }>('app.mode-switch-start'),
+  modeSwitchDone: bridge.buildEmitter<{ switchId: string; mode: 'c' | 'e' }>('app.mode-switch-done'),
+  modeSwitchFailed: bridge.buildEmitter<{ switchId: string; mode: 'c' | 'e'; error: string }>('app.mode-switch-failed'),
+  modeSwitchFatal: bridge.buildEmitter<{ switchId: string; mode: 'c' | 'e'; error: string }>('app.mode-switch-fatal'),
+  modeSwitchLocalStorageCleared: bridge.buildProvider<void, { switchId: string }>('app.mode-switch-local-storage-cleared'),
   // DevTools state change notification
   devToolsStateChanged: bridge.buildEmitter<{ isOpen: boolean }>('app.devtools-state-changed'),
   // Execute shell command

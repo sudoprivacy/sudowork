@@ -6,70 +6,15 @@
 
 import type { IDirOrFile } from '@/common/ipcBridge';
 import { app } from 'electron';
-import { existsSync, lstatSync, mkdirSync, readlinkSync, symlinkSync, unlinkSync } from 'fs';
+import { existsSync } from 'fs';
 import fs from 'fs/promises';
 import path from 'path';
 import { getSystemDir } from './initStorage';
 import { mainWarn, mainError } from '@process/utils/mainLogger';
+import { getDataPathForCurrentMode } from './dataRoot';
 export const getTempPath = () => {
   const rootPath = app.getPath('temp');
   return path.join(rootPath, 'nexus');
-};
-
-/**
- * Ensure CLI-safe symlink exists and return the symlink path.
- * On macOS, creates a symlink in home directory to avoid spaces in paths.
- * CLI tools like Qwen can't handle spaces in paths properly.
- *
- * 确保 CLI 安全符号链接存在并返回符号链接路径。
- * 在 macOS 上，在用户目录创建符号链接以避免路径中的空格。
- * CLI 工具如 Qwen 无法正确处理路径中的空格。
- */
-const ensureCliSafeSymlink = (targetPath: string, symlinkName: string): string => {
-  // Only needed on macOS where Application Support has a space
-  if (process.platform !== 'darwin') {
-    return targetPath;
-  }
-
-  const homePath = app.getPath('home');
-  const symlinkPath = path.join(homePath, symlinkName);
-
-  // Ensure symlink exists
-  try {
-    const stats = lstatSync(symlinkPath);
-    if (stats.isSymbolicLink()) {
-      // Symlink exists, verify it points to the correct location
-      const target = readlinkSync(symlinkPath);
-      if (target === targetPath) {
-        // Ensure the target directory still exists (broken symlink if deleted, #841)
-        if (!existsSync(targetPath)) {
-          mkdirSync(targetPath, { recursive: true });
-        }
-        return symlinkPath;
-      }
-      // Wrong target, remove and recreate
-      unlinkSync(symlinkPath);
-    } else if (stats.isDirectory()) {
-      // Real directory exists, don't touch it
-      return targetPath;
-    } else {
-      // Regular file blocking the symlink path (#841), remove it
-      unlinkSync(symlinkPath);
-    }
-  } catch {
-    // Symlink doesn't exist, create it
-  }
-
-  try {
-    // Ensure the target directory exists first
-    if (!existsSync(targetPath)) {
-      mkdirSync(targetPath, { recursive: true });
-    }
-    symlinkSync(targetPath, symlinkPath);
-    return symlinkPath;
-  } catch (error) {
-    return targetPath;
-  }
 };
 
 /**
@@ -77,8 +22,7 @@ const ensureCliSafeSymlink = (targetPath: string, symlinkName: string): string =
  * 获取数据目录路径，macOS 上使用 ~/.nexus 符号链接。
  */
 export const getDataPath = (): string => {
-  const dataPath = path.join(app.getPath('home'), '.nexus');
-  return ensureCliSafeSymlink(dataPath, '.nexus');
+  return getDataPathForCurrentMode();
 };
 
 /**

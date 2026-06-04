@@ -9,7 +9,6 @@ import { promisify } from 'util';
 
 const execAsync = promisify(exec);
 import * as fs from 'fs';
-import * as os from 'os';
 import * as path from 'path';
 import type { AcpBackendAll, PresetAgentType } from '@/types/acpTypes';
 import { POTENTIAL_ACP_CLIS } from '@/types/acpTypes';
@@ -17,17 +16,18 @@ import { ProcessConfig } from '@/process/initStorage';
 import { assistantManager } from '@/process/AssistantManager';
 import { ExtensionRegistry } from '@/extensions';
 import { getEnhancedEnv } from '@process/utils/shellEnv';
-import { SUDOCLAW_BIN_DIR } from '@/process/services/sudoclaw/SudoclawInstallService';
-import { getScodePath } from '@/process/services/scode/ScodeInstallService';
+import { getDataPath } from '@/process/utils';
+import { getSudoclawBinDir } from '@/process/services/sudoclaw/SudoclawInstallService';
+import { getScodeDir, getScodePath } from '@/process/services/scode/ScodeInstallService';
 
 /** Nexus bin directory for Claude/Gemini CLI symlinks */
-const NEXUS_BIN_DIR = path.join(os.homedir(), '.nexus', 'bin');
+const getNexusBinDir = (): string => path.join(getDataPath(), 'bin');
 
 /** Sudo Code runtime directory for the managed scode CLI */
-const SCODE_BIN_DIR = path.join(os.homedir(), '.nexus', 'sudocode');
+const getScodeBinDir = (): string => getScodeDir();
 
 /** Priority bin directories for CLI detection (scode first to prefer ~/.nexus/sudocode over ~/.nexus/bin) */
-const PRIORITY_BIN_DIRS = [SCODE_BIN_DIR, NEXUS_BIN_DIR, SUDOCLAW_BIN_DIR];
+const getPriorityBinDirs = (): string[] => [getScodeBinDir(), getNexusBinDir(), getSudoclawBinDir()];
 
 interface DetectedAgent {
   backend: AcpBackendAll;
@@ -155,7 +155,8 @@ class AcpDetector {
     // 将 Nexus bin 目录添加到 PATH 以便检测 Claude/Gemini CLI 等
     const currentPath = enhancedEnv.PATH || process.env.PATH || '';
     const pathSeparator = isWindows ? ';' : ':';
-    const dirsToAdd = PRIORITY_BIN_DIRS.filter((dir) => dir && !currentPath.includes(dir));
+    const priorityBinDirs = getPriorityBinDirs();
+    const dirsToAdd = priorityBinDirs.filter((dir) => dir && !currentPath.includes(dir));
     if (dirsToAdd.length > 0) {
       enhancedEnv = {
         ...enhancedEnv,
@@ -169,7 +170,7 @@ class AcpDetector {
      * 优先检查 ~/.nexus/bin、~/.nexus/sudocode 等目录下是否存在 CLI（解决 macOS 环境变量问题）
      */
     const findCliInPriorityDirs = (cliCommand: string): string | null => {
-      for (const binDir of PRIORITY_BIN_DIRS) {
+      for (const binDir of priorityBinDirs) {
         if (!binDir) continue;
         // Check both with and without .cmd/.exe extension on Windows
         const candidates = isWindows ? [path.join(binDir, `${cliCommand}.cmd`), path.join(binDir, `${cliCommand}.exe`), path.join(binDir, cliCommand)] : [path.join(binDir, cliCommand)];

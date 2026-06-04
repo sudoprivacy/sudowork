@@ -9,6 +9,7 @@ import { ProcessConfig } from '@process/initStorage';
 import { mainWarn, mainLog, mainError } from '@process/utils/mainLogger';
 import { setCachedAuthToken, setCachedServerUrl, setCachedAppMode, setCachedLocalModeAvailable, setCachedSessionMode } from '@/common/enterpriseDebugConfig';
 import { resetConversationProvider } from '../providers';
+import { switchAppMode } from '@process/services/modeSwitch/ModeSwitchOrchestrator';
 
 let refreshPromise: Promise<string> | null = null;
 
@@ -156,24 +157,8 @@ export function initEeclawBridge(): void {
   // Set app mode and update main process cache
   // 设置应用模式并更新主进程缓存
   ipcBridge.eeclaw.setAppMode.provider(async ({ mode }) => {
-    await ProcessConfig.set('system.appMode', mode);
-    setCachedAppMode(mode);
-    mainLog('eeclawBridge', `App mode set to: ${mode}`);
-
-    // For enterprise mode, initialize ChannelManager if not already done
-    // This handles hot-start from ModeSetup when user selects Enterprise mode
-    if (mode === 'e') {
-      try {
-        const { getChannelManager } = await import('@/channels');
-        getChannelManager()
-          .initialize()
-          .catch((error) => {
-            mainLog('eeclawBridge', 'ChannelManager already initialized or failed: ' + String(error));
-          });
-      } catch (error) {
-        mainLog('eeclawBridge', 'Failed to import ChannelManager: ' + String(error));
-      }
-    }
+    await switchAppMode(mode);
+    mainLog('eeclawBridge', `App mode switched to: ${mode}`);
   });
 
   // Set session mode (remote/local) for enterprise mode

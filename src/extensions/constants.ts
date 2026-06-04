@@ -14,8 +14,18 @@ export const EXTENSION_MANIFEST_FILE = 'aion-extension.json';
 export const EXTENSIONS_DIR_NAME = 'extensions';
 export const PATH_SEPARATOR = process.platform === 'win32' ? ';' : ':';
 
+function getActiveDataPath(): string {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { getDataPath } = require('@process/utils') as typeof import('@process/utils');
+    return getDataPath();
+  } catch {
+    return path.join(os.homedir(), '.nexus');
+  }
+}
+
 export function getUserExtensionsDir(): string {
-  return path.join(os.homedir(), '.nexus', EXTENSIONS_DIR_NAME);
+  return path.join(getActiveDataPath(), EXTENSIONS_DIR_NAME);
 }
 
 export function getAppDataExtensionsDir(): string {

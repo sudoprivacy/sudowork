@@ -11,6 +11,7 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import '../adapter/browser';
 import Main from './main';
+import ModeSwitchOverlay from './components/ModeSwitchOverlay';
 import { AuthProvider } from './context/AuthContext';
 import { TenantConfigProvider } from './context/TenantConfigContext';
 import { ThemeProvider } from './context/ThemeContext';
@@ -77,4 +78,6 @@ const Config: React.FC<PropsWithChildren> = ({ children }) => {
 
 const App = HOC.Wrapper(Config)(Main);
 
-root.render(React.createElement(AppProviders, null, React.createElement(App)));
+const AppShell = () => React.createElement(React.Fragment, null, React.createElement(App), React.createElement(ModeSwitchOverlay));
+
+root.render(React.createElement(AppProviders, null, React.createElement(AppShell)));

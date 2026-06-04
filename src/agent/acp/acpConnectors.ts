@@ -18,6 +18,7 @@ import os from 'os';
 import path from 'path';
 import { CLAUDE_ACP_NPX_PACKAGE, CODEBUDDY_ACP_NPX_PACKAGE, CODEX_ACP_BRIDGE_VERSION, CODEX_ACP_NPX_PACKAGE } from '@/types/acpTypes';
 import { findSuitableNodeBin, getEnhancedEnv, resolveNpxPath } from '@process/utils/shellEnv';
+import { getDataPath } from '@process/utils';
 import { mainLog, mainWarn } from '@process/utils/mainLogger';
 import { isSafetyHookEnabled } from '@process/services/safety/SafetyPollingService';
 import { app } from 'electron';
@@ -135,7 +136,7 @@ export function resolveScodeAuthModeFromConfig(config: unknown, settings: unknow
 
 function readScodeAuthModeFromDisk(modelOverride?: string | null): ScodeAuthMode | null {
   try {
-    const scodeDir = path.join(os.homedir(), '.nexus', 'sudocode');
+    const scodeDir = path.join(getDataPath(), 'sudocode');
     const configPath = path.join(scodeDir, 'sudocode.json');
     const settingsPath = path.join(scodeDir, 'settings.json');
     const config = JSON.parse(readFileSync(configPath, 'utf-8')) as unknown;
@@ -256,12 +257,12 @@ export function prepareCleanEnv({ injectSafetyHook = true }: PrepareCleanEnvOpti
   // PYTHONPATH for ai_dev_browser module resolution (browser tool).
   // The browser skill dir contains ai_dev_browser (symlinked from vendor).
   // Python silently ignores non-existent entries, so no existence check needed.
-  const browserSkillDir = path.join(os.homedir(), '.nexus', 'skills', '_system', '_builtin', 'browser');
+  const browserSkillDir = path.join(getDataPath(), 'skills', '_system', '_builtin', 'browser');
   const prevPythonPath = cleanEnv.PYTHONPATH || '';
   cleanEnv.PYTHONPATH = prevPythonPath ? `${browserSkillDir}${path.delimiter}${prevPythonPath}` : browserSkillDir;
 
   // Add sudoclaw/bin to PATH so the `browser` CLI wrapper is available to ACP agents.
-  const sudoclawBinDir = path.join(os.homedir(), '.nexus', 'sudoclaw', 'bin');
+  const sudoclawBinDir = path.join(getDataPath(), 'sudoclaw', 'bin');
   const prevPath = cleanEnv.PATH || '';
   if (existsSync(sudoclawBinDir) && !prevPath.includes(sudoclawBinDir)) {
     cleanEnv.PATH = `${sudoclawBinDir}${path.delimiter}${prevPath}`;
@@ -534,7 +535,7 @@ async function prepareCodebuddy(customEnv?: Record<string, string>): Promise<Npx
  */
 function readProxyCredsFromSudocode(): { apiKey: string; baseUrl: string } | null {
   try {
-    const configPath = path.join(os.homedir(), '.nexus', 'sudocode', 'sudocode.json');
+    const configPath = path.join(getDataPath(), 'sudocode', 'sudocode.json');
     const content = readFileSync(configPath, 'utf-8');
     const config = JSON.parse(content);
     const sudorouter = config?.auth_modes?.proxy?.sudorouter;
@@ -555,7 +556,7 @@ function readProxyCredsFromSudocode(): { apiKey: string; baseUrl: string } | nul
  */
 function readAnthropicCredsFromSudoclaw(): { apiKey: string; baseUrl: string } | null {
   try {
-    const configPath = path.join(os.homedir(), '.nexus', 'sudoclaw', 'sudoclaw.json');
+    const configPath = path.join(getDataPath(), 'sudoclaw', 'sudoclaw.json');
     const content = readFileSync(configPath, 'utf-8');
     const config = JSON.parse(content);
     const providers = config?.models?.providers;
@@ -621,7 +622,7 @@ export async function spawnGenericBackend(backend: string, cliPath: string, work
   // Inject SUDOCODE_CONFIG_PATH for scode so skill bash scripts can locate sudocode.json
   // even when claude-code overrides $HOME to a sandbox directory (.sandbox-home/).
   if (backend === 'scode' && !cleanEnv.SUDOCODE_CONFIG_PATH) {
-    cleanEnv.SUDOCODE_CONFIG_PATH = path.join(os.homedir(), '.nexus', 'sudocode', 'sudocode.json');
+    cleanEnv.SUDOCODE_CONFIG_PATH = path.join(getDataPath(), 'sudocode', 'sudocode.json');
     mainLog('[ACP scode]', `Injected SUDOCODE_CONFIG_PATH: ${cleanEnv.SUDOCODE_CONFIG_PATH}`);
   }
 
@@ -678,7 +679,7 @@ export async function spawnGenericBackend(backend: string, cliPath: string, work
   // This prevents a death loop: crash → reconnect → read bad settings.json → crash again.
   if (backend === 'scode') {
     try {
-      const scodeDir = path.join(os.homedir(), '.nexus', 'sudocode');
+      const scodeDir = path.join(getDataPath(), 'sudocode');
       const settingsPath = path.join(scodeDir, 'settings.json');
       let settings: Record<string, unknown> = {};
       try {

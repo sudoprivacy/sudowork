@@ -15,6 +15,7 @@ import { convertToMcporterConfig, type McporterConfig } from './mcporterConfig';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import { safeExec } from '@process/utils/safeExec';
 import { getNodeBinaryPath, ensureNodeInstalled, isNodeInstalled } from '@process/services/claudeCli/NodeRuntimeService';
+import { getDataPath } from '@process/utils';
 
 /**
  * mcporter daemon 状态
@@ -35,7 +36,7 @@ interface McporterExecResult {
 }
 
 // mcporter 解压目录（用户目录下，可写入）
-const MCPORTER_EXTRACT_DIR = path.join(os.homedir(), '.nexus', 'mcporter', 'package');
+const getMcporterExtractDir = (): string => path.join(getDataPath(), 'mcporter', 'package');
 
 /**
  * mcporter 服务 - 管理 MCP 配置和 daemon
@@ -45,18 +46,12 @@ const MCPORTER_EXTRACT_DIR = path.join(os.homedir(), '.nexus', 'mcporter', 'pack
  * 2. 开发模式：使用npx运行系统安装的mcporter
  */
 class McporterService {
-  private configPath: string;
-  private configDir: string;
   private daemonProcess: ChildProcess | null = null;
   private readonly TIMEOUT = 30000;
   private isBundledMode: boolean;
   private extractPromise: Promise<void> | null = null;
 
   constructor() {
-    // 配置路径: ~/.nexus/mcporter/mcporter.json
-    this.configDir = path.join(os.homedir(), '.nexus', 'mcporter');
-    this.configPath = path.join(this.configDir, 'mcporter.json');
-
     // 判断是否使用内嵌模式
     // 开发模式下可通过环境变量 MCPORTER_BUNDLED=1 强制使用内嵌包测试
     const forceBundled = process.env.MCPORTER_BUNDLED === '1';
@@ -73,8 +68,8 @@ class McporterService {
    */
   private async ensureMcporterExtracted(): Promise<void> {
     // 如果已经解压过，直接返回
-    if (existsSync(MCPORTER_EXTRACT_DIR) && existsSync(path.join(MCPORTER_EXTRACT_DIR, 'node_modules', 'mcporter'))) {
-      mainLog('McporterService', 'mcporter already extracted to:', MCPORTER_EXTRACT_DIR);
+    if (existsSync(getMcporterExtractDir()) && existsSync(path.join(getMcporterExtractDir(), 'node_modules', 'mcporter'))) {
+      mainLog('McporterService', 'mcporter already extracted to:', getMcporterExtractDir());
       return;
     }
 
@@ -98,8 +93,8 @@ class McporterService {
     mainLog('McporterService', 'Extracting mcporter.tgz...');
 
     // 确保目标目录存在（必须先创建，否则tar无法切换到该目录）
-    mkdirSync(MCPORTER_EXTRACT_DIR, { recursive: true });
-    mainLog('McporterService', 'Created extract directory:', MCPORTER_EXTRACT_DIR);
+    mkdirSync(getMcporterExtractDir(), { recursive: true });
+    mainLog('McporterService', 'Created extract directory:', getMcporterExtractDir());
 
     // 获取tgz路径
     const tgzPath = this.getMcporterTgzPath();
@@ -113,7 +108,7 @@ class McporterService {
     // Windows可能没有tar命令，使用Node内置方式或其他方法
     // 现代Windows 10+ 已经有内置tar命令
     const tarCommand = isWindows ? 'tar' : 'tar';
-    const tarArgs = ['-xzf', tgzPath, '-C', MCPORTER_EXTRACT_DIR];
+    const tarArgs = ['-xzf', tgzPath, '-C', getMcporterExtractDir()];
 
     mainLog('McporterService', `Extracting: ${tarCommand} ${tarArgs.join(' ')}`);
 
@@ -146,13 +141,13 @@ class McporterService {
     });
 
     // 验证解压结果
-    const expectedCliPath = path.join(MCPORTER_EXTRACT_DIR, 'node_modules', 'mcporter', 'dist', 'cli.js');
+    const expectedCliPath = path.join(getMcporterExtractDir(), 'node_modules', 'mcporter', 'dist', 'cli.js');
     if (!existsSync(expectedCliPath)) {
       // 列出解压后的目录结构帮助调试
       mainWarn('McporterService', 'Expected CLI not found, listing extracted structure...');
       try {
         // eslint-disable-next-line @typescript-eslint/no-var-requires
-        const items = require('fs').readdirSync(MCPORTER_EXTRACT_DIR);
+        const items = require('fs').readdirSync(getMcporterExtractDir());
         mainLog('McporterService', 'Extracted items:', items.join(', '));
       } catch {
         // ignored
@@ -186,13 +181,13 @@ class McporterService {
    */
   private getMcporterCliPath(): string | null {
     // 解压后的CLI路径
-    const cliPath = path.join(MCPORTER_EXTRACT_DIR, 'node_modules', 'mcporter', 'dist', 'cli.js');
+    const cliPath = path.join(getMcporterExtractDir(), 'node_modules', 'mcporter', 'dist', 'cli.js');
     if (existsSync(cliPath)) {
       return cliPath;
     }
 
     // 备选路径
-    const altPaths = [path.join(MCPORTER_EXTRACT_DIR, 'node_modules', 'mcporter', 'bin', 'cli.js'), path.join(MCPORTER_EXTRACT_DIR, 'node_modules', 'mcporter', 'cli.js')];
+    const altPaths = [path.join(getMcporterExtractDir(), 'node_modules', 'mcporter', 'bin', 'cli.js'), path.join(getMcporterExtractDir(), 'node_modules', 'mcporter', 'cli.js')];
 
     for (const altPath of altPaths) {
       if (existsSync(altPath)) {
@@ -207,14 +202,14 @@ class McporterService {
    * 获取 mcporter 配置文件路径
    */
   getConfigPath(): string {
-    return this.configPath;
+    return path.join(this.getConfigDir(), 'mcporter.json');
   }
 
   /**
    * 获取 mcporter 配置目录路径
    */
   getConfigDir(): string {
-    return this.configDir;
+    return path.join(getDataPath(), 'mcporter');
   }
 
   /**
@@ -311,7 +306,7 @@ class McporterService {
     mainLog('McporterService', `Running mcporter via npx: npx mcporter ${args.join(' ')}`);
     return safeExec(`npx mcporter ${args.join(' ')}`, {
       timeout: timeout || this.TIMEOUT,
-      env: { ...process.env, MCPORTER_CONFIG: this.configPath },
+      env: { ...process.env, MCPORTER_CONFIG: this.getConfigPath() },
     });
   }
 
@@ -324,7 +319,7 @@ class McporterService {
 
       const env = {
         ...process.env,
-        MCPORTER_CONFIG: this.configPath,
+        MCPORTER_CONFIG: this.getConfigPath(),
       };
 
       const spawnOptions = {
@@ -392,9 +387,9 @@ class McporterService {
    * 确保配置目录存在
    */
   private ensureConfigDir(): void {
-    if (!existsSync(this.configDir)) {
-      mkdirSync(this.configDir, { recursive: true });
-      mainLog('McporterService', `Created config directory: ${this.configDir}`);
+    if (!existsSync(this.getConfigDir())) {
+      mkdirSync(this.getConfigDir(), { recursive: true });
+      mainLog('McporterService', `Created config directory: ${this.getConfigDir()}`);
     }
   }
 
@@ -408,8 +403,8 @@ class McporterService {
     const configJson = JSON.stringify(config, null, 2);
 
     try {
-      writeFileSync(this.configPath, configJson, 'utf-8');
-      mainLog('McporterService', `Synced ${Object.keys(config.mcpServers).length} MCP servers to ${this.configPath}`);
+      writeFileSync(this.getConfigPath(), configJson, 'utf-8');
+      mainLog('McporterService', `Synced ${Object.keys(config.mcpServers).length} MCP servers to ${this.getConfigPath()}`);
 
       await this.syncToClaudeCode(config.mcpServers);
 
@@ -473,10 +468,10 @@ class McporterService {
    */
   readConfig(): McporterConfig | null {
     try {
-      if (!existsSync(this.configPath)) {
+      if (!existsSync(this.getConfigPath())) {
         return null;
       }
-      const content = readFileSync(this.configPath, 'utf-8');
+      const content = readFileSync(this.getConfigPath(), 'utf-8');
       return JSON.parse(content) as McporterConfig;
     } catch (error) {
       mainWarn('McporterService', 'Failed to read config:', error);
@@ -523,7 +518,7 @@ class McporterService {
 
       const env = {
         ...process.env,
-        MCPORTER_CONFIG: this.configPath,
+        MCPORTER_CONFIG: this.getConfigPath(),
       };
 
       const isWindows = process.platform === 'win32';
@@ -570,7 +565,7 @@ class McporterService {
     try {
       const env = {
         ...process.env,
-        MCPORTER_CONFIG: this.configPath,
+        MCPORTER_CONFIG: this.getConfigPath(),
       };
 
       this.daemonProcess = spawn('npx', ['mcporter', 'daemon', 'start', '--detach'], {
@@ -678,7 +673,7 @@ class McporterService {
    * Wrapper script 目录（复用 sudoclaw 的 bin 目录）
    */
   private getBinDir(): string {
-    return path.join(os.homedir(), '.nexus', 'bin');
+    return path.join(getDataPath(), 'bin');
   }
 
   /**
@@ -733,7 +728,7 @@ class McporterService {
     const lines = [
       '@echo off',
       'setlocal',
-      `set "MCPORTER_CONFIG=${this.configPath}"`,
+      `set "MCPORTER_CONFIG=${this.getConfigPath()}"`,
       `set "CLI=${cliPath}"`,
       '',
       ':: 1. Bundled Node.js (from Sudowork)',
@@ -744,7 +739,7 @@ class McporterService {
       ')',
       '',
       ':: 2. Electron as Node',
-      'set "ELECTRON_PATH_FILE=%USERPROFILE%\\.nexus\\electron-path"',
+      `set "ELECTRON_PATH_FILE=${path.join(getDataPath(), 'electron-path')}"`,
       'set "ELECTRON="',
       'if exist "%ELECTRON_PATH_FILE%" (',
       '  set /p ELECTRON=<"%ELECTRON_PATH_FILE%"',
@@ -780,7 +775,7 @@ class McporterService {
     const lines = [
       '#!/bin/sh',
       '# mcporter wrapper — managed by Sudowork',
-      `MCPORTER_CONFIG="${this.configPath}"`,
+      `MCPORTER_CONFIG="${this.getConfigPath()}"`,
       `CLI="${cliPath}"`,
       '',
       '# 1. Bundled Node.js (from Sudowork)',
@@ -791,7 +786,7 @@ class McporterService {
       'fi',
       '',
       '# 2. Electron as Node',
-      'ELECTRON_PATH_FILE="$HOME/.nexus/electron-path"',
+      `ELECTRON_PATH_FILE="${path.join(getDataPath(), 'electron-path')}"`,
       'if [ -f "$ELECTRON_PATH_FILE" ]; then',
       '  ELECTRON=$(cat "$ELECTRON_PATH_FILE")',
       '  if [ -x "$ELECTRON" ]; then',
@@ -819,6 +814,45 @@ class McporterService {
    */
   async cleanup(): Promise<void> {
     await this.stopDaemon();
+  }
+
+  async stop(): Promise<void> {
+    const daemonProcess = this.daemonProcess;
+    await this.stopDaemon();
+    if (!daemonProcess || daemonProcess.killed || !daemonProcess.pid) {
+      return;
+    }
+
+    await new Promise<void>((resolve) => {
+      const timer = setTimeout(() => {
+        try {
+          if (process.platform !== 'win32') {
+            process.kill(-daemonProcess.pid!, 'SIGKILL');
+          } else {
+            daemonProcess.kill('SIGKILL');
+          }
+        } catch {
+          // already exited
+        }
+        resolve();
+      }, 5000);
+
+      daemonProcess.once('exit', () => {
+        clearTimeout(timer);
+        resolve();
+      });
+
+      try {
+        if (process.platform !== 'win32') {
+          process.kill(-daemonProcess.pid, 'SIGTERM');
+        } else {
+          daemonProcess.kill('SIGTERM');
+        }
+      } catch {
+        clearTimeout(timer);
+        resolve();
+      }
+    });
   }
 }
 

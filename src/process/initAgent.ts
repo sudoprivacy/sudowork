@@ -13,7 +13,7 @@ import fsSync from 'fs';
 import path from 'path';
 import { DRAFTS_DIR_NAME } from '@/common/constants';
 import { getSystemDir } from './initStorage';
-import { SUDOCLAW_DIR } from './services/sudoclaw/SudoclawInstallService';
+import { getSudoclawConfigPath } from './services/sudoclaw/SudoclawInstallService';
 import { ensureWorkspaceAgentsMdRules } from './services/scode/ScodeInstallService';
 
 /**
@@ -87,8 +87,7 @@ export const createAcpAgent = async (options: ICreateConversationParams): Promis
 
 export function getSudoclawWorkspaceRoot(): string {
   try {
-    const configPath = path.join(SUDOCLAW_DIR, 'sudoclaw.json');
-    const raw = fsSync.readFileSync(configPath, 'utf-8');
+    const raw = fsSync.readFileSync(getSudoclawConfigPath(), 'utf-8');
     const cfg = JSON.parse(raw);
     const configured = cfg?.agents?.defaults?.workspace;
     if (typeof configured === 'string' && configured.trim()) {

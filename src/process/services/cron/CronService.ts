@@ -76,6 +76,29 @@ class CronService {
     }
   }
 
+  async stopAll(): Promise<void> {
+    for (const jobId of [...this.timers.keys()]) {
+      this.stopTimer(jobId);
+    }
+    for (const jobId of [...this.retryTimers.keys()]) {
+      this.stopTimer(jobId);
+    }
+    if (this.powerSaveBlockerId !== null) {
+      try {
+        powerSaveBlocker.stop(this.powerSaveBlockerId);
+      } catch (error) {
+        mainWarn('CronService', 'Failed to stop powerSaveBlocker:', error);
+      }
+      this.powerSaveBlockerId = null;
+    }
+    this.initialized = false;
+  }
+
+  async reloadAll(): Promise<void> {
+    await this.stopAll();
+    await this.init();
+  }
+
   /**
    * Add a new cron job. Multiple jobs may bind the same conversation.
    */

@@ -11,20 +11,29 @@ import type { ExtensionState } from './types';
 import { extensionEventBus, ExtensionSystemEvents } from './ExtensionEventBus';
 
 const EXTENSION_STATES_FILE_ENV = 'NEXUS_EXTENSION_STATES_FILE';
-const DEFAULT_STATES_DIR = '.nexus';
 const DEFAULT_STATES_FILE = 'extension-states.json';
+
+function getDefaultStatesDir(): string {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { getDataPath } = require('@process/utils') as typeof import('@process/utils');
+    return getDataPath();
+  } catch {
+    return path.join(os.homedir(), '.nexus');
+  }
+}
 
 function resolveStatesFile(): string {
   const override = process.env[EXTENSION_STATES_FILE_ENV]?.trim();
   if (override) {
     return path.resolve(override);
   }
-  return path.join(os.homedir(), DEFAULT_STATES_DIR, DEFAULT_STATES_FILE);
+  return path.join(getDefaultStatesDir(), DEFAULT_STATES_FILE);
 }
 
 /**
  * Persisted state format on disk.
- * Stored at ~/.nexus/extension-states.json by default.
+ * Stored at <active-data-root>/extension-states.json by default.
  * Can be overridden via NEXUS_EXTENSION_STATES_FILE.
  */
 interface PersistedStates {

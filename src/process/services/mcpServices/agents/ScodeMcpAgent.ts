@@ -13,8 +13,17 @@ import path from 'path';
 import os from 'os';
 
 const TAG = 'ScodeMcpAgent';
-export const SCODE_SETTINGS_PATH = path.join(os.homedir(), '.nexus', 'sudocode', 'settings.json');
 const SCODE_DISABLED_MCP_SERVERS = new Set(['chrome-devtools']);
+
+export function getScodeSettingsPath(): string {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { getDataPath } = require('@process/utils') as typeof import('@process/utils');
+    return path.join(getDataPath(), 'sudocode', 'settings.json');
+  } catch {
+    return path.join(os.homedir(), '.nexus', 'sudocode', 'settings.json');
+  }
+}
 
 function isDisabledForScode(serverName: string): boolean {
   return SCODE_DISABLED_MCP_SERVERS.has(serverName);
@@ -41,8 +50,9 @@ export function removeDisabledMcpServersFromSettings(settings: Record<string, un
  * Read existing settings.json, returns empty object on failure.
  */
 export function readSettings(): Record<string, unknown> {
+  const settingsPath = getScodeSettingsPath();
   try {
-    return JSON.parse(fs.readFileSync(SCODE_SETTINGS_PATH, 'utf-8'));
+    return JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
   } catch {
     return {};
   }
@@ -52,12 +62,13 @@ export function readSettings(): Record<string, unknown> {
  * Write settings.json, preserving non-MCP fields.
  */
 export function writeSettings(settings: Record<string, unknown>): void {
-  const dir = path.dirname(SCODE_SETTINGS_PATH);
+  const settingsPath = getScodeSettingsPath();
+  const dir = path.dirname(settingsPath);
   fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(SCODE_SETTINGS_PATH, JSON.stringify(settings, null, 2), 'utf-8');
+  fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf-8');
   if (process.platform !== 'win32') {
     try {
-      fs.chmodSync(SCODE_SETTINGS_PATH, 0o600);
+      fs.chmodSync(settingsPath, 0o600);
     } catch {
       /* ignore */
     }
@@ -97,7 +108,7 @@ function toScodeServerConfig(server: IMcpServer): Record<string, unknown> | null
 
 /**
  * Sudo Code (scode) MCP agent implementation.
- * Syncs MCP servers to ~/.nexus/sudocode/settings.json so scode reads them natively.
+ * Syncs MCP servers to the active data root's sudocode/settings.json so scode reads them natively.
  */
 export class ScodeMcpAgent extends AbstractMcpAgent {
   constructor() {

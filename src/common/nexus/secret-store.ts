@@ -15,7 +15,7 @@ let clientInstance: SecretStoreClient | null = null;
  *
  * Uses resolveConfig() to read full config (apiKey, baseUrl, subject, agentId, zoneId):
  * 1. Explicit overrides (constructor args)
- * 2. Config file (./nexus.yaml → ~/.nexus/config.yaml)
+ * 2. Config file (./nexus.yaml → <active-data-root>/config.yaml)
  * 3. Environment variables (NEXUS_URL, NEXUS_API_KEY, NEXUS_SUBJECT, etc.)
  * 4. Defaults: http://localhost:12012
  */

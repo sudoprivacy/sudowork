@@ -18,6 +18,7 @@ import * as path from 'path';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import runtimeVersions from '@/shared/runtime-versions.json';
 import { extractTarGzWithProgress, extractZipWithProgress, listTarGzEntries, listZipEntries } from '../archiveProgress';
+import { getDataPath } from '@process/utils';
 
 const TAG = 'ScodeInstallService';
 
@@ -26,16 +27,16 @@ const SCODE_OS_NAME_MAP: Record<string, string> = { darwin: 'macos', win32: 'win
 /** Architecture mapping: Node.js process.arch → scode archive arch name */
 const SCODE_ARCH_NAME_MAP: Record<string, string> = { arm64: 'arm64', x64: 'x64' };
 
-/** Scode root: ~/.nexus/sudocode */
-export const SCODE_DIR = path.join(os.homedir(), '.nexus', 'sudocode');
+/** Scode root: <data-root>/sudocode */
+export const getScodeDir = (): string => path.join(getDataPath(), 'sudocode');
 
 /** Marker filename to record installed version */
 const SCODE_READY_MARKER = '.scode-bin-ready';
 
 /** GitHub release base URL for scode downloads */
 const SCODE_GITHUB_RELEASE_BASE_URL = 'https://github.com/sudoprivacy/sudocode/releases/download';
-const SCODE_SKILLS_DIR = path.join(SCODE_DIR, 'skills');
-const SCODE_LEGACY_MANAGED_SKILLS_FILE = path.join(SCODE_DIR, '.sudowork-managed-skills.json');
+const getScodeSkillsDir = (): string => path.join(getScodeDir(), 'skills');
+const getScodeLegacyManagedSkillsFile = (): string => path.join(getScodeDir(), '.sudowork-managed-skills.json');
 const SCODE_PRESERVED_ENTRY_NAMES = new Set(['sudocode.json', 'scode.json', 'settings.json', 'skills', 'AGENTS.md']);
 
 /** Marker used to identify the safety-rules section inside AGENTS.md */
@@ -54,7 +55,7 @@ const AGENTS_MD_MANAGED_MARKERS = [AGENTS_MD_SAFETY_MARKER, AGENTS_MD_IDENTITY_M
 
 function readLegacyManagedScodeSkillEntries(): Map<string, string> {
   try {
-    const raw = fs.readFileSync(SCODE_LEGACY_MANAGED_SKILLS_FILE, 'utf-8');
+    const raw = fs.readFileSync(getScodeLegacyManagedSkillsFile(), 'utf-8');
     const parsed = JSON.parse(raw) as { entries?: Record<string, unknown> };
     if (!parsed.entries || typeof parsed.entries !== 'object') {
       return new Map();
@@ -84,13 +85,16 @@ function readSymlinkTarget(linkPath: string): string | null {
 }
 
 function cleanupLegacyManagedScodeSkills(): void {
-  if (!fs.existsSync(SCODE_LEGACY_MANAGED_SKILLS_FILE)) {
+  const legacyManagedSkillsFile = getScodeLegacyManagedSkillsFile();
+  const scodeSkillsDir = getScodeSkillsDir();
+
+  if (!fs.existsSync(legacyManagedSkillsFile)) {
     return;
   }
 
   const managedEntries = readLegacyManagedScodeSkillEntries();
   for (const [name, previousTarget] of managedEntries) {
-    const linkPath = path.join(SCODE_SKILLS_DIR, name);
+    const linkPath = path.join(scodeSkillsDir, name);
     const currentTarget = readSymlinkTarget(linkPath);
     if (!currentTarget || currentTarget !== previousTarget) {
       continue;
@@ -100,14 +104,14 @@ function cleanupLegacyManagedScodeSkills(): void {
   }
 
   try {
-    if (fs.existsSync(SCODE_SKILLS_DIR) && fs.readdirSync(SCODE_SKILLS_DIR).length === 0) {
-      fs.rmSync(SCODE_SKILLS_DIR, { recursive: true, force: true });
+    if (fs.existsSync(scodeSkillsDir) && fs.readdirSync(scodeSkillsDir).length === 0) {
+      fs.rmSync(scodeSkillsDir, { recursive: true, force: true });
     }
   } catch (error) {
     mainWarn(TAG, `Failed to clean legacy scode skills directory: ${error instanceof Error ? error.message : String(error)}`);
   }
 
-  fs.rmSync(SCODE_LEGACY_MANAGED_SKILLS_FILE, { force: true });
+  fs.rmSync(legacyManagedSkillsFile, { force: true });
 }
 
 /** Get the scode executable name for the current platform */
@@ -142,12 +146,12 @@ function getScodeVersion(): string {
 
 /** Get the installed scode binary path */
 function getInstalledScodePath(): string {
-  return path.join(SCODE_DIR, getScodeExeName());
+  return path.join(getScodeDir(), getScodeExeName());
 }
 
 /** Get the ready marker path */
 function getReadyMarkerPath(): string {
-  return path.join(SCODE_DIR, SCODE_READY_MARKER);
+  return path.join(getScodeDir(), SCODE_READY_MARKER);
 }
 
 /** Check if marker file content matches current version */
@@ -381,7 +385,7 @@ export async function ensureScodeInstalled(options?: { forceReinstall?: boolean;
     return true;
   }
 
-  const binDir = SCODE_DIR;
+  const binDir = getScodeDir();
   let archivePath: string | null = null;
   const downloadDir = path.join(os.tmpdir(), 'scode-download');
   const downloadDest = path.join(downloadDir, getVersionedArchiveName());
@@ -632,7 +636,7 @@ function ensureAgentsMdRulesAt(agentsMdPath: string): void {
  * Ensure the user-level AGENTS.md contains managed rules.
  */
 export function ensureAgentsMdRules(): void {
-  ensureAgentsMdRulesAt(path.join(SCODE_DIR, 'AGENTS.md'));
+  ensureAgentsMdRulesAt(path.join(getScodeDir(), 'AGENTS.md'));
 }
 
 /**
@@ -645,19 +649,20 @@ export function ensureWorkspaceAgentsMdRules(workspace: string): void {
 
 /** Remove managed runtime artifacts while preserving user-managed config and skills. */
 export function removeScodeInstallation(): void {
-  if (!fs.existsSync(SCODE_DIR)) {
+  const scodeDir = getScodeDir();
+  if (!fs.existsSync(scodeDir)) {
     return;
   }
 
   cleanupLegacyManagedScodeSkills();
 
-  const entries = fs.readdirSync(SCODE_DIR, { withFileTypes: true });
+  const entries = fs.readdirSync(scodeDir, { withFileTypes: true });
   for (const entry of entries) {
     if (SCODE_PRESERVED_ENTRY_NAMES.has(entry.name)) {
       continue;
     }
 
-    const entryPath = path.join(SCODE_DIR, entry.name);
+    const entryPath = path.join(scodeDir, entry.name);
     fs.rmSync(entryPath, { recursive: true, force: true });
   }
 }

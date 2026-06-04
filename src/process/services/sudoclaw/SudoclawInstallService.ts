@@ -25,6 +25,7 @@ import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import runtimeVersions from '@/shared/runtime-versions.json';
 import { extractTarGzWithProgress } from '../archiveProgress';
 import { buildVersion } from '@/common/buildInfo';
+import { getDataPath } from '@process/utils';
 
 type SudoclawInstallResult = {
   installed: boolean;
@@ -38,21 +39,21 @@ const LEGACY_SUDOCLAW_DIR = path.join(os.homedir(), '.sudoclaw');
 /** Legacy path for migration from ~/.nexus/.sudoclaw (dot-prefixed) */
 const LEGACY_SUDOCLAW_DIR_V2 = path.join(os.homedir(), '.nexus', '.sudoclaw');
 
-/** Sudoclaw root: ~/.nexus/sudoclaw (macOS/Linux) or %USERPROFILE%\.nexus\sudoclaw (Windows) */
-export const SUDOCLAW_DIR = path.join(os.homedir(), '.nexus', 'sudoclaw');
+/** Sudoclaw root: <data-root>/sudoclaw */
+export const getSudoclawDir = (): string => path.join(getDataPath(), 'sudoclaw');
 
 /** Default gateway port for Sudoclaw (17863) */
 export const SUDOCLAW_DEFAULT_PORT = 17863;
 
-const SUDOCLAW_CLI_DIR = path.join(SUDOCLAW_DIR, 'cli');
-const SUDOCLAW_CLI_STAGING_DIR = path.join(SUDOCLAW_DIR, 'cli.new');
-const SUDOCLAW_CLI_BACKUP_DIR = path.join(SUDOCLAW_DIR, 'cli.old');
+const getSudoclawCliDir = (): string => path.join(getSudoclawDir(), 'cli');
+const getSudoclawCliStagingDir = (): string => path.join(getSudoclawDir(), 'cli.new');
+const getSudoclawCliBackupDir = (): string => path.join(getSudoclawDir(), 'cli.old');
 /** CLI bin path: ~/.nexus/sudoclaw/cli/package/bin/ (included in tgz) */
-export const SUDOCLAW_BIN_DIR = path.join(SUDOCLAW_CLI_DIR, 'package', 'bin');
+export const getSudoclawBinDir = (): string => path.join(getSudoclawCliDir(), 'package', 'bin');
 /** sudowork-owned dispatcher bin (aidb wrapper + future per-tool shims). */
-export const SUDOCLAW_SUDOWORK_BIN_DIR = path.join(SUDOCLAW_DIR, 'bin');
-const SUDOCLAW_WORKSPACE_DIR = path.join(SUDOCLAW_DIR, 'workspace');
-const SUDOCLAW_INSTALL_MANIFEST_PATH = path.join(SUDOCLAW_DIR, 'install-manifest.json');
+export const getSudoclawSudoworkBinDir = (): string => path.join(getSudoclawDir(), 'bin');
+const getSudoclawWorkspaceDir = (): string => path.join(getSudoclawDir(), 'workspace');
+const getSudoclawInstallManifestPath = (): string => path.join(getSudoclawDir(), 'install-manifest.json');
 
 /** COS base URL for downloading sudoclaw archives at runtime */
 const SUDOCLAW_COS_BASE_URL = 'https://sudoworkhub-1309794936.cos.ap-beijing.myqcloud.com';
@@ -67,7 +68,7 @@ const SUDOCLAW_ARCH_NAME_MAP: Record<string, string> = { arm64: 'arm64', x64: 'x
 export const CONFIG_FILENAME = 'sudoclaw.json';
 
 /** Full path to sudoclaw.json config file */
-export const SUDOCLAW_CONFIG_PATH = path.join(SUDOCLAW_DIR, CONFIG_FILENAME);
+export const getSudoclawConfigPath = (): string => path.join(getSudoclawDir(), CONFIG_FILENAME);
 
 const SUDOCLAW_DEFAULT_GATEWAY_RELOAD = {
   mode: 'hot' as const,
@@ -76,8 +77,9 @@ const SUDOCLAW_TAVILY_WEB_SEARCH_BASE_URL = 'https://hk.sudorouter.ai/search/tav
 
 /** Remove only the extracted Sudoclaw CLI runtime, preserving user config and workspace data. */
 export function removeSudoclawCli(): void {
-  if (fs.existsSync(SUDOCLAW_CLI_DIR)) {
-    fs.rmSync(SUDOCLAW_CLI_DIR, { recursive: true, force: true });
+  const cliDir = getSudoclawCliDir();
+  if (fs.existsSync(cliDir)) {
+    fs.rmSync(cliDir, { recursive: true, force: true });
   }
 }
 
@@ -97,7 +99,7 @@ function resolvePackageRootFrom(cliDir: string): string | null {
 }
 
 function resolvePackageRoot(): string | null {
-  return resolvePackageRootFrom(SUDOCLAW_CLI_DIR);
+  return resolvePackageRootFrom(getSudoclawCliDir());
 }
 
 type SudoclawInstallManifest = {
@@ -125,7 +127,7 @@ function isValidInstallManifest(value: unknown): value is SudoclawInstallManifes
 }
 
 function readSudoclawInstallManifest(): SudoclawInstallManifest | null {
-  const manifest = readJsonFile<unknown>(SUDOCLAW_INSTALL_MANIFEST_PATH);
+  const manifest = readJsonFile<unknown>(getSudoclawInstallManifestPath());
   return isValidInstallManifest(manifest) ? manifest : null;
 }
 
@@ -210,8 +212,8 @@ function writeSudoclawInstallManifest(): void {
   if (!manifest) return;
 
   try {
-    fs.mkdirSync(SUDOCLAW_DIR, { recursive: true });
-    fs.writeFileSync(SUDOCLAW_INSTALL_MANIFEST_PATH, JSON.stringify(manifest, null, 2), 'utf-8');
+    fs.mkdirSync(getSudoclawDir(), { recursive: true });
+    fs.writeFileSync(getSudoclawInstallManifestPath(), JSON.stringify(manifest, null, 2), 'utf-8');
   } catch (err) {
     mainWarn('Sudoclaw', `Failed to write install manifest: ${err instanceof Error ? err.message : String(err)}`);
   }
@@ -332,16 +334,18 @@ async function switchCliDirectory(stagingDir: string): Promise<void> {
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
-      removeDirIfExists(SUDOCLAW_CLI_BACKUP_DIR);
+      const cliDir = getSudoclawCliDir();
+      const backupDir = getSudoclawCliBackupDir();
+      removeDirIfExists(backupDir);
 
-      if (fs.existsSync(SUDOCLAW_CLI_DIR)) {
-        fs.renameSync(SUDOCLAW_CLI_DIR, SUDOCLAW_CLI_BACKUP_DIR);
+      if (fs.existsSync(cliDir)) {
+        fs.renameSync(cliDir, backupDir);
       }
 
-      fs.renameSync(stagingDir, SUDOCLAW_CLI_DIR);
+      fs.renameSync(stagingDir, cliDir);
 
       try {
-        removeDirIfExists(SUDOCLAW_CLI_BACKUP_DIR);
+        removeDirIfExists(backupDir);
       } catch (cleanupErr) {
         mainWarn('Sudoclaw', `Failed to remove backup directory after switch: ${cleanupErr instanceof Error ? cleanupErr.message : String(cleanupErr)}`);
       }
@@ -349,9 +353,11 @@ async function switchCliDirectory(stagingDir: string): Promise<void> {
     } catch (err) {
       lastError = err;
 
-      if (!fs.existsSync(SUDOCLAW_CLI_DIR) && fs.existsSync(SUDOCLAW_CLI_BACKUP_DIR)) {
+      const cliDir = getSudoclawCliDir();
+      const backupDir = getSudoclawCliBackupDir();
+      if (!fs.existsSync(cliDir) && fs.existsSync(backupDir)) {
         try {
-          fs.renameSync(SUDOCLAW_CLI_BACKUP_DIR, SUDOCLAW_CLI_DIR);
+          fs.renameSync(backupDir, cliDir);
         } catch {
           // Leave backup in place for manual recovery.
         }
@@ -381,8 +387,8 @@ function getLauncherPath(pkgRoot: string): string {
 
 /** Migrate config filename from openclaw.json to sudoclaw.json */
 function migrateConfigFilename(): void {
-  const oldConfigPath = path.join(SUDOCLAW_DIR, 'openclaw.json');
-  const newConfigPath = path.join(SUDOCLAW_DIR, CONFIG_FILENAME);
+  const oldConfigPath = path.join(getSudoclawDir(), 'openclaw.json');
+  const newConfigPath = getSudoclawConfigPath();
   if (fs.existsSync(oldConfigPath) && !fs.existsSync(newConfigPath)) {
     try {
       fs.renameSync(oldConfigPath, newConfigPath);
@@ -395,7 +401,7 @@ function migrateConfigFilename(): void {
 
 /** Repair sudoclaw.json schema — add models array to providers and fill missing defaults without overwriting user workspace choices. */
 export function repairSudoclawConfig(): void {
-  const configPath = path.join(SUDOCLAW_DIR, CONFIG_FILENAME);
+  const configPath = getSudoclawConfigPath();
   if (!fs.existsSync(configPath)) return;
   try {
     const raw = fs.readFileSync(configPath, 'utf-8');
@@ -407,9 +413,9 @@ export function repairSudoclawConfig(): void {
     if (agents?.defaults) {
       const currentWorkspace = agents.defaults.workspace;
       if (typeof currentWorkspace !== 'string' || !currentWorkspace.trim()) {
-        agents.defaults.workspace = SUDOCLAW_WORKSPACE_DIR;
+        agents.defaults.workspace = getSudoclawWorkspaceDir();
         changed = true;
-        mainLog('Sudoclaw', `Filled missing workspace path: ${SUDOCLAW_WORKSPACE_DIR}`);
+        mainLog('Sudoclaw', `Filled missing workspace path: ${getSudoclawWorkspaceDir()}`);
       }
     }
 
@@ -617,7 +623,7 @@ export function repairSudoclawConfig(): void {
   // This covers scenarios where macOS upgrades or filesystem changes remove the
   // workspace directory or USER.md file after the initial installation.
   try {
-    fs.mkdirSync(SUDOCLAW_WORKSPACE_DIR, { recursive: true });
+    fs.mkdirSync(getSudoclawWorkspaceDir(), { recursive: true });
     ensureUserMdSafetyRules();
     ensureUserMdIdentityStatement();
     ensureUserMdNoGeneratedByStatement();
@@ -630,13 +636,13 @@ export function repairSudoclawConfig(): void {
 }
 
 export function ensureDefaultConfig(): void {
-  const configPath = path.join(SUDOCLAW_DIR, CONFIG_FILENAME);
+  const configPath = getSudoclawConfigPath();
   if (fs.existsSync(configPath)) return;
 
   const defaultConfig = {
     agents: {
       defaults: {
-        workspace: SUDOCLAW_WORKSPACE_DIR,
+        workspace: getSudoclawWorkspaceDir(),
         model: { primary: 'sudorouter/gemini-3.5-flash', fallbacks: [] as string[] },
         models: {},
       },
@@ -693,7 +699,7 @@ export function ensureDefaultConfig(): void {
     },
   };
 
-  fs.mkdirSync(SUDOCLAW_DIR, { recursive: true });
+  fs.mkdirSync(getSudoclawDir(), { recursive: true });
   fs.writeFileSync(configPath, JSON.stringify(defaultConfig, null, 2), 'utf-8');
   if (process.platform !== 'win32') {
     try {
@@ -790,10 +796,10 @@ export function ensureSudoworkBinDispatchers(): void {
     return;
   }
   try {
-    fs.mkdirSync(SUDOCLAW_SUDOWORK_BIN_DIR, { recursive: true });
+    fs.mkdirSync(getSudoclawSudoworkBinDir(), { recursive: true });
     for (const entry of fs.readdirSync(source)) {
       const srcPath = path.join(source, entry);
-      const destPath = path.join(SUDOCLAW_SUDOWORK_BIN_DIR, entry);
+      const destPath = path.join(getSudoclawSudoworkBinDir(), entry);
       try {
         fs.copyFileSync(srcPath, destPath);
         if (process.platform !== 'win32' && !entry.endsWith('.cmd')) {
@@ -803,7 +809,7 @@ export function ensureSudoworkBinDispatchers(): void {
         mainWarn('Sudoclaw', `Failed to install dispatcher ${entry}: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
-    mainLog('Sudoclaw', `Installed aidb dispatcher into ${SUDOCLAW_SUDOWORK_BIN_DIR}`);
+    mainLog('Sudoclaw', `Installed aidb dispatcher into ${getSudoclawSudoworkBinDir()}`);
   } catch (err) {
     mainWarn('Sudoclaw', `Failed to install sudowork bin dispatchers: ${err instanceof Error ? err.message : String(err)}`);
   }
@@ -841,7 +847,7 @@ function resolveSudoworkBinSource(): string | null {
  * raising it would balloon context).
  */
 export function patchOpenclawToolResultCap(): void {
-  const bundlePath = path.join(SUDOCLAW_DIR, 'cli', 'package', 'openclaw.mjs');
+  const bundlePath = path.join(getSudoclawDir(), 'cli', 'package', 'openclaw.mjs');
   if (!fs.existsSync(bundlePath)) {
     return;
   }
@@ -905,7 +911,7 @@ export function patchOpenclawToolResultCap(): void {
  * context on every subsequent call.
  */
 export function patchOpenclawKeepImageData(): void {
-  const bundlePath = path.join(SUDOCLAW_DIR, 'cli', 'package', 'openclaw.mjs');
+  const bundlePath = path.join(getSudoclawDir(), 'cli', 'package', 'openclaw.mjs');
   if (!fs.existsSync(bundlePath)) {
     return;
   }
@@ -1001,7 +1007,7 @@ export function patchOpenclawKeepImageData(): void {
  * instead — see Option B in the investigation note).
  */
 export function patchOpenclawKeepToolResult(): void {
-  const bundlePath = path.join(SUDOCLAW_DIR, 'cli', 'package', 'openclaw.mjs');
+  const bundlePath = path.join(getSudoclawDir(), 'cli', 'package', 'openclaw.mjs');
   if (!fs.existsSync(bundlePath)) {
     return;
   }
@@ -1061,7 +1067,7 @@ export function patchOpenclawKeepToolResult(): void {
  * becomes a no-op (pattern miss → warn + fail open).
  */
 export function patchOpenclawReadDescription(): void {
-  const bundlePath = path.join(SUDOCLAW_DIR, 'cli', 'package', 'openclaw.mjs');
+  const bundlePath = path.join(getSudoclawDir(), 'cli', 'package', 'openclaw.mjs');
   if (!fs.existsSync(bundlePath)) {
     return;
   }
@@ -1127,7 +1133,7 @@ export function patchOpenclawReadDescription(): void {
  * tool on the first try.
  */
 export function patchOpenclawPdfDescription(): void {
-  const bundlePath = path.join(SUDOCLAW_DIR, 'cli', 'package', 'openclaw.mjs');
+  const bundlePath = path.join(getSudoclawDir(), 'cli', 'package', 'openclaw.mjs');
   if (!fs.existsSync(bundlePath)) {
     return;
   }
@@ -1158,7 +1164,7 @@ export function patchOpenclawPdfDescription(): void {
 }
 
 export function ensureUserMdSafetyRules(): void {
-  const userMdPath = path.join(SUDOCLAW_WORKSPACE_DIR, 'USER.md');
+  const userMdPath = path.join(getSudoclawWorkspaceDir(), 'USER.md');
   const safetyRulesBlock = `
 ${USER_MD_SAFETY_MARKER}
 ## 文件删除安全规则 / File Deletion Safety Rules
@@ -1217,7 +1223,7 @@ This rule applies to all deletion scenarios: single file deletion, recursive fol
  * block is updated; otherwise it is appended.
  */
 export function ensureUserMdIdentityStatement(): void {
-  const userMdPath = path.join(SUDOCLAW_WORKSPACE_DIR, 'USER.md');
+  const userMdPath = path.join(getSudoclawWorkspaceDir(), 'USER.md');
   const identityBlock = `
 ${USER_MD_IDENTITY_MARKER}
 ## Identity Statement
@@ -1295,7 +1301,7 @@ Response guidelines:
  * not to proactively add OpenClaw attribution statements in generated files.
  */
 export function ensureUserMdNoGeneratedByStatement(): void {
-  const userMdPath = path.join(SUDOCLAW_WORKSPACE_DIR, 'USER.md');
+  const userMdPath = path.join(getSudoclawWorkspaceDir(), 'USER.md');
   const noGeneratedByBlock = `
 ${USER_MD_NO_GENERATED_BY_MARKER}
 ## 不要添加 OpenClaw 归属声明 / No OpenClaw Attribution Statement
@@ -1346,7 +1352,7 @@ This applies to all generated content: source code files, documentation files, c
  * not to proactively mention or reference USER.md in conversation responses.
  */
 export function ensureUserMdNoExposeUserMdStatement(): void {
-  const userMdPath = path.join(SUDOCLAW_WORKSPACE_DIR, 'USER.md');
+  const userMdPath = path.join(getSudoclawWorkspaceDir(), 'USER.md');
   const noExposeUserMdBlock = `
 ${USER_MD_NO_EXPOSE_USERMD_MARKER}
 ## 禁止暴露 USER.md 文件存在 / No Exposing USER.md File Existence
@@ -1402,7 +1408,7 @@ This applies to all conversation scenarios. Simply execute the required behavior
  * block is updated; otherwise it is appended.
  */
 export function ensureUserMdFileSendInstruction(): void {
-  const userMdPath = path.join(SUDOCLAW_WORKSPACE_DIR, 'USER.md');
+  const userMdPath = path.join(getSudoclawWorkspaceDir(), 'USER.md');
   const fileSendBlock = `
 ${USER_MD_FILE_SEND_MARKER}
 ## 文件发送指令 / File Send Instruction
@@ -1484,7 +1490,7 @@ Example:
  * block is updated; otherwise it is appended.
  */
 export function ensureUserMdVersionInfoStatement(): void {
-  const userMdPath = path.join(SUDOCLAW_WORKSPACE_DIR, 'USER.md');
+  const userMdPath = path.join(getSudoclawWorkspaceDir(), 'USER.md');
   const versionInfoBlock = `
 ${USER_MD_VERSION_INFO_MARKER}
 ## 版本信息规则 / Version Info Rules
@@ -1546,7 +1552,7 @@ Response example: "Current SudoClaw version: ${buildVersion}"
  * block is updated; otherwise it is appended.
  */
 export function updateUserMdUsernameStatement(username: string): void {
-  const userMdPath = path.join(SUDOCLAW_WORKSPACE_DIR, 'USER.md');
+  const userMdPath = path.join(getSudoclawWorkspaceDir(), 'USER.md');
   const usernameBlock = `
 ${USER_MD_USERNAME_MARKER}
 ## 用户称呼规则 / User Addressing Rules
@@ -1568,8 +1574,8 @@ When addressing the user, must use the username shown above (${username}):
 
   try {
     // Ensure workspace directory exists
-    if (!fs.existsSync(SUDOCLAW_WORKSPACE_DIR)) {
-      fs.mkdirSync(SUDOCLAW_WORKSPACE_DIR, { recursive: true });
+    if (!fs.existsSync(getSudoclawWorkspaceDir())) {
+      fs.mkdirSync(getSudoclawWorkspaceDir(), { recursive: true });
     }
 
     if (!fs.existsSync(userMdPath)) {
@@ -1601,12 +1607,12 @@ When addressing the user, must use the username shown above (${username}):
  * If IDENTITY.md doesn't exist or has no Name field, creates/updates it with proper format.
  */
 export function updateIdentityMdName(name: string): void {
-  const identityMdPath = path.join(SUDOCLAW_WORKSPACE_DIR, 'IDENTITY.md');
+  const identityMdPath = path.join(getSudoclawWorkspaceDir(), 'IDENTITY.md');
 
   try {
     // Ensure workspace directory exists
-    if (!fs.existsSync(SUDOCLAW_WORKSPACE_DIR)) {
-      fs.mkdirSync(SUDOCLAW_WORKSPACE_DIR, { recursive: true });
+    if (!fs.existsSync(getSudoclawWorkspaceDir())) {
+      fs.mkdirSync(getSudoclawWorkspaceDir(), { recursive: true });
     }
 
     if (!fs.existsSync(identityMdPath)) {
@@ -1678,18 +1684,18 @@ function migrateLegacySudoclaw(): void {
 
 function migrateLegacyDir(legacyDir: string, label: string): void {
   if (!fs.existsSync(legacyDir)) return;
-  if (fs.existsSync(SUDOCLAW_DIR)) {
+  if (fs.existsSync(getSudoclawDir())) {
     mainLog('Sudoclaw', `Skipped migrating ${label} because ~/.nexus/sudoclaw already exists`);
     return;
   }
   try {
-    fs.mkdirSync(path.dirname(SUDOCLAW_DIR), { recursive: true });
-    fs.renameSync(legacyDir, SUDOCLAW_DIR);
+    fs.mkdirSync(path.dirname(getSudoclawDir()), { recursive: true });
+    fs.renameSync(legacyDir, getSudoclawDir());
     mainLog('Sudoclaw', `Migrated ${label} to ~/.nexus/sudoclaw`);
   } catch (err) {
     mainError('Sudoclaw', `Migration from ${label} failed, falling back to copy`, err);
     try {
-      fs.cpSync(legacyDir, SUDOCLAW_DIR, { recursive: true });
+      fs.cpSync(legacyDir, getSudoclawDir(), { recursive: true });
       fs.rmSync(legacyDir, { recursive: true, force: true });
       mainLog('Sudoclaw', `Migrated ${label} to ~/.nexus/sudoclaw (copy)`);
     } catch (copyErr) {
@@ -1847,7 +1853,7 @@ export async function ensureSudoclawInstalled(options?: { forceReinstall?: boole
   migrateConfigFilename();
   ensureDefaultConfig();
   repairSudoclawConfig();
-  fs.mkdirSync(SUDOCLAW_WORKSPACE_DIR, { recursive: true });
+  fs.mkdirSync(getSudoclawWorkspaceDir(), { recursive: true });
   ensureUserMdSafetyRules();
   ensureUserMdIdentityStatement();
   ensureUserMdNoGeneratedByStatement();
@@ -1872,10 +1878,10 @@ export async function ensureSudoclawInstalled(options?: { forceReinstall?: boole
   let downloadedTempPath: string | null = null;
 
   try {
-    fs.mkdirSync(SUDOCLAW_DIR, { recursive: true });
-    removeDirIfExists(SUDOCLAW_CLI_STAGING_DIR);
-    removeDirIfExists(SUDOCLAW_CLI_BACKUP_DIR);
-    fs.mkdirSync(SUDOCLAW_CLI_STAGING_DIR, { recursive: true });
+    fs.mkdirSync(getSudoclawDir(), { recursive: true });
+    removeDirIfExists(getSudoclawCliStagingDir());
+    removeDirIfExists(getSudoclawCliBackupDir());
+    fs.mkdirSync(getSudoclawCliStagingDir(), { recursive: true });
 
     // Re-extract if existing install is incomplete or version upgrade is required
     if (pkgRoot || forceReinstall) {
@@ -1899,21 +1905,21 @@ export async function ensureSudoclawInstalled(options?: { forceReinstall?: boole
     mainLog('Sudoclaw', `Using OpenClaw from ${bundledPath}...`);
 
     try {
-      await extractTarGzWithProgress(bundledPath, SUDOCLAW_CLI_STAGING_DIR, options?.onProgress);
+      await extractTarGzWithProgress(bundledPath, getSudoclawCliStagingDir(), options?.onProgress);
     } catch (err) {
       const error = formatInstallError('Failed to extract bundled OpenClaw archive', err);
       mainError('Sudoclaw', error, err);
       return { installed: false, cliPath: null, error };
     }
 
-    const newPkgRoot = resolvePackageRootFrom(SUDOCLAW_CLI_STAGING_DIR);
+    const newPkgRoot = resolvePackageRootFrom(getSudoclawCliStagingDir());
     if (!newPkgRoot) {
       const error = 'Extracted OpenClaw package could not be resolved';
       mainError('Sudoclaw', error);
       return { installed: false, cliPath: null, error };
     }
 
-    await switchCliDirectory(SUDOCLAW_CLI_STAGING_DIR);
+    await switchCliDirectory(getSudoclawCliStagingDir());
 
     const activePkgRoot = resolvePackageRoot();
     if (!activePkgRoot) {
@@ -1924,7 +1930,7 @@ export async function ensureSudoclawInstalled(options?: { forceReinstall?: boole
 
     ensureDefaultConfig();
     repairSudoclawConfig(); // Ensure config is fully repaired after creation
-    fs.mkdirSync(SUDOCLAW_WORKSPACE_DIR, { recursive: true });
+    fs.mkdirSync(getSudoclawWorkspaceDir(), { recursive: true });
     ensureUserMdSafetyRules();
     ensureUserMdIdentityStatement();
     ensureUserMdNoGeneratedByStatement();
@@ -1933,7 +1939,7 @@ export async function ensureSudoclawInstalled(options?: { forceReinstall?: boole
     ensureUserMdVersionInfoStatement();
     writeSudoclawInstallManifest();
 
-    mainLog('Sudoclaw', `OpenClaw installed to ${SUDOCLAW_DIR}`);
+    mainLog('Sudoclaw', `OpenClaw installed to ${getSudoclawDir()}`);
     return { installed: true, cliPath: getLauncherPath(activePkgRoot) };
   } catch (err) {
     const error = formatInstallError('Sudoclaw install failed', err);
@@ -1941,7 +1947,7 @@ export async function ensureSudoclawInstalled(options?: { forceReinstall?: boole
     return { installed: false, cliPath: null, error };
   } finally {
     try {
-      removeDirIfExists(SUDOCLAW_CLI_STAGING_DIR);
+      removeDirIfExists(getSudoclawCliStagingDir());
     } catch {
       // Ignore staging cleanup errors.
     }

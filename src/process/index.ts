@@ -20,9 +20,39 @@ import { getChannelManager } from '@/channels';
 import { ExtensionRegistry } from '@/extensions';
 import { initStatusManager } from './services/initStatus';
 import { mainLog, mainError, perfLog } from './utils/mainLogger';
-import { refreshEnterpriseCache } from '@/common/enterpriseDebugConfig';
+import { refreshEnterpriseCache, setCachedAppMode } from '@/common/enterpriseDebugConfig';
+import { persistDataRootMode, readPersistedDataRootMode, type AppMode } from './dataRoot';
 // Crash bridge must be initialized early to handle renderer errors before other bridges
 import { initCrashBridge } from './bridge/crashBridge';
+
+const reconcileDataRootMode = async (): Promise<AppMode | null> => {
+  const persistedMode = readPersistedDataRootMode();
+  const storedMode = ProcessConfig.getSync('system.appMode') ?? null;
+
+  if (persistedMode) {
+    if (storedMode !== persistedMode) {
+      await ProcessConfig.set('system.appMode', persistedMode);
+    }
+    setCachedAppMode(persistedMode);
+    return persistedMode;
+  }
+
+  if (storedMode === 'e') {
+    mainLog('Process', 'No data-root mode marker found; treating legacy ~/.nexus enterprise state as consumer mode');
+    await ProcessConfig.set('system.appMode', 'c');
+    persistDataRootMode('c');
+    setCachedAppMode('c');
+    return 'c';
+  }
+
+  if (storedMode === 'c') {
+    persistDataRootMode('c');
+    setCachedAppMode('c');
+    return 'c';
+  }
+
+  return null;
+};
 
 export const initializeProcess = async () => {
   const totalStart = Date.now();
@@ -43,6 +73,7 @@ export const initializeProcess = async () => {
   // 1. Initialize storage first (required for most bridges)
   const storageStart = Date.now();
   await initStorage();
+  await reconcileDataRootMode();
   perfLog('initStorage', Date.now() - storageStart);
 
   // 2. Initialize bridge as soon as storage is ready

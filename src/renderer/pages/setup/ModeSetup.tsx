@@ -58,9 +58,6 @@ const ModeSetup: React.FC = () => {
   const handleConsumerNext = async () => {
     try {
       await setAppMode('c');
-      // Notify main process to start consumer services, then reload renderer
-      // (avoids full app relaunch — same approach as enterprise mode)
-      await ipcBridge.application.startConsumerServices.invoke();
       window.location.reload();
     } catch (error) {
       console.error('[ModeSetup] Failed to set consumer mode:', error);
@@ -104,9 +101,6 @@ const ModeSetup: React.FC = () => {
         await ConfigStorage.set('eeclaw.serverUrl', normalizedUrl);
         await ConfigStorage.set('eeclaw.tenantName', tenantConfig.app_company_name);
         localStorage.setItem(TENANT_CONFIG_STORAGE_KEY, JSON.stringify(tenantConfig));
-
-        // Notify main process to start local services, then reload renderer
-        await ipcBridge.application.startConsumerServices.invoke();
 
         // Reload page — setAppMode triggers re-render that unmounts this component
         // before any navigation can execute, so use reload instead

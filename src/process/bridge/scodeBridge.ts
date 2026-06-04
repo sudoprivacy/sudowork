@@ -14,13 +14,8 @@
 import { ipcBridge } from '@/common';
 import { modelInputForModelId } from '@/common/imageUtils';
 import type { ScodeModelEntry } from '@/common/ipcBridge';
-import {
-  extractCustomProvidersFromScodeConfig,
-  mergeCustomProvidersIntoScodeConfig,
-  normalizeCustomApiKeyModelsInScodeConfig,
-  type ScodeCustomModelProvider,
-} from '@/common/scodeConfig';
-import { SCODE_DIR, isScodeInstalled, getScodeVersionState, ensureScodeInstalled } from '@process/services/scode/ScodeInstallService';
+import { extractCustomProvidersFromScodeConfig, mergeCustomProvidersIntoScodeConfig, normalizeCustomApiKeyModelsInScodeConfig, type ScodeCustomModelProvider } from '@/common/scodeConfig';
+import { getScodeDir, isScodeInstalled, getScodeVersionState, ensureScodeInstalled } from '@process/services/scode/ScodeInstallService';
 import { readSettings, removeDisabledMcpServersFromSettings, writeSettings } from '@process/services/mcpServices/agents/ScodeMcpAgent';
 import { getDatabase } from '@process/database';
 import fs from 'fs';
@@ -28,12 +23,12 @@ import path from 'path';
 import { mainLog, mainWarn } from '@process/utils/mainLogger';
 
 const TAG = 'ScodeBridge';
-const SUDOCODE_CONFIG_PATH = path.join(SCODE_DIR, 'sudocode.json');
+const getSudocodeConfigPath = (): string => path.join(getScodeDir(), 'sudocode.json');
 
 /** Read existing sudocode.json, returns empty object on failure */
 function readExistingConfig(): Record<string, unknown> {
   try {
-    return JSON.parse(fs.readFileSync(SUDOCODE_CONFIG_PATH, 'utf-8'));
+    return JSON.parse(fs.readFileSync(getSudocodeConfigPath(), 'utf-8'));
   } catch {
     return {};
   }
@@ -41,11 +36,12 @@ function readExistingConfig(): Record<string, unknown> {
 
 /** Write config to sudocode.json, ensuring directory exists */
 function writeConfig(config: Record<string, unknown>): void {
-  fs.mkdirSync(SCODE_DIR, { recursive: true });
-  fs.writeFileSync(SUDOCODE_CONFIG_PATH, JSON.stringify(config, null, 2), 'utf-8');
+  const configPath = getSudocodeConfigPath();
+  fs.mkdirSync(getScodeDir(), { recursive: true });
+  fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
   if (process.platform !== 'win32') {
     try {
-      fs.chmodSync(SUDOCODE_CONFIG_PATH, 0o600);
+      fs.chmodSync(configPath, 0o600);
     } catch {
       /* ignore */
     }

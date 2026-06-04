@@ -170,6 +170,17 @@ export class ServiceManager {
     }
   }
 
+  reset(): void {
+    this.startupInProgress = false;
+    this.shuttingDown = false;
+    this.sudoclawStartPromise = null;
+    this.nexusStartPromise = null;
+    this.gatewayReadyResolve = null;
+    this.gatewayReadyPromise = null;
+    this.secretsReadyResolve = null;
+    this.secretsReadyPromise = null;
+  }
+
   // ────────────────────────────────────────────────────────────────────────────
   //  Nexus
   // ────────────────────────────────────────────────────────────────────────────
@@ -418,7 +429,9 @@ export class ServiceManager {
     try {
       mainLog('ServiceManager', 'Starting Sudoclaw gateway...');
       const { OpenClawGatewayManager } = await import('@/agent/sudoclaw');
-      const { SUDOCLAW_DIR, SUDOCLAW_DEFAULT_PORT, SUDOCLAW_CONFIG_PATH, ensureDefaultConfig, repairSudoclawConfig, getSudoclawVersionState, ensureSudoclawInstalled, ensureUserMdSafetyRules, ensureUserMdIdentityStatement, ensureUserMdNoGeneratedByStatement, ensureUserMdNoExposeUserMdStatement, ensureUserMdFileSendInstruction, ensureUserMdVersionInfoStatement } = await import('../sudoclaw/SudoclawInstallService');
+      const { getSudoclawDir, SUDOCLAW_DEFAULT_PORT, getSudoclawConfigPath, ensureDefaultConfig, repairSudoclawConfig, getSudoclawVersionState, ensureSudoclawInstalled, ensureUserMdSafetyRules, ensureUserMdIdentityStatement, ensureUserMdNoGeneratedByStatement, ensureUserMdNoExposeUserMdStatement, ensureUserMdFileSendInstruction, ensureUserMdVersionInfoStatement } = await import('../sudoclaw/SudoclawInstallService');
+      const sudoclawDir = getSudoclawDir();
+      const sudoclawConfigPath = getSudoclawConfigPath();
       await this.ensureNodeReadyForSudoclawStart();
 
       const versionState = getSudoclawVersionState();
@@ -480,7 +493,8 @@ export class ServiceManager {
       // `$env:PYTHONPATH=...; python -m ai_dev_browser.tools.page_info --url X`.
       const sudoworkBinEnv: Record<string, string> = {};
       try {
-        const { ensureSudoworkBinDispatchers, patchOpenclawToolResultCap, patchOpenclawKeepImageData, patchOpenclawKeepToolResult, patchOpenclawReadDescription, patchOpenclawPdfDescription, SUDOCLAW_SUDOWORK_BIN_DIR } = await import('../sudoclaw/SudoclawInstallService');
+        const { ensureSudoworkBinDispatchers, patchOpenclawToolResultCap, patchOpenclawKeepImageData, patchOpenclawKeepToolResult, patchOpenclawReadDescription, patchOpenclawPdfDescription, getSudoclawSudoworkBinDir } = await import('../sudoclaw/SudoclawInstallService');
+        const sudoworkBinDir = getSudoclawSudoworkBinDir();
         ensureSudoworkBinDispatchers();
         // Re-assert openclaw bundle patches on every gateway start so an
         // upstream openclaw update doesn't silently re-cap tool results
@@ -495,7 +509,7 @@ export class ServiceManager {
         patchOpenclawReadDescription();
         patchOpenclawPdfDescription();
         const prevPath = process.env.PATH ?? '';
-        sudoworkBinEnv.PATH = prevPath.length > 0 ? `${SUDOCLAW_SUDOWORK_BIN_DIR}${path.delimiter}${prevPath}` : SUDOCLAW_SUDOWORK_BIN_DIR;
+        sudoworkBinEnv.PATH = prevPath.length > 0 ? `${sudoworkBinDir}${path.delimiter}${prevPath}` : sudoworkBinDir;
         // ai-dev-browser v0.5.1 reads AI_DEV_BROWSER_OUTPUT_DIR as the
         // `--path`-omitted default for screenshot / dump tools (falls back
         // to `./screenshots/` under CWD if unset). openclaw's exec tool
@@ -531,7 +545,7 @@ export class ServiceManager {
       // inject to support ad-hoc scripts referencing SUDOROUTER.)
       const sudorouterEnv: Record<string, string> = {};
       try {
-        const raw = await fs.promises.readFile(SUDOCLAW_CONFIG_PATH, 'utf-8');
+        const raw = await fs.promises.readFile(sudoclawConfigPath, 'utf-8');
         const cfg = JSON.parse(raw) as {
           models?: { providers?: Record<string, { baseUrl?: string; apiKey?: string }> };
         };
@@ -544,10 +558,10 @@ export class ServiceManager {
 
       this.gateway = new OpenClawGatewayManager({
         port: SUDOCLAW_DEFAULT_PORT,
-        stateDir: SUDOCLAW_DIR,
+        stateDir: sudoclawDir,
         customEnv: {
-          OPENCLAW_STATE_DIR: SUDOCLAW_DIR,
-          OPENCLAW_CONFIG_PATH: SUDOCLAW_CONFIG_PATH,
+          OPENCLAW_STATE_DIR: sudoclawDir,
+          OPENCLAW_CONFIG_PATH: sudoclawConfigPath,
           ...adbSidechannelEnv,
           ...pythonPathEnv,
           ...sudoworkBinEnv,
@@ -569,7 +583,7 @@ export class ServiceManager {
       // Sudoclaw may create a default USER.md template on first run, which could
       // overwrite rules written before startup. Run again after gateway is healthy.
       try {
-        fs.mkdirSync(path.join(SUDOCLAW_DIR, 'workspace'), { recursive: true });
+        fs.mkdirSync(path.join(sudoclawDir, 'workspace'), { recursive: true });
         ensureUserMdSafetyRules();
         ensureUserMdIdentityStatement();
         ensureUserMdNoGeneratedByStatement();
@@ -582,7 +596,7 @@ export class ServiceManager {
 
       // Sync image model from sudowork config to sudoclaw.json on every startup.
       // Covers first-time (no prior user interaction) and ensures sudoclaw.json stays in sync.
-      void this.syncImageModelToSudoclaw(SUDOCLAW_CONFIG_PATH);
+      void this.syncImageModelToSudoclaw(sudoclawConfigPath);
     } catch (err) {
       mainError('ServiceManager', 'Sudoclaw gateway start failed', err);
       // Resolve with null so waiters don't hang forever.

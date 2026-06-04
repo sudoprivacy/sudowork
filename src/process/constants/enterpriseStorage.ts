@@ -12,24 +12,24 @@
  */
 
 import path from 'path';
-import os from 'os';
 import fs from 'fs/promises';
 import { existsSync, mkdirSync } from 'fs';
 import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
 import { ENTERPRISE_SKILL_SUBDIRS, SKILL_SUBDIRS, SKILL_HUB_META_FILE, MOSS_SKILL_META_FILE } from './skillStorage';
 import { ENTERPRISE_ASSISTANT_SUBDIRS, ASSISTANT_SUBDIRS, ASSISTANT_META_FILE, MOSS_ASSISTANT_META_FILE } from './assistantStorage';
+import { getDataPath } from '@process/utils';
 
 // Re-export for use in bridge files
 export { ENTERPRISE_SKILL_SUBDIRS, ENTERPRISE_ASSISTANT_SUBDIRS };
 
-/** Nexus root directory (~/.nexus) */
-export const NEXUS_DIR = path.join(os.homedir(), '.nexus');
+/** Nexus root directory (<data-root>) */
+export const getNexusDir = (): string => getDataPath();
 
 /** Skills root directory */
-export const SKILLS_ROOT_DIR = path.join(NEXUS_DIR, 'skills');
+export const getSkillsRootDir = (): string => path.join(getNexusDir(), 'skills');
 
 /** Assistants root directory */
-export const ASSISTANTS_ROOT_DIR = path.join(NEXUS_DIR, 'assistants');
+export const getAssistantsRootDir = (): string => path.join(getNexusDir(), 'assistants');
 
 /** Source type for skills/assistants */
 export type SourceType = 'hub' | 'custom' | 'tenant' | 'system';
@@ -98,7 +98,7 @@ export function getAssistantSubdirName(sourceType: SourceType): string {
  */
 export function getSkillInstallDir(skillName: string, sourceType: SourceType): string {
   const subdirName = getSkillSubdirName(sourceType);
-  return path.join(SKILLS_ROOT_DIR, subdirName, skillName);
+  return path.join(getSkillsRootDir(), subdirName, skillName);
 }
 
 /**
@@ -111,7 +111,7 @@ export function getSkillInstallDir(skillName: string, sourceType: SourceType): s
  */
 export function getAssistantInstallDir(assistantName: string, sourceType: SourceType): string {
   const subdirName = getAssistantSubdirName(sourceType);
-  return path.join(ASSISTANTS_ROOT_DIR, subdirName, assistantName);
+  return path.join(getAssistantsRootDir(), subdirName, assistantName);
 }
 
 /**
@@ -119,7 +119,7 @@ export function getAssistantInstallDir(assistantName: string, sourceType: Source
  * 获取 Hub 安装技能目录路径
  */
 export function getEnterpriseHubSkillsDir(): string {
-  return path.join(SKILLS_ROOT_DIR, ENTERPRISE_SKILL_SUBDIRS.hub);
+  return path.join(getSkillsRootDir(), ENTERPRISE_SKILL_SUBDIRS.hub);
 }
 
 /**
@@ -127,7 +127,7 @@ export function getEnterpriseHubSkillsDir(): string {
  * 获取自定义技能目录路径
  */
 export function getEnterpriseCustomSkillsDir(): string {
-  return path.join(SKILLS_ROOT_DIR, ENTERPRISE_SKILL_SUBDIRS.custom);
+  return path.join(getSkillsRootDir(), ENTERPRISE_SKILL_SUBDIRS.custom);
 }
 
 /**
@@ -135,7 +135,7 @@ export function getEnterpriseCustomSkillsDir(): string {
  * 获取企业专属技能目录路径
  */
 export function getEnterpriseTenantSkillsDir(): string {
-  return path.join(SKILLS_ROOT_DIR, ENTERPRISE_SKILL_SUBDIRS.tenant);
+  return path.join(getSkillsRootDir(), ENTERPRISE_SKILL_SUBDIRS.tenant);
 }
 
 /**
@@ -143,7 +143,7 @@ export function getEnterpriseTenantSkillsDir(): string {
  * 获取 Hub 安装助手目录路径
  */
 export function getEnterpriseHubAssistantsDir(): string {
-  return path.join(ASSISTANTS_ROOT_DIR, ENTERPRISE_ASSISTANT_SUBDIRS.hub);
+  return path.join(getAssistantsRootDir(), ENTERPRISE_ASSISTANT_SUBDIRS.hub);
 }
 
 /**
@@ -151,7 +151,7 @@ export function getEnterpriseHubAssistantsDir(): string {
  * 获取自定义助手目录路径
  */
 export function getEnterpriseCustomAssistantsDir(): string {
-  return path.join(ASSISTANTS_ROOT_DIR, ENTERPRISE_ASSISTANT_SUBDIRS.custom);
+  return path.join(getAssistantsRootDir(), ENTERPRISE_ASSISTANT_SUBDIRS.custom);
 }
 
 /**
@@ -159,7 +159,7 @@ export function getEnterpriseCustomAssistantsDir(): string {
  * 获取企业专属助手目录路径
  */
 export function getEnterpriseTenantAssistantsDir(): string {
-  return path.join(ASSISTANTS_ROOT_DIR, ENTERPRISE_ASSISTANT_SUBDIRS.tenant);
+  return path.join(getAssistantsRootDir(), ENTERPRISE_ASSISTANT_SUBDIRS.tenant);
 }
 
 /**
@@ -174,11 +174,13 @@ export function initEnterpriseDirs(): void {
   }
 
   // Ensure root directories exist
-  if (!existsSync(SKILLS_ROOT_DIR)) {
-    mkdirSync(SKILLS_ROOT_DIR, { recursive: true });
+  const skillsRootDir = getSkillsRootDir();
+  const assistantsRootDir = getAssistantsRootDir();
+  if (!existsSync(skillsRootDir)) {
+    mkdirSync(skillsRootDir, { recursive: true });
   }
-  if (!existsSync(ASSISTANTS_ROOT_DIR)) {
-    mkdirSync(ASSISTANTS_ROOT_DIR, { recursive: true });
+  if (!existsSync(assistantsRootDir)) {
+    mkdirSync(assistantsRootDir, { recursive: true });
   }
 
   // Create enterprise mode subdirectories
@@ -186,14 +188,14 @@ export function initEnterpriseDirs(): void {
   const assistantSubdirs = Object.values(ENTERPRISE_ASSISTANT_SUBDIRS);
 
   for (const subdir of skillSubdirs) {
-    const dirPath = path.join(SKILLS_ROOT_DIR, subdir);
+    const dirPath = path.join(skillsRootDir, subdir);
     if (!existsSync(dirPath)) {
       mkdirSync(dirPath, { recursive: true });
     }
   }
 
   for (const subdir of assistantSubdirs) {
-    const dirPath = path.join(ASSISTANTS_ROOT_DIR, subdir);
+    const dirPath = path.join(assistantsRootDir, subdir);
     if (!existsSync(dirPath)) {
       mkdirSync(dirPath, { recursive: true });
     }

@@ -2,7 +2,7 @@
  * Config resolution from multiple sources with precedence:
  *
  * 1. Explicit overrides (constructor args / CLI flags)
- * 2. Config file (./nexus.yaml → ./nexus.yml → ~/.nexus/config.yaml)
+ * 2. Config file (./nexus.yaml → ./nexus.yml → <active-data-root>/config.yaml)
  * 3. Environment variables (NEXUS_URL, NEXUS_API_KEY, etc.)
  * 4. Defaults
  *
@@ -21,7 +21,7 @@ const DEFAULT_BASE_URL = 'http://localhost:12012';
  * (no env vars or filesystem — uses defaults + overrides only).
  */
 export function resolveConfig(overrides?: Partial<NexusClientOptions>): NexusClientOptions {
-  // Layer 2: Config file — check ./nexus.yaml, ./nexus.yml, then ~/.nexus/config.yaml
+  // Layer 2: Config file — check ./nexus.yaml, ./nexus.yml, then the active data root.
   const yamlConfig = readYamlConfig();
 
   // Layer 3: Environment variables (lower priority than config file)
@@ -66,7 +66,7 @@ interface YamlConfig {
  * Minimal YAML reader matching the Python CLI search order:
  *   1. ./nexus.yaml
  *   2. ./nexus.yml
- *   3. ~/.nexus/config.yaml
+ *   3. <active-data-root>/config.yaml
  *
  * Only reads top-level `url:` and `api_key:` fields via regex.
  * Avoids pulling in a full YAML parser dependency.
@@ -80,10 +80,24 @@ function readYamlConfig(): YamlConfig {
     const path = require('node:path') as typeof import('node:path');
     /* eslint-enable @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires */
 
-    // Search order: CWD first, then home dir.
+    const getUserConfigPath = (): string => {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const { getDataPath } = require('@process/utils') as { getDataPath?: () => string };
+        const dataPath = getDataPath?.();
+        if (dataPath) {
+          return path.join(dataPath, 'config.yaml');
+        }
+      } catch {
+        // Fall back to the legacy consumer data root below.
+      }
+      return path.join(os.homedir(), '.nexus', 'config.yaml');
+    };
+
+    // Search order: CWD first, then active user data root.
     // Each TUI instance uses its own nexus.yaml in its CWD to avoid
     // conflicts with other running Nexus stacks.
-    const candidates = [path.resolve('nexus.yaml'), path.resolve('nexus.yml'), path.join(os.homedir(), '.nexus', 'config.yaml')];
+    const candidates = [path.resolve('nexus.yaml'), path.resolve('nexus.yml'), getUserConfigPath()];
 
     for (const configPath of candidates) {
       try {

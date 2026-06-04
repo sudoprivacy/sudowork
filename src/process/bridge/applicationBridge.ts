@@ -16,8 +16,11 @@ import { getChannelManager } from '../../channels';
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
 import { mainLog, mainError } from '../utils/mainLogger';
+import { initModeSwitchOrchestratorIpc } from '../services/modeSwitch/ModeSwitchOrchestrator';
 
 export function initApplicationBridge(): void {
+  initModeSwitchOrchestratorIpc();
+
   ipcBridge.application.restart.provider(() => {
     // 清理所有工作进程
     WorkerManage.clear();
@@ -42,9 +45,11 @@ export function initApplicationBridge(): void {
       void serviceManager.startup();
 
       // Start ChannelManager
-      getChannelManager().initialize().catch((error) => {
-        mainError('Application', 'Failed to initialize ChannelManager (hot-start):', error);
-      });
+      getChannelManager()
+        .initialize()
+        .catch((error) => {
+          mainError('Application', 'Failed to initialize ChannelManager (hot-start):', error);
+        });
 
       mainLog('Application', 'Consumer services start requested successfully');
       return { success: true };

@@ -1421,3 +1421,8 @@ export function closeDatabase(): void {
     dbInstance = null;
   }
 }
+
+export function reopenDatabase(): AionUIDatabase {
+  closeDatabase();
+  return getDatabase();
+}

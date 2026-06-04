@@ -36,20 +36,14 @@ export async function hasAppMode(): Promise<boolean> {
 
 /**
  * Set the app mode.
- * In renderer process, also notifies main process to update cache.
+ * Renderer mode changes must go through main so the data root can switch
+ * atomically before renderer-side ConfigStorage writes hit the new root.
  */
-export async function setAppMode(mode: 'c' | 'e'): Promise<void> {
-  await ConfigStorage.set('system.appMode', mode);
-
-  // In renderer process, notify main process to update cache
-  // 在渲染进程中，通知主进程更新缓存
-  if (isRenderer) {
-    try {
-      await eeclaw.setAppMode.invoke({ mode });
-    } catch (error) {
-      // IPC call failed, but ConfigStorage.set already succeeded
-      // IPC 调用失败，但 ConfigStorage.set 已成功
-      console.warn('Failed to notify main process of app mode change:', error);
-    }
+export async function setAppMode(mode: 'c' | 'e', options: { orchestrate?: boolean } = {}): Promise<void> {
+  if (isRenderer && options.orchestrate !== false) {
+    await eeclaw.setAppMode.invoke({ mode });
+    return;
   }
+
+  await ConfigStorage.set('system.appMode', mode);
 }

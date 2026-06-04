@@ -23,7 +23,7 @@ import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import { buildSkillDisplayName, canonicalizeSkillMarkdownPath, findRootSkillMarkdownFileName, isSkillMarkdownFileName, parseSkillFrontmatter, resolveSkillIconFromFiles } from '@/process/utils/skillPackage';
 import { scanSkillDirectory, readAuditReport } from '@/process/services/safety/SkillAuditScanner';
 import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
-import { SKILLS_ROOT_DIR, ENTERPRISE_SKILL_SUBDIRS } from '@/process/constants/enterpriseStorage';
+import { getSkillsRootDir, ENTERPRISE_SKILL_SUBDIRS } from '@/process/constants/enterpriseStorage';
 
 const SKILL_HUB_BASE_URL = 'https://sudoworkhub.sudoprivacy.com/api/skills';
 const SKILL_HUB_CURSOR_URL = 'https://sudoworkhub.sudoprivacy.com/api/skills/cursor';
@@ -621,7 +621,8 @@ export function initSkillHubBridge(): void {
         // 企业模式下，技能库展示本地已同步的内容
         // 专属技能 Tab (tenantId 存在时) 从本地 tenant/ 目录加载
         const sourceType = tenantId ? 'tenant' : 'hub';
-        const skillsDir = sourceType === 'tenant' ? path.join(SKILLS_ROOT_DIR, ENTERPRISE_SKILL_SUBDIRS.tenant) : path.join(SKILLS_ROOT_DIR, ENTERPRISE_SKILL_SUBDIRS.hub);
+        const skillsRootDir = getSkillsRootDir();
+        const skillsDir = sourceType === 'tenant' ? path.join(skillsRootDir, ENTERPRISE_SKILL_SUBDIRS.tenant) : path.join(skillsRootDir, ENTERPRISE_SKILL_SUBDIRS.hub);
 
         mainLog('SkillHub', `Enterprise mode: loading skills from ${skillsDir}`);
 
@@ -729,7 +730,7 @@ export function initSkillHubBridge(): void {
 
       // 企业模式：从本地已安装的技能中提取分类
       if (isEnterpriseMode()) {
-        const hubSkillsDir = path.join(SKILLS_ROOT_DIR, ENTERPRISE_SKILL_SUBDIRS.hub);
+        const hubSkillsDir = path.join(getSkillsRootDir(), ENTERPRISE_SKILL_SUBDIRS.hub);
         const categoriesSet = new Set<string>();
 
         if (existsSync(hubSkillsDir)) {
@@ -775,7 +776,7 @@ export function initSkillHubBridge(): void {
       // 企业模式：从本地 hub/ 目录获取详情
       if (isEnterpriseMode()) {
         // 先尝试从 hub 目录查找
-        const hubSkillsDir = path.join(SKILLS_ROOT_DIR, ENTERPRISE_SKILL_SUBDIRS.hub);
+        const hubSkillsDir = path.join(getSkillsRootDir(), ENTERPRISE_SKILL_SUBDIRS.hub);
 
         if (existsSync(hubSkillsDir)) {
           const entries = await fs.readdir(hubSkillsDir, { withFileTypes: true });
@@ -1005,23 +1006,23 @@ export function initSkillHubBridge(): void {
         category: skill.category,
         meta: skill.meta
           ? {
-            ...skill.meta,
-            // 补充 ISkillHubMeta 必填字段
-            name: skill.meta.name || skill.name,
-            id: skill.meta.id || skill.name,
-            display_name: skill.meta.display_name || skill.name,
-            description: skill.meta.description || '',
-            icon: skill.meta.icon || '',
-            emoji: skill.meta.emoji ?? null,
-            category: skill.meta.category || '',
-            categories: skill.meta.categories || [],
-            applicable_scenarios: skill.meta.applicable_scenarios ?? null,
-            core_features: skill.meta.core_features ?? null,
-            homepage: skill.meta.homepage ?? null,
-            author_id: skill.meta.author_id || '',
-            installed_version: skill.meta.installed_version || skill.version,
-            installed_at: skill.meta.installed_at || '',
-          }
+              ...skill.meta,
+              // 补充 ISkillHubMeta 必填字段
+              name: skill.meta.name || skill.name,
+              id: skill.meta.id || skill.name,
+              display_name: skill.meta.display_name || skill.name,
+              description: skill.meta.description || '',
+              icon: skill.meta.icon || '',
+              emoji: skill.meta.emoji ?? null,
+              category: skill.meta.category || '',
+              categories: skill.meta.categories || [],
+              applicable_scenarios: skill.meta.applicable_scenarios ?? null,
+              core_features: skill.meta.core_features ?? null,
+              homepage: skill.meta.homepage ?? null,
+              author_id: skill.meta.author_id || '',
+              installed_version: skill.meta.installed_version || skill.version,
+              installed_at: skill.meta.installed_at || '',
+            }
           : undefined,
       }));
       return { success: true, data: result };

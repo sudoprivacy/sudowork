@@ -7,11 +7,11 @@
 import { getDefaultAcpModelId } from '@/common/acp/defaultModels';
 import { isVisionModel } from '@/common/imageUtils';
 import type { AcpModelInfo } from '@/types/acpTypes';
+import { getScodeDir } from './ScodeInstallService';
 import fs from 'fs';
-import os from 'os';
 import path from 'path';
 
-const SUDOCODE_CONFIG_PATH = path.join(os.homedir(), '.nexus', 'sudocode', 'sudocode.json');
+const getSudocodeConfigPath = (): string => path.join(getScodeDir(), 'sudocode.json');
 
 type ScodeConfiguredModel = {
   id: string;
@@ -52,7 +52,7 @@ function getScodeApiKeyProviderModel(providers: Record<string, unknown> | null):
   return providerModel;
 }
 
-function readScodeModelsFromConfig(configPath = SUDOCODE_CONFIG_PATH): ScodeConfiguredModel[] {
+function readScodeModelsFromConfig(configPath = getSudocodeConfigPath()): ScodeConfiguredModel[] {
   try {
     const raw = fs.readFileSync(configPath, 'utf-8');
     const parsed = JSON.parse(raw) as { models?: unknown };
@@ -92,7 +92,7 @@ function readScodeModelsFromConfig(configPath = SUDOCODE_CONFIG_PATH): ScodeConf
   }
 }
 
-function readScodeDefaultModelFromConfig(configPath = SUDOCODE_CONFIG_PATH): string | null {
+function readScodeDefaultModelFromConfig(configPath = getSudocodeConfigPath()): string | null {
   try {
     const raw = fs.readFileSync(configPath, 'utf-8');
     const parsed = JSON.parse(raw) as { default_model?: unknown };
@@ -105,7 +105,7 @@ function readScodeDefaultModelFromConfig(configPath = SUDOCODE_CONFIG_PATH): str
   return null;
 }
 
-export function getScodeProxyModelInfoSync(currentModelId?: string | null, configPath = SUDOCODE_CONFIG_PATH): AcpModelInfo | null {
+export function getScodeProxyModelInfoSync(currentModelId?: string | null, configPath = getSudocodeConfigPath()): AcpModelInfo | null {
   const availableModels = readScodeModelsFromConfig(configPath);
   if (availableModels.length === 0) {
     return null;
@@ -133,7 +133,7 @@ type ScodeModelDef = {
   hasVision: boolean;
 };
 
-function readScodeModelsWithVisionFromConfig(configPath = SUDOCODE_CONFIG_PATH): ScodeModelDef[] {
+function readScodeModelsWithVisionFromConfig(configPath = getSudocodeConfigPath()): ScodeModelDef[] {
   try {
     const raw = fs.readFileSync(configPath, 'utf-8');
     const parsed = JSON.parse(raw) as { models?: unknown };

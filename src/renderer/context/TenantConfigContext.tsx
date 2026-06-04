@@ -166,6 +166,13 @@ export const TenantConfigProvider: React.FC<React.PropsWithChildren> = ({ childr
     }
   }, []);
 
+  useEffect(() => {
+    return ipcBridge.application.modeSwitchDone.on(() => {
+      setConfig(DEFAULT_TENANT_CONFIG);
+      stopPolling();
+    });
+  }, [stopPolling]);
+
   // 监听登录状态变化
   useEffect(() => {
     if (status === 'authenticated' && (isEnterprise || user?.enterprise_code)) {

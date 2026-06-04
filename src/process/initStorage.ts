@@ -20,6 +20,7 @@ import { perfLog, mainLog, mainWarn, mainError } from './utils/mainLogger';
 import { SKILL_SUBDIRS, ENTERPRISE_SKILL_SUBDIRS } from './constants/skillStorage';
 import { ASSISTANT_SUBDIRS, ENTERPRISE_ASSISTANT_SUBDIRS } from './constants/assistantStorage';
 import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
+import { ensureDataRootInitialized, getCurrentDataRootMode } from './dataRoot';
 // Platform and architecture types (moved from deleted updateConfig)
 type PlatformType = 'win32' | 'darwin' | 'linux';
 type ArchitectureType = 'x64' | 'arm64' | 'ia32' | 'arm';
@@ -216,30 +217,26 @@ const JsonFileBuilder = <S extends object = Record<string, unknown>>(path: strin
   };
 };
 
-const envFile = JsonFileBuilder<IEnvStorageRefer>(path.join(getHomePage(), STORAGE_PATH.env));
-
-const dirConfig = envFile.getSync('nexus.dir');
-
-const cacheDir = dirConfig?.cacheDir || getHomePage();
-const dataDir = getDataPath(); // ~/.nexus
-
-const configFile = JsonFileBuilder<IConfigStorageRefer>(path.join(cacheDir, STORAGE_PATH.config));
+type JsonFileHandle<S extends object> = ReturnType<typeof JsonFileBuilder<S>>;
+type ChatFileHandle = JsonFileHandle<IChatConversationRefer>;
 type ConversationHistoryData = Record<string, TMessage[]>;
-
-const _chatMessageFile = JsonFileBuilder<ConversationHistoryData>(path.join(cacheDir, STORAGE_PATH.chatMessage));
-const _chatFile = JsonFileBuilder<IChatConversationRefer>(path.join(cacheDir, STORAGE_PATH.chat));
-
-// 创建带字段迁移的聊天历史代理
-const chatFile = {
-  ..._chatFile,
-  async get<K extends keyof IChatConversationRefer>(key: K): Promise<IChatConversationRefer[K]> {
-    return await _chatFile.get(key);
-  },
-  async set<K extends keyof IChatConversationRefer>(key: K, value: IChatConversationRefer[K]): Promise<IChatConversationRefer[K]> {
-    return await _chatFile.set(key, value);
-  },
+type ChatMessageFileHandle = JsonFileHandle<ConversationHistoryData> & {
+  set(key: string, data: TMessage[]): Promise<TMessage[]>;
+  get(key: string): Promise<TMessage[]>;
+  backup(conversation_id: string): Promise<unknown>;
 };
 
+let envFile: JsonFileHandle<IEnvStorageRefer>;
+let dirConfig: IEnvStorageRefer['nexus.dir'] | undefined;
+let cacheDir: string;
+let configFile: JsonFileHandle<IConfigStorageRefer>;
+
+let _chatMessageFile: JsonFileHandle<ConversationHistoryData>;
+let _chatFile: ChatFileHandle;
+let chatFile: ChatFileHandle;
+let chatMessageFile: ChatMessageFileHandle;
+
+// 创建带字段迁移的聊天历史代理
 const buildMessageListStorage = (conversation_id: string, dir: string) => {
   const fullName = path.join(dir, 'sudowork-chat-history', conversation_id + '.txt');
   if (!existsSync(fullName)) {
@@ -270,14 +267,44 @@ const conversationHistoryProxy = (options: typeof _chatMessageFile, dir: string)
   };
 };
 
-const chatMessageFile = conversationHistoryProxy(_chatMessageFile, cacheDir);
+export const reinitFileHandles = (): void => {
+  envFile = JsonFileBuilder<IEnvStorageRefer>(path.join(getHomePage(), STORAGE_PATH.env));
+  dirConfig = envFile.getSync('nexus.dir');
+  cacheDir = dirConfig?.cacheDir || getHomePage();
+
+  configFile = JsonFileBuilder<IConfigStorageRefer>(path.join(cacheDir, STORAGE_PATH.config));
+  _chatMessageFile = JsonFileBuilder<ConversationHistoryData>(path.join(cacheDir, STORAGE_PATH.chatMessage));
+  _chatFile = JsonFileBuilder<IChatConversationRefer>(path.join(cacheDir, STORAGE_PATH.chat));
+  chatFile = {
+    ..._chatFile,
+    async get<K extends keyof IChatConversationRefer>(key: K): Promise<IChatConversationRefer[K]> {
+      return await _chatFile.get(key);
+    },
+    async set<K extends keyof IChatConversationRefer>(key: K, value: IChatConversationRefer[K]): Promise<IChatConversationRefer[K]> {
+      return await _chatFile.set(key, value);
+    },
+  };
+  chatMessageFile = conversationHistoryProxy(_chatMessageFile, cacheDir);
+};
+
+const createStorageProxy = <T extends object>(getTarget: () => T): T => {
+  return new Proxy({} as T, {
+    get(_target, property) {
+      const target = getTarget() as Record<PropertyKey, unknown>;
+      const value = target[property];
+      return typeof value === 'function' ? value.bind(target) : value;
+    },
+  });
+};
+
+reinitFileHandles();
 
 /**
  * 获取助手规则目录路径
  * Get assistant rules directory path
  */
 const getAssistantsDir = () => {
-  return path.join(dataDir, 'assistants');
+  return path.join(getDataPath(), 'assistants');
 };
 
 /**
@@ -318,7 +345,7 @@ const getCustomAssistantsDir = () => {
  * Get skills scripts directory path
  */
 const getSkillsDir = () => {
-  return path.join(dataDir, 'skills');
+  return path.join(getDataPath(), 'skills');
 };
 
 /**
@@ -947,7 +974,31 @@ const cleanupOrphanedHealthCheckConversations = () => {
   }
 };
 
+export const ProcessConfig = createStorageProxy(() => configFile);
+
+export const ProcessChat = createStorageProxy(() => chatFile);
+
+export const ProcessChatMessage = createStorageProxy(() => chatMessageFile);
+
+export const ProcessEnv = createStorageProxy(() => envFile);
+
+let storageInterceptorsRegistered = false;
+
+const registerStorageInterceptors = (): void => {
+  if (storageInterceptorsRegistered) {
+    return;
+  }
+
+  ConfigStorage.interceptor(ProcessConfig);
+  ChatStorage.interceptor(ProcessChat);
+  ChatMessageStorage.interceptor(ProcessChatMessage);
+  EnvStorage.interceptor(ProcessEnv);
+  storageInterceptorsRegistered = true;
+};
+
 const initStorage = async () => {
+  ensureDataRootInitialized(getCurrentDataRootMode());
+  reinitFileHandles();
   mainLog('Sudowork', 'Starting storage initialization...');
   const startTime = Date.now();
 
@@ -957,10 +1008,7 @@ const initStorage = async () => {
   ensureDirectory(getDataPath());
 
   // 3. 初始化存储系统
-  ConfigStorage.interceptor(configFile);
-  ChatStorage.interceptor(chatFile);
-  ChatMessageStorage.interceptor(chatMessageFile);
-  EnvStorage.interceptor(envFile);
+  registerStorageInterceptors();
 
   // 4. 初始化 MCP 配置（为所有用户提供默认配置）
   try {
@@ -1036,7 +1084,7 @@ const initStorage = async () => {
 
       // 首先清理不再存在于内置列表中的旧内置助手
       // First, clean up old built-in assistants that are no longer in the built-in list
-      const builtinIds = new Set(builtinAssistants.map(a => a.id));
+      const builtinIds = new Set(builtinAssistants.map((a) => a.id));
       for (let i = updatedAgents.length - 1; i >= 0; i--) {
         const agent = updatedAgents[i];
         // 如果是以 builtin- 开头，但在当前内置列表中找不到，则删除
@@ -1164,14 +1212,6 @@ const initStorage = async () => {
     return Promise.resolve(getSystemDir());
   });
 };
-
-export const ProcessConfig = configFile;
-
-export const ProcessChat = chatFile;
-
-export const ProcessChatMessage = chatMessageFile;
-
-export const ProcessEnv = envFile;
 
 export const getSystemDir = () => {
   return {

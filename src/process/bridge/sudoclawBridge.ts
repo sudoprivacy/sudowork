@@ -12,7 +12,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { spawn } from 'child_process';
 import WorkerManage from '../WorkerManage';
-import { SUDOCLAW_DIR, getSudoclawInstalledVersion, isSudoclawInstalled, SUDOCLAW_DEFAULT_PORT, installSudoclawManually, removeSudoclawCli } from '../services/sudoclaw/SudoclawInstallService';
+import { getSudoclawDir, getSudoclawConfigPath, getSudoclawInstalledVersion, isSudoclawInstalled, SUDOCLAW_DEFAULT_PORT, installSudoclawManually, removeSudoclawCli } from '../services/sudoclaw/SudoclawInstallService';
 import { syncSudoclawRuntimeState } from '../services/sudoclaw/sudoclawRuntimeSync';
 import { checkSudoclawHealth, SUDOCLAW_HEALTH_TIMEOUT_MS } from '../services/sudoclaw/sudoclawHealth';
 import { getNodeBinaryPath } from '../services/claudeCli/NodeRuntimeService';
@@ -24,15 +24,14 @@ interface InstallState {
   percent?: number;
 }
 
-const CONFIG_FILENAME = 'sudoclaw.json';
-const CONFIG_PATH = path.join(SUDOCLAW_DIR, CONFIG_FILENAME);
 const CLAUDE_SETTINGS_PATH = path.join(os.homedir(), '.claude', 'settings.json');
 let installState: InstallState = { installing: false };
 
 function readConfig(): SudoclawConfig | null {
   try {
-    if (!fs.existsSync(CONFIG_PATH)) return null;
-    const content = fs.readFileSync(CONFIG_PATH, 'utf8');
+    const configPath = getSudoclawConfigPath();
+    if (!fs.existsSync(configPath)) return null;
+    const content = fs.readFileSync(configPath, 'utf8');
     const parsed = JSON.parse(content) as SudoclawConfig;
     return parsed;
   } catch {
@@ -121,18 +120,20 @@ export function initSudoclawBridge(): void {
 
   ipcBridge.sudoclaw.saveConfig.provider(async ({ config }) => {
     try {
-      fs.mkdirSync(SUDOCLAW_DIR, { recursive: true });
-      fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2), 'utf8');
+      const sudoclawDir = getSudoclawDir();
+      const configPath = getSudoclawConfigPath();
+      fs.mkdirSync(sudoclawDir, { recursive: true });
+      fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf8');
       if (process.platform !== 'win32') {
         try {
-          fs.chmodSync(CONFIG_PATH, 0o600);
+          fs.chmodSync(configPath, 0o600);
         } catch {
           // ignore
         }
       }
 
       syncSudoclawRuntimeState(config, {
-        stateDir: SUDOCLAW_DIR,
+        stateDir: sudoclawDir,
         claudeSettingsPath: CLAUDE_SETTINGS_PATH,
         secretWriter: cachePut,
       });
@@ -158,7 +159,7 @@ export function initSudoclawBridge(): void {
 
       const data: any = {
         installed,
-        configPath: CONFIG_PATH,
+        configPath: getSudoclawConfigPath(),
         gatewayRunning: isGatewayRunning,
         gatewayPort: port,
         gatewayHost: host,
@@ -166,7 +167,7 @@ export function initSudoclawBridge(): void {
         isConnected: isGatewayRunning,
         hasActiveSession: false,
         sessionKey: null,
-        workspace: (config?.agents as any)?.defaults?.workspace || SUDOCLAW_DIR + '/workspace',
+        workspace: (config?.agents as any)?.defaults?.workspace || `${getSudoclawDir()}/workspace`,
         agentName: (config?.agents as any)?.defaults?.agentName || '小宇',
         model: (config?.agents as any)?.defaults?.model?.primary || null,
         version,
@@ -240,7 +241,7 @@ export function initSudoclawBridge(): void {
       // Ignore stop errors
     }
     try {
-      if (fs.existsSync(SUDOCLAW_DIR)) {
+      if (fs.existsSync(getSudoclawDir())) {
         removeSudoclawCli();
       }
       return { success: true };
@@ -288,11 +289,11 @@ export function initSudoclawBridge(): void {
 
   // ==================== WeChat Plugin ====================
 
-  const SUDOCLAW_WECHAT_PLUGIN_DIR = path.join(SUDOCLAW_DIR, 'extensions', 'openclaw-weixin');
+  const getSudoclawWechatPluginDir = (): string => path.join(getSudoclawDir(), 'extensions', 'openclaw-weixin');
 
   ipcBridge.sudoclaw.getWechatStatus.provider(async () => {
     try {
-      const installed = fs.existsSync(path.join(SUDOCLAW_WECHAT_PLUGIN_DIR, 'openclaw.plugin.json'));
+      const installed = fs.existsSync(path.join(getSudoclawWechatPluginDir(), 'openclaw.plugin.json'));
       return { success: true, data: { installed } };
     } catch (err) {
       return { success: false, msg: err instanceof Error ? err.message : String(err) };
@@ -302,7 +303,7 @@ export function initSudoclawBridge(): void {
   ipcBridge.sudoclaw.installWechatPlugin.provider(async () => {
     return new Promise((resolve) => {
       // Check if already installed
-      if (fs.existsSync(path.join(SUDOCLAW_WECHAT_PLUGIN_DIR, 'openclaw.plugin.json'))) {
+      if (fs.existsSync(path.join(getSudoclawWechatPluginDir(), 'openclaw.plugin.json'))) {
         ipcBridge.sudoclaw.wechatInstallProgress.emit({ phase: 'success', message: '微信插件已安装' });
         resolve({ success: true, data: { output: 'Already installed' } });
         return;
@@ -320,7 +321,7 @@ export function initSudoclawBridge(): void {
       ipcBridge.sudoclaw.wechatInstallProgress.emit({ phase: 'installing', message: '正在安装微信插件...' });
 
       // Prepend sudoclaw bin to PATH so CLI finds sudoclaw's openclaw and installs to ~/.nexus/sudoclaw/
-      const sudoclawBinDir = path.join(SUDOCLAW_DIR, 'bin');
+      const sudoclawBinDir = path.join(getSudoclawDir(), 'bin');
       const env: Record<string, string> = {
         ...Object.fromEntries(Object.entries(process.env).filter(([, v]) => v !== undefined) as [string, string][]),
         PATH: `${sudoclawBinDir}:${path.dirname(nodePath)}:${process.env.PATH || ''}`,
@@ -329,7 +330,7 @@ export function initSudoclawBridge(): void {
       const npxPath = path.join(path.dirname(nodePath), 'npx');
       const child = spawn(nodePath, [npxPath, '-y', '@tencent-weixin/openclaw-weixin-cli@latest', 'install'], {
         env,
-        cwd: SUDOCLAW_DIR,
+        cwd: getSudoclawDir(),
         stdio: ['pipe', 'pipe', 'pipe'],
       });
 

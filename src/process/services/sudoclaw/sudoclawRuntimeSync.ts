@@ -39,6 +39,16 @@ type SyncRuntimeStateOptions = {
 
 const CLAUDE_SETTINGS_PATH = path.join(os.homedir(), '.claude', 'settings.json');
 
+function getDefaultStateDir(): string {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { getDataPath } = require('@process/utils') as typeof import('@process/utils');
+    return path.join(getDataPath(), 'sudoclaw');
+  } catch {
+    return path.join(os.homedir(), '.nexus', 'sudoclaw');
+  }
+}
+
 function readJsonFile<T>(filePath: string): T | null {
   try {
     if (!fs.existsSync(filePath)) {
@@ -203,7 +213,7 @@ export function buildClaudeSettings(config: SudoclawConfig): Record<string, unkn
 }
 
 export function syncSudoclawRuntimeState(config: SudoclawConfig, options: SyncRuntimeStateOptions = {}): void {
-  const stateDir = options.stateDir || path.join(os.homedir(), '.nexus', 'sudoclaw');
+  const stateDir = options.stateDir || getDefaultStateDir();
   const claudeSettingsPath = options.claudeSettingsPath || CLAUDE_SETTINGS_PATH;
   const secretWriter = options.secretWriter || cachePut;
   const providers = config.models?.providers || {};

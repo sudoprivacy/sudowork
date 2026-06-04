@@ -9,15 +9,15 @@ import { getBuiltinSkillsDir, loadSkillsContent } from '@process/initStorage';
 import { AcpSkillManager, buildSkillsIndexText, type SkillIndex } from './AcpSkillManager';
 import type { PresetAgentType } from '@/types/acpTypes';
 import { getNodeBinaryPath, isNodeInstalled } from '@process/services/claudeCli/NodeRuntimeService';
-import * as os from 'os';
+import { getDataPath } from '@process/utils';
 import * as path from 'path';
 import * as fs from 'fs';
 
 /** mcporter CLI 路径（解压后的 JS 文件，跨平台相同） */
-const MCPORTER_CLI_PATH = path.join(os.homedir(), '.nexus', 'mcporter', 'package', 'node_modules', 'mcporter', 'dist', 'cli.js');
+const getMcporterCliPath = (): string => path.join(getDataPath(), 'mcporter', 'package', 'node_modules', 'mcporter', 'dist', 'cli.js');
 
 /** mcporter 配置文件路径 */
-const MCPORTER_CONFIG_PATH = path.join(os.homedir(), '.nexus', 'mcporter', 'mcporter.json');
+const getMcporterConfigPath = (): string => path.join(getDataPath(), 'mcporter', 'mcporter.json');
 
 /**
  * mcporter 配置格式
@@ -41,10 +41,11 @@ interface McporterServerConfig {
  */
 export function readMcporterConfigSync(): McporterConfig | null {
   try {
-    if (!fs.existsSync(MCPORTER_CONFIG_PATH)) {
+    const configPath = getMcporterConfigPath();
+    if (!fs.existsSync(configPath)) {
       return null;
     }
-    const content = fs.readFileSync(MCPORTER_CONFIG_PATH, 'utf-8');
+    const content = fs.readFileSync(configPath, 'utf-8');
     return JSON.parse(content) as McporterConfig;
   } catch {
     return null;
@@ -79,7 +80,8 @@ To use MCP tools, install Node.js first via the app settings.`;
 
   // 跨平台命令格式：node <mcporter_cli_path> <args>
   // Windows 和 Mac/Linux 都用这个格式，只是 node 路径不同
-  const mcporterCommand = `${nodePath} ${MCPORTER_CLI_PATH}`;
+  const mcporterConfigPath = getMcporterConfigPath();
+  const mcporterCommand = `${nodePath} ${getMcporterCliPath()}`;
 
   return `[MCP Integration]
 When working with external services or APIs, use mcporter CLI to discover MCP tools available in your environment.
@@ -87,7 +89,7 @@ When working with external services or APIs, use mcporter CLI to discover MCP to
 Discovery workflow:
 1. List available MCP servers:
    ${mcporterCommand} list --output json
-   (Environment: MCPORTER_CONFIG=${MCPORTER_CONFIG_PATH})
+   (Environment: MCPORTER_CONFIG=${mcporterConfigPath})
 
 2. Discover tools from a server:
    ${mcporterCommand} list <server_name> --schema --output json
@@ -97,7 +99,7 @@ Discovery workflow:
 
 Example: If user asks about document operations, first run 'mcporter list' to see available MCP servers, then discover tools from relevant servers.
 
-The mcporter config is at: ${MCPORTER_CONFIG_PATH}`;
+The mcporter config is at: ${mcporterConfigPath}`;
 }
 
 /**

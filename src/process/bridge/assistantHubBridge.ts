@@ -12,7 +12,7 @@ import { getDatabase } from '@/process/database';
 import { DEFAULT_PRESET_AGENT_TYPE, normalizePresetAgentType } from '@/types/acpTypes';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
-import { ASSISTANTS_ROOT_DIR, ENTERPRISE_ASSISTANT_SUBDIRS } from '@/process/constants/enterpriseStorage';
+import { getAssistantsRootDir, ENTERPRISE_ASSISTANT_SUBDIRS } from '@/process/constants/enterpriseStorage';
 import fs from 'fs/promises';
 import fsSync from 'fs';
 import path from 'path';
@@ -341,7 +341,7 @@ export function initAssistantHubBridge(): void {
         // sourceType='tenant' 表示专属助手，从 tenant/ 目录加载
         // 其他情况从 hub/ 目录加载
         const dirType = sourceType === 'tenant' ? 'tenant' : 'hub';
-        const assistantsDir = path.join(ASSISTANTS_ROOT_DIR, ENTERPRISE_ASSISTANT_SUBDIRS[dirType]);
+        const assistantsDir = path.join(getAssistantsRootDir(), ENTERPRISE_ASSISTANT_SUBDIRS[dirType]);
 
         mainLog('AssistantHub', `Enterprise mode: dirType=${dirType}, loading assistants from ${assistantsDir}`);
 
@@ -486,7 +486,7 @@ export function initAssistantHubBridge(): void {
     try {
       // 企业模式：从本地 hub/ 目录的 meta 文件中提取分类
       if (isEnterpriseMode()) {
-        const hubAssistantsDir = path.join(ASSISTANTS_ROOT_DIR, ENTERPRISE_ASSISTANT_SUBDIRS.hub);
+        const hubAssistantsDir = path.join(getAssistantsRootDir(), ENTERPRISE_ASSISTANT_SUBDIRS.hub);
 
         mainLog('AssistantHub', `Enterprise mode: extracting categories from ${hubAssistantsDir}`);
 
@@ -531,7 +531,7 @@ export function initAssistantHubBridge(): void {
     try {
       // 企业模式：从本地 hub/ 目录读取详情
       if (isEnterpriseMode()) {
-        const hubAssistantsDir = path.join(ASSISTANTS_ROOT_DIR, ENTERPRISE_ASSISTANT_SUBDIRS.hub);
+        const hubAssistantsDir = path.join(getAssistantsRootDir(), ENTERPRISE_ASSISTANT_SUBDIRS.hub);
         const assistantDir = path.join(hubAssistantsDir, assistantId);
 
         mainLog('AssistantHub', `Enterprise mode: loading assistant detail from ${assistantDir}`);

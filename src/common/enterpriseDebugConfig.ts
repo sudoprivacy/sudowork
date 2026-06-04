@@ -64,7 +64,8 @@ async function getProcessConfig(): Promise<typeof import('@process/initStorage')
 export async function refreshEnterpriseCache(): Promise<void> {
   try {
     const config = await getProcessConfig();
-    cachedAppMode = config.getSync('system.appMode');
+    const appMode = config.getSync('system.appMode');
+    cachedAppMode = appMode === 'c' || appMode === 'e' ? appMode : null;
     const authStorage = config.getSync('eeclaw.authStorage');
     cachedAuthToken = authStorage?.access_token || '';
     cachedServerUrl = config.getSync('eeclaw.serverUrl') || '';
@@ -121,6 +122,16 @@ export function isEnterpriseMode(): boolean {
   }
 
   return false;
+}
+
+/**
+ * Return only the already-initialized app mode cache.
+ *
+ * Data-root selection uses this function instead of isEnterpriseMode() so it
+ * never falls back to ProcessConfig while ProcessConfig itself is being built.
+ */
+export function getCachedAppMode(): 'c' | 'e' | null {
+  return cachedAppMode;
 }
 
 /**
