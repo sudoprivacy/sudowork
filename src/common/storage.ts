@@ -454,7 +454,7 @@ export const DEFAULT_IMAGE_BASE_URL = 'https://hk.sudorouter.ai/v1';
 export const DEFAULT_IMAGE_PARSING_MODEL = 'gemini-3.5-flash';
 
 /** Default model used for image generation (生图) */
-export const DEFAULT_IMAGE_GENERATION_MODEL = 'gemini-3.1-flash-image-preview';
+export const DEFAULT_IMAGE_GENERATION_MODEL = 'gemini-3.1-flash-image';
 
 // MCP Server Configuration Types
 export type McpTransportType = 'stdio' | 'sse' | 'http';
