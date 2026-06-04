@@ -209,6 +209,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
 
   // Turn-level file tracking for precise cleanup on cancel
   private currentTurnFiles: Map<string, TrackedTurnFile> = new Map();
+  private currentTurnProtectedFinalPaths = new Set<string>();
   private readonly fileIntentClassifier = new FileIntentClassifier();
 
   // Extra config passed to connection
@@ -703,6 +704,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
     // ★ Reset turn-level file tracking for new turn
     // 重置 Turn 级别文件追踪，开始新的 Turn
     this.currentTurnFiles.clear();
+    this.currentTurnProtectedFinalPaths.clear();
     this.workspaceFileSnapshot = this.getWorkspaceFiles();
     this.customSkillsSnapshot = this.getCustomSkillNames();
     mainLog('[AcpAgent]', `[TURN-START] Reset file tracking, snapshot size: ${this.workspaceFileSnapshot.size}`);
@@ -1499,6 +1501,7 @@ This identity statement takes priority over the default identity in USER.md.
   private async cleanupTrackedDraftFiles(): Promise<number> {
     const removedCount = await cleanupTrackedDraftsOnCancel(this.workspace, this.currentTurnFiles);
     this.currentTurnFiles.clear();
+    this.currentTurnProtectedFinalPaths.clear();
 
     if (removedCount > 0) {
       mainLog('[AcpAgent]', `[CLEANUP] Total current-turn draft files removed: ${removedCount}`);
@@ -1512,9 +1515,39 @@ This identity statement takes priority over the default identity in USER.md.
       return;
     }
 
+    this.currentTurnProtectedFinalPaths = this.getCurrentTurnFinalRootPaths();
     await archiveTurnFiles(this.workspace, this.currentTurnFiles);
     this.currentTurnFiles.clear();
     mainLog('[AcpAgent]', '[TURN-ARCHIVE] Archived currentTurnFiles and cleared tracking');
+  }
+
+  private getCurrentTurnFinalRootPaths(): Set<string> {
+    const protectedPaths = new Set<string>();
+    if (!this.workspace || this.currentTurnFiles.size === 0) {
+      return protectedPaths;
+    }
+
+    const workspaceRoot = nodePath.resolve(this.workspace);
+    for (const file of this.currentTurnFiles.values()) {
+      if (file.intent !== 'final') {
+        continue;
+      }
+
+      const finalPath = this.resolveFinalFileDisplayPath(file, workspaceRoot);
+      if (finalPath && !finalPath.startsWith(`${DRAFTS_DIR_NAME}/`)) {
+        protectedPaths.add(finalPath);
+      }
+
+      const resolvedActualPath = nodePath.resolve(file.actualPath);
+      const relativePath = nodePath.relative(workspaceRoot, resolvedActualPath);
+      if (!relativePath || relativePath.startsWith('..') || nodePath.isAbsolute(relativePath) || relativePath.startsWith(`${DRAFTS_DIR_NAME}${nodePath.sep}`)) {
+        continue;
+      }
+
+      protectedPaths.add(relativePath.replace(/\\/g, '/'));
+    }
+
+    return protectedPaths;
   }
 
   private getCurrentTurnFinalFileSummaries(): Array<{ path: string; reason: string }> {
@@ -2979,9 +3012,13 @@ This identity statement takes priority over the default identity in USER.md.
 
       // Post-cleanup: move intermediate files from workspace root to .drafts/
       if (this.workspace) {
-        cleanupIntermediateFiles(this.workspace).catch((err) => {
-          mainError('AcpAgent', 'Post-cleanup failed:', err);
-        });
+        cleanupIntermediateFiles(this.workspace, { protectedFinalPaths: this.currentTurnProtectedFinalPaths })
+          .catch((err) => {
+            mainError('AcpAgent', 'Post-cleanup failed:', err);
+          })
+          .finally(() => {
+            this.currentTurnProtectedFinalPaths.clear();
+          });
       }
     }
 

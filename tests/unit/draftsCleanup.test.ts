@@ -127,6 +127,78 @@ describe('FileIntentClassifier', () => {
     expect(result.reason).toContain('requested file name');
   });
 
+  test('promotes helper script restored from drafts to workspace root', () => {
+    const result = classifier.classify({
+      filePath: 'generate_pdf.py',
+      requestedPath: 'generate_pdf.py',
+      userMessage: '将草稿箱中的文件移动到工作目录下',
+      source: 'write',
+    });
+
+    expect(result.intent).toBe('final');
+    expect(result.reason).toContain('Restore from drafts');
+  });
+
+  test('restore from drafts overrides historical draft marker', () => {
+    const result = classifier.classify({
+      filePath: 'generate_pdf.py',
+      requestedPath: 'generate_pdf.py',
+      content: '# @draft\nprint("old draft")',
+      userMessage: '将草稿箱下的所有文件移动到工作目录下',
+      source: 'bash-generated',
+    });
+
+    expect(result.intent).toBe('final');
+    expect(result.reason).toContain('Restore from drafts');
+  });
+
+  test('promotes bash-generated helper script restored from drafts to workspace root', () => {
+    const result = classifier.classify({
+      filePath: 'generate_pdf.py',
+      requestedPath: 'generate_pdf.py',
+      userMessage: '将草稿箱中的文件移动到工作目录下',
+      source: 'bash-generated',
+    });
+
+    expect(result.intent).toBe('final');
+    expect(result.reason).toContain('Restore from drafts');
+  });
+
+  test('promotes bash-generated script explicitly moved to workspace root', () => {
+    const result = classifier.classify({
+      filePath: 'generate_excel.py',
+      requestedPath: 'generate_excel.py',
+      userMessage: '给我将generate_excel.py移动到工作空间目录下',
+      source: 'bash-generated',
+    });
+
+    expect(result.intent).toBe('final');
+    expect(result.reason).toContain('requested file name');
+  });
+
+  test('does not promote excluded file restored from drafts to workspace root', () => {
+    const result = classifier.classify({
+      filePath: 'generate_pdf.py',
+      requestedPath: 'generate_pdf.py',
+      userMessage: '将 generate_pdf.py 文件之外的草稿箱文件移动到工作目录',
+      source: 'bash-generated',
+    });
+
+    expect(result.intent).toBe('draft');
+  });
+
+  test('promotes non-excluded file restored from drafts to workspace root', () => {
+    const result = classifier.classify({
+      filePath: 'notes.md',
+      requestedPath: 'notes.md',
+      userMessage: '将 generate_pdf.py 文件之外的草稿箱文件移动到工作目录',
+      source: 'bash-generated',
+    });
+
+    expect(result.intent).toBe('final');
+    expect(result.reason).toContain('Restore from drafts');
+  });
+
   test('classifies helper script for non-script deliverable as draft', () => {
     const result = classifier.classify({
       filePath: 'generate_report.py',
@@ -136,6 +208,30 @@ describe('FileIntentClassifier', () => {
 
     expect(result.intent).toBe('draft');
     expect(result.reason).toContain('Helper script');
+  });
+
+  test('does not promote files moved into drafts', () => {
+    const result = classifier.classify({
+      filePath: '.drafts/helper.py',
+      requestedPath: '.drafts/helper.py',
+      userMessage: '把 helper.py 移动到草稿箱',
+      source: 'write',
+    });
+
+    expect(result.intent).toBe('draft');
+  });
+
+  test('move to drafts overrides existing final marker', () => {
+    const result = classifier.classify({
+      filePath: '.drafts/helper.py',
+      requestedPath: '.drafts/helper.py',
+      content: '# @final\nprint("old final")',
+      userMessage: '把 helper.py 移动到草稿箱',
+      source: 'write',
+    });
+
+    expect(result.intent).toBe('draft');
+    expect(result.reason).toContain('Move to drafts');
   });
 });
 
@@ -189,6 +285,43 @@ describe('cleanupIntermediateFiles with markers', () => {
     await cleanupIntermediateFiles(testWorkspace);
 
     expect(fsSync.existsSync(path.join(testWorkspace, '.drafts', 'helper.js'))).toBe(true);
+  });
+
+  test('keeps current-turn final files protected from post-cleanup', async () => {
+    await fs.writeFile(path.join(testWorkspace, 'generate_pdf.py'), 'print("restored")');
+
+    await cleanupIntermediateFiles(testWorkspace, {
+      protectedFinalPaths: ['generate_pdf.py'],
+    });
+
+    expect(fsSync.existsSync(path.join(testWorkspace, 'generate_pdf.py'))).toBe(true);
+    expect(fsSync.existsSync(path.join(testWorkspace, '.drafts', 'generate_pdf.py'))).toBe(false);
+  });
+
+  test('moves unprotected helper scripts during post-cleanup', async () => {
+    await fs.writeFile(path.join(testWorkspace, 'generate_pdf.py'), 'print("helper")');
+
+    await cleanupIntermediateFiles(testWorkspace);
+
+    expect(fsSync.existsSync(path.join(testWorkspace, '.drafts', 'generate_pdf.py'))).toBe(true);
+    expect(fsSync.existsSync(path.join(testWorkspace, 'generate_pdf.py'))).toBe(false);
+  });
+
+  test('keeps multiple restored helper scripts while cleaning unrelated helper scripts', async () => {
+    await fs.writeFile(path.join(testWorkspace, 'generate_excel.py'), 'print("restored excel")');
+    await fs.writeFile(path.join(testWorkspace, 'generate_pdf.py'), 'print("restored pdf")');
+    await fs.writeFile(path.join(testWorkspace, 'generate_tmp.py'), 'print("new helper")');
+
+    await cleanupIntermediateFiles(testWorkspace, {
+      protectedFinalPaths: ['generate_excel.py', path.join(testWorkspace, 'generate_pdf.py')],
+    });
+
+    expect(fsSync.existsSync(path.join(testWorkspace, 'generate_excel.py'))).toBe(true);
+    expect(fsSync.existsSync(path.join(testWorkspace, 'generate_pdf.py'))).toBe(true);
+    expect(fsSync.existsSync(path.join(testWorkspace, '.drafts', 'generate_excel.py'))).toBe(false);
+    expect(fsSync.existsSync(path.join(testWorkspace, '.drafts', 'generate_pdf.py'))).toBe(false);
+    expect(fsSync.existsSync(path.join(testWorkspace, '.drafts', 'generate_tmp.py'))).toBe(true);
+    expect(fsSync.existsSync(path.join(testWorkspace, 'generate_tmp.py'))).toBe(false);
   });
 
   test('handles HTML files with <!-- @final -->', async () => {

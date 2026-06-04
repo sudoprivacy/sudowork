@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { COMMENT_SYNTAX_MAP, DRAFT_EXTENSIONS, DRAFT_FILE_PATTERNS, FILE_INTENT_MARKERS, FINAL_EXTENSIONS, FINAL_FILE_PATTERNS } from '@/common/constants';
+import { COMMENT_SYNTAX_MAP, DRAFTS_DIR_NAME, DRAFT_EXTENSIONS, DRAFT_FILE_PATTERNS, FILE_INTENT_MARKERS, FINAL_EXTENSIONS, FINAL_FILE_PATTERNS } from '@/common/constants';
 import path from 'path';
 
 export type FileIntent = 'final' | 'draft';
@@ -122,6 +122,15 @@ export class FileIntentClassifier {
     const fileName = path.basename(input.filePath);
     const ext = path.extname(fileName).toLowerCase();
     const content = input.content ?? undefined;
+    const userMessage = input.userMessage?.trim() || '';
+
+    if (input.source !== 'cleanup' && isMoveToDraftsIntent(userMessage) && isDraftsPath(input.filePath, input.requestedPath)) {
+      return { intent: 'draft', reason: 'Move to drafts requested' };
+    }
+
+    if (input.source !== 'cleanup' && isRestoreFromDraftsIntent(userMessage) && isRestoredRootFile(input.filePath, input.requestedPath) && !matchesExcludedFileName(userMessage, input.filePath, input.requestedPath)) {
+      return { intent: 'final', reason: 'Restore from drafts to workspace root' };
+    }
 
     if (content) {
       const markerResult = detectFileIntent(input.filePath, content);
@@ -135,11 +144,15 @@ export class FileIntentClassifier {
       }
     }
 
-    const userMessage = input.userMessage?.trim() || '';
     const requestedNames = extractRequestedFileNames(userMessage);
+    const excludedNames = extractExcludedFileNames(userMessage);
     const requestedPath = input.requestedPath || input.filePath;
     const candidates = new Set([path.basename(fileName).toLowerCase(), normalizePathForMatch(requestedPath), normalizePathForMatch(input.filePath)]);
     for (const requestedName of requestedNames) {
+      if (excludedNames.has(requestedName) || excludedNames.has(path.basename(requestedName))) {
+        continue;
+      }
+
       if (candidates.has(requestedName) || candidates.has(path.basename(requestedName))) {
         return { intent: 'final', reason: `Matches requested file name "${requestedName}"`, matched: requestedName };
       }
@@ -198,8 +211,31 @@ function extractRequestedFileNames(message: string): Set<string> {
 
   const quotedPattern = /[`"'“”‘’]([^`"'“”‘’\n]+\.[A-Za-z0-9]{1,8})[`"'“”‘’]/g;
   const pathPattern = /(?:^|[\s([{，。,:：])([A-Za-z0-9._~@+\-/\\\u4e00-\u9fa5]+?\.[A-Za-z0-9]{1,8})(?=$|[\s)\]}，。,.!?:：；;])/g;
+  const actionPathPattern = /(?:将|把|移动|移出|移到|恢复|还原|放到|move|restore)\s*([A-Za-z0-9._~@+\-/\\\u4e00-\u9fa5]+?\.[A-Za-z0-9]{1,8})(?=$|[\s)\]}，。,.!?:：；;]|[^\x00-\x7F])/gi;
 
-  for (const pattern of [quotedPattern, pathPattern]) {
+  for (const pattern of [quotedPattern, pathPattern, actionPathPattern]) {
+    for (const match of message.matchAll(pattern)) {
+      const raw = match[1]?.trim();
+      if (!raw) continue;
+      names.add(normalizePathForMatch(raw));
+      names.add(path.basename(raw).toLowerCase());
+    }
+  }
+
+  return names;
+}
+
+function extractExcludedFileNames(message: string): Set<string> {
+  const names = new Set<string>();
+  if (!message) return names;
+
+  const fileNamePattern = String.raw`([A-Za-z0-9._~@+\-/\\\u4e00-\u9fa5]+?\.[A-Za-z0-9]{1,8})`;
+  const patterns = [
+    new RegExp(`${fileNamePattern}\\s*(?:文件)?\\s*(?:之外|以外|除外)`, 'gi'),
+    new RegExp(`(?:除了|除|排除|不包括|except)\\s*[\\s\`"'“”‘’]*${fileNamePattern}`, 'gi'),
+  ];
+
+  for (const pattern of patterns) {
     for (const match of message.matchAll(pattern)) {
       const raw = match[1]?.trim();
       if (!raw) continue;
@@ -229,6 +265,53 @@ function inferRequestedExtensions(message: string): Set<string> {
 function isScriptSideEffect(fileName: string): boolean {
   const lower = fileName.toLowerCase();
   return SCRIPT_SIDE_EFFECT_NAMES.has(lower) || lower.endsWith('.lock');
+}
+
+function isRestoreFromDraftsIntent(message: string): boolean {
+  if (!message) {
+    return false;
+  }
+
+  const mentionsDrafts = /\.drafts\b|草稿箱|草稿目录|\bdrafts?\b/i.test(message);
+  const restoreAction = /移动|移出|移到|搬到|放到|恢复|还原|move|restore/i.test(message);
+  const workspaceDestination = /工作目录|根目录|workspace|root|项目目录/i.test(message);
+  const movesToDrafts = /(?:移动|移到|搬到|放到|move|restore)[^\n。；;]*(?:\.drafts\b|草稿箱|草稿目录|\bdrafts?\b)/i.test(message);
+  return mentionsDrafts && restoreAction && workspaceDestination && !movesToDrafts;
+}
+
+function isRestoredRootFile(filePath: string, requestedPath?: string): boolean {
+  const normalizedPaths = [filePath, requestedPath].filter((value): value is string => typeof value === 'string' && value.trim().length > 0).map(normalizePathForMatch);
+  return normalizedPaths.length > 0 && normalizedPaths.every((value) => !isDraftsPathSegment(value));
+}
+
+function matchesExcludedFileName(message: string, filePath: string, requestedPath?: string): boolean {
+  const excludedNames = extractExcludedFileNames(message);
+  if (excludedNames.size === 0) {
+    return false;
+  }
+
+  const candidates = [path.basename(filePath).toLowerCase(), normalizePathForMatch(filePath)];
+  if (requestedPath) {
+    candidates.push(path.basename(requestedPath).toLowerCase(), normalizePathForMatch(requestedPath));
+  }
+
+  return candidates.some((candidate) => excludedNames.has(candidate));
+}
+
+function isMoveToDraftsIntent(message: string): boolean {
+  if (!message) {
+    return false;
+  }
+
+  return /(?:移动|移到|搬到|放到|move)[^\n。；;]*(?:\.drafts\b|草稿箱|草稿目录|\bdrafts?\b)/i.test(message);
+}
+
+function isDraftsPath(filePath: string, requestedPath?: string): boolean {
+  return [filePath, requestedPath].filter((value): value is string => typeof value === 'string' && value.trim().length > 0).map(normalizePathForMatch).some(isDraftsPathSegment);
+}
+
+function isDraftsPathSegment(value: string): boolean {
+  return value.split('/').includes(DRAFTS_DIR_NAME);
 }
 
 function isIntermediateScript(fileName: string, userMessage: string): boolean {
