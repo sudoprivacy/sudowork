@@ -9,6 +9,7 @@ import path from 'path';
 
 export type FileIntent = 'final' | 'draft';
 export type FileIntentSource = 'write' | 'edit' | 'bash-generated' | 'cleanup';
+export type FileOperationIntent = 'restore-from-drafts' | 'move-to-drafts';
 
 export interface ContentIntentResult {
   intent: FileIntent | 'unknown';
@@ -23,6 +24,7 @@ export interface FileIntentClassificationInput {
   content?: string | null;
   userMessage?: string | null;
   source: FileIntentSource;
+  operationIntent?: FileOperationIntent;
 }
 
 export interface FileIntentClassification {
@@ -31,6 +33,12 @@ export interface FileIntentClassification {
   marker?: string;
   line?: number;
   matched?: string;
+}
+
+export interface BashDraftRestoreDetection {
+  explicitPaths: Set<string>;
+  explicitBasenames: Set<string>;
+  wildcard: boolean;
 }
 
 const SCRIPT_EXTENSIONS = new Set(['.py', '.js', '.ts', '.tsx', '.jsx', '.mjs', '.cjs', '.sh', '.bash', '.zsh', '.rb', '.php', '.lua']);
@@ -118,12 +126,77 @@ export function detectFileIntent(filePath: string, content: string): ContentInte
   return { intent: 'unknown', reason: 'No marker found' };
 }
 
+export function detectBashDraftRestoreCommand(command?: string | null): BashDraftRestoreDetection {
+  const detection: BashDraftRestoreDetection = {
+    explicitPaths: new Set<string>(),
+    explicitBasenames: new Set<string>(),
+    wildcard: false,
+  };
+
+  if (!command?.trim()) {
+    return detection;
+  }
+
+  for (const segment of splitShellCommandSegments(command)) {
+    const words = tokenizeShellWords(segment);
+    const mvIndex = words.findIndex((word) => path.basename(word) === 'mv');
+    if (mvIndex === -1) {
+      continue;
+    }
+
+    const operands: string[] = [];
+    let optionsEnded = false;
+    for (const word of words.slice(mvIndex + 1)) {
+      if (!optionsEnded && word === '--') {
+        optionsEnded = true;
+        continue;
+      }
+      if (!optionsEnded && operands.length === 0 && /^-[A-Za-z]/.test(word)) {
+        continue;
+      }
+      operands.push(word);
+    }
+
+    if (operands.length < 2) {
+      continue;
+    }
+
+    const destination = operands[operands.length - 1];
+    if (isDraftsPath(destination)) {
+      continue;
+    }
+
+    for (const source of operands.slice(0, -1)) {
+      if (!isDraftsPath(source)) {
+        continue;
+      }
+
+      if (source.includes('*') || source.includes('?') || source.includes('[')) {
+        detection.wildcard = true;
+        continue;
+      }
+
+      addRestoredDestination(detection, source, destination);
+    }
+  }
+
+  return detection;
+}
+
 export class FileIntentClassifier {
   classify(input: FileIntentClassificationInput): FileIntentClassification {
     const fileName = path.basename(input.filePath);
     const ext = path.extname(fileName).toLowerCase();
     const content = input.content ?? undefined;
     const userMessage = input.userMessage?.trim() || '';
+
+    if (input.source !== 'cleanup' && input.operationIntent === 'move-to-drafts' && isDraftsPath(input.filePath, input.requestedPath)) {
+      return { intent: 'draft', reason: 'Move to drafts requested' };
+    }
+
+    if (input.source !== 'cleanup' && input.operationIntent === 'restore-from-drafts' && isRestoredRootFile(input.filePath, input.requestedPath)) {
+      return { intent: 'final', reason: 'Bash moved file from drafts to workspace root' };
+    }
 
     if (input.source !== 'cleanup' && isMoveToDraftsIntent(userMessage) && isDraftsPath(input.filePath, input.requestedPath)) {
       return { intent: 'draft', reason: 'Move to drafts requested' };
@@ -210,13 +283,133 @@ function extractCommentContent(line: string, commentPrefix: string): string | nu
   return line.slice(commentPrefix.length).trim();
 }
 
+function splitShellCommandSegments(command: string): string[] {
+  const segments: string[] = [];
+  let current = '';
+  let quote: string | null = null;
+
+  for (let i = 0; i < command.length; i++) {
+    const char = command[i];
+    const next = command[i + 1];
+
+    if (char === '\\') {
+      current += char;
+      if (next) {
+        current += next;
+        i++;
+      }
+      continue;
+    }
+
+    if (quote) {
+      current += char;
+      if (char === quote) {
+        quote = null;
+      }
+      continue;
+    }
+
+    if (char === '"' || char === "'") {
+      quote = char;
+      current += char;
+      continue;
+    }
+
+    if (char === '\n' || char === ';' || (char === '&' && next === '&') || (char === '|' && next === '|')) {
+      if (current.trim()) {
+        segments.push(current.trim());
+      }
+      current = '';
+      if ((char === '&' && next === '&') || (char === '|' && next === '|')) {
+        i++;
+      }
+      continue;
+    }
+
+    current += char;
+  }
+
+  if (current.trim()) {
+    segments.push(current.trim());
+  }
+
+  return segments;
+}
+
+function tokenizeShellWords(segment: string): string[] {
+  const words: string[] = [];
+  let current = '';
+  let quote: string | null = null;
+
+  for (let i = 0; i < segment.length; i++) {
+    const char = segment[i];
+    const next = segment[i + 1];
+
+    if (char === '\\') {
+      if (next) {
+        current += next;
+        i++;
+      }
+      continue;
+    }
+
+    if (quote) {
+      if (char === quote) {
+        quote = null;
+      } else {
+        current += char;
+      }
+      continue;
+    }
+
+    if (char === '"' || char === "'") {
+      quote = char;
+      continue;
+    }
+
+    if (/\s/.test(char)) {
+      if (current) {
+        words.push(current);
+        current = '';
+      }
+      continue;
+    }
+
+    current += char;
+  }
+
+  if (current) {
+    words.push(current);
+  }
+
+  return words;
+}
+
+function addRestoredDestination(detection: BashDraftRestoreDetection, source: string, destination: string): void {
+  const sourceName = path.basename(normalizePathForMatch(source));
+  if (!sourceName) {
+    return;
+  }
+
+  const normalizedDestination = normalizePathForMatch(destination);
+  const destinationIsDirectory = destination === '.' || destination === './' || destination.endsWith('/') || normalizedDestination === '';
+  const restoredPath = destinationIsDirectory ? sourceName : normalizedDestination;
+
+  if (!restoredPath || restoredPath.includes('*') || isDraftsPathSegment(restoredPath)) {
+    return;
+  }
+
+  detection.explicitPaths.add(restoredPath);
+  detection.explicitBasenames.add(path.basename(restoredPath).toLowerCase());
+}
+
 function extractRequestedFileNames(message: string): Set<string> {
   const names = new Set<string>();
   if (!message) return names;
 
   const quotedPattern = /[`"'“”‘’]([^`"'“”‘’\n]+\.[A-Za-z0-9]{1,8})[`"'“”‘’]/g;
   const pathPattern = /(?:^|[\s([{，。,:：])([A-Za-z0-9._~@+\-/\\\u4e00-\u9fa5]+?\.[A-Za-z0-9]{1,8})(?=$|[\s)\]}，。,.!?:：；;])/g;
-  const actionPathPattern = /(?:将|把|移动|移出|移到|恢复|还原|放到|move|restore)\s*([A-Za-z0-9._~@+\-/\\\u4e00-\u9fa5]+?\.[A-Za-z0-9]{1,8})(?=$|[\s)\]}，。,.!?:：；;]|[^\x00-\x7F])/gi;
+  const actionPathPattern = /(?:将|把|移动|移出|移到|恢复|还原|放到|move|restore)\s*([A-Za-z0-9._~@+\-/\\\u4e00-\u9fa5]+?\.[A-Za-z0-9]{1,8})(?=$|[\s)\]}，。,.!?:：；;]|[\u0080-\uFFFF])/gi;
 
   for (const pattern of [quotedPattern, pathPattern, actionPathPattern]) {
     for (const match of message.matchAll(pattern)) {
@@ -235,10 +428,7 @@ function extractExcludedFileNames(message: string): Set<string> {
   if (!message) return names;
 
   const fileNamePattern = String.raw`([A-Za-z0-9._~@+\-/\\\u4e00-\u9fa5]+?\.[A-Za-z0-9]{1,8})`;
-  const patterns = [
-    new RegExp(`${fileNamePattern}\\s*(?:文件)?\\s*(?:之外|以外|除外)`, 'gi'),
-    new RegExp(`(?:除了|除|排除|不包括|except)\\s*[\\s\`"'“”‘’]*${fileNamePattern}`, 'gi'),
-  ];
+  const patterns = [new RegExp(`${fileNamePattern}\\s*(?:文件)?\\s*(?:之外|以外|除外)`, 'gi'), new RegExp(`(?:除了|除|排除|不包括|except)\\s*[\\s\`"'“”‘’]*${fileNamePattern}`, 'gi')];
 
   for (const pattern of patterns) {
     for (const match of message.matchAll(pattern)) {
@@ -312,7 +502,10 @@ function isMoveToDraftsIntent(message: string): boolean {
 }
 
 function isDraftsPath(filePath: string, requestedPath?: string): boolean {
-  return [filePath, requestedPath].filter((value): value is string => typeof value === 'string' && value.trim().length > 0).map(normalizePathForMatch).some(isDraftsPathSegment);
+  return [filePath, requestedPath]
+    .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+    .map(normalizePathForMatch)
+    .some(isDraftsPathSegment);
 }
 
 function isDraftsPathSegment(value: string): boolean {

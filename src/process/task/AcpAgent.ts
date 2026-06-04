@@ -43,7 +43,7 @@ import { classifyLlmError } from '@process/utils/llmErrorClassification';
 import { injectSkillsDirectoryHint, prepareFirstMessageWithSkillsIndex } from './agentUtils';
 import { AcpSkillManager } from './AcpSkillManager';
 import { archiveTurnFiles, cleanupIntermediateFiles, cleanupTrackedDraftsOnCancel, type TrackedTurnFile } from './draftsCleanup';
-import { FileIntentClassifier, type FileIntentSource } from './FileIntentClassifier';
+import { detectBashDraftRestoreCommand, FileIntentClassifier, type BashDraftRestoreDetection, type FileIntentSource, type FileOperationIntent } from './FileIntentClassifier';
 import { SCODE_COMPLETION_REMINDER, shouldSkipAcpWorkspaceTrackingPath } from './acpWorkspaceTracking';
 import { mergeScodeProxyModelInfo, isModelVisionCapable, getScodeProxyModelInfoSync } from '@process/services/scode/scodeProxyModels';
 import { installWorkspaceSkillsFromTrackedFiles } from './workspaceSkillInstaller';
@@ -1653,7 +1653,7 @@ This identity statement takes priority over the default identity in USER.md.
     return nodePath.join(fallbackDir, nodePath.basename(trimmedPath));
   }
 
-  private trackTurnFile(input: { requestedPath: string; actualPath?: string; content?: string | null; source: FileIntentSource; kind: 'create' | 'edit' }): void {
+  private trackTurnFile(input: { requestedPath: string; actualPath?: string; content?: string | null; source: FileIntentSource; kind: 'create' | 'edit'; operationIntent?: FileOperationIntent }): void {
     if (!this.workspace || !input.requestedPath) {
       return;
     }
@@ -1665,6 +1665,7 @@ This identity statement takes priority over the default identity in USER.md.
       content: input.content,
       userMessage: this.lastUserMessage,
       source: input.source,
+      operationIntent: input.operationIntent,
     });
     const actualPath = input.actualPath || this.resolveWorkspacePath(input.requestedPath);
     const workspaceRoot = nodePath.resolve(this.workspace);
@@ -1703,12 +1704,13 @@ This identity statement takes priority over the default identity in USER.md.
    * Scans workspace for new files after Bash completes and tracks them
    * 在 Bash 完成后扫描工作空间新增文件并追踪
    */
-  private trackBashGeneratedFiles(): void {
+  private trackBashGeneratedFiles(command?: string | null): void {
     try {
       const currentSnapshot = this.getWorkspaceFiles();
 
       // Compare with previous snapshot to find new and modified files
       const previousSnapshot = this.workspaceFileSnapshot;
+      const draftRestoreDetection = detectBashDraftRestoreCommand(command);
       const changedFiles: Array<{ path: string; kind: 'create' | 'edit' }> = [];
 
       for (const [file, time] of currentSnapshot) {
@@ -1743,6 +1745,7 @@ This identity statement takes priority over the default identity in USER.md.
           content,
           source: 'bash-generated',
           kind: changedFile.kind,
+          operationIntent: this.isBashRestoredDraftRootFile(relativePath, previousSnapshot, draftRestoreDetection) ? 'restore-from-drafts' : undefined,
         });
         trackedCount++;
       }
@@ -1756,6 +1759,25 @@ This identity statement takes priority over the default identity in USER.md.
     } catch (err) {
       mainError('[AcpAgent]', 'Failed to track Bash generated files:', err);
     }
+  }
+
+  private isBashRestoredDraftRootFile(relativePath: string, previousSnapshot: Map<string, number>, detection: BashDraftRestoreDetection): boolean {
+    const normalizedRelativePath = relativePath.trim().replace(/\\/g, '/').replace(/^\.\//, '').toLowerCase();
+    if (!normalizedRelativePath || normalizedRelativePath.startsWith('../') || normalizedRelativePath.split('/').includes(DRAFTS_DIR_NAME)) {
+      return false;
+    }
+
+    const basename = nodePath.basename(normalizedRelativePath).toLowerCase();
+    if (detection.explicitPaths.has(normalizedRelativePath) || detection.explicitBasenames.has(basename)) {
+      return true;
+    }
+
+    if (!detection.wildcard) {
+      return false;
+    }
+
+    const previousDraftPath = nodePath.join(nodePath.resolve(this.workspace), DRAFTS_DIR_NAME, nodePath.basename(relativePath));
+    return previousSnapshot.has(previousDraftPath);
   }
 
   /**
@@ -2137,7 +2159,8 @@ This identity statement takes priority over the default identity in USER.md.
           const meta = this.toolCallMeta.get(toolCallId);
           if (meta && meta.toolName.toLowerCase() === 'bash') {
             mainLog('[AcpAgent]', `[TRACK-BASH-CANCEL] Bash completed after cancel, tracking generated files`);
-            this.trackBashGeneratedFiles();
+            const command = (rawInput?.command ?? meta.rawInput?.command) as string | undefined;
+            this.trackBashGeneratedFiles(command);
           }
         }
       }
@@ -2264,7 +2287,7 @@ This identity statement takes priority over the default identity in USER.md.
             if (n === 'bash') {
               mainLog('[AcpAgent]', `[TRACK-BASH] Bash tool detected, status: ${toolStatus}`);
               if (toolStatus === 'completed') {
-                this.trackBashGeneratedFiles();
+                this.trackBashGeneratedFiles(rawInput?.command as string | undefined);
               }
             }
 

@@ -1,7 +1,7 @@
 import { describe, test, expect, beforeEach, afterEach } from 'vitest';
 import { FILE_INTENT_MARKERS, COMMENT_SYNTAX_MAP, getCommentPrefix } from '@/common/constants';
 import { archiveTurnFiles, cleanupIntermediateFiles, cleanupTrackedDraftsOnCancel, detectFileIntent, type TrackedTurnFile } from '@/process/task/draftsCleanup';
-import { FileIntentClassifier } from '@/process/task/FileIntentClassifier';
+import { detectBashDraftRestoreCommand, FileIntentClassifier } from '@/process/task/FileIntentClassifier';
 import fs from 'fs/promises';
 import fsSync from 'fs';
 import path from 'path';
@@ -174,6 +174,20 @@ describe('FileIntentClassifier', () => {
     expect(result.reason).toContain('Restore from drafts');
   });
 
+  test('bash restore operation overrides historical draft marker without drafts wording in user message', () => {
+    const result = classifier.classify({
+      filePath: 'generate_embodied_ai_pdf.js',
+      requestedPath: 'generate_embodied_ai_pdf.js',
+      content: '// @draft\nconsole.log("old draft")',
+      userMessage: '将js文件移动到工作目录',
+      source: 'bash-generated',
+      operationIntent: 'restore-from-drafts',
+    });
+
+    expect(result.intent).toBe('final');
+    expect(result.reason).toContain('Bash moved file from drafts');
+  });
+
   test('promotes bash-generated helper script restored from drafts to workspace root', () => {
     const result = classifier.classify({
       filePath: 'generate_pdf.py',
@@ -254,6 +268,30 @@ describe('FileIntentClassifier', () => {
 
     expect(result.intent).toBe('draft');
     expect(result.reason).toContain('Move to drafts');
+  });
+});
+
+describe('detectBashDraftRestoreCommand', () => {
+  test('detects explicit mv from .drafts to workspace root in a chained command', () => {
+    const result = detectBashDraftRestoreCommand('cd /tmp/work && mv .drafts/generate_embodied_ai_pdf.js ./generate_embodied_ai_pdf.js && ls -l generate_embodied_ai_pdf.js');
+
+    expect(result.explicitPaths.has('generate_embodied_ai_pdf.js')).toBe(true);
+    expect(result.explicitBasenames.has('generate_embodied_ai_pdf.js')).toBe(true);
+    expect(result.wildcard).toBe(false);
+  });
+
+  test('detects wildcard mv from .drafts to workspace root', () => {
+    const result = detectBashDraftRestoreCommand('mv .drafts/* ./');
+
+    expect(result.wildcard).toBe(true);
+  });
+
+  test('does not treat moves into .drafts as restore operations', () => {
+    const result = detectBashDraftRestoreCommand('mv generate_embodied_ai_pdf.js .drafts/generate_embodied_ai_pdf.js');
+
+    expect(result.explicitPaths.size).toBe(0);
+    expect(result.explicitBasenames.size).toBe(0);
+    expect(result.wildcard).toBe(false);
   });
 });
 
