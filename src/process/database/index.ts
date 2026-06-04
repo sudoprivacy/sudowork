@@ -701,7 +701,7 @@ export class AionUIDatabase {
             SELECT *
             FROM messages
             WHERE conversation_id = ?
-            ORDER BY created_at ${order} LIMIT ?
+            ORDER BY created_at ${order}, rowid ${order} LIMIT ?
             OFFSET ?
           `
         )
