@@ -64,6 +64,14 @@ class DynamicNexusService {
   }
 
   /**
+   * The binary name inside the nexusd-cluster (Rust) archive, before it is
+   * renamed to nexusd. The archive ships `nexusd-cluster[.exe]`.
+   */
+  private getClusterBinaryName(): string {
+    return this.isWindows ? 'nexusd-cluster.exe' : 'nexusd-cluster';
+  }
+
+  /**
    * Get the archive file extension for the current platform.
    * macOS/Linux: .tar.gz, Windows: .zip
    */
@@ -343,8 +351,11 @@ class DynamicNexusService {
         }
       }
 
-      // Verify that nexusd is present at the stripped level
-      if (names.has(nexusdName)) {
+      // Verify that the nexus binary is present at the stripped level. The
+      // v0.9.43 (Python) archive ships it as `nexusd`; the nexusd-cluster
+      // (Rust) archive ships it as `nexusd-cluster` and is renamed to `nexusd`
+      // after extraction (see installFromArchive).
+      if (names.has(nexusdName) || names.has(this.getClusterBinaryName())) {
         return { strip: 1, topLevelNames: names };
       }
     }
@@ -443,6 +454,17 @@ class DynamicNexusService {
         },
         strip
       );
+
+      // The nexusd-cluster (Rust) archive ships the binary as `nexusd-cluster`,
+      // but the rest of the service (start, readiness, install check) expects
+      // `nexusd`. Rename it after extraction so both archive layouts converge on
+      // the same installed path.
+      const nexusdPath = path.join(binDir, this.getNexusdName());
+      const clusterPath = path.join(binDir, this.getClusterBinaryName());
+      if (!fs.existsSync(nexusdPath) && fs.existsSync(clusterPath)) {
+        fs.renameSync(clusterPath, nexusdPath);
+        mainLog('Nexus', `Renamed ${this.getClusterBinaryName()} -> ${this.getNexusdName()}`);
+      }
 
       this.emitSetup('installing', 'Setting permissions...', 85);
 
@@ -626,9 +648,23 @@ class DynamicNexusService {
   private resolveStartCommand(port = NEXUS_DEFAULT_PORT): { command: string; args: string[] } {
     const newPath = this.getInstalledNexusdPath();
     if (fs.existsSync(newPath)) {
+      // nexusd-cluster (Rust runtime) CLI: --hostname / --bind-addr /
+      // --bootstrap-mode / --data-dir / --no-tls. It speaks gRPC only (no HTTP
+      // /health), so readiness is a TCP-connect probe (see waitForHealthyServer).
+      // bootstrap-mode `static` with empty peers brings up a single-node zone.
       return {
         command: newPath,
-        args: ['--host', 'localhost', '--profile=cluster', '--auth-type', 'none', '--port', String(port)],
+        args: [
+          '--hostname',
+          'localhost',
+          '--bind-addr',
+          `127.0.0.1:${port}`,
+          '--bootstrap-mode',
+          'static',
+          '--data-dir',
+          path.join(getDataPath(), 'nexus_data'),
+          '--no-tls',
+        ],
       };
     }
 
@@ -957,15 +993,21 @@ class DynamicNexusService {
   }
 
   private async isHealthyNexusServer(port: number): Promise<boolean> {
-    try {
-      const response = await fetch(`http://127.0.0.1:${port}/health`, {
-        signal: AbortSignal.timeout(NEXUS_HEALTHCHECK_TIMEOUT_MS),
+    // nexusd-cluster (Rust) speaks gRPC only — there is no HTTP /health
+    // endpoint — so readiness is a plain TCP-connect probe against the bind port.
+    return new Promise<boolean>((resolve) => {
+      const socket = net.connect(port, '127.0.0.1', () => {
+        socket.destroy();
+        resolve(true);
       });
-      const payload = (await response.json()) as { status?: string };
-      return payload.status === 'healthy';
-    } catch {
-      return false;
-    }
+      socket.setTimeout(NEXUS_HEALTHCHECK_TIMEOUT_MS);
+      const fail = (): void => {
+        socket.destroy();
+        resolve(false);
+      };
+      socket.once('timeout', fail);
+      socket.once('error', fail);
+    });
   }
 
   private async waitForHealthyServer(port: number, timeoutMs?: number): Promise<void> {

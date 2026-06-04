@@ -17,7 +17,7 @@ const execAsync = promisify(exec);
 /**
  * nexus-vfs — a third managed runtime, independent of and additive to the
  * existing Nexus (~/.nexus, port 12012) and Sudocode runtimes. It launches the
- * `nexusd-cluster` daemon from the nexus-vfs repo (v0.0.1-rc1) under ~/.nexus-vfs
+ * `nexusd-cluster` daemon from the nexus-vfs repo (version pinned in runtime-versions.json) under ~/.nexus-vfs
  * and binds gRPC on 127.0.0.1:12022.
  *
  * Differences from DynamicNexusService that matter here:
@@ -36,7 +36,7 @@ const NEXUS_VFS_START_TIMEOUT_MS = 30_000;
 /** Marker file recording the installed version inside the bin directory. */
 const NEXUS_VFS_READY_MARKER = '.nexus-vfs-bin-ready';
 
-/** COS mirror that actually hosts the v0.0.1-rc1 artifacts (verified by HEAD probe). */
+/** COS mirror that hosts the nexus-vfs release artifacts (verified by HEAD probe). */
 const NEXUS_VFS_COS_BASE_URL = 'https://sudoclaw-download-1309794936.cos.ap-beijing.myqcloud.com/nexus-vfs/release';
 
 /** Node.js process.platform → artifact OS token. */
@@ -44,17 +44,17 @@ const OS_NAME_MAP: Record<string, string> = { darwin: 'macos', win32: 'windows',
 /** Node.js process.arch → artifact arch token (note: arm64 → aarch64). */
 const ARCH_NAME_MAP: Record<string, string> = { arm64: 'aarch64', x64: 'x86_64' };
 
-/** Known-good SHA256 sums for v0.0.1-rc1 (mirrors SHA256SUMS.txt in the bucket). */
+/** Known-good SHA256 sums for v0.1.0 (mirrors SHA256SUMS.txt in the bucket). */
 const NEXUS_VFS_SHA256SUMS: Record<string, string> = {
-  'nexusd-cluster-linux-aarch64.tar.gz': '1dd8d899b6cca4f9f47c6785ac7cd3bf30ff3d9faca1c6b791ec9fc76232af87',
-  'nexusd-cluster-linux-x86_64.tar.gz': '9d4f86780ae4ba59cb3e2fc573d68200bba7a0d45cd4e5d862499012ec46945a',
-  'nexusd-cluster-macos-aarch64.tar.gz': 'eeb5d821cf8940cc97e879707f85b39db0dbb054d42334e2d8c48a4e63cd13ab',
-  'nexusd-cluster-windows-aarch64.zip': 'dc121b622575f781c4ac5efb4190153cae9e783ee635342e325e67a30d1852c8',
-  'nexusd-cluster-windows-x86_64.zip': '4e261d26070994667fee2d98f6b065c0d5e436a903fca2d7dfd198a85a19d81f',
+  'nexusd-cluster-linux-aarch64.tar.gz': '2a7e668db3c90216ea2367ab38fc146a758ba44cd86418a2b0dd67235505409e',
+  'nexusd-cluster-linux-x86_64.tar.gz': '8727ce5fedaf18e0becabf185707fa088dfa9aa5caa4d200a944a0310745f268',
+  'nexusd-cluster-macos-aarch64.tar.gz': '7cc2a1f8d5e351a42d6abc4dacd13a3729cfed4d9cd963a91b1eea1d99ac7c5b',
+  'nexusd-cluster-windows-aarch64.zip': '81167da16a8b480b3c6336077608b22fa5c5d2062362dada0a73e96481730771',
+  'nexusd-cluster-windows-x86_64.zip': 'b7d79bc060d1d598fae7a6c7131e4e7d5d3cb76b14ec7742a6a6d28d2dc57817',
 };
 
 /** Explicit, non-fallback error for the one platform this release does not ship. */
-const INTEL_MAC_UNSUPPORTED = 'nexus-vfs v0.0.1-rc1 has no Intel macOS artifact; use Apple Silicon or wait for a newer release';
+const INTEL_MAC_UNSUPPORTED = 'nexus-vfs v0.1.0 has no Intel macOS artifact; use Apple Silicon or wait for a newer release';
 
 export type NexusVfsStage = 'idle' | 'checking' | 'downloading' | 'installing' | 'starting' | 'ready' | 'error';
 
