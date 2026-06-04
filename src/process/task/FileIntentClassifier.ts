@@ -35,6 +35,7 @@ export interface FileIntentClassification {
 
 const SCRIPT_EXTENSIONS = new Set(['.py', '.js', '.ts', '.tsx', '.jsx', '.mjs', '.cjs', '.sh', '.bash', '.zsh', '.rb', '.php', '.lua']);
 const SCRIPT_SIDE_EFFECT_NAMES = new Set(['package.json', 'package-lock.json', 'npm-shrinkwrap.json', 'yarn.lock', 'pnpm-lock.yaml', 'bun.lockb', 'bun.lock', 'requirements.txt']);
+const BASH_DELIVERABLE_EXTENSIONS = new Set(['.pdf', '.docx', '.pptx', '.xlsx', '.csv', '.json', '.md', '.markdown', '.txt', '.html', '.htm', '.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg']);
 
 const TARGET_TYPE_EXTENSIONS: Array<{ pattern: RegExp; extensions: string[] }> = [
   { pattern: /\b(pdf|PDF)\b|文档.*pdf|pdf.*文档/i, extensions: ['.pdf'] },
@@ -158,12 +159,16 @@ export class FileIntentClassifier {
       return { intent: 'final', reason: 'Matches final file pattern' };
     }
 
-    if (input.source === 'bash-generated') {
-      return { intent: 'draft', reason: 'Bash-generated file without explicit final signal' };
-    }
-
     if (matchesDraftPattern(fileName)) {
       return { intent: 'draft', reason: 'Matches draft file pattern' };
+    }
+
+    if (input.source === 'bash-generated' && BASH_DELIVERABLE_EXTENSIONS.has(ext)) {
+      return { intent: 'final', reason: `Bash-generated deliverable file type ${ext}`, matched: ext };
+    }
+
+    if (input.source === 'bash-generated') {
+      return { intent: 'draft', reason: 'Bash-generated file without explicit final signal' };
     }
 
     if (isIntermediateScript(fileName, userMessage)) {
