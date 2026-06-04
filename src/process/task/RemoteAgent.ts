@@ -338,6 +338,32 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
   /**
    * Send message
    */
+  /**
+   * Tear down the current Moss connection and reconnect, resuming the same
+   * session. Used by the "重启并连接" action after the WebSocket dies (e.g. the
+   * laptop wakes from a long sleep and the socket has hung up). initAgent is
+   * guarded by `this.bootstrap`, so it would otherwise reuse the dead
+   * connection — clearing bootstrap forces a fresh attach/resume via the
+   * persisted wsUrl/sessionId.
+   */
+  async restartAndConnect(): Promise<void> {
+    mainLog('RemoteAgent', `restartAndConnect for conversation ${this.conversation_id}`);
+    this.emitStatusMessage('connecting');
+    try {
+      this.connection?.disconnect();
+    } catch (error) {
+      mainError('RemoteAgent', `disconnect during restart failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    this.connection = null;
+    // Clear bootstrap so initAgent rebuilds the connection instead of returning
+    // the stale (resolved) one.
+    this.bootstrap = undefined;
+    await this.initAgent();
+    if (!this.connection?.isConnected()) {
+      throw new Error('Connection not ready after restart');
+    }
+  }
+
   async sendMessage(data: { content: string; files?: string[]; msg_id?: string }): Promise<{ success: boolean; msg?: string }> {
     mainLog('RemoteAgent', `sendMessage called for conversation ${this.conversation_id}`);
     mainLog('RemoteAgent', `content length: ${data.content?.length || 0}, files: ${data.files?.length || 0}`);
@@ -357,6 +383,15 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
       mainLog('RemoteAgent', 'Calling initAgent...');
       await this.initAgent();
       mainLog('RemoteAgent', 'initAgent completed');
+
+      // initAgent reuses a cached bootstrap, so a connection that died while
+      // idle (e.g. socket hang up after the laptop slept) won't be rebuilt by
+      // the call above. Detect the dead socket and transparently reconnect once
+      // before failing, so the user's send self-heals instead of erroring.
+      if (!this.connection?.isConnected()) {
+        mainLog('RemoteAgent', 'Connection stale after initAgent; attempting reconnect');
+        await this.restartAndConnect();
+      }
 
       if (!this.connection?.isConnected()) {
         mainError('RemoteAgent', 'Connection not ready after initAgent');

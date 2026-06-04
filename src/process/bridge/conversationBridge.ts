@@ -19,6 +19,7 @@ import { shouldSyncWorkspaceSkills } from '../../common/utils/workspaceSkillSync
 import { getSkillsDir, ProcessChat } from '../initStorage';
 import { ConversationService } from '../services/conversationService';
 import type AcpAgent from '../task/AcpAgent';
+import type RemoteAgent from '../task/RemoteAgent';
 import { listWorkspaceSkillTargets, resolveConversationEnabledSkillNames } from '../utils/workspaceSkillTargets';
 import { areSkillSelectionsEqual, resolveLatestConversationEnabledSkills } from '../utils/conversationAssistantSkills';
 import { copyFilesToDirectory, readDirectoryRecursive } from '../utils';
@@ -587,12 +588,14 @@ export function initConversationBridge(): void {
   // Disconnects current connection, clears bootstrap, then re-initializes
   ipcBridge.conversation.restartAndConnect.provider(async ({ conversation_id }) => {
     try {
-      const task = WorkerManage.getTaskById(conversation_id) as AcpAgent | undefined;
+      const task = WorkerManage.getTaskById(conversation_id);
       if (!task) return { success: false, msg: 'conversation not found' };
 
-      if (task.type === 'acp') {
-        const acpTask = task as AcpAgent;
-        await acpTask.restartAndConnect();
+      // Both ACP (local) and remote-agent (enterprise/Moss) tasks expose
+      // restartAndConnect to recover a dead connection (e.g. socket hang up
+      // after the laptop wakes from sleep).
+      if (task.type === 'acp' || task.type === 'remote-agent') {
+        await (task as AcpAgent | RemoteAgent).restartAndConnect();
         return { success: true };
       }
 
