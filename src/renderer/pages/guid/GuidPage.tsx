@@ -43,7 +43,7 @@ import { useTypewriterPlaceholder } from './hooks/useTypewriterPlaceholder';
 import { getGuidDraft, setGuidDraft } from './hooks/useGuidDraft';
 import type { AcpBackendConfig } from './types';
 import { DEFAULT_PRESET_AGENT_TYPE, normalizePresetAgentType } from '@/types/acpTypes';
-import { ConfigProvider, Message } from '@arco-design/web-react';
+import { Message } from '@arco-design/web-react';
 import { EditTwo, Left, Robot } from '@icon-park/react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -602,7 +602,6 @@ const GuidPage: React.FC = () => {
   }, [selectedAssistantConfig, localeKey]);
 
   return (
-    <ConfigProvider getPopupContainer={() => guidContainerRef.current || document.body}>
       <div ref={guidContainerRef} className={styles.guidContainer}>
         <div className='absolute top-12px right-16px z-10'>
           <ThemeSwitcher />
@@ -778,7 +777,6 @@ const GuidPage: React.FC = () => {
         {/* Assistant Edit Drawer */}
         <AssistantEditDrawer visible={editDrawerVisible} assistantId={selectedAssistantConfig?.id || null} localeKey={localeKey} onClose={() => setEditDrawerVisible(false)} onSaved={handleEditDrawerSaved} />
       </div>
-    </ConfigProvider>
   );
 };
 
