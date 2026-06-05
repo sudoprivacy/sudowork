@@ -22,6 +22,7 @@ import type AcpAgent from '../task/AcpAgent';
 import type RemoteAgent from '../task/RemoteAgent';
 import { listWorkspaceSkillTargets, resolveConversationEnabledSkillNames } from '../utils/workspaceSkillTargets';
 import { areSkillSelectionsEqual, resolveLatestConversationEnabledSkills } from '../utils/conversationAssistantSkills';
+import { filterEnabledSkillNames, filterRemoteAvailableSkills } from '../utils/enabledSkillFilter';
 import { copyFilesToDirectory, readDirectoryRecursive } from '../utils';
 import { resolveWorkspaceSkillsDir } from '../utils/workspaceSkillsDir';
 import WorkerManage from '../WorkerManage';
@@ -33,6 +34,7 @@ import { startConversationTracking, endConversationSuccess, endConversationError
 import { getConversationProvider, isRemoteProvider } from '../providers';
 import { getMossApi, getMossApiServerUrl, initMossApi } from '../remote/MossSessionApi';
 import { getSudoworkAcpSlashCommands } from '@/common/slash/sudoworkCommands';
+import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
 
 const workspaceSkillSyncTasks = new Map<string, Promise<void>>();
 
@@ -131,7 +133,9 @@ async function syncConversationWorkspaceSkills(conversation: TChatConversation |
     // Build ID → name mapping from installed skills
     const installedSkills = await skillManager.getInstalledSkills();
     const idToNameMap = new Map<string, string>();
+    const shouldFilterDisabledSkills = isEnterpriseMode();
     for (const skill of installedSkills) {
+      if (shouldFilterDisabledSkills && skill.enabled === false) continue;
       // Map by skill ID (UUID)
       if (skill.meta?.id) {
         idToNameMap.set(skill.meta.id, skill.name);
@@ -687,7 +691,8 @@ export function initConversationBridge(): void {
 
       const api = getRemoteConversationMossApi(extra);
       const skills: MossSessionAvailableSkill[] = await api.getSessionAvailableSkills(mossSessionId);
-      return { success: true, data: { skills, pending: false } };
+      const filteredSkills = await filterRemoteAvailableSkills(skills);
+      return { success: true, data: { skills: filteredSkills, pending: false } };
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       mainWarn('conversationBridge', 'getRemoteAvailableSkills failed:', msg);
@@ -841,16 +846,18 @@ export function initConversationBridge(): void {
       // ignore
     }
 
+    const requestedSkills = await filterEnabledSkillNames(other.skills);
+
     // Ensure workspace skills symlinks exist before dispatching to the gateway.
     // syncConversationWorkspaceSkills is idempotent — it skips symlinks that are already correct.
-    await queueConversationWorkspaceSkillSync(conversation, other.skills);
+    await queueConversationWorkspaceSkillSync(conversation, requestedSkills);
 
     try {
       const payload: { content: string; agentContent?: string; files: string[]; msg_id: string; skills?: string[] } = {
         content: other.input,
         files: workspaceFiles,
         msg_id: other.msg_id,
-        skills: other.skills || [],
+        skills: requestedSkills || [],
       };
 
       mainLog('conversationBridge', `sendMessage: about to call task.sendMessage for ${conversation_id}`);
