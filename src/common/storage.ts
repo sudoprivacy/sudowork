@@ -283,6 +283,8 @@ export type TChatConversation =
           cronJobBoundId?: string;
           /** Cron job name this conversation is pre-bound to */
           cronJobBoundName?: string;
+          /** Moss remote container workspace path (enterprise mode) - stored separately from local workspace */
+          mossWorkDir?: string;
         }
       >,
       'model'
@@ -356,6 +358,8 @@ export type TChatConversation =
           cronJobBoundId?: string;
           /** Cron job name this conversation is pre-bound to */
           cronJobBoundName?: string;
+          /** Moss remote container workspace path (enterprise mode) - stored separately from local workspace */
+          mossWorkDir?: string;
         }
       >,
       'model'
