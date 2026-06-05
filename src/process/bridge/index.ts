@@ -52,6 +52,7 @@ import { initTelemetryBridge } from './telemetryBridge';
 import { initAuthProxyBridge } from './authProxyBridge';
 import { initMossBridge } from './mossBridge';
 import { initShareoneCliBridge } from './shareoneCliBridge';
+import { initTerminalBridge } from './terminalBridge';
 // Crash bridge is initialized early in src/process/index.ts before storage
 // to handle renderer errors during startup
 import { initEeclawBridge } from './eeclawBridge';
@@ -110,6 +111,7 @@ export function initAllBridges(): void {
   initTelemetryBridge();
   initMossBridge();
   initShareoneCliBridge();
+  initTerminalBridge();
   // Note: initCrashBridge() is called early in src/process/index.ts before storage
   initEeclawBridge();
   initManagedAgentBridge();
