@@ -44,17 +44,15 @@ const OS_NAME_MAP: Record<string, string> = { darwin: 'macos', win32: 'windows',
 /** Node.js process.arch → artifact arch token (note: arm64 → aarch64). */
 const ARCH_NAME_MAP: Record<string, string> = { arm64: 'aarch64', x64: 'x86_64' };
 
-/** Known-good SHA256 sums for v0.1.0 (mirrors SHA256SUMS.txt in the bucket). */
+/** Known-good SHA256 sums for v0.1.1 (mirrors SHA256SUMS.txt in the bucket). */
 const NEXUS_VFS_SHA256SUMS: Record<string, string> = {
-  'nexusd-cluster-linux-aarch64.tar.gz': '2a7e668db3c90216ea2367ab38fc146a758ba44cd86418a2b0dd67235505409e',
-  'nexusd-cluster-linux-x86_64.tar.gz': '8727ce5fedaf18e0becabf185707fa088dfa9aa5caa4d200a944a0310745f268',
-  'nexusd-cluster-macos-aarch64.tar.gz': '7cc2a1f8d5e351a42d6abc4dacd13a3729cfed4d9cd963a91b1eea1d99ac7c5b',
-  'nexusd-cluster-windows-aarch64.zip': '81167da16a8b480b3c6336077608b22fa5c5d2062362dada0a73e96481730771',
-  'nexusd-cluster-windows-x86_64.zip': 'b7d79bc060d1d598fae7a6c7131e4e7d5d3cb76b14ec7742a6a6d28d2dc57817',
+  'nexusd-cluster-linux-aarch64.tar.gz': '239ab3ebcf529a9949e71c81aa7c9f9aabf9ab8fce0e8bc19260512b0877c01a',
+  'nexusd-cluster-linux-x86_64.tar.gz': 'd26bbac7cccf1e158df2f48f24a46ad695fd8dc324795f44dc642f6fbc28fb2d',
+  'nexusd-cluster-macos-aarch64.tar.gz': 'a97cbc4dd637ef54dd05b259a7f21af2db88cee1003b5a55ef28c86774337df0',
+  'nexusd-cluster-macos-x86_64.tar.gz': '8400b2ff8c775973acea142d8c8b9afebc8cdf85b66d747f73cabd4e36609592',
+  'nexusd-cluster-windows-aarch64.zip': '49bfbd3072a4f638bb8faebdc724241789a1e7682cefe266348bae461adf1eef',
+  'nexusd-cluster-windows-x86_64.zip': '584b9e88db5c86b14ec4626a572f10d8f44d8c1553dfad599e1a89bb1e5b6f87',
 };
-
-/** Explicit, non-fallback error for the one platform this release does not ship. */
-const INTEL_MAC_UNSUPPORTED = 'nexus-vfs v0.1.0 has no Intel macOS artifact; use Apple Silicon or wait for a newer release';
 
 export type NexusVfsStage = 'idle' | 'checking' | 'downloading' | 'installing' | 'starting' | 'ready' | 'error';
 
@@ -140,9 +138,6 @@ class DynamicNexusVfsService {
   }
 
   private getArtifactName(): string {
-    if (process.platform === 'darwin' && process.arch === 'x64') {
-      throw new Error(INTEL_MAC_UNSUPPORTED);
-    }
     const osName = OS_NAME_MAP[process.platform];
     const archName = ARCH_NAME_MAP[process.arch];
     if (!osName || !archName) {

@@ -78,6 +78,29 @@
     "closeRight": "关闭右侧",
     "closeOthers": "关闭其他"
   },
+  "rightPanel": {
+    "tabs": {
+      "workspace": "工作空间",
+      "browser": "浏览器",
+      "terminal": "终端"
+    },
+    "browser": {
+      "newTab": "新标签页",
+      "open": "打开",
+      "openExternal": "在系统浏览器打开",
+      "back": "后退",
+      "forward": "前进",
+      "refresh": "刷新",
+      "resetZoom": "重置缩放",
+      "fit": "适应宽度",
+      "urlPlaceholder": "输入网址",
+      "loading": "正在加载..."
+    },
+    "terminal": {
+      "tab": "终端",
+      "newTab": "新终端"
+    }
+  },
   "dropdown": {
     "cliAgents": "CLI Agents",
     "presetAssistants": "预设助手"

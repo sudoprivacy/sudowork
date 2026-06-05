@@ -78,6 +78,29 @@
     "closeRight": "Close to the Right",
     "closeOthers": "Close Others"
   },
+  "rightPanel": {
+    "tabs": {
+      "workspace": "Workspace",
+      "browser": "Browser",
+      "terminal": "Terminal"
+    },
+    "browser": {
+      "newTab": "New Tab",
+      "open": "Open",
+      "openExternal": "Open in system browser",
+      "back": "Back",
+      "forward": "Forward",
+      "refresh": "Refresh",
+      "resetZoom": "Reset Zoom",
+      "fit": "Fit Width",
+      "urlPlaceholder": "Enter URL",
+      "loading": "Loading..."
+    },
+    "terminal": {
+      "tab": "Terminal",
+      "newTab": "New Terminal"
+    }
+  },
   "dropdown": {
     "cliAgents": "CLI Agents",
     "presetAssistants": "Preset Assistants"
