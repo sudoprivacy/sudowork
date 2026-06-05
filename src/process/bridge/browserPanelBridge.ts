@@ -7,6 +7,7 @@
 import { session } from 'electron';
 import { ipcBridge } from '@/common';
 import { BROWSER_PANEL_PARTITION } from '@/common/browserPanelUrl';
+import { browserPanelCdpService } from '@process/services/browserPanel/BrowserPanelCdpService';
 import { mainError, mainLog } from '@process/utils/mainLogger';
 
 /**
@@ -14,8 +15,13 @@ import { mainError, mainLog } from '@process/utils/mainLogger';
  *
  * Today only `clearCache` lives here — later commits in this PR will add the
  * CDP-driven providers (registerTab, evaluateScript, takeScreenshot, ...).
+ *
+ * The BrowserPanelCdpService is installed here too so that its
+ * `app.on('web-contents-created')` listener is registered before any
+ * right-panel webview can mount in the renderer.
  */
 export function initBrowserPanelBridge(): void {
+  browserPanelCdpService.install();
   ipcBridge.browserPanel.clearCache.provider(async () => {
     try {
       const partitionSession = session.fromPartition(BROWSER_PANEL_PARTITION);
