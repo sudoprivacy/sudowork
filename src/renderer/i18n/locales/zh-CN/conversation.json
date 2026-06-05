@@ -94,7 +94,12 @@
       "resetZoom": "重置缩放",
       "fit": "适应宽度",
       "urlPlaceholder": "输入网址",
-      "loading": "正在加载..."
+      "loading": "正在加载...",
+      "clearCache": "清除浏览器数据",
+      "clearCacheConfirmTitle": "清除右栏浏览器数据?",
+      "clearCacheConfirmContent": "这会清除右栏浏览器的 cookie、本地存储和缓存文件。此处登录过的网站会被注销。系统浏览器不受影响。",
+      "clearCacheSuccess": "浏览器数据已清除",
+      "clearCacheFailure": "清除浏览器数据失败"
     },
     "terminal": {
       "tab": "终端",

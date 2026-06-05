@@ -898,6 +898,16 @@ export const systemSettings = {
   changeLanguage: bridge.buildProvider<void, { language: string }>('system-settings:change-language'),
   // Broadcast language change to all renderers (desktop + WebUI) for real-time sync
   languageChanged: bridge.buildEmitter<{ language: string }>('system-settings:language-changed'),
+  // Default URL for new tabs in the right-panel BrowserPanel
+  getBrowserDefaultUrl: bridge.buildProvider<string, void>('system-settings:get-browser-default-url'),
+  setBrowserDefaultUrl: bridge.buildProvider<void, { url: string }>('system-settings:set-browser-default-url'),
+};
+
+// Right-panel BrowserPanel control API. The panel itself lives in the renderer
+// (Electron <webview>); these IPCs let the main process clear its partition
+// cache and (later) attach CDP-based agent tooling.
+export const browserPanel = {
+  clearCache: bridge.buildProvider<IBridgeResponse<void>, void>('browser-panel:clear-cache'),
 };
 
 // WebUI 服务管理接口 / WebUI service management API
