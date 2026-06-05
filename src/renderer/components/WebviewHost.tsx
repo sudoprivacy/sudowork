@@ -504,9 +504,12 @@ const WebviewHost: React.FC<WebviewHostProps> = ({ url, id: _id, showNavBar = fa
   );
 
   // Build webview attributes
+  // allowFileAccessFromFileURLs / allowUniversalAccessFromFileURLs are required
+  // for the right-panel browser to render AI-generated HTML at file:// — without
+  // them, the page loads but cross-origin <script src> / fetch silently fail.
   const webviewAttrs: Record<string, string> = {
     allowpopups: 'false',
-    webpreferences: 'contextIsolation=no, nodeIntegration=no, nativeWindowOpen=no',
+    webpreferences: 'contextIsolation=no, nodeIntegration=no, nativeWindowOpen=no, allowFileAccessFromFileURLs=true, allowUniversalAccessFromFileURLs=true',
   };
   if (partition) {
     webviewAttrs.partition = partition;

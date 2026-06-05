@@ -563,6 +563,13 @@ export const preview = {
   }>('preview.open'),
 };
 
+// Right-panel BrowserPanel "open URL" event. Fired from the main process when
+// the AI writes an HTML file to workspace, and (later) when /browser slash
+// commands or MCP tools request opening a URL in the right-panel browser.
+export const rightPanelBrowser = {
+  open: bridge.buildEmitter<{ url: string; switchTab?: boolean }>('right-panel.browser.open'),
+};
+
 export const document = {
   convert: bridge.buildProvider<import('./types/conversion').DocumentConversionResponse, import('./types/conversion').DocumentConversionRequest>('document.convert'),
   /** 将内容保存为 Word 文档并返回保存路径 / Save content as Word and return path */

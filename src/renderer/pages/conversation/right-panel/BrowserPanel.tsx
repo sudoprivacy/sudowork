@@ -2,6 +2,7 @@ import { STORAGE_KEYS } from '@/common/storageKeys';
 import { ipcBridge } from '@/common';
 import { BROWSER_PANEL_PARTITION, DEFAULT_BROWSER_PANEL_HOMEPAGE, normalizeBrowserUrl } from '@/common/browserPanelUrl';
 import WebviewHost from '@/renderer/components/WebviewHost';
+import { useAddEventListener } from '@/renderer/utils/emitter';
 import { Message, Modal, Tooltip } from '@arco-design/web-react';
 import { Add, Close, Delete } from '@icon-park/react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -110,6 +111,24 @@ const BrowserPanel: React.FC<{ active?: boolean }> = ({ active = false }) => {
     setTabs((prev) => [...prev, nextTab]);
     setActiveTabId(nextTab.id);
   };
+
+  // Subscribe to "open in right-panel browser" — fired by the main process when
+  // the AI writes an HTML file, and (later) by the /browser slash and MCP tools.
+  // Listen on both the in-renderer emitter (for renderer-side dispatch) and the
+  // IPC emitter (for main-process dispatch), mirroring the preview.open pattern.
+  const handleOpenBrowserUrl = useCallback(({ url }: { url: string; switchTab?: boolean }) => {
+    if (!url) return;
+    openNewTab(url);
+  }, []);
+
+  useAddEventListener('right-panel.browser.open', handleOpenBrowserUrl, [handleOpenBrowserUrl]);
+
+  useEffect(() => {
+    const unsubscribe = ipcBridge.rightPanelBrowser.open.on(handleOpenBrowserUrl);
+    return () => {
+      unsubscribe();
+    };
+  }, [handleOpenBrowserUrl]);
 
   const updateTabUrl = useCallback((tabId: string, nextUrl: string) => {
     setTabs((prev) => prev.map((tab) => (tab.id === tabId ? { ...tab, url: nextUrl, title: nextUrl } : tab)));
