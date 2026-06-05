@@ -563,6 +563,13 @@ export const preview = {
   }>('preview.open'),
 };
 
+// Right-panel BrowserPanel "open URL" event. Fired from the main process when
+// the AI writes an HTML file to workspace, and (later) when /browser slash
+// commands or MCP tools request opening a URL in the right-panel browser.
+export const rightPanelBrowser = {
+  open: bridge.buildEmitter<{ url: string; switchTab?: boolean }>('right-panel.browser.open'),
+};
+
 export const document = {
   convert: bridge.buildProvider<import('./types/conversion').DocumentConversionResponse, import('./types/conversion').DocumentConversionRequest>('document.convert'),
   /** 将内容保存为 Word 文档并返回保存路径 / Save content as Word and return path */
@@ -898,6 +905,65 @@ export const systemSettings = {
   changeLanguage: bridge.buildProvider<void, { language: string }>('system-settings:change-language'),
   // Broadcast language change to all renderers (desktop + WebUI) for real-time sync
   languageChanged: bridge.buildEmitter<{ language: string }>('system-settings:language-changed'),
+  // Default URL for new tabs in the right-panel BrowserPanel
+  getBrowserDefaultUrl: bridge.buildProvider<string, void>('system-settings:get-browser-default-url'),
+  setBrowserDefaultUrl: bridge.buildProvider<void, { url: string }>('system-settings:set-browser-default-url'),
+};
+
+// Right-panel BrowserPanel control API. The panel itself lives in the renderer
+// (Electron <webview>); these IPCs let the main process clear its partition
+// cache and (later) attach CDP-based agent tooling.
+export const browserPanel = {
+  clearCache: bridge.buildProvider<IBridgeResponse<void>, void>('browser-panel:clear-cache'),
+
+  // ── Tab registry ────────────────────────────────────────────────────────
+  // Renderer reports (tabId ↔ webContentsId) on dom-ready so the main process
+  // can target the right webview from agent tool calls.
+  registerTab: bridge.buildProvider<IBridgeResponse<void>, { tabId: string; webContentsId: number }>('browser-panel:register-tab'),
+  unregisterTab: bridge.buildProvider<IBridgeResponse<void>, { tabId: string }>('browser-panel:unregister-tab'),
+  setActiveTab: bridge.buildProvider<IBridgeResponse<void>, { tabId: string }>('browser-panel:set-active-tab'),
+  listTabs: bridge.buildProvider<IBridgeResponse<Array<{ webContentsId: number; url: string; title: string; attached: boolean }>>, void>('browser-panel:list-tabs'),
+
+  // ── CDP action API ──────────────────────────────────────────────────────
+  // Each call resolves the target webview from `tabId` (renderer tab id) or
+  // falls back to the renderer's reported active tab.
+  evaluateScript: bridge.buildProvider<IBridgeResponse<{ ok: boolean; value?: unknown; description?: string; errorText?: string; errorDetail?: string }>, { tabId?: string; expression: string; timeoutMs?: number }>('browser-panel:evaluate-script'),
+  takeScreenshot: bridge.buildProvider<IBridgeResponse<{ format: 'png' | 'jpeg'; base64: string }>, { tabId?: string; format?: 'png' | 'jpeg'; quality?: number; fullPage?: boolean }>('browser-panel:take-screenshot'),
+  navigate: bridge.buildProvider<IBridgeResponse<{ ok: boolean; finalUrl?: string; errorText?: string }>, { tabId?: string; url: string; waitUntil?: 'load' | 'domcontentloaded' | 'networkidle' }>('browser-panel:navigate'),
+  getDomSnapshot: bridge.buildProvider<IBridgeResponse<{ snapshot: string | null }>, { tabId?: string; selector?: string; format: 'outerHTML' | 'innerText' }>('browser-panel:get-dom-snapshot'),
+  listNetworkRequests: bridge.buildProvider<
+    IBridgeResponse<
+      Array<{
+        requestId: string;
+        url: string;
+        method?: string;
+        type?: string;
+        status?: number;
+        statusText?: string;
+        mimeType?: string;
+        startedAt: number;
+        durationMs?: number;
+        failed?: boolean;
+        errorText?: string;
+        canceled?: boolean;
+      }>
+    >,
+    { tabId?: string; filter?: { method?: string; urlContains?: string; statusGte?: number; statusLt?: number; type?: string }; limit?: number }
+  >('browser-panel:list-network-requests'),
+  listConsoleMessages: bridge.buildProvider<
+    IBridgeResponse<
+      Array<{
+        level: 'log' | 'info' | 'warn' | 'error' | 'debug' | 'verbose' | 'other';
+        text: string;
+        url?: string;
+        lineNumber?: number;
+        at: number;
+        args?: string[];
+      }>
+    >,
+    { tabId?: string; levels?: Array<'log' | 'info' | 'warn' | 'error' | 'debug' | 'verbose' | 'other'>; limit?: number }
+  >('browser-panel:list-console-messages'),
+  clearBuffers: bridge.buildProvider<IBridgeResponse<void>, { tabId?: string }>('browser-panel:clear-buffers'),
 };
 
 // WebUI 服务管理接口 / WebUI service management API

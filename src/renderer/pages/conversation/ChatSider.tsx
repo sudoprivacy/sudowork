@@ -6,6 +6,8 @@
 
 import type { TChatConversation } from '@/common/storage';
 import { STORAGE_KEYS } from '@/common/storageKeys';
+import { ipcBridge } from '@/common';
+import { useAddEventListener } from '@/renderer/utils/emitter';
 import { Message } from '@arco-design/web-react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
@@ -51,6 +53,24 @@ const ChatSider: React.FC<{
       // ignore
     }
   }, [activeTab, storageKey]);
+
+  // When the AI generates an HTML file (or any caller asks to open a URL in
+  // the right-panel browser), switch to the browser tab so the result is
+  // visible. The BrowserPanel itself listens to the same event and opens the
+  // tab — this hook is purely for visibility.
+  const handleBrowserOpen = React.useCallback(({ switchTab }: { url: string; switchTab?: boolean }) => {
+    if (switchTab === false) return;
+    setActiveTab('browser');
+  }, []);
+
+  useAddEventListener('right-panel.browser.open', handleBrowserOpen, [handleBrowserOpen]);
+
+  React.useEffect(() => {
+    const unsubscribe = ipcBridge.rightPanelBrowser.open.on(handleBrowserOpen);
+    return () => {
+      unsubscribe();
+    };
+  }, [handleBrowserOpen]);
 
   let workspaceNode: React.ReactNode = null;
   const extra = conversation?.extra as { workspace?: string; workspaceDisplayName?: string; backend?: string } | undefined;

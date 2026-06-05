@@ -790,6 +790,12 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
         return await this.handleImageCommand((imageMatch[1] || '').trim(), data);
       }
 
+      // Intercept /browser sub-commands (open / status / eval / screenshot)
+      const browserMatch = data.content.trim().match(/^\/browser(?:\s+([\s\S]+))?$/);
+      if (browserMatch !== null) {
+        return await this.handleBrowserCommand((browserMatch[1] || '').trim(), data);
+      }
+
       // Intercept channel query intent (natural language)
       const channelQueryCommand = detectChannelQueryIntent(data.content);
       if (channelQueryCommand) {
@@ -1682,6 +1688,20 @@ This identity statement takes priority over the default identity in USER.md.
       kind: input.kind,
     });
     mainLog('[AcpAgent]', `[TRACK] File: ${trackingKey}, intent: ${classification.intent}, source: ${input.source}, reason: ${classification.reason}, actualPath: ${actualPath}`);
+
+    // Surface AI-written HTML in the right-panel browser. trackFile is the
+    // earliest point where the absolute path is fully resolved (the prior
+    // attempt in the write/edit/create tool-call branch relied on
+    // extractFilePathFromToolCall, which returns null for many ACP backends'
+    // tool argument shapes).
+    if (classification.intent !== 'draft' && /\.html?$/i.test(actualPath)) {
+      try {
+        ipcBridge.rightPanelBrowser.open.emit({ url: `file://${actualPath}`, switchTab: true });
+        mainLog('[AcpAgent]', `[TRACK] rightPanelBrowser.open fired for ${actualPath}`);
+      } catch (err) {
+        mainLog('[AcpAgent]', `[TRACK] rightPanelBrowser.open emit failed: ${String(err)}`);
+      }
+    }
   }
 
   /**
@@ -2311,6 +2331,18 @@ This identity statement takes priority over the default identity in USER.md.
               const filePath = this.extractFilePathFromToolCall(toolName, rawInput);
               console.log(`[AcpAgent] extractFilePathFromToolCall result: ${filePath}`);
               if (filePath) {
+                // If the AI wrote an .html / .htm file, surface it in the
+                // right-panel browser. Independent of the channel-auto-send
+                // decision below — the browser view is opt-in user-visible,
+                // not a network action.
+                if (/\.html?$/i.test(filePath)) {
+                  try {
+                    ipcBridge.rightPanelBrowser.open.emit({ url: `file://${filePath}`, switchTab: true });
+                  } catch (err) {
+                    console.log(`[AcpAgent] rightPanelBrowser.open emit failed: ${String(err)}`);
+                  }
+                }
+
                 // Check if user's original message indicates they want the file sent
                 const userMessage = this.lastUserMessage?.toLowerCase() || '';
                 const userWantsFileSent = /发我|发给我|发送给我|发给我|发到|发送到|发来|发过来|send me|send to me/i.test(userMessage);
@@ -3537,6 +3569,106 @@ This identity statement takes priority over the default identity in USER.md.
         msg_id: responseMsgId,
         data: `图像处理失败: ${msg}`,
       });
+    }
+
+    ipcBridge.acpConversation.responseStream.emit({
+      type: 'finish',
+      conversation_id: this.conversation_id,
+      msg_id: responseMsgId,
+      data: null,
+    });
+    this.turnActive = false;
+    this.status = 'idle';
+    cronBusyGuard.setProcessing(this.conversation_id, false);
+    return { success: true, data: null };
+  }
+
+  /**
+   * `/browser <subcommand>` — user-initiated control of the right-panel
+   * BrowserPanel. AI never sees these commands (the slash whitelist routes
+   * them straight here). Subcommands:
+   *
+   *   /browser open <url>      — open url in the right-panel browser
+   *   /browser status          — show recent network responses for the
+   *                              currently active tab (status codes + URLs)
+   *   /browser eval <js>       — run JS in the active tab, stream result back
+   *   /browser screenshot      — capture the active tab and return as image
+   */
+  private async handleBrowserCommand(args: string, data: { msg_id?: string }): Promise<AcpResult> {
+    const responseMsgId = uuid();
+    ipcBridge.acpConversation.responseStream.emit({
+      type: 'start',
+      conversation_id: this.conversation_id,
+      msg_id: responseMsgId,
+      data: { processingStartTime: this.processingStartTime },
+    });
+
+    const emit = (text: string): void => {
+      ipcBridge.acpConversation.responseStream.emit({
+        type: 'content',
+        conversation_id: this.conversation_id,
+        msg_id: responseMsgId,
+        data: text,
+      });
+    };
+
+    try {
+      if (!args) {
+        emit('Usage: `/browser open <url>`, `/browser status`, `/browser eval <js>`, or `/browser screenshot`.');
+      } else {
+        const { browserPanelCdpService } = await import('@process/services/browserPanel/BrowserPanelCdpService');
+        const subMatch = args.match(/^(open|status|eval|screenshot)(?:\s+([\s\S]+))?$/i);
+        if (!subMatch) {
+          emit(`Unknown /browser subcommand. Usage: \`/browser open <url>\`, \`/browser status\`, \`/browser eval <js>\`, \`/browser screenshot\`.`);
+        } else {
+          const sub = subMatch[1].toLowerCase();
+          const rest = (subMatch[2] || '').trim();
+          const targetId = browserPanelCdpService.resolveWebContentsId();
+
+          if (sub === 'open') {
+            if (!rest) {
+              emit('Usage: `/browser open <url>`');
+            } else {
+              ipcBridge.rightPanelBrowser.open.emit({ url: rest, switchTab: true });
+              emit(`Opened ${rest} in the right-panel browser.`);
+            }
+          } else if (targetId === null) {
+            emit('No active browser tab. Open one with `/browser open <url>` or click the 浏览器 tab on the right.');
+          } else if (sub === 'status') {
+            const recent = browserPanelCdpService.listNetworkRequests(targetId, { limit: 25 });
+            if (recent.length === 0) {
+              emit('No network responses captured for the active tab yet.');
+            } else {
+              const lines = recent.map((r) => `${r.status ?? '   '} ${r.method ?? ''} ${r.type ?? ''} ${r.url.slice(0, 200)}`);
+              emit(['```', ...lines, '```'].join('\n'));
+            }
+          } else if (sub === 'eval') {
+            if (!rest) {
+              emit('Usage: `/browser eval <js-expression>`');
+            } else {
+              const result = await browserPanelCdpService.evaluateScript(targetId, { expression: rest });
+              if (!result.ok) {
+                emit(`Eval failed: ${result.errorText ?? 'unknown error'}${result.errorDetail ? `\n${result.errorDetail}` : ''}`);
+              } else {
+                const text = typeof result.value === 'string' ? result.value : JSON.stringify(result.value, null, 2);
+                emit(['```', String(text ?? result.description ?? '(no return value)'), '```'].join('\n'));
+              }
+            }
+          } else if (sub === 'screenshot') {
+            const shot = await browserPanelCdpService.takeScreenshot(targetId, { format: 'png' });
+            ipcBridge.acpConversation.responseStream.emit({
+              type: 'content',
+              conversation_id: this.conversation_id,
+              msg_id: responseMsgId,
+              data: `![browser screenshot](data:image/png;base64,${shot.base64})`,
+            });
+          }
+        }
+      }
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      mainError('[AcpAgent]', `Browser command failed: ${msg}`);
+      emit(`Browser command failed: ${msg}`);
     }
 
     ipcBridge.acpConversation.responseStream.emit({

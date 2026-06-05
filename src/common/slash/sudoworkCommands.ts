@@ -8,7 +8,7 @@ import type { SlashCommandItem } from './types';
 
 const ACP_LITERAL_SLASH_PREFIX = '\u200C';
 const LEADING_SLASH_RE = /^(\s*)\/(\S*)/;
-const SUDOWORK_ACP_SLASH_COMMANDS = new Set(['image']);
+const SUDOWORK_ACP_SLASH_COMMANDS = new Set(['image', 'browser']);
 const KNOWN_ACP_SLASH_COMMANDS = new Set(['model', 'status', 'cost', 'config', 'diff', 'doctor', 'help']);
 
 const IMAGE_COMMAND: SlashCommandItem = {
@@ -19,8 +19,16 @@ const IMAGE_COMMAND: SlashCommandItem = {
   source: 'builtin',
 };
 
+const BROWSER_COMMAND: SlashCommandItem = {
+  name: 'browser',
+  description: 'Control the right-panel browser (open / status / eval / screenshot)',
+  hint: 'open <url> | status | eval <js> | screenshot',
+  kind: 'template',
+  source: 'builtin',
+};
+
 export function getSudoworkAcpSlashCommands(): SlashCommandItem[] {
-  return [{ ...IMAGE_COMMAND }];
+  return [{ ...IMAGE_COMMAND }, { ...BROWSER_COMMAND }];
 }
 
 export function isSudoworkAcpSlashCommand(name: string): boolean {

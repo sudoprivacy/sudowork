@@ -92,6 +92,8 @@ export interface IConfigStorageRefer {
   'system.closeToTray'?: boolean;
   // 每轮消息下方是否显示 token / 积分用量 / Whether to show per-turn token / points usage badges
   'system.showTokenUsageBadges'?: boolean;
+  // 右栏浏览器新建标签页的默认主页 / Default homepage for new tabs in the right-panel browser
+  'system.browserDefaultUrl'?: string;
   // 桌面 avatar 浮窗开关 / Floating desktop avatar window enabled
   'avatar.enabled'?: boolean;
   // Avatar 浮窗最近一次的位置（屏幕坐标）/ Last-known avatar window bounds (screen coords)

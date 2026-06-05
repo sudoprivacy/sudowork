@@ -94,7 +94,12 @@
       "resetZoom": "Reset Zoom",
       "fit": "Fit Width",
       "urlPlaceholder": "Enter URL",
-      "loading": "Loading..."
+      "loading": "Loading...",
+      "clearCache": "Clear browser data",
+      "clearCacheConfirmTitle": "Clear right-panel browser data?",
+      "clearCacheConfirmContent": "This removes cookies, local storage, and cached files for the in-panel browser only. You will be signed out of any site logged in here. Sites in your system browser are not affected.",
+      "clearCacheSuccess": "Browser data cleared",
+      "clearCacheFailure": "Failed to clear browser data"
     },
     "terminal": {
       "tab": "Terminal",
