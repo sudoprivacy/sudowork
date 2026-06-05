@@ -8,6 +8,7 @@ import { session } from 'electron';
 import { ipcBridge } from '@/common';
 import { BROWSER_PANEL_PARTITION } from '@/common/browserPanelUrl';
 import { browserPanelCdpService } from '@process/services/browserPanel/BrowserPanelCdpService';
+import { browserPanelHttpServer } from '@process/services/browserPanel/BrowserPanelHttpServer';
 import type { ConsoleLevel, NetworkResourceType } from '@process/services/browserPanel/BrowserPanelCdpService';
 import { mainError, mainLog } from '@process/utils/mainLogger';
 
@@ -16,10 +17,17 @@ import { mainError, mainLog } from '@process/utils/mainLogger';
  *
  * The BrowserPanelCdpService is installed here so its
  * `app.on('web-contents-created')` listener is registered before any
- * right-panel webview can mount in the renderer.
+ * right-panel webview can mount in the renderer. The HTTP loopback server
+ * for the MCP subprocess is started in the background — if it fails (e.g.
+ * port exhaustion) the rest of sudowork is unaffected and the AI simply
+ * cannot reach the browser tools until the next restart.
  */
 export function initBrowserPanelBridge(): void {
   browserPanelCdpService.install();
+  void browserPanelHttpServer
+    .start()
+    .then(({ port }) => mainLog('BrowserPanelHttp', `MCP bridge ready on 127.0.0.1:${port}`))
+    .catch((err) => mainError('BrowserPanelHttp', `failed to start: ${String(err)}`));
 
   // ── Cache clearing (Tier A) ──────────────────────────────────────────────
   ipcBridge.browserPanel.clearCache.provider(async () => {
