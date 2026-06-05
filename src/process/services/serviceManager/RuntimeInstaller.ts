@@ -509,6 +509,21 @@ class RuntimeInstaller {
       return false;
     }
 
+    // Ensure sudowork-browser MCP is registered into Claude Code's user config.
+    // We do this here (not only from CliInstallService.install) because users
+    // who already had Claude installed before this version of sudowork won't
+    // trigger CliInstallService.install — but they still need the entry to be
+    // added once. The function is idempotent and never throws.
+    const claudeResult = results.find((r) => r.step === 'claude');
+    if (claudeResult?.ok) {
+      try {
+        const { ensureSudoworkBuiltinMcpInstalled } = await import('../mcpServices/SudoworkBuiltinMcpRegistration');
+        await ensureSudoworkBuiltinMcpInstalled();
+      } catch (err) {
+        mainLog(TAG, `sudowork-browser MCP registration skipped: ${String(err)}`);
+      }
+    }
+
     initStatusManager.setStatus('installing', '正在校验组件状态...', 96);
     mainLog(TAG, 'Runtime installation complete');
     return true;
