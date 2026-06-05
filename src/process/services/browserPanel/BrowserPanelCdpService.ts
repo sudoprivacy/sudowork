@@ -183,6 +183,12 @@ class BrowserPanelCdpService {
   private tabIdRegistry = new Map<string, number>();
   /** webContentsId of the tab the renderer reports as active in the BrowserPanel. */
   private activeWebContentsId: number | null = null;
+  /**
+   * setActiveTab can arrive before the matching <webview> has fired dom-ready
+   * (so registerTab hasn't been called yet). Remember the pending React tabId
+   * and reconcile when registerTab finally resolves the mapping.
+   */
+  private pendingActiveTabId: string | null = null;
 
   /** Idempotent — safe to call multiple times during startup. */
   install(): void {
@@ -447,23 +453,39 @@ class BrowserPanelCdpService {
 
   registerTab(tabId: string, webContentsId: number): void {
     this.tabIdRegistry.set(tabId, webContentsId);
+    // Reconcile a pending active-tab set that arrived before this dom-ready.
+    if (this.pendingActiveTabId === tabId) {
+      this.activeWebContentsId = webContentsId;
+      this.pendingActiveTabId = null;
+    } else if (this.activeWebContentsId === null) {
+      // No active tab yet at all — use this one as a sensible default.
+      this.activeWebContentsId = webContentsId;
+    }
   }
 
   unregisterTab(tabId: string): void {
     this.tabIdRegistry.delete(tabId);
+    if (this.pendingActiveTabId === tabId) this.pendingActiveTabId = null;
   }
 
   setActiveTab(tabId: string): void {
     const webContentsId = this.tabIdRegistry.get(tabId);
-    if (webContentsId === undefined) return;
+    if (webContentsId === undefined) {
+      // Tab not registered yet (race on dom-ready). Remember it so registerTab
+      // can apply it when the webview finishes loading.
+      this.pendingActiveTabId = tabId;
+      return;
+    }
     this.activeWebContentsId = webContentsId;
+    this.pendingActiveTabId = null;
   }
 
   /**
    * Resolve a webContentsId for an incoming tool call.
    *  - explicit `tabId` (renderer tab id string) wins
    *  - otherwise the most recently set active tab
-   *  - otherwise the only attached tab (single-tab convenience)
+   *  - otherwise any attached tab (multi-tab convenience, prefers the most
+   *    recently registered one). Returns null only when no tab is open.
    */
   resolveWebContentsId(explicitTabId?: string): number | null {
     if (explicitTabId) {
@@ -473,10 +495,13 @@ class BrowserPanelCdpService {
     if (this.activeWebContentsId !== null && this.tabs.has(this.activeWebContentsId)) {
       return this.activeWebContentsId;
     }
-    if (this.tabs.size === 1) {
-      return this.tabs.keys().next().value as number;
+    // Fall back to any attached tab. Map iteration is insertion order — the
+    // last item is the most recently registered.
+    let lastAttached: number | null = null;
+    for (const [id, state] of this.tabs) {
+      if (state.attached) lastAttached = id;
     }
-    return null;
+    return lastAttached ?? (this.tabs.size > 0 ? (this.tabs.keys().next().value as number) : null);
   }
 
   // ─────────────────────────────────────────────────────────────────────────

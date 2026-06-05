@@ -1688,6 +1688,20 @@ This identity statement takes priority over the default identity in USER.md.
       kind: input.kind,
     });
     mainLog('[AcpAgent]', `[TRACK] File: ${trackingKey}, intent: ${classification.intent}, source: ${input.source}, reason: ${classification.reason}, actualPath: ${actualPath}`);
+
+    // Surface AI-written HTML in the right-panel browser. trackFile is the
+    // earliest point where the absolute path is fully resolved (the prior
+    // attempt in the write/edit/create tool-call branch relied on
+    // extractFilePathFromToolCall, which returns null for many ACP backends'
+    // tool argument shapes).
+    if (classification.intent !== 'draft' && /\.html?$/i.test(actualPath)) {
+      try {
+        ipcBridge.rightPanelBrowser.open.emit({ url: `file://${actualPath}`, switchTab: true });
+        mainLog('[AcpAgent]', `[TRACK] rightPanelBrowser.open fired for ${actualPath}`);
+      } catch (err) {
+        mainLog('[AcpAgent]', `[TRACK] rightPanelBrowser.open emit failed: ${String(err)}`);
+      }
+    }
   }
 
   /**
