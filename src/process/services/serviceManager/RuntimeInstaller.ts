@@ -97,6 +97,15 @@ class RuntimeInstaller {
         mainLog(TAG, 'All runtimes already installed, skipping installation');
         initStatusManager.setDisplayMode('startup');
         markFastInstalledSteps();
+        // Ensure sudowork-browser MCP is registered even when the rest of the
+        // install pipeline short-circuits (returning users with everything
+        // already in place). Idempotent + never throws.
+        try {
+          const { ensureSudoworkBuiltinMcpInstalled } = await import('../mcpServices/SudoworkBuiltinMcpRegistration');
+          await ensureSudoworkBuiltinMcpInstalled();
+        } catch (err) {
+          mainLog(TAG, `sudowork-browser MCP registration skipped: ${String(err)}`);
+        }
         return startCriticalServices();
       }
 
