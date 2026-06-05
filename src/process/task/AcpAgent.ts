@@ -2317,6 +2317,18 @@ This identity statement takes priority over the default identity in USER.md.
               const filePath = this.extractFilePathFromToolCall(toolName, rawInput);
               console.log(`[AcpAgent] extractFilePathFromToolCall result: ${filePath}`);
               if (filePath) {
+                // If the AI wrote an .html / .htm file, surface it in the
+                // right-panel browser. Independent of the channel-auto-send
+                // decision below — the browser view is opt-in user-visible,
+                // not a network action.
+                if (/\.html?$/i.test(filePath)) {
+                  try {
+                    ipcBridge.rightPanelBrowser.open.emit({ url: `file://${filePath}`, switchTab: true });
+                  } catch (err) {
+                    console.log(`[AcpAgent] rightPanelBrowser.open emit failed: ${String(err)}`);
+                  }
+                }
+
                 // Check if user's original message indicates they want the file sent
                 const userMessage = this.lastUserMessage?.toLowerCase() || '';
                 const userWantsFileSent = /发我|发给我|发送给我|发给我|发到|发送到|发来|发过来|send me|send to me/i.test(userMessage);

@@ -80,10 +80,19 @@ function quoteForShell(s: string): string {
   return `"${s.replace(/(["\\$`])/g, '\\$1')}"`;
 }
 
-async function addEntry(scriptPath: string, nodePath: string, discoveryFilePath: string): Promise<void> {
-  // claude mcp add -s user <name> <command> -- <arg1> ... [-e KEY=VAL ...]
-  // Pipe the script path as a positional argument after `--`.
-  const cmd = `claude mcp add -s user ${quoteForShell(MCP_NAME)} ${quoteForShell(nodePath)} -- ${quoteForShell(scriptPath)} -e SUDOWORK_BROWSER_MCP_DISCOVERY=${quoteForShell(discoveryFilePath)}`;
+async function addEntry(scriptPath: string, nodePath: string): Promise<void> {
+  // claude mcp add -s user <name> -- <command> [args...]
+  //
+  // We intentionally do NOT pass `-e SUDOWORK_BROWSER_MCP_DISCOVERY=...`
+  // here: claude's CLI uses commander's variadic env flag (`-e <env...>`),
+  // which greedily consumes the following positional name. The MCP server
+  // already falls back to the platform-default discovery path
+  // (~/Library/Application Support/sudowork/sudowork-browser-mcp.json on
+  // macOS, %APPDATA%/sudowork/... on Windows, $XDG_CONFIG_HOME/sudowork/...
+  // on Linux), which matches what BrowserPanelHttpServer writes via
+  // app.getPath('userData'). The discovery env override is still honored
+  // by the child when set externally (tests, custom installs).
+  const cmd = `claude mcp add -s user ${quoteForShell(MCP_NAME)} -- ${quoteForShell(nodePath)} ${quoteForShell(scriptPath)}`;
   mainLog('SudoworkBuiltinMcp', `claude mcp add ${MCP_NAME}: ${cmd}`);
   await safeExec(cmd, { timeout: TIMEOUT_MS, ...getExecEnv() });
 }
@@ -115,6 +124,7 @@ export async function ensureSudoworkBuiltinMcpInstalled(): Promise<void> {
     }
 
     const discoveryFilePath = getDiscoveryFilePath();
+    void discoveryFilePath; // reserved for future env injection if claude's CLI gains a non-variadic env flag
     const existing = await detectExistingEntry();
     const expectedNeedle = scriptPath; // we re-add whenever the path doesn't appear in the entry line
 
@@ -130,7 +140,7 @@ export async function ensureSudoworkBuiltinMcpInstalled(): Promise<void> {
       mainLog('SudoworkBuiltinMcp', 'entry missing, adding…');
     }
 
-    await addEntry(scriptPath, nodePath, discoveryFilePath);
+    await addEntry(scriptPath, nodePath);
     mainLog('SudoworkBuiltinMcp', 'registration complete');
   } catch (err) {
     mainError('SudoworkBuiltinMcp', `unexpected failure: ${String(err)}`);
