@@ -69,6 +69,7 @@ export default defineConfig({
         'src/process/bridge/applicationBridge.ts',
         'src/process/bridge/documentBridge.ts',
         'src/process/bridge/pwdLoginBridge.ts',
+        'src/process/utils/enabledSkillFilter.ts',
         'src/utils/configureChromium.ts',
         // ACP
         'src/agent/acp/AcpAdapter.ts',

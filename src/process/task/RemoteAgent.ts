@@ -20,6 +20,7 @@ import * as nodePath from 'node:path';
 import * as fs from 'node:fs';
 import { initMossApi } from '../remote/MossSessionApi';
 import { isRemoteContainerPath } from '@/common/utils/workspaceSkillSync';
+import { filterEnabledSkillNames } from '../utils/enabledSkillFilter';
 
 /**
  * RemoteAgent data interface
@@ -111,6 +112,7 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
       // 确定模式：创建新 session 还是 attach/resume 已存在的
       const isPendingMode = this.options.mossSessionPending;
       const hasExistingWsUrl = !!this.options.wsUrl;
+      const enabledSkills = await filterEnabledSkillNames(this.options.enabledSkills);
 
       if (isPendingMode && !hasExistingWsUrl) {
         // LAZY CREATION: Create Moss session now
@@ -130,7 +132,7 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
           wsUrl: undefined,
           sessionId: undefined,
           // 新增: 传递启用的 skill 列表
-          enabledSkills: this.options.enabledSkills,
+          enabledSkills,
         };
 
         mainLog('RemoteAgent', `MossWsConnection config: cwd=${config.cwd ?? '<server-default>'}, assistant=${config.assistantName || 'default'}, enabledSkills=${config.enabledSkills?.length || 0}`);
@@ -175,7 +177,7 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
           wsUrl: this.options.wsUrl,
           sessionId: this.options.sessionId || this.conversation_id,
           // 新增: 传递启用的 skill 列表（resume 模式也支持）
-          enabledSkills: this.options.enabledSkills,
+          enabledSkills,
         };
 
         mainLog('RemoteAgent', `MossWsConnection config: resume=${!!config.wsUrl}, sessionId=${config.sessionId}, enabledSkills=${config.enabledSkills?.length || 0}`);
@@ -221,7 +223,7 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
           runtimeType: this.options.runtimeType,
           wsUrl,
           sessionId: this.options.sessionId,
-          enabledSkills: this.options.enabledSkills,
+          enabledSkills,
         };
 
         mainLog('RemoteAgent', `MossWsConnection config: resumeLookup=true, sessionId=${config.sessionId}, enabledSkills=${config.enabledSkills?.length || 0}`);
