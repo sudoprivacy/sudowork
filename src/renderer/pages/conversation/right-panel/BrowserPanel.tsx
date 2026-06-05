@@ -1,4 +1,5 @@
 import { STORAGE_KEYS } from '@/common/storageKeys';
+import { normalizeBrowserUrl } from '@/common/browserPanelUrl';
 import WebviewHost from '@/renderer/components/WebviewHost';
 import { Tooltip } from '@arco-design/web-react';
 import { Add, Close } from '@icon-park/react';
@@ -79,7 +80,8 @@ const BrowserPanel: React.FC<{ active?: boolean }> = ({ active = false }) => {
   }, [active, activeTabId, focusActiveWebview]);
 
   const openNewTab = (url: string) => {
-    const normalized = url.trim().startsWith('http://') || url.trim().startsWith('https://') ? url.trim() : `https://${url.trim()}`;
+    const normalized = normalizeBrowserUrl(url);
+    if (!normalized) return;
     const nextTab = createTab(normalized, normalized);
     setTabs((prev) => [...prev, nextTab]);
     setActiveTabId(nextTab.id);
