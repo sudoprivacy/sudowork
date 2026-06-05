@@ -302,12 +302,16 @@ const SystemModalContent: React.FC = () => {
       label: t('settings.closeToTray'),
       component: closeToTrayLoading ? <div style={{ width: 44, height: 22 }} /> : <Switch checked={closeToTray} onChange={handleCloseToTrayChange} className='settings-accent-switch' style={closeToTray ? { backgroundColor: 'var(--ui-accent-orange)' } : undefined} />,
     },
-    {
-      key: 'showTokenUsageBadges',
-      label: t('settings.showTokenUsageBadges'),
-      hint: t('settings.showTokenUsageBadgesDesc'),
-      component: showTokenUsageBadgesLoading ? <div style={{ width: 44, height: 22 }} /> : <Switch checked={showTokenUsageBadges} onChange={handleShowTokenUsageBadgesChange} className='settings-accent-switch' style={showTokenUsageBadges ? { backgroundColor: 'var(--ui-accent-orange)' } : undefined} />,
-    },
+    ...(isEnterprise
+      ? []
+      : [
+          {
+            key: 'showTokenUsageBadges',
+            label: t('settings.showTokenUsageBadges'),
+            hint: t('settings.showTokenUsageBadgesDesc'),
+            component: showTokenUsageBadgesLoading ? <div style={{ width: 44, height: 22 }} /> : <Switch checked={showTokenUsageBadges} onChange={handleShowTokenUsageBadgesChange} className='settings-accent-switch' style={showTokenUsageBadges ? { backgroundColor: 'var(--ui-accent-orange)' } : undefined} />,
+          },
+        ]),
     {
       key: 'avatarEnabled',
       label: t('settings.avatarEnabled'),
