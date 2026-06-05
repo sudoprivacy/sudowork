@@ -15,6 +15,7 @@ import { initMossApi, type MossSessionApi } from '@process/remote/MossSessionApi
 import { mainLog, mainError } from '@process/utils/mainLogger';
 import { uuid } from '@/common/utils';
 import { ProcessConfig } from '@process/initStorage';
+import { isRemoteContainerPath } from '@/common/utils/workspaceSkillSync';
 
 const HIDDEN_CRON_SESSIONS_KEY = 'remote.hiddenCronSessionIds';
 
@@ -369,6 +370,45 @@ export class RemoteConversationProvider implements IConversationProvider {
       const modifyTime = session.lastActiveAt || session.last_active_at || session.updatedAt || session.updated_at || now;
       const createTime = existingConversation?.createTime || session.createdAt || session.created_at || modifyTime;
       const existingExtra = existingConversation?.extra as Record<string, unknown> | undefined;
+
+      // Extract Moss workDir (remote container path)
+      const mossWorkDir = session.workDir || session.work_dir || session.cwd;
+
+      // Check if workDir is a remote container path
+      const isRemotePath = isRemoteContainerPath(mossWorkDir);
+
+      // Build extra - save remote paths to mossWorkDir, preserve existing workspace
+      const extra: Record<string, unknown> = {
+        ...existingExtra,
+        backend: 'remote-agent',
+        mossServerUrl: this.config.mossServerUrl,
+        authToken: this.config.authToken,
+        runtimeType: this.config.runtimeType,
+        agentName: session.assistantName || session.assistant_name,
+        sessionMode: 'remote',
+        mossSessionId,
+        mossSessionPending: false,
+        mossSessionUpdatedAt: modifyTime,
+        cronJobId: cronSource.cronJobId,
+        cronJobName: cronSource.cronJobName,
+        cronRunId: cronSource.cronRunId,
+      };
+
+      if (isRemotePath) {
+        // Remote container path - save to mossWorkDir, preserve existing workspace
+        extra.mossWorkDir = mossWorkDir;
+        // Preserve existing workspace if present
+        if (existingExtra?.workspace) {
+          extra.workspace = existingExtra.workspace;
+        }
+      } else if (mossWorkDir) {
+        // Local path - safe to set as workspace
+        extra.workspace = mossWorkDir;
+      } else if (existingExtra?.workspace) {
+        // No new workDir, preserve existing workspace
+        extra.workspace = existingExtra.workspace;
+      }
+
       const conversation: TChatConversation = {
         id: existingConversation?.id || mossSessionId,
         name: existingConversation?.name || this.formatCronSessionTitle(cronSource.cronJobName, createTime),
@@ -377,22 +417,7 @@ export class RemoteConversationProvider implements IConversationProvider {
         modifyTime,
         status: session.status === 'ended' || session.status === 'terminated' ? 'finished' : 'running',
         source: 'aionui',
-        extra: {
-          ...existingExtra,
-          workspace: session.workDir || session.work_dir || session.cwd,
-          backend: 'remote-agent',
-          mossServerUrl: this.config.mossServerUrl,
-          authToken: this.config.authToken,
-          runtimeType: this.config.runtimeType,
-          agentName: session.assistantName || session.assistant_name,
-          sessionMode: 'remote',
-          mossSessionId,
-          mossSessionPending: false,
-          mossSessionUpdatedAt: modifyTime,
-          cronJobId: cronSource.cronJobId,
-          cronJobName: cronSource.cronJobName,
-          cronRunId: cronSource.cronRunId,
-        },
+        extra,
       };
 
       if (existingConversation) {
@@ -945,19 +970,36 @@ export class RemoteConversationProvider implements IConversationProvider {
         return false;
       }
 
+      // Extract Moss workDir (remote container path)
+      const mossWorkDir = sessionData.workDir || sessionData.work_dir;
+
+      // Check if workDir is a remote container path
+      const isRemotePath = isRemoteContainerPath(mossWorkDir);
+
+      // Build extra update - save remote paths to mossWorkDir, not workspace
+      const extraUpdate: Record<string, unknown> = {
+        ...existing.data.extra,
+        mossSessionId,
+        acpWsUrl: wsUrl,
+        mossSessionPending: false,
+        agentName: sessionData.assistantName || sessionData.assistant_name,
+      };
+
+      if (isRemotePath) {
+        // Remote container path - save to mossWorkDir, preserve existing workspace
+        extraUpdate.mossWorkDir = mossWorkDir;
+        // Do NOT overwrite workspace with remote path
+      } else if (mossWorkDir && !existing.data.extra?.workspace) {
+        // Local path and no existing workspace - safe to set
+        extraUpdate.workspace = mossWorkDir;
+      }
+
       const updatedConversation = {
         ...existing.data,
         // Optionally update ID to Moss session ID (requires special handling)
         // 可选：将 ID 更新为 Moss session ID（需要特殊处理）
         // id: mossSessionId,
-        extra: {
-          ...existing.data.extra,
-          mossSessionId,
-          acpWsUrl: wsUrl,
-          mossSessionPending: false,
-          workspace: sessionData.workDir || sessionData.work_dir,
-          agentName: sessionData.assistantName || sessionData.assistant_name,
-        },
+        extra: extraUpdate,
         status: 'finished',
         modifyTime: Date.now(),
       } as TChatConversation;
