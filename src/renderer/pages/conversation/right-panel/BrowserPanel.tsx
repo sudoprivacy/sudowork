@@ -11,7 +11,7 @@ type BrowserTab = {
   url: string;
 };
 
-const DEFAULT_URL = 'https://www.google.com';
+const DEFAULT_URL = 'https://www.baidu.com/';
 
 const createTab = (url: string, title?: string): BrowserTab => ({
   id: `browser-tab-${Date.now()}-${Math.random().toString(16).slice(2)}`,

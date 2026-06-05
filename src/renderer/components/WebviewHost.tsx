@@ -39,7 +39,7 @@ const MAX_ZOOM_FACTOR = 1.5;
  *
  * Features:
  * - Link/window.open/form interception → internal navigation
- * - Self-managed history stacks (back / forward)
+ * - Native webview navigation history (back / forward)
  * - Loading indicator
  * - Partition support for cache isolation
  * - Optional navigation bar (hidden by default for embedded use)
@@ -58,9 +58,6 @@ const WebviewHost: React.FC<WebviewHostProps> = ({ url, id: _id, showNavBar = fa
   const [zoomFactor, setZoomFactor] = useState(1);
   const [webviewReady, setWebviewReady] = useState(false);
 
-  // Self-managed history stacks
-  const historyBackRef = useRef<string[]>([]);
-  const historyForwardRef = useRef<string[]>([]);
   const [canGoBack, setCanGoBack] = useState(false);
   const [canGoForward, setCanGoForward] = useState(false);
 
@@ -80,17 +77,15 @@ const WebviewHost: React.FC<WebviewHostProps> = ({ url, id: _id, showNavBar = fa
 
   // Reset when props.url changes
   useEffect(() => {
-    historyBackRef.current = [];
-    historyForwardRef.current = [];
-    setCanGoBack((prev) => (prev !== false ? false : prev));
-    setCanGoForward((prev) => (prev !== false ? false : prev));
+    setCanGoBack(false);
+    setCanGoForward(false);
     setCurrentUrl((prev) => (prev !== url ? url : prev));
     setInputUrl((prev) => (prev !== url ? url : prev));
     setIsLoading((prev) => (prev !== true ? true : prev));
     setZoomFactor((prev) => (prev !== defaultZoomFactor ? defaultZoomFactor : prev));
     setWebviewReady((prev) => (prev !== false ? false : prev));
     autoFitPendingRef.current = isStarOfficeUrl(url);
-  }, [url]);
+  }, [defaultZoomFactor, isStarOfficeUrl, url]);
 
   useEffect(() => {
     const webviewEl = webviewRef.current as any;
@@ -102,24 +97,28 @@ const WebviewHost: React.FC<WebviewHostProps> = ({ url, id: _id, showNavBar = fa
     }
   }, [defaultZoomFactor, isStarOffice, zoomFactor, webviewReady]);
 
-  // Navigate to new URL (add to history)
-  const navigateToWithHistory = useCallback(
+  const syncHistoryState = useCallback(() => {
+    const webviewEl = webviewRef.current as
+      | (Electron.WebviewTag & {
+          canGoBack?: () => boolean;
+          canGoForward?: () => boolean;
+        })
+      | null;
+    if (!webviewEl) return;
+
+    setCanGoBack(Boolean(webviewEl.canGoBack?.()));
+    setCanGoForward(Boolean(webviewEl.canGoForward?.()));
+  }, []);
+
+  // Navigate to new URL using the webview's native history stack.
+  const navigateTo = useCallback(
     (targetUrl: string) => {
       const webviewEl = webviewRef.current;
-      if (!webviewEl || !targetUrl) return;
-      if (targetUrl === currentUrl) return;
-
-      if (currentUrl) {
-        historyBackRef.current.push(currentUrl);
-      }
-      historyForwardRef.current = [];
+      if (!webviewEl || !targetUrl || targetUrl === currentUrl) return;
 
       setCurrentUrl(targetUrl);
       setInputUrl(targetUrl);
-      setCanGoBack(historyBackRef.current.length > 0);
-      setCanGoForward(false);
       onUrlChange?.(targetUrl);
-
       webviewEl.src = targetUrl;
     },
     [currentUrl, onUrlChange]
@@ -133,6 +132,7 @@ const WebviewHost: React.FC<WebviewHostProps> = ({ url, id: _id, showNavBar = fa
     const handleStartLoading = () => setIsLoading(true);
     const handleStopLoading = () => {
       setIsLoading(false);
+      syncHistoryState();
     };
 
     // Inject script to intercept links / window.open / form submissions
@@ -187,7 +187,7 @@ const WebviewHost: React.FC<WebviewHostProps> = ({ url, id: _id, showNavBar = fa
         if (event.message.includes('__WEBVIEW_HOST_NAVIGATE__')) {
           const match = event.message.match(/"url":"([^"]+)"/);
           if (match && match[1]) {
-            navigateToWithHistory(match[1]);
+            navigateTo(match[1]);
           }
           return;
         }
@@ -220,6 +220,7 @@ const WebviewHost: React.FC<WebviewHostProps> = ({ url, id: _id, showNavBar = fa
         setInputUrl(newUrl);
         onUrlChange?.(newUrl);
       }
+      syncHistoryState();
     };
 
     const handleDomReady = () => {
@@ -320,11 +321,13 @@ const WebviewHost: React.FC<WebviewHostProps> = ({ url, id: _id, showNavBar = fa
 
     const handleDidFinishLoad = () => {
       setIsLoading(false);
+      syncHistoryState();
       onDidFinishLoad?.();
     };
 
     const handleDidFailLoad = (event: any) => {
       setIsLoading(false);
+      syncHistoryState();
       onDidFailLoad?.(event.errorCode, event.errorDescription);
     };
 
@@ -347,7 +350,7 @@ const WebviewHost: React.FC<WebviewHostProps> = ({ url, id: _id, showNavBar = fa
       webviewEl.removeEventListener('did-finish-load', handleDidFinishLoad);
       webviewEl.removeEventListener('did-fail-load', handleDidFailLoad as EventListener);
     };
-  }, [navigateToWithHistory, currentUrl, onDidFinishLoad, onDidFailLoad, onUrlChange, isStarOfficeUrl]);
+  }, [currentUrl, navigateTo, onDidFailLoad, onDidFinishLoad, onUrlChange, isStarOfficeUrl, syncHistoryState]);
 
   // Resize observer for content area
   useEffect(() => {
@@ -446,27 +449,17 @@ const WebviewHost: React.FC<WebviewHostProps> = ({ url, id: _id, showNavBar = fa
 
   // Back
   const handleGoBack = useCallback(() => {
-    if (historyBackRef.current.length === 0) return;
-    const prevUrl = historyBackRef.current.pop()!;
-    historyForwardRef.current.push(currentUrl);
-    setCanGoBack(historyBackRef.current.length > 0);
-    setCanGoForward(true);
-    setCurrentUrl(prevUrl);
-    setInputUrl(prevUrl);
-    if (webviewRef.current) webviewRef.current.src = prevUrl;
-  }, [currentUrl]);
+    const webviewEl = webviewRef.current as (Electron.WebviewTag & { goBack?: () => void }) | null;
+    if (!webviewEl?.goBack || !canGoBack) return;
+    webviewEl.goBack();
+  }, [canGoBack]);
 
   // Forward
   const handleGoForward = useCallback(() => {
-    if (historyForwardRef.current.length === 0) return;
-    const nextUrl = historyForwardRef.current.pop()!;
-    historyBackRef.current.push(currentUrl);
-    setCanGoBack(true);
-    setCanGoForward(historyForwardRef.current.length > 0);
-    setCurrentUrl(nextUrl);
-    setInputUrl(nextUrl);
-    if (webviewRef.current) webviewRef.current.src = nextUrl;
-  }, [currentUrl]);
+    const webviewEl = webviewRef.current as (Electron.WebviewTag & { goForward?: () => void }) | null;
+    if (!webviewEl?.goForward || !canGoForward) return;
+    webviewEl.goForward();
+  }, [canGoForward]);
 
   // Refresh
   const handleRefresh = useCallback(() => {
@@ -482,9 +475,9 @@ const WebviewHost: React.FC<WebviewHostProps> = ({ url, id: _id, showNavBar = fa
       if (!/^https?:\/\//i.test(targetUrl)) {
         targetUrl = 'https://' + targetUrl;
       }
-      navigateToWithHistory(targetUrl);
+      navigateTo(targetUrl);
     },
-    [inputUrl, navigateToWithHistory]
+    [inputUrl, navigateTo]
   );
 
   const handleUrlKeyDown = useCallback(
