@@ -3570,8 +3570,9 @@ This identity statement takes priority over the default identity in USER.md.
         msg_id: responseMsgId,
         data: result,
       };
+      // 只发送一次，acpConversation.responseStream 和 conversation.responseStream 是同一流
       ipcBridge.acpConversation.responseStream.emit(contentMsg);
-      ipcBridge.conversation.responseStream.emit(contentMsg);
+      // 消息落库
       const tMessage = transformMessage(contentMsg);
       if (tMessage) addOrUpdateMessage(this.conversation_id, tMessage);
     } catch (error) {
