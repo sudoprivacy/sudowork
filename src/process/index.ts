@@ -20,6 +20,7 @@ import { getChannelManager } from '@/channels';
 import { ExtensionRegistry } from '@/extensions';
 import { initStatusManager } from './services/initStatus';
 import { mainLog, mainError, perfLog } from './utils/mainLogger';
+import { initializeSudoworkLogUploader } from './utils/sudoworkLogUploader';
 import { refreshEnterpriseCache } from '@/common/enterpriseDebugConfig';
 // Crash bridge must be initialized early to handle renderer errors before other bridges
 import { initCrashBridge } from './bridge/crashBridge';
@@ -44,6 +45,12 @@ export const initializeProcess = async () => {
   const storageStart = Date.now();
   await initStorage();
   perfLog('initStorage', Date.now() - storageStart);
+
+  try {
+    initializeSudoworkLogUploader();
+  } catch (error) {
+    console.warn('[Process] Failed to initialize Sudowork Log uploader:', error);
+  }
 
   // 2. Initialize bridge as soon as storage is ready
   // This ensures the renderer can communicate with the backend even while runtimes are installing

@@ -18,6 +18,7 @@ import { appendFileSync, existsSync, mkdirSync, statSync, renameSync, readFileSy
 import { join } from 'path';
 import { app } from 'electron';
 import { ipcBridge } from '@/common';
+import { enqueueSudoworkLogError } from './sudoworkLogUploader';
 
 // 日志级别
 type LogLevel = 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'PERF';
@@ -137,6 +138,21 @@ function writeLog(level: LogLevel, tag: string, message: string, data?: unknown)
     appendFileSync(getLogPath(), logLine, 'utf-8');
   } catch (error) {
     console.warn('[Logger] Failed to write log file:', error);
+    return;
+  }
+
+  if (level === 'ERROR') {
+    try {
+      enqueueSudoworkLogError({
+        tag,
+        message,
+        data,
+        logLine: logLine.trim(),
+        timestampMs: Date.now(),
+      });
+    } catch (error) {
+      console.warn('[Logger] Failed to enqueue Sudowork Log error:', error);
+    }
   }
 }
 

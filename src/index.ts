@@ -1165,6 +1165,13 @@ app.on('before-quit', (event) => {
       console.error('[App] Failed to shutdown telemetry:', error);
     }
 
+    try {
+      const { flushSudoworkLogUploader } = await import('./process/utils/sudoworkLogUploader');
+      await flushSudoworkLogUploader();
+    } catch (error) {
+      console.error('[App] Failed to flush Sudowork Log uploader:', error);
+    }
+
     finishAppQuit();
   })();
 });
