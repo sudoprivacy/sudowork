@@ -500,7 +500,7 @@ const WebviewHost: React.FC<WebviewHostProps> = ({ url, id: _id, showNavBar = fa
   }
 
   return (
-    <div ref={containerRef} className={`relative h-full w-full flex-1 min-h-0 flex flex-col ${className ?? ''}`} style={style}>
+    <div ref={containerRef} id={_id} className={`relative h-full w-full flex-1 min-h-0 flex flex-col ${className ?? ''}`} style={style}>
       {showNavBar && (
         <style>
           {`

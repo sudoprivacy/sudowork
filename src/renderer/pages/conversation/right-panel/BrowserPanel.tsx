@@ -43,18 +43,16 @@ const BrowserPanel: React.FC<{ active?: boolean }> = ({ active = false }) => {
     }
     return tabs[0]?.id || '';
   });
-  const activeTab = tabs.find((tab) => tab.id === activeTabId) || tabs[0];
-
   const partition = useMemo(() => 'persist:sudowork-right-panel-browser', []);
 
   const focusActiveWebview = useCallback(() => {
-    const webview = panelRef.current?.querySelector('webview');
+    const webview = panelRef.current?.querySelector(`#${activeTabId} webview`);
     try {
       (webview as HTMLElement | null)?.focus();
     } catch {
       // ignore focus timing issues
     }
-  }, []);
+  }, [activeTabId]);
 
   useEffect(() => {
     try {
@@ -135,8 +133,12 @@ const BrowserPanel: React.FC<{ active?: boolean }> = ({ active = false }) => {
           </Tooltip>
         </div>
       </div>
-      <div ref={panelRef} className='flex min-h-0 flex-1' onMouseDown={focusActiveWebview} onPointerDown={focusActiveWebview}>
-        {activeTab ? <WebviewHost key={activeTab.id} url={activeTab.url} partition={partition} className='h-full w-full flex-1 min-h-0' showNavBar onUrlChange={(nextUrl) => updateTabUrl(activeTab.id, nextUrl)} defaultZoomFactor={0.9} /> : null}
+      <div ref={panelRef} className='flex min-h-0 flex-1 relative overflow-hidden' onMouseDown={focusActiveWebview} onPointerDown={focusActiveWebview}>
+        {tabs.map((tab) => (
+          <div key={tab.id} className='absolute inset-0' style={{ display: tab.id === activeTabId ? 'block' : 'none' }}>
+            <WebviewHost id={tab.id} url={tab.url} partition={partition} className='h-full w-full flex-1 min-h-0' showNavBar onUrlChange={(nextUrl) => updateTabUrl(tab.id, nextUrl)} defaultZoomFactor={0.9} />
+          </div>
+        ))}
       </div>
     </div>
   );
