@@ -602,7 +602,7 @@ const GuidPage: React.FC = () => {
   }, [selectedAssistantConfig, localeKey]);
 
   return (
-    <ConfigProvider getPopupContainer={() => guidContainerRef.current || document.body}>
+    <ConfigProvider getPopupContainer={() => document.body}>
       <div ref={guidContainerRef} className={styles.guidContainer}>
         <div className='absolute top-12px right-16px z-10'>
           <ThemeSwitcher />
