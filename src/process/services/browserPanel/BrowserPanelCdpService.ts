@@ -77,6 +77,34 @@ export interface TabInfo {
   attached: boolean;
 }
 
+export interface EvaluateResult {
+  ok: boolean;
+  /** Present when ok=true. JSON-safe value returned by Runtime.evaluate (returnByValue:true). */
+  value?: unknown;
+  /** Set when CDP returned a description but no serializable value (e.g. functions). */
+  description?: string;
+  /** Set when ok=false. Concise error text from CDP. */
+  errorText?: string;
+  /** Set when ok=false. Stringified exception detail when available. */
+  errorDetail?: string;
+}
+
+export interface ScreenshotResult {
+  format: 'png' | 'jpeg';
+  /** Base64-encoded image data — caller decides whether to save, return, or stream. */
+  base64: string;
+}
+
+export interface NavigateResult {
+  ok: boolean;
+  finalUrl?: string;
+  errorText?: string;
+}
+
+export interface DomSnapshotResult {
+  snapshot: string | null;
+}
+
 interface NetworkFilter {
   method?: string;
   urlContains?: string;
@@ -151,6 +179,10 @@ interface TabState {
 class BrowserPanelCdpService {
   private tabs = new Map<number, TabState>();
   private installed = false;
+  /** Maps React-side BrowserPanel tab id (`browser-tab-...`) to webContentsId. */
+  private tabIdRegistry = new Map<string, number>();
+  /** webContentsId of the tab the renderer reports as active in the BrowserPanel. */
+  private activeWebContentsId: number | null = null;
 
   /** Idempotent — safe to call multiple times during startup. */
   install(): void {
@@ -194,6 +226,11 @@ class BrowserPanelCdpService {
 
     contents.once('destroyed', () => {
       this.tabs.delete(webContentsId);
+      // Drop any React tab-id rows pointing at this webContents
+      for (const [tabId, mappedId] of this.tabIdRegistry) {
+        if (mappedId === webContentsId) this.tabIdRegistry.delete(tabId);
+      }
+      if (this.activeWebContentsId === webContentsId) this.activeWebContentsId = null;
       mainLog('BrowserPanelCDP', `webview destroyed (id=${webContentsId})`);
     });
 
@@ -397,6 +434,116 @@ class BrowserPanelCdpService {
     state.network.clear();
     state.consoleEntries.clear();
   }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  //  Tab registry (renderer → main)
+  //
+  //  The React-side BrowserPanel keeps its own `tabId` string for each <webview>.
+  //  Main has the `webContentsId` once the contents are created. The renderer
+  //  bridges the two by calling registerTab on dom-ready and setActiveTab when
+  //  the user switches tabs. Without this mapping the agent tools cannot know
+  //  which webview to target.
+  // ─────────────────────────────────────────────────────────────────────────
+
+  registerTab(tabId: string, webContentsId: number): void {
+    this.tabIdRegistry.set(tabId, webContentsId);
+  }
+
+  unregisterTab(tabId: string): void {
+    this.tabIdRegistry.delete(tabId);
+  }
+
+  setActiveTab(tabId: string): void {
+    const webContentsId = this.tabIdRegistry.get(tabId);
+    if (webContentsId === undefined) return;
+    this.activeWebContentsId = webContentsId;
+  }
+
+  /**
+   * Resolve a webContentsId for an incoming tool call.
+   *  - explicit `tabId` (renderer tab id string) wins
+   *  - otherwise the most recently set active tab
+   *  - otherwise the only attached tab (single-tab convenience)
+   */
+  resolveWebContentsId(explicitTabId?: string): number | null {
+    if (explicitTabId) {
+      const mapped = this.tabIdRegistry.get(explicitTabId);
+      if (mapped !== undefined && this.tabs.has(mapped)) return mapped;
+    }
+    if (this.activeWebContentsId !== null && this.tabs.has(this.activeWebContentsId)) {
+      return this.activeWebContentsId;
+    }
+    if (this.tabs.size === 1) {
+      return this.tabs.keys().next().value as number;
+    }
+    return null;
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  //  Action API (later commits expose these to AI via slash + MCP)
+  // ─────────────────────────────────────────────────────────────────────────
+
+  async evaluateScript(webContentsId: number, opts: { expression: string; timeoutMs?: number }): Promise<EvaluateResult> {
+    const state = this.requireAttached(webContentsId);
+    const timeout = opts.timeoutMs ?? 10_000;
+    const result = (await state.contents.debugger.sendCommand('Runtime.evaluate', {
+      expression: opts.expression,
+      returnByValue: true,
+      awaitPromise: true,
+      timeout,
+    })) as { result?: CdpRemoteObject; exceptionDetails?: { text: string; exception?: CdpRemoteObject } };
+
+    if (result.exceptionDetails) {
+      return {
+        ok: false,
+        errorText: result.exceptionDetails.text,
+        errorDetail: result.exceptionDetails.exception ? stringifyArg(result.exceptionDetails.exception) : undefined,
+      };
+    }
+    return { ok: true, value: result.result?.value, description: result.result?.description };
+  }
+
+  async takeScreenshot(webContentsId: number, opts: { format?: 'png' | 'jpeg'; quality?: number; fullPage?: boolean } = {}): Promise<ScreenshotResult> {
+    const state = this.requireAttached(webContentsId);
+    const format = opts.format ?? 'png';
+    const params: Record<string, unknown> = { format, captureBeyondViewport: opts.fullPage ?? false };
+    if (format === 'jpeg' && typeof opts.quality === 'number') params.quality = Math.max(0, Math.min(100, opts.quality));
+    const result = (await state.contents.debugger.sendCommand('Page.captureScreenshot', params)) as { data: string };
+    return { format, base64: result.data };
+  }
+
+  async navigate(webContentsId: number, opts: { url: string; waitUntil?: 'load' | 'domcontentloaded' | 'networkidle' }): Promise<NavigateResult> {
+    const state = this.requireAttached(webContentsId);
+    const result = (await state.contents.debugger.sendCommand('Page.navigate', { url: opts.url })) as { frameId?: string; loaderId?: string; errorText?: string };
+    if (result.errorText) return { ok: false, errorText: result.errorText };
+
+    // Best-effort wait. CDP doesn't expose a canonical "wait until" primitive;
+    // we use Electron's webContents events because they're cheaper than CDP
+    // polling and live in the same process.
+    if (opts.waitUntil) {
+      await waitForNavigation(state.contents, opts.waitUntil);
+    }
+
+    return { ok: true, finalUrl: state.contents.getURL() };
+  }
+
+  async getDomSnapshot(webContentsId: number, opts: { selector?: string; format: 'outerHTML' | 'innerText' }): Promise<DomSnapshotResult> {
+    const state = this.requireAttached(webContentsId);
+    const selectorJson = JSON.stringify(opts.selector ?? null);
+    const expression = `(() => { const sel = ${selectorJson}; const root = sel ? document.querySelector(sel) : document.documentElement; if (!root) return null; return ${opts.format === 'innerText' ? '(root.innerText ?? root.textContent ?? null)' : '(root.outerHTML ?? null)'}; })()`;
+    const result = (await state.contents.debugger.sendCommand('Runtime.evaluate', { expression, returnByValue: true })) as { result?: CdpRemoteObject };
+    const value = result.result?.value;
+    if (typeof value !== 'string') return { snapshot: null };
+    return { snapshot: value };
+  }
+
+  private requireAttached(webContentsId: number): TabState {
+    const state = this.tabs.get(webContentsId);
+    if (!state) throw new Error(`No registered webview for id=${webContentsId}`);
+    if (!state.attached) throw new Error(`Debugger not attached for id=${webContentsId} (page may still be loading or DevTools is open)`);
+    if (state.contents.isDestroyed()) throw new Error(`webContents destroyed (id=${webContentsId})`);
+    return state;
+  }
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -440,6 +587,32 @@ function stringifyArg(arg: CdpRemoteObject): string {
 
 function formatConsoleArgs(args: CdpRemoteObject[]): string {
   return args.map(stringifyArg).join(' ');
+}
+
+/**
+ * Best-effort navigation wait. CDP's official primitive (Page.lifecycleEvent)
+ * is verbose; for the simple "wait for load / domcontentloaded" semantic we
+ * use Electron's own webContents events because they fire in-process.
+ */
+function waitForNavigation(contents: Electron.WebContents, waitUntil: 'load' | 'domcontentloaded' | 'networkidle'): Promise<void> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (): void => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      // networkidle: extra 500ms grace after did-finish-load. Cheap approximation
+      // since Electron doesn't surface a real Network.lifecycleEvent here.
+      if (waitUntil === 'networkidle') setTimeout(resolve, 500);
+      else resolve();
+    };
+    const timeout = setTimeout(finish, 30_000);
+    if (waitUntil === 'domcontentloaded') {
+      contents.once('dom-ready', finish);
+    } else {
+      contents.once('did-finish-load', finish);
+    }
+  });
 }
 
 // ───────────────────────────────────────────────────────────────────────────

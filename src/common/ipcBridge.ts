@@ -908,6 +908,55 @@ export const systemSettings = {
 // cache and (later) attach CDP-based agent tooling.
 export const browserPanel = {
   clearCache: bridge.buildProvider<IBridgeResponse<void>, void>('browser-panel:clear-cache'),
+
+  // ── Tab registry ────────────────────────────────────────────────────────
+  // Renderer reports (tabId ↔ webContentsId) on dom-ready so the main process
+  // can target the right webview from agent tool calls.
+  registerTab: bridge.buildProvider<IBridgeResponse<void>, { tabId: string; webContentsId: number }>('browser-panel:register-tab'),
+  unregisterTab: bridge.buildProvider<IBridgeResponse<void>, { tabId: string }>('browser-panel:unregister-tab'),
+  setActiveTab: bridge.buildProvider<IBridgeResponse<void>, { tabId: string }>('browser-panel:set-active-tab'),
+  listTabs: bridge.buildProvider<IBridgeResponse<Array<{ webContentsId: number; url: string; title: string; attached: boolean }>>, void>('browser-panel:list-tabs'),
+
+  // ── CDP action API ──────────────────────────────────────────────────────
+  // Each call resolves the target webview from `tabId` (renderer tab id) or
+  // falls back to the renderer's reported active tab.
+  evaluateScript: bridge.buildProvider<IBridgeResponse<{ ok: boolean; value?: unknown; description?: string; errorText?: string; errorDetail?: string }>, { tabId?: string; expression: string; timeoutMs?: number }>('browser-panel:evaluate-script'),
+  takeScreenshot: bridge.buildProvider<IBridgeResponse<{ format: 'png' | 'jpeg'; base64: string }>, { tabId?: string; format?: 'png' | 'jpeg'; quality?: number; fullPage?: boolean }>('browser-panel:take-screenshot'),
+  navigate: bridge.buildProvider<IBridgeResponse<{ ok: boolean; finalUrl?: string; errorText?: string }>, { tabId?: string; url: string; waitUntil?: 'load' | 'domcontentloaded' | 'networkidle' }>('browser-panel:navigate'),
+  getDomSnapshot: bridge.buildProvider<IBridgeResponse<{ snapshot: string | null }>, { tabId?: string; selector?: string; format: 'outerHTML' | 'innerText' }>('browser-panel:get-dom-snapshot'),
+  listNetworkRequests: bridge.buildProvider<
+    IBridgeResponse<
+      Array<{
+        requestId: string;
+        url: string;
+        method?: string;
+        type?: string;
+        status?: number;
+        statusText?: string;
+        mimeType?: string;
+        startedAt: number;
+        durationMs?: number;
+        failed?: boolean;
+        errorText?: string;
+        canceled?: boolean;
+      }>
+    >,
+    { tabId?: string; filter?: { method?: string; urlContains?: string; statusGte?: number; statusLt?: number; type?: string }; limit?: number }
+  >('browser-panel:list-network-requests'),
+  listConsoleMessages: bridge.buildProvider<
+    IBridgeResponse<
+      Array<{
+        level: 'log' | 'info' | 'warn' | 'error' | 'debug' | 'verbose' | 'other';
+        text: string;
+        url?: string;
+        lineNumber?: number;
+        at: number;
+        args?: string[];
+      }>
+    >,
+    { tabId?: string; levels?: Array<'log' | 'info' | 'warn' | 'error' | 'debug' | 'verbose' | 'other'>; limit?: number }
+  >('browser-panel:list-console-messages'),
+  clearBuffers: bridge.buildProvider<IBridgeResponse<void>, { tabId?: string }>('browser-panel:clear-buffers'),
 };
 
 // WebUI 服务管理接口 / WebUI service management API

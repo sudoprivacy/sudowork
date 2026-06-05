@@ -29,6 +29,8 @@ export interface WebviewHostProps {
   onUrlChange?: (url: string) => void;
   /** Default zoom applied to normal webpages. */
   defaultZoomFactor?: number;
+  /** Fired once the underlying webContents id is known (after dom-ready). */
+  onWebContentsIdReady?: (webContentsId: number) => void;
 }
 
 const MIN_ZOOM_FACTOR = 0.75;
@@ -44,7 +46,7 @@ const MAX_ZOOM_FACTOR = 1.5;
  * - Partition support for cache isolation
  * - Optional navigation bar (hidden by default for embedded use)
  */
-const WebviewHost: React.FC<WebviewHostProps> = ({ url, id: _id, showNavBar = false, partition, className, style, onDidFinishLoad, onDidFailLoad, onUrlChange, defaultZoomFactor = 1 }) => {
+const WebviewHost: React.FC<WebviewHostProps> = ({ url, id: _id, showNavBar = false, partition, className, style, onDidFinishLoad, onDidFailLoad, onUrlChange, defaultZoomFactor = 1, onWebContentsIdReady }) => {
   const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
@@ -226,6 +228,17 @@ const WebviewHost: React.FC<WebviewHostProps> = ({ url, id: _id, showNavBar = fa
     const handleDomReady = () => {
       setWebviewReady(true);
       injectClickInterceptor();
+
+      // Report the webContents id once it's available. The id is stable for the
+      // lifetime of the <webview> element, so report on first dom-ready only.
+      if (onWebContentsIdReady) {
+        try {
+          const wcid = (webviewEl as Electron.WebviewTag).getWebContentsId?.();
+          if (typeof wcid === 'number') onWebContentsIdReady(wcid);
+        } catch {
+          // ignore — older Electron versions may not expose getWebContentsId
+        }
+      }
 
       // Set up message listener inside webview
       webviewEl

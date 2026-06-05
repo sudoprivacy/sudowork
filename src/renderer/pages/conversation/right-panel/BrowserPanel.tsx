@@ -88,6 +88,11 @@ const BrowserPanel: React.FC<{ active?: boolean }> = ({ active = false }) => {
     } catch {
       // ignore
     }
+    if (activeTabId) {
+      ipcBridge.browserPanel.setActiveTab.invoke({ tabId: activeTabId }).catch(() => {
+        // ignore — main may not yet have the tab registered (race on first mount)
+      });
+    }
   }, [activeTabId]);
 
   useEffect(() => {
@@ -122,6 +127,7 @@ const BrowserPanel: React.FC<{ active?: boolean }> = ({ active = false }) => {
       }
       return nextTabs;
     });
+    ipcBridge.browserPanel.unregisterTab.invoke({ tabId }).catch(() => {});
   };
 
   const handleClearCache = useCallback(() => {
@@ -180,7 +186,20 @@ const BrowserPanel: React.FC<{ active?: boolean }> = ({ active = false }) => {
       <div ref={panelRef} className='flex min-h-0 flex-1 relative overflow-hidden' onMouseDown={focusActiveWebview} onPointerDown={focusActiveWebview}>
         {tabs.map((tab) => (
           <div key={tab.id} className='absolute inset-0' style={{ display: tab.id === activeTabId ? 'block' : 'none' }}>
-            <WebviewHost id={`${tab.id}-${reloadEpoch}`} url={tab.url} partition={partition} className='h-full w-full flex-1 min-h-0' showNavBar onUrlChange={(nextUrl) => updateTabUrl(tab.id, nextUrl)} defaultZoomFactor={0.9} />
+            <WebviewHost
+              id={`${tab.id}-${reloadEpoch}`}
+              url={tab.url}
+              partition={partition}
+              className='h-full w-full flex-1 min-h-0'
+              showNavBar
+              onUrlChange={(nextUrl) => updateTabUrl(tab.id, nextUrl)}
+              defaultZoomFactor={0.9}
+              onWebContentsIdReady={(webContentsId) => {
+                ipcBridge.browserPanel.registerTab.invoke({ tabId: tab.id, webContentsId }).catch(() => {
+                  // Best-effort; the agent tools will fall back to "no tab" semantics.
+                });
+              }}
+            />
           </div>
         ))}
       </div>
