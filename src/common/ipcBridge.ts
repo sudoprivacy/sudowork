@@ -23,6 +23,35 @@ export const shell = {
   openExternal: bridge.buildProvider<void, string>('open-external'), // 使用系统默认程序打开外部链接
 };
 
+export interface ITerminalCreateResult {
+  sessionId: string;
+}
+
+export interface ITerminalOutputEvent {
+  sessionId: string;
+  data: string;
+}
+
+export interface ITerminalExitEvent {
+  sessionId: string;
+  exitCode: number;
+}
+
+export interface ITerminalResizeParams {
+  sessionId: string;
+  cols: number;
+  rows: number;
+}
+
+export const terminal = {
+  create: bridge.buildProvider<IBridgeResponse<ITerminalCreateResult>, { cwd?: string; shell?: string } | undefined>('terminal.create'),
+  write: bridge.buildProvider<IBridgeResponse<void>, { sessionId: string; data: string }>('terminal.write'),
+  resize: bridge.buildProvider<IBridgeResponse<void>, ITerminalResizeParams>('terminal.resize'),
+  dispose: bridge.buildProvider<IBridgeResponse<void>, { sessionId: string }>('terminal.dispose'),
+  output: bridge.buildEmitter<ITerminalOutputEvent>('terminal.output'),
+  exit: bridge.buildEmitter<ITerminalExitEvent>('terminal.exit'),
+};
+
 //通用会话能力
 export const conversation = {
   create: bridge.buildProvider<TChatConversation, ICreateConversationParams>('create-conversation'), // 创建对话

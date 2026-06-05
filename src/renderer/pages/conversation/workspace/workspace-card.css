@@ -53,6 +53,323 @@
   border-color: transparent;
 }
 
+/* ——— Shared right-panel tab strip ——— */
+.right-panel-tabs,
+.browser-tabs {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  min-height: 40px;
+  padding: 6px 8px 0;
+  border-bottom: 1px solid var(--color-border-2);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--color-fill-1) 72%, transparent) 0%, transparent 100%);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.right-panel-tabs::-webkit-scrollbar,
+.browser-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.right-panel-tabs__item,
+.browser-tabs__item {
+  position: relative;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 10px 10px 0 0;
+  background: transparent;
+  color: var(--color-text-3);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  outline: none;
+  transition:
+    color 0.16s ease,
+    background-color 0.16s ease;
+}
+
+.right-panel-tabs__item:hover,
+.browser-tabs__item:hover {
+  color: var(--color-text-1);
+  background: var(--color-fill-1);
+}
+
+.right-panel-tabs__item--active,
+.browser-tabs__item--active {
+  color: var(--color-text-1);
+  background: color-mix(in srgb, var(--ui-accent-orange) 10%, transparent);
+}
+
+.right-panel-tabs__item--active::after,
+.browser-tabs__item--active::after {
+  content: '';
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--ui-accent-orange);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ui-accent-orange) 24%, transparent);
+}
+
+.right-panel-tabs__indicator,
+.browser-tabs__indicator {
+  display: none;
+}
+
+.browser-tabs__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-left: 2px;
+  border-radius: 999px;
+  color: var(--color-text-3);
+  transition:
+    background-color 0.16s ease,
+    color 0.16s ease;
+}
+
+.browser-tabs__close:hover {
+  background: var(--color-fill-2);
+  color: var(--color-text-1);
+}
+
+.browser-tabs__new-tab {
+  margin-left: auto;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-text-3);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition:
+    background-color 0.16s ease,
+    color 0.16s ease;
+  outline: none;
+}
+
+.browser-tabs__new-tab:hover {
+  background: var(--color-fill-1);
+  color: var(--color-text-1);
+}
+
+.right-panel-stack {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.right-panel-stack__pane {
+  position: absolute;
+  inset: 0;
+  display: none;
+  min-width: 0;
+  min-height: 0;
+  z-index: 0;
+}
+
+.right-panel-stack__pane--active {
+  display: flex;
+  z-index: 1;
+}
+
+.terminal-root {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  background: var(--color-bg-1);
+}
+
+.terminal-root__header {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  min-height: 40px;
+  padding: 0 12px;
+  gap: 12px;
+  border-bottom: 1px solid var(--color-border-2);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--color-fill-1) 58%, transparent) 0%, transparent 100%);
+  font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Monaco, Consolas, Liberation Mono, monospace;
+}
+
+.terminal-root__tabs {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.terminal-root__tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.terminal-root__tab {
+  position: relative;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 10px 10px 0 0;
+  background: transparent;
+  color: var(--color-text-3);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    color 0.16s ease,
+    background-color 0.16s ease;
+  outline: none;
+}
+
+.terminal-root__tab:hover {
+  color: var(--color-text-1);
+  background: var(--color-fill-1);
+}
+
+.terminal-root__tab--active {
+  color: var(--color-text-1);
+  background: color-mix(in srgb, var(--ui-accent-orange) 10%, transparent);
+}
+
+.terminal-root__tab--active::after {
+  content: '';
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--ui-accent-orange);
+}
+
+.terminal-root__tab-label {
+  line-height: 1.3;
+}
+
+.terminal-root__tab-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  color: var(--color-text-3);
+}
+
+.terminal-root__tab-close:hover {
+  background: var(--color-fill-2);
+  color: var(--color-text-1);
+}
+
+.terminal-root__new-tab {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  margin: 2px 0 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-text-3);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.terminal-root__new-tab:hover {
+  background: var(--color-fill-1);
+  color: var(--color-text-1);
+}
+
+.terminal-root__header-title {
+  color: var(--color-text-1);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.terminal-root__header-path {
+  align-self: center;
+  color: var(--color-text-3);
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.terminal-root__screen {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  padding: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.terminal-root__pane {
+  position: absolute;
+  inset: 0;
+  visibility: hidden;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.terminal-root__pane--active {
+  visibility: visible;
+  pointer-events: auto;
+  opacity: 1;
+}
+
+.terminal-root--xterm .xterm {
+  height: 100%;
+  padding: 12px;
+}
+
+.terminal-root--xterm .xterm-viewport {
+  background: transparent !important;
+  overflow-x: hidden !important;
+}
+
+.terminal-root--xterm .xterm-screen,
+.terminal-root--xterm .xterm-helpers {
+  background: transparent !important;
+  overflow-x: hidden !important;
+}
+
+.terminal-root--xterm .xterm-rows {
+  color: var(--color-text-1);
+}
+
 /* ——— Tabs row (临时空间 / 可用技能) — now the card header ——— */
 .chat-workspace .workspace-card__tabs {
   display: flex;
