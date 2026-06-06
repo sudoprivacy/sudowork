@@ -43,7 +43,40 @@ export interface BashDraftRestoreDetection {
 
 const SCRIPT_EXTENSIONS = new Set(['.py', '.js', '.ts', '.tsx', '.jsx', '.mjs', '.cjs', '.sh', '.bash', '.zsh', '.rb', '.php', '.lua']);
 const SCRIPT_SIDE_EFFECT_NAMES = new Set(['package.json', 'package-lock.json', 'npm-shrinkwrap.json', 'yarn.lock', 'pnpm-lock.yaml', 'bun.lockb', 'bun.lock', 'requirements.txt']);
-const BASH_DELIVERABLE_EXTENSIONS = new Set(['.pdf', '.docx', '.pptx', '.xlsx', '.csv', '.json', '.md', '.markdown', '.txt', '.html', '.htm', '.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg']);
+// Office + text formats that are reasonable defaults to treat as deliverables
+// when an agent's bash script writes them. Images were intentionally removed
+// (see Anthropic-skills convention rules below): bash-written PNG / JPG /
+// SVG are usually intermediate slide frames / thumbnails / chart exports.
+// If the user explicitly asks for an image (caught by inferRequestedExtensions
+// earlier), the request matches and `final` is returned before this rule.
+const BASH_DELIVERABLE_EXTENSIONS = new Set(['.pdf', '.docx', '.pptx', '.xlsx', '.csv', '.json', '.md', '.markdown', '.txt', '.html', '.htm']);
+
+// Anthropic skills convention (mirrors `anthropics/skills/skills/pptx/SKILL.md`):
+// all generated files go to `outputs/<document-name>/`. The deliverable is
+// named `final.<ext>`; everything else in that directory is intermediate.
+// Recognized whenever the workspace-relative path matches one of these shapes.
+const ANTHROPIC_FINAL_OUTPUTS_RE = /^outputs\/[^/]+\/final\.[a-z0-9]+$/i;
+const ANTHROPIC_INSIDE_OUTPUTS_RE = /^outputs\/[^/]+\/.+/i;
+
+// Legacy sudowork-hub conventions used by skills that have not yet adopted
+// the Anthropic `outputs/<doc>/` pattern. A file whose FIRST relative-path
+// segment is in this set is treated as intermediate (draft). Lowercase keys.
+const INTERMEDIATE_DIR_SEGMENTS = new Set([
+  'ppt_outputs',
+  'pptx_outputs',
+  'docx_outputs',
+  'xlsx_outputs',
+  'pdf_outputs',
+  'slides_output',
+  'slide_images',
+  'intermediate',
+  '_intermediate',
+  '_tmp',
+  '_temp',
+  '_cache',
+  '_artifacts',
+  '_build',
+]);
 
 const TARGET_TYPE_EXTENSIONS: Array<{ pattern: RegExp; extensions: string[] }> = [
   { pattern: /\b(pdf|PDF)\b|文档.*pdf|pdf.*文档/i, extensions: ['.pdf'] },
@@ -235,6 +268,24 @@ export class FileIntentClassifier {
     const requestedExtensions = inferRequestedExtensions(userMessage);
     if (requestedExtensions.has(ext)) {
       return { intent: 'final', reason: `Matches requested target type ${ext}`, matched: ext };
+    }
+
+    // Directory-structure rules. Run AFTER the user-driven explicit signals
+    // above (so a user request for a specific file by name still wins) and
+    // BEFORE generic heuristics (so a file in a known intermediate dir is
+    // not accidentally promoted by extension fallbacks).
+    const relativeKey = normalizePathForMatch(input.requestedPath || input.filePath);
+    if (relativeKey) {
+      if (ANTHROPIC_FINAL_OUTPUTS_RE.test(relativeKey)) {
+        return { intent: 'final', reason: 'Anthropic outputs/<doc>/final.<ext> convention', matched: relativeKey };
+      }
+      if (ANTHROPIC_INSIDE_OUTPUTS_RE.test(relativeKey)) {
+        return { intent: 'draft', reason: 'Intermediate file inside Anthropic outputs/<doc>/ tree', matched: relativeKey };
+      }
+      const firstSegment = relativeKey.split('/')[0] || '';
+      if (firstSegment && INTERMEDIATE_DIR_SEGMENTS.has(firstSegment)) {
+        return { intent: 'draft', reason: `Located in legacy intermediate directory "${firstSegment}"`, matched: firstSegment };
+      }
     }
 
     if (isScriptSideEffect(fileName)) {
