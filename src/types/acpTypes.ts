@@ -89,7 +89,6 @@ export type AcpBackendAll =
   | 'scode' // Sudo Code CLI
   | 'copilot' // GitHub Copilot CLI
   | 'qoder' // Qoder CLI
-  | 'openclaw-gateway' // @deprecated — kept for type-level backward compatibility only
   | 'vibe' // Mistral Vibe CLI
   | 'nanobot' // nanobot CLI (via ACP)
   | 'custom' // User-configured custom ACP agent
@@ -484,14 +483,6 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
     enabled: false, // ✅ Mistral Vibe CLI，使用 `vibe-acp` 启动
     supportsStreaming: false,
     acpArgs: [],
-  },
-  'openclaw-gateway': {
-    id: 'openclaw-gateway',
-    name: 'Sudoclaw',
-    cliCommand: undefined,
-    authRequired: false,
-    enabled: false, // @deprecated — openclaw-gateway removed, kept for type compat
-    supportsStreaming: true,
   },
   nanobot: {
     id: 'nanobot',

@@ -16,7 +16,6 @@ import JSZip from 'jszip';
 import { clearSkillsCache, getSkillsDir, getHubSkillsDir, getCustomSkillsDir, getBuiltinSkillsDir, SKILL_SUBDIRS, ProcessConfig } from '@/process/initStorage';
 import { skillManager, SkillCategory, SkillStatus, ISkillMeta } from '@/process/SkillManager';
 import WorkerManage from '@process/WorkerManage';
-import { serviceManager } from '@process/services/serviceManager';
 import { toAssetUrl } from '@/extensions/assetProtocol';
 import { AcpSkillManager } from '@/process/task/AcpSkillManager';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
@@ -271,23 +270,7 @@ async function resolveInstalledSkillDirAllSubdirs(userSkillsDir: string, skillNa
 async function reloadSkillRuntime(): Promise<void> {
   clearSkillsCache();
   AcpSkillManager.resetInstance();
-
-  const gateway = serviceManager.getGateway();
-  if (!gateway) {
-    mainLog('SkillHub', 'Gateway not running, skipping reload');
-    return;
-  }
-
-  const canHotReload = process.platform !== 'win32' && !gateway.isInProcess();
-  if (canHotReload) {
-    serviceManager.sendReloadSignal();
-    mainLog('SkillHub', 'Sent SIGUSR1 to gateway for hot-reload');
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-    return;
-  }
-
-  mainLog('SkillHub', 'Hot-reload not supported, restarting gateway...');
-  await serviceManager.restartSudoclaw();
+  mainLog('SkillHub', 'Skill caches cleared; scode runtime will pick up changes on next turn');
 }
 
 async function extractSkillZipToDirectory(zipBuffer: Buffer, skillDir: string): Promise<{ extractedFiles: string[] }> {
@@ -526,7 +509,6 @@ async function installImportedSkillFromPreparedDirectory(skillDir: string, impor
       await reloadSkillRuntime();
     } catch (err) {
       mainWarn('SkillHub', 'Reload after local skill import failed:', err);
-      await serviceManager.restartSudoclaw();
     }
   })();
 
@@ -894,15 +876,12 @@ export function initSkillHubBridge(): void {
 
       mainLog('SkillHub', `Successfully installed skill "${trimmedSkillName}" v${version} to ${skillDir}`);
 
-      // Reload Sudoclaw gateway to pick up new skills.
-      // - On Unix: use SIGUSR1 for hot-reload (keeps sessions alive)
-      // - On Windows/In-process: full restart required (SIGUSR1 not supported)
+      // Reload skill runtime so the next conversation turn picks up new skills.
       void (async () => {
         try {
           await reloadSkillRuntime();
         } catch (err) {
           mainWarn('SkillHub', 'Reload failed:', err);
-          await serviceManager.restartSudoclaw();
         }
       })();
 
@@ -1041,7 +1020,6 @@ export function initSkillHubBridge(): void {
             await reloadSkillRuntime();
           } catch (err) {
             mainWarn('SkillHub', 'Reload after uninstall failed:', err);
-            await serviceManager.restartSudoclaw();
           }
         })();
       }
@@ -1062,7 +1040,6 @@ export function initSkillHubBridge(): void {
             await reloadSkillRuntime();
           } catch (err) {
             mainWarn('SkillHub', 'Reload after enable toggle failed:', err);
-            await serviceManager.restartSudoclaw();
           }
         })();
       }

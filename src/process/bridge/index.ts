@@ -35,7 +35,6 @@ import { initClaudeCliBridge } from './claudeCliBridge';
 import { initLibreOfficeBridge } from './libreofficeBridge';
 import { initSkillHubBridge } from './skillHubBridge';
 import { initAssistantHubBridge } from './assistantHubBridge';
-import { initSudoclawBridge } from './sudoclawBridge';
 import { initInitBridge } from './initBridge';
 import { initSudoworkServerBridge } from './sudoworkServerBridge';
 import { initNodeRuntimeBridge } from './nodeRuntimeBridge';
@@ -96,7 +95,6 @@ export function initAllBridges(): void {
   initLibreOfficeBridge();
   initSkillHubBridge();
   initAssistantHubBridge();
-  initSudoclawBridge();
   initNodeRuntimeBridge();
   initPythonRuntimeBridge();
   initSudoworkServerBridge();
@@ -133,7 +131,7 @@ export async function initializeAcpDetector(): Promise<void> {
 
 // 导出初始化函数供单独使用
 
-export { initAcpConversationBridge, initApplicationBridge, initAssistantHubBridge, initAuthBridge, initBedrockBridge, initChannelBridge, initConversationBridge, initCronBridge, initDatabaseBridge, initDialogBridge, initDocumentBridge, initExtensionsBridge, initFsBridge, initGeminiBridge, initMcpBridge, initModelBridge, initNexusBridge, initPreviewHistoryBridge, initShellBridge, initSkillHubBridge, initStarOfficeBridge, initSudoclawBridge, initSystemSettingsBridge, initUpdateBridge, initWebuiBridge, initWindowControlsBridge };
+export { initAcpConversationBridge, initApplicationBridge, initAssistantHubBridge, initAuthBridge, initBedrockBridge, initChannelBridge, initConversationBridge, initCronBridge, initDatabaseBridge, initDialogBridge, initDocumentBridge, initExtensionsBridge, initFsBridge, initGeminiBridge, initMcpBridge, initModelBridge, initNexusBridge, initPreviewHistoryBridge, initShellBridge, initSkillHubBridge, initStarOfficeBridge, initSystemSettingsBridge, initUpdateBridge, initWebuiBridge, initWindowControlsBridge };
 
 // 导出窗口控制相关工具函数
 export { registerWindowMaximizeListeners } from './windowControlsBridge';

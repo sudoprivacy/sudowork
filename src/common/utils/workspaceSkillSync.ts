@@ -46,10 +46,6 @@ export function shouldSyncWorkspaceSkills(conversation?: TChatConversation, requ
     return false;
   }
 
-  if (conversation.type === 'openclaw-gateway') {
-    return true;
-  }
-
   if (conversation.type === 'acp' && conversation.extra?.backend === 'claude') {
     return true;
   }

@@ -654,7 +654,6 @@ export const shareoneCli = {
 
 // LibreOffice installer / LibreOffice 在线安装
 export type ILibreOfficeInstallPhase = 'downloading' | 'mounting' | 'copying' | 'unmounting' | 'installing' | 'extracting' | 'cleanup';
-export type ISudoclawInstallPhase = 'extracting' | 'installing' | 'configuring';
 
 export const libreOffice = {
   checkInstalled: bridge.buildProvider<IBridgeResponse<ICliStatus>, void>('libreoffice.check-installed'),
@@ -683,84 +682,6 @@ export const pythonRuntime = {
   installProgress: bridge.buildEmitter<{ phase: IPythonInstallPhase; percent?: number }>('python-runtime.install-progress'),
   /** Emitted once when installation completes (success or failure) */
   installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('python-runtime.install-result'),
-};
-
-// Sudoclaw config (~/.nexus/sudoclaw) / Sudoclaw 配置
-// Matches sudoclaw.json schema: models.providers, agents.defaults, etc.
-export type SudoclawProviderModel = { id: string; name?: string; input?: string[] };
-export type SudoclawProvider = {
-  baseUrl?: string;
-  apiKey?: string;
-  api?: string; // e.g. openai, anthropic, google-generative-ai
-  models?: SudoclawProviderModel[];
-};
-export type SudoclawConfig = {
-  lastRunMode?: string;
-  agents?: { defaults?: { model?: { primary?: string; fallbacks?: string[] }; imageModel?: string; imageAnalysisModel?: string; imageGenerationModel?: string; models?: Record<string, { alias?: string }> } };
-  models?: {
-    mode?: 'merge' | 'replace';
-    providers?: Record<string, SudoclawProvider>;
-  };
-  env?: { vars?: Record<string, string> };
-  plugins?: { entries?: Record<string, { enabled?: boolean; config?: Record<string, unknown> }> };
-};
-
-export type SudoclawTestGatewayResult = {
-  success: boolean;
-  port?: number;
-  error?: string;
-  stdout?: string;
-  stderr?: string;
-};
-
-export interface ISudoclawStatus {
-  installed: boolean;
-  configPath: string;
-  gatewayRunning?: boolean;
-  gatewayPort?: number;
-  gatewayHost?: string;
-  gatewayUrl?: string;
-  isConnected?: boolean;
-  hasActiveSession?: boolean;
-  sessionKey?: string | null;
-  workspace?: string;
-  agentName?: string;
-  model?: string;
-  cliPath?: string;
-  version?: string;
-  error?: string;
-}
-
-export const sudoclaw = {
-  /** Get Sudoclaw config from ~/.nexus/sudoclaw/sudoclaw.json */
-  getConfig: bridge.buildProvider<IBridgeResponse<SudoclawConfig | null>, void>('sudoclaw.get-config'),
-  /** Save Sudoclaw config */
-  saveConfig: bridge.buildProvider<IBridgeResponse<void>, { config: SudoclawConfig }>('sudoclaw.save-config'),
-  /** Get Sudoclaw install status */
-  getStatus: bridge.buildProvider<IBridgeResponse<ISudoclawStatus>, void>('sudoclaw.get-status'),
-  /** Test Sudoclaw gateway connection (start gateway, verify ready, then stop) */
-  testGateway: bridge.buildProvider<IBridgeResponse<SudoclawTestGatewayResult>, void>('sudoclaw.test-gateway'),
-  /** Restart Sudoclaw gateway */
-  restartGateway: bridge.buildProvider<IBridgeResponse<void>, void>('sudoclaw.restart-gateway'),
-  /** Start Sudoclaw gateway */
-  startGateway: bridge.buildProvider<IBridgeResponse<void>, void>('sudoclaw.start-gateway'),
-  /** Stop Sudoclaw gateway */
-  stopGateway: bridge.buildProvider<IBridgeResponse<void>, void>('sudoclaw.stop-gateway'),
-  /** Install Sudoclaw manually from About page */
-  install: bridge.buildProvider<IBridgeResponse<void>, void>('sudoclaw.install'),
-  uninstall: bridge.buildProvider<IBridgeResponse<void>, void>('sudoclaw.uninstall'),
-  /** Returns the current install state so the UI can restore progress after navigation */
-  getInstallState: bridge.buildProvider<IBridgeResponse<{ installing: boolean; phase?: ISudoclawInstallPhase; percent?: number }>, void>('sudoclaw.get-install-state'),
-  /** Emitted once when installation completes (success or failure) */
-  installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('sudoclaw.install-result'),
-  /** Emitted during installation to report progress */
-  installProgress: bridge.buildEmitter<{ phase: ISudoclawInstallPhase; percent?: number }>('sudoclaw.install-progress'),
-  /** Install WeChat plugin to Sudoclaw via npx CLI */
-  installWechatPlugin: bridge.buildProvider<IBridgeResponse<{ output: string }>, void>('sudoclaw.install-wechat-plugin'),
-  /** Get WeChat plugin installation status */
-  getWechatStatus: bridge.buildProvider<IBridgeResponse<{ installed: boolean }>, void>('sudoclaw.get-wechat-status'),
-  /** Emitted during WeChat plugin install — delivers QR code data and progress */
-  wechatInstallProgress: bridge.buildEmitter<{ phase: 'installing' | 'qrcode' | 'scanning' | 'success' | 'error'; message?: string; qrData?: string; qrUrl?: string }>('sudoclaw.wechat-install-progress'),
 };
 
 // Scode config (~/.nexus/sudocode/sudocode.json)
