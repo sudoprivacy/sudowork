@@ -23,6 +23,7 @@ export interface ListTemplatesParams {
 
 export interface InstallTemplatePayload {
   config_values: Record<string, string>;
+  auth_credentials?: Record<string, string>;
   display_name?: string;
 }
 
