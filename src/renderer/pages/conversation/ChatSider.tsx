@@ -13,10 +13,11 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import ChatWorkspace from './workspace';
 import BrowserPanel from './right-panel/BrowserPanel';
+import DeliverablesPanel from './right-panel/DeliverablesPanel';
 import TerminalPanel from './right-panel/TerminalPanel';
 import './workspace/workspace-card.css';
 
-type RightPanelTab = 'workspace' | 'browser' | 'terminal';
+type RightPanelTab = 'workspace' | 'browser' | 'terminal' | 'deliverables';
 
 const ChatSider: React.FC<{
   conversation?: TChatConversation;
@@ -34,7 +35,7 @@ const ChatSider: React.FC<{
 
     try {
       const stored = localStorage.getItem(storageKey);
-      if (stored === 'workspace' || stored === 'browser' || stored === 'terminal') {
+      if (stored === 'workspace' || stored === 'browser' || stored === 'terminal' || stored === 'deliverables') {
         setActiveTab(stored);
         return;
       }
@@ -87,7 +88,7 @@ const ChatSider: React.FC<{
       {messageContext}
       <div className='flex h-full min-h-0 flex-col bg-[var(--color-bg-1)]'>
         <div className='right-panel-tabs'>
-          {(['workspace', 'browser', 'terminal'] as RightPanelTab[]).map((tab) => {
+          {(['workspace', 'browser', 'terminal', 'deliverables'] as RightPanelTab[]).map((tab) => {
             const isActive = activeTab === tab;
             return (
               <button key={tab} type='button' role='tab' aria-selected={isActive} className={`right-panel-tabs__item ${isActive ? 'right-panel-tabs__item--active' : ''}`} onClick={() => setActiveTab(tab)}>
@@ -104,6 +105,9 @@ const ChatSider: React.FC<{
           </div>
           <div className={`right-panel-stack__pane ${activeTab === 'terminal' ? 'right-panel-stack__pane--active' : ''}`}>
             <TerminalPanel cwd={workspace} active={activeTab === 'terminal'} />
+          </div>
+          <div className={`right-panel-stack__pane ${activeTab === 'deliverables' ? 'right-panel-stack__pane--active' : ''}`}>
+            <DeliverablesPanel conversationId={conversation?.id} active={activeTab === 'deliverables'} />
           </div>
         </div>
       </div>

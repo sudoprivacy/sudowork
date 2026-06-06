@@ -82,7 +82,15 @@
     "tabs": {
       "workspace": "Workspace",
       "browser": "Browser",
-      "terminal": "Terminal"
+      "terminal": "Terminal",
+      "deliverables": "Deliverables"
+    },
+    "deliverables": {
+      "emptyTitle": "No deliverables yet",
+      "emptyHint": "Files the AI generates in this conversation will show up here.",
+      "loading": "Loading…",
+      "groupToday": "Today",
+      "groupYesterday": "Yesterday"
     },
     "browser": {
       "newTab": "New Tab",
