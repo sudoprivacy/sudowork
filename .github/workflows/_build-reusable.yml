@@ -79,6 +79,9 @@ jobs:
         uses: actions/checkout@v6
         with:
           ref: ${{ inputs.ref }}
+          # ai-dev-browser (browser skill runtime) is a git submodule; without
+          # this the bundle ships no Python implementation and the skill is dead.
+          submodules: recursive
 
       - name: Get commit hash
         id: commit
