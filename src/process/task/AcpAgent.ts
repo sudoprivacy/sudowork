@@ -1707,6 +1707,13 @@ This identity statement takes priority over the default identity in USER.md.
       status: 'finish',
       content: { content },
     });
+    // Live-push the deliverables list to the renderer's right-panel
+    // "交付物" tab so it can append without refetching from DB.
+    try {
+      ipcBridge.deliverables.changed.emit({ conversationId: this.conversation_id, files: entries });
+    } catch (err) {
+      mainLog('[AcpAgent]', `[TRACK] deliverables.changed emit failed: ${String(err)}`);
+    }
   }
 
   private hasVisibleAssistantContent(data: unknown): boolean {
