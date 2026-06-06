@@ -1770,6 +1770,7 @@ This identity statement takes priority over the default identity in USER.md.
       reason: classification.reason,
       source: input.source,
       kind: input.kind,
+      userInitiated: classification.userInitiated,
     });
     mainLog('[AcpAgent]', `[TRACK] File: ${trackingKey}, intent: ${classification.intent}, source: ${input.source}, reason: ${classification.reason}, actualPath: ${actualPath}`);
 

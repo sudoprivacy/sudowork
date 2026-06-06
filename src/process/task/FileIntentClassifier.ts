@@ -33,6 +33,21 @@ export interface FileIntentClassification {
   marker?: string;
   line?: number;
   matched?: string;
+  /**
+   * True only when the `intent === 'draft'` decision came from an explicit
+   * user / operation request (e.g. `operationIntent === 'move-to-drafts'`,
+   * or the user message said "move X to drafts").
+   *
+   * Used by archiveTurnFiles to decide between archive vs. delete:
+   *   - userInitiated drafts → archive to .drafts/<basename>
+   *   - all other drafts (classifier heuristics) → unlink
+   *
+   * Rationale: AI-generated intermediate files (PPT slide frames, etc.) have
+   * no recovery value — they're scaffolding the user never asked for. Keeping
+   * them in .drafts/ accumulates disk + cognitive noise. User-explicit moves
+   * still go to .drafts/ because the user might want to restore them.
+   */
+  userInitiated?: boolean;
 }
 
 export interface BashDraftRestoreDetection {
@@ -43,7 +58,41 @@ export interface BashDraftRestoreDetection {
 
 const SCRIPT_EXTENSIONS = new Set(['.py', '.js', '.ts', '.tsx', '.jsx', '.mjs', '.cjs', '.sh', '.bash', '.zsh', '.rb', '.php', '.lua']);
 const SCRIPT_SIDE_EFFECT_NAMES = new Set(['package.json', 'package-lock.json', 'npm-shrinkwrap.json', 'yarn.lock', 'pnpm-lock.yaml', 'bun.lockb', 'bun.lock', 'requirements.txt']);
-const BASH_DELIVERABLE_EXTENSIONS = new Set(['.pdf', '.docx', '.pptx', '.xlsx', '.csv', '.json', '.md', '.markdown', '.txt', '.html', '.htm', '.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg']);
+// Office + text formats that are reasonable defaults to treat as deliverables
+// when an agent's bash script writes them. Images were intentionally removed
+// (see Anthropic-skills convention rules below): bash-written PNG / JPG /
+// SVG are usually intermediate slide frames / thumbnails / chart exports.
+// If the user explicitly asks for an image (caught by inferRequestedExtensions
+// earlier), the request matches and `final` is returned before this rule.
+const BASH_DELIVERABLE_EXTENSIONS = new Set(['.pdf', '.docx', '.pptx', '.xlsx', '.csv', '.json', '.md', '.markdown', '.txt', '.html', '.htm']);
+
+// Intermediate working directories. A file whose FIRST relative-path segment
+// is in this set is treated as intermediate (draft). These names cover both
+// well-known sudowork-hub conventions (ppt_outputs/) and common scaffolding
+// dirs that skills/scripts use for intermediate artifacts. Lowercase keys.
+//
+// Lifecycle: the matching files are NOT moved or deleted by archiveTurnFiles
+// when userInitiated is false — they remain in place so cross-turn workflows
+// (e.g. PPT slide generation that spans multiple turns before composition)
+// can still read them. They're hidden from the chat-card / deliverables UI
+// because buildGeneratedFileEntries filters to intent='final'; they're hidden
+// from the workspace-tree UI by an ignore rule in conversationBridge.
+export const INTERMEDIATE_DIR_SEGMENTS = new Set([
+  'ppt_outputs',
+  'pptx_outputs',
+  'docx_outputs',
+  'xlsx_outputs',
+  'pdf_outputs',
+  'slides_output',
+  'slide_images',
+  'intermediate',
+  '_intermediate',
+  '_tmp',
+  '_temp',
+  '_cache',
+  '_artifacts',
+  '_build',
+]);
 
 const TARGET_TYPE_EXTENSIONS: Array<{ pattern: RegExp; extensions: string[] }> = [
   { pattern: /\b(pdf|PDF)\b|文档.*pdf|pdf.*文档/i, extensions: ['.pdf'] },
@@ -191,7 +240,7 @@ export class FileIntentClassifier {
     const userMessage = input.userMessage?.trim() || '';
 
     if (input.source !== 'cleanup' && input.operationIntent === 'move-to-drafts' && isDraftsPath(input.filePath, input.requestedPath)) {
-      return { intent: 'draft', reason: 'Move to drafts requested' };
+      return { intent: 'draft', reason: 'Move to drafts requested', userInitiated: true };
     }
 
     if (input.source !== 'cleanup' && input.operationIntent === 'restore-from-drafts' && isRestoredRootFile(input.filePath, input.requestedPath)) {
@@ -199,7 +248,7 @@ export class FileIntentClassifier {
     }
 
     if (input.source !== 'cleanup' && isMoveToDraftsIntent(userMessage) && isDraftsPath(input.filePath, input.requestedPath)) {
-      return { intent: 'draft', reason: 'Move to drafts requested' };
+      return { intent: 'draft', reason: 'Move to drafts requested', userInitiated: true };
     }
 
     if (input.source !== 'cleanup' && isRestoreFromDraftsIntent(userMessage) && isRestoredRootFile(input.filePath, input.requestedPath) && !matchesExcludedFileName(userMessage, input.filePath, input.requestedPath)) {
@@ -235,6 +284,18 @@ export class FileIntentClassifier {
     const requestedExtensions = inferRequestedExtensions(userMessage);
     if (requestedExtensions.has(ext)) {
       return { intent: 'final', reason: `Matches requested target type ${ext}`, matched: ext };
+    }
+
+    // Intermediate-directory rule. Run AFTER user-driven explicit signals
+    // (so a user request for a specific file by name still wins) and BEFORE
+    // generic heuristics (so a file in a known intermediate dir is not
+    // accidentally promoted by extension fallbacks).
+    const relativeKey = normalizePathForMatch(input.requestedPath || input.filePath);
+    if (relativeKey) {
+      const firstSegment = relativeKey.split('/')[0] || '';
+      if (firstSegment && INTERMEDIATE_DIR_SEGMENTS.has(firstSegment)) {
+        return { intent: 'draft', reason: `Located in intermediate directory "${firstSegment}"`, matched: firstSegment };
+      }
     }
 
     if (isScriptSideEffect(fileName)) {
