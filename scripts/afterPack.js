@@ -769,7 +769,8 @@ module.exports = async function afterPack(context) {
       // Resources dir not readable — nexus archives will be skipped
     }
 
-    const fixedArchives = ['claude-code.tgz', 'mcporter.tgz', 'shareone.tgz'];
+    // claude-code.tgz removed — see electron-builder.yml extraResources note.
+    const fixedArchives = ['mcporter.tgz', 'shareone.tgz'];
 
     // Node runtime has architecture-specific name (e.g., node-darwin-arm64.tar.gz)
     const nodeArchive = `node-darwin-${targetArch}.tar.gz`;

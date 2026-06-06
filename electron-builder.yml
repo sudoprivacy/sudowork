@@ -171,8 +171,10 @@ extraResources:
   - from: resources/sudoclaw-bin
     to: sudoclaw-bin
   # CLI tools (bundled at build time via scripts/download-*.js)
-  - from: resources/claude-code.tgz
-    to: claude-code.tgz
+  # NOTE: claude-code.tgz is deliberately NOT bundled — users install Claude
+  # Code CLI separately (https://claude.com/code). At runtime, the Claude agent
+  # resolves `claude` from PATH via the ACP bridge (see acpConnectors.ts).
+  # Other agents (codex, gemini, sudocode, etc.) are unaffected.
   - from: resources/shareone.tgz
     to: shareone.tgz
   - from: resources/mcporter.tgz
