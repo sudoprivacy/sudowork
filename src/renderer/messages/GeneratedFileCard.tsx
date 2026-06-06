@@ -12,7 +12,8 @@ import { getContentTypeByExtension } from '@/renderer/pages/conversation/preview
 import { formatFileSize } from '@/renderer/services/FileService';
 import { resolveFileIcon } from '@/renderer/utils/fileIcon';
 import { emitter } from '@/renderer/utils/emitter';
-import { Tooltip } from '@arco-design/web-react';
+import { FolderOpen, ShareOne } from '@icon-park/react';
+import { Message, Tooltip } from '@arco-design/web-react';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -82,6 +83,28 @@ const GeneratedFileCard: React.FC<GeneratedFileCardProps> = ({ entry }) => {
     });
   }, [missing, loading, isHtml, entry.path, fileName, launchPreview]);
 
+  const handleOpenExternal = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (missing) return;
+      ipcBridge.shell.openFile.invoke(entry.path).catch((err: unknown) => {
+        Message.error(String(err instanceof Error ? err.message : err));
+      });
+    },
+    [entry.path, missing],
+  );
+
+  const handleShowInFolder = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (missing) return;
+      ipcBridge.shell.showItemInFolder.invoke(entry.path).catch((err: unknown) => {
+        Message.error(String(err instanceof Error ? err.message : err));
+      });
+    },
+    [entry.path, missing],
+  );
+
   const sizeLabel = typeof resolvedSize === 'number' ? formatFileSize(resolvedSize) : '';
   const kindLabel = entry.kind === 'edit' ? t('messages.generatedFile.kindEdit') : t('messages.generatedFile.kindCreate');
 
@@ -118,6 +141,24 @@ const GeneratedFileCard: React.FC<GeneratedFileCardProps> = ({ entry }) => {
             {ext && <span className='uppercase opacity-70'>{ext}</span>}
           </div>
         </div>
+        {!missing && (
+          // Secondary actions: open with system app + reveal in OS file manager.
+          // Hidden by default to keep the card visually quiet; revealed on
+          // group-hover. stopPropagation in handlers so they don't trigger
+          // the card's primary in-app preview click.
+          <div className='ml-auto flex items-center gap-2px opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0'>
+            <Tooltip content={t(isHtml ? 'messages.generatedFile.openInSystemBrowser' : 'messages.generatedFile.openWithDefaultApp')} position='top' mini>
+              <button type='button' onClick={handleOpenExternal} className='p-4px rd-4px hover:bg-[var(--color-bg-1)] flex items-center justify-center border-0 bg-transparent cursor-pointer' style={{ lineHeight: 0 }}>
+                <ShareOne size='14' fill={iconColors.secondary} />
+              </button>
+            </Tooltip>
+            <Tooltip content={t('messages.generatedFile.showInFolder')} position='top' mini>
+              <button type='button' onClick={handleShowInFolder} className='p-4px rd-4px hover:bg-[var(--color-bg-1)] flex items-center justify-center border-0 bg-transparent cursor-pointer' style={{ lineHeight: 0 }}>
+                <FolderOpen size='14' fill={iconColors.secondary} />
+              </button>
+            </Tooltip>
+          </div>
+        )}
       </div>
     </Tooltip>
   );

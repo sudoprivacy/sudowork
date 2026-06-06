@@ -5,7 +5,10 @@
     "kindCreate": "Created",
     "kindEdit": "Updated",
     "statusMissing": "Missing",
-    "missingHint": "File was moved or deleted and cannot be previewed"
+    "missingHint": "File was moved or deleted and cannot be previewed",
+    "openInSystemBrowser": "Open in default browser",
+    "openWithDefaultApp": "Open with default app",
+    "showInFolder": "Show in Folder"
   },
   "conversationInProgress": "A conversation is currently in progress...",
   "confirm": "Confirm",
