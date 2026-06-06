@@ -11,6 +11,16 @@ protocols:
 asar:
   smartUnpack: true
 
+# Only ship Electron locale.pak files for the languages we actually support
+# in the renderer (English, Simplified Chinese, Traditional Chinese).
+# Drops ~25MB of unused locale.pak files (hi, ta, te, ml, kn, mr, gu, bn, ...).
+# Names must match Electron's .lproj directory names exactly — underscore form,
+# not BCP-47 dashes (electron-builder compares against path.basename(dir, ".lproj")).
+electronLanguages:
+  - en
+  - zh_CN
+  - zh_TW
+
 directories:
   output: out
   buildResources: resources
