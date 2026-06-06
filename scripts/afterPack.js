@@ -164,6 +164,76 @@ function restoreFrameworkSymlinks(fwPath) {
 }
 
 /**
+ * Snapshot every group of hardlinked regular files under `dir`.
+ *
+ * `codesign` writes a temp file and renames over the target, which breaks
+ * hardlinks. For archives like claude-code.tgz that ship the platform binary
+ * twice via a single inode (~210 MB total on disk), the post-sign re-pack
+ * loses dedup and the tgz nearly doubles in size. Pair with restoreHardlinkGroups.
+ *
+ * Symlinks are skipped — codesign follows them and we never want to convert
+ * one back to a hardlink.
+ *
+ * @param {string} dir
+ * @returns {Array<string[]>} groups of 2+ paths that shared an inode pre-sign
+ */
+function snapshotHardlinkGroups(dir) {
+  const groups = new Map(); // "dev:ino" -> string[]
+  function walk(currentDir) {
+    let entries;
+    try { entries = fs.readdirSync(currentDir, { withFileTypes: true }); } catch { return; }
+    for (const entry of entries) {
+      if (entry.isSymbolicLink()) continue;
+      const fullPath = path.join(currentDir, entry.name);
+      if (entry.isDirectory()) { walk(fullPath); continue; }
+      if (!entry.isFile()) continue;
+      let st;
+      try { st = fs.statSync(fullPath); } catch { continue; }
+      if (st.nlink < 2) continue;
+      const key = `${st.dev}:${st.ino}`;
+      const arr = groups.get(key);
+      if (arr) arr.push(fullPath);
+      else groups.set(key, [fullPath]);
+    }
+  }
+  walk(dir);
+  // Sort each group for deterministic primary selection across runs.
+  return [...groups.values()].filter(arr => arr.length > 1).map(arr => arr.sort());
+}
+
+/**
+ * Re-create hardlinks broken by codesign. For each group, the first path
+ * (alphabetical) is the primary; every other path is unlinked and re-linked
+ * to the primary's inode so they share the signed content again.
+ *
+ * Groups already intact (codesign happened to leave them alone) are skipped.
+ *
+ * @param {Array<string[]>} groups - output of snapshotHardlinkGroups
+ * @returns {number} number of paths re-linked
+ */
+function restoreHardlinkGroups(groups) {
+  let restored = 0;
+  for (const paths of groups) {
+    const [primary, ...rest] = paths;
+    let primarySt;
+    try { primarySt = fs.statSync(primary); } catch { continue; }
+    for (const p of rest) {
+      let pSt;
+      try { pSt = fs.statSync(p); } catch { continue; }
+      if (pSt.dev === primarySt.dev && pSt.ino === primarySt.ino) continue;
+      try {
+        fs.unlinkSync(p);
+        fs.linkSync(primary, p);
+        restored++;
+      } catch (err) {
+        console.warn(`   ⚠️  Could not re-link ${path.relative(process.cwd(), p)}: ${err.message}`);
+      }
+    }
+  }
+  return restored;
+}
+
+/**
  * Sign all binary files recursively in a directory
  * @param {string} dir - Directory to search for binaries
  * @param {string} identity - Code signing identity
@@ -575,9 +645,23 @@ async function signBinariesInArchive(archivePath, identity, isNested = false, en
       console.log(`   🗑  Removed ${removedCount} un-notarizable file(s) from ${archiveName}`);
     }
 
+    // Snapshot hardlink groups before signing — codesign atomically replaces
+    // files, which breaks the inode share that install.cjs sets up between
+    // e.g. @anthropic-ai/claude-code/bin/claude.exe and the platform package's
+    // binary. Without restoring, the re-packed tgz ships the ~210 MB binary
+    // twice (claude-code.tgz: 62 MB → 123 MB; dmg: +60 MB).
+    const hardlinkGroups = snapshotHardlinkGroups(extractedDir);
+
     // Sign binaries in the main extracted content
     const signedCount = signBinariesInDir(extractedDir, identity, entitlementsPath);
     console.log(`   Signed ${signedCount} binaries total`);
+
+    if (hardlinkGroups.length > 0) {
+      const relinked = restoreHardlinkGroups(hardlinkGroups);
+      if (relinked > 0) {
+        console.log(`   🔗 Restored ${relinked} hardlink(s) across ${hardlinkGroups.length} group(s) broken by codesign`);
+      }
+    }
 
     // Re-pack the main archive
     // Original structure preservation:

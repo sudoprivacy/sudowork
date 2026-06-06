@@ -11,6 +11,16 @@ protocols:
 asar:
   smartUnpack: true
 
+# Only ship Electron locale.pak files for the languages we actually support
+# in the renderer (English, Simplified Chinese, Traditional Chinese).
+# Drops ~25MB of unused locale.pak files (hi, ta, te, ml, kn, mr, gu, bn, ...).
+# Names must match Electron's .lproj directory names exactly — underscore form,
+# not BCP-47 dashes (electron-builder compares against path.basename(dir, ".lproj")).
+electronLanguages:
+  - en
+  - zh_CN
+  - zh_TW
+
 directories:
   output: out
   buildResources: resources
@@ -79,13 +89,30 @@ files:
   - '!**/node_modules/tree-sitter-*/**/*.o'
   - '!**/node_modules/tree-sitter-*/**/*.cc'
   - '!**/node_modules/tree-sitter-*/**/*.c'
-  # Exclude dev/test files
-  - '!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}'
-  - '!**/node_modules/*/{test,__tests__,tests,powered-test,example,examples}'
-  - '!**/node_modules/*/{*.test.js,*.spec.js,*.test.ts,*.spec.ts}'
+  # Exclude dev/test/example/docs dirs at any depth in node_modules.
+  # NOTE: deliberately not excluding LICENSE/LICENCE/COPYING/NOTICE/PATENTS
+  # (electron-builder keeps those by default — they're load-bearing for compliance).
+  - '!**/node_modules/**/{test,tests,__tests__,__mocks__,coverage,spec,specs}/**'
+  - '!**/node_modules/**/{example,examples,demo,demos,sample,samples,fixtures}/**'
+  - '!**/node_modules/**/{docs,doc,documentation,website}/**'
   - '!**/node_modules/*.d.ts'
   - '!**/node_modules/.bin'
-  - '!**/node_modules/*/{docs,documentation,doc}'
+  # Markdown / changelog / contributing
+  - '!**/node_modules/**/*.{md,markdown}'
+  - '!**/node_modules/**/{CHANGELOG,HISTORY,CONTRIBUTING,AUTHORS,CONTRIBUTORS,UPGRADING,SECURITY,CODE_OF_CONDUCT}*'
+  # Source maps (we don't debug shipped libs)
+  - '!**/node_modules/**/*.{js,jsx,ts,tsx,cjs,mjs}.map'
+  - '!**/node_modules/**/*.d.ts.map'
+  # Nested lockfiles & package-manager config
+  - '!**/node_modules/**/{yarn.lock,pnpm-lock.yaml,package-lock.json,bun.lockb,bun.lock,.npmrc,.yarnrc,.yarnrc.yml}'
+  # IDE / CI / linting metadata
+  - '!**/node_modules/**/.{github,gitlab,vscode,idea,circleci,husky}/**'
+  - '!**/node_modules/**/{.eslintrc,.prettierrc,.editorconfig,.babelrc,.travis,.gitlab-ci,.releaserc,.gitattributes,.gitignore,.dockerignore}*'
+  - '!**/node_modules/**/{jest,vitest,vite,rollup,webpack,tsup,esbuild,tsconfig.build,tsconfig.test}.config.*'
+  # TypeScript build artifacts
+  - '!**/node_modules/**/*.tsbuildinfo'
+  - '!**/node_modules/**/*.flow'
+  - '!**/node_modules/**/.flowconfig'
   # Exclude system files
   - '!**/{.DS_Store,.git,.gitignore,.gitattributes}'
   - '!**/{__pycache__,thumbs.db,.flowconfig,.idea,.vs,.nyc_output}'
@@ -288,7 +315,7 @@ asarUnpack:
 # Compression level: normal for faster builds, maximum for smallest size
 # Note: electron-builder doesn't support YAML template syntax for env vars
 # The build script sets ELECTRON_BUILDER_COMPRESSION_LEVEL env var which takes precedence
-compression: normal
+compression: maximum
 removePackageScripts: true
 electronDownload:
   cache: .cache
