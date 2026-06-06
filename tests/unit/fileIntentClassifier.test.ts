@@ -12,54 +12,14 @@ const classify = (overrides: Partial<FileIntentClassificationInput> & { filePath
   return classifier.classify(input);
 };
 
-describe('FileIntentClassifier — directory-structure rules', () => {
-  // ── Anthropic outputs/<doc>/final.<ext> convention ─────────────────────
-  it('marks outputs/<doc>/final.pptx as final (Anthropic convention)', () => {
-    const result = classify({ filePath: '/workspace/outputs/q1-report/final.pptx', requestedPath: 'outputs/q1-report/final.pptx', source: 'bash-generated' });
-    expect(result.intent).toBe('final');
-    expect(result.reason).toMatch(/Anthropic outputs/);
-  });
-
-  it('marks outputs/<doc>/final.docx as final regardless of extension', () => {
-    const result = classify({ filePath: '/workspace/outputs/q1-report/final.docx', requestedPath: 'outputs/q1-report/final.docx', source: 'write' });
-    expect(result.intent).toBe('final');
-  });
-
-  it('marks outputs/<doc>/final.html as final', () => {
-    const result = classify({ filePath: '/workspace/outputs/landing-page/final.html', requestedPath: 'outputs/landing-page/final.html', source: 'write' });
-    expect(result.intent).toBe('final');
-  });
-
-  // ── Anthropic outputs/<doc>/ intermediate (everything not named final.X) ──
-  it('marks outputs/<doc>/p1.jpg as draft (intermediate inside outputs tree)', () => {
-    const result = classify({ filePath: '/workspace/outputs/数牍科技公司介绍/p1.jpg', requestedPath: 'outputs/数牍科技公司介绍/p1.jpg', source: 'bash-generated' });
-    expect(result.intent).toBe('draft');
-    expect(result.reason).toMatch(/Intermediate.*outputs/);
-  });
-
-  it('marks outputs/<doc>/inventory.json as draft even though .json is in BASH_DELIVERABLE_EXTENSIONS', () => {
-    const result = classify({ filePath: '/workspace/outputs/q1-report/inventory.json', requestedPath: 'outputs/q1-report/inventory.json', source: 'bash-generated' });
-    expect(result.intent).toBe('draft');
-  });
-
-  it('marks outputs/<doc>/thumbnails_grid.png as draft', () => {
-    const result = classify({ filePath: '/workspace/outputs/q1-report/thumbnails_grid.png', requestedPath: 'outputs/q1-report/thumbnails_grid.png', source: 'bash-generated' });
-    expect(result.intent).toBe('draft');
-  });
-
-  it('marks outputs/<doc>/working.pptx as draft (only final.<ext> wins)', () => {
-    const result = classify({ filePath: '/workspace/outputs/q1-report/working.pptx', requestedPath: 'outputs/q1-report/working.pptx', source: 'bash-generated' });
-    expect(result.intent).toBe('draft');
-  });
-
-  // ── Legacy intermediate dir blacklist ────────────────────────────────────
-  it('marks ppt_outputs/p1.jpg as draft (legacy convention)', () => {
+describe('FileIntentClassifier — intermediate-directory rule', () => {
+  it('marks ppt_outputs/p1.jpg as draft', () => {
     const result = classify({ filePath: '/workspace/ppt_outputs/p1.jpg', requestedPath: 'ppt_outputs/p1.jpg', source: 'bash-generated' });
     expect(result.intent).toBe('draft');
-    expect(result.reason).toMatch(/legacy intermediate directory "ppt_outputs"/);
+    expect(result.reason).toMatch(/intermediate directory "ppt_outputs"/);
   });
 
-  it('marks ppt_outputs/final.pptx as draft (legacy dir wins — final.pptx outside outputs/ is not Anthropic-style)', () => {
+  it('marks ppt_outputs/final.pptx as draft (intermediate-dir rule wins over name)', () => {
     const result = classify({ filePath: '/workspace/ppt_outputs/final.pptx', requestedPath: 'ppt_outputs/final.pptx', source: 'bash-generated' });
     expect(result.intent).toBe('draft');
   });
@@ -74,7 +34,14 @@ describe('FileIntentClassifier — directory-structure rules', () => {
     expect(result.intent).toBe('draft');
   });
 
-  // ── BASH_DELIVERABLE_EXTENSIONS no longer auto-finals images at root ────
+  it('does NOT mark these as userInitiated (intermediate-dir is AI-auto)', () => {
+    const result = classify({ filePath: '/workspace/ppt_outputs/p1.jpg', requestedPath: 'ppt_outputs/p1.jpg', source: 'bash-generated' });
+    expect(result.intent).toBe('draft');
+    expect(result.userInitiated).toBeUndefined();
+  });
+});
+
+describe('FileIntentClassifier — BASH_DELIVERABLE_EXTENSIONS no longer auto-finals images', () => {
   it('does NOT auto-mark a bash-written PNG at workspace root as final when user did not request an image', () => {
     const result = classify({ filePath: '/workspace/report.png', requestedPath: 'report.png', source: 'bash-generated', userMessage: '生成一份季度销售报告' });
     expect(result.intent).toBe('draft');
@@ -86,23 +53,36 @@ describe('FileIntentClassifier — directory-structure rules', () => {
   });
 
   it('marks a bash-written PNG as final when user explicitly asked for an image', () => {
-    // Caught by inferRequestedExtensions before our new rules — user said "图片".
+    // Caught by inferRequestedExtensions before directory rules — user said "图片".
     const result = classify({ filePath: '/workspace/avatar.png', requestedPath: 'avatar.png', source: 'bash-generated', userMessage: '给我画一张猫的图片头像' });
     expect(result.intent).toBe('final');
   });
+});
 
-  // ── Files at workspace root (no relevant directory hint) untouched ──────
-  it('leaves workspace-root markdown without directory hint untouched', () => {
+describe('FileIntentClassifier — workspace-root deliverables untouched', () => {
+  it('leaves workspace-root markdown without directory hint as final', () => {
     const result = classify({ filePath: '/workspace/notes.md', requestedPath: 'notes.md', source: 'write', userMessage: '帮我记一些笔记' });
-    // Falls through to final (default) — matches existing behavior
     expect(result.intent).toBe('final');
   });
 
-  // ── User request still wins over directory rule ────────────────────────
-  it('still marks a user-requested file as final even if path is inside outputs/<doc>/', () => {
+  it('still honors a requested file name even if inside an intermediate dir', () => {
     // User explicitly asks for inventory.json — requestedNames extraction
-    // catches it before our directory rules, so it wins.
-    const result = classify({ filePath: '/workspace/outputs/q1-report/inventory.json', requestedPath: 'outputs/q1-report/inventory.json', source: 'write', userMessage: '把 inventory.json 给我' });
+    // catches it before directory rules, so user intent wins.
+    const result = classify({ filePath: '/workspace/intermediate/inventory.json', requestedPath: 'intermediate/inventory.json', source: 'write', userMessage: '把 inventory.json 给我' });
     expect(result.intent).toBe('final');
+  });
+});
+
+describe('FileIntentClassifier — userInitiated flag', () => {
+  it('sets userInitiated=true when operationIntent=move-to-drafts', () => {
+    const result = classify({ filePath: '/workspace/.drafts/notes.md', requestedPath: '.drafts/notes.md', operationIntent: 'move-to-drafts' });
+    expect(result.intent).toBe('draft');
+    expect(result.userInitiated).toBe(true);
+  });
+
+  it('sets userInitiated=true when user message says "move X to drafts"', () => {
+    const result = classify({ filePath: '/workspace/.drafts/notes.md', requestedPath: '.drafts/notes.md', userMessage: '把 notes.md 移到 .drafts/' });
+    expect(result.intent).toBe('draft');
+    expect(result.userInitiated).toBe(true);
   });
 });

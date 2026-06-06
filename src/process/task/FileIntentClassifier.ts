@@ -33,6 +33,21 @@ export interface FileIntentClassification {
   marker?: string;
   line?: number;
   matched?: string;
+  /**
+   * True only when the `intent === 'draft'` decision came from an explicit
+   * user / operation request (e.g. `operationIntent === 'move-to-drafts'`,
+   * or the user message said "move X to drafts").
+   *
+   * Used by archiveTurnFiles to decide between archive vs. delete:
+   *   - userInitiated drafts → archive to .drafts/<basename>
+   *   - all other drafts (classifier heuristics) → unlink
+   *
+   * Rationale: AI-generated intermediate files (PPT slide frames, etc.) have
+   * no recovery value — they're scaffolding the user never asked for. Keeping
+   * them in .drafts/ accumulates disk + cognitive noise. User-explicit moves
+   * still go to .drafts/ because the user might want to restore them.
+   */
+  userInitiated?: boolean;
 }
 
 export interface BashDraftRestoreDetection {
@@ -51,17 +66,18 @@ const SCRIPT_SIDE_EFFECT_NAMES = new Set(['package.json', 'package-lock.json', '
 // earlier), the request matches and `final` is returned before this rule.
 const BASH_DELIVERABLE_EXTENSIONS = new Set(['.pdf', '.docx', '.pptx', '.xlsx', '.csv', '.json', '.md', '.markdown', '.txt', '.html', '.htm']);
 
-// Anthropic skills convention (mirrors `anthropics/skills/skills/pptx/SKILL.md`):
-// all generated files go to `outputs/<document-name>/`. The deliverable is
-// named `final.<ext>`; everything else in that directory is intermediate.
-// Recognized whenever the workspace-relative path matches one of these shapes.
-const ANTHROPIC_FINAL_OUTPUTS_RE = /^outputs\/[^/]+\/final\.[a-z0-9]+$/i;
-const ANTHROPIC_INSIDE_OUTPUTS_RE = /^outputs\/[^/]+\/.+/i;
-
-// Legacy sudowork-hub conventions used by skills that have not yet adopted
-// the Anthropic `outputs/<doc>/` pattern. A file whose FIRST relative-path
-// segment is in this set is treated as intermediate (draft). Lowercase keys.
-const INTERMEDIATE_DIR_SEGMENTS = new Set([
+// Intermediate working directories. A file whose FIRST relative-path segment
+// is in this set is treated as intermediate (draft). These names cover both
+// well-known sudowork-hub conventions (ppt_outputs/) and common scaffolding
+// dirs that skills/scripts use for intermediate artifacts. Lowercase keys.
+//
+// Lifecycle: the matching files are NOT moved or deleted by archiveTurnFiles
+// when userInitiated is false — they remain in place so cross-turn workflows
+// (e.g. PPT slide generation that spans multiple turns before composition)
+// can still read them. They're hidden from the chat-card / deliverables UI
+// because buildGeneratedFileEntries filters to intent='final'; they're hidden
+// from the workspace-tree UI by an ignore rule in conversationBridge.
+export const INTERMEDIATE_DIR_SEGMENTS = new Set([
   'ppt_outputs',
   'pptx_outputs',
   'docx_outputs',
@@ -224,7 +240,7 @@ export class FileIntentClassifier {
     const userMessage = input.userMessage?.trim() || '';
 
     if (input.source !== 'cleanup' && input.operationIntent === 'move-to-drafts' && isDraftsPath(input.filePath, input.requestedPath)) {
-      return { intent: 'draft', reason: 'Move to drafts requested' };
+      return { intent: 'draft', reason: 'Move to drafts requested', userInitiated: true };
     }
 
     if (input.source !== 'cleanup' && input.operationIntent === 'restore-from-drafts' && isRestoredRootFile(input.filePath, input.requestedPath)) {
@@ -232,7 +248,7 @@ export class FileIntentClassifier {
     }
 
     if (input.source !== 'cleanup' && isMoveToDraftsIntent(userMessage) && isDraftsPath(input.filePath, input.requestedPath)) {
-      return { intent: 'draft', reason: 'Move to drafts requested' };
+      return { intent: 'draft', reason: 'Move to drafts requested', userInitiated: true };
     }
 
     if (input.source !== 'cleanup' && isRestoreFromDraftsIntent(userMessage) && isRestoredRootFile(input.filePath, input.requestedPath) && !matchesExcludedFileName(userMessage, input.filePath, input.requestedPath)) {
@@ -270,21 +286,15 @@ export class FileIntentClassifier {
       return { intent: 'final', reason: `Matches requested target type ${ext}`, matched: ext };
     }
 
-    // Directory-structure rules. Run AFTER the user-driven explicit signals
-    // above (so a user request for a specific file by name still wins) and
-    // BEFORE generic heuristics (so a file in a known intermediate dir is
-    // not accidentally promoted by extension fallbacks).
+    // Intermediate-directory rule. Run AFTER user-driven explicit signals
+    // (so a user request for a specific file by name still wins) and BEFORE
+    // generic heuristics (so a file in a known intermediate dir is not
+    // accidentally promoted by extension fallbacks).
     const relativeKey = normalizePathForMatch(input.requestedPath || input.filePath);
     if (relativeKey) {
-      if (ANTHROPIC_FINAL_OUTPUTS_RE.test(relativeKey)) {
-        return { intent: 'final', reason: 'Anthropic outputs/<doc>/final.<ext> convention', matched: relativeKey };
-      }
-      if (ANTHROPIC_INSIDE_OUTPUTS_RE.test(relativeKey)) {
-        return { intent: 'draft', reason: 'Intermediate file inside Anthropic outputs/<doc>/ tree', matched: relativeKey };
-      }
       const firstSegment = relativeKey.split('/')[0] || '';
       if (firstSegment && INTERMEDIATE_DIR_SEGMENTS.has(firstSegment)) {
-        return { intent: 'draft', reason: `Located in legacy intermediate directory "${firstSegment}"`, matched: firstSegment };
+        return { intent: 'draft', reason: `Located in intermediate directory "${firstSegment}"`, matched: firstSegment };
       }
     }
 

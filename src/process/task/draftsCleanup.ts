@@ -37,6 +37,16 @@ export interface TrackedTurnFile {
   reason: string;
   source: FileIntentSource;
   kind: 'create' | 'edit';
+  /**
+   * Mirror of FileIntentClassification.userInitiated — only set when the
+   * draft decision came from an explicit user/operation request (move-to-drafts).
+   * archiveTurnFiles uses this to choose archive vs. leave-in-place:
+   *   - userInitiated drafts → archive to .drafts/<basename>
+   *   - AI-auto drafts (undefined/false) → leave on disk where the model wrote
+   *     them, so cross-turn workflows (e.g. multi-turn PPT slide composition)
+   *     can still reference them. They're hidden from UI by other surfaces.
+   */
+  userInitiated?: boolean;
 }
 
 export interface CleanupIntermediateFilesOptions {
@@ -315,6 +325,17 @@ export async function archiveTurnFiles(workspace: string, trackedFiles: Readonly
     }
     if (!isPathInside(workspaceRoot, srcPath)) {
       mainLog('draftsCleanup', `[TURN-ARCHIVE] Skipping outside-workspace file ${srcPath}`);
+      continue;
+    }
+
+    // AI-auto drafts (classifier heuristics, not user-explicit) stay on disk
+    // in their original location. Cross-turn workflows (e.g. PPT slide images
+    // generated in earlier turns and re-read by build_pptx.py in a later turn)
+    // depend on these files remaining accessible. They're hidden from UI
+    // surfaces — chat cards / deliverables tab filter to intent='final', and
+    // the workspace tree hides INTERMEDIATE_DIR_SEGMENTS.
+    if (file.intent === 'draft' && !file.userInitiated) {
+      mainLog('draftsCleanup', `[TURN-ARCHIVE] Leaving AI-auto draft in place: ${trackedKey} (${file.reason})`);
       continue;
     }
 

@@ -25,6 +25,7 @@ import { areSkillSelectionsEqual, resolveLatestConversationEnabledSkills } from 
 import { filterEnabledSkillNames, filterRemoteAvailableSkills } from '../utils/enabledSkillFilter';
 import { copyFilesToDirectory, readDirectoryRecursive } from '../utils';
 import { resolveWorkspaceSkillsDir } from '../utils/workspaceSkillsDir';
+import { INTERMEDIATE_DIR_SEGMENTS } from '../task/FileIntentClassifier';
 import WorkerManage from '../WorkerManage';
 import { migrateConversationToDatabase } from './migrationUtils';
 import { skillManager } from '../SkillManager';
@@ -614,13 +615,19 @@ export function initConversationBridge(): void {
   // to avoid stale results when the user navigates quickly.
   let lastGetWorkspaceAbortController: AbortController | undefined;
 
+  // Intermediate-directory ignore: paths whose path contains any segment in
+  // INTERMEDIATE_DIR_SEGMENTS (e.g. ppt_outputs/, _tmp/) are hidden from the
+  // workspace tree. Matches whole path segments only — `my_ppt_outputs.md`
+  // won't be hidden, but `ppt_outputs/p1.jpg` will.
+  const intermediateSegmentRe = new RegExp(`(^|[/\\\\])(${[...INTERMEDIATE_DIR_SEGMENTS].join('|')})([/\\\\]|$)`);
+
   ipcBridge.conversation.getWorkspace.provider(async ({ workspace, search, path }) => {
     // Abort any in-flight workspace read
     lastGetWorkspaceAbortController?.abort();
     lastGetWorkspaceAbortController = new AbortController();
 
     // Simple file filter that skips common non-essential directories
-    const fileService = { shouldIgnoreFile: (p: string) => p.includes('node_modules') || p.includes('.git') };
+    const fileService = { shouldIgnoreFile: (p: string) => p.includes('node_modules') || p.includes('.git') || intermediateSegmentRe.test(p) };
     try {
       return await readDirectoryRecursive(path, {
         root: workspace,
