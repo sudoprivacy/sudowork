@@ -280,6 +280,10 @@ asarUnpack:
   # Required for Homebrew installations where asar paths may have issues
   - 'rules/**/*'
   - 'skills/**/*'
+  # ai-dev-browser Python package must live in app.asar.unpacked: the runtime
+  # resolver (resolveAiDevBrowserPackageDir) only looks under app.asar.unpacked,
+  # and a Python package can't be executed/symlinked from inside the asar.
+  - 'vendor/ai-dev-browser/**/*'
 
 # Compression level: normal for faster builds, maximum for smallest size
 # Note: electron-builder doesn't support YAML template syntax for env vars
