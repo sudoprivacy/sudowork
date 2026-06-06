@@ -47,6 +47,7 @@ import { detectBashDraftRestoreCommand, FileIntentClassifier, type BashDraftRest
 import { SCODE_COMPLETION_REMINDER, shouldSkipAcpWorkspaceTrackingPath } from './acpWorkspaceTracking';
 import { mergeScodeProxyModelInfo, isModelVisionCapable, getScodeProxyModelInfoSync } from '@process/services/scode/scodeProxyModels';
 import { installWorkspaceSkillsFromTrackedFiles } from './workspaceSkillInstaller';
+import { appendGeneratedFilesMarker, extractExtension, mimeForExtension, type GeneratedFileEntry } from '@/common/generatedFiles';
 import BaseAgent from './BaseAgent';
 
 // Telemetry imports for conversation tracking
@@ -1591,6 +1592,55 @@ This identity statement takes priority over the default identity in USER.md.
     return summaries.sort((a, b) => a.path.localeCompare(b.path));
   }
 
+  /**
+   * Build a list of `GeneratedFileEntry` records for the current turn's
+   * `intent==='final'` files, enriched with on-disk size + extension + mime so
+   * the renderer can show a preview card without re-stat'ing every file.
+   *
+   * Captured BEFORE `archiveCurrentTurnFiles` clears `currentTurnFiles` —
+   * caller is responsible for invocation order.
+   */
+  private buildGeneratedFileEntries(): GeneratedFileEntry[] {
+    if (!this.workspace || this.currentTurnFiles.size === 0) return [];
+
+    const workspaceRoot = nodePath.resolve(this.workspace);
+    const seen = new Set<string>();
+    const entries: GeneratedFileEntry[] = [];
+    const now = Date.now();
+
+    for (const file of this.currentTurnFiles.values()) {
+      if (file.intent !== 'final') continue;
+
+      const absolutePath = nodePath.resolve(file.actualPath);
+      if (seen.has(absolutePath)) continue;
+      seen.add(absolutePath);
+
+      const relativePath = this.resolveFinalFileDisplayPath(file, workspaceRoot);
+      const ext = extractExtension(absolutePath);
+
+      let size: number | undefined;
+      try {
+        const stat = fs.statSync(absolutePath);
+        if (stat.isFile()) size = stat.size;
+      } catch {
+        // file may have moved between archive + lookup — leave size undefined
+      }
+
+      entries.push({
+        path: absolutePath,
+        relativePath: relativePath !== absolutePath ? relativePath : undefined,
+        kind: file.kind === 'edit' ? 'edit' : 'create',
+        ext,
+        mime: mimeForExtension(ext),
+        size,
+        createdAt: now,
+      });
+    }
+
+    // Stable order: by relative (or absolute) path
+    return entries.sort((a, b) => (a.relativePath ?? a.path).localeCompare(b.relativePath ?? b.path));
+  }
+
   private resolveFinalFileDisplayPath(file: TrackedTurnFile, workspaceRoot: string): string {
     const resolvedActualPath = nodePath.resolve(file.actualPath);
     const actualRelativePath = nodePath.relative(workspaceRoot, resolvedActualPath);
@@ -1620,6 +1670,33 @@ This identity statement takes priority over the default identity in USER.md.
       content = `执行已完成。\n\n生成或更新的文件：\n${fileList}`;
     }
 
+    this.emitMessage({
+      id: uuid(),
+      msg_id: uuid(),
+      conversation_id: this.conversation_id,
+      type: 'text',
+      position: 'left',
+      createdAt: Date.now(),
+      status: 'finish',
+      content: { content },
+    });
+  }
+
+  /**
+   * Emit a trailing assistant `text` message whose content is JUST the
+   * `[[NEXUS_GENERATED_FILES]]` marker + JSON payload. The renderer
+   * (MessagetText.tsx → GeneratedFileCard) detects it and shows preview
+   * cards instead of plain text.
+   *
+   * This is a separate message — not appended to the assistant's prose —
+   * so the renderer can style it as a "deliverables" bubble distinct from
+   * the natural-language reply.
+   *
+   * Skipped when no final files exist (most chat-only turns).
+   */
+  private emitGeneratedFilesMarkerMessage(entries: GeneratedFileEntry[]): void {
+    if (this.userCancelled || entries.length === 0) return;
+    const content = appendGeneratedFilesMarker('', entries);
     this.emitMessage({
       id: uuid(),
       msg_id: uuid(),
@@ -2687,8 +2764,12 @@ This identity statement takes priority over the default identity in USER.md.
 
     if (!this.userCancelled) {
       await this.installTrackedWorkspaceSkills();
+      // Capture rich GeneratedFileEntry records BEFORE archiveCurrentTurnFiles
+      // wipes currentTurnFiles — the renderer needs them to draw preview cards.
+      const generatedEntries = this.buildGeneratedFileEntries();
       await this.archiveCurrentTurnFiles();
       this.emitFallbackCompletionMessage(finalFiles);
+      this.emitGeneratedFilesMarkerMessage(generatedEntries);
     }
 
     const msg: IResponseMessage = {
