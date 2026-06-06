@@ -88,6 +88,21 @@ jobs:
           echo "short=$SHORT" >> $GITHUB_OUTPUT
           echo "Commit: $SHORT"
 
+      # Guard against shipping a dead browser skill. The ai-dev-browser package
+      # is a git submodule; if checkout forgets `submodules: recursive`, the
+      # electron-builder `files:` glob silently matches nothing and the release
+      # builds green but with no browser runtime. Fail loudly here instead.
+      - name: Verify ai-dev-browser submodule is bundled
+        shell: bash
+        run: |
+          pkg="vendor/ai-dev-browser/ai_dev_browser"
+          count=$(find "$pkg" -name '*.py' 2>/dev/null | wc -l | tr -d ' ')
+          if [ "${count:-0}" -eq 0 ]; then
+            echo "::error::ai-dev-browser package is empty or missing ($pkg has no .py files). The browser builtin skill would ship dead. Ensure checkout uses 'submodules: recursive' and the submodule is initialized."
+            exit 1
+          fi
+          echo "ai-dev-browser package present: $count .py files under $pkg"
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
