@@ -570,6 +570,39 @@ export const rightPanelBrowser = {
   open: bridge.buildEmitter<{ url: string; switchTab?: boolean }>('right-panel.browser.open'),
 };
 
+// AI-generated file deliverables for a conversation. The list is built by
+// scanning persisted assistant messages for the NEXUS_GENERATED_FILES marker;
+// the `changed` emitter fires from the agent at turn finish so the renderer
+// can update without a refetch round-trip.
+export const deliverables = {
+  list: bridge.buildProvider<
+    IBridgeResponse<
+      Array<{
+        path: string;
+        relativePath?: string;
+        kind: 'create' | 'edit';
+        ext: string;
+        mime?: string;
+        size?: number;
+        createdAt: number;
+      }>
+    >,
+    { conversationId: string }
+  >('deliverables.list'),
+  changed: bridge.buildEmitter<{
+    conversationId: string;
+    files: Array<{
+      path: string;
+      relativePath?: string;
+      kind: 'create' | 'edit';
+      ext: string;
+      mime?: string;
+      size?: number;
+      createdAt: number;
+    }>;
+  }>('deliverables.changed'),
+};
+
 export const document = {
   convert: bridge.buildProvider<import('./types/conversion').DocumentConversionResponse, import('./types/conversion').DocumentConversionRequest>('document.convert'),
   /** 将内容保存为 Word 文档并返回保存路径 / Save content as Word and return path */

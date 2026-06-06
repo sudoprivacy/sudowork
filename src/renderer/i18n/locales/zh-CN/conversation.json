@@ -82,7 +82,15 @@
     "tabs": {
       "workspace": "工作空间",
       "browser": "浏览器",
-      "terminal": "终端"
+      "terminal": "终端",
+      "deliverables": "交付物"
+    },
+    "deliverables": {
+      "emptyTitle": "尚无交付物",
+      "emptyHint": "AI 在此次会话中生成的文件会出现在这里。",
+      "loading": "加载中...",
+      "groupToday": "今天",
+      "groupYesterday": "昨天"
     },
     "browser": {
       "newTab": "新标签页",
