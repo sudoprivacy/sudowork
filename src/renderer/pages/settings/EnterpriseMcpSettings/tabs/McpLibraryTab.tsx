@@ -13,7 +13,7 @@ interface McpLibraryTabProps {
   installedTemplateIds?: Set<string>;
   loading?: boolean;
   /** 安装回调：prototype 仅 toast；Phase B 走真实 POST install */
-  onInstall?: (template: EnterpriseMcpTemplateDto, payload: { config_values: Record<string, string>; display_name?: string }) => Promise<void> | void;
+  onInstall?: (template: EnterpriseMcpTemplateDto, payload: { config_values: Record<string, string>; auth_credentials?: Record<string, string>; display_name?: string }) => Promise<void> | void;
 }
 
 const McpLibraryTab: React.FC<McpLibraryTabProps> = ({ templates, installedTemplateIds, loading = false, onInstall }) => {
@@ -47,7 +47,7 @@ const McpLibraryTab: React.FC<McpLibraryTabProps> = ({ templates, installedTempl
 
   const handleClickInstall = (tpl: EnterpriseMcpTemplateDto) => {
     setMissingKeys([]);
-    if (tpl.user_config_items.length === 0) {
+    if (tpl.user_config_items.length === 0 && (tpl.auth_user_items ?? []).length === 0) {
       // 无需配置 → 直接调用安装
       void doInstall(tpl, { config_values: {} });
       return;
@@ -55,7 +55,7 @@ const McpLibraryTab: React.FC<McpLibraryTabProps> = ({ templates, installedTempl
     setActive(tpl);
   };
 
-  const doInstall = async (tpl: EnterpriseMcpTemplateDto, payload: { config_values: Record<string, string>; display_name?: string }) => {
+  const doInstall = async (tpl: EnterpriseMcpTemplateDto, payload: { config_values: Record<string, string>; auth_credentials?: Record<string, string>; display_name?: string }) => {
     setSubmitting(true);
     try {
       if (onInstall) {

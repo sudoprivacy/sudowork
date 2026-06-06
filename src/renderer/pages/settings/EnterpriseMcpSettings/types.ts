@@ -43,6 +43,14 @@ export interface EnterpriseMcpUserConfigItem {
   target: EnterpriseMcpUserConfigTarget;
 }
 
+/** Auth config item schema for MCP template installation. */
+export interface AuthUserItem {
+  name: string;
+  key: string;
+  description: string;
+  required: boolean;
+}
+
 /** Server-side response from /me/mcp-templates (14-field whitelist). */
 export interface EnterpriseMcpTemplateDto {
   id: string;
@@ -57,6 +65,7 @@ export interface EnterpriseMcpTemplateDto {
   downloads: number;
   rating: number;
   user_config_items: EnterpriseMcpUserConfigItem[];
+  auth_user_items: AuthUserItem[];
   created_at: number;
   updated_at: number;
 }
