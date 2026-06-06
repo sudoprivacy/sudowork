@@ -17,7 +17,7 @@ let clientInstance: SecretStoreClient | null = null;
  * 1. Explicit overrides (constructor args)
  * 2. Config file (./nexus.yaml → ~/.nexus/config.yaml)
  * 3. Environment variables (NEXUS_URL, NEXUS_API_KEY, NEXUS_SUBJECT, etc.)
- * 4. Defaults: http://localhost:12012
+ * 4. Defaults: http://localhost:12022
  */
 export function getSecretStoreClient(): SecretStoreClient {
   if (!clientInstance) {

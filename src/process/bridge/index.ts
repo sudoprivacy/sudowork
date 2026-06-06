@@ -57,7 +57,6 @@ import { initBrowserPanelBridge } from './browserPanelBridge';
 // Crash bridge is initialized early in src/process/index.ts before storage
 // to handle renderer errors during startup
 import { initEeclawBridge } from './eeclawBridge';
-import { initManagedAgentBridge } from './managedAgentBridge';
 import { registerScodeBridge } from './scodeBridge';
 
 /**
@@ -116,7 +115,6 @@ export function initAllBridges(): void {
   initBrowserPanelBridge();
   // Note: initCrashBridge() is called early in src/process/index.ts before storage
   initEeclawBridge();
-  initManagedAgentBridge();
   registerScodeBridge();
 }
 
