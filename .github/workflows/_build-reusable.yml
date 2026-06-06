@@ -157,7 +157,7 @@ jobs:
           esac
           echo "Downloading resources for target platform: $PLATFORM"
           node scripts/download-node.js "$PLATFORM"
-          node scripts/download-nexus.js "$PLATFORM"
+          node scripts/download-nexus-vfs.js
           node scripts/download-scode.js "$PLATFORM"
           node scripts/download-claude-code.js
           node scripts/download-bdpan.js "$PLATFORM"
