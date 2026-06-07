@@ -253,15 +253,25 @@ export function prepareCleanEnv({ injectSafetyHook = true }: PrepareCleanEnvOpti
     console.log(`[ACP] Injecting python safety hook via PYTHONPATH: ${pythonpath}`);
   }
 
+  // NEXUS_HOME: real .nexus root, injected BEFORE handing off to scode/claude-code.
+  // Backends like claude-code rewrite $HOME to a per-session .sandbox-home/, so any
+  // skill helper that relies on `Path.home()/.nexus/...` resolves to a non-existent
+  // path. NEXUS_HOME is unaffected by that rewrite, giving helpers a reliable anchor
+  // to the real `.nexus` root regardless of sandboxing.
+  const nexusHome = path.join(os.homedir(), '.nexus');
+  if (!cleanEnv.NEXUS_HOME) {
+    cleanEnv.NEXUS_HOME = nexusHome;
+  }
+
   // PYTHONPATH for ai_dev_browser module resolution (browser tool).
   // The browser skill dir contains ai_dev_browser (symlinked from vendor).
   // Python silently ignores non-existent entries, so no existence check needed.
-  const browserSkillDir = path.join(os.homedir(), '.nexus', 'skills', '_system', '_builtin', 'browser');
+  const browserSkillDir = path.join(nexusHome, 'skills', '_system', '_builtin', 'browser');
   const prevPythonPath = cleanEnv.PYTHONPATH || '';
   cleanEnv.PYTHONPATH = prevPythonPath ? `${browserSkillDir}${path.delimiter}${prevPythonPath}` : browserSkillDir;
 
   // Add sudoclaw/bin to PATH so the `browser` CLI wrapper is available to ACP agents.
-  const sudoclawBinDir = path.join(os.homedir(), '.nexus', 'sudoclaw', 'bin');
+  const sudoclawBinDir = path.join(nexusHome, 'sudoclaw', 'bin');
   const prevPath = cleanEnv.PATH || '';
   if (existsSync(sudoclawBinDir) && !prevPath.includes(sudoclawBinDir)) {
     cleanEnv.PATH = `${sudoclawBinDir}${path.delimiter}${prevPath}`;
