@@ -7,6 +7,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Left, Right, Refresh, Loading } from '@icon-park/react';
+import { normalizeBrowserUrl } from '@/common/browserPanelUrl';
 
 export interface WebviewHostProps {
   /** URL to display */
@@ -479,15 +480,14 @@ const WebviewHost: React.FC<WebviewHostProps> = ({ url, id: _id, showNavBar = fa
     webviewRef.current?.reload();
   }, []);
 
-  // URL bar submit
+  // URL bar submit. Uses the shared normalizer so file:// / about: /
+  // chrome:// schemes pass through unchanged instead of getting an
+  // `https://` prefix bolted on (which would produce `https://file:///…`).
   const handleUrlSubmit = useCallback(
     (e: React.FormEvent) => {
       e.preventDefault();
-      let targetUrl = inputUrl.trim();
+      const targetUrl = normalizeBrowserUrl(inputUrl);
       if (!targetUrl) return;
-      if (!/^https?:\/\//i.test(targetUrl)) {
-        targetUrl = 'https://' + targetUrl;
-      }
       navigateTo(targetUrl);
     },
     [inputUrl, navigateTo]
