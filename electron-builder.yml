@@ -89,12 +89,19 @@ files:
   - '!**/node_modules/tree-sitter-*/**/*.o'
   - '!**/node_modules/tree-sitter-*/**/*.cc'
   - '!**/node_modules/tree-sitter-*/**/*.c'
-  # Exclude dev/test/example/docs dirs at any depth in node_modules.
+  # Exclude dev/test/example dirs in shipped node_modules.
   # NOTE: deliberately not excluding LICENSE/LICENCE/COPYING/NOTICE/PATENTS
   # (electron-builder keeps those by default — they're load-bearing for compliance).
-  - '!**/node_modules/**/{test,tests,__tests__,__mocks__,coverage,spec,specs}/**'
-  - '!**/node_modules/**/{example,examples,demo,demos,sample,samples,fixtures}/**'
-  - '!**/node_modules/**/{docs,doc,documentation,website}/**'
+  #
+  # IMPORTANT — only top-level package dir, NOT nested under dist/:
+  # Use `node_modules/*/X/**` (single segment), not `node_modules/**/X/**`.
+  # The latter blew up the `yaml` package because `yaml/dist/doc/` is
+  # runtime source (Composer requires '../doc/directives.js'), not docs.
+  # Deliberately NOT excluding: docs/doc/documentation/website/fixtures —
+  # too many packages use these as runtime source paths (yaml, several
+  # OpenTelemetry packages, etc.).
+  - '!**/node_modules/*/{test,tests,__tests__,__mocks__,coverage,spec,specs}/**'
+  - '!**/node_modules/*/{example,examples,demo,demos,sample,samples}/**'
   - '!**/node_modules/*.d.ts'
   - '!**/node_modules/.bin'
   # Markdown / changelog / contributing
