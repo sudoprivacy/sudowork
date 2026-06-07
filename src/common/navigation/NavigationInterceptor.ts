@@ -9,32 +9,23 @@ import type { PreviewContentType } from '@/common/types/preview';
 import { uuid } from '@/common/utils';
 
 /**
- * Navigation tools that should be intercepted for preview
- * 需要拦截到预览面板的导航工具
+ * ai-dev-browser navigation tool names that should auto-open URL in the
+ * right-tab preview panel. The bundled Python stack exposes one tool per file
+ * under `ai_dev_browser/tools/<name>.py`; here we list the ones that take a URL
+ * and change what the user sees.
+ *
+ * Historical note: an earlier version of this file also matched chrome-devtools
+ * MCP tool names (`navigate_page` / `new_page`) and prefixes like
+ * `mcp__chrome-devtools__`. That coupling was removed when sudowork's browser
+ * stack consolidated onto ai-dev-browser — see the removal commit's PR body
+ * for the full audit + breaking-change rationale.
  */
-export const NAVIGATION_TOOLS = ['navigate_page', 'new_page'] as const;
+export const NAVIGATION_TOOLS = ['page_goto', 'tab_new'] as const;
 export type NavigationToolName = (typeof NAVIGATION_TOOLS)[number];
 
-/**
- * Chrome DevTools MCP server identifiers
- * Chrome DevTools MCP 服务器标识符
- */
-export const CHROME_DEVTOOLS_IDENTIFIERS = ['chrome-devtools', 'chrome_devtools', 'chromedevtools'] as const;
-
-/**
- * Common MCP prefixes to strip when normalizing tool names
- * 需要去除的常见 MCP 前缀
- */
-export const MCP_PREFIXES = ['mcp__chrome-devtools__', 'chrome-devtools__', 'chrome-devtools.'] as const;
-
-/**
- * ai-dev-browser navigation tool names that should auto-open URL in the preview panel.
- * The bundled Python stack exposes one tool per file under
- * `ai_dev_browser/tools/<name>.py`; here we list the ones that take a URL and
- * change what the user sees.
- */
-export const AI_DEV_BROWSER_NAV_TOOLS = ['page_goto', 'tab_new'] as const;
-export type AiDevBrowserNavToolName = (typeof AI_DEV_BROWSER_NAV_TOOLS)[number];
+/** Alias kept for callers that already imported the ai-dev-browser-specific name. */
+export const AI_DEV_BROWSER_NAV_TOOLS = NAVIGATION_TOOLS;
+export type AiDevBrowserNavToolName = NavigationToolName;
 
 /**
  * Shell-invocable entry points for ai-dev-browser. `browser` is the canonical
@@ -82,92 +73,57 @@ export interface InterceptionResult {
 }
 
 /**
- * Unified Navigation Interceptor for all agents
- * 所有 agent 的统一导航拦截器
+ * Unified navigation interceptor — translates agent tool calls that drive a
+ * browser into a `preview_open` signal so the right-tab webview opens the URL.
+ *
+ * Recognizes two shapes:
+ *   1. Tool name is `page_goto` / `tab_new` (a direct ai-dev-browser tool
+ *      invocation, e.g. exposed as a custom MCP tool).
+ *   2. Tool name is a generic exec/shell wrapper (e.g. "Bash") and the actual
+ *      ai-dev-browser invocation lives in `arguments.command` /
+ *      `rawInput.command` as a shell string:
+ *        browser page_goto --url <X>
+ *        aidb tab_new --url=<X>
+ *        python -m ai_dev_browser.tools.page_goto --url "<X>"
  */
 export class NavigationInterceptor {
   /**
-   * Normalize tool name by stripping MCP prefixes and suffixes
-   * 规范化工具名称，去除 MCP 前缀和后缀
+   * Normalize a tool name to its bare lowercase form. Strips trailing
+   * parentheses that some agent transcripts append, e.g.
+   * "page_goto (ai-dev-browser)" → "page_goto".
    */
   static normalizeToolName(toolName: string): string {
     if (!toolName) return '';
-
     let normalized = toolName;
-
-    // Remove known prefixes
-    for (const prefix of MCP_PREFIXES) {
-      if (normalized.startsWith(prefix)) {
-        normalized = normalized.slice(prefix.length);
-        break;
-      }
-    }
-
-    // Handle double underscore format (e.g., "mcp__server__tool")
     if (normalized.includes('__')) {
       normalized = normalized.split('__').pop() || normalized;
     }
-
-    // Remove trailing parentheses like "(chrome-devtools MCP Server)"
     normalized = normalized.replace(/\s*\([^)]*\)\s*$/, '').trim();
-
     return normalized.toLowerCase();
   }
 
   /**
-   * Check if a string contains chrome-devtools identifier
-   * 检查字符串是否包含 chrome-devtools 标识符
-   */
-  static isChromeDevToolsIdentifier(str: string): boolean {
-    if (!str) return false;
-    const lower = str.toLowerCase();
-    return CHROME_DEVTOOLS_IDENTIFIERS.some((id) => lower.includes(id));
-  }
-
-  /**
-   * Check if a tool is a chrome-devtools navigation tool
-   * 检查工具是否为 chrome-devtools 导航工具
+   * Check if a tool is an ai-dev-browser navigation invocation.
    *
-   * Handles various formats:
-   * - "navigate_page"
-   * - "mcp__chrome-devtools__navigate_page"
-   * - "navigate_page (chrome-devtools MCP Server)"
-   * - { server: "chrome-devtools", tool: "navigate_page" }
-   * - { rawInput: { command: "browser page_goto --url …" } }  (ai-dev-browser via exec)
+   * Handles:
+   *   "page_goto"                                            (direct tool name)
+   *   { toolName: "tab_new" }                                (structured, direct)
+   *   { toolName: "Bash", rawInput: { command: "browser page_goto --url X" } }
+   *   { arguments: { command: "aidb tab_new --url X" } }
    */
   static isNavigationTool(data: NavigationToolData | string): boolean {
     if (typeof data === 'string') {
-      // Simple string check — chrome-devtools path only. Shell commands
-      // don't survive as a string here, so ai-dev-browser detection needs
-      // the structured form.
-      const toolName = data;
-      const isChromeDevTools = this.isChromeDevToolsIdentifier(toolName);
-      const baseName = this.normalizeToolName(toolName);
-      const isNavTool = NAVIGATION_TOOLS.includes(baseName as NavigationToolName);
-      return isChromeDevTools && isNavTool;
+      const baseName = this.normalizeToolName(data);
+      return (NAVIGATION_TOOLS as readonly string[]).includes(baseName);
     }
 
-    // Object-based check
-    const { toolName = '', server = '' } = data;
-    const fullName = toolName || '';
+    // 1. Direct tool-name match.
+    const baseName = this.normalizeToolName(data.toolName || '');
+    if ((NAVIGATION_TOOLS as readonly string[]).includes(baseName)) {
+      return true;
+    }
 
-    // Check server field
-    const serverIsChromeDevTools = this.isChromeDevToolsIdentifier(server);
-    // Check tool name for chrome-devtools reference
-    const toolNameIsChromeDevTools = this.isChromeDevToolsIdentifier(fullName);
-
-    const isChromeDevTools = serverIsChromeDevTools || toolNameIsChromeDevTools;
-
-    // Normalize and check if it's a navigation tool
-    const baseName = this.normalizeToolName(fullName);
-    const isNavTool = NAVIGATION_TOOLS.includes(baseName as NavigationToolName);
-
-    if (isChromeDevTools && isNavTool) return true;
-
-    // ai-dev-browser path: openclaw's exec tool ships the actual invocation
-    // as a shell command string inside `arguments.command` / `rawInput.command`.
-    // The outer `toolName` is something generic like "exec"/"shell"/"Bash", so
-    // we must look at the command text to recognize navigation.
+    // 2. Shell-command form (openclaw exec path).
     const command = this.extractCommandString(data);
     if (command && this.parseAiDevBrowserNavCommand(command)) {
       return true;
@@ -205,17 +161,12 @@ export class NavigationInterceptor {
    *   python -m ai_dev_browser.tools.page_goto --url "https://example.com"
    *
    * Returns null if the command isn't an ai-dev-browser navigation tool or
-   * doesn't carry a URL. Caller must treat absence of URL as "don't intercept"
-   * — opening the preview panel without a URL would be a no-op.
+   * doesn't carry an http(s) URL — opening the preview panel without a real
+   * URL would be a no-op.
    */
   static parseAiDevBrowserNavCommand(command: string): { tool: AiDevBrowserNavToolName; url: string } | null {
     if (!command) return null;
 
-    // Find which navigation tool is being invoked. Three shapes:
-    //   <dispatcher> <tool> …       e.g. "browser page_goto …"
-    //   python -m ai_dev_browser.tools.<tool> …
-    //   python -m ai_dev_browser.tools.<tool>.<verb> … (defensive — current
-    //   layout is flat, but the regex is tolerant for any future nesting)
     let tool: AiDevBrowserNavToolName | null = null;
 
     // Dispatcher form. The token must precede a tool name (avoids false
@@ -224,7 +175,7 @@ export class NavigationInterceptor {
     const dispatcherMatch = command.match(dispatcherRe);
     if (dispatcherMatch) {
       const candidate = dispatcherMatch[1].toLowerCase() as AiDevBrowserNavToolName;
-      if ((AI_DEV_BROWSER_NAV_TOOLS as readonly string[]).includes(candidate)) {
+      if ((NAVIGATION_TOOLS as readonly string[]).includes(candidate)) {
         tool = candidate;
       }
     }
@@ -235,7 +186,7 @@ export class NavigationInterceptor {
       const pyMatch = command.match(pyRe);
       if (pyMatch) {
         const candidate = pyMatch[1].toLowerCase() as AiDevBrowserNavToolName;
-        if ((AI_DEV_BROWSER_NAV_TOOLS as readonly string[]).includes(candidate)) {
+        if ((NAVIGATION_TOOLS as readonly string[]).includes(candidate)) {
           tool = candidate;
         }
       }
@@ -243,7 +194,7 @@ export class NavigationInterceptor {
 
     if (!tool) return null;
 
-    // Now find the URL. Tools take `--url <X>` or `--url=<X>`; the value may be
+    // Find the URL. Tools take `--url <X>` or `--url=<X>`; the value may be
     // quoted with ' or " or unquoted.
     const urlRe = /--url(?:\s+|=)("([^"]+)"|'([^']+)'|(\S+))/;
     const urlMatch = command.match(urlRe);
@@ -272,19 +223,19 @@ export class NavigationInterceptor {
       return data.url;
     }
 
-    // 2. Check arguments (common MCP format)
+    // 2a. Check arguments (common MCP format)
     if (data.arguments) {
       const url = this.extractUrlFromObject(data.arguments);
       if (url) return url;
     }
 
-    // 3. Check rawInput (ACP format)
+    // 2b. Check rawInput (ACP format)
     if (data.rawInput) {
       const url = this.extractUrlFromObject(data.rawInput);
       if (url) return url;
     }
 
-    // 3.5. ai-dev-browser shell-command form (openclaw exec path).
+    // 3. ai-dev-browser shell-command form (openclaw exec path).
     const command = this.extractCommandString(data);
     if (command) {
       const parsed = this.parseAiDevBrowserNavCommand(command);

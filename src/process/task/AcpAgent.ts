@@ -2327,9 +2327,9 @@ This identity statement takes priority over the default identity in USER.md.
           });
         }
 
-        // Structured form so ai-dev-browser invocations (e.g. Bash running
-        // `aidb page_goto --url …` whose tool title is "Bash"/"Shell") also
-        // trigger the preview, not just chrome-devtools-named MCP calls.
+        // Structured form so ai-dev-browser invocations whose outer tool
+        // title is "Bash"/"Shell" (with the real `aidb page_goto --url …`
+        // buried in `rawInput.command`) also trigger the preview-open.
         const navData: NavigationToolData = {
           toolName,
           rawInput: toolCallUpdate.update?.rawInput as Record<string, unknown> | undefined,

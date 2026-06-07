@@ -1,19 +1,38 @@
 import { describe, expect, it } from 'vitest';
 import { NavigationInterceptor } from '@/common/navigation';
 
-describe('NavigationInterceptor — chrome-devtools path (unchanged)', () => {
-  it('matches "mcp__chrome-devtools__navigate_page"', () => {
-    expect(NavigationInterceptor.isNavigationTool('mcp__chrome-devtools__navigate_page')).toBe(true);
+describe('NavigationInterceptor — chrome-devtools-mcp removed', () => {
+  it('no longer matches chrome-devtools prefix tool names (breaking change)', () => {
+    expect(NavigationInterceptor.isNavigationTool('mcp__chrome-devtools__navigate_page')).toBe(false);
+    expect(NavigationInterceptor.isNavigationTool('navigate_page (chrome-devtools MCP Server)')).toBe(false);
   });
 
-  it('matches structured form with server=chrome-devtools', () => {
+  it('no longer matches structured form with server=chrome-devtools', () => {
     const data = { toolName: 'navigate_page', server: 'chrome-devtools', arguments: { url: 'https://example.com' } };
+    expect(NavigationInterceptor.isNavigationTool(data)).toBe(false);
+  });
+
+  it('does not match the old chrome-devtools tool names directly', () => {
+    expect(NavigationInterceptor.isNavigationTool('navigate_page')).toBe(false);
+    expect(NavigationInterceptor.isNavigationTool('new_page')).toBe(false);
+  });
+});
+
+describe('NavigationInterceptor — ai-dev-browser direct tool-name match', () => {
+  it('matches the page_goto / tab_new tool names as bare strings', () => {
+    expect(NavigationInterceptor.isNavigationTool('page_goto')).toBe(true);
+    expect(NavigationInterceptor.isNavigationTool('tab_new')).toBe(true);
+    expect(NavigationInterceptor.isNavigationTool('PAGE_GOTO')).toBe(true);
+  });
+
+  it('matches structured form when toolName is page_goto', () => {
+    const data = { toolName: 'page_goto', arguments: { url: 'https://example.com' } };
     expect(NavigationInterceptor.isNavigationTool(data)).toBe(true);
     expect(NavigationInterceptor.extractUrl(data)).toBe('https://example.com');
   });
 
-  it('does not match plain page_goto string (no chrome-devtools marker, no command context)', () => {
-    expect(NavigationInterceptor.isNavigationTool('page_goto')).toBe(false);
+  it('strips trailing parenthesized server hint, e.g. "page_goto (ai-dev-browser)"', () => {
+    expect(NavigationInterceptor.isNavigationTool('page_goto (ai-dev-browser)')).toBe(true);
   });
 });
 
@@ -39,7 +58,7 @@ describe('NavigationInterceptor — ai-dev-browser command parsing', () => {
     expect(NavigationInterceptor.extractUrl(data)).toBe('https://example.com/path?q=1');
   });
 
-  it('matches `python3 -m ai_dev_browser.tools.tab_new --url <X>`', () => {
+  it('matches `python3 -m ai_dev_browser.tools.tab_new --url <X>` (single-quoted)', () => {
     const data = {
       toolName: 'Bash',
       rawInput: { command: "python3 -m ai_dev_browser.tools.tab_new --url 'https://example.org'" },
@@ -54,7 +73,7 @@ describe('NavigationInterceptor — ai-dev-browser command parsing', () => {
     expect(NavigationInterceptor.extractUrl(data)).toBe('https://example.com');
   });
 
-  it('does not match a non-navigation ai-dev-browser tool', () => {
+  it('does not match a non-navigation ai-dev-browser tool (page_screenshot)', () => {
     const data = { toolName: 'Bash', rawInput: { command: 'browser page_screenshot --path foo.png' } };
     expect(NavigationInterceptor.isNavigationTool(data)).toBe(false);
   });
@@ -98,7 +117,7 @@ describe('NavigationInterceptor — ai-dev-browser command parsing', () => {
 });
 
 describe('NavigationInterceptor — intercept() integration', () => {
-  it('produces a preview_open message for ai-dev-browser navigation', () => {
+  it('produces a preview_open message for ai-dev-browser shell-command navigation', () => {
     const result = NavigationInterceptor.intercept(
       { toolName: 'Bash', rawInput: { command: 'browser page_goto --url https://example.com' } },
       'conv-abc'
@@ -110,13 +129,21 @@ describe('NavigationInterceptor — intercept() integration', () => {
     expect(result.previewMessage?.data).toMatchObject({ content: 'https://example.com', contentType: 'url' });
   });
 
-  it('produces a preview_open message for chrome-devtools navigation', () => {
+  it('produces a preview_open message for a direct page_goto tool call', () => {
     const result = NavigationInterceptor.intercept(
-      { toolName: 'navigate_page', server: 'chrome-devtools', arguments: { url: 'https://foo.test' } },
+      { toolName: 'page_goto', arguments: { url: 'https://foo.test' } },
       'conv-xyz'
     );
     expect(result.intercepted).toBe(true);
     expect(result.url).toBe('https://foo.test');
+  });
+
+  it('does not intercept chrome-devtools navigation (removed)', () => {
+    const result = NavigationInterceptor.intercept(
+      { toolName: 'navigate_page', server: 'chrome-devtools', arguments: { url: 'https://example.com' } },
+      'conv-abc'
+    );
+    expect(result.intercepted).toBe(false);
   });
 
   it('does not intercept non-navigation calls', () => {

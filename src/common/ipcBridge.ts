@@ -563,7 +563,7 @@ export const previewHistory = {
 
 // 预览面板相关接口 / Preview panel API
 export const preview = {
-  // Agent 触发打开预览（如 chrome-devtools 导航到 URL）/ Agent triggers open preview (e.g., chrome-devtools navigates to URL)
+  // Agent 触发打开预览（如 ai-dev-browser page_goto 导航到 URL）/ Agent triggers open preview (e.g., ai-dev-browser page_goto)
   open: bridge.buildEmitter<{
     content: string; // URL 或内容 / URL or content
     contentType: import('./types/preview').PreviewContentType; // 内容类型 / Content type

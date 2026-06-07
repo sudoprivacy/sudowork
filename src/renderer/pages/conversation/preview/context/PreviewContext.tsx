@@ -570,7 +570,7 @@ export const PreviewProvider: React.FC<{ children: React.ReactNode }> = ({ child
     // 监听 renderer emitter 事件 / Listen to renderer emitter event
     emitter.on('preview.open', handlePreviewOpen);
 
-    // 监听 IPC 事件（来自主进程，如 chrome-devtools MCP 导航）/ Listen to IPC event (from main process, e.g., chrome-devtools MCP navigation)
+    // 监听 IPC 事件（来自主进程，如 ai-dev-browser page_goto 导航触发）/ Listen to IPC event (from main process, e.g., ai-dev-browser page_goto)
     const unsubscribeIpc = ipcBridge.preview.open.on(handlePreviewOpen);
 
     return () => {

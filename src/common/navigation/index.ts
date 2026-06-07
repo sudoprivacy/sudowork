@@ -7,8 +7,6 @@
 export {
   NavigationInterceptor,
   NAVIGATION_TOOLS,
-  CHROME_DEVTOOLS_IDENTIFIERS,
-  MCP_PREFIXES,
   AI_DEV_BROWSER_NAV_TOOLS,
   AI_DEV_BROWSER_DISPATCHERS,
   type NavigationToolName,
