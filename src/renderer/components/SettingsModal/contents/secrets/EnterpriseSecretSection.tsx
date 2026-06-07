@@ -14,22 +14,25 @@ import { useTranslation } from 'react-i18next';
 import PreferenceRow from './PreferenceRow';
 import type { TenantConfigItem } from './types';
 
-function resolveIconUrl(iconUrl: string | null): string {
+function resolveIconUrl(iconUrl: string | null, baseUrl?: string): string {
   if (!iconUrl) return configItemDefaultIcon;
   if (iconUrl.startsWith('data:') || iconUrl.startsWith('http://') || iconUrl.startsWith('https://')) {
     return iconUrl;
   }
+  if (baseUrl) {
+    return `${baseUrl.replace(/\/+$/, '')}${iconUrl.startsWith('/') ? iconUrl : `/${iconUrl}`}`;
+  }
   return configItemDefaultIcon;
 }
 
-const ConfigItemIcon: React.FC<{ iconUrl?: string; name: string }> = ({ iconUrl, name }) => {
-  const [useDefault, setUseDefault] = React.useState(false);
+const ConfigItemIcon: React.FC<{ iconUrl?: string; name: string; baseUrl?: string }> = ({ iconUrl, name, baseUrl }) => {
+  const [useDefault, setUseDefault] = useState(false);
 
-  React.useEffect(() => {
+  useEffect(() => {
     setUseDefault(false);
   }, [iconUrl]);
 
-  const src = useDefault ? configItemDefaultIcon : resolveIconUrl(iconUrl ?? null);
+  const src = useDefault ? configItemDefaultIcon : resolveIconUrl(iconUrl ?? null, baseUrl);
   return <img src={src} alt={name} className='w-16px h-16px object-contain shrink-0' onError={() => setUseDefault(true)} />;
 };
 
@@ -40,12 +43,16 @@ export const EnterpriseSecretSection: React.FC = () => {
   const { ensureValidToken, user } = useAuth();
   const [items, setItems] = useState<TenantConfigItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [iconBaseUrl, setIconBaseUrl] = useState<string | undefined>(undefined);
 
   const loadItems = useCallback(async () => {
     if (!user?.id) return;
     try {
       const token = await ensureValidToken();
       const serverUrl = await ConfigStorage.get('eeclaw.serverUrl');
+      if (typeof serverUrl === 'string') {
+        setIconBaseUrl(serverUrl);
+      }
       const headers = { Authorization: `Bearer ${token}` };
 
       // 1. Get authorized system config IDs
@@ -91,7 +98,7 @@ export const EnterpriseSecretSection: React.FC = () => {
                     <Right theme='outline' size='14' className='transition-transform' />
                   </span>
                   <div className='flex h-28px w-28px items-center justify-center rd-7px bg-fill-1'>
-                    <ConfigItemIcon iconUrl={item.icon_url} name={item.name} />
+                    <ConfigItemIcon iconUrl={item.icon_url} name={item.name} baseUrl={iconBaseUrl} />
                   </div>
                   <span className='min-w-0 flex-1 truncate text-14px font-600 text-t-primary'>{item.name}</span>
                 </div>

@@ -50,14 +50,8 @@ const EnterpriseMcpSettings: React.FC = () => {
 
   const templates = templatesPage?.data ?? [];
 
-  // Server DTO has no template_id. On install, the backend mints server.name as
-  // `<template.name>-<random-suffix>` (e.g., template "github-mcp" → server
-  // "github-mcp-3a8f1cde") to allow multiple installs of the same template.
-  // Match by exact equality (no suffix) or by `template.name + '-'` prefix.
-  // Use longest-prefix wins so a server never double-counts when template names
-  // overlap (e.g., "github" vs "github-mcp").
-  // 同一份匹配结果同时派生 installedTemplateIds（给 MCP 库展示已安装态）
-  // 和 serverHasUserConfig（给"我的 MCP"决定是否显示"修改配置"按钮）。
+  // Derive installed template IDs and user-config availability from server.template_id.
+  // Only user-scope servers are considered — MCP library installs are always personal.
   const { installedTemplateIds, serverHasUserConfig } = useMemo<{
     installedTemplateIds: Set<string>;
     serverHasUserConfig: Map<string, boolean>;
@@ -67,14 +61,14 @@ const EnterpriseMcpSettings: React.FC = () => {
     if (servers.length === 0 || templates.length === 0) {
       return { installedTemplateIds: ids, serverHasUserConfig: hasConfigMap };
     }
-    const sortedTpls = [...templates].sort((a, b) => b.name.length - a.name.length);
+    const tplMap = new Map(templates.map((t) => [t.id, t]));
     for (const s of servers) {
-      const matched = sortedTpls.find((t) => s.name === t.name || s.name.startsWith(`${t.name}-`));
-      if (matched) {
-        ids.add(matched.id);
-        hasConfigMap.set(s.id, (matched.user_config_items?.length ?? 0) > 0);
+      if (s.scope !== 'user' || !s.template_id) continue;
+      const tpl = tplMap.get(s.template_id);
+      if (tpl) {
+        ids.add(tpl.id);
+        hasConfigMap.set(s.id, (tpl.user_config_items?.length ?? 0) > 0);
       }
-      // 未匹配到模板的 server 在 Map 中缺省，调用方按 false 处理（保守策略：不显示"修改配置"）
     }
     return { installedTemplateIds: ids, serverHasUserConfig: hasConfigMap };
   }, [servers, templates]);

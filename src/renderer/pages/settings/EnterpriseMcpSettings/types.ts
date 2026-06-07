@@ -29,6 +29,7 @@ export interface EnterpriseMcpServerDto {
   allow_user_disable: boolean;
   enabled: boolean;
   status: EnterpriseMcpStatus;
+  template_id: string | null;
   user_disabled: boolean;
   _requires_approval?: boolean;
 }

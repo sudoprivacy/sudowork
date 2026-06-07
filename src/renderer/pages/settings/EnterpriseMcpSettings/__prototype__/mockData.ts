@@ -24,6 +24,7 @@ export const MOCK_ENTERPRISE_SERVERS: EnterpriseMcpServerDto[] = [
     allow_user_disable: true,
     enabled: true,
     status: 'enabled',
+    template_id: null,
     user_disabled: false,
   },
   {
@@ -44,6 +45,7 @@ export const MOCK_ENTERPRISE_SERVERS: EnterpriseMcpServerDto[] = [
     allow_user_disable: true,
     enabled: true,
     status: 'enabled',
+    template_id: null,
     user_disabled: false,
   },
   {
@@ -64,6 +66,7 @@ export const MOCK_ENTERPRISE_SERVERS: EnterpriseMcpServerDto[] = [
     allow_user_disable: false,
     enabled: false,
     status: 'disabled',
+    template_id: null,
     user_disabled: false,
   },
 ];
@@ -87,6 +90,7 @@ export const MOCK_PERSONAL_SERVERS: EnterpriseMcpServerDto[] = [
     allow_user_disable: true,
     enabled: true,
     status: 'enabled',
+    template_id: 'tpl-001',
     user_disabled: false,
   },
   {
@@ -107,6 +111,7 @@ export const MOCK_PERSONAL_SERVERS: EnterpriseMcpServerDto[] = [
     allow_user_disable: true,
     enabled: false,
     status: 'disabled',
+    template_id: null,
     user_disabled: true,
   },
 ];
