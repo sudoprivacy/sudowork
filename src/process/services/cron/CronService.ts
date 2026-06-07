@@ -10,7 +10,11 @@ import { uuid } from '@/common/utils';
 import { getDatabase } from '@process/database';
 import { ProcessConfig } from '@process/initStorage';
 import { addMessage } from '@process/message';
-import { DEFAULT_PRESET_AGENT_TYPE, resolvePresetAgentBackend, type AcpBackendAll } from '@/types/acpTypes';
+import { ConfigStorage } from '@/common/storage';
+import { resolvePreferredAcpModelId } from '@/common/acp/defaultModels';
+import { defaultAgentForMode } from '@/common/acp/defaultAgent';
+import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
+import { DEFAULT_PRESET_AGENT_TYPE, resolvePresetAgentBackend, type AcpBackend, type AcpBackendAll } from '@/types/acpTypes';
 import { powerSaveBlocker, app } from 'electron';
 import { Cron } from 'croner';
 import WorkerManage from '../../WorkerManage';
@@ -23,6 +27,18 @@ import { setupChannelResponseRouting } from '@/channels/agent/ChannelResponseRou
 import { cronBusyGuard } from './CronBusyGuard';
 import { cronStore, type CronJob, type CronSchedule } from './CronStore';
 import { createConversation } from '../conversationService';
+
+/**
+ * Map an ACP backend to the conversation `type` field expected by
+ * conversationService.createConversation. 'remote-agent' and
+ * 'openclaw-gateway' have dedicated dispatch paths; everything else
+ * goes through the generic 'acp' path.
+ */
+function convTypeForBackend(backend: AcpBackendAll): string {
+  if (backend === 'openclaw-gateway') return 'openclaw-gateway';
+  if (backend === 'remote-agent') return 'remote-agent';
+  return 'acp';
+}
 
 /**
  * Parameters for creating a new cron job
@@ -386,9 +402,16 @@ class CronService {
       // Normalize stored agentType — legacy jobs may have 'sudoclaw-gateway' which is not a valid conv type
       const storedAgentType = job.metadata.agentType;
       const normalizedAgentType: AcpBackendAll = !storedAgentType || (storedAgentType as string) === 'sudoclaw-gateway' ? 'openclaw-gateway' : storedAgentType;
+
+      // Resolve the runtime agent type. For jobs bound to a specific preset
+      // assistant, the assistant's meta wins. Otherwise we honor the user's
+      // current Guid-page preference so changing it propagates to scheduled
+      // runs (rather than freezing the value at job-creation time).
       let resolvedAgentType: AcpBackendAll = normalizedAgentType;
-      // convType must be 'openclaw-gateway' or 'acp' — preserve openclaw-gateway for legacy stored jobs
-      let convType: string = normalizedAgentType === 'openclaw-gateway' ? 'openclaw-gateway' : 'acp';
+      if (!presetAssistantId) {
+        resolvedAgentType = await this.resolveUserPreferredAgent(normalizedAgentType);
+      }
+      let convType: string = convTypeForBackend(resolvedAgentType);
 
       if (presetAssistantId) {
         try {
@@ -411,13 +434,17 @@ class CronService {
           enabledSkills = meta?.enabledSkills ?? meta?.defaultEnabledSkills;
           presetAgentName = meta?.nameI18n?.['en-US'];
 
-          // 4. Determine correct conversation type from presetAgentType
-          const presetAgentType = meta?.presetAgentType || DEFAULT_PRESET_AGENT_TYPE;
+          // 4. Determine correct conversation type. Preset metadata is the
+          // primary source; when the assistant doesn't pin a presetAgentType
+          // we defer to the user's current preference instead of the
+          // hard-coded scode default, matching manual-session behavior.
+          const metaAgentType = meta?.presetAgentType ?? (await this.readUserPreferredPresetAgentType());
+          const presetAgentType = metaAgentType || DEFAULT_PRESET_AGENT_TYPE;
           const presetBackend = resolvePresetAgentBackend(presetAgentType);
 
           if (presetBackend === 'openclaw-gateway') {
             resolvedAgentType = 'openclaw-gateway';
-            convType = 'openclaw-gateway';
+            convType = convTypeForBackend(resolvedAgentType);
           } else {
             // Check that the ACP backend CLI has actually been detected on this
             // machine. If not (e.g. Doctor wants 'claude' but Claude CLI isn't
@@ -427,11 +454,11 @@ class CronService {
             const hasCli = detected.some((a) => a.backend === presetBackend && !!a.cliPath);
             if (hasCli) {
               resolvedAgentType = presetBackend as AcpBackendAll;
-              convType = 'acp';
+              convType = convTypeForBackend(resolvedAgentType);
             } else {
               mainWarn('CronService', `Preset ${presetAssistantId} requested backend '${presetBackend}' but no CLI was detected; falling back to Sudoclaw gateway`);
               resolvedAgentType = 'openclaw-gateway';
-              convType = 'openclaw-gateway';
+              convType = convTypeForBackend(resolvedAgentType);
             }
           }
         } catch (err) {
@@ -444,11 +471,17 @@ class CronService {
         if (!hasScodeCli) {
           mainWarn('CronService', 'Scode is selected for cron execution but no CLI was detected; falling back to Sudoclaw gateway');
           resolvedAgentType = 'openclaw-gateway';
-          convType = 'openclaw-gateway';
+          convType = convTypeForBackend(resolvedAgentType);
         }
       }
 
       const agentType = resolvedAgentType;
+      // Mirror the manual-session model resolution chain so the cron job
+      // runs against whichever model the user picked in the ACP model
+      // selector. Empty string is the documented "fall through to backend
+      // default" signal in initAgent.ts.
+      const preferredModelId = await this.readUserPreferredModelId(agentType);
+      const resolvedModelId = resolvePreferredAcpModelId({ backend: agentType, preferredModelId }) ?? undefined;
 
       let task;
       let activeConversationId: string;
@@ -464,7 +497,7 @@ class CronService {
         const min = String(runDate.getMinutes()).padStart(2, '0');
         const convName = `${yyyy}/${mm}/${dd} ${hh}:${min} – ${job.name}`;
 
-        mainLog('CronService', `Creating new conversation: name="${convName}" type="${convType}" agentType="${agentType}"`);
+        mainLog('CronService', `Creating new conversation: name="${convName}" type="${convType}" agentType="${agentType}" modelId="${resolvedModelId ?? 'default'}"`);
         const result = await createConversation({
           type: convType as any,
           name: convName,
@@ -476,6 +509,7 @@ class CronService {
             customWorkspace: !!job.metadata.workspace,
             cronJobId: job.id,
             cronJobName: job.name,
+            currentModelId: resolvedModelId,
             ...(presetAssistantId && {
               presetAssistantId,
               customAgentId: presetAssistantId,
@@ -541,6 +575,7 @@ class CronService {
               customWorkspace: !!job.metadata.workspace,
               cronJobId: job.id,
               cronJobName: job.name,
+              currentModelId: resolvedModelId,
               ...(presetAssistantId && {
                 presetAssistantId,
                 customAgentId: presetAssistantId,
@@ -626,6 +661,64 @@ class CronService {
     const updatedJob = cronStore.getById(job.id);
     if (updatedJob) {
       ipcBridge.cron.onJobUpdated.emit(updatedJob);
+    }
+  }
+
+  /**
+   * Read the user's last-selected agent from the Guid page and translate it
+   * into an AcpBackendAll. The fallback chain mirrors useGuidAgentSelection
+   * so cron jobs without a bound preset assistant track UI preference
+   * changes between runs.
+   *
+   * - 'custom:<id>' is ignored here: cron jobs that pointed at a custom
+   *   assistant carry it via presetAssistantId, so this path is reserved
+   *   for jobs created against the Default Assistant.
+   */
+  private async resolveUserPreferredAgent(stored: AcpBackendAll): Promise<AcpBackendAll> {
+    let userPref: string | undefined;
+    try {
+      userPref = await ConfigStorage.get('guid.lastSelectedAgent');
+    } catch (err) {
+      mainWarn('CronService', 'Failed to read guid.lastSelectedAgent, falling back to stored agentType:', err);
+      return stored;
+    }
+    if (userPref && !userPref.startsWith('custom:')) {
+      return userPref as AcpBackendAll;
+    }
+    // No usable preference saved yet — use the mode-aware default rather
+    // than the stored (possibly stale) value that was frozen at job-creation
+    // time. This is what makes the cron "follow user preference".
+    return defaultAgentForMode(isEnterpriseMode()) as AcpBackendAll;
+  }
+
+  /**
+   * Read the user's last-selected agent and return it as a PresetAgentType
+   * when it maps to one (used inside the preset-assistant branch as a
+   * fallback for the hard-coded DEFAULT_PRESET_AGENT_TYPE).
+   */
+  private async readUserPreferredPresetAgentType(): Promise<string | undefined> {
+    try {
+      const userPref = await ConfigStorage.get('guid.lastSelectedAgent');
+      if (userPref && !userPref.startsWith('custom:') && userPref !== 'remote-agent') {
+        return userPref;
+      }
+    } catch {
+      // Silent — the caller already has a hard fallback.
+    }
+    return undefined;
+  }
+
+  /**
+   * Read the per-backend preferred model the user picked in AcpModelSelector.
+   * Returns undefined when no preference is set; the caller pipes this
+   * through resolvePreferredAcpModelId for the full fallback chain.
+   */
+  private async readUserPreferredModelId(backend: AcpBackendAll): Promise<string | undefined> {
+    try {
+      const acpConfig = await ConfigStorage.get('acp.config');
+      return acpConfig?.[backend as AcpBackend]?.preferredModelId;
+    } catch {
+      return undefined;
     }
   }
 

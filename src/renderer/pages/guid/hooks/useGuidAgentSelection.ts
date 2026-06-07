@@ -6,6 +6,7 @@
 
 import { ipcBridge } from '@/common';
 import { resolvePreferredAcpModelId } from '@/common/acp/defaultModels';
+import { defaultAgentForMode } from '@/common/acp/defaultAgent';
 import { getPresetById } from '@/common/presets/presetResolver';
 import { DEFAULT_CODEX_MODELS } from '@/common/codex/codexModels';
 import type { IProvider } from '@/common/storage';
@@ -107,7 +108,7 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
 
   // Initial selected agent key: enterprise mode defaults to generic 'remote-agent'
   const getInitialAgentKey = useCallback(() => {
-    return isEnterprise ? 'remote-agent' : DEFAULT_PRESET_AGENT_TYPE;
+    return defaultAgentForMode(isEnterprise);
   }, [isEnterprise]);
 
   const [selectedAgentKey, _setSelectedAgentKey] = useState<string>(() => getInitialAgentKey());
@@ -181,9 +182,10 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
     } else {
       // Consumer mode: reset to default preset if currently on remote-agent or custom
       if (selectedAgentKeyRef.current === 'remote-agent' || selectedAgentKeyRef.current.startsWith('custom:')) {
-        _setSelectedAgentKey(DEFAULT_PRESET_AGENT_TYPE);
-        selectedAgentKeyRef.current = DEFAULT_PRESET_AGENT_TYPE;
-        ConfigStorage.set('guid.lastSelectedAgent', DEFAULT_PRESET_AGENT_TYPE).catch((error) => {
+        const fallback = defaultAgentForMode(false);
+        _setSelectedAgentKey(fallback);
+        selectedAgentKeyRef.current = fallback;
+        ConfigStorage.set('guid.lastSelectedAgent', fallback).catch((error) => {
           console.error('Failed to save consumer agent:', error);
         });
       }
