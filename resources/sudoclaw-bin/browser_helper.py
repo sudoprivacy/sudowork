@@ -23,45 +23,118 @@ import time
 import urllib.request
 
 
-def _browser_skill_dir() -> pathlib.Path:
-    """Locate the browser skill directory containing the ai_dev_browser symlink.
+def _candidate_skill_dirs() -> list[pathlib.Path]:
+    """Return possible browser-skill directories in priority order.
 
-    SSOT: PYTHONPATH is set by sudowork (acpConnectors.ts) and points to
-    the correct skill dir. scode sandbox only rewrites HOME/TMPDIR, not
-    PYTHONPATH, so this is reliable.
+    Never trusts ``$HOME``: scode/claude-code sandboxes rewrite ``$HOME`` to a
+    per-session ``.sandbox-home`` directory that does not contain ``.nexus``,
+    so ``pathlib.Path.home()`` would resolve to a non-existent path.
+
+    Sources, in order:
+
+    1. Explicit env vars (``NEXUS_HOME`` / ``SUDOWORK_NEXUS_HOME``) — injected
+       by sudowork before the sandbox rewrites HOME, so they survive.
+    2. ``PYTHONPATH`` entries that already encode the real skill dir
+       (sudowork's ``prepareCleanEnv`` prepends this).
+    3. ``__file__`` anchor: the deployed helper lives at
+       ``<nexus>/sudoclaw/bin/browser_helper.py``, so three parents up is the
+       real ``.nexus`` root — unaffected by sandbox HOME rewrites.
     """
-    pythonpath = os.environ.get("PYTHONPATH", "")
-    for entry in pythonpath.split(os.pathsep):
-        candidate = pathlib.Path(entry)
-        if (candidate / "ai_dev_browser").is_dir():
-            return candidate
-    # Fallback for direct invocation outside sudowork
+    cands: list[pathlib.Path] = []
+    for env_name in ("NEXUS_HOME", "SUDOWORK_NEXUS_HOME"):
+        v = os.environ.get(env_name)
+        if v:
+            base = pathlib.Path(v)
+            cands.append(base / "skills" / "_system" / "_builtin" / "browser")
+            cands.append(base / "skills" / "_system" / "browser")
+    for p in os.environ.get("PYTHONPATH", "").split(os.pathsep):
+        if not p:
+            continue
+        entry = pathlib.Path(p)
+        if entry.name == "browser" and entry.parent.name in ("_builtin", "_system"):
+            cands.append(entry)
     try:
-        import pwd
-        home = pathlib.Path(pwd.getpwuid(os.getuid()).pw_dir)
+        here = pathlib.Path(__file__).resolve()
+        # .../.nexus/sudoclaw/bin/browser_helper.py -> .../.nexus
+        nexus_root = here.parent.parent.parent
+        cands.append(nexus_root / "skills" / "_system" / "_builtin" / "browser")
+        cands.append(nexus_root / "skills" / "_system" / "browser")
     except Exception:
-        home = pathlib.Path(os.path.expanduser("~"))
-    return home / ".nexus" / "skills" / "_system" / "_builtin" / "browser"
+        pass
+    # Deduplicate while preserving order
+    seen: set[str] = set()
+    unique: list[pathlib.Path] = []
+    for c in cands:
+        key = str(c)
+        if key not in seen:
+            seen.add(key)
+            unique.append(c)
+    return unique
 
 
 def _ensure_ai_dev_browser_on_sys_path() -> None:
-    """Prepend the browser skill dir to sys.path so `import ai_dev_browser`
-    resolves to the sudowork-vendored package, not a stale pip install.
+    """Make ``ai_dev_browser`` importable.
+
+    Strategy: try a plain ``import ai_dev_browser`` first — when sudowork
+    bundles the package in site-packages (production) or the user ``pip
+    install``s it (dev), the default ``sys.path`` already covers it and no
+    path hackery is needed.
+
+    Only if that fails do we fall back to candidate skill directories (see
+    ``_candidate_skill_dirs``). This makes the helper robust under the scode
+    sandbox where ``$HOME`` is rewritten to ``.sandbox-home`` and the legacy
+    ``Path.home() / ".nexus" / ...`` heuristic resolves to a missing path.
     """
-    skill_dir = _browser_skill_dir()
-    if not skill_dir.is_dir():
+    try:
+        import ai_dev_browser  # noqa: F401
         return
-    skill_dir_str = str(skill_dir)
-    if skill_dir_str in sys.path:
-        return
-    sys.path.insert(0, skill_dir_str)
+    except Exception:
+        pass
+    for d in _candidate_skill_dirs():
+        try:
+            if not d.is_dir():
+                continue
+        except OSError:
+            continue
+        d_str = str(d)
+        if d_str in sys.path:
+            continue
+        sys.path.insert(0, d_str)
+        try:
+            import ai_dev_browser  # noqa: F401
+            return
+        except Exception:
+            # Restore sys.path on failure so we don't pollute it with dead entries
+            try:
+                sys.path.remove(d_str)
+            except ValueError:
+                pass
 
 
 _ensure_ai_dev_browser_on_sys_path()
 
 
 def _tools_dir() -> pathlib.Path:
-    return _browser_skill_dir() / "ai_dev_browser" / "tools"
+    """Return the on-disk location of the ai_dev_browser tools package.
+
+    Resolves via the loaded module first (works regardless of whether the
+    package came from a sudowork skill-dir symlink or a pip install). Falls
+    back to the first candidate skill dir if the import is still unavailable
+    (e.g. running ``--help`` on a machine where the package failed to load).
+    """
+    try:
+        import ai_dev_browser  # type: ignore[import-not-found]
+        return pathlib.Path(ai_dev_browser.__file__).resolve().parent / "tools"
+    except Exception:
+        for d in _candidate_skill_dirs():
+            tools = d / "ai_dev_browser" / "tools"
+            try:
+                if tools.is_dir():
+                    return tools
+            except OSError:
+                continue
+        # Last-resort placeholder so error messages still print a useful path
+        return pathlib.Path("ai_dev_browser/tools")
 
 
 def _emit(buf: io.StringIO, line: str = "") -> None:
