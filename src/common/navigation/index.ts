@@ -4,4 +4,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export { NavigationInterceptor, NAVIGATION_TOOLS, CHROME_DEVTOOLS_IDENTIFIERS, MCP_PREFIXES, type NavigationToolName, type PreviewOpenData, type NavigationToolData, type InterceptionResult } from './NavigationInterceptor';
+export {
+  NavigationInterceptor,
+  NAVIGATION_TOOLS,
+  CHROME_DEVTOOLS_IDENTIFIERS,
+  MCP_PREFIXES,
+  AI_DEV_BROWSER_NAV_TOOLS,
+  AI_DEV_BROWSER_DISPATCHERS,
+  type NavigationToolName,
+  type AiDevBrowserNavToolName,
+  type PreviewOpenData,
+  type NavigationToolData,
+  type InterceptionResult,
+} from './NavigationInterceptor';

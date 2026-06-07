@@ -21,7 +21,7 @@ import { transformMessage } from '@/common/chatLib';
 import { DRAFTS_DIR_NAME, NEXUS_FILES_MARKER } from '@/common/constants';
 import { appendNexusFilesMarker } from '@/common/nexusFiles';
 import type { IResponseMessage } from '@/common/ipcBridge';
-import { NavigationInterceptor } from '@/common/navigation';
+import { NavigationInterceptor, type NavigationToolData } from '@/common/navigation';
 import { parseError, uuid } from '@/common/utils';
 import type { AcpBackend, AcpError, AcpModelInfo, AcpPermissionOption, AcpPermissionRequest, AcpPromptResponseUsage, AcpQuestionRequest, AcpQuestionResponseAnswer, AcpResult, AcpSessionConfigOption, AcpSessionUpdate, AvailableCommandsUpdate, ToolCallUpdate, ToolCallUpdateStatus } from '@/types/acpTypes';
 import { ACP_BACKENDS_ALL, AcpErrorType, createAcpError } from '@/types/acpTypes';
@@ -2327,11 +2327,19 @@ This identity statement takes priority over the default identity in USER.md.
           });
         }
 
-        if (NavigationInterceptor.isNavigationTool(toolName)) {
+        // Structured form so ai-dev-browser invocations (e.g. Bash running
+        // `aidb page_goto --url …` whose tool title is "Bash"/"Shell") also
+        // trigger the preview, not just chrome-devtools-named MCP calls.
+        const navData: NavigationToolData = {
+          toolName,
+          rawInput: toolCallUpdate.update?.rawInput as Record<string, unknown> | undefined,
+          content: toolCallUpdate.update?.content as NavigationToolData['content'],
+        };
+        if (NavigationInterceptor.isNavigationTool(navData)) {
           if (toolCallId) {
             this.pendingNavigationTools.add(toolCallId);
           }
-          const url = NavigationInterceptor.extractUrl(toolCallUpdate.update);
+          const url = NavigationInterceptor.extractUrl(navData);
           if (url) {
             const previewMessage = NavigationInterceptor.createPreviewMessage(url, this.conversation_id);
             this.handleStreamEvent(previewMessage);
@@ -2572,8 +2580,13 @@ This identity statement takes priority over the default identity in USER.md.
       });
 
       const toolName = data.toolCall?.title || '';
-      if (NavigationInterceptor.isNavigationTool(toolName)) {
-        const url = NavigationInterceptor.extractUrl(data.toolCall);
+      const permissionNavData: NavigationToolData = {
+        toolName,
+        rawInput: data.toolCall?.rawInput as Record<string, unknown> | undefined,
+        content: data.toolCall?.content as NavigationToolData['content'],
+      };
+      if (NavigationInterceptor.isNavigationTool(permissionNavData)) {
+        const url = NavigationInterceptor.extractUrl(permissionNavData);
         if (url) {
           const previewMessage = NavigationInterceptor.createPreviewMessage(url, this.conversation_id);
           this.handleStreamEvent(previewMessage);
