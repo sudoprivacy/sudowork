@@ -878,34 +878,17 @@ const getBuiltinAssistants = (): AcpBackendConfig[] => {
 };
 
 /**
- * 创建默认的 MCP 服务器配置
+ * Default MCP server entries to seed a brand-new user's mcp.config with.
+ *
+ * Previously seeded a disabled `chrome-devtools` MCP server. Removed when
+ * sudowork's browser stack consolidated onto the bundled ai-dev-browser and
+ * the in-app right-panel BrowserPanel (driven by Electron CDP + exposed to
+ * external Claude Code via the auto-registered `sudowork-browser` MCP). No
+ * replacement default is needed: neither ai-dev-browser nor sudowork-browser
+ * are configured through the MCP defaults — they're wired automatically by
+ * SudoworkBuiltinMcpRegistration / ServiceManager.
  */
-const getDefaultMcpServers = (): IMcpServer[] => {
-  const now = Date.now();
-  const defaultConfig = {
-    mcpServers: {
-      'chrome-devtools': {
-        command: 'npx',
-        args: ['-y', 'chrome-devtools-mcp@latest'],
-      },
-    },
-  };
-
-  return Object.entries(defaultConfig.mcpServers).map(([name, config], index) => ({
-    id: `mcp_default_${now}_${index}`,
-    name,
-    description: `Default MCP server: ${name}`,
-    enabled: false, // 默认不启用，让用户手动开启
-    transport: {
-      type: 'stdio' as const,
-      command: config.command,
-      args: config.args,
-    },
-    createdAt: now,
-    updatedAt: now,
-    originalJson: JSON.stringify({ [name]: config }, null, 2),
-  }));
-};
+const getDefaultMcpServers = (): IMcpServer[] => [];
 
 /**
  * 启动时清理异常遗留的健康检测临时会话

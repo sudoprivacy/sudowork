@@ -21,7 +21,7 @@ import { transformMessage } from '@/common/chatLib';
 import { DRAFTS_DIR_NAME, NEXUS_FILES_MARKER } from '@/common/constants';
 import { appendNexusFilesMarker } from '@/common/nexusFiles';
 import type { IResponseMessage } from '@/common/ipcBridge';
-import { NavigationInterceptor } from '@/common/navigation';
+import { NavigationInterceptor, type NavigationToolData } from '@/common/navigation';
 import { parseError, uuid } from '@/common/utils';
 import type { AcpBackend, AcpError, AcpModelInfo, AcpPermissionOption, AcpPermissionRequest, AcpPromptResponseUsage, AcpQuestionRequest, AcpQuestionResponseAnswer, AcpResult, AcpSessionConfigOption, AcpSessionUpdate, AvailableCommandsUpdate, ToolCallUpdate, ToolCallUpdateStatus } from '@/types/acpTypes';
 import { ACP_BACKENDS_ALL, AcpErrorType, createAcpError } from '@/types/acpTypes';
@@ -35,7 +35,6 @@ import { assistantManager } from '@/process/AssistantManager';
 import { getDatabase } from '@process/database';
 import { clearSkillsCache, getCustomSkillsDir, ProcessConfig } from '../initStorage';
 import { addMessage, addOrUpdateMessage, nextTickToLocalFinish } from '../message';
-import { handlePreviewOpenEvent } from '../utils/previewUtils';
 import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
 import { mainLog, mainWarn, mainError } from '../utils/mainLogger';
 import { translateLLMError } from '@process/utils/llmErrorTranslation';
@@ -2316,14 +2315,21 @@ This identity statement takes priority over the default identity in USER.md.
           });
         }
 
-        if (NavigationInterceptor.isNavigationTool(toolName)) {
+        // Mirror ai-dev-browser navigation into the right-panel browser. Pass
+        // structured form so shell-command invocations (toolName = "Bash"/
+        // "Shell", real call in rawInput.command) also get matched.
+        const navData: NavigationToolData = {
+          toolName,
+          rawInput: toolCallUpdate.update?.rawInput as Record<string, unknown> | undefined,
+          content: toolCallUpdate.update?.content as NavigationToolData['content'],
+        };
+        if (NavigationInterceptor.isNavigationTool(navData)) {
           if (toolCallId) {
             this.pendingNavigationTools.add(toolCallId);
           }
-          const url = NavigationInterceptor.extractUrl(toolCallUpdate.update);
+          const url = NavigationInterceptor.extractUrl(navData);
           if (url) {
-            const previewMessage = NavigationInterceptor.createPreviewMessage(url, this.conversation_id);
-            this.handleStreamEvent(previewMessage);
+            ipcBridge.rightPanelBrowser.open.emit({ url, switchTab: true });
           }
         }
 
@@ -2455,13 +2461,14 @@ This identity statement takes priority over the default identity in USER.md.
         }
 
         if (toolCallId && this.pendingNavigationTools.has(toolCallId)) {
+          // Re-emit the final URL after a navigation completes — captures any
+          // redirect the tool result mentions in its output text.
           if (statusUpdate.update?.status === 'completed' && statusUpdate.update?.content) {
             for (const item of statusUpdate.update.content) {
               const text = item.content?.text || '';
               const urlMatch = text.match(/https?:\/\/[^\s<>"]+/i);
               if (urlMatch) {
-                const previewMessage = NavigationInterceptor.createPreviewMessage(urlMatch[0], this.conversation_id);
-                this.handleStreamEvent(previewMessage);
+                ipcBridge.rightPanelBrowser.open.emit({ url: urlMatch[0], switchTab: true });
                 break;
               }
             }
@@ -2561,11 +2568,15 @@ This identity statement takes priority over the default identity in USER.md.
       });
 
       const toolName = data.toolCall?.title || '';
-      if (NavigationInterceptor.isNavigationTool(toolName)) {
-        const url = NavigationInterceptor.extractUrl(data.toolCall);
+      const permissionNavData: NavigationToolData = {
+        toolName,
+        rawInput: data.toolCall?.rawInput as Record<string, unknown> | undefined,
+        content: data.toolCall?.content as NavigationToolData['content'],
+      };
+      if (NavigationInterceptor.isNavigationTool(permissionNavData)) {
+        const url = NavigationInterceptor.extractUrl(permissionNavData);
         if (url) {
-          const previewMessage = NavigationInterceptor.createPreviewMessage(url, this.conversation_id);
-          this.handleStreamEvent(previewMessage);
+          ipcBridge.rightPanelBrowser.open.emit({ url, switchTab: true });
         }
         this.pendingNavigationTools.add(requestId);
       }
@@ -3042,10 +3053,6 @@ This identity statement takes priority over the default identity in USER.md.
         ipcBridge.acpConversation.responseStream.emit(message);
         return;
       }
-    }
-
-    if (handlePreviewOpenEvent(message)) {
-      return;
     }
 
     const contentTypes = ['content', 'agent_status', 'acp_tool_call', 'plan'];

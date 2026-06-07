@@ -9,6 +9,7 @@ import { uuid } from '@/common/utils';
 import type { FileChange, McpInvocation, CodexEventMsg } from '@/common/codex/types';
 import { ToolRegistry } from '@/common/codex/utils';
 import type { ICodexMessageEmitter } from '@/agent/codex/messaging/CodexMessageEmitter';
+import { ipcBridge } from '@/common';
 import type { IResponseMessage } from '@/common/ipcBridge';
 import { NavigationInterceptor } from '@/common/navigation';
 
@@ -195,20 +196,17 @@ export class CodexToolHandlers {
     const callId = (msg as unknown as { call_id?: string }).call_id || `mcp_${toolName}_${uuid()}`;
     const title = this.formatMcpInvocation(inv);
 
-    // Intercept chrome-devtools navigation tools using unified NavigationInterceptor
-    // 使用统一的 NavigationInterceptor 拦截 chrome-devtools 导航工具
-    const interceptionResult = NavigationInterceptor.intercept(
-      {
-        toolName,
-        server: String(inv.server || ''),
-        arguments: inv.arguments as Record<string, unknown>,
-      },
-      this.conversation_id
-    );
-
-    if (interceptionResult.intercepted && interceptionResult.previewMessage) {
-      // Use emitAndPersistMessage with persist=false since preview_open is a signal
-      this.messageEmitter.emitAndPersistMessage(interceptionResult.previewMessage, false);
+    // Mirror ai-dev-browser navigation into the right-panel browser so the
+    // user sees the same URL the agent just navigated to.
+    const navData = {
+      toolName,
+      arguments: inv.arguments as Record<string, unknown> | undefined,
+    };
+    if (NavigationInterceptor.isNavigationTool(navData)) {
+      const navUrl = NavigationInterceptor.extractUrl(navData);
+      if (navUrl) {
+        ipcBridge.rightPanelBrowser.open.emit({ url: navUrl, switchTab: true });
+      }
     }
 
     // Add to pending confirmations

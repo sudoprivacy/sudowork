@@ -14,7 +14,18 @@ import os from 'os';
 
 const TAG = 'ScodeMcpAgent';
 export const SCODE_SETTINGS_PATH = path.join(os.homedir(), '.nexus', 'sudocode', 'settings.json');
-const SCODE_DISABLED_MCP_SERVERS = new Set(['chrome-devtools']);
+/**
+ * MCP server names that sudowork should never sync into scode's settings.json,
+ * and should actively strip if found in an existing scode settings.json.
+ *
+ * Historical note: this set previously contained `chrome-devtools`, back when
+ * sudowork seeded a disabled chrome-devtools MCP server by default. That seed
+ * was dropped when sudowork's browser stack consolidated onto ai-dev-browser
+ * and the right-panel BrowserPanel; the filter is now empty. Kept as the
+ * extension point in case a future server needs to be force-disabled for
+ * scode specifically.
+ */
+const SCODE_DISABLED_MCP_SERVERS = new Set<string>();
 
 function isDisabledForScode(serverName: string): boolean {
   return SCODE_DISABLED_MCP_SERVERS.has(serverName);

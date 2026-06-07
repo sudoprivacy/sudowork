@@ -39,7 +39,7 @@ if (isWebUI || isResetPassword) {
 
 // ---------------------------------------------------------------------------
 // Chrome DevTools Protocol (CDP) — enable remote debugging
-// so chrome-devtools-mcp and other CDP clients can connect to this Electron app.
+// so external CDP clients can connect to this Electron app for debugging.
 //
 // Default port: 9230 (avoids conflict with common CDP ports).
 // Override via NEXUS_CDP_PORT env variable. Set to "0" to disable.
@@ -320,7 +320,7 @@ if (cdpStartupEnabled) {
   console.log('[CDP] Chrome DevTools Protocol enabled');
   console.log(`[CDP] Remote debugging port: ${port}`);
   console.log(`[CDP] DevTools URL: http://127.0.0.1:${port}`);
-  console.log('[CDP] MCP chrome-devtools connection: --browser-url=http://127.0.0.1:' + port);
+  console.log('[CDP] External CDP client connection: --browser-url=http://127.0.0.1:' + port);
 
   // Clean up registry on exit - handle multiple exit signals
   const cleanup = () => unregisterInstance();
