@@ -18,6 +18,13 @@ export declare class NexusGrpcClient {
    * Returns the response as a JSON string.
    */
   call(method: string, payload: string, authToken: string): string
+  /**
+   * Binary gRPC call: method name + raw protobuf payload + auth token.
+   * Returns raw response bytes (protobuf-encoded).
+   * Use this for plugin dispatch (e.g. vault secrets) where the wire
+   * format is protobuf, not JSON.
+   */
+  callBinary(method: string, payload: Buffer, authToken: string): Buffer
   /** Read a file from the VFS. Returns raw bytes. */
   read(path: string, authToken: string): Buffer
   /** Write raw bytes to a VFS path. */

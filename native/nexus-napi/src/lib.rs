@@ -41,6 +41,24 @@ impl NexusGrpcClient {
             .map_err(|e| Error::from_reason(format!("response not UTF-8: {e}")))
     }
 
+    /// Binary gRPC call: method name + raw protobuf payload + auth token.
+    /// Returns raw response bytes (protobuf-encoded).
+    /// Use this for plugin dispatch (e.g. vault secrets) where the wire
+    /// format is protobuf, not JSON.
+    #[napi]
+    pub fn call_binary(
+        &self,
+        method: String,
+        payload: Buffer,
+        auth_token: String,
+    ) -> Result<Buffer> {
+        let response = self
+            .inner
+            .call(&method, &payload, &auth_token)
+            .map_err(|e| Error::from_reason(format!("gRPC call failed: {e}")))?;
+        Ok(Buffer::from(response))
+    }
+
     /// Read a file from the VFS. Returns raw bytes.
     #[napi]
     pub fn read(&self, path: String, auth_token: String) -> Result<Buffer> {
