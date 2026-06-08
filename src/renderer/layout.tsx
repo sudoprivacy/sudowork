@@ -117,9 +117,14 @@ const Layout: React.FC<{
 
       let effectiveCss = decision.effectiveCss;
 
-      // If the active theme resolved to empty CSS and there IS a saved activeThemeId
-      // (but it no longer matches any known theme), fall back to default and persist.
-      if (!effectiveCss && activeThemeId && activeThemeId !== DEFAULT_THEME_ID) {
+      // First launch (nothing saved yet) vs. a saved activeThemeId that no longer
+      // maps to a known theme: in both cases the resolved CSS is empty. Fall back to
+      // the Default theme and persist it, mirroring what CssThemeSettings does on
+      // mount. Without this, a fresh install renders with NO theme variables until
+      // the user opens Settings → Display, which left some surfaces (notably the
+      // terminal) using unreadable fallback colors.
+      const isFirstLaunch = !savedCssRaw && !activeThemeId;
+      if (!effectiveCss && (isFirstLaunch || (activeThemeId && activeThemeId !== DEFAULT_THEME_ID))) {
         const defaultCss = resolveCssByActiveTheme(DEFAULT_THEME_ID, (savedThemes || []) as ICssTheme[]);
         effectiveCss = defaultCss;
         // Persist the fallback so Layout doesn't keep retrying
