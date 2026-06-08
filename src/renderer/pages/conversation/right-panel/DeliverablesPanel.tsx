@@ -71,12 +71,12 @@ const DeliverablesPanel: React.FC<DeliverablesPanelProps> = ({ conversationId })
   const grouped = useMemo(() => groupByDay(entries, t), [entries, t]);
 
   return (
-    <div className='flex flex-col h-full min-h-0 overflow-y-auto px-12px py-10px gap-12px'>
+    <div className='flex flex-1 flex-col h-full min-h-0 overflow-y-auto px-12px py-10px gap-12px'>
       {entries.length === 0 ? (
         <EmptyState loading={loading} />
       ) : (
         grouped.map((group) => (
-          <div key={group.label} className='flex flex-col gap-6px'>
+          <div key={group.label} className='flex flex-col gap-6px w-fit'>
             <div className='text-11px text-t-secondary opacity-70 uppercase tracking-wider'>{group.label}</div>
             <div className='flex flex-col gap-6px'>
               {group.entries.map((entry) => (
