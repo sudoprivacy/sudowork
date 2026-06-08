@@ -43,13 +43,24 @@ export interface ITerminalResizeParams {
   rows: number;
 }
 
+/** Emitted whenever the active PTY count changes for a conversation.
+ *  Used by the sidebar to render a "running" spinner next to conversations
+ *  that have live terminal processes. */
+export interface ITerminalActiveCountEvent {
+  conversationId: string;
+  count: number;
+}
+
 export const terminal = {
-  create: bridge.buildProvider<IBridgeResponse<ITerminalCreateResult>, { cwd?: string; shell?: string } | undefined>('terminal.create'),
+  create: bridge.buildProvider<IBridgeResponse<ITerminalCreateResult>, { cwd?: string; shell?: string; conversationId?: string } | undefined>('terminal.create'),
   write: bridge.buildProvider<IBridgeResponse<void>, { sessionId: string; data: string }>('terminal.write'),
   resize: bridge.buildProvider<IBridgeResponse<void>, ITerminalResizeParams>('terminal.resize'),
   dispose: bridge.buildProvider<IBridgeResponse<void>, { sessionId: string }>('terminal.dispose'),
+  /** Kill all PTYs whose `conversationId` matches. SIGTERM with a 2s grace then SIGKILL. */
+  closeByConversation: bridge.buildProvider<IBridgeResponse<{ killed: number }>, { conversationId: string }>('terminal.closeByConversation'),
   output: bridge.buildEmitter<ITerminalOutputEvent>('terminal.output'),
   exit: bridge.buildEmitter<ITerminalExitEvent>('terminal.exit'),
+  activeCountChanged: bridge.buildEmitter<ITerminalActiveCountEvent>('terminal.activeCountChanged'),
 };
 
 //通用会话能力
