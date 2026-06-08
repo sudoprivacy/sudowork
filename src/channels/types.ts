@@ -48,6 +48,13 @@ export interface IPluginCredentials {
   serverUrl?: string;
   zentaoUsername?: string;
   zentaoPassword?: string;
+  // Lark/Feishu — populated by lark-cli QR device-flow login (in addition to appId/appSecret above)
+  larkCliAccessToken?: string;
+  larkCliRefreshToken?: string;
+  larkCliExpiresAt?: number;
+  larkCliUserId?: string;
+  larkCliUserName?: string;
+  larkCliLoggedInAt?: number;
   // Extension plugins: arbitrary credential fields
   [key: string]: string | number | boolean | undefined;
 }

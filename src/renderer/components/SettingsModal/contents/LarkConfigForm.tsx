@@ -4,15 +4,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { IChannelPairingRequest, IChannelPluginStatus, IChannelUser } from '@/channels/types';
+import type { IChannelPairingRequest, IChannelPluginStatus, IChannelUser, IPluginCredentials } from '@/channels/types';
 import { acpConversation, channel } from '@/common/ipcBridge';
 import { ConfigStorage } from '@/common/storage';
 import { openExternalUrl } from '@/renderer/utils/platform';
 import GeminiModelSelector from '@/renderer/pages/conversation/gemini/GeminiModelSelector';
 import type { GeminiModelSelection } from '@/renderer/pages/conversation/gemini/useGeminiModelSelection';
 import type { AcpBackendAll } from '@/types/acpTypes';
-import { Button, Dropdown, Empty, Input, Menu, Message, Spin, Tooltip } from '@arco-design/web-react';
-import { CheckOne, CloseOne, Copy, Delete, Down, Refresh } from '@icon-park/react';
+import { Button, Dropdown, Empty, Input, Menu, Message, Modal, Spin, Tooltip } from '@arco-design/web-react';
+import { CheckOne, CloseOne, Copy, Delete, Down, Refresh, ScanCode } from '@icon-park/react';
+import { QRCodeSVG } from 'qrcode.react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -81,6 +82,19 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
   // Agent selection (used for Lark conversations)
   const [availableAgents, setAvailableAgents] = useState<Array<{ backend: AcpBackendAll; name: string; customAgentId?: string; isPreset?: boolean }>>([]);
   const [selectedAgent, setSelectedAgent] = useState<{ backend: AcpBackendAll; name?: string; customAgentId?: string }>({ backend: 'gemini' });
+
+  // lark-cli QR login (device flow)
+  type LarkCliPhase = 'idle' | 'initializing' | 'qrcode' | 'success' | 'error' | 'expired';
+  const [larkCliPhase, setLarkCliPhase] = useState<LarkCliPhase>('idle');
+  const [larkCliModalOpen, setLarkCliModalOpen] = useState(false);
+  const [larkCliVerificationUrl, setLarkCliVerificationUrl] = useState('');
+  const [larkCliUserCode, setLarkCliUserCode] = useState('');
+  const [larkCliExpiresAt, setLarkCliExpiresAt] = useState<number>(0);
+  const [larkCliError, setLarkCliError] = useState('');
+  const [larkCliLoggedInUser, setLarkCliLoggedInUser] = useState<string | undefined>(undefined);
+  const [larkCliLoggedInAt, setLarkCliLoggedInAt] = useState<number | undefined>(undefined);
+  const [larkCliInstalled, setLarkCliInstalled] = useState(true);
+  const [larkCliBinPath, setLarkCliBinPath] = useState('');
 
   // Load pending pairings
   const loadPendingPairings = useCallback(async () => {
@@ -181,6 +195,185 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
       Message.error(t('common.saveFailed', 'Failed to save'));
     }
   };
+
+  // Load lark-cli install/login status on mount
+  useEffect(() => {
+    let cancelled = false;
+    const loadLarkCliStatus = async () => {
+      try {
+        const result = await channel.larkCliStatus.invoke();
+        if (cancelled || !result.success || !result.data) return;
+        setLarkCliInstalled(result.data.installed);
+        setLarkCliBinPath(result.data.binPath);
+        if (result.data.loggedIn && result.data.user?.name) {
+          setLarkCliLoggedInUser(result.data.user.name);
+        }
+      } catch (error) {
+        console.warn('[LarkConfig] Failed to load lark-cli status:', error);
+      }
+    };
+    void loadLarkCliStatus();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Reflect any persisted lark-cli login info from saved credentials
+  useEffect(() => {
+    if (!pluginStatus?.hasToken) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const result = await channel.getPluginCredentials.invoke({ pluginId: 'lark_default' });
+        if (cancelled || !result.success || !result.data) return;
+        const creds = result.data as { larkCliUserName?: string; larkCliLoggedInAt?: number };
+        if (creds.larkCliUserName) {
+          setLarkCliLoggedInUser(creds.larkCliUserName);
+          setLarkCliLoggedInAt(creds.larkCliLoggedInAt);
+        }
+      } catch (error) {
+        console.warn('[LarkConfig] Failed to load lark-cli credentials:', error);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [pluginStatus?.hasToken]);
+
+  // Persist lark-cli token into plugin credentials (alongside appId/appSecret).
+  const persistLarkCliLogin = useCallback(
+    async (payload: { user?: { id?: string; name?: string }; token?: { accessToken: string; refreshToken?: string; expiresAt?: number } }) => {
+      const config: Record<string, unknown> = {
+        appId: appId.trim(),
+        appSecret: appSecret.trim(),
+        encryptKey: encryptKey.trim() || undefined,
+        verificationToken: verificationToken.trim() || undefined,
+        larkCliAccessToken: payload.token?.accessToken,
+        larkCliRefreshToken: payload.token?.refreshToken,
+        larkCliExpiresAt: payload.token?.expiresAt,
+        larkCliUserId: payload.user?.id,
+        larkCliUserName: payload.user?.name,
+        larkCliLoggedInAt: Date.now(),
+      };
+      try {
+        const result = await channel.enablePlugin.invoke({ pluginId: 'lark_default', config });
+        if (!result.success) {
+          console.error('[LarkConfig] persistLarkCliLogin enablePlugin failed:', result.msg);
+          Message.error(result.msg || 'Failed to persist lark-cli login');
+          return;
+        }
+        const statusResult = await channel.getPluginStatus.invoke();
+        if (statusResult.success && statusResult.data) {
+          const larkPlugin = statusResult.data.find((p) => p.type === 'lark');
+          onStatusChange(larkPlugin || null);
+        }
+      } catch (error: any) {
+        console.error('[LarkConfig] persistLarkCliLogin error:', error);
+        Message.error(error?.message || 'Failed to persist lark-cli login');
+      }
+    },
+    [appId, appSecret, encryptKey, verificationToken, onStatusChange]
+  );
+
+  // Listen for lark-cli QR login events
+  useEffect(() => {
+    const unsubscribe = channel.larkCliLogin.on((event) => {
+      if (event.phase === 'initializing') {
+        setLarkCliPhase('initializing');
+        setLarkCliError('');
+      } else if (event.phase === 'qrcode') {
+        setLarkCliPhase('qrcode');
+        if (event.verificationUrl) setLarkCliVerificationUrl(event.verificationUrl);
+        if (event.userCode) setLarkCliUserCode(event.userCode);
+        if (event.expiresAt) setLarkCliExpiresAt(event.expiresAt);
+      } else if (event.phase === 'success') {
+        setLarkCliPhase('success');
+        setLarkCliLoggedInUser(event.user?.name);
+        setLarkCliLoggedInAt(Date.now());
+        Message.success(t('settings.lark.larkCli.loginSuccess', '扫码登录成功'));
+        void persistLarkCliLogin({ user: event.user, token: event.token });
+        setTimeout(() => setLarkCliModalOpen(false), 1200);
+      } else if (event.phase === 'expired') {
+        setLarkCliPhase('expired');
+        setLarkCliError(event.message || t('settings.lark.larkCli.expired', '验证码已过期，请重试'));
+      } else if (event.phase === 'error') {
+        setLarkCliPhase('error');
+        setLarkCliError(event.message || t('settings.lark.larkCli.error', '登录失败'));
+      }
+    });
+    return () => unsubscribe();
+  }, [t, persistLarkCliLogin]);
+
+  const handleStartLarkCliLogin = useCallback(async () => {
+    if (!appId.trim() || !appSecret.trim()) {
+      Message.warning(t('settings.lark.credentialsRequired', 'Please enter App ID and App Secret'));
+      setTouched({ appId: true, appSecret: true });
+      return;
+    }
+    if (!larkCliInstalled) {
+      Message.error(t('settings.lark.larkCli.notInstalled', 'lark-cli 未安装') + (larkCliBinPath ? ` (${larkCliBinPath})` : ''));
+      return;
+    }
+    setLarkCliModalOpen(true);
+    setLarkCliPhase('initializing');
+    setLarkCliError('');
+    setLarkCliVerificationUrl('');
+    setLarkCliUserCode('');
+    try {
+      const result = await channel.larkCliStart.invoke({ appId: appId.trim(), appSecret: appSecret.trim(), brand: 'feishu' });
+      if (!result.success) {
+        setLarkCliPhase('error');
+        setLarkCliError(result.msg || t('settings.lark.larkCli.error', '登录失败'));
+      }
+    } catch (error: any) {
+      setLarkCliPhase('error');
+      setLarkCliError(error?.message || String(error));
+    }
+  }, [appId, appSecret, larkCliInstalled, larkCliBinPath, t]);
+
+  const handleCloseLarkCliModal = useCallback(() => {
+    setLarkCliModalOpen(false);
+    void channel.larkCliCancel.invoke().catch(() => {});
+    if (larkCliPhase !== 'success') setLarkCliPhase('idle');
+  }, [larkCliPhase]);
+
+  const handleLarkCliLogout = useCallback(async () => {
+    try {
+      const result = await channel.larkCliLogout.invoke();
+      if (!result.success) {
+        Message.error(result.msg || t('settings.lark.larkCli.logoutFailed', '登出失败'));
+        return;
+      }
+      setLarkCliLoggedInUser(undefined);
+      setLarkCliLoggedInAt(undefined);
+      // Clear stored token fields without disturbing the rest of the credentials.
+      try {
+        const cur = await channel.getPluginCredentials.invoke({ pluginId: 'lark_default' });
+        if (cur.success && cur.data) {
+          const cleared: IPluginCredentials = { ...cur.data };
+          delete cleared.larkCliAccessToken;
+          delete cleared.larkCliRefreshToken;
+          delete cleared.larkCliExpiresAt;
+          delete cleared.larkCliUserId;
+          delete cleared.larkCliUserName;
+          delete cleared.larkCliLoggedInAt;
+          await channel.enablePlugin.invoke({ pluginId: 'lark_default', config: cleared as Record<string, unknown> });
+        }
+      } catch (err) {
+        console.warn('[LarkConfig] clear lark-cli credentials failed:', err);
+      }
+      Message.success(t('settings.lark.larkCli.loggedOut', '已登出'));
+    } catch (error: any) {
+      Message.error(error?.message || t('settings.lark.larkCli.logoutFailed', '登出失败'));
+    }
+  }, [t]);
+
+  // Cancel any in-flight lark-cli login on unmount
+  useEffect(() => {
+    return () => {
+      void channel.larkCliCancel.invoke().catch(() => {});
+    };
+  }, []);
 
   // Listen for pairing requests
   useEffect(() => {
@@ -550,6 +743,113 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
           </Button>
         </div>
       )}
+
+      {/* lark-cli QR Login (device flow) */}
+      <div className='flex flex-col gap-8px pt-12px border-t border-fill-3'>
+        <SectionHeader title={t('settings.lark.larkCli.title', '扫码登录 (lark-cli)')} />
+        <div className='text-12px text-t-tertiary'>{t('settings.lark.larkCli.description', '通过 lark-cli 的飞书设备授权流程登录，获取用户访问令牌；前置条件：已安装 lark-cli 并填写上方 App ID / App Secret。')}</div>
+        {!larkCliInstalled && (
+          <div className='text-12px text-orange-600 dark:text-orange-400'>
+            {t('settings.lark.larkCli.notInstalledHint', '未在')} <code className='bg-fill-3 px-4px rd-2px'>{larkCliBinPath || '~/.nexus/bin/lark-cli'}</code>{' '}
+            {t('settings.lark.larkCli.notInstalledHintTail', '找到 lark-cli，请先安装：')}{' '}
+            <code className='bg-fill-3 px-4px rd-2px'>npx skills add larksuite/cli -g -y</code>
+          </div>
+        )}
+        {larkCliLoggedInUser ? (
+          <div className='flex items-center justify-between bg-fill-1 rd-8px p-12px'>
+            <div className='flex items-center gap-8px'>
+              <div className='w-8px h-8px rd-50% bg-green-500' />
+              <span className='text-13px text-t-primary'>
+                {t('settings.lark.larkCli.loggedInAs', '已登录')}: <strong>{larkCliLoggedInUser}</strong>
+              </span>
+              {larkCliLoggedInAt && <span className='text-12px text-t-tertiary'>{new Date(larkCliLoggedInAt).toLocaleString()}</span>}
+            </div>
+            <div className='flex items-center gap-8px'>
+              <Button size='small' icon={<ScanCode size={14} />} onClick={handleStartLarkCliLogin} disabled={!larkCliInstalled}>
+                {t('settings.lark.larkCli.relogin', '重新登录')}
+              </Button>
+              <Button size='small' status='danger' onClick={handleLarkCliLogout} disabled={!larkCliInstalled}>
+                {t('settings.lark.larkCli.logout', '登出')}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className='flex justify-end'>
+            <Button type='primary' icon={<ScanCode size={14} />} onClick={handleStartLarkCliLogin} disabled={!larkCliInstalled}>
+              {t('settings.lark.larkCli.scanLogin', '扫码登录')}
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {/* lark-cli QR Login Modal */}
+      <Modal
+        title={t('settings.lark.larkCli.modalTitle', '扫码登录飞书 (lark-cli)')}
+        visible={larkCliModalOpen}
+        onCancel={handleCloseLarkCliModal}
+        footer={
+          <div className='flex justify-end gap-8px'>
+            {(larkCliPhase === 'error' || larkCliPhase === 'expired') && (
+              <Button type='primary' onClick={handleStartLarkCliLogin}>
+                {t('common.retry', '重试')}
+              </Button>
+            )}
+            <Button onClick={handleCloseLarkCliModal}>{larkCliPhase === 'success' ? t('common.close', '关闭') : t('common.cancel', '取消')}</Button>
+          </div>
+        }
+        maskClosable={false}
+        style={{ width: 480 }}
+      >
+        <div className='flex flex-col items-center gap-16px py-12px'>
+          {larkCliPhase === 'initializing' && (
+            <div className='flex flex-col items-center gap-8px py-32px'>
+              <Spin size={32} />
+              <span className='text-12px text-t-tertiary'>{t('settings.lark.larkCli.initializing', '正在初始化 lark-cli…')}</span>
+            </div>
+          )}
+          {larkCliPhase === 'qrcode' && larkCliVerificationUrl && (
+            <>
+              <div className='bg-white rd-8px p-12px'>
+                <QRCodeSVG value={larkCliVerificationUrl} size={200} level='M' />
+              </div>
+              <div className='flex flex-col items-center gap-4px'>
+                <div className='text-12px text-t-tertiary'>{t('settings.lark.larkCli.verificationCode', '验证码')}</div>
+                <div className='text-20px font-600 tracking-widest font-mono text-t-primary'>{larkCliUserCode}</div>
+              </div>
+              <div className='text-12px text-t-tertiary text-center'>
+                {t('settings.lark.larkCli.scanHint', '使用飞书扫一扫，或在浏览器打开：')}
+                <br />
+                <button
+                  className='text-primary hover:underline cursor-pointer bg-transparent border-none p-0 text-12px break-all'
+                  onClick={() => openExternalUrl(larkCliVerificationUrl).catch(console.error)}
+                >
+                  {larkCliVerificationUrl}
+                </button>
+              </div>
+              {larkCliExpiresAt > 0 && (
+                <div className='text-11px text-t-tertiary'>
+                  {t('settings.lark.larkCli.expiresIn', '剩余有效期')}: {Math.max(0, Math.ceil((larkCliExpiresAt - Date.now()) / 60000))} {t('settings.lark.larkCli.minutes', '分钟')}
+                </div>
+              )}
+            </>
+          )}
+          {larkCliPhase === 'success' && (
+            <div className='flex flex-col items-center gap-8px py-32px'>
+              <CheckOne size={48} theme='filled' fill='#22c55e' />
+              <span className='text-14px text-t-primary'>
+                {t('settings.lark.larkCli.loginSuccess', '扫码登录成功')}
+                {larkCliLoggedInUser ? ` — ${larkCliLoggedInUser}` : ''}
+              </span>
+            </div>
+          )}
+          {(larkCliPhase === 'error' || larkCliPhase === 'expired') && (
+            <div className='flex flex-col items-center gap-8px py-24px'>
+              <CloseOne size={32} theme='filled' fill='#ef4444' />
+              <span className='text-13px text-red-600 dark:text-red-400 text-center px-12px break-words'>{larkCliError}</span>
+            </div>
+          )}
+        </div>
+      </Modal>
 
       {/* Agent Selection */}
       <div className='flex flex-col gap-8px'>

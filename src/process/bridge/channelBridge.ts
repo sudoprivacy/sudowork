@@ -502,5 +502,155 @@ export function initChannelBridge(): void {
     return { success: true };
   });
 
+  // ==================== Lark CLI QR Login (device flow) ====================
+
+  let larkCliLoginAbort: AbortController | null = null;
+
+  channel.larkCliStart.provider(async ({ appId, appSecret, brand = 'feishu' }) => {
+    try {
+      if (larkCliLoginAbort) {
+        larkCliLoginAbort.abort();
+      }
+      larkCliLoginAbort = new AbortController();
+      const signal = larkCliLoginAbort.signal;
+
+      const { getLarkCliAuthService } = await import('@/process/services/larkCli/LarkCliAuthService');
+      const service = getLarkCliAuthService();
+
+      if (!service.isInstalled()) {
+        const msg = `lark-cli not installed (expected at ${service.getBinPath()})`;
+        channel.larkCliLogin.emit({ phase: 'error', message: msg });
+        larkCliLoginAbort = null;
+        return { success: false, msg };
+      }
+      if (!appId.trim() || !appSecret.trim()) {
+        const msg = 'App ID and App Secret are required';
+        channel.larkCliLogin.emit({ phase: 'error', message: msg });
+        larkCliLoginAbort = null;
+        return { success: false, msg };
+      }
+
+      channel.larkCliLogin.emit({ phase: 'initializing' });
+
+      const cfg = await service.ensureConfigured(appId.trim(), appSecret, brand);
+      if (signal.aborted) {
+        larkCliLoginAbort = null;
+        return { success: true };
+      }
+      if (!cfg.ok) {
+        channel.larkCliLogin.emit({ phase: 'error', message: cfg.error });
+        larkCliLoginAbort = null;
+        return { success: false, msg: cfg.error };
+      }
+
+      const start = await service.startDeviceFlow();
+      if (signal.aborted) {
+        larkCliLoginAbort = null;
+        return { success: true };
+      }
+      if (start.ok !== true) {
+        const failure = start;
+        const fullMsg = failure.hint ? `${failure.error} — ${failure.hint}` : failure.error;
+        channel.larkCliLogin.emit({ phase: 'error', message: fullMsg });
+        larkCliLoginAbort = null;
+        return { success: false, msg: fullMsg };
+      }
+
+      channel.larkCliLogin.emit({
+        phase: 'qrcode',
+        verificationUrl: start.verificationUrl,
+        userCode: start.userCode,
+        expiresAt: start.expiresAt,
+      });
+
+      const deviceCode = start.deviceCode;
+      const intervalMs = Math.max(start.intervalMs, 2000);
+      const expiresAt = start.expiresAt;
+
+      while (Date.now() < expiresAt) {
+        if (signal.aborted) {
+          larkCliLoginAbort = null;
+          return { success: true };
+        }
+        await new Promise((resolve) => setTimeout(resolve, intervalMs));
+        if (signal.aborted) {
+          larkCliLoginAbort = null;
+          return { success: true };
+        }
+
+        try {
+          const pollResult = await service.pollDeviceCode(deviceCode);
+          if (pollResult.status === 'success') {
+            channel.larkCliLogin.emit({
+              phase: 'success',
+              user: pollResult.user,
+              token: pollResult.token,
+            });
+            larkCliLoginAbort = null;
+            return { success: true };
+          }
+          if (pollResult.status === 'expired') {
+            channel.larkCliLogin.emit({ phase: 'expired', message: 'Authorization code expired' });
+            larkCliLoginAbort = null;
+            return { success: true };
+          }
+          if (pollResult.status === 'failed') {
+            channel.larkCliLogin.emit({ phase: 'error', message: pollResult.error ?? 'Login failed' });
+            larkCliLoginAbort = null;
+            return { success: true };
+          }
+          // pending → continue polling
+        } catch (pollError) {
+          if (signal.aborted) {
+            larkCliLoginAbort = null;
+            return { success: true };
+          }
+          mainWarn('ChannelBridge', 'larkCli poll error:', pollError);
+          // transient — continue
+        }
+      }
+
+      channel.larkCliLogin.emit({ phase: 'expired', message: 'Authorization code expired' });
+      larkCliLoginAbort = null;
+      return { success: true };
+    } catch (error: any) {
+      mainError('ChannelBridge', 'larkCliStart error:', error);
+      channel.larkCliLogin.emit({ phase: 'error', message: error?.message ?? 'Failed to start lark-cli login' });
+      larkCliLoginAbort = null;
+      return { success: false, msg: error?.message };
+    }
+  });
+
+  channel.larkCliCancel.provider(async () => {
+    if (larkCliLoginAbort) {
+      larkCliLoginAbort.abort();
+      larkCliLoginAbort = null;
+    }
+    return { success: true };
+  });
+
+  channel.larkCliStatus.provider(async () => {
+    try {
+      const { getLarkCliAuthService } = await import('@/process/services/larkCli/LarkCliAuthService');
+      const data = await getLarkCliAuthService().getStatus();
+      return { success: true, data };
+    } catch (error: any) {
+      mainError('ChannelBridge', 'larkCliStatus error:', error);
+      return { success: false, msg: error?.message };
+    }
+  });
+
+  channel.larkCliLogout.provider(async () => {
+    try {
+      const { getLarkCliAuthService } = await import('@/process/services/larkCli/LarkCliAuthService');
+      const r = await getLarkCliAuthService().logout();
+      if (!r.ok) return { success: false, msg: r.error };
+      return { success: true };
+    } catch (error: any) {
+      mainError('ChannelBridge', 'larkCliLogout error:', error);
+      return { success: false, msg: error?.message };
+    }
+  });
+
   mainLog('ChannelBridge', 'Initialized');
 }

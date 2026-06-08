@@ -1391,6 +1391,21 @@ export const channel = {
     accountId?: string;
     message?: string;
   }>('channel.wechat-qr-login'),
+
+  // Lark QR Login (lark-cli device flow)
+  larkCliStart: bridge.buildProvider<IBridgeResponse<void>, { appId: string; appSecret: string; brand?: 'feishu' | 'lark' }>('channel.lark-cli-start'),
+  larkCliCancel: bridge.buildProvider<IBridgeResponse<void>, void>('channel.lark-cli-cancel'),
+  larkCliStatus: bridge.buildProvider<IBridgeResponse<{ installed: boolean; binPath: string; configured: boolean; loggedIn: boolean; user?: { id?: string; name?: string } }>, void>('channel.lark-cli-status'),
+  larkCliLogout: bridge.buildProvider<IBridgeResponse<void>, void>('channel.lark-cli-logout'),
+  larkCliLogin: bridge.buildEmitter<{
+    phase: 'initializing' | 'qrcode' | 'success' | 'error' | 'expired';
+    verificationUrl?: string;
+    userCode?: string;
+    expiresAt?: number;
+    user?: { id?: string; name?: string };
+    token?: { accessToken: string; refreshToken?: string; expiresAt?: number };
+    message?: string;
+  }>('channel.lark-cli-login'),
 };
 
 export interface ISudoworkServerConfig {
