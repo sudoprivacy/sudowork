@@ -7,10 +7,16 @@
 # IMAGE_MODEL is read from agents.defaults.imageGenerationModel in sudoclaw.json.
 # (Note: agents.defaults.imageModel is the image *parsing* model for the gateway;
 #  image generation uses the separate imageGenerationModel field.)
-# Any leading "provider/" prefix is stripped before sending to /images/generations.
+# Any leading "provider/" prefix is stripped before sending to the image API.
 # Overrides: PROVIDER_BASE_URL, PROVIDER_API_KEY, IMAGE_MODEL
 
 set -euo pipefail
+
+# Detect available Python command (python3 may be a non-functional stub on Windows)
+PYTHON_CMD="python3"
+if ! command -v python3 >/dev/null 2>&1 || ! python3 -c "pass" 2>/dev/null; then
+  PYTHON_CMD="python"
+fi
 
 MODE="${1:-}"
 if [ "$MODE" != "gen" ] && [ "$MODE" != "edit" ]; then
@@ -22,6 +28,24 @@ fi
 
 # Helper: detect if an arg looks like a size (e.g. 1024x1024)
 is_size() { [[ "$1" =~ ^[0-9]+x[0-9]+$ ]]; }
+
+is_gemini_image_model() {
+  case "$1" in
+    gemini-3.1-flash-image|gemini-3-pro-image|gemini-2.5-flash-image) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+gemini_base_url() {
+  local base="${1%/}"
+  if [[ "$base" == */v1 ]]; then
+    echo "${base%/v1}/v1beta"
+  elif [[ "$base" == */v1beta ]]; then
+    echo "$base"
+  else
+    echo "$base/v1beta"
+  fi
+}
 
 if [ "$MODE" = "gen" ]; then
   PROMPT="${2:-}"
@@ -66,9 +90,30 @@ if [ "$MODE" = "edit" ] && [ ! -f "$IMAGE_PATH" ]; then
   exit 1
 fi
 
-# Read BASE_URL, API_KEY, and IMAGE_MODEL from sudoclaw.json (with env var overrides)
-if [ -n "${SUDOCLAW_CONFIG_PATH:-}" ] && [ -f "$SUDOCLAW_CONFIG_PATH" ]; then
-  eval "$(python3 -c "
+# Read BASE_URL, API_KEY, and IMAGE_MODEL from config files (with env var overrides)
+# Priority: sudocode.json (new), fallback to sudoclaw.json (legacy)
+_SUDOCODE_CFG="${SUDOCODE_CONFIG_PATH:-$HOME/.nexus/sudocode/sudocode.json}"
+if [ -f "$_SUDOCODE_CFG" ]; then
+  eval "$($PYTHON_CMD -c "
+import json, sys
+try:
+    c = json.load(open(sys.argv[1]))
+    sr = c.get('auth_modes',{}).get('proxy',{}).get('sudorouter',{})
+    base_url = sr.get('baseUrl','')
+    api_key = sr.get('apiKey','')
+    image_model = c.get('tools',{}).get('imageGenerationModel','')
+    if isinstance(image_model, str) and '/' in image_model:
+        image_model = image_model.rsplit('/', 1)[-1]
+    print(f'_CFG_BASE_URL={repr(base_url.rstrip(\"/\"))}')
+    print(f'_CFG_API_KEY={repr(api_key)}')
+    print(f'_CFG_IMAGE_MODEL={repr(image_model)}')
+except: pass
+" "$_SUDOCODE_CFG" 2>/dev/null)"
+fi
+
+# Fallback: sudoclaw.json (legacy)
+if [ -z "${_CFG_API_KEY:-}" ] && [ -n "${SUDOCLAW_CONFIG_PATH:-}" ] && [ -f "$SUDOCLAW_CONFIG_PATH" ]; then
+  eval "$($PYTHON_CMD -c "
 import json, sys
 try:
     c = json.load(open(sys.argv[1]))
@@ -76,8 +121,6 @@ try:
     base_url = sr.get('baseUrl','')
     api_key = sr.get('apiKey','')
     image_model = c.get('agents',{}).get('defaults',{}).get('imageGenerationModel','')
-    # Strip any 'provider/' prefix (e.g. 'sudorouter/gpt-image-1.5' -> 'gpt-image-1.5');
-    # sudorouter /images/generations expects the bare model id.
     if isinstance(image_model, str) and '/' in image_model:
         image_model = image_model.rsplit('/', 1)[-1]
     print(f'_CFG_BASE_URL={repr(base_url.rstrip(\"/\"))}')
@@ -91,7 +134,7 @@ BASE_URL="${PROVIDER_BASE_URL:-${_CFG_BASE_URL:-}}"
 API_KEY="${PROVIDER_API_KEY:-${_CFG_API_KEY:-}}"
 MODEL="${IMAGE_MODEL:-${_CFG_IMAGE_MODEL:-}}"
 
-# Strip any leading "provider/" prefix; sudorouter /images/generations expects the bare model id.
+# Strip any leading "provider/" prefix; image APIs expect the bare model id.
 # (Defensive: handles IMAGE_MODEL env overrides and any future writer that keeps the prefix.)
 if [[ "$MODEL" == */* ]]; then
   MODEL="${MODEL##*/}"
@@ -113,10 +156,47 @@ echo "[generate_image] Prompt: ${PROMPT:0:80}" >&2
 
 if [ "$MODE" = "gen" ]; then
   # --- Image Generation ---
-  ENDPOINT="${BASE_URL}/images/generations"
-  echo "[generate_image] POST $ENDPOINT" >&2
+  if is_gemini_image_model "$MODEL"; then
+    ENDPOINT="$(gemini_base_url "$BASE_URL")/models/${MODEL}:generateContent"
+    echo "[generate_image] POST $ENDPOINT" >&2
 
-  RESPONSE=$(python3 -c "
+    RESPONSE=$($PYTHON_CMD -c "
+import json, math, sys
+
+def image_config(size):
+    try:
+        w, h = [int(v) for v in size.lower().split('x', 1)]
+        if w <= 0 or h <= 0:
+            raise ValueError()
+        divisor = math.gcd(w, h)
+        image_size = '2K' if max(w, h) > 1024 else '1K'
+        return {'aspectRatio': f'{w // divisor}:{h // divisor}', 'imageSize': image_size}
+    except Exception:
+        return {'aspectRatio': '1:1', 'imageSize': '1K'}
+
+payload = {
+    'contents': [
+        {
+            'role': 'user',
+            'parts': [{'text': sys.argv[1]}],
+        }
+    ],
+    'generationConfig': {
+        'responseModalities': ['IMAGE'],
+        'imageConfig': image_config(sys.argv[2]),
+    },
+}
+sys.stdout.write(json.dumps(payload))
+" "$PROMPT" "$SIZE" | \
+      curl -s -X POST "$ENDPOINT" \
+        -H "Content-Type: application/json" \
+        -H "Authorization: Bearer $API_KEY" \
+        --data-binary @-)
+  else
+    ENDPOINT="${BASE_URL}/images/generations"
+    echo "[generate_image] POST $ENDPOINT" >&2
+
+    RESPONSE=$($PYTHON_CMD -c "
 import json, sys
 payload = {
     'model': sys.argv[1],
@@ -126,19 +206,17 @@ payload = {
 }
 sys.stdout.write(json.dumps(payload))
 " "$MODEL" "$PROMPT" "$SIZE" | \
-    curl -s -X POST "$ENDPOINT" \
-      -H "Content-Type: application/json" \
-      -H "Authorization: Bearer $API_KEY" \
-      --data-binary @-)
+      curl -s -X POST "$ENDPOINT" \
+        -H "Content-Type: application/json" \
+        -H "Authorization: Bearer $API_KEY" \
+        --data-binary @-)
+  fi
 
 else
   # --- Image Edit ---
-  ENDPOINT="${BASE_URL}/images/edits"
-  echo "[generate_image] POST $ENDPOINT (image: $IMAGE_PATH)" >&2
-
   # Pad non-square images to a square with white background so the full image
   # fits in the output without cropping (letterbox for landscape, pillarbox for portrait).
-  PADDED_PATH=$(python3 -c "
+  PADDED_PATH=$($PYTHON_CMD -c "
 import sys
 from PIL import Image
 
@@ -173,13 +251,62 @@ print(tmp.name)
     CLEANUP_PADDED="$PADDED_PATH"
   fi
 
-  RESPONSE=$(curl -s -X POST "$ENDPOINT" \
-    -H "Authorization: Bearer $API_KEY" \
-    -F "image=@${PADDED_PATH}" \
-    -F "prompt=${PROMPT}" \
-    -F "model=${MODEL}" \
-    -F "n=1" \
-    -F "size=${SIZE}")
+  if is_gemini_image_model "$MODEL"; then
+    ENDPOINT="$(gemini_base_url "$BASE_URL")/models/${MODEL}:generateContent"
+    echo "[generate_image] POST $ENDPOINT (image: $PADDED_PATH)" >&2
+
+    RESPONSE=$($PYTHON_CMD -c "
+import base64, json, math, mimetypes, sys
+
+def image_config(size):
+    try:
+        w, h = [int(v) for v in size.lower().split('x', 1)]
+        if w <= 0 or h <= 0:
+            raise ValueError()
+        divisor = math.gcd(w, h)
+        image_size = '2K' if max(w, h) > 1024 else '1K'
+        return {'aspectRatio': f'{w // divisor}:{h // divisor}', 'imageSize': image_size}
+    except Exception:
+        return {'aspectRatio': '1:1', 'imageSize': '1K'}
+
+prompt, image_path, size = sys.argv[1], sys.argv[2], sys.argv[3]
+with open(image_path, 'rb') as f:
+    image_bytes = f.read()
+mime_type = mimetypes.guess_type(image_path)[0] or 'image/png'
+
+payload = {
+    'contents': [
+        {
+            'role': 'user',
+            'parts': [
+                {'text': prompt},
+                {'inlineData': {'mimeType': mime_type, 'data': base64.b64encode(image_bytes).decode('ascii')}},
+            ],
+        }
+    ],
+    'generationConfig': {
+        'responseModalities': ['IMAGE'],
+        'imageConfig': image_config(size),
+    },
+}
+sys.stdout.write(json.dumps(payload))
+" "$PROMPT" "$PADDED_PATH" "$SIZE" | \
+      curl -s -X POST "$ENDPOINT" \
+        -H "Content-Type: application/json" \
+        -H "Authorization: Bearer $API_KEY" \
+        --data-binary @-)
+  else
+    ENDPOINT="${BASE_URL}/images/edits"
+    echo "[generate_image] POST $ENDPOINT (image: $PADDED_PATH)" >&2
+
+    RESPONSE=$(curl -s -X POST "$ENDPOINT" \
+      -H "Authorization: Bearer $API_KEY" \
+      -F "image=@${PADDED_PATH}" \
+      -F "prompt=${PROMPT}" \
+      -F "model=${MODEL}" \
+      -F "n=1" \
+      -F "size=${SIZE}")
+  fi
 
   [ -n "$CLEANUP_PADDED" ] && rm -f "$CLEANUP_PADDED"
 fi
@@ -187,13 +314,17 @@ fi
 echo "[generate_image] Response length: ${#RESPONSE}" >&2
 echo "[generate_image] Response preview: ${RESPONSE:0:200}" >&2
 
-WATERMARK_TEXT="${WATERMARK_TEXT:-Sudoclaw}"
+WATERMARK_TEXT="${WATERMARK_TEXT:-Sudo Code}"
 
 # Add watermark to image
 add_watermark() {
-  python3 -c "
+  $PYTHON_CMD -c "
 import sys, os
-from PIL import Image, ImageDraw, ImageFont
+try:
+    from PIL import Image, ImageDraw, ImageFont
+except ImportError:
+    print('[watermark] PIL not available, skipping watermark', file=sys.stderr)
+    sys.exit(0)
 
 path = sys.argv[1]
 text = sys.argv[2]
@@ -228,13 +359,13 @@ draw.text((x, y), text, font=font, fill=(255, 255, 255, 230))
 
 out = Image.alpha_composite(img, txt_layer)
 out.convert('RGB').save(path)
-print(f'[watermark] Added \"{text}\" at {x},{y} font_size={font_size}')
+print(f'[watermark] Added \"{text}\" at {x},{y} font_size={font_size}', file=sys.stderr)
 " "$1" "$WATERMARK_TEXT" "${WATERMARK_SCALE:-0.8}"
 }
 
 # Extract image data, save to file, and print the path
 # Response is piped via stdin to avoid OS command-line arg size limits (b64 data can be 2.5MB+)
-SAVED_FILE=$(echo "$RESPONSE" | python3 -c "
+SAVED_FILE=$(echo "$RESPONSE" | $PYTHON_CMD -c "
 import json, sys, base64, os, urllib.request
 
 response = json.load(sys.stdin)
@@ -245,24 +376,32 @@ if 'error' in response:
     print(f'Error: {response[\"error\"].get(\"message\", json.dumps(response[\"error\"]))}', file=sys.stderr)
     sys.exit(1)
 
-data = response.get('data', [])
-if not data:
-    print('Error: No image data in response', file=sys.stderr)
-    sys.exit(1)
-
-item = data[0]
 image_bytes = None
 
-if item.get('b64_json'):
-    image_bytes = base64.b64decode(item['b64_json'])
-elif item.get('url'):
-    url = item['url']
-    print(f'[generate_image] Downloading from URL: {url[:80]}', file=sys.stderr)
-    req = urllib.request.Request(url)
-    with urllib.request.urlopen(req) as resp:
-        image_bytes = resp.read()
-else:
-    print('Error: Response contains neither b64_json nor url', file=sys.stderr)
+data = response.get('data', [])
+if data:
+    item = data[0]
+    if item.get('b64_json'):
+        image_bytes = base64.b64decode(item['b64_json'])
+    elif item.get('url'):
+        url = item['url']
+        print(f'[generate_image] Downloading from URL: {url[:80]}', file=sys.stderr)
+        req = urllib.request.Request(url)
+        with urllib.request.urlopen(req) as resp:
+            image_bytes = resp.read()
+
+if image_bytes is None:
+    for candidate in response.get('candidates', []):
+        for part in candidate.get('content', {}).get('parts', []):
+            inline = part.get('inlineData') or part.get('inline_data') or {}
+            if inline.get('data'):
+                image_bytes = base64.b64decode(inline['data'])
+                break
+        if image_bytes is not None:
+            break
+
+if image_bytes is None:
+    print('Error: No image data in response', file=sys.stderr)
     sys.exit(1)
 
 # Detect format from magic bytes
@@ -295,7 +434,10 @@ print(f'[generate_image] Saved: {filename} ({len(image_bytes)} bytes)', file=sys
 print(filename)
 " "$FILENAME")
 
-# Add watermark after save
+# Add watermark after save (non-fatal — skip if PIL unavailable)
 if [ -f "$SAVED_FILE" ]; then
-  add_watermark "$SAVED_FILE"
+  add_watermark "$SAVED_FILE" || echo "[generate_image] Watermark skipped (PIL unavailable)" >&2
 fi
+
+# Print saved file path to stdout so the caller (scode) can display the image
+echo "$SAVED_FILE"

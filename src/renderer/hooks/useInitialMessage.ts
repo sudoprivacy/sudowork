@@ -11,9 +11,10 @@ type InitialMessageState = 'idle' | 'waiting_auth' | 'sending' | 'sent' | 'faile
 interface InitialMessageData {
   input: string;
   files?: string[];
+  skills?: string[];
 }
 
-export const useInitialMessage = (conversationId: string, acpStatus: string | null, onSend: (msg_id: string, input: string, files: string[]) => Promise<boolean>) => {
+export const useInitialMessage = (conversationId: string, acpStatus: string | null, onSend: (msg_id: string, input: string, files: string[], skills: string[]) => Promise<boolean>) => {
   const [state, setState] = useState<InitialMessageState>('idle');
   const [error, setError] = useState<string | null>(null);
   const processedRef = useRef(false);
@@ -41,13 +42,13 @@ export const useInitialMessage = (conversationId: string, acpStatus: string | nu
     setState('sending');
 
     try {
-      const { input, files = [] }: InitialMessageData = JSON.parse(storedMessage);
+      const { input, files = [], skills = [] }: InitialMessageData = JSON.parse(storedMessage);
 
       // Generate ID
       const msg_id = uuid();
 
       // Send message
-      const success = await onSend(msg_id, input, files);
+      const success = await onSend(msg_id, input, files, skills);
 
       if (success) {
         sessionStorage.removeItem(storageKey);

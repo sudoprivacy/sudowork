@@ -105,6 +105,8 @@
   "cacheClearFailed": "Önbellek temizlenemedi",
   "language": "Dil",
   "closeToTray": "Tepsiye Kapat",
+  "showTokenUsageBadges": "Token / puan kullanımını göster",
+  "showTokenUsageBadgesDesc": "Her yanıtın altında o turun Token ve puan tüketimini göster",
   "avatarEnabled": "Yüzen Avatar",
   "avatarEnabledDesc": "Aktif konuşmanızı yansıtan yüzen masaüstü yardımcısını göster",
   "gemini": "Gemini",
@@ -372,7 +374,6 @@
   "assistant.copyCode": "Eşleştirme kodunu kopyala",
   "assistant.modelSaved": "Model kaydedildi",
   "assistant.modelSaveFailed": "Model kaydedilemedi",
-  "assistant.tokenLocked": "Yapılandırmayı değiştirmeden önce lütfen Channel'ı kapatın ve tüm yetkili kullanıcıları silin",
   "assistant.tokenValid": "Token geçerli",
   "assistant.defaultModel": "Varsayılan Model",
   "assistant.defaultModelDesc": "Telegram sohbetleri için kullanılan model. Varsayılan olarak GEMINI CLI Ajanı kullanılır.",
@@ -502,6 +503,7 @@
   "feedback": "Geri Bildirim",
   "contactMe": "Bana Ulaşın",
   "officialWebsite": "Resmi Web Sitesi",
+  "privacyPolicy": "Gizlilik Politikası",
   "checkForUpdates": "Güncellemeleri kontrol et",
   "includePrereleaseUpdates": "Ön sürüm/geliştirici sürümlerini dahil et",
   "saveModelConfigFailed": "Model yapılandırması kaydedilemedi",
@@ -622,7 +624,8 @@
     "agentDescTelegram": "Telegram sohbetleri icin kullanilir",
     "autoFollowCliModel": "CLI calisirken modeli otomatik olarak takip et",
     "agentSwitched": "Agent basariyla degistirildi",
-    "modelSwitched": "Model basariyla degistirildi"
+    "modelSwitched": "Model basariyla degistirildi",
+    "tokenLocked": "Yapılandırmayı değiştirmeden önce lütfen Channel'ı kapatın ve tüm yetkili kullanıcıları silin"
   },
   "lark": {
     "appId": "App ID",
@@ -708,6 +711,25 @@
     "statusError": "Hata",
     "statusConnecting": "Bağlanıyor...",
     "connectedDesc": "Zentao bağlandı. AI artık hataları okuyup oluşturabilir."
+  },
+  "modelUsage": {
+    "title": "Model Kullanımı",
+    "pointsTitle": "Puan Kullanımı",
+    "tokensTitle": "Token Kullanımı",
+    "points": "Puan",
+    "total": "Toplam",
+    "totalTokens": "Toplam Token",
+    "startDate": "Başlangıç Tarihi",
+    "endDate": "Bitiş Tarihi",
+    "loadFailed": "Model kullanım verileri yüklenemedi",
+    "maxRangeWarning": "Tarih aralığı 30 günü aşamaz",
+    "noData": "Model kullanım verisi yok"
+  },
+  "userProfile": {
+    "todayUsage": "Bugünkü Kullanım",
+    "tokens": "Tokens",
+    "consumedPoints": "Tüketilen Puan",
+    "requests": "İstekler"
   },
   "extensionAssistantReadonly": "Uzantı asistanları salt okunurdur. Kopyalayıp düzenleyebilirsiniz.",
   "secrets": "Gizli Anahtarlar",

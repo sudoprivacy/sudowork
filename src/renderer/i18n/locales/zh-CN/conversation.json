@@ -1,7 +1,7 @@
 {
   "welcome": {
     "title": "Hi，今天有什么安排？",
-    "placeholder": "发消息、上传文件、打开文件夹或创建定时任务...",
+    "placeholder": "发消息、上传文件或打开文件夹...",
     "downloadLocalFile": "导入本地文件",
     "downloadBdpanFile": "导入百度网盘文件",
     "linkFolder": "打开文件夹",
@@ -13,7 +13,7 @@
     "specifyWorkspace": "关联文件夹对话",
     "currentWorkspace": "当前工作空间",
     "clearWorkspace": "移除已选文件夹",
-    "addSkill": "添加技能",
+    "addSkill": "添加技能 / 文件",
     "skill": "技能",
     "openFolder": "打开文件夹",
     "none": "无",
@@ -27,9 +27,11 @@
     "recent7Days": "最近7天",
     "earlier": "更早",
     "noHistory": "暂无对话历史",
+    "noScheduledTask": "暂无执行记录",
     "actionNewConversation": "新会话",
     "deleteTitle": "删除",
     "deleteConfirm": "确定删除该对话吗？",
+    "deleteWorkspaceOption": "同时删除工作区文件夹",
     "confirmDelete": "删除",
     "cancelDelete": "取消",
     "editName": "编辑名称",
@@ -77,6 +79,46 @@
     "closeRight": "关闭右侧",
     "closeOthers": "关闭其他"
   },
+  "rightPanel": {
+    "tabs": {
+      "workspace": "工作空间",
+      "browser": "浏览器",
+      "terminal": "终端",
+      "deliverables": "交付物"
+    },
+    "deliverables": {
+      "emptyTitle": "尚无交付物",
+      "emptyHint": "AI 在此次会话中生成的文件会出现在这里。",
+      "loading": "加载中...",
+      "groupToday": "今天",
+      "groupYesterday": "昨天"
+    },
+    "browser": {
+      "newTab": "新标签页",
+      "open": "打开",
+      "openExternal": "在系统浏览器打开",
+      "back": "后退",
+      "forward": "前进",
+      "refresh": "刷新",
+      "resetZoom": "重置缩放",
+      "fit": "适应宽度",
+      "urlPlaceholder": "输入网址",
+      "loading": "正在加载...",
+      "clearCache": "清除浏览器数据",
+      "clearCacheConfirmTitle": "清除右栏浏览器数据?",
+      "clearCacheConfirmContent": "这会清除右栏浏览器的 cookie、本地存储和缓存文件。此处登录过的网站会被注销。系统浏览器不受影响。",
+      "clearCacheSuccess": "浏览器数据已清除",
+      "clearCacheFailure": "清除浏览器数据失败"
+    },
+    "terminal": {
+      "tab": "终端",
+      "newTab": "新终端"
+    }
+  },
+  "layout": {
+    "collapseConversation": "收起会话",
+    "expandConversation": "展开会话"
+  },
   "dropdown": {
     "cliAgents": "CLI Agents",
     "presetAssistants": "预设助手"
@@ -96,6 +138,10 @@
     "pasteConfirm_multipleFiles": "{{count}} 个文件",
     "empty": "工作空间为空",
     "emptyDescription": "上传文件或打开文件夹后，文件将显示在这里",
+    "remotePendingTitle": "会话开始后显示临时空间",
+    "remotePendingDescription": "首次消息创建会话后，将从 Moss Server 加载临时空间和草稿箱。",
+    "remoteSkillsPendingDesc": "会话开始后显示当前 backend 可用技能",
+    "remotePreviewBinaryUnsupported": "该远程文件暂不支持内置预览，请在会话工作区中查看原始文件。",
     "searchPlaceholder": "搜索文件...",
     "createNewConversation": "当前空间创建新会话",
     "search.empty": "搜索结果为空",
@@ -269,5 +315,6 @@
     "request_sent": "生成请求已发送",
     "failed": "生成失败",
     "preset_registered": "已保存为全局预设"
-  }
+  },
+  "userCancelled": "请求已被用户终止"
 }

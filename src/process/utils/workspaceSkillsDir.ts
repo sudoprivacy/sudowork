@@ -13,10 +13,6 @@ export function resolveWorkspaceSkillsDir(conversation: Pick<TChatConversation, 
     return undefined;
   }
 
-  if (conversation.type === 'openclaw-gateway') {
-    return path.join(workspace, 'skills');
-  }
-
   if (conversation.extra?.backend === 'claude') {
     return path.join(workspace, '.claude', 'skills');
   }

@@ -6,7 +6,6 @@
 
 import type { TChatConversation } from '@/common/storage';
 import AcpAgent from './task/AcpAgent';
-import OpenClawAgent from './task/OpenClawAgent';
 import RemoteAgent from './task/RemoteAgent';
 import { ProcessChat, ProcessConfig } from './initStorage';
 import type AgentBaseTask from './task/BaseAgent';
@@ -75,7 +74,9 @@ const buildConversation = (conversation: TChatConversation, options?: BuildConve
           if (authStorage?.access_token) {
             authToken = authStorage.access_token;
           }
-        } catch { /* ignore */ }
+        } catch {
+          /* ignore */
+        }
       }
       const wsUrl = extra?.acpWsUrl;
       const mossSessionPending = extra?.mossSessionPending;
@@ -95,10 +96,14 @@ const buildConversation = (conversation: TChatConversation, options?: BuildConve
         // Resume mode: use existing wsUrl and sessionId
         // 恢复模式：使用已有的 wsUrl 和 sessionId
         wsUrl,
-        sessionId: wsUrl ? mossSessionId || conversation.id : undefined,
+        sessionId: mossSessionPending ? undefined : mossSessionId || conversation.id,
         // Lazy creation: pass mossSessionPending flag
         // 延迟创建：传递 mossSessionPending 标志
         mossSessionPending,
+        // Enabled skills: passed for non-assistant sessions
+        // When assistant is specified, Moss Server will use assistant's config
+        // 启用的技能：用于非助手会话；当指定助手时，Moss Server 会使用助手配置
+        enabledSkills: conversation.extra?.enabledSkills,
       });
 
       if (!options?.skipCache) {
@@ -111,25 +116,6 @@ const buildConversation = (conversation: TChatConversation, options?: BuildConve
       const task = new AcpAgent({
         ...conversation.extra,
         conversation_id: conversation.id,
-        // Runtime options / 运行时选项
-        yoloMode: options?.yoloMode,
-      });
-      if (!options?.skipCache) {
-        taskList.push({ id: conversation.id, task });
-      }
-      return task;
-    }
-    case 'openclaw-gateway': {
-      // Try to get model from multiple sources (priority: openclawModelId > runtimeValidation > model)
-      const modelFromOpenClawModelId = (conversation.extra as any).openclawModelId;
-      const modelFromRuntimeValidation = (conversation.extra as any).runtimeValidation?.expectedModel;
-      const modelFromConfig = (conversation.extra as any).model;
-
-      const task = new OpenClawAgent({
-        ...conversation.extra,
-        conversation_id: conversation.id,
-        // Extract model: prefer openclawModelId (per-conversation), then runtimeValidation, then model
-        model: modelFromOpenClawModelId || modelFromRuntimeValidation || modelFromConfig,
         // Runtime options / 运行时选项
         yoloMode: options?.yoloMode,
       });
@@ -190,16 +176,25 @@ const kill = (id: string) => {
   if (index === -1) return;
   const task = taskList[index];
   if (task) {
-    task.task.kill();
+    void task.task.kill();
   }
   taskList.splice(index, 1);
 };
 
-const clear = () => {
-  taskList.forEach((item) => {
-    item.task.kill();
+const clear = async (): Promise<void> => {
+  const killPromises = taskList.map((item) => {
+    try {
+      const result = item.task.kill();
+      return result instanceof Promise ? result : Promise.resolve();
+    } catch (err) {
+      mainError('WorkerManage', `Failed to kill task ${item.id}:`, err);
+      return Promise.resolve();
+    }
   });
   taskList.length = 0;
+  // Wait for all agent child processes to terminate.
+  // This prevents orphaned scode processes on Windows when the app quits.
+  await Promise.allSettled(killPromises);
 };
 
 const addTask = (id: string, task: AgentBaseTask<unknown>) => {
@@ -242,35 +237,6 @@ const updateActiveAgentWorkspace = (oldPath: string, newPath: string): number =>
   return updatedCount;
 };
 
-/** Send SIGUSR1 to the ServiceManager-owned Sudoclaw gateway for hot-reload (skills) */
-const reloadOpenClawSkills = async (): Promise<void> => {
-  const { serviceManager } = await import('./services/serviceManager');
-  serviceManager.sendReloadSignal();
-};
-
-/** Restart the Sudoclaw gateway (via ServiceManager) and reconnect all agent WebSockets */
-const restartOpenClawGateways = async (): Promise<void> => {
-  const { serviceManager } = await import('./services/serviceManager');
-  await serviceManager.restartOpenClaw();
-  // restartOpenClaw() already calls reconnectOpenClawAgents()
-};
-
-/** Reconnect all active openclaw-gateway agents' WebSocket connections (no gateway restart) */
-const reconnectOpenClawAgents = (): void => {
-  const openclawTasks = taskList.filter((item) => item.task.type === 'openclaw-gateway');
-  for (const { id, task } of openclawTasks) {
-    const agent = task as OpenClawAgent;
-    agent
-      .restartGateway()
-      .then(() => {
-        mainLog('WorkerManage', 'Reconnected OpenClaw agent for', id);
-      })
-      .catch((err) => {
-        mainError('WorkerManage', `Failed to reconnect OpenClaw agent for ${id}`, err);
-      });
-  }
-};
-
 const WorkerManage = {
   buildConversation,
   getTaskById,
@@ -280,9 +246,6 @@ const WorkerManage = {
   kill,
   clear,
   updateActiveAgentWorkspace,
-  reloadOpenClawSkills,
-  restartOpenClawGateways,
-  reconnectOpenClawAgents,
 };
 
 export default WorkerManage;

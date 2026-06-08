@@ -36,6 +36,11 @@ import { isEnterpriseMode as eeclawIsEnterpriseMode } from './eeclawMode';
 let cachedAppMode: 'c' | 'e' | null = null;
 let cachedServerUrl: string = '';
 let cachedAuthToken: string = '';
+let cachedUserId: string = '';
+let cachedLocalModeAvailable: boolean | null = null;
+// Cache for guid session mode (remote/local), updated by refreshEnterpriseCache and setSessionMode IPC
+// guid session 模式缓存（remote/local），由 refreshEnterpriseCache 和 setSessionMode IPC 更新
+let cachedSessionMode: 'remote' | 'local' = 'remote';
 
 // Dynamic import for ProcessConfig (main process only)
 // ProcessConfig 的动态导入（仅主进程）
@@ -63,6 +68,13 @@ export async function refreshEnterpriseCache(): Promise<void> {
     const authStorage = config.getSync('eeclaw.authStorage');
     cachedAuthToken = authStorage?.access_token || '';
     cachedServerUrl = config.getSync('eeclaw.serverUrl') || '';
+    cachedSessionMode = config.getSync('guid.sessionMode') || 'remote';
+    const localModeAvailable = config.getSync('eeclaw.localModeAvailable');
+    cachedLocalModeAvailable = typeof localModeAvailable === 'boolean' ? localModeAvailable : null;
+    const userInfo = config.getSync('eeclaw.userInfo');
+    if (userInfo?.id) {
+      cachedUserId = userInfo.id;
+    }
   } catch {
     // Keep existing cache values on error
   }
@@ -178,6 +190,37 @@ export async function getMossServerUrlAsync(): Promise<string> {
 }
 
 /**
+ * Get cached user ID (synchronous, uses cached value)
+ * 获取缓存的用户 ID（同步，使用缓存值）
+ */
+export function getUserId(): string {
+  return cachedUserId;
+}
+
+/**
+ * Set cached user ID
+ * 设置缓存的用户 ID
+ */
+export function setCachedUserId(id: string): void {
+  cachedUserId = id;
+}
+
+/**
+ * Get cached enterprise local-mode availability.
+ * Returns null when the current login payload did not include this information.
+ */
+export function getCachedLocalModeAvailable(): boolean | null {
+  return cachedLocalModeAvailable;
+}
+
+/**
+ * Set cached enterprise local-mode availability.
+ */
+export function setCachedLocalModeAvailable(available: boolean | null): void {
+  cachedLocalModeAvailable = available;
+}
+
+/**
  * Synchronous version (uses cached value)
  * 同步版本（使用缓存值）
  */
@@ -214,4 +257,20 @@ export function getEnterpriseConfig(): {
     mossServerUrl: cachedServerUrl,
     authToken: cachedAuthToken,
   };
+}
+
+/**
+ * Get cached session mode (remote/local) for enterprise mode
+ * 获取缓存的 session 模式（remote/local），用于企业模式
+ */
+export function getCachedSessionMode(): 'remote' | 'local' {
+  return cachedSessionMode;
+}
+
+/**
+ * Set cached session mode (called by setSessionMode IPC handler)
+ * 设置缓存的 session 模式（由 setSessionMode IPC handler 调用）
+ */
+export function setCachedSessionMode(mode: 'remote' | 'local'): void {
+  cachedSessionMode = mode;
 }

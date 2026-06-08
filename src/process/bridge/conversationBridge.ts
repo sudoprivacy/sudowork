@@ -8,6 +8,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { spawn } from 'child_process';
 import type { TChatConversation } from '@/common/storage';
+import type { IDirOrFile, MossSessionAvailableSkill, MossWorkspaceNode } from '@/common/ipcBridge';
 import fs from 'fs/promises';
 import { getDatabase } from '@process/database';
 import { cronService } from '@process/services/cron/CronService';
@@ -15,30 +16,83 @@ import { mainError, mainLog, mainWarn } from '@process/utils/mainLogger';
 import { ipcBridge } from '../../common';
 import { uuid } from '../../common/utils';
 import { shouldSyncWorkspaceSkills } from '../../common/utils/workspaceSkillSync';
-import { getGatewayPort, SUDOCLAW_DEFAULT_PORT } from '../../agent/openclaw/openclawConfig';
 import { getSkillsDir, ProcessChat } from '../initStorage';
 import { ConversationService } from '../services/conversationService';
-import { SUDOCLAW_DIR } from '../services/sudoclaw/SudoclawInstallService';
-import { checkSudoclawHealth, SUDOCLAW_HEALTH_TIMEOUT_MS } from '../services/sudoclaw/sudoclawHealth';
 import type AcpAgent from '../task/AcpAgent';
-import type OpenClawAgent from '../task/OpenClawAgent';
-import { prepareFirstMessage, prepareOpenClawFirstMessage, injectSkillsDirectoryHint } from '../task/agentUtils';
-import { resolveOpenClawConnectionStatus } from '../utils/connectionStatus';
+import type RemoteAgent from '../task/RemoteAgent';
 import { listWorkspaceSkillTargets, resolveConversationEnabledSkillNames } from '../utils/workspaceSkillTargets';
 import { areSkillSelectionsEqual, resolveLatestConversationEnabledSkills } from '../utils/conversationAssistantSkills';
+import { filterEnabledSkillNames, filterRemoteAvailableSkills } from '../utils/enabledSkillFilter';
 import { copyFilesToDirectory, readDirectoryRecursive } from '../utils';
-import { computeOpenClawIdentityHash } from '../utils/openclawUtils';
-import { getSudoclawWorkspaceRoot } from '../initAgent';
 import { resolveWorkspaceSkillsDir } from '../utils/workspaceSkillsDir';
+import { INTERMEDIATE_DIR_SEGMENTS } from '../task/FileIntentClassifier';
 import WorkerManage from '../WorkerManage';
 import { migrateConversationToDatabase } from './migrationUtils';
+import { closeTerminalsByConversation } from './terminalBridge';
 import { skillManager } from '../SkillManager';
 import { ConversationManageWithDB } from '../message';
 import { setupChannelResponseRouting } from '@/channels/agent/ChannelResponseRouter';
 import { startConversationTracking, endConversationSuccess, endConversationError } from '../telemetry';
 import { getConversationProvider, isRemoteProvider } from '../providers';
+import { getMossApi, getMossApiServerUrl, initMossApi } from '../remote/MossSessionApi';
+import { getSudoworkAcpSlashCommands } from '@/common/slash/sudoworkCommands';
+import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
 
 const workspaceSkillSyncTasks = new Map<string, Promise<void>>();
+
+type RemoteConversationExtra = NonNullable<TChatConversation['extra']> & {
+  mossSessionId?: string;
+  mossSessionPending?: boolean;
+  mossServerUrl?: string;
+  authToken?: string;
+};
+
+function convertMossWorkspaceNode(node: MossWorkspaceNode): IDirOrFile {
+  return {
+    name: node.name,
+    fullPath: node.fullPath,
+    relativePath: node.relativePath,
+    isDir: node.isDir,
+    isFile: node.isFile,
+    children: node.children?.map(convertMossWorkspaceNode),
+  };
+}
+
+function getRemoteConversationSession(conversationId: string): { conversation: TChatConversation; extra: RemoteConversationExtra; mossSessionId?: string; pending: boolean } {
+  const db = getDatabase();
+  const result = db.getConversation(conversationId);
+  if (!result.success || !result.data) {
+    throw new Error('conversation not found');
+  }
+
+  const conversation = result.data;
+  if (conversation.type !== 'remote-agent') {
+    throw new Error('conversation is not remote-agent');
+  }
+
+  const extra = (conversation.extra ?? {}) as RemoteConversationExtra;
+  const mossSessionId = extra.mossSessionId;
+  return {
+    conversation,
+    extra,
+    mossSessionId,
+    pending: Boolean(extra.mossSessionPending || !mossSessionId),
+  };
+}
+
+function getRemoteConversationMossApi(extra: RemoteConversationExtra) {
+  const serverUrl = extra.mossServerUrl;
+  if (!serverUrl) {
+    throw new Error('Moss Server URL not configured');
+  }
+
+  const currentApi = getMossApi();
+  const api = currentApi && getMossApiServerUrl() === serverUrl ? currentApi : initMossApi(serverUrl);
+  if (extra.authToken) {
+    api.setAccessToken(extra.authToken);
+  }
+  return api;
+}
 
 async function syncConversationWorkspaceSkills(conversation: TChatConversation | undefined, requestedSkillNames?: string[]): Promise<void> {
   if (!shouldSyncWorkspaceSkills(conversation, requestedSkillNames)) return;
@@ -81,7 +135,9 @@ async function syncConversationWorkspaceSkills(conversation: TChatConversation |
     // Build ID → name mapping from installed skills
     const installedSkills = await skillManager.getInstalledSkills();
     const idToNameMap = new Map<string, string>();
+    const shouldFilterDisabledSkills = isEnterpriseMode();
     for (const skill of installedSkills) {
+      if (shouldFilterDisabledSkills && skill.enabled === false) continue;
       // Map by skill ID (UUID)
       if (skill.meta?.id) {
         idToNameMap.set(skill.meta.id, skill.name);
@@ -224,256 +280,26 @@ function scheduleConversationWorkspaceSkillSync(conversation: TChatConversation 
 }
 
 export function initConversationBridge(): void {
-  ipcBridge.openclawConversation.getRuntime.provider(async ({ conversation_id }) => {
-    try {
-      const db = getDatabase();
-      const convResult = db.getConversation(conversation_id);
-      if (!convResult.success || !convResult.data || convResult.data.type !== 'openclaw-gateway') {
-        return { success: false, msg: 'Sudoclaw conversation not found' };
-      }
-      const conversation = convResult.data;
-      const task = (await WorkerManage.getTaskByIdRollbackBuild(conversation_id)) as OpenClawAgent | undefined;
-      if (!task || task.type !== 'openclaw-gateway') {
-        return { success: false, msg: 'Sudoclaw runtime not available' };
-      }
-
-      // Await bootstrap to ensure the agent is fully connected before returning runtime info.
-      // Without this, getRuntime may return isConnected=false while the agent is still connecting.
-      await task.bootstrap.catch(() => {});
-
-      const diagnostics = task.getDiagnostics();
-      // Compute identity hash from the shared workspace root (where IDENTITY.md/SOUL.md live),
-      // not from the per-session temp directory.
-      const identityHash = await computeOpenClawIdentityHash(getSudoclawWorkspaceRoot());
-      const conversationModel = (conversation as { model?: { useModel?: string } }).model;
-      const resolvedModel = diagnostics.model || conversation.extra?.openclawModelId || conversation.extra?.runtimeValidation?.expectedModel || conversationModel?.useModel;
-
-      return {
-        success: true,
-        data: {
-          conversationId: conversation_id,
-          runtime: {
-            workspace: diagnostics.workspace || conversation.extra?.workspace,
-            backend: diagnostics.backend || conversation.extra?.backend,
-            agentName: diagnostics.agentName || conversation.extra?.agentName,
-            model: resolvedModel,
-            sessionKey: diagnostics.sessionKey,
-            isConnected: diagnostics.isConnected,
-            hasActiveSession: diagnostics.hasActiveSession,
-            identityHash,
-          },
-          expected: (conversation.extra as { runtimeValidation?: unknown } | undefined)?.runtimeValidation,
-        },
-      };
-    } catch (error) {
-      return { success: false, msg: error instanceof Error ? error.message : String(error) };
-    }
-  });
-
-  // Get global OpenClaw Gateway status (independent of any conversation)
-  ipcBridge.openclawConversation.getGatewayStatus.provider(async () => {
-    try {
-      const gatewayHost = '127.0.0.1';
-      const gatewayPort = getGatewayPort(SUDOCLAW_DIR);
-      const gatewayRunning = await checkSudoclawHealth(gatewayHost, gatewayPort, SUDOCLAW_HEALTH_TIMEOUT_MS);
-
-      const baseData = {
-        gatewayRunning,
-        gatewayPort,
-        gatewayHost,
-        gatewayUrl: `ws://${gatewayHost}:${gatewayPort}`,
-        isConnected: gatewayRunning,
-        hasActiveSession: false,
-        sessionKey: null as string | null,
-      };
-
-      const db = getDatabase();
-      const allConvs = db.getUserConversations(undefined, 0, 1000);
-      const openclawConvs = (allConvs.data || []).filter((c) => c.type === 'openclaw-gateway');
-
-      for (const conv of openclawConvs) {
-        const convAny = conv as unknown as { model?: { useModel?: string; name?: string }; extra?: { gateway?: { host?: string; port?: number }; workspace?: string; agentName?: string; model?: string } };
-        const convModel = convAny.model;
-        const model = convModel?.useModel || convModel?.name || convAny.extra?.model;
-        const extra = convAny.extra;
-        const task = WorkerManage.getTaskById(conv.id) as OpenClawAgent | undefined;
-
-        if (task && task.type === 'openclaw-gateway') {
-          const diagnostics = task.getDiagnostics();
-
-          return {
-            success: true,
-            data: {
-              ...baseData,
-              workspace: diagnostics.workspace || extra?.workspace,
-              agentName: diagnostics.agentName || extra?.agentName,
-              model,
-            },
-          };
-        }
-
-        return {
-          success: true,
-          data: {
-            ...baseData,
-            workspace: extra?.workspace,
-            agentName: extra?.agentName,
-            model,
-          },
-        };
-      }
-
-      return {
-        success: true,
-        data: baseData,
-      };
-    } catch (error) {
-      return {
-        success: false,
-        msg: error instanceof Error ? error.message : String(error),
-        data: {
-          gatewayRunning: false,
-          gatewayPort: SUDOCLAW_DEFAULT_PORT,
-          gatewayHost: '127.0.0.1',
-          gatewayUrl: `ws://127.0.0.1:${SUDOCLAW_DEFAULT_PORT}`,
-          isConnected: false,
-          hasActiveSession: false,
-          sessionKey: null,
-          error: error instanceof Error ? error.message : String(error),
-        },
-      };
-    }
-  });
-
-  // Get OpenClaw info via CLI (local execution)
-  ipcBridge.openclawConversation.getCliInfo.provider(async () => {
-    try {
-      const { exec } = await import('node:child_process');
-      const { promisify } = await import('node:util');
-      const execAsync = promisify(exec);
-
-      // Try to get OpenClaw version
-      let version: string | undefined;
-      try {
-        const { stdout } = await execAsync('openclaw --version');
-        version = stdout.trim();
-      } catch {
-        // Version not available
-      }
-
-      // Try to get gateway status
-      let gatewayPort = 17863;
-      let gatewayHost = 'localhost';
-      let workspace: string | undefined;
-      let agentName: string | undefined;
-      let model: string | undefined;
-
-      // Read OpenClaw config file
-      try {
-        const { readFile } = await import('node:fs/promises');
-        const { join } = await import('node:path');
-        const { homedir } = await import('node:os');
-        const configPath = join(homedir(), '.nexus', 'sudoclaw', 'sudoclaw.json');
-        const configContent = await readFile(configPath, 'utf-8');
-        const config = JSON.parse(configContent);
-
-        // Extract gateway config
-        if (config.gateway?.port) {
-          gatewayPort = config.gateway.port;
-        }
-        if (config.gateway?.host) {
-          gatewayHost = config.gateway.host;
-        }
-
-        // Extract workspace from agents.defaults
-        if (config.agents?.defaults?.workspace) {
-          workspace = config.agents.defaults.workspace;
-        }
-
-        // Extract model from agents.defaults
-        if (config.agents?.defaults?.model?.primary) {
-          model = config.agents.defaults.model.primary;
-          // Extract just the model name (e.g., 'bailian/qwen3.5-plus' -> 'qwen3.5-plus')
-          if (model.includes('/')) {
-            model = model.split('/').pop();
-          }
-        }
-
-        // Extract agent name
-        agentName = config.agents?.defaults?.agentName || '小宇';
-      } catch {
-        // Config not available
-      }
-
-      // Check if gateway is running by probing the port
-      const net = await import('node:net');
-      const isGatewayRunning = await new Promise<boolean>((resolve) => {
-        const socket = net.createConnection({ host: gatewayHost, port: gatewayPort });
-        socket.on('connect', () => {
-          socket.destroy();
-          resolve(true);
-        });
-        socket.on('error', () => resolve(false));
-        socket.setTimeout(500);
-      });
-
-      return {
-        success: true,
-        data: {
-          version,
-          workspace,
-          gatewayPort,
-          gatewayHost,
-          agentName,
-          model,
-          isConnected: isGatewayRunning,
-        },
-      };
-    } catch (error) {
-      return {
-        success: false,
-        msg: error instanceof Error ? error.message : String(error),
-        data: {
-          error: error instanceof Error ? error.message : String(error),
-        },
-      };
-    }
-  });
-
-  ipcBridge.openclawConversation.setSessionModel.provider(async ({ conversation_id, modelId }) => {
-    try {
-      const task = (await WorkerManage.getTaskByIdRollbackBuild(conversation_id)) as OpenClawAgent | undefined;
-      if (!task || task.type !== 'openclaw-gateway') {
-        return { success: false, msg: 'Sudoclaw conversation not found' };
-      }
-
-      const result = await task.setSessionModel(modelId);
-      return {
-        success: true,
-        data: result,
-      };
-    } catch (error) {
-      return {
-        success: false,
-        msg: error instanceof Error ? error.message : String(error),
-      };
-    }
-  });
-
   ipcBridge.conversation.create.provider(async (params): Promise<TChatConversation> => {
     // Use Provider abstraction layer for conversation creation
     // 使用 Provider 抽象层创建会话
     mainLog('conversationBridge', `Creating conversation: type=${params.type}, name=${params.name}`);
 
-    // Enterprise mode: force remote-agent type for all conversations
-    // 企业模式：强制使用 remote-agent 类型
+    // Read sessionMode from extra.sessionModeParam (rendered process passes it explicitly)
+    // 从 extra.sessionModeParam 读取 sessionMode（渲染进程显式传递）
+    const sessionMode = params.extra?.sessionModeParam as 'remote' | 'local' | undefined;
+
+    // Enterprise mode Remote session: force remote-agent type for all conversations
+    // 企业模式 Remote 会话：强制使用 remote-agent 类型
+    // Local session in enterprise mode should NOT be forced to remote-agent
+    // 企业模式 Local 会话不应强制为 remote-agent
     let finalParams = params;
-    if (isRemoteProvider() && params.type !== 'remote-agent') {
-      mainLog('conversationBridge', `Enterprise mode: forcing remote-agent type`);
+    if (isRemoteProvider(sessionMode) && params.type !== 'remote-agent') {
+      mainLog('conversationBridge', `Enterprise remote mode: forcing remote-agent type`);
       finalParams = { ...params, type: 'remote-agent' };
     }
 
-    const provider = getConversationProvider();
+    const provider = getConversationProvider(sessionMode);
     const conversation = await provider.createConversation(finalParams);
 
     mainLog('conversationBridge', `Conversation created successfully: id=${conversation.id}`);
@@ -483,7 +309,7 @@ export function initConversationBridge(): void {
     return conversation;
   });
 
-  // Reload context is not supported for ACP or OpenClaw agents
+  // Reload context is not supported for ACP agents
   ipcBridge.conversation.reloadContext.provider(async () => {
     return { success: false, msg: 'reload context not supported' };
   });
@@ -621,23 +447,36 @@ export function initConversationBridge(): void {
     }
   });
 
-  ipcBridge.conversation.remove.provider(async ({ id }) => {
+  ipcBridge.conversation.remove.provider(async ({ id, deleteWorkspace }) => {
     try {
       // Get conversation to check source before deletion
       const db = getDatabase();
       const convResult = db.getConversation(id);
       const conversation = convResult.data;
       const source = conversation?.source;
+      const workspacePath = (conversation?.extra as { workspace?: string } | undefined)?.workspace;
+      const isCronExecutionConversation = !!(conversation?.extra as { cronJobId?: string } | undefined)?.cronJobId;
 
       // Kill the running task if exists
       WorkerManage.kill(id);
 
+      // Reap any right-panel terminals tied to this conversation. Call the
+      // function directly — bridge.invoke from main → main does NOT route to
+      // the local provider (main adapter's emit only broadcasts to renderers).
+      try {
+        closeTerminalsByConversation(id);
+      } catch (err) {
+        mainWarn('conversationBridge', 'closeTerminalsByConversation failed', err);
+      }
+
       // Delete associated cron jobs
       try {
-        const jobs = await cronService.listJobsByConversation(id);
-        for (const job of jobs) {
-          await cronService.removeJob(job.id);
-          ipcBridge.cron.onJobRemoved.emit({ jobId: job.id });
+        if (!isCronExecutionConversation) {
+          const jobs = await cronService.listJobsByConversation(id);
+          for (const job of jobs) {
+            await cronService.removeJob(job.id);
+            ipcBridge.cron.onJobRemoved.emit({ jobId: job.id });
+          }
         }
       } catch (cronError) {
         mainWarn('conversationBridge', 'Failed to cleanup cron jobs:', cronError);
@@ -654,6 +493,17 @@ export function initConversationBridge(): void {
           }
         } catch (cleanupError) {
           mainWarn('conversationBridge', 'Failed to cleanup channel resources:', cleanupError);
+        }
+      }
+
+      // Delete workspace folder if requested
+      // 如果用户选择了同时删除工作区文件夹，则删除
+      if (deleteWorkspace && workspacePath) {
+        try {
+          await fs.rm(workspacePath, { recursive: true, force: true });
+          mainLog('conversationBridge', `Deleted workspace folder: ${workspacePath}`);
+        } catch (workspaceError) {
+          mainWarn('conversationBridge', `Failed to delete workspace folder ${workspacePath}:`, workspaceError);
         }
       }
 
@@ -708,7 +558,7 @@ export function initConversationBridge(): void {
     if (id) {
       WorkerManage.kill(id);
     } else {
-      WorkerManage.clear();
+      void WorkerManage.clear();
     }
     return Promise.resolve();
   });
@@ -724,6 +574,8 @@ export function initConversationBridge(): void {
         const task = WorkerManage.getTaskById(id);
         const taskStatus = task?.status === 'idle' ? 'finished' : task?.status;
         conversation.status = taskStatus || 'finished';
+        // Update processingStartTime from running task / 从运行中的任务更新处理开始时间
+        conversation.processingStartTime = task?.processingStartTime;
       }
 
       return conversation;
@@ -733,27 +585,13 @@ export function initConversationBridge(): void {
     }
   });
 
-  // Get the last emitted connection status for any agent type (openclaw or acp)
+  // Get the last emitted connection status for an agent
   // Uses cache-only lookup (getTaskById) — no side effects, no bootstrapping
   ipcBridge.conversation.getConnectionStatus.provider(async ({ conversation_id }) => {
     try {
-      const task = WorkerManage.getTaskById(conversation_id) as OpenClawAgent | AcpAgent | undefined;
+      const task = WorkerManage.getTaskById(conversation_id) as AcpAgent | undefined;
       if (!task || typeof (task as any).lastConnectionStatus === 'undefined') {
         return { success: true, data: { status: null } };
-      }
-      if (task.type === 'openclaw-gateway') {
-        const openclawTask = task as OpenClawAgent;
-        const diagnostics = openclawTask.getDiagnostics();
-        return {
-          success: true,
-          data: {
-            status: resolveOpenClawConnectionStatus({
-              lastStatus: openclawTask.lastConnectionStatus,
-              isConnected: diagnostics.isConnected,
-              hasActiveSession: diagnostics.hasActiveSession,
-            }),
-          },
-        };
       }
       return { success: true, data: { status: (task as any).lastConnectionStatus as string | null } };
     } catch {
@@ -765,18 +603,14 @@ export function initConversationBridge(): void {
   // Disconnects current connection, clears bootstrap, then re-initializes
   ipcBridge.conversation.restartAndConnect.provider(async ({ conversation_id }) => {
     try {
-      const task = WorkerManage.getTaskById(conversation_id) as AcpAgent | OpenClawAgent | undefined;
+      const task = WorkerManage.getTaskById(conversation_id);
       if (!task) return { success: false, msg: 'conversation not found' };
 
-      if (task.type === 'acp') {
-        const acpTask = task as AcpAgent;
-        await acpTask.restartAndConnect();
-        return { success: true };
-      }
-
-      if (task.type === 'openclaw-gateway') {
-        const openclawTask = task as OpenClawAgent;
-        await openclawTask.restartGateway();
+      // Both ACP (local) and remote-agent (enterprise/Moss) tasks expose
+      // restartAndConnect to recover a dead connection (e.g. socket hang up
+      // after the laptop wakes from sleep).
+      if (task.type === 'acp' || task.type === 'remote-agent') {
+        await (task as AcpAgent | RemoteAgent).restartAndConnect();
         return { success: true };
       }
 
@@ -791,13 +625,19 @@ export function initConversationBridge(): void {
   // to avoid stale results when the user navigates quickly.
   let lastGetWorkspaceAbortController: AbortController | undefined;
 
+  // Intermediate-directory ignore: paths whose path contains any segment in
+  // INTERMEDIATE_DIR_SEGMENTS (e.g. ppt_outputs/, _tmp/) are hidden from the
+  // workspace tree. Matches whole path segments only — `my_ppt_outputs.md`
+  // won't be hidden, but `ppt_outputs/p1.jpg` will.
+  const intermediateSegmentRe = new RegExp(`(^|[/\\\\])(${[...INTERMEDIATE_DIR_SEGMENTS].join('|')})([/\\\\]|$)`);
+
   ipcBridge.conversation.getWorkspace.provider(async ({ workspace, search, path }) => {
     // Abort any in-flight workspace read
     lastGetWorkspaceAbortController?.abort();
     lastGetWorkspaceAbortController = new AbortController();
 
     // Simple file filter that skips common non-essential directories
-    const fileService = { shouldIgnoreFile: (p: string) => p.includes('node_modules') || p.includes('.git') };
+    const fileService = { shouldIgnoreFile: (p: string) => p.includes('node_modules') || p.includes('.git') || intermediateSegmentRe.test(p) };
     try {
       return await readDirectoryRecursive(path, {
         root: workspace,
@@ -822,10 +662,65 @@ export function initConversationBridge(): void {
     }
   });
 
+  ipcBridge.conversation.getRemoteWorkspace.provider(async ({ conversation_id, search, path: relativePath }) => {
+    try {
+      const { extra, mossSessionId, pending } = getRemoteConversationSession(conversation_id);
+      if (pending || !mossSessionId) {
+        return { success: true, data: { files: [], pending: true } };
+      }
+
+      const api = getRemoteConversationMossApi(extra);
+      const root = await api.getSessionWorkspaceTree(mossSessionId, {
+        path: relativePath,
+        search: search || undefined,
+      });
+      return { success: true, data: { files: [convertMossWorkspaceNode(root)], pending: false } };
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      mainWarn('conversationBridge', 'getRemoteWorkspace failed:', msg);
+      return { success: false, msg, data: { files: [], pending: false } };
+    }
+  });
+
+  ipcBridge.conversation.previewRemoteWorkspaceFile.provider(async ({ conversation_id, path: relativePath }) => {
+    try {
+      const { extra, mossSessionId, pending } = getRemoteConversationSession(conversation_id);
+      if (pending || !mossSessionId) {
+        return { success: false, msg: 'Moss session is pending' };
+      }
+
+      const api = getRemoteConversationMossApi(extra);
+      const preview = await api.getSessionWorkspaceFile(mossSessionId, { path: relativePath });
+      return { success: true, data: preview };
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      mainWarn('conversationBridge', 'previewRemoteWorkspaceFile failed:', msg);
+      return { success: false, msg };
+    }
+  });
+
+  ipcBridge.conversation.getRemoteAvailableSkills.provider(async ({ conversation_id }) => {
+    try {
+      const { extra, mossSessionId, pending } = getRemoteConversationSession(conversation_id);
+      if (pending || !mossSessionId) {
+        return { success: true, data: { skills: [], pending: true } };
+      }
+
+      const api = getRemoteConversationMossApi(extra);
+      const skills: MossSessionAvailableSkill[] = await api.getSessionAvailableSkills(mossSessionId);
+      const filteredSkills = await filterRemoteAvailableSkills(skills);
+      return { success: true, data: { skills: filteredSkills, pending: false } };
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      mainWarn('conversationBridge', 'getRemoteAvailableSkills failed:', msg);
+      return { success: false, msg, data: { skills: [], pending: false } };
+    }
+  });
+
   ipcBridge.conversation.stop.provider(async ({ conversation_id }) => {
     const task = WorkerManage.getTaskById(conversation_id);
     if (!task) return { success: true, msg: 'conversation not found' };
-    if (task.type !== 'acp' && task.type !== 'openclaw-gateway' && task.type !== 'remote-agent') {
+    if (task.type !== 'acp' && task.type !== 'remote-agent') {
       return { success: false, msg: 'not support' };
     }
     await task.stop();
@@ -840,11 +735,9 @@ export function initConversationBridge(): void {
         return { success: true, data: { commands: [] } };
       }
 
-      const imageCommand: import('@/common/slash/types').SlashCommandItem = { name: 'image', description: 'Generate an image', hint: 'generate an image', kind: 'template', source: 'builtin' };
-
       const conversation = convResult.data;
-      if (conversation.type === 'openclaw-gateway' || conversation.type === 'remote-agent') {
-        return { success: true, data: { commands: [imageCommand] } };
+      if (conversation.type === 'remote-agent') {
+        return { success: true, data: { commands: getSudoworkAcpSlashCommands() } };
       }
 
       if (conversation.type !== 'acp') {
@@ -853,11 +746,11 @@ export function initConversationBridge(): void {
 
       const task = WorkerManage.getTaskById(conversation_id) as AcpAgent | undefined;
       if (!task || task.type !== 'acp') {
-        return { success: true, data: { commands: [imageCommand] } };
+        return { success: true, data: { commands: getSudoworkAcpSlashCommands() } };
       }
 
       const commands = await task.loadAcpSlashCommands();
-      return { success: true, data: { commands: [imageCommand, ...commands] } };
+      return { success: true, data: { commands: [...getSudoworkAcpSlashCommands(), ...commands] } };
     } catch (error) {
       return { success: false, msg: error instanceof Error ? error.message : String(error) };
     }
@@ -867,9 +760,9 @@ export function initConversationBridge(): void {
   ipcBridge.conversation.sendMessage.provider(async ({ conversation_id, files, ...other }) => {
     mainLog('conversationBridge', `sendMessage called: conversation_id=${conversation_id}, msg_id=${other.msg_id}`);
 
-    let task: AcpAgent | OpenClawAgent | import('../task/RemoteAgent').default | undefined;
+    let task: AcpAgent | import('../task/RemoteAgent').default | undefined;
     try {
-      task = (await WorkerManage.getTaskByIdRollbackBuild(conversation_id)) as AcpAgent | OpenClawAgent | import('../task/RemoteAgent').default | undefined;
+      task = (await WorkerManage.getTaskByIdRollbackBuild(conversation_id)) as AcpAgent | import('../task/RemoteAgent').default | undefined;
     } catch (err) {
       mainLog('conversationBridge', `sendMessage: failed to get/build task: ${conversation_id}`, err);
       return { success: false, msg: err instanceof Error ? err.message : 'conversation not found' };
@@ -883,11 +776,6 @@ export function initConversationBridge(): void {
 
     // 复制文件到工作空间（所有 agents 统一处理）
     let filesToProcess = files ?? [];
-    const openclawTask = task as OpenClawAgent;
-    if (task.type === 'openclaw-gateway' && filesToProcess.length === 0 && openclawTask.workspace) {
-      filesToProcess = [openclawTask.workspace];
-      mainLog('conversationBridge', `OpenClaw: no files from frontend, using workspace: ${openclawTask.workspace}`);
-    }
 
     // Download bdpan:// files to workspace before copying
     const workspace = (task as any).workspace ?? '';
@@ -964,129 +852,30 @@ export function initConversationBridge(): void {
 
     const workspaceFiles = await copyFilesToDirectory(workspace, filesToProcess, false);
 
-    // Get conversation to access presetContext and enabledSkills for preset assistants
-    // 获取 conversation 以访问预设助手的 presetContext 和 enabledSkills
-    let presetContext: string | undefined;
-    let enabledSkills: string[] | undefined;
     let conversation: TChatConversation | undefined;
     try {
       const db = getDatabase();
       const convResult = db.getConversation(conversation_id);
       if (convResult.success && convResult.data) {
         conversation = convResult.data;
-        presetContext = conversation.extra?.presetContext;
-        enabledSkills = await resolveLatestConversationEnabledSkills(conversation);
       }
     } catch {
       // ignore
     }
 
-    // Dynamic reload of presetContext with latest assistant name for OpenClaw Gateway
-    // 动态重新加载 presetContext，确保 OpenClaw Gateway 使用最新的助手名称
-    if (conversation?.extra?.presetAssistantId && task.type === 'openclaw-gateway') {
-      try {
-        const presetAssistantId = conversation.extra.presetAssistantId;
-        const { assistantManager } = await import('@/process/AssistantManager');
-        const { readAssistantResource, ruleFilePattern } = await import('@process/utils/assistantResources');
-        const { app } = await import('electron');
-
-        const strippedId = presetAssistantId.startsWith('builtin-') ? presetAssistantId.slice('builtin-'.length) : presetAssistantId;
-
-        // Get latest meta from AssistantManager (filesystem SSOT)
-        const meta = await assistantManager.getAssistantMeta(strippedId);
-
-        // Resolve locale for rule loading
-        const appLocale = app.getLocale() || 'en-US';
-        const localeKey = appLocale.startsWith('zh') ? 'zh-CN' : appLocale.startsWith('ja') ? 'ja-JP' : appLocale.startsWith('ko') ? 'ko-KR' : 'en-US';
-
-        // Reload rules from filesystem
-        let loadedRules = await readAssistantResource('rules', presetAssistantId, localeKey, ruleFilePattern).catch(() => '');
-
-        // Get latest assistant name from meta
-        const latestAgentName = meta?.nameI18n?.[localeKey] || meta?.nameI18n?.['en-US'] || meta?.id || strippedId;
-
-        // Check if rules have explicit identity
-        const hasExplicitIdentity = (rules: string): boolean => {
-          if (!rules) return false;
-          if (rules.includes('[Identity Override')) return true;
-          const zhPatterns = [/你是\s+.{1,20}助手/, /你是\s+\*{0,2}.{1,20}\*{0,2}[，,。]/, /你的身份是[:：]?/];
-          const enPatterns = [/You are\s+.{1,20}assistant/i, /I am\s+.{1,20}(assistant|helper|agent)/i, /Your identity is[:]?/i];
-          return zhPatterns.some((p) => p.test(rules)) || enPatterns.some((p) => p.test(rules));
-        };
-
-        // Inject identity statement if rules don't have explicit identity
-        if (latestAgentName && (!loadedRules || !hasExplicitIdentity(loadedRules))) {
-          const identityBlock = localeKey.startsWith('zh')
-            ? `[Identity Override - 最高优先级]
-你的身份是：${latestAgentName}
-当用户询问"你是谁"或类似身份问题时，必须回答："我是${latestAgentName}，有什么可以帮助你的吗？"
-此身份声明优先级高于 USER.md 中的默认身份声明。
-\n\n`
-            : `[Identity Override - Highest Priority]
-Your identity is: ${latestAgentName}
-When users ask "Who are you" or similar identity questions, you MUST answer: "I am ${latestAgentName}. How can I help you?"
-This identity statement takes priority over the default identity in USER.md.
-\n\n`;
-          loadedRules = identityBlock + (loadedRules || '');
-        }
-
-        // Update presetContext with the fresh rules
-        presetContext = loadedRules;
-
-        mainLog('ConversationBridge', `Reloaded presetContext for ${presetAssistantId} with latest name: ${latestAgentName}`);
-      } catch (error) {
-        mainWarn('ConversationBridge', 'Failed to reload preset context for OpenClaw:', error);
-      }
-    }
+    const requestedSkills = await filterEnabledSkillNames(other.skills);
 
     // Ensure workspace skills symlinks exist before dispatching to the gateway.
     // syncConversationWorkspaceSkills is idempotent — it skips symlinks that are already correct.
-    await queueConversationWorkspaceSkillSync(conversation, other.skills);
+    await queueConversationWorkspaceSkillSync(conversation, requestedSkills);
 
     try {
-      // Build the unified payload for both ACP and OpenClaw agents
       const payload: { content: string; agentContent?: string; files: string[]; msg_id: string; skills?: string[] } = {
         content: other.input,
         files: workspaceFiles,
         msg_id: other.msg_id,
-        skills: other.skills || [],
+        skills: requestedSkills || [],
       };
-
-      // OpenClaw-specific: inject preset rules, skills content and workspace hints into agentContent
-      if (task.type === 'openclaw-gateway') {
-        let agentContent = other.input;
-
-        const skillsToInject = other.skills?.length ? other.skills : enabledSkills;
-        // Use prepareOpenClawFirstMessage — openclaw agents have a file read tool and must
-        // read SKILL.md directly. prepareFirstMessageWithSkillsIndex injects [LOAD_SKILL:]
-        // which is a Gemini-only protocol that openclaw doesn't support.
-        agentContent = await prepareOpenClawFirstMessage(agentContent, {
-          presetContext,
-          enabledSkills: skillsToInject,
-        });
-        const skillsDir = resolveWorkspaceSkillsDir(conversation);
-        if (skillsDir) {
-          // Read the actual symlinked skill names from disk — the directory is the
-          // source of truth for what the agent can use (may include more skills than
-          // the stored enabledSkills list when no filter is applied).
-          const linkedSkillNames = await fs
-            .readdir(skillsDir, { withFileTypes: true })
-            .then((entries) =>
-              entries
-                .filter((e) => e.isSymbolicLink() || e.isDirectory())
-                .map((e) => e.name)
-                .sort()
-            )
-            .catch(() => skillsToInject ?? []);
-          agentContent = await injectSkillsDirectoryHint(agentContent, skillsDir, linkedSkillNames);
-        }
-
-        if (workspaceFiles.length > 0 && (task as OpenClawAgent).workspace) {
-          const hint = `[Context: 用户工作区为 ${(task as OpenClawAgent).workspace}。下方 @ 引用的文件来自该工作区。当用户询问「这个文件夹」「这里有什么文件」时，请基于这些附加文件回答，而非你的默认工作区。]\n\n`;
-          agentContent = hint + agentContent;
-        }
-        payload.agentContent = agentContent;
-      }
 
       mainLog('conversationBridge', `sendMessage: about to call task.sendMessage for ${conversation_id}`);
 

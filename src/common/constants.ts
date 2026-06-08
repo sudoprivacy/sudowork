@@ -4,8 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import * as path from 'path';
-
 /**
  * AionUI应用程序共用常量
  */
@@ -56,6 +54,15 @@ export const DEFAULT_IMAGE_EXTENSION = '.png';
 /** 草稿箱物理目录名（固定，不随语言变化）/ Drafts directory name (fixed, language-independent) */
 export const DRAFTS_DIR_NAME = '.drafts';
 
+/** 草稿箱常见误写别名（不应作为普通目录创建）/ Common mistaken aliases for the drafts directory */
+export const DRAFTS_DIR_ALIASES = ['drafts', 'Drafts', '草稿箱'] as const;
+
+/** 判断目录名是否指向草稿箱保留目录 / Check whether a directory name is reserved for drafts */
+export function isReservedDraftsDirName(name: string): boolean {
+  const normalized = name.toLowerCase();
+  return normalized === DRAFTS_DIR_NAME || DRAFTS_DIR_ALIASES.some((alias) => alias.toLowerCase() === normalized);
+}
+
 /**
  * 文件意图标记系统
  * File Intent Marking System
@@ -66,6 +73,84 @@ export const FILE_INTENT_MARKERS = {
   final: ['@final', '@output', '@deliverable', '@result'],
   draft: ['@draft', '@intermediate', '@temp', '@scratch'],
 };
+
+/**
+ * Draft file name patterns (prefixes and suffixes)
+ * 草稿文件名模式（前缀和后缀）
+ *
+ * Files matching these patterns are considered draft files
+ */
+export const DRAFT_FILE_PATTERNS = {
+  // Prefix patterns (file name starts with these)
+  prefixes: ['temp_', 'temp-', 'tmp_', 'tmp-', 'temporary_', 'temporary-', 'draft_', 'draft-', 'wip_', 'wip-', 'scratch_', 'scratch-', 'proto_', 'proto-', 'poc_', 'poc-', 'step_', 'step-', 'step1', 'step2', 'step3', 'step4', 'step5', 'phase_', 'phase-', 'phase1', 'phase2', 'phase3'],
+  // Suffix patterns (file name ends with these, before extension)
+  suffixes: ['_draft', '-draft', '_wip', '-wip', '_temp', '-temp', '_tmp', '-tmp', '_backup', '-backup', '_bak', '-bak', '_old', '-old'],
+};
+
+/**
+ * Final file name patterns (override draft patterns)
+ * 最终文件名模式（覆盖草稿模式）
+ */
+export const FINAL_FILE_PATTERNS = {
+  suffixes: ['_final', '-final', '_result', '-result', '_output', '-output', '_completed', '-completed', '_done', '-done'],
+};
+
+/**
+ * Draft file extensions
+ * 草稿文件扩展名
+ */
+export const DRAFT_EXTENSIONS = ['.tmp', '.temp', '.bak', '.backup', '.log', '.cache'];
+
+/**
+ * Final file extensions (user-requested code/data files)
+ * 最终文件扩展名（用户请求的代码/数据文件）
+ */
+export const FINAL_EXTENSIONS = [
+  // Documents
+  '.md',
+  '.txt',
+  '.pdf',
+  '.docx',
+  '.pptx',
+  // Data files
+  '.json',
+  '.yaml',
+  '.yml',
+  '.csv',
+  '.xlsx',
+  // Code files
+  '.py',
+  '.sh',
+  '.bash',
+  '.zsh',
+  '.ts',
+  '.tsx',
+  '.js',
+  '.jsx',
+  '.rs',
+  '.go',
+  '.java',
+  '.kt',
+  '.c',
+  '.cpp',
+  '.h',
+  '.hpp',
+  '.rb',
+  '.php',
+  '.lua',
+  // Config files
+  '.toml',
+  '.ini',
+  '.conf',
+  '.cfg',
+  // Web/images
+  '.html',
+  '.css',
+  '.scss',
+  '.png',
+  '.jpg',
+  '.svg',
+];
 
 /**
  * 不同语言的注释语法映射
@@ -137,8 +222,21 @@ export const COMMENT_SYNTAX_MAP: Record<string, string> = {
  * Get comment prefix for a file extension
  */
 export function getCommentPrefix(filePath: string): string {
-  const ext = path.extname(filePath).toLowerCase();
+  const ext = fileExtname(filePath).toLowerCase();
   return COMMENT_SYNTAX_MAP[ext] || COMMENT_SYNTAX_MAP.default;
+}
+
+/**
+ * Browser-safe equivalent of node's path.extname: returns the extension
+ * including the leading dot (e.g. ".ts"), or "" when there is none. Avoids
+ * importing node:path so this shared module bundles cleanly in the renderer.
+ */
+function fileExtname(filePath: string): string {
+  const base = filePath.replace(/\\/g, '/').split('/').pop() ?? '';
+  const dot = base.lastIndexOf('.');
+  // No dot, or a leading dot (dotfile like ".gitignore") → no extension.
+  if (dot <= 0) return '';
+  return base.slice(dot);
 }
 
 // ===== AI Provider 相关常量 =====

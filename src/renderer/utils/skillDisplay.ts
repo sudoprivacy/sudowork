@@ -8,9 +8,33 @@ import type { IInstalledSkillInfo } from '@/common/ipcBridge';
 import defaultSkillIcon from '@/renderer/assets/icon-catalogue.svg';
 import uploadSkillDefaultIcon from '../../../resources/upload_skill_default.svg';
 import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
+import { COS_HUB_BASE, COS_LEGACY_HUB_BASE } from '@/shared/cos';
 
-/** COS base URL for Hub skill icons */
-const HUB_SKILL_ICON_COS_BASE = 'https://sudoclaw-1309794936.cos.ap-beijing.myqcloud.com/';
+/** COS base URL for Hub skill icons (role-based hub bucket; primary). */
+const HUB_SKILL_ICON_COS_BASE = `${COS_HUB_BASE}/`;
+/** Legacy hub bucket, kept live as a fallback during deprecation. */
+const HUB_SKILL_ICON_LEGACY_BASE = `${COS_LEGACY_HUB_BASE}/`;
+
+/**
+ * Given a rendered hub-icon src on the primary bucket, return its legacy-bucket
+ * equivalent — used as an <img> onError fallback so icons still resolve while the
+ * marketplace upload side is migrated. Returns undefined when no swap applies.
+ */
+export function hubIconLegacyFallback(src: string | null | undefined): string | undefined {
+  if (src && src.startsWith(HUB_SKILL_ICON_COS_BASE)) {
+    return `${HUB_SKILL_ICON_LEGACY_BASE}${src.slice(HUB_SKILL_ICON_COS_BASE.length)}`;
+  }
+  return undefined;
+}
+
+/** <img onError> handler: swap a primary hub-bucket icon to the legacy bucket once. */
+export function handleSkillIconError(e: { currentTarget: HTMLImageElement }): void {
+  const img = e.currentTarget;
+  const fallback = hubIconLegacyFallback(img.src);
+  if (fallback && img.src !== fallback) {
+    img.src = fallback;
+  }
+}
 
 export function buildSkillDisplayName(skillName: string): string {
   return skillName

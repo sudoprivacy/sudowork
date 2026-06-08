@@ -6,20 +6,21 @@
 
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { ipcBridge } from '@/common';
-import { resolveSkillIcon, getInstalledSkillDisplay, normalizeSkillVersion } from '@/renderer/utils/skillDisplay';
+import { eeclaw, skillHub } from '@/common/ipcBridge';
+import { resolveSkillIcon, getInstalledSkillDisplay, normalizeSkillVersion, handleSkillIconError } from '@/renderer/utils/skillDisplay';
 import { useSettingsViewMode } from '../settingsViewContext';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Button, Spin, Message, Input, Progress, Modal, Popconfirm, Switch } from '@arco-design/web-react';
-import { Download, Search, Delete, Close, Shield, Lightning, UploadOne, Install } from '@icon-park/react';
+import { Button, Spin, Message, Input, Progress, Modal, Popconfirm, Switch, Tooltip } from '@arco-design/web-react';
+import { Download, Search, Delete, Close, Shield, Lightning, UploadOne, Install, Share, Plus, Check } from '@icon-park/react';
 import classNames from 'classnames';
 import { isElectronDesktop } from '@/renderer/utils/platform';
-import { emitter } from '@/renderer/utils/emitter';
-import { skillHub } from '@/common/ipcBridge';
+import { addEventListener, emitter } from '@/renderer/utils/emitter';
 import type { ISkillHubSkill, ISkillHubDetail, ISkillHubListResponse, IInstalledSkillInfo, ISkillHubMeta } from '@/common/ipcBridge';
 import { useAuth } from '@/renderer/context/AuthContext';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { SkillAuditSummary, SkillAuditDetailModal, SkillAuditReportModal } from './SkillAuditReport';
+import { useAppMode } from '@/renderer/hooks/useAppMode';
 
 // ==================== Helpers ====================
 
@@ -59,7 +60,12 @@ interface SkillLatestVersion {
   version: string;
   sourceUrl: string;
   checksum: string;
+  /** Timestamp when this version info was fetched (for cache expiration) */
+  fetchedAt: number;
 }
+
+/** Cache expiration time in milliseconds (5 minutes) */
+const VERSION_CACHE_TTL = 5 * 60 * 1000;
 
 type SkillDetailResponse = { success: boolean; data?: ISkillHubDetail; msg?: string };
 
@@ -168,21 +174,25 @@ const SkillCard: React.FC<{
   hasUpdate?: boolean;
   onUpdate?: (e: React.MouseEvent) => void;
   updating?: boolean;
-}> = ({ skill, isInstalled, hasVersion, installing, installProgress, onInstall, onClick, hasUpdate, onUpdate, updating }) => {
+  /** Latest version info for personal mode skill store display */
+  latestVersion?: string;
+  /** Whether version info is still loading (for personal mode) */
+  loadingVersion?: boolean;
+}> = ({ skill, isInstalled, hasVersion, installing, installProgress, onInstall, onClick, hasUpdate, onUpdate, updating, latestVersion, loadingVersion }) => {
   const { t } = useTranslation();
-
   return (
-    <div className='group bg-fill-1 rd-12px cursor-pointer hover:bg-fill-2 transition-colors border border-line p-12px flex items-start gap-12px relative overflow-hidden' onClick={onClick}>
+    <div className='settings-library-card group bg-fill-1 rd-12px cursor-pointer hover:bg-fill-2 transition-colors border border-line p-12px flex items-start gap-12px relative overflow-hidden' onClick={onClick}>
       {/* Icon */}
       <div className='w-48px flex-shrink-0 flex flex-col items-center'>
-        <div className='w-48px h-48px rd-8px overflow-hidden bg-fill-2'>{skill.icon ? <img src={skill.icon} alt={skill.display_name} className='w-full h-full object-cover' /> : <div className='w-full h-full flex items-center justify-center text-22px'>{skill.emoji || '📦'}</div>}</div>
-        {isInstalled && <span className={classNames('mt-6px px-5px py-0px text-10px rd-3px whitespace-nowrap leading-18px', hasUpdate ? 'bg-warning-light text-warning' : 'bg-primary-light text-primary')}>{hasUpdate ? t('settings.skill.updateAvailable', { defaultValue: '可更新' }) : t('settings.skill.installed', { defaultValue: '已安装' })}</span>}
+        <div className='w-48px h-48px rd-8px overflow-hidden bg-fill-2'>{skill.icon ? <img src={skill.icon} alt={skill.display_name} className='w-full h-full object-cover' onError={handleSkillIconError} /> : <div className='w-full h-full flex items-center justify-center text-22px'>{skill.emoji || '📦'}</div>}</div>
       </div>
 
       {/* Content */}
       <div className='flex-1 min-w-0'>
         <div className='flex items-center gap-6px pr-58px min-w-0'>
           <span className='flex-1 min-w-0 font-medium text-13px text-t-primary truncate'>{skill.display_name}</span>
+          {loadingVersion && !latestVersion && <span className='px-5px py-0px bg-fill-3 text-t-tertiary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px animate-pulse'>...</span>}
+          {latestVersion && <span className='px-5px py-0px bg-fill-3 text-t-secondary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px'>v{latestVersion}</span>}
         </div>
         <div className='text-11px text-t-secondary mt-3px line-clamp-2 leading-relaxed'>{skill.description}</div>
       </div>
@@ -194,15 +204,21 @@ const SkillCard: React.FC<{
             <Progress percent={installProgress} size='mini' />
           </div>
         ) : isInstalled && hasUpdate ? (
-          <button type='button' className='h-24px px-8px rd-full border-none bg-warning-light text-warning text-11px font-medium flex items-center justify-center gap-4px cursor-pointer transition-colors hover:opacity-80' onClick={onUpdate}>
-            <Install size='13' />
-            <span className='max-w-0 overflow-hidden whitespace-nowrap opacity-0 transition-all duration-180 group-hover:max-w-40px group-hover:opacity-100'>{t('settings.skill.update', { defaultValue: '更新' })}</span>
-          </button>
+          <Tooltip content={t('settings.skill.update', { defaultValue: '更新' })}>
+            <button type='button' className='store-action-icon' onClick={onUpdate}>
+              <Install size='13' />
+            </button>
+          </Tooltip>
+        ) : isInstalled ? (
+          <span className='store-action-badge' style={{ backgroundColor: 'rgba(var(--ui-accent-orange-rgb), 0.10)', color: 'var(--ui-accent-orange)' }}>
+            {t('settings.skill.installed', { defaultValue: '已安装' })}
+          </span>
         ) : !isInstalled && hasVersion ? (
-          <button type='button' className='h-24px px-8px rd-full border-none bg-fill-2 text-t-secondary text-11px font-medium flex items-center justify-center gap-4px cursor-pointer transition-colors hover:bg-fill-3 hover:text-t-primary' onClick={onInstall}>
-            <Install size='13' />
-            <span className='max-w-0 overflow-hidden whitespace-nowrap opacity-0 transition-all duration-180 group-hover:max-w-40px group-hover:opacity-100'>{t('settings.skill.install', { defaultValue: '安装' })}</span>
-          </button>
+          <Tooltip content={t('settings.skill.install', { defaultValue: '安装' })}>
+            <button type='button' className='store-action-icon' onClick={onInstall}>
+              <Install size='13' />
+            </button>
+          </Tooltip>
         ) : null}
       </div>
     </div>
@@ -221,22 +237,26 @@ const InstalledSkillCard: React.FC<{
   hasUpdate?: boolean;
   onUpdate?: () => void;
   updating?: boolean;
-}> = ({ skill, onUninstall, uninstalling, onToggleEnabled, togglingEnabled, onClick, hasUpdate, onUpdate, updating }) => {
+  /** Enterprise mode: publish button element */
+  enterprisePublishButton?: React.ReactNode;
+  /** Enterprise mode: whether to hide uninstall button (only custom skills can be uninstalled) */
+  hideUninstall?: boolean;
+}> = ({ skill, onUninstall, uninstalling, onToggleEnabled, togglingEnabled, onClick, hasUpdate, onUpdate, updating, enterprisePublishButton, hideUninstall }) => {
   const { displayName, description, icon, emoji } = getInstalledSkillDisplay(skill);
   const displayVersion = normalizeSkillVersion(skill.version);
-  const canUninstall = !skill.isBuiltin;
+  const canUninstall = !skill.isBuiltin && !hideUninstall;
   const canToggleEnabled = !!skill.meta && !skill.isBuiltin;
   const hasDetail = !!skill.meta;
   const isEnabled = skill.enabled;
   const { t } = useTranslation();
 
   return (
-    <div className={classNames('bg-fill-1 rd-12px border border-line p-12px flex items-start gap-12px relative overflow-hidden transition-colors', !isEnabled && 'opacity-65', hasDetail ? 'cursor-pointer hover:bg-fill-2' : 'hover:bg-fill-2')} onClick={hasDetail ? onClick : undefined}>
-      {/* Icon + toggle */}
-      <div className='w-48px flex-shrink-0 flex flex-col items-center'>
+    <div className={classNames('settings-library-card bg-fill-1 rd-12px border border-line p-12px flex items-start gap-12px relative overflow-hidden transition-colors', !isEnabled && 'opacity-65', hasDetail ? 'cursor-pointer hover:bg-fill-2' : 'hover:bg-fill-2')} onClick={hasDetail ? onClick : undefined}>
+      {/* Icon */}
+      <div className='w-48px flex-shrink-0'>
         <div className='w-48px h-48px rd-8px overflow-hidden bg-fill-2'>
           {icon ? (
-            <img src={icon} alt={displayName} className='w-full h-full object-cover' />
+            <img src={icon} alt={displayName} className='w-full h-full object-cover' onError={handleSkillIconError} />
           ) : emoji ? (
             <div className='w-full h-full flex items-center justify-center text-22px'>{emoji}</div>
           ) : (
@@ -245,57 +265,56 @@ const InstalledSkillCard: React.FC<{
             </div>
           )}
         </div>
-        {canToggleEnabled && (
-          <div
-            className='mt-6px w-full flex justify-center'
-            onClick={(e) => {
-              e.stopPropagation();
-            }}
-          >
-            <Switch size='small' checked={isEnabled} loading={togglingEnabled} onChange={(checked) => onToggleEnabled?.(checked)} className={isEnabled ? '!bg-primary !border-primary' : ''} />
-          </div>
-        )}
       </div>
 
       {/* Content */}
-      <div className='flex-1 min-w-0 pr-28px'>
-        <div className='h-20px flex items-center'>
-          <span className='font-medium text-13px text-t-primary truncate'>{displayName}</span>
-        </div>
-        <div className='h-18px mt-2px flex items-center gap-4px'>
+      <div className='flex-1 min-w-0'>
+        <div className='flex items-center gap-6px pr-58px min-w-0'>
+          <span className='flex-1 min-w-0 font-medium text-13px text-t-primary truncate'>{displayName}</span>
           {!skill.isBuiltin && displayVersion && <span className='px-5px py-0px bg-fill-3 text-t-secondary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px'>v{displayVersion}</span>}
-          {hasUpdate && (
-            <span
-              className='px-5px py-0px bg-warning-light text-warning text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px cursor-pointer hover:opacity-80 transition-opacity'
+        </div>
+        <div className='mt-3px min-h-30px'>{description ? <div className='text-11px text-t-secondary line-clamp-2 leading-15px'>{description}</div> : <div className='text-11px text-t-tertiary italic line-clamp-2 leading-15px'>{skill.name}</div>}</div>
+      </div>
+
+      {/* Actions - top right */}
+      <div className='absolute top-10px right-10px flex items-center gap-6px' onClick={(e) => e.stopPropagation()}>
+        {hasUpdate && (
+          <Tooltip content={t('settings.skill.updateAvailable', { defaultValue: '可更新' })}>
+            <button
+              type='button'
+              className='store-action-icon'
               onClick={(e) => {
                 e.stopPropagation();
                 onUpdate?.();
               }}
             >
-              {updating ? <Spin size={10} /> : t('settings.skill.updateAvailable', { defaultValue: '可更新' })}
-            </span>
-          )}
-        </div>
-        <div className='mt-3px min-h-30px'>{description ? <div className='text-11px text-t-secondary line-clamp-2 leading-15px'>{description}</div> : <div className='text-11px text-t-tertiary italic line-clamp-2 leading-15px'>{skill.name}</div>}</div>
-      </div>
-
-      {/* Uninstall / builtin indicator — stop propagation so card click doesn't fire */}
-      <div className='absolute top-10px right-10px' onClick={(e) => e.stopPropagation()}>
+              {updating ? <Spin size={10} /> : <Install size='13' />}
+            </button>
+          </Tooltip>
+        )}
+        {enterprisePublishButton}
+        {canToggleEnabled && <Switch size='small' checked={isEnabled} loading={togglingEnabled} onChange={(checked) => onToggleEnabled?.(checked)} className={isEnabled ? '!bg-[var(--ui-accent-orange)] !border-[var(--ui-accent-orange)]' : ''} />}
         {skill.isBuiltin ? (
-          <div className='w-22px h-22px flex items-center justify-center text-primary' title='内置技能'>
-            <Shield size='15' />
-          </div>
+          <Tooltip content='内置技能'>
+            <div className='store-action-icon cursor-default'>
+              <Shield size='15' />
+            </div>
+          </Tooltip>
         ) : !canUninstall ? (
-          <div className='w-22px h-22px flex items-center justify-center text-t-tertiary opacity-30' title='内置技能无法卸载'>
-            <Shield size='14' />
-          </div>
+          <Tooltip content='内置技能无法卸载'>
+            <div className='store-action-icon cursor-default opacity-30'>
+              <Shield size='14' />
+            </div>
+          </Tooltip>
         ) : uninstalling ? (
           <Spin size={14} />
         ) : (
           <Popconfirm title='确认卸载该技能？' onOk={onUninstall} okText='卸载' cancelText='取消' okButtonProps={{ status: 'danger' }}>
-            <div className='w-22px h-22px flex items-center justify-center text-t-tertiary hover:text-danger cursor-pointer transition-colors'>
-              <Delete size='15' />
-            </div>
+            <Tooltip content={t('common.delete', { defaultValue: '删除' })}>
+              <div className='store-action-icon store-action-icon--danger'>
+                <Delete size='15' />
+              </div>
+            </Tooltip>
           </Popconfirm>
         )}
       </div>
@@ -347,9 +366,20 @@ const SkillDetailModal: React.FC<{
   const [loading, setLoading] = useState(false);
   const { t } = useTranslation();
 
+  // Use useAppMode hook for renderer process (enterpriseDebugConfig.isEnterpriseMode only works in main process)
+  const { isEnterprise } = useAppMode();
+
   useEffect(() => {
+    console.log('[SkillDetailModal] useEffect triggered', { visible: !!skill, skillId: skill?.id, isEnterprise, skipApiFetch });
+
     // If data is pre-loaded from local meta, no need to call the API
     if (skipApiFetch) {
+      setDetail(null);
+      setLoading(false);
+      return;
+    }
+    // In enterprise mode, skip SkillHub API calls
+    if (isEnterprise) {
       setDetail(null);
       setLoading(false);
       return;
@@ -378,7 +408,7 @@ const SkillDetailModal: React.FC<{
     if (!visible) {
       setDetail(null);
     }
-  }, [detail, visible, skill, skipApiFetch]);
+  }, [detail, visible, skill, skipApiFetch, isEnterprise]);
 
   if (!skill) return null;
 
@@ -400,7 +430,7 @@ const SkillDetailModal: React.FC<{
           <div className='px-8px pb-16px'>
             {/* Icon + Name header */}
             <div className='flex flex-col items-center mb-20px'>
-              <div className='w-72px h-72px rd-14px overflow-hidden bg-fill-2 mb-12px'>{skill.icon ? <img src={skill.icon} alt={skill.display_name} className='w-full h-full object-cover' /> : <div className='w-full h-full flex items-center justify-center text-34px'>{skill.emoji || '📦'}</div>}</div>
+              <div className='w-72px h-72px rd-14px overflow-hidden bg-fill-2 mb-12px'>{skill.icon ? <img src={skill.icon} alt={skill.display_name} className='w-full h-full object-cover' onError={handleSkillIconError} /> : <div className='w-full h-full flex items-center justify-center text-34px'>{skill.emoji || '📦'}</div>}</div>
               <div className='font-semibold text-17px text-t-primary text-center'>{skill.display_name}</div>
               {skill.categories && skill.categories.length > 0 && (
                 <div className='flex gap-4px mt-6px flex-wrap justify-center'>
@@ -468,12 +498,14 @@ const SkillDetailModal: React.FC<{
             {isInstalled ? (
               <>
                 {hasUpdate ? (
-                  <Button type='primary' long size='large' className='flex-1' loading={updating} onClick={onUpdate}>
-                    <span className='flex items-center gap-6px justify-center'>
-                      <Install size='15' />
-                      {t('settings.skill.updateTo', { version: latestVersionInfo?.version, defaultValue: `更新至 v${latestVersionInfo?.version || ''}` })}
-                    </span>
-                  </Button>
+                  <Tooltip content={t('settings.skill.updateTo', { version: latestVersionInfo?.version, defaultValue: `更新至 v${latestVersionInfo?.version || ''}` })}>
+                    <Button type='primary' long size='large' className='flex-1' loading={updating} onClick={onUpdate}>
+                      <span className='flex items-center gap-6px justify-center'>
+                        <Install size='15' />
+                        {t('settings.skill.updateTo', { version: latestVersionInfo?.version, defaultValue: `更新至 v${latestVersionInfo?.version || ''}` })}
+                      </span>
+                    </Button>
+                  </Tooltip>
                 ) : (
                   <Button type='primary' long size='large' className='flex-1' onClick={onGoUse || onClose}>
                     {t('settings.skill.goUse', { defaultValue: '去使用' })}
@@ -486,9 +518,11 @@ const SkillDetailModal: React.FC<{
                     </div>
                   ) : (
                     <Popconfirm title='确认卸载该技能？' onOk={onUninstall} okText='卸载' cancelText='取消' okButtonProps={{ status: 'danger' }}>
-                      <div className='w-36px h-36px flex items-center justify-center rd-8px border border-line hover:bg-fill-2 cursor-pointer transition-colors text-t-secondary'>
-                        <Delete size='16' />
-                      </div>
+                      <Tooltip content={t('common.delete', { defaultValue: '删除' })}>
+                        <div className='w-36px h-36px flex items-center justify-center rd-8px border border-line hover:bg-fill-2 cursor-pointer transition-colors text-t-secondary'>
+                          <Delete size='16' />
+                        </div>
+                      </Tooltip>
                     </Popconfirm>
                   ))}
               </>
@@ -498,18 +532,19 @@ const SkillDetailModal: React.FC<{
               </div>
             ) : hasVersion ? (
               <>
-                <Button type='primary' long size='large' onClick={onInstall} disabled={downloading}>
-                  <span className='flex items-center gap-6px justify-center'>
-                    <Install size='15' />
-                    {t('settings.skill.install', { defaultValue: '安装技能' })}
-                  </span>
-                </Button>
-                <Button size='large' onClick={onDownload} loading={downloading} disabled={installing}>
-                  <span className='flex items-center gap-6px justify-center'>
-                    <Download size='15' />
+                <Tooltip content={t('settings.skill.install', { defaultValue: '安装技能' })}>
+                  <Button type='primary' long size='large' onClick={onInstall} disabled={downloading}>
+                    <span className='flex items-center gap-6px justify-center'>
+                      <Install size='15' />
+                      {t('settings.skill.install', { defaultValue: '安装技能' })}
+                    </span>
+                  </Button>
+                </Tooltip>
+                <Tooltip content={t('common.download', { defaultValue: '下载' })}>
+                  <Button size='large' icon={<Download size='15' />} loading={downloading} loadingFixedWidth onClick={onDownload} disabled={installing}>
                     {t('common.download', { defaultValue: '下载' })}
-                  </span>
-                </Button>
+                  </Button>
+                </Tooltip>
               </>
             ) : null}
           </div>
@@ -560,9 +595,12 @@ const SkillModalContent: React.FC = () => {
   const [uninstallingSkillName, setUninstallingSkillName] = useState<string | null>(null);
   const [togglingSkillName, setTogglingSkillName] = useState<string | null>(null);
   const [updatingSkillId, setUpdatingSkillId] = useState<string | null>(null);
+  /** Track skill IDs that are currently fetching version info (for loading state in SkillCard) */
+  const [loadingVersionIds, setLoadingVersionIds] = useState<Set<string>>(new Set());
 
   // Installed tab state
   const [installedList, setInstalledList] = useState<IInstalledSkillInfo[]>([]);
+  const [installedListRevision, setInstalledListRevision] = useState(0);
   const [installedLoading, setInstalledLoading] = useState(false);
 
   // Installed skill detail modal state (separate from store detail modal)
@@ -594,6 +632,41 @@ const SkillModalContent: React.FC = () => {
   const [installedSkillsReady, setInstalledSkillsReady] = useState(false);
   const enterpriseCode = user?.enterprise_code?.trim();
   const currentTenantId = resolveSkillTenantId(activeTab, enterpriseCode);
+
+  // Enterprise mode detection - use useAppMode hook for renderer process
+  const { isEnterprise } = useAppMode();
+
+  // Upload/Publish state for enterprise mode
+  const [uploadingSkillName, setUploadingSkillName] = useState<string | null>(null);
+  const [publishingSkillName, setPublishingSkillName] = useState<string | null>(null);
+
+  // Track if sync has been triggered for current tab session (avoid loop)
+  const syncTriggeredRef = useRef(false);
+
+  // Tenant skills state for exclusive tab in enterprise mode
+  const [tenantSkills, setTenantSkills] = useState<
+    Array<{
+      id: string;
+      name: string;
+      displayName?: string;
+      description?: string;
+      version?: string;
+      status: 'pending' | 'approved' | 'rejected';
+      author?: string;
+      authorName?: string;
+      approvedAt?: string;
+      installed?: boolean;
+    }>
+  >([]);
+  const [tenantSkillsLoading, setTenantSkillsLoading] = useState(false);
+  const [installingTenantSkillId, setInstallingTenantSkillId] = useState<string | null>(null);
+
+  // Sync status state
+  const [syncStatus, setSyncStatus] = useState<{
+    syncing: boolean;
+    skills: { installed: string[]; skipped: string[]; deleted: string[]; failed: Array<{ id: string; name: string; error: string }> };
+    assistants: { installed: string[]; skipped: string[]; deleted: string[]; failed: Array<{ id: string; name: string; error: string }> };
+  }>({ syncing: false, skills: { installed: [], skipped: [], deleted: [], failed: [] }, assistants: { installed: [], skipped: [], deleted: [], failed: [] } });
 
   // ---- Fetch installed skills ----
   const fetchInstalledSkills = useCallback(async () => {
@@ -634,6 +707,7 @@ const SkillModalContent: React.FC = () => {
       const res = await skillHub.getInstalledSkills.invoke();
       if (res.success && res.data) {
         setInstalledList(res.data);
+        setInstalledListRevision((revision) => revision + 1);
       }
     } catch (err) {
       console.error('Failed to fetch installed list:', err);
@@ -642,6 +716,41 @@ const SkillModalContent: React.FC = () => {
       setInstalledSkillsReady(true);
     }
   }, []);
+
+  // ---- Enterprise mode: Upload custom skill to Moss Server ----
+  const handleUploadCustomSkill = useCallback(
+    async (skill: IInstalledSkillInfo): Promise<{ success: boolean; msg?: string }> => {
+      if (!isElectronDesktop()) return { success: false, msg: 'Not desktop' };
+
+      const skillName = skill.name;
+      const displayName = skill.meta?.display_name || skillName;
+      const description = skill.meta?.description || '';
+
+      setUploadingSkillName(skillName);
+      try {
+        const res = await eeclaw.uploadCustomSkill.invoke({ skillName, displayName, description });
+        if (res.success && res.data) {
+          Message.success(
+            t('settings.skill.uploadSuccess', {
+              name: skillName,
+              defaultValue: `技能 "${skillName}" 已上传到服务器`,
+            })
+          );
+          // Update local meta to mark as uploaded
+          await fetchInstalledList();
+          return { success: true };
+        } else {
+          return { success: false, msg: res.msg || 'Unknown error' };
+        }
+      } catch (err) {
+        console.error('Failed to upload custom skill:', err);
+        return { success: false, msg: String(err) };
+      } finally {
+        setUploadingSkillName(null);
+      }
+    },
+    [fetchInstalledList, t]
+  );
 
   const handleImportLocalSkill = useCallback(
     async (source?: LocalSkillImportSource) => {
@@ -669,6 +778,25 @@ const SkillModalContent: React.FC = () => {
           // Open standalone audit report modal (just the audit summary, not the full detail page)
           setAuditReportSkillName(importedSkillName);
           setAuditReportVisible(true);
+
+          // Enterprise mode: sync upload to Moss Server after import
+          if (isEnterprise) {
+            const installedRes = await skillHub.getInstalledSkills.invoke();
+            if (installedRes.success && installedRes.data) {
+              const newSkill = installedRes.data.find((s) => s.name === importedSkillName);
+              if (newSkill) {
+                const uploadRes = await handleUploadCustomSkill(newSkill);
+                if (!uploadRes.success) {
+                  Message.error(
+                    t('settings.skill.uploadFailed', {
+                      msg: uploadRes.msg,
+                      defaultValue: `上传失败: ${uploadRes.msg}`,
+                    })
+                  );
+                }
+              }
+            }
+          }
         } else {
           Message.error(
             t('settings.skill.importFailed', {
@@ -687,58 +815,176 @@ const SkillModalContent: React.FC = () => {
         );
       }
     },
-    [fetchInstalledSkills, fetchInstalledList, t]
+    [fetchInstalledSkills, fetchInstalledList, t, isEnterprise, handleUploadCustomSkill]
   );
 
   const onImportButtonClick = useCallback(() => {
     setImportSourceVisible(true);
   }, []);
 
-  // ---- Fetch latest versions ----
-  const fetchLatestVersions = useCallback(async (skillList: ISkillHubSkill[], existingMap?: Map<string, SkillLatestVersion>) => {
-    const versionMap = existingMap ? new Map(existingMap) : new Map<string, SkillLatestVersion>();
-    const toFetch = skillList.filter((s) => !versionMap.has(s.id));
-    if (toFetch.length === 0) {
-      setLatestVersions(versionMap);
-      return versionMap;
-    }
+  // ---- Enterprise mode: Publish skill as tenant-exclusive ----
+  const handlePublishTenantSkill = useCallback(
+    async (skillId: string, skillName: string) => {
+      if (!isElectronDesktop()) return;
 
-    const batchSize = 5;
-    for (let i = 0; i < toFetch.length; i += batchSize) {
-      const batch = toFetch.slice(i, i + batchSize);
-      const results = await Promise.all(
-        batch.map(async (skill) => {
-          try {
-            let res: SkillDetailResponse;
-            if (isElectronDesktop()) {
-              res = await skillHub.fetchSkillDetail.invoke({ skillId: skill.id });
-            } else {
-              res = await fetchSkillDetailHttp(skill.id);
-            }
-            if (res.success && res.data?.versions?.[0]) {
-              const latest = res.data.versions[0];
-              return {
-                skillId: skill.id,
-                versionInfo: {
-                  version: latest.version,
-                  sourceUrl: latest.source_url,
-                  checksum: latest.checksum,
-                } as SkillLatestVersion,
-              };
-            }
-          } catch {
-            // ignore
-          }
-          return null;
-        })
-      );
-      for (const r of results) {
-        if (r) versionMap.set(r.skillId, r.versionInfo);
+      setPublishingSkillName(skillName);
+      try {
+        const res = await eeclaw.publishTenantSkill.invoke({ skillId });
+        if (res.success && res.data) {
+          Message.success(
+            t('settings.skill.publishSuccess', {
+              name: skillName,
+              defaultValue: `技能 "${skillName}" 已提交发布申请，等待管理员审批`,
+            })
+          );
+          await fetchInstalledList();
+        } else {
+          Message.error(
+            t('settings.skill.publishFailed', {
+              msg: res.msg || 'Unknown error',
+              defaultValue: `发布失败: ${res.msg || '未知错误'}`,
+            })
+          );
+        }
+      } catch (err) {
+        console.error('Failed to publish tenant skill:', err);
+        Message.error(
+          t('settings.skill.publishFailed', {
+            msg: String(err),
+            defaultValue: `发布失败: ${String(err)}`,
+          })
+        );
+      } finally {
+        setPublishingSkillName(null);
       }
-    }
-    setLatestVersions(versionMap);
-    return versionMap;
-  }, []);
+    },
+    [fetchInstalledList, t]
+  );
+
+  // ---- Enterprise mode: Install tenant skill ----
+  const handleInstallTenantSkill = useCallback(
+    async (skillId: string, skillName: string) => {
+      if (!isElectronDesktop()) return;
+
+      setInstallingTenantSkillId(skillId);
+      try {
+        const res = await eeclaw.installTenantSkill.invoke({ skillId });
+        if (res.success && res.data) {
+          Message.success(
+            t('settings.skill.installTenantSuccess', {
+              name: skillName,
+              defaultValue: `专属技能 "${skillName}" 已安装`,
+            })
+          );
+          // Update tenant skills list to mark as installed
+          setTenantSkills((prev) => prev.map((s) => (s.id === skillId ? { ...s, installed: true } : s)));
+          await fetchInstalledList();
+          emitter.emit('skills.changed');
+        } else {
+          Message.error(
+            t('settings.skill.installTenantFailed', {
+              msg: res.msg || 'Unknown error',
+              defaultValue: `安装失败: ${res.msg || '未知错误'}`,
+            })
+          );
+        }
+      } catch (err) {
+        console.error('Failed to install tenant skill:', err);
+        Message.error(
+          t('settings.skill.installTenantFailed', {
+            msg: String(err),
+            defaultValue: `安装失败: ${String(err)}`,
+          })
+        );
+      } finally {
+        setInstallingTenantSkillId(null);
+      }
+    },
+    [fetchInstalledList, t]
+  );
+
+  // ---- Fetch latest versions ----
+  // Only used in personal mode to check for skill updates
+  // Enterprise mode doesn't need this - versions are managed by Moss Server
+  const fetchLatestVersions = useCallback(
+    async (skillList: ISkillHubSkill[], existingMap?: Map<string, SkillLatestVersion>) => {
+      // Skip in enterprise mode
+      if (isEnterprise) {
+        return existingMap || new Map<string, SkillLatestVersion>();
+      }
+
+      const now = Date.now();
+      const versionMap = existingMap ? new Map(existingMap) : new Map<string, SkillLatestVersion>();
+
+      // Filter skills that need fetching: not in cache OR cache expired
+      const toFetch = skillList.filter((s) => {
+        const cached = versionMap.get(s.id);
+        if (!cached) return true;
+        // Check if cache is expired (older than VERSION_CACHE_TTL)
+        return now - cached.fetchedAt > VERSION_CACHE_TTL;
+      });
+
+      if (toFetch.length === 0) {
+        setLatestVersions(versionMap);
+        return versionMap;
+      }
+
+      // Mark skills as loading
+      const idsToFetch = toFetch.map((s) => s.id);
+      setLoadingVersionIds((prev) => {
+        const next = new Set(prev);
+        idsToFetch.forEach((id) => next.add(id));
+        return next;
+      });
+
+      try {
+        const batchSize = 10;
+        for (let i = 0; i < toFetch.length; i += batchSize) {
+          const batch = toFetch.slice(i, i + batchSize);
+          const results = await Promise.all(
+            batch.map(async (skill) => {
+              try {
+                let res: SkillDetailResponse;
+                if (isElectronDesktop()) {
+                  res = await skillHub.fetchSkillDetail.invoke({ skillId: skill.id });
+                } else {
+                  res = await fetchSkillDetailHttp(skill.id);
+                }
+                if (res.success && res.data?.versions?.[0]) {
+                  const latest = res.data.versions[0];
+                  return {
+                    skillId: skill.id,
+                    versionInfo: {
+                      version: latest.version,
+                      sourceUrl: latest.source_url,
+                      checksum: latest.checksum,
+                      fetchedAt: Date.now(),
+                    } as SkillLatestVersion,
+                  };
+                }
+              } catch {
+                // ignore
+              }
+              return null;
+            })
+          );
+          for (const r of results) {
+            if (r) versionMap.set(r.skillId, r.versionInfo);
+          }
+        }
+        setLatestVersions(versionMap);
+        return versionMap;
+      } finally {
+        // Clear loading state for all fetched skills
+        setLoadingVersionIds((prev) => {
+          const next = new Set(prev);
+          idsToFetch.forEach((id) => next.delete(id));
+          return next;
+        });
+      }
+    },
+    [isEnterprise]
+  );
 
   // ---- Fetch skills list ----
   // Reads selectedCategory / searchQuery / latestVersions from refs so this callback is stable.
@@ -907,6 +1153,103 @@ const SkillModalContent: React.FC = () => {
     void fetchInstalledList();
   }, [fetchInstalledList]);
 
+  // Refresh installed skills after agent-created skill changes.
+  useEffect(() => {
+    if (!isElectronDesktop()) return;
+
+    const refreshInstalledList = () => {
+      void fetchInstalledList();
+    };
+
+    const removeSkillHubChanged = skillHub.changed.on(refreshInstalledList);
+    const removeSkillsChanged = addEventListener('skills.changed', refreshInstalledList);
+
+    return () => {
+      removeSkillHubChanged();
+      removeSkillsChanged();
+    };
+  }, [fetchInstalledList]);
+
+  // Listen for sync completed event (enterprise mode)
+  useEffect(() => {
+    if (!isEnterprise || !isElectronDesktop()) return;
+
+    const handleSyncCompleted = (data: { skills: { hub: { installed: string[]; skipped: string[]; deleted: string[]; failed: Array<{ id: string; name: string; error: string }> }; tenant: { installed: string[]; skipped: string[]; deleted: string[]; failed: Array<{ id: string; name: string; error: string }> } }; assistants: { hub: { installed: string[]; skipped: string[]; deleted: string[]; failed: Array<{ id: string; name: string; error: string }> }; tenant: { installed: string[]; skipped: string[]; deleted: string[]; failed: Array<{ id: string; name: string; error: string }> } } }) => {
+      // Merge hub and tenant results for display
+      const mergedSkills = {
+        installed: [...data.skills.hub.installed, ...data.skills.tenant.installed],
+        skipped: [...data.skills.hub.skipped, ...data.skills.tenant.skipped],
+        deleted: [...data.skills.hub.deleted, ...data.skills.tenant.deleted],
+        failed: [...data.skills.hub.failed, ...data.skills.tenant.failed],
+      };
+      const mergedAssistants = {
+        installed: [...data.assistants.hub.installed, ...data.assistants.tenant.installed],
+        skipped: [...data.assistants.hub.skipped, ...data.assistants.tenant.skipped],
+        deleted: [...data.assistants.hub.deleted, ...data.assistants.tenant.deleted],
+        failed: [...data.assistants.hub.failed, ...data.assistants.tenant.failed],
+      };
+      setSyncStatus({ syncing: false, skills: mergedSkills, assistants: mergedAssistants });
+      // Refresh installed list after sync
+      void fetchInstalledList();
+    };
+
+    const unsubscribe = eeclaw.syncCompleted.on(handleSyncCompleted);
+    return () => unsubscribe();
+  }, [isEnterprise, fetchInstalledList]);
+
+  // Trigger sync when switching to store tab in enterprise mode
+  // Only trigger once per tab session, not on every syncStatus change
+  useEffect(() => {
+    if (!isEnterprise || activeTab !== 'store' || !isElectronDesktop()) {
+      // Reset ref when leaving store tab
+      syncTriggeredRef.current = false;
+      return;
+    }
+
+    // Skip if already triggered for this tab session
+    if (syncTriggeredRef.current) return;
+
+    // Mark as triggered and start sync
+    syncTriggeredRef.current = true;
+    setSyncStatus({ syncing: true, skills: { installed: [], skipped: [], deleted: [], failed: [] }, assistants: { installed: [], skipped: [], deleted: [], failed: [] } });
+
+    eeclaw.syncFromRemote
+      .invoke()
+      .then((res) => {
+        if (!res.success) {
+          // Sync failed, reset status (syncCompleted event won't be emitted)
+          console.error('Sync failed:', res.msg);
+          setSyncStatus({ syncing: false, skills: { installed: [], skipped: [], deleted: [], failed: [] }, assistants: { installed: [], skipped: [], deleted: [], failed: [] } });
+        }
+        // If success, syncCompleted event will be emitted and handled separately
+      })
+      .catch((err) => {
+        console.error('Failed to trigger sync:', err);
+        setSyncStatus({ syncing: false, skills: { installed: [], skipped: [], deleted: [], failed: [] }, assistants: { installed: [], skipped: [], deleted: [], failed: [] } });
+      });
+  }, [isEnterprise, activeTab]);
+
+  // Fetch tenant skills when switching to exclusive tab in enterprise mode
+  useEffect(() => {
+    if (!isEnterprise || activeTab !== 'exclusive' || !isElectronDesktop()) return;
+
+    const fetchTenantSkills = async () => {
+      setTenantSkillsLoading(true);
+      try {
+        const res = await eeclaw.getTenantSkills.invoke();
+        if (res.success && res.data) {
+          setTenantSkills(res.data);
+        }
+      } catch (err) {
+        console.error('Failed to fetch tenant skills:', err);
+      } finally {
+        setTenantSkillsLoading(false);
+      }
+    };
+
+    void fetchTenantSkills();
+  }, [isEnterprise, activeTab]);
+
   // Load installed list when switching to installed tab
   useEffect(() => {
     if (activeTab === 'installed') {
@@ -915,7 +1258,9 @@ const SkillModalContent: React.FC = () => {
   }, [activeTab, fetchInstalledList]);
 
   // Fetch latest hub versions for installed hub skills so we can detect updates
+  // Only in personal mode (not enterprise) - enterprise mode doesn't interact with SkillHub
   useEffect(() => {
+    if (isEnterprise) return; // Skip in enterprise mode
     if (installedList.length === 0) return;
     const hubInstalled = installedList.filter((s) => s.isHubInstalled && s.meta?.id);
     if (hubInstalled.length === 0) return;
@@ -929,7 +1274,7 @@ const SkillModalContent: React.FC = () => {
         }) as ISkillHubSkill
     );
     void fetchLatestVersions(syntheticSkills, latestVersionsRef.current);
-  }, [installedList, fetchLatestVersions]);
+  }, [isEnterprise, installedList, fetchLatestVersions]);
 
   // ---- Install handler ----
   const handleInstall = useCallback(
@@ -1035,11 +1380,11 @@ const SkillModalContent: React.FC = () => {
 
   // ---- Uninstall handler ----
   const handleUninstall = useCallback(
-    async (skillName: string) => {
+    async (skillName: string, category?: 'custom' | 'hub' | 'system' | 'tenant') => {
       if (!isElectronDesktop()) return;
       setUninstallingSkillName(skillName);
       try {
-        const res = await skillHub.uninstallSkill.invoke({ skillName });
+        const res = await skillHub.uninstallSkill.invoke({ skillName, category });
         if (res.success) {
           Message.success(`已卸载技能：${skillName}`);
           await fetchInstalledSkills();
@@ -1125,11 +1470,11 @@ const SkillModalContent: React.FC = () => {
   );
 
   const handleToggleSkillEnabled = useCallback(
-    async (skillName: string, enabled: boolean) => {
+    async (skillName: string, enabled: boolean, category?: 'custom' | 'hub' | 'system' | 'tenant') => {
       if (!isElectronDesktop()) return;
       setTogglingSkillName(skillName);
       try {
-        const res = await skillHub.setSkillEnabled.invoke({ skillName, enabled });
+        const res = await skillHub.setSkillEnabled.invoke({ skillName, enabled, category });
         if (res.success) {
           Message.success(enabled ? t('settings.skill.enableSuccess', { name: skillName, defaultValue: `已启用技能：${skillName}` }) : t('settings.skill.disableSuccess', { name: skillName, defaultValue: `已禁用技能：${skillName}` }));
           await fetchInstalledList();
@@ -1181,28 +1526,49 @@ const SkillModalContent: React.FC = () => {
   const detailIsHubInstalled = detailSkill ? (findInstalledHubSkillInfo(detailSkill)?.isHubInstalled ?? false) : false;
   const detailLatestVersion = detailSkill ? latestVersions.get(detailSkill.id) : undefined;
   const detailHasVersion = !!detailLatestVersion;
-  const customInstalledSkills = installedList.filter((skill) => !skill.isBuiltin && skill.meta?.source_type === 'upload');
-  const hubInstalledSkills = installedList.filter((skill) => !skill.isBuiltin && (!skill.meta?.source_type || skill.meta?.source_type === 'hub'));
-  const builtinInstalledSkills = installedList.filter((skill) => skill.isBuiltin);
 
-  const renderInstalledSkillGrid = (skillList: IInstalledSkillInfo[]) => (
+  // ===== 分类逻辑：以目录分类（category）为主，source_type 仅作兼容兜底 =====
+  // Tenant skills: 目录分类为 tenant
+  const localTenantSkills = installedList.filter((skill) => skill.category === 'tenant');
+  // Filter tenant skills by search query
+  const filteredTenantSkills = searchQuery.trim()
+    ? localTenantSkills.filter((skill) => {
+        const displayName = skill.meta?.display_name || skill.meta?.name || skill.name;
+        const description = skill.meta?.description || '';
+        const query = searchQuery.trim().toLowerCase();
+        const matches = displayName.toLowerCase().includes(query) || description.toLowerCase().includes(query);
+        console.log('[Tenant Skill Filter]', { name: skill.name, displayName, description, query, matches });
+        return matches;
+      })
+    : localTenantSkills;
+  // Hub skills: 目录分类为 hub（source_type 仅作兼容兜底）
+  const hubInstalledSkills = installedList.filter((skill) => skill.category === 'hub' || (!skill.category && !skill.isBuiltin && (skill.meta?.source_type === 'hub' || skill.isHubInstalled)));
+  // Custom skills: 目录分类为 custom（source_type 仅作兼容兜底）
+  const customInstalledSkills = installedList.filter((skill) => skill.category === 'custom' || (!skill.category && !skill.isBuiltin && skill.meta?.source_type === 'upload'));
+  // Builtin skills: 目录分类为 system 或 isBuiltin 为 true
+  const builtinInstalledSkills = installedList.filter((skill) => skill.category === 'system' || skill.isBuiltin);
+
+  const renderInstalledSkillGrid = (skillList: IInstalledSkillInfo[], hideUninstall = false) => (
     <div className='grid gap-8px' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
       {skillList.map((skill) => {
         const skillHubId = skill.meta?.id;
         const latestVer = skillHubId ? latestVersions.get(skillHubId) : undefined;
         const installedVer = normalizeSkillVersion(skill.version);
         const skillHasUpdate = skill.isHubInstalled && !!latestVer && (!installedVer || latestVer.version !== installedVer);
+        // Pass category to handlers for precise skill location
+        const skillCategory = skill.category as 'custom' | 'hub' | 'system' | 'tenant' | undefined;
         return (
           <InstalledSkillCard
-            key={skill.name}
+            key={`${skill.name}:${installedListRevision}`}
             skill={skill}
-            onUninstall={() => void handleUninstall(skill.name)}
+            onUninstall={() => void handleUninstall(skill.name, skillCategory)}
             uninstalling={uninstallingSkillName === skill.name}
-            onToggleEnabled={(enabled) => void handleToggleSkillEnabled(skill.name, enabled)}
+            onToggleEnabled={(enabled) => void handleToggleSkillEnabled(skill.name, enabled, skillCategory)}
             togglingEnabled={togglingSkillName === skill.name}
             hasUpdate={skillHasUpdate}
             onUpdate={() => skillHubId && void handleUpdate(skillHubId, skill.name, skill.meta)}
             updating={updatingSkillId === skillHubId}
+            hideUninstall={hideUninstall}
             onClick={
               skill.meta
                 ? () => {
@@ -1217,23 +1583,105 @@ const SkillModalContent: React.FC = () => {
     </div>
   );
 
+  // Render custom skills with enterprise action buttons (publish only, auto-upload on create)
+  const renderCustomSkillGridWithEnterpriseActions = (skillList: IInstalledSkillInfo[]) => (
+    <div className='grid gap-8px' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+      {skillList.map((skill) => {
+        const skillHubId = skill.meta?.id;
+        const isPublishing = publishingSkillName === skill.name;
+        const publishStatus = skill.meta?.publish_status;
+        // Custom skills have category 'custom'
+        const skillCategory = skill.category as 'custom' | undefined;
+
+        // Enterprise publish button element - placed below delete button
+        const enterprisePublishButton =
+          isEnterprise && !publishStatus ? (
+            <Tooltip content={t('settings.skill.publishAsTenant', { defaultValue: '发布为专属技能' })}>
+              <button
+                className='store-action-icon'
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (skillHubId) void handlePublishTenantSkill(skillHubId, skill.name);
+                }}
+                disabled={isPublishing || !skillHubId}
+              >
+                {isPublishing ? <Spin size={12} /> : <Share size={12} />}
+              </button>
+            </Tooltip>
+          ) : isEnterprise && publishStatus === 'pending' ? (
+            <Tooltip content={t('settings.skill.publishPending', { defaultValue: '发布审批中' })}>
+              <span className='store-action-badge'>{t('settings.skill.publishPendingShort', { defaultValue: '审核中' })}</span>
+            </Tooltip>
+          ) : isEnterprise && publishStatus === 'approved' ? (
+            <Tooltip content={t('settings.skill.publishApproved', { defaultValue: '已发布为专属技能' })}>
+              <span className='store-action-badge text-success'>{t('settings.skill.publishedShort', { defaultValue: '已发布' })}</span>
+            </Tooltip>
+          ) : undefined;
+
+        return (
+          <InstalledSkillCard
+            key={`${skill.name}:${installedListRevision}`}
+            skill={skill}
+            onUninstall={() => void handleUninstall(skill.name, skillCategory)}
+            uninstalling={uninstallingSkillName === skill.name}
+            onToggleEnabled={(enabled) => void handleToggleSkillEnabled(skill.name, enabled, skillCategory)}
+            togglingEnabled={togglingSkillName === skill.name}
+            hasUpdate={false}
+            onClick={
+              skill.meta
+                ? () => {
+                    setInstalledDetailInfo(skill);
+                    setInstalledDetailVisible(true);
+                  }
+                : undefined
+            }
+            enterprisePublishButton={enterprisePublishButton}
+          />
+        );
+      })}
+    </div>
+  );
+
   return (
     <div ref={containerRef} className='flex flex-col h-full w-full'>
       {/* Header: tabs + search + create button */}
       <div className='flex items-center gap-12px mb-12px'>
         {/* Tab switcher */}
-        <div className='flex items-center bg-fill-2 rd-8px p-2px gap-1px flex-shrink-0'>
-          <button className={classNames('px-12px py-5px text-13px rd-6px transition-colors cursor-pointer border-none outline-none', activeTab === 'store' ? 'bg-base text-t-primary font-medium shadow-sm' : 'bg-transparent text-t-secondary hover:text-t-primary')} onClick={() => setActiveTab('store')}>
+        <div className='settings-store-tabs flex-shrink-0'>
+          <button className={classNames('settings-store-tabs__item', activeTab === 'store' && 'settings-store-tabs__item--active')} onClick={() => setActiveTab('store')}>
             {t('settings.skill.storeTab', { defaultValue: '技能库' })}
           </button>
-          <button className={classNames('px-12px py-5px text-13px rd-6px transition-colors cursor-pointer border-none outline-none', activeTab === 'exclusive' ? 'bg-base text-t-primary font-medium shadow-sm' : 'bg-transparent text-t-secondary hover:text-t-primary')} onClick={() => setActiveTab('exclusive')}>
+          <button className={classNames('settings-store-tabs__item', activeTab === 'exclusive' && 'settings-store-tabs__item--active')} onClick={() => setActiveTab('exclusive')}>
             {t('settings.skill.exclusiveTab', { defaultValue: '专属技能' })}
           </button>
-          <button className={classNames('px-12px py-5px text-13px rd-6px transition-colors cursor-pointer border-none outline-none', activeTab === 'installed' ? 'bg-base text-t-primary font-medium shadow-sm' : 'bg-transparent text-t-secondary hover:text-t-primary')} onClick={() => setActiveTab('installed')}>
+          <button
+            className={classNames('settings-store-tabs__item', activeTab === 'installed' && 'settings-store-tabs__item--active')}
+            onClick={() => {
+              if (activeTab === 'installed') {
+                void fetchInstalledList();
+                return;
+              }
+              setActiveTab('installed');
+            }}
+          >
             {t('settings.skill.installedTab', { defaultValue: '我的技能' })}
-            {getInstalledSkillBadgeCount(installedList) > 0 && <span className='ml-5px px-5px py-0px bg-primary text-white text-10px rd-full leading-16px'>{getInstalledSkillBadgeCount(installedList)}</span>}
+            {getInstalledSkillBadgeCount(installedList) > 0 && <span className='settings-store-tabs__badge'>{getInstalledSkillBadgeCount(installedList)}</span>}
           </button>
         </div>
+
+        {/* Sync status indicator for enterprise mode - compact inline style */}
+        {isEnterprise && activeTab === 'store' && syncStatus.syncing && (
+          <div className='flex items-center gap-6px px-10px py-4px bg-primary-light-1 rd-6px flex-shrink-0'>
+            <Spin size={12} />
+            <span className='text-11px text-primary'>{t('settings.skill.syncing', { defaultValue: '同步中...' })}</span>
+          </div>
+        )}
+        {isEnterprise && activeTab === 'store' && !syncStatus.syncing && (syncStatus.skills.installed.length > 0 || syncStatus.skills.failed.length > 0) && (
+          <div className='flex items-center gap-6px px-10px py-4px bg-success-light rd-6px flex-shrink-0'>
+            <Check size={12} className='text-success' />
+            <span className='text-11px text-success'>{t('settings.skill.syncCompleted', { defaultValue: '已同步' })}</span>
+          </div>
+        )}
 
         {/* Search - always rendered to preserve layout, hidden on installed tab */}
         <div className={classNames('flex-1 min-w-0 transition-opacity duration-150', activeTab === 'installed' ? 'opacity-0 pointer-events-none' : '')}>
@@ -1241,11 +1689,9 @@ const SkillModalContent: React.FC = () => {
         </div>
         {activeTab === 'installed' && isElectronDesktop() && (
           <button type='button' className='group h-34px px-4 py-0 border border-solid rd-999px flex items-center gap-8px flex-shrink-0 cursor-pointer transition-all outline-none bg-[color-mix(in_srgb,var(--color-fill-2)_84%,transparent)] border-[color-mix(in_srgb,var(--color-border-2)_70%,transparent)] hover:bg-[color-mix(in_srgb,var(--color-primary-light-1)_58%,transparent)] hover:border-[color-mix(in_srgb,var(--color-primary)_36%,transparent)]' onClick={onImportButtonClick}>
-            <span className='w-22px h-22px rd-full flex items-center justify-center bg-[color-mix(in_srgb,var(--color-primary)_14%,transparent)] text-[var(--color-primary)] transition-transform group-hover:scale-105'>
-              <UploadOne size='13' />
-            </span>
+            <span className='w-22px h-22px rd-full flex items-center justify-center bg-[color-mix(in_srgb,var(--color-primary)_14%,transparent)] text-[var(--color-primary)] transition-transform group-hover:scale-105'>{isEnterprise ? <Plus size='13' /> : <UploadOne size='13' />}</span>
             <span className='flex items-baseline gap-5px leading-none'>
-              <span className='text-12px font-medium text-t-primary'>{t('common.upload', { defaultValue: '上传' })}</span>
+              <span className='text-12px font-medium text-t-primary'>{isEnterprise ? t('common.create', { defaultValue: '创建' }) : t('common.upload', { defaultValue: '上传' })}</span>
               <span className='text-11px text-t-secondary'>{t('settings.customSkills', { defaultValue: 'Custom Skills' })}</span>
             </span>
           </button>
@@ -1258,7 +1704,7 @@ const SkillModalContent: React.FC = () => {
           {/* Category filter */}
           <div className='flex gap-6px mb-14px overflow-x-auto pb-2px flex-shrink-0 scrollbar-hide'>
             {[{ key: 'all', label: t('settings.skill.allCategories', { defaultValue: '精选' }) }, ...categories.map((c) => ({ key: c, label: c }))].map(({ key, label }) => (
-              <span key={key} className={classNames('px-12px py-4px rd-16px text-12px cursor-pointer transition-colors whitespace-nowrap flex-shrink-0', selectedCategory === key ? 'bg-primary text-white' : 'bg-fill-2 text-t-secondary hover:bg-fill-3 hover:text-t-primary')} onClick={() => setSelectedCategory(key)}>
+              <span key={key} className={classNames('settings-store-category-chip flex-shrink-0', selectedCategory === key && 'settings-store-category-chip--active')} onClick={() => setSelectedCategory(key)}>
                 {label}
               </span>
             ))}
@@ -1266,7 +1712,42 @@ const SkillModalContent: React.FC = () => {
 
           {/* Skill grid */}
           <AionScrollArea className='flex-1 min-h-0' disableOverflow={isPageMode} onScroll={handleScroll}>
-            {activeTab === 'exclusive' && !enterpriseCode ? (
+            {/* Enterprise mode: show tenant skills from local tenant/ directory */}
+            {activeTab === 'exclusive' && isEnterprise ? (
+              filteredTenantSkills.length === 0 ? (
+                <div className='flex flex-col items-center justify-center py-48px text-t-secondary gap-8px'>
+                  <Shield size='32' className='text-t-tertiary' />
+                  <span className='text-13px'>{t('settings.skill.noTenantSkills', { defaultValue: '暂无专属技能' })}</span>
+                </div>
+              ) : (
+                <div className='grid gap-8px pb-16px' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+                  {filteredTenantSkills.map((skill) => {
+                    const skillHubId = skill.meta?.id;
+                    // Tenant skills have category 'tenant'
+                    return (
+                      <InstalledSkillCard
+                        key={`${skill.name}:${installedListRevision}`}
+                        skill={skill}
+                        onUninstall={() => void handleUninstall(skill.name, 'tenant')}
+                        uninstalling={uninstallingSkillName === skill.name}
+                        onToggleEnabled={(enabled) => void handleToggleSkillEnabled(skill.name, enabled, 'tenant')}
+                        togglingEnabled={togglingSkillName === skill.name}
+                        hasUpdate={false}
+                        hideUninstall={true}
+                        onClick={
+                          skill.meta
+                            ? () => {
+                                setInstalledDetailInfo(skill);
+                                setInstalledDetailVisible(true);
+                              }
+                            : undefined
+                        }
+                      />
+                    );
+                  })}
+                </div>
+              )
+            ) : activeTab === 'exclusive' && !enterpriseCode ? (
               <div className='flex flex-col items-center justify-center py-48px text-t-secondary gap-8px'>
                 <Shield size='32' className='text-t-tertiary' />
                 <span className='text-13px'>{t('settings.skill.noEnterpriseCode', { defaultValue: '当前账号没有企业编码，无法加载专属技能。' })}</span>
@@ -1284,11 +1765,12 @@ const SkillModalContent: React.FC = () => {
               <div className='grid gap-8px pb-16px' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
                 {skills.map((skill) => {
                   const isInstalled = installedSkills.has(skill.name) || installedSkills.has(skill.id);
-                  const hasVersion = latestVersions.has(skill.id);
+                  const latestVer = latestVersions.get(skill.id);
+                  const hasVersion = !!latestVer;
+                  const isLoadingVersion = loadingVersionIds.has(skill.id);
                   const isInstalling = installingSkillId === skill.id;
                   const isUpdating = updatingSkillId === skill.id;
                   const installedVer = normalizeSkillVersion(installedSkills.get(skill.id) || installedSkills.get(skill.name));
-                  const latestVer = latestVersions.get(skill.id);
                   const skillHasUpdate = isInstalled && !!latestVer && (!installedVer || latestVer.version !== installedVer);
                   return (
                     <SkillCard
@@ -1309,6 +1791,8 @@ const SkillModalContent: React.FC = () => {
                         void handleUpdate(skill.id);
                       }}
                       updating={isUpdating}
+                      latestVersion={latestVer?.version}
+                      loadingVersion={isLoadingVersion}
                     />
                   );
                 })}
@@ -1361,15 +1845,26 @@ const SkillModalContent: React.FC = () => {
                     <div className='text-13px font-medium text-t-primary'>{t('settings.customSkills')}</div>
                     <span className='px-6px py-0px bg-fill-2 text-t-secondary text-11px rd-full leading-18px'>{customInstalledSkills.length}</span>
                   </div>
-                  {customInstalledSkills.length > 0 ? renderInstalledSkillGrid(customInstalledSkills) : <div className='bg-fill-1 border border-dashed border-line rd-12px px-14px py-18px text-12px text-t-tertiary'>{t('settings.noCustomSkills')}</div>}
+                  {customInstalledSkills.length > 0 ? isEnterprise ? renderCustomSkillGridWithEnterpriseActions(customInstalledSkills) : renderInstalledSkillGrid(customInstalledSkills) : <div className='bg-fill-1 border border-dashed border-line rd-12px px-14px py-18px text-12px text-t-tertiary'>{t('settings.noCustomSkills')}</div>}
                 </section>
+
+                {/* Tenant skills section - enterprise mode only */}
+                {isEnterprise && (
+                  <section>
+                    <div className='flex items-center justify-between gap-8px mb-10px'>
+                      <div className='text-13px font-medium text-t-primary'>{t('settings.tenantSkills', { defaultValue: '专属技能' })}</div>
+                      <span className='px-6px py-0px bg-fill-2 text-t-secondary text-11px rd-full leading-18px'>{localTenantSkills.length}</span>
+                    </div>
+                    {localTenantSkills.length > 0 ? renderInstalledSkillGrid(localTenantSkills, true) : <div className='bg-fill-1 border border-dashed border-line rd-12px px-14px py-18px text-12px text-t-tertiary'>{t('settings.noTenantSkills', { defaultValue: '暂无专属技能' })}</div>}
+                  </section>
+                )}
 
                 <section>
                   <div className='flex items-center justify-between gap-8px mb-10px'>
                     <div className='text-13px font-medium text-t-primary'>{t('settings.hubSkills', { defaultValue: 'Hub Skills' })}</div>
                     <span className='px-6px py-0px bg-fill-2 text-t-secondary text-11px rd-full leading-18px'>{hubInstalledSkills.length}</span>
                   </div>
-                  {hubInstalledSkills.length > 0 ? renderInstalledSkillGrid(hubInstalledSkills) : <div className='bg-fill-1 border border-dashed border-line rd-12px px-14px py-18px text-12px text-t-tertiary'>{t('settings.noHubSkills', { defaultValue: 'No hub-installed skills' })}</div>}
+                  {hubInstalledSkills.length > 0 ? renderInstalledSkillGrid(hubInstalledSkills, isEnterprise) : <div className='bg-fill-1 border border-dashed border-line rd-12px px-14px py-18px text-12px text-t-tertiary'>{t('settings.noHubSkills', { defaultValue: 'No hub-installed skills' })}</div>}
                 </section>
 
                 <section>

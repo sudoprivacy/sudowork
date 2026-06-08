@@ -5,9 +5,8 @@
  */
 
 import { channel } from '@/common/ipcBridge';
-import { getDatabase } from '@/process/database';
 import { getChannelManager } from '@/channels/core/ChannelManager';
-import { getPairingService } from '@/channels/pairing/PairingService';
+import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
 import { ExtensionRegistry } from '@/extensions';
 import { toAssetUrl } from '@/extensions/assetProtocol';
 import * as path from 'path';
@@ -33,11 +32,7 @@ export function initChannelBridge(): void {
 
       let dbPlugins: import('@/channels/types').IChannelPluginConfig[] = [];
       try {
-        const db = getDatabase();
-        const result = db.getChannelPlugins();
-        if (result.success && Array.isArray(result.data)) {
-          dbPlugins = result.data;
-        }
+        dbPlugins = await getChannelManager().getProvider().getPlugins();
       } catch (dbError) {
         mainWarn('ChannelBridge', 'getChannelPlugins failed, proceeding with builtin-only list:', dbError);
       }
@@ -165,20 +160,17 @@ export function initChannelBridge(): void {
    */
   channel.getPluginCredentials.provider(async ({ pluginId }) => {
     try {
-      const db = getDatabase();
-      // getChannelPlugin already decrypts credentials via decryptCredentials
-      const result = db.getChannelPlugin(pluginId);
+      const plugin = await getChannelManager().getProvider().getPlugin(pluginId);
 
-      if (!result.success || !result.data) {
-        return { success: false, msg: result.error || 'Plugin not found' };
+      if (!plugin) {
+        return { success: false, msg: 'Plugin not found' };
       }
 
-      const plugin = result.data;
       if (!plugin.credentials) {
         return { success: true, data: null };
       }
 
-      // Credentials are already decrypted by getChannelPlugin (via decryptCredentials)
+      // Credentials are already decrypted by provider (Local: getChannelPlugin via decryptCredentials, Remote: Moss server)
       // Just return them directly
       return { success: true, data: plugin.credentials };
     } catch (error: any) {
@@ -246,19 +238,14 @@ export function initChannelBridge(): void {
    */
   channel.getPendingPairings.provider(async () => {
     try {
-      const db = getDatabase();
-      const result = db.getPendingPairingRequests();
+      const pairings = await getChannelManager().getProvider().getPendingPairingRequests();
 
-      mainLog('ChannelBridge', `getPendingPairings: success=${result.success}, count=${result.data?.length || 0}`);
-      if (result.data && result.data.length > 0) {
-        mainLog('ChannelBridge', `getPendingPairings: codes=${result.data.map((p) => `${p.code}(${p.platformType})`).join(', ')}`);
+      mainLog('ChannelBridge', `getPendingPairings: count=${pairings.length}`);
+      if (pairings.length > 0) {
+        mainLog('ChannelBridge', `getPendingPairings: codes=${pairings.map((p) => `${p.code}(${p.platformType})`).join(', ')}`);
       }
 
-      if (!result.success || !result.data) {
-        return { success: false, msg: result.error };
-      }
-
-      return { success: true, data: result.data };
+      return { success: true, data: pairings };
     } catch (error: any) {
       mainError('ChannelBridge', 'getPendingPairings error:', error);
       return { success: false, msg: error.message };
@@ -267,15 +254,13 @@ export function initChannelBridge(): void {
 
   /**
    * Approve a pairing request
-   * Delegates to PairingService to avoid duplicate logic
    */
   channel.approvePairing.provider(async ({ code }) => {
     try {
-      const pairingService = getPairingService();
-      const result = await pairingService.approvePairing(code);
+      const success = await getChannelManager().getProvider().approvePairing(code);
 
-      if (!result.success) {
-        return { success: false, msg: result.error };
+      if (!success) {
+        return { success: false, msg: 'Failed to approve pairing' };
       }
 
       mainLog('ChannelBridge', `Approved pairing for code ${code}`);
@@ -288,15 +273,13 @@ export function initChannelBridge(): void {
 
   /**
    * Reject a pairing request
-   * Delegates to PairingService to avoid duplicate logic
    */
   channel.rejectPairing.provider(async ({ code }) => {
     try {
-      const pairingService = getPairingService();
-      const result = await pairingService.rejectPairing(code);
+      const success = await getChannelManager().getProvider().rejectPairing(code);
 
-      if (!result.success) {
-        return { success: false, msg: result.error };
+      if (!success) {
+        return { success: false, msg: 'Failed to reject pairing' };
       }
 
       mainLog('ChannelBridge', `Rejected pairing code ${code}`);
@@ -314,14 +297,8 @@ export function initChannelBridge(): void {
    */
   channel.getAuthorizedUsers.provider(async () => {
     try {
-      const db = getDatabase();
-      const result = db.getChannelUsers();
-
-      if (!result.success || !result.data) {
-        return { success: false, msg: result.error };
-      }
-
-      return { success: true, data: result.data };
+      const users = await getChannelManager().getProvider().getUsers();
+      return { success: true, data: users };
     } catch (error: any) {
       mainError('ChannelBridge', 'getAuthorizedUsers error:', error);
       return { success: false, msg: error.message };
@@ -333,13 +310,10 @@ export function initChannelBridge(): void {
    */
   channel.revokeUser.provider(async ({ userId }) => {
     try {
-      const db = getDatabase();
+      const success = await getChannelManager().getProvider().deleteUser(userId);
 
-      // Delete user (cascades to sessions)
-      const result = db.deleteChannelUser(userId);
-
-      if (!result.success) {
-        return { success: false, msg: result.error };
+      if (!success) {
+        return { success: false, msg: 'Failed to revoke user authorization' };
       }
 
       mainLog('ChannelBridge', `Revoked user ${userId}`);
@@ -357,14 +331,8 @@ export function initChannelBridge(): void {
    */
   channel.getActiveSessions.provider(async () => {
     try {
-      const db = getDatabase();
-      const result = db.getChannelSessions();
-
-      if (!result.success || !result.data) {
-        return { success: false, msg: result.error };
-      }
-
-      return { success: true, data: result.data };
+      const sessions = await getChannelManager().getProvider().getSessions();
+      return { success: true, data: sessions };
     } catch (error: any) {
       mainError('ChannelBridge', 'getActiveSessions error:', error);
       return { success: false, msg: error.message };
@@ -495,6 +463,11 @@ export function initChannelBridge(): void {
    * Cancel WeChat QR login flow
    */
   channel.wechatCancelQrLogin.provider(async () => {
+    // Enterprise mode: no local WeChat process to cancel
+    if (isEnterpriseMode()) {
+      return { success: true };
+    }
+
     if (wechatQrLoginAbort) {
       wechatQrLoginAbort.abort();
       wechatQrLoginAbort = null;

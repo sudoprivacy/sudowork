@@ -28,8 +28,17 @@ import type { DingTalkStreamMessage } from './DingTalkAdapter';
 const EVENT_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 const EVENT_CACHE_CLEANUP_INTERVAL = 60 * 1000; // 1 minute
 
+// Reconnection settings
+const RECONNECT_INITIAL_DELAY = 1000;  // 1 second
+const RECONNECT_MAX_DELAY = 60 * 1000; // 60 seconds
+const RECONNECT_BACKOFF_FACTOR = 2;
+const HEALTH_CHECK_INTERVAL = 30 * 1000; // 30 seconds
+
 // DingTalk API base URL (new version)
 const DINGTALK_API_BASE = 'https://api.dingtalk.com';
+
+// Local image extensions that need to be extracted from markdown text and sent separately
+const LOCAL_IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'];
 
 // AI Card template ID (DingTalk built-in streaming card)
 const AI_CARD_TEMPLATE_ID = '382e4302-551d-4880-bf29-a30acfab2e71.schema';
@@ -86,6 +95,12 @@ export class DingTalkPlugin extends BasePlugin {
   // Store sessionWebhook per chatId for fallback sending
   private webhookCache: Map<string, string> = new Map();
 
+  // Reconnection state
+  private shouldReconnect: boolean = false;
+  private reconnectDelay: number = RECONNECT_INITIAL_DELAY;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private healthCheckTimer: ReturnType<typeof setInterval> | null = null;
+
   // Local directory for downloaded media files (lazy-initialized)
   private mediaDir: string | null = null;
 
@@ -105,6 +120,60 @@ export class DingTalkPlugin extends BasePlugin {
   }
 
   /**
+   * Create DWClient instance and register callbacks.
+   * Extracted from onStart() for reuse during reconnection.
+   */
+  private async createClient(): Promise<void> {
+    // Use `as any` to bypass SDK type declaration deficiency: the DWClient constructor's
+    // TypeScript signature (client.d.ts:62-68) does not include autoReconnect, but the
+    // runtime merges it via {...defaultConfig, ...opts} (client.mjs:41-44).
+    // Must explicitly disable autoReconnect: otherwise the SDK's auto-reconnect (1s delay)
+    // fires before our health check (30s), causing heartbeat interval leaks
+    // (close handler doesn't clear old interval, client.mjs:166-176).
+    this.client = new DWClient({
+      clientId: this.clientId,
+      clientSecret: this.clientSecret,
+      keepAlive: true,
+      autoReconnect: false,
+      debug: false,
+    } as any);
+
+    // Register robot message listener (TOPIC_ROBOT uses CALLBACK type in Stream protocol)
+    this.client.registerCallbackListener(TOPIC_ROBOT, (msg: DWClientDownStream) => {
+      // Immediately acknowledge the message to prevent retry
+      this.client?.socketCallBackResponse(msg.headers.messageId, EventAck.SUCCESS);
+
+      // Process message asynchronously
+      try {
+        const data: DingTalkStreamMessage = JSON.parse(msg.data);
+        void this.handleRobotMessage(data, msg.headers.messageId).catch((error) => {
+          mainError('DingTalkPlugin', 'Error handling robot message', error);
+        });
+      } catch (error) {
+        mainError('DingTalkPlugin', 'Failed to parse robot message', error);
+      }
+    });
+
+    // Register card callback listener
+    this.client.registerCallbackListener(TOPIC_CARD, (msg: DWClientDownStream) => {
+      // Acknowledge card callback
+      this.client?.socketCallBackResponse(msg.headers.messageId, EventAck.SUCCESS);
+
+      // Process card action asynchronously
+      try {
+        const data = JSON.parse(msg.data);
+        void this.handleCardCallback(data, msg.headers.messageId).catch((error) => {
+          mainError('DingTalkPlugin', 'Error handling card callback', error);
+        });
+      } catch (error) {
+        mainError('DingTalkPlugin', 'Failed to parse card callback', error);
+      }
+    });
+
+    await this.client.connect();
+  }
+
+  /**
    * Start WebSocket Stream connection
    */
   protected async onStart(): Promise<void> {
@@ -113,56 +182,12 @@ export class DingTalkPlugin extends BasePlugin {
     }
 
     try {
-      // Refresh access token first
       await this.refreshAccessToken();
-
-      // Create DWClient
-      this.client = new DWClient({
-        clientId: this.clientId,
-        clientSecret: this.clientSecret,
-        keepAlive: true,
-        debug: false,
-      });
-
-      // Register robot message listener (TOPIC_ROBOT uses CALLBACK type in Stream protocol)
-      this.client.registerCallbackListener(TOPIC_ROBOT, (msg: DWClientDownStream) => {
-        // Immediately acknowledge the message to prevent retry
-        this.client?.socketCallBackResponse(msg.headers.messageId, EventAck.SUCCESS);
-
-        // Process message asynchronously
-        try {
-          const data: DingTalkStreamMessage = JSON.parse(msg.data);
-          void this.handleRobotMessage(data, msg.headers.messageId).catch((error) => {
-            mainError('DingTalkPlugin', 'Error handling robot message', error);
-          });
-        } catch (error) {
-          mainError('DingTalkPlugin', 'Failed to parse robot message', error);
-        }
-      });
-
-      // Register card callback listener
-      this.client.registerCallbackListener(TOPIC_CARD, (msg: DWClientDownStream) => {
-        // Acknowledge card callback
-        this.client?.socketCallBackResponse(msg.headers.messageId, EventAck.SUCCESS);
-
-        // Process card action asynchronously
-        try {
-          const data = JSON.parse(msg.data);
-          void this.handleCardCallback(data, msg.headers.messageId).catch((error) => {
-            mainError('DingTalkPlugin', 'Error handling card callback', error);
-          });
-        } catch (error) {
-          mainError('DingTalkPlugin', 'Failed to parse card callback', error);
-        }
-      });
-
-      // Connect
-      await this.client.connect();
+      this.shouldReconnect = true;
+      await this.createClient();
       this.isConnected = true;
-
-      // Start event cache cleanup timer
       this.startEventCleanup();
-
+      this.startHealthCheck();
       mainLog('DingTalkPlugin', `Started for client ${this.clientId}`);
     } catch (error) {
       mainError('DingTalkPlugin', 'Failed to start', error);
@@ -174,6 +199,9 @@ export class DingTalkPlugin extends BasePlugin {
    * Stop connection and cleanup
    */
   protected async onStop(): Promise<void> {
+    this.shouldReconnect = false;
+    this.stopHealthCheck();
+    this.stopReconnect();
     this.stopEventCleanup();
 
     if (this.client) {
@@ -193,6 +221,133 @@ export class DingTalkPlugin extends BasePlugin {
     this.isConnected = false;
 
     mainLog('DingTalkPlugin', 'Stopped and cleaned up');
+  }
+
+  // ==================== Reconnection ====================
+
+  /**
+   * Reconnect to DingTalk Stream with a fresh DWClient instance.
+   * Destroys the old instance (clearing its heartbeat interval),
+   * refreshes the access token, then creates a new connection.
+   */
+  private async reconnect(): Promise<void> {
+    // Defensively stop health check to prevent timer leaks from any future call path
+    this.stopHealthCheck();
+
+    // Guard: if connection is already alive, skip reconnect.
+    // Prevents resume() and health check from triggering a double reconnect
+    // that would kill the first one's newly established connection.
+    if (this.client && this.client.connected) {
+      this.isConnected = true;
+      this.reconnectDelay = RECONNECT_INITIAL_DELAY;
+      this.startHealthCheck();
+      return;
+    }
+
+    // 1. Destroy old instance (disconnect clears heartbeat interval)
+    if (this.client) {
+      try {
+        this.client.disconnect();
+      } catch {}
+      this.client = null;
+    }
+
+    this.isConnected = false;
+
+    // 2. Refresh token
+    await this.refreshAccessToken();
+
+    // 3. Create fresh DWClient instance and connect
+    await this.createClient();
+
+    // 4. Update state and restart health check
+    this.isConnected = true;
+    this.reconnectDelay = RECONNECT_INITIAL_DELAY;
+    this.startHealthCheck();
+    mainLog('DingTalkPlugin', 'Reconnected successfully');
+  }
+
+  /**
+   * Schedule a reconnection attempt with exponential backoff.
+   */
+  private scheduleReconnect(): void {
+    if (!this.shouldReconnect) return;
+    this.stopReconnect();
+
+    mainLog('DingTalkPlugin', `Reconnecting in ${this.reconnectDelay / 1000}s...`);
+
+    this.reconnectTimer = setTimeout(() => {
+      void this.reconnect()
+        .then(() => {
+          this.setStatus('running');
+        })
+        .catch((error) => {
+          mainError('DingTalkPlugin', 'Reconnection failed:', error);
+          this.reconnectDelay = Math.min(
+            this.reconnectDelay * RECONNECT_BACKOFF_FACTOR,
+            RECONNECT_MAX_DELAY
+          );
+          this.scheduleReconnect();
+        });
+    }, this.reconnectDelay);
+  }
+
+  private stopReconnect(): void {
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+  }
+
+  // ==================== Health Check ====================
+
+  /**
+   * Periodically check SDK connection state via the connected flag.
+   * SDK sets client.connected=false on WebSocket close and on SYSTEM "disconnect"
+   * (which can occur without closing the WebSocket). The keepAlive ping/pong
+   * heartbeat (8s interval) also triggers terminate() on timeout, which sets
+   * connected=false via the close event.
+   */
+  private startHealthCheck(): void {
+    this.stopHealthCheck();
+    this.healthCheckTimer = setInterval(() => {
+      if (this.shouldReconnect && this.client) {
+        if (!this.client.connected) {
+          mainWarn('DingTalkPlugin', 'Connection lost detected by health check', {
+            connected: this.client.connected,
+          });
+          this.isConnected = false;
+          this.scheduleReconnect();
+          this.stopHealthCheck();
+        }
+      }
+    }, HEALTH_CHECK_INTERVAL);
+  }
+
+  private stopHealthCheck(): void {
+    if (this.healthCheckTimer) {
+      clearInterval(this.healthCheckTimer);
+      this.healthCheckTimer = null;
+    }
+  }
+
+  // ==================== System Resume ====================
+
+  /**
+   * Resume connection after system wake from sleep.
+   * Called by ChannelManager.resumePlugins() from powerMonitor.on('resume').
+   */
+  async resume(): Promise<void> {
+    if (!this.shouldReconnect || !this.client) return;
+
+    // Check if connection has died
+    if (!this.client.connected) {
+      mainLog('DingTalkPlugin', 'System resume: connection lost, triggering reconnect');
+      this.isConnected = false;
+      this.reconnectDelay = RECONNECT_INITIAL_DELAY;
+      this.stopHealthCheck();
+      this.scheduleReconnect();
+    }
   }
 
   /**
@@ -249,10 +404,28 @@ export class DingTalkPlugin extends BasePlugin {
 
     const { contentType, content, rawText } = toDingTalkSendParams(message);
 
+    // Extract local image refs from text and send as separate sampleImageMsg
+    let textContent = rawText || message.text || '';
+    let localImages: string[] = [];
+    if (message.type === 'text' && textContent) {
+      const extracted = this.extractLocalImageRefs(textContent);
+      textContent = extracted.cleanText;
+      localImages = extracted.imagePaths;
+      // If text was fully extracted as images, just send the images directly
+      if (!textContent && localImages.length > 0) {
+        await this.sendLocalImages(chatId, localImages);
+        return '';
+      }
+    }
+
     // Try AI Card streaming for text/markdown messages
-    if (contentType === 'markdown' && rawText !== undefined) {
+    if (contentType === 'markdown' && textContent !== undefined && textContent !== '') {
       try {
-        const cardMessageId = await this.createAndDeliverAICard(chatType, id, rawText);
+        const cardMessageId = await this.createAndDeliverAICard(chatType, id, textContent);
+        // Send extracted local images after text
+        if (localImages.length > 0) {
+          await this.sendLocalImages(chatId, localImages);
+        }
         return cardMessageId;
       } catch (error) {
         mainWarn('DingTalkPlugin', 'AI Card failed, falling back to webhook', error);
@@ -263,7 +436,10 @@ export class DingTalkPlugin extends BasePlugin {
     const webhook = this.webhookCache.get(chatId);
     if (webhook) {
       try {
-        const msgId = await this.sendViaWebhook(webhook, contentType, content, rawText);
+        const msgId = await this.sendViaWebhook(webhook, contentType, content, textContent);
+        if (localImages.length > 0) {
+          await this.sendLocalImages(chatId, localImages);
+        }
         return msgId;
       } catch (error) {
         mainError('DingTalkPlugin', 'Webhook send failed', error);
@@ -273,7 +449,10 @@ export class DingTalkPlugin extends BasePlugin {
 
     // Last resort: use DingTalk API to send message
     try {
-      const msgId = await this.sendViaAPI(chatType, id, contentType, content, rawText);
+      const msgId = await this.sendViaAPI(chatType, id, contentType, content, textContent);
+      if (localImages.length > 0) {
+        await this.sendLocalImages(chatId, localImages);
+      }
       return msgId;
     } catch (error) {
       mainError('DingTalkPlugin', 'API send failed', error);
@@ -300,10 +479,13 @@ export class DingTalkPlugin extends BasePlugin {
     await this.ensureAccessToken();
 
     const { rawText } = toDingTalkSendParams(message);
-    const text = rawText || message.text || '';
+    let text = rawText || message.text || '';
+
+    // Extract local image refs to avoid gray placeholder in AI Card
+    const { cleanText, imagePaths } = this.extractLocalImageRefs(text);
 
     // Truncate if too long
-    const truncatedText = text.length > DINGTALK_MESSAGE_LIMIT ? text.slice(0, DINGTALK_MESSAGE_LIMIT - 3) + '...' : text;
+    const truncatedText = cleanText.length > DINGTALK_MESSAGE_LIMIT ? cleanText.slice(0, DINGTALK_MESSAGE_LIMIT - 3) + '...' : cleanText;
 
     try {
       await this.streamAICard(cardSession.outTrackId, truncatedText, isFinal);
@@ -311,6 +493,11 @@ export class DingTalkPlugin extends BasePlugin {
       if (isFinal) {
         await this.finishAICard(cardSession.outTrackId, truncatedText);
         this.aiCardSessions.set(messageId, { ...cardSession, isFinished: true });
+
+        // Send extracted local images as separate messages after AI Card is finalized
+        if (imagePaths.length > 0) {
+          await this.sendLocalImages(chatId, imagePaths);
+        }
       }
     } catch (error: any) {
       // Ignore "not modified" style errors
@@ -501,6 +688,15 @@ export class DingTalkPlugin extends BasePlugin {
       inputingStarted: false,
     });
 
+    // Set initial content so the card is not empty
+    if (_initialText) {
+      try {
+        await this.streamAICard(outTrackId, _initialText);
+      } catch (error) {
+        mainWarn('DingTalkPlugin', 'Failed to set initial AI Card content', error);
+      }
+    }
+
     return messageId;
   }
 
@@ -580,17 +776,75 @@ export class DingTalkPlugin extends BasePlugin {
       const { contentType, content, rawText } = toDingTalkSendParams(message);
       const { type: chatType, id } = parseChatId(chatId);
 
+      // Extract local image refs to avoid gray placeholder
+      let textContent = rawText || message.text || '';
+      let localImages: string[] = [];
+      if (message.type === 'text' && textContent) {
+        const extracted = this.extractLocalImageRefs(textContent);
+        textContent = extracted.cleanText;
+        localImages = extracted.imagePaths;
+      }
+
       // Try sessionWebhook first
       const webhook = this.webhookCache.get(chatId);
       if (webhook) {
-        await this.sendViaWebhook(webhook, contentType, content, rawText);
+        await this.sendViaWebhook(webhook, contentType, content, textContent);
+        if (localImages.length > 0) {
+          await this.sendLocalImages(chatId, localImages);
+        }
         return;
       }
 
       // Fall back to DingTalk API
-      await this.sendViaAPI(chatType, id, contentType, content, rawText);
+      await this.sendViaAPI(chatType, id, contentType, content, textContent);
+      if (localImages.length > 0) {
+        await this.sendLocalImages(chatId, localImages);
+      }
     } catch (error) {
       mainError('DingTalkPlugin', 'Fallback plain message send failed', error);
+    }
+  }
+
+  // ==================== Local Image Extraction ====================
+
+  /**
+   * Extract local-path markdown image references from text.
+   * Returns cleaned text (with local image refs removed) and array of local image paths.
+   * HTTP/data URLs are left in the text unchanged.
+   */
+  private extractLocalImageRefs(text: string): { cleanText: string; imagePaths: string[] } {
+    const imagePaths: string[] = [];
+    const cleanText = text.replace(/!\[[^\]]*\]\(([^)]+)\)/g, (match, imgPath: string) => {
+      if (/^(https?:|data:|file:)/i.test(imgPath)) {
+        return match;
+      }
+      const ext = path.extname(imgPath).toLowerCase();
+      if (LOCAL_IMAGE_EXTENSIONS.includes(ext)) {
+        imagePaths.push(imgPath);
+        return '';
+      }
+      return match;
+    }).replace(/\n{3,}/g, '\n\n').trim();
+    return { cleanText, imagePaths };
+  }
+
+  /**
+   * Send local image files to DingTalk chat as separate sampleImageMsg messages.
+   */
+  private async sendLocalImages(chatId: string, imagePaths: string[]): Promise<void> {
+    const { type: chatType, id } = parseChatId(chatId);
+    // Local image paths extracted from markdown (e.g. ![](caterpillar.png)) are relative to the
+    // session workspace, not the process cwd. Resolve them against the media dir before upload.
+    const mediaBase = await this.ensureMediaDir();
+    for (const imgPath of imagePaths) {
+      try {
+        const resolvedPath = path.isAbsolute(imgPath) ? imgPath : path.resolve(mediaBase, imgPath);
+        const uploadType = getUploadMediaType(resolvedPath);
+        const mediaId = await this.uploadMedia(resolvedPath, uploadType);
+        await this.sendMediaViaAPI(chatType, id, 'image', mediaId);
+      } catch (error) {
+        mainError('DingTalkPlugin', 'Failed to send extracted local image', error);
+      }
     }
   }
 

@@ -1,7 +1,10 @@
 /**
  * Assistant subdirectory names for categorized assistant preset storage.
- * All prefixed with `_` to distinguish from legacy flat assistant files.
+ * Personal mode: All prefixed with `_` to distinguish from legacy flat assistant files.
+ * Enterprise mode: No prefix (hub/custom/tenant/system).
  */
+
+/** Personal mode subdirectory names (prefixed with `_`) */
 export const ASSISTANT_SUBDIRS = {
   /** Hub-installed assistant presets (source_type: 'hub') */
   hub: '_hub',
@@ -11,8 +14,23 @@ export const ASSISTANT_SUBDIRS = {
   custom: '_my-custom-assistant',
 } as const;
 
-/** Metadata file name for assistant presets */
+/** Enterprise mode subdirectory names (no prefix) */
+export const ENTERPRISE_ASSISTANT_SUBDIRS = {
+  /** Hub-installed assistants (synced from Moss Server) */
+  hub: 'hub',
+  /** User-created custom assistants */
+  custom: 'custom',
+  /** Enterprise tenant-exclusive assistants (approved by admin) */
+  tenant: 'tenant',
+  /** System/builtin assistants */
+  system: 'system',
+} as const;
+
+/** Metadata file name for assistant presets (personal mode) */
 export const ASSISTANT_META_FILE = '_sudowork_meta.json';
+
+/** Metadata file name for assistant presets (enterprise mode - matches Moss Server) */
+export const MOSS_ASSISTANT_META_FILE = '_moss_meta.json';
 
 /**
  * Assistant preset metadata stored in _sudowork_meta.json.
@@ -27,6 +45,8 @@ export interface IAssistantMeta {
   id?: string;
   /** Assistant name (directory name, used as identifier) */
   name?: string;
+  /** Display name from API (may be snake_case) */
+  display_name?: string;
   nameI18n?: Record<string, string>;
   descriptionI18n?: Record<string, string>;
   promptsI18n?: Record<string, string[]>;
@@ -66,14 +86,14 @@ export interface IAssistantMeta {
    */
   resourceDir?: string;
   // Storage tracking fields
-  source_type?: 'hub' | 'custom' | 'builtin';
+  source_type?: 'hub' | 'custom' | 'builtin' | 'tenant';
   is_builtin?: boolean;
   enabled?: boolean;
   installed_version?: string;
   installed_at?: string;
   // Hub API fields
-  /** Source tag from Hub API: 'hub' (store), 'custom' (user-created), 'system' (builtin) */
-  tag?: 'hub' | 'custom' | 'system';
+  /** Source tag from Hub API: 'hub' (store), 'custom' (user-created), 'system' (builtin), 'tenant' (enterprise-exclusive) */
+  tag?: 'hub' | 'custom' | 'system' | 'tenant';
   /** Associated skill IDs from Hub API (skills guaranteed to exist in Skill Hub) */
   skills?: string[];
   /** Hub category ID */
@@ -90,4 +110,14 @@ export interface IAssistantMeta {
   core_features?: string | null;
   /** Default initial prompt to pre-fill input when selecting this assistant */
   defaultInitPrompt?: string | null;
+  /** Visibility configuration for enterprise assistants (department_ids filter) */
+  visible_to?: { department_ids: string[] | null } | null;
+  /** Whether this assistant has been uploaded to Moss Server */
+  uploaded?: boolean;
+  /** Timestamp when uploaded to Moss Server */
+  uploaded_at?: string;
+  /** Publish status for tenant-exclusive assistants */
+  publish_status?: 'pending' | 'approved' | 'rejected';
+  /** Timestamp when published as tenant-exclusive */
+  published_at?: string;
 }

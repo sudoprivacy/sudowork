@@ -8,8 +8,7 @@
  * Scode Install Service
  *
  * Installs the bundled/downloaded scode CLI into its dedicated runtime root at
- * ~/.nexus/sudocode so startup can verify the default ACP runtime without
- * depending on the legacy Sudoclaw/OpenClaw gateway bootstrap path.
+ * ~/.nexus/sudocode so startup can verify the default ACP runtime.
  */
 
 import { app } from 'electron';
@@ -37,7 +36,21 @@ const SCODE_READY_MARKER = '.scode-bin-ready';
 const SCODE_GITHUB_RELEASE_BASE_URL = 'https://github.com/sudoprivacy/sudocode/releases/download';
 const SCODE_SKILLS_DIR = path.join(SCODE_DIR, 'skills');
 const SCODE_LEGACY_MANAGED_SKILLS_FILE = path.join(SCODE_DIR, '.sudowork-managed-skills.json');
-const SCODE_PRESERVED_ENTRY_NAMES = new Set(['sudocode.json', 'scode.json', 'settings.json', 'skills']);
+const SCODE_PRESERVED_ENTRY_NAMES = new Set(['sudocode.json', 'scode.json', 'settings.json', 'skills', 'AGENTS.md']);
+
+/** Marker used to identify the safety-rules section inside AGENTS.md */
+const AGENTS_MD_SAFETY_MARKER = '<!-- SUDOCODE_DELETE_SAFETY_RULES -->';
+
+/** Marker used to identify the identity-statement section inside AGENTS.md */
+const AGENTS_MD_IDENTITY_MARKER = '<!-- SUDOCODE_IDENTITY_STATEMENT -->';
+
+/** Marker used to identify the date-time-query section inside AGENTS.md */
+const AGENTS_MD_DATE_TIME_MARKER = '<!-- SUDOCODE_DATE_TIME_QUERY -->';
+
+/** Marker used to identify the memory-storage section inside AGENTS.md */
+const AGENTS_MD_MEMORY_MARKER = '<!-- SUDOCODE_MEMORY_STORAGE -->';
+
+const AGENTS_MD_MANAGED_MARKERS = [AGENTS_MD_SAFETY_MARKER, AGENTS_MD_IDENTITY_MARKER, AGENTS_MD_DATE_TIME_MARKER, AGENTS_MD_MEMORY_MARKER];
 
 function readLegacyManagedScodeSkillEntries(): Map<string, string> {
   try {
@@ -472,6 +485,162 @@ export async function ensureScodeInstalled(options?: { forceReinstall?: boolean;
 export function getScodePath(): string | null {
   const scodePath = getInstalledScodePath();
   return isScodeInstalled() && fs.existsSync(scodePath) ? scodePath : null;
+}
+
+/**
+ * Update or insert a marker-based block in AGENTS.md
+ * If marker exists, replace the entire block; if not, append it
+ */
+function updateMarkerBlock(existingContent: string, marker: string, newBlock: string): string {
+  if (!existingContent.includes(marker)) {
+    // Marker not found - append the new block
+    return existingContent + '\n' + newBlock;
+  }
+
+  // Find all markers in the file to determine boundaries
+  const markers = AGENTS_MD_MANAGED_MARKERS.filter((m) => existingContent.includes(m));
+
+  // Find the start of this block (marker line)
+  const markerIndex = existingContent.indexOf(marker);
+  const blockStart = markerIndex;
+
+  // Find the end of this block (next marker or end of file)
+  let blockEnd = existingContent.length;
+  for (const otherMarker of markers) {
+    if (otherMarker === marker) continue;
+    const otherIndex = existingContent.indexOf(otherMarker);
+    if (otherIndex > markerIndex && otherIndex < blockEnd) {
+      blockEnd = otherIndex;
+    }
+  }
+
+  // Replace the block
+  return existingContent.slice(0, blockStart) + newBlock + existingContent.slice(blockEnd);
+}
+
+function getManagedAgentsMdBlocks(): string[] {
+  const identityBlock = `
+${AGENTS_MD_IDENTITY_MARKER}
+## Identity / 身份
+
+When asked "Who are you?" / "你是谁?", answer: "I am Sudo Code, how can I help you?" / "我是Sudo Code，有什么可以帮助你的吗？".
+Only mention model name when specifically asked about the model.
+当用户问"你是谁"时，回答"我是Sudo Code，有什么可以帮助你的吗？"。仅当用户具体询问模型时才提及模型名称。
+`;
+
+  const safetyBlock = `
+${AGENTS_MD_SAFETY_MARKER}
+## File Deletion Safety / 文件删除安全
+
+Before deleting files/folders, MUST confirm with user:
+删除文件/文件夹前，必须向用户确认：
+1. Show path to delete / 告知要删除的路径
+2. Ask for confirmation / 请求确认
+3. Wait for user consent / 等待用户同意
+4. Cancel if refused / 用户拒绝则取消
+`;
+
+  const dateTimeBlock = `
+${AGENTS_MD_DATE_TIME_MARKER}
+## Date/Time Query / 日期时间查询
+
+When users ask about current date/time (e.g., "What day is today?", "今天几号?", "What time is it?", "现在几点?"), you MUST query the actual system time using shell commands instead of relying on cached knowledge or memory.
+当用户询问当前日期/时间时（如"今天几号?"、"What day is today?"、"现在几点?"、"What time is it?"），必须通过执行系统命令查询实际时间，而不是依赖缓存的知识或记忆。
+
+**CRITICAL: Always execute a shell command to get the real-time date/time.**
+**重要：必须执行shell命令获取实时日期/时间。**
+
+**Commands by OS / 各系统命令:**
+
+- **macOS / Linux**:
+  - Date: \`date "+%Y-%m-%d"\` → e.g., "2026-05-15"
+  - Time: \`date "+%H:%M:%S"\` → e.g., "14:30:25"
+  - Full: \`date\` → e.g., "Thu May 15 14:30:25 CST 2026"
+
+- **Windows (CMD)**:
+  - Date: \`echo %date%\` → e.g., "2026/05/15"
+  - Time: \`echo %time%\` → e.g., "14:30:25.12"
+
+- **Windows (PowerShell)**:
+  - Date: \`powershell -Command "Get-Date -Format 'yyyy-MM-dd'"\`
+  - Time: \`powershell -Command "Get-Date -Format 'HH:mm:ss'"\`
+
+**Workflow / 工作流程:**
+1. Detect user is asking about date/time / 检测用户在询问日期/时间
+2. Execute appropriate command for current OS / 根据当前OS执行相应命令
+3. Return the actual result to user / 将实际结果返回给用户
+
+**Examples / 示例:**
+- User: "今天几号?" → Execute \`date "+%Y-%m-%d"\` (macOS/Linux) or \`echo %date%\` (Windows) → Reply with actual date
+- User: "What day is today?" → Execute \`date\` → Reply with actual date
+- User: "现在几点?" → Execute \`date "+%H:%M:%S"\` → Reply with actual time
+`;
+
+  const memoryBlock = `
+${AGENTS_MD_MEMORY_MARKER}
+## Memory Storage / 记忆存储
+
+Conversation memories and user-specific long-term instructions are instruction-file content, not runtime settings.
+会话记忆、用户偏好和长期规则属于指令文件内容，不属于运行时配置。
+
+When the user asks you to remember, save, update, or persist a preference/rule/identity detail/workflow:
+当用户要求记住、保存、更新或持久化偏好/规则/身份信息/工作流时：
+1. Update the AGENTS.md file that applies to the current workspace. Prefer \`.nexus/sudocode/AGENTS.md\` under the current working directory unless the user explicitly names another AGENTS.md file.
+   更新当前工作区对应的 AGENTS.md。除非用户明确指定其他 AGENTS.md，否则优先写入当前工作目录下的 \`.nexus/sudocode/AGENTS.md\`。
+2. Store memories as Markdown instructions under a clear "Memory" section.
+   以 Markdown 指令形式存放在清晰的 "Memory" 小节下。
+3. Do NOT use the Config tool for memory operations.
+   不要使用 Config 工具处理记忆写入。
+4. Do NOT write memories or natural-language instructions to \`settings.json\`, \`settings.local.json\`, \`sudocode.json\`, or \`scode.json\`; those files are machine-readable runtime configuration only.
+   不要把记忆或自然语言指令写入 \`settings.json\`、\`settings.local.json\`、\`sudocode.json\` 或 \`scode.json\`；这些文件只用于机器可读的运行时配置。
+5. Use Config only when the user explicitly asks to change Sudo Code runtime settings such as model or permission mode.
+   仅当用户明确要求修改 Sudo Code 运行时设置（如模型或权限模式）时才使用 Config。
+`;
+
+  return [identityBlock, dateTimeBlock, memoryBlock, safetyBlock];
+}
+
+function ensureAgentsMdRulesAt(agentsMdPath: string): void {
+  mainLog(TAG, `ensureAgentsMdRules called, path: ${agentsMdPath}`);
+
+  try {
+    fs.mkdirSync(path.dirname(agentsMdPath), { recursive: true });
+    const fileExists = fs.existsSync(agentsMdPath);
+    mainLog(TAG, `AGENTS.md exists: ${fileExists}`);
+    if (!fileExists) {
+      const content = getManagedAgentsMdBlocks().join('');
+      fs.writeFileSync(agentsMdPath, content, 'utf-8');
+      mainLog(TAG, 'Created AGENTS.md with managed scode rules');
+    } else {
+      const existing = fs.readFileSync(agentsMdPath, 'utf-8');
+      const [identityBlock, dateTimeBlock, memoryBlock, safetyBlock] = getManagedAgentsMdBlocks();
+      let updated = updateMarkerBlock(existing, AGENTS_MD_IDENTITY_MARKER, identityBlock);
+      updated = updateMarkerBlock(updated, AGENTS_MD_DATE_TIME_MARKER, dateTimeBlock);
+      updated = updateMarkerBlock(updated, AGENTS_MD_MEMORY_MARKER, memoryBlock);
+      updated = updateMarkerBlock(updated, AGENTS_MD_SAFETY_MARKER, safetyBlock);
+      if (updated !== existing) {
+        fs.writeFileSync(agentsMdPath, updated, 'utf-8');
+        mainLog(TAG, 'Updated AGENTS.md rules');
+      }
+    }
+  } catch (err) {
+    mainWarn(TAG, `Failed to ensure AGENTS.md rules: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
+/**
+ * Ensure the user-level AGENTS.md contains managed rules.
+ */
+export function ensureAgentsMdRules(): void {
+  ensureAgentsMdRulesAt(path.join(SCODE_DIR, 'AGENTS.md'));
+}
+
+/**
+ * Ensure the current scode workspace has rules that scode actually loads from
+ * its AGENTS.md ancestry scan.
+ */
+export function ensureWorkspaceAgentsMdRules(workspace: string): void {
+  ensureAgentsMdRulesAt(path.join(workspace, '.nexus', 'sudocode', 'AGENTS.md'));
 }
 
 /** Remove managed runtime artifacts while preserving user-managed config and skills. */

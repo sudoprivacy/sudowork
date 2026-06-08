@@ -13,7 +13,7 @@ import { isSudoclawHealthPayload, SUDOCLAW_HEALTH_TIMEOUT_MS, type SudoclawHealt
 import { AdbResultSidechannel } from '../sudoclaw/AdbResultSidechannel';
 import { runtimeInstaller } from './RuntimeInstaller';
 
-type OpenClawGateway = import('@/agent/openclaw/OpenClawGatewayManager').OpenClawGatewayManager;
+type SudoclawGateway = import('@/agent/sudoclaw/SudoclawGatewayManager').OpenClawGatewayManager;
 
 type SudoclawHealthCheckResult = {
   healthy: boolean;
@@ -26,16 +26,16 @@ type SudoclawHealthCheckResult = {
 /**
  * Centralised service lifecycle manager.
  *
- * Owns the startup / shutdown of Nexus, the OpenClaw gateway, and the
+ * Owns the startup / shutdown of Nexus, the Sudoclaw gateway, and the
  * SafetyPollingService.  All runtime-install logic that was previously
  * scattered across process/index.ts helpers is consolidated here.
  */
 export class ServiceManager {
-  private gateway: OpenClawGateway | null = null;
+  private gateway: SudoclawGateway | null = null;
   private adbSidechannel: AdbResultSidechannel | null = null;
   private startupInProgress = false;
   private shuttingDown = false;
-  private openClawStartPromise: Promise<void> | null = null;
+  private sudoclawStartPromise: Promise<void> | null = null;
   private nexusStartPromise: Promise<void> | null = null;
   private readonly STARTUP_READINESS_TIMEOUT_MS = 600_000;
   private readonly STARTUP_READINESS_POLL_MS = 500;
@@ -51,7 +51,7 @@ export class ServiceManager {
   private secretsReadyPromise: Promise<boolean> | null = null;
 
   private buildSudoclawStartDiagnostics(lastHealth: SudoclawHealthCheckResult): {
-    launchCommand: ReturnType<OpenClawGateway['getLastLaunchCommand']>;
+    launchCommand: ReturnType<SudoclawGateway['getLastLaunchCommand']>;
     lastHealth: SudoclawHealthCheckResult;
     recentStdout: string;
     recentStderr: string;
@@ -83,6 +83,15 @@ export class ServiceManager {
 
     this.shuttingDown = false;
     this.startupInProgress = true;
+
+    // 提前创建 secrets promise，让消费者可以立即 await
+    // Promise 在 startNexusOnce() 中通过 initializeSecrets() resolve
+    if (!this.secretsReadyPromise) {
+      this.secretsReadyPromise = new Promise<boolean>((resolve) => {
+        this.secretsReadyResolve = resolve;
+      });
+    }
+
     runtimeInstaller.primeStatusForStartup();
     initStatusManager.clearRetry();
 
@@ -103,7 +112,9 @@ export class ServiceManager {
       await this.verifyStartupReadiness();
       initStatusManager.setStatus('ready', '初始化完成', 100);
       initStatusManager.clearRetry();
-      void this.startSafetyPolling();
+      // Safety hooks are temporarily disabled; keep the polling service entry
+      // available so the feature can be restored without rebuilding it.
+      // void this.startSafetyPolling();
 
       // Start health monitor for auto-healing components
       const { componentHealthMonitor } = await import('./ComponentHealthMonitor');
@@ -115,6 +126,7 @@ export class ServiceManager {
       initStatusManager.setDetail('核心服务启动失败，请手动点击重试或重装。');
       initStatusManager.addLog(`⚠ 启动失败：${message}`);
       mainError('ServiceManager', 'Startup readiness verification failed', err);
+      this.secretsReadyResolve?.(false);
     } finally {
       this.startupInProgress = false;
     }
@@ -139,10 +151,10 @@ export class ServiceManager {
     } catch {
       /* ignore */
     }
-    await this.stopOpenClaw();
+    await this.stopSudoclaw();
     try {
-      const { dynamicNexusService } = await import('../nexus/DynamicNexusService');
-      await dynamicNexusService.stop();
+      const { dynamicNexusVfsService } = await import('../nexus-vfs/DynamicNexusVfsService');
+      await dynamicNexusVfsService.stop();
     } catch {
       /* ignore */
     }
@@ -173,14 +185,17 @@ export class ServiceManager {
   }
 
   private async startNexusWithRetries(): Promise<void> {
-    const { dynamicNexusService } = await import('../nexus/DynamicNexusService');
+    const { dynamicNexusVfsService } = await import('../nexus-vfs/DynamicNexusVfsService');
 
     const startAttempts = async (attempts: number, phase: 'normal' | 'reinstall'): Promise<void> => {
       let lastError: unknown;
 
       for (let attempt = 1; attempt <= attempts; attempt += 1) {
         try {
-          await this.preparePortForStart(12012, 'Nexus');
+          await this.preparePortForStart(12022, 'Nexus');
+          // Reset Nexus running state after killing port processes
+          // because preparePortForStart may have killed the process externally
+          dynamicNexusVfsService.resetRunningState();
           const startupDetail = attempt > 1 ? (phase === 'reinstall' ? `重装后正在启动 Nexus 服务（第 ${attempt}/${attempts} 次）...` : `正在启动 Nexus 服务（第 ${attempt}/${attempts} 次）...`) : phase === 'reinstall' ? '重装后正在启动 Nexus 服务...' : '正在启动 Nexus 服务...';
           initStatusManager.setStepState('nexus', 'active', startupDetail);
           initStatusManager.setStepProgress('nexus', 92, initStatusManager.getStatus().stepDetails?.nexus);
@@ -197,8 +212,8 @@ export class ServiceManager {
           }
 
           initStatusManager.addLog(`↻ Nexus 启动失败，准备重试（第 ${attempt + 1}/${attempts} 次）...`);
-          await dynamicNexusService.stop().catch(() => {});
-          await this.killProcessesOnPort(12012, 'Nexus');
+          await dynamicNexusVfsService.stop().catch(() => {});
+          await this.killProcessesOnPort(12022, 'Nexus');
           await new Promise((resolve) => setTimeout(resolve, 1000));
         }
       }
@@ -211,40 +226,36 @@ export class ServiceManager {
 
   private async startNexusOnce(): Promise<void> {
     try {
-      const { dynamicNexusService } = await import('../nexus/DynamicNexusService');
+      const { dynamicNexusVfsService } = await import('../nexus-vfs/DynamicNexusVfsService');
 
-      if (!(await dynamicNexusService.checkInstalled())) {
-        throw new Error('Nexus runtime is missing after startup installation');
+      if (!(await dynamicNexusVfsService.checkInstalled())) {
+        mainLog('ServiceManager', 'Installing nexus-vfs runtime...');
+        await dynamicNexusVfsService.install();
       }
 
-      const versionState = await dynamicNexusService.getVersionState();
-      if (versionState.needsUpgrade) {
-        mainLog('ServiceManager', `Upgrading Nexus before start: installed=${versionState.installedVersion} bundled=${versionState.bundledVersion}`);
-        await dynamicNexusService.install();
-      }
       mainLog('ServiceManager', 'Starting Nexus service...');
-      const launchCommand = dynamicNexusService.getStartCommandPreview();
+      const launchCommand = dynamicNexusVfsService.getStartCommandPreview();
       initStatusManager.addLog(`[Nexus] Start command: ${launchCommand.command} ${launchCommand.args.join(' ')}`);
       initStatusManager.addLog('[Nexus] Starting Nexus service...');
-      await dynamicNexusService.start();
-      // start() already waits until /health reports healthy before resolving.
+      await dynamicNexusVfsService.start();
+      // start() already waits until the gRPC port is ready before resolving.
       // Do not immediately probe again here; a duplicate one-shot check can race
       // with post-start stabilization and incorrectly flip the UI back to failed.
-      initStatusManager.addLog(`[Nexus] Nexus service is healthy on http://127.0.0.1:${dynamicNexusService.port}`);
+      initStatusManager.addLog(`[Nexus] Nexus service is ready on 127.0.0.1:${dynamicNexusVfsService.port}`);
       initStatusManager.setStepProgress('nexus', 100, 'Nexus 服务已就绪');
 
       // Initialize secrets system after Nexus is healthy
       // This runs migration (if needed) and preloads the secret cache
-      this.secretsReadyPromise = new Promise<boolean>((resolve) => {
-        this.secretsReadyResolve = resolve;
-      });
+      // secretsReadyPromise 已在 startup() 入口处创建
       this.initializeSecrets()
         .then(async () => {
           // Start Auth Proxy after secrets are initialized
           try {
             const { startAuthProxy } = await import('@process/services/authProxy');
             const port = await startAuthProxy();
-            mainLog('ServiceManager', `Auth Proxy started on port ${port}`);
+            if (port > 0) {
+              mainLog('ServiceManager', `Auth Proxy started on port ${port}`);
+            }
           } catch (err) {
             mainWarn('ServiceManager', 'Auth Proxy start failed (non-critical):', err);
           }
@@ -263,14 +274,24 @@ export class ServiceManager {
 
   async stopNexus(): Promise<void> {
     try {
-      const { dynamicNexusService } = await import('../nexus/DynamicNexusService');
+      const { dynamicNexusVfsService } = await import('../nexus-vfs/DynamicNexusVfsService');
       mainLog('ServiceManager', 'Stopping Nexus service...');
-      await dynamicNexusService.stop();
+      await dynamicNexusVfsService.stop();
       mainLog('ServiceManager', 'Nexus service stopped');
     } catch (err) {
       mainError('ServiceManager', 'Failed to stop Nexus', err);
       throw err;
     }
+  }
+
+  /** Alias for startNexus() — retained for nexusBridge callers. */
+  async startNexusVfs(): Promise<void> {
+    return this.startNexus();
+  }
+
+  /** Alias for stopNexus() — retained for nexusBridge callers. */
+  async stopNexusVfs(): Promise<void> {
+    return this.stopNexus();
   }
 
   /**
@@ -291,26 +312,26 @@ export class ServiceManager {
   }
 
   // ────────────────────────────────────────────────────────────────────────────
-  //  OpenClaw gateway
+  //  Sudoclaw gateway
   // ────────────────────────────────────────────────────────────────────────────
 
-  async startOpenClaw(): Promise<void> {
+  async startSudoclaw(): Promise<void> {
     if (this.shuttingDown) {
       mainWarn('ServiceManager', 'Skipping Sudoclaw start because shutdown is in progress');
       return;
     }
-    if (this.openClawStartPromise) {
-      await this.openClawStartPromise;
+    if (this.sudoclawStartPromise) {
+      await this.sudoclawStartPromise;
       return;
     }
 
-    this.openClawStartPromise = this.startOpenClawWithRetries().finally(() => {
-      this.openClawStartPromise = null;
+    this.sudoclawStartPromise = this.startSudoclawWithRetries().finally(() => {
+      this.sudoclawStartPromise = null;
     });
-    await this.openClawStartPromise;
+    await this.sudoclawStartPromise;
   }
 
-  private async startOpenClawWithRetries(): Promise<void> {
+  private async startSudoclawWithRetries(): Promise<void> {
     const startAttempts = async (attempts: number, phase: 'normal' | 'reinstall'): Promise<void> => {
       let lastError: unknown;
 
@@ -320,7 +341,7 @@ export class ServiceManager {
           const startupDetail = attempt > 1 ? (phase === 'reinstall' ? `重装后正在启动 Sudoclaw 服务（第 ${attempt}/${attempts} 次）...` : `正在启动 Sudoclaw 服务（第 ${attempt}/${attempts} 次）...`) : phase === 'reinstall' ? '重装后正在启动 Sudoclaw 服务...' : '正在启动 Sudoclaw 服务...';
           initStatusManager.setStepState('sudoclaw', 'active', startupDetail);
           initStatusManager.setStepProgress('sudoclaw', 92, initStatusManager.getStatus().stepDetails?.sudoclaw);
-          await this.startOpenClawOnce();
+          await this.startSudoclawOnce();
           return;
         } catch (err) {
           lastError = err;
@@ -333,7 +354,7 @@ export class ServiceManager {
           }
 
           initStatusManager.addLog(`↻ Sudoclaw 启动失败，准备重试（第 ${attempt + 1}/${attempts} 次）...`);
-          await this.stopOpenClaw();
+          await this.stopSudoclaw();
           await new Promise((resolve) => setTimeout(resolve, 1000));
         }
       }
@@ -344,7 +365,7 @@ export class ServiceManager {
     await startAttempts(this.SUDOCLAW_START_ATTEMPTS, 'normal');
   }
 
-  private async startOpenClawOnce(): Promise<void> {
+  private async startSudoclawOnce(): Promise<void> {
     // Create a deferred promise so agents can await gateway readiness.
     this.gatewayReadyPromise = new Promise<{ host: string; port: number } | null>((resolve) => {
       this.gatewayReadyResolve = resolve;
@@ -352,8 +373,8 @@ export class ServiceManager {
 
     try {
       mainLog('ServiceManager', 'Starting Sudoclaw gateway...');
-      const { OpenClawGatewayManager } = await import('@/agent/openclaw');
-      const { SUDOCLAW_DIR, SUDOCLAW_DEFAULT_PORT, SUDOCLAW_CONFIG_PATH, ensureDefaultConfig, repairOpenClawConfig, getSudoclawVersionState, ensureSudoclawInstalled, ensureUserMdSafetyRules, ensureUserMdIdentityStatement, ensureUserMdNoGeneratedByStatement, ensureUserMdNoExposeUserMdStatement, ensureUserMdFileSendInstruction, ensureUserMdVersionInfoStatement } = await import('../sudoclaw/SudoclawInstallService');
+      const { OpenClawGatewayManager } = await import('@/agent/sudoclaw');
+      const { SUDOCLAW_DIR, SUDOCLAW_DEFAULT_PORT, SUDOCLAW_CONFIG_PATH, ensureDefaultConfig, repairSudoclawConfig, getSudoclawVersionState, ensureSudoclawInstalled, ensureUserMdSafetyRules, ensureUserMdIdentityStatement, ensureUserMdNoGeneratedByStatement, ensureUserMdNoExposeUserMdStatement, ensureUserMdFileSendInstruction, ensureUserMdVersionInfoStatement } = await import('../sudoclaw/SudoclawInstallService');
       await this.ensureNodeReadyForSudoclawStart();
 
       const versionState = getSudoclawVersionState();
@@ -372,7 +393,7 @@ export class ServiceManager {
       // CRITICAL: Ensure skills.load.extraDirs is always set before gateway starts.
       // This guarantees ~/.nexus/skills is always loaded regardless of platform,
       // whether config was manually modified, or whether repair was skipped.
-      repairOpenClawConfig();
+      repairSudoclawConfig();
 
       // Start the ai-dev-browser sidechannel before the gateway so the gateway
       // (and any `python -m ai_dev_browser.tools.*` children it spawns) inherit
@@ -462,7 +483,7 @@ export class ServiceManager {
       // any other tool expecting these env vars works out of the box.
       // Source of truth: sudoclaw.json models.providers.sudorouter.
       // (Normally harmless — the image tool and image-analysis skill are
-      // disabled in ensureDefaultConfig/repairOpenClawConfig, but we still
+      // disabled in ensureDefaultConfig/repairSudoclawConfig, but we still
       // inject to support ad-hoc scripts referencing SUDOROUTER.)
       const sudorouterEnv: Record<string, string> = {};
       try {
@@ -566,6 +587,13 @@ export class ServiceManager {
 
       fs.writeFileSync(sudoclawConfigPath, JSON.stringify(config, null, 2), 'utf-8');
       mainLog('ServiceManager', `Synced image models to sudoclaw.json — parsing: ${DEFAULT_IMAGE_PARSING_MODEL}, generation: ${generationModel}`);
+
+      // Also sync generation model to sudocode.json so the image-generation skill
+      // bash script can read it without depending on sudoclaw.json.
+      if (generationModel) {
+        const { writeScodeImageModel } = await import('@process/bridge/scodeBridge');
+        writeScodeImageModel(generationModel);
+      }
     } catch (err) {
       mainError('ServiceManager', 'Failed to sync image model to sudoclaw.json', err);
     }
@@ -744,17 +772,21 @@ export class ServiceManager {
 
   private async verifyStartupReadiness(): Promise<void> {
     const startupOnlyChecks = initStatusManager.getStatus().displayMode === 'startup';
-    const serviceModules = await Promise.all([import('../scode/ScodeInstallService'), import('../nexus/DynamicNexusService')]);
-    const [scodeModule, nexusModule] = serviceModules;
+    const serviceModules = await Promise.all([import('../scode/ScodeInstallService'), import('../nexus-vfs/DynamicNexusVfsService')]);
+    const [scodeModule, nexusVfsModule] = serviceModules;
     const { isScodeInstalled } = scodeModule;
-    const { dynamicNexusService } = nexusModule;
+    const { dynamicNexusVfsService } = nexusVfsModule;
     const deadline = startupOnlyChecks ? Number.POSITIVE_INFINITY : Date.now() + this.STARTUP_READINESS_TIMEOUT_MS;
     let lastFailedNames: string[] = [];
 
+    mainLog('ServiceManager', `Verifying startup readiness (startupOnlyChecks=${startupOnlyChecks})...`);
+
     while (Date.now() < deadline) {
       const scodeReadyPromise = Promise.resolve(isScodeInstalled());
-      const nexusHealthyPromise = dynamicNexusService.checkActualRunning();
+      const nexusHealthyPromise = dynamicNexusVfsService.checkActualRunning();
       const [scodeReady, nexusHealthy] = await Promise.all([scodeReadyPromise, nexusHealthyPromise]);
+
+      mainLog('ServiceManager', `Readiness check: Sudocode=${scodeReady}, Nexus=${nexusHealthy}`);
 
       const readinessChecks = [
         { name: 'Sudocode', ok: scodeReady },
@@ -763,7 +795,18 @@ export class ServiceManager {
 
       const failed = readinessChecks.filter((item) => !item.ok).map((item) => item.name);
       if (failed.length === 0) {
+        mainLog('ServiceManager', 'All components ready, exiting verifyStartupReadiness');
         return;
+      }
+
+      // Update UI to show actual waiting state instead of misleading 100%
+      if (failed.includes('Sudocode')) {
+        initStatusManager.setStepState('scode', 'active', '等待 Sudocode 服务就绪...');
+        initStatusManager.setStepProgress('scode', 95, '等待 Sudocode 服务就绪...');
+      }
+      if (failed.includes('Nexus')) {
+        initStatusManager.setStepState('nexus', 'active', '等待 Nexus 服务就绪...');
+        initStatusManager.setStepProgress('nexus', 95, '等待 Nexus 服务就绪...');
       }
 
       if (failed.join('、') !== lastFailedNames.join('、')) {
@@ -777,7 +820,7 @@ export class ServiceManager {
     throw new Error(`以下组件尚未就绪: ${lastFailedNames.join('、') || '未知组件'}`);
   }
 
-  async stopOpenClaw(): Promise<void> {
+  async stopSudoclaw(): Promise<void> {
     if (!this.gateway) {
       // Sidechannel can linger if start failed partway; make sure it's cleaned up.
       if (this.adbSidechannel) {
@@ -828,18 +871,15 @@ export class ServiceManager {
     }
   }
 
-  async restartOpenClaw(): Promise<void> {
-    await this.stopOpenClaw();
-    await this.startOpenClaw();
-    // Reconnect all active agents' WebSocket connections to the new gateway.
-    const WorkerManage = (await import('@process/WorkerManage')).default;
-    WorkerManage.reconnectOpenClawAgents();
+  async restartSudoclaw(): Promise<void> {
+    await this.stopSudoclaw();
+    await this.startSudoclaw();
   }
 
   /**
-   * Accessor used by OpenClawAgent to look up captured ai-dev-browser
+   * Accessor used by agents to look up captured ai-dev-browser
    * stdout keyed by command hash. Returns null when the sidechannel failed
-   * to start (non-critical — the UI just falls back to the short meta).
+   * to start (non-critical -- the UI just falls back to the short meta).
    */
   getAdbSidechannel(): AdbResultSidechannel | null {
     return this.adbSidechannel;
@@ -860,19 +900,12 @@ export class ServiceManager {
   /**
    * Wait for the secrets system to be initialized.
    * Channel plugins call this before loading to ensure credentials are available.
-   * Polls until the promise is created (Nexus may still be starting),
-   * then awaits its resolution.
+   * secretsReadyPromise 在 startup() 入口处创建，此处直接 await 其 resolve。
    */
   async waitForSecrets(): Promise<boolean> {
-    // Poll until the promise is created by startNexusOnce()
-    const POLL_INTERVAL_MS = 200;
-    while (!this.secretsReadyPromise) {
-      await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
-      // startup 已结束但未创建 secretsReadyPromise → startup 在到达 startNexusOnce 之前失败
-      if (!this.startupInProgress) {
-        mainWarn('ServiceManager', 'waitForSecrets: startup completed without creating secretsReadyPromise');
-        return false;
-      }
+    if (!this.secretsReadyPromise) {
+      // startup 未被调用（如 enterprise 模式或新用户模式）
+      return false;
     }
     return this.secretsReadyPromise;
   }
@@ -882,7 +915,7 @@ export class ServiceManager {
     this.gateway?.sendReloadSignal();
   }
 
-  getGateway(): OpenClawGateway | null {
+  getGateway(): SudoclawGateway | null {
     return this.gateway;
   }
 

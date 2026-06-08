@@ -28,8 +28,8 @@ export interface MossWsConnectionConfig {
   username?: string;
   /** Password for password login (when authToken is empty) */
   password?: string;
-  /** Working directory */
-  cwd: string;
+  /** Working directory. When omitted, Moss Server allocates the session workspace. */
+  cwd?: string;
   /** Agent name (optional) */
   assistantName?: string;
   /** Skip permission confirmation */
@@ -40,6 +40,8 @@ export interface MossWsConnectionConfig {
   wsUrl?: string;
   /** Resume mode: existing session ID */
   sessionId?: string;
+  /** Enabled skill names (optional, for non-assistant sessions) */
+  enabledSkills?: string[];
 }
 
 export interface MossWsCallbacks {
@@ -58,15 +60,37 @@ export class MossWsConnection {
   private ws: WebSocket | null = null;
   private sessionId: string | null = null;
   private wsUrl: string | null = null;
+  private workDir: string | null = null;
   private accessToken: string | null = null;
   private state: 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'closed' = 'idle';
   private reconnectAttempts = 0;
   private isUserAbortSession = false;
 
+  // Pending interrupt requests waiting for confirmation
+  private pendingInterrupts = new Map<
+    string,
+    {
+      sentAt: number;
+      resolve: (confirmed: boolean) => void;
+    }
+  >();
+
+  // Pending model switch requests waiting for confirmation
+  private pendingModelSwitches = new Map<
+    string,
+    {
+      sentAt: number;
+      resolve: (success: boolean) => void;
+      modelId: string;
+    }
+  >();
+
   private readonly MAX_RECONNECT_ATTEMPTS = 8;
   private readonly BASE_RECONNECT_DELAY_MS = 1000;
   private readonly MAX_RECONNECT_DELAY_MS = 8000;
   private readonly CONNECTION_TIMEOUT_MS = 30000;
+  private readonly INTERRUPT_CONFIRMATION_TIMEOUT_MS = 5000;
+  private readonly MODEL_SWITCH_TIMEOUT_MS = 30000;
 
   constructor(
     private config: MossWsConnectionConfig,
@@ -81,19 +105,26 @@ export class MossWsConnection {
     this.state = 'connecting';
     mainLog('MossWsConnection', `Connecting to ${this.config.serverUrl}`);
 
-    const isResumeMode = !!this.config.wsUrl;
+    const isResumeMode = !!(this.config.wsUrl || this.wsUrl || this.config.sessionId || this.sessionId);
 
     try {
       this.accessToken = await this.exchangeToken();
 
       if (isResumeMode) {
-        this.sessionId = this.config.sessionId!;
-        this.wsUrl = this.config.wsUrl!;
+        this.sessionId = this.config.sessionId || this.sessionId!;
+        this.wsUrl = this.config.wsUrl || this.wsUrl!;
+        mainLog('MossWsConnection', `Resuming session: ${this.sessionId}`);
       } else {
         const sessionData = await this.createMossSession();
         this.sessionId = sessionData.session_id;
         this.wsUrl = sessionData.ws_url;
-        mainLog('MossWsConnection', `Session created: ${this.sessionId}`);
+        this.workDir = sessionData.work_dir;
+        // CRITICAL: Persist created session details back to config
+        // This ensures reconnects/scheduleReconnect() enter resume mode
+        // instead of creating duplicate sessions (the "session storm")
+        this.config.wsUrl = sessionData.ws_url;
+        this.config.sessionId = sessionData.session_id;
+        mainLog('MossWsConnection', `Session created: ${this.sessionId}, workDir: ${this.workDir}`);
       }
 
       await this.openWebSocket();
@@ -102,7 +133,6 @@ export class MossWsConnection {
       this.reconnectAttempts = 0;
       this.callbacks.onConnected?.();
       mainLog('MossWsConnection', 'WebSocket connected');
-
     } catch (error) {
       this.state = 'idle';
       const err = error instanceof Error ? error : new Error(String(error));
@@ -131,13 +161,14 @@ export class MossWsConnection {
     }
 
     const grantType = this.config.authToken ? 'api_key' : 'password';
-    const body = grantType === 'api_key'
-      ? { grant_type: 'api_key', api_key: this.config.authToken }
-      : {
-          grant_type: 'password',
-          ...(this.config.username ? { username: this.config.username } : {}),
-          ...(this.config.password ? { password: this.config.password } : {}),
-        };
+    const body =
+      grantType === 'api_key'
+        ? { grant_type: 'api_key', api_key: this.config.authToken }
+        : {
+            grant_type: 'password',
+            ...(this.config.username ? { username: this.config.username } : {}),
+            ...(this.config.password ? { password: this.config.password } : {}),
+          };
 
     const response = await fetch(`${this.config.serverUrl}/api/v1/auth/token`, {
       method: 'POST',
@@ -154,7 +185,7 @@ export class MossWsConnection {
       throw new Error(`Failed to exchange token: ${response.status} ${text}`);
     }
 
-    const data = await response.json() as { access_token: string };
+    const data = (await response.json()) as { access_token: string };
     return data.access_token;
   }
 
@@ -165,21 +196,25 @@ export class MossWsConnection {
     runtime: { type: string; configDir?: string };
   }> {
     const body: Record<string, unknown> = {
-      cwd: this.config.cwd,
       dangerously_skip_permissions: this.config.dangerouslySkipPermissions ?? false,
       assistant_name: this.config.assistantName,
+      // 新增: 发送启用的 skill 列表（仅当显式指定时）
+      enabled_skills: this.config.enabledSkills,
     };
+    if (this.config.cwd) {
+      body.cwd = this.config.cwd;
+    }
 
     if (this.config.runtimeType) {
       body.runtime = { type: this.config.runtimeType };
     }
 
-    let token = this.accessToken || await getValidToken();
+    let token = this.accessToken || (await getValidToken());
     let response = await fetch(`${this.config.serverUrl}/api/v1/sessions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
+        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify(body),
     });
@@ -193,7 +228,7 @@ export class MossWsConnection {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
+            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify(body),
         });
@@ -224,7 +259,9 @@ export class MossWsConnection {
         const separator = wsUrlWithRefresh.includes('?') ? '&' : '?';
         wsUrlWithRefresh += `${separator}refresh_token=${encodeURIComponent(authStorage.refresh_token)}`;
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
 
     return new Promise<void>((resolve, reject) => {
       const timeout = setTimeout(() => {
@@ -232,7 +269,7 @@ export class MossWsConnection {
       }, this.CONNECTION_TIMEOUT_MS);
 
       this.ws = new WebSocket(wsUrlWithRefresh, {
-        headers: { 'Authorization': `Bearer ${this.accessToken}` },
+        headers: { Authorization: `Bearer ${this.accessToken}` },
       });
 
       this.ws.on('open', () => {
@@ -250,7 +287,7 @@ export class MossWsConnection {
   }
 
   private handleMessage(data: string): void {
-    const lines = data.split('\n').filter(line => line.trim());
+    const lines = data.split('\n').filter((line) => line.trim());
 
     for (const line of lines) {
       try {
@@ -272,6 +309,12 @@ export class MossWsConnection {
       if (!this.sessionId && msg.session_id) {
         this.sessionId = msg.session_id;
       }
+      return;
+    }
+
+    // Handle interrupt confirmation response from server
+    if (msg.type === 'control_response') {
+      this.handleControlResponse(msg);
       return;
     }
 
@@ -312,6 +355,9 @@ export class MossWsConnection {
     if (msg.type === 'system') {
       if (msg.subtype === 'init') {
         const modelName = msg.model || 'unknown';
+        // Remove proxy/ prefix for display
+        // 移除 proxy/ 前缀用于显示
+        const displayLabel = modelName.startsWith('proxy/') ? modelName.slice(6) : modelName;
         this.callbacks.onMessage({
           type: 'acp_model_info',
           msg_id: uuid(36),
@@ -319,7 +365,27 @@ export class MossWsConnection {
           data: {
             source: 'models',
             currentModelId: modelName,
-            currentModelLabel: modelName,
+            currentModelLabel: displayLabel,
+            canSwitch: false,
+            availableModels: [],
+          },
+        });
+      } else if (msg.subtype === 'model_changed') {
+        // Handle model change confirmation from server
+        // 处理服务器返回的模型切换确认
+        const modelName = msg.model || 'unknown';
+        mainLog('MossWsConnection', `Model changed to: ${modelName}`);
+        // Remove proxy/ prefix for display
+        // 移除 proxy/ 前缀用于显示
+        const displayLabel = modelName.startsWith('proxy/') ? modelName.slice(6) : modelName;
+        this.callbacks.onMessage({
+          type: 'acp_model_info',
+          msg_id: uuid(36),
+          conversation_id: '',
+          data: {
+            source: 'models',
+            currentModelId: modelName,
+            currentModelLabel: displayLabel,
             canSwitch: false,
             availableModels: [],
           },
@@ -330,6 +396,79 @@ export class MossWsConnection {
 
     if (msg.type === 'control_request') {
       this.callbacks.onPermissionRequest(msg.request, msg.request_id);
+      return;
+    }
+
+    if (msg.type === 'tool_use') {
+      const toolName = msg.name || msg.tool_name || '';
+      const toolUseId = msg.tool_use_id || msg.id || msg.uuid || uuid(36);
+      const responseToolUseId = msg.uuid || toolUseId;
+      const rawInput = this.parseToolInput(msg.input);
+      // For AskUserQuestion, we need the _request_id to send RPC response
+      const requestId = msg._request_id;
+      // Check if this is a completion status update
+      const toolStatus = msg.status;
+
+      if (toolName === 'AskUserQuestion') {
+        const question = typeof rawInput.question === 'string' ? rawInput.question : '';
+        const description = typeof rawInput.description === 'string' ? rawInput.description : undefined;
+        const options = Array.isArray(rawInput.options) ? rawInput.options.filter((option): option is string => typeof option === 'string') : [];
+
+        this.callbacks.onMessage({
+          type: 'acp_question',
+          msg_id: toolUseId,
+          conversation_id: '',
+          data: {
+            question: question || description || 'Question',
+            intro: description,
+            options,
+            conversationId: '',
+            toolCallId: toolUseId,
+            responseToolCallId: responseToolUseId,
+            answered: false,
+            // Pass requestId so the answer can be sent as RPC response
+            _request_id: requestId,
+          },
+        });
+        return;
+      }
+
+      // If status is 'completed', send as tool_call_update to mark tool as complete
+      if (toolStatus === 'completed') {
+        this.callbacks.onMessage({
+          type: 'acp_tool_call',
+          msg_id: toolUseId,
+          conversation_id: '',
+          data: {
+            sessionId: this.sessionId || '',
+            update: {
+              sessionUpdate: 'tool_call_update',
+              toolCallId: toolUseId,
+              status: 'completed',
+              content: [],
+            },
+          },
+        });
+        return;
+      }
+
+      this.callbacks.onMessage({
+        type: 'acp_tool_call',
+        msg_id: toolUseId,
+        conversation_id: '',
+        data: {
+          sessionId: this.sessionId || '',
+          update: {
+            sessionUpdate: 'tool_call',
+            toolCallId: toolUseId,
+            status: 'pending',
+            title: toolName || 'Tool',
+            kind: 'execute',
+            rawInput,
+            content: [],
+          },
+        },
+      });
       return;
     }
 
@@ -462,10 +601,7 @@ export class MossWsConnection {
     if (msg.type === 'auth_status') return;
     if (msg.type === 'prompt_suggestion') return;
 
-    if (msg.type && !['assistant', 'user', 'result', 'system', 'tool_progress', 'tool_use_summary',
-        'streamlined_text', 'streamlined_tool_use_summary', 'stream_event', 'rate_limit_event',
-        'auth_status', 'prompt_suggestion', 'control_request', 'thinking', 'finish', 'end_turn',
-        'tool_use', 'tool_result', 'content', 'text', 'hello'].includes(msg.type)) {
+    if (msg.type && !['assistant', 'user', 'result', 'system', 'tool_progress', 'tool_use_summary', 'streamlined_text', 'streamlined_tool_use_summary', 'stream_event', 'rate_limit_event', 'auth_status', 'prompt_suggestion', 'control_request', 'thinking', 'finish', 'end_turn', 'tool_use', 'tool_result', 'content', 'text', 'hello'].includes(msg.type)) {
       mainLog('MossWsConnection', `Unknown message type: ${msg.type}`);
       return;
     }
@@ -492,6 +628,19 @@ export class MossWsConnection {
       .join('');
   }
 
+  private parseToolInput(input: unknown): Record<string, unknown> {
+    if (!input) return {};
+    if (typeof input === 'string') {
+      try {
+        const parsed = JSON.parse(input);
+        return parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : {};
+      } catch {
+        return { input };
+      }
+    }
+    return typeof input === 'object' ? (input as Record<string, unknown>) : { input };
+  }
+
   sendMessage(payload: { content: string; files?: string[]; msg_id?: string }): { success: boolean; msg?: string } {
     if (this.state !== 'connected' || !this.ws) {
       return { success: false, msg: 'Not connected' };
@@ -516,25 +665,136 @@ export class MossWsConnection {
     }
   }
 
+  sendQuestionAnswer(answer: string, parentToolUseId?: string): { success: boolean; msg?: string } {
+    if (this.state !== 'connected' || !this.ws) {
+      return { success: false, msg: 'Not connected' };
+    }
+
+    try {
+      this.ws.send(
+        JSON.stringify({
+          type: 'user',
+          message: {
+            role: 'user',
+            content: [{ type: 'text', text: answer }],
+          },
+          parent_tool_use_id: parentToolUseId || null,
+          session_id: this.sessionId || '',
+          uuid: uuid(36),
+        })
+      );
+      return { success: true };
+    } catch (err) {
+      return { success: false, msg: String(err) };
+    }
+  }
+
   sendInterrupt(): void {
     if (this.state !== 'connected' || !this.ws) return;
-    this.ws.send(JSON.stringify({
-      type: 'control_request',
-      request_id: uuid(36),
-      request: { subtype: 'interrupt' },
-    }));
+    this.ws.send(
+      JSON.stringify({
+        type: 'control_request',
+        request_id: uuid(36),
+        request: { subtype: 'interrupt' },
+      })
+    );
+  }
+
+  /**
+   * Send interrupt and wait for confirmation
+   * 发送中断请求并等待确认
+   * @returns true if server confirmed interrupt, false if timeout
+   */
+  async sendInterruptAndWait(): Promise<boolean> {
+    if (this.state !== 'connected' || !this.ws) return false;
+
+    const requestId = uuid(36);
+
+    return new Promise((resolve) => {
+      // Set up timeout
+      const timeout = setTimeout(() => {
+        this.pendingInterrupts.delete(requestId);
+        mainLog('MossWsConnection', `Interrupt confirmation timeout for ${requestId}`);
+        resolve(false);
+      }, this.INTERRUPT_CONFIRMATION_TIMEOUT_MS);
+
+      // Store pending interrupt
+      this.pendingInterrupts.set(requestId, {
+        sentAt: Date.now(),
+        resolve: (confirmed: boolean) => {
+          clearTimeout(timeout);
+          this.pendingInterrupts.delete(requestId);
+          resolve(confirmed);
+        },
+      });
+
+      // Send interrupt request
+      this.ws!.send(
+        JSON.stringify({
+          type: 'control_request',
+          request_id: requestId,
+          request: { subtype: 'interrupt' },
+        })
+      );
+
+      mainLog('MossWsConnection', `Sent interrupt request ${requestId}, waiting for confirmation`);
+    });
   }
 
   respondToPermissionRequest(requestId: string, optionId: string): void {
     if (this.state !== 'connected' || !this.ws) return;
-    this.ws.send(JSON.stringify({
-      type: 'control_response',
-      response: {
-        subtype: 'success',
-        request_id: requestId,
-        response: { behavior: optionId },
+    this.ws.send(
+      JSON.stringify({
+        type: 'control_response',
+        response: {
+          subtype: 'success',
+          request_id: requestId,
+          response: { behavior: optionId },
+        },
+      })
+    );
+  }
+
+  /**
+   * Set model for current session
+   * Sends control_request with subtype 'set_model' and waits for confirmation
+   */
+  setModel(modelId: string): { success: boolean; msg?: string } {
+    mainLog('MossWsConnection', `setModel called: modelId=${modelId}, state=${this.state}, ws=${!!this.ws}, readyState=${this.ws?.readyState}`);
+
+    if (this.state !== 'connected' || !this.ws) {
+      mainLog('MossWsConnection', `setModel rejected: state=${this.state}, ws=${!!this.ws}`);
+      return { success: false, msg: 'Not connected' };
+    }
+
+    // Check actual WebSocket state
+    if (this.ws.readyState !== WebSocket.OPEN) {
+      mainLog('MossWsConnection', `WebSocket not in OPEN state: ${this.ws.readyState} (OPEN=${WebSocket.OPEN}, CLOSING=${WebSocket.CLOSING}, CLOSED=${WebSocket.CLOSED})`);
+      this.state = 'closed';
+      return { success: false, msg: 'WebSocket connection closed' };
+    }
+
+    const requestId = uuid(36);
+    const payload = JSON.stringify({
+      type: 'control_request',
+      request_id: requestId,
+      request: {
+        subtype: 'set_model',
+        model_id: modelId,
       },
-    }));
+    });
+
+    try {
+      this.ws.send(payload);
+      mainLog('MossWsConnection', `Model switch request sent: ${modelId}, requestId: ${requestId}`);
+      // Return success immediately - the actual confirmation will come via model_changed event
+      // The caller can listen for the event or check the result later
+      return { success: true };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      mainError('MossWsConnection', `Failed to send model switch: ${msg}`);
+      return { success: false, msg };
+    }
   }
 
   private handleClose(code: number, reason: string): void {
@@ -542,12 +802,31 @@ export class MossWsConnection {
     this.state = 'closed';
     this.ws = null;
 
+    // Reject any pending interrupt confirmations
+    for (const [, pending] of this.pendingInterrupts) {
+      pending.resolve(false);
+    }
+    this.pendingInterrupts.clear();
+
     // Auto-reconnect for unexpected closures during an active session
     if (wasConnected && code !== 1000 && this.reconnectAttempts < this.MAX_RECONNECT_ATTEMPTS) {
       mainLog('MossWsConnection', `Connection closed unexpectedly (code=${code}), scheduling reconnect (attempt ${this.reconnectAttempts + 1}/${this.MAX_RECONNECT_ATTEMPTS})`);
       this.scheduleReconnect();
     } else {
       this.callbacks.onDisconnected?.();
+    }
+  }
+
+  /**
+   * Handle control_response from server (interrupt confirmation)
+   */
+  private handleControlResponse(msg: any): void {
+    const requestId = msg.request_id;
+    const pending = this.pendingInterrupts.get(requestId);
+
+    if (pending) {
+      mainLog('MossWsConnection', `Received interrupt confirmation for ${requestId}`);
+      pending.resolve(true);
     }
   }
 
@@ -562,7 +841,7 @@ export class MossWsConnection {
     this.callbacks.onReconnecting?.(this.reconnectAttempts, this.MAX_RECONNECT_ATTEMPTS);
 
     setTimeout(() => {
-      this.connect().catch(err => {
+      this.connect().catch((err) => {
         this.callbacks.onError?.(err);
         if (this.reconnectAttempts < this.MAX_RECONNECT_ATTEMPTS) {
           this.scheduleReconnect();
@@ -582,25 +861,25 @@ export class MossWsConnection {
   private isUserAbortError(msg: any): boolean {
     if (msg.result_type === 'user') return true;
     const errorMsg = msg.errors?.join('\n') || msg.result || '';
-    if (errorMsg.includes('Request was aborted') ||
-        errorMsg.includes('AbortError') ||
-        errorMsg.includes('aborted by user') ||
-        errorMsg.includes('user abort')) return true;
+    if (errorMsg.includes('Request was aborted') || errorMsg.includes('AbortError') || errorMsg.includes('aborted by user') || errorMsg.includes('user abort')) return true;
     if (msg.stop_reason === 'abort' || msg.stop_reason === 'user_abort') return true;
     return false;
   }
 
   private isAbortRelatedText(text: string): boolean {
     const lowerText = text.toLowerCase();
-    return lowerText.includes('request interrupted by user') ||
-        lowerText.includes('request was aborted') ||
-        lowerText.includes('no response requested') ||
-        lowerText.includes('aborted by user') ||
-        lowerText.includes('interrupted by user');
+    return lowerText.includes('request interrupted by user') || lowerText.includes('request was aborted') || lowerText.includes('no response requested') || lowerText.includes('aborted by user') || lowerText.includes('interrupted by user');
   }
 
   isConnected(): boolean {
-    return this.state === 'connected';
+    // Check both internal state and actual WebSocket state
+    if (this.state !== 'connected') {
+      return false;
+    }
+    if (!this.ws) {
+      return false;
+    }
+    return this.ws.readyState === WebSocket.OPEN;
   }
 
   getSessionId(): string | null {
@@ -609,5 +888,9 @@ export class MossWsConnection {
 
   getWsUrl(): string | null {
     return this.wsUrl;
+  }
+
+  getWorkDir(): string | null {
+    return this.workDir;
   }
 }

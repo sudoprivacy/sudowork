@@ -7,21 +7,55 @@
 import { SUDOWORK_SERVER_BASE_URL } from '@/common/sudoworkServer';
 import { Button, Collapse, Input, Message, Switch } from '@arco-design/web-react';
 import configItemDefaultIcon from '@/renderer/assets/config-item-default.svg';
+import { ConfigStorage } from '@/common/storage';
+import { useAppMode } from '@/renderer/hooks/useAppMode';
+import { Right } from '@icon-park/react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import PreferenceRow from './PreferenceRow';
 import type { TenantConfigItem, TenantConfigValues } from './types';
 
+function resolveIconUrl(iconUrl: string | null, baseUrl?: string): string {
+  if (!iconUrl) return configItemDefaultIcon;
+  if (iconUrl.startsWith('data:') || iconUrl.startsWith('http://') || iconUrl.startsWith('https://')) {
+    return iconUrl;
+  }
+  if (baseUrl) {
+    return `${baseUrl.replace(/\/+$/, '')}${iconUrl.startsWith('/') ? iconUrl : `/${iconUrl}`}`;
+  }
+  return `${SUDOWORK_SERVER_BASE_URL}${iconUrl}`;
+}
+
 const ConfigItemIcon: React.FC<{ iconUrl?: string; name: string }> = ({ iconUrl, name }) => {
   const [useDefault, setUseDefault] = useState(false);
+  const { isEnterprise } = useAppMode();
+  const [baseUrl, setBaseUrl] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     setUseDefault(false);
   }, [iconUrl]);
 
-  const src = useDefault || !iconUrl ? configItemDefaultIcon : `${SUDOWORK_SERVER_BASE_URL}${iconUrl}`;
+  useEffect(() => {
+    if (!isEnterprise) return;
+    let mounted = true;
+    void (async () => {
+      try {
+        const serverUrl = await ConfigStorage.get('eeclaw.serverUrl');
+        if (mounted && typeof serverUrl === 'string') {
+          setBaseUrl(serverUrl);
+        }
+      } catch {
+        // silent
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [isEnterprise]);
 
-  return <img src={src} alt={name} className='w-14px h-14px object-contain shrink-0' onError={() => setUseDefault(true)} />;
+  const src = useDefault ? configItemDefaultIcon : resolveIconUrl(iconUrl ?? null, baseUrl);
+
+  return <img src={src} alt={name} className='w-16px h-16px object-contain shrink-0' onError={() => setUseDefault(true)} />;
 };
 
 interface TenantConfigItemGroupProps {
@@ -33,17 +67,11 @@ interface TenantConfigItemGroupProps {
   onSave: (values: TenantConfigValues) => Promise<boolean>;
 }
 
-const TenantConfigItemGroup: React.FC<TenantConfigItemGroupProps> = ({
-  configItem,
-  values: externalValues,
-  enabled,
-  saving,
-  onToggleEnabled,
-  onSave,
-}) => {
+const TenantConfigItemGroup: React.FC<TenantConfigItemGroupProps> = ({ configItem, values: externalValues, enabled, saving, onToggleEnabled, onSave }) => {
   const { t } = useTranslation();
   const [collapsed, setCollapsed] = useState(true);
   const [localValues, setLocalValues] = useState<TenantConfigValues>(externalValues);
+  const statusText = enabled ? t('common.enabled', { defaultValue: '已启用' }) : t('settings.runtimeSettings.status.disabled', { defaultValue: '未启用' });
 
   useEffect(() => {
     setLocalValues(externalValues);
@@ -60,7 +88,7 @@ const TenantConfigItemGroup: React.FC<TenantConfigItemGroupProps> = ({
         t('settings.secrets.tenantFieldRequiredSpecific', '请填写：{{configItemName}} - {{entryName}}', {
           configItemName: configItem.name,
           entryName: emptyRequiredEntry.name,
-        }),
+        })
       );
       return;
     }
@@ -77,48 +105,73 @@ const TenantConfigItemGroup: React.FC<TenantConfigItemGroupProps> = ({
   }, [localValues, onSave, enabled, onToggleEnabled, t, configItem.entries, configItem.name]);
 
   const handleToggle = useCallback(
-    (checked: boolean) => {
-      void onToggleEnabled(checked);
+    async (checked: boolean) => {
+      if (!checked) {
+        void onToggleEnabled(checked);
+      } else {
+        const hasNewValues = configItem.entries.some((entry) => {
+          const local = localValues[entry.config_key]?.trim() ?? '';
+          const external = externalValues[entry.config_key]?.trim() ?? '';
+          return local !== '' && local !== external;
+        });
+        if (hasNewValues) {
+          const emptyRequired = configItem.entries.find((e) => e.required === 1 && !localValues[e.config_key]?.trim());
+          if (emptyRequired) {
+            Message.warning(
+              t('settings.secrets.tenantFieldRequiredSpecific', '请填写：{{configItemName}} - {{entryName}}', {
+                configItemName: configItem.name,
+                entryName: emptyRequired.name,
+              })
+            );
+            return;
+          }
+          const success = await onSave(localValues);
+          if (success) {
+            Message.success(t('settings.secrets.tenantSaveSuccess', '配置保存成功'));
+            onToggleEnabled(true);
+          } else {
+            Message.error(t('settings.secrets.tenantSaveFailed', '配置保存失败'));
+          }
+        } else {
+          setLocalValues(externalValues);
+          void onToggleEnabled(checked);
+        }
+      }
     },
-    [onToggleEnabled],
+    [localValues, externalValues, onSave, onToggleEnabled, t, configItem.entries, configItem.name]
   );
 
   return (
-    <Collapse
-      activeKey={collapsed ? [] : [`tenant-${configItem.id}`]}
-      onChange={() => setCollapsed((prev) => !prev)}
-      className='[&_div.arco-collapse-item-header-title]:flex-1'
-    >
+    <Collapse activeKey={collapsed ? [] : [`tenant-${configItem.id}`]} onChange={() => setCollapsed((prev) => !prev)} className='[&_div.arco-collapse-item-header-title]:flex-1 border-0 bg-transparent [&_.arco-collapse-item-icon]:hidden [&_.arco-collapse-item-header-icon]:hidden [&_.arco-collapse-item-header]:px-0 [&_.arco-collapse-item-header]:py-0'>
       <Collapse.Item
         header={
-          <div className='flex items-center justify-between group'>
-            <div className='flex items-center gap-8px flex-1 min-w-0'>
-              <ConfigItemIcon iconUrl={configItem.icon_url} name={configItem.name} />
-              <span className='text-14px text-t-primary'>{configItem.name}</span>
+          <div className='flex items-center justify-between group px-12px py-12px md:px-16px min-h-44px'>
+            <div className='flex items-center gap-12px flex-1 min-w-0'>
+              <span className='inline-flex h-28px w-28px shrink-0 items-center justify-center rd-8px text-t-tertiary transition-colors group-hover:bg-fill-1 group-hover:text-t-secondary'>
+                <Right theme='outline' size='14' className='transition-transform' style={{ transform: collapsed ? 'rotate(0deg)' : 'rotate(90deg)' }} />
+              </span>
+              <div className='flex h-28px w-28px items-center justify-center rd-7px bg-fill-1'>
+                <ConfigItemIcon iconUrl={configItem.icon_url} name={configItem.name} />
+              </div>
+              <span className='truncate text-14px font-600 leading-none text-t-primary'>{configItem.name}</span>
             </div>
-            <div className='flex items-center gap-2' onClick={(e) => e.stopPropagation()}>
-              <Switch
-                size='small'
-                checked={enabled}
-                onChange={handleToggle}
-              />
+            <div className='flex items-center gap-8px' onClick={(e) => e.stopPropagation()}>
+              <span className={enabled ? 'whitespace-nowrap text-13px font-500 leading-none text-success' : 'whitespace-nowrap text-13px leading-none text-t-secondary'}>
+                <span className={enabled ? 'mr-6px inline-block h-5px w-5px rd-50% bg-success align-middle' : 'mr-6px inline-block h-5px w-5px rd-50% bg-[var(--color-text-3)] align-middle'} />
+                {statusText}
+              </span>
+              <Switch size='small' checked={enabled} onChange={handleToggle} className='settings-accent-switch' style={enabled ? { backgroundColor: 'var(--ui-accent-orange)' } : undefined} />
             </div>
           </div>
         }
         name={`tenant-${configItem.id}`}
-        className='[&_div.arco-collapse-item-content-box]:py-3'
+        className='[&_div.arco-collapse-item-content-box]:px-12px [&_div.arco-collapse-item-content-box]:pb-12px [&_div.arco-collapse-item-content-box]:pt-0 md:[&_div.arco-collapse-item-content-box]:px-16px'
       >
-        <div className='flex flex-col gap-24px'>
+        <div className='flex flex-col gap-16px border-t border-border-2 pt-12px'>
           <div className='bg-fill-1 rd-12px pt-16px pr-16px pb-16px pl-0'>
             {configItem.entries.map((entry) => (
               <PreferenceRow key={entry.id} label={entry.name} description={entry.config_desc || undefined} required={entry.required === 1}>
-                <Input.Password
-                  value={localValues[entry.config_key] || ''}
-                  onChange={(val) => handleValueChange(entry.config_key, val)}
-                  placeholder={`请输入${entry.name}`}
-                  style={{ width: 240 }}
-                  disabled={enabled || saving}
-                />
+                <Input.Password value={localValues[entry.config_key] || ''} onChange={(val) => handleValueChange(entry.config_key, val)} placeholder={`请输入${entry.name}`} style={{ width: 240 }} disabled={enabled || saving} />
               </PreferenceRow>
             ))}
           </div>

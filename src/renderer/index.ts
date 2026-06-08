@@ -12,6 +12,7 @@ import { createRoot } from 'react-dom/client';
 import '../adapter/browser';
 import Main from './main';
 import { AuthProvider } from './context/AuthContext';
+import { DashboardStatsProvider } from './context/DashboardStatsContext';
 import { TenantConfigProvider } from './context/TenantConfigContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { PreviewProvider } from './pages/conversation/preview/context/PreviewContext';
@@ -64,7 +65,7 @@ const arcoLocales: Record<string, typeof enUS> = {
   'en-US': enUS,
 };
 
-const AppProviders: React.FC<PropsWithChildren> = ({ children }) => React.createElement(InitProvider, null, React.createElement(AuthProvider, null, React.createElement(TenantConfigProvider, null, React.createElement(ThemeProvider, null, React.createElement(PreviewProvider, null, React.createElement(ConversationTabsProvider, null, children))))));
+const AppProviders: React.FC<PropsWithChildren> = ({ children }) => React.createElement(InitProvider, null, React.createElement(AuthProvider, null, React.createElement(DashboardStatsProvider, null, React.createElement(TenantConfigProvider, null, React.createElement(ThemeProvider, null, React.createElement(PreviewProvider, null, React.createElement(ConversationTabsProvider, null, children)))))));
 
 const Config: React.FC<PropsWithChildren> = ({ children }) => {
   const {

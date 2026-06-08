@@ -7,7 +7,7 @@ import SendBox from '@/renderer/components/sendbox';
 import ThoughtDisplay, { type ThoughtData } from '@/renderer/components/ThoughtDisplay';
 import { getSendBoxDraftHook, type FileOrFolderItem } from '@/renderer/hooks/useSendBoxDraft';
 import { createSetUploadFile, useSendBoxFiles } from '@/renderer/hooks/useSendBoxFiles';
-import { useAddOrUpdateMessage } from '@/renderer/messages/hooks';
+import { useAddOrUpdateMessage, useUpdateMessageList } from '@/renderer/messages/hooks';
 import { allSupportedExts } from '@/renderer/services/FileService';
 import { emitter, useAddEventListener } from '@/renderer/utils/emitter';
 import { mergeFileSelectionItems } from '@/renderer/utils/fileSelection';
@@ -39,10 +39,12 @@ const useAcpSendBoxDraft = getSendBoxDraftHook('acp', {
   atPath: [],
   content: '',
   uploadFile: [],
+  selectedSkills: [],
 });
 
 const useAcpMessage = (conversation_id: string) => {
   const addOrUpdateMessage = useAddOrUpdateMessage();
+  const updateMessageList = useUpdateMessageList();
   const [running, setRunning] = useState(false);
   const [thought, setThought] = useState<ThoughtData>({
     description: '',
@@ -52,11 +54,14 @@ const useAcpMessage = (conversation_id: string) => {
   const [aiProcessing, setAiProcessing] = useState(false); // New loading state for AI response
   const [tokenUsage, setTokenUsage] = useState<TokenUsageData | null>(null);
   const [contextLimit, setContextLimit] = useState<number>(0);
+  const [processingStartTime, setProcessingStartTime] = useState<number | undefined>(undefined);
 
   // Use refs to sync state for immediate access in event handlers
   // 使用 ref 同步状态，以便在事件处理程序中立即访问
   const runningRef = useRef(running);
   const aiProcessingRef = useRef(aiProcessing);
+  const stopPendingRef = useRef(false);
+  const activeTurnStartTimeRef = useRef<number | undefined>(undefined);
 
   // Track whether current turn has content output
   // Only reset aiProcessing when finish arrives after content (not after tool calls)
@@ -148,6 +153,23 @@ const useAcpMessage = (conversation_id: string) => {
         (window as unknown as { __acpFinishTimeout?: ReturnType<typeof setTimeout> }).__acpFinishTimeout = undefined;
       }
 
+      // Handle clear_incomplete_tools before transformMessage (it's not a standard message type)
+      // 在 transformMessage 之前处理 clear_incomplete_tools（它不是标准消息类型）
+      if (message.type === 'clear_incomplete_tools') {
+        // Clear all tool calls from message list (user cancelled)
+        // 清理消息列表中所有工具调用（用户终止）
+        updateMessageList((list) => {
+          return list.filter((msg) => {
+            // Remove all tool-related messages
+            if (msg.type === 'acp_tool_call') return false;
+            if (msg.type === 'codex_tool_call') return false;
+            if (msg.type === 'tool_call') return false;
+            return true;
+          });
+        });
+        return;
+      }
+
       let transformedMessage: TMessage | undefined;
       try {
         transformedMessage = transformMessage(message);
@@ -161,6 +183,9 @@ const useAcpMessage = (conversation_id: string) => {
       }
       switch (message.type) {
         case 'thought':
+          if (stopPendingRef.current) {
+            break;
+          }
           // Auto-recover running/aiProcessing state if thought arrives after finish
           // 如果 thought 在 finish 后到达，自动恢复 running/aiProcessing 状态
           if (!runningRef.current) {
@@ -174,6 +199,13 @@ const useAcpMessage = (conversation_id: string) => {
           throttledSetThought(message.data as ThoughtData);
           break;
         case 'start':
+          stopPendingRef.current = false;
+          {
+            const startData = message.data as { processingStartTime?: number } | null;
+            const startTime = startData?.processingStartTime ?? activeTurnStartTimeRef.current ?? Date.now();
+            activeTurnStartTimeRef.current = startTime;
+            setProcessingStartTime(startTime);
+          }
           setRunning(true);
           runningRef.current = true;
           // Activate aiProcessing when AI starts responding
@@ -195,6 +227,7 @@ const useAcpMessage = (conversation_id: string) => {
                 setAiProcessing(false);
                 aiProcessingRef.current = false;
                 setThought({ subject: '', description: '' });
+                setProcessingStartTime(undefined);
               }
               (window as unknown as { __acpFinishTimeout?: ReturnType<typeof setTimeout> }).__acpFinishTimeout = undefined;
             }, 1000);
@@ -208,6 +241,22 @@ const useAcpMessage = (conversation_id: string) => {
           }
           break;
         case 'content':
+          if (isUserCancelledContent(message)) {
+            setRunning(false);
+            runningRef.current = false;
+            setAiProcessing(false);
+            aiProcessingRef.current = false;
+            setThought({ subject: '', description: '' });
+            setProcessingStartTime(undefined);
+            activeTurnStartTimeRef.current = undefined;
+            hasContentInTurnRef.current = false;
+            stopPendingRef.current = false;
+            addOrUpdateMessage(transformedMessage);
+            break;
+          }
+          if (stopPendingRef.current) {
+            break;
+          }
           // Mark that current turn has content output
           hasContentInTurnRef.current = true;
           // Auto-recover running/aiProcessing state if content arrives after finish
@@ -224,6 +273,9 @@ const useAcpMessage = (conversation_id: string) => {
           addOrUpdateMessage(transformedMessage);
           break;
         case 'agent_status': {
+          if (stopPendingRef.current) {
+            break;
+          }
           // Auto-recover running state if agent_status arrives after finish
           if (!runningRef.current) {
             setRunning(true);
@@ -256,6 +308,9 @@ const useAcpMessage = (conversation_id: string) => {
           addOrUpdateMessage(transformedMessage);
           break;
         case 'acp_permission':
+          if (stopPendingRef.current) {
+            break;
+          }
           // Auto-recover running/aiProcessing state if permission request arrives after finish
           if (!runningRef.current) {
             setRunning(true);
@@ -283,12 +338,16 @@ const useAcpMessage = (conversation_id: string) => {
         case 'request_trace':
           {
             const trace = message.data as Record<string, unknown>;
+            const timestamp = Number(trace.timestamp) || Date.now();
             requestTraceRef.current = {
-              startTime: Number(trace.timestamp) || Date.now(),
+              startTime: timestamp,
               backend: String(trace.backend || 'unknown'),
               modelId: String(trace.modelId || 'unknown'),
               sessionMode: trace.sessionMode as string | undefined,
             };
+            if (!stopPendingRef.current) {
+              setProcessingStartTime(timestamp);
+            }
           }
           break;
         case 'error':
@@ -307,6 +366,9 @@ const useAcpMessage = (conversation_id: string) => {
           }
           break;
         default:
+          if (stopPendingRef.current) {
+            break;
+          }
           // Auto-recover running state if other messages arrive after finish
           if (!runningRef.current) {
             setRunning(true);
@@ -337,6 +399,7 @@ const useAcpMessage = (conversation_id: string) => {
     setTokenUsage(null);
     setContextLimit(0);
     hasContentInTurnRef.current = false;
+    stopPendingRef.current = false;
 
     // Check actual conversation status from backend before resetting running/aiProcessing
     // to avoid flicker when switching to a running conversation
@@ -347,13 +410,26 @@ const useAcpMessage = (conversation_id: string) => {
         runningRef.current = false;
         setAiProcessing(false);
         aiProcessingRef.current = false;
+        setProcessingStartTime(undefined);
         return;
       }
       const isRunning = res.status === 'running';
-      setRunning(isRunning);
-      runningRef.current = isRunning;
-      setAiProcessing(isRunning);
-      aiProcessingRef.current = isRunning;
+      // Use the cached processing state to determine if it's running
+      // If we have a processingStartTime from backend, it implies the task is processing
+      const isEffectivelyRunning = isRunning || res.processingStartTime !== undefined;
+
+      setRunning(isEffectivelyRunning);
+      runningRef.current = isEffectivelyRunning;
+      setAiProcessing(isEffectivelyRunning);
+      aiProcessingRef.current = isEffectivelyRunning;
+
+      // Restore processingStartTime for timer restoration
+      // 恢复 processingStartTime 用于计时器恢复
+      if (res.processingStartTime) {
+        setProcessingStartTime(res.processingStartTime);
+      } else {
+        setProcessingStartTime(undefined);
+      }
 
       // Restore persisted context usage data
       if (res.type === 'acp' && res.extra?.lastTokenUsage) {
@@ -368,7 +444,7 @@ const useAcpMessage = (conversation_id: string) => {
     });
   }, [conversation_id]);
 
-  const resetState = useCallback(() => {
+  const clearRuntimeState = useCallback(() => {
     // Clear pending finish timeout
     const pendingTimeout = (window as unknown as { __acpFinishTimeout?: ReturnType<typeof setTimeout> }).__acpFinishTimeout;
     if (pendingTimeout) {
@@ -381,20 +457,62 @@ const useAcpMessage = (conversation_id: string) => {
     setAiProcessing(false);
     aiProcessingRef.current = false;
     setThought({ subject: '', description: '' });
+    setProcessingStartTime(undefined);
+    activeTurnStartTimeRef.current = undefined;
     hasContentInTurnRef.current = false;
   }, []);
 
-  return { thought, setThought, running, acpStatus, aiProcessing, setAiProcessing, resetState, tokenUsage, contextLimit };
+  const resetState = useCallback(() => {
+    clearRuntimeState();
+    stopPendingRef.current = false;
+  }, [clearRuntimeState]);
+
+  const beginStop = useCallback(() => {
+    stopPendingRef.current = true;
+    clearRuntimeState();
+  }, [clearRuntimeState]);
+
+  const endStop = useCallback(() => {
+    stopPendingRef.current = false;
+  }, []);
+
+  const beginProcessing = useCallback((startTime = Date.now()) => {
+    stopPendingRef.current = false;
+    activeTurnStartTimeRef.current = startTime;
+    setProcessingStartTime(startTime);
+    setRunning(true);
+    runningRef.current = true;
+    setAiProcessing(true);
+    aiProcessingRef.current = true;
+  }, []);
+
+  return { thought, running, acpStatus, aiProcessing, resetState, tokenUsage, contextLimit, processingStartTime, beginStop, endStop, beginProcessing };
 };
 
 const EMPTY_AT_PATH: Array<string | FileOrFolderItem> = [];
 const EMPTY_UPLOAD_FILES: string[] = [];
+const USER_CANCELLED_TEXT = '请求已被用户终止';
+
+const isUserCancelledContent = (message: IResponseMessage): boolean => {
+  return message.type === 'content' && message.data === USER_CANCELLED_TEXT;
+};
 
 const useSendBoxDraft = (conversation_id: string) => {
   const { data, mutate } = useAcpSendBoxDraft(conversation_id);
   const atPath = data?.atPath ?? EMPTY_AT_PATH;
   const uploadFile = data?.uploadFile ?? EMPTY_UPLOAD_FILES;
   const content = data?.content ?? '';
+  const selectedSkills = data?.selectedSkills ?? [];
+  const setSelectedSkills = useCallback(
+    (skills: string[] | ((prev: string[]) => string[])) => {
+      mutate((prev) => {
+        const previousSkills = prev?.selectedSkills ?? [];
+        const nextSkills = typeof skills === 'function' ? skills(previousSkills) : skills;
+        return { ...prev!, selectedSkills: nextSkills };
+      });
+    },
+    [mutate]
+  );
 
   const setAtPath = useCallback(
     (atPath: Array<string | FileOrFolderItem>) => {
@@ -419,6 +537,8 @@ const useSendBoxDraft = (conversation_id: string) => {
     setUploadFile,
     content,
     setContent,
+    selectedSkills,
+    setSelectedSkills,
   };
 };
 
@@ -429,14 +549,13 @@ const AcpSendBox: React.FC<{
   agentName?: string;
   onAiProcessingChange?: React.Dispatch<React.SetStateAction<boolean>>;
 }> = ({ conversation_id, backend, sessionMode, agentName, onAiProcessingChange }) => {
-  const { thought, running, acpStatus, aiProcessing, setAiProcessing, resetState, tokenUsage, contextLimit } = useAcpMessage(conversation_id);
+  const { thought, running, acpStatus, aiProcessing, resetState, tokenUsage, contextLimit, processingStartTime, beginStop, endStop, beginProcessing } = useAcpMessage(conversation_id);
   const { t } = useTranslation();
   const workspaceFiles = useWorkspaceFiles();
   const { checkAndUpdateTitle } = useAutoTitle();
   const slashCommands = useSlashCommands(conversation_id, { agentStatus: acpStatus });
-  const { atPath, uploadFile, setAtPath, setUploadFile, content, setContent } = useSendBoxDraft(conversation_id);
+  const { atPath, uploadFile, setAtPath, setUploadFile, content, setContent, selectedSkills, setSelectedSkills } = useSendBoxDraft(conversation_id);
   const { setSendBoxHandler } = usePreviewContext();
-
   // Sync local aiProcessing state to parent via onAiProcessingChange
   // 将本地 aiProcessing 状态同步到父组件
   useEffect(() => {
@@ -534,7 +653,7 @@ const AcpSendBox: React.FC<{
         const msg_id = uuid();
 
         // Start AI processing loading state (user message will be added via backend response)
-        setAiProcessing(true);
+        beginProcessing();
 
         // Send the message
         const result = await ipcBridge.acpConversation.sendMessage.invoke({
@@ -542,13 +661,14 @@ const AcpSendBox: React.FC<{
           msg_id,
           conversation_id,
           files,
-          skills: skills.length > 0 ? skills : undefined,
+          skills: skills,
         });
 
         if (result && result.success === true) {
           // Initial message sent successfully
           void checkAndUpdateTitle(conversation_id, input);
           emitter.emit('chat.history.refresh');
+          if (backend === 'remote-agent') emitter.emit('remote-agent.workspace.refresh');
         } else {
           // Handle send failure
           // Create error message in UI
@@ -565,15 +685,16 @@ const AcpSendBox: React.FC<{
             createdAt: Date.now() + 2,
           };
           addOrUpdateMessageRef.current(errorMessage, true);
-          setAiProcessing(false); // Stop loading state on failure
+          resetState(); // Stop loading state on failure
         }
       } catch (error) {
         // Stop loading state on error
+        resetState();
       }
     };
 
     sendInitialMessage().catch((error) => {});
-  }, [conversation_id, backend, checkAndUpdateTitle, addOrUpdateMessageRef]);
+  }, [conversation_id, backend, checkAndUpdateTitle, addOrUpdateMessageRef, beginProcessing, resetState]);
 
   const onSendHandler = async (message: string, skills?: string[]) => {
     // /login <title> — intercept BEFORE agent send. Text never leaves the renderer.
@@ -587,6 +708,9 @@ const AcpSendBox: React.FC<{
       setPwdLoginModal({ visible: true, title });
       return;
     }
+
+    // Fallback to local state if skills not provided by event (rare, but safer)
+    const activeSkills = skills || selectedSkills;
 
     const msg_id = uuid();
 
@@ -604,7 +728,7 @@ const AcpSendBox: React.FC<{
     clearFiles();
 
     // Start AI processing loading state
-    setAiProcessing(true);
+    beginProcessing();
 
     // Send message via ACP
     try {
@@ -613,7 +737,7 @@ const AcpSendBox: React.FC<{
         msg_id,
         conversation_id,
         files: allFiles,
-        skills: skills || [],
+        skills: activeSkills,
       });
 
       void checkAndUpdateTitle(conversation_id, message);
@@ -641,17 +765,19 @@ const AcpSendBox: React.FC<{
         ipcBridge.acpConversation.responseStream.emit(errorMessage);
 
         // Stop loading state since AI won't respond
-        setAiProcessing(false);
+        resetState();
         return; // Don't re-throw error, just show the message
       }
       // Stop loading state for other errors too
-      setAiProcessing(false);
+      resetState();
       throw error;
     }
 
     // Clear selected files (similar to GeminiSendBox)
     emitter.emit('acp.selected.file.clear');
-    if (allFiles.length) {
+    if (backend === 'remote-agent') {
+      emitter.emit('remote-agent.workspace.refresh');
+    } else if (allFiles.length) {
       emitter.emit('acp.workspace.refresh');
     }
   };
@@ -725,22 +851,23 @@ const AcpSendBox: React.FC<{
 
   // 停止会话处理函数 Stop conversation handler
   const handleStop = async (): Promise<void> => {
-    // Use finally to ensure UI state is reset even if backend stop fails
+    beginStop();
     try {
       await ipcBridge.conversation.stop.invoke({ conversation_id });
     } finally {
-      resetState();
+      endStop();
     }
   };
 
   return (
     <div className='max-w-800px w-full mx-auto flex flex-col mt-auto mb-16px'>
       {messageContextHolder}
-      <ThoughtDisplay thought={thought} running={running || aiProcessing} onStop={handleStop} />
+      <ThoughtDisplay thought={thought} running={running || aiProcessing} onStop={handleStop} startTime={processingStartTime} />
 
       <SendBox
         value={content}
         onChange={setContent}
+        initialSelectedSkills={selectedSkills}
         loading={running || aiProcessing}
         disabled={false}
         placeholder={t('acp.sendbox.placeholder', { backend: agentName || backend, defaultValue: `Send message to {{backend}}...` })}
@@ -857,11 +984,21 @@ const AcpSendBox: React.FC<{
         slashCommands={slashCommands}
         onSlashBuiltinCommand={onSlashBuiltinCommand}
         onSkillsChange={(skills) => {
-          // Store skills in ref or state if needed for session management
-          // For now, they're passed directly to onSend
+          setSelectedSkills(skills);
         }}
         sendButtonPrefix={tokenUsage ? <ContextUsageIndicator tokenUsage={tokenUsage} contextLimit={contextLimit > 0 ? contextLimit : undefined} size={24} /> : undefined}
         workspaceFiles={workspaceFiles}
+        onAtFileSelected={(file) => {
+          const item: FileOrFolderItem = {
+            path: file.fullPath,
+            name: file.name,
+            isFile: file.isFile,
+            relativePath: file.relativePath,
+          };
+          const newAtPath = mergeFileSelectionItems([...atPath], [item]);
+          setAtPath(newAtPath);
+          emitter.emit('acp.selected.file.append', [item]);
+        }}
       ></SendBox>
       <BdpanFileSelector
         visible={bdpanSelectorVisible}

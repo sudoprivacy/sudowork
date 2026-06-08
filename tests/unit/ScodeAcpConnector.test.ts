@@ -118,6 +118,35 @@ describe('Scode ACP integration', () => {
       return resolveScodeAcpArgs;
     }
 
+    async function loadScodeAuthHelpers() {
+      vi.doMock('electron', () => ({
+        app: {
+          isPackaged: false,
+          getAppPath: () => '/mock-app',
+        },
+      }));
+
+      vi.doMock('@process/services/safety/SafetyPollingService', () => ({
+        isSafetyHookEnabled: () => true,
+      }));
+
+      vi.doMock('@process/utils/mainLogger', () => ({
+        mainLog: vi.fn(),
+        mainWarn: vi.fn(),
+      }));
+
+      vi.doMock('@process/utils/shellEnv', () => ({
+        getEnhancedEnv: () => ({
+          PATH: '/usr/bin',
+        }),
+        findSuitableNodeBin: vi.fn(),
+        resolveNpxPath: vi.fn(() => 'npx'),
+      }));
+
+      const { resolveScodeAcpArgs, resolveScodeAuthModeFromConfig } = await import('@/agent/acp/acpConnectors');
+      return { resolveScodeAcpArgs, resolveScodeAuthModeFromConfig };
+    }
+
     it('forces proxy auth when proxy credentials are available', async () => {
       const resolveScodeAcpArgs = await loadResolveScodeAcpArgs();
 
@@ -146,6 +175,90 @@ describe('Scode ACP integration', () => {
       const args = resolveScodeAcpArgs('scode', ['acp'], {});
 
       expect(args).toEqual(['acp']);
+    });
+
+    it('uses api-key auth for models that only have an api-key provider', async () => {
+      const { resolveScodeAcpArgs, resolveScodeAuthModeFromConfig } = await loadScodeAuthHelpers();
+      const authMode = resolveScodeAuthModeFromConfig(
+        {
+          default_model: 'astron-code-latest',
+          models: {
+            'astron-code-latest': {
+              alias: 'astron-code-latest',
+              providers: {
+                'api-key': { provider: 'coding-plan-glm5', model: 'astron-code-latest', api: 'openai-completions' },
+              },
+            },
+          },
+        },
+        { model: 'astron-code-latest' }
+      );
+
+      const args = resolveScodeAcpArgs(
+        'scode',
+        ['acp'],
+        {
+          PROXY_AUTH_TOKEN: 'proxy-token',
+          PROXY_BASE_URL: 'https://hk.sudorouter.ai',
+        },
+        authMode
+      );
+
+      expect(authMode).toBe('api-key');
+      expect(args).toEqual(['--auth', 'api-key', 'acp']);
+    });
+
+    it('uses the requested model override when resolving scode auth mode', async () => {
+      const { resolveScodeAcpArgs, resolveScodeAuthModeFromConfig } = await loadScodeAuthHelpers();
+      const authMode = resolveScodeAuthModeFromConfig(
+        {
+          default_model: 'grok-4-20-reasoning',
+          models: {
+            'grok-4-20-reasoning': {
+              alias: 'grok-4-20-reasoning',
+              providers: {
+                proxy: { provider: 'sudorouter', model: 'grok-4-20-reasoning', api: 'openai-completions' },
+              },
+            },
+            'astron-code-latest': {
+              alias: 'astron-code-latest',
+              providers: {
+                'api-key': { provider: 'xunfei-coding-plan', model: 'astron-code-latest', api: 'openai-completions' },
+              },
+            },
+          },
+        },
+        { model: 'grok-4-20-reasoning' },
+        'astron-code-latest'
+      );
+
+      const args = resolveScodeAcpArgs('scode', ['acp'], {}, authMode);
+
+      expect(authMode).toBe('api-key');
+      expect(args).toEqual(['--auth', 'api-key', 'acp']);
+    });
+
+    it('uses proxy auth for sudorouter models with proxy providers', async () => {
+      const { resolveScodeAcpArgs, resolveScodeAuthModeFromConfig } = await loadScodeAuthHelpers();
+      const authMode = resolveScodeAuthModeFromConfig(
+        {
+          default_model: 'gemini-3-flash-preview',
+          models: {
+            'gemini-3-flash-preview': {
+              alias: 'gemini-3-flash-preview',
+              providers: {
+                proxy: { provider: 'sudorouter', model: 'gemini-3-flash-preview', api: 'openai-completions' },
+              },
+            },
+          },
+        },
+        { model: 'gemini-3-flash-preview' }
+      );
+
+      const args = resolveScodeAcpArgs('scode', ['acp'], {}, authMode);
+
+      expect(authMode).toBe('proxy');
+      expect(args).toEqual(['--auth', 'proxy', 'acp']);
     });
   });
 
@@ -235,6 +348,130 @@ describe('Scode ACP integration', () => {
       expect(pythonPaths).toContain('/mock-app/hook/python/pythonpath');
       expect(pythonPaths).toContain('/custom/python');
       expect(pythonPaths).toContain(path.join(os.homedir(), '.nexus', 'skills', '_system', 'browser'));
+    });
+
+    it('injects UTF-8 environment variables on Windows', async () => {
+      const originalPlatform = process.platform;
+      Object.defineProperty(process, 'platform', { value: 'win32', configurable: true });
+      try {
+        const prepareCleanEnv = await loadPrepareCleanEnv({
+          safetyHookEnabled: false,
+        });
+
+        const env = prepareCleanEnv({ injectSafetyHook: false });
+
+        // Python UTF-8 mode
+        expect(env.PYTHONUTF8).toBe('1');
+        expect(env.PYTHONIOENCODING).toBe('utf-8');
+        // POSIX locale for cross-platform runtimes
+        expect(env.LANG).toBe('C.UTF-8');
+        expect(env.LC_ALL).toBe('C.UTF-8');
+      } finally {
+        Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true });
+      }
+    });
+
+    it('does not override existing UTF-8 env vars if already set', async () => {
+      const originalPlatform = process.platform;
+      Object.defineProperty(process, 'platform', { value: 'win32', configurable: true });
+      try {
+        // Override getEnhancedEnv to return pre-set UTF-8 env vars
+        vi.doMock('@process/utils/shellEnv', () => ({
+          getEnhancedEnv: () => ({
+            PATH: '/usr/bin',
+            PYTHONPATH: '/custom/python',
+            NODE_OPTIONS: '--inspect',
+            PYTHONUTF8: '0',
+            PYTHONIOENCODING: 'ascii',
+            LANG: 'ja_JP.UTF-8',
+            LC_ALL: 'ja_JP.UTF-8',
+          }),
+          findSuitableNodeBin: vi.fn(),
+          resolveNpxPath: vi.fn(() => 'npx'),
+        }));
+
+        const { prepareCleanEnv } = await import('@/agent/acp/acpConnectors');
+        const env = prepareCleanEnv({ injectSafetyHook: false });
+
+        // Should preserve user's existing values
+        expect(env.PYTHONUTF8).toBe('0');
+        expect(env.PYTHONIOENCODING).toBe('ascii');
+        expect(env.LANG).toBe('ja_JP.UTF-8');
+        expect(env.LC_ALL).toBe('ja_JP.UTF-8');
+      } finally {
+        Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true });
+      }
+    });
+  });
+
+  describe('createGenericSpawnConfig shell behavior', () => {
+    beforeEach(() => {
+      vi.resetModules();
+    });
+
+    afterEach(() => {
+      vi.clearAllMocks();
+      vi.resetModules();
+    });
+
+    async function loadCreateGenericSpawnConfig() {
+      vi.doMock('electron', () => ({
+        app: {
+          isPackaged: false,
+          getAppPath: () => '/mock-app',
+        },
+      }));
+
+      vi.doMock('@process/services/safety/SafetyPollingService', () => ({
+        isSafetyHookEnabled: () => false,
+      }));
+
+      vi.doMock('@process/utils/mainLogger', () => ({
+        mainLog: vi.fn(),
+        mainWarn: vi.fn(),
+      }));
+
+      vi.doMock('@process/utils/shellEnv', () => ({
+        getEnhancedEnv: () => ({
+          PATH: '/usr/bin',
+        }),
+        findSuitableNodeBin: vi.fn(),
+        resolveNpxPath: vi.fn(() => 'npx'),
+      }));
+
+      const { createGenericSpawnConfig } = await import('@/agent/acp/acpConnectors');
+      return createGenericSpawnConfig;
+    }
+
+    it('should not use shell for direct CLI paths on Windows (no cmd.exe intermediary)', async () => {
+      const originalPlatform = process.platform;
+      Object.defineProperty(process, 'platform', { value: 'win32', configurable: true });
+      try {
+        const createGenericSpawnConfig = await loadCreateGenericSpawnConfig();
+        const config = createGenericSpawnConfig('C:\\Users\\test\\.nexus\\sudocode\\scode.exe', 'C:\\workspace', ['acp']);
+
+        // shell should be false — no cmd.exe intermediary
+        expect(config.options.shell).toBe(false);
+        expect(config.command).toBe('C:\\Users\\test\\.nexus\\sudocode\\scode.exe');
+        expect(config.args).toEqual(['acp']);
+      } finally {
+        Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true });
+      }
+    });
+
+    it('should not prepend chcp to the command on Windows', async () => {
+      const originalPlatform = process.platform;
+      Object.defineProperty(process, 'platform', { value: 'win32', configurable: true });
+      try {
+        const createGenericSpawnConfig = await loadCreateGenericSpawnConfig();
+        const config = createGenericSpawnConfig('scode', 'C:\\workspace', ['acp']);
+
+        // Command should NOT contain chcp
+        expect(config.command).not.toContain('chcp');
+        expect(config.command).toBe('scode');
+      } finally {
+        Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true });
+      }
     });
   });
 });

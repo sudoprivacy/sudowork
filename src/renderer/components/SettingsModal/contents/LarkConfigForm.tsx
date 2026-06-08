@@ -10,8 +10,9 @@ import { ConfigStorage } from '@/common/storage';
 import { openExternalUrl } from '@/renderer/utils/platform';
 import GeminiModelSelector from '@/renderer/pages/conversation/gemini/GeminiModelSelector';
 import type { GeminiModelSelection } from '@/renderer/pages/conversation/gemini/useGeminiModelSelection';
-import type { AcpBackendAll } from '@/types/acpTypes';
-import { Button, Dropdown, Empty, Menu, Message, Modal, Spin, Tooltip } from '@arco-design/web-react';
+import { CHANNEL_DEFAULT_AGENT_BACKEND, type AcpBackendAll } from '@/types/acpTypes';
+import { useAppMode } from '@/renderer/hooks/useAppMode';
+import { Button, Dropdown, Empty, Input, Menu, Message, Modal, Spin, Tooltip } from '@arco-design/web-react';
 import { CheckOne, CloseOne, Copy, Delete, Down, Refresh, ScanCode } from '@icon-park/react';
 import { QRCodeSVG } from 'qrcode.react';
 import React, { useCallback, useEffect, useState } from 'react';
@@ -50,15 +51,34 @@ interface LarkConfigFormProps {
   pluginStatus: IChannelPluginStatus | null;
   modelSelection: GeminiModelSelection;
   onStatusChange: (status: IChannelPluginStatus | null) => void;
+  onCredentialsChange?: (creds: { appId: string; appSecret: string; encryptKey?: string; verificationToken?: string }) => void;
 }
 
-const CHANNEL_VISIBLE_AGENT_BACKEND: AcpBackendAll = 'openclaw-gateway';
+const LARK_DEV_DOCS_URL = 'https://sudowork.sudoprivacy.com/guides/feishu.html';
 
 type LarkCliPhase = 'idle' | 'initializing' | 'app-setup' | 'qrcode' | 'success' | 'error' | 'expired';
 
-const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSelection, onStatusChange }) => {
+const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSelection, onStatusChange, onCredentialsChange }) => {
   const { t } = useTranslation();
+  const { isEnterprise } = useAppMode();
 
+  // Lark credentials (manual entry path — used in enterprise mode where Moss Server populates them)
+  const [appId, setAppId] = useState('');
+  const [appSecret, setAppSecret] = useState('');
+  const [encryptKey, setEncryptKey] = useState('');
+  const [verificationToken, setVerificationToken] = useState('');
+
+  // Notify parent of credential changes (for enterprise mode switch toggle)
+  useEffect(() => {
+    if (onCredentialsChange) {
+      onCredentialsChange({ appId, appSecret, encryptKey: encryptKey.trim() || undefined, verificationToken: verificationToken.trim() || undefined });
+    }
+  }, [appId, appSecret, encryptKey, verificationToken, onCredentialsChange]);
+
+  const [showOptional, setShowOptional] = useState(false);
+  const [testLoading, setTestLoading] = useState(false);
+  const [credentialsTested, setCredentialsTested] = useState(false);
+  const [touched, setTouched] = useState({ appId: false, appSecret: false });
   const [pairingLoading, setPairingLoading] = useState(false);
   const [usersLoading, setUsersLoading] = useState(false);
   const [pendingPairings, setPendingPairings] = useState<IChannelPairingRequest[]>([]);
@@ -68,7 +88,7 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
   const [availableAgents, setAvailableAgents] = useState<Array<{ backend: AcpBackendAll; name: string; customAgentId?: string; isPreset?: boolean }>>([]);
   const [selectedAgent, setSelectedAgent] = useState<{ backend: AcpBackendAll; name?: string; customAgentId?: string }>({ backend: 'gemini' });
 
-  // lark-cli QR login (device flow) — single-source flow modelled on WeChat QR
+  // lark-cli QR login (device flow) — single-source flow modelled on WeChat QR (consumer mode only)
   const [larkCliPhase, setLarkCliPhase] = useState<LarkCliPhase>('idle');
   const [larkCliModalOpen, setLarkCliModalOpen] = useState(false);
   const [larkCliVerificationUrl, setLarkCliVerificationUrl] = useState('');
@@ -114,12 +134,44 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
   }, [loadPendingPairings, loadAuthorizedUsers]);
 
   useEffect(() => {
+    if (pluginStatus?.enabled) {
+      void loadPendingPairings();
+      void loadAuthorizedUsers();
+    } else {
+      setPendingPairings([]);
+      setAuthorizedUsers([]);
+    }
+  }, [pluginStatus?.enabled]);
+
+  // Load saved credentials for backfill
+  useEffect(() => {
+    if (appId || appSecret) return;
+    if (!isEnterprise && !pluginStatus?.hasToken) return;
+
+    const loadCredentials = async () => {
+      try {
+        const result = await channel.getPluginCredentials.invoke({ pluginId: 'lark_default' });
+        if (result.success && result.data) {
+          if (result.data.appId) setAppId(result.data.appId);
+          if (result.data.appSecret) setAppSecret(result.data.appSecret);
+          if (result.data.encryptKey) setEncryptKey(result.data.encryptKey);
+          if (result.data.verificationToken) setVerificationToken(result.data.verificationToken);
+        }
+      } catch (error) {
+        console.error('[LarkConfig] Failed to load credentials:', error);
+      }
+    };
+
+    void loadCredentials();
+  }, [pluginStatus, isEnterprise]);
+
+  useEffect(() => {
     const loadAgentsAndSelection = async () => {
       try {
         const [agentsResp, saved] = await Promise.all([acpConversation.getAvailableAgents.invoke(), ConfigStorage.get('assistant.lark.agent')]);
 
         if (agentsResp.success && agentsResp.data) {
-          const visibleAgents = agentsResp.data.filter((a) => !a.isPreset && a.backend === CHANNEL_VISIBLE_AGENT_BACKEND);
+          const visibleAgents = agentsResp.data.filter((a) => !a.isPreset && a.backend === CHANNEL_DEFAULT_AGENT_BACKEND);
           const list = visibleAgents.map((a) => ({ backend: a.backend, name: a.name, customAgentId: a.customAgentId, isPreset: a.isPreset, isExtension: a.isExtension }));
           setAvailableAgents(list);
         }
@@ -152,8 +204,9 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
     }
   };
 
-  // Load lark-cli install/login status on mount
+  // Load lark-cli install/login status on mount (consumer mode only)
   useEffect(() => {
+    if (isEnterprise) return;
     let cancelled = false;
     const loadLarkCliStatus = async () => {
       try {
@@ -172,11 +225,11 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [isEnterprise]);
 
   // Reflect any persisted lark-cli login info from saved credentials
   useEffect(() => {
-    if (!pluginStatus?.hasToken) return;
+    if (isEnterprise || !pluginStatus?.hasToken) return;
     let cancelled = false;
     (async () => {
       try {
@@ -194,9 +247,9 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
     return () => {
       cancelled = true;
     };
-  }, [pluginStatus?.hasToken]);
+  }, [pluginStatus?.hasToken, isEnterprise]);
 
-  // Persist lark-cli token + (auto-derived) app creds into plugin credentials, then enable the bot.
+  // Persist lark-cli token + auto-derived app creds into plugin credentials and enable the bot.
   const persistLarkCliLogin = useCallback(
     async (payload: {
       user?: { id?: string; name?: string };
@@ -204,8 +257,6 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
       appSecret?: string;
       token?: { accessToken: string; refreshToken?: string; expiresAt?: number };
     }) => {
-      // Merge with anything previously saved so we don't blow away encryptKey / verificationToken
-      // a user may have set in a past version.
       let existing: IPluginCredentials = {};
       try {
         const cur = await channel.getPluginCredentials.invoke({ pluginId: 'lark_default' });
@@ -336,6 +387,7 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
     }
   }, [t]);
 
+  // Cancel any in-flight lark-cli login on unmount
   useEffect(() => {
     return () => {
       void channel.larkCliCancel.invoke().catch(() => {});
@@ -366,6 +418,75 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
     });
     return () => unsubscribe();
   }, []);
+
+  const handleTestConnection = async () => {
+    setTouched({ appId: true, appSecret: true });
+
+    if (!appId.trim() || !appSecret.trim()) {
+      Message.warning(t('settings.lark.credentialsRequired', 'Please enter App ID and App Secret'));
+      return;
+    }
+
+    setTestLoading(true);
+    setCredentialsTested(false);
+    try {
+      const result = await channel.testPlugin.invoke({
+        pluginId: 'lark_default',
+        token: '',
+        extraConfig: {
+          appId: appId.trim(),
+          appSecret: appSecret.trim(),
+        },
+      });
+
+      if (result.success && result.data?.success) {
+        setCredentialsTested(true);
+        Message.success(t('settings.lark.connectionSuccess', 'Connected to Lark API!'));
+        await handleAutoEnable();
+      } else {
+        setCredentialsTested(false);
+        Message.error(result.data?.error || t('settings.lark.connectionFailed', 'Connection failed'));
+      }
+    } catch (error: any) {
+      setCredentialsTested(false);
+      Message.error(error.message || t('settings.lark.connectionFailed', 'Connection failed'));
+    } finally {
+      setTestLoading(false);
+    }
+  };
+
+  const handleAutoEnable = async () => {
+    try {
+      const result = await channel.enablePlugin.invoke({
+        pluginId: 'lark_default',
+        config: {
+          appId: appId.trim(),
+          appSecret: appSecret.trim(),
+          encryptKey: encryptKey.trim() || undefined,
+          verificationToken: verificationToken.trim() || undefined,
+        },
+      });
+
+      if (result.success) {
+        Message.success(t('settings.lark.pluginEnabled', 'Lark bot enabled'));
+        const statusResult = await channel.getPluginStatus.invoke();
+        if (statusResult.success && statusResult.data) {
+          const larkPlugin = statusResult.data.find((p) => p.type === 'lark');
+          onStatusChange(larkPlugin || null);
+        }
+      } else {
+        console.error('[LarkConfig] enablePlugin failed:', result.msg);
+        Message.error(result.msg || t('settings.lark.enableFailed', 'Failed to enable Lark plugin'));
+      }
+    } catch (error: any) {
+      console.error('[LarkConfig] Auto-enable failed:', error);
+      Message.error(error.message || t('settings.lark.enableFailed', 'Failed to enable Lark plugin'));
+    }
+  };
+
+  const handleCredentialsChange = () => {
+    setCredentialsTested(false);
+  };
 
   const handleApprovePairing = async (code: string) => {
     try {
@@ -422,181 +543,391 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
     return `${remaining} min`;
   };
 
+  const hasExistingUsers = authorizedUsers.length > 0;
   const isGeminiAgent = selectedAgent.backend === 'gemini';
-  const agentOptions: Array<{ backend: AcpBackendAll; name: string; customAgentId?: string; isExtension?: boolean }> = availableAgents.length > 0 ? availableAgents : [{ backend: CHANNEL_VISIBLE_AGENT_BACKEND, name: 'Sudoclaw' }];
+  const agentOptions: Array<{ backend: AcpBackendAll; name: string; customAgentId?: string; isExtension?: boolean }> = availableAgents.length > 0 ? availableAgents : [{ backend: CHANNEL_DEFAULT_AGENT_BACKEND, name: 'Sudo Code' }];
 
   return (
     <div className='flex flex-col gap-24px'>
-      {/* QR Scan Login (lark-cli device flow) — the single sign-in entry, mirrors WeChat */}
-      <div className='flex flex-col gap-8px'>
-        <SectionHeader title={t('settings.lark.larkCli.title', '扫码登录飞书')} />
-        <div className='text-12px text-t-tertiary'>{t('settings.lark.larkCli.description', '通过 lark-cli 自动完成飞书应用创建与授权登录，无需手动填写 App ID 与 App Secret。')}</div>
-        {!larkCliInstalled && (
-          <div className='text-12px text-orange-600 dark:text-orange-400'>
-            {t('settings.lark.larkCli.notInstalledHint', '未在')} <code className='bg-fill-3 px-4px rd-2px'>{larkCliBinPath || '~/.nexus/bin/lark-cli'}</code>{' '}
-            {t('settings.lark.larkCli.notInstalledHintTail', '找到 lark-cli，请先安装：')}{' '}
-            <code className='bg-fill-3 px-4px rd-2px'>npx skills add larksuite/cli -g -y</code>
-          </div>
-        )}
-        {larkCliLoggedInUser ? (
-          <div className='flex items-center justify-between bg-fill-1 rd-8px p-12px'>
-            <div className='flex items-center gap-8px'>
-              <div className='w-8px h-8px rd-50% bg-green-500' />
-              <span className='text-13px text-t-primary'>
-                {t('settings.lark.larkCli.loggedInAs', '已登录')}: <strong>{larkCliLoggedInUser}</strong>
-              </span>
-              {larkCliLoggedInAt && <span className='text-12px text-t-tertiary'>{new Date(larkCliLoggedInAt).toLocaleString()}</span>}
+      {/* Consumer mode: lark-cli QR Login (replaces manual App ID / App Secret entry) */}
+      {!isEnterprise && (
+        <div className='flex flex-col gap-8px'>
+          <SectionHeader title={t('settings.lark.larkCli.title', '扫码登录飞书')} />
+          <div className='text-12px text-t-tertiary'>{t('settings.lark.larkCli.description', '通过 lark-cli 自动完成飞书应用创建与授权登录，无需手动填写 App ID 与 App Secret。')}</div>
+          {!larkCliInstalled && (
+            <div className='text-12px text-orange-600 dark:text-orange-400'>
+              {t('settings.lark.larkCli.notInstalledHint', '未在')} <code className='bg-fill-3 px-4px rd-2px'>{larkCliBinPath || '~/.nexus/bin/lark-cli'}</code>{' '}
+              {t('settings.lark.larkCli.notInstalledHintTail', '找到 lark-cli，请先安装：')}{' '}
+              <code className='bg-fill-3 px-4px rd-2px'>npx skills add larksuite/cli -g -y</code>
             </div>
-            <div className='flex items-center gap-8px'>
-              <Button size='small' icon={<ScanCode size={14} />} onClick={handleStartLarkCliLogin} disabled={!larkCliInstalled}>
-                {t('settings.lark.larkCli.relogin', '重新登录')}
+          )}
+          {larkCliLoggedInUser ? (
+            <div className='flex items-center justify-between bg-fill-1 rd-8px p-12px'>
+              <div className='flex items-center gap-8px'>
+                <div className='w-8px h-8px rd-50% bg-green-500' />
+                <span className='text-13px text-t-primary'>
+                  {t('settings.lark.larkCli.loggedInAs', '已登录')}: <strong>{larkCliLoggedInUser}</strong>
+                </span>
+                {larkCliLoggedInAt && <span className='text-12px text-t-tertiary'>{new Date(larkCliLoggedInAt).toLocaleString()}</span>}
+              </div>
+              <div className='flex items-center gap-8px'>
+                <Button size='small' icon={<ScanCode size={14} />} onClick={handleStartLarkCliLogin} disabled={!larkCliInstalled}>
+                  {t('settings.lark.larkCli.relogin', '重新登录')}
+                </Button>
+                <Button size='small' status='danger' onClick={handleLarkCliLogout} disabled={!larkCliInstalled}>
+                  {t('settings.lark.larkCli.logout', '登出')}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className='flex justify-center py-12px'>
+              <Button type='primary' size='large' icon={<ScanCode size={16} />} onClick={handleStartLarkCliLogin} disabled={!larkCliInstalled}>
+                {t('settings.lark.larkCli.scanLogin', '扫码登录飞书')}
               </Button>
-              <Button size='small' status='danger' onClick={handleLarkCliLogout} disabled={!larkCliInstalled}>
-                {t('settings.lark.larkCli.logout', '登出')}
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <div className='flex justify-center py-12px'>
-            <Button type='primary' size='large' icon={<ScanCode size={16} />} onClick={handleStartLarkCliLogin} disabled={!larkCliInstalled}>
-              {t('settings.lark.larkCli.scanLogin', '扫码登录飞书')}
-            </Button>
-          </div>
-        )}
-      </div>
-
-      {/* lark-cli QR Login Modal */}
-      <Modal
-        title={t('settings.lark.larkCli.modalTitle', '扫码登录飞书')}
-        visible={larkCliModalOpen}
-        onCancel={handleCloseLarkCliModal}
-        footer={
-          <div className='flex justify-end gap-8px'>
-            {(larkCliPhase === 'error' || larkCliPhase === 'expired') && (
-              <Button type='primary' onClick={handleStartLarkCliLogin}>
-                {t('common.retry', '重试')}
-              </Button>
-            )}
-            <Button onClick={handleCloseLarkCliModal}>{larkCliPhase === 'success' ? t('common.close', '关闭') : t('common.cancel', '取消')}</Button>
-          </div>
-        }
-        maskClosable={false}
-        style={{ width: 480 }}
-      >
-        <div className='flex flex-col items-center gap-16px py-12px'>
-          {larkCliPhase === 'initializing' && (
-            <div className='flex flex-col items-center gap-8px py-32px'>
-              <Spin size={32} />
-              <span className='text-12px text-t-tertiary'>{t('settings.lark.larkCli.initializing', '正在初始化 lark-cli…')}</span>
-            </div>
-          )}
-          {larkCliPhase === 'app-setup' && larkCliVerificationUrl && (
-            <>
-              <div className='text-13px font-500 text-t-primary'>{t('settings.lark.larkCli.appSetupTitle', '第 1 步：配置飞书应用')}</div>
-              <div className='bg-white rd-8px p-12px'>
-                <QRCodeSVG value={larkCliVerificationUrl} size={200} level='M' />
-              </div>
-              <div className='text-12px text-t-tertiary text-center'>
-                {t('settings.lark.larkCli.appSetupHint', '在飞书移动端扫码，或在浏览器打开：')}
-                <br />
-                <button
-                  className='text-primary hover:underline cursor-pointer bg-transparent border-none p-0 text-12px break-all'
-                  onClick={() => openExternalUrl(larkCliVerificationUrl).catch(console.error)}
-                >
-                  {larkCliVerificationUrl}
-                </button>
-              </div>
-            </>
-          )}
-          {larkCliPhase === 'qrcode' && larkCliVerificationUrl && (
-            <>
-              <div className='text-13px font-500 text-t-primary'>{t('settings.lark.larkCli.authTitle', '第 2 步：扫码登录飞书账号')}</div>
-              <div className='bg-white rd-8px p-12px'>
-                <QRCodeSVG value={larkCliVerificationUrl} size={200} level='M' />
-              </div>
-              {larkCliUserCode && (
-                <div className='flex flex-col items-center gap-4px'>
-                  <div className='text-12px text-t-tertiary'>{t('settings.lark.larkCli.verificationCode', '验证码')}</div>
-                  <div className='text-20px font-600 tracking-widest font-mono text-t-primary'>{larkCliUserCode}</div>
-                </div>
-              )}
-              <div className='text-12px text-t-tertiary text-center'>
-                {t('settings.lark.larkCli.scanHint', '使用飞书扫一扫，或在浏览器打开：')}
-                <br />
-                <button
-                  className='text-primary hover:underline cursor-pointer bg-transparent border-none p-0 text-12px break-all'
-                  onClick={() => openExternalUrl(larkCliVerificationUrl).catch(console.error)}
-                >
-                  {larkCliVerificationUrl}
-                </button>
-              </div>
-              {larkCliExpiresAt > 0 && (
-                <div className='text-11px text-t-tertiary'>
-                  {t('settings.lark.larkCli.expiresIn', '剩余有效期')}: {Math.max(0, Math.ceil((larkCliExpiresAt - Date.now()) / 60000))} {t('settings.lark.larkCli.minutes', '分钟')}
-                </div>
-              )}
-            </>
-          )}
-          {larkCliPhase === 'success' && (
-            <div className='flex flex-col items-center gap-8px py-32px'>
-              <CheckOne size={48} theme='filled' fill='#22c55e' />
-              <span className='text-14px text-t-primary'>
-                {t('settings.lark.larkCli.loginSuccess', '扫码登录成功')}
-                {larkCliLoggedInUser ? ` — ${larkCliLoggedInUser}` : ''}
-              </span>
-            </div>
-          )}
-          {(larkCliPhase === 'error' || larkCliPhase === 'expired') && (
-            <div className='flex flex-col items-center gap-8px py-24px'>
-              <CloseOne size={32} theme='filled' fill='#ef4444' />
-              <span className='text-13px text-red-600 dark:text-red-400 text-center px-12px break-words'>{larkCliError}</span>
             </div>
           )}
         </div>
-      </Modal>
+      )}
 
-      {/* Agent Selection */}
-      <div className='flex flex-col gap-8px'>
-        <PreferenceRow label={t('settings.lark.agent', 'Agent')} description={t('settings.lark.agentDesc', 'Used for Lark conversations')}>
-          <Dropdown
-            trigger='click'
-            position='br'
-            droplist={
-              <Menu selectedKeys={[selectedAgent.customAgentId ? `${selectedAgent.backend}|${selectedAgent.customAgentId}` : selectedAgent.backend]}>
-                {agentOptions.map((a) => {
-                  const key = a.customAgentId ? `${a.backend}|${a.customAgentId}` : a.backend;
-                  return (
-                    <Menu.Item
-                      key={key}
-                      onClick={() => {
-                        const currentKey = selectedAgent.customAgentId ? `${selectedAgent.backend}|${selectedAgent.customAgentId}` : selectedAgent.backend;
-                        if (key === currentKey) {
-                          return;
-                        }
-                        const next = { backend: a.backend, customAgentId: a.customAgentId, name: a.name };
-                        setSelectedAgent(next);
-                        void persistSelectedAgent(next);
-                      }}
-                    >
-                      {a.name}
-                    </Menu.Item>
-                  );
-                })}
-              </Menu>
+      {/* lark-cli QR Login Modal (consumer mode) */}
+      {!isEnterprise && (
+        <Modal
+          title={t('settings.lark.larkCli.modalTitle', '扫码登录飞书')}
+          visible={larkCliModalOpen}
+          onCancel={handleCloseLarkCliModal}
+          footer={
+            <div className='flex justify-end gap-8px'>
+              {(larkCliPhase === 'error' || larkCliPhase === 'expired') && (
+                <Button type='primary' onClick={handleStartLarkCliLogin}>
+                  {t('common.retry', '重试')}
+                </Button>
+              )}
+              <Button onClick={handleCloseLarkCliModal}>{larkCliPhase === 'success' ? t('common.close', '关闭') : t('common.cancel', '取消')}</Button>
+            </div>
+          }
+          maskClosable={false}
+          style={{ width: 480 }}
+        >
+          <div className='flex flex-col items-center gap-16px py-12px'>
+            {larkCliPhase === 'initializing' && (
+              <div className='flex flex-col items-center gap-8px py-32px'>
+                <Spin size={32} />
+                <span className='text-12px text-t-tertiary'>{t('settings.lark.larkCli.initializing', '正在初始化 lark-cli…')}</span>
+              </div>
+            )}
+            {larkCliPhase === 'app-setup' && larkCliVerificationUrl && (
+              <>
+                <div className='text-13px font-500 text-t-primary'>{t('settings.lark.larkCli.appSetupTitle', '第 1 步：配置飞书应用')}</div>
+                <div className='bg-white rd-8px p-12px'>
+                  <QRCodeSVG value={larkCliVerificationUrl} size={200} level='M' />
+                </div>
+                <div className='text-12px text-t-tertiary text-center'>
+                  {t('settings.lark.larkCli.appSetupHint', '在飞书移动端扫码，或在浏览器打开：')}
+                  <br />
+                  <button
+                    className='text-primary hover:underline cursor-pointer bg-transparent border-none p-0 text-12px break-all'
+                    onClick={() => openExternalUrl(larkCliVerificationUrl).catch(console.error)}
+                  >
+                    {larkCliVerificationUrl}
+                  </button>
+                </div>
+              </>
+            )}
+            {larkCliPhase === 'qrcode' && larkCliVerificationUrl && (
+              <>
+                <div className='text-13px font-500 text-t-primary'>{t('settings.lark.larkCli.authTitle', '第 2 步：扫码登录飞书账号')}</div>
+                <div className='bg-white rd-8px p-12px'>
+                  <QRCodeSVG value={larkCliVerificationUrl} size={200} level='M' />
+                </div>
+                {larkCliUserCode && (
+                  <div className='flex flex-col items-center gap-4px'>
+                    <div className='text-12px text-t-tertiary'>{t('settings.lark.larkCli.verificationCode', '验证码')}</div>
+                    <div className='text-20px font-600 tracking-widest font-mono text-t-primary'>{larkCliUserCode}</div>
+                  </div>
+                )}
+                <div className='text-12px text-t-tertiary text-center'>
+                  {t('settings.lark.larkCli.scanHint', '使用飞书扫一扫，或在浏览器打开：')}
+                  <br />
+                  <button
+                    className='text-primary hover:underline cursor-pointer bg-transparent border-none p-0 text-12px break-all'
+                    onClick={() => openExternalUrl(larkCliVerificationUrl).catch(console.error)}
+                  >
+                    {larkCliVerificationUrl}
+                  </button>
+                </div>
+                {larkCliExpiresAt > 0 && (
+                  <div className='text-11px text-t-tertiary'>
+                    {t('settings.lark.larkCli.expiresIn', '剩余有效期')}: {Math.max(0, Math.ceil((larkCliExpiresAt - Date.now()) / 60000))} {t('settings.lark.larkCli.minutes', '分钟')}
+                  </div>
+                )}
+              </>
+            )}
+            {larkCliPhase === 'success' && (
+              <div className='flex flex-col items-center gap-8px py-32px'>
+                <CheckOne size={48} theme='filled' fill='#22c55e' />
+                <span className='text-14px text-t-primary'>
+                  {t('settings.lark.larkCli.loginSuccess', '扫码登录成功')}
+                  {larkCliLoggedInUser ? ` — ${larkCliLoggedInUser}` : ''}
+                </span>
+              </div>
+            )}
+            {(larkCliPhase === 'error' || larkCliPhase === 'expired') && (
+              <div className='flex flex-col items-center gap-8px py-24px'>
+                <CloseOne size={32} theme='filled' fill='#ef4444' />
+                <span className='text-13px text-red-600 dark:text-red-400 text-center px-12px break-words'>{larkCliError}</span>
+              </div>
+            )}
+          </div>
+        </Modal>
+      )}
+
+      {/* Enterprise mode: manual App ID / App Secret (Moss Server populates these) */}
+      {isEnterprise && (
+        <>
+          {/* App ID */}
+          <PreferenceRow
+            label={t('settings.lark.appId', 'App ID')}
+            description={
+              <span>
+                <a
+                  className='text-primary hover:underline cursor-pointer text-12px'
+                  href={LARK_DEV_DOCS_URL}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    openExternalUrl(LARK_DEV_DOCS_URL).catch(console.error);
+                  }}
+                >
+                  {t('settings.lark.devConsoleLink', 'Feishu Developer Console')}
+                </a>{' '}
+                {t('settings.lark.appIdDescSuffix', 'to get your App ID')}
+              </span>
             }
+            required
           >
-            <Button type='secondary' className='min-w-160px flex items-center justify-between gap-8px'>
-              <span className='truncate'>{agentOptions[0]?.name || 'Sudoclaw'}</span>
-              <Down theme='outline' size={14} />
-            </Button>
-          </Dropdown>
-        </PreferenceRow>
-      </div>
+            {hasExistingUsers ? (
+              <Tooltip content={t('settings.assistant.tokenLocked', '请先关闭 Channel 并删除所有已授权用户后，再尝试修改')}>
+                <span>
+                  <Input
+                    value={appId}
+                    onChange={(value) => {
+                      setAppId(value);
+                      handleCredentialsChange();
+                    }}
+                    onBlur={() => setTouched((prev) => ({ ...prev, appId: true }))}
+                    placeholder={hasExistingUsers ? '••••••••••••••••' : 'cli_xxxxxxxxxx'}
+                    style={{ width: 240 }}
+                    status={touched.appId && !appId.trim() && !pluginStatus?.hasToken ? 'error' : undefined}
+                    disabled={hasExistingUsers}
+                  />
+                </span>
+              </Tooltip>
+            ) : (
+              <Input
+                value={appId}
+                onChange={(value) => {
+                  setAppId(value);
+                  handleCredentialsChange();
+                }}
+                onBlur={() => setTouched((prev) => ({ ...prev, appId: true }))}
+                placeholder={hasExistingUsers ? '••••••••••••••••' : 'cli_xxxxxxxxxx'}
+                style={{ width: 240 }}
+                status={touched.appId && !appId.trim() && !pluginStatus?.hasToken ? 'error' : undefined}
+                disabled={hasExistingUsers}
+              />
+            )}
+          </PreferenceRow>
 
-      {/* Default Model Selection */}
-      <PreferenceRow label={t('settings.assistant.defaultModel', '对话模型')} description={t('settings.lark.defaultModelDesc', '用于Agent对话时调用')}>
-        <GeminiModelSelector selection={isGeminiAgent ? modelSelection : undefined} disabled={!isGeminiAgent} label={!isGeminiAgent ? t('settings.assistant.autoFollowCliModel', '自动跟随CLI运行时的模型') : undefined} variant='settings' />
-      </PreferenceRow>
+          {/* App Secret */}
+          <PreferenceRow
+            label={t('settings.lark.appSecret', 'App Secret')}
+            description={
+              <span>
+                <a
+                  className='text-primary hover:underline cursor-pointer text-12px'
+                  href={LARK_DEV_DOCS_URL}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    openExternalUrl(LARK_DEV_DOCS_URL).catch(console.error);
+                  }}
+                >
+                  {t('settings.lark.devConsoleLink', 'Feishu Developer Console')}
+                </a>{' '}
+                {t('settings.lark.appSecretDescSuffix', 'to get App Secret')}
+              </span>
+            }
+            required
+          >
+            {hasExistingUsers ? (
+              <Tooltip content={t('settings.assistant.tokenLocked', '请先关闭 Channel 并删除所有已授权用户后，再尝试修改')}>
+                <span>
+                  <Input.Password
+                    value={appSecret}
+                    onChange={(value) => {
+                      setAppSecret(value);
+                      handleCredentialsChange();
+                    }}
+                    onBlur={() => setTouched((prev) => ({ ...prev, appSecret: true }))}
+                    placeholder={hasExistingUsers ? '••••••••••••••••' : 'xxxxxxxxxxxxxxxxxx'}
+                    style={{ width: 240 }}
+                    status={touched.appSecret && !appSecret.trim() && !pluginStatus?.hasToken ? 'error' : undefined}
+                    visibilityToggle
+                    disabled={hasExistingUsers}
+                  />
+                </span>
+              </Tooltip>
+            ) : (
+              <Input.Password
+                value={appSecret}
+                onChange={(value) => {
+                  setAppSecret(value);
+                  handleCredentialsChange();
+                }}
+                onBlur={() => setTouched((prev) => ({ ...prev, appSecret: true }))}
+                placeholder={hasExistingUsers ? '••••••••••••••••' : 'xxxxxxxxxxxxxxxxxx'}
+                style={{ width: 240 }}
+                status={touched.appSecret && !appSecret.trim() && !pluginStatus?.hasToken ? 'error' : undefined}
+                visibilityToggle
+                disabled={hasExistingUsers}
+              />
+            )}
+          </PreferenceRow>
+
+          {/* Optional fields toggle */}
+          <div className='flex items-center gap-4px text-12px text-t-tertiary cursor-pointer select-none' onClick={() => setShowOptional((prev) => !prev)}>
+            <Down theme='outline' size={12} style={{ transform: showOptional ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
+            <span>{showOptional ? t('settings.lark.hideOptionalFields', 'Hide optional settings') : t('settings.lark.showOptionalFields', 'Show optional settings')}</span>
+          </div>
+
+          {showOptional && (
+            <>
+              {/* Encrypt Key (Optional) */}
+              <PreferenceRow label={t('settings.lark.encryptKey', 'Encrypt Key')} description={t('settings.lark.encryptKeyDesc', 'Optional: For event encryption (from Event Subscription settings)')}>
+                {hasExistingUsers ? (
+                  <Tooltip content={t('settings.assistant.tokenLocked', '请先关闭 Channel 并删除所有已授权用户后，再尝试修改')}>
+                    <span>
+                      <Input.Password
+                        value={encryptKey}
+                        onChange={(value) => {
+                          setEncryptKey(value);
+                          handleCredentialsChange();
+                        }}
+                        placeholder={t('settings.lark.optional', 'Optional')}
+                        style={{ width: 240 }}
+                        visibilityToggle
+                        disabled={hasExistingUsers}
+                      />
+                    </span>
+                  </Tooltip>
+                ) : (
+                  <Input.Password
+                    value={encryptKey}
+                    onChange={(value) => {
+                      setEncryptKey(value);
+                      handleCredentialsChange();
+                    }}
+                    placeholder={t('settings.lark.optional', 'Optional')}
+                    style={{ width: 240 }}
+                    visibilityToggle
+                    disabled={hasExistingUsers}
+                  />
+                )}
+              </PreferenceRow>
+
+              {/* Verification Token (Optional) */}
+              <PreferenceRow label={t('settings.lark.verificationToken', 'Verification Token')} description={t('settings.lark.verificationTokenDesc', 'Optional: For event verification (from Event Subscription settings)')}>
+                {hasExistingUsers ? (
+                  <Tooltip content={t('settings.assistant.tokenLocked', '请先关闭 Channel 并删除所有已授权用户后，再尝试修改')}>
+                    <span>
+                      <Input.Password
+                        value={verificationToken}
+                        onChange={(value) => {
+                          setVerificationToken(value);
+                          handleCredentialsChange();
+                        }}
+                        placeholder={t('settings.lark.optional', 'Optional')}
+                        style={{ width: 240 }}
+                        visibilityToggle
+                        disabled={hasExistingUsers}
+                      />
+                    </span>
+                  </Tooltip>
+                ) : (
+                  <Input.Password
+                    value={verificationToken}
+                    onChange={(value) => {
+                      setVerificationToken(value);
+                      handleCredentialsChange();
+                    }}
+                    placeholder={t('settings.lark.optional', 'Optional')}
+                    style={{ width: 240 }}
+                    visibilityToggle
+                    disabled={hasExistingUsers}
+                  />
+                )}
+              </PreferenceRow>
+            </>
+          )}
+
+          {/* Test Connection Button (enterprise mode) */}
+          {!hasExistingUsers && !pluginStatus?.connected && (
+            <div className='flex justify-end'>
+              {pluginStatus?.hasToken && !appId.trim() && !appSecret.trim() ? (
+                <span className='text-12px text-t-tertiary mr-12px self-center'>{t('settings.lark.credentialsSaved', 'Credentials already configured. Enter new values to update.')}</span>
+              ) : null}
+              <Button type='primary' loading={testLoading} onClick={handleTestConnection} disabled={!appId.trim() || !appSecret.trim() || credentialsTested}>
+                {t('settings.lark.testAndConnect', 'Test & Connect')}
+              </Button>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Agent Selection - hidden in enterprise mode (uses Moss remote agent) */}
+      {!isEnterprise && (
+        <div className='flex flex-col gap-8px'>
+          <PreferenceRow label={t('settings.lark.agent', 'Agent')} description={t('settings.lark.agentDesc', 'Used for Lark conversations')}>
+            <Dropdown
+              trigger='click'
+              position='br'
+              droplist={
+                <Menu selectedKeys={[selectedAgent.customAgentId ? `${selectedAgent.backend}|${selectedAgent.customAgentId}` : selectedAgent.backend]}>
+                  {agentOptions.map((a) => {
+                    const key = a.customAgentId ? `${a.backend}|${a.customAgentId}` : a.backend;
+                    return (
+                      <Menu.Item
+                        key={key}
+                        onClick={() => {
+                          const currentKey = selectedAgent.customAgentId ? `${selectedAgent.backend}|${selectedAgent.customAgentId}` : selectedAgent.backend;
+                          if (key === currentKey) {
+                            return;
+                          }
+                          const next = { backend: a.backend, customAgentId: a.customAgentId, name: a.name };
+                          setSelectedAgent(next);
+                          void persistSelectedAgent(next);
+                        }}
+                      >
+                        {a.name}
+                      </Menu.Item>
+                    );
+                  })}
+                </Menu>
+              }
+            >
+              <Button type='secondary' className='min-w-160px flex items-center justify-between gap-8px'>
+                <span className='truncate'>{agentOptions[0]?.name || 'Sudo Code'}</span>
+                <Down theme='outline' size={14} />
+              </Button>
+            </Dropdown>
+          </PreferenceRow>
+        </div>
+      )}
+
+      {/* Default Model Selection - hidden in enterprise mode */}
+      {!isEnterprise && (
+        <PreferenceRow label={t('settings.assistant.defaultModel', '对话模型')} description={t('settings.lark.defaultModelDesc', '用于Agent对话时调用')}>
+          <GeminiModelSelector selection={isGeminiAgent ? modelSelection : undefined} disabled={!isGeminiAgent} label={!isGeminiAgent ? t('settings.assistant.autoFollowCliModel', '自动跟随CLI运行时的模型') : undefined} variant='settings' />
+        </PreferenceRow>
+      )}
 
       {/* Connection Status - show when bot is enabled */}
       {pluginStatus?.enabled && authorizedUsers.length === 0 && (

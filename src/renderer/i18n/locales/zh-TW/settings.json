@@ -107,6 +107,8 @@
   "cacheClearFailed": "Failed to clear cache",
   "language": "語言",
   "closeToTray": "關閉到托盤",
+  "showTokenUsageBadges": "顯示 Token / 積分用量",
+  "showTokenUsageBadgesDesc": "在每輪回覆下方顯示本輪 Token 與積分消耗",
   "avatarEnabled": "桌面 Avatar 浮動視窗",
   "avatarEnabledDesc": "在桌面顯示一個跟隨目前對話狀態的浮動夥伴",
   "gemini": "Gemini",
@@ -504,6 +506,7 @@
   "feedback": "意見反饋",
   "contactMe": "聯繫我",
   "officialWebsite": "官網",
+  "privacyPolicy": "隱私聲明",
   "checkForUpdates": "檢查更新",
   "includePrereleaseUpdates": "包含預發佈/dev 版本",
   "saveModelConfigFailed": "儲存模型設定失敗",
@@ -712,6 +715,25 @@
     "statusError": "錯誤",
     "statusConnecting": "連接中...",
     "connectedDesc": "禪道已連接，AI 現在可以讀取和建立 Bug。"
+  },
+  "modelUsage": {
+    "title": "模型用量",
+    "pointsTitle": "積分用量",
+    "tokensTitle": "Token 用量",
+    "points": "積分",
+    "total": "總計",
+    "totalTokens": "總 Token",
+    "startDate": "開始日期",
+    "endDate": "結束日期",
+    "loadFailed": "載入模型用量資料失敗",
+    "maxRangeWarning": "時間範圍不能超過30天",
+    "noData": "暫無模型用量資料"
+  },
+  "userProfile": {
+    "todayUsage": "今日使用",
+    "tokens": "Tokens",
+    "consumedPoints": "消耗積分",
+    "requests": "請求數"
   },
   "extensionAssistantReadonly": "擴展助手為唯讀，你可以複製它並編輯副本。",
   "secrets": "金鑰管理",

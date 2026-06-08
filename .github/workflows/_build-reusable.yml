@@ -79,6 +79,9 @@ jobs:
         uses: actions/checkout@v6
         with:
           ref: ${{ inputs.ref }}
+          # ai-dev-browser (browser skill runtime) is a git submodule; without
+          # this the bundle ships no Python implementation and the skill is dead.
+          submodules: recursive
 
       - name: Get commit hash
         id: commit
@@ -87,6 +90,21 @@ jobs:
           SHORT=$(git rev-parse --short HEAD)
           echo "short=$SHORT" >> $GITHUB_OUTPUT
           echo "Commit: $SHORT"
+
+      # Guard against shipping a dead browser skill. The ai-dev-browser package
+      # is a git submodule; if checkout forgets `submodules: recursive`, the
+      # electron-builder `files:` glob silently matches nothing and the release
+      # builds green but with no browser runtime. Fail loudly here instead.
+      - name: Verify ai-dev-browser submodule is bundled
+        shell: bash
+        run: |
+          pkg="vendor/ai-dev-browser/ai_dev_browser"
+          count=$(find "$pkg" -name '*.py' 2>/dev/null | wc -l | tr -d ' ')
+          if [ "${count:-0}" -eq 0 ]; then
+            echo "::error::ai-dev-browser package is empty or missing ($pkg has no .py files). The browser builtin skill would ship dead. Ensure checkout uses 'submodules: recursive' and the submodule is initialized."
+            exit 1
+          fi
+          echo "ai-dev-browser package present: $count .py files under $pkg"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -142,7 +160,7 @@ jobs:
       - name: Build safety hook
         run: bun run hook:build
 
-      - name: Download CLI resources (Node.js, Nexus, Claude Code, Bdpan, Mcporter)
+      - name: Download CLI resources (Node.js, Nexus, Scode, Claude Code, Bdpan, Mcporter, Shareone)
         shell: bash
         run: |
           # Map CI platform to script platform format
@@ -157,10 +175,12 @@ jobs:
           esac
           echo "Downloading resources for target platform: $PLATFORM"
           node scripts/download-node.js "$PLATFORM"
-          node scripts/download-nexus.js "$PLATFORM"
+          node scripts/download-nexus-vfs.js
+          node scripts/download-scode.js "$PLATFORM"
           node scripts/download-claude-code.js
           node scripts/download-bdpan.js "$PLATFORM"
           node scripts/download-mcporter.js
+          node scripts/download-shareone.js
         env:
           npm_config_arch: ${{ matrix.arch }}
           npm_config_platform: ${{ matrix.platform == 'windows-x64' && 'win32' || matrix.platform == 'windows-arm64' && 'win32' || 'darwin' }}

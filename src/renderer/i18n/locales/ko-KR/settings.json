@@ -107,6 +107,8 @@
   "cacheClearFailed": "캐시 정리 실패",
   "language": "언어",
   "closeToTray": "트레이로 닫기",
+  "showTokenUsageBadges": "Token / 포인트 사용량 표시",
+  "showTokenUsageBadgesDesc": "각 응답 아래에 해당 턴의 Token 및 포인트 소비량을 표시합니다",
   "avatarEnabled": "플로팅 아바타",
   "avatarEnabledDesc": "현재 대화 상태를 반영하는 플로팅 데스크톱 컴패니언 표시",
   "gemini": "Gemini",
@@ -504,6 +506,7 @@
   "feedback": "피드백",
   "contactMe": "연락처",
   "officialWebsite": "공식 웹사이트",
+  "privacyPolicy": "개인정보 처리방침",
   "checkForUpdates": "업데이트 확인",
   "includePrereleaseUpdates": "프리릴리즈/dev 빌드 포함",
   "saveModelConfigFailed": "모델 구성 저장 실패",
@@ -712,6 +715,25 @@
     "statusError": "오류",
     "statusConnecting": "연결 중...",
     "connectedDesc": "禅도에 연결되었습니다. AI가 버그를 읽고 생성할 수 있습니다."
+  },
+  "modelUsage": {
+    "title": "모델 사용량",
+    "pointsTitle": "포인트 사용량",
+    "tokensTitle": "Token 사용량",
+    "points": "포인트",
+    "total": "합계",
+    "totalTokens": "총 Token",
+    "startDate": "시작일",
+    "endDate": "종료일",
+    "loadFailed": "모델 사용량 데이터를 불러오지 못했습니다",
+    "maxRangeWarning": "날짜 범위는 30일을 초과할 수 없습니다",
+    "noData": "모델 사용량 데이터가 없습니다"
+  },
+  "userProfile": {
+    "todayUsage": "오늘 사용량",
+    "tokens": "Tokens",
+    "consumedPoints": "소비 포인트",
+    "requests": "요청 수"
   },
   "extensionAssistantReadonly": "확장 어시스턴트는 읽기 전용입니다. 복제하여 편집할 수 있습니다.",
   "secrets": "시크릿 관리",

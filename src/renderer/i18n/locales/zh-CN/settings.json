@@ -109,6 +109,8 @@
   "cacheClearFailed": "缓存清理失败",
   "language": "语言",
   "closeToTray": "关闭到托盘",
+  "showTokenUsageBadges": "显示 Token / 积分用量",
+  "showTokenUsageBadgesDesc": "在每轮回复下方显示本轮 Token 与积分消耗",
   "avatarEnabled": "桌面 Avatar 浮窗",
   "avatarEnabledDesc": "在桌面显示一个跟随当前对话状态的浮动伙伴",
   "gemini": "Gemini",
@@ -123,6 +125,7 @@
       "notInstalled": "未安装",
       "installed": "已安装",
       "running": "运行中 :{{port}}",
+      "disabled": "未启用",
       "notRunning": "未运行",
       "checking": "检查中…"
     },
@@ -209,6 +212,12 @@
   "pleaseEnterApiKey": "请输入 API Key",
   "pleaseEnterBaseUrl": "请输入 Base URL",
   "pleaseSelectProvider": "请选择模型供应商",
+  "fetchModelList": "获取模型列表",
+  "fetchModelListSuccess": "已获取 {{count}} 个模型",
+  "fetchModelListUnsupported": "该供应商不支持获取模型列表，请手动输入模型名称",
+  "modelListManualInputHint": "该供应商不支持获取模型列表，请手动输入模型名称",
+  "modelListSelectOrManualHint": "可从列表选择模型，也可继续手动输入。",
+  "modelListFetchHint": "支持直接输入模型名称；如果供应商兼容 OpenAI /v1/models，可点击获取模型列表。",
   "multiApiKeyTip": "💡 如需添加多个 API Key 实现自动轮询，请稍后到平台编辑界面配置",
   "multiApiKeyEditTip": "支持多个 API Key，每行一个，系统将自动轮询使用",
   "apiKeyPlaceholder": "请输入 API Key，多个 Key 请每行一个",
@@ -278,6 +287,9 @@
   "installed": "已安装",
   "builtin": "内置",
   "channels": "频道",
+  "channels.connected": "已连接",
+  "channels.enabled": "已启用",
+  "channels.disabled": "未启用",
   "webui.description": "把 Sudowork 当作\"7*24小时的远程助手\"，随时随地用远程设备安排任务。",
   "webui.steps": "步骤 1. 打开 WebUI 开关;  步骤 2. 复制访问地址;  步骤 3.远程浏览器打开",
   "webui.configuration": "WebUI 配置",
@@ -385,7 +397,6 @@
   "assistant.copyCode": "复制配对码",
   "assistant.modelSaved": "模型已保存",
   "assistant.modelSaveFailed": "保存模型失败",
-  "assistant.tokenLocked": "请先关闭 Channel 并删除所有已授权用户后，再尝试修改",
   "assistant.tokenValid": "Token 有效",
   "assistant.defaultModel": "对话模型",
   "assistant.defaultModelDesc": "用于Agent对话时调用",
@@ -516,6 +527,13 @@
   "mcpOAuthLoginFailed": "OAuth 登录失败",
   "mcpLogin": "登录",
   "mcpNeedsLogin": "未登录 · 点击登录",
+  "mcpInstallJsonTitle": "安装 MCP",
+  "mcpInstallJsonName": "名称（选填）",
+  "mcpInstallJsonNamePlaceholder": "留空则从 JSON 中自动提取",
+  "mcpInstallJsonSuccess": "安装成功",
+  "mcpInstallApprovalRequired": "此 MCP 需要管理员审批后才可使用",
+  "mcpInstallConnectionFailed": "MCP 连接测试失败",
+  "mcpInstallJsonButton": "安装 MCP",
   "noConfiguredModels": "暂无已配置的模型",
   "needHelpTooltip": "如需帮助，请查看",
   "googleCloudProjectPlaceholder": "请输入 Google Cloud Project ID",
@@ -526,6 +544,7 @@
   "feedback": "意见反馈",
   "contactMe": "联系我",
   "officialWebsite": "官网",
+  "privacyPolicy": "隐私声明",
   "checkForUpdates": "检查更新",
   "includePrereleaseUpdates": "包含预发布/dev 版本",
   "saveModelConfigFailed": "保存模型配置失败",
@@ -653,7 +672,8 @@
     "agentDescTelegram": "用于与Channel进行对话",
     "autoFollowCliModel": "自动跟随CLI运行时的模型",
     "agentSwitched": "Agent 切换成功",
-    "modelSwitched": "模型切换成功"
+    "modelSwitched": "模型切换成功",
+    "tokenLocked": "请先关闭 Channel 并删除所有已授权用户后，再尝试修改"
   },
   "lark": {
     "appId": "App ID",
@@ -837,11 +857,22 @@
   "rechargeCenter": "充值中心",
   "modelUsage": {
     "title": "模型用量",
+    "pointsTitle": "积分用量",
+    "tokensTitle": "Token 用量",
+    "points": "积分",
+    "total": "总计",
+    "totalTokens": "总 Token",
     "startDate": "开始日期",
     "endDate": "结束日期",
     "loadFailed": "加载模型用量数据失败",
     "maxRangeWarning": "时间范围不能超过30天",
     "noData": "暂无模型用量数据"
+  },
+  "userProfile": {
+    "todayUsage": "今日使用",
+    "tokens": "Tokens",
+    "consumedPoints": "消耗积分",
+    "requests": "请求数"
   },
   "recharge": {
     "title": "充值积分",
@@ -914,12 +945,33 @@
   "promptTimeoutDesc": "Agent 与大模型通信的最大等待时间。范围：30-3600 秒",
   "idleTimeout": "Agent 空闲超时",
   "idleTimeoutDesc": "空闲 Agent 进程回收时间，用于释放内存。范围：1-60 分钟",
+  "browserDefaultUrl": "浏览器默认主页",
+  "browserDefaultUrlDesc": "右侧栏浏览器新建标签页时默认打开的网址。",
+  "securitySettings": {
+    "subtitle": "全方位保护您的系统和数据安全",
+    "protecting": "保护中",
+    "envProtection": {
+      "title": "电脑环境安全防护",
+      "tag": "主动防御",
+      "description": "当智能体调用各类工具时，系统会进行全过程的安全管控，识别并拦截高风险行为。"
+    },
+    "infoProtection": {
+      "title": "用户信息安全保护",
+      "tag": "智能识别",
+      "description": "对输入给智能体的任务和提示词进行安全识别，检测隐私、密钥和账号凭证等高风险信息。"
+    },
+    "skillScan": {
+      "title": "Skill 技能安全扫描",
+      "tag": "多层检测",
+      "description": "所有 Skill 在安装和接入前进行来源可信度、代码审查和权限评估。"
+    }
+  },
   "productImprovement": {
     "title": "参与产品体验改进计划",
     "description": "帮助我们持续优化产品体验，为您带来更好的服务。",
     "hint": "开启后不会收集您的对话内容或个人信息，您可以随时关闭此功能。",
     "dialogTitle": "产品体验改进计划",
-    "privacy": "开启后将匿名收集 SudoClaw 性能指标，仅用于产品改进，不会收集您的对话内容或个人信息。您可以随时关闭此功能。",
+    "privacy": "开启后将匿名收集 SudoWork 性能指标，仅用于产品改进，不会收集您的对话内容或个人信息。您可以随时关闭此功能。",
     "confirm": "确认开启",
     "cancel": "暂不开启"
   }

@@ -11,7 +11,7 @@ set -e
 #   ./upload-to-cos.sh AKIDxxxx xxxx1234 ./out/Sudowork-0.1.4-win32-x64.exe ./out/Sudowork-0.1.4-darwin-arm64.dmg
 
 # 配置信息
-COS_BUCKET="sudoclaw-download-1309794936"
+COS_BUCKET="sudowork-release-1309794936"
 COS_REGION="ap-beijing"
 COS_PATH="sudowork/release/latest"
 

@@ -12,6 +12,7 @@ import ChannelWeComLogo from '@/renderer/assets/channel-logos/wecom.svg';
 import ChannelZentaoLogo from '@/renderer/assets/channel-logos/zentao.svg';
 import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import { Switch, Tag } from '@arco-design/web-react';
+import { Right } from '@icon-park/react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ChannelConfig } from './types';
@@ -19,9 +20,10 @@ import type { ChannelConfig } from './types';
 interface ChannelHeaderProps {
   channel: ChannelConfig;
   onToggleEnabled?: (enabled: boolean) => void;
+  collapsed?: boolean;
 }
 
-const ChannelHeader: React.FC<ChannelHeaderProps> = ({ channel, onToggleEnabled }) => {
+const ChannelHeader: React.FC<ChannelHeaderProps> = ({ channel, onToggleEnabled, collapsed = true }) => {
   const { t } = useTranslation();
   const channelLogoMap: Record<string, { src: string; alt: string }> = {
     telegram: { src: ChannelTelegramLogo, alt: 'Telegram' },
@@ -38,19 +40,28 @@ const ChannelHeader: React.FC<ChannelHeaderProps> = ({ channel, onToggleEnabled 
   const logoAlt = builtinLogo?.alt || channel.title;
   const isDisabled = channel.status === 'coming_soon' || channel.disabled;
 
+  const statusText = channel.isConnected ? t('settings.channels.connected', { defaultValue: '已连接' }) : channel.enabled ? t('settings.channels.enabled', { defaultValue: '已启用' }) : t('settings.channels.disabled', { defaultValue: '未启用' });
+
   return (
-    <div className='flex items-center justify-between group' data-channel-header={channel.id}>
-      <div className='flex items-center gap-8px flex-1 min-w-0'>
-        {logoSrc && <img src={logoSrc} alt={logoAlt} className='w-14px h-14px object-contain shrink-0' />}
-        <span className='text-14px text-t-primary'>{channel.title}</span>
+    <div className='flex flex-wrap items-center gap-x-12px gap-y-8px px-12px py-12px md:px-16px group min-h-44px' data-channel-header={channel.id}>
+      <span className='inline-flex h-28px w-28px shrink-0 items-center justify-center rd-8px text-t-tertiary transition-colors group-hover:bg-fill-1 group-hover:text-t-secondary'>
+        <Right theme='outline' size='14' className='transition-transform' style={{ transform: collapsed ? 'rotate(0deg)' : 'rotate(90deg)' }} />
+      </span>
+      <div className='flex h-28px w-28px items-center justify-center rd-7px bg-fill-1'>{logoSrc && <img src={logoSrc} alt={logoAlt} className='h-18px w-18px object-contain shrink-0' />}</div>
+      <div className='flex min-w-120px flex-1 items-center gap-8px'>
+        <span className='truncate text-14px font-600 leading-none text-t-primary'>{channel.title}</span>
         {channel.status === 'coming_soon' && (
           <Tag size='small' color='gray'>
             {t('settings.channels.comingSoon', 'Coming Soon')}
           </Tag>
         )}
       </div>
-      <div className='flex items-center gap-2' onClick={(e) => e.stopPropagation()}>
-        <Switch data-channel-switch-for={channel.id} data-channel-switch-disabled={isDisabled ? 'true' : 'false'} aria-disabled={isDisabled ? 'true' : undefined} checked={channel.enabled} onChange={onToggleEnabled} size='small' disabled={isDisabled} />
+      <span className={channel.isConnected ? 'whitespace-nowrap text-13px font-500 leading-none text-success' : 'whitespace-nowrap text-13px leading-none text-t-secondary'}>
+        <span className={channel.isConnected ? 'mr-6px inline-block h-5px w-5px rd-50% bg-success align-middle' : 'mr-6px inline-block h-5px w-5px rd-50% bg-[var(--color-text-3)] align-middle'} />
+        {statusText}
+      </span>
+      <div className='ml-auto flex items-center justify-end' onClick={(e) => e.stopPropagation()}>
+        <Switch data-channel-switch-for={channel.id} data-channel-switch-disabled={isDisabled ? 'true' : 'false'} aria-disabled={isDisabled ? 'true' : undefined} checked={channel.enabled} onChange={onToggleEnabled} size='small' disabled={isDisabled} className='settings-accent-switch' style={channel.enabled ? { backgroundColor: 'var(--ui-accent-orange)' } : undefined} />
       </div>
     </div>
   );

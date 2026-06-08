@@ -1,47 +1,20 @@
 name: "/model command"
-description: "Test /model slash command: list models, autocomplete, switch, verify"
+description: "Test /model slash command: type /model, send, verify model list appears"
+tags: [no-api]
 
 steps:
-  # Start fresh — click "新会话"
-  - op: pointer_move
-    text: "新会话"
-  - op: pointer_down
-  - op: pointer_up
-  - op: pause
-    duration: 5000
+  - op: wait_for_app_ready
+    timeout: 300
 
-  # 1. Type /model and send
-  - op: key_down
-    value: "/"
-  - op: key_up
-    value: "/"
-  - op: key_down
-    value: "m"
-  - op: key_up
-    value: "m"
-  - op: key_down
-    value: "o"
-  - op: key_up
-    value: "o"
-  - op: key_down
-    value: "d"
-  - op: key_up
-    value: "d"
-  - op: key_down
-    value: "e"
-  - op: key_up
-    value: "e"
-  - op: key_down
-    value: "l"
-  - op: key_up
-    value: "l"
-  - op: key_down
-    value: "Enter"
-  - op: key_up
-    value: "Enter"
-  - op: pause
-    duration: 8000
+  # Type /model and send
+  - op: type_text
+    text: "/model"
+  - op: press_key
+    key: "Enter"
+    wait: 5
 
-  # 2. Screenshot to verify
+  # Verify model list appeared in page
   - op: screenshot
     path: "screenshots/model-command-result.png"
+  - op: judge
+    expect: "claude sonnet model"

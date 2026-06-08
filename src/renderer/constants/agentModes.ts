@@ -65,6 +65,11 @@ export const AGENT_MODES: Record<string, AgentModeOption[]> = {
     { value: 'autoEdit', label: 'Auto Edit' },
     { value: 'yolo', label: 'Full Auto' },
   ],
+  scode: [
+    { value: 'default', label: 'Default' },
+    { value: 'plan', label: 'Plan' },
+    { value: 'bypassPermissions', label: 'YOLO' },
+  ],
   sudoclaw: [
     { value: 'default', label: 'Default' },
     { value: 'yolo', label: 'YOLO' },

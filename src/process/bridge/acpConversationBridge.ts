@@ -12,13 +12,14 @@ import { getDatabase } from '@process/database';
 import { getScodeProxyModelInfoSync } from '@process/services/scode/scodeProxyModels';
 import WorkerManage from '@/process/WorkerManage';
 import AcpAgent from '@/process/task/AcpAgent';
+import RemoteAgent from '@/process/task/RemoteAgent';
 import { mcpService } from '@/process/services/mcpServices/McpService';
 import { mainLog, mainWarn } from '@/process/utils/mainLogger';
 import { ipcBridge } from '../../common';
 import * as os from 'os';
-import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
+import { isEnterpriseMode, getCachedSessionMode } from '@/common/enterpriseDebugConfig';
 import { getConversationProvider } from '@/process/providers';
-import RemoteConversationProvider from '@/process/providers/RemoteConversationProvider';
+import type RemoteConversationProvider from '@/process/providers/RemoteConversationProvider';
 
 function getScodeConversationModelInfo(conversationId: string) {
   const result = getDatabase().getConversation(conversationId);
@@ -62,23 +63,26 @@ export function initAcpConversationBridge(): void {
   // Enrich with MCP transport support info so the frontend can show accurate counts
   ipcBridge.acpConversation.getAvailableAgents.provider(() => {
     try {
-      // Enterprise mode: ONLY show remote-agent (Moss Server), hide all local agents
-      if (isEnterpriseMode()) {
+      // Enterprise Remote mode: ONLY show remote-agent (Moss Server), hide all local agents
+      // Enterprise Local mode: fall through to local agent detection
+      if (isEnterpriseMode() && getCachedSessionMode() === 'remote') {
         return Promise.resolve({
           success: true,
-          data: [{
-            backend: 'remote-agent' as any,
-            name: 'Moss Server',
-            cliPath: undefined,
-            isExtension: false,
-            customAgentId: undefined,
-            isPreset: false,
-            supportedTransports: ['stdio', 'sse', 'http', 'streamable_http'],
-          }],
+          data: [
+            {
+              backend: 'remote-agent' as any,
+              name: 'Moss Server',
+              cliPath: undefined,
+              isExtension: false,
+              customAgentId: undefined,
+              isPreset: false,
+              supportedTransports: ['stdio', 'sse', 'http', 'streamable_http'],
+            },
+          ],
         });
       }
 
-      // Local mode: return all detected local agents (ACP, OpenClaw, etc.)
+      // Local mode: return all detected local agents (ACP, etc.)
       const agents = acpDetector.getDetectedAgents();
       const enriched = agents.map((agent) => ({
         ...agent,
@@ -336,14 +340,47 @@ export function initAcpConversationBridge(): void {
   // Set model for ACP agents
   // 设置 ACP 代理的模型
   ipcBridge.acpConversation.setModel.provider(async ({ conversationId, modelId }) => {
+    mainLog('AcpConversationBridge', `setModel called: conversationId=${conversationId}, modelId=${modelId}`);
     try {
       const task = await WorkerManage.getTaskByIdRollbackBuild(conversationId);
-      if (!task || !(task instanceof AcpAgent)) {
-        return { success: false, msg: 'Conversation not found or not an ACP agent' };
+      if (!task) {
+        mainLog('AcpConversationBridge', `setModel: Conversation not found`);
+        return { success: false, msg: 'Conversation not found' };
       }
-      return { success: true, data: { modelInfo: await task.setModel(modelId) } };
+
+      // Support both AcpAgent and RemoteAgent
+      if (task instanceof AcpAgent) {
+        mainLog('AcpConversationBridge', `setModel: Task is AcpAgent`);
+
+        // Persist default model to sudocode.json and settings.json when switching scode models
+        const conv = getDatabase().getConversation(conversationId);
+        if (conv?.data?.extra?.backend === 'scode') {
+          try {
+            const { writeScodeDefaultModel } = await import('./scodeBridge');
+            writeScodeDefaultModel(modelId);
+          } catch {
+            /* best-effort */
+          }
+        }
+
+        const modelInfo = await task.setModel(modelId);
+
+        return { success: true, data: { modelInfo } };
+      }
+
+      // For RemoteAgent, use setModel method
+      if (task instanceof RemoteAgent) {
+        mainLog('AcpConversationBridge', `setModel: Task is RemoteAgent`);
+        const result = task.setModel(modelId);
+        mainLog('AcpConversationBridge', `setModel: RemoteAgent result: ${JSON.stringify(result)}`);
+        return { success: result.success, msg: result.msg, data: { modelInfo: null } };
+      }
+
+      mainLog('AcpConversationBridge', `setModel: Unsupported agent type`);
+      return { success: false, msg: 'Model switching not supported for this agent type' };
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
+      mainLog('AcpConversationBridge', `setModel error: ${errorMsg}`);
       return { success: false, msg: errorMsg };
     }
   });
@@ -390,6 +427,56 @@ export function initAcpConversationBridge(): void {
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       return { success: false, msg: errorMsg };
+    }
+  });
+
+  ipcBridge.acpConversation.answerQuestion.provider(async ({ conversationId, toolCallId, answers }) => {
+    mainLog('acpConversationBridge', `answerQuestion called conv=${conversationId} toolCallId=${toolCallId} answerCount=${Array.isArray(answers) ? answers.length : 'N/A'}`);
+    if (!conversationId || typeof conversationId !== 'string') {
+      return { success: false, msg: 'Invalid conversationId' };
+    }
+    if (!toolCallId || typeof toolCallId !== 'string') {
+      return { success: false, msg: 'Invalid toolCallId' };
+    }
+    if (!Array.isArray(answers) || answers.length === 0) {
+      return { success: false, msg: 'answers must be a non-empty array' };
+    }
+
+    const sanitized: Array<{ id: string; value: string; label?: string }> = [];
+    for (const entry of answers) {
+      if (!entry || typeof entry !== 'object') {
+        return { success: false, msg: 'Invalid answer entry' };
+      }
+      const candidate = entry as { id?: unknown; value?: unknown; label?: unknown };
+      if (typeof candidate.id !== 'string' || !candidate.id.trim()) {
+        return { success: false, msg: 'Answer is missing id' };
+      }
+      if (typeof candidate.value !== 'string') {
+        return { success: false, msg: `Answer ${candidate.id} value must be a string` };
+      }
+      sanitized.push({
+        id: candidate.id,
+        value: candidate.value,
+        label: typeof candidate.label === 'string' ? candidate.label : undefined,
+      });
+    }
+
+    let task = WorkerManage.getTaskById(conversationId);
+    if (!task) {
+      task = await WorkerManage.getTaskByIdRollbackBuild(conversationId);
+    }
+    if (!task || (!(task instanceof AcpAgent) && !(task instanceof RemoteAgent))) {
+      return { success: false, msg: 'Conversation not found or does not support question answers' };
+    }
+
+    try {
+      await task.answerQuestion(toolCallId, sanitized);
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        msg: error instanceof Error ? error.message : String(error),
+      };
     }
   });
 }

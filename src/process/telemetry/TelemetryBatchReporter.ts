@@ -26,33 +26,40 @@ import {
   PerfTelemetryEvent,
   ConversationTelemetryEvent,
   InstallTelemetryEvent,
+  TurnTelemetryEvent,
+  StepTelemetryEvent,
   PerfData,
   ConversationData,
   InstallData,
+  TurnData,
+  StepData,
   mapElectronArch,
 } from '../../shared/types/telemetry';
 import { DEFAULT_TELEMETRY_CONFIG } from '../../shared/types/telemetry';
 import { mainLog, mainWarn, mainError } from '../utils/mainLogger';
 import { getTelemetryEncryptor, initTelemetryEncryptor, isEncryptionAvailable, EncryptedPayload } from './TelemetryEncryptor';
 import { ENCRYPTION_CONFIG } from './keys';
+import { getUserContextSync } from './UserContext';
 
 // ============================================================
 // 类型定义
 // ============================================================
 
-type TelemetryEventType = 'perf' | 'conversation' | 'install';
+type TelemetryEventType = 'perf' | 'conversation' | 'install' | 'turn' | 'step';
 
 interface TelemetryEventPayloadMap {
   perf: import('../../shared/types/telemetry').PerfData;
   conversation: import('../../shared/types/telemetry').ConversationData;
   install: import('../../shared/types/telemetry').InstallData;
+  turn: import('../../shared/types/telemetry').TurnData;
+  step: import('../../shared/types/telemetry').StepData;
 }
 
 // ============================================================
 // 常量定义
 // ============================================================
 
-/** sudoclaw-qms API Key - 用于认证上报请求 */
+/** sudowork-qms API Key - 用于认证上报请求 */
 const API_KEY = 'sk-8f3a2b1c9d5e7f6a4b3c2d1e8f9a0b7c';
 
 /** 本地存储文件名 */
@@ -63,6 +70,8 @@ const MAX_QUEUE_SIZE = 500;
 
 /** 存储事件最大年龄 (毫秒) - 超过此时间的事件将被丢弃 */
 const MAX_EVENT_AGE = 7 * 24 * 60 * 60 * 1000; // 7 天
+
+const isPersonalMode = (): boolean => getUserContextSync().login_mode === 'personal';
 
 // ============================================================
 // TelemetryBatchReporter 类
@@ -104,6 +113,15 @@ export class TelemetryBatchReporter {
   public async initialize(): Promise<void> {
     if (this.initialized) {
       mainWarn('Telemetry', 'Already initialized, skipping');
+      return;
+    }
+
+    if (!isPersonalMode()) {
+      this.enabled = false;
+      this.initialized = true;
+      this.eventQueue = [];
+      await this.clearCacheFile();
+      mainLog('Telemetry', 'Telemetry disabled outside personal mode');
       return;
     }
 
@@ -155,11 +173,15 @@ export class TelemetryBatchReporter {
    *
    * @param type - 事件类型
    * @param data - 事件数据
+   * @param agentType - Agent 类型 (sudocode, claude 等)
    */
-  public record<K extends TelemetryEventType>(type: K, data: TelemetryEventPayloadMap[K]): void {
-    if (!this.enabled || !this.initialized) {
+  public record<K extends TelemetryEventType>(type: K, data: TelemetryEventPayloadMap[K], agentType?: string): void {
+    if (!isPersonalMode() || !this.enabled || !this.initialized) {
       return;
     }
+
+    // 获取用户上下文
+    const userContext = getUserContextSync();
 
     const storedEvent: StoredTelemetryEvent = {
       id: this.generateEventId(),
@@ -170,6 +192,13 @@ export class TelemetryBatchReporter {
       version: buildVersion,
       platform: process.platform as 'darwin' | 'win32',
       arch: mapElectronArch(process.arch),
+      org_id: userContext.org_id,
+      user_id: userContext.user_id,
+      tenant_id: userContext.tenant_id,
+      login_mode: userContext.login_mode,
+      agent_type: agentType,
+      user_nickname: userContext.user_nickname,
+      user_phone: userContext.user_phone,
       data,
     };
 
@@ -188,6 +217,12 @@ export class TelemetryBatchReporter {
    * 用于应用退出前上报剩余事件
    */
   public async flushAll(): Promise<void> {
+    if (!isPersonalMode()) {
+      this.eventQueue = [];
+      await this.clearCacheFile();
+      return;
+    }
+
     if (this.eventQueue.length === 0) {
       return;
     }
@@ -199,6 +234,16 @@ export class TelemetryBatchReporter {
    * 更新启用状态
    */
   public async setEnabled(enabled: boolean): Promise<void> {
+    if (!isPersonalMode()) {
+      this.enabled = false;
+      this.stopFlushTimer();
+      this.eventQueue = [];
+      await this.clearCacheFile();
+      await ProcessConfig.set('telemetry.enabled', false);
+      mainLog('Telemetry', 'Telemetry remains disabled outside personal mode');
+      return;
+    }
+
     this.enabled = enabled;
 
     if (enabled && !this.flushTimer) {
@@ -273,6 +318,12 @@ export class TelemetryBatchReporter {
 
   /** 执行批量上报 */
   private async flush(): Promise<void> {
+    if (!isPersonalMode()) {
+      this.eventQueue = [];
+      await this.clearCacheFile();
+      return;
+    }
+
     if (this.isFlushing || this.eventQueue.length === 0) {
       return;
     }
@@ -284,34 +335,52 @@ export class TelemetryBatchReporter {
       const batch = this.eventQueue.slice(0, this.config.batchSize);
       // Convert stored events to TelemetryEvent format
       const events: TelemetryEvent[] = batch.map((stored): TelemetryEvent => {
+        // 基础字段
+        const baseEvent = {
+          timestamp: stored.timestamp,
+          version: stored.version,
+          platform: stored.platform,
+          arch: stored.arch,
+          org_id: stored.org_id,
+          user_id: stored.user_id,
+          tenant_id: stored.tenant_id,
+          login_mode: stored.login_mode,
+          agent_type: stored.agent_type,
+          user_nickname: stored.user_nickname,
+          user_phone: stored.user_phone,
+        };
+
         // Create specific event type based on stored.type
         if (stored.type === 'perf') {
           return {
             type: 'perf',
-            timestamp: stored.timestamp,
-            version: stored.version,
-            platform: stored.platform,
-            arch: stored.arch,
+            ...baseEvent,
             data: stored.data as PerfData,
           } as PerfTelemetryEvent;
         } else if (stored.type === 'conversation') {
           return {
             type: 'conversation',
-            timestamp: stored.timestamp,
-            version: stored.version,
-            platform: stored.platform,
-            arch: stored.arch,
+            ...baseEvent,
             data: stored.data as ConversationData,
           } as ConversationTelemetryEvent;
-        } else {
+        } else if (stored.type === 'install') {
           return {
             type: 'install',
-            timestamp: stored.timestamp,
-            version: stored.version,
-            platform: stored.platform,
-            arch: stored.arch,
+            ...baseEvent,
             data: stored.data as InstallData,
           } as InstallTelemetryEvent;
+        } else if (stored.type === 'turn') {
+          return {
+            type: 'turn',
+            ...baseEvent,
+            data: stored.data as TurnData,
+          } as TurnTelemetryEvent;
+        } else {
+          return {
+            type: 'step',
+            ...baseEvent,
+            data: stored.data as StepData,
+          } as StepTelemetryEvent;
         }
       });
 
@@ -467,7 +536,7 @@ export class TelemetryBatchReporter {
       const userDataPath = app.getPath('userData');
       const cachePath = path.join(userDataPath, STORAGE_FILE_NAME);
 
-      await fs.unlink(cachePath).catch(() => {});
+      await fs.unlink(cachePath).catch(() => { });
     } catch (error) {
       // 忽略删除错误
     }

@@ -7,10 +7,8 @@
 import { ipcBridge } from '@/common';
 import { ConfigStorage, type ICssTheme } from '@/common/storage';
 import PwaPullToRefresh from '@/renderer/components/PwaPullToRefresh';
-import { SafetyWarningModal } from '@/renderer/components/SafetyWarningModal';
 import CommandPalette from '@/renderer/components/CommandPalette';
 import { useCommandPalette } from '@/renderer/hooks/useCommandPalette';
-import { useSafetyCheck } from '@/renderer/hooks/useSafetyCheck';
 import Titlebar from '@/renderer/components/Titlebar';
 import { Layout as ArcoLayout } from '@arco-design/web-react';
 import { MenuFold, MenuUnfold } from '@icon-park/react';
@@ -60,7 +58,7 @@ const useDebug = () => {
 
 const UpdateModal = React.lazy(() => import('@/renderer/components/UpdateModal'));
 
-const DEFAULT_SIDER_WIDTH = 250;
+const DEFAULT_SIDER_WIDTH = 260;
 const MOBILE_SIDER_WIDTH_RATIO = 0.67;
 const MOBILE_SIDER_MIN_WIDTH = 260;
 const MOBILE_SIDER_MAX_WIDTH = 420;
@@ -84,7 +82,6 @@ const Layout: React.FC<{
   sider: React.ReactNode;
   onSessionClick?: () => void;
 }> = ({ sider, onSessionClick: _onSessionClick }) => {
-  const { hasEvent, status, confirm, cancel } = useSafetyCheck();
   const { config } = useTenantConfig(); // 获取租户配置
   const { visible: commandPaletteVisible, close: closeCommandPalette } = useCommandPalette();
   const [collapsed, setCollapsed] = useState(false);
@@ -120,9 +117,14 @@ const Layout: React.FC<{
 
       let effectiveCss = decision.effectiveCss;
 
-      // If the active theme resolved to empty CSS and there IS a saved activeThemeId
-      // (but it no longer matches any known theme), fall back to default and persist.
-      if (!effectiveCss && activeThemeId && activeThemeId !== DEFAULT_THEME_ID) {
+      // First launch (nothing saved yet) vs. a saved activeThemeId that no longer
+      // maps to a known theme: in both cases the resolved CSS is empty. Fall back to
+      // the Default theme and persist it, mirroring what CssThemeSettings does on
+      // mount. Without this, a fresh install renders with NO theme variables until
+      // the user opens Settings → Display, which left some surfaces (notably the
+      // terminal) using unreadable fallback colors.
+      const isFirstLaunch = !savedCssRaw && !activeThemeId;
+      if (!effectiveCss && (isFirstLaunch || (activeThemeId && activeThemeId !== DEFAULT_THEME_ID))) {
         const defaultCss = resolveCssByActiveTheme(DEFAULT_THEME_ID, (savedThemes || []) as ICssTheme[]);
         effectiveCss = defaultCss;
         // Persist the fallback so Layout doesn't keep retrying
@@ -308,12 +310,12 @@ const Layout: React.FC<{
             }
           >
             <ArcoLayout.Header
-              className={classNames('flex items-center justify-start py-10px px-16px pl-20px gap-12px layout-sider-header', isMobile && 'layout-sider-header--mobile', {
+              className={classNames('flex items-center justify-start py-8px px-16px pl-18px gap-10px layout-sider-header', isMobile && 'layout-sider-header--mobile', {
                 'cursor-pointer group ': collapsed,
               })}
             >
               <div
-                className={classNames('shrink-0 size-40px relative rd-0.5rem flex items-center justify-center', {
+                className={classNames('shrink-0 size-34px relative rd-0.5rem flex items-center justify-center', {
                   '!size-24px': collapsed,
                 })}
                 onClick={onClick}
@@ -322,13 +324,13 @@ const Layout: React.FC<{
                   src={config.logo || SudoworkIcon}
                   alt={config.app_name}
                   className={classNames('absolute inset-0 m-auto', {
-                    'w-5.5 h-5.5 p-1 scale-140': !collapsed,
+                    'w-5 h-5 p-0.5 scale-130': !collapsed,
                     'w-4 h-4 p-0.5': collapsed,
                   })}
                   style={{ objectFit: 'contain' }}
                 />
               </div>
-              <div className='flex-1 text-20px text-1 collapsed-hidden font-bold'>{config.app_name}</div>
+              <div className='flex-1 text-18px text-1 collapsed-hidden font-700'>{config.app_name}</div>
               {isMobile && !collapsed && (
                 <button type='button' className='app-titlebar__button' onClick={() => setCollapsed(true)} aria-label='Collapse sidebar'>
                   {collapsed ? <MenuUnfold theme='outline' size='18' fill='currentColor' /> : <MenuFold theme='outline' size='18' fill='currentColor' />}
@@ -336,7 +338,7 @@ const Layout: React.FC<{
               )}
               {/* 侧栏折叠改由标题栏统一控制 / Sidebar folding handled by Titlebar toggle */}
             </ArcoLayout.Header>
-            <ArcoLayout.Content className={classNames('p-8px layout-sider-content', !isMobile && 'h-[calc(100%-72px-16px)]')}>
+            <ArcoLayout.Content className={classNames('p-10px layout-sider-content', !isMobile && 'h-[calc(100%-58px-16px)]')}>
               {React.isValidElement(sider)
                 ? React.cloneElement(sider, {
                     onSessionClick: () => {
@@ -369,7 +371,7 @@ const Layout: React.FC<{
             <Suspense fallback={null}>
               <UpdateModal />
             </Suspense>
-            <SafetyWarningModal visible={hasEvent} status={status} onConfirm={confirm} onCancel={cancel} />
+            {/* Safety warning modal is hidden while the safety hook feature is disabled. */}
             <CommandPalette visible={commandPaletteVisible} onClose={closeCommandPalette} />
           </ArcoLayout.Content>
         </ArcoLayout>

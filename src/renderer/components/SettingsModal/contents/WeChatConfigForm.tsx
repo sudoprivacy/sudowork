@@ -10,14 +10,15 @@ import { acpConversation, channel } from '@/common/ipcBridge';
 import { ConfigStorage } from '@/common/storage';
 import GeminiModelSelector from '@/renderer/pages/conversation/gemini/GeminiModelSelector';
 import type { GeminiModelSelection } from '@/renderer/pages/conversation/gemini/useGeminiModelSelection';
-import type { AcpBackendAll } from '@/types/acpTypes';
+import { CHANNEL_DEFAULT_AGENT_BACKEND, type AcpBackendAll } from '@/types/acpTypes';
+import { useAppMode } from '@/renderer/hooks/useAppMode';
 import { Button, Dropdown, Menu, Message, Spin } from '@arco-design/web-react';
 import { Down, Refresh } from '@icon-park/react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { QRCodeSVG } from 'qrcode.react';
 
-const WECHAT_GUIDE_URL = 'https://sudoclaw.sudoprivacy.com/guides/weixin-clawbot.html';
+const WECHAT_GUIDE_URL = 'https://sudowork.sudoprivacy.com/guides/weixin-clawbot.html';
 
 /**
  * Preference row component (matches DingTalk pattern)
@@ -43,10 +44,10 @@ interface WeChatConfigFormProps {
 }
 
 type LoginPhase = 'idle' | 'loading' | 'qrcode' | 'scanned' | 'success' | 'error';
-const CHANNEL_VISIBLE_AGENT_BACKEND: AcpBackendAll = 'openclaw-gateway';
 
 const WeChatConfigForm: React.FC<WeChatConfigFormProps> = ({ pluginStatus, modelSelection, onStatusChange }) => {
   const { t } = useTranslation();
+  const { isEnterprise } = useAppMode();
 
   const isConnected = pluginStatus?.connected || false;
   const [phase, setPhase] = useState<LoginPhase>(isConnected ? 'success' : 'idle');
@@ -55,7 +56,7 @@ const WeChatConfigForm: React.FC<WeChatConfigFormProps> = ({ pluginStatus, model
 
   // Agent selection
   const [availableAgents, setAvailableAgents] = useState<Array<{ backend: AcpBackendAll; name: string; customAgentId?: string; isPreset?: boolean }>>([]);
-  const [selectedAgent, setSelectedAgent] = useState<{ backend: AcpBackendAll; name?: string; customAgentId?: string }>({ backend: 'openclaw-gateway' });
+  const [selectedAgent, setSelectedAgent] = useState<{ backend: AcpBackendAll; name?: string; customAgentId?: string }>({ backend: CHANNEL_DEFAULT_AGENT_BACKEND });
 
   // Sync connected status to phase
   useEffect(() => {
@@ -73,7 +74,7 @@ const WeChatConfigForm: React.FC<WeChatConfigFormProps> = ({ pluginStatus, model
         const [agentsResp, saved] = await Promise.all([acpConversation.getAvailableAgents.invoke(), ConfigStorage.get('assistant.wechat.agent')]);
 
         if (agentsResp.success && agentsResp.data) {
-          const visibleAgents = agentsResp.data.filter((a) => !a.isPreset && a.backend === CHANNEL_VISIBLE_AGENT_BACKEND);
+          const visibleAgents = agentsResp.data.filter((a) => !a.isPreset && a.backend === CHANNEL_DEFAULT_AGENT_BACKEND);
           const list = visibleAgents.map((a) => ({ backend: a.backend, name: a.name, customAgentId: a.customAgentId, isPreset: a.isPreset, isExtension: a.isExtension }));
           setAvailableAgents(list);
         }
@@ -181,12 +182,12 @@ const WeChatConfigForm: React.FC<WeChatConfigFormProps> = ({ pluginStatus, model
   // Cancel QR login on unmount
   useEffect(() => {
     return () => {
-      void channel.wechatCancelQrLogin.invoke().catch(() => {});
+      void channel.wechatCancelQrLogin.invoke().catch(() => { });
     };
   }, []);
 
   const isGeminiAgent = selectedAgent.backend === 'gemini';
-  const agentOptions: Array<{ backend: AcpBackendAll; name: string; customAgentId?: string; isExtension?: boolean }> = availableAgents.length > 0 ? availableAgents : [{ backend: CHANNEL_VISIBLE_AGENT_BACKEND, name: 'Sudoclaw' }];
+  const agentOptions: Array<{ backend: AcpBackendAll; name: string; customAgentId?: string; isExtension?: boolean }> = availableAgents.length > 0 ? availableAgents : [{ backend: CHANNEL_DEFAULT_AGENT_BACKEND, name: 'Sudo Code' }];
 
   const renderQRCodeSection = () => {
     if (phase !== 'qrcode' && phase !== 'scanned') return null;
@@ -271,48 +272,52 @@ const WeChatConfigForm: React.FC<WeChatConfigFormProps> = ({ pluginStatus, model
       {renderConnectionSection()}
       {renderQRCodeSection()}
 
-      {/* Agent Selection */}
-      <div className='flex flex-col gap-8px'>
-        <PreferenceRow label={t('settings.channels.wechat.agent', 'Agent')} description={t('settings.channels.wechat.agentDesc', 'Used for WeChat conversations')}>
-          <Dropdown
-            trigger='click'
-            position='br'
-            droplist={
-              <Menu selectedKeys={[selectedAgent.customAgentId ? `${selectedAgent.backend}|${selectedAgent.customAgentId}` : selectedAgent.backend]}>
-                {agentOptions.map((a) => {
-                  const key = a.customAgentId ? `${a.backend}|${a.customAgentId}` : a.backend;
-                  return (
-                    <Menu.Item
-                      key={key}
-                      onClick={() => {
-                        const currentKey = selectedAgent.customAgentId ? `${selectedAgent.backend}|${selectedAgent.customAgentId}` : selectedAgent.backend;
-                        if (key === currentKey) {
-                          return;
-                        }
-                        const next = { backend: a.backend, customAgentId: a.customAgentId, name: a.name };
-                        setSelectedAgent(next);
-                        void persistSelectedAgent(next);
-                      }}
-                    >
-                      {a.name}
-                    </Menu.Item>
-                  );
-                })}
-              </Menu>
-            }
-          >
-            <Button type='secondary' className='min-w-160px flex items-center justify-between gap-8px'>
-              <span className='truncate'>{agentOptions[0]?.name || 'Sudoclaw'}</span>
-              <Down theme='outline' size={14} />
-            </Button>
-          </Dropdown>
-        </PreferenceRow>
-      </div>
+      {/* Agent Selection - hidden in enterprise mode (uses Moss remote agent) */}
+      {!isEnterprise && (
+        <div className='flex flex-col gap-8px'>
+          <PreferenceRow label={t('settings.channels.wechat.agent', 'Agent')} description={t('settings.channels.wechat.agentDesc', 'Used for WeChat conversations')}>
+            <Dropdown
+              trigger='click'
+              position='br'
+              droplist={
+                <Menu selectedKeys={[selectedAgent.customAgentId ? `${selectedAgent.backend}|${selectedAgent.customAgentId}` : selectedAgent.backend]}>
+                  {agentOptions.map((a) => {
+                    const key = a.customAgentId ? `${a.backend}|${a.customAgentId}` : a.backend;
+                    return (
+                      <Menu.Item
+                        key={key}
+                        onClick={() => {
+                          const currentKey = selectedAgent.customAgentId ? `${selectedAgent.backend}|${selectedAgent.customAgentId}` : selectedAgent.backend;
+                          if (key === currentKey) {
+                            return;
+                          }
+                          const next = { backend: a.backend, customAgentId: a.customAgentId, name: a.name };
+                          setSelectedAgent(next);
+                          void persistSelectedAgent(next);
+                        }}
+                      >
+                        {a.name}
+                      </Menu.Item>
+                    );
+                  })}
+                </Menu>
+              }
+            >
+              <Button type='secondary' className='min-w-160px flex items-center justify-between gap-8px'>
+                <span className='truncate'>{agentOptions[0]?.name || 'Sudo Code'}</span>
+                <Down theme='outline' size={14} />
+              </Button>
+            </Dropdown>
+          </PreferenceRow>
+        </div>
+      )}
 
-      {/* Default Model Selection */}
-      <PreferenceRow label={t('settings.assistant.defaultModel', 'Model')} description={t('settings.channels.wechat.defaultModelDesc', 'Used for Agent conversations')}>
-        <GeminiModelSelector selection={isGeminiAgent ? modelSelection : undefined} disabled={!isGeminiAgent} label={!isGeminiAgent ? t('settings.assistant.autoFollowCliModel', 'Auto-follow CLI runtime model') : undefined} variant='settings' />
-      </PreferenceRow>
+      {/* Default Model Selection - hidden in enterprise mode */}
+      {!isEnterprise && (
+        <PreferenceRow label={t('settings.assistant.defaultModel', 'Model')} description={t('settings.channels.wechat.defaultModelDesc', 'Used for Agent conversations')}>
+          <GeminiModelSelector selection={isGeminiAgent ? modelSelection : undefined} disabled={!isGeminiAgent} label={!isGeminiAgent ? t('settings.assistant.autoFollowCliModel', 'Auto-follow CLI runtime model') : undefined} variant='settings' />
+        </PreferenceRow>
+      )}
     </div>
   );
 };

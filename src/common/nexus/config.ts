@@ -12,7 +12,7 @@
 
 import type { NexusClientOptions } from './types.js';
 
-const DEFAULT_BASE_URL = 'http://localhost:12012';
+const DEFAULT_BASE_URL = 'http://localhost:12022';
 
 /**
  * Resolve Nexus client config from multiple sources.

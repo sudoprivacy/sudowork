@@ -7,12 +7,18 @@
 import fs from 'fs/promises';
 import fsSync from 'fs';
 import path from 'path';
+import { app } from 'electron';
 import { DEFAULT_IMAGE_BASE_URL } from '../../common/storage';
-import { detectImageMimeType } from '../../common/imageUtils';
+import { detectImageMimeType, IMAGE_TARGET_RAW_SIZE } from '../../common/imageUtils';
 import { ipcBridge } from '../../common';
+import type { IBridgeResponse } from '../../common/ipcBridge';
 import { ProcessConfig } from '../initStorage';
 import { SUDOCLAW_DIR } from '../services/sudoclaw/SudoclawInstallService';
+import { SCODE_DIR } from '../services/scode/ScodeInstallService';
 const SUDOCLAW_CONFIG_PATH = path.join(SUDOCLAW_DIR, 'sudoclaw.json');
+const SUDOCODE_CONFIG_PATH = path.join(SCODE_DIR, 'sudocode.json');
+
+const GEMINI_IMAGE_GENERATION_MODELS = new Set(['gemini-3.1-flash-image', 'gemini-3-pro-image', 'gemini-2.5-flash-image']);
 
 /**
  * Detect image MIME type and file extension from magic bytes.
@@ -30,6 +36,51 @@ function detectMimeTypeFromBase64(b64: string): { mime: string; ext: string } {
   return detectMimeType(decoded);
 }
 
+function stripProviderPrefix(model: string): string {
+  return model.includes('/') ? model.split('/').pop()! : model;
+}
+
+function isGeminiImageGenerationModel(model: string): boolean {
+  return GEMINI_IMAGE_GENERATION_MODELS.has(stripProviderPrefix(model));
+}
+
+function getGeminiGenerateContentEndpoint(baseUrl: string, model: string): string {
+  const trimmedBaseUrl = baseUrl.replace(/\/+$/, '');
+  const v1BetaBaseUrl = trimmedBaseUrl.endsWith('/v1') ? trimmedBaseUrl.replace(/\/v1$/, '/v1beta') : trimmedBaseUrl.endsWith('/v1beta') ? trimmedBaseUrl : `${trimmedBaseUrl}/v1beta`;
+
+  return `${v1BetaBaseUrl}/models/${encodeURIComponent(stripProviderPrefix(model))}:generateContent`;
+}
+
+function getGeminiImageConfig(size: string): { aspectRatio: string; imageSize: string } {
+  const match = size.match(/^(\d+)x(\d+)$/);
+  if (!match) {
+    return { aspectRatio: '1:1', imageSize: '1K' };
+  }
+
+  const width = Number(match[1]);
+  const height = Number(match[2]);
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+    return { aspectRatio: '1:1', imageSize: '1K' };
+  }
+
+  const divisor = gcd(width, height);
+  const aspectRatio = `${width / divisor}:${height / divisor}`;
+  const imageSize = Math.max(width, height) > 1024 ? '2K' : '1K';
+
+  return { aspectRatio, imageSize };
+}
+
+function gcd(a: number, b: number): number {
+  let x = Math.abs(a);
+  let y = Math.abs(b);
+  while (y !== 0) {
+    const next = x % y;
+    x = y;
+    y = next;
+  }
+  return x || 1;
+}
+
 /**
  * Resolve baseUrl and apiKey for image generation.
  * Priority:
@@ -38,6 +89,18 @@ function detectMimeTypeFromBase64(b64: string): { mime: string; ext: string } {
  * 3. Any model.config provider whose baseUrl contains sudorouter.ai
  */
 export function readSudorouterCredentials(): { baseUrl: string; apiKey: string } | null {
+  // Priority: sudocode.json (new), fallback to sudoclaw.json (legacy)
+  try {
+    const raw = fsSync.readFileSync(SUDOCODE_CONFIG_PATH, 'utf-8');
+    const config = JSON.parse(raw) as { auth_modes?: { proxy?: Record<string, { baseUrl?: string; apiKey?: string }> } };
+    const sr = config?.auth_modes?.proxy?.sudorouter;
+    if (sr?.apiKey) {
+      const baseUrl = (sr.baseUrl || DEFAULT_IMAGE_BASE_URL).replace(/\/+$/, '');
+      return { baseUrl, apiKey: sr.apiKey };
+    }
+  } catch {
+    // ignored
+  }
   try {
     const raw = fsSync.readFileSync(SUDOCLAW_CONFIG_PATH, 'utf-8');
     const config = JSON.parse(raw) as { models?: { providers?: Record<string, { baseUrl?: string; apiKey?: string }> } };
@@ -118,10 +181,78 @@ export async function saveImageResult(imageUrl: string, saveDir: string): Promis
   return { imgUrl: filePath, relativePath: fileName };
 }
 
+async function callGeminiGenerateContentImage(baseUrl: string, apiKey: string, model: string, prompt: string, size: string, inlineImage?: { mimeType: string; data: string }): Promise<string> {
+  const endpoint = getGeminiGenerateContentEndpoint(baseUrl, model);
+  const imageConfig = getGeminiImageConfig(size);
+  console.log('[ImageGen] POST', endpoint, 'model:', stripProviderPrefix(model), 'prompt:', prompt.slice(0, 80));
+
+  const parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [{ text: prompt }];
+  if (inlineImage) {
+    parts.push({ inlineData: inlineImage });
+  }
+
+  const body = JSON.stringify({
+    contents: [{ role: 'user', parts }],
+    generationConfig: {
+      responseModalities: ['IMAGE'],
+      imageConfig,
+    },
+  });
+
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+    body,
+  });
+
+  console.log('[ImageGen] Gemini response status:', response.status);
+
+  if (!response.ok) {
+    const errText = await response.text().catch(() => response.statusText);
+    console.log('[ImageGen] Gemini error body:', errText.slice(0, 200));
+    throw new Error(`Gemini image generation API error ${response.status}: ${errText}`);
+  }
+
+  const json = (await response.json()) as {
+    error?: { message?: string };
+    candidates?: Array<{
+      content?: {
+        parts?: Array<{
+          inlineData?: { mimeType?: string; data?: string };
+          inline_data?: { mime_type?: string; data?: string };
+        }>;
+      };
+    }>;
+  };
+
+  if (json.error) {
+    throw new Error(`Gemini image generation API error: ${json.error.message || JSON.stringify(json.error)}`);
+  }
+
+  for (const candidate of json.candidates || []) {
+    for (const part of candidate.content?.parts || []) {
+      const inlineData = part.inlineData;
+      const inlineDataSnakeCase = part.inline_data;
+      const data = inlineData?.data || inlineDataSnakeCase?.data;
+      const mimeType = inlineData?.mimeType || inlineDataSnakeCase?.mime_type || 'image/png';
+      if (data) {
+        console.log('[ImageGen] Gemini got inlineData, length:', data.length);
+        return `data:${mimeType};base64,${data}`;
+      }
+    }
+  }
+
+  throw new Error('Gemini image generation returned no image data');
+}
+
 /**
- * Call /images/generations and return a data URL or remote URL of the generated image.
+ * Call the configured image-generation endpoint and return a data URL or remote URL of the generated image.
  */
 export async function callImagesGenerations(baseUrl: string, apiKey: string, model: string, prompt: string, size: string, n: number): Promise<string> {
+  if (isGeminiImageGenerationModel(model)) {
+    return callGeminiGenerateContentImage(baseUrl, apiKey, model, prompt, size);
+  }
+
   const endpoint = `${baseUrl}/images/generations`;
   console.log('[ImageGen] POST', endpoint, 'model:', model, 'prompt:', prompt.slice(0, 80));
 
@@ -160,6 +291,15 @@ export async function callImagesGenerations(baseUrl: string, apiKey: string, mod
  * Call /images/edits and return a data URL or remote URL of the edited image.
  */
 export async function callImagesEdits(baseUrl: string, apiKey: string, model: string, imagePath: string, prompt: string, size: string, n: number): Promise<string> {
+  if (isGeminiImageGenerationModel(model)) {
+    const imageBuffer = await fs.readFile(imagePath);
+    const { mime } = detectMimeType(imageBuffer);
+    return callGeminiGenerateContentImage(baseUrl, apiKey, model, prompt, size, {
+      mimeType: mime,
+      data: imageBuffer.toString('base64'),
+    });
+  }
+
   const endpoint = `${baseUrl}/images/edits`;
   console.log('[ImageGen] POST', endpoint, 'model:', model, 'prompt:', prompt.slice(0, 80));
 
@@ -219,17 +359,30 @@ export function resolveChatModel(): string | null {
 }
 
 /**
- * Call /chat/completions with an image for analysis/understanding.
+ * Call /chat/completions with a base64-encoded image for analysis/understanding.
  */
-export async function callChatCompletionsWithImage(baseUrl: string, apiKey: string, model: string, imagePath: string, prompt: string): Promise<string> {
-  const endpoint = `${baseUrl}/chat/completions`;
-  console.log('[ImageAnalyze] POST', endpoint, 'model:', model, 'image:', imagePath);
-  console.log('[ImageAnalyze] prompt:', prompt.slice(0, 80));
+export async function callChatCompletionsWithImageBase64(baseUrl: string, apiKey: string, model: string, base64Data: string, mimeType: string, prompt: string): Promise<string> {
+  let effectiveBase64 = base64Data;
+  let effectiveMimeType = mimeType;
 
-  const imageBuffer = await fs.readFile(imagePath);
-  const { mime } = detectMimeType(imageBuffer);
-  const b64 = imageBuffer.toString('base64');
-  console.log('[ImageAnalyze] image size:', imageBuffer.length, 'mime:', mime);
+  try {
+    const rawBuffer = Buffer.from(base64Data, 'base64');
+    if (rawBuffer.length > IMAGE_TARGET_RAW_SIZE) {
+      const { resizeImageForContext } = await import('@/common/imageUtils');
+      const result = await resizeImageForContext(rawBuffer);
+      if (result.buffer.length < rawBuffer.length) {
+        effectiveBase64 = result.buffer.toString('base64');
+        effectiveMimeType = result.mediaType;
+        console.log('[ImageAnalyze] resized image from', rawBuffer.length, 'to', result.buffer.length, 'bytes for', model);
+      }
+    }
+  } catch (resizeErr) {
+    console.log('[ImageAnalyze] image resize skipped:', resizeErr instanceof Error ? resizeErr.message : String(resizeErr));
+  }
+
+  const endpoint = `${baseUrl}/chat/completions`;
+  console.log('[ImageAnalyze] POST', endpoint, 'model:', model, 'image: (base64)', 'mime:', effectiveMimeType);
+  console.log('[ImageAnalyze] prompt:', prompt.slice(0, 80));
 
   const body = JSON.stringify({
     model,
@@ -238,7 +391,7 @@ export async function callChatCompletionsWithImage(baseUrl: string, apiKey: stri
         role: 'user',
         content: [
           { type: 'text', text: prompt },
-          { type: 'image_url', image_url: { url: `data:${mime};base64,${b64}` } },
+          { type: 'image_url', image_url: { url: `data:${effectiveMimeType};base64,${effectiveBase64}` } },
         ],
       },
     ],
@@ -267,6 +420,64 @@ export async function callChatCompletionsWithImage(baseUrl: string, apiKey: stri
   }
 
   return content;
+}
+
+/**
+ * Call /chat/completions with an image for analysis/understanding.
+ */
+export async function callChatCompletionsWithImage(baseUrl: string, apiKey: string, model: string, imagePath: string, prompt: string): Promise<string> {
+  const imageBuffer = await fs.readFile(imagePath);
+  const { mime } = detectMimeType(imageBuffer);
+  const b64 = imageBuffer.toString('base64');
+  console.log('[ImageAnalyze] POST', `${baseUrl}/chat/completions`, 'model:', model, 'image:', imagePath, 'size:', imageBuffer.length, 'mime:', mime);
+
+  return callChatCompletionsWithImageBase64(baseUrl, apiKey, model, b64, mime, prompt);
+}
+
+/**
+ * Generate a user-center avatar image.
+ * Reuses readSudorouterCredentials / callImagesGenerations / saveImageResult.
+ * Unlike generateImage, this does NOT emit any tool_group message into a conversation.
+ */
+async function generateUserAvatar({ prompt }: { prompt: string }): Promise<IBridgeResponse<{ localPath: string; dataUrl: string }>> {
+  try {
+    // 凭据：复用 readSudorouterCredentials（已优先读 sudocode.json）
+    const creds = readSudorouterCredentials();
+    // 模型：直接读 sudocode.json 的 tools.imageGenerationModel（由 AuthContext 登录时写入）
+    let model: string | undefined;
+    try {
+      const raw = fsSync.readFileSync(SUDOCODE_CONFIG_PATH, 'utf-8');
+      const config = JSON.parse(raw) as { tools?: { imageGenerationModel?: string } };
+      model = config?.tools?.imageGenerationModel;
+      if (typeof model === 'string' && model.includes('/')) model = model.split('/').pop();
+    } catch {
+      // ignored
+    }
+    if (!creds || !model || !model.trim()) {
+      return { success: false, msg: '图像生成功能尚未配置，无法生成头像' };
+    }
+
+    const imageUrl = await callImagesGenerations(creds.baseUrl, creds.apiKey, model, prompt, '1024x1024', 1);
+
+    const saveDir = path.join(app.getPath('userData'), 'user-avatars');
+    const saved = await saveImageResult(imageUrl, saveDir);
+
+    // b64_json 路径返回的已是带前缀的 dataURL，直接透传；remote URL 路径则读盘转 dataURL
+    let dataUrl: string;
+    if (imageUrl.startsWith('data:')) {
+      dataUrl = imageUrl;
+    } else {
+      const buf = await fs.readFile(saved.imgUrl);
+      const mime = detectMimeType(buf).mime;
+      dataUrl = `data:${mime};base64,${buf.toString('base64')}`;
+    }
+
+    return { success: true, data: { localPath: saved.imgUrl, dataUrl } };
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error('[generateUserAvatar]', msg);
+    return { success: false, msg };
+  }
 }
 
 export function initImageGenerationBridge(): void {
@@ -305,4 +516,6 @@ export function initImageGenerationBridge(): void {
       return { success: false, msg };
     }
   });
+
+  ipcBridge.tools.generateUserAvatar.provider(generateUserAvatar);
 }

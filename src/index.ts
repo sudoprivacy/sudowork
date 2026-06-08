@@ -8,16 +8,25 @@
 // Reduces startup time by 40-60% on subsequent launches
 import 'v8-compile-cache';
 
+// Initialize the process supervisor as early as possible, before any child
+// processes are spawned. It registers a synchronous `process.on('exit')`
+// handler that guarantees all tracked child processes are killed when the
+// parent exits — regardless of whether async cleanup (before-quit, etc.)
+// succeeds or not.
+// 尽早初始化进程监管器。它注册同步 process.on('exit') 回调，保证父进程退出时
+// 所有被追踪的子进程都会被杀死，不依赖异步清理是否成功。
+import { processSupervisor } from './process/ProcessSupervisor';
+processSupervisor.initialize();
+
 import './utils/configureChromium';
-import { app, BrowserWindow, Menu, nativeImage, net, powerMonitor, protocol, screen, Tray } from 'electron';
+import { app, BrowserWindow, Menu, nativeImage, powerMonitor, protocol, screen, Tray } from 'electron';
 import fixPath from 'fix-path';
 import * as fs from 'fs';
 import * as path from 'path';
-import { pathToFileURL } from 'url';
 import { initMainAdapterWithWindow } from './adapter/main';
 import { createAvatarWindow } from './process/avatarWindow';
 import { ipcBridge } from './common';
-import { AION_ASSET_PROTOCOL } from './extensions/assetProtocol';
+import { AION_ASSET_PROTOCOL, createAssetProtocolResponse } from './extensions/assetProtocol';
 import { initializeProcess } from './process';
 import { ProcessConfig } from './process/initStorage';
 import { loadShellEnvironmentAsync, mergePaths } from './process/utils/shellEnv';
@@ -39,13 +48,7 @@ import electronSquirrelStartup from 'electron-squirrel-startup';
 // Mark app start time as early as possible for cold_start metric
 import { markAppStart, markFirstWindowShow, initializeTelemetry, shutdownTelemetry } from './process/telemetry';
 // CrashReporter for native crash and JS exception reporting
-import {
-  initCrashReporter,
-  captureRendererCrash,
-  captureException,
-  systemBreadcrumbs,
-  windowBreadcrumbs,
-} from './process/telemetry';
+import { initCrashReporter, captureRendererCrash, captureException, systemBreadcrumbs, windowBreadcrumbs } from './process/telemetry';
 markAppStart();
 
 // 记录应用启动
@@ -66,6 +69,11 @@ if (process.env.ELECTRON_RUN_AS_NODE === '1' && process.platform === 'darwin' &&
 // ============ Deep Link Protocol ============
 // Register aionui:// protocol scheme for external app integration (e.g., New API token quick-add)
 const PROTOCOL_SCHEME = 'aionui';
+// Additional schemes the app also handles. `sudowork` is what the packaged
+// macOS/Windows build registers in its manifest (electron-builder.yml), so the
+// OAuth2 redirect (sudowork://oauth2-callback) routes to a packaged app.
+const PROTOCOL_SCHEMES = [PROTOCOL_SCHEME, 'sudowork'];
+const isDeepLinkArg = (arg: string): boolean => PROTOCOL_SCHEMES.some((s) => arg.startsWith(`${s}://`));
 
 /**
  * Parse an aionui:// URL into action and params.
@@ -76,7 +84,7 @@ const PROTOCOL_SCHEME = 'aionui';
 const parseDeepLinkUrl = (url: string): { action: string; params: Record<string, string> } | null => {
   try {
     const parsed = new URL(url);
-    if (parsed.protocol !== `${PROTOCOL_SCHEME}:`) return null;
+    if (!PROTOCOL_SCHEMES.some((s) => parsed.protocol === `${s}:`)) return null;
 
     // Build action from hostname + pathname, e.g. "provider/add" or "add-provider"
     const hostname = parsed.hostname || '';
@@ -109,7 +117,7 @@ const parseDeepLinkUrl = (url: string): { action: string; params: Record<string,
 };
 
 /** Pending deep-link URL received before the window was ready */
-let pendingDeepLinkUrl: string | null = process.argv.find((arg) => arg.startsWith(`${PROTOCOL_SCHEME}://`)) || null;
+let pendingDeepLinkUrl: string | null = process.argv.find(isDeepLinkArg) || null;
 
 /**
  * Send the deep-link payload to the renderer via IPC bridge.
@@ -134,7 +142,7 @@ const handleDeepLinkUrl = (url: string) => {
 // When a second instance starts (e.g. from protocol URL), it sends its data
 // to the first instance via second-instance event, then quits.
 const isE2ETestMode = process.env.NEXUS_E2E_TEST === '1';
-const deepLinkFromArgv = process.argv.find((arg) => arg.startsWith(`${PROTOCOL_SCHEME}://`));
+const deepLinkFromArgv = process.argv.find(isDeepLinkArg);
 const gotTheLock = isE2ETestMode ? true : app.requestSingleInstanceLock({ deepLinkUrl: deepLinkFromArgv });
 
 if (!gotTheLock) {
@@ -143,7 +151,7 @@ if (!gotTheLock) {
 } else {
   app.on('second-instance', (_event, argv, _workingDirectory, additionalData) => {
     // Prefer additionalData (reliable on all platforms), fallback to argv scan
-    const deepLinkUrl = (additionalData as { deepLinkUrl?: string })?.deepLinkUrl || argv.find((arg) => arg.startsWith(`${PROTOCOL_SCHEME}://`));
+    const deepLinkUrl = (additionalData as { deepLinkUrl?: string })?.deepLinkUrl || argv.find(isDeepLinkArg);
     if (deepLinkUrl) {
       handleDeepLinkUrl(deepLinkUrl);
     }
@@ -206,7 +214,7 @@ if (electronSquirrelStartup) {
 
 // ============ Custom Asset Protocol ============
 // Register aion-asset:// as a privileged scheme BEFORE app.whenReady().
-// This protocol serves local extension assets (icons, covers) bypassing
+// This protocol serves local files/assets bypassing
 // the browser security policy that blocks file:// URLs from http://localhost.
 protocol.registerSchemesAsPrivileged([
   {
@@ -216,6 +224,7 @@ protocol.registerSchemesAsPrivileged([
       secure: true,
       supportFetchAPI: true,
       corsEnabled: true,
+      stream: true,
     },
   },
 ]);
@@ -242,6 +251,17 @@ process.on('unhandledRejection', (reason, _promise) => {
     captureException(error, { process_type: 'main', component: 'unhandledRejection' });
   }
 });
+
+// Route SIGINT (Ctrl+C) and SIGTERM through Electron's quit lifecycle so that
+// the before-quit handler runs and cleans up child processes (scode, etc.).
+// Without this, Node.js default signal handling kills the process immediately,
+// bypassing before-quit and leaving child processes orphaned.
+for (const sig of ['SIGINT', 'SIGTERM'] as const) {
+  process.on(sig, () => {
+    console.log(`[Sudowork] Received ${sig}, triggering app.quit()`);
+    app.quit();
+  });
+}
 
 const hasSwitch = (flag: string) => process.argv.includes(`--${flag}`) || app.commandLine.hasSwitch(flag);
 const getSwitchValue = (flag: string): string | undefined => {
@@ -636,6 +656,28 @@ const createWindow = (): void => {
     closeAvatarWindow();
   });
 
+  // Handle fullscreen transitions: ensure avatar window appears on the correct screen
+  // when main window enters fullscreen mode on macOS
+  mainWindow.on('enter-full-screen', () => {
+    if (avatarWindow && !avatarWindow.isDestroyed()) {
+      // Move avatar to the display where the main window is fullscreen
+      const display = screen.getDisplayMatching(mainWindow.getBounds());
+      const { x, y, width, height } = display.bounds;
+      const avatarBounds = avatarWindow.getBounds();
+      // Position avatar at bottom-right of the fullscreen display
+      avatarWindow.setPosition(x + width - avatarBounds.width - 16, y + height - avatarBounds.height - 16);
+    }
+  });
+
+  mainWindow.on('leave-full-screen', () => {
+    if (avatarWindow && !avatarWindow.isDestroyed()) {
+      // Restore avatar to work area position
+      const workArea = screen.getPrimaryDisplay().workArea;
+      const avatarBounds = avatarWindow.getBounds();
+      avatarWindow.setPosition(workArea.x + workArea.width - avatarBounds.width - 16, workArea.y + workArea.height - avatarBounds.height - 16);
+    }
+  });
+
   // Initialize auto-updater service (skip when disabled via env, e.g. E2E / CI, or nightly builds)
   // 初始化自动更新服务（通过环境变量禁用时跳过，例如 E2E / CI 场景；nightly 版本也跳过自动更新提醒）
   const isCiRuntime = process.env.CI === 'true' || process.env.CI === '1' || process.env.GITHUB_ACTIONS === 'true';
@@ -790,18 +832,7 @@ const handleAppReady = async (): Promise<void> => {
     return;
   }
 
-  // Register aion-asset:// protocol handler.
-  // Converts aion-asset://asset/C:/path/to/file.svg → file:///C:/path/to/file.svg
-  // and serves the local file through Electron's net module.
-  protocol.handle(AION_ASSET_PROTOCOL, (request) => {
-    const url = new URL(request.url);
-    // pathname is /C:/path/to/file.svg - strip leading slash on Windows
-    let filePath = decodeURIComponent(url.pathname);
-    if (process.platform === 'win32' && filePath.startsWith('/') && /^\/[A-Za-z]:/.test(filePath)) {
-      filePath = filePath.slice(1);
-    }
-    return net.fetch(pathToFileURL(filePath).href);
-  });
+  protocol.handle(AION_ASSET_PROTOCOL, createAssetProtocolResponse);
 
   // Set dock icon in development mode on macOS
   // In production, the icon is set via forge.config.ts packagerConfig.icon
@@ -1002,16 +1033,28 @@ const handleAppReady = async (): Promise<void> => {
       .catch((error) => {
         console.error('[App] Failed to handle system resume for cron:', error);
       });
+
+    // Resume channel plugins (re-establish connections lost during sleep)
+    import('@/channels')
+      .then(({ getChannelManager }) => {
+        void getChannelManager().resumePlugins();
+      })
+      .catch((error) => {
+        console.error('[App] Failed to handle system resume for channels:', error);
+      });
   });
 };
 
 // ============ Protocol Registration ============
-// Register aionui:// as the default protocol client
-if (process.defaultApp) {
-  // Dev mode: need to pass execPath explicitly
-  app.setAsDefaultProtocolClient(PROTOCOL_SCHEME, process.execPath, [path.resolve(process.argv[1])]);
-} else {
-  app.setAsDefaultProtocolClient(PROTOCOL_SCHEME);
+// Register all supported schemes (aionui:// for legacy integrations, sudowork://
+// for the packaged-app manifest used by the OAuth2 redirect) as default clients.
+for (const scheme of PROTOCOL_SCHEMES) {
+  if (process.defaultApp) {
+    // Dev mode: need to pass execPath explicitly
+    app.setAsDefaultProtocolClient(scheme, process.execPath, [path.resolve(process.argv[1])]);
+  } else {
+    app.setAsDefaultProtocolClient(scheme);
+  }
 }
 
 // macOS: handle aionui:// URLs via the open-url event
@@ -1088,10 +1131,16 @@ app.on('before-quit', (event) => {
   }, QUIT_CLEANUP_TIMEOUT_MS);
 
   void (async () => {
-    // Clean up work processes (per-conversation agents)
-    WorkerManage.clear();
+    // Clean up work processes (per-conversation agents).
+    // Await to ensure child processes (especially scode on Windows) are terminated
+    // before the app exits, preventing orphaned processes.
+    try {
+      await WorkerManage.clear();
+    } catch (error) {
+      console.error('[App] Failed to clear work processes:', error);
+    }
 
-    // Stop all managed services (Nexus, OpenClaw gateway)
+    // Stop all managed services (Nexus, Sudoclaw gateway)
     try {
       const { serviceManager } = await import('./process/services/serviceManager');
       await serviceManager.shutdown();

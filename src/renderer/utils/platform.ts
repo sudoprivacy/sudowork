@@ -60,11 +60,27 @@ const getAssetAbsolutePath = (url: string): string | undefined => {
 };
 
 const toFileUrl = (absPath: string): string => {
-  const normalized = absPath.replace(/\\/g, '/');
+  const normalized = encodeURI(absPath.replace(/\\/g, '/')).replace(/#/g, '%23').replace(/\?/g, '%3F');
   if (/^[A-Za-z]:\//.test(normalized)) {
-    return `file:///${encodeURI(normalized)}`;
+    return `file:///${normalized}`;
   }
-  return `file://${encodeURI(normalized)}`;
+  return `file://${normalized}`;
+};
+
+const toAssetUrl = (absPath: string): string => {
+  return `${ASSET_PROTOCOL_PREFIX}${encodeURI(absPath.replace(/\\/g, '/')).replace(/#/g, '%23').replace(/\?/g, '%3F')}`;
+};
+
+/**
+ * Resolve an arbitrary local file path to a URL usable by renderer media tags.
+ * In Electron dev, use aion-asset:// because the renderer is served over HTTP.
+ */
+export const resolveLocalFileUrl = (absPath: string | undefined): string | undefined => {
+  if (!absPath) return undefined;
+  if (isElectronDesktop() && shouldKeepAssetProtocolInElectron()) {
+    return toAssetUrl(absPath);
+  }
+  return toFileUrl(absPath);
 };
 
 /**

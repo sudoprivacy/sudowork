@@ -11,6 +11,7 @@ import type { AtMentionTab } from '@/renderer/hooks/useSkillSelectorController';
 import type { WorkspaceFileItem } from '@/renderer/hooks/useWorkspaceFiles';
 import SkillSelectorSkeleton from './base/SkillSelectorSkeleton';
 import { Virtuoso } from 'react-virtuoso';
+import { handleSkillIconError } from '@/renderer/utils/skillDisplay';
 
 export interface SkillSelectorMenuItem {
   key: string;
@@ -66,6 +67,20 @@ interface SkillSelectorMenuProps {
 const SkillSelectorMenu: React.FC<SkillSelectorMenuProps> = ({ title, hint, items, selectedKeys, activeIndex, loading = false, loadingText, onHoverItem, onSelectItem, emptyText, showTabs = false, activeTab = 'skills', onTabChange, fileItems = [], onSelectFile, filesTabTitle = 'Files', skillsTabTitle = 'Skills', filesEmptyText = 'No files', searchQuery = '', onSearchChange, onDismiss, skillsSearchPlaceholder = '搜索技能...', filesSearchPlaceholder = '搜索文件...', noSearchResultsText = '未找到匹配结果' }) => {
   const { t } = useTranslation();
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Close menu when clicking outside
+  const onDismissRef = useRef(onDismiss);
+  onDismissRef.current = onDismiss;
+  useEffect(() => {
+    const handleMouseDown = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        onDismissRef.current?.();
+      }
+    };
+    document.addEventListener('mousedown', handleMouseDown);
+    return () => document.removeEventListener('mousedown', handleMouseDown);
+  }, []);
 
   // Use i18n loading text if not provided
   const resolvedLoadingText = loadingText || t('common.loadingSkills');
@@ -112,6 +127,7 @@ const SkillSelectorMenu: React.FC<SkillSelectorMenuProps> = ({ title, hint, item
 
   return (
     <div
+      ref={menuRef}
       className='rounded-14px border border-solid shadow-[0_8px_24px_rgba(0,0,0,0.12)] overflow-hidden'
       style={{
         borderColor: 'var(--color-border-2)',
@@ -226,7 +242,7 @@ const SkillSelectorMenu: React.FC<SkillSelectorMenuProps> = ({ title, hint, item
                   >
                     <div className='flex items-center gap-8px'>
                       {/* Icon / Emoji */}
-                      <div className='w-28px h-28px flex-shrink-0 rd-6px overflow-hidden bg-fill-2 flex items-center justify-center text-16px'>{item.icon ? <img src={item.icon} alt={item.displayName} className='w-full h-full object-cover' /> : <span>{item.emoji || '⚡'}</span>}</div>
+                      <div className='w-28px h-28px flex-shrink-0 rd-6px overflow-hidden bg-fill-2 flex items-center justify-center text-16px'>{item.icon ? <img src={item.icon} alt={item.displayName} className='w-full h-full object-cover' onError={handleSkillIconError} /> : <span>{item.emoji || '⚡'}</span>}</div>
                       {/* Content */}
                       <div className='min-w-0 flex-1'>
                         <div className='flex items-center gap-6px min-w-0'>

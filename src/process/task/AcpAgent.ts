@@ -10,18 +10,20 @@ import { AcpAdapter } from '@/agent/acp/AcpAdapter';
 import { AcpApprovalStore, createAcpApprovalKey } from '@/agent/acp/ApprovalStore';
 import { AcpConnection } from '@/agent/acp/AcpConnection';
 import { CLAUDE_YOLO_SESSION_MODE, CODEBUDDY_YOLO_SESSION_MODE, IFLOW_YOLO_SESSION_MODE, QWEN_YOLO_SESSION_MODE } from '@/agent/acp/constants';
+import { acpDetector } from '@/agent/acp/AcpDetector';
 import { getClaudeModel } from '@/agent/acp/utils';
 import { buildAcpModelInfo, summarizeAcpModelInfo } from '@/agent/acp/modelInfo';
 import { channelEventBus } from '@/channels/agent/ChannelEventBus';
 import { ipcBridge } from '@/common';
-import type { CronMessageMeta, TMessage } from '@/common/chatLib';
+import type { AcpQuestionData, CronMessageMeta, TMessage, TurnTokenUsage } from '@/common/chatLib';
 import type { SlashCommandItem } from '@/common/slash/types';
 import { transformMessage } from '@/common/chatLib';
-import { NEXUS_FILES_MARKER } from '@/common/constants';
+import { DRAFTS_DIR_NAME, NEXUS_FILES_MARKER } from '@/common/constants';
+import { appendNexusFilesMarker } from '@/common/nexusFiles';
 import type { IResponseMessage } from '@/common/ipcBridge';
-import { NavigationInterceptor } from '@/common/navigation';
+import { NavigationInterceptor, type NavigationToolData } from '@/common/navigation';
 import { parseError, uuid } from '@/common/utils';
-import type { AcpBackend, AcpError, AcpModelInfo, AcpPermissionOption, AcpPermissionRequest, AcpPromptResponseUsage, AcpResult, AcpSessionConfigOption, AcpSessionUpdate, AvailableCommandsUpdate, ToolCallUpdate } from '@/types/acpTypes';
+import type { AcpBackend, AcpError, AcpModelInfo, AcpPermissionOption, AcpPermissionRequest, AcpPromptResponseUsage, AcpQuestionRequest, AcpQuestionResponseAnswer, AcpResult, AcpSessionConfigOption, AcpSessionUpdate, AvailableCommandsUpdate, ToolCallUpdate, ToolCallUpdateStatus } from '@/types/acpTypes';
 import { ACP_BACKENDS_ALL, AcpErrorType, createAcpError } from '@/types/acpTypes';
 import { ExtensionRegistry } from '@/extensions';
 import { spawn } from 'child_process';
@@ -31,19 +33,29 @@ import { getEnhancedEnv, resolveNpxPath } from '@process/utils/shellEnv';
 import { applyPresetRuntime } from '@process/task/presetRuntime';
 import { assistantManager } from '@/process/AssistantManager';
 import { getDatabase } from '@process/database';
-import { ProcessConfig } from '../initStorage';
+import { clearSkillsCache, getCustomSkillsDir, ProcessConfig } from '../initStorage';
 import { addMessage, addOrUpdateMessage, nextTickToLocalFinish } from '../message';
 import { handlePreviewOpenEvent } from '../utils/previewUtils';
 import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
 import { mainLog, mainWarn, mainError } from '../utils/mainLogger';
 import { translateLLMError } from '@process/utils/llmErrorTranslation';
+import { classifyLlmError } from '@process/utils/llmErrorClassification';
 import { injectSkillsDirectoryHint, prepareFirstMessageWithSkillsIndex } from './agentUtils';
-import { cleanupIntermediateFiles } from './draftsCleanup';
-import { mergeScodeProxyModelInfo } from '@process/services/scode/scodeProxyModels';
+import { AcpSkillManager } from './AcpSkillManager';
+import { archiveTurnFiles, cleanupIntermediateFiles, cleanupTrackedDraftsOnCancel, type TrackedTurnFile } from './draftsCleanup';
+import { detectBashDraftRestoreCommand, FileIntentClassifier, type BashDraftRestoreDetection, type FileIntentSource, type FileOperationIntent } from './FileIntentClassifier';
+import { SCODE_COMPLETION_REMINDER, shouldSkipAcpWorkspaceTrackingPath } from './acpWorkspaceTracking';
+import { mergeScodeProxyModelInfo, isModelVisionCapable, getScodeProxyModelInfoSync } from '@process/services/scode/scodeProxyModels';
+import { installWorkspaceSkillsFromTrackedFiles } from './workspaceSkillInstaller';
+import { appendGeneratedFilesMarker, extractExtension, mimeForExtension, type GeneratedFileEntry } from '@/common/generatedFiles';
 import BaseAgent from './BaseAgent';
 
 // Telemetry imports for conversation tracking
 import { startConversationTracking, endConversationSuccess, endConversationError, endConversationUserCancel } from '../telemetry';
+
+// Telemetry imports for turn/step tracking
+import { startTurnTracking, updateTurnTokens, endTurnSuccess, endTurnError, getCurrentTurnId } from '../telemetry';
+import { startToolCallTracking, endToolCallTracking, startPermissionRequestTracking, endPermissionRequestTracking, recordFileOperationStep, startThinkingTracking, endThinkingTracking } from '../telemetry';
 
 // CrashReporter imports for breadcrumb tracking
 import { conversationBreadcrumbs, apiBreadcrumbs, systemBreadcrumbs, mcpBreadcrumbs } from '../telemetry/BreadcrumbTracker';
@@ -54,16 +66,20 @@ const DEFAULT_PROMPT_TIMEOUT_SECONDS = 300;
 /** Prompt timeout range (seconds) */
 const PROMPT_TIMEOUT_MIN_SECONDS = 30;
 const PROMPT_TIMEOUT_MAX_SECONDS = 3600;
+const TEXT_ATTACHMENT_BLOCK_BYTES = 1024 * 1024;
+const CONTEXT_OVERFLOW_REASONS = new Set(['context_window_exceeded', 'single_request_too_large', 'request_body_too_large']);
+const CONTEXT_RISK_TEXT_EXTENSIONS = new Set(['.txt', '.md', '.markdown', '.json', '.jsonl', '.csv', '.tsv', '.xml', '.yaml', '.yml', '.log']);
 import { hasCronCommands } from './CronCommandDetector';
 import { detectChannelQueryIntent, executeChannelInfoCommand, type ChannelQueryCommand } from './ChannelInfoDetector';
 import { extractTextFromMessage, processCronInMessage } from './MessageMiddleware';
 import { processAtFileReferences } from './acp/AcpAtFileProcessor';
 import { StreamTextBuffer, CronTextAccumulator, filterThinkTagsFromMessage, preprocessContentMessage } from './acp/AcpMessagePipeline';
-import { saveAcpSessionId, saveSessionMode, saveModelId, saveContextUsage } from './acp/AcpPersistence';
+import { clearAcpSessionId, saveAcpSessionId, saveSessionMode, saveModelId, saveContextUsage } from './acp/AcpPersistence';
 import { resolveImageConfig, callImagesGenerations, callImagesEdits, saveImageResult, resolveChatModel, callChatCompletionsWithImage, readSudorouterCredentials } from '../bridge/imageGenerationBridge';
 import { resolveWorkspaceSkillsDir } from '../utils/workspaceSkillsDir';
 import { readAssistantResource, ruleFilePattern } from '@process/utils/assistantResources';
 import { app } from 'electron';
+import { protectUnsupportedAcpSlashPrompt } from '@/common/slash/sudoworkCommands';
 
 /** Enable ACP performance diagnostics via ACP_PERF=1 */
 const ACP_PERF_LOG = process.env.ACP_PERF === '1';
@@ -81,6 +97,12 @@ function hasExplicitIdentity(rules: string): boolean {
   // English patterns: "You are XX assistant", "I am XX", "Your identity is"
   const enPatterns = [/You are\s+.{1,20}assistant/i, /I am\s+.{1,20}(assistant|helper|agent)/i, /Your identity is[:]?/i];
   return zhPatterns.some((p) => p.test(rules)) || enPatterns.some((p) => p.test(rules));
+}
+
+function formatBytesForMessage(bytes: number): string {
+  if (bytes < 1024) return `${bytes}B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)}KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
 }
 
 /**
@@ -102,6 +124,20 @@ interface InitializeResult {
 function normalizeToolCallStatus(status: string | undefined): 'pending' | 'in_progress' | 'completed' | 'failed' {
   if (!status) return 'pending';
   return status as 'pending' | 'in_progress' | 'completed' | 'failed';
+}
+
+function normalizePromptUsageForMessage(usage: AcpPromptResponseUsage): TurnTokenUsage | null {
+  if (typeof usage.totalTokens !== 'number') return null;
+  return {
+    totalTokens: usage.totalTokens,
+    ...(typeof usage.inputTokens === 'number' && { inputTokens: usage.inputTokens }),
+    ...(typeof usage.outputTokens === 'number' && { outputTokens: usage.outputTokens }),
+    ...(usage.cachedReadTokens !== undefined && { cachedReadTokens: usage.cachedReadTokens }),
+    ...(usage.cachedWriteTokens !== undefined && { cachedWriteTokens: usage.cachedWriteTokens }),
+    ...(usage.thoughtTokens !== undefined && { thoughtTokens: usage.thoughtTokens }),
+    ...(usage.contextWindowTokens !== undefined && { contextWindowTokens: usage.contextWindowTokens }),
+    ...(usage.estimatedSessionTokens !== undefined && { estimatedSessionTokens: usage.estimatedSessionTokens }),
+  };
 }
 
 export interface AcpAgentData {
@@ -134,16 +170,34 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
   private connection: AcpConnection;
   private adapter: AcpAdapter;
   private pendingPermissions = new Map<string, { resolve: (response: { optionId: string }) => void; reject: (error: Error) => void }>();
+  private pendingQuestions = new Map<string, { resolve: (response: { answers: AcpQuestionResponseAnswer[] }) => void; reject: (error: Error) => void; msgId: string }>();
   private approvalStore = new AcpApprovalStore();
-  private permissionRequestMeta = new Map<string, { kind?: string; title?: string; rawInput?: Record<string, unknown> }>();
+  private permissionRequestMeta = new Map<string, { kind?: string; title?: string; rawInput?: Record<string, unknown>; stepId?: string }>();
   private pendingNavigationTools = new Set<string>();
   private statusMessageId: string | null = null;
   private _lastConnectionStatus: string | null = null;
+
+  // Flag to track if user cancelled - ignore subsequent messages
+  private userCancelled: boolean = false;
+  private stopPromise: Promise<void> | null = null;
+  private turnActive = false;
+
+  // Tool call tracking for file_send messages to channel clients
+  private toolCallMeta = new Map<string, { toolName: string; rawInput?: Record<string, unknown> }>();
 
   // Model tracking
   private userModelOverride: string | null = null;
   private pendingModelSwitchNotice: string | null = null;
   private hasReceivedUsageUpdate = false;
+  private lastAssistantTextMsgId: string | null = null;
+  private turnHadVisibleAssistantContent = false;
+  private turnEventSequence = 0;
+  private lastVisibleAssistantContentSequence = 0;
+  private lastToolCompletionSequence = 0;
+  private lastUserMessage: string | null = null;
+  private plannedRestartInProgress = false;
+  private contextOverflowRecoveryPending = false;
+  private streamedContextErrorBuffer = '';
 
   // Slash commands
   private acpAvailableSlashCommands: SlashCommandItem[] = [];
@@ -152,6 +206,15 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
   // Message pipeline
   private readonly streamTextBuffer = new StreamTextBuffer();
   private readonly cronAccumulator = new CronTextAccumulator();
+
+  // Workspace file tracking for channel file_send messages
+  private workspaceFileSnapshot = new Map<string, number>();
+  private customSkillsSnapshot = new Set<string>();
+
+  // Turn-level file tracking for precise cleanup on cancel
+  private currentTurnFiles: Map<string, TrackedTurnFile> = new Map();
+  private currentTurnProtectedFinalPaths = new Set<string>();
+  private readonly fileIntentClassifier = new FileIntentClassifier();
 
   // Extra config passed to connection
   private extra: {
@@ -193,6 +256,11 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
     };
 
     this.setupConnectionHandlers();
+    this.refreshWorkspaceFileSnapshot();
+    // Initialize full workspace snapshot for Bash file tracking
+    // 初始化完整工作空间快照用于 Bash 文件追踪
+    this.workspaceFileSnapshot = this.getWorkspaceFiles();
+    mainLog('[AcpAgent]', `[INIT] Initialized workspace snapshot with ${this.workspaceFileSnapshot.size} files`);
   }
 
   // ========== Connection Lifecycle ==========
@@ -204,8 +272,11 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
     this.connection.onPermissionRequest = (data: AcpPermissionRequest) => {
       return this.handlePermissionRequest(data);
     };
+    this.connection.onQuestionRequest = (data: AcpQuestionRequest) => {
+      return this.handleQuestionRequest(data);
+    };
     this.connection.onEndTurn = () => {
-      this.handleEndTurn();
+      void this.handleEndTurn();
     };
     this.connection.onPromptUsage = (usage: AcpPromptResponseUsage) => {
       this.handlePromptUsage(usage);
@@ -264,6 +335,13 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
         if (!cliPath && config?.[data.backend]?.cliPath) {
           cliPath = config[data.backend].cliPath;
         }
+        // Fallback: resolve from acpDetector (handles channel conversations and restored sessions)
+        if (!cliPath) {
+          const detected = acpDetector.getDetectedAgents().find((a) => a.backend === data.backend);
+          if (detected?.cliPath) {
+            cliPath = detected.cliPath;
+          }
+        }
         const legacyYoloMode = data.yoloMode ?? (config?.[data.backend] as any)?.yoloMode;
 
         if (legacyYoloMode && this.currentMode === 'default' && !data.sessionMode) {
@@ -309,11 +387,23 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
         cdpPort,
       });
       customEnv = { ...customEnv, ...presetResult.envOverrides };
-      if (presetResult.contextAppendix && this.options.presetContext) {
-        this.options.presetContext += presetResult.contextAppendix;
+      // Always fold the runtime context appendix (auto-discovered scripts /
+      // ops entry point) into presetContext — even when presetContext started
+      // empty. Gating this on a non-empty presetContext dropped the absolute
+      // script paths for assistants whose rule file produced no context,
+      // forcing the agent to `find` for its own scripts.
+      if (presetResult.contextAppendix) {
+        this.options.presetContext = (this.options.presetContext || '') + presetResult.contextAppendix;
       }
 
       // Store resolved config for connection
+      if (data.backend === 'scode' && this.persistedModelId) {
+        customEnv = {
+          ...customEnv,
+          SUDOCODE_CURRENT_MODEL_ID: this.persistedModelId,
+        };
+      }
+
       this.extra = {
         ...this.extra,
         cliPath,
@@ -337,7 +427,8 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
       await this.connect();
 
       // Re-apply persisted mode after session start/resume
-      if (this.currentMode && this.currentMode !== 'default') {
+      // codex/scode 不支持 session/set_mode，跳过
+      if (this.currentMode && this.currentMode !== 'default' && this.options.backend !== 'codex' && this.options.backend !== 'scode') {
         try {
           await this.connection.setSessionMode(this.currentMode);
           mainLog('[AcpAgent]', `Re-applied persisted mode: ${this.currentMode}`);
@@ -369,6 +460,17 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
             }
             this.persistedModelId = null;
           }
+        }
+      }
+
+      // For scode backend, unconditionally call setModel via ACP RPC to ensure
+      // scode uses the correct model for this session (not its own default).
+      if (this.options.backend === 'scode' && this.persistedModelId) {
+        try {
+          await this.connection.setModel(this.persistedModelId);
+          mainLog('[AcpAgent]', `scode: forced setModel("${this.persistedModelId}") via ACP RPC`);
+        } catch (error) {
+          mainWarn('[AcpAgent]', `scode: forced setModel failed: ${error instanceof Error ? error.message : String(error)}`);
         }
       }
 
@@ -585,7 +687,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
 
   // ========== Public API (BaseAgent contract) ==========
 
-  async sendMessage(data: { content: string; files?: string[]; msg_id?: string; cronMeta?: CronMessageMeta }): Promise<{
+  async sendMessage(data: { content: string; files?: string[]; msg_id?: string; cronMeta?: CronMessageMeta; skills?: string[] }): Promise<{
     success: boolean;
     msg?: string;
     message?: string;
@@ -593,6 +695,27 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
     const managerSendStart = Date.now();
     cronBusyGuard.setProcessing(this.conversation_id, true);
     this.status = 'running';
+    this.processingStartTime = Date.now();
+    this.turnActive = true;
+
+    // Reset user cancelled flag for new message
+    this.userCancelled = false;
+    this.stopPromise = null;
+    this.hasReceivedUsageUpdate = false;
+    this.lastAssistantTextMsgId = null;
+    this.turnHadVisibleAssistantContent = false;
+    this.turnEventSequence = 0;
+    this.lastVisibleAssistantContentSequence = 0;
+    this.lastToolCompletionSequence = 0;
+
+    // ★ Reset turn-level file tracking for new turn
+    // 重置 Turn 级别文件追踪，开始新的 Turn
+    this.currentTurnFiles.clear();
+    this.currentTurnProtectedFinalPaths.clear();
+    this.workspaceFileSnapshot = this.getWorkspaceFiles();
+    this.customSkillsSnapshot = this.getCustomSkillNames();
+    mainLog('[AcpAgent]', `[TURN-START] Reset file tracking, snapshot size: ${this.workspaceFileSnapshot.size}`);
+
     try {
       // Apply prompt timeout from config before sending
       this.applyPromptTimeoutFromConfig();
@@ -600,15 +723,25 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
       // Start telemetry conversation tracking
       const modelInfo = this.getModelInfo();
       const modelId = modelInfo?.currentModelId || this.persistedModelId || 'unknown';
-      // Map openclaw-gateway to sudoclaw for telemetry
-      const modelProvider = this.options.backend === 'openclaw-gateway' ? 'sudoclaw' : this.options.backend;
+      const modelProvider = this.options.backend;
       startConversationTracking(this.conversation_id, modelId, modelProvider);
+
+      // Start telemetry turn tracking
+      startTurnTracking(this.conversation_id, modelId, modelProvider, this.options.backend);
 
       // Breadcrumb: conversation started
       conversationBreadcrumbs.start(this.conversation_id, modelId, modelProvider);
 
+      // Store user's message for file-sending intent detection
+      // 存储用户消息用于检测文件发送意图
+      if (data.content) {
+        this.lastUserMessage = data.content;
+        console.log(`[AcpAgent] Stored lastUserMessage: "${data.content.substring(0, 100)}..."`);
+      }
+
       // Emit/persist user message immediately
       if (data.msg_id && data.content) {
+        const displayContent = appendNexusFilesMarker(data.content, data.files || [], this.workspace);
         const userMessage: TMessage = {
           id: data.msg_id,
           msg_id: data.msg_id,
@@ -616,7 +749,8 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
           position: 'right',
           conversation_id: this.conversation_id,
           content: {
-            content: data.content,
+            content: displayContent,
+            ...(data.skills && data.skills.length > 0 && { skills: data.skills }),
             ...(data.cronMeta && { cronMeta: data.cronMeta }),
           },
           createdAt: Date.now(),
@@ -627,25 +761,49 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
         } catch {
           // Conversation might not exist in DB yet
         }
+        let responseData: any = displayContent;
+        if (data.cronMeta || (data.skills && data.skills.length > 0)) {
+          responseData = {
+            content: displayContent,
+            ...(data.cronMeta && { cronMeta: data.cronMeta }),
+            ...(data.skills && data.skills.length > 0 && { skills: data.skills }),
+          };
+        }
+
         const userResponseMessage: IResponseMessage = {
           type: 'user_content',
           conversation_id: this.conversation_id,
           msg_id: data.msg_id,
-          data: data.cronMeta ? { content: userMessage.content.content, cronMeta: data.cronMeta } : userMessage.content.content,
+          data: responseData,
         };
         ipcBridge.acpConversation.responseStream.emit(userResponseMessage);
       }
 
-      // Intercept /model slash command
+      // Emit start event before async initAgent so frontend loading state
+      // is set immediately, without waiting for the connection to be ready.
+      ipcBridge.acpConversation.responseStream.emit({
+        type: 'start',
+        conversation_id: this.conversation_id,
+        msg_id: data.msg_id || uuid(),
+        data: { processingStartTime: this.processingStartTime },
+      });
+
+      // Intercept /model slash command locally so model switching does not depend on backend command support.
       const modelMatch = data.content.trim().match(/^\/model(?:\s+(.*))?$/);
       if (modelMatch !== null) {
         return await this.handleModelCommand(modelMatch, data);
       }
 
       // Intercept /image sub-commands
-      const imageMatch = data.content.trim().match(/^\/image\s+([\s\S]+)$/);
+      const imageMatch = data.content.trim().match(/^\/image(?:\s+([\s\S]+))?$/);
       if (imageMatch !== null) {
-        return await this.handleImageCommand(imageMatch[1].trim(), data);
+        return await this.handleImageCommand((imageMatch[1] || '').trim(), data);
+      }
+
+      // Intercept /browser sub-commands (open / status / eval / screenshot)
+      const browserMatch = data.content.trim().match(/^\/browser(?:\s+([\s\S]+))?$/);
+      if (browserMatch !== null) {
+        return await this.handleBrowserCommand((browserMatch[1] || '').trim(), data);
       }
 
       // Intercept channel query intent (natural language)
@@ -655,7 +813,11 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
       }
 
       const initStart = Date.now();
-      await this.initAgent(this.options);
+      if (this.contextOverflowRecoveryPending) {
+        await this.resetRuntimeSessionAfterContextOverflow();
+      } else {
+        await this.initAgent(this.options);
+      }
       if (ACP_PERF_LOG) mainLog('ACP-PERF', `manager: initAgent completed ${Date.now() - initStart}ms`);
 
       // Guard against stale agent after CLI crash
@@ -703,6 +865,32 @@ This identity statement takes priority over the default identity in USER.md.
           // Update presetContext with the fresh rules (for subsequent use)
           this.options.presetContext = loadedRules;
 
+          // Re-append the preset runtime context appendix (auto-discovered
+          // scripts/ absolute paths + ops entry point). This block reloads the
+          // rule file on every message and would otherwise overwrite the
+          // appendix that applyPresetRuntime injected at init — leaving the
+          // assistant unable to locate its own scripts and forcing a `find`.
+          try {
+            let cdpPort = 9230;
+            try {
+              // eslint-disable-next-line @typescript-eslint/no-var-requires
+              cdpPort = require('@/utils/configureChromium').cdpPort || 9230;
+            } catch {
+              /* use default */
+            }
+            const reloadPresetResult = await applyPresetRuntime({
+              presetAssistantId: this.options.presetAssistantId,
+              backend: this.extra.backend,
+              workspace: this.extra.workspace,
+              cdpPort,
+            });
+            if (reloadPresetResult.contextAppendix) {
+              this.options.presetContext = (this.options.presetContext || '') + reloadPresetResult.contextAppendix;
+            }
+          } catch (appendixError) {
+            mainWarn('[AcpAgent]', 'Failed to re-append preset runtime appendix:', appendixError);
+          }
+
           // Also update agentName for placeholder display
           if (latestAgentName) {
             this.options.agentName = latestAgentName;
@@ -721,14 +909,53 @@ This identity statement takes priority over the default identity in USER.md.
         }
 
         if (data.files && data.files.length > 0) {
-          const fileRefs = data.files.map((filePath) => (filePath.includes(' ') ? `@"${filePath}"` : '@' + filePath)).join(' ');
+          const fileRefs = data.files
+            .map((filePath) => {
+              const normalized = filePath.replace(/\\/g, '/');
+              return normalized.includes(' ') ? `@"${normalized}"` : '@' + normalized;
+            })
+            .join(' ');
           contentToSend = fileRefs + ' ' + contentToSend;
         }
 
-        const processed = await processAtFileReferences(contentToSend, this.workspace, data.files);
+        if (data.skills && data.skills.length > 0) {
+          mainLog('AcpAgent', `sendMessage: processing skills=${JSON.stringify(data.skills)}`);
+          const skillTags = data.skills.map((skill) => `<command-name>${skill}</command-name>`).join('\n');
+          contentToSend = `${skillTags}\n\n${contentToSend}`;
+          mainLog('AcpAgent', `sendMessage: added skill tags to content, contentToSend starts with: ${contentToSend.substring(0, 100)}`);
+        } else {
+          mainLog('AcpAgent', `sendMessage: no skills to process, data.skills=${JSON.stringify(data.skills)}`);
+        }
+
+        const attachmentGuard = this.validateAttachmentContextRisk(data.files);
+        if (attachmentGuard) {
+          this.emitErrorMessage(attachmentGuard);
+          return {
+            success: false,
+            msg: attachmentGuard,
+          };
+        }
+
+        const processed = await processAtFileReferences(contentToSend, this.workspace, data.files, this.persistedModelId);
         contentToSend = processed.text;
         if (processed.images.length > 0) {
           mainLog('AcpAgent', `sendMessage: sending ${processed.images.length} image(s) as content blocks, mimeTypes=[${processed.images.map((i) => i.mimeType).join(', ')}]`);
+        }
+
+        const finalImages = processed.images;
+
+        if (processed.images.length > 0 && this.options.backend === 'scode') {
+          const currentModel = this.persistedModelId || this.getModelInfo()?.currentModelId;
+          if (!isModelVisionCapable(currentModel)) {
+            const modelLabel = this.getModelInfo()?.currentModelLabel || currentModel || 'unknown';
+            const visionModels = getScodeProxyModelInfoSync()
+              ?.availableModels?.filter((m) => isModelVisionCapable(m.id))
+              ?.map((m) => m.label || m.id)
+              ?.join(', ');
+            const tip = `当前模型 "${modelLabel}" 不支持图片分析，请切换到支持视觉的模型${visionModels ? `（如 ${visionModels}）` : ''}后再发送图片。`;
+            this.emitErrorMessage(tip);
+            return { success: false, message: tip };
+          }
         }
 
         if (this.isFirstMessage) {
@@ -777,7 +1004,7 @@ This identity statement takes priority over the default identity in USER.md.
         }
 
         const agentSendStart = Date.now();
-        const result = await this.sendToConnection(contentToSend, data.msg_id, processed.images);
+        const result = await this.sendToConnection(contentToSend, data.msg_id, finalImages, true);
         if (ACP_PERF_LOG) mainLog('ACP-PERF', `manager: sendMessage completed ${Date.now() - agentSendStart}ms (total: ${Date.now() - managerSendStart}ms)`);
         if (this.isFirstMessage) {
           this.isFirstMessage = false;
@@ -791,7 +1018,7 @@ This identity statement takes priority over the default identity in USER.md.
         return result;
       }
       const agentSendStart = Date.now();
-      const result = await this.sendToConnection(data.content, data.msg_id);
+      const result = await this.sendToConnection(data.content, data.msg_id, undefined, true);
       if (ACP_PERF_LOG) mainLog('ACP-PERF', `manager: sendMessage completed ${Date.now() - agentSendStart}ms (total: ${Date.now() - managerSendStart}ms)`);
       // Handle sendToConnection error result (not thrown)
       if (!result.success) {
@@ -804,6 +1031,10 @@ This identity statement takes priority over the default identity in USER.md.
       this.streamTextBuffer.flushAll();
       cronBusyGuard.setProcessing(this.conversation_id, false);
       this.status = 'finished';
+      this.turnActive = false;
+      // Clear processingStartTime on error
+      // 错误时清除处理开始时间
+      this.processingStartTime = undefined;
 
       // Telemetry: end conversation tracking (error)
       const errorMsg = e instanceof Error ? e.message : String(e);
@@ -896,7 +1127,7 @@ This identity statement takes priority over the default identity in USER.md.
     }
   }
 
-  private async sendToConnection(content: string, msg_id?: string, images?: Array<{ type: 'image'; data: string; mimeType: string }>): Promise<AcpResult> {
+  private async sendToConnection(content: string, msg_id?: string, images?: Array<{ type: 'image'; data: string; mimeType: string }>, skipStart?: boolean): Promise<AcpResult> {
     const sendStart = Date.now();
     try {
       if (!this.connection.isConnected || !this.connection.hasActiveSession) {
@@ -915,15 +1146,18 @@ This identity statement takes priority over the default identity in USER.md.
         }
       }
 
-      // Emit start event
-      this.handleStreamEvent({
-        type: 'start',
-        conversation_id: this.conversation_id,
-        msg_id: msg_id || uuid(),
-        data: null,
-      });
+      // Emit start event (skip if already emitted by sendMessage)
+      if (!skipStart) {
+        this.handleStreamEvent({
+          type: 'start',
+          conversation_id: this.conversation_id,
+          msg_id: msg_id || uuid(),
+          data: { processingStartTime: this.processingStartTime },
+        });
+      }
 
       this.adapter.resetMessageTracking();
+      this.streamedContextErrorBuffer = '';
       let processedContent = content;
 
       // Re-assert model override
@@ -953,7 +1187,15 @@ This identity statement takes priority over the default identity in USER.md.
       // Breadcrumb: API request
       apiBreadcrumbs.request(`session/prompt`, 'POST', this.conversation_id);
 
-      await this.connection.sendPrompt(processedContent, images);
+      processedContent = protectUnsupportedAcpSlashPrompt(
+        processedContent,
+        this.acpAvailableSlashCommands.map((command) => command.name)
+      );
+      if (this.extra.backend === 'scode') {
+        processedContent = SCODE_COMPLETION_REMINDER + processedContent;
+      }
+
+      await this.connection.sendPrompt(processedContent, images, msg_id);
       if (ACP_PERF_LOG) mainLog('ACP-PERF', `send: sendPrompt completed ${Date.now() - promptStart}ms (total send: ${Date.now() - sendStart}ms)`);
 
       // Breadcrumb: API response success
@@ -974,7 +1216,20 @@ This identity statement takes priority over the default identity in USER.md.
 
       let errorType: AcpErrorType = AcpErrorType.UNKNOWN;
       let retryable = false;
-      if (errorMsg.includes('authentication') || errorMsg.includes('认证失败') || errorMsg.includes('[ACP-AUTH-')) {
+      const classification = classifyLlmError(error);
+      if (classification.type === 'context_window_exceeded') {
+        errorType = AcpErrorType.CONTEXT_WINDOW_EXCEEDED;
+        retryable = true;
+        if (classification.recoverableByNewSession) {
+          await this.markRuntimeContextPoisoned(classification.userMessage, 'context_window_exceeded');
+        }
+      } else if (classification.type === 'single_request_too_large' || classification.type === 'request_body_too_large') {
+        errorType = AcpErrorType.REQUEST_TOO_LARGE;
+        retryable = classification.recoverableByNewSession;
+        if (classification.recoverableByNewSession) {
+          await this.markRuntimeContextPoisoned(classification.userMessage, classification.type);
+        }
+      } else if (errorMsg.includes('authentication') || errorMsg.includes('认证失败') || errorMsg.includes('[ACP-AUTH-')) {
         errorType = AcpErrorType.AUTHENTICATION_FAILED;
       } else if (errorMsg.includes('timeout') || errorMsg.includes('Timeout') || errorMsg.includes('timed out')) {
         errorType = AcpErrorType.TIMEOUT;
@@ -986,7 +1241,7 @@ This identity statement takes priority over the default identity in USER.md.
         retryable = true;
       }
 
-      this.emitErrorMessage(translateLLMError(errorMsg));
+      this.emitErrorMessage(classification.type === 'unknown' ? translateLLMError(errorMsg) : classification.userMessage);
 
       // Breadcrumb: API response error
       apiBreadcrumbs.responseError(`session/prompt`, errorType === AcpErrorType.TIMEOUT ? 408 : 500, errorMsg);
@@ -998,6 +1253,107 @@ This identity statement takes priority over the default identity in USER.md.
     }
   }
 
+  private async markRuntimeContextPoisoned(userMessage: string, reason: 'context_window_exceeded' | 'request_body_too_large' | 'single_request_too_large', options: { disconnectNow?: boolean } = {}): Promise<void> {
+    if (this.contextOverflowRecoveryPending) {
+      return;
+    }
+
+    this.contextOverflowRecoveryPending = true;
+    this.extra.acpSessionId = undefined;
+    this.options.acpSessionId = undefined;
+
+    try {
+      const db = getDatabase();
+      const result = db.getConversation(this.conversation_id);
+      if (result.success && result.data && result.data.type === 'acp') {
+        const conversation = result.data;
+        const updatedExtra = { ...conversation.extra };
+        delete updatedExtra.acpSessionId;
+        delete updatedExtra.acpSessionUpdatedAt;
+        updatedExtra.acpContextHealth = {
+          poisoned: true,
+          reason,
+          poisonedAt: Date.now(),
+          recoverableByNewSession: true,
+        };
+        db.updateConversation(this.conversation_id, { extra: updatedExtra } as Partial<typeof conversation>);
+      }
+    } catch (err) {
+      mainWarn('[AcpAgent]', `Failed to persist context overflow recovery state: ${err instanceof Error ? err.message : String(err)}`);
+    }
+
+    clearAcpSessionId(this.conversation_id);
+    if (options.disconnectNow !== false) {
+      try {
+        await this.connection.disconnect();
+      } catch (err) {
+        mainWarn('[AcpAgent]', `Failed to disconnect poisoned ACP session: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+    this.bootstrap = undefined;
+    this.isFirstMessage = true;
+    mainWarn('[AcpAgent]', `Marked ACP runtime context as poisoned for ${this.conversation_id}: ${reason}. ${userMessage}`);
+  }
+
+  private validateAttachmentContextRisk(files?: string[]): string | null {
+    if (!files || files.length === 0) return null;
+
+    for (const filePath of files) {
+      const ext = nodePath.extname(filePath).toLowerCase();
+      if (!CONTEXT_RISK_TEXT_EXTENSIONS.has(ext)) continue;
+
+      try {
+        const stat = fs.statSync(filePath);
+        if (!stat.isFile() || stat.size < TEXT_ATTACHMENT_BLOCK_BYTES) continue;
+
+        const fileName = nodePath.basename(filePath);
+        return `附件 "${fileName}" 大小为 ${formatBytesForMessage(stat.size)}，读取全文很可能超过当前模型上下文限制。请拆分文件、只发送相关片段，或先让模型按章节/行号读取。`;
+      } catch (err) {
+        mainWarn('[AcpAgent]', `Failed to inspect attachment size for ${filePath}: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+
+    return null;
+  }
+
+  private async resetRuntimeSessionAfterContextOverflow(): Promise<void> {
+    this.contextOverflowRecoveryPending = false;
+    this.streamedContextErrorBuffer = '';
+    this.extra.acpSessionId = undefined;
+    this.options.acpSessionId = undefined;
+    clearAcpSessionId(this.conversation_id);
+
+    if (this.connection.isConnected) {
+      try {
+        await this.connection.disconnect();
+      } catch (err) {
+        mainWarn('[AcpAgent]', `Failed to disconnect before fresh context session: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+
+    this.bootstrap = undefined;
+    this.isFirstMessage = true;
+    await this.initAgent(this.options);
+
+    try {
+      const db = getDatabase();
+      const result = db.getConversation(this.conversation_id);
+      if (result.success && result.data && result.data.type === 'acp') {
+        const conversation = result.data;
+        const updatedExtra = {
+          ...conversation.extra,
+          acpContextHealth: {
+            poisoned: false,
+            recoverableByNewSession: false,
+          },
+        };
+        db.updateConversation(this.conversation_id, { extra: updatedExtra } as Partial<typeof conversation>);
+      }
+    } catch (err) {
+      mainWarn('[AcpAgent]', `Failed to clear context overflow recovery state: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
   async confirm(id: string, callId: string, data: AcpPermissionOption) {
     super.confirm(id, callId, data);
     await this.bootstrap;
@@ -1006,8 +1362,14 @@ This identity statement takes priority over the default identity in USER.md.
       const { resolve } = this.pendingPermissions.get(callId)!;
       this.pendingPermissions.delete(callId);
 
+      // Telemetry: end permission request step tracking
+      const meta = this.permissionRequestMeta.get(callId);
+      if (meta?.stepId) {
+        const approved = data.optionId === 'allow' || data.optionId === 'allow_always';
+        endPermissionRequestTracking(meta.stepId, approved);
+      }
+
       if (data.optionId === 'allow_always') {
-        const meta = this.permissionRequestMeta.get(callId);
         if (meta) {
           const approvalKey = createAcpApprovalKey({
             kind: meta.kind,
@@ -1022,12 +1384,52 @@ This identity statement takes priority over the default identity in USER.md.
     }
   }
 
+  async answerQuestion(toolCallId: string, answers: AcpQuestionResponseAnswer[]): Promise<void> {
+    mainLog('[AcpAgent]', `answerQuestion toolCallId=${toolCallId} pending=${this.pendingQuestions.has(toolCallId)} pendingKeys=[${Array.from(this.pendingQuestions.keys()).join(',')}] answerCount=${answers.length}`);
+    if (!this.pendingQuestions.has(toolCallId)) {
+      throw new Error(`Question request not found: ${toolCallId}`);
+    }
+
+    const pending = this.pendingQuestions.get(toolCallId)!;
+    this.pendingQuestions.delete(toolCallId);
+
+    // Persist the answered state so the card survives DB reloads / tab switches.
+    // 持久化已回答状态，确保切换会话或重新加载后卡片仍显示用户选择。
+    try {
+      this.emitQuestionAnswered(pending.msgId, answers);
+    } catch {
+      // Best-effort UI persistence; never let emit errors mask the resolve.
+    }
+
+    pending.resolve({ answers });
+  }
+
   async stop(): Promise<void> {
+    if (this.stopPromise) {
+      return this.stopPromise;
+    }
+    if (!this.turnActive) {
+      return;
+    }
+
+    this.stopPromise = this.performStop().finally(() => {
+      this.stopPromise = null;
+    });
+    return this.stopPromise;
+  }
+
+  private async performStop(): Promise<void> {
+    // Telemetry: end turn tracking (user cancel)
+    endTurnError(this.conversation_id, 'USER_CANCEL');
+
     // Telemetry: end conversation tracking (user cancel)
     endConversationUserCancel(this.conversation_id);
 
     // Breadcrumb: conversation ended (user cancel)
     conversationBreadcrumbs.userCancel(this.conversation_id);
+
+    // Mark as user cancelled to ignore subsequent messages from backend
+    this.userCancelled = true;
 
     // 1. Flush buffered streaming text
     this.streamTextBuffer.flushAll();
@@ -1038,6 +1440,11 @@ This identity statement takes priority over the default identity in USER.md.
       pending.reject(new Error('Cancelled'));
     }
     this.pendingPermissions.clear();
+    for (const [, pending] of this.pendingQuestions) {
+      this.emitQuestionCancelled(pending.msgId);
+      pending.reject(new Error('Cancelled'));
+    }
+    this.pendingQuestions.clear();
     this.permissionRequestMeta.clear();
 
     // 3. Clear confirmation UI
@@ -1050,53 +1457,526 @@ This identity statement takes priority over the default identity in USER.md.
     this.confirmations = [];
 
     // 4. Cancel the current turn. If the backend doesn't acknowledge quickly,
-    // abandon the local wait but keep the session/process alive for the next turn.
+    // force disconnect to stop the process.
+    // 取消当前 turn。如果后端不及时响应，强制断开连接以停止进程。
     let result: 'cancelled' | 'abandoned' | 'disconnected';
     try {
-      result = await this.connection.cancel();
+      result = await this.connection.cancel(5000); // 5 seconds timeout
     } catch {
-      await this.connection.disconnect();
       result = 'disconnected';
     }
 
-    this.status = 'finished';
+    // If backend didn't acknowledge cancel or abandoned, force disconnect
+    // 如果后端没有确认取消或放弃，强制断开连接
+    if (result === 'abandoned' || result === 'disconnected') {
+      mainLog('[AcpAgent]', `Backend cancel result: ${result}, forcing disconnect`);
+      await this.connection.disconnect();
+    }
 
-    if (result === 'disconnected') {
-      // Backend didn't respond to cancel — process was killed
+    this.status = 'finished';
+    this.turnActive = false;
+    // Clear processingStartTime on stop
+    // 停止时清除处理开始时间
+    this.processingStartTime = undefined;
+
+    // 5. Clean up all tracked files on cancel (precise cleanup)
+    // 取消时精确清理追踪到的所有文件（包括 draft 和 final）
+    if (this.workspace) {
+      mainLog('[AcpAgent]', `[STOP] currentTurnFiles size: ${this.currentTurnFiles.size}`);
+      if (this.currentTurnFiles.size > 0) {
+        for (const [path, file] of this.currentTurnFiles) {
+          mainLog('[AcpAgent]', `[STOP] Tracked file: ${path}, intent: ${file.intent}, source: ${file.source}, reason: ${file.reason}`);
+        }
+        this.cleanupTrackedDraftFiles().catch((err) => {
+          mainError('[AcpAgent]', 'Failed to cleanup tracked files:', err);
+        });
+      } else {
+        mainLog('[AcpAgent]', '[STOP] No tracked files to cleanup');
+      }
+    }
+
+    // 6. Clear incomplete tool calls from message list
+    this.emitClearIncompleteTools();
+
+    // 6. Emit user cancelled message
+    this.emitUserCancelledMessage();
+
+    // 7. Always emit finish to ensure UI state is reset
+    void this.handleSignalEvent({
+      type: 'finish',
+      conversation_id: this.conversation_id,
+      msg_id: uuid(),
+      data: null,
+    });
+
+    // 8. Clear state for next turn
+    if (result !== 'cancelled') {
+      // Backend was disconnected or abandoned - clear state for fresh start
       this.emitStatusMessage('disconnected');
       this.approvalStore.clear();
-      // Clear bootstrap so next message re-initializes
       this.bootstrap = undefined;
-      // Emit finish only for disconnect path (cancel path already emitted via onEndTurn)
-      this.handleStreamEvent({
-        type: 'finish',
-        conversation_id: this.conversation_id,
-        msg_id: uuid(),
-        data: null,
-      });
-      return;
     }
-
-    if (result === 'abandoned') {
-      void this.handleSignalEvent({
-        type: 'finish',
-        conversation_id: this.conversation_id,
-        msg_id: uuid(),
-        data: null,
-      });
-      return;
-    }
-
-    // If result === 'cancelled': session is alive, don't touch bootstrap/approvalStore
-    // The finish event was already emitted by handleEndTurn() when the backend responded
   }
 
-  kill() {
-    this.streamTextBuffer.flushAll();
+  /**
+   * Clean up current-turn draft files on cancel. Final files are preserved.
+   * 取消时只清理当前 Turn 的草稿文件，保留最终交付文件。
+   */
+  private async cleanupTrackedDraftFiles(): Promise<number> {
+    const removedCount = await cleanupTrackedDraftsOnCancel(this.workspace, this.currentTurnFiles);
+    this.currentTurnFiles.clear();
+    this.currentTurnProtectedFinalPaths.clear();
 
-    let killed = false;
-    const GRACE_PERIOD_MS = 500;
-    const HARD_TIMEOUT_MS = 1500;
+    if (removedCount > 0) {
+      mainLog('[AcpAgent]', `[CLEANUP] Total current-turn draft files removed: ${removedCount}`);
+    }
+
+    return removedCount;
+  }
+
+  private async archiveCurrentTurnFiles(): Promise<void> {
+    if (!this.workspace || this.currentTurnFiles.size === 0) {
+      return;
+    }
+
+    this.currentTurnProtectedFinalPaths = this.getCurrentTurnFinalRootPaths();
+    await archiveTurnFiles(this.workspace, this.currentTurnFiles);
+    this.currentTurnFiles.clear();
+    mainLog('[AcpAgent]', '[TURN-ARCHIVE] Archived currentTurnFiles and cleared tracking');
+  }
+
+  private getCurrentTurnFinalRootPaths(): Set<string> {
+    const protectedPaths = new Set<string>();
+    if (!this.workspace || this.currentTurnFiles.size === 0) {
+      return protectedPaths;
+    }
+
+    const workspaceRoot = nodePath.resolve(this.workspace);
+    for (const file of this.currentTurnFiles.values()) {
+      if (file.intent !== 'final') {
+        continue;
+      }
+
+      const finalPath = this.resolveFinalFileDisplayPath(file, workspaceRoot);
+      if (finalPath && !finalPath.startsWith(`${DRAFTS_DIR_NAME}/`)) {
+        protectedPaths.add(finalPath);
+      }
+
+      const resolvedActualPath = nodePath.resolve(file.actualPath);
+      const relativePath = nodePath.relative(workspaceRoot, resolvedActualPath);
+      if (!relativePath || relativePath.startsWith('..') || nodePath.isAbsolute(relativePath) || relativePath.startsWith(`${DRAFTS_DIR_NAME}${nodePath.sep}`)) {
+        continue;
+      }
+
+      protectedPaths.add(relativePath.replace(/\\/g, '/'));
+    }
+
+    return protectedPaths;
+  }
+
+  private getCurrentTurnFinalFileSummaries(): Array<{ path: string; reason: string }> {
+    if (!this.workspace || this.currentTurnFiles.size === 0) {
+      return [];
+    }
+
+    const workspaceRoot = nodePath.resolve(this.workspace);
+    const seen = new Set<string>();
+    const summaries: Array<{ path: string; reason: string }> = [];
+
+    for (const file of this.currentTurnFiles.values()) {
+      if (file.intent !== 'final') {
+        continue;
+      }
+
+      const finalPath = this.resolveFinalFileDisplayPath(file, workspaceRoot);
+      if (seen.has(finalPath)) {
+        continue;
+      }
+
+      seen.add(finalPath);
+      summaries.push({
+        path: finalPath,
+        reason: file.reason,
+      });
+    }
+
+    return summaries.sort((a, b) => a.path.localeCompare(b.path));
+  }
+
+  /**
+   * Build a list of `GeneratedFileEntry` records for the current turn's
+   * `intent==='final'` files, enriched with on-disk size + extension + mime so
+   * the renderer can show a preview card without re-stat'ing every file.
+   *
+   * Captured BEFORE `archiveCurrentTurnFiles` clears `currentTurnFiles` —
+   * caller is responsible for invocation order.
+   */
+  private buildGeneratedFileEntries(): GeneratedFileEntry[] {
+    if (!this.workspace || this.currentTurnFiles.size === 0) return [];
+
+    const workspaceRoot = nodePath.resolve(this.workspace);
+    const seen = new Set<string>();
+    const entries: GeneratedFileEntry[] = [];
+    const now = Date.now();
+
+    for (const file of this.currentTurnFiles.values()) {
+      if (file.intent !== 'final') continue;
+
+      const absolutePath = nodePath.resolve(file.actualPath);
+      if (seen.has(absolutePath)) continue;
+      seen.add(absolutePath);
+
+      const relativePath = this.resolveFinalFileDisplayPath(file, workspaceRoot);
+      const ext = extractExtension(absolutePath);
+
+      let size: number | undefined;
+      try {
+        const stat = fs.statSync(absolutePath);
+        if (stat.isFile()) size = stat.size;
+      } catch {
+        // file may have moved between archive + lookup — leave size undefined
+      }
+
+      entries.push({
+        path: absolutePath,
+        relativePath: relativePath !== absolutePath ? relativePath : undefined,
+        kind: file.kind === 'edit' ? 'edit' : 'create',
+        ext,
+        mime: mimeForExtension(ext),
+        size,
+        createdAt: now,
+      });
+    }
+
+    // Stable order: by relative (or absolute) path
+    return entries.sort((a, b) => (a.relativePath ?? a.path).localeCompare(b.relativePath ?? b.path));
+  }
+
+  private resolveFinalFileDisplayPath(file: TrackedTurnFile, workspaceRoot: string): string {
+    const resolvedActualPath = nodePath.resolve(file.actualPath);
+    const actualRelativePath = nodePath.relative(workspaceRoot, resolvedActualPath);
+
+    if (actualRelativePath && !actualRelativePath.startsWith('..') && !nodePath.isAbsolute(actualRelativePath) && !actualRelativePath.startsWith(`${DRAFTS_DIR_NAME}${nodePath.sep}`)) {
+      return actualRelativePath.replace(/\\/g, '/');
+    }
+
+    const requestedPath = file.requestedPath || nodePath.basename(file.actualPath);
+    const normalizedRequestedPath = requestedPath.replace(/\\/g, '/').replace(/^\.\//, '');
+    if (!normalizedRequestedPath || normalizedRequestedPath.startsWith('../') || normalizedRequestedPath.includes('/../') || normalizedRequestedPath.startsWith(`${DRAFTS_DIR_NAME}/`)) {
+      return nodePath.basename(file.actualPath);
+    }
+
+    return normalizedRequestedPath;
+  }
+
+  private emitFallbackCompletionMessage(finalFiles: Array<{ path: string; reason: string }>): void {
+    const hasVisibleContentAfterLastTool = this.turnHadVisibleAssistantContent && this.lastVisibleAssistantContentSequence > this.lastToolCompletionSequence;
+    if (this.userCancelled || hasVisibleContentAfterLastTool) {
+      return;
+    }
+
+    let content = '执行已完成，但模型没有返回总结。';
+    if (finalFiles.length > 0) {
+      const fileList = finalFiles.map((file) => `- ${file.path}`).join('\n');
+      content = `执行已完成。\n\n生成或更新的文件：\n${fileList}`;
+    }
+
+    this.emitMessage({
+      id: uuid(),
+      msg_id: uuid(),
+      conversation_id: this.conversation_id,
+      type: 'text',
+      position: 'left',
+      createdAt: Date.now(),
+      status: 'finish',
+      content: { content },
+    });
+  }
+
+  /**
+   * Emit a trailing assistant `text` message whose content is JUST the
+   * `[[NEXUS_GENERATED_FILES]]` marker + JSON payload. The renderer
+   * (MessagetText.tsx → GeneratedFileCard) detects it and shows preview
+   * cards instead of plain text.
+   *
+   * This is a separate message — not appended to the assistant's prose —
+   * so the renderer can style it as a "deliverables" bubble distinct from
+   * the natural-language reply.
+   *
+   * Skipped when no final files exist (most chat-only turns).
+   */
+  private emitGeneratedFilesMarkerMessage(entries: GeneratedFileEntry[]): void {
+    if (this.userCancelled || entries.length === 0) return;
+    const content = appendGeneratedFilesMarker('', entries);
+    this.emitMessage({
+      id: uuid(),
+      msg_id: uuid(),
+      conversation_id: this.conversation_id,
+      type: 'text',
+      position: 'left',
+      createdAt: Date.now(),
+      status: 'finish',
+      content: { content },
+    });
+    // Live-push the deliverables list to the renderer's right-panel
+    // "交付物" tab so it can append without refetching from DB.
+    try {
+      ipcBridge.deliverables.changed.emit({ conversationId: this.conversation_id, files: entries });
+    } catch (err) {
+      mainLog('[AcpAgent]', `[TRACK] deliverables.changed emit failed: ${String(err)}`);
+    }
+  }
+
+  private hasVisibleAssistantContent(data: unknown): boolean {
+    if (typeof data === 'string') {
+      return data.trim().length > 0;
+    }
+
+    if (!data || typeof data !== 'object' || !('content' in data)) {
+      return false;
+    }
+
+    const content = (data as { content?: unknown }).content;
+    return typeof content === 'string' && content.trim().length > 0;
+  }
+
+  private resolveWorkspacePath(requestedPath: string, intent: 'draft' | 'final' = 'final'): string {
+    const workspaceRoot = nodePath.resolve(this.workspace);
+    const trimmedPath = requestedPath.trim();
+    const resolvedPath = nodePath.isAbsolute(trimmedPath) ? nodePath.resolve(trimmedPath) : nodePath.resolve(workspaceRoot, trimmedPath);
+    const relativePath = nodePath.relative(workspaceRoot, resolvedPath);
+
+    if (relativePath && !relativePath.startsWith('..') && !nodePath.isAbsolute(relativePath)) {
+      return resolvedPath;
+    }
+
+    const fallbackDir = intent === 'draft' ? nodePath.join(workspaceRoot, DRAFTS_DIR_NAME) : workspaceRoot;
+    return nodePath.join(fallbackDir, nodePath.basename(trimmedPath));
+  }
+
+  private trackTurnFile(input: { requestedPath: string; actualPath?: string; content?: string | null; source: FileIntentSource; kind: 'create' | 'edit'; operationIntent?: FileOperationIntent }): void {
+    if (!this.workspace || !input.requestedPath) {
+      return;
+    }
+
+    const preliminaryPath = input.actualPath || this.resolveWorkspacePath(input.requestedPath);
+    const classification = this.fileIntentClassifier.classify({
+      filePath: preliminaryPath,
+      requestedPath: input.requestedPath,
+      content: input.content,
+      userMessage: this.lastUserMessage,
+      source: input.source,
+      operationIntent: input.operationIntent,
+    });
+    const actualPath = input.actualPath || this.resolveWorkspacePath(input.requestedPath);
+    const workspaceRoot = nodePath.resolve(this.workspace);
+    const relativePath = nodePath.relative(workspaceRoot, nodePath.resolve(actualPath));
+    const trackingKey = relativePath && !relativePath.startsWith('..') && !nodePath.isAbsolute(relativePath) ? relativePath : input.requestedPath;
+
+    this.currentTurnFiles.set(trackingKey, {
+      actualPath,
+      path: actualPath,
+      requestedPath: input.requestedPath,
+      intent: classification.intent,
+      reason: classification.reason,
+      source: input.source,
+      kind: input.kind,
+      userInitiated: classification.userInitiated,
+    });
+    mainLog('[AcpAgent]', `[TRACK] File: ${trackingKey}, intent: ${classification.intent}, source: ${input.source}, reason: ${classification.reason}, actualPath: ${actualPath}`);
+
+    // Surface AI-written HTML in the right-panel browser. trackFile is the
+    // earliest point where the absolute path is fully resolved (the prior
+    // attempt in the write/edit/create tool-call branch relied on
+    // extractFilePathFromToolCall, which returns null for many ACP backends'
+    // tool argument shapes).
+    if (classification.intent !== 'draft' && /\.html?$/i.test(actualPath)) {
+      try {
+        ipcBridge.rightPanelBrowser.open.emit({ url: `file://${actualPath}`, switchTab: true });
+        mainLog('[AcpAgent]', `[TRACK] rightPanelBrowser.open fired for ${actualPath}`);
+      } catch (err) {
+        mainLog('[AcpAgent]', `[TRACK] rightPanelBrowser.open emit failed: ${String(err)}`);
+      }
+    }
+  }
+
+  /**
+   * Emit clear incomplete tools message
+   * 发送清理未完成工具调用的消息
+   */
+  private emitClearIncompleteTools(): void {
+    ipcBridge.acpConversation.responseStream.emit({
+      type: 'clear_incomplete_tools',
+      conversation_id: this.conversation_id,
+      msg_id: uuid(),
+      data: null,
+    });
+  }
+
+  /**
+   * Track files generated by Bash tool execution
+   * 追踪 Bash 工具执行产生的文件
+   *
+   * Scans workspace for new files after Bash completes and tracks them
+   * 在 Bash 完成后扫描工作空间新增文件并追踪
+   */
+  private trackBashGeneratedFiles(command?: string | null): void {
+    try {
+      const currentSnapshot = this.getWorkspaceFiles();
+
+      // Compare with previous snapshot to find new and modified files
+      const previousSnapshot = this.workspaceFileSnapshot;
+      const draftRestoreDetection = detectBashDraftRestoreCommand(command);
+      const changedFiles: Array<{ path: string; kind: 'create' | 'edit' }> = [];
+
+      for (const [file, time] of currentSnapshot) {
+        if (!previousSnapshot.has(file)) {
+          changedFiles.push({ path: file, kind: 'create' });
+          continue;
+        }
+
+        const previousTime = previousSnapshot.get(file);
+        if (previousTime !== undefined && time > previousTime) {
+          changedFiles.push({ path: file, kind: 'edit' });
+        }
+      }
+
+      let trackedCount = 0;
+      for (const changedFile of changedFiles) {
+        const file = changedFile.path;
+        const relativePath = nodePath.relative(this.workspace, file);
+
+        if (this.shouldSkipWorkspaceTrackingPath(relativePath)) continue;
+
+        let content: string | null = null;
+        try {
+          content = fs.readFileSync(file, 'utf-8');
+        } catch {
+          content = null;
+        }
+
+        this.trackTurnFile({
+          requestedPath: relativePath,
+          actualPath: file,
+          content,
+          source: 'bash-generated',
+          kind: changedFile.kind,
+          operationIntent: this.isBashRestoredDraftRootFile(relativePath, previousSnapshot, draftRestoreDetection) ? 'restore-from-drafts' : undefined,
+        });
+        trackedCount++;
+      }
+
+      // Update snapshot for next comparison
+      this.workspaceFileSnapshot = currentSnapshot;
+
+      if (trackedCount > 0) {
+        mainLog('[AcpAgent]', `[TRACK-BASH] Total changed files tracked: ${trackedCount}`);
+      }
+    } catch (err) {
+      mainError('[AcpAgent]', 'Failed to track Bash generated files:', err);
+    }
+  }
+
+  private isBashRestoredDraftRootFile(relativePath: string, previousSnapshot: Map<string, number>, detection: BashDraftRestoreDetection): boolean {
+    const normalizedRelativePath = relativePath.trim().replace(/\\/g, '/').replace(/^\.\//, '').toLowerCase();
+    if (!normalizedRelativePath || normalizedRelativePath.startsWith('../') || normalizedRelativePath.split('/').includes(DRAFTS_DIR_NAME)) {
+      return false;
+    }
+
+    const basename = nodePath.basename(normalizedRelativePath).toLowerCase();
+    if (detection.explicitPaths.has(normalizedRelativePath) || detection.explicitBasenames.has(basename)) {
+      return true;
+    }
+
+    if (!detection.wildcard) {
+      return false;
+    }
+
+    const previousDraftPath = nodePath.join(nodePath.resolve(this.workspace), DRAFTS_DIR_NAME, nodePath.basename(relativePath));
+    return previousSnapshot.has(previousDraftPath);
+  }
+
+  /**
+   * Get current workspace files snapshot
+   * 获取当前工作空间文件快照
+   */
+  private getWorkspaceFiles(): Map<string, number> {
+    const snapshot = new Map<string, number>();
+
+    try {
+      // Scan workspace root
+      const scanDir = (dir: string, baseDir: string) => {
+        if (!fs.existsSync(dir)) return;
+
+        const entries = fs.readdirSync(dir, { withFileTypes: true });
+        for (const entry of entries) {
+          const fullPath = nodePath.join(dir, entry.name);
+          const relativePath = nodePath.relative(baseDir, fullPath);
+
+          // Skip certain directories
+          if (entry.isDirectory()) {
+            if (this.shouldSkipWorkspaceTrackingPath(relativePath)) continue;
+            scanDir(fullPath, baseDir);
+          } else if (entry.isFile()) {
+            if (this.shouldSkipWorkspaceTrackingPath(relativePath)) continue;
+            try {
+              const stat = fs.statSync(fullPath);
+              snapshot.set(fullPath, stat.mtimeMs);
+            } catch {
+              // Ignore stat errors
+            }
+          }
+        }
+      };
+
+      scanDir(this.workspace, this.workspace);
+    } catch (err) {
+      mainError('[AcpAgent]', 'Failed to get workspace files snapshot:', err);
+    }
+
+    return snapshot;
+  }
+
+  private shouldSkipWorkspaceTrackingPath(relativePath: string): boolean {
+    return shouldSkipAcpWorkspaceTrackingPath(relativePath);
+  }
+
+  /**
+   * Emit user cancelled message as content type
+   * 发送用户终止消息（作为 content 类型，会显示在对话历史中）
+   */
+  private emitUserCancelledMessage(): void {
+    // Emit as 'content' type so it appears in conversation history
+    // and user can continue the conversation
+    const msg: IResponseMessage = {
+      type: 'content',
+      conversation_id: this.conversation_id,
+      msg_id: uuid(),
+      data: '请求已被用户终止',
+    };
+
+    // Direct emit to bypass handleStreamEvent's userCancelled check
+    ipcBridge.acpConversation.responseStream.emit(msg);
+
+    // Persist to local DB
+    const tMessage: TMessage = {
+      id: msg.msg_id,
+      msg_id: msg.msg_id,
+      type: 'text',
+      position: 'left',
+      conversation_id: this.conversation_id,
+      content: { content: msg.data as string },
+      createdAt: Date.now(),
+    };
+    addOrUpdateMessage(this.conversation_id, tMessage, this.options.backend);
+  }
+
+  kill(): Promise<void> {
+    this.streamTextBuffer.flushAll();
+    this.toolCallMeta.clear();
+    this.workspaceFileSnapshot.clear();
+
+    const HARD_TIMEOUT_MS = 3000;
 
     const waiters = this.acpAvailableSlashWaiters.splice(0, this.acpAvailableSlashWaiters.length);
     for (const resolve of waiters) {
@@ -1104,20 +1984,24 @@ This identity statement takes priority over the default identity in USER.md.
     }
     this.acpAvailableSlashCommands = [];
 
-    const doKill = () => {
-      if (killed) return;
-      killed = true;
-      clearTimeout(hardTimer);
-    };
+    // Return a promise that resolves when the child process is terminated.
+    // This allows callers (e.g. WorkerManage.clear → before-quit) to await
+    // cleanup and prevents orphaned scode processes on Windows.
+    return new Promise<void>((resolve) => {
+      const hardTimer = setTimeout(() => {
+        mainWarn('[AcpAgent]', 'kill(): hard timeout reached, resolving anyway');
+        resolve();
+      }, HARD_TIMEOUT_MS);
 
-    const hardTimer = setTimeout(doKill, HARD_TIMEOUT_MS);
-
-    void (this.connection?.disconnect?.() || Promise.resolve())
-      .catch((err) => {
-        mainWarn('[AcpAgent]', 'connection.disconnect() failed during kill', err);
-      })
-      .then(() => new Promise<void>((r) => setTimeout(r, GRACE_PERIOD_MS)))
-      .finally(doKill);
+      (this.connection?.disconnect?.() || Promise.resolve())
+        .catch((err) => {
+          mainWarn('[AcpAgent]', 'connection.disconnect() failed during kill', err);
+        })
+        .finally(() => {
+          clearTimeout(hardTimer);
+          resolve();
+        });
+    });
   }
 
   /**
@@ -1126,17 +2010,22 @@ This identity statement takes priority over the default identity in USER.md.
    */
   async restartAndConnect(): Promise<void> {
     // Disconnect current connection (kills process, clears session state)
-    await this.connection.disconnect();
-    // Clear bootstrap so initAgent creates a fresh connection
-    this.bootstrap = undefined;
-    // Clear pending state
-    this.pendingPermissions.clear();
-    this.permissionRequestMeta.clear();
-    this.approvalStore.clear();
-    this.pendingNavigationTools.clear();
-    this.statusMessageId = null;
-    // Re-initialize agent connection
-    await this.initAgent();
+    this.plannedRestartInProgress = true;
+    try {
+      await this.connection.disconnect();
+      // Clear bootstrap so initAgent creates a fresh connection
+      this.bootstrap = undefined;
+      // Clear pending state
+      this.pendingPermissions.clear();
+      this.permissionRequestMeta.clear();
+      this.approvalStore.clear();
+      this.pendingNavigationTools.clear();
+      this.statusMessageId = null;
+      // Re-initialize agent connection
+      await this.initAgent();
+    } finally {
+      this.plannedRestartInProgress = false;
+    }
   }
 
   async ensureYoloMode(): Promise<boolean> {
@@ -1190,6 +2079,11 @@ This identity statement takes priority over the default identity in USER.md.
   }
 
   async setModel(modelId: string): Promise<AcpModelInfo | null> {
+    const normalizedModelId = modelId.trim();
+    if (!normalizedModelId) {
+      return this.getModelInfo();
+    }
+
     if (!this.connection?.isConnected) {
       try {
         await this.initAgent(this.options);
@@ -1197,10 +2091,39 @@ This identity statement takes priority over the default identity in USER.md.
         return null;
       }
     }
-    const result = await this.setModelByConfigOption(modelId);
+
+    if (this.options.backend === 'scode') {
+      this.persistedModelId = normalizedModelId;
+      this.userModelOverride = normalizedModelId;
+      this.pendingModelSwitchNotice = normalizedModelId;
+      saveModelId(this.conversation_id, normalizedModelId);
+      this.options.currentModelId = normalizedModelId;
+      this.extra.customEnv = {
+        ...this.extra.customEnv,
+        SUDOCODE_CURRENT_MODEL_ID: normalizedModelId,
+      };
+    }
+
+    let result: AcpModelInfo | null = null;
+    try {
+      result = await this.setModelByConfigOption(normalizedModelId);
+    } catch (error) {
+      if (this.options.backend !== 'scode') {
+        throw error;
+      }
+      mainWarn('[AcpAgent]', `scode: setModel("${normalizedModelId}") failed, restarting connection to apply model/auth mode: ${error instanceof Error ? error.message : String(error)}`);
+      try {
+        await this.restartAndConnect();
+        result = this.getModelInfo();
+      } catch (restartError) {
+        mainWarn('[AcpAgent]', `scode: restart after model switch failed: ${restartError instanceof Error ? restartError.message : String(restartError)}`);
+        throw error;
+      }
+    }
+
     if (result) {
-      this.persistedModelId = result.currentModelId;
-      saveModelId(this.conversation_id, result.currentModelId);
+      this.persistedModelId = result.currentModelId || normalizedModelId;
+      saveModelId(this.conversation_id, this.persistedModelId);
       if (result.availableModels?.length > 0) {
         void this.cacheModelList(result);
       }
@@ -1253,7 +2176,7 @@ This identity statement takes priority over the default identity in USER.md.
   }
 
   async setMode(mode: string): Promise<{ success: boolean; msg?: string; data?: { mode: string } }> {
-    if (this.options.backend === 'codex') {
+    if (this.options.backend === 'codex' || this.options.backend === 'scode') {
       const prev = this.currentMode;
       this.currentMode = mode;
       this.yoloMode = this.isYoloMode(mode);
@@ -1335,6 +2258,33 @@ This identity statement takes priority over the default identity in USER.md.
   // ========== Connection Event Handlers ==========
 
   private handleSessionUpdate(data: AcpSessionUpdate): void {
+    // Ignore most session updates if user has cancelled
+    // But still process Bash tool completions to track generated files for cleanup
+    // 用户取消后忽略大部分 session 更新，但仍然处理 Bash 工具完成事件以追踪生成的文件用于清理
+    if (this.userCancelled) {
+      // Special handling: still track Bash-generated files even after cancel
+      // 特殊处理：即使取消后仍然追踪 Bash 生成的文件
+      if (data.update?.sessionUpdate === 'tool_call_update') {
+        const statusUpdate = data as ToolCallUpdateStatus;
+        const toolCallId = statusUpdate.update?.toolCallId;
+        const toolStatus = statusUpdate.update?.status;
+        const rawInput = statusUpdate.update?.rawInput;
+
+        if (toolStatus === 'completed' && rawInput) {
+          // Check if this is a Bash tool
+          const meta = this.toolCallMeta.get(toolCallId);
+          if (meta && meta.toolName.toLowerCase() === 'bash') {
+            mainLog('[AcpAgent]', `[TRACK-BASH-CANCEL] Bash completed after cancel, tracking generated files`);
+            const command = (rawInput?.command ?? meta.rawInput?.command) as string | undefined;
+            this.trackBashGeneratedFiles(command);
+          }
+        }
+      }
+
+      mainLog('[AcpAgent]', `Ignoring session update after user cancel: sessionUpdate=${data.update?.sessionUpdate}`);
+      return;
+    }
+
     try {
       if (data.update?.sessionUpdate === 'available_commands_update') {
         const commandUpdate = data as AvailableCommandsUpdate;
@@ -1356,30 +2306,171 @@ This identity statement takes priority over the default identity in USER.md.
         const toolCallUpdate = data as ToolCallUpdate;
         const toolName = toolCallUpdate.update?.title || '';
         const toolCallId = toolCallUpdate.update?.toolCallId;
+        console.log(`[AcpAgent] tool_call event: toolName=${toolName}, toolCallId=${toolCallId}`);
 
         // Breadcrumb: MCP/tool call started
         mcpBreadcrumbs.toolCall(toolName, 'acp', this.conversation_id);
 
-        if (NavigationInterceptor.isNavigationTool(toolName)) {
+        // Telemetry: start tool call step tracking
+        const turnId = getCurrentTurnId(this.conversation_id);
+        if (turnId && toolCallId) {
+          // Determine tool kind based on tool name
+          const toolKind = this.getToolKind(toolName);
+          startToolCallTracking(this.conversation_id, turnId, toolCallId, toolName, toolKind, this.options.backend);
+        }
+
+        // Store tool call meta for file_send detection
+        if (toolCallId) {
+          this.toolCallMeta.set(toolCallId, {
+            toolName,
+            rawInput: toolCallUpdate.update?.rawInput as Record<string, unknown> | undefined,
+          });
+        }
+
+        // Structured form so ai-dev-browser invocations whose outer tool
+        // title is "Bash"/"Shell" (with the real `aidb page_goto --url …`
+        // buried in `rawInput.command`) also trigger the preview-open.
+        const navData: NavigationToolData = {
+          toolName,
+          rawInput: toolCallUpdate.update?.rawInput as Record<string, unknown> | undefined,
+          content: toolCallUpdate.update?.content as NavigationToolData['content'],
+        };
+        if (NavigationInterceptor.isNavigationTool(navData)) {
           if (toolCallId) {
             this.pendingNavigationTools.add(toolCallId);
           }
-          const url = NavigationInterceptor.extractUrl(toolCallUpdate.update);
+          const url = NavigationInterceptor.extractUrl(navData);
           if (url) {
             const previewMessage = NavigationInterceptor.createPreviewMessage(url, this.conversation_id);
             this.handleStreamEvent(previewMessage);
           }
         }
+
+        if (this.extra.backend !== 'scode') {
+          const questionMessage = this.adapter.buildQuestionMessageFromToolCall(toolCallUpdate);
+          if (questionMessage) {
+            this.emitMessage(questionMessage);
+          }
+        }
       }
 
       if (data.update?.sessionUpdate === 'tool_call_update') {
-        const statusUpdate = data as import('@/types/acpTypes').ToolCallUpdateStatus;
+        const statusUpdate = data as ToolCallUpdateStatus;
         const toolCallId = statusUpdate.update?.toolCallId;
         const toolStatus = statusUpdate.update?.status;
+        if (toolStatus === 'completed' || toolStatus === 'failed') {
+          this.lastToolCompletionSequence = ++this.turnEventSequence;
+        }
 
         // Breadcrumb: MCP/tool call result
         if (toolStatus === 'completed' || toolStatus === 'failed') {
           mcpBreadcrumbs.toolResult(toolCallId || 'unknown', toolStatus === 'completed');
+        }
+
+        // Telemetry: end tool call step tracking
+        if (toolStatus === 'completed' || toolStatus === 'failed') {
+          if (toolCallId) {
+            endToolCallTracking(toolCallId, toolStatus === 'completed' ? 'success' : 'error');
+          }
+        }
+
+        // Generate user message for SendUserMessage/AskUserQuestion tool results
+        if (toolStatus === 'completed') {
+          const userMessage = this.adapter.generateUserMessageFromToolCall(statusUpdate);
+          if (userMessage) {
+            this.emitMessage(userMessage);
+          }
+        }
+
+        // Intercept file-creation tool calls: send generated files to channel clients (e.g., WeChat, Lark)
+        if (toolStatus === 'completed' && toolCallId) {
+          const meta = this.toolCallMeta.get(toolCallId);
+          console.log(`[AcpAgent] tool_call_update completed: toolCallId=${toolCallId}, hasMeta=${!!meta}, meta=${meta ? JSON.stringify({ toolName: meta.toolName, rawInput: meta.rawInput }) : 'null'}`);
+          if (meta) {
+            const toolName = meta.toolName;
+            const rawInput = meta.rawInput;
+            console.log(`[AcpAgent] Processing tool call: toolName=${toolName}, lastUserMessage=${this.lastUserMessage?.substring(0, 50)}...`);
+
+            // ★ Track file operations for precise cleanup on cancel
+            const n = toolName.toLowerCase();
+            if (n === 'write_file' || n === 'edit_file') {
+              const inputPath = rawInput?.path as string | undefined;
+              const content = rawInput?.content as string | undefined;
+              if (inputPath) {
+                this.trackTurnFile({
+                  requestedPath: inputPath,
+                  content,
+                  source: n === 'write_file' ? 'write' : 'edit',
+                  kind: n === 'write_file' ? 'create' : 'edit',
+                });
+              }
+            }
+
+            // ★ Track files generated by Bash tool (scan workspace for new files)
+            // 追踪 Bash 工具产生的文件（扫描工作空间新增文件）
+            if (n === 'bash') {
+              mainLog('[AcpAgent]', `[TRACK-BASH] Bash tool detected, status: ${toolStatus}`);
+              if (toolStatus === 'completed') {
+                this.trackBashGeneratedFiles(rawInput?.command as string | undefined);
+              }
+            }
+
+            // Strategy 1: SendUserMessage tool - Agent explicitly sends files to user
+            // This is the preferred way for Agent to send files
+            if (n === 'sendusermessage' || n === 'brief') {
+              const attachments = rawInput?.attachments as Array<string> | undefined;
+              if (attachments && attachments.length > 0) {
+                for (const attachmentPath of attachments) {
+                  if (typeof attachmentPath === 'string' && attachmentPath.trim()) {
+                    this.sendFileToChannels(attachmentPath.trim());
+                  }
+                }
+                this.refreshWorkspaceFileSnapshot();
+              }
+            }
+            // Strategy 2: write_file tool - Auto-send files when user requested them
+            // This handles cases where Agent creates files but doesn't use SendUserMessage
+            else if (/write|edit|create/.test(n)) {
+              console.log(`[AcpAgent] Detected write/edit/create tool: ${toolName}`);
+              const filePath = this.extractFilePathFromToolCall(toolName, rawInput);
+              console.log(`[AcpAgent] extractFilePathFromToolCall result: ${filePath}`);
+              if (filePath) {
+                // If the AI wrote an .html / .htm file, surface it in the
+                // right-panel browser. Independent of the channel-auto-send
+                // decision below — the browser view is opt-in user-visible,
+                // not a network action.
+                if (/\.html?$/i.test(filePath)) {
+                  try {
+                    ipcBridge.rightPanelBrowser.open.emit({ url: `file://${filePath}`, switchTab: true });
+                  } catch (err) {
+                    console.log(`[AcpAgent] rightPanelBrowser.open emit failed: ${String(err)}`);
+                  }
+                }
+
+                // Check if user's original message indicates they want the file sent
+                const userMessage = this.lastUserMessage?.toLowerCase() || '';
+                const userWantsFileSent = /发我|发给我|发送给我|发给我|发到|发送到|发来|发过来|send me|send to me/i.test(userMessage);
+                console.log(`[AcpAgent] userWantsFileSent=${userWantsFileSent}, userMessage="${userMessage.substring(0, 100)}"`);
+                // Also check if file is NOT a draft (intermediate file)
+                const ext = nodePath.extname(filePath).toLowerCase();
+                const isDraftExtension = ext === '.md' && (filePath.includes('temp') || filePath.includes('payload') || filePath.includes('draft'));
+                const isIntermediateScript = ext === '.py' && (filePath.includes('create_') || filePath.includes('generate_') || filePath.includes('convert_'));
+                console.log(`[AcpAgent] ext=${ext}, isDraftExtension=${isDraftExtension}, isIntermediateScript=${isIntermediateScript}`);
+
+                if (userWantsFileSent && !isDraftExtension && !isIntermediateScript) {
+                  console.log(`[AcpAgent] User requested file, auto-sending: ${filePath}`);
+                  this.sendFileToChannels(filePath);
+                  this.refreshWorkspaceFileSnapshot();
+                } else {
+                  console.log(`[AcpAgent] Skipping file send: userWantsFileSent=${userWantsFileSent}, isDraft=${isDraftExtension}, isIntermediate=${isIntermediateScript}`);
+                }
+              }
+            } else {
+              console.log(`[AcpAgent] Tool ${toolName} does not match write/edit/create pattern`);
+            }
+          }
+          // Clean up tool call meta after processing
+          this.toolCallMeta.delete(toolCallId);
         }
 
         if (toolCallId && this.pendingNavigationTools.has(toolCallId)) {
@@ -1417,6 +2508,8 @@ This identity statement takes priority over the default identity in USER.md.
         this.emitModelInfoEvent();
       }
 
+      this.handleStreamedContextLimitError(data);
+
       const messages = this.adapter.convertSessionUpdate(data);
       for (let i = 0; i < messages.length; i++) {
         this.emitMessage(messages[i]);
@@ -1426,6 +2519,21 @@ This identity statement takes priority over the default identity in USER.md.
     }
   }
 
+  private handleStreamedContextLimitError(data: AcpSessionUpdate): void {
+    if (data.update?.sessionUpdate !== 'agent_message_chunk') return;
+
+    const content = data.update.content as { text?: string } | undefined;
+    const text = content?.text;
+    if (!text) return;
+
+    this.streamedContextErrorBuffer = (this.streamedContextErrorBuffer + text).slice(-4000);
+    const classification = classifyLlmError(this.streamedContextErrorBuffer);
+    if (!CONTEXT_OVERFLOW_REASONS.has(classification.type)) return;
+
+    const reason = classification.type === 'request_body_too_large' ? 'request_body_too_large' : classification.type === 'single_request_too_large' ? 'single_request_too_large' : 'context_window_exceeded';
+    void this.markRuntimeContextPoisoned(classification.userMessage, reason, { disconnectNow: false });
+  }
+
   private handlePermissionRequest(data: AcpPermissionRequest): Promise<{ optionId: string }> {
     return new Promise((resolve, reject) => {
       if (data.toolCall && !data.toolCall.toolCallId) {
@@ -1433,14 +2541,29 @@ This identity statement takes priority over the default identity in USER.md.
       }
       const requestId = data.toolCall.toolCallId;
 
+      // Telemetry: start permission request step tracking
+      const turnId = getCurrentTurnId(this.conversation_id);
+      let stepId: string | undefined;
+      if (turnId && data.toolCall.kind) {
+        stepId = startPermissionRequestTracking(this.conversation_id, turnId, data.toolCall.kind, this.options.backend);
+      }
+
       // In yolo/bypassPermissions mode, auto-approve all permission requests
       if (this.yoloMode) {
+        // Telemetry: end permission request step tracking (auto-approved)
+        if (stepId) {
+          endPermissionRequestTracking(stepId, true);
+        }
         resolve({ optionId: 'allow_always' });
         return;
       }
 
       const approvalKey = createAcpApprovalKey(data.toolCall);
       if (this.approvalStore.isApprovedForSession(approvalKey)) {
+        // Telemetry: end permission request step tracking (pre-approved)
+        if (stepId) {
+          endPermissionRequestTracking(stepId, true);
+        }
         resolve({ optionId: 'allow_always' });
         return;
       }
@@ -1453,11 +2576,17 @@ This identity statement takes priority over the default identity in USER.md.
         kind: data.toolCall.kind,
         title: data.toolCall.title,
         rawInput: data.toolCall.rawInput,
+        stepId, // Store stepId for ending tracking on confirm
       });
 
       const toolName = data.toolCall?.title || '';
-      if (NavigationInterceptor.isNavigationTool(toolName)) {
-        const url = NavigationInterceptor.extractUrl(data.toolCall);
+      const permissionNavData: NavigationToolData = {
+        toolName,
+        rawInput: data.toolCall?.rawInput as Record<string, unknown> | undefined,
+        content: data.toolCall?.content as NavigationToolData['content'],
+      };
+      if (NavigationInterceptor.isNavigationTool(permissionNavData)) {
+        const url = NavigationInterceptor.extractUrl(permissionNavData);
         if (url) {
           const previewMessage = NavigationInterceptor.createPreviewMessage(url, this.conversation_id);
           this.handleStreamEvent(previewMessage);
@@ -1483,21 +2612,197 @@ This identity statement takes priority over the default identity in USER.md.
         return;
       }
 
-      setTimeout(() => {
-        if (this.pendingPermissions.has(requestId)) {
-          this.pendingPermissions.delete(requestId);
-          reject(new Error('Permission request timed out'));
-        }
-      }, 70000);
+      setTimeout(
+        () => {
+          if (this.pendingPermissions.has(requestId)) {
+            this.pendingPermissions.delete(requestId);
+            reject(new Error('Permission request timed out'));
+          }
+        },
+        10 * 60 * 1000
+      );
     });
   }
 
-  private handleEndTurn(): void {
-    // Telemetry: end conversation tracking (success)
-    endConversationSuccess(this.conversation_id);
+  private handleQuestionRequest(data: AcpQuestionRequest): Promise<{ answers: AcpQuestionResponseAnswer[] }> {
+    return new Promise((resolve, reject) => {
+      const requestId = this.resolveQuestionRequestId(data.toolCallId);
 
-    // Breadcrumb: conversation ended (success)
-    conversationBreadcrumbs.end(this.conversation_id, 'success');
+      if (this.pendingQuestions.has(requestId)) {
+        const oldRequest = this.pendingQuestions.get(requestId);
+        if (oldRequest) {
+          oldRequest.reject(new Error('Replaced by new question request'));
+        }
+        this.pendingQuestions.delete(requestId);
+      }
+
+      const msgId = `${requestId}-user-msg`;
+      this.pendingQuestions.set(requestId, { resolve, reject, msgId });
+
+      try {
+        this.emitMessage({
+          id: uuid(),
+          type: 'acp_question',
+          msg_id: msgId,
+          conversation_id: this.conversation_id,
+          createdAt: Date.now(),
+          position: 'left',
+          content: {
+            question: data.title || data.description || data.questions[0]?.prompt || 'Question',
+            intro: data.description,
+            options: [],
+            items: data.questions.map((question) => ({
+              id: question.id,
+              prompt: question.prompt,
+              kind: question.kind,
+              options: question.options.map((option) => ({
+                label: option.label,
+                value: option.value,
+                description: option.description,
+                recommended: option.recommended === true,
+              })),
+              allowCustomInput: question.allowCustomInput === true,
+              customInputHint: question.customInputHint,
+              optional: !question.required,
+            })),
+            conversationId: this.conversation_id,
+            toolCallId: requestId,
+            answered: false,
+          },
+        });
+      } catch (error) {
+        this.pendingQuestions.delete(requestId);
+        reject(error instanceof Error ? error : new Error(String(error)));
+        return;
+      }
+
+      setTimeout(
+        () => {
+          if (this.pendingQuestions.has(requestId)) {
+            this.pendingQuestions.delete(requestId);
+            mainWarn('AcpAgent', `Question request timed out: requestId=${requestId}`);
+            this.emitQuestionCancelled(msgId);
+            reject(new Error('Question request timed out'));
+          }
+        },
+        10 * 60 * 1000
+      );
+    });
+  }
+
+  /**
+   * Emit an acp_question update that records the user's answers so the card
+   * stays in the "answered" state after DB persistence / tab switches.
+   * 发送一个 acp_question 更新，将用户答案持久化到消息存储，避免切换会话后回显丢失。
+   */
+  private emitQuestionAnswered(msgId: string, answers: AcpQuestionResponseAnswer[]): void {
+    const answerItems = answers.map((answer, idx) => {
+      const submissionValue = answer.value ?? '';
+      const labelValue = typeof answer.label === 'string' ? answer.label : '';
+      const skipped = submissionValue === '[skipped]';
+      const displayValue = skipped ? '' : labelValue || submissionValue;
+      return {
+        id: answer.id,
+        index: idx + 1,
+        submissionValue,
+        displayValue,
+        skipped,
+      };
+    });
+
+    let selectedAnswer: string;
+    if (answerItems.length === 1) {
+      const only = answerItems[0];
+      selectedAnswer = only.displayValue || '[skipped]';
+    } else {
+      selectedAnswer = answerItems.map((item) => `${item.index}. ${item.skipped ? '[skipped]' : item.displayValue}`).join('\n');
+    }
+
+    // Only include the fields that change: question/options/items/intro must be
+    // omitted so chatLib.composeMessage's shallow merge does not clobber the
+    // original prompt text on tab-switch reload.
+    // 只发送变化字段；composeMessage 用浅合并，若包含 question/options 会覆盖原始题面。
+    const partialContent = {
+      conversationId: this.conversation_id,
+      answered: true,
+      selectedAnswer,
+      answerItems,
+    } as unknown as AcpQuestionData;
+
+    this.emitMessage({
+      id: uuid(),
+      type: 'acp_question',
+      msg_id: msgId,
+      conversation_id: this.conversation_id,
+      createdAt: Date.now(),
+      position: 'left',
+      content: partialContent,
+    });
+  }
+
+  /**
+   * Emit an acp_question update that marks the card as cancelled, so the renderer
+   * can switch out of the interactive state when stop() or the timeout fires.
+   * 发送一个 acp_question 更新，将卡片标记为已取消，便于渲染端退出交互态。
+   */
+  private emitQuestionCancelled(msgId: string): void {
+    try {
+      this.emitMessage({
+        id: uuid(),
+        type: 'acp_question',
+        msg_id: msgId,
+        conversation_id: this.conversation_id,
+        createdAt: Date.now(),
+        position: 'left',
+        content: {
+          // Required by AcpQuestionData; the renderer merges partial updates by msg_id.
+          question: '',
+          options: [],
+          conversationId: this.conversation_id,
+          answered: true,
+          cancelled: true,
+        },
+      });
+    } catch {
+      // Best-effort UI hint; never let emit errors mask the underlying rejection.
+    }
+  }
+
+  private resolveQuestionRequestId(requestToolCallId: string): string {
+    if (requestToolCallId && this.toolCallMeta.has(requestToolCallId)) {
+      return requestToolCallId;
+    }
+
+    const latestAskUserQuestion = Array.from(this.toolCallMeta.entries())
+      .reverse()
+      .find(([, meta]) => meta.toolName === 'AskUserQuestion');
+
+    return latestAskUserQuestion?.[0] || requestToolCallId;
+  }
+
+  private async handleEndTurn(): Promise<void> {
+    const finalFiles = !this.userCancelled ? this.getCurrentTurnFinalFileSummaries() : [];
+
+    if (!this.userCancelled) {
+      // Telemetry: end turn tracking (success)
+      endTurnSuccess(this.conversation_id);
+
+      // Telemetry: end conversation tracking (success)
+      endConversationSuccess(this.conversation_id);
+
+      // Breadcrumb: conversation ended (success)
+      conversationBreadcrumbs.end(this.conversation_id, 'success');
+    }
+
+    if (!this.userCancelled) {
+      await this.installTrackedWorkspaceSkills();
+      // Capture rich GeneratedFileEntry records BEFORE archiveCurrentTurnFiles
+      // wipes currentTurnFiles — the renderer needs them to draw preview cards.
+      const generatedEntries = this.buildGeneratedFileEntries();
+      await this.archiveCurrentTurnFiles();
+      this.emitFallbackCompletionMessage(finalFiles);
+      this.emitGeneratedFilesMarkerMessage(generatedEntries);
+    }
 
     const msg: IResponseMessage = {
       type: 'finish',
@@ -1508,20 +2813,125 @@ This identity statement takes priority over the default identity in USER.md.
     void this.handleSignalEvent(msg);
   }
 
+  private async installTrackedWorkspaceSkills(): Promise<void> {
+    if (!this.workspace) {
+      return;
+    }
+
+    try {
+      const results = await installWorkspaceSkillsFromTrackedFiles(this.workspace, this.currentTurnFiles, {
+        getCustomSkillsDir,
+        existingCustomSkillNames: this.customSkillsSnapshot,
+        clearSkillsCache,
+        resetAcpSkillManager: () => AcpSkillManager.resetInstance(),
+      });
+      const installed = results.filter((result) => result.status === 'installed');
+      const registered = results.filter((result) => result.status === 'registered');
+      const updated = results.filter((result) => result.status === 'updated');
+      const changed = [...installed, ...registered, ...updated];
+
+      if (changed.length === 0) {
+        if (results.length > 0) {
+          mainLog('[AcpAgent]', '[SKILL-INSTALL] No workspace skills installed', {
+            skipped: results.map((result) => ({
+              sourceDir: result.sourceDir,
+              reason: result.status === 'skipped' ? result.reason : undefined,
+              skillName: result.skillName,
+            })),
+          });
+        }
+        return;
+      }
+
+      for (const result of changed) {
+        const action = result.status === 'installed' ? 'Installed' : result.status === 'updated' ? 'Updated' : 'Registered';
+        mainLog('[AcpAgent]', `[SKILL-INSTALL] ${action} workspace skill "${result.skillName}"`, {
+          sourceDir: result.sourceDir,
+          targetDir: result.targetDir,
+          installedVersion: result.installedVersion,
+          status: result.status,
+        });
+        ipcBridge.skillHub.changed.emit({
+          skillName: result.skillName,
+          source: 'workspace',
+        });
+      }
+      this.emitWorkspaceSkillInstallMessage(changed);
+    } catch (error) {
+      mainWarn('[AcpAgent]', '[SKILL-INSTALL] Failed to install workspace skills', error);
+    }
+  }
+
+  private emitWorkspaceSkillInstallMessage(skills: Array<{ skillName: string; targetDir: string; status?: 'installed' | 'registered' | 'updated' }>): void {
+    const skillNames = Array.from(new Set(skills.map((skill) => skill.skillName))).filter(Boolean);
+    if (skillNames.length === 0) {
+      return;
+    }
+
+    const skillList = skillNames.map((skillName) => `- ${skillName}`).join('\n');
+    const allUpdated = skills.every((skill) => skill.status === 'updated');
+    const actionText = allUpdated ? '更新' : '安装/更新';
+    const content = skillNames.length === 1 ? `技能已${actionText}到自定义技能：${skillNames[0]}\n\n你可以在“技能商店 > 我的技能 > 自定义技能”中查看。` : `以下技能已${actionText}到自定义技能：\n\n${skillList}\n\n你可以在“技能商店 > 我的技能 > 自定义技能”中查看。`;
+
+    this.emitMessage({
+      id: uuid(),
+      msg_id: uuid(),
+      conversation_id: this.conversation_id,
+      type: 'text',
+      position: 'left',
+      createdAt: Date.now(),
+      status: 'finish',
+      content: { content },
+    });
+  }
+
   private handlePromptUsage(usage: AcpPromptResponseUsage): void {
+    // Telemetry: update turn token usage
+    updateTurnTokens(this.conversation_id, usage);
+
+    const tokenUsage = normalizePromptUsageForMessage(usage);
+    if (tokenUsage && this.lastAssistantTextMsgId) {
+      this.streamTextBuffer.flushAll();
+      const usagePatch: IResponseMessage = {
+        type: 'content',
+        conversation_id: this.conversation_id,
+        msg_id: this.lastAssistantTextMsgId,
+        data: {
+          content: '',
+          tokenUsage,
+        },
+      };
+      const tMessage = transformMessage(usagePatch);
+      if (tMessage) {
+        addOrUpdateMessage(this.conversation_id, tMessage, this.options.backend);
+      }
+      ipcBridge.acpConversation.responseStream.emit(usagePatch);
+    }
+
     if (this.hasReceivedUsageUpdate) return;
+    const used = usage.estimatedSessionTokens ?? usage.totalTokens;
+    const size = usage.contextWindowTokens ?? 0;
     this.handleStreamEvent({
       type: 'acp_context_usage',
       conversation_id: this.conversation_id,
       msg_id: uuid(),
       data: {
-        used: usage.totalTokens,
-        size: 0,
+        used,
+        size,
       },
     });
   }
 
   private handleFileOperation(operation: { method: string; path: string; content?: string; sessionId: string }): void {
+    // Telemetry: record file operation step
+    const turnId = getCurrentTurnId(this.conversation_id);
+    if (turnId) {
+      const operationType = operation.method.includes('write') ? 'write' : operation.method.includes('read') ? 'read' : 'delete';
+      recordFileOperationStep(this.conversation_id, turnId, operationType, operation.path, 'success', this.options.backend);
+    }
+
+    this.trackWrittenWorkspaceFile(operation);
+
     let text: string;
     switch (operation.method) {
       case 'fs/write_text_file':
@@ -1545,11 +2955,68 @@ This identity statement takes priority over the default identity in USER.md.
     this.emitMessage(message);
   }
 
+  private getCustomSkillNames(): Set<string> {
+    const names = new Set<string>();
+    const customSkillsDir = getCustomSkillsDir();
+
+    try {
+      if (!fs.existsSync(customSkillsDir)) {
+        return names;
+      }
+
+      for (const entry of fs.readdirSync(customSkillsDir, { withFileTypes: true })) {
+        if (entry.isDirectory()) {
+          names.add(entry.name);
+        }
+      }
+    } catch (error) {
+      mainWarn('[AcpAgent]', '[SKILL-INSTALL] Failed to snapshot custom skills', error);
+    }
+
+    return names;
+  }
+
+  private trackWrittenWorkspaceFile(operation: { method: string; path: string; content?: string }): void {
+    if (!this.workspace || operation.method !== 'fs/write_text_file') {
+      return;
+    }
+
+    const workspaceRoot = nodePath.resolve(this.workspace);
+    const actualPath = nodePath.isAbsolute(operation.path) ? nodePath.resolve(operation.path) : nodePath.resolve(workspaceRoot, operation.path);
+    const relativePath = nodePath.relative(workspaceRoot, actualPath);
+    if (!relativePath || relativePath.startsWith('..') || nodePath.isAbsolute(relativePath)) {
+      return;
+    }
+
+    this.trackTurnFile({
+      requestedPath: operation.path,
+      actualPath,
+      content: operation.content,
+      source: 'write',
+      kind: fs.existsSync(actualPath) ? 'edit' : 'create',
+    });
+  }
+
   private handleDisconnect(error: { code: number | null; signal: NodeJS.Signals | null }): void {
+    if (this.plannedRestartInProgress) {
+      mainLog('[AcpAgent]', `Ignoring planned ${this.extra.backend} disconnect during restart (code: ${error.code}, signal: ${error.signal})`);
+      this.emitStatusMessage('disconnected');
+      this.pendingPermissions.clear();
+      this.permissionRequestMeta.clear();
+      this.approvalStore.clear();
+      this.pendingNavigationTools.clear();
+      this.statusMessageId = null;
+      this.bootstrap = undefined;
+      return;
+    }
+
     this.emitStatusMessage('disconnected');
 
     const errorMsg = `${this.extra.backend} process disconnected unexpectedly ` + `(code: ${error.code}, signal: ${error.signal}). ` + `Please try sending a new message to reconnect.`;
-    this.emitErrorMessage(errorMsg);
+    this.emitErrorMessage(errorMsg, false); // Skip finish, will send below
+
+    // Telemetry: end turn tracking (error)
+    endTurnError(this.conversation_id, 'E001');
 
     // Telemetry: end conversation tracking (connection error)
     endConversationError(this.conversation_id, 'E001');
@@ -1578,6 +3045,12 @@ This identity statement takes priority over the default identity in USER.md.
   // ========== Stream & Signal Pipeline (merged from Manager) ==========
 
   private handleStreamEvent(message: IResponseMessage): void {
+    // Ignore messages if user has cancelled
+    if (this.userCancelled) {
+      mainLog('[AcpAgent]', `Ignoring message after user cancel: type=${message.type}`);
+      return;
+    }
+
     const pipelineStart = Date.now();
 
     if (message.type === 'agent_status') {
@@ -1627,11 +3100,22 @@ This identity statement takes priority over the default identity in USER.md.
       saveContextUsage(this.conversation_id, usageData);
     }
 
-    if (message.type !== 'thought' && message.type !== 'acp_model_info' && message.type !== 'acp_context_usage') {
-      const tMessage = transformMessage(message as IResponseMessage);
+    const filteredMessage = preprocessContentMessage(message as IResponseMessage);
+
+    if (message.type === 'content' && filteredMessage.type === 'content' && filteredMessage.data === '') {
+      return;
+    }
+
+    if (filteredMessage.type === 'content' && this.hasVisibleAssistantContent(filteredMessage.data)) {
+      this.turnHadVisibleAssistantContent = true;
+      this.lastVisibleAssistantContentSequence = ++this.turnEventSequence;
+    }
+
+    if (filteredMessage.type !== 'thought' && filteredMessage.type !== 'acp_model_info' && filteredMessage.type !== 'acp_context_usage') {
+      const tMessage = transformMessage(filteredMessage as IResponseMessage);
 
       if (tMessage) {
-        const isStreamTextChunk = tMessage.type === 'text' && message.type === 'content';
+        const isStreamTextChunk = tMessage.type === 'text' && filteredMessage.type === 'content';
         if (isStreamTextChunk) {
           this.streamTextBuffer.queue(tMessage, this.options.backend);
         } else {
@@ -1645,8 +3129,6 @@ This identity statement takes priority over the default identity in USER.md.
         }
       }
     }
-
-    const filteredMessage = preprocessContentMessage(message as IResponseMessage);
 
     ipcBridge.acpConversation.responseStream.emit(filteredMessage);
 
@@ -1662,6 +3144,12 @@ This identity statement takes priority over the default identity in USER.md.
   }
 
   private async handleSignalEvent(v: IResponseMessage): Promise<void> {
+    // Ignore messages if user has cancelled
+    if (this.userCancelled && v.type !== 'finish') {
+      mainLog('[AcpAgent]', `Ignoring signal event after user cancel: type=${v.type}`);
+      return;
+    }
+
     this.streamTextBuffer.flushAll();
 
     if (v.type === 'acp_permission') {
@@ -1689,12 +3177,29 @@ This identity statement takes priority over the default identity in USER.md.
 
     if (v.type === 'finish') {
       cronBusyGuard.setProcessing(this.conversation_id, false);
+      this.turnActive = false;
+
+      // Delay clearing processingStartTime to match frontend's 1-second finish delay
+      // This ensures timer can be restored if user switches conversations during the delay
+      // 延迟清除 processingStartTime 以匹配前端 1 秒的 finish 延迟
+      // 这确保在延迟期间切换会话时计时器可以恢复
+      setTimeout(() => {
+        this.processingStartTime = undefined;
+      }, 1500);
+
+      await this.archiveCurrentTurnFiles().catch((err) => {
+        mainError('AcpAgent', 'Turn archive failed:', err);
+      });
 
       // Post-cleanup: move intermediate files from workspace root to .drafts/
       if (this.workspace) {
-        cleanupIntermediateFiles(this.workspace).catch((err) => {
-          mainError('AcpAgent', 'Post-cleanup failed:', err);
-        });
+        cleanupIntermediateFiles(this.workspace, { protectedFinalPaths: this.currentTurnProtectedFinalPaths })
+          .catch((err) => {
+            mainError('AcpAgent', 'Post-cleanup failed:', err);
+          })
+          .finally(() => {
+            this.currentTurnProtectedFinalPaths.clear();
+          });
       }
     }
 
@@ -1814,7 +3319,7 @@ This identity statement takes priority over the default identity in USER.md.
     });
   }
 
-  private emitErrorMessage(error: string): void {
+  private emitErrorMessage(error: string, withFinish: boolean = true): void {
     const errorMessage: TMessage = {
       id: uuid(),
       conversation_id: this.conversation_id,
@@ -1827,6 +3332,23 @@ This identity statement takes priority over the default identity in USER.md.
       },
     };
     this.emitMessage(errorMessage);
+
+    // Emit finish event to reset frontend processing state (unless skipped)
+    // Clear processingStartTime immediately on error (no delay)
+    // 发送 finish 事件以重置前端处理状态（除非跳过），错误时立即清除 processingStartTime（不延迟）
+    if (withFinish) {
+      // Immediately clear processingStartTime on error
+      // 错误时立即清除 processingStartTime
+      this.processingStartTime = undefined;
+
+      const finishMessage: IResponseMessage = {
+        type: 'finish',
+        conversation_id: this.conversation_id,
+        msg_id: uuid(),
+        data: null,
+      };
+      ipcBridge.acpConversation.responseStream.emit(finishMessage);
+    }
   }
 
   private emitModelInfoEvent(): void {
@@ -1854,6 +3376,9 @@ This identity statement takes priority over the default identity in USER.md.
 
     switch (message.type) {
       case 'text':
+        if (message.position === 'left') {
+          this.lastAssistantTextMsgId = message.msg_id || message.id;
+        }
         responseMessage.type = 'content';
         responseMessage.data = message.content.content;
         break;
@@ -1863,6 +3388,10 @@ This identity statement takes priority over the default identity in USER.md.
         break;
       case 'acp_permission':
         responseMessage.type = 'acp_permission';
+        responseMessage.data = message.content;
+        break;
+      case 'acp_question':
+        responseMessage.type = 'acp_question';
         responseMessage.data = message.content;
         break;
       case 'tips': {
@@ -1903,6 +3432,26 @@ This identity statement takes priority over the default identity in USER.md.
     const firstSentence = content.split('.')[0];
     if (firstSentence.length < 100) return firstSentence;
     return 'Thinking';
+  }
+
+  /**
+   * Determine tool kind for telemetry tracking
+   * - read: tools that read files or data
+   * - edit: tools that modify files
+   * - execute: tools that run commands or other operations
+   */
+  private getToolKind(toolName: string): 'read' | 'edit' | 'execute' {
+    const name = toolName.toLowerCase();
+    // Read tools
+    if (/read|get|fetch|list|search|find|glob|grep|cat|head|tail|view/.test(name)) {
+      return 'read';
+    }
+    // Edit tools
+    if (/write|edit|create|delete|remove|move|copy|rename|mkdir|rmdir/.test(name)) {
+      return 'edit';
+    }
+    // Default to execute for bash, permission, and other tools
+    return 'execute';
   }
 
   // ========== Private Helpers ==========
@@ -1948,7 +3497,7 @@ This identity statement takes priority over the default identity in USER.md.
       type: 'start',
       conversation_id: this.conversation_id,
       msg_id: responseMsgId,
-      data: null,
+      data: { processingStartTime: this.processingStartTime },
     });
 
     if (!modelArg) {
@@ -2024,6 +3573,7 @@ This identity statement takes priority over the default identity in USER.md.
       msg_id: responseMsgId,
       data: null,
     });
+    this.turnActive = false;
     this.status = 'idle';
     cronBusyGuard.setProcessing(this.conversation_id, false);
     return { success: true, data: null };
@@ -2037,81 +3587,90 @@ This identity statement takes priority over the default identity in USER.md.
       type: 'start',
       conversation_id: this.conversation_id,
       msg_id: responseMsgId,
-      data: null,
+      data: { processingStartTime: this.processingStartTime },
     });
 
     try {
-      // Parse sub-command: analyze, edit, gen/generate
-      const analyzeMatch = args.match(/^analyze\s+(?:"([^"]+)"|'([^']+)'|(\S+))\s+([\s\S]+)$/);
-
-      if (analyzeMatch) {
-        // Image analysis: use chat model + /chat/completions
-        const rawPath = analyzeMatch[1] ?? analyzeMatch[2] ?? analyzeMatch[3];
-        const srcPath = nodePath.isAbsolute(rawPath) ? rawPath : nodePath.join(saveDir, rawPath);
-        const prompt = analyzeMatch[4].trim();
-
-        const creds = readSudorouterCredentials();
-        const chatModel = resolveChatModel();
-        if (!creds || !chatModel) {
-          ipcBridge.acpConversation.responseStream.emit({
-            type: 'content',
-            conversation_id: this.conversation_id,
-            msg_id: responseMsgId,
-            data: '未找到可用的模型配置，请检查 sudoclaw 配置。',
-          });
-        } else {
-          const analysisResult = await callChatCompletionsWithImage(creds.baseUrl, creds.apiKey, chatModel, srcPath, prompt);
-          const contentMsg = {
-            type: 'content' as const,
-            conversation_id: this.conversation_id,
-            msg_id: responseMsgId,
-            data: analysisResult,
-          };
-          ipcBridge.acpConversation.responseStream.emit(contentMsg);
-          ipcBridge.conversation.responseStream.emit(contentMsg);
-          const tMessage = transformMessage(contentMsg);
-          if (tMessage) addOrUpdateMessage(this.conversation_id, tMessage);
-        }
+      if (!args) {
+        ipcBridge.acpConversation.responseStream.emit({
+          type: 'content',
+          conversation_id: this.conversation_id,
+          msg_id: responseMsgId,
+          data: 'Usage: `/image <prompt>`, `/image generate <prompt>`, `/image edit <path> <prompt>`, or `/image analyze <path> <prompt>`.',
+        });
       } else {
-        // Image generation/edit: use image model
-        const config = await resolveImageConfig();
-        if (!config) {
-          ipcBridge.acpConversation.responseStream.emit({
-            type: 'content',
-            conversation_id: this.conversation_id,
-            msg_id: responseMsgId,
-            data: '未找到可用的图像生成模型配置，请在工具设置中配置图像模型。',
-          });
-        } else {
-          const genMatch = args.match(/^(?:gen|generate)\s+([\s\S]+)$/);
-          const editMatch = args.match(/^edit\s+(?:"([^"]+)"|'([^']+)'|(\S+))\s+([\s\S]+)$/);
+        // Parse sub-command: analyze, edit, gen/generate
+        const analyzeMatch = args.match(/^analyze\s+(?:"([^"]+)"|'([^']+)'|(\S+))\s+([\s\S]+)$/);
 
-          let imageUrls: string[];
+        if (analyzeMatch) {
+          // Image analysis: use chat model + /chat/completions
+          const rawPath = analyzeMatch[1] ?? analyzeMatch[2] ?? analyzeMatch[3];
+          const srcPath = nodePath.isAbsolute(rawPath) ? rawPath : nodePath.join(saveDir, rawPath);
+          const prompt = analyzeMatch[4].trim();
 
-          if (editMatch) {
-            const rawPath = editMatch[1] ?? editMatch[2] ?? editMatch[3];
-            const srcPath = nodePath.isAbsolute(rawPath) ? rawPath : nodePath.join(saveDir, rawPath);
-            const prompt = editMatch[4].trim();
-            const imageUrl = await callImagesEdits(config.baseUrl, config.apiKey, config.model, srcPath, prompt, '1024x1024', 1);
-            imageUrls = [imageUrl];
+          const creds = readSudorouterCredentials();
+          const chatModel = resolveChatModel();
+          if (!creds || !chatModel) {
+            ipcBridge.acpConversation.responseStream.emit({
+              type: 'content',
+              conversation_id: this.conversation_id,
+              msg_id: responseMsgId,
+              data: '未找到可用的模型配置，请检查 sudoclaw 配置。',
+            });
           } else {
-            const prompt = genMatch ? genMatch[1].trim() : args;
-            const imageUrl = await callImagesGenerations(config.baseUrl, config.apiKey, config.model, prompt, '1024x1024', 1);
-            imageUrls = [imageUrl];
+            const analysisResult = await callChatCompletionsWithImage(creds.baseUrl, creds.apiKey, chatModel, srcPath, prompt);
+            const contentMsg = {
+              type: 'content' as const,
+              conversation_id: this.conversation_id,
+              msg_id: responseMsgId,
+              data: analysisResult,
+            };
+            ipcBridge.acpConversation.responseStream.emit(contentMsg);
+            ipcBridge.conversation.responseStream.emit(contentMsg);
+            const tMessage = transformMessage(contentMsg);
+            if (tMessage) addOrUpdateMessage(this.conversation_id, tMessage);
           }
+        } else {
+          // Image generation/edit: use image model
+          const config = await resolveImageConfig();
+          if (!config) {
+            ipcBridge.acpConversation.responseStream.emit({
+              type: 'content',
+              conversation_id: this.conversation_id,
+              msg_id: responseMsgId,
+              data: '未找到可用的图像生成模型配置，请在工具设置中配置图像模型。',
+            });
+          } else {
+            const genMatch = args.match(/^(?:gen|generate)\s+([\s\S]+)$/);
+            const editMatch = args.match(/^edit\s+(?:"([^"]+)"|'([^']+)'|(\S+))\s+([\s\S]+)$/);
 
-          const savedImages = await Promise.all(imageUrls.map((url) => saveImageResult(url, saveDir)));
-          const imgContent = savedImages.map(({ imgUrl }) => `![](${imgUrl})`).join('\n');
-          const contentMsg = {
-            type: 'content' as const,
-            conversation_id: this.conversation_id,
-            msg_id: responseMsgId,
-            data: imgContent,
-          };
-          ipcBridge.acpConversation.responseStream.emit(contentMsg);
-          ipcBridge.conversation.responseStream.emit(contentMsg);
-          const tMessage = transformMessage(contentMsg);
-          if (tMessage) addOrUpdateMessage(this.conversation_id, tMessage);
+            let imageUrls: string[];
+
+            if (editMatch) {
+              const rawPath = editMatch[1] ?? editMatch[2] ?? editMatch[3];
+              const srcPath = nodePath.isAbsolute(rawPath) ? rawPath : nodePath.join(saveDir, rawPath);
+              const prompt = editMatch[4].trim();
+              const imageUrl = await callImagesEdits(config.baseUrl, config.apiKey, config.model, srcPath, prompt, '1024x1024', 1);
+              imageUrls = [imageUrl];
+            } else {
+              const prompt = genMatch ? genMatch[1].trim() : args;
+              const imageUrl = await callImagesGenerations(config.baseUrl, config.apiKey, config.model, prompt, '1024x1024', 1);
+              imageUrls = [imageUrl];
+            }
+
+            const savedImages = await Promise.all(imageUrls.map((url) => saveImageResult(url, saveDir)));
+            const imgContent = savedImages.map(({ imgUrl }) => `![](${imgUrl})`).join('\n');
+            const contentMsg = {
+              type: 'content' as const,
+              conversation_id: this.conversation_id,
+              msg_id: responseMsgId,
+              data: imgContent,
+            };
+            ipcBridge.acpConversation.responseStream.emit(contentMsg);
+            ipcBridge.conversation.responseStream.emit(contentMsg);
+            const tMessage = transformMessage(contentMsg);
+            if (tMessage) addOrUpdateMessage(this.conversation_id, tMessage);
+          }
         }
       }
     } catch (error) {
@@ -2131,6 +3690,107 @@ This identity statement takes priority over the default identity in USER.md.
       msg_id: responseMsgId,
       data: null,
     });
+    this.turnActive = false;
+    this.status = 'idle';
+    cronBusyGuard.setProcessing(this.conversation_id, false);
+    return { success: true, data: null };
+  }
+
+  /**
+   * `/browser <subcommand>` — user-initiated control of the right-panel
+   * BrowserPanel. AI never sees these commands (the slash whitelist routes
+   * them straight here). Subcommands:
+   *
+   *   /browser open <url>      — open url in the right-panel browser
+   *   /browser status          — show recent network responses for the
+   *                              currently active tab (status codes + URLs)
+   *   /browser eval <js>       — run JS in the active tab, stream result back
+   *   /browser screenshot      — capture the active tab and return as image
+   */
+  private async handleBrowserCommand(args: string, data: { msg_id?: string }): Promise<AcpResult> {
+    const responseMsgId = uuid();
+    ipcBridge.acpConversation.responseStream.emit({
+      type: 'start',
+      conversation_id: this.conversation_id,
+      msg_id: responseMsgId,
+      data: { processingStartTime: this.processingStartTime },
+    });
+
+    const emit = (text: string): void => {
+      ipcBridge.acpConversation.responseStream.emit({
+        type: 'content',
+        conversation_id: this.conversation_id,
+        msg_id: responseMsgId,
+        data: text,
+      });
+    };
+
+    try {
+      if (!args) {
+        emit('Usage: `/browser open <url>`, `/browser status`, `/browser eval <js>`, or `/browser screenshot`.');
+      } else {
+        const { browserPanelCdpService } = await import('@process/services/browserPanel/BrowserPanelCdpService');
+        const subMatch = args.match(/^(open|status|eval|screenshot)(?:\s+([\s\S]+))?$/i);
+        if (!subMatch) {
+          emit(`Unknown /browser subcommand. Usage: \`/browser open <url>\`, \`/browser status\`, \`/browser eval <js>\`, \`/browser screenshot\`.`);
+        } else {
+          const sub = subMatch[1].toLowerCase();
+          const rest = (subMatch[2] || '').trim();
+          const targetId = browserPanelCdpService.resolveWebContentsId();
+
+          if (sub === 'open') {
+            if (!rest) {
+              emit('Usage: `/browser open <url>`');
+            } else {
+              ipcBridge.rightPanelBrowser.open.emit({ url: rest, switchTab: true });
+              emit(`Opened ${rest} in the right-panel browser.`);
+            }
+          } else if (targetId === null) {
+            emit('No active browser tab. Open one with `/browser open <url>` or click the 浏览器 tab on the right.');
+          } else if (sub === 'status') {
+            const recent = browserPanelCdpService.listNetworkRequests(targetId, { limit: 25 });
+            if (recent.length === 0) {
+              emit('No network responses captured for the active tab yet.');
+            } else {
+              const lines = recent.map((r) => `${r.status ?? '   '} ${r.method ?? ''} ${r.type ?? ''} ${r.url.slice(0, 200)}`);
+              emit(['```', ...lines, '```'].join('\n'));
+            }
+          } else if (sub === 'eval') {
+            if (!rest) {
+              emit('Usage: `/browser eval <js-expression>`');
+            } else {
+              const result = await browserPanelCdpService.evaluateScript(targetId, { expression: rest });
+              if (!result.ok) {
+                emit(`Eval failed: ${result.errorText ?? 'unknown error'}${result.errorDetail ? `\n${result.errorDetail}` : ''}`);
+              } else {
+                const text = typeof result.value === 'string' ? result.value : JSON.stringify(result.value, null, 2);
+                emit(['```', String(text ?? result.description ?? '(no return value)'), '```'].join('\n'));
+              }
+            }
+          } else if (sub === 'screenshot') {
+            const shot = await browserPanelCdpService.takeScreenshot(targetId, { format: 'png' });
+            ipcBridge.acpConversation.responseStream.emit({
+              type: 'content',
+              conversation_id: this.conversation_id,
+              msg_id: responseMsgId,
+              data: `![browser screenshot](data:image/png;base64,${shot.base64})`,
+            });
+          }
+        }
+      }
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      mainError('[AcpAgent]', `Browser command failed: ${msg}`);
+      emit(`Browser command failed: ${msg}`);
+    }
+
+    ipcBridge.acpConversation.responseStream.emit({
+      type: 'finish',
+      conversation_id: this.conversation_id,
+      msg_id: responseMsgId,
+      data: null,
+    });
+    this.turnActive = false;
     this.status = 'idle';
     cronBusyGuard.setProcessing(this.conversation_id, false);
     return { success: true, data: null };
@@ -2143,7 +3803,7 @@ This identity statement takes priority over the default identity in USER.md.
       type: 'start',
       conversation_id: this.conversation_id,
       msg_id: responseMsgId,
-      data: null,
+      data: { processingStartTime: this.processingStartTime },
     });
 
     try {
@@ -2155,8 +3815,9 @@ This identity statement takes priority over the default identity in USER.md.
         msg_id: responseMsgId,
         data: result,
       };
+      // 只发送一次，acpConversation.responseStream 和 conversation.responseStream 是同一流
       ipcBridge.acpConversation.responseStream.emit(contentMsg);
-      ipcBridge.conversation.responseStream.emit(contentMsg);
+      // 消息落库
       const tMessage = transformMessage(contentMsg);
       if (tMessage) addOrUpdateMessage(this.conversation_id, tMessage);
     } catch (error) {
@@ -2176,6 +3837,7 @@ This identity statement takes priority over the default identity in USER.md.
       msg_id: responseMsgId,
       data: null,
     });
+    this.turnActive = false;
     this.status = 'idle';
     cronBusyGuard.setProcessing(this.conversation_id, false);
     return { success: true, data: null };
@@ -2231,6 +3893,257 @@ This identity statement takes priority over the default identity in USER.md.
 
   get hasActiveSession(): boolean {
     return this.connection.hasActiveSession;
+  }
+
+  // ========== Workspace File Tracking for Channel Clients ==========
+
+  /** Document extensions that should trigger file sending to channel clients */
+  private static readonly DOCUMENT_EXTENSIONS = new Set([
+    // Office documents
+    '.pdf',
+    '.doc',
+    '.docx',
+    '.xls',
+    '.xlsx',
+    '.ppt',
+    '.pptx',
+    // Text/data formats
+    '.csv',
+    '.txt',
+    '.md',
+    '.html',
+    '.htm',
+    '.xml',
+    '.json',
+    '.yaml',
+    '.yml',
+    '.toml',
+    // Code files (common programming languages)
+    '.js',
+    '.ts',
+    '.jsx',
+    '.tsx',
+    '.py',
+    '.rb',
+    '.go',
+    '.rs',
+    '.java',
+    '.kt',
+    '.swift',
+    '.c',
+    '.cpp',
+    '.h',
+    '.hpp',
+    '.cs',
+    '.php',
+    '.lua',
+    '.r',
+    '.sql',
+    // Shell/scripts
+    '.sh',
+    '.bash',
+    '.zsh',
+    '.ps1',
+    '.bat',
+    '.cmd',
+    '.vbs',
+    // Config files
+    '.conf',
+    '.config',
+    '.ini',
+    '.env',
+    '.properties',
+    // Markup/styles
+    '.css',
+    '.scss',
+    '.sass',
+    '.less',
+    '.vue',
+    '.svelte',
+    // Archive/compressed
+    '.zip',
+    '.tar',
+    '.gz',
+    '.bz2',
+    '.xz',
+    '.7z',
+    '.rar',
+    // Other common formats
+    '.log',
+    '.rst',
+    '.adoc',
+    '.tex',
+    '.org',
+  ]);
+
+  /** Image extensions */
+  private static readonly IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.tiff', '.bmp', '.ico', '.svg', '.heic', '.heif', '.avif']);
+
+  /**
+   * Build or refresh the workspace file snapshot.
+   * Scans the workspace root (non-recursive, depth=1) and records each deliverable file's mtime.
+   * Files inside .drafts/ directory are excluded.
+   */
+  private refreshWorkspaceFileSnapshot(): void {
+    this.workspaceFileSnapshot.clear();
+    if (!this.workspace) return;
+
+    try {
+      const entries = fs.readdirSync(this.workspace, { withFileTypes: true });
+      for (const entry of entries) {
+        if (!entry.isFile()) continue;
+        if (entry.name === '.drafts') continue;
+
+        const ext = nodePath.extname(entry.name).toLowerCase();
+        if (!AcpAgent.DOCUMENT_EXTENSIONS.has(ext) && !AcpAgent.IMAGE_EXTENSIONS.has(ext)) continue;
+
+        const fullPath = nodePath.join(this.workspace, entry.name);
+        try {
+          const stat = fs.statSync(fullPath);
+          this.workspaceFileSnapshot.set(entry.name, stat.mtimeMs);
+        } catch {
+          // stat failed (file deleted between readdir and stat), skip
+        }
+      }
+    } catch {
+      // workspace not readable, skip silently
+    }
+  }
+
+  /**
+   * After an execute-class tool completes, scan workspace for newly created or modified deliverable files.
+   * Returns absolute paths of files that are new or have a newer mtime than the snapshot.
+   */
+  private detectNewFilesFromWorkspace(): string[] {
+    if (!this.workspace) return [];
+    const newFiles: string[] = [];
+
+    try {
+      const entries = fs.readdirSync(this.workspace, { withFileTypes: true });
+      for (const entry of entries) {
+        if (!entry.isFile()) continue;
+        if (entry.name === '.drafts') continue;
+
+        const ext = nodePath.extname(entry.name).toLowerCase();
+        if (!AcpAgent.DOCUMENT_EXTENSIONS.has(ext) && !AcpAgent.IMAGE_EXTENSIONS.has(ext)) continue;
+
+        const fullPath = nodePath.join(this.workspace, entry.name);
+        try {
+          const stat = fs.statSync(fullPath);
+          const prevMtime = this.workspaceFileSnapshot.get(entry.name);
+
+          // New file (not in snapshot) or modified file (mtime changed)
+          if (prevMtime === undefined || stat.mtimeMs > prevMtime) {
+            newFiles.push(fullPath);
+          }
+        } catch {
+          // stat failed, skip
+        }
+      }
+    } catch {
+      // workspace not readable, skip
+    }
+
+    return newFiles;
+  }
+
+  /**
+   * Extract file path from a tool call if it represents a file-creation operation.
+   * Returns null if the tool call is not a file-creation operation or the file doesn't exist.
+   */
+  private extractFilePathFromToolCall(toolName: string, rawInput?: Record<string, unknown>): string | null {
+    if (!rawInput) return null;
+    const n = toolName.toLowerCase();
+
+    // Handle SendUserMessage tool: extract attachments (array of file paths)
+    if (n === 'sendusermessage' || n === 'brief') {
+      const attachments = rawInput.attachments as Array<string> | undefined;
+      if (attachments && attachments.length > 0) {
+        // Return the first valid attachment path
+        for (const attachmentPath of attachments) {
+          if (typeof attachmentPath === 'string' && attachmentPath.trim()) {
+            const resolvedPath = attachmentPath.trim();
+            // Verify the file exists
+            try {
+              if (fs.existsSync(resolvedPath)) {
+                return resolvedPath;
+              }
+            } catch {
+              // Continue to next attachment if this one doesn't exist
+            }
+          }
+        }
+      }
+      return null;
+    }
+
+    // Handle file-creation tools (Write/Edit/Create)
+    if (!/write|edit|create/.test(n)) return null;
+
+    const filePath = (rawInput.path || rawInput.file_path || rawInput.filename) as string | undefined;
+    if (!filePath || typeof filePath !== 'string') return null;
+
+    const ext = nodePath.extname(filePath).toLowerCase();
+    if (!AcpAgent.DOCUMENT_EXTENSIONS.has(ext) && !AcpAgent.IMAGE_EXTENSIONS.has(ext)) return null;
+
+    // Verify the file actually exists on disk
+    try {
+      if (!fs.existsSync(filePath)) return null;
+    } catch {
+      return null;
+    }
+
+    return filePath;
+  }
+
+  /** Classify a file path as 'image' or 'file' based on its extension */
+  private classifyFileType(filePath: string): 'image' | 'file' {
+    const ext = nodePath.extname(filePath).toLowerCase();
+    return AcpAgent.IMAGE_EXTENSIONS.has(ext) ? 'image' : 'file';
+  }
+
+  /** Infer tool kind from name */
+  private inferToolKind(name: string): 'read' | 'edit' | 'execute' | null {
+    const n = name.toLowerCase();
+    if (/read|view|list|search|grep|glob|find|get|fetch/.test(n)) return 'read';
+    if (/write|edit|create|delete|patch|update|insert|remove/.test(n)) return 'edit';
+    if (/exec|run|bash|shell|terminal/.test(n)) return 'execute';
+    return null;
+  }
+
+  /**
+   * Send file_send message to channel clients for generated files.
+   * Called when a tool call completes successfully.
+   */
+  private sendFileToChannels(filePath: string): void {
+    // Resolve relative paths to absolute paths using workspace root
+    let resolvedPath = filePath;
+    if (!nodePath.isAbsolute(filePath)) {
+      resolvedPath = nodePath.resolve(this.workspace, filePath);
+    }
+
+    // Verify the file exists before sending
+    try {
+      if (!fs.existsSync(resolvedPath)) {
+        console.warn(`[AcpAgent] sendFileToChannels: file not found: ${resolvedPath}`);
+        return;
+      }
+    } catch {
+      console.warn(`[AcpAgent] sendFileToChannels: error checking file existence: ${resolvedPath}`);
+      return;
+    }
+
+    const fileMessage: IResponseMessage = {
+      type: 'file_send',
+      conversation_id: this.conversation_id,
+      msg_id: uuid(),
+      data: {
+        filePath: resolvedPath,
+        fileName: nodePath.basename(resolvedPath),
+        fileType: this.classifyFileType(resolvedPath),
+      },
+    };
+    this.handleStreamEvent(fileMessage);
   }
 }
 

@@ -23,6 +23,7 @@ import { useDragUpload } from '../hooks/useDragUpload';
 import { useLatestRef } from '../hooks/useLatestRef';
 import { usePasteService } from '../hooks/usePasteService';
 import ContextMenu, { type ContextMenuItem } from '@/renderer/components/ContextMenu';
+import ActionChip from '@/renderer/components/ui/ActionChip';
 import { IconPaste } from '@arco-design/web-react/icon';
 import type { FileMetadata } from '../services/FileService';
 import { allSupportedExts } from '../services/FileService';
@@ -30,7 +31,7 @@ import type { IInstalledSkillInfo } from '@/common/ipcBridge';
 import { isElectronDesktop } from '@/renderer/utils/platform';
 import { skillHub } from '@/common/ipcBridge';
 import { resolveSkillIcon, getInstalledSkillDisplay } from '@/renderer/utils/skillDisplay';
-import { iconColors } from '@/renderer/theme/colors';
+import { addEventListener } from '@/renderer/utils/emitter';
 
 const constVoid = (): void => undefined;
 // 临界值：超过该字符数直接切换至多行模式，避免为超长文本做昂贵的宽度测量
@@ -56,13 +57,18 @@ const SendBox: React.FC<{
   slashCommands?: SlashCommandItem[];
   onSlashBuiltinCommand?: (name: string) => void;
   onSkillsChange?: (skills: string[]) => void;
+  /** Initial selected skills restored from draft state */
+  initialSelectedSkills?: string[];
   /** Workspace files for @ file references */
   workspaceFiles?: WorkspaceFileItem[];
-}> = ({ onSend, onStop, prefix, className, loading, tools, disabled, placeholder, value: input = '', onChange: setInput = constVoid, onFilesAdded, supportedExts = allSupportedExts, defaultMultiLine = false, lockMultiLine = false, sendButtonPrefix, slashCommands = [], onSlashBuiltinCommand, onSkillsChange, workspaceFiles }) => {
+  /** Called when a file is selected via @ selector, allowing parent to track the file */
+  onAtFileSelected?: (file: WorkspaceFileItem) => void;
+}> = ({ onSend, onStop, prefix, className, loading, tools, disabled, placeholder, value: input = '', onChange: setInput = constVoid, onFilesAdded, supportedExts = allSupportedExts, defaultMultiLine = false, lockMultiLine = false, sendButtonPrefix, slashCommands = [], onSlashBuiltinCommand, onSkillsChange, initialSelectedSkills = [], workspaceFiles, onAtFileSelected }) => {
   const layout = useLayoutContext();
   const isMobile = layout?.isMobile ?? false;
   const { t } = useTranslation();
   const [isLoading, setIsLoading] = useState(false);
+  const [isStopping, setIsStopping] = useState(false);
   const [isSingleLine, setIsSingleLine] = useState(!defaultMultiLine);
   const [isInputFocused, setIsInputFocused] = useState(false);
   const isInputActive = isInputFocused;
@@ -237,10 +243,10 @@ const SendBox: React.FC<{
 
   // Skill selector state
   const [installedSkills, setInstalledSkills] = useState<IInstalledSkillInfo[]>([]);
-  const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
+  const [selectedSkills, setSelectedSkills] = useState<string[]>(() => initialSelectedSkills);
   const [loadingSkills, setLoadingSkills] = useState(false);
 
-  // Fetch installed skills on mount
+  // Fetch installed skills on mount and after agent-created skills are installed.
   useEffect(() => {
     const fetchInstalledSkills = async () => {
       if (!isElectronDesktop()) return;
@@ -257,6 +263,14 @@ const SendBox: React.FC<{
       }
     };
     void fetchInstalledSkills();
+
+    const removeSkillsChanged = addEventListener('skills.changed', () => {
+      void fetchInstalledSkills();
+    });
+
+    return () => {
+      removeSkillsChanged();
+    };
   }, []);
 
   // Notify parent when skills change
@@ -353,6 +367,7 @@ const SendBox: React.FC<{
       // Replace @query with @relativePath in input
       const newInput = replaceAtQuery(input, `@${file.relativePath}`, cursorPosition);
       setInput(newInput);
+      onAtFileSelected?.(file);
     },
   });
 
@@ -388,15 +403,10 @@ const SendBox: React.FC<{
 
   // Skill trigger button - shown when running in Electron desktop
   const skillTriggerButton = isElectronDesktop() ? (
-    <Tooltip content={t('conversation.welcome.addSkill', { defaultValue: '添加技能' })} position='top'>
-      <Button className='sendbox-model-btn' shape='round' size='small' onClick={handleTriggerSkillSelector}>
-        <span className='flex items-center gap-6px min-w-0'>
-          <span className='shrink-0' style={{ color: iconColors.secondary, fontSize: 14, fontWeight: 700, lineHeight: 1 }}>
-            @
-          </span>
-          <span>{t('conversation.welcome.skill', { defaultValue: '技能' })}</span>
-        </span>
-      </Button>
+    <Tooltip content={t('conversation.welcome.addSkill', { defaultValue: '添加技能 / 文件' })} position='top'>
+      <span className='inline-flex ml-8px'>
+        <ActionChip icon={<span className='text-14px font-700 leading-none'>@</span>} label={t('messages.skills.triggerLabel', { defaultValue: 'Skills / Files' })} onClick={handleTriggerSkillSelector} />
+      </span>
     </Tooltip>
   ) : null;
 
@@ -485,19 +495,22 @@ const SendBox: React.FC<{
   };
 
   const stopHandler = async () => {
-    if (!onStop) return;
+    if (!onStop || isStopping) return;
+    setIsStopping(true);
     try {
       await onStop();
     } finally {
       setIsLoading(false);
+      setIsStopping(false);
     }
   };
 
   // Calculate button disabled state and style
-  const isButtonDisabled = disabled || (!input.trim() && domSnippets.length === 0);
+  const isButtonDisabled = disabled || isStopping || (!input.trim() && domSnippets.length === 0);
   const buttonStyle = {
-    backgroundColor: isButtonDisabled ? undefined : '#000000',
-    borderColor: isButtonDisabled ? undefined : '#000000',
+    backgroundColor: isButtonDisabled ? undefined : 'var(--ui-accent-orange)',
+    borderColor: isButtonDisabled ? undefined : 'var(--ui-accent-orange)',
+    boxShadow: isButtonDisabled ? undefined : '0 8px 18px rgba(var(--ui-accent-orange-rgb),0.24)',
   };
 
   // Reusable send button component
@@ -520,13 +533,14 @@ const SendBox: React.FC<{
       {contextMenu && <ContextMenu x={contextMenu.x} y={contextMenu.y} items={contextMenu.items} onClose={() => setContextMenu(null)} />}
       <div
         ref={containerRef}
-        className={`relative p-16px border-3 b bg-dialog-fill-0 b-solid rd-20px flex flex-col ${slashController.isOpen || skillSelectorController.isOpen ? 'overflow-visible' : 'overflow-hidden'} ${isFileDragging ? 'b-dashed' : ''}`}
+        className={`relative p-16px border-3 b bg-dialog-fill-0 b-solid flex flex-col ${slashController.isOpen || skillSelectorController.isOpen ? 'overflow-visible' : 'overflow-hidden'} ${isFileDragging ? 'b-dashed' : ''}`}
         style={{
           transition: 'box-shadow 0.25s ease, border-color 0.25s ease',
+          borderRadius: '0 0 20px 20px',
           ...(isFileDragging
             ? {
-                backgroundColor: 'var(--color-primary-light-1)',
-                borderColor: 'rgb(var(--primary-3))',
+                backgroundColor: 'rgba(var(--ui-accent-orange-rgb), 0.08)',
+                borderColor: 'rgba(var(--ui-accent-orange-rgb), 0.42)',
                 borderWidth: '1px',
               }
             : {
@@ -591,7 +605,10 @@ const SendBox: React.FC<{
               filesEmptyText={t('messages.skills.filesEmpty', { defaultValue: 'No files in workspace' })}
               searchQuery={skillSelectorController.searchQuery}
               onSearchChange={skillSelectorController.setSearchQuery}
-              onDismiss={() => skillSelectorController.setDismissed(true)}
+              onDismiss={() => {
+                skillSelectorController.setDismissed(true);
+                setInput(stripAtQuery(input, cursorPosition));
+              }}
               skillsSearchPlaceholder={t('messages.skills.searchSkills', { defaultValue: '搜索技能...' })}
               filesSearchPlaceholder={t('messages.skills.searchFiles', { defaultValue: '搜索文件...' })}
               noSearchResultsText={t('messages.skills.noSearchResults', { defaultValue: '未找到匹配结果' })}
@@ -615,7 +632,7 @@ const SendBox: React.FC<{
           {selectedSkills.length > 0 && (
             <div className='flex flex-col gap-6px mb-8px'>
               <div className='flex items-center gap-4px text-11px text-t-secondary'>
-                <Lightning size='12' className='text-primary' />
+                <Lightning size='12' className='text-[var(--ui-accent-orange)]' />
                 <span>{t('messages.skills.activeSkills', { defaultValue: '当前使用技能' })}</span>
               </div>
               <div className='flex flex-wrap gap-6px'>
@@ -627,20 +644,19 @@ const SendBox: React.FC<{
                       .split(/[-_]/)
                       .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
                       .join(' ');
-                  const emoji = skillInfo?.meta?.emoji || '⚡';
                   return (
                     <Tag
                       key={skillName}
                       closable
                       closeIcon={<CloseSmall theme='outline' size='12' />}
                       onClose={() => setSelectedSkills(selectedSkills.filter((s) => s !== skillName))}
-                      className='text-12px bg-primary-light b-1 b-solid b-border-2 rd-4px'
+                      className='text-12px b-1 b-solid rd-4px'
                       style={{
-                        backgroundColor: 'var(--color-primary-light-1)',
-                        borderColor: 'var(--color-primary-light-2)',
+                        backgroundColor: 'rgba(var(--ui-accent-orange-rgb), 0.1)',
+                        borderColor: 'rgba(var(--ui-accent-orange-rgb), 0.32)',
                       }}
                     >
-                      <span className='mr-4px'>{emoji}</span>
+                      <Lightning size='12' className='mr-4px text-[var(--ui-accent-orange)]' />
                       {displayName}
                     </Tag>
                   );
@@ -708,7 +724,7 @@ const SendBox: React.FC<{
           {isSingleLine && (
             <div className='flex items-center gap-2'>
               {sendButtonPrefix}
-              {isLoading || loading ? <Button shape='circle' type='secondary' className='bg-animate' icon={<div className='mx-auto size-12px bg-6'></div>} onClick={stopHandler}></Button> : sendButton}
+              {isLoading || loading ? <Button shape='circle' type='secondary' className='bg-animate' disabled={isStopping} icon={<div className='mx-auto size-12px bg-6'></div>} onClick={stopHandler}></Button> : sendButton}
             </div>
           )}
         </div>
@@ -720,7 +736,7 @@ const SendBox: React.FC<{
             </div>
             <div className='flex items-center gap-2'>
               {sendButtonPrefix}
-              {isLoading || loading ? <Button shape='circle' type='secondary' className='bg-animate' icon={<div className='mx-auto size-12px bg-6'></div>} onClick={stopHandler}></Button> : sendButton}
+              {isLoading || loading ? <Button shape='circle' type='secondary' className='bg-animate' disabled={isStopping} icon={<div className='mx-auto size-12px bg-6'></div>} onClick={stopHandler}></Button> : sendButton}
             </div>
           </div>
         )}

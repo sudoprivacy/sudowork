@@ -25,6 +25,7 @@ export interface TenantConfigItem {
   icon: string | null;
   icon_url: string;
   pinyin: string | null;
+  scope?: string;
 }
 
 /**

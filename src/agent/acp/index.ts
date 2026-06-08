@@ -10,3 +10,5 @@
 export { AcpConnection } from './AcpConnection';
 export { AcpAdapter } from './AcpAdapter';
 export { AcpApprovalStore, createAcpApprovalKey } from './ApprovalStore';
+export type { AcpTransport, AcpTransportEvents } from './transport';
+export { StdioAcpTransport, GrpcAcpTransport } from './transport';

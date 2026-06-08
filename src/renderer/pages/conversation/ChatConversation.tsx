@@ -20,12 +20,8 @@ import { emitter } from '../../utils/emitter';
 import AcpChat from './acp/AcpChat';
 import ChatLayout from './ChatLayout';
 import ChatSider from './ChatSider';
-import OpenClawChat from './openclaw/OpenClawChat';
 import AgentStatusDot from '@/renderer/components/AgentStatusBanner';
 import AcpModelSelector from '@/renderer/components/AcpModelSelector';
-import OpenClawModelSelector from '@/renderer/components/OpenClawModelSelector';
-import { usePreviewContext } from './preview';
-import StarOfficeMonitorCard from './openclaw/StarOfficeMonitorCard.tsx';
 import { TaskPanelHeaderProvider } from './workspace/TaskPanelHeaderContext';
 // import SkillRuleGenerator from './components/SkillRuleGenerator'; // Temporarily hidden
 
@@ -107,10 +103,9 @@ const ChatConversation: React.FC<{
   conversation?: TChatConversation;
 }> = ({ conversation }) => {
   const { t } = useTranslation();
-  const { openPreview } = usePreviewContext();
-  // Enable workspace when conversation has workspace defined
-  // 当会话有 workspace 定义时启用工作空间
-  const workspaceEnabled = Boolean(conversation?.extra?.workspace);
+  // Remote-agent workspaces are loaded from Moss Server, so they may not have a
+  // local workspace path in conversation.extra.
+  const workspaceEnabled = Boolean(conversation && (conversation.type === 'remote-agent' || conversation.extra?.workspace));
 
   // 使用统一的 Hook 获取预设助手信息（ACP 会话）
   // Use unified hook for preset assistant info (ACP conversations)
@@ -125,12 +120,11 @@ const ChatConversation: React.FC<{
     switch (conversation.type) {
       case 'acp':
         return <AcpChat key={conversation.id} conversation_id={conversation.id} workspace={conversation.extra?.workspace} backend={conversation.extra?.backend || 'claude'} sessionMode={conversation.extra?.sessionMode} agentName={resolvedAgentName}></AcpChat>;
-      case 'openclaw-gateway':
-        return <OpenClawChat key={conversation.id} conversation_id={conversation.id} workspace={conversation.extra?.workspace} agentName={resolvedAgentName} />;
-      case 'remote-agent':
+      case 'remote-agent': {
         // Remote-agent uses AcpChat with backend='remote-agent' (handled by conversationBridge.sendMessage)
         const remoteExtra = conversation.extra as { mossServerUrl?: string; agentName?: string };
         return <AcpChat key={conversation.id} conversation_id={conversation.id} workspace={conversation.extra?.workspace} backend={'remote-agent'} sessionMode={conversation.extra?.sessionMode} agentName={resolvedAgentName || remoteExtra.agentName || 'Moss Server'}></AcpChat>;
+      }
       default:
         return null;
     }
@@ -142,11 +136,6 @@ const ChatConversation: React.FC<{
       const extra = conversation.extra as { backend?: string; currentModelId?: string };
       return <AcpModelSelector conversationId={conversation.id} backend={extra.backend} initialModelId={extra.currentModelId} />;
     }
-    if (conversation.type === 'openclaw-gateway') {
-      return <OpenClawModelSelector conversationId={conversation.id} />;
-    }
-    // For remote-agent, show placeholder model selector for UI consistency
-    // remote-agent 类型显示占位模型选择器以保持 UI 一致
     if (conversation.type === 'remote-agent') {
       const extra = conversation.extra as { currentModelId?: string };
       return <AcpModelSelector conversationId={conversation.id} backend='remote-agent' initialModelId={extra.currentModelId} />;
@@ -165,23 +154,13 @@ const ChatConversation: React.FC<{
     : isLoadingPreset
       ? {} // Still loading custom agents — avoid showing backend logo prematurely
       : {
-          backend: conversation?.type === 'acp' ? conversation?.extra?.backend : conversation?.type === 'openclaw-gateway' ? 'openclaw-gateway' : conversation?.type === 'remote-agent' ? 'remote-agent' : undefined,
+          backend: conversation?.type === 'acp' ? conversation?.extra?.backend : conversation?.type === 'remote-agent' ? 'remote-agent' : undefined,
           agentName: (conversation?.extra as { agentName?: string })?.agentName,
         };
 
   const headerExtraNode = (
     <div className='flex items-center gap-8px'>
       {conversation && <AgentStatusDot conversation_id={conversation.id} conversationType={conversation.type} />}
-      {conversation?.type === 'openclaw-gateway' && (
-        <div className='shrink-0'>
-          {/* <StarOfficeMonitorCard
-            conversationId={conversation.id}
-            onOpenUrl={(url, metadata) => {
-              openPreview(url, 'url', metadata);
-            }}
-          /> */}
-        </div>
-      )}
     </div>
   );
 

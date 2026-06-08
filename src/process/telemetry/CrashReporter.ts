@@ -11,38 +11,26 @@
  * - 原生 Crash 捕获 (主进程/渲染进程)
  * - JS 异常捕获 (uncaughtException, unhandledRejection)
  * - 面包屑追踪
- * - 批量上报到 sudoclaw-qms
+ * - 批量上报到 sudowork-qms
  * - 离线缓存支持
  */
 
 import { app } from 'electron';
 import { ProcessConfig } from '../initStorage';
 import { buildVersion } from '../../common/buildInfo';
-import type {
-  CrashEvent,
-  NativeCrashEvent,
-  RendererCrashEvent,
-  JsExceptionEvent,
-  Breadcrumb,
-  CrashContext,
-  CrashBatchRequest,
-  CrashBatchResponse,
-  StoredCrashEvent,
-  CrashReporterConfig,
-  CrashProcessType,
-  CrashReason,
-} from '../../shared/types/crash';
+import type { NativeCrashEvent, RendererCrashEvent, JsExceptionEvent, Breadcrumb, CrashContext, CrashBatchRequest, CrashBatchResponse, StoredCrashEvent, CrashReporterConfig, CrashProcessType, CrashReason } from '../../shared/types/crash';
 import { DEFAULT_CRASH_REPORTER_CONFIG } from '../../shared/types/crash';
 import { mapElectronArch } from '../../shared/types/telemetry';
 import { mainLog, mainWarn, mainError } from '../utils/mainLogger';
 import { getTelemetryEncryptor, initTelemetryEncryptor } from './TelemetryEncryptor';
+import { getUserContextSync } from './UserContext';
 import { ENCRYPTION_CONFIG } from './keys';
 
 // ============================================================
 // 常量定义
 // ============================================================
 
-/** sudoclaw-qms API Key - 用于认证上报请求 */
+/** sudowork-qms API Key - 用于认证上报请求 */
 const API_KEY = 'sk-8f3a2b1c9d5e7f6a4b3c2d1e8f9a0b7c';
 
 /** 本地存储文件名 */
@@ -53,6 +41,8 @@ const MAX_QUEUE_SIZE = 100;
 
 /** 存储事件最大年龄 (毫秒) - 超过此时间的事件将被丢弃 */
 const MAX_EVENT_AGE = 7 * 24 * 60 * 60 * 1000; // 7 天
+
+const isPersonalMode = (): boolean => getUserContextSync().login_mode === 'personal';
 
 // ============================================================
 // CrashReporter 类
@@ -102,6 +92,17 @@ export class CrashReporter {
   public async initialize(): Promise<void> {
     if (this.initialized) {
       mainWarn('CrashReporter', 'Already initialized, skipping');
+      return;
+    }
+
+    if (!isPersonalMode()) {
+      this.enabled = false;
+      this.initialized = true;
+      this.eventQueue = [];
+      this.cachedEvents = [];
+      this.breadcrumbs = [];
+      await this.clearCacheFile();
+      mainLog('CrashReporter', 'Crash reporting disabled outside personal mode');
       return;
     }
 
@@ -349,7 +350,7 @@ export class CrashReporter {
     data?: Record<string, unknown>,
     level?: 'debug' | 'info' | 'warning' | 'error',
   ): void {
-    if (!this.enabled) {
+    if (!isPersonalMode() || !this.enabled) {
       return;
     }
 
@@ -382,6 +383,14 @@ export class CrashReporter {
    * 用于应用退出前上报剩余事件
    */
   public async flushAll(): Promise<void> {
+    if (!isPersonalMode()) {
+      this.eventQueue = [];
+      this.cachedEvents = [];
+      this.breadcrumbs = [];
+      await this.clearCacheFile();
+      return;
+    }
+
     if (this.eventQueue.length === 0) {
       return;
     }
@@ -393,6 +402,17 @@ export class CrashReporter {
    * 更新启用状态
    */
   public async setEnabled(enabled: boolean): Promise<void> {
+    if (!isPersonalMode()) {
+      this.enabled = false;
+      this.stopFlushTimer();
+      this.eventQueue = [];
+      this.cachedEvents = [];
+      this.breadcrumbs = [];
+      await this.clearCacheFile();
+      mainLog('CrashReporter', 'Crash reporting remains disabled outside personal mode');
+      return;
+    }
+
     this.enabled = enabled;
 
     if (enabled && !this.flushTimer) {
@@ -446,6 +466,11 @@ export class CrashReporter {
    * 否则缓存事件，等待初始化后上报
    */
   private cacheOrAddEvent(event: StoredCrashEvent): void {
+    if (!isPersonalMode()) {
+      this.cachedEvents = [];
+      return;
+    }
+
     if (this.initialized && this.enabled) {
       // 已初始化，直接添加到队列
       this.addToQueue(event);
@@ -464,6 +489,11 @@ export class CrashReporter {
    * 在初始化后调用，将缓存的事件添加到队列
    */
   private flushCachedEvents(): void {
+    if (!isPersonalMode()) {
+      this.cachedEvents = [];
+      return;
+    }
+
     if (this.cachedEvents.length === 0) {
       return;
     }
@@ -516,6 +546,14 @@ export class CrashReporter {
 
   /** 执行批量上报 */
   private async flush(): Promise<void> {
+    if (!isPersonalMode()) {
+      this.eventQueue = [];
+      this.cachedEvents = [];
+      this.breadcrumbs = [];
+      await this.clearCacheFile();
+      return;
+    }
+
     if (this.isFlushing || this.eventQueue.length === 0) {
       return;
     }
@@ -677,7 +715,7 @@ export class CrashReporter {
       const userDataPath = app.getPath('userData');
       const cachePath = path.join(userDataPath, STORAGE_FILE_NAME);
 
-      await fs.unlink(cachePath).catch(() => {});
+      await fs.unlink(cachePath).catch(() => { });
     } catch (error) {
       // 忽略删除错误
     }

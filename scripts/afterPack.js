@@ -679,18 +679,22 @@ module.exports = async function afterPack(context) {
     const nexusArchives = [];
     try {
       nexusArchives.push(
-        ...fs.readdirSync(resourcesDir).filter(f => /^v[\d.]+-nexus-cluster-.*\.(?:tar\.gz|tgz|tar)$/.test(f)),
+        ...fs.readdirSync(resourcesDir).filter(f => /^v[\d.]+-nexus.*-.*\.(?:tar\.gz|tgz|tar)$/.test(f)),
       );
     } catch {
       // Resources dir not readable — nexus archives will be skipped
     }
 
-    const fixedArchives = ['claude-code.tgz', 'mcporter.tgz'];
+    const fixedArchives = ['claude-code.tgz', 'mcporter.tgz', 'shareone.tgz'];
 
     // Node runtime has architecture-specific name (e.g., node-darwin-arm64.tar.gz)
     const nodeArchive = `node-darwin-${targetArch}.tar.gz`;
 
-    const archivesToSign = [...fixedArchives, nodeArchive, ...nexusArchives];
+    // Scode archive has versioned name (e.g., v0.1.5-scode-macos-arm64.tar.gz)
+    const scodeVersion = runtimeVersions.scode;
+    const scodeArchive = `v${scodeVersion}-scode-macos-${targetArch}.tar.gz`;
+
+    const archivesToSign = [...fixedArchives, nodeArchive, scodeArchive, ...nexusArchives];
     // Node.js binary needs JIT/memory entitlements so V8 can run under Hardened Runtime.
     // Without these, macOS blocks JIT compilation and Node crashes with SIGTRAP (trace trap).
     const entitlementsPath = path.join(__dirname, '..', 'entitlements.plist');

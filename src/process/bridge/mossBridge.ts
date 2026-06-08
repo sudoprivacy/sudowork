@@ -6,7 +6,7 @@
 
 import { ipcBridge } from '@/common';
 import { isEnterpriseMode, getEnterpriseConfig } from '@/common/enterpriseDebugConfig';
-import { MossSessionApi, initMossApi, getMossApi, type MossSession } from '../remote/MossSessionApi';
+import { initMossApi, getMossApi, getMossApiServerUrl, resetMossApi, type MossSessionApi, type MossSession } from '../remote/MossSessionApi';
 import { mainLog, mainError } from '@process/utils/mainLogger';
 import type { IResponseMessage } from '@/common/ipcBridge';
 import { uuid } from '@/common/utils';
@@ -17,6 +17,49 @@ import { uuid } from '@/common/utils';
  * 企业模式下的会话管理通过 Moss Server API 实现
  * 所有会话 CRUD 操作都调用 Moss Server，本地不持久化
  */
+
+/**
+ * Ensure Moss API is initialized with enterprise config
+ * Returns the API instance or null if initialization fails
+ *
+ * If server URL has changed since last initialization, resets and re-initializes.
+ * 如果服务器 URL 自上次初始化后发生变化，重置并重新初始化。
+ */
+async function ensureMossApiInitialized(): Promise<MossSessionApi | null> {
+  const config = getEnterpriseConfig();
+
+  // Check if server URL has changed since last initialization
+  // 检查服务器 URL 自上次初始化后是否发生变化
+  const currentServerUrl = getMossApiServerUrl();
+  const api = getMossApi();
+
+  if (api && currentServerUrl === config.mossServerUrl) {
+    // URL unchanged, return existing instance
+    // URL 未变化，返回现有实例
+    return api;
+  }
+
+  if (api && currentServerUrl !== config.mossServerUrl) {
+    // URL changed, reset existing instance
+    // URL 变化，重置现有实例
+    mainLog('MossBridge', `Server URL changed from ${currentServerUrl} to ${config.mossServerUrl}, resetting Moss API`);
+    resetMossApi();
+  }
+
+  // Initialize from enterprise config
+  if (!config.mossServerUrl) {
+    mainError('MossBridge', 'Moss Server URL not configured');
+    return null;
+  }
+
+  const newApi = initMossApi(config.mossServerUrl);
+  if (config.authToken) {
+    newApi.setAccessToken(config.authToken);
+  }
+
+  return newApi;
+}
+
 export function initMossBridge(): void {
   // moss.is-enterprise-mode
   ipcBridge.moss.isEnterpriseMode.provider(async () => {
@@ -63,7 +106,7 @@ export function initMossBridge(): void {
 
       const sessions = await api.listSessions();
 
-      const mapped = sessions.map(s => ({
+      const mapped = sessions.map((s) => ({
         sessionId: s.sessionId || s.session_id,
         wsUrl: s.wsUrl || s.ws_url || '',
         workDir: s.workDir || s.work_dir || s.cwd,
@@ -235,7 +278,7 @@ export function initMossBridge(): void {
       // Build message with file references
       let messageContent = content;
       if (files && files.length > 0) {
-        const fileRefs = files.map(f => f.includes(' ') ? `@"${f}"` : `@${f}`).join(' ');
+        const fileRefs = files.map((f) => (f.includes(' ') ? `@"${f}"` : `@${f}`)).join(' ');
         messageContent = `${fileRefs} ${messageContent}`;
       }
 
@@ -305,6 +348,74 @@ export function initMossBridge(): void {
       return { success: true };
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
+      return { success: false, msg };
+    }
+  });
+
+  // moss.get-available-models
+  ipcBridge.moss.getAvailableModels.provider(async () => {
+    try {
+      const api = await ensureMossApiInitialized();
+      if (!api) {
+        return { success: false, msg: 'Moss API not initialized. Please login first.' };
+      }
+
+      const models = await api.getAvailableModels();
+      return { success: true, data: models };
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      return { success: false, msg };
+    }
+  });
+
+  // moss.get-user-model
+  ipcBridge.moss.getUserModel.provider(async () => {
+    try {
+      const api = await ensureMossApiInitialized();
+      if (!api) {
+        return { success: false, msg: 'Moss API not initialized. Please login first.' };
+      }
+
+      const preference = await api.getUserModelPreference();
+      return { success: true, data: preference };
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      return { success: false, msg };
+    }
+  });
+
+  // moss.set-user-model
+  ipcBridge.moss.setUserModel.provider(async ({ modelId }) => {
+    try {
+      const api = await ensureMossApiInitialized();
+      if (!api) {
+        return { success: false, msg: 'Moss API not initialized. Please login first.' };
+      }
+
+      const preference = await api.setUserModelPreference(modelId);
+      return { success: true, data: preference };
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      return { success: false, msg };
+    }
+  });
+
+  // moss.set-model - Set model for current session via WebSocket
+  ipcBridge.moss.setModel.provider(async ({ sessionId, modelId }) => {
+    try {
+      mainLog('MossBridge', `setModel called: sessionId=${sessionId}, modelId=${modelId}`);
+      const api = await ensureMossApiInitialized();
+      if (!api) {
+        mainError('MossBridge', 'setModel failed: Moss API not initialized');
+        return { success: false, msg: 'Moss API not initialized. Please login first.' };
+      }
+
+      await api.setModelForSession(sessionId, modelId);
+      mainLog('MossBridge', `setModel success: sessionId=${sessionId}, modelId=${modelId}`);
+      return { success: true };
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      mainError('MossBridge', `setModel error: ${msg}`);
       return { success: false, msg };
     }
   });

@@ -25,6 +25,13 @@ export interface TenantConfig {
   about_name?: string;
   /** 公司主体名称 - 关于页公司信息 */
   app_company_name?: string;
+  /**
+   * 是否允许企业版客户端使用定时任务（cron）功能。
+   * 由 Moss 管理端控制，仅企业模式生效；null/undefined 视为开启（默认 true）。
+   * Whether the enterprise client may use the cron feature. Controlled by the
+   * Moss admin; enterprise mode only. null/undefined → enabled (default true).
+   */
+  client_cron_enabled?: boolean | null;
 }
 
 /**
@@ -36,15 +43,33 @@ export interface TenantConfigResponse {
   msg?: string;
 }
 
+export type TenantConfigInput = Partial<Record<keyof TenantConfig, string | boolean | null | undefined>>;
+
+export const TENANT_CONFIG_STORAGE_KEY = 'sudowork_tenant_config';
+
 /**
  * 默认租户配置
  * 当接口未返回或字段为空时使用此默认值
  */
 export const DEFAULT_TENANT_CONFIG: Required<TenantConfig> = {
   logo: undefined,
-  app_name: 'SudoClaw',
-  top_name: 'SudoClaw',
+  app_name: 'SudoWork',
+  top_name: 'SudoWork',
   login_desp: 'AgentOps | 办公专家',
-  about_name: 'SudoClaw',
+  about_name: 'SudoWork',
   app_company_name: '北京数牍科技有限公司',
+  client_cron_enabled: true,
 };
+
+export function resolveTenantConfig(config?: TenantConfigInput | null): Required<TenantConfig> {
+  return {
+    logo: (config?.logo as string | undefined) || DEFAULT_TENANT_CONFIG.logo,
+    app_name: (config?.app_name as string | undefined) || DEFAULT_TENANT_CONFIG.app_name,
+    top_name: (config?.top_name as string | undefined) || DEFAULT_TENANT_CONFIG.top_name,
+    login_desp: (config?.login_desp as string | undefined) || DEFAULT_TENANT_CONFIG.login_desp,
+    about_name: (config?.about_name as string | undefined) || DEFAULT_TENANT_CONFIG.about_name,
+    app_company_name: (config?.app_company_name as string | undefined) || DEFAULT_TENANT_CONFIG.app_company_name,
+    // Only an explicit `false` disables cron; null/undefined → default on.
+    client_cron_enabled: config?.client_cron_enabled === false ? false : true,
+  };
+}

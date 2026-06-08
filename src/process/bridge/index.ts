@@ -25,7 +25,6 @@ import { initModelBridge } from './modelBridge';
 import { initPreviewHistoryBridge } from './previewHistoryBridge';
 import { initShellBridge } from './shellBridge';
 import { initStarOfficeBridge } from './starOfficeBridge';
-import { initOpenClawBridge } from './openclawBridge';
 import { initUpdateBridge } from './updateBridge';
 import { initWebuiBridge } from './webuiBridge';
 import { initSystemSettingsBridge } from './systemSettingsBridge';
@@ -40,7 +39,9 @@ import { initSudoclawBridge } from './sudoclawBridge';
 import { initInitBridge } from './initBridge';
 import { initSudoworkServerBridge } from './sudoworkServerBridge';
 import { initNodeRuntimeBridge } from './nodeRuntimeBridge';
-import { initSafetyBridge } from './safetyBridge';
+import { initPythonRuntimeBridge } from './pythonRuntimeBridge';
+// Safety hook IPC is temporarily disabled; keep safetyBridge.ts for restoration.
+// import { initSafetyBridge } from './safetyBridge';
 import { initBdpanBridge } from './bdpanBridge';
 import { initHealthMonitorBridge } from './healthMonitorBridge';
 import { initImageGenerationBridge } from './imageGenerationBridge';
@@ -50,9 +51,14 @@ import { initWorkspaceBridge } from './workspaceBridge';
 import { initTelemetryBridge } from './telemetryBridge';
 import { initAuthProxyBridge } from './authProxyBridge';
 import { initMossBridge } from './mossBridge';
+import { initShareoneCliBridge } from './shareoneCliBridge';
+import { initTerminalBridge } from './terminalBridge';
+import { initBrowserPanelBridge } from './browserPanelBridge';
+import { initDeliverablesBridge } from './deliverablesBridge';
 // Crash bridge is initialized early in src/process/index.ts before storage
 // to handle renderer errors during startup
 import { initEeclawBridge } from './eeclawBridge';
+import { registerScodeBridge } from './scodeBridge';
 
 /**
  * 初始化所有IPC桥接模块
@@ -85,7 +91,6 @@ export function initAllBridges(): void {
   initSystemSettingsBridge();
   initExtensionsBridge();
   initStarOfficeBridge();
-  initOpenClawBridge();
   initNexusBridge();
   initClaudeCliBridge();
   initLibreOfficeBridge();
@@ -93,8 +98,10 @@ export function initAllBridges(): void {
   initAssistantHubBridge();
   initSudoclawBridge();
   initNodeRuntimeBridge();
+  initPythonRuntimeBridge();
   initSudoworkServerBridge();
-  initSafetyBridge();
+  // Safety hook IPC is hidden while the feature is disabled.
+  // initSafetyBridge();
   initBdpanBridge();
   initHealthMonitorBridge();
   initImageGenerationBridge();
@@ -104,8 +111,13 @@ export function initAllBridges(): void {
   initWorkspaceBridge();
   initTelemetryBridge();
   initMossBridge();
+  initShareoneCliBridge();
+  initTerminalBridge();
+  initBrowserPanelBridge();
+  initDeliverablesBridge();
   // Note: initCrashBridge() is called early in src/process/index.ts before storage
   initEeclawBridge();
+  registerScodeBridge();
 }
 
 /**

@@ -42,8 +42,8 @@ export const BOTTOM_BUFFER_PX = 40;
 interface UseAutoScrollOptions {
   /** Message list for detecting new messages */
   messages: TMessage[];
-  /** Total item count for scroll target */
-  itemCount: number;
+  /** Total items in the rendered list (including summaries/separators) */
+  items: any[];
 }
 
 interface UseAutoScrollReturn {
@@ -73,16 +73,20 @@ interface UseAutoScrollReturn {
   bottomSpacerHeight: number;
 }
 
-export function useAutoScroll({ messages, itemCount }: UseAutoScrollOptions): UseAutoScrollReturn {
+export function useAutoScroll({ messages, items }: UseAutoScrollOptions): UseAutoScrollReturn {
   const virtuosoRef = useRef<VirtuosoHandle>(null);
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [bottomSpacerHeight, setBottomSpacerHeight] = useState(0);
+
+  const itemCount = items.length;
 
   // Refs for scroll control
   const userScrolledRef = useRef(false);
   const lastScrollTopRef = useRef(0);
   const previousListLengthRef = useRef(messages.length);
   const lastProgrammaticScrollTimeRef = useRef(0);
+  const bottomStateDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastAtBottomRef = useRef(true);
 
   // Turn-mode refs — track the "pin user prompt to top" state.
   const turnStartMsgIdRef = useRef<string | null>(null);
@@ -140,6 +144,9 @@ export function useAutoScroll({ messages, itemCount }: UseAutoScrollOptions): Us
     // `CSS.escape` may not exist in all test environments — fall back to a
     // naive quote escape for IDs that don't contain special characters.
     const escapeId = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(turnMsgId) : turnMsgId.replace(/"/g, '\\"');
+
+    // Optimization: avoid querying DOM on every render if possible
+    // but we need the latest position for accurate spacer calculation
     const userEl = scroller.querySelector(`[data-message-id="${escapeId}"]`) as HTMLElement | null;
     if (!userEl) {
       // The user prompt is no longer rendered (either virtualized off-screen
@@ -163,7 +170,8 @@ export function useAutoScroll({ messages, itemCount }: UseAutoScrollOptions): Us
     const footerHeight = BOTTOM_BUFFER_PX + spacerHeightRef.current;
     const turnContent = Math.max(0, scroller.scrollHeight - footerHeight - userOffsetInScroll);
 
-    const desiredSpacer = Math.max(0, vh - turnContent);
+    // Ensure we don't have a negative spacer and leave some buffer
+    const desiredSpacer = Math.max(0, vh - turnContent - 10);
 
     if (Math.abs(desiredSpacer - spacerHeightRef.current) >= 1) {
       spacerHeightRef.current = desiredSpacer;
@@ -214,6 +222,10 @@ export function useAutoScroll({ messages, itemCount }: UseAutoScrollOptions): Us
         resizeObserverRef.current.disconnect();
         resizeObserverRef.current = null;
       }
+      if (bottomStateDebounceRef.current) {
+        clearTimeout(bottomStateDebounceRef.current);
+        bottomStateDebounceRef.current = null;
+      }
     };
   }, []);
 
@@ -250,16 +262,25 @@ export function useAutoScroll({ messages, itemCount }: UseAutoScrollOptions): Us
   const handleFollowOutput = useCallback((isAtBottom: boolean): false | 'auto' => {
     if (userScrolledRef.current || !isAtBottom) return false;
     if (isPinnedRef.current) return false;
+
+    // Always follow output when aiProcessing is active and we are near bottom
     return 'auto';
   }, []);
 
   // Reliable bottom state detection from Virtuoso
   const handleAtBottomStateChange = useCallback((atBottom: boolean) => {
-    setShowScrollButton(!atBottom);
-
-    if (atBottom) {
-      userScrolledRef.current = false;
+    lastAtBottomRef.current = atBottom;
+    if (bottomStateDebounceRef.current) {
+      clearTimeout(bottomStateDebounceRef.current);
     }
+    bottomStateDebounceRef.current = setTimeout(() => {
+      if (lastAtBottomRef.current !== atBottom) return;
+      setShowScrollButton(!atBottom);
+      if (atBottom) {
+        userScrolledRef.current = false;
+      }
+      bottomStateDebounceRef.current = null;
+    }, 80);
   }, []);
 
   // Detect user scrolling up
@@ -307,6 +328,17 @@ export function useAutoScroll({ messages, itemCount }: UseAutoScrollOptions): Us
     // "just scroll to top" behavior.
     if (isNewMessage && lastMessage?.position === 'right') {
       userScrolledRef.current = false;
+
+      // Find the index of the newly added user message in the items array
+      // This is necessary because separators or turn actions might have been added
+      // We search from the end for efficiency
+      const lastUserMsgIdx = items.findLastIndex((item) => (item as any).msg_id === lastMessage.msg_id && (item as any).position === 'right');
+      const targetIdx = lastUserMsgIdx !== -1 ? lastUserMsgIdx : items.length - 1;
+
+      // Reset scroll position to top when starting a new turn to avoid overflow issues
+      // with the dynamic spacer recomputation
+      virtuosoRef.current?.scrollTo({ top: 0, behavior: 'auto' });
+
       const vh = viewportHeightRef.current;
       const canPin = vh > 0 && scrollerElRef.current !== null;
       if (canPin) {
@@ -327,12 +359,16 @@ export function useAutoScroll({ messages, itemCount }: UseAutoScrollOptions): Us
           if (virtuosoRef.current) {
             lastProgrammaticScrollTimeRef.current = Date.now();
             virtuosoRef.current.scrollToIndex({
-              index: itemCount - 1,
+              index: targetIdx,
               align: 'start',
               behavior: 'auto', // Use auto for immediate positioning
             });
+
+            // Recompute spacer after initial scroll to ensure user message is pinned
             if (canPin) {
-              requestAnimationFrame(() => recomputeSpacer());
+              setTimeout(() => {
+                recomputeSpacer();
+              }, 100);
             }
           }
         });
@@ -344,7 +380,12 @@ export function useAutoScroll({ messages, itemCount }: UseAutoScrollOptions): Us
     // streaming). First, keep the spacer in sync with the new content so we
     // can correctly decide whether to stay pinned or resume auto-follow.
     if (turnStartMsgIdRef.current) {
-      requestAnimationFrame(() => recomputeSpacer());
+      // Small delay to ensure React Virtuoso has updated the DOM with new items
+      // before we measure for the spacer
+      const timer = setTimeout(() => {
+        recomputeSpacer();
+      }, 50);
+      return () => clearTimeout(timer);
     }
 
     // While pinned we intentionally do NOT auto-scroll — the user prompt needs
@@ -352,33 +393,7 @@ export function useAutoScroll({ messages, itemCount }: UseAutoScrollOptions): Us
     // Once the turn overflows the viewport, `recomputeSpacer` clears
     // `isPinnedRef` and subsequent updates fall through to the follow branch.
     if (isPinnedRef.current) return;
-
-    // Auto-scroll to the absolute bottom of the scroller so the Virtuoso
-    // Footer is visible at the bottom of the viewport — this leaves a real,
-    // visible breathing margin between the last message's bottom border and
-    // the SendBox below, preventing the bottom border from being clipped
-    // against the input box during streaming. Unless the user has manually
-    // scrolled up, in which case we respect their reading position.
-    //
-    // Note: we intentionally do NOT update lastProgrammaticScrollTimeRef here.
-    // Auto-follow always scrolls DOWN (scrollTop increases → delta > 0), so it
-    // cannot be misdetected as a user scroll-up in handleScroll. Skipping the
-    // guard update keeps user scroll-up detection responsive during high-
-    // frequency streaming updates where the guard window would otherwise
-    // never close.
-    if (!userScrolledRef.current && lastMessage?.position === 'left') {
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          if (virtuosoRef.current) {
-            virtuosoRef.current.scrollTo({
-              top: Number.MAX_SAFE_INTEGER,
-              behavior: 'auto',
-            });
-          }
-        });
-      });
-    }
-  }, [messages, itemCount, recomputeSpacer, resetTurnMode]);
+  }, [messages, itemCount, items, recomputeSpacer, resetTurnMode]);
 
   // Hide scroll button handler
   const hideScrollButton = useCallback(() => {

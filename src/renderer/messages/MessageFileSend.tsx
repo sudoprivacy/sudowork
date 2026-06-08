@@ -7,7 +7,8 @@
 import type { IMessageFileSend } from '@/common/chatLib';
 import type { PreviewContentType } from '@/common/types/preview';
 import { usePreviewLauncher } from '@/renderer/hooks/usePreviewLauncher';
-import { FileText, Picture } from '@icon-park/react';
+import { resolveFileIcon } from '@/renderer/utils/fileIcon';
+import { Picture } from '@icon-park/react';
 import React, { useCallback } from 'react';
 
 const FILE_TYPE_LABELS: Record<string, string> = {
@@ -30,13 +31,40 @@ const FILE_TYPE_LABELS: Record<string, string> = {
   '.tiff': 'TIFF 图片',
   '.bmp': 'BMP 图片',
   '.svg': 'SVG 图片',
+  '.mp4': '视频文件',
+  '.webm': '视频文件',
+  '.mov': '视频文件',
+  '.m4v': '视频文件',
+  '.ogv': '视频文件',
+  '.avi': '视频文件',
+  '.mkv': '视频文件',
+  '.wmv': '视频文件',
+  '.flv': '视频文件',
+  '.mp3': '音频文件',
+  '.wav': '音频文件',
+  '.flac': '音频文件',
+  '.aac': '音频文件',
+  '.m4a': '音频文件',
+  '.ogg': '音频文件',
+  '.oga': '音频文件',
+  '.opus': '音频文件',
+  '.amr': '音频文件',
+  '.wma': '音频文件',
 };
 
 const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg', 'ico', 'tif', 'tiff', 'avif']);
+const VIDEO_EXTENSIONS = new Set(['mp4', 'webm', 'mov', 'm4v', 'ogv', 'avi', 'mkv', 'wmv', 'flv']);
+const AUDIO_EXTENSIONS = new Set(['mp3', 'wav', 'flac', 'aac', 'm4a', 'ogg', 'oga', 'opus', 'amr', 'wma']);
 const OFFICE_EXTENSIONS: Record<string, PreviewContentType> = {
-  ppt: 'ppt', pptx: 'ppt', odp: 'ppt',
-  doc: 'word', docx: 'word', odt: 'word',
-  xls: 'excel', xlsx: 'excel', ods: 'excel',
+  ppt: 'ppt',
+  pptx: 'ppt',
+  odp: 'ppt',
+  doc: 'word',
+  docx: 'word',
+  odt: 'word',
+  xls: 'excel',
+  xlsx: 'excel',
+  ods: 'excel',
 };
 
 export const getContentTypeFromExt = (ext: string): PreviewContentType => {
@@ -48,6 +76,8 @@ export const getContentTypeFromExt = (ext: string): PreviewContentType => {
   if (e === 'csv') return 'code';
   if (e === 'html' || e === 'htm') return 'html';
   if (IMAGE_EXTENSIONS.has(e)) return 'image';
+  if (VIDEO_EXTENSIONS.has(e)) return 'video';
+  if (AUDIO_EXTENSIONS.has(e)) return 'audio';
   return 'code';
 };
 
@@ -60,7 +90,7 @@ const MessageFileSend: React.FC<{ message: IMessageFileSend }> = ({ message }) =
   const handleClick = useCallback(() => {
     if (!filePath || loading) return;
     const contentType = fileType === 'image' ? 'image' : getContentTypeFromExt(ext);
-    launchPreview({
+    void launchPreview({
       originalPath: filePath,
       fileName,
       contentType,
@@ -68,9 +98,7 @@ const MessageFileSend: React.FC<{ message: IMessageFileSend }> = ({ message }) =
     });
   }, [filePath, fileName, fileType, ext, launchPreview, loading]);
 
-  const clickableProps = filePath
-    ? { className: 'cursor-pointer select-none', onClick: handleClick }
-    : {};
+  const clickableProps = filePath ? { className: 'cursor-pointer select-none', onClick: handleClick } : {};
 
   if (fileType === 'image') {
     return (
@@ -86,7 +114,7 @@ const MessageFileSend: React.FC<{ message: IMessageFileSend }> = ({ message }) =
   return (
     <div className='w-full'>
       <div className='bg-message-tips rd-8px p-x-12px p-y-8px flex items-center gap-8px' {...clickableProps}>
-        <FileText theme='filled' size='18' className='flex-shrink-0 text-t-secondary' />
+        <span className='flex-shrink-0'>{resolveFileIcon(fileName, { size: 18, theme: 'filled' })}</span>
         <div className='flex flex-col gap-2px'>
           <span className='text-t-primary text-14px'>{fileName}</span>
           <span className='text-t-tertiary text-12px'>{typeLabel}</span>

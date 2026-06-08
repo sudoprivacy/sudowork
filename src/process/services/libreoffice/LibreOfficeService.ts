@@ -5,6 +5,7 @@ import * as http from 'http';
 import * as path from 'path';
 import { app } from 'electron';
 import { promisify } from 'util';
+import { COS_RUNTIME_BASE, COS_LEGACY_HUB_BASE } from '@/shared/cos';
 
 const execFileAsync = promisify(execFile);
 const execAsync = promisify(exec);
@@ -80,19 +81,23 @@ export class LibreOfficeService {
     }
   }
 
-  getDownloadUrl(): string {
-    const { dir, file } = getArchNames();
+  private getArtifactName(): string {
+    const { file } = getArchNames();
     const v = LIBREOFFICE_VERSION;
-    const base = 'https://sudoclaw-1309794936.cos.ap-beijing.myqcloud.com/sudoclaw';
-
     if (process.platform === 'darwin') {
-      return `${base}/LibreOffice_${v}_MacOS_${file}.dmg`;
+      return `LibreOffice_${v}_MacOS_${file}.dmg`;
     } else if (process.platform === 'win32') {
-      return `${base}/LibreOffice_${v}_Win_${file}.msi`;
+      return `LibreOffice_${v}_Win_${file}.msi`;
     } else {
       // Linux: deb packages bundled as tar.gz
-      return `${base}/LibreOffice_${v}_Linux_${file}_deb.tar.gz`;
+      return `LibreOffice_${v}_Linux_${file}_deb.tar.gz`;
     }
+  }
+
+  /** Ordered download URLs: runtime bucket first, legacy bucket as fallback. */
+  getDownloadUrls(): string[] {
+    const artifact = this.getArtifactName();
+    return [`${COS_RUNTIME_BASE}/libreoffice/${artifact}`, `${COS_LEGACY_HUB_BASE}/sudoclaw/${artifact}`];
   }
 
   private getCachedFilePath(): string {
@@ -153,7 +158,7 @@ export class LibreOfficeService {
       if (fs.existsSync(dmgPath) && fs.statSync(dmgPath).size > 0) {
         onProgress('downloading', 100);
       } else {
-        await this.downloadFile(this.getDownloadUrl(), dmgPath, (percent) => {
+        await this.downloadWithFallback(this.getDownloadUrls(), dmgPath, (percent) => {
           onProgress('downloading', percent);
         });
       }
@@ -220,7 +225,7 @@ export class LibreOfficeService {
       if (fs.existsSync(msiPath) && fs.statSync(msiPath).size > 0) {
         onProgress('downloading', 100);
       } else {
-        await this.downloadFile(this.getDownloadUrl(), msiPath, (percent) => {
+        await this.downloadWithFallback(this.getDownloadUrls(), msiPath, (percent) => {
           onProgress('downloading', percent);
         });
       }
@@ -258,7 +263,7 @@ export class LibreOfficeService {
       if (fs.existsSync(tarGzPath) && fs.statSync(tarGzPath).size > 0) {
         onProgress('downloading', 100);
       } else {
-        await this.downloadFile(this.getDownloadUrl(), tarGzPath, (percent) => {
+        await this.downloadWithFallback(this.getDownloadUrls(), tarGzPath, (percent) => {
           onProgress('downloading', percent);
         });
       }
@@ -345,6 +350,20 @@ export class LibreOfficeService {
         reject(new Error('Could not determine DMG mount point'));
       });
     });
+  }
+
+  /** Download from the first URL that succeeds, falling back to later mirrors on failure. */
+  private async downloadWithFallback(urls: string[], dest: string, onPercent: (n: number) => void): Promise<void> {
+    let lastError: unknown;
+    for (const url of urls) {
+      try {
+        await this.downloadFile(url, dest, onPercent);
+        return;
+      } catch (err) {
+        lastError = err;
+      }
+    }
+    throw lastError instanceof Error ? lastError : new Error('All LibreOffice download mirrors failed');
   }
 
   private downloadFile(url: string, dest: string, onPercent: (n: number) => void): Promise<void> {

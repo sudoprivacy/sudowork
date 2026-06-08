@@ -10,30 +10,29 @@ import { registerAvatarWindow } from './avatarBroadcast';
 import { ProcessConfig } from './initStorage';
 import { mainError } from './utils/mainLogger';
 
-const AVATAR_WIDTH = 220;
-const AVATAR_HEIGHT = 220;
+const AVATAR_WIDTH = 140;
+const AVATAR_HEIGHT = 140;
 const SCREEN_MARGIN = 16;
 
 type AvatarBounds = { x: number; y: number; width: number; height: number };
 
 /**
  * Validate that a saved bounds rectangle is still on a connected display.
- * Returns the bounds when usable, or null when the user changed monitors
- * and the saved position is now off-screen.
+ * Returns the position when usable, or null when the user changed monitors.
+ * Size is always reset to current AVATAR_WIDTH/AVATAR_HEIGHT.
  */
-function pickRestoreBounds(saved: AvatarBounds | undefined): AvatarBounds | null {
+function pickRestorePosition(saved: AvatarBounds | undefined): { x: number; y: number } | null {
   if (!saved) return null;
-  if (typeof saved.x !== 'number' || typeof saved.y !== 'number' || typeof saved.width !== 'number' || typeof saved.height !== 'number') return null;
-  // Confirm the rect intersects at least one display so the avatar isn't
-  // restored into an invisible region (e.g. after a monitor unplug).
+  if (typeof saved.x !== 'number' || typeof saved.y !== 'number') return null;
+  // Confirm the position is on a connected display
   const display = screen.getDisplayMatching({
     x: saved.x,
     y: saved.y,
-    width: saved.width,
-    height: saved.height,
+    width: AVATAR_WIDTH,
+    height: AVATAR_HEIGHT,
   });
   if (!display) return null;
-  return saved;
+  return { x: saved.x, y: saved.y };
 }
 
 function defaultBottomRightBounds(): AvatarBounds {
@@ -95,6 +94,7 @@ export function createAvatarWindow(): BrowserWindow {
     resizable: false,
     skipTaskbar: true,
     show: false,
+    fullscreenable: false,
     webPreferences: {
       preload: path.join(__dirname, '../preload/avatar.js'),
       sandbox: true,
@@ -105,11 +105,12 @@ export function createAvatarWindow(): BrowserWindow {
 
   registerAvatarWindow(win);
 
-  // If persisted bounds resolve before the window paints, snap to them.
+  // If persisted position resolves before the window paints, move to it.
+  // Size is always reset to current AVATAR_WIDTH/AVATAR_HEIGHT.
   void persistedBoundsPromise.then((saved): void => {
-    const restored = pickRestoreBounds(saved as AvatarBounds | undefined);
+    const restored = pickRestorePosition(saved as AvatarBounds | undefined);
     if (restored && !win.isDestroyed()) {
-      win.setBounds(restored);
+      win.setPosition(restored.x, restored.y);
     }
   });
 

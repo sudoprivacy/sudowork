@@ -9,7 +9,8 @@ import { getValidToken } from '@process/bridge/eeclawBridge';
 import { ProcessConfig } from '@process/initStorage';
 import WebSocket from 'ws';
 import { uuid } from '@/common/utils';
-import type { IResponseMessage } from '@/common/ipcBridge';
+import { ipcBridge } from '@/common';
+import type { IResponseMessage, MossSessionAvailableSkill, MossWorkspaceFilePreview, MossWorkspaceNode } from '@/common/ipcBridge';
 
 /**
  * Moss Server Session API client
@@ -105,8 +106,9 @@ export class MossSessionApi {
    * This method is kept for future administrative/debugging purposes only.
    * 此方法仅保留用于未来的管理/调试目的。
    */
-  async listSessions(): Promise<MossSession[]> {
-    const response = await this.fetchWithRetry(`${this.serverUrl}/api/v1/sessions`, {
+  async listSessions(params?: { source?: string }): Promise<MossSession[]> {
+    const query = params?.source ? `?source=${encodeURIComponent(params.source)}` : '';
+    const response = await this.fetchWithRetry(`${this.serverUrl}/api/v1/sessions${query}`, {
       method: 'GET',
     });
 
@@ -127,10 +129,12 @@ export class MossSessionApi {
     mainLog('MossSessionApi', `Creating session: cwd=${params.cwd}, assistant=${params.assistantName || 'default'}`);
 
     const body: Record<string, unknown> = {
-      cwd: params.cwd || process.cwd(),
       dangerously_skip_permissions: params.dangerouslySkipPermissions ?? false,
       assistant_name: params.assistantName,
     };
+    if (params.cwd) {
+      body.cwd = params.cwd;
+    }
 
     if (params.runtimeType) {
       body.runtime = { type: params.runtimeType };
@@ -172,6 +176,66 @@ export class MossSessionApi {
     // API returns {"session": {...}, "ws_url": "..."} - extract the session object
     // API 返回 {"session": {...}, "ws_url": "..."} - 提取 session 对象
     return (data.session || data) as MossSession;
+  }
+
+  /**
+   * Get the read-only workspace tree for a Moss session.
+   * GET /api/v1/sessions/{sessionId}/workspace/tree
+   */
+  async getSessionWorkspaceTree(sessionId: string, params: { path?: string; search?: string } = {}): Promise<MossWorkspaceNode> {
+    const query = new URLSearchParams();
+    if (params.path) query.set('path', params.path);
+    if (params.search) query.set('search', params.search);
+    const suffix = query.toString() ? `?${query.toString()}` : '';
+
+    const response = await this.fetchWithRetry(`${this.serverUrl}/api/v1/sessions/${encodeURIComponent(sessionId)}/workspace/tree${suffix}`, {
+      method: 'GET',
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Failed to get session workspace tree: ${response.status} ${text}`);
+    }
+
+    const data = await response.json();
+    return (data.root || data) as MossWorkspaceNode;
+  }
+
+  /**
+   * Preview a read-only file from a Moss session workspace.
+   * GET /api/v1/sessions/{sessionId}/workspace/file
+   */
+  async getSessionWorkspaceFile(sessionId: string, params: { path: string }): Promise<MossWorkspaceFilePreview> {
+    const query = new URLSearchParams({ path: params.path });
+
+    const response = await this.fetchWithRetry(`${this.serverUrl}/api/v1/sessions/${encodeURIComponent(sessionId)}/workspace/file?${query.toString()}`, {
+      method: 'GET',
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Failed to preview session workspace file: ${response.status} ${text}`);
+    }
+
+    return (await response.json()) as MossWorkspaceFilePreview;
+  }
+
+  /**
+   * Get session-scoped skills that are actually available to the Moss backend.
+   * GET /api/v1/sessions/{sessionId}/skills/available
+   */
+  async getSessionAvailableSkills(sessionId: string): Promise<MossSessionAvailableSkill[]> {
+    const response = await this.fetchWithRetry(`${this.serverUrl}/api/v1/sessions/${encodeURIComponent(sessionId)}/skills/available`, {
+      method: 'GET',
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Failed to get session available skills: ${response.status} ${text}`);
+    }
+
+    const data = await response.json();
+    return (data.skills || data) as MossSessionAvailableSkill[];
   }
 
   /**
@@ -317,6 +381,99 @@ export class MossSessionApi {
     };
   }
 
+  private getWsUrlWithRefreshToken(wsUrl: string): string {
+    try {
+      const authStorage = ProcessConfig.getSync('eeclaw.authStorage');
+      if (authStorage?.refresh_token) {
+        const separator = wsUrl.includes('?') ? '&' : '?';
+        return `${wsUrl}${separator}refresh_token=${encodeURIComponent(authStorage.refresh_token)}`;
+      }
+    } catch {
+      /* ignore */
+    }
+    return wsUrl;
+  }
+
+  private async ensureSessionWebSocket(sessionId: string, onMessage?: (msg: IResponseMessage) => void, onFinish?: () => void, onError?: (err: Error) => void): Promise<WebSocket> {
+    const existing = this.wsConnections.get(sessionId);
+    if (existing?.readyState === WebSocket.OPEN) {
+      return existing;
+    }
+
+    const token = await this.ensureAuthenticated();
+    const { wsUrl } = await this.resumeSession(sessionId);
+    const ws = new WebSocket(this.getWsUrlWithRefreshToken(wsUrl), {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    this.wsConnections.set(sessionId, ws);
+
+    ws.on('message', (data) => {
+      if (!onMessage) return;
+      const lines = data
+        .toString()
+        .split('\n')
+        .filter((line) => line.trim());
+      for (const line of lines) {
+        try {
+          const parsed = JSON.parse(line);
+          this.processMessage(parsed, onMessage, onFinish || (() => {}));
+        } catch {
+          onMessage({
+            type: 'content',
+            msg_id: uuid(36),
+            conversation_id: sessionId,
+            data: line,
+          });
+        }
+      }
+    });
+
+    ws.on('error', (err) => {
+      mainError('MossSessionApi', `WebSocket error: ${err.message}`);
+      onError?.(err);
+    });
+
+    ws.on('close', (code, reason) => {
+      mainLog('MossSessionApi', `WebSocket closed: code=${code}, reason=${reason}`);
+      this.wsConnections.delete(sessionId);
+      onFinish?.();
+    });
+
+    await new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error('WebSocket connection timeout'));
+      }, 30000);
+
+      ws.on('open', () => {
+        clearTimeout(timeout);
+        resolve();
+      });
+
+      ws.on('error', (err) => {
+        clearTimeout(timeout);
+        reject(err);
+      });
+    });
+
+    return ws;
+  }
+
+  async sendInputToSession(sessionId: string, input: string): Promise<void> {
+    const ws = await this.ensureSessionWebSocket(sessionId);
+    await new Promise<void>((resolve, reject) => {
+      ws.send(input, (error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        resolve();
+      });
+    });
+  }
+
   /**
    * Connect to session WebSocket and send message
    * Returns a promise that resolves when connection is established
@@ -333,7 +490,9 @@ export class MossSessionApi {
         const separator = wsUrlWithRefresh.includes('?') ? '&' : '?';
         wsUrlWithRefresh += `${separator}refresh_token=${encodeURIComponent(authStorage.refresh_token)}`;
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
 
     const ws = new WebSocket(wsUrlWithRefresh, {
       headers: {
@@ -446,6 +605,168 @@ export class MossSessionApi {
     );
   }
 
+  // ==================== Model Management ====================
+
+  /**
+   * Get available models from Moss Server
+   * GET /api/v1/models/available
+   */
+  async getAvailableModels(): Promise<Array<{ id: string; name: string; ratio: number }>> {
+    const response = await this.fetchWithRetry(`${this.serverUrl}/api/v1/models/available`, {
+      method: 'GET',
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Failed to get available models: ${response.status} ${text}`);
+    }
+
+    const data = await response.json();
+    return data.data || [];
+  }
+
+  /**
+   * Get user's model preference
+   * GET /api/v1/users/{userId}/model
+   */
+  // 返回类型：用户偏好 + 系统默认模型
+  // 保持返回类型声明不变，或者改成更完整的结构
+  async getUserModelPreference(): Promise<{
+    modelId: string;
+    updatedAt: number;
+    systemDefaultModel: string; // 把默认模型也加进来
+  } | null> {
+    const response = await this.fetchWithRetry(`${this.serverUrl}/api/v1/users/me/model`, {
+      method: 'GET',
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Failed to get user model preference: ${response.status} ${text}`);
+    }
+
+    const res = await response.json();
+    // 把用户偏好和系统默认模型合并成一个对象返回
+    if (res.data) {
+      return {
+        ...res.data,
+        systemDefaultModel: res.systemDefaultModel || '',
+      };
+    } else {
+      // 用户没设置偏好时，返回默认模型
+      return {
+        modelId: '',
+        updatedAt: 0,
+        systemDefaultModel: res.systemDefaultModel || '',
+      };
+    }
+  }
+
+  /**
+   * Set user's model preference
+   * PUT /api/v1/users/{userId}/model
+   */
+  async setUserModelPreference(modelId: string): Promise<{ modelId: string; updatedAt: number }> {
+    const response = await this.fetchWithRetry(`${this.serverUrl}/api/v1/users/me/model`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ modelId }),
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Failed to set user model preference: ${response.status} ${text}`);
+    }
+
+    const data = await response.json();
+    return data.data;
+  }
+
+  /**
+   * Set model for current session via WebSocket
+   * Sends control_request with subtype 'set_model'
+   * If WebSocket is not connected, it will reconnect
+   */
+  async setModelForSession(sessionId: string, modelId: string): Promise<void> {
+    mainLog('MossSessionApi', `setModelForSession called: sessionId=${sessionId}, modelId=${modelId}`);
+
+    let ws = this.wsConnections.get(sessionId);
+
+    // If WebSocket is not connected, try to reconnect
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      mainLog('MossSessionApi', `WebSocket not connected for session ${sessionId}, reconnecting...`);
+
+      // Get session info to get wsUrl
+      try {
+        const sessionInfo = await this.resumeSession(sessionId);
+        const wsUrl = sessionInfo.wsUrl;
+
+        // Establish a new WebSocket connection (without sending a message)
+        const token = await this.ensureAuthenticated();
+        let wsUrlWithRefresh = wsUrl;
+        try {
+          const authStorage = ProcessConfig.getSync('eeclaw.authStorage');
+          if (authStorage?.refresh_token) {
+            const separator = wsUrlWithRefresh.includes('?') ? '&' : '?';
+            wsUrlWithRefresh += `${separator}refresh_token=${encodeURIComponent(authStorage.refresh_token)}`;
+          }
+        } catch {
+          /* ignore */
+        }
+
+        ws = new WebSocket(wsUrlWithRefresh, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        this.wsConnections.set(sessionId, ws);
+
+        // Wait for connection to open
+        await new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            reject(new Error('WebSocket connection timeout'));
+          }, 10000);
+
+          ws!.on('open', () => {
+            clearTimeout(timeout);
+            mainLog('MossSessionApi', `WebSocket reconnected for session ${sessionId}`);
+            resolve();
+          });
+
+          ws!.on('error', (err) => {
+            clearTimeout(timeout);
+            reject(err);
+          });
+        });
+
+        // Set up close handler
+        ws.on('close', (code, reason) => {
+          mainLog('MossSessionApi', `WebSocket closed: code=${code}, reason=${reason}`);
+          this.wsConnections.delete(sessionId);
+        });
+      } catch (err) {
+        mainError('MossSessionApi', `Failed to reconnect WebSocket for session ${sessionId}: ${err}`);
+        throw new Error(`Failed to reconnect WebSocket for session ${sessionId}`);
+      }
+    }
+
+    const message = JSON.stringify({
+      type: 'control_request',
+      request_id: uuid(36),
+      request: {
+        subtype: 'set_model',
+        model_id: modelId,
+      },
+    });
+
+    mainLog('MossSessionApi', `Sending model switch message: ${message}`);
+    ws.send(message);
+    mainLog('MossSessionApi', `Model switch request sent for session ${sessionId}: ${modelId}`);
+  }
+
   /**
    * Disconnect WebSocket
    */
@@ -515,11 +836,41 @@ export class MossSessionApi {
           },
         });
       }
+      // model_changed - 模型切换完成通知
+      if (msg.subtype === 'model_changed') {
+        const modelName = msg.model || 'unknown';
+        const sessionId = msg.session_id || '';
+        mainLog('MossSessionApi', `Model changed to: ${modelName} for session: ${sessionId}`);
+        // Emit model_changed event to frontend via IPC
+        // 通过 IPC 发送 model_changed 事件到前端
+        ipcBridge.moss.modelChanged.emit({
+          sessionId,
+          model: modelName,
+        });
+        // Also send acp_model_info update
+        onMessage({
+          type: 'acp_model_info',
+          msg_id: uuid(36),
+          conversation_id: sessionId,
+          data: {
+            source: 'models',
+            currentModelId: modelName,
+            currentModelLabel: modelName,
+            canSwitch: false,
+            availableModels: [],
+          },
+        });
+      }
       return;
     }
 
-    // 3. control_request - 权限请求
+    // 3. control_request - 权限请求或中断
     if (msg.type === 'control_request') {
+      if (msg.request?.subtype === 'interrupt') {
+        mainLog('MossSessionApi', `Interrupt received from server for session: ${msg.session_id || ''}`);
+        onFinish();
+        return;
+      }
       onMessage({
         type: 'acp_permission',
         msg_id: msg.request_id,
@@ -710,10 +1061,7 @@ export class MossSessionApi {
     }
 
     // Legacy/unknown types
-    if (msg.type && !['assistant', 'user', 'result', 'system', 'tool_progress', 'tool_use_summary',
-        'streamlined_text', 'streamlined_tool_use_summary', 'stream_event', 'rate_limit_event',
-        'auth_status', 'prompt_suggestion', 'control_request', 'thinking', 'finish', 'end_turn',
-        'tool_use', 'tool_result', 'content', 'text'].includes(msg.type)) {
+    if (msg.type && !['assistant', 'user', 'result', 'system', 'tool_progress', 'tool_use_summary', 'streamlined_text', 'streamlined_tool_use_summary', 'stream_event', 'rate_limit_event', 'auth_status', 'prompt_suggestion', 'control_request', 'thinking', 'finish', 'end_turn', 'tool_use', 'tool_result', 'content', 'text'].includes(msg.type)) {
       mainLog('MossSessionApi', `Unknown message type: ${msg.type}, skipping`);
       return;
     }
@@ -753,10 +1101,7 @@ export class MossSessionApi {
 
     // Check error message for abort indicators
     const errorMsg = msg.errors?.join('\n') || msg.result || '';
-    if (errorMsg.includes('Request was aborted') ||
-        errorMsg.includes('AbortError') ||
-        errorMsg.includes('aborted by user') ||
-        errorMsg.includes('user abort')) {
+    if (errorMsg.includes('Request was aborted') || errorMsg.includes('AbortError') || errorMsg.includes('aborted by user') || errorMsg.includes('user abort')) {
       return true;
     }
 
@@ -771,11 +1116,7 @@ export class MossSessionApi {
     const lowerText = text.toLowerCase();
     // Common abort/interrupt messages from Moss Server
     // Moss Server 常见的中止/中断消息
-    if (lowerText.includes('request interrupted by user') ||
-        lowerText.includes('request was aborted') ||
-        lowerText.includes('no response requested') ||
-        lowerText.includes('aborted by user') ||
-        lowerText.includes('interrupted by user')) {
+    if (lowerText.includes('request interrupted by user') || lowerText.includes('request was aborted') || lowerText.includes('no response requested') || lowerText.includes('aborted by user') || lowerText.includes('interrupted by user')) {
       return true;
     }
     return false;
@@ -828,18 +1169,38 @@ export interface MossSession {
   orgId?: string;
   role?: string;
   scopes?: string[];
+  source?: string;
 }
 
 /**
  * Global Moss API instance for enterprise mode
  */
 let mossApiInstance: MossSessionApi | null = null;
+let mossApiServerUrl: string | null = null;
 
 export function getMossApi(): MossSessionApi | null {
   return mossApiInstance;
 }
 
+/**
+ * Reset Moss API instance (call when server URL changes)
+ * 重置 Moss API 实例（当服务器 URL 变化时调用）
+ */
+export function resetMossApi(): void {
+  mossApiInstance = null;
+  mossApiServerUrl = null;
+}
+
 export function initMossApi(serverUrl: string): MossSessionApi {
   mossApiInstance = new MossSessionApi(serverUrl);
+  mossApiServerUrl = serverUrl;
   return mossApiInstance;
+}
+
+/**
+ * Get current Moss API server URL
+ * 获取当前 Moss API 服务器 URL
+ */
+export function getMossApiServerUrl(): string | null {
+  return mossApiServerUrl;
 }

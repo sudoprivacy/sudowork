@@ -7,12 +7,12 @@
 /**
  * Sudoclaw Install Service
  *
- * Legacy OpenClaw/Sudoclaw installation service kept for explicit
- * `openclaw-gateway` compatibility flows. The default startup-critical ACP
- * runtime now installs through `src/process/services/scode/ScodeInstallService.ts`.
+ * Manages the Sudoclaw gateway runtime at ~/.nexus/sudoclaw.
+ * The default startup-critical ACP runtime now installs through
+ * `src/process/services/scode/ScodeInstallService.ts`.
  *
- * This service still installs to ~/.nexus/sudoclaw (separate from official
- * ~/.openclaw) so users get a one-click experience without system Node.js.
+ * This service still installs to ~/.nexus/sudoclaw so users get
+ * a one-click experience without system Node.js.
  */
 
 import { execFileSync } from 'child_process';
@@ -41,7 +41,7 @@ const LEGACY_SUDOCLAW_DIR_V2 = path.join(os.homedir(), '.nexus', '.sudoclaw');
 /** Sudoclaw root: ~/.nexus/sudoclaw (macOS/Linux) or %USERPROFILE%\.nexus\sudoclaw (Windows) */
 export const SUDOCLAW_DIR = path.join(os.homedir(), '.nexus', 'sudoclaw');
 
-/** Default gateway port for Sudoclaw (17863) — avoids conflict with system OpenClaw (18789) */
+/** Default gateway port for Sudoclaw (17863) */
 export const SUDOCLAW_DEFAULT_PORT = 17863;
 
 const SUDOCLAW_CLI_DIR = path.join(SUDOCLAW_DIR, 'cli');
@@ -55,7 +55,7 @@ const SUDOCLAW_WORKSPACE_DIR = path.join(SUDOCLAW_DIR, 'workspace');
 const SUDOCLAW_INSTALL_MANIFEST_PATH = path.join(SUDOCLAW_DIR, 'install-manifest.json');
 
 /** COS base URL for downloading sudoclaw archives at runtime */
-const SUDOCLAW_COS_BASE_URL = 'https://sudoclaw-1309794936.cos.ap-beijing.myqcloud.com';
+const SUDOCLAW_COS_BASE_URL = 'https://sudoworkhub-1309794936.cos.ap-beijing.myqcloud.com';
 /** GitHub base URL for downloading sudoclaw archives at runtime */
 const SUDOCLAW_GITHUB_RELEASE_BASE_URL = 'https://github.com/sudoprivacy/sudorepo/releases/download';
 
@@ -394,7 +394,7 @@ function migrateConfigFilename(): void {
 }
 
 /** Repair sudoclaw.json schema — add models array to providers and fill missing defaults without overwriting user workspace choices. */
-export function repairOpenClawConfig(): void {
+export function repairSudoclawConfig(): void {
   const configPath = path.join(SUDOCLAW_DIR, CONFIG_FILENAME);
   if (!fs.existsSync(configPath)) return;
   try {
@@ -637,7 +637,7 @@ export function ensureDefaultConfig(): void {
     agents: {
       defaults: {
         workspace: SUDOCLAW_WORKSPACE_DIR,
-        model: { primary: 'sudorouter/gemini-3-flash-preview', fallbacks: [] as string[] },
+        model: { primary: 'sudorouter/gemini-3.5-flash', fallbacks: [] as string[] },
         models: {},
       },
       list: [{ id: 'main', identity: { name: 'SudoClaw', emoji: '🦞' } }],
@@ -648,12 +648,12 @@ export function ensureDefaultConfig(): void {
         sudorouter: {
           baseUrl: 'https://hk.sudorouter.ai/v1',
           api: 'google-generative-ai',
-          models: [{ id: 'gemini-3-flash-preview', name: 'gemini-3-flash-preview', input: ['text', 'image'] }],
+          models: [{ id: 'gemini-3.5-flash', name: 'gemini-3.5-flash', input: ['text', 'image'] }],
         },
-        'sudorouter-gemini-3-flash-preview': {
+        'sudorouter-gemini-3.5-flash': {
           baseUrl: 'https://hk.sudorouter.ai/v1',
           api: 'google-generative-ai',
-          models: [{ id: 'gemini-3-flash-preview', name: 'gemini-3-flash-preview', input: ['text', 'image'] }],
+          models: [{ id: 'gemini-3.5-flash', name: 'gemini-3.5-flash', input: ['text', 'image'] }],
         },
       },
     },
@@ -1846,7 +1846,7 @@ export async function ensureSudoclawInstalled(options?: { forceReinstall?: boole
   migrateLegacySudoclaw();
   migrateConfigFilename();
   ensureDefaultConfig();
-  repairOpenClawConfig();
+  repairSudoclawConfig();
   fs.mkdirSync(SUDOCLAW_WORKSPACE_DIR, { recursive: true });
   ensureUserMdSafetyRules();
   ensureUserMdIdentityStatement();
@@ -1923,7 +1923,7 @@ export async function ensureSudoclawInstalled(options?: { forceReinstall?: boole
     }
 
     ensureDefaultConfig();
-    repairOpenClawConfig(); // Ensure config is fully repaired after creation
+    repairSudoclawConfig(); // Ensure config is fully repaired after creation
     fs.mkdirSync(SUDOCLAW_WORKSPACE_DIR, { recursive: true });
     ensureUserMdSafetyRules();
     ensureUserMdIdentityStatement();

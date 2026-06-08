@@ -7,11 +7,11 @@
 import * as http from 'node:http';
 
 /**
- * Legacy OpenClaw/Sudoclaw gateway health probe.
+ * Sudoclaw gateway health probe.
  *
  * The default startup path now validates the managed scode CLI directly and no
  * longer depends on a long-lived Sudoclaw HTTP server. This helper remains for
- * explicit openclaw-gateway compatibility flows and runtime settings pages.
+ * gateway lifecycle management and runtime settings pages.
  */
 export const SUDOCLAW_HEALTH_TIMEOUT_MS = 15_000;
 

@@ -110,7 +110,7 @@ const AssistantAgentDropdown: React.FC<AssistantAgentDropdownProps> = ({ availab
                 <span className='flex-1 text-14px' style={{ color: 'var(--color-text-1)' }}>
                   {opt.label}
                 </span>
-                {isSelected && <Check theme='outline' size={16} style={{ color: 'rgb(var(--primary-6))', flexShrink: 0 }} />}
+                {isSelected && <Check theme='outline' size={16} style={{ color: 'var(--ui-accent-orange)', flexShrink: 0 }} />}
               </div>
             );
           })}

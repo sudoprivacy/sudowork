@@ -10,6 +10,7 @@
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import { AuthProxyServer } from './AuthProxyServer';
 import { refreshRules, getRules } from './configItemsLoader';
+import { isEnterpriseMode } from '@common/enterpriseDebugConfig';
 
 // ============================================================================
 // Module state
@@ -28,15 +29,25 @@ let serverPort: number | null = null;
  * Returns the port the server is listening on.
  */
 export async function startAuthProxy(): Promise<number> {
+  if (isEnterpriseMode()) {
+    mainLog('AuthProxy', 'Enterprise mode - skipping local Auth Proxy (handled by Moss Server)');
+    return 0;
+  }
+
   if (server) {
     return server.getPort()!;
   }
 
   try {
     // Dynamic import minimatch to avoid bundling issues
-    const minimatchDefault = (await import('minimatch' as string) as unknown as { default: (str: string, pattern: string) => boolean }).default;
+    const minimatchModule = await import('minimatch' as string) as unknown as Record<string, unknown>;
+    const minimatchFn = (typeof minimatchModule.minimatch === 'function')
+      ? minimatchModule.minimatch
+      : typeof minimatchModule.default === 'function'
+        ? minimatchModule.default
+        : (minimatchModule as unknown as (str: string, pattern: string) => boolean);
 
-    server = new AuthProxyServer(minimatchDefault);
+    server = new AuthProxyServer(minimatchFn as (str: string, pattern: string) => boolean);
     serverPort = await server.start();
     return serverPort;
   } catch (error) {

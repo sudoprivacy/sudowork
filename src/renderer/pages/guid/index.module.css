@@ -1,5 +1,5 @@
 .guidLayout {
-  width: clamp(var(--app-min-width, 360px), calc(100% - 32px), 800px);
+  width: clamp(var(--app-min-width, 360px), calc(100% - 32px), 760px);
   max-width: 100%;
   padding: 0 16px;
   box-sizing: border-box;
@@ -26,7 +26,7 @@
   line-height: 1.6;
   color: var(--color-text-2);
   background: var(--color-fill-1);
-  border: 1px solid var(--color-border-2);
+  border: 1px solid var(--ui-border-strong);
   animation: fade-in 0.3s ease-out;
   box-sizing: border-box;
 }
@@ -86,18 +86,18 @@
   min-width: 0;
 }
 
-/* 首页输入框下方「模型 / 模式」按钮：弱化视觉，不抢主输入区 */
+/* 首页输入框下方「模型 / 模式」按钮：跟随主题使用更柔和的填充 */
 .actionTools :global(.sendbox-model-btn) {
-  background-color: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
+  background: color-mix(in srgb, var(--horizon-surface) 90%, var(--fill)) !important;
+  border: 1px solid var(--border-base) !important;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.28) inset !important;
   color: var(--color-text-2) !important;
 }
 
 .actionTools :global(.sendbox-model-btn:hover) {
-  background-color: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
+  background: color-mix(in srgb, var(--horizon-surface) 82%, var(--horizon-selected)) !important;
+  border: 1px solid var(--border-base) !important;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--horizon-focus-ring) 60%, transparent) !important;
   color: var(--color-text-1) !important;
 }
 
@@ -380,7 +380,7 @@
 /* 功能面板样式 */
 .functionPanel {
   margin-top: 24px;
-  border: 1px solid var(--color-border-2);
+  border: 1px solid var(--ui-border-strong);
   border-radius: 12px;
   background: var(--color-bg-2);
   overflow: hidden;
@@ -402,7 +402,7 @@
   display: flex;
   justify-content: flex-end;
   padding: 12px 16px;
-  border-bottom: 1px solid var(--color-border-2);
+  border-bottom: 1px solid var(--ui-border-strong);
 }
 
 .functionPanelBody {
@@ -430,7 +430,7 @@
   transition: all 0.2s ease;
   background: var(--color-fill-1);
   color: var(--color-text-2);
-  border: 1px solid var(--color-border-2);
+  border: 1px solid var(--ui-border-strong);
   user-select: none;
 }
 
@@ -440,14 +440,14 @@
 }
 
 .promptCategoryTagActive {
-  background: var(--color-primary-light-1);
-  color: rgb(var(--primary-6));
-  border-color: rgb(var(--primary-6));
+  background: rgba(var(--ui-accent-orange-rgb), 0.12);
+  color: var(--ui-accent-orange);
+  border-color: rgba(var(--ui-accent-orange-rgb), 0.52);
 }
 
 .promptCategoryTagActive:hover {
-  background: var(--color-primary-light-1);
-  color: rgb(var(--primary-6));
+  background: rgba(var(--ui-accent-orange-rgb), 0.16);
+  color: var(--ui-accent-orange);
 }
 
 .promptListContainer {
@@ -466,7 +466,7 @@
   transition: all 0.2s ease;
   background: var(--color-fill-1);
   color: var(--color-text-2);
-  border: 1px solid var(--color-border-2);
+  border: 1px solid var(--ui-border-strong);
 }
 
 .promptItem:hover {

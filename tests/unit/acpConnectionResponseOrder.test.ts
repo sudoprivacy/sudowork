@@ -31,6 +31,11 @@ async function loadAcpConnection() {
   vi.doMock('@process/utils/shellEnv', () => ({
     resolveNpxPath: vi.fn(() => 'npx'),
   }));
+  vi.doMock('@process/services/authProxy', () => ({
+    getAuthProxyPort: vi.fn(() => null),
+    registerToken: vi.fn(),
+    revokeToken: vi.fn(),
+  }));
   vi.doMock('@/agent/acp/modelInfo', () => ({
     buildAcpModelInfo: vi.fn(() => null),
     summarizeAcpModelInfo: vi.fn(() => null),
@@ -97,6 +102,122 @@ describe('AcpConnection prompt response ordering', () => {
         cachedWriteTokens: 0,
       },
     });
+  });
+
+  it('merges Sudocode context metadata into prompt usage', async () => {
+    const { AcpConnection } = await loadAcpConnection();
+    const connection = new AcpConnection();
+    const harness = connection as unknown as AcpConnectionTestHarness;
+    const usageSpy = vi.fn();
+
+    connection.onPromptUsage = usageSpy;
+
+    harness.pendingRequests.set(2, {
+      resolve: vi.fn(),
+      reject: vi.fn(),
+      method: 'session/prompt',
+      isPaused: false,
+      startTime: Date.now(),
+      timeoutDuration: 300000,
+    });
+
+    harness.handleMessage({
+      jsonrpc: '2.0',
+      id: 2,
+      result: {
+        stopReason: 'end_turn',
+        usage: {
+          inputTokens: 10,
+          outputTokens: 5,
+          totalTokens: 15,
+        },
+        _meta: {
+          sudocode: {
+            contextWindowTokens: 1048576,
+            estimatedSessionTokens: 42000,
+          },
+        },
+      },
+    });
+
+    expect(usageSpy).toHaveBeenCalledWith({
+      inputTokens: 10,
+      outputTokens: 5,
+      totalTokens: 15,
+      contextWindowTokens: 1048576,
+      estimatedSessionTokens: 42000,
+    });
+  });
+
+  it('ignores invalid Sudocode context metadata values', async () => {
+    const { AcpConnection } = await loadAcpConnection();
+    const connection = new AcpConnection();
+    const harness = connection as unknown as AcpConnectionTestHarness;
+    const usageSpy = vi.fn();
+
+    connection.onPromptUsage = usageSpy;
+
+    harness.pendingRequests.set(3, {
+      resolve: vi.fn(),
+      reject: vi.fn(),
+      method: 'session/prompt',
+      isPaused: false,
+      startTime: Date.now(),
+      timeoutDuration: 300000,
+    });
+
+    harness.handleMessage({
+      jsonrpc: '2.0',
+      id: 3,
+      result: {
+        stopReason: 'end_turn',
+        usage: {
+          inputTokens: 10,
+          outputTokens: 5,
+          totalTokens: 15,
+        },
+        _meta: {
+          sudocode: {
+            contextWindowTokens: '1048576',
+            estimatedSessionTokens: Number.NaN,
+          },
+        },
+      },
+    });
+
+    expect(usageSpy).toHaveBeenCalledWith({
+      inputTokens: 10,
+      outputTokens: 5,
+      totalTokens: 15,
+    });
+  });
+
+  it('includes ACP error data when rejecting pending requests', async () => {
+    const { AcpConnection } = await loadAcpConnection();
+    const connection = new AcpConnection();
+    const harness = connection as unknown as AcpConnectionTestHarness;
+    const reject = vi.fn();
+
+    harness.pendingRequests.set(4, {
+      resolve: vi.fn(),
+      reject,
+      method: 'session/new',
+      isPaused: false,
+      startTime: Date.now(),
+      timeoutDuration: 300000,
+    });
+
+    harness.handleMessage({
+      jsonrpc: '2.0',
+      id: 4,
+      error: {
+        code: -32603,
+        message: 'Internal error',
+        data: 'failed to build runtime: missing sudocode config',
+      },
+    });
+
+    expect(reject).toHaveBeenCalledWith(new Error('Internal error: failed to build runtime: missing sudocode config'));
   });
 
   it('abandons cancel locally after timeout without disconnecting the session', async () => {

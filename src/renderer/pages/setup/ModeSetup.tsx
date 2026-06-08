@@ -9,6 +9,7 @@ import { Button, Input, Message } from '@arco-design/web-react';
 import { ipcBridge } from '@/common';
 import { ConfigStorage } from '@/common/storage';
 import { setAppMode } from '@/common/eeclawMode';
+import { TENANT_CONFIG_STORAGE_KEY, resolveTenantConfig } from '@/common/types/tenantConfig';
 import SudoworkIcon from '@/renderer/assets/sudowork-icon-dark.svg';
 import WindowControls from '@/renderer/components/WindowControls';
 import './ModeSetup.css';
@@ -16,6 +17,11 @@ import './ModeSetup.css';
 const isDesktopRuntime = typeof window !== 'undefined' && Boolean(window.electronAPI);
 
 type CardType = 'consumer' | 'enterprise' | null;
+type WebkitAppRegionStyle = React.CSSProperties & { WebkitAppRegion?: 'drag' | 'no-drag' };
+
+function getModeActionStyle(visible: boolean): WebkitAppRegionStyle {
+  return { display: visible ? 'block' : 'none', width: '100%', WebkitAppRegion: 'no-drag' };
+}
 
 function isValidServerUrl(url: string): boolean {
   // E2E test bypass
@@ -91,10 +97,16 @@ const ModeSetup: React.FC = () => {
       const result = await ipcBridge.eeclaw.verifyServer.invoke({ serverUrl: normalizedUrl });
 
       if (result.success && result.data) {
+        const tenantConfig = resolveTenantConfig(result.data);
+
         // Save mode + serverUrl + tenantName first, then reload
         await setAppMode('e');
         await ConfigStorage.set('eeclaw.serverUrl', normalizedUrl);
-        await ConfigStorage.set('eeclaw.tenantName', result.data.app_company_name);
+        await ConfigStorage.set('eeclaw.tenantName', tenantConfig.app_company_name);
+        localStorage.setItem(TENANT_CONFIG_STORAGE_KEY, JSON.stringify(tenantConfig));
+
+        // Notify main process to start local services, then reload renderer
+        await ipcBridge.application.startConsumerServices.invoke();
 
         // Reload page — setAppMode triggers re-render that unmounts this component
         // before any navigation can execute, so use reload instead
@@ -128,19 +140,14 @@ const ModeSetup: React.FC = () => {
         {/* Logo & Title */}
         <div className='mode-setup__header'>
           <img src={SudoworkIcon} alt='Sudowork' className='mode-setup__logo' />
-          <h1 className='text-28px font-700 tracking-tighter bg-gradient-to-br from-primary to-purple-600 bg-clip-text text-transparent mb-8px'>
-            欢迎使用 SudoClaw
-          </h1>
+          <h1 className='text-28px font-700 tracking-tighter bg-gradient-to-br from-primary to-purple-600 bg-clip-text text-transparent mb-8px'>欢迎使用 SudoWork</h1>
           <p className='text-14px text-t-secondary'>请选择您的使用模式</p>
         </div>
 
         {/* Cards */}
         <div className='mode-setup__cards'>
           {/* Consumer Card */}
-          <div
-            className={`mode-setup__card ${selectedCard === 'consumer' ? 'mode-setup__card--selected' : ''}`}
-            onClick={() => handleCardSelect('consumer')}
-          >
+          <div className={`mode-setup__card ${selectedCard === 'consumer' ? 'mode-setup__card--selected' : ''}`} onClick={() => handleCardSelect('consumer')}>
             <div className='mode-setup__card__icon'>
               <svg viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
                 <path d='M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2' />
@@ -156,10 +163,7 @@ const ModeSetup: React.FC = () => {
           </div>
 
           {/* Enterprise Card */}
-          <div
-            className={`mode-setup__card ${selectedCard === 'enterprise' ? 'mode-setup__card--selected' : ''}`}
-            onClick={() => handleCardSelect('enterprise')}
-          >
+          <div className={`mode-setup__card ${selectedCard === 'enterprise' ? 'mode-setup__card--selected' : ''}`} onClick={() => handleCardSelect('enterprise')}>
             <div className='mode-setup__card__icon'>
               <svg viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
                 <path d='M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z' />
@@ -180,51 +184,24 @@ const ModeSetup: React.FC = () => {
           <div className='flex flex-col gap-12px w-full'>
             <div className='flex flex-col gap-8px'>
               <div className='text-13px font-600 text-t-primary'>企业服务器地址</div>
-              <Input
-                size='large'
-                placeholder='https://your-company-server.com'
-                value={serverUrl}
-                onChange={setServerUrl}
-                className='mode-setup__input'
-              />
-              {serverUrl && !isValidServerUrl(serverUrl) ? (
-                <p className='text-12px text-danger ml-4px'>请输入有效的 HTTP/HTTPS 地址</p>
-              ) : serverUrl.startsWith('http://') ? (
-                <p className='text-12px text-warning ml-4px'>建议使用 HTTPS 协议以确保安全</p>
-              ) : (
-                <p className='text-12px text-t-tertiary ml-4px'>请输入管理员提供的企业服务器地址</p>
-              )}
+              <Input size='large' placeholder='https://your-company-server.com' value={serverUrl} onChange={setServerUrl} className='mode-setup__input' />
+              {serverUrl && !isValidServerUrl(serverUrl) ? <p className='text-12px text-danger ml-4px'>请输入有效的 HTTP/HTTPS 地址</p> : serverUrl.startsWith('http://') ? <p className='text-12px text-warning ml-4px'>建议使用 HTTPS 协议以确保安全</p> : <p className='text-12px text-t-tertiary ml-4px'>请输入管理员提供的企业服务器地址</p>}
             </div>
 
-            {verifyResult && (
-              <div className={`mode-setup__verify-result ${verifyResult.success ? 'mode-setup__verify-result--success' : 'mode-setup__verify-result--error'}`}>
-                {verifyResult.success ? (
-                  <span>{verifyResult.tenantName} — 连接成功</span>
-                ) : (
-                  <span>{verifyResult.message}</span>
-                )}
-              </div>
-            )}
+            {verifyResult && <div className={`mode-setup__verify-result ${verifyResult.success ? 'mode-setup__verify-result--success' : 'mode-setup__verify-result--error'}`}>{verifyResult.success ? <span>{verifyResult.tenantName} — 连接成功</span> : <span>{verifyResult.message}</span>}</div>}
           </div>
         </div>
 
         {/* Consumer button */}
-        <div style={{ display: selectedCard === 'consumer' ? 'block' : 'none', width: '100%', WebkitAppRegion: 'no-drag' }}>
+        <div style={getModeActionStyle(selectedCard === 'consumer')}>
           <Button type='primary' size='large' onClick={handleConsumerNext} className='mode-setup__btn mode-setup__btn--consumer'>
             开始使用
           </Button>
         </div>
 
         {/* Enterprise button */}
-        <div style={{ display: selectedCard === 'enterprise' ? 'block' : 'none', width: '100%', WebkitAppRegion: 'no-drag' }}>
-          <Button
-            type='primary'
-            size='large'
-            loading={verifying}
-            onClick={handleEnterpriseNext}
-            className='mode-setup__btn'
-            disabled={!serverUrl.trim() || verifying}
-          >
+        <div style={getModeActionStyle(selectedCard === 'enterprise')}>
+          <Button type='primary' size='large' loading={verifying} onClick={handleEnterpriseNext} className='mode-setup__btn' disabled={!serverUrl.trim() || verifying}>
             {verifying ? '验证中...' : '下一步'}
           </Button>
         </div>

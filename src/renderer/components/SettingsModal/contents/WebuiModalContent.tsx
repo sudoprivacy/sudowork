@@ -17,6 +17,7 @@ import { CheckOne, Communication, Copy, Earth, EditTwo, Refresh } from '@icon-pa
 import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSettingsViewMode } from '../settingsViewContext';
+import { useAppMode } from '@/renderer/hooks/useAppMode';
 
 /**
  * 偏好设置行组件
@@ -57,7 +58,11 @@ const WebuiModalContent: React.FC = () => {
   const { t } = useTranslation();
   const viewMode = useSettingsViewMode();
   const isPageMode = viewMode === 'page';
+  const { isEnterprise } = useAppMode();
   const [activeTab, setActiveTab] = useState<'channels' | 'secrets'>('channels');
+  const handleTabChange = useCallback((key: string) => {
+    setActiveTab(key === 'channels' ? 'channels' : 'secrets');
+  }, []);
 
   // 检测是否在 Electron 桌面环境 / Check if running in Electron desktop environment
   const isDesktop = isElectronDesktop();
@@ -578,7 +583,7 @@ const WebuiModalContent: React.FC = () => {
 
           {/* 启用 WebUI / Enable WebUI */}
           <PreferenceRow label={t('settings.webui.enable')} extra={startLoading ? <span className='text-12px text-warning'>{t('settings.webui.starting')}</span> : status?.running ? <span className='text-12px text-success'>✓ {t('settings.webui.running')}</span> : null}>
-            <Switch checked={status?.running || startLoading} loading={startLoading} onChange={handleToggle} />
+            <Switch checked={status?.running || startLoading} loading={startLoading} onChange={handleToggle} className='settings-accent-switch' style={status?.running || startLoading ? { backgroundColor: 'var(--ui-accent-orange)' } : undefined} />
           </PreferenceRow>
 
           {/* 访问地址（仅运行时显示）/ Access URL (only when running) */}
@@ -610,7 +615,7 @@ const WebuiModalContent: React.FC = () => {
               </span>
             }
           >
-            <Switch checked={allowRemote} onChange={handleAllowRemoteChange} />
+            <Switch checked={allowRemote} onChange={handleAllowRemoteChange} className='settings-accent-switch' style={allowRemote ? { backgroundColor: 'var(--ui-accent-orange)' } : undefined} />
           </PreferenceRow>
         </div>
 
@@ -696,8 +701,11 @@ const WebuiModalContent: React.FC = () => {
 
   return (
     <div className='flex flex-col h-full w-full'>
-      <Tabs activeTab={activeTab} onChange={(key) => setActiveTab(key as 'channels' | 'secrets')} type='line' className='mb-12px settings-remote-tabs'>
-        {/* <Tabs.TabPane
+      <div className='px-[12px] md:px-[28px]'>
+        <div className='max-w-820px mx-auto w-full'>
+          <div className='settings-remote-tabs mb-12px'>
+            <Tabs activeTab={activeTab} onChange={handleTabChange} type='line'>
+              {/* <Tabs.TabPane
           key='webui'
           title={
             <span data-webui-tab='webui' className={`inline-flex items-center gap-6px transition-colors ${activeTab === 'webui' ? 'text-t-primary font-600' : 'text-t-secondary'}`}>
@@ -706,45 +714,50 @@ const WebuiModalContent: React.FC = () => {
             </span>
           }
         /> */}
-        <Tabs.TabPane
-          key='channels'
-          title={
-            <span data-webui-tab='channels' className={`inline-flex items-center gap-6px transition-colors ${activeTab === 'channels' ? 'text-t-primary font-600' : 'text-t-secondary'}`}>
-              <Communication theme='outline' size='15' />
-              <span>Channels</span>
-              <span className='inline-flex items-center gap-4px ml-2px'>
-                {CHANNEL_LOGOS.map((item) => (
-                  <span key={item.alt} className='inline-flex items-center justify-center w-16px h-16px rd-50% border border-line bg-fill-1' title={item.alt} aria-label={item.alt}>
-                    <img src={item.src} alt={item.alt} className='w-14px h-14px object-contain' />
+              <Tabs.TabPane
+                key='channels'
+                title={
+                  <span data-webui-tab='channels' className={`inline-flex items-center gap-6px leading-none transition-colors ${activeTab === 'channels' ? 'text-t-primary font-600' : 'text-t-secondary'}`}>
+                    <Communication theme='outline' size='15' />
+                    <span>Channels</span>
+                    <span className='inline-flex items-center gap-4px ml-2px'>
+                      {CHANNEL_LOGOS.map((item) => (
+                        <span key={item.alt} className='inline-flex items-center justify-center w-16px h-16px rd-50% border border-line bg-fill-1' title={item.alt} aria-label={item.alt}>
+                          <img src={item.src} alt={item.alt} className='w-14px h-14px object-contain' />
+                        </span>
+                      ))}
+                    </span>
                   </span>
-                ))}
-              </span>
-            </span>
-          }
-        />
-        <Tabs.TabPane
-          key='secrets'
-          title={
-            <span data-webui-tab='secrets' className={`inline-flex items-center gap-6px transition-colors ${activeTab === 'secrets' ? 'text-t-primary font-600' : 'text-t-secondary'}`}>
-              <span className='text-14px'>{t('settings.secrets', '秘钥管理')}</span>
-            </span>
-          }
-        />
-      </Tabs>
+                }
+              />
+              <Tabs.TabPane
+                key='secrets'
+                title={
+                  <span data-webui-tab='secrets' className={`inline-flex items-center gap-6px leading-none transition-colors ${activeTab === 'secrets' ? 'text-t-primary font-600' : 'text-t-secondary'}`}>
+                    <span className='text-14px'>{isEnterprise ? t('settings.secrets.enterprise', '我的凭据') : t('settings.secrets', '秘钥管理')}</span>
+                  </span>
+                }
+              />
+            </Tabs>
+          </div>
+        </div>
+      </div>
 
       {/* {activeTab === 'webui' ? (
         webuiPanel
       ) : ( */}
-      <div className='flex-1 min-h-0'>
-        {activeTab === 'secrets' ? (
-          <Suspense fallback={<div className='px-[12px] md:px-[28px] text-13px text-t-secondary'>{t('common.loading')}</div>}>
-            <SecretModalContentLazy />
-          </Suspense>
-        ) : (
-          <Suspense fallback={<div className='px-[12px] md:px-[28px] text-13px text-t-secondary'>{t('common.loading')}</div>}>
-            <ChannelModalContentLazy />
-          </Suspense>
-        )}
+      <div className='flex-1 min-h-0 px-[12px] md:px-[28px] pb-18px'>
+        <div className='max-w-820px mx-auto w-full'>
+          {activeTab === 'secrets' ? (
+            <Suspense fallback={<div className='max-w-820px mx-auto w-full text-13px text-t-secondary'>{t('common.loading')}</div>}>
+              <SecretModalContentLazy />
+            </Suspense>
+          ) : (
+            <Suspense fallback={<div className='max-w-820px mx-auto w-full text-13px text-t-secondary'>{t('common.loading')}</div>}>
+              <ChannelModalContentLazy />
+            </Suspense>
+          )}
+        </div>
       </div>
       {/* )} */}
 

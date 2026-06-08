@@ -381,6 +381,7 @@ const InitLoading: React.FC<InitLoadingProps> = ({ variant = 'full' }) => {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
+                flexDirection: 'column',
                 gap: '12px',
                 marginTop: '6px',
                 WebkitAppRegion: 'no-drag',

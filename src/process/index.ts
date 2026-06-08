@@ -20,6 +20,7 @@ import { getChannelManager } from '@/channels';
 import { ExtensionRegistry } from '@/extensions';
 import { initStatusManager } from './services/initStatus';
 import { mainLog, mainError, perfLog } from './utils/mainLogger';
+import { refreshEnterpriseCache } from '@/common/enterpriseDebugConfig';
 // Crash bridge must be initialized early to handle renderer errors before other bridges
 import { initCrashBridge } from './bridge/crashBridge';
 
@@ -49,6 +50,9 @@ export const initializeProcess = async () => {
   const bridgeStart = Date.now();
   try {
     await import('./initBridge');
+    // Refresh enterprise config cache before mode branching
+    // This ensures isEnterpriseMode() returns correct value in ChannelManager
+    await refreshEnterpriseCache();
     mainLog('Process', 'Bridge initialized successfully');
   } catch (error) {
     mainError('Process', 'Bridge initialization failed', error);
@@ -70,29 +74,21 @@ export const initializeProcess = async () => {
   // uses BroadcastChannel IPC which doesn't work in the main process (no renderer yet).
   const appMode = ProcessConfig.getSync('system.appMode') ?? null;
 
-  if (appMode === 'e') {
-    // Enterprise mode: bridge is ready, skip local services, set ready immediately
-    initStatusManager.setStatus('ready', '初始化完成', 100);
-  } else if (appMode === 'c') {
-    // Consumer mode: normal full startup
+  if (appMode) {
+    // Both Enterprise and Consumer modes: start local services + ChannelManager
+    // Enterprise mode now requires local services for Local session mode support
     const serviceStart = Date.now();
     const { serviceManager } = await import('./services/serviceManager');
     void serviceManager.startup();
     perfLog('serviceManager.startup', Date.now() - serviceStart);
 
-    const parallelStart = Date.now();
-    await Promise.all([
-      (async () => {
-        const channelStart = Date.now();
-        try {
-          await getChannelManager().initialize();
-        } catch (error) {
-          mainError('Process', 'Failed to initialize ChannelManager', error);
-        }
-        perfLog('ChannelManager', Date.now() - channelStart);
-      })(),
-    ]);
-    perfLog('ChannelManager', Date.now() - parallelStart);
+    const channelStart = Date.now();
+    try {
+      await getChannelManager().initialize();
+    } catch (error) {
+      mainError('Process', 'Failed to initialize ChannelManager', error);
+    }
+    perfLog('ChannelManager', Date.now() - channelStart);
   } else {
     // New user (no appMode set): skip services, show ModeSetup
     // User selects C → startConsumerServices IPC + renderer reload (no app restart needed)

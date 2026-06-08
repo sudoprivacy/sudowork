@@ -11,8 +11,8 @@ import { isNodeInstalled } from '../claudeCli/NodeRuntimeService';
 import { initStatusManager } from '../initStatus';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import { createNexusSetupLogSnapshot, getNexusStepProgressFromSetupStatus, getNexusStepStateFromSetupStatus, shouldLogNexusSetupStatus, type NexusSetupLogSnapshot } from './nexusSetupStatus';
-import { dynamicNexusService as installedNexusService } from '../nexus/DynamicNexusService';
-import { isScodeInstalled as isInstalledScode, ensureScodeInstalled, getScodeVersionState } from '../scode/ScodeInstallService';
+import { dynamicNexusVfsService as installedNexusService } from '../nexus-vfs/DynamicNexusVfsService';
+import { isScodeInstalled as isInstalledScode, ensureScodeInstalled, getScodeVersionState, ensureAgentsMdRules } from '../scode/ScodeInstallService';
 
 const TAG = 'RuntimeInstaller';
 
@@ -24,12 +24,8 @@ const TAG = 'RuntimeInstaller';
  */
 class RuntimeInstaller {
   primeStatusForStartup(): void {
-    const fastNodeOk = isNodeInstalled();
-    const fastScodeOk = isInstalledScode();
-    const fastNexusOk = installedNexusService.checkInstalledSync();
-    const fastScodeNeedsUpgrade = fastScodeOk && getScodeVersionState().needsUpgrade;
-
-    initStatusManager.setDisplayMode(fastNodeOk && fastScodeOk && fastNexusOk && !fastScodeNeedsUpgrade ? 'startup' : 'full');
+    // Always use 'startup' mode for simpler UI
+    initStatusManager.setDisplayMode('startup');
   }
 
   /**
@@ -38,6 +34,9 @@ class RuntimeInstaller {
    * false if a critical install failure occurred.
    */
   async ensureAll(options?: { startNexus?: () => Promise<void> }): Promise<boolean> {
+    // Always ensure AGENTS.md rules are in place on every startup
+    ensureAgentsMdRules();
+
     const isWin32 = process.platform === 'win32';
     const shouldAssumeBundledResources = app.isPackaged;
 
@@ -91,25 +90,33 @@ class RuntimeInstaller {
     };
 
     if (fastNodeOk && fastScodeOk && fastNexusOk) {
-      const nexusVersionState = await installedNexusService.getVersionState();
       const scodeVersionState = getScodeVersionState();
 
-      if (!nexusVersionState.needsUpgrade && !scodeVersionState.needsUpgrade) {
+      if (!scodeVersionState.needsUpgrade) {
         mainLog(TAG, 'All runtimes already installed, skipping installation');
         initStatusManager.setDisplayMode('startup');
         markFastInstalledSteps();
+        // Ensure sudowork-browser MCP is registered even when the rest of the
+        // install pipeline short-circuits (returning users with everything
+        // already in place). Idempotent + never throws.
+        try {
+          const { ensureSudoworkBuiltinMcpInstalled } = await import('../mcpServices/SudoworkBuiltinMcpRegistration');
+          await ensureSudoworkBuiltinMcpInstalled();
+        } catch (err) {
+          mainLog(TAG, `sudowork-browser MCP registration skipped: ${String(err)}`);
+        }
         return startCriticalServices();
       }
 
-      mainLog(TAG, `Version mismatch: Nexus=${nexusVersionState.needsUpgrade ? `${nexusVersionState.installedVersion}→${nexusVersionState.bundledVersion}` : 'ok'}, Sudocode=${scodeVersionState.needsUpgrade ? `${scodeVersionState.installedVersion}→${scodeVersionState.bundledVersion}` : 'ok'}`);
+      mainLog(TAG, `Version mismatch: Nexus=ok, Sudocode=${scodeVersionState.needsUpgrade ? `${scodeVersionState.installedVersion}→${scodeVersionState.bundledVersion}` : 'ok'}`);
     }
     // ── End fast check ──────────────────────────────────────────────────────
 
     // ── At least one component appears to be missing — do full async check ──
     mainLog(TAG, 'Checking runtime dependencies...');
-    const runtimeModules = await Promise.all([import('../nexus/DynamicNexusService'), import('../claudeCli/CliInstallService'), import('../git/GitInstallService'), import('../bdpan/BdpanInstallService')]);
+    const runtimeModules = await Promise.all([import('../nexus-vfs/DynamicNexusVfsService'), import('../claudeCli/CliInstallService'), import('../git/GitInstallService'), import('../bdpan/BdpanInstallService')]);
     const [nexusModule, claudeCliModule, gitModule, bdpanModule] = runtimeModules;
-    const { dynamicNexusService } = nexusModule;
+    const { dynamicNexusVfsService } = nexusModule;
     const { claudeCliService } = claudeCliModule;
     const { ensureGitInstalled, isGitInstalled } = gitModule;
     const { ensureBdpanInstalled, isBdpanInstalled } = bdpanModule;
@@ -117,22 +124,21 @@ class RuntimeInstaller {
     const nodeInstalled = isNodeInstalled();
     const scodeInstalled = isInstalledScode();
     const scodeVersionState = getScodeVersionState();
-    const nexusInstalledPromise = dynamicNexusService.checkInstalled();
-    const nexusVersionStatePromise = dynamicNexusService.getVersionState();
+    const nexusInstalledPromise = dynamicNexusVfsService.checkInstalled();
     const gitInstalledPromise = isGitInstalled();
     const claudeStatusPromise = claudeCliService.checkInstalled();
     const bdpanInstalledPromise = Promise.resolve().then(() => isBdpanInstalled());
-    const runtimeChecks = await Promise.all([nexusInstalledPromise, nexusVersionStatePromise, gitInstalledPromise, claudeStatusPromise, bdpanInstalledPromise]);
-    const [nexusInstalled, nexusVersionState, gitInstalled, claudeStatus] = runtimeChecks;
+    const runtimeChecks = await Promise.all([nexusInstalledPromise, gitInstalledPromise, claudeStatusPromise, bdpanInstalledPromise]);
+    const [nexusInstalled, gitInstalled, claudeStatus] = runtimeChecks;
     const bdpanInstalled = await bdpanInstalledPromise;
     const claudeInstalled = claudeStatus.installed;
     const hasClaudeResource = claudeCliService.hasTgzResource();
 
-    const fullCheckSummary = `Git=${gitInstalled}, Claude=${claudeInstalled}, Bdpan=${bdpanInstalled}, Node=${nodeInstalled}, ` + `Sudocode=${scodeInstalled}, Nexus=${nexusInstalled}, ` + `SudocodeUpgrade=${scodeVersionState.needsUpgrade}, NexusUpgrade=${nexusVersionState.needsUpgrade}`;
+    const fullCheckSummary = `Git=${gitInstalled}, Claude=${claudeInstalled}, Bdpan=${bdpanInstalled}, Node=${nodeInstalled}, ` + `Sudocode=${scodeInstalled}, Nexus=${nexusInstalled}, ` + `SudocodeUpgrade=${scodeVersionState.needsUpgrade}`;
     mainLog(TAG, `Full check: ${fullCheckSummary}`);
 
     // Full check may confirm everything is fine (fast check had a false negative)
-    if (nodeInstalled && scodeInstalled && nexusInstalled && !scodeVersionState.needsUpgrade && !nexusVersionState.needsUpgrade) {
+    if (nodeInstalled && scodeInstalled && nexusInstalled && !scodeVersionState.needsUpgrade) {
       mainLog(TAG, 'All runtimes confirmed installed');
       initStatusManager.setDisplayMode('startup');
       markFastInstalledSteps();
@@ -148,10 +154,10 @@ class RuntimeInstaller {
 
     const willInstallNode = !nodeInstalled && hasNodeResource;
     const willInstallScode = !scodeInstalled || scodeVersionState.needsUpgrade;
-    const willInstallNexus = !nexusInstalled || nexusVersionState.needsUpgrade;
+    const willInstallNexus = !nexusInstalled;
 
     if (willInstallNode || willInstallScode || willInstallNexus) {
-      initStatusManager.setDisplayMode('full');
+      initStatusManager.setDisplayMode('startup');
       initStatusManager.setStatus('installing', '正在并行准备运行环境...', 5);
     }
 
@@ -209,7 +215,7 @@ class RuntimeInstaller {
       initStatusManager.setStepProgress('scode', 0, '等待安装 Sudocode...');
     }
 
-    if (nexusInstalled && !nexusVersionState.needsUpgrade) {
+    if (nexusInstalled) {
       if (options?.startNexus) {
         initStatusManager.setStepState('nexus', 'pending', '等待启动 Nexus...');
         initStatusManager.setStepProgress('nexus', 88, '等待启动 Nexus...');
@@ -408,7 +414,7 @@ class RuntimeInstaller {
     })();
 
     const nexusTask: Promise<TaskResult> = (async () => {
-      if (nexusInstalled && !nexusVersionState.needsUpgrade) {
+      if (nexusInstalled) {
         if (!options?.startNexus) {
           return { step: 'nexus', ok: true, required: true };
         }
@@ -426,14 +432,13 @@ class RuntimeInstaller {
       }
 
       try {
-        const isUpgrade = nexusVersionState.needsUpgrade;
-        const action = isUpgrade ? `升级 Nexus ${nexusVersionState.installedVersion} → ${nexusVersionState.bundledVersion}` : '安装 Nexus';
+        const action = '安装 Nexus';
         mainLog(TAG, action);
         markStepActive('nexus', '准备安装 Nexus...', 0);
         initStatusManager.addLog(`开始${action}...`);
 
         let lastLoggedSetupStatus: NexusSetupLogSnapshot | null = null;
-        const unsubNexus = dynamicNexusService.onSetupStatus((nexusStatus) => {
+        const unsubNexus = dynamicNexusVfsService.onSetupStatus((nexusStatus) => {
           const currentProgress = initStatusManager.getStatus().stepProgress?.nexus ?? 0;
           const progress = getNexusStepProgressFromSetupStatus(nexusStatus, currentProgress);
           const state = getNexusStepStateFromSetupStatus(nexusStatus);
@@ -447,7 +452,7 @@ class RuntimeInstaller {
         });
 
         try {
-          await dynamicNexusService.install();
+          await dynamicNexusVfsService.install();
         } finally {
           unsubNexus();
         }
@@ -465,7 +470,7 @@ class RuntimeInstaller {
       } catch (err) {
         const error = err instanceof Error ? err.message : String(err);
         mainError(TAG, 'Nexus install failed', err);
-        const prefix = nexusInstalled && !nexusVersionState.needsUpgrade ? 'Nexus 启动失败' : 'Nexus 安装失败';
+        const prefix = nexusInstalled ? 'Nexus 启动失败' : 'Nexus 安装失败';
         markStepError('nexus', `${prefix}: ${error}`);
         initStatusManager.addLog(`⚠ ${prefix}: ${error}`);
         return { step: 'nexus', ok: false, required: true, error };
@@ -508,6 +513,21 @@ class RuntimeInstaller {
       const error = `以下组件安装未完成: ${failedRequired.map((item) => item.step).join('、')}`;
       initStatusManager.setStatus('error', '安装失败', 0, error);
       return false;
+    }
+
+    // Ensure sudowork-browser MCP is registered into Claude Code's user config.
+    // We do this here (not only from CliInstallService.install) because users
+    // who already had Claude installed before this version of sudowork won't
+    // trigger CliInstallService.install — but they still need the entry to be
+    // added once. The function is idempotent and never throws.
+    const claudeResult = results.find((r) => r.step === 'claude');
+    if (claudeResult?.ok) {
+      try {
+        const { ensureSudoworkBuiltinMcpInstalled } = await import('../mcpServices/SudoworkBuiltinMcpRegistration');
+        await ensureSudoworkBuiltinMcpInstalled();
+      } catch (err) {
+        mainLog(TAG, `sudowork-browser MCP registration skipped: ${String(err)}`);
+      }
     }
 
     initStatusManager.setStatus('installing', '正在校验组件状态...', 96);

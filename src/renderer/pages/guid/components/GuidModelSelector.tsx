@@ -5,12 +5,13 @@
  */
 
 import { ipcBridge } from '@/common';
+import ActionChip from '@/renderer/components/ui/ActionChip';
 import type { IProvider, TProviderWithModel } from '@/common/storage';
-import { iconColors } from '@/renderer/theme/colors';
 import { getModelDisplayLabel } from '@/renderer/utils/agentUiDisplay';
+import { buildProviderModelGroups } from '@/renderer/utils/modelProviderGroups';
 import type { AcpModelInfo } from '../types';
 import { getAvailableModels } from '../utils/modelUtils';
-import { Button, Dropdown, Menu, Tooltip } from '@arco-design/web-react';
+import { Dropdown, Menu, Tooltip } from '@arco-design/web-react';
 import { Brain, Plus } from '@icon-park/react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
@@ -81,6 +82,8 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({ isGeminiMode, mod
       fallbackLabel: defaultModelLabel,
     });
   }, [acpSelectedLabel, currentAcpCachedModelInfo?.currentModelId, defaultModelLabel, selectedAcpModel]);
+
+  const acpProviderModelGroups = React.useMemo(() => buildProviderModelGroups(currentAcpCachedModelInfo?.availableModels || [], modelConfig), [currentAcpCachedModelInfo?.availableModels, modelConfig]);
 
   if (isGeminiMode) {
     return (
@@ -194,12 +197,7 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({ isGeminiMode, mod
           </Menu>
         }
       >
-        <Button className={'sendbox-model-btn guid-config-btn'} shape='round' size='small'>
-          <span className='flex items-center gap-6px min-w-0'>
-            <Brain theme='outline' size='14' fill={iconColors.secondary} className='shrink-0' />
-            <span>{geminiButtonLabel}</span>
-          </span>
-        </Button>
+        <ActionChip icon={<Brain theme='outline' size='14' fill='currentColor' />} label={geminiButtonLabel} />
       </Dropdown>
     );
   }
@@ -212,43 +210,37 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({ isGeminiMode, mod
           trigger='click'
           droplist={
             <Menu selectedKeys={selectedAcpModel ? [selectedAcpModel] : []}>
-              {currentAcpCachedModelInfo.availableModels.map((model) => {
-                // 获取模型健康状态
-                const backend = currentAcpCachedModelInfo.source;
-                const providerConfig = modelConfig?.find((p) => p.platform?.includes(backend || ''));
-                const healthStatus = providerConfig?.modelHealth?.[model.id]?.status || 'unknown';
-                const healthColor = healthStatus === 'healthy' ? 'bg-green-500' : healthStatus === 'unhealthy' ? 'bg-red-500' : 'bg-gray-400';
+              {acpProviderModelGroups.map((group) => (
+                <Menu.ItemGroup title={group.name || t('common.other', { defaultValue: 'Other' })} key={group.key}>
+                  {group.models.map((model) => {
+                    // 获取模型健康状态
+                    const backend = currentAcpCachedModelInfo.source;
+                    const providerConfig = group.provider || modelConfig?.find((p) => p.platform?.includes(backend || ''));
+                    const healthStatus = providerConfig?.modelHealth?.[model.id]?.status || 'unknown';
+                    const healthColor = healthStatus === 'healthy' ? 'bg-green-500' : healthStatus === 'unhealthy' ? 'bg-red-500' : 'bg-gray-400';
 
-                return (
-                  <Menu.Item key={model.id} className={model.id === selectedAcpModel ? '!bg-2' : ''} onClick={() => setSelectedAcpModel(model.id)}>
-                    <div className='flex items-center gap-8px w-full'>
-                      {healthStatus !== 'unknown' && <div className={`w-6px h-6px rounded-full shrink-0 ${healthColor}`} />}
-                      <span>{model.label}</span>
-                    </div>
-                  </Menu.Item>
-                );
-              })}
+                    return (
+                      <Menu.Item key={model.id} className={model.id === selectedAcpModel ? '!bg-2' : ''} onClick={() => setSelectedAcpModel(model.id)}>
+                        <div className='flex items-center gap-8px w-full'>
+                          {healthStatus !== 'unknown' && <div className={`w-6px h-6px rounded-full shrink-0 ${healthColor}`} />}
+                          <span>{model.label}</span>
+                        </div>
+                      </Menu.Item>
+                    );
+                  })}
+                </Menu.ItemGroup>
+              ))}
             </Menu>
           }
         >
-          <Button className={'sendbox-model-btn guid-config-btn'} shape='round' size='small'>
-            <span className='flex items-center gap-6px min-w-0'>
-              <Brain theme='outline' size='14' fill={iconColors.secondary} className='shrink-0' />
-              <span>{acpButtonLabel}</span>
-            </span>
-          </Button>
+          <ActionChip icon={<Brain theme='outline' size='14' fill='currentColor' />} label={acpButtonLabel} />
         </Dropdown>
       );
     }
 
     return (
       <Tooltip content={t('conversation.welcome.modelSwitchNotSupported')} position='top'>
-        <Button className={'sendbox-model-btn guid-config-btn'} shape='round' size='small' style={{ cursor: 'default' }}>
-          <span className='flex items-center gap-6px min-w-0'>
-            <Brain theme='outline' size='14' fill={iconColors.secondary} className='shrink-0' />
-            <span>{acpButtonLabel}</span>
-          </span>
-        </Button>
+        <ActionChip icon={<Brain theme='outline' size='14' fill='currentColor' />} label={acpButtonLabel} />
       </Tooltip>
     );
   }
@@ -256,12 +248,7 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({ isGeminiMode, mod
   // Fallback: no model switching
   return (
     <Tooltip content={t('conversation.welcome.modelSwitchNotSupported')} position='top'>
-      <Button className={'sendbox-model-btn guid-config-btn'} shape='round' size='small' style={{ cursor: 'default' }}>
-        <span className='flex items-center gap-6px min-w-0'>
-          <Brain theme='outline' size='14' fill={iconColors.secondary} className='shrink-0' />
-          <span>{acpButtonLabel}</span>
-        </span>
-      </Button>
+      <ActionChip icon={<Brain theme='outline' size='14' fill='currentColor' />} label={acpButtonLabel} />
     </Tooltip>
   );
 };

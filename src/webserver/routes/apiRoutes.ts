@@ -12,12 +12,10 @@ import https from 'https';
 import { URL } from 'url';
 import { TokenMiddleware } from '@/webserver/auth/middleware/TokenMiddleware';
 import { ExtensionRegistry } from '@/extensions';
-import { getSecretStoreClient } from '@common/nexus/secret-store';
-import { cachePut, cacheDelete } from '@common/nexus/secret-cache';
 import directoryApi from '../directoryApi';
 import { apiRateLimiter } from '../middleware/security';
 
-const SKILL_HUB_BASE_URL = 'https://sudoclawhub.sudoprivacy.com/api/skills';
+const SKILL_HUB_BASE_URL = 'https://sudoworkhub.sudoprivacy.com/api/skills';
 const SKILL_HUB_AUTHORIZATION = 'sud0@sudo';
 
 function normalizeMountPath(input: string): string {
@@ -280,7 +278,7 @@ export function registerApiRoutes(app: Express): void {
       if (category) params.set('category', category);
       if (tenantId) params.set('tenant_id', tenantId);
 
-      const response = await fetch(`https://sudoclawhub.sudoprivacy.com/api/skills/cursor?${params}`, {
+      const response = await fetch(`https://sudoworkhub.sudoprivacy.com/api/skills/cursor?${params}`, {
         headers: { Authorization: SKILL_HUB_AUTHORIZATION },
       });
       const result = await response.json();
@@ -294,7 +292,7 @@ export function registerApiRoutes(app: Express): void {
 
   app.get('/api/categories', apiRateLimiter, validateApiAccess, async (_req: Request, res: Response) => {
     try {
-      const response = await fetch('https://sudoclawhub.sudoprivacy.com/api/categories', {
+      const response = await fetch('https://sudoworkhub.sudoprivacy.com/api/categories', {
         headers: { Authorization: SKILL_HUB_AUTHORIZATION },
       });
       const data = await response.json();
@@ -315,74 +313,6 @@ export function registerApiRoutes(app: Express): void {
       res.json({ success: true, data: data.data });
     } catch (error) {
       console.error('[SkillHub API] Failed to fetch skill detail:', error);
-      res.status(500).json({ success: false, msg: error instanceof Error ? error.message : String(error) });
-    }
-  });
-
-  // ==========================================================================
-  // Secret CRUD API
-  // ==========================================================================
-
-  /**
-   * GET /api/secrets - List secret metadata (no values)
-   * ?namespace=xxx - optional filter by namespace
-   */
-  app.get('/api/secrets', apiRateLimiter, validateApiAccess, async (req: Request, res: Response) => {
-    try {
-      const namespace = typeof req.query.namespace === 'string' ? req.query.namespace : undefined;
-      const client = getSecretStoreClient();
-      const secrets = await client.listSecrets(namespace, false);
-      // Strip values - only return metadata
-      const metadata = secrets.map((s) => ({
-        namespace: s.namespace,
-        key: s.key,
-        description: s.description,
-        createdAt: s.createdAt,
-        updatedAt: s.updatedAt,
-        version: s.currentVersion,
-      }));
-      res.json({ success: true, data: metadata });
-    } catch (error) {
-      console.error('[SecretAPI] Failed to list secrets:', error);
-      res.status(500).json({ success: false, msg: error instanceof Error ? error.message : String(error) });
-    }
-  });
-
-  /**
-   * PUT /api/secrets/:namespace/:key - Create or update a secret
-   * Body: { value: string, description?: string }
-   */
-  app.put('/api/secrets/:namespace/:key', apiRateLimiter, validateApiAccess, async (req: Request, res: Response) => {
-    try {
-      const namespace = req.params.namespace as string;
-      const key = req.params.key as string;
-      const { value, description } = req.body;
-      if (typeof value !== 'string') {
-        return res.status(400).json({ success: false, msg: 'Missing or invalid "value" field' });
-      }
-      const client = getSecretStoreClient();
-      const result = await client.putSecret(namespace, key, value, description);
-      cachePut(namespace, key, value);
-      res.json({ success: true, data: result });
-    } catch (error) {
-      console.error('[SecretAPI] Failed to put secret:', error);
-      res.status(500).json({ success: false, msg: error instanceof Error ? error.message : String(error) });
-    }
-  });
-
-  /**
-   * DELETE /api/secrets/:namespace/:key - Soft-delete a secret
-   */
-  app.delete('/api/secrets/:namespace/:key', apiRateLimiter, validateApiAccess, async (req: Request, res: Response) => {
-    try {
-      const namespace = req.params.namespace as string;
-      const key = req.params.key as string;
-      const client = getSecretStoreClient();
-      const result = await client.deleteSecret(namespace, key);
-      cacheDelete(namespace, key);
-      res.json({ success: true, data: result });
-    } catch (error) {
-      console.error('[SecretAPI] Failed to delete secret:', error);
       res.status(500).json({ success: false, msg: error instanceof Error ? error.message : String(error) });
     }
   });

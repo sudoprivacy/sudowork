@@ -1,9 +1,10 @@
 import { ipcBridge } from '@/common';
 import { SUDOWORK_SERVER_BASE_URL } from '@/common/sudoworkServer';
-import { ConfigStorage } from '@/common/storage';
+import { ConfigStorage, DEFAULT_IMAGE_GENERATION_MODEL } from '@/common/storage';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { withCsrfToken } from '@/webserver/middleware/csrfClient';
 import { getSudorouterPrimaryModelPath, mergeSudorouterProvidersIntoConfig } from '@/common/sudoclawModelConfig';
+import { buildScodeConfigFromLoginPayload } from '@/common/scodeConfig';
 import { extractLoginSudoclawPayload, mergeLoginUserData } from '@/common/sudoworkAuthLogin';
 
 type AuthStatus = 'checking' | 'syncing' | 'authenticated' | 'unauthenticated';
@@ -19,6 +20,8 @@ export interface AuthUser {
   model_service_url?: string;
   models?: string[];
   phone?: string;
+  localAuth?: boolean;
+  localModeAvailable?: boolean;
   points?: {
     total: number;
     used: number;
@@ -43,6 +46,8 @@ interface EeclawAuthStorage {
   expires_at: number;
   user: AuthUser;
   device_id: string;
+  /** How this session was established; drives which grant_type is used on refresh. */
+  session_type?: 'password' | 'api_key' | 'oauth2';
 }
 
 interface LoginParams {
@@ -124,13 +129,14 @@ interface AuthContextValue {
   ensureValidToken: (forceRefresh?: boolean) => Promise<string | null>;
   forceRefreshToken: () => Promise<string | null>;
   enterpriseLogin: (params: EnterpriseLoginParams | EnterpriseLoginParamsByKey) => Promise<LoginResult>;
+  enterpriseLoginWithOAuth2: (params: Record<string, string>) => Promise<LoginResult>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 const AUTH_USER_ENDPOINT = '/api/auth/user';
 const AUTH_STORAGE_KEY = 'sudowork_auth_v2';
-const EECLAW_AUTH_STORAGE_KEY = 'eeclaw_auth_v1';
+export const EECLAW_AUTH_STORAGE_KEY = 'eeclaw_auth_v1';
 const DEVICE_ID_KEY = 'sudowork_device_id';
 
 const isDesktopRuntime = typeof window !== 'undefined' && Boolean(window.electronAPI);
@@ -141,12 +147,12 @@ const isDesktopRuntime = typeof window !== 'undefined' && Boolean(window.electro
  */
 async function refreshAuthProxyRulesAfterLogin(): Promise<void> {
   try {
-    const enabledMap = await ConfigStorage.get('settings.tenant.enabled') as Record<number, boolean> | undefined;
+    const enabledMap = (await ConfigStorage.get('settings.tenant.enabled')) as Record<number, boolean> | undefined;
     const enabledIds = enabledMap
-      ? Object.entries(enabledMap).filter(([, v]) => v).map(([k]) => Number(k))
+      ? Object.entries(enabledMap)
+          .filter(([, v]) => v)
+          .map(([k]) => Number(k))
       : [];
-
-    if (enabledIds.length === 0) return;
 
     const stored = localStorage.getItem(AUTH_STORAGE_KEY);
     if (!stored) return;
@@ -235,13 +241,14 @@ async function fetchCurrentUser(signal?: AbortSignal): Promise<AuthUser | null> 
 }
 
 // Map MOSS enterprise user to AuthUser compatible type
-function mapEnterpriseUser(enterpriseUser: { id: string; name: string; role?: string }, token?: string): AuthUser {
+function mapEnterpriseUser(enterpriseUser: { id: string; name: string; role?: string; localAuth?: boolean }, token?: string): AuthUser {
   return {
     id: enterpriseUser.id,
     nickname: enterpriseUser.name,
     role: (enterpriseUser.role as AuthUser['role']) || 'USER',
     status: 1, // default active
     token,
+    localAuth: enterpriseUser.localAuth === true,
   };
 }
 
@@ -280,6 +287,21 @@ async function handleLoginSuccess(data: LoginSuccessResponse, setUser: SetAuthUs
     });
   }
 
+  // 同步用户 ID 到主进程，用于遥测上报 (个人模式)
+  if (isDesktopRuntime && authData.id) {
+    ipcBridge.sudoworkAuth.saveConsumerUserId.invoke({ userId: authData.id }).catch((error) => {
+      console.error('[Auth] Failed to save consumer user ID:', error);
+    });
+    // 同步用户信息到 ConfigStorage，供主进程遥测使用
+    ConfigStorage.set('consumer.userInfo', {
+      id: authData.id,
+      nickname: authData.nickname,
+      phone: authData.phone,
+    }).catch((error) => {
+      console.error('[Auth] Failed to save consumer userInfo to ConfigStorage:', error);
+    });
+  }
+
   if (isDesktopRuntime) {
     if (!loginSudoclawPayload) {
       setUser(null);
@@ -291,38 +313,61 @@ async function handleLoginSuccess(data: LoginSuccessResponse, setUser: SetAuthUs
     setReady(true);
 
     try {
-      const currentConfig = await ipcBridge.sudoclaw.getConfig.invoke();
-      const hadSudoclawApiKey = hasSudoclawApiKey(currentConfig?.data);
-      const patch = mergeSudorouterProvidersIntoConfig(currentConfig?.data, {
-        modelIds: loginSudoclawPayload.models,
-        apiKey: loginSudoclawPayload.sudorouterKey,
-        baseUrl: loginSudoclawPayload.modelServiceUrl,
-        preservePrimary: hadSudoclawApiKey,
-      });
-
-      if (!hadSudoclawApiKey) {
-        patch.agents = {
-          ...patch.agents,
-          defaults: {
-            ...patch.agents?.defaults,
-            model: {
-              ...patch.agents?.defaults?.model,
-              primary: getSudorouterPrimaryModelPath('gemini-3-flash-preview'),
-            },
-          },
-        };
+      const currentScodeConfig = await ipcBridge.scode.getConfig.invoke().catch((): null => null);
+      const scodeConfig = buildScodeConfigFromLoginPayload(loginSudoclawPayload, currentScodeConfig?.data);
+      const scodeSaveRes = await ipcBridge.scode.saveConfig.invoke({ config: scodeConfig });
+      if (!scodeSaveRes?.success) {
+        throw new Error(scodeSaveRes?.msg || 'Sudocode saveConfig failed');
       }
 
-      const saveRes = await ipcBridge.sudoclaw.saveConfig.invoke({ config: patch });
-      if (!saveRes?.success) {
-        throw new Error(saveRes?.msg || 'Sudoclaw saveConfig failed');
+      const restoreRes = await ipcBridge.scode.restoreCustomModelProviders.invoke({ userId: authData.id }).catch((err): null => {
+        console.warn('[Auth] Failed to restore custom scode models:', err);
+        return null;
+      });
+      await ipcBridge.scode.setImageModel.invoke({ modelId: DEFAULT_IMAGE_GENERATION_MODEL }).catch(() => {});
+      // Sync settings.json to the merged default model while preserving a user-selected custom model.
+      const defaultModel = restoreRes?.data?.default_model || scodeConfig.default_model;
+      if (defaultModel) {
+        await ipcBridge.scode.setDefaultModel.invoke({ modelId: defaultModel }).catch(() => {});
+      }
+
+      // Sync sudoclaw.json only for legacy gateway compatibility. Failure must not block Sudocode.
+      try {
+        const currentConfig = await ipcBridge.sudoclaw.getConfig.invoke();
+        const hadSudoclawApiKey = hasSudoclawApiKey(currentConfig?.data);
+        const patch = mergeSudorouterProvidersIntoConfig(currentConfig?.data, {
+          modelIds: loginSudoclawPayload.models,
+          apiKey: loginSudoclawPayload.sudorouterKey,
+          baseUrl: loginSudoclawPayload.modelServiceUrl,
+          preservePrimary: hadSudoclawApiKey,
+        });
+
+        if (!hadSudoclawApiKey) {
+          patch.agents = {
+            ...patch.agents,
+            defaults: {
+              ...patch.agents?.defaults,
+              model: {
+                ...patch.agents?.defaults?.model,
+                primary: getSudorouterPrimaryModelPath('gemini-3.5-flash'),
+              },
+            },
+          };
+        }
+
+        const saveRes = await ipcBridge.sudoclaw.saveConfig.invoke({ config: patch });
+        if (!saveRes?.success) {
+          throw new Error(saveRes?.msg || 'Sudoclaw saveConfig failed');
+        }
+      } catch (error) {
+        console.warn('[Auth] Failed to sync sudoclaw backup config:', error);
       }
     } catch (error) {
       setSyncMessage(null);
       setUser(null);
       setStatus('unauthenticated');
       setReady(true);
-      console.error('[Auth] Sudoclaw 配置失败:', error);
+      console.error('[Auth] Sudocode 配置失败:', error);
       throw error;
     }
   }
@@ -333,18 +378,26 @@ async function handleLoginSuccess(data: LoginSuccessResponse, setUser: SetAuthUs
   setReady(true);
 
   if (isDesktopRuntime) {
-    void ipcBridge.sudoclaw.restartGateway
-      .invoke()
-      .then((restartRes) => {
-        if (!restartRes?.success) {
-          console.error('[Auth] Sudoclaw 后台重启失败:', restartRes?.msg || 'Sudoclaw restartGateway failed');
-          return;
-        }
-        console.log('[Auth] Sudoclaw 正在后台重启');
-      })
-      .catch((error) => {
-        console.error('[Auth] Sudoclaw 后台重启失败:', error);
-      });
+    void restartSudoclawGatewayIfInstalled();
+  }
+}
+
+async function restartSudoclawGatewayIfInstalled(): Promise<void> {
+  try {
+    const statusRes = await ipcBridge.sudoclaw.getStatus.invoke();
+    if (!statusRes?.success || !statusRes.data?.installed) {
+      console.warn('[Auth] Sudoclaw gateway restart skipped because Sudoclaw CLI is not installed');
+      return;
+    }
+
+    const restartRes = await ipcBridge.sudoclaw.restartGateway.invoke();
+    if (!restartRes?.success) {
+      console.error('[Auth] Sudoclaw 后台重启失败:', restartRes?.msg || 'Sudoclaw restartGateway failed');
+      return;
+    }
+    console.log('[Auth] Sudoclaw 正在后台重启');
+  } catch (error) {
+    console.error('[Auth] Sudoclaw 后台重启失败:', error);
   }
 }
 
@@ -460,9 +513,17 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
 
           if (forceRefresh || (expires_at && Date.now() > expires_at - 5 * 60 * 1000)) {
             const refreshed = await refreshTokens();
-            if (!refreshed) return null;
-            const newStorage = JSON.parse(localStorage.getItem(EECLAW_AUTH_STORAGE_KEY) || '{}');
-            return newStorage.access_token || null;
+            if (refreshed) {
+              const newStorage = JSON.parse(localStorage.getItem(EECLAW_AUTH_STORAGE_KEY) || '{}');
+              return newStorage.access_token || null;
+            }
+            // Refresh failed (e.g. provider has no refresh API). Keep using the
+            // current access_token while it is still valid; only give up once it
+            // has actually expired, at which point re-login is required.
+            if (!forceRefresh && expires_at && Date.now() < expires_at) {
+              return access_token;
+            }
+            return null;
           }
 
           return access_token;
@@ -570,8 +631,8 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
             // Use the newer refresh_token: the one from ProcessConfig if it was refreshed by main process
             const useConfigRefreshToken = configRefreshToken && configRefreshToken !== authStorage.refresh_token;
             const finalRefreshToken = useConfigRefreshToken ? configRefreshToken : authStorage.refresh_token;
-            const finalExpiresAt = (configExpiresAt && configExpiresAt > authStorage.expires_at) ? configExpiresAt : authStorage.expires_at;
-            const finalAccessToken = (configExpiresAt && configExpiresAt > authStorage.expires_at && existingConfig?.access_token) ? existingConfig.access_token : authStorage.access_token;
+            const finalExpiresAt = configExpiresAt && configExpiresAt > authStorage.expires_at ? configExpiresAt : authStorage.expires_at;
+            const finalAccessToken = configExpiresAt && configExpiresAt > authStorage.expires_at && existingConfig?.access_token ? existingConfig.access_token : authStorage.access_token;
 
             await ConfigStorage.set('eeclaw.authStorage', {
               access_token: finalAccessToken,
@@ -579,6 +640,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
               expires_at: finalExpiresAt,
               device_id: authStorage.device_id,
             });
+            await ConfigStorage.set('eeclaw.localModeAvailable', authStorage.user.localModeAvailable === true);
 
             // If ProcessConfig had a newer token, also update localStorage
             if (finalRefreshToken !== authStorage.refresh_token || finalExpiresAt !== authStorage.expires_at) {
@@ -635,6 +697,21 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
           });
         }
 
+        // 从 localStorage 恢复登录状态时，也同步用户 ID 到主进程 (个人模式)
+        if (isDesktopRuntime && authStorage.user.id) {
+          ipcBridge.sudoworkAuth.saveConsumerUserId.invoke({ userId: authStorage.user.id }).catch((error) => {
+            console.error('[Auth] Failed to save consumer user ID on restore:', error);
+          });
+          // 同步用户信息到 ConfigStorage，供主进程遥测使用
+          ConfigStorage.set('consumer.userInfo', {
+            id: authStorage.user.id,
+            nickname: authStorage.user.nickname,
+            phone: authStorage.user.phone,
+          }).catch((error) => {
+            console.error('[Auth] Failed to save consumer userInfo to ConfigStorage on restore:', error);
+          });
+        }
+
         // 检查 token 是否需要刷新
         if (authStorage.expires_at && Date.now() > authStorage.expires_at - 5 * 60 * 1000) {
           await refreshTokens();
@@ -672,6 +749,20 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         if (isDesktopRuntime && parsed.nickname) {
           ipcBridge.sudoworkAuth.saveUserNickname.invoke({ nickname: parsed.nickname }).catch((error) => {
             console.error('[Auth] Failed to sync user nickname on restore:', error);
+          });
+        }
+
+        if (isDesktopRuntime && parsed.id) {
+          ipcBridge.sudoworkAuth.saveConsumerUserId.invoke({ userId: parsed.id }).catch((error) => {
+            console.error('[Auth] Failed to save consumer user ID on restore:', error);
+          });
+          // 同步用户信息到 ConfigStorage，供主进程遥测使用
+          ConfigStorage.set('consumer.userInfo', {
+            id: parsed.id,
+            nickname: parsed.nickname,
+            phone: parsed.phone,
+          }).catch((error) => {
+            console.error('[Auth] Failed to save consumer userInfo to ConfigStorage on restore:', error);
           });
         }
         return;
@@ -826,100 +917,169 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     }
   }, []);
 
-  // Enterprise login — independent from C-side login flow
-  const enterpriseLogin = useCallback(async (params: EnterpriseLoginParams | EnterpriseLoginParamsByKey): Promise<LoginResult> => {
-    try {
-      const serverUrl = await ConfigStorage.get('eeclaw.serverUrl');
-      if (!serverUrl) {
-        return { success: false, message: '未配置企业服务器地址' };
-      }
-
-      const deviceId = getDeviceId();
-      // Build MOSS-compatible request body with grant_type
-      const isApiKeyLogin = 'api_key' in params;
-      const requestBody = isApiKeyLogin
-        ? { grant_type: 'api_key', api_key: (params as EnterpriseLoginParamsByKey).api_key }
-        : { grant_type: 'password', username: (params as EnterpriseLoginParams).username, password: (params as EnterpriseLoginParams).password };
-
-      // Use IPC bridge to avoid CORS (main process has no CORS restrictions)
-      const result = await ipcBridge.eeclaw.login.invoke({
-        serverUrl,
-        body: requestBody,
-        deviceId,
-      });
-
-      if (!result.success || !result.data) {
-        return {
-          success: false,
-          message: (result as any).error === 'network_error' ? '连接到企业服务器失败' : ((result as any).error || result.msg || '登录失败'),
-          code: 'invalidCredentials',
-        };
-      }
-
-      const data = result.data;
-
-      // Map MOSS user to AuthUser compatible type
-      const mappedUser = mapEnterpriseUser(data.user, data.access_token);
-
-      // Save to localStorage (eeclaw_auth_v1, separate from C-side)
-      const eeclawAuthStorage: EeclawAuthStorage = {
-        access_token: data.access_token,
-        refresh_token: data.refresh_token || '',
-        expires_at: Date.now() + (data.expires_in || 3600) * 1000,
-        user: mappedUser,
-        device_id: deviceId,
-      };
-      localStorage.setItem(EECLAW_AUTH_STORAGE_KEY, JSON.stringify(eeclawAuthStorage));
-
-      // Save user info to ConfigStorage
-      try {
-        await ConfigStorage.set('eeclaw.userInfo', {
-          id: data.user.id,
-          username: data.user.name,
-          role: data.user.role,
-        });
-      } catch (e) {
-        console.warn('[Auth] Failed to save enterprise user info:', e);
-      }
-
-      // Sync token to ConfigStorage for eeclawBridge
-      try {
-        await ConfigStorage.set('eeclaw.authStorage', {
-          access_token: data.access_token,
-          refresh_token: data.refresh_token || '',
-          expires_at: eeclawAuthStorage.expires_at,
-          device_id: deviceId,
-        });
-      } catch (e) {
-        console.warn('[Auth] Failed to sync eeclaw auth to ConfigStorage (will retry):', e);
-        // Retry once
-        try {
-          await ConfigStorage.set('eeclaw.authStorage', {
-            access_token: data.access_token,
-            refresh_token: data.refresh_token || '',
-            expires_at: eeclawAuthStorage.expires_at,
-            device_id: deviceId,
-          });
-        } catch (e2) {
-          console.error('[Auth] Failed to sync eeclaw auth to ConfigStorage after retry:', e2);
-        }
-      }
-
-      // Set auth state
-      setUser(mappedUser);
-      setStatus('authenticated');
-      setReady(true);
-
-      return { success: true };
-    } catch (error) {
-      console.error('[Auth] Enterprise login failed:', error);
+  // Shared post-login handling for all enterprise grant types (password / api_key / oauth2).
+  // Persists tokens, sets up scode/session mode, and updates auth state.
+  const finalizeEnterpriseLogin = useCallback(async (result: Awaited<ReturnType<typeof ipcBridge.eeclaw.login.invoke>>, deviceId: string, sessionType: 'password' | 'api_key' | 'oauth2'): Promise<LoginResult> => {
+    if (!result.success || !result.data) {
       return {
         success: false,
-        message: error instanceof Error ? error.message : '连接到企业服务器失败',
-        code: 'networkError',
+        message: (result as any).error === 'network_error' ? '连接到企业服务器失败' : (result as any).error || result.msg || '登录失败',
+        code: 'invalidCredentials',
       };
     }
+
+    const data = result.data;
+
+    // Map MOSS user to AuthUser compatible type
+    const mappedUser = mapEnterpriseUser(data.user, data.access_token);
+
+    // --- localModeAvailable calculation (before localStorage serialization) ---
+    const localModeAvailable = !!(data.user.localAuth && data.sudorouter_key && data.model_service_url && Array.isArray(data.models) && data.models.length > 0);
+    mappedUser.localModeAvailable = localModeAvailable;
+
+    // Save to localStorage (eeclaw_auth_v1, separate from C-side)
+    const eeclawAuthStorage: EeclawAuthStorage = {
+      access_token: data.access_token,
+      refresh_token: data.refresh_token || '',
+      expires_at: Date.now() + (data.expires_in || 3600) * 1000,
+      user: mappedUser,
+      device_id: deviceId,
+      session_type: sessionType,
+    };
+    localStorage.setItem(EECLAW_AUTH_STORAGE_KEY, JSON.stringify(eeclawAuthStorage));
+
+    // --- sudocode.json generation/cleanup + sessionMode reset ---
+    if (isDesktopRuntime) {
+      if (localModeAvailable) {
+        const loginSudoclawPayload = extractLoginSudoclawPayload(result);
+        if (loginSudoclawPayload) {
+          const currentScodeConfig = await ipcBridge.scode.getConfig.invoke().catch((): null => null);
+          const scodeConfig = buildScodeConfigFromLoginPayload(loginSudoclawPayload, currentScodeConfig?.data);
+          await ipcBridge.scode.saveConfig.invoke({ config: scodeConfig }).catch((err) => {
+            console.warn('[Auth] Failed to save scode config on enterprise login:', err);
+          });
+          const restoreRes = await ipcBridge.scode.restoreCustomModelProviders.invoke({ userId: mappedUser.id }).catch((err): null => {
+            console.warn('[Auth] Failed to restore custom scode models on enterprise login:', err);
+            return null;
+          });
+          await ipcBridge.scode.setImageModel.invoke({ modelId: DEFAULT_IMAGE_GENERATION_MODEL }).catch(() => {});
+          // Sync settings.json to the merged default model while preserving a user-selected custom model.
+          const defaultModel = restoreRes?.data?.default_model || scodeConfig.default_model;
+          if (defaultModel) {
+            await ipcBridge.scode.setDefaultModel.invoke({ modelId: defaultModel }).catch(() => {});
+          }
+        }
+      } else {
+        await ipcBridge.scode.saveConfig.invoke({ config: {} }).catch(() => {});
+        await ConfigStorage.set('guid.sessionMode', 'remote').catch(() => {});
+        await ipcBridge.eeclaw.setSessionMode.invoke({ mode: 'remote' }).catch(() => {});
+      }
+    }
+
+    // Save user info to ConfigStorage
+    try {
+      await ConfigStorage.set('eeclaw.userInfo', {
+        id: data.user.id,
+        username: data.user.name,
+        role: data.user.role,
+      });
+      await ConfigStorage.set('eeclaw.localModeAvailable', localModeAvailable);
+    } catch (e) {
+      console.warn('[Auth] Failed to save enterprise user info:', e);
+    }
+
+    // Sync token to ConfigStorage for eeclawBridge
+    const configAuthStorage = {
+      access_token: data.access_token,
+      refresh_token: data.refresh_token || '',
+      expires_at: eeclawAuthStorage.expires_at,
+      device_id: deviceId,
+      session_type: sessionType,
+    };
+    try {
+      await ConfigStorage.set('eeclaw.authStorage', configAuthStorage);
+    } catch (e) {
+      console.warn('[Auth] Failed to sync eeclaw auth to ConfigStorage (will retry):', e);
+      // Retry once
+      try {
+        await ConfigStorage.set('eeclaw.authStorage', configAuthStorage);
+      } catch (e2) {
+        console.error('[Auth] Failed to sync eeclaw auth to ConfigStorage after retry:', e2);
+      }
+    }
+
+    // Set auth state
+    setUser(mappedUser);
+    setStatus('authenticated');
+    setReady(true);
+
+    return { success: true };
   }, []);
+
+  // Enterprise login — independent from C-side login flow
+  const enterpriseLogin = useCallback(
+    async (params: EnterpriseLoginParams | EnterpriseLoginParamsByKey): Promise<LoginResult> => {
+      try {
+        const serverUrl = await ConfigStorage.get('eeclaw.serverUrl');
+        if (!serverUrl) {
+          return { success: false, message: '未配置企业服务器地址' };
+        }
+
+        const deviceId = getDeviceId();
+        // Build MOSS-compatible request body with grant_type
+        const isApiKeyLogin = 'api_key' in params;
+        const requestBody = isApiKeyLogin ? { grant_type: 'api_key', api_key: (params as EnterpriseLoginParamsByKey).api_key } : { grant_type: 'password', username: (params as EnterpriseLoginParams).username, password: (params as EnterpriseLoginParams).password };
+
+        // Use IPC bridge to avoid CORS (main process has no CORS restrictions)
+        const result = await ipcBridge.eeclaw.login.invoke({
+          serverUrl,
+          body: requestBody,
+          deviceId,
+        });
+
+        return finalizeEnterpriseLogin(result, deviceId, isApiKeyLogin ? 'api_key' : 'password');
+      } catch (error) {
+        console.error('[Auth] Enterprise login failed:', error);
+        return {
+          success: false,
+          message: error instanceof Error ? error.message : '连接到企业服务器失败',
+          code: 'networkError',
+        };
+      }
+    },
+    [finalizeEnterpriseLogin]
+  );
+
+  // Enterprise OAuth2 login — completes after the browser redirects back via the
+  // sudowork:// deep link. `params` is the opaque dict of deep-link query params
+  // (code / access_token / refresh_token / …); moss hands it to the credential script.
+  const enterpriseLoginWithOAuth2 = useCallback(
+    async (params: Record<string, string>): Promise<LoginResult> => {
+      try {
+        const serverUrl = await ConfigStorage.get('eeclaw.serverUrl');
+        if (!serverUrl) {
+          return { success: false, message: '未配置企业服务器地址' };
+        }
+
+        const deviceId = getDeviceId();
+        const result = await ipcBridge.eeclaw.login.invoke({
+          serverUrl,
+          body: { grant_type: 'oauth2', params },
+          deviceId,
+        });
+
+        return finalizeEnterpriseLogin(result, deviceId, 'oauth2');
+      } catch (error) {
+        console.error('[Auth] Enterprise OAuth2 login failed:', error);
+        return {
+          success: false,
+          message: error instanceof Error ? error.message : '连接到企业服务器失败',
+          code: 'networkError',
+        };
+      }
+    },
+    [finalizeEnterpriseLogin]
+  );
 
   const logout = useCallback(async () => {
     // Enterprise mode logout
@@ -960,13 +1120,29 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         console.warn('[Auth] Failed to invoke main-process logout:', e);
       }
 
+      // Cleanup sudocode.json and reset sessionMode on enterprise logout
+      if (isDesktopRuntime) {
+        await ipcBridge.scode.saveConfig.invoke({ config: {} }).catch(() => {});
+        await ConfigStorage.set('guid.sessionMode', 'remote').catch(() => {});
+        await ipcBridge.eeclaw.setSessionMode.invoke({ mode: 'remote' }).catch(() => {});
+      }
+
       // Clear enterprise ConfigStorage (but keep system.appMode = 'e')
       try {
         await ConfigStorage.set('eeclaw.authStorage', undefined);
-      } catch { /* noop */ }
+      } catch {
+        /* noop */
+      }
       try {
         await ConfigStorage.set('eeclaw.userInfo', undefined);
-      } catch { /* noop */ }
+      } catch {
+        /* noop */
+      }
+      try {
+        await ConfigStorage.set('eeclaw.localModeAvailable', undefined);
+      } catch {
+        /* noop */
+      }
 
       setUser(null);
       setStatus('unauthenticated');
@@ -997,12 +1173,17 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     localStorage.removeItem(AUTH_STORAGE_KEY);
     localStorage.removeItem('sudowork_auth_v1');
 
-    // 清除用户手机号文件
+    // 清除用户手机号文件和用户 ID 文件
     if (isDesktopRuntime) {
       try {
         await ipcBridge.sudoworkAuth.clearUserPhone.invoke();
+        await ipcBridge.sudoworkAuth.clearConsumerUserId.invoke();
+        await ipcBridge.scode.saveConfig.invoke({ config: {} }).catch(() => {});
+        await ConfigStorage.set('guid.sessionMode', 'remote').catch(() => {});
+        // 清除 ConfigStorage 中的用户信息
+        await ConfigStorage.set('consumer.userInfo', undefined);
       } catch (error) {
-        console.error('[Auth] Failed to clear user phone:', error);
+        console.error('[Auth] Failed to clear user data:', error);
       }
 
       setUser(null);
@@ -1043,8 +1224,9 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       ensureValidToken,
       forceRefreshToken,
       enterpriseLogin,
+      enterpriseLoginWithOAuth2,
     }),
-    [login, register, logout, ready, refresh, status, syncMessage, user, ensureValidToken, forceRefreshToken, enterpriseLogin]
+    [login, register, logout, ready, refresh, status, syncMessage, user, ensureValidToken, forceRefreshToken, enterpriseLogin, enterpriseLoginWithOAuth2]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

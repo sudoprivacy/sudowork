@@ -121,7 +121,7 @@ export function initSafetyHook(options: SafetyHookOptions = {}): void {
     }
   }
 
-  // Always-on: prevent the LLM from re-enabling openclaw's builtin browser
+  // Always-on: prevent the LLM from re-enabling sudoclaw's builtin browser
   // via gateway.config.patch by pinning `browser.enabled` back to false on
   // every write to sudoclaw.json. This is cheap and has no dependencies.
   if (!sudoclawConfigGuard) {

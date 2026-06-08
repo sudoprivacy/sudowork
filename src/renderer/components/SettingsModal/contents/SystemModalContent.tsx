@@ -9,13 +9,14 @@ import { ConfigStorage } from '@/common/storage';
 import LanguageSwitcher from '@/renderer/components/LanguageSwitcher';
 import ProductImprovementDialog from '@/renderer/components/ProductImprovementDialog';
 import { iconColors } from '@/renderer/theme/colors';
-import { Alert, Button, Form, InputNumber, Modal, Switch, Tooltip } from '@arco-design/web-react';
+import { Alert, Button, Form, Input, InputNumber, Modal, Switch, Tooltip } from '@arco-design/web-react';
 import { FolderOpen } from '@icon-park/react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import useSWR from 'swr';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { ThemeSwitcher } from '@/renderer/components/ThemeSwitcher';
+import { useAppMode } from '@/renderer/hooks/useAppMode';
 import { useSettingsViewMode } from '../settingsViewContext';
 
 /** Default prompt timeout in seconds */
@@ -122,11 +123,14 @@ const SystemModalContent: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const viewMode = useSettingsViewMode();
   const isPageMode = viewMode === 'page';
+  const { isEnterprise } = useAppMode();
   const initializingRef = useRef(true);
 
   // 关闭到托盘状态 / Close to tray state
   const [closeToTray, setCloseToTray] = useState(false);
   const [closeToTrayLoading, setCloseToTrayLoading] = useState(true);
+  const [showTokenUsageBadges, setShowTokenUsageBadges] = useState(false);
+  const [showTokenUsageBadgesLoading, setShowTokenUsageBadgesLoading] = useState(true);
 
   // 获取关闭到托盘设置 / Fetch close-to-tray setting
   useEffect(() => {
@@ -146,6 +150,23 @@ const SystemModalContent: React.FC = () => {
     ipcBridge.systemSettings.setCloseToTray.invoke({ enabled: checked }).catch(() => {
       // 失败时回滚 UI 状态
       setCloseToTray(!checked);
+    });
+  }, []);
+
+  useEffect(() => {
+    ipcBridge.systemSettings.getShowTokenUsageBadges
+      .invoke()
+      .then((enabled) => setShowTokenUsageBadges(enabled))
+      .catch(() => {})
+      .finally(() => {
+        setShowTokenUsageBadgesLoading(false);
+      });
+  }, []);
+
+  const handleShowTokenUsageBadgesChange = useCallback((checked: boolean) => {
+    setShowTokenUsageBadges(checked);
+    ipcBridge.systemSettings.setShowTokenUsageBadges.invoke({ enabled: checked }).catch(() => {
+      setShowTokenUsageBadges(!checked);
     });
   }, []);
 
@@ -173,6 +194,13 @@ const SystemModalContent: React.FC = () => {
 
   // 获取产品体验改进计划设置 / Fetch product improvement setting
   useEffect(() => {
+    if (isEnterprise) {
+      setProductImprovementEnabled(false);
+      setProductImprovementLoading(false);
+      setShowProductImprovementDialog(false);
+      return;
+    }
+
     ipcBridge.telemetry.getStatus
       .invoke()
       .then((res) => {
@@ -184,7 +212,7 @@ const SystemModalContent: React.FC = () => {
       .finally(() => {
         setProductImprovementLoading(false);
       });
-  }, []);
+  }, [isEnterprise]);
 
   // 处理产品体验改进计划开关变更 / Handle product improvement toggle change
   const handleProductImprovementChange = useCallback((checked: boolean) => {
@@ -249,6 +277,24 @@ const SystemModalContent: React.FC = () => {
     ConfigStorage.set('agent.idleTimeout', clamped).catch(() => {});
   }, [idleTimeout]);
 
+  // 右栏浏览器默认主页 / Right-panel browser default homepage
+  const [browserDefaultUrl, setBrowserDefaultUrl] = useState<string>('');
+
+  useEffect(() => {
+    ipcBridge.systemSettings.getBrowserDefaultUrl
+      .invoke()
+      .then((url) => {
+        if (typeof url === 'string') setBrowserDefaultUrl(url);
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleBrowserDefaultUrlBlur = useCallback(() => {
+    const trimmed = browserDefaultUrl.trim();
+    if (!trimmed) return; // empty input — leave previous value, don't persist
+    ipcBridge.systemSettings.setBrowserDefaultUrl.invoke({ url: trimmed }).catch(() => {});
+  }, [browserDefaultUrl]);
+
   // Get system directory info
   const { data: systemInfo } = useSWR('system.dir.info', () => ipcBridge.application.systemInfo.invoke());
 
@@ -272,28 +318,34 @@ const SystemModalContent: React.FC = () => {
     {
       key: 'closeToTray',
       label: t('settings.closeToTray'),
-      component: closeToTrayLoading ? (
-        <div style={{ width: 44, height: 22 }} />
-      ) : (
-        <Switch checked={closeToTray} onChange={handleCloseToTrayChange} />
-      ),
+      component: closeToTrayLoading ? <div style={{ width: 44, height: 22 }} /> : <Switch checked={closeToTray} onChange={handleCloseToTrayChange} className='settings-accent-switch' style={closeToTray ? { backgroundColor: 'var(--ui-accent-orange)' } : undefined} />,
     },
+    ...(isEnterprise
+      ? []
+      : [
+          {
+            key: 'showTokenUsageBadges',
+            label: t('settings.showTokenUsageBadges'),
+            hint: t('settings.showTokenUsageBadgesDesc'),
+            component: showTokenUsageBadgesLoading ? <div style={{ width: 44, height: 22 }} /> : <Switch checked={showTokenUsageBadges} onChange={handleShowTokenUsageBadgesChange} className='settings-accent-switch' style={showTokenUsageBadges ? { backgroundColor: 'var(--ui-accent-orange)' } : undefined} />,
+          },
+        ]),
     {
       key: 'avatarEnabled',
       label: t('settings.avatarEnabled'),
       hint: t('settings.avatarEnabledDesc'),
-      component: <Switch checked={avatarEnabled} onChange={handleAvatarEnabledChange} />,
+      component: <Switch checked={avatarEnabled} onChange={handleAvatarEnabledChange} className='settings-accent-switch' style={avatarEnabled ? { backgroundColor: 'var(--ui-accent-orange)' } : undefined} />,
     },
-    {
-      key: 'productImprovement',
-      label: t('settings.productImprovement.title'),
-      hint: t('settings.productImprovement.hint'),
-      component: productImprovementLoading ? (
-        <div style={{ width: 44, height: 22 }} />
-      ) : (
-        <Switch checked={productImprovementEnabled} onChange={handleProductImprovementChange} />
-      ),
-    },
+    ...(isEnterprise
+      ? []
+      : [
+          {
+            key: 'productImprovement',
+            label: t('settings.productImprovement.title'),
+            hint: t('settings.productImprovement.hint'),
+            component: productImprovementLoading ? <div style={{ width: 44, height: 22 }} /> : <Switch checked={productImprovementEnabled} onChange={handleProductImprovementChange} className='settings-accent-switch' style={productImprovementEnabled ? { backgroundColor: 'var(--ui-accent-orange)' } : undefined} />,
+          },
+        ]),
     {
       key: 'promptTimeout',
       label: t('settings.promptTimeout'),
@@ -305,6 +357,12 @@ const SystemModalContent: React.FC = () => {
       label: t('settings.idleTimeout'),
       hint: t('settings.idleTimeoutDesc'),
       component: <InputNumber value={idleTimeout} onChange={setIdleTimeout} onBlur={handleIdleTimeoutBlur} min={IDLE_TIMEOUT_MIN} max={IDLE_TIMEOUT_MAX} step={5} style={{ width: 120 }} suffix='min' />,
+    },
+    {
+      key: 'browserDefaultUrl',
+      label: t('settings.browserDefaultUrl'),
+      hint: t('settings.browserDefaultUrlDesc'),
+      component: <Input value={browserDefaultUrl} onChange={setBrowserDefaultUrl} onBlur={handleBrowserDefaultUrlBlur} placeholder='https://www.baidu.com/' style={{ width: 260 }} />,
     },
   ];
 

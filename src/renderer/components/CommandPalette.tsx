@@ -184,13 +184,13 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ visible, onClose }) => 
   const renderIcon = (item: CommandPaletteItem) => {
     switch (item.type) {
       case 'conversation':
-        return <History size={18} className="text-blue-500" />;
+        return <History size={18} className='text-blue-500' />;
       case 'file':
-        return <FileSuccess size={18} className="text-green-500" />;
+        return <FileSuccess size={18} className='text-green-500' />;
       case 'skill':
-        return <Star size={18} className="text-purple-500" />;
+        return <Star size={18} className='text-purple-500' />;
       case 'setting':
-        return <Setting size={18} className="text-gray-500" />;
+        return <Setting size={18} className='text-gray-500' />;
       default:
         return item.icon;
     }
@@ -199,62 +199,37 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ visible, onClose }) => 
   if (!visible) return null;
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-start justify-center pt-[10vh] bg-black/50" onClick={onClose}>
-      <div
-        className="w-full max-w-[600px] bg-white dark:bg-gray-800 rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh]"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <div className='fixed inset-0 z-[9999] flex items-start justify-center pt-[10vh] bg-black/50' onClick={onClose}>
+      <div className='w-full max-w-[600px] bg-white dark:bg-gray-800 rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh]' onClick={(e) => e.stopPropagation()}>
         {/* Search Input */}
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-200 dark:border-gray-700">
-          <Search size={20} className="text-gray-400 dark:text-gray-500 shrink-0" />
-          <input
-            ref={inputRef}
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="搜索会话..."
-            className="flex-1 text-base bg-transparent border-none outline-none text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
-            autoComplete="off"
-            autoCorrect="off"
-            autoCapitalize="off"
-            spellCheck="false"
-          />
+        <div className='flex items-center gap-3 px-4 py-3 border-b border-gray-200 dark:border-gray-700'>
+          <Search size={20} className='text-gray-400 dark:text-gray-500 shrink-0' />
+          <input ref={inputRef} value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={handleKeyDown} placeholder='搜索会话...' className='flex-1 text-base bg-transparent border-none outline-none text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500' autoComplete='off' autoCorrect='off' autoCapitalize='off' spellCheck='false' />
         </div>
 
         {/* Results */}
-        <div ref={listRef} className="flex-1 overflow-y-auto p-2">
+        <div ref={listRef} className='flex-1 overflow-y-auto p-2'>
           {filteredItems.length === 0 ? (
-            <div className="text-center py-8 text-gray-400 dark:text-gray-500 text-sm">
-              {query ? '没有找到相关结果' : '输入关键词搜索会话...'}
-            </div>
+            <div className='text-center py-8 text-gray-400 dark:text-gray-500 text-sm'>{query ? '没有找到相关结果' : '输入关键词搜索会话...'}</div>
           ) : (
-            <div className="space-y-1">
+            <div className='space-y-1'>
               {filteredItems.map((item, index) => (
                 <div
                   key={item.id}
                   data-index={index}
-                  className={classNames(
-                    'flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-colors',
-                    index === activeIndex ? 'bg-blue-50 dark:bg-blue-900/30' : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'
-                  )}
+                  className={classNames('flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-colors', index === activeIndex ? 'bg-blue-50 dark:bg-blue-900/30' : 'hover:bg-gray-50 dark:hover:bg-gray-700/50')}
                   onClick={() => {
                     setActiveIndex(index);
                     item.action();
                     onClose();
                   }}
                 >
-                  <div className="shrink-0">{renderIcon(item)}</div>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-medium text-sm text-gray-900 dark:text-gray-100 truncate">{item.title}</div>
-                    {item.subtitle && (
-                      <div className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">{item.subtitle}</div>
-                    )}
+                  <div className='shrink-0'>{renderIcon(item)}</div>
+                  <div className='flex-1 min-w-0'>
+                    <div className='font-medium text-sm text-gray-900 dark:text-gray-100 truncate'>{item.title}</div>
+                    {item.subtitle && <div className='text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5'>{item.subtitle}</div>}
                   </div>
-                  {item.type === 'conversation' && (
-                    <div className="text-xs text-gray-400 px-2 py-0.5 bg-gray-100 dark:bg-gray-700 rounded">
-                      Enter
-                    </div>
-                  )}
+                  {item.type === 'conversation' && <div className='text-xs text-gray-400 px-2 py-0.5 bg-gray-100 dark:bg-gray-700 rounded'>Enter</div>}
                 </div>
               ))}
             </div>
@@ -262,18 +237,18 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ visible, onClose }) => 
         </div>
 
         {/* Footer */}
-        <div className="px-4 py-2 border-t border-gray-200 dark:border-gray-700 text-xs text-gray-400 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <span className="flex items-center gap-1">
-              <kbd className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-[10px]">↑↓</kbd>
+        <div className='px-4 py-2 border-t border-gray-200 dark:border-gray-700 text-xs text-gray-400 flex items-center justify-between'>
+          <div className='flex items-center gap-4'>
+            <span className='flex items-center gap-1'>
+              <kbd className='px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-[10px]'>↑↓</kbd>
               <span>选择</span>
             </span>
-            <span className="flex items-center gap-1">
-              <kbd className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-[10px]">Enter</kbd>
+            <span className='flex items-center gap-1'>
+              <kbd className='px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-[10px]'>Enter</kbd>
               <span>打开</span>
             </span>
-            <span className="flex items-center gap-1">
-              <kbd className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-[10px]">Esc</kbd>
+            <span className='flex items-center gap-1'>
+              <kbd className='px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-[10px]'>Esc</kbd>
               <span>关闭</span>
             </span>
           </div>

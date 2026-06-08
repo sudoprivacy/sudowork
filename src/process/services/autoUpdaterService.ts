@@ -8,9 +8,10 @@ import { autoUpdater } from 'electron-updater';
 import type { ProgressInfo, UpdateInfo } from 'electron-updater';
 import log from 'electron-log';
 import { EventEmitter } from 'events';
+import { COS_RELEASE_BASE } from '@/shared/cos';
 
-/** COS mirror base URL for Chinese users */
-const COS_MIRROR_BASE = 'https://sudoclaw-download-1309794936.cos.ap-beijing.myqcloud.com/sudowork/release/latest';
+/** COS mirror base URL for Chinese users (role-based release bucket) */
+const COS_MIRROR_BASE = `${COS_RELEASE_BASE}/sudowork/release/latest`;
 
 /** Timeout for GitHub API accessibility check */
 const GITHUB_API_TIMEOUT = 5000; // 5 seconds

@@ -21,6 +21,12 @@
 export const DEFAULT_PRESET_AGENT_TYPE = 'scode' as const;
 export const LEGACY_SUDOCLAW_PRESET_AGENT_TYPE = 'sudoclaw' as const;
 
+/**
+ * 渠道（Telegram/Lark/钉钉/微信/企业微信）默认使用的 Agent 后端
+ * Default agent backend for channels (Telegram/Lark/DingTalk/WeChat/WeCom)
+ */
+export const CHANNEL_DEFAULT_AGENT_BACKEND = 'scode' as const;
+
 export type PresetAgentType = 'claude' | 'codebuddy' | 'opencode' | 'qwen' | 'gemini' | typeof DEFAULT_PRESET_AGENT_TYPE | typeof LEGACY_SUDOCLAW_PRESET_AGENT_TYPE;
 
 /**
@@ -83,11 +89,12 @@ export type AcpBackendAll =
   | 'scode' // Sudo Code CLI
   | 'copilot' // GitHub Copilot CLI
   | 'qoder' // Qoder CLI
-  | 'openclaw-gateway' // OpenClaw Gateway WebSocket
+  | 'openclaw-gateway' // @deprecated — kept for type-level backward compatibility only
   | 'vibe' // Mistral Vibe CLI
   | 'nanobot' // nanobot CLI (via ACP)
   | 'custom' // User-configured custom ACP agent
-  | 'remote-agent'; // Enterprise: Moss Server remote agent
+  | 'remote-agent' // Enterprise: Moss Server remote agent
+  | 'grpc'; // gRPC transport — connect to remote ACP server via nexus-vfs Call RPC
 
 /**
  * 潜在的 ACP CLI 工具列表
@@ -481,11 +488,10 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
   'openclaw-gateway': {
     id: 'openclaw-gateway',
     name: 'Sudoclaw',
-    cliCommand: 'openclaw',
+    cliCommand: undefined,
     authRequired: false,
-    enabled: true, // ✅ OpenClaw Gateway WebSocket mode
+    enabled: false, // @deprecated — openclaw-gateway removed, kept for type compat
     supportsStreaming: true,
-    acpArgs: ['gateway'], // openclaw gateway command (for detection)
   },
   nanobot: {
     id: 'nanobot',
@@ -509,6 +515,14 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
     cliCommand: undefined, // No CLI, uses WebSocket to Moss Server
     authRequired: true, // Requires enterprise auth token
     enabled: true, // Enabled when enterprise mode is active
+    supportsStreaming: true,
+  },
+  grpc: {
+    id: 'grpc',
+    name: 'gRPC Remote', // Connect to remote ACP server via nexus-vfs gRPC
+    cliCommand: undefined, // No CLI, uses gRPC Call RPC as transport
+    authRequired: true,
+    enabled: true,
     supportsStreaming: true,
   },
 };
@@ -552,6 +566,8 @@ export enum AcpErrorType {
   NETWORK_ERROR = 'NETWORK_ERROR',
   TIMEOUT = 'TIMEOUT',
   PERMISSION_DENIED = 'PERMISSION_DENIED',
+  CONTEXT_WINDOW_EXCEEDED = 'CONTEXT_WINDOW_EXCEEDED',
+  REQUEST_TOO_LARGE = 'REQUEST_TOO_LARGE',
   UNKNOWN = 'UNKNOWN',
 }
 
@@ -593,11 +609,15 @@ export interface AcpRequest {
 
 export interface AcpResponse {
   jsonrpc: typeof JSONRPC_VERSION;
-  id: number;
+  // JSON-RPC 2.0 allows id to be either a number or a string. ACP's Rust SDK
+  // allocates request ids as uuid strings, so responses to peer-initiated
+  // requests (e.g. `_scode/ask_user_question`) must echo the same string id.
+  id: number | string;
   result?: unknown;
   error?: {
     code: number;
     message: string;
+    data?: unknown;
   };
 }
 
@@ -803,6 +823,10 @@ export interface AcpPromptResponseUsage {
   cachedWriteTokens?: number | null;
   /** Reasoning/thinking tokens */
   thoughtTokens?: number | null;
+  /** Current model context window size, supplied by Sudocode metadata when available */
+  contextWindowTokens?: number | null;
+  /** Estimated tokens currently held in the model runtime context */
+  estimatedSessionTokens?: number | null;
 }
 
 // ===== ACP Models types (unstable API) =====
@@ -829,7 +853,7 @@ export interface AcpModelInfo {
   /** Display label for the current model */
   currentModelLabel: string | null;
   /** Available models for switching */
-  availableModels: Array<{ id: string; label: string }>;
+  availableModels: Array<{ id: string; label: string; provider?: string; providerLabel?: string }>;
   /** Whether the user can switch models */
   canSwitch: boolean;
   /** Source of the model info: 'configOption' (stable) or 'models' (unstable) */
@@ -917,6 +941,7 @@ export interface AcpFileReadRequest extends AcpRequest {
 export const ACP_METHODS = {
   SESSION_UPDATE: 'session/update',
   REQUEST_PERMISSION: 'session/request_permission',
+  ASK_USER_QUESTION: '_scode/ask_user_question',
   READ_TEXT_FILE: 'fs/read_text_file',
   WRITE_TEXT_FILE: 'fs/write_text_file',
   SET_CONFIG_OPTION: 'session/set_config_option',
@@ -942,6 +967,46 @@ export interface AcpPermissionRequestMessage {
   id: number;
   method: typeof ACP_METHODS.REQUEST_PERMISSION;
   params: AcpPermissionRequest;
+}
+
+export type AcpQuestionKind = 'single_select' | 'multi_select' | 'text' | 'boolean';
+
+export interface AcpQuestionRequestOption {
+  label: string;
+  value: string;
+  description?: string;
+  recommended?: boolean;
+}
+
+export interface AcpQuestionRequestItem {
+  id: string;
+  prompt: string;
+  kind?: AcpQuestionKind;
+  required: boolean;
+  allowCustomInput?: boolean;
+  customInputHint?: string;
+  options: AcpQuestionRequestOption[];
+}
+
+export interface AcpQuestionRequest {
+  sessionId: string;
+  toolCallId: string;
+  title?: string;
+  description?: string;
+  questions: AcpQuestionRequestItem[];
+}
+
+export interface AcpQuestionResponseAnswer {
+  id: string;
+  value: string;
+  label?: string;
+}
+
+export interface AcpQuestionRequestMessage {
+  jsonrpc: typeof JSONRPC_VERSION;
+  id: number;
+  method: typeof ACP_METHODS.ASK_USER_QUESTION;
+  params: AcpQuestionRequest;
 }
 
 /** 文件读取请求（带类型化 params）/ File read request (with typed params) */
@@ -974,4 +1039,4 @@ export interface AcpFileWriteMessage {
  * ACP incoming message union type.
  * TypeScript can automatically narrow the type based on the method field.
  */
-export type AcpIncomingMessage = AcpSessionUpdateNotification | AcpPermissionRequestMessage | AcpFileReadMessage | AcpFileWriteMessage;
+export type AcpIncomingMessage = AcpSessionUpdateNotification | AcpPermissionRequestMessage | AcpQuestionRequestMessage | AcpFileReadMessage | AcpFileWriteMessage;

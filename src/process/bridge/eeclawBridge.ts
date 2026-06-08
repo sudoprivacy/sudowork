@@ -6,8 +6,8 @@
 
 import { ipcBridge } from '@/common';
 import { ProcessConfig } from '@process/initStorage';
-import { mainWarn, mainLog } from '@process/utils/mainLogger';
-import { setCachedAuthToken, setCachedServerUrl, setCachedAppMode } from '@/common/enterpriseDebugConfig';
+import { mainWarn, mainLog, mainError } from '@process/utils/mainLogger';
+import { setCachedAuthToken, setCachedServerUrl, setCachedAppMode, setCachedLocalModeAvailable, setCachedSessionMode } from '@/common/enterpriseDebugConfig';
 import { resetConversationProvider } from '../providers';
 
 let refreshPromise: Promise<string> | null = null;
@@ -21,6 +21,9 @@ export async function getValidToken(forceRefresh = false): Promise<string> {
   }
 
   const { access_token, refresh_token, expires_at, device_id } = authStorage;
+  // OAuth2 sessions refresh via a distinct grant so MOSS routes them through the
+  // credential script; password/api_key sessions use the standard refresh grant.
+  const refreshGrantType = authStorage.session_type === 'oauth2' ? 'oauth2_refresh_token' : 'refresh_token';
 
   const now = Date.now();
   const remainingMs = expires_at - now;
@@ -43,6 +46,11 @@ export async function getValidToken(forceRefresh = false): Promise<string> {
         throw new Error('No refresh token available');
       }
 
+      // OAuth2 sessions send the provider refresh_token inside a generic `params`
+      // dict (moss forwards it to the credential script); other sessions send the
+      // moss refresh_token at the top level as before.
+      const refreshBody = refreshGrantType === 'oauth2_refresh_token' ? { grant_type: refreshGrantType, params: { refresh_token } } : { grant_type: refreshGrantType, refresh_token };
+
       mainLog('eeclawBridge', `[getValidToken] Sending refresh request to ${serverUrl}/api/v1/auth/token`);
       const response = await fetch(`${serverUrl}/api/v1/auth/token`, {
         method: 'POST',
@@ -50,10 +58,7 @@ export async function getValidToken(forceRefresh = false): Promise<string> {
           'Content-Type': 'application/json',
           'X-Device-Id': device_id,
         },
-        body: JSON.stringify({
-          grant_type: 'refresh_token',
-          refresh_token,
-        }),
+        body: JSON.stringify(refreshBody),
         signal: AbortSignal.timeout(15000),
       });
 
@@ -68,16 +73,14 @@ export async function getValidToken(forceRefresh = false): Promise<string> {
           const latestAuth = ProcessConfig.getSync('eeclaw.authStorage');
           if (latestAuth?.refresh_token && latestAuth.refresh_token !== refresh_token) {
             mainLog('eeclawBridge', `[getValidToken] Found different refresh_token in file, retrying with ${latestAuth.refresh_token.slice(0, 20)}...`);
+            const retryBody = latestAuth.session_type === 'oauth2' ? { grant_type: 'oauth2_refresh_token', params: { refresh_token: latestAuth.refresh_token } } : { grant_type: 'refresh_token', refresh_token: latestAuth.refresh_token };
             const retryResponse = await fetch(`${serverUrl}/api/v1/auth/token`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
                 'X-Device-Id': latestAuth.device_id,
               },
-              body: JSON.stringify({
-                grant_type: 'refresh_token',
-                refresh_token: latestAuth.refresh_token,
-              }),
+              body: JSON.stringify(retryBody),
               signal: AbortSignal.timeout(15000),
             });
             const retryData = await retryResponse.json();
@@ -87,6 +90,7 @@ export async function getValidToken(forceRefresh = false): Promise<string> {
                 refresh_token: retryData.refresh_token || latestAuth.refresh_token,
                 expires_at: Date.now() + (retryData.expires_in || 3600) * 1000,
                 device_id: latestAuth.device_id,
+                session_type: latestAuth.session_type,
               };
               mainLog('eeclawBridge', `[getValidToken] Retry refresh successful! new_expires_at=${newAuthStorage.expires_at}`);
               await ProcessConfig.set('eeclaw.authStorage', newAuthStorage);
@@ -116,6 +120,7 @@ export async function getValidToken(forceRefresh = false): Promise<string> {
         refresh_token: data.refresh_token || refresh_token,
         expires_at: Date.now() + (data.expires_in || 3600) * 1000,
         device_id,
+        session_type: authStorage.session_type,
       };
 
       mainLog('eeclawBridge', `[getValidToken] Refresh successful! new_expires_at=${newAuthStorage.expires_at}, new_refresh_token=${newAuthStorage.refresh_token ? newAuthStorage.refresh_token.slice(0, 20) + '...' : 'NONE'}`);
@@ -154,6 +159,31 @@ export function initEeclawBridge(): void {
     await ProcessConfig.set('system.appMode', mode);
     setCachedAppMode(mode);
     mainLog('eeclawBridge', `App mode set to: ${mode}`);
+
+    // For enterprise mode, initialize ChannelManager if not already done
+    // This handles hot-start from ModeSetup when user selects Enterprise mode
+    if (mode === 'e') {
+      try {
+        const { getChannelManager } = await import('@/channels');
+        getChannelManager()
+          .initialize()
+          .catch((error) => {
+            mainLog('eeclawBridge', 'ChannelManager already initialized or failed: ' + String(error));
+          });
+      } catch (error) {
+        mainLog('eeclawBridge', 'Failed to import ChannelManager: ' + String(error));
+      }
+    }
+  });
+
+  // Set session mode (remote/local) for enterprise mode
+  // 设置 session 模式（remote/local），用于企业模式
+  ipcBridge.eeclaw.setSessionMode.provider(async ({ mode }) => {
+    const localModeAvailable = ProcessConfig.getSync('eeclaw.localModeAvailable');
+    const resolvedMode = mode === 'local' && localModeAvailable === false ? 'remote' : mode;
+    setCachedSessionMode(resolvedMode);
+    resetConversationProvider();
+    mainLog('eeclawBridge', `Session mode set to: ${resolvedMode}`);
   });
 
   ipcBridge.eeclaw.verifyServer.provider(async ({ serverUrl }) => {
@@ -176,6 +206,32 @@ export function initEeclawBridge(): void {
     }
   });
 
+  ipcBridge.eeclaw.oauth2Config.provider(async ({ serverUrl }) => {
+    try {
+      const response = await fetch(`${serverUrl}/api/v1/auth/oauth2/config`, {
+        method: 'GET',
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!response.ok) {
+        return { success: false, error: 'server_error' as const, data: undefined };
+      }
+      const data = await response.json();
+      return {
+        success: true,
+        data: {
+          enabled: data?.enabled === true,
+          authorize_url: typeof data?.authorize_url === 'string' ? data.authorize_url : undefined,
+          // Default true when absent — older moss builds didn't send this field
+          // and we should preserve the CSRF check in that case.
+          require_state: data?.require_state !== false,
+        },
+      };
+    } catch (error) {
+      mainWarn('eeclawBridge', 'oauth2Config error:', error);
+      return { success: false, error: 'network_error' as const, data: undefined };
+    }
+  });
+
   ipcBridge.eeclaw.login.provider(async ({ serverUrl, body, deviceId }) => {
     try {
       const response = await fetch(`${serverUrl}/api/v1/auth/login`, {
@@ -194,27 +250,51 @@ export function initEeclawBridge(): void {
         return { success: false, error: (data?.error || 'login_failed') as string, data: undefined };
       }
 
+      const localModeAvailable = !!(data.user.localAuth && data.sudorouter_key && data.model_service_url && Array.isArray(data.models) && data.models.length > 0);
+
       // Save server URL and auth storage to ProcessConfig
       // 将服务器 URL 和认证存储保存到 ProcessConfig
+      const sessionType: 'password' | 'api_key' | 'oauth2' = body.grant_type === 'oauth2' ? 'oauth2' : body.grant_type === 'api_key' ? 'api_key' : 'password';
       await ProcessConfig.set('eeclaw.serverUrl', serverUrl);
       await ProcessConfig.set('eeclaw.authStorage', {
         access_token: data.access_token,
         refresh_token: data.refresh_token,
         expires_at: Date.now() + (data.expires_in || 3600) * 1000,
         device_id: deviceId,
+        session_type: sessionType,
       });
+      await ProcessConfig.set('eeclaw.localModeAvailable', localModeAvailable);
 
       // Update enterprise cache for synchronous access
       // 更新企业配置缓存以供同步访问
       setCachedServerUrl(serverUrl);
       setCachedAuthToken(data.access_token);
       setCachedAppMode('e');
+      setCachedLocalModeAvailable(localModeAvailable);
 
       // Reset provider singleton so next call creates RemoteConversationProvider
       // 重置 Provider 单例，下次调用时会创建 RemoteConversationProvider
       resetConversationProvider();
 
       mainLog('eeclawBridge', 'Login successful, cache updated, provider reset');
+
+      // 【新增】后台静默同步，不阻塞登录流程
+      // Background silent sync after enterprise login, non-blocking
+      import('@process/sync/remoteToLocalSync')
+        .then(({ syncAllFromRemote }) => syncAllFromRemote())
+        .then((result) => {
+          mainLog('eeclawBridge', 'Background sync completed', {
+            hubSkills: result.skills.hub.installed.length,
+            tenantSkills: result.skills.tenant.installed.length,
+            hubAssistants: result.assistants.hub.installed.length,
+            tenantAssistants: result.assistants.tenant.installed.length,
+          });
+          // Emit sync completed event to notify renderer
+          ipcBridge.eeclaw.syncCompleted.emit(result);
+        })
+        .catch((err) => {
+          mainError('eeclawBridge', 'Background sync failed:', err);
+        });
 
       return {
         success: true,
@@ -227,7 +307,11 @@ export function initEeclawBridge(): void {
             name: data.user.name,
             role: data.user.role,
             orgId: data.user.orgId,
+            localAuth: data.user.localAuth === true,
           },
+          sudorouter_key: data.sudorouter_key,
+          model_service_url: data.model_service_url,
+          models: Array.isArray(data.models) ? data.models : undefined,
         },
       };
     } catch (error) {
@@ -303,7 +387,7 @@ export function initEeclawBridge(): void {
 
       const data = await response.json();
       // Server returns InstalledAssistantInfo[], map to { key, name, avatar, emoji, description }
-      const assistants: Array<{ key: string; name: string; avatar?: string; emoji?: string; description?: string }> = (Array.isArray(data) ? data : data?.data ?? []).map((a: any) => ({
+      const assistants: Array<{ key: string; name: string; avatar?: string; emoji?: string; description?: string }> = (Array.isArray(data) ? data : (data?.data ?? [])).map((a: any) => ({
         key: a.id || a.name,
         name: a.displayName || a.name,
         avatar: a.avatar || undefined,
@@ -356,10 +440,166 @@ export function initEeclawBridge(): void {
     } finally {
       // Always clear local state even if server request fails
       await ProcessConfig.set('eeclaw.authStorage', null);
+      await ProcessConfig.set('eeclaw.localModeAvailable', null);
       setCachedAuthToken('');
+      setCachedLocalModeAvailable(null);
       resetConversationProvider();
       mainLog('eeclawBridge', 'Logged out, local storage cleared');
     }
     return { success: true, data: {} };
+  });
+
+  // Manual sync trigger (for Local mode or retry)
+  ipcBridge.eeclaw.syncFromRemote.provider(async () => {
+    try {
+      const { syncIncrementalFromRemote } = await import('@process/sync/remoteToLocalSync');
+      const result = await syncIncrementalFromRemote();
+      // Emit sync completed event to notify renderer
+      ipcBridge.eeclaw.syncCompleted.emit(result);
+      return {
+        success: true,
+        data: result,
+      };
+    } catch (error) {
+      mainError('eeclawBridge', 'syncFromRemote error:', error);
+      return {
+        success: false,
+        data: {
+          skills: { hub: { installed: [], skipped: [], deleted: [], failed: [] }, tenant: { installed: [], skipped: [], deleted: [], failed: [] } },
+          assistants: { hub: { installed: [], skipped: [], deleted: [], failed: [] }, tenant: { installed: [], skipped: [], deleted: [], failed: [] } },
+        },
+        msg: error instanceof Error ? error.message : String(error),
+      };
+    }
+  });
+
+  // === Custom Skill/Assistant Upload ===
+  ipcBridge.eeclaw.uploadCustomSkill.provider(async (params) => {
+    mainLog('eeclawBridge', 'uploadCustomSkill called with params:', params);
+    try {
+      const { uploadCustomSkill } = await import('@process/sync/customUpload');
+      const result = await uploadCustomSkill(params);
+      mainLog('eeclawBridge', 'uploadCustomSkill result:', result);
+      if (result.success) {
+        return { success: true, data: { id: result.id || '', name: result.name, status: result.status || 'active' } };
+      }
+      return { success: false, msg: result.error };
+    } catch (error) {
+      mainError('eeclawBridge', 'uploadCustomSkill error:', error);
+      return { success: false, msg: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcBridge.eeclaw.uploadCustomAssistant.provider(async (params) => {
+    mainLog('eeclawBridge', 'uploadCustomAssistant called with params:', params);
+    try {
+      const { uploadCustomAssistant } = await import('@process/sync/customUpload');
+      const result = await uploadCustomAssistant(params);
+      mainLog('eeclawBridge', 'uploadCustomAssistant result:', result);
+      if (result.success) {
+        return { success: true, data: { id: result.id || '', name: result.name, status: result.status || 'active' } };
+      }
+      return { success: false, msg: result.error };
+    } catch (error) {
+      mainError('eeclawBridge', 'uploadCustomAssistant error:', error);
+      return { success: false, msg: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  // === Tenant Skill/Assistant ===
+  ipcBridge.eeclaw.getTenantSkills.provider(async () => {
+    try {
+      const { fetchTenantSkills } = await import('@process/sync/tenantSync');
+      const skills = await fetchTenantSkills();
+      return { success: true, data: skills };
+    } catch (error) {
+      mainError('eeclawBridge', 'getTenantSkills error:', error);
+      return { success: false, msg: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcBridge.eeclaw.getTenantAssistants.provider(async () => {
+    try {
+      const { fetchTenantAssistants } = await import('@process/sync/tenantSync');
+      const assistants = await fetchTenantAssistants();
+      return { success: true, data: assistants };
+    } catch (error) {
+      mainError('eeclawBridge', 'getTenantAssistants error:', error);
+      return { success: false, msg: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcBridge.eeclaw.installTenantSkill.provider(async ({ skillId }) => {
+    try {
+      const { installTenantSkill } = await import('@process/sync/tenantSync');
+      const result = await installTenantSkill(skillId);
+      if (result.success) {
+        return { success: true, data: { name: result.name || '' } };
+      }
+      return { success: false, msg: result.error };
+    } catch (error) {
+      mainError('eeclawBridge', 'installTenantSkill error:', error);
+      return { success: false, msg: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcBridge.eeclaw.installTenantAssistant.provider(async ({ assistantId }) => {
+    try {
+      const { installTenantAssistant } = await import('@process/sync/tenantSync');
+      const result = await installTenantAssistant(assistantId);
+      if (result.success) {
+        return { success: true, data: { name: result.name || '' } };
+      }
+      return { success: false, msg: result.error };
+    } catch (error) {
+      mainError('eeclawBridge', 'installTenantAssistant error:', error);
+      return { success: false, msg: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcBridge.eeclaw.publishTenantSkill.provider(async ({ skillId, publishNote }) => {
+    try {
+      const { publishTenantSkill } = await import('@process/sync/tenantSync');
+      const result = await publishTenantSkill(skillId, publishNote);
+      if (result.success) {
+        return {
+          success: true,
+          data: {
+            id: result.id || '',
+            skillId: result.skillId || skillId,
+            skillName: result.skillName || '',
+            status: result.status || 'pending',
+            message: result.message,
+          },
+        };
+      }
+      return { success: false, msg: result.error };
+    } catch (error) {
+      mainError('eeclawBridge', 'publishTenantSkill error:', error);
+      return { success: false, msg: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcBridge.eeclaw.publishTenantAssistant.provider(async ({ assistantId, publishNote }) => {
+    try {
+      const { publishTenantAssistant } = await import('@process/sync/tenantSync');
+      const result = await publishTenantAssistant(assistantId, publishNote);
+      if (result.success) {
+        return {
+          success: true,
+          data: {
+            id: result.id || '',
+            assistantId: result.assistantId || assistantId,
+            assistantName: result.assistantName || '',
+            status: result.status || 'pending',
+            message: result.message,
+          },
+        };
+      }
+      return { success: false, msg: result.error };
+    } catch (error) {
+      mainError('eeclawBridge', 'publishTenantAssistant error:', error);
+      return { success: false, msg: error instanceof Error ? error.message : String(error) };
+    }
   });
 }

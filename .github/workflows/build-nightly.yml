@@ -259,7 +259,7 @@ jobs:
           TAG_NAME="${{ needs.release.outputs.tag_name }}"
           REPO_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}"
           RELEASE_URL="${REPO_URL}/releases/tag/${TAG_NAME}"
-          MIRROR_URL="https://sudoclaw.sudoprivacy.com/github-releases.html?tag=${TAG_NAME}"
+          MIRROR_URL="https://sudowork.sudoprivacy.com/github-releases.html?tag=${TAG_NAME}"
           DATE=$(date -u +%Y-%m-%d)
 
           echo "=========================================="
@@ -370,7 +370,7 @@ jobs:
           echo "📢 Nightly Build Notification"
           echo "=========================================="
           echo "Tag: $TAG_NAME"
-          echo "Mirror (推荐): https://sudoclaw.sudoprivacy.com/github-releases.html?tag=${TAG_NAME}"
+          echo "Mirror (推荐): https://sudowork.sudoprivacy.com/github-releases.html?tag=${TAG_NAME}"
           echo "GitHub (备用): ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/tag/${TAG_NAME}"
           echo "Date: $(date -u +%Y-%m-%d)"
           echo "=========================================="

@@ -1,7 +1,7 @@
 {
   "welcome": {
     "title": "Hi, what's your plan for today?",
-    "placeholder": "Send a message, upload files, open a folder, or create a scheduled task...",
+    "placeholder": "Send a message, upload files, or open a folder...",
     "downloadLocalFile": "Import Local Files",
     "downloadBdpanFile": "Import Baidu Netdisk Files",
     "linkFolder": "Open Folder",
@@ -13,7 +13,7 @@
     "specifyWorkspace": "Chat in Folder",
     "currentWorkspace": "Current Workspace",
     "clearWorkspace": "Remove folder",
-    "addSkill": "Add Skill",
+    "addSkill": "Add Skill / Files",
     "skill": "Skill",
     "openFolder": "Open Folder",
     "none": "None",
@@ -27,9 +27,11 @@
     "recent7Days": "Last 7 Days",
     "earlier": "Earlier",
     "noHistory": "No chat history",
+    "noScheduledTask": "No execution records",
     "actionNewConversation": "New Conversation",
     "deleteTitle": "Delete",
     "deleteConfirm": "Are you sure you want to delete this chat?",
+    "deleteWorkspaceOption": "Also delete workspace folder",
     "confirmDelete": "Delete",
     "cancelDelete": "Cancel",
     "editName": "Edit Name",
@@ -77,6 +79,46 @@
     "closeRight": "Close to the Right",
     "closeOthers": "Close Others"
   },
+  "rightPanel": {
+    "tabs": {
+      "workspace": "Workspace",
+      "browser": "Browser",
+      "terminal": "Terminal",
+      "deliverables": "Deliverables"
+    },
+    "deliverables": {
+      "emptyTitle": "No deliverables yet",
+      "emptyHint": "Files the AI generates in this conversation will show up here.",
+      "loading": "Loading…",
+      "groupToday": "Today",
+      "groupYesterday": "Yesterday"
+    },
+    "browser": {
+      "newTab": "New Tab",
+      "open": "Open",
+      "openExternal": "Open in system browser",
+      "back": "Back",
+      "forward": "Forward",
+      "refresh": "Refresh",
+      "resetZoom": "Reset Zoom",
+      "fit": "Fit Width",
+      "urlPlaceholder": "Enter URL",
+      "loading": "Loading...",
+      "clearCache": "Clear browser data",
+      "clearCacheConfirmTitle": "Clear right-panel browser data?",
+      "clearCacheConfirmContent": "This removes cookies, local storage, and cached files for the in-panel browser only. You will be signed out of any site logged in here. Sites in your system browser are not affected.",
+      "clearCacheSuccess": "Browser data cleared",
+      "clearCacheFailure": "Failed to clear browser data"
+    },
+    "terminal": {
+      "tab": "Terminal",
+      "newTab": "New Terminal"
+    }
+  },
+  "layout": {
+    "collapseConversation": "Collapse conversation",
+    "expandConversation": "Expand conversation"
+  },
   "dropdown": {
     "cliAgents": "CLI Agents",
     "presetAssistants": "Preset Assistants"
@@ -96,6 +138,10 @@
     "pasteConfirm_multipleFiles": "{{count}} files",
     "empty": "It's empty",
     "emptyDescription": "Files will appear here after uploading files or opening a folder",
+    "remotePendingTitle": "Temporary space appears after the session starts",
+    "remotePendingDescription": "After the first message creates the session, Sudowork loads the temporary space and Drafts from Moss Server.",
+    "remoteSkillsPendingDesc": "Available backend skills appear after the session starts",
+    "remotePreviewBinaryUnsupported": "Built-in preview is not available for this remote file yet. View the original file in the session workspace.",
     "searchPlaceholder": "Search files...",
     "createNewConversation": "Create new chat in current workspace",
     "search.empty": "The search result is empty",
@@ -269,5 +315,6 @@
     "request_sent": "Request sent to agent",
     "failed": "Failed to generate",
     "preset_registered": "Agent preset registered successfully!"
-  }
+  },
+  "userCancelled": "Request cancelled by user"
 }

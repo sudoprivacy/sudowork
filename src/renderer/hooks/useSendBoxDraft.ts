@@ -11,18 +11,14 @@ type Draft =
       content: string;
       atPath: Array<string | FileOrFolderItem>;
       uploadFile: string[];
-    }
-  | {
-      _type: 'openclaw-gateway';
-      content: string;
-      atPath: Array<string | FileOrFolderItem>;
-      uploadFile: string[];
+      selectedSkills: string[];
     }
   | {
       _type: 'remote-agent';
       content: string;
       atPath: Array<string | FileOrFolderItem>;
       uploadFile: string[];
+      selectedSkills: string[];
     };
 
 /**
@@ -34,7 +30,6 @@ type SendBoxDraftStore = {
 
 const store: SendBoxDraftStore = {
   acp: new Map(),
-  'openclaw-gateway': new Map(),
   'remote-agent': new Map(),
 };
 
@@ -45,13 +40,6 @@ const setDraft = <K extends TChatConversation['type']>(type: K, conversation_id:
         store.acp.set(conversation_id, draft as Extract<Draft, { _type: 'acp' }>);
       } else {
         store.acp.delete(conversation_id);
-      }
-      break;
-    case 'openclaw-gateway':
-      if (draft) {
-        store['openclaw-gateway'].set(conversation_id, draft as Extract<Draft, { _type: 'openclaw-gateway' }>);
-      } else {
-        store['openclaw-gateway'].delete(conversation_id);
       }
       break;
     case 'remote-agent':
@@ -70,8 +58,6 @@ const getDraft = <K extends TChatConversation['type']>(type: K, conversation_id:
   switch (type) {
     case 'acp':
       return store.acp.get(conversation_id) as Extract<Draft, { _type: K }>;
-    case 'openclaw-gateway':
-      return store['openclaw-gateway'].get(conversation_id) as Extract<Draft, { _type: K }>;
     case 'remote-agent':
       return store['remote-agent'].get(conversation_id) as Extract<Draft, { _type: K }>;
     default:

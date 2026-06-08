@@ -7,10 +7,10 @@
 import { ipcBridge } from '../../common';
 import type { IConfirmation } from '../../common/chatLib';
 
-type AgentType = 'acp' | 'openclaw-gateway' | 'remote-agent';
+type AgentType = 'acp' | 'remote-agent';
 
 /**
- * Base class for agent runtime instances (ACP and OpenClaw).
+ * Base class for agent runtime instances (ACP).
  * Each conversation has one agent that owns its transport connection.
  */
 class BaseAgent<Data, ConfirmationOption extends any = any> {
@@ -18,6 +18,8 @@ class BaseAgent<Data, ConfirmationOption extends any = any> {
   protected conversation_id: string;
   protected confirmations: Array<IConfirmation<ConfirmationOption>> = [];
   status: 'pending' | 'running' | 'finished' | 'idle' | undefined;
+  /** 处理开始时间戳（毫秒）/ Processing start timestamp in milliseconds */
+  processingStartTime: number | undefined;
 
   /**
    * Whether this agent is in yolo mode (auto-approve)
@@ -94,8 +96,9 @@ class BaseAgent<Data, ConfirmationOption extends any = any> {
 
   /**
    * Kill the agent and clean up resources. Subclasses should override.
+   * May return a Promise if cleanup is asynchronous (e.g. terminating child processes).
    */
-  kill(): void {
+  kill(): void | Promise<void> {
     // Base implementation is a no-op; subclasses handle cleanup.
   }
 
