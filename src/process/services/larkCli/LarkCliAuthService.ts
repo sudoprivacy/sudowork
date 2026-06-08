@@ -190,20 +190,23 @@ class LarkCliAuthService {
     let urlEmitted = false;
     const urlRegex = /(https?:\/\/open\.(?:feishu|larksuite)\.cn\/page\/cli\?[^\s]+)/;
 
-    child.stdout.on('data', (chunk: Buffer) => {
-      const s = chunk.toString();
-      stdoutBuf += s;
-      if (!urlEmitted) {
-        const m = stdoutBuf.match(urlRegex);
-        if (m) {
-          urlEmitted = true;
-          onUrl(m[1]);
-          resolveUrl(m[1]);
-        }
+    const tryEmit = () => {
+      if (urlEmitted) return;
+      const m = (stdoutBuf + '\n' + stderrBuf).match(urlRegex);
+      if (m) {
+        urlEmitted = true;
+        onUrl(m[1]);
+        resolveUrl(m[1]);
       }
+    };
+    child.stdout.on('data', (chunk: Buffer) => {
+      stdoutBuf += chunk.toString();
+      tryEmit();
     });
     child.stderr.on('data', (chunk: Buffer) => {
+      // lark-cli writes its QR + verification URL to stderr when stdout is not a TTY.
       stderrBuf += chunk.toString();
+      tryEmit();
     });
 
     const done = new Promise<{ ok: boolean; error?: string }>((resolve) => {
