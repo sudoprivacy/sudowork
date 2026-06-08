@@ -39,7 +39,7 @@ import { Tooltip } from '@arco-design/web-react';
 import { Book, Branch, Browser, Bug, Calendar, Code, FileText, FolderOpen, Picture, SettingConfig, Star, Tool } from '@icon-park/react';
 import React, { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { resolveSkillIcon } from '@/renderer/utils/skillDisplay';
+import { resolveSkillIcon, handleSkillIconError } from '@/renderer/utils/skillDisplay';
 import { emitter } from '@/renderer/utils/emitter';
 import { resolveWorkspaceSkillRoot } from './skillRoots';
 
@@ -340,7 +340,7 @@ const SkillIconGraphic: React.FC<{
   }, [fallbackToDefaultImage, iconUrl]);
 
   if (resolvedIconUrl) {
-    return <img src={resolvedIconUrl} alt={displayName} className='workspace-skill-card__icon-image' referrerPolicy='no-referrer' crossOrigin='anonymous' />;
+    return <img src={resolvedIconUrl} alt={displayName} className='workspace-skill-card__icon-image' referrerPolicy='no-referrer' crossOrigin='anonymous' onError={handleSkillIconError} />;
   }
 
   if (emoji) {
