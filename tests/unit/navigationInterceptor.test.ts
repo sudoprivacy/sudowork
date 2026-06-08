@@ -154,3 +154,122 @@ describe('NavigationInterceptor — intercept() integration', () => {
     expect(result.intercepted).toBe(false);
   });
 });
+
+describe('NavigationInterceptor — sudowork-browser MCP tools', () => {
+  it('matches direct sudowork-browser MCP tool names as bare strings', () => {
+    expect(NavigationInterceptor.isNavigationTool('browser_open')).toBe(true);
+    expect(NavigationInterceptor.isNavigationTool('browser_navigate')).toBe(true);
+    expect(NavigationInterceptor.isNavigationTool('BROWSER_OPEN')).toBe(true);
+  });
+
+  it('matches mcp-prefixed direct tool name (Claude Code surface form)', () => {
+    expect(NavigationInterceptor.isNavigationTool('mcp__sudowork-browser__browser_open')).toBe(true);
+  });
+
+  it('does not match non-navigation sudowork-browser MCP tools', () => {
+    expect(NavigationInterceptor.isNavigationTool('browser_take_screenshot')).toBe(false);
+    expect(NavigationInterceptor.isNavigationTool('browser_evaluate')).toBe(false);
+  });
+
+  it('extracts URL from a direct browser_open call', () => {
+    const data = { toolName: 'browser_open', arguments: { url: 'https://example.com' } };
+    expect(NavigationInterceptor.isNavigationTool(data)).toBe(true);
+    expect(NavigationInterceptor.extractUrl(data)).toBe('https://example.com');
+  });
+});
+
+describe('NavigationInterceptor — MCPTool wrapper form (gpt-5.5 / sudorouter)', () => {
+  it('matches MCPTool whose rawInput.qualifiedName ends with browser_open (dash-joined)', () => {
+    const data = {
+      toolName: 'MCPTool',
+      rawInput: {
+        qualifiedName: 'sudowork-browser-browser_open',
+        arguments: { url: 'https://www.baidu.com' },
+      },
+    };
+    expect(NavigationInterceptor.isNavigationTool(data)).toBe(true);
+    expect(NavigationInterceptor.extractUrl(data)).toBe('https://www.baidu.com');
+  });
+
+  it('matches dot-joined qualifiedName (sudowork-browser.browser_navigate)', () => {
+    const data = {
+      toolName: 'MCPTool',
+      rawInput: {
+        qualifiedName: 'sudowork-browser.browser_navigate',
+        arguments: { url: 'https://example.com' },
+      },
+    };
+    expect(NavigationInterceptor.isNavigationTool(data)).toBe(true);
+    expect(NavigationInterceptor.extractUrl(data)).toBe('https://example.com');
+  });
+
+  it('matches double-underscore-joined qualifiedName (mcp__sudowork-browser__browser_open)', () => {
+    const data = {
+      toolName: 'MCPTool',
+      rawInput: {
+        qualifiedName: 'mcp__sudowork-browser__browser_open',
+        arguments: { url: 'https://example.com' },
+      },
+    };
+    expect(NavigationInterceptor.isNavigationTool(data)).toBe(true);
+    expect(NavigationInterceptor.extractUrl(data)).toBe('https://example.com');
+  });
+
+  it('reads qualifiedName from data.arguments when rawInput is absent', () => {
+    const data = {
+      toolName: 'MCPTool',
+      arguments: {
+        qualifiedName: 'sudowork-browser-browser_open',
+        arguments: { url: 'https://example.com' },
+      },
+    };
+    expect(NavigationInterceptor.isNavigationTool(data)).toBe(true);
+    expect(NavigationInterceptor.extractUrl(data)).toBe('https://example.com');
+  });
+
+  it('does NOT match MCPTool when qualifiedName ends with a non-nav sudowork-browser tool', () => {
+    const data = {
+      toolName: 'MCPTool',
+      rawInput: {
+        qualifiedName: 'sudowork-browser-browser_take_screenshot',
+        arguments: { path: 'foo.png' },
+      },
+    };
+    expect(NavigationInterceptor.isNavigationTool(data)).toBe(false);
+  });
+
+  it('does NOT match MCPTool without a qualifiedName', () => {
+    const data = {
+      toolName: 'MCPTool',
+      rawInput: { arguments: { url: 'https://example.com' } },
+    };
+    expect(NavigationInterceptor.isNavigationTool(data)).toBe(false);
+  });
+
+  it('does NOT match a non-wrapper tool name even with a matching qualifiedName', () => {
+    const data = {
+      toolName: 'Bash',
+      rawInput: {
+        qualifiedName: 'sudowork-browser-browser_open',
+        arguments: { url: 'https://example.com' },
+      },
+    };
+    expect(NavigationInterceptor.isNavigationTool(data)).toBe(false);
+  });
+
+  it('intercept() returns intercepted=true with the wrapped URL', () => {
+    const result = NavigationInterceptor.intercept(
+      {
+        toolName: 'MCPTool',
+        rawInput: {
+          qualifiedName: 'sudowork-browser-browser_open',
+          arguments: { url: 'https://example.com' },
+        },
+      },
+      'conv-mcp'
+    );
+    expect(result.intercepted).toBe(true);
+    expect(result.url).toBe('https://example.com');
+    expect(result.previewMessage?.data).toMatchObject({ content: 'https://example.com', contentType: 'url' });
+  });
+});
