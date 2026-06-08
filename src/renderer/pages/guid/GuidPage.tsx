@@ -309,6 +309,7 @@ const GuidPage: React.FC = () => {
 
   // Listen for guid.reset event to reset agent/mention state only
   const handleGuidReset = useCallback(() => {
+    setGuidDraft({ input: '' });
     agentSelection.resetSelection();
     setCursorPosition(0);
     mention.setMentionOpen(false);
@@ -538,9 +539,7 @@ const GuidPage: React.FC = () => {
       loading={guidInput.loading}
       isButtonDisabled={send.isButtonDisabled}
       onSend={() => {
-        send.handleSend().catch((error) => {
-          console.error('Failed to send message:', error);
-        });
+        send.sendMessageHandler();
       }}
     />
   );
