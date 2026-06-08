@@ -104,7 +104,7 @@ const ChatSider: React.FC<{
             <BrowserPanel active={activeTab === 'browser'} />
           </div>
           <div className={`right-panel-stack__pane ${activeTab === 'terminal' ? 'right-panel-stack__pane--active' : ''}`}>
-            <TerminalPanel cwd={workspace} active={activeTab === 'terminal'} />
+            <TerminalPanel cwd={workspace} active={activeTab === 'terminal'} conversationId={conversation?.id} />
           </div>
           <div className={`right-panel-stack__pane ${activeTab === 'deliverables' ? 'right-panel-stack__pane--active' : ''}`}>
             <DeliverablesPanel conversationId={conversation?.id} active={activeTab === 'deliverables'} />
