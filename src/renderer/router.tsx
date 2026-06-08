@@ -3,6 +3,7 @@ import { HashRouter, Navigate, Route, Routes, useLocation } from 'react-router-d
 import AppLoader from './components/AppLoader';
 import { useAuth } from './context/AuthContext';
 import { useAppMode, isModeResolved } from './hooks/useAppMode';
+import { useCronEnabled } from './hooks/useCronEnabled';
 
 const Conversation = React.lazy(() => import('./pages/conversation'));
 const Guid = React.lazy(() => import('./pages/guid'));
@@ -48,6 +49,7 @@ const SettingsDefaultRoute: React.FC = () => {
 const ProtectedLayout: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
   const { status } = useAuth();
   const { isEnterprise } = useAppMode();
+  const cronEnabled = useCronEnabled();
   const location = useLocation();
 
   if (status === 'checking') {
@@ -66,6 +68,11 @@ const ProtectedLayout: React.FC<{ layout: React.ReactElement }> = ({ layout }) =
   // Enterprise mode route guard: restrict access to allowed settings paths
   if (isEnterprise && location.pathname.startsWith('/settings/') && !ENTERPRISE_ALLOWED_PATHS.includes(location.pathname)) {
     return <Navigate to='/settings/enterprise' replace />;
+  }
+
+  // Client cron disabled: the cron settings page is not reachable.
+  if (!cronEnabled && location.pathname === '/settings/cron') {
+    return <Navigate to='/settings/agent' replace />;
   }
 
   return React.cloneElement(layout);

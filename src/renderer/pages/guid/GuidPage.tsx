@@ -6,6 +6,7 @@
 
 import { resolveLocaleKey } from '@/common/utils';
 import { useInputFocusRing } from '@/renderer/hooks/useInputFocusRing';
+import { useCronEnabled } from '@/renderer/hooks/useCronEnabled';
 import { openExternalUrl, isElectronDesktop, resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import { useConversationTabs } from '@/renderer/pages/conversation/context/ConversationTabsContext';
 import { ThemeSwitcher } from '@/renderer/components/ThemeSwitcher';
@@ -69,6 +70,7 @@ const GuidPage: React.FC = () => {
   const selectedMenu = searchParams.get('menu');
   const skillParam = searchParams.get('skill');
   const assistantParam = searchParams.get('assistant');
+  const cronEnabled = useCronEnabled();
 
   // Skill selector state
   const [installedSkills, setInstalledSkills] = useState<any[]>([]);
@@ -615,7 +617,7 @@ const GuidPage: React.FC = () => {
             {selectedMenu === 'agent' && <AgentSettings />}
             {selectedMenu === 'security' && <SecuritySettings />}
             {selectedMenu === 'webui' && <WebuiSettings />}
-            {selectedMenu === 'cron' && <CronSettings />}
+            {selectedMenu === 'cron' && cronEnabled && <CronSettings />}
           </div>
         ) : (
           /* Normal/Assistant conversation area */
