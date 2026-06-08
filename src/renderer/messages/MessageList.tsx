@@ -375,8 +375,10 @@ const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = fal
       diffsChanges = [];
       result.push(message);
     }
-    // Flush any remaining turn actions at the end
-    flushTurnActions();
+    // Only expose turn actions after the AI stream finishes.
+    if (!aiProcessing) {
+      flushTurnActions();
+    }
 
     // Insert time separators between messages with significant time gaps
     // 在时间间隔较大的消息之间插入时间分隔符
