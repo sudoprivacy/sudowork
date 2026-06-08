@@ -506,7 +506,7 @@ export function initChannelBridge(): void {
 
   let larkCliLoginAbort: AbortController | null = null;
 
-  channel.larkCliStart.provider(async ({ appId, appSecret, brand = 'feishu' }) => {
+  channel.larkCliStart.provider(async ({ brand = 'feishu' } = {}) => {
     try {
       if (larkCliLoginAbort) {
         larkCliLoginAbort.abort();
@@ -523,26 +523,44 @@ export function initChannelBridge(): void {
         larkCliLoginAbort = null;
         return { success: false, msg };
       }
-      if (!appId.trim() || !appSecret.trim()) {
-        const msg = 'App ID and App Secret are required';
-        channel.larkCliLogin.emit({ phase: 'error', message: msg });
-        larkCliLoginAbort = null;
-        return { success: false, msg };
-      }
 
       channel.larkCliLogin.emit({ phase: 'initializing' });
 
-      const cfg = await service.ensureConfigured(appId.trim(), appSecret, brand);
-      if (signal.aborted) {
-        larkCliLoginAbort = null;
-        return { success: true };
-      }
-      if (!cfg.ok) {
-        channel.larkCliLogin.emit({ phase: 'error', message: cfg.error });
-        larkCliLoginAbort = null;
-        return { success: false, msg: cfg.error };
+      // Stage A: if lark-cli has no app configured yet, create one via `config init --new`.
+      const alreadyConfigured = await service.isConfigured();
+      if (!alreadyConfigured) {
+        const initHandle = service.startConfigInitNew(
+          brand === 'lark' ? 'lark' : 'feishu',
+          (url) => {
+            channel.larkCliLogin.emit({ phase: 'app-setup', verificationUrl: url });
+          },
+          signal
+        );
+        try {
+          await initHandle.url;
+        } catch (urlErr: any) {
+          if (signal.aborted) {
+            larkCliLoginAbort = null;
+            return { success: true };
+          }
+          const msg = urlErr?.message ?? 'Failed to obtain Feishu app setup URL';
+          channel.larkCliLogin.emit({ phase: 'error', message: msg });
+          larkCliLoginAbort = null;
+          return { success: false, msg };
+        }
+        const initResult = await initHandle.done;
+        if (signal.aborted) {
+          larkCliLoginAbort = null;
+          return { success: true };
+        }
+        if (!initResult.ok) {
+          channel.larkCliLogin.emit({ phase: 'error', message: initResult.error ?? 'config init failed' });
+          larkCliLoginAbort = null;
+          return { success: false, msg: initResult.error };
+        }
       }
 
+      // Stage B: device-flow OAuth login.
       const start = await service.startDeviceFlow();
       if (signal.aborted) {
         larkCliLoginAbort = null;
@@ -581,10 +599,13 @@ export function initChannelBridge(): void {
         try {
           const pollResult = await service.pollDeviceCode(deviceCode);
           if (pollResult.status === 'success') {
+            const app = await service.getConfigApp();
             channel.larkCliLogin.emit({
               phase: 'success',
               user: pollResult.user,
               token: pollResult.token,
+              appId: app.appId,
+              appSecret: app.appSecret,
             });
             larkCliLoginAbort = null;
             return { success: true };

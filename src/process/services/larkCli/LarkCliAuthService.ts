@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { spawn } from 'child_process';
+import { spawn, type ChildProcessWithoutNullStreams } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -130,26 +130,126 @@ class LarkCliAuthService {
   }
 
   /**
-   * Ensure lark-cli has an app configured. If `config show` reports success, leave it alone
-   * (we don't reconfigure on every login — that would be destructive if the user added
-   * additional named profiles via the CLI directly).
+   * Check whether lark-cli has any configured app.
    */
-  async ensureConfigured(appId: string, appSecret: string, brand: LarkBrand): Promise<{ ok: boolean; error?: string }> {
+  async isConfigured(): Promise<boolean> {
     const cur = await this.run(['config', 'show'], { timeoutMs: 10000 });
-    if (cur.exitCode === 0 && cur.parsed && (cur.parsed as { ok?: boolean }).ok !== false) {
-      return { ok: true };
+    return cur.exitCode === 0 && !!cur.parsed && (cur.parsed as { ok?: boolean }).ok !== false;
+  }
+
+  /**
+   * Return app credentials currently held by lark-cli's config, if any. Best-effort field extraction —
+   * the exact field names depend on lark-cli version. Missing fields come back undefined.
+   */
+  async getConfigApp(): Promise<{ appId?: string; appSecret?: string }> {
+    const cur = await this.run(['config', 'show'], { timeoutMs: 5000 });
+    if (cur.exitCode !== 0 || !cur.parsed) return {};
+    const raw = cur.parsed as { ok?: boolean; data?: Record<string, unknown> };
+    if (raw.ok === false) return {};
+    const data = (raw.data ?? raw) as Record<string, unknown>;
+    return {
+      appId: pickString(data, 'app_id', 'appId', 'AppID'),
+      appSecret: pickString(data, 'app_secret', 'appSecret', 'AppSecret'),
+    };
+  }
+
+  /**
+   * Spawn `lark-cli config init --new --brand <brand>` and stream stdout looking for the
+   * verification URL (e.g. https://open.feishu.cn/page/cli?...). The CLI blocks until the
+   * user completes setup in the browser; we resolve with `success` when the process exits 0,
+   * `failure` otherwise.
+   *
+   * Callers get the verification URL via `onUrl` as soon as it shows up in stdout, then await
+   * the returned promise for the final exit status. Pass an AbortSignal to kill mid-flight.
+   */
+  startConfigInitNew(brand: LarkBrand, onUrl: (url: string) => void, signal?: AbortSignal): { url: Promise<string>; done: Promise<{ ok: boolean; error?: string }> } {
+    if (!this.isInstalled()) {
+      return {
+        url: Promise.reject(new Error('lark-cli not installed')),
+        done: Promise.resolve({ ok: false, error: 'lark-cli not installed' }),
+      };
+    }
+    const bin = this.getBinPath();
+    let child: ChildProcessWithoutNullStreams;
+    try {
+      child = spawn(bin, ['config', 'init', '--new', '--brand', brand], { stdio: ['pipe', 'pipe', 'pipe'] });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { url: Promise.reject(new Error(msg)), done: Promise.resolve({ ok: false, error: msg }) };
     }
 
-    mainLog(TAG, 'lark-cli not configured; running config init with provided creds');
-    const init = await this.run(['config', 'init', '--app-id', appId, '--app-secret-stdin', '--brand', brand], {
-      stdin: appSecret + '\n',
-      timeoutMs: 30000,
+    let resolveUrl: (u: string) => void;
+    let rejectUrl: (e: Error) => void;
+    const url = new Promise<string>((resolve, reject) => {
+      resolveUrl = resolve;
+      rejectUrl = reject;
     });
-    if (init.exitCode !== 0) {
-      const errMsg = this.extractErrorMessage(init) ?? 'lark-cli config init failed';
-      return { ok: false, error: errMsg };
-    }
-    return { ok: true };
+
+    let stdoutBuf = '';
+    let stderrBuf = '';
+    let urlEmitted = false;
+    const urlRegex = /(https?:\/\/open\.(?:feishu|larksuite)\.cn\/page\/cli\?[^\s]+)/;
+
+    child.stdout.on('data', (chunk: Buffer) => {
+      const s = chunk.toString();
+      stdoutBuf += s;
+      if (!urlEmitted) {
+        const m = stdoutBuf.match(urlRegex);
+        if (m) {
+          urlEmitted = true;
+          onUrl(m[1]);
+          resolveUrl(m[1]);
+        }
+      }
+    });
+    child.stderr.on('data', (chunk: Buffer) => {
+      stderrBuf += chunk.toString();
+    });
+
+    const done = new Promise<{ ok: boolean; error?: string }>((resolve) => {
+      const onAbort = () => {
+        try {
+          child.kill('SIGTERM');
+        } catch {
+          // ignore
+        }
+      };
+      if (signal) {
+        if (signal.aborted) onAbort();
+        else signal.addEventListener('abort', onAbort, { once: true });
+      }
+      child.on('error', (err) => {
+        if (!urlEmitted) rejectUrl(err instanceof Error ? err : new Error(String(err)));
+        resolve({ ok: false, error: err instanceof Error ? err.message : String(err) });
+      });
+      child.on('close', (code) => {
+        if (!urlEmitted) {
+          rejectUrl(new Error(`config init exited before emitting URL (code ${code})`));
+        }
+        if (code === 0) {
+          resolve({ ok: true });
+        } else if (signal?.aborted) {
+          resolve({ ok: false, error: 'cancelled' });
+        } else {
+          const last = (stderrBuf.trim() || stdoutBuf.trim()).split('\n').slice(-3).join(' ');
+          resolve({ ok: false, error: last || `config init exited with code ${code}` });
+        }
+      });
+    });
+
+    // Watchdog: if no URL surfaces within 15s, give up — the CLI may have failed earlier.
+    setTimeout(() => {
+      if (!urlEmitted) {
+        try {
+          child.kill('SIGTERM');
+        } catch {
+          // ignore
+        }
+        rejectUrl(new Error('Timed out waiting for verification URL from lark-cli config init'));
+      }
+    }, 15000);
+
+    return { url, done };
   }
 
   async startDeviceFlow(): Promise<LarkCliStartResult> {
