@@ -11,7 +11,7 @@ import { useTranslation } from 'react-i18next';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { ShareOne } from '@icon-park/react';
 import { useSettingsViewMode } from '../settingsViewContext';
-import { nexus as nexusIpc, claudeCli as claudeCliIpc, libreOffice as libreOfficeIpc, pythonRuntime as pythonRuntimeIpc, scode as scodeIpc, nodeRuntime as nodeRuntimeIpc, acpConversation, shareoneCli } from '@/common/ipcBridge';
+import { nexus as nexusIpc, claudeCli as claudeCliIpc, libreOffice as libreOfficeIpc, pythonRuntime as pythonRuntimeIpc, scode as scodeIpc, nodeRuntime as nodeRuntimeIpc, acpConversation, shareoneCli, larkCli } from '@/common/ipcBridge';
 import { mutate } from 'swr';
 import type { ICliStatus, ILibreOfficeInstallPhase, IPythonInstallPhase, NexusInstallPhase } from '@/common/ipcBridge';
 import { getRuntimeActions, getStatusInfo, isInstalled, type LoadState, type ToolRow } from './runtimeStatus';
@@ -57,6 +57,9 @@ const RuntimeModalContent: React.FC = () => {
 
   const [shareoneStatus, setShareoneStatus] = useState<ICliStatus | null>(null);
   const [shareoneLoad, setShareoneLoad] = useState<LoadState>('idle');
+
+  const [larkCliStatus, setLarkCliStatus] = useState<ICliStatus | null>(null);
+  const [larkCliLoad, setLarkCliLoad] = useState<LoadState>('idle');
 
   const [nexusVersion, setNexusVersion] = useState<string | undefined>(undefined);
 
@@ -341,6 +344,36 @@ const RuntimeModalContent: React.FC = () => {
     }
   }, [refreshShareone, t]);
 
+  const refreshLarkCli = useCallback(async () => {
+    try {
+      const res = await larkCli.checkInstalled.invoke();
+      if (res?.success && res.data) {
+        setLarkCliStatus(res.data);
+      } else {
+        setLarkCliStatus({ installed: false, source: 'none' });
+      }
+    } catch {
+      setLarkCliStatus({ installed: false, source: 'none' });
+    }
+  }, []);
+
+  const installLarkCli = useCallback(async () => {
+    setLarkCliLoad('installing');
+    try {
+      const res = await larkCli.install.invoke();
+      if (res?.success) {
+        await refreshLarkCli();
+        Message.success(t('settings.runtimeSettings.installSuccess', { name: 'Lark CLI' }));
+      } else {
+        Message.error(res?.msg || t('settings.runtimeSettings.installFailed', { name: 'Lark CLI' }));
+      }
+    } catch (e) {
+      Message.error(e instanceof Error ? e.message : t('settings.runtimeSettings.installFailed', { name: 'Lark CLI' }));
+    } finally {
+      setLarkCliLoad('idle');
+    }
+  }, [refreshLarkCli, t]);
+
   const refreshNexus = useCallback(async () => {
     try {
       const res = await nexusIpc.getStatus.invoke();
@@ -418,9 +451,9 @@ const RuntimeModalContent: React.FC = () => {
 
   const refreshRuntimePage = useCallback(
     async (options?: RefreshOptions) => {
-      await Promise.all([refreshNode(options), refreshClaude(options), refreshScode(), refreshShareone(), refreshNexus(), refreshLibreOffice(options), refreshPython(options)]);
+      await Promise.all([refreshNode(options), refreshClaude(options), refreshScode(), refreshShareone(), refreshLarkCli(), refreshNexus(), refreshLibreOffice(options), refreshPython(options)]);
     },
-    [refreshClaude, refreshLibreOffice, refreshNexus, refreshNode, refreshPython, refreshScode, refreshShareone]
+    [refreshClaude, refreshLarkCli, refreshLibreOffice, refreshNexus, refreshNode, refreshPython, refreshScode, refreshShareone]
   );
 
   // Load all on mount; also restore install state if an install is already in progress
@@ -475,6 +508,10 @@ const RuntimeModalContent: React.FC = () => {
       setShareoneLoad('idle');
       void refreshShareone();
     });
+    const unsubLarkCliResult = larkCli.installResult.on(() => {
+      setLarkCliLoad('idle');
+      void refreshLarkCli();
+    });
     const unsubNexusProgress = nexusIpc.installProgress.on(({ phase, percent }) => {
       setNexusPhase(phase);
       if (percent != null) setNexusPercent(percent);
@@ -497,6 +534,7 @@ const RuntimeModalContent: React.FC = () => {
       unsubScodeProgress();
       unsubScodeResult();
       unsubShareoneResult();
+      unsubLarkCliResult();
       unsubNexusProgress();
       unsubNexusResult();
       unsubLoProgress();
@@ -504,7 +542,7 @@ const RuntimeModalContent: React.FC = () => {
       unsubPyProgress();
       unsubPyResult();
     };
-  }, [refreshNode, refreshClaude, refreshAvailableAgents, refreshNexus, refreshScode, refreshShareone, refreshLibreOffice, refreshPython]);
+  }, [refreshNode, refreshClaude, refreshAvailableAgents, refreshNexus, refreshScode, refreshShareone, refreshLarkCli, refreshLibreOffice, refreshPython]);
 
   const tableData: ToolRow[] = [
     {
@@ -577,6 +615,16 @@ const RuntimeModalContent: React.FC = () => {
       onInstall: shareoneStatus?.installed ? undefined : installShareone,
     },
     {
+      key: 'lark-cli',
+      displayName: 'Lark CLI',
+      command: 'lark-cli',
+      badge: 'LK',
+      status: larkCliStatus,
+      loadState: larkCliLoad,
+      onRefresh: refreshLarkCli,
+      onInstall: larkCliStatus?.installed ? undefined : installLarkCli,
+    },
+    {
       key: 'nexus',
       displayName: 'Nexus Server',
       command: 'nexusd',
@@ -603,6 +651,7 @@ const RuntimeModalContent: React.FC = () => {
     python: 'bg-[#fef3c7] color-[#d97706] border border-[#fcd34d]',
     sudocode: 'bg-purple-1 color-purple-6 border border-purple-3',
     shareone: 'bg-blue-1 color-blue-6 border border-blue-3',
+    'lark-cli': 'bg-indigo-1 color-indigo-6 border border-indigo-3',
     nexus: 'text-[#f6c65b] border border-[#6f5520] bg-[#2b2212]',
   };
 

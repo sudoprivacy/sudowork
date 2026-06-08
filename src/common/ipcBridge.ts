@@ -652,6 +652,14 @@ export const shareoneCli = {
   publishFile: bridge.buildProvider<IShareoneResponse & IBridgeResponse<{ url: string }>, { filePath: string }>('shareone.publish-file'),
 };
 
+// Lark CLI installer (binary only — auth/skills lifecycle managed by lark-cli itself)
+export const larkCli = {
+  checkInstalled: bridge.buildProvider<IBridgeResponse<ICliStatus>, void>('lark-cli.check-installed'),
+  install: bridge.buildProvider<IBridgeResponse<void>, void>('lark-cli.install'),
+  installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('lark-cli.install-result'),
+  installProgress: bridge.buildEmitter<{ phase: 'downloading' | 'extracting' | 'configuring'; percent?: number }>('lark-cli.install-progress'),
+};
+
 // LibreOffice installer / LibreOffice 在线安装
 export type ILibreOfficeInstallPhase = 'downloading' | 'mounting' | 'copying' | 'unmounting' | 'installing' | 'extracting' | 'cleanup';
 export type ISudoclawInstallPhase = 'extracting' | 'installing' | 'configuring';

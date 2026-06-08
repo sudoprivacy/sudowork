@@ -52,6 +52,7 @@ import { initTelemetryBridge } from './telemetryBridge';
 import { initAuthProxyBridge } from './authProxyBridge';
 import { initMossBridge } from './mossBridge';
 import { initShareoneCliBridge } from './shareoneCliBridge';
+import { initLarkCliBridge } from './larkCliBridge';
 import { initTerminalBridge } from './terminalBridge';
 import { initBrowserPanelBridge } from './browserPanelBridge';
 import { initDeliverablesBridge } from './deliverablesBridge';
@@ -112,6 +113,7 @@ export function initAllBridges(): void {
   initTelemetryBridge();
   initMossBridge();
   initShareoneCliBridge();
+  initLarkCliBridge();
   initTerminalBridge();
   initBrowserPanelBridge();
   initDeliverablesBridge();

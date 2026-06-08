@@ -181,6 +181,7 @@ jobs:
           node scripts/download-bdpan.js "$PLATFORM"
           node scripts/download-mcporter.js
           node scripts/download-shareone.js
+          node scripts/download-lark-cli.js
         env:
           npm_config_arch: ${{ matrix.arch }}
           npm_config_platform: ${{ matrix.platform == 'windows-x64' && 'win32' || matrix.platform == 'windows-arm64' && 'win32' || 'darwin' }}
