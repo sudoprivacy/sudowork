@@ -273,3 +273,96 @@ describe('NavigationInterceptor — MCPTool wrapper form (gpt-5.5 / sudorouter)'
     expect(result.previewMessage?.data).toMatchObject({ content: 'https://example.com', contentType: 'url' });
   });
 });
+
+describe('NavigationInterceptor — MCP wrapper, server+tool form (gpt-5.5 alternate shape)', () => {
+  it('matches toolName="MCP" with rawInput.server+tool=browser_open + nested arguments.url', () => {
+    const data = {
+      toolName: 'MCP',
+      rawInput: {
+        server: 'sudowork-browser',
+        tool: 'browser_open',
+        arguments: { url: 'https://www.baidu.com' },
+      },
+    };
+    expect(NavigationInterceptor.isNavigationTool(data)).toBe(true);
+    expect(NavigationInterceptor.extractUrl(data)).toBe('https://www.baidu.com');
+  });
+
+  it('matches toolName="MCP" with rawInput.server+tool=browser_navigate', () => {
+    const data = {
+      toolName: 'MCP',
+      rawInput: {
+        server: 'sudowork-browser',
+        tool: 'browser_navigate',
+        arguments: { url: 'https://example.com' },
+      },
+    };
+    expect(NavigationInterceptor.isNavigationTool(data)).toBe(true);
+    expect(NavigationInterceptor.extractUrl(data)).toBe('https://example.com');
+  });
+
+  it('reads server/tool from data.arguments when rawInput is absent', () => {
+    const data = {
+      toolName: 'MCP',
+      arguments: {
+        server: 'sudowork-browser',
+        tool: 'browser_open',
+        arguments: { url: 'https://example.com' },
+      },
+    };
+    expect(NavigationInterceptor.isNavigationTool(data)).toBe(true);
+    expect(NavigationInterceptor.extractUrl(data)).toBe('https://example.com');
+  });
+
+  it('intercept() end-to-end for the server/tool form', () => {
+    const result = NavigationInterceptor.intercept(
+      {
+        toolName: 'MCP',
+        rawInput: {
+          server: 'sudowork-browser',
+          tool: 'browser_open',
+          arguments: { url: 'https://example.com' },
+        },
+      },
+      'conv-mcp-st'
+    );
+    expect(result.intercepted).toBe(true);
+    expect(result.url).toBe('https://example.com');
+    expect(result.previewMessage?.data).toMatchObject({ content: 'https://example.com', contentType: 'url' });
+  });
+
+  it('does NOT match when tool field names a non-nav sudowork-browser tool', () => {
+    const data = {
+      toolName: 'MCP',
+      rawInput: {
+        server: 'sudowork-browser',
+        tool: 'browser_take_screenshot',
+        arguments: { path: 'foo.png' },
+      },
+    };
+    expect(NavigationInterceptor.isNavigationTool(data)).toBe(false);
+  });
+
+  it('does NOT match when server is not sudowork-browser (scoping check)', () => {
+    const data = {
+      toolName: 'MCP',
+      rawInput: {
+        server: 'some-other-mcp',
+        tool: 'browser_open',
+        arguments: { url: 'https://example.com' },
+      },
+    };
+    expect(NavigationInterceptor.isNavigationTool(data)).toBe(false);
+  });
+
+  it('does NOT match when the tool field is missing', () => {
+    const data = {
+      toolName: 'MCP',
+      rawInput: {
+        server: 'sudowork-browser',
+        arguments: { url: 'https://example.com' },
+      },
+    };
+    expect(NavigationInterceptor.isNavigationTool(data)).toBe(false);
+  });
+});
