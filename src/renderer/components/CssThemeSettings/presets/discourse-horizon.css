@@ -731,7 +731,7 @@ body {
 .agent-mode-compact-pill,
 .guidContainer .sendbox-model-btn.guid-config-btn {
   border: 1px solid var(--border-base) !important;
-  background: color-mix(in srgb, var(--horizon-surface) 92%, var(--aou-1)) !important;
+  background: color-mix(in srgb, var(--horizon-surface) 90%, var(--fill)) !important;
   color: var(--text-primary) !important;
 }
 
@@ -752,16 +752,16 @@ body {
 [data-theme='dark'] .header-model-btn,
 [data-theme='dark'] .agent-mode-compact-pill,
 [data-theme='dark'] .guidContainer .sendbox-model-btn.guid-config-btn {
-  background: color-mix(in srgb, var(--horizon-surface-soft) 92%, var(--aou-2)) !important;
+  background: color-mix(in srgb, var(--horizon-surface-soft) 90%, var(--fill)) !important;
 }
 
 .guidContainer .actionTools .arco-btn.arco-btn-text {
   border-radius: 999px !important;
-  background: color-mix(in srgb, var(--horizon-surface) 90%, var(--aou-1)) !important;
+  background: color-mix(in srgb, var(--horizon-surface) 90%, var(--fill)) !important;
 }
 
 [data-theme='dark'] .guidContainer .actionTools .arco-btn.arco-btn-text {
-  background: color-mix(in srgb, var(--horizon-surface-soft) 90%, var(--aou-2)) !important;
+  background: color-mix(in srgb, var(--horizon-surface-soft) 90%, var(--fill)) !important;
 }
 
 .guidContainer [data-agent-pill='true'][data-agent-selected='true'] {
