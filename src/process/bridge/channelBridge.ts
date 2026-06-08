@@ -581,57 +581,32 @@ export function initChannelBridge(): void {
         expiresAt: start.expiresAt,
       });
 
-      const deviceCode = start.deviceCode;
-      const intervalMs = Math.max(start.intervalMs, 2000);
-      const expiresAt = start.expiresAt;
-
-      while (Date.now() < expiresAt) {
-        if (signal.aborted) {
-          larkCliLoginAbort = null;
-          return { success: true };
-        }
-        await new Promise((resolve) => setTimeout(resolve, intervalMs));
-        if (signal.aborted) {
-          larkCliLoginAbort = null;
-          return { success: true };
-        }
-
-        try {
-          const pollResult = await service.pollDeviceCode(deviceCode);
-          if (pollResult.status === 'success') {
-            const app = await service.getConfigApp();
-            channel.larkCliLogin.emit({
-              phase: 'success',
-              user: pollResult.user,
-              token: pollResult.token,
-              appId: app.appId,
-              appSecret: app.appSecret,
-            });
-            larkCliLoginAbort = null;
-            return { success: true };
-          }
-          if (pollResult.status === 'expired') {
-            channel.larkCliLogin.emit({ phase: 'expired', message: 'Authorization code expired' });
-            larkCliLoginAbort = null;
-            return { success: true };
-          }
-          if (pollResult.status === 'failed') {
-            channel.larkCliLogin.emit({ phase: 'error', message: pollResult.error ?? 'Login failed' });
-            larkCliLoginAbort = null;
-            return { success: true };
-          }
-          // pending → continue polling
-        } catch (pollError) {
-          if (signal.aborted) {
-            larkCliLoginAbort = null;
-            return { success: true };
-          }
-          mainWarn('ChannelBridge', 'larkCli poll error:', pollError);
-          // transient — continue
-        }
+      // `auth login --device-code` blocks until the user completes the browser flow,
+      // the device code expires, or we cancel. One call, not a poll loop.
+      const remainingMs = Math.max(60_000, start.expiresAt - Date.now() + 30_000);
+      const result = await service.waitForDeviceCode(start.deviceCode, { timeoutMs: remainingMs, signal });
+      if (signal.aborted) {
+        larkCliLoginAbort = null;
+        return { success: true };
       }
-
-      channel.larkCliLogin.emit({ phase: 'expired', message: 'Authorization code expired' });
+      if (result.status === 'success') {
+        const app = await service.getConfigApp();
+        channel.larkCliLogin.emit({
+          phase: 'success',
+          user: result.user,
+          token: result.token,
+          appId: app.appId,
+          appSecret: app.appSecret,
+        });
+        larkCliLoginAbort = null;
+        return { success: true };
+      }
+      if (result.status === 'expired') {
+        channel.larkCliLogin.emit({ phase: 'expired', message: 'Authorization code expired' });
+        larkCliLoginAbort = null;
+        return { success: true };
+      }
+      channel.larkCliLogin.emit({ phase: 'error', message: result.error ?? 'Login failed' });
       larkCliLoginAbort = null;
       return { success: true };
     } catch (error: any) {

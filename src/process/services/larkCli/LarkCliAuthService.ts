@@ -68,7 +68,7 @@ class LarkCliAuthService {
     }
   }
 
-  private run(args: string[], opts: { stdin?: string; timeoutMs?: number } = {}): Promise<IRunResult> {
+  private run(args: string[], opts: { stdin?: string; timeoutMs?: number; signal?: AbortSignal } = {}): Promise<IRunResult> {
     const bin = this.getBinPath();
     const timeoutMs = opts.timeoutMs ?? 30000;
     return new Promise<IRunResult>((resolve) => {
@@ -97,6 +97,20 @@ class LarkCliAuthService {
         }
         finalize({ exitCode: -2, stdout, stderr: stderr + '\n[lark-cli timeout]' });
       }, timeoutMs);
+
+      const onAbort = () => {
+        try {
+          child.kill('SIGTERM');
+        } catch {
+          // ignore
+        }
+        clearTimeout(timer);
+        finalize({ exitCode: -3, stdout, stderr: stderr + '\n[lark-cli aborted]' });
+      };
+      if (opts.signal) {
+        if (opts.signal.aborted) onAbort();
+        else opts.signal.addEventListener('abort', onAbort, { once: true });
+      }
 
       child.stdout?.on('data', (d: Buffer) => {
         stdout += d.toString();
@@ -295,15 +309,26 @@ class LarkCliAuthService {
     return { ok: true, verificationUrl, userCode, deviceCode, expiresAt, intervalMs: Math.max(1, intervalSec) * 1000 };
   }
 
-  async pollDeviceCode(deviceCode: string): Promise<ILarkCliPollResult> {
-    const r = await this.run(['auth', 'login', '--device-code', deviceCode, '--json'], { timeoutMs: 15000 });
+  /**
+   * Block until the user finishes the device-flow authorization (or it expires).
+   *
+   * `lark-cli auth login --device-code <code>` is NOT a poll — it blocks until the user
+   * completes the browser flow, the token expires, or the process is killed. Callers pass
+   * a long timeout (matching the device code's `expires_in`) and an AbortSignal for user
+   * cancellation.
+   */
+  async waitForDeviceCode(deviceCode: string, opts: { timeoutMs?: number; signal?: AbortSignal } = {}): Promise<ILarkCliPollResult> {
+    const r = await this.run(['auth', 'login', '--device-code', deviceCode, '--json'], {
+      timeoutMs: opts.timeoutMs ?? 10 * 60 * 1000,
+      signal: opts.signal,
+    });
+    if (r.exitCode === -3) return { status: 'failed', error: 'cancelled' };
+
     const raw = r.parsed as { ok?: boolean; data?: Record<string, unknown>; error?: { type?: string; subtype?: string; message?: string } } | undefined;
 
     if (raw && raw.ok === false) {
       const errType = (raw.error?.subtype ?? raw.error?.type ?? '').toLowerCase();
       const errMsg = (raw.error?.message ?? '').toLowerCase();
-      const isPending = ['authorization_pending', 'pending', 'slow_down'].some((m) => errType.includes(m) || errMsg.includes(m));
-      if (isPending) return { status: 'pending' };
       const isExpired = ['expired_token', 'expired', 'access_denied'].some((m) => errType.includes(m) || errMsg.includes(m));
       if (isExpired) return { status: 'expired' };
       return { status: 'failed', error: raw.error?.message ?? 'login failed' };
@@ -311,8 +336,6 @@ class LarkCliAuthService {
 
     if (r.exitCode !== 0 || !raw) {
       const errMsg = this.extractErrorMessage(r);
-      // Some lark-cli versions may exit nonzero while still pending — be conservative
-      if (errMsg && /pending|slow_down/i.test(errMsg)) return { status: 'pending' };
       return { status: 'failed', error: errMsg ?? 'login failed' };
     }
 
