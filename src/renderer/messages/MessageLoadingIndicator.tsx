@@ -1,15 +1,17 @@
 import React from 'react';
 import classNames from 'classnames';
 import sudoclawProDark from '@/renderer/assets/sudoclaw_transparent_large.png';
-import sudoclawProWhite from '@/renderer/assets/sudoclaw_transparent_large.png';
+import { useTranslation } from 'react-i18next';
 
-// Helper to detect current theme
+const sudoclawProWhite = sudoclawProDark;
+
 const isDarkMode = () => {
   if (typeof document === 'undefined') return false;
   return document.documentElement.getAttribute('data-theme') === 'dark';
 };
 
 const MessageLoadingIndicator: React.FC = () => {
+  const { t } = useTranslation();
   const [darkMode, setDarkMode] = React.useState(() => isDarkMode());
 
   React.useEffect(() => {
@@ -21,13 +23,16 @@ const MessageLoadingIndicator: React.FC = () => {
   }, []);
 
   const streamingAvatar = darkMode ? sudoclawProDark : sudoclawProWhite;
+  const thinkingLabel = t('codex.thinking.processing', { defaultValue: '正在思考...' })
+    .replace(/^🤔\s*/u, '')
+    .replace(/^Codex\s*/u, '');
 
   return (
-    <div className={classNames('min-w-0 flex w-full items-start message-item [&>div]:max-w-full m-t-10px max-w-full md:max-w-800px mx-auto group', 'justify-start')}>
-      <div className='flex-shrink-0 mr-4px mt-4px w-40px h-40px relative'>
-        <img src={streamingAvatar} alt='AI Loading Avatar' className='absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-40px h-40px max-w-none object-contain' />
+    <div className={classNames('min-w-0 flex w-full message-item [&>div]:max-w-full m-t-10px max-w-full md:max-w-800px mx-auto group justify-start')}>
+      <div className='flex items-center gap-8px text-t-secondary'>
+        <img src={streamingAvatar} alt='AI Loading Avatar' className='loading w-40px h-40px max-w-none object-contain' />
+        <span className='text-13px leading-20px'>{thinkingLabel}</span>
       </div>
-      {/* Intentionally left empty - we do NOT want a message bubble, just the pulsing avatar */}
     </div>
   );
 };

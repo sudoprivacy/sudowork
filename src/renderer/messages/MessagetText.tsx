@@ -57,7 +57,7 @@ const useFormatContent = (content: string) => {
   }, [content]);
 };
 
-const MessageText: React.FC<{ message: IMessageText; isStreaming?: boolean }> = ({ message, isStreaming = false }) => {
+const MessageText: React.FC<{ message: IMessageText; isStreaming?: boolean; footer?: React.ReactNode }> = ({ message, isStreaming = false, footer }) => {
   // Filter think tags from content before rendering
   // 在渲染前过滤 think 标签
   const contentToRender = useMemo(() => {
@@ -140,6 +140,8 @@ const MessageText: React.FC<{ message: IMessageText; isStreaming?: boolean }> = 
 
   const cronMeta = message.content.cronMeta;
 
+  const showFooter = Boolean(footer) && !isUserMessage;
+
   return (
     <>
       <div className={classNames('min-w-0 flex max-w-full flex-col', isUserMessage ? 'items-end' : 'items-start', !isUserMessage && hasCodeLikeContent && 'w-full')}>
@@ -191,6 +193,7 @@ const MessageText: React.FC<{ message: IMessageText; isStreaming?: boolean }> = 
             <GeneratedFileCards entries={generated.files} />
           </div>
         )}
+        {showFooter && <div className='mt-4px w-full max-w-full'>{footer}</div>}
         {/* Skill tags - displayed below user message content */}
         {skills.length > 0 && isUserMessage && (
           <div className={classNames('mt-6px mb-6px', { 'self-end': isUserMessage })}>
