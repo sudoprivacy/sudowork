@@ -24,6 +24,7 @@ export const MOCK_ENTERPRISE_SERVERS: EnterpriseMcpServerDto[] = [
     allow_user_disable: true,
     enabled: true,
     status: 'enabled',
+    template_id: null,
     user_disabled: false,
   },
   {
@@ -44,6 +45,7 @@ export const MOCK_ENTERPRISE_SERVERS: EnterpriseMcpServerDto[] = [
     allow_user_disable: true,
     enabled: true,
     status: 'enabled',
+    template_id: null,
     user_disabled: false,
   },
   {
@@ -64,6 +66,7 @@ export const MOCK_ENTERPRISE_SERVERS: EnterpriseMcpServerDto[] = [
     allow_user_disable: false,
     enabled: false,
     status: 'disabled',
+    template_id: null,
     user_disabled: false,
   },
 ];
@@ -87,6 +90,7 @@ export const MOCK_PERSONAL_SERVERS: EnterpriseMcpServerDto[] = [
     allow_user_disable: true,
     enabled: true,
     status: 'enabled',
+    template_id: 'tpl-001',
     user_disabled: false,
   },
   {
@@ -107,6 +111,7 @@ export const MOCK_PERSONAL_SERVERS: EnterpriseMcpServerDto[] = [
     allow_user_disable: true,
     enabled: false,
     status: 'disabled',
+    template_id: null,
     user_disabled: true,
   },
 ];
@@ -128,6 +133,7 @@ export const MOCK_TEMPLATES: EnterpriseMcpTemplateDto[] = [
       { name: 'GitHub Token', key: 'Authorization', required: true, description: '个人访问令牌（Personal Access Token）', target: 'headers' },
       { name: '组织名称', key: 'X-Org', required: false, description: '可选：默认组织名', target: 'headers' },
     ],
+    auth_user_items: [],
     created_at: Date.now() - 1000 * 60 * 60 * 24 * 30,
     updated_at: Date.now() - 1000 * 60 * 60 * 24 * 3,
   },
@@ -144,6 +150,7 @@ export const MOCK_TEMPLATES: EnterpriseMcpTemplateDto[] = [
     downloads: 76,
     rating: 4.2,
     user_config_items: [{ name: 'Slack Bot Token', key: 'Authorization', required: true, description: 'xoxb- 开头的 bot token', target: 'headers' }],
+    auth_user_items: [],
     created_at: Date.now() - 1000 * 60 * 60 * 24 * 60,
     updated_at: Date.now() - 1000 * 60 * 60 * 24 * 7,
   },
@@ -160,6 +167,7 @@ export const MOCK_TEMPLATES: EnterpriseMcpTemplateDto[] = [
     downloads: 12,
     rating: 4.0,
     user_config_items: [],
+    auth_user_items: [],
     created_at: Date.now() - 1000 * 60 * 60 * 24 * 90,
     updated_at: Date.now() - 1000 * 60 * 60 * 24 * 14,
   },

@@ -34,9 +34,95 @@ const CHANNEL_KEYWORDS: Array<{ keyword: string; channelType: string }> = [
 ];
 
 /**
- * 问题关键词（表示用户想查询状态）
+ * 渠道管理语义关键词（必须与渠道词搭配使用才能触发查询）
+ * 这些词明确表示用户在询问渠道的配置/状态等管理信息
  */
-const QUERY_INDICATORS = ['配置', '状态', '连接', '启用', '开通', '设置', '是否', '有没有', '怎么样', '信息', '情况', 'configured', 'status', 'enabled', 'connected'];
+const CHANNEL_MANAGEMENT_KEYWORDS = [
+  '配置',
+  '状态',
+  '连接',
+  '启用',
+  '开通',
+  '设置',
+  '渠道',
+  '机器人',
+  'configured',
+  'status',
+  'enabled',
+  'connected',
+];
+
+/**
+ * 泛查询词（单独使用不应触发，必须与渠道管理关键词搭配）
+ * 例如："有没有配置" 可以，但 "有没有推广机会" 不行
+ */
+const GENERIC_QUERY_WORDS = ['是否', '有没有', '怎么样', '信息', '情况'];
+
+/**
+ * 窗口大小：渠道管理关键词必须出现在渠道词前后此范围内
+ */
+const WINDOW_SIZE = 16;
+
+/**
+ * 检查关键词是否在目标位置的窗口范围内
+ */
+function isWithinWindow(keywordIndex: number, targetIndex: number, windowSize: number): boolean {
+  return Math.abs(keywordIndex - targetIndex) <= windowSize;
+}
+
+/**
+ * 检查句子中是否存在有效的渠道查询语义
+ * 要求：渠道管理关键词必须出现在渠道词附近（前后 WINDOW_SIZE 字符内）
+ */
+function hasValidChannelQuerySemantics(lowerMsg: string, channelKeyword: string): boolean {
+  const keywordLower = channelKeyword.toLowerCase();
+  const keywordIndex = lowerMsg.indexOf(keywordLower);
+
+  if (keywordIndex === -1) return false;
+
+  // 渠道词的结束位置
+  const keywordEndIndex = keywordIndex + keywordLower.length;
+
+  // 方案1: 渠道管理关键词在渠道词附近（如 "微信配置", "飞书状态", "企业微信状态怎么样"）
+  for (const mgmtKeyword of CHANNEL_MANAGEMENT_KEYWORDS) {
+    const mgmtLower = mgmtKeyword.toLowerCase();
+    let searchPos = 0;
+    while ((searchPos = lowerMsg.indexOf(mgmtLower, searchPos)) !== -1) {
+      // 检查管理关键词是否在渠道词前后窗口内
+      if (isWithinWindow(searchPos, keywordIndex, WINDOW_SIZE) || isWithinWindow(searchPos, keywordEndIndex, WINDOW_SIZE)) {
+        return true;
+      }
+      searchPos++;
+    }
+  }
+
+  // 方案2: 泛查询词 + 渠道管理关键词的组合（如 "飞书有没有配置"）
+  // 要求：泛查询词和管理关键词都在渠道词窗口内
+  for (const genericWord of GENERIC_QUERY_WORDS) {
+    const genericLower = genericWord.toLowerCase();
+    const genericIndex = lowerMsg.indexOf(genericLower);
+    if (genericIndex === -1) continue;
+
+    // 泛查询词必须在渠道词窗口内
+    if (!isWithinWindow(genericIndex, keywordIndex, WINDOW_SIZE) && !isWithinWindow(genericIndex, keywordEndIndex, WINDOW_SIZE)) {
+      continue;
+    }
+
+    // 还需要在窗口内找到管理关键词
+    for (const mgmtKeyword of CHANNEL_MANAGEMENT_KEYWORDS) {
+      const mgmtLower = mgmtKeyword.toLowerCase();
+      let searchPos = 0;
+      while ((searchPos = lowerMsg.indexOf(mgmtLower, searchPos)) !== -1) {
+        if (isWithinWindow(searchPos, keywordIndex, WINDOW_SIZE) || isWithinWindow(searchPos, keywordEndIndex, WINDOW_SIZE)) {
+          return true;
+        }
+        searchPos++;
+      }
+    }
+  }
+
+  return false;
+}
 
 /**
  * 排除关键词（避免误拦截）
@@ -74,17 +160,32 @@ export function detectChannelQueryIntent(userMessage: string): ChannelQueryComma
     return { kind: 'list' };
   }
 
-  // 检测特定渠道查询（按优先级顺序）
+  // 检测特定渠道查询
+  // 统计匹配到的不同渠道数量，超过1个则不拦截（避免误拦截多渠道比较）
+  const matchedChannels: Array<{ keyword: string; channelType: string; start: number; end: number }> = [];
+
   for (const { keyword, channelType } of CHANNEL_KEYWORDS) {
-    if (lowerMsg.includes(keyword.toLowerCase())) {
-      // 检查是否有问题关键词
-      const hasQueryIntent = QUERY_INDICATORS.some((indicator) => lowerMsg.includes(indicator.toLowerCase()));
-      if (hasQueryIntent) {
-        return { kind: 'query', channelType };
+    const keywordLower = keyword.toLowerCase();
+    const keywordIndex = lowerMsg.indexOf(keywordLower);
+    if (keywordIndex !== -1) {
+      // 检查是否有有效的渠道查询语义
+      if (hasValidChannelQuerySemantics(lowerMsg, keyword)) {
+        const keywordEnd = keywordIndex + keywordLower.length;
+        const coveredBySpecificKeyword = matchedChannels.some((c) => c.start <= keywordIndex && keywordEnd <= c.end);
+        // 避免重复添加同一渠道类型，也避免 "企业微信" 再被内部的 "微信" 计为第二个渠道。
+        if (!coveredBySpecificKeyword && !matchedChannels.some((c) => c.channelType === channelType)) {
+          matchedChannels.push({ keyword, channelType, start: keywordIndex, end: keywordEnd });
+        }
       }
     }
   }
 
+  // 只有一个渠道匹配时返回查询结果
+  if (matchedChannels.length === 1) {
+    return { kind: 'query', channelType: matchedChannels[0].channelType };
+  }
+
+  // 多个不同渠道匹配时不拦截（用户可能在比较或讨论，不是查询）
   return null;
 }
 

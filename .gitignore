@@ -208,6 +208,8 @@ resources/gemini-cli.tgz
 resources/node-darwin-arm64.tar.gz
 resources/bdpan-installer-*
 resources/mcporter.tgz
+# sudowork-browser MCP server — esbuild output (built from src/ via scripts/build-browser-mcp.js)
+resources/sudowork-browser-mcp/index.js
 resources/.dev-runtime-versions.json
 resources/openclaw.manifest.json
 resources/installerSidebar.bmp

@@ -150,13 +150,18 @@ extraResources:
     to: shareone.tgz
   - from: resources/mcporter.tgz
     to: mcporter.tgz
+  # sudowork-browser MCP server bundle (esbuild output from
+  # scripts/build-browser-mcp.js). Claude Code launches this as a stdio MCP
+  # subprocess after sudowork registers it in ~/.claude.json at first run.
+  - from: resources/sudowork-browser-mcp/index.js
+    to: sudowork-browser-mcp/index.js
   # Nexus binary - versioned, optional (may not be available for all platforms)
   # Copy from the resources directory with filters; using a glob in `from`
   # is not reliable for electron-builder file-set matching.
   - from: resources
     to: .
     filter:
-      - v*-nexus-cluster-macos-*
+      - v*-nexusd-cluster-macos-*
   # Scode binary - versioned, optional
   - from: resources
     to: .
@@ -182,7 +187,7 @@ win:
     - from: resources
       to: .
       filter:
-        - v*-nexus-cluster-windows-*
+        - v*-nexusd-cluster-windows-*
     # Scode binary for Windows - versioned
     - from: resources
       to: .
@@ -275,6 +280,10 @@ asarUnpack:
   # Required for Homebrew installations where asar paths may have issues
   - 'rules/**/*'
   - 'skills/**/*'
+  # ai-dev-browser Python package must live in app.asar.unpacked: the runtime
+  # resolver (resolveAiDevBrowserPackageDir) only looks under app.asar.unpacked,
+  # and a Python package can't be executed/symlinked from inside the asar.
+  - 'vendor/ai-dev-browser/**/*'
 
 # Compression level: normal for faster builds, maximum for smallest size
 # Note: electron-builder doesn't support YAML template syntax for env vars

@@ -18,7 +18,7 @@ const execAsync = promisify(exec);
 /**
  * nexus-vfs — a third managed runtime, independent of and additive to the
  * existing Nexus (~/.nexus, port 12012) and Sudocode runtimes. It launches the
- * `nexusd-cluster` daemon from the nexus-vfs repo (v0.0.1-rc1) under ~/.nexus-vfs
+ * `nexusd-cluster` daemon from the nexus-vfs repo (version pinned in runtime-versions.json) under ~/.nexus-vfs
  * and binds gRPC on 127.0.0.1:12022.
  *
  * Differences from DynamicNexusService that matter here:
@@ -48,17 +48,15 @@ const OS_NAME_MAP: Record<string, string> = { darwin: 'macos', win32: 'windows',
 /** Node.js process.arch → artifact arch token (note: arm64 → aarch64). */
 const ARCH_NAME_MAP: Record<string, string> = { arm64: 'aarch64', x64: 'x86_64' };
 
-/** Known-good SHA256 sums for v0.0.1-rc1 (mirrors SHA256SUMS.txt in the bucket). */
+/** Known-good SHA256 sums for v0.1.1 (mirrors SHA256SUMS.txt in the bucket). */
 const NEXUS_VFS_SHA256SUMS: Record<string, string> = {
-  'nexusd-cluster-linux-aarch64.tar.gz': '1dd8d899b6cca4f9f47c6785ac7cd3bf30ff3d9faca1c6b791ec9fc76232af87',
-  'nexusd-cluster-linux-x86_64.tar.gz': '9d4f86780ae4ba59cb3e2fc573d68200bba7a0d45cd4e5d862499012ec46945a',
-  'nexusd-cluster-macos-aarch64.tar.gz': 'eeb5d821cf8940cc97e879707f85b39db0dbb054d42334e2d8c48a4e63cd13ab',
-  'nexusd-cluster-windows-aarch64.zip': 'dc121b622575f781c4ac5efb4190153cae9e783ee635342e325e67a30d1852c8',
-  'nexusd-cluster-windows-x86_64.zip': '4e261d26070994667fee2d98f6b065c0d5e436a903fca2d7dfd198a85a19d81f',
+  'nexusd-cluster-linux-aarch64.tar.gz': '239ab3ebcf529a9949e71c81aa7c9f9aabf9ab8fce0e8bc19260512b0877c01a',
+  'nexusd-cluster-linux-x86_64.tar.gz': 'd26bbac7cccf1e158df2f48f24a46ad695fd8dc324795f44dc642f6fbc28fb2d',
+  'nexusd-cluster-macos-aarch64.tar.gz': 'a97cbc4dd637ef54dd05b259a7f21af2db88cee1003b5a55ef28c86774337df0',
+  'nexusd-cluster-macos-x86_64.tar.gz': '8400b2ff8c775973acea142d8c8b9afebc8cdf85b66d747f73cabd4e36609592',
+  'nexusd-cluster-windows-aarch64.zip': '49bfbd3072a4f638bb8faebdc724241789a1e7682cefe266348bae461adf1eef',
+  'nexusd-cluster-windows-x86_64.zip': '584b9e88db5c86b14ec4626a572f10d8f44d8c1553dfad599e1a89bb1e5b6f87',
 };
-
-/** Explicit, non-fallback error for the one platform this release does not ship. */
-const INTEL_MAC_UNSUPPORTED = 'nexus-vfs v0.0.1-rc1 has no Intel macOS artifact; use Apple Silicon or wait for a newer release';
 
 export type NexusVfsStage = 'idle' | 'checking' | 'downloading' | 'installing' | 'starting' | 'ready' | 'error';
 
@@ -144,9 +142,6 @@ class DynamicNexusVfsService {
   }
 
   private getArtifactName(): string {
-    if (process.platform === 'darwin' && process.arch === 'x64') {
-      throw new Error(INTEL_MAC_UNSUPPORTED);
-    }
     const osName = OS_NAME_MAP[process.platform];
     const archName = ARCH_NAME_MAP[process.arch];
     if (!osName || !archName) {

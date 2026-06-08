@@ -13,6 +13,7 @@
  */
 
 import { ipcBridge } from '@/common';
+import { DEFAULT_BROWSER_PANEL_HOMEPAGE } from '@/common/browserPanelUrl';
 import { ProcessConfig } from '@/process/initStorage';
 import { changeLanguage } from '@process/i18n';
 import { mainError } from '@process/utils/mainLogger';
@@ -114,5 +115,17 @@ export function initSystemSettingsBridge(): void {
     changeLanguage(language).catch((error) => {
       mainError('SystemSettings', 'Main process changeLanguage failed:', error);
     });
+  });
+
+  // Default URL used when the right-panel BrowserPanel opens a new tab.
+  // Falls back to a built-in default when unset.
+  ipcBridge.systemSettings.getBrowserDefaultUrl.provider(async () => {
+    const value = await ProcessConfig.get('system.browserDefaultUrl');
+    return typeof value === 'string' && value.trim() ? value : DEFAULT_BROWSER_PANEL_HOMEPAGE;
+  });
+
+  ipcBridge.systemSettings.setBrowserDefaultUrl.provider(async ({ url }) => {
+    userBreadcrumbs.settingsChange('browserDefaultUrl', url);
+    await ProcessConfig.set('system.browserDefaultUrl', url);
   });
 }

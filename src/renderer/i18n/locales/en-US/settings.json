@@ -943,6 +943,8 @@
   "promptTimeoutDesc": "Maximum wait time for Agent-to-LLM communication. Range: 30-3600 seconds",
   "idleTimeout": "Agent Idle Timeout",
   "idleTimeoutDesc": "Idle Agent process recycling time for memory release. Range: 1-60 minutes",
+  "browserDefaultUrl": "Browser Homepage",
+  "browserDefaultUrlDesc": "URL opened by default when creating a new tab in the right-panel browser.",
   "securitySettings": {
     "subtitle": "Comprehensive protection for your system and data",
     "protecting": "Protected",

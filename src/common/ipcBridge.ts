@@ -23,6 +23,35 @@ export const shell = {
   openExternal: bridge.buildProvider<void, string>('open-external'), // 使用系统默认程序打开外部链接
 };
 
+export interface ITerminalCreateResult {
+  sessionId: string;
+}
+
+export interface ITerminalOutputEvent {
+  sessionId: string;
+  data: string;
+}
+
+export interface ITerminalExitEvent {
+  sessionId: string;
+  exitCode: number;
+}
+
+export interface ITerminalResizeParams {
+  sessionId: string;
+  cols: number;
+  rows: number;
+}
+
+export const terminal = {
+  create: bridge.buildProvider<IBridgeResponse<ITerminalCreateResult>, { cwd?: string; shell?: string } | undefined>('terminal.create'),
+  write: bridge.buildProvider<IBridgeResponse<void>, { sessionId: string; data: string }>('terminal.write'),
+  resize: bridge.buildProvider<IBridgeResponse<void>, ITerminalResizeParams>('terminal.resize'),
+  dispose: bridge.buildProvider<IBridgeResponse<void>, { sessionId: string }>('terminal.dispose'),
+  output: bridge.buildEmitter<ITerminalOutputEvent>('terminal.output'),
+  exit: bridge.buildEmitter<ITerminalExitEvent>('terminal.exit'),
+};
+
 //通用会话能力
 export const conversation = {
   create: bridge.buildProvider<TChatConversation, ICreateConversationParams>('create-conversation'), // 创建对话
@@ -534,6 +563,46 @@ export const preview = {
   }>('preview.open'),
 };
 
+// Right-panel BrowserPanel "open URL" event. Fired from the main process when
+// the AI writes an HTML file to workspace, and (later) when /browser slash
+// commands or MCP tools request opening a URL in the right-panel browser.
+export const rightPanelBrowser = {
+  open: bridge.buildEmitter<{ url: string; switchTab?: boolean }>('right-panel.browser.open'),
+};
+
+// AI-generated file deliverables for a conversation. The list is built by
+// scanning persisted assistant messages for the NEXUS_GENERATED_FILES marker;
+// the `changed` emitter fires from the agent at turn finish so the renderer
+// can update without a refetch round-trip.
+export const deliverables = {
+  list: bridge.buildProvider<
+    IBridgeResponse<
+      Array<{
+        path: string;
+        relativePath?: string;
+        kind: 'create' | 'edit';
+        ext: string;
+        mime?: string;
+        size?: number;
+        createdAt: number;
+      }>
+    >,
+    { conversationId: string }
+  >('deliverables.list'),
+  changed: bridge.buildEmitter<{
+    conversationId: string;
+    files: Array<{
+      path: string;
+      relativePath?: string;
+      kind: 'create' | 'edit';
+      ext: string;
+      mime?: string;
+      size?: number;
+      createdAt: number;
+    }>;
+  }>('deliverables.changed'),
+};
+
 export const document = {
   convert: bridge.buildProvider<import('./types/conversion').DocumentConversionResponse, import('./types/conversion').DocumentConversionRequest>('document.convert'),
   /** 将内容保存为 Word 文档并返回保存路径 / Save content as Word and return path */
@@ -826,16 +895,6 @@ export const nexus = {
   stop: bridge.buildProvider<IBridgeResponse<void>, void>('nexus.stop'),
 };
 
-// ManagedAgent gRPC service (nexusd :2028) / 托管代理 gRPC 服务
-export const managedAgent = {
-  /** Start a new managed agent session */
-  startSession: bridge.buildProvider<IBridgeResponse<{ sessionId: string; workspacePath: string }>, { agentId: string; repos: string[]; model: string; ownerId?: string; zoneId?: string }>('managed-agent.start-session'),
-  /** Cancel a running managed agent session */
-  cancelSession: bridge.buildProvider<IBridgeResponse<{ cancelled: boolean }>, { sessionId: string; mode: 'graceful' | 'force' }>('managed-agent.cancel-session'),
-  /** Get the status of a managed agent session */
-  getSession: bridge.buildProvider<IBridgeResponse<{ sessionId: string; agentId: string; workspacePath: string; model: string; state: string }>, { sessionId: string }>('managed-agent.get-session'),
-};
-
 // Deep link protocol handling / 深度链接协议处理
 export const deepLink = {
   /** Emitted when app is opened via aionui:// protocol URL */
@@ -869,6 +928,65 @@ export const systemSettings = {
   changeLanguage: bridge.buildProvider<void, { language: string }>('system-settings:change-language'),
   // Broadcast language change to all renderers (desktop + WebUI) for real-time sync
   languageChanged: bridge.buildEmitter<{ language: string }>('system-settings:language-changed'),
+  // Default URL for new tabs in the right-panel BrowserPanel
+  getBrowserDefaultUrl: bridge.buildProvider<string, void>('system-settings:get-browser-default-url'),
+  setBrowserDefaultUrl: bridge.buildProvider<void, { url: string }>('system-settings:set-browser-default-url'),
+};
+
+// Right-panel BrowserPanel control API. The panel itself lives in the renderer
+// (Electron <webview>); these IPCs let the main process clear its partition
+// cache and (later) attach CDP-based agent tooling.
+export const browserPanel = {
+  clearCache: bridge.buildProvider<IBridgeResponse<void>, void>('browser-panel:clear-cache'),
+
+  // ── Tab registry ────────────────────────────────────────────────────────
+  // Renderer reports (tabId ↔ webContentsId) on dom-ready so the main process
+  // can target the right webview from agent tool calls.
+  registerTab: bridge.buildProvider<IBridgeResponse<void>, { tabId: string; webContentsId: number }>('browser-panel:register-tab'),
+  unregisterTab: bridge.buildProvider<IBridgeResponse<void>, { tabId: string }>('browser-panel:unregister-tab'),
+  setActiveTab: bridge.buildProvider<IBridgeResponse<void>, { tabId: string }>('browser-panel:set-active-tab'),
+  listTabs: bridge.buildProvider<IBridgeResponse<Array<{ webContentsId: number; url: string; title: string; attached: boolean }>>, void>('browser-panel:list-tabs'),
+
+  // ── CDP action API ──────────────────────────────────────────────────────
+  // Each call resolves the target webview from `tabId` (renderer tab id) or
+  // falls back to the renderer's reported active tab.
+  evaluateScript: bridge.buildProvider<IBridgeResponse<{ ok: boolean; value?: unknown; description?: string; errorText?: string; errorDetail?: string }>, { tabId?: string; expression: string; timeoutMs?: number }>('browser-panel:evaluate-script'),
+  takeScreenshot: bridge.buildProvider<IBridgeResponse<{ format: 'png' | 'jpeg'; base64: string }>, { tabId?: string; format?: 'png' | 'jpeg'; quality?: number; fullPage?: boolean }>('browser-panel:take-screenshot'),
+  navigate: bridge.buildProvider<IBridgeResponse<{ ok: boolean; finalUrl?: string; errorText?: string }>, { tabId?: string; url: string; waitUntil?: 'load' | 'domcontentloaded' | 'networkidle' }>('browser-panel:navigate'),
+  getDomSnapshot: bridge.buildProvider<IBridgeResponse<{ snapshot: string | null }>, { tabId?: string; selector?: string; format: 'outerHTML' | 'innerText' }>('browser-panel:get-dom-snapshot'),
+  listNetworkRequests: bridge.buildProvider<
+    IBridgeResponse<
+      Array<{
+        requestId: string;
+        url: string;
+        method?: string;
+        type?: string;
+        status?: number;
+        statusText?: string;
+        mimeType?: string;
+        startedAt: number;
+        durationMs?: number;
+        failed?: boolean;
+        errorText?: string;
+        canceled?: boolean;
+      }>
+    >,
+    { tabId?: string; filter?: { method?: string; urlContains?: string; statusGte?: number; statusLt?: number; type?: string }; limit?: number }
+  >('browser-panel:list-network-requests'),
+  listConsoleMessages: bridge.buildProvider<
+    IBridgeResponse<
+      Array<{
+        level: 'log' | 'info' | 'warn' | 'error' | 'debug' | 'verbose' | 'other';
+        text: string;
+        url?: string;
+        lineNumber?: number;
+        at: number;
+        args?: string[];
+      }>
+    >,
+    { tabId?: string; levels?: Array<'log' | 'info' | 'warn' | 'error' | 'debug' | 'verbose' | 'other'>; limit?: number }
+  >('browser-panel:list-console-messages'),
+  clearBuffers: bridge.buildProvider<IBridgeResponse<void>, { tabId?: string }>('browser-panel:clear-buffers'),
 };
 
 // WebUI 服务管理接口 / WebUI service management API

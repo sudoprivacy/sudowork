@@ -945,6 +945,8 @@
   "promptTimeoutDesc": "Agent 与大模型通信的最大等待时间。范围：30-3600 秒",
   "idleTimeout": "Agent 空闲超时",
   "idleTimeoutDesc": "空闲 Agent 进程回收时间，用于释放内存。范围：1-60 分钟",
+  "browserDefaultUrl": "浏览器默认主页",
+  "browserDefaultUrlDesc": "右侧栏浏览器新建标签页时默认打开的网址。",
   "securitySettings": {
     "subtitle": "全方位保护您的系统和数据安全",
     "protecting": "保护中",

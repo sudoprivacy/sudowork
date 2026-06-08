@@ -8,9 +8,11 @@ import ChatConversation from './ChatConversation';
 import { usePreviewContext } from '@/renderer/pages/conversation/preview';
 import { useConversationTabs } from './context/ConversationTabsContext';
 import { addEventListener, emitter } from '@/renderer/utils/emitter';
+import { useAppMode } from '@/renderer/hooks/useAppMode';
 
 const ChatConversationIndex: React.FC = () => {
   const { id } = useParams();
+  const { isEnterprise } = useAppMode();
   const { closePreview } = usePreviewContext();
   const { openTab } = useConversationTabs();
   const previousConversationIdRef = useRef<string | undefined>(undefined);
@@ -101,7 +103,7 @@ const ChatConversationIndex: React.FC = () => {
         .invoke({ conversation_id: data.id })
         .then(() => {
           void mutate();
-          emitter.emit('acp.workspace.refresh');
+          emitter.emit(isEnterprise && data.type === 'remote-agent' ? 'remote-agent.workspace.refresh' : 'acp.workspace.refresh');
         })
         .catch((error) => {
           console.warn('Failed to sync workspace skills after skills.changed:', error);
@@ -117,7 +119,7 @@ const ChatConversationIndex: React.FC = () => {
       removeSkillHubChanged();
       removeSkillsChanged();
     };
-  }, [id, data, mutate]);
+  }, [id, data, isEnterprise, mutate]);
 
   // 当会话数据加载完成后，自动打开 tab
   // Automatically open tab when conversation data is loaded

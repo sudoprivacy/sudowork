@@ -679,7 +679,7 @@ module.exports = async function afterPack(context) {
     const nexusArchives = [];
     try {
       nexusArchives.push(
-        ...fs.readdirSync(resourcesDir).filter(f => /^v[\d.]+-nexus-cluster-.*\.(?:tar\.gz|tgz|tar)$/.test(f)),
+        ...fs.readdirSync(resourcesDir).filter(f => /^v[\d.]+-nexus.*-.*\.(?:tar\.gz|tgz|tar)$/.test(f)),
       );
     } catch {
       // Resources dir not readable — nexus archives will be skipped

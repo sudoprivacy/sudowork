@@ -14,12 +14,7 @@
 import { ipcBridge } from '@/common';
 import { modelInputForModelId } from '@/common/imageUtils';
 import type { ScodeModelEntry } from '@/common/ipcBridge';
-import {
-  extractCustomProvidersFromScodeConfig,
-  mergeCustomProvidersIntoScodeConfig,
-  normalizeCustomApiKeyModelsInScodeConfig,
-  type ScodeCustomModelProvider,
-} from '@/common/scodeConfig';
+import { addScodeAutoModel, extractCustomProvidersFromScodeConfig, mergeCustomProvidersIntoScodeConfig, normalizeCustomApiKeyModelsInScodeConfig, type ScodeCustomModelProvider } from '@/common/scodeConfig';
 import { SCODE_DIR, isScodeInstalled, getScodeVersionState, ensureScodeInstalled } from '@process/services/scode/ScodeInstallService';
 import { readSettings, removeDisabledMcpServersFromSettings, writeSettings } from '@process/services/mcpServices/agents/ScodeMcpAgent';
 import { getDatabase } from '@process/database';
@@ -145,6 +140,7 @@ export async function syncScodeModelsFromPricing(): Promise<void> {
     }
   }
 
+  addScodeAutoModel(models);
   for (const modelId of modelIds) {
     models[modelId] = {
       alias: modelId,

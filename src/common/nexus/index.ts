@@ -32,10 +32,6 @@ export type { NexusClientOptions, RequestOptions, ApiErrorResponse, PaginatedRes
 // Case transform utilities
 export { snakeToCamel, camelToSnake, transformKeys, snakeToCamelKeys, camelToSnakeKeys } from './case-transform.js';
 
-// ManagedAgent gRPC client
-export { ManagedAgentClient } from './managed-agent-client';
-export type { StartSessionParams, StartSessionResult, CancelSessionParams, CancelSessionResult, GetSessionParams, GetSessionResult } from './managed-agent-client';
-
-// Nexus RPC Client
-export { Nexus, NexusError, getNexusRpcClient } from './nexus-rpc.js';
-export type { NexusRpcOptions, NexusListItem } from './nexus-rpc.js';
+// Nexus VFS Client (gRPC via nexus-napi)
+export { Nexus, NexusError, getNexusRpcClient } from './nexus-vfs-client.js';
+export type { NexusRpcOptions, NexusListItem } from './nexus-vfs-client.js';

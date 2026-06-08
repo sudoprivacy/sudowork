@@ -126,6 +126,68 @@ describe('ChannelInfoDetector', () => {
       });
     });
 
+    describe('误拦截修复场景', () => {
+      // 原始长句：包含多个渠道词和泛查询词，但实际是商业讨论
+      it('should return null for long sentence about business opportunity discussion', () => {
+        const longSentence =
+          '所以我觉得包括还有大厂在内的，类似于推出 workbuddy 这样的抢占终端用户，还有类似飞书和钉钉都可以 ai 办公了，我们的 sudowork 你觉得还有没有推广的机会，我觉得海外大模型api 中转站是个更好的机会，再加上我们的 ai 管理平台（sudorouter），你从批判的角度来看，那个更有机会，语言上不要有任何保留，尖锐一点';
+        const result = detectChannelQueryIntent(longSentence);
+        expect(result).toBeNull();
+      });
+
+      // 飞书和钉钉竞品比较讨论 - 不应拦截
+      it('should return null for "飞书和钉钉都可以ai办公了"', () => {
+        const result = detectChannelQueryIntent('飞书和钉钉都可以ai办公了');
+        expect(result).toBeNull();
+      });
+
+      // 单渠道商业讨论 - 不应拦截
+      it('should return null for "飞书这样的办公产品有没有推广机会"', () => {
+        const result = detectChannelQueryIntent('飞书这样的办公产品有没有推广机会');
+        expect(result).toBeNull();
+      });
+
+      // 管理词不在渠道词窗口内 - 不应拦截
+      it('should return null for "飞书这样的产品有没有推广机会，另外我们配置 sudorouter"', () => {
+        const result = detectChannelQueryIntent('飞书这样的产品有没有推广机会，另外我们配置 sudorouter');
+        expect(result).toBeNull();
+      });
+
+      // 只有泛查询词但没有渠道管理语义 - 不应拦截
+      it('should return null for "飞书有没有"', () => {
+        const result = detectChannelQueryIntent('飞书有没有');
+        expect(result).toBeNull();
+      });
+
+      // 渠道词 + 泛查询词 + 渠道管理关键词 - 应该拦截
+      it('should detect "飞书有没有配置"', () => {
+        const result = detectChannelQueryIntent('飞书有没有配置');
+        expect(result).toEqual({ kind: 'query', channelType: 'lark' });
+      });
+
+      it('should detect "钉钉有没有开通"', () => {
+        const result = detectChannelQueryIntent('钉钉有没有开通');
+        expect(result).toEqual({ kind: 'query', channelType: 'dingtalk' });
+      });
+
+      it('should detect "微信连接是否正常"', () => {
+        const result = detectChannelQueryIntent('微信连接是否正常');
+        expect(result).toEqual({ kind: 'query', channelType: 'wechat' });
+      });
+
+      // 多渠道比较 + 泛查询词 + 渠道管理关键词 - 不应拦截（多渠道比较）
+      it('should return null for "飞书和钉钉的配置情况"', () => {
+        const result = detectChannelQueryIntent('飞书和钉钉的配置情况');
+        expect(result).toBeNull();
+      });
+
+      // 明确的列表查询 - 应该返回 list
+      it('should detect "飞书和钉钉所有渠道信息"', () => {
+        const result = detectChannelQueryIntent('飞书和钉钉所有渠道信息');
+        expect(result).toEqual({ kind: 'list' });
+      });
+    });
+
     describe('不匹配场景', () => {
       it('should return null for "[CHANNEL_INFO]" command format', () => {
         const result = detectChannelQueryIntent('[CHANNEL_INFO]');

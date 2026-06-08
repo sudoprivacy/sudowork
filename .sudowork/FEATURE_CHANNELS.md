@@ -25,7 +25,7 @@
 
 ```
 触发: 用户通过手机 IM 工具（如 Telegram）发送消息
-过程: 平台机器人接收消息 → 转发给 Aion Agent → LLM 处理
+过程: 平台机器人接收消息 → 转发给 Sudowork Agent → LLM 处理
 结果: 处理完成后通过相同平台推送结果给用户
 ```
 
@@ -274,7 +274,7 @@ created → initializing → ready → starting → running → stopping → sto
 ├─────────────────────────────────────────────────────────────┤
 │ ② Bot 返回配对请求                                         │
 │    Bot → 用户:                                             │
-│    "👋 欢迎使用 Aion 助手！                                │
+│    "👋 欢迎使用 Sudowork 助手！                             │
 │     您的配对码: ABC123                                     │
 │     请在 sudowork 中批准此配对:                              │
 │     设置 → Telegram → 待批准请求 → [批准]"                │
@@ -429,7 +429,7 @@ created → initializing → ready → starting → running → stopping → sto
 ```
 Bot 消息:
 ┌─────────────────────────────────────────┐
-│ 👋 欢迎使用 Aion 助手！                 │
+│ 👋 欢迎使用 Sudowork 助手！              │
 │                                          │
 │ 🔑 配对码: ABC123                       │
 │ 请在 sudowork 设置中批准此配对            │

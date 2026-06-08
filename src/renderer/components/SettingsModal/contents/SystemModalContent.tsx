@@ -9,7 +9,7 @@ import { ConfigStorage } from '@/common/storage';
 import LanguageSwitcher from '@/renderer/components/LanguageSwitcher';
 import ProductImprovementDialog from '@/renderer/components/ProductImprovementDialog';
 import { iconColors } from '@/renderer/theme/colors';
-import { Alert, Button, Form, InputNumber, Modal, Switch, Tooltip } from '@arco-design/web-react';
+import { Alert, Button, Form, Input, InputNumber, Modal, Switch, Tooltip } from '@arco-design/web-react';
 import { FolderOpen } from '@icon-park/react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -277,6 +277,24 @@ const SystemModalContent: React.FC = () => {
     ConfigStorage.set('agent.idleTimeout', clamped).catch(() => {});
   }, [idleTimeout]);
 
+  // 右栏浏览器默认主页 / Right-panel browser default homepage
+  const [browserDefaultUrl, setBrowserDefaultUrl] = useState<string>('');
+
+  useEffect(() => {
+    ipcBridge.systemSettings.getBrowserDefaultUrl
+      .invoke()
+      .then((url) => {
+        if (typeof url === 'string') setBrowserDefaultUrl(url);
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleBrowserDefaultUrlBlur = useCallback(() => {
+    const trimmed = browserDefaultUrl.trim();
+    if (!trimmed) return; // empty input — leave previous value, don't persist
+    ipcBridge.systemSettings.setBrowserDefaultUrl.invoke({ url: trimmed }).catch(() => {});
+  }, [browserDefaultUrl]);
+
   // Get system directory info
   const { data: systemInfo } = useSWR('system.dir.info', () => ipcBridge.application.systemInfo.invoke());
 
@@ -302,12 +320,16 @@ const SystemModalContent: React.FC = () => {
       label: t('settings.closeToTray'),
       component: closeToTrayLoading ? <div style={{ width: 44, height: 22 }} /> : <Switch checked={closeToTray} onChange={handleCloseToTrayChange} className='settings-accent-switch' style={closeToTray ? { backgroundColor: 'var(--ui-accent-orange)' } : undefined} />,
     },
-    {
-      key: 'showTokenUsageBadges',
-      label: t('settings.showTokenUsageBadges'),
-      hint: t('settings.showTokenUsageBadgesDesc'),
-      component: showTokenUsageBadgesLoading ? <div style={{ width: 44, height: 22 }} /> : <Switch checked={showTokenUsageBadges} onChange={handleShowTokenUsageBadgesChange} className='settings-accent-switch' style={showTokenUsageBadges ? { backgroundColor: 'var(--ui-accent-orange)' } : undefined} />,
-    },
+    ...(isEnterprise
+      ? []
+      : [
+          {
+            key: 'showTokenUsageBadges',
+            label: t('settings.showTokenUsageBadges'),
+            hint: t('settings.showTokenUsageBadgesDesc'),
+            component: showTokenUsageBadgesLoading ? <div style={{ width: 44, height: 22 }} /> : <Switch checked={showTokenUsageBadges} onChange={handleShowTokenUsageBadgesChange} className='settings-accent-switch' style={showTokenUsageBadges ? { backgroundColor: 'var(--ui-accent-orange)' } : undefined} />,
+          },
+        ]),
     {
       key: 'avatarEnabled',
       label: t('settings.avatarEnabled'),
@@ -335,6 +357,12 @@ const SystemModalContent: React.FC = () => {
       label: t('settings.idleTimeout'),
       hint: t('settings.idleTimeoutDesc'),
       component: <InputNumber value={idleTimeout} onChange={setIdleTimeout} onBlur={handleIdleTimeoutBlur} min={IDLE_TIMEOUT_MIN} max={IDLE_TIMEOUT_MAX} step={5} style={{ width: 120 }} suffix='min' />,
+    },
+    {
+      key: 'browserDefaultUrl',
+      label: t('settings.browserDefaultUrl'),
+      hint: t('settings.browserDefaultUrlDesc'),
+      component: <Input value={browserDefaultUrl} onChange={setBrowserDefaultUrl} onBlur={handleBrowserDefaultUrlBlur} placeholder='https://www.baidu.com/' style={{ width: 260 }} />,
     },
   ];
 

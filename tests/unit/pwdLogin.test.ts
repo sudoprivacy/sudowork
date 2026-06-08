@@ -116,7 +116,7 @@ vi.mock('@/common/nexus', () => {
     }
   }
   function resolveConfig() {
-    return { apiKey: '', baseUrl: 'http://127.0.0.1:12012' };
+    return { apiKey: '', baseUrl: 'http://127.0.0.1:12022' };
   }
   return { FetchClient, NotFoundError, NetworkError, TimeoutError, ServerError, resolveConfig };
 });

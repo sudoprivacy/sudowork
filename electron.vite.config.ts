@@ -110,6 +110,7 @@ export default defineConfig(({ mode }) => {
           input: {
             index: resolve('src/index.ts'),
           },
+          external: ['@lydell/node-pty'],
           onwarn(warning, warn) {
             if (warning.code === 'EVAL') return;
             warn(warning);

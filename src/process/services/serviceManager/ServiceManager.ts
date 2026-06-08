@@ -129,10 +129,6 @@ export class ServiceManager {
       this.secretsReadyResolve?.(false);
     } finally {
       this.startupInProgress = false;
-      // Start the nexus-vfs runtime independently of the core (Nexus/Sudocode)
-      // startup outcome. Additive and best-effort: it runs even if core startup
-      // failed, and a nexus-vfs failure never blocks or alters core startup.
-      void this.startNexusVfs();
     }
   }
 
@@ -156,12 +152,6 @@ export class ServiceManager {
       /* ignore */
     }
     await this.stopSudoclaw();
-    try {
-      const { dynamicNexusService } = await import('../nexus/DynamicNexusService');
-      await dynamicNexusService.stop();
-    } catch {
-      /* ignore */
-    }
     try {
       const { dynamicNexusVfsService } = await import('../nexus-vfs/DynamicNexusVfsService');
       await dynamicNexusVfsService.stop();
@@ -195,17 +185,17 @@ export class ServiceManager {
   }
 
   private async startNexusWithRetries(): Promise<void> {
-    const { dynamicNexusService } = await import('../nexus/DynamicNexusService');
+    const { dynamicNexusVfsService } = await import('../nexus-vfs/DynamicNexusVfsService');
 
     const startAttempts = async (attempts: number, phase: 'normal' | 'reinstall'): Promise<void> => {
       let lastError: unknown;
 
       for (let attempt = 1; attempt <= attempts; attempt += 1) {
         try {
-          await this.preparePortForStart(12012, 'Nexus');
+          await this.preparePortForStart(12022, 'Nexus');
           // Reset Nexus running state after killing port processes
           // because preparePortForStart may have killed the process externally
-          dynamicNexusService.resetRunningState();
+          dynamicNexusVfsService.resetRunningState();
           const startupDetail = attempt > 1 ? (phase === 'reinstall' ? `重装后正在启动 Nexus 服务（第 ${attempt}/${attempts} 次）...` : `正在启动 Nexus 服务（第 ${attempt}/${attempts} 次）...`) : phase === 'reinstall' ? '重装后正在启动 Nexus 服务...' : '正在启动 Nexus 服务...';
           initStatusManager.setStepState('nexus', 'active', startupDetail);
           initStatusManager.setStepProgress('nexus', 92, initStatusManager.getStatus().stepDetails?.nexus);
@@ -222,8 +212,8 @@ export class ServiceManager {
           }
 
           initStatusManager.addLog(`↻ Nexus 启动失败，准备重试（第 ${attempt + 1}/${attempts} 次）...`);
-          await dynamicNexusService.stop().catch(() => {});
-          await this.killProcessesOnPort(12012, 'Nexus');
+          await dynamicNexusVfsService.stop().catch(() => {});
+          await this.killProcessesOnPort(12022, 'Nexus');
           await new Promise((resolve) => setTimeout(resolve, 1000));
         }
       }
@@ -236,26 +226,22 @@ export class ServiceManager {
 
   private async startNexusOnce(): Promise<void> {
     try {
-      const { dynamicNexusService } = await import('../nexus/DynamicNexusService');
+      const { dynamicNexusVfsService } = await import('../nexus-vfs/DynamicNexusVfsService');
 
-      if (!(await dynamicNexusService.checkInstalled())) {
-        throw new Error('Nexus runtime is missing after startup installation');
+      if (!(await dynamicNexusVfsService.checkInstalled())) {
+        mainLog('ServiceManager', 'Installing nexus-vfs runtime...');
+        await dynamicNexusVfsService.install();
       }
 
-      const versionState = await dynamicNexusService.getVersionState();
-      if (versionState.needsUpgrade) {
-        mainLog('ServiceManager', `Upgrading Nexus before start: installed=${versionState.installedVersion} bundled=${versionState.bundledVersion}`);
-        await dynamicNexusService.install();
-      }
       mainLog('ServiceManager', 'Starting Nexus service...');
-      const launchCommand = dynamicNexusService.getStartCommandPreview();
+      const launchCommand = dynamicNexusVfsService.getStartCommandPreview();
       initStatusManager.addLog(`[Nexus] Start command: ${launchCommand.command} ${launchCommand.args.join(' ')}`);
       initStatusManager.addLog('[Nexus] Starting Nexus service...');
-      await dynamicNexusService.start();
-      // start() already waits until /health reports healthy before resolving.
+      await dynamicNexusVfsService.start();
+      // start() already waits until the gRPC port is ready before resolving.
       // Do not immediately probe again here; a duplicate one-shot check can race
       // with post-start stabilization and incorrectly flip the UI back to failed.
-      initStatusManager.addLog(`[Nexus] Nexus service is healthy on http://127.0.0.1:${dynamicNexusService.port}`);
+      initStatusManager.addLog(`[Nexus] Nexus service is ready on 127.0.0.1:${dynamicNexusVfsService.port}`);
       initStatusManager.setStepProgress('nexus', 100, 'Nexus 服务已就绪');
 
       // Initialize secrets system after Nexus is healthy
@@ -288,9 +274,9 @@ export class ServiceManager {
 
   async stopNexus(): Promise<void> {
     try {
-      const { dynamicNexusService } = await import('../nexus/DynamicNexusService');
+      const { dynamicNexusVfsService } = await import('../nexus-vfs/DynamicNexusVfsService');
       mainLog('ServiceManager', 'Stopping Nexus service...');
-      await dynamicNexusService.stop();
+      await dynamicNexusVfsService.stop();
       mainLog('ServiceManager', 'Nexus service stopped');
     } catch (err) {
       mainError('ServiceManager', 'Failed to stop Nexus', err);
@@ -298,44 +284,14 @@ export class ServiceManager {
     }
   }
 
-  // ────────────────────────────────────────────────────────────────────────────
-  //  nexus-vfs — third managed runtime (gRPC daemon on 127.0.0.1:12022)
-  // ────────────────────────────────────────────────────────────────────────────
-
-  /**
-   * Installs (if needed) and starts the nexus-vfs daemon. Best-effort: errors are
-   * logged but not rethrown, so a nexus-vfs problem never blocks the rest of the
-   * app. Runs independently of the Nexus runtime on port 12012.
-   */
+  /** Alias for startNexus() — retained for nexusBridge callers. */
   async startNexusVfs(): Promise<void> {
-    if (this.shuttingDown) {
-      mainWarn('ServiceManager', 'Skipping nexus-vfs start because shutdown is in progress');
-      return;
-    }
-    try {
-      const { dynamicNexusVfsService } = await import('../nexus-vfs/DynamicNexusVfsService');
-      if (!(await dynamicNexusVfsService.checkInstalled())) {
-        mainLog('ServiceManager', 'Installing nexus-vfs runtime...');
-        await dynamicNexusVfsService.install();
-      }
-      const launchCommand = dynamicNexusVfsService.getStartCommandPreview();
-      mainLog('ServiceManager', `Starting nexus-vfs service... (${launchCommand.command} ${launchCommand.args.join(' ')})`);
-      await dynamicNexusVfsService.start();
-      mainLog('ServiceManager', `nexus-vfs service is listening on 127.0.0.1:${dynamicNexusVfsService.port}`);
-    } catch (err) {
-      mainError('ServiceManager', 'Failed to start nexus-vfs (non-critical)', err);
-    }
+    return this.startNexus();
   }
 
+  /** Alias for stopNexus() — retained for nexusBridge callers. */
   async stopNexusVfs(): Promise<void> {
-    try {
-      const { dynamicNexusVfsService } = await import('../nexus-vfs/DynamicNexusVfsService');
-      mainLog('ServiceManager', 'Stopping nexus-vfs service...');
-      await dynamicNexusVfsService.stop();
-      mainLog('ServiceManager', 'nexus-vfs service stopped');
-    } catch (err) {
-      mainError('ServiceManager', 'Failed to stop nexus-vfs', err);
-    }
+    return this.stopNexus();
   }
 
   /**
@@ -816,10 +772,10 @@ export class ServiceManager {
 
   private async verifyStartupReadiness(): Promise<void> {
     const startupOnlyChecks = initStatusManager.getStatus().displayMode === 'startup';
-    const serviceModules = await Promise.all([import('../scode/ScodeInstallService'), import('../nexus/DynamicNexusService')]);
-    const [scodeModule, nexusModule] = serviceModules;
+    const serviceModules = await Promise.all([import('../scode/ScodeInstallService'), import('../nexus-vfs/DynamicNexusVfsService')]);
+    const [scodeModule, nexusVfsModule] = serviceModules;
     const { isScodeInstalled } = scodeModule;
-    const { dynamicNexusService } = nexusModule;
+    const { dynamicNexusVfsService } = nexusVfsModule;
     const deadline = startupOnlyChecks ? Number.POSITIVE_INFINITY : Date.now() + this.STARTUP_READINESS_TIMEOUT_MS;
     let lastFailedNames: string[] = [];
 
@@ -827,7 +783,7 @@ export class ServiceManager {
 
     while (Date.now() < deadline) {
       const scodeReadyPromise = Promise.resolve(isScodeInstalled());
-      const nexusHealthyPromise = dynamicNexusService.checkActualRunning();
+      const nexusHealthyPromise = dynamicNexusVfsService.checkActualRunning();
       const [scodeReady, nexusHealthy] = await Promise.all([scodeReadyPromise, nexusHealthyPromise]);
 
       mainLog('ServiceManager', `Readiness check: Sudocode=${scodeReady}, Nexus=${nexusHealthy}`);

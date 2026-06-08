@@ -24,8 +24,8 @@ type MessageInstance = ReturnType<typeof Message.useMessage>[0];
 const LEGACY_DEFAULT_IMAGE_GENERATION_MODEL = 'gpt-image-1.5';
 
 const IMAGE_GENERATION_MODEL_OPTIONS = [
-  { label: 'gemini-3.1-flash-image-preview', value: 'gemini-3.1-flash-image-preview' },
-  { label: 'gemini-3-pro-image-preview', value: 'gemini-3-pro-image-preview' },
+  { label: 'gemini-3.1-flash-image', value: 'gemini-3.1-flash-image' },
+  { label: 'gemini-3-pro-image', value: 'gemini-3-pro-image' },
   { label: 'gemini-2.5-flash-image', value: 'gemini-2.5-flash-image' },
   { label: 'gpt-image-1.5', value: 'gpt-image-1.5' },
   { label: 'gpt-image-1', value: 'gpt-image-1' },

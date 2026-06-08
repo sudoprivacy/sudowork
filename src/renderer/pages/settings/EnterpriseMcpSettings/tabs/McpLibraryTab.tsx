@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Input, Select, Button, Tag, Message } from '@arco-design/web-react';
+import { Input, Button, Tag, Message } from '@arco-design/web-react';
 import { Search, DownloadOne, CheckOne } from '@icon-park/react';
 import EmptyState from '@/renderer/components/base/EmptyState';
 import McpIcon from '../components/McpIcon';
@@ -13,28 +13,18 @@ interface McpLibraryTabProps {
   installedTemplateIds?: Set<string>;
   loading?: boolean;
   /** 安装回调：prototype 仅 toast；Phase B 走真实 POST install */
-  onInstall?: (template: EnterpriseMcpTemplateDto, payload: { config_values: Record<string, string>; display_name?: string }) => Promise<void> | void;
+  onInstall?: (template: EnterpriseMcpTemplateDto, payload: { config_values: Record<string, string>; auth_credentials?: Record<string, string>; display_name?: string }) => Promise<void> | void;
 }
 
 const McpLibraryTab: React.FC<McpLibraryTabProps> = ({ templates, installedTemplateIds, loading = false, onInstall }) => {
   const [search, setSearch] = useState('');
-  const [category, setCategory] = useState<string | undefined>(undefined);
   const [active, setActive] = useState<EnterpriseMcpTemplateDto | null>(null);
   const [submitting, setSubmitting] = useState(false);
   /** Keys flagged by backend `missing_config` errors. Reset on every modal open / template change. */
   const [missingKeys, setMissingKeys] = useState<string[]>([]);
 
-  const categories = useMemo(() => {
-    const set = new Set<string>();
-    templates.forEach((t) => {
-      if (t.category) set.add(t.category);
-    });
-    return Array.from(set);
-  }, [templates]);
-
   const filtered = useMemo(() => {
     return templates.filter((t) => {
-      if (category && t.category !== category) return false;
       if (search) {
         const q = search.toLowerCase();
         if (!t.name.toLowerCase().includes(q) && !(t.description ?? '').toLowerCase().includes(q)) {
@@ -43,11 +33,11 @@ const McpLibraryTab: React.FC<McpLibraryTabProps> = ({ templates, installedTempl
       }
       return true;
     });
-  }, [templates, category, search]);
+  }, [templates, search]);
 
   const handleClickInstall = (tpl: EnterpriseMcpTemplateDto) => {
     setMissingKeys([]);
-    if (tpl.user_config_items.length === 0) {
+    if (tpl.user_config_items.length === 0 && (tpl.auth_user_items ?? []).length === 0) {
       // 无需配置 → 直接调用安装
       void doInstall(tpl, { config_values: {} });
       return;
@@ -55,7 +45,7 @@ const McpLibraryTab: React.FC<McpLibraryTabProps> = ({ templates, installedTempl
     setActive(tpl);
   };
 
-  const doInstall = async (tpl: EnterpriseMcpTemplateDto, payload: { config_values: Record<string, string>; display_name?: string }) => {
+  const doInstall = async (tpl: EnterpriseMcpTemplateDto, payload: { config_values: Record<string, string>; auth_credentials?: Record<string, string>; display_name?: string }) => {
     setSubmitting(true);
     try {
       if (onInstall) {
@@ -83,17 +73,10 @@ const McpLibraryTab: React.FC<McpLibraryTabProps> = ({ templates, installedTempl
       {/* Filter bar */}
       <div className='flex items-center gap-8px'>
         <Input allowClear placeholder='搜索模板名称或描述' value={search} onChange={setSearch} prefix={<Search theme='outline' size='14' />} style={{ flex: 1 }} />
-        <Select placeholder='全部分类' allowClear value={category} onChange={setCategory} style={{ width: 160 }}>
-          {categories.map((c) => (
-            <Select.Option key={c} value={c}>
-              {c}
-            </Select.Option>
-          ))}
-        </Select>
       </div>
 
       {!loading && filtered.length === 0 ? (
-        <EmptyState illustrationType='search' title='未找到匹配的模板' description='调整搜索词或分类后再试。' simple />
+        <EmptyState illustrationType='search' title='未找到匹配的模板' description='调整搜索词后再试。' simple />
       ) : (
         <div className='flex flex-col gap-10px'>
           {filtered.map((tpl) => {

@@ -78,6 +78,42 @@
     "closeRight": "Close to the Right",
     "closeOthers": "Close Others"
   },
+  "rightPanel": {
+    "tabs": {
+      "workspace": "Workspace",
+      "browser": "Browser",
+      "terminal": "Terminal",
+      "deliverables": "Deliverables"
+    },
+    "deliverables": {
+      "emptyTitle": "No deliverables yet",
+      "emptyHint": "Files the AI generates in this conversation will show up here.",
+      "loading": "Loading…",
+      "groupToday": "Today",
+      "groupYesterday": "Yesterday"
+    },
+    "browser": {
+      "newTab": "New Tab",
+      "open": "Open",
+      "openExternal": "Open in system browser",
+      "back": "Back",
+      "forward": "Forward",
+      "refresh": "Refresh",
+      "resetZoom": "Reset Zoom",
+      "fit": "Fit Width",
+      "urlPlaceholder": "Enter URL",
+      "loading": "Loading...",
+      "clearCache": "Clear browser data",
+      "clearCacheConfirmTitle": "Clear right-panel browser data?",
+      "clearCacheConfirmContent": "This removes cookies, local storage, and cached files for the in-panel browser only. You will be signed out of any site logged in here. Sites in your system browser are not affected.",
+      "clearCacheSuccess": "Browser data cleared",
+      "clearCacheFailure": "Failed to clear browser data"
+    },
+    "terminal": {
+      "tab": "Terminal",
+      "newTab": "New Terminal"
+    }
+  },
   "dropdown": {
     "cliAgents": "CLI Agents",
     "presetAssistants": "Preset Assistants"

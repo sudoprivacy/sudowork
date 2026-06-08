@@ -4,6 +4,8 @@ import { SCODE_COMPLETION_REMINDER, shouldSkipAcpWorkspaceTrackingPath } from '@
 describe('acpWorkspaceTracking', () => {
   test('skips sandbox runtime side effects', () => {
     expect(shouldSkipAcpWorkspaceTrackingPath('.sandbox-home/.rustup/settings.toml')).toBe(true);
+    expect(shouldSkipAcpWorkspaceTrackingPath('.sandbox-tmp/node-compile-cache/v24.13.0-arm64/00bf0630')).toBe(true);
+    expect(shouldSkipAcpWorkspaceTrackingPath('.sandbox-tmp/pip-unpack-abc/lxml-6.1.1.whl')).toBe(true);
   });
 
   test('keeps user deliverables trackable', () => {
