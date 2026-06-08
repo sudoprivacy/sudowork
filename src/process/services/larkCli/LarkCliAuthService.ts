@@ -274,14 +274,22 @@ class LarkCliAuthService {
     }
     const data = (raw.data ?? raw) as Record<string, unknown>;
     const verificationUrl = pickString(data, 'verification_url', 'verification_uri', 'verificationUrl', 'url');
-    const userCode = pickString(data, 'user_code', 'userCode', 'code');
     const deviceCode = pickString(data, 'device_code', 'deviceCode');
     const expiresIn = pickNumber(data, 'expires_in', 'expiresIn');
     const intervalSec = pickNumber(data, 'interval', 'intervalSec') ?? 3;
 
-    if (!verificationUrl || !userCode || !deviceCode) {
+    if (!verificationUrl || !deviceCode) {
       mainWarn(TAG, 'unexpected auth login payload', data);
-      return { ok: false, error: 'lark-cli returned unexpected payload (missing verification_url / user_code / device_code)' };
+      return { ok: false, error: 'lark-cli returned unexpected payload (missing verification_url / device_code)' };
+    }
+    // user_code is usually a top-level field, but newer lark-cli embeds it as a query param on verification_url instead.
+    let userCode = pickString(data, 'user_code', 'userCode', 'code') ?? '';
+    if (!userCode) {
+      try {
+        userCode = new URL(verificationUrl).searchParams.get('user_code') ?? '';
+      } catch {
+        // verification_url may not be a parseable URL — leave userCode empty
+      }
     }
     const expiresAt = Date.now() + (expiresIn ? expiresIn * 1000 : 5 * 60 * 1000);
     return { ok: true, verificationUrl, userCode, deviceCode, expiresAt, intervalMs: Math.max(1, intervalSec) * 1000 };
