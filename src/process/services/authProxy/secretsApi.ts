@@ -10,7 +10,7 @@
 
 import type { IncomingMessage, ServerResponse } from 'http';
 import type { URL } from 'url';
-import { getSecretStoreClient } from '@common/nexus/secret-store';
+import { getNexusSecretClient } from '@common/nexus/nexus-secret-client';
 import { cachePut, cacheDelete } from '@common/nexus/secret-cache';
 import { mainLog, mainWarn } from '@process/utils/mainLogger';
 import { ProcessConfig } from '@/process/initStorage';
@@ -81,8 +81,8 @@ async function applyEnableSideEffect(namespace: string, intentEnable: boolean): 
     } else {
       // Check if all entries' secrets are gone before disabling
       try {
-        const client = getSecretStoreClient();
-        const activeSecrets = await client.listSecrets(namespace, false);
+        const client = getNexusSecretClient();
+        const activeSecrets = client.listSecrets(namespace, false);
         const hasActiveEntry = configItem.entries.some((entry) =>
           activeSecrets.some((s) => s.key === entry.config_key),
         );
@@ -115,8 +115,8 @@ async function applyEnableSideEffect(namespace: string, intentEnable: boolean): 
 async function handleList(req: IncomingMessage, res: ServerResponse, parsedUrl: URL): Promise<void> {
   try {
     const namespace = parsedUrl.searchParams.get('namespace') ?? undefined;
-    const client = getSecretStoreClient();
-    const secrets = await client.listSecrets(namespace, false);
+    const client = getNexusSecretClient();
+    const secrets = client.listSecrets(namespace, false);
     const metadata = secrets.map((s) => ({
       namespace: s.namespace,
       key: s.key,
@@ -164,14 +164,14 @@ async function handlePut(
       return;
     }
 
-    const client = getSecretStoreClient();
-    const result = await client.putSecret(namespace, key, value, description as string | undefined);
+    const client = getNexusSecretClient();
+    const result = client.putSecret(namespace, key, value, description as string | undefined);
 
-    // PUT on a previously soft-deleted secret creates a new version but keeps deleted_at set.
-    // restoreSecret clears deleted_at, making the secret active again.
-    // For non-deleted or first-create secrets, restoreSecret returns 404 which we ignore.
+    // PUT on a previously soft-deleted secret creates a new version but keeps deleted state.
+    // restoreSecret clears deleted state, making the secret active again.
+    // For non-deleted or first-create secrets, restoreSecret returns error which we ignore.
     try {
-      await client.restoreSecret(namespace, key);
+      client.restoreSecret(namespace, key);
     } catch {}
 
     cachePut(namespace, key, value);
@@ -192,8 +192,8 @@ async function handleDelete(
   key: string,
 ): Promise<void> {
   try {
-    const client = getSecretStoreClient();
-    const result = await client.deleteSecret(namespace, key);
+    const client = getNexusSecretClient();
+    const result = client.deleteSecret(namespace, key);
     cacheDelete(namespace, key);
 
     // Enable side effect: await to guarantee rulesCache is updated before 200
