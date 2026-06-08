@@ -8,11 +8,12 @@ import type { TChatConversation } from '@/common/storage';
 import { getAgentLogo } from '@/renderer/utils/agentLogo';
 import FlexFullContainer from '@/renderer/components/FlexFullContainer';
 import { usePresetAssistantInfo } from '@/renderer/hooks/usePresetAssistantInfo';
+import { useTerminalActiveCount } from '@/renderer/hooks/useTerminalActiveCount';
 import { CronJobIndicator } from '@/renderer/pages/cron';
 import { cleanupSiderTooltips, getSiderTooltipProps } from '@/renderer/utils/siderTooltip';
 import { useLayoutContext } from '@/renderer/context/LayoutContext';
 import { Checkbox, Dropdown, Menu, Tooltip } from '@arco-design/web-react';
-import { DeleteOne, EditOne, Export, MessageOne, Pushpin } from '@icon-park/react';
+import { DeleteOne, EditOne, Export, Loading, MessageOne, Pushpin } from '@icon-park/react';
 import classNames from 'classnames';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
@@ -38,6 +39,7 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
     ? (conversation as { isPinned?: boolean }).isPinned ?? false
     : isConversationPinned(conversation as TChatConversation);
   const cronStatus = getJobStatus(conversation.id);
+  const ptyActiveCount = useTerminalActiveCount(conversation.id);
   const siderTooltipProps = getSiderTooltipProps(tooltipEnabled);
   const inlineNameTooltipEnabled = !collapsed && !isMobile && !!conversation.name;
 
@@ -102,6 +104,13 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
           </span>
         )}
         {renderLeadingIcon()}
+        {ptyActiveCount > 0 && (
+          <Tooltip mini content={t('conversation.history.terminalRunning', { count: ptyActiveCount, defaultValue: '{{count}} terminal still running' })}>
+            <span className='flex-center ml-6px collapsed-hidden text-[rgb(var(--ui-accent-orange))]'>
+              <Loading theme='outline' size='12' className='animate-spin' />
+            </span>
+          </Tooltip>
+        )}
         <FlexFullContainer className='h-24px min-w-0 flex-1 collapsed-hidden ml-10px'>
           <Tooltip content={conversation.name} disabled={!inlineNameTooltipEnabled} trigger='hover' popupVisible={inlineNameTooltipEnabled ? undefined : false} unmountOnExit popupHoverStay={false} position='top'>
             <div className={classNames('chat-history__item-name overflow-hidden text-ellipsis block w-full text-14px lh-24px whitespace-nowrap min-w-0 group-hover:text-1', selected && !batchMode ? 'text-1 font-medium' : 'text-2')}>{conversation.name}</div>

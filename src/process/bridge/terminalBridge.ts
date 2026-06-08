@@ -123,18 +123,68 @@ const defaultShell = (): string => {
   return process.env.SHELL || '/bin/bash';
 };
 
-/** Count live PTYs for a conversation and broadcast. Cheap enough to call after
- *  every create/exit/dispose — the Map is in-process and we only emit one event. */
+/** Last emitted "active" count per conversation. We diff against this to skip
+ *  duplicate emits — the 2s tick re-runs ps even when nothing has changed. */
+const lastActiveCount = new Map<string, number>();
+
+/** Build a parent → children PID map once from a single `ps -A` invocation —
+ *  shared by recomputeAndEmitAll so we don't shell out per-session. */
+function buildPidParentMap(): Map<number, number[]> {
+  let psOut: string;
+  try {
+    psOut = execSync('ps -A -o pid=,ppid=', { encoding: 'utf-8' });
+  } catch {
+    return new Map();
+  }
+  const childrenByParent = new Map<number, number[]>();
+  for (const line of psOut.split('\n')) {
+    const parts = line.trim().split(/\s+/);
+    if (parts.length !== 2) continue;
+    const pid = Number(parts[0]);
+    const ppid = Number(parts[1]);
+    if (!Number.isFinite(pid) || !Number.isFinite(ppid)) continue;
+    const arr = childrenByParent.get(ppid);
+    if (arr) arr.push(pid);
+    else childrenByParent.set(ppid, [pid]);
+  }
+  return childrenByParent;
+}
+
+/** Recompute per-conversation "active" PTY count and broadcast diffs.
+ *  Active = the PTY's shell has at least one child process. An idle zsh
+ *  sitting at a prompt has no children, so opening a terminal but running
+ *  nothing leaves the conversation's count at 0. */
+function recomputeAndEmitAll(): void {
+  if (sessions.size === 0 && lastActiveCount.size === 0) return;
+  const parents = buildPidParentMap();
+  const next = new Map<string, number>();
+  for (const session of sessions.values()) {
+    if (!session.conversationId) continue;
+    const hasChild = (parents.get(session.pty.pid) ?? []).length > 0;
+    if (hasChild) next.set(session.conversationId, (next.get(session.conversationId) ?? 0) + 1);
+  }
+  const convs = new Set<string>([...lastActiveCount.keys(), ...next.keys()]);
+  for (const conv of convs) {
+    const prev = lastActiveCount.get(conv) ?? 0;
+    const count = next.get(conv) ?? 0;
+    if (prev === count) continue;
+    if (count === 0) lastActiveCount.delete(conv);
+    else lastActiveCount.set(conv, count);
+    ipcBridge.terminal.activeCountChanged.emit({ conversationId: conv, count });
+  }
+}
+
+/** Trigger a recompute (and possible emit) tied to a specific conversation —
+ *  invoked on PTY lifecycle (create/exit/dispose/close) so transitions to/from
+ *  zero are caught without waiting for the 2s tick. */
 function emitActiveCount(conversationId: string | undefined): void {
   if (!conversationId) return;
-  let count = 0;
-  for (const session of sessions.values()) {
-    if (session.conversationId === conversationId) count++;
-  }
-  ipcBridge.terminal.activeCountChanged.emit({ conversationId, count });
+  recomputeAndEmitAll();
 }
 
 export function initTerminalBridge(): void {
+  setInterval(recomputeAndEmitAll, 2000).unref?.();
+
   ipcBridge.terminal.create.provider(async ({ cwd, shell, conversationId } = {}) => {
     if (sessions.size >= GLOBAL_PTY_HARD_LIMIT) {
       return { success: false, msg: `Global PTY limit reached (${GLOBAL_PTY_HARD_LIMIT}). Close some terminals and try again.` };
