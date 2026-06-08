@@ -77,7 +77,7 @@ const SUDO_LOG_TENANT_ID = 'sudo';
 const LOG_PRODUCT = 'sudowork';
 const API_KEY_HEADER = 'X-API-Key';
 const API_KEY = 'sk-8f3a2b1c9d5e7f6a4b3c2d1e8f9a0b7c';
-const DEFAULT_BATCH_URL = 'https://sudowork-qms.sudoprivacy.com/v1/logs/batch';
+const DEFAULT_BATCH_URL = 'http://127.0.0.1:8080/v1/logs/batch';
 const CACHE_FILE_NAME = 'sudowork-log-error-cache.json';
 const MAX_QUEUE_SIZE = 500;
 const MAX_BATCH_SIZE = 50;
@@ -127,6 +127,13 @@ function getCachePath(): string {
   return join(getLogsDir(), CACHE_FILE_NAME);
 }
 
+function scalarToString(value: unknown): string | undefined {
+  if (value === null || value === undefined) return undefined;
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') return String(value);
+  return undefined;
+}
+
 function getConfigSnapshot(): PersonalConfigSnapshot {
   const envConfig = readEncodedJsonFile(join(getNexusConfigDir(), '.sudowork-env'));
   const dirConfig = envConfig['nexus.dir'] as { cacheDir?: string } | undefined;
@@ -136,10 +143,10 @@ function getConfigSnapshot(): PersonalConfigSnapshot {
 
   return {
     appMode: config['system.appMode'] as 'c' | 'e' | undefined,
-    userId: consumerUserInfo?.id,
-    userNickname: consumerUserInfo?.nickname,
-    userPhone: consumerUserInfo?.phone,
-    installId: config['telemetry.installId'] as string | undefined,
+    userId: scalarToString(consumerUserInfo?.id),
+    userNickname: scalarToString(consumerUserInfo?.nickname),
+    userPhone: scalarToString(consumerUserInfo?.phone),
+    installId: scalarToString(config['telemetry.installId']),
   };
 }
 
@@ -159,8 +166,8 @@ function getBatchUrl(): string {
   return DEFAULT_BATCH_URL;
 }
 
-function hashIdentifier(value?: string): string | undefined {
-  const normalized = value?.trim();
+function hashIdentifier(value?: unknown): string | undefined {
+  const normalized = scalarToString(value)?.trim();
   if (!normalized) return undefined;
   return createHash('sha256').update(normalized).digest('hex');
 }
@@ -174,8 +181,8 @@ function truncate(value: string, maxLength: number): string {
   return `${value.slice(0, maxLength)}...[truncated]`;
 }
 
-function limitString(value: string, maxLength = MAX_STRING_LENGTH): string {
-  return truncate(value, maxLength);
+function limitString(value: unknown, maxLength = MAX_STRING_LENGTH): string {
+  return truncate(scalarToString(value) ?? String(value), maxLength);
 }
 
 function limitValue(value: unknown, depth = 0): unknown {
@@ -328,7 +335,7 @@ class SudoworkLogUploader {
     }
 
     if (!config.userPhone?.trim()) {
-      console.warn('[SudoworkLogUploader] Missing personal user phone, skip log upload');
+      console.warn('[SudoworkLog] Missing personal user phone, skip log upload');
       return;
     }
 
@@ -403,7 +410,7 @@ class SudoworkLogUploader {
         }
       }
     } catch (error) {
-      console.warn('[SudoworkLogUploader] Failed to load cache:', error);
+      console.warn('[SudoworkLog] Failed to load cache:', error);
       this.queue = [];
     }
   }
@@ -412,7 +419,7 @@ class SudoworkLogUploader {
     try {
       writeFileSync(getCachePath(), JSON.stringify(this.queue), 'utf-8');
     } catch (error) {
-      console.warn('[SudoworkLogUploader] Failed to persist cache:', error);
+      console.warn('[SudoworkLog] Failed to persist cache:', error);
     }
   }
 
@@ -460,6 +467,7 @@ class SudoworkLogUploader {
     this.isFlushing = true;
     try {
       const batch = this.queue.slice(0, MAX_BATCH_SIZE);
+      const flushedCount = batch.length;
       const response = await this.sendBatch({ logs: batch.map((entry) => entry.log) });
 
       if (response.success && response.accepted !== false) {
@@ -470,6 +478,7 @@ class SudoworkLogUploader {
         } else {
           this.persistCache();
         }
+        console.info(`[SudoworkLog] Flush succeeded: flushed=${flushedCount}, received=${response.received ?? flushedCount}, pending=${this.queue.length}`);
         return;
       }
 
@@ -481,7 +490,7 @@ class SudoworkLogUploader {
 
       this.markBatchFailed(batch, reason);
     } catch (error) {
-      console.warn('[SudoworkLogUploader] Flush failed:', error);
+      console.warn('[SudoworkLog] Flush failed:', error);
     } finally {
       this.isFlushing = false;
     }
@@ -495,7 +504,7 @@ class SudoworkLogUploader {
     const now = Date.now();
     this.queue = this.queue.filter((entry) => entry.retryCount < MAX_RETRIES && now - entry.storedAt < MAX_EVENT_AGE_MS);
     this.persistCache();
-    console.warn(`[SudoworkLogUploader] Upload failed: ${reason}, pending=${this.queue.length}`);
+    console.warn(`[SudoworkLog] Upload failed: ${reason}, pending=${this.queue.length}`);
   }
 
   private dropBatch(batch: StoredLogEntry[], reason: string): void {
@@ -506,7 +515,7 @@ class SudoworkLogUploader {
     } else {
       this.persistCache();
     }
-    console.warn(`[SudoworkLogUploader] Dropped non-retryable batch: ${reason}, pending=${this.queue.length}`);
+    console.warn(`[SudoworkLog] Dropped non-retryable batch: ${reason}, pending=${this.queue.length}`);
   }
 
   private async sendBatch(request: SudoworkLogBatchRequest): Promise<SudoworkLogBatchResponse> {
