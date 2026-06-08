@@ -18,7 +18,7 @@ import { SCODE_DIR } from '../services/scode/ScodeInstallService';
 const SUDOCLAW_CONFIG_PATH = path.join(SUDOCLAW_DIR, 'sudoclaw.json');
 const SUDOCODE_CONFIG_PATH = path.join(SCODE_DIR, 'sudocode.json');
 
-const GEMINI_IMAGE_GENERATION_MODELS = new Set(['gemini-3.1-flash-image-preview', 'gemini-3-pro-image-preview', 'gemini-2.5-flash-image']);
+const GEMINI_IMAGE_GENERATION_MODELS = new Set(['gemini-3.1-flash-image', 'gemini-3-pro-image', 'gemini-2.5-flash-image']);
 
 /**
  * Detect image MIME type and file extension from magic bytes.

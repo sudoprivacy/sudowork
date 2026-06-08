@@ -10,11 +10,7 @@
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-6C757D?style=flat-square&logo=linux&logoColor=white" alt="Platform">
 </p>
 
-<!-- <p align="center">
-  <a href="https://trendshift.io/repositories/15423" target="_blank">
-    <img src="https://trendshift.io/api/badge/repositories/15423" alt="GitHub Trending" height="80">
-  </a>
-</p> -->
+<!-- -->
 
 ---
 
@@ -30,11 +26,7 @@
 </p>
 
 <p align="center">
-  <strong>English</strong> | <a href="./readme_ch.md">简体中文</a> | <a href="./readme_tw.md">繁體中文</a> | <a href="./readme_jp.md">日本語</a> | <a href="./readme_ko.md">한국어</a> | <a href="./readme_es.md">Español</a> | <a href="./readme_pt.md">Português</a> | <a href="./readme_tr.md">Türkçe</a> | <a href="https://www.sudowork.com" target="_blank">Official Website</a>
-</p>
-
-<p align="center">
-  <strong>💬 Community:</strong> <a href="./resources/wechat_group4.png" target="_blank">微信 (中文群)</a> | <a href="https://twitter.com/Sudowork" target="_blank">Twitter</a>
+  <strong>English</strong> | <a href="./readme_ch.md">简体中文</a> | <a href="https://sudowork.sudoprivacy.com/" target="_blank">Official Website</a>
 </p>
 
 ---
@@ -45,8 +37,7 @@
 
 [✨ Cowork in Action](#-cowork-in-action) ·
 [🤔 Why Choose Sudowork?](#-why-choose-sudowork-over-claude-cowork) ·
-[🚀 Quick Start](#-quick-start) ·
-[💬 Community](#-community--support)
+[🚀 Quick Start](#-quick-start)
 
 </p>
 
@@ -66,7 +57,7 @@
 | Price                           | Free / Paid                 | **Free & Open Source**                                                                       |
 
 <p align="center">
-  <img src="./resources/offica-ai BANNER-function.png" alt="Sudowork Cowork Platform" width="800">
+  <img src="./resources/sudowork-banner-function.png" alt="Sudowork Cowork Platform" width="800">
 </p>
 
 ---
@@ -113,7 +104,7 @@ Other AI apps give you a chatbox with your API key. **Sudowork gives you a full 
 | OpenAI API Key                          | GPT-powered Cowork Agent     |
 | Anthropic API Key                       | Claude-powered Cowork Agent  |
 | Ollama / LM Studio (local)              | Local model Cowork Agent     |
-| NewAPI Gateway                          | Unified access to 20+ models |
+| SudoRouter Gateway                      | Unified access to 20+ models |
 
 Same agent capabilities — file read/write, web search, image generation, tool use — regardless of which model powers it. Sudowork supports **20+ AI platforms** including cloud services and local deployments.
 
@@ -134,7 +125,7 @@ Same agent capabilities — file read/write, web search, image generation, tool 
 - **International Platforms** — DeepSeek, MiniMax, OpenRouter, SiliconFlow, xAI, Ark (Volcengine), Poe
 - **Local Models** — Ollama, LM Studio (via Custom platform with local API endpoint)
 
-Sudowork also supports [NewAPI](https://github.com/QuantumNous/new-api) gateway service — a unified AI model hub that aggregates and distributes various LLMs. Flexibly switch between different models in the same interface to meet various task requirements.
+Sudowork also supports [SudoRouter](https://github.com/sudoprivacy/nova-gateway) gateway service — a unified AI model hub that aggregates and distributes various LLMs. Flexibly switch between different models in the same interface to meet various task requirements.
 
 </details>
 
@@ -198,9 +189,6 @@ _Your 24/7 AI assistant — access Sudowork from any device, anywhere._
 </p> -->
 
 <p align="center"><em>Remote control &amp; monitor your agent — Claude, Gemini, Codex. Use from browser or phone, same as Claude Code remote.</em></p>
-
-> [Remote Internet Access Tutorial](https://github.com/sudoprivacy/sudowork/wiki/Remote-Internet-Access-Guide-Chinese)
-
 ## ✨ Cowork in Action
 
 ### **Scheduled Tasks — Cowork on Autopilot**
@@ -210,10 +198,6 @@ _Set it up once, the AI agent runs automatically on schedule — truly 24/7 unat
 - **Natural Language** — tell the agent what to do, just like chatting
 - **Flexible Scheduling** — daily, weekly, monthly, or custom cron expressions
 - **Use Cases:** scheduled data aggregation, report generation, file organization, reminders
-
-<p align="center">
-  <img src="./resources/alart-task.png" alt="Scheduled Tasks" width="800">
-</p>
 
 <details>
 <summary><strong>🔍 View Scheduled Task Details ▶️</strong></summary>
@@ -343,8 +327,6 @@ _Intelligent image generation, editing, and recognition, powered by Gemini_
 
 </details>
 
-> [Image generation model configuration guide](https://github.com/sudoprivacy/sudowork/wiki/Sudowork-Image-Generation-Tool-Model-Configuration-Guide)
-
 ---
 
 ### **Document Generation — PPT, Word, Markdown**
@@ -352,7 +334,6 @@ _Intelligent image generation, editing, and recognition, powered by Gemini_
 _Automatically generate professional documents — presentations, reports, and more — with AI agents._
 
 <p align="center">
-  <img src="./resources/file_generation_preview.png" alt="Document Generation" width="800">
 </p>
 
 <details>
@@ -452,30 +433,6 @@ A: All data is stored locally in a SQLite database. Nothing is uploaded to any s
 
 ---
 
-## See How People Use Sudowork
-
-<p align="center">
-  <a href="https://www.youtube.com/watch?v=yUU5E-U5B3M" target="_blank">
-    <img src="https://img.youtube.com/vi/yUU5E-U5B3M/maxresdefault.jpg" alt="WorldofAI Review" width="400">
-  </a>
-  &nbsp;&nbsp;
-  <a href="https://www.youtube.com/watch?v=enQnkKfth10" target="_blank">
-    <img src="https://img.youtube.com/vi/enQnkKfth10/maxresdefault.jpg" alt="Julian Goldie SEO Review" width="400">
-  </a>
-</p>
-<p align="center">
-  <em>WorldofAI (200K subscribers)</em> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <em>Julian Goldie SEO (318K subscribers)</em>
-</p>
-
-### Community Articles
-
-- [Open-source free Cowork, full model integration + autonomous file operations](https://mp.weixin.qq.com/s/F3f-CCsVPaK3lK00jXhOOg) — Open Source AI Project Landing
-- [Making ordinary people use Claude Code like an APP](https://mp.weixin.qq.com/s/TsMojSbkUUFvsd-HQCazZg) — Lazy Cat Loves Fishing
-- [5500 Stars: How Open Source Breaks Anthropic's AI Tool Moat](https://mp.weixin.qq.com/s/saEk49cYV6MqBgw19Lw6Gw) — AI Silicon Moment
-
-> **Made a video about Sudowork?** [Let us know on X](https://x.com/Sudowork) and we'll feature it here!
-
----
 
 ## 🚀 Quick Start
 
@@ -505,64 +462,6 @@ brew install sudowork
 1. **Install** Sudowork
 2. **Sign in** with Google account or enter any API key
 3. **Start Coworking** — the built-in AI agent is ready to go
-
-### 📖 Detailed Guides
-
-<details>
-<summary><strong>📖 Expand to View Complete Usage Guide</strong></summary>
-
-<br>
-
-**🚀 Quick Start**
-
-- [📖 Complete Installation Guide](https://github.com/sudoprivacy/sudowork/wiki/Getting-Started) — Detailed steps from download to configuration
-- [⚙️ LLM Configuration Guide](https://github.com/sudoprivacy/sudowork/wiki/LLM-Configuration) — Multi-platform AI model configuration
-- [🤖 Multi-Agent Mode Setup](https://github.com/sudoprivacy/sudowork/wiki/ACP-Setup) — Integrate terminal AI agents
-- [🔌 MCP Tool Configuration](https://github.com/sudoprivacy/sudowork/wiki/MCP-Configuration-Guide) — Model Context Protocol server setup
-- [🌐 WebUI Configuration Guide](https://github.com/sudoprivacy/sudowork/wiki/WebUI-Configuration-Guide) — Complete WebUI setup and configuration tutorial
-
-**🎯 Use Cases**
-
-- [📁 File Management](https://github.com/sudoprivacy/sudowork/wiki/file-management) — Smart file organization
-- [📊 Excel Processing](https://github.com/sudoprivacy/sudowork/wiki/excel-processing) — AI-driven data processing
-- [🎨 Image Generation](https://github.com/sudoprivacy/sudowork/wiki/Sudowork-Image-Generation-Tool-Model-Configuration-Guide) — AI image creation
-- [📚 More Use Cases](https://github.com/sudoprivacy/sudowork/wiki/Use-Cases-Overview)
-
-**❓ Support & Help**
-
-- [❓ FAQ](https://github.com/sudoprivacy/sudowork/wiki/FAQ) — Questions and troubleshooting
-- [🔧 Configuration & Usage Tutorials](https://github.com/sudoprivacy/sudowork/wiki/Configuration-Guides) — Complete configuration documentation
-
-</details>
-
----
-
-## 💬 Community & Support
-
-**Your ideas matter!** We value every suggestion and feedback.
-
-<p align="center">
-  <a href="https://x.com/Sudowork" target="_blank">
-    <img src="./resources/contactus-x.png" alt="Contact Us on X" width="600">
-  </a>
-</p>
-
-- [GitHub Discussions](https://github.com/sudoprivacy/sudowork/discussions) — share ideas and exchange tips
-- [Report Issues](https://github.com/sudoprivacy/sudowork/issues) — bugs and feature requests
-- [Release Updates](https://github.com/sudoprivacy/sudowork/releases) — get the latest version
-- [WeChat Group](./resources/wechat_group4.png) — Chinese community
-
-
-### Contributing
-
-1. Fork this project
-2. Create a feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
----
-
 
 ## Contributors
 

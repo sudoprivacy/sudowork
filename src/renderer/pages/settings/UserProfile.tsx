@@ -9,24 +9,14 @@ import WeeklyModelUsageChart from './components/WeeklyModelUsageChart';
 import ConsumerAvatar from './components/ConsumerAvatar';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
+import { useDashboardStats } from '../../context/DashboardStatsContext';
 import { useAppMode } from '../../hooks/useAppMode';
-
-interface ConsumerUsageToday {
-  tokens?: number | null;
-  cost_points?: number | null;
-  requests?: number | null;
-}
-
-interface ConsumerDashboardStats {
-  usage_today?: ConsumerUsageToday | null;
-}
 
 const UserProfile: React.FC = () => {
   const { t } = useTranslation();
-  const { user: currentUser, refresh, ensureValidToken, forceRefreshToken } = useAuth();
+  const { user: currentUser, refresh: refreshAuth, ensureValidToken, forceRefreshToken } = useAuth();
+  const { profile, stats, refresh: refreshDashboard } = useDashboardStats();
   const { isEnterprise } = useAppMode();
-  const [profile, setProfile] = useState<any>(null);
-  const [stats, setStats] = useState<ConsumerDashboardStats | null>(null);
   const [loading, setLoading] = useState(false);
   const [editingNickname, setEditingNickname] = useState('');
   const [editModalVisible, setEditModalVisible] = useState(false);
@@ -34,7 +24,7 @@ const UserProfile: React.FC = () => {
   // Enterprise mode state
   const [enterpriseProfile, setEnterpriseProfile] = useState<UserProfileData | null>(null);
 
-  // 带自动刷新的 fetch 封装
+  // 带自动刷新的 fetch 封装（仅用于昵称更新等写操作；读路径已迁移到 DashboardStatsContext）
   const fetchWithAuth = useCallback(
     async (url: string, options: RequestInit = {}, retry = true): Promise<Response> => {
       const token = await ensureValidToken();
@@ -68,40 +58,6 @@ const UserProfile: React.FC = () => {
     [ensureValidToken, forceRefreshToken]
   );
 
-  const fetchProfile = async () => {
-    setLoading(true);
-    try {
-      const serverConfig = await ipcBridge.sudoworkServer.getConfig.invoke();
-
-      // 并行调用：用户信息 + 仪表盘数据（积分、今日统计、使用流水）
-      const [profileRes, dashboardRes] = await Promise.all([fetchWithAuth(`${serverConfig.baseUrl}/api/v1/user/profile`), fetchWithAuth(`${serverConfig.baseUrl}/api/v1/user/dashboard`)]);
-
-      // 检查是否有 401 响应
-      if (profileRes.status === 401 || dashboardRes.status === 401) {
-        console.warn('[UserProfile] Unauthorized after retry, user may need to re-login');
-        setLoading(false);
-        return;
-      }
-
-      const profileData = await profileRes.json();
-      const dashboardData = await dashboardRes.json();
-
-      if (profileData.success) setProfile(profileData.data);
-      if (dashboardData.success) {
-        setStats({
-          usage_today: dashboardData.data.usage_today,
-        });
-      }
-    } catch (e) {
-      console.error('Failed to fetch profile/dashboard:', e);
-    }
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    if (currentUser?.token) void fetchProfile();
-  }, [currentUser]);
-
   // Enterprise mode: fetch user profile from MOSS server
   const fetchEnterpriseProfile = async () => {
     setLoading(true);
@@ -119,6 +75,15 @@ const UserProfile: React.FC = () => {
   useEffect(() => {
     if (isEnterprise) void fetchEnterpriseProfile();
   }, [isEnterprise]);
+
+  // Consumer mode: trigger a stale-while-revalidate refresh on every visit.
+  // Context returns the cached value immediately if still fresh (<30s) and
+  // fetches in the background otherwise — so revisits feel instant.
+  useEffect(() => {
+    if (!isEnterprise && currentUser?.token) {
+      void refreshDashboard();
+    }
+  }, [isEnterprise, currentUser?.token, refreshDashboard]);
 
   const handleEditNickname = () => {
     setEditingNickname(profile?.nickname || currentUser?.nickname || '');
@@ -162,8 +127,8 @@ const UserProfile: React.FC = () => {
           console.error('[UserProfile] Failed to sync nickname to main process:', error);
         });
         // 刷新页面数据
-        await fetchProfile();
-        await refresh();
+        await refreshDashboard({ force: true });
+        await refreshAuth();
       } else {
         Message.error(data.msg || '更新失败');
       }
@@ -246,15 +211,21 @@ const UserProfile: React.FC = () => {
               <div className='text-14px font-600 text-t-primary mb-16px'>{t('settings.userProfile.todayUsage')}</div>
               <div className='grid grid-cols-3 gap-16px'>
                 <div className='text-center'>
-                  <div className='text-24px font-700 text-t-primary'>{stats?.usage_today?.tokens?.toLocaleString() || 0}</div>
+                  <div className='text-24px font-700 text-t-primary min-h-32px flex items-center justify-center'>
+                    {stats === null ? <Spin size={20} /> : (stats.usage_today?.tokens?.toLocaleString() ?? '0')}
+                  </div>
                   <div className='text-12px text-t-tertiary'>{t('settings.userProfile.tokens')}</div>
                 </div>
                 <div className='text-center'>
-                  <div className='text-24px font-700 text-primary'>{todayPoints}</div>
+                  <div className='text-24px font-700 text-primary min-h-32px flex items-center justify-center'>
+                    {stats === null ? <Spin size={20} /> : todayPoints}
+                  </div>
                   <div className='text-12px text-t-tertiary'>{t('settings.userProfile.consumedPoints')}</div>
                 </div>
                 <div className='text-center'>
-                  <div className='text-24px font-700 text-t-primary'>{stats?.usage_today?.requests || 0}</div>
+                  <div className='text-24px font-700 text-t-primary min-h-32px flex items-center justify-center'>
+                    {stats === null ? <Spin size={20} /> : (stats.usage_today?.requests ?? 0)}
+                  </div>
                   <div className='text-12px text-t-tertiary'>{t('settings.userProfile.requests')}</div>
                 </div>
               </div>

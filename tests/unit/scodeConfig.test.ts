@@ -1,12 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  buildScodeConfigFromLoginPayload,
-  extractCustomProvidersFromScodeConfig,
-  mergeCustomProviderIntoScodeConfig,
-  mergeCustomProvidersIntoScodeConfig,
-  normalizeCustomApiKeyModelsInScodeConfig,
-  removeCustomProviderFromScodeConfig,
-} from '@/common/scodeConfig';
+import { buildScodeConfigFromLoginPayload, extractCustomProvidersFromScodeConfig, mergeCustomProviderIntoScodeConfig, mergeCustomProvidersIntoScodeConfig, normalizeCustomApiKeyModelsInScodeConfig, removeCustomProviderFromScodeConfig, SCODE_AUTO_MODEL_ALIAS, SCODE_AUTO_ROUTER_MODEL_ID } from '@/common/scodeConfig';
 
 describe('scodeConfig', () => {
   it('preserves custom api-key providers and models when login refreshes sudorouter models', () => {
@@ -54,6 +47,17 @@ describe('scodeConfig', () => {
     });
     expect(next.models?.['legacy-router-model']).toBeUndefined();
     expect(next.models?.['gemini-3-flash-preview']?.providers?.proxy?.provider).toBe('sudorouter');
+    expect(next.models?.[SCODE_AUTO_MODEL_ALIAS]).toMatchObject({
+      alias: SCODE_AUTO_MODEL_ALIAS,
+      name: SCODE_AUTO_MODEL_ALIAS,
+      providers: {
+        proxy: { provider: 'sudorouter', model: SCODE_AUTO_ROUTER_MODEL_ID, api: 'openai-completions' },
+      },
+    });
+    const sudorouterModelAliases = Object.entries(next.models || {})
+      .filter(([, model]) => model.providers?.proxy?.provider === 'sudorouter')
+      .map(([alias]) => alias);
+    expect(sudorouterModelAliases).toEqual([SCODE_AUTO_MODEL_ALIAS, 'gemini-3-flash-preview']);
     expect(next.models?.['custom-openai/gpt-4o']?.providers?.['api-key']).toEqual({
       provider: 'custom-openai',
       model: 'gpt-4o',

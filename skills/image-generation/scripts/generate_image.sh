@@ -31,7 +31,7 @@ is_size() { [[ "$1" =~ ^[0-9]+x[0-9]+$ ]]; }
 
 is_gemini_image_model() {
   case "$1" in
-    gemini-3.1-flash-image-preview|gemini-3-pro-image-preview|gemini-2.5-flash-image) return 0 ;;
+    gemini-3.1-flash-image|gemini-3-pro-image|gemini-2.5-flash-image) return 0 ;;
     *) return 1 ;;
   esac
 }

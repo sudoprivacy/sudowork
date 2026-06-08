@@ -43,10 +43,11 @@ import { classifyLlmError } from '@process/utils/llmErrorClassification';
 import { injectSkillsDirectoryHint, prepareFirstMessageWithSkillsIndex } from './agentUtils';
 import { AcpSkillManager } from './AcpSkillManager';
 import { archiveTurnFiles, cleanupIntermediateFiles, cleanupTrackedDraftsOnCancel, type TrackedTurnFile } from './draftsCleanup';
-import { FileIntentClassifier, type FileIntentSource } from './FileIntentClassifier';
+import { detectBashDraftRestoreCommand, FileIntentClassifier, type BashDraftRestoreDetection, type FileIntentSource, type FileOperationIntent } from './FileIntentClassifier';
 import { SCODE_COMPLETION_REMINDER, shouldSkipAcpWorkspaceTrackingPath } from './acpWorkspaceTracking';
 import { mergeScodeProxyModelInfo, isModelVisionCapable, getScodeProxyModelInfoSync } from '@process/services/scode/scodeProxyModels';
 import { installWorkspaceSkillsFromTrackedFiles } from './workspaceSkillInstaller';
+import { appendGeneratedFilesMarker, extractExtension, mimeForExtension, type GeneratedFileEntry } from '@/common/generatedFiles';
 import BaseAgent from './BaseAgent';
 
 // Telemetry imports for conversation tracking
@@ -190,6 +191,9 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
   private hasReceivedUsageUpdate = false;
   private lastAssistantTextMsgId: string | null = null;
   private turnHadVisibleAssistantContent = false;
+  private turnEventSequence = 0;
+  private lastVisibleAssistantContentSequence = 0;
+  private lastToolCompletionSequence = 0;
   private lastUserMessage: string | null = null;
   private plannedRestartInProgress = false;
   private contextOverflowRecoveryPending = false;
@@ -209,6 +213,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
 
   // Turn-level file tracking for precise cleanup on cancel
   private currentTurnFiles: Map<string, TrackedTurnFile> = new Map();
+  private currentTurnProtectedFinalPaths = new Set<string>();
   private readonly fileIntentClassifier = new FileIntentClassifier();
 
   // Extra config passed to connection
@@ -699,10 +704,14 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
     this.hasReceivedUsageUpdate = false;
     this.lastAssistantTextMsgId = null;
     this.turnHadVisibleAssistantContent = false;
+    this.turnEventSequence = 0;
+    this.lastVisibleAssistantContentSequence = 0;
+    this.lastToolCompletionSequence = 0;
 
     // ★ Reset turn-level file tracking for new turn
     // 重置 Turn 级别文件追踪，开始新的 Turn
     this.currentTurnFiles.clear();
+    this.currentTurnProtectedFinalPaths.clear();
     this.workspaceFileSnapshot = this.getWorkspaceFiles();
     this.customSkillsSnapshot = this.getCustomSkillNames();
     mainLog('[AcpAgent]', `[TURN-START] Reset file tracking, snapshot size: ${this.workspaceFileSnapshot.size}`);
@@ -780,6 +789,12 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
       const imageMatch = data.content.trim().match(/^\/image(?:\s+([\s\S]+))?$/);
       if (imageMatch !== null) {
         return await this.handleImageCommand((imageMatch[1] || '').trim(), data);
+      }
+
+      // Intercept /browser sub-commands (open / status / eval / screenshot)
+      const browserMatch = data.content.trim().match(/^\/browser(?:\s+([\s\S]+))?$/);
+      if (browserMatch !== null) {
+        return await this.handleBrowserCommand((browserMatch[1] || '').trim(), data);
       }
 
       // Intercept channel query intent (natural language)
@@ -1499,6 +1514,7 @@ This identity statement takes priority over the default identity in USER.md.
   private async cleanupTrackedDraftFiles(): Promise<number> {
     const removedCount = await cleanupTrackedDraftsOnCancel(this.workspace, this.currentTurnFiles);
     this.currentTurnFiles.clear();
+    this.currentTurnProtectedFinalPaths.clear();
 
     if (removedCount > 0) {
       mainLog('[AcpAgent]', `[CLEANUP] Total current-turn draft files removed: ${removedCount}`);
@@ -1512,9 +1528,39 @@ This identity statement takes priority over the default identity in USER.md.
       return;
     }
 
+    this.currentTurnProtectedFinalPaths = this.getCurrentTurnFinalRootPaths();
     await archiveTurnFiles(this.workspace, this.currentTurnFiles);
     this.currentTurnFiles.clear();
     mainLog('[AcpAgent]', '[TURN-ARCHIVE] Archived currentTurnFiles and cleared tracking');
+  }
+
+  private getCurrentTurnFinalRootPaths(): Set<string> {
+    const protectedPaths = new Set<string>();
+    if (!this.workspace || this.currentTurnFiles.size === 0) {
+      return protectedPaths;
+    }
+
+    const workspaceRoot = nodePath.resolve(this.workspace);
+    for (const file of this.currentTurnFiles.values()) {
+      if (file.intent !== 'final') {
+        continue;
+      }
+
+      const finalPath = this.resolveFinalFileDisplayPath(file, workspaceRoot);
+      if (finalPath && !finalPath.startsWith(`${DRAFTS_DIR_NAME}/`)) {
+        protectedPaths.add(finalPath);
+      }
+
+      const resolvedActualPath = nodePath.resolve(file.actualPath);
+      const relativePath = nodePath.relative(workspaceRoot, resolvedActualPath);
+      if (!relativePath || relativePath.startsWith('..') || nodePath.isAbsolute(relativePath) || relativePath.startsWith(`${DRAFTS_DIR_NAME}${nodePath.sep}`)) {
+        continue;
+      }
+
+      protectedPaths.add(relativePath.replace(/\\/g, '/'));
+    }
+
+    return protectedPaths;
   }
 
   private getCurrentTurnFinalFileSummaries(): Array<{ path: string; reason: string }> {
@@ -1546,6 +1592,55 @@ This identity statement takes priority over the default identity in USER.md.
     return summaries.sort((a, b) => a.path.localeCompare(b.path));
   }
 
+  /**
+   * Build a list of `GeneratedFileEntry` records for the current turn's
+   * `intent==='final'` files, enriched with on-disk size + extension + mime so
+   * the renderer can show a preview card without re-stat'ing every file.
+   *
+   * Captured BEFORE `archiveCurrentTurnFiles` clears `currentTurnFiles` —
+   * caller is responsible for invocation order.
+   */
+  private buildGeneratedFileEntries(): GeneratedFileEntry[] {
+    if (!this.workspace || this.currentTurnFiles.size === 0) return [];
+
+    const workspaceRoot = nodePath.resolve(this.workspace);
+    const seen = new Set<string>();
+    const entries: GeneratedFileEntry[] = [];
+    const now = Date.now();
+
+    for (const file of this.currentTurnFiles.values()) {
+      if (file.intent !== 'final') continue;
+
+      const absolutePath = nodePath.resolve(file.actualPath);
+      if (seen.has(absolutePath)) continue;
+      seen.add(absolutePath);
+
+      const relativePath = this.resolveFinalFileDisplayPath(file, workspaceRoot);
+      const ext = extractExtension(absolutePath);
+
+      let size: number | undefined;
+      try {
+        const stat = fs.statSync(absolutePath);
+        if (stat.isFile()) size = stat.size;
+      } catch {
+        // file may have moved between archive + lookup — leave size undefined
+      }
+
+      entries.push({
+        path: absolutePath,
+        relativePath: relativePath !== absolutePath ? relativePath : undefined,
+        kind: file.kind === 'edit' ? 'edit' : 'create',
+        ext,
+        mime: mimeForExtension(ext),
+        size,
+        createdAt: now,
+      });
+    }
+
+    // Stable order: by relative (or absolute) path
+    return entries.sort((a, b) => (a.relativePath ?? a.path).localeCompare(b.relativePath ?? b.path));
+  }
+
   private resolveFinalFileDisplayPath(file: TrackedTurnFile, workspaceRoot: string): string {
     const resolvedActualPath = nodePath.resolve(file.actualPath);
     const actualRelativePath = nodePath.relative(workspaceRoot, resolvedActualPath);
@@ -1564,7 +1659,8 @@ This identity statement takes priority over the default identity in USER.md.
   }
 
   private emitFallbackCompletionMessage(finalFiles: Array<{ path: string; reason: string }>): void {
-    if (this.userCancelled || this.turnHadVisibleAssistantContent) {
+    const hasVisibleContentAfterLastTool = this.turnHadVisibleAssistantContent && this.lastVisibleAssistantContentSequence > this.lastToolCompletionSequence;
+    if (this.userCancelled || hasVisibleContentAfterLastTool) {
       return;
     }
 
@@ -1584,6 +1680,40 @@ This identity statement takes priority over the default identity in USER.md.
       status: 'finish',
       content: { content },
     });
+  }
+
+  /**
+   * Emit a trailing assistant `text` message whose content is JUST the
+   * `[[NEXUS_GENERATED_FILES]]` marker + JSON payload. The renderer
+   * (MessagetText.tsx → GeneratedFileCard) detects it and shows preview
+   * cards instead of plain text.
+   *
+   * This is a separate message — not appended to the assistant's prose —
+   * so the renderer can style it as a "deliverables" bubble distinct from
+   * the natural-language reply.
+   *
+   * Skipped when no final files exist (most chat-only turns).
+   */
+  private emitGeneratedFilesMarkerMessage(entries: GeneratedFileEntry[]): void {
+    if (this.userCancelled || entries.length === 0) return;
+    const content = appendGeneratedFilesMarker('', entries);
+    this.emitMessage({
+      id: uuid(),
+      msg_id: uuid(),
+      conversation_id: this.conversation_id,
+      type: 'text',
+      position: 'left',
+      createdAt: Date.now(),
+      status: 'finish',
+      content: { content },
+    });
+    // Live-push the deliverables list to the renderer's right-panel
+    // "交付物" tab so it can append without refetching from DB.
+    try {
+      ipcBridge.deliverables.changed.emit({ conversationId: this.conversation_id, files: entries });
+    } catch (err) {
+      mainLog('[AcpAgent]', `[TRACK] deliverables.changed emit failed: ${String(err)}`);
+    }
   }
 
   private hasVisibleAssistantContent(data: unknown): boolean {
@@ -1613,7 +1743,7 @@ This identity statement takes priority over the default identity in USER.md.
     return nodePath.join(fallbackDir, nodePath.basename(trimmedPath));
   }
 
-  private trackTurnFile(input: { requestedPath: string; actualPath?: string; content?: string | null; source: FileIntentSource; kind: 'create' | 'edit' }): void {
+  private trackTurnFile(input: { requestedPath: string; actualPath?: string; content?: string | null; source: FileIntentSource; kind: 'create' | 'edit'; operationIntent?: FileOperationIntent }): void {
     if (!this.workspace || !input.requestedPath) {
       return;
     }
@@ -1625,6 +1755,7 @@ This identity statement takes priority over the default identity in USER.md.
       content: input.content,
       userMessage: this.lastUserMessage,
       source: input.source,
+      operationIntent: input.operationIntent,
     });
     const actualPath = input.actualPath || this.resolveWorkspacePath(input.requestedPath);
     const workspaceRoot = nodePath.resolve(this.workspace);
@@ -1639,8 +1770,23 @@ This identity statement takes priority over the default identity in USER.md.
       reason: classification.reason,
       source: input.source,
       kind: input.kind,
+      userInitiated: classification.userInitiated,
     });
     mainLog('[AcpAgent]', `[TRACK] File: ${trackingKey}, intent: ${classification.intent}, source: ${input.source}, reason: ${classification.reason}, actualPath: ${actualPath}`);
+
+    // Surface AI-written HTML in the right-panel browser. trackFile is the
+    // earliest point where the absolute path is fully resolved (the prior
+    // attempt in the write/edit/create tool-call branch relied on
+    // extractFilePathFromToolCall, which returns null for many ACP backends'
+    // tool argument shapes).
+    if (classification.intent !== 'draft' && /\.html?$/i.test(actualPath)) {
+      try {
+        ipcBridge.rightPanelBrowser.open.emit({ url: `file://${actualPath}`, switchTab: true });
+        mainLog('[AcpAgent]', `[TRACK] rightPanelBrowser.open fired for ${actualPath}`);
+      } catch (err) {
+        mainLog('[AcpAgent]', `[TRACK] rightPanelBrowser.open emit failed: ${String(err)}`);
+      }
+    }
   }
 
   /**
@@ -1663,12 +1809,13 @@ This identity statement takes priority over the default identity in USER.md.
    * Scans workspace for new files after Bash completes and tracks them
    * 在 Bash 完成后扫描工作空间新增文件并追踪
    */
-  private trackBashGeneratedFiles(): void {
+  private trackBashGeneratedFiles(command?: string | null): void {
     try {
       const currentSnapshot = this.getWorkspaceFiles();
 
       // Compare with previous snapshot to find new and modified files
       const previousSnapshot = this.workspaceFileSnapshot;
+      const draftRestoreDetection = detectBashDraftRestoreCommand(command);
       const changedFiles: Array<{ path: string; kind: 'create' | 'edit' }> = [];
 
       for (const [file, time] of currentSnapshot) {
@@ -1683,6 +1830,7 @@ This identity statement takes priority over the default identity in USER.md.
         }
       }
 
+      let trackedCount = 0;
       for (const changedFile of changedFiles) {
         const file = changedFile.path;
         const relativePath = nodePath.relative(this.workspace, file);
@@ -1702,18 +1850,39 @@ This identity statement takes priority over the default identity in USER.md.
           content,
           source: 'bash-generated',
           kind: changedFile.kind,
+          operationIntent: this.isBashRestoredDraftRootFile(relativePath, previousSnapshot, draftRestoreDetection) ? 'restore-from-drafts' : undefined,
         });
+        trackedCount++;
       }
 
       // Update snapshot for next comparison
       this.workspaceFileSnapshot = currentSnapshot;
 
-      if (changedFiles.length > 0) {
-        mainLog('[AcpAgent]', `[TRACK-BASH] Total changed files tracked: ${changedFiles.length}`);
+      if (trackedCount > 0) {
+        mainLog('[AcpAgent]', `[TRACK-BASH] Total changed files tracked: ${trackedCount}`);
       }
     } catch (err) {
       mainError('[AcpAgent]', 'Failed to track Bash generated files:', err);
     }
+  }
+
+  private isBashRestoredDraftRootFile(relativePath: string, previousSnapshot: Map<string, number>, detection: BashDraftRestoreDetection): boolean {
+    const normalizedRelativePath = relativePath.trim().replace(/\\/g, '/').replace(/^\.\//, '').toLowerCase();
+    if (!normalizedRelativePath || normalizedRelativePath.startsWith('../') || normalizedRelativePath.split('/').includes(DRAFTS_DIR_NAME)) {
+      return false;
+    }
+
+    const basename = nodePath.basename(normalizedRelativePath).toLowerCase();
+    if (detection.explicitPaths.has(normalizedRelativePath) || detection.explicitBasenames.has(basename)) {
+      return true;
+    }
+
+    if (!detection.wildcard) {
+      return false;
+    }
+
+    const previousDraftPath = nodePath.join(nodePath.resolve(this.workspace), DRAFTS_DIR_NAME, nodePath.basename(relativePath));
+    return previousSnapshot.has(previousDraftPath);
   }
 
   /**
@@ -2095,7 +2264,8 @@ This identity statement takes priority over the default identity in USER.md.
           const meta = this.toolCallMeta.get(toolCallId);
           if (meta && meta.toolName.toLowerCase() === 'bash') {
             mainLog('[AcpAgent]', `[TRACK-BASH-CANCEL] Bash completed after cancel, tracking generated files`);
-            this.trackBashGeneratedFiles();
+            const command = (rawInput?.command ?? meta.rawInput?.command) as string | undefined;
+            this.trackBashGeneratedFiles(command);
           }
         }
       }
@@ -2169,6 +2339,9 @@ This identity statement takes priority over the default identity in USER.md.
         const statusUpdate = data as ToolCallUpdateStatus;
         const toolCallId = statusUpdate.update?.toolCallId;
         const toolStatus = statusUpdate.update?.status;
+        if (toolStatus === 'completed' || toolStatus === 'failed') {
+          this.lastToolCompletionSequence = ++this.turnEventSequence;
+        }
 
         // Breadcrumb: MCP/tool call result
         if (toolStatus === 'completed' || toolStatus === 'failed') {
@@ -2219,7 +2392,7 @@ This identity statement takes priority over the default identity in USER.md.
             if (n === 'bash') {
               mainLog('[AcpAgent]', `[TRACK-BASH] Bash tool detected, status: ${toolStatus}`);
               if (toolStatus === 'completed') {
-                this.trackBashGeneratedFiles();
+                this.trackBashGeneratedFiles(rawInput?.command as string | undefined);
               }
             }
 
@@ -2243,6 +2416,18 @@ This identity statement takes priority over the default identity in USER.md.
               const filePath = this.extractFilePathFromToolCall(toolName, rawInput);
               console.log(`[AcpAgent] extractFilePathFromToolCall result: ${filePath}`);
               if (filePath) {
+                // If the AI wrote an .html / .htm file, surface it in the
+                // right-panel browser. Independent of the channel-auto-send
+                // decision below — the browser view is opt-in user-visible,
+                // not a network action.
+                if (/\.html?$/i.test(filePath)) {
+                  try {
+                    ipcBridge.rightPanelBrowser.open.emit({ url: `file://${filePath}`, switchTab: true });
+                  } catch (err) {
+                    console.log(`[AcpAgent] rightPanelBrowser.open emit failed: ${String(err)}`);
+                  }
+                }
+
                 // Check if user's original message indicates they want the file sent
                 const userMessage = this.lastUserMessage?.toLowerCase() || '';
                 const userWantsFileSent = /发我|发给我|发送给我|发给我|发到|发送到|发来|发过来|send me|send to me/i.test(userMessage);
@@ -2587,8 +2772,12 @@ This identity statement takes priority over the default identity in USER.md.
 
     if (!this.userCancelled) {
       await this.installTrackedWorkspaceSkills();
+      // Capture rich GeneratedFileEntry records BEFORE archiveCurrentTurnFiles
+      // wipes currentTurnFiles — the renderer needs them to draw preview cards.
+      const generatedEntries = this.buildGeneratedFileEntries();
       await this.archiveCurrentTurnFiles();
       this.emitFallbackCompletionMessage(finalFiles);
+      this.emitGeneratedFilesMarkerMessage(generatedEntries);
     }
 
     const msg: IResponseMessage = {
@@ -2895,6 +3084,7 @@ This identity statement takes priority over the default identity in USER.md.
 
     if (filteredMessage.type === 'content' && this.hasVisibleAssistantContent(filteredMessage.data)) {
       this.turnHadVisibleAssistantContent = true;
+      this.lastVisibleAssistantContentSequence = ++this.turnEventSequence;
     }
 
     if (filteredMessage.type !== 'thought' && filteredMessage.type !== 'acp_model_info' && filteredMessage.type !== 'acp_context_usage') {
@@ -2979,9 +3169,13 @@ This identity statement takes priority over the default identity in USER.md.
 
       // Post-cleanup: move intermediate files from workspace root to .drafts/
       if (this.workspace) {
-        cleanupIntermediateFiles(this.workspace).catch((err) => {
-          mainError('AcpAgent', 'Post-cleanup failed:', err);
-        });
+        cleanupIntermediateFiles(this.workspace, { protectedFinalPaths: this.currentTurnProtectedFinalPaths })
+          .catch((err) => {
+            mainError('AcpAgent', 'Post-cleanup failed:', err);
+          })
+          .finally(() => {
+            this.currentTurnProtectedFinalPaths.clear();
+          });
       }
     }
 
@@ -3478,6 +3672,106 @@ This identity statement takes priority over the default identity in USER.md.
     return { success: true, data: null };
   }
 
+  /**
+   * `/browser <subcommand>` — user-initiated control of the right-panel
+   * BrowserPanel. AI never sees these commands (the slash whitelist routes
+   * them straight here). Subcommands:
+   *
+   *   /browser open <url>      — open url in the right-panel browser
+   *   /browser status          — show recent network responses for the
+   *                              currently active tab (status codes + URLs)
+   *   /browser eval <js>       — run JS in the active tab, stream result back
+   *   /browser screenshot      — capture the active tab and return as image
+   */
+  private async handleBrowserCommand(args: string, data: { msg_id?: string }): Promise<AcpResult> {
+    const responseMsgId = uuid();
+    ipcBridge.acpConversation.responseStream.emit({
+      type: 'start',
+      conversation_id: this.conversation_id,
+      msg_id: responseMsgId,
+      data: { processingStartTime: this.processingStartTime },
+    });
+
+    const emit = (text: string): void => {
+      ipcBridge.acpConversation.responseStream.emit({
+        type: 'content',
+        conversation_id: this.conversation_id,
+        msg_id: responseMsgId,
+        data: text,
+      });
+    };
+
+    try {
+      if (!args) {
+        emit('Usage: `/browser open <url>`, `/browser status`, `/browser eval <js>`, or `/browser screenshot`.');
+      } else {
+        const { browserPanelCdpService } = await import('@process/services/browserPanel/BrowserPanelCdpService');
+        const subMatch = args.match(/^(open|status|eval|screenshot)(?:\s+([\s\S]+))?$/i);
+        if (!subMatch) {
+          emit(`Unknown /browser subcommand. Usage: \`/browser open <url>\`, \`/browser status\`, \`/browser eval <js>\`, \`/browser screenshot\`.`);
+        } else {
+          const sub = subMatch[1].toLowerCase();
+          const rest = (subMatch[2] || '').trim();
+          const targetId = browserPanelCdpService.resolveWebContentsId();
+
+          if (sub === 'open') {
+            if (!rest) {
+              emit('Usage: `/browser open <url>`');
+            } else {
+              ipcBridge.rightPanelBrowser.open.emit({ url: rest, switchTab: true });
+              emit(`Opened ${rest} in the right-panel browser.`);
+            }
+          } else if (targetId === null) {
+            emit('No active browser tab. Open one with `/browser open <url>` or click the 浏览器 tab on the right.');
+          } else if (sub === 'status') {
+            const recent = browserPanelCdpService.listNetworkRequests(targetId, { limit: 25 });
+            if (recent.length === 0) {
+              emit('No network responses captured for the active tab yet.');
+            } else {
+              const lines = recent.map((r) => `${r.status ?? '   '} ${r.method ?? ''} ${r.type ?? ''} ${r.url.slice(0, 200)}`);
+              emit(['```', ...lines, '```'].join('\n'));
+            }
+          } else if (sub === 'eval') {
+            if (!rest) {
+              emit('Usage: `/browser eval <js-expression>`');
+            } else {
+              const result = await browserPanelCdpService.evaluateScript(targetId, { expression: rest });
+              if (!result.ok) {
+                emit(`Eval failed: ${result.errorText ?? 'unknown error'}${result.errorDetail ? `\n${result.errorDetail}` : ''}`);
+              } else {
+                const text = typeof result.value === 'string' ? result.value : JSON.stringify(result.value, null, 2);
+                emit(['```', String(text ?? result.description ?? '(no return value)'), '```'].join('\n'));
+              }
+            }
+          } else if (sub === 'screenshot') {
+            const shot = await browserPanelCdpService.takeScreenshot(targetId, { format: 'png' });
+            ipcBridge.acpConversation.responseStream.emit({
+              type: 'content',
+              conversation_id: this.conversation_id,
+              msg_id: responseMsgId,
+              data: `![browser screenshot](data:image/png;base64,${shot.base64})`,
+            });
+          }
+        }
+      }
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      mainError('[AcpAgent]', `Browser command failed: ${msg}`);
+      emit(`Browser command failed: ${msg}`);
+    }
+
+    ipcBridge.acpConversation.responseStream.emit({
+      type: 'finish',
+      conversation_id: this.conversation_id,
+      msg_id: responseMsgId,
+      data: null,
+    });
+    this.turnActive = false;
+    this.status = 'idle';
+    cronBusyGuard.setProcessing(this.conversation_id, false);
+    return { success: true, data: null };
+  }
+
   private async handleChannelQueryIntent(command: ChannelQueryCommand, msg_id?: string): Promise<AcpResult> {
     const responseMsgId = uuid();
 
@@ -3497,8 +3791,9 @@ This identity statement takes priority over the default identity in USER.md.
         msg_id: responseMsgId,
         data: result,
       };
+      // 只发送一次，acpConversation.responseStream 和 conversation.responseStream 是同一流
       ipcBridge.acpConversation.responseStream.emit(contentMsg);
-      ipcBridge.conversation.responseStream.emit(contentMsg);
+      // 消息落库
       const tMessage = transformMessage(contentMsg);
       if (tMessage) addOrUpdateMessage(this.conversation_id, tMessage);
     } catch (error) {

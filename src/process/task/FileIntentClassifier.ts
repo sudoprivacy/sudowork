@@ -4,11 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { COMMENT_SYNTAX_MAP, DRAFT_EXTENSIONS, DRAFT_FILE_PATTERNS, FILE_INTENT_MARKERS, FINAL_EXTENSIONS, FINAL_FILE_PATTERNS } from '@/common/constants';
+import { COMMENT_SYNTAX_MAP, DRAFTS_DIR_NAME, DRAFT_EXTENSIONS, DRAFT_FILE_PATTERNS, FILE_INTENT_MARKERS, FINAL_EXTENSIONS, FINAL_FILE_PATTERNS } from '@/common/constants';
 import path from 'path';
 
 export type FileIntent = 'final' | 'draft';
 export type FileIntentSource = 'write' | 'edit' | 'bash-generated' | 'cleanup';
+export type FileOperationIntent = 'restore-from-drafts' | 'move-to-drafts';
 
 export interface ContentIntentResult {
   intent: FileIntent | 'unknown';
@@ -23,6 +24,7 @@ export interface FileIntentClassificationInput {
   content?: string | null;
   userMessage?: string | null;
   source: FileIntentSource;
+  operationIntent?: FileOperationIntent;
 }
 
 export interface FileIntentClassification {
@@ -31,10 +33,66 @@ export interface FileIntentClassification {
   marker?: string;
   line?: number;
   matched?: string;
+  /**
+   * True only when the `intent === 'draft'` decision came from an explicit
+   * user / operation request (e.g. `operationIntent === 'move-to-drafts'`,
+   * or the user message said "move X to drafts").
+   *
+   * Used by archiveTurnFiles to decide between archive vs. delete:
+   *   - userInitiated drafts → archive to .drafts/<basename>
+   *   - all other drafts (classifier heuristics) → unlink
+   *
+   * Rationale: AI-generated intermediate files (PPT slide frames, etc.) have
+   * no recovery value — they're scaffolding the user never asked for. Keeping
+   * them in .drafts/ accumulates disk + cognitive noise. User-explicit moves
+   * still go to .drafts/ because the user might want to restore them.
+   */
+  userInitiated?: boolean;
+}
+
+export interface BashDraftRestoreDetection {
+  explicitPaths: Set<string>;
+  explicitBasenames: Set<string>;
+  wildcard: boolean;
 }
 
 const SCRIPT_EXTENSIONS = new Set(['.py', '.js', '.ts', '.tsx', '.jsx', '.mjs', '.cjs', '.sh', '.bash', '.zsh', '.rb', '.php', '.lua']);
 const SCRIPT_SIDE_EFFECT_NAMES = new Set(['package.json', 'package-lock.json', 'npm-shrinkwrap.json', 'yarn.lock', 'pnpm-lock.yaml', 'bun.lockb', 'bun.lock', 'requirements.txt']);
+// Office + text formats that are reasonable defaults to treat as deliverables
+// when an agent's bash script writes them. Images were intentionally removed
+// (see Anthropic-skills convention rules below): bash-written PNG / JPG /
+// SVG are usually intermediate slide frames / thumbnails / chart exports.
+// If the user explicitly asks for an image (caught by inferRequestedExtensions
+// earlier), the request matches and `final` is returned before this rule.
+const BASH_DELIVERABLE_EXTENSIONS = new Set(['.pdf', '.docx', '.pptx', '.xlsx', '.csv', '.json', '.md', '.markdown', '.txt', '.html', '.htm']);
+
+// Intermediate working directories. A file whose FIRST relative-path segment
+// is in this set is treated as intermediate (draft). These names cover both
+// well-known sudowork-hub conventions (ppt_outputs/) and common scaffolding
+// dirs that skills/scripts use for intermediate artifacts. Lowercase keys.
+//
+// Lifecycle: the matching files are NOT moved or deleted by archiveTurnFiles
+// when userInitiated is false — they remain in place so cross-turn workflows
+// (e.g. PPT slide generation that spans multiple turns before composition)
+// can still read them. They're hidden from the chat-card / deliverables UI
+// because buildGeneratedFileEntries filters to intent='final'; they're hidden
+// from the workspace-tree UI by an ignore rule in conversationBridge.
+export const INTERMEDIATE_DIR_SEGMENTS = new Set([
+  'ppt_outputs',
+  'pptx_outputs',
+  'docx_outputs',
+  'xlsx_outputs',
+  'pdf_outputs',
+  'slides_output',
+  'slide_images',
+  'intermediate',
+  '_intermediate',
+  '_tmp',
+  '_temp',
+  '_cache',
+  '_artifacts',
+  '_build',
+]);
 
 const TARGET_TYPE_EXTENSIONS: Array<{ pattern: RegExp; extensions: string[] }> = [
   { pattern: /\b(pdf|PDF)\b|文档.*pdf|pdf.*文档/i, extensions: ['.pdf'] },
@@ -117,11 +175,85 @@ export function detectFileIntent(filePath: string, content: string): ContentInte
   return { intent: 'unknown', reason: 'No marker found' };
 }
 
+export function detectBashDraftRestoreCommand(command?: string | null): BashDraftRestoreDetection {
+  const detection: BashDraftRestoreDetection = {
+    explicitPaths: new Set<string>(),
+    explicitBasenames: new Set<string>(),
+    wildcard: false,
+  };
+
+  if (!command?.trim()) {
+    return detection;
+  }
+
+  for (const segment of splitShellCommandSegments(command)) {
+    const words = tokenizeShellWords(segment);
+    const mvIndex = words.findIndex((word) => path.basename(word) === 'mv');
+    if (mvIndex === -1) {
+      continue;
+    }
+
+    const operands: string[] = [];
+    let optionsEnded = false;
+    for (const word of words.slice(mvIndex + 1)) {
+      if (!optionsEnded && word === '--') {
+        optionsEnded = true;
+        continue;
+      }
+      if (!optionsEnded && operands.length === 0 && /^-[A-Za-z]/.test(word)) {
+        continue;
+      }
+      operands.push(word);
+    }
+
+    if (operands.length < 2) {
+      continue;
+    }
+
+    const destination = operands[operands.length - 1];
+    if (isDraftsPath(destination)) {
+      continue;
+    }
+
+    for (const source of operands.slice(0, -1)) {
+      if (!isDraftsPath(source)) {
+        continue;
+      }
+
+      if (source.includes('*') || source.includes('?') || source.includes('[')) {
+        detection.wildcard = true;
+        continue;
+      }
+
+      addRestoredDestination(detection, source, destination);
+    }
+  }
+
+  return detection;
+}
+
 export class FileIntentClassifier {
   classify(input: FileIntentClassificationInput): FileIntentClassification {
     const fileName = path.basename(input.filePath);
     const ext = path.extname(fileName).toLowerCase();
     const content = input.content ?? undefined;
+    const userMessage = input.userMessage?.trim() || '';
+
+    if (input.source !== 'cleanup' && input.operationIntent === 'move-to-drafts' && isDraftsPath(input.filePath, input.requestedPath)) {
+      return { intent: 'draft', reason: 'Move to drafts requested', userInitiated: true };
+    }
+
+    if (input.source !== 'cleanup' && input.operationIntent === 'restore-from-drafts' && isRestoredRootFile(input.filePath, input.requestedPath)) {
+      return { intent: 'final', reason: 'Bash moved file from drafts to workspace root' };
+    }
+
+    if (input.source !== 'cleanup' && isMoveToDraftsIntent(userMessage) && isDraftsPath(input.filePath, input.requestedPath)) {
+      return { intent: 'draft', reason: 'Move to drafts requested', userInitiated: true };
+    }
+
+    if (input.source !== 'cleanup' && isRestoreFromDraftsIntent(userMessage) && isRestoredRootFile(input.filePath, input.requestedPath) && !matchesExcludedFileName(userMessage, input.filePath, input.requestedPath)) {
+      return { intent: 'final', reason: 'Restore from drafts to workspace root' };
+    }
 
     if (content) {
       const markerResult = detectFileIntent(input.filePath, content);
@@ -135,11 +267,15 @@ export class FileIntentClassifier {
       }
     }
 
-    const userMessage = input.userMessage?.trim() || '';
     const requestedNames = extractRequestedFileNames(userMessage);
+    const excludedNames = extractExcludedFileNames(userMessage);
     const requestedPath = input.requestedPath || input.filePath;
     const candidates = new Set([path.basename(fileName).toLowerCase(), normalizePathForMatch(requestedPath), normalizePathForMatch(input.filePath)]);
     for (const requestedName of requestedNames) {
+      if (excludedNames.has(requestedName) || excludedNames.has(path.basename(requestedName))) {
+        continue;
+      }
+
       if (candidates.has(requestedName) || candidates.has(path.basename(requestedName))) {
         return { intent: 'final', reason: `Matches requested file name "${requestedName}"`, matched: requestedName };
       }
@@ -150,6 +286,18 @@ export class FileIntentClassifier {
       return { intent: 'final', reason: `Matches requested target type ${ext}`, matched: ext };
     }
 
+    // Intermediate-directory rule. Run AFTER user-driven explicit signals
+    // (so a user request for a specific file by name still wins) and BEFORE
+    // generic heuristics (so a file in a known intermediate dir is not
+    // accidentally promoted by extension fallbacks).
+    const relativeKey = normalizePathForMatch(input.requestedPath || input.filePath);
+    if (relativeKey) {
+      const firstSegment = relativeKey.split('/')[0] || '';
+      if (firstSegment && INTERMEDIATE_DIR_SEGMENTS.has(firstSegment)) {
+        return { intent: 'draft', reason: `Located in intermediate directory "${firstSegment}"`, matched: firstSegment };
+      }
+    }
+
     if (isScriptSideEffect(fileName)) {
       return { intent: 'draft', reason: 'Script execution side-effect file' };
     }
@@ -158,12 +306,16 @@ export class FileIntentClassifier {
       return { intent: 'final', reason: 'Matches final file pattern' };
     }
 
-    if (input.source === 'bash-generated') {
-      return { intent: 'draft', reason: 'Bash-generated file without explicit final signal' };
-    }
-
     if (matchesDraftPattern(fileName)) {
       return { intent: 'draft', reason: 'Matches draft file pattern' };
+    }
+
+    if (input.source === 'bash-generated' && BASH_DELIVERABLE_EXTENSIONS.has(ext)) {
+      return { intent: 'final', reason: `Bash-generated deliverable file type ${ext}`, matched: ext };
+    }
+
+    if (input.source === 'bash-generated') {
+      return { intent: 'draft', reason: 'Bash-generated file without explicit final signal' };
     }
 
     if (isIntermediateScript(fileName, userMessage)) {
@@ -192,14 +344,154 @@ function extractCommentContent(line: string, commentPrefix: string): string | nu
   return line.slice(commentPrefix.length).trim();
 }
 
+function splitShellCommandSegments(command: string): string[] {
+  const segments: string[] = [];
+  let current = '';
+  let quote: string | null = null;
+
+  for (let i = 0; i < command.length; i++) {
+    const char = command[i];
+    const next = command[i + 1];
+
+    if (char === '\\') {
+      current += char;
+      if (next) {
+        current += next;
+        i++;
+      }
+      continue;
+    }
+
+    if (quote) {
+      current += char;
+      if (char === quote) {
+        quote = null;
+      }
+      continue;
+    }
+
+    if (char === '"' || char === "'") {
+      quote = char;
+      current += char;
+      continue;
+    }
+
+    if (char === '\n' || char === ';' || (char === '&' && next === '&') || (char === '|' && next === '|')) {
+      if (current.trim()) {
+        segments.push(current.trim());
+      }
+      current = '';
+      if ((char === '&' && next === '&') || (char === '|' && next === '|')) {
+        i++;
+      }
+      continue;
+    }
+
+    current += char;
+  }
+
+  if (current.trim()) {
+    segments.push(current.trim());
+  }
+
+  return segments;
+}
+
+function tokenizeShellWords(segment: string): string[] {
+  const words: string[] = [];
+  let current = '';
+  let quote: string | null = null;
+
+  for (let i = 0; i < segment.length; i++) {
+    const char = segment[i];
+    const next = segment[i + 1];
+
+    if (char === '\\') {
+      if (next) {
+        current += next;
+        i++;
+      }
+      continue;
+    }
+
+    if (quote) {
+      if (char === quote) {
+        quote = null;
+      } else {
+        current += char;
+      }
+      continue;
+    }
+
+    if (char === '"' || char === "'") {
+      quote = char;
+      continue;
+    }
+
+    if (/\s/.test(char)) {
+      if (current) {
+        words.push(current);
+        current = '';
+      }
+      continue;
+    }
+
+    current += char;
+  }
+
+  if (current) {
+    words.push(current);
+  }
+
+  return words;
+}
+
+function addRestoredDestination(detection: BashDraftRestoreDetection, source: string, destination: string): void {
+  const sourceName = path.basename(normalizePathForMatch(source));
+  if (!sourceName) {
+    return;
+  }
+
+  const normalizedDestination = normalizePathForMatch(destination);
+  const destinationIsDirectory = destination === '.' || destination === './' || destination.endsWith('/') || normalizedDestination === '';
+  const restoredPath = destinationIsDirectory ? sourceName : normalizedDestination;
+
+  if (!restoredPath || restoredPath.includes('*') || isDraftsPathSegment(restoredPath)) {
+    return;
+  }
+
+  detection.explicitPaths.add(restoredPath);
+  detection.explicitBasenames.add(path.basename(restoredPath).toLowerCase());
+}
+
 function extractRequestedFileNames(message: string): Set<string> {
   const names = new Set<string>();
   if (!message) return names;
 
   const quotedPattern = /[`"'“”‘’]([^`"'“”‘’\n]+\.[A-Za-z0-9]{1,8})[`"'“”‘’]/g;
   const pathPattern = /(?:^|[\s([{，。,:：])([A-Za-z0-9._~@+\-/\\\u4e00-\u9fa5]+?\.[A-Za-z0-9]{1,8})(?=$|[\s)\]}，。,.!?:：；;])/g;
+  const actionPathPattern = /(?:将|把|移动|移出|移到|恢复|还原|放到|move|restore)\s*([A-Za-z0-9._~@+\-/\\\u4e00-\u9fa5]+?\.[A-Za-z0-9]{1,8})(?=$|[\s)\]}，。,.!?:：；;]|[\u0080-\uFFFF])/gi;
 
-  for (const pattern of [quotedPattern, pathPattern]) {
+  for (const pattern of [quotedPattern, pathPattern, actionPathPattern]) {
+    for (const match of message.matchAll(pattern)) {
+      const raw = match[1]?.trim();
+      if (!raw) continue;
+      names.add(normalizePathForMatch(raw));
+      names.add(path.basename(raw).toLowerCase());
+    }
+  }
+
+  return names;
+}
+
+function extractExcludedFileNames(message: string): Set<string> {
+  const names = new Set<string>();
+  if (!message) return names;
+
+  const fileNamePattern = String.raw`([A-Za-z0-9._~@+\-/\\\u4e00-\u9fa5]+?\.[A-Za-z0-9]{1,8})`;
+  const patterns = [new RegExp(`${fileNamePattern}\\s*(?:文件)?\\s*(?:之外|以外|除外)`, 'gi'), new RegExp(`(?:除了|除|排除|不包括|except)\\s*[\\s\`"'“”‘’]*${fileNamePattern}`, 'gi')];
+
+  for (const pattern of patterns) {
     for (const match of message.matchAll(pattern)) {
       const raw = match[1]?.trim();
       if (!raw) continue;
@@ -229,6 +521,56 @@ function inferRequestedExtensions(message: string): Set<string> {
 function isScriptSideEffect(fileName: string): boolean {
   const lower = fileName.toLowerCase();
   return SCRIPT_SIDE_EFFECT_NAMES.has(lower) || lower.endsWith('.lock');
+}
+
+function isRestoreFromDraftsIntent(message: string): boolean {
+  if (!message) {
+    return false;
+  }
+
+  const mentionsDrafts = /\.drafts\b|草稿箱|草稿目录|\bdrafts?\b/i.test(message);
+  const restoreAction = /移动|移出|移到|搬到|放到|恢复|还原|move|restore/i.test(message);
+  const workspaceDestination = /工作目录|根目录|workspace|root|项目目录/i.test(message);
+  const movesToDrafts = /(?:移动|移到|搬到|放到|move|restore)[^\n。；;]*(?:\.drafts\b|草稿箱|草稿目录|\bdrafts?\b)/i.test(message);
+  return mentionsDrafts && restoreAction && workspaceDestination && !movesToDrafts;
+}
+
+function isRestoredRootFile(filePath: string, requestedPath?: string): boolean {
+  const normalizedPaths = [filePath, requestedPath].filter((value): value is string => typeof value === 'string' && value.trim().length > 0).map(normalizePathForMatch);
+  return normalizedPaths.length > 0 && normalizedPaths.every((value) => !isDraftsPathSegment(value));
+}
+
+function matchesExcludedFileName(message: string, filePath: string, requestedPath?: string): boolean {
+  const excludedNames = extractExcludedFileNames(message);
+  if (excludedNames.size === 0) {
+    return false;
+  }
+
+  const candidates = [path.basename(filePath).toLowerCase(), normalizePathForMatch(filePath)];
+  if (requestedPath) {
+    candidates.push(path.basename(requestedPath).toLowerCase(), normalizePathForMatch(requestedPath));
+  }
+
+  return candidates.some((candidate) => excludedNames.has(candidate));
+}
+
+function isMoveToDraftsIntent(message: string): boolean {
+  if (!message) {
+    return false;
+  }
+
+  return /(?:移动|移到|搬到|放到|move)[^\n。；;]*(?:\.drafts\b|草稿箱|草稿目录|\bdrafts?\b)/i.test(message);
+}
+
+function isDraftsPath(filePath: string, requestedPath?: string): boolean {
+  return [filePath, requestedPath]
+    .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+    .map(normalizePathForMatch)
+    .some(isDraftsPathSegment);
+}
+
+function isDraftsPathSegment(value: string): boolean {
+  return value.split('/').includes(DRAFTS_DIR_NAME);
 }
 
 function isIntermediateScript(fileName: string, userMessage: string): boolean {

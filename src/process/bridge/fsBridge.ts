@@ -541,6 +541,15 @@ export function initFsBridge(): void {
           };
 
           ipcBridge.fileStream.contentUpdate.emit(eventData);
+
+          // When the agent writes an HTML file, also surface it in the right-panel
+          // browser. The PreviewContext stops opening html in the floating
+          // PreviewPanel (see PreviewContext.tsx) so this is the single visible
+          // landing place. file:// URL allows the right-panel webview to load
+          // the file directly without copying it elsewhere.
+          if (/\.html?$/i.test(fileName)) {
+            ipcBridge.rightPanelBrowser.open.emit({ url: `file://${filePath}`, switchTab: true });
+          }
         } catch (emitError) {
           mainError('fsBridge', '❌ Failed to emit file stream update:', emitError);
         }

@@ -37,6 +37,20 @@ export interface TrackedTurnFile {
   reason: string;
   source: FileIntentSource;
   kind: 'create' | 'edit';
+  /**
+   * Mirror of FileIntentClassification.userInitiated — only set when the
+   * draft decision came from an explicit user/operation request (move-to-drafts).
+   * archiveTurnFiles uses this to choose archive vs. leave-in-place:
+   *   - userInitiated drafts → archive to .drafts/<basename>
+   *   - AI-auto drafts (undefined/false) → leave on disk where the model wrote
+   *     them, so cross-turn workflows (e.g. multi-turn PPT slide composition)
+   *     can still reference them. They're hidden from UI by other surfaces.
+   */
+  userInitiated?: boolean;
+}
+
+export interface CleanupIntermediateFilesOptions {
+  protectedFinalPaths?: Iterable<string>;
 }
 
 const fileIntentClassifier = new FileIntentClassifier();
@@ -67,6 +81,21 @@ function isPathInside(parent: string, child: string): boolean {
 
 function resolveTrackedPath(file: TrackedTurnFile): string {
   return file.path || file.actualPath;
+}
+
+function normalizeProtectedPath(workspace: string, protectedPath: string): string | null {
+  const trimmedPath = protectedPath.trim();
+  if (!trimmedPath) {
+    return null;
+  }
+
+  const resolvedPath = path.isAbsolute(trimmedPath) ? path.resolve(trimmedPath) : path.resolve(workspace, trimmedPath);
+  const relativePath = path.relative(workspace, resolvedPath);
+  if (!relativePath || relativePath.startsWith('..') || path.isAbsolute(relativePath) || relativePath.startsWith(`${DRAFTS_DIR_NAME}${path.sep}`)) {
+    return null;
+  }
+
+  return relativePath.replace(/\\/g, '/');
 }
 
 function resolveRootDestination(workspace: string, filePath: string, requestedPath: string): string {
@@ -136,17 +165,19 @@ async function normalizeDraftsAliasDirectories(workspace: string, draftsDir: str
  *
  * @param workspace - The workspace root path
  */
-export async function cleanupIntermediateFiles(workspace: string): Promise<void> {
+export async function cleanupIntermediateFiles(workspace: string, options: CleanupIntermediateFilesOptions = {}): Promise<void> {
   try {
-    const draftsDir = path.join(workspace, DRAFTS_DIR_NAME);
+    const workspaceRoot = path.resolve(workspace);
+    const draftsDir = path.join(workspaceRoot, DRAFTS_DIR_NAME);
+    const protectedFinalPaths = new Set(Array.from(options.protectedFinalPaths || []).map((protectedPath) => normalizeProtectedPath(workspaceRoot, protectedPath)).filter((protectedPath): protectedPath is string => protectedPath !== null));
 
     // Read workspace root entries
-    if (!fsSync.existsSync(workspace)) {
+    if (!fsSync.existsSync(workspaceRoot)) {
       return;
     }
 
-    const entries = await fs.readdir(workspace, { withFileTypes: true });
-    const movedAliasCount = await normalizeDraftsAliasDirectories(workspace, draftsDir, entries);
+    const entries = await fs.readdir(workspaceRoot, { withFileTypes: true });
+    const movedAliasCount = await normalizeDraftsAliasDirectories(workspaceRoot, draftsDir, entries);
     const filesToMove: Array<{ name: string; reason: string }> = [];
     const filesToKeep: Array<{ name: string; reason: string }> = [];
 
@@ -158,7 +189,17 @@ export async function cleanupIntermediateFiles(workspace: string): Promise<void>
       if (!entry.isFile()) continue;
       if (EXCLUDED_NAMES.has(entry.name)) continue;
 
-      const filePath = path.join(workspace, entry.name);
+      const filePath = path.join(workspaceRoot, entry.name);
+      const relativePath = path.relative(workspaceRoot, filePath).replace(/\\/g, '/');
+      if (protectedFinalPaths.has(relativePath)) {
+        filesToKeep.push({
+          name: entry.name,
+          reason: 'Protected current-turn final file',
+        });
+        mainLog('draftsCleanup', `[CLASSIFY] ${entry.name}: final (Protected current-turn final file), keeping in workspace root`);
+        continue;
+      }
+
       // Try to read file content for marker detection
       let content: string | null = null;
       try {
@@ -208,7 +249,7 @@ export async function cleanupIntermediateFiles(workspace: string): Promise<void>
     // Move draft files
     let movedCount = 0;
     for (const { name, reason } of filesToMove) {
-      const srcPath = path.join(workspace, name);
+      const srcPath = path.join(workspaceRoot, name);
       let destPath = path.join(draftsDir, name);
 
       // Handle name collision: append timestamp
@@ -238,7 +279,7 @@ export async function cleanupIntermediateFiles(workspace: string): Promise<void>
       const sideEffectDirs = ['node_modules'];
 
       for (const fileName of sideEffectFiles) {
-        const filePath = path.join(workspace, fileName);
+        const filePath = path.join(workspaceRoot, fileName);
         if (fsSync.existsSync(filePath)) {
           const destPath = path.join(draftsDir, fileName);
           try {
@@ -251,7 +292,7 @@ export async function cleanupIntermediateFiles(workspace: string): Promise<void>
       }
 
       for (const dirName of sideEffectDirs) {
-        const dirPath = path.join(workspace, dirName);
+        const dirPath = path.join(workspaceRoot, dirName);
         if (fsSync.existsSync(dirPath)) {
           try {
             await fs.rm(dirPath, { recursive: true, force: true });
@@ -284,6 +325,17 @@ export async function archiveTurnFiles(workspace: string, trackedFiles: Readonly
     }
     if (!isPathInside(workspaceRoot, srcPath)) {
       mainLog('draftsCleanup', `[TURN-ARCHIVE] Skipping outside-workspace file ${srcPath}`);
+      continue;
+    }
+
+    // AI-auto drafts (classifier heuristics, not user-explicit) stay on disk
+    // in their original location. Cross-turn workflows (e.g. PPT slide images
+    // generated in earlier turns and re-read by build_pptx.py in a later turn)
+    // depend on these files remaining accessible. They're hidden from UI
+    // surfaces — chat cards / deliverables tab filter to intent='final', and
+    // the workspace tree hides INTERMEDIATE_DIR_SEGMENTS.
+    if (file.intent === 'draft' && !file.userInitiated) {
+      mainLog('draftsCleanup', `[TURN-ARCHIVE] Leaving AI-auto draft in place: ${trackedKey} (${file.reason})`);
       continue;
     }
 

@@ -415,7 +415,7 @@ custom > hub > merged skills > builtin > extension
 
 ### 扩展 Skills
 
-扩展可以通过 `aion-extension.json` 的 `contributes.skills` 声明贡献 skills：
+扩展可以通过 `sudowork-extension.json` 的 `contributes.skills` 声明贡献 skills：
 
 ```typescript
 private async discoverExtensionSkills(enabledSkills?: string[]): Promise<void> {

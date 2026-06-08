@@ -5,7 +5,9 @@
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Left, Right, Refresh, Loading } from '@icon-park/react';
+import { normalizeBrowserUrl } from '@/common/browserPanelUrl';
 
 export interface WebviewHostProps {
   /** URL to display */
@@ -24,6 +26,12 @@ export interface WebviewHostProps {
   onDidFinishLoad?: () => void;
   /** Called when the page fails to load */
   onDidFailLoad?: (errorCode: number, errorDescription: string) => void;
+  /** Called when the current URL changes */
+  onUrlChange?: (url: string) => void;
+  /** Default zoom applied to normal webpages. */
+  defaultZoomFactor?: number;
+  /** Fired once the underlying webContents id is known (after dom-ready). */
+  onWebContentsIdReady?: (webContentsId: number) => void;
 }
 
 const MIN_ZOOM_FACTOR = 0.75;
@@ -34,12 +42,13 @@ const MAX_ZOOM_FACTOR = 1.5;
  *
  * Features:
  * - Link/window.open/form interception → internal navigation
- * - Self-managed history stacks (back / forward)
+ * - Native webview navigation history (back / forward)
  * - Loading indicator
  * - Partition support for cache isolation
  * - Optional navigation bar (hidden by default for embedded use)
  */
-const WebviewHost: React.FC<WebviewHostProps> = ({ url, id: _id, showNavBar = false, partition, className, style, onDidFinishLoad, onDidFailLoad }) => {
+const WebviewHost: React.FC<WebviewHostProps> = ({ url, id: _id, showNavBar = false, partition, className, style, onDidFinishLoad, onDidFailLoad, onUrlChange, defaultZoomFactor = 1, onWebContentsIdReady }) => {
+  const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
   const webviewRef = useRef<Electron.WebviewTag | null>(null);
@@ -52,9 +61,6 @@ const WebviewHost: React.FC<WebviewHostProps> = ({ url, id: _id, showNavBar = fa
   const [zoomFactor, setZoomFactor] = useState(1);
   const [webviewReady, setWebviewReady] = useState(false);
 
-  // Self-managed history stacks
-  const historyBackRef = useRef<string[]>([]);
-  const historyForwardRef = useRef<string[]>([]);
   const [canGoBack, setCanGoBack] = useState(false);
   const [canGoForward, setCanGoForward] = useState(false);
 
@@ -74,48 +80,51 @@ const WebviewHost: React.FC<WebviewHostProps> = ({ url, id: _id, showNavBar = fa
 
   // Reset when props.url changes
   useEffect(() => {
-    historyBackRef.current = [];
-    historyForwardRef.current = [];
-    setCanGoBack((prev) => (prev !== false ? false : prev));
-    setCanGoForward((prev) => (prev !== false ? false : prev));
+    setCanGoBack(false);
+    setCanGoForward(false);
     setCurrentUrl((prev) => (prev !== url ? url : prev));
     setInputUrl((prev) => (prev !== url ? url : prev));
     setIsLoading((prev) => (prev !== true ? true : prev));
-    setZoomFactor((prev) => (prev !== 1 ? 1 : prev));
+    setZoomFactor((prev) => (prev !== defaultZoomFactor ? defaultZoomFactor : prev));
     setWebviewReady((prev) => (prev !== false ? false : prev));
     autoFitPendingRef.current = isStarOfficeUrl(url);
-  }, [url]);
+  }, [defaultZoomFactor, isStarOfficeUrl, url]);
 
   useEffect(() => {
     const webviewEl = webviewRef.current as any;
     if (!webviewReady || !webviewEl?.setZoomFactor) return;
     try {
-      webviewEl.setZoomFactor(isStarOffice ? zoomFactor : 1);
+      webviewEl.setZoomFactor(isStarOffice ? zoomFactor : defaultZoomFactor);
     } catch {
       // Ignore zoom timing errors
     }
-  }, [isStarOffice, zoomFactor, webviewReady]);
+  }, [defaultZoomFactor, isStarOffice, zoomFactor, webviewReady]);
 
-  // Navigate to new URL (add to history)
-  const navigateToWithHistory = useCallback(
+  const syncHistoryState = useCallback(() => {
+    const webviewEl = webviewRef.current as
+      | (Electron.WebviewTag & {
+          canGoBack?: () => boolean;
+          canGoForward?: () => boolean;
+        })
+      | null;
+    if (!webviewEl) return;
+
+    setCanGoBack(Boolean(webviewEl.canGoBack?.()));
+    setCanGoForward(Boolean(webviewEl.canGoForward?.()));
+  }, []);
+
+  // Navigate to new URL using the webview's native history stack.
+  const navigateTo = useCallback(
     (targetUrl: string) => {
       const webviewEl = webviewRef.current;
-      if (!webviewEl || !targetUrl) return;
-      if (targetUrl === currentUrl) return;
-
-      if (currentUrl) {
-        historyBackRef.current.push(currentUrl);
-      }
-      historyForwardRef.current = [];
+      if (!webviewEl || !targetUrl || targetUrl === currentUrl) return;
 
       setCurrentUrl(targetUrl);
       setInputUrl(targetUrl);
-      setCanGoBack(historyBackRef.current.length > 0);
-      setCanGoForward(false);
-
+      onUrlChange?.(targetUrl);
       webviewEl.src = targetUrl;
     },
-    [currentUrl]
+    [currentUrl, onUrlChange]
   );
 
   // Webview event listeners
@@ -126,6 +135,7 @@ const WebviewHost: React.FC<WebviewHostProps> = ({ url, id: _id, showNavBar = fa
     const handleStartLoading = () => setIsLoading(true);
     const handleStopLoading = () => {
       setIsLoading(false);
+      syncHistoryState();
     };
 
     // Inject script to intercept links / window.open / form submissions
@@ -180,7 +190,7 @@ const WebviewHost: React.FC<WebviewHostProps> = ({ url, id: _id, showNavBar = fa
         if (event.message.includes('__WEBVIEW_HOST_NAVIGATE__')) {
           const match = event.message.match(/"url":"([^"]+)"/);
           if (match && match[1]) {
-            navigateToWithHistory(match[1]);
+            navigateTo(match[1]);
           }
           return;
         }
@@ -211,30 +221,25 @@ const WebviewHost: React.FC<WebviewHostProps> = ({ url, id: _id, showNavBar = fa
       if (newUrl && newUrl !== currentUrl) {
         setCurrentUrl(newUrl);
         setInputUrl(newUrl);
+        onUrlChange?.(newUrl);
       }
+      syncHistoryState();
     };
 
     const handleDomReady = () => {
       setWebviewReady(true);
       injectClickInterceptor();
 
-      // Inject viewport meta for responsive pages
-      webviewEl
-        .executeJavaScript(
-          `
-        (function() {
-          let viewport = document.querySelector('meta[name="viewport"]');
-          if (!viewport) {
-            viewport = document.createElement('meta');
-            viewport.name = 'viewport';
-            viewport.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
-            document.head.appendChild(viewport);
-          }
-        })();
-        true;
-      `
-        )
-        .catch(() => {});
+      // Report the webContents id once it's available. The id is stable for the
+      // lifetime of the <webview> element, so report on first dom-ready only.
+      if (onWebContentsIdReady) {
+        try {
+          const wcid = (webviewEl as Electron.WebviewTag).getWebContentsId?.();
+          if (typeof wcid === 'number') onWebContentsIdReady(wcid);
+        } catch {
+          // ignore — older Electron versions may not expose getWebContentsId
+        }
+      }
 
       // Set up message listener inside webview
       webviewEl
@@ -251,6 +256,24 @@ const WebviewHost: React.FC<WebviewHostProps> = ({ url, id: _id, showNavBar = fa
         .catch(() => {});
 
       if (isStarOfficeUrl(currentUrl)) {
+        // Inject viewport meta only for the special fit-to-width page.
+        webviewEl
+          .executeJavaScript(
+            `
+          (function() {
+            let viewport = document.querySelector('meta[name="viewport"]');
+            if (!viewport) {
+              viewport = document.createElement('meta');
+              viewport.name = 'viewport';
+              viewport.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
+              document.head.appendChild(viewport);
+            }
+          })();
+          true;
+        `
+          )
+          .catch(() => {});
+
         webviewEl
           .executeJavaScript(
             `
@@ -312,11 +335,13 @@ const WebviewHost: React.FC<WebviewHostProps> = ({ url, id: _id, showNavBar = fa
 
     const handleDidFinishLoad = () => {
       setIsLoading(false);
+      syncHistoryState();
       onDidFinishLoad?.();
     };
 
     const handleDidFailLoad = (event: any) => {
       setIsLoading(false);
+      syncHistoryState();
       onDidFailLoad?.(event.errorCode, event.errorDescription);
     };
 
@@ -339,7 +364,7 @@ const WebviewHost: React.FC<WebviewHostProps> = ({ url, id: _id, showNavBar = fa
       webviewEl.removeEventListener('did-finish-load', handleDidFinishLoad);
       webviewEl.removeEventListener('did-fail-load', handleDidFailLoad as EventListener);
     };
-  }, [navigateToWithHistory, currentUrl, onDidFinishLoad, onDidFailLoad, isStarOfficeUrl]);
+  }, [currentUrl, navigateTo, onDidFailLoad, onDidFinishLoad, onUrlChange, isStarOfficeUrl, syncHistoryState]);
 
   // Resize observer for content area
   useEffect(() => {
@@ -360,6 +385,32 @@ const WebviewHost: React.FC<WebviewHostProps> = ({ url, id: _id, showNavBar = fa
     observer.observe(contentEl);
 
     return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const webviewEl = webviewRef.current as any;
+    if (!webviewEl) return;
+    webviewEl.tabIndex = 0;
+    const focus = () => {
+      try {
+        webviewEl.focus();
+      } catch {
+        // ignore focus timing issues
+      }
+    };
+    const handlePointerDown = () => {
+      focus();
+    };
+    webviewEl.addEventListener('dom-ready', focus);
+    webviewEl.addEventListener('focus', focus);
+    webviewEl.addEventListener('mousedown', handlePointerDown);
+    webviewEl.addEventListener('pointerdown', handlePointerDown);
+    return () => {
+      webviewEl.removeEventListener('dom-ready', focus);
+      webviewEl.removeEventListener('focus', focus);
+      webviewEl.removeEventListener('mousedown', handlePointerDown);
+      webviewEl.removeEventListener('pointerdown', handlePointerDown);
+    };
   }, []);
 
   const handleZoomReset = useCallback(() => {
@@ -412,45 +463,34 @@ const WebviewHost: React.FC<WebviewHostProps> = ({ url, id: _id, showNavBar = fa
 
   // Back
   const handleGoBack = useCallback(() => {
-    if (historyBackRef.current.length === 0) return;
-    const prevUrl = historyBackRef.current.pop()!;
-    historyForwardRef.current.push(currentUrl);
-    setCanGoBack(historyBackRef.current.length > 0);
-    setCanGoForward(true);
-    setCurrentUrl(prevUrl);
-    setInputUrl(prevUrl);
-    if (webviewRef.current) webviewRef.current.src = prevUrl;
-  }, [currentUrl]);
+    const webviewEl = webviewRef.current as (Electron.WebviewTag & { goBack?: () => void }) | null;
+    if (!webviewEl?.goBack || !canGoBack) return;
+    webviewEl.goBack();
+  }, [canGoBack]);
 
   // Forward
   const handleGoForward = useCallback(() => {
-    if (historyForwardRef.current.length === 0) return;
-    const nextUrl = historyForwardRef.current.pop()!;
-    historyBackRef.current.push(currentUrl);
-    setCanGoBack(true);
-    setCanGoForward(historyForwardRef.current.length > 0);
-    setCurrentUrl(nextUrl);
-    setInputUrl(nextUrl);
-    if (webviewRef.current) webviewRef.current.src = nextUrl;
-  }, [currentUrl]);
+    const webviewEl = webviewRef.current as (Electron.WebviewTag & { goForward?: () => void }) | null;
+    if (!webviewEl?.goForward || !canGoForward) return;
+    webviewEl.goForward();
+  }, [canGoForward]);
 
   // Refresh
   const handleRefresh = useCallback(() => {
     webviewRef.current?.reload();
   }, []);
 
-  // URL bar submit
+  // URL bar submit. Uses the shared normalizer so file:// / about: /
+  // chrome:// schemes pass through unchanged instead of getting an
+  // `https://` prefix bolted on (which would produce `https://file:///…`).
   const handleUrlSubmit = useCallback(
     (e: React.FormEvent) => {
       e.preventDefault();
-      let targetUrl = inputUrl.trim();
+      const targetUrl = normalizeBrowserUrl(inputUrl);
       if (!targetUrl) return;
-      if (!/^https?:\/\//i.test(targetUrl)) {
-        targetUrl = 'https://' + targetUrl;
-      }
-      navigateToWithHistory(targetUrl);
+      navigateTo(targetUrl);
     },
-    [inputUrl, navigateToWithHistory]
+    [inputUrl, navigateTo]
   );
 
   const handleUrlKeyDown = useCallback(
@@ -464,16 +504,19 @@ const WebviewHost: React.FC<WebviewHostProps> = ({ url, id: _id, showNavBar = fa
   );
 
   // Build webview attributes
+  // allowFileAccessFromFileURLs / allowUniversalAccessFromFileURLs are required
+  // for the right-panel browser to render AI-generated HTML at file:// — without
+  // them, the page loads but cross-origin <script src> / fetch silently fail.
   const webviewAttrs: Record<string, string> = {
     allowpopups: 'false',
-    webpreferences: 'contextIsolation=no, nodeIntegration=no, nativeWindowOpen=no',
+    webpreferences: 'contextIsolation=no, nodeIntegration=no, nativeWindowOpen=no, allowFileAccessFromFileURLs=true, allowUniversalAccessFromFileURLs=true',
   };
   if (partition) {
     webviewAttrs.partition = partition;
   }
 
   return (
-    <div ref={containerRef} className={`h-full w-full flex flex-col ${className ?? ''}`} style={style}>
+    <div ref={containerRef} id={_id} className={`relative h-full w-full flex-1 min-h-0 flex flex-col ${className ?? ''}`} style={style}>
       {showNavBar && (
         <style>
           {`
@@ -543,7 +586,7 @@ const WebviewHost: React.FC<WebviewHostProps> = ({ url, id: _id, showNavBar = fa
             .aion-url-viewer-toolbar .toolbar-input {
               -webkit-appearance: none;
               appearance: none;
-              width: 100%;
+              width: 90%;
               height: 30px;
               padding: 0 12px;
               border-radius: 10px;
@@ -567,29 +610,29 @@ const WebviewHost: React.FC<WebviewHostProps> = ({ url, id: _id, showNavBar = fa
       )}
       {/* Navigation bar (optional) */}
       {showNavBar && (
-        <div className='aion-url-viewer-toolbar flex items-center gap-6px h-40px px-10px bg-bg-2 border-b border-border-1 flex-shrink-0'>
-          <button onClick={handleGoBack} disabled={!canGoBack} className='toolbar-btn icon-btn' title='Back'>
+        <div className='aion-url-viewer-toolbar relative z-10 flex items-center gap-6px h-40px px-10px bg-bg-2 border-b border-border-1 flex-shrink-0'>
+          <button onClick={handleGoBack} disabled={!canGoBack} className='toolbar-btn icon-btn' aria-label={t('conversation.rightPanel.browser.back')}>
             <Left theme='outline' size={16} />
           </button>
-          <button onClick={handleGoForward} disabled={!canGoForward} className='toolbar-btn icon-btn' title='Forward'>
+          <button onClick={handleGoForward} disabled={!canGoForward} className='toolbar-btn icon-btn' aria-label={t('conversation.rightPanel.browser.forward')}>
             <Right theme='outline' size={16} />
           </button>
-          <button onClick={handleRefresh} className='toolbar-btn icon-btn' title='Refresh'>
+          <button onClick={handleRefresh} className='toolbar-btn icon-btn' aria-label={t('conversation.rightPanel.browser.refresh')}>
             {isLoading ? <Loading theme='outline' size={16} className='animate-spin' /> : <Refresh theme='outline' size={16} />}
           </button>
           {isStarOffice && (
             <div className='flex items-center gap-6px ml-2px'>
-              <button onClick={handleZoomReset} className='toolbar-btn' title='Reset zoom'>
+              <button onClick={handleZoomReset} className='toolbar-btn' aria-label={t('conversation.rightPanel.browser.resetZoom')}>
                 100%
               </button>
-              <button onClick={handleZoomFit} className='toolbar-btn' title='Fit'>
-                Fit
+              <button onClick={handleZoomFit} className='toolbar-btn' aria-label={t('conversation.rightPanel.browser.fit')}>
+                {t('conversation.rightPanel.browser.fit')}
               </button>
               <span className='toolbar-chip'>{Math.round(zoomFactor * 100)}%</span>
             </div>
           )}
           <form onSubmit={handleUrlSubmit} className='flex-1 ml-2px'>
-            <input type='text' value={inputUrl} onChange={(e) => setInputUrl(e.target.value)} onKeyDown={handleUrlKeyDown} onFocus={(e) => e.target.select()} className='toolbar-input' placeholder='Enter URL...' />
+            <input type='text' value={inputUrl} onChange={(e) => setInputUrl(e.target.value)} onKeyDown={handleUrlKeyDown} onFocus={(e) => e.target.select()} className='toolbar-input' placeholder={t('conversation.rightPanel.browser.urlPlaceholder')} />
           </form>
         </div>
       )}
@@ -597,17 +640,20 @@ const WebviewHost: React.FC<WebviewHostProps> = ({ url, id: _id, showNavBar = fa
       {/* Loading indicator (when no nav bar) */}
       {!showNavBar && isLoading && (
         <div className='absolute inset-0 flex items-center justify-center text-t-secondary text-14px z-10 pointer-events-none'>
-          <span className='animate-pulse'>Loading…</span>
+          <span className='animate-pulse'>{t('conversation.rightPanel.browser.loading')}</span>
         </div>
       )}
 
       {/* Webview content area */}
-      <div ref={contentRef} className='flex-1 overflow-hidden relative' style={{ minHeight: 0 }} onWheel={handleOuterWheelZoom}>
+      <div ref={contentRef} className='relative z-0 flex-1 min-h-0 overflow-hidden' style={{ minHeight: 0 }} onWheel={handleOuterWheelZoom}>
         <webview
           ref={webviewRef as any}
           src={currentUrl}
-          className='border-0 absolute left-0 top-0'
+          className='absolute left-0 top-0 z-0 border-0'
+          tabIndex={0}
           style={{
+            width: '100%',
+            height: '100%',
             opacity: !showNavBar && isLoading ? 0 : 1,
             transition: 'opacity 150ms ease-in',
           }}

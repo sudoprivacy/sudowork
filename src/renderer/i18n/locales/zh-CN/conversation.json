@@ -78,6 +78,42 @@
     "closeRight": "关闭右侧",
     "closeOthers": "关闭其他"
   },
+  "rightPanel": {
+    "tabs": {
+      "workspace": "工作空间",
+      "browser": "浏览器",
+      "terminal": "终端",
+      "deliverables": "交付物"
+    },
+    "deliverables": {
+      "emptyTitle": "尚无交付物",
+      "emptyHint": "AI 在此次会话中生成的文件会出现在这里。",
+      "loading": "加载中...",
+      "groupToday": "今天",
+      "groupYesterday": "昨天"
+    },
+    "browser": {
+      "newTab": "新标签页",
+      "open": "打开",
+      "openExternal": "在系统浏览器打开",
+      "back": "后退",
+      "forward": "前进",
+      "refresh": "刷新",
+      "resetZoom": "重置缩放",
+      "fit": "适应宽度",
+      "urlPlaceholder": "输入网址",
+      "loading": "正在加载...",
+      "clearCache": "清除浏览器数据",
+      "clearCacheConfirmTitle": "清除右栏浏览器数据?",
+      "clearCacheConfirmContent": "这会清除右栏浏览器的 cookie、本地存储和缓存文件。此处登录过的网站会被注销。系统浏览器不受影响。",
+      "clearCacheSuccess": "浏览器数据已清除",
+      "clearCacheFailure": "清除浏览器数据失败"
+    },
+    "terminal": {
+      "tab": "终端",
+      "newTab": "新终端"
+    }
+  },
   "dropdown": {
     "cliAgents": "CLI Agents",
     "presetAssistants": "预设助手"

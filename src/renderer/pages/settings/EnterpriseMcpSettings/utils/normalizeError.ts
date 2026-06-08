@@ -24,6 +24,12 @@ export function normalizeInstallError(err: unknown): NormalizedInstallError {
           message: '必填配置项缺失，请补充后重试',
           missingKeys: err.missing_keys,
         };
+      case 'missing_auth_credentials':
+        return {
+          ...base,
+          message: '必填鉴权凭据缺失，请补充后重试',
+          missingKeys: err.missing_keys,
+        };
       case 'forbidden':
         return { ...base, message: err.message || '当前策略禁止安装该 MCP' };
       case 'not_found':
