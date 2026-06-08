@@ -96,7 +96,6 @@ const ConversationTabs: React.FC = () => {
 
   const { cliAgents, presetAssistants, isLoading } = useConversationAgents();
   const defaultConversationName = t('conversation.welcome.newConversation');
-
   // 更新 Tab 溢出状态
   const updateTabOverflow = useCallback(() => {
     const container = tabsContainerRef.current;
@@ -332,7 +331,17 @@ const ConversationTabs: React.FC = () => {
           {openTabs.map((tab) => {
             const tabTime = tab.modifyTime || tab.createTime;
             const tabTimeLabel = tabTime ? formatSessionTime(tabTime, i18n.language, t('conversation.history.yesterday')) : '';
-            return <ConversationTabView key={tab.id} tabId={tab.id} tabName={tab.name} isActive={tab.id === activeTabId} isMobile={isMobile} contextMenu={getContextMenu(tab.id)} timeLabel={tabTimeLabel} onSwitch={handleSwitchTab} onClose={handleCloseTab} />;
+            const tabViewProps = {
+              tabId: tab.id,
+              tabName: tab.name,
+              isActive: tab.id === activeTabId,
+              isMobile,
+              contextMenu: getContextMenu(tab.id),
+              timeLabel: tabTimeLabel,
+              onSwitch: handleSwitchTab,
+              onClose: handleCloseTab,
+            };
+            return <ConversationTabView key={tab.id} {...tabViewProps} />;
           })}
         </div>
 
