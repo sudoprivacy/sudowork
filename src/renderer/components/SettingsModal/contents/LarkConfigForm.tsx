@@ -357,6 +357,24 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
     if (larkCliPhase !== 'success') setLarkCliPhase('idle');
   }, [larkCliPhase]);
 
+  const handleLarkCliWhoAmI = useCallback(async () => {
+    try {
+      const result = await channel.larkCliWhoAmI.invoke();
+      if (!result.success) {
+        Message.error(result.msg || 'Failed');
+        return;
+      }
+      if (!result.data) {
+        Message.warning(t('settings.lark.larkCli.noOAuthData', '未取得用户信息 (lark-cli 是否已登录？)'));
+        return;
+      }
+      const { name, openId, email } = result.data;
+      Message.success(`OAuth ✓  ${name ?? ''}${openId ? `  ·  ${openId}` : ''}${email ? `  ·  ${email}` : ''}`);
+    } catch (error: any) {
+      Message.error(error?.message ?? String(error));
+    }
+  }, [t]);
+
   const handleLarkCliLogout = useCallback(async () => {
     try {
       const result = await channel.larkCliLogout.invoke();
@@ -571,6 +589,9 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
                 {larkCliLoggedInAt && <span className='text-12px text-t-tertiary'>{new Date(larkCliLoggedInAt).toLocaleString()}</span>}
               </div>
               <div className='flex items-center gap-8px'>
+                <Button size='small' onClick={handleLarkCliWhoAmI} disabled={!larkCliInstalled}>
+                  {t('settings.lark.larkCli.testOAuth', '测试 OAuth')}
+                </Button>
                 <Button size='small' icon={<ScanCode size={14} />} onClick={handleStartLarkCliLogin} disabled={!larkCliInstalled}>
                   {t('settings.lark.larkCli.relogin', '重新登录')}
                 </Button>

@@ -9,10 +9,11 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 import { getDataPath } from '@/process/utils';
+import { callLarkCliApi, fetchLarkCliUserInfo } from '@/process/services/larkCli/larkCliApiCall';
 import type { BotInfo, IChannelPluginConfig, IUnifiedIncomingMessage, IUnifiedOutgoingMessage, PluginType } from '../../types';
 import { BasePlugin } from '../BasePlugin';
 import { extractCardAction, LARK_MESSAGE_LIMIT, toLarkSendParams, toUnifiedIncomingMessage } from './LarkAdapter';
-import { mainWarn } from '@/process/utils/mainLogger';
+import { mainLog, mainWarn } from '@/process/utils/mainLogger';
 import { detectImageMimeType } from '@/common/imageUtils';
 
 /**
@@ -126,6 +127,19 @@ export class LarkPlugin extends BasePlugin {
       this.startEventCleanup();
 
       console.log(`[LarkPlugin] Started for app ${appId}`);
+
+      // If a lark-cli OAuth user token is available, fire-and-forget a user_info call to log
+      // the live OAuth identity. Proves end-to-end that user-scope API calls work without
+      // blocking startup if lark-cli is offline.
+      if (this.config?.credentials?.larkCliAccessToken) {
+        void this.fetchOAuthUserInfo().then((info) => {
+          if (info) {
+            mainLog('LarkPlugin', `OAuth user identity verified: ${info.name ?? '<unnamed>'} (open_id=${info.openId ?? 'n/a'})`);
+          } else {
+            mainWarn('LarkPlugin', 'lark-cli OAuth token present but user_info call returned no data');
+          }
+        });
+      }
     } catch (error) {
       console.error('[LarkPlugin] Failed to start:', error);
       throw error;
@@ -802,6 +816,24 @@ export class LarkPlugin extends BasePlugin {
         this.processedEvents.delete(eventId);
       }
     }
+  }
+
+  /**
+   * Invoke a Feishu Open API endpoint via the bundled `lark-cli`. lark-cli owns the
+   * user_access_token and handles refresh; this is the in-plugin wrapper around the shared
+   * helper in src/process/services/larkCli/larkCliApiCall.ts.
+   */
+  async runLarkCliApi(method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH', apiPath: string, body?: Record<string, unknown>): Promise<Record<string, unknown>> {
+    return callLarkCliApi(method, apiPath, body);
+  }
+
+  /**
+   * Returns the OAuth user identity (the human who completed the QR scan), or null if the
+   * call fails. Delegates to the standalone helper so the IPC layer can use it without a
+   * live plugin instance too.
+   */
+  async fetchOAuthUserInfo(): Promise<{ name?: string; openId?: string; email?: string } | null> {
+    return fetchLarkCliUserInfo();
   }
 
   /**

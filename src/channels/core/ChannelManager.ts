@@ -303,8 +303,26 @@ export class ChannelManager {
       const appSecret = config.appSecret as string | undefined;
       const encryptKey = config.encryptKey as string | undefined;
       const verificationToken = config.verificationToken as string | undefined;
+      // lark-cli QR-login adds these (all optional, present only after a successful scan)
+      const larkCliAccessToken = config.larkCliAccessToken as string | undefined;
+      const larkCliRefreshToken = config.larkCliRefreshToken as string | undefined;
+      const larkCliUserId = config.larkCliUserId as string | undefined;
+      const larkCliUserName = config.larkCliUserName as string | undefined;
+      // Timestamps are intentionally dropped on persistence — the storage layer only stores
+      // strings and the values are only used by the UI display, which can fall back to
+      // showing nothing when missing.
       if (appId && appSecret) {
-        credentials = { appId, appSecret, encryptKey, verificationToken };
+        const merged: Record<string, string | undefined> = {
+          appId,
+          appSecret,
+          encryptKey,
+          verificationToken,
+        };
+        if (larkCliAccessToken) merged.larkCliAccessToken = larkCliAccessToken;
+        if (larkCliRefreshToken) merged.larkCliRefreshToken = larkCliRefreshToken;
+        if (larkCliUserId) merged.larkCliUserId = larkCliUserId;
+        if (larkCliUserName) merged.larkCliUserName = larkCliUserName;
+        credentials = merged as typeof credentials;
       }
     } else if (pluginType === 'dingtalk') {
       const clientId = config.clientId as string | undefined;

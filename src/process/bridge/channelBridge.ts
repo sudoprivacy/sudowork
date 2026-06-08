@@ -621,5 +621,16 @@ export function initChannelBridge(): void {
     }
   });
 
+  channel.larkCliWhoAmI.provider(async () => {
+    try {
+      const { fetchLarkCliUserInfoOrThrow } = await import('@/process/services/larkCli/larkCliApiCall');
+      const info = await fetchLarkCliUserInfoOrThrow();
+      return { success: true, data: info };
+    } catch (error: any) {
+      mainError('ChannelBridge', 'larkCliWhoAmI error:', error);
+      return { success: false, msg: error?.message ?? 'Failed to call user_info' };
+    }
+  });
+
   mainLog('ChannelBridge', 'Initialized');
 }

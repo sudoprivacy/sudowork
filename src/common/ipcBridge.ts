@@ -1638,6 +1638,7 @@ export const channel = {
   larkCliCancel: bridge.buildProvider<IBridgeResponse<void>, void>('channel.lark-cli-cancel'),
   larkCliStatus: bridge.buildProvider<IBridgeResponse<{ installed: boolean; binPath: string; configured: boolean; loggedIn: boolean; user?: { id?: string; name?: string } }>, void>('channel.lark-cli-status'),
   larkCliLogout: bridge.buildProvider<IBridgeResponse<void>, void>('channel.lark-cli-logout'),
+  larkCliWhoAmI: bridge.buildProvider<IBridgeResponse<{ name?: string; openId?: string; email?: string } | null>, void>('channel.lark-cli-who-am-i'),
   larkCliLogin: bridge.buildEmitter<{
     phase: 'initializing' | 'app-setup' | 'qrcode' | 'success' | 'error' | 'expired';
     verificationUrl?: string;
