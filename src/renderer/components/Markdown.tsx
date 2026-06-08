@@ -140,7 +140,7 @@ function CodeBlock(props: any) {
     const diffLines = isDiff ? formattedContent.split('\n') : [];
 
     return (
-      <div style={{ width: '100%', minWidth: 0, maxWidth: '100%', overflowX: 'auto', ...(props.codeStyle || {}) }}>
+      <div style={{ width: '100%', minWidth: 0, maxWidth: '100%', ...(props.codeStyle || {}) }}>
         <div
           style={{
             width: '100%',
@@ -149,7 +149,6 @@ function CodeBlock(props: any) {
             border: '1px solid var(--bg-3)',
             borderRadius: '0.3rem',
             overflow: 'hidden',
-            overflowX: 'auto',
           }}
         >
           <div
@@ -200,41 +199,37 @@ function CodeBlock(props: any) {
           {logicRender(
             !fold,
             <>
-              <SyntaxHighlighter
-                children={formattedContent}
-                language={language}
-                style={codeTheme}
-                PreTag='div'
-                wrapLines={isDiff}
-                lineProps={
-                  isDiff
-                    ? (lineNumber: number) => ({
-                        style: { display: 'block', ...getDiffLineStyle(diffLines[lineNumber - 1] || '', currentTheme === 'dark') },
-                      })
-                    : undefined
-                }
-                customStyle={{
-                  width: '100%',
-                  minWidth: 0,
-                  marginTop: '0',
-                  margin: '0',
-                  borderTopLeftRadius: '0',
-                  borderTopRightRadius: '0',
-                  borderBottomLeftRadius: '0',
-                  borderBottomRightRadius: '0',
-                  border: 'none',
-                  background: 'transparent',
-                  color: 'var(--text-primary)',
-                  overflowX: 'auto',
-                  maxWidth: '100%',
-                  whiteSpace: 'pre',
-                }}
-                codeTagProps={{
-                  style: {
+              <div style={{ width: '100%', minWidth: 0, maxWidth: '100%', overflowX: 'auto' }}>
+                <SyntaxHighlighter
+                  children={formattedContent}
+                  language={language}
+                  style={codeTheme}
+                  PreTag='div'
+                  wrapLines={isDiff}
+                  lineProps={
+                    isDiff
+                      ? (lineNumber: number) => ({
+                          style: { display: 'block', ...getDiffLineStyle(diffLines[lineNumber - 1] || '', currentTheme === 'dark') },
+                        })
+                      : undefined
+                  }
+                  customStyle={{
+                    width: 'max-content',
+                    minWidth: '100%',
+                    margin: '0',
+                    border: 'none',
+                    background: 'transparent',
                     color: 'var(--text-primary)',
-                  },
-                }}
-              />
+                    overflowX: 'visible',
+                    whiteSpace: 'pre',
+                  }}
+                  codeTagProps={{
+                    style: {
+                      color: 'var(--text-primary)',
+                    },
+                  }}
+                />
+              </div>
               <div
                 style={{
                   display: 'flex',

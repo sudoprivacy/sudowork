@@ -180,7 +180,6 @@ const SkillCard: React.FC<{
   loadingVersion?: boolean;
 }> = ({ skill, isInstalled, hasVersion, installing, installProgress, onInstall, onClick, hasUpdate, onUpdate, updating, latestVersion, loadingVersion }) => {
   const { t } = useTranslation();
-
   return (
     <div className='settings-library-card group bg-fill-1 rd-12px cursor-pointer hover:bg-fill-2 transition-colors border border-line p-12px flex items-start gap-12px relative overflow-hidden' onClick={onClick}>
       {/* Icon */}
@@ -542,11 +541,8 @@ const SkillDetailModal: React.FC<{
                   </Button>
                 </Tooltip>
                 <Tooltip content={t('common.download', { defaultValue: '下载' })}>
-                  <Button size='large' onClick={onDownload} loading={downloading} disabled={installing}>
-                    <span className='flex items-center gap-6px justify-center'>
-                      <Download size='15' />
-                      {t('common.download', { defaultValue: '下载' })}
-                    </span>
+                  <Button size='large' icon={<Download size='15' />} loading={downloading} loadingFixedWidth onClick={onDownload} disabled={installing}>
+                    {t('common.download', { defaultValue: '下载' })}
                   </Button>
                 </Tooltip>
               </>
