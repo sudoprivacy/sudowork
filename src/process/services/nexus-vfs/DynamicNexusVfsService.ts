@@ -11,6 +11,7 @@ import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import { processSupervisor } from '@process/ProcessSupervisor';
 import { extractTarGzWithProgress, extractZipWithProgress } from '../archiveProgress';
 import runtimeVersions from '@/shared/runtime-versions.json';
+import { COS_RUNTIME_BASE, COS_LEGACY_NEXUS_VFS_BASE } from '@/shared/cos';
 
 const execAsync = promisify(exec);
 
@@ -36,8 +37,11 @@ const NEXUS_VFS_START_TIMEOUT_MS = 30_000;
 /** Marker file recording the installed version inside the bin directory. */
 const NEXUS_VFS_READY_MARKER = '.nexus-vfs-bin-ready';
 
-/** COS mirror that hosts the nexus-vfs release artifacts (verified by HEAD probe). */
-const NEXUS_VFS_COS_BASE_URL = 'https://sudoclaw-download-1309794936.cos.ap-beijing.myqcloud.com/nexus-vfs/release';
+/** COS mirrors hosting the nexus-vfs artifacts. Runtime bucket is primary; the
+ *  legacy bucket stays live as a fallback during deprecation. Both serve the same
+ *  bytes (server-side copy), so the SHA256 check below holds for either source. */
+const NEXUS_VFS_RUNTIME_BASE_URL = `${COS_RUNTIME_BASE}/nexus-vfs/release`;
+const NEXUS_VFS_LEGACY_BASE_URL = `${COS_LEGACY_NEXUS_VFS_BASE}/nexus-vfs/release`;
 
 /** Node.js process.platform → artifact OS token. */
 const OS_NAME_MAP: Record<string, string> = { darwin: 'macos', win32: 'windows', linux: 'linux' };
@@ -147,8 +151,13 @@ class DynamicNexusVfsService {
     return `nexusd-cluster-${osName}-${archName}${ext}`;
   }
 
-  private getDownloadUrl(): string {
-    return `${NEXUS_VFS_COS_BASE_URL}/v${this.getBundledVersion()}/${this.getArtifactName()}`;
+  /** Ordered download URLs: runtime bucket first, legacy bucket as fallback. */
+  private getDownloadUrls(): { label: string; url: string }[] {
+    const tail = `v${this.getBundledVersion()}/${this.getArtifactName()}`;
+    return [
+      { label: 'Runtime COS', url: `${NEXUS_VFS_RUNTIME_BASE_URL}/${tail}` },
+      { label: 'Legacy COS', url: `${NEXUS_VFS_LEGACY_BASE_URL}/${tail}` },
+    ];
   }
 
   // ── Install state ────────────────────────────────────────────────────────────
@@ -268,21 +277,36 @@ class DynamicNexusVfsService {
     fs.mkdirSync(downloadDir, { recursive: true });
     fs.mkdirSync(binDir, { recursive: true });
 
-    const url = this.getDownloadUrl();
+    const attempts = this.getDownloadUrls();
     const archivePath = path.join(downloadDir, this.getArtifactName());
 
-    this.emit('downloading', `Downloading nexus-vfs from ${url}`, 0);
-    try {
-      await this.downloadFile(url, archivePath);
-    } catch (err) {
-      const reason = err instanceof Error ? err.message : String(err);
-      if (reason === 'NOT_FOUND') {
-        const msg = `nexus-vfs binary not available for ${process.platform}-${process.arch} in v${this.getBundledVersion()} (${url} → HTTP 404)`;
+    let downloaded = false;
+    let lastReason = 'unknown error';
+    let allNotFound = true;
+    for (const attempt of attempts) {
+      this.emit('downloading', `Downloading nexus-vfs from ${attempt.label} (${attempt.url})`, 0);
+      try {
+        await this.downloadFile(attempt.url, archivePath);
+        downloaded = true;
+        break;
+      } catch (err) {
+        const reason = err instanceof Error ? err.message : String(err);
+        lastReason = reason;
+        if (reason !== 'NOT_FOUND') allNotFound = false;
+        mainWarn('NexusVfs', `${attempt.label} download failed: ${reason}`);
+      }
+    }
+
+    if (!downloaded) {
+      // Every mirror returned 404 → the artifact genuinely does not exist for this
+      // platform/version. Preserve the explicit, non-fallback NOT_FOUND signal.
+      if (allNotFound) {
+        const msg = `nexus-vfs binary not available for ${process.platform}-${process.arch} in v${this.getBundledVersion()} (all COS mirrors → HTTP 404)`;
         this.emit('error', msg);
         throw new Error(msg);
       }
-      this.emit('error', `Failed to download nexus-vfs: ${reason}`);
-      throw err;
+      this.emit('error', `Failed to download nexus-vfs: ${lastReason}`);
+      throw new Error(lastReason);
     }
 
     // Integrity check before we trust the archive — reject anything unverified.

@@ -24,16 +24,23 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
+import { COS_RUNTIME_BASE, COS_LEGACY_HUB_BASE } from '@/shared/cos';
 
 const execAsync = promisify(exec);
 const TAG = 'GitInstall';
 
 // ── Git for Windows download URLs ────────────────────────────────────────────
 const GIT_WIN_VERSION = '2.47.1';
-const GIT_WIN_URLS: Record<string, string> = {
-  x64: `https://sudoworkhub-1309794936.cos.ap-beijing.myqcloud.com/sudoclaw/Git-2.47.1-64-bit.exe`,
-  arm64: `https://sudoworkhub-1309794936.cos.ap-beijing.myqcloud.com/sudoclaw/Git-2.47.1-arm64.exe`,
+const GIT_WIN_FILES: Record<string, string> = {
+  x64: `Git-${GIT_WIN_VERSION}-64-bit.exe`,
+  arm64: `Git-${GIT_WIN_VERSION}-arm64.exe`,
 };
+
+/** Ordered Git-for-Windows installer URLs: runtime bucket first, legacy bucket as fallback. */
+function gitWinUrls(arch: string): string[] {
+  const file = GIT_WIN_FILES[arch] ?? GIT_WIN_FILES.x64;
+  return [`${COS_RUNTIME_BASE}/git/${file}`, `${COS_LEGACY_HUB_BASE}/sudoclaw/${file}`];
+}
 
 // ── Public API ───────────────────────────────────────────────────────────────
 
@@ -175,16 +182,30 @@ function _downloadFile(url: string, dest: string, onProgress?: (pct: number) => 
 
 async function _installGitWindows(onProgress?: (msg: string) => void): Promise<boolean> {
   const arch = process.arch === 'arm64' ? 'arm64' : 'x64';
-  const url = GIT_WIN_URLS[arch] ?? GIT_WIN_URLS.x64;
+  const urls = gitWinUrls(arch);
   const installerPath = path.join(os.tmpdir(), `git-installer-${arch}.exe`);
 
   try {
     onProgress?.(`正在下载 Git for Windows (${arch})...`);
-    mainLog(TAG, `Downloading Git ${GIT_WIN_VERSION} from ${url}`);
 
-    await _downloadFile(url, installerPath, (pct) => {
-      onProgress?.(`下载 Git... ${pct}%`);
-    });
+    let downloaded = false;
+    let lastError: unknown;
+    for (const url of urls) {
+      try {
+        mainLog(TAG, `Downloading Git ${GIT_WIN_VERSION} from ${url}`);
+        await _downloadFile(url, installerPath, (pct) => {
+          onProgress?.(`下载 Git... ${pct}%`);
+        });
+        downloaded = true;
+        break;
+      } catch (err) {
+        lastError = err;
+        mainWarn(TAG, `Git download failed from ${url}: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+    if (!downloaded) {
+      throw lastError instanceof Error ? lastError : new Error('All Git download mirrors failed');
+    }
 
     onProgress?.('正在安装 Git for Windows（静默模式）...');
     mainLog(TAG, `Installing Git from ${installerPath}`);

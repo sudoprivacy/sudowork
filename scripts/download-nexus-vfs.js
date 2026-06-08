@@ -37,7 +37,11 @@ const runtimeVersions = require('../src/shared/runtime-versions.json');
 
 const VERSION = runtimeVersions['nexus-vfs'];
 
-const COS_BASE_URL = `https://sudoclaw-download-1309794936.cos.ap-beijing.myqcloud.com/nexus-vfs/release/v${VERSION}`;
+// Runtime bucket is primary; legacy bucket stays live as a fallback during deprecation.
+const COS_BASE_URLS = [
+  `https://sudowork-runtime-1309794936.cos.ap-beijing.myqcloud.com/nexus-vfs/release/v${VERSION}`,
+  `https://sudoclaw-download-1309794936.cos.ap-beijing.myqcloud.com/nexus-vfs/release/v${VERSION}`,
+];
 
 /**
  * Known-good SHA256 sums for v0.0.1-rc1 (mirrors SHA256SUMS.txt in the bucket).
@@ -200,7 +204,7 @@ function findBinary(dir) {
 
 async function installForPlatform(platform, arch, force) {
   const artifact = getArtifactName(platform, arch);
-  const url = `${COS_BASE_URL}/${artifact}`;
+  const urls = COS_BASE_URLS.map((base) => `${base}/${artifact}`);
   const binName = getBinaryName();
   const installedBinary = path.join(BIN_DIR, binName);
 
@@ -216,20 +220,31 @@ async function installForPlatform(platform, arch, force) {
   const archivePath = path.join(DOWNLOAD_DIR, artifact);
   const extractDir = path.join(DOWNLOAD_DIR, `extract-${Date.now()}`);
 
-  try {
-    await downloadFile(url, archivePath);
-  } catch (err) {
+  let downloaded = false;
+  let lastErr = null;
+  let allNotFound = true;
+  for (const url of urls) {
+    try {
+      await downloadFile(url, archivePath);
+      downloaded = true;
+      break;
+    } catch (err) {
+      lastErr = err;
+      if (err.message !== 'NOT_FOUND') allNotFound = false;
+    }
+  }
+  if (!downloaded) {
     try {
       fs.unlinkSync(archivePath);
     } catch {}
-    if (err.message === 'NOT_FOUND') {
+    if (allNotFound) {
       // CLEAR error — no GitHub fallback, no guessing alternate paths.
       console.error(`\n❌ nexus-vfs binary not available for ${platform}-${arch} in v${VERSION}.`);
-      console.error(`   Tried: ${url} → HTTP 404`);
+      console.error(`   Tried: ${urls.join(', ')} → HTTP 404`);
       console.error('   This platform is not published in this release; nothing installed.');
       return false;
     }
-    throw err;
+    throw lastErr;
   }
 
   // Integrity check against the known-good SHA256 before we trust the archive.
