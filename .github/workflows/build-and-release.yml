@@ -297,7 +297,7 @@ jobs:
           echo "🔐 Configuring coscmd..."
           # Regional endpoint (global acceleration is not enabled on the release bucket;
           # re-enable in the COS console and switch back to cos.accelerate.myqcloud.com to speed up uploads).
-          coscmd config -a $TENCENT_SECRET_ID -s $TENCENT_SECRET_KEY -b $COS_BUCKET -e cos.$COS_REGION.myqcloud.com
+          coscmd config -a $TENCENT_SECRET_ID -s $TENCENT_SECRET_KEY -b $COS_BUCKET -e cos.accelerate.myqcloud.com
 
           COS_PATH="sudowork/release/latest"
 
