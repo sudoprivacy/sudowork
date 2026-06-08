@@ -280,6 +280,21 @@ body {
   border: 1px solid var(--bg-3);
 }
 
+.conversation-toggle-floating {
+  border: none;
+  background: var(--bg-1);
+  color: var(--text-primary);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+}
+
+.conversation-toggle-floating:hover {
+  background: var(--bg-hover);
+}
+
+.conversation-toggle-floating:active {
+  background: var(--bg-active);
+}
+
 html,
 body,
 #root,
