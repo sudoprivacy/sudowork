@@ -137,6 +137,8 @@ function normalizePromptUsageForMessage(usage: AcpPromptResponseUsage): TurnToke
     ...(usage.thoughtTokens !== undefined && { thoughtTokens: usage.thoughtTokens }),
     ...(usage.contextWindowTokens !== undefined && { contextWindowTokens: usage.contextWindowTokens }),
     ...(usage.estimatedSessionTokens !== undefined && { estimatedSessionTokens: usage.estimatedSessionTokens }),
+    ...(usage.costUnits !== undefined && { costUnits: usage.costUnits }),
+    ...(usage.costCurrency !== undefined && { costCurrency: usage.costCurrency }),
   };
 }
 

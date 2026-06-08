@@ -827,6 +827,10 @@ export interface AcpPromptResponseUsage {
   contextWindowTokens?: number | null;
   /** Estimated tokens currently held in the model runtime context */
   estimatedSessionTokens?: number | null;
+  /** Aggregated server billing units for this prompt, supplied by Sudocode metadata when available */
+  costUnits?: number | null;
+  /** Billing currency for costUnits, supplied by Sudocode metadata when available */
+  costCurrency?: string | null;
 }
 
 // ===== ACP Models types (unstable API) =====
