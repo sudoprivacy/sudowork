@@ -114,6 +114,10 @@
       "newTab": "新终端"
     }
   },
+  "layout": {
+    "collapseConversation": "收起会话",
+    "expandConversation": "展开会话"
+  },
   "dropdown": {
     "cliAgents": "CLI Agents",
     "presetAssistants": "预设助手"

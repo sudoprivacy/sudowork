@@ -114,6 +114,10 @@
       "newTab": "New Terminal"
     }
   },
+  "layout": {
+    "collapseConversation": "Collapse conversation",
+    "expandConversation": "Expand conversation"
+  },
   "dropdown": {
     "cliAgents": "CLI Agents",
     "presetAssistants": "Preset Assistants"
