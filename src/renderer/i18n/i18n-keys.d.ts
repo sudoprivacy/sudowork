@@ -329,6 +329,7 @@ export type I18nKey =
   | 'conversation.history.exportTargetFolder'
   | 'conversation.history.exporting'
   | 'conversation.history.noHistory'
+  | 'conversation.history.noScheduledTask'
   | 'conversation.history.pin'
   | 'conversation.history.pinFailed'
   | 'conversation.history.pinned'
