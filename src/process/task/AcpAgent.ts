@@ -1022,6 +1022,7 @@ This identity statement takes priority over the default identity in USER.md.
 
       // Telemetry: end conversation tracking (error)
       const errorMsg = e instanceof Error ? e.message : String(e);
+      this.logAgentError('sendMessage failed', e, { msg_id: data.msg_id });
       let errorCode: string | undefined;
       if (errorMsg.includes('timeout') || errorMsg.includes('Timeout') || errorMsg.includes('timed out')) {
         errorCode = 'E002';
@@ -1123,6 +1124,7 @@ This identity statement takes priority over the default identity in USER.md.
         } catch (reconnectError) {
           if (ACP_PERF_LOG) mainLog('ACP-PERF', `send: auto-reconnect failed ${Date.now() - reconnectStart}ms`);
           const errorMsg = reconnectError instanceof Error ? reconnectError.message : String(reconnectError);
+          this.logAgentError('sendToConnection reconnect failed', reconnectError, { msg_id });
           return {
             success: false,
             error: createAcpError(AcpErrorType.CONNECTION_NOT_READY, `Failed to reconnect: ${errorMsg}`, true),
@@ -1187,6 +1189,7 @@ This identity statement takes priority over the default identity in USER.md.
       return { success: true, data: null };
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
+      this.logAgentError('sendToConnection failed', error, { msg_id });
       if (errorMsg.includes('Internal error') && this.extra.backend === 'qwen') {
         const enhancedMsg = `Qwen ACP Internal Error: This usually means authentication failed or ` + `the Qwen CLI has compatibility issues. Please try: 1) Restart the application ` + `2) Use 'npx @qwen-code/qwen-code' instead of global qwen 3) Check if you have valid Qwen credentials.`;
         this.emitErrorMessage(enhancedMsg);
@@ -2868,6 +2871,10 @@ This identity statement takes priority over the default identity in USER.md.
     this.emitStatusMessage('disconnected');
 
     const errorMsg = `${this.extra.backend} process disconnected unexpectedly ` + `(code: ${error.code}, signal: ${error.signal}). ` + `Please try sending a new message to reconnect.`;
+    this.logAgentError('process disconnected unexpectedly', new Error(errorMsg), {
+      code: error.code,
+      signal: error.signal,
+    });
     this.emitErrorMessage(errorMsg, false); // Skip finish, will send below
 
     // Telemetry: end turn tracking (error)
@@ -3133,6 +3140,18 @@ This identity statement takes priority over the default identity in USER.md.
     };
 
     this.emitMessage(statusMessage);
+  }
+
+  private logAgentError(context: string, error: unknown, attributes: Record<string, unknown> = {}): void {
+    const message = error instanceof Error ? error.message : String(error);
+    mainError('AcpAgent', `${context}: ${message}`, {
+      name: error instanceof Error ? error.name : 'Error',
+      message,
+      stack: error instanceof Error ? error.stack : undefined,
+      conversation_id: this.conversation_id,
+      backend: this.extra.backend,
+      ...attributes,
+    });
   }
 
   private emitPermissionRequest(data: AcpPermissionRequest): void {

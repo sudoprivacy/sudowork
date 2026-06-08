@@ -23,7 +23,7 @@ function writeConfig(homeDir: string, config: Record<string, unknown>): void {
 }
 
 function getLogPath(homeDir: string): string {
-  return join(homeDir, '.nexus', 'logs', 'sudoclaw.log');
+  return join(homeDir, '.nexus', 'logs', 'sudowork.log');
 }
 
 function getCachePath(homeDir: string): string {
@@ -37,6 +37,7 @@ function hash(value: string): string {
 describe('Sudowork Log personal error upload sink', () => {
   let homeDir: string;
   let fetchMock: ReturnType<typeof vi.fn>;
+  let consoleInfoSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
     vi.resetModules();
@@ -44,6 +45,7 @@ describe('Sudowork Log personal error upload sink', () => {
 
     homeDir = mkdtempSync(join(tmpdir(), 'sudowork-log-test-'));
     process.env.SUDOWORK_LOG_BATCH_URL = BATCH_URL;
+    consoleInfoSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
 
     vi.doMock('electron', () => ({
       app: {
@@ -77,9 +79,79 @@ describe('Sudowork Log personal error upload sink', () => {
   afterEach(async () => {
     const uploader = await import('@/process/utils/sudoworkLogUploader');
     uploader.resetSudoworkLogUploaderForTest();
+    consoleInfoSpy.mockRestore();
     vi.unstubAllGlobals();
     delete process.env.SUDOWORK_LOG_BATCH_URL;
+    delete process.env.SUDOWORK_LOG_BASE_URL;
     rmSync(homeDir, { recursive: true, force: true });
+  });
+
+  it('uses the development Sudowork Log endpoint by default', async () => {
+    delete process.env.SUDOWORK_LOG_BATCH_URL;
+    writeConfig(homeDir, {
+      'system.appMode': 'c',
+      'consumer.userInfo': { id: 'user-123', phone: '13800138000' },
+      'telemetry.installId': 'device-abc',
+    });
+
+    const uploader = await import('@/process/utils/sudoworkLogUploader');
+    uploader.enqueueSudoworkLogError({
+      tag: 'DefaultEndpointTest',
+      message: 'default endpoint error',
+      logLine: '[ERROR] 2026-06-04 00:00:00 [DefaultEndpointTest] default endpoint error',
+      timestampMs: Date.now(),
+    });
+    await uploader.flushSudoworkLogUploader();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toBe('http://127.0.0.1:8080/v1/logs/batch');
+  });
+
+  it('logs successful flush counts', async () => {
+    writeConfig(homeDir, {
+      'system.appMode': 'c',
+      'consumer.userInfo': { id: 'user-123', phone: '13800138000' },
+      'telemetry.installId': 'device-abc',
+    });
+
+    const uploader = await import('@/process/utils/sudoworkLogUploader');
+    uploader.enqueueSudoworkLogError({
+      tag: 'FlushCountTest',
+      message: 'count uploaded logs',
+      logLine: '[ERROR] 2026-06-04 00:00:00 [FlushCountTest] count uploaded logs',
+      timestampMs: Date.now(),
+    });
+    await uploader.flushSudoworkLogUploader();
+
+    expect(consoleInfoSpy).toHaveBeenCalledWith(expect.stringContaining('[SudoworkLog] Flush succeeded: flushed=1, received=1, pending=0'));
+  });
+
+  it('normalizes scalar config identifiers before building upload payloads', async () => {
+    writeConfig(homeDir, {
+      'system.appMode': 'c',
+      'consumer.userInfo': { id: 12345, nickname: 67890, phone: 13800138000 },
+      'telemetry.installId': 98765,
+    });
+
+    const uploader = await import('@/process/utils/sudoworkLogUploader');
+    uploader.enqueueSudoworkLogError({
+      tag: 'ScalarConfigTest',
+      message: 'numeric config identifiers should not crash enqueue',
+      logLine: '[ERROR] 2026-06-04 00:00:00 [ScalarConfigTest] numeric config identifiers should not crash enqueue',
+      timestampMs: Date.now(),
+    });
+    await uploader.flushSudoworkLogUploader();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    const [log] = body.logs;
+
+    expect(log.user_identifier_hash).toBe(hash('13800138000'));
+    expect(log.user_id_hash).toBe(hash('12345'));
+    expect(log.device_id_hash).toBe(hash('98765'));
+    expect(log.attributes.user_id).toBe('12345');
+    expect(log.attributes.user_nickname).toBe('67890');
+    expect(log.attributes.user_phone).toBe('13800138000');
   });
 
   it('keeps local logging intact and uploads only ERROR entries in personal mode', async () => {
