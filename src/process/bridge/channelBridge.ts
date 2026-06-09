@@ -499,38 +499,37 @@ export function initChannelBridge(): void {
 
       channel.larkCliLogin.emit({ phase: 'initializing' });
 
-      // Stage A: if lark-cli has no app configured yet, create one via `config init --new`.
-      const alreadyConfigured = await service.isConfigured();
-      if (!alreadyConfigured) {
-        const initHandle = service.startConfigInitNew(
-          brand === 'lark' ? 'lark' : 'feishu',
-          (url) => {
-            channel.larkCliLogin.emit({ phase: 'app-setup', verificationUrl: url });
-          },
-          signal
-        );
-        try {
-          await initHandle.url;
-        } catch (urlErr: any) {
-          if (signal.aborted) {
-            larkCliLoginAbort = null;
-            return { success: true };
-          }
-          const msg = urlErr?.message ?? 'Failed to obtain Feishu app setup URL';
-          channel.larkCliLogin.emit({ phase: 'error', message: msg });
-          larkCliLoginAbort = null;
-          return { success: false, msg };
-        }
-        const initResult = await initHandle.done;
+      // Stage A: always run `config init --new` so the user can pick an existing app or
+      // create a brand-new one on every scan. Skipping when already configured would short-
+      // circuit straight to OAuth and rob the user of that choice.
+      const initHandle = service.startConfigInitNew(
+        brand === 'lark' ? 'lark' : 'feishu',
+        (url) => {
+          channel.larkCliLogin.emit({ phase: 'app-setup', verificationUrl: url });
+        },
+        signal
+      );
+      try {
+        await initHandle.url;
+      } catch (urlErr: any) {
         if (signal.aborted) {
           larkCliLoginAbort = null;
           return { success: true };
         }
-        if (!initResult.ok) {
-          channel.larkCliLogin.emit({ phase: 'error', message: initResult.error ?? 'config init failed' });
-          larkCliLoginAbort = null;
-          return { success: false, msg: initResult.error };
-        }
+        const msg = urlErr?.message ?? 'Failed to obtain Feishu app setup URL';
+        channel.larkCliLogin.emit({ phase: 'error', message: msg });
+        larkCliLoginAbort = null;
+        return { success: false, msg };
+      }
+      const initResult = await initHandle.done;
+      if (signal.aborted) {
+        larkCliLoginAbort = null;
+        return { success: true };
+      }
+      if (!initResult.ok) {
+        channel.larkCliLogin.emit({ phase: 'error', message: initResult.error ?? 'config init failed' });
+        larkCliLoginAbort = null;
+        return { success: false, msg: initResult.error };
       }
 
       // Stage B: device-flow OAuth login.
