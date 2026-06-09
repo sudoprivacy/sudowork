@@ -29,12 +29,6 @@ export const STORAGE_KEYS = {
   /** Last browser URL in the right-side browser panel */
   RIGHT_PANEL_BROWSER_URL: 'aionui_right_panel_browser_url',
 
-  /** Stored browser tabs in the right-side browser panel */
-  RIGHT_PANEL_BROWSER_TABS: 'aionui_right_panel_browser_tabs',
-
-  /** Active browser tab id in the right-side browser panel */
-  RIGHT_PANEL_BROWSER_ACTIVE_TAB: 'aionui_right_panel_browser_active_tab',
-
   /** Conversation panel collapse state / 会话面板折叠状态 */
   CONVERSATION_PANEL_COLLAPSE: 'aionui_conversation_panel_collapsed',
 

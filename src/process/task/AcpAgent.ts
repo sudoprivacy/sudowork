@@ -1792,7 +1792,7 @@ This identity statement takes priority over the default identity in USER.md.
     // tool argument shapes).
     if (classification.intent !== 'draft' && /\.html?$/i.test(actualPath)) {
       try {
-        ipcBridge.rightPanelBrowser.open.emit({ url: `file://${actualPath}`, switchTab: true });
+        ipcBridge.rightPanelBrowser.open.emit({ url: `file://${actualPath}`, switchTab: true, conversationId: this.conversation_id });
         mainLog('[AcpAgent]', `[TRACK] rightPanelBrowser.open fired for ${actualPath}`);
       } catch (err) {
         mainLog('[AcpAgent]', `[TRACK] rightPanelBrowser.open emit failed: ${String(err)}`);
@@ -2441,7 +2441,7 @@ This identity statement takes priority over the default identity in USER.md.
                 // not a network action.
                 if (/\.html?$/i.test(filePath)) {
                   try {
-                    ipcBridge.rightPanelBrowser.open.emit({ url: `file://${filePath}`, switchTab: true });
+                    ipcBridge.rightPanelBrowser.open.emit({ url: `file://${filePath}`, switchTab: true, conversationId: this.conversation_id });
                   } catch (err) {
                     console.log(`[AcpAgent] rightPanelBrowser.open emit failed: ${String(err)}`);
                   }
@@ -3742,7 +3742,7 @@ This identity statement takes priority over the default identity in USER.md.
             if (!rest) {
               emit('Usage: `/browser open <url>`');
             } else {
-              ipcBridge.rightPanelBrowser.open.emit({ url: rest, switchTab: true });
+              ipcBridge.rightPanelBrowser.open.emit({ url: rest, switchTab: true, conversationId: this.conversation_id });
               emit(`Opened ${rest} in the right-panel browser.`);
             }
           } else if (targetId === null) {

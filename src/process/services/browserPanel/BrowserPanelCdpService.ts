@@ -75,6 +75,8 @@ export interface TabInfo {
   url: string;
   title: string;
   attached: boolean;
+  /** Conversation that owns this tab, or undefined for the global bucket. */
+  conversationId?: string;
 }
 
 export interface EvaluateResult {
@@ -174,6 +176,15 @@ interface TabState {
   attached: boolean;
   /** epoch (ms) when CDP attach completed; used as time origin for network startedAt */
   attachOriginMs: number;
+  /**
+   * Conversation that owns this tab, set when the renderer reports
+   * registerTab. Used to drive per-conversation cleanup (close-by-conv on
+   * conversation delete) and per-conv tab-list responses. Empty/absent
+   * means the tab belongs to the global bucket (e.g. opened via the
+   * sudowork-browser MCP child's /tab/open path, which doesn't know
+   * which conversation triggered it).
+   */
+  conversationId?: string;
 }
 
 class BrowserPanelCdpService {
@@ -398,6 +409,7 @@ class BrowserPanelCdpService {
       url: state.contents.isDestroyed() ? '' : state.contents.getURL(),
       title: state.contents.isDestroyed() ? '' : state.contents.getTitle(),
       attached: state.attached,
+      conversationId: state.conversationId,
     }));
   }
 
@@ -451,8 +463,14 @@ class BrowserPanelCdpService {
   //  which webview to target.
   // ─────────────────────────────────────────────────────────────────────────
 
-  registerTab(tabId: string, webContentsId: number): void {
+  registerTab(tabId: string, webContentsId: number, conversationId?: string): void {
     this.tabIdRegistry.set(tabId, webContentsId);
+    // Attach ownership to the corresponding TabState, used by
+    // closeTabsByConversation when the conversation is deleted.
+    const state = this.tabs.get(webContentsId);
+    if (state && conversationId) {
+      state.conversationId = conversationId;
+    }
     // Reconcile a pending active-tab set that arrived before this dom-ready.
     if (this.pendingActiveTabId === tabId) {
       this.activeWebContentsId = webContentsId;
@@ -461,6 +479,34 @@ class BrowserPanelCdpService {
       // No active tab yet at all — use this one as a sensible default.
       this.activeWebContentsId = webContentsId;
     }
+  }
+
+  /**
+   * Close every BrowserPanel tab that belongs to a conversation. Called by
+   * conversationBridge.ts when a conversation is deleted, so the agent's
+   * webview teardown happens alongside the rest of the conversation cleanup
+   * (mirrors closeTerminalsByConversation in terminalBridge).
+   *
+   * Returns the number of tabs that were closed. Best-effort: a tab whose
+   * underlying webContents is already destroyed is skipped; the
+   * `'destroyed'` listener registered in registerWebContents handles the
+   * map cleanup either way.
+   */
+  closeTabsByConversation(conversationId: string): number {
+    if (!conversationId) return 0;
+    let closed = 0;
+    for (const [webContentsId, state] of this.tabs) {
+      if (state.conversationId !== conversationId) continue;
+      try {
+        if (!state.contents.isDestroyed()) {
+          state.contents.close();
+          closed += 1;
+        }
+      } catch (err) {
+        mainWarn('BrowserPanelCDP', `closeTabsByConversation: webContents.close failed for id=${webContentsId}: ${String(err)}`);
+      }
+    }
+    return closed;
   }
 
   unregisterTab(tabId: string): void {
