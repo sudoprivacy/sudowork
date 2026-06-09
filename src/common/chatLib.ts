@@ -106,6 +106,8 @@ export interface TurnTokenUsage {
   thoughtTokens?: number | null;
   contextWindowTokens?: number | null;
   estimatedSessionTokens?: number | null;
+  costUnits?: number | null;
+  costCurrency?: string | null;
 }
 
 export type IMessageText = IMessage<'text', { content: string; cronMeta?: CronMessageMeta; skills?: string[]; tokenUsage?: TurnTokenUsage }>;
