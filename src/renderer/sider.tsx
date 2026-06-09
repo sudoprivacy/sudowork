@@ -14,6 +14,7 @@ import { useAuth } from './context/AuthContext';
 import { addEventListener, emitter } from './utils/emitter';
 import { ConfigStorage } from '@/common/storage';
 import { useAppMode } from './hooks/useAppMode';
+import { useCronEnabled } from './hooks/useCronEnabled';
 import SidebarNavItem from './components/ui/SidebarNavItem';
 import SidebarSegmentedControl from './components/ui/SidebarSegmentedControl';
 
@@ -48,6 +49,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
   const navigate = useNavigate();
   const { logout, user: currentUser } = useAuth();
   const { isEnterprise } = useAppMode();
+  const cronEnabled = useCronEnabled();
   const [isBatchMode, setIsBatchMode] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
 
@@ -86,7 +88,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
   };
 
   // 功能菜单项定义 / Function menu items definition
-  const functionMenus = [{ id: 'agent', label: t('common.siderMenu.agent'), icon: Robot, path: '/settings/agent' }, { id: 'skill-store', label: t('common.siderMenu.skillStore'), icon: Lightning, path: '/settings/skill' }, { id: 'security', label: t('common.siderMenu.security'), icon: Shield, path: '/settings/security' }, ...(!isEnterprise ? [{ id: 'webui' as const, label: t('common.siderMenu.webui'), icon: Earth, path: '/settings/webui' }] : []), { id: 'cron', label: t('common.siderMenu.cron'), icon: AlarmClock, path: '/settings/cron' }];
+  const functionMenus = [{ id: 'agent', label: t('common.siderMenu.agent'), icon: Robot, path: '/settings/agent' }, { id: 'skill-store', label: t('common.siderMenu.skillStore'), icon: Lightning, path: '/settings/skill' }, { id: 'security', label: t('common.siderMenu.security'), icon: Shield, path: '/settings/security' }, ...(!isEnterprise ? [{ id: 'webui' as const, label: t('common.siderMenu.webui'), icon: Earth, path: '/settings/webui' }] : []), ...(cronEnabled ? [{ id: 'cron' as const, label: t('common.siderMenu.cron'), icon: AlarmClock, path: '/settings/cron' }] : [])];
 
   // 处理功能菜单点击 — 在 GuidPage 内联显示，通过 query param 传递 menuId
   const handleFunctionMenuClick = (menuId: string) => {
@@ -128,6 +130,9 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
     setIsBatchMode((prev) => !prev);
   };
 
+  // With client cron disabled the scheduled tab is hidden, so fall back to the
+  // timeline even if 'scheduled' was previously persisted.
+  const effectiveTab: 'timeline' | 'scheduled' = cronEnabled ? activeTab : 'timeline';
   const workspaceHistoryProps = {
     collapsed,
     tooltipEnabled: collapsed && !isMobile,
@@ -138,7 +143,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
     },
     batchMode: isBatchMode,
     onBatchModeChange: setIsBatchMode,
-    activeTab,
+    activeTab: effectiveTab,
   };
   const tooltipEnabled = collapsed && !isMobile;
   const siderTooltipProps = getSiderTooltipProps(tooltipEnabled);
@@ -229,10 +234,13 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
 
             {/* Session history tabs + batch mode button */}
             <div className={classNames('mb-8px px-8px flex items-center', collapsed ? 'justify-center' : 'justify-between')}>
-              {!collapsed && (
+              {/* The scheduled (cron) tab is only meaningful when the client cron
+                  feature is enabled; with it off only the timeline remains, so we
+                  hide the whole switcher. */}
+              {!collapsed && cronEnabled && (
                 <SidebarSegmentedControl
                   className='flex-1'
-                  value={activeTab}
+                  value={effectiveTab}
                   options={[
                     { value: 'timeline', label: t('conversation.history.timeline', { defaultValue: '对话' }) },
                     { value: 'scheduled', label: t('conversation.history.scheduledTab', { defaultValue: '定时任务' }) },

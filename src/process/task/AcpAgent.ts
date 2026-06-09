@@ -21,7 +21,7 @@ import { transformMessage } from '@/common/chatLib';
 import { DRAFTS_DIR_NAME, NEXUS_FILES_MARKER } from '@/common/constants';
 import { appendNexusFilesMarker } from '@/common/nexusFiles';
 import type { IResponseMessage } from '@/common/ipcBridge';
-import { NavigationInterceptor } from '@/common/navigation';
+import { NavigationInterceptor, type NavigationToolData } from '@/common/navigation';
 import { parseError, uuid } from '@/common/utils';
 import type { AcpBackend, AcpError, AcpModelInfo, AcpPermissionOption, AcpPermissionRequest, AcpPromptResponseUsage, AcpQuestionRequest, AcpQuestionResponseAnswer, AcpResult, AcpSessionConfigOption, AcpSessionUpdate, AvailableCommandsUpdate, ToolCallUpdate, ToolCallUpdateStatus } from '@/types/acpTypes';
 import { ACP_BACKENDS_ALL, AcpErrorType, createAcpError } from '@/types/acpTypes';
@@ -781,6 +781,15 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
         ipcBridge.acpConversation.responseStream.emit(userResponseMessage);
       }
 
+      // Emit start event before async initAgent so frontend loading state
+      // is set immediately, without waiting for the connection to be ready.
+      ipcBridge.acpConversation.responseStream.emit({
+        type: 'start',
+        conversation_id: this.conversation_id,
+        msg_id: data.msg_id || uuid(),
+        data: { processingStartTime: this.processingStartTime },
+      });
+
       // Intercept /model slash command locally so model switching does not depend on backend command support.
       const modelMatch = data.content.trim().match(/^\/model(?:\s+(.*))?$/);
       if (modelMatch !== null) {
@@ -997,7 +1006,7 @@ This identity statement takes priority over the default identity in USER.md.
         }
 
         const agentSendStart = Date.now();
-        const result = await this.sendToConnection(contentToSend, data.msg_id, finalImages);
+        const result = await this.sendToConnection(contentToSend, data.msg_id, finalImages, true);
         if (ACP_PERF_LOG) mainLog('ACP-PERF', `manager: sendMessage completed ${Date.now() - agentSendStart}ms (total: ${Date.now() - managerSendStart}ms)`);
         if (this.isFirstMessage) {
           this.isFirstMessage = false;
@@ -1011,7 +1020,7 @@ This identity statement takes priority over the default identity in USER.md.
         return result;
       }
       const agentSendStart = Date.now();
-      const result = await this.sendToConnection(data.content, data.msg_id);
+      const result = await this.sendToConnection(data.content, data.msg_id, undefined, true);
       if (ACP_PERF_LOG) mainLog('ACP-PERF', `manager: sendMessage completed ${Date.now() - agentSendStart}ms (total: ${Date.now() - managerSendStart}ms)`);
       // Handle sendToConnection error result (not thrown)
       if (!result.success) {
@@ -1120,7 +1129,7 @@ This identity statement takes priority over the default identity in USER.md.
     }
   }
 
-  private async sendToConnection(content: string, msg_id?: string, images?: Array<{ type: 'image'; data: string; mimeType: string }>): Promise<AcpResult> {
+  private async sendToConnection(content: string, msg_id?: string, images?: Array<{ type: 'image'; data: string; mimeType: string }>, skipStart?: boolean): Promise<AcpResult> {
     const sendStart = Date.now();
     try {
       if (!this.connection.isConnected || !this.connection.hasActiveSession) {
@@ -1139,13 +1148,15 @@ This identity statement takes priority over the default identity in USER.md.
         }
       }
 
-      // Emit start event
-      this.handleStreamEvent({
-        type: 'start',
-        conversation_id: this.conversation_id,
-        msg_id: msg_id || uuid(),
-        data: { processingStartTime: this.processingStartTime },
-      });
+      // Emit start event (skip if already emitted by sendMessage)
+      if (!skipStart) {
+        this.handleStreamEvent({
+          type: 'start',
+          conversation_id: this.conversation_id,
+          msg_id: msg_id || uuid(),
+          data: { processingStartTime: this.processingStartTime },
+        });
+      }
 
       this.adapter.resetMessageTracking();
       this.streamedContextErrorBuffer = '';
@@ -1783,7 +1794,7 @@ This identity statement takes priority over the default identity in USER.md.
     // tool argument shapes).
     if (classification.intent !== 'draft' && /\.html?$/i.test(actualPath)) {
       try {
-        ipcBridge.rightPanelBrowser.open.emit({ url: `file://${actualPath}`, switchTab: true });
+        ipcBridge.rightPanelBrowser.open.emit({ url: `file://${actualPath}`, switchTab: true, conversationId: this.conversation_id });
         mainLog('[AcpAgent]', `[TRACK] rightPanelBrowser.open fired for ${actualPath}`);
       } catch (err) {
         mainLog('[AcpAgent]', `[TRACK] rightPanelBrowser.open emit failed: ${String(err)}`);
@@ -2318,11 +2329,19 @@ This identity statement takes priority over the default identity in USER.md.
           });
         }
 
-        if (NavigationInterceptor.isNavigationTool(toolName)) {
+        // Structured form so ai-dev-browser invocations whose outer tool
+        // title is "Bash"/"Shell" (with the real `aidb page_goto --url …`
+        // buried in `rawInput.command`) also trigger the preview-open.
+        const navData: NavigationToolData = {
+          toolName,
+          rawInput: toolCallUpdate.update?.rawInput as Record<string, unknown> | undefined,
+          content: toolCallUpdate.update?.content as NavigationToolData['content'],
+        };
+        if (NavigationInterceptor.isNavigationTool(navData)) {
           if (toolCallId) {
             this.pendingNavigationTools.add(toolCallId);
           }
-          const url = NavigationInterceptor.extractUrl(toolCallUpdate.update);
+          const url = NavigationInterceptor.extractUrl(navData);
           if (url) {
             const previewMessage = NavigationInterceptor.createPreviewMessage(url, this.conversation_id);
             this.handleStreamEvent(previewMessage);
@@ -2424,7 +2443,7 @@ This identity statement takes priority over the default identity in USER.md.
                 // not a network action.
                 if (/\.html?$/i.test(filePath)) {
                   try {
-                    ipcBridge.rightPanelBrowser.open.emit({ url: `file://${filePath}`, switchTab: true });
+                    ipcBridge.rightPanelBrowser.open.emit({ url: `file://${filePath}`, switchTab: true, conversationId: this.conversation_id });
                   } catch (err) {
                     console.log(`[AcpAgent] rightPanelBrowser.open emit failed: ${String(err)}`);
                   }
@@ -2563,8 +2582,13 @@ This identity statement takes priority over the default identity in USER.md.
       });
 
       const toolName = data.toolCall?.title || '';
-      if (NavigationInterceptor.isNavigationTool(toolName)) {
-        const url = NavigationInterceptor.extractUrl(data.toolCall);
+      const permissionNavData: NavigationToolData = {
+        toolName,
+        rawInput: data.toolCall?.rawInput as Record<string, unknown> | undefined,
+        content: data.toolCall?.content as NavigationToolData['content'],
+      };
+      if (NavigationInterceptor.isNavigationTool(permissionNavData)) {
+        const url = NavigationInterceptor.extractUrl(permissionNavData);
         if (url) {
           const previewMessage = NavigationInterceptor.createPreviewMessage(url, this.conversation_id);
           this.handleStreamEvent(previewMessage);
@@ -3720,7 +3744,7 @@ This identity statement takes priority over the default identity in USER.md.
             if (!rest) {
               emit('Usage: `/browser open <url>`');
             } else {
-              ipcBridge.rightPanelBrowser.open.emit({ url: rest, switchTab: true });
+              ipcBridge.rightPanelBrowser.open.emit({ url: rest, switchTab: true, conversationId: this.conversation_id });
               emit(`Opened ${rest} in the right-panel browser.`);
             }
           } else if (targetId === null) {

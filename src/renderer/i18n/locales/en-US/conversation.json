@@ -27,6 +27,7 @@
     "recent7Days": "Last 7 Days",
     "earlier": "Earlier",
     "noHistory": "No chat history",
+    "noScheduledTask": "No execution records",
     "actionNewConversation": "New Conversation",
     "deleteTitle": "Delete",
     "deleteConfirm": "Are you sure you want to delete this chat?",

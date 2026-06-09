@@ -101,10 +101,10 @@ const ChatSider: React.FC<{
         <div className='right-panel-stack'>
           <div className={`right-panel-stack__pane ${activeTab === 'workspace' ? 'right-panel-stack__pane--active' : ''}`}>{workspaceNode}</div>
           <div className={`right-panel-stack__pane ${activeTab === 'browser' ? 'right-panel-stack__pane--active' : ''}`}>
-            <BrowserPanel active={activeTab === 'browser'} />
+            <BrowserPanel active={activeTab === 'browser'} conversationId={conversation?.id} />
           </div>
           <div className={`right-panel-stack__pane ${activeTab === 'terminal' ? 'right-panel-stack__pane--active' : ''}`}>
-            <TerminalPanel cwd={workspace} active={activeTab === 'terminal'} />
+            <TerminalPanel cwd={workspace} active={activeTab === 'terminal'} conversationId={conversation?.id} />
           </div>
           <div className={`right-panel-stack__pane ${activeTab === 'deliverables' ? 'right-panel-stack__pane--active' : ''}`}>
             <DeliverablesPanel conversationId={conversation?.id} active={activeTab === 'deliverables'} />

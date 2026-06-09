@@ -161,9 +161,18 @@ class BrowserPanelHttpServer {
       case '/tab/list':
         return browserPanelCdpService.listTabs();
       case '/tab/open': {
-        const { url: target } = body as { url?: string };
+        const { url: target, conversationId } = body as { url?: string; conversationId?: string };
         if (typeof target !== 'string' || !target) throw new Error('url required');
-        ipcBridge.rightPanelBrowser.open.emit({ url: target, switchTab: true });
+        // conversationId is optional: the sudowork-browser MCP child doesn't
+        // know which chat conversation triggered the call, so it omits the
+        // field. Renderer-side BrowserPanel treats undefined conversationId
+        // as routing to the global bucket — preserves the pre-isolation
+        // behavior for this code path.
+        ipcBridge.rightPanelBrowser.open.emit({
+          url: target,
+          switchTab: true,
+          ...(conversationId ? { conversationId } : {}),
+        });
         return { ok: true };
       }
       case '/tab/navigate': {

@@ -65,7 +65,7 @@ export function convertToMcporterConfig(servers: IMcpServer[]): McporterConfig {
       config.description = server.description;
     }
 
-    // 对于需要持久连接的 MCP server（如 chrome-devtools），启用 keep-alive
+    // 对于需要持久连接的 MCP server（如 playwright/puppeteer），启用 keep-alive
     if (isKeepAliveServer(server)) {
       config.lifecycle = { mode: 'keep-alive' };
     }
@@ -81,7 +81,7 @@ export function convertToMcporterConfig(servers: IMcpServer[]): McporterConfig {
  * Check if server needs keep-alive lifecycle
  */
 function isKeepAliveServer(server: IMcpServer): boolean {
-  const keepAlivePatterns = ['chrome-devtools', 'playwright', 'mobile-mcp', 'puppeteer', 'browser'];
+  const keepAlivePatterns = ['playwright', 'mobile-mcp', 'puppeteer', 'browser'];
 
   const name = server.name.toLowerCase();
   const command = server.transport.type === 'stdio' ? server.transport.command.toLowerCase() : '';
