@@ -57,7 +57,7 @@ const SECRET_MIGRATION_VERSION = 1;
  */
 const CHANNEL_CREDENTIAL_FIELDS: Record<string, string[]> = {
   telegram: ['token'],
-  lark: ['appSecret', 'encryptKey', 'verificationToken', 'larkCliAccessToken', 'larkCliRefreshToken'],
+  lark: ['appSecret', 'encryptKey', 'verificationToken', 'larkUserAccessToken', 'larkUserRefreshToken'],
   dingtalk: ['clientSecret'],
   wechat: [], // WeChat uses token-based auth, no separate secret
   zentao: ['zentaoPassword'],

@@ -475,158 +475,202 @@ export function initChannelBridge(): void {
     return { success: true };
   });
 
-  // ==================== Lark CLI QR Login (device flow) ====================
+  // ==================== Lark QR Login (direct device flow) ====================
 
-  let larkCliLoginAbort: AbortController | null = null;
+  let larkAuthAbort: AbortController | null = null;
 
-  channel.larkCliStart.provider(async ({ brand = 'feishu' } = {}) => {
+  /** Read the persisted lark_default credentials, or {} if none. */
+  const readLarkCredentials = async (): Promise<import('@/channels/types').IPluginCredentials> => {
     try {
-      if (larkCliLoginAbort) {
-        larkCliLoginAbort.abort();
+      const plugin = await getChannelManager().getProvider().getPlugin('lark_default');
+      return plugin?.credentials ?? {};
+    } catch {
+      return {};
+    }
+  };
+
+  channel.larkAuthStart.provider(async ({ brand = 'feishu' }: { brand?: 'feishu' | 'lark' } = {}) => {
+    try {
+      if (larkAuthAbort) {
+        larkAuthAbort.abort();
       }
-      larkCliLoginAbort = new AbortController();
-      const signal = larkCliLoginAbort.signal;
+      larkAuthAbort = new AbortController();
+      const signal = larkAuthAbort.signal;
 
-      const { getLarkCliAuthService } = await import('@/process/services/larkCli/LarkCliAuthService');
-      const service = getLarkCliAuthService();
+      const { getLarkAuthService } = await import('@/process/services/lark/LarkAuthService');
+      const { RECOMMENDED_SCOPE } = await import('@/process/services/lark/larkEndpoints');
+      const { fetchLarkUserInfo } = await import('@/process/services/lark/larkApiCall');
+      const svc = getLarkAuthService();
 
-      if (!service.isInstalled()) {
-        const msg = `lark-cli not installed (expected at ${service.getBinPath()})`;
-        channel.larkCliLogin.emit({ phase: 'error', message: msg });
-        larkCliLoginAbort = null;
-        return { success: false, msg };
+      channel.larkAuthLogin.emit({ phase: 'initializing' });
+
+      // Stage A: app registration — user scans to create/select a Feishu app; we get app_id/app_secret.
+      const reg = await svc.requestAppRegistration(brand);
+      if (signal.aborted) {
+        larkAuthAbort = null;
+        return { success: true };
       }
+      channel.larkAuthLogin.emit({ phase: 'app-setup', verificationUrl: reg.verificationUrl });
 
-      channel.larkCliLogin.emit({ phase: 'initializing' });
-
-      // Stage A: always run `config init --new` so the user can pick an existing app or
-      // create a brand-new one on every scan. Skipping when already configured would short-
-      // circuit straight to OAuth and rob the user of that choice.
-      const initHandle = service.startConfigInitNew(
-        brand === 'lark' ? 'lark' : 'feishu',
-        (url) => {
-          channel.larkCliLogin.emit({ phase: 'app-setup', verificationUrl: url });
-        },
-        signal
-      );
+      let app;
       try {
-        await initHandle.url;
-      } catch (urlErr: any) {
+        app = await svc.pollAppRegistration(brand, reg.deviceCode, reg.interval, reg.expiresIn, signal);
+      } catch (regErr: any) {
         if (signal.aborted) {
-          larkCliLoginAbort = null;
+          larkAuthAbort = null;
           return { success: true };
         }
-        const msg = urlErr?.message ?? 'Failed to obtain Feishu app setup URL';
-        channel.larkCliLogin.emit({ phase: 'error', message: msg });
-        larkCliLoginAbort = null;
+        const msg = regErr?.message ?? 'app registration failed';
+        channel.larkAuthLogin.emit({ phase: 'error', message: msg });
+        larkAuthAbort = null;
         return { success: false, msg };
       }
-      const initResult = await initHandle.done;
       if (signal.aborted) {
-        larkCliLoginAbort = null;
+        larkAuthAbort = null;
         return { success: true };
       }
-      if (!initResult.ok) {
-        channel.larkCliLogin.emit({ phase: 'error', message: initResult.error ?? 'config init failed' });
-        larkCliLoginAbort = null;
-        return { success: false, msg: initResult.error };
+      if (!app.appId || !app.appSecret) {
+        const msg = 'app registration returned no app credentials';
+        channel.larkAuthLogin.emit({ phase: 'error', message: msg });
+        larkAuthAbort = null;
+        return { success: false, msg };
       }
 
-      // Stage B: device-flow OAuth login.
-      const start = await service.startDeviceFlow();
+      // The app may have been created under a different tenant brand than requested.
+      const effectiveBrand = app.tenantBrand === 'lark' ? 'lark' : brand;
+
+      // Stage B: device authorization — user scans to grant the app access to their account.
+      let da;
+      try {
+        da = await svc.requestDeviceAuthorization(effectiveBrand, app.appId, app.appSecret, RECOMMENDED_SCOPE);
+      } catch (daErr: any) {
+        if (signal.aborted) {
+          larkAuthAbort = null;
+          return { success: true };
+        }
+        const msg = daErr?.message ?? 'device authorization failed';
+        channel.larkAuthLogin.emit({ phase: 'error', message: msg });
+        larkAuthAbort = null;
+        return { success: false, msg };
+      }
       if (signal.aborted) {
-        larkCliLoginAbort = null;
+        larkAuthAbort = null;
         return { success: true };
       }
-      if (start.ok !== true) {
-        const failure = start;
-        const fullMsg = failure.hint ? `${failure.error} — ${failure.hint}` : failure.error;
-        channel.larkCliLogin.emit({ phase: 'error', message: fullMsg });
-        larkCliLoginAbort = null;
-        return { success: false, msg: fullMsg };
-      }
 
-      channel.larkCliLogin.emit({
+      channel.larkAuthLogin.emit({
         phase: 'qrcode',
-        verificationUrl: start.verificationUrl,
-        userCode: start.userCode,
-        expiresAt: start.expiresAt,
+        verificationUrl: da.verificationUriComplete,
+        userCode: da.userCode,
+        expiresAt: Date.now() + da.expiresIn * 1000,
       });
 
-      // `auth login --device-code` blocks until the user completes the browser flow,
-      // the device code expires, or we cancel. One call, not a poll loop.
-      const remainingMs = Math.max(60_000, start.expiresAt - Date.now() + 30_000);
-      const result = await service.waitForDeviceCode(start.deviceCode, { timeoutMs: remainingMs, signal });
+      const result = await svc.pollDeviceToken(effectiveBrand, app.appId, app.appSecret, da.deviceCode, da.interval, da.expiresIn, signal);
       if (signal.aborted) {
-        larkCliLoginAbort = null;
+        larkAuthAbort = null;
         return { success: true };
       }
-      if (result.status === 'success') {
-        const app = await service.getConfigApp();
-        channel.larkCliLogin.emit({
+      if (result.status === 'success' && result.token) {
+        // Resolve the human-readable identity for display.
+        const info = await fetchLarkUserInfo({ brand: effectiveBrand, accessToken: result.token.accessToken });
+        channel.larkAuthLogin.emit({
           phase: 'success',
-          user: result.user,
-          token: result.token,
+          user: { id: info?.openId ?? app.openId, name: info?.name },
           appId: app.appId,
           appSecret: app.appSecret,
+          brand: effectiveBrand,
+          token: result.token,
         });
-        larkCliLoginAbort = null;
+        larkAuthAbort = null;
         return { success: true };
       }
       if (result.status === 'expired') {
-        channel.larkCliLogin.emit({ phase: 'expired', message: 'Authorization code expired' });
-        larkCliLoginAbort = null;
+        channel.larkAuthLogin.emit({ phase: 'expired', message: result.error ?? 'Authorization code expired' });
+        larkAuthAbort = null;
         return { success: true };
       }
-      channel.larkCliLogin.emit({ phase: 'error', message: result.error ?? 'Login failed' });
-      larkCliLoginAbort = null;
+      channel.larkAuthLogin.emit({ phase: 'error', message: result.error ?? 'Login failed' });
+      larkAuthAbort = null;
       return { success: true };
     } catch (error: any) {
-      mainError('ChannelBridge', 'larkCliStart error:', error);
-      channel.larkCliLogin.emit({ phase: 'error', message: error?.message ?? 'Failed to start lark-cli login' });
-      larkCliLoginAbort = null;
+      mainError('ChannelBridge', 'larkAuthStart error:', error);
+      channel.larkAuthLogin.emit({ phase: 'error', message: error?.message ?? 'Failed to start Feishu login' });
+      larkAuthAbort = null;
       return { success: false, msg: error?.message };
     }
   });
 
-  channel.larkCliCancel.provider(async () => {
-    if (larkCliLoginAbort) {
-      larkCliLoginAbort.abort();
-      larkCliLoginAbort = null;
+  channel.larkAuthCancel.provider(async () => {
+    if (larkAuthAbort) {
+      larkAuthAbort.abort();
+      larkAuthAbort = null;
     }
     return { success: true };
   });
 
-  channel.larkCliStatus.provider(async () => {
+  channel.larkAuthStatus.provider(async () => {
     try {
-      const { getLarkCliAuthService } = await import('@/process/services/larkCli/LarkCliAuthService');
-      const data = await getLarkCliAuthService().getStatus();
-      return { success: true, data };
+      const creds = await readLarkCredentials();
+      const expiresAt = typeof creds.larkUserTokenExpiresAt === 'number' ? creds.larkUserTokenExpiresAt : Number(creds.larkUserTokenExpiresAt) || 0;
+      const refreshExpiresAt = typeof creds.larkUserRefreshTokenExpiresAt === 'number' ? creds.larkUserRefreshTokenExpiresAt : Number(creds.larkUserRefreshTokenExpiresAt) || 0;
+      // Logged in if we hold a user token whose refresh token (if known) hasn't expired.
+      const loggedIn = !!creds.larkUserAccessToken && (refreshExpiresAt === 0 || refreshExpiresAt > Date.now());
+      void expiresAt; // expiry is handled lazily on use via ensureValidUserToken
+      return {
+        success: true,
+        data: {
+          loggedIn,
+          user: loggedIn ? { id: creds.larkUserOpenId, name: creds.larkUserName } : undefined,
+        },
+      };
     } catch (error: any) {
-      mainError('ChannelBridge', 'larkCliStatus error:', error);
+      mainError('ChannelBridge', 'larkAuthStatus error:', error);
       return { success: false, msg: error?.message };
     }
   });
 
-  channel.larkCliLogout.provider(async () => {
+  channel.larkAuthLogout.provider(async () => {
     try {
-      const { getLarkCliAuthService } = await import('@/process/services/larkCli/LarkCliAuthService');
-      const r = await getLarkCliAuthService().logout();
-      if (!r.ok) return { success: false, msg: r.error };
+      // Sudowork owns the tokens — clearing the stored credential fields is the logout.
+      const creds = await readLarkCredentials();
+      const cleared: Record<string, unknown> = { ...creds };
+      delete cleared.larkUserAccessToken;
+      delete cleared.larkUserRefreshToken;
+      delete cleared.larkUserTokenExpiresAt;
+      delete cleared.larkUserRefreshTokenExpiresAt;
+      delete cleared.larkUserOpenId;
+      delete cleared.larkUserName;
+      delete cleared.larkBrand;
+      delete cleared.larkLoggedInAt;
+      if (creds.appId && creds.appSecret) {
+        await getChannelManager().enablePlugin('lark_default', cleared);
+      }
       return { success: true };
     } catch (error: any) {
-      mainError('ChannelBridge', 'larkCliLogout error:', error);
+      mainError('ChannelBridge', 'larkAuthLogout error:', error);
       return { success: false, msg: error?.message };
     }
   });
 
-  channel.larkCliWhoAmI.provider(async () => {
+  channel.larkAuthWhoAmI.provider(async () => {
     try {
-      const { fetchLarkCliUserInfoOrThrow } = await import('@/process/services/larkCli/larkCliApiCall');
-      const info = await fetchLarkCliUserInfoOrThrow();
+      const creds = await readLarkCredentials();
+      const { ensureValidUserToken, fetchLarkUserInfoOrThrow } = await import('@/process/services/lark/larkApiCall');
+      const ensured = await ensureValidUserToken(creds);
+      // Persist a refreshed token so subsequent calls don't refresh again.
+      if (ensured.refreshed && creds.appId && creds.appSecret) {
+        await getChannelManager().enablePlugin('lark_default', {
+          ...creds,
+          larkUserAccessToken: ensured.refreshed.accessToken,
+          larkUserRefreshToken: ensured.refreshed.refreshToken ?? creds.larkUserRefreshToken,
+          larkUserTokenExpiresAt: ensured.refreshed.expiresAt,
+          larkUserRefreshTokenExpiresAt: ensured.refreshed.refreshExpiresAt ?? creds.larkUserRefreshTokenExpiresAt,
+        } as Record<string, unknown>);
+      }
+      const info = await fetchLarkUserInfoOrThrow({ brand: ensured.brand, accessToken: ensured.accessToken });
       return { success: true, data: info };
     } catch (error: any) {
-      mainError('ChannelBridge', 'larkCliWhoAmI error:', error);
+      mainError('ChannelBridge', 'larkAuthWhoAmI error:', error);
       return { success: false, msg: error?.message ?? 'Failed to call user_info' };
     }
   });

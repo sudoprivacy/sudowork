@@ -9,7 +9,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 import { getDataPath } from '@/process/utils';
-import { callLarkCliApi, fetchLarkCliUserInfo } from '@/process/services/larkCli/larkCliApiCall';
+import { callLarkUserApi, ensureValidUserToken, fetchLarkUserInfo } from '@/process/services/lark/larkApiCall';
 import type { BotInfo, IChannelPluginConfig, IUnifiedIncomingMessage, IUnifiedOutgoingMessage, PluginType } from '../../types';
 import { BasePlugin } from '../BasePlugin';
 import { extractCardAction, LARK_MESSAGE_LIMIT, toLarkSendParams, toUnifiedIncomingMessage } from './LarkAdapter';
@@ -128,15 +128,15 @@ export class LarkPlugin extends BasePlugin {
 
       console.log(`[LarkPlugin] Started for app ${appId}`);
 
-      // If a lark-cli OAuth user token is available, fire-and-forget a user_info call to log
+      // If a user_access_token is available, fire-and-forget a user_info call to log
       // the live OAuth identity. Proves end-to-end that user-scope API calls work without
-      // blocking startup if lark-cli is offline.
-      if (this.config?.credentials?.larkCliAccessToken) {
+      // blocking startup.
+      if (this.config?.credentials?.larkUserAccessToken) {
         void this.fetchOAuthUserInfo().then((info) => {
           if (info) {
             mainLog('LarkPlugin', `OAuth user identity verified: ${info.name ?? '<unnamed>'} (open_id=${info.openId ?? 'n/a'})`);
           } else {
-            mainWarn('LarkPlugin', 'lark-cli OAuth token present but user_info call returned no data');
+            mainWarn('LarkPlugin', 'user token present but user_info call returned no data');
           }
         });
       }
@@ -819,21 +819,54 @@ export class LarkPlugin extends BasePlugin {
   }
 
   /**
-   * Invoke a Feishu Open API endpoint via the bundled `lark-cli`. lark-cli owns the
-   * user_access_token and handles refresh; this is the in-plugin wrapper around the shared
-   * helper in src/process/services/larkCli/larkCliApiCall.ts.
+   * Invoke a Feishu Open API endpoint with the logged-in user's user_access_token.
+   * Sudowork owns the token and refreshes it on demand; a refreshed token is written
+   * back to the plugin's credential store so future calls reuse it.
    */
-  async runLarkCliApi(method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH', apiPath: string, body?: Record<string, unknown>): Promise<Record<string, unknown>> {
-    return callLarkCliApi(method, apiPath, body);
+  async runLarkUserApi(method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH', apiPath: string, body?: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const creds = this.config?.credentials;
+    if (!creds) {
+      throw new Error('Lark credentials not available');
+    }
+    const ensured = await ensureValidUserToken(creds);
+    if (ensured.refreshed) {
+      await this.persistRefreshedUserToken(ensured.refreshed);
+    }
+    return callLarkUserApi({ brand: ensured.brand, accessToken: ensured.accessToken, method, path: apiPath, body });
+  }
+
+  /** Persist a refreshed user token back into the plugin's stored credentials. */
+  private async persistRefreshedUserToken(token: { accessToken: string; refreshToken?: string; expiresAt?: number; refreshExpiresAt?: number }): Promise<void> {
+    if (!this.config?.credentials) return;
+    const creds = this.config.credentials;
+    creds.larkUserAccessToken = token.accessToken;
+    if (token.refreshToken) creds.larkUserRefreshToken = token.refreshToken;
+    if (token.expiresAt) creds.larkUserTokenExpiresAt = token.expiresAt;
+    if (token.refreshExpiresAt) creds.larkUserRefreshTokenExpiresAt = token.refreshExpiresAt;
+    try {
+      const { getChannelManager } = await import('@/channels/core/ChannelManager');
+      await getChannelManager().enablePlugin('lark_default', { ...creds } as Record<string, unknown>);
+    } catch (err) {
+      mainWarn('LarkPlugin', 'failed to persist refreshed user token', err);
+    }
   }
 
   /**
    * Returns the OAuth user identity (the human who completed the QR scan), or null if the
-   * call fails. Delegates to the standalone helper so the IPC layer can use it without a
-   * live plugin instance too.
+   * call fails. Uses the stored user token (refreshing if needed).
    */
   async fetchOAuthUserInfo(): Promise<{ name?: string; openId?: string; email?: string } | null> {
-    return fetchLarkCliUserInfo();
+    const creds = this.config?.credentials;
+    if (!creds?.larkUserAccessToken) return null;
+    try {
+      const ensured = await ensureValidUserToken(creds);
+      if (ensured.refreshed) {
+        await this.persistRefreshedUserToken(ensured.refreshed);
+      }
+      return fetchLarkUserInfo({ brand: ensured.brand, accessToken: ensured.accessToken });
+    } catch {
+      return null;
+    }
   }
 
   /**

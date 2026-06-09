@@ -20,7 +20,7 @@ import { WeChatPlugin } from '../plugins/wechat/WeChatPlugin';
 import { WeComPlugin } from '../plugins/wecom/WeComPlugin';
 import { ZentaoPlugin } from '../plugins/zentao/ZentaoPlugin';
 import { isBuiltinChannelPlatform, resolveChannelConvType } from '../types';
-import type { ChannelPlatform, IChannelPluginConfig, PluginType } from '../types';
+import type { ChannelPlatform, IChannelPluginConfig, IPluginCredentials, PluginType } from '../types';
 import { SessionManager } from './SessionManager';
 import { LocalChannelProvider } from './LocalChannelProvider';
 import { RemoteChannelProvider } from './RemoteChannelProvider';
@@ -303,26 +303,33 @@ export class ChannelManager {
       const appSecret = config.appSecret as string | undefined;
       const encryptKey = config.encryptKey as string | undefined;
       const verificationToken = config.verificationToken as string | undefined;
-      // lark-cli QR-login adds these (all optional, present only after a successful scan)
-      const larkCliAccessToken = config.larkCliAccessToken as string | undefined;
-      const larkCliRefreshToken = config.larkCliRefreshToken as string | undefined;
-      const larkCliUserId = config.larkCliUserId as string | undefined;
-      const larkCliUserName = config.larkCliUserName as string | undefined;
-      // Timestamps are intentionally dropped on persistence — the storage layer only stores
-      // strings and the values are only used by the UI display, which can fall back to
-      // showing nothing when missing.
+      // QR device-flow login adds these (all optional, present only after a successful scan).
+      const larkUserAccessToken = config.larkUserAccessToken as string | undefined;
+      const larkUserRefreshToken = config.larkUserRefreshToken as string | undefined;
+      const larkUserOpenId = config.larkUserOpenId as string | undefined;
+      const larkUserName = config.larkUserName as string | undefined;
+      const larkBrand = config.larkBrand as string | undefined;
+      // Numeric timestamps (epoch-ms) are persisted as-is — the credential store round-trips
+      // numbers fine, and the token-refresh path needs the expiry to decide when to refresh.
+      const larkUserTokenExpiresAt = config.larkUserTokenExpiresAt as number | undefined;
+      const larkUserRefreshTokenExpiresAt = config.larkUserRefreshTokenExpiresAt as number | undefined;
+      const larkLoggedInAt = config.larkLoggedInAt as number | undefined;
       if (appId && appSecret) {
-        const merged: Record<string, string | undefined> = {
+        const merged: IPluginCredentials = {
           appId,
           appSecret,
           encryptKey,
           verificationToken,
         };
-        if (larkCliAccessToken) merged.larkCliAccessToken = larkCliAccessToken;
-        if (larkCliRefreshToken) merged.larkCliRefreshToken = larkCliRefreshToken;
-        if (larkCliUserId) merged.larkCliUserId = larkCliUserId;
-        if (larkCliUserName) merged.larkCliUserName = larkCliUserName;
-        credentials = merged as typeof credentials;
+        if (larkUserAccessToken) merged.larkUserAccessToken = larkUserAccessToken;
+        if (larkUserRefreshToken) merged.larkUserRefreshToken = larkUserRefreshToken;
+        if (larkUserOpenId) merged.larkUserOpenId = larkUserOpenId;
+        if (larkUserName) merged.larkUserName = larkUserName;
+        if (larkBrand) merged.larkBrand = larkBrand;
+        if (larkUserTokenExpiresAt) merged.larkUserTokenExpiresAt = larkUserTokenExpiresAt;
+        if (larkUserRefreshTokenExpiresAt) merged.larkUserRefreshTokenExpiresAt = larkUserRefreshTokenExpiresAt;
+        if (larkLoggedInAt) merged.larkLoggedInAt = larkLoggedInAt;
+        credentials = merged;
       }
     } else if (pluginType === 'dingtalk') {
       const clientId = config.clientId as string | undefined;

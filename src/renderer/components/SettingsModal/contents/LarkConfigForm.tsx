@@ -56,7 +56,7 @@ interface LarkConfigFormProps {
 
 const LARK_DEV_DOCS_URL = 'https://sudowork.sudoprivacy.com/guides/feishu.html';
 
-type LarkCliPhase = 'idle' | 'initializing' | 'app-setup' | 'qrcode' | 'success' | 'error' | 'expired';
+type LarkAuthPhase = 'idle' | 'initializing' | 'app-setup' | 'qrcode' | 'success' | 'error' | 'expired';
 
 const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSelection, onStatusChange, onCredentialsChange }) => {
   const { t } = useTranslation();
@@ -88,17 +88,15 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
   const [availableAgents, setAvailableAgents] = useState<Array<{ backend: AcpBackendAll; name: string; customAgentId?: string; isPreset?: boolean }>>([]);
   const [selectedAgent, setSelectedAgent] = useState<{ backend: AcpBackendAll; name?: string; customAgentId?: string }>({ backend: 'gemini' });
 
-  // lark-cli QR login (device flow) — single-source flow modelled on WeChat QR (consumer mode only)
-  const [larkCliPhase, setLarkCliPhase] = useState<LarkCliPhase>('idle');
-  const [larkCliModalOpen, setLarkCliModalOpen] = useState(false);
-  const [larkCliVerificationUrl, setLarkCliVerificationUrl] = useState('');
-  const [larkCliUserCode, setLarkCliUserCode] = useState('');
-  const [larkCliExpiresAt, setLarkCliExpiresAt] = useState<number>(0);
-  const [larkCliError, setLarkCliError] = useState('');
-  const [larkCliLoggedInUser, setLarkCliLoggedInUser] = useState<string | undefined>(undefined);
-  const [larkCliLoggedInAt, setLarkCliLoggedInAt] = useState<number | undefined>(undefined);
-  const [larkCliInstalled, setLarkCliInstalled] = useState(true);
-  const [larkCliBinPath, setLarkCliBinPath] = useState('');
+  // QR device-flow login — single-source flow modelled on WeChat QR (consumer mode only)
+  const [larkAuthPhase, setLarkAuthPhase] = useState<LarkAuthPhase>('idle');
+  const [larkAuthModalOpen, setLarkAuthModalOpen] = useState(false);
+  const [larkAuthVerificationUrl, setLarkAuthVerificationUrl] = useState('');
+  const [larkAuthUserCode, setLarkAuthUserCode] = useState('');
+  const [larkAuthExpiresAt, setLarkAuthExpiresAt] = useState<number>(0);
+  const [larkAuthError, setLarkAuthError] = useState('');
+  const [larkAuthLoggedInUser, setLarkAuthLoggedInUser] = useState<string | undefined>(undefined);
+  const [larkAuthLoggedInAt, setLarkAuthLoggedInAt] = useState<number | undefined>(undefined);
 
   const loadPendingPairings = useCallback(async () => {
     setPairingLoading(true);
@@ -204,44 +202,42 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
     }
   };
 
-  // Load lark-cli install/login status on mount (consumer mode only)
+  // Load login status on mount (consumer mode only)
   useEffect(() => {
     if (isEnterprise) return;
     let cancelled = false;
-    const loadLarkCliStatus = async () => {
+    const loadLarkAuthStatus = async () => {
       try {
-        const result = await channel.larkCliStatus.invoke();
+        const result = await channel.larkAuthStatus.invoke();
         if (cancelled || !result.success || !result.data) return;
-        setLarkCliInstalled(result.data.installed);
-        setLarkCliBinPath(result.data.binPath);
         if (result.data.loggedIn && result.data.user?.name) {
-          setLarkCliLoggedInUser(result.data.user.name);
+          setLarkAuthLoggedInUser(result.data.user.name);
         }
       } catch (error) {
-        console.warn('[LarkConfig] Failed to load lark-cli status:', error);
+        console.warn('[LarkConfig] Failed to load lark auth status:', error);
       }
     };
-    void loadLarkCliStatus();
+    void loadLarkAuthStatus();
     return () => {
       cancelled = true;
     };
   }, [isEnterprise]);
 
-  // Reflect any persisted lark-cli login info from saved credentials
+  // Reflect any persisted login info from saved credentials
   useEffect(() => {
     if (isEnterprise || !pluginStatus?.hasToken) return;
     let cancelled = false;
-    (async () => {
+    void (async () => {
       try {
         const result = await channel.getPluginCredentials.invoke({ pluginId: 'lark_default' });
         if (cancelled || !result.success || !result.data) return;
-        const creds = result.data as { larkCliUserName?: string; larkCliLoggedInAt?: number };
-        if (creds.larkCliUserName) {
-          setLarkCliLoggedInUser(creds.larkCliUserName);
-          setLarkCliLoggedInAt(creds.larkCliLoggedInAt);
+        const creds = result.data as { larkUserName?: string; larkLoggedInAt?: number };
+        if (creds.larkUserName) {
+          setLarkAuthLoggedInUser(creds.larkUserName);
+          setLarkAuthLoggedInAt(creds.larkLoggedInAt);
         }
       } catch (error) {
-        console.warn('[LarkConfig] Failed to load lark-cli credentials:', error);
+        console.warn('[LarkConfig] Failed to load lark credentials:', error);
       }
     })();
     return () => {
@@ -249,14 +245,9 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
     };
   }, [pluginStatus?.hasToken, isEnterprise]);
 
-  // Persist lark-cli token + auto-derived app creds into plugin credentials and enable the bot.
-  const persistLarkCliLogin = useCallback(
-    async (payload: {
-      user?: { id?: string; name?: string };
-      appId?: string;
-      appSecret?: string;
-      token?: { accessToken: string; refreshToken?: string; expiresAt?: number };
-    }) => {
+  // Persist login token + auto-derived app creds into plugin credentials and enable the bot.
+  const persistLarkAuthLogin = useCallback(
+    async (payload: { user?: { id?: string; name?: string }; appId?: string; appSecret?: string; brand?: 'feishu' | 'lark'; token?: { accessToken: string; refreshToken?: string; expiresAt?: number; refreshExpiresAt?: number; scope?: string } }) => {
       let existing: IPluginCredentials = {};
       try {
         const cur = await channel.getPluginCredentials.invoke({ pluginId: 'lark_default' });
@@ -268,18 +259,20 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
         ...existing,
         appId: payload.appId ?? existing.appId,
         appSecret: payload.appSecret ?? existing.appSecret,
-        larkCliAccessToken: payload.token?.accessToken,
-        larkCliRefreshToken: payload.token?.refreshToken,
-        larkCliExpiresAt: payload.token?.expiresAt,
-        larkCliUserId: payload.user?.id,
-        larkCliUserName: payload.user?.name,
-        larkCliLoggedInAt: Date.now(),
+        larkUserAccessToken: payload.token?.accessToken,
+        larkUserRefreshToken: payload.token?.refreshToken,
+        larkUserTokenExpiresAt: payload.token?.expiresAt,
+        larkUserRefreshTokenExpiresAt: payload.token?.refreshExpiresAt,
+        larkBrand: payload.brand,
+        larkUserOpenId: payload.user?.id,
+        larkUserName: payload.user?.name,
+        larkLoggedInAt: Date.now(),
       };
       try {
         const result = await channel.enablePlugin.invoke({ pluginId: 'lark_default', config });
         if (!result.success) {
-          console.error('[LarkConfig] persistLarkCliLogin enablePlugin failed:', result.msg);
-          Message.error(result.msg || 'Failed to persist lark-cli login');
+          console.error('[LarkConfig] persistLarkAuthLogin enablePlugin failed:', result.msg);
+          Message.error(result.msg || 'Failed to persist login');
           return;
         }
         const statusResult = await channel.getPluginStatus.invoke();
@@ -288,84 +281,80 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
           onStatusChange(larkPlugin || null);
         }
       } catch (error: any) {
-        console.error('[LarkConfig] persistLarkCliLogin error:', error);
-        Message.error(error?.message || 'Failed to persist lark-cli login');
+        console.error('[LarkConfig] persistLarkAuthLogin error:', error);
+        Message.error(error?.message || 'Failed to persist login');
       }
     },
     [onStatusChange]
   );
 
-  // Listen for lark-cli QR login events
+  // Listen for QR login events
   useEffect(() => {
-    const unsubscribe = channel.larkCliLogin.on((event) => {
+    const unsubscribe = channel.larkAuthLogin.on((event) => {
       if (event.phase === 'initializing') {
-        setLarkCliPhase('initializing');
-        setLarkCliError('');
-        setLarkCliVerificationUrl('');
-        setLarkCliUserCode('');
+        setLarkAuthPhase('initializing');
+        setLarkAuthError('');
+        setLarkAuthVerificationUrl('');
+        setLarkAuthUserCode('');
       } else if (event.phase === 'app-setup') {
-        setLarkCliPhase('app-setup');
-        if (event.verificationUrl) setLarkCliVerificationUrl(event.verificationUrl);
+        setLarkAuthPhase('app-setup');
+        if (event.verificationUrl) setLarkAuthVerificationUrl(event.verificationUrl);
       } else if (event.phase === 'qrcode') {
-        setLarkCliPhase('qrcode');
-        if (event.verificationUrl) setLarkCliVerificationUrl(event.verificationUrl);
-        if (event.userCode) setLarkCliUserCode(event.userCode);
-        if (event.expiresAt) setLarkCliExpiresAt(event.expiresAt);
+        setLarkAuthPhase('qrcode');
+        if (event.verificationUrl) setLarkAuthVerificationUrl(event.verificationUrl);
+        if (event.userCode) setLarkAuthUserCode(event.userCode);
+        if (event.expiresAt) setLarkAuthExpiresAt(event.expiresAt);
       } else if (event.phase === 'success') {
-        setLarkCliPhase('success');
-        setLarkCliLoggedInUser(event.user?.name);
-        setLarkCliLoggedInAt(Date.now());
+        setLarkAuthPhase('success');
+        setLarkAuthLoggedInUser(event.user?.name);
+        setLarkAuthLoggedInAt(Date.now());
         Message.success(t('settings.lark.larkCli.loginSuccess', '扫码登录成功'));
-        void persistLarkCliLogin({ user: event.user, appId: event.appId, appSecret: event.appSecret, token: event.token });
-        setTimeout(() => setLarkCliModalOpen(false), 1200);
+        void persistLarkAuthLogin({ user: event.user, appId: event.appId, appSecret: event.appSecret, brand: event.brand, token: event.token });
+        setTimeout(() => setLarkAuthModalOpen(false), 1200);
       } else if (event.phase === 'expired') {
-        setLarkCliPhase('expired');
-        setLarkCliError(event.message || t('settings.lark.larkCli.expired', '验证码已过期，请重试'));
+        setLarkAuthPhase('expired');
+        setLarkAuthError(event.message || t('settings.lark.larkCli.expired', '验证码已过期，请重试'));
       } else if (event.phase === 'error') {
-        setLarkCliPhase('error');
-        setLarkCliError(event.message || t('settings.lark.larkCli.error', '登录失败'));
+        setLarkAuthPhase('error');
+        setLarkAuthError(event.message || t('settings.lark.larkCli.error', '登录失败'));
       }
     });
     return () => unsubscribe();
-  }, [t, persistLarkCliLogin]);
+  }, [t, persistLarkAuthLogin]);
 
-  const handleStartLarkCliLogin = useCallback(async () => {
-    if (!larkCliInstalled) {
-      Message.error(t('settings.lark.larkCli.notInstalled', 'lark-cli 未安装') + (larkCliBinPath ? ` (${larkCliBinPath})` : ''));
-      return;
-    }
-    setLarkCliModalOpen(true);
-    setLarkCliPhase('initializing');
-    setLarkCliError('');
-    setLarkCliVerificationUrl('');
-    setLarkCliUserCode('');
+  const handleStartLarkAuthLogin = useCallback(async () => {
+    setLarkAuthModalOpen(true);
+    setLarkAuthPhase('initializing');
+    setLarkAuthError('');
+    setLarkAuthVerificationUrl('');
+    setLarkAuthUserCode('');
     try {
-      const result = await channel.larkCliStart.invoke({ brand: 'feishu' });
+      const result = await channel.larkAuthStart.invoke({ brand: 'feishu' });
       if (!result.success) {
-        setLarkCliPhase('error');
-        setLarkCliError(result.msg || t('settings.lark.larkCli.error', '登录失败'));
+        setLarkAuthPhase('error');
+        setLarkAuthError(result.msg || t('settings.lark.larkCli.error', '登录失败'));
       }
     } catch (error: any) {
-      setLarkCliPhase('error');
-      setLarkCliError(error?.message || String(error));
+      setLarkAuthPhase('error');
+      setLarkAuthError(error?.message || String(error));
     }
-  }, [larkCliInstalled, larkCliBinPath, t]);
+  }, [t]);
 
-  const handleCloseLarkCliModal = useCallback(() => {
-    setLarkCliModalOpen(false);
-    void channel.larkCliCancel.invoke().catch(() => {});
-    if (larkCliPhase !== 'success') setLarkCliPhase('idle');
-  }, [larkCliPhase]);
+  const handleCloseLarkAuthModal = useCallback(() => {
+    setLarkAuthModalOpen(false);
+    void channel.larkAuthCancel.invoke().catch(() => {});
+    if (larkAuthPhase !== 'success') setLarkAuthPhase('idle');
+  }, [larkAuthPhase]);
 
-  const handleLarkCliWhoAmI = useCallback(async () => {
+  const handleLarkAuthWhoAmI = useCallback(async () => {
     try {
-      const result = await channel.larkCliWhoAmI.invoke();
+      const result = await channel.larkAuthWhoAmI.invoke();
       if (!result.success) {
         Message.error(result.msg || 'Failed');
         return;
       }
       if (!result.data) {
-        Message.warning(t('settings.lark.larkCli.noOAuthData', '未取得用户信息 (lark-cli 是否已登录？)'));
+        Message.warning(t('settings.lark.larkCli.noOAuthData', '未取得用户信息 (是否已登录？)'));
         return;
       }
       const { name, openId, email } = result.data;
@@ -375,40 +364,25 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
     }
   }, [t]);
 
-  const handleLarkCliLogout = useCallback(async () => {
+  const handleLarkAuthLogout = useCallback(async () => {
     try {
-      const result = await channel.larkCliLogout.invoke();
+      const result = await channel.larkAuthLogout.invoke();
       if (!result.success) {
         Message.error(result.msg || t('settings.lark.larkCli.logoutFailed', '登出失败'));
         return;
       }
-      setLarkCliLoggedInUser(undefined);
-      setLarkCliLoggedInAt(undefined);
-      try {
-        const cur = await channel.getPluginCredentials.invoke({ pluginId: 'lark_default' });
-        if (cur.success && cur.data) {
-          const cleared: IPluginCredentials = { ...cur.data };
-          delete cleared.larkCliAccessToken;
-          delete cleared.larkCliRefreshToken;
-          delete cleared.larkCliExpiresAt;
-          delete cleared.larkCliUserId;
-          delete cleared.larkCliUserName;
-          delete cleared.larkCliLoggedInAt;
-          await channel.enablePlugin.invoke({ pluginId: 'lark_default', config: cleared as Record<string, unknown> });
-        }
-      } catch (err) {
-        console.warn('[LarkConfig] clear lark-cli credentials failed:', err);
-      }
+      setLarkAuthLoggedInUser(undefined);
+      setLarkAuthLoggedInAt(undefined);
       Message.success(t('settings.lark.larkCli.loggedOut', '已登出'));
     } catch (error: any) {
       Message.error(error?.message || t('settings.lark.larkCli.logoutFailed', '登出失败'));
     }
   }, [t]);
 
-  // Cancel any in-flight lark-cli login on unmount
+  // Cancel any in-flight login on unmount
   useEffect(() => {
     return () => {
-      void channel.larkCliCancel.invoke().catch(() => {});
+      void channel.larkAuthCancel.invoke().catch(() => {});
     };
   }, []);
 
@@ -567,42 +541,35 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
 
   return (
     <div className='flex flex-col gap-24px'>
-      {/* Consumer mode: lark-cli QR Login (replaces manual App ID / App Secret entry) */}
+      {/* Consumer mode: QR Login (replaces manual App ID / App Secret entry) */}
       {!isEnterprise && (
         <div className='flex flex-col gap-8px'>
           <SectionHeader title={t('settings.lark.larkCli.title', '扫码登录飞书')} />
-          <div className='text-12px text-t-tertiary'>{t('settings.lark.larkCli.description', '通过 lark-cli 自动完成飞书应用创建与授权登录，无需手动填写 App ID 与 App Secret。')}</div>
-          {!larkCliInstalled && (
-            <div className='text-12px text-orange-600 dark:text-orange-400'>
-              {t('settings.lark.larkCli.notInstalledHint', '未在')} <code className='bg-fill-3 px-4px rd-2px'>{larkCliBinPath || '~/.nexus/bin/lark-cli'}</code>{' '}
-              {t('settings.lark.larkCli.notInstalledHintTail', '找到 lark-cli，请先安装：')}{' '}
-              <code className='bg-fill-3 px-4px rd-2px'>npx skills add larksuite/cli -g -y</code>
-            </div>
-          )}
-          {larkCliLoggedInUser ? (
+          <div className='text-12px text-t-tertiary'>{t('settings.lark.larkCli.description', '扫码自动完成飞书应用创建与授权登录，无需手动填写 App ID 与 App Secret。')}</div>
+          {larkAuthLoggedInUser ? (
             <div className='flex items-center justify-between bg-fill-1 rd-8px p-12px'>
               <div className='flex items-center gap-8px'>
                 <div className='w-8px h-8px rd-50% bg-green-500' />
                 <span className='text-13px text-t-primary'>
-                  {t('settings.lark.larkCli.loggedInAs', '已登录')}: <strong>{larkCliLoggedInUser}</strong>
+                  {t('settings.lark.larkCli.loggedInAs', '已登录')}: <strong>{larkAuthLoggedInUser}</strong>
                 </span>
-                {larkCliLoggedInAt && <span className='text-12px text-t-tertiary'>{new Date(larkCliLoggedInAt).toLocaleString()}</span>}
+                {larkAuthLoggedInAt && <span className='text-12px text-t-tertiary'>{new Date(larkAuthLoggedInAt).toLocaleString()}</span>}
               </div>
               <div className='flex items-center gap-8px'>
-                <Button size='small' onClick={handleLarkCliWhoAmI} disabled={!larkCliInstalled}>
+                <Button size='small' onClick={handleLarkAuthWhoAmI}>
                   {t('settings.lark.larkCli.testOAuth', '测试 OAuth')}
                 </Button>
-                <Button size='small' icon={<ScanCode size={14} />} onClick={handleStartLarkCliLogin} disabled={!larkCliInstalled}>
+                <Button size='small' icon={<ScanCode size={14} />} onClick={handleStartLarkAuthLogin}>
                   {t('settings.lark.larkCli.relogin', '重新登录')}
                 </Button>
-                <Button size='small' status='danger' onClick={handleLarkCliLogout} disabled={!larkCliInstalled}>
+                <Button size='small' status='danger' onClick={handleLarkAuthLogout}>
                   {t('settings.lark.larkCli.logout', '登出')}
                 </Button>
               </div>
             </div>
           ) : (
             <div className='flex justify-center py-12px'>
-              <Button type='primary' size='large' icon={<ScanCode size={16} />} onClick={handleStartLarkCliLogin} disabled={!larkCliInstalled}>
+              <Button type='primary' size='large' icon={<ScanCode size={16} />} onClick={handleStartLarkAuthLogin}>
                 {t('settings.lark.larkCli.scanLogin', '扫码登录飞书')}
               </Button>
             </div>
@@ -610,92 +577,86 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
         </div>
       )}
 
-      {/* lark-cli QR Login Modal (consumer mode) */}
+      {/* QR Login Modal (consumer mode) */}
       {!isEnterprise && (
         <Modal
           title={t('settings.lark.larkCli.modalTitle', '扫码登录飞书')}
-          visible={larkCliModalOpen}
-          onCancel={handleCloseLarkCliModal}
+          visible={larkAuthModalOpen}
+          onCancel={handleCloseLarkAuthModal}
           footer={
             <div className='flex justify-end gap-8px'>
-              {(larkCliPhase === 'error' || larkCliPhase === 'expired') && (
-                <Button type='primary' onClick={handleStartLarkCliLogin}>
+              {(larkAuthPhase === 'error' || larkAuthPhase === 'expired') && (
+                <Button type='primary' onClick={handleStartLarkAuthLogin}>
                   {t('common.retry', '重试')}
                 </Button>
               )}
-              <Button onClick={handleCloseLarkCliModal}>{larkCliPhase === 'success' ? t('common.close', '关闭') : t('common.cancel', '取消')}</Button>
+              <Button onClick={handleCloseLarkAuthModal}>{larkAuthPhase === 'success' ? t('common.close', '关闭') : t('common.cancel', '取消')}</Button>
             </div>
           }
           maskClosable={false}
           style={{ width: 480 }}
         >
           <div className='flex flex-col items-center gap-16px py-12px'>
-            {larkCliPhase === 'initializing' && (
+            {larkAuthPhase === 'initializing' && (
               <div className='flex flex-col items-center gap-8px py-32px'>
                 <Spin size={32} />
-                <span className='text-12px text-t-tertiary'>{t('settings.lark.larkCli.initializing', '正在初始化 lark-cli…')}</span>
+                <span className='text-12px text-t-tertiary'>{t('settings.lark.larkCli.initializing', '正在初始化…')}</span>
               </div>
             )}
-            {larkCliPhase === 'app-setup' && larkCliVerificationUrl && (
+            {larkAuthPhase === 'app-setup' && larkAuthVerificationUrl && (
               <>
                 <div className='text-13px font-500 text-t-primary'>{t('settings.lark.larkCli.appSetupTitle', '第 1 步：配置飞书应用')}</div>
                 <div className='bg-white rd-8px p-12px'>
-                  <QRCodeSVG value={larkCliVerificationUrl} size={200} level='M' />
+                  <QRCodeSVG value={larkAuthVerificationUrl} size={200} level='M' />
                 </div>
                 <div className='text-12px text-t-tertiary text-center'>
                   {t('settings.lark.larkCli.appSetupHint', '在飞书移动端扫码，或在浏览器打开：')}
                   <br />
-                  <button
-                    className='text-primary hover:underline cursor-pointer bg-transparent border-none p-0 text-12px break-all'
-                    onClick={() => openExternalUrl(larkCliVerificationUrl).catch(console.error)}
-                  >
-                    {larkCliVerificationUrl}
+                  <button className='text-primary hover:underline cursor-pointer bg-transparent border-none p-0 text-12px break-all' onClick={() => openExternalUrl(larkAuthVerificationUrl).catch(console.error)}>
+                    {larkAuthVerificationUrl}
                   </button>
                 </div>
               </>
             )}
-            {larkCliPhase === 'qrcode' && larkCliVerificationUrl && (
+            {larkAuthPhase === 'qrcode' && larkAuthVerificationUrl && (
               <>
                 <div className='text-13px font-500 text-t-primary'>{t('settings.lark.larkCli.authTitle', '第 2 步：扫码登录飞书账号')}</div>
                 <div className='bg-white rd-8px p-12px'>
-                  <QRCodeSVG value={larkCliVerificationUrl} size={200} level='M' />
+                  <QRCodeSVG value={larkAuthVerificationUrl} size={200} level='M' />
                 </div>
-                {larkCliUserCode && (
+                {larkAuthUserCode && (
                   <div className='flex flex-col items-center gap-4px'>
                     <div className='text-12px text-t-tertiary'>{t('settings.lark.larkCli.verificationCode', '验证码')}</div>
-                    <div className='text-20px font-600 tracking-widest font-mono text-t-primary'>{larkCliUserCode}</div>
+                    <div className='text-20px font-600 tracking-widest font-mono text-t-primary'>{larkAuthUserCode}</div>
                   </div>
                 )}
                 <div className='text-12px text-t-tertiary text-center'>
                   {t('settings.lark.larkCli.scanHint', '使用飞书扫一扫，或在浏览器打开：')}
                   <br />
-                  <button
-                    className='text-primary hover:underline cursor-pointer bg-transparent border-none p-0 text-12px break-all'
-                    onClick={() => openExternalUrl(larkCliVerificationUrl).catch(console.error)}
-                  >
-                    {larkCliVerificationUrl}
+                  <button className='text-primary hover:underline cursor-pointer bg-transparent border-none p-0 text-12px break-all' onClick={() => openExternalUrl(larkAuthVerificationUrl).catch(console.error)}>
+                    {larkAuthVerificationUrl}
                   </button>
                 </div>
-                {larkCliExpiresAt > 0 && (
+                {larkAuthExpiresAt > 0 && (
                   <div className='text-11px text-t-tertiary'>
-                    {t('settings.lark.larkCli.expiresIn', '剩余有效期')}: {Math.max(0, Math.ceil((larkCliExpiresAt - Date.now()) / 60000))} {t('settings.lark.larkCli.minutes', '分钟')}
+                    {t('settings.lark.larkCli.expiresIn', '剩余有效期')}: {Math.max(0, Math.ceil((larkAuthExpiresAt - Date.now()) / 60000))} {t('settings.lark.larkCli.minutes', '分钟')}
                   </div>
                 )}
               </>
             )}
-            {larkCliPhase === 'success' && (
+            {larkAuthPhase === 'success' && (
               <div className='flex flex-col items-center gap-8px py-32px'>
                 <CheckOne size={48} theme='filled' fill='#22c55e' />
                 <span className='text-14px text-t-primary'>
                   {t('settings.lark.larkCli.loginSuccess', '扫码登录成功')}
-                  {larkCliLoggedInUser ? ` — ${larkCliLoggedInUser}` : ''}
+                  {larkAuthLoggedInUser ? ` — ${larkAuthLoggedInUser}` : ''}
                 </span>
               </div>
             )}
-            {(larkCliPhase === 'error' || larkCliPhase === 'expired') && (
+            {(larkAuthPhase === 'error' || larkAuthPhase === 'expired') && (
               <div className='flex flex-col items-center gap-8px py-24px'>
                 <CloseOne size={32} theme='filled' fill='#ef4444' />
-                <span className='text-13px text-red-600 dark:text-red-400 text-center px-12px break-words'>{larkCliError}</span>
+                <span className='text-13px text-red-600 dark:text-red-400 text-center px-12px break-words'>{larkAuthError}</span>
               </div>
             )}
           </div>
@@ -892,9 +853,7 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
           {/* Test Connection Button (enterprise mode) */}
           {!hasExistingUsers && !pluginStatus?.connected && (
             <div className='flex justify-end'>
-              {pluginStatus?.hasToken && !appId.trim() && !appSecret.trim() ? (
-                <span className='text-12px text-t-tertiary mr-12px self-center'>{t('settings.lark.credentialsSaved', 'Credentials already configured. Enter new values to update.')}</span>
-              ) : null}
+              {pluginStatus?.hasToken && !appId.trim() && !appSecret.trim() ? <span className='text-12px text-t-tertiary mr-12px self-center'>{t('settings.lark.credentialsSaved', 'Credentials already configured. Enter new values to update.')}</span> : null}
               <Button type='primary' loading={testLoading} onClick={handleTestConnection} disabled={!appId.trim() || !appSecret.trim() || credentialsTested}>
                 {t('settings.lark.testAndConnect', 'Test & Connect')}
               </Button>
