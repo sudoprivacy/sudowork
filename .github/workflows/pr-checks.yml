@@ -19,15 +19,19 @@ env:
 
 jobs:
   # Job 0: Reject PRs targeting main — all PRs should target dev
+  # Exception: release sync PRs from 'dev' to 'main' are allowed.
   check-base-branch:
     name: Check PR Base Branch
-    if: github.event.pull_request.base.ref == 'main'
+    if: >
+      github.event.pull_request.base.ref == 'main'
+      && github.event.pull_request.head.ref != 'dev'
     runs-on: ubuntu-latest
     steps:
       - name: Reject PR to main
         run: |
           echo "::error::PRs should target 'dev', not 'main'. Please change the base branch."
           echo "To fix: gh pr edit ${{ github.event.pull_request.number }} --base dev"
+          echo "(Note: release sync PRs from 'dev' to 'main' are exempt.)"
           exit 1
 
   # Job 1: Skipped code quality checks (ESLint removed per requirement)
