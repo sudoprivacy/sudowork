@@ -7,16 +7,16 @@
 /**
  * Nexus RPC Client
  *
- * File I/O client backed by nexusd-cluster gRPC (port 2028).
+ * File I/O client backed by nexusd-cluster gRPC (port 12022).
  * Uses the nexus-napi native addon for typed Read/Write RPCs and
  * the generic Call RPC for stat/readdir/unlink/mkdir.
  *
- * Migrated from HTTP JSON-RPC (:12012) to gRPC (:2028) — all callers
+ * Migrated from HTTP JSON-RPC (:12012) to gRPC (:12022) — all callers
  * (safety hooks, etc.) keep the same public API.
  */
 
 export interface NexusRpcOptions {
-  /** gRPC endpoint (default: http://localhost:2028) */
+  /** gRPC endpoint (default: http://localhost:12022) */
   endpoint?: string;
   /** Auth token for gRPC calls */
   authToken?: string;
@@ -47,7 +47,7 @@ export class Nexus {
   private readonly authToken: string;
 
   constructor(options?: NexusRpcOptions) {
-    const endpoint = options?.endpoint ?? options?.serverUrl ?? 'http://localhost:2028';
+    const endpoint = options?.endpoint ?? options?.serverUrl ?? 'http://localhost:12022';
     this.authToken = options?.authToken ?? options?.apiKey ?? '';
     const { NexusGrpcClient } = loadNativeBinding();
     this.client = new NexusGrpcClient(endpoint);
@@ -224,7 +224,7 @@ let nexusInstance: Nexus | null = null;
 export function getNexusRpcClient(options?: NexusRpcOptions): Nexus {
   if (!nexusInstance) {
     nexusInstance = new Nexus({
-      endpoint: 'http://localhost:2028',
+      endpoint: 'http://localhost:12022',
       ...options,
     });
   }

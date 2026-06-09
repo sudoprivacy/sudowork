@@ -9,7 +9,7 @@
 export declare class NexusGrpcClient {
   /**
    * Create a new gRPC client targeting the given endpoint
-   * (e.g. "http://localhost:2028").
+   * (e.g. "http://localhost:12022").
    * The TCP connection is lazy — established on first RPC call.
    */
   constructor(endpoint: string)
