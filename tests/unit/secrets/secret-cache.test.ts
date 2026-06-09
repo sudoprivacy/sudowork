@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { secretCache, resolveSecret, cachePut } from '../../../src/common/nexus/secret-cache.js';
 
-// Mock the SecretStoreClient and its factory
-vi.mock('../../../src/common/nexus/secret-store.js', () => ({
-  getSecretStoreClient: vi.fn(() => ({
+// Mock the NexusSecretClient and its factory
+vi.mock('../../../src/common/nexus/nexus-secret-client.js', () => ({
+  getNexusSecretClient: vi.fn(() => ({
     listSecrets: vi.fn(),
     getSecret: vi.fn(),
     putSecret: vi.fn(),
@@ -29,8 +29,8 @@ describe('SecretCache', () => {
   describe('preload', () => {
     it('should preload secrets from client', async () => {
       const mockClient = {
-        listSecrets: vi.fn().mockResolvedValue([{ namespace: 'ns', key: 'k1' }]),
-        getSecret: vi.fn().mockResolvedValue('v1'),
+        listSecrets: vi.fn().mockReturnValue([{ namespace: 'ns', key: 'k1', deleted: false }]),
+        getSecret: vi.fn().mockReturnValue('v1'),
         putSecret: vi.fn(),
       };
       (secretCache as any).client = mockClient;
