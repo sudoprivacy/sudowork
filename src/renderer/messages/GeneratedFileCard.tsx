@@ -20,6 +20,7 @@ import { useTranslation } from 'react-i18next';
 
 interface GeneratedFileCardProps {
   entry: GeneratedFileEntry;
+  fullWidth?: boolean;
 }
 
 /**
@@ -33,7 +34,7 @@ interface GeneratedFileCardProps {
  * Stale-file check on mount: if the file has been moved / deleted by the time
  * the message is being rendered, the card dims itself and disables clicking.
  */
-const GeneratedFileCard: React.FC<GeneratedFileCardProps> = ({ entry }) => {
+const GeneratedFileCard: React.FC<GeneratedFileCardProps> = ({ entry, fullWidth = false }) => {
   const { t } = useTranslation();
   const fileName = (entry.relativePath ?? entry.path).split(/[\\/]/).pop() || entry.path;
   const directory = (() => {
@@ -91,7 +92,7 @@ const GeneratedFileCard: React.FC<GeneratedFileCardProps> = ({ entry }) => {
         Message.error(String(err instanceof Error ? err.message : err));
       });
     },
-    [entry.path, missing],
+    [entry.path, missing]
   );
 
   const handleShowInFolder = useCallback(
@@ -102,7 +103,7 @@ const GeneratedFileCard: React.FC<GeneratedFileCardProps> = ({ entry }) => {
         Message.error(String(err instanceof Error ? err.message : err));
       });
     },
-    [entry.path, missing],
+    [entry.path, missing]
   );
 
   const sizeLabel = typeof resolvedSize === 'number' ? formatFileSize(resolvedSize) : '';
@@ -111,14 +112,13 @@ const GeneratedFileCard: React.FC<GeneratedFileCardProps> = ({ entry }) => {
   return (
     <Tooltip content={missing ? t('messages.generatedFile.missingHint') : entry.path} position='top' mini>
       <div
-        className={classNames(
-          'group inline-flex items-center gap-8px px-10px py-8px rd-10px border border-solid border-[var(--color-border-2)] bg-[var(--color-bg-2)] cursor-pointer transition-all',
-          'hover:bg-[var(--color-bg-3)] hover:border-[var(--color-border-3)] active:scale-[0.98]',
-          { 'opacity-50 cursor-not-allowed': missing || loading },
-        )}
+        className={classNames('group min-w-0 items-center gap-12px overflow-hidden rounded-16px border border-solid border-[var(--color-border-2)] bg-[var(--color-bg-2)] px-12px py-12px text-left transition-all', fullWidth ? 'flex w-full' : 'inline-flex max-w-full', 'hover:bg-[var(--color-bg-3)] hover:border-[var(--color-border-3)] active:scale-[0.98]', {
+          'opacity-50 cursor-not-allowed': missing || loading,
+        })}
         onClick={handleClick}
         role='button'
         tabIndex={0}
+        aria-label={fileName}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
@@ -126,19 +126,21 @@ const GeneratedFileCard: React.FC<GeneratedFileCardProps> = ({ entry }) => {
           }
         }}
       >
-        <div className='flex-shrink-0' style={{ color: iconColors.primary, lineHeight: 0 }}>
-          {resolveFileIcon(fileName, { size: 20 })}
+        <div className='flex h-48px w-48px flex-shrink-0 items-center justify-center rounded-16px border border-solid border-[var(--color-border-2)] bg-[var(--color-fill-1)] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]' style={{ color: iconColors.primary, lineHeight: 0 }}>
+          {resolveFileIcon(fileName, { size: 26 })}
         </div>
-        <div className='min-w-0 flex flex-col leading-tight'>
-          <div className='flex items-center gap-6px'>
-            <span className='text-13px text-t-primary truncate max-w-220px font-medium'>{fileName}</span>
-            <span className={classNames('text-10px px-4px py-1px rd-3px flex-shrink-0', missing ? 'bg-[var(--color-danger-light-1)] text-[var(--color-danger)]' : 'bg-[var(--color-success-light-1)] text-[var(--color-success)]')}>{missing ? t('messages.generatedFile.statusMissing') : kindLabel}</span>
+        <div className='min-w-0 flex flex-col gap-4px leading-tight'>
+          <div className='flex items-center gap-8px'>
+            <span className='max-w-full truncate text-15px font-semibold text-t-primary'>{fileName}</span>
+            <span className={classNames('flex-shrink-0 rounded-full px-6px py-1px text-[10px] font-medium', missing ? 'bg-[var(--color-danger-light-1)] text-[var(--color-danger)]' : 'bg-[var(--color-success-light-1)] text-[var(--color-success)]')}>{missing ? t('messages.generatedFile.statusMissing') : kindLabel}</span>
           </div>
-          <div className='text-11px text-t-secondary truncate max-w-260px'>
-            {directory && <span className='opacity-70 mr-6px'>{directory}/</span>}
-            {sizeLabel && <span>{sizeLabel}</span>}
-            {sizeLabel && ext && <span className='mx-4px opacity-50'>·</span>}
-            {ext && <span className='uppercase opacity-70'>{ext}</span>}
+          <div className='max-w-full truncate text-12px text-t-secondary'>
+            {directory ? <span className='opacity-75'>{directory}</span> : null}
+            {!directory && sizeLabel && <span>{sizeLabel}</span>}
+            {!directory && sizeLabel && ext && <span className='mx-4px opacity-50'>·</span>}
+            {!directory && ext && <span className='uppercase opacity-70'>{ext}</span>}
+            {directory && sizeLabel ? <span className='ml-8px rounded-full bg-[var(--color-fill-1)] px-6px py-1px text-[10px] leading-4 text-t-secondary'>{sizeLabel}</span> : null}
+            {directory && ext ? <span className='ml-6px rounded-full bg-[var(--color-fill-1)] px-6px py-1px text-[10px] leading-4 uppercase tracking-wide text-t-secondary'>{ext}</span> : null}
           </div>
         </div>
         {!missing && (
@@ -146,14 +148,14 @@ const GeneratedFileCard: React.FC<GeneratedFileCardProps> = ({ entry }) => {
           // Hidden by default to keep the card visually quiet; revealed on
           // group-hover. stopPropagation in handlers so they don't trigger
           // the card's primary in-app preview click.
-          <div className='ml-auto flex items-center gap-2px opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0'>
+          <div className='ml-auto flex flex-shrink-0 items-center gap-2px opacity-0 transition-opacity group-hover:opacity-100'>
             <Tooltip content={t(isHtml ? 'messages.generatedFile.openInSystemBrowser' : 'messages.generatedFile.openWithDefaultApp')} position='top' mini>
-              <button type='button' onClick={handleOpenExternal} className='p-4px rd-4px hover:bg-[var(--color-bg-1)] flex items-center justify-center border-0 bg-transparent cursor-pointer' style={{ lineHeight: 0 }}>
+              <button type='button' onClick={handleOpenExternal} className='flex items-center justify-center rounded-4px border-0 bg-transparent p-4px cursor-pointer hover:bg-[var(--color-bg-1)]' style={{ lineHeight: 0 }}>
                 <ShareOne size='14' fill={iconColors.secondary} />
               </button>
             </Tooltip>
             <Tooltip content={t('messages.generatedFile.showInFolder')} position='top' mini>
-              <button type='button' onClick={handleShowInFolder} className='p-4px rd-4px hover:bg-[var(--color-bg-1)] flex items-center justify-center border-0 bg-transparent cursor-pointer' style={{ lineHeight: 0 }}>
+              <button type='button' onClick={handleShowInFolder} className='flex items-center justify-center rounded-4px border-0 bg-transparent p-4px cursor-pointer hover:bg-[var(--color-bg-1)]' style={{ lineHeight: 0 }}>
                 <FolderOpen size='14' fill={iconColors.secondary} />
               </button>
             </Tooltip>
@@ -166,6 +168,8 @@ const GeneratedFileCard: React.FC<GeneratedFileCardProps> = ({ entry }) => {
 
 interface GeneratedFileCardsProps {
   entries: GeneratedFileEntry[];
+  layout?: 'grid' | 'stack';
+  fullWidth?: boolean;
 }
 
 /**
@@ -173,12 +177,12 @@ interface GeneratedFileCardsProps {
  * wrap. Empty list is a no-op (returns null) so callers can safely render
  * the component without conditional logic.
  */
-const GeneratedFileCards: React.FC<GeneratedFileCardsProps> = ({ entries }) => {
+const GeneratedFileCards: React.FC<GeneratedFileCardsProps> = ({ entries, layout = 'grid', fullWidth = false }) => {
   if (!entries || entries.length === 0) return null;
   return (
-    <div className='flex flex-wrap gap-8px'>
+    <div className={layout === 'stack' ? 'flex flex-col gap-8px' : 'flex flex-wrap gap-8px'}>
       {entries.map((entry) => (
-        <GeneratedFileCard key={entry.path} entry={entry} />
+        <GeneratedFileCard key={entry.path} entry={entry} fullWidth={fullWidth} />
       ))}
     </div>
   );
