@@ -143,10 +143,12 @@ function CodeBlock(props: any) {
       <div style={{ width: '100%', minWidth: 0, maxWidth: '100%', ...(props.codeStyle || {}) }}>
         <div
           style={{
+            width: '100%',
+            minWidth: 0,
+            maxWidth: '100%',
             border: '1px solid var(--bg-3)',
             borderRadius: '0.3rem',
             overflow: 'hidden',
-            overflowX: 'auto',
           }}
         >
           <div
@@ -197,38 +199,37 @@ function CodeBlock(props: any) {
           {logicRender(
             !fold,
             <>
-              <SyntaxHighlighter
-                children={formattedContent}
-                language={language}
-                style={codeTheme}
-                PreTag='div'
-                wrapLines={isDiff}
-                lineProps={
-                  isDiff
-                    ? (lineNumber: number) => ({
-                        style: { display: 'block', ...getDiffLineStyle(diffLines[lineNumber - 1] || '', currentTheme === 'dark') },
-                      })
-                    : undefined
-                }
-                customStyle={{
-                  marginTop: '0',
-                  margin: '0',
-                  borderTopLeftRadius: '0',
-                  borderTopRightRadius: '0',
-                  borderBottomLeftRadius: '0',
-                  borderBottomRightRadius: '0',
-                  border: 'none',
-                  background: 'transparent',
-                  color: 'var(--text-primary)',
-                  overflowX: 'auto',
-                  maxWidth: '100%',
-                }}
-                codeTagProps={{
-                  style: {
+              <div style={{ width: '100%', minWidth: 0, maxWidth: '100%', overflowX: 'auto' }}>
+                <SyntaxHighlighter
+                  children={formattedContent}
+                  language={language}
+                  style={codeTheme}
+                  PreTag='div'
+                  wrapLines={isDiff}
+                  lineProps={
+                    isDiff
+                      ? (lineNumber: number) => ({
+                          style: { display: 'block', ...getDiffLineStyle(diffLines[lineNumber - 1] || '', currentTheme === 'dark') },
+                        })
+                      : undefined
+                  }
+                  customStyle={{
+                    width: 'max-content',
+                    minWidth: '100%',
+                    margin: '0',
+                    border: 'none',
+                    background: 'transparent',
                     color: 'var(--text-primary)',
-                  },
-                }}
-              />
+                    overflowX: 'visible',
+                    whiteSpace: 'pre',
+                  }}
+                  codeTagProps={{
+                    style: {
+                      color: 'var(--text-primary)',
+                    },
+                  }}
+                />
+              </div>
               <div
                 style={{
                   display: 'flex',
@@ -555,10 +556,8 @@ const MarkdownView: React.FC<MarkdownViewProps> = ({ hiddenCodeCopyButton, codeS
       // Normalize Windows backslash paths in markdown image syntax to forward slashes.
       // Without this, the markdown parser treats backslashes as escape characters,
       // corrupting paths like C:\Users\...\image.png (e.g. \. becomes just .)
-      text = text.replace(
-        /!\[([^\]]*)\]\(([A-Za-z]:\\[^)]+)\)/g,
-        (_match, alt: string, imagePath: string) => `![${alt}](${imagePath.replace(/\\/g, '/')})`,
-      );
+      // Also strips the Windows extended-length path prefix \\?\ if present.
+      text = text.replace(/!\[([^\]]*)\]\((?:\\\\\?\\)?([A-Za-z]:\\[^)]+)\)/g, (_match, alt: string, imagePath: string) => `![${alt}](${imagePath.replace(/\\/g, '/')})`);
       text = convertLatexDelimiters(text);
       return text;
     }

@@ -19,6 +19,8 @@ interface ThoughtDisplayProps {
   style?: 'default' | 'compact';
   running?: boolean;
   onStop?: () => void;
+  /** 处理开始时间戳（毫秒），用于恢复计时器 / Processing start timestamp in milliseconds for timer restoration */
+  startTime?: number;
 }
 
 // 背景渐变常量 Background gradient constants
@@ -35,16 +37,11 @@ const formatElapsedTime = (seconds: number): string => {
   return `${minutes}m ${remainingSeconds}s`;
 };
 
-const ThoughtDisplay: React.FC<ThoughtDisplayProps> = ({ thought, style = 'default', running = false, onStop: _onStop }) => {
+const ThoughtDisplay: React.FC<ThoughtDisplayProps> = ({ thought, style = 'default', running = false, onStop: _onStop, startTime }) => {
   const { theme } = useThemeContext();
   const { t } = useTranslation();
   const [elapsedTime, setElapsedTime] = useState(0);
   const startTimeRef = useRef<number>(0);
-
-  // 初始化 startTimeRef
-  useEffect(() => {
-    startTimeRef.current = Date.now();
-  }, []);
 
   // 计时器 Timer for elapsed time
   useEffect(() => {
@@ -53,9 +50,13 @@ const ThoughtDisplay: React.FC<ThoughtDisplayProps> = ({ thought, style = 'defau
       return;
     }
 
-    // 开始新的计时
-    startTimeRef.current = Date.now();
-    setElapsedTime(0);
+    // 使用传入的 startTime 或当前时间 Use provided startTime or current time
+    const effectiveStartTime = startTime ?? Date.now();
+    startTimeRef.current = effectiveStartTime;
+
+    // 如果有 startTime，计算初始已用时间 Calculate initial elapsed time if startTime was provided
+    const initialElapsed = startTime ? Math.floor((Date.now() - startTime) / 1000) : 0;
+    setElapsedTime(Math.max(0, initialElapsed));
 
     const timer = setInterval(() => {
       const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
@@ -63,7 +64,7 @@ const ThoughtDisplay: React.FC<ThoughtDisplayProps> = ({ thought, style = 'defau
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [running, thought?.subject]);
+  }, [running, thought?.subject, startTime]);
 
   // 根据主题和样式计算最终样式 Calculate final style based on theme and style prop
   const containerStyle = useMemo(() => {
@@ -80,7 +81,8 @@ const ThoughtDisplay: React.FC<ThoughtDisplayProps> = ({ thought, style = 'defau
 
     return {
       background,
-      transform: 'translateY(36px)',
+      marginBottom: '-14px',
+      zIndex: 1,
     };
   }, [theme, style]);
 
@@ -92,7 +94,7 @@ const ThoughtDisplay: React.FC<ThoughtDisplayProps> = ({ thought, style = 'defau
   // 运行中但没有 thought 时显示默认处理状态
   if (running && !thought?.subject) {
     return (
-      <div className='px-10px py-10px rd-20px text-14px pb-40px lh-20px text-t-primary flex items-center gap-8px' style={containerStyle}>
+      <div className='px-10px py-10px rd-t-20px text-14px pb-24px lh-20px text-t-primary flex items-center gap-8px' style={containerStyle}>
         <Spin size={14} />
         <span className='text-t-secondary'>
           {t('conversation.chat.processing')}
@@ -106,7 +108,7 @@ const ThoughtDisplay: React.FC<ThoughtDisplayProps> = ({ thought, style = 'defau
   const showDescription = thought.description && thought.description !== thought.subject;
 
   return (
-    <div className='px-10px py-10px rd-20px text-14px pb-40px lh-20px text-t-primary' style={containerStyle}>
+    <div className='px-10px py-10px rd-t-20px text-14px pb-24px lh-20px text-t-primary' style={containerStyle}>
       <div className='flex items-center gap-8px'>
         {running && <Spin size={14} />}
         <Tag color='arcoblue' size='small'>

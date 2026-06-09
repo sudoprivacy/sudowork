@@ -9,10 +9,11 @@ import React, { useCallback, useEffect, useState } from 'react';
 import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
+import { ShareOne } from '@icon-park/react';
 import { useSettingsViewMode } from '../settingsViewContext';
-import { nexus as nexusIpc, claudeCli as claudeCliIpc, libreOffice as libreOfficeIpc, sudoclaw as sudoclawIpc, nodeRuntime as nodeRuntimeIpc, acpConversation } from '@/common/ipcBridge';
+import { nexus as nexusIpc, claudeCli as claudeCliIpc, libreOffice as libreOfficeIpc, pythonRuntime as pythonRuntimeIpc, scode as scodeIpc, nodeRuntime as nodeRuntimeIpc, acpConversation, shareoneCli } from '@/common/ipcBridge';
 import { mutate } from 'swr';
-import type { ICliStatus, ILibreOfficeInstallPhase, ISudoclawInstallPhase, NexusInstallPhase } from '@/common/ipcBridge';
+import type { ICliStatus, ILibreOfficeInstallPhase, IPythonInstallPhase, NexusInstallPhase } from '@/common/ipcBridge';
 import { getRuntimeActions, getStatusInfo, isInstalled, type LoadState, type ToolRow } from './runtimeStatus';
 
 type RefreshOptions = {
@@ -46,13 +47,16 @@ const RuntimeModalContent: React.FC = () => {
   const [libreOfficePhase, setLibreOfficePhase] = useState<ILibreOfficeInstallPhase | undefined>(undefined);
   const [libreOfficePercent, setLibreOfficePercent] = useState<number | undefined>(undefined);
 
-  const [sudoclawInstalled, setSudoclawInstalled] = useState<boolean>(false);
-  const [sudoclawVersion, setSudoclawVersion] = useState<string | undefined>(undefined);
-  const [sudoclawGatewayPort, setSudoclawGatewayPort] = useState<number | undefined>(undefined);
-  const [sudoclawGatewayRunning, setSudoclawGatewayRunning] = useState<boolean>(false);
-  const [sudoclawStatusResolved, setSudoclawStatusResolved] = useState<boolean>(false);
-  const [sudoclawLoad, setSudoclawLoad] = useState<LoadState>('idle');
-  const [sudoclawPhase, setSudoclawPhase] = useState<ISudoclawInstallPhase | undefined>(undefined);
+  const [pythonStatus, setPythonStatus] = useState<ICliStatus | null>(null);
+  const [pythonLoad, setPythonLoad] = useState<LoadState>('idle');
+  const [pythonPhase, setPythonPhase] = useState<IPythonInstallPhase | undefined>(undefined);
+  const [pythonPercent, setPythonPercent] = useState<number | undefined>(undefined);
+
+  const [scodeStatus, setScodeStatus] = useState<ICliStatus | null>(null);
+  const [scodeLoad, setScodeLoad] = useState<LoadState>('idle');
+
+  const [shareoneStatus, setShareoneStatus] = useState<ICliStatus | null>(null);
+  const [shareoneLoad, setShareoneLoad] = useState<LoadState>('idle');
 
   const [nexusVersion, setNexusVersion] = useState<string | undefined>(undefined);
 
@@ -226,78 +230,116 @@ const RuntimeModalContent: React.FC = () => {
     }
   }, [refreshLibreOffice, t]);
 
-  const refreshSudoclaw = useCallback(async () => {
+  const refreshPython = useCallback(async (options?: RefreshOptions) => {
+    if (!options?.silent) {
+      setPythonLoad('loading');
+    }
     try {
-      const res = await sudoclawIpc.getStatus.invoke();
-      if (res?.success && res.data) {
-        setSudoclawInstalled(res.data.installed);
-        setSudoclawVersion(res.data.version);
-        setSudoclawGatewayPort(res.data.gatewayPort);
-        setSudoclawGatewayRunning(!!res.data.gatewayRunning);
-      } else {
-        setSudoclawInstalled(false);
-        setSudoclawVersion(undefined);
-        setSudoclawGatewayPort(undefined);
-        setSudoclawGatewayRunning(false);
-      }
+      const res = await pythonRuntimeIpc.checkInstalled.invoke();
+      if (res?.success && res.data) setPythonStatus(res.data);
     } finally {
-      setSudoclawStatusResolved(true);
+      if (!options?.silent) {
+        setPythonLoad('idle');
+      }
     }
   }, []);
 
-  const installSudoclaw = useCallback(async () => {
-    setSudoclawLoad('installing');
-    setSudoclawPhase(undefined);
+  const installPython = useCallback(async () => {
+    setPythonLoad('installing');
     try {
-      const res = await sudoclawIpc.install.invoke();
+      const res = await pythonRuntimeIpc.install.invoke();
       if (res?.success) {
-        await refreshSudoclaw();
-        Message.success(t('settings.runtimeSettings.installSuccess', { name: 'Sudoclaw' }));
+        await refreshPython();
+        Message.success(t('settings.runtimeSettings.installSuccess', { name: 'Python' }));
       } else {
-        Message.error(res?.msg || t('settings.runtimeSettings.installFailed', { name: 'Sudoclaw' }));
+        Message.error(res?.msg || t('settings.runtimeSettings.installFailed', { name: 'Python' }));
       }
     } catch (e) {
-      Message.error(e instanceof Error ? e.message : t('settings.runtimeSettings.installFailed', { name: 'Sudoclaw' }));
+      Message.error(e instanceof Error ? e.message : t('settings.runtimeSettings.installFailed', { name: 'Python' }));
     } finally {
-      setSudoclawLoad('idle');
-      setSudoclawPhase(undefined);
+      setPythonLoad('idle');
+      setPythonPhase(undefined);
+      setPythonPercent(undefined);
     }
-  }, [refreshSudoclaw, t]);
+  }, [refreshPython, t]);
 
-  const uninstallSudoclaw = useCallback(async () => {
-    setSudoclawLoad('loading');
+  const uninstallPython = useCallback(async () => {
+    setPythonLoad('loading');
     try {
-      const res = await sudoclawIpc.uninstall.invoke();
+      const res = await pythonRuntimeIpc.uninstall.invoke();
       if (res?.success) {
-        Message.success(t('settings.runtimeSettings.uninstallSuccess', { name: 'Sudoclaw' }));
-        await refreshSudoclaw();
+        Message.success(t('settings.runtimeSettings.uninstallSuccess', { name: 'Python' }));
+        await refreshPython();
       } else {
-        Message.error(res?.msg || t('settings.runtimeSettings.uninstallFailed', { name: 'Sudoclaw' }));
+        Message.error(res?.msg || t('settings.runtimeSettings.uninstallFailed', { name: 'Python' }));
       }
     } catch (e) {
-      Message.error(e instanceof Error ? e.message : t('settings.runtimeSettings.uninstallFailed', { name: 'Sudoclaw' }));
+      Message.error(e instanceof Error ? e.message : t('settings.runtimeSettings.uninstallFailed', { name: 'Python' }));
     } finally {
-      setSudoclawLoad('idle');
+      setPythonLoad('idle');
     }
-  }, [refreshSudoclaw, t]);
+  }, [refreshPython, t]);
 
-  const startSudoclawGateway = useCallback(async () => {
-    setSudoclawLoad('loading');
+  const refreshScode = useCallback(async () => {
     try {
-      const res = await sudoclawIpc.startGateway.invoke();
-      if (res?.success) {
-        Message.success(t('settings.runtimeSettings.startSuccess', { name: 'Sudoclaw' }));
-        await new Promise((r) => setTimeout(r, 3000));
-        await refreshSudoclaw();
+      const res = await scodeIpc.getStatus.invoke();
+      if (res?.success && res.data) {
+        const { installed, version } = res.data;
+        setScodeStatus(installed ? { installed: true, source: 'managed', version } : { installed: false, source: 'none' });
       } else {
-        Message.error(res?.msg || t('settings.runtimeSettings.startFailed', { name: 'Sudoclaw' }));
+        setScodeStatus({ installed: false, source: 'none' });
+      }
+    } catch {
+      setScodeStatus({ installed: false, source: 'none' });
+    }
+  }, []);
+
+  const installScode = useCallback(async () => {
+    setScodeLoad('installing');
+    try {
+      const res = await scodeIpc.install.invoke();
+      if (res?.success) {
+        await refreshScode();
+        Message.success(t('settings.runtimeSettings.installSuccess', { name: 'Sudocode' }));
+      } else {
+        Message.error(res?.msg || t('settings.runtimeSettings.installFailed', { name: 'Sudocode' }));
       }
     } catch (e) {
-      Message.error(e instanceof Error ? e.message : t('settings.runtimeSettings.startFailed', { name: 'Sudoclaw' }));
+      Message.error(e instanceof Error ? e.message : t('settings.runtimeSettings.installFailed', { name: 'Sudocode' }));
     } finally {
-      setSudoclawLoad('idle');
+      setScodeLoad('idle');
     }
-  }, [refreshSudoclaw, t]);
+  }, [refreshScode, t]);
+
+  const refreshShareone = useCallback(async () => {
+    try {
+      const res = await shareoneCli.checkInstalled.invoke();
+      if (res?.success && res.data) {
+        setShareoneStatus(res.data);
+      } else {
+        setShareoneStatus({ installed: false, source: 'none' });
+      }
+    } catch {
+      setShareoneStatus({ installed: false, source: 'none' });
+    }
+  }, []);
+
+  const installShareone = useCallback(async () => {
+    setShareoneLoad('installing');
+    try {
+      const res = await shareoneCli.install.invoke();
+      if (res?.success) {
+        await refreshShareone();
+        Message.success(t('settings.runtimeSettings.installSuccess', { name: 'ShareOne' }));
+      } else {
+        Message.error(res?.msg || t('settings.runtimeSettings.installFailed', { name: 'ShareOne' }));
+      }
+    } catch (e) {
+      Message.error(e instanceof Error ? e.message : t('settings.runtimeSettings.installFailed', { name: 'ShareOne' }));
+    } finally {
+      setShareoneLoad('idle');
+    }
+  }, [refreshShareone, t]);
 
   const refreshNexus = useCallback(async () => {
     try {
@@ -376,25 +418,26 @@ const RuntimeModalContent: React.FC = () => {
 
   const refreshRuntimePage = useCallback(
     async (options?: RefreshOptions) => {
-      await Promise.all([refreshNode(options), refreshClaude(options), refreshSudoclaw(), refreshNexus(), refreshLibreOffice(options)]);
+      await Promise.all([refreshNode(options), refreshClaude(options), refreshScode(), refreshShareone(), refreshNexus(), refreshLibreOffice(options), refreshPython(options)]);
     },
-    [refreshClaude, refreshLibreOffice, refreshNexus, refreshNode, refreshSudoclaw]
+    [refreshClaude, refreshLibreOffice, refreshNexus, refreshNode, refreshPython, refreshScode, refreshShareone]
   );
 
   // Load all on mount; also restore install state if an install is already in progress
   useEffect(() => {
     void refreshRuntimePage();
-    void sudoclawIpc.getInstallState.invoke().then((res) => {
-      if (res?.success && res.data?.installing) {
-        setSudoclawLoad('installing');
-        if (res.data.phase) setSudoclawPhase(res.data.phase);
-      }
-    });
     void libreOfficeIpc.getInstallState.invoke().then((res) => {
       if (res?.success && res.data?.installing) {
         setLibreOfficeLoad('installing');
         if (res.data.phase) setLibreOfficePhase(res.data.phase);
         if (res.data.percent != null) setLibreOfficePercent(res.data.percent);
+      }
+    });
+    void pythonRuntimeIpc.getInstallState.invoke().then((res) => {
+      if (res?.success && res.data?.installing) {
+        setPythonLoad('installing');
+        if (res.data.phase) setPythonPhase(res.data.phase);
+        if (res.data.percent != null) setPythonPercent(res.data.percent);
       }
     });
   }, [refreshRuntimePage]);
@@ -421,14 +464,16 @@ const RuntimeModalContent: React.FC = () => {
     const unsubClaudeProgress = claudeCliIpc.installProgress.on(({ phase }) => {
       setClaudePhase(phase);
     });
-    const unsubSudoclawProgress = sudoclawIpc.installProgress.on(({ phase }) => {
-      setSudoclawLoad('installing');
-      setSudoclawPhase(phase);
+    const unsubScodeProgress = scodeIpc.installProgress.on(() => {
+      setScodeLoad('installing');
     });
-    const unsubSudoclawResult = sudoclawIpc.installResult.on(() => {
-      setSudoclawLoad('idle');
-      setSudoclawPhase(undefined);
-      void refreshSudoclaw();
+    const unsubScodeResult = scodeIpc.installResult.on(() => {
+      setScodeLoad('idle');
+      void refreshScode();
+    });
+    const unsubShareoneResult = shareoneCli.installResult.on(() => {
+      setShareoneLoad('idle');
+      void refreshShareone();
     });
     const unsubNexusProgress = nexusIpc.installProgress.on(({ phase, percent }) => {
       setNexusPhase(phase);
@@ -440,18 +485,26 @@ const RuntimeModalContent: React.FC = () => {
       if (percent != null) setLibreOfficePercent((prev) => (prev != null ? Math.max(prev, percent) : percent));
     });
     const unsubLoResult = libreOfficeIpc.installResult.on(() => void refreshLibreOffice());
+    const unsubPyProgress = pythonRuntimeIpc.installProgress.on(({ phase, percent }) => {
+      setPythonPhase(phase);
+      if (percent != null) setPythonPercent((prev) => (prev != null ? Math.max(prev, percent) : percent));
+    });
+    const unsubPyResult = pythonRuntimeIpc.installResult.on(() => void refreshPython());
     return () => {
       unsubNode();
       unsubClaude();
       unsubClaudeProgress();
-      unsubSudoclawProgress();
-      unsubSudoclawResult();
+      unsubScodeProgress();
+      unsubScodeResult();
+      unsubShareoneResult();
       unsubNexusProgress();
       unsubNexusResult();
       unsubLoProgress();
       unsubLoResult();
+      unsubPyProgress();
+      unsubPyResult();
     };
-  }, [refreshNode, refreshClaude, refreshAvailableAgents, refreshNexus, refreshSudoclaw, refreshLibreOffice]);
+  }, [refreshNode, refreshClaude, refreshAvailableAgents, refreshNexus, refreshScode, refreshShareone, refreshLibreOffice, refreshPython]);
 
   const tableData: ToolRow[] = [
     {
@@ -491,20 +544,37 @@ const RuntimeModalContent: React.FC = () => {
       onUninstall: uninstallLibreOffice,
     },
     {
-      key: 'sudoclaw',
-      displayName: 'Sudoclaw',
-      command: 'openclaw',
+      key: 'python',
+      displayName: 'Python',
+      command: 'python3',
+      badge: 'PY',
+      status: pythonStatus,
+      loadState: pythonLoad,
+      installPhase: pythonPhase,
+      installPercent: pythonPercent,
+      onRefresh: refreshPython,
+      onInstall: installPython,
+      onUninstall: uninstallPython,
+    },
+    {
+      key: 'sudocode',
+      displayName: 'Sudo Code',
+      command: 'scode',
       badge: 'SC',
-      status: sudoclawInstalled ? { installed: true, source: 'managed', version: sudoclawVersion } : null,
-      statusResolved: sudoclawStatusResolved,
-      sudoclawGatewayPort,
-      sudoclawGatewayRunning,
-      loadState: sudoclawLoad,
-      installPhase: sudoclawPhase,
-      onRefresh: refreshSudoclaw,
-      onInstall: installSudoclaw,
-      onUninstall: uninstallSudoclaw,
-      onStart: startSudoclawGateway,
+      status: scodeStatus,
+      loadState: scodeLoad,
+      onRefresh: refreshScode,
+      onInstall: scodeStatus?.installed ? undefined : installScode,
+    },
+    {
+      key: 'shareone',
+      displayName: 'ShareOne',
+      command: 'shareone',
+      badge: 'SO',
+      status: shareoneStatus,
+      loadState: shareoneLoad,
+      onRefresh: refreshShareone,
+      onInstall: shareoneStatus?.installed ? undefined : installShareone,
     },
     {
       key: 'nexus',
@@ -530,7 +600,9 @@ const RuntimeModalContent: React.FC = () => {
     node: 'bg-cyan-1 color-cyan-6 border border-cyan-3',
     claude: 'bg-orange-1 color-orange-6 border border-orange-3',
     libreoffice: 'bg-green-1 color-green-6 border border-green-3',
-    sudoclaw: 'bg-purple-1 color-purple-6 border border-purple-3',
+    python: 'bg-[#fef3c7] color-[#d97706] border border-[#fcd34d]',
+    sudocode: 'bg-purple-1 color-purple-6 border border-purple-3',
+    shareone: 'bg-blue-1 color-blue-6 border border-blue-3',
     nexus: 'text-[#f6c65b] border border-[#6f5520] bg-[#2b2212]',
   };
 
@@ -550,36 +622,38 @@ const RuntimeModalContent: React.FC = () => {
                 const version = record.status?.version;
                 const loading = record.loadState !== 'idle';
                 const installed = isInstalled(record);
+                const isShareOne = record.key === 'shareone';
+                const isShareOneDisabled = isShareOne && statusText === t('settings.runtimeSettings.status.disabled', { defaultValue: '未启用' });
                 const source = record.status?.source;
                 const sourceLabel = source && source !== 'none' ? t(`settings.runtimeSettings.source.${source}`, { defaultValue: source }) : undefined;
                 const actions = getRuntimeActions(record, t);
 
                 return (
-                  <div key={record.key} className='py-16px first:pt-0 last:pb-0'>
-                    <div className='flex flex-col gap-14px md:flex-row md:items-center md:justify-between md:gap-20px'>
-                      <div className='flex items-start gap-12px min-w-0 flex-1'>
-                        <div className={classNames('w-44px h-44px rd-12px flex items-center justify-center flex-shrink-0 text-11px md:text-12px font-700 shadow-sm', badgeColors[record.key] || 'bg-blue-1 color-blue-6 border border-blue-3')}>{record.badge}</div>
+                  <div key={record.key} className='py-14px first:pt-0 last:pb-0'>
+                    <div className='flex flex-col gap-12px md:flex-row md:items-center md:justify-between md:gap-16px'>
+                      <div className='flex items-center gap-12px min-w-0 flex-1'>
+                        <div className={classNames('w-28px h-28px rd-8px flex items-center justify-center flex-shrink-0 text-9px md:text-10px font-700 shadow-sm', badgeColors[record.key] || 'bg-blue-1 color-blue-6 border border-blue-3')}>{record.key === 'shareone' ? <ShareOne theme='outline' size={16} className='block' /> : record.badge}</div>
 
-                        <div className='min-w-0 flex-1 space-y-8px'>
-                          <div className='flex flex-col gap-8px lg:flex-row lg:items-center lg:gap-10px'>
-                            <span className='text-15px md:text-16px font-600 text-t-primary leading-22px md:leading-24px'>{record.displayName}</span>
-                            {record.key !== 'sudoclaw' && <span className='w-fit px-8px py-2px rd-999px text-11px md:text-12px font-mono bg-fill-1 text-t-secondary border border-border-2'>{record.command}</span>}
+                        <div className='min-w-0 flex-1 space-y-4px'>
+                          <div className='flex flex-col gap-4px lg:flex-row lg:items-center lg:gap-8px'>
+                            <span className='text-14px font-600 text-t-primary leading-none'>{record.displayName}</span>
+                            <span className='w-fit px-8px py-2px rd-999px text-10px font-mono leading-none bg-fill-1 text-t-secondary border border-border-2'>{record.command}</span>
                           </div>
 
-                          <div className='flex flex-wrap items-center gap-8px'>
-                            <span className='inline-flex items-center gap-6px px-8px py-3px rd-999px bg-fill-1 text-12px md:text-13px text-t-secondary border border-border-2'>
+                          <div className='flex flex-wrap items-center gap-6px'>
+                            <span className={classNames('inline-flex items-center gap-6px px-8px py-2px rd-999px text-11px border border-border-2', isShareOneDisabled ? 'bg-[var(--color-primary-light-1)] text-[var(--color-primary-6)] border-[var(--color-primary-light-3)]' : 'bg-fill-1 text-t-secondary')}>
                               <span className={classNames('w-6px h-6px rd-full flex-shrink-0', dotColor)} />
                               <span className='leading-none font-500'>{statusText}</span>
                             </span>
-                            {version && <span className='px-8px py-3px rd-999px text-11px md:text-12px font-500 bg-fill-1 text-t-secondary border border-border-2 whitespace-nowrap'>{version}</span>}
-                            {sourceLabel && installed && <span className='px-8px py-3px rd-999px text-11px md:text-12px font-500 bg-[var(--color-primary-light-1)] text-[var(--color-primary-6)] border border-[var(--color-primary-light-3)] whitespace-nowrap'>{sourceLabel}</span>}
+                            {version && <span className='px-8px py-2px rd-999px text-10px font-500 bg-fill-1 text-t-secondary border border-border-2 whitespace-nowrap'>{version}</span>}
+                            {sourceLabel && installed && <span className='px-8px py-2px rd-999px text-10px font-500 bg-[var(--color-primary-light-1)] text-[var(--color-primary-6)] border border-[var(--color-primary-light-3)] whitespace-nowrap'>{sourceLabel}</span>}
                           </div>
                         </div>
                       </div>
 
-                      <div className='flex flex-wrap items-center gap-8px md:justify-end md:max-w-280px'>
+                      <div className='flex flex-wrap items-center gap-6px md:justify-end md:max-w-280px'>
                         {actions.map((action) => (
-                          <Button key={`${record.key}-${action.key}`} type={action.type === 'primary' ? 'primary' : 'outline'} size='small' status={action.status} disabled={loading} onClick={action.onClick} className={classNames('min-w-84px !rd-8px !text-12px md:!text-13px !font-500', action.type === 'secondary' && '!border-[var(--color-primary-light-3)] !text-[var(--color-primary-6)] !bg-[var(--color-primary-light-1)] hover:!bg-[var(--color-primary-light-2)]', action.type === 'outline' && action.status !== 'warning' && '!bg-transparent')}>
+                          <Button key={`${record.key}-${action.key}`} type='outline' size='small' status={action.status} disabled={loading} onClick={action.onClick} className='min-w-72px !rd-8px !text-11px !font-500 !bg-[var(--color-bg-1)] !border-[var(--color-border-2)] !text-t-primary hover:!bg-[var(--fill-0)] hover:!border-[var(--color-border-2)]'>
                             {action.label}
                           </Button>
                         ))}

@@ -1,0 +1,50 @@
+name: "scode basic conversation"
+description: >
+  Smoke test: select Sudo Code agent, send a greeting, verify it responds,
+  then send a follow-up question to verify multi-turn context is preserved.
+
+steps:
+  # ── Phase 0: Wait for app startup ──
+  - op: wait_for_app_ready
+    timeout: 300
+
+  # ── Phase 1: Navigate to new conversation and select Sudo Code ──
+  - op: click
+    x: 530
+    y: 27
+  - op: pause
+    duration: 3000
+  - op: mouse_click
+    text: "Sudo Code"
+  - op: pause
+    duration: 3000
+  - op: screenshot
+    path: "screenshots/scode-basic-00-selected.png"
+  - op: judge
+    expect: "Sudo Code"
+
+  # ── Phase 2: Send greeting ──
+  - op: type_text
+    text: "Hello! Tell me your name and list 3 things you can help with. Keep it brief."
+  - op: press_key
+    key: "Enter"
+    wait: 3
+  - op: wait_for_response
+    timeout: 60
+  - op: screenshot
+    path: "screenshots/scode-basic-01-greeting.png"
+  - op: judge
+    expect: "code file search"
+
+  # ── Phase 3: Follow-up to verify multi-turn context ──
+  - op: type_text
+    text: "Expand on the first thing you listed. Give a concrete example."
+  - op: press_key
+    key: "Enter"
+    wait: 3
+  - op: wait_for_response
+    timeout: 60
+  - op: screenshot
+    path: "screenshots/scode-basic-02-followup.png"
+  - op: judge
+    expect: "example"

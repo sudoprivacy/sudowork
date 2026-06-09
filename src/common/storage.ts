@@ -71,6 +71,8 @@ export interface IConfigStorageRefer {
   'workspace.pasteConfirm'?: boolean;
   // guid 页面上次选择的 agent 类型 / Last selected agent type on guid page
   'guid.lastSelectedAgent'?: string;
+  // guid 页面 session 模式（E端 Local/Remote 切换）/ Guid page session mode (Enterprise Local/Remote toggle)
+  'guid.sessionMode'?: 'remote' | 'local';
   // 迁移标记：修复老版本中助手 enabled 默认值问题 / Migration flag: fix assistant enabled default value issue
   'migration.assistantEnabledFixed'?: boolean;
   // 迁移标记：为 cowork 助手添加默认启用的 skills / Migration flag: add default enabled skills for cowork assistant
@@ -80,10 +82,22 @@ export interface IConfigStorageRefer {
   'migration.builtinDefaultSkillsAdded_v2'?: boolean;
   // 迁移标记：为所有内置助手添加 promptsI18n / Migration flag: add promptsI18n for all builtin assistants
   'migration.promptsI18nAdded'?: boolean;
+  /** Locally hidden remote cron execution sessions keyed by Moss session ID. */
+  'remote.hiddenCronSessionIds'?: Record<string, number>;
   /** Migration flag: skill subdirectory restructuring completed */
   'migration.skillSubdirectoriesMigrated'?: boolean;
+  /** Migration flag: channel agent migrated to scode (Sudo Code) */
+  'migration.channelAgentMigratedToScode'?: boolean;
   // 关闭窗口时最小化到系统托盘 / Minimize to system tray when closing window
   'system.closeToTray'?: boolean;
+  // 每轮消息下方是否显示 token / 积分用量 / Whether to show per-turn token / points usage badges
+  'system.showTokenUsageBadges'?: boolean;
+  // 右栏浏览器新建标签页的默认主页 / Default homepage for new tabs in the right-panel browser
+  'system.browserDefaultUrl'?: string;
+  // 桌面 avatar 浮窗开关 / Floating desktop avatar window enabled
+  'avatar.enabled'?: boolean;
+  // Avatar 浮窗最近一次的位置（屏幕坐标）/ Last-known avatar window bounds (screen coords)
+  'avatar.bounds'?: { x: number; y: number; width: number; height: number };
   // 内置资源最后复制的版本号，用于优化启动速度 / Last copied version of builtin resources for startup optimization
   'system.lastBuiltinResourcesVersion'?: string;
   /**
@@ -160,6 +174,26 @@ export interface IConfigStorageRefer {
   'agent.promptTimeout'?: number;
   // Agent idle timeout in minutes for recycling / Agent 空闲超时（分钟）用于回收
   'agent.idleTimeout'?: number;
+  // Telemetry configuration / 遥测配置
+  'telemetry.enabled'?: boolean; // 是否启用遥测上报 / Whether telemetry reporting is enabled
+  'telemetry.optInShown'?: boolean; // 是否已显示 opt-in 弹窗 / Whether opt-in dialog has been shown
+  'telemetry.serverUrl'?: string; // 遥测服务器地址 (可选，默认使用内置地址) / Telemetry server URL
+  'telemetry.installId'?: string; // 安装 ID / Install ID
+  'telemetry.previousVersion'?: string; // 之前的版本 (用于判断安装类型) / Previous version for install type detection
+  // App mode: 'c' for consumer, 'e' for enterprise, undefined = not set (new user)
+  'system.appMode'?: 'c' | 'e';
+  // Enterprise server URL / 企业服务器地址
+  'eeclaw.serverUrl'?: string;
+  // Enterprise tenant name / 企业租户名称
+  'eeclaw.tenantName'?: string;
+  // Enterprise user info / 企业用户信息
+  'eeclaw.userInfo'?: { id: string; username: string; role?: string };
+  // Whether enterprise local mode is available for the current user / 当前用户是否可用企业本地模式
+  'eeclaw.localModeAvailable'?: boolean;
+  // Enterprise auth token for main process (no user field, unlike localStorage eeclaw_auth_v1)
+  'eeclaw.authStorage'?: { access_token: string; refresh_token: string; expires_at: number; device_id: string; session_type?: 'password' | 'api_key' | 'oauth2' };
+  // Consumer (personal) mode user info for telemetry / 个人模式用户信息（用于遥测）
+  'consumer.userInfo'?: { id: string; nickname?: string; phone?: string; tenant_id?: string };
 }
 
 export interface IEnvStorageRefer {
@@ -185,6 +219,8 @@ interface IChatConversation<T, Extra> {
   extra: Extra;
   model: TProviderWithModel;
   status?: 'pending' | 'running' | 'finished' | undefined;
+  /** 处理开始时间戳（毫秒），用于恢复计时器 / Processing start timestamp in milliseconds for timer restoration */
+  processingStartTime?: number;
   /** 会话来源，默认为 aionui / Conversation source, defaults to aionui */
   source?: ConversationSource;
   /** Channel chat isolation ID (e.g. user:xxx, group:xxx) */
@@ -224,6 +260,13 @@ export type TChatConversation =
           lastTokenUsage?: TokenUsageData;
           /** Context window capacity from usage_update */
           lastContextLimit?: number;
+          /** ACP runtime context health after recoverable model context errors */
+          acpContextHealth?: {
+            poisoned: boolean;
+            reason?: 'context_window_exceeded' | 'request_body_too_large' | 'single_request_too_large';
+            poisonedAt?: number;
+            recoverableByNewSession?: boolean;
+          };
           /** Persisted session mode for resume support / 持久化的会话模式，用于恢复 */
           sessionMode?: string;
           /** Persisted model ID for resume support / 持久化的模型 ID，用于恢复 */
@@ -236,51 +279,57 @@ export type TChatConversation =
           cronJobId?: string;
           /** Cron job name that created this conversation */
           cronJobName?: string;
+          /** Cron run ID that created this conversation */
+          cronRunId?: string;
           /** Cron job ID this conversation is pre-bound to (reuse mode, user-selected existing conversation) */
           cronJobBoundId?: string;
           /** Cron job name this conversation is pre-bound to */
           cronJobBoundName?: string;
+          /** Moss remote container workspace path (enterprise mode) - stored separately from local workspace */
+          mossWorkDir?: string;
         }
       >,
       'model'
     >
   | Omit<
       IChatConversation<
-        'openclaw-gateway',
+        'remote-agent',
         {
           workspace?: string;
-          backend?: AcpBackendAll;
+          /** Moss Server URL (e.g. http://127.0.0.1:43127) */
+          mossServerUrl?: string;
+          /** Auth token for Moss Server (API Key or JWT) */
+          authToken?: string;
+          /** Username for password login (when authToken is empty) */
+          username?: string;
+          /** Password for password login (when authToken is empty) */
+          password?: string;
+          /** Agent name (corresponds to Moss assistant_name) */
           agentName?: string;
+          /** Custom workspace flag */
           customWorkspace?: boolean;
-          customAgentId?: string; // UUID for identifying specific custom agent
-          presetContext?: string; // 智能助手的预设规则/提示词 / Preset context from smart assistant
-          /** Gateway configuration */
-          gateway?: {
-            host?: string;
-            port?: number;
-            token?: string;
-            password?: string;
-            useExternalGateway?: boolean;
-            cliPath?: string;
-            /** OpenClaw state directory (e.g. ~/.nexus/sudoclaw) */
-            stateDir?: string;
-          };
-          /** Session key for resume */
-          sessionKey?: string;
-          /** Runtime validation snapshot used for post-switch strong checks */
-          runtimeValidation?: {
-            expectedWorkspace?: string;
-            expectedBackend?: string;
-            expectedAgentName?: string;
-            expectedCliPath?: string;
-            expectedModel?: string;
-            expectedIdentityHash?: string | null;
-            switchedAt?: number;
-          };
-          /** 启用的 skills 列表 / Enabled skills list */
-          enabledSkills?: string[];
+          /** Custom agent ID */
+          customAgentId?: string;
+          /** Preset context/rules */
+          presetContext?: string;
+          /** Skip permission confirmation */
+          dangerouslySkipPermissions?: boolean;
+          /** Runtime type */
+          runtimeType?: 'host' | 'docker';
+          /** Backend type for compatibility */
+          backend?: AcpBackendAll;
+          /** Enterprise code */
+          enterpriseCode?: string;
+          /** Organization ID */
+          orgId?: string;
+          /** User ID */
+          userId?: string;
+          /** CLI path for compatibility */
+          cliPath?: string;
           /** 预设助手 ID / Preset assistant ID */
           presetAssistantId?: string;
+          /** 启用的 skills 列表 / Enabled skills list */
+          enabledSkills?: string[];
           /** Persisted session mode for resume support / 持久化的会话模式，用于恢复 */
           sessionMode?: string;
           /** Persisted model ID for resume support / 持久化的模型 ID，用于恢复 */
@@ -289,20 +338,30 @@ export type TChatConversation =
           pinned?: boolean;
           /** 置顶时间戳（毫秒）/ Pin timestamp in milliseconds */
           pinnedAt?: number;
-          /** Explicit marker for temporary health-check conversations */
+          /** Health check marker */
           isHealthCheck?: boolean;
-          /** Selected OpenClaw model ID / 选中的 OpenClaw 模型 ID */
-          openclawModelId?: string;
-          /** Display name override for workspace (rename without physical path change) / 工作空间显示名（重命名时只改显示名，不改物理路径） */
+          /** Moss Session ID for resume */
+          mossSessionId?: string;
+          /** Moss Session last update time */
+          mossSessionUpdatedAt?: number;
+          /** WebSocket URL from resume API (for reconnecting to existing session) */
+          acpWsUrl?: string;
+          /** Whether Moss session is pending creation (lazy creation pattern) / Moss session 是否待创建（延迟创建模式） */
+          mossSessionPending?: boolean;
+          /** Display name override for workspace */
           workspaceDisplayName?: string;
-          /** Cron job ID that created this conversation (for "new conversation per run" mode) */
+          /** Cron job ID that created this conversation */
           cronJobId?: string;
           /** Cron job name that created this conversation */
           cronJobName?: string;
-          /** Cron job ID this conversation is pre-bound to (reuse mode, user-selected existing conversation) */
+          /** Cron run ID that created this conversation */
+          cronRunId?: string;
+          /** Cron job ID this conversation is pre-bound to */
           cronJobBoundId?: string;
           /** Cron job name this conversation is pre-bound to */
           cronJobBoundName?: string;
+          /** Moss remote container workspace path (enterprise mode) - stored separately from local workspace */
+          mossWorkDir?: string;
         }
       >,
       'model'
@@ -398,10 +457,10 @@ export type TProviderWithModel = Omit<IProvider, 'model'> & { useModel: string }
 export const DEFAULT_IMAGE_BASE_URL = 'https://hk.sudorouter.ai/v1';
 
 /** Default model used for image parsing/understanding (看图) via SudoRouter */
-export const DEFAULT_IMAGE_PARSING_MODEL = 'gemini-3-flash-preview';
+export const DEFAULT_IMAGE_PARSING_MODEL = 'gemini-3.5-flash';
 
 /** Default model used for image generation (生图) */
-export const DEFAULT_IMAGE_GENERATION_MODEL = 'gpt-image-1.5';
+export const DEFAULT_IMAGE_GENERATION_MODEL = 'gemini-3.1-flash-image';
 
 // MCP Server Configuration Types
 export type McpTransportType = 'stdio' | 'sse' | 'http';

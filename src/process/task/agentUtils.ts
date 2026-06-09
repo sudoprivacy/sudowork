@@ -101,6 +101,30 @@ The mcporter config is at: ${MCPORTER_CONFIG_PATH}`;
 }
 
 /**
+ * 构建 Node.js 运行时提示词
+ * Build Node.js runtime hint for agent prompts
+ *
+ * 告诉 agent 托管的 Node.js 可用路径，使其在调用工具时能直接使用 node/npm/npx。
+ * Informs the agent about the managed Node.js runtime path so it can use
+ * node/npm/npx directly when calling tools.
+ */
+export function buildNodeRuntimeHint(): string | null {
+  if (!isNodeInstalled()) {
+    return null;
+  }
+
+  const nodePath = getNodeBinaryPath();
+  const nodeBinDir = path.dirname(nodePath);
+
+  return `[Node.js Runtime]
+A managed Node.js runtime is available in your environment and has been added to PATH.
+- Node.js binary: ${nodePath}
+- Bin directory (contains node, npm, npx): ${nodeBinDir}
+You can use \`node\`, \`npm\`, and \`npx\` commands directly in your tool calls.
+If PATH resolution fails, use the full path: ${nodePath}`;
+}
+
+/**
  * 首次消息处理配置
  * First message processing configuration
  */
@@ -115,20 +139,6 @@ export interface FirstMessageConfig {
   presetAgentType?: PresetAgentType | string;
 }
 
-/**
- * 构建草稿箱使用指令（优化版）
- * Build drafts box usage instructions for Agent (optimized)
- *
- * 通过系统提示词告诉 Agent：
- * 1. 使用 @draft/@final 标记显式声明文件意图
- * 2. 中间产物写入 .drafts/ 目录
- * 3. 最终结果文件写入工作空间根目录
- *
- * Via system prompt, instruct the Agent:
- * 1. Use @draft/@final markers to declare file intent explicitly
- * 2. Intermediate artifacts go to .drafts/
- * 3. Final deliverables go to workspace root
- */
 export function buildDraftsInstruction(workspace: string): string {
   const draftsPath = `${workspace}/${DRAFTS_DIR_NAME}`;
 
@@ -136,6 +146,13 @@ export function buildDraftsInstruction(workspace: string): string {
 
 Your workspace is: ${workspace}
 A drafts directory exists at: ${draftsPath}
+
+**Drafts path mapping**:
+- "草稿箱" and "Drafts" are UI display names only.
+- The real filesystem directory is always ${draftsPath}
+- When the user says "copy/move to 草稿箱" or "copy/move to Drafts", use ${DRAFTS_DIR_NAME}/
+- Never create or use "drafts/", "Drafts/", or "草稿箱/" directories.
+- Correct command example: \`cp file.ext ${DRAFTS_DIR_NAME}/\`
 
 **CORE RULE: When creating files using write() tool, ALWAYS add intent markers**
 
@@ -209,6 +226,55 @@ Ask yourself: "Is this file what the user ultimately wants?"
 }
 
 /**
+ * Build the [Output Convention] block — universal across all backends.
+ *
+ * Two-line summary the model needs to internalize:
+ *   - Deliverables: directly at workspace root, with a DESCRIPTIVE filename.
+ *   - Intermediates: anywhere ELSE (OS temp dir preferred, workspace subdir
+ *     acceptable). Don't put them at workspace root, don't delete them
+ *     yourself — sudowork hides them from the user automatically.
+ *
+ * This convention reflects Claude Cowork's observed behavior: the user sees
+ * one deliverable file (e.g. `数牍科技公司介绍.pptx`) at the working folder
+ * root, never intermediate slide frames / helper data.
+ */
+export function buildOutputConventionInstruction(workspace: string): string {
+  return `[Output Convention]
+
+When you generate files for the user:
+
+DELIVERABLES — outputs the user explicitly asked for. Save them directly at
+the workspace root (${workspace}/) with a DESCRIPTIVE filename matching the
+user's request:
+
+  ${workspace}/数牍科技公司介绍.pptx
+  ${workspace}/q1-sales-review.docx
+  ${workspace}/team-logo.png
+
+Do NOT use placeholder names like "final.pptx", "output.docx", "result.csv",
+"untitled.pdf". The filename must describe the content.
+
+INTERMEDIATE files — slide frames being composed, helper scripts you wrote
+to drive a tool, working JSON, debug renders, draft data. Save them ANYWHERE
+EXCEPT the workspace root:
+
+  - Preferred: system temp directory (Python tempfile.mkdtemp(),
+    shell mktemp -d, Node os.tmpdir()) — these are auto-cleaned by the OS.
+  - Acceptable: a subdirectory under ${workspace}/ (e.g. ppt_outputs/,
+    _tmp/, build/). Sudowork hides these subdirectories from the user.
+
+Sudowork handles intermediate-file lifecycle for you. Do NOT delete them
+yourself between turns — multi-turn workflows (e.g. generating slide images
+across several turns before composing the .pptx) need them to remain
+accessible.
+
+NEVER put intermediate files at the workspace root — anything written there
+is treated as a deliverable and shown to the user.
+
+[End of Output Convention]`;
+}
+
+/**
  * 构建系统指令内容（完整 skills 内容注入 - 用于 Gemini）
  * Build system instructions content (full skills content injection - for Gemini)
  *
@@ -226,6 +292,13 @@ export async function buildSystemInstructions(config: FirstMessageConfig): Promi
   // 添加草稿箱使用指令 / Add drafts box instructions
   if (config.workspace) {
     instructions.push(buildDraftsInstruction(config.workspace));
+    instructions.push(buildOutputConventionInstruction(config.workspace));
+  }
+
+  // 添加 Node.js 运行时提示 / Add Node.js runtime hint
+  const nodeHintForGemini = buildNodeRuntimeHint();
+  if (nodeHintForGemini) {
+    instructions.push(nodeHintForGemini);
   }
 
   // 加载并添加 skills 内容 / Load and add skills content
@@ -273,9 +346,9 @@ export async function prepareFirstMessage(content: string, config: FirstMessageC
  * 用于 ACP agents (Claude/OpenCode) 和 Codex，Agent 通过 Read 工具按需读取 skill 文件
  * Used for ACP agents (Claude/OpenCode) and Codex, Agent reads skill files on-demand using Read tool
  *
- * 注意：针对 ACP/OpenClaw 数字助手，这里只暴露 _system/_builtin 下的内置 skills。
+ * 注意：针对 ACP 数字助手，这里只暴露 _system/_builtin 下的内置 skills。
  * Hub/custom/system 下的非 builtin skills 不会通过首条消息注入给 agent。
- * Note: For ACP/OpenClaw assistants, only builtin skills under _system/_builtin are exposed here.
+ * Note: For ACP assistants, only builtin skills under _system/_builtin are exposed here.
  * Non-builtin skills from hub/custom/system are not injected via the first message.
  *
  * @param content - 原始消息内容 / Original message content
@@ -293,6 +366,13 @@ export async function prepareFirstMessageWithSkillsIndex(content: string, config
   // 1.5 添加草稿箱使用指令 / Add drafts box instructions
   if (config.workspace) {
     instructions.push(buildDraftsInstruction(config.workspace));
+    instructions.push(buildOutputConventionInstruction(config.workspace));
+  }
+
+  // 1.8 添加 Node.js 运行时提示 / Add Node.js runtime hint
+  const nodeHint = buildNodeRuntimeHint();
+  if (nodeHint) {
+    instructions.push(nodeHint);
   }
 
   // 2. 仅加载内置 skills 索引
@@ -314,9 +394,10 @@ Builtin skills are stored at:
 - ${systemSkillsDir}/{skill-name}/SKILL.md
 
 Each skill has a SKILL.md file containing detailed instructions.
-To use a skill, read its SKILL.md file when needed.
+When a user request matches a skill's description, you MUST read that skill's SKILL.md and follow its instructions INSTEAD OF using any native tool for that capability. For example, use the "browser" skill for web browsing instead of any built-in WebFetch or WebSearch tool.
 
 For example:
+- Builtin "browser" skill: ${systemSkillsDir}/browser/SKILL.md
 - Builtin "cron" skill: ${systemSkillsDir}/cron/SKILL.md`;
 
     instructions.push(skillsInstruction);
@@ -331,53 +412,8 @@ For example:
 }
 
 /**
- * 为 OpenClaw (openclaw-gateway) 准备首条消息内容。
- * Prepare first message content for OpenClaw (openclaw-gateway) agents.
- *
- * OpenClaw agents have a file read tool and can read SKILL.md files directly.
- * Do NOT inject [LOAD_SKILL:] instructions — those are for Gemini ACP agents only.
- * Only inject presetContext + builtin skills location hint (read-based, not tag-based).
- * Workspace skills are handled separately by injectSkillsDirectoryHint.
- *
- * @param content - 原始消息内容 / Original message content
- * @param config - 首次消息配置 / First message configuration
- * @returns 注入系统指令后的消息内容 / Message content with system instructions injected
- */
-export async function prepareOpenClawFirstMessage(content: string, config: FirstMessageConfig): Promise<string> {
-  const instructions: string[] = [];
-
-  // 1. 添加预设规则 / Add preset rules
-  if (config.presetContext) {
-    instructions.push(config.presetContext);
-  }
-
-  // 2. 加载内置 skills 索引 — 告诉 agent 直接读取 SKILL.md，不使用 [LOAD_SKILL:] 协议
-  // Load builtin skills index — tell agent to read SKILL.md directly, no [LOAD_SKILL:] protocol
-  const skillManager = AcpSkillManager.getInstance();
-  await skillManager.discoverBuiltinSkills();
-
-  const builtinSkillsIndex = skillManager.getBuiltinSkillsIndex();
-  if (builtinSkillsIndex.length > 0) {
-    const systemSkillsDir = getBuiltinSkillsDir();
-    const lines = builtinSkillsIndex.map((s) => `- ${s.name} (${s.description}): ${systemSkillsDir}/${s.name}/SKILL.md`);
-    const skillsInstruction = `[Builtin Skills]
-The following builtin skills are available. When a user request matches a skill's description, you MUST read that skill's SKILL.md and follow its instructions INSTEAD OF using any native tool for that capability.
-
-${lines.join('\n')}`;
-    instructions.push(skillsInstruction);
-  }
-
-  if (instructions.length === 0) {
-    return content;
-  }
-
-  const systemInstructions = instructions.join('\n\n');
-  return `[Assistant Rules - You MUST follow these instructions]\n${systemInstructions}\n\n[User Request]\n${content}`;
-}
-
-/**
- * 为首条消息补充 workspace skills 目录提示，供 OpenClaw 自行读取非 builtin skills。
- * Add workspace skills directory hint so OpenClaw can discover non-builtin skills by itself.
+ * 为首条消息补充 workspace skills 目录提示，供 agent 自行读取非 builtin skills。
+ * Add workspace skills directory hint so the agent can discover non-builtin skills by itself.
  *
  * Enumerates enabled skill names so the agent knows exactly which skills exist
  * and where to find their SKILL.md files — mirroring the builtin skills instruction.
@@ -445,6 +481,12 @@ export async function buildSystemInstructionsWithSkillsIndex(config: FirstMessag
   // 添加草稿箱使用指令 / Add drafts box instructions
   if (config.workspace) {
     instructions.push(buildDraftsInstruction(config.workspace));
+  }
+
+  // 添加 Node.js 运行时提示 / Add Node.js runtime hint
+  const nodeHintForGeminiIndex = buildNodeRuntimeHint();
+  if (nodeHintForGeminiIndex) {
+    instructions.push(nodeHintForGeminiIndex);
   }
 
   // 加载 skills 索引（包括内置 skills + 可选 skills）

@@ -27,6 +27,11 @@ export interface PreviewMetadata {
   filePath?: string; // 工作空间文件的绝对路径 / Absolute file path in workspace
   workspace?: string; // 工作空间根目录 / Workspace root directory
   editable?: boolean; // 是否可编辑 / Whether editable
+  remote?: boolean; // 是否来自远程工作空间 / Whether sourced from remote workspace
+  relativePath?: string; // 远程工作空间相对路径 / Relative path in remote workspace
+  localPreviewFilePath?: string; // 远程文件落地后的本地只读预览路径 / Local read-only preview path for remote files
+  downloadBase64?: string; // 下载使用的原始二进制内容 / Original binary content for download
+  downloadMime?: string; // 下载使用的 MIME 类型 / MIME type for download
 }
 
 export interface PreviewTab {
@@ -296,6 +301,8 @@ export const PreviewProvider: React.FC<{ children: React.ReactNode }> = ({ child
           if (type === 'diff') return 'Diff';
           if (type === 'code') return `${meta?.language || 'Code'}`;
           if (type === 'image') return 'Image'; // 图片预览默认标题 / Default title for image preview
+          if (type === 'video') return 'Video';
+          if (type === 'audio') return 'Audio';
           return 'Preview';
         })();
 
@@ -563,7 +570,7 @@ export const PreviewProvider: React.FC<{ children: React.ReactNode }> = ({ child
     // 监听 renderer emitter 事件 / Listen to renderer emitter event
     emitter.on('preview.open', handlePreviewOpen);
 
-    // 监听 IPC 事件（来自主进程，如 chrome-devtools MCP 导航）/ Listen to IPC event (from main process, e.g., chrome-devtools MCP navigation)
+    // 监听 IPC 事件（来自主进程，如 ai-dev-browser page_goto 导航触发）/ Listen to IPC event (from main process, e.g., ai-dev-browser page_goto)
     const unsubscribeIpc = ipcBridge.preview.open.on(handlePreviewOpen);
 
     return () => {

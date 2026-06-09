@@ -5,11 +5,12 @@
  */
 
 import { ipcBridge } from '@/common';
+import ActionChip from '@/renderer/components/ui/ActionChip';
 import { getAgentModes, supportsModeSwitch, type AgentModeOption } from '@/renderer/constants/agentModes';
 import { useLayoutContext } from '@/renderer/context/LayoutContext';
 import { iconColors } from '@/renderer/theme/colors';
 import { getAgentLogo } from '@/renderer/utils/agentLogo';
-import { Button, Dropdown, Menu, Message, Tooltip } from '@arco-design/web-react';
+import { Dropdown, Menu, Message, Tooltip } from '@arco-design/web-react';
 import { Down, Robot } from '@icon-park/react';
 import React, { forwardRef, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -222,25 +223,21 @@ const AgentModeSelector: React.FC<AgentModeSelectorProps> = ({ backend, agentNam
       return null;
     }
 
+    const compactIcon = compactLeadingIcon || (showLogoInCompact ? renderLogo() : undefined);
+
     const compactContent = (
-      <Button
-        className={`sendbox-model-btn agent-mode-compact-pill ${canInteract ? '' : 'agent-mode-compact-pill--readonly'}`}
-        shape='round'
-        size='small'
+      <ActionChip
+        className={canInteract ? '' : 'agent-mode-compact-pill--readonly'}
+        icon={compactIcon}
+        label={
+          <span className='inline-flex min-w-0 items-center gap-6px'>
+            <span className='block truncate leading-none'>{compactLabel}</span>
+            {canInteract && <Down size={12} className='text-t-tertiary shrink-0' />}
+          </span>
+        }
+        disabled={isLoading}
         onClick={canInteract ? () => !isLoading && setDropdownVisible((visible) => !visible) : undefined}
-        style={{
-          opacity: isLoading ? 0.6 : 1,
-          transition: 'opacity 0.2s',
-          cursor: canInteract ? 'pointer' : 'default',
-        }}
-      >
-        <span className='flex items-center gap-6px min-w-0 leading-none'>
-          {compactLeadingIcon && <span className='shrink-0 inline-flex items-center'>{compactLeadingIcon}</span>}
-          {showLogoInCompact && <span className='shrink-0 inline-flex items-center'>{renderLogo()}</span>}
-          <span className='block truncate leading-none'>{compactLabel}</span>
-          {canInteract && <Down size={12} className='text-t-tertiary shrink-0' />}
-        </span>
-      </Button>
+      />
     );
 
     if (!canInteract) {

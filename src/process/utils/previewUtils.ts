@@ -45,8 +45,7 @@ export function createPreviewOpenMessage(url: string, conversationId: string, ms
 }
 
 /**
- * Checks if a tool name is a navigation tool from chrome-devtools
- * 检查工具名是否是来自 chrome-devtools 的导航工具
+ * Checks if a tool name is an ai-dev-browser navigation tool (page_goto / tab_new).
  *
  * Delegates to NavigationInterceptor.isNavigationTool
  */

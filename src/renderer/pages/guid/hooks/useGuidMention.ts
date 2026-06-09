@@ -107,7 +107,7 @@ export const useGuidMention = ({ availableAgents, customAgentAvatarMap, selected
     [stripMentionToken, setSelectedAgentKey, setInput]
   );
 
-  const selectedAgentLabel = selectedAgentInfo?.name || (selectedAgentKey === 'openclaw-gateway' ? 'Sudoclaw' : selectedAgentKey);
+  const selectedAgentLabel = selectedAgentInfo?.name || (selectedAgentKey === 'scode' ? 'Sudo Code' : selectedAgentKey);
   const mentionMenuActiveOption = filteredMentionOptions[mentionActiveIndex] || filteredMentionOptions[0];
   const mentionMenuSelectedKey = mentionOpen || mentionSelectorOpen ? mentionMenuActiveOption?.key || selectedAgentKey : selectedAgentKey;
 

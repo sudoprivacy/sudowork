@@ -87,7 +87,7 @@ const checkHealth = async (baseUrl: string, timeoutMs = 1000): Promise<boolean> 
   const root = await fetchText(normalizedBase, timeoutMs);
   if (!root.ok) return false;
   const normalizedRoot = root.text.toLowerCase();
-  if (normalizedRoot.includes('openclaw control')) return false;
+  if (normalizedRoot.includes('sudoclaw control')) return false;
 
   return normalizedRoot.includes('star office') || normalizedRoot.includes('decorate room') || normalizedRoot.includes('asset sidebar');
 };

@@ -9,7 +9,8 @@ import { useLayoutContext } from '@/renderer/context/LayoutContext';
 import { PreviewToolbarExtrasProvider, type PreviewToolbarExtras } from '../../context/PreviewToolbarExtrasContext';
 import { usePreviewContext } from '../../context/PreviewContext';
 import { useResizableSplit } from '@/renderer/hooks/useResizableSplit';
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState, useEffect } from 'react';
+import AudioPreview from '../viewers/AudioViewer';
 import CodePreview from '../viewers/CodeViewer';
 import DiffPreview from '../viewers/DiffViewer';
 import ExcelPreview from '../viewers/ExcelViewer';
@@ -21,13 +22,13 @@ import MarkdownPreview from '../viewers/MarkdownViewer';
 import PDFPreview from '../viewers/PDFViewer';
 import PPTPreview from '../viewers/PPTViewer';
 import TextEditor from '../editors/TextEditor';
+import VideoPreview from '../viewers/VideoViewer';
 import WordPreview from '../viewers/WordViewer';
 import URLViewer from '../viewers/URLViewer';
 import { PreviewTabs, PreviewToolbar, PreviewContextMenu, PreviewConfirmModals, PreviewHistoryDropdown, type ContextMenuState, type CloseTabConfirmState, type PreviewTab } from '.';
-import { DEFAULT_SPLIT_RATIO, FILE_TYPES_WITH_BUILTIN_OPEN, MAX_SPLIT_WIDTH, MIN_SPLIT_WIDTH } from '../../constants';
+import { DEFAULT_SPLIT_RATIO, MAX_SPLIT_WIDTH, MIN_SPLIT_WIDTH } from '../../constants';
 import { usePreviewHistory, usePreviewKeyboardShortcuts, useScrollSync, useTabOverflow, useThemeDetection } from '../../hooks';
 import { useTranslation } from 'react-i18next';
-import { useEffect } from 'react';
 
 /**
  * 预览面板主组件
@@ -74,6 +75,15 @@ const PreviewPanel: React.FC = () => {
     activeTab,
     updateContent,
   });
+
+  const activeTabIsRemoteWorkspaceFile = activeTab?.metadata?.remote === true;
+
+  useEffect(() => {
+    if (!activeTabIsRemoteWorkspaceFile) return;
+    setViewMode('preview');
+    setIsSplitScreenEnabled(false);
+    setIsEditMode(false);
+  }, [activeTab?.id, activeTabIsRemoteWorkspaceFile]);
 
   usePreviewKeyboardShortcuts({
     isDirty: activeTab?.isDirty,
@@ -269,16 +279,15 @@ const PreviewPanel: React.FC = () => {
   const { content, contentType, metadata } = activeTab;
   const isMarkdown = contentType === 'markdown';
   const isHTML = contentType === 'html';
-  const isEditable = metadata?.editable !== false; // 默认可编辑 / Default editable
-
-  // 检查文件类型是否已有内置的打开按钮（Word、PPT、PDF、Excel 组件内部已提供）
-  // Check if file type already has built-in open button
-  // (Word, PPT, PDF, Excel components provide their own)
-  const hasBuiltInOpenButton = (FILE_TYPES_WITH_BUILTIN_OPEN as readonly string[]).includes(contentType);
+  const isRemoteWorkspaceFile = metadata?.remote === true;
+  const sourceViewEnabled = !isRemoteWorkspaceFile;
+  const isEditable = metadata?.editable !== false && sourceViewEnabled; // 默认可编辑，远程临时空间只读 / Default editable, remote workspace is read-only
 
   // 对所有有 filePath 的文件显示"在系统中打开"按钮（统一在工具栏显示）
   // Show "Open in System" button for all files with filePath (unified in toolbar)
-  const showOpenInSystemButton = Boolean(metadata?.filePath);
+  const previewFilePath = metadata?.localPreviewFilePath || metadata?.filePath;
+  const showOpenInSystemButton = Boolean(metadata?.filePath) && !isRemoteWorkspaceFile;
+  const showHistoryControls = !isRemoteWorkspaceFile;
 
   // 下载文件到本地 / Download file to local system
   const handleDownload = useCallback(async () => {
@@ -287,8 +296,44 @@ const PreviewPanel: React.FC = () => {
       let ext = 'txt';
       const nameExt = metadata?.fileName?.split('.').pop();
 
-      // 图片文件：从 Base64 数据或文件路径读取 / Image files: read from Base64 data or file path
-      if (contentType === 'image') {
+      if (metadata?.downloadBase64) {
+        const binaryString = atob(metadata.downloadBase64);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        blob = new Blob([bytes], { type: metadata.downloadMime || 'application/octet-stream' });
+        ext = nameExt || contentType;
+      }
+
+      // 二进制文件类型：从原始文件路径读取 Base64 数据
+      // Binary file types: read Base64 data from the original file path
+      // 注意：不能使用 readFileBuffer，因为 IPC 桥接层通过 JSON.stringify 序列化数据，
+      // ArrayBuffer 在 JSON 序列化时会丢失（变为 {}），导致下载得到空文件。
+      // Note: Cannot use readFileBuffer because the IPC bridge serializes data via JSON.stringify,
+      // and ArrayBuffer is lost during JSON serialization (becomes {}), resulting in empty downloads.
+      const binaryContentTypes = ['word', 'ppt', 'excel', 'pdf', 'video', 'audio'];
+      if (!blob && binaryContentTypes.includes(contentType) && metadata?.filePath) {
+        const base64 = await ipcBridge.fs.readFileBase64.invoke({ path: metadata.filePath });
+        // 将 Base64 字符串解码为二进制数据 / Decode Base64 string to binary data
+        const binaryString = atob(base64);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        // 根据文件类型设置 MIME 类型 / Set MIME type based on file type
+        const mimeTypes: Record<string, string> = {
+          word: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          ppt: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+          excel: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          pdf: 'application/pdf',
+          video: nameExt ? `video/${nameExt === 'ogv' ? 'ogg' : nameExt}` : 'video/mp4',
+          audio: nameExt ? `audio/${nameExt === 'm4a' ? 'mp4' : nameExt}` : 'audio/mpeg',
+        };
+        blob = new Blob([bytes], { type: mimeTypes[contentType] || 'application/octet-stream' });
+        ext = nameExt || contentType;
+      } else if (!blob && contentType === 'image') {
+        // 图片文件：从 Base64 数据或文件路径读取 / Image files: read from Base64 data or file path
         let dataUrl = content;
         // 如果没有 Base64 数据，从文件路径读取 / If no Base64 data, read from file path
         if (!dataUrl && metadata?.filePath) {
@@ -307,7 +352,7 @@ const PreviewPanel: React.FC = () => {
         // Prefer filename extension, then MIME type extension, finally default to png
         const mimeExt = blob.type && blob.type.includes('/') ? blob.type.split('/').pop() : undefined;
         ext = nameExt || mimeExt || 'png';
-      } else {
+      } else if (!blob) {
         // 文本文件：创建文本 Blob / Text files: create text Blob
         let mimeType = 'text/plain;charset=utf-8';
         if (contentType === 'markdown') mimeType = 'text/markdown;charset=utf-8';
@@ -360,7 +405,7 @@ const PreviewPanel: React.FC = () => {
       console.error('[PreviewPanel] Failed to download file:', error);
       messageApi.error(t('messages.downloadFailed', { defaultValue: 'Failed to download' }));
     }
-  }, [content, contentType, metadata?.fileName, metadata?.filePath, metadata?.language, messageApi, t]);
+  }, [content, contentType, metadata?.downloadBase64, metadata?.downloadMime, metadata?.fileName, metadata?.filePath, metadata?.language, messageApi, t]);
 
   // 在系统默认应用中打开文件 / Open file in system default application
   const handleOpenInSystem = useCallback(async () => {
@@ -389,7 +434,7 @@ const PreviewPanel: React.FC = () => {
     // Markdown 模式 / Markdown mode
     if (isMarkdown) {
       // 分屏模式：左右分割（编辑器 + 预览）/ Split-screen mode: Editor + Preview
-      if (isSplitScreenEnabled) {
+      if (isSplitScreenEnabled && sourceViewEnabled) {
         // 移动端：全屏显示预览，隐藏编辑器 / Mobile: Full-screen preview, hide editor
         if (layout?.isMobile) {
           return (
@@ -428,18 +473,18 @@ const PreviewPanel: React.FC = () => {
       }
 
       // 非分屏模式：单栏（原文或预览）/ Non-split mode: Single panel (source or preview)
-      return <MarkdownPreview content={content} hideToolbar viewMode={viewMode} onViewModeChange={setViewMode} onContentChange={updateContent} filePath={metadata?.filePath} />;
+      return <MarkdownPreview content={content} hideToolbar viewMode={sourceViewEnabled ? viewMode : 'preview'} onViewModeChange={sourceViewEnabled ? setViewMode : undefined} onContentChange={sourceViewEnabled ? updateContent : undefined} filePath={metadata?.filePath} />;
     }
 
     // HTML 模式 / HTML mode
     if (isHTML) {
       // 分屏模式：左右分割（编辑器 + 预览）/ Split-screen mode: Editor + Preview
-      if (isSplitScreenEnabled) {
+      if (isSplitScreenEnabled && sourceViewEnabled) {
         // 移动端：全屏显示预览，隐藏编辑器 / Mobile: Full-screen preview, hide editor
         if (layout?.isMobile) {
           return (
             <div className='flex-1 overflow-hidden'>
-              <HTMLRenderer content={content} filePath={metadata?.filePath} copySuccessMessage={t('preview.html.copySuccess')} inspectMode={inspectMode} onElementSelected={handleElementSelected} />
+              <HTMLRenderer content={content} filePath={previewFilePath} copySuccessMessage={t('preview.html.copySuccess')} inspectMode={inspectMode} onElementSelected={handleElementSelected} />
             </div>
           );
         }
@@ -467,7 +512,7 @@ const PreviewPanel: React.FC = () => {
               <div className='flex flex-col flex-1 overflow-hidden'>
                 {/* prettier-ignore */}
                 {/* eslint-disable-next-line max-len */}
-                <HTMLRenderer content={content} filePath={metadata?.filePath} containerRef={previewContainerRef} onScroll={handlePreviewScroll} inspectMode={inspectMode} copySuccessMessage={t('preview.html.copySuccess')} onElementSelected={handleElementSelected} />
+                <HTMLRenderer content={content} filePath={previewFilePath} containerRef={previewContainerRef} onScroll={handlePreviewScroll} inspectMode={inspectMode} copySuccessMessage={t('preview.html.copySuccess')} onElementSelected={handleElementSelected} />
               </div>
             </div>
           </div>
@@ -475,7 +520,7 @@ const PreviewPanel: React.FC = () => {
       }
 
       // 非分屏模式：单栏（原文或预览）/ Non-split mode: Single panel (source or preview)
-      if (viewMode === 'source') {
+      if (sourceViewEnabled && viewMode === 'source') {
         return (
           <div className='flex-1 overflow-hidden'>
             <HTMLEditor value={content} onChange={handleContentChange} filePath={metadata?.filePath} />
@@ -485,7 +530,7 @@ const PreviewPanel: React.FC = () => {
         // 预览模式 / Preview mode
         return (
           <div className='flex-1 overflow-hidden'>
-            <HTMLRenderer content={content} filePath={metadata?.filePath} inspectMode={inspectMode} copySuccessMessage={t('preview.html.copySuccess')} onElementSelected={handleElementSelected} />
+            <HTMLRenderer content={content} filePath={previewFilePath} inspectMode={inspectMode} copySuccessMessage={t('preview.html.copySuccess')} onElementSelected={handleElementSelected} />
           </div>
         );
       }
@@ -493,10 +538,10 @@ const PreviewPanel: React.FC = () => {
 
     // 其他类型：全屏预览 / Other types: Full-screen preview
     if (contentType === 'diff') {
-      return <DiffPreview content={content} metadata={metadata} hideToolbar viewMode={viewMode} onViewModeChange={setViewMode} />;
+      return <DiffPreview content={content} metadata={metadata} hideToolbar viewMode={sourceViewEnabled ? viewMode : 'preview'} onViewModeChange={sourceViewEnabled ? setViewMode : undefined} />;
     } else if (contentType === 'code') {
       // 分屏模式：左右分割（编辑器 + 预览）/ Split-screen mode: Editor + Preview
-      if (isSplitScreenEnabled && isEditMode && isEditable) {
+      if (isSplitScreenEnabled && isEditMode && isEditable && sourceViewEnabled) {
         return (
           <div className='flex flex-1 relative overflow-hidden'>
             {/* 左侧：编辑器 / Left: Editor */}
@@ -533,17 +578,21 @@ const PreviewPanel: React.FC = () => {
         );
       }
       // 否则显示代码预览 / Otherwise show code preview
-      return <CodePreview content={content} language={metadata?.language} hideToolbar viewMode={viewMode} onViewModeChange={setViewMode} />;
+      return <CodePreview content={content} language={metadata?.language} hideToolbar viewMode={sourceViewEnabled ? viewMode : 'preview'} onViewModeChange={sourceViewEnabled ? setViewMode : undefined} />;
     } else if (contentType === 'pdf') {
-      return <PDFPreview filePath={metadata?.filePath} content={content} />;
+      return <PDFPreview filePath={previewFilePath} content={content} hideToolbar={isRemoteWorkspaceFile} />;
     } else if (contentType === 'ppt') {
-      return <PPTPreview filePath={metadata?.filePath} content={content} />;
+      return <PPTPreview filePath={previewFilePath} content={content} hideToolbar={isRemoteWorkspaceFile} />;
     } else if (contentType === 'word') {
-      return <WordPreview filePath={metadata?.filePath} content={content} />;
+      return <WordPreview filePath={previewFilePath} content={content} hideToolbar={isRemoteWorkspaceFile} />;
     } else if (contentType === 'excel') {
-      return <ExcelPreview filePath={metadata?.filePath} content={content} />;
+      return <ExcelPreview filePath={previewFilePath} content={content} hideToolbar={isRemoteWorkspaceFile} />;
     } else if (contentType === 'image') {
-      return <ImagePreview filePath={metadata?.filePath} content={content} fileName={metadata?.fileName || metadata?.title} />;
+      return <ImagePreview filePath={previewFilePath} content={content} fileName={metadata?.fileName || metadata?.title} />;
+    } else if (contentType === 'video') {
+      return <VideoPreview filePath={previewFilePath} content={content} fileName={metadata?.fileName || metadata?.title} />;
+    } else if (contentType === 'audio') {
+      return <AudioPreview filePath={previewFilePath} content={content} fileName={metadata?.fileName || metadata?.title} />;
     } else if (contentType === 'url') {
       // URL 预览模式 / URL preview mode
       return <URLViewer url={content} title={metadata?.title} />;
@@ -586,6 +635,8 @@ const PreviewPanel: React.FC = () => {
             showOpenInSystemButton={showOpenInSystemButton}
             historyTarget={historyTarget}
             snapshotSaving={snapshotSaving}
+            showHistoryControls={showHistoryControls}
+            sourceViewEnabled={sourceViewEnabled}
             isDirty={activeTab?.isDirty}
             onSave={handleSave}
             isSaving={isSaving}
@@ -595,6 +646,7 @@ const PreviewPanel: React.FC = () => {
             }}
             onSplitScreenToggle={() => setIsSplitScreenEnabled(!isSplitScreenEnabled)}
             onEditClick={() => {
+              if (!sourceViewEnabled) return;
               setIsEditMode(true);
               // Code/TXT 类型进入编辑模式时自动开启分屏 / Auto enable split screen for Code/TXT when entering edit mode
               if (contentType === 'code') {

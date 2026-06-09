@@ -5,6 +5,7 @@
  */
 
 import type { ICreateConversationParams } from '@/common/ipcBridge';
+import { getDefaultAcpModelId } from '@/common/acp/defaultModels';
 import type { TChatConversation } from '@/common/storage';
 import { uuid } from '@/common/utils';
 import fs from 'fs/promises';
@@ -13,7 +14,8 @@ import path from 'path';
 import { DRAFTS_DIR_NAME } from '@/common/constants';
 import { getSystemDir } from './initStorage';
 import { SUDOCLAW_DIR } from './services/sudoclaw/SudoclawInstallService';
-import { computeOpenClawIdentityHash } from './utils/openclawUtils';
+import { ensureWorkspaceAgentsMdRules } from './services/scode/ScodeInstallService';
+import { filterEnabledSkillNames } from './utils/enabledSkillFilter';
 
 /**
  * 创建工作空间目录（不复制文件）
@@ -48,6 +50,11 @@ const buildWorkspaceWidthFiles = async (defaultWorkspaceName: string, workspace?
 export const createAcpAgent = async (options: ICreateConversationParams): Promise<TChatConversation> => {
   const { extra } = options;
   const { workspace, customWorkspace } = await buildWorkspaceWidthFiles(`${extra.backend}-temp-${Date.now()}`, extra.workspace, extra.defaultFiles, extra.customWorkspace);
+  const enabledSkills = await filterEnabledSkillNames(extra.enabledSkills);
+  if (extra.backend === 'scode') {
+    ensureWorkspaceAgentsMdRules(workspace);
+  }
+  const currentModelId = extra.currentModelId || getDefaultAcpModelId(extra.backend) || undefined;
   return {
     type: 'acp',
     extra: {
@@ -59,14 +66,14 @@ export const createAcpAgent = async (options: ICreateConversationParams): Promis
       customAgentId: extra.customAgentId, // 同时用于标识预设助手 / Also used to identify preset assistant
       presetContext: extra.presetContext, // 智能助手的预设规则/提示词
       // 启用的 skills 列表（通过 SkillManager 加载）/ Enabled skills list (loaded via SkillManager)
-      enabledSkills: extra.enabledSkills,
+      enabledSkills,
       // 预设助手 ID，用于在会话面板显示助手名称和头像
       // Preset assistant ID for displaying name and avatar in conversation panel
       presetAssistantId: extra.presetAssistantId,
       // Initial session mode selected on Guid page (from AgentModeSelector)
       sessionMode: extra.sessionMode,
       // Pre-selected model from Guid page (cached model list)
-      currentModelId: extra.currentModelId,
+      currentModelId,
       // Explicit marker for temporary health-check conversations
       isHealthCheck: extra.isHealthCheck,
       // Cron job metadata (set when conversation is created by a cron execution)
@@ -95,54 +102,36 @@ export function getSudoclawWorkspaceRoot(): string {
   return getSystemDir().workDir;
 }
 
-export const createOpenClawAgent = async (options: ICreateConversationParams): Promise<TChatConversation> => {
+/**
+ * Create Remote Agent conversation (Moss Server enterprise mode)
+ * Remote agent doesn't need CLI detection - connection is established lazily when sendMessage is called
+ */
+export const createRemoteAgent = async (options: ICreateConversationParams): Promise<TChatConversation> => {
   const { extra } = options;
-  // Use workspace root from sudoclaw.json so the agent's working dir matches the UI workspace panel.
-  // Falls back to getSystemDir().workDir if sudoclaw.json is missing or has no workspace configured.
-  const tempName = `sudoclaw-temp-${Date.now()}`;
-  let resolvedWorkspace = extra.workspace;
-  if (!resolvedWorkspace) {
-    const root = getSudoclawWorkspaceRoot();
-    resolvedWorkspace = path.join(root, tempName);
-    await fs.mkdir(resolvedWorkspace, { recursive: true });
-  }
-  const { workspace, customWorkspace } = await buildWorkspaceWidthFiles(tempName, resolvedWorkspace, extra.defaultFiles, extra.customWorkspace);
-  const expectedIdentityHash = await computeOpenClawIdentityHash(workspace);
-
-  const stateDir = SUDOCLAW_DIR;
+  const tempName = `moss-temp-${Date.now()}`;
+  const { workspace, customWorkspace } = await buildWorkspaceWidthFiles(tempName, extra.workspace, extra.defaultFiles, extra.customWorkspace);
+  const enabledSkills = await filterEnabledSkillNames(extra.enabledSkills);
 
   return {
-    type: 'openclaw-gateway',
+    type: 'remote-agent',
     extra: {
       workspace: workspace,
-      backend: extra.backend,
-      agentName: extra.agentName,
       customWorkspace,
-      gateway: {
-        stateDir,
-      },
-      runtimeValidation: {
-        expectedWorkspace: workspace,
-        expectedBackend: extra.backend,
-        expectedAgentName: extra.agentName,
-        // Note: model is not used by openclaw-gateway, so skip expectedModel to avoid
-        // validation mismatch (conversation object doesn't store model for this type)
-        expectedIdentityHash,
-        switchedAt: extra.runtimeValidation?.switchedAt ?? Date.now(),
-      },
-      // Custom agent ID for preset assistant identification
+      // Moss Server specific fields
+      mossServerUrl: extra.mossServerUrl,
+      authToken: extra.authToken,
+      username: extra.username,
+      password: extra.password,
+      runtimeType: extra.runtimeType,
+      dangerouslySkipPermissions: extra.dangerouslySkipPermissions,
+      // Agent identification
+      agentName: extra.agentName,
       customAgentId: extra.customAgentId,
-      // Preset context/rules for preset assistants
-      presetContext: extra.presetContext,
-      // Enabled skills list (loaded via SkillManager)
-      enabledSkills: extra.enabledSkills,
-      // Preset assistant ID for displaying name and avatar in conversation panel
       presetAssistantId: extra.presetAssistantId,
-      // Initial session mode selected on Guid page
+      presetContext: extra.presetContext,
+      enabledSkills,
       sessionMode: extra.sessionMode,
-      // Pre-selected model from Guid page
-      currentModelId: extra.currentModelId,
-      // Cron job metadata (set when conversation is created by a cron execution)
+      // Cron job metadata
       cronJobId: extra.cronJobId,
       cronJobName: extra.cronJobName,
     },

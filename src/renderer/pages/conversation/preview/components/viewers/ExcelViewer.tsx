@@ -15,6 +15,47 @@ import { useTranslation } from 'react-i18next';
 import PDFViewer from './PDFViewer';
 import LibreOfficeInstallPrompt from '../LibreOfficeInstallPrompt';
 
+// Excel 表格滚动容器样式 - 使滚动条始终可见
+// Excel table scroll container styles - make scrollbar always visible
+const excelScrollContainerStyle: React.CSSProperties = {
+  overflow: 'auto',
+  WebkitOverflowScrolling: 'touch',
+  scrollbarWidth: 'thin', // Firefox
+  scrollbarColor: 'rgba(0, 0, 0, 0.3) transparent', // Firefox
+};
+
+// CSS 样式字符串，用于 webkit 滚动条
+// CSS style string for webkit scrollbar
+const EXCEL_SCROLLBAR_CSS = `
+  .excel-scroll-container::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  .excel-scroll-container::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.05);
+    border-radius: 4px;
+  }
+  .excel-scroll-container::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.25);
+    border-radius: 4px;
+  }
+  .excel-scroll-container::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.4);
+  }
+  .excel-scroll-container::-webkit-scrollbar-corner {
+    background: rgba(0, 0, 0, 0.05);
+  }
+  [data-theme='dark'] .excel-scroll-container::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+  }
+  [data-theme='dark'] .excel-scroll-container::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.25);
+  }
+  [data-theme='dark'] .excel-scroll-container::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.4);
+  }
+`;
+
 interface ExcelPreviewProps {
   filePath?: string;
   content?: string;
@@ -22,7 +63,8 @@ interface ExcelPreviewProps {
 }
 
 // 缓存 Map / Cache Map
-const pdfCache = new Map<string, { pdfPath: string; timestamp: number }>();
+// 添加 mtime 字段以检测文件修改 / Added mtime field to detect file modifications
+const pdfCache = new Map<string, { pdfPath: string; timestamp: number; mtime: number }>();
 const CACHE_TIMEOUT = 5 * 60 * 1000; // 5 分钟
 
 // 宽表格列数阈值 / Wide table column threshold
@@ -129,8 +171,9 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ filePath, content: _content
           const response = await ipcBridge.document.convert.invoke({ filePath, to: 'libreoffice-pdf' });
           if (response.result.success && response.result.data) {
             setPdfPath(response.result.data as string);
-            // 保存到缓存 / Save to cache
-            pdfCache.set(filePath, { pdfPath: response.result.data as string, timestamp: Date.now() });
+            // 获取文件 mtime 并保存到缓存 / Get file mtime and save to cache
+            const mtime = await ipcBridge.document.getFileMtime.invoke({ filePath });
+            pdfCache.set(filePath, { pdfPath: response.result.data as string, timestamp: Date.now(), mtime });
           }
         } else {
           const response = await ipcBridge.document.convert.invoke({ filePath, to: 'excel-json' });
@@ -195,16 +238,21 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ filePath, content: _content
         return;
       }
 
-      // 检查缓存 / Check cache
+      // 检查缓存（同时检查文件修改时间）/ Check cache (also check file modification time)
       const cached = pdfCache.get(filePath);
-      if (cached && Date.now() - cached.timestamp < CACHE_TIMEOUT) {
-        console.log('[ExcelViewer] Cache hit:', filePath);
-        setUseLibreOffice(true); // 设置 LibreOffice 状态，因为缓存的是 PDF
-        setPdfPath(cached.pdfPath);
-        setLoading(false);
-        return;
-      }
       if (cached) {
+        // 获取当前文件的 mtime / Get current file mtime
+        const currentMtime = await ipcBridge.document.getFileMtime.invoke({ filePath });
+        // 缓存有效条件：mtime 未变化且未超时 / Cache valid if: mtime unchanged and not expired
+        if (cached.mtime === currentMtime && Date.now() - cached.timestamp < CACHE_TIMEOUT) {
+          console.log('[ExcelViewer] Cache hit:', filePath, 'mtime:', currentMtime);
+          setUseLibreOffice(true); // 设置 LibreOffice 状态，因为缓存的是 PDF
+          setPdfPath(cached.pdfPath);
+          setLoading(false);
+          return;
+        }
+        // mtime 变化或超时，清除缓存 / mtime changed or expired, clear cache
+        console.log('[ExcelViewer] Cache invalidated:', filePath, 'cached mtime:', cached.mtime, 'current mtime:', currentMtime);
         pdfCache.delete(filePath);
       }
 
@@ -257,9 +305,10 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ filePath, content: _content
 
             if (pdfResponse.result.success && pdfResponse.result.data) {
               setPdfPath(pdfResponse.result.data);
-              // 保存到缓存 / Save to cache
-              pdfCache.set(filePath, { pdfPath: pdfResponse.result.data, timestamp: Date.now() });
-              console.log('[ExcelViewer] Converted and cached:', filePath);
+              // 获取文件 mtime 并保存到缓存 / Get file mtime and save to cache
+              const mtime = await ipcBridge.document.getFileMtime.invoke({ filePath });
+              pdfCache.set(filePath, { pdfPath: pdfResponse.result.data, timestamp: Date.now(), mtime });
+              console.log('[ExcelViewer] Converted and cached:', filePath, 'mtime:', mtime);
             } else {
               // PDF 转换失败，回退到 JSON 渲染 / PDF conversion failed, fallback to JSON
               setUseLibreOffice(false);
@@ -407,56 +456,64 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ filePath, content: _content
     };
 
     return (
-      <div className='w-full h-full overflow-auto p-10px bg-bg-1'>
-        <div className='relative inline-block min-w-full'>
-          <table
-            className='border-collapse text-13px text-t-primary'
-            style={{
-              borderCollapse: 'collapse',
-              border: '1px solid var(--color-border-2, #d4d4d8)',
-            }}
-          >
-            <tbody>
-              {Array.from({ length: totalRows }).map((_, rowIndex) => {
-                const rowData = Array.isArray(rows[rowIndex]) ? rows[rowIndex] : [];
-                const rowKey = `${sheetName}-row-${rowIndex}`;
-                const backgroundColor = rowIndex % 2 === 0 ? 'var(--color-bg-1, #ffffff)' : 'var(--color-fill-1, #f2f3f5)';
+      <div
+        className='p-10px bg-bg-1 excel-scroll-container'
+        style={{
+          ...excelScrollContainerStyle,
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+        }}
+      >
+        <table
+          className='border-collapse text-13px text-t-primary'
+          style={{
+            borderCollapse: 'collapse',
+            border: '1px solid var(--color-border-2, #d4d4d8)',
+          }}
+        >
+          <tbody>
+            {Array.from({ length: totalRows }).map((_, rowIndex) => {
+              const rowData = Array.isArray(rows[rowIndex]) ? rows[rowIndex] : [];
+              const rowKey = `${sheetName}-row-${rowIndex}`;
+              const backgroundColor = rowIndex % 2 === 0 ? 'var(--color-bg-1, #ffffff)' : 'var(--color-fill-1, #f2f3f5)';
 
-                return (
-                  <tr key={rowKey} style={{ backgroundColor }}>
-                    {Array.from({ length: totalColumns }).map((_, colIndex) => {
-                      const cellKey = `${rowIndex}-${colIndex}`;
-                      if (skipCells.has(cellKey)) {
-                        return null;
-                      }
+              return (
+                <tr key={rowKey} style={{ backgroundColor }}>
+                  {Array.from({ length: totalColumns }).map((_, colIndex) => {
+                    const cellKey = `${rowIndex}-${colIndex}`;
+                    if (skipCells.has(cellKey)) {
+                      return null;
+                    }
 
-                      const mergeInfo = mergeMap.get(cellKey);
-                      const value = rowData[colIndex];
-                      const cellImages = imageMap.get(cellKey);
-                      const content = renderCellContent(value, cellImages);
+                    const mergeInfo = mergeMap.get(cellKey);
+                    const value = rowData[colIndex];
+                    const cellImages = imageMap.get(cellKey);
+                    const content = renderCellContent(value, cellImages);
 
-                      return (
-                        <td
-                          key={cellKey}
-                          colSpan={mergeInfo?.colSpan}
-                          rowSpan={mergeInfo?.rowSpan}
-                          className='px-12px py-8px whitespace-pre-wrap align-top'
-                          style={{
-                            border: '1px solid var(--color-border-2, #d4d4d8)',
-                            minWidth: '100px',
-                            backgroundColor,
-                          }}
-                        >
-                          {content}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                    return (
+                      <td
+                        key={cellKey}
+                        colSpan={mergeInfo?.colSpan}
+                        rowSpan={mergeInfo?.rowSpan}
+                        className='px-12px py-8px whitespace-pre-wrap align-top'
+                        style={{
+                          border: '1px solid var(--color-border-2, #d4d4d8)',
+                          minWidth: '100px',
+                          backgroundColor,
+                        }}
+                      >
+                        {content}
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
     );
   };
@@ -472,13 +529,7 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ filePath, content: _content
   if (needsLibreOfficeInstall) {
     return (
       <div className='h-full w-full'>
-        <LibreOfficeInstallPrompt
-          fileType='excel'
-          installing={installingLibreOffice}
-          percent={installPercent}
-          phase={installPhase}
-          onInstall={handleInstallLibreOffice}
-        />
+        <LibreOfficeInstallPrompt fileType='excel' installing={installingLibreOffice} percent={installPercent} phase={installPhase} onInstall={handleInstallLibreOffice} />
       </div>
     );
   }
@@ -541,6 +592,8 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ filePath, content: _content
 
   return (
     <div className='h-full w-full flex flex-col'>
+      {/* 注入滚动条样式 / Inject scrollbar styles */}
+      <style>{EXCEL_SCROLLBAR_CSS}</style>
       {messageContextHolder}
 
       {!usePortalToolbar && !hideToolbar && (
@@ -569,7 +622,7 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ filePath, content: _content
         </div>
       )}
 
-      <div className='flex-1 overflow-hidden flex flex-col bg-bg-1'>
+      <div className='flex-1 overflow-auto flex flex-col bg-bg-1 excel-scroll-container' style={{ ...excelScrollContainerStyle, position: 'relative' }}>
         {excelData.sheets.length === 1 ? (
           renderSheetTable(excelData.sheets[0].name)
         ) : (
@@ -601,7 +654,7 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ filePath, content: _content
                 </button>
               ))}
             </div>
-            <div className='flex-1 overflow-hidden' key={activeSheet}>
+            <div className='flex-1 overflow-auto excel-scroll-container' style={{ ...excelScrollContainerStyle, position: 'relative' }} key={activeSheet}>
               {renderSheetTable(activeSheet)}
             </div>
           </>

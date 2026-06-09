@@ -9,6 +9,7 @@ import { ipcMain } from 'electron';
 
 import { bridge } from '@office-ai/platform';
 import { ADAPTER_BRIDGE_EVENT_KEY } from './constant';
+import { forwardBroadcastToAvatars } from '../process/avatarBroadcast';
 
 /**
  * Bridge event data structure for IPC communication
@@ -77,7 +78,12 @@ bridge.adapter({
         win.webContents.send(ADAPTER_BRIDGE_EVENT_KEY, JSON.stringify({ name, data }));
       }
     }
-    // 2. 同时广播到所有 WebSocket 客户端 / Also broadcast to all WebSocket clients
+    // 2. 选择性投递到 avatar 窗口（独立 channel + 主进程白名单，capability isolation）
+    //    Selectively forward to avatar windows via a dedicated channel + main-side
+    //    allowlist. Avatar windows are not in adapterWindowList — see
+    //    src/process/avatarBroadcast.ts.
+    forwardBroadcastToAvatars(name, data);
+    // 3. 同时广播到所有 WebSocket 客户端 / Also broadcast to all WebSocket clients
     for (const broadcast of webSocketBroadcasters) {
       try {
         broadcast(name, data);

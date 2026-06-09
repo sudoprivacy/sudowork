@@ -14,6 +14,7 @@ import semver from 'semver';
 import { autoUpdaterService } from '../services/autoUpdaterService';
 import { mainLog, mainError } from '@process/utils/mainLogger';
 import { isNightlyBuild, buildDate, buildCommit, isNightlyTag, parseNightlyDate, parseNightlyCommit, compareNightlyTags } from '@/common/buildInfo';
+import { COS_RELEASE_BASE } from '@/shared/cos';
 
 type GitHubReleaseApiAsset = {
   name: string;
@@ -47,13 +48,17 @@ const ALLOWED_DOWNLOAD_HOSTS = new Set<string>([
   'objects.githubusercontent.com',
   'github-releases.githubusercontent.com',
   'release-assets.githubusercontent.com',
-  // COS mirror for Chinese users
-  'sudoclaw-download-1309794936.cos.ap-beijing.myqcloud.com',
+  // COS release mirror for Chinese users (role-based bucket; primary)
+  'sudowork-release-1309794936.cos.ap-beijing.myqcloud.com',
+  'sudowork-release-1309794936.cos.accelerate.myqcloud.com',
+  // Legacy COS mirror (kept live as fallback during deprecation)
+  'sudowork-download-1309794936.cos.ap-beijing.myqcloud.com',
+  'sudowork-download-1309794936.cos.accelerate.myqcloud.com',
 ]);
 const MAX_REDIRECTS = 8;
 
-/** COS mirror base URL for Chinese users */
-const COS_MIRROR_BASE = 'https://sudoclaw-download-1309794936.cos.ap-beijing.myqcloud.com/sudowork/release/latest';
+/** COS mirror base URL for Chinese users (role-based release bucket) */
+const COS_MIRROR_BASE = `${COS_RELEASE_BASE}/sudowork/release/latest`;
 
 /** COS yml file structure */
 interface COSYmlInfo {

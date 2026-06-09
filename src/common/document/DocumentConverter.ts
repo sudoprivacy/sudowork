@@ -82,11 +82,54 @@ export class DocumentConverter {
               underline: {},
             })
           );
+        } else if (node.type === 'delete') {
+          runs.push(...processInlineNodes(node.children, { ...baseOptions, strike: true }));
+        } else if (node.type === 'image') {
+          runs.push(new TextRun({ ...baseOptions, text: node.alt || '[image]' }));
         } else if (node.type === 'break') {
           runs.push(new TextRun({ ...baseOptions, text: '', break: 1 }));
         }
       }
       return runs;
+    };
+
+    // Numbering instance counter for ordered lists
+    let numberingInstance = 0;
+
+    // Recursive list processor that handles nested lists and other block content
+    const processList = (listNode: any, depth: number = 0) => {
+      const isOrdered = listNode.ordered;
+      let currentInstance: number | undefined;
+      if (isOrdered) {
+        numberingInstance++;
+        currentInstance = numberingInstance;
+      }
+
+      listNode.children.forEach((listItem: any) => {
+        listItem.children.forEach((child: any) => {
+          if (child.type === 'paragraph') {
+            children.push(
+              new Paragraph({
+                children: processInlineNodes(child.children),
+                bullet: isOrdered ? undefined : { level: depth },
+                numbering: isOrdered
+                  ? {
+                      reference: 'main-numbering',
+                      level: depth,
+                      instance: currentInstance!,
+                    }
+                  : undefined,
+              })
+            );
+          } else if (child.type === 'list') {
+            // Recursively process nested lists at deeper nesting level
+            processList(child, depth + 1);
+          } else {
+            // Handle other block elements inside list items (code, blockquote, heading, etc.)
+            visit(child);
+          }
+        });
+      });
     };
 
     // 2. 遍历 AST 节点
@@ -113,37 +156,23 @@ export class DocumentConverter {
           break;
         }
         case 'list': {
-          node.children.forEach((listItem: any, index: number) => {
-            // 处理列表项中的内容 (通常是 paragraph)
-            listItem.children.forEach((child: any) => {
-              if (child.type === 'paragraph') {
-                children.push(
-                  new Paragraph({
-                    children: processInlineNodes(child.children),
-                    bullet: node.ordered ? undefined : { level: 0 },
-                    numbering: node.ordered
-                      ? {
-                          reference: 'main-numbering',
-                          level: 0,
-                          instance: index,
-                        }
-                      : undefined,
-                  })
-                );
-              }
-            });
-          });
+          processList(node);
           break;
         }
         case 'code': {
+          // Split multi-line code into separate TextRun entries with line breaks
+          const codeLines = (node.value as string).split('\n');
+          const codeRuns: ITextRun[] = [];
+          codeLines.forEach((line, i) => {
+            if (i > 0) {
+              codeRuns.push(new TextRun({ text: line, break: 1, font: 'Consolas' }));
+            } else {
+              codeRuns.push(new TextRun({ text: line, font: 'Consolas' }));
+            }
+          });
           children.push(
             new Paragraph({
-              children: [
-                new TextRun({
-                  text: node.value,
-                  font: 'Consolas',
-                }),
-              ],
+              children: codeRuns,
               shading: { fill: 'F5F5F5' },
               border: {
                 top: { color: 'E0E0E0', space: 1, style: BorderStyle.SINGLE, size: 6 },
@@ -169,6 +198,24 @@ export class DocumentConverter {
                   spacing: { before: 120, after: 120 },
                 })
               );
+            } else if (child.type === 'heading') {
+              const levels = [HeadingLevel.HEADING_1, HeadingLevel.HEADING_2, HeadingLevel.HEADING_3, HeadingLevel.HEADING_4, HeadingLevel.HEADING_5, HeadingLevel.HEADING_6];
+              children.push(
+                new Paragraph({
+                  heading: levels[child.depth - 1] || HeadingLevel.HEADING_1,
+                  children: processInlineNodes(child.children),
+                  indent: { left: 720 },
+                  border: {
+                    left: { color: 'CCCCCC', space: 1, style: BorderStyle.SINGLE, size: 24 },
+                  },
+                  spacing: { before: 240, after: 120 },
+                })
+              );
+            } else if (child.type === 'list') {
+              processList(child);
+            } else {
+              // Fallback: delegate to visit for other block types (code, table, etc.)
+              visit(child);
             }
           });
           break;
@@ -231,6 +278,28 @@ export class DocumentConverter {
                 style: {
                   paragraph: {
                     indent: { left: 720, hanging: 360 },
+                  },
+                },
+              },
+              {
+                level: 1,
+                format: 'lowerLetter',
+                text: '%2)',
+                alignment: AlignmentType.START,
+                style: {
+                  paragraph: {
+                    indent: { left: 1440, hanging: 360 },
+                  },
+                },
+              },
+              {
+                level: 2,
+                format: 'lowerRoman',
+                text: '%3.',
+                alignment: AlignmentType.START,
+                style: {
+                  paragraph: {
+                    indent: { left: 2160, hanging: 360 },
                   },
                 },
               },

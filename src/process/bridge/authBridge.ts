@@ -12,6 +12,8 @@ import * as path from 'node:path';
 import * as crypto from 'node:crypto';
 import { getDataPath } from '../utils';
 import { mainLog, mainWarn, mainError, mainDebug } from '@process/utils/mainLogger';
+import { updateUserMdUsernameStatement, updateIdentityMdName } from '../services/sudoclaw/SudoclawInstallService';
+import { userBreadcrumbs } from '@process/telemetry/BreadcrumbTracker';
 
 export function initAuthBridge(): void {
   ipcBridge.googleAuth.status.provider(async ({ proxy }) => {
@@ -93,6 +95,8 @@ export function initAuthBridge(): void {
           const oauthInfo = await getOauthInfoWithCache(proxy);
           if (oauthInfo && oauthInfo.email) {
             mainLog('Auth', 'Login successful, account:', oauthInfo.email);
+            // Breadcrumb: user login
+            userBreadcrumbs.login('google_oauth');
             return { success: true, data: { account: oauthInfo.email } };
           }
 
@@ -124,6 +128,8 @@ export function initAuthBridge(): void {
   });
 
   ipcBridge.googleAuth.logout.provider(async () => {
+    // Breadcrumb: user logout
+    userBreadcrumbs.logout();
     return await clearCachedCredentialFile();
   });
 
@@ -132,6 +138,7 @@ export function initAuthBridge(): void {
   // Skill reads encrypted content and sends to server for decryption with private key
 
   const USER_PHONE_FILE = 'user_phone.enc';
+  const USER_NICKNAME_FILE = 'user_nickname.txt';
 
   // Fixed RSA public key for encryption
   // 对应的私钥需要线下提供给服务方
@@ -195,6 +202,82 @@ WQIDAQAB
       mainLog('Sudowork Auth', 'User phone file deleted');
       return { success: true };
     } catch (error) {
+      // File doesn't exist, that's fine
+      return { success: true };
+    }
+  });
+
+  // ==================== User Nickname Storage ====================
+  // Store user nickname and sync to USER.md for AI addressing
+
+  ipcBridge.sudoworkAuth.saveUserNickname.provider(async ({ nickname }) => {
+    try {
+      const dataPath = getDataPath();
+      const filePath = path.join(dataPath, USER_NICKNAME_FILE);
+      await fsPromises.writeFile(filePath, nickname, 'utf-8');
+
+      // Sync to USER.md for AI addressing
+      updateUserMdUsernameStatement(nickname);
+
+      // Sync to IDENTITY.md Name field with assistant name
+      updateIdentityMdName('SudoClaw');
+
+      mainLog('Sudowork Auth', 'User nickname saved, USER.md and IDENTITY.md updated');
+      return { success: true };
+    } catch (error) {
+      mainError('Sudowork Auth', 'Failed to save user nickname:', error);
+      return { success: false, msg: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  });
+
+  ipcBridge.sudoworkAuth.getUserNickname.provider(async () => {
+    try {
+      const dataPath = getDataPath();
+      const filePath = path.join(dataPath, USER_NICKNAME_FILE);
+      const nickname = await fsPromises.readFile(filePath, 'utf-8');
+      return { success: true, data: nickname.trim() };
+    } catch {
+      return { success: true, data: null };
+    }
+  });
+
+  // ==================== Consumer Mode User ID Storage ====================
+  // Store consumer mode user ID for telemetry reporting
+
+  const CONSUMER_USER_ID_FILE = 'consumer_user_id.txt';
+
+  ipcBridge.sudoworkAuth.saveConsumerUserId.provider(async ({ userId }) => {
+    try {
+      const dataPath = getDataPath();
+      const filePath = path.join(dataPath, CONSUMER_USER_ID_FILE);
+      await fsPromises.writeFile(filePath, String(userId), 'utf-8');
+      mainLog('Sudowork Auth', 'Consumer user ID saved');
+      return { success: true };
+    } catch (error) {
+      mainError('Sudowork Auth', 'Failed to save consumer user ID:', error);
+      return { success: false, msg: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  });
+
+  ipcBridge.sudoworkAuth.getConsumerUserId.provider(async () => {
+    try {
+      const dataPath = getDataPath();
+      const filePath = path.join(dataPath, CONSUMER_USER_ID_FILE);
+      const userId = await fsPromises.readFile(filePath, 'utf-8');
+      return { success: true, data: userId.trim() };
+    } catch {
+      return { success: true, data: null };
+    }
+  });
+
+  ipcBridge.sudoworkAuth.clearConsumerUserId.provider(async () => {
+    try {
+      const dataPath = getDataPath();
+      const filePath = path.join(dataPath, CONSUMER_USER_ID_FILE);
+      await fsPromises.unlink(filePath);
+      mainLog('Sudowork Auth', 'Consumer user ID file deleted');
+      return { success: true };
+    } catch {
       // File doesn't exist, that's fine
       return { success: true };
     }

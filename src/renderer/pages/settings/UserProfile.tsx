@@ -1,22 +1,30 @@
 import { ipcBridge } from '@/common';
-import React, { useState, useEffect, useCallback } from 'react';
-import { Avatar, Button, Modal, Input, Message } from '@arco-design/web-react';
+import type { UserProfileData } from '@/common/ipcBridge';
+import { formatUsagePoints } from '@/common/tokenUsage';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { Avatar, Button, Modal, Input, Message, Spin } from '@arco-design/web-react';
 import { User, Phone, Edit } from '@icon-park/react';
 import SettingsPageWrapper from './components/SettingsPageWrapper';
 import WeeklyModelUsageChart from './components/WeeklyModelUsageChart';
+import ConsumerAvatar from './components/ConsumerAvatar';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
+import { useDashboardStats } from '../../context/DashboardStatsContext';
+import { useAppMode } from '../../hooks/useAppMode';
 
 const UserProfile: React.FC = () => {
   const { t } = useTranslation();
-  const { user: currentUser, refresh, ensureValidToken, forceRefreshToken } = useAuth();
-  const [profile, setProfile] = useState<any>(null);
-  const [stats, setStats] = useState<any>(null);
+  const { user: currentUser, refresh: refreshAuth, ensureValidToken, forceRefreshToken } = useAuth();
+  const { profile, stats, refresh: refreshDashboard } = useDashboardStats();
+  const { isEnterprise } = useAppMode();
   const [loading, setLoading] = useState(false);
   const [editingNickname, setEditingNickname] = useState('');
   const [editModalVisible, setEditModalVisible] = useState(false);
 
-  // 带自动刷新的 fetch 封装
+  // Enterprise mode state
+  const [enterpriseProfile, setEnterpriseProfile] = useState<UserProfileData | null>(null);
+
+  // 带自动刷新的 fetch 封装（仅用于昵称更新等写操作；读路径已迁移到 DashboardStatsContext）
   const fetchWithAuth = useCallback(
     async (url: string, options: RequestInit = {}, retry = true): Promise<Response> => {
       const token = await ensureValidToken();
@@ -50,39 +58,32 @@ const UserProfile: React.FC = () => {
     [ensureValidToken, forceRefreshToken]
   );
 
-  const fetchProfile = async () => {
+  // Enterprise mode: fetch user profile from MOSS server
+  const fetchEnterpriseProfile = async () => {
     setLoading(true);
     try {
-      const serverConfig = await ipcBridge.sudoworkServer.getConfig.invoke();
-
-      // 并行调用：用户信息 + 仪表盘数据（积分、今日统计、使用流水）
-      const [profileRes, dashboardRes] = await Promise.all([fetchWithAuth(`${serverConfig.baseUrl}/api/v1/user/profile`), fetchWithAuth(`${serverConfig.baseUrl}/api/v1/user/dashboard`)]);
-
-      // 检查是否有 401 响应
-      if (profileRes.status === 401 || dashboardRes.status === 401) {
-        console.warn('[UserProfile] Unauthorized after retry, user may need to re-login');
-        setLoading(false);
-        return;
-      }
-
-      const profileData = await profileRes.json();
-      const dashboardData = await dashboardRes.json();
-
-      if (profileData.success) setProfile(profileData.data);
-      if (dashboardData.success) {
-        setStats({
-          usage_today: dashboardData.data.usage_today,
-        });
+      const result = await ipcBridge.eeclaw.getUserProfile.invoke();
+      if (result.success && result.data) {
+        setEnterpriseProfile(result.data);
       }
     } catch (e) {
-      console.error('Failed to fetch profile/dashboard:', e);
+      console.error('Failed to fetch enterprise profile:', e);
     }
     setLoading(false);
   };
 
   useEffect(() => {
-    if (currentUser?.token) void fetchProfile();
-  }, [currentUser]);
+    if (isEnterprise) void fetchEnterpriseProfile();
+  }, [isEnterprise]);
+
+  // Consumer mode: trigger a stale-while-revalidate refresh on every visit.
+  // Context returns the cached value immediately if still fresh (<30s) and
+  // fetches in the background otherwise — so revisits feel instant.
+  useEffect(() => {
+    if (!isEnterprise && currentUser?.token) {
+      void refreshDashboard();
+    }
+  }, [isEnterprise, currentUser?.token, refreshDashboard]);
 
   const handleEditNickname = () => {
     setEditingNickname(profile?.nickname || currentUser?.nickname || '');
@@ -121,9 +122,13 @@ const UserProfile: React.FC = () => {
           authData.user.nickname = editingNickname.trim();
           localStorage.setItem('sudowork_auth_v2', JSON.stringify(authData));
         }
+        // 同步昵称到主进程，触发 USER.md 更新，让 AI 能正确称呼用户
+        ipcBridge.sudoworkAuth.saveUserNickname.invoke({ nickname: editingNickname.trim() }).catch((error) => {
+          console.error('[UserProfile] Failed to sync nickname to main process:', error);
+        });
         // 刷新页面数据
-        await fetchProfile();
-        await refresh();
+        await refreshDashboard({ force: true });
+        await refreshAuth();
       } else {
         Message.error(data.msg || '更新失败');
       }
@@ -133,55 +138,106 @@ const UserProfile: React.FC = () => {
     }
   };
 
+  const todayPoints = useMemo(() => {
+    const usageToday = stats?.usage_today;
+    return formatUsagePoints(usageToday?.cost_points) ?? '0';
+  }, [stats?.usage_today]);
+
   return (
     <SettingsPageWrapper contentClassName='max-w-800px'>
       <div className='flex flex-col gap-24px py-8px'>
         <div className='text-20px font-600 text-t-primary leading-32px'>{t('settings.profile')}</div>
 
-        {/* Identity */}
-        <div className='flex items-center gap-20px p-24px bg-fill-0 rd-16px border border-border-base'>
-          <Avatar size={64} className='bg-primary/10'>
-            <User theme='outline' size={32} className='text-primary' />
-          </Avatar>
-          <div className='flex-1'>
-            <div className='flex items-center gap-8px'>
-              <div className='text-18px font-600 text-t-primary'>{profile?.nickname || currentUser?.nickname || 'Sudowork 用户'}</div>
-              <Button type='text' size='small' icon={<Edit size={14} />} onClick={handleEditNickname}>
-                编辑
-              </Button>
+        {isEnterprise ? (
+          <>
+            {/* Enterprise: Identity */}
+            <div className='flex items-center gap-20px p-24px bg-2 rd-16px border border-[var(--color-border-2)]'>
+              <Avatar size={64} className='bg-primary/10'>
+                <User theme='outline' size={32} className='text-primary' />
+              </Avatar>
+              <div className='flex-1'>
+                <div className='text-18px font-600 text-t-primary'>{enterpriseProfile?.username || '--'}</div>
+                <div className='flex gap-8px mt-8px'>
+                  <span className='inline-flex items-center h-24px px-10px rd-6px text-12px bg-fill-2 text-t-secondary'>{enterpriseProfile?.role || '--'}</span>
+                </div>
+              </div>
             </div>
-            <div className='flex gap-12px mt-8px'>
-              <span className='text-12px text-t-secondary flex items-center gap-4px'>
-                <Phone size='14' /> {profile?.phone || currentUser?.phone || '未绑定'}
-              </span>
-            </div>
-          </div>
-        </div>
 
-        {/* Today Stats */}
-        <div className='p-24px bg-fill-0 rd-16px border border-border-base'>
-          <div className='text-14px font-600 text-t-primary mb-16px'>今日使用</div>
-          <div className='grid grid-cols-3 gap-16px'>
-            <div className='text-center'>
-              <div className='text-24px font-700 text-t-primary'>{stats?.usage_today?.tokens?.toLocaleString() || 0}</div>
-              <div className='text-12px text-t-tertiary'>Tokens</div>
+            {/* Enterprise: Usage Stats */}
+            <div className='p-24px bg-2 rd-16px border border-[var(--color-border-2)]'>
+              <div className='text-14px font-600 text-t-primary mb-16px'>资源使用</div>
+              <div className='grid grid-cols-4 gap-16px'>
+                <div className='text-center'>
+                  <div className='text-24px font-700 text-t-primary'>{enterpriseProfile?.usage?.input_tokens?.toLocaleString() || 0}</div>
+                  <div className='text-12px text-t-tertiary'>输入 Token</div>
+                </div>
+                <div className='text-center'>
+                  <div className='text-24px font-700 text-t-primary'>{enterpriseProfile?.usage?.output_tokens?.toLocaleString() || 0}</div>
+                  <div className='text-12px text-t-tertiary'>输出 Token</div>
+                </div>
+                <div className='text-center'>
+                  <div className='text-24px font-700 text-t-primary'>{enterpriseProfile?.usage?.total_tokens?.toLocaleString() || 0}</div>
+                  <div className='text-12px text-t-tertiary'>总 Token</div>
+                </div>
+                <div className='text-center'>
+                  <div className='text-24px font-700 text-t-primary'>{enterpriseProfile?.usage?.session_count || 0}</div>
+                  <div className='text-12px text-t-tertiary'>会话数</div>
+                </div>
+              </div>
             </div>
-            <div className='text-center'>
-              <div className='text-24px font-700 text-primary'>{stats?.usage_today?.cost_points || 0}</div>
-              <div className='text-12px text-t-tertiary'>消耗积分</div>
+          </>
+        ) : (
+          <>
+            {/* Consumer: Identity */}
+            <div className='flex items-center gap-20px p-24px bg-2 rd-16px border border-[var(--color-border-2)]'>
+              <ConsumerAvatar />
+              <div className='flex-1'>
+                <div className='flex items-center gap-8px'>
+                  <div className='text-18px font-600 text-t-primary'>{profile?.nickname || currentUser?.nickname || 'Sudowork 用户'}</div>
+                  <Button type='text' size='small' icon={<Edit size={14} />} onClick={handleEditNickname}>
+                    编辑
+                  </Button>
+                </div>
+                <div className='flex gap-12px mt-8px'>
+                  <span className='text-12px text-t-secondary flex items-center gap-4px'>
+                    <Phone size='14' /> {profile?.phone || currentUser?.phone || '未绑定'}
+                  </span>
+                </div>
+              </div>
             </div>
-            <div className='text-center'>
-              <div className='text-24px font-700 text-t-primary'>{stats?.usage_today?.requests || 0}</div>
-              <div className='text-12px text-t-tertiary'>请求数</div>
-            </div>
-          </div>
-        </div>
 
-        {/* Model Usage Chart */}
-        <WeeklyModelUsageChart />
+            {/* Consumer: Today Stats */}
+            <div className='p-24px bg-2 rd-16px border border-[var(--color-border-2)]'>
+              <div className='text-14px font-600 text-t-primary mb-16px'>{t('settings.userProfile.todayUsage')}</div>
+              <div className='grid grid-cols-3 gap-16px'>
+                <div className='text-center'>
+                  <div className='text-24px font-700 text-t-primary min-h-32px flex items-center justify-center'>
+                    {stats === null ? <Spin size={20} /> : (stats.usage_today?.tokens?.toLocaleString() ?? '0')}
+                  </div>
+                  <div className='text-12px text-t-tertiary'>{t('settings.userProfile.tokens')}</div>
+                </div>
+                <div className='text-center'>
+                  <div className='text-24px font-700 text-primary min-h-32px flex items-center justify-center'>
+                    {stats === null ? <Spin size={20} /> : todayPoints}
+                  </div>
+                  <div className='text-12px text-t-tertiary'>{t('settings.userProfile.consumedPoints')}</div>
+                </div>
+                <div className='text-center'>
+                  <div className='text-24px font-700 text-t-primary min-h-32px flex items-center justify-center'>
+                    {stats === null ? <Spin size={20} /> : (stats.usage_today?.requests ?? 0)}
+                  </div>
+                  <div className='text-12px text-t-tertiary'>{t('settings.userProfile.requests')}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Consumer: Model Usage Chart */}
+            <WeeklyModelUsageChart />
+          </>
+        )}
       </div>
 
-      {/* Edit Nickname Modal */}
+      {/* Edit Nickname Modal (consumer only) */}
       <Modal title='编辑昵称' visible={editModalVisible} onOk={handleSaveNickname} onCancel={() => setEditModalVisible(false)} okText='保存' cancelText='取消'>
         <Input value={editingNickname} onChange={(val) => setEditingNickname(val)} placeholder='请输入昵称' onPressEnter={handleSaveNickname} />
       </Modal>

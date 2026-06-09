@@ -15,8 +15,9 @@ import type { IInstalledSkillInfo } from '@/common/ipcBridge';
 import { getPresetById } from '@/common/presets/presetResolver';
 import { resolveAssistantName, fetchAssistantsAsConfigs } from '@/renderer/shared/agents/assistantAdapter';
 import type { AcpBackendConfig } from '@/types/acpTypes';
+import { DEFAULT_PRESET_AGENT_TYPE, normalizePresetAgentType } from '@/types/acpTypes';
 import { getAgentLogo } from '@/renderer/utils/agentLogo';
-import { getInstalledSkillDisplay, normalizeSkillVersion } from '@/renderer/utils/skillDisplay';
+import { getInstalledSkillDisplay, normalizeSkillVersion, handleSkillIconError } from '@/renderer/utils/skillDisplay';
 import { isElectronDesktop, resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import EmojiPicker from '@/renderer/components/EmojiPicker';
 import MarkdownView from '@/renderer/components/Markdown';
@@ -26,6 +27,7 @@ import { Close, Lightning, Robot, Shield } from '@icon-park/react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { mutate } from 'swr';
+import { useAppMode } from '@/renderer/hooks/useAppMode';
 
 type AssistantEditDrawerProps = {
   visible: boolean;
@@ -53,18 +55,19 @@ const AGENT_OPTIONS = [
   { value: 'codex', label: 'Codex', backendId: 'codex' },
   { value: 'codebuddy', label: 'CodeBuddy', backendId: 'codebuddy' },
   { value: 'opencode', label: 'OpenCode', backendId: 'opencode' },
-  { value: 'sudoclaw', label: 'SudoClaw', backendId: 'openclaw-gateway' },
+  { value: 'scode', label: 'Sudo Code', backendId: 'scode' },
 ] as const;
 
 const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assistantId, localeKey, onClose, onSaved }) => {
   const { t } = useTranslation();
+  const { isEnterprise } = useAppMode();
   const textareaWrapperRef = useRef<HTMLDivElement>(null);
 
   // Edit state
   const [editName, setEditName] = useState('');
   const [editDescription, setEditDescription] = useState('');
   const [editAvatar, setEditAvatar] = useState('');
-  const [editAgent, setEditAgent] = useState<string>('sudoclaw');
+  const [editAgent, setEditAgent] = useState<string>(DEFAULT_PRESET_AGENT_TYPE);
   const [editContext, setEditContext] = useState('');
   const [promptViewMode, setPromptViewMode] = useState<'edit' | 'preview'>('preview');
   const [drawerWidth, setDrawerWidth] = useState(500);
@@ -122,9 +125,24 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
         const res = await ipcBridge.assistantHub.getInstalledAssistants.invoke();
         if (!res.success || !res.data) return;
 
-        // Find the assistant by id (directory name)
-        const foundInfo = res.data.find((a) => a.name === assistantId || a.meta.id === assistantId);
-        if (cancelled || !foundInfo) return;
+        // Find the assistant by id (directory name), meta.id (UUID), or display name
+        // assistantId can be: directory name (UUID), builtin-xxx, or display name
+        const foundInfo = res.data.find((a) => {
+          // Match by directory name (a.name)
+          if (a.name === assistantId) return true;
+          // Match by meta.id (UUID from server)
+          if (a.meta?.id === assistantId) return true;
+          // Match by display name (nameI18n or meta.name)
+          const displayName = a.meta?.nameI18n?.['zh-CN'] || a.meta?.nameI18n?.['en-US'] || a.meta?.name;
+          if (displayName === assistantId) return true;
+          // Match by builtin prefix (builtin-xxx)
+          if (a.isBuiltin && `builtin-${a.name}` === assistantId) return true;
+          return false;
+        });
+        if (cancelled || !foundInfo) {
+          console.warn('[AssistantEditDrawer] Assistant not found:', assistantId, 'Available:', res.data.map(a => ({ name: a.name, metaId: a.meta?.id, displayName: a.meta?.nameI18n?.['zh-CN'] || a.meta?.name })));
+          return;
+        }
 
         // Convert to config format, preserving isHubInstalled flag
         const found: AssistantConfigWithMeta = {
@@ -158,7 +176,7 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
         setEditName(found.nameI18n?.[localeKey] || found.name || '');
         setEditDescription(found.descriptionI18n?.[localeKey] || found.description || '');
         setEditAvatar(found.avatar || '');
-        setEditAgent(found.presetAgentType || 'sudoclaw');
+        setEditAgent(normalizePresetAgentType(found.presetAgentType) || DEFAULT_PRESET_AGENT_TYPE);
         setSelectedSkills(found.enabledSkills || []);
 
         // Load rules content
@@ -235,17 +253,22 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
       // Use assistantHub.updateAssistantMeta to save to _sudowork_meta.json
       const lookupName = resolveAssistantName(assistant.id);
 
-      // For custom assistants, save all fields
-      await ipcBridge.assistantHub.updateAssistantMeta.invoke({
+      // For custom assistants, save all fields (presetAgentType stays locked to Sudo Code)
+      const updateResult = await ipcBridge.assistantHub.updateAssistantMeta.invoke({
         name: lookupName,
         updates: {
           nameI18n: { 'zh-CN': editName },
           descriptionI18n: editDescription ? { 'zh-CN': editDescription } : undefined,
           avatar: editAvatar,
-          presetAgentType: editAgent,
+          presetAgentType: normalizePresetAgentType(editAgent) || DEFAULT_PRESET_AGENT_TYPE,
           enabledSkills: selectedSkills,
         },
       });
+
+      if (!updateResult.success) {
+        Message.error(t('settings.assistant.saveFailed', { msg: updateResult.msg || 'Unknown error', defaultValue: `保存失败: ${updateResult.msg || '未知错误'}` }));
+        return;
+      }
 
       // Save rules file if changed
       if (editContext.trim()) {
@@ -256,10 +279,15 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
         });
       }
 
-      // Refresh agent detection
-      await ipcBridge.acpConversation.refreshCustomAgents.invoke();
-      await mutate('acp.agents.available');
-      await mutate('assistantHub.installed');
+      // Refresh agent detection - use different refresh logic based on mode
+      if (isEnterprise) {
+        // Enterprise mode: refresh local assistants from hub/tenant/custom/system directories
+        await mutate('assistantHub.installed');
+      } else {
+        // Personal mode: refresh ACP agents
+        await ipcBridge.acpConversation.refreshCustomAgents.invoke();
+        await mutate('acp.agents.available');
+      }
 
       Message.success(t('common.saveSuccess', { defaultValue: 'Saved successfully' }));
       onSaved();
@@ -268,7 +296,7 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
       console.error('Failed to save assistant:', error);
       Message.error(t('common.failed', { defaultValue: 'Failed' }));
     }
-  }, [assistant, isReadonly, editName, editDescription, editAvatar, editAgent, editContext, selectedSkills, localeKey, onSaved, onClose, t]);
+  }, [assistant, isReadonly, isEnterprise, editName, editDescription, editAvatar, editAgent, editContext, selectedSkills, localeKey, onSaved, onClose, t]);
 
   const editAvatarImage = resolveAvatarImage(editAvatar);
 
@@ -369,22 +397,20 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
             />
           </div>
 
-          {/* Main Agent */}
+          {/* Main Agent - locked to Sudo Code */}
           <div className='flex-shrink-0'>
             <Typography.Text bold>
               {t('settings.assistantMainAgent', {
                 defaultValue: 'Main Agent',
               })}
             </Typography.Text>
-            <Select className='mt-10px w-full rounded-4px' value={editAgent} onChange={(value) => setEditAgent(value as string)} disabled={isReadonly}>
-              {AGENT_OPTIONS.filter((opt) => availableBackends.has(opt.backendId || opt.value)).map((opt) => (
-                <Select.Option key={opt.value} value={opt.value}>
-                  <span className='flex items-center gap-6px'>
-                    {getAgentLogo(opt.backendId || opt.value) && <img src={getAgentLogo(opt.backendId || opt.value) || undefined} alt='' width={16} height={16} style={{ objectFit: 'contain' }} />}
-                    {opt.label}
-                  </span>
-                </Select.Option>
-              ))}
+            <Select className='mt-10px w-full rounded-4px' value={DEFAULT_PRESET_AGENT_TYPE} disabled>
+              <Select.Option key='scode' value='scode'>
+                <span className='flex items-center gap-6px'>
+                  {getAgentLogo('scode') && <img src={getAgentLogo('scode') || undefined} alt='' width={16} height={16} style={{ objectFit: 'contain' }} />}
+                  Sudo Code
+                </span>
+              </Select.Option>
             </Select>
           </div>
 
@@ -487,7 +513,7 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
                           />
                           <div className='w-48px h-48px flex-shrink-0 rd-8px overflow-hidden bg-fill-2'>
                             {icon ? (
-                              <img src={icon} alt={displayName} className='w-full h-full object-cover' />
+                              <img src={icon} alt={displayName} className='w-full h-full object-cover' onError={handleSkillIconError} />
                             ) : emoji ? (
                               <div className='w-full h-full flex items-center justify-center text-22px'>{emoji}</div>
                             ) : (
@@ -555,7 +581,7 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
                           />
                           <div className='w-48px h-48px flex-shrink-0 rd-8px overflow-hidden bg-fill-2'>
                             {icon ? (
-                              <img src={icon} alt={displayName} className='w-full h-full object-cover' />
+                              <img src={icon} alt={displayName} className='w-full h-full object-cover' onError={handleSkillIconError} />
                             ) : emoji ? (
                               <div className='w-full h-full flex items-center justify-center text-22px'>{emoji}</div>
                             ) : (

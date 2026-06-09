@@ -5,59 +5,112 @@
  */
 
 import type { TChatConversation } from '@/common/storage';
+import { STORAGE_KEYS } from '@/common/storageKeys';
+import { ipcBridge } from '@/common';
+import { useAddEventListener } from '@/renderer/utils/emitter';
 import { Message } from '@arco-design/web-react';
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import ChatWorkspace from './workspace';
+import BrowserPanel from './right-panel/BrowserPanel';
+import DeliverablesPanel from './right-panel/DeliverablesPanel';
+import TerminalPanel from './right-panel/TerminalPanel';
+import './workspace/workspace-card.css';
+
+type RightPanelTab = 'workspace' | 'browser' | 'terminal' | 'deliverables';
 
 const ChatSider: React.FC<{
   conversation?: TChatConversation;
 }> = ({ conversation }) => {
+  const { t } = useTranslation();
   const [messageApi, messageContext] = Message.useMessage({ maxCount: 1 });
+  const storageKey = React.useMemo(() => (conversation?.id ? `${STORAGE_KEYS.RIGHT_PANEL_ACTIVE_TAB}:${conversation.id}` : null), [conversation?.id]);
+  const [activeTab, setActiveTab] = React.useState<RightPanelTab>('workspace');
+
+  React.useEffect(() => {
+    if (!storageKey) {
+      setActiveTab('workspace');
+      return;
+    }
+
+    try {
+      const stored = localStorage.getItem(storageKey);
+      if (stored === 'workspace' || stored === 'browser' || stored === 'terminal' || stored === 'deliverables') {
+        setActiveTab(stored);
+        return;
+      }
+    } catch {
+      // ignore
+    }
+
+    setActiveTab('workspace');
+  }, [storageKey]);
+
+  React.useEffect(() => {
+    if (!storageKey) return;
+    try {
+      localStorage.setItem(storageKey, activeTab);
+    } catch {
+      // ignore
+    }
+  }, [activeTab, storageKey]);
+
+  // When the AI generates an HTML file (or any caller asks to open a URL in
+  // the right-panel browser), switch to the browser tab so the result is
+  // visible. The BrowserPanel itself listens to the same event and opens the
+  // tab — this hook is purely for visibility.
+  const handleBrowserOpen = React.useCallback(({ switchTab }: { url: string; switchTab?: boolean }) => {
+    if (switchTab === false) return;
+    setActiveTab('browser');
+  }, []);
+
+  useAddEventListener('right-panel.browser.open', handleBrowserOpen, [handleBrowserOpen]);
+
+  React.useEffect(() => {
+    const unsubscribe = ipcBridge.rightPanelBrowser.open.on(handleBrowserOpen);
+    return () => {
+      unsubscribe();
+    };
+  }, [handleBrowserOpen]);
 
   let workspaceNode: React.ReactNode = null;
-  if (conversation?.type === 'acp' && conversation.extra?.workspace) {
-    workspaceNode = <ChatWorkspace conversation_id={conversation.id} workspace={conversation.extra.workspace} workspaceDisplayName={conversation.extra.workspaceDisplayName} eventPrefix='acp' backend={conversation.extra.backend} messageApi={messageApi}></ChatWorkspace>;
-  } else if (conversation?.type === 'openclaw-gateway' && conversation.extra?.workspace) {
-    workspaceNode = <ChatWorkspace conversation_id={conversation.id} workspace={conversation.extra.workspace} workspaceDisplayName={conversation.extra.workspaceDisplayName} eventPrefix='openclaw-gateway' backend='openclaw-gateway' messageApi={messageApi}></ChatWorkspace>;
-  }
+  const extra = conversation?.extra as { workspace?: string; workspaceDisplayName?: string; backend?: string } | undefined;
+  const workspace = extra?.workspace;
 
-  if (!workspaceNode) {
-    // DEBUG: 显示调试信息
-    const debugInfo = {
-      conversationId: conversation?.id,
-      type: conversation?.type,
-      extra: conversation?.extra,
-      hasWorkspace: !!(conversation?.extra as { workspace?: string })?.workspace,
-    };
-    return (
-      <div style={{ padding: '12px', fontSize: '12px', color: 'var(--color-text-3)' }}>
-        <button
-          type='button'
-          onClick={() => {
-            console.log('[ChatSider DEBUG]', debugInfo);
-            alert(JSON.stringify(debugInfo, null, 2));
-          }}
-          style={{
-            padding: '4px 8px',
-            fontSize: '11px',
-            cursor: 'pointer',
-            border: '1px solid var(--color-border-2)',
-            borderRadius: '4px',
-            background: 'var(--color-fill-2)',
-            color: 'var(--color-text-2)',
-            width: '100%',
-          }}
-        >
-          🔍 Debug: 点击查看面板状态
-        </button>
-      </div>
-    );
+  if (conversation?.type === 'acp' && workspace) {
+    workspaceNode = <ChatWorkspace conversation_id={conversation.id} workspace={workspace} workspaceDisplayName={extra.workspaceDisplayName} eventPrefix='acp' backend={extra.backend} messageApi={messageApi} />;
+  } else if (conversation?.type === 'remote-agent') {
+    workspaceNode = <ChatWorkspace conversation_id={conversation.id} workspace={workspace || conversation.id} workspaceDisplayName={extra?.workspaceDisplayName} eventPrefix='remote-agent' backend='remote-agent' dataSource='moss-session' readonly messageApi={messageApi} />;
   }
 
   return (
     <>
       {messageContext}
-      {workspaceNode}
+      <div className='flex h-full min-h-0 flex-col bg-[var(--color-bg-1)]'>
+        <div className='right-panel-tabs'>
+          {(['workspace', 'browser', 'terminal', 'deliverables'] as RightPanelTab[]).map((tab) => {
+            const isActive = activeTab === tab;
+            return (
+              <button key={tab} type='button' role='tab' aria-selected={isActive} className={`right-panel-tabs__item ${isActive ? 'right-panel-tabs__item--active' : ''}`} onClick={() => setActiveTab(tab)}>
+                <span className='relative z-10'>{t(`conversation.rightPanel.tabs.${tab}`)}</span>
+                <span aria-hidden='true' className='right-panel-tabs__indicator' />
+              </button>
+            );
+          })}
+        </div>
+        <div className='right-panel-stack'>
+          <div className={`right-panel-stack__pane ${activeTab === 'workspace' ? 'right-panel-stack__pane--active' : ''}`}>{workspaceNode}</div>
+          <div className={`right-panel-stack__pane ${activeTab === 'browser' ? 'right-panel-stack__pane--active' : ''}`}>
+            <BrowserPanel active={activeTab === 'browser'} conversationId={conversation?.id} />
+          </div>
+          <div className={`right-panel-stack__pane ${activeTab === 'terminal' ? 'right-panel-stack__pane--active' : ''}`}>
+            <TerminalPanel cwd={workspace} active={activeTab === 'terminal'} conversationId={conversation?.id} />
+          </div>
+          <div className={`right-panel-stack__pane ${activeTab === 'deliverables' ? 'right-panel-stack__pane--active' : ''}`}>
+            <DeliverablesPanel conversationId={conversation?.id} active={activeTab === 'deliverables'} />
+          </div>
+        </div>
+      </div>
     </>
   );
 };

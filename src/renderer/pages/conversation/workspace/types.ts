@@ -17,8 +17,10 @@ export type MessageApi = ReturnType<typeof Message.useMessage>[0];
 export interface WorkspaceProps {
   workspace: string;
   conversation_id: string;
-  eventPrefix?: 'acp' | 'openclaw-gateway';
+  eventPrefix?: 'acp' | 'remote-agent';
   backend?: string;
+  dataSource?: 'local' | 'moss-session';
+  readonly?: boolean;
   messageApi?: MessageApi;
   /** Stored display name override for workspace / 工作空间的自定义显示名 */
   workspaceDisplayName?: string;

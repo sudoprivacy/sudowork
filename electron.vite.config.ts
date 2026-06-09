@@ -86,6 +86,7 @@ export default defineConfig(({ mode }) => {
         // 'v8-compile-cache' excluded so it can cache all subsequent requires (reduces startup 40-60%).
         externalizeDepsPlugin({
           exclude: ['fix-path', 'v8-compile-cache', 'unified', 'remark-parse', 'remark-gfm', 'mdast-util-from-markdown', 'mdast-util-gfm', 'docx'],
+          include: ['nexus-napi'],
         }),
         ...(!isDevelopment
           ? [
@@ -109,6 +110,7 @@ export default defineConfig(({ mode }) => {
           input: {
             index: resolve('src/index.ts'),
           },
+          external: ['@lydell/node-pty'],
           onwarn(warning, warn) {
             if (warning.code === 'EVAL') return;
             warn(warning);
@@ -127,7 +129,12 @@ export default defineConfig(({ mode }) => {
       build: {
         sourcemap: false,
         reportCompressedSize: false,
-        rollupOptions: { input: { index: resolve('src/preload.ts') } },
+        rollupOptions: {
+          input: {
+            index: resolve('src/preload.ts'),
+            avatar: resolve('src/preload-avatar.ts'),
+          },
+        },
       },
     },
 
@@ -167,7 +174,10 @@ export default defineConfig(({ mode }) => {
         chunkSizeWarningLimit: 1500,
         cssCodeSplit: true,
         rollupOptions: {
-          input: { index: resolve('src/renderer/index.html') },
+          input: {
+            index: resolve('src/renderer/index.html'),
+            avatar: resolve('src/renderer/avatar/index.html'),
+          },
           external: ['node:crypto', 'crypto'],
           output: {
             manualChunks(id: string) {

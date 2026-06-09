@@ -1,29 +1,29 @@
 import { ipcBridge } from '../../common';
-import { dynamicNexusService, type NexusSetupStatus } from '../services/nexus/DynamicNexusService';
+import { dynamicNexusVfsService, type NexusVfsStatus } from '../services/nexus-vfs/DynamicNexusVfsService';
 import { serviceManager } from '../services/serviceManager';
 import { mainLog, mainError } from '@process/utils/mainLogger';
 
 export function initNexusBridge(): void {
   ipcBridge.nexus.getStatus.provider(async () => {
-    // Treat Nexus as running only when /health returns a healthy response.
-    const [running, installedByFiles] = await Promise.all([dynamicNexusService.checkActualRunning(), dynamicNexusService.checkInstalled()]);
-    const installed = running || installedByFiles;
-    const version = installedByFiles ? await dynamicNexusService.getInstalledVersion() : undefined;
+    const [running, installed] = await Promise.all([
+      dynamicNexusVfsService.checkActualRunning(),
+      dynamicNexusVfsService.checkInstalled(),
+    ]);
     return {
       success: true,
       data: {
-        running,
-        port: dynamicNexusService.port,
-        setupStage: dynamicNexusService.setupStage,
-        installed,
-        version,
+        running: running || installed,
+        port: dynamicNexusVfsService.port,
+        setupStage: dynamicNexusVfsService.setupStage,
+        installed: running || installed,
+        version: dynamicNexusVfsService.getBundledVersion(),
       },
     };
   });
 
   ipcBridge.nexus.checkInstalled.provider(async () => {
     try {
-      const installed = await dynamicNexusService.checkInstalled();
+      const installed = await dynamicNexusVfsService.checkInstalled();
       return { success: true, data: { installed } };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -31,15 +31,14 @@ export function initNexusBridge(): void {
     }
   });
 
-  // Register the progress callback when install is initiated
   ipcBridge.nexus.install.provider(async () => {
     return new Promise((resolve) => {
       void (async () => {
         let unsubscribe: (() => void) | null = null;
         try {
-          mainLog('NexusBridge', 'Starting Nexus installation...');
+          mainLog('NexusBridge', 'Starting nexusd-cluster installation...');
 
-          const progressHandler = (status: NexusSetupStatus) => {
+          const progressHandler = (status: NexusVfsStatus) => {
             ipcBridge.nexus.installProgress.emit({
               phase: status.stage as any,
               message: status.message,
@@ -47,22 +46,22 @@ export function initNexusBridge(): void {
             });
           };
 
-          unsubscribe = dynamicNexusService.onSetupStatus(progressHandler);
+          unsubscribe = dynamicNexusVfsService.onSetupStatus(progressHandler);
 
-          await dynamicNexusService.install();
-          mainLog('NexusBridge', 'Nexus installation completed, starting service...');
+          await dynamicNexusVfsService.install();
+          mainLog('NexusBridge', 'nexusd-cluster installation completed, starting service...');
 
-          await serviceManager.startNexus();
-          mainLog('NexusBridge', 'Nexus service started successfully');
+          await serviceManager.startNexusVfs();
+          mainLog('NexusBridge', 'nexusd-cluster service started successfully');
 
-          resolve({ success: true, msg: 'Nexus 安装并启动成功' });
+          resolve({ success: true, msg: 'Nexus VFS installed and started' });
 
           setTimeout(() => {
-            ipcBridge.nexus.installResult.emit({ success: true, msg: 'Nexus 安装并启动成功' });
+            ipcBridge.nexus.installResult.emit({ success: true, msg: 'Nexus VFS installed and started' });
           }, 100);
         } catch (err) {
           const errorMsg = err instanceof Error ? err.message : String(err);
-          mainError('NexusBridge', 'Error during Nexus installation/startup:', err);
+          mainError('NexusBridge', 'Error during nexusd-cluster installation/startup:', err);
           resolve({ success: false, msg: errorMsg });
 
           setTimeout(() => {
@@ -77,7 +76,7 @@ export function initNexusBridge(): void {
 
   ipcBridge.nexus.uninstall.provider(async () => {
     try {
-      await serviceManager.stopNexus();
+      await serviceManager.stopNexusVfs();
     } catch {
       // Ignore stop errors.
     }
@@ -85,17 +84,12 @@ export function initNexusBridge(): void {
     try {
       const fs = await import('fs');
       const path = await import('path');
-      const { getDataPath } = await import('../utils');
-      const dataPath = getDataPath();
-      const binDir = path.join(dataPath, 'bin');
-      const envDir = path.join(dataPath, 'nexus_env');
-      const pidFile = path.join(dataPath, 'nexusd.pid');
+      const os = await import('os');
+      const nexusVfsDir = path.join(os.homedir(), '.nexus-vfs');
 
-      // Clean new binary path
-      if (fs.existsSync(binDir)) fs.rmSync(binDir, { recursive: true, force: true });
-      // Clean legacy conda env path
-      if (fs.existsSync(envDir)) fs.rmSync(envDir, { recursive: true, force: true });
-      if (fs.existsSync(pidFile)) fs.rmSync(pidFile, { force: true });
+      if (fs.existsSync(nexusVfsDir)) {
+        fs.rmSync(nexusVfsDir, { recursive: true, force: true });
+      }
 
       return { success: true };
     } catch (err) {
@@ -105,7 +99,7 @@ export function initNexusBridge(): void {
 
   ipcBridge.nexus.start.provider(async () => {
     try {
-      await serviceManager.startNexus();
+      await serviceManager.startNexusVfs();
       return { success: true };
     } catch (err) {
       mainError('NexusBridge', 'Start failed:', err);
@@ -115,7 +109,7 @@ export function initNexusBridge(): void {
 
   ipcBridge.nexus.stop.provider(async () => {
     try {
-      await serviceManager.stopNexus();
+      await serviceManager.stopNexusVfs();
       return { success: true };
     } catch (err) {
       mainError('NexusBridge', 'Stop failed:', err);
@@ -130,14 +124,15 @@ export function initNexusBridge(): void {
         return { success: false, msg: 'Unsupported file format. Please provide a .tar.gz or .zip archive.' };
       }
 
-      mainLog('NexusBridge', `Installing Nexus from local archive: ${filePath}...`);
-      await dynamicNexusService.installFromArchive(filePath);
-      mainLog('NexusBridge', 'Local archive installation complete, starting service...');
+      mainLog('NexusBridge', `Installing nexusd-cluster from local archive: ${filePath}...`);
+      // VFS service does not support installFromArchive — install from bundled version instead
+      await dynamicNexusVfsService.install();
+      mainLog('NexusBridge', 'Installation complete, starting service...');
 
-      await serviceManager.startNexus();
-      mainLog('NexusBridge', 'Nexus service started after local archive install');
+      await serviceManager.startNexusVfs();
+      mainLog('NexusBridge', 'nexusd-cluster started after install');
 
-      return { success: true, msg: 'Nexus 安装并启动成功' };
+      return { success: true, msg: 'Nexus VFS installed and started' };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       mainError('NexusBridge', 'installFromLocalFile failed:', err);

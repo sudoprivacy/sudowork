@@ -43,6 +43,9 @@
   "deleteFailed": "Silme başarısız",
   "default": "Varsayılan",
   "defaultModel": "Varsayılan Model",
+  "modelSwitchSuccess": "{{model}} modeline geçildi",
+  "modelListRefreshed": "Model listesi yenilendi",
+  "modelListRefreshFailed": "Model listesi yenilenemedi",
   "escToCancel": "iptal için esc",
   "create": "Oluştur",
   "createSuccess": "Başarıyla oluşturuldu",
@@ -58,5 +61,12 @@
   "setupContinuesInBackground": "Uygulamaya şimdi girin. Çalışma zamanı kurulumu arka planda devam edecek.",
   "refresh": "Yenile",
   "tray.showWindow": "Sudowork'ü Göster",
-  "tray.quit": "Çıkış"
+  "tray.quit": "Çıkış",
+  "siderMenu": {
+    "agent": "Dijital Asistanlar",
+    "skillStore": "Beceri Mağazası",
+    "security": "Güvenlik",
+    "webui": "Uzak Erişim",
+    "cron": "Zamanlanmış Görevler"
+  }
 }

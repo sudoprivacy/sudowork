@@ -10,11 +10,17 @@ import type { ExecApprovalRequestData, ApplyPatchApprovalRequestData } from './e
 
 /**
  * 权限类型枚举
+ *
+ * NOTE: this enum currently lives under codex namespace but CREDENTIAL_AUTOLOGIN
+ * is cross-agent (triggered via user slash command, independent of codex).
+ * Planned refactor to a neutral location during avatar MVP-1 — tracked in
+ * project memo, safe to reference from non-codex code in the meantime.
  */
 export enum PermissionType {
   COMMAND_EXECUTION = 'command_execution',
   FILE_WRITE = 'file_write',
   FILE_READ = 'file_read',
+  CREDENTIAL_AUTOLOGIN = 'credential_autologin',
 }
 
 /**

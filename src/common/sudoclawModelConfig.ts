@@ -1,7 +1,7 @@
 import type { SudoclawConfig, SudoclawProvider, SudoclawProviderModel } from './ipcBridge';
 
 const SUDOROUTER_BASE_URL = 'https://hk.sudorouter.ai/v1';
-const DEFAULT_PRIMARY_MODEL = 'gemini-3-flash-preview';
+const DEFAULT_PRIMARY_MODEL = 'gemini-3.5-flash';
 
 type MergeSudorouterProvidersParams = {
   modelIds: string[];

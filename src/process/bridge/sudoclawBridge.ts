@@ -92,7 +92,7 @@ function syncToClaudeSettings(config: SudoclawConfig): void {
     env: {
       ANTHROPIC_BASE_URL: 'https://hk.sudorouter.ai',
       ANTHROPIC_AUTH_TOKEN: apiKey,
-      ANTHROPIC_MODEL: modelId || 'gemini-3-flash-preview',
+      ANTHROPIC_MODEL: modelId || 'gemini-3.5-flash',
     },
   };
 
@@ -172,34 +172,6 @@ export function initSudoclawBridge(): void {
         version,
       };
 
-      // Try to enhance with runtime status from active tasks
-      try {
-        const openclawTasks = WorkerManage.listTasks().filter((t) => t.type === 'openclaw-gateway');
-
-        if (openclawTasks.length > 0) {
-          const task = WorkerManage.getTaskById(openclawTasks[0].id) as any;
-          if (task && typeof task.getDiagnostics === 'function') {
-            const diagnostics = task.getDiagnostics();
-
-            data.gatewayPort = diagnostics.gatewayPort || port;
-            data.gatewayHost = diagnostics.gatewayHost || host;
-            data.gatewayUrl = `ws://${data.gatewayHost}:${data.gatewayPort}`;
-            // Runtime task diagnostics are supplemental only.
-            // Actual "running" state must come from the live /health probe above,
-            // otherwise a stale task object can make the UI show "running"
-            // after the gateway has already stopped.
-            data.isConnected = isGatewayRunning && (diagnostics.isConnected ?? false);
-            data.hasActiveSession = isGatewayRunning && (diagnostics.hasActiveSession ?? false);
-            data.sessionKey = diagnostics.sessionKey || null;
-            // Only update runtime info, keep configured workspace (don't overwrite with temp paths)
-            data.agentName = diagnostics.agentName || data.agentName;
-            data.model = diagnostics.model || data.model;
-          }
-        }
-      } catch (innerErr) {
-        mainWarn('SudoclawBridge', 'getStatus inner failed', innerErr);
-      }
-
       return { success: true, data };
     } catch (err) {
       mainError('SudoclawBridge', 'getStatus failed', err);
@@ -229,7 +201,7 @@ export function initSudoclawBridge(): void {
   ipcBridge.sudoclaw.restartGateway.provider(async () => {
     try {
       const { serviceManager } = await import('../services/serviceManager');
-      await serviceManager.restartOpenClaw();
+      await serviceManager.restartSudoclaw();
       return { success: true };
     } catch (err) {
       mainError('SudoclawBridge', 'Restart gateway failed', err);
@@ -240,7 +212,7 @@ export function initSudoclawBridge(): void {
   ipcBridge.sudoclaw.startGateway.provider(async () => {
     try {
       const { serviceManager } = await import('../services/serviceManager');
-      await serviceManager.startOpenClaw();
+      await serviceManager.startSudoclaw();
       return { success: true };
     } catch (err) {
       mainError('SudoclawBridge', 'Start gateway failed', err);
@@ -251,7 +223,7 @@ export function initSudoclawBridge(): void {
   ipcBridge.sudoclaw.stopGateway.provider(async () => {
     try {
       const { serviceManager } = await import('../services/serviceManager');
-      await serviceManager.stopOpenClaw();
+      await serviceManager.stopSudoclaw();
       return { success: true };
     } catch (err) {
       mainError('SudoclawBridge', 'Stop gateway failed', err);
@@ -263,7 +235,7 @@ export function initSudoclawBridge(): void {
     try {
       // Stop gateway first
       const { serviceManager } = await import('../services/serviceManager');
-      await serviceManager.stopOpenClaw();
+      await serviceManager.stopSudoclaw();
     } catch {
       // Ignore stop errors
     }
@@ -292,7 +264,7 @@ export function initSudoclawBridge(): void {
 
           mainLog('SudoclawBridge', 'Sudoclaw installation completed, starting gateway...');
           const { serviceManager } = await import('../services/serviceManager');
-          await serviceManager.startOpenClaw();
+          await serviceManager.startSudoclaw();
           mainLog('SudoclawBridge', 'Sudoclaw gateway started successfully after install');
           resolve({ success: true });
 
@@ -414,7 +386,7 @@ export function initSudoclawBridge(): void {
 
           try {
             const { serviceManager } = await import('../services/serviceManager');
-            await serviceManager.restartOpenClaw();
+            await serviceManager.restartSudoclaw();
             mainLog('SudoclawBridge', 'Gateway restarted after WeChat plugin install');
           } catch (restartErr) {
             mainWarn('SudoclawBridge', 'Gateway restart after WeChat install failed', restartErr);

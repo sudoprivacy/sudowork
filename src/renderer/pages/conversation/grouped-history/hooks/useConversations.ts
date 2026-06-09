@@ -8,6 +8,7 @@ import { ipcBridge } from '@/common';
 import type { TChatConversation } from '@/common/storage';
 import { addEventListener } from '@/renderer/utils/emitter';
 import { useAllCronJobs } from '@/renderer/pages/cron/hooks/useCronJobs';
+import { getRendererSessionMode } from '@/renderer/pages/guid/hooks/useGuidAgentSelection';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
@@ -38,35 +39,37 @@ export const useConversations = () => {
   // re-expanding workspaces after a user manually collapses them (#1156)
   const hasAutoExpandedRef = useRef(false);
 
+  // Fetch conversations via Provider abstraction layer (works for both local and enterprise mode)
   useEffect(() => {
     const refresh = () => {
+      const sessionMode = getRendererSessionMode();
       ipcBridge.database.getUserConversations
-        .invoke({ page: 0, pageSize: 10000 })
+        .invoke({ page: 0, pageSize: 10000, sessionMode })
         .then((data) => {
           if (data && Array.isArray(data)) {
-            // 只过滤显式标记的健康检测临时会话，避免误伤用户自定义同名前缀会话
+            // Filter out health check conversations / 只过滤显式标记的健康检测临时会话，避免误伤用户自定义同名前缀会话
             const filteredData = data.filter((conv) => (conv.extra as { isHealthCheck?: boolean } | undefined)?.isHealthCheck !== true);
+            console.log('[useConversations] Fetched conversations:', filteredData.length);
             setConversations(filteredData);
           } else {
             setConversations([]);
           }
         })
         .catch((error) => {
-          console.error('[WorkspaceGroupedHistory] Failed to load conversations:', error);
+          console.error('[useConversations] Failed to load conversations:', error);
           setConversations([]);
         });
     };
 
     refresh();
     const removeLocalListener = addEventListener('chat.history.refresh', refresh);
-    // 监听主进程的渠道对话变更事件（钉钉、飞书、Telegram 等渠道对话创建/更新时触发）
+    // Listen for channel conversation changes (DingTalk, Feishu, Telegram, etc.) / 监听主进程的渠道对话变更事件（钉钉、飞书、Telegram 等渠道对话创建/更新时触发）
     const removeBridgeListener = ipcBridge.database.conversationChanged.on(() => {
       refresh();
     });
 
-    // 低频轮询兜底：防止 WebSocket/IPC 事件丢失导致渠道对话列表不更新
-    // Low-frequency polling fallback: prevent channel conversation list from not updating
-    // when WebSocket/IPC events are lost
+    // Low-frequency polling fallback: prevent conversation list from not updating
+    // when WebSocket/IPC events are lost / 低频轮询兜底：防止 WebSocket/IPC 事件丢失导致会话列表不更新
     const pollInterval = setInterval(refresh, 30_000);
 
     return () => {
@@ -100,10 +103,18 @@ export const useConversations = () => {
   const { jobs: cronJobs } = useAllCronJobs();
 
   const groupedHistory: GroupedHistoryResult = useMemo(() => {
-    return buildGroupedHistory(conversations, t, cronJobs);
+    const result = buildGroupedHistory(conversations, t, cronJobs);
+    console.log('[useConversations] groupedHistory result:', {
+      conversationsCount: conversations.length,
+      pinnedTimelineCount: result.pinnedTimeline.length,
+      pinnedScheduledCount: result.pinnedScheduled.length,
+      timelineSectionsCount: result.timelineSections.length,
+      scheduledGroupsCount: result.scheduledGroups.length,
+    });
+    return result;
   }, [conversations, t, cronJobs]);
 
-  const { pinnedConversations, timelineSections, scheduledGroups } = groupedHistory;
+  const { pinnedTimeline, pinnedScheduled, timelineSections, scheduledGroups } = groupedHistory;
 
   // Auto-expand all workspaces on first load only (#1156)
   useEffect(() => {
@@ -155,7 +166,8 @@ export const useConversations = () => {
   return {
     conversations,
     expandedWorkspaces,
-    pinnedConversations,
+    pinnedTimeline,
+    pinnedScheduled,
     timelineSections,
     scheduledGroups,
     handleToggleWorkspace,

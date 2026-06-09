@@ -25,11 +25,19 @@ files:
   - rules/**/*
   - skills/**/*
   - assistant/**/*
+  # ai-dev-browser Python package (browser skill runtime)
+  - vendor/ai-dev-browser/ai_dev_browser/**/*
   - package.json
+  # Rust napi addon (nexus gRPC client)
+  - native/nexus-napi/*.node
+  - native/nexus-napi/index.js
+  - native/nexus-napi/index.d.ts
   # Native modules and their runtime dependencies
   - node_modules/better-sqlite3/**/*
   - node_modules/bcrypt/**/*
   - node_modules/node-pty/**/*
+  - node_modules/sharp/**/*
+  - node_modules/@img/**/*
   - node_modules/@mapbox/**/*
   - node_modules/detect-libc/**/*
   - node_modules/prebuild-install/**/*
@@ -84,8 +92,7 @@ files:
   - '!**/{appveyor.yml,.travis.yml,circle.yml}'
   - '!**/{npm-debug.log,yarn.lock,.yarn-metadata.json,yarn-error.log}'
   # Exclude large packages
-  - '!**/node_modules/{@img,@emnapi}/**'
-  - '!**/node_modules/@img/sharp-*/**'
+  - '!**/node_modules/{@emnapi}/**'
   - '!**/node_modules/@anthropic-ai/claude-code/vendor/**'
   - '!**/node_modules/@anthropic-ai/claude-agent-sdk/vendor/**'
   # Exclude JAR files and JNI libraries that cause notarization issues
@@ -139,21 +146,27 @@ extraResources:
   # CLI tools (bundled at build time via scripts/download-*.js)
   - from: resources/claude-code.tgz
     to: claude-code.tgz
+  - from: resources/shareone.tgz
+    to: shareone.tgz
   - from: resources/mcporter.tgz
     to: mcporter.tgz
-  # Sudoclaw/OpenClaw runtime for macOS - versioned archive + manifest
-  - from: resources
-    to: .
-    filter:
-      - v*-sudoclaw-macos-*.tgz
-      - v*-sudoclaw-macos-*.manifest.json
+  # sudowork-browser MCP server bundle (esbuild output from
+  # scripts/build-browser-mcp.js). Claude Code launches this as a stdio MCP
+  # subprocess after sudowork registers it in ~/.claude.json at first run.
+  - from: resources/sudowork-browser-mcp/index.js
+    to: sudowork-browser-mcp/index.js
   # Nexus binary - versioned, optional (may not be available for all platforms)
   # Copy from the resources directory with filters; using a glob in `from`
   # is not reliable for electron-builder file-set matching.
   - from: resources
     to: .
     filter:
-      - v*-nexus-cluster-macos-*
+      - v*-nexusd-cluster-macos-*
+  # Scode binary - versioned, optional
+  - from: resources
+    to: .
+    filter:
+      - v*-scode-macos-*
 
 win:
   legalTrademarks: Copyright © 2026 北京数牍科技有限公司
@@ -170,17 +183,16 @@ win:
     # bdpan installer for Windows (bundled at build time)
     - from: resources/bdpan-installer-windows-${arch}.exe
       to: bdpan-installer-windows-${arch}.exe
-    # Sudoclaw/OpenClaw runtime for Windows - versioned archive + manifest
-    - from: resources
-      to: .
-      filter:
-        - v*-sudoclaw-windows-*.tgz
-        - v*-sudoclaw-windows-*.manifest.json
     # Nexus binary for Windows - versioned
     - from: resources
       to: .
       filter:
-        - v*-nexus-cluster-windows-*
+        - v*-nexusd-cluster-windows-*
+    # Scode binary for Windows - versioned
+    - from: resources
+      to: .
+      filter:
+        - v*-scode-windows-*
 
 nsis:
   oneClick: false
@@ -244,9 +256,12 @@ buildDependenciesFromSource: false
 nodeGypRebuild: false
 
 asarUnpack:
+  - 'native/nexus-napi/*.node'
   - '**/node_modules/better-sqlite3/**/*'
   - '**/node_modules/bcrypt/**/*'
   - '**/node_modules/node-pty/**/*'
+  - '**/node_modules/sharp/**/*'
+  - '**/node_modules/@img/**/*'
   - '**/node_modules/@mapbox/**/*'
   - '**/node_modules/detect-libc/**/*'
   - '**/node_modules/prebuild-install/**/*'
@@ -265,6 +280,10 @@ asarUnpack:
   # Required for Homebrew installations where asar paths may have issues
   - 'rules/**/*'
   - 'skills/**/*'
+  # ai-dev-browser Python package must live in app.asar.unpacked: the runtime
+  # resolver (resolveAiDevBrowserPackageDir) only looks under app.asar.unpacked,
+  # and a Python package can't be executed/symlinked from inside the asar.
+  - 'vendor/ai-dev-browser/**/*'
 
 # Compression level: normal for faster builds, maximum for smallest size
 # Note: electron-builder doesn't support YAML template syntax for env vars

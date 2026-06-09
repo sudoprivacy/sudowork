@@ -38,7 +38,7 @@ const McpServerActions: React.FC<McpServerActionsProps> = ({ server, onEditServe
         <Button size='mini' icon={<SettingOne size={'14'} />} />
       </Dropdown>
 
-      <Switch checked={server.enabled} onChange={(checked) => onToggleServer(server.id, checked)} size='small' disabled={server.status === 'testing'} />
+      <Switch checked={server.enabled} onChange={(checked) => onToggleServer(server.id, checked)} size='small' disabled={server.status === 'testing'} className='settings-accent-switch' style={server.enabled ? { backgroundColor: 'var(--ui-accent-orange)' } : undefined} />
     </>
   );
 };

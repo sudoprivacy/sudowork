@@ -23,7 +23,7 @@ const WINDOW_CONTROLS_WRAPPER_STYLE: React.CSSProperties = {
 } as React.CSSProperties;
 
 // ── Step definitions ─────────────────────────────────────────────────────────
-type StepId = 'git' | 'node' | 'claude' | 'sudoclaw' | 'nexus' | 'bdpan';
+type StepId = 'git' | 'node' | 'claude' | 'scode' | 'nexus' | 'bdpan';
 type StepStatus = 'pending' | 'active' | 'done' | 'error';
 
 interface Step {
@@ -33,7 +33,7 @@ interface Step {
 }
 
 const STEPS: Step[] = [
-  { id: 'sudoclaw', label: 'Sudoclaw', description: 'AI 代理核心引擎' },
+  { id: 'scode', label: 'Sudocode', description: '默认 ACP 代理运行时' },
   { id: 'nexus', label: 'Nexus OS 核心引擎', description: '本地核心服务引擎' },
   { id: 'git', label: 'Git 环境', description: '版本控制基础组件' },
   { id: 'node', label: 'Node.js 运行时', description: 'JavaScript 执行环境' },
@@ -42,7 +42,7 @@ const STEPS: Step[] = [
 ];
 
 const STEP_ORDER: StepId[] = STEPS.map((s) => s.id);
-const PRIMARY_STEP_IDS: StepId[] = ['sudoclaw', 'nexus'];
+const PRIMARY_STEP_IDS: StepId[] = ['scode', 'nexus'];
 const PRIMARY_STEPS = STEPS.filter((step) => PRIMARY_STEP_IDS.includes(step.id));
 const SECONDARY_STEPS = STEPS.filter((step) => !PRIMARY_STEP_IDS.includes(step.id));
 
@@ -52,7 +52,7 @@ const SPINNER = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', 
 function getHeaderMessage(message: string | undefined, isReady: boolean, isError: boolean): string {
   if (isReady) return '所有组件就绪';
   if (isError) return '初始化失败';
-  if (message === '正在启动核心服务...') return '核心服务启动中，请等待 Sudoclaw 与 Nexus 完成就绪';
+  if (message === '正在启动核心服务...') return '核心服务启动中，请等待 Sudocode 与 Nexus 完成就绪';
   if (message === '正在校验组件状态...') return '正在确认核心服务状态，请稍候';
   if (!message || message === '组件安装中' || message === '正在并行准备运行环境...') return '正在准备运行环境...';
   return message;
@@ -129,7 +129,7 @@ const InitLoading: React.FC<InitLoadingProps> = ({ variant = 'full' }) => {
   const [spinnerFrame, setSpinnerFrame] = useState(0);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [retryingStartup, setRetryingStartup] = useState(false);
-  const [reinstalling, setReinstalling] = useState<'sudoclaw' | 'nexus' | null>(null);
+  const [reinstalling, setReinstalling] = useState<'scode' | 'nexus' | null>(null);
 
   // Animate spinner while installing
   useEffect(() => {
@@ -182,7 +182,7 @@ const InitLoading: React.FC<InitLoadingProps> = ({ variant = 'full' }) => {
     }
   };
 
-  const handleManualReinstall = async (component: 'sudoclaw' | 'nexus') => {
+  const handleManualReinstall = async (component: 'scode' | 'nexus') => {
     setReinstalling(component);
     try {
       await init.reinstallComponent.invoke({ component });
@@ -226,22 +226,22 @@ const InitLoading: React.FC<InitLoadingProps> = ({ variant = 'full' }) => {
       </button>
       <button
         type='button'
-        onClick={() => void handleManualReinstall('sudoclaw')}
+        onClick={() => void handleManualReinstall('scode')}
         disabled={actionInProgress}
         style={{
           border: '1px solid rgba(248, 113, 113, 0.35)',
           borderRadius: '10px',
-          background: reinstalling === 'sudoclaw' ? 'rgba(127, 29, 29, 0.28)' : 'linear-gradient(180deg, rgba(185, 28, 28, 0.22), rgba(127, 29, 29, 0.18))',
+          background: reinstalling === 'scode' ? 'rgba(127, 29, 29, 0.28)' : 'linear-gradient(180deg, rgba(185, 28, 28, 0.22), rgba(127, 29, 29, 0.18))',
           color: '#fee2e2',
           fontSize: '12px',
           fontWeight: 700,
           padding: '9px 14px',
           cursor: actionInProgress ? 'not-allowed' : 'pointer',
-          opacity: reinstalling && reinstalling !== 'sudoclaw' ? 0.7 : 1,
+          opacity: reinstalling && reinstalling !== 'scode' ? 0.7 : 1,
           flexShrink: 0,
         }}
       >
-        {reinstalling === 'sudoclaw' ? '处理中...' : `${t('settings.runtimeSettings.button.reinstall')} Sudoclaw`}
+        {reinstalling === 'scode' ? '处理中...' : `${t('settings.runtimeSettings.button.reinstall')} Sudocode`}
       </button>
       <button
         type='button'
@@ -381,6 +381,7 @@ const InitLoading: React.FC<InitLoadingProps> = ({ variant = 'full' }) => {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
+                flexDirection: 'column',
                 gap: '12px',
                 marginTop: '6px',
                 WebkitAppRegion: 'no-drag',

@@ -35,6 +35,15 @@ interface ElectronWebView extends HTMLElement {
   executeJavaScript: (code: string) => Promise<void>;
 }
 
+const HTML_FILE_EXTENSION_PATTERN = /\.html?$/i;
+const RELATIVE_RESOURCE_PATTERN = /<(?:link|script|img)[^>]+\s(?:href|src)=["'](?!https?:\/\/|data:|\/\/)[^"']+["']/i;
+const REVEAL_PRESENTATION_PATTERN = /Reveal\.initialize\s*\(|class=["'][^"']*\breveal\b/i;
+
+function isCompleteHtmlDocument(content: string): boolean {
+  const trimmed = content.trim();
+  return /^<!doctype\s+html/i.test(trimmed) || /<html[\s>]/i.test(trimmed) || (/<body[\s>]/i.test(trimmed) && /<\/body>/i.test(trimmed));
+}
+
 /**
  * 解析相对路径为绝对路径 / Resolve relative path to absolute path
  * @param basePath 基础文件路径 / Base file path
@@ -185,6 +194,7 @@ const HTMLRenderer: React.FC<HTMLRendererProps> = ({ content, filePath, containe
   const webviewLoadedRef = useRef(false); // 跟踪 webview 是否已加载 / Track if webview is loaded
   const isSyncingScrollRef = useRef(false); // 防止滚动同步循环 / Prevent scroll sync loops
   const [webviewContentHeight, setWebviewContentHeight] = useState(0); // webview 内容高度 / webview content height
+  const [generatedHtmlFilePath, setGeneratedHtmlFilePath] = useState('');
   const [inlinedHtmlContent, setInlinedHtmlContent] = useState<string>(''); // 内联化后的 HTML（用于 browser iframe）/ Inlined HTML (for browser iframe)
   const [currentTheme, setCurrentTheme] = useState<'light' | 'dark'>(() => {
     return (document.documentElement.getAttribute('data-theme') as 'light' | 'dark') || 'light';
@@ -192,6 +202,48 @@ const HTMLRenderer: React.FC<HTMLRendererProps> = ({ content, filePath, containe
 
   // 检测是否在 Electron 环境 / Detect if in Electron environment
   const isElectron = useMemo(() => typeof window !== 'undefined' && window.electronAPI !== undefined, []);
+  const isCompleteHtml = useMemo(() => isCompleteHtmlDocument(content), [content]);
+  const isRevealPresentation = useMemo(() => REVEAL_PRESENTATION_PATTERN.test(content), [content]);
+  const isStandaloneHtmlContent = isCompleteHtml || isRevealPresentation;
+
+  useEffect(() => {
+    if (!isElectron || filePath || !isStandaloneHtmlContent) {
+      setGeneratedHtmlFilePath('');
+      return;
+    }
+
+    let cancelled = false;
+
+    ipcBridge.fs.createTempFile
+      .invoke({ fileName: 'preview.html' })
+      .then(async (tempFilePath) => {
+        const written = await ipcBridge.fs.writeFile.invoke({
+          path: tempFilePath,
+          data: content,
+        });
+        if (!written) {
+          throw new Error('Failed to prepare HTML preview file');
+        }
+        if (!cancelled) {
+          setGeneratedHtmlFilePath(tempFilePath);
+        }
+      })
+      .catch((error) => {
+        console.warn('[HTMLRenderer] Failed to prepare HTML preview file:', error);
+        if (!cancelled) {
+          setGeneratedHtmlFilePath('');
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [content, filePath, isElectron, isStandaloneHtmlContent]);
+
+  const effectiveFilePath = filePath || generatedHtmlFilePath;
+  const isStandaloneHtmlDocument = useMemo(() => {
+    return isStandaloneHtmlContent && (!effectiveFilePath || HTML_FILE_EXTENSION_PATTERN.test(effectiveFilePath));
+  }, [effectiveFilePath, isStandaloneHtmlContent]);
 
   // 监听主题变化 / Monitor theme changes
   useEffect(() => {
@@ -209,30 +261,34 @@ const HTMLRenderer: React.FC<HTMLRendererProps> = ({ content, filePath, containe
     return () => observer.disconnect();
   }, []);
 
-  // 判断是否应该直接从文件加载（支持相对资源）- 仅 Electron 环境
-  // Determine if should load directly from file (supports relative resources) - Electron only
+  // 判断是否应该直接从文件加载（支持相对资源和完整 HTML 文件）- 仅 Electron 环境
+  // Determine if should load directly from file (supports relative resources and full HTML files) - Electron only
   const shouldLoadFromFile = useMemo(() => {
-    if (!isElectron || !filePath) return false;
-    // 检查 HTML 是否引用了相对资源 / Check if HTML references relative resources
-    const hasRelativeResources = /<link[^>]+href=["'](?!https?:\/\/|data:|\/\/)[^"']+["']/i.test(content) || /<script[^>]+src=["'](?!https?:\/\/|data:|\/\/)[^"']+["']/i.test(content) || /<img[^>]+src=["'](?!https?:\/\/|data:|\/\/)[^"']+["']/i.test(content);
-    return hasRelativeResources;
-  }, [content, filePath, isElectron]);
+    if (!isElectron || !effectiveFilePath) return false;
+    return RELATIVE_RESOURCE_PATTERN.test(content) || (HTML_FILE_EXTENSION_PATTERN.test(effectiveFilePath) && isStandaloneHtmlContent);
+  }, [content, effectiveFilePath, isElectron, isStandaloneHtmlContent]);
 
   // 检查是否有相对资源（用于 browser inline 处理）
   // Check if has relative resources (for browser inline processing)
   const hasRelativeResources = useMemo(() => {
-    return /<link[^>]+href=["'](?!https?:\/\/|data:|\/\/)[^"']+["']/i.test(content) || /<script[^>]+src=["'](?!https?:\/\/|data:|\/\/)[^"']+["']/i.test(content) || /<img[^>]+src=["'](?!https?:\/\/|data:|\/\/)[^"']+["']/i.test(content);
+    return RELATIVE_RESOURCE_PATTERN.test(content);
   }, [content]);
+
+  const isInteractiveHtmlFile = useMemo(() => {
+    return Boolean(isElectron && isStandaloneHtmlDocument);
+  }, [isStandaloneHtmlDocument, isElectron]);
 
   // 流式打字动画：HTML 预览在使用 data URL 渲染时也能获得流式体验
   // Typing animation: provide streaming experience when rendering via data URL
   const { displayedContent } = useTypingAnimation({
     content,
-    enabled: !shouldLoadFromFile && !hasRelativeResources,
+    enabled: !isInteractiveHtmlFile && !shouldLoadFromFile && !hasRelativeResources,
     speed: 40,
   });
 
-  const htmlContent = useMemo(() => (shouldLoadFromFile ? content : displayedContent), [shouldLoadFromFile, content, displayedContent]);
+  const htmlContent = useMemo(() => {
+    return isInteractiveHtmlFile || shouldLoadFromFile ? content : displayedContent;
+  }, [isInteractiveHtmlFile, shouldLoadFromFile, content, displayedContent]);
 
   // 在 browser 环境下，当有相对资源时进行内联化处理
   // In browser environment, inline relative resources when present
@@ -243,7 +299,7 @@ const HTMLRenderer: React.FC<HTMLRendererProps> = ({ content, filePath, containe
       return;
     }
 
-    if (!hasRelativeResources || !filePath) {
+    if (!hasRelativeResources || !effectiveFilePath) {
       // 没有相对资源或没有文件路径，使用原始内容
       // No relative resources or no file path, use original content
       setInlinedHtmlContent(content);
@@ -253,7 +309,7 @@ const HTMLRenderer: React.FC<HTMLRendererProps> = ({ content, filePath, containe
     // Browser 环境且有相对资源，进行内联化处理
     // Browser environment with relative resources, perform inlining
     let cancelled = false;
-    inlineRelativeResources(content, filePath)
+    inlineRelativeResources(content, effectiveFilePath)
       .then((inlined) => {
         if (!cancelled) {
           setInlinedHtmlContent(inlined);
@@ -269,24 +325,28 @@ const HTMLRenderer: React.FC<HTMLRendererProps> = ({ content, filePath, containe
     return () => {
       cancelled = true;
     };
-  }, [content, filePath, isElectron, hasRelativeResources]);
+  }, [content, effectiveFilePath, isElectron, hasRelativeResources]);
 
   // 用于 browser iframe 的最终 HTML 内容
   // Final HTML content for browser iframe
   const browserHtmlContent = useMemo(() => {
-    if (hasRelativeResources && filePath) {
+    if (hasRelativeResources && effectiveFilePath) {
       return inlinedHtmlContent || content; // 在内联化完成前显示原始内容 / Show original content before inlining completes
     }
     return displayedContent;
-  }, [hasRelativeResources, filePath, inlinedHtmlContent, content, displayedContent]);
+  }, [hasRelativeResources, effectiveFilePath, inlinedHtmlContent, content, displayedContent]);
 
   // 计算 webview 的 src
   // Calculate webview src
   const webviewSrc = useMemo(() => {
     // 如果有相对资源引用且有文件路径，直接用 file:// URL 加载
     // If has relative resource references and has file path, load directly via file:// URL
-    if (shouldLoadFromFile && filePath) {
-      return `file://${filePath}`;
+    if (shouldLoadFromFile && effectiveFilePath) {
+      return `file://${effectiveFilePath}`;
+    }
+
+    if (isStandaloneHtmlDocument && !effectiveFilePath) {
+      return 'about:blank';
     }
 
     // 否则使用 data URL（适用于动态生成的 HTML 或没有外部资源的情况）
@@ -294,8 +354,8 @@ const HTMLRenderer: React.FC<HTMLRendererProps> = ({ content, filePath, containe
     let html = htmlContent;
 
     // 注入 base 标签支持相对路径 / Inject base tag for relative paths
-    if (filePath) {
-      const fileDir = filePath.substring(0, filePath.lastIndexOf('/') + 1);
+    if (effectiveFilePath) {
+      const fileDir = effectiveFilePath.substring(0, effectiveFilePath.lastIndexOf('/') + 1);
       const baseUrl = `file://${fileDir}`;
 
       // 检查是否已有 base 标签 / Check if base tag exists
@@ -312,7 +372,7 @@ const HTMLRenderer: React.FC<HTMLRendererProps> = ({ content, filePath, containe
 
     const encoded = encodeURIComponent(html);
     return `data:text/html;charset=utf-8,${encoded}`;
-  }, [htmlContent, filePath, shouldLoadFromFile]);
+  }, [htmlContent, effectiveFilePath, isStandaloneHtmlDocument, shouldLoadFromFile]);
 
   // 当 webviewSrc 改变时重置加载状态 / Reset loading state when webviewSrc changes
   useEffect(() => {
@@ -478,7 +538,7 @@ const HTMLRenderer: React.FC<HTMLRendererProps> = ({ content, filePath, containe
   // 注入滚动同步脚本 / Inject scroll sync script
   useEffect(() => {
     const webview = webviewRef.current;
-    if (!webview || !onScroll) return;
+    if (!webview || !onScroll || isInteractiveHtmlFile) return;
 
     const injectScrollSync = () => {
       void webview.executeJavaScript(scrollSyncScript).catch(() => {});
@@ -493,7 +553,7 @@ const HTMLRenderer: React.FC<HTMLRendererProps> = ({ content, filePath, containe
     return () => {
       webview.removeEventListener('did-finish-load', injectScrollSync);
     };
-  }, [scrollSyncScript, onScroll]);
+  }, [scrollSyncScript, onScroll, isInteractiveHtmlFile]);
 
   // 监听外部滚动同步请求 / Listen for external scroll sync requests
   const handleTargetScroll = useCallback((targetPercent: number) => {
@@ -515,12 +575,12 @@ const HTMLRenderer: React.FC<HTMLRendererProps> = ({ content, filePath, containe
   }, []);
   // 使用外部 containerRef 或内部 divRef / Use external containerRef or internal divRef
   const effectiveContainerRef = containerRef || divRef;
-  useScrollSyncTarget(effectiveContainerRef, handleTargetScroll);
+  useScrollSyncTarget(isInteractiveHtmlFile ? undefined : effectiveContainerRef, handleTargetScroll);
 
   // 监听容器滚动，同步到 webview / Listen to container scroll, sync to webview
   useEffect(() => {
     const container = containerRef?.current || divRef.current;
-    if (!container) return;
+    if (!container || isInteractiveHtmlFile) return;
 
     const handleContainerScroll = () => {
       if (isSyncingScrollRef.current) return;
@@ -552,17 +612,17 @@ const HTMLRenderer: React.FC<HTMLRendererProps> = ({ content, filePath, containe
 
     container.addEventListener('scroll', handleContainerScroll);
     return () => container.removeEventListener('scroll', handleContainerScroll);
-  }, [containerRef]);
+  }, [containerRef, isInteractiveHtmlFile]);
 
   // 计算代理滚动层的高度 / Calculate proxy scroll layer height
   const proxyHeight = webviewContentHeight > 0 ? webviewContentHeight : '100%';
 
   return (
-    <div ref={containerRef || divRef} className={`h-full w-full overflow-auto relative ${currentTheme === 'dark' ? 'bg-bg-1' : 'bg-white'}`}>
+    <div ref={containerRef || divRef} className={`h-full w-full ${isInteractiveHtmlFile ? 'overflow-hidden' : 'overflow-auto'} relative ${currentTheme === 'dark' ? 'bg-bg-1' : 'bg-white'}`}>
       {isElectron ? (
         <>
           {/* 代理滚动层：使容器可滚动 / Proxy scroll layer: makes container scrollable */}
-          <div style={{ height: proxyHeight, width: '100%', pointerEvents: 'none' }} />
+          {!isInteractiveHtmlFile && <div style={{ height: proxyHeight, width: '100%', pointerEvents: 'none' }} />}
           {/* webview 固定在容器顶部 / webview fixed at container top */}
           {/* key 确保内容改变时 webview 重新挂载 / key ensures webview remounts when content changes */}
           <webview

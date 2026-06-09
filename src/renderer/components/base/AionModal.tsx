@@ -174,6 +174,7 @@ const AionModal: React.FC<AionModalProps> = ({
   onCancel,
   className = '',
   style,
+  escToExit: escToExitProp = true,
   ...props
 }) => {
   const { t } = useTranslation();
@@ -371,7 +372,7 @@ const AionModal: React.FC<AionModalProps> = ({
       title={null}
       closable={false}
       footer={null}
-      escToExit
+      escToExit={escToExitProp}
       onCancel={onCancel}
       className={`aionui-modal ${className}`}
       style={finalStyle}

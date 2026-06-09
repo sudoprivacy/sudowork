@@ -7,14 +7,16 @@
 import { ipcBridge } from '@/common';
 import { ConfigStorage } from '@/common/storage';
 import LanguageSwitcher from '@/renderer/components/LanguageSwitcher';
+import ProductImprovementDialog from '@/renderer/components/ProductImprovementDialog';
 import { iconColors } from '@/renderer/theme/colors';
-import { Alert, Button, Form, InputNumber, Modal, Switch, Tooltip } from '@arco-design/web-react';
+import { Alert, Button, Form, Input, InputNumber, Modal, Switch, Tooltip } from '@arco-design/web-react';
 import { FolderOpen } from '@icon-park/react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import useSWR from 'swr';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { ThemeSwitcher } from '@/renderer/components/ThemeSwitcher';
+import { useAppMode } from '@/renderer/hooks/useAppMode';
 import { useSettingsViewMode } from '../settingsViewContext';
 
 /** Default prompt timeout in seconds */
@@ -121,17 +123,24 @@ const SystemModalContent: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const viewMode = useSettingsViewMode();
   const isPageMode = viewMode === 'page';
+  const { isEnterprise } = useAppMode();
   const initializingRef = useRef(true);
 
   // 关闭到托盘状态 / Close to tray state
   const [closeToTray, setCloseToTray] = useState(false);
+  const [closeToTrayLoading, setCloseToTrayLoading] = useState(true);
+  const [showTokenUsageBadges, setShowTokenUsageBadges] = useState(false);
+  const [showTokenUsageBadgesLoading, setShowTokenUsageBadgesLoading] = useState(true);
 
   // 获取关闭到托盘设置 / Fetch close-to-tray setting
   useEffect(() => {
     ipcBridge.systemSettings.getCloseToTray
       .invoke()
       .then((enabled) => setCloseToTray(enabled))
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => {
+        setCloseToTrayLoading(false);
+      });
   }, []);
 
   // 切换关闭到托盘 / Toggle close-to-tray
@@ -142,6 +151,94 @@ const SystemModalContent: React.FC = () => {
       // 失败时回滚 UI 状态
       setCloseToTray(!checked);
     });
+  }, []);
+
+  useEffect(() => {
+    ipcBridge.systemSettings.getShowTokenUsageBadges
+      .invoke()
+      .then((enabled) => setShowTokenUsageBadges(enabled))
+      .catch(() => {})
+      .finally(() => {
+        setShowTokenUsageBadgesLoading(false);
+      });
+  }, []);
+
+  const handleShowTokenUsageBadgesChange = useCallback((checked: boolean) => {
+    setShowTokenUsageBadges(checked);
+    ipcBridge.systemSettings.setShowTokenUsageBadges.invoke({ enabled: checked }).catch(() => {
+      setShowTokenUsageBadges(!checked);
+    });
+  }, []);
+
+  // 桌面 avatar 浮窗开关 / Floating desktop avatar toggle
+  const [avatarEnabled, setAvatarEnabled] = useState(false);
+
+  useEffect(() => {
+    ipcBridge.systemSettings.getAvatarEnabled
+      .invoke()
+      .then((enabled) => setAvatarEnabled(enabled))
+      .catch(() => {});
+  }, []);
+
+  const handleAvatarEnabledChange = useCallback((checked: boolean) => {
+    setAvatarEnabled(checked);
+    ipcBridge.systemSettings.setAvatarEnabled.invoke({ enabled: checked }).catch(() => {
+      setAvatarEnabled(!checked);
+    });
+  }, []);
+
+  // 产品体验改进计划状态 / Product improvement program state
+  const [productImprovementEnabled, setProductImprovementEnabled] = useState(false);
+  const [productImprovementLoading, setProductImprovementLoading] = useState(true);
+  const [showProductImprovementDialog, setShowProductImprovementDialog] = useState(false);
+
+  // 获取产品体验改进计划设置 / Fetch product improvement setting
+  useEffect(() => {
+    if (isEnterprise) {
+      setProductImprovementEnabled(false);
+      setProductImprovementLoading(false);
+      setShowProductImprovementDialog(false);
+      return;
+    }
+
+    ipcBridge.telemetry.getStatus
+      .invoke()
+      .then((res) => {
+        if (res.success && res.data) {
+          setProductImprovementEnabled(res.data.enabled);
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        setProductImprovementLoading(false);
+      });
+  }, [isEnterprise]);
+
+  // 处理产品体验改进计划开关变更 / Handle product improvement toggle change
+  const handleProductImprovementChange = useCallback((checked: boolean) => {
+    if (checked) {
+      // 开启时先弹出告知弹窗
+      setShowProductImprovementDialog(true);
+    } else {
+      // 关闭时直接保存
+      setProductImprovementEnabled(false);
+      ipcBridge.telemetry.setEnabled.invoke({ enabled: false }).catch(() => {
+        // 失败时回滚 UI 状态
+        setProductImprovementEnabled(true);
+      });
+    }
+  }, []);
+
+  // 弹窗确认处理 / Dialog confirm handler
+  const handleProductImprovementDialogClose = useCallback((confirmed: boolean) => {
+    setShowProductImprovementDialog(false);
+    if (confirmed) {
+      setProductImprovementEnabled(true);
+      ipcBridge.telemetry.setEnabled.invoke({ enabled: true }).catch(() => {
+        // 失败时回滚 UI 状态
+        setProductImprovementEnabled(false);
+      });
+    }
   }, []);
 
   // 超时设置状态 / Timeout settings state
@@ -180,6 +277,24 @@ const SystemModalContent: React.FC = () => {
     ConfigStorage.set('agent.idleTimeout', clamped).catch(() => {});
   }, [idleTimeout]);
 
+  // 右栏浏览器默认主页 / Right-panel browser default homepage
+  const [browserDefaultUrl, setBrowserDefaultUrl] = useState<string>('');
+
+  useEffect(() => {
+    ipcBridge.systemSettings.getBrowserDefaultUrl
+      .invoke()
+      .then((url) => {
+        if (typeof url === 'string') setBrowserDefaultUrl(url);
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleBrowserDefaultUrlBlur = useCallback(() => {
+    const trimmed = browserDefaultUrl.trim();
+    if (!trimmed) return; // empty input — leave previous value, don't persist
+    ipcBridge.systemSettings.setBrowserDefaultUrl.invoke({ url: trimmed }).catch(() => {});
+  }, [browserDefaultUrl]);
+
   // Get system directory info
   const { data: systemInfo } = useSWR('system.dir.info', () => ipcBridge.application.systemInfo.invoke());
 
@@ -200,7 +315,37 @@ const SystemModalContent: React.FC = () => {
   const preferenceItems = [
     { key: 'language', label: t('settings.language'), component: <LanguageSwitcher /> },
     { key: 'theme', label: t('settings.theme'), component: <ThemeSwitcher /> },
-    { key: 'closeToTray', label: t('settings.closeToTray'), component: <Switch checked={closeToTray} onChange={handleCloseToTrayChange} /> },
+    {
+      key: 'closeToTray',
+      label: t('settings.closeToTray'),
+      component: closeToTrayLoading ? <div style={{ width: 44, height: 22 }} /> : <Switch checked={closeToTray} onChange={handleCloseToTrayChange} className='settings-accent-switch' style={closeToTray ? { backgroundColor: 'var(--ui-accent-orange)' } : undefined} />,
+    },
+    ...(isEnterprise
+      ? []
+      : [
+          {
+            key: 'showTokenUsageBadges',
+            label: t('settings.showTokenUsageBadges'),
+            hint: t('settings.showTokenUsageBadgesDesc'),
+            component: showTokenUsageBadgesLoading ? <div style={{ width: 44, height: 22 }} /> : <Switch checked={showTokenUsageBadges} onChange={handleShowTokenUsageBadgesChange} className='settings-accent-switch' style={showTokenUsageBadges ? { backgroundColor: 'var(--ui-accent-orange)' } : undefined} />,
+          },
+        ]),
+    {
+      key: 'avatarEnabled',
+      label: t('settings.avatarEnabled'),
+      hint: t('settings.avatarEnabledDesc'),
+      component: <Switch checked={avatarEnabled} onChange={handleAvatarEnabledChange} className='settings-accent-switch' style={avatarEnabled ? { backgroundColor: 'var(--ui-accent-orange)' } : undefined} />,
+    },
+    ...(isEnterprise
+      ? []
+      : [
+          {
+            key: 'productImprovement',
+            label: t('settings.productImprovement.title'),
+            hint: t('settings.productImprovement.hint'),
+            component: productImprovementLoading ? <div style={{ width: 44, height: 22 }} /> : <Switch checked={productImprovementEnabled} onChange={handleProductImprovementChange} className='settings-accent-switch' style={productImprovementEnabled ? { backgroundColor: 'var(--ui-accent-orange)' } : undefined} />,
+          },
+        ]),
     {
       key: 'promptTimeout',
       label: t('settings.promptTimeout'),
@@ -212,6 +357,12 @@ const SystemModalContent: React.FC = () => {
       label: t('settings.idleTimeout'),
       hint: t('settings.idleTimeoutDesc'),
       component: <InputNumber value={idleTimeout} onChange={setIdleTimeout} onBlur={handleIdleTimeoutBlur} min={IDLE_TIMEOUT_MIN} max={IDLE_TIMEOUT_MAX} step={5} style={{ width: 120 }} suffix='min' />,
+    },
+    {
+      key: 'browserDefaultUrl',
+      label: t('settings.browserDefaultUrl'),
+      hint: t('settings.browserDefaultUrlDesc'),
+      component: <Input value={browserDefaultUrl} onChange={setBrowserDefaultUrl} onBlur={handleBrowserDefaultUrlBlur} placeholder='https://www.baidu.com/' style={{ width: 260 }} />,
     },
   ];
 
@@ -267,6 +418,9 @@ const SystemModalContent: React.FC = () => {
   return (
     <div className='flex flex-col h-full w-full'>
       {modalContextHolder}
+
+      {/* 产品体验改进计划弹窗 / Product improvement dialog */}
+      <ProductImprovementDialog visible={showProductImprovementDialog} onClose={handleProductImprovementDialogClose} />
 
       {/* 内容区域 / Content Area */}
       <AionScrollArea className='flex-1 min-h-0 pb-16px' disableOverflow={isPageMode}>

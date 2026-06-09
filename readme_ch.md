@@ -10,12 +10,6 @@
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-6C757D?style=flat-square&logo=linux&logoColor=white" alt="Platform">
 </p>
 
-<p align="center">
-  <a href="https://trendshift.io/repositories/15423" target="_blank">
-    <img src="https://trendshift.io/api/badge/repositories/15423" alt="GitHub Trending" height="80">
-  </a>
-</p>
-
 ---
 
 <p align="center">
@@ -30,7 +24,7 @@
 </p>
 
 <p align="center">
-  <a href="./readme.md">English</a> | <strong>简体中文</strong> | <a href="./readme_tw.md">繁體中文</a> | <a href="./readme_jp.md">日本語</a> | <a href="./readme_ko.md">한국어</a> | <a href="./readme_es.md">Español</a> | <a href="./readme_pt.md">Português</a> | <a href="./readme_tr.md">Türkçe</a> | <a href="https://www.sudowork.com" target="_blank">官方网站</a>
+  <a href="./readme.md">English</a> | <strong>简体中文</strong> | <a href="https://sudowork.sudoprivacy.com/" target="_blank">官方网站</a>
 </p>
 
 ---
@@ -41,8 +35,7 @@
 
 [✨ Cowork 演示](#-cowork-演示) ·
 [🤔 为什么选择 Sudowork？](#-为什么选择-sudowork-而非-claude-cowork) ·
-[🚀 快速开始](#-快速开始) ·
-[💬 社区](#-社区与支持)
+[🚀 快速开始](#-快速开始)
 
 </p>
 
@@ -62,7 +55,7 @@
 | 价格                  | 免费 / 付费        | **免费且开源**                                                             |
 
 <p align="center">
-  <img src="./resources/offica-ai BANNER-function.png" alt="Sudowork Cowork Platform" width="800">
+  <img src="./resources/sudowork-banner-function.png" alt="Sudowork Cowork Platform" width="800">
 </p>
 
 ---
@@ -109,7 +102,7 @@ Sudowork 自带完整的 AI Agent。不像其他工具需要你手动安装各�
 | OpenAI API 密钥                          | GPT 驱动的 Cowork Agent    |
 | Anthropic API 密钥                       | Claude 驱动的 Cowork Agent |
 | Ollama / LM Studio（本地）               | 本地模型 Cowork Agent      |
-| NewAPI 网关                              | 统一访问 20+ 模型          |
+| SudoRouter 网关                          | 统一访问 20+ 模型          |
 
 不管用哪个模型，Agent 的能力都一样强大——文件读写、网络搜索、图像生成、工具调用，一个不少。Sudowork 支持 **20+ 个 AI 平台**，云端本地都能用。
 
@@ -130,7 +123,7 @@ Sudowork 自带完整的 AI Agent。不像其他工具需要你手动安装各�
 - **国际平台** — DeepSeek、MiniMax、OpenRouter、SiliconFlow、xAI、Ark (火山引擎)、Poe
 - **本地模型** — Ollama、LM Studio（通过自定义平台设置本地 API 端点）
 
-Sudowork 还支持 [NewAPI](https://github.com/QuantumNous/new-api) 网关服务 — 一个统一的 AI 模型中心，聚合和分发各种大语言模型。在同一界面中灵活切换不同模型，满足各种任务需求。
+Sudowork 还支持 [SudoRouter](https://github.com/sudoprivacy/nova-gateway) 网关服务 — 一个统一的 AI 模型中心，聚合和分发各种大语言模型。在同一界面中灵活切换不同模型，满足各种任务需求。
 
 </details>
 
@@ -196,9 +189,6 @@ parameter>
 
 <p align="center"><em>远程监管你的 Agent — Claude、Gemini、Codex，浏览器或手机即可远程控制与查看，如同 Claude Code remote。</em></p>
 
-
-> [远程互联网访问教程](https://github.com/sudoprivacy/sudowork/wiki/Remote-Internet-Access-Guide-Chinese)
-
 ## ✨ Cowork 演示
 
 ### **定时任务 — 设置一次，自动运行**
@@ -208,10 +198,6 @@ _一次设置，AI Agent 就会按你的计划自动工作 — 真正的 24/7 �
 - **像聊天一样简单** — 用自然语言告诉 Agent 要做什么就行
 - **时间灵活安排** — 每天、每周、每月，或者用 cron 表达式自定义
 - **适用场景：** 定时汇总数据、自动生成报告、整理文件、发送提醒
-
-<p align="center">
-  <img src="./resources/alart-task.png" alt="Scheduled Tasks" width="800">
-</p>
 
 <details>
 <summary><strong>🔍 查看定时任务详情 ▶️</strong></summary>
@@ -341,8 +327,6 @@ _想生成图片、编辑图片、识别图片？Gemini 驱动的 AI 图像功�
 
 </details>
 
-> [图像生成模型配置指南](https://github.com/sudoprivacy/sudowork/wiki/Sudowork-Image-Generation-Tool-Model-Configuration-Guide)
-
 ---
 
 ### **文档生成 — PPT、Word、Markdown 都能搞定**
@@ -350,7 +334,6 @@ _想生成图片、编辑图片、识别图片？Gemini 驱动的 AI 图像功�
 _演示文稿、报告、文档 — 这些专业文档，AI Agent 都能自动生成。_
 
 <p align="center">
-  <img src="./resources/file_generation_preview.png" alt="Document Generation" width="800">
 </p>
 
 <details>
@@ -450,30 +433,6 @@ Sudowork 是一个**免费开源的 Multi-AI Agent 桌面应用**。相比只能
 
 ---
 
-## 看看大家是怎么用 Sudowork 的
-
-<p align="center">
-  <a href="https://www.youtube.com/watch?v=yUU5E-U5B3M" target="_blank">
-    <img src="https://img.youtube.com/vi/yUU5E-U5B3M/maxresdefault.jpg" alt="WorldofAI Review" width="400">
-  </a>
-  &nbsp;&nbsp;
-  <a href="https://www.youtube.com/watch?v=enQnkKfth10" target="_blank">
-    <img src="https://img.youtube.com/vi/enQnkKfth10/maxresdefault.jpg" alt="Julian Goldie SEO Review" width="400">
-  </a>
-</p>
-<p align="center">
-  <em>WorldofAI (20 万订阅者)</em> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <em>Julian Goldie SEO (31.8 万订阅者)</em>
-</p>
-
-### 社区文章
-
-- [开源免费 Cowork，全模型集成 + 自主文件操作](https://mp.weixin.qq.com/s/F3f-CCsVPaK3lK00jXhOOg) — 开源 AI 项目落地
-- [让普通人像使用 APP 一样使用 Claude Code](https://mp.weixin.qq.com/s/TsMojSbkUUFvsd-HQCazZg) — 懒猫爱摸鱼
-- [5500 Stars：开源如何打破 Anthropic 的 AI 工具护城河](https://mp.weixin.qq.com/s/saEk49cYV6MqBgw19Lw6Gw) — AI 硅基时刻
-
-> **制作了关于 Sudowork 的视频？** [在 X 上告诉我们](https://x.com/Sudowork)，我们会在这里展示！
-
----
 
 ## 🚀 快速开始
 
@@ -503,90 +462,6 @@ brew install sudowork
 1. **安装** Sudowork
 2. **登录** Google 账号或输入任意 API 密钥
 3. **开始 Cowork** — 内置 AI Agent 已经准备好了
-
-### 📖 详细指南
-
-<details>
-<summary><strong>📖 展开查看完整使用指南</strong></summary>
-
-<br>
-
-**🚀 快速开始**
-
-- [📖 完整安装指南](https://github.com/sudoprivacy/sudowork/wiki/Getting-Started) — 从下载到配置，一步步教你
-- [⚙️ LLM 配置指南](https://github.com/sudoprivacy/sudowork/wiki/LLM-Configuration) — 多平台 AI 模型怎么配置
-- [🤖 多 Agent 模式设置](https://github.com/sudoprivacy/sudowork/wiki/ACP-Setup) — 把终端 AI Agent 集成进来
-- [🔌 MCP 工具配置](https://github.com/sudoprivacy/sudowork/wiki/MCP-Configuration-Guide) — 模型上下文协议服务器设置
-- [🌐 WebUI 配置指南](https://github.com/sudoprivacy/sudowork/wiki/WebUI-Configuration-Guide) — WebUI 完整设置教程
-
-**🎯 使用场景**
-
-- [📁 文件管理](https://github.com/sudoprivacy/sudowork/wiki/file-management) — 让 AI 帮你整理文件
-- [📊 Excel 处理](https://github.com/sudoprivacy/sudowork/wiki/excel-processing) — AI 驱动的数据处理
-- [🎨 图像生成](https://github.com/sudoprivacy/sudowork/wiki/Sudowork-Image-Generation-Tool-Model-Configuration-Guide) — AI 图像生成
-- [📚 更多使用场景](https://github.com/sudoprivacy/sudowork/wiki/Use-Cases-Overview)
-
-**❓ 支持与帮助**
-
-- [❓ FAQ](https://github.com/sudoprivacy/sudowork/wiki/FAQ) — 常见问题和解决方案
-- [🔧 配置与使用教程](https://github.com/sudoprivacy/sudowork/wiki/Configuration-Guides) — 完整配置文档
-
-</details>
-
----
-
-## 💬 社区与支持
-
-**你的想法很重要！** 我们非常重视每一个建议和反馈。
-
-<p align="center">
-  <a href="https://x.com/Sudowork" target="_blank">
-    <img src="./resources/contactus-x.png" alt="Contact Us on X" width="600">
-  </a>
-</p>
-
-- [GitHub Discussions](https://github.com/sudoprivacy/sudowork/discussions) — 分享想法，交流使用技巧
-- [报告问题](https://github.com/sudoprivacy/sudowork/issues) — 遇到 bug 或有新功能想法？告诉我们
-- [发布更新](https://github.com/sudoprivacy/sudowork/releases) — 获取最新版本
-- [微信群](./resources/wechat_group4.png) — 中文社区
-
-
-### 贡献
-
-1. Fork 本项目
-2. 创建功能分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 打开 Pull Request
-
----
-
-### 🙏 特别感谢
-
-<table>
-<tr>
-<td width="170" align="center">
-  <a href="https://linux.do/" target="_blank">
-    <img src="./resources/linuxdo.png" alt="LINUX DO" width="150">
-  </a>
-</td>
-<td>
-  <a href="https://linux.do/" target="_blank">LINUX DO</a> - 新的理想型社区。
-</td>
-</tr>
-<tr>
-<td width="170" align="center">
-  <a href="https://packycode.com" target="_blank">
-    <img src="./resources/packycode.png" alt="PackyCode" width="150">
-  </a>
-</td>
-<td>
-  <a href="https://packycode.com" target="_blank">PackyCode</a> 是一家可靠高效的 API 中继服务提供商，为 Claude Code、Codex、Gemini 等平台提供中继服务。感谢 PackyCode 为支持 Sudowork 用户低成本使用，为我们的用户提供专属 <a href="https://www.packyapi.com/register?aff=sudowork" target="_blank">9折优惠</a>，付款时使用优惠码 <code>sudowork</code> 可立减 10%。
-</td>
-</tr>
-</table>
-
----
 
 ## 许可证
 

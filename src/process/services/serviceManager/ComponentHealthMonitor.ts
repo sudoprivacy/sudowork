@@ -5,7 +5,6 @@
  */
 
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
-import { SUDOCLAW_HEALTH_TIMEOUT_MS } from '../sudoclaw/sudoclawHealth';
 import { serviceManager } from './ServiceManager';
 
 const TAG = 'ComponentHealthMonitor';
@@ -20,9 +19,11 @@ interface ComponentStatus {
 /**
  * 自动组件健康监控服务
  *
- * 启动 10 分钟后开始检测核心服务健康状态，之后每隔 10 分钟执行一次。
+ * 启动 10 分钟后开始检测长驻核心服务健康状态，之后每隔 10 分钟执行一次。
  * 对已安装但未运行的组件，会先等待 10 分钟再二次确认，仍未恢复才主动启动。
  * 每次自动安装/启动成功后，会进入 10 分钟宽限期，再判断端口是否真的就绪。
+ *
+ * Sudocode/scode 是按需 spawn 的 ACP CLI，不参与 HTTP 端口健康检查。
  */
 class ComponentHealthMonitor {
   private pollingInterval: NodeJS.Timeout | null = null;
@@ -37,7 +38,7 @@ class ComponentHealthMonitor {
   private readonly STARTUP_GRACE_MS = 10 * 60 * 1000;
   private readonly START_CONFIRM_DELAY_MS = 10 * 60 * 1000;
 
-  private readonly COMPONENTS = ['sudoclaw', 'nexus'] as const;
+  private readonly COMPONENTS = ['nexus'] as const;
 
   /**
    * 启动健康监控
@@ -145,8 +146,6 @@ class ComponentHealthMonitor {
    */
   private async checkComponentHealth(component: string): Promise<ComponentStatus> {
     switch (component) {
-      case 'sudoclaw':
-        return this.checkSudoclawHealth();
       case 'nexus':
         return this.checkNexusHealth();
       default:
@@ -155,44 +154,19 @@ class ComponentHealthMonitor {
   }
 
   /**
-   * 检查 Sudoclaw 状态
-   */
-  private async checkSudoclawHealth(): Promise<ComponentStatus> {
-    const { isSudoclawInstalled } = await import('../sudoclaw/SudoclawInstallService');
-    const { checkSudoclawHealth } = await import('../sudoclaw/sudoclawHealth');
-    const installed = isSudoclawInstalled();
-
-    if (!installed) {
-      return { installed: false, needsAction: true, actionType: 'install' };
-    }
-
-    try {
-      const running = await checkSudoclawHealth('127.0.0.1', 17863, SUDOCLAW_HEALTH_TIMEOUT_MS);
-      return { installed: true, running, needsAction: !running, actionType: 'start' };
-    } catch (err) {
-      mainLog(TAG, `Sudoclaw health check failed: ${err instanceof Error ? err.message : String(err)}`);
-      return { installed: true, running: false, needsAction: true, actionType: 'start' };
-    }
-  }
-
-  /**
    * 检查 Nexus 状态
    */
   private async checkNexusHealth(): Promise<ComponentStatus> {
-    const { dynamicNexusService } = await import('../nexus/DynamicNexusService');
-    const installed = await dynamicNexusService.checkInstalled();
+    const { dynamicNexusVfsService } = await import('../nexus-vfs/DynamicNexusVfsService');
+    const installed = await dynamicNexusVfsService.checkInstalled();
 
     if (!installed) {
       return { installed: false, needsAction: true, actionType: 'install' };
     }
 
-    // 检查 HTTP 健康
+    // 检查 gRPC/进程 健康
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
-      const res = await fetch('http://localhost:12012/health', { signal: controller.signal });
-      clearTimeout(timeoutId);
-      const running = res.ok;
+      const running = await dynamicNexusVfsService.checkActualRunning();
       return { installed: true, running, needsAction: !running, actionType: 'start' };
     } catch (err) {
       mainLog(TAG, `Nexus health check failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -292,14 +266,9 @@ class ComponentHealthMonitor {
   private async installComponent(component: string): Promise<boolean> {
     try {
       switch (component) {
-        case 'sudoclaw': {
-          const { ensureSudoclawInstalled } = await import('../sudoclaw/SudoclawInstallService');
-          const result = await ensureSudoclawInstalled({ forceReinstall: false });
-          return result.installed;
-        }
         case 'nexus': {
-          const { dynamicNexusService } = await import('../nexus/DynamicNexusService');
-          await dynamicNexusService.install();
+          const { dynamicNexusVfsService } = await import('../nexus-vfs/DynamicNexusVfsService');
+          await dynamicNexusVfsService.install();
           return true;
         }
         default:
@@ -317,9 +286,6 @@ class ComponentHealthMonitor {
   private async startComponent(component: string): Promise<boolean> {
     try {
       switch (component) {
-        case 'sudoclaw':
-          await serviceManager.startOpenClaw();
-          return true;
         case 'nexus':
           await serviceManager.startNexus();
           return true;

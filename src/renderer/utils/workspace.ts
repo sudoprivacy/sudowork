@@ -84,3 +84,12 @@ export const getLastDirectoryName = (path: string): string => {
   const parts = splitPathSegments(path);
   return parts[parts.length - 1] || path;
 };
+
+/**
+ * Check if a workspace path is a channel workspace (e.g. channel-media/dingtalk)
+ * 检查工作空间路径是否为通道工作空间
+ */
+export const isChannelWorkspace = (workspacePath: string): boolean => {
+  const parts = splitPathSegments(workspacePath);
+  return parts.includes('channel-media');
+};

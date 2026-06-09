@@ -43,4 +43,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   webuiChangePassword: (newPassword: string) => ipcRenderer.invoke('webui-direct-change-password', { newPassword }),
   // 生成二维码 token / Generate QR token
   webuiGenerateQRToken: () => ipcRenderer.invoke('webui-direct-generate-qr-token'),
+  terminalCreate: (params: { cwd?: string; shell?: string }) => ipcRenderer.invoke('terminal.create', params),
+  terminalWrite: (params: { sessionId: string; data: string }) => ipcRenderer.invoke('terminal.write', params),
+  terminalResize: (params: { sessionId: string; cols: number; rows: number }) => ipcRenderer.invoke('terminal.resize', params),
+  terminalDispose: (params: { sessionId: string }) => ipcRenderer.invoke('terminal.dispose', params),
+  // ==================== Crash Reporter (渲染进程上报) ====================
+  // 上报 JS 异常到主进程 CrashReporter
+  crashReportException: (data: { error_name: string; error_message: string; stack_trace?: string; context?: Record<string, unknown> }) => ipcRenderer.invoke('crash.report-exception', data),
+  // 添加面包屑到主进程 CrashReporter
+  crashAddBreadcrumb: (data: { category: string; message: string; data?: Record<string, unknown>; level?: 'debug' | 'info' | 'warning' | 'error' }) => ipcRenderer.invoke('crash.add-breadcrumb', data),
 });

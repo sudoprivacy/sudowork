@@ -11,8 +11,9 @@
  * icon square tinted by the skill-author-specified color.
  *
  * Sources:
- *   - OpenClaw agents  → `<workspace>/skills/`
+ *   - Default (ACP)    → `<workspace>/skills/`
  *   - Claude Code      → `<workspace>/.claude/skills/`
+ *   - Sudo Code        → `<workspace>/.nexus/sudocode/skills/`
  *
  * Each sub-directory containing a SKILL.md (YAML frontmatter) shows up as a
  * card. The `icon:` and `color:` fields from frontmatter are honoured when
@@ -38,7 +39,8 @@ import { Tooltip } from '@arco-design/web-react';
 import { Book, Branch, Browser, Bug, Calendar, Code, FileText, FolderOpen, Picture, SettingConfig, Star, Tool } from '@icon-park/react';
 import React, { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { resolveSkillIcon } from '@/renderer/utils/skillDisplay';
+import { resolveSkillIcon, handleSkillIconError } from '@/renderer/utils/skillDisplay';
+import { emitter } from '@/renderer/utils/emitter';
 import { resolveWorkspaceSkillRoot } from './skillRoots';
 
 type IconComponent = React.ComponentType<{ theme?: 'outline' | 'filled' | 'two-tone' | 'multi-color'; size?: string | number; fill?: string | string[] }>;
@@ -47,17 +49,21 @@ export interface WorkspaceSkillsProps {
   workspace: string;
   /**
    * Which agent backend is driving this workspace — determines whether skills
-   * live under `skills/` (OpenClaw / non-Claude ACP) or `.claude/skills/`
-   * (Claude Code).
+   * live under `skills/` (most ACP), `.claude/skills/`
+   * (Claude Code), or `.nexus/sudocode/skills/` (Sudo Code).
    */
-  eventPrefix?: 'acp' | 'openclaw-gateway';
+  eventPrefix?: 'acp' | 'remote-agent';
   backend?: string;
+  conversationId?: string;
+  dataSource?: 'workspace' | 'moss-session';
   /** Shared search query from the workspace card header. */
   searchQuery?: string;
   /** Reports loading state back to the parent for the sync footer spinner. */
   onLoadingChange?: (loading: boolean) => void;
   /** Notifies the parent that a refresh cycle just finished. */
   onSynced?: () => void;
+  /** Reports the current skill count back to the parent tab badge. */
+  onCountChange?: (count: number) => void;
   /**
    * Ref to the workspace directory watcher ID. When provided, dirChanged
    * events are filtered to only this watcher — preventing a global feedback
@@ -77,7 +83,7 @@ interface SkillItem {
   path: string;
   displayName?: string;
   /** Which sub-directory it was found under (for tooltip / debug) */
-  source: 'skills' | 'claude-skills';
+  source: 'skills' | 'claude-skills' | 'scode-skills' | 'moss-session' | string;
   /** Icon name from SKILL.md frontmatter, if declared. */
   icon?: string;
   /** Image URL from _sudowork_meta.json icon field, if declared. */
@@ -87,16 +93,22 @@ interface SkillItem {
   emoji?: string | null;
 }
 
-const resolveEmptyDescription = (eventPrefix: 'acp' | 'openclaw-gateway' | undefined, backend: string | undefined, t: ReturnType<typeof useTranslation>['t']): string => {
-  if (eventPrefix === 'openclaw-gateway') {
-    return t('conversation.workspace.skillsEmptyDescOpenClaw', {
-      defaultValue: '在 skills/ 目录下添加 SKILL.md 后会自动显示',
+const resolveEmptyDescription = (eventPrefix: 'acp' | 'remote-agent' | undefined, backend: string | undefined, dataSource: 'workspace' | 'moss-session', t: ReturnType<typeof useTranslation>['t']): string => {
+  if (dataSource === 'moss-session') {
+    return t('conversation.workspace.remoteSkillsPendingDesc', {
+      defaultValue: '会话开始后显示当前 backend 可用技能',
     });
   }
 
   if (backend === 'claude') {
     return t('conversation.workspace.skillsEmptyDescClaude', {
       defaultValue: '在 .claude/skills/ 目录下添加 SKILL.md 后会自动显示',
+    });
+  }
+
+  if (backend === 'scode') {
+    return t('conversation.workspace.skillsEmptyDescScode', {
+      defaultValue: '在 .nexus/sudocode/skills/ 目录下添加 SKILL.md 后会自动显示',
     });
   }
 
@@ -254,7 +266,7 @@ const pickIconByHeuristic = (name: string): IconComponent => {
   if (/book|wiki|note|jianshu|jiansheku|blog/.test(n)) return Book;
   if (/leave|calendar|schedule/.test(n)) return Calendar;
   if (/mermaid|flow|graph|diagram/.test(n)) return Branch;
-  if (/setup|config|setting|install|openclaw/.test(n)) return SettingConfig;
+  if (/setup|config|setting|install/.test(n)) return SettingConfig;
   if (/skill|creator|wand|magic|tool/.test(n)) return Tool;
   if (/folder|dir|workspace/.test(n)) return FolderOpen;
   if (/story|role|character/.test(n)) return Star;
@@ -263,23 +275,27 @@ const pickIconByHeuristic = (name: string): IconComponent => {
 
 const remoteIconCache = new Map<string, string>();
 
+const resolveWorkspaceSkillImage = (iconUrl: string | undefined, fallbackToDefault: boolean): string => {
+  return resolveSkillIcon(iconUrl, fallbackToDefault);
+};
+
 const SkillIconGraphic: React.FC<{
   iconUrl?: string;
-  icon?: string;
   displayName: string;
   emoji?: string | null;
   Icon: IconComponent;
   fillColor: string;
-}> = ({ iconUrl, icon, displayName, emoji, Icon, fillColor }) => {
+  fallbackToDefaultImage?: boolean;
+}> = ({ iconUrl, displayName, emoji, Icon, fillColor, fallbackToDefaultImage = false }) => {
   const [resolvedIconUrl, setResolvedIconUrl] = useState<string | undefined>(() => {
-    const initial = resolveSkillIcon(iconUrl || icon, false);
+    const initial = resolveWorkspaceSkillImage(iconUrl, fallbackToDefaultImage);
     if (!initial) return undefined;
     return remoteIconCache.get(initial) || initial;
   });
 
   useEffect(() => {
     let cancelled = false;
-    const iconSource = resolveSkillIcon(iconUrl || icon, false);
+    const iconSource = resolveWorkspaceSkillImage(iconUrl, fallbackToDefaultImage);
 
     if (!iconSource) {
       setResolvedIconUrl(undefined);
@@ -321,10 +337,10 @@ const SkillIconGraphic: React.FC<{
     return () => {
       cancelled = true;
     };
-  }, [iconUrl, icon]);
+  }, [fallbackToDefaultImage, iconUrl]);
 
   if (resolvedIconUrl) {
-    return <img src={resolvedIconUrl} alt={displayName} className='workspace-skill-card__icon-image' referrerPolicy='no-referrer' crossOrigin='anonymous' />;
+    return <img src={resolvedIconUrl} alt={displayName} className='workspace-skill-card__icon-image' referrerPolicy='no-referrer' crossOrigin='anonymous' onError={handleSkillIconError} />;
   }
 
   if (emoji) {
@@ -334,7 +350,7 @@ const SkillIconGraphic: React.FC<{
   return <Icon theme='outline' size='16' fill={fillColor} />;
 };
 
-const WorkspaceSkills = React.forwardRef<WorkspaceSkillsHandle, WorkspaceSkillsProps>(({ workspace, eventPrefix, backend, searchQuery, onLoadingChange, onSynced, watchIdRef }, ref) => {
+const WorkspaceSkills = React.forwardRef<WorkspaceSkillsHandle, WorkspaceSkillsProps>(({ workspace, eventPrefix, backend, conversationId, dataSource = 'workspace', searchQuery, onLoadingChange, onSynced, onCountChange, watchIdRef }, ref) => {
   const { t } = useTranslation();
   const [skills, setSkills] = useState<SkillItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -342,8 +358,10 @@ const WorkspaceSkills = React.forwardRef<WorkspaceSkillsHandle, WorkspaceSkillsP
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loadingCallbackRef = useRef(onLoadingChange);
   const syncedCallbackRef = useRef(onSynced);
+  const countCallbackRef = useRef(onCountChange);
   loadingCallbackRef.current = onLoadingChange;
   syncedCallbackRef.current = onSynced;
+  countCallbackRef.current = onCountChange;
 
   // Minimum interval between dirChanged-triggered scans to prevent feedback
   // loops on Windows where file reads during scanForSkills can trigger
@@ -354,6 +372,8 @@ const WorkspaceSkills = React.forwardRef<WorkspaceSkillsHandle, WorkspaceSkillsP
   const scanBoth = useCallback(async () => {
     if (!workspace) {
       setSkills([]);
+      countCallbackRef.current?.(0);
+      syncedCallbackRef.current?.();
       return;
     }
     const mySeq = ++reqSeqRef.current;
@@ -361,6 +381,34 @@ const WorkspaceSkills = React.forwardRef<WorkspaceSkillsHandle, WorkspaceSkillsP
     setLoading(true);
     loadingCallbackRef.current?.(true);
     try {
+      if (dataSource === 'moss-session') {
+        if (!conversationId) {
+          setSkills([]);
+          countCallbackRef.current?.(0);
+          syncedCallbackRef.current?.();
+          return;
+        }
+
+        const result = await ipcBridge.conversation.getRemoteAvailableSkills.invoke({ conversation_id: conversationId }).catch((): undefined => undefined);
+        if (reqSeqRef.current !== mySeq) return;
+        const collected = (result?.success ? (result.data?.skills ?? []) : []).map((skill) => ({
+          name: skill.name,
+          description: skill.description,
+          path: skill.path || skill.name,
+          displayName: skill.displayName,
+          source: skill.source || 'moss-session',
+          icon: skill.icon,
+          iconUrl: skill.iconUrl,
+          color: skill.color,
+          emoji: skill.emoji,
+        }));
+        collected.sort((a, b) => a.name.localeCompare(b.name));
+        setSkills(collected);
+        countCallbackRef.current?.(collected.length);
+        syncedCallbackRef.current?.();
+        return;
+      }
+
       const skillRoot = resolveWorkspaceSkillRoot(workspace, eventPrefix, backend);
       const result = await ipcBridge.fs.scanForSkills.invoke({ folderPath: skillRoot.path }).catch((): undefined => undefined);
 
@@ -373,6 +421,7 @@ const WorkspaceSkills = React.forwardRef<WorkspaceSkillsHandle, WorkspaceSkillsP
 
       collected.sort((a, b) => a.name.localeCompare(b.name));
       setSkills(collected);
+      countCallbackRef.current?.(collected.length);
       syncedCallbackRef.current?.();
     } finally {
       if (reqSeqRef.current === mySeq) {
@@ -380,7 +429,7 @@ const WorkspaceSkills = React.forwardRef<WorkspaceSkillsHandle, WorkspaceSkillsP
         loadingCallbackRef.current?.(false);
       }
     }
-  }, [workspace, eventPrefix, backend]);
+  }, [workspace, eventPrefix, backend, conversationId, dataSource]);
 
   // Expose a refresh() handle for the parent's shared refresh button.
   useImperativeHandle(ref, () => ({ refresh: scanBoth }), [scanBoth]);
@@ -389,6 +438,58 @@ const WorkspaceSkills = React.forwardRef<WorkspaceSkillsHandle, WorkspaceSkillsP
   useEffect(() => {
     void scanBoth();
   }, [scanBoth]);
+
+  useEffect(() => {
+    if (dataSource !== 'moss-session' || !conversationId) {
+      return undefined;
+    }
+
+    let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+    const scheduleRefresh = (delay = 300) => {
+      if (refreshTimer) clearTimeout(refreshTimer);
+      refreshTimer = setTimeout(() => {
+        refreshTimer = null;
+        void scanBoth();
+      }, delay);
+    };
+
+    const unsubscribeStream = ipcBridge.conversation.responseStream.on((message) => {
+      if (message.conversation_id !== conversationId) return;
+
+      if (message.type === 'agent_status') {
+        const status = (message.data as { status?: string } | undefined)?.status;
+        if (status === 'session_active') {
+          scheduleRefresh();
+        }
+        return;
+      }
+
+      if (message.type === 'finish') {
+        scheduleRefresh(800);
+      }
+    });
+
+    const unsubscribeConversation = ipcBridge.database.conversationChanged.on((event) => {
+      if (event.conversationId === conversationId && event.action === 'updated') {
+        scheduleRefresh();
+      }
+    });
+
+    const handleWorkspaceRefresh = () => {
+      scheduleRefresh();
+    };
+    emitter.on('remote-agent.workspace.refresh', handleWorkspaceRefresh);
+
+    return () => {
+      if (refreshTimer) {
+        clearTimeout(refreshTimer);
+        refreshTimer = null;
+      }
+      unsubscribeStream();
+      unsubscribeConversation();
+      emitter.off('remote-agent.workspace.refresh', handleWorkspaceRefresh);
+    };
+  }, [conversationId, dataSource, scanBoth]);
 
   // inotify-style auto-refresh: piggyback on the same `dirChanged` stream the
   // file tree listens to. We don't need a separate watcher — the workspace
@@ -405,6 +506,10 @@ const WorkspaceSkills = React.forwardRef<WorkspaceSkillsHandle, WorkspaceSkillsP
   // (stat, readdir, readFile) during scanForSkills can spuriously trigger
   // further fs.watch events.
   useEffect(() => {
+    if (dataSource === 'moss-session') {
+      return undefined;
+    }
+
     const unsubscribe = ipcBridge.fileWatch.dirChanged.on((payload) => {
       // Block events when the workspace watcher hasn't been set up yet, or
       // when the event comes from a different watcher (e.g. one created by
@@ -425,7 +530,7 @@ const WorkspaceSkills = React.forwardRef<WorkspaceSkillsHandle, WorkspaceSkillsP
       }
       unsubscribe();
     };
-  }, [scanBoth]);
+  }, [scanBoth, dataSource]);
 
   const filteredSkills = useMemo(() => {
     const q = (searchQuery ?? '').trim().toLowerCase();
@@ -445,7 +550,7 @@ const WorkspaceSkills = React.forwardRef<WorkspaceSkillsHandle, WorkspaceSkillsP
             <Code theme='outline' size='20' fill='currentColor' />
           </div>
           <div className='workspace-card__empty-title'>{initialLoading ? t('conversation.workspace.skillsLoading', { defaultValue: '正在扫描技能...' }) : (searchQuery ?? '').trim() ? t('conversation.workspace.skillsSearchEmpty', { defaultValue: '未找到匹配的技能' }) : t('conversation.workspace.skillsEmpty', { defaultValue: '工作空间暂无可用技能' })}</div>
-          {!(searchQuery ?? '').trim() && !initialLoading && <div className='workspace-card__empty-desc'>{resolveEmptyDescription(eventPrefix, backend, t)}</div>}
+          {!(searchQuery ?? '').trim() && !initialLoading && <div className='workspace-card__empty-desc'>{resolveEmptyDescription(eventPrefix, backend, dataSource, t)}</div>}
         </div>
       </div>
     );
@@ -460,7 +565,9 @@ const WorkspaceSkills = React.forwardRef<WorkspaceSkillsHandle, WorkspaceSkillsP
           const resolved = resolveColor(skill.color);
           const fg = resolved ?? pickFallbackAccent(skill.name);
           const borderTint = withAlpha(fg, 0.14);
-          const iconBackground = skill.iconUrl ? 'var(--color-fill-2, #f2f3f5)' : withAlpha(fg, 0.1);
+          const hasImageIcon = Boolean(skill.iconUrl) || (!skill.icon && !skill.emoji);
+          const iconBackground = hasImageIcon ? 'var(--color-fill-2, #f2f3f5)' : withAlpha(fg, 0.1);
+          const fallbackToDefaultImage = !skill.iconUrl && !skill.icon && !skill.emoji;
           const displayName = skill.displayName || skill.name;
 
           return (
@@ -474,7 +581,7 @@ const WorkspaceSkills = React.forwardRef<WorkspaceSkillsHandle, WorkspaceSkillsP
                     borderColor: borderTint,
                   }}
                 >
-                  <SkillIconGraphic iconUrl={skill.iconUrl} icon={skill.icon} displayName={displayName} emoji={skill.emoji} Icon={Icon} fillColor={fg} />
+                  <SkillIconGraphic iconUrl={skill.iconUrl} displayName={displayName} emoji={skill.emoji} Icon={Icon} fillColor={fg} fallbackToDefaultImage={fallbackToDefaultImage} />
                 </div>
                 <div className='workspace-skill-card__meta'>
                   <div className='workspace-skill-card__name'>{displayName}</div>

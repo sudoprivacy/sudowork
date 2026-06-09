@@ -21,7 +21,7 @@ Cross-references:
 │   chat UI, audit viewer,           starts nexusd, manages sessions  │
 │   messenger UI                     via gRPC                          │
 └───────────────────────────────────────┬─────────────────────────────┘
-                                        │ gRPC (localhost:2028)
+                                        │ gRPC (localhost:12022)
                                         ▼
 ┌─────────────────────────────────────────────────────────────────────┐
 │              nexusd + sudo-code  (single process, always-on)         │

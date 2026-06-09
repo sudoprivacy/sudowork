@@ -22,18 +22,18 @@ import IflowLogo from '@/renderer/assets/logos/iflow.svg';
 import KimiLogo from '@/renderer/assets/logos/kimi.svg';
 import MistralLogo from '@/renderer/assets/logos/mistral.svg';
 import NanobotLogo from '@/renderer/assets/logos/nanobot.svg';
-import OpenClawLogo from '@/renderer/assets/sudowork-icon-dark.svg';
+import SudoworkLogo from '@/renderer/assets/sudowork-icon-dark.svg';
 import OpenCodeLogoDark from '@/renderer/assets/logos/opencode-dark.svg';
 import OpenCodeLogoLight from '@/renderer/assets/logos/opencode-light.svg';
 import QoderLogo from '@/renderer/assets/logos/qoder.png';
 import QwenLogo from '@/renderer/assets/logos/qwen.svg';
+const ScodeLogo = SudoworkLogo;
 
 /**
  * Agent Logo 映射表
  * Agent Logo mapping table
  *
- * 注意：key 使用小写，支持多种变体（如 openclaw-gateway 和 openclaw）
- * Note: keys are lowercase, supports multiple variants (e.g., openclaw-gateway and openclaw)
+ * Note: keys are lowercase
  */
 const AGENT_LOGO_MAP = {
   claude: ClaudeLogo,
@@ -47,13 +47,16 @@ const AGENT_LOGO_MAP = {
   auggie: AuggieLogo,
   kimi: KimiLogo,
   opencode: OpenCodeLogoLight,
+  scode: ScodeLogo,
   copilot: GitHubLogo,
-  openclaw: OpenClawLogo,
-  'openclaw-gateway': OpenClawLogo,
-  sudoclaw: OpenClawLogo,
+  sudoclaw: SudoworkLogo,
   vibe: MistralLogo,
   nanobot: NanobotLogo,
   qoder: QoderLogo,
+  // Enterprise mode: Moss Server / Remote Agent
+  'remote-agent': SudoworkLogo,
+  moss: SudoworkLogo,
+  'moss-server': SudoworkLogo,
 } as const satisfies Record<string, string>;
 
 function isDarkTheme(): boolean {

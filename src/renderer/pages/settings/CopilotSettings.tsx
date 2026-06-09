@@ -5,13 +5,13 @@
  */
 
 import React from 'react';
-import OpenClawModalContent from '@/renderer/components/SettingsModal/contents/CopilotModalContent';
+import CopilotModalContent from '@/renderer/components/SettingsModal/contents/CopilotModalContent';
 import SettingsPageWrapper from './components/SettingsPageWrapper';
 
 const CopilotSettings: React.FC = () => {
   return (
     <SettingsPageWrapper>
-      <OpenClawModalContent />
+      <CopilotModalContent />
     </SettingsPageWrapper>
   );
 };

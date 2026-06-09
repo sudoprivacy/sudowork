@@ -4,7 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { AcpBackend, AcpIncomingMessage, AcpMessage, AcpNotification, AcpPermissionRequest, AcpPromptResponseUsage, AcpRequest, AcpResponse, AcpSessionConfigOption, AcpSessionModels, AcpSessionUpdate } from '@/types/acpTypes';
+import type { AcpBackend, AcpIncomingMessage, AcpMessage, AcpNotification, AcpPermissionRequest, AcpPromptResponseUsage, AcpQuestionRequest, AcpQuestionResponseAnswer, AcpRequest, AcpResponse, AcpSessionConfigOption, AcpSessionModels, AcpSessionUpdate } from '@/types/acpTypes';
+import type { AcpTransport } from './transport';
+import { StdioAcpTransport, GrpcAcpTransport } from './transport';
 import { ACP_METHODS, JSONRPC_VERSION } from '@/types/acpTypes';
 import type { ChildProcess } from 'child_process';
 import { execFile as execFileCb } from 'child_process';
@@ -15,9 +17,11 @@ import path from 'path';
 import { buildAcpModelInfo, summarizeAcpModelInfo } from './modelInfo';
 import { mainLog } from '@process/utils/mainLogger';
 import { resolveNpxPath } from '@process/utils/shellEnv';
+import { recordFirstToken } from '@process/telemetry';
 import { ACP_PERF_LOG, connectClaude, connectCodebuddy, connectCodex, prepareCleanEnv, spawnGenericBackend } from './acpConnectors';
+import { getAuthProxyPort, registerToken, revokeToken } from '@process/services/authProxy';
 import type { SpawnResult } from './acpConnectors';
-import { killChild, readTextFile, writeJsonRpcMessage, writeTextFile } from './utils';
+import { readTextFile, writeTextFile } from './utils';
 
 const execFile = promisify(execFileCb);
 
@@ -34,8 +38,27 @@ interface PendingRequest<T = unknown> {
   timeoutDuration: number;
 }
 
+const numberOrUndefined = (value: unknown): number | undefined => (typeof value === 'number' && Number.isFinite(value) ? value : undefined);
+const stringOrUndefined = (value: unknown): string | undefined => (typeof value === 'string' ? value : undefined);
+
+function formatAcpErrorMessage(error: AcpResponse['error']): string {
+  const message = error?.message || 'Unknown ACP error';
+  const data = error?.data;
+
+  if (data === undefined || data === null) {
+    return message;
+  }
+
+  const detail = typeof data === 'string' ? data : JSON.stringify(data);
+  if (!detail || detail === message) {
+    return message;
+  }
+
+  return `${message}: ${detail.slice(0, 2000)}`;
+}
+
 export class AcpConnection {
-  private child: ChildProcess | null = null;
+  private transport: AcpTransport | null = null;
   private pendingRequests = new Map<number, PendingRequest<unknown>>();
   private nextRequestId = 0;
   private sessionId: string | null = null;
@@ -59,6 +82,9 @@ export class AcpConnection {
   public onPermissionRequest: (data: AcpPermissionRequest) => Promise<{
     optionId: string;
   }> = () => Promise.resolve({ optionId: 'allow' }); // Returns a resolved Promise for interface consistency
+  public onQuestionRequest: (data: AcpQuestionRequest) => Promise<{
+    answers: AcpQuestionResponseAnswer[];
+  }> = () => Promise.resolve({ answers: [] });
   public onEndTurn: () => void = () => {}; // Handler for end_turn messages
   public onPromptUsage: (usage: AcpPromptResponseUsage) => void = () => {}; // Handler for PromptResponse.usage (per-turn token data)
   public onFileOperation: (operation: { method: string; path: string; content?: string; sessionId: string }) => void = () => {};
@@ -68,23 +94,25 @@ export class AcpConnection {
   // Track if initial setup is complete (to distinguish startup errors from runtime exits)
   private isSetupComplete = false;
 
-  // Track if child process was spawned with detached: true (needs process group kill)
-  private isDetached = false;
+  // Auth Proxy token for this child process (generated before spawn, registered after)
+  private proxyToken: string | null = null;
 
   /**
-   * Kill the current child process (if any) and clear process-related state.
+   * Close the current transport (if any) and clear process-related state.
    * Used by both disconnect() and retry paths. Does NOT reset session-level
    * state (sessionId, backend, etc.) — that is disconnect()'s responsibility.
    */
-  private async terminateChild(): Promise<void> {
-    if (!this.child) {
-      this.isDetached = false;
-      return;
+  private async closeTransport(): Promise<void> {
+    // Revoke Auth Proxy token before closing transport
+    if (this.proxyToken) {
+      revokeToken(this.proxyToken);
+      this.proxyToken = null;
     }
 
-    await killChild(this.child, this.isDetached);
-    this.child = null;
-    this.isDetached = false;
+    if (this.transport) {
+      await this.transport.close();
+      this.transport = null;
+    }
   }
 
   /**
@@ -92,9 +120,73 @@ export class AcpConnection {
    * Shared by all connectors (npx-based and generic).
    */
   private async spawnAndSetup(result: SpawnResult, backend: string): Promise<void> {
-    this.child = result.child;
-    this.isDetached = result.isDetached;
-    await this.setupChildProcessHandlers(backend);
+    let setupError: Error | null = null;
+    let processExitReject: ((err: Error) => void) | null = null;
+    const processExitPromise = new Promise<never>((_resolve, reject) => {
+      processExitReject = reject;
+    });
+
+    const transport = new StdioAcpTransport({
+      child: result.child,
+      isDetached: result.isDetached,
+      useLspFraming: false,
+      backend,
+      events: {
+        onMessage: (msg) => this.handleMessage(msg),
+        onClose: (info) => {
+          if (!this.isSetupComplete) {
+            const stderr = transport.getStderr();
+            let errMsg = stderr ? `${backend} ACP process exited during startup (code: ${info.code}):\n${stderr}` : `${backend} ACP process exited during startup (code: ${info.code}, signal: ${info.signal})`;
+            if (info.code !== 0 && /not recognized|not found|No such file|command not found|ENOENT/i.test(stderr + (setupError?.message ?? ''))) {
+              errMsg = `'${this.backend ?? backend}' CLI not found. Please install it or update the CLI path in Settings.\n${stderr}`;
+            }
+            if (info.code !== 0 && !setupError) {
+              setupError = new Error(errMsg);
+            }
+            processExitReject?.(new Error(errMsg));
+          } else {
+            this.handleProcessExit(info.code, info.signal as NodeJS.Signals | null);
+          }
+        },
+        onSetupError: (error) => {
+          setupError = error;
+        },
+      },
+    });
+    this.transport = transport;
+
+    // Register Auth Proxy token now that child.pid is available
+    if (this.proxyToken && transport.pid) {
+      registerToken(this.proxyToken, transport.pid);
+    }
+
+    // Yield to event loop so spawn error/exit events can fire
+    await new Promise((resolve) => setImmediate(resolve));
+
+    if (setupError) throw setupError;
+    if (!transport.connected) {
+      throw new Error(`${backend} ACP process failed to start or exited immediately`);
+    }
+
+    // Initialize protocol with timeout, also racing against early process exit
+    const initStart = Date.now();
+    try {
+      await Promise.race([
+        this.initialize(),
+        new Promise((_, reject) =>
+          setTimeout(() => {
+            reject(new Error('Initialize timeout after 60 seconds'));
+          }, 60000)
+        ),
+        processExitPromise,
+      ]);
+    } finally {
+      processExitReject = null;
+      processExitPromise.catch(() => {});
+    }
+    if (ACP_PERF_LOG) console.log(`[ACP-PERF] connect: protocol initialized ${Date.now() - initStart}ms`);
+
+    this.isSetupComplete = true;
   }
 
   // 通用的后端连接方法
@@ -157,7 +249,7 @@ export class AcpConnection {
   }
 
   private async doConnect(backend: AcpBackend, cliPath?: string, workingDir: string = process.cwd(), acpArgs?: string[], customEnv?: Record<string, string>): Promise<void> {
-    if (this.child) {
+    if (this.transport) {
       await this.disconnect();
     }
 
@@ -166,13 +258,24 @@ export class AcpConnection {
       this.workingDir = workingDir;
     }
 
+    // Auth Proxy: generate token and inject into child process env
+    const authProxyPort = getAuthProxyPort();
+    if (authProxyPort) {
+      this.proxyToken = crypto.randomUUID();
+      const envWithProxy = { ...customEnv };
+      envWithProxy.SUDOWORK_AUTH_PROXY_URL = `http://127.0.0.1:${authProxyPort}/proxy`;
+      envWithProxy.SUDOWORK_AUTH_PROXY_BASE_URL = `http://127.0.0.1:${authProxyPort}`;
+      envWithProxy.SUDOWORK_AUTH_PROXY_TOKEN = this.proxyToken;
+      customEnv = envWithProxy;
+    }
+
     // Shared hooks for npx backends: wire spawned child into this connection
     const npxHooks = {
       setup: async (result: SpawnResult) => {
         await this.spawnAndSetup(result, backend);
       },
       cleanup: async () => {
-        await this.terminateChild();
+        await this.closeTransport();
         this.isSetupComplete = false;
       },
     };
@@ -183,11 +286,11 @@ export class AcpConnection {
         break;
 
       case 'codebuddy':
-        await connectCodebuddy(workingDir, npxHooks);
+        await connectCodebuddy(workingDir, npxHooks, customEnv);
         break;
 
       case 'codex':
-        await connectCodex(workingDir, npxHooks);
+        await connectCodex(workingDir, npxHooks, customEnv);
         break;
 
       case 'gemini':
@@ -198,10 +301,10 @@ export class AcpConnection {
       case 'auggie':
       case 'kimi':
       case 'opencode':
+      case 'scode':
       case 'copilot':
       case 'qoder':
       case 'vibe':
-      case 'nexus':
       case 'nanobot':
         if (!cliPath) {
           throw new Error(`CLI path is required for ${backend} backend`);
@@ -216,156 +319,39 @@ export class AcpConnection {
         await this.connectGenericBackend('custom', cliPath, workingDir, acpArgs, customEnv);
         break;
 
+      case 'grpc': {
+        // gRPC transport — connect to a remote ACP server endpoint.
+        // Endpoint comes from customEnv.ACP_GRPC_ENDPOINT or cliPath.
+        const endpoint = customEnv?.ACP_GRPC_ENDPOINT || cliPath;
+        if (!endpoint) {
+          throw new Error('gRPC endpoint is required (set ACP_GRPC_ENDPOINT or pass as cliPath)');
+        }
+        const grpcTransport = new GrpcAcpTransport({
+          endpoint,
+          authToken: this.proxyToken || '',
+          events: {
+            onMessage: (msg) => this.handleMessage(msg),
+            onClose: (info) => {
+              if (this.isSetupComplete) {
+                this.handleProcessExit(info.code, info.signal as NodeJS.Signals | null);
+              }
+            },
+            onSetupError: (error) => {
+              throw error;
+            },
+          },
+        });
+        await grpcTransport.connect();
+        this.transport = grpcTransport;
+        // Initialize protocol
+        await this.initialize();
+        this.isSetupComplete = true;
+        break;
+      }
+
       default:
         throw new Error(`Unsupported backend: ${backend}`);
     }
-  }
-
-  private async setupChildProcessHandlers(backend: string): Promise<void> {
-    // Capture non-null reference; fail fast if child process is not initialized
-    const child = this.child;
-    if (!child) {
-      throw new Error(`[ACP ${backend}] Child process not initialized`);
-    }
-
-    let spawnError: Error | null = null;
-
-    // Collect stderr output for diagnostics on early crash.
-    // Keep both head and tail so we capture the actual error message even when
-    // minified source code lines fill up the middle (Node.js prints the
-    // offending source line before the error type/message).
-    const STDERR_HEAD_MAX = 512;
-    const STDERR_TAIL_MAX = 1536;
-    let stderrHead = '';
-    let stderrTail = '';
-    child.stderr?.on('data', (data: Buffer) => {
-      const chunk = data.toString();
-      console.error(`[ACP ${backend} STDERR]:`, chunk);
-      if (stderrHead.length < STDERR_HEAD_MAX) {
-        stderrHead += chunk;
-        if (stderrHead.length > STDERR_HEAD_MAX) {
-          stderrHead = stderrHead.slice(0, STDERR_HEAD_MAX);
-        }
-      }
-      // Always keep the latest tail content so the error message is preserved
-      stderrTail += chunk;
-      if (stderrTail.length > STDERR_TAIL_MAX) {
-        stderrTail = stderrTail.slice(-STDERR_TAIL_MAX);
-      }
-    });
-
-    child.on('error', (error) => {
-      // Provide a friendlier message when the CLI binary is not found (ENOENT)
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-        const cliHint = this.backend ?? backend;
-        spawnError = new Error(`'${cliHint}' CLI not found. Please install it or update the CLI path in Settings.`);
-      } else {
-        spawnError = error;
-      }
-    });
-
-    // Promise that rejects when the child process exits during setup.
-    // Used in Promise.race to detect early crashes without waiting for the 60s timeout.
-    let processExitReject: ((err: Error) => void) | null = null;
-    const processExitPromise = new Promise<never>((_resolve, reject) => {
-      processExitReject = reject;
-    });
-
-    // Exit handler for both startup and runtime phases
-    child.on('exit', (code, signal) => {
-      console.error(`[ACP ${backend}] Process exited with code: ${code}, signal: ${signal}`);
-
-      if (!this.isSetupComplete) {
-        // Startup phase - set error for initial check.
-        // Include stderr in spawnError so callers can detect specific failures
-        // (e.g., npm "notarget" for stale cache recovery).
-        // Combine head + tail, deduplicating any overlap
-        const stderrCombined = stderrHead + (stderrTail && !stderrHead.endsWith(stderrTail) ? '\n…\n' + stderrTail : '');
-        let errMsg: string;
-        if (stderrCombined) {
-          errMsg = `${backend} ACP process exited during startup (code: ${code}):\n${stderrCombined}`;
-        } else {
-          errMsg = `${backend} ACP process exited during startup (code: ${code}, signal: ${signal})`;
-        }
-        // Detect "command not found" patterns across platforms and provide a clear hint
-        if (code !== 0 && /not recognized|not found|No such file|command not found|ENOENT/i.test(stderrCombined + (spawnError?.message ?? ''))) {
-          const cliHint = this.backend ?? backend;
-          errMsg = `'${cliHint}' CLI not found. Please install it or update the CLI path in Settings.\n${stderrCombined}`;
-        }
-        if (code !== 0 && !spawnError) {
-          spawnError = new Error(errMsg);
-        }
-        // Reject processExitPromise so Promise.race returns immediately
-        processExitReject?.(new Error(errMsg));
-      } else {
-        // Runtime phase - handle unexpected exit
-        this.handleProcessExit(code, signal);
-      }
-    });
-
-    // Yield to event loop so spawn error/exit events can fire
-    await new Promise((resolve) => setImmediate(resolve));
-
-    // Check if process spawn failed
-    if (spawnError) {
-      throw spawnError;
-    }
-
-    // Check if process is still running
-    if (child.killed) {
-      throw new Error(`${backend} ACP process failed to start or exited immediately`);
-    }
-
-    // Handle messages from ACP server
-    let buffer = '';
-    child.stdout?.on('data', (data: Buffer) => {
-      const dataStr = data.toString();
-      buffer += dataStr;
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-
-      for (const line of lines) {
-        if (line.trim()) {
-          try {
-            const handleStart = ACP_PERF_LOG ? Date.now() : 0;
-            const message = JSON.parse(line) as AcpMessage;
-            this.handleMessage(message);
-            if (ACP_PERF_LOG) {
-              const handleDuration = Date.now() - handleStart;
-              if (handleDuration > 5) {
-                console.log(`[ACP-PERF] stream: handleMessage ${handleDuration}ms method=${'method' in message ? (message as AcpIncomingMessage).method : 'response'}`);
-              }
-            }
-          } catch (error) {
-            // Ignore parsing errors for non-JSON messages
-          }
-        }
-      }
-    });
-
-    // Initialize protocol with timeout, also racing against early process exit
-    const initStart = Date.now();
-    try {
-      await Promise.race([
-        this.initialize(),
-        new Promise((_, reject) =>
-          setTimeout(() => {
-            reject(new Error('Initialize timeout after 60 seconds'));
-          }, 60000)
-        ),
-        processExitPromise,
-      ]);
-    } finally {
-      // Neutralize processExitReject so later exits won't call a stale reject.
-      // Attach .catch only now — prevents unhandled rejection if the process exits
-      // after setup completed (or after another racer won).
-      processExitReject = null;
-      processExitPromise.catch(() => {});
-    }
-    if (ACP_PERF_LOG) console.log(`[ACP-PERF] connect: protocol initialized ${Date.now() - initStart}ms`);
-
-    // Mark setup as complete - future exits will be handled as runtime disconnects
-    this.isSetupComplete = true;
   }
 
   /**
@@ -373,6 +359,12 @@ export class AcpConnection {
    * Similar to Codex's handleProcessExit implementation
    */
   private handleProcessExit(code: number | null, signal: NodeJS.Signals | null): void {
+    // Revoke Auth Proxy token (parallel cleanup path to closeTransport)
+    if (this.proxyToken) {
+      revokeToken(this.proxyToken);
+      this.proxyToken = null;
+    }
+
     // 1. Reject all pending requests with clear error message
     for (const [_id, request] of this.pendingRequests) {
       if (request.timeoutId) {
@@ -386,12 +378,11 @@ export class AcpConnection {
     this.sessionId = null;
     this.isInitialized = false;
     this.isSetupComplete = false;
-    this.isDetached = false;
     this.backend = null;
     this.initializeResponse = null;
     this.configOptions = null;
     this.models = null;
-    this.child = null;
+    this.transport = null;
 
     // 3. Notify AcpAgent about disconnect
     this.onDisconnect({ code, signal });
@@ -526,14 +517,17 @@ export class AcpConnection {
   }
 
   private sendMessage(message: AcpRequest | AcpNotification): void {
-    if (this.child) {
-      writeJsonRpcMessage(this.child, message);
-    }
+    this.transport?.send(message);
   }
 
   private sendResponseMessage(response: AcpResponse): void {
-    if (this.child) {
-      writeJsonRpcMessage(this.child, response);
+    if (this.transport) {
+      try {
+        mainLog('[ACP-DIAG]', `sendResponseMessage id=${JSON.stringify((response as { id?: unknown }).id)} hasResult=${'result' in response} hasError=${'error' in response} preview=${JSON.stringify(response).slice(0, 400)}`);
+      } catch {
+        // ignore log errors
+      }
+      this.transport.send(response);
     }
   }
 
@@ -554,20 +548,36 @@ export class AcpConnection {
           // Check for end_turn message and extract usage data
           if (message.result && typeof message.result === 'object') {
             const promptResult = message.result as Record<string, unknown>;
-            if (promptResult.stopReason === 'end_turn' || promptResult.stopReason === 'cancelled') {
-              this.onEndTurn();
-            }
             // Extract PromptResponse.usage (per-turn token data from codex-acp / PR #167)
             if (promptResult.usage && typeof promptResult.usage === 'object') {
               const usage = promptResult.usage as AcpPromptResponseUsage;
+              const { costUnits: _directCostUnits, costCurrency: _directCostCurrency, ...usageWithoutCost } = usage;
+              const meta = promptResult._meta as Record<string, unknown> | undefined;
+              const sudocodeMeta = meta?.sudocode as Record<string, unknown> | undefined;
+              const contextWindowTokens = numberOrUndefined(sudocodeMeta?.contextWindowTokens);
+              const estimatedSessionTokens = numberOrUndefined(sudocodeMeta?.estimatedSessionTokens);
+              const usageRecord = usage as unknown as Record<string, unknown>;
+              const costUnitsSource = sudocodeMeta && 'costUnits' in sudocodeMeta ? sudocodeMeta.costUnits : usageRecord.costUnits;
+              const costCurrencySource = sudocodeMeta && 'costCurrency' in sudocodeMeta ? sudocodeMeta.costCurrency : usageRecord.costCurrency;
+              const costUnits = numberOrUndefined(costUnitsSource);
+              const costCurrency = stringOrUndefined(costCurrencySource);
               if (typeof usage.totalTokens === 'number') {
-                this.onPromptUsage(usage);
+                this.onPromptUsage({
+                  ...usageWithoutCost,
+                  ...(contextWindowTokens !== undefined && { contextWindowTokens }),
+                  ...(estimatedSessionTokens !== undefined && { estimatedSessionTokens }),
+                  ...(costUnits !== undefined && { costUnits }),
+                  ...(costCurrency !== undefined && { costCurrency }),
+                });
               }
+            }
+            if (promptResult.stopReason === 'end_turn' || promptResult.stopReason === 'cancelled') {
+              this.onEndTurn();
             }
           }
           resolve(message.result);
         } else if ('error' in message) {
-          const errorMsg = message.error?.message || 'Unknown ACP error';
+          const errorMsg = formatAcpErrorMessage(message.error);
           reject(new Error(errorMsg));
         }
       } else {
@@ -588,7 +598,12 @@ export class AcpConnection {
           // Track first chunk latency since prompt was sent
           if (!this.firstChunkReceived && this.lastPromptSentAt > 0) {
             this.firstChunkReceived = true;
-            if (ACP_PERF_LOG) console.log(`[ACP-PERF] stream: first chunk received ${Date.now() - this.lastPromptSentAt}ms (since prompt sent)`);
+            const firstTokenLatency = Date.now() - this.lastPromptSentAt;
+            if (ACP_PERF_LOG) console.log(`[ACP-PERF] stream: first chunk received ${firstTokenLatency}ms (since prompt sent)`);
+            // Telemetry: record first token time
+            if (this.sessionId) {
+              recordFirstToken(this.sessionId, firstTokenLatency);
+            }
           }
           // Reset timeout on streaming updates - LLM is still processing
           this.resetSessionPromptTimeouts();
@@ -604,6 +619,9 @@ export class AcpConnection {
         case ACP_METHODS.REQUEST_PERMISSION:
           result = await this.handlePermissionRequest(message.params);
           break;
+        case ACP_METHODS.ASK_USER_QUESTION:
+          result = await this.handleQuestionRequest(message.params);
+          break;
         case ACP_METHODS.READ_TEXT_FILE:
           result = await this.handleReadOperation(message.params);
           break;
@@ -612,8 +630,14 @@ export class AcpConnection {
           break;
       }
 
-      // If this is a request (has id), send response
-      if ('id' in message && typeof message.id === 'number') {
+      // If this is a request (has id), send response.
+      // JSON-RPC 2.0 allows id to be either a number or a string. The ACP
+      // Rust SDK (agent-client-protocol) allocates request ids as uuid
+      // strings via `Id::String(uuid::Uuid::new_v4().to_string())`, so we
+      // MUST accept string ids — narrowing to `number` here silently drops
+      // every response and hangs scode's `.await` for ext methods like
+      // `_scode/ask_user_question`.
+      if ('id' in message && (typeof message.id === 'number' || typeof message.id === 'string')) {
         this.sendResponseMessage({
           jsonrpc: JSONRPC_VERSION,
           id: message.id,
@@ -621,7 +645,7 @@ export class AcpConnection {
         });
       }
     } catch (error) {
-      if ('id' in message && typeof message.id === 'number') {
+      if ('id' in message && (typeof message.id === 'number' || typeof message.id === 'string')) {
         this.sendResponseMessage({
           jsonrpc: JSONRPC_VERSION,
           id: message.id,
@@ -663,6 +687,17 @@ export class AcpConnection {
       };
     } finally {
       // 无论成功还是失败，都恢复 session/prompt 请求的超时计时器
+      this.resumeSessionPromptTimeouts();
+    }
+  }
+
+  private async handleQuestionRequest(params: AcpQuestionRequest): Promise<{
+    answers: AcpQuestionResponseAnswer[];
+  }> {
+    this.pauseSessionPromptTimeouts();
+    try {
+      return await this.onQuestionRequest(params);
+    } finally {
       this.resumeSessionPromptTimeouts();
     }
   }
@@ -815,7 +850,8 @@ export class AcpConnection {
     // Some CLIs require absolute paths for cwd
     // - Copilot: "Directory path must be absolute: ."
     // - Codex (via codex-acp): "cwd is not absolute: ."
-    if (this.backend === 'copilot' || this.backend === 'codex') {
+    // - Scode: "params.cwd must be an absolute path"
+    if (this.backend === 'copilot' || this.backend === 'codex' || this.backend === 'scode') {
       return path.resolve(cwd);
     }
 
@@ -836,7 +872,7 @@ export class AcpConnection {
     return defaultPath;
   }
 
-  async sendPrompt(prompt: string, images?: Array<{ type: 'image'; data: string; mimeType: string }>): Promise<AcpResponse> {
+  async sendPrompt(prompt: string, images?: Array<{ type: 'image'; data: string; mimeType: string }>, traceId?: string): Promise<AcpResponse> {
     if (!this.sessionId) {
       throw new Error('No active ACP session');
     }
@@ -852,11 +888,12 @@ export class AcpConnection {
       }
     }
 
-    console.log(`[ACP] sendPrompt: ${promptBlocks.length} block(s) [${promptBlocks.map((b) => (b.type === 'image' ? `image(${b.mimeType}, ${b.data?.length ?? 0} b64 chars)` : `text(${b.text?.length ?? 0} chars)`)).join(', ')}]`);
+    console.log(`[ACP] sendPrompt: ${promptBlocks.length} block(s) [${promptBlocks.map((b) => (b.type === 'image' ? `image(${b.mimeType}, ${b.data?.length ?? 0} b64 chars)` : `text(${b.text?.length ?? 0} chars)`)).join(', ')}]${traceId ? ` traceId=${traceId}` : ''}`);
 
     return await this.sendRequest('session/prompt', {
       sessionId: this.sessionId,
       prompt: promptBlocks,
+      _meta: traceId ? { traceId } : undefined,
     });
   }
 
@@ -935,8 +972,8 @@ export class AcpConnection {
    * by responding to the pending session/prompt with stopReason: 'cancelled'.
    * Falls back to disconnect() if the backend doesn't respond within timeout.
    */
-  async cancel(timeoutMs: number = 3000): Promise<'cancelled' | 'disconnected'> {
-    if (!this.child || !this.sessionId) {
+  async cancel(timeoutMs: number = 3000): Promise<'cancelled' | 'abandoned' | 'disconnected'> {
+    if (!this.transport || !this.sessionId) {
       await this.disconnect();
       return 'disconnected';
     }
@@ -960,12 +997,28 @@ export class AcpConnection {
     const resolved = await this.waitForRequestResolution(pendingPromptId, timeoutMs);
 
     if (!resolved) {
-      // Backend didn't respond in time — force kill
-      await this.disconnect();
-      return 'disconnected';
+      // Backend didn't acknowledge cancel in time. Abandon the local wait,
+      // keep the session alive, and ignore the eventual late response.
+      this.resolvePendingPromptAsCancelled(pendingPromptId);
+      return 'abandoned';
     }
 
     return 'cancelled';
+  }
+
+  private resolvePendingPromptAsCancelled(requestId: number): void {
+    const request = this.pendingRequests.get(requestId);
+    if (!request) {
+      return;
+    }
+
+    if (request.timeoutId) {
+      clearTimeout(request.timeoutId);
+    }
+    this.pendingRequests.delete(requestId);
+    request.resolve({
+      stopReason: 'cancelled',
+    });
   }
 
   /** Find the request ID of a pending session/prompt request, if any. */
@@ -1008,7 +1061,7 @@ export class AcpConnection {
   }
 
   async disconnect(): Promise<void> {
-    await this.terminateChild();
+    await this.closeTransport();
 
     // Reject all pending requests so their callers' Promises settle
     for (const [, request] of this.pendingRequests) {
@@ -1030,8 +1083,7 @@ export class AcpConnection {
   }
 
   get isConnected(): boolean {
-    const connected = this.child !== null && !this.child.killed;
-    return connected;
+    return this.transport?.connected ?? false;
   }
 
   get hasActiveSession(): boolean {

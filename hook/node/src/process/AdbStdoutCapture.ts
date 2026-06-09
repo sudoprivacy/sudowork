@@ -1,11 +1,11 @@
 /**
- * Monkey-patches `node:child_process.spawn` inside the openclaw gateway
+ * Monkey-patches `node:child_process.spawn` inside the sudoclaw gateway
  * process so any `python -m ai_dev_browser.tools.*` child has its full stdout
  * teed to the sudowork sidechannel. Sudowork then rewrites the UI event
  * content on the sudowork side so the real JSON + PNG metadata reaches the
- * UI — openclaw's short `meta` description is replaced, not amended.
+ * UI — sudoclaw's short `meta` description is replaced, not amended.
  *
- * No openclaw bundle modification: we only observe child_process.spawn.
+ * No sudoclaw bundle modification: we only observe child_process.spawn.
  * Openclaw's own stdout reader still sees every byte unchanged.
  */
 
@@ -35,7 +35,7 @@ const ADB_MODULE_RE = /^ai_dev_browser\.tools\./;
 const ADB_PY_PATH_RE = /(?:^|[\\/])ai_dev_browser[\\/]tools[\\/]([\w_]+)\.py$/i;
 // Either form embedded in a shell script. Matches the larger pattern of
 // `python ... -m ai_dev_browser.tools.<name>` OR `python ... ai_dev_browser/tools/<name>.py`
-// anywhere in the script, used when openclaw wraps the call through
+// anywhere in the script, used when sudoclaw wraps the call through
 // cmd.exe / bash / sh / pwsh and spawns the shell rather than python
 // directly.
 const ADB_IN_SHELL_RE = /(?:^|[;\s&|"'])python(?:3|\.exe|3\.exe)?\s+(?:[^;\s&|]*\s+)*?(?:-m\s+ai_dev_browser\.tools\.\w+|[^\s;&|]*ai_dev_browser[\\/]tools[\\/]\w+\.py)/i;
@@ -93,7 +93,7 @@ export class AdbStdoutCapture {
     // consumers who captured the module-level `spawn` binding through
     // ESM static imports (e.g. `import { spawn } from 'node:child_process'`),
     // since those calls still route through the prototype method at
-    // runtime. This is how we intercept openclaw's `runExecProcess` without
+    // runtime. This is how we intercept sudoclaw's `runExecProcess` without
     // needing to break its ESM binding.
     const cp = childProcess as unknown as { ChildProcess?: { prototype: { spawn: (opts: Record<string, unknown>) => unknown } } };
     const proto = cp.ChildProcess?.prototype;
@@ -238,7 +238,7 @@ export class AdbStdoutCapture {
         }
       }
     }
-    // Case 2: shell-wrapped python — openclaw's runExecProcess spawns
+    // Case 2: shell-wrapped python — sudoclaw's runExecProcess spawns
     // cmd.exe/bash/sh/pwsh with the user's shell script as one of the args.
     // Scan every arg for the module-form OR path-form fragment.
     for (const arg of args) {
@@ -249,11 +249,11 @@ export class AdbStdoutCapture {
     }
     // NOTE: `aidb` wrapper invocations are intentionally NOT intercepted here.
     // Attaching `.on('data')` on bash/cmd.exe child.stdout flips the stream
-    // into flowing mode, which deadlocks openclaw's paused-mode `.read()`
+    // into flowing mode, which deadlocks sudoclaw's paused-mode `.read()`
     // pipeline for shell commands specifically — the child pipe fills up,
     // cmd.exe blocks on its write, and the process never exits. Direct
-    // python spawns (Case 1) don't show this because openclaw reads them
-    // via a different path. For `aidb <tool>` we rely on openclaw's own
+    // python spawns (Case 1) don't show this because sudoclaw reads them
+    // via a different path. For `aidb <tool>` we rely on sudoclaw's own
     // data.result.content pass-through (up to ~8 KB), which the sudowork-
     // side `isAdbToolCall` force-override uses to replace the truncated
     // `meta` description. Outputs beyond 8 KB are future work — address

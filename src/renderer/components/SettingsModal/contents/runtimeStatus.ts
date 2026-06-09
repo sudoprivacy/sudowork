@@ -21,8 +21,6 @@ export interface ToolRow {
   loadState: LoadState;
   installPhase?: ILibreOfficeInstallPhase | NexusInstallPhase | string;
   installPercent?: number;
-  sudoclawGatewayPort?: number;
-  sudoclawGatewayRunning?: boolean;
   onRefresh: () => Promise<void>;
   onInstall?: () => Promise<void>;
   onUninstall?: () => Promise<void>;
@@ -58,7 +56,6 @@ export function isInstalled(record: ToolRow): boolean {
 
 export function isRuntimeRunning(record: ToolRow): boolean {
   if (record.key === 'nexus') return !!record.nexusRunning;
-  if (record.key === 'sudoclaw') return !!record.sudoclawGatewayRunning;
   return false;
 }
 
@@ -71,7 +68,7 @@ export function resolveRuntimeStatus(record: ToolRow): RuntimeResolvedStatus {
     return 'running';
   }
 
-  if (record.key === 'nexus' || record.key === 'sudoclaw') {
+  if (record.key === 'nexus') {
     if (record.statusResolved === false) {
       return 'checking';
     }
@@ -87,6 +84,8 @@ export function resolveRuntimeStatus(record: ToolRow): RuntimeResolvedStatus {
 
 export function getStatusInfo(record: ToolRow, t: TranslateFn): { dotColor: string; statusText: string } {
   const resolvedStatus = resolveRuntimeStatus(record);
+  const isShareOne = record.key === 'shareone';
+  const shareOneStatusText = t('settings.runtimeSettings.status.disabled', { defaultValue: '未启用' });
 
   switch (resolvedStatus) {
     case 'installing': {
@@ -101,12 +100,12 @@ export function getStatusInfo(record: ToolRow, t: TranslateFn): { dotColor: stri
     case 'running':
       return {
         dotColor: 'bg-green-5',
-        statusText: getRunningStatusText(t, record.key === 'nexus' ? record.nexusPort : record.sudoclawGatewayPort),
+        statusText: getRunningStatusText(t, record.key === 'nexus' ? record.nexusPort : undefined),
       };
     case 'installed':
       return {
         dotColor: 'bg-gray-4',
-        statusText: record.key === 'nexus' || record.key === 'sudoclaw' ? t('settings.runtimeSettings.status.notRunning') : t('settings.runtimeSettings.status.installed'),
+        statusText: isShareOne ? shareOneStatusText : record.key === 'nexus' ? t('settings.runtimeSettings.status.notRunning') : t('settings.runtimeSettings.status.installed'),
       };
     case 'checking':
       return {
@@ -117,7 +116,7 @@ export function getStatusInfo(record: ToolRow, t: TranslateFn): { dotColor: stri
     default:
       return {
         dotColor: 'bg-gray-4',
-        statusText: t('settings.runtimeSettings.status.notInstalled'),
+        statusText: isShareOne ? shareOneStatusText : t('settings.runtimeSettings.status.notInstalled'),
       };
   }
 }

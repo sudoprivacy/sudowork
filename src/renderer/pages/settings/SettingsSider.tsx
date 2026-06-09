@@ -1,19 +1,21 @@
-import FlexFullContainer from '@/renderer/components/FlexFullContainer';
 import { isElectronDesktop, resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import { extensions as extensionsIpc, type IExtensionSettingsTab } from '@/common/ipcBridge';
 import { useExtI18n } from '@/renderer/hooks/useExtI18n';
-import { Cloudy, Communication, Computer, Config, Dollar, Earth, HardDiskOne, Info, Lightning, LinkCloud, Peoples, Puzzle, Robot, Shield, System, Toolkit, User } from '@icon-park/react';
-import OpenClawLogo from '@/renderer/assets/logos/openclaw.svg';
+import { useAppMode } from '@/renderer/hooks/useAppMode';
+import { Communication, Computer, Connection, Dollar, Earth, HardDiskOne, Info, Lightning, LinkCloud, Peoples, Puzzle, Robot, Shield, System, Toolkit, User, BuildingTwo } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Tooltip } from '@arco-design/web-react';
 import { getSiderTooltipProps } from '@/renderer/utils/siderTooltip';
-import { useAuth } from '../../context/AuthContext';
+import SidebarNavItem from '@/renderer/components/ui/SidebarNavItem';
 
 /** Builtin settings tab IDs in display order (must match router paths). */
-const BUILTIN_TAB_IDS = ['profile', 'recharge', 'members', 'agent', 'tools', 'skill', 'security', 'display', 'webui', 'runtime', 'system', 'about'] as const; // 隐藏'copilot', 'cron'已移至左侧边栏
+const BUILTIN_TAB_IDS = ['profile', 'recharge', 'members', 'model', 'agent', 'tools', 'skill', 'security', 'display', 'webui', 'runtime', 'system', 'about'] as const; // 隐藏'copilot', 'cron'已移至左侧边栏
+
+/** Enterprise mode builtin tab IDs (restricted subset). */
+const ENTERPRISE_BUILTIN_TAB_IDS = ['profile', 'enterprise', 'mcp', 'display', 'webui', 'system', 'about'] as const;
 
 type SiderItem = {
   id: string;
@@ -30,7 +32,7 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
   const { t } = useTranslation();
   const { pathname } = useLocation();
   const isDesktop = isElectronDesktop();
-  const { user: currentUser } = useAuth();
+  const { isEnterprise } = useAppMode();
 
   const [extensionTabs, setExtensionTabs] = useState<IExtensionSettingsTab[]>([]);
   const { resolveExtTabName } = useExtI18n();
@@ -94,6 +96,8 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
     // Build builtin items
     const builtinMap: Record<string, SiderItem> = {
       profile: { id: 'profile', label: t('settings.profile'), icon: <User />, path: 'profile' },
+      enterprise: { id: 'enterprise', label: t('settings.enterprise', { defaultValue: '企业设置' }), icon: <BuildingTwo />, path: 'enterprise' },
+      mcp: { id: 'mcp', label: t('settings.mcpService', { defaultValue: 'MCP 服务' }), icon: <Connection />, path: 'mcp' },
       recharge: { id: 'recharge', label: t('settings.rechargeCenter') || '充值中心', icon: <Dollar />, path: 'recharge' },
       members: {
         id: 'members',
@@ -102,8 +106,7 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
         path: 'members',
         hidden: true, // 固定隐藏，服务端已只有一个企业
       },
-      sudorouter: { id: 'sudorouter', label: t('settings.sudorouter'), icon: <Cloudy />, path: 'sudorouter' },
-      // model: { id: 'model', label: t('settings.model'), icon: <LinkCloud />, path: 'model' },
+      model: { id: 'model', label: t('settings.model'), icon: <LinkCloud />, path: 'model' },
       agent: { id: 'agent', label: t('settings.agent'), icon: <Robot />, path: 'agent' },
       tools: { id: 'tools', label: t('settings.tools'), icon: <Toolkit />, path: 'tools' },
       skill: { id: 'skill', label: t('settings.skill'), icon: <Lightning />, path: 'skill' },
@@ -116,8 +119,9 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
       about: { id: 'about', label: t('settings.about'), icon: <Info />, path: 'about' },
     };
 
-    // Start with ordered builtin IDs
-    const result: SiderItem[] = BUILTIN_TAB_IDS.map((id) => builtinMap[id]).filter((item) => !item.hidden);
+    // Start with ordered builtin IDs (enterprise mode uses restricted set)
+    const activeBuiltinTabIds = isEnterprise ? ENTERPRISE_BUILTIN_TAB_IDS : BUILTIN_TAB_IDS;
+    const result: SiderItem[] = activeBuiltinTabIds.map((id) => builtinMap[id]).filter((item) => !item.hidden);
 
     // Extension tabs with position anchoring
     const beforeMap = new Map<string, IExtensionSettingsTab[]>();
@@ -171,8 +175,28 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
       result.splice(insertIdx, 0, ...unanchored.map(toSiderItem));
     }
 
+    // Enterprise mode: filter extension tabs whose anchor targets a hidden builtin tab
+    // Keep: unanchored extension tabs, and extension tabs anchored to ENTERPRISE_BUILTIN_TAB_IDS
+    // Remove: extension tabs anchored to hidden builtins (e.g., agent, tools, skill, etc.)
+    if (isEnterprise) {
+      const enterpriseIds = new Set<string>(ENTERPRISE_BUILTIN_TAB_IDS);
+      for (let i = result.length - 1; i >= 0; i--) {
+        const item = result[i];
+        // Builtin tabs are already filtered by activeBuiltinTabIds above,
+        // but extension tabs may have been inserted via anchoring.
+        // Only remove extension tabs (path starts with "ext/") that were anchored
+        // to a hidden builtin. Unanchored and enterprise-anchored extensions stay.
+        if (item.path.startsWith('ext/')) {
+          const extTab = extensionTabs.find((t) => t.id === item.id);
+          if (extTab?.position?.anchor && !enterpriseIds.has(extTab.position.anchor)) {
+            result.splice(i, 1);
+          }
+        }
+      }
+    }
+
     return result;
-  }, [t, isDesktop, extensionTabs, resolveExtTabName]);
+  }, [t, isDesktop, extensionTabs, resolveExtTabName, isEnterprise]);
 
   const siderTooltipProps = getSiderTooltipProps(tooltipEnabled);
   return (
@@ -181,31 +205,32 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
         const isSelected = pathname.includes(item.path);
         return (
           <Tooltip key={item.id} {...siderTooltipProps} content={item.label} position='right'>
-            <div
-              data-settings-id={item.id}
-              data-settings-path={item.path}
-              className={classNames('settings-sider__item hover:bg-aou-1 px-12px py-8px rd-8px flex justify-start items-center group cursor-pointer relative overflow-hidden group shrink-0 conversation-item [&.conversation-item+&.conversation-item]:mt-2px', {
-                '!bg-aou-2 ': isSelected,
-              })}
+            <SidebarNavItem
+              icon={
+                item.isImageIcon ? (
+                  <span className='flex h-20px w-20px items-center justify-center'>{item.icon}</span>
+                ) : (
+                  React.cloneElement(item.icon as React.ReactElement<{ theme?: string; size?: string | number; className?: string }>, {
+                    theme: 'outline',
+                    size: '20',
+                    className: 'flex',
+                  })
+                )
+              }
+              label={item.label}
+              selected={isSelected}
+              collapsed={collapsed}
+              className='settings-sider__item shrink-0'
+              dataAttributes={{
+                'data-settings-id': item.id,
+                'data-settings-path': item.path,
+              }}
               onClick={() => {
                 Promise.resolve(navigate(`/settings/${item.path}`, { replace: true })).catch((error) => {
                   console.error('Navigation failed:', error);
                 });
               }}
-            >
-              {item.isImageIcon ? (
-                <div className='mt-2px ml-2px mr-8px w-20px h-20px flex shrink-0 items-center justify-center'>{item.icon}</div>
-              ) : (
-                React.cloneElement(item.icon as React.ReactElement<{ theme?: string; size?: string | number; className?: string }>, {
-                  theme: 'outline',
-                  size: '20',
-                  className: 'mt-2px ml-2px mr-8px flex',
-                })
-              )}
-              <FlexFullContainer className='h-24px'>
-                <div className='settings-sider__item-label text-nowrap overflow-hidden inline-block w-full text-14px lh-24px whitespace-nowrap text-t-primary'>{item.label}</div>
-              </FlexFullContainer>
-            </div>
+            />
           </Tooltip>
         );
       })}

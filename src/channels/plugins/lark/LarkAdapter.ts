@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { IMessageAction, IUnifiedIncomingMessage, IUnifiedMessageContent, IUnifiedOutgoingMessage, IUnifiedUser } from '../../types';
+import type { IMessageAction, IUnifiedAttachment, IUnifiedIncomingMessage, IUnifiedMessageContent, IUnifiedOutgoingMessage, IUnifiedUser } from '../../types';
 
 /**
  * LarkAdapter - Converts between Lark and Unified message formats
@@ -238,6 +238,66 @@ function extractMessageContent(message: LarkMessageEvent['event']['message']): I
           },
         ],
       };
+
+    case 'post': {
+      // Feishu rich text message (post type) can contain multiple elements
+      // including text, images, links, etc.
+      // Extract images and text from the post content
+      const postContent = typeof content === 'object' ? (content as any) : null;
+      if (!postContent) {
+        return { type: 'text', text: '' };
+      }
+
+      const attachments: IUnifiedAttachment[] = [];
+      const textParts: string[] = [];
+
+      // Extract title if present
+      if (postContent.title) {
+        textParts.push(postContent.title);
+      }
+
+      // Process content sections (array of arrays of elements)
+      // content: [[{tag: "text", text: "..."}, {tag: "img", image_key: "..."}], ...]
+      const sections = postContent.content as any[][] | undefined;
+      if (sections && Array.isArray(sections)) {
+        for (const section of sections) {
+          if (!Array.isArray(section)) continue;
+          for (const element of section) {
+            if (!element || typeof element !== 'object') continue;
+
+            if (element.tag === 'text' && element.text) {
+              textParts.push(element.text);
+            } else if (element.tag === 'img' && element.image_key) {
+              attachments.push({
+                type: 'photo',
+                fileId: element.image_key,
+              });
+            } else if (element.tag === 'a' && element.text) {
+              // Links: display as text with URL
+              const href = element.href || '';
+              textParts.push(href ? `[${element.text}](${href})` : element.text);
+            }
+          }
+        }
+      }
+
+      const text = textParts.join('\n').trim();
+
+      // If we have attachments, return as photo/document type
+      if (attachments.length > 0) {
+        return {
+          type: attachments[0].type as 'photo' | 'document',
+          text,
+          attachments,
+        };
+      }
+
+      // No attachments, just text
+      return {
+        type: 'text',
+        text: text || '[post message]',
+      };
+    }
 
     default:
       return {

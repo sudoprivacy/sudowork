@@ -443,7 +443,7 @@ function signBinariesInDir(dir, identity, entitlementsPath = null) {
 
 /**
  * Sign all binary files inside a .tgz archive (for macOS notarization)
- * Handles nested .tar files (e.g., openclaw.tgz contains openclaw.tar)
+ * Handles nested .tar files
  * @param {string} archivePath - Path to the archive file
  * @param {string} identity - Code signing identity
  * @param {boolean} isNested - Whether this is a nested archive call
@@ -679,27 +679,22 @@ module.exports = async function afterPack(context) {
     const nexusArchives = [];
     try {
       nexusArchives.push(
-        ...fs.readdirSync(resourcesDir).filter(f => /^v[\d.]+-nexus-cluster-.*\.(?:tar\.gz|tgz|tar)$/.test(f)),
+        ...fs.readdirSync(resourcesDir).filter(f => /^v[\d.]+-nexus.*-.*\.(?:tar\.gz|tgz|tar)$/.test(f)),
       );
     } catch {
       // Resources dir not readable — nexus archives will be skipped
     }
 
-    const sudoclawArchives = [];
-    try {
-      sudoclawArchives.push(
-        ...fs.readdirSync(resourcesDir).filter(f => new RegExp(`^${runtimeVersions.sudoclaw}-sudoclaw-macos-.*\\.tgz$`).test(f)),
-      );
-    } catch {
-      // Resources dir not readable — sudoclaw archives will be skipped
-    }
-
-    const fixedArchives = ['claude-code.tgz', 'mcporter.tgz'];
+    const fixedArchives = ['claude-code.tgz', 'mcporter.tgz', 'shareone.tgz'];
 
     // Node runtime has architecture-specific name (e.g., node-darwin-arm64.tar.gz)
     const nodeArchive = `node-darwin-${targetArch}.tar.gz`;
 
-    const archivesToSign = [...fixedArchives, nodeArchive, ...sudoclawArchives, ...nexusArchives];
+    // Scode archive has versioned name (e.g., v0.1.5-scode-macos-arm64.tar.gz)
+    const scodeVersion = runtimeVersions.scode;
+    const scodeArchive = `v${scodeVersion}-scode-macos-${targetArch}.tar.gz`;
+
+    const archivesToSign = [...fixedArchives, nodeArchive, scodeArchive, ...nexusArchives];
     // Node.js binary needs JIT/memory entitlements so V8 can run under Hardened Runtime.
     // Without these, macOS blocks JIT compilation and Node crashes with SIGTRAP (trace trap).
     const entitlementsPath = path.join(__dirname, '..', 'entitlements.plist');

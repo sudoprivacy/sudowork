@@ -195,7 +195,7 @@ describe('SudoclawInstallService', () => {
     fs.writeFileSync(path.join(pkgRoot, 'package.json'), JSON.stringify({ version: bundledVersion }, null, 2));
     fs.writeFileSync(path.join(pkgRoot, 'dist', 'entry.mjs'), 'export {};');
     fs.writeFileSync(path.join(pkgRoot, 'launcher.mjs'), 'export {};');
-    fs.writeFileSync(path.join(pkgRoot, 'bin', 'openclaw.cmd'), '@echo off');
+    fs.writeFileSync(path.join(pkgRoot, 'bin', 'sudoclaw.cmd'), '@echo off');
     fs.writeFileSync(
       path.join(homeDir, '.nexus', 'sudoclaw', 'install-manifest.json'),
       JSON.stringify(
@@ -239,7 +239,7 @@ describe('SudoclawInstallService', () => {
     expect(fs.existsSync(path.join(homeDir, '.nexus', 'sudoclaw', 'install-manifest.json'))).toBe(false);
   });
 
-  it('fails install when bundled openclaw manifest version does not match runtime version', async () => {
+  it('fails install when bundled manifest version does not match runtime version', async () => {
     fs.writeFileSync(
       path.join(resourcesDir, resourceManifestName),
       JSON.stringify(
@@ -326,7 +326,7 @@ describe('SudoclawInstallService', () => {
 
     const repaired = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
     expect(repaired.tools.web).toEqual({ search: { provider: 'tavily' } });
-    expect(repaired.tools.deny).toEqual(['browser', 'image']);
+    expect(repaired.tools.deny).toEqual(['browser', 'image', 'canvas']);
   });
 
   it('preserves existing tools.web.search.provider value', async () => {
@@ -353,6 +353,90 @@ describe('SudoclawInstallService', () => {
     expect(repaired.tools.web.search.provider).toBe('custom-provider');
   });
 
+  it('backfills tavily webSearch apiKey and baseUrl during repair', async () => {
+    const sudoclawDir = path.join(homeDir, '.nexus', 'sudoclaw');
+    fs.mkdirSync(sudoclawDir, { recursive: true });
+    const configPath = path.join(sudoclawDir, 'sudoclaw.json');
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify(
+        {
+          agents: { defaults: { workspace: '/tmp/ws' } },
+          models: {
+            providers: {
+              sudorouter: {
+                apiKey: 'router-key',
+              },
+            },
+          },
+          gateway: { port: 17863, mode: 'local', auth: { mode: 'none' }, reload: { mode: 'hot' } },
+          plugins: {
+            entries: {
+              tavily: {
+                config: {
+                  webSearch: {},
+                },
+              },
+            },
+          },
+        },
+        null,
+        2
+      )
+    );
+
+    const module = await import('@/process/services/sudoclaw/SudoclawInstallService');
+    module.repairOpenClawConfig();
+
+    const repaired = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+    expect(repaired.plugins.entries.tavily).toMatchObject({
+      enabled: true,
+      config: {
+        webSearch: {
+          apiKey: 'router-key',
+          baseUrl: 'https://hk.sudorouter.ai/search/tavily',
+        },
+      },
+    });
+  });
+
+  it('backfills tavily webSearch baseUrl without overwriting existing apiKey', async () => {
+    const sudoclawDir = path.join(homeDir, '.nexus', 'sudoclaw');
+    fs.mkdirSync(sudoclawDir, { recursive: true });
+    const configPath = path.join(sudoclawDir, 'sudoclaw.json');
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify(
+        {
+          agents: { defaults: { workspace: '/tmp/ws' } },
+          gateway: { port: 17863, mode: 'local', auth: { mode: 'none' }, reload: { mode: 'hot' } },
+          plugins: {
+            entries: {
+              tavily: {
+                config: {
+                  webSearch: {
+                    apiKey: 'plugin-key',
+                  },
+                },
+              },
+            },
+          },
+        },
+        null,
+        2
+      )
+    );
+
+    const module = await import('@/process/services/sudoclaw/SudoclawInstallService');
+    module.repairOpenClawConfig();
+
+    const repaired = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+    expect(repaired.plugins.entries.tavily.config.webSearch).toEqual({
+      apiKey: 'plugin-key',
+      baseUrl: 'https://hk.sudorouter.ai/search/tavily',
+    });
+  });
+
   it('does not delete legacy dir when new sudoclaw dir already exists', async () => {
     const newPkgRoot = path.join(homeDir, '.nexus', 'sudoclaw', 'cli', 'package');
     fs.mkdirSync(path.join(newPkgRoot, 'dist'), { recursive: true });
@@ -362,7 +446,7 @@ describe('SudoclawInstallService', () => {
     fs.writeFileSync(path.join(newPkgRoot, 'package.json'), JSON.stringify({ version: bundledVersion }, null, 2));
     fs.writeFileSync(path.join(newPkgRoot, 'dist', 'entry.mjs'), 'export {};');
     fs.writeFileSync(path.join(newPkgRoot, 'launcher.mjs'), 'export {};');
-    fs.writeFileSync(path.join(newPkgRoot, 'bin', 'openclaw.cmd'), '@echo off');
+    fs.writeFileSync(path.join(newPkgRoot, 'bin', 'sudoclaw.cmd'), '@echo off');
     fs.writeFileSync(
       path.join(homeDir, '.nexus', 'sudoclaw', 'install-manifest.json'),
       JSON.stringify(
@@ -394,7 +478,7 @@ describe('SudoclawInstallService', () => {
     const configPath = path.join(sudoclawDir, 'sudoclaw.json');
     fs.mkdirSync(cliDir, { recursive: true });
     fs.mkdirSync(workspaceDir, { recursive: true });
-    fs.writeFileSync(path.join(cliDir, 'openclaw.cmd'), '@echo off');
+    fs.writeFileSync(path.join(cliDir, 'sudoclaw.cmd'), '@echo off');
     fs.writeFileSync(path.join(workspaceDir, 'note.txt'), 'workspace');
     fs.writeFileSync(configPath, JSON.stringify({ foo: 'bar' }, null, 2));
 

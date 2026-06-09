@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { IDirOrFile } from '@/common/ipcBridge';
 
 const { filterHiddenWorkspaceDirs } = await import('@/renderer/pages/conversation/workspace/hooks/useWorkspaceTree');
+const { ensureDraftsDirectoryNode, updateTreeNodeChildren } = await import('@/renderer/pages/conversation/workspace/utils/treeHelpers');
 
 function dir(name: string, children?: IDirOrFile[]): IDirOrFile {
   return {
@@ -27,15 +28,6 @@ function root(children?: IDirOrFile[]): IDirOrFile {
 }
 
 describe('filterHiddenWorkspaceDirs', () => {
-  it('hides root skills directory for openclaw workspaces only', () => {
-    const result = filterHiddenWorkspaceDirs([dir('skills'), dir('src')], {
-      eventPrefix: 'openclaw-gateway',
-      isRoot: true,
-    });
-
-    expect(result.map((node: IDirOrFile) => node.name)).toEqual(['src']);
-  });
-
   it('hides root .claude directory for claude acp workspaces only', () => {
     const result = filterHiddenWorkspaceDirs([dir('.claude'), dir('docs')], {
       eventPrefix: 'acp',
@@ -46,22 +38,61 @@ describe('filterHiddenWorkspaceDirs', () => {
     expect(result.map((node: IDirOrFile) => node.name)).toEqual(['docs']);
   });
 
-  it('does not hide nested directories with the same names', () => {
-    const result = filterHiddenWorkspaceDirs([dir('src', [dir('skills'), dir('.claude')]), dir('skills')], {
-      eventPrefix: 'openclaw-gateway',
+  it('does not apply local backend skill-root hiding to remote-agent workspaces', () => {
+    const result = filterHiddenWorkspaceDirs([root([dir('skills'), dir('.claude'), dir('.nexus'), dir('docs')])], {
+      eventPrefix: 'remote-agent',
+      backend: 'remote-agent',
       isRoot: true,
     });
 
-    expect(result.map((node: IDirOrFile) => node.name)).toEqual(['src']);
-    expect(result[0]?.children?.map((node) => node.name)).toEqual(['skills', '.claude']);
+    expect(result[0]?.children?.map((node) => node.name)).toEqual(['skills', '.claude', '.nexus', 'docs']);
+  });
+});
+
+describe('updateTreeNodeChildren', () => {
+  it('updates nested directory children without mutating the original tree', () => {
+    const originalChild = dir('reports');
+    originalChild.relativePath = 'drafts/reports';
+    originalChild.fullPath = '/tmp/workspace/drafts/reports';
+
+    const drafts = dir('.drafts', [originalChild]);
+    const tree = [root([drafts])];
+    const generated = dir('summary.md');
+    generated.relativePath = 'drafts/reports/summary.md';
+    generated.fullPath = '/tmp/workspace/drafts/reports/summary.md';
+    generated.isDir = false;
+    generated.isFile = true;
+
+    const updated = updateTreeNodeChildren(tree, 'drafts/reports', [generated]);
+
+    expect(tree[0]?.children?.[0]?.children?.[0]?.children).toBeUndefined();
+    expect(updated[0]?.children?.[0]?.children?.[0]?.children).toEqual([generated]);
+  });
+});
+
+describe('ensureDraftsDirectoryNode', () => {
+  it('adds a virtual drafts directory to an empty synthetic root', () => {
+    const tree = [root([])];
+
+    const updated = ensureDraftsDirectoryNode(tree);
+
+    expect(tree[0]?.children).toEqual([]);
+    expect(updated[0]?.children?.map((node) => node.name)).toEqual(['.drafts']);
+    expect(updated[0]?.children?.[0]).toMatchObject({
+      name: '.drafts',
+      relativePath: '.drafts',
+      isDir: true,
+      isFile: false,
+      children: [],
+    });
   });
 
-  it('hides root children under the synthetic workspace root node', () => {
-    const result = filterHiddenWorkspaceDirs([root([dir('skills'), dir('docs')])], {
-      eventPrefix: 'openclaw-gateway',
-      isRoot: true,
-    });
+  it('does not duplicate an existing drafts directory', () => {
+    const tree = [root([dir('.drafts'), dir('docs')])];
 
-    expect(result[0]?.children?.map((node) => node.name)).toEqual(['docs']);
+    const updated = ensureDraftsDirectoryNode(tree);
+
+    expect(updated).toBe(tree);
+    expect(updated[0]?.children?.map((node) => node.name)).toEqual(['.drafts', 'docs']);
   });
 });

@@ -17,7 +17,9 @@ import { copyDirectoryRecursively, ensureDirectory, getConfigPath, getDataPath, 
 import { getDatabase } from './database/export';
 import type { AcpBackendConfig } from '@/types/acpTypes';
 import { perfLog, mainLog, mainWarn, mainError } from './utils/mainLogger';
-import { SKILL_SUBDIRS } from './constants/skillStorage';
+import { SKILL_SUBDIRS, ENTERPRISE_SKILL_SUBDIRS } from './constants/skillStorage';
+import { ASSISTANT_SUBDIRS, ENTERPRISE_ASSISTANT_SUBDIRS } from './constants/assistantStorage';
+import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
 // Platform and architecture types (moved from deleted updateConfig)
 type PlatformType = 'win32' | 'darwin' | 'linux';
 type ArchitectureType = 'x64' | 'arm64' | 'ia32' | 'arm';
@@ -279,27 +281,36 @@ const getAssistantsDir = () => {
 };
 
 /**
- * 获取 Hub 安装助手目录路径 (_hub 子目录)
+ * 获取 Hub 安装助手目录路径
  * Get hub-installed assistants directory path
+ * Enterprise mode: assistants/hub
+ * Personal mode: assistants/_hub
  */
 const getHubAssistantsDir = () => {
-  return path.join(getAssistantsDir(), '_hub');
+  const subdirs = isEnterpriseMode() ? ENTERPRISE_ASSISTANT_SUBDIRS : ASSISTANT_SUBDIRS;
+  return path.join(getAssistantsDir(), subdirs.hub);
 };
 
 /**
- * 获取系统/内置助手目录路径 (_system 子目录)
+ * 获取系统/内置助手目录路径
  * Get system/builtin assistants directory path
+ * Enterprise mode: assistants/system
+ * Personal mode: assistants/_system
  */
 const getSystemAssistantsDir = () => {
-  return path.join(getAssistantsDir(), '_system');
+  const subdirs = isEnterpriseMode() ? ENTERPRISE_ASSISTANT_SUBDIRS : ASSISTANT_SUBDIRS;
+  return path.join(getAssistantsDir(), subdirs.system);
 };
 
 /**
- * 获取自定义助手目录路径 (_my-custom-assistant 子目录)
+ * 获取自定义助手目录路径
  * Get custom assistants directory path
+ * Enterprise mode: assistants/custom
+ * Personal mode: assistants/_my-custom-assistant
  */
 const getCustomAssistantsDir = () => {
-  return path.join(getAssistantsDir(), '_my-custom-assistant');
+  const subdirs = isEnterpriseMode() ? ENTERPRISE_ASSISTANT_SUBDIRS : ASSISTANT_SUBDIRS;
+  return path.join(getAssistantsDir(), subdirs.custom);
 };
 
 /**
@@ -311,16 +322,19 @@ const getSkillsDir = () => {
 };
 
 /**
- * 获取系统技能根目录路径（_system 子目录）
- * Get system skills root directory path (_system subdirectory)
+ * 获取系统技能根目录路径
+ * Get system skills root directory path
+ * Enterprise mode: skills/system
+ * Personal mode: skills/_system
  */
 const getSystemSkillsDir = () => {
-  return path.join(getSkillsDir(), SKILL_SUBDIRS.system);
+  const subdirs = isEnterpriseMode() ? ENTERPRISE_SKILL_SUBDIRS : SKILL_SUBDIRS;
+  return path.join(getSkillsDir(), subdirs.system);
 };
 
 /**
- * 获取内置技能目录路径（_system/_builtin 子目录）
- * Get builtin skills directory path (_system/_builtin subdirectory)
+ * 获取内置技能目录路径
+ * Get builtin skills directory path
  * Skills in this directory are automatically injected for ALL agents and scenarios
  */
 const getBuiltinSkillsDir = () => {
@@ -330,17 +344,23 @@ const getBuiltinSkillsDir = () => {
 /**
  * 获取 Hub 安装技能目录路径
  * Get hub-installed skills directory path
+ * Enterprise mode: skills/hub
+ * Personal mode: skills/_hub
  */
 const getHubSkillsDir = () => {
-  return path.join(getSkillsDir(), SKILL_SUBDIRS.hub);
+  const subdirs = isEnterpriseMode() ? ENTERPRISE_SKILL_SUBDIRS : SKILL_SUBDIRS;
+  return path.join(getSkillsDir(), subdirs.hub);
 };
 
 /**
  * 获取自定义上传技能目录路径
  * Get custom uploaded skills directory path
+ * Enterprise mode: skills/custom
+ * Personal mode: skills/_my-custom-skill
  */
 const getCustomSkillsDir = () => {
-  return path.join(getSkillsDir(), SKILL_SUBDIRS.custom);
+  const subdirs = isEnterpriseMode() ? ENTERPRISE_SKILL_SUBDIRS : SKILL_SUBDIRS;
+  return path.join(getSkillsDir(), subdirs.custom);
 };
 
 /**
@@ -504,9 +524,21 @@ const resolveBuiltinResourceDir = (dirPath: string): string => {
 /**
  * Locate the bundled ai-dev-browser Python package directory.
  * Returns the path to the inner `ai_dev_browser/` package (not the repo root).
+ *
+ * In dev mode, also accepts a sibling repo checkout at `../ai-dev-browser/`
+ * relative to the sudowork repo root. This lets a developer who clones
+ * ai-dev-browser as a sibling repo (not via `git submodule update --init`)
+ * still get the `browser` shim wired to a real Python package without
+ * requiring network access or running submodule init. Production builds
+ * ignore the sibling path entirely.
  */
 const resolveAiDevBrowserPackageDir = (): string | null => {
-  const candidates = app.isPackaged ? [path.join(app.getAppPath().replace('app.asar', 'app.asar.unpacked'), 'vendor/ai-dev-browser/ai_dev_browser'), path.join(process.resourcesPath, 'ai-dev-browser/ai_dev_browser')] : [path.join(app.getAppPath(), 'vendor/ai-dev-browser/ai_dev_browser')];
+  const candidates = app.isPackaged
+    ? [path.join(app.getAppPath().replace('app.asar', 'app.asar.unpacked'), 'vendor/ai-dev-browser/ai_dev_browser'), path.join(process.resourcesPath, 'ai-dev-browser/ai_dev_browser')]
+    : [
+        path.join(app.getAppPath(), 'vendor/ai-dev-browser/ai_dev_browser'),
+        path.join(app.getAppPath(), '..', 'ai-dev-browser', 'ai_dev_browser'),
+      ];
   return candidates.find((p) => existsSync(p)) ?? null;
 };
 
@@ -517,7 +549,7 @@ const resolveAiDevBrowserPackageDir = (): string | null => {
  * regardless of installation layout.
  */
 const linkAiDevBrowserIntoSystemSkill = (systemSkillsDir: string): void => {
-  const browserSkillDir = path.join(systemSkillsDir, 'browser');
+  const browserSkillDir = path.join(systemSkillsDir, '_builtin', 'browser');
   if (!existsSync(browserSkillDir)) return;
 
   const target = resolveAiDevBrowserPackageDir();
@@ -556,6 +588,28 @@ const linkAiDevBrowserIntoSystemSkill = (systemSkillsDir: string): void => {
   }
 };
 
+const clearBuiltinSkillsCacheDir = async (systemSkillsDir: string): Promise<void> => {
+  if (!existsSync(systemSkillsDir)) return;
+
+  const entries = await fs.readdir(systemSkillsDir);
+  await Promise.all(
+    entries.map(async (entry) => {
+      const entryPath = path.join(systemSkillsDir, entry);
+      try {
+        const stat = await fs.lstat(entryPath);
+        if (stat.isSymbolicLink() || !stat.isDirectory()) {
+          await fs.unlink(entryPath);
+          return;
+        }
+      } catch {
+        // Fall back to rm below when the entry changes while syncing.
+      }
+
+      await fs.rm(entryPath, { recursive: true, force: true });
+    })
+  );
+};
+
 const syncBuiltinSkillsToUserDir = async (): Promise<void> => {
   const builtinSkillsDir = resolveBuiltinResourceDir('skills');
   if (!existsSync(builtinSkillsDir)) {
@@ -573,13 +627,16 @@ const syncBuiltinSkillsToUserDir = async (): Promise<void> => {
     if (!existsSync(userSystemSkillsDir)) {
       mkdirSync(userSystemSkillsDir);
     }
+    // Mirror bundled skills into _system/. This removes stale builtin skills
+    // that existed in an older app version but no longer ship in the bundle.
+    await clearBuiltinSkillsCacheDir(userSystemSkillsDir);
     // 复制 skills/* 到 _system/，其中资源目录自带 _builtin 子目录
     // Copy skills/* into _system/; the bundled resources already contain the _builtin subdirectory
     await copyDirectoryRecursively(builtinSkillsDir, userSystemSkillsDir, { overwrite: true });
-    mainLog('Sudowork', 'Builtin skills synced to _system/ (overwrite)');
+    mainLog('Sudowork', 'Builtin skills synced to _system/ (mirror overwrite)');
 
     // Remove image-analysis skill from user dir — it's config-disabled (see
-    // SudoclawInstallService ensureDefaultConfig/repairOpenClawConfig) because
+    // SudoclawInstallService ensureDefaultConfig/repairSudoclawConfig) because
     // it spawns a separate LLM subprocess that breaks the orchestrating LLM's
     // browser-session context. But if we leave the files on disk, the LLM can
     // (and empirically does) bypass the skill registry by invoking the bash
@@ -833,34 +890,16 @@ const getBuiltinAssistants = (): AcpBackendConfig[] => {
 };
 
 /**
- * 创建默认的 MCP 服务器配置
+ * Default MCP server entries to seed a brand-new user's mcp.config with.
+ *
+ * Previously seeded a disabled `chrome-devtools` MCP server. Removed when
+ * sudowork's browser stack consolidated onto the bundled ai-dev-browser
+ * (Python CLI invoked from openclaw + the NavigationInterceptor preview-open
+ * path). No replacement default is needed: ai-dev-browser is not an MCP
+ * server, and there are no other browser-domain MCP defaults we want to
+ * pre-populate.
  */
-const getDefaultMcpServers = (): IMcpServer[] => {
-  const now = Date.now();
-  const defaultConfig = {
-    mcpServers: {
-      'chrome-devtools': {
-        command: 'npx',
-        args: ['-y', 'chrome-devtools-mcp@latest'],
-      },
-    },
-  };
-
-  return Object.entries(defaultConfig.mcpServers).map(([name, config], index) => ({
-    id: `mcp_default_${now}_${index}`,
-    name,
-    description: `Default MCP server: ${name}`,
-    enabled: false, // 默认不启用，让用户手动开启
-    transport: {
-      type: 'stdio' as const,
-      command: config.command,
-      args: config.args,
-    },
-    createdAt: now,
-    updatedAt: now,
-    originalJson: JSON.stringify({ [name]: config }, null, 2),
-  }));
-};
+const getDefaultMcpServers = (): IMcpServer[] => [];
 
 /**
  * 启动时清理异常遗留的健康检测临时会话
@@ -989,6 +1028,18 @@ const initStorage = async () => {
       const updatedAgents = [...existingAgents];
       let hasChanges = false;
 
+      // 首先清理不再存在于内置列表中的旧内置助手
+      // First, clean up old built-in assistants that are no longer in the built-in list
+      const builtinIds = new Set(builtinAssistants.map(a => a.id));
+      for (let i = updatedAgents.length - 1; i >= 0; i--) {
+        const agent = updatedAgents[i];
+        // 如果是以 builtin- 开头，但在当前内置列表中找不到，则删除
+        if (agent.id && agent.id.startsWith('builtin-') && !builtinIds.has(agent.id)) {
+          updatedAgents.splice(i, 1);
+          hasChanges = true;
+        }
+      }
+
       for (const builtin of builtinAssistants) {
         const index = updatedAgents.findIndex((a: AcpBackendConfig) => a.id === builtin.id);
         if (index >= 0) {
@@ -1078,6 +1129,29 @@ const initStorage = async () => {
   // Wait for both assistant config and database init to complete
   await Promise.all([assistantsPromise, dbPromise]);
 
+  // 7. Migrate channel agent to scode (Sudo Code)
+  // 渠道 agent 迁移到 scode (Sudo Code)
+  const CHANNEL_AGENT_MIGRATION_KEY = 'migration.channelAgentMigratedToScode';
+  const channelAgentMigrationDone = await configFile.get(CHANNEL_AGENT_MIGRATION_KEY).catch(() => false);
+  if (!channelAgentMigrationDone) {
+    try {
+      const CHANNEL_AGENT_KEYS = ['assistant.telegram.agent', 'assistant.lark.agent', 'assistant.dingtalk.agent', 'assistant.wechat.agent', 'assistant.wecom.agent'] as const;
+      for (const key of CHANNEL_AGENT_KEYS) {
+        const saved = await configFile.get(key).catch((): undefined => undefined);
+        if (saved && typeof saved === 'object' && (saved as any).backend === 'openclaw-gateway') {
+          (saved as any).backend = 'scode';
+          (saved as any).name = 'Sudo Code';
+          await configFile.set(key, saved);
+          mainLog('Sudowork', `Migrated ${key} from openclaw-gateway to scode`);
+        }
+      }
+      await configFile.set(CHANNEL_AGENT_MIGRATION_KEY, true);
+      mainLog('Sudowork', 'Channel agent migration to scode completed');
+    } catch (error) {
+      mainError('Sudowork', 'Failed to migrate channel agent:', error);
+    }
+  }
+
   perfLog('initStorage.total', Date.now() - startTime);
 
   application.systemInfo.provider(() => {
@@ -1116,30 +1190,57 @@ export { getAssistantsDir, getHubAssistantsDir, getSystemAssistantsDir, getCusto
  */
 const skillsContentCache = new Map<string, string>();
 const SKILL_HUB_META_FILE = '_sudowork_meta.json';
+const MOSS_SKILL_META_FILE = '_moss_meta.json';
+
+/**
+ * Read skill metadata file, trying both Moss and Sudowork meta file names
+ * Enterprise mode: _moss_meta.json (primary), _sudowork_meta.json (fallback)
+ * Personal mode: _sudowork_meta.json (primary), _moss_meta.json (fallback)
+ */
+async function readSkillMetaFileWithFallback(skillDir: string): Promise<{ enabled?: boolean } | null> {
+  const isEnterprise = isEnterpriseMode();
+  const metaFiles = isEnterprise ? [MOSS_SKILL_META_FILE, SKILL_HUB_META_FILE] : [SKILL_HUB_META_FILE, MOSS_SKILL_META_FILE];
+
+  for (const fileName of metaFiles) {
+    const filePath = path.join(skillDir, fileName);
+    try {
+      const raw = await fs.readFile(filePath, 'utf-8');
+      return JSON.parse(raw) as { enabled?: boolean };
+    } catch {
+      // Try next file
+    }
+  }
+  return null;
+}
 
 export async function isUserSkillEnabled(skillName: string): Promise<boolean> {
-  // Search in all subdirectories for the skill metadata
   const subdirs = [SKILL_SUBDIRS.custom, SKILL_SUBDIRS.hub, SKILL_SUBDIRS.system];
+
+  // First check if skill exists in any _disable directory (disabled via directory move)
   for (const subdir of subdirs) {
-    const skillMetaPath = path.join(getSkillsDir(), subdir, skillName, SKILL_HUB_META_FILE);
-    try {
-      const raw = await fs.readFile(skillMetaPath, 'utf-8');
-      const meta = JSON.parse(raw) as { enabled?: boolean };
+    const disabledSkillDir = path.join(getSkillsDir(), subdir, '_disable', skillName);
+    if (existsSync(disabledSkillDir)) {
+      return false;
+    }
+  }
+
+  // Search in all subdirectories for the skill metadata
+  for (const subdir of subdirs) {
+    const skillDir = path.join(getSkillsDir(), subdir, skillName);
+    const meta = await readSkillMetaFileWithFallback(skillDir);
+    if (meta) {
       return meta.enabled !== false;
-    } catch {
-      // Not found in this subdir, continue
     }
   }
 
   // Fallback: check legacy flat path for backward compatibility
-  const legacyMetaPath = path.join(getSkillsDir(), skillName, SKILL_HUB_META_FILE);
-  try {
-    const raw = await fs.readFile(legacyMetaPath, 'utf-8');
-    const meta = JSON.parse(raw) as { enabled?: boolean };
+  const legacySkillDir = path.join(getSkillsDir(), skillName);
+  const meta = await readSkillMetaFileWithFallback(legacySkillDir);
+  if (meta) {
     return meta.enabled !== false;
-  } catch {
-    return true;
   }
+
+  return true;
 }
 
 /**

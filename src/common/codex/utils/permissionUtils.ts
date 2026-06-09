@@ -79,6 +79,17 @@ const PERMISSION_CONFIGS: Record<PermissionType, PermissionConfig> = {
     severity: PermissionSeverity.LOW,
     options: createPermissionOptions(PermissionType.FILE_READ),
   },
+  // CREDENTIAL_AUTOLOGIN is rendered by a standalone Arco modal in Phase 1
+  // (see src/renderer/components/PwdLoginApprovalModal.tsx), not by the codex
+  // permission pipeline. This entry exists only to satisfy the Record<> type.
+  // Phase 2 agent-triggered flow may revisit and wire a real config here.
+  [PermissionType.CREDENTIAL_AUTOLOGIN]: {
+    titleKey: 'codex.permissions.titles.credential_autologin',
+    descriptionKey: 'codex.permissions.descriptions.credential_autologin',
+    icon: '🔐',
+    severity: PermissionSeverity.HIGH,
+    options: createPermissionOptions(PermissionType.CREDENTIAL_AUTOLOGIN),
+  },
 };
 
 /**

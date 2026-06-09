@@ -103,6 +103,8 @@ export const generateHashWithFullName = (fullName: string): string => {
   return Math.abs(hash).toString(16).padStart(8, '0'); //.slice(0, 8);
 };
 
+const IGNORE_DIRS = new Set(['node_modules', '.git', '__pycache__', '.venv', 'venv', '.idea', '.vscode', 'dist', 'build', '.next', 'out', '.sandbox-home', '.sandbox-tmp']);
+
 // 递归读取目录内容，返回树状结构
 export async function readDirectoryRecursive(
   dirPath: string,
@@ -124,7 +126,10 @@ export async function readDirectoryRecursive(
   const matchSearch = searchText ? (fullPath: string) => fullPath.includes(searchText) : (_: string) => false;
 
   const checkStatus = () => {
-    if (abortController.signal.aborted) throw new Error('readDirectoryRecursive aborted!');
+    if (!abortController?.signal.aborted) return;
+    const error = new Error('readDirectoryRecursive aborted!');
+    error.name = 'AbortError';
+    throw error;
   };
 
   const stats = await fs.stat(dirPath);
@@ -151,7 +156,7 @@ export async function readDirectoryRecursive(
 
   for (const item of items) {
     checkStatus();
-    if (item === 'node_modules') continue;
+    if (item === 'node_modules' || IGNORE_DIRS.has(item)) continue;
     const itemPath = path.join(dirPath, item);
     if (fileService && fileService.shouldIgnoreFile(itemPath)) continue;
 
@@ -211,7 +216,7 @@ export async function readDirectoryRecursive(
   result.children.sort((a, b) => {
     if (a.isDir && !b.isDir) return -1;
     if (!a.isDir && b.isDir) return 1;
-    return a.name.localeCompare(b.name);
+    return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
   });
   return result;
 }
@@ -312,8 +317,6 @@ export async function verifyDirectoryFiles(dir1: string, dir2: string): Promise<
     return false;
   }
 }
-
-const IGNORE_DIRS = new Set(['node_modules', '.git', '__pycache__', '.venv', 'venv', '.idea', '.vscode', 'dist', 'build', '.next']);
 
 /**
  * Recursively expand directory paths to individual file paths.

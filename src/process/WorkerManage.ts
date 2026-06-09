@@ -6,8 +6,8 @@
 
 import type { TChatConversation } from '@/common/storage';
 import AcpAgent from './task/AcpAgent';
-import OpenClawAgent from './task/OpenClawAgent';
-import { ProcessChat } from './initStorage';
+import RemoteAgent from './task/RemoteAgent';
+import { ProcessChat, ProcessConfig } from './initStorage';
 import type AgentBaseTask from './task/BaseAgent';
 import { getDatabase } from './database/export';
 import { mainLog, mainError } from '@process/utils/mainLogger';
@@ -42,29 +42,80 @@ const buildConversation = (conversation: TChatConversation, options?: BuildConve
   }
 
   switch (conversation.type) {
-    case 'acp': {
-      const task = new AcpAgent({
-        ...conversation.extra,
+    case 'remote-agent': {
+      // Enterprise mode: connect to Moss Server / 企业模式：连接 Moss Server
+      const extra = conversation.extra as {
+        mossServerUrl?: string;
+        authToken?: string;
+        username?: string;
+        password?: string;
+        acpWsUrl?: string;
+        mossSessionId?: string;
+        mossSessionPending?: boolean;
+        presetAssistantId?: string;
+        agentName?: string;
+        dangerouslySkipPermissions?: boolean;
+        runtimeType?: 'host' | 'docker';
+      };
+
+      // Moss Server URL must be configured in enterprise settings
+      // Moss Server URL 必须在企业设置中配置
+      // Do NOT use hardcoded default value - read from enterprise config instead
+      // 不使用硬编码默认值 - 从企业配置读取
+      const mossServerUrl = extra?.mossServerUrl;
+      if (!mossServerUrl) {
+        mainError('WorkerManage', 'Moss Server URL not configured for remote-agent conversation');
+        return null;
+      }
+      let authToken = extra?.authToken || '';
+      if (!authToken) {
+        try {
+          const authStorage = ProcessConfig.getSync('eeclaw.authStorage');
+          if (authStorage?.access_token) {
+            authToken = authStorage.access_token;
+          }
+        } catch {
+          /* ignore */
+        }
+      }
+      const wsUrl = extra?.acpWsUrl;
+      const mossSessionPending = extra?.mossSessionPending;
+      const mossSessionId = extra?.mossSessionId;
+
+      const task = new RemoteAgent({
         conversation_id: conversation.id,
-        // Runtime options / 运行时选项
+        workspace: conversation.extra?.workspace,
+        serverUrl: mossServerUrl,
+        authToken,
+        username: extra?.username,
+        password: extra?.password,
+        assistantName: extra?.presetAssistantId || extra?.agentName,
+        dangerouslySkipPermissions: options?.yoloMode ?? extra?.dangerouslySkipPermissions,
+        runtimeType: extra?.runtimeType,
         yoloMode: options?.yoloMode,
+        // Resume mode: use existing wsUrl and sessionId
+        // 恢复模式：使用已有的 wsUrl 和 sessionId
+        wsUrl,
+        sessionId: mossSessionPending ? undefined : mossSessionId || conversation.id,
+        // Lazy creation: pass mossSessionPending flag
+        // 延迟创建：传递 mossSessionPending 标志
+        mossSessionPending,
+        // Enabled skills: passed for non-assistant sessions
+        // When assistant is specified, Moss Server will use assistant's config
+        // 启用的技能：用于非助手会话；当指定助手时，Moss Server 会使用助手配置
+        enabledSkills: conversation.extra?.enabledSkills,
       });
+
       if (!options?.skipCache) {
         taskList.push({ id: conversation.id, task });
       }
       return task;
     }
-    case 'openclaw-gateway': {
-      // Try to get model from multiple sources (priority: openclawModelId > runtimeValidation > model)
-      const modelFromOpenClawModelId = (conversation.extra as any).openclawModelId;
-      const modelFromRuntimeValidation = (conversation.extra as any).runtimeValidation?.expectedModel;
-      const modelFromConfig = (conversation.extra as any).model;
-
-      const task = new OpenClawAgent({
+    case 'acp': {
+      // Local ACP agent / 本地 ACP Agent
+      const task = new AcpAgent({
         ...conversation.extra,
         conversation_id: conversation.id,
-        // Extract model: prefer openclawModelId (per-conversation), then runtimeValidation, then model
-        model: modelFromOpenClawModelId || modelFromRuntimeValidation || modelFromConfig,
         // Runtime options / 运行时选项
         yoloMode: options?.yoloMode,
       });
@@ -109,6 +160,13 @@ const getTaskByIdRollbackBuild = async (id: string, options?: BuildConversationO
     return buildConversation(conversation, options);
   }
 
+  // Note: Enterprise mode (Moss Server) conversations are now handled by RemoteConversationProvider
+  // 注意：企业模式（Moss Server）会话现在由 RemoteConversationProvider 处理
+  // The Provider layer manages session creation/resume, so WorkerManage no longer needs
+  // Moss fallback logic here. See src/process/providers/RemoteConversationProvider.ts
+  // Provider 层管理会话创建/恢复，因此 WorkerManage 不再需要 Moss 回退逻辑
+  // 参见 src/process/providers/RemoteConversationProvider.ts
+
   mainError('WorkerManage', 'Conversation not found in database or file storage:', id);
   return Promise.reject(new Error('Conversation not found'));
 };
@@ -118,16 +176,25 @@ const kill = (id: string) => {
   if (index === -1) return;
   const task = taskList[index];
   if (task) {
-    task.task.kill();
+    void task.task.kill();
   }
   taskList.splice(index, 1);
 };
 
-const clear = () => {
-  taskList.forEach((item) => {
-    item.task.kill();
+const clear = async (): Promise<void> => {
+  const killPromises = taskList.map((item) => {
+    try {
+      const result = item.task.kill();
+      return result instanceof Promise ? result : Promise.resolve();
+    } catch (err) {
+      mainError('WorkerManage', `Failed to kill task ${item.id}:`, err);
+      return Promise.resolve();
+    }
   });
   taskList.length = 0;
+  // Wait for all agent child processes to terminate.
+  // This prevents orphaned scode processes on Windows when the app quits.
+  await Promise.allSettled(killPromises);
 };
 
 const addTask = (id: string, task: AgentBaseTask<unknown>) => {
@@ -170,35 +237,6 @@ const updateActiveAgentWorkspace = (oldPath: string, newPath: string): number =>
   return updatedCount;
 };
 
-/** Send SIGUSR1 to the ServiceManager-owned Sudoclaw gateway for hot-reload (skills) */
-const reloadOpenClawSkills = async (): Promise<void> => {
-  const { serviceManager } = await import('./services/serviceManager');
-  serviceManager.sendReloadSignal();
-};
-
-/** Restart the Sudoclaw gateway (via ServiceManager) and reconnect all agent WebSockets */
-const restartOpenClawGateways = async (): Promise<void> => {
-  const { serviceManager } = await import('./services/serviceManager');
-  await serviceManager.restartOpenClaw();
-  // restartOpenClaw() already calls reconnectOpenClawAgents()
-};
-
-/** Reconnect all active openclaw-gateway agents' WebSocket connections (no gateway restart) */
-const reconnectOpenClawAgents = (): void => {
-  const openclawTasks = taskList.filter((item) => item.task.type === 'openclaw-gateway');
-  for (const { id, task } of openclawTasks) {
-    const agent = task as OpenClawAgent;
-    agent
-      .restartGateway()
-      .then(() => {
-        mainLog('WorkerManage', 'Reconnected OpenClaw agent for', id);
-      })
-      .catch((err) => {
-        mainError('WorkerManage', `Failed to reconnect OpenClaw agent for ${id}`, err);
-      });
-  }
-};
-
 const WorkerManage = {
   buildConversation,
   getTaskById,
@@ -208,9 +246,6 @@ const WorkerManage = {
   kill,
   clear,
   updateActiveAgentWorkspace,
-  reloadOpenClawSkills,
-  restartOpenClawGateways,
-  reconnectOpenClawAgents,
 };
 
 export default WorkerManage;

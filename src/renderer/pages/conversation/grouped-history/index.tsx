@@ -8,7 +8,7 @@ import type { TChatConversation } from '@/common/storage';
 import { ipcBridge } from '@/common';
 import DirectorySelectionModal from '@/renderer/components/DirectorySelectionModal';
 import FlexFullContainer from '@/renderer/components/FlexFullContainer';
-import { CronJobIndicator, useCronJobsMap } from '@/renderer/pages/cron';
+import { useCronJobsMap } from '@/renderer/pages/cron';
 import { emitter } from '@/renderer/utils/emitter';
 import { DndContext, DragOverlay, closestCenter } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
@@ -28,9 +28,9 @@ import { useConversationActions } from './hooks/useConversationActions';
 import { useConversations } from './hooks/useConversations';
 import { useDragAndDrop } from './hooks/useDragAndDrop';
 import { useExport } from './hooks/useExport';
-import type { ConversationRowProps, WorkspaceGroupedHistoryProps } from './types';
+import type { ConversationRowProps, ConversationItem, WorkspaceGroupedHistoryProps } from './types';
 
-const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSessionClick, collapsed = false, tooltipEnabled = false, batchMode = false, onBatchModeChange }) => {
+const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSessionClick, collapsed = false, tooltipEnabled = false, batchMode = false, onBatchModeChange, activeTab = 'timeline' }) => {
   const { id } = useParams();
   const { t } = useTranslation();
   const { getJobStatus, markAsRead, setActiveConversation } = useCronJobsMap();
@@ -43,7 +43,31 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
     }
   }, [id, setActiveConversation]);
 
-  const { conversations, expandedWorkspaces, pinnedConversations, timelineSections, scheduledGroups, handleToggleWorkspace } = useConversations();
+  const { conversations, expandedWorkspaces, pinnedTimeline, pinnedScheduled, timelineSections, scheduledGroups, handleToggleWorkspace } = useConversations();
+
+  // Select pinned list based on active tab
+  const pinnedConversations = activeTab === 'scheduled' ? pinnedScheduled : pinnedTimeline;
+
+  // Filter out pinned conversations from scheduled groups to avoid duplicates
+  // Only filter based on pinnedScheduled (pinned in scheduled tab)
+  const currentPinnedIds = useMemo(() => new Set(pinnedScheduled.map((c) => c.id)), [pinnedScheduled]);
+  const filteredScheduledGroups = useMemo(() => {
+    return scheduledGroups
+      .map((group) => {
+        const conversations = group.conversations.filter((conversation) => !currentPinnedIds.has(conversation.id));
+        return {
+          ...group,
+          conversations,
+          latestConversationTime: conversations[0]?.createTime || 0,
+        };
+      })
+      .filter((group) => group.conversations.length > 0)
+      .sort((a, b) => {
+        const timeDiff = b.latestConversationTime - a.latestConversationTime;
+        if (timeDiff !== 0) return timeDiff;
+        return b.jobId.localeCompare(a.jobId);
+      });
+  }, [scheduledGroups, currentPinnedIds]);
 
   // ── Timeline section collapse state ──
   const TIMELINE_EXPANSION_KEY = 'aionui_timeline_expansion';
@@ -120,9 +144,19 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
     return [];
   });
 
-  const handleToggleScheduled = useCallback((jobName: string) => {
+  const handleToggleScheduled = useCallback((jobId: string, jobName: string) => {
     setExpandedScheduled((prev) => {
-      const next = prev.includes(jobName) ? prev.filter((n) => n !== jobName) : [...prev, jobName];
+      const currentKeys = new Set(prev);
+      const currentlyExpanded = currentKeys.has(jobId) || currentKeys.has(jobName);
+
+      currentKeys.delete(jobId);
+      currentKeys.delete(jobName);
+
+      if (!currentlyExpanded) {
+        currentKeys.add(jobId);
+      }
+
+      const next = Array.from(currentKeys);
       try {
         localStorage.setItem(SCHEDULED_EXPANSION_KEY, JSON.stringify(next));
       } catch {
@@ -164,6 +198,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
 
   const { renameModalVisible, renameModalName, setRenameModalName, renameLoading, dropdownVisibleId, handleConversationClick, handleDeleteClick, handleBatchDelete, handleEditStart, handleRenameConfirm, handleRenameCancel, handleTogglePin, handleMenuVisibleChange, handleOpenMenu } = useConversationActions({
     batchMode,
+    activeTab,
     onSessionClick,
     onBatchModeChange,
     selectedConversationIds,
@@ -173,20 +208,20 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
   });
 
   const { exportTask, exportModalVisible, exportTargetPath, exportModalLoading, exportFinished, showExportDirectorySelector, setShowExportDirectorySelector, closeExportModal, handleSelectExportDirectoryFromModal, handleSelectExportFolder, handleExportConversation, handleBatchExport, handleConfirmExport } = useExport({
-    conversations,
+    conversations: conversations as TChatConversation[],
     selectedConversationIds,
     setSelectedConversationIds,
     onBatchModeChange,
   });
 
   const { sensors, activeId, activeConversation, handleDragStart, handleDragEnd, handleDragCancel, isDragEnabled } = useDragAndDrop({
-    pinnedConversations,
+    pinnedConversations: pinnedConversations as TChatConversation[],
     batchMode,
     collapsed,
   });
 
   const getConversationRowProps = useCallback(
-    (conversation: TChatConversation): ConversationRowProps => ({
+    (conversation: ConversationItem): ConversationRowProps => ({
       conversation,
       collapsed,
       tooltipEnabled,
@@ -207,7 +242,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
     [collapsed, tooltipEnabled, batchMode, selectedConversationIds, id, dropdownVisibleId, toggleSelectedConversation, handleConversationClick, handleOpenMenu, handleMenuVisibleChange, handleEditStart, handleDeleteClick, handleExportConversation, handleTogglePin, getJobStatus]
   );
 
-  const renderConversation = (conversation: TChatConversation) => {
+  const renderConversation = (conversation: ConversationItem) => {
     const rowProps = getConversationRowProps(conversation);
     return <ConversationRow key={conversation.id} {...rowProps} />;
   };
@@ -215,11 +250,21 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
   // Collect all sortable IDs for the pinned section
   const pinnedIds = useMemo(() => pinnedConversations.map((c) => c.id), [pinnedConversations]);
 
-  if (timelineSections.length === 0 && pinnedConversations.length === 0) {
+  if (activeTab === 'timeline' && timelineSections.length === 0 && pinnedConversations.length === 0) {
     return (
       <FlexFullContainer>
         <div className='flex-center'>
           <Empty description={t('conversation.history.noHistory')} />
+        </div>
+      </FlexFullContainer>
+    );
+  }
+
+  if (activeTab === 'scheduled' && filteredScheduledGroups.length === 0 && pinnedConversations.length === 0) {
+    return (
+      <FlexFullContainer>
+        <div className='flex-center'>
+          <Empty description={t('conversation.history.noScheduledTask')} />
         </div>
       </FlexFullContainer>
     );
@@ -333,7 +378,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
               <Button className='!w-full !justify-center !min-w-0 !h-30px !px-8px !text-12px whitespace-nowrap' size='mini' type='secondary' onClick={handleBatchExport}>
                 {t('conversation.history.batchExport')}
               </Button>
-              <Button className='!w-full !justify-center !min-w-0 !h-30px !px-8px !text-12px whitespace-nowrap' size='mini' status='warning' onClick={handleBatchDelete}>
+              <Button className='!w-full !justify-center !min-w-0 !h-30px !px-8px !text-12px whitespace-nowrap' size='mini' status='warning' onClick={() => handleBatchDelete(conversations)}>
                 {t('conversation.history.batchDelete')}
               </Button>
             </div>
@@ -342,38 +387,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
       )}
 
       <div className='size-full overflow-y-auto overflow-x-hidden'>
-        {/* ── SCHEDULED SECTION ── */}
-        {scheduledGroups.length > 0 && (
-          <div className='mb-8px min-w-0'>
-            {!collapsed && (
-              <div className='chat-history__section px-12px py-8px text-13px text-t-secondary font-bold flex items-center gap-6px cursor-pointer hover:text-t-primary transition-colors select-none' onClick={handleToggleScheduledSection}>
-                <Down size={12} className={classNames('line-height-0 transition-transform duration-200 flex-shrink-0', scheduledSectionExpanded ? 'rotate-0' : '-rotate-90')} />
-                <span>{t('cron.sidebar.scheduled', { defaultValue: 'Scheduled' })}</span>
-              </div>
-            )}
-            {(collapsed || scheduledSectionExpanded) &&
-              scheduledGroups.map(({ jobName, conversations: cronConvs }) => {
-                const isExpanded = expandedScheduled.includes(jobName);
-                return (
-                  <div key={jobName} className={classNames('min-w-0', { 'px-8px': !collapsed })}>
-                    <WorkspaceCollapse
-                      expanded={isExpanded}
-                      onToggle={() => handleToggleScheduled(jobName)}
-                      siderCollapsed={collapsed}
-                      header={
-                        <div className='flex items-center gap-8px text-14px min-w-0'>
-                          <span className='font-medium truncate flex-1 text-t-primary min-w-0'>{jobName}</span>
-                        </div>
-                      }
-                    >
-                      <div className={classNames('flex flex-col gap-2px min-w-0', { 'mt-4px': !collapsed })}>{cronConvs.map((conv) => renderConversation(conv))}</div>
-                    </WorkspaceCollapse>
-                  </div>
-                );
-              })}
-          </div>
-        )}
-
+        {/* ── PINNED SECTION ── */}
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragCancel={handleDragCancel}>
           {pinnedConversations.length > 0 && (
             <div className='mb-8px min-w-0'>
@@ -381,7 +395,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
               <SortableContext items={pinnedIds} strategy={verticalListSortingStrategy}>
                 <div className='min-w-0'>
                   {pinnedConversations.map((conversation) => {
-                    const props = getConversationRowProps(conversation);
+                    const props = getConversationRowProps(conversation as ConversationItem);
                     return isDragEnabled ? <SortableConversationRow key={conversation.id} {...props} /> : <ConversationRow key={conversation.id} {...props} />;
                   })}
                 </div>
@@ -392,62 +406,95 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
           <DragOverlay dropAnimation={null}>{activeId && activeConversation ? <DragOverlayContent conversation={activeConversation} /> : null}</DragOverlay>
         </DndContext>
 
-        {timelineSections.map((section) => {
-          const sectionExpanded = isTimelineSectionExpanded(section.timeline);
-          return (
-            <div key={section.timeline} className='mb-8px min-w-0'>
-              {!collapsed && (
-                <div className='chat-history__section px-12px py-8px text-13px text-t-secondary font-bold flex items-center gap-6px cursor-pointer hover:text-t-primary transition-colors select-none' onClick={() => handleToggleTimeline(section.timeline)}>
-                  <Down size={12} className={classNames('line-height-0 transition-transform duration-200 flex-shrink-0', sectionExpanded ? 'rotate-0' : '-rotate-90')} />
-                  <span>{section.timeline}</span>
-                </div>
-              )}
+        {/* ── SCHEDULED SECTION (Scheduled tab only) ── */}
+        {activeTab === 'scheduled' && filteredScheduledGroups.length > 0 && (
+          <div className='mb-8px min-w-0'>
+            {!collapsed && (
+              <div className='chat-history__section px-12px py-8px text-13px text-t-secondary font-bold flex items-center gap-6px cursor-pointer hover:text-t-primary transition-colors select-none' onClick={handleToggleScheduledSection}>
+                <Down size={12} className={classNames('line-height-0 transition-transform duration-200 flex-shrink-0', scheduledSectionExpanded ? 'rotate-0' : '-rotate-90')} />
+                <span>{t('cron.sidebar.scheduled', { defaultValue: 'Scheduled' })}</span>
+              </div>
+            )}
+            {(collapsed || scheduledSectionExpanded) &&
+              filteredScheduledGroups.map(({ jobId, jobName, conversations: cronConvs }) => {
+                const isExpanded = expandedScheduled.includes(jobId) || expandedScheduled.includes(jobName);
+                return (
+                  <div key={jobId} className={classNames('min-w-0', { 'px-8px': !collapsed })}>
+                    <WorkspaceCollapse
+                      expanded={isExpanded}
+                      onToggle={() => handleToggleScheduled(jobId, jobName)}
+                      siderCollapsed={collapsed}
+                      header={
+                        <div className='flex items-center gap-8px text-14px min-w-0'>
+                          <span className='font-medium truncate flex-1 text-t-primary min-w-0'>{jobName}</span>
+                        </div>
+                      }
+                    >
+                      <div className={classNames('flex flex-col gap-2px min-w-0', { 'mt-4px': !collapsed })}>{cronConvs.map((conv) => renderConversation(conv as ConversationItem))}</div>
+                    </WorkspaceCollapse>
+                  </div>
+                );
+              })}
+          </div>
+        )}
 
-              {(collapsed || sectionExpanded) &&
-                section.items.map((item) => {
-                  if (item.type === 'workspace' && item.workspaceGroup) {
-                    const group = item.workspaceGroup;
-                    return (
-                      <div key={group.workspace} className={classNames('min-w-0 group', { 'px-8px': !collapsed })}>
-                        <WorkspaceCollapse
-                          expanded={expandedWorkspaces.includes(group.workspace)}
-                          onToggle={() => handleToggleWorkspace(group.workspace)}
-                          siderCollapsed={collapsed}
-                          header={
-                            <div className='flex items-center gap-8px text-14px min-w-0'>
-                              <span className='font-medium truncate flex-1 text-t-primary min-w-0'>{group.displayName}</span>
-                              <button
-                                type='button'
-                                className='opacity-0 group-hover:opacity-100 hover:text-t-primary text-t-secondary flex-shrink-0 border-none bg-transparent p-0 cursor-pointer transition-opacity'
-                                title={t('conversation.workspace.renameWorkspace.title')}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleWorkspaceRenameStart(group.workspace, group.displayName);
-                                }}
-                              >
-                                <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
-                                  <path d='M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7' />
-                                  <path d='M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z' />
-                                </svg>
-                              </button>
-                            </div>
-                          }
-                        >
-                          <div className={classNames('flex flex-col gap-2px min-w-0', { 'mt-4px': !collapsed })}>{group.conversations.map((conversation) => renderConversation(conversation))}</div>
-                        </WorkspaceCollapse>
-                      </div>
-                    );
-                  }
+        {activeTab === 'timeline' &&
+          timelineSections.map((section) => {
+            const sectionExpanded = isTimelineSectionExpanded(section.timeline);
+            return (
+              <div key={section.timeline} className='mb-8px min-w-0'>
+                {!collapsed && (
+                  <div className='chat-history__section px-12px py-8px text-13px text-t-secondary font-bold flex items-center gap-6px cursor-pointer hover:text-t-primary transition-colors select-none' onClick={() => handleToggleTimeline(section.timeline)}>
+                    <Down size={12} className={classNames('line-height-0 transition-transform duration-200 flex-shrink-0', sectionExpanded ? 'rotate-0' : '-rotate-90')} />
+                    <span>{section.timeline}</span>
+                  </div>
+                )}
 
-                  if (item.type === 'conversation' && item.conversation) {
-                    return renderConversation(item.conversation);
-                  }
+                {(collapsed || sectionExpanded) &&
+                  section.items.map((item) => {
+                    if (item.type === 'workspace' && item.workspaceGroup) {
+                      const group = item.workspaceGroup;
+                      return (
+                        <div key={group.workspace} className={classNames('min-w-0 group', { 'px-8px': !collapsed })}>
+                          <WorkspaceCollapse
+                            expanded={expandedWorkspaces.includes(group.workspace)}
+                            onToggle={() => handleToggleWorkspace(group.workspace)}
+                            siderCollapsed={collapsed}
+                            header={
+                              <div className='flex items-center gap-8px text-14px min-w-0'>
+                                <span className='font-medium truncate flex-1 text-t-primary min-w-0'>{group.displayName}</span>
+                                <button
+                                  type='button'
+                                  className='opacity-0 group-hover:opacity-100 hover:text-t-primary text-t-secondary flex-shrink-0 border-none bg-transparent p-0 cursor-pointer transition-opacity'
+                                  title={t('conversation.workspace.renameWorkspace.title')}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleWorkspaceRenameStart(group.workspace, group.displayName);
+                                  }}
+                                >
+                                  <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
+                                    <path d='M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7' />
+                                    <path d='M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z' />
+                                  </svg>
+                                </button>
+                              </div>
+                            }
+                          >
+                            <div className={classNames('flex flex-col gap-2px min-w-0', { 'mt-4px': !collapsed })}>{group.conversations.map((conversation) => renderConversation(conversation as ConversationItem))}</div>
+                          </WorkspaceCollapse>
+                        </div>
+                      );
+                    }
 
-                  return null;
-                })}
-            </div>
-          );
-        })}
+                    if (item.type === 'conversation' && item.conversation) {
+                      return renderConversation(item.conversation as ConversationItem);
+                    }
+
+                    return null;
+                  })}
+              </div>
+            );
+          })}
       </div>
     </FlexFullContainer>
   );

@@ -4,13 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { AcpBackend, AcpBackendConfig, AcpModelInfo, PresetAgentType } from '@/types/acpTypes';
+import type { AcpBackend, AcpBackendAll, AcpBackendConfig, AcpModelInfo, PresetAgentType } from '@/types/acpTypes';
 
 /**
  * Available agent entry returned by the backend.
+ * backend is AcpBackendAll which includes 'remote-agent' (enterprise mode).
  */
 export type AvailableAgent = {
-  backend: AcpBackend;
+  backend: AcpBackendAll;
   name: string;
   cliPath?: string;
   customAgentId?: string;
@@ -21,6 +22,12 @@ export type AvailableAgent = {
   presetAgentType?: PresetAgentType | string;
   isExtension?: boolean;
   extensionName?: string;
+  /** Enterprise-specific metadata for remote-agent */
+  enterpriseMetadata?: {
+    mossServerUrl?: string;
+    authMode?: 'api_key' | 'password' | 'access_token';
+    runtimeType?: 'host' | 'docker';
+  };
 };
 
 /**

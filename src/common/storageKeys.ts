@@ -23,6 +23,15 @@ export const STORAGE_KEYS = {
   /** Active tab on the right-side workspace card: 'files' | 'skills' (issue #293) */
   WORKSPACE_ACTIVE_TAB: 'aionui_workspace_active_tab',
 
+  /** Active tab in the right-side panel: 'workspace' | 'browser' | 'terminal' */
+  RIGHT_PANEL_ACTIVE_TAB: 'aionui_right_panel_active_tab',
+
+  /** Last browser URL in the right-side browser panel */
+  RIGHT_PANEL_BROWSER_URL: 'aionui_right_panel_browser_url',
+
+  /** Conversation panel collapse state / 会话面板折叠状态 */
+  CONVERSATION_PANEL_COLLAPSE: 'aionui_conversation_panel_collapsed',
+
   /** Conversation tabs state / 会话 tabs 状态 */
   CONVERSATION_TABS: 'aionui_conversation_tabs',
 

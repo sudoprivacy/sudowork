@@ -23,10 +23,12 @@ const LocalImageView: React.FC<{
 
   const absolutePath = useMemo(() => {
     if (!root) return src;
-    if (src.startsWith('http') || src.startsWith('data:') || src.startsWith('/') || src.startsWith('file:') || src.startsWith('\\') || /^[A-Za-z]:/.test(src)) {
-      return src;
+    // Strip Windows extended-length path prefix \\?\ if present
+    const cleanSrc = src.replace(/^\\\\\?\\/, '');
+    if (cleanSrc.startsWith('http') || cleanSrc.startsWith('data:') || cleanSrc.startsWith('/') || cleanSrc.startsWith('file:') || cleanSrc.startsWith('\\') || /^[A-Za-z]:/.test(cleanSrc)) {
+      return cleanSrc;
     }
-    return joinPath(root, src);
+    return joinPath(root, cleanSrc);
   }, [src, root]);
 
   // Initialize loading state and update when absolutePath changes

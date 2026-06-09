@@ -9,7 +9,7 @@
  * Shown on the right side of the assistant header in the GUID page.
  */
 
-import type { AcpBackend } from '@/types/acpTypes';
+import { normalizePresetAgentType, type AcpBackend } from '@/types/acpTypes';
 import { getAgentLogo } from '@/renderer/utils/agentLogo';
 import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import type { AvailableAgent } from '../types';
@@ -31,7 +31,7 @@ const BUILTIN_AGENT_OPTIONS: AgentOption[] = [
   { value: 'opencode', label: 'OpenCode' },
   { value: 'qwen', label: 'Qwen Code' },
   { value: 'codebuddy', label: 'CodeBuddy' },
-  { value: 'sudoclaw', label: 'SudoClaw', backendId: 'openclaw-gateway' },
+  { value: 'scode', label: 'Sudo Code', backendId: 'scode' },
 ];
 
 type AssistantAgentDropdownProps = {
@@ -41,7 +41,9 @@ type AssistantAgentDropdownProps = {
   disabled?: boolean;
 };
 
-const AssistantAgentDropdown: React.FC<AssistantAgentDropdownProps> = ({ availableAgents, currentAgentType, onSelectAgent, disabled }) => {
+const AssistantAgentDropdown: React.FC<AssistantAgentDropdownProps> = ({ availableAgents, currentAgentType, onSelectAgent, disabled: _disabled }) => {
+  // Main agent dropdown is currently locked - only Sudo Code is supported
+  const disabled = true;
   const [visible, setVisible] = useState(false);
 
   // Build set of available backends from detected agents
@@ -63,7 +65,7 @@ const AssistantAgentDropdown: React.FC<AssistantAgentDropdownProps> = ({ availab
   }, [availableAgents, availableBackends]);
 
   // Resolve current agent logo
-  const effectiveBackend = currentAgentType === 'sudoclaw' ? 'openclaw-gateway' : currentAgentType;
+  const effectiveBackend = normalizePresetAgentType(currentAgentType) || currentAgentType;
   const currentLogo = getAgentLogo(effectiveBackend);
 
   // Try extension avatar if no built-in logo
@@ -108,7 +110,7 @@ const AssistantAgentDropdown: React.FC<AssistantAgentDropdownProps> = ({ availab
                 <span className='flex-1 text-14px' style={{ color: 'var(--color-text-1)' }}>
                   {opt.label}
                 </span>
-                {isSelected && <Check theme='outline' size={16} style={{ color: 'rgb(var(--primary-6))', flexShrink: 0 }} />}
+                {isSelected && <Check theme='outline' size={16} style={{ color: 'var(--ui-accent-orange)', flexShrink: 0 }} />}
               </div>
             );
           })}

@@ -13,7 +13,7 @@ import { getAllDirKeys } from '../utils/treeHelpers';
 
 interface UseWorkspaceEventsOptions {
   conversation_id: string;
-  eventPrefix: 'acp' | 'openclaw-gateway';
+  eventPrefix: 'acp' | 'remote-agent';
   // Absolute workspace root path — used to install an inotify-style recursive
   // directory watcher so the tree refreshes automatically when files change
   // outside of the agent event stream (manual file ops, external tools, etc.).
@@ -34,6 +34,8 @@ interface UseWorkspaceEventsOptions {
   setContextMenu: React.Dispatch<React.SetStateAction<ContextMenuState>>;
   closeRenameModal: () => void;
   closeDeleteModal: () => void;
+  readonly?: boolean;
+  dataSource?: 'local' | 'moss-session';
 }
 
 /**
@@ -45,7 +47,7 @@ interface UseWorkspaceEventsOptions {
  * file-system event globally.
  */
 export function useWorkspaceEvents(options: UseWorkspaceEventsOptions) {
-  const { conversation_id, eventPrefix, workspace, refreshWorkspace, clearSelection, setFiles, setSelected, setExpandedKeys, setTreeKey, selectedNodeRef, selectedKeysRef, closeContextMenu, setContextMenu, closeRenameModal, closeDeleteModal } = options;
+  const { conversation_id, eventPrefix, workspace, refreshWorkspace, clearSelection, setFiles, setSelected, setExpandedKeys, setTreeKey, selectedNodeRef, selectedKeysRef, closeContextMenu, setContextMenu, closeRenameModal, closeDeleteModal, readonly = false, dataSource = 'local' } = options;
 
   // Keep the latest refreshWorkspace callable stable for the watcher debounce
   // callback so we don't have to tear the watcher down and rebuild it on every
@@ -67,7 +69,8 @@ export function useWorkspaceEvents(options: UseWorkspaceEventsOptions) {
   useEffect(() => {
     setFiles([]);
     setSelected([]);
-    setExpandedKeys([]);
+    // 不要在这里重置展开状态，由 useWorkspaceTree 的 useEffect 负责处理（读取 localStorage 或清空）
+    // Do not reset expanded keys here, handled by useWorkspaceTree's useEffect (reading localStorage or clearing)
     selectedNodeRef.current = null;
     selectedKeysRef.current = [];
     setTreeKey(Math.random());
@@ -75,9 +78,7 @@ export function useWorkspaceEvents(options: UseWorkspaceEventsOptions) {
     closeRenameModal();
     closeDeleteModal();
     refreshWorkspace();
-    if (eventPrefix === 'openclaw-gateway') {
-      emitter.emit('openclaw-gateway.selected.file', conversation_id, []);
-    } else {
+    if (eventPrefix === 'acp') {
       emitter.emit('acp.selected.file', []);
     }
   }, [conversation_id, eventPrefix]); // Only depend on conversation_id to avoid infinite loop
@@ -85,22 +86,90 @@ export function useWorkspaceEvents(options: UseWorkspaceEventsOptions) {
   /**
    * 监听 Agent 响应流 - 自动刷新工作空间
    * Listen to agent response stream - auto refresh workspace
-   * OpenClaw uses ACP protocol, emits acp_tool_call on tool calls
    */
   useEffect(() => {
+    if (dataSource === 'moss-session') {
+      return undefined;
+    }
+
     const handleAcpResponse = (data: { type: string }) => {
       if (data.type === 'acp_tool_call' || data.type === 'codex_tool_call') {
         refreshWorkspace();
       }
     };
     const unsubscribeAcp = ipcBridge.acpConversation.responseStream.on(handleAcpResponse);
-    const unsubscribeOpenClaw = ipcBridge.openclawConversation.responseStream.on(handleAcpResponse);
 
     return () => {
       unsubscribeAcp();
-      unsubscribeOpenClaw();
     };
-  }, []); // Empty dependency - event listeners are stable, refreshWorkspace is captured from closure
+  }, [dataSource]); // event listeners are stable, refreshWorkspace is captured from closure
+
+  useEffect(() => {
+    if (dataSource !== 'moss-session') {
+      return undefined;
+    }
+
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    let followUpTimer: ReturnType<typeof setTimeout> | null = null;
+    const scheduleRefresh = (delay = 300) => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        debounceTimer = null;
+        refreshRef.current();
+      }, delay);
+    };
+    const scheduleFollowUpRefresh = (delay = 1200) => {
+      if (followUpTimer) clearTimeout(followUpTimer);
+      followUpTimer = setTimeout(() => {
+        followUpTimer = null;
+        refreshRef.current();
+      }, delay);
+    };
+
+    const unsubscribeStream = ipcBridge.conversation.responseStream.on((message) => {
+      if (message.conversation_id !== conversation_id) return;
+
+      if (message.type === 'agent_status') {
+        const status = (message.data as { status?: string } | undefined)?.status;
+        if (status === 'session_active') {
+          scheduleRefresh();
+        }
+        return;
+      }
+
+      if (message.type === 'acp_tool_call') {
+        const status = (message.data as { status?: string } | undefined)?.status;
+        if (!status || status === 'completed') {
+          scheduleRefresh();
+        }
+        return;
+      }
+
+      if (message.type === 'content' || message.type === 'finish') {
+        scheduleRefresh();
+        scheduleFollowUpRefresh();
+      }
+    });
+
+    const unsubscribeConversation = ipcBridge.database.conversationChanged.on((event) => {
+      if (event.conversationId === conversation_id && event.action === 'updated') {
+        scheduleRefresh();
+      }
+    });
+
+    return () => {
+      if (debounceTimer) {
+        clearTimeout(debounceTimer);
+        debounceTimer = null;
+      }
+      if (followUpTimer) {
+        clearTimeout(followUpTimer);
+        followUpTimer = null;
+      }
+      unsubscribeStream();
+      unsubscribeConversation();
+    };
+  }, [conversation_id, dataSource]);
 
   /**
    * inotify 风格的工作空间目录监听 — 任何文件/子目录变化都会触发刷新
@@ -116,7 +185,7 @@ export function useWorkspaceEvents(options: UseWorkspaceEventsOptions) {
   const lastDirRefreshAtRef = useRef(0);
 
   useEffect(() => {
-    if (!workspace) return;
+    if (!workspace || readonly || dataSource === 'moss-session') return;
 
     let cancelled = false;
     let localWatchId: string | null = null;
@@ -175,7 +244,7 @@ export function useWorkspaceEvents(options: UseWorkspaceEventsOptions) {
       }
       watchIdRef.current = null;
     };
-  }, [workspace]);
+  }, [workspace, readonly, dataSource]);
 
   /**
    * 监听手动刷新工作空间事件
@@ -192,14 +261,13 @@ export function useWorkspaceEvents(options: UseWorkspaceEventsOptions) {
   /**
    * 监听选中文件变化事件（sendbox 中关闭标签时同步状态）(#1083)
    * Listen to selected files change event (sync state when closing tags in sendbox)
-   * OpenClaw uses (conversation_id, items) format; others use (items) only.
    */
   useAddEventListener(
     `${eventPrefix}.selected.file`,
     (...args: [Array<{ path: string; name: string; isFile: boolean; relativePath?: string }>] | [string, Array<{ path: string; name: string; isFile: boolean; relativePath?: string }>]) => {
-      const items = eventPrefix === 'openclaw-gateway' ? (args[1] as Array<{ path: string; name: string; isFile: boolean; relativePath?: string }>) : (args[0] as Array<{ path: string; name: string; isFile: boolean; relativePath?: string }>);
+      if (eventPrefix === 'remote-agent') return;
+      const items = args[0] as Array<{ path: string; name: string; isFile: boolean; relativePath?: string }>;
       if (!Array.isArray(items)) return;
-      if (eventPrefix === 'openclaw-gateway' && args[0] !== conversation_id) return;
 
       // Extract relative paths from items, filter out files (only keep folders in tree selection)
       // 从 items 中提取相对路径，过滤掉文件（树选中状态只保留文件夹）

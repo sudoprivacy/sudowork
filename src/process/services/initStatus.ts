@@ -5,7 +5,7 @@
  */
 
 /**
- * Initialization status for runtime dependencies (Node.js, Sudoclaw, Git, etc.)
+ * Initialization status for runtime dependencies (Node.js, Sudocode, Git, etc.)
  */
 
 export type InitPhase = 'pending' | 'installing' | 'ready' | 'error';
@@ -25,7 +25,7 @@ export interface InitStatus {
   /** Which loading UI should be rendered. */
   displayMode?: InitDisplayMode;
   error?: string;
-  /** Current installation step id: 'git' | 'node' | 'claude' | 'sudoclaw' | 'nexus' | 'bdpan' */
+  /** Current installation step id: 'git' | 'node' | 'claude' | 'scode' | 'nexus' | 'bdpan' */
   step?: string;
   /** Detail message for current step (e.g. "Extracting files... 45%") */
   detail?: string;

@@ -11,8 +11,8 @@
  * then serving from memory during runtime.
  */
 
-import type { SecretStoreClient } from './secret-store-client.js';
-import { getSecretStoreClient } from './secret-store.js';
+import type { NexusSecretClient } from './nexus-secret-client.js';
+import { getNexusSecretClient } from './nexus-secret-client.js';
 
 // ============================================================================
 // Types
@@ -32,7 +32,7 @@ export interface MigrationMap {
 class SecretCacheImpl {
   private cache = new Map<string, string>(); // key: "namespace:key" -> 明文值
   private migrated = new Set<string>(); // 已迁移的 secretRef 集合
-  private client: SecretStoreClient | null = null;
+  private client: NexusSecretClient | null = null;
   private initialized = false;
 
   /**
@@ -41,7 +41,7 @@ class SecretCacheImpl {
    * Called once at startup.
    */
   initialize(): void {
-    this.client = getSecretStoreClient();
+    this.client = getNexusSecretClient();
   }
 
   /**
@@ -61,7 +61,7 @@ class SecretCacheImpl {
       const secrets = await this.client.listSecrets();
       console.log('[SecretCache] listSecrets returned:', secrets.length, 'secrets');
       for (const secret of secrets) {
-        if (secret.deletedAt) {
+        if (secret.deleted) {
           continue; // Skip deleted secrets
         }
         console.log('[SecretCache] Getting secret:', secret.namespace, secret.key);
@@ -109,6 +109,15 @@ class SecretCacheImpl {
     if (this.client) {
       this.client.putSecret(namespace, key, value).catch((error) => console.error(`[SecretCache] Failed to write secret ${ref} to Nexus:`, error));
     }
+  }
+
+  /**
+   * Remove a cache entry.
+   * Keeps the entry in the migrated set (secret remains migrated in Nexus,
+   * just not available locally). After delete, resolveSecret() returns empty string.
+   */
+  delete(namespace: string, key: string): void {
+    this.cache.delete(`${namespace}:${key}`);
   }
 
   /**
@@ -201,4 +210,13 @@ export function putSecretToNexus(namespace: string, key: string, value: string):
  */
 export function markMigrated(namespace: string, key: string, value: string): void {
   secretCache.markMigrated(namespace, key, value);
+}
+
+/**
+ * Synchronous removal of a cache entry.
+ * Used after soft-deleting a secret from Nexus to ensure Auth Proxy
+ * no longer injects the deleted secret.
+ */
+export function cacheDelete(namespace: string, key: string): void {
+  secretCache.delete(namespace, key);
 }

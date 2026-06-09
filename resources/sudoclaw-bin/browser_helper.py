@@ -1,22 +1,13 @@
-"""sudowork `browser` dispatcher helper (sudowork-side).
+"""sudowork `browser` dispatcher helper.
 
 Invoked by the thin `browser` (bash) / `browser.cmd` (Windows) wrappers as:
 
-    python browser_helper.py <tool> [args]
-    python browser_helper.py --list
-    python browser_helper.py --help
+    python3 browser_helper.py <tool> [args]
+    python3 browser_helper.py --list
+    python3 browser_helper.py --help
 
-Underlying runtime is the upstream `ai_dev_browser` Python package; we expose
-it to the LLM as `browser` instead of `aidb` because the self-explanatory
-name cuts down on LLM "what is aidb?" probing from the tool list alone.
-
-Why a Python helper and not a pure shell dispatcher: sudowork's safety hook
-(`AdbStdoutCapture`) can't tee the wrapper's stdout at the Node layer
-without deadlocking openclaw's paused-mode stream reader on Windows —
-attaching `.on('data')` flips the child pipe to flowing mode and cmd.exe
-then blocks on its own write. So the wrapper captures and POSTs to the
-sudowork sidechannel itself. The hook still covers direct `python -m
-ai_dev_browser.tools.*` invocations that don't go through our wrapper.
+Runs `ai_dev_browser.tools.<name>` under the hood, captures stdout/stderr,
+and POSTs results to the sudowork sidechannel.
 """
 
 from __future__ import annotations
@@ -33,35 +24,29 @@ import urllib.request
 
 
 def _browser_skill_dir() -> pathlib.Path:
-    """The sudowork system-skills browser dir that holds the junction to
-    the upstream ai_dev_browser package.
+    """Locate the browser skill directory containing the ai_dev_browser symlink.
 
-    We intentionally do NOT trust `PYTHONPATH` here: openclaw's exec tool
-    sanitizes the host env and strips `PYTHONPATH` (along with other
-    interpreter-path vars) before spawning children, so by the time this
-    helper runs we're guaranteed to see an empty/absent PYTHONPATH even
-    though sudowork sets it on the gateway process. Resolving the skill
-    path directly from `~/.nexus/skills/_system/browser` makes the
-    helper self-sufficient and decouples it from openclaw's env-security
-    policy.
+    SSOT: PYTHONPATH is set by sudowork (acpConnectors.ts) and points to
+    the correct skill dir. scode sandbox only rewrites HOME/TMPDIR, not
+    PYTHONPATH, so this is reliable.
     """
-    return pathlib.Path.home() / ".nexus" / "skills" / "_system" / "browser"
+    pythonpath = os.environ.get("PYTHONPATH", "")
+    for entry in pythonpath.split(os.pathsep):
+        candidate = pathlib.Path(entry)
+        if (candidate / "ai_dev_browser").is_dir():
+            return candidate
+    # Fallback for direct invocation outside sudowork
+    try:
+        import pwd
+        home = pathlib.Path(pwd.getpwuid(os.getuid()).pw_dir)
+    except Exception:
+        home = pathlib.Path(os.path.expanduser("~"))
+    return home / ".nexus" / "skills" / "_system" / "_builtin" / "browser"
 
 
 def _ensure_ai_dev_browser_on_sys_path() -> None:
-    """Prepend the sudowork skill dir to `sys.path` so `import
-    ai_dev_browser` resolves to the junction-linked upstream package
-    rather than any stale pip-installed copy that might be sitting in
-    the invoking Python's site-packages (e.g. a leftover
-    `pip install ai-dev-browser` from earlier dev work).
-
-    Without this, a developer who once ran `pip install -e` on the
-    package into their venv gets that stale copy forever, and the
-    LLM sees whatever docstrings / tool signatures were current when
-    the install happened — not what the submodule is pinned to today.
-    The breakage mode is subtle (no error, just wrong content) and was
-    the root cause of the 2026-04-18 lis8 e2e investigation, so we fix
-    it once and for all at import time.
+    """Prepend the browser skill dir to sys.path so `import ai_dev_browser`
+    resolves to the sudowork-vendored package, not a stale pip install.
     """
     skill_dir = _browser_skill_dir()
     if not skill_dir.is_dir():
@@ -161,14 +146,8 @@ def _post_sidechannel(
     visible = stdout if stdout.strip() else stderr
     import hashlib
 
-    # cmd and cmdHash are the correlation keys the sudowork side uses to
-    # pop the right sidechannel entry for a given tool_call event. The
-    # normalization here (collapse internal whitespace, strip ends) must
-    # stay byte-identical to what sudowork's `OpenClawAgent` does on the
-    # tool_call event's `args.command` field — they both feed the same
-    # sha1. Any drift makes the hash miss and sudowork falls back to
-    # global FIFO, which is racy when tool_calls parallelize (lis8 e2e
-    # step 23/24 observed).
+    # cmdHash is the correlation key for the sidechannel. Normalization
+    # (collapse whitespace, strip ends) must match the sudowork side.
     cmd_str = "browser " + " ".join(argv)
     cmd_norm = " ".join(cmd_str.split())
     cmd_hash = hashlib.sha1(cmd_norm.encode("utf-8")).hexdigest()

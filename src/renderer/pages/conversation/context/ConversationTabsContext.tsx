@@ -19,7 +19,7 @@ export interface ConversationTab {
   /** 工作空间路径 / Workspace path */
   workspace: string;
   /** 会话类型 / Conversation type */
-  type: 'acp' | 'openclaw-gateway';
+  type: 'acp' | 'remote-agent';
   /** 是否有未保存的修改 / Whether there are unsaved changes */
   isDirty?: boolean;
   /** 会话创建时间 / Conversation creation time */

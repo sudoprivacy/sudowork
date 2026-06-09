@@ -4,20 +4,19 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { CodexToolCallUpdate, IMessageAcpToolCall, IMessageToolGroup, TMessage } from '@/common/chatLib';
+import type { CodexToolCallUpdate, IMessageAcpToolCall, IMessageToolGroup, TMessage, TurnTokenUsage } from '@/common/chatLib';
+import { ipcBridge } from '@/common';
 import { useConversationContextSafe } from '@/renderer/context/ConversationContext';
 import { iconColors } from '@/renderer/theme/colors';
 import { CHAT_MESSAGE_JUMP_EVENT, type ChatMessageJumpDetail } from '@/renderer/utils/chatMinimapEvents';
 import { Image, Message } from '@arco-design/web-react';
 import { Down } from '@icon-park/react';
 import MessageAcpPermission from '@renderer/messages/acp/MessageAcpPermission';
+import MessageAcpQuestion from '@renderer/messages/acp/MessageAcpQuestion';
 import MessageAcpToolCall from '@renderer/messages/acp/MessageAcpToolCall';
 import MessageAgentStatus from '@renderer/messages/MessageAgentStatus';
 import classNames from 'classnames';
 import React, { createContext, useEffect, useMemo } from 'react';
-import sudoclawProDark from '@/renderer/assets/sudoclaw_transparent_large.png';
-import sudoclawProWhite from '@/renderer/assets/sudoclaw_transparent_large.png';
-import sudoworkIconDark from '@/renderer/assets/sudowork-icon-dark.svg';
 import { useTranslation } from 'react-i18next';
 import { Virtuoso } from 'react-virtuoso';
 import { uuid } from '../utils/common';
@@ -43,6 +42,7 @@ import { stripThinkTags, hasThinkTags } from '../utils/thinkTagFilter';
 import { NEXUS_FILES_MARKER } from '@/common/constants';
 import { shouldShowTimeSeparator } from '@/renderer/utils/messageTime';
 import MessageTimeSeparator from './MessageTimeSeparator';
+import MessageLoadingIndicator from './MessageLoadingIndicator';
 
 type TurnDiffContent = Extract<CodexToolCallUpdate, { subtype: 'turn_diff' }>;
 
@@ -54,52 +54,41 @@ type IMessageVO =
       id: string;
       messages: Array<IMessageToolGroup | IMessageAcpToolCall>;
     }
-  | { type: 'turn_actions'; id: string; turnTexts: string[]; conversationId?: string }
-  | { type: 'time_separator'; id: string; timestamp: number };
+  | { type: 'turn_actions'; id: string; turnTexts: string[]; turnTextsRaw: string[]; conversationId?: string; tokenUsage?: TurnTokenUsage }
+  | { type: 'time_separator'; id: string; timestamp: number }
+  | { type: 'loading_indicator'; id: string };
 
 // Image preview context
 export const ImagePreviewContext = createContext<{ inPreviewGroup: boolean }>({ inPreviewGroup: false });
 
-// Helper to detect current theme
-const isDarkMode = () => {
-  if (typeof document === 'undefined') return false;
-  return document.documentElement.getAttribute('data-theme') === 'dark';
+const isUserFacingAcpToolCall = (message: IMessageAcpToolCall): boolean => {
+  const title = message.content?.update?.title;
+  return title === 'AskUserQuestion' || title === 'SendUserMessage';
 };
 
-const MessageItem: React.FC<{ message: TMessage; isStreaming?: boolean }> = React.memo(
+const MessageItem: React.FC<{ message: TMessage; isStreaming?: boolean; footer?: React.ReactNode }> = React.memo(
   HOC((props) => {
-    const { message, isStreaming } = props as { message: TMessage; isStreaming?: boolean };
+    const { message } = props as { message: TMessage; footer?: React.ReactNode };
     const isAiMessage = message.position === 'left';
-    const [darkMode, setDarkMode] = React.useState(() => isDarkMode());
 
-    React.useEffect(() => {
-      const observer = new MutationObserver(() => {
-        setDarkMode(isDarkMode());
-      });
-      observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-      return () => observer.disconnect();
-    }, []);
-
-    const streamingAvatar = isStreaming ? (darkMode ? sudoclawProDark : sudoclawProWhite) : sudoworkIconDark;
-    const avatarSize = isStreaming ? 'w-40px h-40px' : 'w-24px h-24px';
     return (
       <div
         data-message-id={message.id}
-        className={classNames('min-w-0 flex items-start message-item [&>div]:max-w-full px-8px m-t-10px max-w-full md:max-w-780px mx-auto group', message.type, {
+        className={classNames('min-w-0 flex w-full box-border message-item [&>div]:max-w-full m-t-10px max-w-full md:max-w-800px mx-auto group', message.type, {
+          'items-start': !isAiMessage,
           'justify-center': message.position === 'center',
           'justify-end': message.position === 'right',
           'justify-start': message.position === 'left',
         })}
       >
-        {isAiMessage && <img src={streamingAvatar} alt='AI Avatar' className={`flex-shrink-0 mr-12px mt-4px ${avatarSize} object-contain`} />}
-        {props.children}
+        <div className={classNames('min-w-0', isAiMessage ? 'w-full' : 'flex-none w-fit')}>{props.children}</div>
       </div>
     );
-  })(({ message, isStreaming }) => {
+  })(({ message, isStreaming, footer }) => {
     const { t } = useTranslation();
     switch (message.type) {
       case 'text':
-        return <MessageText message={message} isStreaming={isStreaming}></MessageText>;
+        return <MessageText message={message} isStreaming={isStreaming} footer={footer}></MessageText>;
       case 'tips':
         return <MessageTips message={message}></MessageTips>;
       case 'tool_call':
@@ -110,6 +99,8 @@ const MessageItem: React.FC<{ message: TMessage; isStreaming?: boolean }> = Reac
         return <MessageAgentStatus message={message}></MessageAgentStatus>;
       case 'acp_permission':
         return <MessageAcpPermission message={message}></MessageAcpPermission>;
+      case 'acp_question':
+        return <MessageAcpQuestion message={message}></MessageAcpQuestion>;
       case 'acp_tool_call':
         return <MessageAcpToolCall message={message}></MessageAcpToolCall>;
       case 'codex_permission':
@@ -140,9 +131,20 @@ const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = fal
   const conversationContext = useConversationContextSafe();
   const { t } = useTranslation();
   const [contextMenu, setContextMenu] = React.useState<{ x: number; y: number; items: ContextMenuItem[] } | null>(null);
+  const [showTokenUsageBadges, setShowTokenUsageBadges] = React.useState(false);
   // Track expanded/collapsed state for each tool_summary by id
   // 保存每个 tool_summary 的展开/折叠状态
   const [toolSummaryStates, setToolSummaryStates] = React.useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    void ipcBridge.systemSettings.getShowTokenUsageBadges
+      .invoke()
+      .then(setShowTokenUsageBadges)
+      .catch(() => {});
+    return ipcBridge.systemSettings.showTokenUsageBadgesChanged.on(({ enabled }) => {
+      setShowTokenUsageBadges(enabled);
+    });
+  }, []);
 
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -254,12 +256,16 @@ const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = fal
     let diffsChanges: FileChangeInfo[] = [];
     let toolList: Array<IMessageToolGroup | IMessageAcpToolCall> = [];
     let turnTexts: string[] = [];
+    let turnTextsRaw: string[] = [];
+    let turnTokenUsage: TurnTokenUsage | undefined;
     let lastAiTextId = '';
 
     const flushTurnActions = () => {
       if (turnTexts.length > 0) {
-        result.push({ type: 'turn_actions', id: `turn-actions-${lastAiTextId}`, turnTexts, conversationId: conversationContext?.conversationId });
+        result.push({ type: 'turn_actions', id: `turn-actions-${lastAiTextId}`, turnTexts, turnTextsRaw, conversationId: conversationContext?.conversationId, tokenUsage: turnTokenUsage });
         turnTexts = [];
+        turnTextsRaw = [];
+        turnTokenUsage = undefined;
         lastAiTextId = '';
       }
     };
@@ -301,13 +307,20 @@ const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = fal
       // Collect AI text content for turn-level copy
       if (message.type === 'text' && message.position === 'left') {
         const rawContent = message.content.content;
+        if (message.content.tokenUsage) {
+          turnTokenUsage = message.content.tokenUsage;
+        }
         if (typeof rawContent === 'string' && rawContent.trim()) {
           let cleaned = hasThinkTags(rawContent) ? stripThinkTags(rawContent) : rawContent;
           const markerIdx = cleaned.indexOf(NEXUS_FILES_MARKER);
           if (markerIdx !== -1) cleaned = cleaned.slice(0, markerIdx).trimEnd();
+          // Keep raw markdown with images for sharing
+          const rawCleaned = cleaned;
+          // Strip image syntax for plain text copy
           cleaned = cleaned.replace(/!\[[^\]]*\]\(([^)]+)\)/g, '$1');
           if (cleaned.trim()) {
             turnTexts.push(cleaned);
+            turnTextsRaw.push(rawCleaned);
             lastAiTextId = message.id;
           }
         }
@@ -329,6 +342,11 @@ const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = fal
         continue;
       }
       if (message.type === 'acp_tool_call') {
+        if (isUserFacingAcpToolCall(message)) {
+          toolList = [];
+          diffsChanges = [];
+          continue;
+        }
         pushToolList(message);
         continue;
       }
@@ -336,8 +354,10 @@ const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = fal
       diffsChanges = [];
       result.push(message);
     }
-    // Flush any remaining turn actions at the end
-    flushTurnActions();
+    // Only expose turn actions after the AI stream finishes.
+    if (!aiProcessing) {
+      flushTurnActions();
+    }
 
     // Insert time separators between messages with significant time gaps
     // 在时间间隔较大的消息之间插入时间分隔符
@@ -363,13 +383,21 @@ const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = fal
       }
     }
 
+    const shouldShowLoading = aiProcessing && list.length > 0;
+    if (shouldShowLoading) {
+      withTimeSeparators.push({
+        type: 'loading_indicator',
+        id: 'temp-loading-indicator',
+      });
+    }
+
     return withTimeSeparators;
-  }, [list]);
+  }, [list, aiProcessing]);
 
   // Use auto-scroll hook
   const { virtuosoRef, handleScroll, handleAtBottomStateChange, handleFollowOutput, handleScrollerRef, showScrollButton, scrollToBottom, hideScrollButton, bottomSpacerHeight } = useAutoScroll({
     messages: list,
-    itemCount: processedList.length,
+    items: processedList,
   });
 
   useEffect(() => {
@@ -379,7 +407,7 @@ const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = fal
       if (!conversationContext?.conversationId || detail.conversationId !== conversationContext.conversationId) return;
 
       const targetIndex = processedList.findIndex((item) => {
-        if ((item as { type?: string }).type === 'file_summary' || (item as { type?: string }).type === 'tool_summary' || (item as { type?: string }).type === 'turn_actions' || (item as { type?: string }).type === 'time_separator') {
+        if ((item as { type?: string }).type === 'file_summary' || (item as { type?: string }).type === 'tool_summary' || (item as { type?: string }).type === 'turn_actions' || (item as { type?: string }).type === 'time_separator' || (item as { type?: string }).type === 'loading_indicator') {
           return false;
         }
         const message = item as TMessage;
@@ -412,60 +440,61 @@ const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = fal
   };
 
   const renderItem = (_index: number, item: (typeof processedList)[0]) => {
+    const nextItem = processedList[_index + 1];
+    const turnActionsNode = 'type' in item && nextItem?.type === 'turn_actions' ? <TurnActions turnTexts={nextItem.turnTexts} turnTextsRaw={nextItem.turnTextsRaw} conversationId={nextItem.conversationId} tokenUsage={nextItem.tokenUsage} showTokenUsageBadge={showTokenUsageBadges} /> : undefined;
+
+    if ('type' in item && item.type === 'loading_indicator') {
+      return <MessageLoadingIndicator key={item.id} />;
+    }
     // Render time separator
     if ('type' in item && item.type === 'time_separator') {
       return <MessageTimeSeparator key={item.id} timestamp={(item as { type: 'time_separator'; id: string; timestamp: number }).timestamp} />;
     }
     if ('type' in item && ['file_summary', 'tool_summary'].includes(item.type)) {
-      const isLastItemSummary = _index >= processedList.length - 2;
-      const isStreamingForSummary = item.type === 'tool_summary' && (item.messages.some((m) => m.id === lastAiMessageId) || (aiProcessing && isLastItemSummary));
-      const streamingAvatarForSummary = isStreamingForSummary ? (isDarkMode() ? sudoclawProDark : sudoclawProWhite) : sudoworkIconDark;
-      const avatarSizeForSummary = isStreamingForSummary ? 'w-40px h-40px' : 'w-24px h-24px';
       return (
-        <div key={item.id} data-message-id={item.id} className={'min-w-0 flex items-start message-item px-8px m-t-10px max-w-full md:max-w-780px mx-auto ' + item.type}>
-          <img src={streamingAvatarForSummary} alt='AI Avatar' className={`flex-shrink-0 mr-12px mt-4px ${avatarSizeForSummary} object-contain`} />
-          <div className='flex-1 min-w-0'>
-            {item.type === 'file_summary' && <MessageFileChanges diffsChanges={item.diffs} />}
-            {item.type === 'tool_summary' &&
-              (() => {
-                // Check if this summary is part of the ongoing AI response
-                // 检查这个汇总是否是当前正在进行的 AI 响应的一部分
-                const isLastItem = _index >= processedList.length - 2; // last or second to last (actions)
-                const isStreaming = item.messages.some((m) => m.id === lastAiMessageId) || (aiProcessing && isLastItem);
+        <div key={item.id} data-message-id={item.id} className={'min-w-0 flex w-full flex-col items-start box-border message-item m-t-10px max-w-full md:max-w-800px mx-auto ' + item.type}>
+          <div className='w-full min-w-0 flex flex-col items-start'>
+            <div className='flex w-full min-w-0 justify-start'>
+              {item.type === 'file_summary' && <MessageFileChanges diffsChanges={item.diffs} />}
+              {item.type === 'tool_summary' &&
+                (() => {
+                  // Check if this summary is part of the ongoing AI response
+                  // 检查这个汇总是否是当前正在进行的 AI 响应的一部分
+                  const isLastItem = _index >= processedList.length - 2; // last or second to last (actions)
+                  const isStreaming = item.messages.some((m) => m.id === lastAiMessageId) || (aiProcessing && isLastItem);
 
-                return (
-                  <MessageToolGroupSummary
-                    messages={item.messages}
-                    summaryId={item.id}
-                    // While AI is processing/streaming this block, it MUST be expanded.
-                    // 当 AI 正在处理或流式传输此块时，它必须展开。
-                    isExpanded={isStreamingForSummary ? true : (toolSummaryStates[item.id] ?? false)}
-                    onToggle={(id) => {
-                      // Only allow toggling if it's NOT streaming
-                      if (!isStreamingForSummary) {
-                        setToolSummaryStates((prev) => ({ ...prev, [id]: !prev[id] }));
-                      }
-                    }}
-                    isStreaming={isStreaming}
-                  />
-                );
-              })()}
+                  return (
+                    <MessageToolGroupSummary
+                      messages={item.messages}
+                      summaryId={item.id}
+                      // While AI is processing/streaming this block, it MUST be expanded.
+                      // 当 AI 正在处理或流式传输此块时，它必须展开。
+                      isExpanded={isStreaming ? true : (toolSummaryStates[item.id] ?? false)}
+                      onToggle={(id) => {
+                        // Only allow toggling if it's NOT streaming
+                        if (!isStreaming) {
+                          setToolSummaryStates((prev) => ({ ...prev, [id]: !prev[id] }));
+                        }
+                      }}
+                      isStreaming={isStreaming}
+                    />
+                  );
+                })()}
+            </div>
+            {turnActionsNode && <div className='mt-4px w-full max-w-full'>{turnActionsNode}</div>}
           </div>
         </div>
       );
     }
     if ('type' in item && item.type === 'turn_actions') {
-      return (
-        <div key={item.id} className='group min-w-0 message-item px-8px max-w-full md:max-w-780px mx-auto'>
-          <TurnActions turnTexts={(item as Extract<IMessageVO, { type: 'turn_actions' }>).turnTexts} conversationId={(item as Extract<IMessageVO, { type: 'turn_actions' }>).conversationId} />
-        </div>
-      );
+      return null;
     }
-    return <MessageItem message={item as TMessage} key={(item as TMessage).id} isStreaming={(item as TMessage).id === lastAiMessageId}></MessageItem>;
+    const message = item as TMessage;
+    return <MessageItem message={message} key={message.id} isStreaming={message.id === lastAiMessageId} footer={turnActionsNode}></MessageItem>;
   };
 
   return (
-    <div className='relative flex-1 h-full' onContextMenu={handleContextMenu}>
+    <div className={classNames('relative flex-1 h-full', className)} onContextMenu={handleContextMenu}>
       {/* Context Menu Rendering */}
       {contextMenu && <ContextMenu x={contextMenu.x} y={contextMenu.y} items={contextMenu.items} onClose={() => setContextMenu(null)} />}
       {/* Use PreviewGroup to wrap all messages for cross-message image preview */}
@@ -480,7 +509,7 @@ const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = fal
             // atBottom must encompass the dynamic spacer so "at bottom" still
             // means "the last message is in view" while the user prompt is
             // pinned at the top with an empty canvas below it.
-            atBottomThreshold={bottomSpacerHeight + 100}
+            atBottomThreshold={bottomSpacerHeight + BOTTOM_BUFFER_PX}
             increaseViewportBy={200}
             itemContent={renderItem}
             followOutput={handleFollowOutput}

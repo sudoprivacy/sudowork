@@ -9,7 +9,10 @@ import { assistantManager } from '@/process/AssistantManager';
 import { getAssistantsDir, getHubAssistantsDir, getSystemAssistantsDir, getCustomAssistantsDir } from '@/process/initStorage';
 import { skillManager } from '@/process/SkillManager';
 import { getDatabase } from '@/process/database';
+import { DEFAULT_PRESET_AGENT_TYPE, normalizePresetAgentType } from '@/types/acpTypes';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
+import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
+import { ASSISTANTS_ROOT_DIR, ENTERPRISE_ASSISTANT_SUBDIRS } from '@/process/constants/enterpriseStorage';
 import fs from 'fs/promises';
 import fsSync from 'fs';
 import path from 'path';
@@ -17,14 +20,48 @@ import https from 'node:https';
 import http from 'node:http';
 import JSZip from 'jszip';
 
+const { existsSync } = fsSync;
+
 // Hub API constants (same service as Skill Hub)
-const ASSISTANT_HUB_BASE_URL = 'https://sudoclawhub.sudoprivacy.com/api/assistants';
-const ASSISTANT_HUB_CURSOR_URL = 'https://sudoclawhub.sudoprivacy.com/api/assistants/cursor';
-const ASSISTANT_CATEGORY_URL = 'https://sudoclawhub.sudoprivacy.com/api/categories';
+const ASSISTANT_HUB_BASE_URL = 'https://sudoworkhub.sudoprivacy.com/api/assistants';
+const ASSISTANT_HUB_CURSOR_URL = 'https://sudoworkhub.sudoprivacy.com/api/assistants/cursor';
+const ASSISTANT_CATEGORY_URL = 'https://sudoworkhub.sudoprivacy.com/api/categories';
 const AUTHORIZATION = 'sud0@sudo';
 const ASSISTANT_META_FILE = '_sudowork_meta.json';
+const MOSS_ASSISTANT_META_FILE = '_moss_meta.json';
 
 type AssistantHubMeta = import('@/process/constants/assistantStorage').IAssistantMeta;
+
+/**
+ * Read assistant metadata file, trying both Moss and Sudowork meta file names
+ * Enterprise mode: _moss_meta.json (primary), _sudowork_meta.json (fallback)
+ * Personal mode: _sudowork_meta.json (primary), _moss_meta.json (fallback)
+ */
+async function readAssistantMetaFileWithFallback(assistantDir: string): Promise<{ content: string; fileName: string } | null> {
+  const isEnterprise = isEnterpriseMode();
+  const metaFiles = isEnterprise ? [MOSS_ASSISTANT_META_FILE, ASSISTANT_META_FILE] : [ASSISTANT_META_FILE, MOSS_ASSISTANT_META_FILE];
+
+  for (const fileName of metaFiles) {
+    const filePath = path.join(assistantDir, fileName);
+    try {
+      const content = await fs.readFile(filePath, 'utf-8');
+      return { content, fileName };
+    } catch {
+      // Try next file
+    }
+  }
+  return null;
+}
+
+/**
+ * Write assistant metadata file, using correct file name based on current mode
+ */
+async function writeAssistantMetaFile(assistantDir: string, meta: AssistantHubMeta): Promise<void> {
+  const isEnterprise = isEnterpriseMode();
+  const fileName = isEnterprise ? MOSS_ASSISTANT_META_FILE : ASSISTANT_META_FILE;
+  const filePath = path.join(assistantDir, fileName);
+  await fs.writeFile(filePath, JSON.stringify(meta, null, 2), 'utf-8');
+}
 
 // ==================== Helper Functions ====================
 
@@ -218,18 +255,18 @@ export function initAssistantHubBridge(): void {
     }
   });
 
-  ipcBridge.assistantHub.enableAssistant.provider(async ({ name }) => {
-    const result = await assistantManager.enableAssistant(name);
+  ipcBridge.assistantHub.enableAssistant.provider(async ({ name, category }) => {
+    const result = await assistantManager.enableAssistant(name, category);
     return result.success ? { success: true, data: undefined } : { success: false, msg: result.msg };
   });
 
-  ipcBridge.assistantHub.disableAssistant.provider(async ({ name }) => {
-    const result = await assistantManager.disableAssistant(name);
+  ipcBridge.assistantHub.disableAssistant.provider(async ({ name, category }) => {
+    const result = await assistantManager.disableAssistant(name, category);
     return result.success ? { success: true, data: undefined } : { success: false, msg: result.msg };
   });
 
-  ipcBridge.assistantHub.updateAssistantMeta.provider(async ({ name, updates }) => {
-    const result = await assistantManager.updateAssistantMeta(name, updates);
+  ipcBridge.assistantHub.updateAssistantMeta.provider(async ({ name, updates, category }) => {
+    const result = await assistantManager.updateAssistantMeta(name, updates, category);
     return result.success ? { success: true, data: undefined } : { success: false, msg: result.msg };
   });
 
@@ -248,7 +285,7 @@ export function initAssistantHubBridge(): void {
     return result.success ? { success: true, data: undefined } : { success: false, msg: result.msg };
   });
 
-  ipcBridge.assistantHub.uninstallAssistant.provider(async ({ name }) => {
+  ipcBridge.assistantHub.uninstallAssistant.provider(async ({ name, category }) => {
     // Delete associated conversations before uninstalling assistant
     const deletedConversationIds: string[] = [];
     try {
@@ -275,7 +312,7 @@ export function initAssistantHubBridge(): void {
       mainWarn('AssistantHub', 'Error deleting associated conversations:', dbError);
     }
 
-    const result = await assistantManager.uninstallAssistant(name);
+    const result = await assistantManager.uninstallAssistant(name, category);
 
     // Emit conversationChanged events to notify renderer to refresh conversation list
     if (deletedConversationIds.length > 0) {
@@ -294,8 +331,99 @@ export function initAssistantHubBridge(): void {
   // === Hub API operations ===
 
   // Fetch assistants list from Hub API with cursor-based pagination
-  ipcBridge.assistantHub.fetchAssistants.provider(async ({ cursor, limit = 20, query = '', category = '', tenantId }) => {
+  ipcBridge.assistantHub.fetchAssistants.provider(async ({ cursor, limit = 20, query = '', category = '', tenantId, sourceType }) => {
     try {
+      mainLog('AssistantHub', `fetchAssistants called with tenantId: ${tenantId}, sourceType: ${sourceType}, isEnterpriseMode: ${isEnterpriseMode()}`);
+
+      // 企业模式：从本地 hub/ 或 tenant/ 目录加载已同步的助手
+      if (isEnterpriseMode()) {
+        // 企业模式下，根据 sourceType 决定从哪个目录加载
+        // sourceType='tenant' 表示专属助手，从 tenant/ 目录加载
+        // 其他情况从 hub/ 目录加载
+        const dirType = sourceType === 'tenant' ? 'tenant' : 'hub';
+        const assistantsDir = path.join(ASSISTANTS_ROOT_DIR, ENTERPRISE_ASSISTANT_SUBDIRS[dirType]);
+
+        mainLog('AssistantHub', `Enterprise mode: dirType=${dirType}, loading assistants from ${assistantsDir}`);
+
+        // 读取本地目录中的助手
+        const assistants: IAssistantHubSkill[] = [];
+
+        mainLog('AssistantHub', `Directory exists: ${existsSync(assistantsDir)}`);
+
+        if (existsSync(assistantsDir)) {
+          const entries = await fs.readdir(assistantsDir, { withFileTypes: true });
+          mainLog('AssistantHub', `Found ${entries.length} entries in ${assistantsDir}`);
+
+          for (const entry of entries) {
+            if (!entry.isDirectory()) continue;
+            // Skip directories starting with _ (like _disable)
+            if (entry.name.startsWith('_')) continue;
+
+            const assistantName = entry.name;
+            const assistantDir = path.join(assistantsDir, assistantName);
+
+            // Read metadata first for search filtering
+            const metaResult = await readAssistantMetaFileWithFallback(assistantDir);
+            if (metaResult) {
+              const meta = JSON.parse(metaResult.content) as AssistantHubMeta;
+
+              const displayName = meta.nameI18n?.['en-US'] || meta.nameI18n?.['zh-CN'] || meta.display_name || meta.name || assistantName;
+              const description = meta.descriptionI18n?.['en-US'] || meta.descriptionI18n?.['zh-CN'] || '';
+
+              // Search filter: search by name, display_name, and description
+              if (query) {
+                const queryLower = query.toLowerCase();
+                const nameMatch = assistantName.toLowerCase().includes(queryLower);
+                const displayNameMatch = displayName.toLowerCase().includes(queryLower);
+                const descriptionMatch = description.toLowerCase().includes(queryLower);
+                if (!nameMatch && !displayNameMatch && !descriptionMatch) continue;
+              }
+
+              // Category filter
+              if (category && category !== 'all') {
+                const assistantCategories = meta.categories || [];
+                if (!assistantCategories.includes(category)) continue;
+              }
+
+              assistants.push({
+                id: meta.id || assistantName,
+                name: assistantName,
+                display_name: displayName,
+                description: description,
+                avatar: meta.avatar || null,
+                emoji: meta.emoji || null,
+                categories: meta.categories || [],
+                category: (meta.categories || [])[0] || '',
+                preset_agent_type: meta.presetAgentType || null,
+                skills: meta.enabledSkills || meta.defaultEnabledSkills || [],
+                tag: 'hub' as const,
+                homepage: meta.homepage || null,
+                author_id: meta.author_id || '',
+                star_count: 0,
+                applicable_scenarios: meta.applicable_scenarios || null,
+                core_features: meta.core_features || null,
+                created_at: meta.installed_at || new Date().toISOString(),
+                updated_at: meta.installed_at || new Date().toISOString(),
+                defaultInitPrompt: meta.defaultInitPrompt || null,
+                visible_to: meta.visible_to || null,
+                version: meta.installed_version || '1.0.0',
+              });
+            }
+          }
+        }
+
+        // 企业模式不支持分页，返回所有结果
+        return {
+          success: true,
+          data: {
+            assistants,
+            next_cursor: null,
+            has_more: false,
+          },
+        };
+      }
+
+      // 个人模式：从 SudoPrivacy Assistant Hub API 获取数据
       const params = new URLSearchParams();
       if (cursor) params.set('cursor', cursor);
       if (limit) params.set('limit', String(limit));
@@ -356,6 +484,37 @@ export function initAssistantHubBridge(): void {
   // Fetch assistant categories from Hub API (type=1 for assistants)
   ipcBridge.assistantHub.fetchCategories.provider(async () => {
     try {
+      // 企业模式：从本地 hub/ 目录的 meta 文件中提取分类
+      if (isEnterpriseMode()) {
+        const hubAssistantsDir = path.join(ASSISTANTS_ROOT_DIR, ENTERPRISE_ASSISTANT_SUBDIRS.hub);
+
+        mainLog('AssistantHub', `Enterprise mode: extracting categories from ${hubAssistantsDir}`);
+
+        const categoriesSet = new Set<string>();
+
+        if (existsSync(hubAssistantsDir)) {
+          const entries = await fs.readdir(hubAssistantsDir, { withFileTypes: true });
+          for (const entry of entries) {
+            if (!entry.isDirectory()) continue;
+
+            const assistantName = entry.name;
+            const assistantDir = path.join(hubAssistantsDir, assistantName);
+
+            const metaResult = await readAssistantMetaFileWithFallback(assistantDir);
+            if (metaResult) {
+              const meta = JSON.parse(metaResult.content) as AssistantHubMeta;
+              const assistantCategories = meta.categories || [];
+              for (const cat of assistantCategories) {
+                if (cat) categoriesSet.add(cat);
+              }
+            }
+          }
+        }
+
+        return { success: true, data: Array.from(categoriesSet) };
+      }
+
+      // 个人模式：从 SudoPrivacy Assistant Hub API 获取分类
       const response = await fetch(`${ASSISTANT_CATEGORY_URL}?type=1`, {
         headers: { Authorization: AUTHORIZATION },
       });
@@ -370,6 +529,53 @@ export function initAssistantHubBridge(): void {
   // Fetch assistant detail from Hub API
   ipcBridge.assistantHub.fetchAssistantDetail.provider(async ({ assistantId }) => {
     try {
+      // 企业模式：从本地 hub/ 目录读取详情
+      if (isEnterpriseMode()) {
+        const hubAssistantsDir = path.join(ASSISTANTS_ROOT_DIR, ENTERPRISE_ASSISTANT_SUBDIRS.hub);
+        const assistantDir = path.join(hubAssistantsDir, assistantId);
+
+        mainLog('AssistantHub', `Enterprise mode: loading assistant detail from ${assistantDir}`);
+
+        const metaResult = await readAssistantMetaFileWithFallback(assistantDir);
+        if (!metaResult) {
+          return { success: false, msg: `Assistant "${assistantId}" not found in local hub` };
+        }
+
+        const meta = JSON.parse(metaResult.content) as AssistantHubMeta;
+
+        const assistant: IAssistantHubSkill = {
+          id: meta.id || assistantId,
+          name: assistantId,
+          display_name: meta.nameI18n?.['en-US'] || meta.nameI18n?.['zh-CN'] || assistantId,
+          description: meta.descriptionI18n?.['en-US'] || meta.descriptionI18n?.['zh-CN'] || '',
+          avatar: meta.avatar || null,
+          emoji: meta.emoji || null,
+          categories: meta.categories || [],
+          category: (meta.categories || [])[0] || '',
+          preset_agent_type: meta.presetAgentType || null,
+          skills: meta.enabledSkills || meta.skills || [],
+          tag: 'hub' as const,
+          homepage: meta.homepage || null,
+          author_id: meta.author_id || '',
+          star_count: 0,
+          applicable_scenarios: meta.applicable_scenarios || null,
+          core_features: meta.core_features || null,
+          created_at: meta.installed_at || new Date().toISOString(),
+          updated_at: meta.installed_at || new Date().toISOString(),
+          defaultInitPrompt: meta.defaultInitPrompt || null,
+          visible_to: meta.visible_to || null,
+          version: meta.installed_version || '1.0.0',
+        };
+
+        const detail: IAssistantHubDetail = {
+          assistant,
+          versions: [],
+        };
+
+        return { success: true, data: detail };
+      }
+
+      // 个人模式：从 SudoPrivacy Assistant Hub API 获取详情
       const url = `${ASSISTANT_HUB_BASE_URL}/${assistantId}`;
       const response = await fetch(url, {
         headers: { Authorization: AUTHORIZATION },
@@ -393,7 +599,7 @@ export function initAssistantHubBridge(): void {
       const responses = await Promise.all(
         skillIds.map(async (id) => {
           try {
-            const response = await fetch(`https://sudoclawhub.sudoprivacy.com/api/skills/${id}`, {
+            const response = await fetch(`https://sudoworkhub.sudoprivacy.com/api/skills/${id}`, {
               headers: { Authorization: AUTHORIZATION },
             });
             const data = await response.json();
@@ -484,7 +690,7 @@ export function initAssistantHubBridge(): void {
 
           // Fetch skill detail from Hub to get name and download URL (for non-builtin skills)
           try {
-            const skillDetailResponse = await fetch(`https://sudoclawhub.sudoprivacy.com/api/skills/${skillId}`, {
+            const skillDetailResponse = await fetch(`https://sudoworkhub.sudoprivacy.com/api/skills/${skillId}`, {
               headers: { Authorization: AUTHORIZATION },
             });
             const skillDetailData = await skillDetailResponse.json();
@@ -579,7 +785,11 @@ export function initAssistantHubBridge(): void {
                 installed_version: latestVersion.version,
                 installed_at: new Date().toISOString(),
               };
-              await fs.writeFile(path.join(skillDir, '_sudowork_meta.json'), JSON.stringify(skillMeta, null, 2), 'utf-8');
+              // Use skillHubBridge's writeSkillMetaFile for consistency
+              const { isEnterpriseMode: checkEnterprise } = await import('@/common/enterpriseDebugConfig');
+              const isEnterprise = await checkEnterprise();
+              const skillMetaFileName = isEnterprise ? '_moss_meta.json' : '_sudowork_meta.json';
+              await fs.writeFile(path.join(skillDir, skillMetaFileName), JSON.stringify(skillMeta, null, 2), 'utf-8');
 
               installedSkillNames.push(skillName);
               installedSkillNamesSet.add(skillName); // Update set for subsequent checks
@@ -595,7 +805,6 @@ export function initAssistantHubBridge(): void {
       }
 
       // Write assistant meta with skill IDs in enabledSkills
-      const metaFilePath = path.join(assistantDir, ASSISTANT_META_FILE);
       const meta: AssistantHubMeta = {
         id: assistantMeta.id,
         name: assistantMeta.name,
@@ -603,7 +812,7 @@ export function initAssistantHubBridge(): void {
         descriptionI18n: assistantMeta.description ? { 'zh-CN': assistantMeta.description } : undefined,
         avatar: assistantMeta.avatar || assistantMeta.emoji || undefined,
         emoji: assistantMeta.emoji,
-        presetAgentType: assistantMeta.preset_agent_type || 'sudoclaw',
+        presetAgentType: normalizePresetAgentType(assistantMeta.preset_agent_type) || DEFAULT_PRESET_AGENT_TYPE,
         source_type: assistantMeta.tag === 'system' ? 'builtin' : 'hub',
         tag: assistantMeta.tag || 'hub',
         // skills: store skill IDs (UUID format)
@@ -624,7 +833,7 @@ export function initAssistantHubBridge(): void {
         // Rule file for displaying assistant rules
         ruleFile: ruleFile,
       };
-      await fs.writeFile(metaFilePath, JSON.stringify(meta, null, 2), 'utf-8');
+      await writeAssistantMetaFile(assistantDir, meta);
 
       return {
         success: true,
@@ -684,16 +893,15 @@ export function registerUploadAssistantToHubBridge() {
       }
 
       // Read assistant meta for additional info
-      const metaFilePath = path.join(assistantDir, ASSISTANT_META_FILE);
+      const metaResult = await readAssistantMetaFileWithFallback(assistantDir);
       let assistantMeta: AssistantHubMeta | null = null;
-      try {
-        const metaContent = await fs.readFile(metaFilePath, 'utf-8');
-        assistantMeta = JSON.parse(metaContent) as AssistantHubMeta;
-      } catch {
+      if (metaResult) {
+        assistantMeta = JSON.parse(metaResult.content) as AssistantHubMeta;
+      } else {
         mainWarn('AssistantHub', `No meta file found for assistant "${name}"`);
       }
 
-      // Create zip file (excluding _sudowork_meta.json)
+      // Create zip file (excluding meta files)
       const zip = new JSZip();
       const files = await fs.readdir(assistantDir, { withFileTypes: true });
 
@@ -702,7 +910,8 @@ export function registerUploadAssistantToHubBridge() {
 
       for (const file of files) {
         if (file.isDirectory()) continue;
-        if (file.name === ASSISTANT_META_FILE) continue; // Exclude meta file
+        // Exclude both meta file variants
+        if (file.name === ASSISTANT_META_FILE || file.name === MOSS_ASSISTANT_META_FILE) continue;
 
         const filePath = path.join(assistantDir, file.name);
         const content = await fs.readFile(filePath);

@@ -1,11 +1,19 @@
+name: "/model slash command autocomplete"
+description: "Type / in chat input, verify /model appears in autocomplete dropdown"
+tags: [no-api]
+
 steps:
-  - op: click_element
-    selector: ".conversation-item"
-    wait: 1
+  - op: wait_for_app_ready
+    timeout: 300
+
+  # Type / to trigger autocomplete
   - op: type_text
-    selector: "textarea"
     text: "/"
-    wait: 1
-  - op: check_element
-    js: "document.querySelector('.arco-select-dropdown-list')?.innerText.includes('/model')"
-    expect: true
+  - op: pause
+    duration: 2000
+
+  # Verify autocomplete dropdown shows /model
+  - op: screenshot
+    path: "screenshots/slash-command-model-autocomplete.png"
+  - op: judge
+    expect: "model"

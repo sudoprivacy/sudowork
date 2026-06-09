@@ -24,6 +24,7 @@ import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import { Streamdown } from 'streamdown';
 import MarkdownEditor from '../editors/MarkdownEditor';
+import MermaidDiagram from '../renderers/MermaidDiagram';
 import SelectionToolbar from '../renderers/SelectionToolbar';
 import { useContainerScroll, useContainerScrollTarget } from '../../hooks/useScrollSyncHelpers';
 import { convertLatexDelimiters } from '@/renderer/utils/latexDelimiters';
@@ -425,6 +426,11 @@ const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({ content, onClose, hid
                   const codeContent = String(children).replace(/\n$/, '');
                   const language = match ? match[1] : '';
                   const codeTheme = currentTheme === 'dark' ? vs2015 : vs;
+
+                  // Render Mermaid diagrams
+                  if (language === 'mermaid') {
+                    return <MermaidDiagram code={codeContent} theme={currentTheme} />;
+                  }
 
                   // Render latex/math code blocks as KaTeX display math
                   // Skip full LaTeX documents (with \documentclass, \begin{document}, etc.) — KaTeX only handles math
