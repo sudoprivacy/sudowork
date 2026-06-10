@@ -365,7 +365,7 @@ const Layout: React.FC<{
                   </span>
                 )}
               </div>
-              <div className='flex-1 text-18px text-1 collapsed-hidden font-700 cursor-pointer' onClick={goToNewConversation}>
+              <div className='flex-1 text-20px text-1 collapsed-hidden font-800 cursor-pointer' onClick={goToNewConversation}>
                 {config.app_name}
               </div>
               {/* 桌面端展开态：logo 右侧收起按钮 / Desktop expanded: collapse button to the right of the logo */}
