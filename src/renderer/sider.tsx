@@ -5,7 +5,7 @@ import React, { Suspense, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { iconColors } from './theme/colors';
-import { Button, Dropdown, Message, Popover, Tooltip } from '@arco-design/web-react';
+import { Button, Dropdown, Message, Popover, Tabs, Tooltip } from '@arco-design/web-react';
 import type { BatchHistoryApi } from './pages/conversation/grouped-history/types';
 import { cleanupSiderTooltips, getSiderTooltipProps } from './utils/siderTooltip';
 import { useLayoutContext } from './context/LayoutContext';
@@ -16,7 +16,6 @@ import { ConfigStorage } from '@/common/storage';
 import { useAppMode } from './hooks/useAppMode';
 import { useCronEnabled } from './hooks/useCronEnabled';
 import SidebarNavItem from './components/ui/SidebarNavItem';
-import SidebarSegmentedControl from './components/ui/SidebarSegmentedControl';
 
 const WorkspaceGroupedHistory = React.lazy(() => import('./pages/conversation/WorkspaceGroupedHistory'));
 const SettingsSider = React.lazy(() => import('./pages/settings/SettingsSider'));
@@ -134,12 +133,21 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
 
   // Batch management only applies to conversations (timeline tab); leaving the
   // timeline tab exits batch mode so the popover can't be opened under 定时任务.
-  const batchAvailable = effectiveTab === 'timeline';
+  // Dismiss the batch popover when clicking truly blank space, but keep it open
+  // when interacting with the trigger, the popover itself, or a conversation row
+  // (so ticking row checkboxes doesn't exit batch mode).
   useEffect(() => {
-    if (!batchAvailable && isBatchMode) {
+    if (!isBatchMode) return;
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest('.batch-mode-trigger, .batch-actions-popover, .conversation-item')) {
+        return;
+      }
       setIsBatchMode(false);
-    }
-  }, [batchAvailable, isBatchMode]);
+    };
+    document.addEventListener('mousedown', handlePointerDown);
+    return () => document.removeEventListener('mousedown', handlePointerDown);
+  }, [isBatchMode]);
   const workspaceHistoryProps = {
     collapsed,
     tooltipEnabled: collapsed && !isMobile,
@@ -241,22 +249,24 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
                   feature is enabled; with it off only the timeline remains, so we
                   hide the whole switcher. */}
               {!collapsed && cronEnabled && (
-                <SidebarSegmentedControl
-                  className='flex-1'
-                  value={effectiveTab}
-                  options={[
-                    { value: 'timeline', label: t('conversation.history.timeline', { defaultValue: '对话' }) },
-                    { value: 'scheduled', label: t('conversation.history.scheduledTab', { defaultValue: '定时任务' }) },
-                  ]}
+                <Tabs
+                  className='sidebar-tabs flex-1'
+                  type='line'
+                  activeTab={effectiveTab}
+                  headerPadding={false}
                   onChange={(tab) => {
-                    setActiveTab(tab);
+                    const next = tab as 'timeline' | 'scheduled';
+                    setActiveTab(next);
                     try {
-                      localStorage.setItem(SIDER_TAB_STORAGE_KEY, tab);
+                      localStorage.setItem(SIDER_TAB_STORAGE_KEY, next);
                     } catch {
                       // ignore
                     }
                   }}
-                />
+                >
+                  <Tabs.TabPane key='timeline' title={t('conversation.history.timeline', { defaultValue: '对话' })} />
+                  <Tabs.TabPane key='scheduled' title={t('conversation.history.scheduledTab', { defaultValue: '定时任务' })} />
+                </Tabs>
               )}
               <Popover
                 trigger={[]}
@@ -265,22 +275,22 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
                 className='batch-actions-popover'
                 getPopupContainer={() => document.body}
                 content={
-                    <div className='flex flex-col gap-2px w-170px'>
-                      <div className='px-6px pb-4px text-12px leading-18px text-t-secondary'>{t('conversation.history.selectedCount', { count: batchApi?.selectedCount ?? 0 })}</div>
-                      <Button long size='small' type='text' className='batch-actions-popover__item' onClick={() => batchApi?.onToggleSelectAll()}>
+                    <div className='flex flex-col gap-6px w-180px'>
+                      <div className='px-2px pb-2px text-12px leading-18px text-t-secondary'>{t('conversation.history.selectedCount', { count: batchApi?.selectedCount ?? 0 })}</div>
+                      <Button long type='secondary' className='batch-actions-popover__item' onClick={() => batchApi?.onToggleSelectAll()}>
                         {batchApi?.allSelected ? t('common.cancel') : t('conversation.history.selectAll')}
                       </Button>
-                      <Button long size='small' type='text' className='batch-actions-popover__item' disabled={!batchApi?.selectedCount} onClick={() => batchApi?.onBatchExport()}>
+                      <Button long type='secondary' className='batch-actions-popover__item' disabled={!batchApi?.selectedCount} onClick={() => batchApi?.onBatchExport()}>
                         {t('conversation.history.batchExport')}
                       </Button>
-                      <Button long size='small' type='text' status='danger' className='batch-actions-popover__item' disabled={!batchApi?.selectedCount} onClick={() => batchApi?.onBatchDelete()}>
+                      <Button long type='secondary' status='danger' className='batch-actions-popover__item' disabled={!batchApi?.selectedCount} onClick={() => batchApi?.onBatchDelete()}>
                         {t('conversation.history.batchDelete')}
                       </Button>
                     </div>
                   }
                 >
-                <Tooltip {...siderTooltipProps} disabled={!batchAvailable || siderTooltipProps.disabled} content={isBatchMode ? t('conversation.history.batchModeExit') : t('conversation.history.batchManage')} position='right'>
-                  <div className={classNames('w-32px h-32px flex items-center justify-center rd-8px transition-all shrink-0', !batchAvailable ? 'cursor-not-allowed opacity-40 text-t-secondary' : isBatchMode ? 'cursor-pointer bg-[rgba(var(--ui-accent-orange-rgb),0.12)] text-[var(--ui-accent-orange)]' : 'cursor-pointer hover:bg-hover active:bg-fill-2 text-t-secondary')} onClick={() => batchAvailable && setIsBatchMode((prev) => !prev)}>
+                <Tooltip {...siderTooltipProps} content={isBatchMode ? t('conversation.history.batchModeExit') : t('conversation.history.batchManage')} position='right'>
+                  <div className={classNames('batch-mode-trigger w-32px h-32px flex items-center justify-center rd-8px cursor-pointer transition-all shrink-0', isBatchMode ? 'bg-[rgba(var(--ui-accent-orange-rgb),0.12)] text-[var(--ui-accent-orange)]' : 'hover:bg-hover active:bg-fill-2 text-t-secondary')} onClick={() => setIsBatchMode((prev) => !prev)}>
                     <ListCheckbox theme='outline' size='18' className='block leading-none' />
                   </div>
                 </Tooltip>
