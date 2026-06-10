@@ -27,6 +27,7 @@
     "recent7Days": "近7天",
     "earlier": "更早",
     "noHistory": "暫無對話記錄",
+    "noScheduledTask": "暫無執行記錄",
     "deleteTitle": "刪除",
     "deleteConfirm": "確定要刪除此對話嗎？",
     "deleteWorkspaceOption": "同時刪除工作區資料夾",

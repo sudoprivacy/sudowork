@@ -6,6 +6,7 @@
 
 import { resolveLocaleKey } from '@/common/utils';
 import { useInputFocusRing } from '@/renderer/hooks/useInputFocusRing';
+import { useCronEnabled } from '@/renderer/hooks/useCronEnabled';
 import { openExternalUrl, isElectronDesktop, resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import { useConversationTabs } from '@/renderer/pages/conversation/context/ConversationTabsContext';
 import { ThemeSwitcher } from '@/renderer/components/ThemeSwitcher';
@@ -69,6 +70,7 @@ const GuidPage: React.FC = () => {
   const selectedMenu = searchParams.get('menu');
   const skillParam = searchParams.get('skill');
   const assistantParam = searchParams.get('assistant');
+  const cronEnabled = useCronEnabled();
 
   // Skill selector state
   const [installedSkills, setInstalledSkills] = useState<any[]>([]);
@@ -193,17 +195,19 @@ const GuidPage: React.FC = () => {
 
   // Convert installed skills to selector items (filtered by selected assistant)
   const skillSelectorItems = useMemo<SkillSelectorItem[]>(() => {
-    const items = installedSkills.map((skill) => {
-      const { displayName, description, icon, emoji } = getInstalledSkillDisplay(skill);
-      return {
-        name: skill.name,
-        displayName,
-        description,
-        icon: icon || resolveSkillIcon(skill.meta?.icon),
-        emoji,
-        enabled: skill.enabled,
-      };
-    });
+    const items = installedSkills
+      .filter((skill) => !isEnterprise || skill.enabled !== false)
+      .map((skill) => {
+        const { displayName, description, icon, emoji } = getInstalledSkillDisplay(skill);
+        return {
+          name: skill.name,
+          displayName,
+          description,
+          icon: icon || resolveSkillIcon(skill.meta?.icon),
+          emoji,
+          enabled: skill.enabled,
+        };
+      });
     if (agentEnabledSkills && agentEnabledSkills.length > 0) {
       // Use Set for O(1) lookup and deduplicate agentEnabledSkills
       const enabledSkillSet = new Set(agentEnabledSkills);
@@ -212,7 +216,7 @@ const GuidPage: React.FC = () => {
     // Deduplicate items by name to prevent duplicate keys
     const uniqueItems = Array.from(new Map(items.map((item) => [item.name, item])).values());
     return uniqueItems;
-  }, [installedSkills, agentEnabledSkills]);
+  }, [installedSkills, agentEnabledSkills, isEnterprise]);
 
   // Skill selector controller
   const skillSelectorController = useSkillSelectorController({
@@ -307,6 +311,7 @@ const GuidPage: React.FC = () => {
 
   // Listen for guid.reset event to reset agent/mention state only
   const handleGuidReset = useCallback(() => {
+    setGuidDraft({ input: '' });
     agentSelection.resetSelection();
     setCursorPosition(0);
     mention.setMentionOpen(false);
@@ -536,9 +541,7 @@ const GuidPage: React.FC = () => {
       loading={guidInput.loading}
       isButtonDisabled={send.isButtonDisabled}
       onSend={() => {
-        send.handleSend().catch((error) => {
-          console.error('Failed to send message:', error);
-        });
+        send.sendMessageHandler();
       }}
     />
   );
@@ -614,7 +617,7 @@ const GuidPage: React.FC = () => {
             {selectedMenu === 'agent' && <AgentSettings />}
             {selectedMenu === 'security' && <SecuritySettings />}
             {selectedMenu === 'webui' && <WebuiSettings />}
-            {selectedMenu === 'cron' && <CronSettings />}
+            {selectedMenu === 'cron' && cronEnabled && <CronSettings />}
           </div>
         ) : (
           /* Normal/Assistant conversation area */

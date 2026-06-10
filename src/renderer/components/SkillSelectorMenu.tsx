@@ -10,7 +10,8 @@ import { useTranslation } from 'react-i18next';
 import type { AtMentionTab } from '@/renderer/hooks/useSkillSelectorController';
 import type { WorkspaceFileItem } from '@/renderer/hooks/useWorkspaceFiles';
 import SkillSelectorSkeleton from './base/SkillSelectorSkeleton';
-import { Virtuoso } from 'react-virtuoso';
+import { handleSkillIconError } from '@/renderer/utils/skillDisplay';
+import { resolveFileIcon } from '@/renderer/utils/fileIcon';
 
 export interface SkillSelectorMenuItem {
   key: string;
@@ -241,7 +242,7 @@ const SkillSelectorMenu: React.FC<SkillSelectorMenuProps> = ({ title, hint, item
                   >
                     <div className='flex items-center gap-8px'>
                       {/* Icon / Emoji */}
-                      <div className='w-28px h-28px flex-shrink-0 rd-6px overflow-hidden bg-fill-2 flex items-center justify-center text-16px'>{item.icon ? <img src={item.icon} alt={item.displayName} className='w-full h-full object-cover' /> : <span>{item.emoji || '⚡'}</span>}</div>
+                      <div className='w-28px h-28px flex-shrink-0 rd-6px overflow-hidden bg-fill-2 flex items-center justify-center text-16px'>{item.icon ? <img src={item.icon} alt={item.displayName} className='w-full h-full object-cover' onError={handleSkillIconError} /> : <span>{item.emoji || '⚡'}</span>}</div>
                       {/* Content */}
                       <div className='min-w-0 flex-1'>
                         <div className='flex items-center gap-6px min-w-0'>
@@ -282,13 +283,15 @@ const SkillSelectorMenu: React.FC<SkillSelectorMenuProps> = ({ title, hint, item
                 onClick={() => onSelectFile?.(file)}
               >
                 <div className='flex items-center gap-8px'>
-                  <div className='w-24px h-24px flex-shrink-0 rd-4px bg-fill-2 flex items-center justify-center text-14px'>
-                    <span>{file.isDraft ? '📝' : '📄'}</span>
-                  </div>
+                  <div className='w-24px h-24px flex-shrink-0 rd-4px bg-fill-2 flex items-center justify-center overflow-hidden'>{resolveFileIcon(file.name, { size: 16, theme: 'filled' })}</div>
                   <div className='min-w-0 flex-1'>
                     <div className='flex items-center gap-6px min-w-0'>
                       <span className={classNames('text-13px truncate', index === activeIndex ? 'text-t-primary font-semibold' : 'text-t-primary font-medium')}>{file.name}</span>
-                      {file.isDraft && <span className='px-4px py-0px text-9px rd-3px whitespace-nowrap flex-shrink-0 leading-14px' style={{ background: 'color-mix(in srgb, var(--color-warning-light-1) 60%, transparent)', color: 'var(--color-warning-6, #d4930a)' }}>草稿</span>}
+                      {file.isDraft && (
+                        <span className='px-4px py-0px text-9px rd-3px whitespace-nowrap flex-shrink-0 leading-14px' style={{ background: 'color-mix(in srgb, var(--color-warning-light-1) 60%, transparent)', color: 'var(--color-warning-6, #d4930a)' }}>
+                          {t('conversation.workspace.drafts.badge', { defaultValue: '草稿' })}
+                        </span>
+                      )}
                     </div>
                     <div className='text-11px text-t-secondary truncate mt-1px'>{file.relativePath}</div>
                   </div>

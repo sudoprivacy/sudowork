@@ -280,6 +280,21 @@ body {
   border: 1px solid var(--bg-3);
 }
 
+.conversation-toggle-floating {
+  border: none;
+  background: var(--bg-1);
+  color: var(--text-primary);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+}
+
+.conversation-toggle-floating:hover {
+  background: var(--bg-hover);
+}
+
+.conversation-toggle-floating:active {
+  background: var(--bg-active);
+}
+
 html,
 body,
 #root,
@@ -745,12 +760,13 @@ body,
   overflow-x: hidden;
   box-shadow: none !important;
   border-right: 1px solid var(--border-base);
-  background: color-mix(in srgb, var(--color-fill-1) 72%, var(--color-bg-1)) !important;
+  background-color: var(--bg-2);
   /* 侧边栏收起展开动画优化 / Sidebar collapse/expand animation */
   transition:
     width 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-    transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  will-change: width, transform;
+    transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    background-color 0.2s ease;
+  will-change: width, transform, background-color;
 }
 
 .sidebar-nav-item {

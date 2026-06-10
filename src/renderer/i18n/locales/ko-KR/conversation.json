@@ -27,6 +27,7 @@
     "recent7Days": "최근 7일",
     "earlier": "이전",
     "noHistory": "채팅 기록 없음",
+    "noScheduledTask": "실행 기록 없음",
     "actionNewConversation": "새 대화",
     "deleteTitle": "삭제",
     "deleteConfirm": "이 채팅을 삭제하시겠습니까?",

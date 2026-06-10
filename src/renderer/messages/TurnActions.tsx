@@ -6,7 +6,7 @@
 
 import { iconColors } from '@/renderer/theme/colors';
 import type { TurnTokenUsage } from '@/common/chatLib';
-import { formatUsagePoints, tokensToUsagePoints } from '@/common/tokenUsage';
+import { costToUsagePoints, formatUsagePoints, resolveUsagePoints } from '@/common/tokenUsage';
 import { copyText } from '@/renderer/utils/clipboard';
 import { ipcBridge } from '@/common';
 import { emitter } from '@/renderer/utils/emitter';
@@ -107,7 +107,14 @@ const TurnActions: React.FC<TurnActionsProps> = ({ turnTexts, turnTextsRaw, conv
   }, [turnTextsRaw, shareoneInstalled, sharing, t]);
 
   const totalTokens = formatTokenCount(tokenUsage?.totalTokens);
-  const points = formatUsagePoints(tokensToUsagePoints(tokenUsage?.totalTokens));
+  const points = formatUsagePoints(resolveUsagePoints(tokenUsage));
+  const hasExactUsagePoints = tokenUsage?.costCurrency === 'sudo_point' && costToUsagePoints(tokenUsage.costUnits) !== null;
+  const pointsTooltipLabel = points
+    ? t(hasExactUsagePoints ? 'messages.tokenUsagePointsExact' : 'messages.tokenUsagePointsEstimated', {
+        defaultValue: hasExactUsagePoints ? 'Points: {{value}} (exact)' : 'Points: {{value}} (estimated)',
+        value: points,
+      })
+    : null;
   const inputTokens = formatTokenCount(tokenUsage?.inputTokens);
   const outputTokens = formatTokenCount(tokenUsage?.outputTokens);
   const cachedReadTokens = tokenUsage?.cachedReadTokens ? formatTokenCount(tokenUsage.cachedReadTokens) : null;
@@ -116,7 +123,7 @@ const TurnActions: React.FC<TurnActionsProps> = ({ turnTexts, turnTextsRaw, conv
   const usageTooltip = tokenUsage ? (
     <div className='text-12px leading-18px'>
       <div>{t('messages.tokenUsageTotal', { defaultValue: 'Total: {{value}} tokens', value: new Intl.NumberFormat().format(tokenUsage.totalTokens) })}</div>
-      {points && <div>{t('messages.tokenUsagePoints', { defaultValue: 'Points: {{value}}', value: points })}</div>}
+      {pointsTooltipLabel && <div>{pointsTooltipLabel}</div>}
       {typeof tokenUsage.inputTokens === 'number' && <div>{t('messages.tokenUsageInput', { defaultValue: 'Input: {{value}}', value: new Intl.NumberFormat().format(tokenUsage.inputTokens) })}</div>}
       {typeof tokenUsage.outputTokens === 'number' && <div>{t('messages.tokenUsageOutput', { defaultValue: 'Output: {{value}}', value: new Intl.NumberFormat().format(tokenUsage.outputTokens) })}</div>}
       {typeof tokenUsage.thoughtTokens === 'number' && <div>{t('messages.tokenUsageThought', { defaultValue: 'Reasoning: {{value}}', value: new Intl.NumberFormat().format(tokenUsage.thoughtTokens) })}</div>}
@@ -127,7 +134,7 @@ const TurnActions: React.FC<TurnActionsProps> = ({ turnTexts, turnTextsRaw, conv
 
   return (
     <>
-      <div className='flex items-center min-h-28px gap-4px pl-48px flex-wrap'>
+      <div className='flex items-center min-h-28px gap-4px flex-wrap'>
         <Tooltip content={t('common.copy', { defaultValue: 'Copy' })}>
           <div className='p-4px rd-4px cursor-pointer hover:bg-3 transition-colors' onClick={handleCopy} style={{ lineHeight: 0 }}>
             <Copy theme='outline' size='16' fill={iconColors.secondary} />

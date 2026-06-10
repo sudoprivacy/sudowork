@@ -60,6 +60,9 @@ interface EventTypes {
   'commandPalette.close': void;
   // Sidebar tab switch event (from command palette to switch sider tab)
   'sider.tab.switch': ['timeline' | 'scheduled'];
+  // Open a URL in the right-panel BrowserPanel — fired when the AI writes an
+  // HTML file or when slash / MCP tools request opening a URL there.
+  'right-panel.browser.open': [{ url: string; switchTab?: boolean }];
 }
 
 export const emitter = new EventEmitter<EventTypes>();

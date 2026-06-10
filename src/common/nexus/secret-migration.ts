@@ -14,8 +14,8 @@
  */
 
 import { secretCache, markMigrated } from './secret-cache';
-import type { SecretStoreClient } from './secret-store';
-import { getSecretStoreClient } from './secret-store';
+import type { NexusSecretClient } from './nexus-secret-client';
+import { getNexusSecretClient } from './nexus-secret-client';
 import { resolveConfig } from './config';
 import { decryptCredentials } from '@/channels/utils/credentialCrypto';
 import { getDatabase } from '@process/database/export';
@@ -57,7 +57,7 @@ const SECRET_MIGRATION_VERSION = 1;
  */
 const CHANNEL_CREDENTIAL_FIELDS: Record<string, string[]> = {
   telegram: ['token'],
-  lark: ['appSecret', 'encryptKey', 'verificationToken'],
+  lark: ['appSecret', 'encryptKey', 'verificationToken', 'larkUserAccessToken', 'larkUserRefreshToken'],
   dingtalk: ['clientSecret'],
   wechat: [], // WeChat uses token-based auth, no separate secret
   zentao: ['zentaoPassword'],
@@ -68,7 +68,7 @@ const CHANNEL_CREDENTIAL_FIELDS: Record<string, string[]> = {
 // ============================================================================
 
 export class SecretMigrationCoordinator {
-  private client: SecretStoreClient | null = null;
+  private client: NexusSecretClient | null = null;
   private migrationMap: MigrationMap = {};
 
   /**
@@ -76,8 +76,7 @@ export class SecretMigrationCoordinator {
    * Uses resolveConfig() to get full config if no options provided.
    */
   initialize(options?: { apiKey?: string; subject?: string; agentId?: string; zoneId?: string }): void {
-    // Use the parameter if provided, otherwise getSecretStoreClient will use resolveConfig()
-    this.client = getSecretStoreClient();
+    this.client = getNexusSecretClient();
     secretCache.initialize();
   }
 
@@ -239,7 +238,7 @@ export class SecretMigrationCoordinator {
    */
   private async migrateSecret(namespace: string, key: string, value: string): Promise<void> {
     if (!this.client) {
-      throw new Error('SecretStoreClient not initialized');
+      throw new Error('NexusSecretClient not initialized');
     }
 
     const ref = `${namespace}:${key}`;

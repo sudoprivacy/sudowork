@@ -39,6 +39,7 @@ interface PendingRequest<T = unknown> {
 }
 
 const numberOrUndefined = (value: unknown): number | undefined => (typeof value === 'number' && Number.isFinite(value) ? value : undefined);
+const stringOrUndefined = (value: unknown): string | undefined => (typeof value === 'string' ? value : undefined);
 
 function formatAcpErrorMessage(error: AcpResponse['error']): string {
   const message = error?.message || 'Unknown ACP error';
@@ -135,9 +136,7 @@ export class AcpConnection {
         onClose: (info) => {
           if (!this.isSetupComplete) {
             const stderr = transport.getStderr();
-            let errMsg = stderr
-              ? `${backend} ACP process exited during startup (code: ${info.code}):\n${stderr}`
-              : `${backend} ACP process exited during startup (code: ${info.code}, signal: ${info.signal})`;
+            let errMsg = stderr ? `${backend} ACP process exited during startup (code: ${info.code}):\n${stderr}` : `${backend} ACP process exited during startup (code: ${info.code}, signal: ${info.signal})`;
             if (info.code !== 0 && /not recognized|not found|No such file|command not found|ENOENT/i.test(stderr + (setupError?.message ?? ''))) {
               errMsg = `'${this.backend ?? backend}' CLI not found. Please install it or update the CLI path in Settings.\n${stderr}`;
             }
@@ -552,15 +551,23 @@ export class AcpConnection {
             // Extract PromptResponse.usage (per-turn token data from codex-acp / PR #167)
             if (promptResult.usage && typeof promptResult.usage === 'object') {
               const usage = promptResult.usage as AcpPromptResponseUsage;
+              const { costUnits: _directCostUnits, costCurrency: _directCostCurrency, ...usageWithoutCost } = usage;
               const meta = promptResult._meta as Record<string, unknown> | undefined;
               const sudocodeMeta = meta?.sudocode as Record<string, unknown> | undefined;
               const contextWindowTokens = numberOrUndefined(sudocodeMeta?.contextWindowTokens);
               const estimatedSessionTokens = numberOrUndefined(sudocodeMeta?.estimatedSessionTokens);
+              const usageRecord = usage as unknown as Record<string, unknown>;
+              const costUnitsSource = sudocodeMeta && 'costUnits' in sudocodeMeta ? sudocodeMeta.costUnits : usageRecord.costUnits;
+              const costCurrencySource = sudocodeMeta && 'costCurrency' in sudocodeMeta ? sudocodeMeta.costCurrency : usageRecord.costCurrency;
+              const costUnits = numberOrUndefined(costUnitsSource);
+              const costCurrency = stringOrUndefined(costCurrencySource);
               if (typeof usage.totalTokens === 'number') {
                 this.onPromptUsage({
-                  ...usage,
+                  ...usageWithoutCost,
                   ...(contextWindowTokens !== undefined && { contextWindowTokens }),
                   ...(estimatedSessionTokens !== undefined && { estimatedSessionTokens }),
+                  ...(costUnits !== undefined && { costUnits }),
+                  ...(costCurrency !== undefined && { costCurrency }),
                 });
               }
             }

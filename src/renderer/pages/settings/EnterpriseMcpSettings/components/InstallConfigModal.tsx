@@ -10,15 +10,17 @@ interface InstallConfigModalProps {
   highlightKeys?: string[];
   submitting?: boolean;
   onCancel: () => void;
-  onSubmit: (values: { config_values: Record<string, string>; display_name?: string }) => void;
+  onSubmit: (values: { config_values: Record<string, string>; auth_credentials?: Record<string, string>; display_name?: string }) => void;
 }
 
 const InstallConfigModal: React.FC<InstallConfigModalProps> = ({ visible, template, highlightKeys, submitting = false, onCancel, onSubmit }) => {
   const [values, setValues] = useState<Record<string, string>>({});
+  const [authValues, setAuthValues] = useState<Record<string, string>>({});
   const [displayName, setDisplayName] = useState<string>('');
   const [localMissing, setLocalMissing] = useState<Set<string>>(new Set());
 
   const items = template?.user_config_items ?? [];
+  const authItems = template?.auth_user_items ?? [];
 
   const highlightSet = useMemo(() => {
     const s = new Set<string>(highlightKeys ?? []);
@@ -30,6 +32,7 @@ const InstallConfigModal: React.FC<InstallConfigModalProps> = ({ visible, templa
   React.useEffect(() => {
     if (visible) {
       setValues({});
+      setAuthValues({});
       setDisplayName('');
       setLocalMissing(new Set());
     }
@@ -44,6 +47,11 @@ const InstallConfigModal: React.FC<InstallConfigModalProps> = ({ visible, templa
         missing.add(it.key);
       }
     });
+    authItems.forEach((it) => {
+      if (it.required && !(authValues[it.key] && authValues[it.key].trim())) {
+        missing.add(it.key);
+      }
+    });
     if (missing.size > 0) {
       setLocalMissing(missing);
       Message.warning('请填写所有必填项');
@@ -51,9 +59,12 @@ const InstallConfigModal: React.FC<InstallConfigModalProps> = ({ visible, templa
     }
     onSubmit({
       config_values: { ...values },
+      ...(Object.keys(authValues).length > 0 ? { auth_credentials: { ...authValues } } : {}),
       ...(displayName.trim() ? { display_name: displayName.trim() } : {}),
     });
   };
+
+  const hasNoConfig = items.length === 0 && authItems.length === 0;
 
   return (
     <AionModal
@@ -80,36 +91,73 @@ const InstallConfigModal: React.FC<InstallConfigModalProps> = ({ visible, templa
           <Input placeholder={`默认：${template.name}`} value={displayName} onChange={setDisplayName} disabled={submitting} />
         </div>
 
-        {items.length === 0 ? (
+        {hasNoConfig ? (
           <div className='text-13px text-t-tertiary py-12px text-center bg-[var(--color-fill-1)] rd-8px'>此模板无需配置，点击"安装"即可</div>
         ) : (
-          <div className='flex flex-col gap-14px'>
-            <div className='text-13px font-500 text-t-primary'>用户配置项</div>
-            {items.map((it) => (
-              <div key={it.key} className='flex flex-col gap-6px'>
-                <label className='block text-13px text-t-primary'>
-                  {it.name}
-                  {it.required && <span className='text-red-500 ml-4px'>*</span>}
-                </label>
-                {it.description && <div className='text-12px text-t-tertiary'>{it.description}</div>}
-                <Input
-                  placeholder={it.target === 'headers' ? `请求头 ${it.key}` : `环境变量 ${it.key}`}
-                  value={values[it.key] ?? ''}
-                  onChange={(v) => {
-                    setValues((prev) => ({ ...prev, [it.key]: v }));
-                    if (highlightSet.has(it.key)) {
-                      setLocalMissing((prev) => {
-                        const next = new Set(prev);
-                        next.delete(it.key);
-                        return next;
-                      });
-                    }
-                  }}
-                  error={highlightSet.has(it.key)}
-                  disabled={submitting}
-                />
+          <div className='flex flex-col gap-16px'>
+            {/* 用户配置项区域 */}
+            {items.length > 0 && (
+              <div className='flex flex-col gap-14px'>
+                <div className='text-13px font-500 text-t-primary'>用户配置项</div>
+                {items.map((it) => (
+                  <div key={it.key} className='flex flex-col gap-6px'>
+                    <label className='block text-13px text-t-primary'>
+                      {it.name}
+                      {it.required && <span className='text-red-500 ml-4px'>*</span>}
+                    </label>
+                    {it.description && <div className='text-12px text-t-tertiary'>{it.description}</div>}
+                    <Input
+                      placeholder={it.target === 'headers' ? `请求头 ${it.key}` : `环境变量 ${it.key}`}
+                      value={values[it.key] ?? ''}
+                      onChange={(v) => {
+                        setValues((prev) => ({ ...prev, [it.key]: v }));
+                        if (highlightSet.has(it.key)) {
+                          setLocalMissing((prev) => {
+                            const next = new Set(prev);
+                            next.delete(it.key);
+                            return next;
+                          });
+                        }
+                      }}
+                      error={highlightSet.has(it.key)}
+                      disabled={submitting}
+                    />
+                  </div>
+                ))}
               </div>
-            ))}
+            )}
+
+            {/* 鉴权凭据区域 */}
+            {authItems.length > 0 && (
+              <div className='flex flex-col gap-14px'>
+                <div className='text-13px font-500 text-t-primary'>鉴权凭据</div>
+                {authItems.map((it) => (
+                  <div key={it.key} className='flex flex-col gap-6px'>
+                    <label className='block text-13px text-t-primary'>
+                      {it.name}
+                      {it.required && <span className='text-red-500 ml-4px'>*</span>}
+                    </label>
+                    {it.description && <div className='text-12px text-t-tertiary'>{it.description}</div>}
+                    <Input
+                      placeholder={`凭据 ${it.key}`}
+                      value={authValues[it.key] ?? ''}
+                      onChange={(v) => {
+                        setAuthValues((prev) => ({ ...prev, [it.key]: v }));
+                        if (highlightSet.has(it.key)) {
+                          setLocalMissing((prev) => {
+                            const next = new Set(prev);
+                            next.delete(it.key);
+                            return next;
+                          });
+                        }
+                      }}
+                      error={highlightSet.has(it.key)}
+                      disabled={submitting}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -15,6 +15,7 @@ import { DRAFTS_DIR_NAME } from '@/common/constants';
 import { getSystemDir } from './initStorage';
 import { SUDOCLAW_DIR } from './services/sudoclaw/SudoclawInstallService';
 import { ensureWorkspaceAgentsMdRules } from './services/scode/ScodeInstallService';
+import { filterEnabledSkillNames } from './utils/enabledSkillFilter';
 
 /**
  * 创建工作空间目录（不复制文件）
@@ -49,6 +50,7 @@ const buildWorkspaceWidthFiles = async (defaultWorkspaceName: string, workspace?
 export const createAcpAgent = async (options: ICreateConversationParams): Promise<TChatConversation> => {
   const { extra } = options;
   const { workspace, customWorkspace } = await buildWorkspaceWidthFiles(`${extra.backend}-temp-${Date.now()}`, extra.workspace, extra.defaultFiles, extra.customWorkspace);
+  const enabledSkills = await filterEnabledSkillNames(extra.enabledSkills);
   if (extra.backend === 'scode') {
     ensureWorkspaceAgentsMdRules(workspace);
   }
@@ -64,7 +66,7 @@ export const createAcpAgent = async (options: ICreateConversationParams): Promis
       customAgentId: extra.customAgentId, // 同时用于标识预设助手 / Also used to identify preset assistant
       presetContext: extra.presetContext, // 智能助手的预设规则/提示词
       // 启用的 skills 列表（通过 SkillManager 加载）/ Enabled skills list (loaded via SkillManager)
-      enabledSkills: extra.enabledSkills,
+      enabledSkills,
       // 预设助手 ID，用于在会话面板显示助手名称和头像
       // Preset assistant ID for displaying name and avatar in conversation panel
       presetAssistantId: extra.presetAssistantId,
@@ -108,6 +110,7 @@ export const createRemoteAgent = async (options: ICreateConversationParams): Pro
   const { extra } = options;
   const tempName = `moss-temp-${Date.now()}`;
   const { workspace, customWorkspace } = await buildWorkspaceWidthFiles(tempName, extra.workspace, extra.defaultFiles, extra.customWorkspace);
+  const enabledSkills = await filterEnabledSkillNames(extra.enabledSkills);
 
   return {
     type: 'remote-agent',
@@ -126,7 +129,7 @@ export const createRemoteAgent = async (options: ICreateConversationParams): Pro
       customAgentId: extra.customAgentId,
       presetAssistantId: extra.presetAssistantId,
       presetContext: extra.presetContext,
-      enabledSkills: extra.enabledSkills,
+      enabledSkills,
       sessionMode: extra.sessionMode,
       // Cron job metadata
       cronJobId: extra.cronJobId,

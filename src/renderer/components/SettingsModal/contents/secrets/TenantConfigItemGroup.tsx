@@ -7,28 +7,53 @@
 import { SUDOWORK_SERVER_BASE_URL } from '@/common/sudoworkServer';
 import { Button, Collapse, Input, Message, Switch } from '@arco-design/web-react';
 import configItemDefaultIcon from '@/renderer/assets/config-item-default.svg';
+import { ConfigStorage } from '@/common/storage';
+import { useAppMode } from '@/renderer/hooks/useAppMode';
 import { Right } from '@icon-park/react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import PreferenceRow from './PreferenceRow';
 import type { TenantConfigItem, TenantConfigValues } from './types';
 
-function resolveIconUrl(iconUrl: string | null): string {
+function resolveIconUrl(iconUrl: string | null, baseUrl?: string): string {
   if (!iconUrl) return configItemDefaultIcon;
   if (iconUrl.startsWith('data:') || iconUrl.startsWith('http://') || iconUrl.startsWith('https://')) {
     return iconUrl;
+  }
+  if (baseUrl) {
+    return `${baseUrl.replace(/\/+$/, '')}${iconUrl.startsWith('/') ? iconUrl : `/${iconUrl}`}`;
   }
   return `${SUDOWORK_SERVER_BASE_URL}${iconUrl}`;
 }
 
 const ConfigItemIcon: React.FC<{ iconUrl?: string; name: string }> = ({ iconUrl, name }) => {
   const [useDefault, setUseDefault] = useState(false);
+  const { isEnterprise } = useAppMode();
+  const [baseUrl, setBaseUrl] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     setUseDefault(false);
   }, [iconUrl]);
 
-  const src = useDefault ? configItemDefaultIcon : resolveIconUrl(iconUrl ?? null);
+  useEffect(() => {
+    if (!isEnterprise) return;
+    let mounted = true;
+    void (async () => {
+      try {
+        const serverUrl = await ConfigStorage.get('eeclaw.serverUrl');
+        if (mounted && typeof serverUrl === 'string') {
+          setBaseUrl(serverUrl);
+        }
+      } catch {
+        // silent
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [isEnterprise]);
+
+  const src = useDefault ? configItemDefaultIcon : resolveIconUrl(iconUrl ?? null, baseUrl);
 
   return <img src={src} alt={name} className='w-16px h-16px object-contain shrink-0' onError={() => setUseDefault(true)} />;
 };

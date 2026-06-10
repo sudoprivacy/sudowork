@@ -33,7 +33,9 @@ def _browser_skill_dir() -> pathlib.Path:
     pythonpath = os.environ.get("PYTHONPATH", "")
     for entry in pythonpath.split(os.pathsep):
         candidate = pathlib.Path(entry)
-        if (candidate / "ai_dev_browser").is_dir():
+        # Verify ai_dev_browser/tools/ exists — a stale directory with only
+        # metadata (SKILL.md) but no Python tools package must be skipped.
+        if (candidate / "ai_dev_browser" / "tools").is_dir():
             return candidate
     # Fallback for direct invocation outside sudowork
     try:

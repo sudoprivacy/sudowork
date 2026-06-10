@@ -9,23 +9,48 @@ import type { PreviewContentType } from '@/common/types/preview';
 import { uuid } from '@/common/utils';
 
 /**
- * Navigation tools that should be intercepted for preview
- * 需要拦截到预览面板的导航工具
+ * ai-dev-browser navigation tool names that should auto-open URL in the
+ * right-tab preview panel. The bundled Python stack exposes one tool per file
+ * under `ai_dev_browser/tools/<name>.py`; here we list the ones that take a URL
+ * and change what the user sees.
+ *
+ * Historical note: an earlier version of this file also matched chrome-devtools
+ * MCP tool names (`navigate_page` / `new_page`) and prefixes like
+ * `mcp__chrome-devtools__`. That coupling was removed when sudowork's browser
+ * stack consolidated onto ai-dev-browser — see the removal commit's PR body
+ * for the full audit + breaking-change rationale.
  */
-export const NAVIGATION_TOOLS = ['navigate_page', 'new_page'] as const;
+export const NAVIGATION_TOOLS = ['page_goto', 'tab_new'] as const;
 export type NavigationToolName = (typeof NAVIGATION_TOOLS)[number];
 
-/**
- * Chrome DevTools MCP server identifiers
- * Chrome DevTools MCP 服务器标识符
- */
-export const CHROME_DEVTOOLS_IDENTIFIERS = ['chrome-devtools', 'chrome_devtools', 'chromedevtools'] as const;
+/** Alias kept for callers that already imported the ai-dev-browser-specific name. */
+export const AI_DEV_BROWSER_NAV_TOOLS = NAVIGATION_TOOLS;
+export type AiDevBrowserNavToolName = NavigationToolName;
 
 /**
- * Common MCP prefixes to strip when normalizing tool names
- * 需要去除的常见 MCP 前缀
+ * Shell-invocable entry points for ai-dev-browser. `browser` is the canonical
+ * sudowork-installed dispatcher; `aidb` is its legacy alias (kept during the
+ * rename transition — see SudoclawInstallService).
  */
-export const MCP_PREFIXES = ['mcp__chrome-devtools__', 'chrome-devtools__', 'chrome-devtools.'] as const;
+export const AI_DEV_BROWSER_DISPATCHERS = ['browser', 'aidb'] as const;
+
+/**
+ * sudowork-browser MCP tool names whose semantic is "navigate the right-tab
+ * webview to a URL". Implementations live in resources/sudowork-browser-mcp/.
+ * Counted as navigation tools so the right-panel auto-sync also kicks in when
+ * the agent reaches the same affordance via MCP instead of the CLI.
+ */
+export const SUDOWORK_BROWSER_NAV_MCP_TOOLS = ['browser_open', 'browser_navigate'] as const;
+export type SudoworkBrowserNavMcpToolName = (typeof SUDOWORK_BROWSER_NAV_MCP_TOOLS)[number];
+
+/**
+ * Generic wrapper tool names some agents use to invoke MCP tools indirectly,
+ * passing the real tool name either as a single `qualifiedName` string or as
+ * a pair of `server` + `tool` fields. Both shapes observed with gpt-5.5 via
+ * sudorouter — `"MCPTool"` tends to use `qualifiedName`, `"MCP"` tends to use
+ * `server` + `tool`; we accept either field on either tool name.
+ */
+const MCP_WRAPPER_TOOL_NAMES = ['mcptool', 'mcp'] as const;
 
 /**
  * Preview open event data structure
@@ -46,7 +71,26 @@ export interface PreviewOpenData {
 export interface NavigationToolData {
   // Tool identification
   toolName?: string;
+  /**
+   * MCP server name on a wrapper-style call. When combined with `tool`, this
+   * is one of the two shapes a generic wrapper (e.g. toolName="MCP") uses to
+   * name the real MCP tool. Treated as a navigation invocation only when
+   * `server === 'sudowork-browser'` AND `tool` is a sudowork-browser nav
+   * tool — scoping keeps us from swallowing nav calls on other MCP servers.
+   */
   server?: string;
+  /**
+   * MCP tool name on a wrapper-style call (paired with `server`).
+   */
+  tool?: string;
+  /**
+   * Some agents (e.g. gpt-5.5 via sudorouter) invoke MCP tools through a
+   * single generic "MCPTool" caller and pass the real tool name as a
+   * `qualifiedName` arg, e.g. "sudowork-browser-browser_open" or
+   * "sudowork-browser.browser_open". May appear on the data itself or
+   * nested inside `arguments` / `rawInput`.
+   */
+  qualifiedName?: string;
   // URL sources (try in order)
   url?: string;
   arguments?: Record<string, unknown>;
@@ -66,84 +110,212 @@ export interface InterceptionResult {
 }
 
 /**
- * Unified Navigation Interceptor for all agents
- * 所有 agent 的统一导航拦截器
+ * Unified navigation interceptor — translates agent tool calls that drive a
+ * browser into a `preview_open` signal so the right-tab webview opens the URL.
+ *
+ * Recognizes two shapes:
+ *   1. Tool name is `page_goto` / `tab_new` (a direct ai-dev-browser tool
+ *      invocation, e.g. exposed as a custom MCP tool).
+ *   2. Tool name is a generic exec/shell wrapper (e.g. "Bash") and the actual
+ *      ai-dev-browser invocation lives in `arguments.command` /
+ *      `rawInput.command` as a shell string:
+ *        browser page_goto --url <X>
+ *        aidb tab_new --url=<X>
+ *        python -m ai_dev_browser.tools.page_goto --url "<X>"
  */
 export class NavigationInterceptor {
   /**
-   * Normalize tool name by stripping MCP prefixes and suffixes
-   * 规范化工具名称，去除 MCP 前缀和后缀
+   * Normalize a tool name to its bare lowercase form. Strips trailing
+   * parentheses that some agent transcripts append, e.g.
+   * "page_goto (ai-dev-browser)" → "page_goto".
    */
   static normalizeToolName(toolName: string): string {
     if (!toolName) return '';
-
     let normalized = toolName;
-
-    // Remove known prefixes
-    for (const prefix of MCP_PREFIXES) {
-      if (normalized.startsWith(prefix)) {
-        normalized = normalized.slice(prefix.length);
-        break;
-      }
-    }
-
-    // Handle double underscore format (e.g., "mcp__server__tool")
     if (normalized.includes('__')) {
       normalized = normalized.split('__').pop() || normalized;
     }
-
-    // Remove trailing parentheses like "(chrome-devtools MCP Server)"
     normalized = normalized.replace(/\s*\([^)]*\)\s*$/, '').trim();
-
     return normalized.toLowerCase();
   }
 
   /**
-   * Check if a string contains chrome-devtools identifier
-   * 检查字符串是否包含 chrome-devtools 标识符
-   */
-  static isChromeDevToolsIdentifier(str: string): boolean {
-    if (!str) return false;
-    const lower = str.toLowerCase();
-    return CHROME_DEVTOOLS_IDENTIFIERS.some((id) => lower.includes(id));
-  }
-
-  /**
-   * Check if a tool is a chrome-devtools navigation tool
-   * 检查工具是否为 chrome-devtools 导航工具
+   * Check if a tool is an ai-dev-browser navigation invocation.
    *
-   * Handles various formats:
-   * - "navigate_page"
-   * - "mcp__chrome-devtools__navigate_page"
-   * - "navigate_page (chrome-devtools MCP Server)"
-   * - { server: "chrome-devtools", tool: "navigate_page" }
+   * Handles:
+   *   "page_goto"                                            (direct tool name)
+   *   "browser_open"                                         (sudowork-browser MCP tool name)
+   *   { toolName: "tab_new" }                                (structured, direct)
+   *   { toolName: "Bash", rawInput: { command: "browser page_goto --url X" } }
+   *   { arguments: { command: "aidb tab_new --url X" } }
+   *   { toolName: "MCPTool",                                 (MCP wrapper, qualifiedName form)
+   *     rawInput: { qualifiedName: "sudowork-browser-browser_open",
+   *                 arguments: { url: "https://…" } } }
+   *   { toolName: "MCP",                                     (MCP wrapper, server/tool form)
+   *     rawInput: { server: "sudowork-browser",
+   *                 tool: "browser_open",
+   *                 arguments: { url: "https://…" } } }
    */
   static isNavigationTool(data: NavigationToolData | string): boolean {
     if (typeof data === 'string') {
-      // Simple string check
-      const toolName = data;
-      const isChromeDevTools = this.isChromeDevToolsIdentifier(toolName);
-      const baseName = this.normalizeToolName(toolName);
-      const isNavTool = NAVIGATION_TOOLS.includes(baseName as NavigationToolName);
-      return isChromeDevTools && isNavTool;
+      const baseName = this.normalizeToolName(data);
+      return this.isKnownNavToolName(baseName);
     }
 
-    // Object-based check
-    const { toolName = '', server = '' } = data;
-    const fullName = toolName || '';
+    // 1. Direct tool-name match (ai-dev-browser CLI tools + sudowork-browser MCP tools).
+    const baseName = this.normalizeToolName(data.toolName || '');
+    if (this.isKnownNavToolName(baseName)) {
+      return true;
+    }
 
-    // Check server field
-    const serverIsChromeDevTools = this.isChromeDevToolsIdentifier(server);
-    // Check tool name for chrome-devtools reference
-    const toolNameIsChromeDevTools = this.isChromeDevToolsIdentifier(fullName);
+    // 2. Shell-command form (openclaw exec path).
+    const command = this.extractCommandString(data);
+    if (command && this.parseAiDevBrowserNavCommand(command)) {
+      return true;
+    }
 
-    const isChromeDevTools = serverIsChromeDevTools || toolNameIsChromeDevTools;
+    // 3. MCP wrapper form: a generic caller like "MCPTool" whose qualifiedName
+    // resolves to a sudowork-browser nav tool.
+    if ((MCP_WRAPPER_TOOL_NAMES as readonly string[]).includes(baseName)) {
+      const wrapped = this.extractWrappedMcpToolName(data);
+      if (wrapped && (SUDOWORK_BROWSER_NAV_MCP_TOOLS as readonly string[]).includes(wrapped)) {
+        return true;
+      }
+    }
 
-    // Normalize and check if it's a navigation tool
-    const baseName = this.normalizeToolName(fullName);
-    const isNavTool = NAVIGATION_TOOLS.includes(baseName as NavigationToolName);
+    return false;
+  }
 
-    return isChromeDevTools && isNavTool;
+  /**
+   * True if a normalized bare tool name is one of the known navigation tools
+   * (ai-dev-browser CLI tools or sudowork-browser MCP tools).
+   */
+  private static isKnownNavToolName(baseName: string): boolean {
+    return (
+      (NAVIGATION_TOOLS as readonly string[]).includes(baseName) ||
+      (SUDOWORK_BROWSER_NAV_MCP_TOOLS as readonly string[]).includes(baseName)
+    );
+  }
+
+  /**
+   * Pull the bare wrapped MCP tool name out of a wrapper-style call. Two
+   * resolution paths, tried in order:
+   *
+   *   Path A — `qualifiedName` field with the real MCP id embedded. Tolerates
+   *   separators `-`, `.`, `/`, `__`:
+   *     "sudowork-browser-browser_open"           → "browser_open"
+   *     "sudowork-browser.browser_open"           → "browser_open"
+   *     "mcp__sudowork-browser__browser_open"     → "browser_open"
+   *
+   *   Path B — explicit `server` + `tool` fields. Scoped to
+   *   `server === 'sudowork-browser'` to avoid swallowing nav calls on
+   *   unrelated MCP servers.
+   *     { server: "sudowork-browser", tool: "browser_open" } → "browser_open"
+   *
+   * Either path may live on the data itself, inside `rawInput`, or inside
+   * `arguments`.
+   */
+  private static extractWrappedMcpToolName(data: NavigationToolData): string | null {
+    // Path A — qualifiedName lookup.
+    const qualifiedSources: Array<unknown> = [
+      data.qualifiedName,
+      data.rawInput?.qualifiedName,
+      data.arguments?.qualifiedName,
+    ];
+    for (const value of qualifiedSources) {
+      if (typeof value === 'string' && value.trim()) {
+        const tail = value.split(/__|[-./]/).pop();
+        if (tail) return tail.toLowerCase();
+      }
+    }
+
+    // Path B — server + tool fields, gated on server="sudowork-browser".
+    const serverToolSources: Array<{ server?: unknown; tool?: unknown } | undefined> = [
+      { server: data.server, tool: data.tool },
+      data.rawInput as { server?: unknown; tool?: unknown } | undefined,
+      data.arguments as { server?: unknown; tool?: unknown } | undefined,
+    ];
+    for (const src of serverToolSources) {
+      if (!src) continue;
+      if (src.server === 'sudowork-browser' && typeof src.tool === 'string' && src.tool.trim()) {
+        return src.tool.toLowerCase();
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Pull a shell command string from common argument/rawInput shapes.
+   * Returns the first non-empty `command`-like field found.
+   */
+  private static extractCommandString(data: NavigationToolData): string | null {
+    const fields = ['command', 'cmd', 'script'];
+    const sources: Array<Record<string, unknown> | undefined> = [data.arguments, data.rawInput];
+    for (const src of sources) {
+      if (!src) continue;
+      for (const f of fields) {
+        const value = src[f];
+        if (typeof value === 'string' && value.trim().length > 0) {
+          return value;
+        }
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Recognize an ai-dev-browser navigation invocation inside a shell command
+   * string and pull out the destination URL.
+   *
+   * Matches the three shapes the LLM actually writes:
+   *   browser page_goto --url https://example.com
+   *   aidb tab_new --url=https://example.com
+   *   python -m ai_dev_browser.tools.page_goto --url "https://example.com"
+   *
+   * Returns null if the command isn't an ai-dev-browser navigation tool or
+   * doesn't carry an http(s) URL — opening the preview panel without a real
+   * URL would be a no-op.
+   */
+  static parseAiDevBrowserNavCommand(command: string): { tool: AiDevBrowserNavToolName; url: string } | null {
+    if (!command) return null;
+
+    let tool: AiDevBrowserNavToolName | null = null;
+
+    // Dispatcher form. The token must precede a tool name (avoids false
+    // positives on prose like "open the browser first").
+    const dispatcherRe = new RegExp(`(?:^|[;\\s&|"'\`])(?:${AI_DEV_BROWSER_DISPATCHERS.join('|')})(?:\\.cmd|\\.bat)?\\s+([a-z_][a-z0-9_]*)`, 'i');
+    const dispatcherMatch = command.match(dispatcherRe);
+    if (dispatcherMatch) {
+      const candidate = dispatcherMatch[1].toLowerCase() as AiDevBrowserNavToolName;
+      if ((NAVIGATION_TOOLS as readonly string[]).includes(candidate)) {
+        tool = candidate;
+      }
+    }
+
+    // Python module form.
+    if (!tool) {
+      const pyRe = /python(?:3|\.exe|3\.exe)?\b.*?\bai_dev_browser[./\\]tools[./\\]([a-z_][a-z0-9_]*)/i;
+      const pyMatch = command.match(pyRe);
+      if (pyMatch) {
+        const candidate = pyMatch[1].toLowerCase() as AiDevBrowserNavToolName;
+        if ((NAVIGATION_TOOLS as readonly string[]).includes(candidate)) {
+          tool = candidate;
+        }
+      }
+    }
+
+    if (!tool) return null;
+
+    // Find the URL. Tools take `--url <X>` or `--url=<X>`; the value may be
+    // quoted with ' or " or unquoted.
+    const urlRe = /--url(?:\s+|=)("([^"]+)"|'([^']+)'|(\S+))/;
+    const urlMatch = command.match(urlRe);
+    if (!urlMatch) return null;
+    const rawUrl = (urlMatch[2] ?? urlMatch[3] ?? urlMatch[4] ?? '').trim();
+    if (!rawUrl) return null;
+    if (!/^https?:\/\//i.test(rawUrl)) return null;
+
+    return { tool, url: rawUrl };
   }
 
   /**
@@ -152,8 +324,8 @@ export class NavigationInterceptor {
    *
    * Tries multiple sources in order:
    * 1. Direct url field
-   * 2. arguments.url
-   * 3. rawInput.url
+   * 2. arguments.url / rawInput.url
+   * 3. ai-dev-browser command parse (arguments.command / rawInput.command)
    * 4. URL pattern in content text
    * 5. URL pattern in title
    */
@@ -163,16 +335,36 @@ export class NavigationInterceptor {
       return data.url;
     }
 
-    // 2. Check arguments (common MCP format)
+    // 2a. Check arguments (common MCP format)
     if (data.arguments) {
       const url = this.extractUrlFromObject(data.arguments);
       if (url) return url;
     }
 
-    // 3. Check rawInput (ACP format)
+    // 2b. Check rawInput (ACP format)
     if (data.rawInput) {
       const url = this.extractUrlFromObject(data.rawInput);
       if (url) return url;
+    }
+
+    // 2c. MCP wrapper nested form: the real tool's arguments live one level
+    // deep under `.arguments` (e.g. MCPTool passes them through), e.g.
+    //   rawInput: { qualifiedName: "sudowork-browser-browser_open",
+    //               arguments: { url: "https://…" } }
+    for (const outer of [data.rawInput, data.arguments]) {
+      if (!outer) continue;
+      const inner = outer.arguments;
+      if (inner && typeof inner === 'object' && !Array.isArray(inner)) {
+        const url = this.extractUrlFromObject(inner as Record<string, unknown>);
+        if (url) return url;
+      }
+    }
+
+    // 3. ai-dev-browser shell-command form (openclaw exec path).
+    const command = this.extractCommandString(data);
+    if (command) {
+      const parsed = this.parseAiDevBrowserNavCommand(command);
+      if (parsed) return parsed.url;
     }
 
     // 4. Check content array for URL pattern

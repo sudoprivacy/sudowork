@@ -40,6 +40,8 @@ jspm_packages/
 # Lock files for other package managers (project uses bun.lock)
 package-lock.json
 yarn.lock
+# hook/node sub-project uses pnpm (hook/node/pnpm-lock.yaml is tracked)
+hook/**/bun.lock
 
 # TypeScript v1 declaration files
 typings/
@@ -197,6 +199,7 @@ vx.toml
 .taichuy/
 .worktrees/
 .claude/worktrees/
+.claude/scheduled_tasks.lock
 
 # Nexus binary (downloaded at build time, not committed)
 resources/nexus.tar.gz
@@ -206,15 +209,21 @@ resources/v*-nexus-cluster-*
 resources/claude-code.tgz
 resources/gemini-cli.tgz
 resources/node-darwin-arm64.tar.gz
+resources/node-win32-x64.zip
 resources/bdpan-installer-*
 resources/mcporter.tgz
+# sudowork-browser MCP server — esbuild output (built from src/ via scripts/build-browser-mcp.js)
+resources/sudowork-browser-mcp/index.js
 resources/.dev-runtime-versions.json
 resources/openclaw.manifest.json
+resources/v*-sudoclaw-*.manifest.json
 resources/installerSidebar.bmp
 resources/installerHeader.bmp
-tests/e2e/ops/__pycache__/
+tests/e2e/__pycache__/
 tests/e2e/ops/__pycache__/
 tests/e2e/screenshots/
+# Example extensions ship source only — dist/ is built on demand
+examples/*/dist/
 # Rust build artifacts (nexus-napi)
 native/nexus-napi/target/
 

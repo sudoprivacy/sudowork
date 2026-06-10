@@ -135,6 +135,8 @@ describe('AcpConnection prompt response ordering', () => {
           sudocode: {
             contextWindowTokens: 1048576,
             estimatedSessionTokens: 42000,
+            costUnits: 43700,
+            costCurrency: 'sudo_point',
           },
         },
       },
@@ -146,6 +148,8 @@ describe('AcpConnection prompt response ordering', () => {
       totalTokens: 15,
       contextWindowTokens: 1048576,
       estimatedSessionTokens: 42000,
+      costUnits: 43700,
+      costCurrency: 'sudo_point',
     });
   });
 
@@ -225,6 +229,7 @@ describe('AcpConnection prompt response ordering', () => {
     const connection = new AcpConnection();
     const harness = connection as unknown as AcpConnectionTestHarness & {
       child: { killed: boolean } | null;
+      transport: { send: (message: object) => void; close: () => Promise<void>; connected: boolean } | null;
       sessionId: string | null;
       sendMessage: (message: unknown) => void;
       disconnect: () => Promise<void>;
@@ -233,6 +238,7 @@ describe('AcpConnection prompt response ordering', () => {
     const disconnectSpy = vi.fn().mockResolvedValue(undefined);
 
     harness.child = { killed: false };
+    harness.transport = { send: vi.fn(), close: vi.fn().mockResolvedValue(undefined), connected: true };
     harness.sessionId = 'session-1';
     harness.sendMessage = vi.fn();
     harness.disconnect = disconnectSpy;

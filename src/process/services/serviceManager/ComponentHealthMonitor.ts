@@ -157,20 +157,16 @@ class ComponentHealthMonitor {
    * 检查 Nexus 状态
    */
   private async checkNexusHealth(): Promise<ComponentStatus> {
-    const { dynamicNexusService } = await import('../nexus/DynamicNexusService');
-    const installed = await dynamicNexusService.checkInstalled();
+    const { dynamicNexusVfsService } = await import('../nexus-vfs/DynamicNexusVfsService');
+    const installed = await dynamicNexusVfsService.checkInstalled();
 
     if (!installed) {
       return { installed: false, needsAction: true, actionType: 'install' };
     }
 
-    // 检查 HTTP 健康
+    // 检查 gRPC/进程 健康
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
-      const res = await fetch('http://localhost:12012/health', { signal: controller.signal });
-      clearTimeout(timeoutId);
-      const running = res.ok;
+      const running = await dynamicNexusVfsService.checkActualRunning();
       return { installed: true, running, needsAction: !running, actionType: 'start' };
     } catch (err) {
       mainLog(TAG, `Nexus health check failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -271,8 +267,8 @@ class ComponentHealthMonitor {
     try {
       switch (component) {
         case 'nexus': {
-          const { dynamicNexusService } = await import('../nexus/DynamicNexusService');
-          await dynamicNexusService.install();
+          const { dynamicNexusVfsService } = await import('../nexus-vfs/DynamicNexusVfsService');
+          await dynamicNexusVfsService.install();
           return true;
         }
         default:

@@ -10,7 +10,7 @@ import { AbortError, AuthenticationError, ConflictError, ForbiddenError, Network
 import type { ApiErrorResponse, AspectEnvelope, CatalogSchemaResponse, ColumnSearchResponse, NexusClientOptions, ReplayResponse, RequestOptions } from './types.js';
 import { camelToSnakeKeys, snakeToCamelKeys } from './case-transform.js';
 
-const DEFAULT_BASE_URL = 'http://localhost:12012';
+const DEFAULT_BASE_URL = 'http://localhost:12022';
 const DEFAULT_TIMEOUT = 30_000;
 const DEFAULT_MAX_RETRIES = 3;
 const INITIAL_RETRY_DELAY = 500;

@@ -195,8 +195,9 @@ export class CodexToolHandlers {
     const callId = (msg as unknown as { call_id?: string }).call_id || `mcp_${toolName}_${uuid()}`;
     const title = this.formatMcpInvocation(inv);
 
-    // Intercept chrome-devtools navigation tools using unified NavigationInterceptor
-    // 使用统一的 NavigationInterceptor 拦截 chrome-devtools 导航工具
+    // Intercept ai-dev-browser navigation tool invocations and emit a
+    // preview_open signal so the right-tab webview auto-opens the URL.
+    // 拦截 ai-dev-browser 导航工具调用，emit preview_open 信号供右侧 tab 加载 URL
     const interceptionResult = NavigationInterceptor.intercept(
       {
         toolName,

@@ -19,6 +19,8 @@ import { detectFileIntent, matchesDraftPattern } from './draftsCleanup';
 import * as nodePath from 'node:path';
 import * as fs from 'node:fs';
 import { initMossApi } from '../remote/MossSessionApi';
+import { isRemoteContainerPath } from '@/common/utils/workspaceSkillSync';
+import { filterEnabledSkillNames } from '../utils/enabledSkillFilter';
 
 /**
  * RemoteAgent data interface
@@ -110,6 +112,7 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
       // 确定模式：创建新 session 还是 attach/resume 已存在的
       const isPendingMode = this.options.mossSessionPending;
       const hasExistingWsUrl = !!this.options.wsUrl;
+      const enabledSkills = await filterEnabledSkillNames(this.options.enabledSkills);
 
       if (isPendingMode && !hasExistingWsUrl) {
         // LAZY CREATION: Create Moss session now
@@ -129,7 +132,7 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
           wsUrl: undefined,
           sessionId: undefined,
           // 新增: 传递启用的 skill 列表
-          enabledSkills: this.options.enabledSkills,
+          enabledSkills,
         };
 
         mainLog('RemoteAgent', `MossWsConnection config: cwd=${config.cwd ?? '<server-default>'}, assistant=${config.assistantName || 'default'}, enabledSkills=${config.enabledSkills?.length || 0}`);
@@ -174,7 +177,7 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
           wsUrl: this.options.wsUrl,
           sessionId: this.options.sessionId || this.conversation_id,
           // 新增: 传递启用的 skill 列表（resume 模式也支持）
-          enabledSkills: this.options.enabledSkills,
+          enabledSkills,
         };
 
         mainLog('RemoteAgent', `MossWsConnection config: resume=${!!config.wsUrl}, sessionId=${config.sessionId}, enabledSkills=${config.enabledSkills?.length || 0}`);
@@ -220,7 +223,7 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
           runtimeType: this.options.runtimeType,
           wsUrl,
           sessionId: this.options.sessionId,
-          enabledSkills: this.options.enabledSkills,
+          enabledSkills,
         };
 
         mainLog('RemoteAgent', `MossWsConnection config: resumeLookup=true, sessionId=${config.sessionId}, enabledSkills=${config.enabledSkills?.length || 0}`);
@@ -265,15 +268,33 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
         assistantName?: string;
         assistant_name?: string;
       };
+
+      // Extract Moss workDir (remote container path)
+      const mossWorkDir = session.workDir || session.work_dir;
+
+      // Check if workDir is a remote container path using shared helper
+      const isRemotePath = isRemoteContainerPath(mossWorkDir);
+
+      // Build the extra update - save remote paths to mossWorkDir, not workspace
+      const extraUpdate: Record<string, unknown> = {
+        ...existing.data.extra,
+        mossSessionId,
+        acpWsUrl: wsUrl,
+        mossSessionPending: false,
+        agentName: session.assistantName || session.assistant_name || existing.data.extra?.agentName,
+      };
+
+      if (isRemotePath) {
+        // Remote container path - save to mossWorkDir, preserve existing workspace
+        extraUpdate.mossWorkDir = mossWorkDir;
+        // Do NOT overwrite workspace with remote path
+      } else if (mossWorkDir && !existing.data.extra?.workspace) {
+        // Local path and no existing workspace - safe to set
+        extraUpdate.workspace = mossWorkDir;
+      }
+
       void db.updateConversation(this.conversation_id, {
-        extra: {
-          ...existing.data.extra,
-          mossSessionId,
-          acpWsUrl: wsUrl,
-          mossSessionPending: false,
-          workspace: session.workDir || session.work_dir || existing.data.extra?.workspace,
-          agentName: session.assistantName || session.assistant_name || existing.data.extra?.agentName,
-        },
+        extra: extraUpdate,
         status: 'finished',
         modifyTime: Date.now(),
       } as Partial<TChatConversation>);
@@ -305,23 +326,35 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
       // 从 Moss session 获取 workDir（如果可用）
       const sessionWorkDir = this.connection?.getWorkDir?.();
 
+      // Check if workDir is a remote container path using shared helper
+      const isRemotePath = isRemoteContainerPath(sessionWorkDir);
+
+      // Build the extra update - save remote paths to mossWorkDir, not workspace
+      const extraUpdate: Record<string, unknown> = {
+        ...existing.data.extra,
+        mossSessionId: this.mossSessionId,
+        acpWsUrl: this.mossWsUrl,
+        mossSessionPending: false,
+      };
+
+      if (isRemotePath) {
+        // Remote container path - save to mossWorkDir, preserve existing workspace
+        extraUpdate.mossWorkDir = sessionWorkDir;
+        // Do NOT overwrite workspace with remote path
+      } else if (sessionWorkDir && !existing.data.extra?.workspace) {
+        // Local path and no existing workspace - safe to set
+        extraUpdate.workspace = sessionWorkDir;
+      }
+
       const updatedConversation = {
         ...existing.data,
-        extra: {
-          ...existing.data.extra,
-          mossSessionId: this.mossSessionId,
-          acpWsUrl: this.mossWsUrl,
-          mossSessionPending: false,
-          // Update workspace with Moss session's workDir if available
-          // 使用 Moss session 的 workDir 更新 workspace（如果可用）
-          workspace: sessionWorkDir || existing.data.extra?.workspace,
-        },
+        extra: extraUpdate,
         status: 'finished',
         modifyTime: Date.now(),
       } as unknown as TChatConversation;
 
       db.updateConversation(this.conversation_id, updatedConversation);
-      mainLog('RemoteAgent', `Updated conversation ${this.conversation_id} with Moss session: ${this.mossSessionId}, workspace: ${sessionWorkDir || existing.data.extra?.workspace}`);
+      mainLog('RemoteAgent', `Updated conversation ${this.conversation_id} with Moss session: ${this.mossSessionId}, mossWorkDir: ${isRemotePath ? sessionWorkDir : 'N/A'}, workspace: ${existing.data.extra?.workspace || 'N/A'}`);
 
       // Emit refresh event to update sidebar
       // 发送刷新事件更新侧边栏

@@ -17,7 +17,7 @@ import { resolveAssistantName, fetchAssistantsAsConfigs } from '@/renderer/share
 import type { AcpBackendConfig } from '@/types/acpTypes';
 import { DEFAULT_PRESET_AGENT_TYPE, normalizePresetAgentType } from '@/types/acpTypes';
 import { getAgentLogo } from '@/renderer/utils/agentLogo';
-import { getInstalledSkillDisplay, normalizeSkillVersion } from '@/renderer/utils/skillDisplay';
+import { getInstalledSkillDisplay, normalizeSkillVersion, handleSkillIconError } from '@/renderer/utils/skillDisplay';
 import { isElectronDesktop, resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import EmojiPicker from '@/renderer/components/EmojiPicker';
 import MarkdownView from '@/renderer/components/Markdown';
@@ -513,7 +513,7 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
                           />
                           <div className='w-48px h-48px flex-shrink-0 rd-8px overflow-hidden bg-fill-2'>
                             {icon ? (
-                              <img src={icon} alt={displayName} className='w-full h-full object-cover' />
+                              <img src={icon} alt={displayName} className='w-full h-full object-cover' onError={handleSkillIconError} />
                             ) : emoji ? (
                               <div className='w-full h-full flex items-center justify-center text-22px'>{emoji}</div>
                             ) : (
@@ -581,7 +581,7 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
                           />
                           <div className='w-48px h-48px flex-shrink-0 rd-8px overflow-hidden bg-fill-2'>
                             {icon ? (
-                              <img src={icon} alt={displayName} className='w-full h-full object-cover' />
+                              <img src={icon} alt={displayName} className='w-full h-full object-cover' onError={handleSkillIconError} />
                             ) : emoji ? (
                               <div className='w-full h-full flex items-center justify-center text-22px'>{emoji}</div>
                             ) : (

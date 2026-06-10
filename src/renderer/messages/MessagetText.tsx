@@ -6,6 +6,7 @@
 
 import type { IMessageText } from '@/common/chatLib';
 import { NEXUS_FILES_MARKER } from '@/common/constants';
+import { parseGeneratedFilesMarker } from '@/common/generatedFiles';
 import { iconColors } from '@/renderer/theme/colors';
 import { Alert, Message, Tag, Tooltip } from '@arco-design/web-react';
 import { Copy, Lightning } from '@icon-park/react';
@@ -22,6 +23,7 @@ import FilePreview from '../components/FilePreview';
 import HorizontalFileList from '../components/HorizontalFileList';
 import MarkdownView from '../components/Markdown';
 import { stripThinkTags, hasThinkTags } from '../utils/thinkTagFilter';
+import GeneratedFileCards from './GeneratedFileCard';
 import MessageCronBadge from './MessageCronBadge';
 
 const parseFileMarker = (content: string) => {
@@ -55,7 +57,7 @@ const useFormatContent = (content: string) => {
   }, [content]);
 };
 
-const MessageText: React.FC<{ message: IMessageText; isStreaming?: boolean }> = ({ message, isStreaming = false }) => {
+const MessageText: React.FC<{ message: IMessageText; isStreaming?: boolean; footer?: React.ReactNode }> = ({ message, isStreaming = false, footer }) => {
   // Filter think tags from content before rendering
   // 在渲染前过滤 think 标签
   const contentToRender = useMemo(() => {
@@ -66,7 +68,12 @@ const MessageText: React.FC<{ message: IMessageText; isStreaming?: boolean }> = 
     return rawContent;
   }, [message.content.content]);
 
-  const { text: rawText, files } = parseFileMarker(contentToRender);
+  // Pull out AI-generated-file preview cards (NEXUS_GENERATED_FILES marker).
+  // Done before parseFileMarker so the user-side NEXUS_FILES path can keep
+  // assuming its content is unprefixed.
+  const generated = useMemo(() => (typeof contentToRender === 'string' ? parseGeneratedFilesMarker(contentToRender) : { textBefore: contentToRender as string, files: [], ok: false }), [contentToRender]);
+
+  const { text: rawText, files } = parseFileMarker(generated.textBefore);
   const text = rawText.trimEnd();
   const visibleFiles = useMemo(() => filterUserVisibleFiles(files), [files]);
   const { data, json } = useFormatContent(text);
@@ -95,9 +102,17 @@ const MessageText: React.FC<{ message: IMessageText; isStreaming?: boolean }> = 
   }, [skills.length]);
 
   // 过滤空内容，避免渲染空DOM
+  // Edge case: a "deliverables" assistant message carries ONLY the
+  // [[NEXUS_GENERATED_FILES]] marker — content.content is non-empty but text
+  // after stripping the marker is empty. Allow that through so cards render.
   if (!message.content.content || (typeof message.content.content === 'string' && !message.content.content.trim())) {
     return null;
   }
+  if (!text.trim() && !generated.ok && visibleFiles.length === 0) {
+    return null;
+  }
+
+  const proseHasContent = !!text.trim();
 
   const handleCopy = () => {
     const rawBase = json ? JSON.stringify(data, null, 2) : text;
@@ -125,6 +140,8 @@ const MessageText: React.FC<{ message: IMessageText; isStreaming?: boolean }> = 
 
   const cronMeta = message.content.cronMeta;
 
+  const showFooter = Boolean(footer) && !isUserMessage;
+
   return (
     <>
       <div className={classNames('min-w-0 flex max-w-full flex-col', isUserMessage ? 'items-end' : 'items-start', !isUserMessage && hasCodeLikeContent && 'w-full')}>
@@ -144,31 +161,39 @@ const MessageText: React.FC<{ message: IMessageText; isStreaming?: boolean }> = 
             )}
           </div>
         )}
-        <div
-          className={classNames('min-w-0 box-border overflow-hidden [&>p:first-child]:mt-0px [&>p:last-child]:mb-0px p-8px border border-solid transition-colors duration-200', {
-            'w-fit max-w-full': isUserMessage || !hasCodeLikeContent,
-            'w-full max-w-full': !isUserMessage && hasCodeLikeContent,
-            // 用户消息使用 OpenClaw 风格的粉色调
-            'bg-[var(--message-user-bg)] text-[var(--message-user-text)] border-[var(--message-user-border)] hover:bg-[var(--message-user-hover)]': isUserMessage,
-            // 助手消息使用白色/深灰色调
-            'bg-[var(--message-assistant-bg)] text-[var(--message-assistant-text)] border-[var(--message-assistant-border)] hover:bg-[var(--message-assistant-hover)]': !isUserMessage,
-            // 流式输出时添加红色闪烁边框
-            'streaming-message': isStreaming && !isUserMessage,
-          })}
-          style={{
-            borderRadius: isUserMessage ? '16px 16px 16px 16px' : '16px 16px 16px 16px',
-            maxWidth: '100%',
-          }}
-        >
-          {/* JSON 内容使用折叠组件 Use CollapsibleContent for JSON content */}
-          {json ? (
-            <CollapsibleContent maxHeight={200} defaultCollapsed={true}>
-              <MarkdownView codeStyle={{ marginTop: 4, marginBlock: 4 }}>{`\`\`\`json\n${JSON.stringify(data, null, 2)}\n\`\`\``}</MarkdownView>
-            </CollapsibleContent>
-          ) : (
-            <MarkdownView codeStyle={{ marginTop: 4, marginBlock: 4 }}>{data}</MarkdownView>
-          )}
-        </div>
+        {proseHasContent && (
+          <div
+            className={classNames('min-w-0 box-border overflow-hidden [&>p:first-child]:mt-0px [&>p:last-child]:mb-0px p-8px border border-solid transition-colors duration-200', {
+              'w-fit max-w-full': isUserMessage || !hasCodeLikeContent,
+              'w-full max-w-full': !isUserMessage && hasCodeLikeContent,
+              // 用户消息使用 OpenClaw 风格的粉色调
+              'bg-[var(--message-user-bg)] text-[var(--message-user-text)] border-[var(--message-user-border)] hover:bg-[var(--message-user-hover)]': isUserMessage,
+              // 助手消息使用白色/深灰色调
+              'bg-[var(--message-assistant-bg)] text-[var(--message-assistant-text)] border-[var(--message-assistant-border)] hover:bg-[var(--message-assistant-hover)]': !isUserMessage,
+              // 流式输出时添加红色闪烁边框
+              'streaming-message': isStreaming && !isUserMessage,
+            })}
+            style={{
+              borderRadius: isUserMessage ? '16px 16px 16px 16px' : '16px 16px 16px 16px',
+              maxWidth: '100%',
+            }}
+          >
+            {/* JSON 内容使用折叠组件 Use CollapsibleContent for JSON content */}
+            {json ? (
+              <CollapsibleContent maxHeight={200} defaultCollapsed={true}>
+                <MarkdownView codeStyle={{ marginTop: 4, marginBlock: 4 }}>{`\`\`\`json\n${JSON.stringify(data, null, 2)}\n\`\`\``}</MarkdownView>
+              </CollapsibleContent>
+            ) : (
+              <MarkdownView codeStyle={{ marginTop: 4, marginBlock: 4 }}>{data}</MarkdownView>
+            )}
+          </div>
+        )}
+        {generated.ok && generated.files.length > 0 && (
+          <div className={classNames(proseHasContent ? 'mt-8px w-full' : 'mt-6px w-full')}>
+            <GeneratedFileCards entries={generated.files} fullWidth />
+          </div>
+        )}
+        {showFooter && <div className='mt-4px w-full max-w-full'>{footer}</div>}
         {/* Skill tags - displayed below user message content */}
         {skills.length > 0 && isUserMessage && (
           <div className={classNames('mt-6px mb-6px', { 'self-end': isUserMessage })}>

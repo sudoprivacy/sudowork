@@ -15,7 +15,8 @@ import EmojiPicker from '@/renderer/components/EmojiPicker';
 import MarkdownView from '@/renderer/components/Markdown';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { getSelectableAssistantSkills, isAutoInjectedBuiltinSkill, sanitizeAssistantEnabledSkills } from '@/renderer/pages/settings/assistantSkillSelection';
-import { getInstalledSkillDisplay, normalizeSkillVersion } from '@/renderer/utils/skillDisplay';
+import { getInstalledSkillDisplay, normalizeSkillVersion, handleSkillIconError } from '@/renderer/utils/skillDisplay';
+import { COS_HUB_BASE } from '@/shared/cos';
 import { isElectronDesktop, resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import { DEFAULT_PRESET_AGENT_TYPE, normalizePresetAgentType, type AcpBackendConfig } from '@/types/acpTypes';
 import { Avatar, Button, Checkbox, Collapse, Drawer, Input, Message, Modal, Popconfirm, Progress, Select, Spin, Switch, Tag, Tooltip, Typography } from '@arco-design/web-react';
@@ -83,7 +84,7 @@ const SkillCard: React.FC<SkillCardProps> = ({ skill, checked, onToggle, disable
 
 // ==================== InstalledAssistantCard ====================
 
-const InstalledAssistantCard: React.FC<{
+type InstalledAssistantCardProps = {
   assistant: AssistantListItem;
   isExtension: boolean;
   localeKey: string;
@@ -97,10 +98,23 @@ const InstalledAssistantCard: React.FC<{
   enterprisePublishButton?: React.ReactNode;
   /** Enterprise mode: whether to hide delete button (only custom assistants can be deleted) */
   hideDelete?: boolean;
-}> = ({ assistant, isExtension, localeKey, avatarImageMap, onToggleEnabled, onDelete, onDuplicate, onUpload, onClick, enterprisePublishButton, hideDelete }) => {
+  /** Whether to show enable/disable switch for read-only installed assistants. */
+  allowToggle?: boolean;
+  /** Whether to show delete button for read-only installed assistants. */
+  allowDelete?: boolean;
+  /** Enterprise mode: use directory category to distinguish custom/hub/tenant assistants. */
+  enterpriseMode?: boolean;
+};
+
+const InstalledAssistantCard: React.FC<InstalledAssistantCardProps> = (props) => {
+  const { assistant, isExtension, localeKey, avatarImageMap } = props;
+  const { onToggleEnabled, onDelete, onDuplicate, onUpload, onClick } = props;
+  const { enterprisePublishButton, hideDelete, allowToggle, allowDelete, enterpriseMode } = props;
   const { t } = useTranslation();
-  const isCustom = !assistant.isBuiltin && !isExtension && !assistant._isHubInstalled;
-  const isReadonly = assistant.isBuiltin || isExtension || assistant._isHubInstalled || hideDelete;
+  const isCustom = enterpriseMode ? assistant._category === 'custom' || (!assistant._category && !assistant.isBuiltin && !isExtension && !assistant._isHubInstalled) : !assistant.isBuiltin && !isExtension && !assistant._isHubInstalled;
+  const isReadonly = assistant.isBuiltin || isExtension || assistant._isHubInstalled || hideDelete || (enterpriseMode && !isCustom);
+  const canToggle = !isExtension && (isCustom || allowToggle === true);
+  const canDelete = !isExtension && !assistant.isBuiltin && !hideDelete && (!isReadonly || allowDelete === true);
   const isEnabled = isExtension ? true : assistant.enabled !== false;
 
   const resolvedAvatar = assistant.avatar?.trim();
@@ -177,9 +191,9 @@ const InstalledAssistantCard: React.FC<{
           </button>
         </Tooltip>
         {enterprisePublishButton}
-        {isCustom && <Switch size='small' checked={isEnabled} onChange={(checked) => onToggleEnabled(checked)} className={isEnabled ? '!bg-[var(--ui-accent-orange)] !border-[var(--ui-accent-orange)]' : ''} />}
+        {canToggle && <Switch size='small' checked={isEnabled} onChange={(checked) => onToggleEnabled(checked)} className={isEnabled ? '!bg-[var(--ui-accent-orange)] !border-[var(--ui-accent-orange)]' : ''} />}
         {/* Delete button - only for custom assistants that are not readonly */}
-        {!isReadonly && (
+        {canDelete && (
           <Popconfirm title={t('settings.deleteAssistantConfirmTitle', { defaultValue: '删除该助手会一并删除已关联会话。如需保留，请导出会话进行备份。是否确认删除？' })} onOk={onDelete} okText={t('common.delete', { defaultValue: '删除' })} cancelText={t('common.cancel', { defaultValue: '取消' })} okButtonProps={{ status: 'danger' }}>
             <Tooltip content={t('settings.assistant.delete', { defaultValue: '删除' })}>
               <button type='button' className='store-action-icon store-action-icon--danger'>
@@ -600,13 +614,13 @@ const AssistantDetailModal: React.FC<{
                             skillIconUrl = resolveExtensionAssetUrl(skill.icon) || skill.icon;
                           } else {
                             // Hub skills: if icon is relative path, prepend COS URL
-                            skillIconUrl = skill.icon && !skill.icon.startsWith('http') && !skill.icon.startsWith('data:') && !skill.icon.startsWith('/') && !skill.icon.startsWith('aion-asset://') && !skill.icon.startsWith('file://') ? `https://sudoworkhub-1309794936.cos.ap-beijing.myqcloud.com/${skill.icon}` : skill.icon;
+                            skillIconUrl = skill.icon && !skill.icon.startsWith('http') && !skill.icon.startsWith('data:') && !skill.icon.startsWith('/') && !skill.icon.startsWith('aion-asset://') && !skill.icon.startsWith('file://') ? `${COS_HUB_BASE}/${skill.icon}` : skill.icon;
                           }
                           return (
                             <div key={skill.id} className='flex items-center gap-10px p-8px bg-fill-2 rd-8px'>
                               <div className='w-32px h-32px flex-shrink-0 rd-6px overflow-hidden bg-fill-3'>
                                 {skillIconUrl ? (
-                                  <img src={skillIconUrl} alt={skillDisplayName} className='w-full h-full object-cover' />
+                                  <img src={skillIconUrl} alt={skillDisplayName} className='w-full h-full object-cover' onError={handleSkillIconError} />
                                 ) : skill.emoji ? (
                                   <div className='w-full h-full flex items-center justify-center text-16px'>{skill.emoji}</div>
                                 ) : (
@@ -1140,6 +1154,7 @@ const AgentModalContent: React.FC = () => {
       if (isEnterprise) {
         // Enterprise mode: refresh local assistants from hub/tenant/custom/system directories
         await mutate('assistantHub.installed');
+        emitter.emit('assistants.changed');
       } else {
         await ipcBridge.acpConversation.refreshCustomAgents.invoke();
         await mutate('acp.agents.available');
@@ -1706,8 +1721,8 @@ const AgentModalContent: React.FC = () => {
   );
 
   const activeAssistant = assistants.find((assistant) => assistant.id === activeAssistantId) || null;
-  // Only custom assistants can be edited; hub-installed, builtin, and extension assistants are readonly
-  const isReadonlyAssistant = Boolean(activeAssistant && (isExtensionAssistant(activeAssistant) || activeAssistant._isHubInstalled || activeAssistant.isBuiltin));
+  // Only custom assistants can be edited; hub/tenant-installed, builtin, and extension assistants are readonly
+  const isReadonlyAssistant = Boolean(activeAssistant && (isExtensionAssistant(activeAssistant) || activeAssistant._isHubInstalled || activeAssistant.isBuiltin || (isEnterprise && (activeAssistant._category === 'hub' || activeAssistant._category === 'tenant'))));
 
   // ===== 分类逻辑：以目录分类（_category）为主，其他字段仅作兼容兜底 =====
   // Tenant assistants: 目录分类为 tenant
@@ -1946,11 +1961,13 @@ const AgentModalContent: React.FC = () => {
       const lookupName = resolveAssistantName(assistant.id);
       // Pass category for precise assistant location
       const assistantCategory = assistant._category as 'custom' | 'hub' | 'system' | 'tenant' | undefined;
+      let result: Awaited<ReturnType<typeof ipcBridge.assistantHub.enableAssistant.invoke>>;
       if (enabled) {
-        await ipcBridge.assistantHub.enableAssistant.invoke({ name: lookupName, category: assistantCategory });
+        result = await ipcBridge.assistantHub.enableAssistant.invoke({ name: lookupName, category: assistantCategory });
       } else {
-        await ipcBridge.assistantHub.disableAssistant.invoke({ name: lookupName, category: assistantCategory });
+        result = await ipcBridge.assistantHub.disableAssistant.invoke({ name: lookupName, category: assistantCategory });
       }
+      if (isEnterprise && !result.success) throw new Error(result.msg || 'Failed to toggle assistant');
       await loadAssistants();
       await refreshAgentDetection();
     } catch (error) {
@@ -1963,10 +1980,17 @@ const AgentModalContent: React.FC = () => {
 
   const editAvatarImage = resolveAvatarImageSrc(editAvatar);
 
-  const renderAssistantGrid = (list: AssistantListItem[], hideDelete = false) => (
+  const canUploadAssistant = (assistant: AssistantListItem) => {
+    if (!isEnterprise) {
+      return !assistant.isBuiltin && !assistant._isHubInstalled && !isExtensionAssistant(assistant);
+    }
+    return assistant._category === 'custom' || (!assistant._category && !assistant.isBuiltin && !assistant._isHubInstalled && !isExtensionAssistant(assistant));
+  };
+
+  const renderAssistantGrid = (list: AssistantListItem[], hideDelete = false, allowToggle = false, allowDelete = false) => (
     <div className='grid gap-8px' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
       {list.map((assistant) => (
-        <InstalledAssistantCard key={assistant.id} assistant={assistant} isExtension={isExtensionAssistant(assistant)} localeKey={localeKey} avatarImageMap={avatarImageMap} onToggleEnabled={(enabled) => void handleToggleEnabled(assistant, enabled)} onDelete={() => void handleDeleteFromCard(assistant)} onDuplicate={() => handleOpenDuplicateModalFromInstalled(assistant)} onUpload={!assistant.isBuiltin && !assistant._isHubInstalled && !isExtensionAssistant(assistant) ? () => handleUploadAssistant(assistant) : undefined} onClick={() => void handleEdit(assistant)} hideDelete={hideDelete} />
+        <InstalledAssistantCard key={assistant.id} assistant={assistant} isExtension={isExtensionAssistant(assistant)} localeKey={localeKey} avatarImageMap={avatarImageMap} onToggleEnabled={(enabled) => void handleToggleEnabled(assistant, enabled)} onDelete={() => void handleDeleteFromCard(assistant)} onDuplicate={() => handleOpenDuplicateModalFromInstalled(assistant)} onUpload={canUploadAssistant(assistant) ? () => handleUploadAssistant(assistant) : undefined} onClick={() => void handleEdit(assistant)} hideDelete={hideDelete} allowToggle={allowToggle} allowDelete={allowDelete} enterpriseMode={isEnterprise} />
       ))}
     </div>
   );
@@ -2215,7 +2239,7 @@ const AgentModalContent: React.FC = () => {
                     <div className='text-13px font-medium text-t-primary'>{t('settings.tenantAssistants', { defaultValue: '专属助手' })}</div>
                     <span className='px-6px py-0px bg-fill-2 text-t-secondary text-11px rd-full leading-18px'>{filteredTenantAssistants.length}</span>
                   </div>
-                  {filteredTenantAssistants.length > 0 ? renderAssistantGrid(filteredTenantAssistants, true) : <div className='bg-fill-1 border border-dashed border-line rd-12px px-14px py-18px text-12px text-t-tertiary'>{t('settings.noTenantAssistants', { defaultValue: '暂无专属助手' })}</div>}
+                  {filteredTenantAssistants.length > 0 ? renderAssistantGrid(filteredTenantAssistants, true, true) : <div className='bg-fill-1 border border-dashed border-line rd-12px px-14px py-18px text-12px text-t-tertiary'>{t('settings.noTenantAssistants', { defaultValue: '暂无专属助手' })}</div>}
                 </section>
               )}
 
@@ -2225,7 +2249,7 @@ const AgentModalContent: React.FC = () => {
                   <div className='text-13px font-medium text-t-primary'>{t('settings.hubAssistants', { defaultValue: '商店助手' })}</div>
                   <span className='px-6px py-0px bg-fill-2 text-t-secondary text-11px rd-full leading-18px'>{hubAssistants.length}</span>
                 </div>
-                {hubAssistants.length > 0 ? renderAssistantGrid(hubAssistants, isEnterprise) : <div className='bg-fill-1 border border-dashed border-line rd-12px px-14px py-18px text-12px text-t-tertiary'>{t('settings.noHubAssistants', { defaultValue: '暂无商店助手' })}</div>}
+                {hubAssistants.length > 0 ? renderAssistantGrid(hubAssistants, isEnterprise, true, !isEnterprise) : <div className='bg-fill-1 border border-dashed border-line rd-12px px-14px py-18px text-12px text-t-tertiary'>{t('settings.noHubAssistants', { defaultValue: '暂无商店助手' })}</div>}
               </section>
 
               {/* Builtin assistants section - Hidden: temporarily disabled */}

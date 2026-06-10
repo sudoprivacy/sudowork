@@ -2,12 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { getSudoworkAcpSlashCommands, protectUnsupportedAcpSlashPrompt } from '@/common/slash/sudoworkCommands';
 
 describe('Sudowork ACP slash commands', () => {
-  it('exposes only the Sudowork ACP commands', () => {
-    expect(getSudoworkAcpSlashCommands().map((command) => command.name)).toEqual(['image']);
+  it('exposes the Sudowork-owned ACP commands', () => {
+    expect(getSudoworkAcpSlashCommands().map((command) => command.name)).toEqual(['image', 'browser']);
   });
 
   it('keeps supported slash commands unchanged', () => {
     expect(protectUnsupportedAcpSlashPrompt('/image generate a cat')).toBe('/image generate a cat');
+    expect(protectUnsupportedAcpSlashPrompt('/browser open https://example.com')).toBe('/browser open https://example.com');
     expect(protectUnsupportedAcpSlashPrompt('/model')).toBe('/model');
     expect(protectUnsupportedAcpSlashPrompt('/status')).toBe('/status');
     expect(protectUnsupportedAcpSlashPrompt('/custom-command', ['custom-command'])).toBe('/custom-command');

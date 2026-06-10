@@ -131,6 +131,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
             backend: 'remote-agent',
             agentName: agentInfo?.name || 'Moss Server',
             presetAssistantId: agentInfo?.customAgentId || agentInfo?.name || 'Moss Server',
+            enabledSkills: isEnterprise && isPreset ? enabledSkills : undefined,
             sessionMode: selectedMode,
             dangerouslySkipPermissions: selectedMode === 'yolo',
             sessionModeParam: 'remote',

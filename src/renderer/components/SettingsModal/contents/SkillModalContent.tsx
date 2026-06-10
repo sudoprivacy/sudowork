@@ -7,7 +7,7 @@
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { ipcBridge } from '@/common';
 import { eeclaw, skillHub } from '@/common/ipcBridge';
-import { resolveSkillIcon, getInstalledSkillDisplay, normalizeSkillVersion } from '@/renderer/utils/skillDisplay';
+import { resolveSkillIcon, getInstalledSkillDisplay, normalizeSkillVersion, handleSkillIconError } from '@/renderer/utils/skillDisplay';
 import { useSettingsViewMode } from '../settingsViewContext';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, Spin, Message, Input, Progress, Modal, Popconfirm, Switch, Tooltip } from '@arco-design/web-react';
@@ -180,12 +180,11 @@ const SkillCard: React.FC<{
   loadingVersion?: boolean;
 }> = ({ skill, isInstalled, hasVersion, installing, installProgress, onInstall, onClick, hasUpdate, onUpdate, updating, latestVersion, loadingVersion }) => {
   const { t } = useTranslation();
-
   return (
     <div className='settings-library-card group bg-fill-1 rd-12px cursor-pointer hover:bg-fill-2 transition-colors border border-line p-12px flex items-start gap-12px relative overflow-hidden' onClick={onClick}>
       {/* Icon */}
       <div className='w-48px flex-shrink-0 flex flex-col items-center'>
-        <div className='w-48px h-48px rd-8px overflow-hidden bg-fill-2'>{skill.icon ? <img src={skill.icon} alt={skill.display_name} className='w-full h-full object-cover' /> : <div className='w-full h-full flex items-center justify-center text-22px'>{skill.emoji || '📦'}</div>}</div>
+        <div className='w-48px h-48px rd-8px overflow-hidden bg-fill-2'>{skill.icon ? <img src={skill.icon} alt={skill.display_name} className='w-full h-full object-cover' onError={handleSkillIconError} /> : <div className='w-full h-full flex items-center justify-center text-22px'>{skill.emoji || '📦'}</div>}</div>
       </div>
 
       {/* Content */}
@@ -257,7 +256,7 @@ const InstalledSkillCard: React.FC<{
       <div className='w-48px flex-shrink-0'>
         <div className='w-48px h-48px rd-8px overflow-hidden bg-fill-2'>
           {icon ? (
-            <img src={icon} alt={displayName} className='w-full h-full object-cover' />
+            <img src={icon} alt={displayName} className='w-full h-full object-cover' onError={handleSkillIconError} />
           ) : emoji ? (
             <div className='w-full h-full flex items-center justify-center text-22px'>{emoji}</div>
           ) : (
@@ -431,7 +430,7 @@ const SkillDetailModal: React.FC<{
           <div className='px-8px pb-16px'>
             {/* Icon + Name header */}
             <div className='flex flex-col items-center mb-20px'>
-              <div className='w-72px h-72px rd-14px overflow-hidden bg-fill-2 mb-12px'>{skill.icon ? <img src={skill.icon} alt={skill.display_name} className='w-full h-full object-cover' /> : <div className='w-full h-full flex items-center justify-center text-34px'>{skill.emoji || '📦'}</div>}</div>
+              <div className='w-72px h-72px rd-14px overflow-hidden bg-fill-2 mb-12px'>{skill.icon ? <img src={skill.icon} alt={skill.display_name} className='w-full h-full object-cover' onError={handleSkillIconError} /> : <div className='w-full h-full flex items-center justify-center text-34px'>{skill.emoji || '📦'}</div>}</div>
               <div className='font-semibold text-17px text-t-primary text-center'>{skill.display_name}</div>
               {skill.categories && skill.categories.length > 0 && (
                 <div className='flex gap-4px mt-6px flex-wrap justify-center'>
@@ -500,8 +499,8 @@ const SkillDetailModal: React.FC<{
               <>
                 {hasUpdate ? (
                   <Tooltip content={t('settings.skill.updateTo', { version: latestVersionInfo?.version, defaultValue: `更新至 v${latestVersionInfo?.version || ''}` })}>
-                    <Button type='primary' long size='large' className='flex-1' loading={updating} onClick={onUpdate}>
-                      <span className='flex items-center gap-6px justify-center'>
+                    <Button type='primary' long size='large' className='flex-1' loading={updating} loadingFixedWidth onClick={onUpdate}>
+                      <span className='inline-flex items-center gap-6px justify-center whitespace-nowrap'>
                         <Install size='15' />
                         {t('settings.skill.updateTo', { version: latestVersionInfo?.version, defaultValue: `更新至 v${latestVersionInfo?.version || ''}` })}
                       </span>
@@ -542,11 +541,8 @@ const SkillDetailModal: React.FC<{
                   </Button>
                 </Tooltip>
                 <Tooltip content={t('common.download', { defaultValue: '下载' })}>
-                  <Button size='large' onClick={onDownload} loading={downloading} disabled={installing}>
-                    <span className='flex items-center gap-6px justify-center'>
-                      <Download size='15' />
-                      {t('common.download', { defaultValue: '下载' })}
-                    </span>
+                  <Button size='large' icon={<Download size='15' />} loading={downloading} loadingFixedWidth onClick={onDownload} disabled={installing}>
+                    {t('common.download', { defaultValue: '下载' })}
                   </Button>
                 </Tooltip>
               </>
