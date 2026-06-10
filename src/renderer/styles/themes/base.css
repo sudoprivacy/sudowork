@@ -971,6 +971,18 @@ body,
     background-color 0.2s ease;
 }
 
+/* 行尾渐隐遮罩的颜色需跟随行背景态变化，否则尾部会露出与悬浮/选中底色不一致的冷色块 */
+.conversation-item {
+  --row-fade: var(--aou-1);
+}
+.conversation-item:hover {
+  --row-fade: var(--bg-hover);
+}
+.conversation-item.conversation-item--selected,
+.conversation-item.conversation-item--selected:hover {
+  --row-fade: var(--bg-active);
+}
+
 .chat-history__item-name,
 .chat-history__item-editor,
 .settings-sider__item-label {
