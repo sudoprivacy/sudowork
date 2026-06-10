@@ -34,13 +34,13 @@ vi.mock('../../../src/common/nexus/nexus-secret-client.js', async (importOrigina
 });
 
 /**
- * Create a mock GrpcClient whose callBinary dispatches to a handler map.
+ * Create a mock Nexus instance whose callBinary dispatches to a handler map.
  * The handler receives the raw protobuf bytes and returns raw protobuf response bytes,
  * exactly like the real vault plugin dispatch.
  */
-function createMockGrpcClient(handlers: Record<string, (payload: Buffer) => Buffer>) {
+function createMockNexus(handlers: Record<string, (payload: Buffer) => Buffer>) {
   return {
-    callBinary: vi.fn((method: string, payload: Buffer, _authToken: string): Buffer => {
+    callBinary: vi.fn((method: string, payload: Buffer): Buffer => {
       const handler = handlers[method];
       if (!handler) throw new Error(`Unknown method: ${method}`);
       return handler(payload);
@@ -58,7 +58,7 @@ describe('NexusSecretClient', () => {
   });
 
   it('putSecret: encodes PutSecretRequest and decodes PutSecretResponse', () => {
-    const mockClient = createMockGrpcClient({
+    const mockClient = createMockNexus({
       'password-vault.secret_put': (payload) => {
         const req = fromBinary(PutSecretRequestSchema, new Uint8Array(payload));
         expect(req.namespace).toBe('provider:openai');
@@ -74,7 +74,7 @@ describe('NexusSecretClient', () => {
       },
     });
 
-    const client = new NexusSecretClientClass(mockClient as any, '');
+    const client = new NexusSecretClientClass(mockClient as any);
     const result = client.putSecret('provider:openai', 'api_key', 'sk-test-123', 'OpenAI key');
 
     expect(result.namespace).toBe('provider:openai');
@@ -84,7 +84,7 @@ describe('NexusSecretClient', () => {
   });
 
   it('getSecret: encodes GetSecretRequest and returns value string', () => {
-    const mockClient = createMockGrpcClient({
+    const mockClient = createMockNexus({
       'password-vault.secret_get': (payload) => {
         const req = fromBinary(GetSecretRequestSchema, new Uint8Array(payload));
         expect(req.namespace).toBe('auth:jwt');
@@ -97,14 +97,14 @@ describe('NexusSecretClient', () => {
       },
     });
 
-    const client = new NexusSecretClientClass(mockClient as any, '');
+    const client = new NexusSecretClientClass(mockClient as any);
     const value = client.getSecret('auth:jwt', 'webui_secret');
 
     expect(value).toBe('jwt-secret-value');
   });
 
   it('deleteSecret: returns deleted boolean', () => {
-    const mockClient = createMockGrpcClient({
+    const mockClient = createMockNexus({
       'password-vault.secret_delete': (payload) => {
         const req = fromBinary(DeleteSecretRequestSchema, new Uint8Array(payload));
         expect(req.namespace).toBe('channel:telegram:1');
@@ -117,12 +117,12 @@ describe('NexusSecretClient', () => {
       },
     });
 
-    const client = new NexusSecretClientClass(mockClient as any, '');
+    const client = new NexusSecretClientClass(mockClient as any);
     expect(client.deleteSecret('channel:telegram:1', 'token')).toBe(true);
   });
 
   it('restoreSecret: returns restored boolean', () => {
-    const mockClient = createMockGrpcClient({
+    const mockClient = createMockNexus({
       'password-vault.secret_restore': (payload) => {
         const req = fromBinary(RestoreSecretRequestSchema, new Uint8Array(payload));
         const resp = create(RestoreSecretResponseSchema, {
@@ -132,12 +132,12 @@ describe('NexusSecretClient', () => {
       },
     });
 
-    const client = new NexusSecretClientClass(mockClient as any, '');
+    const client = new NexusSecretClientClass(mockClient as any);
     expect(client.restoreSecret('ns', 'k')).toBe(true);
   });
 
   it('listSecrets: returns array of SecretMetadata', () => {
-    const mockClient = createMockGrpcClient({
+    const mockClient = createMockNexus({
       'password-vault.secret_list': (payload) => {
         const req = fromBinary(ListSecretsRequestSchema, new Uint8Array(payload));
         expect(req.namespace).toBe('provider:*');
@@ -153,7 +153,7 @@ describe('NexusSecretClient', () => {
       },
     });
 
-    const client = new NexusSecretClientClass(mockClient as any, '');
+    const client = new NexusSecretClientClass(mockClient as any);
     const secrets = client.listSecrets('provider:*');
 
     expect(secrets).toHaveLength(2);
@@ -162,7 +162,7 @@ describe('NexusSecretClient', () => {
   });
 
   it('listVersions: returns array of VersionMetadata', () => {
-    const mockClient = createMockGrpcClient({
+    const mockClient = createMockNexus({
       'password-vault.secret_list_versions': (payload) => {
         const req = fromBinary(ListSecretVersionsRequestSchema, new Uint8Array(payload));
         const resp = create(ListSecretVersionsResponseSchema, {
@@ -173,14 +173,14 @@ describe('NexusSecretClient', () => {
       },
     });
 
-    const client = new NexusSecretClientClass(mockClient as any, '');
+    const client = new NexusSecretClientClass(mockClient as any);
     const versions = client.listVersions('ns', 'k');
     expect(versions).toHaveLength(2);
     expect(versions[0].version).toBe(1);
   });
 
   it('batchPut: encodes array of PutSecretRequest', () => {
-    const mockClient = createMockGrpcClient({
+    const mockClient = createMockNexus({
       'password-vault.secret_batch_put': (payload) => {
         const req = fromBinary(BatchPutSecretsRequestSchema, new Uint8Array(payload));
         expect(req.secrets).toHaveLength(2);
@@ -196,7 +196,7 @@ describe('NexusSecretClient', () => {
       },
     });
 
-    const client = new NexusSecretClientClass(mockClient as any, '');
+    const client = new NexusSecretClientClass(mockClient as any);
     const results = client.batchPut([
       { namespace: 'ns', key: 'k1', value: 'v1' },
       { namespace: 'ns', key: 'k2', value: 'v2' },
@@ -205,7 +205,7 @@ describe('NexusSecretClient', () => {
   });
 
   it('batchGet: returns key→value map', () => {
-    const mockClient = createMockGrpcClient({
+    const mockClient = createMockNexus({
       'password-vault.secret_batch_get': (payload) => {
         const req = fromBinary(BatchGetSecretsRequestSchema, new Uint8Array(payload));
         expect(req.queries).toHaveLength(2);
@@ -218,7 +218,7 @@ describe('NexusSecretClient', () => {
       },
     });
 
-    const client = new NexusSecretClientClass(mockClient as any, '');
+    const client = new NexusSecretClientClass(mockClient as any);
     const map = client.batchGet([
       { namespace: 'ns', key: 'k1' },
       { namespace: 'ns', key: 'k2' },
@@ -228,7 +228,7 @@ describe('NexusSecretClient', () => {
   });
 
   it('deleteVersion: returns deleted boolean', () => {
-    const mockClient = createMockGrpcClient({
+    const mockClient = createMockNexus({
       'password-vault.secret_delete_version': (payload) => {
         const req = fromBinary(DeleteSecretVersionRequestSchema, new Uint8Array(payload));
         expect(req.version).toBe(2);
@@ -240,12 +240,12 @@ describe('NexusSecretClient', () => {
       },
     });
 
-    const client = new NexusSecretClientClass(mockClient as any, '');
+    const client = new NexusSecretClientClass(mockClient as any);
     expect(client.deleteVersion('ns', 'k', 2)).toBe(true);
   });
 
   it('updateDescription: returns success boolean', () => {
-    const mockClient = createMockGrpcClient({
+    const mockClient = createMockNexus({
       'password-vault.secret_update_description': (payload) => {
         const req = fromBinary(UpdateSecretDescriptionRequestSchema, new Uint8Array(payload));
         expect(req.description).toBe('new desc');
@@ -257,16 +257,16 @@ describe('NexusSecretClient', () => {
       },
     });
 
-    const client = new NexusSecretClientClass(mockClient as any, '');
+    const client = new NexusSecretClientClass(mockClient as any);
     expect(client.updateDescription('ns', 'k', 'new desc')).toBe(true);
   });
 
   it('dispatch error propagates to caller', () => {
-    const mockClient = createMockGrpcClient({
+    const mockClient = createMockNexus({
       'password-vault.secret_get': () => { throw new Error('gRPC call failed: NOT_FOUND'); },
     });
 
-    const client = new NexusSecretClientClass(mockClient as any, '');
+    const client = new NexusSecretClientClass(mockClient as any);
     expect(() => client.getSecret('ns', 'missing')).toThrow('gRPC call failed: NOT_FOUND');
   });
 });
