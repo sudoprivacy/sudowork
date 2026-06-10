@@ -904,7 +904,9 @@ export function initConversationBridge(): void {
       }
       return { success: true };
     } catch (err: unknown) {
-      return { success: false, msg: err instanceof Error ? err.message : String(err) };
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      mainError('conversationBridge', `sendMessage failed for ${conversation_id}: ${errorMessage}`, err);
+      return { success: false, msg: errorMessage };
     }
   });
 

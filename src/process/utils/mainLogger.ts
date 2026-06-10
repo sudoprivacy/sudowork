@@ -7,8 +7,8 @@
 /**
  * Main Process Logger
  *
- * 统一日志管理，所有日志写入 ~/.nexus/logs/sudoclaw.log
- * Unified logger writing to ~/.nexus/logs/sudoclaw.log
+ * 统一日志管理，所有日志写入 ~/.nexus/logs/sudowork.log
+ * Unified logger writing to ~/.nexus/logs/sudowork.log
  *
  * 格式: [级别] YYYY-MM-DD HH:mm:ss [类型] 内容
  * Format: [LEVEL] YYYY-MM-DD HH:mm:ss [TYPE] message
@@ -18,12 +18,13 @@ import { appendFileSync, existsSync, mkdirSync, statSync, renameSync, readFileSy
 import { join } from 'path';
 import { app } from 'electron';
 import { ipcBridge } from '@/common';
+import { enqueueSudoworkLogError } from './sudoworkLogUploader';
 
 // 日志级别
 type LogLevel = 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'PERF';
 
 // 日志配置
-const LOG_FILE = 'sudoclaw.log';
+const LOG_FILE = 'sudowork.log';
 const MAX_LOG_SIZE = 10 * 1024 * 1024; // 10MB 后轮转
 
 let logsDir: string | null = null;
@@ -137,6 +138,21 @@ function writeLog(level: LogLevel, tag: string, message: string, data?: unknown)
     appendFileSync(getLogPath(), logLine, 'utf-8');
   } catch (error) {
     console.warn('[Logger] Failed to write log file:', error);
+    return;
+  }
+
+  if (level === 'ERROR') {
+    try {
+      enqueueSudoworkLogError({
+        tag,
+        message,
+        data,
+        logLine: logLine.trim(),
+        timestampMs: Date.now(),
+      });
+    } catch (error) {
+      console.warn('[Logger] Failed to enqueue Sudowork Log error:', error);
+    }
   }
 }
 
