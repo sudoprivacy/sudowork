@@ -8,7 +8,7 @@ import { getAppMode, setAppMode } from '@/common/eeclawMode';
 import { useEffect, useState } from 'react';
 
 // Pre-initialize app mode on module load (avoids first-frame flash)
-// Follows the same pattern as useColorScheme.ts
+// Follows the same early-initialization pattern as useTheme.ts
 let initialModePromise: Promise<'c' | 'e'> | null = null;
 let initialModeResolved = false;
 let appModeWasNull = false; // true when ConfigStorage had no appMode (true new user)

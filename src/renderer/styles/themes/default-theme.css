@@ -1,8 +1,12 @@
-/* Glittering Input Field Theme - AionUi Adaptation */
-/* Warm serif surfaces with a vivid aurora input accent */
+/* Default Theme - 内置默认主题（在 base 之上声明品牌差异）
+ * 仅包含品牌强调变量（primary/brand/aou/hl-chip/aurora）与非变量规则。
+ * 中性结构色由 base（color-schemes/default.css）提供，此处不重复声明。
+ * 通过 DEFAULT_THEME_ID 在运行时注入到 <head> 末尾，覆盖 base 兜底值。
+ */
 
+/* ===== Light Mode：品牌差异变量 ===== */
 :root {
-  /* ===== Primary: Retroma Teal-Blue ===== */
+  /* Primary: Retroma Teal-Blue */
   --color-primary: #0f7887;
   --primary: #0f7887;
   --color-primary-light-1: #2a9aac;
@@ -11,14 +15,14 @@
   --color-primary-dark-1: #0a5a66;
   --primary-rgb: 15, 120, 135;
 
-  /* ===== Brand: Retroma Warm Purple ===== */
+  /* Brand: Retroma Warm Purple */
   --brand: #6e3a66;
   --brand-light: #f2e8f0;
   --brand-hover: #9d6094;
   --color-brand-fill: #6e3a66;
   --color-brand-bg: #f2e8f0;
 
-  /* ===== AOU Palette: Warm Olive-Green Gradient ===== */
+  /* AOU Palette: Warm Olive-Green Gradient */
   --aou-1: #f4f4ec;
   --aou-2: #e8e9d8;
   --aou-3: #d0d2b0;
@@ -30,71 +34,12 @@
   --aou-9: #222606;
   --aou-10: #0c0e02;
 
-  /* ===== Backgrounds: Warm Parchment ===== */
-  --bg-base: #faf9f6;
-  --bg-1: #f5f4ef;
-  --bg-2: #eeede5;
-  --bg-3: #e2e0d4;
-  --bg-4: #cbc8b8;
-  --bg-5: #b0ac9a;
-  --bg-6: #8c8878;
-  --bg-8: #575450;
-  --bg-9: #2c2b28;
-  --bg-10: #111009;
-  --color-bg-1: #f5f4ef;
-  --color-bg-2: #eeede5;
-  --color-bg-3: #e2e0d4;
-  --color-bg-4: #cbc8b8;
-
-  /* ===== Interactive States ===== */
-  --bg-hover: #ebe9df;
-  --bg-active: #e0ded4;
-
-  /* ===== Text: Warm Dark ===== */
-  --text-primary: #1d011d;
-  --text-secondary: #6e6060;
-  --text-disabled: #b8b0a8;
-  --text-0: #1d011d;
-  --text-white: #faf9f6;
-  --color-text-1: #1d011d;
-  --color-text-2: #6e6060;
-  --color-text-3: #9e9490;
-  --color-text-4: #c8c0bc;
-
-  /* ===== Borders ===== */
-  --border-base: #d8d4c8;
-  --border-light: #e8e6dc;
-  --border-special: #d0ccc0;
-  --color-border: #d8d4c8;
-  --color-border-1: #d8d4c8;
-  --color-border-2: #e8e6dc;
-
-  /* ===== Fill & Inverse ===== */
-  --fill: #f5f4ef;
-  --color-fill: #f5f4ef;
-  --fill-0: #faf9f6;
-  --fill-white-to-black: #faf9f6;
-  --dialog-fill-0: #faf9f6;
-  --inverse: #1d011d;
-
-  /* ===== Semantic Colors ===== */
-  --success: #35847e;
-  --warning: #b07a10;
-  --danger: #b03030;
-  --info: #0f7887;
-
-  /* ===== Message & Component ===== */
-  --message-user-bg: #e9e4f0;
-  --message-tips-bg: #f1edf6;
-  --workspace-btn-bg: #eeece4;
-
-  /* ===== Color GUID Agent Bar ===== */
-  --color-guid-agent-bar: #eae8de;
+  /* Highlight Chip */
   --hl-chip-bg: #f3eee2;
   --hl-chip-text: #5a4a3a;
   --hl-chip-border: #d7ccb7;
 
-  /* ===== Aurora Input Accent ===== */
+  /* Aurora Input Accent */
   --retroma-aurora-input-gradient: linear-gradient(90deg, #ff6a01 0%, #f8c91c 12.5%, #8a2be2 25%, #00bfff 37.5%, #ff6a01 50%, #f8c91c 62.5%, #8a2be2 75%, #00bfff 87.5%, #ff6a01 100%);
   --retroma-aurora-input-ring: rgba(255, 162, 84, 0.24);
   --retroma-aurora-input-shadow: 0 18px 40px rgba(110, 58, 102, 0.16), 0 0 28px rgba(15, 120, 135, 0.1);
@@ -102,7 +47,7 @@
   --retroma-aurora-placeholder: #8f7c7b;
 }
 
-/* ===== Dark Mode Overrides ===== */
+/* ===== Dark Mode：品牌差异变量 ===== */
 [data-theme='dark'] {
   /* Primary: Retroma Teal (dark-adjusted) */
   --color-primary: #6e8ddb;
@@ -132,66 +77,7 @@
   --aou-9: #e4e6b8;
   --aou-10: #f2f4da;
 
-  /* Backgrounds: Dark Obsidian with warm undertones */
-  --bg-base: #0f0f0c;
-  --bg-1: #18180f;
-  --bg-2: #222217;
-  --bg-3: #2e2e20;
-  --bg-4: #3c3c2c;
-  --bg-5: #4e4e3a;
-  --bg-6: #606050;
-  --bg-8: #848470;
-  --bg-9: #b0b09a;
-  --bg-10: #d8d8c8;
-  --color-bg-1: #18180f;
-  --color-bg-2: #222217;
-  --color-bg-3: #2e2e20;
-  --color-bg-4: #3c3c2c;
-
-  /* Interactive States */
-  --bg-hover: #1e1e14;
-  --bg-active: #28281c;
-
-  /* Text: Retroma warm near-white */
-  --text-primary: #e8e6d8;
-  --text-secondary: #a8a498;
-  --text-disabled: #686458;
-  --text-0: #f0ede0;
-  --text-white: #f0ede0;
-  --color-text-1: #e8e6d8;
-  --color-text-2: #a8a498;
-  --color-text-3: #787468;
-  --color-text-4: #504c44;
-
-  /* Borders */
-  --border-base: #3a3a28;
-  --border-light: #2a2a1e;
-  --border-special: #4a4a36;
-  --color-border: #3a3a28;
-  --color-border-1: #3a3a28;
-  --color-border-2: #2a2a1e;
-
-  /* Fill & Inverse */
-  --fill: #18180f;
-  --color-fill: #18180f;
-  --fill-0: rgba(255, 252, 240, 0.07);
-  --fill-white-to-black: #0f0f0c;
-  --dialog-fill-0: #2e2e20;
-  --inverse: #f0ede0;
-
-  /* Semantic Colors */
-  --success: #68a99d;
-  --warning: #d4963a;
-  --danger: #c86060;
-  --info: #6e8ddb;
-
-  /* Message & Component */
-  --message-user-bg: #3a3444;
-  --message-tips-bg: #2f2a38;
-  --workspace-btn-bg: #1e1e14;
-
-  /* Color GUID Agent Bar */
-  --color-guid-agent-bar: #2a2a1e;
+  /* Highlight Chip */
   --hl-chip-bg: #d6ccb8;
   --hl-chip-text: #3f3528;
   --hl-chip-border: #b5a88f;
@@ -529,7 +415,3 @@ body {
       var(--retroma-aurora-input-shadow-strong);
   }
 }
-
-/* AionUi Theme Background Start */
-/* Preview cover only: do not auto-inject full-page background image */
-/* AionUi Theme Background End */

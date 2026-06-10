@@ -8,6 +8,7 @@ import { SUDOWORK_SERVER_BASE_URL } from '@/common/sudoworkServer';
 import { DEFAULT_TENANT_CONFIG, TENANT_CONFIG_STORAGE_KEY, resolveTenantConfig } from '@/common/types/tenantConfig';
 import SudoworkIcon from '@/renderer/assets/sudowork-icon-dark.svg';
 import WindowControls from '../../components/WindowControls';
+import { isElectronDesktop, isMacOS } from '@/renderer/utils/platform';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
 import { ConfigStorage } from '@/common/storage';
 import { ipcBridge } from '@/common';
@@ -20,8 +21,9 @@ function generateOAuth2State(): string {
   return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-// 运行时判断 / Runtime check
-const isDesktopRuntime = typeof window !== 'undefined' && Boolean(window.electronAPI);
+// Windows/Linux 显示自定义窗口按钮；macOS 由系统原生信号灯负责，避免重复
+// Windows/Linux render custom window controls; macOS relies on native traffic lights, so skip them to avoid duplicates
+const showWindowControls = isElectronDesktop() && !isMacOS();
 
 // Validate phone number format (same as server-side)
 function isValidPhone(phone: string): boolean {
@@ -483,7 +485,7 @@ const LoginPage: React.FC = () => {
   if (isEnterprise) {
     return (
       <div className='login-page'>
-        {isDesktopRuntime && <WindowControls />}
+        {showWindowControls && <WindowControls />}
 
         <div className='login-page__background'>
           <div className='login-page__background-circle login-page__background-circle--lg' />
@@ -558,7 +560,7 @@ const LoginPage: React.FC = () => {
   return (
     <div className='login-page'>
       {/* 桌面端窗口控制按钮 / Window controls for desktop */}
-      {isDesktopRuntime && <WindowControls />}
+      {showWindowControls && <WindowControls />}
 
       {/* 装饰性背景 */}
       <div className='login-page__background'>

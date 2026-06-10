@@ -24,7 +24,7 @@ import { processCustomCss } from './utils/customCssProcessor';
 import { cleanupSiderTooltips } from './utils/siderTooltip';
 import { emitter } from './utils/emitter';
 import { isElectronDesktop } from './utils/platform';
-import { computeCssSyncDecision, resolveCssByActiveTheme } from './utils/themeCssSync';
+import { computeCssSyncDecision, resolveCssByActiveTheme, themeExists } from './utils/themeCssSync';
 import { DEFAULT_THEME_ID } from './components/CssThemeSettings/presets';
 import SudoworkIcon from './assets/sudowork-icon-dark.svg';
 const useDebug = () => {
@@ -145,7 +145,13 @@ const Layout: React.FC<{
           console.warn('Failed to persist theme fallback:', error);
         });
       } else if (decision.shouldHealStorage) {
-        await ConfigStorage.set('customCss', effectiveCss).catch((error) => {
+        const sets = [ConfigStorage.set('customCss', effectiveCss)];
+        // activeThemeId 指向已删除的旧预设（如重命名前的默认主题）→ 归一到默认主题，清掉陈旧 id
+        // Stale activeThemeId pointing at a removed preset → normalize to the default theme
+        if (activeThemeId && activeThemeId !== DEFAULT_THEME_ID && !themeExists(activeThemeId, (savedThemes || []) as ICssTheme[])) {
+          sets.push(ConfigStorage.set('css.activeThemeId', DEFAULT_THEME_ID));
+        }
+        await Promise.all(sets).catch((error) => {
           console.warn('Failed to heal custom CSS from active theme:', error);
         });
       }
