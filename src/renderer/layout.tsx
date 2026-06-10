@@ -11,7 +11,7 @@ import CommandPalette from '@/renderer/components/CommandPalette';
 import { useCommandPalette } from '@/renderer/hooks/useCommandPalette';
 import Titlebar from '@/renderer/components/Titlebar';
 import { Layout as ArcoLayout } from '@arco-design/web-react';
-import { MenuFold, MenuUnfold } from '@icon-park/react';
+import { ExpandLeft, ExpandRight } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
@@ -310,34 +310,47 @@ const Layout: React.FC<{
                 : undefined
             }
           >
-            <ArcoLayout.Header
-              className={classNames('flex items-center justify-start py-8px px-16px pl-18px gap-10px layout-sider-header', isMobile && 'layout-sider-header--mobile', {
-                'cursor-pointer group ': collapsed,
-              })}
-            >
+            <ArcoLayout.Header className={classNames('flex items-center justify-start py-8px px-16px pl-18px gap-10px layout-sider-header', isMobile && 'layout-sider-header--mobile')}>
               <div
                 className={classNames('shrink-0 size-34px relative rd-0.5rem flex items-center justify-center', {
-                  '!size-24px': collapsed,
+                  // hover 区域限定在 logo 盒子本身，避免收起动画时侧栏边缘扫过指针误触发 hover
+                  // Scope the hover group to the logo box so the collapsing edge sweeping under the cursor won't trigger it
+                  '!size-24px group cursor-pointer': collapsed,
                 })}
-                onClick={onClick}
+                // 收起态（桌面端）点击 logo 区域即展开侧栏；展开态保留调试入口
+                // Collapsed (desktop): clicking the logo area expands the sidebar; expanded keeps the debug entry
+                onClick={collapsed && !isMobile ? () => setCollapsed(false) : onClick}
+                aria-label={collapsed && !isMobile ? 'Expand sidebar' : undefined}
               >
                 <img
                   src={config.logo || SudoworkIcon}
                   alt={config.app_name}
-                  className={classNames('absolute inset-0 m-auto', {
+                  className={classNames('absolute inset-0 m-auto transition-opacity', {
                     'w-5 h-5 p-0.5 scale-130': !collapsed,
                     'w-4 h-4 p-0.5': collapsed,
+                    // 收起态 hover 时淡出 logo，露出展开图标 / Fade logo out on hover to reveal expand icon
+                    'group-hover:opacity-0': collapsed && !isMobile,
                   })}
                   style={{ objectFit: 'contain' }}
                 />
+                {collapsed && !isMobile && (
+                  <span className='absolute inset-0 flex items-center justify-center text-1 opacity-0 transition-opacity group-hover:opacity-100'>
+                    <ExpandLeft theme='outline' size='18' fill='currentColor' />
+                  </span>
+                )}
               </div>
               <div className='flex-1 text-18px text-1 collapsed-hidden font-700'>{config.app_name}</div>
-              {isMobile && !collapsed && (
-                <button type='button' className='app-titlebar__button' onClick={() => setCollapsed(true)} aria-label='Collapse sidebar'>
-                  {collapsed ? <MenuUnfold theme='outline' size='18' fill='currentColor' /> : <MenuFold theme='outline' size='18' fill='currentColor' />}
+              {/* 桌面端展开态：logo 右侧收起按钮 / Desktop expanded: collapse button to the right of the logo */}
+              {!isMobile && !collapsed && (
+                <button type='button' className='shrink-0 size-28px flex items-center justify-center rd-6px text-1 border-none bg-transparent cursor-pointer transition-colors hover:bg-[var(--bg-hover)]' onClick={() => setCollapsed(true)} aria-label='Collapse sidebar'>
+                  <ExpandRight theme='outline' size='18' fill='currentColor' />
                 </button>
               )}
-              {/* 侧栏折叠改由标题栏统一控制 / Sidebar folding handled by Titlebar toggle */}
+              {isMobile && !collapsed && (
+                <button type='button' className='app-titlebar__button' onClick={() => setCollapsed(true)} aria-label='Collapse sidebar'>
+                  <ExpandRight theme='outline' size='18' fill='currentColor' />
+                </button>
+              )}
             </ArcoLayout.Header>
             <ArcoLayout.Content className={classNames('p-10px layout-sider-content', !isMobile && 'h-[calc(100%-58px-16px)]')}>
               {React.isValidElement(sider)
