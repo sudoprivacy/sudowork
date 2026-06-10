@@ -7,9 +7,9 @@
 import { ipcBridge } from '@/common';
 import type { GeneratedFileEntry } from '@/common/generatedFiles';
 import { iconColors } from '@/renderer/theme/colors';
-import { GeneratedFileCard } from '@/renderer/messages/GeneratedFileCard';
+import GeneratedFileCards from '@/renderer/messages/GeneratedFileCard';
 import { FileCabinet } from '@icon-park/react';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 interface DeliverablesPanelProps {
@@ -71,20 +71,21 @@ const DeliverablesPanel: React.FC<DeliverablesPanelProps> = ({ conversationId })
   const grouped = useMemo(() => groupByDay(entries, t), [entries, t]);
 
   return (
-    <div className='flex flex-1 flex-col h-full min-h-0 overflow-y-auto px-12px py-10px gap-12px'>
+    <div className='flex flex-1 min-w-0 flex-col h-full min-h-0 overflow-y-auto overflow-x-hidden px-12px py-12px gap-12px'>
       {entries.length === 0 ? (
         <EmptyState loading={loading} />
       ) : (
-        grouped.map((group) => (
-          <div key={group.label} className='flex flex-col gap-6px w-fit'>
-            <div className='text-11px text-t-secondary opacity-70 uppercase tracking-wider'>{group.label}</div>
-            <div className='flex flex-col gap-6px'>
-              {group.entries.map((entry) => (
-                <GeneratedFileCard key={entry.path} entry={entry} />
-              ))}
-            </div>
-          </div>
-        ))
+        <div className='flex flex-col gap-12px'>
+          {grouped.map((group) => (
+            <section key={group.label} className='w-[90%] min-w-0 overflow-hidden rounded-16px border border-solid border-[var(--color-border-2)] bg-[var(--color-bg-2)] p-12px shadow-[0_1px_0_rgba(0,0,0,0.02)]'>
+              <div className='mb-10px flex items-center justify-between gap-8px'>
+                <div className='text-11px font-semibold uppercase tracking-[0.16em] text-t-secondary'>{group.label}</div>
+                <div className='rounded-full bg-[var(--color-fill-1)] px-8px py-1px text-[10px] font-medium leading-4 text-t-secondary'>{group.entries.length}</div>
+              </div>
+              <GeneratedFileCards entries={group.entries} layout='stack' />
+            </section>
+          ))}
+        </div>
       )}
     </div>
   );
@@ -96,10 +97,14 @@ const EmptyState: React.FC<{ loading: boolean }> = ({ loading }) => {
     return <div className='flex-1 flex items-center justify-center text-12px text-t-secondary'>{t('conversation.rightPanel.deliverables.loading')}</div>;
   }
   return (
-    <div className='flex-1 flex flex-col items-center justify-center text-center px-24px gap-8px'>
-      <FileCabinet size={36} fill={iconColors.disabled} />
-      <div className='text-13px text-t-primary font-medium'>{t('conversation.rightPanel.deliverables.emptyTitle')}</div>
-      <div className='text-12px text-t-secondary opacity-70'>{t('conversation.rightPanel.deliverables.emptyHint')}</div>
+    <div className='flex-1 flex flex-col items-center justify-center text-center px-24px'>
+      <div className='flex flex-col items-center gap-10px rounded-20px border border-dashed border-[var(--color-border-2)] bg-[var(--color-bg-2)] px-20px py-24px shadow-[0_1px_0_rgba(0,0,0,0.02)]'>
+        <div className='flex h-48px w-48px items-center justify-center rounded-full bg-[var(--color-fill-1)]'>
+          <FileCabinet size={36} fill={iconColors.disabled} />
+        </div>
+        <div className='text-13px font-semibold text-t-primary'>{t('conversation.rightPanel.deliverables.emptyTitle')}</div>
+        <div className='max-w-220px text-12px leading-18px text-t-secondary opacity-80'>{t('conversation.rightPanel.deliverables.emptyHint')}</div>
+      </div>
     </div>
   );
 };

@@ -499,8 +499,8 @@ const SkillDetailModal: React.FC<{
               <>
                 {hasUpdate ? (
                   <Tooltip content={t('settings.skill.updateTo', { version: latestVersionInfo?.version, defaultValue: `更新至 v${latestVersionInfo?.version || ''}` })}>
-                    <Button type='primary' long size='large' className='flex-1' loading={updating} onClick={onUpdate}>
-                      <span className='flex items-center gap-6px justify-center'>
+                    <Button type='primary' long size='large' className='flex-1' loading={updating} loadingFixedWidth onClick={onUpdate}>
+                      <span className='inline-flex items-center gap-6px justify-center whitespace-nowrap'>
                         <Install size='15' />
                         {t('settings.skill.updateTo', { version: latestVersionInfo?.version, defaultValue: `更新至 v${latestVersionInfo?.version || ''}` })}
                       </span>

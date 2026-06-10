@@ -189,8 +189,8 @@ const MessageText: React.FC<{ message: IMessageText; isStreaming?: boolean; foot
           </div>
         )}
         {generated.ok && generated.files.length > 0 && (
-          <div className={classNames(proseHasContent ? 'mt-8px' : 'mt-6px')}>
-            <GeneratedFileCards entries={generated.files} />
+          <div className={classNames(proseHasContent ? 'mt-8px w-full' : 'mt-6px w-full')}>
+            <GeneratedFileCards entries={generated.files} fullWidth />
           </div>
         )}
         {showFooter && <div className='mt-4px w-full max-w-full'>{footer}</div>}

@@ -578,7 +578,13 @@ export const preview = {
 // the AI writes an HTML file to workspace, and (later) when /browser slash
 // commands or MCP tools request opening a URL in the right-panel browser.
 export const rightPanelBrowser = {
-  open: bridge.buildEmitter<{ url: string; switchTab?: boolean }>('right-panel.browser.open'),
+  open: bridge.buildEmitter<{ url: string; switchTab?: boolean; conversationId?: string }>('right-panel.browser.open'),
+  /**
+   * Broadcast from main when a conversation is deleted so renderer-side
+   * per-conversation BrowserPanel state can drop its entry. Mirrors the
+   * direct cleanup main does via BrowserPanelCdpService.closeTabsByConversation.
+   */
+  convClosed: bridge.buildEmitter<{ conversationId: string }>('right-panel.browser.conv-closed'),
 };
 
 // AI-generated file deliverables for a conversation. The list is built by
@@ -953,10 +959,15 @@ export const browserPanel = {
   // ── Tab registry ────────────────────────────────────────────────────────
   // Renderer reports (tabId ↔ webContentsId) on dom-ready so the main process
   // can target the right webview from agent tool calls.
-  registerTab: bridge.buildProvider<IBridgeResponse<void>, { tabId: string; webContentsId: number }>('browser-panel:register-tab'),
+  // `conversationId` scopes the tab to a single chat conversation so
+  // per-conv BrowserPanel isolation works; absent/empty value falls back to
+  // the global bucket (matches behavior before the per-conv refactor and the
+  // sudowork-browser MCP child's /tab/open path, which doesn't know which
+  // conversation triggered the call).
+  registerTab: bridge.buildProvider<IBridgeResponse<void>, { tabId: string; webContentsId: number; conversationId?: string }>('browser-panel:register-tab'),
   unregisterTab: bridge.buildProvider<IBridgeResponse<void>, { tabId: string }>('browser-panel:unregister-tab'),
-  setActiveTab: bridge.buildProvider<IBridgeResponse<void>, { tabId: string }>('browser-panel:set-active-tab'),
-  listTabs: bridge.buildProvider<IBridgeResponse<Array<{ webContentsId: number; url: string; title: string; attached: boolean }>>, void>('browser-panel:list-tabs'),
+  setActiveTab: bridge.buildProvider<IBridgeResponse<void>, { tabId: string; conversationId?: string }>('browser-panel:set-active-tab'),
+  listTabs: bridge.buildProvider<IBridgeResponse<Array<{ webContentsId: number; url: string; title: string; attached: boolean; conversationId?: string }>>, void>('browser-panel:list-tabs'),
 
   // ── CDP action API ──────────────────────────────────────────────────────
   // Each call resolves the target webview from `tabId` (renderer tab id) or

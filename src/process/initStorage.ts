@@ -524,9 +524,21 @@ const resolveBuiltinResourceDir = (dirPath: string): string => {
 /**
  * Locate the bundled ai-dev-browser Python package directory.
  * Returns the path to the inner `ai_dev_browser/` package (not the repo root).
+ *
+ * In dev mode, also accepts a sibling repo checkout at `../ai-dev-browser/`
+ * relative to the sudowork repo root. This lets a developer who clones
+ * ai-dev-browser as a sibling repo (not via `git submodule update --init`)
+ * still get the `browser` shim wired to a real Python package without
+ * requiring network access or running submodule init. Production builds
+ * ignore the sibling path entirely.
  */
 const resolveAiDevBrowserPackageDir = (): string | null => {
-  const candidates = app.isPackaged ? [path.join(app.getAppPath().replace('app.asar', 'app.asar.unpacked'), 'vendor/ai-dev-browser/ai_dev_browser'), path.join(process.resourcesPath, 'ai-dev-browser/ai_dev_browser')] : [path.join(app.getAppPath(), 'vendor/ai-dev-browser/ai_dev_browser')];
+  const candidates = app.isPackaged
+    ? [path.join(app.getAppPath().replace('app.asar', 'app.asar.unpacked'), 'vendor/ai-dev-browser/ai_dev_browser'), path.join(process.resourcesPath, 'ai-dev-browser/ai_dev_browser')]
+    : [
+        path.join(app.getAppPath(), 'vendor/ai-dev-browser/ai_dev_browser'),
+        path.join(app.getAppPath(), '..', 'ai-dev-browser', 'ai_dev_browser'),
+      ];
   return candidates.find((p) => existsSync(p)) ?? null;
 };
 

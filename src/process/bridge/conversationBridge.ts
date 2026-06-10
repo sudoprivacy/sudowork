@@ -29,6 +29,7 @@ import { INTERMEDIATE_DIR_SEGMENTS } from '../task/FileIntentClassifier';
 import WorkerManage from '../WorkerManage';
 import { migrateConversationToDatabase } from './migrationUtils';
 import { closeTerminalsByConversation } from './terminalBridge';
+import { closeBrowserTabsByConversation } from './browserPanelBridge';
 import { skillManager } from '../SkillManager';
 import { ConversationManageWithDB } from '../message';
 import { setupChannelResponseRouting } from '@/channels/agent/ChannelResponseRouter';
@@ -467,6 +468,17 @@ export function initConversationBridge(): void {
         closeTerminalsByConversation(id);
       } catch (err) {
         mainWarn('conversationBridge', 'closeTerminalsByConversation failed', err);
+      }
+
+      // Reap any right-panel BrowserPanel tabs tied to this conversation.
+      // Same direct-call pattern as closeTerminalsByConversation. The
+      // function also broadcasts rightPanelBrowser.convClosed so the
+      // renderer-side BrowserPanel can drop its module-level state for
+      // this conv.
+      try {
+        closeBrowserTabsByConversation(id);
+      } catch (err) {
+        mainWarn('conversationBridge', 'closeBrowserTabsByConversation failed', err);
       }
 
       // Delete associated cron jobs

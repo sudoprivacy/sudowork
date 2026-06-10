@@ -48,8 +48,8 @@ export function initBrowserPanelBridge(): void {
   });
 
   // ── Tab registry ────────────────────────────────────────────────────────
-  ipcBridge.browserPanel.registerTab.provider(async ({ tabId, webContentsId }) => {
-    browserPanelCdpService.registerTab(tabId, webContentsId);
+  ipcBridge.browserPanel.registerTab.provider(async ({ tabId, webContentsId, conversationId }) => {
+    browserPanelCdpService.registerTab(tabId, webContentsId, conversationId);
     return { success: true };
   });
 
@@ -135,4 +135,25 @@ export function initBrowserPanelBridge(): void {
     browserPanelCdpService.clearBuffers(id);
     return { success: true };
   });
+}
+
+/**
+ * Close every right-panel BrowserPanel tab owned by `conversationId`. Called
+ * by conversationBridge when a conversation is deleted so the conversation's
+ * webviews are torn down alongside its terminals and other per-conv state.
+ * Best-effort: tabs whose webContents is already destroyed are skipped.
+ *
+ * Also broadcasts `rightPanelBrowser.convClosed` so the renderer-side
+ * BrowserPanel can drop the matching entry from its module-level
+ * per-conv state Map.
+ */
+export function closeBrowserTabsByConversation(conversationId: string): number {
+  if (!conversationId) return 0;
+  const closed = browserPanelCdpService.closeTabsByConversation(conversationId);
+  try {
+    ipcBridge.rightPanelBrowser.convClosed.emit({ conversationId });
+  } catch (err) {
+    mainError('BrowserPanel', `convClosed emit failed for ${conversationId}: ${String(err)}`);
+  }
+  return closed;
 }

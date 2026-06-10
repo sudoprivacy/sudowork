@@ -11,8 +11,8 @@
  * then serving from memory during runtime.
  */
 
-import type { SecretStoreClient } from './secret-store-client.js';
-import { getSecretStoreClient } from './secret-store.js';
+import type { NexusSecretClient } from './nexus-secret-client.js';
+import { getNexusSecretClient } from './nexus-secret-client.js';
 
 // ============================================================================
 // Types
@@ -32,7 +32,7 @@ export interface MigrationMap {
 class SecretCacheImpl {
   private cache = new Map<string, string>(); // key: "namespace:key" -> 明文值
   private migrated = new Set<string>(); // 已迁移的 secretRef 集合
-  private client: SecretStoreClient | null = null;
+  private client: NexusSecretClient | null = null;
   private initialized = false;
 
   /**
@@ -41,7 +41,7 @@ class SecretCacheImpl {
    * Called once at startup.
    */
   initialize(): void {
-    this.client = getSecretStoreClient();
+    this.client = getNexusSecretClient();
   }
 
   /**
@@ -61,7 +61,7 @@ class SecretCacheImpl {
       const secrets = await this.client.listSecrets();
       console.log('[SecretCache] listSecrets returned:', secrets.length, 'secrets');
       for (const secret of secrets) {
-        if (secret.deletedAt) {
+        if (secret.deleted) {
           continue; // Skip deleted secrets
         }
         console.log('[SecretCache] Getting secret:', secret.namespace, secret.key);

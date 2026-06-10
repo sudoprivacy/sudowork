@@ -14,7 +14,24 @@ export const tokensToUsagePoints = (tokens?: number | null): number | null => {
 
 export const costToUsagePoints = (cost?: number | null): number | null => {
   if (typeof cost !== 'number' || !Number.isFinite(cost)) return null;
-  return Math.round(cost / COST_UNITS_PER_USAGE_POINT);
+  return cost / COST_UNITS_PER_USAGE_POINT;
+};
+
+type UsagePointInput = {
+  totalTokens?: number | null;
+  costUnits?: number | null;
+  costCurrency?: string | null;
+};
+
+export const resolveUsagePoints = (usage?: UsagePointInput | null): number | null => {
+  if (!usage) return null;
+
+  if (usage.costCurrency === 'sudo_point') {
+    const costPoints = costToUsagePoints(usage.costUnits);
+    if (costPoints !== null) return costPoints;
+  }
+
+  return tokensToUsagePoints(usage.totalTokens);
 };
 
 export const usagePointsFromTokensOrFallback = (tokens?: number | null, fallbackPoints?: number | null): number => {
