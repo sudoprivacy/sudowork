@@ -83,9 +83,9 @@
   "agent_name": "智能体名称",
   "rule_content": "规则内容 / 指令",
   "delete_preset_confirm": "确定要删除该预设吗？",
-  "cssSettings": "CSS设置",
+  "cssSettings": "主题设置",
   "cssTheme": {
-    "selectOrCustomize": "选择预设主题或自定义 CSS",
+    "selectOrCustomize": "选择预设主题或自定义主题",
     "addManually": "手动添加",
     "default": "默认",
     "addToPreset": "添加主题",
