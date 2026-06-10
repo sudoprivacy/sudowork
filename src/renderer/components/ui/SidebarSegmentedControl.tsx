@@ -21,7 +21,7 @@ export type SidebarSegmentedControlProps<T extends string> = {
 
 const SidebarSegmentedControl = <T extends string>({ options, value, onChange, className }: SidebarSegmentedControlProps<T>) => {
   return (
-    <div className={classNames('sidebar-segmented-control flex items-center gap-2px bg-fill-2 p-3px', className)}>
+    <div className={classNames('sidebar-segmented-control flex items-center gap-2px p-3px', className)}>
       {options.map((option) => {
         const active = option.value === value;
         return (

@@ -12,7 +12,7 @@ import { useCronJobsMap } from '@/renderer/pages/cron';
 import { emitter } from '@/renderer/utils/emitter';
 import { DndContext, DragOverlay, closestCenter } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { Button, Empty, Input, Message, Modal } from '@arco-design/web-react';
+import { Empty, Input, Message, Modal } from '@arco-design/web-react';
 import { Down, FolderOpen } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
@@ -30,7 +30,7 @@ import { useDragAndDrop } from './hooks/useDragAndDrop';
 import { useExport } from './hooks/useExport';
 import type { ConversationRowProps, ConversationItem, WorkspaceGroupedHistoryProps } from './types';
 
-const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSessionClick, collapsed = false, tooltipEnabled = false, batchMode = false, onBatchModeChange, activeTab = 'timeline' }) => {
+const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSessionClick, collapsed = false, tooltipEnabled = false, batchMode = false, onBatchModeChange, activeTab = 'timeline', onBatchApiChange }) => {
   const { id } = useParams();
   const { t } = useTranslation();
   const { getJobStatus, markAsRead, setActiveConversation } = useCronJobsMap();
@@ -220,6 +220,24 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
     collapsed,
   });
 
+  // Publish the batch-action API up to the sider so its batch button can render
+  // these actions in a popover. Cleared (null) whenever batch mode is off.
+  useEffect(() => {
+    if (!onBatchApiChange) return;
+    if (!batchMode) {
+      onBatchApiChange(null);
+      return;
+    }
+    onBatchApiChange({
+      selectedCount,
+      allSelected,
+      onToggleSelectAll: handleToggleSelectAll,
+      onBatchExport: handleBatchExport,
+      onBatchDelete: () => handleBatchDelete(conversations),
+    });
+    return () => onBatchApiChange(null);
+  }, [onBatchApiChange, batchMode, selectedCount, allSelected, handleToggleSelectAll, handleBatchExport, handleBatchDelete, conversations]);
+
   const getConversationRowProps = useCallback(
     (conversation: ConversationItem): ConversationRowProps => ({
       conversation,
@@ -366,25 +384,6 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
         <div className='text-13px text-t-secondary mb-8px'>{t('conversation.workspace.renameWorkspace.hint')}</div>
         <Input autoFocus value={wsRenameModal.name} onChange={(v) => setWsRenameModal((prev) => ({ ...prev, name: v }))} onPressEnter={handleWorkspaceRenameConfirm} placeholder={t('conversation.workspace.renameWorkspace.placeholder')} />
       </Modal>
-
-      {batchMode && !collapsed && (
-        <div className='px-12px pb-8px'>
-          <div className='rd-8px bg-fill-1 p-10px flex flex-col gap-8px border border-solid border-[rgba(var(--primary-6),0.08)]'>
-            <div className='text-12px leading-18px text-t-secondary'>{t('conversation.history.selectedCount', { count: selectedCount })}</div>
-            <div className='grid grid-cols-2 gap-6px'>
-              <Button className='!col-span-2 !w-full !justify-center !min-w-0 !h-30px !px-8px !text-12px whitespace-nowrap' size='mini' type='secondary' onClick={handleToggleSelectAll}>
-                {allSelected ? t('common.cancel') : t('conversation.history.selectAll')}
-              </Button>
-              <Button className='!w-full !justify-center !min-w-0 !h-30px !px-8px !text-12px whitespace-nowrap' size='mini' type='secondary' onClick={handleBatchExport}>
-                {t('conversation.history.batchExport')}
-              </Button>
-              <Button className='!w-full !justify-center !min-w-0 !h-30px !px-8px !text-12px whitespace-nowrap' size='mini' status='warning' onClick={() => handleBatchDelete(conversations)}>
-                {t('conversation.history.batchDelete')}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
 
       <div className='size-full overflow-y-auto overflow-x-hidden'>
         {/* ── PINNED SECTION ── */}

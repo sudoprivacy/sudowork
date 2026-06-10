@@ -850,7 +850,7 @@ const ChannelModalContent: React.FC = () => {
           </div>
         </div>
 
-        <div className='mt-16px overflow-hidden rd-12px border border-solid border-[var(--ui-border-strong)] bg-bg-1'>
+        <div className='mt-16px flex flex-col gap-12px'>
           {channels.map((channelConfig) => (
             <ChannelItem key={channelConfig.id} channel={channelConfig} isCollapsed={collapseKeys[channelConfig.id] || false} onToggleCollapse={() => handleToggleCollapse(channelConfig.id)} onToggleEnabled={getToggleHandler(channelConfig.id)} />
           ))}
