@@ -293,6 +293,9 @@ nodeGypRebuild: false
 
 asarUnpack:
   - 'native/nexus-napi/*.node'
+  # index.js must sit next to the unpacked .node so that
+  # require(app.asar.unpacked/native/nexus-napi) resolves (see nexus-vfs-client.ts)
+  - 'native/nexus-napi/index.js'
   - '**/node_modules/better-sqlite3/**/*'
   - '**/node_modules/bcrypt/**/*'
   - '**/node_modules/node-pty/**/*'
