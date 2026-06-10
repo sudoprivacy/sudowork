@@ -14,7 +14,7 @@ import { Layout as ArcoLayout } from '@arco-design/web-react';
 import { ExpandLeft, ExpandRight } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Outlet, useLocation } from 'react-router-dom';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { LayoutContext } from './context/LayoutContext';
 import { useTenantConfig } from './context/TenantConfigContext';
 import { useDeepLink } from './hooks/useDeepLink';
@@ -22,6 +22,7 @@ import { useDirectorySelection } from './hooks/useDirectorySelection';
 import { useMultiAgentDetection } from './hooks/useMultiAgentDetection';
 import { processCustomCss } from './utils/customCssProcessor';
 import { cleanupSiderTooltips } from './utils/siderTooltip';
+import { emitter } from './utils/emitter';
 import { isElectronDesktop } from './utils/platform';
 import { computeCssSyncDecision, resolveCssByActiveTheme } from './utils/themeCssSync';
 import { DEFAULT_THEME_ID } from './components/CssThemeSettings/presets';
@@ -90,6 +91,18 @@ const Layout: React.FC<{
   const [customCss, setCustomCss] = useState<string>('');
   const [shouldMountUpdateModal, setShouldMountUpdateModal] = useState(false);
   const { onClick } = useDebug();
+  const navigate = useNavigate();
+  // 点击侧栏顶部 logo / 应用名时回到新会话页，行为与「新会话」按钮一致
+  // Clicking the sidebar-top logo / app name returns to the new conversation page, matching the "New Chat" button
+  const goToNewConversation = useCallback(() => {
+    cleanupSiderTooltips();
+    // 清除持久化的 agent 选择，确保新会话时不恢复之前的助手
+    void ConfigStorage.set('guid.lastSelectedAgent', '');
+    // 触发 Guide 页面重置所有用户输入状态
+    emitter.emit('guid.reset');
+    void navigate('/guid');
+    if (isMobile) setCollapsed(true);
+  }, [navigate, isMobile]);
   const { contextHolder: multiAgentContextHolder } = useMultiAgentDetection();
   const { contextHolder: directorySelectionContextHolder } = useDirectorySelection();
   useDeepLink();
@@ -317,10 +330,17 @@ const Layout: React.FC<{
                   // Scope the hover group to the logo box so the collapsing edge sweeping under the cursor won't trigger it
                   '!size-24px group cursor-pointer': collapsed,
                 })}
-                // 收起态（桌面端）点击 logo 区域即展开侧栏；展开态保留调试入口
-                // Collapsed (desktop): clicking the logo area expands the sidebar; expanded keeps the debug entry
-                onClick={collapsed && !isMobile ? () => setCollapsed(false) : onClick}
-                aria-label={collapsed && !isMobile ? 'Expand sidebar' : undefined}
+                // 收起态（桌面端）点击 logo 区域即展开侧栏；展开态/移动端点击回到新会话页（保留调试三连击入口）
+                // Collapsed (desktop): clicking the logo expands the sidebar; expanded/mobile: go to the new conversation page (debug triple-tap preserved)
+                onClick={
+                  collapsed && !isMobile
+                    ? () => setCollapsed(false)
+                    : () => {
+                        onClick();
+                        goToNewConversation();
+                      }
+                }
+                aria-label={collapsed && !isMobile ? 'Expand sidebar' : 'New conversation'}
               >
                 <img
                   src={config.logo || SudoworkIcon}
@@ -339,7 +359,9 @@ const Layout: React.FC<{
                   </span>
                 )}
               </div>
-              <div className='flex-1 text-18px text-1 collapsed-hidden font-700'>{config.app_name}</div>
+              <div className='flex-1 text-18px text-1 collapsed-hidden font-700 cursor-pointer' onClick={goToNewConversation}>
+                {config.app_name}
+              </div>
               {/* 桌面端展开态：logo 右侧收起按钮 / Desktop expanded: collapse button to the right of the logo */}
               {!isMobile && !collapsed && (
                 <button type='button' className='shrink-0 size-28px flex items-center justify-center rd-6px text-1 border-none bg-transparent cursor-pointer transition-colors hover:bg-[var(--bg-hover)]' onClick={() => setCollapsed(true)} aria-label='Collapse sidebar'>
