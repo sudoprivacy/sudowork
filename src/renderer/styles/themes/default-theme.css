@@ -318,7 +318,8 @@ body {
 
 /* ===== Sidebar ===== */
 .layout-sider {
-  background-color: var(--bg-1);
+  /* 与 TitleBar 一致（#eeede5 == --bg-2）/ Match the TitleBar surface (#eeede5 == --bg-2) */
+  background-color: var(--bg-2);
   border-right: 1px solid var(--border-base);
 }
 
