@@ -144,7 +144,7 @@ jobs:
         run: echo "electron-cache-hit=${{ steps.electron-cache.outputs.cache-hit }}"
 
       - name: Install dependencies
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@v4
         with:
           timeout_minutes: 10
           max_attempts: 3
@@ -193,7 +193,7 @@ jobs:
       - name: Install MSVC ARM64 toolchain (Windows ARM64 only)
         if: matrix.platform == 'windows-arm64'
         continue-on-error: true
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@v4
         with:
           timeout_minutes: 20
           max_attempts: 3
@@ -527,7 +527,7 @@ jobs:
       # Linux: 标准构建，无特殊错误处理
       - name: Build with electron-builder (Linux)
         if: matrix.platform == 'linux'
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@v4
         with:
           timeout_minutes: 60
           max_attempts: 2
