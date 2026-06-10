@@ -456,6 +456,7 @@ export class RemoteConversationProvider implements IConversationProvider {
    */
   private convertMossMessagesToTMessages(allMessages: any[], conversationId: string, mossSessionId: string): { messages: TMessage[]; foundModel: string } {
     const messages: TMessage[] = [];
+    const finishedMessageStatus = 'finish';
     let messageIndex = 0;
     let foundModel = '';
 
@@ -495,7 +496,7 @@ export class RemoteConversationProvider implements IConversationProvider {
               responseToolCallId,
             },
             create_time: timestamp,
-            status: 'finished',
+            status: finishedMessageStatus,
           } as unknown as TMessage);
         } else {
           messages.push({
@@ -517,7 +518,7 @@ export class RemoteConversationProvider implements IConversationProvider {
               },
             },
             create_time: timestamp,
-            status: 'finished',
+            status: finishedMessageStatus,
           } as unknown as TMessage);
         }
         continue;
@@ -547,7 +548,7 @@ export class RemoteConversationProvider implements IConversationProvider {
           position: 'left',
           content: { content: errorText || msg.error || 'Unknown error', type: 'error' },
           create_time: timestamp,
-          status: 'finished',
+          status: finishedMessageStatus,
         } as unknown as TMessage);
         continue;
       }
@@ -565,7 +566,7 @@ export class RemoteConversationProvider implements IConversationProvider {
                 position: 'right',
                 content: { content: textContent },
                 create_time: timestamp,
-                status: 'finished',
+                status: finishedMessageStatus,
               } as unknown as TMessage);
             }
           } else if (block?.type === 'tool_result') {
@@ -582,7 +583,7 @@ export class RemoteConversationProvider implements IConversationProvider {
                 position: 'left',
                 content: { content: resultContent || 'Tool execution failed', type: 'error' },
                 create_time: timestamp,
-                status: 'finished',
+                status: finishedMessageStatus,
               } as unknown as TMessage);
             } else {
               messages.push({
@@ -601,7 +602,7 @@ export class RemoteConversationProvider implements IConversationProvider {
                   },
                 },
                 create_time: timestamp,
-                status: 'finished',
+                status: finishedMessageStatus,
               } as unknown as TMessage);
             }
           }
@@ -627,7 +628,7 @@ export class RemoteConversationProvider implements IConversationProvider {
             position: 'right',
             content: { content: textContent },
             create_time: timestamp,
-            status: 'finished',
+            status: finishedMessageStatus,
           } as unknown as TMessage);
         }
         continue;
@@ -648,7 +649,7 @@ export class RemoteConversationProvider implements IConversationProvider {
                 position: 'left',
                 content: { content: textContent },
                 create_time: timestamp,
-                status: 'finished',
+                status: finishedMessageStatus,
               } as unknown as TMessage);
             }
           } else if (block?.type === 'tool_use') {
@@ -675,7 +676,7 @@ export class RemoteConversationProvider implements IConversationProvider {
                   responseToolCallId,
                 },
                 create_time: timestamp,
-                status: 'finished',
+                status: finishedMessageStatus,
               } as unknown as TMessage);
             } else {
               messages.push({
@@ -697,7 +698,7 @@ export class RemoteConversationProvider implements IConversationProvider {
                   },
                 },
                 create_time: timestamp,
-                status: 'finished',
+                status: finishedMessageStatus,
               } as unknown as TMessage);
             }
           }
@@ -713,7 +714,7 @@ export class RemoteConversationProvider implements IConversationProvider {
             position: 'left',
             content: { content: textContent },
             create_time: timestamp,
-            status: 'finished',
+            status: finishedMessageStatus,
           } as unknown as TMessage);
         }
       }
@@ -782,14 +783,20 @@ export class RemoteConversationProvider implements IConversationProvider {
         const { messages, foundModel } = this.convertMossMessagesToTMessages(allMessages, conversationId, mossSessionId);
 
         // Save to local DB for future local-first reads / 保存到本地数据库供后续本地优先读取
+        let insertedCount = 0;
         for (const msg of messages) {
           try {
-            db.insertMessage(msg);
+            const insertResult = db.insertMessage(msg);
+            if (insertResult?.success === false) {
+              mainError('RemoteProvider', `Failed to insert message to local DB: ${insertResult.error ?? 'unknown error'}`);
+            } else {
+              insertedCount++;
+            }
           } catch (insertErr) {
             mainError('RemoteProvider', `Failed to insert message to local DB: ${insertErr}`);
           }
         }
-        mainLog('RemoteProvider', `Saved ${messages.length} messages to local DB from Moss session ${mossSessionId}`);
+        mainLog('RemoteProvider', `Saved ${insertedCount}/${messages.length} messages to local DB from Moss session ${mossSessionId}`);
 
         if (foundModel) {
           this.cachedModelInfo.set(conversationId, {
@@ -864,9 +871,15 @@ export class RemoteConversationProvider implements IConversationProvider {
       db.deleteConversationMessages(conversationId);
 
       // Insert all converted messages / 插入所有转换后的消息
+      let insertedCount = 0;
       for (const msg of messages) {
         try {
-          db.insertMessage(msg);
+          const insertResult = db.insertMessage(msg);
+          if (insertResult?.success === false) {
+            mainError('RemoteProvider', `Failed to insert message during sync: ${insertResult.error ?? 'unknown error'}`);
+          } else {
+            insertedCount++;
+          }
         } catch (insertErr) {
           mainError('RemoteProvider', `Failed to insert message during sync: ${insertErr}`);
         }
@@ -906,8 +919,8 @@ export class RemoteConversationProvider implements IConversationProvider {
         } as Partial<TChatConversation>);
       }
 
-      mainLog('RemoteProvider', `Synced ${messages.length} messages from Moss Server for session ${mossSessionId}`);
-      return { syncedCount: messages.length, nameUpdated };
+      mainLog('RemoteProvider', `Synced ${insertedCount}/${messages.length} messages from Moss Server for session ${mossSessionId}`);
+      return { syncedCount: insertedCount, nameUpdated };
     } catch (error) {
       mainError('RemoteProvider', `Failed to sync from Moss Server: ${error instanceof Error ? error.message : String(error)}`);
       return { syncedCount: 0, nameUpdated: false };

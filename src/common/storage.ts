@@ -174,6 +174,12 @@ export interface IConfigStorageRefer {
   'agent.promptTimeout'?: number;
   // Agent idle timeout in minutes for recycling / Agent 空闲超时（分钟）用于回收
   'agent.idleTimeout'?: number;
+  // Remote agent idle detach timeout in minutes. After a finished remote session is idle for
+  // this long, the client tears down the WebSocket (detach only — does NOT terminate the Moss
+  // session). 0 disables detach. undefined ⇒ default (30 min).
+  // 远程会话空闲 detach 超时（分钟）。会话结束并空闲该时长后，客户端仅断开 WebSocket（不调用 terminate）。
+  // 0 表示禁用；未设置时使用默认值（30 分钟）。
+  'remote.idleDetachMinutes'?: number;
   // Telemetry configuration / 遥测配置
   'telemetry.enabled'?: boolean; // 是否启用遥测上报 / Whether telemetry reporting is enabled
   'telemetry.optInShown'?: boolean; // 是否已显示 opt-in 弹窗 / Whether opt-in dialog has been shown
