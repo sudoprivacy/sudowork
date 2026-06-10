@@ -182,19 +182,29 @@ const kill = (id: string) => {
 };
 
 const clear = async (): Promise<void> => {
-  const killPromises = taskList.map((item) => {
+  // App exit / restart cleanup. For remote-agent tasks, we explicitly DETACH
+  // (disconnect the local WS only) rather than terminate — Moss server reclaims
+  // idle containers/sessions per its own policy, and we don't want a graceful
+  // shutdown of the desktop client to also tear down the user's server-side
+  // session. Local ACP agents and any other task type fall back to kill()
+  // because they own a child process that must actually exit.
+  // 应用退出/重启清理：对 remote-agent 显式 detach（仅断本地 WS），不调用
+  // terminateSession——服务端 idle 回收由 Moss 自己负责。其它类型仍走 kill()，
+  // 因为它们拥有需要真正退出的子进程。
+  const cleanupPromises = taskList.map((item) => {
     try {
-      const result = item.task.kill();
+      const task = item.task as AgentBaseTask<unknown> & { detach?: () => void };
+      const result = task.type === 'remote-agent' && typeof task.detach === 'function' ? task.detach() : task.kill();
       return result instanceof Promise ? result : Promise.resolve();
     } catch (err) {
-      mainError('WorkerManage', `Failed to kill task ${item.id}:`, err);
+      mainError('WorkerManage', `Failed to clean up task ${item.id}:`, err);
       return Promise.resolve();
     }
   });
   taskList.length = 0;
   // Wait for all agent child processes to terminate.
   // This prevents orphaned scode processes on Windows when the app quits.
-  await Promise.allSettled(killPromises);
+  await Promise.allSettled(cleanupPromises);
 };
 
 const addTask = (id: string, task: AgentBaseTask<unknown>) => {
