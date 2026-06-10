@@ -1615,3 +1615,23 @@ body,
 [data-theme='dark'] .error-boundary-fallback {
   background-color: rgba(247, 101, 96, 0.08);
 }
+
+/* 间隙露出与标题栏/侧栏一致的框体底色 / Gap reveals the same frame color as titlebar/sider */
+.layout {
+  background-color: var(--bg-2);
+}
+
+/* 桌面端：右侧内容区做成悬浮卡片，右/下留 12px 间距并加圆角 */
+/* Desktop: float the content area as a card — 12px gap on the right/bottom with rounded corners */
+@media (min-width: 768px) {
+  .layout-content {
+    margin-right: 12px;
+    margin-bottom: 12px;
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+  }
+}
+
+.loading {
+  animation: loading 1s linear infinite;
+}
