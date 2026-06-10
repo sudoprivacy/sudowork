@@ -86,7 +86,7 @@ describe('Sudowork Log personal error upload sink', () => {
     rmSync(homeDir, { recursive: true, force: true });
   });
 
-  it('uses the development Sudowork Log endpoint by default', async () => {
+  it('uses the production Sudowork Log endpoint by default', async () => {
     delete process.env.SUDOWORK_LOG_BATCH_URL;
     writeConfig(homeDir, {
       'system.appMode': 'c',
@@ -104,7 +104,7 @@ describe('Sudowork Log personal error upload sink', () => {
     await uploader.flushSudoworkLogUploader();
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock.mock.calls[0][0]).toBe('http://127.0.0.1:8080/v1/logs/batch');
+    expect(fetchMock.mock.calls[0][0]).toBe('https://sudolog.sudoprivacy.com/v1/logs/batch');
   });
 
   it('logs successful flush counts', async () => {
@@ -149,6 +149,8 @@ describe('Sudowork Log personal error upload sink', () => {
     expect(log.user_identifier_hash).toBe(hash('13800138000'));
     expect(log.user_id_hash).toBe(hash('12345'));
     expect(log.device_id_hash).toBe(hash('98765'));
+    expect(log.tags).toEqual({ user_phone: '13800138000', log_level: 'error' });
+    expect(Object.keys(log.tags).sort()).toEqual(['log_level', 'user_phone']);
     expect(log.attributes.user_id).toBe('12345');
     expect(log.attributes.user_nickname).toBe('67890');
     expect(log.attributes.user_phone).toBe('13800138000');
@@ -202,6 +204,8 @@ describe('Sudowork Log personal error upload sink', () => {
     expect(log.user_identifier_hash).toBe(hash('13800138000'));
     expect(log.user_id_hash).toBe(hash('user-123'));
     expect(log.device_id_hash).toBe(hash('device-abc'));
+    expect(log.tags).toEqual({ user_phone: '13800138000', log_level: 'error' });
+    expect(Object.keys(log.tags).sort()).toEqual(['log_level', 'user_phone']);
     expect(log.error.message).toContain('sk-1234567890123456');
     expect(log.error.message).toContain('user@example.com');
     expect(log.error.stack).toBeTruthy();
@@ -376,6 +380,8 @@ describe('Sudowork Log personal error upload sink', () => {
     expect(log.tenant_id).toBe('sudo');
     expect(log.product).toBe('sudowork');
     expect(log.user_identifier_hash).toBe(hash('13800138000'));
+    expect(log.tags).toEqual({ user_phone: '13800138000', log_level: 'error' });
+    expect(Object.keys(log.tags).sort()).toEqual(['log_level', 'user_phone']);
     expect(log.attributes.user_id).toBe('user-123');
     expect(log.attributes.user_nickname).toBe('Alice Zhang');
     expect(log.attributes.user_phone).toBe('13800138000');

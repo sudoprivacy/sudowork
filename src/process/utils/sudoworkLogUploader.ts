@@ -25,6 +25,11 @@ type SudoworkLogError = {
   stack: string;
 };
 
+type SudoworkLogTags = {
+  user_phone?: string;
+  log_level?: string;
+};
+
 type SudoworkLogEntry = {
   timestamp: string;
   tenant_id: string;
@@ -41,6 +46,7 @@ type SudoworkLogEntry = {
   trace_id?: string;
   message: string;
   error: SudoworkLogError;
+  tags: SudoworkLogTags;
   attributes: Record<string, unknown>;
 };
 
@@ -77,7 +83,7 @@ const SUDO_LOG_TENANT_ID = 'sudo';
 const LOG_PRODUCT = 'sudowork';
 const API_KEY_HEADER = 'X-API-Key';
 const API_KEY = 'sk-8f3a2b1c9d5e7f6a4b3c2d1e8f9a0b7c';
-const DEFAULT_BATCH_URL = 'http://127.0.0.1:8080/v1/logs/batch';
+const DEFAULT_BATCH_URL = 'https://sudolog.sudoprivacy.com/v1/logs/batch';
 const CACHE_FILE_NAME = 'sudowork-log-error-cache.json';
 const MAX_QUEUE_SIZE = 500;
 const MAX_BATCH_SIZE = 50;
@@ -87,6 +93,7 @@ const FLUSH_INTERVAL_MS = 30000;
 const SEND_TIMEOUT_MS = 5000;
 const MAX_STRING_LENGTH = 8000;
 const MAX_ATTRIBUTE_STRING_LENGTH = 1000;
+const MAX_TAG_VALUE_LENGTH = 256;
 const MAX_ARRAY_ITEMS = 20;
 const MAX_OBJECT_KEYS = 40;
 const MAX_OBJECT_DEPTH = 4;
@@ -185,6 +192,22 @@ function limitString(value: unknown, maxLength = MAX_STRING_LENGTH): string {
   return truncate(scalarToString(value) ?? String(value), maxLength);
 }
 
+function limitTagValue(value: unknown): string | undefined {
+  const normalized = scalarToString(value)?.trim();
+  if (!normalized) return undefined;
+  return truncate(normalized, MAX_TAG_VALUE_LENGTH);
+}
+
+function buildTags(config: PersonalConfigSnapshot): SudoworkLogTags {
+  const tags: SudoworkLogTags = {};
+  const userPhone = limitTagValue(config.userPhone);
+
+  if (userPhone) tags.user_phone = userPhone;
+  tags.log_level = 'error';
+
+  return tags;
+}
+
 function limitValue(value: unknown, depth = 0): unknown {
   if (depth > MAX_OBJECT_DEPTH) return '[MaxDepth]';
   if (value === null || value === undefined) return value;
@@ -278,6 +301,7 @@ function toLogEntry(entry: LogUploadErrorEntry, config: PersonalConfigSnapshot):
     device_id_hash: hashIdentifier(config.installId),
     message: limitString(entry.message, MAX_STRING_LENGTH),
     error,
+    tags: buildTags(config),
     attributes,
   };
 }
@@ -299,6 +323,7 @@ function normalizeStoredLogEntry(entry: StoredLogEntry, config: PersonalConfigSn
       tenant_id: SUDO_LOG_TENANT_ID,
       product: LOG_PRODUCT,
       user_identifier_hash: userIdentifierHash,
+      tags: buildTags(config),
       attributes,
     },
   };
