@@ -52,8 +52,9 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
   const backToChatTooltip = t('common.back', { defaultValue: 'Back to Chat' });
   const isSettingsRoute = location.pathname.startsWith('/settings');
   const iconSize = layout?.isMobile ? 24 : 18;
-  // 统一在标题栏左侧展示主侧栏开关 / Always expose sidebar toggle on titlebar left side
-  const showSiderToggle = Boolean(layout?.setSiderCollapsed) && !(layout?.isMobile && isSettingsRoute);
+  // 移动端侧栏为抽屉式，收起后移出屏幕，开关只能留在标题栏；桌面端开关已移到 logo 右侧
+  // Mobile sidebar is a drawer that slides off-screen when collapsed, so its toggle must stay on the titlebar; desktop toggle now lives beside the logo
+  const showSiderToggle = Boolean(layout?.isMobile && layout?.setSiderCollapsed) && !isSettingsRoute;
   const showBackToChatButton = Boolean(layout?.isMobile && isSettingsRoute);
   const showNewConversationButton = Boolean(layout?.isMobile && workspaceAvailable);
   const siderTooltip = layout?.siderCollapsed ? t('common.expandMore', { defaultValue: 'Expand sidebar' }) : t('common.collapse', { defaultValue: 'Collapse sidebar' });
