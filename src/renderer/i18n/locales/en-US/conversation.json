@@ -221,6 +221,7 @@
       "title": "Drafts",
       "description": "Intermediate files produced during Agent execution",
       "empty": "Drafts is empty",
+      "badge": "Draft",
       "clearAll": "Clear Drafts",
       "clearConfirm": "Are you sure you want to clear all files in Drafts?",
       "fileCount": "{{count}} intermediate file(s)",
