@@ -352,15 +352,21 @@ class DynamicNexusVfsService {
 
   // ── Lifecycle ────────────────────────────────────────────────────────────────
 
+  private getPluginDir(): string {
+    return path.join(this.getInstallRoot(), 'plugins');
+  }
+
   private resolveStartCommand(port: number): { command: string; args: string[] } {
     const bin = this.getInstalledBinaryPath();
     if (!fs.existsSync(bin)) {
       throw new Error('nexus-vfs not installed. Please install it first.');
     }
-    return {
-      command: bin,
-      args: ['--hostname', 'localhost', '--bind-addr', `${NEXUS_VFS_BIND_HOST}:${port}`, '--bootstrap-mode', 'static', '--data-dir', this.getDaemonDataDir(), '--no-tls'],
-    };
+    const pluginDir = this.getPluginDir();
+    const args = ['--hostname', 'localhost', '--bind-addr', `${NEXUS_VFS_BIND_HOST}:${port}`, '--bootstrap-mode', 'static', '--data-dir', this.getDaemonDataDir(), '--no-tls'];
+    if (fs.existsSync(pluginDir)) {
+      args.push('--plugin-dir', pluginDir);
+    }
+    return { command: bin, args };
   }
 
   getStartCommandPreview(port = NEXUS_VFS_DEFAULT_PORT): { command: string; args: string[] } {
