@@ -39,8 +39,13 @@
 }
 
 @keyframes avatar-breathe {
-  0%, 100% { transform: scale(0.93); }
-  50%       { transform: scale(1.07); }
+  0%,
+  100% {
+    transform: scale(0.93);
+  }
+  50% {
+    transform: scale(1.07);
+  }
 }
 
 /* ── 拖尾残影 ────────────────────────────────────────── */
@@ -85,9 +90,18 @@
   transform-origin: center center;
 }
 
-.avatar-trail--gif.trail-1 { opacity: 0.28; filter: blur(2px); }
-.avatar-trail--gif.trail-2 { opacity: 0.16; filter: blur(4px); }
-.avatar-trail--gif.trail-3 { opacity: 0.07; filter: blur(7px); }
+.avatar-trail--gif.trail-1 {
+  opacity: 0.28;
+  filter: blur(2px);
+}
+.avatar-trail--gif.trail-2 {
+  opacity: 0.16;
+  filter: blur(4px);
+}
+.avatar-trail--gif.trail-3 {
+  opacity: 0.07;
+  filter: blur(7px);
+}
 
 /* ── 粒子环绕 ────────────────────────────────────────── */
 
@@ -112,40 +126,132 @@
   animation: ring-spin-r 2.8s linear infinite;
 }
 
-@keyframes ring-spin   { from { transform: rotate(0deg);    } to { transform: rotate(360deg);  } }
-@keyframes ring-spin-r { from { transform: rotate(0deg);    } to { transform: rotate(-360deg); } }
+@keyframes ring-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes ring-spin-r {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(-360deg);
+  }
+}
 
 .avatar-particle {
   position: absolute;
   border-radius: 50%;
-  background: #F59E0B;
+  background: #f59e0b;
   top: 50%;
   left: 50%;
 }
 
 /* 8 颗均匀分布，每 45° 一颗，半径 34px */
-.p1 { width: 5px; height: 5px; margin: -2.5px 0 0 -2.5px; transform: rotate(0deg)   translateY(-34px); opacity: 0.95; }
-.p2 { width: 3px; height: 3px; margin: -1.5px 0 0 -1.5px; transform: rotate(45deg)  translateY(-34px); opacity: 0.6;  }
-.p3 { width: 4px; height: 4px; margin: -2px   0 0 -2px;   transform: rotate(90deg)  translateY(-34px); opacity: 0.85; }
-.p4 { width: 2px; height: 2px; margin: -1px   0 0 -1px;   transform: rotate(135deg) translateY(-34px); opacity: 0.5;  }
-.p5 { width: 5px; height: 5px; margin: -2.5px 0 0 -2.5px; transform: rotate(180deg) translateY(-34px); opacity: 0.9;  }
-.p6 { width: 3px; height: 3px; margin: -1.5px 0 0 -1.5px; transform: rotate(225deg) translateY(-34px); opacity: 0.65; }
-.p7 { width: 4px; height: 4px; margin: -2px   0 0 -2px;   transform: rotate(270deg) translateY(-34px); opacity: 0.8;  }
-.p8 { width: 2px; height: 2px; margin: -1px   0 0 -1px;   transform: rotate(315deg) translateY(-34px); opacity: 0.45; }
+.p1 {
+  width: 5px;
+  height: 5px;
+  margin: -2.5px 0 0 -2.5px;
+  transform: rotate(0deg) translateY(-34px);
+  opacity: 0.95;
+}
+.p2 {
+  width: 3px;
+  height: 3px;
+  margin: -1.5px 0 0 -1.5px;
+  transform: rotate(45deg) translateY(-34px);
+  opacity: 0.6;
+}
+.p3 {
+  width: 4px;
+  height: 4px;
+  margin: -2px 0 0 -2px;
+  transform: rotate(90deg) translateY(-34px);
+  opacity: 0.85;
+}
+.p4 {
+  width: 2px;
+  height: 2px;
+  margin: -1px 0 0 -1px;
+  transform: rotate(135deg) translateY(-34px);
+  opacity: 0.5;
+}
+.p5 {
+  width: 5px;
+  height: 5px;
+  margin: -2.5px 0 0 -2.5px;
+  transform: rotate(180deg) translateY(-34px);
+  opacity: 0.9;
+}
+.p6 {
+  width: 3px;
+  height: 3px;
+  margin: -1.5px 0 0 -1.5px;
+  transform: rotate(225deg) translateY(-34px);
+  opacity: 0.65;
+}
+.p7 {
+  width: 4px;
+  height: 4px;
+  margin: -2px 0 0 -2px;
+  transform: rotate(270deg) translateY(-34px);
+  opacity: 0.8;
+}
+.p8 {
+  width: 2px;
+  height: 2px;
+  margin: -1px 0 0 -1px;
+  transform: rotate(315deg) translateY(-34px);
+  opacity: 0.45;
+}
 
 /* 内圈：半径 24px，5 颗，逆时针 */
-.q1 { width: 3px; height: 3px; margin: -1.5px 0 0 -1.5px; transform: rotate(0deg)   translateY(-24px); opacity: 0.7;  }
-.q2 { width: 2px; height: 2px; margin: -1px   0 0 -1px;   transform: rotate(72deg)  translateY(-24px); opacity: 0.5;  }
-.q3 { width: 3px; height: 3px; margin: -1.5px 0 0 -1.5px; transform: rotate(144deg) translateY(-24px); opacity: 0.65; }
-.q4 { width: 2px; height: 2px; margin: -1px   0 0 -1px;   transform: rotate(216deg) translateY(-24px); opacity: 0.45; }
-.q5 { width: 3px; height: 3px; margin: -1.5px 0 0 -1.5px; transform: rotate(288deg) translateY(-24px); opacity: 0.6;  }
+.q1 {
+  width: 3px;
+  height: 3px;
+  margin: -1.5px 0 0 -1.5px;
+  transform: rotate(0deg) translateY(-24px);
+  opacity: 0.7;
+}
+.q2 {
+  width: 2px;
+  height: 2px;
+  margin: -1px 0 0 -1px;
+  transform: rotate(72deg) translateY(-24px);
+  opacity: 0.5;
+}
+.q3 {
+  width: 3px;
+  height: 3px;
+  margin: -1.5px 0 0 -1.5px;
+  transform: rotate(144deg) translateY(-24px);
+  opacity: 0.65;
+}
+.q4 {
+  width: 2px;
+  height: 2px;
+  margin: -1px 0 0 -1px;
+  transform: rotate(216deg) translateY(-24px);
+  opacity: 0.45;
+}
+.q5 {
+  width: 3px;
+  height: 3px;
+  margin: -1.5px 0 0 -1.5px;
+  transform: rotate(288deg) translateY(-24px);
+  opacity: 0.6;
+}
 
 .avatar-wrapper--thinking .avatar-particle {
-  background: #FCD34D;
+  background: #fcd34d;
 }
 
 .avatar-wrapper--error .avatar-particle {
-  background: #FF0000;
+  background: #ff0000;
 }
 
 /* ── error 状态 ───────────────────────────────────────── */

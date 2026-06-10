@@ -68,7 +68,6 @@ const App: React.FC = () => {
   }, []);
 
   const isThinking = fsmState === 'thinking';
-  const isError = fsmState === 'error';
 
   return (
     <div className='avatar-container'>
