@@ -1643,25 +1643,6 @@ export const channel = {
     accountId?: string;
     message?: string;
   }>('channel.wechat-qr-login'),
-
-  // Lark QR Login (direct device flow)
-  larkAuthStart: bridge.buildProvider<IBridgeResponse<void>, { brand?: 'feishu' | 'lark' }>('channel.lark-auth-start'),
-  larkAuthCancel: bridge.buildProvider<IBridgeResponse<void>, void>('channel.lark-auth-cancel'),
-  larkAuthStatus: bridge.buildProvider<IBridgeResponse<{ loggedIn: boolean; user?: { id?: string; name?: string } }>, void>('channel.lark-auth-status'),
-  larkAuthLogout: bridge.buildProvider<IBridgeResponse<void>, void>('channel.lark-auth-logout'),
-  larkAuthWhoAmI: bridge.buildProvider<IBridgeResponse<{ name?: string; openId?: string; email?: string } | null>, void>('channel.lark-auth-who-am-i'),
-  larkAuthLogin: bridge.buildEmitter<{
-    phase: 'initializing' | 'app-setup' | 'qrcode' | 'success' | 'error' | 'expired';
-    verificationUrl?: string;
-    userCode?: string;
-    expiresAt?: number;
-    user?: { id?: string; name?: string };
-    appId?: string;
-    appSecret?: string;
-    brand?: 'feishu' | 'lark';
-    token?: { accessToken: string; refreshToken?: string; expiresAt?: number; refreshExpiresAt?: number; scope?: string };
-    message?: string;
-  }>('channel.lark-auth-login'),
 };
 
 export interface ISudoworkServerConfig {
