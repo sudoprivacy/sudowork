@@ -1,9 +1,30 @@
-/* Default Color Scheme - AOU Purple Theme */
+/* Base Variables - 通用中性变量 + 兜底
+ * 这是全 app CSS 变量的完整名册与默认值（single source of truth）。
+ * - 中性结构色（背景/文字/边框/填充/语义/消息）在此定义最终值。
+ * - 品牌强调色（primary/brand/aou/hl-chip/aurora）在此给中性兜底，
+ *   由 default-theme 在运行时声明品牌差异并覆盖。
+ */
 
-/* Light Mode */
-:root,
-[data-color-scheme='default'] {
-  /* AOU Brand Colors - Light Mode */
+/* ===================== Light Mode ===================== */
+:root {
+  /* ---------- 品牌兜底（中性，default-theme 覆盖为具体品牌色） ---------- */
+  /* Primary - 中性蓝 */
+  --color-primary: #165dff;
+  --primary: #165dff;
+  --color-primary-light-1: #4080ff;
+  --color-primary-light-2: #6aa1ff;
+  --color-primary-light-3: #94bfff;
+  --color-primary-dark-1: #0e42d2;
+  --primary-rgb: 22, 93, 255;
+
+  /* Brand - 中性灰蓝 */
+  --brand: #7583b2;
+  --brand-light: #eff0f6;
+  --brand-hover: #b5bcd6;
+  --color-brand-fill: #7583b2;
+  --color-brand-bg: #eff0f6;
+
+  /* AOU Palette - 中性灰紫 */
   --aou-1: #eff0f6;
   --aou-2: #e5e7f0;
   --aou-3: #d1d5e5;
@@ -15,75 +36,110 @@
   --aou-9: #262c41;
   --aou-10: #0d101c;
 
-  /* Background Colors - Light Mode */
-  --bg-base: #ffffff; /* bg-0 - 主背景 */
-  --bg-1: #f7f8fa; /* 次级背景 */
-  --bg-2: #f2f3f5; /* 三级背景 */
-  --bg-3: #e5e6eb; /* 边框/分隔 */
-  --bg-4: #c9cdd4;
-  --bg-5: #adb4c1;
-  --bg-6: #86909c; /* 禁用/次要文字 */
-  --bg-8: #4e5969;
-  --bg-9: #1d2129;
-  --bg-10: #0c0e12;
+  /* Highlight Chip - 中性灰 */
+  --hl-chip-bg: #f2f3f5;
+  --hl-chip-text: #4e5969;
+  --hl-chip-border: #e5e6eb;
 
-  /* Interactive State Colors - Light Mode */
-  --bg-hover: #f3f4f6; /* 悬停背景 - 在 bg-1 和 bg-2 之间 */
-  --bg-active: #e5e6eb; /* 激活/按下背景 */
+  /* Aurora Input Accent - 中性弱化 */
+  --retroma-aurora-input-gradient: linear-gradient(90deg, #165dff 0%, #6aa1ff 50%, #165dff 100%);
+  --retroma-aurora-input-ring: rgba(22, 93, 255, 0.18);
+  --retroma-aurora-input-shadow: 0 18px 40px rgba(0, 0, 0, 0.08);
+  --retroma-aurora-input-shadow-strong: 0 22px 48px rgba(0, 0, 0, 0.12);
+  --retroma-aurora-placeholder: #86909c;
 
-  /* Text Colors - Light Mode */
-  --text-primary: #1d2129; /* 主要文字 */
-  --text-secondary: #86909c; /* 次要文字 */
-  --text-disabled: #c9cdd4; /* 禁用文字 */
+  /* ---------- 通用中性结构（最终值，default-theme 不再声明） ---------- */
+  /* Background */
+  --bg-base: #faf9f6;
+  --bg-1: #f5f4ef;
+  --bg-2: #eeede5;
+  --bg-3: #e2e0d4;
+  --bg-4: #cbc8b8;
+  --bg-5: #b0ac9a;
+  --bg-6: #8c8878;
+  --bg-8: #575450;
+  --bg-9: #2c2b28;
+  --bg-10: #111009;
+  --color-bg-1: #f5f4ef;
+  --color-bg-2: #eeede5;
+  --color-bg-3: #e2e0d4;
+  --color-bg-4: #cbc8b8;
 
-  /* Semantic Colors - Light Mode */
-  --primary: #165dff;
-  --success: #00b42a;
-  --warning: #ff7d00;
-  --danger: #f53f3f;
-  --info: #165dff;
+  /* Interactive State */
+  --bg-hover: #ebe9df;
+  --bg-active: #e0ded4;
 
-  /* Border Colors - Light Mode */
-  --border-base: #e5e6eb; /* 基础边框 */
-  --border-light: #f2f3f5; /* 浅色边框 */
+  /* Text */
+  --text-primary: #1d011d;
+  --text-secondary: #6e6060;
+  --text-disabled: #b8b0a8;
+  --text-0: #1d011d;
+  --text-white: #faf9f6;
+  --color-text-1: #1d011d;
+  --color-text-2: #6e6060;
+  --color-text-3: #9e9490;
+  --color-text-4: #c8c0bc;
 
-  /* Brand Colors - Light Mode */
-  --brand: #7583b2; /* 品牌色 */
-  --brand-light: #eff0f6; /* 品牌浅色背景 */
-  --brand-hover: #b5bcd6; /* 品牌色悬停 */
+  /* Border */
+  --border-base: #d8d4c8;
+  --border-light: #e8e6dc;
+  --border-special: #d0ccc0;
+  --color-border: #d8d4c8;
+  --color-border-1: #d8d4c8;
+  --color-border-2: #e8e6dc;
 
-  /* Message & UI Component Colors - Light Mode */
-  --message-user-bg: #ffe8e8; /* 用户消息背景（淡粉色 - OpenClaw 风格，更深） */
-  --message-user-text: #1d2129; /* 用户消息文字 */
-  --message-user-border: #ffd0d0; /* 用户消息边框 */
-  --message-user-hover: #fff0f0; /* 用户消息悬停背景 */
-  --message-assistant-bg: #ffffff; /* 助手消息背景（纯白色） */
-  --message-assistant-text: #1d2129; /* 助手消息文字 */
-  --message-assistant-border: #e8e8e8; /* 助手消息边框 */
-  --message-assistant-hover: #f8f8f8; /* 助手消息悬停背景 */
-  --message-tips-bg: #f0f4ff; /* 提示信息背景（浅蓝） */
-  --workspace-btn-bg: #eff0f1; /* 工作区按钮背景 */
+  /* Fill & Inverse */
+  --fill: #f5f4ef;
+  --color-fill: #f5f4ef;
+  --fill-0: #faf9f6;
+  --fill-white-to-black: #faf9f6;
+  --dialog-fill-0: #faf9f6;
+  --inverse: #1d011d;
 
-  /* Special Colors - Light Mode */
-  --fill: #f7f8fa; /* 填充色 */
-  --inverse: #ffffff; /* 反色（黑白切换）*/
+  /* Semantic */
+  --success: #35847e;
+  --warning: #b07a10;
+  --danger: #b03030;
+  --info: #0f7887;
 
-  /* Custom Colors - Light Mode */
-  --dialog-fill-0: #ffffff; /* 对话框填充色 */
-  --text-0: #000000; /* 纯黑文字色 */
-  --text-white: #ffffff; /* 纯白文字色 */
-  --fill-0: #ffffff; /* 填充色 0 */
-  --fill-white-to-black: #ffffff; /* 白到黑填充色 */
-  --border-special: var(--bg-3); /* 特殊边框色 */
-  --color-guid-agent-bar: #eaecf7; /* 首页 Agent 选择条背景 - 亮色 */
+  /* Message & Component */
+  --message-user-bg: #e9e4f0;
+  --message-tips-bg: #f1edf6;
+  --workspace-btn-bg: #eeece4;
+  --color-guid-agent-bar: #eae8de;
+
+  /* Message - base 独有兜底（default-theme 未声明，仅由 base 提供） */
+  --message-user-text: #1d2129;
+  --message-user-border: #ffd0d0;
+  --message-user-hover: #fff0f0;
+  --message-assistant-bg: #ffffff;
+  --message-assistant-text: #1d2129;
+  --message-assistant-border: #e8e8e8;
+  --message-assistant-hover: #f8f8f8;
 }
 
-/* Dark Mode */
-[data-color-scheme='default'][data-theme='dark'] {
-  /* AOU Brand Colors - Dark Mode */
+/* ===================== Dark Mode ===================== */
+[data-theme='dark'] {
+  /* ---------- 品牌兜底（中性，default-theme 覆盖为具体品牌色） ---------- */
+  /* Primary - 中性蓝 */
+  --color-primary: #4d9fff;
+  --primary: #4d9fff;
+  --color-primary-light-1: #6aa8ff;
+  --color-primary-light-2: #87b7ff;
+  --color-primary-light-3: #a4c6ff;
+  --color-primary-dark-1: #306acc;
+  --primary-rgb: 77, 159, 255;
+
+  /* Brand - 中性灰蓝 */
+  --brand: #a1aacb;
+  --brand-light: #3d4150;
+  --brand-hover: #6a749b;
+  --color-brand-fill: #a1aacb;
+  --color-brand-bg: #3d4150;
+
+  /* AOU Palette - 中性灰紫 */
   --aou-1: #2a2a2a;
   --aou-2: #3d4150;
-  --color-guid-agent-bar: var(--aou-2); /* 首页 Agent 选择条背景 - 暗色沿用 aou-2 */
   --aou-3: #525a77;
   --aou-4: #6a749b;
   --aou-5: #838fba;
@@ -93,64 +149,83 @@
   --aou-9: #e5e7f0;
   --aou-10: #eff0f6;
 
-  /* Background Colors - Dark Mode */
-  --bg-base: #0e0e0e; /* 主背景 */
-  --bg-1: #1a1a1a; /* 次级背景 */
-  --bg-2: #262626; /* 三级背景 */
-  --bg-3: #333333; /* 边框/分隔 */
-  --bg-4: #404040;
-  --bg-5: #4d4d4d;
-  --bg-6: #6e6e6e; /* 禁用/次要文字 */
-  --bg-8: #909090;
-  --bg-9: #b8b8b8;
-  --bg-10: #e0e0e0;
+  /* Highlight Chip - 中性灰 */
+  --hl-chip-bg: #333333;
+  --hl-chip-text: #c9cdd4;
+  --hl-chip-border: #4e5969;
 
-  /* Interactive State Colors - Dark Mode */
-  --bg-hover: #1f1f1f; /* 悬停背景 */
-  --bg-active: #2d2d2d; /* 激活/按下背景 */
+  /* Aurora Input Accent - 中性弱化 */
+  --retroma-aurora-input-ring: rgba(77, 159, 255, 0.18);
+  --retroma-aurora-input-shadow: 0 22px 48px rgba(0, 0, 0, 0.5);
+  --retroma-aurora-input-shadow-strong: 0 26px 54px rgba(0, 0, 0, 0.62);
+  --retroma-aurora-placeholder: #86909c;
 
-  /* Text Colors - Dark Mode */
-  --text-primary: #f0f0f0; /* 主要文字 */
-  --text-secondary: #c0c0c0; /* 次要文字 */
-  --text-disabled: #8a8a8a; /* 禁用文字 */
+  /* ---------- 通用中性结构（最终值，default-theme 不再声明） ---------- */
+  /* Background */
+  --bg-base: #0f0f0c;
+  --bg-1: #18180f;
+  --bg-2: #222217;
+  --bg-3: #2e2e20;
+  --bg-4: #3c3c2c;
+  --bg-5: #4e4e3a;
+  --bg-6: #606050;
+  --bg-8: #848470;
+  --bg-9: #b0b09a;
+  --bg-10: #d8d8c8;
+  --color-bg-1: #18180f;
+  --color-bg-2: #222217;
+  --color-bg-3: #2e2e20;
+  --color-bg-4: #3c3c2c;
 
-  /* Semantic Colors - Dark Mode */
-  --primary: #4d9fff;
-  --success: #23c343;
-  --warning: #ff9a2e;
-  --danger: #f76560;
-  --info: #4d9fff;
+  /* Interactive State */
+  --bg-hover: #1e1e14;
+  --bg-active: #28281c;
 
-  /* Border Colors - Dark Mode */
-  --border-base: #333333; /* 基础边框 */
-  --border-light: #262626; /* 浅色边框 */
+  /* Text */
+  --text-primary: #e8e6d8;
+  --text-secondary: #a8a498;
+  --text-disabled: #686458;
+  --text-0: #f0ede0;
+  --text-white: #f0ede0;
+  --color-text-1: #e8e6d8;
+  --color-text-2: #a8a498;
+  --color-text-3: #787468;
+  --color-text-4: #504c44;
 
-  /* Brand Colors - Dark Mode */
-  --brand: #a1aacb; /* 品牌色 */
-  --brand-light: #3d4150; /* 品牌深色背景 */
-  --brand-hover: #6a749b; /* 品牌色悬停 */
+  /* Border */
+  --border-base: #3a3a28;
+  --border-light: #2a2a1e;
+  --border-special: #4a4a36;
+  --color-border: #3a3a28;
+  --color-border-1: #3a3a28;
+  --color-border-2: #2a2a1e;
 
-  /* Message & UI Component Colors - Dark Mode */
-  --message-user-bg: #4a1f2a; /* 用户消息背景（深红色 - OpenClaw 风格，更深） */
-  --message-user-text: #ffffff; /* 用户消息文字（白色） */
-  --message-user-border: #652a3a; /* 用户消息边框 */
-  --message-user-hover: #552530; /* 用户消息悬停背景 */
-  --message-assistant-bg: #1a2028; /* 助手消息背景（深蓝灰色 - OpenClaw 风格，更深） */
-  --message-assistant-text: #f0f0f0; /* 助手消息文字（浅色） */
-  --message-assistant-border: #28303d; /* 助手消息边框 */
-  --message-assistant-hover: #222832; /* 助手消息悬停背景 */
-  --message-tips-bg: #1a2333; /* 提示信息背景（深蓝灰） */
-  --workspace-btn-bg: #1f1f1f; /* 工作区按钮背景 */
+  /* Fill & Inverse */
+  --fill: #18180f;
+  --color-fill: #18180f;
+  --fill-0: rgba(255, 252, 240, 0.07);
+  --fill-white-to-black: #0f0f0c;
+  --dialog-fill-0: #2e2e20;
+  --inverse: #f0ede0;
 
-  /* Special Colors - Dark Mode */
-  --fill: #1a1a1a; /* 填充色 */
-  --inverse: #ffffff; /* 反色（黑白切换）*/
+  /* Semantic */
+  --success: #68a99d;
+  --warning: #d4963a;
+  --danger: #c86060;
+  --info: #6e8ddb;
 
-  /* Custom Colors - Dark Mode */
-  --dialog-fill-0: #333333; /* 对话框填充色 */
-  --text-0: #ffffff; /* 纯黑文字色（暗色模式下为白色） */
-  --text-white: #ffffff; /* 纯白文字色 */
-  --fill-0: rgba(255, 255, 255, 0.08); /* 填充色 0 - 暗色模式下为半透明白色 */
-  --fill-white-to-black: #000000; /* 白到黑填充色（暗色模式下为黑色） */
-  --border-special: #60677e; /* 特殊边框色 */
+  /* Message & Component */
+  --message-user-bg: #3a3444;
+  --message-tips-bg: #2f2a38;
+  --workspace-btn-bg: #1e1e14;
+  --color-guid-agent-bar: #2a2a1e;
+
+  /* Message - base 独有兜底（default-theme 未声明，仅由 base 提供） */
+  --message-user-text: #ffffff;
+  --message-user-border: #652a3a;
+  --message-user-hover: #552530;
+  --message-assistant-bg: #1a2028;
+  --message-assistant-text: #f0f0f0;
+  --message-assistant-border: #28303d;
+  --message-assistant-hover: #222832;
 }

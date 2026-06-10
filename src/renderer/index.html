@@ -1,5 +1,5 @@
-<!DOCTYPE html>
-<html data-theme="light" data-color-scheme="default">
+<!doctype html>
+<html data-theme="light">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -10,12 +10,8 @@
       (function () {
         try {
           var theme = localStorage.getItem('__aionui_theme');
-          var colorScheme = localStorage.getItem('__aionui_colorScheme');
           if (theme) {
             document.documentElement.setAttribute('data-theme', theme);
-          }
-          if (colorScheme) {
-            document.documentElement.setAttribute('data-color-scheme', colorScheme);
           }
         } catch (e) {}
       })();

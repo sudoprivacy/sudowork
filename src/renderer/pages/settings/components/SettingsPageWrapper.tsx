@@ -11,7 +11,7 @@ import { useExtI18n } from '@/renderer/hooks/useExtI18n';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
 
 /** Enterprise mode builtin tab IDs (restricted subset) - synced with SettingsSider */
-const ENTERPRISE_BUILTIN_TAB_IDS = ['profile', 'enterprise', 'mcp', 'display', 'webui', 'system', 'about'] as const;
+const ENTERPRISE_BUILTIN_TAB_IDS = ['profile', 'enterprise', 'mcp', 'webui', 'system', 'about'] as const; // 'display' 暂隐藏
 interface SettingsPageWrapperProps {
   children: React.ReactNode;
   className?: string;
@@ -62,7 +62,7 @@ const SettingsPageWrapper: React.FC<SettingsPageWrapperProps> = ({ children, cla
     };
 
     // Use the same order as SettingsSider / 使用与 SettingsSider 相同的顺序
-    const BUILTIN_TAB_IDS = ['profile', 'recharge', 'members', 'model', 'agent', 'tools', 'skill', 'security', 'display', 'webui', 'runtime', 'system', 'about'] as const; // 隐藏'copilot', 'cron'已移至左侧边栏
+    const BUILTIN_TAB_IDS = ['profile', 'recharge', 'members', 'model', 'agent', 'tools', 'skill', 'security', 'webui', 'runtime', 'system', 'about'] as const; // 隐藏'copilot', 'cron'已移至左侧边栏；'display' 暂隐藏
     const activeBuiltinTabIds = isEnterprise ? ENTERPRISE_BUILTIN_TAB_IDS : BUILTIN_TAB_IDS;
     const builtins: NavItem[] = activeBuiltinTabIds.map((id) => builtinMap[id]).filter((item) => !item.hidden);
 

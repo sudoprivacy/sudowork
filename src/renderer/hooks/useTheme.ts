@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from 'react';
 export type Theme = 'light' | 'dark';
 export type ThemePreference = 'light' | 'dark' | 'system';
 
-const DEFAULT_PREFERENCE: ThemePreference = 'system';
+const DEFAULT_PREFERENCE: ThemePreference = 'light';
 const THEME_CACHE_KEY = '__aionui_theme';
 
 const getSystemTheme = (): Theme => {

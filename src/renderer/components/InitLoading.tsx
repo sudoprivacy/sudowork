@@ -9,9 +9,11 @@ import { useTranslation } from 'react-i18next';
 import { init } from '@/common/ipcBridge';
 import { useInit } from '../context/InitContext';
 import WindowControls from './WindowControls';
+import { isElectronDesktop, isMacOS } from '@/renderer/utils/platform';
 
-// 运行时判断 / Runtime check
-const isDesktopRuntime = typeof window !== 'undefined' && Boolean(window.electronAPI);
+// Windows/Linux 显示自定义窗口按钮；macOS 由系统原生信号灯负责，避免重复
+// Windows/Linux render custom window controls; macOS relies on native traffic lights, so skip them to avoid duplicates
+const showWindowControls = isElectronDesktop() && !isMacOS();
 
 // 窗口控制按钮悬浮容器样式 / Floating container style for window controls
 const WINDOW_CONTROLS_WRAPPER_STYLE: React.CSSProperties = {
@@ -303,7 +305,7 @@ const InitLoading: React.FC<InitLoadingProps> = ({ variant = 'full' }) => {
         }
       >
         {/* 桌面端窗口控制按钮 / Window controls for desktop */}
-        {isDesktopRuntime && (
+        {showWindowControls && (
           <div style={WINDOW_CONTROLS_WRAPPER_STYLE}>
             <WindowControls />
           </div>
@@ -557,7 +559,7 @@ const InitLoading: React.FC<InitLoadingProps> = ({ variant = 'full' }) => {
       }
     >
       {/* 桌面端窗口控制按钮 / Window controls for desktop */}
-      {isDesktopRuntime && (
+      {showWindowControls && (
         <div style={WINDOW_CONTROLS_WRAPPER_STYLE}>
           <WindowControls />
         </div>

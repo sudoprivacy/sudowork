@@ -2,8 +2,9 @@
 
 ## Architecture Overview 架构概览
 
-The theme system separates light/dark mode from color schemes for better extensibility.
-主题系统将明暗模式与配色方案分离，以提供更好的扩展性。
+The theme system has two dimensions: light/dark mode and CSS themes. A shared base
+variable layer provides defaults; CSS themes override it on top.
+主题系统分两个维度：明暗模式与 CSS 主题。共享的 base 变量层提供默认值，CSS 主题在其上叠加覆盖。
 
 ### Two Dimensions 两个维度
 
@@ -15,13 +16,20 @@ The theme system separates light/dark mode from color schemes for better extensi
    - 取值：`'light'` | `'dark'`
    - 控制：`<html>` 的 `[data-theme]` 属性和 `<body>` 的 `arco-theme` 属性
 
-2. **Color Scheme 配色方案** (`colorScheme`)
-   - Controlled by `useColorScheme` hook
-   - Values: `'default'`
-   - Controls: `[data-color-scheme]` attribute on `<html>`
-   - 由 `useColorScheme` Hook 控制
-   - 取值：`'default'`
-   - 控制：`<html>` 的 `[data-color-scheme]` 属性
+2. **CSS Theme CSS 主题** (`css.activeThemeId`)
+   - Managed by `CssThemeSettings` + `themeCssSync`; injected as a `<style>` at the end of `<head>`
+   - Each theme is a self-contained set of CSS variables that overrides the base layer
+   - 由 `CssThemeSettings` + `themeCssSync` 管理；以 `<style>` 注入到 `<head>` 末尾
+   - 每个主题是一套自包含的 CSS 变量，覆盖 base 层
+
+### Base Variable Layer 基底变量层
+
+`color-schemes/default.css` is the **base variable layer** (not a switchable scheme): it is
+statically imported into the bundle, defines the full `:root` (light) and `[data-theme='dark']`
+variable set, and serves as the first-paint fallback plus the default for any variable a CSS
+theme does not override.
+`color-schemes/default.css` 是 **base 变量层**（不再是可切换的配色方案）：它被静态打包进 bundle，
+定义完整的 `:root`（亮色）与 `[data-theme='dark']`（暗色）变量集，作为首屏兜底以及 CSS 主题未覆盖变量的默认值。
 
 ### File Structure 文件结构
 
@@ -29,29 +37,17 @@ The theme system separates light/dark mode from color schemes for better extensi
 styles/themes/
 ├── index.css                 # Entry point 入口文件
 ├── base.css                  # Theme-independent base styles 主题无关的基础样式
-└── color-schemes/            # Color scheme definitions 配色方案定义
-    └── default.css           # Default color scheme (AOU brand) 默认配色方案
+└── color-schemes/
+    └── default.css           # Base variable layer 基底变量层（light + dark）
 ```
 
-## How to Add a New Color Scheme 如何添加新配色方案
+## How to Adjust Base Variables 如何调整基底变量
 
-When you need to add a new color scheme in the future, follow these steps:
-当需要添加新配色方案时，请遵循以下步骤：
-
-1. Create a new CSS file in `color-schemes/` directory (e.g., `blue.css`)
-   在 `color-schemes/` 目录下创建新的 CSS 文件（如 `blue.css`）
-
-2. Define CSS variables for both light and dark modes, following the structure in `default.css`
-   定义明暗两种模式的 CSS 变量，参考 `default.css` 的结构
-
-3. Import the new file in `index.css`
-   在 `index.css` 中导入新文件
-
-4. Update the `ColorScheme` type in `hooks/useColorScheme.ts`
-   更新 `hooks/useColorScheme.ts` 中的 `ColorScheme` 类型
-
-5. Add UI selector option and translations
-   添加 UI 选择器选项和翻译
+Edit `color-schemes/default.css`. Keep both the `:root` (light) and `[data-theme='dark']`
+blocks in sync. To ship a distinct look, add a CSS theme via the CSS theme settings instead
+— it overrides the base layer at runtime.
+编辑 `color-schemes/default.css`，并保持 `:root`（亮色）与 `[data-theme='dark']`（暗色）两块同步。
+若要提供不同外观，请通过 CSS 主题设置新增一个 CSS 主题——它会在运行时覆盖 base 层。
 
 ## CSS Variable Naming Convention CSS 变量命名规范
 
@@ -113,7 +109,5 @@ When you need to add a new color scheme in the future, follow these steps:
 
 ## Current Status 当前状态
 
-- ✅ Infrastructure ready 基础架构就绪
-- ✅ Default color scheme implemented 默认配色方案已实现
-- ⏸️ Additional color schemes pending designer input 其他配色方案等待设计师输入
-- 💡 UI selector commented out, ready to enable 界面选择器已注释，可随时启用
+- ✅ Base variable layer in place (light + dark) base 变量层就绪（亮色 + 暗色）
+- ✅ CSS themes override the base layer at runtime CSS 主题在运行时覆盖 base 层

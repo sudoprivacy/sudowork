@@ -57,6 +57,17 @@ export const resolveCssByActiveTheme = (activeThemeId: string, userThemes: ICssT
   return '';
 };
 
+/**
+ * Whether a theme id maps to a currently known theme (preset / extension / user).
+ * Used to detect stale activeThemeId pointing at a removed theme so it can be healed.
+ * 判断 themeId 是否仍指向已知主题（预设/扩展/用户），用于识别指向已删除主题的陈旧 id。
+ */
+export const themeExists = (themeId: string, userThemes: ICssTheme[]): boolean => {
+  if (!themeId) return false;
+  const allThemes = [...PRESET_THEMES, ...extensionThemesCache, ...(userThemes || [])];
+  return allThemes.some((theme) => theme.id === themeId);
+};
+
 export const computeCssSyncDecision = ({ savedCss, activeThemeId, savedThemes, currentUiCss, lastUiCssUpdateAt, now = Date.now() }: ComputeCssSyncDecisionParams): ComputeCssSyncDecisionResult => {
   const normalizedSavedCss = savedCss || '';
   const expectedCss = resolveCssByActiveTheme(activeThemeId || '', savedThemes || []);

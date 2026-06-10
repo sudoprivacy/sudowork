@@ -39,7 +39,7 @@ import { startWebServer } from './webserver';
 import { SERVER_CONFIG } from './webserver/config/constants';
 import { applyZoomToWindow } from './process/utils/zoom';
 import i18n from '@process/i18n';
-import { mainLog, mainWarn, mainError } from './process/utils/mainLogger';
+import { mainLog, mainError } from './process/utils/mainLogger';
 import { isNightlyBuild } from './common/buildInfo';
 // @ts-expect-error - electron-squirrel-startup doesn't have types
 import electronSquirrelStartup from 'electron-squirrel-startup';
