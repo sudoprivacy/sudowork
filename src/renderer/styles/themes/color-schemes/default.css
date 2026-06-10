@@ -80,13 +80,13 @@
   --color-text-3: #9e9490;
   --color-text-4: #c8c0bc;
 
-  /* Border */
-  --border-base: #d8d4c8;
-  --border-light: #e8e6dc;
-  --border-special: #d0ccc0;
-  --color-border: #d8d4c8;
-  --color-border-1: #d8d4c8;
-  --color-border-2: #e8e6dc;
+  /* Border - 淡化一档（更贴近背景，柔和分隔） */
+  --border-base: #e6e2d8;
+  --border-light: #efece4;
+  --border-special: #ddd9ce;
+  --color-border: #e6e2d8;
+  --color-border-1: #e6e2d8;
+  --color-border-2: #efece4;
 
   /* Fill & Inverse */
   --fill: #f5f4ef;

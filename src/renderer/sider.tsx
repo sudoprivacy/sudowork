@@ -5,7 +5,7 @@ import React, { Suspense, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { iconColors } from './theme/colors';
-import { Dropdown, Menu, Message, Tooltip } from '@arco-design/web-react';
+import { Dropdown, Message, Tooltip } from '@arco-design/web-react';
 import { cleanupSiderTooltips, getSiderTooltipProps } from './utils/siderTooltip';
 import { useLayoutContext } from './context/LayoutContext';
 import { blurActiveElement } from './utils/focus';
@@ -51,6 +51,9 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
   const cronEnabled = useCronEnabled();
   const [isBatchMode, setIsBatchMode] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  // 账户菜单触发区，用于让弹层宽度与之对齐
+  const userTriggerRef = useRef<HTMLDivElement>(null);
+  const [userMenuWidth, setUserMenuWidth] = useState<number>();
 
   // Sidebar tab state: 'timeline' or 'scheduled'
   const SIDER_TAB_STORAGE_KEY = 'aionui_sider_tab';
@@ -172,13 +175,11 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
                     }
                   }}
                 >
-                  <div className='w-32px h-32px flex items-center justify-center rd-50% bg-[var(--color-fill-3)] text-t-secondary shrink-0'>
-                    <Plus theme='outline' size='18' fill='currentColor' className='block leading-none' />
-                  </div>
+                  <Plus theme='outline' size='20' fill='currentColor' className='text-t-primary shrink-0 block leading-none' />
                 </div>
               ) : (
                 <div
-                  className={classNames('h-40px flex items-center gap-10px px-16px mb-12px rd-10px cursor-pointer transition-all border border-solid', 'border-[var(--ui-border-strong)] bg-1 hover:bg-hover active:bg-fill-2')}
+                  className='h-42px flex items-center gap-8px px-14px mb-12px rd-12px cursor-pointer transition-all border border-solid border-[var(--border-base)] bg-1 hover:bg-hover active:bg-fill-2'
                   onClick={() => {
                     cleanupSiderTooltips();
                     blurActiveElement();
@@ -193,10 +194,8 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
                     }
                   }}
                 >
-                  <div className='w-32px h-32px flex items-center justify-center rd-50% bg-[var(--color-fill-3)] text-t-secondary shrink-0'>
-                    <Plus theme='outline' size='18' fill='currentColor' className='block leading-none' />
-                  </div>
-                  <span className='flex-1 text-15px font-medium text-t-primary text-center truncate'>{t('conversation.welcome.newConversation')}</span>
+                  <Plus theme='outline' size='20' fill='currentColor' className='text-t-primary shrink-0 block leading-none' />
+                  <span className='flex-1 text-15px font-medium text-t-primary truncate'>{t('conversation.welcome.newConversation')}</span>
                 </div>
               )}
             </Tooltip>
@@ -268,44 +267,44 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
           /* 用户信息下拉菜单 */
           <Dropdown
             droplist={
-              <Menu
-                style={{ width: '250px' }}
-                onClickMenuItem={(key) => {
-                  if (key === 'settings') {
-                    handleSettingsClick();
-                  } else if (key === 'logout') {
-                    console.log('Logout clicked');
-                  }
-                  setUserMenuOpen(false);
-                }}
+              <div
+                className='flex flex-col gap-2px p-6px rd-12px border border-solid border-[var(--border-base)] bg-[var(--bg-base)]'
+                style={{ width: userMenuWidth ? userMenuWidth - 12 : undefined, minWidth: 200, boxShadow: '0 8px 28px rgba(0, 0, 0, 0.12)' }}
               >
-                <Menu.Item key='settings'>
-                  <div className='flex items-center gap-8px'>
-                    <SettingTwo theme='outline' size='18' />
-                    <span>{t('common.settings')}</span>
-                  </div>
-                </Menu.Item>
-                <Menu.Item key='logout'>
-                  <div
-                    className='flex items-center gap-8px text-[rgb(var(--danger-6))]'
-                    onClick={async () => {
-                      await logout();
-                      Message.success(t('login.logoutSuccess'));
-                      void navigate('/login', { replace: true });
-                    }}
-                  >
-                    <Logout theme='outline' size='18' />
-                    <span>{t('login.logout', { defaultValue: '退出登录' })}</span>
-                  </div>
-                </Menu.Item>
-              </Menu>
+                <div
+                  className='flex items-center gap-10px px-10px h-38px rd-8px cursor-pointer text-14px text-t-primary transition-colors hover:bg-hover active:bg-active'
+                  onClick={() => {
+                    handleSettingsClick();
+                    setUserMenuOpen(false);
+                  }}
+                >
+                  <SettingTwo theme='outline' size='17' fill={iconColors.secondary} />
+                  <span>{t('common.settings')}</span>
+                </div>
+                <div className='h-1px mx-4px my-2px bg-[var(--border-light)]' />
+                <div
+                  className='flex items-center gap-10px px-10px h-38px rd-8px cursor-pointer text-14px text-[rgb(var(--danger-6))] transition-colors hover:bg-[rgba(var(--danger-6),0.1)]'
+                  onClick={async () => {
+                    setUserMenuOpen(false);
+                    await logout();
+                    Message.success(t('login.logoutSuccess'));
+                    void navigate('/login', { replace: true });
+                  }}
+                >
+                  <Logout theme='outline' size='17' fill='rgb(var(--danger-6))' />
+                  <span>{t('login.logout', { defaultValue: '退出登录' })}</span>
+                </div>
+              </div>
             }
             trigger='click'
             position='tr'
             popupVisible={userMenuOpen}
-            onVisibleChange={setUserMenuOpen}
+            onVisibleChange={(visible) => {
+              if (visible) setUserMenuWidth(userTriggerRef.current?.offsetWidth);
+              setUserMenuOpen(visible);
+            }}
           >
-            <div className={classNames('flex items-center gap-10px px-8px py-10px rd-8px cursor-pointer transition-colors', collapsed ? 'justify-center px-2px w-40px h-40px hover:bg-hover active:bg-fill-2' : 'w-full border border-solid border-[var(--ui-border-strong)] hover:bg-hover active:bg-fill-2')}>
+            <div ref={userTriggerRef} className={classNames('flex items-center gap-10px px-8px py-10px cursor-pointer transition-colors', collapsed ? 'rd-8px justify-center px-2px w-40px h-40px hover:bg-hover active:bg-fill-2' : 'rd-12px w-full border border-solid border-[var(--border-base)] hover:bg-hover active:bg-fill-2')}>
               <div className='w-32px h-32px rd-50% bg-[var(--color-fill-3)] flex items-center justify-center text-t-primary text-14px font-bold shrink-0'>{userInfo.avatar ? <img src={userInfo.avatar} alt={userInfo.name} className='w-full h-full rd-50% object-cover' /> : <span>{userInfo.name.charAt(0).toUpperCase()}</span>}</div>
               {!collapsed && (
                 <>
