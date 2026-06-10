@@ -762,7 +762,7 @@ body,
 .layout-sider {
   overflow-x: hidden;
   box-shadow: none !important;
-  border-right: 1px solid var(--border-base);
+  border-right: none;
   background-color: var(--bg-2);
   /* 侧边栏收起展开动画优化 / Sidebar collapse/expand animation */
   transition:
@@ -830,20 +830,31 @@ body,
   background: var(--bg-active) !important;
 }
 
+/* 侧栏会话/定时任务切换：用 Arco Tabs line，仅保留头部当切换器 */
+.sidebar-tabs.arco-tabs .arco-tabs-content {
+  display: none; /* 无内容面板，仅作切换器 */
+}
+.sidebar-tabs.arco-tabs .arco-tabs-header-nav-line::before {
+  display: none; /* 去掉整条底部分隔线，只留下划线指示 */
+}
+.sidebar-tabs.arco-tabs .arco-tabs-header-title-active,
+.sidebar-tabs.arco-tabs .arco-tabs-header-title-active:hover {
+  /* 激活态用品牌橙，避免 Arco 默认蓝 */
+  color: var(--ui-accent-orange);
+}
+.sidebar-tabs.arco-tabs .arco-tabs-header-ink {
+  background-color: var(--ui-accent-orange);
+}
+
 /* 批量操作 popover：更圆润的卡片圆角 */
 .batch-actions-popover .arco-popover-content {
   border-radius: 12px;
-  padding: 6px;
+  padding: 12px;
 }
 
-/* 操作项：菜单式左对齐，中性配色，仅删除保留危险色 */
+/* 操作项：中性填充按钮，仅删除使用危险红色 */
 .batch-actions-popover__item {
-  justify-content: flex-start !important;
   border-radius: 8px;
-}
-.batch-actions-popover__item:not(.arco-btn-status-danger):not(.arco-btn-disabled) {
-  /* 覆盖 Arco 文本按钮默认的蓝色（含 hover/active），改为中性深色 */
-  color: var(--text-primary) !important;
 }
 
 .channel-settings-collapse .arco-collapse-item-icon,
