@@ -168,7 +168,7 @@ let instance: NexusSecretClient | null = null;
 export function getNexusSecretClient(): NexusSecretClient {
   if (!instance) {
     const { NexusGrpcClient } = loadNativeBinding();
-    const client = new NexusGrpcClient('http://localhost:2028');
+    const client = new NexusGrpcClient('http://localhost:12022');
     instance = new NexusSecretClient(client, '');
   }
   return instance;
