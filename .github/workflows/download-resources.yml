@@ -69,7 +69,7 @@ jobs:
         run: ls -lh resources/*.tgz
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: bundles-${{ matrix.platform }}-${{ matrix.arch }}
           path: |

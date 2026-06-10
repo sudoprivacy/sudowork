@@ -610,7 +610,7 @@ jobs:
       # - macOS: 公证超时但有产物（已在构建步骤中处理）
       # - Windows: 仅当 windows-build 步骤成功
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         if: >-
           success() &&
           (!startsWith(matrix.platform, 'windows') || steps.windows-build.outputs.result == 'success')
