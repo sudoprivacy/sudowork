@@ -10,10 +10,6 @@ PR 创建/更新时触发，由以下 job 组成：
 - **build-test**：构建与测试
 - **release-script-test**：验证发布脚本输出
 
-## 自动代码审查（`claude-code-review.yml`）
-
-PR 在 `opened` / `synchronize` / `ready_for_review` / `reopened` 时由 Claude Code 完成代码审查。所有实际的 PR review 评论都来自这条链路。
-
 ## 其他工作流
 
 `build-*` / `claude.yml` / `download-resources.yml` / `hotfix.yml` / `no-merge-commits.yml` / `pr-integration-smoke.yml` 等各自承担独立职责，详见各文件顶部说明。
