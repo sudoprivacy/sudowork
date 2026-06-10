@@ -54,6 +54,19 @@ export class Nexus {
   }
 
   /**
+   * Binary gRPC Call RPC — dispatches raw protobuf bytes to a service method.
+   * Used by NexusSecretClient for vault plugin dispatch.
+   */
+  public callBinary(method: string, payload: Buffer): Buffer {
+    try {
+      return this.client.callBinary(method, payload, this.authToken);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new NexusError(`RPC error: ${method}: ${msg}`);
+    }
+  }
+
+  /**
    * Generic gRPC Call RPC — dispatches to kernel method by name.
    */
   public async callRPC(method: string, params: Record<string, unknown>): Promise<unknown> {

@@ -69,33 +69,17 @@ function toVersionMetadata(proto: SecretVersion): VersionMetadata {
   };
 }
 
-// Lazy-load the native addon (same pattern as nexus-vfs-client.ts).
-function loadNativeBinding(): typeof import('../../../native/nexus-napi') {
-  try {
-    const { app } = require('electron');
-    const path = require('path');
-    const appRoot = app.isPackaged
-      ? app.getAppPath().replace('app.asar', 'app.asar.unpacked')
-      : app.getAppPath();
-    return require(path.join(appRoot, 'native', 'nexus-napi'));
-  } catch {
-    throw new Error('nexus-napi native module not available. Run `bun run build:native` first.');
-  }
-}
-
-type GrpcClient = InstanceType<ReturnType<typeof loadNativeBinding>['NexusGrpcClient']>;
+import { getNexusRpcClient, type Nexus } from './nexus-vfs-client.js';
 
 export class NexusSecretClient {
-  private readonly client: GrpcClient;
-  private readonly authToken: string;
+  private readonly nexus: Nexus;
 
-  constructor(client: GrpcClient, authToken: string) {
-    this.client = client;
-    this.authToken = authToken;
+  constructor(nexus: Nexus) {
+    this.nexus = nexus;
   }
 
   private dispatch(method: string, payload: Uint8Array): Buffer {
-    return this.client.callBinary(`password-vault.${method}`, Buffer.from(payload), this.authToken);
+    return this.nexus.callBinary(`password-vault.${method}`, Buffer.from(payload));
   }
 
   putSecret(namespace: string, key: string, value: string, description?: string): SecretMetadata {
@@ -167,9 +151,7 @@ let instance: NexusSecretClient | null = null;
 
 export function getNexusSecretClient(): NexusSecretClient {
   if (!instance) {
-    const { NexusGrpcClient } = loadNativeBinding();
-    const client = new NexusGrpcClient('http://localhost:12022');
-    instance = new NexusSecretClient(client, '');
+    instance = new NexusSecretClient(getNexusRpcClient());
   }
   return instance;
 }
