@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sudowork 项目上手指南</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #1a1d24;
+    --panel-2: #21252e;
+    --border: #2c313c;
+    --text: #d7dbe2;
+    --muted: #8b93a1;
+    --accent: #5b9dff;
+    --accent-2: #46c98b;
+    --accent-3: #f0a850;
+    --accent-4: #c98bf0;
+    --danger: #f06464;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    line-height: 1.7;
+    font-size: 15px;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 48px 28px 80px; }
+  header.hero {
+    border: 1px solid var(--border);
+    background: linear-gradient(135deg, #1c2230, #15181f);
+    border-radius: 16px;
+    padding: 32px 36px;
+    margin-bottom: 40px;
+  }
+  header.hero h1 { margin: 0 0 8px; font-size: 30px; letter-spacing: .5px; }
+  header.hero .sub { color: var(--muted); font-size: 15px; }
+  .badges { margin-top: 18px; display: flex; flex-wrap: wrap; gap: 8px; }
+  .badge {
+    font-family: var(--mono); font-size: 12px;
+    background: var(--panel-2); border: 1px solid var(--border);
+    color: var(--accent); padding: 4px 10px; border-radius: 6px;
+  }
+  h2 {
+    font-size: 22px; margin: 48px 0 18px; padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  h2 .num {
+    display: inline-block; width: 30px; height: 30px; line-height: 30px;
+    text-align: center; background: var(--accent); color: #0f1115;
+    border-radius: 8px; font-size: 16px; margin-right: 12px; font-weight: 700;
+  }
+  h3 { font-size: 17px; margin: 28px 0 12px; color: #eaecf1; }
+  p { margin: 10px 0; }
+  code {
+    font-family: var(--mono); font-size: 13px;
+    background: var(--panel-2); padding: 2px 6px; border-radius: 4px;
+    color: var(--accent-3); border: 1px solid var(--border);
+  }
+  a { color: var(--accent); }
+  .note {
+    border-left: 3px solid var(--accent-3);
+    background: rgba(240,168,80,.08);
+    padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 18px 0;
+    color: #e6d3b3; font-size: 14px;
+  }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 14px; }
+  th, td { text-align: left; padding: 9px 12px; border: 1px solid var(--border); vertical-align: top; }
+  th { background: var(--panel-2); color: #eaecf1; font-weight: 600; }
+  td code { background: var(--panel); }
+  tr:nth-child(even) td { background: rgba(255,255,255,.015); }
+
+  /* ---- diagram primitives ---- */
+  .diagram {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 28px 24px;
+    margin: 24px 0;
+  }
+  .box {
+    border: 1px solid var(--border);
+    background: var(--panel-2);
+    border-radius: 10px;
+    padding: 12px 14px;
+  }
+  .box .title { font-weight: 700; font-size: 14px; margin-bottom: 4px; }
+  .box .path { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+  .box .desc { font-size: 12.5px; color: var(--muted); margin-top: 6px; }
+  .b-blue   { border-color: var(--accent);   box-shadow: inset 0 0 0 1px rgba(91,157,255,.15); }
+  .b-blue .title { color: var(--accent); }
+  .b-green  { border-color: var(--accent-2); }
+  .b-green .title { color: var(--accent-2); }
+  .b-orange { border-color: var(--accent-3); }
+  .b-orange .title { color: var(--accent-3); }
+  .b-purple { border-color: var(--accent-4); }
+  .b-purple .title { color: var(--accent-4); }
+
+  .row { display: flex; gap: 16px; flex-wrap: wrap; }
+  .row > * { flex: 1; min-width: 0; }
+  .center { text-align: center; }
+  .arrow-v { text-align: center; color: var(--accent); font-size: 22px; line-height: 1; margin: 8px 0; }
+  .arrow-label { color: var(--muted); font-family: var(--mono); font-size: 11px; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  @media (max-width: 760px) {
+    .grid3, .grid4 { grid-template-columns: 1fr 1fr; }
+    .row { flex-direction: column; }
+  }
+
+  .legend { display: flex; gap: 18px; flex-wrap: wrap; font-size: 12.5px; color: var(--muted); margin-top: 18px; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .dot { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
+
+  .toc {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 12px; padding: 18px 24px; margin-bottom: 36px;
+  }
+  .toc ol { margin: 6px 0; padding-left: 22px; }
+  .toc a { text-decoration: none; }
+  .toc a:hover { text-decoration: underline; }
+
+  .flow-step {
+    border: 1px solid var(--border); background: var(--panel-2);
+    border-radius: 8px; padding: 10px 14px; font-size: 13.5px;
+  }
+  .flow-step .lbl { font-family: var(--mono); font-size: 11px; color: var(--accent); display: block; margin-bottom: 2px; }
+  .split { display: flex; gap: 14px; }
+  .split > div { flex: 1; }
+  ul.tight { margin: 8px 0; padding-left: 20px; }
+  ul.tight li { margin: 4px 0; }
+  footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--border); color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <h1>Sudowork 项目上手指南</h1>
+    <div class="sub">基于 Electron 的桌面 AI Agent 平台 · 企业 AI 应用平台 / AgentOPS / 办公专家</div>
+    <div class="badges">
+      <span class="badge">Electron 37</span>
+      <span class="badge">React 19</span>
+      <span class="badge">TypeScript 5.8 strict</span>
+      <span class="badge">Arco Design + UnoCSS</span>
+      <span class="badge">SQLite (better-sqlite3)</span>
+      <span class="badge">bun</span>
+      <span class="badge">仓库 sudoclaw/sudowork</span>
+    </div>
+  </header>
+
+  <nav class="toc">
+    <strong>目录</strong>
+    <ol>
+      <li><a href="#what">这是什么</a></li>
+      <li><a href="#arch">顶层架构：三进程 + 两个外部入口</a></li>
+      <li><a href="#flow">核心数据流：一条消息怎么跑通</a></li>
+      <li><a href="#modules">各层模块速查</a></li>
+      <li><a href="#onboard">上手建议（推荐阅读顺序）</a></li>
+    </ol>
+  </nav>
+
+  <!-- ============ 1 ============ -->
+  <h2 id="what"><span class="num">1</span>这是什么</h2>
+  <p><strong>Sudowork</strong>（仓库 <code>sudoclaw/sudowork</code>，北京数牍科技）是一个<strong>基于 Electron 的桌面 AI Agent 平台</strong>，定位为"企业 AI 应用平台 / AgentOPS / 办公专家"。</p>
+  <p>核心价值：把各种 <strong>CLI AI Agent</strong>（Claude Code、Codex、Qwen 等遵循 <strong>ACP 协议</strong>的工具）包装成统一的图形界面，并支持<strong>远程访问</strong>（浏览器 WebUI）和<strong>即时通讯软件接入</strong>（Telegram / 飞书 / 钉钉 / 微信等），还能跑<strong>定时任务</strong>。</p>
+  <div class="note">
+    ⚠️ <strong>文档新鲜度提醒：</strong>仓库里的 <code>project.md</code> 部分内容已过时（写的是版本 1.8.26、<code>src/worker/</code> 目录，实际 <code>package.json</code> 是 <code>0.2.7</code>，worker 已并入 <code>src/process/task/</code>）。本文基于<strong>实际源码</strong>绘制。
+  </div>
+
+  <!-- ============ 2 ============ -->
+  <h2 id="arch"><span class="num">2</span>顶层架构：三进程 + 两个外部入口</h2>
+
+  <div class="diagram">
+    <!-- electron container -->
+    <div class="box b-blue" style="padding:22px;">
+      <div class="title">Electron 应用</div>
+
+      <div class="row" style="margin-top:16px; align-items:stretch;">
+        <div class="box b-green">
+          <div class="title">Renderer 渲染进程</div>
+          <div class="path">src/renderer/</div>
+          <div class="desc">React 19 UI、聊天界面<br>（无 Node API）</div>
+        </div>
+        <div style="flex:0 0 auto; display:flex; flex-direction:column; justify-content:center; align-items:center; color:var(--accent);">
+          <div style="font-size:20px;">◄──►</div>
+          <div class="arrow-label">IPC Bridge<br>preload.ts</div>
+        </div>
+        <div class="box b-orange">
+          <div class="title">Main 主进程</div>
+          <div class="path">src/process/</div>
+          <div class="desc">业务逻辑 / SQLite / 服务编排<br>（无 DOM API，拥有全部 Node API）</div>
+        </div>
+        <div style="flex:0 0 auto; display:flex; flex-direction:column; justify-content:center; align-items:center; color:var(--accent-3);">
+          <div style="font-size:20px;">──►</div>
+          <div class="arrow-label">spawn</div>
+        </div>
+        <div class="box b-purple">
+          <div class="title">Agent 子进程</div>
+          <div class="path">由 Main spawn</div>
+          <div class="desc">实际运行的 ACP CLI<br>claude / scode / qwen ...</div>
+        </div>
+      </div>
+
+      <div class="arrow-v">▼ &nbsp; Main 进程内部还驱动以下能力 &nbsp; ▼</div>
+
+      <div class="grid4">
+        <div class="box">
+          <div class="title" style="color:var(--accent);">WebUI 浏览器</div>
+          <div class="path">src/webserver/</div>
+          <div class="desc">Express + ws<br>远程浏览器访问</div>
+        </div>
+        <div class="box">
+          <div class="title" style="color:var(--accent-2);">Channels 机器人</div>
+          <div class="path">src/channels/</div>
+          <div class="desc">Telegram/飞书/钉钉/<br>企微/微信/禅道</div>
+        </div>
+        <div class="box">
+          <div class="title" style="color:var(--accent-3);">Cron 定时任务</div>
+          <div class="path">services/cron/</div>
+          <div class="desc">cron 表达式<br>24/7 自动化</div>
+        </div>
+        <div class="box">
+          <div class="title" style="color:var(--accent-4);">MCP / 扩展系统</div>
+          <div class="path">extensions/</div>
+          <div class="desc">MCP 服务器 / 技能<br>助手 / 主题 / 插件</div>
+        </div>
+      </div>
+
+      <div class="arrow-v" style="color:var(--danger);">┊ &nbsp; 企业模式另走远程 &nbsp; ┊</div>
+      <div class="box" style="border-style:dashed;">
+        <div class="title" style="color:var(--danger);">Moss Server（企业远程 Agent）</div>
+        <div class="path">src/agent/remote/ · 通过 WebSocket 连接，会话类型 remote-agent</div>
+      </div>
+    </div>
+
+    <div class="legend">
+      <span><span class="dot" style="background:var(--accent-2);"></span>Renderer 进程</span>
+      <span><span class="dot" style="background:var(--accent-3);"></span>Main 进程</span>
+      <span><span class="dot" style="background:var(--accent-4);"></span>Agent 子进程</span>
+      <span><span class="dot" style="background:var(--accent);"></span>外部入口</span>
+    </div>
+  </div>
+
+  <p><strong>三个进程的关键纪律：</strong>Renderer 无 Node API，Main 无 DOM API，跨进程通信<strong>必须</strong>走 IPC Bridge（<code>src/preload.ts</code> + <code>src/common/ipcBridge.ts</code>）。</p>
+
+  <table>
+    <tr><th>进程</th><th>目录</th><th>职责</th></tr>
+    <tr><td><strong>Main 主进程</strong></td><td><code>src/process/</code></td><td>应用逻辑、SQLite、服务编排、spawn Agent 子进程</td></tr>
+    <tr><td><strong>Renderer 渲染进程</strong></td><td><code>src/renderer/</code></td><td>React UI、聊天界面</td></tr>
+    <tr><td><strong>Agent 子进程</strong></td><td>由 Main spawn</td><td>实际运行的 ACP CLI 工具（Claude Code 等）</td></tr>
+  </table>
+
+  <p><strong>两个外部访问入口</strong>（都在 Main 进程内）：</p>
+  <ul class="tight">
+    <li><strong>WebUI</strong>（<code>src/webserver/</code>）：Express + WebSocket，把<strong>同一套打包好的 React 应用</strong>通过浏览器提供出去，支持远程访问。</li>
+    <li><strong>Channels</strong>（<code>src/channels/</code>）：Telegram / 飞书 / 钉钉 / 企业微信 / 微信 / 禅道 机器人，让你在 IM 里直接和 Agent 对话。</li>
+  </ul>
+
+  <!-- ============ 3 ============ -->
+  <h2 id="flow"><span class="num">3</span>核心数据流：一条消息怎么跑通</h2>
+
+  <div class="diagram">
+    <div class="flow-step center"><span class="lbl">① 用户输入</span>在聊天框输入消息</div>
+    <div class="arrow-v">▼ &nbsp;<span class="arrow-label">IPC: conversation.sendMessage（通道定义于 src/common/ipcBridge.ts）</span></div>
+
+    <div class="box b-orange">
+      <div class="flow-step"><span class="lbl">② Main: conversationBridge 处理</span>src/process/bridge/ → <code>WorkerManage.getTaskByIdRollbackBuild()</code> 按 conversationId 找到 / 新建 Agent 任务</div>
+    </div>
+    <div class="arrow-v">▼</div>
+
+    <div class="split">
+      <div>
+        <div class="box b-purple center">
+          <div class="title">AcpAgent（本地）</div>
+          <div class="path">src/process/task/AcpAgent.ts</div>
+          <div class="desc">type = <code>acp</code><br>spawn CLI 子进程<br>stdio / gRPC 走 ACP 协议</div>
+        </div>
+      </div>
+      <div>
+        <div class="box" style="border-color:var(--danger);">
+          <div class="title" style="color:var(--danger);">RemoteAgent（企业远程）</div>
+          <div class="path">src/process/task/RemoteAgent.ts</div>
+          <div class="desc">type = <code>remote-agent</code><br>WebSocket 连 Moss Server</div>
+        </div>
+      </div>
+    </div>
+    <div class="arrow-v">▼ &nbsp;<span class="arrow-label">ACP 流式响应：text / tool_call / plan / acp_permission(审批) ...</span></div>
+
+    <div class="box b-blue">
+      <div class="flow-step"><span class="lbl">③ Adapter 广播</span>src/adapter/main.ts 把事件 <code>emit: conversation.responseStream</code> 同时推给：所有 Renderer 窗口 · WebUI 的 WebSocket 客户端 · Avatar 悬浮窗</div>
+    </div>
+    <div class="arrow-v">▼</div>
+
+    <div class="row">
+      <div class="flow-step center"><span class="lbl">④ 落库</span>消息写入 SQLite<br><code>conversations</code> / <code>messages</code> 表</div>
+      <div class="flow-step center"><span class="lbl">⑤ UI 更新</span>虚拟列表 Virtuoso<br>实时渲染各类消息</div>
+    </div>
+  </div>
+
+  <h3>两种会话类型（<code>conversations.type</code>）</h3>
+  <table>
+    <tr><th>类型</th><th>实现</th><th>说明</th></tr>
+    <tr><td><code>acp</code></td><td><code>src/process/task/AcpAgent.ts</code></td><td><strong>本地模式</strong>：spawn 一个 CLI 子进程，通过 stdio/gRPC 走 <strong>ACP（Agent Client Protocol）</strong>通信</td></tr>
+    <tr><td><code>remote-agent</code></td><td><code>src/process/task/RemoteAgent.ts</code></td><td><strong>企业模式</strong>：通过 WebSocket 连到 <strong>Moss Server</strong></td></tr>
+    <tr><td><code>sudoclaw</code> <em>(旧)</em></td><td><code>src/agent/sudoclaw/</code></td><td>旧的远程网关，已被 <code>remote-agent</code> 取代，仅保留兼容</td></tr>
+  </table>
+  <div class="note">💡 <strong>ACP 是整个项目的中枢。</strong>它是统一的 Agent 通信协议——理解了它，就理解了 Sudowork 如何接入"任意 CLI Agent"。</div>
+
+  <!-- ============ 4 ============ -->
+  <h2 id="modules"><span class="num">4</span>各层模块速查</h2>
+
+  <h3>Main 进程 <code>src/process/</code></h3>
+  <table>
+    <tr><th>模块</th><th>作用</th></tr>
+    <tr><td><code>index.ts</code></td><td>初始化编排：<code>initStorage</code> → <code>initBridge</code> → <code>ExtensionRegistry</code> → 按 appMode 启动服务</td></tr>
+    <tr><td><code>bridge/</code></td><td><strong>50+ 个 IPC 桥</strong>，Renderer 调用 Main 的入口（conversation / auth / model / mcp / cron ...）</td></tr>
+    <tr><td><code>database/</code></td><td>SQLite（better-sqlite3）：conversations / messages / users / 自定义模型 provider</td></tr>
+    <tr><td><code>task/</code></td><td>Agent 执行核心：<code>BaseAgent</code>、<code>AcpAgent</code>、<code>RemoteAgent</code>、技能管理、消息中间件</td></tr>
+    <tr><td><code>services/</code></td><td>后台服务：cron 定时、mcp、nexus-vfs（虚拟文件系统）、scode、providers、telemetry</td></tr>
+    <tr><td><code>WorkerManage.ts</code></td><td>内存任务注册表：conversationId → Agent 实例，负责创建 / 缓存 / 退出清理</td></tr>
+  </table>
+
+  <h3>Renderer <code>src/renderer/</code></h3>
+  <ul class="tight">
+    <li><strong>路由</strong>：React Router v6 <strong>HashRouter</strong>。主要页面：<code>/guid</code>（首页/会话列表）、<code>/conversation/:id</code>（聊天）、<code>/settings/*</code>、<code>/moss-session/:id</code>（企业）。</li>
+    <li><strong>状态管理</strong>：<strong>纯 React Context</strong>（无 Redux/Zustand）+ <strong>SWR</strong> 做服务端数据缓存。</li>
+    <li><strong>聊天 UI</strong>（<code>messages/</code>）：Virtuoso 虚拟列表，支持多种消息类型——文本、工具调用（<code>MessageToolCall</code>）、计划（<code>MessagePlan</code>）、Agent 状态、<strong>ACP 权限审批弹窗</strong>（<code>acp/MessageAcpPermission</code>）。</li>
+    <li><strong>三栏布局</strong>（<code>pages/conversation/ChatLayout</code>）：左=消息流，中=工作区（文件树/技能/任务），右=预览面板（浏览器/代码 diff）。</li>
+  </ul>
+
+  <h3>Channels <code>src/channels/</code>（IM 机器人接入）</h3>
+  <table>
+    <tr><th>子目录</th><th>作用</th></tr>
+    <tr><td><code>core/</code></td><td>ChannelManager 单例 + PluginManager + SessionManager</td></tr>
+    <tr><td><code>plugins/</code></td><td>telegram / lark / dingtalk / wechat / wecom / zentao 各平台实现</td></tr>
+    <tr><td><code>pairing/</code></td><td>配对授权：IM 用户发 <code>/start</code> 拿 6 位码 → 在设置里审批绑定</td></tr>
+    <tr><td><code>agent/</code></td><td>消息流式回传、事件总线（ChannelEventBus）、响应路由</td></tr>
+  </table>
+
+  <h3>WebServer <code>src/webserver/</code>（浏览器 WebUI）</h3>
+  <ul class="tight">
+    <li><strong>Express + ws</strong>，服务<strong>同一套打包好的 React 应用</strong>（<code>out/renderer/</code>）。</li>
+    <li><strong>认证</strong>：bcrypt 密码 + JWT，Cookie 名 <code>aionui-session</code>，支持二维码登录。</li>
+    <li>默认端口 <code>25808</code>，<code>--remote</code> 开放局域网访问，<code>--resetpass</code> 重置管理员密码。</li>
+  </ul>
+
+  <h3>Common / Shared（跨进程共享）</h3>
+  <table>
+    <tr><th>文件 / 目录</th><th>作用</th></tr>
+    <tr><td><code>common/ipcBridge.ts</code></td><td>所有 IPC 通道的<strong>类型定义</strong>（最重要的契约文件）</td></tr>
+    <tr><td><code>common/chatLib.ts</code></td><td>所有消息类型 <code>TMessage</code> 联合类型定义</td></tr>
+    <tr><td><code>common/approval/</code></td><td>权限审批"始终允许"的会话级缓存</td></tr>
+    <tr><td><code>common/presets/</code></td><td>助手预设（Claude / Cowork 等：用哪些 rules / skills / 模型）</td></tr>
+    <tr><td><code>common/slash/</code></td><td>斜杠命令定义</td></tr>
+    <tr><td><code>common/nexus/</code></td><td>Nexus 后端客户端（VFS / 密钥 / SSE）</td></tr>
+  </table>
+
+  <!-- ============ 5 ============ -->
+  <h2 id="onboard"><span class="num">5</span>上手建议（推荐阅读顺序）</h2>
+
+  <div class="diagram">
+    <div class="row" style="align-items:stretch;">
+      <div class="box b-blue"><div class="title">1 · 契约</div><div class="path">src/common/ipcBridge.ts</div><div class="desc">先看通道定义，理解前后端契约</div></div>
+      <div class="box b-orange"><div class="title">2 · 启动</div><div class="path">src/process/index.ts</div><div class="desc">主进程启动流程</div></div>
+      <div class="box b-purple"><div class="title">3 · Agent 核心</div><div class="path">task/AcpAgent.ts · BaseAgent.ts</div><div class="desc">Agent 怎么跑（最核心）</div></div>
+    </div>
+    <div class="arrow-v">▼</div>
+    <div class="row" style="align-items:stretch;">
+      <div class="box b-orange"><div class="title">4 · 生命周期</div><div class="path">src/process/WorkerManage.ts</div><div class="desc">任务创建 / 缓存 / 清理</div></div>
+      <div class="box b-green"><div class="title">5 · 消息渲染</div><div class="path">renderer/messages/MessageList.tsx</div><div class="desc">消息怎么显示</div></div>
+      <div class="box b-green"><div class="title">6 · 聊天页</div><div class="path">renderer/pages/conversation/</div><div class="desc">聊天页主结构</div></div>
+    </div>
+    <div class="arrow-v">▼ &nbsp;<span class="arrow-label">按需深入</span></div>
+    <div class="row" style="align-items:stretch;">
+      <div class="box"><div class="title" style="color:var(--accent-2);">Channels 插件机制</div><div class="path">src/channels/</div></div>
+      <div class="box"><div class="title" style="color:var(--accent);">WebUI 服务端</div><div class="path">src/webserver/</div></div>
+    </div>
+  </div>
+
+  <h3>启动命令</h3>
+  <table>
+    <tr><th>命令</th><th>作用</th></tr>
+    <tr><td><code>bun run start</code></td><td>开发模式（桌面 GUI）</td></tr>
+    <tr><td><code>bun run webui</code></td><td>WebUI 浏览器模式（本地）</td></tr>
+    <tr><td><code>bun run webui:remote</code></td><td>WebUI 远程模式（允许局域网访问）</td></tr>
+    <tr><td><code>bun run resetpass</code></td><td>重置管理员密码</td></tr>
+    <tr><td><code>bun run lint:fix</code> / <code>bunx tsc --noEmit</code></td><td>提交前必跑：格式化 + 类型检查</td></tr>
+  </table>
+
+  <footer>
+    文档作者：wyp · 基于实际源码整理 · 生成于 2026-06-10<br>
+    相关参考：<code>project.md</code>、<code>AGENTS.md</code>、<code>docs/tech/architecture.md</code>、<code>docs/channels_technical_spec.md</code>
+  </footer>
+
+</div>
+</body>
+</html>
