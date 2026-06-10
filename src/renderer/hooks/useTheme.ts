@@ -31,17 +31,21 @@ const applyTheme = (theme: Theme) => {
   }
 };
 
-// Initialize theme immediately when module loads
+// Initialize theme immediately when module loads.
+// 主题切换入口已移除：强制亮色，并归一旧的 dark/system 偏好。
+// Theme switching has been removed: force light and normalize any legacy dark/system preference.
 const initTheme = async (): Promise<ThemePreference> => {
+  const preference = DEFAULT_PREFERENCE; // always 'light'
+  applyTheme(resolveTheme(preference));
   try {
-    const preference = ((await ConfigStorage.get('theme')) as ThemePreference) || DEFAULT_PREFERENCE;
-    applyTheme(resolveTheme(preference));
-    return preference;
+    const saved = (await ConfigStorage.get('theme')) as ThemePreference;
+    if (saved !== preference) {
+      await ConfigStorage.set('theme', preference);
+    }
   } catch (error) {
-    console.error('Failed to load initial theme:', error);
-    applyTheme(resolveTheme(DEFAULT_PREFERENCE));
-    return DEFAULT_PREFERENCE;
+    console.error('Failed to normalize theme preference:', error);
   }
+  return preference;
 };
 
 // Run theme initialization immediately
