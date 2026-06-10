@@ -294,7 +294,7 @@ const Layout: React.FC<{
             collapsedWidth={isMobile ? 0 : 64}
             collapsed={collapsed}
             width={siderWidth}
-            className={classNames('!bg-2 layout-sider', {
+            className={classNames('layout-sider', {
               collapsed: collapsed,
             })}
             style={
@@ -303,6 +303,7 @@ const Layout: React.FC<{
                     position: 'fixed',
                     left: 0,
                     zIndex: 100,
+                    background: 'var(--bg-2)',
                     transform: collapsed ? 'translateX(-100%)' : 'translateX(0)',
                     pointerEvents: collapsed ? 'none' : 'auto',
                   }
