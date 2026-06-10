@@ -85,12 +85,7 @@ export function initRendererCrashHandler(): void {
 /**
  * 上报异常到主进程
  */
-function reportException(data: {
-  error_name: string;
-  error_message: string;
-  stack_trace?: string;
-  context?: Record<string, unknown>;
-}): void {
+function reportException(data: { error_name: string; error_message: string; stack_trace?: string; context?: Record<string, unknown> }): void {
   try {
     if (window.electronAPI?.crashReportException) {
       window.electronAPI.crashReportException(data).catch((error: Error) => {
@@ -106,12 +101,7 @@ function reportException(data: {
 /**
  * 添加面包屑 (供渲染进程代码调用)
  */
-export function addRendererBreadcrumb(
-  category: string,
-  message: string,
-  data?: Record<string, unknown>,
-  level?: 'debug' | 'info' | 'warning' | 'error',
-): void {
+export function addRendererBreadcrumb(category: string, message: string, data?: Record<string, unknown>, level?: 'debug' | 'info' | 'warning' | 'error'): void {
   try {
     if (window.electronAPI?.crashAddBreadcrumb) {
       window.electronAPI.crashAddBreadcrumb({ category, message, data, level }).catch(() => {
@@ -132,10 +122,7 @@ function shouldIgnoreError(message: string): boolean {
   const normalized = message.toLowerCase();
 
   // ResizeObserver 循环警告
-  const resizeObserverPatterns = [
-    'resizeobserver loop limit exceeded',
-    'resizeobserver loop completed with undelivered notifications',
-  ];
+  const resizeObserverPatterns = ['resizeobserver loop limit exceeded', 'resizeobserver loop completed with undelivered notifications'];
   if (resizeObserverPatterns.some((p) => normalized.includes(p))) {
     return true;
   }

@@ -1,4 +1,4 @@
-import { AlarmClock, ArrowCircleLeft, Down, Earth, Lightning, ListCheckbox, Logout, Plus, Robot, SettingTwo, Shield, Toolkit } from '@icon-park/react';
+import { AlarmClock, Down, Earth, Lightning, ListCheckbox, Logout, Plus, Robot, SettingTwo, Shield } from '@icon-park/react';
 import { IconHome } from '@arco-design/web-react/icon';
 import classNames from 'classnames';
 import React, { Suspense, useEffect, useRef, useState } from 'react';
@@ -9,7 +9,6 @@ import { Dropdown, Menu, Message, Tooltip } from '@arco-design/web-react';
 import { cleanupSiderTooltips, getSiderTooltipProps } from './utils/siderTooltip';
 import { useLayoutContext } from './context/LayoutContext';
 import { blurActiveElement } from './utils/focus';
-import { isElectronDesktop } from './utils/platform';
 import { useAuth } from './context/AuthContext';
 import { addEventListener, emitter } from './utils/emitter';
 import { ConfigStorage } from '@/common/storage';
@@ -143,7 +142,6 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
   };
   const tooltipEnabled = collapsed && !isMobile;
   const siderTooltipProps = getSiderTooltipProps(tooltipEnabled);
-  const isDesktop = isElectronDesktop();
 
   return (
     <div className='size-full flex flex-col'>
