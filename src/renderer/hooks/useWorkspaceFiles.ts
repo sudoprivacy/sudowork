@@ -82,7 +82,9 @@ export function useWorkspaceFiles(): WorkspaceFileItem[] {
     try {
       // Fetch workspace files and draft files in parallel
       // 并行获取工作空间文件和草稿箱文件
-      const [result, draftsResult] = await Promise.all([ipcBridge.fs.getFilesByDir.invoke({ dir: workspace, root: workspace }), ipcBridge.workspaceManage.listDrafts.invoke({ workspace }).catch((): null => null)]);
+      const workspaceFilesPromise = ipcBridge.fs.getFilesByDir.invoke({ dir: workspace, root: workspace });
+      const draftsFilesPromise = ipcBridge.workspaceManage.listDrafts.invoke({ workspace }).catch((): null => null);
+      const [result, draftsResult] = await Promise.all([workspaceFilesPromise, draftsFilesPromise]);
 
       const flatList = result && result.length > 0 && result[0].children ? flattenFileTree(result[0].children) : [];
 
@@ -91,14 +93,25 @@ export function useWorkspaceFiles(): WorkspaceFileItem[] {
       if (draftsResult?.success && draftsResult.data && draftsResult.data.length > 0) {
         const sep = workspace.includes('\\') ? '\\' : '/';
         const draftsDir = `${workspace}${sep}${DRAFTS_DIR_NAME}`;
+        const fileIndexByRelativePath = new Map(flatList.map((item, index) => [item.relativePath, index] as const));
         for (const draft of draftsResult.data) {
+          const relativePath = `${DRAFTS_DIR_NAME}/${draft.name}`;
+          const existingIndex = fileIndexByRelativePath.get(relativePath);
+          if (existingIndex !== undefined) {
+            flatList[existingIndex] = {
+              ...flatList[existingIndex],
+              isDraft: true,
+            };
+            continue;
+          }
           flatList.push({
             name: draft.name,
             fullPath: `${draftsDir}${sep}${draft.name}`,
-            relativePath: `${DRAFTS_DIR_NAME}/${draft.name}`,
+            relativePath,
             isFile: true,
             isDraft: true,
           });
+          fileIndexByRelativePath.set(relativePath, flatList.length - 1);
         }
       }
 

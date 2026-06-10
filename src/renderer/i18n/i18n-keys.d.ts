@@ -451,6 +451,7 @@ export type I18nKey =
   | 'conversation.workspace.drafts.deleteFailed'
   | 'conversation.workspace.drafts.description'
   | 'conversation.workspace.drafts.empty'
+  | 'conversation.workspace.drafts.badge'
   | 'conversation.workspace.drafts.fileCount'
   | 'conversation.workspace.drafts.title'
   | 'conversation.workspace.dragFailed'
