@@ -35,7 +35,7 @@ import MentionDropdown from './components/MentionDropdown';
 import MentionSelectorBadge from './components/MentionSelectorBadge';
 import PromptTemplates from './components/PromptTemplates';
 import QuickActionButtons from './components/QuickActionButtons';
-import { useGuidAgentSelection, getRendererSessionMode } from './hooks/useGuidAgentSelection';
+import { useGuidAgentSelection } from './hooks/useGuidAgentSelection';
 import { useGuidInput } from './hooks/useGuidInput';
 import { useGuidMention } from './hooks/useGuidMention';
 import { useGuidModelSelection } from './hooks/useGuidModelSelection';

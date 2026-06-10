@@ -235,7 +235,6 @@ const useAcpMessage = (conversation_id: string) => {
             hasContentInTurnRef.current = false;
             // Log request completion
             if (requestTraceRef.current) {
-              const duration = Date.now() - requestTraceRef.current.startTime;
               requestTraceRef.current = null;
             }
           }
@@ -361,7 +360,6 @@ const useAcpMessage = (conversation_id: string) => {
           addOrUpdateMessage(transformedMessage);
           // Log request error
           if (requestTraceRef.current) {
-            const duration = Date.now() - requestTraceRef.current.startTime;
             requestTraceRef.current = null;
           }
           break;
@@ -693,7 +691,9 @@ const AcpSendBox: React.FC<{
       }
     };
 
-    sendInitialMessage().catch((error) => {});
+    sendInitialMessage().catch((error) => {
+      console.error('Failed to send initial message:', error);
+    });
   }, [conversation_id, backend, checkAndUpdateTitle, addOrUpdateMessageRef, beginProcessing, resetState]);
 
   const onSendHandler = async (message: string, skills?: string[]) => {
