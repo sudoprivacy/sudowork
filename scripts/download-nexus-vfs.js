@@ -58,11 +58,13 @@ const SHA256SUMS = {
   'nexusd-cluster-linux-aarch64.tar.gz': 'eeb0a861711a74ef8b78146a05ed0b96bff5aa8dfb6b3ba7f9ea1252fe11ab36',
   'nexusd-cluster-linux-x86_64.tar.gz': '2b85bf0daf381c68776911049a32ee3015974e4569fba2b407cff52c24a20260',
   'nexusd-cluster-macos-aarch64.tar.gz': '86e00f10612b23ad30f1498cd025a786b457c2925dd4276e6c7202f6367b0713',
+  'nexusd-cluster-macos-x86_64.tar.gz': '5d44d7ea5e18a4d2fe71d88342fd1adcff0fd84d09e1782eb0fd409f50668589',
   'nexusd-cluster-windows-aarch64.zip': '5c8b33210161c7d094ebe0ddca3eddefcf8ceabe0bfba7b24f0e0d232be64a92',
   'nexusd-cluster-windows-x86_64.zip': '86a6f47d0755a27af4d6509eb7d2aed83e9d5e1d47ba2ed7944094f419f15e88',
   // vault plugin v0.1.0
   'nexus-vault-linux-x86_64.tar.gz': '88fc1436045ebd7a92e55527462bd823ed46b2d19b5acf1303be2f647ca4af13',
   'nexus-vault-macos-arm64.tar.gz': '2b65a754ebdfaf9b447bc0359f24c7c8a45f58a5452f0b4eb383d5bb93c466d8',
+  'nexus-vault-macos-x86_64.tar.gz': 'e869399f031b7fc31a0b4a5bc92d73ddac25994ddd64d196d7f9db6d4b9c21a2',
   'nexus-vault-windows-x86_64.zip': '1c34bea1543e2e285fa6bb7a65be9bfde88d983ea734d9efd011c590a907f746',
 };
 
