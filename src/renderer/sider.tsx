@@ -113,13 +113,9 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
     blurActiveElement();
     if (isSettings) {
       const target = lastNonSettingsPathRef.current || '/guid';
-      Promise.resolve(navigate(target)).catch((error) => {
-        console.error('Navigation failed:', error);
-      });
+      void navigate(target);
     } else {
-      Promise.resolve(navigate('/settings/agent')).catch((error) => {
-        console.error('Navigation failed:', error);
-      });
+      void navigate('/settings/profile');
     }
     if (onSessionClick) {
       onSessionClick();

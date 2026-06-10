@@ -43,7 +43,7 @@ const ENTERPRISE_ALLOWED_PATHS = ['/settings/profile', '/settings/enterprise', '
 // Mode-aware default settings route
 const SettingsDefaultRoute: React.FC = () => {
   const { isEnterprise } = useAppMode();
-  return <Navigate to={isEnterprise ? '/settings/enterprise' : '/settings/agent'} replace />;
+  return <Navigate to={isEnterprise ? '/settings/enterprise' : '/settings/profile'} replace />;
 };
 
 const ProtectedLayout: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
