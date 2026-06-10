@@ -21,6 +21,16 @@ import * as fs from 'node:fs';
 import { initMossApi } from '../remote/MossSessionApi';
 import { isRemoteContainerPath } from '@/common/utils/workspaceSkillSync';
 import { filterEnabledSkillNames } from '../utils/enabledSkillFilter';
+import { ProcessConfig } from '../initStorage';
+
+/**
+ * Default idle detach timeout for finished remote sessions.
+ * After this many minutes of idleness post-finish, the client tears down the
+ * Moss WebSocket but leaves the Moss session intact (next sendMessage will
+ * resume via the persisted mossSessionId/acpWsUrl). Override via the
+ * `remote.idleDetachMinutes` config key; 0 disables detach entirely.
+ */
+const DEFAULT_REMOTE_IDLE_DETACH_MINUTES = 30;
 
 /**
  * RemoteAgent data interface
@@ -72,6 +82,14 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
   private turnActive = false;
   private userCancelled = false;
   private pendingQuestions = new Map<string, { msgId: string; responseToolCallId?: string; toolCallId: string }>();
+
+  /**
+   * Pending idle-detach timer. Set when the session reaches a quiescent state
+   * (finish / disconnect / error) and not currently active. Cleared on any
+   * activity (sendMessage, stream message, permission/question, confirm,
+   * restart, connected callback) and on explicit detach()/kill().
+   */
+  private idleDetachTimer: NodeJS.Timeout | null = null;
 
   /** Workspace path for this agent, when the user explicitly selected one. */
   workspace?: string;
@@ -153,6 +171,15 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
         // 获取创建的 session 信息
         this.mossSessionId = this.connection.getSessionId();
         this.mossWsUrl = this.connection.getWsUrl();
+        if (this.mossSessionId && this.mossWsUrl) {
+          // Keep the in-memory options aligned with the persisted DB update.
+          // After an idle detach, the same RemoteAgent instance may handle the
+          // next sendMessage. Without these fields, initAgent would re-enter
+          // lazy creation and create a second Moss session instead of resuming.
+          this.options.sessionId = this.mossSessionId;
+          this.options.wsUrl = this.mossWsUrl;
+          this.options.mossSessionPending = false;
+        }
 
         mainLog('RemoteAgent', `Moss session created: sessionId=${this.mossSessionId}, wsUrl=${this.mossWsUrl}`);
 
@@ -381,6 +408,7 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
    */
   async restartAndConnect(): Promise<void> {
     mainLog('RemoteAgent', `restartAndConnect for conversation ${this.conversation_id}`);
+    this.cancelIdleDetachTimer();
     this.emitStatusMessage('connecting');
     try {
       this.connection?.disconnect();
@@ -400,6 +428,8 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
   async sendMessage(data: { content: string; files?: string[]; msg_id?: string }): Promise<{ success: boolean; msg?: string }> {
     mainLog('RemoteAgent', `sendMessage called for conversation ${this.conversation_id}`);
     mainLog('RemoteAgent', `content length: ${data.content?.length || 0}, files: ${data.files?.length || 0}`);
+    // Activity: cancel any pending idle detach before we start work.
+    this.cancelIdleDetachTimer();
     this.status = 'running';
     this.processingStartTime = Date.now();
     this.turnActive = true;
@@ -484,6 +514,7 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
    */
   async observeExistingSession(options?: { startedAt?: number }): Promise<{ success: boolean; msg?: string }> {
     mainLog('RemoteAgent', `observeExistingSession called for conversation ${this.conversation_id}`);
+    this.cancelIdleDetachTimer();
     this.status = 'running';
     this.processingStartTime = options?.startedAt ?? Date.now();
     this.turnActive = true;
@@ -632,23 +663,105 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
   }
 
   /**
-   * Kill the agent
+   * Detach from the remote session WITHOUT terminating it server-side.
+   *
+   * Tears down the local WebSocket and clears in-memory state so the next
+   * sendMessage rebuilds the connection via the persisted
+   * mossSessionId/acpWsUrl resume path. Used for:
+   *   - Client-side idle detach after a quiescent finished session.
+   *   - App-exit cleanup (WorkerManage.clear) — Moss container/session
+   *     reclamation is handled by the Moss server's own idle policy.
+   *
+   * Critically distinct from terminate: deleteConversation goes through
+   * RemoteConversationProvider, which calls MossSessionApi.terminateSession
+   * separately. This method must never touch the Moss API.
    */
-  kill(): void {
-    this.connection?.disconnect();
+  detach(): void {
+    this.cancelIdleDetachTimer();
+    try {
+      this.connection?.disconnect();
+    } catch (err) {
+      mainError('RemoteAgent', `detach() disconnect failed for ${this.conversation_id}: ${err instanceof Error ? err.message : String(err)}`);
+    }
     this.connection = null;
     this.bootstrap = undefined;
+    mainLog('RemoteAgent', `Detached conversation ${this.conversation_id}`);
+  }
+
+  /**
+   * Kill the agent (existing WorkerManage cleanup entry point).
+   *
+   * Semantically: "drop this agent instance from local cache." Always
+   * delegates to detach() at the RemoteAgent level — RemoteAgent never
+   * terminates the Moss session itself. The terminate side of a delete
+   * happens in RemoteConversationProvider.deleteConversation, which calls
+   * MossSessionApi.terminateSession explicitly before invoking
+   * WorkerManage.kill.
+   */
+  kill(): void {
+    this.detach();
+  }
+
+  /** Schedule the idle-detach timer if not already pending and not active. */
+  private scheduleIdleDetachTimer(): void {
+    if (this.turnActive) return;
+    if (this.idleDetachTimer) return;
+    if (!this.connection) return;
+
+    const timeoutMs = this.getIdleDetachTimeoutMs();
+    if (timeoutMs <= 0) return;
+
+    this.idleDetachTimer = setTimeout(() => {
+      this.idleDetachTimer = null;
+      // Re-check turnActive at fire time — activity may have resumed.
+      if (this.turnActive) {
+        mainLog('RemoteAgent', `Idle detach skipped (active) for ${this.conversation_id}`);
+        return;
+      }
+      mainLog('RemoteAgent', `Idle detach firing for ${this.conversation_id} after ${timeoutMs}ms`);
+      this.detach();
+    }, timeoutMs);
+  }
+
+  /** Cancel any pending idle-detach timer. Safe to call when none is set. */
+  private cancelIdleDetachTimer(): void {
+    if (this.idleDetachTimer) {
+      clearTimeout(this.idleDetachTimer);
+      this.idleDetachTimer = null;
+    }
+  }
+
+  /**
+   * Read the idle-detach timeout (ms) from config every fire to honor
+   * runtime changes. Returns 0 to disable detach.
+   */
+  private getIdleDetachTimeoutMs(): number {
+    let minutes: number | undefined;
+    try {
+      minutes = ProcessConfig.getSync('remote.idleDetachMinutes');
+    } catch {
+      minutes = undefined;
+    }
+    if (typeof minutes !== 'number' || Number.isNaN(minutes)) {
+      return DEFAULT_REMOTE_IDLE_DETACH_MINUTES * 60_000;
+    }
+    if (minutes <= 0) return 0;
+    return Math.floor(minutes * 60_000);
   }
 
   /**
    * Confirm permission request
    */
   async confirm(id: string, callId: string, data: string): Promise<void> {
+    // Activity: user responded to a permission prompt. Keep the connection
+    // hot so the agent can resume mid-tool-call.
+    this.cancelIdleDetachTimer();
     super.confirm(id, callId, data);
     this.connection?.respondToPermissionRequest(callId, data);
   }
 
   async answerQuestion(toolCallId: string, answers: AcpQuestionResponseAnswer[]): Promise<void> {
+    this.cancelIdleDetachTimer();
     const pending = this.pendingQuestions.get(toolCallId);
     if (pending) {
       this.pendingQuestions.delete(pending.toolCallId);
@@ -697,6 +810,13 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
     if (this.userCancelled && msg.type !== 'finish') {
       mainLog('RemoteAgent', `Ignoring stream message after user cancel: type=${msg.type}`);
       return;
+    }
+
+    // Any inbound stream activity (content, tool_call, question, etc.) means
+    // the session is alive — cancel any pending idle detach. We re-schedule
+    // below when msg.type === 'finish'.
+    if (msg.type !== 'finish') {
+      this.cancelIdleDetachTimer();
     }
 
     const enrichedMsg = { ...msg, conversation_id: this.conversation_id };
@@ -752,6 +872,8 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
       // 清空 Turn 级别文件追踪，为下一个 Turn 做准备
       this.currentTurnFiles.clear();
       mainLog('RemoteAgent', '[FINISH] Cleared currentTurnFiles for next turn');
+      // Session is quiescent — start (or restart) idle detach countdown.
+      this.scheduleIdleDetachTimer();
     }
   }
 
@@ -973,6 +1095,10 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
   }
 
   private handlePermissionRequest(req: any, requestId: string): void {
+    // Permission prompts are interactive — keep the connection hot while we
+    // wait for the user. Without this, a long-thought permission dialog could
+    // outlive the idle detach window.
+    this.cancelIdleDetachTimer();
     this.addConfirmation({
       id: requestId,
       callId: requestId,
@@ -1014,6 +1140,9 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
 
   private handleConnected(): void {
     mainLog('RemoteAgent', `Connected to Moss Server for conversation ${this.conversation_id}`);
+    // Fresh connection — drop any leftover detach timer from the previous
+    // disconnected lifecycle.
+    this.cancelIdleDetachTimer();
     this.emitStatusMessage('connected');
   }
 
@@ -1076,6 +1205,10 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
       msg_id: uuid(36),
       data: null,
     });
+    // Cover the locally-emitted finish paths (performStop, emitErrorMessage,
+    // handleDisconnected). The Moss-emitted finish in handleStreamMessage
+    // schedules the timer there directly.
+    this.scheduleIdleDetachTimer();
   }
 
   /**
