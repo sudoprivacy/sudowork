@@ -28,7 +28,7 @@ import classNames from 'classnames';
 import React, { useMemo, useState } from 'react';
 import ReactDOM from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import markdownThemeCss from '../styles/markdown-theme.css?raw';
+import markdownThemeCss from '../styles/markdown.css?raw';
 import { convertLatexDelimiters } from '../utils/latexDelimiters';
 import LocalImageView from './LocalImageView';
 

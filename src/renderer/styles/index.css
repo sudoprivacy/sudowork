@@ -7,4 +7,4 @@
 @import './base.css';
 
 /* Markdown 主题规则（同时被 Markdown.tsx 以 ?raw 注入 Shadow DOM） */
-@import './markdown-theme.css';
+@import './markdown.css';
