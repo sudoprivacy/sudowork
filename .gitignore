@@ -176,7 +176,7 @@ ${env.ELECTRON_CACHE}/
 wiki/
 
 # Keep CLAUDE.md for project documentation
-CLAUDE.md
+# CLAUDE.md
 
 # Local design docs and screenshots
 desdoc/
