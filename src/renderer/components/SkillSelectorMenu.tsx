@@ -264,7 +264,7 @@ const SkillSelectorMenu: React.FC<SkillSelectorMenuProps> = ({ title, hint, item
             {fileItems.length === 0 && <div className='px-10px py-12px text-13px text-t-secondary'>{searchQuery ? noSearchResultsText : filesEmptyText}</div>}
             {fileItems.map((file, index) => (
               <button
-                key={file.fullPath}
+                key={file.relativePath}
                 type='button'
                 role='option'
                 ref={(node) => {

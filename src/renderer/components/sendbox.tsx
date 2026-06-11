@@ -135,7 +135,7 @@ const SendBox: React.FC<{
     return () => {
       setSendBoxHandler(null);
     };
-  }, [setSendBoxHandler]);
+  }, [latestInputRef, setInputRef, setSendBoxHandler]);
 
   // 初始化时获取单行输入框的可用宽度
   // Initialize and get the available width of single-line input
@@ -595,7 +595,7 @@ const SendBox: React.FC<{
               onTabChange={skillSelectorController.setActiveTab}
               fileItems={skillSelectorController.filteredFiles}
               onSelectFile={(file) => {
-                const fileIndex = skillSelectorController.filteredFiles.findIndex((f) => f.fullPath === file.fullPath);
+                const fileIndex = skillSelectorController.filteredFiles.findIndex((f) => f.relativePath === file.relativePath);
                 if (fileIndex >= 0) {
                   skillSelectorController.onSelectByIndex(fileIndex);
                 }

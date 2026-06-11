@@ -20,6 +20,7 @@ const HIDDEN_DIR_NAMES = new Set(['.git', '.nexus', '.scode', '.claude', '.sandb
 const BUILD_DIR_NAMES = new Set(['dist', 'build', 'out', '__pycache__', 'venv', 'node_modules']);
 
 const isHiddenOrBuildDir = (name: string): boolean => HIDDEN_DIR_NAMES.has(name) || BUILD_DIR_NAMES.has(name) || (name.startsWith('.') && name !== DRAFTS_DIR_NAME);
+const normalizeUiPath = (value: string): string => value.replace(/\\/g, '/');
 
 /**
  * Flattened workspace file item for @ mention selection
@@ -42,7 +43,7 @@ export interface WorkspaceFileItem {
  */
 function flattenFileTree(nodes: IDirOrFile[], result: WorkspaceFileItem[] = []): WorkspaceFileItem[] {
   for (const node of nodes) {
-    const normalizedPath = node.relativePath.replace(/\\/g, '/');
+    const normalizedPath = normalizeUiPath(node.relativePath);
     const topDir = normalizedPath.split('/')[0];
 
     // Skip hidden/build directories and files inside them (allow .drafts)
@@ -53,7 +54,7 @@ function flattenFileTree(nodes: IDirOrFile[], result: WorkspaceFileItem[] = []):
       result.push({
         name: node.name,
         fullPath: node.fullPath,
-        relativePath: node.relativePath,
+        relativePath: normalizedPath,
         isFile: true,
       });
     }
@@ -93,9 +94,9 @@ export function useWorkspaceFiles(): WorkspaceFileItem[] {
       if (draftsResult?.success && draftsResult.data && draftsResult.data.length > 0) {
         const sep = workspace.includes('\\') ? '\\' : '/';
         const draftsDir = `${workspace}${sep}${DRAFTS_DIR_NAME}`;
-        const fileIndexByRelativePath = new Map(flatList.map((item, index) => [item.relativePath, index] as const));
+        const fileIndexByRelativePath = new Map(flatList.map((item, index) => [normalizeUiPath(item.relativePath), index] as const));
         for (const draft of draftsResult.data) {
-          const relativePath = `${DRAFTS_DIR_NAME}/${draft.name}`;
+          const relativePath = normalizeUiPath(`${DRAFTS_DIR_NAME}/${draft.name}`);
           const existingIndex = fileIndexByRelativePath.get(relativePath);
           if (existingIndex !== undefined) {
             flatList[existingIndex] = {
