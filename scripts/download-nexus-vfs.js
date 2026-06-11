@@ -61,11 +61,14 @@ const SHA256SUMS = {
   'nexusd-cluster-macos-x86_64.tar.gz': '5d44d7ea5e18a4d2fe71d88342fd1adcff0fd84d09e1782eb0fd409f50668589',
   'nexusd-cluster-windows-aarch64.zip': '5c8b33210161c7d094ebe0ddca3eddefcf8ceabe0bfba7b24f0e0d232be64a92',
   'nexusd-cluster-windows-x86_64.zip': '86a6f47d0755a27af4d6509eb7d2aed83e9d5e1d47ba2ed7944094f419f15e88',
-  // vault plugin v0.1.1
-  'nexus-vault-linux-x86_64.tar.gz': '9d7d87fd64e2ab16f76f384df4f91252d25c795a6a1f21e8a7c134030f8573fb',
-  'nexus-vault-macos-arm64.tar.gz': 'f185068d23a309589e8b10646d0055bba59d4c491dd86396c8adf95a9a212f56',
-  'nexus-vault-macos-x86_64.tar.gz': '85fc3c67b05884fe32d0464602a80b1962a29dbfa888148a532884d60851d547',
-  'nexus-vault-windows-x86_64.zip': '134b95ba6693eb08b74581b07071519af4219fcaac4766d5610b4e77a0fbca75',
+  // vault plugin v0.1.2 — first signed release (Ed25519 detached `.sig`
+  // alongside dylib inside each archive). Hashes regenerate from scratch
+  // because the archive shape changed (now ships sig too); they are
+  // unrelated to v0.1.1 sums.
+  'nexus-vault-linux-x86_64.tar.gz': '484d6c806cb67d9e2360282ad55a7da17764cd959059e2587846e1608fb9ab63',
+  'nexus-vault-macos-arm64.tar.gz': 'a97fbcdc7b178bc3b3dc4e1adb99e8dd40e77ea412354f5d6f4f54b328a583f4',
+  'nexus-vault-macos-x86_64.tar.gz': '27a85d33cdd8adcb84f6a263202b3fb0c4a682174de21b2964efc51e883b0bb0',
+  'nexus-vault-windows-x86_64.zip': 'c80b7453255b5c05f50a2206556402784aef75ae1cf5f272a599193f92856a07',
 };
 
 
