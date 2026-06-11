@@ -5,7 +5,7 @@
  */
 
 import { ipcBridge } from '@/common';
-import { ConfigStorage, type ICssTheme } from '@/common/storage';
+import { ConfigStorage } from '@/common/storage';
 import PwaPullToRefresh from '@/renderer/components/PwaPullToRefresh';
 import CommandPalette from '@/renderer/components/CommandPalette';
 import { useCommandPalette } from '@/renderer/hooks/useCommandPalette';
@@ -20,12 +20,9 @@ import { useTenantConfig } from './context/TenantConfigContext';
 import { useDeepLink } from './hooks/useDeepLink';
 import { useDirectorySelection } from './hooks/useDirectorySelection';
 import { useMultiAgentDetection } from './hooks/useMultiAgentDetection';
-import { processCustomCss } from './utils/customCssProcessor';
 import { cleanupSiderTooltips } from './utils/siderTooltip';
 import { emitter } from './utils/emitter';
 import { isElectronDesktop } from './utils/platform';
-import { computeCssSyncDecision, resolveCssByActiveTheme, themeExists } from './utils/themeCssSync';
-import { DEFAULT_THEME_ID } from './components/CssThemeSettings/presets';
 import SudoworkIcon from './assets/sudowork-icon-dark.svg';
 const useDebug = () => {
   const [count, setCount] = useState(0);
@@ -88,8 +85,6 @@ const Layout: React.FC<{
   const [collapsed, setCollapsed] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [viewportWidth, setViewportWidth] = useState<number>(() => (typeof window === 'undefined' ? 390 : window.innerWidth));
-  const [customCss, setCustomCss] = useState<string>('');
-  const [shouldMountUpdateModal, setShouldMountUpdateModal] = useState(false);
   const { onClick } = useDebug();
   const navigate = useNavigate();
   // 点击侧栏顶部 logo / 应用名时回到新会话页，行为与「新会话」按钮一致
@@ -109,141 +104,6 @@ const Layout: React.FC<{
   const location = useLocation();
   const workspaceAvailable = location.pathname.startsWith('/conversation/');
   const collapsedRef = useRef(collapsed);
-  const lastCssRef = useRef('');
-  const lastUiCssUpdateAtRef = useRef(0);
-
-  const loadAndHealCustomCss = useCallback(async () => {
-    try {
-      const [savedCssRaw, activeThemeId, savedThemes] = await Promise.all([ConfigStorage.get('customCss'), ConfigStorage.get('css.activeThemeId'), ConfigStorage.get('css.themes')]);
-
-      const decision = computeCssSyncDecision({
-        savedCss: savedCssRaw || '',
-        activeThemeId: activeThemeId || '',
-        savedThemes: (savedThemes || []) as ICssTheme[],
-        currentUiCss: customCss,
-        lastUiCssUpdateAt: lastUiCssUpdateAtRef.current,
-      });
-
-      if (decision.shouldSkipApply) {
-        return;
-      }
-
-      let effectiveCss = decision.effectiveCss;
-
-      // First launch (nothing saved yet) vs. a saved activeThemeId that no longer
-      // maps to a known theme: in both cases the resolved CSS is empty. Fall back to
-      // the Default theme and persist it, mirroring what CssThemeSettings does on
-      // mount. Without this, a fresh install renders with NO theme variables until
-      // the user opens Settings → Display, which left some surfaces (notably the
-      // terminal) using unreadable fallback colors.
-      const isFirstLaunch = !savedCssRaw && !activeThemeId;
-      if (!effectiveCss && (isFirstLaunch || (activeThemeId && activeThemeId !== DEFAULT_THEME_ID))) {
-        const defaultCss = resolveCssByActiveTheme(DEFAULT_THEME_ID, (savedThemes || []) as ICssTheme[]);
-        effectiveCss = defaultCss;
-        // Persist the fallback so Layout doesn't keep retrying
-        await Promise.all([ConfigStorage.set('css.activeThemeId', DEFAULT_THEME_ID), ConfigStorage.set('customCss', effectiveCss)]).catch((error) => {
-          console.warn('Failed to persist theme fallback:', error);
-        });
-      } else if (decision.shouldHealStorage) {
-        const sets = [ConfigStorage.set('customCss', effectiveCss)];
-        // activeThemeId 指向已删除的旧预设（如重命名前的默认主题）→ 归一到默认主题，清掉陈旧 id
-        // Stale activeThemeId pointing at a removed preset → normalize to the default theme
-        if (activeThemeId && activeThemeId !== DEFAULT_THEME_ID && !themeExists(activeThemeId, (savedThemes || []) as ICssTheme[])) {
-          sets.push(ConfigStorage.set('css.activeThemeId', DEFAULT_THEME_ID));
-        }
-        await Promise.all(sets).catch((error) => {
-          console.warn('Failed to heal custom CSS from active theme:', error);
-        });
-      }
-
-      setCustomCss(effectiveCss);
-      if (lastCssRef.current !== effectiveCss) {
-        lastCssRef.current = effectiveCss;
-        window.dispatchEvent(new CustomEvent('custom-css-updated', { detail: { customCss: effectiveCss } }));
-      }
-    } catch (error) {
-      console.error('Failed to load or heal custom CSS:', error);
-    }
-  }, [customCss]);
-
-  // 加载并监听自定义 CSS 配置 / Load & watch custom CSS configuration
-  useEffect(() => {
-    void loadAndHealCustomCss();
-
-    const handleCssUpdate = (event: CustomEvent) => {
-      if (event.detail?.customCss !== undefined) {
-        const css = event.detail.customCss || '';
-        lastCssRef.current = css;
-        lastUiCssUpdateAtRef.current = Date.now();
-        setCustomCss(css);
-      }
-    };
-    const handleStorageChange = (event: StorageEvent) => {
-      if (event.key && (event.key.includes('customCss') || event.key.includes('css.activeThemeId'))) {
-        void loadAndHealCustomCss();
-      }
-    };
-
-    window.addEventListener('custom-css-updated', handleCssUpdate as EventListener);
-    window.addEventListener('storage', handleStorageChange);
-
-    return () => {
-      window.removeEventListener('custom-css-updated', handleCssUpdate as EventListener);
-      window.removeEventListener('storage', handleStorageChange);
-    };
-  }, [loadAndHealCustomCss]);
-
-  // Re-sync theme css on route changes, because some settings pages do not mount CssThemeSettings.
-  useEffect(() => {
-    void loadAndHealCustomCss();
-  }, [location.pathname, location.search, location.hash, loadAndHealCustomCss]);
-
-  // 注入自定义 CSS / Inject custom CSS into document head
-  useEffect(() => {
-    const styleId = 'user-defined-custom-css';
-
-    if (!customCss) {
-      document.getElementById(styleId)?.remove();
-      return;
-    }
-
-    const wrappedCss = processCustomCss(customCss);
-
-    const ensureStyleAtEnd = () => {
-      let styleEl = document.getElementById(styleId) as HTMLStyleElement | null;
-
-      if (styleEl && styleEl.textContent === wrappedCss && styleEl === document.head.lastElementChild) {
-        return;
-      }
-
-      styleEl?.remove();
-      styleEl = document.createElement('style');
-      styleEl.id = styleId;
-      styleEl.type = 'text/css';
-      styleEl.textContent = wrappedCss;
-      document.head.appendChild(styleEl);
-    };
-
-    ensureStyleAtEnd();
-
-    const observer = new MutationObserver((mutations) => {
-      const hasNewStyle = mutations.some((mutation) => Array.from(mutation.addedNodes).some((node) => node.nodeName === 'STYLE' || node.nodeName === 'LINK'));
-
-      if (hasNewStyle) {
-        const element = document.getElementById(styleId);
-        if (element && element !== document.head.lastElementChild) {
-          ensureStyleAtEnd();
-        }
-      }
-    });
-
-    observer.observe(document.head, { childList: true });
-
-    return () => {
-      observer.disconnect();
-      document.getElementById(styleId)?.remove();
-    };
-  }, [customCss]);
 
   // 检测移动端并响应窗口大小变化
   useEffect(() => {

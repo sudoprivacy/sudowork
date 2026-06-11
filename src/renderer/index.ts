@@ -33,7 +33,7 @@ import { useTranslation } from 'react-i18next';
 import 'uno.css';
 import './arco-override.css';
 import './i18n';
-import './styles/themes/index.css';
+import './styles/index.css';
 import HOC from './utils/HOC';
 const root = createRoot(document.getElementById('root'));
 
