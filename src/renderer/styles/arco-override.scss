@@ -64,7 +64,23 @@ body {
 // Sudowork Modal wrapper styles
 .aionui-modal .arco-modal-content {
   background: var(--bg-1) !important;
-  border-radius: 12px !important;
+  // Match the 16px radius already set on the outer .arco-modal / wrapper so the
+  // visible (content) corner isn't clipped smaller than the box behind it.
+  border-radius: 16px !important;
+}
+
+// Native Arco Modal (Modal.confirm/info and any non-AionModal usage):
+// larger corner radius + lighter header divider, to match AionModal.
+.arco-modal {
+  border-radius: 16px;
+}
+
+.arco-modal-header {
+  border-bottom-color: var(--border-light);
+}
+
+.arco-modal-footer {
+  border-top-color: var(--border-light);
 }
 
 .aionui-modal-header {

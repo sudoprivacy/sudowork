@@ -332,7 +332,7 @@ const AionModal: React.FC<AionModalProps> = ({
     const headerClassName = classNames(HEADER_BASE_CLASS, headerConfig.className);
 
     const headerStyle: CSSProperties = {
-      borderBottom: '1px solid var(--bg-3)',
+      borderBottom: '1px solid var(--border-light)',
       ...headerConfig.style,
     };
 
