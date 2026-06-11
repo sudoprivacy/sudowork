@@ -32,7 +32,31 @@ jobs:
 
   # Job 1: Skipped code quality checks (ESLint removed per requirement)
 
-# Job 2: Skipped unit tests (removed per requirement)
+  # Job 2: Vault secrets unit tests — pure mock, no native deps
+  unit-tests-secrets:
+    name: Secrets Unit Tests
+    if: github.event.action != 'edited'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --no-frozen-lockfile
+
+      - name: Run secrets unit tests
+        run: bunx vitest run tests/unit/secrets/
 
   # Job 3: Build test across all platforms (parallel with code-quality and unit-tests)
   build-test:
