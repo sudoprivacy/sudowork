@@ -78,7 +78,10 @@
   cursor: pointer;
   display: inline-flex;
   align-items: center;
-  transition: background 0.15s ease, color 0.15s ease, transform 0.1s ease;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    transform 0.1s ease;
 }
 .avatar-selector-chip:hover {
   background: var(--color-fill-3);
@@ -109,7 +112,7 @@
 /* 生成按钮配色：本项目未定义 Arco 的 --primary-6，Arco 自带的
    `background-color: rgb(var(--primary-6))`（无回退）会失效回落成灰底，
    故启用/禁用态都显式改用已定义的 --primary，并加 !important 压过
-   arco-override.css 对 disabled 主按钮的 !important 灰底覆盖。 */
+   styles/arco-override.scss 对 disabled 主按钮的 !important 灰底覆盖。 */
 .avatar-selector-primary-btn.arco-btn-primary:not(.arco-btn-disabled) {
   background-color: var(--primary) !important;
   border-color: var(--primary) !important;
@@ -224,7 +227,10 @@
   background: var(--color-fill-1);
   border: 1px solid transparent;
   cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    transform 0.1s ease;
 }
 .avatar-selector-preset-card:hover {
   background: var(--color-fill-2);
