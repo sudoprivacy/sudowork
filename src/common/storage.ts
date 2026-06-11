@@ -59,9 +59,6 @@ export interface IConfigStorageRefer {
   'mcp.agentInstallStatus': Record<string, string[]>;
   language: string;
   theme: string;
-  customCss: string; // 自定义 CSS 样式
-  'css.themes': ICssTheme[]; // 自定义 CSS 主题列表 / Custom CSS themes list
-  'css.activeThemeId': string; // 当前激活的主题 ID / Currently active theme ID
   'gemini.defaultModel': string | { id: string; useModel: string };
   'tools.imageGenerationModel': TProviderWithModel & {
     switch: boolean;
