@@ -4,10 +4,9 @@
  */
 
 import { ipcBridge } from '@/common';
-import { SUDOWORK_SERVER_BASE_URL } from '@/common/sudoworkServer';
 import AionModal from '@/renderer/components/base/AionModal';
 import { useAuth } from '@/renderer/context/AuthContext';
-import { Button, Message, Spin, Tabs } from '@arco-design/web-react';
+import { Button, Message, Spin } from '@arco-design/web-react';
 import { Alipay, Wechat, Refresh, CheckOne, CloseOne } from '@icon-park/react';
 import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -91,10 +90,10 @@ const RechargeModal: React.FC<RechargeModalProps> = ({
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('ALIPAY');
   const [orderNo, setOrderNo] = useState<string | null>(null);
   const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
-  const [orderInfo, setOrderInfo] = useState<string | null>(null);
+  const [, setOrderInfo] = useState<string | null>(null);
   const [expiredAt, setExpiredAt] = useState<Date | null>(null);
   const [loading, setLoading] = useState(false);
-  const [paying, setPaying] = useState(false);
+  const [, setPaying] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const pollTimerRef = useRef<NodeJS.Timeout | null>(null);

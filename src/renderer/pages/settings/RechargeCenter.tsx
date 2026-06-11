@@ -1,6 +1,6 @@
 import { ipcBridge } from '@/common';
 import { useAuth } from '@/renderer/context/AuthContext';
-import { Button, Message, Spin, Tabs } from '@arco-design/web-react';
+import { Button, Message, Spin } from '@arco-design/web-react';
 import { Alipay, Wechat, Refresh, CheckOne, CheckSmall, CloseOne } from '@icon-park/react';
 import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -79,7 +79,7 @@ const RechargeCenter: React.FC = () => {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('ALIPAY');
   const [orderNo, setOrderNo] = useState<string | null>(null);
   const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
-  const [orderInfo, setOrderInfo] = useState<string | null>(null);
+  const [, setOrderInfo] = useState<string | null>(null);
   const [expiredAt, setExpiredAt] = useState<Date | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
