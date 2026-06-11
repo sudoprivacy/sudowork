@@ -181,10 +181,10 @@ const SkillCard: React.FC<{
 }> = ({ skill, isInstalled, hasVersion, installing, installProgress, onInstall, onClick, hasUpdate, onUpdate, updating, latestVersion, loadingVersion }) => {
   const { t } = useTranslation();
   return (
-    <div className='settings-library-card group bg-fill-1 rd-12px cursor-pointer hover:bg-fill-2 transition-colors border border-line p-12px flex items-start gap-12px relative overflow-hidden' onClick={onClick}>
+    <div className='library-card cursor-pointer' onClick={onClick}>
       {/* Icon */}
       <div className='w-48px flex-shrink-0 flex flex-col items-center'>
-        <div className='w-48px h-48px rd-8px overflow-hidden bg-fill-2'>{skill.icon ? <img src={skill.icon} alt={skill.display_name} className='w-full h-full object-cover' onError={handleSkillIconError} /> : <div className='w-full h-full flex items-center justify-center text-22px'>{skill.emoji || '📦'}</div>}</div>
+        <div className='w-48px h-48px rd-8px overflow-hidden bg-fill-2 border border-line'>{skill.icon ? <img src={skill.icon} alt={skill.display_name} className='w-full h-full object-cover' onError={handleSkillIconError} /> : <div className='w-full h-full flex items-center justify-center text-22px'>{skill.emoji || '📦'}</div>}</div>
       </div>
 
       {/* Content */}
@@ -251,7 +251,7 @@ const InstalledSkillCard: React.FC<{
   const { t } = useTranslation();
 
   return (
-    <div className={classNames('settings-library-card bg-fill-1 rd-12px border border-line p-12px flex items-start gap-12px relative overflow-hidden transition-colors', !isEnabled && 'opacity-65', hasDetail ? 'cursor-pointer hover:bg-fill-2' : 'hover:bg-fill-2')} onClick={hasDetail ? onClick : undefined}>
+    <div className={classNames('library-card', !isEnabled && 'opacity-65', hasDetail && 'cursor-pointer')} onClick={hasDetail ? onClick : undefined}>
       {/* Icon */}
       <div className='w-48px flex-shrink-0'>
         <div className='w-48px h-48px rd-8px overflow-hidden bg-fill-2'>
@@ -1549,7 +1549,7 @@ const SkillModalContent: React.FC = () => {
   const builtinInstalledSkills = installedList.filter((skill) => skill.category === 'system' || skill.isBuiltin);
 
   const renderInstalledSkillGrid = (skillList: IInstalledSkillInfo[], hideUninstall = false) => (
-    <div className='grid gap-8px' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+    <div className='grid gap-16px' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
       {skillList.map((skill) => {
         const skillHubId = skill.meta?.id;
         const latestVer = skillHubId ? latestVersions.get(skillHubId) : undefined;
@@ -1585,7 +1585,7 @@ const SkillModalContent: React.FC = () => {
 
   // Render custom skills with enterprise action buttons (publish only, auto-upload on create)
   const renderCustomSkillGridWithEnterpriseActions = (skillList: IInstalledSkillInfo[]) => (
-    <div className='grid gap-8px' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+    <div className='grid gap-16px' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
       {skillList.map((skill) => {
         const skillHubId = skill.meta?.id;
         const isPublishing = publishingSkillName === skill.name;
@@ -1704,7 +1704,7 @@ const SkillModalContent: React.FC = () => {
           {/* Category filter */}
           <div className='flex gap-6px mb-14px overflow-x-auto pb-2px flex-shrink-0 scrollbar-hide'>
             {[{ key: 'all', label: t('settings.skill.allCategories', { defaultValue: '精选' }) }, ...categories.map((c) => ({ key: c, label: c }))].map(({ key, label }) => (
-              <span key={key} className={classNames('settings-store-category-chip flex-shrink-0', selectedCategory === key && 'settings-store-category-chip--active')} onClick={() => setSelectedCategory(key)}>
+              <span key={key} className={classNames('category-chip', selectedCategory === key ? 'category-chip-active' : 'category-chip-idle')} onClick={() => setSelectedCategory(key)}>
                 {label}
               </span>
             ))}
@@ -1720,7 +1720,7 @@ const SkillModalContent: React.FC = () => {
                   <span className='text-13px'>{t('settings.skill.noTenantSkills', { defaultValue: '暂无专属技能' })}</span>
                 </div>
               ) : (
-                <div className='grid gap-8px pb-16px' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+                <div className='grid gap-16px pb-16px' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
                   {filteredTenantSkills.map((skill) => {
                     const skillHubId = skill.meta?.id;
                     // Tenant skills have category 'tenant'
@@ -1762,7 +1762,7 @@ const SkillModalContent: React.FC = () => {
                 <span className='text-13px'>{t('settings.skill.noResults', { defaultValue: '暂无技能' })}</span>
               </div>
             ) : (
-              <div className='grid gap-8px pb-16px' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+              <div className='grid gap-16px pb-16px' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
                 {skills.map((skill) => {
                   const isInstalled = installedSkills.has(skill.name) || installedSkills.has(skill.id);
                   const latestVer = latestVersions.get(skill.id);
@@ -1801,7 +1801,7 @@ const SkillModalContent: React.FC = () => {
 
             {/* Loading skeleton cards — match grid layout for a seamless feel */}
             {loadingMore && (
-              <div className='grid gap-8px pb-16px' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+              <div className='grid gap-16px pb-16px' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
                 {Array.from({ length: 4 }).map((_, i) => (
                   <div key={`skel-${i}`} className='bg-fill-1 rd-12px border border-line p-12px flex items-start gap-12px animate-pulse'>
                     <div className='w-48px h-48px flex-shrink-0 rd-8px bg-fill-3' />

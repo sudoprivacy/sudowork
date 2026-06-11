@@ -539,37 +539,7 @@ body,
   line-height: 16px;
 }
 
-/* Settings store/category chips */
-.settings-store-category-chip {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 28px;
-  padding: 0 12px;
-  border: 1px solid transparent;
-  border-radius: 16px;
-  background: var(--color-fill-2);
-  color: var(--color-text-2);
-  font-size: 12px;
-  line-height: 18px;
-  white-space: nowrap;
-  cursor: pointer;
-  transition:
-    background-color 0.16s ease,
-    border-color 0.16s ease,
-    color 0.16s ease;
-}
-
-.settings-store-category-chip:hover {
-  background: var(--color-fill-3);
-  color: var(--color-text-1);
-}
-
-.settings-store-category-chip--active {
-  background: var(--color-bg-1);
-  border-color: var(--ui-accent-orange);
-  color: var(--ui-accent-orange);
-}
+/* Category chips moved to UnoCSS shortcuts (category-chip / -idle / -active) in uno.config.ts */
 
 @keyframes bg-animate {
   0% {
