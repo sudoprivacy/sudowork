@@ -68,8 +68,7 @@ const SHA256SUMS = {
   'nexus-vault-windows-x86_64.zip': '1c34bea1543e2e285fa6bb7a65be9bfde88d983ea734d9efd011c590a907f746',
 };
 
-/** Explicit, non-fallback error for the one platform this release does not ship. */
-const INTEL_MAC_UNSUPPORTED = 'nexus-vfs has no Intel macOS artifact; use Apple Silicon or wait for a newer release';
+
 
 const HOME = os.homedir();
 const INSTALL_ROOT = path.join(HOME, '.nexus-vfs');
@@ -90,11 +89,6 @@ function getBinaryName() {
 }
 
 function getArtifactName(platform = process.platform, arch = process.arch) {
-  // The only platform missing from this release: Intel macOS. Fail loudly rather
-  // than falling back to the wrong arch or another mirror.
-  if (platform === 'darwin' && arch === 'x64') {
-    throw new Error(INTEL_MAC_UNSUPPORTED);
-  }
   const osName = OS_NAME_MAP[platform];
   const archName = ARCH_NAME_MAP[arch];
   if (!osName || !archName) {
@@ -113,9 +107,9 @@ function getArtifactName(platform = process.platform, arch = process.arch) {
  * Archive naming: nexus-vault-{os}-{arch}.{tar.gz|zip}
  */
 function getVaultArtifactName(platform = process.platform, arch = process.arch) {
-  // v0.1.0 only has: linux-x86_64, macos-arm64, windows-x86_64
   const VAULT_PLATFORM_MAP = {
     'darwin-arm64': 'nexus-vault-macos-arm64',
+    'darwin-x64': 'nexus-vault-macos-x86_64',
     'linux-x64': 'nexus-vault-linux-x86_64',
     'win32-x64': 'nexus-vault-windows-x86_64',
   };
