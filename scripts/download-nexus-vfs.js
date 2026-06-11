@@ -128,6 +128,22 @@ function getVaultDylibName(platform = process.platform) {
   return null;
 }
 
+/**
+ * Detached-signature filename for a given dylib. Convention is defined by
+ * `nexus_plugin_abi::signing::SIGNATURE_FILE_SUFFIX` in nexus-vfs — `.sig`
+ * appended to the dylib filename verbatim. The kernel's PluginLoader reads
+ * this file alongside the dylib and Ed25519-verifies before any dlopen.
+ *
+ * Vault releases starting at v0.1.2 ship the `.sig` inside the archive; the
+ * v0.1.1 archive predates signing and lacks it (extraction is permissive
+ * here so this script keeps working against an old archive — the cluster's
+ * own verify path is the binding gate).
+ */
+function getVaultSigName(platform = process.platform) {
+  const dylib = getVaultDylibName(platform);
+  return dylib ? `${dylib}.sig` : null;
+}
+
 function sha256OfFile(filePath) {
   const hash = crypto.createHash('sha256');
   hash.update(fs.readFileSync(filePath));
@@ -398,6 +414,27 @@ async function installVaultPlugin(platform, arch, force) {
   fs.copyFileSync(extractedDylib, installedDylib);
   if (!isWindows) {
     fs.chmodSync(installedDylib, 0o755);
+  }
+
+  // Plugin signature: present in v0.1.2+ archives, absent in v0.1.1. When
+  // present, copy it alongside the dylib so the kernel's PluginLoader can
+  // Ed25519-verify before dlopen. When absent, the cluster's verify path
+  // will reject the dylib at load — that failure surfaces clearly enough
+  // that an extra error here would just duplicate it.
+  const sigName = getVaultSigName(platform);
+  const installedSig = path.join(PLUGIN_DIR, sigName);
+  const extractedSig = findBinaryInDir(extractDir, sigName);
+  if (extractedSig) {
+    fs.copyFileSync(extractedSig, installedSig);
+    console.log(`Installed vault plugin signature: ${installedSig}`);
+  } else {
+    // Best-effort cleanup so an older signed install doesn't shadow a
+    // newer unsigned one (and vice versa) across version downgrades.
+    try { fs.unlinkSync(installedSig); } catch {}
+    console.warn(
+      `⚠️  Archive ${artifact} contains no ${sigName}. Cluster signature ` +
+      'verification will reject this plugin — bump vault to v0.1.2+ to fix.',
+    );
   }
 
   fs.writeFileSync(VAULT_READY_MARKER, VAULT_VERSION);
