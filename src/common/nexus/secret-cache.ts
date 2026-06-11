@@ -105,9 +105,13 @@ class SecretCacheImpl {
     this.cache.set(ref, value);
     this.migrated.add(ref);
 
-    // Fire-and-forget write to Nexus
+    // Fire-and-forget write to Nexus (putSecret is synchronous — use try/catch, not .catch())
     if (this.client) {
-      this.client.putSecret(namespace, key, value).catch((error) => console.error(`[SecretCache] Failed to write secret ${ref} to Nexus:`, error));
+      try {
+        this.client.putSecret(namespace, key, value);
+      } catch (error) {
+        console.error(`[SecretCache] Failed to write secret ${ref} to Nexus:`, error);
+      }
     }
   }
 
