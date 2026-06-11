@@ -12,8 +12,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 20px 24px 16px;
-  border-bottom: 1px solid var(--bg-3);
+  /* padding: 20px 24px 16px; */
+  /* border-bottom: 1px solid var(--bg-3); */
 }
 .avatar-selector-title {
   font-size: 16px;
@@ -38,9 +38,9 @@
 }
 
 /* ===================== Body ===================== */
-.avatar-selector-body {
+/* .avatar-selector-body {
   padding: 20px 24px;
-}
+} */
 
 .avatar-selector-section + .avatar-selector-section {
   margin-top: 24px;

@@ -1,9 +1,23 @@
 // Arco Design custom overrides - non-theme related
 
 .arco-btn {
-  &.arco-btn-outline {
-    border-color: #86909c;
-    color: #86909c;
+  // Default button shape (round/pill) is configured via ConfigProvider
+  // componentConfig in src/renderer/index.ts, not here.
+
+  // icon-park icons default to stroke="#333" / fill="none" and don't inherit the
+  // button text color; force icons inside primary buttons to follow it (white)
+  &.arco-btn-primary {
+    svg {
+      color: #fff;
+    }
+
+    svg [stroke] {
+      stroke: currentColor;
+    }
+
+    svg [fill]:not([fill='none']) {
+      fill: currentColor;
+    }
   }
 }
 

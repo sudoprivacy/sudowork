@@ -240,7 +240,7 @@ const Layout: React.FC<{
                 </button>
               )}
             </ArcoLayout.Header>
-            <ArcoLayout.Content className={classNames('p-10px layout-sider-content', !isMobile && 'h-[calc(100%-58px-16px)]')}>
+            <ArcoLayout.Content className='p-10px layout-sider-content'>
               {React.isValidElement(sider)
                 ? React.cloneElement(sider, {
                     onSessionClick: () => {
