@@ -124,7 +124,7 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
         'app-titlebar--mac': isMacRuntime,
       })}
     >
-      <div ref={menuRef} className='app-titlebar__menu' style={menuStyle}>
+      <div ref={menuRef} className='flex items-center [-webkit-app-region:no-drag]' style={menuStyle}>
         {showBackToChatButton && (
           <button type='button' className={classNames('app-titlebar__button', layout?.isMobile && 'app-titlebar__button--mobile')} onClick={handleBackToChat} aria-label={backToChatTooltip}>
             <ArrowCircleLeft theme='outline' size={iconSize} fill='currentColor' />
