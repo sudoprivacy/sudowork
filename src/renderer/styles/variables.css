@@ -48,14 +48,14 @@
   --ui-border-strong: color-mix(in srgb, var(--border-base) 72%, var(--text-secondary));
 
   /* ---------- 品牌强调（Retroma 品牌色） ---------- */
-  /* Primary: Retroma Teal-Blue */
-  --color-primary: #0f7887;
-  --primary: #0f7887;
-  --color-primary-light-1: #2a9aac;
-  --color-primary-light-2: #4db8c8;
-  --color-primary-light-3: #80d0dc;
-  --color-primary-dark-1: #0a5a66;
-  --primary-rgb: 15, 120, 135;
+  /* Primary: Brand Orange */
+  --color-primary: #f97316;
+  --primary: #f97316;
+  --color-primary-light-1: #fb923c;
+  --color-primary-light-2: #fdba74;
+  --color-primary-light-3: #fed7aa;
+  --color-primary-dark-1: #ea580c;
+  --primary-rgb: 249, 115, 22;
 
   /* Brand: Retroma Warm Purple */
   --brand: #6e3a66;
@@ -162,14 +162,14 @@
   --ui-border-strong: color-mix(in srgb, var(--border-base) 82%, var(--text-secondary));
 
   /* ---------- 品牌强调（Retroma 品牌色 · 暗色） ---------- */
-  /* Primary: Retroma Teal (dark-adjusted) */
-  --color-primary: #6e8ddb;
-  --primary: #6e8ddb;
-  --color-primary-light-1: #8fa8e8;
-  --color-primary-light-2: #aabff0;
-  --color-primary-light-3: #c5d5f6;
-  --color-primary-dark-1: #4f70c4;
-  --primary-rgb: 110, 141, 219;
+  /* Primary: Brand Orange (dark-adjusted) */
+  --color-primary: #fb8c3a;
+  --primary: #fb8c3a;
+  --color-primary-light-1: #fca35e;
+  --color-primary-light-2: #fdba74;
+  --color-primary-light-3: #fed7aa;
+  --color-primary-dark-1: #ea580c;
+  --primary-rgb: 251, 140, 58;
 
   /* Brand: Retroma Purple (dark) */
   --brand: #be80bf;

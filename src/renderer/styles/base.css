@@ -708,6 +708,30 @@ body,
   will-change: width, transform, background-color;
 }
 
+/* 内容区用 flex 自适应填满 header 之外的剩余空间，避免写死高度导致整体轻微溢出滚动 */
+/* Let the content area flex-fill the space below the header instead of a hardcoded height,
+   which otherwise leaves a few px of overflow and makes the whole sider scroll slightly */
+.layout-sider > .arco-layout-sider-children {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  /* Arco 默认给这一层 overflow:auto，header+内容若有亚像素溢出就会让整条侧栏可滚动；
+     内部历史列表已自带滚动，这层直接裁掉即可 */
+  /* Arco defaults this wrapper to overflow:auto, so any sub-pixel overflow of header+content
+     makes the whole sider scrollable; the inner history list has its own scroll, so clip here */
+  overflow: hidden;
+}
+
+.layout-sider-header {
+  flex-shrink: 0;
+}
+
+.layout-sider-content {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
 .sidebar-nav-item {
   border-radius: 10px;
   border: 1px solid transparent;

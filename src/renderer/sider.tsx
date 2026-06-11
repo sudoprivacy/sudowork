@@ -173,7 +173,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
             <SettingsSider collapsed={collapsed} tooltipEnabled={tooltipEnabled}></SettingsSider>
           </Suspense>
         ) : (
-          <div className='size-full flex flex-col py-8px overflow-hidden'>
+          <div className='size-full flex flex-col py-8px overflow-hidden box-border'>
             {/* 新会话按钮 - 带边框的按钮风格 / New Chat button with border style */}
             <Tooltip {...siderTooltipProps} content={t('conversation.welcome.newConversation')} position='right'>
               {collapsed ? (
