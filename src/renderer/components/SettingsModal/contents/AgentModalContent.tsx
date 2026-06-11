@@ -136,7 +136,7 @@ const InstalledAssistantCard: React.FC<InstalledAssistantCardProps> = (props) =>
   const description = assistant.descriptionI18n?.[localeKey] || assistant.description || '';
 
   return (
-    <div className={classNames('settings-library-card group bg-fill-1 rd-12px border border-line p-12px flex items-start gap-12px relative overflow-hidden transition-colors cursor-pointer hover:bg-fill-2', !isEnabled && 'opacity-65')} onClick={onClick}>
+    <div className={classNames('library-card cursor-pointer', !isEnabled && 'opacity-65')} onClick={onClick}>
       {/* Avatar */}
       <div className='w-48px flex-shrink-0'>
         <div className='w-48px h-48px rd-8px overflow-hidden bg-fill-2'>
@@ -229,7 +229,7 @@ const HubAssistantCard: React.FC<{
   const hasDownloadUrl = Boolean(assistant._sourceUrl);
 
   return (
-    <div className='settings-library-card group bg-fill-1 rd-12px cursor-pointer hover:bg-fill-2 transition-colors border border-line p-12px flex items-start gap-12px relative overflow-hidden' onClick={onClick}>
+    <div className='library-card cursor-pointer' onClick={onClick}>
       {/* Icon */}
       <div className='w-48px flex-shrink-0 flex flex-col items-center'>
         <div className='w-48px h-48px rd-8px overflow-hidden bg-fill-2'>
@@ -325,7 +325,7 @@ const TenantAssistantCard: React.FC<{
   // Show "已安装" badge and duplicate button (same as hub installed assistants)
 
   return (
-    <div className='group bg-fill-1 rd-12px cursor-pointer hover:bg-fill-2 transition-colors border border-line p-12px flex items-start gap-12px relative overflow-hidden' onClick={onClick}>
+    <div className='library-card cursor-pointer' onClick={onClick}>
       {/* Icon */}
       <div className='w-48px flex-shrink-0 flex flex-col items-center'>
         <div className='w-48px h-48px rd-8px overflow-hidden bg-fill-2'>
@@ -1988,7 +1988,7 @@ const AgentModalContent: React.FC = () => {
   };
 
   const renderAssistantGrid = (list: AssistantListItem[], hideDelete = false, allowToggle = false, allowDelete = false) => (
-    <div className='grid gap-8px' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+    <div className='grid gap-16px' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
       {list.map((assistant) => (
         <InstalledAssistantCard key={assistant.id} assistant={assistant} isExtension={isExtensionAssistant(assistant)} localeKey={localeKey} avatarImageMap={avatarImageMap} onToggleEnabled={(enabled) => void handleToggleEnabled(assistant, enabled)} onDelete={() => void handleDeleteFromCard(assistant)} onDuplicate={() => handleOpenDuplicateModalFromInstalled(assistant)} onUpload={canUploadAssistant(assistant) ? () => handleUploadAssistant(assistant) : undefined} onClick={() => void handleEdit(assistant)} hideDelete={hideDelete} allowToggle={allowToggle} allowDelete={allowDelete} enterpriseMode={isEnterprise} />
       ))}
@@ -1997,7 +1997,7 @@ const AgentModalContent: React.FC = () => {
 
   // Render custom assistants with enterprise action buttons (publish only, auto-upload on create)
   const renderCustomAssistantGridWithEnterpriseActions = (list: AssistantListItem[]) => (
-    <div className='grid gap-8px' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+    <div className='grid gap-16px' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
       {list.map((assistant) => {
         const assistantId = assistant.id;
         const isPublishing = publishingAssistantName === assistantId;
@@ -2094,7 +2094,7 @@ const AgentModalContent: React.FC = () => {
           {/* Category filter */}
           <div className='flex gap-6px mb-14px overflow-x-auto pb-2px flex-shrink-0 scrollbar-hide'>
             {[{ key: 'all', label: t('settings.assistant.allCategories', { defaultValue: '全部分类' }) }, ...hubCategories.map((c) => ({ key: c, label: c }))].map(({ key, label }) => (
-              <span key={key} className={classNames('settings-store-category-chip flex-shrink-0', selectedHubCategory === key && 'settings-store-category-chip--active')} onClick={() => setSelectedHubCategory(key)}>
+              <span key={key} className={classNames('category-chip', selectedHubCategory === key ? 'category-chip-active' : 'category-chip-idle')} onClick={() => setSelectedHubCategory(key)}>
                 {label}
               </span>
             ))}
@@ -2114,7 +2114,7 @@ const AgentModalContent: React.FC = () => {
                   <span className='text-13px'>{t('settings.assistant.noTenantAssistants', { defaultValue: '暂无专属助手' })}</span>
                 </div>
               ) : (
-                <div className='grid gap-8px pb-16px' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+                <div className='grid gap-16px pb-16px' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
                   {hubAssistantList.map((assistant) => {
                     return (
                       <HubAssistantCard
@@ -2156,7 +2156,7 @@ const AgentModalContent: React.FC = () => {
                 <span className='text-13px'>{t('settings.assistant.noResults', { defaultValue: '暂无助手' })}</span>
               </div>
             ) : (
-              <div className='grid gap-8px pb-16px' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+              <div className='grid gap-16px pb-16px' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
                 {hubAssistantList.map((assistant) => {
                   const isInstalled = hubInstalledAssistantNames.has(assistant.name);
                   const isInstalling = installingAssistantId === assistant.id;
@@ -2189,7 +2189,7 @@ const AgentModalContent: React.FC = () => {
 
             {/* Loading skeleton cards */}
             {hubLoadingMore && (
-              <div className='grid gap-8px pb-16px' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+              <div className='grid gap-16px pb-16px' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
                 {Array.from({ length: 4 }).map((_, i) => (
                   <div key={`skel-${i}`} className='bg-fill-1 rd-12px border border-line p-12px flex items-start gap-12px animate-pulse'>
                     <div className='w-48px h-48px flex-shrink-0 rd-8px bg-fill-3' />
