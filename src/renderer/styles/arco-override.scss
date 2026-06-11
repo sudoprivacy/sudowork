@@ -1,5 +1,13 @@
 // Arco Design custom overrides - non-theme related
 
+// Arco 在 `body` 上定义设计 token，所以覆盖必须同样落在 `body`（写在 :root 会被
+// body 的定义遮蔽）。Input/Select/InputNumber/InputTag/DatePicker 等输入类组件的圆角
+// 都取自 --border-radius-small（Arco 默认 2px）；提到 8px 让输入/选择框带明显圆角。
+// 该 token 同时影响 Card/Tag/Menu/Checkbox 等使用 small 圆角的组件。
+body {
+  --border-radius-small: 8px;
+}
+
 .arco-btn {
   // Default button shape (round/pill) is configured via ConfigProvider
   // componentConfig in src/renderer/index.ts, not here.
@@ -32,37 +40,6 @@
 
   .arco-collapse-item-header {
     border-bottom: none;
-  }
-}
-
-// Arco Tag dark mode styles - semi-transparent backgrounds for contrast
-// Arco Tag 深色模式样式 - 使用半透明背景增强对比度
-body[arco-theme='dark'] {
-  .arco-tag-checked {
-    &.arco-tag-blue {
-      background-color: rgba(59, 130, 246, 0.2) !important;
-      color: rgb(96, 165, 250) !important;
-    }
-
-    &.arco-tag-green {
-      background-color: rgba(34, 197, 94, 0.2) !important;
-      color: rgb(74, 222, 128) !important;
-    }
-
-    &.arco-tag-red {
-      background-color: rgba(239, 68, 68, 0.2) !important;
-      color: rgb(248, 113, 113) !important;
-    }
-
-    &.arco-tag-orange {
-      background-color: rgba(245, 158, 11, 0.2) !important;
-      color: rgb(251, 191, 36) !important;
-    }
-
-    &.arco-tag-gray {
-      background-color: rgba(156, 163, 175, 0.2) !important;
-      color: rgb(209, 213, 219) !important;
-    }
   }
 }
 
