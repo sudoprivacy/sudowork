@@ -152,8 +152,8 @@ const UserProfile: React.FC = () => {
           <>
             {/* Enterprise: Identity */}
             <div className='flex items-center gap-20px p-24px bg-2 rd-16px border border-[var(--color-border-2)]'>
-              <Avatar size={64} className='bg-primary/10'>
-                <User theme='outline' size={32} className='text-primary' />
+              <Avatar size={64} className='bg-primary'>
+                <User theme='outline' size={32} fill='#fff' />
               </Avatar>
               <div className='flex-1'>
                 <div className='text-18px font-600 text-t-primary'>{enterpriseProfile?.username || '--'}</div>
@@ -194,7 +194,7 @@ const UserProfile: React.FC = () => {
               <div className='flex-1'>
                 <div className='flex items-center gap-8px'>
                   <div className='text-18px font-600 text-t-primary'>{profile?.nickname || currentUser?.nickname || 'Sudowork 用户'}</div>
-                  <Button type='text' size='small' icon={<Edit size={14} />} onClick={handleEditNickname}>
+                  <Button type='outline' size='mini' icon={<Edit size={14} fill='currentColor' />} onClick={handleEditNickname}>
                     编辑
                   </Button>
                 </div>
@@ -211,21 +211,15 @@ const UserProfile: React.FC = () => {
               <div className='text-14px font-600 text-t-primary mb-16px'>{t('settings.userProfile.todayUsage')}</div>
               <div className='grid grid-cols-3 gap-16px'>
                 <div className='text-center'>
-                  <div className='text-24px font-700 text-t-primary min-h-32px flex items-center justify-center'>
-                    {stats === null ? <Spin size={20} /> : (stats.usage_today?.tokens?.toLocaleString() ?? '0')}
-                  </div>
+                  <div className='text-24px font-700 text-t-primary min-h-32px flex items-center justify-center'>{stats === null ? <Spin size={20} /> : (stats.usage_today?.tokens?.toLocaleString() ?? '0')}</div>
                   <div className='text-12px text-t-tertiary'>{t('settings.userProfile.tokens')}</div>
                 </div>
                 <div className='text-center'>
-                  <div className='text-24px font-700 text-primary min-h-32px flex items-center justify-center'>
-                    {stats === null ? <Spin size={20} /> : todayPoints}
-                  </div>
+                  <div className='text-24px font-700 text-primary min-h-32px flex items-center justify-center'>{stats === null ? <Spin size={20} /> : todayPoints}</div>
                   <div className='text-12px text-t-tertiary'>{t('settings.userProfile.consumedPoints')}</div>
                 </div>
                 <div className='text-center'>
-                  <div className='text-24px font-700 text-t-primary min-h-32px flex items-center justify-center'>
-                    {stats === null ? <Spin size={20} /> : (stats.usage_today?.requests ?? 0)}
-                  </div>
+                  <div className='text-24px font-700 text-t-primary min-h-32px flex items-center justify-center'>{stats === null ? <Spin size={20} /> : (stats.usage_today?.requests ?? 0)}</div>
                   <div className='text-12px text-t-tertiary'>{t('settings.userProfile.requests')}</div>
                 </div>
               </div>

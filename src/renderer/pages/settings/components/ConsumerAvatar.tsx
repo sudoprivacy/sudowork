@@ -16,8 +16,8 @@ const ConsumerAvatar: React.FC = () => {
 
   return (
     <>
-      <Avatar size={64} className='bg-primary/10 cursor-pointer hover:opacity-80 transition-opacity' onClick={() => setModalVisible(true)}>
-        {avatarSrc ? <img src={avatarSrc} width={64} height={64} style={{ objectFit: 'cover', borderRadius: '50%' }} alt='' /> : <User theme='outline' size={32} className='text-primary' />}
+      <Avatar size={64} className='bg-primary cursor-pointer hover:opacity-80 transition-opacity' onClick={() => setModalVisible(true)}>
+        {avatarSrc ? <img src={avatarSrc} width={64} height={64} style={{ objectFit: 'cover', borderRadius: '50%' }} alt='' /> : <User theme='outline' size={32} fill='#fff' />}
       </Avatar>
       <AvatarSelectorModal visible={modalVisible} onClose={() => setModalVisible(false)} />
     </>
