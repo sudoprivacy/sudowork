@@ -85,7 +85,7 @@ bun run test:e2e           # E2E tests (Playwright)
 
 ## Code Quality
 
-**Run `bun run lint:fix` after editing any `.ts` / `.tsx` file** — Prettier is enforced in CI and formatting errors block merges.
+**After editing a `.ts` / `.tsx` file, lint only that file** — run `bunx eslint <path> --fix`, not `bun run lint:fix`. The `lint:fix` script auto-fixes the entire repo and will sweep in unrelated pre-existing issues, polluting your diff. Prettier is enforced in CI and formatting errors block merges.
 
 **Run `bunx tsc --noEmit` to verify there are no type errors** — TypeScript strict mode is enabled and type errors block merges.
 

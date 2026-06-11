@@ -8,7 +8,7 @@ Sudowork 是一个基于 Electron 的桌面应用（productName 为 `sudowork`�
 
 [AGENTS.md](AGENTS.md) 是编码规范的唯一权威来源（命名、TypeScript、React、样式、git 提交格式、测试流程）。写代码前请先阅读。以下几条最容易踩坑：
 
-- **编辑任何 `.ts`/`.tsx` 后运行 `bun run lint:fix`** —— Prettier 在 CI 中强制执行，格式问题会阻塞合并。ESLint 行宽上限为 120；Prettier 的 `printWidth` 实质不限（700）。
+- **编辑 `.ts`/`.tsx` 后只 lint 改动的那个文件** —— 运行 `bunx eslint <路径> --fix`，**不要**用 `bun run lint:fix`。后者会对整个仓库 `eslint --fix`，把无关的历史遗留问题一并改掉，污染你的 diff。Prettier 在 CI 中强制执行，格式问题会阻塞合并。ESLint 行宽上限为 120；Prettier 的 `printWidth` 实质不限（700）。
 - **运行 `bunx tsc --noEmit` 校验类型** —— 开启了 strict 模式，类型错误会阻塞合并。
 - **绝不添加 AI 署名** 到 commit 或 PR（`Co-Authored-By`、"Generated with…"、任何 AI 落款）。这是硬性规则 —— 违反会污染 git 历史。
 - **绝不硬编码面向用户的字符串** —— 使用 i18n key（`src/renderer/i18n/locales/*.json`）。
