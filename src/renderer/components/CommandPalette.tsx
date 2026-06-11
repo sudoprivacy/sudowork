@@ -84,7 +84,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ visible, onClose }) => 
         icon: <History size={18} />,
         action: () => {
           // Navigate to guid page (new conversation)
-          navigate('/guid');
+          void navigate('/guid');
           onClose();
         },
       },
@@ -94,7 +94,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ visible, onClose }) => 
         title: '设置',
         icon: <Setting size={18} />,
         action: () => {
-          navigate('/settings/profile');
+          void navigate('/settings/profile');
           onClose();
         },
       },
@@ -127,7 +127,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ visible, onClose }) => 
             icon: <History size={18} />,
             action: () => {
               emitter.emit('sider.tab.switch', tabKey);
-              navigate(`/conversation/${conv.id}`);
+              void navigate(`/conversation/${conv.id}`);
               onClose();
             },
             score,
