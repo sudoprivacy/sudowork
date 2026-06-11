@@ -2,7 +2,7 @@ import { ipcBridge } from '@/common';
 import { FitAddon } from '@xterm/addon-fit';
 import { Tooltip } from '@arco-design/web-react';
 import { Add, Close } from '@icon-park/react';
-import React, { useCallback, useEffect, useLayoutEffect, useReducer, useRef } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Terminal } from 'xterm';
 import 'xterm/css/xterm.css';
@@ -126,10 +126,15 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ cwd, active = false, conv
   const currentState = getOrCreateConvState(convKey);
   const tabs = currentState.tabs;
   const activeTabId = currentState.activeTabId ?? '';
+  const [terminalTabsOverflowing, setTerminalTabsOverflowing] = useState(false);
 
   // Container refs are local to this component instance (one ref per render).
   // We re-attach xterm DOM elements to these containers in useLayoutEffect
   // below — runtimes themselves live in module scope.
+  const terminalTabsScrollerRef = useRef<HTMLDivElement | null>(null);
+  const terminalTabsListRef = useRef<HTMLDivElement | null>(null);
+  const terminalMeasureAddRef = useRef<HTMLButtonElement | null>(null);
+  const terminalTabsScrollToEndRef = useRef(false);
   const terminalContainerRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const terminalScreenRef = useRef<HTMLDivElement | null>(null);
 
@@ -225,6 +230,49 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ cwd, active = false, conv
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [convKey]);
 
+  useLayoutEffect(() => {
+    if (!active) {
+      setTerminalTabsOverflowing(false);
+      terminalTabsScrollToEndRef.current = false;
+      return;
+    }
+
+    const scroller = terminalTabsScrollerRef.current;
+    const tabsList = terminalTabsListRef.current;
+    const addButtonWidth = terminalMeasureAddRef.current?.offsetWidth ?? 0;
+    if (!scroller || !tabsList) return;
+
+    const measure = () => {
+      const overflowing = tabsList.scrollWidth + addButtonWidth + 4 > scroller.clientWidth;
+      setTerminalTabsOverflowing((current) => (current === overflowing ? current : overflowing));
+    };
+
+    const rafId = window.requestAnimationFrame(() => {
+      measure();
+    });
+
+    const resizeObserver = new ResizeObserver(() => {
+      measure();
+    });
+
+    resizeObserver.observe(scroller);
+    resizeObserver.observe(tabsList);
+
+    return () => {
+      window.cancelAnimationFrame(rafId);
+      resizeObserver.disconnect();
+    };
+  }, [active, tabs.length]);
+
+  useLayoutEffect(() => {
+    if (!active || !terminalTabsOverflowing || !terminalTabsScrollToEndRef.current) return;
+    const scroller = terminalTabsScrollerRef.current;
+    if (!scroller) return;
+
+    terminalTabsScrollToEndRef.current = false;
+    scroller.scrollTo({ left: scroller.scrollWidth, behavior: 'smooth' });
+  }, [active, activeTabId, terminalTabsOverflowing, tabs.length]);
+
   const attachRuntime = useCallback(
     async (tabId: string) => {
       const found = (() => {
@@ -312,6 +360,7 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ cwd, active = false, conv
     const nextTab = createTab();
     state.tabs = [...state.tabs, nextTab];
     state.activeTabId = nextTab.id;
+    terminalTabsScrollToEndRef.current = true;
     notifyListeners();
   }, [convKey]);
 
@@ -389,38 +438,54 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ cwd, active = false, conv
   return (
     <div className='terminal-root terminal-root--xterm'>
       <div className='terminal-root__header'>
-        <div className='terminal-root__tabs'>
-          {tabs.map((tab, index) => (
-            <button
-              key={tab.id}
-              type='button'
-              className={`terminal-root__tab ${tab.id === activeTabId ? 'terminal-root__tab--active' : ''}`}
-              onMouseDown={(event) => {
-                event.preventDefault();
-              }}
-              onClick={() => setActiveTab(tab.id)}
-            >
-              <span className='terminal-root__tab-label'>
-                {t('conversation.rightPanel.terminal.tab', { defaultValue: 'Terminal' })} {index + 1}
-              </span>
-              <span
-                role='button'
-                tabIndex={-1}
-                className='terminal-root__tab-close'
-                onClick={(event) => {
-                  event.stopPropagation();
-                  closeTab(tab.id);
+        <div ref={terminalTabsScrollerRef} className='terminal-root__tabs'>
+          <div ref={terminalTabsListRef} className='terminal-root__tabs-list'>
+            {tabs.map((tab, index) => (
+              <button
+                key={tab.id}
+                type='button'
+                className={`terminal-root__tab ${tab.id === activeTabId ? 'terminal-root__tab--active' : ''}`}
+                onMouseDown={(event) => {
+                  event.preventDefault();
                 }}
+                onClick={() => setActiveTab(tab.id)}
               >
-                <Close size={11} />
-              </span>
-            </button>
-          ))}
-          <Tooltip content={t('conversation.rightPanel.terminal.newTab', { defaultValue: 'New terminal' })} position='bottom'>
-            <button type='button' className='terminal-root__new-tab' onClick={openTab} aria-label={t('conversation.rightPanel.terminal.newTab', { defaultValue: 'New terminal' })}>
+                <span className='terminal-root__tab-label'>
+                  {t('conversation.rightPanel.terminal.tab', { defaultValue: 'Terminal' })} {index + 1}
+                </span>
+                <span
+                  role='button'
+                  tabIndex={-1}
+                  className='terminal-root__tab-close'
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    closeTab(tab.id);
+                  }}
+                >
+                  <Close size={11} />
+                </span>
+              </button>
+            ))}
+            {!terminalTabsOverflowing && (
+              <Tooltip content={t('conversation.rightPanel.terminal.newTab', { defaultValue: 'New terminal' })} position='bottom'>
+                <button type='button' className='terminal-root__new-tab terminal-root__new-tab--inline' onClick={openTab} aria-label={t('conversation.rightPanel.terminal.newTab', { defaultValue: 'New terminal' })}>
+                  <Add size={14} />
+                </button>
+              </Tooltip>
+            )}
+            <button ref={terminalMeasureAddRef} type='button' tabIndex={-1} aria-hidden='true' className='terminal-root__new-tab terminal-root__new-tab--measure'>
               <Add size={14} />
             </button>
-          </Tooltip>
+          </div>
+        </div>
+        <div className='terminal-root__actions'>
+          {terminalTabsOverflowing && (
+            <Tooltip content={t('conversation.rightPanel.terminal.newTab', { defaultValue: 'New terminal' })} position='bottom'>
+              <button type='button' className='terminal-root__new-tab terminal-root__new-tab--utility' onClick={openTab} aria-label={t('conversation.rightPanel.terminal.newTab', { defaultValue: 'New terminal' })}>
+                <Add size={14} />
+              </button>
+            </Tooltip>
+          )}
         </div>
       </div>
       <div ref={terminalScreenRef} className='terminal-root__screen terminal-root__screen--xterm'>

@@ -4,7 +4,7 @@ import WebviewHost from '@/renderer/components/WebviewHost';
 import { useAddEventListener } from '@/renderer/utils/emitter';
 import { Message, Modal, Tooltip } from '@arco-design/web-react';
 import { Add, Close, Delete } from '@icon-park/react';
-import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 type BrowserTab = {
@@ -66,10 +66,15 @@ interface BrowserPanelProps {
 const BrowserPanel: React.FC<BrowserPanelProps> = ({ active = false, conversationId }) => {
   const { t } = useTranslation();
   const panelRef = useRef<HTMLDivElement | null>(null);
+  const browserTabsScrollerRef = useRef<HTMLDivElement | null>(null);
+  const browserTabsTabsRef = useRef<HTMLDivElement | null>(null);
+  const browserTabsMeasureAddRef = useRef<HTMLButtonElement | null>(null);
+  const browserTabsScrollToEndRef = useRef(false);
 
   // Settings — not per-conv. Stay in component-local useState.
   const [defaultUrl, setDefaultUrl] = useState<string>(DEFAULT_BROWSER_PANEL_HOMEPAGE);
   const [reloadEpoch, setReloadEpoch] = useState(0); // bump to force-reload all tabs after cache clear
+  const [browserTabsOverflowing, setBrowserTabsOverflowing] = useState(false);
   const partition = useMemo(() => BROWSER_PANEL_PARTITION, []);
 
   // Subscribe to the module-level store so this component re-renders when
@@ -143,7 +148,7 @@ const BrowserPanel: React.FC<BrowserPanelProps> = ({ active = false, conversatio
       state.activeTabId = tabId;
       notifyListeners();
     },
-    [convKey, defaultUrl],
+    [convKey, defaultUrl]
   );
 
   const openNewTab = useCallback(
@@ -154,9 +159,10 @@ const BrowserPanel: React.FC<BrowserPanelProps> = ({ active = false, conversatio
       const nextTab = createTab(normalized, normalized);
       state.tabs = [...state.tabs, nextTab];
       state.activeTabId = nextTab.id;
+      browserTabsScrollToEndRef.current = true;
       notifyListeners();
     },
-    [convKey, defaultUrl],
+    [convKey, defaultUrl]
   );
 
   // Subscribe to "open in right-panel browser". Accept the emit when:
@@ -175,7 +181,7 @@ const BrowserPanel: React.FC<BrowserPanelProps> = ({ active = false, conversatio
       if (!isMatch) return;
       openNewTab(payload.url);
     },
-    [convKey, openNewTab],
+    [convKey, openNewTab]
   );
 
   useAddEventListener('right-panel.browser.open', handleOpenBrowserUrl, [handleOpenBrowserUrl]);
@@ -211,7 +217,7 @@ const BrowserPanel: React.FC<BrowserPanelProps> = ({ active = false, conversatio
       state.tabs = state.tabs.map((tab) => (tab.id === tabId ? { ...tab, url: nextUrl, title: nextUrl } : tab));
       notifyListeners();
     },
-    [convKey, defaultUrl],
+    [convKey, defaultUrl]
   );
 
   const closeTab = useCallback(
@@ -227,7 +233,7 @@ const BrowserPanel: React.FC<BrowserPanelProps> = ({ active = false, conversatio
       notifyListeners();
       ipcBridge.browserPanel.unregisterTab.invoke({ tabId }).catch(() => {});
     },
-    [convKey, defaultUrl],
+    [convKey, defaultUrl]
   );
 
   const handleClearCache = useCallback(() => {
@@ -248,39 +254,100 @@ const BrowserPanel: React.FC<BrowserPanelProps> = ({ active = false, conversatio
     });
   }, [t]);
 
+  useLayoutEffect(() => {
+    if (!active) {
+      setBrowserTabsOverflowing(false);
+      browserTabsScrollToEndRef.current = false;
+      return;
+    }
+
+    const scroller = browserTabsScrollerRef.current;
+    const tabsRow = browserTabsTabsRef.current;
+    const addButtonWidth = browserTabsMeasureAddRef.current?.offsetWidth ?? 0;
+    if (!scroller || !tabsRow) return;
+
+    const measure = () => {
+      const overflowing = tabsRow.scrollWidth + addButtonWidth + 4 > scroller.clientWidth;
+      setBrowserTabsOverflowing((current) => (current === overflowing ? current : overflowing));
+    };
+
+    const rafId = window.requestAnimationFrame(() => {
+      measure();
+    });
+
+    const resizeObserver = new ResizeObserver(() => {
+      measure();
+    });
+
+    resizeObserver.observe(scroller);
+    resizeObserver.observe(tabsRow);
+
+    return () => {
+      window.cancelAnimationFrame(rafId);
+      resizeObserver.disconnect();
+    };
+  }, [active, tabs.length]);
+
+  useLayoutEffect(() => {
+    if (!active || !browserTabsOverflowing || !browserTabsScrollToEndRef.current) return;
+    const scroller = browserTabsScrollerRef.current;
+    if (!scroller) return;
+
+    browserTabsScrollToEndRef.current = false;
+    scroller.scrollTo({ left: scroller.scrollWidth, behavior: 'smooth' });
+  }, [active, activeTabId, browserTabsOverflowing, tabs.length]);
+
   return (
-    <div className='flex h-full min-h-0 flex-1 flex-col'>
+    <div className='flex h-full min-h-0 min-w-0 flex-1 flex-col'>
       <div className='flex flex-col border-b border-[var(--color-border-2)] flex-shrink-0'>
-        <div className='browser-tabs overflow-x-auto'>
-          {tabs.map((tab) => (
-            <button key={tab.id} type='button' className={`browser-tabs__item ${tab.id === activeTabId ? 'browser-tabs__item--active' : ''}`} onClick={() => setActiveTabId(tab.id)}>
-              <span className='max-w-160px truncate'>{tab.title}</span>
-              {tabs.length > 1 && (
-                <span
-                  role='button'
-                  tabIndex={-1}
-                  className='browser-tabs__close'
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    closeTab(tab.id);
-                  }}
-                >
-                  <Close size={12} />
-                </span>
+        <div className='browser-tabs'>
+          <div ref={browserTabsScrollerRef} className='browser-tabs__scroller'>
+            <div ref={browserTabsTabsRef} className='browser-tabs__tabs'>
+              {tabs.map((tab) => (
+                <button key={tab.id} type='button' className={`browser-tabs__item ${tab.id === activeTabId ? 'browser-tabs__item--active' : ''}`} onClick={() => setActiveTabId(tab.id)}>
+                  <span className='max-w-160px truncate'>{tab.title}</span>
+                  {tabs.length > 1 && (
+                    <span
+                      role='button'
+                      tabIndex={-1}
+                      className='browser-tabs__close'
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        closeTab(tab.id);
+                      }}
+                    >
+                      <Close size={12} />
+                    </span>
+                  )}
+                  <span aria-hidden='true' className='browser-tabs__indicator' />
+                </button>
+              ))}
+              {!browserTabsOverflowing && (
+                <Tooltip content={t('conversation.rightPanel.browser.newTab')} position='bottom'>
+                  <button type='button' className='browser-tabs__new-tab browser-tabs__new-tab--inline' onClick={() => openNewTab(defaultUrl)} aria-label={t('conversation.rightPanel.browser.newTab')}>
+                    <Add size={14} />
+                  </button>
+                </Tooltip>
               )}
-              <span aria-hidden='true' className='browser-tabs__indicator' />
-            </button>
-          ))}
-          <Tooltip content={t('conversation.rightPanel.browser.newTab')} position='bottom'>
-            <button type='button' className='browser-tabs__new-tab' onClick={() => openNewTab(defaultUrl)} aria-label={t('conversation.rightPanel.browser.newTab')}>
-              <Add size={14} />
-            </button>
-          </Tooltip>
-          <Tooltip content={t('conversation.rightPanel.browser.clearCache')} position='bottom'>
-            <button type='button' className='browser-tabs__new-tab' onClick={handleClearCache} aria-label={t('conversation.rightPanel.browser.clearCache')}>
-              <Delete size={14} />
-            </button>
-          </Tooltip>
+              <button ref={browserTabsMeasureAddRef} type='button' tabIndex={-1} aria-hidden='true' className='browser-tabs__new-tab browser-tabs__new-tab--measure'>
+                <Add size={14} />
+              </button>
+            </div>
+          </div>
+          <div className='browser-tabs__actions'>
+            {browserTabsOverflowing && (
+              <Tooltip content={t('conversation.rightPanel.browser.newTab')} position='bottom'>
+                <button type='button' className='browser-tabs__new-tab browser-tabs__new-tab--utility' onClick={() => openNewTab(defaultUrl)} aria-label={t('conversation.rightPanel.browser.newTab')}>
+                  <Add size={14} />
+                </button>
+              </Tooltip>
+            )}
+            <Tooltip content={t('conversation.rightPanel.browser.clearCache')} position='bottom'>
+              <button type='button' className='browser-tabs__new-tab browser-tabs__new-tab--utility' onClick={handleClearCache} aria-label={t('conversation.rightPanel.browser.clearCache')}>
+                <Delete size={14} />
+              </button>
+            </Tooltip>
+          </div>
         </div>
       </div>
       <div ref={panelRef} className='flex min-h-0 flex-1 relative overflow-hidden' onMouseDown={focusActiveWebview} onPointerDown={focusActiveWebview}>
