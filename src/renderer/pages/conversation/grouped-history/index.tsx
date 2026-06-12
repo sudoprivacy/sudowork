@@ -282,7 +282,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
     return (
       <FlexFullContainer>
         <div className='flex-center'>
-          <Empty description={t('conversation.history.noScheduledTask')} />
+          <Empty icon={null} description={t('conversation.history.noScheduledTask')} className='mt-80px' />
         </div>
       </FlexFullContainer>
     );
