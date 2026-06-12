@@ -101,7 +101,7 @@
   color: var(--color-text-1) !important;
 }
 
-:global([data-theme='dark']) .actionTools button {
+:global([data-theme='dark']) .actionTools :global(.sendbox-model-btn) {
   color: var(--text-primary) !important;
 }
 
