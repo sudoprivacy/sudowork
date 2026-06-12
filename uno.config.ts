@@ -10,7 +10,6 @@ const textColors = {
   't-primary': 'var(--text-primary)', // text-t-primary - 主要文字
   't-secondary': 'var(--text-secondary)', // text-t-secondary - 次要文字
   't-tertiary': 'var(--bg-6)', // text-t-tertiary - 三级说明/提示文字
-  't-disabled': 'var(--text-disabled)', // text-t-disabled - 禁用文字
 };
 
 // ==================== 语义状态色 / Semantic State Colors ====================
@@ -43,11 +42,7 @@ const backgroundColors = {
   2: 'var(--bg-2)', // bg-2, border-2 - 三级背景
   3: 'var(--bg-3)', // bg-3, border-3 - 边框/分隔
   4: 'var(--bg-4)', // bg-4, border-4
-  5: 'var(--bg-5)', // bg-5, border-5
   6: 'var(--bg-6)', // bg-6, border-6
-  8: 'var(--bg-8)', // bg-8, border-8
-  9: 'var(--bg-9)', // bg-9, border-9
-  10: 'var(--bg-10)', // bg-10, border-10
   hover: 'var(--bg-hover)', // bg-hover - 悬停背景
   active: 'var(--bg-active)', // bg-active - 激活背景
 };
@@ -56,9 +51,7 @@ const backgroundColors = {
 const borderColors = {
   'b-base': 'var(--border-base)', // border-b-base - 基础边框
   'b-light': 'var(--border-light)', // border-b-light - 浅色边框
-  'b-1': 'var(--bg-3)', // border-b-1 - 基于 bg-3
   'b-2': 'var(--bg-4)', // border-b-2 - 基于 bg-4
-  'b-3': 'var(--bg-5)', // border-b-3 - 基于 bg-5
 };
 
 // ==================== 品牌色 / Brand Colors ====================
@@ -86,15 +79,7 @@ const aouColors = {
 
 // ==================== UI 组件专用颜色 / UI Component Specific Colors ====================
 const componentColors = {
-  'message-user': 'var(--message-user-bg)',
   'message-tips': 'var(--message-tips-bg)',
-  'workspace-btn': 'var(--workspace-btn-bg)',
-};
-
-// ==================== 特殊颜色 / Special Colors ====================
-const specialColors = {
-  fill: 'var(--fill)',
-  inverse: 'var(--inverse)',
 };
 
 export default defineConfig({
@@ -165,7 +150,6 @@ export default defineConfig({
       ...brandColors,
       ...aouColors,
       ...componentColors,
-      ...specialColors,
     },
   },
 });

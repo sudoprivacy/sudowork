@@ -775,6 +775,15 @@ body,
 .sidebar-tabs.arco-tabs .arco-tabs-header-ink {
   background-color: var(--ui-accent-orange);
 }
+/* Arco draws a rounded hover/focus highlight via the title text's ::before
+   pseudo-element, which it stretches 8px past the text on each side. With
+   headerPadding disabled the first title has no left margin, so that -8px
+   overflow pokes outside the overflow:hidden .arco-tabs container and its left
+   corner gets clipped. This switcher only needs orange text + the ink underline,
+   so drop the highlight entirely to avoid the clipped box. */
+.sidebar-tabs.arco-tabs .arco-tabs-header-title-text::before {
+  display: none !important;
+}
 
 /* 批量操作 popover：更圆润的卡片圆角 */
 .batch-actions-popover .arco-popover-content {
