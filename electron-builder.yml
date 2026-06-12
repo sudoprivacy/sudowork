@@ -292,6 +292,12 @@ buildDependenciesFromSource: false
 nodeGypRebuild: false
 
 asarUnpack:
+  # ai-dev-browser Python package must live on the real filesystem (not inside
+  # app.asar) so resolveAiDevBrowserPackageDir() can junction it into the browser
+  # skill dir and Python can import it. Without this it ships packed in app.asar,
+  # the junction never gets created, and `import ai_dev_browser` fails on every
+  # packaged install.
+  - 'vendor/ai-dev-browser/**/*'
   - 'native/nexus-napi/*.node'
   # index.js must sit next to the unpacked .node so that
   # require(app.asar.unpacked/native/nexus-napi) resolves (see nexus-vfs-client.ts)

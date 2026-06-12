@@ -107,6 +107,8 @@
   "closeToTray": "Tepsiye Kapat",
   "showTokenUsageBadges": "Token / puan kullanımını göster",
   "showTokenUsageBadgesDesc": "Her yanıtın altında o turun Token ve puan tüketimini göster",
+  "showToolCalls": "Araç çağrılarını göster",
+  "showToolCallsDesc": "Sohbet akışında araç çağrısı ayrıntılarını göster; kapalıyken dosya değişikliği özetleri görünür kalır",
   "avatarEnabled": "Yüzen Avatar",
   "avatarEnabledDesc": "Aktif konuşmanızı yansıtan yüzen masaüstü yardımcısını göster",
   "gemini": "Gemini",

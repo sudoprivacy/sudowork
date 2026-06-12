@@ -12,6 +12,7 @@ import { processSupervisor } from '@process/ProcessSupervisor';
 import { extractTarGzWithProgress, extractZipWithProgress } from '../archiveProgress';
 import runtimeVersions from '@/shared/runtime-versions.json';
 import { COS_RUNTIME_BASE, COS_LEGACY_NEXUS_VFS_BASE } from '@/shared/cos';
+import { vaultPluginInstaller } from './VaultPluginInstaller';
 
 const execAsync = promisify(exec);
 
@@ -48,15 +49,15 @@ const OS_NAME_MAP: Record<string, string> = { darwin: 'macos', win32: 'windows',
 /** Node.js process.arch → artifact arch token (note: arm64 → aarch64). */
 const ARCH_NAME_MAP: Record<string, string> = { arm64: 'aarch64', x64: 'x86_64' };
 
-/** Known-good SHA256 sums for v0.2.0 (mirrors SHA256SUMS.txt in the bucket;
- *  keep in sync with scripts/download-nexus-vfs.js). No macos-x86_64 entry —
- *  v0.2.0 ships no Intel macOS artifact. */
+/** Known-good SHA256 sums for v0.2.1 (mirrors SHA256SUMS.txt in the bucket;
+ *  keep in sync with scripts/download-nexus-vfs.js). */
 const NEXUS_VFS_SHA256SUMS: Record<string, string> = {
-  'nexusd-cluster-linux-aarch64.tar.gz': 'eeb0a861711a74ef8b78146a05ed0b96bff5aa8dfb6b3ba7f9ea1252fe11ab36',
-  'nexusd-cluster-linux-x86_64.tar.gz': '2b85bf0daf381c68776911049a32ee3015974e4569fba2b407cff52c24a20260',
-  'nexusd-cluster-macos-aarch64.tar.gz': '86e00f10612b23ad30f1498cd025a786b457c2925dd4276e6c7202f6367b0713',
-  'nexusd-cluster-windows-aarch64.zip': '5c8b33210161c7d094ebe0ddca3eddefcf8ceabe0bfba7b24f0e0d232be64a92',
-  'nexusd-cluster-windows-x86_64.zip': '86a6f47d0755a27af4d6509eb7d2aed83e9d5e1d47ba2ed7944094f419f15e88',
+  'nexusd-cluster-linux-aarch64.tar.gz': '83336737e360541796ce04fda243b1de0072afb54743dcf39c0ec7b7aec09e03',
+  'nexusd-cluster-linux-x86_64.tar.gz': '55f35a600d5c2ce3858ba66053ed6e2b8bfdb3ba4977e73639be927ccbd33174',
+  'nexusd-cluster-macos-aarch64.tar.gz': 'e7c1ab832445b23434e557cd10532f8da5de29028c9e3ee7508029165c35dfd1',
+  'nexusd-cluster-macos-x86_64.tar.gz': 'cca3f5df353e1bb7eee4b2d07e81932477edb86f91b77e83c50cfbef5be59d9c',
+  'nexusd-cluster-windows-aarch64.zip': 'cbc289132b781f2a52231cc223bb07fa1f575dad3b04a03646135c18a1e93b44',
+  'nexusd-cluster-windows-x86_64.zip': 'bfb785aa0b24f8966a631281454464dc1bb01c4956e002807c21553399e2e5e0',
 };
 
 export type NexusVfsStage = 'idle' | 'checking' | 'downloading' | 'installing' | 'starting' | 'ready' | 'error';
@@ -174,7 +175,7 @@ class DynamicNexusVfsService {
   }
 
   checkInstalledSync(): boolean {
-    return fs.existsSync(this.getInstalledBinaryPath()) && this.isMarkerCurrent();
+    return fs.existsSync(this.getInstalledBinaryPath()) && this.isMarkerCurrent() && (!vaultPluginInstaller.isPlatformSupported() || vaultPluginInstaller.checkInstalledSync());
   }
 
   async checkInstalled(): Promise<boolean> {
@@ -349,6 +350,8 @@ class DynamicNexusVfsService {
     } catch {}
 
     this.emit('idle', `nexus-vfs installed: ${targetBinary}`, 100);
+
+    await vaultPluginInstaller.install((stage, message, percent) => this.emit(stage, message, percent));
   }
 
   // ── Lifecycle ────────────────────────────────────────────────────────────────
@@ -364,7 +367,7 @@ class DynamicNexusVfsService {
     }
     const pluginDir = this.getPluginDir();
     const args = ['--hostname', 'localhost', '--bind-addr', `${NEXUS_VFS_BIND_HOST}:${port}`, '--bootstrap-mode', 'static', '--data-dir', this.getDaemonDataDir(), '--no-tls'];
-    if (fs.existsSync(pluginDir)) {
+    if (vaultPluginInstaller.isPlatformSupported() && vaultPluginInstaller.checkInstalledSync()) {
       args.push('--plugin-dir', pluginDir);
     }
     return { command: bin, args };

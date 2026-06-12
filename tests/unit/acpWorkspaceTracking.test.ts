@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { SCODE_COMPLETION_REMINDER, shouldSkipAcpWorkspaceTrackingPath } from '@/process/task/acpWorkspaceTracking';
+import { SCODE_COMPLETION_REMINDER, shouldRunCurrentTurnPostCleanup, shouldSkipAcpWorkspaceTrackingPath } from '@/process/task/acpWorkspaceTracking';
 
 describe('acpWorkspaceTracking', () => {
   test('skips sandbox runtime side effects', () => {
@@ -15,5 +15,10 @@ describe('acpWorkspaceTracking', () => {
   test('scode completion reminder asks for the user language', () => {
     expect(SCODE_COMPLETION_REMINDER).toContain('用户提问的语言');
     expect(SCODE_COMPLETION_REMINDER).toContain('不要只以工具调用结束');
+  });
+
+  test('runs post-cleanup only when the current turn produced tracked files', () => {
+    expect(shouldRunCurrentTurnPostCleanup(true)).toBe(true);
+    expect(shouldRunCurrentTurnPostCleanup(false)).toBe(false);
   });
 });

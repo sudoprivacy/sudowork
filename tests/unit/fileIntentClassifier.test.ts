@@ -59,6 +59,29 @@ describe('FileIntentClassifier — BASH_DELIVERABLE_EXTENSIONS no longer auto-fi
   });
 });
 
+describe('FileIntentClassifier — requested log deliverables', () => {
+  it('marks a bash-written LOG file as final when the user explicitly requests LOG format', () => {
+    const result = classify({
+      filePath: '/workspace/20260610_AI智能体协作趋势.log',
+      requestedPath: '20260610_AI智能体协作趋势.log',
+      source: 'bash-generated',
+      userMessage: '根据AI智能体协作的发展趋势生成 9 种格式文件（PDF, WORD, Excel, PPT, txt, MD, Python, JS, LOG），文件名称以20260610_为前缀',
+    });
+    expect(result.intent).toBe('final');
+    expect(result.reason).toContain('target type .log');
+  });
+
+  it('keeps an unrequested bash-written LOG file as draft', () => {
+    const result = classify({
+      filePath: '/workspace/debug.log',
+      requestedPath: 'debug.log',
+      source: 'bash-generated',
+      userMessage: '生成一份季度销售报告',
+    });
+    expect(result.intent).toBe('draft');
+  });
+});
+
 describe('FileIntentClassifier — workspace-root deliverables untouched', () => {
   it('leaves workspace-root markdown without directory hint as final', () => {
     const result = classify({ filePath: '/workspace/notes.md', requestedPath: 'notes.md', source: 'write', userMessage: '帮我记一些笔记' });

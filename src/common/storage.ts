@@ -92,6 +92,9 @@ export interface IConfigStorageRefer {
   'system.closeToTray'?: boolean;
   // 每轮消息下方是否显示 token / 积分用量 / Whether to show per-turn token / points usage badges
   'system.showTokenUsageBadges'?: boolean;
+  // 对话流中是否显示工具调用（缺省 = 跟随默认值：个人版显示，企业版跟随 Moss 租户配置）
+  // Show tool calls in the chat stream (absent = follow default: consumer shows, enterprise follows Moss tenant config)
+  'system.showToolCalls'?: boolean;
   // 右栏浏览器新建标签页的默认主页 / Default homepage for new tabs in the right-panel browser
   'system.browserDefaultUrl'?: string;
   // 桌面 avatar 浮窗开关 / Floating desktop avatar window enabled

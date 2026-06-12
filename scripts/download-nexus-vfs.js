@@ -54,18 +54,21 @@ const VAULT_GITHUB_URL = `https://github.com/nexi-lab/nexus/releases/download/va
  * nexusd-cluster sums are populated after COS mirror; vault sums from CI artifacts.
  */
 const SHA256SUMS = {
-  // nexusd-cluster v0.2.0
-  'nexusd-cluster-linux-aarch64.tar.gz': 'eeb0a861711a74ef8b78146a05ed0b96bff5aa8dfb6b3ba7f9ea1252fe11ab36',
-  'nexusd-cluster-linux-x86_64.tar.gz': '2b85bf0daf381c68776911049a32ee3015974e4569fba2b407cff52c24a20260',
-  'nexusd-cluster-macos-aarch64.tar.gz': '86e00f10612b23ad30f1498cd025a786b457c2925dd4276e6c7202f6367b0713',
-  'nexusd-cluster-macos-x86_64.tar.gz': '5d44d7ea5e18a4d2fe71d88342fd1adcff0fd84d09e1782eb0fd409f50668589',
-  'nexusd-cluster-windows-aarch64.zip': '5c8b33210161c7d094ebe0ddca3eddefcf8ceabe0bfba7b24f0e0d232be64a92',
-  'nexusd-cluster-windows-x86_64.zip': '86a6f47d0755a27af4d6509eb7d2aed83e9d5e1d47ba2ed7944094f419f15e88',
-  // vault plugin v0.1.0
-  'nexus-vault-linux-x86_64.tar.gz': '88fc1436045ebd7a92e55527462bd823ed46b2d19b5acf1303be2f647ca4af13',
-  'nexus-vault-macos-arm64.tar.gz': '2b65a754ebdfaf9b447bc0359f24c7c8a45f58a5452f0b4eb383d5bb93c466d8',
-  'nexus-vault-macos-x86_64.tar.gz': 'e869399f031b7fc31a0b4a5bc92d73ddac25994ddd64d196d7f9db6d4b9c21a2',
-  'nexus-vault-windows-x86_64.zip': '1c34bea1543e2e285fa6bb7a65be9bfde88d983ea734d9efd011c590a907f746',
+  // nexusd-cluster v0.2.1
+  'nexusd-cluster-linux-aarch64.tar.gz': '83336737e360541796ce04fda243b1de0072afb54743dcf39c0ec7b7aec09e03',
+  'nexusd-cluster-linux-x86_64.tar.gz': '55f35a600d5c2ce3858ba66053ed6e2b8bfdb3ba4977e73639be927ccbd33174',
+  'nexusd-cluster-macos-aarch64.tar.gz': 'e7c1ab832445b23434e557cd10532f8da5de29028c9e3ee7508029165c35dfd1',
+  'nexusd-cluster-macos-x86_64.tar.gz': 'cca3f5df353e1bb7eee4b2d07e81932477edb86f91b77e83c50cfbef5be59d9c',
+  'nexusd-cluster-windows-aarch64.zip': 'cbc289132b781f2a52231cc223bb07fa1f575dad3b04a03646135c18a1e93b44',
+  'nexusd-cluster-windows-x86_64.zip': 'bfb785aa0b24f8966a631281454464dc1bb01c4956e002807c21553399e2e5e0',
+  // vault plugin v0.1.2 — first signed release (Ed25519 detached `.sig`
+  // alongside dylib inside each archive). Hashes regenerate from scratch
+  // because the archive shape changed (now ships sig too); they are
+  // unrelated to v0.1.1 sums.
+  'nexus-vault-linux-x86_64.tar.gz': '484d6c806cb67d9e2360282ad55a7da17764cd959059e2587846e1608fb9ab63',
+  'nexus-vault-macos-arm64.tar.gz': 'a97fbcdc7b178bc3b3dc4e1adb99e8dd40e77ea412354f5d6f4f54b328a583f4',
+  'nexus-vault-macos-x86_64.tar.gz': '27a85d33cdd8adcb84f6a263202b3fb0c4a682174de21b2964efc51e883b0bb0',
+  'nexus-vault-windows-x86_64.zip': 'c80b7453255b5c05f50a2206556402784aef75ae1cf5f272a599193f92856a07',
 };
 
 
@@ -126,6 +129,22 @@ function getVaultDylibName(platform = process.platform) {
   if (platform === 'linux') return 'libnexus_vault.so';
   if (platform === 'win32') return 'nexus_vault.dll';
   return null;
+}
+
+/**
+ * Detached-signature filename for a given dylib. Convention is defined by
+ * `nexus_plugin_abi::signing::SIGNATURE_FILE_SUFFIX` in nexus-vfs — `.sig`
+ * appended to the dylib filename verbatim. The kernel's PluginLoader reads
+ * this file alongside the dylib and Ed25519-verifies before any dlopen.
+ *
+ * Vault releases starting at v0.1.2 ship the `.sig` inside the archive; the
+ * v0.1.1 archive predates signing and lacks it (extraction is permissive
+ * here so this script keeps working against an old archive — the cluster's
+ * own verify path is the binding gate).
+ */
+function getVaultSigName(platform = process.platform) {
+  const dylib = getVaultDylibName(platform);
+  return dylib ? `${dylib}.sig` : null;
 }
 
 function sha256OfFile(filePath) {
@@ -398,6 +417,27 @@ async function installVaultPlugin(platform, arch, force) {
   fs.copyFileSync(extractedDylib, installedDylib);
   if (!isWindows) {
     fs.chmodSync(installedDylib, 0o755);
+  }
+
+  // Plugin signature: present in v0.1.2+ archives, absent in v0.1.1. When
+  // present, copy it alongside the dylib so the kernel's PluginLoader can
+  // Ed25519-verify before dlopen. When absent, the cluster's verify path
+  // will reject the dylib at load — that failure surfaces clearly enough
+  // that an extra error here would just duplicate it.
+  const sigName = getVaultSigName(platform);
+  const installedSig = path.join(PLUGIN_DIR, sigName);
+  const extractedSig = findBinaryInDir(extractDir, sigName);
+  if (extractedSig) {
+    fs.copyFileSync(extractedSig, installedSig);
+    console.log(`Installed vault plugin signature: ${installedSig}`);
+  } else {
+    // Best-effort cleanup so an older signed install doesn't shadow a
+    // newer unsigned one (and vice versa) across version downgrades.
+    try { fs.unlinkSync(installedSig); } catch {}
+    console.warn(
+      `⚠️  Archive ${artifact} contains no ${sigName}. Cluster signature ` +
+      'verification will reject this plugin — bump vault to v0.1.2+ to fix.',
+    );
   }
 
   fs.writeFileSync(VAULT_READY_MARKER, VAULT_VERSION);
