@@ -37,3 +37,30 @@ jobs:
         env:
           DISPLAY: ':99'
           PYTHONPATH: ${{ github.workspace }}/vendor/ai-dev-browser
+
+  vault-signed-download:
+    name: Vault Signed Download
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --no-frozen-lockfile
+
+      - name: Run vault signed-download integration test
+        # Real download from the live COS mirror. Test plan + scope:
+        # tests/integration/vault-signed-download.integration.test.ts.
+        run: bunx vitest run tests/integration/vault-signed-download.integration.test.ts
