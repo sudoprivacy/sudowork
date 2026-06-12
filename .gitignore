@@ -226,6 +226,7 @@ tests/e2e/screenshots/
 examples/*/dist/
 # Rust build artifacts (nexus-napi)
 native/nexus-napi/target/
+native/nexus-napi/*.node
 
 # Sudo Code local artifacts
 .nexus/sudocode/settings.local.json
