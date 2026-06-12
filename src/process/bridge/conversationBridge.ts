@@ -200,12 +200,22 @@ async function syncConversationWorkspaceSkills(conversation: TChatConversation |
     }
   }
 
+  let failedCount = 0;
   for (const [skillName, targetDir] of expectedTargets) {
     if (existingNames.has(skillName)) continue;
     const linkPath = path.join(workspaceSkillsDir, skillName);
     const linkType = process.platform === 'win32' ? 'junction' : 'dir';
-    await fs.symlink(targetDir, linkPath, linkType);
-    createdCount++;
+    try {
+      await fs.symlink(targetDir, linkPath, linkType);
+      createdCount++;
+    } catch (error) {
+      // Isolate per-skill failures: a single failed link (e.g. EPERM creating a
+      // Windows junction on a restricted/OneDrive-synced home dir) must not abort
+      // the whole loop and leave the workspace with zero linked skills — which is
+      // what makes builtins like `browser` silently invisible to the agent.
+      failedCount++;
+      mainWarn('ConversationSkillSync', `Failed to link skill "${skillName}" (${linkType}) into workspace`, error);
+    }
   }
 
   mainLog('ConversationSkillSync', 'syncConversationWorkspaceSkills completed', {
@@ -216,6 +226,7 @@ async function syncConversationWorkspaceSkills(conversation: TChatConversation |
     removedCount,
     recreatedCount,
     createdCount,
+    failedCount,
     durationMs: Date.now() - startedAt,
   });
 }
