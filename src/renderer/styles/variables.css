@@ -95,11 +95,7 @@
   --bg-2: #eeede5;
   --bg-3: #e2e0d4;
   --bg-4: #cbc8b8;
-  --bg-5: #b0ac9a;
   --bg-6: #8c8878;
-  --bg-8: #575450;
-  --bg-9: #2c2b28;
-  --bg-10: #111009;
   --color-bg-1: #f5f4ef;
   --color-bg-2: #eeede5;
   --color-bg-3: #e2e0d4;
@@ -132,7 +128,6 @@
   --color-fill: #f5f4ef;
   --fill-0: #faf9f6;
   --dialog-fill-0: #faf9f6;
-  --inverse: #1d011d;
 
   /* Semantic - 实色(文字/图标/圆点) + soft(浅底) + line(描边) */
   --success: #35847e;
@@ -149,7 +144,6 @@
   /* Message & Component */
   --message-user-bg: #e9e4f0;
   --message-tips-bg: #f1edf6;
-  --workspace-btn-bg: #eeece4;
   --color-guid-agent-bar: #eae8de;
   --message-user-text: #1d2129;
   --message-user-border: #ffd0d0;
@@ -212,11 +206,7 @@
   --bg-2: #222217;
   --bg-3: #2e2e20;
   --bg-4: #3c3c2c;
-  --bg-5: #4e4e3a;
   --bg-6: #606050;
-  --bg-8: #848470;
-  --bg-9: #b0b09a;
-  --bg-10: #d8d8c8;
   --color-bg-1: #18180f;
   --color-bg-2: #222217;
   --color-bg-3: #2e2e20;
@@ -249,7 +239,6 @@
   --color-fill: #18180f;
   --fill-0: rgba(255, 252, 240, 0.07);
   --dialog-fill-0: #2e2e20;
-  --inverse: #f0ede0;
 
   /* Semantic - 实色(文字/图标/圆点) + soft(浅底) + line(描边) */
   --success: #68a99d;
@@ -266,7 +255,6 @@
   /* Message & Component */
   --message-user-bg: #3a3444;
   --message-tips-bg: #2f2a38;
-  --workspace-btn-bg: #1e1e14;
   --color-guid-agent-bar: #2a2a1e;
   --message-user-text: #ffffff;
   --message-user-border: #652a3a;
