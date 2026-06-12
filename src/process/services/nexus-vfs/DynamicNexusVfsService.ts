@@ -12,6 +12,7 @@ import { processSupervisor } from '@process/ProcessSupervisor';
 import { extractTarGzWithProgress, extractZipWithProgress } from '../archiveProgress';
 import runtimeVersions from '@/shared/runtime-versions.json';
 import { COS_RUNTIME_BASE, COS_LEGACY_NEXUS_VFS_BASE } from '@/shared/cos';
+import { vaultPluginInstaller } from './VaultPluginInstaller';
 
 const execAsync = promisify(exec);
 
@@ -174,7 +175,7 @@ class DynamicNexusVfsService {
   }
 
   checkInstalledSync(): boolean {
-    return fs.existsSync(this.getInstalledBinaryPath()) && this.isMarkerCurrent();
+    return fs.existsSync(this.getInstalledBinaryPath()) && this.isMarkerCurrent() && (!vaultPluginInstaller.isPlatformSupported() || vaultPluginInstaller.checkInstalledSync());
   }
 
   async checkInstalled(): Promise<boolean> {
@@ -349,6 +350,8 @@ class DynamicNexusVfsService {
     } catch {}
 
     this.emit('idle', `nexus-vfs installed: ${targetBinary}`, 100);
+
+    await vaultPluginInstaller.install((stage, message, percent) => this.emit(stage, message, percent));
   }
 
   // ── Lifecycle ────────────────────────────────────────────────────────────────
@@ -364,7 +367,7 @@ class DynamicNexusVfsService {
     }
     const pluginDir = this.getPluginDir();
     const args = ['--hostname', 'localhost', '--bind-addr', `${NEXUS_VFS_BIND_HOST}:${port}`, '--bootstrap-mode', 'static', '--data-dir', this.getDaemonDataDir(), '--no-tls'];
-    if (fs.existsSync(pluginDir)) {
+    if (vaultPluginInstaller.isPlatformSupported() && vaultPluginInstaller.checkInstalledSync()) {
       args.push('--plugin-dir', pluginDir);
     }
     return { command: bin, args };
