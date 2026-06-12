@@ -101,6 +101,10 @@
   color: var(--color-text-1) !important;
 }
 
+:global([data-theme='dark']) .actionTools button {
+  color: var(--text-primary) !important;
+}
+
 .actionSubmit {
   display: flex;
   align-items: center;
@@ -111,19 +115,6 @@
 .lightPlaceholder::placeholder {
   color: #a1a2aa;
   opacity: 1;
-}
-
-.plusButtonRotate {
-  animation: rotate-animation 0.3s ease-in-out;
-}
-
-@keyframes rotate-animation {
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(45deg);
-  }
 }
 
 /* Skeleton shimmer animation */

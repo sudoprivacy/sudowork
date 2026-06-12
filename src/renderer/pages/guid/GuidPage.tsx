@@ -670,7 +670,7 @@ const GuidPage: React.FC = () => {
               {agentSelection.availableAgents === undefined ? <AgentPillBarSkeleton /> : agentSelection.availableAgents.length > 0 ? <AgentPillBar availableAgents={agentSelection.availableAgents} selectedAgentKey={agentSelection.selectedAgentKey} getAgentKey={agentSelection.getAgentKey} onSelectAgent={handleSelectAgentFromPillBar} sessionMode={agentSelection.sessionMode} onSessionModeChange={agentSelection.setSessionMode} isEnterprise={isEnterprise} localModeAvailable={user?.localModeAvailable} /> : null}
 
               <PromptTemplates
-                visible={!agentSelection.isPresetAgent && !guidInput.input.trim()}
+                visible={!agentSelection.isPresetAgent}
                 onSelectPrompt={(content) => {
                   guidInput.setInput(content);
                   guidInput.handleTextareaFocus();

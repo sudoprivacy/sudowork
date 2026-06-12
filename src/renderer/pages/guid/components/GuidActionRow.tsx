@@ -8,7 +8,6 @@ import { ipcBridge } from '@/common';
 import AgentModeSelector from '@/renderer/components/AgentModeSelector';
 import { getAgentModes, supportsModeSwitch, type AgentModeOption } from '@/renderer/constants/agentModes';
 import { useLayoutContext } from '@/renderer/context/LayoutContext';
-import { getCleanFileNames } from '@/renderer/services/FileService';
 import { iconColors } from '@/renderer/theme/colors';
 import ActionChip from '@/renderer/components/ui/ActionChip';
 import type { AcpBackend, AcpBackendConfig, AvailableAgent } from '../types';
@@ -56,7 +55,6 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({ files, onFilesUploaded, o
   const { t } = useTranslation();
   const layout = useLayoutContext();
   const isMobile = Boolean(layout?.isMobile);
-  const [isPlusDropdownOpen, setIsPlusDropdownOpen] = useState(false);
   const [bdpanSelectorVisible, setBdpanSelectorVisible] = useState(false);
   const modeBackend = effectiveModeAgent || selectedAgent;
   const modeOptions = getAgentModes(modeBackend);
@@ -71,8 +69,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({ files, onFilesUploaded, o
       <div className={styles.actionRow}>
         <div className={styles.actionTools}>
           <Dropdown
-            trigger='hover'
-            onVisibleChange={setIsPlusDropdownOpen}
+            trigger={'click'}
             droplist={
               <Menu
                 className='min-w-200px'
@@ -105,19 +102,19 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({ files, onFilesUploaded, o
                 }}
               >
                 <Menu.Item key='file'>
-                  <div className='flex items-center gap-8px'>
+                  <div className='flex items-center gap-2'>
                     <UploadOne theme='outline' size='16' fill={iconColors.secondary} style={{ lineHeight: 0 }} />
                     <span>{t('conversation.welcome.downloadLocalFile')}</span>
                   </div>
                 </Menu.Item>
                 <Menu.Item key='bdpan'>
-                  <div className='flex items-center gap-8px'>
+                  <div className='flex items-center gap-2'>
                     <img src={BdpanLogo} alt='Bdpan' style={{ width: 16, height: 16 }} />
                     <span>{t('conversation.welcome.downloadBdpanFile')}</span>
                   </div>
                 </Menu.Item>
                 <Menu.Item key='workspace'>
-                  <div className='flex items-center gap-8px'>
+                  <div className='flex items-center gap-2'>
                     <FolderOpen theme='outline' size='16' fill={iconColors.secondary} style={{ lineHeight: 0 }} />
                     <span>{t('conversation.welcome.specifyWorkspace')}</span>
                   </div>
@@ -125,18 +122,14 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({ files, onFilesUploaded, o
               </Menu>
             }
           >
-            <span className='inline-flex cursor-pointer'>
-              <button type='button' className='icon-tool-button relative' title={t('conversation.welcome.downloadLocalFile')}>
-                <span className='flex h-full w-full items-center justify-center leading-none'>
-                  <Plus theme='outline' size='14' strokeWidth={2} fill='currentColor' className={isPlusDropdownOpen ? styles.plusButtonRotate : 'block'} />
-                </span>
-                {files.length > 0 && <span className='absolute -right-3px -top-3px min-w-14px h-14px rd-999px bg-[var(--ui-accent-orange)] px-3px text-9px leading-14px text-white font-600'>{files.length}</span>}
-              </button>
-              {files.length > 0 && (
+            <span className='relative'>
+              <Button shape='circle' type='secondary' title={t('conversation.welcome.downloadLocalFile')} icon={<Plus theme='outline' strokeWidth={4} fill='white' />} />
+              {files.length > 0 && <span className='absolute -right-3px -top-3px flex-center min-w-14px h-14px rounded-full bg-[var(--ui-accent-orange)] px-3px text-9px text-white font-600 pointer-events-none'>{files.length}</span>}
+              {/* {files.length > 0 && (
                 <Tooltip className={'!max-w-max'} content={<span className='whitespace-break-spaces'>{getCleanFileNames(files).join('\n')}</span>}>
                   <span className='sr-only'>File({files.length})</span>
                 </Tooltip>
-              )}
+              )} */}
             </span>
           </Dropdown>
 
@@ -155,7 +148,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({ files, onFilesUploaded, o
           {isPresetAgent && selectedAgentInfo && <PresetAgentTag agentInfo={selectedAgentInfo} customAgents={customAgents} localeKey={localeKey} onClose={onClosePresetTag} />}
         </div>
         <div className={styles.actionSubmit}>
-          <Button shape='circle' type='primary' loading={loading} disabled={isButtonDisabled} icon={<ArrowUp theme='filled' size='14' fill='white' strokeWidth={5} />} onClick={onSend} />
+          <Button shape='circle' type='primary' loading={loading} disabled={isButtonDisabled} icon={<ArrowUp theme='filled' fill='white' strokeWidth={4} />} onClick={onSend} />
         </div>
       </div>
 

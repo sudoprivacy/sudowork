@@ -801,34 +801,6 @@ body,
   display: none !important;
 }
 
-.icon-tool-button {
-  width: 34px;
-  height: 34px;
-  min-width: 34px;
-  padding: 0;
-  border: 1px solid var(--ui-border-strong);
-  border-radius: 999px;
-  background: var(--color-bg-1);
-  color: var(--text-secondary);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  transition:
-    background-color 0.18s ease,
-    border-color 0.18s ease,
-    color 0.18s ease;
-}
-
-.icon-tool-button:hover {
-  background: var(--color-fill-1);
-  color: var(--text-primary);
-}
-
-.icon-tool-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
-}
-
 .store-action-icon {
   width: 24px;
   height: 24px;
