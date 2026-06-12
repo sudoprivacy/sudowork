@@ -16,9 +16,11 @@
  */
 
 import { app } from 'electron';
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import { ProcessConfig } from '../initStorage';
 import { buildVersion } from '../../common/buildInfo';
-import type { NativeCrashEvent, RendererCrashEvent, JsExceptionEvent, Breadcrumb, CrashContext, CrashBatchRequest, CrashBatchResponse, StoredCrashEvent, CrashReporterConfig, CrashProcessType, CrashReason } from '../../shared/types/crash';
+import type { NativeCrashEvent, RendererCrashEvent, JsExceptionEvent, Breadcrumb, CrashContext, CrashEventBase, CrashBatchRequest, CrashBatchResponse, StoredCrashEvent, CrashReporterConfig, CrashProcessType, CrashReason } from '../../shared/types/crash';
 import { DEFAULT_CRASH_REPORTER_CONFIG } from '../../shared/types/crash';
 import { mapElectronArch } from '../../shared/types/telemetry';
 import { mainLog, mainWarn, mainError } from '../utils/mainLogger';
@@ -43,6 +45,37 @@ const MAX_QUEUE_SIZE = 100;
 const MAX_EVENT_AGE = 7 * 24 * 60 * 60 * 1000; // 7 天
 
 const isPersonalMode = (): boolean => getUserContextSync().login_mode === 'personal';
+
+function getPersonalCrashUserFields(): Pick<CrashEventBase, 'org_id' | 'user_id' | 'tenant_id' | 'login_mode' | 'user_nickname' | 'user_phone'> | null {
+  const userContext = getUserContextSync();
+  if (userContext.login_mode !== 'personal') {
+    return null;
+  }
+
+  const userId = userContext.user_id;
+  const tenantId = userContext.tenant_id;
+  if (!userId) {
+    mainWarn('CrashReporter', 'User ID not resolved in personal mode, skipping crash event');
+    return null;
+  }
+  if (!tenantId) {
+    mainWarn('CrashReporter', 'Tenant ID not resolved in personal mode, skipping crash event');
+    return null;
+  }
+
+  return {
+    org_id: userContext.org_id,
+    user_id: userId,
+    tenant_id: tenantId,
+    login_mode: userContext.login_mode,
+    user_nickname: userContext.user_nickname,
+    user_phone: userContext.user_phone,
+  };
+}
+
+function isReportableCrashEvent(event: StoredCrashEvent): boolean {
+  return Boolean(event.event.user_id && event.event.tenant_id);
+}
 
 // ============================================================
 // CrashReporter 类
@@ -173,12 +206,18 @@ export class CrashReporter {
       return;
     }
 
+    const userFields = getPersonalCrashUserFields();
+    if (!userFields) {
+      return;
+    }
+
     const event: NativeCrashEvent = {
       type: 'native_crash',
       timestamp: Date.now(),
       version: buildVersion,
       platform: process.platform as 'darwin' | 'win32',
       arch: mapElectronArch(process.arch),
+      ...userFields,
       process_type: processType,
       crash_reason: crashReason,
       exit_code: details.exitCode,
@@ -220,12 +259,18 @@ export class CrashReporter {
       return;
     }
 
+    const userFields = getPersonalCrashUserFields();
+    if (!userFields) {
+      return;
+    }
+
     const event: RendererCrashEvent = {
       type: 'renderer_crash',
       timestamp: Date.now(),
       version: buildVersion,
       platform: process.platform as 'darwin' | 'win32',
       arch: mapElectronArch(process.arch),
+      ...userFields,
       process_type: 'renderer',
       crash_reason: crashReason,
       exit_code: details.exitCode,
@@ -260,12 +305,18 @@ export class CrashReporter {
       return;
     }
 
+    const userFields = getPersonalCrashUserFields();
+    if (!userFields) {
+      return;
+    }
+
     const event: JsExceptionEvent = {
       type: 'js_exception',
       timestamp: Date.now(),
       version: buildVersion,
       platform: process.platform as 'darwin' | 'win32',
       arch: mapElectronArch(process.arch),
+      ...userFields,
       process_type: (context?.process_type as CrashProcessType) || 'main',
       error_name: error.name,
       error_message: error.message,
@@ -295,14 +346,14 @@ export class CrashReporter {
    *
    * @param data - IPC 上报数据
    */
-  public captureRendererException(data: {
-    error_name: string;
-    error_message: string;
-    stack_trace?: string;
-    context?: CrashContext;
-  }): void {
+  public captureRendererException(data: { error_name: string; error_message: string; stack_trace?: string; context?: CrashContext }): void {
     // 开发环境不上报
     if (!app.isPackaged) {
+      return;
+    }
+
+    const userFields = getPersonalCrashUserFields();
+    if (!userFields) {
       return;
     }
 
@@ -312,6 +363,7 @@ export class CrashReporter {
       version: buildVersion,
       platform: process.platform as 'darwin' | 'win32',
       arch: mapElectronArch(process.arch),
+      ...userFields,
       process_type: 'renderer',
       error_name: data.error_name,
       error_message: data.error_message,
@@ -344,12 +396,7 @@ export class CrashReporter {
    * @param data - 额外数据
    * @param level - 日志级别
    */
-  public addBreadcrumb(
-    category: string,
-    message: string,
-    data?: Record<string, unknown>,
-    level?: 'debug' | 'info' | 'warning' | 'error',
-  ): void {
+  public addBreadcrumb(category: string, message: string, data?: Record<string, unknown>, level?: 'debug' | 'info' | 'warning' | 'error'): void {
     if (!isPersonalMode() || !this.enabled) {
       return;
     }
@@ -390,6 +437,8 @@ export class CrashReporter {
       await this.clearCacheFile();
       return;
     }
+
+    await this.dropUnreportableQueuedEvents();
 
     if (this.eventQueue.length === 0) {
       return;
@@ -471,6 +520,11 @@ export class CrashReporter {
       return;
     }
 
+    if (!isReportableCrashEvent(event)) {
+      mainWarn('CrashReporter', 'Crash event missing user_id or tenant_id, dropping event');
+      return;
+    }
+
     if (this.initialized && this.enabled) {
       // 已初始化，直接添加到队列
       this.addToQueue(event);
@@ -498,7 +552,13 @@ export class CrashReporter {
       return;
     }
 
-    for (const event of this.cachedEvents) {
+    const validCachedEvents = this.cachedEvents.filter(isReportableCrashEvent);
+    const droppedCount = this.cachedEvents.length - validCachedEvents.length;
+    if (droppedCount > 0) {
+      mainWarn('CrashReporter', `Dropped ${droppedCount} cached crash event(s) without user_id/tenant_id`);
+    }
+
+    for (const event of validCachedEvents) {
       if (this.enabled) {
         this.addToQueue(event);
       }
@@ -514,6 +574,11 @@ export class CrashReporter {
 
   /** 添加事件到队列 */
   private addToQueue(event: StoredCrashEvent): void {
+    if (!isReportableCrashEvent(event)) {
+      mainWarn('CrashReporter', 'Crash event missing user_id or tenant_id, dropping event');
+      return;
+    }
+
     // 队列满时移除最老的事件
     if (this.eventQueue.length >= MAX_QUEUE_SIZE) {
       this.eventQueue.shift();
@@ -554,7 +619,12 @@ export class CrashReporter {
       return;
     }
 
-    if (this.isFlushing || this.eventQueue.length === 0) {
+    if (this.isFlushing) {
+      return;
+    }
+
+    await this.dropUnreportableQueuedEvents();
+    if (this.eventQueue.length === 0) {
       return;
     }
 
@@ -589,9 +659,7 @@ export class CrashReporter {
         });
 
         // 超过最大重试次数的事件将被丢弃
-        this.eventQueue = this.eventQueue.filter(
-          (event) => event.retryCount < this.config.maxRetries && Date.now() - event.storedAt < MAX_EVENT_AGE,
-        );
+        this.eventQueue = this.eventQueue.filter((event) => event.retryCount < this.config.maxRetries && Date.now() - event.storedAt < MAX_EVENT_AGE);
 
         mainWarn('CrashReporter', `Flush failed: ${response.error}, retries pending: ${this.eventQueue.length}`);
       }
@@ -659,9 +727,6 @@ export class CrashReporter {
   /** 持久化到本地缓存 */
   private async persistToCache(): Promise<void> {
     try {
-      const fs = require('fs/promises');
-      const path = require('path');
-
       const userDataPath = app.getPath('userData');
       const cachePath = path.join(userDataPath, STORAGE_FILE_NAME);
 
@@ -674,9 +739,6 @@ export class CrashReporter {
   /** 加载离线缓存 */
   private async loadCachedEvents(): Promise<void> {
     try {
-      const fs = require('fs/promises');
-      const path = require('path');
-
       const userDataPath = app.getPath('userData');
       const cachePath = path.join(userDataPath, STORAGE_FILE_NAME);
 
@@ -692,12 +754,19 @@ export class CrashReporter {
       const content = await fs.readFile(cachePath, 'utf-8');
       const cachedEvents: StoredCrashEvent[] = JSON.parse(content);
 
-      // 过滤过期事件
-      const validEvents = cachedEvents.filter(
-        (event) => Date.now() - event.storedAt < MAX_EVENT_AGE && event.retryCount < this.config.maxRetries,
-      );
+      // 过滤过期事件和缺少 user_id 的旧缓存事件
+      const validEvents = cachedEvents.filter((event) => isReportableCrashEvent(event) && Date.now() - event.storedAt < MAX_EVENT_AGE && event.retryCount < this.config.maxRetries);
 
       this.eventQueue = validEvents;
+      const droppedCount = cachedEvents.length - validEvents.length;
+      if (droppedCount > 0) {
+        mainWarn('CrashReporter', `Dropped ${droppedCount} cached crash event(s) without user_id/tenant_id or past retry/age limits`);
+        if (validEvents.length === 0) {
+          await this.clearCacheFile();
+        } else {
+          await this.persistToCache();
+        }
+      }
 
       mainLog('CrashReporter', `Loaded ${validEvents.length} cached events`);
     } catch (error) {
@@ -709,15 +778,29 @@ export class CrashReporter {
   /** 清理缓存文件 */
   private async clearCacheFile(): Promise<void> {
     try {
-      const fs = require('fs/promises');
-      const path = require('path');
-
       const userDataPath = app.getPath('userData');
       const cachePath = path.join(userDataPath, STORAGE_FILE_NAME);
 
-      await fs.unlink(cachePath).catch(() => { });
+      await fs.unlink(cachePath).catch(() => {});
     } catch (error) {
       // 忽略删除错误
+    }
+  }
+
+  /** 丢弃队列中没有 user_id 的事件，确保不会上报匿名 crash */
+  private async dropUnreportableQueuedEvents(): Promise<void> {
+    const originalLength = this.eventQueue.length;
+    this.eventQueue = this.eventQueue.filter(isReportableCrashEvent);
+    const droppedCount = originalLength - this.eventQueue.length;
+    if (droppedCount === 0) {
+      return;
+    }
+
+    mainWarn('CrashReporter', `Dropped ${droppedCount} queued crash event(s) without user_id/tenant_id`);
+    if (this.eventQueue.length === 0) {
+      await this.clearCacheFile();
+    } else {
+      await this.persistToCache();
     }
   }
 }
@@ -752,12 +835,7 @@ export const captureException = (error: Error, context?: Partial<CrashContext>):
 };
 
 /** 添加面包屑 */
-export const addCrashBreadcrumb = (
-  category: string,
-  message: string,
-  data?: Record<string, unknown>,
-  level?: 'debug' | 'info' | 'warning' | 'error',
-): void => {
+export const addCrashBreadcrumb = (category: string, message: string, data?: Record<string, unknown>, level?: 'debug' | 'info' | 'warning' | 'error'): void => {
   getCrashReporter().addBreadcrumb(category, message, data, level);
 };
 

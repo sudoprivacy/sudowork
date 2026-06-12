@@ -15,29 +15,14 @@
  */
 
 import { app } from 'electron';
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import { ProcessConfig } from '../initStorage';
 import { buildVersion } from '../../common/buildInfo';
-import {
-  TelemetryEvent,
-  TelemetryBatchRequest,
-  TelemetryBatchResponse,
-  TelemetryConfig,
-  StoredTelemetryEvent,
-  PerfTelemetryEvent,
-  ConversationTelemetryEvent,
-  InstallTelemetryEvent,
-  TurnTelemetryEvent,
-  StepTelemetryEvent,
-  PerfData,
-  ConversationData,
-  InstallData,
-  TurnData,
-  StepData,
-  mapElectronArch,
-} from '../../shared/types/telemetry';
-import { DEFAULT_TELEMETRY_CONFIG } from '../../shared/types/telemetry';
+import type { TelemetryEvent, TelemetryBatchRequest, TelemetryBatchResponse, TelemetryConfig, StoredTelemetryEvent, PerfTelemetryEvent, ConversationTelemetryEvent, InstallTelemetryEvent, TurnTelemetryEvent, StepTelemetryEvent, PerfData, ConversationData, InstallData, TurnData, StepData } from '../../shared/types/telemetry';
+import { mapElectronArch, DEFAULT_TELEMETRY_CONFIG } from '../../shared/types/telemetry';
 import { mainLog, mainWarn, mainError } from '../utils/mainLogger';
-import { getTelemetryEncryptor, initTelemetryEncryptor, isEncryptionAvailable, EncryptedPayload } from './TelemetryEncryptor';
+import { getTelemetryEncryptor, initTelemetryEncryptor, isEncryptionAvailable } from './TelemetryEncryptor';
 import { ENCRYPTION_CONFIG } from './keys';
 import { getUserContextSync } from './UserContext';
 
@@ -72,6 +57,33 @@ const MAX_QUEUE_SIZE = 500;
 const MAX_EVENT_AGE = 7 * 24 * 60 * 60 * 1000; // 7 天
 
 const isPersonalMode = (): boolean => getUserContextSync().login_mode === 'personal';
+
+function getPersonalTelemetryUserFields(): Pick<StoredTelemetryEvent, 'org_id' | 'user_id' | 'tenant_id' | 'login_mode' | 'user_nickname' | 'user_phone'> | null {
+  const userContext = getUserContextSync();
+  if (userContext.login_mode !== 'personal') {
+    return null;
+  }
+
+  const userId = userContext.user_id;
+  const tenantId = userContext.tenant_id;
+  if (!userId) {
+    mainWarn('Telemetry', 'User ID not resolved in personal mode, skipping telemetry event');
+    return null;
+  }
+  if (!tenantId) {
+    mainWarn('Telemetry', 'Tenant ID not resolved in personal mode, skipping telemetry event');
+    return null;
+  }
+
+  return {
+    org_id: userContext.org_id,
+    user_id: userId,
+    tenant_id: tenantId,
+    login_mode: userContext.login_mode,
+    user_nickname: userContext.user_nickname,
+    user_phone: userContext.user_phone,
+  };
+}
 
 // ============================================================
 // TelemetryBatchReporter 类
@@ -180,8 +192,10 @@ export class TelemetryBatchReporter {
       return;
     }
 
-    // 获取用户上下文
-    const userContext = getUserContextSync();
+    const userFields = getPersonalTelemetryUserFields();
+    if (!userFields) {
+      return;
+    }
 
     const storedEvent: StoredTelemetryEvent = {
       id: this.generateEventId(),
@@ -192,13 +206,8 @@ export class TelemetryBatchReporter {
       version: buildVersion,
       platform: process.platform as 'darwin' | 'win32',
       arch: mapElectronArch(process.arch),
-      org_id: userContext.org_id,
-      user_id: userContext.user_id,
-      tenant_id: userContext.tenant_id,
-      login_mode: userContext.login_mode,
+      ...userFields,
       agent_type: agentType,
-      user_nickname: userContext.user_nickname,
-      user_phone: userContext.user_phone,
       data,
     };
 
@@ -222,6 +231,8 @@ export class TelemetryBatchReporter {
       await this.clearCacheFile();
       return;
     }
+
+    await this.dropUnreportableQueuedEvents();
 
     if (this.eventQueue.length === 0) {
       return;
@@ -284,8 +295,18 @@ export class TelemetryBatchReporter {
     return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
   }
 
+  /** 判断事件是否满足上报身份要求 */
+  private isReportableEvent(event: StoredTelemetryEvent): boolean {
+    return Boolean(event.user_id && event.tenant_id);
+  }
+
   /** 添加事件到队列 */
   private addToQueue(event: StoredTelemetryEvent): void {
+    if (!this.isReportableEvent(event)) {
+      mainWarn('Telemetry', 'Telemetry event missing user_id or tenant_id, dropping event');
+      return;
+    }
+
     // 队列满时移除最老的事件
     if (this.eventQueue.length >= MAX_QUEUE_SIZE) {
       this.eventQueue.shift();
@@ -324,7 +345,12 @@ export class TelemetryBatchReporter {
       return;
     }
 
-    if (this.isFlushing || this.eventQueue.length === 0) {
+    if (this.isFlushing) {
+      return;
+    }
+
+    await this.dropUnreportableQueuedEvents();
+    if (this.eventQueue.length === 0) {
       return;
     }
 
@@ -408,9 +434,7 @@ export class TelemetryBatchReporter {
         });
 
         // 超过最大重试次数的事件将被丢弃
-        this.eventQueue = this.eventQueue.filter(
-          (event) => event.retryCount < this.config.maxRetries && Date.now() - event.storedAt < MAX_EVENT_AGE,
-        );
+        this.eventQueue = this.eventQueue.filter((event) => event.retryCount < this.config.maxRetries && Date.now() - event.storedAt < MAX_EVENT_AGE);
 
         mainWarn('Telemetry', `Flush failed: ${response.error}, retries pending: ${this.eventQueue.length}`);
       }
@@ -477,10 +501,6 @@ export class TelemetryBatchReporter {
   /** 持久化到本地缓存 */
   private async persistToCache(): Promise<void> {
     try {
-      const { app } = require('electron');
-      const fs = require('fs/promises');
-      const path = require('path');
-
       const userDataPath = app.getPath('userData');
       const cachePath = path.join(userDataPath, STORAGE_FILE_NAME);
 
@@ -493,10 +513,6 @@ export class TelemetryBatchReporter {
   /** 加载离线缓存 */
   private async loadCachedEvents(): Promise<void> {
     try {
-      const { app } = require('electron');
-      const fs = require('fs/promises');
-      const path = require('path');
-
       const userDataPath = app.getPath('userData');
       const cachePath = path.join(userDataPath, STORAGE_FILE_NAME);
 
@@ -512,12 +528,19 @@ export class TelemetryBatchReporter {
       const content = await fs.readFile(cachePath, 'utf-8');
       const cachedEvents: StoredTelemetryEvent[] = JSON.parse(content);
 
-      // 过滤过期事件
-      const validEvents = cachedEvents.filter(
-        (event) => Date.now() - event.storedAt < MAX_EVENT_AGE && event.retryCount < this.config.maxRetries,
-      );
+      // 过滤过期事件和缺少 user_id 的旧缓存事件
+      const validEvents = cachedEvents.filter((event) => this.isReportableEvent(event) && Date.now() - event.storedAt < MAX_EVENT_AGE && event.retryCount < this.config.maxRetries);
 
       this.eventQueue = validEvents;
+      const droppedCount = cachedEvents.length - validEvents.length;
+      if (droppedCount > 0) {
+        mainWarn('Telemetry', `Dropped ${droppedCount} cached telemetry event(s) without user_id/tenant_id or past retry/age limits`);
+        if (validEvents.length === 0) {
+          await this.clearCacheFile();
+        } else {
+          await this.persistToCache();
+        }
+      }
 
       mainLog('Telemetry', `Loaded ${validEvents.length} cached events`);
     } catch (error) {
@@ -529,16 +552,29 @@ export class TelemetryBatchReporter {
   /** 清理缓存文件 */
   private async clearCacheFile(): Promise<void> {
     try {
-      const { app } = require('electron');
-      const fs = require('fs/promises');
-      const path = require('path');
-
       const userDataPath = app.getPath('userData');
       const cachePath = path.join(userDataPath, STORAGE_FILE_NAME);
 
-      await fs.unlink(cachePath).catch(() => { });
+      await fs.unlink(cachePath).catch(() => {});
     } catch (error) {
       // 忽略删除错误
+    }
+  }
+
+  /** 丢弃队列中没有 user_id 的事件，确保不会上报匿名 telemetry */
+  private async dropUnreportableQueuedEvents(): Promise<void> {
+    const originalLength = this.eventQueue.length;
+    this.eventQueue = this.eventQueue.filter((event) => this.isReportableEvent(event));
+    const droppedCount = originalLength - this.eventQueue.length;
+    if (droppedCount === 0) {
+      return;
+    }
+
+    mainWarn('Telemetry', `Dropped ${droppedCount} queued telemetry event(s) without user_id/tenant_id`);
+    if (this.eventQueue.length === 0) {
+      await this.clearCacheFile();
+    } else {
+      await this.persistToCache();
     }
   }
 }
@@ -558,10 +594,7 @@ export const initTelemetry = async (): Promise<void> => {
 };
 
 /** 记录事件 */
-export const recordTelemetry = <K extends TelemetryEventType>(
-  type: K,
-  data: TelemetryEventPayloadMap[K],
-): void => {
+export const recordTelemetry = <K extends TelemetryEventType>(type: K, data: TelemetryEventPayloadMap[K]): void => {
   getTelemetryReporter().record(type, data);
 };
 

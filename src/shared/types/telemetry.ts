@@ -191,7 +191,7 @@ export interface TelemetryEventBase {
   /** 组织 ID - 从 JWT Token 解析 */
   org_id?: string;
   /** 用户 ID - 从 JWT Token 解析 */
-  user_id?: string;
+  user_id: string;
   /** 租户 ID - 从 JWT Token 解析 (如果有) */
   tenant_id?: string;
   /** 登录模式 - 企业模式/个人模式 */
@@ -235,12 +235,7 @@ export interface StepTelemetryEvent extends TelemetryEventBase {
 }
 
 /** 遥测事件联合类型 */
-export type TelemetryEvent =
-  | PerfTelemetryEvent
-  | ConversationTelemetryEvent
-  | InstallTelemetryEvent
-  | TurnTelemetryEvent
-  | StepTelemetryEvent;
+export type TelemetryEvent = PerfTelemetryEvent | ConversationTelemetryEvent | InstallTelemetryEvent | TurnTelemetryEvent | StepTelemetryEvent;
 
 // ============================================================
 // 批量上报请求结构
@@ -276,7 +271,7 @@ export interface TelemetryConfig {
 /** 默认遥测配置 */
 export const DEFAULT_TELEMETRY_CONFIG: TelemetryConfig = {
   enabled: true,
-  serverUrl: 'https://sudowork-qms.sudoprivacy.com/api/v1/telemetry/batch',
+  serverUrl: 'https://sudowork-server.sudoprivacy.com/api/v1/telemetry/batch',
   batchSize: 50,
   flushInterval: 30000, // 30 秒
   maxRetries: 3,
@@ -299,7 +294,7 @@ export interface StoredTelemetryEvent {
   platform: TelemetryPlatform;
   arch: TelemetryArch;
   org_id?: string;
-  user_id?: string;
+  user_id: string;
   tenant_id?: string;
   login_mode?: LoginMode;
   agent_type?: AgentType;
