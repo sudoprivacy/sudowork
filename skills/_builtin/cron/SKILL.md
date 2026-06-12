@@ -9,10 +9,10 @@ You can manage scheduled tasks to automatically execute operations at specified 
 
 ## IMPORTANT RULES
 
-1. **ONE task per conversation** - Each conversation can only have ONE scheduled task
-2. **Query and WAIT for result** - Before creating a task, output `[CRON_LIST]` and WAIT for the system to return the result
+1. **Tasks are user-global** - `[CRON_LIST]` returns ALL of the user's scheduled tasks, across every conversation. A new task delivers into the conversation that created it.
+2. **NO duplicate tasks** - Before creating a task, output `[CRON_LIST]` and WAIT for the result. If a similar task already exists (even one created in another conversation), do NOT create another without asking the user.
 3. **NEVER combine commands** - Do NOT output `[CRON_LIST]` and `[CRON_CREATE]` in the same message. Query first, wait for result, then decide.
-4. **ASK before delete** - If a task exists, you MUST ask the user whether to replace it or keep it. NEVER delete without user's explicit confirmation.
+4. **ASK before delete** - If a similar task exists, you MUST ask the user whether to replace it or keep it. NEVER delete without user's explicit confirmation.
 5. **ALWAYS include closing tags** - `[CRON_CREATE]` MUST end with `[/CRON_CREATE]`
 6. **Output commands directly** - Do NOT wrap commands in markdown code blocks
 
@@ -21,26 +21,28 @@ You can manage scheduled tasks to automatically execute operations at specified 
 **CRITICAL: This is a multi-turn workflow. Do NOT skip steps or combine them.**
 
 **Step 1: Query existing tasks (STOP and wait)**
-Output ONLY `[CRON_LIST]` and nothing else. The system will return the current task status.
+Output ONLY `[CRON_LIST]` and nothing else. The system will return the user's tasks across all conversations.
 DO NOT proceed to Step 2 until you see the system response.
 
 **Step 2: Review the result and ask user (STOP and wait for user response)**
 After receiving the `[CRON_LIST]` result:
 
 - If "No scheduled tasks" → proceed to Step 3
-- If a task already exists → **You MUST ask the user** what they want to do:
+- If a similar task already exists (same purpose, possibly created in another conversation) → **You MUST ask the user** what they want to do:
   - Option A: Delete the existing task and create a new one
   - Option B: Keep the existing task and cancel creating a new one
+  - Option C: Keep the existing task AND create this one too (only if the user explicitly wants both)
   - **NEVER delete the existing task without explicit user confirmation**
   - Wait for the user's response before proceeding
+- If existing tasks are unrelated to the one being created → proceed to Step 3
 
 **Step 3: Execute user's decision**
 
 - If user chose to replace: First delete the old task with `[CRON_DELETE: <job-id>]`, wait for confirmation, then create new task
 - If user chose to keep: Do NOT create a new task, inform user the existing task is retained
 
-**Step 4: Create the new task (only if no task exists or user confirmed deletion)**
-Only after confirming no task exists (or after successfully deleting), output the `[CRON_CREATE]` block.
+**Step 4: Create the new task (only if no similar task exists or user confirmed)**
+Only after confirming no similar task exists (or after the user's explicit decision), output the `[CRON_CREATE]` block.
 
 ## Create Scheduled Task
 
@@ -113,6 +115,6 @@ Replace `<actual-job-id>` with the real job ID (e.g., `cron_abc123`).
 
 ## Notes
 
-- Scheduled tasks are bound to the current conversation
-- When triggered, the message will be sent to this conversation
+- `[CRON_LIST]` shows ALL of the user's scheduled tasks; entries created by the current conversation are marked `[created in this conversation]`
+- When a task triggers, its message is delivered to the conversation that created it
 - **CRITICAL**: `[CRON_LIST]` is an async query. You MUST wait for the system response before proceeding with `[CRON_CREATE]` or `[CRON_DELETE]`. Never output multiple commands in one message.

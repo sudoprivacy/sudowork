@@ -201,18 +201,23 @@ async function handleCronCommands(conversationId: string, agentType: AcpBackendA
         }
 
         case 'list': {
-          const jobs = await cronService.listJobsByConversation(conversationId);
+          // Scheduled tasks are user-global: list everything, not just jobs
+          // created by this conversation. A per-conversation list made every
+          // new chat report "no tasks" while the cron UI showed them, and
+          // defeated the skill's query-before-create duplicate check (#835).
+          const jobs = await cronService.listJobs();
           if (jobs.length === 0) {
-            responses.push('📋 No scheduled tasks in this conversation.');
+            responses.push('📋 No scheduled tasks.');
           } else {
             const jobList = jobs
               .map((j) => {
                 const scheduleStr = j.schedule.kind === 'cron' ? j.schedule.expr : j.schedule.kind;
                 const status = j.enabled ? '✓' : '✗';
-                return `- [${status}] ${j.name} (${scheduleStr}) - ID: ${j.id}`;
+                const origin = j.metadata.conversationId === conversationId ? ' [created in this conversation]' : '';
+                return `- [${status}] ${j.name} (${scheduleStr}) - ID: ${j.id}${origin}`;
               })
               .join('\n');
-            responses.push(`📋 Scheduled tasks:\n${jobList}`);
+            responses.push(`📋 Scheduled tasks (across all conversations):\n${jobList}`);
           }
           break;
         }
