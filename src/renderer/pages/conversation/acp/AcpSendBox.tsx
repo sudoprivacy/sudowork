@@ -11,7 +11,7 @@ import { useAddOrUpdateMessage, useUpdateMessageList } from '@/renderer/messages
 import { allSupportedExts } from '@/renderer/services/FileService';
 import { emitter, useAddEventListener } from '@/renderer/utils/emitter';
 import { mergeFileSelectionItems } from '@/renderer/utils/fileSelection';
-import { Button, Dropdown, Menu, Message, Tag } from '@arco-design/web-react';
+import { Button, Dropdown, Message, Tag } from '@arco-design/web-react';
 import { Plus, Shield, UploadOne } from '@icon-park/react';
 import { iconColors } from '@/renderer/theme/colors';
 import BdpanLogo from '@/renderer/assets/logos/bdpan.png';
@@ -792,6 +792,7 @@ const AcpSendBox: React.FC<{
     onFilesSelected: appendSelectedFiles,
   });
   const [bdpanSelectorVisible, setBdpanSelectorVisible] = useState(false);
+  const [fileMenuOpen, setFileMenuOpen] = useState(false);
   const [pwdLoginModal, setPwdLoginModal] = useState<{ visible: boolean; title: string }>({ visible: false, title: '' });
   const [messageApi, messageContextHolder] = Message.useMessage();
   const messageApiRef = useRef(messageApi);
@@ -882,30 +883,31 @@ const AcpSendBox: React.FC<{
           <div className='flex items-center gap-3'>
             <Dropdown
               trigger='click'
+              popupVisible={fileMenuOpen}
+              onVisibleChange={setFileMenuOpen}
               droplist={
-                <Menu
-                  className='min-w-200px'
-                  onClickMenuItem={(key) => {
-                    if (key === 'file') {
+                <div className='flex flex-col gap-2px p-6px rd-12px border border-solid border-[var(--border-base)] bg-popup' style={{ minWidth: 200, boxShadow: '0 8px 28px rgba(0, 0, 0, 0.12)' }}>
+                  <div
+                    className='flex items-center gap-10px px-10px h-38px rd-8px cursor-pointer text-14px text-t-primary transition-colors hover:bg-hover active:bg-active'
+                    onClick={() => {
+                      setFileMenuOpen(false);
                       openFileSelector();
-                    } else if (key === 'bdpan') {
+                    }}
+                  >
+                    <UploadOne theme='outline' size='16' fill={iconColors.secondary} style={{ lineHeight: 0 }} />
+                    <span>{t('conversation.welcome.downloadLocalFile')}</span>
+                  </div>
+                  <div
+                    className='flex items-center gap-10px px-10px h-38px rd-8px cursor-pointer text-14px text-t-primary transition-colors hover:bg-hover active:bg-active'
+                    onClick={() => {
+                      setFileMenuOpen(false);
                       setBdpanSelectorVisible(true);
-                    }
-                  }}
-                >
-                  <Menu.Item key='file'>
-                    <div className='flex items-center gap-2'>
-                      <UploadOne theme='outline' size='16' fill={iconColors.secondary} style={{ lineHeight: 0 }} />
-                      <span>{t('conversation.welcome.downloadLocalFile')}</span>
-                    </div>
-                  </Menu.Item>
-                  <Menu.Item key='bdpan'>
-                    <div className='flex items-center gap-2'>
-                      <img src={BdpanLogo} alt='Bdpan' style={{ width: 16, height: 16 }} />
-                      <span>{t('conversation.welcome.downloadBdpanFile')}</span>
-                    </div>
-                  </Menu.Item>
-                </Menu>
+                    }}
+                  >
+                    <img src={BdpanLogo} alt='Bdpan' style={{ width: 16, height: 16 }} />
+                    <span>{t('conversation.welcome.downloadBdpanFile')}</span>
+                  </div>
+                </div>
               }
             >
               <span className='relative'>

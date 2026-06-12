@@ -12,7 +12,7 @@ import { iconColors } from '@/renderer/theme/colors';
 import ActionChip from '@/renderer/components/ui/ActionChip';
 import type { AcpBackend, AcpBackendConfig, AvailableAgent } from '../types';
 import PresetAgentTag from './PresetAgentTag';
-import { Button, Dropdown, Menu, Tooltip } from '@arco-design/web-react';
+import { Button, Dropdown, Tooltip } from '@arco-design/web-react';
 import BdpanLogo from '@/renderer/assets/logos/bdpan.png';
 import BdpanFileSelector from '@/renderer/components/BdpanFileSelector';
 import { ArrowUp, FolderOpen, Plus, Shield, UploadOne } from '@icon-park/react';
@@ -56,6 +56,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({ files, onFilesUploaded, o
   const layout = useLayoutContext();
   const isMobile = Boolean(layout?.isMobile);
   const [bdpanSelectorVisible, setBdpanSelectorVisible] = useState(false);
+  const [fileMenuOpen, setFileMenuOpen] = useState(false);
   const modeBackend = effectiveModeAgent || selectedAgent;
   const modeOptions = getAgentModes(modeBackend);
   const currentModeOption = modeOptions.find((mode) => mode.value === selectedMode);
@@ -70,11 +71,14 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({ files, onFilesUploaded, o
         <div className={styles.actionTools}>
           <Dropdown
             trigger={'click'}
+            popupVisible={fileMenuOpen}
+            onVisibleChange={setFileMenuOpen}
             droplist={
-              <Menu
-                className='min-w-200px'
-                onClickMenuItem={(key) => {
-                  if (key === 'file') {
+              <div className='flex flex-col gap-2px p-6px rd-12px border border-solid border-[var(--border-base)] bg-popup' style={{ minWidth: 200, boxShadow: '0 8px 28px rgba(0, 0, 0, 0.12)' }}>
+                <div
+                  className='flex items-center gap-10px px-10px h-38px rd-8px cursor-pointer text-14px text-t-primary transition-colors hover:bg-hover active:bg-active'
+                  onClick={() => {
+                    setFileMenuOpen(false);
                     ipcBridge.dialog.showOpen
                       .invoke({ properties: ['openFile', 'multiSelections'] })
                       .then((res) => {
@@ -85,9 +89,25 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({ files, onFilesUploaded, o
                       .catch((error) => {
                         console.error('Failed to open file dialog:', error);
                       });
-                  } else if (key === 'bdpan') {
+                  }}
+                >
+                  <UploadOne theme='outline' size='16' fill={iconColors.secondary} style={{ lineHeight: 0 }} />
+                  <span>{t('conversation.welcome.downloadLocalFile')}</span>
+                </div>
+                <div
+                  className='flex items-center gap-10px px-10px h-38px rd-8px cursor-pointer text-14px text-t-primary transition-colors hover:bg-hover active:bg-active'
+                  onClick={() => {
+                    setFileMenuOpen(false);
                     setBdpanSelectorVisible(true);
-                  } else if (key === 'workspace') {
+                  }}
+                >
+                  <img src={BdpanLogo} alt='Bdpan' style={{ width: 16, height: 16 }} />
+                  <span>{t('conversation.welcome.downloadBdpanFile')}</span>
+                </div>
+                <div
+                  className='flex items-center gap-10px px-10px h-38px rd-8px cursor-pointer text-14px text-t-primary transition-colors hover:bg-hover active:bg-active'
+                  onClick={() => {
+                    setFileMenuOpen(false);
                     ipcBridge.dialog.showOpen
                       .invoke({ properties: ['openDirectory'] })
                       .then((res) => {
@@ -98,28 +118,12 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({ files, onFilesUploaded, o
                       .catch((error) => {
                         console.error('Failed to open directory dialog:', error);
                       });
-                  }
-                }}
-              >
-                <Menu.Item key='file'>
-                  <div className='flex items-center gap-2'>
-                    <UploadOne theme='outline' size='16' fill={iconColors.secondary} style={{ lineHeight: 0 }} />
-                    <span>{t('conversation.welcome.downloadLocalFile')}</span>
-                  </div>
-                </Menu.Item>
-                <Menu.Item key='bdpan'>
-                  <div className='flex items-center gap-2'>
-                    <img src={BdpanLogo} alt='Bdpan' style={{ width: 16, height: 16 }} />
-                    <span>{t('conversation.welcome.downloadBdpanFile')}</span>
-                  </div>
-                </Menu.Item>
-                <Menu.Item key='workspace'>
-                  <div className='flex items-center gap-2'>
-                    <FolderOpen theme='outline' size='16' fill={iconColors.secondary} style={{ lineHeight: 0 }} />
-                    <span>{t('conversation.welcome.specifyWorkspace')}</span>
-                  </div>
-                </Menu.Item>
-              </Menu>
+                  }}
+                >
+                  <FolderOpen theme='outline' size='16' fill={iconColors.secondary} style={{ lineHeight: 0 }} />
+                  <span>{t('conversation.welcome.specifyWorkspace')}</span>
+                </div>
+              </div>
             }
           >
             <span className='relative'>

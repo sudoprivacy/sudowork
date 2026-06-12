@@ -14,7 +14,7 @@ import { useLayoutContext } from '@/renderer/context/LayoutContext';
 import { usePreviewContext } from '@/renderer/pages/conversation/preview';
 import { getModelDisplayLabel } from '@/renderer/utils/agentUiDisplay';
 import { buildProviderModelGroups } from '@/renderer/utils/modelProviderGroups';
-import { Button, Dropdown, Menu, Message, Tooltip } from '@arco-design/web-react';
+import { Button, Dropdown, Message, Tooltip } from '@arco-design/web-react';
 import { IconRefresh } from '@arco-design/web-react/icon';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -413,6 +413,8 @@ const AcpModelSelector: React.FC<{
     return { status: healthStatus, color: healthColor };
   }, [modelInfo?.currentModelId, modelConfig, backend]);
 
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+
   // State 1: No model info — show disabled "Use CLI model" button
   if (!modelInfo) {
     return (
@@ -444,35 +446,46 @@ const AcpModelSelector: React.FC<{
   return (
     <Dropdown
       trigger='click'
+      popupVisible={dropdownOpen}
+      onVisibleChange={setDropdownOpen}
       droplist={
-        <Menu>
-          {backend === 'scode' && (
-            <div className='flex items-center justify-end px-12px py-4px border-b border-[var(--color-border-2)]' onClick={(e) => e.stopPropagation()}>
-              <Tooltip content={t('common.refresh')} position='top'>
-                <Button size='mini' shape='circle' type='text' icon={<IconRefresh spin={refreshingModels} />} loading={refreshingModels} onClick={handleRefreshModels} />
-              </Tooltip>
-            </div>
-          )}
-          {providerModelGroups.map((group) => (
-            <Menu.ItemGroup title={group.name || t('common.other', { defaultValue: 'Other' })} key={group.key}>
+        <div className='flex flex-col gap-2px p-6px rd-12px border border-solid border-[var(--border-base)] bg-popup max-h-[min(60vh,420px)] overflow-y-auto scrollbar-hide' style={{ minWidth: 200, boxShadow: '0 8px 28px rgba(0, 0, 0, 0.12)' }}>
+          {providerModelGroups.map((group, groupIndex) => (
+            <div key={group.key} className='flex flex-col gap-2px'>
+              <div className='flex items-center justify-between gap-8px pl-10px pr-2px pt-4px pb-2px min-h-24px'>
+                <span className='text-12px leading-18px text-t-secondary truncate'>{group.name || t('common.other', { defaultValue: 'Other' })}</span>
+                {backend === 'scode' && groupIndex === 0 && (
+                  <span onClick={(e) => e.stopPropagation()}>
+                    <Tooltip content={t('common.refresh')} position='top'>
+                      <Button size='mini' shape='circle' type='text' icon={<IconRefresh spin={refreshingModels} />} loading={refreshingModels} onClick={handleRefreshModels} />
+                    </Tooltip>
+                  </span>
+                )}
+              </div>
               {group.models.map((model) => {
                 // 获取模型健康状态
                 const providerConfig = group.provider || modelConfig?.find((p) => p.platform?.includes(backend || ''));
                 const healthStatus = providerConfig?.modelHealth?.[model.id]?.status || 'unknown';
                 const healthColor = healthStatus === 'healthy' ? 'bg-green-500' : healthStatus === 'unhealthy' ? 'bg-red-500' : 'bg-gray-400';
+                const selected = model.id === modelInfo.currentModelId;
 
                 return (
-                  <Menu.Item key={`${group.key}-${model.id}`} className={model.id === modelInfo.currentModelId ? 'bg-2!' : ''} onClick={() => handleSelectModel(model.id)}>
-                    <div className='flex items-center gap-8px w-full'>
-                      {healthStatus !== 'unknown' && <div className={`w-6px h-6px rounded-full shrink-0 ${healthColor}`} />}
-                      <span>{model.label}</span>
-                    </div>
-                  </Menu.Item>
+                  <div
+                    key={`${group.key}-${model.id}`}
+                    className={classNames('flex items-center gap-8px px-10px h-38px rd-8px cursor-pointer text-14px text-t-primary transition-colors hover:bg-hover active:bg-active', selected && 'bg-2')}
+                    onClick={() => {
+                      handleSelectModel(model.id);
+                      setDropdownOpen(false);
+                    }}
+                  >
+                    {healthStatus !== 'unknown' && <div className={`w-6px h-6px rounded-full shrink-0 ${healthColor}`} />}
+                    <span className='truncate'>{model.label}</span>
+                  </div>
                 );
               })}
-            </Menu.ItemGroup>
+            </div>
           ))}
-        </Menu>
+        </div>
       }
     >
       <Button className={classNames('sendbox-model-btn header-model-btn', compact && '!max-w-[120px]', isMobileCompact && '!max-w-[160px]')} shape='round' size='small'>
