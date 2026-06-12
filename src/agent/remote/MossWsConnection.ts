@@ -127,7 +127,20 @@ export class MossWsConnection {
         mainLog('MossWsConnection', `Session created: ${this.sessionId}, workDir: ${this.workDir}`);
       }
 
-      await this.openWebSocket();
+      try {
+        await this.openWebSocket();
+      } catch (wsError) {
+        // A 401 on the WS handshake means the access token went bad between
+        // exchangeToken and the upgrade (expired or revoked server-side).
+        // Force-refresh once and retry before giving up.
+        const message = wsError instanceof Error ? wsError.message : String(wsError);
+        if (!message.includes('401')) {
+          throw wsError;
+        }
+        mainLog('MossWsConnection', 'WS handshake rejected with 401, force refreshing token and retrying');
+        this.accessToken = await this.exchangeToken(true);
+        await this.openWebSocket();
+      }
 
       this.state = 'connected';
       this.reconnectAttempts = 0;
@@ -142,21 +155,28 @@ export class MossWsConnection {
     }
   }
 
-  private async exchangeToken(): Promise<string> {
-    if (this.config.authToken && this.config.authToken.startsWith('eyJ')) {
-      return this.config.authToken;
-    }
+  private async exchangeToken(forceRefresh = false): Promise<string> {
+    const isApiKey = !!this.config.authToken && !this.config.authToken.startsWith('eyJ');
 
-    // Try shared getValidToken which handles refresh with dedup
-    if (!this.config.authToken) {
+    // Enterprise login sessions: always source the freshest token from auth
+    // storage. A JWT pinned in config may be expired or revoked (e.g. captured
+    // before a logout/re-login), so it is only a fallback when auth storage is
+    // unavailable.
+    if (!isApiKey) {
       try {
-        const token = await getValidToken();
+        const token = await getValidToken(forceRefresh);
         if (token) {
-          this.config.authToken = token;
           return token;
         }
       } catch (e) {
         mainError('MossWsConnection', 'Failed to get valid token:', e);
+        if (this.config.authToken?.startsWith('eyJ')) {
+          mainLog('MossWsConnection', 'Falling back to config-provided JWT');
+          return this.config.authToken;
+        }
+        if (!this.config.username && !this.config.password) {
+          throw e instanceof Error ? e : new Error(String(e));
+        }
       }
     }
 
@@ -251,11 +271,13 @@ export class MossWsConnection {
       throw new Error('No ws_url available');
     }
 
-    // Append refresh_token to wsUrl for server-side token refresh on WS upgrade
+    // Append refresh_token to wsUrl for server-side token refresh on WS upgrade.
+    // OAuth2 sessions hold the IdP's refresh token (or none), which moss cannot
+    // verify as a refresh JWT — never put it on the URL.
     let wsUrlWithRefresh = this.wsUrl!;
     try {
       const authStorage = ProcessConfig.getSync('eeclaw.authStorage');
-      if (authStorage?.refresh_token) {
+      if (authStorage?.refresh_token && authStorage.session_type !== 'oauth2') {
         const separator = wsUrlWithRefresh.includes('?') ? '&' : '?';
         wsUrlWithRefresh += `${separator}refresh_token=${encodeURIComponent(authStorage.refresh_token)}`;
       }
@@ -281,6 +303,9 @@ export class MossWsConnection {
       this.ws.on('error', (err) => {
         clearTimeout(timeout);
         this.callbacks.onError?.(err);
+        // Settle the connect promise — a handshake failure (e.g. 401/404)
+        // must fail fast, not strand connect() awaiting forever.
+        reject(err);
       });
       this.ws.on('close', (code, reason) => this.handleClose(code, reason.toString()));
     });

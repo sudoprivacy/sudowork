@@ -876,6 +876,22 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     };
   }, []);
 
+  // Main process signals the enterprise token is dead and cannot be refreshed
+  // (e.g. OAuth2 session whose IdP issued no refresh token, or a definitively
+  // rejected refresh). Drop to the login screen — conversations are untouched
+  // and resume after re-login (issue #849).
+  useEffect(() => {
+    const unsubscribe = ipcBridge.eeclaw.authRequired.on(({ reason }) => {
+      console.warn(`[Auth] Enterprise session requires re-login (${reason})`);
+      localStorage.removeItem(EECLAW_AUTH_STORAGE_KEY);
+      setUser(null);
+      setStatus('unauthenticated');
+    });
+    return () => {
+      unsubscribe();
+    };
+  }, []);
+
   const login = useCallback(async ({ phone, code, enterprise_code, invitation_code: _invitation_code, remember: _remember }: LoginParams): Promise<LoginResult> => {
     const deviceId = getDeviceId();
 

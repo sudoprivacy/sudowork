@@ -384,7 +384,9 @@ export class MossSessionApi {
   private getWsUrlWithRefreshToken(wsUrl: string): string {
     try {
       const authStorage = ProcessConfig.getSync('eeclaw.authStorage');
-      if (authStorage?.refresh_token) {
+      // OAuth2 sessions hold the IdP's refresh token (or none), which moss
+      // cannot verify as a refresh JWT — never put it on the URL.
+      if (authStorage?.refresh_token && authStorage.session_type !== 'oauth2') {
         const separator = wsUrl.includes('?') ? '&' : '?';
         return `${wsUrl}${separator}refresh_token=${encodeURIComponent(authStorage.refresh_token)}`;
       }

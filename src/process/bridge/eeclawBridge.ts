@@ -12,6 +12,36 @@ import { resetConversationProvider } from '../providers';
 
 let refreshPromise: Promise<string> | null = null;
 
+// Serializes every mutation of eeclaw.authStorage (login, logout, refresh).
+// Without this, a logout/login race can persist an already-revoked token as
+// "current", permanently breaking session resume (see issue #849).
+let authStorageWriteLock: Promise<unknown> = Promise.resolve();
+
+export function withAuthStorageLock<T>(fn: () => Promise<T>): Promise<T> {
+  const run: Promise<T> = authStorageWriteLock.then(
+    (): Promise<T> => fn(),
+    (): Promise<T> => fn()
+  );
+  authStorageWriteLock = run.catch((): undefined => undefined);
+  return run;
+}
+
+// Emitted at most once per window so a burst of 401s doesn't spam the renderer.
+let lastAuthRequiredAt = 0;
+const AUTH_REQUIRED_EMIT_INTERVAL_MS = 30_000;
+
+function emitAuthRequired(reason: 'no_refresh_token' | 'refresh_failed'): void {
+  const now = Date.now();
+  if (now - lastAuthRequiredAt < AUTH_REQUIRED_EMIT_INTERVAL_MS) return;
+  lastAuthRequiredAt = now;
+  mainWarn('eeclawBridge', `Auth required (${reason}) — prompting re-login`);
+  try {
+    ipcBridge.eeclaw.authRequired.emit({ reason });
+  } catch (e) {
+    mainWarn('eeclawBridge', 'Failed to emit authRequired event:', e);
+  }
+}
+
 export async function getValidToken(forceRefresh = false): Promise<string> {
   const authStorage = ProcessConfig.getSync('eeclaw.authStorage');
   const serverUrl = ProcessConfig.getSync('eeclaw.serverUrl');
@@ -38,14 +68,18 @@ export async function getValidToken(forceRefresh = false): Promise<string> {
     return refreshPromise;
   }
 
-  mainLog('eeclawBridge', `[getValidToken] ${forceRefresh ? 'Force refresh requested' : `Token expired (remaining=${Math.round(remainingMs / 1000)}s)`}, starting refresh (refresh_token=${refresh_token ? refresh_token.slice(0, 20) + '...' : 'NONE'})`);
+  // Non-refreshable session (e.g. OAuth2 where the IdP issued no refresh
+  // token): there is nothing to retry — surface a single re-login prompt
+  // instead of looping on "No refresh token available".
+  if (!refresh_token) {
+    emitAuthRequired('no_refresh_token');
+    throw new Error('AUTH_REQUIRED: session is not refreshable, please sign in again');
+  }
+
+  mainLog('eeclawBridge', `[getValidToken] ${forceRefresh ? 'Force refresh requested' : `Token expired (remaining=${Math.round(remainingMs / 1000)}s)`}, starting refresh (refresh_token=${refresh_token.slice(0, 20)}...)`);
 
   refreshPromise = (async () => {
     try {
-      if (!refresh_token) {
-        throw new Error('No refresh token available');
-      }
-
       // OAuth2 sessions send the provider refresh_token inside a generic `params`
       // dict (moss forwards it to the credential script); other sessions send the
       // moss refresh_token at the top level as before.
@@ -93,7 +127,7 @@ export async function getValidToken(forceRefresh = false): Promise<string> {
                 session_type: latestAuth.session_type,
               };
               mainLog('eeclawBridge', `[getValidToken] Retry refresh successful! new_expires_at=${newAuthStorage.expires_at}`);
-              await ProcessConfig.set('eeclaw.authStorage', newAuthStorage);
+              await withAuthStorageLock(() => ProcessConfig.set('eeclaw.authStorage', newAuthStorage));
               setCachedAuthToken(retryData.access_token);
               try {
                 ipcBridge.eeclaw.tokenRefreshed.emit({
@@ -112,6 +146,11 @@ export async function getValidToken(forceRefresh = false): Promise<string> {
           }
         }
         mainWarn('eeclawBridge', `[getValidToken] Refresh failed: status=${response.status}, error=${data?.error || 'unknown'}`);
+        // The server definitively rejected the refresh (not a network blip) —
+        // the session is dead and only an interactive re-login can recover it.
+        if (response.status === 401 || data?.error === 'Invalid refresh token') {
+          emitAuthRequired('refresh_failed');
+        }
         throw new Error(data?.error || 'token_refresh_failed');
       }
 
@@ -125,7 +164,7 @@ export async function getValidToken(forceRefresh = false): Promise<string> {
 
       mainLog('eeclawBridge', `[getValidToken] Refresh successful! new_expires_at=${newAuthStorage.expires_at}, new_refresh_token=${newAuthStorage.refresh_token ? newAuthStorage.refresh_token.slice(0, 20) + '...' : 'NONE'}`);
 
-      await ProcessConfig.set('eeclaw.authStorage', newAuthStorage);
+      await withAuthStorageLock(() => ProcessConfig.set('eeclaw.authStorage', newAuthStorage));
       setCachedAuthToken(data.access_token);
 
       // Notify renderer process about the refreshed token
@@ -255,15 +294,17 @@ export function initEeclawBridge(): void {
       // Save server URL and auth storage to ProcessConfig
       // 将服务器 URL 和认证存储保存到 ProcessConfig
       const sessionType: 'password' | 'api_key' | 'oauth2' = body.grant_type === 'oauth2' ? 'oauth2' : body.grant_type === 'api_key' ? 'api_key' : 'password';
-      await ProcessConfig.set('eeclaw.serverUrl', serverUrl);
-      await ProcessConfig.set('eeclaw.authStorage', {
-        access_token: data.access_token,
-        refresh_token: data.refresh_token,
-        expires_at: Date.now() + (data.expires_in || 3600) * 1000,
-        device_id: deviceId,
-        session_type: sessionType,
+      await withAuthStorageLock(async () => {
+        await ProcessConfig.set('eeclaw.serverUrl', serverUrl);
+        await ProcessConfig.set('eeclaw.authStorage', {
+          access_token: data.access_token,
+          refresh_token: data.refresh_token,
+          expires_at: Date.now() + (data.expires_in || 3600) * 1000,
+          device_id: deviceId,
+          session_type: sessionType,
+        });
+        await ProcessConfig.set('eeclaw.localModeAvailable', localModeAvailable);
       });
-      await ProcessConfig.set('eeclaw.localModeAvailable', localModeAvailable);
 
       // Update enterprise cache for synchronous access
       // 更新企业配置缓存以供同步访问
@@ -420,32 +461,38 @@ export function initEeclawBridge(): void {
   });
 
   ipcBridge.eeclaw.logout.provider(async () => {
-    try {
-      const serverUrl = ProcessConfig.getSync('eeclaw.serverUrl');
-      const authStorage = ProcessConfig.getSync('eeclaw.authStorage');
+    // The whole revoke-then-clear sequence holds the auth storage lock: the
+    // token snapshot, the server-side revocation and the local clear must not
+    // interleave with a concurrent login/refresh write, otherwise a revoked
+    // token can survive as the persisted "current" token (issue #849).
+    await withAuthStorageLock(async () => {
+      try {
+        const serverUrl = ProcessConfig.getSync('eeclaw.serverUrl');
+        const authStorage = ProcessConfig.getSync('eeclaw.authStorage');
 
-      if (serverUrl && authStorage?.access_token) {
-        await fetch(`${serverUrl}/api/v1/auth/logout`, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${authStorage.access_token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            refresh_token: authStorage.refresh_token || undefined,
-          }),
-          signal: AbortSignal.timeout(5000),
-        }).catch((err) => mainWarn('eeclawBridge', 'Logout request failed:', err));
+        if (serverUrl && authStorage?.access_token) {
+          await fetch(`${serverUrl}/api/v1/auth/logout`, {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${authStorage.access_token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              refresh_token: authStorage.refresh_token || undefined,
+            }),
+            signal: AbortSignal.timeout(5000),
+          }).catch((err) => mainWarn('eeclawBridge', 'Logout request failed:', err));
+        }
+      } finally {
+        // Always clear local state even if server request fails
+        await ProcessConfig.set('eeclaw.authStorage', null);
+        await ProcessConfig.set('eeclaw.localModeAvailable', null);
+        setCachedAuthToken('');
+        setCachedLocalModeAvailable(null);
+        resetConversationProvider();
+        mainLog('eeclawBridge', 'Logged out, local storage cleared');
       }
-    } finally {
-      // Always clear local state even if server request fails
-      await ProcessConfig.set('eeclaw.authStorage', null);
-      await ProcessConfig.set('eeclaw.localModeAvailable', null);
-      setCachedAuthToken('');
-      setCachedLocalModeAvailable(null);
-      resetConversationProvider();
-      mainLog('eeclawBridge', 'Logged out, local storage cleared');
-    }
+    });
     return { success: true, data: {} };
   });
 

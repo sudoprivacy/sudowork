@@ -146,7 +146,9 @@ export class RemoteConversationProvider implements IConversationProvider {
         workspace: params.extra?.workspace,
         backend: 'remote-agent',
         mossServerUrl: this.config.mossServerUrl,
-        authToken: this.config.authToken,
+        // Deliberately no authToken here: persisted session tokens outlive
+        // logins and resurface revoked (issue #849). Connections always read
+        // the current auth storage instead.
         runtimeType: this.config.runtimeType,
         agentName: params.extra?.agentName || params.extra?.presetAssistantId,
         presetAssistantId: params.extra?.presetAssistantId,
@@ -382,7 +384,9 @@ export class RemoteConversationProvider implements IConversationProvider {
         ...existingExtra,
         backend: 'remote-agent',
         mossServerUrl: this.config.mossServerUrl,
-        authToken: this.config.authToken,
+        // Scrub any legacy pinned token from existing records — persisted
+        // session tokens outlive logins and resurface revoked (issue #849).
+        authToken: undefined,
         runtimeType: this.config.runtimeType,
         agentName: session.assistantName || session.assistant_name,
         sessionMode: 'remote',
