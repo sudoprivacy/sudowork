@@ -109,6 +109,8 @@
   "closeToTray": "トレイに最小化",
   "showTokenUsageBadges": "Token / ポイント使用量を表示",
   "showTokenUsageBadgesDesc": "各返信の下にこのターンの Token とポイント消費を表示します",
+  "showToolCalls": "ツール呼び出しを表示",
+  "showToolCallsDesc": "会話ストリームにツール呼び出しの詳細を表示します。オフにしてもファイル変更の概要は表示されます",
   "avatarEnabled": "フローティング アバター",
   "avatarEnabledDesc": "現在の会話状態を反映するフローティング デスクトップ コンパニオンを表示",
   "gemini": "Gemini",

@@ -32,6 +32,14 @@ export interface TenantConfig {
    * Moss admin; enterprise mode only. null/undefined → enabled (default true).
    */
   client_cron_enabled?: boolean | null;
+  /**
+   * 企业版客户端对话流中是否默认显示工具调用。由 Moss 管理端控制，仅为默认值，
+   * 客户端用户可在本地设置中覆盖；null/undefined 视为显示（默认 true）。
+   * Default for whether the enterprise client shows tool calls in the chat
+   * stream. Controlled by the Moss admin as a default only — client users may
+   * override locally. null/undefined → shown (default true).
+   */
+  client_show_tool_calls?: boolean | null;
 }
 
 /**
@@ -59,6 +67,7 @@ export const DEFAULT_TENANT_CONFIG: Required<TenantConfig> = {
   about_name: 'SudoWork',
   app_company_name: '北京数牍科技有限公司',
   client_cron_enabled: true,
+  client_show_tool_calls: true,
 };
 
 export function resolveTenantConfig(config?: TenantConfigInput | null): Required<TenantConfig> {
@@ -71,5 +80,7 @@ export function resolveTenantConfig(config?: TenantConfigInput | null): Required
     app_company_name: (config?.app_company_name as string | undefined) || DEFAULT_TENANT_CONFIG.app_company_name,
     // Only an explicit `false` disables cron; null/undefined → default on.
     client_cron_enabled: config?.client_cron_enabled === false ? false : true,
+    // Only an explicit `false` hides tool calls; null/undefined → default shown.
+    client_show_tool_calls: config?.client_show_tool_calls === false ? false : true,
   };
 }

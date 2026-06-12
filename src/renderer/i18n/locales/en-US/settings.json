@@ -111,6 +111,8 @@
   "closeToTray": "Close to Tray",
   "showTokenUsageBadges": "Show token / points usage",
   "showTokenUsageBadgesDesc": "Show per-turn token and points usage below each assistant response",
+  "showToolCalls": "Show tool calls",
+  "showToolCallsDesc": "Show tool call details in the chat stream; file change summaries stay visible when off",
   "avatarEnabled": "Floating avatar",
   "avatarEnabledDesc": "Show a floating desktop companion that reflects your active conversation",
   "gemini": "Gemini",
