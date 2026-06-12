@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Popover } from '@arco-design/web-react';
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -12,6 +11,7 @@ import type { TokenUsageData } from '@/common/storage';
 
 // 从 modelContextLimits 导入默认上下文限制
 import { DEFAULT_CONTEXT_LIMIT } from '@/renderer/utils/modelContextLimits';
+import { Tooltip } from '@arco-design/web-react';
 
 interface ContextUsageIndicatorProps {
   tokenUsage: TokenUsageData | null;
@@ -69,16 +69,8 @@ const ContextUsageIndicator: React.FC<ContextUsageIndicatorProps> = ({ tokenUsag
     return 'var(--color-fill-3)';
   };
 
-  const popoverContent = (
-    <div className='p-8px min-w-160px'>
-      <div className='text-14px font-medium text-t-primary'>
-        {percentage.toFixed(1)}% · {displayTotal} / {displayLimit} {t('conversation.contextUsage.contextUsed', 'context used')}
-      </div>
-    </div>
-  );
-
   return (
-    <Popover content={popoverContent} position='top' trigger='hover' className='context-usage-popover'>
+    <Tooltip content={`${percentage.toFixed(1)}% · ${displayTotal} / ${displayLimit} ${t('conversation.contextUsage.contextUsed', 'context used')}`} position='top' className='context-usage-popover'>
       <div className={`context-usage-indicator cursor-pointer flex items-center justify-center ${className}`} style={{ width: size, height: size }}>
         <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ transform: 'rotate(-90deg)' }}>
           {/* 背景圆环 */}
@@ -87,7 +79,7 @@ const ContextUsageIndicator: React.FC<ContextUsageIndicatorProps> = ({ tokenUsag
           <circle cx={size / 2} cy={size / 2} r={radius} fill='none' stroke={getStrokeColor()} strokeWidth={strokeWidth} strokeLinecap='round' strokeDasharray={circumference} strokeDashoffset={strokeDashoffset} style={{ transition: 'stroke-dashoffset 0.3s ease, stroke 0.3s ease' }} />
         </svg>
       </div>
-    </Popover>
+    </Tooltip>
   );
 };
 

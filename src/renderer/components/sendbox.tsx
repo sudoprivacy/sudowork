@@ -514,7 +514,7 @@ const SendBox: React.FC<{
       shape='circle'
       type='primary'
       disabled={isButtonDisabled}
-      icon={<ArrowUp theme='filled' size='14' fill='white' strokeWidth={4} />}
+      icon={<ArrowUp theme='filled' fill='white' strokeWidth={4} />}
       onClick={() => {
         sendMessageHandler();
       }}
