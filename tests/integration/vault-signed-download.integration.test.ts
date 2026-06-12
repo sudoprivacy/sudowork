@@ -1,19 +1,25 @@
 /**
  * Integration test: vault signed-download + cluster startup regression gate.
  *
- * Real 3-step user journey, not single-call assertions:
+ * Real 2-step user journey on the exact path an end-user takes, not
+ * single-call assertions:
  *
  *   1. Run `scripts/download-nexus-vfs.js` against the live COS mirror.
- *      Produces `~/.nexus-vfs/plugins/{libnexus_vault.*,*.sig}` on disk —
- *      side effect feeds step 3.
- *   2. `cargo install` `nexusd-cluster` straight from nexus-vfs `main`.
- *      Need a cluster binary that includes the signature-verify code path
- *      (post #52) — the v0.2.0 binary already shipped via COS predates it
- *      and would happily load an unsigned dylib, giving us a false-green.
- *   3. Boot the freshly-built cluster pointed at the plugin-dir produced
- *      in step 1. The cluster reads each `.dylib`/`.so`/`.dll`, finds its
- *      sibling `.sig`, Ed25519-verifies against `trusted_keys/nexus-team.pub`
- *      embedded at compile time, and only then dlopens it.
+ *      Produces `~/.nexus-vfs/bin/nexusd-cluster` AND
+ *      `~/.nexus-vfs/plugins/{libnexus_vault.*,*.sig}` on disk —
+ *      both directly feed step 2.
+ *   2. Boot the just-downloaded cluster pointed at the just-downloaded
+ *      plugin-dir. `PluginLoader::load` reads each `.so/.dylib/.dll`,
+ *      finds its sibling `.sig`, Ed25519-verifies against
+ *      `trusted_keys/nexus-team.pub` embedded at cluster compile time,
+ *      and only then dlopens it.
+ *
+ * SSOT for the cluster binary: COS. We deliberately do NOT cargo-install
+ * from nexus-vfs `main` — that would mean sudowork CI builds cluster from
+ * source, duplicating what nexus-vfs CI already builds + tests on every
+ * tag. The version pin in `runtime-versions.json` is what determines
+ * which cluster gets exercised; a cluster regression on `main` is
+ * nexus-vfs CI's job to catch, not ours.
  *
  * Asserted on the cluster's startup log:
  *   - `plugin signature verified` — the verify path actually ran and
@@ -21,18 +27,20 @@
  *   - `service plugin loaded + registered name="password-vault"` — the
  *     post-verify dlopen + service-registry handoff still works.
  *
- * Failure modes this catches that the file-layout-only version did not:
- *   - cluster binary build is broken on `main`
- *   - ABI version skew between cluster's `nexus-plugin-abi` and the dylib's
- *   - sign step in nexus CI silently produced a non-verifying signature
- *     (would never have been caught by length-only checks)
+ * Failure modes this catches:
+ *   - sudowork bumps `runtime-versions.json` without updating SHA256SUMS
+ *   - nexus release CI publishes an archive without the `.sig`
+ *   - sign step silently emits a non-verifying signature (length-only
+ *     check on the .sig file would still pass — only end-to-end verify
+ *     catches a sig that's well-formed but doesn't validate)
  *   - any platform-specific dynamic-linker regression that only shows up
- *     at dlopen time
+ *     at dlopen time on the runner OS
+ *   - the cluster's embedded pubkey drifts from the key nexus CI signs with
  *
  * Scoped to Linux x86_64 to keep CI cost in check — the verify code path
  * is platform-independent (parse pubkey → Ed25519 verify → dlopen), so
  * proving it works on one runner is enough signal. macOS / Windows
- * coverage is the kernel-team's local E2E gate before tagging.
+ * coverage is the kernel-team's local pre-tag E2E gate.
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -44,6 +52,11 @@ import * as path from 'path';
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const NEXUS_VFS_HOME = path.join(os.homedir(), '.nexus-vfs');
 const PLUGIN_DIR = path.join(NEXUS_VFS_HOME, 'plugins');
+const BIN_DIR = path.join(NEXUS_VFS_HOME, 'bin');
+
+function clusterBinaryName(): string {
+  return process.platform === 'win32' ? 'nexusd-cluster.exe' : 'nexusd-cluster';
+}
 
 // Platform-specific dylib name. Must match `getVaultDylibName` in
 // scripts/download-nexus-vfs.js — drift here means a silent test pass, so
@@ -71,10 +84,11 @@ let dataDir: string;
 
 describe('vault signed-download + cluster startup', () => {
   beforeAll(() => {
-    // ── Step 1: download script populates plugin-dir ───────────────
-    // Cold start so the script's full path (download + SHA verify +
-    // extract + place files) actually runs. A leftover ready-marker
-    // would skip everything and we'd be testing nothing.
+    // ── Step 1: download script populates bin + plugin-dir ─────────
+    // Cold start so the script's full path (download cluster + vault +
+    // SHA verify both + extract dylib + extract `.sig`) actually runs.
+    // A leftover ready-marker would skip everything and we'd be testing
+    // nothing.
     if (fs.existsSync(NEXUS_VFS_HOME)) {
       fs.rmSync(NEXUS_VFS_HOME, { recursive: true, force: true });
     }
@@ -84,22 +98,11 @@ describe('vault signed-download + cluster startup', () => {
     );
     dylibPath = path.join(PLUGIN_DIR, dylibName());
     sigPath = path.join(PLUGIN_DIR, `${dylibName()}.sig`);
-
-    // ── Step 2: cargo-install a cluster with the verify code ───────
-    // The downloaded v0.2.0 cluster predates signature verification —
-    // using it here would silently load an unsigned dylib and the test
-    // would falsely pass. cargo-install from nexus-vfs `main` always
-    // includes the verify path that we are gating on.
-    const cargoBin = path.join(os.homedir(), '.cargo', 'bin');
-    execSync(
-      `cargo install --quiet --git https://github.com/nexi-lab/nexus-vfs --bin nexusd-cluster nexus-cluster`,
-      { stdio: 'inherit', timeout: 900_000 },
-    );
-    clusterBin = path.join(cargoBin, 'nexusd-cluster');
+    clusterBin = path.join(BIN_DIR, clusterBinaryName());
     if (!fs.existsSync(clusterBin)) {
-      throw new Error(`nexusd-cluster not found at ${clusterBin} after cargo install`);
+      throw new Error(`nexusd-cluster not found at ${clusterBin} after download`);
     }
-  }, 1_200_000);
+  }, 240_000);
 
   afterAll(() => {
     if (clusterProc && !clusterProc.killed) {
@@ -110,12 +113,14 @@ describe('vault signed-download + cluster startup', () => {
     }
   });
 
-  it('Step 1 result — dylib + 64-byte sig landed in plugin-dir', () => {
+  it('Step 1 result — cluster binary + dylib + 64-byte sig landed', () => {
     // The download script's SHA256 check already aborts on hash mismatch
     // before extraction, so files being here at all means the archive
     // matched the pinned sums. We additionally pin the sig length to
     // SIGNATURE_LENGTH (64) — pinned in `nexus_plugin_abi::signing` — to
     // catch SSOT drift across the sign step + the verify step.
+    expect(fs.existsSync(clusterBin), `${clusterBin} missing`).toBe(true);
+
     expect(fs.existsSync(dylibPath), `${dylibPath} missing`).toBe(true);
     expect(fs.statSync(dylibPath).size).toBeGreaterThan(1_000_000);
 
@@ -123,10 +128,9 @@ describe('vault signed-download + cluster startup', () => {
     expect(fs.statSync(sigPath).size).toBe(64);
   });
 
-  it('Step 3 — cluster verifies the sig and loads the plugin at boot', async () => {
-    // Step 1's files + step 2's verify-enabled binary are the inputs.
-    // The cluster startup is the operation under test; its log is the
-    // assertion surface.
+  it('Step 2 — cluster verifies the sig and loads the plugin at boot', async () => {
+    // Step 1 produced everything we need. The cluster startup is the
+    // operation under test; its log is the assertion surface.
     dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cluster-data-'));
     const logPath = path.join(os.tmpdir(), `cluster-${Date.now()}.log`);
     const logFd = fs.openSync(logPath, 'w');
