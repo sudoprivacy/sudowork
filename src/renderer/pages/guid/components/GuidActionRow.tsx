@@ -135,7 +135,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({ files, onFilesUploaded, o
 
           {onTriggerSkillSelector && (
             <Tooltip content={t('guid.addSkillTooltip', { defaultValue: '添加技能' })} position='top'>
-              <span className='ml-8px'>
+              <span className='ml-2'>
                 <ActionChip icon={<span className='text-14px font-700 leading-none'>@</span>} label={t('conversation.welcome.skill', { defaultValue: '技能' })} onClick={onTriggerSkillSelector} />
               </span>
             </Tooltip>

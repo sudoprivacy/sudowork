@@ -791,7 +791,6 @@ const AcpSendBox: React.FC<{
   const { openFileSelector, onSlashBuiltinCommand } = useOpenFileSelector({
     onFilesSelected: appendSelectedFiles,
   });
-  const [isPlusDropdownOpen, setIsPlusDropdownOpen] = useState(false);
   const [bdpanSelectorVisible, setBdpanSelectorVisible] = useState(false);
   const [pwdLoginModal, setPwdLoginModal] = useState<{ visible: boolean; title: string }>({ visible: false, title: '' });
   const [messageApi, messageContextHolder] = Message.useMessage();
@@ -859,6 +858,8 @@ const AcpSendBox: React.FC<{
     }
   };
 
+  const selectedFileCount = filterUserVisibleFiles(uploadFile).length + filterUserVisibleAtPath(atPath).filter((item) => (typeof item === 'string' ? true : item.isFile)).length;
+
   return (
     <div className='max-w-800px w-full mx-auto flex flex-col mt-auto mb-16px'>
       {messageContextHolder}
@@ -878,10 +879,9 @@ const AcpSendBox: React.FC<{
         defaultMultiLine={true}
         lockMultiLine={true}
         tools={
-          <div className='flex items-center gap-4px'>
+          <div className='flex items-center gap-3'>
             <Dropdown
-              trigger='hover'
-              onVisibleChange={setIsPlusDropdownOpen}
+              trigger='click'
               droplist={
                 <Menu
                   className='min-w-200px'
@@ -894,13 +894,13 @@ const AcpSendBox: React.FC<{
                   }}
                 >
                   <Menu.Item key='file'>
-                    <div className='flex items-center gap-8px'>
+                    <div className='flex items-center gap-2'>
                       <UploadOne theme='outline' size='16' fill={iconColors.secondary} style={{ lineHeight: 0 }} />
                       <span>{t('conversation.welcome.downloadLocalFile')}</span>
                     </div>
                   </Menu.Item>
                   <Menu.Item key='bdpan'>
-                    <div className='flex items-center gap-8px'>
+                    <div className='flex items-center gap-2'>
                       <img src={BdpanLogo} alt='Bdpan' style={{ width: 16, height: 16 }} />
                       <span>{t('conversation.welcome.downloadBdpanFile')}</span>
                     </div>
@@ -908,8 +908,9 @@ const AcpSendBox: React.FC<{
                 </Menu>
               }
             >
-              <span>
-                <Button type='secondary' shape='circle' className={isPlusDropdownOpen ? 'rotate-45' : ''} icon={<Plus theme='outline' size='14' strokeWidth={2} fill={iconColors.primary} />} />
+              <span className='relative'>
+                <Button shape='circle' type='secondary' title={t('conversation.welcome.downloadLocalFile')} icon={<Plus theme='outline' strokeWidth={4} fill='white' />} />
+                {selectedFileCount > 0 && <span className='absolute -right-3px -top-3px flex-center min-w-14px h-14px rounded-full bg-[var(--ui-accent-orange)] px-3px text-9px text-white font-600 pointer-events-none'>{selectedFileCount}</span>}
               </span>
             </Dropdown>
             <AgentModeSelector backend={backend} conversationId={conversation_id} compact initialMode={sessionMode} compactLeadingIcon={<Shield theme='outline' size='14' fill={iconColors.secondary} />} modeLabelFormatter={(mode) => t(`agentMode.${mode.value}`, { defaultValue: mode.label })} compactLabelPrefix={t('agentMode.permission')} hideCompactLabelPrefixOnMobile />

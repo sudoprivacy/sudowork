@@ -404,7 +404,7 @@ const SendBox: React.FC<{
   // Skill trigger button - shown when running in Electron desktop
   const skillTriggerButton = isElectronDesktop() ? (
     <Tooltip content={t('conversation.welcome.addSkill', { defaultValue: '添加技能 / 文件' })} position='top'>
-      <span className='inline-flex ml-8px'>
+      <span className='inline-flex ml-3'>
         <ActionChip icon={<span className='text-14px font-700 leading-none'>@</span>} label={t('messages.skills.triggerLabel', { defaultValue: 'Skills / Files' })} onClick={handleTriggerSkillSelector} />
       </span>
     </Tooltip>

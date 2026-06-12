@@ -334,7 +334,7 @@ const HTMLPreview: React.FC<HTMLPreviewProps> = ({ content, filePath, hideToolba
 
             {/* 选中的元素路径 */}
             {selectedElement && (
-              <div className='text-12px text-t-secondary ml-8px'>
+              <div className='text-12px text-t-secondary ml-2'>
                 {t('preview.html.selectedLabel')} <code className='bg-bg-3 px-4px rd-2px'>{selectedElement.path}</code>
               </div>
             )}
