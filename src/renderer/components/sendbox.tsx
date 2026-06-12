@@ -53,6 +53,8 @@ const SendBox: React.FC<{
   supportedExts?: string[];
   defaultMultiLine?: boolean;
   lockMultiLine?: boolean;
+  /** Whether an element (e.g. ThoughtDisplay) is attached above the box, squaring the top corners */
+  topAttached?: boolean;
   sendButtonPrefix?: React.ReactNode;
   slashCommands?: SlashCommandItem[];
   onSlashBuiltinCommand?: (name: string) => void;
@@ -63,7 +65,7 @@ const SendBox: React.FC<{
   workspaceFiles?: WorkspaceFileItem[];
   /** Called when a file is selected via @ selector, allowing parent to track the file */
   onAtFileSelected?: (file: WorkspaceFileItem) => void;
-}> = ({ onSend, onStop, prefix, className, loading, tools, disabled, placeholder, value: input = '', onChange: setInput = constVoid, onFilesAdded, supportedExts = allSupportedExts, defaultMultiLine = false, lockMultiLine = false, sendButtonPrefix, slashCommands = [], onSlashBuiltinCommand, onSkillsChange, initialSelectedSkills = [], workspaceFiles, onAtFileSelected }) => {
+}> = ({ onSend, onStop, prefix, className, loading, tools, disabled, placeholder, value: input = '', onChange: setInput = constVoid, onFilesAdded, supportedExts = allSupportedExts, defaultMultiLine = false, lockMultiLine = false, topAttached = false, sendButtonPrefix, slashCommands = [], onSlashBuiltinCommand, onSkillsChange, initialSelectedSkills = [], workspaceFiles, onAtFileSelected }) => {
   const layout = useLayoutContext();
   const isMobile = layout?.isMobile ?? false;
   const { t } = useTranslation();
@@ -529,15 +531,17 @@ const SendBox: React.FC<{
         className={`relative p-16px border-3 b bg-dialog-fill-0 b-solid flex flex-col ${slashController.isOpen || skillSelectorController.isOpen ? 'overflow-visible' : 'overflow-hidden'} ${isFileDragging ? 'b-dashed' : ''}`}
         style={{
           transition: 'box-shadow 0.25s ease, border-color 0.25s ease',
-          borderRadius: '0 0 20px 20px',
+          borderRadius: topAttached ? '0 0 20px 20px' : '20px',
           ...(isFileDragging
             ? {
                 backgroundColor: 'rgba(var(--ui-accent-orange-rgb), 0.08)',
                 borderColor: 'rgba(var(--ui-accent-orange-rgb), 0.42)',
                 borderWidth: '1px',
+                borderTopWidth: topAttached ? 0 : '1px',
               }
             : {
                 borderWidth: '1px',
+                borderTopWidth: topAttached ? 0 : '1px',
                 borderColor: isInputActive ? activeBorderColor : inactiveBorderColor,
                 boxShadow: isInputActive ? activeShadow : 'none',
               }),

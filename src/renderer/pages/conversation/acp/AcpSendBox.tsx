@@ -872,6 +872,7 @@ const AcpSendBox: React.FC<{
         initialSelectedSkills={selectedSkills}
         loading={running || aiProcessing}
         disabled={false}
+        topAttached={Boolean(thought?.subject) || running || aiProcessing}
         placeholder={t('acp.sendbox.placeholder', { backend: agentName || backend, defaultValue: `Send message to {{backend}}...` })}
         onStop={handleStop}
         className='z-10'
