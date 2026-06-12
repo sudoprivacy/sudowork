@@ -61,6 +61,10 @@ jobs:
         run: bun install --no-frozen-lockfile
 
       - name: Run vault signed-download integration test
-        # Real download from the live COS mirror. Test plan + scope:
-        # tests/integration/vault-signed-download.integration.test.ts.
+        # Real 2-step user journey: download cluster + vault dylib + .sig
+        # → boot the just-downloaded cluster against the just-downloaded
+        # plugin-dir → assert log contains "plugin signature verified"
+        # and the post-verify service registration. Full plan + design
+        # notes (incl. why we deliberately do NOT cargo-install from
+        # nexus-vfs main) in tests/integration/vault-signed-download.integration.test.ts.
         run: bunx vitest run tests/integration/vault-signed-download.integration.test.ts
