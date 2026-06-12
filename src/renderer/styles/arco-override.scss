@@ -36,6 +36,16 @@ body {
   }
 }
 
+// ---------- Tooltip / Popover / Popconfirm ----------
+// Unify popup corner radius. Tooltip already follows --border-radius-small (8px),
+// but Popover/Popconfirm default to --border-radius-medium (4px) which looks too
+// square next to the rest of the rounded UI. Pin all popup surfaces to 12px.
+.arco-tooltip-content,
+.arco-popover-content,
+.arco-popconfirm-content {
+  border-radius: 12px;
+}
+
 // ---------- Collapse ----------
 .arco-collapse {
   border: none;
@@ -83,9 +93,8 @@ body {
 .aionui-modal {
   .arco-modal-content {
     background: var(--bg-1) !important;
-    // Match the 16px radius already set on the outer .arco-modal / wrapper so the
-    // visible (content) corner isn't clipped smaller than the box behind it.
     border-radius: 16px !important;
+    padding: 16px;
   }
 
   &-header {

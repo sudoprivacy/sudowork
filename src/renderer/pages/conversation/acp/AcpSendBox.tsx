@@ -986,7 +986,7 @@ const AcpSendBox: React.FC<{
         onSkillsChange={(skills) => {
           setSelectedSkills(skills);
         }}
-        sendButtonPrefix={tokenUsage ? <ContextUsageIndicator tokenUsage={tokenUsage} contextLimit={contextLimit > 0 ? contextLimit : undefined} size={24} /> : undefined}
+        sendButtonPrefix={tokenUsage ? <ContextUsageIndicator tokenUsage={tokenUsage} contextLimit={contextLimit > 0 ? contextLimit : undefined} size={18} /> : undefined}
         workspaceFiles={workspaceFiles}
         onAtFileSelected={(file) => {
           const item: FileOrFolderItem = {
