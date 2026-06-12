@@ -938,6 +938,11 @@ export const systemSettings = {
   getShowTokenUsageBadges: bridge.buildProvider<boolean, void>('system-settings:get-show-token-usage-badges'),
   setShowTokenUsageBadges: bridge.buildProvider<void, { enabled: boolean }>('system-settings:set-show-token-usage-badges'),
   showTokenUsageBadgesChanged: bridge.buildEmitter<{ enabled: boolean }>('system-settings:show-token-usage-badges-changed'),
+  // 对话流工具调用显示开关；get 返回 null 表示未设置（跟随默认值），由渲染层解析
+  // Show-tool-calls toggle; get returns null when unset (follow default), resolved in the renderer
+  getShowToolCalls: bridge.buildProvider<boolean | null, void>('system-settings:get-show-tool-calls'),
+  setShowToolCalls: bridge.buildProvider<void, { enabled: boolean }>('system-settings:set-show-tool-calls'),
+  showToolCallsChanged: bridge.buildEmitter<{ enabled: boolean }>('system-settings:show-tool-calls-changed'),
   // Floating desktop avatar window — independent transparent BrowserWindow
   // that reflects active ACP conversation state. See src/process/avatarWindow.ts.
   getAvatarEnabled: bridge.buildProvider<boolean, void>('system-settings:get-avatar-enabled'),

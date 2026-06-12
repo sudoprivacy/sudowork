@@ -109,6 +109,8 @@
   "closeToTray": "트레이로 닫기",
   "showTokenUsageBadges": "Token / 포인트 사용량 표시",
   "showTokenUsageBadgesDesc": "각 응답 아래에 해당 턴의 Token 및 포인트 소비량을 표시합니다",
+  "showToolCalls": "도구 호출 표시",
+  "showToolCallsDesc": "대화 스트림에 도구 호출 세부 정보를 표시합니다. 끄더라도 파일 변경 요약은 계속 표시됩니다",
   "avatarEnabled": "플로팅 아바타",
   "avatarEnabledDesc": "현재 대화 상태를 반영하는 플로팅 데스크톱 컴패니언 표시",
   "gemini": "Gemini",

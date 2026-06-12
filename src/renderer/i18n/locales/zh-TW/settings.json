@@ -109,6 +109,8 @@
   "closeToTray": "關閉到托盤",
   "showTokenUsageBadges": "顯示 Token / 積分用量",
   "showTokenUsageBadgesDesc": "在每輪回覆下方顯示本輪 Token 與積分消耗",
+  "showToolCalls": "顯示工具調用",
+  "showToolCallsDesc": "在對話流中顯示工具調用詳情；關閉後仍保留檔案變更摘要",
   "avatarEnabled": "桌面 Avatar 浮動視窗",
   "avatarEnabledDesc": "在桌面顯示一個跟隨目前對話狀態的浮動夥伴",
   "gemini": "Gemini",

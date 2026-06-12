@@ -16,6 +16,7 @@ import { useTranslation } from 'react-i18next';
 import useSWR from 'swr';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
+import { useShowToolCalls } from '@/renderer/hooks/useShowToolCalls';
 import { useSettingsViewMode } from '../settingsViewContext';
 
 /** Default prompt timeout in seconds */
@@ -167,6 +168,22 @@ const SystemModalContent: React.FC = () => {
     ipcBridge.systemSettings.setShowTokenUsageBadges.invoke({ enabled: checked }).catch(() => {
       setShowTokenUsageBadges(!checked);
     });
+  }, []);
+
+  // 对话流工具调用显示开关。开关显示解析后的生效值（本地覆盖值 > 企业默认值 > 显示）；
+  // 首次切换即写入本地覆盖值，写入成功后通过 changed 事件回流到 hook。
+  // Show-tool-calls toggle. The switch displays the resolved effective value
+  // (local override > enterprise default > shown); the first toggle writes a
+  // local override, which flows back into the hook via the changed event.
+  const showToolCalls = useShowToolCalls();
+  const [showToolCallsPending, setShowToolCallsPending] = useState<boolean | null>(null);
+  const showToolCallsChecked = showToolCallsPending ?? showToolCalls;
+  const handleShowToolCallsChange = useCallback((checked: boolean) => {
+    setShowToolCallsPending(checked);
+    ipcBridge.systemSettings.setShowToolCalls
+      .invoke({ enabled: checked })
+      .catch(() => {})
+      .finally(() => setShowToolCallsPending(null));
   }, []);
 
   // 桌面 avatar 浮窗开关 / Floating desktop avatar toggle
@@ -328,6 +345,12 @@ const SystemModalContent: React.FC = () => {
             component: showTokenUsageBadgesLoading ? <div style={{ width: 44, height: 22 }} /> : <Switch checked={showTokenUsageBadges} onChange={handleShowTokenUsageBadgesChange} className='settings-accent-switch' style={showTokenUsageBadges ? { backgroundColor: 'var(--ui-accent-orange)' } : undefined} />,
           },
         ]),
+    {
+      key: 'showToolCalls',
+      label: t('settings.showToolCalls'),
+      hint: t('settings.showToolCallsDesc'),
+      component: <Switch checked={showToolCallsChecked} onChange={handleShowToolCallsChange} className='settings-accent-switch' style={showToolCallsChecked ? { backgroundColor: 'var(--ui-accent-orange)' } : undefined} />,
+    },
     {
       key: 'avatarEnabled',
       label: t('settings.avatarEnabled'),

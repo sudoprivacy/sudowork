@@ -40,6 +40,7 @@ import { copyText } from '@/renderer/utils/clipboard';
 import { IconCopy } from '@arco-design/web-react/icon';
 import { stripThinkTags, hasThinkTags } from '../utils/thinkTagFilter';
 import { NEXUS_FILES_MARKER } from '@/common/constants';
+import { useShowToolCalls } from '@/renderer/hooks/useShowToolCalls';
 import { shouldShowTimeSeparator } from '@/renderer/utils/messageTime';
 import MessageTimeSeparator from './MessageTimeSeparator';
 import MessageLoadingIndicator from './MessageLoadingIndicator';
@@ -132,6 +133,7 @@ const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = fal
   const { t } = useTranslation();
   const [contextMenu, setContextMenu] = React.useState<{ x: number; y: number; items: ContextMenuItem[] } | null>(null);
   const [showTokenUsageBadges, setShowTokenUsageBadges] = React.useState(false);
+  const showToolCalls = useShowToolCalls();
   // Track expanded/collapsed state for each tool_summary by id
   // 保存每个 tool_summary 的展开/折叠状态
   const [toolSummaryStates, setToolSummaryStates] = React.useState<Record<string, boolean>>({});
@@ -330,6 +332,12 @@ const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = fal
         pushFileDffChanges(parseDiff((message.content as TurnDiffContent).data.unified_diff));
         continue;
       }
+      // 关闭"显示工具调用"时隐藏工具消息（文件变更摘要与用户交互消息保留）
+      // Hide tool messages when "show tool calls" is off (file-change summaries
+      // and user-facing prompts stay visible)
+      if (!showToolCalls && (message.type === 'tool_call' || message.type === 'codex_tool_call')) {
+        continue;
+      }
       if (message.type === 'tool_group') {
         if (message.content.length === 1) {
           const writeFileResults = message.content.filter((item) => item.name === 'WriteFile' && item.resultDisplay && typeof item.resultDisplay === 'object' && 'fileDiff' in item.resultDisplay).map((item) => item.resultDisplay as WriteFileResult);
@@ -338,6 +346,7 @@ const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = fal
             continue;
           }
         }
+        if (!showToolCalls) continue;
         pushToolList(message);
         continue;
       }
@@ -347,6 +356,7 @@ const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = fal
           diffsChanges = [];
           continue;
         }
+        if (!showToolCalls) continue;
         pushToolList(message);
         continue;
       }
@@ -392,7 +402,7 @@ const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = fal
     }
 
     return withTimeSeparators;
-  }, [list, aiProcessing]);
+  }, [list, aiProcessing, showToolCalls]);
 
   // Use auto-scroll hook
   const { virtuosoRef, handleScroll, handleAtBottomStateChange, handleFollowOutput, handleScrollerRef, showScrollButton, scrollToBottom, hideScrollButton, bottomSpacerHeight } = useAutoScroll({

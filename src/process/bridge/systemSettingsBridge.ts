@@ -87,6 +87,22 @@ export function initSystemSettingsBridge(): void {
     ipcBridge.systemSettings.showTokenUsageBadgesChanged.emit({ enabled });
   });
 
+  // 获取"显示工具调用"开关；null 表示未设置（跟随默认值：个人版显示，企业版跟随 Moss 租户配置），由渲染层解析
+  // Get "show tool calls"; null = unset (follow default: consumer shows, enterprise follows
+  // the Moss tenant config), resolved in the renderer
+  ipcBridge.systemSettings.getShowToolCalls.provider(async () => {
+    const value = await ProcessConfig.get('system.showToolCalls');
+    return value ?? null;
+  });
+
+  // 设置"显示工具调用"，首次切换即写入显式本地覆盖值，只影响 UI 显示
+  // Set "show tool calls"; the first toggle writes an explicit local override. UI display only.
+  ipcBridge.systemSettings.setShowToolCalls.provider(async ({ enabled }) => {
+    userBreadcrumbs.settingsChange('showToolCalls', enabled);
+    await ProcessConfig.set('system.showToolCalls', enabled);
+    ipcBridge.systemSettings.showToolCallsChanged.emit({ enabled });
+  });
+
   // 获取 avatar 浮窗开关 / Get floating avatar window enabled setting
   ipcBridge.systemSettings.getAvatarEnabled.provider(async () => {
     const value = await ProcessConfig.get('avatar.enabled');
