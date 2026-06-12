@@ -1,5 +1,4 @@
-import { AlarmClock, Down, Earth, Lightning, ListCheckbox, Logout, Plus, Robot, SettingTwo, Shield } from '@icon-park/react';
-import { IconHome } from '@arco-design/web-react/icon';
+import { AlarmClock, Down, Earth, Lightning, ListCheckbox, Logout, Plus, Return, Robot, SettingTwo, Shield } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { Suspense, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -362,7 +361,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
             {/* 返回按钮 */}
             <div className={classNames('flex items-center gap-10px px-4px py-10px rd-8px cursor-pointer transition-colors hover:bg-hover active:bg-fill-2', collapsed ? 'justify-center mr-2px' : 'ml-2px')} onClick={handleSettingsClick}>
               <div className='w-32px h-32px rd-50% bg-[var(--color-fill-3)] flex items-center justify-center text-t-primary text-14px font-bold shrink-0'>
-                <IconHome style={{ fontSize: 16 }} />
+                <Return theme='outline' size='16' fill={iconColors.primary} />
               </div>
               {!collapsed && (
                 <div className='flex-1 min-w-0'>

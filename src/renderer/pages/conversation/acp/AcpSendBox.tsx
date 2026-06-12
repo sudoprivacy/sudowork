@@ -732,7 +732,7 @@ const AcpSendBox: React.FC<{
 
     // Send message via ACP
     try {
-      const result = await ipcBridge.acpConversation.sendMessage.invoke({
+      await ipcBridge.acpConversation.sendMessage.invoke({
         input: message,
         msg_id,
         conversation_id,
@@ -909,11 +909,11 @@ const AcpSendBox: React.FC<{
               }
             >
               <span className='relative'>
-                <Button shape='circle' type='secondary' title={t('conversation.welcome.downloadLocalFile')} icon={<Plus theme='outline' strokeWidth={4} fill='white' />} />
+                <Button shape='circle' type='secondary' title={t('conversation.welcome.downloadLocalFile')} icon={<Plus theme='outline' strokeWidth={4} fill={iconColors.secondary} />} />
                 {selectedFileCount > 0 && <span className='absolute -right-3px -top-3px flex-center min-w-14px h-14px rounded-full bg-[var(--ui-accent-orange)] px-3px text-9px text-white font-600 pointer-events-none'>{selectedFileCount}</span>}
               </span>
             </Dropdown>
-            <AgentModeSelector backend={backend} conversationId={conversation_id} compact initialMode={sessionMode} compactLeadingIcon={<Shield theme='outline' fill={iconColors.secondary} />} modeLabelFormatter={(mode) => t(`agentMode.${mode.value}`, { defaultValue: mode.label })} compactLabelPrefix={t('agentMode.permission')} hideCompactLabelPrefixOnMobile />
+            <AgentModeSelector backend={backend} conversationId={conversation_id} compact initialMode={sessionMode} compactLeadingIcon={<Shield theme='outline' fill='currentColor' />} modeLabelFormatter={(mode) => t(`agentMode.${mode.value}`, { defaultValue: mode.label })} compactLabelPrefix={t('agentMode.permission')} hideCompactLabelPrefixOnMobile />
             <AcpConfigSelector conversationId={conversation_id} backend={backend} />
           </div>
         }
