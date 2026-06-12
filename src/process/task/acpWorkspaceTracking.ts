@@ -10,6 +10,10 @@ export const SCODE_COMPLETION_REMINDER = `<system-reminder>
 
 `;
 
+export function shouldRunCurrentTurnPostCleanup(pendingCurrentTurnPostCleanup: boolean): boolean {
+  return pendingCurrentTurnPostCleanup;
+}
+
 export function shouldSkipAcpWorkspaceTrackingPath(relativePath: string): boolean {
   const normalizedPath = relativePath.replace(/\\/g, '/');
   if (!normalizedPath || normalizedPath.startsWith('..') || nodePath.isAbsolute(normalizedPath)) return true;

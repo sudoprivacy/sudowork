@@ -101,6 +101,7 @@ const TARGET_TYPE_EXTENSIONS: Array<{ pattern: RegExp; extensions: string[] }> =
   { pattern: /\b(xlsx|excel|execl|spreadsheet)\b|表格/i, extensions: ['.xlsx'] },
   { pattern: /\b(csv)\b/i, extensions: ['.csv'] },
   { pattern: /\b(json)\b/i, extensions: ['.json'] },
+  { pattern: /\b(log|logs)\b|日志/i, extensions: ['.log'] },
   { pattern: /\b(html|webpage|website)\b|网页/i, extensions: ['.html', '.htm'] },
   { pattern: /\b(markdown|md)\b|Markdown/i, extensions: ['.md', '.markdown'] },
   { pattern: /\b(png|image|picture|photo)\b|图片|图像/i, extensions: ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg'] },

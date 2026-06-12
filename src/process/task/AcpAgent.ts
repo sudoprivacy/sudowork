@@ -44,7 +44,7 @@ import { injectSkillsDirectoryHint, prepareFirstMessageWithSkillsIndex } from '.
 import { AcpSkillManager } from './AcpSkillManager';
 import { archiveTurnFiles, cleanupIntermediateFiles, cleanupTrackedDraftsOnCancel, type TrackedTurnFile } from './draftsCleanup';
 import { detectBashDraftRestoreCommand, FileIntentClassifier, type BashDraftRestoreDetection, type FileIntentSource, type FileOperationIntent } from './FileIntentClassifier';
-import { SCODE_COMPLETION_REMINDER, shouldSkipAcpWorkspaceTrackingPath } from './acpWorkspaceTracking';
+import { SCODE_COMPLETION_REMINDER, shouldRunCurrentTurnPostCleanup, shouldSkipAcpWorkspaceTrackingPath } from './acpWorkspaceTracking';
 import { mergeScodeProxyModelInfo, isModelVisionCapable, getScodeProxyModelInfoSync } from '@process/services/scode/scodeProxyModels';
 import { installWorkspaceSkillsFromTrackedFiles } from './workspaceSkillInstaller';
 import { appendGeneratedFilesMarker, extractExtension, mimeForExtension, type GeneratedFileEntry } from '@/common/generatedFiles';
@@ -216,6 +216,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
   // Turn-level file tracking for precise cleanup on cancel
   private currentTurnFiles: Map<string, TrackedTurnFile> = new Map();
   private currentTurnProtectedFinalPaths = new Set<string>();
+  private pendingCurrentTurnPostCleanup = false;
   private readonly fileIntentClassifier = new FileIntentClassifier();
 
   // Extra config passed to connection
@@ -714,6 +715,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
     // 重置 Turn 级别文件追踪，开始新的 Turn
     this.currentTurnFiles.clear();
     this.currentTurnProtectedFinalPaths.clear();
+    this.pendingCurrentTurnPostCleanup = false;
     this.workspaceFileSnapshot = this.getWorkspaceFiles();
     this.customSkillsSnapshot = this.getCustomSkillNames();
     mainLog('[AcpAgent]', `[TURN-START] Reset file tracking, snapshot size: ${this.workspaceFileSnapshot.size}`);
@@ -1531,6 +1533,7 @@ This identity statement takes priority over the default identity in USER.md.
     const removedCount = await cleanupTrackedDraftsOnCancel(this.workspace, this.currentTurnFiles);
     this.currentTurnFiles.clear();
     this.currentTurnProtectedFinalPaths.clear();
+    this.pendingCurrentTurnPostCleanup = false;
 
     if (removedCount > 0) {
       mainLog('[AcpAgent]', `[CLEANUP] Total current-turn draft files removed: ${removedCount}`);
@@ -1545,6 +1548,7 @@ This identity statement takes priority over the default identity in USER.md.
     }
 
     this.currentTurnProtectedFinalPaths = this.getCurrentTurnFinalRootPaths();
+    this.pendingCurrentTurnPostCleanup = true;
     await archiveTurnFiles(this.workspace, this.currentTurnFiles);
     this.currentTurnFiles.clear();
     mainLog('[AcpAgent]', '[TURN-ARCHIVE] Archived currentTurnFiles and cleared tracking');
@@ -3201,14 +3205,18 @@ This identity statement takes priority over the default identity in USER.md.
       });
 
       // Post-cleanup: move intermediate files from workspace root to .drafts/
-      if (this.workspace) {
+      if (this.workspace && shouldRunCurrentTurnPostCleanup(this.pendingCurrentTurnPostCleanup)) {
         cleanupIntermediateFiles(this.workspace, { protectedFinalPaths: this.currentTurnProtectedFinalPaths })
           .catch((err) => {
             mainError('AcpAgent', 'Post-cleanup failed:', err);
           })
           .finally(() => {
             this.currentTurnProtectedFinalPaths.clear();
+            this.pendingCurrentTurnPostCleanup = false;
           });
+      } else {
+        this.currentTurnProtectedFinalPaths.clear();
+        this.pendingCurrentTurnPostCleanup = false;
       }
     }
 
