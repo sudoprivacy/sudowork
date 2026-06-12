@@ -197,7 +197,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
                 </div>
               ) : (
                 <div
-                  className='h-42px flex items-center gap-8px px-14px mb-12px rd-12px cursor-pointer transition-all border border-solid border-[var(--border-base)] bg-1 hover:bg-hover active:bg-fill-2'
+                  className='h-42px flex items-center justify-center gap-8px px-14px mb-12px rd-12px cursor-pointer transition-all border border-solid border-[var(--border-base)] bg-1 hover:bg-hover active:bg-fill-2'
                   onClick={() => {
                     cleanupSiderTooltips();
                     blurActiveElement();
@@ -213,7 +213,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
                   }}
                 >
                   <Plus theme='outline' size='20' fill='currentColor' className='text-t-primary shrink-0 block leading-none' />
-                  <span className='flex-1 text-15px font-medium text-t-primary truncate'>{t('conversation.welcome.newConversation')}</span>
+                  <span className='text-15px font-medium text-t-primary truncate'>{t('conversation.welcome.newConversation')}</span>
                 </div>
               )}
             </Tooltip>
