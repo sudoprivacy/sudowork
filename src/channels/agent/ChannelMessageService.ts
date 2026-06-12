@@ -20,8 +20,13 @@ export type StreamCallback = (chunk: TMessage, insert: boolean) => void;
 /** Maximum time (ms) to wait for a stream to complete before sending timeout warning */
 const STREAM_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
-/** Maximum time (ms) to wait before force-cleaning a stream (hard timeout) */
-const STREAM_HARD_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+/**
+ * Maximum time (ms) to wait before force-cleaning a stream (hard timeout).
+ * Real agent tasks (browser automation, multi-step tool use) routinely run
+ * several minutes, so 10 min was too tight and cut work off mid-flight. 20 min
+ * gives genuine long tasks room to finish while still bounding stuck streams.
+ */
+const STREAM_HARD_TIMEOUT_MS = 20 * 60 * 1000; // 20 minutes
 
 /**
  * 消息流状态
@@ -236,17 +241,31 @@ export class ChannelMessageService {
     }
 
     return new Promise((resolve, reject) => {
-      // Clean up any existing stream for this conversation before registering a new one.
-      // This prevents hung promises when a new message arrives while the previous one is still processing.
+      // One in-flight turn per conversation. If a turn is already running, do
+      // NOT clobber it: tearing down the live stream clears the agent's ACP
+      // session mid-turn, so the running work is lost and the new turn fails
+      // instantly ("Conversation not found" / ~0ms errors) — exactly the cascade
+      // that a "Response timed out, please try again" prompt used to trigger
+      // (user sees the warning → resends → second message kills the first).
+      // Keep the in-flight turn running and tell the user to wait for its reply.
+      // The old "clean up to avoid hung promises" reason no longer applies — the
+      // existing stream resolves itself on finish (drain) or hard-timeout.
       const existingStream = this.activeStreams.get(conversationId);
       if (existingStream) {
-        console.warn(`[ChannelMessageService] Cleaning up existing stream (msgId=${existingStream.msgId}) before registering new stream for conversation ${conversationId}`);
-        clearTimeout(existingStream.timeoutTimer);
-        clearTimeout(existingStream.hardTimeoutTimer);
-        this.activeStreams.delete(conversationId);
-        this.messageListMap.delete(conversationId);
-        // Resolve the old promise so its caller's post-stream cleanup runs normally
-        existingStream.resolve(existingStream.msgId);
+        console.warn(`[ChannelMessageService] Conversation ${conversationId} busy (in-flight msgId=${existingStream.msgId}); deferring concurrent message ${msgId} instead of clobbering`);
+        onStream(
+          {
+            type: 'tips',
+            id: uuid(),
+            conversation_id: conversationId,
+            content: { type: 'warning', content: '⏳ 还在处理上一条消息，请等它回复后再发 / Still working on your previous message — please wait for the reply before sending another.' },
+          },
+          true
+        );
+        // Resolve (don't reject) so the channel's post-send cleanup runs as usual;
+        // we simply did not start a competing turn.
+        resolve(msgId);
+        return;
       }
 
       // Send timeout warning but keep stream alive for late-arriving messages.
@@ -255,10 +274,14 @@ export class ChannelMessageService {
         const staleStream = this.activeStreams.get(conversationId);
         // Stream ownership check: only warn if this timer's stream is still the active one.
         if (staleStream && staleStream.msgId === msgId && !staleStream.draining && !staleStream.timedOut) {
-          console.warn(`[ChannelMessageService] Stream timed out after ${STREAM_TIMEOUT_MS / 1000}s for conversation ${conversationId}`);
+          console.warn(`[ChannelMessageService] Stream still running after ${STREAM_TIMEOUT_MS / 1000}s for conversation ${conversationId}; sending "still working" notice (stream kept alive)`);
           staleStream.timedOut = true;
-          // Send timeout warning to user
-          staleStream.callback({ type: 'tips', id: uuid(), conversation_id: conversationId, content: { type: 'error', content: 'Response timed out. Please try again.' } }, true);
+          // The stream is intentionally kept alive below and the agent's reply
+          // will still arrive when the turn finishes. So this is a progress
+          // notice, NOT a failure — and it must NOT tell the user to retry:
+          // a resend lands as a concurrent message that would otherwise kill the
+          // in-flight turn. Use 'warning' (not 'error') and ask the user to wait.
+          staleStream.callback({ type: 'tips', id: uuid(), conversation_id: conversationId, content: { type: 'warning', content: '⏳ 任务较长，仍在处理中，请耐心等待，不要重复发送 / This is taking a while — still working on it. Please wait, no need to resend.' } }, true);
           console.log(`[ChannelMessageService] Keeping stream alive for late-arriving messages, conversationId=${conversationId}`);
         }
       }, STREAM_TIMEOUT_MS);
