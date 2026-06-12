@@ -361,6 +361,12 @@ jobs:
           MSVS_VERSION: 2022
           GYP_MSVS_VERSION: 2022
 
+      - name: Setup Rust toolchain (for nexus-napi)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build nexus-napi native module
+        run: bun run build:native
+
       - name: Build with electron-builder (Windows)
         if: startsWith(matrix.platform, 'windows')
         id: windows-build
