@@ -67,7 +67,30 @@ const buildConversation = (conversation: TChatConversation, options?: BuildConve
         mainError('WorkerManage', 'Moss Server URL not configured for remote-agent conversation');
         return null;
       }
-      let authToken = extra?.authToken || '';
+
+      // A conversation can only be resumed against the server that owns its
+      // session. Resuming a server1 conversation while logged into server2
+      // would send server2 credentials to server1 — fail explicitly instead
+      // of producing an opaque 401 loop.
+      try {
+        const currentServerUrl = ProcessConfig.getSync('eeclaw.serverUrl');
+        const normalize = (u: string) => u.replace(/\/+$/, '');
+        if (currentServerUrl && normalize(currentServerUrl) !== normalize(mossServerUrl)) {
+          mainError('WorkerManage', `Conversation ${conversation.id} belongs to ${mossServerUrl} but the current enterprise server is ${currentServerUrl}; switch back to resume it`);
+          return null;
+        }
+      } catch {
+        /* ignore — no enterprise config available */
+      }
+
+      // JWTs are never sourced from the conversation record: a token pinned at
+      // creation time outlives logins/logouts and resurfaces revoked (issue
+      // #849). Always read the current auth storage; MossWsConnection
+      // re-validates via getValidToken at connect time anyway. A non-JWT
+      // extra.authToken is an API key and stays — it is a stable credential,
+      // not a session token.
+      const pinnedToken = extra?.authToken || '';
+      let authToken = pinnedToken && !pinnedToken.startsWith('eyJ') ? pinnedToken : '';
       if (!authToken) {
         try {
           const authStorage = ProcessConfig.getSync('eeclaw.authStorage');

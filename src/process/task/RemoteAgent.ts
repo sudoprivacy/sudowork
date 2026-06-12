@@ -191,6 +191,25 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
         // 恢复/附加模式：使用已有的 wsUrl
         mainLog('RemoteAgent', 'RESUME/ATTACH MODE: Using existing wsUrl');
 
+        // Re-derive ws_url from the current server before attaching. The
+        // persisted acpWsUrl embeds the advertisedHost from session-creation
+        // time and goes stale when the server address changes; hitting the
+        // resume endpoint also lets the server start respawning a dead
+        // runtime before the WS handshake. Stored wsUrl remains the fallback
+        // so a transient lookup failure doesn't block reattach.
+        let resumeWsUrl = this.options.wsUrl;
+        const resumeSessionId = this.options.sessionId || this.conversation_id;
+        try {
+          const api = initMossApi(this.options.serverUrl);
+          const resumed = await api.resumeSession(resumeSessionId);
+          if (resumed.wsUrl) {
+            resumeWsUrl = resumed.wsUrl;
+            this.options.wsUrl = resumed.wsUrl;
+          }
+        } catch (lookupError) {
+          mainLog('RemoteAgent', `resumeSession lookup failed (${lookupError instanceof Error ? lookupError.message : String(lookupError)}), falling back to stored wsUrl`);
+        }
+
         const config: MossWsConnectionConfig = {
           serverUrl: this.options.serverUrl,
           authToken: this.options.authToken,
@@ -201,8 +220,8 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
           dangerouslySkipPermissions: this.options.dangerouslySkipPermissions ?? this.yoloMode,
           runtimeType: this.options.runtimeType,
           // Resume mode: use existing wsUrl and sessionId
-          wsUrl: this.options.wsUrl,
-          sessionId: this.options.sessionId || this.conversation_id,
+          wsUrl: resumeWsUrl,
+          sessionId: resumeSessionId,
           // 新增: 传递启用的 skill 列表（resume 模式也支持）
           enabledSkills,
         };

@@ -89,7 +89,10 @@ function getRemoteConversationMossApi(extra: RemoteConversationExtra) {
 
   const currentApi = getMossApi();
   const api = currentApi && getMossApiServerUrl() === serverUrl ? currentApi : initMossApi(serverUrl);
-  if (extra.authToken) {
+  // Seed only non-JWT credentials (API keys). A JWT pinned in the conversation
+  // record may be expired or revoked (issue #849); without an explicit token
+  // the API sources the current one via getValidToken.
+  if (extra.authToken && !extra.authToken.startsWith('eyJ')) {
     api.setAccessToken(extra.authToken);
   }
   return api;

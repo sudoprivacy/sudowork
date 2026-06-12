@@ -2003,6 +2003,8 @@ export const eeclaw = {
   logout: bridge.buildProvider<IBridgeResponse<{}>, void>('eeclaw.logout'),
   /** Emitted when the main process refreshes the enterprise auth token */
   tokenRefreshed: bridge.buildEmitter<{ access_token: string; refresh_token: string; expires_at: number }>('eeclaw.token-refreshed'),
+  /** Emitted when the enterprise token is invalid and cannot be refreshed (e.g. OAuth2 session without a refresh token) — the user must sign in again */
+  authRequired: bridge.buildEmitter<{ reason: 'no_refresh_token' | 'refresh_failed' }>('eeclaw.auth-required'),
   /** Refresh enterprise auth token via main process (single entry point to avoid race conditions) */
   refreshToken: bridge.buildProvider<IBridgeResponse<{ access_token: string; refresh_token?: string; expires_at: number }>, void>('eeclaw.refresh-token'),
   /** Trigger manual sync of remote skills and assistants to local (for Local mode) */

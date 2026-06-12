@@ -119,7 +119,10 @@ export const createRemoteAgent = async (options: ICreateConversationParams): Pro
       customWorkspace,
       // Moss Server specific fields
       mossServerUrl: extra.mossServerUrl,
-      authToken: extra.authToken,
+      // Persist only stable credentials (API keys). Session JWTs outlive
+      // logins/logouts and resurface revoked (issue #849) — connections read
+      // the current auth storage instead.
+      authToken: extra.authToken && !extra.authToken.startsWith('eyJ') ? extra.authToken : undefined,
       username: extra.username,
       password: extra.password,
       runtimeType: extra.runtimeType,
