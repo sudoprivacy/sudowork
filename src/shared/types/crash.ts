@@ -21,14 +21,7 @@ export type CrashEventType = 'native_crash' | 'renderer_crash' | 'js_exception';
 export type CrashProcessType = 'main' | 'renderer';
 
 /** Crash 原因类型 (Electron Details.reason) */
-export type CrashReason =
-  | 'clean-exit'
-  | 'abnormal-exit'
-  | 'killed'
-  | 'crashed'
-  | 'oom'
-  | 'launch-failed'
-  | 'integrity-failure';
+export type CrashReason = 'clean-exit' | 'abnormal-exit' | 'killed' | 'crashed' | 'oom' | 'launch-failed' | 'integrity-failure';
 
 /** 环境 */
 export type CrashEnvironment = 'development' | 'production';
@@ -38,15 +31,7 @@ export type CrashEnvironment = 'development' | 'production';
 // ============================================================
 
 /** 面包屑分类 */
-export type BreadcrumbCategory =
-  | 'conversation'
-  | 'api'
-  | 'mcp'
-  | 'file'
-  | 'window'
-  | 'navigation'
-  | 'user'
-  | 'system';
+export type BreadcrumbCategory = 'conversation' | 'api' | 'mcp' | 'file' | 'window' | 'navigation' | 'user' | 'system';
 
 /** 面包屑记录 */
 export interface Breadcrumb {
@@ -102,6 +87,20 @@ export interface CrashEventBase {
   release?: string;
   /** 环境 */
   environment?: CrashEnvironment;
+  /** 组织 ID */
+  org_id?: string;
+  /** 用户 ID */
+  user_id: string;
+  /** 租户 ID */
+  tenant_id?: string;
+  /** 登录模式 - 企业模式/个人模式 */
+  login_mode?: LoginMode;
+  /** Agent 类型 - 数据来源标识 */
+  agent_type?: AgentType;
+  /** 用户昵称 */
+  user_nickname?: string;
+  /** 用户手机号 */
+  user_phone?: string;
 }
 
 /** 原生 Crash 事件 */
@@ -225,7 +224,7 @@ export interface CrashReporterConfig {
 /** 默认 CrashReporter 配置 */
 export const DEFAULT_CRASH_REPORTER_CONFIG: CrashReporterConfig = {
   enabled: true,
-  serverUrl: 'https://sudowork-qms.sudoprivacy.com/api/v1/crash/events/batch',
+  serverUrl: 'https://sudowork-server.sudoprivacy.com/api/v1/crash/events/batch',
   batchSize: 20,
   flushInterval: 60000, // 60 秒
   maxRetries: 3,
@@ -236,4 +235,4 @@ export const DEFAULT_CRASH_REPORTER_CONFIG: CrashReporterConfig = {
 // 类型导入 (复用 telemetry 平台/架构类型)
 // ============================================================
 
-import type { TelemetryPlatform, TelemetryArch } from './telemetry';
+import type { AgentType, LoginMode, TelemetryPlatform, TelemetryArch } from './telemetry';

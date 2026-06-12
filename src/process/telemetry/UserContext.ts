@@ -14,11 +14,15 @@
  * - 个人模式: consumer.userInfo (ConfigStorage)
  */
 
+import { app } from 'electron';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { ProcessConfig } from '../initStorage';
 import { mainLog, mainWarn } from '../utils/mainLogger';
 import type { LoginMode } from '../../shared/types/telemetry';
 
 const TAG = 'UserContext';
+const CONSUMER_USER_ID_FILE = 'consumer_user_id.txt';
 
 export interface UserContext {
   org_id?: string;
@@ -27,6 +31,26 @@ export interface UserContext {
   login_mode?: LoginMode;
   user_nickname?: string;
   user_phone?: string;
+}
+
+function normalizeString(value: unknown): string | undefined {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed || undefined;
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return String(value);
+  }
+  return undefined;
+}
+
+function readConsumerUserIdFromFile(): string | undefined {
+  try {
+    const filePath = path.join(app.getPath('home'), '.nexus', CONSUMER_USER_ID_FILE);
+    return normalizeString(readFileSync(filePath, 'utf-8'));
+  } catch {
+    return undefined;
+  }
 }
 
 /**
@@ -88,8 +112,8 @@ export function getUserContext(): UserContext {
     // 企业模式: 从 eeclaw.userInfo 获取用户 ID
     if (appMode === 'e') {
       const userInfo = ProcessConfig.getSync('eeclaw.userInfo') as { id?: string; username?: string; role?: string } | undefined;
-      user_id = userInfo?.id;
-      user_nickname = userInfo?.username; // 企业模式用 username 作为 nickname
+      user_id = normalizeString(userInfo?.id);
+      user_nickname = normalizeString(userInfo?.username); // 企业模式用 username 作为 nickname
       mainLog(TAG, `[DEBUG] Enterprise mode - userInfo from ConfigStorage: ${JSON.stringify(userInfo)}`);
 
       // 企业模式: 从 JWT token 解析 org_id 和 tenant_id
@@ -98,8 +122,8 @@ export function getUserContext(): UserContext {
         const payload = parseJwtPayload(authStorage.access_token);
         mainLog(TAG, `[DEBUG] Enterprise JWT payload: ${JSON.stringify(payload)}`);
         if (payload) {
-          org_id = (payload.org_id as string | undefined) || (payload.orgId as string | undefined);
-          tenant_id = (payload.tenant_id as string | undefined) || (payload.tenantId as string | undefined);
+          org_id = normalizeString(payload.org_id) || normalizeString(payload.orgId);
+          tenant_id = normalizeString(payload.tenant_id) || normalizeString(payload.tenantId);
         }
       }
     }
@@ -107,10 +131,10 @@ export function getUserContext(): UserContext {
     // 个人模式: 从 consumer.userInfo 获取用户 ID
     if (appMode === 'c' || !user_id) {
       const consumerUserInfo = ProcessConfig.getSync('consumer.userInfo') as { id?: string; nickname?: string; phone?: string; tenant_id?: string } | undefined;
-      user_id = consumerUserInfo?.id;
-      user_nickname = consumerUserInfo?.nickname;
-      user_phone = consumerUserInfo?.phone;
-      tenant_id = consumerUserInfo?.tenant_id; // 个人模式下也可能有 tenant_id
+      user_id = normalizeString(consumerUserInfo?.id) || readConsumerUserIdFromFile();
+      user_nickname = normalizeString(consumerUserInfo?.nickname);
+      user_phone = normalizeString(consumerUserInfo?.phone);
+      tenant_id = normalizeString(consumerUserInfo?.tenant_id); // 个人模式下也可能有 tenant_id
 
       // 个人模式下，org_id 应为空
       org_id = undefined;
