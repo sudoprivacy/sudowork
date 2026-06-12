@@ -120,30 +120,8 @@ export default defineConfig({
     // Arco Design official fill colors: bg-fill-1, bg-fill-2, bg-fill-3, bg-fill-4
     [/^bg-fill-([1-4])$/, ([, d]: RegExpExecArray) => ({ 'background-color': `var(--color-fill-${d})` })],
 
-    // Arco Design 官方边框色 border-1 到 border-4 (使用 border-arco-* 避免和项目自定义冲突)
-    // Arco Design official border colors: border-arco-1, border-arco-2, border-arco-3, border-arco-4
-    [/^border-arco-([1-4])$/, ([, d]: RegExpExecArray) => ({ 'border-color': `var(--color-border-${d})` })],
-
-    // Arco Design 官方浅色系 primary/link-light-1 到 -light-4
-    // 注:success/warning/danger 已迁移到项目语义 token(--xxx-soft/-line),不再走 Arco 色阶
-    [/^bg-(primary|link)-light-([1-4])$/, ([, color, d]: RegExpExecArray) => ({ 'background-color': `var(--color-${color}-light-${d})` })],
-
-    // Arco Design 官方色阶 primary 1-9(success/warning/danger 已迁移到语义 token)
-    // Arco Design color levels: bg-primary-1, text-primary-1, border-primary-1, etc.
-    [
-      /^(bg|text|border)-(primary)-([1-9])$/,
-      ([, prefix, color, d]: RegExpExecArray) => {
-        const prop = prefix === 'bg' ? 'background-color' : prefix === 'text' ? 'color' : 'border-color';
-        return { [prop]: `rgb(var(--${color}-${d}))` };
-      },
-    ],
-
-    // Arco Design 官方白色和黑色
-    // Arco Design white and black: bg-color-white, text-color-white, bg-color-black, text-color-black
-    ['bg-color-white', { 'background-color': 'var(--color-white)' }],
-    ['text-color-white', { color: 'var(--color-white)' }],
-    ['bg-color-black', { 'background-color': 'var(--color-black)' }],
-    ['text-color-black', { color: 'var(--color-black)' }],
+    // Arco Design 官方浅色系 primary-light-1 到 -light-4(link 无引用已移除;success/warning/danger 走语义 token)
+    [/^bg-primary-light-([1-4])$/, ([, d]: RegExpExecArray) => ({ 'background-color': `var(--color-primary-light-${d})` })],
 
     // Arco Design 对话框/弹出层专用背景色
     // Arco Design popup/dialog background color: bg-popup
@@ -154,8 +132,6 @@ export default defineConfig({
     ['text-0', { color: 'var(--text-0)' }],
     ['text-white', { color: 'var(--text-white)' }],
     ['bg-fill-0', { 'background-color': 'var(--fill-0)' }],
-    ['bg-fill-white-to-black', { 'background-color': 'var(--fill-white-to-black)' }],
-    ['border-special', { 'border-color': 'var(--border-special)' }],
   ],
   // Preflights - Global base styles 全局基础样式
   preflights: [

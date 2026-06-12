@@ -250,7 +250,7 @@ const AgentSetupCard: React.FC<AgentSetupCardProps> = ({ conversationId, current
                       } else if (result.checking) {
                         cardStyle = 'bg-warning-soft border-1 border-solid border-warning-line';
                       } else if (result.available && !hasAvailableAndSwitching) {
-                        cardStyle = 'bg-fill-1 border-1 border-solid border-border-2 cursor-pointer hover:border-primary-4 hover:bg-fill-2';
+                        cardStyle = 'bg-fill-1 border-1 border-solid border-border-2 cursor-pointer hover:border-primary hover:bg-fill-2';
                       }
 
                       // Determine status display
