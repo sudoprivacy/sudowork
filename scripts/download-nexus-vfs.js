@@ -54,13 +54,13 @@ const VAULT_GITHUB_URL = `https://github.com/nexi-lab/nexus/releases/download/va
  * nexusd-cluster sums are populated after COS mirror; vault sums from CI artifacts.
  */
 const SHA256SUMS = {
-  // nexusd-cluster v0.2.0
-  'nexusd-cluster-linux-aarch64.tar.gz': 'eeb0a861711a74ef8b78146a05ed0b96bff5aa8dfb6b3ba7f9ea1252fe11ab36',
-  'nexusd-cluster-linux-x86_64.tar.gz': '2b85bf0daf381c68776911049a32ee3015974e4569fba2b407cff52c24a20260',
-  'nexusd-cluster-macos-aarch64.tar.gz': '86e00f10612b23ad30f1498cd025a786b457c2925dd4276e6c7202f6367b0713',
-  'nexusd-cluster-macos-x86_64.tar.gz': '5d44d7ea5e18a4d2fe71d88342fd1adcff0fd84d09e1782eb0fd409f50668589',
-  'nexusd-cluster-windows-aarch64.zip': '5c8b33210161c7d094ebe0ddca3eddefcf8ceabe0bfba7b24f0e0d232be64a92',
-  'nexusd-cluster-windows-x86_64.zip': '86a6f47d0755a27af4d6509eb7d2aed83e9d5e1d47ba2ed7944094f419f15e88',
+  // nexusd-cluster v0.2.1
+  'nexusd-cluster-linux-aarch64.tar.gz': '83336737e360541796ce04fda243b1de0072afb54743dcf39c0ec7b7aec09e03',
+  'nexusd-cluster-linux-x86_64.tar.gz': '55f35a600d5c2ce3858ba66053ed6e2b8bfdb3ba4977e73639be927ccbd33174',
+  'nexusd-cluster-macos-aarch64.tar.gz': 'e7c1ab832445b23434e557cd10532f8da5de29028c9e3ee7508029165c35dfd1',
+  'nexusd-cluster-macos-x86_64.tar.gz': 'cca3f5df353e1bb7eee4b2d07e81932477edb86f91b77e83c50cfbef5be59d9c',
+  'nexusd-cluster-windows-aarch64.zip': 'cbc289132b781f2a52231cc223bb07fa1f575dad3b04a03646135c18a1e93b44',
+  'nexusd-cluster-windows-x86_64.zip': 'bfb785aa0b24f8966a631281454464dc1bb01c4956e002807c21553399e2e5e0',
   // vault plugin v0.1.2 — first signed release (Ed25519 detached `.sig`
   // alongside dylib inside each archive). Hashes regenerate from scratch
   // because the archive shape changed (now ships sig too); they are
