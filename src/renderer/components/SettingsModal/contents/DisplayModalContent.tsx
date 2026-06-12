@@ -7,6 +7,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import FontSizeControl from '@/renderer/components/FontSizeControl';
+import { ThemeSwitcher } from '@/renderer/components/ThemeSwitcher';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { useSettingsViewMode } from '../settingsViewContext';
 
@@ -42,7 +43,10 @@ const DisplayModalContent: React.FC = () => {
   const isPageMode = viewMode === 'page';
 
   // 显示设置项配置 / Display items configuration
-  const displayItems = [{ key: 'fontSize', label: t('settings.fontSize'), component: <FontSizeControl /> }];
+  const displayItems = [
+    { key: 'theme', label: t('settings.theme'), component: <ThemeSwitcher /> },
+    { key: 'fontSize', label: t('settings.fontSize'), component: <FontSizeControl /> },
+  ];
 
   return (
     <div className='flex flex-col h-full w-full'>

@@ -72,7 +72,6 @@ const Config: React.FC<PropsWithChildren> = ({ children }) => {
     i18n: { language },
   } = useTranslation();
   const arcoLocale = arcoLocales[language] ?? enUS;
-
   // Buttons default to pill/round shape app-wide; pass `shape` per-button to override.
   return React.createElement(ConfigProvider, { theme: { primaryColor: '#f97316' }, locale: arcoLocale, componentConfig: { Button: { shape: 'round' } } }, children);
 };

@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from 'react';
 export type Theme = 'light' | 'dark';
 export type ThemePreference = 'light' | 'dark' | 'system';
 
-const DEFAULT_PREFERENCE: ThemePreference = 'light';
+const DEFAULT_PREFERENCE: ThemePreference = 'system';
 const THEME_CACHE_KEY = '__aionui_theme';
 
 const getSystemTheme = (): Theme => {
@@ -31,20 +31,25 @@ const applyTheme = (theme: Theme) => {
   }
 };
 
-// Initialize theme immediately when module loads.
-// 主题切换入口已移除：强制亮色，并归一旧的 dark/system 偏好。
-// Theme switching has been removed: force light and normalize any legacy dark/system preference.
+const isThemePreference = (value: unknown): value is ThemePreference => value === 'light' || value === 'dark' || value === 'system';
+
+// 读取持久化的主题偏好并应用；无保存值时回退到默认。
+// Apply the persisted theme preference; fall back to the default when absent.
 const initTheme = async (): Promise<ThemePreference> => {
-  const preference = DEFAULT_PREFERENCE; // always 'light'
-  applyTheme(resolveTheme(preference));
-  try {
-    const saved = (await ConfigStorage.get('theme')) as ThemePreference;
-    if (saved !== preference) {
-      await ConfigStorage.set('theme', preference);
-    }
-  } catch (error) {
-    console.error('Failed to normalize theme preference:', error);
+  // 先用缓存的已解析主题同步应用，消除首屏闪烁。
+  // Apply the cached resolved theme synchronously first to avoid a first-paint flash.
+  const cached = localStorage.getItem(THEME_CACHE_KEY);
+  if (cached === 'light' || cached === 'dark') {
+    applyTheme(cached);
   }
+  let preference: ThemePreference = DEFAULT_PREFERENCE;
+  try {
+    const saved = await ConfigStorage.get('theme');
+    if (isThemePreference(saved)) preference = saved;
+  } catch (error) {
+    console.error('Failed to load theme preference:', error);
+  }
+  applyTheme(resolveTheme(preference));
   return preference;
 };
 

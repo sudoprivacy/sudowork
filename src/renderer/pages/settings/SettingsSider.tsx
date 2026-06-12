@@ -12,10 +12,10 @@ import { getSiderTooltipProps } from '@/renderer/utils/siderTooltip';
 import SidebarNavItem from '@/renderer/components/ui/SidebarNavItem';
 
 /** Builtin settings tab IDs in display order (must match router paths). */
-const BUILTIN_TAB_IDS = ['profile', 'recharge', 'members', 'model', 'agent', 'tools', 'skill', 'security', 'webui', 'runtime', 'system', 'about'] as const; // 隐藏'copilot', 'cron'已移至左侧边栏；'display' 暂隐藏
+const BUILTIN_TAB_IDS = ['profile', 'recharge', 'members', 'model', 'agent', 'tools', 'skill', 'security', 'display', 'webui', 'runtime', 'system', 'about'] as const; // 隐藏'copilot'；'cron'已移至左侧边栏
 
 /** Enterprise mode builtin tab IDs (restricted subset). */
-const ENTERPRISE_BUILTIN_TAB_IDS = ['profile', 'enterprise', 'mcp', 'webui', 'system', 'about'] as const; // 'display' 暂隐藏
+const ENTERPRISE_BUILTIN_TAB_IDS = ['profile', 'enterprise', 'mcp', 'display', 'webui', 'system', 'about'] as const;
 
 type SiderItem = {
   id: string;

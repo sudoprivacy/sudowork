@@ -275,20 +275,20 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
                 className='batch-actions-popover'
                 getPopupContainer={() => document.body}
                 content={
-                    <div className='flex flex-col gap-6px w-180px'>
-                      <div className='px-2px pb-2px text-12px leading-18px text-t-secondary'>{t('conversation.history.selectedCount', { count: batchApi?.selectedCount ?? 0 })}</div>
-                      <Button long type='secondary' className='batch-actions-popover__item' onClick={() => batchApi?.onToggleSelectAll()}>
-                        {batchApi?.allSelected ? t('common.cancel') : t('conversation.history.selectAll')}
-                      </Button>
-                      <Button long type='secondary' className='batch-actions-popover__item' disabled={!batchApi?.selectedCount} onClick={() => batchApi?.onBatchExport()}>
-                        {t('conversation.history.batchExport')}
-                      </Button>
-                      <Button long type='secondary' status='danger' className='batch-actions-popover__item' disabled={!batchApi?.selectedCount} onClick={() => batchApi?.onBatchDelete()}>
-                        {t('conversation.history.batchDelete')}
-                      </Button>
-                    </div>
-                  }
-                >
+                  <div className='flex flex-col gap-6px w-180px'>
+                    <div className='px-2px pb-2px text-12px leading-18px text-t-secondary'>{t('conversation.history.selectedCount', { count: batchApi?.selectedCount ?? 0 })}</div>
+                    <Button long type='secondary' className='batch-actions-popover__item' onClick={() => batchApi?.onToggleSelectAll()}>
+                      {batchApi?.allSelected ? t('common.cancel') : t('conversation.history.selectAll')}
+                    </Button>
+                    <Button long type='secondary' className='batch-actions-popover__item' disabled={!batchApi?.selectedCount} onClick={() => batchApi?.onBatchExport()}>
+                      {t('conversation.history.batchExport')}
+                    </Button>
+                    <Button long type='secondary' status='danger' className='batch-actions-popover__item' disabled={!batchApi?.selectedCount} onClick={() => batchApi?.onBatchDelete()}>
+                      {t('conversation.history.batchDelete')}
+                    </Button>
+                  </div>
+                }
+              >
                 <Tooltip {...siderTooltipProps} content={isBatchMode ? t('conversation.history.batchModeExit') : t('conversation.history.batchManage')} position='right'>
                   <div className={classNames('batch-mode-trigger w-32px h-32px flex items-center justify-center rd-8px cursor-pointer transition-all shrink-0', isBatchMode ? 'bg-[rgba(var(--ui-accent-orange-rgb),0.12)] text-[var(--ui-accent-orange)]' : 'hover:bg-hover active:bg-fill-2 text-t-secondary')} onClick={() => setIsBatchMode((prev) => !prev)}>
                     <ListCheckbox theme='outline' size='18' className='block leading-none' />
@@ -309,10 +309,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
           /* 用户信息下拉菜单 */
           <Dropdown
             droplist={
-              <div
-                className='flex flex-col gap-2px p-6px rd-12px border border-solid border-[var(--border-base)] bg-[var(--bg-base)]'
-                style={{ width: userMenuWidth ? userMenuWidth - 12 : undefined, minWidth: 200, boxShadow: '0 8px 28px rgba(0, 0, 0, 0.12)' }}
-              >
+              <div className='flex flex-col gap-2px p-6px rd-12px border border-solid border-[var(--border-base)] bg-[var(--bg-base)]' style={{ width: userMenuWidth ? userMenuWidth - 12 : undefined, minWidth: 200, boxShadow: '0 8px 28px rgba(0, 0, 0, 0.12)' }}>
                 <div
                   className='flex items-center gap-10px px-10px h-38px rd-8px cursor-pointer text-14px text-t-primary transition-colors hover:bg-hover active:bg-active'
                   onClick={() => {
@@ -325,7 +322,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
                 </div>
                 <div className='h-1px mx-4px my-2px bg-[var(--border-light)]' />
                 <div
-                  className='flex items-center gap-10px px-10px h-38px rd-8px cursor-pointer text-14px text-[rgb(var(--danger-6))] transition-colors hover:bg-[rgba(var(--danger-6),0.1)]'
+                  className='flex items-center gap-10px px-10px h-38px rd-8px cursor-pointer text-14px text-danger transition-colors hover:bg-hover active:bg-active'
                   onClick={async () => {
                     setUserMenuOpen(false);
                     await logout();
@@ -333,7 +330,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
                     void navigate('/login', { replace: true });
                   }}
                 >
-                  <Logout theme='outline' size='17' fill='rgb(var(--danger-6))' />
+                  <Logout theme='outline' size='17' fill='var(--danger)' />
                   <span>{t('login.logout', { defaultValue: '退出登录' })}</span>
                 </div>
               </div>
