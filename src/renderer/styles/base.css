@@ -1237,9 +1237,14 @@ body,
   width: 34px !important;
   height: 34px !important;
   min-width: 34px !important;
-  background-color: #d3d4d9 !important;
-  border-color: #d3d4d9 !important;
+  background-color: var(--send-button-disabled-bg) !important;
+  border-color: var(--send-button-disabled-bg) !important;
   opacity: 1 !important;
+}
+
+.send-button-custom:disabled .arco-icon > svg,
+.send-button-custom:disabled .arco-icon > svg path {
+  fill: var(--send-button-disabled-icon) !important;
 }
 
 /* Make arrow icon thicker */

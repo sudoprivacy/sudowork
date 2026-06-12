@@ -722,7 +722,7 @@ const SendBox: React.FC<{
             })}
           ></Input.TextArea>
           {isSingleLine && (
-            <div className='flex items-center gap-2'>
+            <div className='flex items-center gap-3'>
               {sendButtonPrefix}
               {isLoading || loading ? <Button shape='circle' type='secondary' className='bg-animate' disabled={isStopping} icon={<div className='mx-auto size-12px bg-6'></div>} onClick={stopHandler}></Button> : sendButton}
             </div>
@@ -734,7 +734,7 @@ const SendBox: React.FC<{
               {tools}
               {skillTriggerButton}
             </div>
-            <div className='flex items-center gap-2'>
+            <div className='flex items-center gap-3'>
               {sendButtonPrefix}
               {isLoading || loading ? <Button shape='circle' type='secondary' className='bg-animate' disabled={isStopping} icon={<div className='mx-auto size-12px bg-6'></div>} onClick={stopHandler}></Button> : sendButton}
             </div>
