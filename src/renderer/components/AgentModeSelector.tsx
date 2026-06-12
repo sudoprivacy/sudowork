@@ -10,8 +10,9 @@ import { getAgentModes, supportsModeSwitch, type AgentModeOption } from '@/rende
 import { useLayoutContext } from '@/renderer/context/LayoutContext';
 import { iconColors } from '@/renderer/theme/colors';
 import { getAgentLogo } from '@/renderer/utils/agentLogo';
-import { Dropdown, Menu, Message, Tooltip } from '@arco-design/web-react';
+import { Dropdown, Message, Tooltip } from '@arco-design/web-react';
 import { Down, Robot } from '@icon-park/react';
+import classNames from 'classnames';
 import React, { forwardRef, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -200,18 +201,18 @@ const AgentModeSelector: React.FC<AgentModeSelectorProps> = ({ backend, agentNam
 
   // Dropdown menu (shared between compact and full mode)
   const dropdownMenu = (
-    <Menu onClickMenuItem={(key) => void handleModeChange(key)}>
-      <Menu.ItemGroup title={t('agentMode.switchMode', { defaultValue: 'Switch Mode' })}>
-        {modes.map((mode: AgentModeOption) => (
-          <Menu.Item key={mode.value} className={currentMode === mode.value ? '!bg-2' : ''}>
-            <div className='flex items-center gap-8px'>
-              {currentMode === mode.value && <span className='text-primary'>✓</span>}
-              <span className={currentMode !== mode.value ? 'ml-16px' : ''}>{getDisplayModeLabel(mode)}</span>
-            </div>
-          </Menu.Item>
-        ))}
-      </Menu.ItemGroup>
-    </Menu>
+    <div className='flex flex-col gap-2px p-6px rd-12px border border-solid border-[var(--border-base)] bg-popup' style={{ minWidth: 180, boxShadow: '0 8px 28px rgba(0, 0, 0, 0.12)' }}>
+      <div className='px-10px py-2 text-12px leading-18px text-t-secondary'>{t('agentMode.switchMode', { defaultValue: 'Switch Mode' })}</div>
+      {modes.map((mode: AgentModeOption) => {
+        const active = currentMode === mode.value;
+        return (
+          <div key={mode.value} className={classNames('flex items-center gap-8px px-10px h-38px rd-8px cursor-pointer text-14px text-t-primary transition-colors hover:bg-hover active:bg-active', active && 'bg-2')} onClick={() => void handleModeChange(mode.value)}>
+            <span className='w-16px shrink-0 inline-flex items-center justify-center text-primary'>{active ? '✓' : ''}</span>
+            <span className='truncate'>{getDisplayModeLabel(mode)}</span>
+          </div>
+        );
+      })}
+    </div>
   );
 
   // Compact mode: render only mode label chip in sendbox area

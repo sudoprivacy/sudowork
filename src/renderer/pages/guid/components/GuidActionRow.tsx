@@ -123,7 +123,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({ files, onFilesUploaded, o
             }
           >
             <span className='relative'>
-              <Button shape='circle' type='secondary' title={t('conversation.welcome.downloadLocalFile')} icon={<Plus theme='outline' strokeWidth={4} fill={iconColors.secondary} />} />
+              <Button shape='circle' type='secondary' title={t('conversation.welcome.downloadLocalFile')} icon={<Plus theme='outline' strokeWidth={4} fill='currentColor' />} />
               {files.length > 0 && <span className='absolute -right-3px -top-3px flex-center min-w-14px h-14px rounded-full bg-[var(--ui-accent-orange)] px-3px text-9px text-white font-600 pointer-events-none'>{files.length}</span>}
               {/* {files.length > 0 && (
                 <Tooltip className={'!max-w-max'} content={<span className='whitespace-break-spaces'>{getCleanFileNames(files).join('\n')}</span>}>
@@ -135,7 +135,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({ files, onFilesUploaded, o
 
           {onTriggerSkillSelector && (
             <Tooltip content={t('guid.addSkillTooltip', { defaultValue: '添加技能' })} position='top'>
-              <span className='ml-2'>
+              <span>
                 <ActionChip icon={<span className='text-14px font-700 leading-none'>@</span>} label={t('conversation.welcome.skill', { defaultValue: '技能' })} onClick={onTriggerSkillSelector} />
               </span>
             </Tooltip>
