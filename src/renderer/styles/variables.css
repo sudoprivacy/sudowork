@@ -136,10 +136,16 @@
   --dialog-fill-0: #faf9f6;
   --inverse: #1d011d;
 
-  /* Semantic */
+  /* Semantic - 实色(文字/图标/圆点) + soft(浅底) + line(描边) */
   --success: #35847e;
+  --success-soft: #e3efed;
+  --success-line: #bcd7d2;
   --warning: #b07a10;
+  --warning-soft: #f6ecd6;
+  --warning-line: #e6cf9c;
   --danger: #b03030;
+  --danger-soft: #f5e0e0;
+  --danger-line: #e3b8b8;
   --info: #0f7887;
 
   /* Message & Component */
@@ -249,10 +255,16 @@
   --dialog-fill-0: #2e2e20;
   --inverse: #f0ede0;
 
-  /* Semantic */
+  /* Semantic - 实色(文字/图标/圆点) + soft(浅底) + line(描边) */
   --success: #68a99d;
+  --success-soft: #1c2b29;
+  --success-line: #2f4a45;
   --warning: #d4963a;
+  --warning-soft: #2e2616;
+  --warning-line: #4a3c20;
   --danger: #c86060;
+  --danger-soft: #2e1c1c;
+  --danger-line: #4a2f2f;
   --info: #6e8ddb;
 
   /* Message & Component */

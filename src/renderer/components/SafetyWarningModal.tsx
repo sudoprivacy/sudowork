@@ -223,7 +223,7 @@ export const SafetyWarningModal: React.FC<SafetyWarningModalProps> = ({ visible,
       visible={visible}
       title={
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <IconInfoCircle style={{ color: 'var(--color-warning)' }} />
+          <IconInfoCircle style={{ color: 'var(--warning)' }} />
           <span>{t('safety.warning')}</span>
         </div>
       }

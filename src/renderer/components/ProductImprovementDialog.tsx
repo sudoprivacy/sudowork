@@ -93,7 +93,7 @@ const ProductImprovementDialog: React.FC<ProductImprovementDialogProps> = ({ vis
 
         {/* 隐私保障 */}
         <div className="flex items-start gap-10px p-12px rd-10px bg-[var(--bg-2)]">
-          <Shield size={18} fill="var(--color-success-6)" className="flex-shrink-0 mt-1px" />
+          <Shield size={18} fill="var(--success)" className="flex-shrink-0 mt-1px" />
           <div className="text-13px text-t-secondary leading-relaxed">
             {t(
               'settings.productImprovement.privacy',

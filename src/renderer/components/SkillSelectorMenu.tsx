@@ -288,7 +288,7 @@ const SkillSelectorMenu: React.FC<SkillSelectorMenuProps> = ({ title, hint, item
                     <div className='flex items-center gap-6px min-w-0'>
                       <span className={classNames('text-13px truncate', index === activeIndex ? 'text-t-primary font-semibold' : 'text-t-primary font-medium')}>{file.name}</span>
                       {file.isDraft && (
-                        <span className='px-4px py-0px text-9px rd-3px whitespace-nowrap flex-shrink-0 leading-14px' style={{ background: 'color-mix(in srgb, var(--color-warning-light-1) 60%, transparent)', color: 'var(--color-warning-6, #d4930a)' }}>
+                        <span className='px-4px py-0px text-9px rd-3px whitespace-nowrap flex-shrink-0 leading-14px' style={{ background: 'var(--warning-soft)', color: 'var(--warning)' }}>
                           {t('conversation.workspace.drafts.badge', { defaultValue: '草稿' })}
                         </span>
                       )}

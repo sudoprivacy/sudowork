@@ -124,8 +124,8 @@ const MessageAcpPermission: React.FC<MessageAcpPermissionProps> = React.memo(({ 
         )}
 
         {hasResponded && (
-          <div className='mt-10px p-2 rounded-md border' style={{ backgroundColor: 'var(--color-success-light-1)', borderColor: 'rgb(var(--success-3))' }}>
-            <Text className='text-sm' style={{ color: 'rgb(var(--success-6))' }}>
+          <div className='mt-10px p-2 rounded-md border' style={{ backgroundColor: 'var(--success-soft)', borderColor: 'var(--success-line)' }}>
+            <Text className='text-sm' style={{ color: 'var(--success)' }}>
               ✓ {t('messages.responseSentSuccessfully')}
             </Text>
           </div>

@@ -59,8 +59,8 @@ const ContextUsageIndicator: React.FC<ContextUsageIndicatorProps> = ({ tokenUsag
 
   // 根据状态获取颜色
   const getStrokeColor = () => {
-    if (isDanger) return 'rgb(var(--danger-6))';
-    if (isWarning) return 'rgb(var(--warning-6))';
+    if (isDanger) return 'var(--danger)';
+    if (isWarning) return 'var(--warning)';
     return 'rgb(var(--primary-6))';
   };
 

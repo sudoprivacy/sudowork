@@ -499,15 +499,15 @@ const MessageAcpQuestion: React.FC<MessageAcpQuestionProps> = React.memo(({ mess
                   key={item.id}
                   className='p-2 rounded-md border'
                   style={{
-                    backgroundColor: skipped ? 'var(--color-fill-1)' : 'var(--color-success-light-1)',
-                    borderColor: skipped ? 'rgb(var(--gray-3))' : 'rgb(var(--success-3))',
+                    backgroundColor: skipped ? 'var(--color-fill-1)' : 'var(--success-soft)',
+                    borderColor: skipped ? 'rgb(var(--gray-3))' : 'var(--success-line)',
                   }}
                 >
                   <div className='text-xs text-t-secondary mb-1'>
                     {items.length > 1 ? `${idx + 1}. ` : ''}
                     {item.prompt}
                   </div>
-                  <Text className='text-sm whitespace-pre-wrap' style={{ color: skipped ? 'var(--color-text-3)' : 'rgb(var(--success-6))' }}>
+                  <Text className='text-sm whitespace-pre-wrap' style={{ color: skipped ? 'var(--color-text-3)' : 'var(--success)' }}>
                     {skipped ? `⊘ ${t('messages.questionSkipped')}` : `✓ ${displayValue}`}
                   </Text>
                 </div>
@@ -517,8 +517,8 @@ const MessageAcpQuestion: React.FC<MessageAcpQuestionProps> = React.memo(({ mess
         )}
 
         {isCancelled && (
-          <div className='mt-10px p-2 rounded-md border' style={{ backgroundColor: 'var(--color-warning-light-1)', borderColor: 'rgb(var(--warning-3))' }}>
-            <Text className='text-sm whitespace-pre-wrap' style={{ color: 'rgb(var(--warning-6))' }}>
+          <div className='mt-10px p-2 rounded-md border' style={{ backgroundColor: 'var(--warning-soft)', borderColor: 'var(--warning-line)' }}>
+            <Text className='text-sm whitespace-pre-wrap' style={{ color: 'var(--warning)' }}>
               {'⚠ '}
               {t('messages.questionCancelled')}
             </Text>

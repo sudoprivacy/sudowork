@@ -18,9 +18,15 @@ const textColors = {
 // Usage: Status indicators, buttons, tags, etc.
 const semanticColors = {
   primary: 'var(--primary)', // bg-primary, text-primary, border-primary
-  success: 'var(--success)', // bg-success, text-success
+  success: 'var(--success)', // bg-success, text-success (实色:文字/图标/圆点)
+  'success-soft': 'var(--success-soft)', // bg-success-soft (浅底)
+  'success-line': 'var(--success-line)', // border-success-line (描边)
   warning: 'var(--warning)', // bg-warning, text-warning
+  'warning-soft': 'var(--warning-soft)',
+  'warning-line': 'var(--warning-line)',
   danger: 'var(--danger)', // bg-danger, text-danger
+  'danger-soft': 'var(--danger-soft)',
+  'danger-line': 'var(--danger-line)',
   info: 'var(--info)', // bg-info, text-info
 };
 
@@ -118,14 +124,14 @@ export default defineConfig({
     // Arco Design official border colors: border-arco-1, border-arco-2, border-arco-3, border-arco-4
     [/^border-arco-([1-4])$/, ([, d]: RegExpExecArray) => ({ 'border-color': `var(--color-border-${d})` })],
 
-    // Arco Design 官方浅色系 primary/success/warning/danger/link-light-1 到 -light-4
-    // Arco Design light variants: bg-primary-light-1, bg-success-light-1, etc.
-    [/^bg-(primary|success|warning|danger|link)-light-([1-4])$/, ([, color, d]: RegExpExecArray) => ({ 'background-color': `var(--color-${color}-light-${d})` })],
+    // Arco Design 官方浅色系 primary/link-light-1 到 -light-4
+    // 注:success/warning/danger 已迁移到项目语义 token(--xxx-soft/-line),不再走 Arco 色阶
+    [/^bg-(primary|link)-light-([1-4])$/, ([, color, d]: RegExpExecArray) => ({ 'background-color': `var(--color-${color}-light-${d})` })],
 
-    // Arco Design 官方色阶 primary/success/warning/danger 1-9
+    // Arco Design 官方色阶 primary 1-9(success/warning/danger 已迁移到语义 token)
     // Arco Design color levels: bg-primary-1, text-primary-1, border-primary-1, etc.
     [
-      /^(bg|text|border)-(primary|success|warning|danger)-([1-9])$/,
+      /^(bg|text|border)-(primary)-([1-9])$/,
       ([, prefix, color, d]: RegExpExecArray) => {
         const prop = prefix === 'bg' ? 'background-color' : prefix === 'text' ? 'color' : 'border-color';
         return { [prop]: `rgb(var(--${color}-${d}))` };

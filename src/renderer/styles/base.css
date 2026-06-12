@@ -849,7 +849,7 @@ body,
 }
 
 .store-action-icon--danger:hover {
-  color: var(--color-danger);
+  color: var(--danger);
 }
 
 .store-action-badge {

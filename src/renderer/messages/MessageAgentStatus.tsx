@@ -52,9 +52,9 @@ const MessageAgentStatus: React.FC<MessageAgentStatusProps> = ({ message }) => {
     <div
       className='agent-status-message flex items-center gap-3 p-3 rounded-lg border'
       style={{
-        backgroundColor: isError ? 'var(--color-danger-light-1)' : isSuccess ? 'var(--color-success-light-1)' : 'var(--color-primary-light-1)',
-        borderColor: isError ? 'rgb(var(--danger-3))' : isSuccess ? 'rgb(var(--success-3))' : 'rgb(var(--primary-3))',
-        color: isError ? 'rgb(var(--danger-6))' : isSuccess ? 'rgb(var(--success-6))' : 'rgb(var(--primary-6))',
+        backgroundColor: isError ? 'var(--danger-soft)' : isSuccess ? 'var(--success-soft)' : 'var(--color-primary-light-1)',
+        borderColor: isError ? 'var(--danger-line)' : isSuccess ? 'var(--success-line)' : 'rgb(var(--primary-3))',
+        color: isError ? 'var(--danger)' : isSuccess ? 'var(--success)' : 'rgb(var(--primary-6))',
       }}
     >
       <div className='flex items-center gap-2'>

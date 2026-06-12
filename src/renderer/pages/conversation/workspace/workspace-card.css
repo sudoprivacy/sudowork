@@ -642,7 +642,7 @@
 }
 
 .chat-workspace .workspace-card__sync-dot--live {
-  background: var(--color-success, #00b42a);
+  background: var(--success);
 }
 
 .chat-workspace .workspace-card__sync-dot--live::after {
@@ -650,7 +650,7 @@
   position: absolute;
   inset: 0;
   border-radius: 50%;
-  background: var(--color-success, #00b42a);
+  background: var(--success);
   opacity: 0.55;
   animation: workspace-card-ping 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;
 }
