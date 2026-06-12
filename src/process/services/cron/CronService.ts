@@ -22,6 +22,7 @@ import { assistantManager } from '@/process/AssistantManager';
 import { setupChannelResponseRouting } from '@/channels/agent/ChannelResponseRouter';
 import { cronBusyGuard } from './CronBusyGuard';
 import { cronStore, type CronJob, type CronSchedule } from './CronStore';
+import { assertClientCronEnabled, getClientCronEnabled } from './cronPolicy';
 import { createConversation } from '../conversationService';
 
 /**
@@ -80,6 +81,10 @@ class CronService {
    * Add a new cron job. Multiple jobs may bind the same conversation.
    */
   async addJob(params: CreateCronJobParams): Promise<CronJob> {
+    // Org policy gate (enterprise client_cron_enabled, issue #854) — enforced
+    // here, at the deepest choke point, so every creation path (agent text
+    // commands, IPC/webui, channels) is covered.
+    await assertClientCronEnabled();
     // Multiple scheduled tasks are allowed to bind the same conversation — each
     // job appears as its own group in the sidebar, and a shared conversation
     // shows up under every group it is bound to.
@@ -139,6 +144,8 @@ class CronService {
    * Update an existing cron job
    */
   async updateJob(jobId: string, updates: Partial<CronJob>): Promise<CronJob> {
+    // Org policy gate (issue #854)
+    await assertClientCronEnabled();
     const existing = cronStore.getById(jobId);
     if (!existing) {
       throw new Error(`Job not found: ${jobId}`);
@@ -182,6 +189,9 @@ class CronService {
    * Remove a cron job
    */
   async removeJob(jobId: string): Promise<void> {
+    // Org policy gate (issue #854) — jobs are paused (not deleted) while the
+    // org has cron disabled, so everything is intact when it is re-enabled.
+    await assertClientCronEnabled();
     // Stop timer
     this.stopTimer(jobId);
 
@@ -217,6 +227,8 @@ class CronService {
    * button) can show a toast instead of silently updating the job row.
    */
   async triggerJob(jobId: string): Promise<void> {
+    // Org policy gate (issue #854)
+    await assertClientCronEnabled();
     const job = cronStore.getById(jobId);
     if (!job) {
       throw new Error(`Job ${jobId} not found`);
@@ -337,6 +349,20 @@ class CronService {
    * Execute a job - send message to conversation
    */
   private async executeJob(job: CronJob): Promise<void> {
+    // Org policy: while client_cron_enabled=false, scheduled fires are skipped
+    // (recorded, schedule advanced) rather than torn down, so jobs resume
+    // cleanly when the org re-enables cron. Checked at fire time so an admin
+    // toggle takes effect without restarting timers. (issue #854)
+    if (!(await getClientCronEnabled())) {
+      job.state.lastStatus = 'skipped';
+      job.state.lastError = 'Skipped: scheduled tasks are disabled by your organization';
+      this.updateNextRunTime(job);
+      cronStore.update(job.id, { state: job.state });
+      ipcBridge.cron.onJobUpdated.emit(job);
+      mainLog('CronService', `executeJob SKIPPED (org policy): id=${job.id} name="${job.name}"`);
+      return;
+    }
+
     const { conversationId } = job.metadata;
     const conversationMode = job.metadata.conversationMode ?? 'new';
 

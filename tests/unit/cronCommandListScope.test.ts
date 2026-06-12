@@ -28,6 +28,10 @@ vi.mock('@/common', () => ({
   },
 }));
 
+vi.mock('@process/services/cron/cronPolicy', () => ({
+  getClientCronEnabled: vi.fn(async () => true),
+}));
+
 function cronJob(overrides: { id: string; name: string; conversationId: string }) {
   return {
     id: overrides.id,

@@ -8,6 +8,7 @@ import type { TMessage } from '@/common/chatLib';
 import { ipcBridge } from '@/common';
 import type { AcpBackendAll } from '@/types/acpTypes';
 import { cronService } from '@process/services/cron/CronService';
+import { getClientCronEnabled } from '@process/services/cron/cronPolicy';
 import { detectCronCommands, stripCronCommands, type CronCommand } from './CronCommandDetector';
 import { hasThinkTags, stripThinkTags } from './ThinkTagDetector';
 
@@ -180,6 +181,14 @@ export async function processCronInMessage(conversationId: string, agentType: Ac
  * Handle detected cron commands
  */
 async function handleCronCommands(conversationId: string, agentType: AcpBackendAll, commands: CronCommand[]): Promise<string[]> {
+  // Org policy gate (issue #854): conversations whose transcripts already
+  // teach the cron commands will keep emitting them after an admin disables
+  // the feature — refuse here with an explicit response so the agent relays
+  // an honest answer instead of hallucinating success.
+  if (!(await getClientCronEnabled())) {
+    return ['⛔ Scheduled tasks are disabled by your organization. Tell the user that an administrator must enable them, and do not retry the command.'];
+  }
+
   const responses: string[] = [];
 
   for (const cmd of commands) {

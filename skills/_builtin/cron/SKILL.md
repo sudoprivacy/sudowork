@@ -117,4 +117,5 @@ Replace `<actual-job-id>` with the real job ID (e.g., `cron_abc123`).
 
 - `[CRON_LIST]` shows ALL of the user's scheduled tasks; entries created by the current conversation are marked `[created in this conversation]`
 - When a task triggers, its message is delivered to the conversation that created it
+- Scheduled tasks are subject to organization policy. If the system responds that scheduled tasks are disabled by the organization, relay that to the user and do NOT retry the command — only an administrator can enable the feature.
 - **CRITICAL**: `[CRON_LIST]` is an async query. You MUST wait for the system response before proceeding with `[CRON_CREATE]` or `[CRON_DELETE]`. Never output multiple commands in one message.

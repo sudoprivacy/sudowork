@@ -201,6 +201,8 @@ export interface IConfigStorageRefer {
   'eeclaw.localModeAvailable'?: boolean;
   // Enterprise auth token for main process (no user field, unlike localStorage eeclaw_auth_v1)
   'eeclaw.authStorage'?: { access_token: string; refresh_token: string; expires_at: number; device_id: string; session_type?: 'password' | 'api_key' | 'oauth2' };
+  // Last resolved tenant config (main-process offline fallback for policy flags like client_cron_enabled)
+  'eeclaw.tenantConfig'?: { client_cron_enabled?: boolean; [key: string]: unknown };
   // Consumer (personal) mode user info for telemetry / 个人模式用户信息（用于遥测）
   'consumer.userInfo'?: { id: string; nickname?: string; phone?: string; tenant_id?: string };
 }

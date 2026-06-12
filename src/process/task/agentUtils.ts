@@ -398,7 +398,9 @@ When a user request matches a skill's description, you MUST read that skill's SK
 
 For example:
 - Builtin "browser" skill: ${systemSkillsDir}/browser/SKILL.md
-- Builtin "cron" skill: ${systemSkillsDir}/cron/SKILL.md`;
+- Builtin "cron" skill: ${systemSkillsDir}/cron/SKILL.md
+
+Skill capabilities are subject to organization policy: if the system refuses a skill command as disabled by the organization, relay the refusal to the user and do not retry.`;
 
     instructions.push(skillsInstruction);
   }
