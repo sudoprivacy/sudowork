@@ -1211,49 +1211,6 @@ body,
   background-color: var(--fill-0) !important;
 }
 
-/* Send button state - keep the primary action orange across themes */
-.send-button-custom:not(:disabled),
-.send-button-custom.arco-btn-primary:not(:disabled) {
-  width: 34px !important;
-  height: 34px !important;
-  min-width: 34px !important;
-  background-color: var(--ui-accent-orange) !important;
-  border-color: var(--ui-accent-orange) !important;
-  color: #fff !important;
-  box-shadow: 0 8px 18px rgba(var(--ui-accent-orange-rgb), 0.24) !important;
-}
-
-.send-button-custom:not(:disabled):hover,
-.send-button-custom.arco-btn-primary:not(:disabled):hover,
-.send-button-custom:not(:disabled):focus-visible,
-.send-button-custom.arco-btn-primary:not(:disabled):focus-visible {
-  background-color: var(--ui-accent-orange-hover) !important;
-  border-color: var(--ui-accent-orange-hover) !important;
-}
-
-/* Send button disabled state - override Arco Design default disabled styles */
-/* 发送按钮禁用状态 - 覆盖 Arco Design 默认的禁用样式 */
-.send-button-custom:disabled {
-  width: 34px !important;
-  height: 34px !important;
-  min-width: 34px !important;
-  background-color: var(--send-button-disabled-bg) !important;
-  border-color: var(--send-button-disabled-bg) !important;
-  opacity: 1 !important;
-}
-
-.send-button-custom:disabled .arco-icon > svg,
-.send-button-custom:disabled .arco-icon > svg path {
-  fill: var(--send-button-disabled-icon) !important;
-}
-
-/* Make arrow icon thicker */
-/* 加粗箭头图标 */
-.send-button-custom .arco-icon > svg {
-  stroke-width: 5 !important;
-  filter: drop-shadow(0 0 0.5px currentColor);
-}
-
 /* Input placeholder color */
 /* 输入框占位符颜色 */
 ::placeholder {

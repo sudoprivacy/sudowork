@@ -507,11 +507,6 @@ const SendBox: React.FC<{
 
   // Calculate button disabled state and style
   const isButtonDisabled = disabled || isStopping || (!input.trim() && domSnippets.length === 0);
-  const buttonStyle = {
-    backgroundColor: isButtonDisabled ? undefined : 'var(--ui-accent-orange)',
-    borderColor: isButtonDisabled ? undefined : 'var(--ui-accent-orange)',
-    boxShadow: isButtonDisabled ? undefined : '0 8px 18px rgba(var(--ui-accent-orange-rgb),0.24)',
-  };
 
   // Reusable send button component
   const sendButton = (
@@ -519,8 +514,6 @@ const SendBox: React.FC<{
       shape='circle'
       type='primary'
       disabled={isButtonDisabled}
-      className='send-button-custom'
-      style={buttonStyle}
       icon={<ArrowUp theme='filled' size='14' fill='white' strokeWidth={5} />}
       onClick={() => {
         sendMessageHandler();

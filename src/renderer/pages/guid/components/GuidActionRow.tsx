@@ -155,20 +155,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({ files, onFilesUploaded, o
           {isPresetAgent && selectedAgentInfo && <PresetAgentTag agentInfo={selectedAgentInfo} customAgents={customAgents} localeKey={localeKey} onClose={onClosePresetTag} />}
         </div>
         <div className={styles.actionSubmit}>
-          <Button
-            shape='circle'
-            type='primary'
-            loading={loading}
-            disabled={isButtonDisabled}
-            className='send-button-custom'
-            style={{
-              backgroundColor: isButtonDisabled ? undefined : 'var(--ui-accent-orange)',
-              borderColor: isButtonDisabled ? undefined : 'var(--ui-accent-orange)',
-              boxShadow: isButtonDisabled ? undefined : '0 8px 18px rgba(var(--ui-accent-orange-rgb),0.24)',
-            }}
-            icon={<ArrowUp theme='filled' size='14' fill='white' strokeWidth={5} />}
-            onClick={onSend}
-          />
+          <Button shape='circle' type='primary' loading={loading} disabled={isButtonDisabled} icon={<ArrowUp theme='filled' size='14' fill='white' strokeWidth={5} />} onClick={onSend} />
         </div>
       </div>
 
