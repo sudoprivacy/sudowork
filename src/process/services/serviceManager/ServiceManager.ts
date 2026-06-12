@@ -452,6 +452,23 @@ export class ServiceManager {
         patchOpenclawPdfDescription();
         const prevPath = process.env.PATH ?? '';
         sudoworkBinEnv.PATH = prevPath.length > 0 ? `${SUDOCLAW_SUDOWORK_BIN_DIR}${path.delimiter}${prevPath}` : SUDOCLAW_SUDOWORK_BIN_DIR;
+        // The `browser`/`aidb` dispatcher shells out to a bare `python`. A
+        // freshly provisioned Python is added to the *system* PATH by the
+        // installer's PrependPath, but the already-running sudowork process (and
+        // thus this gateway and its exec children) inherited the pre-install
+        // PATH — so `python` stays invisible until a full machine reboot.
+        // Resolve the installed interpreter and surface its directory on the
+        // gateway PATH directly, so the browser skill works immediately after
+        // install without a reboot. Fail-open.
+        try {
+          const { pythonRuntimeService } = await import('../python/PythonRuntimeService');
+          const py = await pythonRuntimeService.checkInstalled();
+          if (py.installed && py.path) {
+            sudoworkBinEnv.PATH = `${path.dirname(py.path)}${path.delimiter}${sudoworkBinEnv.PATH}`;
+          }
+        } catch (err) {
+          mainWarn('ServiceManager', 'Failed to add provisioned Python to gateway PATH', err);
+        }
         // ai-dev-browser v0.5.1 reads AI_DEV_BROWSER_OUTPUT_DIR as the
         // `--path`-omitted default for screenshot / dump tools (falls back
         // to `./screenshots/` under CWD if unset). openclaw's exec tool

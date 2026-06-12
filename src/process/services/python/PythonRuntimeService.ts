@@ -25,6 +25,7 @@ import * as http from 'http';
 import * as path from 'path';
 import { app } from 'electron';
 import { promisify } from 'util';
+import { mainWarn } from '@process/utils/mainLogger';
 
 const execFileAsync = promisify(execFile);
 const execAsync = promisify(exec);
@@ -165,18 +166,28 @@ export class PythonRuntimeService {
     return { installed: false };
   }
 
-  getDownloadUrl(): string {
+  /**
+   * Installer download URLs, ordered by preference. The Huawei Cloud mirror
+   * (which mirrors the python.org/ftp tree exactly) is tried first because the
+   * official python.org host is slow or unreachable from mainland China, where
+   * a failed/timed-out download is the most common reason the Python runtime
+   * never gets provisioned — which in turn breaks the browser skill (it shells
+   * out to `python -m ai_dev_browser`). python.org is kept as a fallback.
+   */
+  getDownloadUrls(): string[] {
     const v = PYTHON_VERSION;
     if (process.platform === 'darwin') {
       // Universal installer for macOS (works on both Intel and Apple Silicon)
-      return `https://www.python.org/ftp/python/${v}/python-${v}-macos11.pkg`;
+      const file = `python-${v}-macos11.pkg`;
+      return [`https://mirrors.huaweicloud.com/python/${v}/${file}`, `https://www.python.org/ftp/python/${v}/${file}`];
     } else if (process.platform === 'win32') {
       // Windows installer
       const arch = process.arch === 'arm64' ? 'arm64' : 'amd64';
-      return `https://www.python.org/ftp/python/${v}/python-${v}-${arch}.exe`;
+      const file = `python-${v}-${arch}.exe`;
+      return [`https://mirrors.huaweicloud.com/python/${v}/${file}`, `https://www.python.org/ftp/python/${v}/${file}`];
     } else {
       // Linux: use package manager, no direct download
-      return '';
+      return [];
     }
   }
 
@@ -201,12 +212,50 @@ export class PythonRuntimeService {
 
   async install(onProgress: ProgressCallback): Promise<void> {
     if (process.platform === 'darwin') {
-      return this.installMac(onProgress);
+      await this.installMac(onProgress);
     } else if (process.platform === 'win32') {
-      return this.installWindows(onProgress);
+      await this.installWindows(onProgress);
     } else {
-      return this.installLinux(onProgress);
+      await this.installLinux(onProgress);
     }
+
+    // Python alone isn't enough for the browser skill: it shells out to
+    // `python -m ai_dev_browser`, which needs the ai-dev-browser package AND its
+    // runtime deps (websockets, Pillow, ...). The bundled junction only supplies
+    // the package source, not the deps, so pip-install the published package
+    // (which pulls the full dependency tree) into the freshly installed Python.
+    // Best-effort: a failure here leaves Python installed and is logged, not fatal.
+    try {
+      onProgress('configuring');
+      await this.provisionBrowserRuntime();
+    } catch (err) {
+      mainWarn('PythonRuntime', 'Failed to provision ai-dev-browser into installed Python', err);
+    }
+  }
+
+  /**
+   * Install the browser skill's Python runtime (ai-dev-browser + its full
+   * dependency tree) into the freshly provisioned Python, via a China-friendly
+   * PyPI mirror. Mirrors the manual `pip install ai-dev-browser` that gets the
+   * browser skill working end-to-end on a clean machine.
+   */
+  private async provisionBrowserRuntime(): Promise<void> {
+    const status = await this.checkInstalled();
+    if (!status.installed || !status.path) return;
+    const py = status.path;
+    const mirror = 'https://pypi.tuna.tsinghua.edu.cn/simple';
+    // Upgrade pip first — the pip bundled with the installer can be too old for
+    // newer wheels. Non-fatal: fall through to whatever pip shipped.
+    try {
+      await execFileAsync(py, ['-m', 'pip', 'install', '-i', mirror, '--upgrade', 'pip'], { timeout: 120000 });
+    } catch {
+      /* keep going with the bundled pip */
+    }
+    // Require >=0.10.1, the first release with the Windows port-detection fix
+    // (netstat utf-8 decode → stdout=None crash) that breaks auto port discovery
+    // on Chinese-locale Windows. Prefer the China mirror but fall back to PyPI so
+    // a not-yet-synced mirror can't pin users to the buggy 0.10.0.
+    await execFileAsync(py, ['-m', 'pip', 'install', '-i', mirror, '--extra-index-url', 'https://pypi.org/simple', 'ai-dev-browser>=0.10.1'], { timeout: 300000 });
   }
 
   private async installMac(onProgress: ProgressCallback): Promise<void> {
@@ -217,7 +266,7 @@ export class PythonRuntimeService {
       if (fs.existsSync(pkgPath) && fs.statSync(pkgPath).size > 0) {
         onProgress('downloading', 100);
       } else {
-        await this.downloadFile(this.getDownloadUrl(), pkgPath, (percent) => {
+        await this.downloadWithFallback(this.getDownloadUrls(), pkgPath, (percent) => {
           onProgress('downloading', percent);
         });
       }
@@ -248,7 +297,7 @@ export class PythonRuntimeService {
       if (fs.existsSync(exePath) && fs.statSync(exePath).size > 0) {
         onProgress('downloading', 100);
       } else {
-        await this.downloadFile(this.getDownloadUrl(), exePath, (percent) => {
+        await this.downloadWithFallback(this.getDownloadUrls(), exePath, (percent) => {
           onProgress('downloading', percent);
         });
       }
@@ -359,6 +408,19 @@ export class PythonRuntimeService {
     // Clean download cache
     const cacheDir = this.getCacheDir();
     if (fs.existsSync(cacheDir)) fs.rmSync(cacheDir, { recursive: true, force: true });
+  }
+
+  private async downloadWithFallback(urls: string[], dest: string, onPercent: (n: number) => void): Promise<void> {
+    let lastError: unknown;
+    for (const url of urls) {
+      try {
+        await this.downloadFile(url, dest, onPercent);
+        return;
+      } catch (err) {
+        lastError = err;
+      }
+    }
+    throw lastError instanceof Error ? lastError : new Error('All Python installer download mirrors failed');
   }
 
   private downloadFile(url: string, dest: string, onPercent: (n: number) => void): Promise<void> {
