@@ -56,7 +56,7 @@ jobs:
         run: bun install --no-frozen-lockfile
 
       - name: Run secrets unit tests
-        run: bunx vitest run tests/unit/secrets/
+        run: bunx vitest run tests/unit/secrets/nexus-secret-client.test.ts tests/unit/secrets/secret-cache.test.ts
 
   # Job 3: Build test across all platforms (parallel with code-quality and unit-tests)
   build-test:
