@@ -30,6 +30,8 @@ const runtimeVersions = require('../src/shared/runtime-versions.json');
 
 const VERSION = runtimeVersions['nexus-vfs'];
 const VAULT_VERSION = runtimeVersions['nexus-vault'];
+const LOCAL_CONNECTOR_VERSION = runtimeVersions['nexus-local-connector'];
+const FUSE_PLUGIN_VERSION = runtimeVersions['nexus-fuse-plugin'];
 
 // Runtime bucket is primary; legacy bucket stays live as a fallback during deprecation.
 const COS_BASE_URLS = [
@@ -45,6 +47,21 @@ const VAULT_COS_BASE_URLS = [
 
 // GitHub Release fallback for vault plugin (梁 mirrors to COS, but GH is source of truth).
 const VAULT_GITHUB_URL = `https://github.com/nexi-lab/nexus/releases/download/vault-v${VAULT_VERSION}`;
+
+// local-connector + fuse-plugin are released from the nexus repo too. Both
+// signed by kernel-dogfood-v1.pub (in contrast to vault's nexus-team.pub
+// bootstrap key); kernel trust root in nexus-vfs#58 picks up both keys.
+const LOCAL_CONNECTOR_COS_BASE_URLS = [
+  `https://sudowork-runtime-1309794936.cos.ap-beijing.myqcloud.com/nexus-local-connector/release/v${LOCAL_CONNECTOR_VERSION}`,
+  `https://sudoclaw-download-1309794936.cos.ap-beijing.myqcloud.com/nexus-local-connector/release/v${LOCAL_CONNECTOR_VERSION}`,
+];
+const LOCAL_CONNECTOR_GITHUB_URL = `https://github.com/nexi-lab/nexus/releases/download/local-connector-v${LOCAL_CONNECTOR_VERSION}`;
+
+const FUSE_PLUGIN_COS_BASE_URLS = [
+  `https://sudowork-runtime-1309794936.cos.ap-beijing.myqcloud.com/nexus-fuse-plugin/release/v${FUSE_PLUGIN_VERSION}`,
+  `https://sudoclaw-download-1309794936.cos.ap-beijing.myqcloud.com/nexus-fuse-plugin/release/v${FUSE_PLUGIN_VERSION}`,
+];
+const FUSE_PLUGIN_GITHUB_URL = `https://github.com/nexi-lab/nexus/releases/download/fuse-v${FUSE_PLUGIN_VERSION}`;
 
 /**
  * Known-good SHA256 sums (mirrors SHA256SUMS.txt in the bucket).
@@ -69,6 +86,15 @@ const SHA256SUMS = {
   'nexus-vault-macos-arm64.tar.gz': 'a97fbcdc7b178bc3b3dc4e1adb99e8dd40e77ea412354f5d6f4f54b328a583f4',
   'nexus-vault-macos-x86_64.tar.gz': '27a85d33cdd8adcb84f6a263202b3fb0c4a682174de21b2964efc51e883b0bb0',
   'nexus-vault-windows-x86_64.zip': 'c80b7453255b5c05f50a2206556402784aef75ae1cf5f272a599193f92856a07',
+  // local-connector v0.1.1 — driver dylib that mounts a host fs path,
+  // signed by kernel-dogfood-v1.pub.
+  'nexus-local-connector-linux-x86_64.tar.gz': '16f22e0e93a08e537f8f4010c2838eb4e3bf81ed88804e24b4a5e5c0206cf17d',
+  'nexus-local-connector-macos-arm64.tar.gz': '973f42b4e7dfb040ea9a91501ca26c364640b0aaeb909ab39141b824913560a8',
+  'nexus-local-connector-macos-x86_64.tar.gz': '70a53b0fab2b189883dd8c22893c18b790332bac54fe18944545e282b22dfdd8',
+  'nexus-local-connector-windows-x86_64.zip': '42a5060a2afce89b90a6538bd9b9fe2b7d5c23ab7268a4a4763a620dbe77ef8d',
+  // fuse-plugin v0.1.0 — linux-only FUSE service plugin, signed by
+  // kernel-dogfood-v1.pub.
+  'nexus-fuse-plugin-linux-x86_64.tar.gz': '1a8c74210ce6e9a1632fab382e21af1d0d55a976b77c4f7def3656fb1af3696b',
 };
 
 
@@ -80,6 +106,8 @@ const PLUGIN_DIR = path.join(INSTALL_ROOT, 'plugins');
 const DOWNLOAD_DIR = path.join(INSTALL_ROOT, 'downloads');
 const READY_MARKER = path.join(BIN_DIR, '.nexus-vfs-bin-ready');
 const VAULT_READY_MARKER = path.join(PLUGIN_DIR, '.nexus-vault-ready');
+const LOCAL_CONNECTOR_READY_MARKER = path.join(PLUGIN_DIR, '.nexus-local-connector-ready');
+const FUSE_PLUGIN_READY_MARKER = path.join(PLUGIN_DIR, '.nexus-fuse-plugin-ready');
 
 const isWindows = process.platform === 'win32';
 
@@ -205,9 +233,16 @@ function downloadFile(url, dest) {
           response.pipe(file);
 
           file.on('finish', () => {
-            file.close();
-            console.log('\nDownload complete.');
-            resolve();
+            // Pass the callback to close() so we resolve AFTER the OS
+            // file handle is released. Without this, on Windows the very
+            // next step (extractArchive → PowerShell Expand-Archive) can
+            // race and hit "the process cannot access the file because it
+            // is being used by another process" — `file.close()` returns
+            // before the kernel handle is gone if no callback is given.
+            file.close(() => {
+              console.log('\nDownload complete.');
+              resolve();
+            });
           });
         })
         .on('error', (err) => {
@@ -226,20 +261,55 @@ function downloadFile(url, dest) {
  * Extract the archive into extractDir. Shells out to the system `tar`
  * (.tar.gz, available on macOS/Linux/modern Windows) or `unzip` / PowerShell
  * Expand-Archive (.zip).
+ *
+ * On Windows, retries the extraction once after a brief sleep — Defender
+ * real-time scanning briefly locks freshly-written zips, and Expand-Archive
+ * does not set $LASTEXITCODE on cmdlet errors (so `execFileSync` would
+ * otherwise see exit 0 and the caller's `findBinaryInDir` would fail
+ * downstream with a misleading "missing dylib" message).
  */
 function extractArchive(archivePath, extractDir) {
   fs.mkdirSync(extractDir, { recursive: true });
 
-  if (archivePath.endsWith('.zip')) {
-    if (isWindows) {
-      execFileSync('powershell', ['-NoProfile', '-Command', `Expand-Archive -Force -LiteralPath '${archivePath}' -DestinationPath '${extractDir}'`], { stdio: 'inherit' });
+  // Windows 10+ ships `bsdtar` at `%SystemRoot%\System32\tar.exe`. It
+  // handles both `.zip` and `.tar.gz`, accepts Windows-native paths
+  // (Git Bash's GNU tar does not), and reads via a different I/O path
+  // than PowerShell's Expand-Archive — so it side-steps the Defender
+  // real-time-scan file-lock race that Expand-Archive trips on
+  // freshly-downloaded archives. Use the absolute path so PATH
+  // ordering can't accidentally pick up GNU tar from Git Bash.
+  const systemRoot = process.env.SystemRoot || 'C:\\Windows';
+  const winTar = `${systemRoot}\\System32\\tar.exe`;
+  const tarBin = isWindows ? winTar : 'tar';
+  const runOnce = () => {
+    if (archivePath.endsWith('.zip')) {
+      if (isWindows) {
+        execFileSync(tarBin, ['-xf', archivePath, '-C', extractDir], { stdio: 'inherit' });
+      } else {
+        execFileSync('unzip', ['-o', archivePath, '-d', extractDir], { stdio: 'inherit' });
+      }
+    } else if (archivePath.endsWith('.tar.gz') || archivePath.endsWith('.tgz')) {
+      execFileSync(tarBin, ['-xzf', archivePath, '-C', extractDir], { stdio: 'inherit' });
     } else {
-      execFileSync('unzip', ['-o', archivePath, '-d', extractDir], { stdio: 'inherit' });
+      throw new Error(`Unsupported archive format: ${archivePath}`);
     }
-  } else if (archivePath.endsWith('.tar.gz') || archivePath.endsWith('.tgz')) {
-    execFileSync('tar', ['-xzf', archivePath, '-C', extractDir], { stdio: 'inherit' });
-  } else {
-    throw new Error(`Unsupported archive format: ${archivePath}`);
+  };
+
+  const isEmpty = () => {
+    try {
+      return fs.readdirSync(extractDir).length === 0;
+    } catch {
+      return true;
+    }
+  };
+
+  runOnce();
+  if (isWindows && isEmpty()) {
+    // Defender / file-lock race — wait, then retry once.
+    execFileSync('powershell', ['-NoProfile', '-Command', 'Start-Sleep -Milliseconds 1500'], {
+      stdio: 'ignore',
+    });
+    runOnce();
   }
 }
 
@@ -452,6 +522,193 @@ async function installVaultPlugin(platform, arch, force) {
   return true;
 }
 
+// ── local-connector + fuse-plugin (signed by kernel-dogfood-v1.pub) ─────
+//
+// Both plugins share the vault-plugin install pattern: pull a signed
+// archive from COS (with GitHub fallback), verify SHA256, extract dylib +
+// `.sig` into ~/.nexus-vfs/plugins/. Refactoring into a single generic
+// installer would obscure the per-plugin platform matrices, so we keep
+// them as small wrappers around a shared core (`installSignedKernelPlugin`).
+
+/**
+ * Generic install path for a kernel-signed plugin. Carries the same
+ * download/verify/extract logic as installVaultPlugin; per-plugin config
+ * (artifact name, dylib name, ready marker, URLs) is supplied by the caller.
+ */
+async function installSignedKernelPlugin(spec, platform, arch, force) {
+  const { displayName, version, artifactName, dylibName, sigName, urls, readyMarker } = spec;
+  if (!artifactName) {
+    console.log(`⏭️  ${displayName} not available for ${platform}-${arch}; skipping.`);
+    return false;
+  }
+  if (!dylibName) {
+    console.log(`⏭️  ${displayName}: no dylib name resolved for ${platform}; skipping.`);
+    return false;
+  }
+
+  const installedDylib = path.join(PLUGIN_DIR, dylibName);
+
+  if (
+    fs.existsSync(installedDylib) &&
+    fs.existsSync(readyMarker) &&
+    fs.readFileSync(readyMarker, 'utf-8').trim() === version &&
+    !force
+  ) {
+    console.log(`Already installed (${displayName} v${version}): ${installedDylib}`);
+    return true;
+  }
+
+  fs.mkdirSync(DOWNLOAD_DIR, { recursive: true });
+  fs.mkdirSync(PLUGIN_DIR, { recursive: true });
+
+  const archivePath = path.join(DOWNLOAD_DIR, artifactName);
+  const extractDir = path.join(DOWNLOAD_DIR, `${displayName}-extract-${Date.now()}`);
+
+  let downloaded = false;
+  let lastErr = null;
+  for (const url of urls) {
+    try {
+      await downloadFile(url, archivePath);
+      downloaded = true;
+      break;
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  if (!downloaded) {
+    try {
+      fs.unlinkSync(archivePath);
+    } catch {}
+    console.error(`\n❌ ${displayName} not available for ${platform}-${arch} in v${version}.`);
+    console.error(`   Tried: ${urls.join(', ')}`);
+    if (lastErr) console.error(`   Last error: ${lastErr.message}`);
+    return false;
+  }
+
+  const expectedSha = SHA256SUMS[artifactName];
+  if (expectedSha) {
+    const actualSha = sha256OfFile(archivePath);
+    if (actualSha !== expectedSha) {
+      try {
+        fs.unlinkSync(archivePath);
+      } catch {}
+      throw new Error(`SHA256 mismatch for ${artifactName}: expected ${expectedSha}, got ${actualSha}`);
+    }
+    console.log(`SHA256 verified: ${actualSha}`);
+  } else {
+    console.warn(`⚠️  No SHA256 for ${artifactName}; skipping integrity check.`);
+  }
+
+  extractArchive(archivePath, extractDir);
+
+  const extractedDylib = findBinaryInDir(extractDir, dylibName);
+  if (!extractedDylib) {
+    throw new Error(`Archive ${artifactName} did not contain expected dylib ${dylibName}`);
+  }
+  fs.copyFileSync(extractedDylib, installedDylib);
+  if (!isWindows) fs.chmodSync(installedDylib, 0o755);
+
+  const installedSig = path.join(PLUGIN_DIR, sigName);
+  const extractedSig = findBinaryInDir(extractDir, sigName);
+  if (extractedSig) {
+    fs.copyFileSync(extractedSig, installedSig);
+    console.log(`Installed ${displayName} signature: ${installedSig}`);
+  } else {
+    try {
+      fs.unlinkSync(installedSig);
+    } catch {}
+    console.warn(
+      `⚠️  Archive ${artifactName} contains no ${sigName}. Cluster signature ` +
+        `verification will reject this plugin.`,
+    );
+  }
+
+  fs.writeFileSync(readyMarker, version);
+
+  try {
+    fs.rmSync(extractDir, { recursive: true, force: true });
+    fs.unlinkSync(archivePath);
+  } catch {}
+
+  const size = fs.statSync(installedDylib).size;
+  console.log(`Installed ${displayName} plugin: ${installedDylib} (${(size / 1024 / 1024).toFixed(1)} MB)`);
+  return true;
+}
+
+/** Per-platform archive name for the local-connector release. */
+function getLocalConnectorArtifactName(platform, arch) {
+  const map = {
+    'darwin-arm64': 'nexus-local-connector-macos-arm64.tar.gz',
+    'darwin-x64': 'nexus-local-connector-macos-x86_64.tar.gz',
+    'linux-x64': 'nexus-local-connector-linux-x86_64.tar.gz',
+    'win32-x64': 'nexus-local-connector-windows-x86_64.zip',
+  };
+  return map[`${platform}-${arch}`] || null;
+}
+
+function getLocalConnectorDylibName(platform) {
+  if (platform === 'darwin') return 'libnexus_local_connector.dylib';
+  if (platform === 'linux') return 'libnexus_local_connector.so';
+  if (platform === 'win32') return 'nexus_local_connector.dll';
+  return null;
+}
+
+async function installLocalConnectorPlugin(platform, arch, force) {
+  const artifactName = getLocalConnectorArtifactName(platform, arch);
+  const dylibName = getLocalConnectorDylibName(platform);
+  return installSignedKernelPlugin(
+    {
+      displayName: 'local-connector',
+      version: LOCAL_CONNECTOR_VERSION,
+      artifactName,
+      dylibName,
+      sigName: dylibName ? `${dylibName}.sig` : null,
+      urls: [
+        ...(artifactName ? LOCAL_CONNECTOR_COS_BASE_URLS.map((b) => `${b}/${artifactName}`) : []),
+        ...(artifactName ? [`${LOCAL_CONNECTOR_GITHUB_URL}/${artifactName}`] : []),
+      ],
+      readyMarker: LOCAL_CONNECTOR_READY_MARKER,
+    },
+    platform,
+    arch,
+    force,
+  );
+}
+
+function getFusePluginArtifactName(platform, arch) {
+  // Linux-only; macFUSE / WinFsp adapters are out of scope for the
+  // current fuse-plugin release.
+  if (platform === 'linux' && arch === 'x64') return 'nexus-fuse-plugin-linux-x86_64.tar.gz';
+  return null;
+}
+
+function getFusePluginDylibName(platform) {
+  if (platform === 'linux') return 'libnexus_fuse_plugin.so';
+  return null;
+}
+
+async function installFusePlugin(platform, arch, force) {
+  const artifactName = getFusePluginArtifactName(platform, arch);
+  const dylibName = getFusePluginDylibName(platform);
+  return installSignedKernelPlugin(
+    {
+      displayName: 'fuse-plugin',
+      version: FUSE_PLUGIN_VERSION,
+      artifactName,
+      dylibName,
+      sigName: dylibName ? `${dylibName}.sig` : null,
+      urls: [
+        ...(artifactName ? FUSE_PLUGIN_COS_BASE_URLS.map((b) => `${b}/${artifactName}`) : []),
+        ...(artifactName ? [`${FUSE_PLUGIN_GITHUB_URL}/${artifactName}`] : []),
+      ],
+      readyMarker: FUSE_PLUGIN_READY_MARKER,
+    },
+    platform,
+    arch,
+    force,
+  );
+}
+
 /** Like findBinary but takes a custom filename to search for. */
 function findBinaryInDir(dir, wanted) {
   const entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -479,7 +736,11 @@ async function main() {
     process.exit(0);
   }
 
-  console.log(`Downloading nexus-vfs (v${VERSION}) + vault plugin (v${VAULT_VERSION}) for ${platform}-${arch}...`);
+  console.log(
+    `Downloading nexus-vfs (v${VERSION}) + plugins: ` +
+      `vault v${VAULT_VERSION}, local-connector v${LOCAL_CONNECTOR_VERSION}, ` +
+      `fuse-plugin v${FUSE_PLUGIN_VERSION} for ${platform}-${arch}...`,
+  );
   console.log('');
 
   try {
@@ -501,6 +762,28 @@ async function main() {
     }
   } catch (err) {
     console.error(`\n❌ Failed to download vault plugin:`, err.message);
+  }
+
+  // local-connector + fuse-plugin — also separate artifacts from nexus repo.
+  // Both signed by kernel-dogfood-v1.pub (vs vault's nexus-team.pub
+  // bootstrap key). Trust root for both lives in the kernel's
+  // TRUSTED_KEY_FILES alongside nexus-team.pub.
+  try {
+    const lcOk = await installLocalConnectorPlugin(platform, arch, force);
+    if (lcOk) {
+      console.log('\n✅ local-connector plugin download completed');
+    }
+  } catch (err) {
+    console.error('\n❌ Failed to download local-connector plugin:', err.message);
+  }
+
+  try {
+    const fuseOk = await installFusePlugin(platform, arch, force);
+    if (fuseOk) {
+      console.log('\n✅ fuse-plugin download completed');
+    }
+  } catch (err) {
+    console.error('\n❌ Failed to download fuse-plugin:', err.message);
   }
 
   process.exit(0);
