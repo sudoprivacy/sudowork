@@ -13,6 +13,7 @@ import { useSettingsViewMode } from '../../settingsViewContext';
 import itemRefreshIcon from '@/renderer/assets/item-refresh.svg';
 import TenantConfigSection from './TenantConfigSection';
 import { EnterpriseSecretSection } from './EnterpriseSecretSection';
+import PwdLoginSection from './PwdLoginSection';
 import { ZentaoChannelItem } from '../ZentaoConfigForm';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
 
@@ -62,6 +63,9 @@ const SecretModalContent: React.FC = () => {
 
             {/* 禅道（仅C端） */}
             {!isEnterprise && <ZentaoChannelItem />}
+
+            {/* 网站自动登录 (pwd_login) */}
+            <PwdLoginSection />
 
             {/* 租户配置项 */}
             <TenantConfigSection refreshTrigger={refreshCounter} />
