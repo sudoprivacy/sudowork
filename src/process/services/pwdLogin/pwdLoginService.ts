@@ -55,6 +55,37 @@ export interface PwdLoginEntryStatus {
   hasCredential: boolean;
 }
 
+/** True when a gRPC error is "method not found" — some deployed vault plugin
+ *  builds are missing the single-secret `secret_get`/`secret_put` dispatch but
+ *  DO have the batch + list variants. We transparently fall back to those. */
+function isMethodNotFound(err: unknown): boolean {
+  return err instanceof Error && /method not found/i.test(err.message);
+}
+
+/** getSecret with a batchGet fallback (resilient to plugins missing secret_get). */
+function getSecretResilient(namespace: string, key: string): string {
+  const client = getNexusSecretClient();
+  try {
+    return client.getSecret(namespace, key);
+  } catch (err) {
+    if (!isMethodNotFound(err)) throw err;
+    const result = client.batchGet([{ namespace, key }]);
+    const values = Object.values(result);
+    return values.length ? values[0] : '';
+  }
+}
+
+/** putSecret with a batchPut fallback (resilient to plugins missing secret_put). */
+function putSecretResilient(namespace: string, key: string, value: string, description?: string): void {
+  const client = getNexusSecretClient();
+  try {
+    client.putSecret(namespace, key, value, description);
+  } catch (err) {
+    if (!isMethodNotFound(err)) throw err;
+    client.batchPut([{ namespace, key, value, description }]);
+  }
+}
+
 async function getRegistry(): Promise<PwdLoginEntry[]> {
   try {
     return (await ProcessConfig.get('pwdLogin.entries')) ?? [];
@@ -84,10 +115,14 @@ export async function resolvePwdAdapter(title: string): Promise<PwdAdapter | und
   return hit ? entryToAdapter(hit) : findAdapterByTitle(title);
 }
 
-/** True if a credential secret exists for the title (does not expose the value). */
+/** True if a credential secret exists for the title (does not expose the value).
+ *  Uses listSecrets (secret_list) — present even on plugin builds missing secret_get. */
 function hasCredential(title: string): boolean {
   try {
-    return !!getNexusSecretClient().getSecret(PWD_LOGIN_NAMESPACE, title.trim());
+    const key = title.trim();
+    return getNexusSecretClient()
+      .listSecrets(PWD_LOGIN_NAMESPACE, false)
+      .some((s) => s.key === key);
   } catch {
     return false;
   }
@@ -120,7 +155,7 @@ export async function savePwdLoginCredential(title: string, username: string, pa
   if (!key) throw new Error('title required');
   const value = JSON.stringify({ username, password });
   try {
-    getNexusSecretClient().putSecret(PWD_LOGIN_NAMESPACE, key, value, `pwd_login: ${key}`);
+    putSecretResilient(PWD_LOGIN_NAMESPACE, key, value, `pwd_login: ${key}`);
   } catch (err) {
     mainError('pwdLogin', `putSecret failed: ${err instanceof Error ? err.name : typeof err}`);
     throw err;
@@ -177,7 +212,7 @@ function credentialKey(title: string): IApprovalKey {
 async function fetchPasswordBuffer(title: string): Promise<{ username: string; passwordBuf: Buffer }> {
   let value: string;
   try {
-    value = getNexusSecretClient().getSecret(PWD_LOGIN_NAMESPACE, title);
+    value = getSecretResilient(PWD_LOGIN_NAMESPACE, title);
   } catch (err) {
     // Never log the error body (may carry secret material) — only the type.
     mainError('pwdLogin', `secret_get failed: ${err instanceof Error ? err.name : typeof err}`);
