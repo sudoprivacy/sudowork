@@ -62,7 +62,7 @@ const GeminiSubMenu: React.FC<{
   return (
     <Dropdown
       trigger='hover'
-      position='rt'
+      position='br'
       popupVisible={open}
       onVisibleChange={setOpen}
       droplist={
