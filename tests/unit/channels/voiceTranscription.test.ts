@@ -26,18 +26,18 @@ describe('resolveMediaText (gateway voice transcription)', () => {
 
   it('replaces the [voice message] placeholder with the transcript for WeChat voice', async () => {
     const transcribe = vi.fn().mockResolvedValue('你好，明天上午十点开会');
-    const text = await resolveMediaText(voiceContent(), 'wechat', transcribe);
+    const res = await resolveMediaText(voiceContent(), 'wechat', transcribe);
 
-    expect(text).toBe('你好，明天上午十点开会');
+    expect(res).toEqual({ text: '你好，明天上午十点开会', transcribed: true });
     // Adapter-supplied codec hint is forwarded so the SILK decode kicks in.
     expect(transcribe).toHaveBeenCalledWith('/tmp/wechat_voice.amr', 'silk');
   });
 
   it('falls back to [voice message] when ASR returns empty (graceful failure)', async () => {
     const transcribe = vi.fn().mockResolvedValue('');
-    const text = await resolveMediaText(voiceContent(), 'wechat', transcribe);
+    const res = await resolveMediaText(voiceContent(), 'wechat', transcribe);
 
-    expect(text).toBe('[voice message]');
+    expect(res).toEqual({ text: '[voice message]', transcribed: false });
     expect(transcribe).toHaveBeenCalledTimes(1);
   });
 
@@ -46,25 +46,25 @@ describe('resolveMediaText (gateway voice transcription)', () => {
     // dingtalk is intentionally not in VOICE_TRANSCRIPTION_PLATFORMS yet.
     expect(VOICE_TRANSCRIPTION_PLATFORMS.has('dingtalk')).toBe(false);
 
-    const text = await resolveMediaText(voiceContent(), 'dingtalk', transcribe);
-    expect(text).toBe('[voice message]');
+    const res = await resolveMediaText(voiceContent(), 'dingtalk', transcribe);
+    expect(res).toEqual({ text: '[voice message]', transcribed: false });
     expect(transcribe).not.toHaveBeenCalled();
   });
 
   it('keeps platform-supplied transcription (content.text) without re-transcribing', async () => {
     const transcribe = vi.fn();
     // WeCom already delivers voice-to-text; content.text is pre-filled.
-    const text = await resolveMediaText(voiceContent({ text: 'already transcribed' }), 'wechat', transcribe);
+    const res = await resolveMediaText(voiceContent({ text: 'already transcribed' }), 'wechat', transcribe);
 
-    expect(text).toBe('already transcribed');
+    expect(res).toEqual({ text: 'already transcribed', transcribed: false });
     expect(transcribe).not.toHaveBeenCalled();
   });
 
   it('falls back when there is no usable voice attachment', async () => {
     const transcribe = vi.fn();
-    const text = await resolveMediaText(voiceContent({ attachments: [] }), 'wechat', transcribe);
+    const res = await resolveMediaText(voiceContent({ attachments: [] }), 'wechat', transcribe);
 
-    expect(text).toBe('[voice message]');
+    expect(res).toEqual({ text: '[voice message]', transcribed: false });
     expect(transcribe).not.toHaveBeenCalled();
   });
 
@@ -75,9 +75,9 @@ describe('resolveMediaText (gateway voice transcription)', () => {
       text: '',
       attachments: [{ type: 'photo', fileId: '/tmp/pic.jpg' }],
     };
-    const text = await resolveMediaText(content, 'wechat', transcribe);
+    const res = await resolveMediaText(content, 'wechat', transcribe);
 
-    expect(text).toBe('[photo message]');
+    expect(res).toEqual({ text: '[photo message]', transcribed: false });
     expect(transcribe).not.toHaveBeenCalled();
   });
 });

@@ -86,7 +86,10 @@ def _transcribe_faster_whisper(audio_path: str, model: str, language: str | None
     """Transcribe with faster-whisper (CTranslate2, CPU int8)."""
     from faster_whisper import WhisperModel  # type: ignore
 
-    whisper = WhisperModel(model or "base", device="cpu", compute_type="int8")
+    # Default to "small": "base" badly mis-recognizes Mandarin (e.g. 测试→做事 on a
+    # real WeChat clip), while "small" is accurate and emits Simplified Chinese for
+    # only ~1s more on CPU. Override via the assistant.transcription.model config.
+    whisper = WhisperModel(model or "small", device="cpu", compute_type="int8")
     segments, _info = whisper.transcribe(
         audio_path,
         language=language or None,

@@ -26,6 +26,17 @@ export const VOICE_TRANSCRIPTION_PLATFORMS: ReadonlySet<PluginType> = new Set<Pl
 /** A transcriber: audio path + optional codec hint → text ('' if unavailable). */
 export type Transcriber = (audioPath: string, codec?: string) => Promise<string>;
 
+export interface ResolvedMediaText {
+  /** Text to forward to the agent. */
+  text: string;
+  /**
+   * True when a voice message was successfully transcribed. The caller should
+   * then NOT also attach the raw audio file: the agent can't read SILK/AMR and
+   * attaching it alongside the transcript makes it ask for clarification.
+   */
+  transcribed: boolean;
+}
+
 /**
  * Resolve the agent-facing text for a media message.
  *
@@ -33,21 +44,20 @@ export type Transcriber = (audioPath: string, codec?: string) => Promise<string>
  * already supply its own transcription as `content.text`), run ASR and use the
  * transcript. On any failure the transcriber returns '' and we fall back to the
  * `[voice message]` placeholder, so a voice message never breaks the channel.
- *
- * @returns the text to forward to the agent
  */
-export async function resolveMediaText(content: IUnifiedMessageContent, platform: PluginType, transcribe: Transcriber): Promise<string> {
+export async function resolveMediaText(content: IUnifiedMessageContent, platform: PluginType, transcribe: Transcriber): Promise<ResolvedMediaText> {
   const placeholder = content.text || `[${content.type} message]`;
 
   // Only transcribe voice, only when the channel didn't already give us text,
   // and only for channels enabled (with CI) above.
   if (content.type !== 'voice' || content.text || !VOICE_TRANSCRIPTION_PLATFORMS.has(platform)) {
-    return placeholder;
+    return { text: placeholder, transcribed: false };
   }
 
   const voice = content.attachments?.find((a) => a.type === 'voice' && !!a.fileId);
-  if (!voice) return placeholder;
+  if (!voice) return { text: placeholder, transcribed: false };
 
   const transcript = await transcribe(voice.fileId, voice.codec);
-  return transcript || placeholder;
+  if (transcript) return { text: transcript, transcribed: true };
+  return { text: placeholder, transcribed: false };
 }
