@@ -84,12 +84,15 @@ async def _capture_element_png(tab, selector: str) -> str | None:
     Returns the PNG path or None."""
     from ai_dev_browser.core import page_screenshot
 
+    # getBoundingClientRect is in CSS pixels (viewport-relative); page_screenshot
+    # may downscale, so we derive the scale from screenshot size vs innerWidth/Height
+    # rather than assuming devicePixelRatio.
     rect_json = await _eval(
         tab,
         "(()=>{const el=document.querySelector(%s);if(!el)return null;"
         "const b=el.getBoundingClientRect();"
-        "return JSON.stringify({x:b.x,y:b.y,w:b.width,h:b.height,dpr:window.devicePixelRatio||1});})()"
-        % json.dumps(selector),
+        "return JSON.stringify({x:b.x,y:b.y,w:b.width,h:b.height,"
+        "iw:window.innerWidth,ih:window.innerHeight});})()" % json.dumps(selector),
     )
     if not rect_json:
         return None
@@ -100,21 +103,26 @@ async def _capture_element_png(tab, selector: str) -> str | None:
     fd, full = tempfile.mkstemp(suffix=".png")
     os.close(fd)
     await page_screenshot(tab, path=full)
+    out = None
     try:
         from PIL import Image
 
-        dpr = r.get("dpr", 1) or 1
-        img = Image.open(full)
-        box = (
-            max(0, int(r["x"] * dpr)),
-            max(0, int(r["y"] * dpr)),
-            int((r["x"] + r["w"]) * dpr),
-            int((r["y"] + r["h"]) * dpr),
-        )
-        crop = img.crop(box)
-        fd2, out = tempfile.mkstemp(suffix=".png")
-        os.close(fd2)
-        crop.save(out)
+        with Image.open(full) as img:
+            img.load()
+            sx = img.width / r["iw"] if r.get("iw") else 1.0
+            sy = img.height / r["ih"] if r.get("ih") else 1.0
+            box = (
+                max(0, int(r["x"] * sx)),
+                max(0, int(r["y"] * sy)),
+                min(img.width, int((r["x"] + r["w"]) * sx)),
+                min(img.height, int((r["y"] + r["h"]) * sy)),
+            )
+            if box[2] - box[0] < 1 or box[3] - box[1] < 1:
+                return None
+            crop = img.crop(box)
+            fd2, out = tempfile.mkstemp(suffix=".png")
+            os.close(fd2)
+            crop.save(out)
         return out
     finally:
         try:
