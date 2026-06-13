@@ -1,0 +1,18 @@
+{
+  "id": "b7e1c4a2-9f3d-4e8b-a1c6-2d5f0e7a9b13",
+  "name": "auto-login",
+  "display_name": "网站自动登录",
+  "description": "用保存在本地密钥库的凭证自动登录网站：探索登录页 → 登记登录配方 → 提示用户在「秘钥管理」填账号密码 → 自动填表（含验证码识别）并提交。密码绝不进入 AI 上下文。",
+  "icon": "",
+  "emoji": "🔐",
+  "category": "",
+  "categories": ["网站自动化"],
+  "applicable_scenarios": "[\"网站自动登录：用密钥库凭证免扫码/免重输地登录网站\"]",
+  "core_features": "[{\"title\": \"探索+登记\", \"desc\": \"用 browser 探索登录页，登记登录配方\"}, {\"title\": \"安全填充\", \"desc\": \"凭证由用户在秘钥管理填写，明文不进 AI\"}, {\"title\": \"验证码识别\", \"desc\": \"图形验证码由视觉模型识别\"}]",
+  "homepage": null,
+  "author_id": "None",
+  "is_builtin": true,
+  "enabled": false,
+  "installed_version": "1.0.0",
+  "installed_at": "2026-06-13T00:00:00.000Z"
+}

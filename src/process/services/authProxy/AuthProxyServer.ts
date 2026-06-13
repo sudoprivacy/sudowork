@@ -17,6 +17,7 @@ import { injectAuth, injectMultiAuth } from './authInjectors';
 import { validateRemoteUrl } from './ssrfGuard';
 import { findRuleForUrl, getRules } from './configItemsLoader';
 import { handleSecretsRequest } from './secretsApi';
+import { handlePwdLoginRequest } from './pwdLoginApi';
 
 // ============================================================================
 // Types
@@ -148,6 +149,18 @@ export class AuthProxyServer {
         return;
       }
       await handleSecretsRequest(req, res, pathname, parsedUrl);
+      return;
+    }
+
+    // auto-login skill API (token-authenticated like /secrets). No password flows here.
+    if (pathname === '/pwdlogin' || pathname.startsWith('/pwdlogin/')) {
+      const info = this.parseRequestInfo(req);
+      if (!info.token || !this.isValidToken(info.token)) {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid or missing proxy token' }));
+        return;
+      }
+      await handlePwdLoginRequest(req, res, pathname);
       return;
     }
 
