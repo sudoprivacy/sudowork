@@ -214,39 +214,61 @@ async def _run(cfg: dict, password: str) -> dict:
             await page_goto(tab, url)
     await page_wait_ready(tab)
 
-    if not await _focus_and_type(tab, cfg["usernameSelector"], cfg.get("username", "")):
-        return {"ok": False, "error": f"username field not found: {cfg['usernameSelector']}"}
-    if not await _focus_and_type(tab, cfg["passwordSelector"], password):
-        return {"ok": False, "error": f"password field not found: {cfg['passwordSelector']}"}
-
-    captcha_tried = False
+    user_sel = cfg["usernameSelector"]
+    pw_sel = cfg["passwordSelector"]
     cap_sel = cfg.get("captchaSelector")
     cap_img = cfg.get("captchaImageSelector")
-    if cap_sel and cap_img:
-        for attempt in range(cfg.get("captchaRetries", 3)):
+    pw_q = json.dumps(pw_sel)
+
+    # Vision-model captcha OCR isn't 100% — retry the whole fill/submit a few
+    # times, refreshing the captcha each round, until the login form goes away
+    # (success = redirected off the login page). Without a captcha, one attempt.
+    max_attempts = cfg.get("loginRetries", 4) if (cap_sel and cap_img) else 1
+    captcha_tried = False
+    last_url = None
+
+    for attempt in range(max_attempts):
+        # (Re-)fill: a failed submit often clears the password/captcha fields.
+        if not await _focus_and_type(tab, user_sel, cfg.get("username", "")):
+            return {"ok": False, "error": f"username field not found: {user_sel}"}
+        if not await _focus_and_type(tab, pw_sel, password):
+            return {"ok": False, "error": f"password field not found: {pw_sel}"}
+
+        if cap_sel and cap_img:
             png = await _capture_element_png(tab, cap_img)
-            if not png:
-                break
-            code = _solve_captcha(png, _resolve_vision(cfg))
-            try:
-                os.remove(png)
-            except OSError:
-                pass
-            if not code:
-                break
-            captcha_tried = True
-            await _focus_and_type(tab, cap_sel, code)
-            break  # one solve per run; main can re-invoke to retry a wrong code
+            if png:
+                code = _solve_captcha(png, _resolve_vision(cfg))
+                try:
+                    os.remove(png)
+                except OSError:
+                    pass
+                if code:
+                    captcha_tried = True
+                    await _focus_and_type(tab, cap_sel, code)
 
-    url_before = await _eval(tab, "window.location.href")
-    if not await _click(tab, cfg["submitSelector"]):
-        return {"ok": False, "error": f"submit button not found: {cfg['submitSelector']}", "captcha_tried": captcha_tried}
+        if not await _click(tab, cfg["submitSelector"]):
+            return {"ok": False, "error": f"submit button not found: {cfg['submitSelector']}", "captcha_tried": captcha_tried}
 
-    # Give the submit (and any client-side encryption + navigation) a moment.
-    await asyncio.sleep(2.0)
-    url_after = await _eval(tab, "window.location.href")
-    navigated = bool(url_after and url_after != url_before)
-    return {"ok": True, "navigated": navigated, "url_after": url_after, "captcha_tried": captcha_tried}
+        # Let the submit (client-side encryption + AJAX/navigation) settle.
+        await asyncio.sleep(2.5)
+        last_url = await _eval(tab, "window.location.href")
+        # Success heuristic: the password field is gone → redirected off the
+        # login form. Still present → login failed (usually a wrong captcha).
+        still_on_form = await _eval(tab, f"!!document.querySelector({pw_q})")
+        if not still_on_form:
+            return {"ok": True, "navigated": True, "url_after": last_url, "captcha_tried": captcha_tried, "attempts": attempt + 1}
+
+        # Failed — refresh the captcha image (if the page exposes a refresher) and retry.
+        await _eval(tab, "(()=>{try{if(typeof ChangeValImg==='function')ChangeValImg();}catch(e){}})()")
+        await asyncio.sleep(1.2)
+
+    return {
+        "ok": False,
+        "error": f"login form still present after {max_attempts} attempt(s) — likely captcha mis-read",
+        "url_after": last_url,
+        "captcha_tried": captcha_tried,
+        "attempts": max_attempts,
+    }
 
 
 def main() -> int:
