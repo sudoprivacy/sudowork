@@ -312,6 +312,47 @@ describe('WeChatAdapter', () => {
       expect(result!.content.attachments![0].type).toBe('voice');
       expect(result!.content.attachments![0].mimeType).toBe('audio/amr');
       expect(result!.content.attachments![0].duration).toBe(5000);
+      // No voice_format declared → default to 'silk' (personal WeChat voice is
+      // SILK regardless of the .amr filename) so TranscriptionService decodes it.
+      expect(result!.content.attachments![0].codec).toBe('silk');
+    });
+
+    it('passes through voice_format as the attachment codec', () => {
+      const msg: WeChatMessage = {
+        message_id: 109,
+        from_user_id: 'user9@im.wechat',
+        message_type: MessageType.USER,
+        item_list: [
+          {
+            type: MessageItemType.VOICE,
+            voice_item: {
+              media: { full_url: 'https://cdn.weixin.qq.com/voice.amr' },
+              voice_length: 3000,
+              voice_format: 'amr',
+            },
+          },
+        ],
+        create_time_ms: 9000,
+      };
+      const result = toUnifiedIncomingMessage(msg);
+      expect(result!.content.attachments![0].codec).toBe('amr');
+    });
+
+    it('does not set codec on non-voice attachments', () => {
+      const msg: WeChatMessage = {
+        message_id: 110,
+        from_user_id: 'user10@im.wechat',
+        message_type: MessageType.USER,
+        item_list: [
+          {
+            type: MessageItemType.IMAGE,
+            image_item: { media: { full_url: 'https://cdn.weixin.qq.com/pic.jpg' } },
+          },
+        ],
+        create_time_ms: 10000,
+      };
+      const result = toUnifiedIncomingMessage(msg);
+      expect(result!.content.attachments![0].codec).toBeUndefined();
     });
 
     it('converts video message', () => {
