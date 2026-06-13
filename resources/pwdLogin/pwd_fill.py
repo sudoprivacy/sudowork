@@ -143,10 +143,15 @@ def _resolve_vision(cfg: dict) -> dict:
         try:
             c = json.load(open(path, "r", encoding="utf-8"))
             sr = c.get("models", {}).get("providers", {}).get("sudorouter", {})
-            m = c.get("agents", {}).get("defaults", {}).get("imageModel") or ""
+            # Captcha OCR needs a VISION-capable CHAT model — NOT imageModel (that's
+            # an image-GENERATION/diffusion model, e.g. gpt-image, which can't do
+            # chat-completions vision). Use the session's primary chat model.
+            # primary looks like "sudorouter-gemini-3.5-flash/gemini-3.5-flash".
+            primary = ((c.get("agents", {}).get("defaults", {}).get("model", {}) or {}).get("primary")) or ""
+            model = primary.split("/")[-1] if "/" in primary else primary
             v.setdefault("baseUrl", (sr.get("baseUrl") or "").rstrip("/"))
             v.setdefault("apiKey", sr.get("apiKey") or "")
-            v.setdefault("model", (m.split("/")[-1] if "/" in m else m) or "gemini-2.5-flash")
+            v.setdefault("model", model or "gemini-2.5-flash")
         except Exception as exc:  # noqa: BLE001
             _eprint(f"[pwd_fill] failed to read sudoclaw.json: {exc}")
     return v
