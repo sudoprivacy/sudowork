@@ -37,7 +37,12 @@ Replace the `[voice message]` placeholder with the transcript (optionally keep t
 - **Local default, pluggable, CPU-only** — WeChat voice clips are short (<60s), no GPU needed.
 - NOT the old slow OpenAI whisper reference impl. Use **faster-whisper** (CTranslate2, CPU int8) or, better for Chinese, **SenseVoice / FunASR** (Alibaba — faster + stronger Chinese). Pick during PoC by transcription-quality on real WeChat clips.
 - **Rides the existing provisioned Python runtime** (`PythonRuntimeService`, already there for ai-dev-browser) — ASR is a pip package; no new runtime burden.
-- **SILK → wav** decode via `pilk` (pip) or bundled ffmpeg, then feed ASR.
+- **SILK → wav** decode via `pysilk-mod` (pip). NOTE: switched from `pilk` — `pilk`
+  ships no prebuilt wheels and fails to build on machines without a C/C++ toolchain
+  (confirmed on Windows/cp313 during the first live test). `pysilk-mod` ships wheels
+  and decodes straight to WAV (`decode(data, to_wav=True)`); it expects the Tencent
+  `0x02`-prefixed `#!SILK_V3` header verbatim. Bundled ffmpeg does NOT help — it has
+  no Tencent-SILK decoder.
 - **Cloud ASR fallback** for weak machines / users who can't run local (tradeoff: audio leaves device — privacy). Make the engine an interface so local↔cloud is a config switch.
 - First-run **lazy model download** (faster-whisper base ~140MB, SenseVoice-small ~900MB).
 

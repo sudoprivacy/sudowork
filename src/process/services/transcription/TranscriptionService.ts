@@ -95,8 +95,10 @@ export class LocalPythonEngine implements ITranscriptionEngine {
 
   /** pip packages required for the selected local engine. */
   private requiredPackages(): string[] {
-    // pilk is always needed: only it can decode WeChat/Tencent SILK voice.
-    const base = ['pilk'];
+    // pysilk-mod decodes WeChat/Tencent SILK voice. Chosen over `pilk` because it
+    // ships prebuilt wheels (incl. Windows / cp313) — `pilk` has no wheels and
+    // fails to build on machines without a C/C++ toolchain.
+    const base = ['pysilk-mod'];
     if (this.config.localEngine === 'sensevoice') {
       return [...base, 'funasr'];
     }
