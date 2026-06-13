@@ -181,6 +181,10 @@ extraResources:
   # TranscriptionService engine via the provisioned Python runtime.
   - from: resources/transcription
     to: transcription
+  # F1 pwd-login filler (vault-read password via stdin → ai-dev-browser fill +
+  # vision-model captcha). Spawned by pwdLoginService.dispatchPwdFill.
+  - from: resources/pwdLogin
+    to: pwdLogin
   # CLI tools (bundled at build time via scripts/download-*.js)
   # NOTE: claude-code.tgz is deliberately NOT bundled — users install Claude
   # Code CLI separately (https://claude.com/code). At runtime, the Claude agent

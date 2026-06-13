@@ -33,6 +33,10 @@ export interface PwdAdapter {
   passwordSelector: string;
   /** CSS selector for the submit button (or form submit equivalent) */
   submitSelector: string;
+  /** Optional CSS selector for an image-captcha input field (e.g. `#txtValCode`). */
+  captchaSelector?: string;
+  /** Optional CSS selector for the captcha `<img>` element (screenshotted + read by a vision model). */
+  captchaImageSelector?: string;
   /**
    * `single_step`: username + password visible on same page.
    * `two_step`: username page, then password page. For two_step, the caller
@@ -137,6 +141,21 @@ const ADAPTERS: PwdAdapter[] = [
     usernameSelector: 'input[name="email"]',
     passwordSelector: 'input[name="password"]',
     submitSelector: 'button[type="submit"]',
+    strategy: 'single_step',
+  },
+  {
+    // 易道会员后台 — F1 first-light test site. Has a 4-digit image captcha solved
+    // by the vision model (see feedback_f1_captcha_vision_not_ocr). The password
+    // field is type=text that switches to password on focus; the submit button
+    // runs client-side encryption in Login_Submit() on click.
+    title: 'yidao',
+    loginUrl: 'http://yidao.vip5968.net/login.aspx?Code=999',
+    domains: ['yidao.vip5968.net'],
+    usernameSelector: '#txtAccount',
+    passwordSelector: '#txtPassword',
+    submitSelector: '#btnSubmit',
+    captchaSelector: '#txtValCode',
+    captchaImageSelector: '#Login_ValImg',
     strategy: 'single_step',
   },
 ];
