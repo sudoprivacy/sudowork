@@ -1826,9 +1826,43 @@ export interface IPwdLoginResult {
   detail?: string;
 }
 
+/** A registered pwd_login site (non-secret selector metadata). */
+export interface IPwdLoginEntry {
+  title: string;
+  url: string;
+  usernameSelector: string;
+  passwordSelector: string;
+  submitSelector: string;
+  captchaSelector?: string;
+  captchaImageSelector?: string;
+  strategy: 'single_step' | 'two_step';
+}
+
+/** UI status row for the 秘钥管理 "网站自动登录" section. */
+export interface IPwdLoginEntryStatus {
+  title: string;
+  url: string;
+  strategy: 'single_step' | 'two_step';
+  hasCaptcha: boolean;
+  source: 'builtin' | 'custom';
+  hasCredential: boolean;
+}
+
 export const pwdLogin = {
   /** Kick off pwd_login flow. Renderer calls with optionId after the approval modal resolves. */
   start: bridge.buildProvider<IPwdLoginResult, IPwdLoginParams>('pwd.login.start'),
+  /** List all pwd_login sites (custom registry + built-in) for the 秘钥管理 UI. */
+  listEntries: bridge.buildProvider<IBridgeResponse<IPwdLoginEntryStatus[]>, void>('pwd.login.list-entries'),
+  /** Register/update a custom site (agent-facing programmable interface). No password. */
+  registerEntry: bridge.buildProvider<IBridgeResponse, IPwdLoginEntry>('pwd.login.register-entry'),
+  /** Remove a custom site entry. */
+  deleteEntry: bridge.buildProvider<IBridgeResponse, { title: string }>('pwd.login.delete-entry'),
+  /**
+   * Save credentials for an entry. The password flows renderer(form)→main→Vault
+   * only — never the agent/LLM. Stored as JSON {username,password} at
+   * service:pwdlogin/{title}.
+   */
+  saveCredential: bridge.buildProvider<IBridgeResponse, { title: string; username: string; password: string }>('pwd.login.save-credential'),
 };
 
 // ==================== Telemetry API ====================

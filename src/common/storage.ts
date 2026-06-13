@@ -162,6 +162,19 @@ export interface IConfigStorageRefer {
     customAgentId?: string;
     name?: string;
   };
+  // pwd_login auto-fill credential entries (non-secret selector metadata; the
+  // username+password live in the Nexus secret store at service:pwdlogin/{title}).
+  // Agent-registered custom sites; built-in sites come from pwdAdapters.ts.
+  'pwdLogin.entries'?: Array<{
+    title: string;
+    url: string;
+    usernameSelector: string;
+    passwordSelector: string;
+    submitSelector: string;
+    captchaSelector?: string;
+    captchaImageSelector?: string;
+    strategy: 'single_step' | 'two_step';
+  }>;
   // Channel voice transcription / 频道语音转写配置 (shared TranscriptionService)
   'assistant.transcription.engine'?: 'local' | 'cloud'; // 引擎类型：本地(默认)或云端 / engine kind: local (default) or cloud
   'assistant.transcription.localEngine'?: 'faster-whisper' | 'sensevoice'; // 本地 ASR 后端 / local ASR backend

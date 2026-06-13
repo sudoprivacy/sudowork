@@ -15,9 +15,10 @@ import { PermissionType } from '@/common/codex/types/permissionTypes';
 import { getNexusSecretClient } from '@/common/nexus/nexus-secret-client';
 import { buildNamespace } from '@/common/nexus/namespace';
 import { mainError, mainLog } from '@process/utils/mainLogger';
+import { ProcessConfig } from '@/process/initStorage';
 import { pythonRuntimeService } from '@/process/services/python/PythonRuntimeService';
 import { PwdLoginErrorCode } from './errors';
-import { findAdapterByTitle, type PwdAdapter } from './pwdAdapters';
+import { findAdapterByTitle, listAdapters, type PwdAdapter } from './pwdAdapters';
 import { passwordStringToBuffer, zeroBuffer } from './memorySafety';
 
 /**
@@ -27,6 +28,129 @@ import { passwordStringToBuffer, zeroBuffer } from './memorySafety';
  * (Enterprise/B端 would scope by userId; not needed for the Phase-2 flow yet.)
  */
 const PWD_LOGIN_NAMESPACE = buildNamespace('pwdlogin');
+
+/**
+ * A registered pwd_login site (non-secret). Agent-discovered custom sites are
+ * persisted here so they need no code change; built-in sites live in pwdAdapters.
+ */
+export interface PwdLoginEntry {
+  title: string;
+  url: string;
+  usernameSelector: string;
+  passwordSelector: string;
+  submitSelector: string;
+  captchaSelector?: string;
+  captchaImageSelector?: string;
+  strategy: 'single_step' | 'two_step';
+}
+
+/** UI-facing status row for the 秘钥管理 "网站自动登录" section. */
+export interface PwdLoginEntryStatus {
+  title: string;
+  url: string;
+  strategy: 'single_step' | 'two_step';
+  hasCaptcha: boolean;
+  source: 'builtin' | 'custom';
+  /** Whether a credential secret has been saved for this entry. */
+  hasCredential: boolean;
+}
+
+async function getRegistry(): Promise<PwdLoginEntry[]> {
+  try {
+    return (await ProcessConfig.get('pwdLogin.entries')) ?? [];
+  } catch {
+    return [];
+  }
+}
+
+function entryToAdapter(e: PwdLoginEntry): PwdAdapter {
+  return {
+    title: e.title.trim().toLowerCase(),
+    loginUrl: e.url,
+    domains: [],
+    usernameSelector: e.usernameSelector,
+    passwordSelector: e.passwordSelector,
+    submitSelector: e.submitSelector,
+    captchaSelector: e.captchaSelector,
+    captchaImageSelector: e.captchaImageSelector,
+    strategy: e.strategy,
+  };
+}
+
+/** Resolve a site's fill recipe: registry (custom) first, then built-in adapters. */
+export async function resolvePwdAdapter(title: string): Promise<PwdAdapter | undefined> {
+  const needle = title.trim().toLowerCase();
+  const hit = (await getRegistry()).find((e) => e.title.trim().toLowerCase() === needle);
+  return hit ? entryToAdapter(hit) : findAdapterByTitle(title);
+}
+
+/** True if a credential secret exists for the title (does not expose the value). */
+function hasCredential(title: string): boolean {
+  try {
+    return !!getNexusSecretClient().getSecret(PWD_LOGIN_NAMESPACE, title.trim());
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Register (or update, by title) a custom pwd_login site. This is the
+ * programmable interface the agent calls after exploring + selector-testing a
+ * site, so it then appears in 秘钥管理 for the user to fill credentials.
+ * Selectors are non-secret; NO password ever flows through here.
+ */
+export async function registerPwdLoginEntry(entry: PwdLoginEntry): Promise<void> {
+  const title = entry.title.trim();
+  if (!title || !entry.url || !entry.usernameSelector || !entry.passwordSelector || !entry.submitSelector) {
+    throw new Error('pwd_login entry requires title, url, and username/password/submit selectors');
+  }
+  const reg = (await getRegistry()).filter((e) => e.title.trim().toLowerCase() !== title.toLowerCase());
+  reg.push({ ...entry, title, strategy: entry.strategy || 'single_step' });
+  await ProcessConfig.set('pwdLogin.entries', reg);
+  mainLog('pwdLogin', `registered pwd_login entry "${title}" (${reg.length} custom total)`);
+}
+
+/**
+ * Save credentials for a pwd_login entry into the Nexus secret store as JSON
+ * {username, password} at service:pwdlogin/{title}. The password reaches here
+ * from the renderer's form via IPC (renderer→main→Vault) — never the agent/LLM.
+ */
+export async function savePwdLoginCredential(title: string, username: string, password: string): Promise<void> {
+  const key = title.trim();
+  if (!key) throw new Error('title required');
+  const value = JSON.stringify({ username, password });
+  try {
+    getNexusSecretClient().putSecret(PWD_LOGIN_NAMESPACE, key, value, `pwd_login: ${key}`);
+  } catch (err) {
+    mainError('pwdLogin', `putSecret failed: ${err instanceof Error ? err.name : typeof err}`);
+    throw err;
+  }
+}
+
+/** Remove a custom pwd_login entry (built-in adapters are unaffected). */
+export async function deletePwdLoginEntry(title: string): Promise<void> {
+  const needle = title.trim().toLowerCase();
+  const reg = (await getRegistry()).filter((e) => e.title.trim().toLowerCase() !== needle);
+  await ProcessConfig.set('pwdLogin.entries', reg);
+}
+
+/** List all pwd_login sites (custom registry + built-in adapters) for the UI. */
+export async function listPwdLoginEntries(): Promise<PwdLoginEntryStatus[]> {
+  const out: PwdLoginEntryStatus[] = [];
+  const seen = new Set<string>();
+  for (const e of await getRegistry()) {
+    const key = e.title.trim().toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ title: e.title, url: e.url, strategy: e.strategy, hasCaptcha: !!e.captchaSelector, source: 'custom', hasCredential: hasCredential(e.title) });
+  }
+  for (const a of listAdapters()) {
+    if (seen.has(a.title)) continue;
+    seen.add(a.title);
+    out.push({ title: a.title, url: a.loginUrl, strategy: a.strategy, hasCaptcha: !!a.captchaSelector, source: 'builtin', hasCredential: hasCredential(a.title) });
+  }
+  return out;
+}
 
 /**
  * Singleton ApprovalStore for credential_autologin decisions. Session-scoped:
@@ -206,8 +330,8 @@ export async function handlePwdLogin(params: IPwdLoginParams): Promise<IPwdLogin
     return { ok: false, error: PwdLoginErrorCode.ApprovalRejected };
   }
 
-  // 2. Resolve adapter.
-  const adapter = findAdapterByTitle(title);
+  // 2. Resolve adapter (custom registry first, then built-in adapters).
+  const adapter = await resolvePwdAdapter(title);
   if (!adapter) {
     // Phase 1 intentionally does not run the generic DOM heuristic client-side
     // because sidechannel dispatch is stubbed. Returning login_form_not_found

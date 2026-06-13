@@ -111,6 +111,20 @@ vi.mock('@/process/services/python/PythonRuntimeService', () => ({
   pythonRuntimeService: { checkInstalled: vi.fn().mockResolvedValue({ installed: false }) },
 }));
 
+// ProcessConfig holds the pwd_login custom-site registry. Mock it in-memory so
+// importing the service doesn't drag in the real storage/database stack.
+const mockConfigStore: Record<string, unknown> = {};
+vi.mock('@/process/initStorage', () => ({
+  ProcessConfig: {
+    get: (key: string) => Promise.resolve(mockConfigStore[key]),
+    set: (key: string, value: unknown) => {
+      mockConfigStore[key] = value;
+      return Promise.resolve();
+    },
+    getSync: (key: string) => mockConfigStore[key],
+  },
+}));
+
 vi.mock('@/common/nexus/nexus-secret-client', () => ({
   getNexusSecretClient: () => ({
     getSecret: (namespace: string, key: string) => {
@@ -128,13 +142,14 @@ vi.mock('@process/utils/mainLogger', () => ({
 }));
 
 // Import AFTER vi.mock so the mocks are wired.
-import { __resetPwdLoginApprovalsForTest, handlePwdLogin } from '../../src/process/services/pwdLogin/pwdLoginService';
+import { __resetPwdLoginApprovalsForTest, handlePwdLogin, registerPwdLoginEntry, deletePwdLoginEntry, listPwdLoginEntries, resolvePwdAdapter } from '../../src/process/services/pwdLogin/pwdLoginService';
 
 describe('pwdLogin / pwdLoginService', () => {
   beforeEach(() => {
     getSecretCalls.length = 0;
     mockSecretValue = 'secret-correct-horse';
     mockSecretThrow = null;
+    for (const k of Object.keys(mockConfigStore)) delete mockConfigStore[k];
     __resetPwdLoginApprovalsForTest();
   });
 
@@ -216,5 +231,48 @@ describe('pwdLogin / pwdLoginService', () => {
     // Still hits the (mocked-off) python dispatch, but the read+parse succeeded.
     expect(result.error).toBe(PwdLoginErrorCode.AdapterError);
     expect(getSecretCalls[0]).toEqual({ namespace: 'service:pwdlogin', key: 'github' });
+  });
+});
+
+describe('pwdLogin / entry registry', () => {
+  beforeEach(() => {
+    for (const k of Object.keys(mockConfigStore)) delete mockConfigStore[k];
+    mockSecretValue = '';
+  });
+
+  it('registerPwdLoginEntry persists a custom site, dedupes by title', async () => {
+    await registerPwdLoginEntry({ title: 'Yidao', url: 'http://x/login', usernameSelector: '#u', passwordSelector: '#p', submitSelector: '#s', strategy: 'single_step' });
+    await registerPwdLoginEntry({ title: 'yidao', url: 'http://x/login2', usernameSelector: '#u2', passwordSelector: '#p', submitSelector: '#s', strategy: 'single_step' });
+    const reg = mockConfigStore['pwdLogin.entries'] as unknown[];
+    expect(reg.length).toBe(1); // same title (case-insensitive) → updated, not duplicated
+  });
+
+  it('registerPwdLoginEntry rejects incomplete entries', async () => {
+    await expect(registerPwdLoginEntry({ title: 'bad', url: '', usernameSelector: '', passwordSelector: '', submitSelector: '', strategy: 'single_step' })).rejects.toThrow();
+  });
+
+  it('resolvePwdAdapter prefers a custom registry entry over a built-in', async () => {
+    await registerPwdLoginEntry({ title: 'github', url: 'http://custom/login', usernameSelector: '#cu', passwordSelector: '#cp', submitSelector: '#cs', strategy: 'single_step' });
+    const adapter = await resolvePwdAdapter('github');
+    expect(adapter?.loginUrl).toBe('http://custom/login');
+    expect(adapter?.usernameSelector).toBe('#cu');
+  });
+
+  it('listPwdLoginEntries merges custom + built-in and flags captcha/credential', async () => {
+    await registerPwdLoginEntry({ title: 'mysite', url: 'http://m/login', usernameSelector: '#u', passwordSelector: '#p', submitSelector: '#s', captchaSelector: '#c', captchaImageSelector: '#ci', strategy: 'single_step' });
+    const list = await listPwdLoginEntries();
+    const mysite = list.find((e) => e.title === 'mysite');
+    const yidao = list.find((e) => e.title === 'yidao'); // built-in adapter
+    expect(mysite?.source).toBe('custom');
+    expect(mysite?.hasCaptcha).toBe(true);
+    expect(yidao?.source).toBe('builtin');
+    expect(yidao?.hasCaptcha).toBe(true); // yidao adapter has a captcha
+  });
+
+  it('deletePwdLoginEntry removes a custom entry', async () => {
+    await registerPwdLoginEntry({ title: 'tmp', url: 'http://t/login', usernameSelector: '#u', passwordSelector: '#p', submitSelector: '#s', strategy: 'single_step' });
+    await deletePwdLoginEntry('tmp');
+    const reg = (mockConfigStore['pwdLogin.entries'] as unknown[]) || [];
+    expect(reg.length).toBe(0);
   });
 });
