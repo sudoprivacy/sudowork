@@ -28,7 +28,6 @@ import json
 import os
 import sys
 import tempfile
-import wave
 
 
 # SILK V3 streams start with an optional 1-byte Tencent prefix (0x02) followed
@@ -49,37 +48,37 @@ def _is_silk(path: str, codec: str | None) -> bool:
 
 
 def _decode_silk_to_wav(silk_path: str, pcm_rate: int = 24000) -> str:
-    """Decode a SILK file to a 16-bit mono WAV using pilk, returning the wav path.
+    """Decode a SILK file to a 16-bit mono WAV using pysilk, returning the wav path.
 
-    WeChat voice is sampled at 24 kHz; pilk decodes SILK to headerless 16-bit
-    little-endian mono PCM, which we wrap in a WAV container for the engine.
+    WeChat voice is sampled at 24 kHz. We use `pysilk-mod` rather than `pilk`
+    because pysilk-mod ships prebuilt wheels (incl. Windows / cp313) so no C
+    compiler is needed on the user's machine, and it decodes straight to a WAV
+    container via `to_wav=True`.
+
+    Tencent prepends a 0x02 byte before the `#!SILK_V3` magic; pysilk's own
+    `is_silk_data` check expects that prefix, so we pass the file bytes verbatim.
     """
     try:
-        import pilk  # type: ignore
+        import pysilk  # type: ignore  (provided by the `pysilk-mod` package)
     except ImportError as exc:  # pragma: no cover - environment dependent
         raise RuntimeError(
-            "pilk is required to decode SILK voice (pip install pilk)"
+            "pysilk is required to decode SILK voice (pip install pysilk-mod)"
         ) from exc
 
-    fd, pcm_path = tempfile.mkstemp(suffix=".pcm")
-    os.close(fd)
-    wav_path = pcm_path[:-4] + ".wav"
+    with open(silk_path, "rb") as fh:
+        silk_data = fh.read()
+    wav_bytes = pysilk.decode(silk_data, to_wav=True, sample_rate=pcm_rate)
+
+    fd, wav_path = tempfile.mkstemp(suffix=".wav")
     try:
-        # pilk.decode returns the actual sample duration; the rate we pass is the
-        # PCM sample rate it decodes to. 24k matches WeChat's encoder.
-        pilk.decode(silk_path, pcm_path, pcm_rate=pcm_rate)
-        with open(pcm_path, "rb") as fh:
-            pcm = fh.read()
-        with wave.open(wav_path, "wb") as wav:
-            wav.setnchannels(1)
-            wav.setsampwidth(2)  # 16-bit
-            wav.setframerate(pcm_rate)
-            wav.writeframes(pcm)
-    finally:
+        with os.fdopen(fd, "wb") as out:
+            out.write(wav_bytes)
+    except Exception:
         try:
-            os.remove(pcm_path)
+            os.remove(wav_path)
         except OSError:
             pass
+        raise
     return wav_path
 
 
