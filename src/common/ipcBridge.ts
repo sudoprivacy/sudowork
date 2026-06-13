@@ -12,6 +12,7 @@ import type { AcpBackend, AcpBackendAll, AcpModelInfo, PresetAgentType } from '.
 import type { ScodeCustomModelProvider } from './scodeConfig';
 import type { SlashCommandItem } from './slash/types';
 import type { IMcpServer, IProvider, TChatConversation, TProviderWithModel, ICssTheme } from './storage';
+import type { SecretMetadata } from './nexus/nexus-secret-client';
 import type { PreviewHistoryTarget, PreviewSnapshotInfo } from './types/preview';
 import type { UpdateCheckRequest, UpdateCheckResult, UpdateDownloadProgressEvent, UpdateDownloadRequest, UpdateDownloadResult, AutoUpdateStatus } from './updateTypes';
 import type { ProtocolDetectionRequest, ProtocolDetectionResponse } from './utils/protocolDetector';
@@ -1764,17 +1765,12 @@ export const sudoworkAuth = {
 // ==================== Secret Management API ====================
 // Manage service secrets stored in Nexus secret store
 
-export interface ISecretMetadata {
-  id: string;
-  namespace: string;
-  key: string;
-  description?: string;
-  enabled: boolean;
-  currentVersion: number;
-  deletedAt?: number;
-  createdAt: number;
-  updatedAt: number;
-}
+/**
+ * Secret metadata as actually produced by NexusSecretClient — the single source
+ * of truth. (Previously a drifted duplicate with never-produced id/enabled/
+ * deletedAt fields, which made the secret.list provider fail to type-check.)
+ */
+export type ISecretMetadata = SecretMetadata;
 
 export const secret = {
   /** Get a secret value by namespace and key */
