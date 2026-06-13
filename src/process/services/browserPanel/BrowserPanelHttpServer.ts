@@ -14,7 +14,7 @@ import { browserPanelCdpService } from './BrowserPanelCdpService';
 import { ipcBridge } from '@/common';
 
 /**
- * Loopback HTTP bridge between the sudowork-browser MCP subprocess and the
+ * Loopback HTTP bridge between the browser-panel MCP subprocess and the
  * sudowork main process.
  *
  * Why HTTP and not UNIX sockets / named pipes:
@@ -26,14 +26,14 @@ import { ipcBridge } from '@/common';
  *    processes from talking to us even though the listener is reachable.
  *
  * Discovery: the listening port, the token, and the sudowork pid are written
- * atomically to `<userData>/sudowork-browser-mcp.json` at startup. The MCP
+ * atomically to `<userData>/browser-panel-mcp.json` at startup. The MCP
  * subprocess reads this file on every request and on ECONNREFUSED — that way
  * a sudowork restart (which rotates port + token) transparently recovers
  * without killing the MCP subprocess.
  */
 
-const DISCOVERY_FILE_NAME = 'sudowork-browser-mcp.json';
-const SUDOWORK_BROWSER_VERSION = '0.1.0';
+const DISCOVERY_FILE_NAME = 'browser-panel-mcp.json';
+const BROWSER_PANEL_VERSION = '0.1.0';
 
 interface DiscoveryFilePayload {
   port: number;
@@ -163,7 +163,7 @@ class BrowserPanelHttpServer {
       case '/tab/open': {
         const { url: target, conversationId } = body as { url?: string; conversationId?: string };
         if (typeof target !== 'string' || !target) throw new Error('url required');
-        // conversationId is optional: the sudowork-browser MCP child doesn't
+        // conversationId is optional: the browser-panel MCP child doesn't
         // know which chat conversation triggered the call, so it omits the
         // field. Renderer-side BrowserPanel treats undefined conversationId
         // as routing to the global bucket — preserves the pre-isolation
@@ -235,7 +235,7 @@ class BrowserPanelHttpServer {
       port: this.port,
       token: this.token,
       pid: process.pid,
-      version: SUDOWORK_BROWSER_VERSION,
+      version: BROWSER_PANEL_VERSION,
       startedAt: Date.now(),
     };
     const filePath = this.getDiscoveryFilePath();

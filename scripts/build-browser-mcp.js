@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /**
- * Bundle the sudowork-browser MCP server into a single self-contained JS file.
+ * Bundle the browser-panel MCP server into a single self-contained JS file.
  *
- * Build inputs:  resources/sudowork-browser-mcp/src/index.ts
- * Build output:  resources/sudowork-browser-mcp/index.js
+ * Build inputs:  resources/browser-panel-mcp/src/index.ts
+ * Build output:  resources/browser-panel-mcp/index.js
  *
  * The bundle is shipped as an extraResource (see electron-builder.yml). At
  * runtime the sudowork main process registers an entry in ~/.claude.json
@@ -19,8 +19,8 @@ const path = require('path');
 const fs = require('fs');
 const esbuild = require('esbuild');
 
-const SRC = path.join(__dirname, '..', 'resources', 'sudowork-browser-mcp', 'src', 'index.ts');
-const OUT = path.join(__dirname, '..', 'resources', 'sudowork-browser-mcp', 'index.js');
+const SRC = path.join(__dirname, '..', 'resources', 'browser-panel-mcp', 'src', 'index.ts');
+const OUT = path.join(__dirname, '..', 'resources', 'browser-panel-mcp', 'index.js');
 
 async function main() {
   if (!fs.existsSync(SRC)) {
@@ -39,10 +39,10 @@ async function main() {
     legalComments: 'none',
     external: [],
     logLevel: 'info',
-    banner: { js: '#!/usr/bin/env node\n// sudowork-browser MCP server — bundled, do not edit by hand' },
+    banner: { js: '#!/usr/bin/env node\n// browser-panel MCP server — bundled, do not edit by hand' },
   });
   const stat = fs.statSync(OUT);
-  console.log(`✅ sudowork-browser-mcp bundled: ${OUT} (${(stat.size / 1024).toFixed(1)} KB)`);
+  console.log(`✅ browser-panel-mcp bundled: ${OUT} (${(stat.size / 1024).toFixed(1)} KB)`);
 }
 
 main().catch((err) => {

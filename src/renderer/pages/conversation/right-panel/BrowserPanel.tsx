@@ -167,7 +167,7 @@ const BrowserPanel: React.FC<BrowserPanelProps> = ({ active = false, conversatio
 
   // Subscribe to "open in right-panel browser". Accept the emit when:
   //   - it carries no `conversationId` (unscoped — fsBridge file-write,
-  //     /tab/open from sudowork-browser MCP, etc.); the currently mounted
+  //     /tab/open from browser-panel MCP, etc.); the currently mounted
   //     panel is the user-visible target, so handle it
   //   - it carries a `conversationId` matching this panel's convKey
   // Skip when the emit is scoped to a different conversation. This is the

@@ -214,8 +214,8 @@ resources/node-darwin-arm64.tar.gz
 resources/node-win32-x64.zip
 resources/bdpan-installer-*
 resources/mcporter.tgz
-# sudowork-browser MCP server — esbuild output (built from src/ via scripts/build-browser-mcp.js)
-resources/sudowork-browser-mcp/index.js
+# browser-panel MCP server — esbuild output (built from src/ via scripts/build-browser-mcp.js)
+resources/browser-panel-mcp/index.js
 resources/.dev-runtime-versions.json
 resources/openclaw.manifest.json
 resources/v*-sudoclaw-*.manifest.json

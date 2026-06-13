@@ -9,7 +9,7 @@ export {
   NAVIGATION_TOOLS,
   AI_DEV_BROWSER_NAV_TOOLS,
   AI_DEV_BROWSER_DISPATCHERS,
-  SUDOWORK_BROWSER_NAV_MCP_TOOLS,
+  BROWSER_PANEL_NAV_MCP_TOOLS,
   type NavigationToolName,
   type AiDevBrowserNavToolName,
   type SudoworkBrowserNavMcpToolName,

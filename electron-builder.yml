@@ -194,11 +194,11 @@ extraResources:
     to: shareone.tgz
   - from: resources/mcporter.tgz
     to: mcporter.tgz
-  # sudowork-browser MCP server bundle (esbuild output from
+  # browser-panel MCP server bundle (esbuild output from
   # scripts/build-browser-mcp.js). Claude Code launches this as a stdio MCP
   # subprocess after sudowork registers it in ~/.claude.json at first run.
-  - from: resources/sudowork-browser-mcp/index.js
-    to: sudowork-browser-mcp/index.js
+  - from: resources/browser-panel-mcp/index.js
+    to: browser-panel-mcp/index.js
   # Nexus binary - versioned, optional (may not be available for all platforms)
   # Copy from the resources directory with filters; using a glob in `from`
   # is not reliable for electron-builder file-set matching.

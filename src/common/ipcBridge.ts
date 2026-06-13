@@ -968,7 +968,7 @@ export const browserPanel = {
   // `conversationId` scopes the tab to a single chat conversation so
   // per-conv BrowserPanel isolation works; absent/empty value falls back to
   // the global bucket (matches behavior before the per-conv refactor and the
-  // sudowork-browser MCP child's /tab/open path, which doesn't know which
+  // browser-panel MCP child's /tab/open path, which doesn't know which
   // conversation triggered the call).
   registerTab: bridge.buildProvider<IBridgeResponse<void>, { tabId: string; webContentsId: number; conversationId?: string }>('browser-panel:register-tab'),
   unregisterTab: bridge.buildProvider<IBridgeResponse<void>, { tabId: string }>('browser-panel:unregister-tab'),

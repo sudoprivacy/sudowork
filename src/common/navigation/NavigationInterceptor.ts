@@ -35,13 +35,13 @@ export type AiDevBrowserNavToolName = NavigationToolName;
 export const AI_DEV_BROWSER_DISPATCHERS = ['browser', 'aidb'] as const;
 
 /**
- * sudowork-browser MCP tool names whose semantic is "navigate the right-tab
- * webview to a URL". Implementations live in resources/sudowork-browser-mcp/.
+ * browser-panel MCP tool names whose semantic is "navigate the right-tab
+ * webview to a URL". Implementations live in resources/browser-panel-mcp/.
  * Counted as navigation tools so the right-panel auto-sync also kicks in when
  * the agent reaches the same affordance via MCP instead of the CLI.
  */
-export const SUDOWORK_BROWSER_NAV_MCP_TOOLS = ['browser_open', 'browser_navigate'] as const;
-export type SudoworkBrowserNavMcpToolName = (typeof SUDOWORK_BROWSER_NAV_MCP_TOOLS)[number];
+export const BROWSER_PANEL_NAV_MCP_TOOLS = ['panel_open', 'panel_navigate'] as const;
+export type SudoworkBrowserNavMcpToolName = (typeof BROWSER_PANEL_NAV_MCP_TOOLS)[number];
 
 /**
  * Generic wrapper tool names some agents use to invoke MCP tools indirectly,
@@ -75,7 +75,7 @@ export interface NavigationToolData {
    * MCP server name on a wrapper-style call. When combined with `tool`, this
    * is one of the two shapes a generic wrapper (e.g. toolName="MCP") uses to
    * name the real MCP tool. Treated as a navigation invocation only when
-   * `server === 'sudowork-browser'` AND `tool` is a sudowork-browser nav
+   * `server === 'browser-panel'` AND `tool` is a browser-panel nav
    * tool — scoping keeps us from swallowing nav calls on other MCP servers.
    */
   server?: string;
@@ -86,8 +86,8 @@ export interface NavigationToolData {
   /**
    * Some agents (e.g. gpt-5.5 via sudorouter) invoke MCP tools through a
    * single generic "MCPTool" caller and pass the real tool name as a
-   * `qualifiedName` arg, e.g. "sudowork-browser-browser_open" or
-   * "sudowork-browser.browser_open". May appear on the data itself or
+   * `qualifiedName` arg, e.g. "browser-panel-panel_open" or
+   * "browser-panel.panel_open". May appear on the data itself or
    * nested inside `arguments` / `rawInput`.
    */
   qualifiedName?: string;
@@ -144,16 +144,16 @@ export class NavigationInterceptor {
    *
    * Handles:
    *   "page_goto"                                            (direct tool name)
-   *   "browser_open"                                         (sudowork-browser MCP tool name)
+   *   "panel_open"                                         (browser-panel MCP tool name)
    *   { toolName: "tab_new" }                                (structured, direct)
    *   { toolName: "Bash", rawInput: { command: "browser page_goto --url X" } }
    *   { arguments: { command: "aidb tab_new --url X" } }
    *   { toolName: "MCPTool",                                 (MCP wrapper, qualifiedName form)
-   *     rawInput: { qualifiedName: "sudowork-browser-browser_open",
+   *     rawInput: { qualifiedName: "browser-panel-panel_open",
    *                 arguments: { url: "https://…" } } }
    *   { toolName: "MCP",                                     (MCP wrapper, server/tool form)
-   *     rawInput: { server: "sudowork-browser",
-   *                 tool: "browser_open",
+   *     rawInput: { server: "browser-panel",
+   *                 tool: "panel_open",
    *                 arguments: { url: "https://…" } } }
    */
   static isNavigationTool(data: NavigationToolData | string): boolean {
@@ -162,7 +162,7 @@ export class NavigationInterceptor {
       return this.isKnownNavToolName(baseName);
     }
 
-    // 1. Direct tool-name match (ai-dev-browser CLI tools + sudowork-browser MCP tools).
+    // 1. Direct tool-name match (ai-dev-browser CLI tools + browser-panel MCP tools).
     const baseName = this.normalizeToolName(data.toolName || '');
     if (this.isKnownNavToolName(baseName)) {
       return true;
@@ -175,10 +175,10 @@ export class NavigationInterceptor {
     }
 
     // 3. MCP wrapper form: a generic caller like "MCPTool" whose qualifiedName
-    // resolves to a sudowork-browser nav tool.
+    // resolves to a browser-panel nav tool.
     if ((MCP_WRAPPER_TOOL_NAMES as readonly string[]).includes(baseName)) {
       const wrapped = this.extractWrappedMcpToolName(data);
-      if (wrapped && (SUDOWORK_BROWSER_NAV_MCP_TOOLS as readonly string[]).includes(wrapped)) {
+      if (wrapped && (BROWSER_PANEL_NAV_MCP_TOOLS as readonly string[]).includes(wrapped)) {
         return true;
       }
     }
@@ -188,12 +188,12 @@ export class NavigationInterceptor {
 
   /**
    * True if a normalized bare tool name is one of the known navigation tools
-   * (ai-dev-browser CLI tools or sudowork-browser MCP tools).
+   * (ai-dev-browser CLI tools or browser-panel MCP tools).
    */
   private static isKnownNavToolName(baseName: string): boolean {
     return (
       (NAVIGATION_TOOLS as readonly string[]).includes(baseName) ||
-      (SUDOWORK_BROWSER_NAV_MCP_TOOLS as readonly string[]).includes(baseName)
+      (BROWSER_PANEL_NAV_MCP_TOOLS as readonly string[]).includes(baseName)
     );
   }
 
@@ -203,14 +203,14 @@ export class NavigationInterceptor {
    *
    *   Path A — `qualifiedName` field with the real MCP id embedded. Tolerates
    *   separators `-`, `.`, `/`, `__`:
-   *     "sudowork-browser-browser_open"           → "browser_open"
-   *     "sudowork-browser.browser_open"           → "browser_open"
-   *     "mcp__sudowork-browser__browser_open"     → "browser_open"
+   *     "browser-panel-panel_open"           → "panel_open"
+   *     "browser-panel.panel_open"           → "panel_open"
+   *     "mcp__browser-panel__panel_open"     → "panel_open"
    *
    *   Path B — explicit `server` + `tool` fields. Scoped to
-   *   `server === 'sudowork-browser'` to avoid swallowing nav calls on
+   *   `server === 'browser-panel'` to avoid swallowing nav calls on
    *   unrelated MCP servers.
-   *     { server: "sudowork-browser", tool: "browser_open" } → "browser_open"
+   *     { server: "browser-panel", tool: "panel_open" } → "panel_open"
    *
    * Either path may live on the data itself, inside `rawInput`, or inside
    * `arguments`.
@@ -229,7 +229,7 @@ export class NavigationInterceptor {
       }
     }
 
-    // Path B — server + tool fields, gated on server="sudowork-browser".
+    // Path B — server + tool fields, gated on server="browser-panel".
     const serverToolSources: Array<{ server?: unknown; tool?: unknown } | undefined> = [
       { server: data.server, tool: data.tool },
       data.rawInput as { server?: unknown; tool?: unknown } | undefined,
@@ -237,7 +237,7 @@ export class NavigationInterceptor {
     ];
     for (const src of serverToolSources) {
       if (!src) continue;
-      if (src.server === 'sudowork-browser' && typeof src.tool === 'string' && src.tool.trim()) {
+      if (src.server === 'browser-panel' && typeof src.tool === 'string' && src.tool.trim()) {
         return src.tool.toLowerCase();
       }
     }
@@ -349,7 +349,7 @@ export class NavigationInterceptor {
 
     // 2c. MCP wrapper nested form: the real tool's arguments live one level
     // deep under `.arguments` (e.g. MCPTool passes them through), e.g.
-    //   rawInput: { qualifiedName: "sudowork-browser-browser_open",
+    //   rawInput: { qualifiedName: "browser-panel-panel_open",
     //               arguments: { url: "https://…" } }
     for (const outer of [data.rawInput, data.arguments]) {
       if (!outer) continue;

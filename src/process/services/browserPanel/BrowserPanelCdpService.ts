@@ -181,7 +181,7 @@ interface TabState {
    * registerTab. Used to drive per-conversation cleanup (close-by-conv on
    * conversation delete) and per-conv tab-list responses. Empty/absent
    * means the tab belongs to the global bucket (e.g. opened via the
-   * sudowork-browser MCP child's /tab/open path, which doesn't know
+   * browser-panel MCP child's /tab/open path, which doesn't know
    * which conversation triggered it).
    */
   conversationId?: string;

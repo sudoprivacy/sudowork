@@ -13,7 +13,7 @@ import { getNodeBinaryPath } from '@process/services/claudeCli/NodeRuntimeServic
 import { mainError, mainLog, mainWarn } from '@process/utils/mainLogger';
 
 /**
- * Auto-register the sudowork-browser MCP server into the user's Claude Code
+ * Auto-register the browser-panel MCP server into the user's Claude Code
  * config so Claude can spawn it as a stdio MCP subprocess.
  *
  * Lifecycle:
@@ -30,7 +30,7 @@ import { mainError, mainLog, mainWarn } from '@process/utils/mainLogger';
  *    degrades gracefully rather than crashing Claude.
  */
 
-const MCP_NAME = 'sudowork-browser';
+const MCP_NAME = 'browser-panel';
 const TIMEOUT_MS = 15_000;
 
 const getExecEnv = () => ({ env: { ...getEnhancedEnv(), NODE_OPTIONS: '', TERM: 'dumb', NO_COLOR: '1' } as NodeJS.ProcessEnv });
@@ -38,14 +38,14 @@ const getExecEnv = () => ({ env: { ...getEnhancedEnv(), NODE_OPTIONS: '', TERM: 
 /** Resolve the path to the bundled MCP server entry JS in both dev and packaged modes. */
 function getMcpScriptPath(): string {
   if (app.isPackaged) {
-    return path.join(process.resourcesPath, 'sudowork-browser-mcp', 'index.js');
+    return path.join(process.resourcesPath, 'browser-panel-mcp', 'index.js');
   }
-  return path.join(app.getAppPath(), 'resources', 'sudowork-browser-mcp', 'index.js');
+  return path.join(app.getAppPath(), 'resources', 'browser-panel-mcp', 'index.js');
 }
 
 /** Discovery file the MCP child reads to find the sudowork main loopback server. */
 function getDiscoveryFilePath(): string {
-  return path.join(app.getPath('userData'), 'sudowork-browser-mcp.json');
+  return path.join(app.getPath('userData'), 'browser-panel-mcp.json');
 }
 
 interface ExistingEntry {
@@ -83,11 +83,11 @@ function quoteForShell(s: string): string {
 async function addEntry(scriptPath: string, nodePath: string): Promise<void> {
   // claude mcp add -s user <name> -- <command> [args...]
   //
-  // We intentionally do NOT pass `-e SUDOWORK_BROWSER_MCP_DISCOVERY=...`
+  // We intentionally do NOT pass `-e BROWSER_PANEL_MCP_DISCOVERY=...`
   // here: claude's CLI uses commander's variadic env flag (`-e <env...>`),
   // which greedily consumes the following positional name. The MCP server
   // already falls back to the platform-default discovery path
-  // (~/Library/Application Support/sudowork/sudowork-browser-mcp.json on
+  // (~/Library/Application Support/sudowork/browser-panel-mcp.json on
   // macOS, %APPDATA%/sudowork/... on Windows, $XDG_CONFIG_HOME/sudowork/...
   // on Linux), which matches what BrowserPanelHttpServer writes via
   // app.getPath('userData'). The discovery env override is still honored
@@ -107,7 +107,7 @@ async function removeEntry(): Promise<void> {
 }
 
 /**
- * Ensure the sudowork-browser MCP server is registered with Claude Code.
+ * Ensure the browser-panel MCP server is registered with Claude Code.
  * Idempotent and non-throwing — safe to call from startup paths.
  */
 export async function ensureSudoworkBuiltinMcpInstalled(): Promise<void> {

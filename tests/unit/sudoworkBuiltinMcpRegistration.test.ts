@@ -66,7 +66,7 @@ describe('ensureSudoworkBuiltinMcpInstalled', () => {
     safeExecMock.mockImplementation(async (cmd: string) => {
       if (cmd.startsWith('claude mcp list')) {
         return {
-          stdout: 'sudowork-browser: /mock/node/bin/node /mock/app/resources/sudowork-browser-mcp/index.js - ✓ Connected\n',
+          stdout: 'browser-panel: /mock/node/bin/node /mock/app/resources/browser-panel-mcp/index.js - ✓ Connected\n',
           stderr: '',
         };
       }
@@ -83,7 +83,7 @@ describe('ensureSudoworkBuiltinMcpInstalled', () => {
     safeExecMock.mockImplementation(async (cmd: string) => {
       if (cmd.startsWith('claude mcp list')) {
         return {
-          stdout: 'sudowork-browser: /old/node /old/path/index.js - ✓ Connected\n',
+          stdout: 'browser-panel: /old/node /old/path/index.js - ✓ Connected\n',
           stderr: '',
         };
       }
