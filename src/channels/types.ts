@@ -284,6 +284,13 @@ export interface IUnifiedAttachment {
   mimeType?: string;
   size?: number;
   duration?: number;
+  /**
+   * Source codec hint for voice/audio attachments (e.g. 'silk', 'amr'). Supplied
+   * by the per-channel adapter and consumed by the shared TranscriptionService so
+   * it knows when a SILK→wav decode is needed. Optional; transcription falls back
+   * to content sniffing when absent.
+   */
+  codec?: string;
 }
 
 /**

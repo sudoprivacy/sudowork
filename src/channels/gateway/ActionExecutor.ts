@@ -13,6 +13,8 @@ import { getDatabase } from '@/process/database';
 import { ProcessConfig } from '@/process/initStorage';
 import { getDataPath } from '@/process/utils';
 import { ConversationService } from '@/process/services/conversationService';
+import { transcriptionService } from '@/process/services/transcription/TranscriptionService';
+import { resolveMediaText } from './voiceTranscription';
 import { buildChatErrorResponse, chatActions } from '../actions/ChatActions';
 import { handlePairingShow, platformActions } from '../actions/PlatformActions';
 import { getChannelDefaultModel, systemActions } from '../actions/SystemActions';
@@ -572,7 +574,14 @@ export class ActionExecutor {
         // AcpAgent strips the marker before forwarding to the agent and turns the
         // paths into image content blocks via processAtFileReferences().
         const files = content.attachments?.map((a) => a.fileId).filter((id) => !!id) || [];
-        const plainText = content.text || `[${content.type} message]`;
+
+        // Voice transcription: the agent can't hear an audio file, so for an
+        // enabled channel replace the opaque `[voice message]` placeholder with a
+        // transcript via the shared TranscriptionService (the audio file stays
+        // attached). resolveMediaText falls back to the placeholder on ASR failure
+        // and is a no-op for every channel not yet enabled (PoC: WeChat only).
+        const plainText = await resolveMediaText(content, platform as PluginType, (p, c) => transcriptionService.transcribe(p, c));
+
         await this.handleChatMessage(context, plainText, files);
       } else {
         // Unsupported content type

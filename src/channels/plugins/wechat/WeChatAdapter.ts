@@ -195,6 +195,9 @@ export function toUnifiedIncomingMessage(msg: WeChatMessage): IUnifiedIncomingMe
           mimeType: getDefaultMimeType(item.type),
           size: item.image_item?.hd_size || item.file_item?.file_size || undefined,
           duration: item.voice_item?.voice_length || item.video_item?.video_length || undefined,
+          // Personal WeChat voice arrives as SILK regardless of the .amr filename;
+          // pass the declared voice_format so TranscriptionService can decode it.
+          codec: item.type === MessageItemType.VOICE ? item.voice_item?.voice_format || 'silk' : undefined,
         });
         // Set the content type to the first media type encountered
         if (contentType === 'text') {
