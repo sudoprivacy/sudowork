@@ -573,14 +573,22 @@ export class ActionExecutor {
         // images/files inline (FilePreview) instead of only `[photo message]`.
         // AcpAgent strips the marker before forwarding to the agent and turns the
         // paths into image content blocks via processAtFileReferences().
-        const files = content.attachments?.map((a) => a.fileId).filter((id) => !!id) || [];
+        let files = content.attachments?.map((a) => a.fileId).filter((id) => !!id) || [];
 
         // Voice transcription: the agent can't hear an audio file, so for an
         // enabled channel replace the opaque `[voice message]` placeholder with a
-        // transcript via the shared TranscriptionService (the audio file stays
-        // attached). resolveMediaText falls back to the placeholder on ASR failure
-        // and is a no-op for every channel not yet enabled (PoC: WeChat only).
-        const plainText = await resolveMediaText(content, platform as PluginType, (p, c) => transcriptionService.transcribe(p, c));
+        // transcript via the shared TranscriptionService. resolveMediaText falls
+        // back to the placeholder on ASR failure and is a no-op for every channel
+        // not yet enabled (PoC: WeChat only).
+        const { text: plainText, transcribed } = await resolveMediaText(content, platform as PluginType, (p, c) => transcriptionService.transcribe(p, c));
+
+        // When we have a transcript, drop the raw voice file from the attachments:
+        // the agent can't decode SILK/AMR, and attaching it next to the transcript
+        // makes it ask for clarification instead of acting on the text.
+        if (transcribed) {
+          const voiceIds = new Set((content.attachments || []).filter((a) => a.type === 'voice').map((a) => a.fileId));
+          files = files.filter((id) => !voiceIds.has(id));
+        }
 
         await this.handleChatMessage(context, plainText, files);
       } else {
