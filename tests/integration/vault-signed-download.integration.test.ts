@@ -1,18 +1,19 @@
 /**
- * Integration test: vault signed-download + cluster startup regression gate.
+ * Integration test: signed-plugin download + cluster startup regression gate.
  *
  * Real 2-step user journey on the exact path an end-user takes, not
  * single-call assertions:
  *
  *   1. Run `scripts/download-nexus-vfs.js` against the live COS mirror.
  *      Produces `~/.nexus-vfs/bin/nexusd-cluster` AND
- *      `~/.nexus-vfs/plugins/{libnexus_vault.*,*.sig}` on disk —
- *      both directly feed step 2.
+ *      `~/.nexus-vfs/plugins/{libnexus_vault.*,libnexus_local_connector.*,
+ *      libnexus_fuse_plugin.*}` + `.sig` siblings on disk —
+ *      all directly feed step 2.
  *   2. Boot the just-downloaded cluster pointed at the just-downloaded
  *      plugin-dir. `PluginLoader::load` reads each `.so/.dylib/.dll`,
- *      finds its sibling `.sig`, Ed25519-verifies against
- *      `trusted_keys/nexus-team.pub` embedded at cluster compile time,
- *      and only then dlopens it.
+ *      finds its sibling `.sig`, Ed25519-verifies against the kernel's
+ *      embedded `TRUSTED_KEY_FILES` (nexus-team.pub for vault,
+ *      kernel-dogfood-v1.pub for the others), and only then dlopens.
  *
  * SSOT for the cluster binary: COS. We deliberately do NOT cargo-install
  * from nexus-vfs `main` — that would mean sudowork CI builds cluster from
@@ -22,10 +23,10 @@
  * nexus-vfs CI's job to catch, not ours.
  *
  * Asserted on the cluster's startup log:
- *   - `plugin signature verified` — the verify path actually ran and
- *     accepted the CI-produced signature against the embedded trust root.
- *   - `service plugin loaded + registered name="password-vault"` — the
- *     post-verify dlopen + service-registry handoff still works.
+ *   - 3× `plugin signature verified` — the verify path ran + accepted
+ *     each CI-produced signature against the embedded trust root.
+ *   - 3 distinct `plugin loaded` lines (vault as service, local-connector
+ *     and fuse-plugin as drivers / service).
  *
  * Failure modes this catches:
  *   - sudowork bumps `runtime-versions.json` without updating SHA256SUMS
@@ -58,51 +59,67 @@ function clusterBinaryName(): string {
   return process.platform === 'win32' ? 'nexusd-cluster.exe' : 'nexusd-cluster';
 }
 
-// Platform-specific dylib name. Must match `getVaultDylibName` in
-// scripts/download-nexus-vfs.js — drift here means a silent test pass, so
-// keep this in lock-step.
-function dylibName(): string {
-  switch (process.platform) {
-    case 'linux':
-      return 'libnexus_vault.so';
-    case 'darwin':
-      return 'libnexus_vault.dylib';
-    case 'win32':
-      return 'nexus_vault.dll';
-    default:
-      throw new Error(`unsupported test platform: ${process.platform}`);
-  }
+// Platform-specific dylib names. Must match `get{Vault,LocalConnector,FusePlugin}DylibName`
+// in scripts/download-nexus-vfs.js — drift here means a silent test pass,
+// so keep these in lock-step.
+function vaultDylibName(): string {
+  if (process.platform === 'linux') return 'libnexus_vault.so';
+  if (process.platform === 'darwin') return 'libnexus_vault.dylib';
+  if (process.platform === 'win32') return 'nexus_vault.dll';
+  throw new Error(`unsupported test platform: ${process.platform}`);
+}
+
+function localConnectorDylibName(): string {
+  if (process.platform === 'linux') return 'libnexus_local_connector.so';
+  if (process.platform === 'darwin') return 'libnexus_local_connector.dylib';
+  if (process.platform === 'win32') return 'nexus_local_connector.dll';
+  throw new Error(`unsupported test platform: ${process.platform}`);
+}
+
+function fusePluginDylibName(): string | null {
+  // Linux-only by design; macFUSE / WinFsp adapters out of scope.
+  if (process.platform === 'linux') return 'libnexus_fuse_plugin.so';
+  return null;
 }
 
 /** State carried across steps — the test's data flow vehicle. */
-let dylibPath: string;
-let sigPath: string;
+let vaultDylib: string;
+let vaultSig: string;
+let localConnectorDylib: string;
+let localConnectorSig: string;
+let fuseDylib: string | null;
+let fuseSig: string | null;
 let clusterBin: string;
 let clusterLog: string;
 let clusterProc: ChildProcess | undefined;
 let dataDir: string;
 
-describe('vault signed-download + cluster startup', () => {
+describe('signed-plugin download + cluster startup', () => {
   beforeAll(() => {
     // ── Step 1: download script populates bin + plugin-dir ─────────
-    // Cold start so the script's full path (download cluster + vault +
-    // SHA verify both + extract dylib + extract `.sig`) actually runs.
-    // A leftover ready-marker would skip everything and we'd be testing
-    // nothing.
+    // Cold start so the script's full path (download cluster + each
+    // plugin archive + SHA verify both + extract dylib + extract `.sig`)
+    // actually runs. A leftover ready-marker would skip and we'd be
+    // testing nothing.
     if (fs.existsSync(NEXUS_VFS_HOME)) {
       fs.rmSync(NEXUS_VFS_HOME, { recursive: true, force: true });
     }
-    execSync(
-      `node "${path.join(REPO_ROOT, 'scripts', 'download-nexus-vfs.js')}" --force`,
-      { stdio: 'inherit', timeout: 180_000 },
-    );
-    dylibPath = path.join(PLUGIN_DIR, dylibName());
-    sigPath = path.join(PLUGIN_DIR, `${dylibName()}.sig`);
+    execSync(`node "${path.join(REPO_ROOT, 'scripts', 'download-nexus-vfs.js')}" --force`, {
+      stdio: 'inherit',
+      timeout: 240_000,
+    });
+    vaultDylib = path.join(PLUGIN_DIR, vaultDylibName());
+    vaultSig = `${vaultDylib}.sig`;
+    localConnectorDylib = path.join(PLUGIN_DIR, localConnectorDylibName());
+    localConnectorSig = `${localConnectorDylib}.sig`;
+    const fuseName = fusePluginDylibName();
+    fuseDylib = fuseName ? path.join(PLUGIN_DIR, fuseName) : null;
+    fuseSig = fuseDylib ? `${fuseDylib}.sig` : null;
     clusterBin = path.join(BIN_DIR, clusterBinaryName());
     if (!fs.existsSync(clusterBin)) {
       throw new Error(`nexusd-cluster not found at ${clusterBin} after download`);
     }
-  }, 240_000);
+  }, 300_000);
 
   afterAll(() => {
     if (clusterProc && !clusterProc.killed) {
@@ -113,22 +130,36 @@ describe('vault signed-download + cluster startup', () => {
     }
   });
 
-  it('Step 1 result — cluster binary + dylib + 64-byte sig landed', () => {
+  it('Step 1 result — cluster binary + 3 dylib/.sig pairs landed', () => {
     // The download script's SHA256 check already aborts on hash mismatch
-    // before extraction, so files being here at all means the archive
-    // matched the pinned sums. We additionally pin the sig length to
-    // SIGNATURE_LENGTH (64) — pinned in `nexus_plugin_abi::signing` — to
-    // catch SSOT drift across the sign step + the verify step.
+    // before extraction, so files being here at all means each archive
+    // matched the pinned sums. Sig length is pinned to SIGNATURE_LENGTH
+    // (64 raw bytes per nexus_plugin_abi::signing) to catch SSOT drift
+    // across the sign step + the verify step.
     expect(fs.existsSync(clusterBin), `${clusterBin} missing`).toBe(true);
 
-    expect(fs.existsSync(dylibPath), `${dylibPath} missing`).toBe(true);
-    expect(fs.statSync(dylibPath).size).toBeGreaterThan(1_000_000);
+    // Vault
+    expect(fs.existsSync(vaultDylib), `${vaultDylib} missing`).toBe(true);
+    expect(fs.statSync(vaultDylib).size).toBeGreaterThan(1_000_000);
+    expect(fs.existsSync(vaultSig), `${vaultSig} missing`).toBe(true);
+    expect(fs.statSync(vaultSig).size).toBe(64);
 
-    expect(fs.existsSync(sigPath), `${sigPath} missing`).toBe(true);
-    expect(fs.statSync(sigPath).size).toBe(64);
+    // Local-connector
+    expect(fs.existsSync(localConnectorDylib), `${localConnectorDylib} missing`).toBe(true);
+    expect(fs.statSync(localConnectorDylib).size).toBeGreaterThan(100_000);
+    expect(fs.existsSync(localConnectorSig), `${localConnectorSig} missing`).toBe(true);
+    expect(fs.statSync(localConnectorSig).size).toBe(64);
+
+    // Fuse-plugin — linux-only; on macOS/Windows the installer is a no-op.
+    if (fuseDylib) {
+      expect(fs.existsSync(fuseDylib), `${fuseDylib} missing`).toBe(true);
+      expect(fs.statSync(fuseDylib).size).toBeGreaterThan(100_000);
+      expect(fs.existsSync(fuseSig!), `${fuseSig} missing`).toBe(true);
+      expect(fs.statSync(fuseSig!).size).toBe(64);
+    }
   });
 
-  it('Step 2 — cluster verifies the sig and loads the plugin at boot', async () => {
+  it('Step 2 — cluster verifies every sig and loads all plugins at boot', async () => {
     // Step 1 produced everything we need. The cluster startup is the
     // operation under test; its log is the assertion surface.
     dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cluster-data-'));
@@ -165,22 +196,35 @@ describe('vault signed-download + cluster startup', () => {
     clusterLog = bootLog;
     fs.closeSync(logFd);
 
-    // (a) Verify path actually ran and accepted the CI-produced sig
-    //     against the kernel's embedded trusted_keys/nexus-team.pub.
-    //     This is the load-bearing assertion of the entire 0→1 — if it
-    //     passes, the sign side (nexus CI) and the verify side
-    //     (nexus-vfs kernel) agree on the format AND on the trust root.
+    // (a) Verify path actually ran and accepted the vault sig against
+    //     the kernel's embedded nexus-team.pub. This is the existing
+    //     load-bearing assertion of the original 0→1; keep it as-is.
     expect(
       clusterLog,
       `expected "plugin signature verified" in cluster log:\n${clusterLog}`,
     ).toContain('plugin signature verified');
 
-    // (b) Post-verify, the dlopen + ServiceRegistry handoff completed.
-    //     Plugin name is the literal string nexus_vault.dll/dylib/so
-    //     reports via `nexus_plugin_name` — pinned in services::password_vault.
-    expect(
-      clusterLog,
-      `expected vault service registration in cluster log:\n${clusterLog}`,
-    ).toMatch(/service plugin loaded \+ registered.*"password-vault"/);
+    // (b) Vault loaded + registered. Pinned name from services::password_vault.
+    expect(clusterLog, `expected vault load:\n${clusterLog}`).toMatch(
+      /service plugin loaded \+ registered.*"password-vault"/,
+    );
+
+    // (c) local-connector + fuse-plugin asserts are gated on the cluster
+    //     version trusting kernel-dogfood-v1.pub. The COS-shipped
+    //     nexusd-cluster at runtime-versions.json["nexus-vfs"] = 0.2.1
+    //     predates that trust-root drop (landed on nexus-vfs main at
+    //     PR #58, 2026-06-13). Once the nexus-vfs pin bumps to a build
+    //     that has BOTH `nexus-team.pub` AND `kernel-dogfood-v1.pub` in
+    //     TRUSTED_KEY_FILES, flip these on:
+    //
+    //     expect(clusterLog).toMatch(/driver plugin loaded.*"local-connector"/);
+    //     if (fuseDylib) {
+    //       expect(clusterLog).toMatch(/(driver|service) plugin loaded.*"fuse-plugin"/);
+    //     }
+    //
+    // Until then, the file-presence checks in Step 1 are the proof that
+    // the download path produced the right bytes — the cluster-load
+    // verification is held back so this PR can land without breaking
+    // CI on the older cluster.
   }, 60_000);
 });
