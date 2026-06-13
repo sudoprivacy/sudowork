@@ -102,6 +102,17 @@ describe('pwdLogin / pwdAdapters', () => {
 const getSecretCalls: Array<{ namespace: string; key: string }> = [];
 let mockSecretValue: string | null = 'secret-correct-horse';
 let mockSecretThrow: unknown = null;
+// Batch/list fallback + storage simulation (deployed vault plugins may be missing
+// secret_get/secret_put — see project_vault_plugin_secret_get_missing).
+const secretStore = new Map<string, string>();
+let getSecretMethodMissing = false; // simulate "secret_get: method not found"
+let putSecretMethodMissing = false; // simulate "secret_put: method not found"
+const batchGetCalls: Array<Array<{ namespace: string; key: string }>> = [];
+const batchPutCalls: Array<Array<{ namespace: string; key: string; value: string }>> = [];
+const listSecretsCalls: string[] = [];
+function methodNotFound(method: string): Error {
+  return new Error(`RPC error: password-vault.${method}: gRPC call failed: method not found`);
+}
 
 vi.mock('electron', () => ({
   app: { isPackaged: false, getAppPath: () => process.cwd() },
@@ -129,8 +140,31 @@ vi.mock('@/common/nexus/nexus-secret-client', () => ({
   getNexusSecretClient: () => ({
     getSecret: (namespace: string, key: string) => {
       getSecretCalls.push({ namespace, key });
+      if (getSecretMethodMissing) throw methodNotFound('secret_get');
       if (mockSecretThrow) throw mockSecretThrow;
-      return mockSecretValue;
+      const stored = secretStore.get(`${namespace}/${key}`);
+      return stored !== undefined ? stored : mockSecretValue;
+    },
+    putSecret: (namespace: string, key: string, value: string) => {
+      if (putSecretMethodMissing) throw methodNotFound('secret_put');
+      secretStore.set(`${namespace}/${key}`, value);
+    },
+    batchGet: (queries: Array<{ namespace: string; key: string }>) => {
+      batchGetCalls.push(queries);
+      const out: Record<string, string> = {};
+      for (const q of queries) {
+        const v = secretStore.get(`${q.namespace}/${q.key}`);
+        if (v !== undefined) out[`${q.namespace}/${q.key}`] = v;
+      }
+      return out;
+    },
+    batchPut: (secrets: Array<{ namespace: string; key: string; value: string }>) => {
+      batchPutCalls.push(secrets);
+      for (const s of secrets) secretStore.set(`${s.namespace}/${s.key}`, s.value);
+    },
+    listSecrets: (namespace: string) => {
+      listSecretsCalls.push(namespace);
+      return [...secretStore.keys()].filter((k) => k.startsWith(`${namespace}/`)).map((k) => ({ namespace, key: k.slice(namespace.length + 1) }));
     },
   }),
 }));
@@ -142,13 +176,23 @@ vi.mock('@process/utils/mainLogger', () => ({
 }));
 
 // Import AFTER vi.mock so the mocks are wired.
-import { __resetPwdLoginApprovalsForTest, handlePwdLogin, registerPwdLoginEntry, deletePwdLoginEntry, listPwdLoginEntries, resolvePwdAdapter } from '../../src/process/services/pwdLogin/pwdLoginService';
+import { __resetPwdLoginApprovalsForTest, handlePwdLogin, registerPwdLoginEntry, deletePwdLoginEntry, listPwdLoginEntries, resolvePwdAdapter, savePwdLoginCredential } from '../../src/process/services/pwdLogin/pwdLoginService';
+
+function resetSecretMocks(): void {
+  getSecretCalls.length = 0;
+  batchGetCalls.length = 0;
+  batchPutCalls.length = 0;
+  listSecretsCalls.length = 0;
+  secretStore.clear();
+  getSecretMethodMissing = false;
+  putSecretMethodMissing = false;
+  mockSecretValue = 'secret-correct-horse';
+  mockSecretThrow = null;
+}
 
 describe('pwdLogin / pwdLoginService', () => {
   beforeEach(() => {
-    getSecretCalls.length = 0;
-    mockSecretValue = 'secret-correct-horse';
-    mockSecretThrow = null;
+    resetSecretMocks();
     for (const k of Object.keys(mockConfigStore)) delete mockConfigStore[k];
     __resetPwdLoginApprovalsForTest();
   });
@@ -236,6 +280,7 @@ describe('pwdLogin / pwdLoginService', () => {
 
 describe('pwdLogin / entry registry', () => {
   beforeEach(() => {
+    resetSecretMocks();
     for (const k of Object.keys(mockConfigStore)) delete mockConfigStore[k];
     mockSecretValue = '';
   });
@@ -274,5 +319,61 @@ describe('pwdLogin / entry registry', () => {
     await deletePwdLoginEntry('tmp');
     const reg = (mockConfigStore['pwdLogin.entries'] as unknown[]) || [];
     expect(reg.length).toBe(0);
+  });
+});
+
+describe('pwdLogin / vault resilience + security invariants', () => {
+  beforeEach(() => {
+    resetSecretMocks();
+    for (const k of Object.keys(mockConfigStore)) delete mockConfigStore[k];
+    __resetPwdLoginApprovalsForTest();
+  });
+
+  it('reads the credential via batchGet when secret_get is method-not-found', async () => {
+    await savePwdLoginCredential('github', 'admin', 'pw'); // stored (putSecret works here)
+    getSecretMethodMissing = true; // deployed plugin missing secret_get
+    const r = await handlePwdLogin({ title: 'github', optionId: 'allow_once' });
+    // Reaching the (python-off) fill dispatch means the read+parse succeeded via batch.
+    expect(r.error).toBe(PwdLoginErrorCode.AdapterError);
+    expect(batchGetCalls.length).toBeGreaterThan(0);
+  });
+
+  it('saves the credential via batchPut when secret_put is method-not-found', async () => {
+    putSecretMethodMissing = true; // deployed plugin missing secret_put
+    await savePwdLoginCredential('github', 'admin', 'pw');
+    expect(batchPutCalls.length).toBe(1);
+    // Stored as JSON {username,password} at the pwd_login namespace.
+    expect(JSON.parse(secretStore.get('service:pwdlogin/github') as string)).toEqual({ username: 'admin', password: 'pw' });
+  });
+
+  it('round-trips creds through the batch fallback (save → start reads back)', async () => {
+    putSecretMethodMissing = true;
+    getSecretMethodMissing = true;
+    await savePwdLoginCredential('github', 'admin', 'pw');
+    const r = await handlePwdLogin({ title: 'github', optionId: 'allow_once' });
+    expect(r.error).toBe(PwdLoginErrorCode.AdapterError); // read+parse via batchGet worked
+  });
+
+  it('hasCredential reflects a saved cred via listSecrets (not secret_get)', async () => {
+    await savePwdLoginCredential('yidao', 'admin', 'pw');
+    const list = await listPwdLoginEntries();
+    expect(list.find((e) => e.title === 'yidao')?.hasCredential).toBe(true);
+    expect(listSecretsCalls.length).toBeGreaterThan(0);
+  });
+
+  it('SECURITY: the registry stores only non-secret selectors — never a password/username/value', async () => {
+    await registerPwdLoginEntry({ title: 'mysite', url: 'http://m/login', usernameSelector: '#u', passwordSelector: '#p', submitSelector: '#s', strategy: 'single_step' });
+    const entry = (mockConfigStore['pwdLogin.entries'] as Array<Record<string, unknown>>)[0];
+    for (const forbidden of ['password', 'username', 'value', 'secret']) {
+      expect(Object.prototype.hasOwnProperty.call(entry, forbidden)).toBe(false);
+    }
+  });
+
+  it('SECURITY: a successful start result carries no password bytes', async () => {
+    // python runtime is mocked off → dispatch fails before any fill, but assert the
+    // contract: the IPC result shape only ever exposes ok/tab_id/error/detail.
+    await savePwdLoginCredential('github', 'admin', 'sup3r-secret-pw');
+    const r = await handlePwdLogin({ title: 'github', optionId: 'allow_once' });
+    expect(JSON.stringify(r)).not.toContain('sup3r-secret-pw');
   });
 });
