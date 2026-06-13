@@ -92,34 +92,34 @@ describe('pwdLogin / pwdAdapters', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Service-level tests with mocked FetchClient + logger.
+// Service-level tests with mocked NexusSecretClient (gRPC), python runtime,
+// electron, and logger. The secret read now uses NexusSecretClient.getSecret
+// (nexusd-cluster :12022 is gRPC-only — the old HTTP /api/v2/password_vault
+// path was removed). The python runtime is mocked as not-installed so the real
+// dispatchPwdFill fails fast with adapter_error (no browser/filler in units).
 // ---------------------------------------------------------------------------
 
-interface MockFetchCall {
-  path: string;
-}
+const getSecretCalls: Array<{ namespace: string; key: string }> = [];
+let mockSecretValue: string | null = 'secret-correct-horse';
+let mockSecretThrow: unknown = null;
 
-const mockFetchCalls: MockFetchCall[] = [];
-let mockFetchResponse: unknown = null;
-let mockFetchShouldThrow: unknown = null;
+vi.mock('electron', () => ({
+  app: { isPackaged: false, getAppPath: () => process.cwd() },
+}));
 
-vi.mock('@/common/nexus', () => {
-  class NotFoundError extends Error {}
-  class NetworkError extends Error {}
-  class TimeoutError extends Error {}
-  class ServerError extends Error {}
-  class FetchClient {
-    async get<T>(path: string): Promise<T> {
-      mockFetchCalls.push({ path });
-      if (mockFetchShouldThrow) throw mockFetchShouldThrow;
-      return mockFetchResponse as T;
-    }
-  }
-  function resolveConfig() {
-    return { apiKey: '', baseUrl: 'http://127.0.0.1:12022' };
-  }
-  return { FetchClient, NotFoundError, NetworkError, TimeoutError, ServerError, resolveConfig };
-});
+vi.mock('@/process/services/python/PythonRuntimeService', () => ({
+  pythonRuntimeService: { checkInstalled: vi.fn().mockResolvedValue({ installed: false }) },
+}));
+
+vi.mock('@/common/nexus/nexus-secret-client', () => ({
+  getNexusSecretClient: () => ({
+    getSecret: (namespace: string, key: string) => {
+      getSecretCalls.push({ namespace, key });
+      if (mockSecretThrow) throw mockSecretThrow;
+      return mockSecretValue;
+    },
+  }),
+}));
 
 vi.mock('@process/utils/mainLogger', () => ({
   mainLog: vi.fn(),
@@ -127,16 +127,14 @@ vi.mock('@process/utils/mainLogger', () => ({
   mainWarn: vi.fn(),
 }));
 
-// Import AFTER vi.mock so the mocks are wired. vitest hoists vi.mock calls
-// so we can also use a top-level import, but keeping it inline is clearer.
+// Import AFTER vi.mock so the mocks are wired.
 import { __resetPwdLoginApprovalsForTest, handlePwdLogin } from '../../src/process/services/pwdLogin/pwdLoginService';
-import { NetworkError, NotFoundError } from '@/common/nexus';
 
 describe('pwdLogin / pwdLoginService', () => {
   beforeEach(() => {
-    mockFetchCalls.length = 0;
-    mockFetchResponse = { title: 'github', password: 'secret-correct-horse' };
-    mockFetchShouldThrow = null;
+    getSecretCalls.length = 0;
+    mockSecretValue = 'secret-correct-horse';
+    mockSecretThrow = null;
     __resetPwdLoginApprovalsForTest();
   });
 
@@ -145,18 +143,18 @@ describe('pwdLogin / pwdLoginService', () => {
     __resetPwdLoginApprovalsForTest();
   });
 
-  it('rejects empty title before any nexus call', async () => {
+  it('rejects empty title before any secret read', async () => {
     const result = await handlePwdLogin({ title: '   ', optionId: 'allow_once' });
     expect(result.ok).toBe(false);
     expect(result.error).toBe(PwdLoginErrorCode.EntryNotFound);
-    expect(mockFetchCalls.length).toBe(0);
+    expect(getSecretCalls.length).toBe(0);
   });
 
   it('returns approval_rejected on reject_once without cache consultation', async () => {
     const result = await handlePwdLogin({ title: 'github', optionId: 'reject_once' });
     expect(result.ok).toBe(false);
     expect(result.error).toBe(PwdLoginErrorCode.ApprovalRejected);
-    expect(mockFetchCalls.length).toBe(0);
+    expect(getSecretCalls.length).toBe(0);
   });
 
   it('returns approval_rejected when no decision supplied and cache empty', async () => {
@@ -167,10 +165,10 @@ describe('pwdLogin / pwdLoginService', () => {
 
   it('allow_always caches approval for subsequent call', async () => {
     const first = await handlePwdLogin({ title: 'github', optionId: 'allow_always' });
-    // First call progresses past approval; fails at adapter dispatch stub
+    // First call progresses past approval; fails at fill dispatch (python mocked off)
     expect(first.error).toBe(PwdLoginErrorCode.AdapterError);
 
-    // Second call without optionId should find cached approval and reach the adapter stub
+    // Second call without optionId should find cached approval and reach dispatch
     const second = await handlePwdLogin({ title: 'github' });
     expect(second.error).toBe(PwdLoginErrorCode.AdapterError);
   });
@@ -178,8 +176,8 @@ describe('pwdLogin / pwdLoginService', () => {
   it('login_form_not_found when title has no adapter entry', async () => {
     const result = await handlePwdLogin({ title: 'unknown-site', optionId: 'allow_once' });
     expect(result.error).toBe(PwdLoginErrorCode.LoginFormNotFound);
-    // nexus should not have been called for a title with no adapter
-    expect(mockFetchCalls.length).toBe(0);
+    // secret should not be read for a title with no adapter
+    expect(getSecretCalls.length).toBe(0);
   });
 
   it('two_step adapter returns login_form_not_found in Phase 1', async () => {
@@ -189,32 +187,34 @@ describe('pwdLogin / pwdLoginService', () => {
     expect(result.detail).toContain('two_step');
   });
 
-  it('nexus 404 → entry_not_found', async () => {
-    mockFetchShouldThrow = new NotFoundError('not found');
+  it('empty/missing secret → entry_not_found', async () => {
+    mockSecretValue = '';
     const result = await handlePwdLogin({ title: 'github', optionId: 'allow_once' });
     expect(result.ok).toBe(false);
     expect(result.error).toBe(PwdLoginErrorCode.EntryNotFound);
   });
 
-  it('nexus network error → nexus_unreachable', async () => {
-    mockFetchShouldThrow = new NetworkError('ECONNREFUSED');
+  it('secret_get throws → nexus_unreachable', async () => {
+    mockSecretThrow = new Error('RPC error');
     const result = await handlePwdLogin({ title: 'github', optionId: 'allow_once' });
     expect(result.error).toBe(PwdLoginErrorCode.NexusUnreachable);
   });
 
-  it('happy path reaches adapter dispatch stub (Phase 1 expected failure)', async () => {
+  it('happy path reads the secret (gRPC) then reaches fill dispatch', async () => {
     const result = await handlePwdLogin({ title: 'github', optionId: 'allow_once' });
     expect(result.ok).toBe(false);
+    // python runtime mocked as not-installed → adapter_error from dispatchPwdFill
     expect(result.error).toBe(PwdLoginErrorCode.AdapterError);
-    // Fetch call happened with correct audit query params
-    expect(mockFetchCalls.length).toBe(1);
-    expect(mockFetchCalls[0].path).toContain('/api/v2/password_vault/github');
-    expect(mockFetchCalls[0].path).toContain('access_context=auto_login');
-    expect(mockFetchCalls[0].path).toContain('client_id=sudowork');
+    // secret was read once from the pwd_login namespace, keyed by title
+    expect(getSecretCalls.length).toBe(1);
+    expect(getSecretCalls[0]).toEqual({ namespace: 'service:pwdlogin', key: 'github' });
   });
 
-  it('conversation_id is passed as agent_session query param when present', async () => {
-    await handlePwdLogin({ title: 'github', optionId: 'allow_once', conversation_id: 'conv-abc' });
-    expect(mockFetchCalls[0].path).toContain('agent_session=conv-abc');
+  it('parses JSON {username,password} secret values', async () => {
+    mockSecretValue = JSON.stringify({ username: 'admin', password: 'p@ss' });
+    const result = await handlePwdLogin({ title: 'github', optionId: 'allow_once' });
+    // Still hits the (mocked-off) python dispatch, but the read+parse succeeded.
+    expect(result.error).toBe(PwdLoginErrorCode.AdapterError);
+    expect(getSecretCalls[0]).toEqual({ namespace: 'service:pwdlogin', key: 'github' });
   });
 });

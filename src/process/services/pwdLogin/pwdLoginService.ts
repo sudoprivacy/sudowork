@@ -12,12 +12,21 @@ import { app } from 'electron';
 import type { IPwdLoginParams, IPwdLoginResult } from '@/common/ipcBridge';
 import { BaseApprovalStore, type IApprovalKey } from '@/common/approval/ApprovalStore';
 import { PermissionType } from '@/common/codex/types/permissionTypes';
-import { FetchClient, NetworkError, NotFoundError, resolveConfig, ServerError, TimeoutError } from '@/common/nexus';
+import { getNexusSecretClient } from '@/common/nexus/nexus-secret-client';
+import { buildNamespace } from '@/common/nexus/namespace';
 import { mainError, mainLog } from '@process/utils/mainLogger';
 import { pythonRuntimeService } from '@/process/services/python/PythonRuntimeService';
 import { PwdLoginErrorCode } from './errors';
 import { findAdapterByTitle, type PwdAdapter } from './pwdAdapters';
 import { passwordStringToBuffer, zeroBuffer } from './memorySafety';
+
+/**
+ * Secret-store namespace for pwd_login credential entries. Keyed by the entry
+ * title. The stored value is JSON `{username, password}` (preferred) or, for
+ * back-compat, a raw password string. Consumer mode → `service:pwdlogin`.
+ * (Enterprise/B端 would scope by userId; not needed for the Phase-2 flow yet.)
+ */
+const PWD_LOGIN_NAMESPACE = buildNamespace('pwdlogin');
 
 /**
  * Singleton ApprovalStore for credential_autologin decisions. Session-scoped:
@@ -31,78 +40,47 @@ function credentialKey(title: string): IApprovalKey {
 }
 
 /**
- * Shape of nexus PasswordVaultService GET /password_vault/{title} response.
- * We only pluck `password`; other fields (username, url, totp_secret, ...)
- * are ignored for Phase 1.
- */
-interface NexusPasswordEntryResponse {
-  title: string;
-  username?: string;
-  password: string;
-  url?: string;
-  totp_secret?: string | null;
-  // ... other fields intentionally untyped — we don't depend on them
-}
-
-/**
- * Build the nexus audit query string. v0.9.33 ignores these unknown params;
- * v0.9.34+ will parse them into the audit log. See spec §4.
- */
-function buildAuditQuery(conversationId?: string): string {
-  const params = new URLSearchParams();
-  params.set('access_context', 'auto_login');
-  params.set('client_id', 'sudowork');
-  if (conversationId) {
-    // v2 spec §4: "current agent session id". For Phase 1 user-triggered flow
-    // we pass conversation_id as the closest analogue.
-    params.set('agent_session', conversationId);
-  }
-  return params.toString();
-}
-
-/**
- * Fetch the password for `title` from nexus. Returns the bytes as a Buffer
- * ready for zeroing; the intermediate String lifetime is the acknowledged
- * residue from v2 spec §7.
+ * Fetch credentials for `title` from the secret store via NexusSecretClient
+ * (gRPC `password-vault.secret_get` to nexusd-cluster). Returns the password as
+ * a Buffer ready for zeroing plus the non-secret username; the intermediate
+ * String lifetime is the acknowledged residue (Python/JS can't truly zero a str).
  *
- * Throws structured PwdLoginErrorCode via thrown object so callers can map
- * to IPwdLoginResult cleanly.
+ * The stored value is JSON `{username, password}` (preferred) or a raw password
+ * string (back-compat). Throws a structured PwdLoginErrorCode object so callers
+ * can map to IPwdLoginResult cleanly. Replaces the old HTTP
+ * `/api/v2/password_vault/{title}` path — nexusd-cluster :12022 is gRPC-only.
  */
-async function fetchPasswordBuffer(title: string, conversationId: string | undefined): Promise<{ username: string; passwordBuf: Buffer }> {
-  const config = resolveConfig();
-  const client = new FetchClient(config);
-  const query = buildAuditQuery(conversationId);
-  const reqPath = `/api/v2/password_vault/${encodeURIComponent(title)}?${query}`;
-
+async function fetchPasswordBuffer(title: string): Promise<{ username: string; passwordBuf: Buffer }> {
+  let value: string;
   try {
-    const entry = await client.get<NexusPasswordEntryResponse>(reqPath);
-    if (!entry || typeof entry.password !== 'string') {
-      throw { code: PwdLoginErrorCode.EntryNotFound } as const;
-    }
-
-    // Username is non-secret — keep as a plain string to fill the form.
-    const username = typeof entry.username === 'string' ? entry.username : '';
-    // Narrow the String → Buffer boundary. After this line, the caller
-    // zeroes the buffer; the source String is unreachable and GC-reclaimed.
-    const passwordBuf = passwordStringToBuffer(entry.password);
-    // Overwrite the only reference we hold — further protects against log
-    // frameworks that dump local variables on unhandled exceptions.
-    (entry as unknown as { password: unknown }).password = '';
-    return { username, passwordBuf };
+    value = getNexusSecretClient().getSecret(PWD_LOGIN_NAMESPACE, title);
   } catch (err) {
-    if (err && typeof err === 'object' && 'code' in err) {
-      throw err;
-    }
-    if (err instanceof NotFoundError) {
-      throw { code: PwdLoginErrorCode.EntryNotFound } as const;
-    }
-    if (err instanceof NetworkError || err instanceof TimeoutError || err instanceof ServerError) {
-      throw { code: PwdLoginErrorCode.NexusUnreachable } as const;
-    }
-    // Unknown error — log the error type only, never the body (which may have password)
-    mainError('pwdLogin', `unexpected nexus error: ${err instanceof Error ? err.name : typeof err}`);
+    // Never log the error body (may carry secret material) — only the type.
+    mainError('pwdLogin', `secret_get failed: ${err instanceof Error ? err.name : typeof err}`);
     throw { code: PwdLoginErrorCode.NexusUnreachable } as const;
   }
+  if (!value) {
+    throw { code: PwdLoginErrorCode.EntryNotFound } as const;
+  }
+
+  // Value is JSON {username, password} (preferred) or a raw password string.
+  let username = '';
+  let password = value;
+  try {
+    const parsed = JSON.parse(value) as { username?: unknown; password?: unknown };
+    if (parsed && typeof parsed === 'object' && typeof parsed.password === 'string') {
+      password = parsed.password;
+      username = typeof parsed.username === 'string' ? parsed.username : '';
+    }
+  } catch {
+    // not JSON — treat the whole value as the raw password
+  }
+
+  const passwordBuf = passwordStringToBuffer(password);
+  // Drop our plaintext references (str residue acknowledged).
+  password = '';
+  value = '';
+  return { username, passwordBuf };
 }
 
 /** Resolve the bundled pwd_fill.py path in dev and packaged builds. */
@@ -246,7 +224,7 @@ export async function handlePwdLogin(params: IPwdLoginParams): Promise<IPwdLogin
   let passwordBuf: Buffer | null = null;
   let username = '';
   try {
-    const creds = await fetchPasswordBuffer(title, params.conversation_id);
+    const creds = await fetchPasswordBuffer(title);
     username = creds.username;
     passwordBuf = creds.passwordBuf;
   } catch (err) {
