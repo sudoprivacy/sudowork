@@ -143,12 +143,17 @@ def _resolve_vision(cfg: dict) -> dict:
         try:
             c = json.load(open(path, "r", encoding="utf-8"))
             sr = c.get("models", {}).get("providers", {}).get("sudorouter", {})
-            # Captcha OCR needs a VISION-capable CHAT model — NOT imageModel (that's
-            # an image-GENERATION/diffusion model, e.g. gpt-image, which can't do
-            # chat-completions vision). Use the session's primary chat model.
-            # primary looks like "sudorouter-gemini-3.5-flash/gemini-3.5-flash".
+            # Captcha OCR needs a VISION-capable model — NOT imageModel (an
+            # image-GENERATION/diffusion model). Prefer the session's chat model
+            # ("sudorouter-gemini-3.5-flash/gemini-3.5-flash" → "gemini-3.5-flash")
+            # IF it accepts image input; otherwise fall back to a vision model from
+            # the catalog (some chat models like gpt-5.x/grok are text-only).
+            catalog = sr.get("models", []) if isinstance(sr.get("models"), list) else []
+            vision_ids = {m.get("id") for m in catalog if "image" in (m.get("input") or [])}
             primary = ((c.get("agents", {}).get("defaults", {}).get("model", {}) or {}).get("primary")) or ""
             model = primary.split("/")[-1] if "/" in primary else primary
+            if model not in vision_ids:
+                model = next((m.get("id") for pref in ("gemini", "claude") for m in catalog if pref in (m.get("id") or "") and "image" in (m.get("input") or [])), "") or (sorted(vision_ids)[0] if vision_ids else model)
             v.setdefault("baseUrl", (sr.get("baseUrl") or "").rstrip("/"))
             v.setdefault("apiKey", sr.get("apiKey") or "")
             v.setdefault("model", model or "gemini-2.5-flash")
