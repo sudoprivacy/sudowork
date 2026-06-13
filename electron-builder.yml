@@ -177,6 +177,10 @@ extraResources:
   # `aidb <tool>` instead of `python -m ai_dev_browser.tools.<tool>`.
   - from: resources/sudoclaw-bin
     to: sudoclaw-bin
+  # Shared voice-transcription helper (SILK→wav + CPU ASR). Run by the local
+  # TranscriptionService engine via the provisioned Python runtime.
+  - from: resources/transcription
+    to: transcription
   # CLI tools (bundled at build time via scripts/download-*.js)
   # NOTE: claude-code.tgz is deliberately NOT bundled — users install Claude
   # Code CLI separately (https://claude.com/code). At runtime, the Claude agent
