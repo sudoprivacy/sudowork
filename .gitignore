@@ -234,3 +234,10 @@ native/nexus-napi/*.node
 .nexus/sudocode/settings.local.json
 .scode/sessions/
 .sudocodehip/
+
+# Python bytecode
+__pycache__/
+*.pyc
+
+# Local nexusd-cluster runtime data (created when cwd=repo)
+nexus-data/
