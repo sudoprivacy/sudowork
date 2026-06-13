@@ -4,14 +4,20 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { spawn } from 'child_process';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
+import { app } from 'electron';
 import type { IPwdLoginParams, IPwdLoginResult } from '@/common/ipcBridge';
 import { BaseApprovalStore, type IApprovalKey } from '@/common/approval/ApprovalStore';
 import { PermissionType } from '@/common/codex/types/permissionTypes';
 import { FetchClient, NetworkError, NotFoundError, resolveConfig, ServerError, TimeoutError } from '@/common/nexus';
 import { mainError, mainLog } from '@process/utils/mainLogger';
+import { pythonRuntimeService } from '@/process/services/python/PythonRuntimeService';
 import { PwdLoginErrorCode } from './errors';
 import { findAdapterByTitle, type PwdAdapter } from './pwdAdapters';
-import { bufferToBase64AndZero, passwordStringToBuffer, zeroBuffer } from './memorySafety';
+import { passwordStringToBuffer, zeroBuffer } from './memorySafety';
 
 /**
  * Singleton ApprovalStore for credential_autologin decisions. Session-scoped:
@@ -62,25 +68,27 @@ function buildAuditQuery(conversationId?: string): string {
  * Throws structured PwdLoginErrorCode via thrown object so callers can map
  * to IPwdLoginResult cleanly.
  */
-async function fetchPasswordBuffer(title: string, conversationId: string | undefined): Promise<Buffer> {
+async function fetchPasswordBuffer(title: string, conversationId: string | undefined): Promise<{ username: string; passwordBuf: Buffer }> {
   const config = resolveConfig();
   const client = new FetchClient(config);
   const query = buildAuditQuery(conversationId);
-  const path = `/api/v2/password_vault/${encodeURIComponent(title)}?${query}`;
+  const reqPath = `/api/v2/password_vault/${encodeURIComponent(title)}?${query}`;
 
   try {
-    const entry = await client.get<NexusPasswordEntryResponse>(path);
+    const entry = await client.get<NexusPasswordEntryResponse>(reqPath);
     if (!entry || typeof entry.password !== 'string') {
       throw { code: PwdLoginErrorCode.EntryNotFound } as const;
     }
 
+    // Username is non-secret — keep as a plain string to fill the form.
+    const username = typeof entry.username === 'string' ? entry.username : '';
     // Narrow the String → Buffer boundary. After this line, the caller
     // zeroes the buffer; the source String is unreachable and GC-reclaimed.
-    const buf = passwordStringToBuffer(entry.password);
+    const passwordBuf = passwordStringToBuffer(entry.password);
     // Overwrite the only reference we hold — further protects against log
     // frameworks that dump local variables on unhandled exceptions.
     (entry as unknown as { password: unknown }).password = '';
-    return buf;
+    return { username, passwordBuf };
   } catch (err) {
     if (err && typeof err === 'object' && 'code' in err) {
       throw err;
@@ -97,27 +105,100 @@ async function fetchPasswordBuffer(title: string, conversationId: string | undef
   }
 }
 
-/**
- * Dispatch pwd_fill sidechannel command to ai-dev-browser subprocess.
- *
- * Phase 1: STUB. The 3 sidechannel commands (pwd_fill, screenshot_lock_acquire,
- * screenshot_lock_release) do not yet exist on the ai-dev-browser side. This
- * function logs its intent and returns an adapter_error so the end-to-end
- * renderer flow can be exercised without a real form fill.
- *
- * Replace this implementation once browser-ai lands the 3 cmds and we submit
- * the sudowork → ai-dev-browser PR wiring stdin writes.
- */
-async function dispatchPwdFill(_adapter: PwdAdapter, _usernameOrEmpty: string, passwordBuf: Buffer): Promise<{ tab_id: string }> {
-  // Convert + zero immediately. We don't yet send anywhere, but this exercises
-  // the real memory discipline so tests can assert zeroing even during stub.
-  const b64 = bufferToBase64AndZero(passwordBuf);
-  // Intentionally unused locally. Do NOT log `b64`, do NOT JSON.stringify it
-  // into any error message. Keep the identifier silent.
-  void b64;
+/** Resolve the bundled pwd_fill.py path in dev and packaged builds. */
+function getFillerScriptPath(): string {
+  if (app.isPackaged) {
+    return path.join(process.resourcesPath, 'pwdLogin', 'pwd_fill.py');
+  }
+  return path.join(app.getAppPath(), 'resources', 'pwdLogin', 'pwd_fill.py');
+}
 
-  mainLog('pwdLogin', 'pwd_fill dispatch is stubbed: ai-dev-browser sidechannel cmds not yet available (tracked in resend to browser-ai 2026-04-22)');
-  throw { code: PwdLoginErrorCode.AdapterError, detail: 'sidechannel pwd_fill not yet available on browser-ai side' } as const;
+/** sudoclaw.json holds the vision-model creds the filler uses to read captchas. */
+function getSudoclawConfigPath(): string {
+  return path.join(os.homedir(), '.nexus', 'sudoclaw', 'sudoclaw.json');
+}
+
+/**
+ * Perform the real login-form fill in the already-running browser via the
+ * bundled pwd_fill.py (ai-dev-browser core fns).
+ *
+ * SECURITY: the plaintext password is delivered ONLY via the child's stdin —
+ * never argv, never the temp config file (which holds non-secret selectors +
+ * username + the sudoclaw.json path only), never logged. The buffer is zeroed
+ * as soon as it has been flushed to the pipe. The filler never returns the
+ * password and we never read it back.
+ */
+async function dispatchPwdFill(adapter: PwdAdapter, username: string, passwordBuf: Buffer): Promise<{ tab_id: string }> {
+  const status = await pythonRuntimeService.checkInstalled();
+  if (!status.installed || !status.path) {
+    zeroBuffer(passwordBuf);
+    throw { code: PwdLoginErrorCode.AdapterError, detail: 'python runtime not available' } as const;
+  }
+  const script = getFillerScriptPath();
+  if (!fs.existsSync(script)) {
+    zeroBuffer(passwordBuf);
+    throw { code: PwdLoginErrorCode.AdapterError, detail: 'pwd_fill.py not found' } as const;
+  }
+
+  // Non-secret config → temp file (mode 0600). NO password here.
+  const cfg = {
+    url: adapter.loginUrl,
+    usernameSelector: adapter.usernameSelector,
+    passwordSelector: adapter.passwordSelector,
+    submitSelector: adapter.submitSelector,
+    captchaSelector: adapter.captchaSelector,
+    captchaImageSelector: adapter.captchaImageSelector,
+    strategy: adapter.strategy,
+    username,
+    sudoclawConfigPath: getSudoclawConfigPath(),
+  };
+  const cfgPath = path.join(os.tmpdir(), `pwdfill-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.json`);
+  fs.writeFileSync(cfgPath, JSON.stringify(cfg), { mode: 0o600 });
+
+  try {
+    const result = await new Promise<{ ok: boolean; url_after?: string; error?: string }>((resolve, reject) => {
+      const child = spawn(status.path!, [script, '--config', cfgPath], { stdio: ['pipe', 'pipe', 'pipe'] });
+      let stdout = '';
+      let stderr = '';
+      child.stdout.on('data', (d) => (stdout += d.toString()));
+      child.stderr.on('data', (d) => (stderr += d.toString()));
+      child.on('error', (err) => {
+        zeroBuffer(passwordBuf);
+        reject(err);
+      });
+      child.on('close', () => {
+        // The filler prints exactly one JSON object on the last stdout line.
+        const line = stdout
+          .trim()
+          .split(/\r?\n/)
+          .filter((l) => l.trim().startsWith('{'))
+          .pop();
+        if (!line) {
+          mainError('pwdLogin', `pwd_fill produced no JSON result (stderr: ${stderr.slice(-200)})`);
+          return reject(new Error('no result'));
+        }
+        try {
+          resolve(JSON.parse(line));
+        } catch {
+          reject(new Error('bad result json'));
+        }
+      });
+      // Deliver the password via stdin, then zero the buffer once flushed.
+      child.stdin.end(passwordBuf, () => zeroBuffer(passwordBuf));
+    });
+
+    if (!result.ok) {
+      throw { code: PwdLoginErrorCode.AdapterError, detail: result.error || 'fill failed' } as const;
+    }
+    mainLog('pwdLogin', `pwd_fill completed for "${adapter.title}" (navigated=${result.url_after ? 'yes' : 'n/a'})`);
+    return { tab_id: result.url_after || 'active' };
+  } finally {
+    try {
+      fs.rmSync(cfgPath, { force: true });
+    } catch {
+      /* ignore */
+    }
+  }
 }
 
 /**
@@ -161,10 +242,13 @@ export async function handlePwdLogin(params: IPwdLoginParams): Promise<IPwdLogin
     return { ok: false, error: PwdLoginErrorCode.LoginFormNotFound, detail: 'two_step sites deferred to Phase 2' };
   }
 
-  // 3. Fetch password (Buffer-managed).
+  // 3. Fetch credentials (password Buffer-managed; username is non-secret).
   let passwordBuf: Buffer | null = null;
+  let username = '';
   try {
-    passwordBuf = await fetchPasswordBuffer(title, params.conversation_id);
+    const creds = await fetchPasswordBuffer(title, params.conversation_id);
+    username = creds.username;
+    passwordBuf = creds.passwordBuf;
   } catch (err) {
     if (err && typeof err === 'object' && 'code' in err) {
       return { ok: false, error: (err as { code: string }).code };
@@ -172,11 +256,10 @@ export async function handlePwdLogin(params: IPwdLoginParams): Promise<IPwdLogin
     return { ok: false, error: PwdLoginErrorCode.NexusUnreachable };
   }
 
-  // 4. Dispatch to browser. STUB for Phase 1 — will throw adapter_error.
+  // 4. Dispatch the real fill to the running browser via pwd_fill.py.
   try {
-    const username = ''; // Phase 1 places nothing in username field; adapter fills password only.
     const result = await dispatchPwdFill(adapter, username, passwordBuf);
-    // dispatchPwdFill zeroes the buffer internally on success path.
+    // dispatchPwdFill zeroes the buffer internally once flushed to the child.
     passwordBuf = null;
     return { ok: true, tab_id: result.tab_id };
   } catch (err) {
