@@ -6,59 +6,45 @@
 
 import { useThemeContext } from '@/renderer/context/ThemeContext';
 import type { ThemePreference } from '@/renderer/hooks/useTheme';
-import { IconMoonFill, IconSunFill } from '@arco-design/web-react/icon';
-import { Tooltip } from '@arco-design/web-react';
+import { IconDesktop, IconMoon, IconSun } from '@arco-design/web-react/icon';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-
-const SystemIcon: React.FC<{ style?: React.CSSProperties }> = ({ style }) => (
-  <svg width='1em' height='1em' viewBox='0 0 48 48' fill='none' xmlns='http://www.w3.org/2000/svg' style={style}>
-    <rect x='4' y='8' width='40' height='28' rx='3' stroke='currentColor' strokeWidth='4' fill='currentColor' fillOpacity='0.15' />
-    <path d='M14 44h20' stroke='currentColor' strokeWidth='4' strokeLinecap='round' />
-    <path d='M24 36v8' stroke='currentColor' strokeWidth='4' strokeLinecap='round' />
-  </svg>
-);
 
 /**
  * 主题切换器组件 / Theme switcher component
  *
- * 三个紧凑的图标按钮: 浅色 / 系统 / 深色
- * Three compact icon buttons: Light / System / Dark
+ * 每个选项显示图标 + 文字（浅色 / 深色 / 系统），选中项带圆角胶囊底色
+ * Each option shows an icon + label (Light / Dark / System); the active one has a rounded pill background
  */
 export const ThemeSwitcher = () => {
   const { themePreference, setTheme } = useThemeContext();
   const { t } = useTranslation();
 
   const options: { value: ThemePreference; label: string; icon: React.ReactNode }[] = [
-    { value: 'light', label: t('settings.lightMode'), icon: <IconSunFill style={{ fontSize: 14 }} /> },
-    { value: 'system', label: t('settings.systemMode'), icon: <SystemIcon style={{ fontSize: 14 }} /> },
-    { value: 'dark', label: t('settings.darkMode'), icon: <IconMoonFill style={{ fontSize: 14 }} /> },
+    { value: 'light', label: t('settings.lightMode'), icon: <IconSun style={{ fontSize: 16 }} /> },
+    { value: 'dark', label: t('settings.darkMode'), icon: <IconMoon style={{ fontSize: 16 }} /> },
+    { value: 'system', label: t('settings.systemMode'), icon: <IconDesktop style={{ fontSize: 16 }} /> },
   ];
 
   return (
-    <div className='inline-flex items-center gap-2px rd-6px bg-[var(--color-fill-1)] p-2px' role='radiogroup' aria-label={t('settings.theme')}>
+    <div className='inline-flex items-center gap-1' role='radiogroup' aria-label={t('settings.theme')}>
       {options.map((option) => {
         const isActive = themePreference === option.value;
         return (
-          <Tooltip key={option.value} content={option.label} position='bottom'>
-            <button
-              type='button'
-              role='radio'
-              aria-checked={isActive}
-              aria-label={option.label}
-              className='inline-flex items-center justify-center w-26px h-26px rd-5px transition-all duration-160 cursor-pointer border-none'
-              style={{
-                color: isActive ? 'rgb(var(--primary-6))' : 'var(--color-text-4)',
-                backgroundColor: isActive ? 'var(--color-bg-2)' : 'transparent',
-                boxShadow: isActive ? 'var(--shadow-sm)' : 'none',
-              }}
-              onClick={() => {
-                if (!isActive) void setTheme(option.value);
-              }}
-            >
-              {option.icon}
-            </button>
-          </Tooltip>
+          <button
+            key={option.value}
+            type='button'
+            role='radio'
+            aria-checked={isActive}
+            aria-label={option.label}
+            className={`inline-flex items-center gap-1.5 h-8 px-3.5 rounded-full text-sm font-medium transition-all duration-150 cursor-pointer border-none ${isActive ? 'bg-fill-2 text-1' : 'bg-transparent text-3 hover:bg-fill-1'}`}
+            onClick={() => {
+              if (!isActive) void setTheme(option.value);
+            }}
+          >
+            {option.icon}
+            <span>{option.label}</span>
+          </button>
         );
       })}
     </div>

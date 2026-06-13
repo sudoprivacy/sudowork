@@ -10,7 +10,6 @@ const textColors = {
   't-primary': 'var(--text-primary)', // text-t-primary - 主要文字
   't-secondary': 'var(--text-secondary)', // text-t-secondary - 次要文字
   't-tertiary': 'var(--bg-6)', // text-t-tertiary - 三级说明/提示文字
-  't-disabled': 'var(--text-disabled)', // text-t-disabled - 禁用文字
 };
 
 // ==================== 语义状态色 / Semantic State Colors ====================
@@ -18,9 +17,15 @@ const textColors = {
 // Usage: Status indicators, buttons, tags, etc.
 const semanticColors = {
   primary: 'var(--primary)', // bg-primary, text-primary, border-primary
-  success: 'var(--success)', // bg-success, text-success
+  success: 'var(--success)', // bg-success, text-success (实色:文字/图标/圆点)
+  'success-soft': 'var(--success-soft)', // bg-success-soft (浅底)
+  'success-line': 'var(--success-line)', // border-success-line (描边)
   warning: 'var(--warning)', // bg-warning, text-warning
+  'warning-soft': 'var(--warning-soft)',
+  'warning-line': 'var(--warning-line)',
   danger: 'var(--danger)', // bg-danger, text-danger
+  'danger-soft': 'var(--danger-soft)',
+  'danger-line': 'var(--danger-line)',
   info: 'var(--info)', // bg-info, text-info
 };
 
@@ -37,11 +42,7 @@ const backgroundColors = {
   2: 'var(--bg-2)', // bg-2, border-2 - 三级背景
   3: 'var(--bg-3)', // bg-3, border-3 - 边框/分隔
   4: 'var(--bg-4)', // bg-4, border-4
-  5: 'var(--bg-5)', // bg-5, border-5
   6: 'var(--bg-6)', // bg-6, border-6
-  8: 'var(--bg-8)', // bg-8, border-8
-  9: 'var(--bg-9)', // bg-9, border-9
-  10: 'var(--bg-10)', // bg-10, border-10
   hover: 'var(--bg-hover)', // bg-hover - 悬停背景
   active: 'var(--bg-active)', // bg-active - 激活背景
 };
@@ -50,9 +51,7 @@ const backgroundColors = {
 const borderColors = {
   'b-base': 'var(--border-base)', // border-b-base - 基础边框
   'b-light': 'var(--border-light)', // border-b-light - 浅色边框
-  'b-1': 'var(--bg-3)', // border-b-1 - 基于 bg-3
   'b-2': 'var(--bg-4)', // border-b-2 - 基于 bg-4
-  'b-3': 'var(--bg-5)', // border-b-3 - 基于 bg-5
 };
 
 // ==================== 品牌色 / Brand Colors ====================
@@ -80,15 +79,7 @@ const aouColors = {
 
 // ==================== UI 组件专用颜色 / UI Component Specific Colors ====================
 const componentColors = {
-  'message-user': 'var(--message-user-bg)',
   'message-tips': 'var(--message-tips-bg)',
-  'workspace-btn': 'var(--workspace-btn-bg)',
-};
-
-// ==================== 特殊颜色 / Special Colors ====================
-const specialColors = {
-  fill: 'var(--fill)',
-  inverse: 'var(--inverse)',
 };
 
 export default defineConfig({
@@ -114,30 +105,8 @@ export default defineConfig({
     // Arco Design official fill colors: bg-fill-1, bg-fill-2, bg-fill-3, bg-fill-4
     [/^bg-fill-([1-4])$/, ([, d]: RegExpExecArray) => ({ 'background-color': `var(--color-fill-${d})` })],
 
-    // Arco Design 官方边框色 border-1 到 border-4 (使用 border-arco-* 避免和项目自定义冲突)
-    // Arco Design official border colors: border-arco-1, border-arco-2, border-arco-3, border-arco-4
-    [/^border-arco-([1-4])$/, ([, d]: RegExpExecArray) => ({ 'border-color': `var(--color-border-${d})` })],
-
-    // Arco Design 官方浅色系 primary/success/warning/danger/link-light-1 到 -light-4
-    // Arco Design light variants: bg-primary-light-1, bg-success-light-1, etc.
-    [/^bg-(primary|success|warning|danger|link)-light-([1-4])$/, ([, color, d]: RegExpExecArray) => ({ 'background-color': `var(--color-${color}-light-${d})` })],
-
-    // Arco Design 官方色阶 primary/success/warning/danger 1-9
-    // Arco Design color levels: bg-primary-1, text-primary-1, border-primary-1, etc.
-    [
-      /^(bg|text|border)-(primary|success|warning|danger)-([1-9])$/,
-      ([, prefix, color, d]: RegExpExecArray) => {
-        const prop = prefix === 'bg' ? 'background-color' : prefix === 'text' ? 'color' : 'border-color';
-        return { [prop]: `rgb(var(--${color}-${d}))` };
-      },
-    ],
-
-    // Arco Design 官方白色和黑色
-    // Arco Design white and black: bg-color-white, text-color-white, bg-color-black, text-color-black
-    ['bg-color-white', { 'background-color': 'var(--color-white)' }],
-    ['text-color-white', { color: 'var(--color-white)' }],
-    ['bg-color-black', { 'background-color': 'var(--color-black)' }],
-    ['text-color-black', { color: 'var(--color-black)' }],
+    // Arco Design 官方浅色系 primary-light-1 到 -light-4(link 无引用已移除;success/warning/danger 走语义 token)
+    [/^bg-primary-light-([1-4])$/, ([, d]: RegExpExecArray) => ({ 'background-color': `var(--color-primary-light-${d})` })],
 
     // Arco Design 对话框/弹出层专用背景色
     // Arco Design popup/dialog background color: bg-popup
@@ -148,8 +117,6 @@ export default defineConfig({
     ['text-0', { color: 'var(--text-0)' }],
     ['text-white', { color: 'var(--text-white)' }],
     ['bg-fill-0', { 'background-color': 'var(--fill-0)' }],
-    ['bg-fill-white-to-black', { 'background-color': 'var(--fill-white-to-black)' }],
-    ['border-special', { 'border-color': 'var(--border-special)' }],
   ],
   // Preflights - Global base styles 全局基础样式
   preflights: [
@@ -166,6 +133,12 @@ export default defineConfig({
   shortcuts: {
     'flex-center': 'flex items-center justify-center',
     'scrollbar-hide': 'scrollbar-width-none [&::-webkit-scrollbar]:hidden',
+    // 技能/数字助手商店卡片：悬浮白卡 + hover 抬升 / elevated white store card
+    'library-card': 'group bg-fill-0 rd-12px p-12px flex items-start gap-12px relative overflow-hidden shadow-[0_1px_3px_rgba(0,0,0,0.08)] transition-all duration-200 hover:-translate-y-px hover:shadow-[0_4px_12px_rgba(0,0,0,0.1)]',
+    // 分类筛选 chip：结构 + 两种互斥状态（idle / active），避免 hover 与选中态冲突
+    'category-chip': 'flex-shrink-0 inline-flex items-center justify-center h-28px px-12px rd-16px border border-transparent text-12px leading-18px whitespace-nowrap cursor-pointer transition-colors',
+    'category-chip-idle': 'text-t-secondary hover:bg-fill-2 hover:text-t-primary',
+    'category-chip-active': 'bg-[rgba(var(--ui-accent-orange-rgb),0.12)] text-[var(--ui-accent-orange)] font-medium',
   },
   theme: {
     colors: {
@@ -177,7 +150,6 @@ export default defineConfig({
       ...brandColors,
       ...aouColors,
       ...componentColors,
-      ...specialColors,
     },
   },
 });

@@ -355,8 +355,8 @@ const UpdateModal: React.FC = () => {
       case 'upToDate':
         return (
           <div className='flex flex-col items-center justify-center py-48px'>
-            <div className='w-56px h-56px bg-[rgb(var(--success-6))]/12 rounded-full flex items-center justify-center mb-20px'>
-              <CheckOne theme='filled' size='28' fill='rgb(var(--success-6))' />
+            <div className='w-56px h-56px bg-success-soft rounded-full flex items-center justify-center mb-20px'>
+              <CheckOne theme='filled' size='28' fill='var(--success)' />
             </div>
             <div className='text-16px text-t-primary font-600 mb-8px'>{t('update.upToDateTitle')}</div>
             <div className='text-13px text-t-tertiary'>{t('update.currentVersion', { version: buildVersion || currentVersion || '-' })}</div>
@@ -412,7 +412,7 @@ const UpdateModal: React.FC = () => {
             {/* Nightly build notice */}
             {isNightlyBuild && <div className='mx-24px mt-12px px-12px py-10px text-12px rounded-8px bg-orange-1 text-orange-6 dark:bg-orange-9/20'>{t('update.nightlyUpdateNotice', { defaultValue: 'This is a nightly build. Only manual download is supported for nightly updates.' })}</div>}
 
-            {!hasCompatibleManualAsset && <div className='mx-24px mt-12px px-12px py-10px text-12px rounded-8px bg-[rgb(var(--warning-6))]/10 text-[rgb(var(--warning-6))]'>{t('update.noCompatibleAssetManual')}</div>}
+            {!hasCompatibleManualAsset && <div className='mx-24px mt-12px px-12px py-10px text-12px rounded-8px bg-warning-soft text-warning'>{t('update.noCompatibleAssetManual')}</div>}
 
             {/* 更新日志内容 / Release notes content */}
             <div className='flex-1 min-h-0 overflow-y-auto px-24px py-16px custom-scrollbar'>
@@ -450,8 +450,8 @@ const UpdateModal: React.FC = () => {
       case 'downloaded':
         return (
           <div className='flex flex-col items-center justify-center py-48px px-32px'>
-            <div className='w-56px h-56px bg-[rgb(var(--success-6))]/12 rounded-full flex items-center justify-center mb-20px'>
-              <CheckOne theme='filled' size='28' fill='rgb(var(--success-6))' />
+            <div className='w-56px h-56px bg-success-soft rounded-full flex items-center justify-center mb-20px'>
+              <CheckOne theme='filled' size='28' fill='var(--success)' />
             </div>
             <div className='text-16px text-t-primary font-600 mb-8px'>{t('update.readyToInstall')}</div>
             <div className='text-13px text-t-tertiary mb-24px text-center max-w-360px'>{t('update.readyToInstallDesc')}</div>
@@ -469,8 +469,8 @@ const UpdateModal: React.FC = () => {
       case 'success':
         return (
           <div className='flex flex-col items-center justify-center py-48px px-32px'>
-            <div className='w-56px h-56px bg-[rgb(var(--success-6))]/12 rounded-full flex items-center justify-center mb-20px'>
-              <CheckOne theme='filled' size='28' fill='rgb(var(--success-6))' />
+            <div className='w-56px h-56px bg-success-soft rounded-full flex items-center justify-center mb-20px'>
+              <CheckOne theme='filled' size='28' fill='var(--success)' />
             </div>
             <div className='text-16px text-t-primary font-600 mb-8px'>{t('update.downloadCompleteTitle')}</div>
             <div className='text-12px text-t-tertiary mb-24px text-center max-w-360px break-all line-clamp-2'>{downloadPath}</div>
@@ -488,8 +488,8 @@ const UpdateModal: React.FC = () => {
       case 'error':
         return (
           <div className='flex flex-col items-center justify-center py-48px px-32px'>
-            <div className='w-56px h-56px bg-[rgb(var(--danger-6))]/12 rounded-full flex items-center justify-center mb-20px'>
-              <CloseOne theme='filled' size='28' fill='rgb(var(--danger-6))' />
+            <div className='w-56px h-56px bg-danger-soft rounded-full flex items-center justify-center mb-20px'>
+              <CloseOne theme='filled' size='28' fill='var(--danger)' />
             </div>
             <div className='text-16px text-t-primary font-600 mb-8px'>{t('update.errorTitle')}</div>
             <div className='text-13px text-t-tertiary mb-24px text-center max-w-360px'>{errorMsg}</div>

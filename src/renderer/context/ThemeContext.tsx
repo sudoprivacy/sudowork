@@ -9,13 +9,10 @@ import type { PropsWithChildren } from 'react';
 import React, { createContext, useContext } from 'react';
 import type { Theme, ThemePreference } from '../hooks/useTheme';
 import useTheme from '../hooks/useTheme';
-import type { ColorScheme } from '../hooks/useColorScheme';
-import useColorScheme from '../hooks/useColorScheme';
 import useFontScale from '../hooks/useFontScale';
 
 /**
  * Theme context value interface 主题上下文值接口
- * Separates light/dark mode from color schemes 分离明暗模式和配色方案
  */
 interface ThemeContextValue {
   // Light/Dark mode 明暗模式 (resolved effective theme)
@@ -23,10 +20,6 @@ interface ThemeContextValue {
   // Theme preference 主题偏好 (user's choice including 'system')
   themePreference: ThemePreference;
   setTheme: (preference: ThemePreference) => Promise<void>;
-
-  // Color scheme 配色方案
-  colorScheme: ColorScheme;
-  setColorScheme: (scheme: ColorScheme) => Promise<void>;
 
   // Font scaling 字体缩放
   fontScale: number;
@@ -37,14 +30,13 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 /**
  * Theme provider component 主题提供者组件
- * Manages both light/dark mode and color schemes 同时管理明暗模式和配色方案
+ * Manages light/dark mode and font scaling 管理明暗模式与字体缩放
  */
 export const ThemeProvider: React.FC<PropsWithChildren> = ({ children }) => {
   const [theme, themePreference, setTheme] = useTheme();
-  const [colorScheme, setColorScheme] = useColorScheme();
   const [fontScale, setFontScale] = useFontScale();
 
-  return <ThemeContext.Provider value={{ theme, themePreference, setTheme, colorScheme, setColorScheme, fontScale, setFontScale }}>{children}</ThemeContext.Provider>;
+  return <ThemeContext.Provider value={{ theme, themePreference, setTheme, fontScale, setFontScale }}>{children}</ThemeContext.Provider>;
 };
 
 /**

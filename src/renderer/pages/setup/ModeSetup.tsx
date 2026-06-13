@@ -12,9 +12,12 @@ import { setAppMode } from '@/common/eeclawMode';
 import { TENANT_CONFIG_STORAGE_KEY, resolveTenantConfig } from '@/common/types/tenantConfig';
 import SudoworkIcon from '@/renderer/assets/sudowork-icon-dark.svg';
 import WindowControls from '@/renderer/components/WindowControls';
+import { isElectronDesktop, isMacOS } from '@/renderer/utils/platform';
 import './ModeSetup.css';
 
-const isDesktopRuntime = typeof window !== 'undefined' && Boolean(window.electronAPI);
+// Windows/Linux 显示自定义窗口按钮；macOS 由系统原生信号灯负责，避免重复
+// Windows/Linux render custom window controls; macOS relies on native traffic lights, so skip them to avoid duplicates
+const showWindowControls = isElectronDesktop() && !isMacOS();
 
 type CardType = 'consumer' | 'enterprise' | null;
 type WebkitAppRegionStyle = React.CSSProperties & { WebkitAppRegion?: 'drag' | 'no-drag' };
@@ -128,7 +131,7 @@ const ModeSetup: React.FC = () => {
 
   return (
     <div className='mode-setup'>
-      {isDesktopRuntime && <WindowControls />}
+      {showWindowControls && <WindowControls />}
 
       {/* Background decoration */}
       <div className='mode-setup__background'>

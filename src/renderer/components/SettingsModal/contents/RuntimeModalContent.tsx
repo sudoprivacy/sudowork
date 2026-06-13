@@ -653,7 +653,7 @@ const RuntimeModalContent: React.FC = () => {
 
                       <div className='flex flex-wrap items-center gap-6px md:justify-end md:max-w-280px'>
                         {actions.map((action) => (
-                          <Button key={`${record.key}-${action.key}`} type='outline' size='small' status={action.status} disabled={loading} onClick={action.onClick} className='min-w-72px !rd-8px !text-11px !font-500 !bg-[var(--color-bg-1)] !border-[var(--color-border-2)] !text-t-primary hover:!bg-[var(--fill-0)] hover:!border-[var(--color-border-2)]'>
+                          <Button key={`${record.key}-${action.key}`} type='outline' size='small' status={action.status} disabled={loading} onClick={action.onClick} className='min-w-72px !rd-8px !text-11px !font-500'>
                             {action.label}
                           </Button>
                         ))}

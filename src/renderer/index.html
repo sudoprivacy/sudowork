@@ -1,24 +1,13 @@
-<!DOCTYPE html>
-<html data-theme="light" data-color-scheme="default">
+<!doctype html>
+<html data-theme="light">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/png" href="../../resources/sudowork-icon-dark.svg" />
     <title>SudoWork</title>
     <script>
-      // Synchronously restore theme from localStorage to prevent theme flash
-      (function () {
-        try {
-          var theme = localStorage.getItem('__aionui_theme');
-          var colorScheme = localStorage.getItem('__aionui_colorScheme');
-          if (theme) {
-            document.documentElement.setAttribute('data-theme', theme);
-          }
-          if (colorScheme) {
-            document.documentElement.setAttribute('data-color-scheme', colorScheme);
-          }
-        } catch (e) {}
-      })();
+      // 强制亮色：主题切换已移除，固定 data-theme=light / Force light: theme switching removed
+      document.documentElement.setAttribute('data-theme', 'light');
     </script>
     <style>
       html,
@@ -34,11 +23,8 @@
   </head>
   <body>
     <script>
-      // Set arco-theme on body synchronously
-      try {
-        var t = localStorage.getItem('__aionui_theme');
-        if (t) document.body.setAttribute('arco-theme', t);
-      } catch (e) {}
+      // 强制亮色：固定 arco-theme=light / Force light: pin arco-theme=light
+      document.body.setAttribute('arco-theme', 'light');
     </script>
     <div id="root"></div>
     <script type="module" src="./index.ts"></script>

@@ -28,7 +28,7 @@ import classNames from 'classnames';
 import React, { useMemo, useState } from 'react';
 import ReactDOM from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { addImportantToAll } from '../utils/customCssProcessor';
+import markdownThemeCss from '../styles/markdown.css?raw';
 import { convertLatexDelimiters } from '../utils/latexDelimiters';
 import LocalImageView from './LocalImageView';
 
@@ -252,7 +252,8 @@ function CodeBlock(props: any) {
   }, [props, currentTheme, fold, t]);
 }
 
-const createInitStyle = (currentTheme = 'light', cssVars?: Record<string, string>, customCss?: string) => {
+const createInitStyle = (currentTheme = 'light', cssVars?: Record<string, string>, injectedCss?: string) => {
+  console.log('currentTheme', currentTheme);
   const style = document.createElement('style');
   // 将外部 CSS 变量注入到 Shadow DOM 中，支持深色模式 Inject external CSS variables into Shadow DOM for dark mode support
   const cssVarsDeclaration = cssVars
@@ -371,8 +372,8 @@ const createInitStyle = (currentTheme = 'light', cssVars?: Record<string, string
     }
   }
 
-  /* 用户自定义 CSS（注入到 Shadow DOM）User Custom CSS (injected into Shadow DOM) */
-  ${customCss || ''}
+  /* Markdown 主题规则（注入到 Shadow DOM）Markdown theme rules (injected into Shadow DOM) */
+  ${injectedCss || ''}
   `;
   return style;
 };
@@ -426,83 +427,43 @@ const getKatexStyleSheet = (): CSSStyleSheet | null => {
 const ShadowView = ({ children }: { children: React.ReactNode }) => {
   const [root, setRoot] = useState<ShadowRoot | null>(null);
   const styleRef = React.useRef<HTMLStyleElement | null>(null);
-  const [customCss, setCustomCss] = useState<string>('');
 
-  // 从 ConfigStorage 加载自定义 CSS / Load custom CSS from ConfigStorage
-  React.useEffect(() => {
-    void import('@/common/storage').then(({ ConfigStorage }) => {
-      ConfigStorage.get('customCss')
-        .then((css) => {
-          if (css) {
-            // 使用统一的工具函数自动添加 !important
-            const processedCss = addImportantToAll(css);
-            setCustomCss(processedCss);
-          } else {
-            setCustomCss('');
-          }
-        })
-        .catch((error) => {
-          console.error('Failed to load custom CSS:', error);
-        });
-    });
-
-    // 监听自定义 CSS 更新事件 / Listen to custom CSS update events
-    const handleCustomCssUpdate = (e: CustomEvent) => {
-      if (e.detail?.customCss !== undefined) {
-        const css = e.detail.customCss || '';
-        // 使用统一的工具函数自动添加 !important
-        const processedCss = addImportantToAll(css);
-        setCustomCss(processedCss);
-      }
+  // 更新 Shadow DOM 中的 CSS 变量和 Markdown 主题样式 Update CSS variables and markdown theme styles in Shadow DOM
+  const updateStyles = React.useCallback((shadowRoot: ShadowRoot) => {
+    const computedStyle = getComputedStyle(document.documentElement);
+    const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
+    const cssVars = {
+      '--bg-1': computedStyle.getPropertyValue('--bg-1'),
+      '--bg-2': computedStyle.getPropertyValue('--bg-2'),
+      '--bg-3': computedStyle.getPropertyValue('--bg-3'),
+      '--color-text-1': computedStyle.getPropertyValue('--color-text-1'),
+      '--color-text-2': computedStyle.getPropertyValue('--color-text-2'),
+      '--color-text-3': computedStyle.getPropertyValue('--color-text-3'),
+      '--text-primary': computedStyle.getPropertyValue('--text-primary'),
+      '--text-secondary': computedStyle.getPropertyValue('--text-secondary'),
     };
 
-    window.addEventListener('custom-css-updated', handleCustomCssUpdate as EventListener);
+    // 移除旧样式并添加新样式 Remove old style and add new style
+    if (styleRef.current) {
+      styleRef.current.remove();
+    }
+    const newStyle = createInitStyle(currentTheme, cssVars, markdownThemeCss);
+    styleRef.current = newStyle;
+    shadowRoot.appendChild(newStyle);
 
-    return () => {
-      window.removeEventListener('custom-css-updated', handleCustomCssUpdate as EventListener);
-    };
+    // Inject KaTeX styles into Shadow DOM using adoptedStyleSheets
+    // This allows math expressions to render correctly
+    const katexSheet = getKatexStyleSheet();
+    if (katexSheet && !shadowRoot.adoptedStyleSheets.includes(katexSheet)) {
+      shadowRoot.adoptedStyleSheets = [...shadowRoot.adoptedStyleSheets, katexSheet];
+    }
   }, []);
-
-  // 更新 Shadow DOM 中的 CSS 变量和自定义样式 Update CSS variables and custom styles in Shadow DOM
-  const updateStyles = React.useCallback(
-    (shadowRoot: ShadowRoot) => {
-      const computedStyle = getComputedStyle(document.documentElement);
-      const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
-      const cssVars = {
-        '--bg-1': computedStyle.getPropertyValue('--bg-1'),
-        '--bg-2': computedStyle.getPropertyValue('--bg-2'),
-        '--bg-3': computedStyle.getPropertyValue('--bg-3'),
-        '--color-text-1': computedStyle.getPropertyValue('--color-text-1'),
-        '--color-text-2': computedStyle.getPropertyValue('--color-text-2'),
-        '--color-text-3': computedStyle.getPropertyValue('--color-text-3'),
-        '--text-primary': computedStyle.getPropertyValue('--text-primary'),
-        '--text-secondary': computedStyle.getPropertyValue('--text-secondary'),
-      };
-
-      // 移除旧样式并添加新样式 Remove old style and add new style
-      if (styleRef.current) {
-        styleRef.current.remove();
-      }
-      const newStyle = createInitStyle(currentTheme, cssVars, customCss);
-      styleRef.current = newStyle;
-      shadowRoot.appendChild(newStyle);
-
-      // Inject KaTeX styles into Shadow DOM using adoptedStyleSheets
-      // This allows math expressions to render correctly
-      const katexSheet = getKatexStyleSheet();
-      if (katexSheet && !shadowRoot.adoptedStyleSheets.includes(katexSheet)) {
-        shadowRoot.adoptedStyleSheets = [...shadowRoot.adoptedStyleSheets, katexSheet];
-      }
-    },
-    [customCss]
-  );
 
   React.useEffect(() => {
     if (!root) return;
 
-    // 当自定义 CSS 变化时，更新样式 Update styles when custom CSS changes
     updateStyles(root);
-  }, [root, customCss, updateStyles]);
+  }, [root, updateStyles]);
 
   React.useEffect(() => {
     if (!root) return;

@@ -166,12 +166,21 @@ const ChatHistory: React.FC<{ onSessionClick?: () => void; collapsed?: boolean }
 
     Modal.confirm({
       title: t('conversation.history.deleteTitle'),
-      content: React.createElement('div', null,
+      content: React.createElement(
+        'div',
+        null,
         React.createElement('div', null, t('conversation.history.deleteConfirm')),
-        hasWorkspace && React.createElement(Checkbox, {
-          onChange: (checked: boolean) => { deleteWorkspaceRef.current = checked; },
-          style: { marginTop: 12 },
-        }, t('conversation.history.deleteWorkspaceOption'))
+        hasWorkspace &&
+          React.createElement(
+            Checkbox,
+            {
+              onChange: (checked: boolean) => {
+                deleteWorkspaceRef.current = checked;
+              },
+              style: { marginTop: 12 },
+            },
+            t('conversation.history.deleteWorkspaceOption')
+          )
       ),
       okText: t('conversation.history.confirmDelete'),
       cancelText: t('conversation.history.cancelDelete'),
@@ -404,24 +413,24 @@ const ChatHistory: React.FC<{ onSessionClick?: () => void; collapsed?: boolean }
                   </span>
                 )}
                 {!isEditing && (
-                    <span
-                      className='flex-center'
-                      onClick={(event) => {
-                        event.stopPropagation();
+                  <span
+                    className='flex-center'
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      handleDeleteClick(conversation);
+                    }}
+                    role='button'
+                    aria-label={t('common.ariaLabel.delete')}
+                    tabIndex={0}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
                         handleDeleteClick(conversation);
-                      }}
-                      role='button'
-                      aria-label={t('common.ariaLabel.delete')}
-                      tabIndex={0}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter' || event.key === ' ') {
-                          event.preventDefault();
-                          handleDeleteClick(conversation);
-                        }
-                      }}
-                    >
-                      <DeleteOne theme='outline' size='20' className='flex' />
-                    </span>
+                      }
+                    }}
+                  >
+                    <DeleteOne theme='outline' size='20' className='flex' />
+                  </span>
                 )}
               </div>
             )}

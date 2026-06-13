@@ -13,7 +13,7 @@ export type SettingsListProps = {
 };
 
 export const SettingsList: React.FC<SettingsListProps> = ({ children, className }) => {
-  return <div className={classNames('overflow-hidden rd-12px border border-solid border-[var(--ui-border-strong)] bg-bg-1', className)}>{children}</div>;
+  return <div className={classNames('overflow-hidden rd-12px border border-solid border-[var(--border-base)] bg-bg-1', className)}>{children}</div>;
 };
 
 export type SettingsListItemProps = {
@@ -29,9 +29,9 @@ export type SettingsListItemProps = {
 
 export const SettingsListItem: React.FC<SettingsListItemProps> = ({ icon, title, description, tag, status, action, className, children }) => {
   return (
-    <div className={classNames('border-0 border-b border-solid border-[var(--ui-border-strong)] px-18px py-16px last:border-b-0', className)}>
+    <div className={classNames('border-0 border-b border-solid border-[var(--border-base)] px-18px py-16px last:border-b-0', className)}>
       <div className='flex flex-wrap items-center gap-14px'>
-        {icon && <div className='flex h-40px w-40px shrink-0 items-center justify-center rd-8px border border-solid border-[var(--ui-border-strong)] bg-fill-1 text-t-secondary'>{icon}</div>}
+        {icon && <div className='flex h-40px w-40px shrink-0 items-center justify-center rd-8px border border-solid border-[var(--border-base)] bg-fill-1 text-t-secondary'>{icon}</div>}
         <div className='min-w-0 flex-1'>
           <div className='flex min-w-0 flex-wrap items-center gap-8px'>
             <div className='min-w-0 truncate text-15px font-600 text-t-primary'>{title}</div>

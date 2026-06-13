@@ -74,10 +74,10 @@ const STATUS_CFG: Record<TaskStatus, { label: string; color: string; bg: string;
   pending: { label: '待执行', color: 'var(--text-secondary)', bg: 'var(--bg-1)', border: 'var(--bg-3)', dot: 'var(--bg-6)' },
   queued: { label: '已入队', color: 'var(--primary)', bg: 'var(--color-primary-light-3)', border: 'var(--color-primary-light-1)', dot: 'var(--color-primary)' },
   running: { label: '执行中', color: 'var(--primary)', bg: 'var(--color-primary-light-2)', border: 'var(--color-primary-light-1)', dot: 'var(--color-primary)', pulse: true },
-  completed: { label: '已完成', color: 'var(--success)', bg: 'var(--color-success-light-3)', border: 'var(--color-success-light-1)', dot: 'var(--color-success)' },
-  failed: { label: '失败', color: 'var(--danger)', bg: 'var(--color-danger-light-3)', border: 'var(--color-danger-light-1)', dot: 'var(--color-danger)' },
+  completed: { label: '已完成', color: 'var(--success)', bg: 'var(--success-soft)', border: 'var(--success-line)', dot: 'var(--success)' },
+  failed: { label: '失败', color: 'var(--danger)', bg: 'var(--danger-soft)', border: 'var(--danger-line)', dot: 'var(--danger)' },
   skipped: { label: '已跳过', color: 'var(--text-tertiary)', bg: 'var(--bg-1)', border: 'var(--bg-3)', dot: 'var(--bg-4)' },
-  paused: { label: '已暂停', color: 'var(--warning)', bg: 'var(--color-warning-light-3)', border: 'var(--color-warning-light-1)', dot: 'var(--color-warning)' },
+  paused: { label: '已暂停', color: 'var(--warning)', bg: 'var(--warning-soft)', border: 'var(--warning-line)', dot: 'var(--warning)' },
 };
 
 const TYPE_CFG: Record<TaskType, { icon: string }> = {
@@ -304,7 +304,7 @@ const PanelTaskNode: React.FC<{ task: SubTask; pos: NodePos; selected: boolean; 
         borderRadius: 8,
         cursor: 'pointer',
         userSelect: 'none',
-        background: selected ? 'var(--color-primary-light-1, var(--color-primary-light-1))' : task.status === 'failed' ? 'var(--color-danger-light-3)' : 'var(--color-bg-1, #fff)',
+        background: selected ? 'var(--color-primary-light-1, var(--color-primary-light-1))' : task.status === 'failed' ? 'var(--danger-soft)' : 'var(--color-bg-1, #fff)',
         border: `1.5px solid ${selected ? 'var(--color-primary, var(--primary))' : sc.border}`,
         boxShadow: selected ? '0 0 0 3px rgba(59,130,246,0.15)' : isRunning ? `0 0 0 2px ${sc.border}` : '0 1px 3px rgba(0,0,0,0.05)',
         padding: '7px 9px',
@@ -478,7 +478,7 @@ const DetailDrawer: React.FC<{ task: SubTask; dag: Dag; onClose: () => void; dar
             {sc.label}
           </span>
           {task.retry && task.retry.count > 0 && (
-            <span style={{ fontSize: 10, color: 'var(--danger)', background: dark ? 'rgba(248,81,73,0.1)' : 'var(--color-danger-light-3)', border: '1px solid var(--color-danger-light-1)', borderRadius: 99, padding: '1px 6px', fontWeight: 600 }}>
+            <span style={{ fontSize: 10, color: 'var(--danger)', background: 'var(--danger-soft)', border: '1px solid var(--danger-line)', borderRadius: 99, padding: '1px 6px', fontWeight: 600 }}>
               重试 {task.retry.count}/{task.retry.max}
             </span>
           )}
@@ -520,15 +520,15 @@ const DetailDrawer: React.FC<{ task: SubTask; dag: Dag; onClose: () => void; dar
         {task.result?.content && (
           <div style={{ marginBottom: 14 }}>
             <div style={{ fontSize: 10, fontWeight: 700, color: textSecondary, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>执行结果</div>
-            <div style={{ fontSize: 11, color: dark ? 'var(--success)' : 'var(--text-tertiary)', lineHeight: 1.65, background: dark ? 'rgba(63,185,80,0.08)' : 'var(--color-success-light-3)', border: `1px solid ${dark ? 'var(--success)' : 'var(--color-success-light-1)'}`, borderRadius: 7, padding: 10 }}>{task.result.content}</div>
+            <div style={{ fontSize: 11, color: dark ? 'var(--success)' : 'var(--text-tertiary)', lineHeight: 1.65, background: 'var(--success-soft)', border: '1px solid var(--success-line)', borderRadius: 7, padding: 10 }}>{task.result.content}</div>
           </div>
         )}
         {task.error?.message && (
           <div style={{ marginBottom: 14 }}>
             <div style={{ fontSize: 10, fontWeight: 700, color: textSecondary, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>错误信息</div>
-            <div style={{ fontSize: 11, lineHeight: 1.6, background: dark ? 'rgba(248,81,73,0.08)' : 'var(--color-danger-light-3)', border: `1px solid ${dark ? 'var(--danger)' : 'var(--color-danger-light-1)'}`, borderRadius: 7, padding: 10 }}>
+            <div style={{ fontSize: 11, lineHeight: 1.6, background: 'var(--danger-soft)', border: '1px solid var(--danger-line)', borderRadius: 7, padding: 10 }}>
               <div style={{ color: 'var(--danger)', fontFamily: 'monospace', wordBreak: 'break-all' }}>{task.error.message}</div>
-              {task.error.code && <div style={{ marginTop: 4, color: 'var(--color-danger-light-1)', fontSize: 10 }}>Code: {task.error.code}</div>}
+              {task.error.code && <div style={{ marginTop: 4, color: 'var(--danger)', fontSize: 10 }}>Code: {task.error.code}</div>}
             </div>
           </div>
         )}

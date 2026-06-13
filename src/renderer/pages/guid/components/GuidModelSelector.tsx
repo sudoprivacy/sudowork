@@ -11,8 +11,9 @@ import { getModelDisplayLabel } from '@/renderer/utils/agentUiDisplay';
 import { buildProviderModelGroups } from '@/renderer/utils/modelProviderGroups';
 import type { AcpModelInfo } from '../types';
 import { getAvailableModels } from '../utils/modelUtils';
-import { Dropdown, Menu, Tooltip } from '@arco-design/web-react';
-import { Brain, Plus } from '@icon-park/react';
+import { Dropdown, Tooltip } from '@arco-design/web-react';
+import { Brain, Plus, Right } from '@icon-park/react';
+import classNames from 'classnames';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
@@ -39,10 +40,56 @@ type GuidModelSelectorProps = {
   setSelectedAcpModel: React.Dispatch<React.SetStateAction<string | null>>;
 };
 
+const PANEL_CLASS = 'flex flex-col gap-2px p-6px rd-12px border border-solid border-[var(--border-base)] bg-popup max-h-[min(60vh,420px)] overflow-y-auto scrollbar-hide';
+const PANEL_STYLE: React.CSSProperties = { minWidth: 200, boxShadow: '0 8px 28px rgba(0, 0, 0, 0.12)' };
+const GROUP_TITLE_CLASS = 'px-10px pt-4px pb-2px text-12px leading-18px text-t-secondary';
+const ROW_CLASS = 'flex items-center gap-8px px-10px h-38px rd-8px cursor-pointer text-14px text-t-primary transition-colors hover:bg-hover active:bg-active';
+
+const HealthDot: React.FC<{ status: string }> = ({ status }) => {
+  if (status === 'unknown') return null;
+  const color = status === 'healthy' ? 'bg-green-500' : status === 'unhealthy' ? 'bg-red-500' : 'bg-gray-400';
+  return <div className={`w-6px h-6px rounded-full shrink-0 ${color}`} />;
+};
+
+const GeminiSubMenu: React.FC<{
+  label: string;
+  healthStatus: string;
+  subModels: Array<{ label: string; value: string }>;
+  isSelected: (value: string) => boolean;
+  onSelect: (value: string) => void;
+}> = ({ label, healthStatus, subModels, isSelected, onSelect }) => {
+  const [open, setOpen] = React.useState(false);
+  return (
+    <Dropdown
+      trigger='hover'
+      position='rt'
+      popupVisible={open}
+      onVisibleChange={setOpen}
+      droplist={
+        <div className={PANEL_CLASS} style={PANEL_STYLE}>
+          {subModels.map((subModel) => (
+            <div key={subModel.value} className={classNames(ROW_CLASS, isSelected(subModel.value) && 'bg-2')} onClick={() => onSelect(subModel.value)}>
+              <span className='truncate'>{subModel.label}</span>
+            </div>
+          ))}
+        </div>
+      }
+    >
+      <div className={ROW_CLASS}>
+        <HealthDot status={healthStatus} />
+        <span className='flex-1 truncate'>{label}</span>
+        <Right theme='outline' size='14' className='shrink-0 text-t-tertiary' />
+      </div>
+    </Dropdown>
+  );
+};
+
 const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({ isGeminiMode, modelList, currentModel, setCurrentModel, geminiModeLookup, currentAcpCachedModelInfo, selectedAcpModel, setSelectedAcpModel }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const defaultModelLabel = t('common.defaultModel');
+  const [geminiOpen, setGeminiOpen] = React.useState(false);
+  const [acpOpen, setAcpOpen] = React.useState(false);
 
   // 获取模型配置数据（包含健康状态）
   const { data: modelConfig } = useSWR<IProvider[]>('model.config', () => ipcBridge.mode.getModelConfig.invoke());
@@ -86,115 +133,88 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({ isGeminiMode, mod
   const acpProviderModelGroups = React.useMemo(() => buildProviderModelGroups(currentAcpCachedModelInfo?.availableModels || [], modelConfig), [currentAcpCachedModelInfo?.availableModels, modelConfig]);
 
   if (isGeminiMode) {
+    const handleSelectModel = (provider: IProvider, useModel: string) => {
+      setGeminiOpen(false);
+      setCurrentModel({ ...provider, useModel }).catch((error) => {
+        console.error('Failed to set current model:', error);
+      });
+    };
+
     return (
       <Dropdown
         trigger='hover'
+        popupVisible={geminiOpen}
+        onVisibleChange={setGeminiOpen}
         droplist={
-          <Menu selectedKeys={currentModel ? [currentModel.id + currentModel.useModel] : []}>
-            {!enabledModelList || enabledModelList.length === 0
-              ? [
-                  <Menu.Item key='no-models' className='px-12px py-12px text-t-secondary text-14px text-center flex justify-center items-center' disabled>
-                    {t('settings.noAvailableModels')}
-                  </Menu.Item>,
-                  <Menu.Item key='add-model' className='text-12px text-t-secondary' onClick={() => navigate('/settings/model')}>
-                    <Plus theme='outline' size='12' />
-                    {t('settings.addModel')}
-                  </Menu.Item>,
-                ]
-              : [
-                  ...(enabledModelList || []).map((provider) => {
-                    const availableModels = getAvailableModels(provider);
-                    if (availableModels.length === 0) return null;
-                    return (
-                      <Menu.ItemGroup title={provider.name} key={provider.id}>
-                        {availableModels.map((modelName) => {
-                          const isGoogleProvider = provider.platform?.toLowerCase().includes('gemini-with-google-auth');
-                          const option = isGoogleProvider ? geminiModeLookup.get(modelName) : undefined;
+          <div className={PANEL_CLASS} style={PANEL_STYLE}>
+            {!enabledModelList || enabledModelList.length === 0 ? (
+              <>
+                <div className='px-10px py-12px text-t-secondary text-14px text-center'>{t('settings.noAvailableModels')}</div>
+                <div className={classNames(ROW_CLASS, '!h-32px text-12px text-t-secondary')} onClick={() => navigate('/settings/model')}>
+                  <Plus theme='outline' size='12' />
+                  <span>{t('settings.addModel')}</span>
+                </div>
+              </>
+            ) : (
+              <>
+                {enabledModelList.map((provider) => {
+                  const availableModels = getAvailableModels(provider);
+                  if (availableModels.length === 0) return null;
+                  return (
+                    <div key={provider.id} className='flex flex-col gap-2px'>
+                      <div className={GROUP_TITLE_CLASS}>{provider.name}</div>
+                      {availableModels.map((modelName) => {
+                        const isGoogleProvider = provider.platform?.toLowerCase().includes('gemini-with-google-auth');
+                        const option = isGoogleProvider ? geminiModeLookup.get(modelName) : undefined;
 
-                          // 获取模型健康状态
-                          const matchedProvider = modelConfig?.find((p) => p.id === provider.id);
-                          const healthStatus = matchedProvider?.modelHealth?.[modelName]?.status || 'unknown';
-                          const healthColor = healthStatus === 'healthy' ? 'bg-green-500' : healthStatus === 'unhealthy' ? 'bg-red-500' : 'bg-gray-400';
+                        // 获取模型健康状态
+                        const matchedProvider = modelConfig?.find((p) => p.id === provider.id);
+                        const healthStatus = matchedProvider?.modelHealth?.[modelName]?.status || 'unknown';
 
-                          // Manual mode: show submenu with specific models
-                          if (option?.subModels && option.subModels.length > 0) {
-                            return (
-                              <Menu.SubMenu
-                                key={provider.id + modelName}
-                                title={
-                                  <div className='flex items-center gap-8px w-full'>
-                                    {healthStatus !== 'unknown' && <div className={`w-6px h-6px rounded-full shrink-0 ${healthColor}`} />}
-                                    <span>{option.label}</span>
+                        // Manual mode: show submenu with specific models
+                        if (option?.subModels && option.subModels.length > 0) {
+                          return <GeminiSubMenu key={provider.id + modelName} label={option.label || modelName} healthStatus={healthStatus} subModels={option.subModels} isSelected={(value) => currentModel?.id + (currentModel?.useModel ?? '') === provider.id + value} onSelect={(value) => handleSelectModel(provider, value)} />;
+                        }
+
+                        // Normal mode: show single item
+                        const selected = currentModel?.id + (currentModel?.useModel ?? '') === provider.id + modelName;
+                        const rowContent = (
+                          <div className='flex items-center gap-8px w-full min-w-0'>
+                            <HealthDot status={healthStatus} />
+                            <span className='truncate'>{option ? option.label : modelName}</span>
+                          </div>
+                        );
+                        return (
+                          <div key={provider.id + modelName} className={classNames(ROW_CLASS, selected && 'bg-2')} onClick={() => handleSelectModel(provider, modelName)}>
+                            {option ? (
+                              <Tooltip
+                                position='right'
+                                trigger='hover'
+                                content={
+                                  <div className='max-w-240px space-y-6px'>
+                                    <div className='text-12px text-t-secondary leading-5'>{option.description}</div>
+                                    {option.modelHint && <div className='text-11px text-t-tertiary'>{option.modelHint}</div>}
                                   </div>
                                 }
                               >
-                                {option.subModels.map((subModel: { label: string; value: string }) => (
-                                  <Menu.Item
-                                    key={provider.id + subModel.value}
-                                    className={currentModel?.id + currentModel?.useModel === provider.id + subModel.value ? '!bg-2' : ''}
-                                    onClick={() => {
-                                      setCurrentModel({ ...provider, useModel: subModel.value }).catch((error) => {
-                                        console.error('Failed to set current model:', error);
-                                      });
-                                    }}
-                                  >
-                                    {subModel.label}
-                                  </Menu.Item>
-                                ))}
-                              </Menu.SubMenu>
-                            );
-                          }
-
-                          // Normal mode: show single item
-                          return (
-                            <Menu.Item
-                              key={provider.id + modelName}
-                              className={currentModel?.id + currentModel?.useModel === provider.id + modelName ? '!bg-2' : ''}
-                              onClick={() => {
-                                setCurrentModel({ ...provider, useModel: modelName }).catch((error) => {
-                                  console.error('Failed to set current model:', error);
-                                });
-                              }}
-                            >
-                              {(() => {
-                                if (!option) {
-                                  return (
-                                    <div className='flex items-center gap-8px w-full'>
-                                      {healthStatus !== 'unknown' && <div className={`w-6px h-6px rounded-full shrink-0 ${healthColor}`} />}
-                                      <span>{modelName}</span>
-                                    </div>
-                                  );
-                                }
-                                return (
-                                  <Tooltip
-                                    position='right'
-                                    trigger='hover'
-                                    content={
-                                      <div className='max-w-240px space-y-6px'>
-                                        <div className='text-12px text-t-secondary leading-5'>{option.description}</div>
-                                        {option.modelHint && <div className='text-11px text-t-tertiary'>{option.modelHint}</div>}
-                                      </div>
-                                    }
-                                  >
-                                    <div className='flex items-center gap-8px w-full'>
-                                      {healthStatus !== 'unknown' && <div className={`w-6px h-6px rounded-full shrink-0 ${healthColor}`} />}
-                                      <span>{option.label}</span>
-                                    </div>
-                                  </Tooltip>
-                                );
-                              })()}
-                            </Menu.Item>
-                          );
-                        })}
-                      </Menu.ItemGroup>
-                    );
-                  }),
-                  <Menu.Item key='add-model' className='text-12px text-t-secondary' onClick={() => navigate('/settings/model')}>
-                    <Plus theme='outline' size='12' />
-                    {t('settings.addModel')}
-                  </Menu.Item>,
-                ]}
-          </Menu>
+                                {rowContent}
+                              </Tooltip>
+                            ) : (
+                              rowContent
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+                <div className={classNames(ROW_CLASS, '!h-32px text-12px text-t-secondary')} onClick={() => navigate('/settings/model')}>
+                  <Plus theme='outline' size='12' />
+                  <span>{t('settings.addModel')}</span>
+                </div>
+              </>
+            )}
+          </div>
         }
       >
         <ActionChip icon={<Brain theme='outline' size='14' fill='currentColor' />} label={geminiButtonLabel} />
@@ -208,29 +228,37 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({ isGeminiMode, mod
       return (
         <Dropdown
           trigger='click'
+          popupVisible={acpOpen}
+          onVisibleChange={setAcpOpen}
           droplist={
-            <Menu selectedKeys={selectedAcpModel ? [selectedAcpModel] : []}>
+            <div className={PANEL_CLASS} style={PANEL_STYLE}>
               {acpProviderModelGroups.map((group) => (
-                <Menu.ItemGroup title={group.name || t('common.other', { defaultValue: 'Other' })} key={group.key}>
+                <div key={group.key} className='flex flex-col gap-2px'>
+                  <div className={GROUP_TITLE_CLASS}>{group.name || t('common.other', { defaultValue: 'Other' })}</div>
                   {group.models.map((model) => {
                     // 获取模型健康状态
                     const backend = currentAcpCachedModelInfo.source;
                     const providerConfig = group.provider || modelConfig?.find((p) => p.platform?.includes(backend || ''));
                     const healthStatus = providerConfig?.modelHealth?.[model.id]?.status || 'unknown';
-                    const healthColor = healthStatus === 'healthy' ? 'bg-green-500' : healthStatus === 'unhealthy' ? 'bg-red-500' : 'bg-gray-400';
+                    const selected = model.id === selectedAcpModel;
 
                     return (
-                      <Menu.Item key={model.id} className={model.id === selectedAcpModel ? '!bg-2' : ''} onClick={() => setSelectedAcpModel(model.id)}>
-                        <div className='flex items-center gap-8px w-full'>
-                          {healthStatus !== 'unknown' && <div className={`w-6px h-6px rounded-full shrink-0 ${healthColor}`} />}
-                          <span>{model.label}</span>
-                        </div>
-                      </Menu.Item>
+                      <div
+                        key={model.id}
+                        className={classNames(ROW_CLASS, selected && 'bg-2')}
+                        onClick={() => {
+                          setSelectedAcpModel(model.id);
+                          setAcpOpen(false);
+                        }}
+                      >
+                        <HealthDot status={healthStatus} />
+                        <span className='truncate'>{model.label}</span>
+                      </div>
                     );
                   })}
-                </Menu.ItemGroup>
+                </div>
               ))}
-            </Menu>
+            </div>
           }
         >
           <ActionChip icon={<Brain theme='outline' size='14' fill='currentColor' />} label={acpButtonLabel} />

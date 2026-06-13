@@ -514,10 +514,10 @@ const ConversationTitleMinimap: React.FC<ConversationTitleMinimapProps> = ({ tit
       <span
         className='conversation-minimap-count text-12px font-bold px-8px py-2px border border-solid leading-none'
         style={{
-          borderColor: normalizedKeyword ? (filteredItems.length > 0 ? 'rgb(var(--primary-6))' : 'var(--color-danger)') : visualStyle.borderColor,
+          borderColor: normalizedKeyword ? (filteredItems.length > 0 ? 'rgb(var(--primary-6))' : 'var(--danger)') : visualStyle.borderColor,
           borderRadius: '999px',
           background: normalizedKeyword ? 'var(--color-fill-2)' : 'var(--color-fill-1)',
-          color: normalizedKeyword ? (filteredItems.length > 0 ? 'rgb(var(--primary-6))' : 'var(--color-danger)') : 'var(--color-text-2)',
+          color: normalizedKeyword ? (filteredItems.length > 0 ? 'rgb(var(--primary-6))' : 'var(--danger)') : 'var(--color-text-2)',
         }}
       >
         {normalizedKeyword ? `${filteredItems.length}/${items.length}` : `${items.length}条`}

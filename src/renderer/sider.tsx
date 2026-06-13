@@ -1,22 +1,20 @@
-import { AlarmClock, ArrowCircleLeft, Down, Earth, Lightning, ListCheckbox, Logout, Plus, Robot, SettingTwo, Shield, Toolkit } from '@icon-park/react';
-import { IconHome } from '@arco-design/web-react/icon';
+import { AlarmClock, Down, Earth, Lightning, ListCheckbox, Logout, Plus, Return, Robot, SettingTwo, Shield } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { Suspense, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { iconColors } from './theme/colors';
-import { Dropdown, Menu, Message, Tooltip } from '@arco-design/web-react';
+import { Button, Dropdown, Message, Popover, Tabs, Tooltip } from '@arco-design/web-react';
+import type { BatchHistoryApi } from './pages/conversation/grouped-history/types';
 import { cleanupSiderTooltips, getSiderTooltipProps } from './utils/siderTooltip';
 import { useLayoutContext } from './context/LayoutContext';
 import { blurActiveElement } from './utils/focus';
-import { isElectronDesktop } from './utils/platform';
 import { useAuth } from './context/AuthContext';
 import { addEventListener, emitter } from './utils/emitter';
 import { ConfigStorage } from '@/common/storage';
 import { useAppMode } from './hooks/useAppMode';
 import { useCronEnabled } from './hooks/useCronEnabled';
 import SidebarNavItem from './components/ui/SidebarNavItem';
-import SidebarSegmentedControl from './components/ui/SidebarSegmentedControl';
 
 const WorkspaceGroupedHistory = React.lazy(() => import('./pages/conversation/WorkspaceGroupedHistory'));
 const SettingsSider = React.lazy(() => import('./pages/settings/SettingsSider'));
@@ -52,6 +50,9 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
   const cronEnabled = useCronEnabled();
   const [isBatchMode, setIsBatchMode] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  // 账户菜单触发区，用于让弹层宽度与之对齐
+  const userTriggerRef = useRef<HTMLDivElement>(null);
+  const [userMenuWidth, setUserMenuWidth] = useState<number>();
 
   // Sidebar tab state: 'timeline' or 'scheduled'
   const SIDER_TAB_STORAGE_KEY = 'aionui_sider_tab';
@@ -113,26 +114,39 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
     blurActiveElement();
     if (isSettings) {
       const target = lastNonSettingsPathRef.current || '/guid';
-      Promise.resolve(navigate(target)).catch((error) => {
-        console.error('Navigation failed:', error);
-      });
+      void navigate(target);
     } else {
-      Promise.resolve(navigate('/settings/agent')).catch((error) => {
-        console.error('Navigation failed:', error);
-      });
+      void navigate('/settings/profile');
     }
     if (onSessionClick) {
       onSessionClick();
     }
   };
 
-  const handleToggleBatchMode = () => {
-    setIsBatchMode((prev) => !prev);
-  };
+  // Batch-action API published up from the history list; drives the popover content.
+  const [batchApi, setBatchApi] = useState<BatchHistoryApi | null>(null);
 
   // With client cron disabled the scheduled tab is hidden, so fall back to the
   // timeline even if 'scheduled' was previously persisted.
   const effectiveTab: 'timeline' | 'scheduled' = cronEnabled ? activeTab : 'timeline';
+
+  // Batch management only applies to conversations (timeline tab); leaving the
+  // timeline tab exits batch mode so the popover can't be opened under 定时任务.
+  // Dismiss the batch popover when clicking truly blank space, but keep it open
+  // when interacting with the trigger, the popover itself, or a conversation row
+  // (so ticking row checkboxes doesn't exit batch mode).
+  useEffect(() => {
+    if (!isBatchMode) return;
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest('.batch-mode-trigger, .batch-actions-popover, .conversation-item')) {
+        return;
+      }
+      setIsBatchMode(false);
+    };
+    document.addEventListener('mousedown', handlePointerDown);
+    return () => document.removeEventListener('mousedown', handlePointerDown);
+  }, [isBatchMode]);
   const workspaceHistoryProps = {
     collapsed,
     tooltipEnabled: collapsed && !isMobile,
@@ -144,10 +158,10 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
     batchMode: isBatchMode,
     onBatchModeChange: setIsBatchMode,
     activeTab: effectiveTab,
+    onBatchApiChange: setBatchApi,
   };
   const tooltipEnabled = collapsed && !isMobile;
   const siderTooltipProps = getSiderTooltipProps(tooltipEnabled);
-  const isDesktop = isElectronDesktop();
 
   return (
     <div className='size-full flex flex-col'>
@@ -158,7 +172,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
             <SettingsSider collapsed={collapsed} tooltipEnabled={tooltipEnabled}></SettingsSider>
           </Suspense>
         ) : (
-          <div className='size-full flex flex-col py-8px overflow-hidden'>
+          <div className='size-full flex flex-col py-8px overflow-hidden box-border'>
             {/* 新会话按钮 - 带边框的按钮风格 / New Chat button with border style */}
             <Tooltip {...siderTooltipProps} content={t('conversation.welcome.newConversation')} position='right'>
               {collapsed ? (
@@ -178,13 +192,11 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
                     }
                   }}
                 >
-                  <div className='w-32px h-32px flex items-center justify-center rd-50% bg-[var(--color-fill-3)] text-t-secondary shrink-0'>
-                    <Plus theme='outline' size='18' fill='currentColor' className='block leading-none' />
-                  </div>
+                  <Plus theme='outline' size='20' fill='currentColor' className='text-t-primary shrink-0 block leading-none' />
                 </div>
               ) : (
                 <div
-                  className={classNames('h-40px flex items-center gap-10px px-16px mb-12px rd-10px cursor-pointer transition-all border border-solid', 'border-[var(--ui-border-strong)] bg-1 hover:bg-hover active:bg-fill-2')}
+                  className='h-42px flex items-center justify-center gap-8px px-14px mb-12px rd-12px cursor-pointer transition-all border border-solid border-[var(--border-base)] bg-1 hover:bg-hover active:bg-fill-2'
                   onClick={() => {
                     cleanupSiderTooltips();
                     blurActiveElement();
@@ -199,10 +211,8 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
                     }
                   }}
                 >
-                  <div className='w-32px h-32px flex items-center justify-center rd-50% bg-[var(--color-fill-3)] text-t-secondary shrink-0'>
-                    <Plus theme='outline' size='18' fill='currentColor' className='block leading-none' />
-                  </div>
-                  <span className='flex-1 text-15px font-medium text-t-primary text-center truncate'>{t('conversation.welcome.newConversation')}</span>
+                  <Plus theme='outline' size='20' fill='currentColor' className='text-t-primary shrink-0 block leading-none' />
+                  <span className='text-15px font-medium text-t-primary truncate'>{t('conversation.welcome.newConversation')}</span>
                 </div>
               )}
             </Tooltip>
@@ -238,28 +248,52 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
                   feature is enabled; with it off only the timeline remains, so we
                   hide the whole switcher. */}
               {!collapsed && cronEnabled && (
-                <SidebarSegmentedControl
-                  className='flex-1'
-                  value={effectiveTab}
-                  options={[
-                    { value: 'timeline', label: t('conversation.history.timeline', { defaultValue: '对话' }) },
-                    { value: 'scheduled', label: t('conversation.history.scheduledTab', { defaultValue: '定时任务' }) },
-                  ]}
+                <Tabs
+                  className='sidebar-tabs flex-1'
+                  type='line'
+                  activeTab={effectiveTab}
+                  headerPadding={false}
                   onChange={(tab) => {
-                    setActiveTab(tab);
+                    const next = tab as 'timeline' | 'scheduled';
+                    setActiveTab(next);
                     try {
-                      localStorage.setItem(SIDER_TAB_STORAGE_KEY, tab);
+                      localStorage.setItem(SIDER_TAB_STORAGE_KEY, next);
                     } catch {
                       // ignore
                     }
                   }}
-                />
+                >
+                  <Tabs.TabPane key='timeline' title={t('conversation.history.timeline', { defaultValue: '对话' })} />
+                  <Tabs.TabPane key='scheduled' title={t('conversation.history.scheduledTab', { defaultValue: '定时任务' })} />
+                </Tabs>
               )}
-              <Tooltip {...siderTooltipProps} content={isBatchMode ? t('conversation.history.batchModeExit') : t('conversation.history.batchManage')} position='right'>
-                <div className={classNames('w-32px h-32px flex items-center justify-center rd-8px cursor-pointer transition-all shrink-0', isBatchMode ? 'bg-[rgba(var(--ui-accent-orange-rgb),0.12)] text-[var(--ui-accent-orange)]' : 'hover:bg-hover active:bg-fill-2 text-t-secondary')} onClick={handleToggleBatchMode}>
-                  <ListCheckbox theme='outline' size='18' className='block leading-none' />
-                </div>
-              </Tooltip>
+              <Popover
+                trigger={[]}
+                popupVisible={isBatchMode}
+                position='rt'
+                className='batch-actions-popover'
+                getPopupContainer={() => document.body}
+                content={
+                  <div className='flex flex-col gap-6px w-180px'>
+                    <div className='px-2px pb-2px text-12px leading-18px text-t-secondary'>{t('conversation.history.selectedCount', { count: batchApi?.selectedCount ?? 0 })}</div>
+                    <Button long type='secondary' className='batch-actions-popover__item' onClick={() => batchApi?.onToggleSelectAll()}>
+                      {batchApi?.allSelected ? t('common.cancel') : t('conversation.history.selectAll')}
+                    </Button>
+                    <Button long type='secondary' className='batch-actions-popover__item' disabled={!batchApi?.selectedCount} onClick={() => batchApi?.onBatchExport()}>
+                      {t('conversation.history.batchExport')}
+                    </Button>
+                    <Button long type='secondary' status='danger' className='batch-actions-popover__item' disabled={!batchApi?.selectedCount} onClick={() => batchApi?.onBatchDelete()}>
+                      {t('conversation.history.batchDelete')}
+                    </Button>
+                  </div>
+                }
+              >
+                <Tooltip {...siderTooltipProps} content={isBatchMode ? t('conversation.history.batchModeExit') : t('conversation.history.batchManage')} position='right'>
+                  <div className={classNames('batch-mode-trigger w-32px h-32px flex items-center justify-center rd-8px cursor-pointer transition-all shrink-0', isBatchMode ? 'bg-[rgba(var(--ui-accent-orange-rgb),0.12)] text-[var(--ui-accent-orange)]' : 'hover:bg-hover active:bg-fill-2 text-t-secondary')} onClick={() => setIsBatchMode((prev) => !prev)}>
+                    <ListCheckbox theme='outline' size='18' className='block leading-none' />
+                  </div>
+                </Tooltip>
+              </Popover>
             </div>
 
             <Suspense fallback={<div className='flex-1 min-h-0' />}>
@@ -274,44 +308,41 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
           /* 用户信息下拉菜单 */
           <Dropdown
             droplist={
-              <Menu
-                style={{ width: '250px' }}
-                onClickMenuItem={(key) => {
-                  if (key === 'settings') {
+              <div className='flex flex-col gap-2px p-6px rd-12px border border-solid border-[var(--border-base)] bg-popup' style={{ width: userMenuWidth ? userMenuWidth - 12 : undefined, minWidth: 200, boxShadow: '0 8px 28px rgba(0, 0, 0, 0.12)' }}>
+                <div
+                  className='flex items-center gap-10px px-10px h-38px rd-8px cursor-pointer text-14px text-t-primary transition-colors hover:bg-hover active:bg-active'
+                  onClick={() => {
                     handleSettingsClick();
-                  } else if (key === 'logout') {
-                    console.log('Logout clicked');
-                  }
-                  setUserMenuOpen(false);
-                }}
-              >
-                <Menu.Item key='settings'>
-                  <div className='flex items-center gap-8px'>
-                    <SettingTwo theme='outline' size='18' />
-                    <span>{t('common.settings')}</span>
-                  </div>
-                </Menu.Item>
-                <Menu.Item key='logout'>
-                  <div
-                    className='flex items-center gap-8px text-[rgb(var(--danger-6))]'
-                    onClick={async () => {
-                      await logout();
-                      Message.success(t('login.logoutSuccess'));
-                      void navigate('/login', { replace: true });
-                    }}
-                  >
-                    <Logout theme='outline' size='18' />
-                    <span>{t('login.logout', { defaultValue: '退出登录' })}</span>
-                  </div>
-                </Menu.Item>
-              </Menu>
+                    setUserMenuOpen(false);
+                  }}
+                >
+                  <SettingTwo theme='outline' size='17' fill={iconColors.secondary} />
+                  <span>{t('common.settings')}</span>
+                </div>
+                <div className='h-1px mx-4px my-2px bg-[var(--border-light)]' />
+                <div
+                  className='flex items-center gap-10px px-10px h-38px rd-8px cursor-pointer text-14px text-danger transition-colors hover:bg-hover active:bg-active'
+                  onClick={async () => {
+                    setUserMenuOpen(false);
+                    await logout();
+                    Message.success(t('login.logoutSuccess'));
+                    void navigate('/login', { replace: true });
+                  }}
+                >
+                  <Logout theme='outline' size='17' fill='var(--danger)' />
+                  <span>{t('login.logout', { defaultValue: '退出登录' })}</span>
+                </div>
+              </div>
             }
             trigger='click'
             position='tr'
             popupVisible={userMenuOpen}
-            onVisibleChange={setUserMenuOpen}
+            onVisibleChange={(visible) => {
+              if (visible) setUserMenuWidth(userTriggerRef.current?.offsetWidth);
+              setUserMenuOpen(visible);
+            }}
           >
-            <div className={classNames('flex items-center gap-10px px-8px py-10px rd-8px cursor-pointer transition-colors', collapsed ? 'justify-center px-2px w-40px h-40px hover:bg-hover active:bg-fill-2' : 'w-full border border-solid border-[var(--ui-border-strong)] hover:bg-hover active:bg-fill-2')}>
+            <div ref={userTriggerRef} className={classNames('flex items-center gap-10px px-8px py-10px cursor-pointer transition-colors', collapsed ? 'rd-8px justify-center px-2px w-40px h-40px hover:bg-hover active:bg-fill-2' : 'rd-12px w-full border border-solid border-[var(--border-base)] hover:bg-hover active:bg-fill-2')}>
               <div className='w-32px h-32px rd-50% bg-[var(--color-fill-3)] flex items-center justify-center text-t-primary text-14px font-bold shrink-0'>{userInfo.avatar ? <img src={userInfo.avatar} alt={userInfo.name} className='w-full h-full rd-50% object-cover' /> : <span>{userInfo.name.charAt(0).toUpperCase()}</span>}</div>
               {!collapsed && (
                 <>
@@ -330,7 +361,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
             {/* 返回按钮 */}
             <div className={classNames('flex items-center gap-10px px-4px py-10px rd-8px cursor-pointer transition-colors hover:bg-hover active:bg-fill-2', collapsed ? 'justify-center mr-2px' : 'ml-2px')} onClick={handleSettingsClick}>
               <div className='w-32px h-32px rd-50% bg-[var(--color-fill-3)] flex items-center justify-center text-t-primary text-14px font-bold shrink-0'>
-                <IconHome style={{ fontSize: 16 }} />
+                <Return theme='outline' size='16' fill={iconColors.primary} />
               </div>
               {!collapsed && (
                 <div className='flex-1 min-w-0'>

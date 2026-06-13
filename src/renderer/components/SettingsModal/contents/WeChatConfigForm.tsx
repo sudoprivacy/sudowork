@@ -182,7 +182,7 @@ const WeChatConfigForm: React.FC<WeChatConfigFormProps> = ({ pluginStatus, model
   // Cancel QR login on unmount
   useEffect(() => {
     return () => {
-      void channel.wechatCancelQrLogin.invoke().catch(() => { });
+      void channel.wechatCancelQrLogin.invoke().catch(() => {});
     };
   }, []);
 
@@ -244,10 +244,7 @@ const WeChatConfigForm: React.FC<WeChatConfigFormProps> = ({ pluginStatus, model
     return (
       <div className='flex flex-col gap-12px'>
         <div className='text-13px text-t-secondary leading-relaxed'>
-          {t('settings.channels.wechat.installDesc', 'Scan the QR code with WeChat to connect your personal WeChat account.')}{' '}
-          <span className='text-warning-6 text-12px'>
-            {t('settings.channels.wechat.privacyWarning', 'Note: All messages sent via WeChat will pass through WeChat servers first.')}
-          </span>{' '}
+          {t('settings.channels.wechat.installDesc', 'Scan the QR code with WeChat to connect your personal WeChat account.')} <span className='text-warning text-12px'>{t('settings.channels.wechat.privacyWarning', 'Note: All messages sent via WeChat will pass through WeChat servers first.')}</span>{' '}
           <a
             className='text-primary hover:underline cursor-pointer text-12px'
             href={WECHAT_GUIDE_URL}

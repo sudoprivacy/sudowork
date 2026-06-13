@@ -132,14 +132,14 @@ const GeneratedFileCard: React.FC<GeneratedFileCardProps> = ({ entry, fullWidth 
         <div className='min-w-0 flex flex-col gap-4px leading-tight'>
           <div className='flex items-center gap-8px'>
             <span className='max-w-full truncate text-15px font-semibold text-t-primary'>{fileName}</span>
-            <span className={classNames('flex-shrink-0 rounded-full px-6px py-1px text-[10px] font-medium', missing ? 'bg-[var(--color-danger-light-1)] text-[var(--color-danger)]' : 'bg-[var(--color-success-light-1)] text-[var(--color-success)]')}>{missing ? t('messages.generatedFile.statusMissing') : kindLabel}</span>
+            <span className={classNames('flex-shrink-0 rounded-full px-6px py-1px text-[10px] font-medium', missing ? 'bg-danger-soft text-danger' : 'bg-success-soft text-success')}>{missing ? t('messages.generatedFile.statusMissing') : kindLabel}</span>
           </div>
           <div className='max-w-full truncate text-12px text-t-secondary'>
             {directory ? <span className='opacity-75'>{directory}</span> : null}
             {!directory && sizeLabel && <span>{sizeLabel}</span>}
             {!directory && sizeLabel && ext && <span className='mx-4px opacity-50'>·</span>}
             {!directory && ext && <span className='uppercase opacity-70'>{ext}</span>}
-            {directory && sizeLabel ? <span className='ml-8px rounded-full bg-[var(--color-fill-1)] px-6px py-1px text-[10px] leading-4 text-t-secondary'>{sizeLabel}</span> : null}
+            {directory && sizeLabel ? <span className='ml-2 rounded-full bg-[var(--color-fill-1)] px-6px py-1px text-[10px] leading-4 text-t-secondary'>{sizeLabel}</span> : null}
             {directory && ext ? <span className='ml-6px rounded-full bg-[var(--color-fill-1)] px-6px py-1px text-[10px] leading-4 uppercase tracking-wide text-t-secondary'>{ext}</span> : null}
           </div>
         </div>

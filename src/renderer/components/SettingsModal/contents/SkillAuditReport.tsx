@@ -345,7 +345,7 @@ const FileFindings: React.FC<{
       {/* File header */}
       <div className='px-12px py-8px bg-fill-2 border-b border-line'>
         <span className='text-12px font-medium text-t-primary font-mono'>{file}</span>
-        <span className='text-11px text-t-tertiary ml-8px'>
+        <span className='text-11px text-t-tertiary ml-2'>
           ({findings.length} {t('settings.skill.audit.places', { defaultValue: '处调用' })})
         </span>
       </div>

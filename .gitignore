@@ -100,7 +100,9 @@ out/
 
 # IDE and Editor files
 .idea
-.vscode
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
 
 # AI CLI tool configurations (may contain sensitive information)
 **/.claude/settings.local.json
@@ -174,7 +176,7 @@ ${env.ELECTRON_CACHE}/
 wiki/
 
 # Keep CLAUDE.md for project documentation
-CLAUDE.md
+# CLAUDE.md
 
 # Local design docs and screenshots
 desdoc/

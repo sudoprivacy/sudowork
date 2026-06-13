@@ -60,7 +60,7 @@ const AboutModalContent: React.FC = () => {
               </div>
             )}
             <div className='flex items-center gap-8px mt-14px'>
-              <Button size='small' type='outline' className='!bg-[var(--color-bg-1)] !border-[var(--color-border-2)] !text-t-primary hover:!bg-[var(--fill-0)] hover:!border-[var(--color-border-2)]' onClick={() => window.dispatchEvent(new Event('aionui-open-update-modal'))}>
+              <Button size='small' type='outline' onClick={() => window.dispatchEvent(new Event('aionui-open-update-modal'))}>
                 {t('settings.checkForUpdates')}
               </Button>
               <Button size='small' type='text' className='opacity-50 hover:opacity-100 transition-opacity' onClick={() => setOpsVisible(true)} icon={<Setting theme='outline' size='14' />} />

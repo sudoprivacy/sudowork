@@ -18,7 +18,7 @@ import classNames from 'classnames';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 
-import type { ConversationRowProps, ConversationItem } from './types';
+import type { ConversationRowProps } from './types';
 import { getBackendKeyFromConversation } from './utils/exportHelpers';
 import { isConversationPinned } from './utils/groupingHelpers';
 
@@ -33,15 +33,15 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
   const isMossSession = 'isMossSession' in conversation && conversation.isMossSession === true;
 
   // Only use preset assistant info for local conversations
-  const { info: assistantInfo } = usePresetAssistantInfo(isMossSession ? null : conversation as TChatConversation);
+  const { info: assistantInfo } = usePresetAssistantInfo(isMossSession ? null : (conversation as TChatConversation));
   // For Moss sessions, use isPinned property; for local conversations, use isConversationPinned
-  const isPinned = isMossSession
-    ? (conversation as { isPinned?: boolean }).isPinned ?? false
-    : isConversationPinned(conversation as TChatConversation);
+  const isPinned = isMossSession ? ((conversation as { isPinned?: boolean }).isPinned ?? false) : isConversationPinned(conversation as TChatConversation);
   const cronStatus = getJobStatus(conversation.id);
   const ptyActiveCount = useTerminalActiveCount(conversation.id);
   const siderTooltipProps = getSiderTooltipProps(tooltipEnabled);
   const inlineNameTooltipEnabled = !collapsed && !isMobile && !!conversation.name;
+
+  const actionReserveClass = isPinned ? (isMobile ? 'mr-56px' : 'mr-36px') : isMobile || menuVisible ? 'mr-36px' : 'group-hover:mr-36px';
 
   const renderLeadingIcon = () => {
     if (cronStatus !== 'none') {
@@ -59,7 +59,7 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
     if (isMossSession) {
       const mossLogo = getAgentLogo('remote-agent');
       if (mossLogo) {
-        return <img src={mossLogo} alt="Moss Server" className='w-20px h-20px rounded-50% flex-shrink-0' />;
+        return <img src={mossLogo} alt='Moss Server' className='w-20px h-20px rounded-50% flex-shrink-0' />;
       }
     }
 
@@ -86,8 +86,8 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
       <div
         id={'c-' + conversation.id}
         className={classNames('chat-history__item px-12px py-8px rd-8px flex justify-start items-center group cursor-pointer relative overflow-hidden shrink-0 conversation-item [&.conversation-item+&.conversation-item]:mt-2px min-w-0 transition-colors', {
-          'hover:bg-[rgba(var(--primary-6),0.14)]': !batchMode,
-          '!bg-active': selected,
+          'hover:bg-hover': !batchMode,
+          '!bg-active conversation-item--selected': selected,
           'bg-[rgba(var(--primary-6),0.08)]': batchMode && checked,
         })}
         onClick={handleRowClick}
@@ -111,7 +111,7 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
             </span>
           </Tooltip>
         )}
-        <FlexFullContainer className='h-24px min-w-0 flex-1 collapsed-hidden ml-10px'>
+        <FlexFullContainer className={classNames('h-24px min-w-0 flex-1 collapsed-hidden ml-10px', actionReserveClass)}>
           <Tooltip content={conversation.name} disabled={!inlineNameTooltipEnabled} trigger='hover' popupVisible={inlineNameTooltipEnabled ? undefined : false} unmountOnExit popupHoverStay={false} position='top'>
             <div className={classNames('chat-history__item-name overflow-hidden text-ellipsis block w-full text-14px lh-24px whitespace-nowrap min-w-0 group-hover:text-1', selected && !batchMode ? 'text-1 font-medium' : 'text-2')}>{conversation.name}</div>
           </Tooltip>
@@ -124,7 +124,7 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
               'hidden group-hover:flex': !isMobile && !isPinned && !menuVisible,
             })}
             style={{
-              backgroundImage: selected ? `linear-gradient(to right, transparent, var(--aou-2) 50%)` : `linear-gradient(to right, transparent, var(--aou-1) 50%)`,
+              backgroundImage: `linear-gradient(to right, transparent, var(--row-fade) 50%)`,
             }}
             onClick={(event) => {
               event.stopPropagation();
@@ -180,7 +180,7 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
                     </Menu.Item>
                   )}
                   <Menu.Item key='delete'>
-                    <div className='flex items-center gap-8px text-[rgb(var(--warning-6))]'>
+                    <div className='flex items-center gap-8px text-warning'>
                       <DeleteOne theme='outline' size='14' />
                       <span>{t('conversation.history.deleteTitle')}</span>
                     </div>

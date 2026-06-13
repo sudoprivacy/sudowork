@@ -24,6 +24,7 @@ import { ConfigProvider } from '@arco-design/web-react';
 // Configure Arco Design to use React 18's createRoot, fixing Message component's CopyReactDOM.render error
 import '@arco-design/web-react/es/_util/react-19-adapter';
 import '@arco-design/web-react/dist/css/arco.css';
+import '@icon-park/react/styles/index.css';
 import enUS from '@arco-design/web-react/es/locale/en-US'; // 英文
 import jaJP from '@arco-design/web-react/es/locale/ja-JP'; // 日文
 import zhCN from '@arco-design/web-react/es/locale/zh-CN'; // 中文（简体）
@@ -31,9 +32,9 @@ import zhTW from '@arco-design/web-react/es/locale/zh-TW'; // 中文（繁体）
 import koKR from '@arco-design/web-react/es/locale/ko-KR'; // 韩文
 import { useTranslation } from 'react-i18next';
 import 'uno.css';
-import './arco-override.css';
+import './styles/arco-override.scss';
 import './i18n';
-import './styles/themes/index.css';
+import './styles/index.css';
 import HOC from './utils/HOC';
 const root = createRoot(document.getElementById('root'));
 
@@ -72,8 +73,8 @@ const Config: React.FC<PropsWithChildren> = ({ children }) => {
     i18n: { language },
   } = useTranslation();
   const arcoLocale = arcoLocales[language] ?? enUS;
-
-  return React.createElement(ConfigProvider, { theme: { primaryColor: '#4E5969' }, locale: arcoLocale }, children);
+  // Buttons default to pill/round shape app-wide; pass `shape` per-button to override.
+  return React.createElement(ConfigProvider, { theme: { primaryColor: '#f97316' }, locale: arcoLocale, componentConfig: { Button: { shape: 'round' } } }, children);
 };
 
 const App = HOC.Wrapper(Config)(Main);

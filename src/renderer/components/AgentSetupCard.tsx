@@ -217,8 +217,8 @@ const AgentSetupCard: React.FC<AgentSetupCardProps> = ({ conversationId, current
             {/* Success Message - 连接成功提示 */}
             {hasAvailableAndSwitching && (
               <div className='flex items-center gap-8px mb-12px'>
-                <CheckOne theme='filled' size={16} className='text-success-6' />
-                <span className='text-13px font-medium text-success-6'>{t('guid.scanning.connectingMessage', { defaultValue: 'Connected successfully, please wait...' })}</span>
+                <CheckOne theme='filled' size={16} className='text-success' />
+                <span className='text-13px font-medium text-success'>{t('guid.scanning.connectingMessage', { defaultValue: 'Connected successfully, please wait...' })}</span>
               </div>
             )}
 
@@ -246,11 +246,11 @@ const AgentSetupCard: React.FC<AgentSetupCardProps> = ({ conversationId, current
                       // Determine card style based on status
                       let cardStyle = 'bg-fill-1 border-1 border-solid border-border-2';
                       if (isSelected) {
-                        cardStyle = 'bg-success-1 border-2 border-solid border-success-6';
+                        cardStyle = 'bg-success-soft border-2 border-solid border-success';
                       } else if (result.checking) {
-                        cardStyle = 'bg-warning-1 border-1 border-solid border-warning-3';
+                        cardStyle = 'bg-warning-soft border-1 border-solid border-warning-line';
                       } else if (result.available && !hasAvailableAndSwitching) {
-                        cardStyle = 'bg-fill-1 border-1 border-solid border-border-2 cursor-pointer hover:border-primary-4 hover:bg-fill-2';
+                        cardStyle = 'bg-fill-1 border-1 border-solid border-border-2 cursor-pointer hover:border-primary hover:bg-fill-2';
                       }
 
                       // Determine status display
@@ -259,21 +259,21 @@ const AgentSetupCard: React.FC<AgentSetupCardProps> = ({ conversationId, current
                       let statusClass: string;
 
                       if (result.checking) {
-                        statusIcon = <Loading theme='outline' size={12} className='animate-spin text-warning-6' />;
+                        statusIcon = <Loading theme='outline' size={12} className='animate-spin text-warning' />;
                         statusText = t('guid.scanning.statusTesting', { defaultValue: 'Testing latency...' });
-                        statusClass = 'text-warning-6';
+                        statusClass = 'text-warning';
                       } else if (result.available) {
-                        statusIcon = <CheckOne theme='filled' size={12} className='text-success-6' />;
+                        statusIcon = <CheckOne theme='filled' size={12} className='text-success' />;
                         statusText = result.latency ? `${result.latency}ms` : t('guid.scanning.statusAvailable', { defaultValue: 'Available' });
-                        statusClass = 'text-success-6';
+                        statusClass = 'text-success';
                       } else if (result.error) {
-                        statusIcon = <CloseOne theme='filled' size={12} className='text-success-6' />;
+                        statusIcon = <CloseOne theme='filled' size={12} className='text-success' />;
                         statusText = t('guid.scanning.statusUnreachable', { defaultValue: 'Unreachable' });
-                        statusClass = 'text-success-6';
+                        statusClass = 'text-success';
                       } else {
                         statusIcon = null;
                         statusText = t('guid.scanning.statusQueued', { defaultValue: 'Queued' });
-                        statusClass = 'text-success-6';
+                        statusClass = 'text-success';
                       }
 
                       return (

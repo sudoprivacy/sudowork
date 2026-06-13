@@ -98,7 +98,7 @@ const ThoughtDisplay: React.FC<ThoughtDisplayProps> = ({ thought, style = 'defau
         <Spin size={14} />
         <span className='text-t-secondary'>
           {t('conversation.chat.processing')}
-          <span className='ml-8px opacity-60'>({formatElapsedTime(elapsedTime)})</span>
+          <span className='ml-2 opacity-60'>({formatElapsedTime(elapsedTime)})</span>
         </span>
       </div>
     );

@@ -559,7 +559,7 @@ const WebuiModalContent: React.FC = () => {
 
         {/* Messaging 强引导入口 / Messaging primary entry */}
         {false && (
-          <div className='rd-12px border border-line bg-2 px-12px py-10px flex items-center justify-between gap-10px'>
+          <div className='rd-12px border border-solid border-[var(--border-base)] bg-2 px-12px py-10px flex items-center justify-between gap-10px'>
             <div className='min-w-0 flex items-center gap-8px'>
               <Communication theme='outline' size='18' className='text-[rgb(var(--primary-6))] shrink-0' />
               <div className='min-w-0'>
@@ -574,9 +574,9 @@ const WebuiModalContent: React.FC = () => {
         )}
 
         {/* WebUI 服务卡片 / WebUI Service Card */}
-        <div className='px-[12px] md:px-[28px] py-14px bg-2 rd-16px'>
+        <div className='px-[12px] md:px-[28px] py-14px bg-2 rd-12px border border-solid border-[var(--border-base)]'>
           {/* WebUI 引导提示 / WebUI hint */}
-          <div className='mb-8px rd-10px border border-line bg-fill-1 px-10px py-8px flex items-start gap-6px'>
+          <div className='mb-8px rd-10px border border-solid border-[var(--border-base)] bg-fill-1 px-10px py-8px flex items-start gap-6px'>
             <Earth theme='outline' size='16' className='mt-1px text-[rgb(var(--primary-6))]' />
             <div className='text-12px text-t-secondary leading-relaxed'>{t('settings.webui.featureRemoteDesc')}</div>
           </div>
@@ -620,13 +620,13 @@ const WebuiModalContent: React.FC = () => {
         </div>
 
         {/* 登录信息卡片 / Login Info Card */}
-        <div className='px-[12px] md:px-[28px] py-14px bg-2 rd-16px'>
+        <div className='px-[12px] md:px-[28px] py-14px bg-2 rd-12px border border-solid border-[var(--border-base)]'>
           <div className='text-14px font-500 mb-8px text-t-primary'>{t('settings.webui.loginInfo')}</div>
 
           {/* 账号 / Account */}
           <div className='flex items-center justify-between gap-12px py-12px'>
             <span className='text-14px text-t-secondary shrink-0'>{t('settings.webui.username')}:</span>
-            <div className='inline-flex items-center gap-8px rd-100px border border-line bg-fill-1 px-10px py-4px min-w-0'>
+            <div className='inline-flex items-center gap-8px rd-100px border border-solid border-[var(--border-base)] bg-fill-1 px-10px py-4px min-w-0'>
               <span className='text-14px text-t-primary truncate'>{status?.adminUsername || 'admin'}</span>
               <Tooltip content={t('common.copy')}>
                 <Button type='text' size='mini' className='rd-100px !px-6px inline-flex items-center !h-24px' onClick={() => handleCopy(status?.adminUsername || 'admin')}>
@@ -639,7 +639,7 @@ const WebuiModalContent: React.FC = () => {
           {/* 密码 / Password */}
           <div className='flex items-center justify-between gap-12px py-12px'>
             <span className='text-14px text-t-secondary shrink-0'>{t('settings.webui.initialPassword')}:</span>
-            <div className='inline-flex items-center gap-8px rd-100px border border-line bg-fill-1 px-10px py-4px min-w-0'>
+            <div className='inline-flex items-center gap-8px rd-100px border border-solid border-[var(--border-base)] bg-fill-1 px-10px py-4px min-w-0'>
               <span className='text-14px text-t-primary truncate'>{displayPassword}</span>
               <Tooltip content={t('settings.webui.resetPasswordTooltip')}>
                 <Button type='text' size='mini' className='rd-100px !px-6px inline-flex items-center !h-24px' onClick={handleResetPassword} disabled={resetLoading}>
@@ -652,13 +652,13 @@ const WebuiModalContent: React.FC = () => {
           {/* 二维码登录（仅服务器运行且允许远程访问时显示）/ QR Code Login (only when server running and remote access allowed) */}
           {status?.running && allowRemote && (
             <>
-              <div className='border-t border-line my-12px' />
+              <div className='border-t border-solid border-[var(--border-base)] my-12px' />
               <div className='text-14px font-500 mb-4px text-t-primary'>{t('settings.webui.qrLogin')}</div>
               <div className='text-12px text-t-tertiary mb-12px'>{t('settings.webui.qrLoginHint')}</div>
 
               <div className='flex flex-col items-center gap-12px'>
                 {/* 二维码显示区域 / QR Code display area */}
-                <div className='p-12px bg-fill-1 border border-line rd-10px'>
+                <div className='p-12px bg-fill-1 border border-solid border-[var(--border-base)] rd-10px'>
                   {qrLoading ? (
                     <div className='w-140px h-140px flex items-center justify-center'>
                       <span className='text-14px text-t-tertiary'>{t('common.loading')}</span>
@@ -722,7 +722,7 @@ const WebuiModalContent: React.FC = () => {
                     <span>Channels</span>
                     <span className='inline-flex items-center gap-4px ml-2px'>
                       {CHANNEL_LOGOS.map((item) => (
-                        <span key={item.alt} className='inline-flex items-center justify-center w-16px h-16px rd-50% border border-line bg-fill-1' title={item.alt} aria-label={item.alt}>
+                        <span key={item.alt} className='inline-flex items-center justify-center w-16px h-16px rd-50% border border-solid border-[var(--border-base)] bg-fill-1' title={item.alt} aria-label={item.alt}>
                           <img src={item.src} alt={item.alt} className='w-14px h-14px object-contain' />
                         </span>
                       ))}

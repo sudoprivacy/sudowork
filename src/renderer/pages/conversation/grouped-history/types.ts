@@ -76,6 +76,19 @@ export type ConversationRowProps = {
   getJobStatus: (conversationId: string) => 'none' | 'active' | 'paused' | 'error' | 'unread';
 };
 
+/**
+ * Batch-action surface published by the history list up to the sider, so the
+ * batch button there can present these actions inside a popover instead of an
+ * inline toolbar block.
+ */
+export type BatchHistoryApi = {
+  selectedCount: number;
+  allSelected: boolean;
+  onToggleSelectAll: () => void;
+  onBatchExport: () => void;
+  onBatchDelete: () => void;
+};
+
 export type WorkspaceGroupedHistoryProps = {
   onSessionClick?: () => void;
   collapsed?: boolean;
@@ -83,6 +96,8 @@ export type WorkspaceGroupedHistoryProps = {
   batchMode?: boolean;
   onBatchModeChange?: (value: boolean) => void;
   activeTab?: SidebarTabKey;
+  /** Publishes the current batch-action API (or null when batch mode is off). */
+  onBatchApiChange?: (api: BatchHistoryApi | null) => void;
 };
 
 export type DragItemType = 'conversation' | 'workspace';

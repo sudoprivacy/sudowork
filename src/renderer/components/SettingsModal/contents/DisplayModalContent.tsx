@@ -8,10 +8,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import FontSizeControl from '@/renderer/components/FontSizeControl';
 import { ThemeSwitcher } from '@/renderer/components/ThemeSwitcher';
-import CssThemeSettings from '@/renderer/components/CssThemeSettings';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
-import AionCollapse from '@/renderer/components/base/AionCollapse';
-import { Down, Up } from '@icon-park/react';
 import { useSettingsViewMode } from '../settingsViewContext';
 
 /**
@@ -33,21 +30,17 @@ const PreferenceRow: React.FC<{
 /**
  * 显示设置内容组件 / Display settings content component
  *
- * 提供显示相关的配置选项，包括主题、缩放比例和自定义CSS
- * Provides display-related configuration options including theme, zoom scale and custom CSS
+ * 提供显示相关的配置选项，包括主题和缩放比例
+ * Provides display-related configuration options including theme and zoom scale
  *
  * @features
  * - 主题切换：亮色/暗色/跟随系统 / Theme: light/dark/system
  * - 缩放比例控制 / Zoom scale control
- * - 自定义CSS编辑器 / Custom CSS editor
  */
 const DisplayModalContent: React.FC = () => {
   const { t } = useTranslation();
   const viewMode = useSettingsViewMode();
   const isPageMode = viewMode === 'page';
-
-  // 渲染折叠面板的展开/收起图标 / Render expand/collapse icon for collapse panel
-  const renderExpandIcon = (active: boolean) => (active ? <Up theme='outline' size='16' fill='var(--text-secondary)' /> : <Down theme='outline' size='16' fill='var(--text-secondary)' />);
 
   // 显示设置项配置 / Display items configuration
   const displayItems = [
@@ -70,13 +63,6 @@ const DisplayModalContent: React.FC = () => {
               ))}
             </div>
           </div>
-
-          {/* CSS 主题设置 / CSS Theme Settings - Collapsible */}
-          <AionCollapse className='!bg-transparent !py-0 !px-0 !gap-0' bordered={false} defaultActiveKey={['css']} expandIcon={renderExpandIcon} expandIconPosition='right'>
-            <AionCollapse.Item name='css' header={<span className='text-14px text-t-primary leading-22px'>{t('settings.cssSettings')}</span>} className='bg-2 rd-16px px-16px md:px-24px lg:px-28px py-12px md:py-14px' headerClassName='py-4px' contentStyle={{ padding: '10px 0 0' }}>
-              <CssThemeSettings />
-            </AionCollapse.Item>
-          </AionCollapse>
         </div>
       </AionScrollArea>
     </div>

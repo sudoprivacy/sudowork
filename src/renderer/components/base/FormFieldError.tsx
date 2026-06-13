@@ -32,15 +32,9 @@ const FormFieldError: React.FC<FormFieldErrorProps> = ({ message, className, sho
   }
 
   return (
-    <div
-      className={classNames('form-field-error', className)}
-      role="alert"
-      aria-live="polite"
-    >
-      {showIcon && (
-        <Close size={12} className="flex-shrink-0" />
-      )}
-      <span className="form-field-error__text">{message}</span>
+    <div className={classNames('form-field-error', className)} role='alert' aria-live='polite'>
+      {showIcon && <Close size={12} className='flex-shrink-0' />}
+      <span className='break-words'>{message}</span>
     </div>
   );
 };

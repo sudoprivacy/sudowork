@@ -434,10 +434,10 @@ const ModelModalContent: React.FC = () => {
       <div className='flex-shrink-0 border-b border-[var(--color-border-2)] pb-12px mb-14px flex items-center justify-between gap-8px flex-wrap'>
         <div className='text-20px font-600 text-t-primary leading-34px'>{t('settings.model')}</div>
         <div className='flex items-center gap-8px flex-wrap'>
-          <Button type='outline' shape='round' size='small' onClick={clearAllHealthData} className='rd-100px border-1 border-solid border-[var(--color-border-2)] h-34px px-14px text-t-secondary hover:text-t-primary'>
+          <Button type='outline' shape='round' size='small' onClick={clearAllHealthData} className='rd-100px h-34px px-14px'>
             {t('settings.clearStatus')}
           </Button>
-          <Button type='outline' shape='round' icon={<Plus size='16' />} onClick={() => addPlatformModalCtrl.open()} className='rd-100px border-1 border-solid border-[var(--color-border-2)] h-34px px-14px text-t-secondary hover:text-t-primary'>
+          <Button type='outline' shape='round' icon={<Plus size='16' />} onClick={() => addPlatformModalCtrl.open()} className='rd-100px h-34px px-14px'>
             {t('settings.addModel')}
           </Button>
         </div>

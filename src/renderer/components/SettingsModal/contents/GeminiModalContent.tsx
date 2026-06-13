@@ -164,7 +164,7 @@ const GeminiModalContent: React.FC = () => {
                         <span className='text-14px text-t-primary'>{props.googleAccount}</span>
                         <Button
                           size='small'
-                          className='rd-100px border-1 border-[#86909C]'
+                          className='rd-100px'
                           shape='round'
                           type='outline'
                           onClick={() => {

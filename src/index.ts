@@ -39,7 +39,7 @@ import { startWebServer } from './webserver';
 import { SERVER_CONFIG } from './webserver/config/constants';
 import { applyZoomToWindow } from './process/utils/zoom';
 import i18n from '@process/i18n';
-import { mainLog, mainWarn, mainError } from './process/utils/mainLogger';
+import { mainLog, mainError } from './process/utils/mainLogger';
 import { isNightlyBuild } from './common/buildInfo';
 // @ts-expect-error - electron-squirrel-startup doesn't have types
 import electronSquirrelStartup from 'electron-squirrel-startup';
@@ -463,8 +463,11 @@ const getTrayIcon = (): Electron.NativeImage => {
   }
 
   if (process.platform === 'darwin') {
-    // macOS: 使用 16x16 的彩色应用图标 / Use 16x16 colored app icon
-    return icon.resize({ width: 16, height: 16 });
+    // macOS: 使用 16x16 的 Template 图标，由系统按菜单栏深浅自动渲染黑/白
+    // macOS: use a 16x16 template image so the system auto-renders black/white per menu bar appearance
+    const trayIcon = icon.resize({ width: 16, height: 16 });
+    trayIcon.setTemplateImage(true);
+    return trayIcon;
   }
   // Windows/Linux: 使用 32x32 图标确保清晰可见 / Use 32x32 icon for clear visibility
   return icon.resize({ width: 32, height: 32 });

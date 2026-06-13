@@ -44,7 +44,7 @@ const WorkspaceCollapse: React.FC<WorkspaceCollapseProps> = ({ expanded, onToggl
       )}
 
       {/* 折叠内容 - 侧栏折叠时移除左边距 */}
-      {showContent && <div className={classNames('workspace-collapse-content min-w-0', { 'ml-8px': !siderCollapsed })}>{children}</div>}
+      {showContent && <div className={classNames('workspace-collapse-content min-w-0', { 'ml-2': !siderCollapsed })}>{children}</div>}
     </div>
   );
 };

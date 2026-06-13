@@ -53,6 +53,8 @@ const SendBox: React.FC<{
   supportedExts?: string[];
   defaultMultiLine?: boolean;
   lockMultiLine?: boolean;
+  /** Whether an element (e.g. ThoughtDisplay) is attached above the box, squaring the top corners */
+  topAttached?: boolean;
   sendButtonPrefix?: React.ReactNode;
   slashCommands?: SlashCommandItem[];
   onSlashBuiltinCommand?: (name: string) => void;
@@ -63,7 +65,7 @@ const SendBox: React.FC<{
   workspaceFiles?: WorkspaceFileItem[];
   /** Called when a file is selected via @ selector, allowing parent to track the file */
   onAtFileSelected?: (file: WorkspaceFileItem) => void;
-}> = ({ onSend, onStop, prefix, className, loading, tools, disabled, placeholder, value: input = '', onChange: setInput = constVoid, onFilesAdded, supportedExts = allSupportedExts, defaultMultiLine = false, lockMultiLine = false, sendButtonPrefix, slashCommands = [], onSlashBuiltinCommand, onSkillsChange, initialSelectedSkills = [], workspaceFiles, onAtFileSelected }) => {
+}> = ({ onSend, onStop, prefix, className, loading, tools, disabled, placeholder, value: input = '', onChange: setInput = constVoid, onFilesAdded, supportedExts = allSupportedExts, defaultMultiLine = false, lockMultiLine = false, topAttached = false, sendButtonPrefix, slashCommands = [], onSlashBuiltinCommand, onSkillsChange, initialSelectedSkills = [], workspaceFiles, onAtFileSelected }) => {
   const layout = useLayoutContext();
   const isMobile = layout?.isMobile ?? false;
   const { t } = useTranslation();
@@ -404,7 +406,7 @@ const SendBox: React.FC<{
   // Skill trigger button - shown when running in Electron desktop
   const skillTriggerButton = isElectronDesktop() ? (
     <Tooltip content={t('conversation.welcome.addSkill', { defaultValue: '添加技能 / 文件' })} position='top'>
-      <span className='inline-flex ml-8px'>
+      <span className='inline-flex ml-3'>
         <ActionChip icon={<span className='text-14px font-700 leading-none'>@</span>} label={t('messages.skills.triggerLabel', { defaultValue: 'Skills / Files' })} onClick={handleTriggerSkillSelector} />
       </span>
     </Tooltip>
@@ -507,11 +509,6 @@ const SendBox: React.FC<{
 
   // Calculate button disabled state and style
   const isButtonDisabled = disabled || isStopping || (!input.trim() && domSnippets.length === 0);
-  const buttonStyle = {
-    backgroundColor: isButtonDisabled ? undefined : 'var(--ui-accent-orange)',
-    borderColor: isButtonDisabled ? undefined : 'var(--ui-accent-orange)',
-    boxShadow: isButtonDisabled ? undefined : '0 8px 18px rgba(var(--ui-accent-orange-rgb),0.24)',
-  };
 
   // Reusable send button component
   const sendButton = (
@@ -519,9 +516,7 @@ const SendBox: React.FC<{
       shape='circle'
       type='primary'
       disabled={isButtonDisabled}
-      className='send-button-custom'
-      style={buttonStyle}
-      icon={<ArrowUp theme='filled' size='14' fill='white' strokeWidth={5} />}
+      icon={<ArrowUp theme='filled' fill='white' strokeWidth={4} />}
       onClick={() => {
         sendMessageHandler();
       }}
@@ -536,15 +531,17 @@ const SendBox: React.FC<{
         className={`relative p-16px border-3 b bg-dialog-fill-0 b-solid flex flex-col ${slashController.isOpen || skillSelectorController.isOpen ? 'overflow-visible' : 'overflow-hidden'} ${isFileDragging ? 'b-dashed' : ''}`}
         style={{
           transition: 'box-shadow 0.25s ease, border-color 0.25s ease',
-          borderRadius: '0 0 20px 20px',
+          borderRadius: topAttached ? '0 0 20px 20px' : '20px',
           ...(isFileDragging
             ? {
                 backgroundColor: 'rgba(var(--ui-accent-orange-rgb), 0.08)',
                 borderColor: 'rgba(var(--ui-accent-orange-rgb), 0.42)',
                 borderWidth: '1px',
+                borderTopWidth: topAttached ? 0 : '1px',
               }
             : {
                 borderWidth: '1px',
+                borderTopWidth: topAttached ? 0 : '1px',
                 borderColor: isInputActive ? activeBorderColor : inactiveBorderColor,
                 boxShadow: isInputActive ? activeShadow : 'none',
               }),
@@ -722,7 +719,7 @@ const SendBox: React.FC<{
             })}
           ></Input.TextArea>
           {isSingleLine && (
-            <div className='flex items-center gap-2'>
+            <div className='flex items-center gap-3'>
               {sendButtonPrefix}
               {isLoading || loading ? <Button shape='circle' type='secondary' className='bg-animate' disabled={isStopping} icon={<div className='mx-auto size-12px bg-6'></div>} onClick={stopHandler}></Button> : sendButton}
             </div>
@@ -734,7 +731,7 @@ const SendBox: React.FC<{
               {tools}
               {skillTriggerButton}
             </div>
-            <div className='flex items-center gap-2'>
+            <div className='flex items-center gap-3'>
               {sendButtonPrefix}
               {isLoading || loading ? <Button shape='circle' type='secondary' className='bg-animate' disabled={isStopping} icon={<div className='mx-auto size-12px bg-6'></div>} onClick={stopHandler}></Button> : sendButton}
             </div>

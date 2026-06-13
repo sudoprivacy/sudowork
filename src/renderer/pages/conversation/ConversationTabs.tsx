@@ -53,7 +53,7 @@ const ConversationTabView: React.FC<ConversationTabViewProps> = ({ tabId, tabNam
           theme='outline'
           size='14'
           fill={iconColors.secondary}
-          className='shrink-0 transition-all duration-200 hover:fill-[rgb(var(--danger-6))]'
+          className='shrink-0 transition-all duration-200 hover:fill-danger'
           onClick={(event) => {
             event.stopPropagation();
             onClose(tabId);

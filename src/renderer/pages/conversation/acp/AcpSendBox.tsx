@@ -11,7 +11,7 @@ import { useAddOrUpdateMessage, useUpdateMessageList } from '@/renderer/messages
 import { allSupportedExts } from '@/renderer/services/FileService';
 import { emitter, useAddEventListener } from '@/renderer/utils/emitter';
 import { mergeFileSelectionItems } from '@/renderer/utils/fileSelection';
-import { Button, Dropdown, Menu, Message, Tag } from '@arco-design/web-react';
+import { Button, Dropdown, Message, Tag } from '@arco-design/web-react';
 import { Plus, Shield, UploadOne } from '@icon-park/react';
 import { iconColors } from '@/renderer/theme/colors';
 import BdpanLogo from '@/renderer/assets/logos/bdpan.png';
@@ -235,7 +235,6 @@ const useAcpMessage = (conversation_id: string) => {
             hasContentInTurnRef.current = false;
             // Log request completion
             if (requestTraceRef.current) {
-              const duration = Date.now() - requestTraceRef.current.startTime;
               requestTraceRef.current = null;
             }
           }
@@ -361,7 +360,6 @@ const useAcpMessage = (conversation_id: string) => {
           addOrUpdateMessage(transformedMessage);
           // Log request error
           if (requestTraceRef.current) {
-            const duration = Date.now() - requestTraceRef.current.startTime;
             requestTraceRef.current = null;
           }
           break;
@@ -693,7 +691,9 @@ const AcpSendBox: React.FC<{
       }
     };
 
-    sendInitialMessage().catch((error) => {});
+    sendInitialMessage().catch((error) => {
+      console.error('Failed to send initial message:', error);
+    });
   }, [conversation_id, backend, checkAndUpdateTitle, addOrUpdateMessageRef, beginProcessing, resetState]);
 
   const onSendHandler = async (message: string, skills?: string[]) => {
@@ -732,7 +732,7 @@ const AcpSendBox: React.FC<{
 
     // Send message via ACP
     try {
-      const result = await ipcBridge.acpConversation.sendMessage.invoke({
+      await ipcBridge.acpConversation.sendMessage.invoke({
         input: message,
         msg_id,
         conversation_id,
@@ -791,8 +791,8 @@ const AcpSendBox: React.FC<{
   const { openFileSelector, onSlashBuiltinCommand } = useOpenFileSelector({
     onFilesSelected: appendSelectedFiles,
   });
-  const [isPlusDropdownOpen, setIsPlusDropdownOpen] = useState(false);
   const [bdpanSelectorVisible, setBdpanSelectorVisible] = useState(false);
+  const [fileMenuOpen, setFileMenuOpen] = useState(false);
   const [pwdLoginModal, setPwdLoginModal] = useState<{ visible: boolean; title: string }>({ visible: false, title: '' });
   const [messageApi, messageContextHolder] = Message.useMessage();
   const messageApiRef = useRef(messageApi);
@@ -859,6 +859,8 @@ const AcpSendBox: React.FC<{
     }
   };
 
+  const selectedFileCount = filterUserVisibleFiles(uploadFile).length + filterUserVisibleAtPath(atPath).filter((item) => (typeof item === 'string' ? true : item.isFile)).length;
+
   return (
     <div className='max-w-800px w-full mx-auto flex flex-col mt-auto mb-16px'>
       {messageContextHolder}
@@ -870,6 +872,7 @@ const AcpSendBox: React.FC<{
         initialSelectedSkills={selectedSkills}
         loading={running || aiProcessing}
         disabled={false}
+        topAttached={Boolean(thought?.subject) || running || aiProcessing}
         placeholder={t('acp.sendbox.placeholder', { backend: agentName || backend, defaultValue: `Send message to {{backend}}...` })}
         onStop={handleStop}
         className='z-10'
@@ -878,41 +881,42 @@ const AcpSendBox: React.FC<{
         defaultMultiLine={true}
         lockMultiLine={true}
         tools={
-          <div className='flex items-center gap-4px'>
+          <div className='flex items-center gap-3'>
             <Dropdown
-              trigger='hover'
-              onVisibleChange={setIsPlusDropdownOpen}
+              trigger='click'
+              popupVisible={fileMenuOpen}
+              onVisibleChange={setFileMenuOpen}
               droplist={
-                <Menu
-                  className='min-w-200px'
-                  onClickMenuItem={(key) => {
-                    if (key === 'file') {
+                <div className='flex flex-col gap-2px p-6px rd-12px border border-solid border-[var(--border-base)] bg-popup' style={{ minWidth: 200, boxShadow: '0 8px 28px rgba(0, 0, 0, 0.12)' }}>
+                  <div
+                    className='flex items-center gap-10px px-10px h-38px rd-8px cursor-pointer text-14px text-t-primary transition-colors hover:bg-hover active:bg-active'
+                    onClick={() => {
+                      setFileMenuOpen(false);
                       openFileSelector();
-                    } else if (key === 'bdpan') {
+                    }}
+                  >
+                    <UploadOne theme='outline' size='16' fill={iconColors.secondary} style={{ lineHeight: 0 }} />
+                    <span>{t('conversation.welcome.downloadLocalFile')}</span>
+                  </div>
+                  <div
+                    className='flex items-center gap-10px px-10px h-38px rd-8px cursor-pointer text-14px text-t-primary transition-colors hover:bg-hover active:bg-active'
+                    onClick={() => {
+                      setFileMenuOpen(false);
                       setBdpanSelectorVisible(true);
-                    }
-                  }}
-                >
-                  <Menu.Item key='file'>
-                    <div className='flex items-center gap-8px'>
-                      <UploadOne theme='outline' size='16' fill={iconColors.secondary} style={{ lineHeight: 0 }} />
-                      <span>{t('conversation.welcome.downloadLocalFile')}</span>
-                    </div>
-                  </Menu.Item>
-                  <Menu.Item key='bdpan'>
-                    <div className='flex items-center gap-8px'>
-                      <img src={BdpanLogo} alt='Bdpan' style={{ width: 16, height: 16 }} />
-                      <span>{t('conversation.welcome.downloadBdpanFile')}</span>
-                    </div>
-                  </Menu.Item>
-                </Menu>
+                    }}
+                  >
+                    <img src={BdpanLogo} alt='Bdpan' style={{ width: 16, height: 16 }} />
+                    <span>{t('conversation.welcome.downloadBdpanFile')}</span>
+                  </div>
+                </div>
               }
             >
-              <span>
-                <Button type='secondary' shape='circle' className={isPlusDropdownOpen ? 'rotate-45' : ''} icon={<Plus theme='outline' size='14' strokeWidth={2} fill={iconColors.primary} />} />
+              <span className='relative'>
+                <Button shape='circle' type='secondary' title={t('conversation.welcome.downloadLocalFile')} icon={<Plus theme='outline' strokeWidth={4} fill={iconColors.secondary} />} />
+                {selectedFileCount > 0 && <span className='absolute -right-3px -top-3px flex-center min-w-14px h-14px rounded-full bg-[var(--ui-accent-orange)] px-3px text-9px text-white font-600 pointer-events-none'>{selectedFileCount}</span>}
               </span>
             </Dropdown>
-            <AgentModeSelector backend={backend} conversationId={conversation_id} compact initialMode={sessionMode} compactLeadingIcon={<Shield theme='outline' size='14' fill={iconColors.secondary} />} modeLabelFormatter={(mode) => t(`agentMode.${mode.value}`, { defaultValue: mode.label })} compactLabelPrefix={t('agentMode.permission')} hideCompactLabelPrefixOnMobile />
+            <AgentModeSelector backend={backend} conversationId={conversation_id} compact initialMode={sessionMode} compactLeadingIcon={<Shield theme='outline' fill='currentColor' />} modeLabelFormatter={(mode) => t(`agentMode.${mode.value}`, { defaultValue: mode.label })} compactLabelPrefix={t('agentMode.permission')} hideCompactLabelPrefixOnMobile />
             <AcpConfigSelector conversationId={conversation_id} backend={backend} />
           </div>
         }
@@ -986,7 +990,7 @@ const AcpSendBox: React.FC<{
         onSkillsChange={(skills) => {
           setSelectedSkills(skills);
         }}
-        sendButtonPrefix={tokenUsage ? <ContextUsageIndicator tokenUsage={tokenUsage} contextLimit={contextLimit > 0 ? contextLimit : undefined} size={24} /> : undefined}
+        sendButtonPrefix={tokenUsage ? <ContextUsageIndicator tokenUsage={tokenUsage} contextLimit={contextLimit > 0 ? contextLimit : undefined} size={18} /> : undefined}
         workspaceFiles={workspaceFiles}
         onAtFileSelected={(file) => {
           const item: FileOrFolderItem = {

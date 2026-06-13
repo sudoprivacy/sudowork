@@ -117,7 +117,7 @@ const AvatarSelectorModal: React.FC<AvatarSelectorModalProps> = ({ visible, onCl
         ),
       }}
     >
-      <div className='avatar-selector-body'>
+      <div className='mt-4'>
         {/* ========== AI 生成 ========== */}
         <div className='avatar-selector-section'>
           <div className='avatar-selector-section-label'>

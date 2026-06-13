@@ -5,26 +5,24 @@
  */
 
 import { ipcBridge } from '@/common';
-import { ConfigStorage, type ICssTheme } from '@/common/storage';
+import { ConfigStorage } from '@/common/storage';
 import PwaPullToRefresh from '@/renderer/components/PwaPullToRefresh';
 import CommandPalette from '@/renderer/components/CommandPalette';
 import { useCommandPalette } from '@/renderer/hooks/useCommandPalette';
 import Titlebar from '@/renderer/components/Titlebar';
 import { Layout as ArcoLayout } from '@arco-design/web-react';
-import { MenuFold, MenuUnfold } from '@icon-park/react';
+import { ExpandLeft, ExpandRight } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Outlet, useLocation } from 'react-router-dom';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { LayoutContext } from './context/LayoutContext';
 import { useTenantConfig } from './context/TenantConfigContext';
 import { useDeepLink } from './hooks/useDeepLink';
 import { useDirectorySelection } from './hooks/useDirectorySelection';
 import { useMultiAgentDetection } from './hooks/useMultiAgentDetection';
-import { processCustomCss } from './utils/customCssProcessor';
 import { cleanupSiderTooltips } from './utils/siderTooltip';
+import { emitter } from './utils/emitter';
 import { isElectronDesktop } from './utils/platform';
-import { computeCssSyncDecision, resolveCssByActiveTheme } from './utils/themeCssSync';
-import { DEFAULT_THEME_ID } from './components/CssThemeSettings/presets';
 import SudoworkIcon from './assets/sudowork-icon-dark.svg';
 const useDebug = () => {
   const [count, setCount] = useState(0);
@@ -87,144 +85,25 @@ const Layout: React.FC<{
   const [collapsed, setCollapsed] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [viewportWidth, setViewportWidth] = useState<number>(() => (typeof window === 'undefined' ? 390 : window.innerWidth));
-  const [customCss, setCustomCss] = useState<string>('');
-  const [shouldMountUpdateModal, setShouldMountUpdateModal] = useState(false);
   const { onClick } = useDebug();
+  const navigate = useNavigate();
+  // 点击侧栏顶部 logo / 应用名时回到新会话页，行为与「新会话」按钮一致
+  // Clicking the sidebar-top logo / app name returns to the new conversation page, matching the "New Chat" button
+  const goToNewConversation = useCallback(() => {
+    cleanupSiderTooltips();
+    // 清除持久化的 agent 选择，确保新会话时不恢复之前的助手
+    void ConfigStorage.set('guid.lastSelectedAgent', '');
+    // 触发 Guide 页面重置所有用户输入状态
+    emitter.emit('guid.reset');
+    void navigate('/guid');
+    if (isMobile) setCollapsed(true);
+  }, [navigate, isMobile]);
   const { contextHolder: multiAgentContextHolder } = useMultiAgentDetection();
   const { contextHolder: directorySelectionContextHolder } = useDirectorySelection();
   useDeepLink();
   const location = useLocation();
   const workspaceAvailable = location.pathname.startsWith('/conversation/');
   const collapsedRef = useRef(collapsed);
-  const lastCssRef = useRef('');
-  const lastUiCssUpdateAtRef = useRef(0);
-
-  const loadAndHealCustomCss = useCallback(async () => {
-    try {
-      const [savedCssRaw, activeThemeId, savedThemes] = await Promise.all([ConfigStorage.get('customCss'), ConfigStorage.get('css.activeThemeId'), ConfigStorage.get('css.themes')]);
-
-      const decision = computeCssSyncDecision({
-        savedCss: savedCssRaw || '',
-        activeThemeId: activeThemeId || '',
-        savedThemes: (savedThemes || []) as ICssTheme[],
-        currentUiCss: customCss,
-        lastUiCssUpdateAt: lastUiCssUpdateAtRef.current,
-      });
-
-      if (decision.shouldSkipApply) {
-        return;
-      }
-
-      let effectiveCss = decision.effectiveCss;
-
-      // First launch (nothing saved yet) vs. a saved activeThemeId that no longer
-      // maps to a known theme: in both cases the resolved CSS is empty. Fall back to
-      // the Default theme and persist it, mirroring what CssThemeSettings does on
-      // mount. Without this, a fresh install renders with NO theme variables until
-      // the user opens Settings → Display, which left some surfaces (notably the
-      // terminal) using unreadable fallback colors.
-      const isFirstLaunch = !savedCssRaw && !activeThemeId;
-      if (!effectiveCss && (isFirstLaunch || (activeThemeId && activeThemeId !== DEFAULT_THEME_ID))) {
-        const defaultCss = resolveCssByActiveTheme(DEFAULT_THEME_ID, (savedThemes || []) as ICssTheme[]);
-        effectiveCss = defaultCss;
-        // Persist the fallback so Layout doesn't keep retrying
-        await Promise.all([ConfigStorage.set('css.activeThemeId', DEFAULT_THEME_ID), ConfigStorage.set('customCss', effectiveCss)]).catch((error) => {
-          console.warn('Failed to persist theme fallback:', error);
-        });
-      } else if (decision.shouldHealStorage) {
-        await ConfigStorage.set('customCss', effectiveCss).catch((error) => {
-          console.warn('Failed to heal custom CSS from active theme:', error);
-        });
-      }
-
-      setCustomCss(effectiveCss);
-      if (lastCssRef.current !== effectiveCss) {
-        lastCssRef.current = effectiveCss;
-        window.dispatchEvent(new CustomEvent('custom-css-updated', { detail: { customCss: effectiveCss } }));
-      }
-    } catch (error) {
-      console.error('Failed to load or heal custom CSS:', error);
-    }
-  }, [customCss]);
-
-  // 加载并监听自定义 CSS 配置 / Load & watch custom CSS configuration
-  useEffect(() => {
-    void loadAndHealCustomCss();
-
-    const handleCssUpdate = (event: CustomEvent) => {
-      if (event.detail?.customCss !== undefined) {
-        const css = event.detail.customCss || '';
-        lastCssRef.current = css;
-        lastUiCssUpdateAtRef.current = Date.now();
-        setCustomCss(css);
-      }
-    };
-    const handleStorageChange = (event: StorageEvent) => {
-      if (event.key && (event.key.includes('customCss') || event.key.includes('css.activeThemeId'))) {
-        void loadAndHealCustomCss();
-      }
-    };
-
-    window.addEventListener('custom-css-updated', handleCssUpdate as EventListener);
-    window.addEventListener('storage', handleStorageChange);
-
-    return () => {
-      window.removeEventListener('custom-css-updated', handleCssUpdate as EventListener);
-      window.removeEventListener('storage', handleStorageChange);
-    };
-  }, [loadAndHealCustomCss]);
-
-  // Re-sync theme css on route changes, because some settings pages do not mount CssThemeSettings.
-  useEffect(() => {
-    void loadAndHealCustomCss();
-  }, [location.pathname, location.search, location.hash, loadAndHealCustomCss]);
-
-  // 注入自定义 CSS / Inject custom CSS into document head
-  useEffect(() => {
-    const styleId = 'user-defined-custom-css';
-
-    if (!customCss) {
-      document.getElementById(styleId)?.remove();
-      return;
-    }
-
-    const wrappedCss = processCustomCss(customCss);
-
-    const ensureStyleAtEnd = () => {
-      let styleEl = document.getElementById(styleId) as HTMLStyleElement | null;
-
-      if (styleEl && styleEl.textContent === wrappedCss && styleEl === document.head.lastElementChild) {
-        return;
-      }
-
-      styleEl?.remove();
-      styleEl = document.createElement('style');
-      styleEl.id = styleId;
-      styleEl.type = 'text/css';
-      styleEl.textContent = wrappedCss;
-      document.head.appendChild(styleEl);
-    };
-
-    ensureStyleAtEnd();
-
-    const observer = new MutationObserver((mutations) => {
-      const hasNewStyle = mutations.some((mutation) => Array.from(mutation.addedNodes).some((node) => node.nodeName === 'STYLE' || node.nodeName === 'LINK'));
-
-      if (hasNewStyle) {
-        const element = document.getElementById(styleId);
-        if (element && element !== document.head.lastElementChild) {
-          ensureStyleAtEnd();
-        }
-      }
-    });
-
-    observer.observe(document.head, { childList: true });
-
-    return () => {
-      observer.disconnect();
-      document.getElementById(styleId)?.remove();
-    };
-  }, [customCss]);
 
   // 检测移动端并响应窗口大小变化
   useEffect(() => {
@@ -310,36 +189,58 @@ const Layout: React.FC<{
                 : undefined
             }
           >
-            <ArcoLayout.Header
-              className={classNames('flex items-center justify-start py-8px px-16px pl-18px gap-10px layout-sider-header', isMobile && 'layout-sider-header--mobile', {
-                'cursor-pointer group ': collapsed,
-              })}
-            >
+            <ArcoLayout.Header className={classNames('flex items-center justify-start py-8px px-16px pl-18px gap-10px layout-sider-header', isMobile && 'layout-sider-header--mobile')}>
               <div
                 className={classNames('shrink-0 size-34px relative rd-0.5rem flex items-center justify-center', {
-                  '!size-24px': collapsed,
+                  // hover 区域限定在 logo 盒子本身，避免收起动画时侧栏边缘扫过指针误触发 hover
+                  // Scope the hover group to the logo box so the collapsing edge sweeping under the cursor won't trigger it
+                  '!size-24px group cursor-pointer': collapsed,
                 })}
-                onClick={onClick}
+                // 收起态（桌面端）点击 logo 区域即展开侧栏；展开态/移动端点击回到新会话页（保留调试三连击入口）
+                // Collapsed (desktop): clicking the logo expands the sidebar; expanded/mobile: go to the new conversation page (debug triple-tap preserved)
+                onClick={
+                  collapsed && !isMobile
+                    ? () => setCollapsed(false)
+                    : () => {
+                        onClick();
+                        goToNewConversation();
+                      }
+                }
+                aria-label={collapsed && !isMobile ? 'Expand sidebar' : 'New conversation'}
               >
                 <img
                   src={config.logo || SudoworkIcon}
                   alt={config.app_name}
-                  className={classNames('absolute inset-0 m-auto', {
+                  className={classNames('absolute inset-0 m-auto transition-opacity', {
                     'w-5 h-5 p-0.5 scale-130': !collapsed,
                     'w-4 h-4 p-0.5': collapsed,
+                    // 收起态 hover 时淡出 logo，露出展开图标 / Fade logo out on hover to reveal expand icon
+                    'group-hover:opacity-0': collapsed && !isMobile,
                   })}
                   style={{ objectFit: 'contain' }}
                 />
+                {collapsed && !isMobile && (
+                  <span className='absolute inset-0 flex items-center justify-center text-1 opacity-0 transition-opacity group-hover:opacity-100'>
+                    <ExpandLeft theme='outline' size='18' fill='currentColor' />
+                  </span>
+                )}
               </div>
-              <div className='flex-1 text-18px text-1 collapsed-hidden font-700'>{config.app_name}</div>
-              {isMobile && !collapsed && (
-                <button type='button' className='app-titlebar__button' onClick={() => setCollapsed(true)} aria-label='Collapse sidebar'>
-                  {collapsed ? <MenuUnfold theme='outline' size='18' fill='currentColor' /> : <MenuFold theme='outline' size='18' fill='currentColor' />}
+              <div className='flex-1 text-20px text-1 collapsed-hidden font-800 cursor-pointer' onClick={goToNewConversation}>
+                {config.app_name}
+              </div>
+              {/* 桌面端展开态：logo 右侧收起按钮 / Desktop expanded: collapse button to the right of the logo */}
+              {!isMobile && !collapsed && (
+                <button type='button' className='shrink-0 size-28px flex items-center justify-center rd-6px text-1 border-none bg-transparent cursor-pointer transition-colors hover:bg-[var(--bg-hover)]' onClick={() => setCollapsed(true)} aria-label='Collapse sidebar'>
+                  <ExpandRight theme='outline' size='18' fill='currentColor' />
                 </button>
               )}
-              {/* 侧栏折叠改由标题栏统一控制 / Sidebar folding handled by Titlebar toggle */}
+              {isMobile && !collapsed && (
+                <button type='button' className='app-titlebar__button' onClick={() => setCollapsed(true)} aria-label='Collapse sidebar'>
+                  <ExpandRight theme='outline' size='18' fill='currentColor' />
+                </button>
+              )}
             </ArcoLayout.Header>
-            <ArcoLayout.Content className={classNames('p-10px layout-sider-content', !isMobile && 'h-[calc(100%-58px-16px)]')}>
+            <ArcoLayout.Content className='p-10px layout-sider-content'>
               {React.isValidElement(sider)
                 ? React.cloneElement(sider, {
                     onSessionClick: () => {
