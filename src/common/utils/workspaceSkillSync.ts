@@ -46,9 +46,10 @@ export function shouldSyncWorkspaceSkills(conversation?: TChatConversation, requ
     return false;
   }
 
-  if (conversation.type === 'openclaw-gateway') {
-    return true;
-  }
+  // NOTE: legacy 'openclaw-gateway' conversations are migrated to acp + scode
+  // (see initStorage / CronService), and the type is no longer part of the
+  // TChatConversation union — so a dead `=== 'openclaw-gateway'` branch was removed
+  // here. Migrated conversations are covered by the acp + scode case below.
 
   if (conversation.type === 'acp' && conversation.extra?.backend === 'claude') {
     return true;
