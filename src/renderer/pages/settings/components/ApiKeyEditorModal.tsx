@@ -197,7 +197,7 @@ const ApiKeyEditorModal: React.FC<ApiKeyEditorModalProps> = ({ visible, apiKeys,
         </div>
 
         {/* 底部操作栏 */}
-        <div className='flex items-center justify-between pt-3 border-t border-t-solid border-t-[var(--color-border-2)]'>
+        <div className='flex items-center justify-between pt-3 border-t border-solid border-[var(--color-border-2)]'>
           <span className='text-11px text-t-secondary'>{t('settings.multiKeyTip')}</span>
           <div className='flex items-center gap-2'>
             {hasMultipleKeys && (
