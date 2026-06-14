@@ -17,7 +17,6 @@ import useSWR from 'swr';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
 import { useShowToolCalls } from '@/renderer/hooks/useShowToolCalls';
-import { useSettingsViewMode } from '../settingsViewContext';
 
 /** Default prompt timeout in seconds */
 const DEFAULT_PROMPT_TIMEOUT = 300;
@@ -121,8 +120,6 @@ const SystemModalContent: React.FC = () => {
   const [form] = Form.useForm();
   const [modal, modalContextHolder] = Modal.useModal();
   const [error, setError] = useState<string | null>(null);
-  const viewMode = useSettingsViewMode();
-  const isPageMode = viewMode === 'page';
   const { isEnterprise } = useAppMode();
   const initializingRef = useRef(true);
 
@@ -388,6 +385,7 @@ const SystemModalContent: React.FC = () => {
   ];
 
   // 目录配置保存确认 / Directory configuration save confirmation
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const saveDirConfigValidate = (_values: { cacheDir: string; workDir: string }): Promise<unknown> => {
     return new Promise((resolve, reject) => {
       modal.confirm({
@@ -444,7 +442,7 @@ const SystemModalContent: React.FC = () => {
       <ProductImprovementDialog visible={showProductImprovementDialog} onClose={handleProductImprovementDialogClose} />
 
       {/* 内容区域 / Content Area */}
-      <AionScrollArea className='flex-1 min-h-0 pb-16px' disableOverflow={isPageMode}>
+      <AionScrollArea className='flex-1 min-h-0 pb-16px' disableOverflow>
         <div className='space-y-16px'>
           {/* 偏好设置与高级设置合并展示 / Combined preferences and advanced settings */}
           <div className='px-[12px] md:px-[32px] py-16px bg-2 rd-16px space-y-12px'>

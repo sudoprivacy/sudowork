@@ -9,7 +9,6 @@ import { useTranslation } from 'react-i18next';
 import FontSizeControl from '@/renderer/components/FontSizeControl';
 import { ThemeSwitcher } from '@/renderer/components/ThemeSwitcher';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
-import { useSettingsViewMode } from '../settingsViewContext';
 
 /**
  * 偏好设置行组件 / Preference row component
@@ -39,8 +38,6 @@ const PreferenceRow: React.FC<{
  */
 const DisplayModalContent: React.FC = () => {
   const { t } = useTranslation();
-  const viewMode = useSettingsViewMode();
-  const isPageMode = viewMode === 'page';
 
   // 显示设置项配置 / Display items configuration
   const displayItems = [
@@ -51,7 +48,7 @@ const DisplayModalContent: React.FC = () => {
   return (
     <div className='flex flex-col h-full w-full'>
       {/* 内容区域 / Content Area */}
-      <AionScrollArea className='flex-1 min-h-0 pb-16px' disableOverflow={isPageMode}>
+      <AionScrollArea className='flex-1 min-h-0 pb-16px' disableOverflow>
         <div className='space-y-16px'>
           {/* 显示设置 / Display Settings */}
           <div className='px-16px md:px-24px lg:px-28px py-14px md:py-16px bg-2 rd-16px space-y-10px md:space-y-12px'>

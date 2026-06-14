@@ -13,11 +13,9 @@ import { useModelProviderList } from '@/renderer/hooks/useModelProviderList';
 import type { GeminiModelSelection } from '@/renderer/pages/conversation/gemini/useGeminiModelSelection';
 import { useGeminiModelSelection } from '@/renderer/pages/conversation/gemini/useGeminiModelSelection';
 import { Input, InputNumber, Message, Select, Switch } from '@arco-design/web-react';
-import classNames from 'classnames';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
-import { useSettingsViewMode } from '../settingsViewContext';
 import ChannelItem from './channels/ChannelItem';
 import type { ChannelConfig } from './channels/types';
 import DingTalkConfigForm from './DingTalkConfigForm';
@@ -139,9 +137,7 @@ const useChannelModelSelection = (configKey: ChannelModelConfigKey): GeminiModel
  */
 const ChannelModalContent: React.FC = () => {
   const { t } = useTranslation();
-  const viewMode = useSettingsViewMode();
   const { isEnterprise } = useAppMode();
-  const isPageMode = viewMode === 'page';
 
   // Plugin state
   const [pluginStatus, setPluginStatus] = useState<IChannelPluginStatus | null>(null);
@@ -835,8 +831,8 @@ const ChannelModalContent: React.FC = () => {
   const channelSetupSteps = [t('settings.channels.selectFirst', { defaultValue: 'Select a channel and configure credentials.' }), t('settings.channels.enableAfterConfig', { defaultValue: 'Enable it and start chatting with your AI agent.' })];
 
   return (
-    <AionScrollArea className={isPageMode ? 'h-full' : ''}>
-      <div className={classNames('mx-auto w-full max-w-820px pb-18px', isPageMode ? 'px-12px sm:px-16px md:px-0' : 'px-14px sm:px-18px md:px-24px')}>
+    <AionScrollArea className='h-full'>
+      <div className={'mx-auto w-full max-w-820px pb-18px px-12px sm:px-16px md:px-0'}>
         <h2 className='text-20px font-600 text-t-primary m-0'>{t('settings.channels.title', 'Channels')}</h2>
         <div className='space-y-8px mt-8px'>
           <div className='text-13px text-t-secondary leading-relaxed'>{channelGuideText}</div>

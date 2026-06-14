@@ -16,7 +16,6 @@ import { Button, Form, Input, Message, Switch, Tabs, Tooltip } from '@arco-desig
 import { CheckOne, Communication, Copy, Earth, EditTwo, Refresh } from '@icon-park/react';
 import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useSettingsViewMode } from '../settingsViewContext';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
 
 /**
@@ -56,8 +55,6 @@ const QRCodeSVGLazy = React.lazy(async () => {
  */
 const WebuiModalContent: React.FC = () => {
   const { t } = useTranslation();
-  const viewMode = useSettingsViewMode();
-  const isPageMode = viewMode === 'page';
   const { isEnterprise } = useAppMode();
   const [activeTab, setActiveTab] = useState<'channels' | 'secrets'>('channels');
   const handleTabChange = useCallback((key: string) => {
@@ -525,7 +522,7 @@ const WebuiModalContent: React.FC = () => {
   if (!isDesktop) {
     return (
       <div className='flex flex-col h-full w-full'>
-        <AionScrollArea className='flex-1 min-h-0 pb-16px' disableOverflow={isPageMode}>
+        <AionScrollArea className='flex-1 min-h-0 pb-16px' disableOverflow>
           <div className='space-y-16px'>
             <h2 className='text-20px font-500 text-t-primary m-0'>Channels</h2>
             <Suspense fallback={<div className='text-13px text-t-secondary'>{t('common.loading')}</div>}>
@@ -538,7 +535,7 @@ const WebuiModalContent: React.FC = () => {
   }
 
   const webuiPanel = (
-    <AionScrollArea className='flex-1 min-h-0 pb-16px' disableOverflow={isPageMode}>
+    <AionScrollArea className='flex-1 min-h-0 pb-16px' disableOverflow>
       <div className='space-y-12px px-[12px] md:px-[28px]'>
         {/* 标题 / Title */}
         <h2 className='text-20px font-500 text-t-primary m-0'>WebUI</h2>

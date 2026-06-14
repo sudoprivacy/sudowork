@@ -8,7 +8,6 @@ import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { ipcBridge } from '@/common';
 import { eeclaw, skillHub } from '@/common/ipcBridge';
 import { resolveSkillIcon, getInstalledSkillDisplay, normalizeSkillVersion, handleSkillIconError } from '@/renderer/utils/skillDisplay';
-import { useSettingsViewMode } from '../settingsViewContext';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, Spin, Message, Input, Progress, Modal, Popconfirm, Switch, Tooltip } from '@arco-design/web-react';
 import { Download, Search, Delete, Close, Shield, Lightning, UploadOne, Install, Share, Plus, Check } from '@icon-park/react';
@@ -565,8 +564,6 @@ const SkillDetailModal: React.FC<{
 const SkillModalContent: React.FC = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
-  const viewMode = useSettingsViewMode();
-  const isPageMode = viewMode === 'page';
   const navigate = useNavigate();
 
   // Tab state
@@ -1711,7 +1708,7 @@ const SkillModalContent: React.FC = () => {
           </div>
 
           {/* Skill grid */}
-          <AionScrollArea className='flex-1 min-h-0' disableOverflow={isPageMode} onScroll={handleScroll}>
+          <AionScrollArea className='flex-1 min-h-0' disableOverflow onScroll={handleScroll}>
             {/* Enterprise mode: show tenant skills from local tenant/ directory */}
             {activeTab === 'exclusive' && isEnterprise ? (
               filteredTenantSkills.length === 0 ? (
@@ -1824,7 +1821,7 @@ const SkillModalContent: React.FC = () => {
       {activeTab === 'installed' && (
         <>
           {/* Installed grid */}
-          <AionScrollArea className='flex-1 min-h-0' disableOverflow={isPageMode}>
+          <AionScrollArea className='flex-1 min-h-0' disableOverflow>
             {installedLoading ? (
               <div className='flex justify-center items-center py-48px'>
                 <Spin size={28} />

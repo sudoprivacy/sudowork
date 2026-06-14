@@ -27,7 +27,6 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/renderer/context/AuthContext';
 import useSWR, { mutate } from 'swr';
 import { useNavigate } from 'react-router-dom';
-import { useSettingsViewMode } from '../settingsViewContext';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
 import { emitter } from '@/renderer/utils/emitter';
 
@@ -682,8 +681,6 @@ const AssistantDetailModal: React.FC<{
 
 const AgentModalContent: React.FC = () => {
   const { t, i18n } = useTranslation();
-  const viewMode = useSettingsViewMode();
-  const isPageMode = viewMode === 'page';
   const [agentMessage, agentMessageContext] = Message.useMessage({ maxCount: 10 });
   const localeKey = resolveLocaleKey(i18n.language);
 
@@ -2101,7 +2098,7 @@ const AgentModalContent: React.FC = () => {
           </div>
 
           {/* Assistant grid */}
-          <AionScrollArea className='flex-1 min-h-0' disableOverflow={isPageMode} onScroll={handleHubScroll}>
+          <AionScrollArea className='flex-1 min-h-0' disableOverflow onScroll={handleHubScroll}>
             {/* Enterprise mode: show tenant assistants from local tenant/ directory */}
             {activeTab === 'exclusive' && isEnterprise ? (
               hubLoading ? (
@@ -2211,7 +2208,7 @@ const AgentModalContent: React.FC = () => {
 
       {/* ===== INSTALLED TAB ===== */}
       {activeTab === 'installed' && (
-        <AionScrollArea className='flex-1 min-h-0' disableOverflow={isPageMode}>
+        <AionScrollArea className='flex-1 min-h-0' disableOverflow>
           {assistants.length === 0 ? (
             <div className='flex flex-col items-center justify-center py-48px gap-8px'>
               <Robot theme='outline' size={32} className='text-t-tertiary' />

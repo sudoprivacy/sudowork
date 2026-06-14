@@ -22,7 +22,6 @@ import dayjs from 'dayjs';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { useSettingsViewMode } from '../settingsViewContext';
 import { useAppMode } from '@renderer/hooks/useAppMode';
 import { useEnterpriseSessionMode } from '@renderer/hooks/useEnterpriseSessionMode';
 import { emitter } from '@renderer/utils/emitter';
@@ -681,8 +680,6 @@ const CronJobFormDrawer: React.FC<{
 
 const CronModalContent: React.FC = () => {
   const { t } = useTranslation();
-  const viewMode = useSettingsViewMode();
-  const isPageMode = viewMode === 'page';
   const navigate = useNavigate();
   const { isEnterprise } = useAppMode();
   const { user } = useAuth();
@@ -809,7 +806,7 @@ const CronModalContent: React.FC = () => {
 
   return (
     <div className='flex flex-col h-full w-full'>
-      <AionScrollArea className='flex-1 min-h-0 pb-16px' disableOverflow={isPageMode}>
+      <AionScrollArea className='flex-1 min-h-0 pb-16px' disableOverflow>
         {/* ── DETAIL VIEW ── */}
         {currentJob ? (
           <CronJobDetail job={currentJob} onBack={handleBackToList} onEdit={handleEdit} onDelete={handleDelete} onToggle={handleToggle} onTrigger={handleTrigger} onNavigate={handleNavigate} />

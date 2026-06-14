@@ -1,7 +1,6 @@
 import classNames from 'classnames';
 import React, { useEffect, useState } from 'react';
 import { useLayoutContext } from '@/renderer/context/LayoutContext';
-import { SettingsViewModeProvider } from '@/renderer/components/SettingsModal/settingsViewContext';
 import { isElectronDesktop, resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import { extensions as extensionsIpc, type IExtensionSettingsTab } from '@/common/ipcBridge';
 import { Communication, Computer, Connection, Dollar, Earth, HardDiskOne, Info, Lightning, LinkCloud, Peoples, Puzzle, Robot, Shield, System, Toolkit, User, BuildingTwo } from '@icon-park/react';
@@ -150,33 +149,31 @@ const SettingsPageWrapper: React.FC<SettingsPageWrapperProps> = ({ children, cla
   }, [isMobile, pathname]);
 
   return (
-    <SettingsViewModeProvider value='page'>
-      <div className={containerClass}>
-        {isMobile && (
-          <div ref={navRef} className='settings-mobile-top-nav'>
-            {menuItems.map((item) => {
-              const active = pathname.includes(`/settings/${item.path}`);
-              return (
-                <button
-                  key={item.path}
-                  type='button'
-                  className={classNames('settings-mobile-top-nav__item', {
-                    'settings-mobile-top-nav__item--active': active,
-                  })}
-                  onClick={() => {
-                    void navigate(`/settings/${item.path}`, { replace: true });
-                  }}
-                >
-                  <span className='settings-mobile-top-nav__icon'>{item.icon}</span>
-                  <span className='settings-mobile-top-nav__label'>{item.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        )}
-        <div className={contentClass}>{children}</div>
-      </div>
-    </SettingsViewModeProvider>
+    <div className={containerClass}>
+      {isMobile && (
+        <div ref={navRef} className='settings-mobile-top-nav'>
+          {menuItems.map((item) => {
+            const active = pathname.includes(`/settings/${item.path}`);
+            return (
+              <button
+                key={item.path}
+                type='button'
+                className={classNames('settings-mobile-top-nav__item', {
+                  'settings-mobile-top-nav__item--active': active,
+                })}
+                onClick={() => {
+                  void navigate(`/settings/${item.path}`, { replace: true });
+                }}
+              >
+                <span className='settings-mobile-top-nav__icon'>{item.icon}</span>
+                <span className='settings-mobile-top-nav__label'>{item.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+      <div className={contentClass}>{children}</div>
+    </div>
   );
 };
 

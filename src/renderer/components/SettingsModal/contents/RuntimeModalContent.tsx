@@ -10,7 +10,6 @@ import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { ShareOne } from '@icon-park/react';
-import { useSettingsViewMode } from '../settingsViewContext';
 import { nexus as nexusIpc, claudeCli as claudeCliIpc, libreOffice as libreOfficeIpc, pythonRuntime as pythonRuntimeIpc, scode as scodeIpc, nodeRuntime as nodeRuntimeIpc, acpConversation, shareoneCli } from '@/common/ipcBridge';
 import { mutate } from 'swr';
 import type { ICliStatus, ILibreOfficeInstallPhase, IPythonInstallPhase, NexusInstallPhase } from '@/common/ipcBridge';
@@ -24,8 +23,6 @@ type RefreshOptions = {
 
 const RuntimeModalContent: React.FC = () => {
   const { t } = useTranslation();
-  const viewMode = useSettingsViewMode();
-  const isPageMode = viewMode === 'page';
 
   const [nodeStatus, setNodeStatus] = useState<ICliStatus | null>(null);
   const [nodeLoad, setNodeLoad] = useState<LoadState>('idle');
@@ -608,8 +605,8 @@ const RuntimeModalContent: React.FC = () => {
 
   return (
     <div className='flex flex-col h-full w-full'>
-      <AionScrollArea className='flex-1 min-h-0 pb-16px' disableOverflow={isPageMode}>
-        <div className={classNames('space-y-16px px-24px', isPageMode && 'px-0')}>
+      <AionScrollArea className='flex-1 min-h-0 pb-16px' disableOverflow>
+        <div className={'space-y-16px px-24px px-0'}>
           <div className='max-w-820px mx-auto bg-2 rd-16px border border-border-2 px-16px md:px-24px lg:px-28px py-16px md:py-18px'>
             <div className='flex flex-col gap-4px'>
               <h3 className='text-17px md:text-18px font-600 text-t-primary m-0 leading-24px'>{t('settings.runtimeSettings.title')}</h3>
