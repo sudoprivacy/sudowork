@@ -107,47 +107,6 @@ async function removeEntry(): Promise<void> {
 }
 
 /**
- * Ensure the browser-panel MCP server is registered with scode (Sudo Code).
- * Writes directly to ~/.nexus/sudocode/settings.json mcpServers.
- * Idempotent and non-throwing — safe to call from startup paths.
- */
-export async function ensureBrowserPanelMcpForScode(): Promise<void> {
-  try {
-    const scriptPath = getMcpScriptPath();
-    if (!fs.existsSync(scriptPath)) {
-      mainWarn('SudoworkBuiltinMcp', `bundled MCP script not found at ${scriptPath} — skipping scode registration`);
-      return;
-    }
-    const nodePath = getNodeBinaryPath();
-    if (!fs.existsSync(nodePath)) {
-      mainWarn('SudoworkBuiltinMcp', `bundled node not found at ${nodePath} — skipping scode registration`);
-      return;
-    }
-
-    const { readSettings, writeSettings } = await import('./agents/ScodeMcpAgent');
-    const settings = readSettings();
-    const mcpServers = (settings.mcpServers ?? {}) as Record<string, Record<string, unknown>>;
-
-    const existing = mcpServers[MCP_NAME];
-    if (existing && existing.command === nodePath && JSON.stringify(existing.args) === JSON.stringify([scriptPath])) {
-      mainLog('SudoworkBuiltinMcp', `scode entry already current for ${MCP_NAME}`);
-      return;
-    }
-
-    mcpServers[MCP_NAME] = {
-      type: 'stdio',
-      command: nodePath,
-      args: [scriptPath],
-    };
-    settings.mcpServers = mcpServers;
-    writeSettings(settings);
-    mainLog('SudoworkBuiltinMcp', `scode registration complete for ${MCP_NAME}`);
-  } catch (err) {
-    mainError('SudoworkBuiltinMcp', `scode registration failed: ${String(err)}`);
-  }
-}
-
-/**
  * Ensure the browser-panel MCP server is registered with Claude Code.
  * Idempotent and non-throwing — safe to call from startup paths.
  */
