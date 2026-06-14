@@ -84,18 +84,50 @@ export class AionUIDatabase {
       }
 
       // 备份损坏的数据库文件
-      // Backup corrupted database file
+      // Backup corrupted database file.
+      // WAL mode keeps recent committed transactions in the -wal sidecar until
+      // checkpoint, with -shm as its shared-memory index. These MUST be handled
+      // together with the main file: (a) moving them with the backup keeps it a
+      // complete, restorable snapshot rather than a stale one, and (b) any -wal/-shm
+      // left next to finalPath would be inherited by the fresh database created
+      // below — SQLite associates them with the new file and can itself read the
+      // mismatched WAL as corrupt. So move sidecars alongside the backup, and never
+      // leave one behind.
+      const sidecarSuffixes = ['-wal', '-shm'];
       if (fs.existsSync(finalPath)) {
         const backupPath = `${finalPath}.backup.${Date.now()}`;
         try {
           fs.renameSync(finalPath, backupPath);
           mainLog('Database', `Backed up corrupted database to: ${backupPath}`);
+          for (const suffix of sidecarSuffixes) {
+            const sidecar = `${finalPath}${suffix}`;
+            if (!fs.existsSync(sidecar)) continue;
+            try {
+              fs.renameSync(sidecar, `${backupPath}${suffix}`);
+            } catch {
+              // If it can't travel with the backup, it must at least not remain
+              // next to the fresh db — remove it.
+              try {
+                fs.unlinkSync(sidecar);
+              } catch {
+                // ignore
+              }
+            }
+          }
         } catch (e) {
           mainError('Database', 'Failed to backup corrupted database:', e);
           // 备份失败则尝试直接删除
-          // If backup fails, try to delete instead
+          // If backup fails, try to delete instead — including the WAL sidecars,
+          // so the fresh db does not inherit a stale -wal/-shm.
           try {
             fs.unlinkSync(finalPath);
+            for (const suffix of sidecarSuffixes) {
+              try {
+                fs.unlinkSync(`${finalPath}${suffix}`);
+              } catch {
+                // sidecar may not exist; ignore
+              }
+            }
             mainLog('Database', `Deleted corrupted database file`);
           } catch (e2) {
             mainError('Database', 'Failed to delete corrupted database:', e2);
