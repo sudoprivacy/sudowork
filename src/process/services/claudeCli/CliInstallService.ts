@@ -192,7 +192,7 @@ export class CliInstallService {
     emitProgress?.('configuring', 100);
 
     // Best-effort: when the Claude CLI itself just installed, register the
-    // sudowork-browser MCP entry into ~/.claude.json so Claude Code can spawn
+    // browser-panel MCP entry into ~/.claude.json so Claude Code can spawn
     // our right-panel browser tools on the next session. Other CLIs (codex,
     // etc.) aren't supported by this registration yet (v1 scope).
     if (this.cfg.name === 'claude') {
@@ -200,7 +200,7 @@ export class CliInstallService {
         const { ensureSudoworkBuiltinMcpInstalled } = await import('@process/services/mcpServices/SudoworkBuiltinMcpRegistration');
         await ensureSudoworkBuiltinMcpInstalled();
       } catch (err) {
-        mainWarn('CLI', `sudowork-browser MCP registration skipped: ${String(err)}`);
+        mainWarn('CLI', `browser-panel MCP registration skipped: ${String(err)}`);
       }
     }
   }

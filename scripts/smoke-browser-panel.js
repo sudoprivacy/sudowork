@@ -50,12 +50,12 @@ function section(title) {
 function discoveryFilePath() {
   const home = os.homedir();
   if (process.platform === 'darwin') {
-    return path.join(home, 'Library', 'Application Support', 'sudowork', 'sudowork-browser-mcp.json');
+    return path.join(home, 'Library', 'Application Support', 'sudowork', 'browser-panel-mcp.json');
   }
   if (process.platform === 'win32') {
-    return path.join(process.env.APPDATA || path.join(home, 'AppData', 'Roaming'), 'sudowork', 'sudowork-browser-mcp.json');
+    return path.join(process.env.APPDATA || path.join(home, 'AppData', 'Roaming'), 'sudowork', 'browser-panel-mcp.json');
   }
-  return path.join(process.env.XDG_CONFIG_HOME || path.join(home, '.config'), 'sudowork', 'sudowork-browser-mcp.json');
+  return path.join(process.env.XDG_CONFIG_HOME || path.join(home, '.config'), 'sudowork', 'browser-panel-mcp.json');
 }
 
 function loadDiscovery() {
@@ -139,8 +139,8 @@ async function sleep(ms) {
   section('2. claude mcp registration');
   try {
     const out = execSync('claude mcp list', { encoding: 'utf-8', timeout: 10_000 });
-    const line = out.split('\n').find((l) => l.includes('sudowork-browser')) || '';
-    check('sudowork-browser appears in `claude mcp list`', !!line, line.trim());
+    const line = out.split('\n').find((l) => l.includes('browser-panel')) || '';
+    check('browser-panel appears in `claude mcp list`', !!line, line.trim());
     check('reports ✓ Connected', /✓\s*Connected/.test(line), line ? line.trim() : '');
   } catch (err) {
     check('claude CLI is callable', false, err.message);
@@ -150,7 +150,7 @@ async function sleep(ms) {
   section('3. MCP stdio server handshake');
   await new Promise((resolve) => {
     const repoRoot = path.resolve(__dirname, '..');
-    const scriptPath = path.join(repoRoot, 'resources', 'sudowork-browser-mcp', 'index.js');
+    const scriptPath = path.join(repoRoot, 'resources', 'browser-panel-mcp', 'index.js');
     const child = spawn('node', [scriptPath], { stdio: ['pipe', 'pipe', 'pipe'] });
     let buf = '';
     let toolListSeen = false;
@@ -168,7 +168,7 @@ async function sleep(ms) {
         try {
           const msg = JSON.parse(line);
           if (msg.id === 1 && msg.result?.serverInfo) {
-            check('initialize responds with serverInfo', msg.result.serverInfo.name === 'sudowork-browser', `name=${msg.result.serverInfo.name}`);
+            check('initialize responds with serverInfo', msg.result.serverInfo.name === 'browser-panel', `name=${msg.result.serverInfo.name}`);
           } else if (msg.id === 2 && Array.isArray(msg.result?.tools)) {
             toolListSeen = true;
             const names = msg.result.tools.map((t) => t.name).sort();

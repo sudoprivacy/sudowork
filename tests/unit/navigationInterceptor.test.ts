@@ -155,35 +155,35 @@ describe('NavigationInterceptor — intercept() integration', () => {
   });
 });
 
-describe('NavigationInterceptor — sudowork-browser MCP tools', () => {
-  it('matches direct sudowork-browser MCP tool names as bare strings', () => {
-    expect(NavigationInterceptor.isNavigationTool('browser_open')).toBe(true);
-    expect(NavigationInterceptor.isNavigationTool('browser_navigate')).toBe(true);
+describe('NavigationInterceptor — browser-panel MCP tools', () => {
+  it('matches direct browser-panel MCP tool names as bare strings', () => {
+    expect(NavigationInterceptor.isNavigationTool('panel_open')).toBe(true);
+    expect(NavigationInterceptor.isNavigationTool('panel_navigate')).toBe(true);
     expect(NavigationInterceptor.isNavigationTool('BROWSER_OPEN')).toBe(true);
   });
 
   it('matches mcp-prefixed direct tool name (Claude Code surface form)', () => {
-    expect(NavigationInterceptor.isNavigationTool('mcp__sudowork-browser__browser_open')).toBe(true);
+    expect(NavigationInterceptor.isNavigationTool('mcp__browser-panel__panel_open')).toBe(true);
   });
 
-  it('does not match non-navigation sudowork-browser MCP tools', () => {
+  it('does not match non-navigation browser-panel MCP tools', () => {
     expect(NavigationInterceptor.isNavigationTool('browser_take_screenshot')).toBe(false);
     expect(NavigationInterceptor.isNavigationTool('browser_evaluate')).toBe(false);
   });
 
-  it('extracts URL from a direct browser_open call', () => {
-    const data = { toolName: 'browser_open', arguments: { url: 'https://example.com' } };
+  it('extracts URL from a direct panel_open call', () => {
+    const data = { toolName: 'panel_open', arguments: { url: 'https://example.com' } };
     expect(NavigationInterceptor.isNavigationTool(data)).toBe(true);
     expect(NavigationInterceptor.extractUrl(data)).toBe('https://example.com');
   });
 });
 
 describe('NavigationInterceptor — MCPTool wrapper form (gpt-5.5 / sudorouter)', () => {
-  it('matches MCPTool whose rawInput.qualifiedName ends with browser_open (dash-joined)', () => {
+  it('matches MCPTool whose rawInput.qualifiedName ends with panel_open (dash-joined)', () => {
     const data = {
       toolName: 'MCPTool',
       rawInput: {
-        qualifiedName: 'sudowork-browser-browser_open',
+        qualifiedName: 'browser-panel-panel_open',
         arguments: { url: 'https://www.baidu.com' },
       },
     };
@@ -191,11 +191,11 @@ describe('NavigationInterceptor — MCPTool wrapper form (gpt-5.5 / sudorouter)'
     expect(NavigationInterceptor.extractUrl(data)).toBe('https://www.baidu.com');
   });
 
-  it('matches dot-joined qualifiedName (sudowork-browser.browser_navigate)', () => {
+  it('matches dot-joined qualifiedName (browser-panel.panel_navigate)', () => {
     const data = {
       toolName: 'MCPTool',
       rawInput: {
-        qualifiedName: 'sudowork-browser.browser_navigate',
+        qualifiedName: 'browser-panel.panel_navigate',
         arguments: { url: 'https://example.com' },
       },
     };
@@ -203,11 +203,11 @@ describe('NavigationInterceptor — MCPTool wrapper form (gpt-5.5 / sudorouter)'
     expect(NavigationInterceptor.extractUrl(data)).toBe('https://example.com');
   });
 
-  it('matches double-underscore-joined qualifiedName (mcp__sudowork-browser__browser_open)', () => {
+  it('matches double-underscore-joined qualifiedName (mcp__browser-panel__panel_open)', () => {
     const data = {
       toolName: 'MCPTool',
       rawInput: {
-        qualifiedName: 'mcp__sudowork-browser__browser_open',
+        qualifiedName: 'mcp__browser-panel__panel_open',
         arguments: { url: 'https://example.com' },
       },
     };
@@ -219,7 +219,7 @@ describe('NavigationInterceptor — MCPTool wrapper form (gpt-5.5 / sudorouter)'
     const data = {
       toolName: 'MCPTool',
       arguments: {
-        qualifiedName: 'sudowork-browser-browser_open',
+        qualifiedName: 'browser-panel-panel_open',
         arguments: { url: 'https://example.com' },
       },
     };
@@ -227,11 +227,11 @@ describe('NavigationInterceptor — MCPTool wrapper form (gpt-5.5 / sudorouter)'
     expect(NavigationInterceptor.extractUrl(data)).toBe('https://example.com');
   });
 
-  it('does NOT match MCPTool when qualifiedName ends with a non-nav sudowork-browser tool', () => {
+  it('does NOT match MCPTool when qualifiedName ends with a non-nav browser-panel tool', () => {
     const data = {
       toolName: 'MCPTool',
       rawInput: {
-        qualifiedName: 'sudowork-browser-browser_take_screenshot',
+        qualifiedName: 'browser-panel-browser_take_screenshot',
         arguments: { path: 'foo.png' },
       },
     };
@@ -250,7 +250,7 @@ describe('NavigationInterceptor — MCPTool wrapper form (gpt-5.5 / sudorouter)'
     const data = {
       toolName: 'Bash',
       rawInput: {
-        qualifiedName: 'sudowork-browser-browser_open',
+        qualifiedName: 'browser-panel-panel_open',
         arguments: { url: 'https://example.com' },
       },
     };
@@ -262,7 +262,7 @@ describe('NavigationInterceptor — MCPTool wrapper form (gpt-5.5 / sudorouter)'
       {
         toolName: 'MCPTool',
         rawInput: {
-          qualifiedName: 'sudowork-browser-browser_open',
+          qualifiedName: 'browser-panel-panel_open',
           arguments: { url: 'https://example.com' },
         },
       },
@@ -275,12 +275,12 @@ describe('NavigationInterceptor — MCPTool wrapper form (gpt-5.5 / sudorouter)'
 });
 
 describe('NavigationInterceptor — MCP wrapper, server+tool form (gpt-5.5 alternate shape)', () => {
-  it('matches toolName="MCP" with rawInput.server+tool=browser_open + nested arguments.url', () => {
+  it('matches toolName="MCP" with rawInput.server+tool=panel_open + nested arguments.url', () => {
     const data = {
       toolName: 'MCP',
       rawInput: {
-        server: 'sudowork-browser',
-        tool: 'browser_open',
+        server: 'browser-panel',
+        tool: 'panel_open',
         arguments: { url: 'https://www.baidu.com' },
       },
     };
@@ -288,12 +288,12 @@ describe('NavigationInterceptor — MCP wrapper, server+tool form (gpt-5.5 alter
     expect(NavigationInterceptor.extractUrl(data)).toBe('https://www.baidu.com');
   });
 
-  it('matches toolName="MCP" with rawInput.server+tool=browser_navigate', () => {
+  it('matches toolName="MCP" with rawInput.server+tool=panel_navigate', () => {
     const data = {
       toolName: 'MCP',
       rawInput: {
-        server: 'sudowork-browser',
-        tool: 'browser_navigate',
+        server: 'browser-panel',
+        tool: 'panel_navigate',
         arguments: { url: 'https://example.com' },
       },
     };
@@ -305,8 +305,8 @@ describe('NavigationInterceptor — MCP wrapper, server+tool form (gpt-5.5 alter
     const data = {
       toolName: 'MCP',
       arguments: {
-        server: 'sudowork-browser',
-        tool: 'browser_open',
+        server: 'browser-panel',
+        tool: 'panel_open',
         arguments: { url: 'https://example.com' },
       },
     };
@@ -319,8 +319,8 @@ describe('NavigationInterceptor — MCP wrapper, server+tool form (gpt-5.5 alter
       {
         toolName: 'MCP',
         rawInput: {
-          server: 'sudowork-browser',
-          tool: 'browser_open',
+          server: 'browser-panel',
+          tool: 'panel_open',
           arguments: { url: 'https://example.com' },
         },
       },
@@ -331,11 +331,11 @@ describe('NavigationInterceptor — MCP wrapper, server+tool form (gpt-5.5 alter
     expect(result.previewMessage?.data).toMatchObject({ content: 'https://example.com', contentType: 'url' });
   });
 
-  it('does NOT match when tool field names a non-nav sudowork-browser tool', () => {
+  it('does NOT match when tool field names a non-nav browser-panel tool', () => {
     const data = {
       toolName: 'MCP',
       rawInput: {
-        server: 'sudowork-browser',
+        server: 'browser-panel',
         tool: 'browser_take_screenshot',
         arguments: { path: 'foo.png' },
       },
@@ -343,12 +343,12 @@ describe('NavigationInterceptor — MCP wrapper, server+tool form (gpt-5.5 alter
     expect(NavigationInterceptor.isNavigationTool(data)).toBe(false);
   });
 
-  it('does NOT match when server is not sudowork-browser (scoping check)', () => {
+  it('does NOT match when server is not browser-panel (scoping check)', () => {
     const data = {
       toolName: 'MCP',
       rawInput: {
         server: 'some-other-mcp',
-        tool: 'browser_open',
+        tool: 'panel_open',
         arguments: { url: 'https://example.com' },
       },
     };
@@ -359,7 +359,7 @@ describe('NavigationInterceptor — MCP wrapper, server+tool form (gpt-5.5 alter
     const data = {
       toolName: 'MCP',
       rawInput: {
-        server: 'sudowork-browser',
+        server: 'browser-panel',
         arguments: { url: 'https://example.com' },
       },
     };
