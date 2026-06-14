@@ -63,11 +63,29 @@ border-l border-l-solid border-[var(--border-light)]
   - 品牌 `brand` `brand-light` `brand-hover`
     实在没有对应 token 时才用 `text-[var(--xxx)]` / `bg-[var(--xxx)]`。
 
-### 5. 间距/尺寸：px 后缀 vs 数字 scale
+### 5. 间距/尺寸：px 后缀 → 数字 scale（默认就转，这是核心职责）
 
-- 仓库整体是 **px 后缀流派**（如 `p-16px` `gap-12px`），数量上是绝对主流。`presetWind3` 数字 scale 1 = 4px（÷4），二者在本项目等价（字号调节走 Electron zoom，整页等比缩放，px 与 rem 无差异）。
-- **核心原则是「同一文件内部统一」**，不要在一个文件里混用 `py-8px` 和 `top-2`。改某文件时，先数清它当前以哪种为主，统一到那一种；除非用户明确要求换风格。
-- 转换时**只转间距/尺寸类**（p/m/gap/space/w/h/size/inset/top/right/bottom/left）。`text-*`(字号)、`rd-*`(圆角)、`leading-*`(行高) **没有对应数字 scale，保持 px 别动**。
+**标准是数字 scale，px 后缀的间距/尺寸类视为「不标准」，默认转成 scale。** 例如 `gap-8px` → `gap-2`、`mt-32px` → `mt-8`、`p-16px` → `p-4`、`py-8px` → `py-2`、`w-14px` → `w-3.5`。不需要用户特意点名「换风格」——只要你在处理某文件，看到 px 间距就顺手规范掉。
+
+`presetWind3` 数字 scale 1 = 4px，所以换算就是 **÷4**：
+
+| px | scale | px | scale |
+|----|-------|----|-------|
+| 2  | 0.5   | 16 | 4     |
+| 4  | 1     | 24 | 6     |
+| 6  | 1.5   | 32 | 8     |
+| 8  | 2     | 40 | 10    |
+| 12 | 3     | 14 | 3.5   |
+
+（px 与 scale 在本项目渲染完全等价：字号调节走 Electron zoom，整页等比缩放，px 与 rem 无差异。所以这是纯写法规范，零视觉风险。）
+
+**只转间距/尺寸类**：`p/px/py/pt/pb/pl/pr`、`m/mx/my/mt/mb/ml/mr`、`gap`、`space-x/space-y`、`w/h/size`、`inset/top/right/bottom/left`（含负值，如 `-top-4px` → `-top-1`）。
+
+**保持 px 不动**（没有对应数字 scale，硬转才是不标准）：`text-*`(字号)、`rd-*`(圆角)、`leading-*`(行高)。
+
+**不能整除的奇数 px 留着**：scale 只支持整数与 .5 档（=偶数 px）。`p-13px`、`gap-15px` 这类无法干净换算的，保持 px 或改 arbitrary `p-[13px]`，别硬凑 `p-3.25`。
+
+转换建议用带词边界的 `perl -pi -e 's/\bgap-8px\b/gap-2/g; ...'` 批量替换（注意 `\bh-14px\b` 不会误伤 `h-140px`），改完用下面的「剩余 px」grep 自检。
 
 ### 6. 可用的 transformer
 
@@ -81,6 +99,10 @@ border-l border-l-solid border-[var(--border-light)]
 3. 用 `Edit` 改 className。保持改动聚焦，**不碰逻辑**。
 4. 涉及边框/分隔线/新写法的改动，用 UnoCSS 生成器复跑确认 CSS 符合预期。
 5. 校验：
+   - 转完 px→scale 后，grep 自检是否还有漏网的间距 px（应只剩 text-/rd-/leading-）：
+     ```bash
+     grep -noE "\b[a-z-]+-[0-9.]+px" <改动文件路径> | grep -vE "(text|rd|leading)-"
+     ```
    - `bunx eslint <改动文件路径> --fix` —— **只 lint 改动的那个文件**，绝不用 `bun run lint:fix`（会全仓库 fix 污染 diff）。
    - 改了 `.tsx` 跑 `bunx tsc --noEmit`，确认无新增类型错误。
 6. 回报：简明列出「改了什么、为什么（对应哪个坑）、验证结果」。视觉类改动提醒用户用 `bun run start` 实机确认。
@@ -89,5 +111,5 @@ border-l border-l-solid border-[var(--border-light)]
 
 - 不改业务逻辑、hooks、数据获取、路由。
 - 不硬编码面向用户的字符串——保持现有 i18n key 不动。
-- 不擅自全仓库换风格（px↔scale）；那是项目级决策，需用户明确授权。
+- px→scale 转换是逐文件的职责（见坑 5）：在你正在处理的文件里看到 px 间距就转。但**不要**未经要求就对全仓库批量扫一遍——那种大范围 sweep 属于项目级决策，需用户明确授权。
 - commit/PR 绝不加任何 AI 署名。

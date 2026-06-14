@@ -6,7 +6,7 @@
 
 import { ipcBridge } from '@/common';
 import { Button, Input, Message, Modal, Tooltip, Typography } from '@arco-design/web-react';
-import { Edit, Refresh } from '@icon-park/react';
+import { Edit } from '@icon-park/react';
 import React, { useCallback, useState } from 'react';
 
 const { Text } = Typography;
@@ -111,8 +111,8 @@ const OpsModal: React.FC<OpsModalProps> = ({ visible, onClose, onConfigSaved }) 
               </Tooltip>
             </div>
             <Button size='small' icon={<Edit theme='outline' size='14' />} onClick={openConfigEditor} loading={configLoading}>
-                编辑配置
-              </Button>
+              编辑配置
+            </Button>
           </div>
 
           <div className='text-12px text-t-tertiary text-center'>此区域仅供运维人员使用</div>

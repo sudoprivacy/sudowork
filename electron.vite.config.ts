@@ -4,7 +4,6 @@ import { execSync } from 'child_process';
 import UnoCSS from 'unocss/vite';
 import unoConfig from './uno.config.ts';
 import { viteStaticCopy } from 'vite-plugin-static-copy';
-import packageJson from './package.json';
 
 // Icon Park transform plugin (replaces webpack icon-park-loader)
 function iconParkPlugin() {
