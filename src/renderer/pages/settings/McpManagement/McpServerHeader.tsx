@@ -25,22 +25,22 @@ interface McpServerHeaderProps {
 
 const getStatusIcon = (status?: IMcpServer['status'], oauthStatus?: McpOAuthStatus) => {
   if (status === 'testing' || oauthStatus?.isChecking) {
-    return <LoadingOne fill={iconColors.primary} className='h-[24px]' />;
+    return <LoadingOne fill={iconColors.primary} className='h-6' />;
   }
 
   if (status === 'error') {
-    return <CloseSmall fill={iconColors.danger} className='h-[24px]' />;
+    return <CloseSmall fill={iconColors.danger} className='h-6' />;
   }
 
   if (oauthStatus?.needsLogin) {
-    return <span className='text-orange-500 text-xl font-bold leading-none'>△</span>;
+    return <span className='text-warning text-xl font-bold leading-none'>△</span>;
   }
 
   if (status === 'connected' || oauthStatus?.isAuthenticated) {
-    return <Check fill={iconColors.success} className='h-[24px] items-center' />;
+    return <Check fill={iconColors.success} className='h-6 items-center' />;
   }
 
-  return <CloseOne fill={iconColors.secondary} className='h-[24px]' />;
+  return <CloseOne fill={iconColors.secondary} className='h-6' />;
 };
 
 const getStatusText = (status?: IMcpServer['status'], oauthStatus?: McpOAuthStatus, t?: any) => {
@@ -106,7 +106,7 @@ const McpServerHeader: React.FC<McpServerHeaderProps> = ({ server, agentInstallS
                     </div>
                   </Menu.Item>
                   <Menu.Item key='delete' onClick={() => onDeleteServer(server.id)}>
-                    <div className='flex items-center gap-2 text-red-500'>
+                    <div className='flex items-center gap-2 text-danger'>
                       <DeleteFour size={'14'} />
                       {t('settings.mcpDeleteServer')}
                     </div>

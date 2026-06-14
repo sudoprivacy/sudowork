@@ -106,7 +106,7 @@ const EditConfigModal: React.FC<EditConfigModalProps> = ({ visible, server, load
       header={`修改配置 · ${server.display_name || server.name}`}
       onCancel={onCancel}
       footer={
-        <div className='flex justify-end gap-8px'>
+        <div className='flex justify-end gap-2'>
           <Button onClick={onCancel} disabled={submitting}>
             取消
           </Button>
@@ -117,18 +117,18 @@ const EditConfigModal: React.FC<EditConfigModalProps> = ({ visible, server, load
       }
     >
       {loading ? (
-        <div className='flex items-center justify-center py-60px'>
+        <div className='f-center py-15'>
           <Spin size={28} />
         </div>
       ) : schema.length === 0 ? (
-        <div className='text-13px text-t-tertiary py-24px text-center bg-[var(--color-fill-1)] rd-8px'>此 MCP 暂无可编辑的用户配置项</div>
+        <div className='text-13px text-t-tertiary py-6 text-center bg-[var(--color-fill-1)] rd-8px'>此 MCP 暂无可编辑的用户配置项</div>
       ) : (
-        <div className='flex flex-col gap-14px py-4px'>
+        <div className='flex flex-col gap-3.5 py-1'>
           {schema.map((it) => (
-            <div key={it.key} className='flex flex-col gap-6px'>
+            <div key={it.key} className='flex flex-col gap-1.5'>
               <label className='block text-13px text-t-primary'>
                 {it.name}
-                {it.required && <span className='text-red-500 ml-4px'>*</span>}
+                {it.required && <span className='text-red-500 ml-1'>*</span>}
               </label>
               {it.description && <div className='text-12px text-t-tertiary'>{it.description}</div>}
               <Input

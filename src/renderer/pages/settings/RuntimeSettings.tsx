@@ -10,7 +10,7 @@ import SettingsPageWrapper from './components/SettingsPageWrapper';
 
 const RuntimeSettings: React.FC = () => {
   return (
-    <SettingsPageWrapper contentClassName='max-w-640px'>
+    <SettingsPageWrapper contentClassName='max-w-160'>
       <RuntimeModalContent />
     </SettingsPageWrapper>
   );

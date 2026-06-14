@@ -308,28 +308,28 @@ const WeeklyModelUsageChart: React.FC<WeeklyModelUsageChartProps> = ({ className
   };
 
   return (
-    <div className={`p-24px bg-2 rd-16px border border-[var(--color-border-2)] ${className || ''}`}>
-      <div className='text-14px font-600 text-t-primary mb-16px'>{t('settings.modelUsage.title') || '模型用量'}</div>
+    <div className={`p-6 bg-2 rd-16px border border-solid border-[var(--color-border-2)] ${className || ''}`}>
+      <div className='text-14px font-600 text-t-primary mb-4'>{t('settings.modelUsage.title') || '模型用量'}</div>
 
-      <div className='mb-16px'>
+      <div className='mb-4'>
         <RangePicker value={dateRange} onChange={handleDateChange} format='YYYY-MM-DD' allowClear={false} style={{ width: '100%' }} placeholder={[t('settings.modelUsage.startDate') || '开始日期', t('settings.modelUsage.endDate') || '结束日期']} />
       </div>
 
       {loading ? (
-        <div className='flex justify-center py-60px'>
+        <div className='flex justify-center py-15'>
           <Spin />
         </div>
       ) : !data.length ? (
-        <div className='py-60px text-center text-t-tertiary text-14px'>{t('settings.modelUsage.noData') || '暂无模型用量数据'}</div>
+        <div className='py-15 text-center text-t-tertiary text-14px'>{t('settings.modelUsage.noData') || '暂无模型用量数据'}</div>
       ) : (
-        <div className='flex flex-col gap-20px'>
+        <div className='flex flex-col gap-5'>
           <div>
-            <div className='text-13px font-600 text-t-secondary mb-8px'>{t('settings.modelUsage.pointsTitle')}</div>
+            <div className='text-13px font-600 text-t-secondary mb-2'>{t('settings.modelUsage.pointsTitle')}</div>
             <ReactECharts option={pointsChartOption} style={{ height: '220px' }} opts={{ renderer: 'canvas' }} />
           </div>
-          <div className='h-1px bg-border-2' />
+          <div className='h-px bg-[var(--color-border-2)]' />
           <div>
-            <div className='text-13px font-600 text-t-secondary mb-8px'>{t('settings.modelUsage.tokensTitle')}</div>
+            <div className='text-13px font-600 text-t-secondary mb-2'>{t('settings.modelUsage.tokensTitle')}</div>
             <ReactECharts option={modelChartOption} style={{ height: '300px' }} opts={{ renderer: 'canvas' }} />
           </div>
         </div>

@@ -69,23 +69,23 @@ const McpLibraryTab: React.FC<McpLibraryTabProps> = ({ templates, installedTempl
   };
 
   return (
-    <div className='flex flex-col gap-12px'>
+    <div className='flex flex-col gap-3'>
       {/* Filter bar */}
-      <div className='flex items-center gap-8px'>
+      <div className='flex items-center gap-2'>
         <Input allowClear placeholder='搜索模板名称或描述' value={search} onChange={setSearch} prefix={<Search theme='outline' size='14' />} style={{ flex: 1 }} />
       </div>
 
       {!loading && filtered.length === 0 ? (
         <EmptyState illustrationType='search' title='未找到匹配的模板' description='调整搜索词后再试。' simple />
       ) : (
-        <div className='flex flex-col gap-10px'>
+        <div className='flex flex-col gap-2.5'>
           {filtered.map((tpl) => {
             const installed = installedTemplateIds?.has(tpl.id);
             return (
-              <div key={tpl.id} className='flex items-center gap-12px px-16px py-12px rd-12px bg-1 hover:bg-2 transition-colors'>
+              <div key={tpl.id} className='flex items-center gap-3 px-4 py-3 rd-12px bg-1 hover:bg-2 transition-colors'>
                 <McpIcon icon={tpl.icon} size={40} />
                 <div className='flex-1 min-w-0'>
-                  <div className='flex items-center gap-8px'>
+                  <div className='flex items-center gap-2'>
                     <span className='text-14px font-500 text-t-primary truncate'>{tpl.name}</span>
                     <RiskLevelTag level={tpl.risk_level} />
                     {installed && (
@@ -94,10 +94,10 @@ const McpLibraryTab: React.FC<McpLibraryTabProps> = ({ templates, installedTempl
                       </Tag>
                     )}
                   </div>
-                  {tpl.description && <div className='text-12px text-t-tertiary mt-2px truncate'>{tpl.description}</div>}
-                  <div className='flex items-center gap-6px mt-4px'>
+                  {tpl.description && <div className='text-12px text-t-tertiary mt-0.5 truncate'>{tpl.description}</div>}
+                  <div className='flex items-center gap-1.5 mt-1'>
                     {tpl.tags.map((tag) => (
-                      <span key={tag} className='text-11px text-t-tertiary px-6px py-1px rd-4px bg-[var(--color-fill-2)]'>
+                      <span key={tag} className='text-11px text-t-tertiary px-1.5 py-px rd-4px bg-[var(--color-fill-2)]'>
                         #{tag}
                       </span>
                     ))}

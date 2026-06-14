@@ -179,15 +179,15 @@ const MemberManagement: React.FC = () => {
   ];
 
   return (
-    <SettingsPageWrapper contentClassName='max-w-900px'>
-      <div className='flex flex-col gap-24px py-8px'>
+    <SettingsPageWrapper contentClassName='max-w-225'>
+      <div className='flex flex-col gap-6 py-2'>
         <div className='flex items-center justify-between'>
-          <div className='flex flex-col gap-4px'>
+          <div className='flex flex-col gap-1'>
             <div className='text-20px font-600 text-t-primary leading-32px'>{t('settings.memberManagement', { defaultValue: '成员管理' })}</div>
             <div className='text-13px text-t-secondary'>管理企业成员加入申请及 API 权限分配</div>
           </div>
           <Badge count={pendingUsers.length} dot={pendingUsers.length > 0}>
-            <div className='p-8px bg-fill-2 rd-8px'>
+            <div className='p-2 bg-fill-2 rd-8px'>
               <Peoples size='20' className='text-t-secondary' />
             </div>
           </Badge>
@@ -195,13 +195,13 @@ const MemberManagement: React.FC = () => {
 
         <Tabs activeTab={activeTab} onChange={setActiveTab} type='capsule'>
           <Tabs.TabPane key='pending' title={`待审批 (${pendingUsers.length})`}>
-            <div className='mt-16px bg-2 rd-16px border border-border-2 overflow-hidden min-h-200px'>
+            <div className='mt-4 bg-2 rd-16px border border-solid border-default overflow-hidden min-h-50'>
               <Table loading={loading} data={pendingUsers} columns={pendingColumns} rowKey='id' pagination={false} className='[&_.arco-table-th]:bg-transparent' />
             </div>
           </Tabs.TabPane>
 
           <Tabs.TabPane key='approved' title='正式成员'>
-            <div className='mt-16px bg-2 rd-16px border border-border-2 overflow-hidden min-h-200px'>
+            <div className='mt-4 bg-2 rd-16px border border-solid border-default overflow-hidden min-h-50'>
               <Table loading={loading} data={approvedUsers} columns={approvedColumns} rowKey='id' pagination={false} className='[&_.arco-table-th]:bg-transparent' />
             </div>
           </Tabs.TabPane>

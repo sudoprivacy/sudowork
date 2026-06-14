@@ -10,7 +10,7 @@ import SettingsPageWrapper from './components/SettingsPageWrapper';
 
 const SkillSettings: React.FC = () => {
   return (
-    <SettingsPageWrapper contentClassName='max-w-1200px'>
+    <SettingsPageWrapper contentClassName='max-w-300'>
       <SkillModalContent />
     </SettingsPageWrapper>
   );

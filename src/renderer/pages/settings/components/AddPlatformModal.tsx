@@ -38,7 +38,7 @@ const renderPlatformOption = (platform: PlatformConfig, t?: (key: string) => str
   // If i18nKey exists and t function is provided, use translated name; otherwise use original name
   const displayName = platform.i18nKey && t ? t(platform.i18nKey) : platform.name;
   return (
-    <div className='flex items-center gap-8px'>
+    <div className='flex items-center gap-2'>
       <ProviderLogo logo={platform.logo} name={displayName} size={18} />
       <span>{displayName}</span>
     </div>
@@ -218,7 +218,7 @@ const AddPlatformModal = ModalHOC<{
   return (
     <AionModal visible={modalProps.visible} onCancel={modalCtrl.close} header={{ title: t('settings.addModel'), showClose: true }} style={{ maxWidth: '92vw', borderRadius: 16 }} contentStyle={{ background: 'var(--bg-1)', borderRadius: 16, padding: '20px 24px 16px', overflow: 'auto' }} onOk={handleSubmit} confirmLoading={modalProps.confirmLoading} okText={t('common.confirm')} cancelText={t('common.cancel')}>
       {messageContext}
-      <div className='flex flex-col gap-16px py-20px'>
+      <div className='flex flex-col gap-4 py-5'>
         <Form form={form} layout='vertical' className='space-y-0'>
           {/* 模型平台选择（第一层）/ Model Platform Selection (first level) */}
           <Form.Item initialValue='gemini' label={t('settings.modelPlatform')} field={'platform'} required rules={[{ required: true }]}>
@@ -268,7 +268,7 @@ const AddPlatformModal = ModalHOC<{
             rules={[{ required: !isBedrock }]}
             field={'apiKey'}
             extra={
-              <div className='space-y-2px'>
+              <div className='space-y-0.5'>
                 <div className='text-11px text-t-secondary mt-2 leading-4'>{t('settings.multiApiKeyTip')}</div>
                 {/* 协议检测状态 / Protocol detection status */}
                 {shouldShowDetectionResult && <ProtocolDetectionStatus isDetecting={protocolDetection.isDetecting} result={protocolDetection.result} currentPlatform={platformValue} onSwitchPlatform={handleSwitchPlatform} />}

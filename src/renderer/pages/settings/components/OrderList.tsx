@@ -137,56 +137,56 @@ const OrderList: React.FC<OrderListProps> = ({ onContinuePay, refreshKey }) => {
 
   if (loading) {
     return (
-      <div className='flex justify-center py-24px'>
+      <div className='flex justify-center py-6'>
         <Spin />
       </div>
     );
   }
 
   if (orders.length === 0) {
-    return <div className='py-24px text-center text-t-tertiary text-14px'>{t('settings.orders.noOrders') || '暂无订单记录'}</div>;
+    return <div className='py-6 text-center text-t-tertiary text-14px'>{t('settings.orders.noOrders') || '暂无订单记录'}</div>;
   }
 
   return (
-    <div className='bg-fill-0 rd-16px border border-border-base overflow-hidden'>
-      <div className='px-20px py-16px border-b border-border-base flex items-center justify-between'>
+    <div className='bg-fill-0 rd-16px border border-solid border-[var(--border-base)] overflow-hidden'>
+      <div className='px-5 py-4 border-b border-b-solid border-b-[var(--border-base)] flex items-center justify-between'>
         <div className='font-600 text-14px text-t-primary'>{t('settings.orders.title') || '订单记录'}</div>
-        <div className='flex items-center gap-12px'>
-          <button onClick={() => void fetchOrders()} className='p-4px rd-4px hover:bg-fill-1 transition-colors cursor-pointer border-none bg-transparent' style={{ outline: 'none', boxShadow: 'none' }} title={t('settings.orders.refresh') || '刷新'}>
+        <div className='flex items-center gap-3'>
+          <button onClick={() => void fetchOrders()} className='p-1 rd-4px hover:bg-fill-1 transition-colors cursor-pointer border-none bg-transparent' style={{ outline: 'none', boxShadow: 'none' }} title={t('settings.orders.refresh') || '刷新'}>
             <Refresh size={16} className='text-t-secondary' />
           </button>
           <div className='text-12px text-t-secondary'>{t('settings.orders.total', { count: orders.length }) || `共 ${orders.length} 条`}</div>
         </div>
       </div>
 
-      <div className='max-h-400px overflow-y-auto'>
+      <div className='max-h-100 overflow-y-auto'>
         {orders.map((order) => {
           const paymentStyle = getPaymentMethodStyle(order.payment_method);
           // 将 PAYING 状态显示为"待支付"
           const displayStatusText = order.status === OrderStatusEnum.PAYING ? '待支付' : order.status_text;
           return (
-            <div key={order.order_no} className='px-16px py-10px border-b border-border-1 last:border-b-0 flex items-center gap-12px'>
+            <div key={order.order_no} className='px-4 py-2.5 border-b border-b-solid border-b-[var(--color-border-1)] last:border-b-0 flex items-center gap-3'>
               {/* 订单号 */}
               <div className='flex-1 min-w-0 text-13px text-t-secondary truncate'>{order.order_no}</div>
               {/* 充值金额 */}
-              <div className='w-[80px] flex-shrink-0 text-15px font-500 text-t-primary'>{formatAmount(order.amount_cny)}</div>
+              <div className='w-20 flex-shrink-0 text-15px font-500 text-t-primary'>{formatAmount(order.amount_cny)}</div>
               {/* 积分 */}
-              <div className='w-[90px] flex-shrink-0 text-14px text-primary font-500'>{order.points.toLocaleString()} PTS</div>
+              <div className='w-22.5 flex-shrink-0 text-14px text-primary font-500'>{order.points.toLocaleString()} PTS</div>
               {/* 支付方式 */}
-              <div className={`w-[80px] flex-shrink-0 flex items-center gap-4px px-8px py-4px rd-6px ${paymentStyle.bgColor}`}>
+              <div className={`w-20 flex-shrink-0 flex items-center gap-1 px-2 py-1 rd-6px ${paymentStyle.bgColor}`}>
                 {paymentStyle.icon}
                 <span className={`text-12px font-500 ${paymentStyle.textColor}`}>{paymentStyle.label}</span>
               </div>
               {/* 状态 */}
-              <div className='w-[70px] flex-shrink-0'>
+              <div className='w-17.5 flex-shrink-0'>
                 <Tag color={getStatusColor(order.status)} size='small'>
                   {displayStatusText}
                 </Tag>
               </div>
               {/* 创建时间 */}
-              <div className='w-[100px] flex-shrink-0 text-12px text-t-tertiary'>{formatDateTime(order.created_at)}</div>
+              <div className='w-25 flex-shrink-0 text-12px text-t-tertiary'>{formatDateTime(order.created_at)}</div>
               {/* 操作 */}
-              <div className='w-[80px] flex-shrink-0'>
+              <div className='w-20 flex-shrink-0'>
                 {order.status === OrderStatusEnum.PAYING && (
                   <Button type='primary' size='small' onClick={() => onContinuePay(order.order_no)}>
                     {t('settings.orders.continuePay') || '继续支付'}

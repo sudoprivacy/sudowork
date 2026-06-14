@@ -19,7 +19,7 @@ const AdminRedirectBanner: React.FC<AdminRedirectBannerProps> = ({ visible, serv
   };
 
   return (
-    <div className='flex items-center justify-between gap-16px px-16px py-12px rd-12px bg-[var(--color-primary-light-1)] border border-[var(--color-primary-light-3)] mb-16px'>
+    <div className='flex items-center justify-between gap-4 px-4 py-3 rd-12px bg-[var(--color-primary-light-1)] border border-solid border-[var(--color-primary-light-3)] mb-4'>
       <div className='text-13px text-t-primary'>您是管理员，可前往企业后台配置 MCP 模板、策略与组织级实例。</div>
       <Button type='primary' size='small' onClick={handleClick} icon={<Right theme='outline' size='14' />}>
         前往企业后台

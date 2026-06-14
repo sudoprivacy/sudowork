@@ -148,9 +148,9 @@ const ApiKeyEditorModal: React.FC<ApiKeyEditorModalProps> = ({ visible, apiKeys,
       case 'testing':
         return <Spin size={14} />;
       case 'valid':
-        return <CheckOne theme='filled' size={16} className='text-green-500 flex' />;
+        return <CheckOne theme='filled' size={16} className='text-success flex' />;
       case 'invalid':
-        return <CloseOne theme='filled' size={16} className='text-red-500 flex' />;
+        return <CloseOne theme='filled' size={16} className='text-danger flex' />;
       default:
         return null;
     }
@@ -158,17 +158,17 @@ const ApiKeyEditorModal: React.FC<ApiKeyEditorModalProps> = ({ visible, apiKeys,
 
   return (
     <Modal visible={visible} onCancel={onClose} title={t('settings.editApiKey')} footer={null} style={{ maxWidth: '500px', width: '90vw' }} unmountOnExit>
-      <div className='flex flex-col gap-12px'>
+      <div className='flex flex-col gap-3'>
         {/* Key 列表 */}
-        <div className='flex flex-col gap-8px max-h-300px overflow-y-auto'>
+        <div className='flex flex-col gap-2 max-h-75 overflow-y-auto'>
           {keys.map((key) => (
-            <div key={key.id} className='flex items-center gap-8px'>
+            <div key={key.id} className='flex items-center gap-2'>
               <div className='flex-1'>
                 <Input value={key.value} onChange={(v) => updateKeyValue(key.id, v)} disabled={!key.editing} placeholder={t('settings.apiKeyPlaceholder')} />
               </div>
               {/* 操作按钮 - 编辑状态时只显示保存按钮 */}
               {key.value.trim() && (
-                <div className='flex items-center gap-4px shrink-0'>
+                <div className='flex items-center gap-1 shrink-0'>
                   {key.editing ? (
                     // 编辑状态：只显示保存按钮
                     <Tooltip content={t('common.save')}>
@@ -197,9 +197,9 @@ const ApiKeyEditorModal: React.FC<ApiKeyEditorModalProps> = ({ visible, apiKeys,
         </div>
 
         {/* 底部操作栏 */}
-        <div className='flex items-center justify-between pt-12px border-t border-line-2'>
+        <div className='flex items-center justify-between pt-3 border-t border-t-solid border-t-[var(--color-border-2)]'>
           <span className='text-11px text-t-secondary'>{t('settings.multiKeyTip')}</span>
-          <div className='flex items-center gap-8px'>
+          <div className='flex items-center gap-2'>
             {hasMultipleKeys && (
               <>
                 {hasTestedKeys && hasInvalidKeys && (
@@ -219,7 +219,7 @@ const ApiKeyEditorModal: React.FC<ApiKeyEditorModalProps> = ({ visible, apiKeys,
         </div>
 
         {/* 确认按钮 */}
-        <div className='flex justify-end pt-8px'>
+        <div className='flex justify-end pt-2'>
           <Button type='primary' onClick={handleSave}>
             {t('common.confirm')}
           </Button>

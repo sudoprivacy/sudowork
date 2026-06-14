@@ -93,7 +93,7 @@ const OpsModal: React.FC<OpsModalProps> = ({ visible, onClose, onConfigSaved }) 
     <>
       <Modal
         title={
-          <div className='flex items-center gap-8px'>
+          <div className='flex items-center gap-2'>
             <span>运维中心</span>
           </div>
         }
@@ -102,12 +102,12 @@ const OpsModal: React.FC<OpsModalProps> = ({ visible, onClose, onConfigSaved }) 
         footer={null}
         style={{ width: 500 }}
       >
-        <div className='flex flex-col gap-16px'>
-          <div className='flex items-center justify-between p-12px bg-fill-1 rd-8px'>
+        <div className='flex flex-col gap-4'>
+          <div className='flex items-center justify-between p-3 bg-fill-1 rd-8px'>
             <div className='flex-1'>
               <div className='text-14px text-t-primary font-500'>Sudo Code 配置文件</div>
               <Tooltip content='~/.nexus/sudocode/sudocode.json'>
-                <div className='text-12px text-t-tertiary mt-2px'>直接编辑配置文件</div>
+                <div className='text-12px text-t-tertiary mt-0.5'>直接编辑配置文件</div>
               </Tooltip>
             </div>
             <Button size='small' icon={<Edit theme='outline' size='14' />} onClick={openConfigEditor} loading={configLoading}>
@@ -121,7 +121,7 @@ const OpsModal: React.FC<OpsModalProps> = ({ visible, onClose, onConfigSaved }) 
 
       {/* 配置编辑 Modal */}
       <Modal title='编辑 Sudo Code 配置' visible={editVisible} onOk={handleSaveRawConfig} onCancel={() => setEditVisible(false)} style={{ width: 700 }} confirmLoading={configLoading}>
-        <div className='flex flex-col gap-8px'>
+        <div className='flex flex-col gap-2'>
           <Tooltip content={configPath}>
             <Text type='secondary' className='text-12px'>
               路径：{configPath}

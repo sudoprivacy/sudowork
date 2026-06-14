@@ -36,14 +36,21 @@ const MyMcpTab: React.FC<MyMcpTabProps> = ({ servers, loading = false, onToggleE
     return (
       <>
         {allowInstall && (
-          <div className='mb-8px'>
+          <div className='mb-2'>
             <Button type='primary' size='small' onClick={() => setInstallVisible(true)}>
               {t('settings.mcpInstallJsonButton', { defaultValue: '安装 MCP' })}
             </Button>
           </div>
         )}
         <EmptyState illustrationType='default' title='暂无个人 MCP' description='前往「MCP 库」浏览并安装，或点击上方按钮通过 JSON 安装。' simple />
-        <InstallJsonModal visible={installVisible} onCancel={() => setInstallVisible(false)} onSuccess={() => { setInstallVisible(false); onInstalled?.(); }} />
+        <InstallJsonModal
+          visible={installVisible}
+          onCancel={() => setInstallVisible(false)}
+          onSuccess={() => {
+            setInstallVisible(false);
+            onInstalled?.();
+          }}
+        />
       </>
     );
   }
@@ -74,7 +81,7 @@ const MyMcpTab: React.FC<MyMcpTabProps> = ({ servers, loading = false, onToggleE
   };
 
   return (
-    <div className='flex flex-col gap-10px'>
+    <div className='flex flex-col gap-2.5'>
       {allowInstall && (
         <div>
           <Button type='primary' size='small' onClick={() => setInstallVisible(true)}>
@@ -83,16 +90,16 @@ const MyMcpTab: React.FC<MyMcpTabProps> = ({ servers, loading = false, onToggleE
         </div>
       )}
       {filtered.map((srv) => (
-        <div key={srv.id} className='flex items-center gap-12px px-16px py-12px rd-12px bg-1 hover:bg-2 transition-colors'>
+        <div key={srv.id} className='flex items-center gap-3 px-4 py-3 rd-12px bg-1 hover:bg-2 transition-colors'>
           <McpIcon icon={srv.icon} size={40} />
           <div className='flex-1 min-w-0'>
-            <div className='flex items-center gap-8px'>
+            <div className='flex items-center gap-2'>
               <span className='text-14px font-500 text-t-primary truncate'>{srv.display_name || srv.name}</span>
               <RiskLevelTag level={srv.risk_level} />
             </div>
-            {srv.description && <div className='text-12px text-t-tertiary mt-2px truncate'>{srv.description}</div>}
+            {srv.description && <div className='text-12px text-t-tertiary mt-0.5 truncate'>{srv.description}</div>}
           </div>
-          <div className='shrink-0 flex items-center gap-4px'>
+          <div className='shrink-0 flex items-center gap-1'>
             {serverHasUserConfig?.get(srv.id) && (
               <Button type='text' size='mini' icon={<Edit theme='outline' size='14' />} onClick={() => setEditing(srv)}>
                 修改配置
@@ -107,7 +114,14 @@ const MyMcpTab: React.FC<MyMcpTabProps> = ({ servers, loading = false, onToggleE
       ))}
 
       <EditConfigModal visible={editing !== null} server={editing} loadConfig={loadUserConfig} saveConfig={saveUserConfig} onCancel={() => setEditing(null)} />
-      <InstallJsonModal visible={installVisible} onCancel={() => setInstallVisible(false)} onSuccess={() => { setInstallVisible(false); onInstalled?.(); }} />
+      <InstallJsonModal
+        visible={installVisible}
+        onCancel={() => setInstallVisible(false)}
+        onSuccess={() => {
+          setInstallVisible(false);
+          onInstalled?.();
+        }}
+      />
     </div>
   );
 };

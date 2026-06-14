@@ -17,7 +17,6 @@ const UserProfile: React.FC = () => {
   const { user: currentUser, refresh: refreshAuth, ensureValidToken, forceRefreshToken } = useAuth();
   const { profile, stats, refresh: refreshDashboard } = useDashboardStats();
   const { isEnterprise } = useAppMode();
-  const [loading, setLoading] = useState(false);
   const [editingNickname, setEditingNickname] = useState('');
   const [editModalVisible, setEditModalVisible] = useState(false);
 
@@ -60,7 +59,6 @@ const UserProfile: React.FC = () => {
 
   // Enterprise mode: fetch user profile from MOSS server
   const fetchEnterpriseProfile = async () => {
-    setLoading(true);
     try {
       const result = await ipcBridge.eeclaw.getUserProfile.invoke();
       if (result.success && result.data) {
@@ -69,7 +67,6 @@ const UserProfile: React.FC = () => {
     } catch (e) {
       console.error('Failed to fetch enterprise profile:', e);
     }
-    setLoading(false);
   };
 
   useEffect(() => {
@@ -144,29 +141,29 @@ const UserProfile: React.FC = () => {
   }, [stats?.usage_today]);
 
   return (
-    <SettingsPageWrapper contentClassName='max-w-800px'>
-      <div className='flex flex-col gap-24px py-8px'>
+    <SettingsPageWrapper contentClassName='max-w-200'>
+      <div className='flex flex-col gap-6 py-2'>
         <div className='text-20px font-600 text-t-primary leading-32px'>{t('settings.profile')}</div>
 
         {isEnterprise ? (
           <>
             {/* Enterprise: Identity */}
-            <div className='flex items-center gap-20px p-24px bg-2 rd-16px border border-[var(--color-border-2)]'>
+            <div className='flex items-center gap-5 p-6 bg-2 rd-16px border border-solid border-[var(--color-border-2)]'>
               <Avatar size={64} className='bg-primary'>
                 <User theme='outline' size={32} fill='#fff' />
               </Avatar>
               <div className='flex-1'>
                 <div className='text-18px font-600 text-t-primary'>{enterpriseProfile?.username || '--'}</div>
-                <div className='flex gap-8px mt-8px'>
-                  <span className='inline-flex items-center h-24px px-10px rd-6px text-12px bg-fill-2 text-t-secondary'>{enterpriseProfile?.role || '--'}</span>
+                <div className='flex gap-2 mt-2'>
+                  <span className='inline-flex items-center h-6 px-2.5 rd-6px text-12px bg-fill-2 text-t-secondary'>{enterpriseProfile?.role || '--'}</span>
                 </div>
               </div>
             </div>
 
             {/* Enterprise: Usage Stats */}
-            <div className='p-24px bg-2 rd-16px border border-[var(--color-border-2)]'>
-              <div className='text-14px font-600 text-t-primary mb-16px'>资源使用</div>
-              <div className='grid grid-cols-4 gap-16px'>
+            <div className='p-6 bg-2 rd-16px border border-solid border-[var(--color-border-2)]'>
+              <div className='text-14px font-600 text-t-primary mb-4'>资源使用</div>
+              <div className='grid grid-cols-4 gap-4'>
                 <div className='text-center'>
                   <div className='text-24px font-700 text-t-primary'>{enterpriseProfile?.usage?.input_tokens?.toLocaleString() || 0}</div>
                   <div className='text-12px text-t-tertiary'>输入 Token</div>
@@ -189,17 +186,17 @@ const UserProfile: React.FC = () => {
         ) : (
           <>
             {/* Consumer: Identity */}
-            <div className='flex items-center gap-20px p-24px bg-2 rd-16px border border-[var(--color-border-2)]'>
+            <div className='flex items-center gap-5 p-6 bg-2 rd-16px border border-solid border-[var(--color-border-2)]'>
               <ConsumerAvatar />
               <div className='flex-1'>
-                <div className='flex items-center gap-8px'>
+                <div className='flex items-center gap-2'>
                   <div className='text-18px font-600 text-t-primary'>{profile?.nickname || currentUser?.nickname || 'Sudowork 用户'}</div>
                   <Button type='outline' size='mini' icon={<Edit size={14} fill='currentColor' />} onClick={handleEditNickname}>
                     编辑
                   </Button>
                 </div>
-                <div className='flex gap-12px mt-8px'>
-                  <span className='text-12px text-t-secondary flex items-center gap-4px'>
+                <div className='flex gap-3 mt-2'>
+                  <span className='text-12px text-t-secondary flex items-center gap-1'>
                     <Phone size='14' /> {profile?.phone || currentUser?.phone || '未绑定'}
                   </span>
                 </div>
@@ -207,19 +204,19 @@ const UserProfile: React.FC = () => {
             </div>
 
             {/* Consumer: Today Stats */}
-            <div className='p-24px bg-2 rd-16px border border-[var(--color-border-2)]'>
-              <div className='text-14px font-600 text-t-primary mb-16px'>{t('settings.userProfile.todayUsage')}</div>
-              <div className='grid grid-cols-3 gap-16px'>
+            <div className='p-6 bg-2 rd-16px border border-solid border-[var(--color-border-2)]'>
+              <div className='text-14px font-600 text-t-primary mb-4'>{t('settings.userProfile.todayUsage')}</div>
+              <div className='grid grid-cols-3 gap-4'>
                 <div className='text-center'>
-                  <div className='text-24px font-700 text-t-primary min-h-32px flex items-center justify-center'>{stats === null ? <Spin size={20} /> : (stats.usage_today?.tokens?.toLocaleString() ?? '0')}</div>
+                  <div className='text-24px font-700 text-t-primary min-h-8 flex items-center justify-center'>{stats === null ? <Spin size={20} /> : (stats.usage_today?.tokens?.toLocaleString() ?? '0')}</div>
                   <div className='text-12px text-t-tertiary'>{t('settings.userProfile.tokens')}</div>
                 </div>
                 <div className='text-center'>
-                  <div className='text-24px font-700 text-primary min-h-32px flex items-center justify-center'>{stats === null ? <Spin size={20} /> : todayPoints}</div>
+                  <div className='text-24px font-700 text-primary min-h-8 flex items-center justify-center'>{stats === null ? <Spin size={20} /> : todayPoints}</div>
                   <div className='text-12px text-t-tertiary'>{t('settings.userProfile.consumedPoints')}</div>
                 </div>
                 <div className='text-center'>
-                  <div className='text-24px font-700 text-t-primary min-h-32px flex items-center justify-center'>{stats === null ? <Spin size={20} /> : (stats.usage_today?.requests ?? 0)}</div>
+                  <div className='text-24px font-700 text-t-primary min-h-8 flex items-center justify-center'>{stats === null ? <Spin size={20} /> : (stats.usage_today?.requests ?? 0)}</div>
                   <div className='text-12px text-t-tertiary'>{t('settings.userProfile.requests')}</div>
                 </div>
               </div>

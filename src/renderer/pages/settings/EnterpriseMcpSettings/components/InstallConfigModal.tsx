@@ -73,7 +73,7 @@ const InstallConfigModal: React.FC<InstallConfigModalProps> = ({ visible, templa
       header={`安装 · ${template.name}`}
       onCancel={onCancel}
       footer={
-        <div className='flex justify-end gap-8px'>
+        <div className='flex justify-end gap-2'>
           <Button onClick={onCancel} disabled={submitting}>
             取消
           </Button>
@@ -83,27 +83,27 @@ const InstallConfigModal: React.FC<InstallConfigModalProps> = ({ visible, templa
         </div>
       }
     >
-      <div className='flex flex-col gap-16px py-4px'>
+      <div className='flex flex-col gap-4 py-1'>
         {template.description && <div className='text-13px text-t-secondary leading-relaxed'>{template.description}</div>}
 
-        <div className='flex flex-col gap-8px'>
+        <div className='flex flex-col gap-2'>
           <label className='block text-13px text-t-secondary'>显示名称（可选）</label>
           <Input placeholder={`默认：${template.name}`} value={displayName} onChange={setDisplayName} disabled={submitting} />
         </div>
 
         {hasNoConfig ? (
-          <div className='text-13px text-t-tertiary py-12px text-center bg-[var(--color-fill-1)] rd-8px'>此模板无需配置，点击"安装"即可</div>
+          <div className='text-13px text-t-tertiary py-3 text-center bg-[var(--color-fill-1)] rd-8px'>此模板无需配置，点击"安装"即可</div>
         ) : (
-          <div className='flex flex-col gap-16px'>
+          <div className='flex flex-col gap-4'>
             {/* 用户配置项区域 */}
             {items.length > 0 && (
-              <div className='flex flex-col gap-14px'>
+              <div className='flex flex-col gap-3.5'>
                 <div className='text-13px font-500 text-t-primary'>用户配置项</div>
                 {items.map((it) => (
-                  <div key={it.key} className='flex flex-col gap-6px'>
+                  <div key={it.key} className='flex flex-col gap-1.5'>
                     <label className='block text-13px text-t-primary'>
                       {it.name}
-                      {it.required && <span className='text-red-500 ml-4px'>*</span>}
+                      {it.required && <span className='text-red-500 ml-1'>*</span>}
                     </label>
                     {it.description && <div className='text-12px text-t-tertiary'>{it.description}</div>}
                     <Input
@@ -129,13 +129,13 @@ const InstallConfigModal: React.FC<InstallConfigModalProps> = ({ visible, templa
 
             {/* 鉴权凭据区域 */}
             {authItems.length > 0 && (
-              <div className='flex flex-col gap-14px'>
+              <div className='flex flex-col gap-3.5'>
                 <div className='text-13px font-500 text-t-primary'>鉴权凭据</div>
                 {authItems.map((it) => (
-                  <div key={it.key} className='flex flex-col gap-6px'>
+                  <div key={it.key} className='flex flex-col gap-1.5'>
                     <label className='block text-13px text-t-primary'>
                       {it.name}
-                      {it.required && <span className='text-red-500 ml-4px'>*</span>}
+                      {it.required && <span className='text-red-500 ml-1'>*</span>}
                     </label>
                     {it.description && <div className='text-12px text-t-tertiary'>{it.description}</div>}
                     <Input

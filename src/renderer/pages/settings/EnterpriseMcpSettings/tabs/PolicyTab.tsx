@@ -158,22 +158,22 @@ const PolicyTab: React.FC<PolicyTabProps> = ({ policy, loading = false }) => {
   }
 
   return (
-    <div className='flex flex-col gap-2px rd-12px bg-1 overflow-hidden'>
+    <div className='flex flex-col gap-0.5 rd-12px bg-1 overflow-hidden'>
       {KNOWN_ROWS.map((row) => (
-        <div key={row.key} className='flex items-center justify-between gap-16px px-16px py-14px border-b border-b-[var(--color-border-1)] last:border-b-0'>
+        <div key={row.key} className='flex items-center justify-between gap-4 px-4 py-3.5 border-b border-b-solid border-b-[var(--color-border-1)] last:border-b-0'>
           <div className='flex-1 min-w-0'>
             <div className='text-14px font-500 text-t-primary'>{row.label}</div>
-            <div className='text-12px text-t-tertiary mt-2px'>{row.description}</div>
+            <div className='text-12px text-t-tertiary mt-0.5'>{row.description}</div>
           </div>
           <div className='shrink-0'>{row.renderValue(policy?.[row.key])}</div>
         </div>
       ))}
 
       {extraRows.map(([key, value]) => (
-        <div key={key} className='flex items-center justify-between gap-16px px-16px py-14px border-b border-b-[var(--color-border-1)] last:border-b-0'>
+        <div key={key} className='flex items-center justify-between gap-4 px-4 py-3.5 border-b border-b-solid border-b-[var(--color-border-1)] last:border-b-0'>
           <div className='flex-1 min-w-0'>
             <div className='text-14px font-500 text-t-primary'>{key}</div>
-            <div className='text-12px text-t-tertiary mt-2px'>企业自定义策略字段</div>
+            <div className='text-12px text-t-tertiary mt-0.5'>企业自定义策略字段</div>
           </div>
           <div className='shrink-0'>{fallbackRender(value)}</div>
         </div>

@@ -64,7 +64,7 @@ enum OrderStatusEnum {
 // ==================== Component ====================
 
 // 充值页通用「面板」容器样式 / Shared panel container style
-const PANEL_CLASS = 'p-6 bg-2 rd-16px border border-b-light';
+const PANEL_CLASS = 'p-6 bg-2 rd-16px border border-solid border-[var(--border-light)]';
 
 const PointsDashboard: React.FC<{ remainingPoints: number; usedPoints: number; bonusPoints: number }> = ({ remainingPoints, usedPoints, bonusPoints }) => {
   const { t } = useTranslation();
@@ -437,7 +437,7 @@ const RechargeCenter: React.FC = () => {
 
   // Render package selection
   const renderPackageSelection = () => (
-    <div className='p-6 bg-1 rd-16px border border-b-light'>
+    <div className='p-6 bg-1 rd-16px border border-solid border-[var(--border-light)]'>
       <div className='text-14px font-600 text-t-primary mb-4'>{t('settings.recharge.selectPackageRecharge') || '选择套餐充值'}</div>
 
       {loading && packages.length === 0 ? (
@@ -502,7 +502,7 @@ const RechargeCenter: React.FC = () => {
         <div className='text-14px text-t-secondary mb-2'>{t('settings.recharge.scanToPay', { method: paymentMethod === 'ALIPAY' ? '支付宝' : '微信' }) || `请使用${paymentMethod === 'ALIPAY' ? '支付宝' : '微信'}扫码支付`}</div>
 
         {/* QR Code */}
-        <div className='inline-block p-4 bg-white rd-12px border border-b-light'>
+        <div className='inline-block p-4 bg-white rd-12px border border-solid border-[var(--border-light)]'>
           <Suspense
             fallback={
               <div className='w-50 h-50 f-center'>
