@@ -394,7 +394,7 @@ const ChatHistory: React.FC<{ onSessionClick?: () => void; collapsed?: boolean }
               >
                 {!isEditing && (
                   <span
-                    className='flex-center mr-8px'
+                    className='f-center mr-8px'
                     onClick={(event) => {
                       event.stopPropagation();
                       handleEditStart(conversation);
@@ -414,7 +414,7 @@ const ChatHistory: React.FC<{ onSessionClick?: () => void; collapsed?: boolean }
                 )}
                 {!isEditing && (
                   <span
-                    className='flex-center'
+                    className='f-center'
                     onClick={(event) => {
                       event.stopPropagation();
                       handleDeleteClick(conversation);
@@ -472,7 +472,7 @@ const ChatHistory: React.FC<{ onSessionClick?: () => void; collapsed?: boolean }
     <FlexFullContainer>
       <div
         className={classNames('size-full chat-history', {
-          'flex-center': !listItems.length,
+          'f-center': !listItems.length,
           'chat-history--collapsed': collapsed,
         })}
       >

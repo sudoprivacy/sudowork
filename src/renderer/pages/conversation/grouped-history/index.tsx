@@ -271,7 +271,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
   if (activeTab === 'timeline' && timelineSections.length === 0 && pinnedConversations.length === 0) {
     return (
       <FlexFullContainer>
-        <div className='flex-center'>
+        <div className='f-center'>
           <Empty description={t('conversation.history.noHistory')} />
         </div>
       </FlexFullContainer>
@@ -281,7 +281,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
   if (activeTab === 'scheduled' && filteredScheduledGroups.length === 0 && pinnedConversations.length === 0) {
     return (
       <FlexFullContainer>
-        <div className='flex-center'>
+        <div className='f-center'>
           <Empty icon={null} description={t('conversation.history.noScheduledTask')} className='mt-80px' />
         </div>
       </FlexFullContainer>

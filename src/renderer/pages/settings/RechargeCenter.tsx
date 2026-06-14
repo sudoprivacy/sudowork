@@ -459,7 +459,7 @@ const RechargeCenter: React.FC = () => {
               <div className='text-15px font-600 text-brand mt-3'>{(pkg.points + pkg.bonus).toLocaleString()} PTS</div>
               {pkg.description && <div className='text-12px text-t-secondary mt-1.5 truncate'>{pkg.description}</div>}
               {selectedPackage?.amount === pkg.amount && (
-                <div className='absolute top-2 right-2 size-4 rd-full bg-primary flex-center'>
+                <div className='absolute top-2 right-2 size-4 rd-full bg-primary f-center'>
                   <CheckSmall theme='outline' size='10' fill='#fff' />
                 </div>
               )}
@@ -476,7 +476,7 @@ const RechargeCenter: React.FC = () => {
               <Icon size={18} fill={[fill]} theme='filled' />
               <span className='text-14px text-t-primary'>{label}</span>
               {paymentMethod === method && (
-                <div className='absolute -top-1 -right-1 w-3.5 h-3.5 rd-full bg-primary flex-center'>
+                <div className='absolute -top-1 -right-1 w-3.5 h-3.5 rd-full bg-primary f-center'>
                   <CheckSmall theme='outline' size='9' fill='#fff' />
                 </div>
               )}
@@ -505,7 +505,7 @@ const RechargeCenter: React.FC = () => {
         <div className='inline-block p-4 bg-white rd-12px border border-b-light'>
           <Suspense
             fallback={
-              <div className='w-50 h-50 flex-center'>
+              <div className='w-50 h-50 f-center'>
                 <Spin />
               </div>
             }
@@ -528,7 +528,7 @@ const RechargeCenter: React.FC = () => {
         </div>
 
         {/* Status */}
-        <div className='flex-center gap-2 mt-4 text-14px text-t-secondary'>
+        <div className='f-center gap-2 mt-4 text-14px text-t-secondary'>
           <Refresh size={16} className='animate-spin' />
           <span>{t('settings.recharge.waitingPayment') || '等待支付...'}</span>
         </div>
