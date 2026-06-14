@@ -354,7 +354,7 @@ const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({ content, onClose, hid
               <div
                 className={`
                   flex items-center h-full px-16px cursor-pointer transition-all text-14px font-medium
-                  ${viewMode === 'preview' ? 'text-primary border-b-2 border-primary' : 'text-t-secondary hover:text-t-primary hover:bg-bg-3'}
+                  ${viewMode === 'preview' ? 'text-primary border-b-2px border-solid border-primary' : 'text-t-secondary hover:text-t-primary hover:bg-bg-3'}
                 `}
                 onClick={() => handleViewModeChange('preview')}
               >
@@ -364,7 +364,7 @@ const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({ content, onClose, hid
               <div
                 className={`
                   flex items-center h-full px-16px cursor-pointer transition-all text-14px font-medium
-                  ${viewMode === 'source' ? 'text-primary border-b-2 border-primary' : 'text-t-secondary hover:text-t-primary hover:bg-bg-3'}
+                  ${viewMode === 'source' ? 'text-primary border-b-2px border-solid border-primary' : 'text-t-secondary hover:text-t-primary hover:bg-bg-3'}
                 `}
                 onClick={() => handleViewModeChange('source')}
               >

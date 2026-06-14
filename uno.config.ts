@@ -47,13 +47,6 @@ const backgroundColors = {
   active: 'var(--bg-active)', // bg-active - 激活背景
 };
 
-// ==================== 边框颜色 / Border Colors ====================
-const borderColors = {
-  'b-base': 'var(--border-base)', // border-b-base - 基础边框
-  'b-light': 'var(--border-light)', // border-b-light - 浅色边框
-  'b-2': 'var(--bg-4)', // border-b-2 - 基于 bg-4
-};
-
 // ==================== 品牌色 / Brand Colors ====================
 const brandColors = {
   brand: 'var(--brand)',
@@ -161,7 +154,6 @@ export default defineConfig({
       ...textColors,
       ...semanticColors,
       ...backgroundColors,
-      ...borderColors,
       ...brandColors,
       ...aouColors,
       ...componentColors,
