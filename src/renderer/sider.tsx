@@ -196,7 +196,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
                 </div>
               ) : (
                 <div
-                  className='h-42px flex items-center justify-center gap-8px px-14px mb-12px rd-12px cursor-pointer transition-all border border-solid border-[var(--border-default)] bg-1 hover:bg-hover active:bg-fill-2'
+                  className='h-42px flex items-center justify-center gap-8px px-14px mb-12px rd-12px cursor-pointer transition-all border bg-1 hover:bg-hover active:bg-fill-2'
                   onClick={() => {
                     cleanupSiderTooltips();
                     blurActiveElement();
@@ -308,7 +308,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
           /* 用户信息下拉菜单 */
           <Dropdown
             droplist={
-              <div className='flex flex-col gap-2px p-6px rd-12px border border-solid border-[var(--border-default)] bg-popup' style={{ width: userMenuWidth ? userMenuWidth - 12 : undefined, minWidth: 200, boxShadow: '0 8px 28px rgba(0, 0, 0, 0.12)' }}>
+              <div className='flex flex-col gap-2px p-6px rd-12px border bg-popup' style={{ width: userMenuWidth ? userMenuWidth - 12 : undefined, minWidth: 200, boxShadow: '0 8px 28px rgba(0, 0, 0, 0.12)' }}>
                 <div
                   className='flex items-center gap-10px px-10px h-38px rd-8px cursor-pointer text-14px text-t-primary transition-colors hover:bg-hover active:bg-active'
                   onClick={() => {
@@ -342,7 +342,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
               setUserMenuOpen(visible);
             }}
           >
-            <div ref={userTriggerRef} className={classNames('flex items-center gap-10px px-8px py-10px cursor-pointer transition-colors', collapsed ? 'rd-8px justify-center px-2px w-40px h-40px hover:bg-hover active:bg-fill-2' : 'rd-12px w-full border border-solid border-[var(--border-default)] hover:bg-hover active:bg-fill-2')}>
+            <div ref={userTriggerRef} className={classNames('flex items-center gap-10px px-8px py-10px cursor-pointer transition-colors', collapsed ? 'rd-8px justify-center px-2px w-40px h-40px hover:bg-hover active:bg-fill-2' : 'rd-12px w-full border hover:bg-hover active:bg-fill-2')}>
               <div className='w-32px h-32px rd-50% bg-[var(--color-fill-3)] flex items-center justify-center text-t-primary text-14px font-bold shrink-0'>{userInfo.avatar ? <img src={userInfo.avatar} alt={userInfo.name} className='w-full h-full rd-50% object-cover' /> : <span>{userInfo.name.charAt(0).toUpperCase()}</span>}</div>
               {!collapsed && (
                 <>

@@ -69,9 +69,9 @@ const AddModelModal = ModalHOC<{ data?: IProvider; onSubmit: (model: IProvider) 
         <div className='space-y-2'>
           {/* <div className='text-13px font-500 text-t-secondary'>{t('settings.currentModelsLabel')}</div>
           {existingModels.length === 0 ? (
-            <div className='text-13px text-t-secondary bg-fill-1 rd-8px px-12px py-14px border border-dashed border-border-2'>{t('settings.addModelNoExisting')}</div>
+            <div className='text-13px text-t-secondary bg-fill-1 rd-8px px-12px py-14px border border-dashed'>{t('settings.addModelNoExisting')}</div>
           ) : (
-            <div className='flex flex-wrap gap-8px bg-1 rd-8px px-12px py-10px border border-solid border-border-2'>
+            <div className='flex flex-wrap gap-8px bg-1 rd-8px px-12px py-10px border'>
               {previewModels.map((item) => (
                 <Tag key={item} bordered color='arcoblue' className='text-12px'>
                   {item}
@@ -82,7 +82,7 @@ const AddModelModal = ModalHOC<{ data?: IProvider; onSubmit: (model: IProvider) 
           )} */}
         </div>
 
-        {/* <div className='text-12px tet-t-tertiary leading-5 bg-fill-1 rd-8px px-12px py-10px border border-dashed border-border-2'>{t('settings.addModelTips')}</div> */}
+        {/* <div className='text-12px tet-t-tertiary leading-5 bg-fill-1 rd-8px px-12px py-10px border border-dashed'>{t('settings.addModelTips')}</div> */}
       </div>
       {/* <div className='text-12px text-t-secondary leading-5 my-4'>{model ? t('settings.addModelSelectedHint', { model }) : t('settings.addModelHint')}</div> */}
     </AionModal>

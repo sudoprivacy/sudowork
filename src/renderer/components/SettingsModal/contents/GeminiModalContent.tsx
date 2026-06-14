@@ -146,7 +146,7 @@ const GeminiModalContent: React.FC = () => {
       {/* Content Area */}
       <AionScrollArea className='flex-1 min-h-0' disableOverflow>
         <div className='space-y-16px'>
-          <div className='px-[12px] py-[24px] md:px-[32px] bg-2 rd-12px md:rd-16px border border-border-2'>
+          <div className='px-[12px] py-[24px] md:px-[32px] bg-2 rd-12px md:rd-16px border'>
             <Form form={form} layout='horizontal' labelCol={{ flex: '140px' }} labelAlign='left' wrapperCol={{ flex: '1' }} onValuesChange={debouncedSave}>
               <Form.Item label={t('settings.personalAuth')} field='googleAccount' layout='horizontal'>
                 {(props) => (

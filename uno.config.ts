@@ -30,19 +30,22 @@ const semanticColors = {
 };
 
 // ==================== 背景色系统 / Background Color System ====================
-// 用途：背景、容器等布局元素
-// Usage: Backgrounds, containers, layout elements
-// ⚠️ 数字键同时支持 bg-* 和 border-* (如: bg-1, border-1)
-// Numeric keys support bg-* and border-* simultaneously
+// 用途：仅用于背景、容器等布局元素（bg-*）。
+// Usage: backgrounds / containers only (bg-*).
+// ⚠️ 这些是背景色，请勿当边框用 —— 边框统一走语义 token：
+//    border-default / border-subtle 快捷方式，或 border-[var(--border-default)] / border-[var(--border-light)]。
+//    UnoCSS 颜色命名空间共享，border-1 / border-base 等技术上能解析，但指向的是「背景色」而非边框色，属误用。
+// ⚠️ These are background colors — do NOT use as borders. For borders use the semantic
+//    shortcuts border-default / border-subtle, or border-[var(--border-default|light)].
 // 📝 text-1 到 text-4 通过自定义规则支持，指向 Arco 的 --color-text-*
 // text-1 to text-4 are supported via custom rules, pointing to Arco's --color-text-*
 const backgroundColors = {
-  base: 'var(--bg-base)', // bg-base, border-base - 主背景
-  1: 'var(--bg-1)', // bg-1, border-1 - 次级背景
-  2: 'var(--bg-2)', // bg-2, border-2 - 三级背景
-  3: 'var(--bg-3)', // bg-3, border-3 - 边框/分隔
-  4: 'var(--bg-4)', // bg-4, border-4
-  6: 'var(--bg-6)', // bg-6, border-6
+  base: 'var(--bg-base)', // bg-base - 主背景
+  1: 'var(--bg-1)', // bg-1 - 次级背景
+  2: 'var(--bg-2)', // bg-2 - 三级背景
+  3: 'var(--bg-3)', // bg-3
+  4: 'var(--bg-4)', // bg-4
+  6: 'var(--bg-6)', // bg-6
   hover: 'var(--bg-hover)', // bg-hover - 悬停背景
   active: 'var(--bg-active)', // bg-active - 激活背景
 };
@@ -120,12 +123,14 @@ export default defineConfig({
           color: inherit;
         }
         *, ::before, ::after {
-          /* Tailwind 同款 border reset：清零默认宽度并统一 solid，
-             使 border-x + border-solid + border-[color] 的写法只渲染有宽度的那条边。
-             Tailwind-style border reset: zero default width and default to solid,
-             so border-x only renders the side that explicitly sets width. */
+          /* Tailwind 同款 border reset：清零默认宽度、统一 solid，并给一个默认主题边框色。
+             默认色很关键：任何「有宽度但没指定颜色」的边框（裸 border / 无效色类）
+             都会回退到柔和的 --border-default，而不是刺眼的 currentColor（黑）。
+             Tailwind-style reset: zero width, solid style, and a default themed border color
+             so any width-without-color border falls back to --border-default, not currentColor. */
           border-width: 0;
           border-style: solid;
+          border-color: var(--border-default);
         }
       `,
     },
@@ -134,12 +139,13 @@ export default defineConfig({
   shortcuts: {
     'f-center': 'flex items-center justify-center',
     // 语义化边框颜色 / Semantic border colors
-    // 仅产出 border-color，需搭配 `border border-solid` 使用。
-    // Color only — pair with `border border-solid`.
-    // 映射到真实边框 token（非背景色）；按可见度递增：subtle（浅，贴近背景）< default（标准）。
-    // Mapped to real border tokens (not bg colors), increasing visibility: subtle < default.
-    'border-subtle': 'border-[var(--border-light)]', // 浅边框 / lighter divider
-    'border-default': 'border-[var(--border-default)]', // 标准边框 / standard border
+    // 标准边框无需快捷方式：preflight 已把 --border-default 设为全局默认边框色，
+    // 直接写宽度类即可（border / border-b = 1px solid 默认色边框）。
+    // 此处仅为「浅边框」提供命名，避免写裸 border-[var(--border-light)]。
+    // Standard border needs no shortcut — preflight defaults border-color to --border-default,
+    // so a width class alone (border / border-b) already gives a 1px solid default border.
+    // Only the lighter variant gets a name here. 仅产出 border-color，搭配宽度类使用。
+    'border-subtle': 'border-[var(--border-light)]', // 浅边框 / lighter divider（搭配 border / border-b）
     'scrollbar-hide': 'scrollbar-width-none [&::-webkit-scrollbar]:hidden',
     // 技能/数字助手商店卡片：悬浮白卡 + hover 抬升 / elevated white store card
     'library-card': 'group bg-fill-0 rd-12px p-12px flex items-start gap-12px relative overflow-hidden shadow-[0_1px_3px_rgba(0,0,0,0.08)] transition-all duration-200 hover:-translate-y-px hover:shadow-[0_4px_12px_rgba(0,0,0,0.1)]',

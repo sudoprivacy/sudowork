@@ -183,7 +183,7 @@ const SkillCard: React.FC<{
     <div className='library-card cursor-pointer' onClick={onClick}>
       {/* Icon */}
       <div className='w-48px flex-shrink-0 flex flex-col items-center'>
-        <div className='w-48px h-48px rd-8px overflow-hidden bg-fill-2 border border-line'>{skill.icon ? <img src={skill.icon} alt={skill.display_name} className='w-full h-full object-cover' onError={handleSkillIconError} /> : <div className='w-full h-full flex items-center justify-center text-22px'>{skill.emoji || '📦'}</div>}</div>
+        <div className='w-48px h-48px rd-8px overflow-hidden bg-fill-2 border'>{skill.icon ? <img src={skill.icon} alt={skill.display_name} className='w-full h-full object-cover' onError={handleSkillIconError} /> : <div className='w-full h-full flex items-center justify-center text-22px'>{skill.emoji || '📦'}</div>}</div>
       </div>
 
       {/* Content */}
@@ -492,7 +492,7 @@ const SkillDetailModal: React.FC<{
         </AionScrollArea>
 
         {/* Action buttons — hidden when opened from installed tab */}
-        <div className={classNames('px-8px pt-12px border-t border-line mt-4px', hideActions && 'hidden')}>
+        <div className={classNames('px-8px pt-12px border-t mt-4px', hideActions && 'hidden')}>
           <div className='flex gap-8px items-center'>
             {isInstalled ? (
               <>
@@ -518,7 +518,7 @@ const SkillDetailModal: React.FC<{
                   ) : (
                     <Popconfirm title='确认卸载该技能？' onOk={onUninstall} okText='卸载' cancelText='取消' okButtonProps={{ status: 'danger' }}>
                       <Tooltip content={t('common.delete', { defaultValue: '删除' })}>
-                        <div className='w-36px h-36px flex items-center justify-center rd-8px border border-line hover:bg-fill-2 cursor-pointer transition-colors text-t-secondary'>
+                        <div className='w-36px h-36px flex items-center justify-center rd-8px border hover:bg-fill-2 cursor-pointer transition-colors text-t-secondary'>
                           <Delete size='16' />
                         </div>
                       </Tooltip>
@@ -1800,7 +1800,7 @@ const SkillModalContent: React.FC = () => {
             {loadingMore && (
               <div className='grid gap-16px pb-16px' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
                 {Array.from({ length: 4 }).map((_, i) => (
-                  <div key={`skel-${i}`} className='bg-fill-1 rd-12px border border-line p-12px flex items-start gap-12px animate-pulse'>
+                  <div key={`skel-${i}`} className='bg-fill-1 rd-12px border p-12px flex items-start gap-12px animate-pulse'>
                     <div className='w-48px h-48px flex-shrink-0 rd-8px bg-fill-3' />
                     <div className='flex-1 min-w-0 flex flex-col gap-6px pt-2px'>
                       <div className='h-14px w-3/5 rd-4px bg-fill-3' />
@@ -1842,7 +1842,7 @@ const SkillModalContent: React.FC = () => {
                     <div className='text-13px font-medium text-t-primary'>{t('settings.customSkills')}</div>
                     <span className='px-6px py-0px bg-fill-2 text-t-secondary text-11px rd-full leading-18px'>{customInstalledSkills.length}</span>
                   </div>
-                  {customInstalledSkills.length > 0 ? isEnterprise ? renderCustomSkillGridWithEnterpriseActions(customInstalledSkills) : renderInstalledSkillGrid(customInstalledSkills) : <div className='bg-fill-1 border border-dashed border-line rd-12px px-14px py-18px text-12px text-t-tertiary'>{t('settings.noCustomSkills')}</div>}
+                  {customInstalledSkills.length > 0 ? isEnterprise ? renderCustomSkillGridWithEnterpriseActions(customInstalledSkills) : renderInstalledSkillGrid(customInstalledSkills) : <div className='bg-fill-1 border border-dashed rd-12px px-14px py-18px text-12px text-t-tertiary'>{t('settings.noCustomSkills')}</div>}
                 </section>
 
                 {/* Tenant skills section - enterprise mode only */}
@@ -1852,7 +1852,7 @@ const SkillModalContent: React.FC = () => {
                       <div className='text-13px font-medium text-t-primary'>{t('settings.tenantSkills', { defaultValue: '专属技能' })}</div>
                       <span className='px-6px py-0px bg-fill-2 text-t-secondary text-11px rd-full leading-18px'>{localTenantSkills.length}</span>
                     </div>
-                    {localTenantSkills.length > 0 ? renderInstalledSkillGrid(localTenantSkills, true) : <div className='bg-fill-1 border border-dashed border-line rd-12px px-14px py-18px text-12px text-t-tertiary'>{t('settings.noTenantSkills', { defaultValue: '暂无专属技能' })}</div>}
+                    {localTenantSkills.length > 0 ? renderInstalledSkillGrid(localTenantSkills, true) : <div className='bg-fill-1 border border-dashed rd-12px px-14px py-18px text-12px text-t-tertiary'>{t('settings.noTenantSkills', { defaultValue: '暂无专属技能' })}</div>}
                   </section>
                 )}
 
@@ -1861,7 +1861,7 @@ const SkillModalContent: React.FC = () => {
                     <div className='text-13px font-medium text-t-primary'>{t('settings.hubSkills', { defaultValue: 'Hub Skills' })}</div>
                     <span className='px-6px py-0px bg-fill-2 text-t-secondary text-11px rd-full leading-18px'>{hubInstalledSkills.length}</span>
                   </div>
-                  {hubInstalledSkills.length > 0 ? renderInstalledSkillGrid(hubInstalledSkills, isEnterprise) : <div className='bg-fill-1 border border-dashed border-line rd-12px px-14px py-18px text-12px text-t-tertiary'>{t('settings.noHubSkills', { defaultValue: 'No hub-installed skills' })}</div>}
+                  {hubInstalledSkills.length > 0 ? renderInstalledSkillGrid(hubInstalledSkills, isEnterprise) : <div className='bg-fill-1 border border-dashed rd-12px px-14px py-18px text-12px text-t-tertiary'>{t('settings.noHubSkills', { defaultValue: 'No hub-installed skills' })}</div>}
                 </section>
 
                 <section>
@@ -1869,7 +1869,7 @@ const SkillModalContent: React.FC = () => {
                     <div className='text-13px font-medium text-t-primary'>{t('settings.builtinSkills')}</div>
                     <span className='px-6px py-0px bg-fill-2 text-t-secondary text-11px rd-full leading-18px'>{builtinInstalledSkills.length}</span>
                   </div>
-                  {builtinInstalledSkills.length > 0 ? renderInstalledSkillGrid(builtinInstalledSkills) : <div className='bg-fill-1 border border-dashed border-line rd-12px px-14px py-18px text-12px text-t-tertiary'>{t('settings.noBuiltinSkills')}</div>}
+                  {builtinInstalledSkills.length > 0 ? renderInstalledSkillGrid(builtinInstalledSkills) : <div className='bg-fill-1 border border-dashed rd-12px px-14px py-18px text-12px text-t-tertiary'>{t('settings.noBuiltinSkills')}</div>}
                 </section>
               </div>
             )}
@@ -1987,7 +1987,7 @@ const SkillModalContent: React.FC = () => {
           <div className='grid grid-cols-2 gap-10px'>
             <button
               type='button'
-              className='p-14px text-left rd-12px border border-line bg-fill-1 hover:bg-fill-2 cursor-pointer transition-colors outline-none'
+              className='p-14px text-left rd-12px border bg-fill-1 hover:bg-fill-2 cursor-pointer transition-colors outline-none'
               onClick={() => {
                 setImportSourceVisible(false);
                 void handleImportLocalSkill('zip');
@@ -1998,7 +1998,7 @@ const SkillModalContent: React.FC = () => {
             </button>
             <button
               type='button'
-              className='p-14px text-left rd-12px border border-line bg-fill-1 hover:bg-fill-2 cursor-pointer transition-colors outline-none'
+              className='p-14px text-left rd-12px border bg-fill-1 hover:bg-fill-2 cursor-pointer transition-colors outline-none'
               onClick={() => {
                 setImportSourceVisible(false);
                 void handleImportLocalSkill('directory');

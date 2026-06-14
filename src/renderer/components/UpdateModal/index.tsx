@@ -367,7 +367,7 @@ const UpdateModal: React.FC = () => {
         return (
           <div className='flex flex-col h-full'>
             {/* 版本信息头部 / Version info header */}
-            <div className='flex items-center justify-between px-24px py-16px border-b border-border-2 bg-fill-1'>
+            <div className='flex items-center justify-between px-24px py-16px border-b bg-fill-1'>
               <div className='flex items-center gap-12px'>
                 <div className='w-40px h-40px bg-[rgb(var(--primary-6))]/12 rounded-10px flex items-center justify-center'>
                   <Download size='20' fill='rgb(var(--primary-6))' />
@@ -403,7 +403,7 @@ const UpdateModal: React.FC = () => {
 
             {/* 自动更新开关 / Auto update toggle (hidden for nightly builds) */}
             {!isNightlyBuild && (
-              <div className='flex items-center justify-between px-24px py-12px bg-fill-1 border-b border-border-2'>
+              <div className='flex items-center justify-between px-24px py-12px bg-fill-1 border-b'>
                 <div className='text-13px text-t-secondary'>{t('update.autoUpdateMode')}</div>
                 <Switch checked={useAutoUpdate} onChange={setUseAutoUpdate} size='small' disabled={!hasCompatibleManualAsset} />
               </div>

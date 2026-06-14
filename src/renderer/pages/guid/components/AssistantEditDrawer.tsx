@@ -424,9 +424,9 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
             <Typography.Text bold className='flex-shrink-0'>
               {t('settings.assistantRules', { defaultValue: 'Rules' })}
             </Typography.Text>
-            <div className='mt-10px border border-border-2 overflow-hidden rounded-4px' style={{ height: '300px' }}>
+            <div className='mt-10px border overflow-hidden rounded-4px' style={{ height: '300px' }}>
               {!isBuiltin && !isReadonly && (
-                <div className='flex items-center h-36px bg-fill-2 border-b border-border-2 flex-shrink-0'>
+                <div className='flex items-center h-36px bg-fill-2 border-b flex-shrink-0'>
                   <div className={`flex items-center h-full px-16px cursor-pointer transition-all text-13px font-medium ${promptViewMode === 'edit' ? 'text-primary border-b-2px border-solid border-primary bg-bg-1' : 'text-t-secondary hover:text-t-primary'}`} onClick={() => setPromptViewMode('edit')}>
                     {t('settings.promptEdit', { defaultValue: 'Edit' })}
                   </div>
@@ -502,7 +502,7 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
                       const displayVersion = normalizeSkillVersion(skill.version);
                       const skillId = skill.meta?.id || skill.name;
                       return (
-                        <div key={skill.name} className={`bg-fill-1 rd-12px border border-line p-12px flex items-start gap-12px relative ${isReadonly ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                        <div key={skill.name} className={`bg-fill-1 rd-12px border p-12px flex items-start gap-12px relative ${isReadonly ? 'opacity-50 cursor-not-allowed' : ''}`}>
                           <Checkbox
                             checked={selectedSkills.includes(skillId)}
                             onChange={() => {
@@ -570,7 +570,7 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
                       const { displayName, description, icon, emoji } = getInstalledSkillDisplay(skill);
                       const skillId = skill.meta?.id || skill.name;
                       return (
-                        <div key={skill.name} className={`bg-fill-1 rd-12px border border-line p-12px flex items-start gap-12px relative ${isReadonly ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                        <div key={skill.name} className={`bg-fill-1 rd-12px border p-12px flex items-start gap-12px relative ${isReadonly ? 'opacity-50 cursor-not-allowed' : ''}`}>
                           <Checkbox
                             checked={selectedSkills.includes(skillId)}
                             onChange={() => {

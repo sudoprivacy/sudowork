@@ -89,7 +89,7 @@ export const EnterpriseSecretSection: React.FC = () => {
         <span className='text-13px font-500 text-t-secondary'>{t('settings.secrets.enterprise.title', '企业凭据')}</span>
       </div>
       {items.map((item) => (
-        <div key={item.id} className='overflow-hidden rd-12px border border-solid border-[var(--border-default)] bg-bg-1'>
+        <div key={item.id} className='overflow-hidden rd-12px border bg-bg-1'>
           <Collapse defaultActiveKey={[]} className='border-0 bg-transparent [&_.arco-collapse-item-icon]:hidden [&_.arco-collapse-item-header-icon]:hidden [&_.arco-collapse-item-header]:px-0 [&_.arco-collapse-item-header]:py-0 [&_div.arco-collapse-item-header-title]:flex-1'>
             <Collapse.Item
               header={
@@ -106,7 +106,7 @@ export const EnterpriseSecretSection: React.FC = () => {
               name={`enterprise-${item.id}`}
               className='[&_div.arco-collapse-item-content-box]:px-12px [&_div.arco-collapse-item-content-box]:py-12px md:[&_div.arco-collapse-item-content-box]:px-16px'
             >
-              <div className='space-y-12px border-t border-border-2 pt-12px'>
+              <div className='space-y-12px border-t pt-12px'>
                 {item.entries.map((entry) => (
                   <PreferenceRow key={entry.id} label={entry.name} description={entry.config_desc || undefined} required={entry.required === 1}>
                     <Tooltip content={LOCKED_TIP}>

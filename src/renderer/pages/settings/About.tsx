@@ -28,7 +28,7 @@ const About: React.FC = () => {
     <SettingsPageWrapper contentClassName='max-w-120'>
       <div className='f-center flex-col w-full min-h-[62vh] py-8 text-center'>
         {/* Logo 磁贴 / Logo tile */}
-        <div className='f-center w-19 h-19 rd-18px bg-1 border border-solid border-default shadow-sm'>
+        <div className='f-center w-19 h-19 rd-18px bg-1 border shadow-sm'>
           <img src={config.logo || sudoIcon} alt={config.about_name} className='w-11.5 h-11.5' />
         </div>
 

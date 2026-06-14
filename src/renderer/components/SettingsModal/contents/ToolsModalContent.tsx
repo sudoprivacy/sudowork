@@ -205,7 +205,7 @@ const ModalMcpManagementSection: React.FC<{ message: MessageInstance }> = ({ mes
 
       <div className='flex-1 min-h-0'>
         {mcpServers.length === 0 && extensionMcpServers.length === 0 ? (
-          <div className='py-24px text-center text-t-secondary text-14px border border-dashed border-border-2 rd-12px'>{t('settings.mcpNoServersFound')}</div>
+          <div className='py-24px text-center text-t-secondary text-14px border border-dashed rd-12px'>{t('settings.mcpNoServersFound')}</div>
         ) : (
           <AionScrollArea className={'max-h-360px max-h-none'} disableOverflow>
             <div className='space-y-12px'>
@@ -310,7 +310,7 @@ const ToolsModalContent: React.FC = () => {
       <AionScrollArea className='flex-1 min-h-0 pb-16px' disableOverflow>
         <div className='space-y-16px'>
           {/* MCP 工具配置 */}
-          <div className='px-[12px] md:px-[32px] py-[24px] bg-2 rd-12px md:rd-16px flex flex-col min-h-0 border border-border-2'>
+          <div className='px-[12px] md:px-[32px] py-[24px] bg-2 rd-12px md:rd-16px flex flex-col min-h-0 border'>
             <div className='flex-1 min-h-0'>
               <AionScrollArea className={'h-full overflow-visible'} disableOverflow>
                 <ModalMcpManagementSection message={mcpMessage} />
@@ -318,7 +318,7 @@ const ToolsModalContent: React.FC = () => {
             </div>
           </div>
           {/* 图像生成 */}
-          <div className='px-[12px] md:px-[32px] py-[24px] bg-2 rd-12px md:rd-16px border border-border-2'>
+          <div className='px-[12px] md:px-[32px] py-[24px] bg-2 rd-12px md:rd-16px border'>
             <div className='flex items-center justify-between mb-16px'>
               <span className='text-14px text-t-primary'>{t('settings.imageGeneration')}</span>
               <Switch checked={imageGenerationModel?.switch} onChange={(checked) => handleImageGenerationModelChange({ switch: checked })} className='settings-accent-switch' style={imageGenerationModel?.switch ? { backgroundColor: 'var(--ui-accent-orange)' } : undefined} />

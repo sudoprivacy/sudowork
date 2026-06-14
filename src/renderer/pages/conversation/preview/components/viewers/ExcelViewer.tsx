@@ -552,7 +552,7 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ filePath, content: _content
         {messageContextHolder}
 
         {!usePortalToolbar && !hideToolbar && (
-          <div className='flex items-center justify-between h-40px px-12px bg-bg-2 border-b border-border-base flex-shrink-0'>
+          <div className='flex items-center justify-between h-40px px-12px bg-bg-2 border-b flex-shrink-0'>
             <div className='flex items-center gap-8px'>
               <span className='text-13px text-t-secondary'>📊 {t('preview.excel.title')}</span>
               <span className='text-11px text-t-tertiary'>{t('preview.readOnlyLabel')}</span>
@@ -597,7 +597,7 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ filePath, content: _content
       {messageContextHolder}
 
       {!usePortalToolbar && !hideToolbar && (
-        <div className='flex items-center justify-between h-40px px-12px bg-bg-2 border-b border-border-base flex-shrink-0'>
+        <div className='flex items-center justify-between h-40px px-12px bg-bg-2 border-b flex-shrink-0'>
           <div className='flex items-center gap-8px'>
             <span className='text-13px text-t-secondary'>📊 {t('preview.excel.title')}</span>
             <span className='text-11px text-t-tertiary'>{t('preview.readOnlyLabel')}</span>
@@ -627,7 +627,7 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ filePath, content: _content
           renderSheetTable(excelData.sheets[0].name)
         ) : (
           <>
-            <div className='flex items-center h-28px px-8px bg-bg-1 border-b border-border-base overflow-x-auto flex-shrink-0'>
+            <div className='flex items-center h-28px px-8px bg-bg-1 border-b overflow-x-auto flex-shrink-0'>
               {excelData.sheets.map((sheet) => (
                 <button
                   key={sheet.name}

@@ -110,7 +110,7 @@ export const SkillAuditSummary: React.FC<{
       </div>
 
       {/* Report path and view details */}
-      <div className='mt-10px pt-8px border-t border-line flex items-center justify-between'>
+      <div className='mt-10px pt-8px border-t flex items-center justify-between'>
         {report.reportPath && (
           <div className='text-11px text-t-tertiary truncate flex-1 min-w-0 mr-8px'>
             {t('settings.skill.audit.reportPath', { defaultValue: '安全审计报告' })}：{report.reportPath}
@@ -343,7 +343,7 @@ const FileFindings: React.FC<{
   return (
     <div className='bg-fill-1 rd-8px overflow-hidden'>
       {/* File header */}
-      <div className='px-12px py-8px bg-fill-2 border-b border-line'>
+      <div className='px-12px py-8px bg-fill-2 border-b'>
         <span className='text-12px font-medium text-t-primary font-mono'>{file}</span>
         <span className='text-11px text-t-tertiary ml-2'>
           ({findings.length} {t('settings.skill.audit.places', { defaultValue: '处调用' })})
