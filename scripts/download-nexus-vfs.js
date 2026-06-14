@@ -71,13 +71,18 @@ const FUSE_PLUGIN_GITHUB_URL = `https://github.com/nexi-lab/nexus/releases/downl
  * nexusd-cluster sums are populated after COS mirror; vault sums from CI artifacts.
  */
 const SHA256SUMS = {
-  // nexusd-cluster v0.2.1
-  'nexusd-cluster-linux-aarch64.tar.gz': '83336737e360541796ce04fda243b1de0072afb54743dcf39c0ec7b7aec09e03',
-  'nexusd-cluster-linux-x86_64.tar.gz': '55f35a600d5c2ce3858ba66053ed6e2b8bfdb3ba4977e73639be927ccbd33174',
-  'nexusd-cluster-macos-aarch64.tar.gz': 'e7c1ab832445b23434e557cd10532f8da5de29028c9e3ee7508029165c35dfd1',
-  'nexusd-cluster-macos-x86_64.tar.gz': 'cca3f5df353e1bb7eee4b2d07e81932477edb86f91b77e83c50cfbef5be59d9c',
-  'nexusd-cluster-windows-aarch64.zip': 'cbc289132b781f2a52231cc223bb07fa1f575dad3b04a03646135c18a1e93b44',
-  'nexusd-cluster-windows-x86_64.zip': 'bfb785aa0b24f8966a631281454464dc1bb01c4956e002807c21553399e2e5e0',
+  // nexusd-cluster v0.3.0 — cuts nexus-vfs main HEAD 243746d6f, ships
+  // #57 (plugin-as-grpc-service), #58 (trust-root kernel-dogfood-v1.pub
+  // in TRUSTED_KEY_FILES), #59 (sys_readdir leaf-name fix), #60
+  // (KernelHandle v3 sys_stat_batch; additive, v1/v2 plugins still load).
+  // Sums lifted from
+  // https://sudowork-runtime-1309794936.cos.ap-beijing.myqcloud.com/nexus-vfs/release/v0.3.0/SHA256SUMS.txt
+  'nexusd-cluster-linux-aarch64.tar.gz': '1afa3e5b0fd239cd8a36a4bd2fd6409890eb5bb8a3d8d3d9a5e8357faec8b610',
+  'nexusd-cluster-linux-x86_64.tar.gz': 'b5589082304cf9cbc693381f3bf52d53554573bee0aa8bbdc23f17ca3a7cf486',
+  'nexusd-cluster-macos-aarch64.tar.gz': '0b07557accd3982ac9823ba8128377ea2e4e8a7ab8aaaf9d243bf9e06688df0e',
+  'nexusd-cluster-macos-x86_64.tar.gz': '7bd7e03a97ba024459503d137d7622e8315a2bb976a5884156a37c2a8d90313d',
+  'nexusd-cluster-windows-aarch64.zip': 'ec97d5ff5fe7b51f29cf5c2b1b0ab7d709df99e10ce3e974aa12cc9e14220ebd',
+  'nexusd-cluster-windows-x86_64.zip': 'c318f749cb1ed5a6dad87559499bf5ae9fbb53ad9decb94e3711060aa8e8050d',
   // vault plugin v0.1.2 — first signed release (Ed25519 detached `.sig`
   // alongside dylib inside each archive). Hashes regenerate from scratch
   // because the archive shape changed (now ships sig too); they are
