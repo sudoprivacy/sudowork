@@ -147,8 +147,8 @@ function wrapUntrusted(value: string, opts: { truncatedMaxBytes?: number } = {})
 
 const TOOLS: Tool[] = [
   {
-    name: ‘panel_open’,
-    description: ‘Open a URL in the right-side panel visible to the user. Use when the user wants to see a page, watch a demo, or interact with a login flow. For background crawling or headless automation, use the browser skill instead.’,
+    name: 'panel_open',
+    description: 'Open a URL in the right-side panel visible to the user. Use when the user wants to see a page, watch a demo, or interact with a login flow. For background crawling or headless automation, use the browser skill instead.',
     inputSchema: {
       type: 'object',
       properties: { url: { type: 'string' } },

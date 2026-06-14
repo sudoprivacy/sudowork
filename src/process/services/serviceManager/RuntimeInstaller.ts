@@ -100,8 +100,9 @@ class RuntimeInstaller {
         // install pipeline short-circuits (returning users with everything
         // already in place). Idempotent + never throws.
         try {
-          const { ensureSudoworkBuiltinMcpInstalled } = await import('../mcpServices/SudoworkBuiltinMcpRegistration');
+          const { ensureSudoworkBuiltinMcpInstalled, ensureBrowserPanelMcpForScode } = await import('../mcpServices/SudoworkBuiltinMcpRegistration');
           await ensureSudoworkBuiltinMcpInstalled();
+          await ensureBrowserPanelMcpForScode();
         } catch (err) {
           mainLog(TAG, `browser-panel MCP registration skipped: ${String(err)}`);
         }
@@ -523,8 +524,9 @@ class RuntimeInstaller {
     const claudeResult = results.find((r) => r.step === 'claude');
     if (claudeResult?.ok) {
       try {
-        const { ensureSudoworkBuiltinMcpInstalled } = await import('../mcpServices/SudoworkBuiltinMcpRegistration');
+        const { ensureSudoworkBuiltinMcpInstalled, ensureBrowserPanelMcpForScode } = await import('../mcpServices/SudoworkBuiltinMcpRegistration');
         await ensureSudoworkBuiltinMcpInstalled();
+        await ensureBrowserPanelMcpForScode();
       } catch (err) {
         mainLog(TAG, `browser-panel MCP registration skipped: ${String(err)}`);
       }
