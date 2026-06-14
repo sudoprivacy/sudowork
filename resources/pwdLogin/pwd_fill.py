@@ -34,10 +34,40 @@ import os
 import sys
 import tempfile
 import urllib.request
+from urllib.parse import urlparse
 
 
 def _eprint(*a: object) -> None:
     print(*a, file=sys.stderr, flush=True)
+
+
+async def _await_login_outcome(tab, login_path: str, pw_sel: str, timeout: float = 8.0) -> tuple[bool, "str | None"]:
+    """Decide whether a submitted login succeeded.
+
+    Robust success contract (single source of truth for "logged in"): the page
+    navigated AWAY from the login page's path, OR the login form (password field)
+    is gone. We POLL for this (rather than checking once after a fixed sleep) so a
+    slow redirect isn't mis-read as failure — and, crucially, we never re-submit a
+    slow success. Returns (success, last_url).
+    """
+    pw_q = json.dumps(pw_sel)
+    last_url = None
+    for _ in range(max(1, int(timeout / 0.5))):
+        await asyncio.sleep(0.5)
+        state = await _eval(
+            tab,
+            "(()=>JSON.stringify({path:location.pathname,href:location.href,"
+            "form:!!document.querySelector(%s)}))()" % pw_q,
+        )
+        if not state:
+            continue
+        s = json.loads(state)
+        last_url = s.get("href")
+        if login_path and s.get("path") and s["path"] != login_path:
+            return True, last_url  # left the login page
+        if not s.get("form"):
+            return True, last_url  # login form gone
+    return False, last_url
 
 
 async def _eval(tab, expr: str):
@@ -228,7 +258,7 @@ async def _run(cfg: dict, password: str) -> dict:
     pw_sel = cfg["passwordSelector"]
     cap_sel = cfg.get("captchaSelector")
     cap_img = cfg.get("captchaImageSelector")
-    pw_q = json.dumps(pw_sel)
+    login_path = urlparse(url).path if url else ""
 
     # Vision-model captcha OCR isn't 100% — retry the whole fill/submit a few
     # times, refreshing the captcha each round, until the login form goes away
@@ -259,18 +289,16 @@ async def _run(cfg: dict, password: str) -> dict:
         if not await _click(tab, cfg["submitSelector"]):
             return {"ok": False, "error": f"submit button not found: {cfg['submitSelector']}", "captcha_tried": captcha_tried}
 
-        # Let the submit (client-side encryption + AJAX/navigation) settle.
-        await asyncio.sleep(2.5)
-        last_url = await _eval(tab, "window.location.href")
-        # Success heuristic: the password field is gone → redirected off the
-        # login form. Still present → login failed (usually a wrong captcha).
-        still_on_form = await _eval(tab, f"!!document.querySelector({pw_q})")
-        if not still_on_form:
+        # Poll for the outcome (left the login page / form gone). Polling rather
+        # than a single check after a fixed sleep absorbs slow redirects and never
+        # re-submits a slow success.
+        success, last_url = await _await_login_outcome(tab, login_path, pw_sel)
+        if success:
             return {"ok": True, "navigated": True, "url_after": last_url, "captcha_tried": captcha_tried, "attempts": attempt + 1}
 
-        # Failed — refresh the captcha image (if the page exposes a refresher) and retry.
+        # Genuine failure (still on the login form) — refresh the captcha and retry.
         await _eval(tab, "(()=>{try{if(typeof ChangeValImg==='function')ChangeValImg();}catch(e){}})()")
-        await asyncio.sleep(1.2)
+        await asyncio.sleep(1.0)
 
     return {
         "ok": False,
