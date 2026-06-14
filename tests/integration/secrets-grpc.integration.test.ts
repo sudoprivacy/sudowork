@@ -13,7 +13,6 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import * as fs from 'fs';
 import * as path from 'path';
 
 // ── Module loading ───────────────────────────────────────────────────
@@ -21,17 +20,17 @@ import * as path from 'path';
 type NapiModule = typeof import('../../native/nexus-napi');
 
 function loadNapiModule(): NapiModule | null {
-  const candidates = [
-    path.join(__dirname, '..', '..', 'native', 'nexus-napi', 'nexus-napi.darwin-arm64.node'),
-    path.join(__dirname, '..', '..', 'native', 'nexus-napi', 'nexus-napi.darwin-x64.node'),
-    path.join(__dirname, '..', '..', 'native', 'nexus-napi', 'index.node'),
-  ];
-  for (const candidate of candidates) {
-    try {
-      if (fs.existsSync(candidate)) return require(candidate);
-    } catch { /* try next */ }
+  // Defer to the package's own `index.js`, which picks the right
+  // platform-specific `.node` artifact (it tries
+  // `nexus-napi.<platform>-<arch>.node` first, then the un-suffixed
+  // `nexus-napi.node` that `napi build --release` emits). Going through
+  // index.js means this test works on Linux / macOS / Windows without
+  // hardcoding the artifact name table here.
+  try {
+    return require(path.join(__dirname, '..', '..', 'native', 'nexus-napi'));
+  } catch {
+    return null;
   }
-  return null;
 }
 
 async function isNexusAvailable(): Promise<boolean> {
