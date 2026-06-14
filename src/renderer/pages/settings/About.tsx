@@ -11,7 +11,7 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useTenantConfig } from '@/renderer/context/TenantConfigContext';
 import { buildVersion, buildDate, buildCommit, isNightlyBuild } from '@/common/buildInfo';
-import OpsModal from '@/renderer/components/OpsModal';
+import OpsModal from '@/renderer/pages/settings/components/OpsModal';
 import sudoIcon from '@/renderer/assets/sudowork-icon-dark.svg';
 import { openExternalUrl } from '@/renderer/utils/platform';
 import SettingsPageWrapper from './components/SettingsPageWrapper';
@@ -28,7 +28,7 @@ const About: React.FC = () => {
     <SettingsPageWrapper contentClassName='max-w-120'>
       <div className='f-center flex-col w-full min-h-[62vh] py-8 text-center'>
         {/* Logo 磁贴 / Logo tile */}
-        <div className='f-center w-19 h-19 rd-18px bg-1 border border-solid border-[var(--bg-2)] shadow-sm'>
+        <div className='f-center w-19 h-19 rd-18px bg-1 border border-solid border-default shadow-sm'>
           <img src={config.logo || sudoIcon} alt={config.about_name} className='w-11.5 h-11.5' />
         </div>
 

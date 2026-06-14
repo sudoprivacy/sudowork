@@ -132,6 +132,13 @@ export default defineConfig({
   // 基础配置
   shortcuts: {
     'f-center': 'flex items-center justify-center',
+    // 语义化边框颜色 / Semantic border colors
+    // 解析为显式 border-[var(--bg-N)]，避免裸 border-N 与 presetWind3 边框「宽度」工具类歧义。
+    // Resolve to explicit border-[var(--bg-N)] so they never collide with border-width utilities.
+    // 命名按可见度递增（subtle < default < strong），值与原 border-1/2/3 一致，无视觉变化。
+    'border-subtle': 'border-[var(--bg-1)]',
+    'border-default': 'border-[var(--bg-2)]',
+    'border-strong': 'border-[var(--bg-3)]',
     'scrollbar-hide': 'scrollbar-width-none [&::-webkit-scrollbar]:hidden',
     // 技能/数字助手商店卡片：悬浮白卡 + hover 抬升 / elevated white store card
     'library-card': 'group bg-fill-0 rd-12px p-12px flex items-start gap-12px relative overflow-hidden shadow-[0_1px_3px_rgba(0,0,0,0.08)] transition-all duration-200 hover:-translate-y-px hover:shadow-[0_4px_12px_rgba(0,0,0,0.1)]',

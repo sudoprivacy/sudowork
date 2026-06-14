@@ -345,8 +345,8 @@ const UpdateModal: React.FC = () => {
         return (
           <div className='flex flex-col items-center justify-center py-48px'>
             <div className='w-48px h-48px mb-20px relative'>
-              <div className='absolute inset-0 border-3 border-fill-3 rounded-full' />
-              <div className='absolute inset-0 border-3 border-primary border-t-transparent rounded-full animate-spin' />
+              <div className='absolute inset-0 border-[3px] border-fill-3 rounded-full' />
+              <div className='absolute inset-0 border-[3px] border-primary border-t-transparent rounded-full animate-spin' />
             </div>
             <div className='text-15px text-t-primary font-500'>{t('update.checking')}</div>
           </div>

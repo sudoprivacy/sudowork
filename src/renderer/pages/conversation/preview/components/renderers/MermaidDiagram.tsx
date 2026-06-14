@@ -81,7 +81,7 @@ const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ code, theme }) => {
   if (state.status === 'loading') {
     return (
       <div style={containerStyle} className='flex items-center justify-center min-h-[100px]'>
-        <div className='animate-spin w-6 h-6 border-2 border-primary border-t-transparent rounded-full' />
+        <div className='animate-spin w-6 h-6 border-[2px] border-primary border-t-transparent rounded-full' />
       </div>
     );
   }
