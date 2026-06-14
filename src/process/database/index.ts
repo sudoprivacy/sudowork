@@ -22,6 +22,26 @@ import { resolveSecret, cachePut } from '@common/nexus/secret-cache';
 import { SecretMigrationCoordinator } from '@common/nexus/secret-migration';
 
 /**
+ * True ONLY for errors indicating the SQLite *file* itself is corrupt/unreadable as
+ * a database — the single case where renaming it aside is safe. Engine/environment
+ * failures (missing or ABI-mismatched native binding, permission denied, locked db)
+ * must NOT sideline the user's data: doing so turns a recoverable install/runtime
+ * problem into apparent data loss. When in doubt, treat as NOT corrupt (fail loud,
+ * keep the file).
+ */
+function isCorruptDatabaseFileError(error: unknown): boolean {
+  const msg = (error instanceof Error ? error.message : String(error)).toLowerCase();
+  const code = String((error as { code?: unknown })?.code ?? '').toUpperCase();
+  return (
+    code === 'SQLITE_CORRUPT' ||
+    code === 'SQLITE_NOTADB' ||
+    msg.includes('malformed') || // SQLITE_CORRUPT: "database disk image is malformed"
+    msg.includes('file is not a database') || // SQLITE_NOTADB
+    msg.includes('file is encrypted or is not a database')
+  );
+}
+
+/**
  * Main database class for Sudowork
  * Uses better-sqlite3 for fast, synchronous SQLite operations
  */
@@ -41,7 +61,17 @@ export class AionUIDatabase {
       this.db = new BetterSqlite3(finalPath);
       this.initialize();
     } catch (error) {
-      mainError('Database', 'Failed to initialize, attempting recovery...', error);
+      // Only a genuinely corrupt DB *file* may be safely renamed aside and recreated.
+      // An engine/environment failure (missing or ABI-mismatched native binding,
+      // permission denied, locked db) leaves the file perfectly intact — sidelining
+      // it there would turn a recoverable install/runtime problem into apparent data
+      // loss. So fail loud and leave the user's data untouched in that case.
+      if (!isCorruptDatabaseFileError(error)) {
+        mainError('Database', 'Failed to open database — not a file-corruption error, leaving the database file untouched.', error);
+        throw error;
+      }
+
+      mainError('Database', 'Database file appears corrupted, attempting recovery...', error);
       // 尝试恢复：关闭并重新创建数据库
       // Try to recover by closing and recreating database
       try {
