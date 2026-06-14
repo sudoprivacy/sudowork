@@ -209,22 +209,20 @@ describe('signed-plugin download + cluster startup', () => {
       /service plugin loaded \+ registered.*"password-vault"/,
     );
 
-    // (c) local-connector + fuse-plugin asserts are gated on the cluster
-    //     version trusting kernel-dogfood-v1.pub. The COS-shipped
-    //     nexusd-cluster at runtime-versions.json["nexus-vfs"] = 0.2.1
-    //     predates that trust-root drop (landed on nexus-vfs main at
-    //     PR #58, 2026-06-13). Once the nexus-vfs pin bumps to a build
-    //     that has BOTH `nexus-team.pub` AND `kernel-dogfood-v1.pub` in
-    //     TRUSTED_KEY_FILES, flip these on:
-    //
-    //     expect(clusterLog).toMatch(/driver plugin loaded.*"local-connector"/);
-    //     if (fuseDylib) {
-    //       expect(clusterLog).toMatch(/(driver|service) plugin loaded.*"fuse-plugin"/);
-    //     }
-    //
-    // Until then, the file-presence checks in Step 1 are the proof that
-    // the download path produced the right bytes — the cluster-load
-    // verification is held back so this PR can land without breaking
-    // CI on the older cluster.
+    // (c) local-connector + fuse-plugin asserts. Enabled now that
+    //     runtime-versions.json["nexus-vfs"] = 0.3.0 — the v0.3.0
+    //     nexusd-cluster includes #58 (kernel-dogfood-v1.pub added to
+    //     TRUSTED_KEY_FILES), so the cluster trusts the dogfood-signed
+    //     local-connector + fuse-plugin and loads them on boot.
+    expect(
+      clusterLog,
+      `expected local-connector load:\n${clusterLog}`,
+    ).toMatch(/driver plugin loaded.*"local-connector"/);
+    if (fuseDylib) {
+      expect(
+        clusterLog,
+        `expected fuse-plugin load:\n${clusterLog}`,
+      ).toMatch(/(driver|service) plugin loaded.*"fuse-plugin"/);
+    }
   }, 60_000);
 });
