@@ -35,12 +35,24 @@ function loadNapiModule(): NapiModule | null {
 }
 
 async function isNexusAvailable(): Promise<boolean> {
-  try {
-    await fetch('http://localhost:2028', { signal: AbortSignal.timeout(2000) });
-    return true;
-  } catch {
-    return false;
-  }
+  // nexusd-cluster is an HTTP/2 gRPC server. Node's built-in `fetch` (HTTP/1.1
+  // via undici) sees the HTTP/2 SETTINGS frame and errors out on the protocol
+  // mismatch even when the server is up, so a fetch-based liveness probe is a
+  // false negative against gRPC. Use a plain TCP connect — gRPC requires HTTP/2
+  // anyway, so a successful TCP handshake on the gRPC port is all we need
+  // before the napi client opens its own channel.
+  return await new Promise<boolean>((resolve) => {
+    const net = require('net') as typeof import('net');
+    const socket = net.connect({ host: '127.0.0.1', port: 2028 });
+    const done = (ok: boolean) => {
+      try { socket.destroy(); } catch { /* swallow */ }
+      resolve(ok);
+    };
+    socket.setTimeout(2000);
+    socket.once('connect', () => done(true));
+    socket.once('error', () => done(false));
+    socket.once('timeout', () => done(false));
+  });
 }
 
 // ── Test suite ─────────────────────────────────────────────────────
@@ -70,8 +82,19 @@ describe.skipIf(!process.env.NEXUS_E2E)('Vault Secrets gRPC Integration', () => 
     const mod = await import('../../src/common/nexus/nexus-secret-client');
     NexusSecretClient = mod.NexusSecretClient;
 
-    const grpcClient = new napiModule.NexusGrpcClient('http://localhost:2028');
-    client = new NexusSecretClient(grpcClient, '');
+    // We can't use the high-level `Nexus` wrapper here because its
+    // `loadNativeBinding` reaches into `require('electron').app.getAppPath()`
+    // — vitest runs under plain Node, no Electron, so that path is empty
+    // and the napi module never loads. Instead, drive the raw napi client
+    // and wrap it in a minimal `{ callBinary }` adapter that carries the
+    // empty auth token through (the napi binding requires three args).
+    const rawClient = new napiModule.NexusGrpcClient('http://localhost:2028');
+    const nexusAdapter = {
+      callBinary: (method: string, payload: Buffer): Buffer =>
+        rawClient.callBinary(method, payload, ''),
+    };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    client = new NexusSecretClient(nexusAdapter as any);
   }, 30000);
 
   afterAll(() => {
