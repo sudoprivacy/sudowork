@@ -52,7 +52,7 @@ const DisplayModalContent: React.FC = () => {
         <div className='space-y-16px'>
           {/* 显示设置 / Display Settings */}
           <div className='px-16px md:px-24px lg:px-28px py-14px md:py-16px bg-2 rd-16px space-y-10px md:space-y-12px'>
-            <div className='w-full flex flex-col divide-y divide-border-2'>
+            <div className='w-full flex flex-col divide-y divide-[var(--border-default)]'>
               {displayItems.map((item) => (
                 <PreferenceRow key={item.key} label={item.label}>
                   {item.component}

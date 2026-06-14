@@ -446,7 +446,7 @@ const SystemModalContent: React.FC = () => {
         <div className='space-y-16px'>
           {/* 偏好设置与高级设置合并展示 / Combined preferences and advanced settings */}
           <div className='px-[12px] md:px-[32px] py-16px bg-2 rd-16px space-y-12px'>
-            <div className='w-full flex flex-col divide-y divide-border-2'>
+            <div className='w-full flex flex-col divide-y divide-[var(--border-default)]'>
               {preferenceItems.map((item) => (
                 <PreferenceRow key={item.key} label={item.label} hint={item.hint}>
                   {item.component}

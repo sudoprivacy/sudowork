@@ -559,7 +559,7 @@ const SudocodeModelSettingsContent: React.FC = () => {
                     </Popconfirm>
                   </Space>
                 </div>
-                <div className='divide-y divide-[var(--color-border-2)]'>
+                <div className='divide-y divide-[var(--border-default)]'>
                   {provider.modelIds.map((modelId) => {
                     const entry = findModelEntry(config, modelId);
                     const displayModelId = entry?.providers?.['api-key']?.model || entry?.name || modelId;
