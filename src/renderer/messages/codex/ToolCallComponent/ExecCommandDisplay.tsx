@@ -63,7 +63,7 @@ const ExecCommandDisplay: React.FC<{ content: ExecCommandUpdate }> = ({ content 
       {subtype === 'exec_command_begin' && 'command' in data && data.command && Array.isArray(data.command) && data.command.length > 0 && (
         <div className='text-sm mb-2'>
           <div className='text-xs text-t-secondary mb-1'>{t('tools.labels.command')}</div>
-          <div className='bg-2 p-2 rounded font-mono text-xs overflow-x-auto border border-solid border-[var(--border-base)]'>
+          <div className='bg-2 p-2 rounded font-mono text-xs overflow-x-auto border border-solid border-[var(--border-default)]'>
             <span className='text-t-secondary'>$ </span>
             <span className='text-success'>{data.command.join(' ')}</span>
             {'cwd' in data && data.cwd && (
@@ -82,7 +82,7 @@ const ExecCommandDisplay: React.FC<{ content: ExecCommandUpdate }> = ({ content 
             <div key={index}>
               {content.type === 'output' && content.output && (
                 <div className='mt-3'>
-                  <div className='bg-2 p-3 rounded border border-solid border-[var(--border-base)] font-mono text-sm overflow-x-auto max-h-60 overflow-y-auto'>
+                  <div className='bg-2 p-3 rounded border border-solid border-[var(--border-default)] font-mono text-sm overflow-x-auto max-h-60 overflow-y-auto'>
                     <pre className='whitespace-pre-wrap break-words text-t-primary'>{content.output}</pre>
                   </div>
                 </div>

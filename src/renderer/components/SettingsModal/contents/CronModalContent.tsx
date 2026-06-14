@@ -138,7 +138,7 @@ const CronJobCardGrid: React.FC<{
       {jobs.map((job) => {
         const { isPaused } = getJobStatusFlags(job);
         return (
-          <div key={job.id} className='bg-2 rd-12px px-20px py-16px cursor-pointer hover:bg-3 transition-colors border border-solid border-[var(--border-base)]' onClick={() => onSelectJob(job)}>
+          <div key={job.id} className='bg-2 rd-12px px-20px py-16px cursor-pointer hover:bg-3 transition-colors border border-solid border-[var(--border-default)]' onClick={() => onSelectJob(job)}>
             <div className='text-15px font-medium text-t-primary mb-8px'>{job.name}</div>
             {!isPaused && job.schedule.description && <div className='text-13px text-t-secondary mb-8px'>{job.schedule.description}</div>}
             {!isPaused && job.state.nextRunAtMs && (

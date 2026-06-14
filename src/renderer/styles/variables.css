@@ -45,7 +45,7 @@
   --ui-accent-orange: #f97316;
   --ui-accent-orange-hover: #ea580c;
   --ui-accent-orange-rgb: 249, 115, 22;
-  --ui-border-strong: color-mix(in srgb, var(--border-base) 72%, var(--text-secondary));
+  --ui-border-strong: color-mix(in srgb, var(--border-default) 72%, var(--text-secondary));
 
   /* ---------- 品牌强调（Retroma 品牌色） ---------- */
   /* Primary: Brand Orange */
@@ -117,11 +117,8 @@
   --color-text-4: #c8c0bc;
 
   /* Border - 淡化一档（更贴近背景，柔和分隔） */
-  --border-base: #e6e2d8;
+  --border-default: #e6e2d8;
   --border-light: #efece4;
-  --color-border: #e6e2d8;
-  --color-border-1: #e6e2d8;
-  --color-border-2: #efece4;
 
   /* Fill & Inverse */
   --fill: #f5f4ef;
@@ -157,7 +154,7 @@
 /* ===================== Dark Mode ===================== */
 [data-theme='dark'] {
   /* ---------- UI Accent ---------- */
-  --ui-border-strong: color-mix(in srgb, var(--border-base) 82%, var(--text-secondary));
+  --ui-border-strong: color-mix(in srgb, var(--border-default) 82%, var(--text-secondary));
 
   /* ---------- 品牌强调（Retroma 品牌色 · 暗色） ---------- */
   /* Primary: Brand Orange (dark-adjusted) */
@@ -228,11 +225,8 @@
   --color-text-4: #504c44;
 
   /* Border */
-  --border-base: #3a3a28;
+  --border-default: #3a3a28;
   --border-light: #2a2a1e;
-  --color-border: #3a3a28;
-  --color-border-1: #3a3a28;
-  --color-border-2: #2a2a1e;
 
   /* Fill & Inverse */
   --fill: #18180f;

@@ -72,7 +72,7 @@ const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ code, theme }) => {
   const containerStyle: React.CSSProperties = {
     maxWidth: '100%',
     overflow: 'auto',
-    border: '1px solid var(--color-border-1)',
+    border: '1px solid var(--border-default)',
     borderRadius: '8px',
     background: 'var(--color-bg-1)',
     padding: '16px',

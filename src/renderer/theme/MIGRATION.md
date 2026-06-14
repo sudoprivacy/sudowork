@@ -30,7 +30,7 @@
 ```tsx
 <div style={{ backgroundColor: 'var(--bg-base)' }}>
 <div style={{ color: 'var(--text-primary)' }}>
-<div style={{ borderColor: 'var(--border-base)' }}>
+<div style={{ borderColor: 'var(--border-default)' }}>
 <div style={{ backgroundColor: 'var(--brand)' }}>
 ```
 
@@ -41,7 +41,7 @@
 | `#FFFFFF`  | `bg-base`                     | `var(--bg-base)`        | 主背景          |
 | `#F7F8FA`  | `bg-1`                        | `var(--bg-1)`           | 次级背景/填充色 |
 | `#F2F3F5`  | `bg-2`                        | `var(--bg-2)`           | 三级背景        |
-| `#E5E6EB`  | `bg-3` 或 `border-b-base`     | `var(--border-base)`    | 边框/分隔线     |
+| `#E5E6EB`  | `bg-3` 或 `border-b-base`     | `var(--border-default)`    | 边框/分隔线     |
 | `#7583B2`  | `bg-brand` / `text-brand`     | `var(--brand)`          | 品牌色          |
 | `#EFF0F6`  | `bg-aou-1` / `bg-brand-light` | `var(--aou-1)`          | 品牌浅色背景    |
 | `#E5E7F0`  | `bg-aou-2`                    | `var(--aou-2)`          | AOU 色板 2      |

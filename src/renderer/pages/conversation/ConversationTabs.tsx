@@ -42,11 +42,11 @@ interface ConversationTabViewProps {
 }
 
 const ConversationTabView: React.FC<ConversationTabViewProps> = ({ tabId, tabName, isActive, isMobile, contextMenu, timeLabel, onSwitch, onClose }) => {
-  const tabClassName = `flex items-center gap-8px px-12px h-full max-w-240px cursor-pointer transition-all duration-200 shrink-0 border-r border-[color:var(--border-base)] ${isActive ? 'bg-1 text-[color:var(--color-text-1)] font-medium' : 'bg-2 text-[color:var(--color-text-3)] hover:text-[color:var(--color-text-2)] border-b border-[color:var(--border-base)]'}`;
+  const tabClassName = `flex items-center gap-8px px-12px h-full max-w-240px cursor-pointer transition-all duration-200 shrink-0 border-r border-[color:var(--border-default)] ${isActive ? 'bg-1 text-[color:var(--color-text-1)] font-medium' : 'bg-2 text-[color:var(--color-text-3)] hover:text-[color:var(--color-text-2)] border-b border-[color:var(--border-default)]'}`;
 
   return (
     <Dropdown droplist={contextMenu} trigger='contextMenu' position='bl'>
-      <div className={tabClassName} style={{ borderRight: '1px solid var(--border-base)' }} onClick={() => onSwitch(tabId)} title={isMobile ? undefined : tabName}>
+      <div className={tabClassName} style={{ borderRight: '1px solid var(--border-default)' }} onClick={() => onSwitch(tabId)} title={isMobile ? undefined : tabName}>
         <span className='text-15px whitespace-nowrap overflow-hidden text-ellipsis select-none flex-1'>{tabName}</span>
         {timeLabel && <span className='text-11px text-[color:var(--color-text-4)] whitespace-nowrap shrink-0'>{timeLabel}</span>}
         <Close
@@ -72,7 +72,7 @@ interface CreateConversationTriggerProps {
 
 const CreateConversationTrigger: React.FC<CreateConversationTriggerProps> = ({ disabled, title, menu }) => (
   <Dropdown droplist={menu} trigger='click' position='bl' disabled={disabled}>
-    <div className={`flex items-center justify-center w-40px h-40px shrink-0 transition-colors duration-200 ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:bg-[var(--fill-2)]'}`} style={{ borderLeft: '1px solid var(--border-base)' }} title={title}>
+    <div className={`flex items-center justify-center w-40px h-40px shrink-0 transition-colors duration-200 ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:bg-[var(--fill-2)]'}`} style={{ borderLeft: '1px solid var(--border-default)' }} title={title}>
       <Plus theme='outline' size='16' fill={iconColors.primary} strokeWidth={3} />
     </div>
   </Dropdown>
@@ -325,7 +325,7 @@ const ConversationTabs: React.FC = () => {
 
   return (
     <div className='relative shrink-0 bg-2 min-h-40px'>
-      <div className='relative flex items-center h-40px w-full border-t border-x border-solid border-[color:var(--border-base)]'>
+      <div className='relative flex items-center h-40px w-full border-t border-x border-solid border-[color:var(--border-default)]'>
         {/* Tabs 滚动区域 */}
         <div ref={tabsContainerRef} className='flex items-center h-full flex-1 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden'>
           {openTabs.map((tab) => {

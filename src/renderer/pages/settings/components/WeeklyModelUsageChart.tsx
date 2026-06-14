@@ -182,7 +182,7 @@ const WeeklyModelUsageChart: React.FC<WeeklyModelUsageChartProps> = ({ className
         trigger: 'axis',
         axisPointer: { type: 'shadow' },
         backgroundColor: getCSSVar('--fill-0') || '#ffffff',
-        borderColor: getCSSVar('--border-base') || '#e5e6eb',
+        borderColor: getCSSVar('--border-default') || '#e5e6eb',
         textStyle: { color: getCSSVar('--text-primary') || '#1d2129', fontFamily: 'PingFang SC, Microsoft YaHei, sans-serif' },
         formatter: (params: EChartsTooltipParam[]) => {
           if (!params || !params.length) return '';
@@ -198,7 +198,7 @@ const WeeklyModelUsageChart: React.FC<WeeklyModelUsageChartProps> = ({ className
               return `<div style="display:flex;justify-content:space-between;gap:12px"><span>${p.seriesName}</span><span style="font-weight:600">${percent}% (${rawValue.toLocaleString()})</span></div>`;
             })
             .join('');
-          return `<div style="font-weight:600;margin-bottom:8px">${date}</div>${items}<div style="display:flex;justify-content:space-between;gap:12px;margin-top:8px;border-top:1px solid var(--border-base);padding-top:8px"><span>${t('settings.modelUsage.total')}</span><span style="font-weight:600">${total.toLocaleString()}</span></div>`;
+          return `<div style="font-weight:600;margin-bottom:8px">${date}</div>${items}<div style="display:flex;justify-content:space-between;gap:12px;margin-top:8px;border-top:1px solid var(--border-default);padding-top:8px"><span>${t('settings.modelUsage.total')}</span><span style="font-weight:600">${total.toLocaleString()}</span></div>`;
         },
       },
       legend: {
@@ -217,7 +217,7 @@ const WeeklyModelUsageChart: React.FC<WeeklyModelUsageChartProps> = ({ className
         type: 'category',
         data: chartData.dates.map((d) => dayjs(d).format('MM-DD')),
         axisLabel: { color: getCSSVar('--text-secondary') || '#86909c', fontFamily: 'PingFang SC, Microsoft YaHei, sans-serif' },
-        axisLine: { lineStyle: { color: getCSSVar('--border-base') || '#e5e6eb' } },
+        axisLine: { lineStyle: { color: getCSSVar('--border-default') || '#e5e6eb' } },
       },
       yAxis: {
         type: 'value',
@@ -230,7 +230,7 @@ const WeeklyModelUsageChart: React.FC<WeeklyModelUsageChartProps> = ({ className
             return value.toString();
           },
         },
-        axisLine: { lineStyle: { color: getCSSVar('--border-base') || '#e5e6eb' } },
+        axisLine: { lineStyle: { color: getCSSVar('--border-default') || '#e5e6eb' } },
         splitLine: { lineStyle: { color: getCSSVar('--bg-3') || '#e5e6eb', type: 'dashed' } },
       },
       series: chartData.series,
@@ -249,7 +249,7 @@ const WeeklyModelUsageChart: React.FC<WeeklyModelUsageChartProps> = ({ className
         trigger: 'axis',
         axisPointer: { type: 'shadow' },
         backgroundColor: getCSSVar('--fill-0') || '#ffffff',
-        borderColor: getCSSVar('--border-base') || '#e5e6eb',
+        borderColor: getCSSVar('--border-default') || '#e5e6eb',
         textStyle: { color: getCSSVar('--text-primary') || '#1d2129', fontFamily: 'PingFang SC, Microsoft YaHei, sans-serif' },
         formatter: (params: EChartsTooltipParam[]) => {
           if (!params || !params.length) return '';
@@ -260,7 +260,7 @@ const WeeklyModelUsageChart: React.FC<WeeklyModelUsageChartProps> = ({ className
             .filter((p) => p.value > 0)
             .map((p) => `<div style="display:flex;justify-content:space-between;gap:12px"><span>${p.seriesName}</span><span style="font-weight:600">${formatUsagePoints(p.value) || '0'}</span></div>`)
             .join('');
-          return `<div style="font-weight:600;margin-bottom:8px">${date}</div>${items}<div style="display:flex;justify-content:space-between;gap:12px;margin-top:8px;border-top:1px solid var(--border-base);padding-top:8px"><span>${t('settings.modelUsage.total')}</span><span style="font-weight:600">${formatUsagePoints(totalPoints) || '0'}</span></div>`;
+          return `<div style="font-weight:600;margin-bottom:8px">${date}</div>${items}<div style="display:flex;justify-content:space-between;gap:12px;margin-top:8px;border-top:1px solid var(--border-default);padding-top:8px"><span>${t('settings.modelUsage.total')}</span><span style="font-weight:600">${formatUsagePoints(totalPoints) || '0'}</span></div>`;
         },
       },
       legend: {
@@ -279,7 +279,7 @@ const WeeklyModelUsageChart: React.FC<WeeklyModelUsageChartProps> = ({ className
         type: 'category',
         data: chartData.dates.map((d) => dayjs(d).format('MM-DD')),
         axisLabel: { color: getCSSVar('--text-secondary') || '#86909c', fontFamily: 'PingFang SC, Microsoft YaHei, sans-serif' },
-        axisLine: { lineStyle: { color: getCSSVar('--border-base') || '#e5e6eb' } },
+        axisLine: { lineStyle: { color: getCSSVar('--border-default') || '#e5e6eb' } },
       },
       yAxis: {
         type: 'value',
@@ -288,7 +288,7 @@ const WeeklyModelUsageChart: React.FC<WeeklyModelUsageChartProps> = ({ className
           fontFamily: 'PingFang SC, Microsoft YaHei, sans-serif',
           formatter: (value: number) => formatUsagePoints(value) || '0',
         },
-        axisLine: { lineStyle: { color: getCSSVar('--border-base') || '#e5e6eb' } },
+        axisLine: { lineStyle: { color: getCSSVar('--border-default') || '#e5e6eb' } },
         splitLine: { lineStyle: { color: getCSSVar('--bg-3') || '#e5e6eb', type: 'dashed' } },
       },
       series: chartData.pointSeries,

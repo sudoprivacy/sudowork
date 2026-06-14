@@ -159,7 +159,7 @@ const FilePreview: React.FC<FilePreviewProps> = ({ path, onRemove, readonly = fa
 
   return (
     <div className='relative inline-block mb-10px'>
-      <div className={readonly && !fileError ? 'h-60px flex items-center gap-12px px-12px rd-8px bg-bg-2 border border-solid cursor-pointer select-none' : 'h-60px flex items-center gap-12px px-12px rd-8px bg-bg-2 border border-solid'} style={{ borderColor: 'var(--border-base)', boxShadow: 'var(--shadow-sm)' }} onClick={handlePreviewClick}>
+      <div className={readonly && !fileError ? 'h-60px flex items-center gap-12px px-12px rd-8px bg-bg-2 border border-solid cursor-pointer select-none' : 'h-60px flex items-center gap-12px px-12px rd-8px bg-bg-2 border border-solid'} style={{ borderColor: 'var(--border-default)', boxShadow: 'var(--shadow-sm)' }} onClick={handlePreviewClick}>
         <div className='w-40px h-40px rd-8px flex items-center justify-center flex-shrink-0'>{resolveFileIcon(fileName, { size: 28, theme: 'filled' })}</div>
         <div className='flex flex-col gap-2px min-w-0'>
           <span className='text-14px text-t-primary max-w-150px truncate'>{fileName}</span>

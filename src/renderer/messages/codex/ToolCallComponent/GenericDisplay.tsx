@@ -96,14 +96,14 @@ const GenericDisplay: React.FC<{ content: GenericUpdate }> = ({ content }) => {
                 <div key={index}>
                   {content.type === 'output' && content.output && (
                     <div className='mt-3'>
-                      <div className='bg-2 p-3 rounded border border-solid border-[var(--border-base)] font-mono text-sm overflow-x-auto max-h-60 overflow-y-auto'>
+                      <div className='bg-2 p-3 rounded border border-solid border-[var(--border-default)] font-mono text-sm overflow-x-auto max-h-60 overflow-y-auto'>
                         <pre className='whitespace-pre-wrap break-words text-t-primary'>{content.output}</pre>
                       </div>
                     </div>
                   )}
                   {content.type === 'text' && content.text && (
                     <div className='mt-3'>
-                      <div className='bg-1 p-3 rounded border border-solid border-[var(--border-base)] text-sm text-t-primary'>{content.text}</div>
+                      <div className='bg-1 p-3 rounded border border-solid border-[var(--border-default)] text-sm text-t-primary'>{content.text}</div>
                     </div>
                   )}
                 </div>

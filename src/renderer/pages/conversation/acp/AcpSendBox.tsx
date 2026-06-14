@@ -887,7 +887,7 @@ const AcpSendBox: React.FC<{
               popupVisible={fileMenuOpen}
               onVisibleChange={setFileMenuOpen}
               droplist={
-                <div className='flex flex-col gap-2px p-6px rd-12px border border-solid border-[var(--border-base)] bg-popup' style={{ minWidth: 200, boxShadow: '0 8px 28px rgba(0, 0, 0, 0.12)' }}>
+                <div className='flex flex-col gap-2px p-6px rd-12px border border-solid border-[var(--border-default)] bg-popup' style={{ minWidth: 200, boxShadow: '0 8px 28px rgba(0, 0, 0, 0.12)' }}>
                   <div
                     className='flex items-center gap-10px px-10px h-38px rd-8px cursor-pointer text-14px text-t-primary transition-colors hover:bg-hover active:bg-active'
                     onClick={() => {

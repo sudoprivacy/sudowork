@@ -134,12 +134,12 @@ export default defineConfig({
   shortcuts: {
     'f-center': 'flex items-center justify-center',
     // 语义化边框颜色 / Semantic border colors
-    // 解析为显式 border-[var(--bg-N)]，避免裸 border-N 与 presetWind3 边框「宽度」工具类歧义。
-    // Resolve to explicit border-[var(--bg-N)] so they never collide with border-width utilities.
-    // 命名按可见度递增（subtle < default < strong），值与原 border-1/2/3 一致，无视觉变化。
-    'border-subtle': 'border-[var(--bg-1)]',
-    'border-default': 'border-[var(--bg-2)]',
-    'border-strong': 'border-[var(--bg-3)]',
+    // 仅产出 border-color，需搭配 `border border-solid` 使用。
+    // Color only — pair with `border border-solid`.
+    // 映射到真实边框 token（非背景色）；按可见度递增：subtle（浅，贴近背景）< default（标准）。
+    // Mapped to real border tokens (not bg colors), increasing visibility: subtle < default.
+    'border-subtle': 'border-[var(--border-light)]', // 浅边框 / lighter divider
+    'border-default': 'border-[var(--border-default)]', // 标准边框 / standard border
     'scrollbar-hide': 'scrollbar-width-none [&::-webkit-scrollbar]:hidden',
     // 技能/数字助手商店卡片：悬浮白卡 + hover 抬升 / elevated white store card
     'library-card': 'group bg-fill-0 rd-12px p-12px flex items-start gap-12px relative overflow-hidden shadow-[0_1px_3px_rgba(0,0,0,0.08)] transition-all duration-200 hover:-translate-y-px hover:shadow-[0_4px_12px_rgba(0,0,0,0.1)]',

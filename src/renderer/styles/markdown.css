@@ -96,14 +96,14 @@
 .message-content pre,
 .markdown-body pre {
   background: var(--bg-2);
-  border: 1px solid var(--border-base);
+  border: 1px solid var(--border-default);
   border-radius: 6px;
 }
 
 [data-theme='dark'] .message-content pre,
 [data-theme='dark'] .markdown-body pre {
   background: #141410;
-  border-color: var(--border-base);
+  border-color: var(--border-default);
 }
 
 /* ===== Inline Code / Highlight Chip ===== */

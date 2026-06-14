@@ -201,7 +201,7 @@ const AgentModeSelector: React.FC<AgentModeSelectorProps> = ({ backend, agentNam
 
   // Dropdown menu (shared between compact and full mode)
   const dropdownMenu = (
-    <div className='flex flex-col gap-2px p-6px rd-12px border border-solid border-[var(--border-base)] bg-popup' style={{ minWidth: 180, boxShadow: '0 8px 28px rgba(0, 0, 0, 0.12)' }}>
+    <div className='flex flex-col gap-2px p-6px rd-12px border border-solid border-[var(--border-default)] bg-popup' style={{ minWidth: 180, boxShadow: '0 8px 28px rgba(0, 0, 0, 0.12)' }}>
       <div className='px-10px py-2 text-12px leading-18px text-t-secondary'>{t('agentMode.switchMode', { defaultValue: 'Switch Mode' })}</div>
       {modes.map((mode: AgentModeOption) => {
         const active = currentMode === mode.value;

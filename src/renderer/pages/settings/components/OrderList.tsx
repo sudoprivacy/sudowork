@@ -165,7 +165,7 @@ const OrderList: React.FC<OrderListProps> = ({ onContinuePay, refreshKey }) => {
           // 将 PAYING 状态显示为"待支付"
           const displayStatusText = order.status === OrderStatusEnum.PAYING ? '待支付' : order.status_text;
           return (
-            <div key={order.order_no} className='px-4 py-2.5 border-b border-solid border-[var(--color-border-1)] last:border-b-0 flex items-center gap-3'>
+            <div key={order.order_no} className='px-4 py-2.5 border-b border-solid border-[var(--border-default)] last:border-b-0 flex items-center gap-3'>
               {/* 订单号 */}
               <div className='flex-1 min-w-0 text-13px text-t-secondary truncate'>{order.order_no}</div>
               {/* 充值金额 */}

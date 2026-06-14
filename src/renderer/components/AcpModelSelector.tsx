@@ -449,7 +449,7 @@ const AcpModelSelector: React.FC<{
       popupVisible={dropdownOpen}
       onVisibleChange={setDropdownOpen}
       droplist={
-        <div className='flex flex-col gap-2px p-6px rd-12px border border-solid border-[var(--border-base)] bg-popup max-h-[min(60vh,420px)] overflow-y-auto scrollbar-hide' style={{ minWidth: 200, boxShadow: '0 8px 28px rgba(0, 0, 0, 0.12)' }}>
+        <div className='flex flex-col gap-2px p-6px rd-12px border border-solid border-[var(--border-default)] bg-popup max-h-[min(60vh,420px)] overflow-y-auto scrollbar-hide' style={{ minWidth: 200, boxShadow: '0 8px 28px rgba(0, 0, 0, 0.12)' }}>
           {providerModelGroups.map((group, groupIndex) => (
             <div key={group.key} className='flex flex-col gap-2px'>
               <div className='flex items-center justify-between gap-8px pl-10px pr-2px pt-4px pb-2px min-h-24px'>

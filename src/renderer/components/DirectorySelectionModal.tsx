@@ -138,10 +138,10 @@ const DirectorySelectionModal: React.FC<DirectorySelectionModalProps> = ({ visib
       }
     >
       <Spin loading={loading} className='w-full'>
-        <div className='w-full border border-solid border-[var(--border-base)] rd-4px overflow-hidden' style={{ height: 'min(400px, 60vh)' }}>
+        <div className='w-full border border-solid border-[var(--border-default)] rd-4px overflow-hidden' style={{ height: 'min(400px, 60vh)' }}>
           <div className='h-full overflow-y-auto'>
             {directoryData.canGoUp && (
-              <div className='flex items-center p-10px border-b border-solid border-[var(--color-border-1)] cursor-pointer hover:bg-hover transition' onClick={handleGoUp}>
+              <div className='flex items-center p-10px border-b border-solid border-[var(--border-default)] cursor-pointer hover:bg-hover transition' onClick={handleGoUp}>
                 <IconUp className='mr-10px text-t-secondary' />
                 <span>..</span>
               </div>
@@ -155,7 +155,7 @@ const DirectorySelectionModal: React.FC<DirectorySelectionModalProps> = ({ visib
               </div>
             )}
             {directoryData.items.map((item, index) => (
-              <div key={index} className='flex items-center justify-between p-10px border-b border-solid border-[var(--color-border-1)] cursor-pointer hover:bg-hover transition' style={selectedPath === item.path ? { background: 'var(--brand-light)' } : {}} onClick={() => handleItemClick(item)} onDoubleClick={() => handleItemDoubleClick(item)}>
+              <div key={index} className='flex items-center justify-between p-10px border-b border-solid border-[var(--border-default)] cursor-pointer hover:bg-hover transition' style={selectedPath === item.path ? { background: 'var(--brand-light)' } : {}} onClick={() => handleItemClick(item)} onDoubleClick={() => handleItemDoubleClick(item)}>
                 <div className='flex items-center flex-1 min-w-0'>
                   {item.isDirectory ? <IconFolder className='mr-10px text-warning shrink-0' /> : <IconFile className='mr-10px text-primary shrink-0' />}
                   <span className='overflow-hidden text-ellipsis whitespace-nowrap'>{item.name}</span>
