@@ -126,6 +126,14 @@ export default defineConfig({
           /* Set default text color to follow theme 所有元素默认使用主题文字颜色 */
           color: inherit;
         }
+        *, ::before, ::after {
+          /* Tailwind 同款 border reset：清零默认宽度并统一 solid，
+             使 border-x + border-solid + border-[color] 的写法只渲染有宽度的那条边。
+             Tailwind-style border reset: zero default width and default to solid,
+             so border-x only renders the side that explicitly sets width. */
+          border-width: 0;
+          border-style: solid;
+        }
       `,
     },
   ],

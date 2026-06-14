@@ -173,13 +173,13 @@ const OrderList: React.FC<OrderListProps> = ({ onContinuePay, refreshKey }) => {
               {/* 积分 */}
               <div className='w-22.5 flex-shrink-0 text-14px text-primary font-500'>{order.points.toLocaleString()} PTS</div>
               {/* 支付方式 */}
-              <div className={`w-20 flex-shrink-0 flex items-center gap-1 px-2 py-1 rd-6px ${paymentStyle.bgColor}`}>
+              <div className={`flex-shrink-0 flex items-center gap-1 px-2 py-1 rd-full ${paymentStyle.bgColor}`}>
                 {paymentStyle.icon}
                 <span className={`text-12px font-500 ${paymentStyle.textColor}`}>{paymentStyle.label}</span>
               </div>
               {/* 状态 */}
-              <div className='w-17.5 flex-shrink-0'>
-                <Tag color={getStatusColor(order.status)} size='small'>
+              <div className='flex-shrink-0'>
+                <Tag color={getStatusColor(order.status)} className={'rd-full'}>
                   {displayStatusText}
                 </Tag>
               </div>
