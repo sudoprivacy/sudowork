@@ -219,10 +219,16 @@ describe('signed-plugin download + cluster startup', () => {
       `expected local-connector load:\n${clusterLog}`,
     ).toMatch(/driver plugin loaded.*"local-connector"/);
     if (fuseDylib) {
+      // The fuse plugin registers under the literal name "fuse" (matches
+      // the `declare_service_plugin!("fuse", ...)` call in fuse-plugin's
+      // src/lib.rs). The COS artifact is `nexus-fuse-plugin` and the
+      // dylib lives at libnexus_fuse_plugin.{so,dylib,dll}, but the
+      // logical plugin identity asserted on by the kernel loader is
+      // just "fuse".
       expect(
         clusterLog,
-        `expected fuse-plugin load:\n${clusterLog}`,
-      ).toMatch(/(driver|service) plugin loaded.*"fuse-plugin"/);
+        `expected fuse plugin load:\n${clusterLog}`,
+      ).toMatch(/(driver|service) plugin loaded.*"fuse"/);
     }
   }, 60_000);
 });
