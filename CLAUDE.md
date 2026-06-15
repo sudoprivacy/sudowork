@@ -77,7 +77,7 @@ IPC：`src/preload.ts` 通过 `contextBridge` 暴露类型化 API；主进程侧
 
 ### WebUI 服务器（`src/webserver/`）
 
-Express 5 + WebSocket，用于无界面 / 远程访问。`auth/` 中实现 JWT 认证（bcrypt 密码、Cookie `sudowork-session`、24 小时有效期）；路由在 `routes/`；实时通信在 `websocket/`。默认端口 25808；通过 `--webui`/`--remote`/`--port` 命令行参数、`sudowork_*` 环境变量，或 OS app-data 目录下的 `webui.config.json` 配置。详见 [WEBUI_GUIDE.md](WEBUI_GUIDE.md) 与 [SERVER_DEPLOY_GUIDE.md](SERVER_DEPLOY_GUIDE.md)。
+Express 5 + WebSocket，用于无界面 / 远程访问。`auth/` 中实现 JWT 认证（bcrypt 密码、Cookie `sudowork-session`、24 小时有效期）；路由在 `routes/`；实时通信在 `websocket/`。默认端口 25808；通过 `--webui`/`--remote`/`--port` 命令行参数、`sudowork_*` 环境变量，或 OS app-data 目录下的 `webui.config.json` 配置。详见 [WEBUI_GUIDE.md](docs/WEBUI_GUIDE.md) 与 [SERVER_DEPLOY_GUIDE.md](docs/SERVER_DEPLOY_GUIDE.md)。
 
 ### 扩展系统（`src/extensions/`）
 
@@ -94,5 +94,5 @@ Express 5 + WebSocket，用于无界面 / 远程访问。`auth/` 中实现 JWT �
 
 - [docs/tech/architecture.md](docs/tech/architecture.md) —— IPC / WebUI / Cron 细节
 - [docs/tech/nexus-integration-architecture.md](docs/tech/nexus-integration-architecture.md) —— Nexus VFS 集成
-- [project.md](project.md) —— 各平台安装/使用与 FAQ（部分模块清单已过时，请对照代码树核实）
-- [CONTRIBUTING.md](CONTRIBUTING.md)、[CODE_STYLE.md](CODE_STYLE.md)
+- [project.md](docs/project.md) —— 各平台安装/使用与 FAQ（部分模块清单已过时，请对照代码树核实）
+- [CONTRIBUTING.md](CONTRIBUTING.md)、[CODE_STYLE.md](docs/CODE_STYLE.md)
