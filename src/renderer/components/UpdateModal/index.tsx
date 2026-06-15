@@ -4,15 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Button, Progress, Switch, Message } from '@arco-design/web-react';
 import { CheckOne, Download, FolderOpen, Refresh, CloseOne, Install } from '@icon-park/react';
+import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
 import AionModal from '@/renderer/components/base/AionModal';
 import MarkdownView from '@/renderer/components/Markdown';
 import type { UpdateDownloadProgressEvent, UpdateReleaseInfo, AutoUpdateStatus } from '@/common/updateTypes';
 import { isNightlyBuild, buildVersion } from '@/common/buildInfo';
-import { useTranslation } from 'react-i18next';
 
 type UpdateStatus = 'checking' | 'upToDate' | 'available' | 'downloading' | 'downloaded' | 'success' | 'error';
 
@@ -46,7 +46,7 @@ const UpdateModal: React.FC = () => {
     setAutoUpdateDownloadedPath(null);
   };
 
-  const includePrerelease = useMemo(() => localStorage.getItem('update.includePrerelease') === 'true', [visible]);
+  const includePrerelease = localStorage.getItem('update.includePrerelease') === 'true';
   const hasCompatibleManualAsset = Boolean(updateInfo?.recommendedAsset);
 
   const openReleasePage = () => {
@@ -225,11 +225,14 @@ const UpdateModal: React.FC = () => {
     return `${(bytes / 1024).toFixed(1)} KB`;
   };
 
-  const handleOpenUpdateModal = () => {
+  const checkForUpdatesRef = React.useRef(checkForUpdates);
+  checkForUpdatesRef.current = checkForUpdates;
+
+  const handleOpenUpdateModal = useCallback(() => {
     setVisible(true);
     resetState();
-    void checkForUpdates();
-  };
+    void checkForUpdatesRef.current();
+  }, []);
 
   useEffect(() => {
     const removeOpenListener = ipcBridge.update.open.on(handleOpenUpdateModal);
@@ -239,7 +242,7 @@ const UpdateModal: React.FC = () => {
       removeOpenListener();
       window.removeEventListener('aionui-open-update-modal', handleOpenUpdateModal);
     };
-  }, []);
+  }, [handleOpenUpdateModal]);
 
   // 监听自动更新状态
   useEffect(() => {

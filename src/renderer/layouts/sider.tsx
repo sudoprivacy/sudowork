@@ -150,10 +150,10 @@ const Sider: React.FC = () => {
             <SettingsSider></SettingsSider>
           </Suspense>
         ) : (
-          <div className='size-full flex flex-col py-8px overflow-hidden box-border'>
+          <div className='size-full flex flex-col py-2 overflow-hidden box-border'>
             {/* 新会话按钮 - 带边框的按钮风格 / New Chat button with border style */}
             <div
-              className='h-42px flex items-center justify-center gap-8px px-14px mb-12px rd-12px cursor-pointer transition-all border bg-1 hover:bg-hover active:bg-fill-2'
+              className='h-10.5 f-center gap-2 px-3.5 mb-3 rd-12px cursor-pointer transition-all border bg-1 hover:bg-hover active:bg-fill-2'
               onClick={() => {
                 cleanupSiderTooltips();
                 blurActiveElement();
@@ -171,7 +171,7 @@ const Sider: React.FC = () => {
             </div>
 
             {/* 功能菜单区域 / Function menu area */}
-            <div className='mb-16px flex flex-col gap-2px'>
+            <div className='mb-4 flex flex-col gap-0.5'>
               {functionMenus.map((menu) => {
                 const isSelected = pathname.startsWith('/guid') && new URLSearchParams(search).get('menu') === menu.id;
                 return (
@@ -192,7 +192,7 @@ const Sider: React.FC = () => {
             </div>
 
             {/* Session history tabs + batch mode button */}
-            <div className={classNames('mb-8px px-8px flex items-center justify-between')}>
+            <div className={classNames('mb-2 px-2 flex items-center justify-between')}>
               {cronEnabled && (
                 <Tabs
                   className='sidebar-tabs flex-1 shrink-0'
@@ -220,8 +220,8 @@ const Sider: React.FC = () => {
                 className='batch-actions-popover'
                 getPopupContainer={() => document.body}
                 content={
-                  <div className='flex flex-col gap-6px w-180px'>
-                    <div className='px-2px pb-2px text-12px leading-18px text-secondary'>{t('conversation.history.selectedCount', { count: batchApi?.selectedCount ?? 0 })}</div>
+                  <div className='flex flex-col gap-1.5 w-45'>
+                    <div className='px-0.5 pb-0.5 text-12px leading-18px text-secondary'>{t('conversation.history.selectedCount', { count: batchApi?.selectedCount ?? 0 })}</div>
                     <Button long type='secondary' className='batch-actions-popover__item' onClick={() => batchApi?.onToggleSelectAll()}>
                       {batchApi?.allSelected ? t('common.cancel') : t('conversation.history.selectAll')}
                     </Button>
@@ -234,7 +234,7 @@ const Sider: React.FC = () => {
                   </div>
                 }
               >
-                <div className={classNames('batch-mode-trigger w-32px h-32px flex items-center justify-center rd-8px cursor-pointer transition-all shrink-0', isBatchMode ? 'bg-[rgba(var(--ui-accent-orange-rgb),0.12)] text-[var(--ui-accent-orange)]' : 'hover:bg-hover active:bg-fill-2 text-secondary')} onClick={() => setIsBatchMode((prev) => !prev)}>
+                <div className={classNames('batch-mode-trigger size-8 f-center rd-8px cursor-pointer transition-all shrink-0', isBatchMode ? 'bg-[rgba(var(--ui-accent-orange-rgb),0.12)] text-[var(--ui-accent-orange)]' : 'hover:bg-hover active:bg-fill-2 text-secondary')} onClick={() => setIsBatchMode((prev) => !prev)}>
                   <ListCheckbox theme='outline' size='18' className='block leading-none' />
                 </div>
               </Popover>
@@ -247,14 +247,14 @@ const Sider: React.FC = () => {
         )}
       </div>
       {/* Footer - User info area */}
-      <div className={classNames('shrink-0 sider-footer mt-auto pt-8px px-0px', isSettings ? '' : 'pr-16px')}>
+      <div className={classNames('shrink-0 sider-footer mt-auto pt-2 px-0', isSettings ? '' : 'pr-4')}>
         {!isSettings ? (
           /* 用户信息下拉菜单 */
           <Dropdown
             droplist={
-              <div className='flex flex-col gap-2px p-6px rd-12px border bg-popup' style={{ width: userMenuWidth ? userMenuWidth - 12 : undefined, minWidth: 200, boxShadow: '0 8px 28px rgba(0, 0, 0, 0.12)' }}>
+              <div className='flex flex-col gap-0.5 p-1.5 rd-12px border bg-popup' style={{ width: userMenuWidth ? userMenuWidth - 12 : undefined, minWidth: 200, boxShadow: '0 8px 28px rgba(0, 0, 0, 0.12)' }}>
                 <div
-                  className='flex items-center gap-10px px-10px h-38px rd-8px cursor-pointer text-14px text-foreground transition-colors hover:bg-hover active:bg-active'
+                  className='flex items-center gap-2.5 px-2.5 h-9.5 rd-8px cursor-pointer text-14px text-foreground transition-colors hover:bg-hover active:bg-active'
                   onClick={() => {
                     handleSettingsClick();
                     setUserMenuOpen(false);
@@ -263,9 +263,9 @@ const Sider: React.FC = () => {
                   <SettingTwo theme='outline' size='17' fill={'var(--text-secondary)'} />
                   <span>{t('common.settings')}</span>
                 </div>
-                <div className='h-1px mx-4px my-2px bg-[var(--border-light)]' />
+                <div className='h-1px mx-1 my-0.5 bg-[var(--border-light)]' />
                 <div
-                  className='flex items-center gap-10px px-10px h-38px rd-8px cursor-pointer text-14px text-danger transition-colors hover:bg-hover active:bg-active'
+                  className='flex items-center gap-2.5 px-2.5 h-9.5 rd-8px cursor-pointer text-14px text-danger transition-colors hover:bg-hover active:bg-active'
                   onClick={async () => {
                     setUserMenuOpen(false);
                     await logout();
@@ -286,8 +286,8 @@ const Sider: React.FC = () => {
               setUserMenuOpen(visible);
             }}
           >
-            <div ref={userTriggerRef} className='flex items-center gap-10px px-8px py-10px cursor-pointer transition-colors rd-12px w-full border hover:bg-hover active:bg-fill-2 border-light'>
-              <div className='w-32px h-32px rd-50% bg-[var(--color-fill-3)] flex items-center justify-center text-foreground text-14px font-bold shrink-0'>{userInfo.avatar ? <img src={userInfo.avatar} alt={userInfo.name} className='w-full h-full rd-50% object-cover' /> : <span>{userInfo.name.charAt(0).toUpperCase()}</span>}</div>
+            <div ref={userTriggerRef} className='flex items-center gap-2.5 px-2 py-2.5 cursor-pointer transition-colors rd-12px w-full border hover:bg-hover active:bg-fill-2 border-light'>
+              <div className='size-8 rd-50% bg-[var(--color-fill-3)] f-center text-foreground text-14px font-bold shrink-0'>{userInfo.avatar ? <img src={userInfo.avatar} alt={userInfo.name} className='w-full h-full rd-50% object-cover' /> : <span>{userInfo.name.charAt(0).toUpperCase()}</span>}</div>
               <div className='flex-1 min-w-0'>
                 <div className='text-14px font-medium text-foreground truncate'>{userInfo.name}</div>
                 <div className='text-12px text-secondary truncate'>{userInfo.email}</div>
@@ -297,10 +297,10 @@ const Sider: React.FC = () => {
           </Dropdown>
         ) : (
           /* 设置页面 - 主题切换 + 返回按钮 */
-          <div className='flex flex-col gap-2px'>
+          <div className='flex flex-col gap-0.5'>
             {/* 返回按钮 */}
-            <div className='flex items-center gap-10px px-4px py-10px rd-8px cursor-pointer transition-colors hover:bg-hover active:bg-fill-2 ml-2px' onClick={handleSettingsClick}>
-              <div className='w-32px h-32px rd-50% bg-[var(--color-fill-3)] flex items-center justify-center text-foreground text-14px font-bold shrink-0'>
+            <div className='flex items-center gap-2.5 px-1 py-2.5 rd-8px cursor-pointer transition-colors hover:bg-hover active:bg-fill-2 ml-0.5' onClick={handleSettingsClick}>
+              <div className='size-8 rd-50% bg-[var(--color-fill-3)] f-center text-foreground text-14px font-bold shrink-0'>
                 <Return theme='outline' size='16' fill={'var(--foreground)'} />
               </div>
               <div className='flex-1 min-w-0'>
