@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { SCODE_COMPLETION_REMINDER, shouldRunCurrentTurnPostCleanup, shouldSkipAcpWorkspaceTrackingPath } from '@/process/task/acpWorkspaceTracking';
+import { buildAcpModelIdentityReminder, SCODE_COMPLETION_REMINDER, shouldRunCurrentTurnPostCleanup, shouldSkipAcpWorkspaceTrackingPath } from '@/process/task/acpWorkspaceTracking';
 
 describe('acpWorkspaceTracking', () => {
   test('skips sandbox runtime side effects', () => {
@@ -13,12 +13,57 @@ describe('acpWorkspaceTracking', () => {
   });
 
   test('scode completion reminder asks for the user language', () => {
-    expect(SCODE_COMPLETION_REMINDER).toContain('用户提问的语言');
+    expect(SCODE_COMPLETION_REMINDER).toContain('用户最后一条消息的主要语言');
     expect(SCODE_COMPLETION_REMINDER).toContain('不要只以工具调用结束');
+  });
+
+  test('scode completion reminder requires Chinese for tool call status', () => {
+    expect(SCODE_COMPLETION_REMINDER).toContain('工具调用前后状态说明');
+    expect(SCODE_COMPLETION_REMINDER).toContain('中文用户时');
+    expect(SCODE_COMPLETION_REMINDER).toContain('不得输出完整英文句子');
+  });
+
+  test('scode completion reminder allows exceptions for technical content', () => {
+    expect(SCODE_COMPLETION_REMINDER).toContain('代码');
+    expect(SCODE_COMPLETION_REMINDER).toContain('命令');
+    expect(SCODE_COMPLETION_REMINDER).toContain('路径');
+    expect(SCODE_COMPLETION_REMINDER).toContain('专有名词');
   });
 
   test('runs post-cleanup only when the current turn produced tracked files', () => {
     expect(shouldRunCurrentTurnPostCleanup(true)).toBe(true);
     expect(shouldRunCurrentTurnPostCleanup(false)).toBe(false);
+  });
+
+  describe('buildAcpModelIdentityReminder', () => {
+    test('scode backend uses Chinese text', () => {
+      const notice = buildAcpModelIdentityReminder('scode', 'gpt-4o');
+      expect(notice).toContain('当前活动模型');
+      expect(notice).toContain('gpt-4o');
+      expect(notice).toContain('当用户询问你使用哪个模型时');
+      expect(notice).toContain('请回答');
+      expect(notice).not.toContain('Active model:');
+      expect(notice).not.toContain('You are currently running as');
+      expect(notice).not.toContain('When asked which model you are');
+    });
+
+    test('claude backend uses English text', () => {
+      const notice = buildAcpModelIdentityReminder('claude', 'claude-opus-4-7');
+      expect(notice).toContain('Active model');
+      expect(notice).toContain('claude-opus-4-7');
+      expect(notice).toContain('When asked which model you are');
+    });
+
+    test('scode reminder includes model answer instruction in Chinese', () => {
+      const notice = buildAcpModelIdentityReminder('scode', 'deepseek-v3');
+      expect(notice).toContain('当用户询问');
+      expect(notice).toContain('请回答 deepseek-v3');
+    });
+
+    test('claude reminder includes stale identity hint', () => {
+      const notice = buildAcpModelIdentityReminder('claude', 'claude-sonnet-4-6');
+      expect(notice).toContain('ANTHROPIC_MODEL');
+      expect(notice).toContain('stale');
+    });
   });
 });
