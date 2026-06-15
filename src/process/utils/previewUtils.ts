@@ -28,19 +28,16 @@ export function handlePreviewOpenEvent(message: IResponseMessage | { type: strin
     return false;
   }
 
-  // URL content → open in the right-panel BrowserPanel tab (side-by-side
-  // with the conversation). Other content types (code, file previews, etc.)
-  // continue to use the full-screen PreviewPanel overlay.
+  // URL previews: skip auto-opening in BrowserPanel. The agent operates its
+  // own Chrome via ai-dev-browser; mirroring the URL into BrowserPanel creates
+  // two independent sessions with unsynchronized state (cookies, DOM, scroll)
+  // which confuses users. BrowserPanel will be connected properly when the
+  // browser-panel MCP is wired to scode (phase 2).
   if (data.contentType === 'url') {
-    const conversationId = 'conversation_id' in message ? (message as IResponseMessage).conversation_id : undefined;
-    ipcBridge.rightPanelBrowser.open.emit({
-      url: data.content,
-      switchTab: true,
-      ...(conversationId ? { conversationId } : {}),
-    });
-  } else {
-    ipcBridge.preview.open.emit(data);
+    return true; // swallow — do not mirror
   }
+
+  ipcBridge.preview.open.emit(data);
   return true;
 }
 
