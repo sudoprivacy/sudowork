@@ -49,15 +49,15 @@ const OS_NAME_MAP: Record<string, string> = { darwin: 'macos', win32: 'windows',
 /** Node.js process.arch → artifact arch token (note: arm64 → aarch64). */
 const ARCH_NAME_MAP: Record<string, string> = { arm64: 'aarch64', x64: 'x86_64' };
 
-/** Known-good SHA256 sums for v0.2.1 (mirrors SHA256SUMS.txt in the bucket;
+/** Known-good SHA256 sums for v0.2.2 (mirrors SHA256SUMS.txt in the bucket;
  *  keep in sync with scripts/download-nexus-vfs.js). */
 const NEXUS_VFS_SHA256SUMS: Record<string, string> = {
-  'nexusd-cluster-linux-aarch64.tar.gz': '83336737e360541796ce04fda243b1de0072afb54743dcf39c0ec7b7aec09e03',
-  'nexusd-cluster-linux-x86_64.tar.gz': '55f35a600d5c2ce3858ba66053ed6e2b8bfdb3ba4977e73639be927ccbd33174',
-  'nexusd-cluster-macos-aarch64.tar.gz': 'e7c1ab832445b23434e557cd10532f8da5de29028c9e3ee7508029165c35dfd1',
-  'nexusd-cluster-macos-x86_64.tar.gz': 'cca3f5df353e1bb7eee4b2d07e81932477edb86f91b77e83c50cfbef5be59d9c',
-  'nexusd-cluster-windows-aarch64.zip': 'cbc289132b781f2a52231cc223bb07fa1f575dad3b04a03646135c18a1e93b44',
-  'nexusd-cluster-windows-x86_64.zip': 'bfb785aa0b24f8966a631281454464dc1bb01c4956e002807c21553399e2e5e0',
+  'nexusd-cluster-linux-aarch64.tar.gz': 'fadc8c54c8cca44dc58dbd6194c203354ee282afe2ce9daec8a6056e4683e8c3',
+  'nexusd-cluster-linux-x86_64.tar.gz': 'b5a7730dadd2cbbf47727a3bb6e7989d8facf178fec75076061845867493b0d9',
+  'nexusd-cluster-macos-aarch64.tar.gz': '93eda20acfc5b64135781cc41aff2e4265b1046800967ed4ca85e2321c53175c',
+  'nexusd-cluster-macos-x86_64.tar.gz': 'd6464618413853320ac33103239880a36e564e36f41ff9456e1fa76db89269ec',
+  'nexusd-cluster-windows-aarch64.zip': 'be530516894f4115ad1971f5a6c6a0d4191ba8141f6b213da128381bb552e056',
+  'nexusd-cluster-windows-x86_64.zip': '03e589f7a288a62e0399d4c9dececbb16be342f258842dfb6c6b37b6c3919901',
 };
 
 export type NexusVfsStage = 'idle' | 'checking' | 'downloading' | 'installing' | 'starting' | 'ready' | 'error';
