@@ -296,7 +296,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
             </div>
 
             <Suspense fallback={<div className='flex-1 min-h-0' />}>
-              <WorkspaceGroupedHistory {...workspaceHistoryProps}></WorkspaceGroupedHistory>
+              <WorkspaceGroupedHistory {...workspaceHistoryProps} collapsed={false} />
             </Suspense>
           </div>
         )}
