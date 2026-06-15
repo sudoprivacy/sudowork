@@ -6,7 +6,6 @@
 
 import { ipcBridge } from '@/common';
 import type { TChatConversation } from '@/common/storage';
-import { iconColors } from '@/renderer/theme/colors';
 import { Button, Dropdown, Menu, Message } from '@arco-design/web-react';
 import { Connection, Refresh } from '@icon-park/react';
 import React, { useCallback, useEffect, useState } from 'react';
@@ -99,11 +98,13 @@ const AgentStatusDot: React.FC<{ conversation_id: string; conversationType?: TCh
   const labelKey = STATUS_LABELS[status] || 'agentStatus.unknown';
 
   const dropdownMenu = (
-    <Menu onClickMenuItem={(key) => {
-      if (key === 'restart') {
-        handleRestartAndConnect();
-      }
-    }}>
+    <Menu
+      onClickMenuItem={(key) => {
+        if (key === 'restart') {
+          handleRestartAndConnect();
+        }
+      }}
+    >
       <Menu.Item key='restart' disabled={restarting}>
         <span className='inline-flex items-center gap-6px'>
           <Refresh theme='outline' size={14} fill='currentColor' className={restarting ? 'animate-spin' : ''} />
@@ -117,7 +118,7 @@ const AgentStatusDot: React.FC<{ conversation_id: string; conversationType?: TCh
     <Dropdown droplist={dropdownMenu} trigger='click' position='bl'>
       <Button type='text' size='small' className='!h-auto !w-auto !min-w-0 !px-0 !py-0 cursor-pointer'>
         <span className='inline-flex items-center gap-2px rounded-full px-8px py-2px bg-2' title={t(labelKey, { defaultValue: status })}>
-          <Connection theme='outline' size={16} fill={iconColors.primary} />
+          <Connection theme='outline' size={16} fill={'var(--text-primary)'} />
           <span className='ml-4px w-8px h-8px rounded-full' style={{ backgroundColor: dotColor }} />
         </span>
       </Button>

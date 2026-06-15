@@ -4,7 +4,6 @@ import { Button, Select, Spin } from '@arco-design/web-react';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Check } from '@icon-park/react';
-import { iconColors } from '@/renderer/theme/colors';
 import AionSteps from '@/renderer/components/base/AionSteps';
 import AionModal from '@/renderer/components/base/AionModal';
 
@@ -168,7 +167,7 @@ const OneClickImportModal: React.FC<OneClickImportModalProps> = ({ visible, onCa
       ) : importableServers.length > 0 ? (
         <div>
           <div className='mb-3 flex items-center gap-2'>
-            <Check theme='filled' size={20} fill={iconColors.success} />
+            <Check theme='filled' size={20} fill={'var(--success)'} />
             <span className='text-t-primary'>{t('settings.mcpToolsLoaded', { count: importableServers.length })}</span>
           </div>
           <div className='bg-base rounded-lg max-h-[200px] overflow-y-auto'>
@@ -192,7 +191,7 @@ const OneClickImportModal: React.FC<OneClickImportModalProps> = ({ visible, onCa
       {importableServers.length > 0 ? (
         <div>
           <div className='mb-3 flex items-center gap-2'>
-            <Check theme='filled' size={20} fill={iconColors.success} />
+            <Check theme='filled' size={20} fill={'var(--success)'} />
             <span className='text-t-primary'>{t('settings.mcpImportedSuccess', { count: importableServers.length })}</span>
           </div>
           <div className='bg-base rounded-lg max-h-[200px] overflow-y-auto'>

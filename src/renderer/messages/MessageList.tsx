@@ -7,7 +7,6 @@
 import type { CodexToolCallUpdate, IMessageAcpToolCall, IMessageToolGroup, TMessage, TurnTokenUsage } from '@/common/chatLib';
 import { ipcBridge } from '@/common';
 import { useConversationContextSafe } from '@/renderer/context/ConversationContext';
-import { iconColors } from '@/renderer/theme/colors';
 import { CHAT_MESSAGE_JUMP_EVENT, type ChatMessageJumpDetail } from '@/renderer/utils/chatMinimapEvents';
 import { Image, Message } from '@arco-design/web-react';
 import { Down } from '@icon-park/react';
@@ -546,7 +545,7 @@ const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = fal
           {/* Scroll button */}
           <div className='absolute bottom-20px left-50% transform -translate-x-50% z-100'>
             <div className='flex items-center justify-center w-40px h-40px rd-full bg-base shadow-lg cursor-pointer hover:bg-1 transition-all hover:scale-110 border' onClick={handleScrollButtonClick} title={t('messages.scrollToBottom')} style={{ lineHeight: 0 }}>
-              <Down theme='filled' size='20' fill={iconColors.secondary} style={{ display: 'block' }} />
+              <Down theme='filled' size='20' fill={'var(--text-secondary)'} style={{ display: 'block' }} />
             </div>
           </div>
         </>

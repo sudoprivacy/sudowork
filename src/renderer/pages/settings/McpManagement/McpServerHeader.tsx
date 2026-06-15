@@ -5,7 +5,6 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import McpAgentStatusDisplay from './McpAgentStatusDisplay';
 import type { McpOAuthStatus } from '@/renderer/hooks/mcp/useMcpOAuth';
-import { iconColors } from '@/renderer/theme/colors';
 
 interface McpServerHeaderProps {
   server: IMcpServer;
@@ -25,11 +24,11 @@ interface McpServerHeaderProps {
 
 const getStatusIcon = (status?: IMcpServer['status'], oauthStatus?: McpOAuthStatus) => {
   if (status === 'testing' || oauthStatus?.isChecking) {
-    return <LoadingOne fill={iconColors.primary} className='h-6' />;
+    return <LoadingOne fill={'var(--text-primary)'} className='h-6' />;
   }
 
   if (status === 'error') {
-    return <CloseSmall fill={iconColors.danger} className='h-6' />;
+    return <CloseSmall fill={'var(--danger)'} className='h-6' />;
   }
 
   if (oauthStatus?.needsLogin) {
@@ -37,10 +36,10 @@ const getStatusIcon = (status?: IMcpServer['status'], oauthStatus?: McpOAuthStat
   }
 
   if (status === 'connected' || oauthStatus?.isAuthenticated) {
-    return <Check fill={iconColors.success} className='h-6 items-center' />;
+    return <Check fill={'var(--success)'} className='h-6 items-center' />;
   }
 
-  return <CloseOne fill={iconColors.secondary} className='h-6' />;
+  return <CloseOne fill={'var(--text-secondary)'} className='h-6' />;
 };
 
 const getStatusText = (status?: IMcpServer['status'], oauthStatus?: McpOAuthStatus, t?: any) => {

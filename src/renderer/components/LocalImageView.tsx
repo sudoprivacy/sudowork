@@ -4,7 +4,6 @@ import { Image } from '@arco-design/web-react';
 import { LoadingTwo } from '@icon-park/react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { createContext } from '../utils/createContext';
-import { iconColors } from '@/renderer/theme/colors';
 
 const [useLocalImage, LocalImageProvider, useUpdateLocalImage] = createContext({ root: '' });
 
@@ -55,7 +54,7 @@ const LocalImageView: React.FC<{
   if (loading)
     return (
       <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-        <LoadingTwo className='loading' style={{ display: 'flex' }} theme='outline' size='14' fill={iconColors.primary} strokeWidth={2} />
+        <LoadingTwo className='loading' style={{ display: 'flex' }} theme='outline' size='14' fill={'var(--text-primary)'} strokeWidth={2} />
         <span>{alt}</span>
       </span>
     );

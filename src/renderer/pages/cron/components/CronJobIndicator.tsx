@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { iconColors } from '@/renderer/theme/colors';
 import { Tooltip } from '@arco-design/web-react';
 import { AlarmClock, Attention, PauseOne } from '@icon-park/react';
 import React from 'react';
@@ -34,7 +33,7 @@ const CronJobIndicator: React.FC<CronJobIndicatorProps> = ({ status, size = 14, 
       theme: 'outline' as const,
       size,
       strokeWidth: 3,
-      fill: iconColors.secondary,
+      fill: 'var(--text-secondary)',
       className: 'flex items-center',
     };
 

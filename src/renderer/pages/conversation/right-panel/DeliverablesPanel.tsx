@@ -6,7 +6,6 @@
 
 import { ipcBridge } from '@/common';
 import type { GeneratedFileEntry } from '@/common/generatedFiles';
-import { iconColors } from '@/renderer/theme/colors';
 import GeneratedFileCards from '@/renderer/messages/GeneratedFileCard';
 import { FileCabinet } from '@icon-park/react';
 import React, { useEffect, useMemo, useState } from 'react';
@@ -100,7 +99,7 @@ const EmptyState: React.FC<{ loading: boolean }> = ({ loading }) => {
     <div className='flex-1 flex flex-col items-center justify-center text-center px-24px'>
       <div className='flex flex-col items-center gap-10px rounded-20px border border-dashed border-[var(--color-border-2)] bg-[var(--color-bg-2)] px-20px py-24px shadow-[0_1px_0_rgba(0,0,0,0.02)]'>
         <div className='flex h-48px w-48px items-center justify-center rounded-full bg-[var(--color-fill-1)]'>
-          <FileCabinet size={36} fill={iconColors.disabled} />
+          <FileCabinet size={36} fill={'var(--text-disabled)'} />
         </div>
         <div className='text-13px font-semibold text-t-primary'>{t('conversation.rightPanel.deliverables.emptyTitle')}</div>
         <div className='max-w-220px text-12px leading-18px text-t-secondary opacity-80'>{t('conversation.rightPanel.deliverables.emptyHint')}</div>

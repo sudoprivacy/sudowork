@@ -18,7 +18,6 @@ import katex from 'katex';
 // Import KaTeX CSS to make it available in the document
 import 'katex/dist/katex.min.css';
 
-import { diffColors } from '@/renderer/theme/colors';
 import { copyText } from '@/renderer/utils/clipboard';
 import { openExternalUrl } from '@/renderer/utils/platform';
 import { Message } from '@arco-design/web-react';
@@ -58,13 +57,13 @@ const logicRender = <T, F>(condition: boolean, trueComponent: T, falseComponent?
  */
 const getDiffLineStyle = (line: string, isDark: boolean): React.CSSProperties => {
   if (line.startsWith('+') && !line.startsWith('+++')) {
-    return { backgroundColor: isDark ? diffColors.additionBgDark : diffColors.additionBgLight };
+    return { backgroundColor: isDark ? 'rgba(46,160,67,0.15)' : '#e6ffec' };
   }
   if (line.startsWith('-') && !line.startsWith('---')) {
-    return { backgroundColor: isDark ? diffColors.deletionBgDark : diffColors.deletionBgLight };
+    return { backgroundColor: isDark ? 'rgba(248,81,73,0.15)' : '#ffebe9' };
   }
   if (line.startsWith('@@')) {
-    return { backgroundColor: isDark ? diffColors.hunkBgDark : diffColors.hunkBgLight };
+    return { backgroundColor: isDark ? 'rgba(56,139,253,0.15)' : '#ddf4ff' };
   }
   return {};
 };

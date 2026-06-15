@@ -1,5 +1,4 @@
 import { getAgentLogo } from '@/renderer/utils/agentLogo';
-import { iconColors } from '@/renderer/theme/colors';
 import { Tag, Tooltip } from '@arco-design/web-react';
 import { LoadingOne } from '@icon-park/react';
 import React from 'react';
@@ -23,7 +22,7 @@ const McpAgentStatusDisplay: React.FC<McpAgentStatusDisplayProps> = ({ serverNam
     <div className='flex items-center isolate'>
       <div className='flex items-center'>
         {isLoadingAgentStatus ? (
-          <LoadingOne fill={iconColors.primary} className='h-4 w-4' />
+          <LoadingOne fill={'var(--text-primary)'} className='h-4 w-4' />
         ) : (
           agents.map((agent, index) => {
             const logo = getAgentLogo(agent);

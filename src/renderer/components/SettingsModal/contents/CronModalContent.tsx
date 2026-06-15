@@ -15,7 +15,6 @@ import EmptyState from '@/renderer/components/base/EmptyState';
 import { SettingsList, SettingsListItem } from '@/renderer/components/ui/SettingsList';
 import { useAllCronJobs } from '@/renderer/pages/cron/hooks/useCronJobs';
 import { type FrequencyPreset, FREQUENCY_PRESETS, WEEKDAYS, frequencyToSchedule, getJobStatusFlags, scheduleToFrequency } from '@/renderer/pages/cron/utils/cronUtils';
-import { iconColors } from '@/renderer/theme/colors';
 import { Button, Drawer, Form, Input, Message, Popconfirm, Select, Switch, Tag } from '@arco-design/web-react';
 import { Add, AlarmClock, ArrowLeft, Close, DeleteOne, Edit, Info, PlayOne, Sun } from '@icon-park/react';
 import dayjs from 'dayjs';
@@ -833,7 +832,7 @@ const CronModalContent: React.FC = () => {
             {isEnterprise && (
               <div className='bg-2 rd-12px px-16px py-12px flex items-center justify-between'>
                 <div className='flex items-center gap-8px text-13px text-t-secondary'>
-                  <Info theme='outline' size={16} fill={iconColors.secondary} />
+                  <Info theme='outline' size={16} fill={'var(--text-secondary)'} />
                   <span>{t('cron.mode.select', { defaultValue: '数据存储位置' })}</span>
                 </div>
                 <div className='flex items-center gap-4px'>

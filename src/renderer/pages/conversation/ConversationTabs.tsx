@@ -20,7 +20,6 @@ import { useConversationAgents } from './hooks/useConversationAgents';
 import { applyDefaultConversationName } from './utils/newConversationName';
 import { buildCliAgentParams, buildPresetAssistantParams } from './utils/createConversationParams';
 import { useLayoutContext } from '@/renderer/context/LayoutContext';
-import { iconColors } from '@/renderer/theme/colors';
 import { formatSessionTime } from '@/renderer/utils/messageTime';
 
 const TAB_OVERFLOW_THRESHOLD = 10;
@@ -52,7 +51,7 @@ const ConversationTabView: React.FC<ConversationTabViewProps> = ({ tabId, tabNam
         <Close
           theme='outline'
           size='14'
-          fill={iconColors.secondary}
+          fill={'var(--text-secondary)'}
           className='shrink-0 transition-all duration-200 hover:fill-danger'
           onClick={(event) => {
             event.stopPropagation();
@@ -73,7 +72,7 @@ interface CreateConversationTriggerProps {
 const CreateConversationTrigger: React.FC<CreateConversationTriggerProps> = ({ disabled, title, menu }) => (
   <Dropdown droplist={menu} trigger='click' position='bl' disabled={disabled}>
     <div className={`flex items-center justify-center w-40px h-40px shrink-0 transition-colors duration-200 ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:bg-[var(--fill-2)]'}`} style={{ borderLeft: '1px solid var(--border-default)' }} title={title}>
-      <Plus theme='outline' size='16' fill={iconColors.primary} strokeWidth={3} />
+      <Plus theme='outline' size='16' fill={'var(--text-primary)'} strokeWidth={3} />
     </div>
   </Dropdown>
 );

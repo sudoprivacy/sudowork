@@ -6,7 +6,6 @@
 
 import type { GeneratedFileEntry } from '@/common/generatedFiles';
 import { ipcBridge } from '@/common';
-import { iconColors } from '@/renderer/theme/colors';
 import { usePreviewLauncher } from '@/renderer/hooks/usePreviewLauncher';
 import { getContentTypeByExtension } from '@/renderer/pages/conversation/preview/utils/fileUtils';
 import { formatFileSize } from '@/renderer/services/FileService';
@@ -126,7 +125,7 @@ const GeneratedFileCard: React.FC<GeneratedFileCardProps> = ({ entry, fullWidth 
           }
         }}
       >
-        <div className='flex h-48px w-48px flex-shrink-0 items-center justify-center rounded-16px border border-solid border-[var(--color-border-2)] bg-[var(--color-fill-1)] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]' style={{ color: iconColors.primary, lineHeight: 0 }}>
+        <div className='flex h-48px w-48px flex-shrink-0 items-center justify-center rounded-16px border border-solid border-[var(--color-border-2)] bg-[var(--color-fill-1)] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]' style={{ color: 'var(--text-primary)', lineHeight: 0 }}>
           {resolveFileIcon(fileName, { size: 26 })}
         </div>
         <div className='min-w-0 flex flex-col gap-4px leading-tight'>
@@ -151,12 +150,12 @@ const GeneratedFileCard: React.FC<GeneratedFileCardProps> = ({ entry, fullWidth 
           <div className='ml-auto flex flex-shrink-0 items-center gap-2px opacity-0 transition-opacity group-hover:opacity-100'>
             <Tooltip content={t(isHtml ? 'messages.generatedFile.openInSystemBrowser' : 'messages.generatedFile.openWithDefaultApp')} position='top' mini>
               <button type='button' onClick={handleOpenExternal} className='flex items-center justify-center rounded-4px border-0 bg-transparent p-4px cursor-pointer hover:bg-[var(--color-bg-1)]' style={{ lineHeight: 0 }}>
-                <ShareOne size='14' fill={iconColors.secondary} />
+                <ShareOne size='14' fill={'var(--text-secondary)'} />
               </button>
             </Tooltip>
             <Tooltip content={t('messages.generatedFile.showInFolder')} position='top' mini>
               <button type='button' onClick={handleShowInFolder} className='flex items-center justify-center rounded-4px border-0 bg-transparent p-4px cursor-pointer hover:bg-[var(--color-bg-1)]' style={{ lineHeight: 0 }}>
-                <FolderOpen size='14' fill={iconColors.secondary} />
+                <FolderOpen size='14' fill={'var(--text-secondary)'} />
               </button>
             </Tooltip>
           </div>

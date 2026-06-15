@@ -8,7 +8,6 @@ import { ipcBridge } from '@/common';
 import ActionChip from '@/renderer/components/ui/ActionChip';
 import { getAgentModes, supportsModeSwitch, type AgentModeOption } from '@/renderer/utils/agentModes';
 import { useLayoutContext } from '@/renderer/context/LayoutContext';
-import { iconColors } from '@/renderer/theme/colors';
 import { getAgentLogo } from '@/renderer/utils/agentLogo';
 import { Dropdown, Message, Tooltip } from '@arco-design/web-react';
 import { Down, Robot } from '@icon-park/react';
@@ -187,7 +186,7 @@ const AgentModeSelector: React.FC<AgentModeSelectorProps> = ({ backend, agentNam
       if (logo) {
         return <img src={logo} alt={`${backend} logo`} className='block w-16px h-16px object-contain' />;
       }
-      return <Robot theme='outline' size={16} fill={iconColors.primary} />;
+      return <Robot theme='outline' size={16} fill={'var(--text-primary)'} />;
     })();
 
     return <span className='inline-flex w-16px h-16px items-center justify-center shrink-0 leading-none'>{logoContent}</span>;

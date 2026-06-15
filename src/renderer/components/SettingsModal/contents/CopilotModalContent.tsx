@@ -13,7 +13,6 @@ import { Alert, Button, Card, Collapse, Form, Input, Message, Modal, Popconfirm,
 import { Delete, Edit, Folder, Plus, Refresh, Robot, User } from '@icon-park/react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { iconColors } from '@/renderer/theme/colors';
 import { fs } from '@/common/ipcBridge';
 
 const { Title, Text } = Typography;
@@ -45,7 +44,7 @@ const StatusCard: React.FC<{
     success: { bg: '#52c41a15', text: '#52c41a' },
     warning: { bg: '#faad1415', text: '#faad14' },
     error: { bg: '#ff4d4f15', text: '#ff4d4f' },
-    info: { bg: `${iconColors.primary}15`, text: iconColors.primary },
+    info: { bg: `${'var(--text-primary)'}15`, text: 'var(--text-primary)' },
   };
 
   const colors = statusColors[status];
@@ -445,10 +444,10 @@ const CopilotModalContent: React.FC = () => {
         )}
 
         <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-16px mb-24px'>
-          <StatusCard title='连接状态' value={isConnected ? '已连接' : '未连接'} icon={<Folder theme='outline' size='24' fill={isConnected ? iconColors.success : '#999'} />} status={isConnected ? 'success' : 'error'} description={status?.gatewayUrl} />
-          <StatusCard title='Agent' value={status?.agentName || '未设置'} icon={<Robot theme='outline' size='24' fill={iconColors.primary} />} status='info' description={status?.model} />
-          <StatusCard title='工作区' value={status?.workspace ? '已配置' : '未配置'} icon={<Folder theme='outline' size='24' fill={status?.workspace ? iconColors.warning : '#999'} />} status={status?.workspace ? 'success' : 'info'} description={status?.workspace} />
-          <StatusCard title='会话状态' value={status?.hasActiveSession ? '活动中' : '空闲'} icon={<User theme='outline' size='24' fill={status?.hasActiveSession ? iconColors.success : '#999'} />} status={status?.hasActiveSession ? 'success' : 'info'} description={status?.sessionKey || '无活动会话'} />
+          <StatusCard title='连接状态' value={isConnected ? '已连接' : '未连接'} icon={<Folder theme='outline' size='24' fill={isConnected ? 'var(--success)' : '#999'} />} status={isConnected ? 'success' : 'error'} description={status?.gatewayUrl} />
+          <StatusCard title='Agent' value={status?.agentName || '未设置'} icon={<Robot theme='outline' size='24' fill={'var(--text-primary)'} />} status='info' description={status?.model} />
+          <StatusCard title='工作区' value={status?.workspace ? '已配置' : '未配置'} icon={<Folder theme='outline' size='24' fill={status?.workspace ? 'var(--warning)' : '#999'} />} status={status?.workspace ? 'success' : 'info'} description={status?.workspace} />
+          <StatusCard title='会话状态' value={status?.hasActiveSession ? '活动中' : '空闲'} icon={<User theme='outline' size='24' fill={status?.hasActiveSession ? 'var(--success)' : '#999'} />} status={status?.hasActiveSession ? 'success' : 'info'} description={status?.sessionKey || '无活动会话'} />
         </div>
       </div>
     </AionScrollArea>

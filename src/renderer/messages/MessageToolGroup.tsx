@@ -6,7 +6,6 @@
 
 import { ipcBridge } from '@/common';
 import type { IMessageToolGroup } from '@/common/chatLib';
-import { iconColors } from '@/renderer/theme/colors';
 import { Alert, Button, Image, Message, Radio, Tag, Tooltip } from '@arco-design/web-react';
 import { Copy, Download, LoadingOne } from '@icon-park/react';
 import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react';
@@ -317,7 +316,7 @@ const ImageDisplay: React.FC<{
   if (loading) {
     return (
       <div className='flex items-center gap-8px my-8px'>
-        <LoadingOne className='loading' theme='outline' size='14' fill={iconColors.primary} />
+        <LoadingOne className='loading' theme='outline' size='14' fill={'var(--text-primary)'} />
         <span className='text-t-secondary text-sm'>{t('common.loading', { defaultValue: 'Loading...' })}</span>
       </div>
     );
@@ -356,10 +355,10 @@ const ImageDisplay: React.FC<{
         {/* 操作按钮 Action buttons */}
         <div className='flex gap-8px'>
           <Tooltip content={t('common.copy', { defaultValue: 'Copy' })}>
-            <Button type='secondary' size='small' shape='circle' icon={<Copy theme='outline' size='14' fill={iconColors.primary} />} onClick={handleCopy} />
+            <Button type='secondary' size='small' shape='circle' icon={<Copy theme='outline' size='14' fill={'var(--text-primary)'} />} onClick={handleCopy} />
           </Tooltip>
           <Tooltip content={t('common.download', { defaultValue: 'Download' })}>
-            <Button type='secondary' size='small' shape='circle' icon={<Download theme='outline' size='14' fill={iconColors.primary} />} onClick={handleDownload} />
+            <Button type='secondary' size='small' shape='circle' icon={<Download theme='outline' size='14' fill={'var(--text-primary)'} />} onClick={handleDownload} />
           </Tooltip>
         </div>
       </div>
@@ -492,7 +491,7 @@ const MessageToolGroup: React.FC<IMessageToolGroupProps> = ({ message }) => {
             <Alert
               className={ALERT_CLASSES}
               type={status === 'Error' ? 'error' : status === 'Success' ? 'success' : status === 'Canceled' ? 'warning' : 'info'}
-              icon={isLoading && <LoadingOne theme='outline' size='12' fill={iconColors.primary} className='loading lh-[1] flex' />}
+              icon={isLoading && <LoadingOne theme='outline' size='12' fill={'var(--text-primary)'} className='loading lh-[1] flex' />}
               content={
                 <div>
                   <Tag className={'mr-4px'}>

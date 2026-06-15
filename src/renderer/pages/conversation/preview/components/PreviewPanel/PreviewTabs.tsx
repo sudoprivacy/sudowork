@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { iconColors } from '@/renderer/theme/colors';
 import { Close } from '@icon-park/react';
 import { IconShrink } from '@arco-design/web-react/icon';
 import React from 'react';
@@ -118,7 +117,7 @@ const PreviewTabs: React.FC<PreviewTabsProps> = ({ tabs, activeTabId, tabFadeSta
                 <Close
                   theme='outline'
                   size='14'
-                  fill={iconColors.secondary}
+                  fill={'var(--text-secondary)'}
                   className='hover:fill-primary'
                   onClick={(e) => {
                     e.stopPropagation();
@@ -136,7 +135,7 @@ const PreviewTabs: React.FC<PreviewTabsProps> = ({ tabs, activeTabId, tabFadeSta
         {onClosePanel && (
           <div className='flex items-center h-full px-10px flex-shrink-0 rounded-tr-[16px]'>
             <div className='flex items-center justify-center w-20px h-20px rd-4px cursor-pointer hover:bg-bg-3 transition-colors' onClick={onClosePanel} title={t('preview.collapsePanel')}>
-              <IconShrink style={{ fontSize: 14, color: iconColors.secondary }} />
+              <IconShrink style={{ fontSize: 14, color: 'var(--text-secondary)' }} />
             </div>
           </div>
         )}

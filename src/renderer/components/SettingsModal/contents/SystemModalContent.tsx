@@ -8,7 +8,6 @@ import { ipcBridge } from '@/common';
 import { ConfigStorage } from '@/common/storage';
 import LanguageSwitcher from '@/renderer/components/LanguageSwitcher';
 import ProductImprovementDialog from '@/renderer/components/ProductImprovementDialog';
-import { iconColors } from '@/renderer/theme/colors';
 import { Alert, Button, Form, Input, InputNumber, Modal, Switch, Tooltip } from '@arco-design/web-react';
 import { FolderOpen } from '@icon-park/react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -70,7 +69,7 @@ const DirInputItem: React.FC<{
             <Button
               type='text'
               style={{ borderLeft: '1px solid var(--color-border-2)', borderRadius: '0 8px 8px 0' }}
-              icon={<FolderOpen theme='outline' size='18' fill={iconColors.primary} />}
+              icon={<FolderOpen theme='outline' size='18' fill={'var(--text-primary)'} />}
               onClick={(e) => {
                 e.stopPropagation();
                 handlePick();

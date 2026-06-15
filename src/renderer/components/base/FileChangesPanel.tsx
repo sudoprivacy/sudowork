@@ -7,7 +7,6 @@
 import classNames from 'classnames';
 import React, { useState } from 'react';
 import { Down, PreviewOpen } from '@icon-park/react';
-import { diffColors, iconColors } from '@/renderer/theme/colors';
 import { useTranslation } from 'react-i18next';
 
 /**
@@ -63,12 +62,12 @@ const FileChangesPanel: React.FC<FileChangesPanelProps> = ({ title, files, defau
       <div className='flex items-center justify-between px-16px py-12px cursor-pointer select-none' onClick={() => setExpanded(!expanded)}>
         <div className='flex items-center gap-8px'>
           {/* 绿色圆点 / Green dot */}
-          <span className='w-8px h-8px rounded-full shrink-0' style={{ backgroundColor: diffColors.addition }}></span>
+          <span className='w-8px h-8px rounded-full shrink-0' style={{ backgroundColor: '#52c41a' }}></span>
           {/* 标题 / Title */}
           <span className='text-14px text-t-primary font-medium'>{title}</span>
         </div>
         {/* 展开/收起箭头 / Expand/collapse arrow */}
-        <Down theme='outline' size='16' fill={iconColors.secondary} className={classNames('transition-transform duration-200', expanded && 'rotate-180')} />
+        <Down theme='outline' size='16' fill={'var(--text-secondary)'} className={classNames('transition-transform duration-200', expanded && 'rotate-180')} />
       </div>
 
       {/* 文件列表 / File list */}
@@ -92,12 +91,12 @@ const FileChangesPanel: React.FC<FileChangesPanelProps> = ({ title, files, defau
                     }}
                   >
                     {file.insertions > 0 && (
-                      <span className='text-14px font-medium' style={{ color: diffColors.addition }}>
+                      <span className='text-14px font-medium' style={{ color: '#52c41a' }}>
                         +{file.insertions}
                       </span>
                     )}
                     {file.deletions > 0 && (
-                      <span className='text-14px font-medium' style={{ color: diffColors.deletion }}>
+                      <span className='text-14px font-medium' style={{ color: '#ff4d4f' }}>
                         -{file.deletions}
                       </span>
                     )}
@@ -111,7 +110,7 @@ const FileChangesPanel: React.FC<FileChangesPanelProps> = ({ title, files, defau
                     onFileClick?.(file);
                   }}
                 >
-                  <PreviewOpen className='line-height-8px' theme='outline' size='14' fill={iconColors.secondary} />
+                  <PreviewOpen className='line-height-8px' theme='outline' size='14' fill={'var(--text-secondary)'} />
                   {t('preview.preview')}
                 </span>
               </div>
