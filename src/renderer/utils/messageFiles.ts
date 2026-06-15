@@ -2,11 +2,6 @@ import { NEXUS_FILES_MARKER } from '@/common/constants';
 import type { FileOrFolderItem } from '@/renderer/types/files';
 import { isTemporaryWorkspace } from '@/renderer/utils/workspace';
 
-export const collectSelectedFiles = (uploadFile: string[], atPath: Array<string | FileOrFolderItem>): string[] => {
-  const atPathFiles = atPath.map((item) => (typeof item === 'string' ? item : item.path)).filter(Boolean);
-  return Array.from(new Set([...uploadFile, ...atPathFiles]));
-};
-
 /** Filter out internal temp workspace paths that should not be shown to users */
 export const filterUserVisibleFiles = (paths: string[]): string[] => paths.filter((p) => !isTemporaryWorkspace(p));
 
