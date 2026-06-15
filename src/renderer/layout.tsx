@@ -154,10 +154,6 @@ const Layout: React.FC<{
     collapsedRef.current = collapsed;
   }, [collapsed]);
 
-  // Memoize the context value to prevent unnecessary re-renders of all
-  // LayoutContext consumers when unrelated state (e.g. viewportWidth) changes.
-  // Without this, every resize event creates a new object reference, causing
-  // all consumers (including ChatWorkspace) to re-render.
   const layoutContextValue = useMemo(() => ({ isMobile, siderCollapsed: collapsed, setSiderCollapsed: setCollapsed }), [isMobile, collapsed, setCollapsed]);
 
   return (
@@ -169,7 +165,7 @@ const Layout: React.FC<{
 
         <ArcoLayout className={'size-full layout flex-1 min-h-0'}>
           <ArcoLayout.Sider
-            collapsedWidth={isMobile ? 0 : 64}
+            collapsedWidth={0}
             collapsed={collapsed}
             width={siderWidth}
             className={classNames('layout-sider', {
@@ -190,26 +186,16 @@ const Layout: React.FC<{
           >
             <ArcoLayout.Header className={classNames('flex items-center justify-start py-8px px-16px pl-18px gap-10px layout-sider-header', isMobile && 'layout-sider-header--mobile')}>
               <div
-                className={classNames('shrink-0 size-34px relative rd-0.5rem flex items-center justify-center cursor-pointer', {
-                  '!size-6': collapsed,
-                })}
+                className='shrink-0 size-34px relative rd-0.5rem flex items-center justify-center cursor-pointer'
                 onClick={() => {
                   onClick();
                   goToNewConversation();
                 }}
                 aria-label='New conversation'
               >
-                <img
-                  src={config.logo || SudoworkIcon}
-                  alt={config.app_name}
-                  className={classNames('absolute inset-0 m-auto transition-opacity', {
-                    'w-5 h-5 p-0.5 scale-130': !collapsed,
-                    'w-4 h-4 p-0.5': collapsed,
-                  })}
-                  style={{ objectFit: 'contain' }}
-                />
+                <img src={config.logo || SudoworkIcon} alt={config.app_name} className='absolute inset-0 m-auto w-5 h-5 p-0.5 scale-130' style={{ objectFit: 'contain' }} />
               </div>
-              <div className='flex-1 text-20px text-1 collapsed-hidden font-800 cursor-pointer' onClick={goToNewConversation}>
+              <div className='flex-1 text-20px text-1 font-800 cursor-pointer' onClick={goToNewConversation}>
                 {config.app_name}
               </div>
             </ArcoLayout.Header>
@@ -220,7 +206,6 @@ const Layout: React.FC<{
                       cleanupSiderTooltips();
                       if (isMobile) setCollapsed(true);
                     },
-                    collapsed,
                   } as any)
                 : sider}
             </ArcoLayout.Content>

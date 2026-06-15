@@ -114,7 +114,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
     } catch {
       // ignore
     }
-    return false; // collapsed by default
+    return false;
   });
 
   const handleToggleScheduledSection = useCallback(() => {
