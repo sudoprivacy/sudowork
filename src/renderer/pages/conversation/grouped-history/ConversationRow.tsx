@@ -94,7 +94,7 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
       >
         {batchMode && (
           <span
-            className='mr-8px flex-center'
+            className='mr-8px f-center'
             onClick={(event) => {
               event.stopPropagation();
               onToggleChecked(conversation as TChatConversation);
@@ -106,7 +106,7 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
         {renderLeadingIcon()}
         {ptyActiveCount > 0 && (
           <Tooltip mini content={t('conversation.history.terminalRunning', { count: ptyActiveCount, defaultValue: '{{count}} terminal still running' })}>
-            <span className='flex-center ml-6px collapsed-hidden text-[rgb(var(--ui-accent-orange))]'>
+            <span className='f-center ml-6px collapsed-hidden text-[rgb(var(--ui-accent-orange))]'>
               <Loading theme='outline' size='12' className='animate-spin' />
             </span>
           </Tooltip>
@@ -131,7 +131,7 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
             }}
           >
             {isPinned && !menuVisible && (
-              <span className='flex-center text-t-secondary group-hover:hidden pr-4px'>
+              <span className='f-center text-t-secondary group-hover:hidden pr-4px'>
                 <Pushpin theme='outline' size='16' />
               </span>
             )}
@@ -195,7 +195,7 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
               unmountOnExit={false}
             >
               <span
-                className={classNames('flex-center cursor-pointer hover:bg-fill-2 rd-4px p-4px transition-colors relative text-t-primary', {
+                className={classNames('f-center cursor-pointer hover:bg-fill-2 rd-4px p-4px transition-colors relative text-t-primary', {
                   flex: isMobile || menuVisible,
                   'hidden group-hover:flex': !isMobile && !menuVisible,
                 })}

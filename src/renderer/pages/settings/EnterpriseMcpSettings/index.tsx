@@ -177,26 +177,26 @@ const EnterpriseMcpSettings: React.FC = () => {
 
   return (
     <SettingsPageWrapper contentClassName='max-w-1200px'>
-      <div className='p-24px flex flex-col gap-16px'>
-        <div className='flex flex-col gap-2px'>
-          <h2 className='text-24px font-600 text-t-primary my-0px'>MCP 服务</h2>
-          <p className='text-13px text-t-secondary my-0px'>管理企业、部门与个人 MCP 服务，安装模板，查看企业策略。</p>
+      <div className='p-6 flex flex-col gap-4'>
+        <div className='flex flex-col gap-0.5'>
+          <h2 className='text-24px font-600 text-t-primary my-0'>MCP 服务</h2>
+          <p className='text-13px text-t-secondary my-0'>管理企业、部门与个人 MCP 服务，安装模板，查看企业策略。</p>
         </div>
 
         <AdminRedirectBanner visible={isAdmin} serverUrl={serverUrl} />
 
         <Tabs activeTab={activeKey} onChange={setActiveKey} type='line'>
           <Tabs.TabPane key='enterprise' title='企业 MCP'>
-            <div className='pt-12px'>{renderTabContent('enterprise')}</div>
+            <div className='pt-3'>{renderTabContent('enterprise')}</div>
           </Tabs.TabPane>
           <Tabs.TabPane key='library' title='MCP 库'>
-            <div className='pt-12px'>{renderTabContent('library')}</div>
+            <div className='pt-3'>{renderTabContent('library')}</div>
           </Tabs.TabPane>
           <Tabs.TabPane key='mine' title='我的 MCP'>
-            <div className='pt-12px'>{renderTabContent('mine')}</div>
+            <div className='pt-3'>{renderTabContent('mine')}</div>
           </Tabs.TabPane>
           <Tabs.TabPane key='policy' title='策略说明'>
-            <div className='pt-12px'>{renderTabContent('policy')}</div>
+            <div className='pt-3'>{renderTabContent('policy')}</div>
           </Tabs.TabPane>
         </Tabs>
       </div>
@@ -205,11 +205,11 @@ const EnterpriseMcpSettings: React.FC = () => {
 };
 
 const LoadingBlock: React.FC = () => (
-  <div className='flex items-center justify-center py-60px'>
+  <div className='f-center py-15'>
     <Spin size={28} />
   </div>
 );
 
-const ErrorBlock: React.FC<{ message: string }> = ({ message }) => <div className='py-40px text-center text-13px text-t-tertiary'>{message}</div>;
+const ErrorBlock: React.FC<{ message: string }> = ({ message }) => <div className='py-10 text-center text-13px text-t-tertiary'>{message}</div>;
 
 export default EnterpriseMcpSettings;

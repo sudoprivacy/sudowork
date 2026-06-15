@@ -23,7 +23,7 @@ const McpAgentStatusDisplay: React.FC<McpAgentStatusDisplayProps> = ({ serverNam
     <div className='flex items-center isolate'>
       <div className='flex items-center'>
         {isLoadingAgentStatus ? (
-          <LoadingOne fill={iconColors.primary} className='h-[16px] w-[16px]' />
+          <LoadingOne fill={iconColors.primary} className='h-4 w-4' />
         ) : (
           agents.map((agent, index) => {
             const logo = getAgentLogo(agent);

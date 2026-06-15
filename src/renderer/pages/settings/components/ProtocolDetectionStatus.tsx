@@ -64,7 +64,7 @@ const ProtocolDetectionStatus: React.FC<ProtocolDetectionStatusProps> = ({ isDet
   // 正在检测
   if (isDetecting) {
     return (
-      <div className='flex items-center gap-6px text-12px text-t-secondary py-4px'>
+      <div className='flex items-center gap-1.5 text-12px text-t-secondary py-1'>
         <Loading theme='outline' size={14} className='animate-spin' />
         <span>{t('settings.protocolDetecting')}</span>
       </div>
@@ -84,11 +84,11 @@ const ProtocolDetectionStatus: React.FC<ProtocolDetectionStatusProps> = ({ isDet
     const showSwitchButton = suggestion.type === 'switch_platform' && suggestion.suggestedPlatform && suggestion.suggestedPlatform !== currentPlatform;
 
     return (
-      <div className='flex flex-col gap-4px py-4px'>
-        <div className='flex items-start gap-8px text-12px'>
-          <div className='flex items-center gap-6px flex-1 min-w-0'>
+      <div className='flex flex-col gap-1 py-1'>
+        <div className='flex items-start gap-2 text-12px'>
+          <div className='flex items-center gap-1.5 flex-1 min-w-0'>
             <div
-              className='flex items-center justify-center w-16px h-16px rounded-4px shrink-0'
+              className='f-center w-4 h-4 rounded-4px shrink-0'
               style={{
                 backgroundColor: iconConfig.bgColor,
               }}
@@ -108,7 +108,7 @@ const ProtocolDetectionStatus: React.FC<ProtocolDetectionStatusProps> = ({ isDet
           {showSwitchButton && onSwitchPlatform && (
             <button
               type='button'
-              className='shrink-0 px-8px py-2px rounded-4px text-11px font-medium transition-colors'
+              className='shrink-0 px-2 py-0.5 rounded-4px text-11px font-medium transition-colors'
               style={{
                 backgroundColor: iconConfig.bgColor,
                 color: iconConfig.color,
@@ -122,7 +122,7 @@ const ProtocolDetectionStatus: React.FC<ProtocolDetectionStatusProps> = ({ isDet
 
         {/* 多 Key 测试结果 / Multi-key test result */}
         {multiKeyResult && multiKeyResult.total > 1 && (
-          <div className='flex items-center gap-6px text-11px text-t-tertiary pl-22px'>
+          <div className='flex items-center gap-1.5 text-11px text-t-tertiary pl-5.5'>
             <span>{multiKeyResult.invalid === 0 ? t('settings.multiKeyAllValid', { total: String(multiKeyResult.total) }) : multiKeyResult.valid === 0 ? t('settings.multiKeyAllInvalid', { total: String(multiKeyResult.total) }) : t('settings.multiKeyPartialValid', { valid: String(multiKeyResult.valid), invalid: String(multiKeyResult.invalid) })}</span>
           </div>
         )}
@@ -133,8 +133,8 @@ const ProtocolDetectionStatus: React.FC<ProtocolDetectionStatusProps> = ({ isDet
   // 检测失败
   if (!success && result.error) {
     return (
-      <div className='flex items-center gap-6px text-12px text-warning py-4px'>
-        <div className='flex items-center justify-center w-16px h-16px rounded-4px bg-warning/10 shrink-0'>
+      <div className='flex items-center gap-1.5 text-12px text-warning py-1'>
+        <div className='f-center w-4 h-4 rounded-4px bg-warning/10 shrink-0'>
           <span className='text-10px font-medium'>!</span>
         </div>
         <span className='truncate'>{suggestion ? getSuggestionMessage(suggestion, t) : result.error}</span>

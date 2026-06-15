@@ -256,25 +256,25 @@ const CustomAcpAgentModal: React.FC<CustomAcpAgentModalProps> = ({ visible, agen
         overflow: 'auto',
       }}
     >
-      <div className='space-y-16px'>
+      <div className='space-y-4'>
         {/* CLI 选择卡片（仅新增模式显示）/ CLI selection cards (only shown in add mode) */}
         {!agent && (
           <div>
-            <div className='mb-8px text-sm font-medium text-t-primary'>{t('settings.selectCli') || 'Select CLI'}</div>
+            <div className='mb-2 text-sm font-medium text-t-primary'>{t('settings.selectCli') || 'Select CLI'}</div>
             {loadingAgents ? (
-              <div className='flex items-center justify-center py-16px'>
+              <div className='f-center py-4'>
                 <Spin />
               </div>
             ) : detectedAgents.length === 0 ? (
               <Alert type='warning' content={t('settings.noCliDetected') || 'No CLI tools detected. Please install an ACP-compatible CLI first.'} />
             ) : (
-              <div className='grid grid-cols-2 gap-8px'>
+              <div className='grid grid-cols-2 gap-2'>
                 {detectedAgents.map((detectedAgent) => {
                   const logo = BACKEND_LOGO_MAP[detectedAgent.backend];
                   const isSelected = selectedCli === detectedAgent.cliPath;
                   return (
-                    <div key={detectedAgent.cliPath} className={`p-10px rounded-lg cursor-pointer transition-all flex items-center gap-8px relative border ${isSelected ? 'bg-[var(--color-fill-2)] border-primary' : 'bg-[var(--bg-2)] border-transparent hover:bg-[var(--color-fill-2)] hover:border-[var(--color-border-2)]'}`} onClick={() => handleSelectCli(detectedAgent.cliPath || '')}>
-                      {logo && <img src={logo} alt={`${detectedAgent.name} logo`} className='w-24px h-24px object-contain flex-shrink-0' />}
+                    <div key={detectedAgent.cliPath} className={`p-2.5 rounded-lg cursor-pointer transition-all flex items-center gap-2 relative border border-solid ${isSelected ? 'bg-[var(--color-fill-2)] border-primary' : 'bg-2 border-transparent hover:bg-[var(--color-fill-2)] hover:border-[var(--color-border-2)]'}`} onClick={() => handleSelectCli(detectedAgent.cliPath || '')}>
+                      {logo && <img src={logo} alt={`${detectedAgent.name} logo`} className='w-6 h-6 object-contain flex-shrink-0' />}
                       <div className='min-w-0 flex-1'>
                         <div className='font-medium text-sm text-t-primary'>{detectedAgent.name}</div>
                       </div>
@@ -290,7 +290,7 @@ const CustomAcpAgentModal: React.FC<CustomAcpAgentModalProps> = ({ visible, agen
         {/* 显示名称输入（选中 CLI 或编辑模式时显示）/ Display name input (shown when CLI selected or in edit mode) */}
         {(selectedCli || agent) && (
           <div>
-            <div className='mb-8px text-sm font-medium text-t-primary'>{t('settings.agentDisplayName') || 'Display Name'}</div>
+            <div className='mb-2 text-sm font-medium text-t-primary'>{t('settings.agentDisplayName') || 'Display Name'}</div>
             <Input value={agentName} onChange={(v) => setAgentName(v)} placeholder={t('settings.agentNamePlaceholder') || 'Enter a name for this agent'} />
           </div>
         )}
@@ -306,7 +306,7 @@ const CustomAcpAgentModal: React.FC<CustomAcpAgentModalProps> = ({ visible, agen
             style={{ background: 'transparent' }}
           >
             <Collapse.Item name='advanced' header={<span className='text-sm text-t-secondary'>{t('settings.advancedMode') || 'Advanced Configuration'}</span>}>
-              <div className='pt-8px'>
+              <div className='pt-2'>
                 <CodeMirror
                   value={jsonInput}
                   height='180px'
@@ -333,7 +333,7 @@ const CustomAcpAgentModal: React.FC<CustomAcpAgentModalProps> = ({ visible, agen
                   }}
                   className='[&_.cm-editor]:rounded-[6px]'
                 />
-                {!validation.isValid && jsonInput.trim() && <div className='mt-8px text-xs text-red-500'>{validation.errorMessage}</div>}
+                {!validation.isValid && jsonInput.trim() && <div className='mt-2 text-xs text-danger'>{validation.errorMessage}</div>}
               </div>
             </Collapse.Item>
           </Collapse>

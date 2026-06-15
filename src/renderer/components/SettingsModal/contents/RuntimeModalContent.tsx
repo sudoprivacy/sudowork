@@ -10,7 +10,6 @@ import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { ShareOne } from '@icon-park/react';
-import { useSettingsViewMode } from '../settingsViewContext';
 import { nexus as nexusIpc, claudeCli as claudeCliIpc, libreOffice as libreOfficeIpc, pythonRuntime as pythonRuntimeIpc, scode as scodeIpc, nodeRuntime as nodeRuntimeIpc, acpConversation, shareoneCli } from '@/common/ipcBridge';
 import { mutate } from 'swr';
 import type { ICliStatus, ILibreOfficeInstallPhase, IPythonInstallPhase, NexusInstallPhase } from '@/common/ipcBridge';
@@ -24,8 +23,6 @@ type RefreshOptions = {
 
 const RuntimeModalContent: React.FC = () => {
   const { t } = useTranslation();
-  const viewMode = useSettingsViewMode();
-  const isPageMode = viewMode === 'page';
 
   const [nodeStatus, setNodeStatus] = useState<ICliStatus | null>(null);
   const [nodeLoad, setNodeLoad] = useState<LoadState>('idle');
@@ -608,15 +605,15 @@ const RuntimeModalContent: React.FC = () => {
 
   return (
     <div className='flex flex-col h-full w-full'>
-      <AionScrollArea className='flex-1 min-h-0 pb-16px' disableOverflow={isPageMode}>
-        <div className={classNames('space-y-16px px-24px', isPageMode && 'px-0')}>
-          <div className='max-w-820px mx-auto bg-2 rd-16px border border-border-2 px-16px md:px-24px lg:px-28px py-16px md:py-18px'>
+      <AionScrollArea className='flex-1 min-h-0 pb-16px' disableOverflow>
+        <div className={'space-y-16px px-24px px-0'}>
+          <div className='max-w-820px mx-auto bg-2 rd-16px border px-16px md:px-24px lg:px-28px py-16px md:py-18px'>
             <div className='flex flex-col gap-4px'>
               <h3 className='text-17px md:text-18px font-600 text-t-primary m-0 leading-24px'>{t('settings.runtimeSettings.title')}</h3>
               <p className='text-13px md:text-14px text-t-secondary m-0 leading-22px'>{t('settings.runtimeSettings.description')}</p>
             </div>
 
-            <div className='mt-16px flex flex-col divide-y divide-border-2'>
+            <div className='mt-16px flex flex-col divide-y divide-[var(--border-default)]'>
               {tableData.map((record) => {
                 const { dotColor, statusText } = getStatusInfo(record, t);
                 const version = record.status?.version;
@@ -637,15 +634,15 @@ const RuntimeModalContent: React.FC = () => {
                         <div className='min-w-0 flex-1 space-y-4px'>
                           <div className='flex flex-col gap-4px lg:flex-row lg:items-center lg:gap-8px'>
                             <span className='text-14px font-600 text-t-primary leading-none'>{record.displayName}</span>
-                            <span className='w-fit px-8px py-2px rd-999px text-10px font-mono leading-none bg-fill-1 text-t-secondary border border-border-2'>{record.command}</span>
+                            <span className='w-fit px-8px py-2px rd-999px text-10px font-mono leading-none bg-fill-1 text-t-secondary border'>{record.command}</span>
                           </div>
 
                           <div className='flex flex-wrap items-center gap-6px'>
-                            <span className={classNames('inline-flex items-center gap-6px px-8px py-2px rd-999px text-11px border border-border-2', isShareOneDisabled ? 'bg-[var(--color-primary-light-1)] text-[var(--color-primary-6)] border-[var(--color-primary-light-3)]' : 'bg-fill-1 text-t-secondary')}>
+                            <span className={classNames('inline-flex items-center gap-6px px-8px py-2px rd-999px text-11px border', isShareOneDisabled ? 'bg-[var(--color-primary-light-1)] text-[var(--color-primary-6)] border-[var(--color-primary-light-3)]' : 'bg-fill-1 text-t-secondary')}>
                               <span className={classNames('w-6px h-6px rd-full flex-shrink-0', dotColor)} />
                               <span className='leading-none font-500'>{statusText}</span>
                             </span>
-                            {version && <span className='px-8px py-2px rd-999px text-10px font-500 bg-fill-1 text-t-secondary border border-border-2 whitespace-nowrap'>{version}</span>}
+                            {version && <span className='px-8px py-2px rd-999px text-10px font-500 bg-fill-1 text-t-secondary border whitespace-nowrap'>{version}</span>}
                             {sourceLabel && installed && <span className='px-8px py-2px rd-999px text-10px font-500 bg-[var(--color-primary-light-1)] text-[var(--color-primary-6)] border border-[var(--color-primary-light-3)] whitespace-nowrap'>{sourceLabel}</span>}
                           </div>
                         </div>

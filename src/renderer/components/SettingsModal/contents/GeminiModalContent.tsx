@@ -11,8 +11,6 @@ import { useThemeContext } from '@/renderer/context/ThemeContext';
 import { Button, Divider, Form, Input, Message } from '@arco-design/web-react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import classNames from 'classnames';
-import { useSettingsViewMode } from '../settingsViewContext';
 
 type GeminiConfig = Parameters<typeof ConfigStorage.set<'gemini.config'>>[1];
 
@@ -33,8 +31,6 @@ const GeminiModalContent: React.FC = () => {
   const [userLoggedOut, setUserLoggedOut] = useState(false);
   const [currentAccountEmail, setCurrentAccountEmail] = useState<string | null>(null);
   const [message, messageContext] = Message.useMessage();
-  const viewMode = useSettingsViewMode();
-  const isPageMode = viewMode === 'page';
 
   /**
    * 加载当前账号对应的 GOOGLE_CLOUD_PROJECT
@@ -148,17 +144,13 @@ const GeminiModalContent: React.FC = () => {
       {messageContext}
 
       {/* Content Area */}
-      <AionScrollArea className='flex-1 min-h-0' disableOverflow={isPageMode}>
+      <AionScrollArea className='flex-1 min-h-0' disableOverflow>
         <div className='space-y-16px'>
-          <div className='px-[12px] py-[24px] md:px-[32px] bg-2 rd-12px md:rd-16px border border-border-2'>
+          <div className='px-[12px] py-[24px] md:px-[32px] bg-2 rd-12px md:rd-16px border'>
             <Form form={form} layout='horizontal' labelCol={{ flex: '140px' }} labelAlign='left' wrapperCol={{ flex: '1' }} onValuesChange={debouncedSave}>
               <Form.Item label={t('settings.personalAuth')} field='googleAccount' layout='horizontal'>
                 {(props) => (
-                  <div
-                    className={classNames('flex flex-wrap items-center justify-end gap-12px', {
-                      'mt-12px w-full justify-start md:mt-0 md:w-auto md:justify-end': isPageMode,
-                    })}
-                  >
+                  <div className={'flex flex-wrap items-center justify-end gap-12px mt-12px w-full justify-start md:mt-0 md:w-auto md:justify-end'}>
                     {props.googleAccount ? (
                       <>
                         <span className='text-14px text-t-primary'>{props.googleAccount}</span>

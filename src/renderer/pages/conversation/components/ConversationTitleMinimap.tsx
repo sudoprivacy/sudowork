@@ -569,7 +569,7 @@ const ConversationTitleMinimap: React.FC<ConversationTitleMinimapProps> = ({ tit
       return (
         <div className='conversation-minimap-panel' style={frameStyle}>
           {titleNode}
-          <div className='flex-center' style={{ height: `calc(100% - ${HEADER_HEIGHT}px)` }}>
+          <div className='f-center' style={{ height: `calc(100% - ${HEADER_HEIGHT}px)` }}>
             <Spin size={18} />
           </div>
         </div>
@@ -580,7 +580,7 @@ const ConversationTitleMinimap: React.FC<ConversationTitleMinimapProps> = ({ tit
       return (
         <div className='conversation-minimap-panel' style={frameStyle}>
           {titleNode}
-          <div className='flex-center p-12px box-border' style={{ height: `calc(100% - ${HEADER_HEIGHT}px)` }}>
+          <div className='f-center p-12px box-border' style={{ height: `calc(100% - ${HEADER_HEIGHT}px)` }}>
             <Empty description={t('conversation.minimap.empty', { defaultValue: 'No Q&A turns yet' })} />
           </div>
         </div>
@@ -591,7 +591,7 @@ const ConversationTitleMinimap: React.FC<ConversationTitleMinimapProps> = ({ tit
       return (
         <div className='conversation-minimap-panel' style={frameStyle}>
           {titleNode}
-          <div className='flex-center p-12px box-border' style={{ height: `calc(100% - ${HEADER_HEIGHT}px)` }}>
+          <div className='f-center p-12px box-border' style={{ height: `calc(100% - ${HEADER_HEIGHT}px)` }}>
             <Empty description={t('conversation.minimap.noMatch', { defaultValue: 'No matching turns' })} />
           </div>
         </div>

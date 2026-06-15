@@ -346,7 +346,7 @@ const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({ content, onClose, hid
     <div className='flex flex-col w-full h-full overflow-hidden'>
       {/* 工具栏：Tabs 切换 + 下载按钮 / Toolbar: Tabs toggle + Download button */}
       {!hideToolbar && (
-        <div className='flex items-center justify-between h-40px px-12px bg-bg-2 flex-shrink-0 border-b border-border-1 overflow-x-auto'>
+        <div className='flex items-center justify-between h-40px px-12px bg-bg-2 flex-shrink-0 border-b overflow-x-auto'>
           <div className='flex items-center justify-between gap-12px w-full' style={{ minWidth: 'max-content' }}>
             {/* 左侧：原文/预览 Tabs / Left: Source/Preview Tabs */}
             <div className='flex items-center h-full gap-2px'>
@@ -354,7 +354,7 @@ const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({ content, onClose, hid
               <div
                 className={`
                   flex items-center h-full px-16px cursor-pointer transition-all text-14px font-medium
-                  ${viewMode === 'preview' ? 'text-primary border-b-2 border-primary' : 'text-t-secondary hover:text-t-primary hover:bg-bg-3'}
+                  ${viewMode === 'preview' ? 'text-primary border-b-2px border-solid border-primary' : 'text-t-secondary hover:text-t-primary hover:bg-bg-3'}
                 `}
                 onClick={() => handleViewModeChange('preview')}
               >
@@ -364,7 +364,7 @@ const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({ content, onClose, hid
               <div
                 className={`
                   flex items-center h-full px-16px cursor-pointer transition-all text-14px font-medium
-                  ${viewMode === 'source' ? 'text-primary border-b-2 border-primary' : 'text-t-secondary hover:text-t-primary hover:bg-bg-3'}
+                  ${viewMode === 'source' ? 'text-primary border-b-2px border-solid border-primary' : 'text-t-secondary hover:text-t-primary hover:bg-bg-3'}
                 `}
                 onClick={() => handleViewModeChange('source')}
               >

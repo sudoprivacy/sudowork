@@ -40,7 +40,7 @@ type GuidModelSelectorProps = {
   setSelectedAcpModel: React.Dispatch<React.SetStateAction<string | null>>;
 };
 
-const PANEL_CLASS = 'flex flex-col gap-2px p-6px rd-12px border border-solid border-[var(--border-base)] bg-popup max-h-[min(60vh,420px)] overflow-y-auto scrollbar-hide';
+const PANEL_CLASS = 'flex flex-col gap-2px p-6px rd-12px border bg-popup max-h-[min(60vh,420px)] overflow-y-auto scrollbar-hide';
 const PANEL_STYLE: React.CSSProperties = { minWidth: 200, boxShadow: '0 8px 28px rgba(0, 0, 0, 0.12)' };
 const GROUP_TITLE_CLASS = 'px-10px pt-4px pb-2px text-12px leading-18px text-t-secondary';
 const ROW_CLASS = 'flex items-center gap-8px px-10px h-38px rd-8px cursor-pointer text-14px text-t-primary transition-colors hover:bg-hover active:bg-active';

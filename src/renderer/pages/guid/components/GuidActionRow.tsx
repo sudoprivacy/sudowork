@@ -74,7 +74,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({ files, onFilesUploaded, o
             popupVisible={fileMenuOpen}
             onVisibleChange={setFileMenuOpen}
             droplist={
-              <div className='flex flex-col gap-2px p-6px rd-12px border border-solid border-[var(--border-base)] bg-popup' style={{ minWidth: 200, boxShadow: '0 8px 28px rgba(0, 0, 0, 0.12)' }}>
+              <div className='flex flex-col gap-2px p-6px rd-12px border bg-popup' style={{ minWidth: 200, boxShadow: '0 8px 28px rgba(0, 0, 0, 0.12)' }}>
                 <div
                   className='flex items-center gap-10px px-10px h-38px rd-8px cursor-pointer text-14px text-t-primary transition-colors hover:bg-hover active:bg-active'
                   onClick={() => {
@@ -128,7 +128,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({ files, onFilesUploaded, o
           >
             <span className='relative'>
               <Button shape='circle' type='secondary' title={t('conversation.welcome.downloadLocalFile')} icon={<Plus theme='outline' strokeWidth={4} fill={iconColors.secondary} />} />
-              {files.length > 0 && <span className='absolute -right-3px -top-3px flex-center min-w-14px h-14px rounded-full bg-[var(--ui-accent-orange)] px-3px text-9px text-white font-600 pointer-events-none'>{files.length}</span>}
+              {files.length > 0 && <span className='absolute -right-3px -top-3px f-center min-w-14px h-14px rounded-full bg-[var(--ui-accent-orange)] px-3px text-9px text-white font-600 pointer-events-none'>{files.length}</span>}
               {/* {files.length > 0 && (
                 <Tooltip className={'!max-w-max'} content={<span className='whitespace-break-spaces'>{getCleanFileNames(files).join('\n')}</span>}>
                   <span className='sr-only'>File({files.length})</span>

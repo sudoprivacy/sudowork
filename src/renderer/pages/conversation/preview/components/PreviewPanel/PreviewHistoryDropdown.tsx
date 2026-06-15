@@ -65,12 +65,12 @@ const PreviewHistoryDropdown: React.FC<PreviewHistoryDropdownProps> = ({ history
       className='min-w-220px rd-6px shadow-lg'
       style={{
         backgroundColor: currentTheme === 'dark' ? '#1d1d1f' : '#ffffff',
-        border: '1px solid var(--border-base, #e5e6eb)',
+        border: '1px solid var(--border-default, #e5e6eb)',
         zIndex: 9999,
       }}
     >
       {/* 头部：历史版本标题 + 文件名 / Header: History title + filename */}
-      <div className='px-8px py-6px' style={{ borderColor: 'var(--border-base, #e5e6eb)' }}>
+      <div className='px-8px py-6px' style={{ borderColor: 'var(--border-default, #e5e6eb)' }}>
         <div className='text-12px text-t-secondary'>{t('preview.historyVersions')}</div>
         <div className='text-11px text-t-tertiary truncate'>{historyTarget?.fileName || historyTarget?.title || t('preview.currentFile')}</div>
       </div>

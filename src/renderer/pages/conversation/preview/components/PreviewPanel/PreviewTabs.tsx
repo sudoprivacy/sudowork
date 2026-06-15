@@ -103,7 +103,7 @@ const PreviewTabs: React.FC<PreviewTabsProps> = ({ tabs, activeTabId, tabFadeSta
   const { left: showLeftFade, right: showRightFade } = tabFadeState;
 
   return (
-    <div className='relative flex-shrink-0 bg-bg-2' style={{ minHeight: '36px', borderBottom: '1px solid var(--border-base)' }}>
+    <div className='relative flex-shrink-0 bg-bg-2' style={{ minHeight: '36px', borderBottom: '1px solid var(--border-default)' }}>
       <div className='flex items-center h-36px w-full'>
         {/* Tabs 滚动区域 / Tabs scroll area */}
         <div ref={tabsContainerRef} className='flex items-center h-full flex-1 overflow-x-auto'>

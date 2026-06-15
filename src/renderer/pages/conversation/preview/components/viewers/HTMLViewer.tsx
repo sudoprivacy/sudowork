@@ -320,7 +320,7 @@ const HTMLPreview: React.FC<HTMLPreviewProps> = ({ content, filePath, hideToolba
 
       {/* 工具栏 */}
       {!hideToolbar && (
-        <div className='flex items-center justify-between h-40px px-12px bg-bg-2 border-b border-border-base flex-shrink-0'>
+        <div className='flex items-center justify-between h-40px px-12px bg-bg-2 border-b flex-shrink-0'>
           <div className='flex items-center gap-8px'>
             {/* 编辑按钮 */}
             <button onClick={handleToggleEdit} className={`px-12px py-4px rd-4px text-12px transition-colors ${editMode ? 'bg-primary text-white' : 'bg-bg-3 text-t-primary hover:bg-bg-4'}`}>
@@ -358,7 +358,7 @@ const HTMLPreview: React.FC<HTMLPreviewProps> = ({ content, filePath, hideToolba
       <div className='flex-1 flex overflow-hidden'>
         {/* 左侧：代码编辑器（编辑模式时显示） */}
         {editMode && (
-          <div className='flex-1 overflow-hidden border-r border-border-base'>
+          <div className='flex-1 overflow-hidden border-r'>
             <MonacoEditor
               height='100%'
               language='html'
@@ -388,7 +388,7 @@ const HTMLPreview: React.FC<HTMLPreviewProps> = ({ content, filePath, hideToolba
       {/* 右键菜单 */}
       {contextMenu && (
         <div
-          className='fixed bg-bg-1 border border-border-base rd-6px shadow-lg py-4px z-9999'
+          className='fixed bg-bg-1 border rd-6px shadow-lg py-4px z-9999'
           style={{
             left: contextMenu.x,
             top: contextMenu.y,

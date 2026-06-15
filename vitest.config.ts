@@ -91,8 +91,6 @@ export default defineConfig({
         // Preview components
         'src/renderer/pages/conversation/preview/components/viewers/WordViewer.tsx',
         'src/renderer/pages/conversation/preview/components/viewers/PPTViewer.tsx',
-        'src/renderer/pages/conversation/preview/components/renderers/WordHtmlRenderer.tsx',
-        'src/renderer/pages/conversation/preview/components/renderers/PPTHtmlRenderer.tsx',
         // Extension system (only files with existing tests)
         'src/extensions/ExtensionLoader.ts',
         'src/extensions/{dependencyResolver,pathSafety,statePersistence,entryPointResolver,envResolver,fileResolver}.ts',

@@ -15,7 +15,6 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { iconColors } from '@/renderer/theme/colors';
 import { fs } from '@/common/ipcBridge';
-import { useSettingsViewMode } from '../settingsViewContext';
 
 const { Title, Text } = Typography;
 
@@ -84,8 +83,6 @@ const CopilotModalContent: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'ok' | 'error'>('idle');
   const [testError, setTestError] = useState<{ error?: string; stdout?: string; stderr?: string } | null>(null);
-  const viewMode = useSettingsViewMode();
-  const isPageMode = viewMode === 'page';
 
   // Copilot Runtime Loading (for status updates)
   const [runtimeLoading, setRuntimeLoading] = useState(false);

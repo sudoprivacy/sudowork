@@ -92,7 +92,7 @@ const EnterpriseSettings: React.FC = () => {
   if (loading) {
     return (
       <SettingsPageWrapper>
-        <div className='flex items-center justify-center py-100px'>
+        <div className='f-center py-25'>
           <Spin size={32} />
         </div>
       </SettingsPageWrapper>
@@ -102,36 +102,36 @@ const EnterpriseSettings: React.FC = () => {
   return (
     <SettingsPageWrapper>
       {/* Card 1: Enterprise Connection Info */}
-      <div className='mb-24px rd-16px bg-2 p-24px'>
-        <div className='flex items-center gap-8px mb-20px'>
-          <BuildingTwo theme='outline' size={20} className='text-[var(--color-text-2)]' />
+      <div className='mb-6 rd-16px bg-2 p-6'>
+        <div className='flex items-center gap-2 mb-5'>
+          <BuildingTwo theme='outline' size={20} className='text-2' />
           <h3 className='text-16px font-600 text-t-primary m-0'>企业连接信息</h3>
         </div>
 
-        <div className='flex flex-col gap-16px'>
+        <div className='flex flex-col gap-4'>
           {/* Tenant Name (read-only) */}
-          <div className='flex items-center justify-between py-8px'>
-            <div className='flex items-center gap-8px'>
-              <BuildingTwo theme='outline' size={16} className='text-[var(--color-text-3)]' />
+          <div className='flex items-center justify-between py-2'>
+            <div className='flex items-center gap-2'>
+              <BuildingTwo theme='outline' size={16} className='text-3' />
               <span className='text-14px text-t-secondary'>企业名称</span>
             </div>
             <span className='text-14px text-t-primary font-500'>{tenantName || '--'}</span>
           </div>
 
           {/* Connection Status */}
-          <div className='flex items-center justify-between py-8px'>
-            <div className='flex items-center gap-8px'>
+          <div className='flex items-center justify-between py-2'>
+            <div className='flex items-center gap-2'>
               {connectionStatus === 'connected' ? <Success theme='filled' size={16} fill={['#00b42a']} /> : connectionStatus === 'checking' ? <Spin size={16} /> : <Close theme='filled' size={16} fill={['#f53f3f']} />}
               <span className='text-14px text-t-secondary'>连接状态</span>
             </div>
-            <span className={`text-14px font-500 ${connectionStatus === 'connected' ? 'text-[rgb(var(--green-6))]' : connectionStatus === 'disconnected' ? 'text-[rgb(var(--red-6))]' : 'text-[var(--color-text-3)]'}`}>{connectionStatus === 'connected' ? '已连接' : connectionStatus === 'checking' ? '检查中...' : '未连接'}</span>
+            <span className={`text-14px font-500 ${connectionStatus === 'connected' ? 'text-success' : connectionStatus === 'disconnected' ? 'text-danger' : 'text-3'}`}>{connectionStatus === 'connected' ? '已连接' : connectionStatus === 'checking' ? '检查中...' : '未连接'}</span>
           </div>
 
           {/* Server URL (editable) */}
-          <div className='flex flex-col gap-8px pt-8px'>
+          <div className='flex flex-col gap-2 pt-2'>
             <span className='text-14px text-t-secondary'>服务器地址</span>
-            <div className='flex gap-8px'>
-              <Input value={editingServerUrl} onChange={setEditingServerUrl} placeholder='https://your-company-server.com' className='flex-1 h-[32px] rounded-8px bg-[var(--fill-0)]' disabled={saving} />
+            <div className='flex gap-2'>
+              <Input value={editingServerUrl} onChange={setEditingServerUrl} placeholder='https://your-company-server.com' className='flex-1 h-8 rounded-8px bg-fill-0' disabled={saving} />
               <Button type='primary' size='small' loading={saving} onClick={() => void handleSaveServerUrl()} disabled={editingServerUrl.trim() === serverUrl.trim() || !editingServerUrl.trim()}>
                 保存
               </Button>

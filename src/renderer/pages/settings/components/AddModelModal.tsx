@@ -40,8 +40,8 @@ const AddModelModal = ModalHOC<{ data?: IProvider; onSubmit: (model: IProvider) 
 
   return (
     <AionModal visible={modalProps.visible} onCancel={modalCtrl.close} header={{ title: t('settings.addModel'), showClose: true }} style={{ maxHeight: '90vh' }} contentStyle={{ background: 'var(--bg-1)', borderRadius: 16, padding: '20px 24px', overflow: 'auto' }} onOk={handleConfirm} okText={t('common.confirm')} cancelText={t('common.cancel')} okButtonProps={{ disabled: !model }}>
-      <div className='flex flex-col gap-16px pt-20px'>
-        <div className='space-y-8px'>
+      <div className='flex flex-col gap-4 pt-5'>
+        <div className='space-y-2'>
           <div className='text-13px font-500 text-t-secondary'>{t('settings.addModelPlaceholder')}</div>
           <Select
             showSearch
@@ -59,19 +59,19 @@ const AddModelModal = ModalHOC<{ data?: IProvider; onSubmit: (model: IProvider) 
 
         {/* New API 协议选择 / New API Protocol Selection */}
         {isNewApi && (
-          <div className='space-y-8px'>
+          <div className='space-y-2'>
             <div className='text-13px font-500 text-t-secondary'>{t('settings.modelProtocol')}</div>
             <Select value={modelProtocol} onChange={setModelProtocol} options={NEW_API_PROTOCOL_OPTIONS} triggerProps={{ getPopupContainer: (node) => node.parentElement || document.body }} />
             <div className='text-11px text-t-secondary leading-4'>{t('settings.modelProtocolTip')}</div>
           </div>
         )}
 
-        <div className='space-y-8px'>
+        <div className='space-y-2'>
           {/* <div className='text-13px font-500 text-t-secondary'>{t('settings.currentModelsLabel')}</div>
           {existingModels.length === 0 ? (
-            <div className='text-13px text-t-secondary bg-fill-1 rd-8px px-12px py-14px border border-dashed border-border-2'>{t('settings.addModelNoExisting')}</div>
+            <div className='text-13px text-t-secondary bg-fill-1 rd-8px px-12px py-14px border border-dashed'>{t('settings.addModelNoExisting')}</div>
           ) : (
-            <div className='flex flex-wrap gap-8px bg-1 rd-8px px-12px py-10px border border-solid border-border-2'>
+            <div className='flex flex-wrap gap-8px bg-1 rd-8px px-12px py-10px border'>
               {previewModels.map((item) => (
                 <Tag key={item} bordered color='arcoblue' className='text-12px'>
                   {item}
@@ -82,7 +82,7 @@ const AddModelModal = ModalHOC<{ data?: IProvider; onSubmit: (model: IProvider) 
           )} */}
         </div>
 
-        {/* <div className='text-12px tet-t-tertiary leading-5 bg-fill-1 rd-8px px-12px py-10px border border-dashed border-border-2'>{t('settings.addModelTips')}</div> */}
+        {/* <div className='text-12px tet-t-tertiary leading-5 bg-fill-1 rd-8px px-12px py-10px border border-dashed'>{t('settings.addModelTips')}</div> */}
       </div>
       {/* <div className='text-12px text-t-secondary leading-5 my-4'>{model ? t('settings.addModelSelectedHint', { model }) : t('settings.addModelHint')}</div> */}
     </AionModal>

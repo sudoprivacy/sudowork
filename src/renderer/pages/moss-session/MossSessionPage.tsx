@@ -206,7 +206,7 @@ const MossSessionPage: React.FC = () => {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-[var(--color-border)]">
+      <div className="flex items-center justify-between px-4 py-2 border-b">
         <Typography.Text bold>Moss Server Session</Typography.Text>
         <Typography.Text type="secondary">{sessionId?.slice(0, 8)}...</Typography.Text>
       </div>
@@ -219,7 +219,7 @@ const MossSessionPage: React.FC = () => {
       </div>
 
       {/* Send Box */}
-      <div className="flex items-center gap-2 px-4 py-3 border-t border-[var(--color-border)]">
+      <div className="flex items-center gap-2 px-4 py-3 border-t">
         <Input
           value={input}
           onChange={setInput}

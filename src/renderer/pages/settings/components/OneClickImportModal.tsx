@@ -213,29 +213,29 @@ const OneClickImportModal: React.FC<OneClickImportModalProps> = ({ visible, onCa
   if (!visible) return null;
 
   const renderFooter = () => (
-    <div className='flex justify-end gap-10px'>
+    <div className='flex justify-end gap-2.5'>
       {currentStep === 1 && (
         <>
-          <Button onClick={onCancel} className='min-w-100px' style={{ borderRadius: 8 }}>
+          <Button onClick={onCancel} className='min-w-25' style={{ borderRadius: 8 }}>
             {t('common.cancel')}
           </Button>
-          <Button type='primary' onClick={handleNextStep} disabled={!selectedAgent} className='min-w-120px' style={{ borderRadius: 8 }}>
+          <Button type='primary' onClick={handleNextStep} disabled={!selectedAgent} className='min-w-30' style={{ borderRadius: 8 }}>
             {t('settings.mcpNextStep')}
           </Button>
         </>
       )}
       {currentStep === 2 && (
         <>
-          <Button onClick={handlePrevStep} className='min-w-100px' style={{ borderRadius: 8 }}>
+          <Button onClick={handlePrevStep} className='min-w-25' style={{ borderRadius: 8 }}>
             {t('settings.mcpPrevStep')}
           </Button>
-          <Button type='primary' onClick={handleNextStep} disabled={loadingImport || importableServers.length === 0} className='min-w-120px' style={{ borderRadius: 8 }}>
+          <Button type='primary' onClick={handleNextStep} disabled={loadingImport || importableServers.length === 0} className='min-w-30' style={{ borderRadius: 8 }}>
             {t('settings.mcpImportButton')}
           </Button>
         </>
       )}
       {currentStep === 3 && (
-        <Button type='primary' onClick={onCancel} className='min-w-120px' style={{ borderRadius: 8 }}>
+        <Button type='primary' onClick={onCancel} className='min-w-30' style={{ borderRadius: 8 }}>
           {t('settings.mcpConfirmButton')}
         </Button>
       )}
@@ -244,7 +244,7 @@ const OneClickImportModal: React.FC<OneClickImportModalProps> = ({ visible, onCa
 
   return (
     <AionModal header={{ title: t('settings.mcpOneKeyImport'), showClose: true }} visible={visible} onCancel={onCancel} footer={{ render: renderFooter }} style={{ width: 600, height: 420 }} contentStyle={{ borderRadius: 16, padding: '24px', background: 'var(--bg-1)', overflow: 'hidden', height: 420 - 96 }}>
-      <div className='flex flex-col h-275px mt-20px'>
+      <div className='flex flex-col h-[275px] mt-5'>
         <div className='mb-6 text-t-secondary text-sm'>{t('settings.mcpImportDescription')}</div>
 
         <div className='mb-6'>

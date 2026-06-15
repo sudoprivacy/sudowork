@@ -9,7 +9,6 @@ import classNames from 'classnames';
 import { CheckOne } from '@icon-park/react';
 import React, { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useSettingsViewMode } from '../../settingsViewContext';
 import itemRefreshIcon from '@/renderer/assets/item-refresh.svg';
 import TenantConfigSection from './TenantConfigSection';
 import { EnterpriseSecretSection } from './EnterpriseSecretSection';
@@ -22,8 +21,6 @@ import { useAppMode } from '@/renderer/hooks/useAppMode';
  */
 const SecretModalContent: React.FC = () => {
   const { t } = useTranslation();
-  const viewMode = useSettingsViewMode();
-  const isPageMode = viewMode === 'page';
   const { isEnterprise } = useAppMode();
 
   const [refreshCounter, setRefreshCounter] = useState(0);
@@ -36,8 +33,8 @@ const SecretModalContent: React.FC = () => {
   }, []);
 
   return (
-    <AionScrollArea className={isPageMode ? 'h-full' : ''}>
-      <div className={isPageMode ? 'px-12px sm:px-16px md:px-0 pb-18px' : 'px-14px sm:px-18px md:px-24px pb-18px'}>
+    <AionScrollArea className='h-full'>
+      <div className='px-12px sm:px-16px md:px-0 pb-18px'>
         <div className='max-w-820px mx-auto w-full'>
           <div className='flex items-center justify-between mb-12px'>
             <h2 className='text-20px font-600 text-t-primary m-0'>{t('settings.secrets.title', '秘钥管理')}</h2>

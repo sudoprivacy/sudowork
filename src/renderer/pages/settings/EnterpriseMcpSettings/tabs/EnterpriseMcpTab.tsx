@@ -42,21 +42,21 @@ const EnterpriseMcpTab: React.FC<EnterpriseMcpTabProps> = ({ servers, loading = 
   };
 
   return (
-    <div className='flex flex-col gap-10px'>
+    <div className='flex flex-col gap-2.5'>
       {filtered.map((srv) => (
-        <div key={srv.id} className='flex items-center gap-12px px-16px py-12px rd-12px bg-1 hover:bg-2 transition-colors'>
+        <div key={srv.id} className='flex items-center gap-3 px-4 py-3 rd-12px bg-1 hover:bg-2 transition-colors'>
           <McpIcon icon={srv.icon} size={40} />
           <div className='flex-1 min-w-0'>
-            <div className='flex items-center gap-8px'>
+            <div className='flex items-center gap-2'>
               <span className='text-14px font-500 text-t-primary truncate'>{srv.display_name || srv.name}</span>
               <RiskLevelTag level={srv.risk_level} />
             </div>
-            {srv.description && <div className='text-12px text-t-tertiary mt-2px truncate'>{srv.description}</div>}
+            {srv.description && <div className='text-12px text-t-tertiary mt-0.5 truncate'>{srv.description}</div>}
           </div>
           <div className='shrink-0'>
             <ScopeBadge scope={srv.scope} />
           </div>
-          <div className='shrink-0 w-44px flex justify-end'>
+          <div className='shrink-0 w-11 flex justify-end'>
             {srv.allow_user_disable ? (
               <Switch checked={!srv.user_disabled} onChange={(v: boolean) => void handleToggle(srv, v)} size='small' />
             ) : (
