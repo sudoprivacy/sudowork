@@ -6,10 +6,10 @@
 
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import FontSizeControl from '@/renderer/components/FontSizeControl';
-import { ThemeSwitcher } from '@/renderer/components/ThemeSwitcher';
+import FontSizeControl from '@/renderer/pages/settings/display/components/FontSizeControl';
+import { ThemeSwitcher } from '@/renderer/pages/settings/display/components/ThemeSwitcher';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
-import SettingsPageWrapper from './components/SettingsPageWrapper';
+import SettingsPageWrapper from '@/renderer/pages/settings/components/SettingsPageWrapper';
 
 const PreferenceRow: React.FC<{
   label: string;
@@ -24,7 +24,6 @@ const PreferenceRow: React.FC<{
 const DisplaySettings: React.FC = () => {
   const { t } = useTranslation();
 
-  // 显示设置项配置 / Display items configuration
   const displayItems = [
     { key: 'theme', label: t('settings.theme'), component: <ThemeSwitcher /> },
     { key: 'fontSize', label: t('settings.fontSize'), component: <FontSizeControl /> },
