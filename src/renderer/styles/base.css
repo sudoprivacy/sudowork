@@ -687,6 +687,8 @@ body,
   display: flex;
   flex-direction: column;
   height: 100%;
+  /* 锁定内容宽度=展开宽度，收起时由外层 overflow 裁切而非压窄重排，避免文字换行 */
+  min-width: 260px;
   /* Arco 默认给这一层 overflow:auto，header+内容若有亚像素溢出就会让整条侧栏可滚动；
      内部历史列表已自带滚动，这层直接裁掉即可 */
   /* Arco defaults this wrapper to overflow:auto, so any sub-pixel overflow of header+content
@@ -1484,14 +1486,19 @@ body,
   background-color: var(--bg-2);
 }
 
-/* 桌面端：右侧内容区做成悬浮卡片，右/下留 12px 间距并加圆角 */
-/* Desktop: float the content area as a card — 12px gap on the right/bottom with rounded corners */
+/* 桌面端：内容区贴右下边，仅左侧（与侧栏相接处）留圆角 */
 @media (min-width: 768px) {
   .layout-content {
-    margin-right: 12px;
-    margin-bottom: 12px;
-    border-radius: var(--radius-lg);
+    border-top-left-radius: var(--radius-xl);
+    border-bottom-left-radius: var(--radius-xl);
     overflow: hidden;
+    transition: border-radius 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* 侧栏收起后内容贴窗口左边，去掉左圆角避免悬空 */
+  .layout-content--sider-collapsed {
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
   }
 }
 
