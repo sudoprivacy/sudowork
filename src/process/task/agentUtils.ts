@@ -6,6 +6,7 @@
 
 import { DRAFTS_DIR_NAME } from '@/common/constants';
 import { getBuiltinSkillsDir, loadSkillsContent } from '@process/initStorage';
+import { isCronSkillAllowed } from '@process/services/cron/cronPolicy';
 import { AcpSkillManager, buildSkillsIndexText, type SkillIndex } from './AcpSkillManager';
 import type { PresetAgentType } from '@/types/acpTypes';
 import { getNodeBinaryPath, isNodeInstalled } from '@process/services/claudeCli/NodeRuntimeService';
@@ -380,10 +381,14 @@ export async function prepareFirstMessageWithSkillsIndex(content: string, config
   const skillManager = AcpSkillManager.getInstance();
   await skillManager.discoverBuiltinSkills();
 
-  const builtinSkillsIndex = skillManager.getBuiltinSkillsIndex();
+  // Org policy: when client cron is disabled (enterprise client_cron_enabled=false),
+  // the cron skill must NOT be advertised — so the agent never attempts it.
+  const cronAllowed = await isCronSkillAllowed();
+  const builtinSkillsIndex = skillManager.getBuiltinSkillsIndex().filter((s) => cronAllowed || s.name !== 'cron');
   if (builtinSkillsIndex.length > 0) {
     const systemSkillsDir = getBuiltinSkillsDir();
     const indexText = buildSkillsIndexText(builtinSkillsIndex);
+    const cronExampleLine = cronAllowed ? `\n- Builtin "cron" skill: ${systemSkillsDir}/cron/SKILL.md` : '';
 
     // 告诉 Agent 只从 builtin skills 目录按需读取
     // Tell Agent to read only from the builtin skills directory on demand
@@ -397,12 +402,19 @@ Each skill has a SKILL.md file containing detailed instructions.
 When a user request matches a skill's description, you MUST read that skill's SKILL.md and follow its instructions INSTEAD OF using any native tool for that capability. For example, use the "browser" skill for web browsing instead of any built-in WebFetch or WebSearch tool.
 
 For example:
-- Builtin "browser" skill: ${systemSkillsDir}/browser/SKILL.md
-- Builtin "cron" skill: ${systemSkillsDir}/cron/SKILL.md
+- Builtin "browser" skill: ${systemSkillsDir}/browser/SKILL.md${cronExampleLine}
 
 Skill capabilities are subject to organization policy: if the system refuses a skill command as disabled by the organization, relay the refusal to the user and do not retry.`;
 
     instructions.push(skillsInstruction);
+  }
+
+  // Explicit ban: when cron is disabled, omitting the skill is not enough — the
+  // agent may still hallucinate a created task from prior knowledge. Tell it
+  // directly that scheduled tasks are unavailable. (Omitted in personal mode and
+  // when cron is enabled.)
+  if (!cronAllowed) {
+    instructions.push('[Scheduled Tasks — DISABLED]\n' + 'Scheduled task / cron functionality is disabled by your organization. You CANNOT create, list, modify, or delete scheduled tasks. ' + 'If asked to schedule or manage a recurring/timed task, tell the user it is disabled by their organization and an administrator must enable it. ' + 'NEVER claim a scheduled task was created, and NEVER invent a task ID.');
   }
 
   if (instructions.length === 0) {

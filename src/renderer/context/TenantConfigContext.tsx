@@ -20,6 +20,14 @@ interface TenantConfigContextValue {
   config: Required<TenantConfig>;
   /** 加载状态 */
   loading: boolean;
+  /**
+   * Whether the enterprise tenant config was confirmed from the server this
+   * session. Policy-bearing flags (e.g. client_cron_enabled) must fail closed
+   * when this is false — the cached config may be stale and an admin may have
+   * disabled the feature while the client was offline. Always true in personal
+   * mode (no enterprise policy to confirm).
+   */
+  confirmed: boolean;
   /** 手动刷新配置 */
   refresh: () => Promise<void>;
 }
@@ -53,6 +61,9 @@ export const TenantConfigProvider: React.FC<React.PropsWithChildren> = ({ childr
   });
 
   const [loading, setLoading] = useState(false);
+  // Confirmed only after a successful enterprise server fetch this session.
+  // Personal mode has no enterprise policy, so it is always considered confirmed.
+  const [confirmed, setConfirmed] = useState(false);
   const isRefreshing = useRef(false);
   const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -89,6 +100,7 @@ export const TenantConfigProvider: React.FC<React.PropsWithChildren> = ({ childr
         if (data.success && data.data) {
           const mergedConfig = resolveTenantConfig(data.data);
           setConfig(mergedConfig);
+          setConfirmed(true);
           localStorage.setItem(TENANT_CONFIG_STORAGE_KEY, JSON.stringify(mergedConfig));
           await ConfigStorage.set('eeclaw.tenantName', mergedConfig.app_company_name);
           console.log('[TenantConfig] Enterprise config updated:', mergedConfig);
@@ -176,6 +188,7 @@ export const TenantConfigProvider: React.FC<React.PropsWithChildren> = ({ childr
       // 登出 → 重置 config 为默认值，停止轮询
       // 注意：不清除 localStorage，保留缓存供下次启动登录页使用
       setConfig(DEFAULT_TENANT_CONFIG);
+      setConfirmed(false);
       stopPolling();
     }
   }, [status, isEnterprise, user?.enterprise_code, fetchConfig, startPolling, stopPolling]);
@@ -191,9 +204,12 @@ export const TenantConfigProvider: React.FC<React.PropsWithChildren> = ({ childr
     () => ({
       config,
       loading,
+      // Personal mode has no enterprise policy to confirm; enterprise requires a
+      // successful server fetch this session before policy flags are trusted.
+      confirmed: !isEnterprise || confirmed,
       refresh: fetchConfig,
     }),
-    [config, loading, fetchConfig]
+    [config, loading, confirmed, isEnterprise, fetchConfig]
   );
 
   return <TenantConfigContext.Provider value={value}>{children}</TenantConfigContext.Provider>;
