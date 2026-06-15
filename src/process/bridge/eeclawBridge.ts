@@ -195,36 +195,35 @@ export function initEeclawBridge(): void {
   // Set app mode and update main process cache
   // 设置应用模式并更新主进程缓存
   ipcBridge.eeclaw.setAppMode.provider(async ({ mode }) => {
-    // 读"之前的 mode"用于判定是否需要补救式启动核心服务。
-    // 直接走 ProcessConfig.getSync 拿落盘值，避免新增 getter。
-    const previousMode = ProcessConfig.getSync('system.appMode') ?? null;
-
     await ProcessConfig.set('system.appMode', mode);
     setCachedAppMode(mode);
-    mainLog('eeclawBridge', `App mode set to: ${mode} (previous: ${previousMode ?? 'null'})`);
+    mainLog('eeclawBridge', `App mode set to: ${mode}`);
 
-    // 补救启动：mode 从 null 转为 c/e，说明 initializeProcess 启动时 appMode 缺失，
-    // 走的是不启动核心服务的分支；通过 setAppMode 收敛触发 startup。
-    // ModeSetup 路径（handleConsumerNext: setAppMode → startConsumerServices）下
-    // 第二次 startup() 调用因 startupInProgress=true 直接 return，无重入风险
-    // （事实见 ServiceManager.startup() 入口守卫；两次调用间隔几十毫秒，远小于
-    // runtimeInstaller.ensureAll 启动耗时）。
-    if (previousMode === null) {
+    // setAppMode 是核心服务的兜底启动点。两条进入路径都走这里：
+    //   1. 真新用户 ModeSetup → handleConsumerNext: setAppMode + startConsumerServices
+    //   2. 老用户升级（auth_v2 存在 + appMode 缺失）→ useAppMode 自动 setAppMode('c')
+    // 路径 2 没有 startConsumerServices，必须在本 provider 内完成启动收敛。
+    //
+    // 不要用 "previousMode === null" 来跳过：renderer 端的 setAppMode
+    // （src/common/eeclawMode.ts）会先通过 ConfigStorage.set 经由 BroadcastChannel-RPC
+    // 写入主进程 ProcessConfig，再走这条 IPC。等本 provider 跑到时 ProcessConfig
+    // 已经是新值，previousMode 永远等于新 mode，判定恒为 false，老用户升级路径
+    // 会完全静默卡死（事故现场：日志出现 "App mode set to: c (previous: c)"
+    // 但没有任何 serviceManager.startup 的 PERF 日志，UI 卡在 0%）。
+    //
+    // 改为无条件 fire-and-forget。重入由各自的内部守卫保证：
+    //   - ServiceManager.startup() 入口的 startupInProgress 守卫（ServiceManager.ts:80）
+    //   - ChannelManager.initialize() 入口的 this.initialized 守卫（ChannelManager.ts:82）
+    //   - 已 ready 的会话再次进入 startup() 时，RuntimeInstaller.ensureAll() 的 fast
+    //     check（RuntimeInstaller.ts:51-108）会直接短路返回，零成本。
+    if (mode === 'c' || mode === 'e') {
       try {
         const { serviceManager } = await import('@process/services/serviceManager');
         void serviceManager.startup();
-        mainLog('eeclawBridge', 'Triggered serviceManager.startup() after appMode transition from null');
+        mainLog('eeclawBridge', 'Triggered serviceManager.startup() via setAppMode');
       } catch (error) {
-        mainError('eeclawBridge', 'Failed to trigger startup after appMode transition:', error);
+        mainError('eeclawBridge', 'Failed to trigger serviceManager.startup():', error);
       }
-    }
-
-    // mode 设定后启动 ChannelManager（消费者/企业模式都需要 —— 事实见
-    // process/index.ts 的注释 "Both Enterprise and Consumer modes: start local
-    // services + ChannelManager"）。ChannelManager.initialize() 自身有
-    // this.initialized 守卫，二次调用直接 return，与 startConsumerServices /
-    // initializeProcess 触发的调用安全共存。
-    if (mode === 'c' || mode === 'e') {
       try {
         const { getChannelManager } = await import('@/channels');
         getChannelManager()
