@@ -9,33 +9,30 @@ import './bootstrap/crashHandler';
 import type { PropsWithChildren } from 'react';
 import React from 'react';
 import { createRoot } from 'react-dom/client';
-import '../adapter/browser';
-import Main from './main';
-import { AuthProvider } from './context/AuthContext';
-import { DashboardStatsProvider } from './context/DashboardStatsContext';
-import { TenantConfigProvider } from './context/TenantConfigContext';
-import { ThemeProvider } from './context/ThemeContext';
-import { PreviewProvider } from './pages/conversation/preview/context/PreviewContext';
-import { ConversationTabsProvider } from './pages/conversation/context/ConversationTabsContext';
-import { InitProvider } from './context/InitContext';
-
+import { useTranslation } from 'react-i18next';
 import { ConfigProvider } from '@arco-design/web-react';
-// 配置 Arco Design 使用 React 18 的 createRoot，修复 Message 组件的 CopyReactDOM.render 错误
-// Configure Arco Design to use React 18's createRoot, fixing Message component's CopyReactDOM.render error
 import '@arco-design/web-react/es/_util/react-19-adapter';
 import '@arco-design/web-react/dist/css/arco.css';
+import enUS from '@arco-design/web-react/es/locale/en-US';
+import jaJP from '@arco-design/web-react/es/locale/ja-JP';
+import koKR from '@arco-design/web-react/es/locale/ko-KR';
+import zhCN from '@arco-design/web-react/es/locale/zh-CN';
+import zhTW from '@arco-design/web-react/es/locale/zh-TW';
 import '@icon-park/react/styles/index.css';
-import enUS from '@arco-design/web-react/es/locale/en-US'; // 英文
-import jaJP from '@arco-design/web-react/es/locale/ja-JP'; // 日文
-import zhCN from '@arco-design/web-react/es/locale/zh-CN'; // 中文（简体）
-import zhTW from '@arco-design/web-react/es/locale/zh-TW'; // 中文（繁体）
-import koKR from '@arco-design/web-react/es/locale/ko-KR'; // 韩文
-import { useTranslation } from 'react-i18next';
 import 'uno.css';
+import '../adapter/browser';
+import Main from '@renderer/main';
+import { AuthProvider } from '@renderer/context/AuthContext';
+import { DashboardStatsProvider } from '@renderer/context/DashboardStatsContext';
+import { TenantConfigProvider } from '@renderer/context/TenantConfigContext';
+import { ThemeProvider } from '@renderer/context/ThemeContext';
+import { ConversationTabsProvider } from '@renderer/pages/conversation/context/ConversationTabsContext';
+import { PreviewProvider } from '@renderer/pages/conversation/preview/context/PreviewContext';
+import { InitProvider } from '@renderer/context/InitContext';
+import '@renderer/i18n';
+import HOC from '@renderer/utils/HOC';
+import '@renderer/styles/index.css';
 import './styles/arco-override.scss';
-import './i18n';
-import './styles/index.css';
-import HOC from './utils/HOC';
 const root = createRoot(document.getElementById('root'));
 
 // Patch Korean locale with missing properties from English locale

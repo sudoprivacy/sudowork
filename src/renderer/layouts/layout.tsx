@@ -4,12 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
-import { ConfigStorage } from '@/common/storage';
-import PwaPullToRefresh from '@/renderer/components/PwaPullToRefresh';
-import CommandPalette from '@/renderer/components/CommandPalette';
-import { useCommandPalette } from '@/renderer/hooks/useCommandPalette';
-import Titlebar from '@/renderer/components/Titlebar';
 import { Layout as ArcoLayout } from '@arco-design/web-react';
 import classNames from 'classnames';
 import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -23,6 +17,13 @@ import { cleanupSiderTooltips } from '@renderer/utils/siderTooltip';
 import { emitter } from '@renderer/utils/emitter';
 import { isElectronDesktop } from '@renderer/utils/platform';
 import SudoworkIcon from '@renderer/assets/sudowork-icon-dark.svg';
+import Sider from '@renderer/layouts/sider';
+import Titlebar from '@/renderer/components/Titlebar';
+import { useCommandPalette } from '@/renderer/hooks/useCommandPalette';
+import CommandPalette from '@/renderer/components/CommandPalette';
+import PwaPullToRefresh from '@/renderer/components/PwaPullToRefresh';
+import { ConfigStorage } from '@/common/storage';
+import { ipcBridge } from '@/common';
 
 const useDebug = () => {
   const [count, setCount] = useState(0);
@@ -76,10 +77,7 @@ const detectMobileViewportOrTouch = (): boolean => {
   return byWidth || (smallScreen && (byMedia || byTouchPoints));
 };
 
-const Layout: React.FC<{
-  sider: React.ReactNode;
-  onSessionClick?: () => void;
-}> = ({ sider, onSessionClick: _onSessionClick }) => {
+const Layout: React.FC = () => {
   const { config } = useTenantConfig(); // 获取租户配置
   const { visible: commandPaletteVisible, close: closeCommandPalette } = useCommandPalette();
   const [collapsed, setCollapsed] = useState(false);
@@ -199,14 +197,7 @@ const Layout: React.FC<{
               </div>
             </ArcoLayout.Header>
             <ArcoLayout.Content className='p-10px layout-sider-content'>
-              {React.isValidElement(sider)
-                ? React.cloneElement(sider, {
-                    onSessionClick: () => {
-                      cleanupSiderTooltips();
-                      if (isMobile) setCollapsed(true);
-                    },
-                  } as any)
-                : sider}
+              <Sider />
             </ArcoLayout.Content>
           </ArcoLayout.Sider>
 

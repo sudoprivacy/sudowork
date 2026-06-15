@@ -12,11 +12,10 @@ import ModeSetup from '@renderer/pages/setup/ModeSetup';
 import { useAuth } from '@renderer/context/AuthContext';
 import { useInit } from '@renderer/context/InitContext';
 import { useAppMode, isModeResolved } from '@renderer/hooks/useAppMode';
-import { ipcBridge } from '@/common';
 import Layout from '@renderer/layouts/layout';
 import Router from '@renderer/router';
-import Sider from '@renderer/layouts/sider';
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary';
+import { ipcBridge } from '@/common';
 
 const Main = () => {
   const { ready: authReady } = useAuth();
@@ -91,9 +90,9 @@ const Main = () => {
 
   return (
     <div className='size-full relative'>
-      <Router layout={<Layout sider={<Sider />} />} />
+      <Router layout={<Layout />} />
       {!authReady && (
-        <div style={{ position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', zIndex: 9999, pointerEvents: 'none' }}>
+        <div className='fixed inset-0 flex items-center justify-center bg-transparent z-9999 pointer-events-none'>
           <AppLoader />
         </div>
       )}
