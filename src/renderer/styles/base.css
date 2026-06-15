@@ -4,6 +4,8 @@
 /* Global font family / 全局字体 */
 html,
 body {
+  /* 默认前景色：随主题切换，未显式指定颜色的文字自动跟随亮/暗模式 */
+  color: var(--foreground);
   font-family:
     'PingFang SC',
     'Microsoft YaHei',

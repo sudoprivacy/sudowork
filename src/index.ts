@@ -46,9 +46,7 @@ import electronSquirrelStartup from 'electron-squirrel-startup';
 
 // ============ Telemetry Performance Tracking ============
 // Mark app start time as early as possible for cold_start metric
-import { markAppStart, markFirstWindowShow, initializeTelemetry, shutdownTelemetry } from './process/telemetry';
-// CrashReporter for native crash and JS exception reporting
-import { initCrashReporter, captureRendererCrash, captureException, systemBreadcrumbs, windowBreadcrumbs } from './process/telemetry';
+import { markAppStart, markFirstWindowShow, initializeTelemetry, shutdownTelemetry, initCrashReporter, captureRendererCrash, captureException, systemBreadcrumbs, windowBreadcrumbs } from './process/telemetry';
 markAppStart();
 
 // 记录应用启动
@@ -1181,7 +1179,9 @@ app.on('before-quit', (event) => {
 
 app.on('will-quit', () => {});
 
-app.on('quit', (_event, exitCode) => {});
+app.on('quit', (_event, exitCode) => {
+  console.log('exitCode', exitCode);
+});
 
 // In this file you can include the rest of your app's specific main process
 // code. You can also put them in separate files and import them here.
