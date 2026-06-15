@@ -139,7 +139,7 @@ export default defineConfig({
   shortcuts: {
     'f-center': 'flex items-center justify-center',
     'border-light': 'border-[var(--border-light)]', // 浅边框 / lighter border（搭配 border / border-b）
-    'divide-light': 'divide-light', // 浅分割线 / lighter divider color（搭配 divide-y / divide-x）
+    'divide-light': 'divide-[var(--border-light)]', // 浅分割线 / lighter divider color（搭配 divide-y / divide-x）
     'scrollbar-hide': 'scrollbar-width-none [&::-webkit-scrollbar]:hidden',
     // 技能/数字助手商店卡片：悬浮白卡 + hover 抬升 / elevated white store card
     'library-card': 'group bg-fill-0 rd-12px p-12px flex items-start gap-12px relative overflow-hidden shadow-[0_1px_3px_rgba(0,0,0,0.08)] transition-all duration-200 hover:-translate-y-px hover:shadow-[0_4px_12px_rgba(0,0,0,0.1)]',
