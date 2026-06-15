@@ -28,7 +28,19 @@ export function handlePreviewOpenEvent(message: IResponseMessage | { type: strin
     return false;
   }
 
-  ipcBridge.preview.open.emit(data);
+  // URL content → open in the right-panel BrowserPanel tab (side-by-side
+  // with the conversation). Other content types (code, file previews, etc.)
+  // continue to use the full-screen PreviewPanel overlay.
+  if (data.contentType === 'url') {
+    const conversationId = 'conversation_id' in message ? (message as IResponseMessage).conversation_id : undefined;
+    ipcBridge.rightPanelBrowser.open.emit({
+      url: data.content,
+      switchTab: true,
+      ...(conversationId ? { conversationId } : {}),
+    });
+  } else {
+    ipcBridge.preview.open.emit(data);
+  }
   return true;
 }
 
