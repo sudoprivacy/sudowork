@@ -351,7 +351,7 @@ const FileFindings: React.FC<{
       </div>
 
       {/* Findings */}
-      <div className='divide-y divide-[var(--border-default)]'>
+      <div className='divide-y divide-[var(--border-light)]'>
         {findings.map((finding) => (
           <FindingRow key={finding.id} finding={finding} />
         ))}

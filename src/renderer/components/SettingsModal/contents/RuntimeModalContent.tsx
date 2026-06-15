@@ -613,7 +613,7 @@ const RuntimeModalContent: React.FC = () => {
               <p className='text-13px md:text-14px text-t-secondary m-0 leading-22px'>{t('settings.runtimeSettings.description')}</p>
             </div>
 
-            <div className='mt-16px flex flex-col divide-y divide-[var(--border-default)]'>
+            <div className='mt-16px flex flex-col divide-y divide-[var(--border-light)]'>
               {tableData.map((record) => {
                 const { dotColor, statusText } = getStatusInfo(record, t);
                 const version = record.status?.version;
