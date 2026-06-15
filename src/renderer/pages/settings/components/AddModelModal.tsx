@@ -1,7 +1,7 @@
 import type { IProvider } from '@/common/storage';
 import ModalHOC from '@/renderer/utils/ModalHOC';
 import AionModal from '@/renderer/components/base/AionModal';
-import { Button, Select, Tag } from '@arco-design/web-react';
+import { Select } from '@arco-design/web-react';
 import React, { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import useModeModeList from '../../../hooks/useModeModeList';
