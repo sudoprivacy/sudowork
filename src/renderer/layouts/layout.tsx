@@ -110,9 +110,9 @@ const Layout: React.FC = () => {
 
         <ArcoLayout className={'size-full layout flex-1 min-h-0'}>
           <ArcoLayout.Sider collapsedWidth={0} collapsed={collapsed} width={DEFAULT_SIDER_WIDTH} className='layout-sider'>
-            <ArcoLayout.Header className='flex items-center justify-start py-8px px-16px pl-18px gap-10px layout-sider-header'>
+            <ArcoLayout.Header className='flex items-center justify-start py-2 px-4 pl-4.5 gap-2.5 layout-sider-header'>
               <div
-                className='shrink-0 size-34px relative rd-0.5rem flex items-center justify-center cursor-pointer'
+                className='shrink-0 size-8.5 relative rd-0.5rem f-center cursor-pointer'
                 onClick={() => {
                   onClick();
                   goToNewConversation();
@@ -125,7 +125,7 @@ const Layout: React.FC = () => {
                 {config.app_name}
               </div>
             </ArcoLayout.Header>
-            <ArcoLayout.Content className='p-10px layout-sider-content'>
+            <ArcoLayout.Content className='p-2.5 layout-sider-content'>
               <Sider />
             </ArcoLayout.Content>
           </ArcoLayout.Sider>
