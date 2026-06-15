@@ -4,17 +4,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Button, Checkbox, Form, Input, InputNumber, Message, Popconfirm, Select, Space, Spin, Tag, Typography } from '@arco-design/web-react';
+import { Delete, Download, Edit, LinkCloud, PreviewOpen, Plus, Refresh, SettingTwo } from '@icon-park/react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import SettingsPageWrapper from './components/SettingsPageWrapper';
 import { ipcBridge } from '@/common';
 import type { ScodeConfig, ScodeModelEntry } from '@/common/ipcBridge';
 import { buildCustomModelAlias, extractCustomProvidersFromScodeConfig, mergeCustomProviderIntoScodeConfig, removeCustomProviderFromScodeConfig, type ScodeCustomModelProvider } from '@/common/scodeConfig';
 import AionModal from '@/renderer/components/base/AionModal';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
-import { Button, Checkbox, Form, Input, InputNumber, Message, Popconfirm, Select, Space, Spin, Tag, Typography } from '@arco-design/web-react';
-import { Delete, Download, Edit, LinkCloud, PreviewOpen, Plus, Refresh, SettingTwo } from '@icon-park/react';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/renderer/context/AuthContext';
-import SettingsPageWrapper from './components/SettingsPageWrapper';
 
 const { Title, Text } = Typography;
 

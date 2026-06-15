@@ -5,8 +5,8 @@
  */
 
 import React from 'react';
-import CopilotModalContent from '@/renderer/components/SettingsModal/contents/CopilotModalContent';
 import SettingsPageWrapper from './components/SettingsPageWrapper';
+import CopilotModalContent from '@/renderer/components/SettingsModal/contents/CopilotModalContent';
 
 const CopilotSettings: React.FC = () => {
   return (

@@ -5,8 +5,8 @@
  */
 
 import React from 'react';
-import SystemModalContent from '@/renderer/components/SettingsModal/contents/SystemModalContent';
 import SettingsPageWrapper from './components/SettingsPageWrapper';
+import SystemModalContent from '@/renderer/components/SettingsModal/contents/SystemModalContent';
 
 const SystemSettings: React.FC = () => {
   return (

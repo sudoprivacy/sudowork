@@ -5,8 +5,8 @@
  */
 
 import React from 'react';
-import WebuiModalContent from '@/renderer/components/SettingsModal/contents/WebuiModalContent';
 import SettingsPageWrapper from './components/SettingsPageWrapper';
+import WebuiModalContent from '@/renderer/components/SettingsModal/contents/WebuiModalContent';
 
 const WebuiSettings: React.FC = () => {
   return (

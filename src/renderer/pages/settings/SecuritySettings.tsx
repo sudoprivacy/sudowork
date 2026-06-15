@@ -2,10 +2,10 @@ import { Shield, CheckOne, Lock, Scan, AllApplication, Delete, Edit, Plus } from
 import { Card, Tag, Switch, Button, Modal, Input, Select, Table, Space, Popconfirm, Message, Tooltip } from '@arco-design/web-react';
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
+import SettingsPageWrapper from './components/SettingsPageWrapper';
 import { ipcBridge } from '@/common';
 import type { BlacklistConfig, BlacklistRule, BlacklistMatchType } from '@/common/safetyTypes';
 import { DEFAULT_BLACKLIST_CONFIG } from '@/common/safetyTypes';
-import SettingsPageWrapper from './components/SettingsPageWrapper';
 import { SettingsList, SettingsListItem } from '@/renderer/components/ui/SettingsList';
 
 const Option = Select.Option;

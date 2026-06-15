@@ -1,10 +1,10 @@
-import { ipcBridge } from '@/common';
 import React, { useState, useEffect } from 'react';
 import { Table, Button, Tabs, Tag, Space, Message, Modal, Badge } from '@arco-design/web-react';
 import { User, DeleteFour, Peoples } from '@icon-park/react';
-import SettingsPageWrapper from './components/SettingsPageWrapper';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
+import SettingsPageWrapper from './components/SettingsPageWrapper';
+import { ipcBridge } from '@/common';
 
 const MemberManagement: React.FC = () => {
   const { t } = useTranslation();

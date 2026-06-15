@@ -1,11 +1,11 @@
-import { ipcBridge } from '@/common';
-import { useAuth } from '@/renderer/context/AuthContext';
 import { Button, Message, Spin } from '@arco-design/web-react';
 import { Alipay, Wechat, Refresh, CheckOne, CheckSmall, CloseOne } from '@icon-park/react';
 import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import SettingsPageWrapper from './components/SettingsPageWrapper';
 import OrderList from './components/OrderList';
+import { useAuth } from '@/renderer/context/AuthContext';
+import { ipcBridge } from '@/common';
 
 // Lazy load QRCodeSVG
 const QRCodeSVGLazy = React.lazy(async () => {

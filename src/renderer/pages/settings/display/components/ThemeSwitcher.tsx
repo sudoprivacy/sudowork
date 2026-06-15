@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useThemeContext } from '@/renderer/context/ThemeContext';
-import type { ThemePreference } from '@/renderer/hooks/useTheme';
 import { IconDesktop, IconMoon, IconSun } from '@arco-design/web-react/icon';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import type { ThemePreference } from '@/renderer/hooks/useTheme';
+import { useThemeContext } from '@/renderer/context/ThemeContext';
 
 /**
  * 主题切换器组件 / Theme switcher component
