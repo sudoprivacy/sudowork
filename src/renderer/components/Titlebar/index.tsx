@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import classNames from 'classnames';
-import { ArrowCircleLeft, ExpandLeft, ExpandRight, MenuFold, MenuUnfold, Plus } from '@icon-park/react';
+import { ArrowCircleLeft, ExpandLeft, ExpandRight, Plus } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 
@@ -52,9 +52,7 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
   const backToChatTooltip = t('common.back', { defaultValue: 'Back to Chat' });
   const isSettingsRoute = location.pathname.startsWith('/settings');
   const iconSize = layout?.isMobile ? 24 : 18;
-  // 移动端侧栏为抽屉式，收起后移出屏幕，开关只能留在标题栏；桌面端开关已移到 logo 右侧
-  // Mobile sidebar is a drawer that slides off-screen when collapsed, so its toggle must stay on the titlebar; desktop toggle now lives beside the logo
-  const showSiderToggle = Boolean(layout?.isMobile && layout?.setSiderCollapsed) && !isSettingsRoute;
+  const showSiderToggle = Boolean(layout?.setSiderCollapsed) && (!layout?.isMobile || !isSettingsRoute);
   const showBackToChatButton = Boolean(layout?.isMobile && isSettingsRoute);
   const showNewConversationButton = Boolean(layout?.isMobile && workspaceAvailable);
   const siderTooltip = layout?.siderCollapsed ? t('common.expandMore', { defaultValue: 'Expand sidebar' }) : t('common.collapse', { defaultValue: 'Collapse sidebar' });
@@ -106,14 +104,9 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
   }, [isSettingsRoute, location.pathname, location.search, location.hash]);
 
   const menuStyle: React.CSSProperties = useMemo(() => {
-    if (!isMacRuntime || !showSiderToggle) return {};
-
-    const marginLeft = layout?.isMobile ? '0px' : layout?.siderCollapsed ? '60px' : '210px';
-    return {
-      marginLeft,
-      transition: 'margin-left 0.28s cubic-bezier(0.4, 0, 0.2, 1)',
-    };
-  }, [isMacRuntime, showSiderToggle, layout?.isMobile, layout?.siderCollapsed]);
+    if (!isMacRuntime || layout?.isMobile) return {};
+    return { marginLeft: '80px' };
+  }, [isMacRuntime, layout?.isMobile]);
 
   return (
     <div
@@ -131,8 +124,8 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
           </button>
         )}
         {showSiderToggle && (
-          <button type='button' className={classNames('app-titlebar__button', layout?.isMobile && 'app-titlebar__button--mobile')} onClick={handleSiderToggle} aria-label={siderTooltip}>
-            {layout?.siderCollapsed ? <MenuUnfold theme='outline' size={iconSize} fill='currentColor' /> : <MenuFold theme='outline' size={iconSize} fill='currentColor' />}
+          <button type='button' className={classNames('app-titlebar__button hover:bg-transparent! active:bg-transparent!', layout?.isMobile && 'app-titlebar__button--mobile')} onClick={handleSiderToggle} aria-label={siderTooltip}>
+            {layout?.siderCollapsed ? <ExpandLeft theme='outline' size={iconSize} fill='currentColor' /> : <ExpandRight theme='outline' size={iconSize} fill='currentColor' />}
           </button>
         )}
       </div>
