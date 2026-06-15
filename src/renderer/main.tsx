@@ -5,18 +5,18 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import AppLoader from './components/AppLoader';
-import InitLoading from './components/InitLoading';
-import ProductImprovementDialog from './components/ProductImprovementDialog';
-import ModeSetup from './pages/setup/ModeSetup';
-import { useAuth } from './context/AuthContext';
-import { useInit } from './context/InitContext';
-import { useAppMode, isModeResolved } from './hooks/useAppMode';
+import AppLoader from '@renderer/components/AppLoader';
+import InitLoading from '@renderer/components/InitLoading';
+import ProductImprovementDialog from '@renderer/components/ProductImprovementDialog';
+import ModeSetup from '@renderer/pages/setup/ModeSetup';
+import { useAuth } from '@renderer/context/AuthContext';
+import { useInit } from '@renderer/context/InitContext';
+import { useAppMode, isModeResolved } from '@renderer/hooks/useAppMode';
 import { ipcBridge } from '@/common';
-import Layout from './layout';
-import Router from './router';
-import Sider from './sider';
-import { ErrorBoundary } from './components/ErrorBoundary';
+import Layout from '@renderer/layouts/layout';
+import Router from '@renderer/router';
+import Sider from '@renderer/layouts/sider';
+import { ErrorBoundary } from '@renderer/components/ErrorBoundary';
 
 const Main = () => {
   const { ready: authReady } = useAuth();
