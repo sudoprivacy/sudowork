@@ -14,15 +14,15 @@ import { Layout as ArcoLayout } from '@arco-design/web-react';
 import classNames from 'classnames';
 import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutContext } from './context/LayoutContext';
-import { useTenantConfig } from './context/TenantConfigContext';
-import { useDeepLink } from './hooks/useDeepLink';
-import { useDirectorySelection } from './hooks/useDirectorySelection';
-import { useMultiAgentDetection } from './hooks/useMultiAgentDetection';
-import { cleanupSiderTooltips } from './utils/siderTooltip';
-import { emitter } from './utils/emitter';
-import { isElectronDesktop } from './utils/platform';
-import SudoworkIcon from './assets/sudowork-icon-dark.svg';
+import { LayoutContext } from '@renderer/context/LayoutContext';
+import { useTenantConfig } from '@renderer/context/TenantConfigContext';
+import { useDeepLink } from '@renderer/hooks/useDeepLink';
+import { useDirectorySelection } from '@renderer/hooks/useDirectorySelection';
+import { useMultiAgentDetection } from '@renderer/hooks/useMultiAgentDetection';
+import { cleanupSiderTooltips } from '@renderer/utils/siderTooltip';
+import { emitter } from '@renderer/utils/emitter';
+import { isElectronDesktop } from '@renderer/utils/platform';
+import SudoworkIcon from '@renderer/assets/sudowork-icon-dark.svg';
 const useDebug = () => {
   const [count, setCount] = useState(0);
   const timer = useRef<any>(null);
@@ -158,7 +158,7 @@ const Layout: React.FC<{
 
   return (
     <LayoutContext.Provider value={layoutContextValue}>
-      <div className='app-shell relative flex flex-col size-full min-h-0'>
+      <div className={classNames('app-shell relative flex flex-col size-full min-h-0', { 'app-shell--sider-divider': !isMobile && !collapsed })}>
         <Titlebar workspaceAvailable={workspaceAvailable} />
         {/* 移动端左侧边栏蒙板 / Mobile left sider backdrop */}
         {isMobile && !collapsed && <div className='fixed inset-0 bg-black/30 z-90' onClick={() => setCollapsed(true)} aria-hidden='true' />}
@@ -210,7 +210,7 @@ const Layout: React.FC<{
           </ArcoLayout.Sider>
 
           <ArcoLayout.Content
-            className={classNames('bg-1 layout-content flex flex-col min-h-0', { 'layout-content--sider-collapsed': collapsed })}
+            className='bg-2 layout-content flex flex-col min-h-0'
             onClick={() => {
               if (isMobile && !collapsed) setCollapsed(true);
             }}

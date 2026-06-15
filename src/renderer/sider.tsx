@@ -4,33 +4,20 @@ import React, { Suspense, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Button, Dropdown, Message, Popover, Tabs, Tooltip } from '@arco-design/web-react';
-import type { BatchHistoryApi } from './pages/conversation/grouped-history/types';
-import { cleanupSiderTooltips, getSiderTooltipProps } from './utils/siderTooltip';
-import { useLayoutContext } from './context/LayoutContext';
-import { blurActiveElement } from './utils/focus';
-import { useAuth } from './context/AuthContext';
-import { addEventListener, emitter } from './utils/emitter';
-import { ConfigStorage } from '@/common/storage';
-import { useAppMode } from './hooks/useAppMode';
-import { useCronEnabled } from './hooks/useCronEnabled';
-import SidebarNavItem from './components/ui/SidebarNavItem';
+import type { BatchHistoryApi } from '@renderer/pages/conversation/grouped-history/types';
+import { cleanupSiderTooltips, getSiderTooltipProps } from '@renderer/utils/siderTooltip';
+import { useLayoutContext } from '@renderer/context/LayoutContext';
+import { blurActiveElement } from '@renderer/utils/focus';
+import { useAuth } from '@renderer/context/AuthContext';
+import { addEventListener, emitter } from '@renderer/utils/emitter';
+import { ConfigStorage } from '@common/storage';
+import { useAppMode } from '@renderer/hooks/useAppMode';
+import { useCronEnabled } from '@renderer/hooks/useCronEnabled';
+import SidebarNavItem from '@renderer/components/ui/SidebarNavItem';
 
-import WorkspaceGroupedHistory from './pages/conversation/WorkspaceGroupedHistory';
-import SettingsSider from './pages/settings/SettingsSider';
-
-/**
- * 手机号脱敏：保留前 3 位和后 4 位，中间用 **** 替代。
- * 例：13812345678 → 138****5678
- */
-function maskPhone(phone: string): string {
-  if (!phone) return '';
-  // 仅对 11 位纯数字手机号做脱敏，其他格式原样返回
-  const digits = phone.replace(/\D/g, '');
-  if (digits.length === 11) {
-    return `${digits.slice(0, 3)}****${digits.slice(7)}`;
-  }
-  return phone;
-}
+import WorkspaceGroupedHistory from '@renderer/pages/conversation/WorkspaceGroupedHistory';
+import SettingsSider from '@renderer/pages/settings/SettingsSider';
+import { maskPhone } from '@renderer/utils';
 
 interface SiderProps {
   onSessionClick?: () => void;
@@ -338,7 +325,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
               setUserMenuOpen(visible);
             }}
           >
-            <div ref={userTriggerRef} className={classNames('flex items-center gap-10px px-8px py-10px cursor-pointer transition-colors', collapsed ? 'rd-8px justify-center px-2px w-40px h-40px hover:bg-hover active:bg-fill-2' : 'rd-12px w-full border hover:bg-hover active:bg-fill-2')}>
+            <div ref={userTriggerRef} className={classNames('flex items-center gap-10px px-8px py-10px cursor-pointer transition-colors', collapsed ? 'rd-8px justify-center px-2px w-40px h-40px hover:bg-hover active:bg-fill-2' : 'rd-12px w-full border hover:bg-hover active:bg-fill-2 border-light')}>
               <div className='w-32px h-32px rd-50% bg-[var(--color-fill-3)] flex items-center justify-center text-foreground text-14px font-bold shrink-0'>{userInfo.avatar ? <img src={userInfo.avatar} alt={userInfo.name} className='w-full h-full rd-50% object-cover' /> : <span>{userInfo.name.charAt(0).toUpperCase()}</span>}</div>
               {!collapsed && (
                 <>
