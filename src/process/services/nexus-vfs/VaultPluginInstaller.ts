@@ -50,13 +50,13 @@ const VAULT_DYLIB_NAME_MAP: Record<string, string> = {
   win32: 'nexus_vault.dll',
 };
 
-/** Known-good SHA256 sums for vault v0.1.2. Must stay byte-identical to
- *  scripts/download-nexus-vfs.js:68-71 — U9 unit test enforces this. */
+/** Known-good SHA256 sums for vault v0.1.3. Must stay byte-identical to
+ *  scripts/download-nexus-vfs.js — U9 unit test enforces this. */
 export const NEXUS_VAULT_SHA256SUMS: Record<string, string> = {
-  'nexus-vault-linux-x86_64.tar.gz': '484d6c806cb67d9e2360282ad55a7da17764cd959059e2587846e1608fb9ab63',
-  'nexus-vault-macos-arm64.tar.gz': 'a97fbcdc7b178bc3b3dc4e1adb99e8dd40e77ea412354f5d6f4f54b328a583f4',
-  'nexus-vault-macos-x86_64.tar.gz': '27a85d33cdd8adcb84f6a263202b3fb0c4a682174de21b2964efc51e883b0bb0',
-  'nexus-vault-windows-x86_64.zip': 'c80b7453255b5c05f50a2206556402784aef75ae1cf5f272a599193f92856a07',
+  'nexus-vault-linux-x86_64.tar.gz': 'ce831d12f55bdd935d928d78df7f4a25078636529d020a1bd0235f68bb8f22f2',
+  'nexus-vault-macos-arm64.tar.gz': '603543170a09208fdd9aa3ce5c6aac6149215726042d51d53db4a083fbe728d6',
+  'nexus-vault-macos-x86_64.tar.gz': '276e1198c55eeed616ba50d5aa5a421ddbb89459a1be1227f44cc5927692e1eb',
+  'nexus-vault-windows-x86_64.zip': '5b91322ddb745c2049e9d675290e3b1a32b2d26bcb67bd96f85dff0f91a3799d',
 };
 
 // ── Module-level pure functions (export so tests can call directly without
