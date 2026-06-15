@@ -3,9 +3,9 @@ import classNames from 'classnames';
 import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Button, Dropdown, Message, Popover, Tabs, Tooltip } from '@arco-design/web-react';
+import { Button, Dropdown, Message, Popover, Tabs } from '@arco-design/web-react';
 import type { BatchHistoryApi } from '@renderer/pages/conversation/grouped-history/types';
-import { cleanupSiderTooltips, getSiderTooltipProps } from '@renderer/utils/siderTooltip';
+import { cleanupSiderTooltips } from '@renderer/utils/siderTooltip';
 import { blurActiveElement } from '@renderer/utils/focus';
 import { useAuth } from '@renderer/context/AuthContext';
 import { addEventListener, emitter } from '@renderer/utils/emitter';
@@ -19,9 +19,8 @@ import SettingsSider from '@renderer/pages/settings/SettingsSider';
 import { maskPhone } from '@renderer/utils';
 
 const Sider: React.FC = () => {
-  // 侧栏收起时由外层 ArcoLayout.Sider 将宽度动画到 0 整体隐藏，
-  // 内容始终保持展开态被裁切，避免收起瞬间文字消失 / 图标居中的跳变。
-  const collapsed = false;
+  // 侧栏收起由外层 ArcoLayout.Sider 把宽度动画到 0 整体隐藏，内容始终保持展开态，
+  // 因此这里不再处理收起态的布局分支。
   const { pathname, search, hash } = useLocation();
 
   // 选中会话 / 触发导航后清理 tooltip 残留
@@ -133,16 +132,14 @@ const Sider: React.FC = () => {
     return () => document.removeEventListener('mousedown', handlePointerDown);
   }, [isBatchMode]);
   const workspaceHistoryProps = {
-    collapsed,
-    tooltipEnabled: collapsed,
+    collapsed: false,
+    tooltipEnabled: false,
     onSessionClick,
     batchMode: isBatchMode,
     onBatchModeChange: setIsBatchMode,
     activeTab: effectiveTab,
     onBatchApiChange: setBatchApi,
   };
-  const tooltipEnabled = collapsed;
-  const siderTooltipProps = getSiderTooltipProps(tooltipEnabled);
 
   return (
     <div className='size-full flex flex-col'>
@@ -150,69 +147,46 @@ const Sider: React.FC = () => {
       <div className='flex-1 min-h-0 overflow-y-auto scrollbar-hide'>
         {isSettings ? (
           <Suspense fallback={<div className='size-full' />}>
-            <SettingsSider collapsed={collapsed} tooltipEnabled={tooltipEnabled}></SettingsSider>
+            <SettingsSider></SettingsSider>
           </Suspense>
         ) : (
           <div className='size-full flex flex-col py-8px overflow-hidden box-border'>
             {/* 新会话按钮 - 带边框的按钮风格 / New Chat button with border style */}
-            <Tooltip {...siderTooltipProps} content={t('conversation.welcome.newConversation')} position='right'>
-              {collapsed ? (
-                <div
-                  className='w-full h-40px flex items-center justify-center mb-12px rd-10px cursor-pointer transition-colors hover:bg-hover active:bg-fill-2'
-                  onClick={() => {
-                    cleanupSiderTooltips();
-                    blurActiveElement();
-                    setIsBatchMode(false);
-                    // 清除持久化的 agent 选择，确保新会话时不恢复之前的助手
-                    void ConfigStorage.set('guid.lastSelectedAgent', '');
-                    // 触发 Guide 页面重置所有用户输入状态
-                    emitter.emit('guid.reset');
-                    void navigate('/guid');
-                    onSessionClick();
-                  }}
-                >
-                  <Plus theme='outline' size='20' fill='currentColor' className='text-foreground shrink-0 block leading-none' />
-                </div>
-              ) : (
-                <div
-                  className='h-42px flex items-center justify-center gap-8px px-14px mb-12px rd-12px cursor-pointer transition-all border bg-1 hover:bg-hover active:bg-fill-2'
-                  onClick={() => {
-                    cleanupSiderTooltips();
-                    blurActiveElement();
-                    setIsBatchMode(false);
-                    // 清除持久化的 agent 选择，确保新会话时不恢复之前的助手
-                    void ConfigStorage.set('guid.lastSelectedAgent', '');
-                    // 触发 Guide 页面重置所有用户输入状态
-                    emitter.emit('guid.reset');
-                    void navigate('/guid');
-                    onSessionClick();
-                  }}
-                >
-                  <Plus theme='outline' size='20' fill='currentColor' className='text-foreground shrink-0 block leading-none' />
-                  <span className='text-15px font-medium text-foreground truncate'>{t('conversation.welcome.newConversation')}</span>
-                </div>
-              )}
-            </Tooltip>
+            <div
+              className='h-42px flex items-center justify-center gap-8px px-14px mb-12px rd-12px cursor-pointer transition-all border bg-1 hover:bg-hover active:bg-fill-2'
+              onClick={() => {
+                cleanupSiderTooltips();
+                blurActiveElement();
+                setIsBatchMode(false);
+                // 清除持久化的 agent 选择，确保新会话时不恢复之前的助手
+                void ConfigStorage.set('guid.lastSelectedAgent', '');
+                // 触发 Guide 页面重置所有用户输入状态
+                emitter.emit('guid.reset');
+                void navigate('/guid');
+                onSessionClick();
+              }}
+            >
+              <Plus theme='outline' size='20' fill='currentColor' className='text-foreground shrink-0 block leading-none' />
+              <span className='text-15px font-medium text-foreground truncate'>{t('conversation.welcome.newConversation')}</span>
+            </div>
 
             {/* 功能菜单区域 / Function menu area */}
             <div className='mb-16px flex flex-col gap-2px'>
               {functionMenus.map((menu) => {
                 const isSelected = pathname.startsWith('/guid') && new URLSearchParams(search).get('menu') === menu.id;
                 return (
-                  <Tooltip key={menu.id} {...siderTooltipProps} content={collapsed ? menu.label : undefined} position='right'>
-                    <SidebarNavItem
-                      icon={<menu.icon theme='outline' size='20' className='block leading-none' />}
-                      label={menu.label}
-                      selected={isSelected}
-                      collapsed={collapsed}
-                      onClick={() => {
-                        cleanupSiderTooltips();
-                        blurActiveElement();
-                        handleFunctionMenuClick(menu.id);
-                        onSessionClick();
-                      }}
-                    />
-                  </Tooltip>
+                  <SidebarNavItem
+                    key={menu.id}
+                    icon={<menu.icon theme='outline' size='20' className='block leading-none' />}
+                    label={menu.label}
+                    selected={isSelected}
+                    onClick={() => {
+                      cleanupSiderTooltips();
+                      blurActiveElement();
+                      handleFunctionMenuClick(menu.id);
+                      onSessionClick();
+                    }}
+                  />
                 );
               })}
             </div>
@@ -260,11 +234,9 @@ const Sider: React.FC = () => {
                   </div>
                 }
               >
-                <Tooltip {...siderTooltipProps} content={isBatchMode ? t('conversation.history.batchModeExit') : t('conversation.history.batchManage')} position='right'>
-                  <div className={classNames('batch-mode-trigger w-32px h-32px flex items-center justify-center rd-8px cursor-pointer transition-all shrink-0', isBatchMode ? 'bg-[rgba(var(--ui-accent-orange-rgb),0.12)] text-[var(--ui-accent-orange)]' : 'hover:bg-hover active:bg-fill-2 text-secondary')} onClick={() => setIsBatchMode((prev) => !prev)}>
-                    <ListCheckbox theme='outline' size='18' className='block leading-none' />
-                  </div>
-                </Tooltip>
+                <div className={classNames('batch-mode-trigger w-32px h-32px flex items-center justify-center rd-8px cursor-pointer transition-all shrink-0', isBatchMode ? 'bg-[rgba(var(--ui-accent-orange-rgb),0.12)] text-[var(--ui-accent-orange)]' : 'hover:bg-hover active:bg-fill-2 text-secondary')} onClick={() => setIsBatchMode((prev) => !prev)}>
+                  <ListCheckbox theme='outline' size='18' className='block leading-none' />
+                </div>
               </Popover>
             </div>
 
@@ -314,32 +286,26 @@ const Sider: React.FC = () => {
               setUserMenuOpen(visible);
             }}
           >
-            <div ref={userTriggerRef} className={classNames('flex items-center gap-10px px-8px py-10px cursor-pointer transition-colors', collapsed ? 'rd-8px justify-center px-2px w-40px h-40px hover:bg-hover active:bg-fill-2' : 'rd-12px w-full border hover:bg-hover active:bg-fill-2 border-light')}>
+            <div ref={userTriggerRef} className='flex items-center gap-10px px-8px py-10px cursor-pointer transition-colors rd-12px w-full border hover:bg-hover active:bg-fill-2 border-light'>
               <div className='w-32px h-32px rd-50% bg-[var(--color-fill-3)] flex items-center justify-center text-foreground text-14px font-bold shrink-0'>{userInfo.avatar ? <img src={userInfo.avatar} alt={userInfo.name} className='w-full h-full rd-50% object-cover' /> : <span>{userInfo.name.charAt(0).toUpperCase()}</span>}</div>
-              {!collapsed && (
-                <>
-                  <div className='flex-1 min-w-0'>
-                    <div className='text-14px font-medium text-foreground truncate'>{userInfo.name}</div>
-                    <div className='text-12px text-secondary truncate'>{userInfo.email}</div>
-                  </div>
-                  <Down theme='outline' size='16' fill={'var(--text-secondary)'} className='shrink-0' />
-                </>
-              )}
+              <div className='flex-1 min-w-0'>
+                <div className='text-14px font-medium text-foreground truncate'>{userInfo.name}</div>
+                <div className='text-12px text-secondary truncate'>{userInfo.email}</div>
+              </div>
+              <Down theme='outline' size='16' fill={'var(--text-secondary)'} className='shrink-0' />
             </div>
           </Dropdown>
         ) : (
           /* 设置页面 - 主题切换 + 返回按钮 */
           <div className='flex flex-col gap-2px'>
             {/* 返回按钮 */}
-            <div className={classNames('flex items-center gap-10px px-4px py-10px rd-8px cursor-pointer transition-colors hover:bg-hover active:bg-fill-2', collapsed ? 'justify-center mr-2px' : 'ml-2px')} onClick={handleSettingsClick}>
+            <div className='flex items-center gap-10px px-4px py-10px rd-8px cursor-pointer transition-colors hover:bg-hover active:bg-fill-2 ml-2px' onClick={handleSettingsClick}>
               <div className='w-32px h-32px rd-50% bg-[var(--color-fill-3)] flex items-center justify-center text-foreground text-14px font-bold shrink-0'>
                 <Return theme='outline' size='16' fill={'var(--foreground)'} />
               </div>
-              {!collapsed && (
-                <div className='flex-1 min-w-0'>
-                  <div className='text-14px font-medium text-foreground truncate'>{t('common.back')}</div>
-                </div>
-              )}
+              <div className='flex-1 min-w-0'>
+                <div className='text-14px font-medium text-foreground truncate'>{t('common.back')}</div>
+              </div>
             </div>
           </div>
         )}
