@@ -10,7 +10,7 @@ import { useTranslation } from 'react-i18next';
 import type { TokenUsageData } from '@/common/storage';
 
 // 从 modelContextLimits 导入默认上下文限制
-import { DEFAULT_CONTEXT_LIMIT } from '@/renderer/utils/modelContextLimits';
+import { DEFAULT_CONTEXT_LIMIT } from '@/renderer/utils/constants';
 import { Tooltip } from '@arco-design/web-react';
 
 interface ContextUsageIndicatorProps {
