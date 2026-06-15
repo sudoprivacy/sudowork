@@ -6,7 +6,6 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { Button, Dropdown, Message, Popover, Tabs, Tooltip } from '@arco-design/web-react';
 import type { BatchHistoryApi } from '@renderer/pages/conversation/grouped-history/types';
 import { cleanupSiderTooltips, getSiderTooltipProps } from '@renderer/utils/siderTooltip';
-import { useLayoutContext } from '@renderer/context/LayoutContext';
 import { blurActiveElement } from '@renderer/utils/focus';
 import { useAuth } from '@renderer/context/AuthContext';
 import { addEventListener, emitter } from '@renderer/utils/emitter';
@@ -20,17 +19,16 @@ import SettingsSider from '@renderer/pages/settings/SettingsSider';
 import { maskPhone } from '@renderer/utils';
 
 const Sider: React.FC = () => {
-  const layout = useLayoutContext();
-  const isMobile = layout?.isMobile ?? false;
-  const collapsed = layout?.siderCollapsed ?? false;
+  // 侧栏收起时由外层 ArcoLayout.Sider 将宽度动画到 0 整体隐藏，
+  // 内容始终保持展开态被裁切，避免收起瞬间文字消失 / 图标居中的跳变。
+  const collapsed = false;
   const { pathname, search, hash } = useLocation();
 
-  // 选中会话 / 触发导航后，移动端自动收起侧栏并清理 tooltip 残留
-  // After selecting a session / navigating, collapse the sider on mobile and clean up tooltip remnants
+  // 选中会话 / 触发导航后清理 tooltip 残留
+  // Clean up tooltip remnants after selecting a session / navigating
   const onSessionClick = useCallback(() => {
     cleanupSiderTooltips();
-    if (isMobile) layout?.setSiderCollapsed(true);
-  }, [isMobile, layout]);
+  }, []);
 
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -136,14 +134,14 @@ const Sider: React.FC = () => {
   }, [isBatchMode]);
   const workspaceHistoryProps = {
     collapsed,
-    tooltipEnabled: collapsed && !isMobile,
+    tooltipEnabled: collapsed,
     onSessionClick,
     batchMode: isBatchMode,
     onBatchModeChange: setIsBatchMode,
     activeTab: effectiveTab,
     onBatchApiChange: setBatchApi,
   };
-  const tooltipEnabled = collapsed && !isMobile;
+  const tooltipEnabled = collapsed;
   const siderTooltipProps = getSiderTooltipProps(tooltipEnabled);
 
   return (
