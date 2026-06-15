@@ -1,0 +1,20 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "entry": [
+    "src/index.ts",
+    "src/preload.ts",
+    "src/preload-avatar.ts",
+    "src/renderer/index.ts",
+    "src/renderer/avatar/index.ts",
+    "src/extensions/sandboxWorker.ts"
+  ],
+  "project": ["src/**/*.{ts,tsx}"],
+  "ignore": [
+    "src/shims/**",
+    "src/types/**",
+    "src/common/nexus/generated/**"
+  ],
+  "ignoreBinaries": [],
+  "ignoreDependencies": [],
+  "ignoreExportsUsedInFile": true
+}

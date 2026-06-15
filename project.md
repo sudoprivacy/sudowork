@@ -57,11 +57,11 @@
 
 ### 进程职责
 
-| 进程类型 | 目录 | 职责 | 可用 API |
-|---------|------|------|--------|
-| **主进程** | `src/process/` | 应用逻辑、数据库、IPC | Node.js 全部 API |
-| **渲染进程** | `src/renderer/` | 用户界面、交互 | 浏览器 API、DOM |
-| **Worker 进程** | `src/worker/` | 后台 AI 任务 | Node.js API（受限） |
+| 进程类型        | 目录            | 职责                  | 可用 API            |
+| --------------- | --------------- | --------------------- | ------------------- |
+| **主进程**      | `src/process/`  | 应用逻辑、数据库、IPC | Node.js 全部 API    |
+| **渲染进程**    | `src/renderer/` | 用户界面、交互        | 浏览器 API、DOM     |
+| **Worker 进程** | `src/worker/`   | 后台 AI 任务          | Node.js API（受限） |
 
 ### 核心服务
 
@@ -90,36 +90,37 @@ src/
 
 #### 1.1 初始化模块
 
-| 文件 | 作用 |
-|------|------|
-| `index.ts` | 主进程入口，初始化 Channel 管理和扩展注册 |
-| `initStorage.ts` | 初始化存储系统，包括数据库和配置 |
-| `initBridge.ts` | 初始化 IPC 桥接 |
-| `initAgent.ts` | 初始化 AI Agent 系统 |
+| 文件             | 作用                                      |
+| ---------------- | ----------------------------------------- |
+| `index.ts`       | 主进程入口，初始化 Channel 管理和扩展注册 |
+| `initStorage.ts` | 初始化存储系统，包括数据库和配置          |
+| `initBridge.ts`  | 初始化 IPC 桥接                           |
+| `initAgent.ts`   | 初始化 AI Agent 系统                      |
 
 #### 1.2 桥接模块 (`bridge/`)
 
-| 文件 | 作用 |
-|------|------|
-| `index.ts` | IPC 桥接总入口 |
-| `authBridge.ts` | 认证相关 IPC |
-| `fsBridge.ts` | 文件系统操作 IPC |
-| `mcpBridge.ts` | MCP 协议桥接 |
-| `modelBridge.ts` | AI 模型管理桥接 |
-| `webuiBridge.ts` | WebUI 相关桥接 |
-| `windowControlsBridge.ts` | 窗口控制桥接 |
-| `systemSettingsBridge.ts` | 系统设置桥接 |
+| 文件                      | 作用             |
+| ------------------------- | ---------------- |
+| `index.ts`                | IPC 桥接总入口   |
+| `authBridge.ts`           | 认证相关 IPC     |
+| `fsBridge.ts`             | 文件系统操作 IPC |
+| `mcpBridge.ts`            | MCP 协议桥接     |
+| `modelBridge.ts`          | AI 模型管理桥接  |
+| `webuiBridge.ts`          | WebUI 相关桥接   |
+| `windowControlsBridge.ts` | 窗口控制桥接     |
+| `systemSettingsBridge.ts` | 系统设置桥接     |
 
 #### 1.3 数据库模块 (`database/`)
 
-| 文件 | 作用 |
-|------|------|
-| `index.ts` | 数据库初始化和管理 |
-| `schema.ts` | 数据库 Schema 定义 |
-| `migrations.ts` | 数据库迁移脚本 |
-| `types.ts` | 数据库类型定义 |
+| 文件            | 作用               |
+| --------------- | ------------------ |
+| `index.ts`      | 数据库初始化和管理 |
+| `schema.ts`     | 数据库 Schema 定义 |
+| `migrations.ts` | 数据库迁移脚本     |
+| `types.ts`      | 数据库类型定义     |
 
 使用 SQLite 存储：
+
 - 用户账户信息
 - 对话历史
 - 定时任务配置
@@ -127,33 +128,33 @@ src/
 
 #### 1.4 服务模块 (`services/`)
 
-| 服务 | 目录 | 功能 |
-|------|------|------|
-| **Cron 服务** | `cron/` | 定时任务调度，支持 cron 表达式 |
-| **MCP 服务** | `mcpServices/` | Model Context Protocol 支持 |
-| **AutoUpdater** | `autoUpdaterService.ts` | 应用自动更新 |
-| **Gemini 订阅** | `geminiSubscription.ts` | Google Gemini 服务集成 |
+| 服务            | 目录                    | 功能                           |
+| --------------- | ----------------------- | ------------------------------ |
+| **Cron 服务**   | `cron/`                 | 定时任务调度，支持 cron 表达式 |
+| **MCP 服务**    | `mcpServices/`          | Model Context Protocol 支持    |
+| **AutoUpdater** | `autoUpdaterService.ts` | 应用自动更新                   |
+| **Gemini 订阅** | `geminiSubscription.ts` | Google Gemini 服务集成         |
 
 ### 2. 渲染进程模块 (`src/renderer/`)
 
 #### 2.1 核心组件
 
-| 文件/目录 | 作用 |
-|----------|------|
-| `layout.tsx` | 主布局组件 |
-| `router.tsx` | 路由配置 |
-| `sider.tsx` | 侧边栏组件 |
-| `index.tsx` | 渲染进程入口 |
+| 文件/目录    | 作用         |
+| ------------ | ------------ |
+| `layout.tsx` | 主布局组件   |
+| `router.tsx` | 路由配置     |
+| `sider.tsx`  | 侧边栏组件   |
+| `index.tsx`  | 渲染进程入口 |
 
 #### 2.2 页面模块 (`pages/`)
 
-| 页面 | 路径 | 功能 |
-|------|------|------|
-| **登录页** | `/login` | 用户登录界面 |
-| **Guid 页** | `/guid` | AI 对话引导页（主页） |
-| **对话页** | `/conversation` | 聊天对话界面 |
-| **设置页** | `/settings` | 应用设置管理 |
-| **Cron 页** | `/cron` | 定时任务管理 |
+| 页面        | 路径            | 功能                  |
+| ----------- | --------------- | --------------------- |
+| **登录页**  | `/login`        | 用户登录界面          |
+| **Guid 页** | `/guid`         | AI 对话引导页（主页） |
+| **对话页**  | `/conversation` | 聊天对话界面          |
+| **设置页**  | `/settings`     | 应用设置管理          |
+| **Cron 页** | `/cron`         | 定时任务管理          |
 
 #### 2.3 功能组件
 
@@ -176,11 +177,11 @@ components/
 
 处理不同类型的 AI 消息显示：
 
-| 组件 | 功能 |
-|------|------|
-| `MessageList.tsx` | 消息列表渲染 |
-| `MessageToolCall.tsx` | 工具调用消息 |
-| `MessagePlan.tsx` | 计划消息 |
+| 组件                     | 功能           |
+| ------------------------ | -------------- |
+| `MessageList.tsx`        | 消息列表渲染   |
+| `MessageToolCall.tsx`    | 工具调用消息   |
+| `MessagePlan.tsx`        | 计划消息       |
 | `MessageAgentStatus.tsx` | Agent 状态显示 |
 
 ### 3. Web 服务器模块 (`src/webserver/`)
@@ -199,6 +200,7 @@ auth/
 ```
 
 **认证流程**：
+
 1. 用户输入用户名密码
 2. 密码使用 bcrypt 加密存储
 3. 登录成功生成 JWT Token
@@ -207,20 +209,21 @@ auth/
 
 #### 3.2 路由模块 (`routes/`)
 
-| 路由文件 | 端点 | 功能 |
-|---------|------|------|
-| `authRoutes.ts` | `/login`, `/logout` | 认证相关 |
-| `apiRoutes.ts` | `/api/*` | API 接口 |
-| `staticRoutes.ts` | `/*` | 静态资源 |
+| 路由文件          | 端点                | 功能     |
+| ----------------- | ------------------- | -------- |
+| `authRoutes.ts`   | `/login`, `/logout` | 认证相关 |
+| `apiRoutes.ts`    | `/api/*`            | API 接口 |
+| `staticRoutes.ts` | `/*`                | 静态资源 |
 
 #### 3.3 WebSocket 通信
 
-| 文件 | 功能 |
-|------|------|
+| 文件                  | 功能               |
+| --------------------- | ------------------ |
 | `WebSocketManager.ts` | WebSocket 连接管理 |
 | `WebSocketHandler.ts` | WebSocket 消息处理 |
 
 **WebSocket 特性**：
+
 - 心跳检测：30 秒间隔
 - 心跳超时：60 秒
 - 自动重连机制
@@ -229,13 +232,13 @@ auth/
 
 #### 4.1 支持的 Agent
 
-| Agent | 目录 | 状态 |
-|-------|------|------|
-| **内置 Agent** | `gemini/` | 开箱即用 |
-| **Codex** | `codex/` | 自动检测 |
-| **ACP** | `acp/` | 自动检测 |
-| **OpenClaw** | `openclaw/` | 自动检测 |
-| **Nanobot** | `nanobot/` | 自动检测 |
+| Agent          | 目录        | 状态     |
+| -------------- | ----------- | -------- |
+| **内置 Agent** | `gemini/`   | 开箱即用 |
+| **Codex**      | `codex/`    | 自动检测 |
+| **ACP**        | `acp/`      | 自动检测 |
+| **OpenClaw**   | `openclaw/` | 自动检测 |
+| **Nanobot**    | `nanobot/`  | 自动检测 |
 
 #### 4.2 OpenClaw Gateway
 
@@ -252,12 +255,12 @@ openclaw/
 
 每个 Worker 负责特定 AI 模型的后台任务：
 
-| Worker 文件 | 负责任务 |
-|------------|---------|
-| `gemini.ts` | Google Gemini 任务 |
-| `codex.ts` | Codex AI 任务 |
-| `acp.ts` | ACP Agent 任务 |
-| `nanobot.ts` | Nanobot 任务 |
+| Worker 文件           | 负责任务              |
+| --------------------- | --------------------- |
+| `gemini.ts`           | Google Gemini 任务    |
+| `codex.ts`            | Codex AI 任务         |
+| `acp.ts`              | ACP Agent 任务        |
+| `nanobot.ts`          | Nanobot 任务          |
 | `openclaw-gateway.ts` | OpenClaw Gateway 任务 |
 
 ---
@@ -486,7 +489,6 @@ sudowork_WEBUI=1 sudowork_ALLOW_REMOTE=true electron-vite dev
    打开浏览器，访问 `http://localhost:25808`
 
 2. **输入凭证**
-
    - 默认用户名：`admin`
    - 首次使用需要设置密码（通过 `--resetpass` 命令）
 
@@ -498,7 +500,6 @@ sudowork_WEBUI=1 sudowork_ALLOW_REMOTE=true electron-vite dev
    - 跳转到主页面（`/guid`）
 
 4. **保持登录状态**
-
    - 勾选"记住我"会在本地存储加密的凭证
    - Token 有效期为 24 小时
 
@@ -515,6 +516,7 @@ sudowork_RESET_PASS=1 electron-vite dev
 ```
 
 命令执行后会：
+
 1. 生成一个随机的 12 位密码
 2. 在终端显示新密码
 3. 使所有现有 Token 失效
@@ -533,23 +535,25 @@ WebUI 支持二维码登录功能：
 
 #### 环境变量
 
-| 变量名 | 作用 | 示例 |
-|--------|------|------|
-| `sudowork_PORT` | 自定义端口 | `sudowork_PORT=8080` |
+| 变量名                  | 作用         | 示例                         |
+| ----------------------- | ------------ | ---------------------------- |
+| `sudowork_PORT`         | 自定义端口   | `sudowork_PORT=8080`         |
 | `sudowork_ALLOW_REMOTE` | 允许远程访问 | `sudowork_ALLOW_REMOTE=true` |
-| `sudowork_HOST` | 监听地址 | `sudowork_HOST=0.0.0.0` |
-| `sudowork_HTTPS` | 启用 HTTPS | `sudowork_HTTPS=true` |
+| `sudowork_HOST`         | 监听地址     | `sudowork_HOST=0.0.0.0`      |
+| `sudowork_HTTPS`        | 启用 HTTPS   | `sudowork_HTTPS=true`        |
 
 #### 用户配置文件
 
 创建 `webui.config.json`：
 
 **位置：**
+
 - Windows: `%APPDATA%\sudowork\webui.config.json`
 - macOS: `~/Library/Application Support/sudowork/webui.config.json`
 - Linux: `~/.config/sudowork/webui.config.json`
 
 **内容示例：**
+
 ```json
 {
   "port": 8080,
@@ -562,11 +566,13 @@ WebUI 支持二维码登录功能：
 #### 无法访问页面
 
 1. **检查服务状态**
+
    ```bash
    # 查看终端输出，确认"Server started"消息
    ```
 
 2. **检查防火墙**
+
    ```bash
    # Linux
    sudo ufw allow 25808/tcp
@@ -581,6 +587,7 @@ WebUI 支持二维码登录功能：
 #### Token 失效
 
 如果登录后立即被登出：
+
 1. 清除浏览器缓存和 Cookie
 2. 使用 `--resetpass` 重置密码
 3. 重新登录
@@ -600,6 +607,7 @@ A: 默认用户名是 `admin`。首次使用时需要通过 `--resetpass` 命令
 ### Q: 如何修改 WebUI 端口？
 
 A: 有三种方式：
+
 1. 命令行参数：`--port 8080`
 2. 环境变量：`sudowork_PORT=8080`
 3. 配置文件：`webui.config.json` 中设置 `"port": 8080`
@@ -611,6 +619,7 @@ A: 使用 `--remote` 参数启动，或设置环境变量 `sudowork_ALLOW_REMOTE
 ### Q: 数据存储在哪里？
 
 A: 所有数据存储在本地 SQLite 数据库中：
+
 - Windows: `%APPDATA%\sudowork\`
 - macOS: `~/Library/Application Support/sudowork/`
 - Linux: `~/.config/sudowork/`
@@ -618,6 +627,7 @@ A: 所有数据存储在本地 SQLite 数据库中：
 ### Q: 支持哪些 AI 模型？
 
 A: 支持 20+ AI 平台，包括：
+
 - **官方平台**: Gemini、Anthropic (Claude)、OpenAI
 - **云平台**: AWS Bedrock、New API
 - **中国平台**: 通义千问、智谱、Kimi、文心一言、混元
@@ -630,6 +640,7 @@ A: 在设置页面 → MCP 管理 → 添加 MCP 服务器。配置后会自动�
 ### Q: 定时任务如何配置？
 
 A:
+
 1. 进入对话页面
 2. 创建一个对话
 3. 在对话中配置定时任务
@@ -641,13 +652,13 @@ A:
 
 ### 命令参考
 
-| 命令 | 作用 |
-|------|------|
-| `bun run webui` | 启动 WebUI 模式 |
+| 命令                   | 作用                    |
+| ---------------------- | ----------------------- |
+| `bun run webui`        | 启动 WebUI 模式         |
 | `bun run webui:remote` | 启动 WebUI 远程访问模式 |
-| `bun run resetpass` | 重置管理员密码 |
-| `bun run start` | 开发模式（带 GUI） |
-| `bun run build` | 构建生产版本 |
+| `bun run resetpass`    | 重置管理员密码          |
+| `bun run start`        | 开发模式（带 GUI）      |
+| `bun run build`        | 构建生产版本            |
 
 **环境变量方式**（开发环境）:
 | 环境变量 | 作用 |
