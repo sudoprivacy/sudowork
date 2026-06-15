@@ -680,6 +680,19 @@ body,
   will-change: width, transform, background-color;
 }
 
+/* 侧栏与内容同色，用一条整窗高度竖线分隔（贯穿标题栏+内容）；仅展开态显示 */
+.app-shell--sider-divider::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 260px;
+  width: 1px;
+  background: var(--border-light);
+  z-index: 20;
+  pointer-events: none;
+}
+
 /* 内容区用 flex 自适应填满 header 之外的剩余空间，避免写死高度导致整体轻微溢出滚动 */
 /* Let the content area flex-fill the space below the header instead of a hardcoded height,
    which otherwise leaves a few px of overflow and makes the whole sider scroll slightly */
@@ -1484,22 +1497,6 @@ body,
 /* 间隙露出与标题栏/侧栏一致的框体底色 / Gap reveals the same frame color as titlebar/sider */
 .layout {
   background-color: var(--bg-2);
-}
-
-/* 桌面端：内容区贴右下边，仅左侧（与侧栏相接处）留圆角 */
-@media (min-width: 768px) {
-  .layout-content {
-    border-top-left-radius: var(--radius-xl);
-    border-bottom-left-radius: var(--radius-xl);
-    overflow: hidden;
-    transition: border-radius 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  }
-
-  /* 侧栏收起后内容贴窗口左边，去掉左圆角避免悬空 */
-  .layout-content--sider-collapsed {
-    border-top-left-radius: 0;
-    border-bottom-left-radius: 0;
-  }
 }
 
 /* ============================================================
