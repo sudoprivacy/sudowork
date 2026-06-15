@@ -7,7 +7,7 @@
 import type { TMessage } from '@/common/chatLib';
 import { ipcBridge } from '@/common';
 import type { AcpBackendAll } from '@/types/acpTypes';
-import { cronService } from '@process/services/cron/CronService';
+import { getCronProvider } from '@process/providers/cron';
 import { getClientCronEnabled } from '@process/services/cron/cronPolicy';
 import { detectCronCommands, stripCronCommands, type CronCommand } from './CronCommandDetector';
 import { hasThinkTags, stripThinkTags } from './ThinkTagDetector';
@@ -191,11 +191,17 @@ async function handleCronCommands(conversationId: string, agentType: AcpBackendA
 
   const responses: string[] = [];
 
+  // Route through the active provider, not the local cronService singleton, so
+  // a remote-mode agent's jobs land on moss (RemoteCronProvider → gated moss
+  // API) — the same backend the cron UI reads/writes. Local mode's provider
+  // delegates to cronService, so that path is unchanged. (#854/#835)
+  const provider = getCronProvider();
+
   for (const cmd of commands) {
     try {
       switch (cmd.kind) {
         case 'create': {
-          const job = await cronService.addJob({
+          const job = await provider.addJob({
             name: cmd.name,
             schedule: { kind: 'cron', expr: cmd.schedule, description: cmd.scheduleDescription },
             message: cmd.message,
@@ -214,7 +220,7 @@ async function handleCronCommands(conversationId: string, agentType: AcpBackendA
           // created by this conversation. A per-conversation list made every
           // new chat report "no tasks" while the cron UI showed them, and
           // defeated the skill's query-before-create duplicate check (#835).
-          const jobs = await cronService.listJobs();
+          const jobs = await provider.listJobs();
           if (jobs.length === 0) {
             responses.push('📋 No scheduled tasks.');
           } else {
@@ -232,7 +238,7 @@ async function handleCronCommands(conversationId: string, agentType: AcpBackendA
         }
 
         case 'delete': {
-          await cronService.removeJob(cmd.jobId);
+          await provider.removeJob(cmd.jobId);
           // Emit event to renderer process for real-time UI update
           ipcBridge.cron.onJobRemoved.emit({ jobId: cmd.jobId });
           responses.push(`🗑️ Task deleted: ${cmd.jobId}`);

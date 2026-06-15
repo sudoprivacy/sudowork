@@ -8,15 +8,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const listJobsMock = vi.fn(async () => [] as unknown[]);
-const listJobsByConversationMock = vi.fn(async () => [] as unknown[]);
 
-vi.mock('@process/services/cron/CronService', () => ({
-  cronService: {
+// handleCronCommands routes through getCronProvider() (#854); the local provider
+// delegates to cronService, but tests mock the provider directly.
+vi.mock('@process/providers/cron', () => ({
+  getCronProvider: () => ({
     listJobs: () => listJobsMock(),
-    listJobsByConversation: (conversationId: string) => listJobsByConversationMock(conversationId),
     addJob: vi.fn(),
     removeJob: vi.fn(),
-  },
+  }),
 }));
 
 vi.mock('@/common', () => ({
@@ -64,7 +64,6 @@ describe('[CRON_LIST] scope (issue #835)', () => {
   beforeEach(() => {
     listJobsMock.mockReset();
     listJobsMock.mockResolvedValue([]);
-    listJobsByConversationMock.mockReset();
   });
 
   it('lists jobs created by other conversations', async () => {
@@ -74,7 +73,6 @@ describe('[CRON_LIST] scope (issue #835)', () => {
     const result = await processAgentResponse('conv-b', 'scode', finishedMessage('[CRON_LIST]'));
 
     expect(listJobsMock).toHaveBeenCalled();
-    expect(listJobsByConversationMock).not.toHaveBeenCalled();
     expect(result.systemResponses.join('\n')).toContain('Weather reminder');
     expect(result.systemResponses.join('\n')).toContain('cron_1');
   });

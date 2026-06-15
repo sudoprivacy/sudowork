@@ -17,11 +17,15 @@ import { useTenantConfig } from '@/renderer/context/TenantConfigContext';
  */
 export function useCronEnabled(): boolean {
   const { isEnterprise } = useAppMode();
-  const { config } = useTenantConfig();
+  const { config, confirmed } = useTenantConfig();
 
   if (!isEnterprise) {
     return true;
   }
-  // resolveTenantConfig normalizes this to a boolean (default true).
-  return config.client_cron_enabled !== false;
+  // Fail closed: in enterprise mode, show cron only when the tenant config was
+  // confirmed from the server this session AND the flag is not disabled. A stale
+  // cache (e.g. a failed startup refresh after an admin disabled cron) must not
+  // keep the UI visible. resolveTenantConfig normalizes the flag to a boolean
+  // (default true), so `confirmed` is what guards staleness.
+  return confirmed && config.client_cron_enabled !== false;
 }

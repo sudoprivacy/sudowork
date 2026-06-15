@@ -504,6 +504,17 @@ const resolveBuiltinResourceDir = (dirPath: string): string => {
 };
 
 /**
+ * Absolute path of a bundled builtin skill's directory in the app resources
+ * (e.g. `skills/_builtin/cron`). This is the install SOURCE — stable across
+ * personal/enterprise mode, unlike getBuiltinSkillsDir() which points at the
+ * user's synced `_system`/`system` dir and differs by mode. Use this when code
+ * must read a builtin skill file directly (not just point an agent at a path).
+ */
+export const getBundledBuiltinSkillDir = (skillName: string): string => {
+  return path.join(resolveBuiltinResourceDir('skills'), SKILL_SUBDIRS.legacyBuiltin, skillName);
+};
+
+/**
  * 将内置 skills 从 bundle 同步到用户目录的 `_system/`（每次启动都强制 overwrite）。
  * Sync bundled builtin skills into the user's `_system/` directory on every startup.
  *
@@ -533,12 +544,7 @@ const resolveBuiltinResourceDir = (dirPath: string): string => {
  * ignore the sibling path entirely.
  */
 const resolveAiDevBrowserPackageDir = (): string | null => {
-  const candidates = app.isPackaged
-    ? [path.join(app.getAppPath().replace('app.asar', 'app.asar.unpacked'), 'vendor/ai-dev-browser/ai_dev_browser'), path.join(process.resourcesPath, 'ai-dev-browser/ai_dev_browser')]
-    : [
-        path.join(app.getAppPath(), 'vendor/ai-dev-browser/ai_dev_browser'),
-        path.join(app.getAppPath(), '..', 'ai-dev-browser', 'ai_dev_browser'),
-      ];
+  const candidates = app.isPackaged ? [path.join(app.getAppPath().replace('app.asar', 'app.asar.unpacked'), 'vendor/ai-dev-browser/ai_dev_browser'), path.join(process.resourcesPath, 'ai-dev-browser/ai_dev_browser')] : [path.join(app.getAppPath(), 'vendor/ai-dev-browser/ai_dev_browser'), path.join(app.getAppPath(), '..', 'ai-dev-browser', 'ai_dev_browser')];
   return candidates.find((p) => existsSync(p)) ?? null;
 };
 
@@ -1030,7 +1036,7 @@ const initStorage = async () => {
 
       // 首先清理不再存在于内置列表中的旧内置助手
       // First, clean up old built-in assistants that are no longer in the built-in list
-      const builtinIds = new Set(builtinAssistants.map(a => a.id));
+      const builtinIds = new Set(builtinAssistants.map((a) => a.id));
       for (let i = updatedAgents.length - 1; i >= 0; i--) {
         const agent = updatedAgents[i];
         // 如果是以 builtin- 开头，但在当前内置列表中找不到，则删除

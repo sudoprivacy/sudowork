@@ -21,10 +21,22 @@ vi.mock('../../src/process/initStorage', () => ({
   loadSkillsContent: vi.fn(async () => ''),
 }));
 
+vi.mock('electron', () => ({
+  app: { getPath: (_key: string) => '/tmp/.nexus-test' },
+}));
+
+const isCronSkillAllowed = vi.fn(async () => true);
+vi.mock('@process/services/cron/cronPolicy', () => ({
+  isCronSkillAllowed: () => isCronSkillAllowed(),
+}));
+
 describe('prepareFirstMessageWithSkillsIndex', () => {
   beforeEach(() => {
     discoverBuiltinSkills.mockClear();
     getBuiltinSkillsIndex.mockClear();
+    getBuiltinSkillsIndex.mockReturnValue([{ name: 'cron', description: 'Builtin cron skill' }]);
+    isCronSkillAllowed.mockReset();
+    isCronSkillAllowed.mockResolvedValue(true);
   });
 
   it('injects only builtin skill paths for ACP/OpenClaw agents', async () => {
@@ -57,6 +69,48 @@ describe('prepareFirstMessageWithSkillsIndex', () => {
     expect(discoverBuiltinSkills).toHaveBeenCalledOnce();
     expect(result).toContain('/tmp/.nexus/skills/_system/_builtin/{skill-name}/SKILL.md');
     expect(result).toContain('cron');
+  });
+
+  it('omits the cron skill when org policy disallows it (#854)', async () => {
+    isCronSkillAllowed.mockResolvedValue(false);
+    getBuiltinSkillsIndex.mockReturnValue([
+      { name: 'cron', description: 'Builtin cron skill' },
+      { name: 'browser', description: 'Builtin browser skill' },
+    ]);
+
+    const { prepareFirstMessageWithSkillsIndex } = await import('../../src/process/task/agentUtils');
+    const result = await prepareFirstMessageWithSkillsIndex('do something', {
+      presetContext: 'rules',
+      workspace: '/tmp/workspace',
+      presetAgentType: 'claude',
+    });
+
+    // The cron skill index entry / file path is omitted...
+    expect(result).not.toContain('cron/SKILL.md');
+    expect(result).not.toContain('- cron:');
+    // ...but an explicit ban is injected so the agent can't hallucinate success.
+    expect(result).toContain('[Scheduled Tasks — DISABLED]');
+    expect(result).toContain('NEVER claim a scheduled task was created');
+    expect(result).toContain('browser');
+  });
+
+  it('includes the cron skill when org policy allows it', async () => {
+    isCronSkillAllowed.mockResolvedValue(true);
+    getBuiltinSkillsIndex.mockReturnValue([
+      { name: 'cron', description: 'Builtin cron skill' },
+      { name: 'browser', description: 'Builtin browser skill' },
+    ]);
+
+    const { prepareFirstMessageWithSkillsIndex } = await import('../../src/process/task/agentUtils');
+    const result = await prepareFirstMessageWithSkillsIndex('do something', {
+      presetContext: 'rules',
+      workspace: '/tmp/workspace',
+      presetAgentType: 'claude',
+    });
+
+    expect(result).toContain('cron/SKILL.md');
+    expect(result).toContain('browser');
+    expect(result).not.toContain('[Scheduled Tasks — DISABLED]');
   });
 
   it('injects workspace skills directory hint before user request', async () => {

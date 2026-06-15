@@ -21,7 +21,40 @@ import * as fs from 'node:fs';
 import { initMossApi } from '../remote/MossSessionApi';
 import { isRemoteContainerPath } from '@/common/utils/workspaceSkillSync';
 import { filterEnabledSkillNames } from '../utils/enabledSkillFilter';
-import { ProcessConfig } from '../initStorage';
+import { ProcessConfig, getBundledBuiltinSkillDir } from '../initStorage';
+import { hasCronCommands } from './CronCommandDetector';
+import { isCronSkillAllowed } from '../services/cron/cronPolicy';
+
+/**
+ * Cron instruction inlined into a remote session's first message. The moss
+ * container can't read sudowork's local cron SKILL.md, so we inline it here.
+ * - When cron is ALLOWED: the full skill (single source of truth for the
+ *   [CRON_CREATE]/[CRON_LIST]/[CRON_DELETE] contract the local AcpAgent points
+ *   at by path).
+ * - When cron is DISABLED: an explicit ban, so the agent does NOT silently
+ *   hallucinate "task created". Banning must be active, not just omission.
+ */
+async function buildRemoteCronInstruction(): Promise<string> {
+  if (!(await isCronSkillAllowed())) {
+    mainLog('RemoteAgent', 'cron disabled by org — injecting explicit ban instruction');
+    return CRON_DISABLED_INSTRUCTION;
+  }
+  try {
+    // Read from the bundled SOURCE, not getBuiltinSkillsDir() — the latter
+    // resolves to the user's _system/system dir which differs by mode and was
+    // ENOENT in enterprise mode (the file lives at _system but the enterprise
+    // path computes `system`). The bundled path is stable across modes.
+    const skillPath = nodePath.join(getBundledBuiltinSkillDir('cron'), 'SKILL.md');
+    const skillContent = await fs.promises.readFile(skillPath, 'utf-8');
+    mainLog('RemoteAgent', `cron enabled — injecting cron skill instruction from ${skillPath}`);
+    return `[Scheduled Task Skill — you MUST follow this to manage scheduled tasks; output the [CRON_*] commands directly in your reply]\n${skillContent}`;
+  } catch (err) {
+    mainError('RemoteAgent', `Failed to read cron SKILL.md: ${err}`);
+    return CRON_DISABLED_INSTRUCTION;
+  }
+}
+
+const CRON_DISABLED_INSTRUCTION = '[Scheduled Tasks — DISABLED]\n' + 'Scheduled task / cron functionality is disabled by your organization. ' + 'You CANNOT create, list, modify, or delete scheduled tasks. ' + 'If the user asks you to schedule, create, or manage a recurring/timed task, you MUST tell them that scheduled tasks are disabled by their organization and that an administrator must enable the feature. ' + 'NEVER claim that a scheduled task was created, and NEVER invent a task ID.';
 
 /**
  * Default idle detach timeout for finished remote sessions.
@@ -96,6 +129,25 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
 
   /** Turn-level file tracking for precise cleanup on cancel */
   private currentTurnFiles: Map<string, { path: string; intent: 'draft' | 'final'; kind: 'create' | 'edit' }> = new Map();
+
+  /**
+   * Accumulated assistant text for the current turn. Remote agents read the
+   * sudowork cron skill and emit [CRON_CREATE]/[CRON_LIST]/[CRON_DELETE] text
+   * commands in their reply; unlike AcpAgent we must detect and process those
+   * on the client (moss does not handle these text commands), otherwise the
+   * agent's "created" narration is shown while nothing is created and the
+   * client_cron_enabled gate never runs. See processFinishedCronCommands.
+   */
+  private currentTurnText = '';
+  private currentTurnMsgId: string | null = null;
+
+  /**
+   * Whether the inlined cron skill instruction has been sent to the moss session.
+   * The moss container can't read sudowork's local cron SKILL.md, so we inline
+   * the cron command contract into the first message of a session (when org
+   * policy allows). Reset when a new session is created.
+   */
+  private cronSkillInjected = false;
 
   constructor(data: RemoteAgentData) {
     super('remote-agent', data);
@@ -453,6 +505,8 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
     this.processingStartTime = Date.now();
     this.turnActive = true;
     this.userCancelled = false;
+    this.currentTurnText = '';
+    this.currentTurnMsgId = null;
     this.stopPromise = null;
 
     // ★ Reset turn-level file tracking for new turn
@@ -505,6 +559,22 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
         contentToSend = `${fileRefs} ${contentToSend}`;
       }
 
+      // Tell the remote (moss) agent about scheduled tasks, once per session.
+      // The moss container can't read the local cron SKILL.md, so the
+      // instruction is inlined: the full skill when cron is allowed, or an
+      // explicit ban when disabled (so the agent never hallucinates a created
+      // task). Always inject one or the other.
+      if (!this.cronSkillInjected) {
+        this.cronSkillInjected = true;
+        try {
+          const cronInstruction = await buildRemoteCronInstruction();
+          contentToSend = `${cronInstruction}\n\n[User Request]\n${contentToSend}`;
+          mainLog('RemoteAgent', 'Injected cron instruction into first message');
+        } catch (err) {
+          mainError('RemoteAgent', `Failed to build cron instruction: ${err}`);
+        }
+      }
+
       // Send to Moss Server
       const result = this.connection.sendMessage({
         content: contentToSend,
@@ -538,6 +608,8 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
     this.processingStartTime = options?.startedAt ?? Date.now();
     this.turnActive = true;
     this.userCancelled = false;
+    this.currentTurnText = '';
+    this.currentTurnMsgId = null;
     this.stopPromise = null;
     this.currentTurnFiles.clear();
     this.workspaceFileSnapshot = this.getWorkspaceFiles();
@@ -841,6 +913,13 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
     const enrichedMsg = { ...msg, conversation_id: this.conversation_id };
     ipcBridge.conversation.responseStream.emit(enrichedMsg);
 
+    // Accumulate assistant text so cron commands emitted in the reply can be
+    // detected and processed on finish (see processFinishedCronCommands).
+    if (msg.type === 'content' && typeof msg.data === 'string') {
+      this.currentTurnText += msg.data;
+      this.currentTurnMsgId = msg.msg_id || this.currentTurnMsgId;
+    }
+
     // Persist messages to local DB for enterprise mode local-first reads
     // 将消息持久化到本地数据库，支持企业模式本地优先读取
     if (msg.type === 'content' || msg.type === 'user_content' || msg.type === 'acp_tool_call' || msg.type === 'error') {
@@ -887,12 +966,71 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
       this.status = 'finished';
       this.turnActive = false;
       this.processingStartTime = undefined;
+
+      // Process any cron commands the agent emitted this turn before resetting
+      // turn state. Fire-and-forget — feedback is sent back into the session.
+      const finishedText = this.currentTurnText;
+      const finishedMsgId = this.currentTurnMsgId;
+      this.currentTurnText = '';
+      this.currentTurnMsgId = null;
+      if (hasCronCommands(finishedText)) {
+        void this.processFinishedCronCommands(finishedText, finishedMsgId);
+      }
+
       // Clear turn-level file tracking for next turn
       // 清空 Turn 级别文件追踪，为下一个 Turn 做准备
       this.currentTurnFiles.clear();
       mainLog('RemoteAgent', '[FINISH] Cleared currentTurnFiles for next turn');
       // Session is quiescent — start (or restart) idle detach countdown.
       this.scheduleIdleDetachTimer();
+    }
+  }
+
+  /**
+   * Detect and execute cron commands the remote agent emitted in its reply.
+   * Routes through MessageMiddleware.processCronInMessage, which applies the
+   * client_cron_enabled gate and (via getCronProvider) creates jobs on the
+   * active backend — moss in remote mode. Any system response (the
+   * disabled-by-org refusal, or the created/listed/deleted result) is emitted
+   * to the UI and fed back into the moss session so the agent relays an honest
+   * answer instead of falsely claiming success.
+   */
+  private async processFinishedCronCommands(text: string, msgId: string | null): Promise<void> {
+    try {
+      // Lazy import: MessageMiddleware pulls in the cron provider/database graph;
+      // importing it at module top-level would bloat RemoteAgent's load and its
+      // test harness. Cron commands are rare, so a per-occurrence import is fine.
+      const { processCronInMessage } = await import('./MessageMiddleware');
+      const message: TMessage = {
+        id: msgId || uuid(),
+        msg_id: msgId || uuid(),
+        type: 'text',
+        position: 'left',
+        conversation_id: this.conversation_id,
+        content: { content: text },
+        status: 'finish',
+        createdAt: Date.now(),
+      } as TMessage;
+
+      const collectedResponses: string[] = [];
+      // Remote sessions run the moss default backend; 'scode' is the label used
+      // for the cron job's agentType metadata.
+      await processCronInMessage(this.conversation_id, 'scode', message, (sysMsg) => {
+        collectedResponses.push(sysMsg);
+        ipcBridge.conversation.responseStream.emit({
+          type: 'system',
+          conversation_id: this.conversation_id,
+          msg_id: uuid(),
+          data: sysMsg,
+        });
+      });
+
+      if (collectedResponses.length > 0 && this.connection) {
+        const feedbackMessage = `[System Response]\n${collectedResponses.join('\n')}`;
+        this.connection.sendMessage({ content: feedbackMessage, msg_id: uuid() });
+      }
+    } catch (err) {
+      mainError('RemoteAgent', `Failed to process cron commands: ${err}`);
     }
   }
 
