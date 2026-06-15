@@ -13,7 +13,6 @@ import { emitter, useAddEventListener } from '@/renderer/utils/emitter';
 import { mergeFileSelectionItems } from '@/renderer/utils/fileSelection';
 import { Button, Dropdown, Message, Tag } from '@arco-design/web-react';
 import { Plus, Shield, UploadOne } from '@icon-park/react';
-import { iconColors } from '@/renderer/theme/colors';
 import BdpanLogo from '@/renderer/assets/logos/bdpan.png';
 import BdpanFileSelector from '@/renderer/components/BdpanFileSelector';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -895,7 +894,7 @@ const AcpSendBox: React.FC<{
                       openFileSelector();
                     }}
                   >
-                    <UploadOne theme='outline' size='16' fill={iconColors.secondary} style={{ lineHeight: 0 }} />
+                    <UploadOne theme='outline' size='16' fill={'var(--text-secondary)'} style={{ lineHeight: 0 }} />
                     <span>{t('conversation.welcome.downloadLocalFile')}</span>
                   </div>
                   <div
@@ -912,7 +911,7 @@ const AcpSendBox: React.FC<{
               }
             >
               <span className='relative'>
-                <Button shape='circle' type='secondary' title={t('conversation.welcome.downloadLocalFile')} icon={<Plus theme='outline' strokeWidth={4} fill={iconColors.secondary} />} />
+                <Button shape='circle' type='secondary' title={t('conversation.welcome.downloadLocalFile')} icon={<Plus theme='outline' strokeWidth={4} fill={'var(--text-secondary)'} />} />
                 {selectedFileCount > 0 && <span className='absolute -right-3px -top-3px f-center min-w-14px h-14px rounded-full bg-[var(--ui-accent-orange)] px-3px text-9px text-white font-600 pointer-events-none'>{selectedFileCount}</span>}
               </span>
             </Dropdown>

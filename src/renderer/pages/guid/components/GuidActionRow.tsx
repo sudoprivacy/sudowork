@@ -8,7 +8,6 @@ import { ipcBridge } from '@/common';
 import AgentModeSelector from '@/renderer/components/AgentModeSelector';
 import { getAgentModes, supportsModeSwitch, type AgentModeOption } from '@/renderer/utils/agentModes';
 import { useLayoutContext } from '@/renderer/context/LayoutContext';
-import { iconColors } from '@/renderer/theme/colors';
 import ActionChip from '@/renderer/components/ui/ActionChip';
 import type { AcpBackend, AcpBackendConfig, AvailableAgent } from '../types';
 import PresetAgentTag from './PresetAgentTag';
@@ -91,7 +90,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({ files, onFilesUploaded, o
                       });
                   }}
                 >
-                  <UploadOne theme='outline' size='16' fill={iconColors.secondary} style={{ lineHeight: 0 }} />
+                  <UploadOne theme='outline' size='16' fill={'var(--text-secondary)'} style={{ lineHeight: 0 }} />
                   <span>{t('conversation.welcome.downloadLocalFile')}</span>
                 </div>
                 <div
@@ -120,14 +119,14 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({ files, onFilesUploaded, o
                       });
                   }}
                 >
-                  <FolderOpen theme='outline' size='16' fill={iconColors.secondary} style={{ lineHeight: 0 }} />
+                  <FolderOpen theme='outline' size='16' fill={'var(--text-secondary)'} style={{ lineHeight: 0 }} />
                   <span>{t('conversation.welcome.specifyWorkspace')}</span>
                 </div>
               </div>
             }
           >
             <span className='relative'>
-              <Button shape='circle' type='secondary' title={t('conversation.welcome.downloadLocalFile')} icon={<Plus theme='outline' strokeWidth={4} fill={iconColors.secondary} />} />
+              <Button shape='circle' type='secondary' title={t('conversation.welcome.downloadLocalFile')} icon={<Plus theme='outline' strokeWidth={4} fill={'var(--text-secondary)'} />} />
               {files.length > 0 && <span className='absolute -right-3px -top-3px f-center min-w-14px h-14px rounded-full bg-[var(--ui-accent-orange)] px-3px text-9px text-white font-600 pointer-events-none'>{files.length}</span>}
               {/* {files.length > 0 && (
                 <Tooltip className={'!max-w-max'} content={<span className='whitespace-break-spaces'>{getCleanFileNames(files).join('\n')}</span>}>

@@ -7,7 +7,6 @@
 import type { IMessageText } from '@/common/chatLib';
 import { NEXUS_FILES_MARKER } from '@/common/constants';
 import { parseGeneratedFilesMarker } from '@/common/generatedFiles';
-import { iconColors } from '@/renderer/theme/colors';
 import { Alert, Message, Tag, Tooltip } from '@arco-design/web-react';
 import { Copy, Lightning } from '@icon-park/react';
 import classNames from 'classnames';
@@ -133,7 +132,7 @@ const MessageText: React.FC<{ message: IMessageText; isStreaming?: boolean; foot
   const copyButton = (
     <Tooltip content={t('common.copy', { defaultValue: 'Copy' })}>
       <div className='p-4px rd-4px cursor-pointer hover:bg-3 transition-colors' onClick={handleCopy} style={{ lineHeight: 0 }}>
-        <Copy theme='outline' size='16' fill={iconColors.secondary} />
+        <Copy theme='outline' size='16' fill={'var(--text-secondary)'} />
       </div>
     </Tooltip>
   );

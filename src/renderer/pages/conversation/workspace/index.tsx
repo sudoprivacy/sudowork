@@ -14,7 +14,6 @@ import EmptyState from '@/renderer/components/base/EmptyState';
 import { useLayoutContext } from '@/renderer/context/LayoutContext';
 import useDebounce from '@/renderer/hooks/useDebounce';
 import { usePreviewContext } from '@/renderer/pages/conversation/preview';
-import { iconColors } from '@/renderer/theme/colors';
 import { emitter } from '@/renderer/utils/emitter';
 import { isElectronDesktop } from '@/renderer/utils/platform';
 import { getLastDirectoryName, isTemporaryWorkspace as checkIsTemporaryWorkspace, isChannelWorkspace as checkIsChannelWorkspace, getWorkspaceDisplayName as getDisplayName } from '@/renderer/utils/workspace';
@@ -1160,12 +1159,12 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
           }}
         >
           <button type='button' role='tab' aria-selected={activeTab === 'files'} className={`workspace-card__tab ${activeTab === 'files' ? 'workspace-card__tab--active' : ''}`} onClick={() => setActiveTab('files')} title={workspace}>
-            <Cloudy theme='outline' size='14' fill={activeTab === 'files' ? 'rgb(var(--primary-6))' : iconColors.secondary} />
+            <Cloudy theme='outline' size='14' fill={activeTab === 'files' ? 'rgb(var(--primary-6))' : 'var(--text-secondary)'} />
             <span className='workspace-card__tab-label'>{t('conversation.workspace.tabFiles', { defaultValue: '临时空间' })}</span>
             {/* File count badge intentionally omitted per product feedback (#294): 后面的数量不要了吧，不要去统计. */}
           </button>
           <button type='button' role='tab' aria-selected={activeTab === 'skills'} className={`workspace-card__tab ${activeTab === 'skills' ? 'workspace-card__tab--active' : ''}`} onClick={() => setActiveTab('skills')}>
-            <Magic theme='outline' size='14' fill={activeTab === 'skills' ? 'rgb(var(--primary-6))' : iconColors.secondary} />
+            <Magic theme='outline' size='14' fill={activeTab === 'skills' ? 'rgb(var(--primary-6))' : 'var(--text-secondary)'} />
             <span className='workspace-card__tab-label'>{t('conversation.workspace.tabSkills', { defaultValue: '可用技能' })}</span>
             {skillCount > 0 && (
               <span className={`workspace-card__count ${activeTab === 'skills' ? 'workspace-card__count--active' : ''}`} aria-hidden='true'>
@@ -1189,7 +1188,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
               }
             }}
             allowClear
-            prefix={<Search theme='outline' size='14' fill={iconColors.secondary} />}
+            prefix={<Search theme='outline' size='14' fill={'var(--text-secondary)'} />}
           />
           <Tooltip content={t('conversation.workspace.refresh')}>
             <button
@@ -1205,7 +1204,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                 }
               }}
             >
-              <Refresh theme='outline' size='14' fill={iconColors.secondary} />
+              <Refresh theme='outline' size='14' fill={'var(--text-secondary)'} />
             </button>
           </Tooltip>
         </div>

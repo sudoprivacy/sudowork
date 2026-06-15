@@ -3,7 +3,6 @@ import classNames from 'classnames';
 import React, { Suspense, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { iconColors } from './theme/colors';
 import { Button, Dropdown, Message, Popover, Tabs, Tooltip } from '@arco-design/web-react';
 import type { BatchHistoryApi } from './pages/conversation/grouped-history/types';
 import { cleanupSiderTooltips, getSiderTooltipProps } from './utils/siderTooltip';
@@ -316,7 +315,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
                     setUserMenuOpen(false);
                   }}
                 >
-                  <SettingTwo theme='outline' size='17' fill={iconColors.secondary} />
+                  <SettingTwo theme='outline' size='17' fill={'var(--text-secondary)'} />
                   <span>{t('common.settings')}</span>
                 </div>
                 <div className='h-1px mx-4px my-2px bg-[var(--border-light)]' />
@@ -350,7 +349,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
                     <div className='text-14px font-medium text-t-primary truncate'>{userInfo.name}</div>
                     <div className='text-12px text-t-secondary truncate'>{userInfo.email}</div>
                   </div>
-                  <Down theme='outline' size='16' fill={iconColors.secondary} className='shrink-0' />
+                  <Down theme='outline' size='16' fill={'var(--text-secondary)'} className='shrink-0' />
                 </>
               )}
             </div>
@@ -361,7 +360,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
             {/* 返回按钮 */}
             <div className={classNames('flex items-center gap-10px px-4px py-10px rd-8px cursor-pointer transition-colors hover:bg-hover active:bg-fill-2', collapsed ? 'justify-center mr-2px' : 'ml-2px')} onClick={handleSettingsClick}>
               <div className='w-32px h-32px rd-50% bg-[var(--color-fill-3)] flex items-center justify-center text-t-primary text-14px font-bold shrink-0'>
-                <Return theme='outline' size='16' fill={iconColors.primary} />
+                <Return theme='outline' size='16' fill={'var(--text-primary)'} />
               </div>
               {!collapsed && (
                 <div className='flex-1 min-w-0'>

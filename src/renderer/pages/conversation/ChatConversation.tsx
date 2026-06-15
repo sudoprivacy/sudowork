@@ -9,7 +9,6 @@ import type { TChatConversation } from '@/common/storage';
 import { uuid } from '@/common/utils';
 import addChatIcon from '@/renderer/assets/add-chat.svg';
 import { usePresetAssistantInfo } from '@/renderer/hooks/usePresetAssistantInfo';
-import { iconColors } from '@/renderer/theme/colors';
 import { Button, Dropdown, Menu, Tooltip, Typography } from '@arco-design/web-react';
 import { History } from '@icon-park/react';
 import React, { useMemo } from 'react';
@@ -54,7 +53,7 @@ const _AssociatedConversation: React.FC<{ conversation_id: string }> = ({ conver
       }
       trigger={['click']}
     >
-      <Button size='mini' icon={<History theme='filled' size='14' fill={iconColors.primary} strokeWidth={2} strokeLinejoin='miter' strokeLinecap='square' />}></Button>
+      <Button size='mini' icon={<History theme='filled' size='14' fill={'var(--text-primary)'} strokeWidth={2} strokeLinejoin='miter' strokeLinecap='square' />}></Button>
     </Dropdown>
   );
 };
@@ -158,11 +157,7 @@ const ChatConversation: React.FC<{
           agentName: (conversation?.extra as { agentName?: string })?.agentName,
         };
 
-  const headerExtraNode = (
-    <div className='flex items-center gap-8px'>
-      {conversation && <AgentStatusDot conversation_id={conversation.id} conversationType={conversation.type} />}
-    </div>
-  );
+  const headerExtraNode = <div className='flex items-center gap-8px'>{conversation && <AgentStatusDot conversation_id={conversation.id} conversationType={conversation.type} />}</div>;
 
   return (
     <TaskPanelHeaderProvider>

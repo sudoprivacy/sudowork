@@ -11,7 +11,6 @@ import { useCompositionInput } from '@/renderer/hooks/useCompositionInput';
 import { Input, Tag, Tooltip } from '@arco-design/web-react';
 import { IconClose, IconPaste } from '@arco-design/web-react/icon';
 import { CloseSmall, FolderOpen, Lightning } from '@icon-park/react';
-import { iconColors } from '@/renderer/theme/colors';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import styles from '../index.module.css';
@@ -182,7 +181,7 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({ input, onInputChange, onK
       {dir && (
         <div className='flex items-start justify-between gap-10px mt-8px px-10px py-6px text-13px text-t-secondary' style={{ borderTop: '1px solid var(--border-default)' }}>
           <div className='flex items-start min-w-0 flex-1 gap-8px'>
-            <FolderOpen className='mt-1px flex-shrink-0' theme='outline' size='16' fill={iconColors.secondary} style={{ lineHeight: 0 }} />
+            <FolderOpen className='mt-1px flex-shrink-0' theme='outline' size='16' fill={'var(--text-secondary)'} style={{ lineHeight: 0 }} />
             <Tooltip content={dir} position='top' disabled={isMobile}>
               <span className='block min-w-0 whitespace-normal break-all leading-18px'>
                 {isMobile ? (

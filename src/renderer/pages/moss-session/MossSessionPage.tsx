@@ -13,7 +13,6 @@ import { MessageListProvider, useMessageList, useUpdateMessageList } from '@/ren
 import FlexFullContainer from '@renderer/components/FlexFullContainer';
 import { Button, Input, Spin, Typography } from '@arco-design/web-react';
 import { SendOne } from '@icon-park/react';
-import { iconColors } from '@/renderer/theme/colors';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import type { TMessage } from '@/common/chatLib';
@@ -234,7 +233,7 @@ const MossSessionPage: React.FC = () => {
         ) : (
           <Button
             type="primary"
-            icon={<SendOne theme="filled" size="18" fill={iconColors.primary} />}
+            icon={<SendOne theme="filled" size="18" fill="var(--text-primary)" />}
             onClick={handleSend}
             disabled={!input.trim()}
           />

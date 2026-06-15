@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { iconColors } from '@/renderer/theme/colors';
 import type { TurnTokenUsage } from '@/common/chatLib';
 import { costToUsagePoints, formatUsagePoints, resolveUsagePoints } from '@/common/tokenUsage';
 import { copyText } from '@/renderer/utils/clipboard';
@@ -137,17 +136,17 @@ const TurnActions: React.FC<TurnActionsProps> = ({ turnTexts, turnTextsRaw, conv
       <div className='flex items-center min-h-28px gap-4px flex-wrap'>
         <Tooltip content={t('common.copy', { defaultValue: 'Copy' })}>
           <div className='p-4px rd-4px cursor-pointer hover:bg-3 transition-colors' onClick={handleCopy} style={{ lineHeight: 0 }}>
-            <Copy theme='outline' size='16' fill={iconColors.secondary} />
+            <Copy theme='outline' size='16' fill={'var(--text-secondary)'} />
           </div>
         </Tooltip>
         <Tooltip content={t('messages.convertToWord', { defaultValue: 'Convert to Word' })}>
           <div className='p-4px rd-4px cursor-pointer hover:bg-3 transition-colors' onClick={handleConvertToWord} style={{ lineHeight: 0 }}>
-            <FileWord theme='outline' size='16' fill={converting ? iconColors.disabled : iconColors.secondary} />
+            <FileWord theme='outline' size='16' fill={converting ? 'var(--text-disabled)' : 'var(--text-secondary)'} />
           </div>
         </Tooltip>
         <Tooltip content={shareoneInstalled ? t('messages.shareone') : t('messages.shareCliNotInstalled')}>
           <div className='p-4px rd-4px cursor-pointer hover:bg-3 transition-colors' onClick={shareoneInstalled && !sharing ? handleShare : undefined} style={{ lineHeight: 0, opacity: shareoneInstalled ? 1 : 0.4 }}>
-            <ShareOne theme='outline' size='16' fill={sharing ? iconColors.disabled : iconColors.secondary} />
+            <ShareOne theme='outline' size='16' fill={sharing ? 'var(--text-disabled)' : 'var(--text-secondary)'} />
           </div>
         </Tooltip>
         {showTokenUsageBadge && totalTokens && (
