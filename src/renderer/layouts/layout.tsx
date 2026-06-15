@@ -23,6 +23,7 @@ import { cleanupSiderTooltips } from '@renderer/utils/siderTooltip';
 import { emitter } from '@renderer/utils/emitter';
 import { isElectronDesktop } from '@renderer/utils/platform';
 import SudoworkIcon from '@renderer/assets/sudowork-icon-dark.svg';
+
 const useDebug = () => {
   const [count, setCount] = useState(0);
   const timer = useRef<any>(null);
