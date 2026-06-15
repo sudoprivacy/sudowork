@@ -394,12 +394,28 @@ class DynamicNexusVfsService {
       }
     }
 
-    fs.mkdirSync(this.getDaemonDataDir(), { recursive: true });
+    const daemonDataDir = this.getDaemonDataDir();
+    fs.mkdirSync(daemonDataDir, { recursive: true });
+
+    // Use install root (~/.nexus-vfs) as cwd for the spawned process.
+    // This ensures the process starts in a writable directory regardless of
+    // the current working directory of the main process.
+    const spawnCwd = this.getInstallRoot();
+    if (!fs.existsSync(spawnCwd)) {
+      fs.mkdirSync(spawnCwd, { recursive: true });
+    }
 
     const spawnStart = Date.now();
     this.emit('starting', `Starting nexus-vfs on ${NEXUS_VFS_BIND_HOST}:${this._port}`);
-    mainLog('NexusVfs', `Spawning: ${launchCommand.command} ${launchCommand.args.join(' ')}`);
-    this.process = spawn(launchCommand.command, launchCommand.args, { stdio: 'pipe' });
+    mainLog('NexusVfs', `Spawning: ${launchCommand.command} ${launchCommand.args.join(' ')} cwd=${spawnCwd}`);
+    // Pass NEXUS_DATA_DIR to the vault plugin which depends on it internally.
+    // Without this, the plugin falls back to relative ./nexus-data which may fail
+    // in packaged app where cwd could be read-only.
+    this.process = spawn(launchCommand.command, launchCommand.args, {
+      stdio: 'pipe',
+      cwd: spawnCwd,
+      env: { ...process.env, NEXUS_DATA_DIR: daemonDataDir },
+    });
     processSupervisor.track(this.process);
 
     this.process.stdout?.on('data', (d: Buffer) => {
