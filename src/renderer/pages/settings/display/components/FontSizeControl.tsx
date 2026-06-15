@@ -6,6 +6,7 @@
 
 import React, { useMemo, useState } from 'react';
 import { Button, Slider } from '@arco-design/web-react';
+import { IconMinus, IconPlus } from '@arco-design/web-react/icon';
 import { useTranslation } from 'react-i18next';
 import { useThemeContext } from '@renderer/context/ThemeContext';
 import { FONT_SCALE_DEFAULT, FONT_SCALE_MAX, FONT_SCALE_MIN, FONT_SCALE_STEP } from '@renderer/hooks/useFontScale';
@@ -18,7 +19,7 @@ const clamp = (value: number) => Math.min(FONT_SCALE_MAX, Math.max(FONT_SCALE_MI
 
 const FontSizeControl: React.FC = () => {
   const { t } = useTranslation();
-  const { fontScale, setFontScale, theme } = useThemeContext();
+  const { fontScale, setFontScale } = useThemeContext();
   const [sliderValue, setSliderValue] = useState(fontScale);
 
   // 格式化显示值为百分比 / Format display value as percentage
@@ -59,32 +60,20 @@ const FontSizeControl: React.FC = () => {
 
   return (
     <div className='flex flex-col gap-2 w-full md:max-w-620px'>
-      <div className='flex items-center flex-wrap gap-x-12px gap-y-10px w-full'>
-        <div className='flex items-center gap-8px flex-1 min-w-240px'>
-          <Button size='mini' type='secondary' shape='circle' className='w-28px h-28px !min-w-28px flex items-center justify-center p-0' onClick={() => handleStep(-FONT_SCALE_STEP)} disabled={sliderValue <= FONT_SCALE_MIN + EPSILON}>
-            -
+      <div className='flex items-center flex-wrap gap-x-3 gap-y-2.5 w-full'>
+        <div className='flex items-center gap-4 flex-1 min-w-60'>
+          <Button size='mini' type='secondary' shape='circle' onClick={() => handleStep(-FONT_SCALE_STEP)} disabled={sliderValue <= FONT_SCALE_MIN + EPSILON}>
+            <IconMinus />
           </Button>
           {/* 滑杆覆盖 80%-150% 区间，松手后写入配置 / Slider covers 80%-150% range and persists value on release */}
-          <Slider className='flex-1 min-w-180px font-scale-slider p-0 m-0' showTicks min={FONT_SCALE_MIN} max={FONT_SCALE_MAX} step={FONT_SCALE_STEP} value={sliderValue} onChange={handleSliderChange} onAfterChange={handleSliderAfterChange} marks={defaultMarks} />
-          <Button size='mini' type='secondary' shape='circle' className='w-28px h-28px !min-w-28px flex items-center justify-center p-0' onClick={() => handleStep(FONT_SCALE_STEP)} disabled={sliderValue >= FONT_SCALE_MAX - EPSILON}>
-            +
+          <Slider className='flex-1 min-w-45 p-0 m-0' showTicks min={FONT_SCALE_MIN} max={FONT_SCALE_MAX} step={FONT_SCALE_STEP} value={sliderValue} onChange={handleSliderChange} onAfterChange={handleSliderAfterChange} marks={defaultMarks} />
+          <Button size='mini' type='secondary' shape='circle' onClick={() => handleStep(FONT_SCALE_STEP)} disabled={sliderValue >= FONT_SCALE_MAX - EPSILON}>
+            <IconPlus />
           </Button>
         </div>
-        <div className='flex items-center gap-10px ml-auto'>
-          <span className='text-13px text-t-primary text-right min-w-56px' style={{ fontVariantNumeric: 'tabular-nums' }}>
-            {formattedValue}
-          </span>
-          <Button
-            size='small'
-            type='text'
-            className='px-4px h-28px'
-            onClick={handleReset}
-            disabled={isResetDisabled}
-            style={{
-              color: isResetDisabled ? (theme === 'dark' ? 'rgba(230, 232, 236, 0.62)' : 'rgba(78, 89, 105, 0.72)') : 'rgb(var(--primary-6))',
-              opacity: 1,
-            }}
-          >
+        <div className='flex items-center gap-2.5 ml-auto'>
+          <span className='text-13px text-t-primary text-right'>{formattedValue}</span>
+          <Button size='small' type='text' onClick={handleReset} disabled={isResetDisabled}>
             {t('settings.fontSizeReset')}
           </Button>
         </div>

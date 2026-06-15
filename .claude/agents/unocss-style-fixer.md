@@ -69,13 +69,13 @@ border-l border-l-solid border-[var(--border-light)]
 
 `presetWind3` 数字 scale 1 = 4px，所以换算就是 **÷4**：
 
-| px | scale | px | scale |
-|----|-------|----|-------|
-| 2  | 0.5   | 16 | 4     |
-| 4  | 1     | 24 | 6     |
-| 6  | 1.5   | 32 | 8     |
-| 8  | 2     | 40 | 10    |
-| 12 | 3     | 14 | 3.5   |
+| px  | scale | px  | scale |
+| --- | ----- | --- | ----- |
+| 2   | 0.5   | 16  | 4     |
+| 4   | 1     | 24  | 6     |
+| 6   | 1.5   | 32  | 8     |
+| 8   | 2     | 40  | 10    |
+| 12  | 3     | 14  | 3.5   |
 
 （px 与 scale 在本项目渲染完全等价：字号调节走 Electron zoom，整页等比缩放，px 与 rem 无差异。所以这是纯写法规范，零视觉风险。）
 
@@ -87,7 +87,33 @@ border-l border-l-solid border-[var(--border-light)]
 
 转换建议用带词边界的 `perl -pi -e 's/\bgap-8px\b/gap-2/g; ...'` 批量替换（注意 `\bh-14px\b` 不会误伤 `h-140px`），改完用下面的「剩余 px」grep 自检。
 
-### 6. 可用的 transformer
+### 6. 清除「未声明 / 不生成任何 CSS」的 class
+
+className 里残留的、**两个来源都查不到**的 class 要清掉——它们不产出任何 CSS，纯是死字符串（常见来源：改写遗留、复制粘贴别处的类名、拼写错误、已删除的 shortcut）。两个来源：
+
+1. **UnoCSS**：项目 `shortcuts` / `rules` / `theme`，或 preset 内置原子类。
+2. **手写全局 CSS**：`src/renderer/styles/` 下的 `.css`（全局类、`@apply` 封装类、`:root` 之外的具名 class）。
+
+**判定流程（必须实查，别凭眼判）**：
+
+```bash
+# (1) UnoCSS 是否产出：输出为空 = UnoCSS 不认识
+const { css } = await uno.generate('可疑class1 可疑class2')   # 见顶部生成器脚本
+
+# (2) 手写 CSS 是否声明：在 styles 目录搜类名
+grep -rn "\.可疑class\b" src/renderer/styles/
+```
+
+两处都查不到 → 死类，删。任一处命中 → 保留。
+
+注意排除「误判」：
+- 运行时动态拼接 / `clsx` 条件类 / 模板变量里的类名——这些静态 grep 可能扫不全，删前先确认不是动态引用。
+- 业务/第三方约定的非 UnoCSS 类（如 Arco 的 `arco-*`、`react-*` 库的 hook 类、`data-*` 配套的语义类、滚动锚点类）——这些不归 UnoCSS 管，**保留**。
+- 选择器钩子类（仅作 JS querySelector / CSS 后代选择器锚点，自身不需要样式）——保留，但建议确认确有引用。
+
+**修法**：确认是死类后直接从 className 删除；若原本想要某效果但写错了类名，改成正确的 UnoCSS/shortcut 写法（而非保留错误类）。
+
+### 7. 可用的 transformer
 
 - `transformerVariantGroup` 已开：可写 `hover:(bg-3 border-primary)` 变体组。
 - `transformerDirectives` 已开：`.css` 里可用 `@apply`。
