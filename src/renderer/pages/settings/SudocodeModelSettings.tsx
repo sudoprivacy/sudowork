@@ -203,6 +203,7 @@ const AddModelDialog: React.FC<{
     });
     setShowApiKey(false);
     setProviderModels([]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form, visible]);
 
   useEffect(() => {

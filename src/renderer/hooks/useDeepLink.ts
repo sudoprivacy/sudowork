@@ -11,7 +11,7 @@ import { ipcBridge } from '@/common';
 /**
  * Deep link event payload from main process
  */
-export type DeepLinkPayload = {
+export type IDeepLinkPayload = {
   action: string;
   params: Record<string, string>;
 };
@@ -24,7 +24,7 @@ export const useDeepLink = () => {
   const navigate = useNavigate();
 
   const handler = useCallback(
-    (payload: DeepLinkPayload) => {
+    (payload: IDeepLinkPayload) => {
       // Support both formats: "add-provider" and "provider/add" (one-api style)
       if (payload.action === 'add-provider' || payload.action === 'provider/add') {
         void navigate('/settings/model');
