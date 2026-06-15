@@ -1,6 +1,6 @@
 import { AlarmClock, Down, Earth, Lightning, ListCheckbox, Logout, Plus, Return, Robot, SettingTwo, Shield } from '@icon-park/react';
 import classNames from 'classnames';
-import React, { Suspense, useEffect, useRef, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Button, Dropdown, Message, Popover, Tabs, Tooltip } from '@arco-design/web-react';
@@ -19,15 +19,18 @@ import WorkspaceGroupedHistory from '@renderer/pages/conversation/WorkspaceGroup
 import SettingsSider from '@renderer/pages/settings/SettingsSider';
 import { maskPhone } from '@renderer/utils';
 
-interface SiderProps {
-  onSessionClick?: () => void;
-  collapsed?: boolean;
-}
-
-const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
+const Sider: React.FC = () => {
   const layout = useLayoutContext();
   const isMobile = layout?.isMobile ?? false;
+  const collapsed = layout?.siderCollapsed ?? false;
   const { pathname, search, hash } = useLocation();
+
+  // 选中会话 / 触发导航后，移动端自动收起侧栏并清理 tooltip 残留
+  // After selecting a session / navigating, collapse the sider on mobile and clean up tooltip remnants
+  const onSessionClick = useCallback(() => {
+    cleanupSiderTooltips();
+    if (isMobile) layout?.setSiderCollapsed(true);
+  }, [isMobile, layout]);
 
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -104,9 +107,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
     } else {
       void navigate('/settings/profile');
     }
-    if (onSessionClick) {
-      onSessionClick();
-    }
+    onSessionClick();
   };
 
   // Batch-action API published up from the history list; drives the popover content.
@@ -136,11 +137,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
   const workspaceHistoryProps = {
     collapsed,
     tooltipEnabled: collapsed && !isMobile,
-    onSessionClick: () => {
-      if (onSessionClick) {
-        onSessionClick();
-      }
-    },
+    onSessionClick,
     batchMode: isBatchMode,
     onBatchModeChange: setIsBatchMode,
     activeTab: effectiveTab,
@@ -173,9 +170,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
                     // 触发 Guide 页面重置所有用户输入状态
                     emitter.emit('guid.reset');
                     void navigate('/guid');
-                    if (onSessionClick) {
-                      onSessionClick();
-                    }
+                    onSessionClick();
                   }}
                 >
                   <Plus theme='outline' size='20' fill='currentColor' className='text-foreground shrink-0 block leading-none' />
@@ -192,9 +187,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
                     // 触发 Guide 页面重置所有用户输入状态
                     emitter.emit('guid.reset');
                     void navigate('/guid');
-                    if (onSessionClick) {
-                      onSessionClick();
-                    }
+                    onSessionClick();
                   }}
                 >
                   <Plus theme='outline' size='20' fill='currentColor' className='text-foreground shrink-0 block leading-none' />
@@ -218,9 +211,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
                         cleanupSiderTooltips();
                         blurActiveElement();
                         handleFunctionMenuClick(menu.id);
-                        if (onSessionClick) {
-                          onSessionClick();
-                        }
+                        onSessionClick();
                       }}
                     />
                   </Tooltip>

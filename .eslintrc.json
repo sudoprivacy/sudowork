@@ -74,6 +74,7 @@
     "no-constant-condition": "warn",
     "no-empty-pattern": "warn",
     "import/no-named-as-default-member": "warn",
+    "import/order": "warn",
     "@typescript-eslint/no-floating-promises": "error",
     "@typescript-eslint/await-thenable": "error",
     "react-hooks/set-state-in-effect": "off",
