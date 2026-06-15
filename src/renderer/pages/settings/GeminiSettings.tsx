@@ -5,8 +5,8 @@
  */
 
 import React from 'react';
-import GeminiModalContent from '@/renderer/components/SettingsModal/contents/GeminiModalContent';
 import SettingsPageWrapper from './components/SettingsPageWrapper';
+import GeminiModalContent from '@/renderer/components/SettingsModal/contents/GeminiModalContent';
 
 const GeminiSettings: React.FC = () => {
   return (

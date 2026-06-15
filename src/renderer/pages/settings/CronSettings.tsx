@@ -5,8 +5,8 @@
  */
 
 import React from 'react';
-import CronModalContent from '@/renderer/components/SettingsModal/contents/CronModalContent';
 import SettingsPageWrapper from './components/SettingsPageWrapper';
+import CronModalContent from '@/renderer/components/SettingsModal/contents/CronModalContent';
 
 const CronSettings: React.FC = () => {
   return (

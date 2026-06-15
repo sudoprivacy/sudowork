@@ -1,13 +1,13 @@
-import { isElectronDesktop, resolveExtensionAssetUrl } from '@/renderer/utils/platform';
-import { extensions as extensionsIpc, type IExtensionSettingsTab } from '@/common/ipcBridge';
-import { useExtI18n } from '@/renderer/hooks/useExtI18n';
-import { useAppMode } from '@/renderer/hooks/useAppMode';
 import { Communication, Computer, Connection, Dollar, Earth, HardDiskOne, Info, Lightning, LinkCloud, Peoples, Puzzle, Robot, Shield, System, Toolkit, User, BuildingTwo } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Tooltip } from '@arco-design/web-react';
+import { useAppMode } from '@/renderer/hooks/useAppMode';
+import { useExtI18n } from '@/renderer/hooks/useExtI18n';
+import { extensions as extensionsIpc, type IExtensionSettingsTab } from '@/common/ipcBridge';
+import { isElectronDesktop, resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import { getSiderTooltipProps } from '@/renderer/utils/siderTooltip';
 import SidebarNavItem from '@/renderer/components/ui/SidebarNavItem';
 

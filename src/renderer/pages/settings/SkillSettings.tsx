@@ -5,8 +5,8 @@
  */
 
 import React from 'react';
-import SkillModalContent from '@/renderer/components/SettingsModal/contents/SkillModalContent';
 import SettingsPageWrapper from './components/SettingsPageWrapper';
+import SkillModalContent from '@/renderer/components/SettingsModal/contents/SkillModalContent';
 
 const SkillSettings: React.FC = () => {
   return (
