@@ -5,10 +5,38 @@ export const ACP_WORKSPACE_TRACKING_SKIP_DIRS = new Set(['.codex', '.drafts', '.
 export const ACP_WORKSPACE_TRACKING_SKIP_FILES = new Set(['.gitignore', '.env', '.env.local', '.DS_Store', 'Thumbs.db']);
 
 export const SCODE_COMPLETION_REMINDER = `<system-reminder>
-任务完成时，请始终使用用户提问的语言发送一条普通助手消息，总结执行结果并列出生成或更新的文件。不要只以工具调用结束。
+语言约定：所有面向用户的自然语言回复（包括工具调用前后状态说明、阶段解释、中间总结、最终总结）必须使用用户最后一条消息的主要语言。
+
+中文用户时：除代码、命令、路径、专有名词、引用原文外，不得输出完整英文句子。工具调用状态、文件操作说明、任务进度等均须用中文表达。
+
+任务完成时：请用用户语言发送一条普通助手消息，总结执行结果并列出生成或更新的文件，不要只以工具调用结束。
 </system-reminder>
 
 `;
+
+export function buildAcpModelIdentityReminder(backend: string, activeModelNoticeId: string): string {
+  if (backend === 'scode') {
+    return (
+      `<system-reminder>\n` +
+      `当前活动模型：${activeModelNoticeId}。` +
+      `你当前正在以 ${activeModelNoticeId} 运行。` +
+      `你的内置助手身份或品牌文本可能仍会提到 Claude 或 Anthropic，即使实际活动模型不同。` +
+      `当用户询问你使用哪个模型时，请回答 ${activeModelNoticeId}。\n` +
+      `</system-reminder>\n\n`
+    );
+  }
+
+  const staleIdentityHint =
+    'The ANTHROPIC_MODEL environment variable and the earlier "You are powered by" text in the system prompt are stale (cached from session start) and no longer reflect the actual model.';
+  return (
+    `<system-reminder>\n` +
+    `Active model: ${activeModelNoticeId}. ` +
+    `You are currently running as ${activeModelNoticeId}. ` +
+    `${staleIdentityHint} ` +
+    `When asked which model you are, answer ${activeModelNoticeId}.\n` +
+    `</system-reminder>\n\n`
+  );
+}
 
 export function shouldRunCurrentTurnPostCleanup(pendingCurrentTurnPostCleanup: boolean): boolean {
   return pendingCurrentTurnPostCleanup;
