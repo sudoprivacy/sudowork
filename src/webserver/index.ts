@@ -249,7 +249,37 @@ export async function startWebServerWithInstance(port: number, allowRemote = fal
   // 创建 Express 应用和服务器 / Create Express app and server
   const app = express();
   const server = createServer(app);
-  const wss = new WebSocketServer({ server });
+  // Don't bind WSS to server directly — handle upgrade manually so we can
+  // proxy Vite HMR WebSocket in dev mode while routing IPC to our WSS.
+  const wss = new WebSocketServer({ noServer: true });
+
+  server.on('upgrade', (req, socket, head) => {
+    // In dev mode, proxy Vite HMR WebSocket to Vite dev server.
+    // Vite HMR uses 'vite-hmr' subprotocol; Sudowork IPC does not.
+    const electronApp = require('electron').app;
+    const isViteHmr = !electronApp.isPackaged && req.headers['sec-websocket-protocol'] === 'vite-hmr';
+
+    if (isViteHmr) {
+      // Proxy to Vite dev server
+      const net = require('net') as typeof import('net');
+      const viteSocket = net.connect(5173, 'localhost', () => {
+        const reqLine = `${req.method} ${req.url} HTTP/${req.httpVersion}\r\n`;
+        const headers = Object.entries(req.headers)
+          .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`)
+          .join('\r\n');
+        viteSocket.write(reqLine + headers + '\r\n\r\n');
+        viteSocket.write(head);
+        socket.pipe(viteSocket).pipe(socket);
+      });
+      viteSocket.on('error', () => socket.destroy());
+      return;
+    }
+
+    // Sudowork IPC WebSocket
+    wss.handleUpgrade(req, socket, head, (ws) => {
+      wss.emit('connection', ws, req);
+    });
+  });
 
   // 初始化默认管理员账户 / Initialize default admin account
   const initialCredentials = await initializeDefaultAdmin();
