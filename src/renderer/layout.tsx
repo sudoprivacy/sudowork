@@ -168,9 +168,7 @@ const Layout: React.FC<{
             collapsedWidth={0}
             collapsed={collapsed}
             width={siderWidth}
-            className={classNames('layout-sider', {
-              collapsed: collapsed,
-            })}
+            className='layout-sider'
             style={
               isMobile
                 ? {
@@ -212,7 +210,7 @@ const Layout: React.FC<{
           </ArcoLayout.Sider>
 
           <ArcoLayout.Content
-            className={'bg-1 layout-content flex flex-col min-h-0'}
+            className={classNames('bg-1 layout-content flex flex-col min-h-0', { 'layout-content--sider-collapsed': collapsed })}
             onClick={() => {
               if (isMobile && !collapsed) setCollapsed(true);
             }}
