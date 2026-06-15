@@ -596,7 +596,7 @@ const createWindow = (): void => {
     ...(process.platform === 'darwin'
       ? {
           titleBarStyle: 'hidden',
-          trafficLightPosition: { x: 10, y: 10 },
+          trafficLightPosition: { x: 10, y: 14 },
         }
       : { frame: false }),
     webPreferences: {

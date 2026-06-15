@@ -12,6 +12,7 @@ Sudowork 是一个基于 Electron 的桌面应用（productName 为 `sudowork`�
 - **运行 `bunx tsc --noEmit` 校验类型** —— 开启了 strict 模式，类型错误会阻塞合并。
 - **绝不添加 AI 署名** 到 commit 或 PR（`Co-Authored-By`、"Generated with…"、任何 AI 落款）。这是硬性规则 —— 违反会污染 git 历史。
 - **绝不硬编码面向用户的字符串** —— 使用 i18n key（`src/renderer/i18n/locales/*.json`）。
+- **复杂逻辑才注释，简单改动不写** —— 不要为了模仿周围注释密度而堆注释；只在逻辑不直观、需要解释「为什么」时写。
 - 提交信息：英文，格式 `<type>(<scope>): <subject>`（feat/fix/refactor/chore/docs/test/style/perf）。
 
 ## 常用命令
