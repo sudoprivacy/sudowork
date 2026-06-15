@@ -5,7 +5,7 @@ import { Divider, Typography } from '@arco-design/web-react';
 import type { PropsWithChildren } from 'react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { removeStack } from '../../../utils/common';
+import { removeStack } from '../../../utils';
 
 const ConversationChatConfirm: React.FC<PropsWithChildren<{ conversation_id: string }>> = ({ conversation_id, children }) => {
   const [confirmations, setConfirmations] = useState<IConfirmation<any>[]>([]);

@@ -11,7 +11,7 @@ type FN<P> = FunctionComponent<PropsWithChildren<P>>;
 
 type F2D<T> = T | ((data: T) => T);
 
-export const createContext = <T extends any>(value: T): [() => T, FN<{ value: T }>, () => (value: F2D<T>) => void] => {
+export const createContext = <T,>(value: T): [() => T, FN<{ value: T }>, () => (value: F2D<T>) => void] => {
   const Context = React.createContext<{
     value: T;
     setValue: (value: T) => void;

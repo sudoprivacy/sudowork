@@ -7,7 +7,7 @@
 import React, { useState, useCallback } from 'react';
 import type { CSSProperties } from 'react';
 import classNames from 'classnames';
-import { removeStack } from '@/renderer/utils/common';
+import { removeStack } from '@/renderer/utils';
 
 const addWindowEventListener = <K extends keyof WindowEventMap>(key: K, handler: (e: WindowEventMap[K]) => void): (() => void) => {
   if (typeof window === 'undefined') {

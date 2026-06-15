@@ -85,14 +85,3 @@ export function getAgentLogo(agent: string | undefined | null): string | null {
   }
   return AGENT_LOGO_MAP[key] || null;
 }
-
-/**
- * 检查 agent 是否有对应的 logo
- * Check if agent has a corresponding logo
- *
- * @param agent - Agent 名称（不区分大小写）/ Agent name (case-insensitive)
- * @returns 是否存在对应的 logo / Whether the agent has a corresponding logo
- */
-export function hasAgentLogo(agent: string | undefined | null): boolean {
-  return getAgentLogo(agent) !== null;
-}

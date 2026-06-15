@@ -1,7 +1,7 @@
 import type { FileMetadata } from '@/renderer/services/FileService';
 import { PasteService } from '@/renderer/services/PasteService';
 import { useCallback, useEffect, useRef } from 'react';
-import { uuid } from '../utils/common';
+import { uuid } from '../utils';
 
 interface UsePasteServiceProps {
   supportedExts: string[];

@@ -48,31 +48,3 @@ export const getTimelineLabel = (time: number, currentTime: number, t: (key: str
   if (daysDiff < 7) return t('conversation.history.recent7Days');
   return t('conversation.history.earlier');
 };
-
-/**
- * Create a timeline group function that deduplicates consecutive same-label items
- * 创建一个时间线分组函数，用于去重连续的相同标签项
- *
- * @param t - The i18n translation function
- * @returns A function that returns the timeline label or empty string if same as previous
- */
-export const createTimelineGrouper = (t: (key: string) => string) => {
-  const current = Date.now();
-  let prevTime: number;
-
-  const format = (time: number) => {
-    if (diffDay(current, time) === 0) return t('conversation.history.today');
-    if (diffDay(current, time) === 1) return t('conversation.history.yesterday');
-    if (diffDay(current, time) < 7) return t('conversation.history.recent7Days');
-    return t('conversation.history.earlier');
-  };
-
-  return (conversation: TChatConversation) => {
-    const time = getActivityTime(conversation);
-    const formatStr = format(time);
-    const prevFormatStr = prevTime !== undefined ? format(prevTime) : undefined;
-    prevTime = time;
-    // Only return label if different from previous (for grouping headers)
-    return formatStr !== prevFormatStr ? formatStr : '';
-  };
-};
