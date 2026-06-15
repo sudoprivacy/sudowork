@@ -44,7 +44,7 @@ import { injectSkillsDirectoryHint, prepareFirstMessageWithSkillsIndex } from '.
 import { AcpSkillManager } from './AcpSkillManager';
 import { archiveTurnFiles, cleanupIntermediateFiles, cleanupTrackedDraftsOnCancel, type TrackedTurnFile } from './draftsCleanup';
 import { detectBashDraftRestoreCommand, FileIntentClassifier, type BashDraftRestoreDetection, type FileIntentSource, type FileOperationIntent } from './FileIntentClassifier';
-import { SCODE_COMPLETION_REMINDER, shouldRunCurrentTurnPostCleanup, shouldSkipAcpWorkspaceTrackingPath } from './acpWorkspaceTracking';
+import { buildAcpModelIdentityReminder, SCODE_COMPLETION_REMINDER, shouldRunCurrentTurnPostCleanup, shouldSkipAcpWorkspaceTrackingPath } from './acpWorkspaceTracking';
 import { mergeScodeProxyModelInfo, isModelVisionCapable, getScodeProxyModelInfoSync } from '@process/services/scode/scodeProxyModels';
 import { installWorkspaceSkillsFromTrackedFiles } from './workspaceSkillInstaller';
 import { appendGeneratedFilesMarker, extractExtension, mimeForExtension, type GeneratedFileEntry } from '@/common/generatedFiles';
@@ -1183,8 +1183,7 @@ This identity statement takes priority over the default identity in USER.md.
 
       // Inject model identity reminder for backends whose upstream identity text can be stale.
       if (activeModelNoticeId && (this.extra.backend === 'claude' || this.extra.backend === 'scode')) {
-        const staleIdentityHint = this.extra.backend === 'claude' ? 'The ANTHROPIC_MODEL environment variable and the earlier "You are powered by" text in the system prompt are stale (cached from session start) and no longer reflect the actual model.' : 'Your built-in assistant identity or branding text may still mention Claude or Anthropic even when the actual active model is different.';
-        const modelNotice = `<system-reminder>\n` + `Active model: ${activeModelNoticeId}. ` + `You are currently running as ${activeModelNoticeId}. ` + `${staleIdentityHint} ` + `When asked which model you are, answer ${activeModelNoticeId}.\n` + `</system-reminder>\n\n`;
+        const modelNotice = buildAcpModelIdentityReminder(this.extra.backend, activeModelNoticeId);
         processedContent = modelNotice + processedContent;
         this.pendingModelSwitchNotice = null;
       }
