@@ -10,11 +10,34 @@ body {
   // Arco 边框 token 桥接：Arco 组件在 body 上消费 --color-border-2（写到 :root 会被 body 遮蔽），
   // 故在此覆盖为项目语义 token。值引用 --border-light，自动随主题切换。
   --color-border-2: var(--border-light);
+
+  --arcoblue-1: 255, 243, 230;
+  --arcoblue-2: 254, 224, 191;
+  --arcoblue-3: 253, 194, 128;
+  --arcoblue-4: 251, 158, 72;
+  --arcoblue-5: 250, 135, 46;
+  --arcoblue-6: 249, 115, 22;
+  --arcoblue-7: 217, 95, 14;
+  --arcoblue-8: 184, 76, 10;
+  --arcoblue-9: 150, 58, 8;
+  --arcoblue-10: 120, 44, 8;
 }
 
-// 深色下 Arco 用 body[arco-theme='dark'] 定义该 token（特异性更高），需同等选择器压过。
+// 深色下 Arco 用 body[arco-theme='dark'] 定义这些 token（特异性更高），需同等选择器压过。
 body[arco-theme='dark'] {
   --color-border-2: var(--border-light);
+
+  // 暗色橙阶（沿用 Arco 暗色蓝阶明度：1 最深 → 10 最浅，6 为基色）
+  --arcoblue-1: 64, 30, 8;
+  --arcoblue-2: 102, 48, 10;
+  --arcoblue-3: 140, 68, 16;
+  --arcoblue-4: 188, 96, 30;
+  --arcoblue-5: 232, 124, 46;
+  --arcoblue-6: 251, 140, 58;
+  --arcoblue-7: 252, 165, 99;
+  --arcoblue-8: 253, 191, 143;
+  --arcoblue-9: 254, 214, 184;
+  --arcoblue-10: 255, 236, 220;
 }
 
 // ---------- Button ----------
@@ -116,7 +139,7 @@ body[arco-theme='dark'] {
   &-title {
     font-size: 18px;
     font-weight: 500;
-    color: var(--text-foreground);
+    color: var(--foreground);
     margin: 0;
   }
 

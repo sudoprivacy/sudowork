@@ -72,7 +72,7 @@ const FontSizeControl: React.FC = () => {
           </Button>
         </div>
         <div className='flex items-center gap-2.5 ml-auto'>
-          <span className='text-13px text-foreground text-right'>{formattedValue}</span>
+          <span className='text-13px text-right'>{formattedValue}</span>
           <Button size='small' type='text' onClick={handleReset} disabled={isResetDisabled}>
             {t('settings.fontSizeReset')}
           </Button>
