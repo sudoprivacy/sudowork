@@ -15,8 +15,8 @@ import { useAppMode } from './hooks/useAppMode';
 import { useCronEnabled } from './hooks/useCronEnabled';
 import SidebarNavItem from './components/ui/SidebarNavItem';
 
-const WorkspaceGroupedHistory = React.lazy(() => import('./pages/conversation/WorkspaceGroupedHistory'));
-const SettingsSider = React.lazy(() => import('./pages/settings/SettingsSider'));
+import WorkspaceGroupedHistory from './pages/conversation/WorkspaceGroupedHistory';
+import SettingsSider from './pages/settings/SettingsSider';
 
 /**
  * 手机号脱敏：保留前 3 位和后 4 位，中间用 **** 替代。
@@ -242,13 +242,10 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
             </div>
 
             {/* Session history tabs + batch mode button */}
-            <div className={classNames('mb-8px px-8px flex items-center', collapsed ? 'justify-center' : 'justify-between')}>
-              {/* The scheduled (cron) tab is only meaningful when the client cron
-                  feature is enabled; with it off only the timeline remains, so we
-                  hide the whole switcher. */}
-              {!collapsed && cronEnabled && (
+            <div className={classNames('mb-8px px-8px flex items-center justify-between')}>
+              {cronEnabled && (
                 <Tabs
-                  className='sidebar-tabs flex-1'
+                  className='sidebar-tabs flex-1 shrink-0'
                   type='line'
                   activeTab={effectiveTab}
                   headerPadding={false}
