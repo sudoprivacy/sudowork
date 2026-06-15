@@ -399,7 +399,17 @@ class DynamicNexusVfsService {
     const spawnStart = Date.now();
     this.emit('starting', `Starting nexus-vfs on ${NEXUS_VFS_BIND_HOST}:${this._port}`);
     mainLog('NexusVfs', `Spawning: ${launchCommand.command} ${launchCommand.args.join(' ')}`);
-    this.process = spawn(launchCommand.command, launchCommand.args, { stdio: 'pipe' });
+    // Inject NEXUS_DATA_DIR so signed plugins (vault et al.) use the canonical
+    // data root instead of the upstream `./nexus-data` relative-path fallback
+    // (vault v0.1.3 rust/services/vault/src/lib.rs:47-52). Without this, macOS
+    // Finder launches with cwd=/ hit EROFS under SIP and panic; Windows silently
+    // writes vault data to whatever cwd the shortcut/exe inherited.
+    // Spread process.env first, then assign — Node spawn does NOT inherit env
+    // when the option is set, so PATH/HOME/etc. must be carried explicitly.
+    this.process = spawn(launchCommand.command, launchCommand.args, {
+      stdio: 'pipe',
+      env: { ...process.env, NEXUS_DATA_DIR: this.getDaemonDataDir() },
+    });
     processSupervisor.track(this.process);
 
     this.process.stdout?.on('data', (d: Buffer) => {
