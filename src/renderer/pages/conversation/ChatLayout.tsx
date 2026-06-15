@@ -781,7 +781,7 @@ const ChatLayout: React.FC<{
             onClick={() => dispatchWorkspaceToggleEvent()}
             aria-label='Collapse workspace'
           >
-            <span className='flex flex-col items-center justify-center gap-5px text-t-secondary'>
+            <span className='flex flex-col items-center justify-center gap-5px text-secondary'>
               <span className='block w-8px h-2px rd-999px bg-current opacity-85'></span>
               <span className='block w-8px h-2px rd-999px bg-current opacity-65'></span>
               <span className='block w-8px h-2px rd-999px bg-current opacity-45'></span>

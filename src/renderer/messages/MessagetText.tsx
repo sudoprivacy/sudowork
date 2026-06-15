@@ -196,7 +196,7 @@ const MessageText: React.FC<{ message: IMessageText; isStreaming?: boolean; foot
         {/* Skill tags - displayed below user message content */}
         {skills.length > 0 && isUserMessage && (
           <div className={classNames('mt-6px mb-6px', { 'self-end': isUserMessage })}>
-            <div className='flex items-center gap-4px text-10px text-t-secondary mb-4px'>
+            <div className='flex items-center gap-4px text-10px text-secondary mb-4px'>
               <Lightning size='10' className='text-primary' />
               <span>当前使用技能</span>
             </div>

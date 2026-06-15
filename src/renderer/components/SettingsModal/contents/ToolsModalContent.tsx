@@ -199,13 +199,13 @@ const ModalMcpManagementSection: React.FC<{ message: MessageInstance }> = ({ mes
   return (
     <div className='flex flex-col gap-16px min-h-0'>
       <div className='flex gap-8px items-center justify-between'>
-        <div className='text-14px text-t-primary'>{t('settings.mcpSettings')}</div>
+        <div className='text-14px text-foreground'>{t('settings.mcpSettings')}</div>
         <div>{renderAddButton()}</div>
       </div>
 
       <div className='flex-1 min-h-0'>
         {mcpServers.length === 0 && extensionMcpServers.length === 0 ? (
-          <div className='py-24px text-center text-t-secondary text-14px border border-dashed rd-12px'>{t('settings.mcpNoServersFound')}</div>
+          <div className='py-24px text-center text-secondary text-14px border border-dashed rd-12px'>{t('settings.mcpNoServersFound')}</div>
         ) : (
           <AionScrollArea className={'max-h-360px max-h-none'} disableOverflow>
             <div className='space-y-12px'>
@@ -320,7 +320,7 @@ const ToolsModalContent: React.FC = () => {
           {/* 图像生成 */}
           <div className='px-[12px] md:px-[32px] py-[24px] bg-2 rd-12px md:rd-16px border'>
             <div className='flex items-center justify-between mb-16px'>
-              <span className='text-14px text-t-primary'>{t('settings.imageGeneration')}</span>
+              <span className='text-14px text-foreground'>{t('settings.imageGeneration')}</span>
               <Switch checked={imageGenerationModel?.switch} onChange={(checked) => handleImageGenerationModelChange({ switch: checked })} className='settings-accent-switch' style={imageGenerationModel?.switch ? { backgroundColor: 'var(--ui-accent-orange)' } : undefined} />
             </div>
 

@@ -93,8 +93,8 @@ const MessageAcpPermission: React.FC<MessageAcpPermissionProps> = React.memo(({ 
         </div>
         {(toolCall.rawInput?.command || toolCall.title) && (
           <div>
-            <Text className='text-xs text-t-secondary mb-1'>{t('messages.command')}</Text>
-            <code className='text-xs bg-1 p-2 rounded block text-t-primary break-all'>{toolCall.rawInput?.command || toolCall.title}</code>
+            <Text className='text-xs text-secondary mb-1'>{t('messages.command')}</Text>
+            <code className='text-xs bg-1 p-2 rounded block text-foreground break-all'>{toolCall.rawInput?.command || toolCall.title}</code>
           </div>
         )}
         {!hasResponded && (

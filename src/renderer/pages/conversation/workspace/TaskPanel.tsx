@@ -323,7 +323,7 @@ const PanelTaskNode: React.FC<{ task: SubTask; pos: NodePos; selected: boolean; 
     >
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 5 }}>
         <span style={{ fontSize: 13, lineHeight: 1, marginTop: 1, flexShrink: 0 }}>{tc.icon}</span>
-        <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--color-text-1, var(--text-primary))', lineHeight: 1.3, flex: 1, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{task.name}</span>
+        <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--color-text-1, var(--foreground))', lineHeight: 1.3, flex: 1, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{task.name}</span>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4 }}>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 5px', borderRadius: 99, fontSize: 10, fontWeight: 600, color: sc.color, background: sc.bg, border: `1px solid ${sc.border}`, whiteSpace: 'nowrap' }}>
@@ -376,7 +376,7 @@ const FullTaskNode: React.FC<{ task: SubTask; pos: NodePos; selected: boolean; o
       }}
     >
       <div style={{ padding: '14px 16px 10px' }}>
-        <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 5, lineHeight: 1.35 }}>{task.name}</div>
+        <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--foreground)', marginBottom: 5, lineHeight: 1.35 }}>{task.name}</div>
         <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{getSubtitle()}</div>
       </div>
       <div style={{ background: 'rgba(255,255,255,0.025)', borderTop: '1px solid var(--bg-3)', padding: '7px 14px', display: 'flex', justifyContent: 'flex-end', gap: 14 }}>
@@ -426,7 +426,7 @@ const MetricRow: React.FC<{ label: string; value?: string | number | null }> = (
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0', borderBottom: '1px solid var(--bg-3)' }}>
       <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{label}</span>
-      <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'monospace' }}>{value}</span>
+      <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--foreground)', fontFamily: 'monospace' }}>{value}</span>
     </div>
   );
 };
@@ -437,7 +437,7 @@ const DetailDrawer: React.FC<{ task: SubTask; dag: Dag; onClose: () => void; dar
   const m = task.metrics ?? {};
   const bg = dark ? 'var(--bg-2)' : 'var(--color-bg-1, #fff)';
   const border = dark ? 'var(--bg-3)' : 'var(--bg-3, #e2e8f0)';
-  const titleColor = dark ? 'var(--text-primary)' : 'var(--color-text-1, #1e293b)';
+  const titleColor = dark ? 'var(--foreground)' : 'var(--color-text-1, #1e293b)';
   const textSecondary = dark ? 'var(--text-secondary)' : 'var(--color-text-3, #94a3b8)';
   const bodyBg = dark ? 'var(--bg-base)' : 'var(--color-fill-2, #f8fafc)';
 
@@ -599,7 +599,7 @@ const DagCardList: React.FC<{
           gap: 10,
         }}
       >
-        <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', flex: 1 }}>任务面板</span>
+        <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--foreground)', flex: 1 }}>任务面板</span>
         <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontVariantNumeric: 'tabular-nums' }}>{dags.length} 个任务</span>
         <button
           onClick={onClose}
@@ -620,7 +620,7 @@ const DagCardList: React.FC<{
           }}
           onMouseEnter={(e) => {
             (e.currentTarget as HTMLButtonElement).style.background = 'var(--bg-hover)';
-            (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-primary)';
+            (e.currentTarget as HTMLButtonElement).style.color = 'var(--foreground)';
           }}
           onMouseLeave={(e) => {
             (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
@@ -670,7 +670,7 @@ const DagCardList: React.FC<{
                 {/* Index + Title */}
                 <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
                   <span style={{ fontSize: 14, fontWeight: 700, color: isExpanded ? accentColor : 'var(--text-secondary)', flexShrink: 0, fontFamily: 'monospace' }}>#{String(idx + 1).padStart(3, '0')}</span>
-                  <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{dag.title}</span>
+                  <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{dag.title}</span>
                 </div>
 
                 {/* Status + path + percent + chevron */}
@@ -828,7 +828,7 @@ const TaskPanel: React.FC<TaskPanelProps> = ({ workspaceFiles = [], workspace })
                   {/* Row 1: status + title + STEP */}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, gap: 8 }}>
                     <span style={{ fontSize: 11.5, color: 'var(--color-text-3, var(--text-secondary))', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
-                      {sLabel}: <span style={{ color: 'var(--color-text-1, var(--text-primary))', fontWeight: 500 }}>{d.title}</span>
+                      {sLabel}: <span style={{ color: 'var(--color-text-1, var(--foreground))', fontWeight: 500 }}>{d.title}</span>
                     </span>
                     <span style={{ fontSize: 11, color: aColor, fontWeight: 700, flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>
                       STEP {d.progress.completed}/{d.progress.total}

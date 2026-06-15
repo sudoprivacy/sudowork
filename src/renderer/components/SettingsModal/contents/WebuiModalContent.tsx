@@ -26,10 +26,10 @@ const PreferenceRow: React.FC<{ label: string; description?: React.ReactNode; ex
   <div className='flex items-center justify-between gap-12px py-12px'>
     <div className='min-w-0 flex-1'>
       <div className='flex items-center gap-8px'>
-        <span className='text-14px text-t-primary'>{label}</span>
+        <span className='text-14px text-foreground'>{label}</span>
         {extra}
       </div>
-      {description && <div className='text-12px text-t-tertiary mt-2px'>{description}</div>}
+      {description && <div className='text-12px text-tertiary mt-2px'>{description}</div>}
     </div>
     <div className='flex items-center shrink-0'>{children}</div>
   </div>
@@ -524,8 +524,8 @@ const WebuiModalContent: React.FC = () => {
       <div className='flex flex-col h-full w-full'>
         <AionScrollArea className='flex-1 min-h-0 pb-16px' disableOverflow>
           <div className='space-y-16px'>
-            <h2 className='text-20px font-500 text-t-primary m-0'>Channels</h2>
-            <Suspense fallback={<div className='text-13px text-t-secondary'>{t('common.loading')}</div>}>
+            <h2 className='text-20px font-500 text-foreground m-0'>Channels</h2>
+            <Suspense fallback={<div className='text-13px text-secondary'>{t('common.loading')}</div>}>
               <ChannelModalContentLazy />
             </Suspense>
           </div>
@@ -538,17 +538,17 @@ const WebuiModalContent: React.FC = () => {
     <AionScrollArea className='flex-1 min-h-0 pb-16px' disableOverflow>
       <div className='space-y-12px px-[12px] md:px-[28px]'>
         {/* 标题 / Title */}
-        <h2 className='text-20px font-500 text-t-primary m-0'>WebUI</h2>
+        <h2 className='text-20px font-500 text-foreground m-0'>WebUI</h2>
 
         {/* 描述说明 / Description */}
         <div className='space-y-6px'>
-          <p className='m-0 text-13px text-t-secondary leading-relaxed'>{t('settings.webui.description')}</p>
+          <p className='m-0 text-13px text-secondary leading-relaxed'>{t('settings.webui.description')}</p>
           <div className='flex flex-wrap gap-x-12px gap-y-6px'>
             {[t('settings.webui.enable', { defaultValue: 'Enable WebUI' }), t('settings.webui.accessUrl', { defaultValue: 'Access URL' }), t('settings.webui.allowRemote', { defaultValue: 'Allow Remote Access' })].map((stepLabel, idx) => (
               <div key={stepLabel} className='inline-flex items-center gap-6px'>
                 <span className='inline-flex items-center justify-center w-16px h-16px rd-50% text-10px font-600 bg-[rgba(var(--primary-6),0.12)] text-[rgb(var(--primary-6))]'>{idx + 1}</span>
                 <CheckOne theme='outline' size='12' className='text-[rgb(var(--primary-6))]' />
-                <span className='text-12px text-t-secondary'>{stepLabel}</span>
+                <span className='text-12px text-secondary'>{stepLabel}</span>
               </div>
             ))}
           </div>
@@ -560,8 +560,8 @@ const WebuiModalContent: React.FC = () => {
             <div className='min-w-0 flex items-center gap-8px'>
               <Communication theme='outline' size='18' className='text-[rgb(var(--primary-6))] shrink-0' />
               <div className='min-w-0'>
-                <div className='text-13px text-t-primary font-500'>{t('settings.webui.featureChannelsTitle')}</div>
-                <div className='text-12px text-t-secondary truncate'>{t('settings.webui.featureChannelsDesc')}</div>
+                <div className='text-13px text-foreground font-500'>{t('settings.webui.featureChannelsTitle')}</div>
+                <div className='text-12px text-secondary truncate'>{t('settings.webui.featureChannelsDesc')}</div>
               </div>
             </div>
             <Button type='primary' size='small' className='rd-100px' onClick={() => setActiveTab('channels')}>
@@ -575,7 +575,7 @@ const WebuiModalContent: React.FC = () => {
           {/* WebUI 引导提示 / WebUI hint */}
           <div className='mb-8px rd-10px border bg-fill-1 px-10px py-8px flex items-start gap-6px'>
             <Earth theme='outline' size='16' className='mt-1px text-[rgb(var(--primary-6))]' />
-            <div className='text-12px text-t-secondary leading-relaxed'>{t('settings.webui.featureRemoteDesc')}</div>
+            <div className='text-12px text-secondary leading-relaxed'>{t('settings.webui.featureRemoteDesc')}</div>
           </div>
 
           {/* 启用 WebUI / Enable WebUI */}
@@ -591,7 +591,7 @@ const WebuiModalContent: React.FC = () => {
                   {getDisplayUrl()}
                 </button>
                 <Tooltip content={t('common.copy')}>
-                  <button className='p-4px text-t-tertiary hover:text-t-primary cursor-pointer bg-transparent border-none' onClick={() => handleCopy(getDisplayUrl())}>
+                  <button className='p-4px text-tertiary hover:text-foreground cursor-pointer bg-transparent border-none' onClick={() => handleCopy(getDisplayUrl())}>
                     <Copy size={16} />
                   </button>
                 </Tooltip>
@@ -603,7 +603,7 @@ const WebuiModalContent: React.FC = () => {
           <PreferenceRow
             label={t('settings.webui.allowRemote')}
             description={
-              <span className='text-t-secondary'>
+              <span className='text-secondary'>
                 {t('settings.webui.allowRemoteDesc')}
                 {'  '}
                 <button className='text-primary hover:underline cursor-pointer bg-transparent border-none p-0 text-12px' onClick={() => shell.openExternal.invoke('https://github.com/sudoprivacy/Sudowork/wiki/Remote-Internet-Access-Guide').catch(console.error)}>
@@ -618,13 +618,13 @@ const WebuiModalContent: React.FC = () => {
 
         {/* 登录信息卡片 / Login Info Card */}
         <div className='px-[12px] md:px-[28px] py-14px bg-2 rd-12px border'>
-          <div className='text-14px font-500 mb-8px text-t-primary'>{t('settings.webui.loginInfo')}</div>
+          <div className='text-14px font-500 mb-8px text-foreground'>{t('settings.webui.loginInfo')}</div>
 
           {/* 账号 / Account */}
           <div className='flex items-center justify-between gap-12px py-12px'>
-            <span className='text-14px text-t-secondary shrink-0'>{t('settings.webui.username')}:</span>
+            <span className='text-14px text-secondary shrink-0'>{t('settings.webui.username')}:</span>
             <div className='inline-flex items-center gap-8px rd-100px border bg-fill-1 px-10px py-4px min-w-0'>
-              <span className='text-14px text-t-primary truncate'>{status?.adminUsername || 'admin'}</span>
+              <span className='text-14px text-foreground truncate'>{status?.adminUsername || 'admin'}</span>
               <Tooltip content={t('common.copy')}>
                 <Button type='text' size='mini' className='rd-100px !px-6px inline-flex items-center !h-24px' onClick={() => handleCopy(status?.adminUsername || 'admin')}>
                   <Copy size={14} />
@@ -635,9 +635,9 @@ const WebuiModalContent: React.FC = () => {
 
           {/* 密码 / Password */}
           <div className='flex items-center justify-between gap-12px py-12px'>
-            <span className='text-14px text-t-secondary shrink-0'>{t('settings.webui.initialPassword')}:</span>
+            <span className='text-14px text-secondary shrink-0'>{t('settings.webui.initialPassword')}:</span>
             <div className='inline-flex items-center gap-8px rd-100px border bg-fill-1 px-10px py-4px min-w-0'>
-              <span className='text-14px text-t-primary truncate'>{displayPassword}</span>
+              <span className='text-14px text-foreground truncate'>{displayPassword}</span>
               <Tooltip content={t('settings.webui.resetPasswordTooltip')}>
                 <Button type='text' size='mini' className='rd-100px !px-6px inline-flex items-center !h-24px' onClick={handleResetPassword} disabled={resetLoading}>
                   <EditTwo size={14} />
@@ -650,22 +650,22 @@ const WebuiModalContent: React.FC = () => {
           {status?.running && allowRemote && (
             <>
               <div className='border-t my-12px' />
-              <div className='text-14px font-500 mb-4px text-t-primary'>{t('settings.webui.qrLogin')}</div>
-              <div className='text-12px text-t-tertiary mb-12px'>{t('settings.webui.qrLoginHint')}</div>
+              <div className='text-14px font-500 mb-4px text-foreground'>{t('settings.webui.qrLogin')}</div>
+              <div className='text-12px text-tertiary mb-12px'>{t('settings.webui.qrLoginHint')}</div>
 
               <div className='flex flex-col items-center gap-12px'>
                 {/* 二维码显示区域 / QR Code display area */}
                 <div className='p-12px bg-fill-1 border rd-10px'>
                   {qrLoading ? (
                     <div className='w-140px h-140px flex items-center justify-center'>
-                      <span className='text-14px text-t-tertiary'>{t('common.loading')}</span>
+                      <span className='text-14px text-tertiary'>{t('common.loading')}</span>
                     </div>
                   ) : qrUrl ? (
                     <div className='p-8px bg-white rd-8px'>
                       <Suspense
                         fallback={
                           <div className='w-140px h-140px flex items-center justify-center'>
-                            <span className='text-14px text-t-tertiary'>{t('common.loading')}</span>
+                            <span className='text-14px text-tertiary'>{t('common.loading')}</span>
                           </div>
                         }
                       >
@@ -674,16 +674,16 @@ const WebuiModalContent: React.FC = () => {
                     </div>
                   ) : (
                     <div className='w-140px h-140px flex items-center justify-center'>
-                      <span className='text-14px text-t-tertiary'>{t('settings.webui.qrGenerateFailed')}</span>
+                      <span className='text-14px text-tertiary'>{t('settings.webui.qrGenerateFailed')}</span>
                     </div>
                   )}
                 </div>
 
                 {/* 过期时间和刷新按钮 / Expiration time and refresh button */}
                 <div className='flex items-center gap-8px'>
-                  {qrExpiresAt && <span className='text-12px text-t-tertiary'>{t('settings.webui.qrExpires', { time: formatExpiresAt(qrExpiresAt) })}</span>}
+                  {qrExpiresAt && <span className='text-12px text-tertiary'>{t('settings.webui.qrExpires', { time: formatExpiresAt(qrExpiresAt) })}</span>}
                   <Tooltip content={t('settings.webui.refreshQr')}>
-                    <button className='p-4px bg-transparent border-none text-t-tertiary hover:text-t-primary cursor-pointer' onClick={() => void generateQRCode()} disabled={qrLoading}>
+                    <button className='p-4px bg-transparent border-none text-tertiary hover:text-foreground cursor-pointer' onClick={() => void generateQRCode()} disabled={qrLoading}>
                       <Refresh size={16} className={qrLoading ? 'animate-spin' : ''} />
                     </button>
                   </Tooltip>
@@ -705,7 +705,7 @@ const WebuiModalContent: React.FC = () => {
               {/* <Tabs.TabPane
           key='webui'
           title={
-            <span data-webui-tab='webui' className={`inline-flex items-center gap-6px transition-colors ${activeTab === 'webui' ? 'text-t-primary font-600' : 'text-t-secondary'}`}>
+            <span data-webui-tab='webui' className={`inline-flex items-center gap-6px transition-colors ${activeTab === 'webui' ? 'text-foreground font-600' : 'text-secondary'}`}>
               <Earth theme='outline' size='15' />
               <span>WebUI</span>
             </span>
@@ -714,7 +714,7 @@ const WebuiModalContent: React.FC = () => {
               <Tabs.TabPane
                 key='channels'
                 title={
-                  <span data-webui-tab='channels' className={`inline-flex items-center gap-6px leading-none transition-colors ${activeTab === 'channels' ? 'text-t-primary font-600' : 'text-t-secondary'}`}>
+                  <span data-webui-tab='channels' className={`inline-flex items-center gap-6px leading-none transition-colors ${activeTab === 'channels' ? 'text-foreground font-600' : 'text-secondary'}`}>
                     <Communication theme='outline' size='15' />
                     <span>Channels</span>
                     <span className='inline-flex items-center gap-4px ml-2px'>
@@ -730,7 +730,7 @@ const WebuiModalContent: React.FC = () => {
               <Tabs.TabPane
                 key='secrets'
                 title={
-                  <span data-webui-tab='secrets' className={`inline-flex items-center gap-6px leading-none transition-colors ${activeTab === 'secrets' ? 'text-t-primary font-600' : 'text-t-secondary'}`}>
+                  <span data-webui-tab='secrets' className={`inline-flex items-center gap-6px leading-none transition-colors ${activeTab === 'secrets' ? 'text-foreground font-600' : 'text-secondary'}`}>
                     <span className='text-14px'>{isEnterprise ? t('settings.secrets.enterprise', '我的凭据') : t('settings.secrets', '秘钥管理')}</span>
                   </span>
                 }
@@ -746,11 +746,11 @@ const WebuiModalContent: React.FC = () => {
       <div className='flex-1 min-h-0 px-[12px] md:px-[28px] pb-18px'>
         <div className='max-w-820px mx-auto w-full'>
           {activeTab === 'secrets' ? (
-            <Suspense fallback={<div className='max-w-820px mx-auto w-full text-13px text-t-secondary'>{t('common.loading')}</div>}>
+            <Suspense fallback={<div className='max-w-820px mx-auto w-full text-13px text-secondary'>{t('common.loading')}</div>}>
               <SecretModalContentLazy />
             </Suspense>
           ) : (
-            <Suspense fallback={<div className='max-w-820px mx-auto w-full text-13px text-t-secondary'>{t('common.loading')}</div>}>
+            <Suspense fallback={<div className='max-w-820px mx-auto w-full text-13px text-secondary'>{t('common.loading')}</div>}>
               <ChannelModalContentLazy />
             </Suspense>
           )}

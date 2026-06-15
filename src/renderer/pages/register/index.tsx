@@ -79,8 +79,8 @@ const RegisterPage: React.FC = () => {
             <Protect theme='filled' size={32} />
           </div>
           <div>
-            <h2 className='text-20px font-700 text-t-primary'>注册链接无效</h2>
-            <p className='text-14px text-t-secondary mt-8px px-20px'>请重新获取验证码登录</p>
+            <h2 className='text-20px font-700 text-foreground'>注册链接无效</h2>
+            <p className='text-14px text-secondary mt-8px px-20px'>请重新获取验证码登录</p>
           </div>
           <Button type='primary' long className='!rd-12px h-48px mt-12px' onClick={() => navigate('/login', { replace: true })}>
             返回登录
@@ -105,26 +105,26 @@ const RegisterPage: React.FC = () => {
             <AionLogoMark />
           </div>
           <h1 className='text-28px font-800 tracking-tighter bg-gradient-to-br from-primary to-purple-600 bg-clip-text text-transparent mb-8px'>SudoWork</h1>
-          <p className='text-13px text-t-secondary'>完成注册，开始使用</p>
+          <p className='text-13px text-secondary'>完成注册，开始使用</p>
         </div>
 
         <div className='flex flex-col gap-20px mt-32px'>
           {/* 显示手机号（只读） */}
           <div className='flex flex-col gap-8px'>
-            <div className='text-12px font-600 text-t-secondary ml-4px'>手机号码</div>
-            <Input size='large' prefix={<User className='text-t-tertiary' />} value={phoneFromUrl} disabled className='login-input !rd-12px h-48px' />
+            <div className='text-12px font-600 text-secondary ml-4px'>手机号码</div>
+            <Input size='large' prefix={<User className='text-tertiary' />} value={phoneFromUrl} disabled className='login-input !rd-12px h-48px' />
           </div>
 
           {/* 昵称输入 */}
           <div className='flex flex-col gap-8px'>
-            <div className='text-12px font-600 text-t-secondary ml-4px'>昵称</div>
-            <Input size='large' prefix={<User className='text-t-tertiary' />} placeholder='请输入您的昵称' value={nickname} onChange={setNickname} className='login-input !rd-12px h-48px' maxLength={20} />
+            <div className='text-12px font-600 text-secondary ml-4px'>昵称</div>
+            <Input size='large' prefix={<User className='text-tertiary' />} placeholder='请输入您的昵称' value={nickname} onChange={setNickname} className='login-input !rd-12px h-48px' maxLength={20} />
           </div>
 
           {/* 邀请码输入 */}
           <div className='flex flex-col gap-8px'>
-            <div className='text-12px font-600 text-t-secondary ml-4px'>邀请码</div>
-            <Input size='large' prefix={<Protect className='text-t-tertiary' />} placeholder='请输入 6 位邀请码' value={invitationCode} onChange={setInvitationCode} className='login-input !rd-12px h-48px' maxLength={6} />
+            <div className='text-12px font-600 text-secondary ml-4px'>邀请码</div>
+            <Input size='large' prefix={<Protect className='text-tertiary' />} placeholder='请输入 6 位邀请码' value={invitationCode} onChange={setInvitationCode} className='login-input !rd-12px h-48px' maxLength={6} />
           </div>
 
           <Button type='primary' size='large' loading={loading} onClick={() => handleSubmit()} className='login-btn-primary !rd-12px h-52px mt-12px font-700 text-16px'>

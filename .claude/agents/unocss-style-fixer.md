@@ -58,7 +58,7 @@ border-l border-l-solid border-[var(--border-light)]
 - 颜色一律走 token，禁止硬编码 hex/rgb：
   - 语义色 `primary` `success` `danger` `warning` `info`（+ `-soft`/`-line` 变体）
   - 背景/边框数字档 `bg-1`..`bg-6` / `border-1`..`border-6`（数字键 bg 与 border 通用）
-  - 文字 `text-t-primary` `text-t-secondary` `text-t-tertiary`
+  - 前景/正文 `text-foreground`（主）`text-secondary`（次）`text-tertiary`（三级）（注意 `text-primary` 是橙色主操作色，非正文色）
   - 边框 `var(--border-base)` `var(--border-light)`（用法见坑 3）
   - 品牌 `brand` `brand-light` `brand-hover`
     实在没有对应 token 时才用 `text-[var(--xxx)]` / `bg-[var(--xxx)]`。

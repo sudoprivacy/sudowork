@@ -348,7 +348,7 @@ const UpdateModal: React.FC = () => {
               <div className='absolute inset-0 border-[3px] border-fill-3 rounded-full' />
               <div className='absolute inset-0 border-[3px] border-primary border-t-transparent rounded-full animate-spin' />
             </div>
-            <div className='text-15px text-t-primary font-500'>{t('update.checking')}</div>
+            <div className='text-15px text-foreground font-500'>{t('update.checking')}</div>
           </div>
         );
 
@@ -358,8 +358,8 @@ const UpdateModal: React.FC = () => {
             <div className='w-56px h-56px bg-success-soft rounded-full flex items-center justify-center mb-20px'>
               <CheckOne theme='filled' size='28' fill='var(--success)' />
             </div>
-            <div className='text-16px text-t-primary font-600 mb-8px'>{t('update.upToDateTitle')}</div>
-            <div className='text-13px text-t-tertiary'>{t('update.currentVersion', { version: buildVersion || currentVersion || '-' })}</div>
+            <div className='text-16px text-foreground font-600 mb-8px'>{t('update.upToDateTitle')}</div>
+            <div className='text-13px text-tertiary'>{t('update.currentVersion', { version: buildVersion || currentVersion || '-' })}</div>
           </div>
         );
 
@@ -373,8 +373,8 @@ const UpdateModal: React.FC = () => {
                   <Download size='20' fill='rgb(var(--primary-6))' />
                 </div>
                 <div>
-                  <div className='text-15px font-600 text-t-primary'>{t('update.availableTitle')}</div>
-                  <div className='text-12px text-t-tertiary mt-2px'>
+                  <div className='text-15px font-600 text-foreground'>{t('update.availableTitle')}</div>
+                  <div className='text-12px text-tertiary mt-2px'>
                     {buildVersion || currentVersion} → <span className='text-[rgb(var(--primary-6))] font-500'>{updateInfo?.version || autoUpdateInfo?.version}</span>
                   </div>
                 </div>
@@ -404,7 +404,7 @@ const UpdateModal: React.FC = () => {
             {/* 自动更新开关 / Auto update toggle (hidden for nightly builds) */}
             {!isNightlyBuild && (
               <div className='flex items-center justify-between px-24px py-12px bg-fill-1 border-b'>
-                <div className='text-13px text-t-secondary'>{t('update.autoUpdateMode')}</div>
+                <div className='text-13px text-secondary'>{t('update.autoUpdateMode')}</div>
                 <Switch checked={useAutoUpdate} onChange={setUseAutoUpdate} size='small' disabled={!hasCompatibleManualAsset} />
               </div>
             )}
@@ -416,13 +416,13 @@ const UpdateModal: React.FC = () => {
 
             {/* 更新日志内容 / Release notes content */}
             <div className='flex-1 min-h-0 overflow-y-auto px-24px py-16px custom-scrollbar'>
-              {updateInfo?.name && <div className='text-14px font-500 text-t-primary mb-12px'>{updateInfo.name}</div>}
+              {updateInfo?.name && <div className='text-14px font-500 text-foreground mb-12px'>{updateInfo.name}</div>}
               {updateInfo?.body || autoUpdateInfo?.releaseNotes ? (
-                <div className='text-13px text-t-secondary leading-relaxed'>
+                <div className='text-13px text-secondary leading-relaxed'>
                   <MarkdownView allowHtml>{updateInfo?.body || autoUpdateInfo?.releaseNotes || ''}</MarkdownView>
                 </div>
               ) : (
-                <div className='text-13px text-t-tertiary italic'>{t('update.noReleaseNotes')}</div>
+                <div className='text-13px text-tertiary italic'>{t('update.noReleaseNotes')}</div>
               )}
             </div>
           </div>
@@ -434,10 +434,10 @@ const UpdateModal: React.FC = () => {
             <div className='w-56px h-56px bg-[rgb(var(--primary-6))]/12 rounded-full flex items-center justify-center mb-20px'>
               <Download size='24' fill='rgb(var(--primary-6))' className='animate-bounce' />
             </div>
-            <div className='text-16px text-t-primary font-600 mb-20px'>{t('update.downloadingTitle')}</div>
+            <div className='text-16px text-foreground font-600 mb-20px'>{t('update.downloadingTitle')}</div>
             <div className='w-full max-w-320px'>
               <Progress percent={progress.percent} status='normal' showText={false} strokeWidth={6} className='!mb-12px' />
-              <div className='flex justify-between text-12px text-t-tertiary'>
+              <div className='flex justify-between text-12px text-tertiary'>
                 <span>
                   {formatSize(progress.transferred)} / {formatSize(progress.total)}
                 </span>
@@ -453,8 +453,8 @@ const UpdateModal: React.FC = () => {
             <div className='w-56px h-56px bg-success-soft rounded-full flex items-center justify-center mb-20px'>
               <CheckOne theme='filled' size='28' fill='var(--success)' />
             </div>
-            <div className='text-16px text-t-primary font-600 mb-8px'>{t('update.readyToInstall')}</div>
-            <div className='text-13px text-t-tertiary mb-24px text-center max-w-360px'>{t('update.readyToInstallDesc')}</div>
+            <div className='text-16px text-foreground font-600 mb-8px'>{t('update.readyToInstall')}</div>
+            <div className='text-13px text-tertiary mb-24px text-center max-w-360px'>{t('update.readyToInstallDesc')}</div>
             <div className='flex gap-12px'>
               <Button size='small' onClick={showInFolder} icon={<FolderOpen size='14' />} className='!px-16px'>
                 {t('update.showInFolder')}
@@ -472,8 +472,8 @@ const UpdateModal: React.FC = () => {
             <div className='w-56px h-56px bg-success-soft rounded-full flex items-center justify-center mb-20px'>
               <CheckOne theme='filled' size='28' fill='var(--success)' />
             </div>
-            <div className='text-16px text-t-primary font-600 mb-8px'>{t('update.downloadCompleteTitle')}</div>
-            <div className='text-12px text-t-tertiary mb-24px text-center max-w-360px break-all line-clamp-2'>{downloadPath}</div>
+            <div className='text-16px text-foreground font-600 mb-8px'>{t('update.downloadCompleteTitle')}</div>
+            <div className='text-12px text-tertiary mb-24px text-center max-w-360px break-all line-clamp-2'>{downloadPath}</div>
             <div className='flex gap-12px'>
               <Button size='small' onClick={showInFolder} icon={<FolderOpen size='14' />} className='!px-16px'>
                 {t('update.showInFolder')}
@@ -491,8 +491,8 @@ const UpdateModal: React.FC = () => {
             <div className='w-56px h-56px bg-danger-soft rounded-full flex items-center justify-center mb-20px'>
               <CloseOne theme='filled' size='28' fill='var(--danger)' />
             </div>
-            <div className='text-16px text-t-primary font-600 mb-8px'>{t('update.errorTitle')}</div>
-            <div className='text-13px text-t-tertiary mb-24px text-center max-w-360px'>{errorMsg}</div>
+            <div className='text-16px text-foreground font-600 mb-8px'>{t('update.errorTitle')}</div>
+            <div className='text-13px text-tertiary mb-24px text-center max-w-360px'>{errorMsg}</div>
             <div className='flex gap-12px'>
               <Button size='small' onClick={checkForUpdates} icon={<Refresh size='14' />} className='!px-16px'>
                 {t('common.retry')}

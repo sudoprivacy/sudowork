@@ -225,7 +225,7 @@ const MossSessionPage: React.FC = () => {
             Stop
           </Button>
         ) : (
-          <Button type='primary' icon={<SendOne theme='filled' size='18' fill='var(--text-primary)' />} onClick={handleSend} disabled={!input.trim()} />
+          <Button type='primary' icon={<SendOne theme='filled' size='18' fill='var(--foreground)' />} onClick={handleSend} disabled={!input.trim()} />
         )}
       </div>
     </div>

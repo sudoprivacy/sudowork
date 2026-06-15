@@ -186,7 +186,7 @@ const AgentModeSelector: React.FC<AgentModeSelectorProps> = ({ backend, agentNam
       if (logo) {
         return <img src={logo} alt={`${backend} logo`} className='block w-16px h-16px object-contain' />;
       }
-      return <Robot theme='outline' size={16} fill={'var(--text-primary)'} />;
+      return <Robot theme='outline' size={16} fill={'var(--foreground)'} />;
     })();
 
     return <span className='inline-flex w-16px h-16px items-center justify-center shrink-0 leading-none'>{logoContent}</span>;
@@ -201,11 +201,11 @@ const AgentModeSelector: React.FC<AgentModeSelectorProps> = ({ backend, agentNam
   // Dropdown menu (shared between compact and full mode)
   const dropdownMenu = (
     <div className='flex flex-col gap-2px p-6px rd-12px border bg-popup' style={{ minWidth: 180, boxShadow: '0 8px 28px rgba(0, 0, 0, 0.12)' }}>
-      <div className='px-10px py-2 text-12px leading-18px text-t-secondary'>{t('agentMode.switchMode', { defaultValue: 'Switch Mode' })}</div>
+      <div className='px-10px py-2 text-12px leading-18px text-secondary'>{t('agentMode.switchMode', { defaultValue: 'Switch Mode' })}</div>
       {modes.map((mode: AgentModeOption) => {
         const active = currentMode === mode.value;
         return (
-          <div key={mode.value} className={classNames('flex items-center gap-8px px-10px h-38px rd-8px cursor-pointer text-14px text-t-primary transition-colors hover:bg-hover active:bg-active', active && 'bg-2')} onClick={() => void handleModeChange(mode.value)}>
+          <div key={mode.value} className={classNames('flex items-center gap-8px px-10px h-38px rd-8px cursor-pointer text-14px text-foreground transition-colors hover:bg-hover active:bg-active', active && 'bg-2')} onClick={() => void handleModeChange(mode.value)}>
             <span className='w-16px shrink-0 inline-flex items-center justify-center text-primary'>{active ? '✓' : ''}</span>
             <span className='truncate'>{getDisplayModeLabel(mode)}</span>
           </div>
@@ -232,7 +232,7 @@ const AgentModeSelector: React.FC<AgentModeSelectorProps> = ({ backend, agentNam
         label={
           <span className='inline-flex min-w-0 items-center gap-6px'>
             <span className='block truncate leading-none'>{compactLabel}</span>
-            {canInteract && <Down size={12} className='text-t-tertiary shrink-0' />}
+            {canInteract && <Down size={12} className='text-tertiary shrink-0' />}
           </span>
         }
         disabled={isLoading}
@@ -403,11 +403,11 @@ const AgentModePill = forwardRef<HTMLDivElement, AgentModePillProps>(function Ag
       <span className='shrink-0 inline-flex items-center'>{renderLogo()}</span>
       {!hideText && (
         <>
-          <span className='text-sm text-t-primary whitespace-nowrap'>{displayName}</span>
-          {canSwitchMode && modeSuffix && <span className='text-xs text-t-tertiary whitespace-nowrap'>({modeSuffix})</span>}
+          <span className='text-sm text-foreground whitespace-nowrap'>{displayName}</span>
+          {canSwitchMode && modeSuffix && <span className='text-xs text-tertiary whitespace-nowrap'>({modeSuffix})</span>}
         </>
       )}
-      {canSwitchMode && <Down size={12} className='text-t-tertiary shrink-0' />}
+      {canSwitchMode && <Down size={12} className='text-tertiary shrink-0' />}
 
       {/* Hidden probe: always renders the full content at natural width.
           Used by the layout effect above to decide whether to hide text. */}

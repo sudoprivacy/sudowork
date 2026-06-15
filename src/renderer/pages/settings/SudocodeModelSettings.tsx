@@ -360,7 +360,7 @@ const AddModelDialog: React.FC<{
             }}
           />
         </Form.Item>
-        <div className='mb-2 text-14px font-600 text-t-primary'>高级配置</div>
+        <div className='mb-2 text-14px font-600 text-foreground'>高级配置</div>
         <div className='grid grid-cols-1 md:grid-cols-3 gap-3 mb-4'>
           <Form.Item field='supportsTools' triggerPropName='checked'>
             <Checkbox>工具调用</Checkbox>
@@ -508,23 +508,23 @@ const SudocodeModelSettingsContent: React.FC = () => {
 
         <div className='grid grid-cols-1 md:grid-cols-3 gap-3 mb-5'>
           <div className='bg-2 rd-8px border border-solid border-[var(--color-border-2)] p-4'>
-            <div className='text-12px text-t-secondary mb-1.5'>默认模型</div>
-            <div className='text-16px font-600 text-t-primary truncate'>{config?.default_model || '未设置'}</div>
+            <div className='text-12px text-secondary mb-1.5'>默认模型</div>
+            <div className='text-16px font-600 text-foreground truncate'>{config?.default_model || '未设置'}</div>
           </div>
           <div className='bg-2 rd-8px border border-solid border-[var(--color-border-2)] p-4'>
-            <div className='text-12px text-t-secondary mb-1.5'>Sudorouter 模型</div>
-            <div className='text-16px font-600 text-t-primary'>{sudorouterModels.length}</div>
+            <div className='text-12px text-secondary mb-1.5'>Sudorouter 模型</div>
+            <div className='text-16px font-600 text-foreground'>{sudorouterModels.length}</div>
           </div>
           <div className='bg-2 rd-8px border border-solid border-[var(--color-border-2)] p-4'>
-            <div className='text-12px text-t-secondary mb-1.5'>第三方提供商</div>
-            <div className='text-16px font-600 text-t-primary'>{customProviders.length}</div>
+            <div className='text-12px text-secondary mb-1.5'>第三方提供商</div>
+            <div className='text-16px font-600 text-foreground'>{customProviders.length}</div>
           </div>
         </div>
 
         <div className='space-y-4'>
           <section className='border border-solid border-[var(--color-border-2)] rd-8px overflow-hidden bg-2'>
             <div className='px-4 py-3 flex items-center justify-between'>
-              <div className='flex items-center gap-2 font-600 text-t-primary'>
+              <div className='flex items-center gap-2 font-600 text-foreground'>
                 <LinkCloud theme='outline' size='18' />
                 Sudorouter
               </div>
@@ -535,8 +535,8 @@ const SudocodeModelSettingsContent: React.FC = () => {
 
           {customProviders.length === 0 ? (
             <div className='border border-dashed border-[var(--color-border-2)] rd-8px bg-2 py-12 text-center'>
-              <SettingTwo theme='outline' size='42' className='text-t-tertiary mb-3' />
-              <div className='text-15px font-600 text-t-primary mb-1'>还没有第三方模型</div>
+              <SettingTwo theme='outline' size='42' className='text-tertiary mb-3' />
+              <div className='text-15px font-600 text-foreground mb-1'>还没有第三方模型</div>
               <Text type='secondary'>添加 OpenAI 兼容 API 后，可在 Sudo Code 模型下拉中选择。</Text>
             </div>
           ) : (
@@ -544,12 +544,12 @@ const SudocodeModelSettingsContent: React.FC = () => {
               <section key={provider.id} className='border border-solid border-[var(--color-border-2)] rd-8px overflow-hidden bg-2'>
                 <div className='px-4 py-3 border-b border-solid border-[var(--color-border-2)] flex items-center justify-between gap-3 flex-wrap'>
                   <div className='min-w-0'>
-                    <div className='flex items-center gap-2 font-600 text-t-primary'>
+                    <div className='flex items-center gap-2 font-600 text-foreground'>
                       <LinkCloud theme='outline' size='18' />
                       <span className='truncate'>{provider.id}</span>
                       <Tag color='blue'>OpenAI 兼容</Tag>
                     </div>
-                    <div className='text-12px text-t-secondary truncate mt-1'>{provider.baseUrl}</div>
+                    <div className='text-12px text-secondary truncate mt-1'>{provider.baseUrl}</div>
                   </div>
                   <Space>
                     <Tag bordered>{maskSecret(provider.apiKey)}</Tag>
@@ -568,7 +568,7 @@ const SudocodeModelSettingsContent: React.FC = () => {
                     return (
                       <div key={modelId} className='px-4 py-3 flex items-center justify-between gap-3 flex-wrap'>
                         <div className='min-w-0'>
-                          <div className='text-14px font-600 text-t-primary truncate'>{displayModelId}</div>
+                          <div className='text-14px font-600 text-foreground truncate'>{displayModelId}</div>
                           <div className='mt-1.5 flex flex-wrap gap-1.5'>
                             {entry?.supports_tools !== false && <Tag size='small'>工具调用</Tag>}
                             {input.includes('image') && (

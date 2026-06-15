@@ -64,12 +64,12 @@ const DirInputItem: React.FC<{
         return (
           <div className='aion-dir-input h-[32px] flex items-center rounded-8px border border-solid border-transparent pl-14px bg-[var(--fill-0)]'>
             <Tooltip content={currentValue || t('settings.dirNotConfigured')} position='top'>
-              <div className='flex-1 min-w-0 text-13px text-t-primary truncate '>{currentValue || t('settings.dirNotConfigured')}</div>
+              <div className='flex-1 min-w-0 text-13px text-foreground truncate '>{currentValue || t('settings.dirNotConfigured')}</div>
             </Tooltip>
             <Button
               type='text'
               style={{ borderLeft: '1px solid var(--color-border-2)', borderRadius: '0 8px 8px 0' }}
-              icon={<FolderOpen theme='outline' size='18' fill={'var(--text-primary)'} />}
+              icon={<FolderOpen theme='outline' size='18' fill={'var(--foreground)'} />}
               onClick={(e) => {
                 e.stopPropagation();
                 handlePick();
@@ -97,7 +97,7 @@ const PreferenceRow: React.FC<{
   <div className='flex items-center justify-between gap-24px py-12px'>
     <div className='flex flex-col'>
       <div className='text-14px text-2'>{label}</div>
-      {hint && <div className='text-12px text-t-secondary opacity-60'>{hint}</div>}
+      {hint && <div className='text-12px text-secondary opacity-60'>{hint}</div>}
     </div>
     <div className='flex-1 flex justify-end'>{children}</div>
   </div>

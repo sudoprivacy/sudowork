@@ -70,7 +70,7 @@ export const SkillAuditSummary: React.FC<{
       <div className='bg-fill-1 rd-10px p-14px'>
         <div className='flex items-center gap-6px mb-8px'>
           <Shield size='14' className='text-success' />
-          <span className='font-medium text-13px text-t-primary'>{t('settings.skill.audit.title', { defaultValue: '安全审查结果' })}</span>
+          <span className='font-medium text-13px text-foreground'>{t('settings.skill.audit.title', { defaultValue: '安全审查结果' })}</span>
         </div>
         <div className='flex justify-center py-12px'>
           <Spin size={16} />
@@ -84,9 +84,9 @@ export const SkillAuditSummary: React.FC<{
       <div className='bg-fill-1 rd-10px p-14px'>
         <div className='flex items-center gap-6px mb-8px'>
           <Shield size='14' className='text-success' />
-          <span className='font-medium text-13px text-t-primary'>{t('settings.skill.audit.title', { defaultValue: '安全审查结果' })}</span>
+          <span className='font-medium text-13px text-foreground'>{t('settings.skill.audit.title', { defaultValue: '安全审查结果' })}</span>
         </div>
-        <div className='text-12px text-t-tertiary text-center py-12px'>{t('settings.skill.audit.noReport', { defaultValue: '暂无审计报告' })}</div>
+        <div className='text-12px text-tertiary text-center py-12px'>{t('settings.skill.audit.noReport', { defaultValue: '暂无审计报告' })}</div>
       </div>
     );
   }
@@ -96,11 +96,11 @@ export const SkillAuditSummary: React.FC<{
       {/* Header */}
       <div className='flex items-center gap-6px mb-8px'>
         <Shield size='14' className='text-success' />
-        <span className='font-medium text-13px text-t-primary'>{t('settings.skill.audit.title', { defaultValue: '安全审查结果' })}</span>
+        <span className='font-medium text-13px text-foreground'>{t('settings.skill.audit.title', { defaultValue: '安全审查结果' })}</span>
       </div>
 
       {/* Summary description */}
-      <div className='text-12px text-t-secondary mb-10px'>{report.hasFindings ? t('settings.skill.audit.summaryWithFindings', { defaultValue: '经过安全审查，该技能包存在以下操作：' }) : t('settings.skill.audit.summaryNoFindings', { defaultValue: '经过严格的安全审查，确认该技能包：' })}</div>
+      <div className='text-12px text-secondary mb-10px'>{report.hasFindings ? t('settings.skill.audit.summaryWithFindings', { defaultValue: '经过安全审查，该技能包存在以下操作：' }) : t('settings.skill.audit.summaryNoFindings', { defaultValue: '经过严格的安全审查，确认该技能包：' })}</div>
 
       {/* Category list */}
       <div className='space-y-6px'>
@@ -112,7 +112,7 @@ export const SkillAuditSummary: React.FC<{
       {/* Report path and view details */}
       <div className='mt-10px pt-8px border-t flex items-center justify-between'>
         {report.reportPath && (
-          <div className='text-11px text-t-tertiary truncate flex-1 min-w-0 mr-8px'>
+          <div className='text-11px text-tertiary truncate flex-1 min-w-0 mr-8px'>
             {t('settings.skill.audit.reportPath', { defaultValue: '安全审计报告' })}：{report.reportPath}
           </div>
         )}
@@ -120,7 +120,7 @@ export const SkillAuditSummary: React.FC<{
           {report.reportPath && isElectronDesktop() && (
             <button
               type='button'
-              className='text-11px text-t-secondary hover:text-primary cursor-pointer bg-transparent border-none outline-none whitespace-nowrap flex items-center gap-3px'
+              className='text-11px text-secondary hover:text-primary cursor-pointer bg-transparent border-none outline-none whitespace-nowrap flex items-center gap-3px'
               onClick={() => {
                 void shell.showItemInFolder.invoke(report.reportPath!);
               }}
@@ -151,9 +151,9 @@ const CategoryRow: React.FC<{ summary: AuditCategorySummary }> = ({ summary }) =
     return (
       <div className='flex items-start gap-6px'>
         <span className='text-14px flex-shrink-0 leading-18px'>✅</span>
-        <span className='text-12px text-t-secondary leading-18px'>
+        <span className='text-12px text-secondary leading-18px'>
           {t(`settings.skill.audit.no_${summary.category}` as any, { defaultValue: `无${summary.label}` })}
-          <span className='text-t-tertiary'> – {summary.safeDescription}</span>
+          <span className='text-tertiary'> – {summary.safeDescription}</span>
         </span>
       </div>
     );
@@ -162,13 +162,13 @@ const CategoryRow: React.FC<{ summary: AuditCategorySummary }> = ({ summary }) =
   return (
     <div className='flex items-start gap-6px'>
       <span className='text-14px flex-shrink-0 leading-18px'>⚠️</span>
-      <span className='text-12px text-t-secondary leading-18px'>
+      <span className='text-12px text-secondary leading-18px'>
         {summary.label}
         <span className='text-warning font-medium'>
           {' '}
           ({summary.count} {t('settings.skill.audit.places', { defaultValue: '处调用' })})
         </span>
-        <span className='text-t-tertiary'> – {summary.foundDescription}</span>
+        <span className='text-tertiary'> – {summary.foundDescription}</span>
       </span>
     </div>
   );
@@ -250,14 +250,14 @@ export const SkillAuditDetailModal: React.FC<{
         <div className='flex items-center justify-between mb-12px'>
           <div className='flex items-center gap-8px'>
             <Shield size='16' className='text-success' />
-            <span className='font-semibold text-15px text-t-primary'>{t('settings.skill.audit.detailTitle', { defaultValue: '安全审计详情' })}</span>
-            <span className='text-12px text-t-tertiary'>— {skillName}</span>
+            <span className='font-semibold text-15px text-foreground'>{t('settings.skill.audit.detailTitle', { defaultValue: '安全审计详情' })}</span>
+            <span className='text-12px text-tertiary'>— {skillName}</span>
           </div>
           <div className='flex items-center gap-8px'>
-            <button type='button' className='text-11px px-8px py-3px rd-4px bg-fill-2 hover:bg-fill-3 text-t-secondary cursor-pointer border-none outline-none transition-colors' onClick={() => void handleRerunAudit()} disabled={loading}>
+            <button type='button' className='text-11px px-8px py-3px rd-4px bg-fill-2 hover:bg-fill-3 text-secondary cursor-pointer border-none outline-none transition-colors' onClick={() => void handleRerunAudit()} disabled={loading}>
               {t('settings.skill.audit.rerun', { defaultValue: '重新审计' })}
             </button>
-            <div className='w-28px h-28px flex items-center justify-center rd-full bg-fill-2 hover:bg-fill-3 cursor-pointer transition-colors text-t-secondary' onClick={onClose}>
+            <div className='w-28px h-28px flex items-center justify-center rd-full bg-fill-2 hover:bg-fill-3 cursor-pointer transition-colors text-secondary' onClick={onClose}>
               <Close size='14' />
             </div>
           </div>
@@ -268,13 +268,13 @@ export const SkillAuditDetailModal: React.FC<{
             <Spin size={24} />
           </div>
         ) : !report ? (
-          <div className='flex flex-col items-center justify-center py-48px text-t-secondary'>
+          <div className='flex flex-col items-center justify-center py-48px text-secondary'>
             <span className='text-13px'>{t('settings.skill.audit.noReport', { defaultValue: '暂无审计报告' })}</span>
           </div>
         ) : (
           <>
             {/* Info bar */}
-            <div className='flex items-center gap-12px mb-12px text-11px text-t-tertiary'>
+            <div className='flex items-center gap-12px mb-12px text-11px text-tertiary'>
               <span>
                 {t('settings.skill.audit.scannedFiles', { defaultValue: '扫描文件' })}：{report.scannedFiles}/{report.totalFiles}
               </span>
@@ -299,7 +299,7 @@ export const SkillAuditDetailModal: React.FC<{
             {/* Findings list */}
             <AionScrollArea className='flex-1 min-h-0'>
               {filteredFindings.length === 0 ? (
-                <div className='flex flex-col items-center justify-center py-32px text-t-tertiary'>
+                <div className='flex flex-col items-center justify-center py-32px text-tertiary'>
                   <span className='text-12px'>{t('settings.skill.audit.noFindings', { defaultValue: '该类别下无发现' })}</span>
                 </div>
               ) : (
@@ -325,9 +325,9 @@ const CategoryFilterTab: React.FC<{
   active: boolean;
   onClick: () => void;
 }> = ({ label, count, active, onClick }) => (
-  <button type='button' className={`px-10px py-4px rd-16px text-11px cursor-pointer transition-colors whitespace-nowrap flex-shrink-0 border-none outline-none flex items-center gap-4px ${active ? 'bg-primary text-white' : 'bg-fill-2 text-t-secondary hover:bg-fill-3 hover:text-t-primary'}`} onClick={onClick}>
+  <button type='button' className={`px-10px py-4px rd-16px text-11px cursor-pointer transition-colors whitespace-nowrap flex-shrink-0 border-none outline-none flex items-center gap-4px ${active ? 'bg-primary text-white' : 'bg-fill-2 text-secondary hover:bg-fill-3 hover:text-foreground'}`} onClick={onClick}>
     {label}
-    <span className={`text-10px ${active ? 'text-white/70' : 'text-t-tertiary'}`}>{count}</span>
+    <span className={`text-10px ${active ? 'text-white/70' : 'text-tertiary'}`}>{count}</span>
   </button>
 );
 
@@ -344,8 +344,8 @@ const FileFindings: React.FC<{
     <div className='bg-fill-1 rd-8px overflow-hidden'>
       {/* File header */}
       <div className='px-12px py-8px bg-fill-2 border-b'>
-        <span className='text-12px font-medium text-t-primary font-mono'>{file}</span>
-        <span className='text-11px text-t-tertiary ml-2'>
+        <span className='text-12px font-medium text-foreground font-mono'>{file}</span>
+        <span className='text-11px text-tertiary ml-2'>
           ({findings.length} {t('settings.skill.audit.places', { defaultValue: '处调用' })})
         </span>
       </div>
@@ -371,14 +371,14 @@ const FindingRow: React.FC<{ finding: AuditFinding }> = ({ finding }) => {
     <div className='px-12px py-8px hover:bg-fill-2/50 transition-colors'>
       <div className='flex items-center gap-6px mb-3px'>
         <span className='text-12px'>{categoryEmoji}</span>
-        <span className='text-11px text-t-secondary'>{config.label}</span>
-        <span className='text-11px text-t-tertiary'>·</span>
-        <span className='text-11px text-t-tertiary font-mono'>L{finding.line}</span>
+        <span className='text-11px text-secondary'>{config.label}</span>
+        <span className='text-11px text-tertiary'>·</span>
+        <span className='text-11px text-tertiary font-mono'>L{finding.line}</span>
       </div>
       <div className='bg-fill-2 rd-4px px-8px py-4px mb-3px'>
-        <code className='text-11px text-t-primary font-mono break-all leading-relaxed'>{finding.code}</code>
+        <code className='text-11px text-foreground font-mono break-all leading-relaxed'>{finding.code}</code>
       </div>
-      <div className='text-11px text-t-tertiary'>
+      <div className='text-11px text-tertiary'>
         {finding.description}
         {finding.detail && <span className='text-primary ml-4px'>→ {finding.detail}</span>}
       </div>
@@ -409,10 +409,10 @@ export const SkillAuditReportModal: React.FC<{
         <div className='flex items-center justify-between mb-12px'>
           <div className='flex items-center gap-8px'>
             <Shield size='16' className='text-success' />
-            <span className='font-semibold text-15px text-t-primary'>{t('settings.skill.audit.reportTitle', { defaultValue: '安全审计报告' })}</span>
-            <span className='text-12px text-t-tertiary'>— {skillName}</span>
+            <span className='font-semibold text-15px text-foreground'>{t('settings.skill.audit.reportTitle', { defaultValue: '安全审计报告' })}</span>
+            <span className='text-12px text-tertiary'>— {skillName}</span>
           </div>
-          <div className='w-28px h-28px flex items-center justify-center rd-full bg-fill-2 hover:bg-fill-3 cursor-pointer transition-colors text-t-secondary' onClick={onClose}>
+          <div className='w-28px h-28px flex items-center justify-center rd-full bg-fill-2 hover:bg-fill-3 cursor-pointer transition-colors text-secondary' onClick={onClose}>
             <Close size='14' />
           </div>
         </div>

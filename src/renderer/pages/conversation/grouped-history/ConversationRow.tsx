@@ -131,7 +131,7 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
             }}
           >
             {isPinned && !menuVisible && (
-              <span className='f-center text-t-secondary group-hover:hidden pr-4px'>
+              <span className='f-center text-secondary group-hover:hidden pr-4px'>
                 <Pushpin theme='outline' size='16' />
               </span>
             )}
@@ -195,7 +195,7 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
               unmountOnExit={false}
             >
               <span
-                className={classNames('f-center cursor-pointer hover:bg-fill-2 rd-4px p-4px transition-colors relative text-t-primary', {
+                className={classNames('f-center cursor-pointer hover:bg-fill-2 rd-4px p-4px transition-colors relative text-foreground', {
                   flex: isMobile || menuVisible,
                   'hidden group-hover:flex': !isMobile && !menuVisible,
                 })}

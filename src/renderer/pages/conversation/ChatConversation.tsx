@@ -53,7 +53,7 @@ const _AssociatedConversation: React.FC<{ conversation_id: string }> = ({ conver
       }
       trigger={['click']}
     >
-      <Button size='mini' icon={<History theme='filled' size='14' fill={'var(--text-primary)'} strokeWidth={2} strokeLinejoin='miter' strokeLinecap='square' />}></Button>
+      <Button size='mini' icon={<History theme='filled' size='14' fill={'var(--foreground)'} strokeWidth={2} strokeLinejoin='miter' strokeLinecap='square' />}></Button>
     </Dropdown>
   );
 };

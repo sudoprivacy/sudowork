@@ -319,7 +319,7 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
               e.stopPropagation();
               onClose();
             }}
-            className='absolute right-4 top-2 cursor-pointer text-t-secondary hover:text-t-primary transition-colors p-1'
+            className='absolute right-4 top-2 cursor-pointer text-secondary hover:text-foreground transition-colors p-1'
             style={{ zIndex: 10, WebkitAppRegion: 'no-drag' } as React.CSSProperties}
           >
             <Close size={18} />
@@ -427,10 +427,10 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
             <div className='mt-10px border overflow-hidden rounded-4px' style={{ height: '300px' }}>
               {!isBuiltin && !isReadonly && (
                 <div className='flex items-center h-36px bg-fill-2 border-b flex-shrink-0'>
-                  <div className={`flex items-center h-full px-16px cursor-pointer transition-all text-13px font-medium ${promptViewMode === 'edit' ? 'text-primary border-b-2px border-solid border-primary bg-bg-1' : 'text-t-secondary hover:text-t-primary'}`} onClick={() => setPromptViewMode('edit')}>
+                  <div className={`flex items-center h-full px-16px cursor-pointer transition-all text-13px font-medium ${promptViewMode === 'edit' ? 'text-primary border-b-2px border-solid border-primary bg-bg-1' : 'text-secondary hover:text-foreground'}`} onClick={() => setPromptViewMode('edit')}>
                     {t('settings.promptEdit', { defaultValue: 'Edit' })}
                   </div>
-                  <div className={`flex items-center h-full px-16px cursor-pointer transition-all text-13px font-medium ${promptViewMode === 'preview' ? 'text-primary border-b-2px border-solid border-primary bg-bg-1' : 'text-t-secondary hover:text-t-primary'}`} onClick={() => setPromptViewMode('preview')}>
+                  <div className={`flex items-center h-full px-16px cursor-pointer transition-all text-13px font-medium ${promptViewMode === 'preview' ? 'text-primary border-b-2px border-solid border-primary bg-bg-1' : 'text-secondary hover:text-foreground'}`} onClick={() => setPromptViewMode('preview')}>
                     {t('settings.promptPreview', { defaultValue: 'Preview' })}
                   </div>
                 </div>
@@ -459,7 +459,7 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
                     {editContext ? (
                       <MarkdownView hiddenCodeCopyButton>{editContext}</MarkdownView>
                     ) : (
-                      <div className='text-t-secondary text-center py-32px'>
+                      <div className='text-secondary text-center py-32px'>
                         {t('settings.promptPreviewEmpty', {
                           defaultValue: 'No content to preview',
                         })}
@@ -487,7 +487,7 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
                 }
                 name='custom-skills'
                 className='mb-8px'
-                extra={<span className='text-12px text-t-secondary'>{installedSkills.filter((s) => !s.isBuiltin).length}</span>}
+                extra={<span className='text-12px text-secondary'>{installedSkills.filter((s) => !s.isBuiltin).length}</span>}
               >
                 <div
                   className='grid gap-8px'
@@ -529,17 +529,17 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
                           </div>
                           <div className='flex-1 min-w-0'>
                             <div className='flex items-center gap-6px'>
-                              <span className='font-medium text-13px text-t-primary truncate'>{displayName}</span>
-                              {!skill.isBuiltin && displayVersion && <span className='px-5px py-0px bg-fill-3 text-t-secondary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px'>v{displayVersion}</span>}
+                              <span className='font-medium text-13px text-foreground truncate'>{displayName}</span>
+                              {!skill.isBuiltin && displayVersion && <span className='px-5px py-0px bg-fill-3 text-secondary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px'>v{displayVersion}</span>}
                               {skill.isBuiltin && <Shield size='14' className='text-primary flex-shrink-0' />}
                             </div>
-                            {description && <div className='text-11px text-t-secondary mt-3px line-clamp-2 leading-relaxed'>{description}</div>}
+                            {description && <div className='text-11px text-secondary mt-3px line-clamp-2 leading-relaxed'>{description}</div>}
                           </div>
                         </div>
                       );
                     })}
                   {installedSkills.filter((s) => !s.isBuiltin).length === 0 && (
-                    <div className='text-center text-t-secondary text-12px py-16px col-span-full'>
+                    <div className='text-center text-secondary text-12px py-16px col-span-full'>
                       {t('settings.noCustomSkills', {
                         defaultValue: 'No custom skills available',
                       })}
@@ -556,7 +556,7 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
                   </span>
                 }
                 name='builtin-skills'
-                extra={<span className='text-12px text-t-secondary'>{installedSkills.filter((s) => s.isBuiltin).length}</span>}
+                extra={<span className='text-12px text-secondary'>{installedSkills.filter((s) => s.isBuiltin).length}</span>}
               >
                 <div
                   className='grid gap-8px'
@@ -597,16 +597,16 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
                           </div>
                           <div className='flex-1 min-w-0'>
                             <div className='flex items-center gap-6px'>
-                              <span className='font-medium text-13px text-t-primary truncate'>{displayName}</span>
+                              <span className='font-medium text-13px text-foreground truncate'>{displayName}</span>
                               {skill.isBuiltin && <Shield size='14' className='text-primary flex-shrink-0' />}
                             </div>
-                            {description && <div className='text-11px text-t-secondary mt-3px line-clamp-2 leading-relaxed'>{description}</div>}
+                            {description && <div className='text-11px text-secondary mt-3px line-clamp-2 leading-relaxed'>{description}</div>}
                           </div>
                         </div>
                       );
                     })}
                   {installedSkills.filter((s) => s.isBuiltin).length === 0 && (
-                    <div className='text-center text-t-secondary text-12px py-16px col-span-full'>
+                    <div className='text-center text-secondary text-12px py-16px col-span-full'>
                       {t('settings.noBuiltinSkills', {
                         defaultValue: 'No builtin skills available',
                       })}

@@ -191,7 +191,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
                     }
                   }}
                 >
-                  <Plus theme='outline' size='20' fill='currentColor' className='text-t-primary shrink-0 block leading-none' />
+                  <Plus theme='outline' size='20' fill='currentColor' className='text-foreground shrink-0 block leading-none' />
                 </div>
               ) : (
                 <div
@@ -210,8 +210,8 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
                     }
                   }}
                 >
-                  <Plus theme='outline' size='20' fill='currentColor' className='text-t-primary shrink-0 block leading-none' />
-                  <span className='text-15px font-medium text-t-primary truncate'>{t('conversation.welcome.newConversation')}</span>
+                  <Plus theme='outline' size='20' fill='currentColor' className='text-foreground shrink-0 block leading-none' />
+                  <span className='text-15px font-medium text-foreground truncate'>{t('conversation.welcome.newConversation')}</span>
                 </div>
               )}
             </Tooltip>
@@ -274,7 +274,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
                 getPopupContainer={() => document.body}
                 content={
                   <div className='flex flex-col gap-6px w-180px'>
-                    <div className='px-2px pb-2px text-12px leading-18px text-t-secondary'>{t('conversation.history.selectedCount', { count: batchApi?.selectedCount ?? 0 })}</div>
+                    <div className='px-2px pb-2px text-12px leading-18px text-secondary'>{t('conversation.history.selectedCount', { count: batchApi?.selectedCount ?? 0 })}</div>
                     <Button long type='secondary' className='batch-actions-popover__item' onClick={() => batchApi?.onToggleSelectAll()}>
                       {batchApi?.allSelected ? t('common.cancel') : t('conversation.history.selectAll')}
                     </Button>
@@ -288,7 +288,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
                 }
               >
                 <Tooltip {...siderTooltipProps} content={isBatchMode ? t('conversation.history.batchModeExit') : t('conversation.history.batchManage')} position='right'>
-                  <div className={classNames('batch-mode-trigger w-32px h-32px flex items-center justify-center rd-8px cursor-pointer transition-all shrink-0', isBatchMode ? 'bg-[rgba(var(--ui-accent-orange-rgb),0.12)] text-[var(--ui-accent-orange)]' : 'hover:bg-hover active:bg-fill-2 text-t-secondary')} onClick={() => setIsBatchMode((prev) => !prev)}>
+                  <div className={classNames('batch-mode-trigger w-32px h-32px flex items-center justify-center rd-8px cursor-pointer transition-all shrink-0', isBatchMode ? 'bg-[rgba(var(--ui-accent-orange-rgb),0.12)] text-[var(--ui-accent-orange)]' : 'hover:bg-hover active:bg-fill-2 text-secondary')} onClick={() => setIsBatchMode((prev) => !prev)}>
                     <ListCheckbox theme='outline' size='18' className='block leading-none' />
                   </div>
                 </Tooltip>
@@ -309,7 +309,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
             droplist={
               <div className='flex flex-col gap-2px p-6px rd-12px border bg-popup' style={{ width: userMenuWidth ? userMenuWidth - 12 : undefined, minWidth: 200, boxShadow: '0 8px 28px rgba(0, 0, 0, 0.12)' }}>
                 <div
-                  className='flex items-center gap-10px px-10px h-38px rd-8px cursor-pointer text-14px text-t-primary transition-colors hover:bg-hover active:bg-active'
+                  className='flex items-center gap-10px px-10px h-38px rd-8px cursor-pointer text-14px text-foreground transition-colors hover:bg-hover active:bg-active'
                   onClick={() => {
                     handleSettingsClick();
                     setUserMenuOpen(false);
@@ -342,12 +342,12 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
             }}
           >
             <div ref={userTriggerRef} className={classNames('flex items-center gap-10px px-8px py-10px cursor-pointer transition-colors', collapsed ? 'rd-8px justify-center px-2px w-40px h-40px hover:bg-hover active:bg-fill-2' : 'rd-12px w-full border hover:bg-hover active:bg-fill-2')}>
-              <div className='w-32px h-32px rd-50% bg-[var(--color-fill-3)] flex items-center justify-center text-t-primary text-14px font-bold shrink-0'>{userInfo.avatar ? <img src={userInfo.avatar} alt={userInfo.name} className='w-full h-full rd-50% object-cover' /> : <span>{userInfo.name.charAt(0).toUpperCase()}</span>}</div>
+              <div className='w-32px h-32px rd-50% bg-[var(--color-fill-3)] flex items-center justify-center text-foreground text-14px font-bold shrink-0'>{userInfo.avatar ? <img src={userInfo.avatar} alt={userInfo.name} className='w-full h-full rd-50% object-cover' /> : <span>{userInfo.name.charAt(0).toUpperCase()}</span>}</div>
               {!collapsed && (
                 <>
                   <div className='flex-1 min-w-0'>
-                    <div className='text-14px font-medium text-t-primary truncate'>{userInfo.name}</div>
-                    <div className='text-12px text-t-secondary truncate'>{userInfo.email}</div>
+                    <div className='text-14px font-medium text-foreground truncate'>{userInfo.name}</div>
+                    <div className='text-12px text-secondary truncate'>{userInfo.email}</div>
                   </div>
                   <Down theme='outline' size='16' fill={'var(--text-secondary)'} className='shrink-0' />
                 </>
@@ -359,12 +359,12 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
           <div className='flex flex-col gap-2px'>
             {/* 返回按钮 */}
             <div className={classNames('flex items-center gap-10px px-4px py-10px rd-8px cursor-pointer transition-colors hover:bg-hover active:bg-fill-2', collapsed ? 'justify-center mr-2px' : 'ml-2px')} onClick={handleSettingsClick}>
-              <div className='w-32px h-32px rd-50% bg-[var(--color-fill-3)] flex items-center justify-center text-t-primary text-14px font-bold shrink-0'>
-                <Return theme='outline' size='16' fill={'var(--text-primary)'} />
+              <div className='w-32px h-32px rd-50% bg-[var(--color-fill-3)] flex items-center justify-center text-foreground text-14px font-bold shrink-0'>
+                <Return theme='outline' size='16' fill={'var(--foreground)'} />
               </div>
               {!collapsed && (
                 <div className='flex-1 min-w-0'>
-                  <div className='text-14px font-medium text-t-primary truncate'>{t('common.back')}</div>
+                  <div className='text-14px font-medium text-foreground truncate'>{t('common.back')}</div>
                 </div>
               )}
             </div>

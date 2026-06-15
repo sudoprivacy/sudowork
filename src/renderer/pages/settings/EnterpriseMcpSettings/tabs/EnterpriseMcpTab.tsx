@@ -48,10 +48,10 @@ const EnterpriseMcpTab: React.FC<EnterpriseMcpTabProps> = ({ servers, loading = 
           <McpIcon icon={srv.icon} size={40} />
           <div className='flex-1 min-w-0'>
             <div className='flex items-center gap-2'>
-              <span className='text-14px font-500 text-t-primary truncate'>{srv.display_name || srv.name}</span>
+              <span className='text-14px font-500 text-foreground truncate'>{srv.display_name || srv.name}</span>
               <RiskLevelTag level={srv.risk_level} />
             </div>
-            {srv.description && <div className='text-12px text-t-tertiary mt-0.5 truncate'>{srv.description}</div>}
+            {srv.description && <div className='text-12px text-tertiary mt-0.5 truncate'>{srv.description}</div>}
           </div>
           <div className='shrink-0'>
             <ScopeBadge scope={srv.scope} />

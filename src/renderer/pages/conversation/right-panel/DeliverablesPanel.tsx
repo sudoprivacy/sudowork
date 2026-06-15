@@ -78,8 +78,8 @@ const DeliverablesPanel: React.FC<DeliverablesPanelProps> = ({ conversationId })
           {grouped.map((group) => (
             <section key={group.label} className='w-[90%] min-w-0 overflow-hidden rounded-16px border border-solid border-[var(--color-border-2)] bg-[var(--color-bg-2)] p-12px shadow-[0_1px_0_rgba(0,0,0,0.02)]'>
               <div className='mb-10px flex items-center justify-between gap-8px'>
-                <div className='text-11px font-semibold uppercase tracking-[0.16em] text-t-secondary'>{group.label}</div>
-                <div className='rounded-full bg-[var(--color-fill-1)] px-8px py-1px text-[10px] font-medium leading-4 text-t-secondary'>{group.entries.length}</div>
+                <div className='text-11px font-semibold uppercase tracking-[0.16em] text-secondary'>{group.label}</div>
+                <div className='rounded-full bg-[var(--color-fill-1)] px-8px py-1px text-[10px] font-medium leading-4 text-secondary'>{group.entries.length}</div>
               </div>
               <GeneratedFileCards entries={group.entries} layout='stack' />
             </section>
@@ -93,7 +93,7 @@ const DeliverablesPanel: React.FC<DeliverablesPanelProps> = ({ conversationId })
 const EmptyState: React.FC<{ loading: boolean }> = ({ loading }) => {
   const { t } = useTranslation();
   if (loading) {
-    return <div className='flex-1 flex items-center justify-center text-12px text-t-secondary'>{t('conversation.rightPanel.deliverables.loading')}</div>;
+    return <div className='flex-1 flex items-center justify-center text-12px text-secondary'>{t('conversation.rightPanel.deliverables.loading')}</div>;
   }
   return (
     <div className='flex-1 flex flex-col items-center justify-center text-center px-24px'>
@@ -101,8 +101,8 @@ const EmptyState: React.FC<{ loading: boolean }> = ({ loading }) => {
         <div className='flex h-48px w-48px items-center justify-center rounded-full bg-[var(--color-fill-1)]'>
           <FileCabinet size={36} fill={'var(--text-disabled)'} />
         </div>
-        <div className='text-13px font-semibold text-t-primary'>{t('conversation.rightPanel.deliverables.emptyTitle')}</div>
-        <div className='max-w-220px text-12px leading-18px text-t-secondary opacity-80'>{t('conversation.rightPanel.deliverables.emptyHint')}</div>
+        <div className='text-13px font-semibold text-foreground'>{t('conversation.rightPanel.deliverables.emptyTitle')}</div>
+        <div className='max-w-220px text-12px leading-18px text-secondary opacity-80'>{t('conversation.rightPanel.deliverables.emptyHint')}</div>
       </div>
     </div>
   );

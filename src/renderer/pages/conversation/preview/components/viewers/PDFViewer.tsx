@@ -109,8 +109,8 @@ const PDFPreview: React.FC<PDFPreviewProps> = ({ filePath, content, hideToolbar 
     toolbarExtrasContext.setExtras({
       left: (
         <div className='flex items-center gap-8px'>
-          <span className='text-13px text-t-secondary'>📄 {t('preview.pdf.title')}</span>
-          <span className='text-11px text-t-tertiary'>{t('preview.readOnlyLabel')}</span>
+          <span className='text-13px text-secondary'>📄 {t('preview.pdf.title')}</span>
+          <span className='text-11px text-tertiary'>{t('preview.readOnlyLabel')}</span>
         </div>
       ),
       right: null,
@@ -135,7 +135,7 @@ const PDFPreview: React.FC<PDFPreviewProps> = ({ filePath, content, hideToolbar 
         {messageContextHolder}
         <div className='text-center'>
           <div className='text-16px text-danger mb-8px'>❌ {error}</div>
-          <div className='text-12px text-t-secondary'>{t('preview.pdf.unableDisplay')}</div>
+          <div className='text-12px text-secondary'>{t('preview.pdf.unableDisplay')}</div>
         </div>
       </div>
     );
@@ -145,7 +145,7 @@ const PDFPreview: React.FC<PDFPreviewProps> = ({ filePath, content, hideToolbar 
     return (
       <div className='flex items-center justify-center h-full'>
         {messageContextHolder}
-        <div className='text-14px text-t-secondary'>{t('preview.loading')}</div>
+        <div className='text-14px text-secondary'>{t('preview.loading')}</div>
       </div>
     );
   }
@@ -156,8 +156,8 @@ const PDFPreview: React.FC<PDFPreviewProps> = ({ filePath, content, hideToolbar 
       {!usePortalToolbar && !hideToolbar && (
         <div className='flex items-center justify-between h-40px px-12px bg-bg-2 flex-shrink-0'>
           <div className='flex items-center gap-8px'>
-            <span className='text-13px text-t-secondary'>📄 {t('preview.pdf.title')}</span>
-            <span className='text-11px text-t-tertiary'>{t('preview.readOnlyLabel')}</span>
+            <span className='text-13px text-secondary'>📄 {t('preview.pdf.title')}</span>
+            <span className='text-11px text-tertiary'>{t('preview.readOnlyLabel')}</span>
           </div>
           {filePath && (
             <Button size='mini' type='text' onClick={handleOpenInSystem} title={t('preview.openInSystemApp')}>

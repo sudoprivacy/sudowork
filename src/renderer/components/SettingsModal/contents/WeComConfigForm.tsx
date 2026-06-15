@@ -30,13 +30,13 @@ const PreferenceRow: React.FC<{
   <div className='flex items-center justify-between gap-24px py-12px'>
     <div className='flex-1'>
       <div className='flex items-center gap-8px'>
-        <span className='text-14px text-t-primary'>
+        <span className='text-14px text-foreground'>
           {label}
           {required && <span className='text-red-500 ml-2px'>*</span>}
         </span>
         {extra}
       </div>
-      {description && <div className='text-12px text-t-tertiary mt-2px'>{description}</div>}
+      {description && <div className='text-12px text-tertiary mt-2px'>{description}</div>}
     </div>
     <div className='flex items-center'>{children}</div>
   </div>
@@ -47,7 +47,7 @@ const PreferenceRow: React.FC<{
  */
 const SectionHeader: React.FC<{ title: string; action?: React.ReactNode }> = ({ title, action }) => (
   <div className='flex items-center justify-between mb-12px'>
-    <h3 className='text-14px font-500 text-t-primary m-0'>{title}</h3>
+    <h3 className='text-14px font-500 text-foreground m-0'>{title}</h3>
     {action}
   </div>
 );
@@ -501,8 +501,8 @@ const WeComConfigForm: React.FC<WeComConfigFormProps> = ({ pluginStatus, modelSe
 
       {/* Hint: Long connection mode */}
       {!pluginStatus?.connected && (
-        <div className='text-12px leading-relaxed p-10px rd-8px bg-[rgba(var(--primary-6),0.08)] border border-[rgba(var(--primary-6),0.3)] text-t-secondary'>
-          <div className='font-500 text-t-primary mb-4px'>{t('settings.wecom.longConnHint', 'WebSocket Long Connection Mode')}</div>
+        <div className='text-12px leading-relaxed p-10px rd-8px bg-[rgba(var(--primary-6),0.08)] border border-[rgba(var(--primary-6),0.3)] text-secondary'>
+          <div className='font-500 text-foreground mb-4px'>{t('settings.wecom.longConnHint', 'WebSocket Long Connection Mode')}</div>
           <div>{t('settings.wecom.longConnDesc', 'No public IP required. Enable API mode in WeCom admin console and select "Long Connection".')}</div>
           <div className='mt-4px'>{t('settings.wecom.singleConnNote', 'Note: Each bot allows only one active connection. A new connection will disconnect the previous one.')}</div>
         </div>
@@ -511,7 +511,7 @@ const WeComConfigForm: React.FC<WeComConfigFormProps> = ({ pluginStatus, modelSe
       {/* Test Connection Button - show when not connected and not locked */}
       {!isCredentialsLocked && !pluginStatus?.connected && (
         <div className='flex justify-end'>
-          {pluginStatus?.hasToken && !botId.trim() && !secret.trim() ? <span className='text-12px text-t-tertiary mr-12px self-center'>{t('settings.wecom.credentialsSaved', 'Credentials already configured. Enter new values to update.')}</span> : null}
+          {pluginStatus?.hasToken && !botId.trim() && !secret.trim() ? <span className='text-12px text-tertiary mr-12px self-center'>{t('settings.wecom.credentialsSaved', 'Credentials already configured. Enter new values to update.')}</span> : null}
           <Button type='primary' loading={testLoading} onClick={handleTestConnection} disabled={pluginStatus?.hasToken && !botId.trim() && !secret.trim()}>
             {t('settings.wecom.testAndConnect', 'Test & Connect')}
           </Button>
@@ -571,7 +571,7 @@ const WeComConfigForm: React.FC<WeComConfigFormProps> = ({ pluginStatus, modelSe
           <SectionHeader title={t('settings.wecom.connectionStatus', 'Connection Status')} action={<span className={`text-12px px-8px py-2px rd-4px ${pluginStatus?.connected ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' : pluginStatus?.error ? 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300' : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300'}`}>{pluginStatus?.connected ? t('settings.wecom.statusConnected', 'Connected') : pluginStatus?.error ? t('settings.wecom.statusError', 'Error') : t('settings.wecom.statusConnecting', 'Connecting...')}</span>} />
           {pluginStatus?.error && <div className='text-14px text-red-600 dark:text-red-400 mb-12px'>{pluginStatus.error}</div>}
           {pluginStatus?.connected && (
-            <div className='text-14px text-t-secondary space-y-8px'>
+            <div className='text-14px text-secondary space-y-8px'>
               <p className='m-0 font-500'>{t('settings.assistant.nextSteps', 'Next Steps')}:</p>
               <p className='m-0'>
                 <strong>1.</strong> {t('settings.wecom.step1', 'Open WeCom and find your AI bot')}
@@ -581,7 +581,7 @@ const WeComConfigForm: React.FC<WeComConfigFormProps> = ({ pluginStatus, modelSe
               </p>
             </div>
           )}
-          {!pluginStatus?.connected && !pluginStatus?.error && <div className='text-14px text-t-secondary'>{t('settings.wecom.waitingConnection', 'Connection is being established. Please wait...')}</div>}
+          {!pluginStatus?.connected && !pluginStatus?.error && <div className='text-14px text-secondary'>{t('settings.wecom.waitingConnection', 'Connection is being established. Please wait...')}</div>}
         </div>
       )}
     </div>

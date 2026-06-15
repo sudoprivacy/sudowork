@@ -146,7 +146,7 @@ const AcpConfigSelector: React.FC<{
             <Button className='sendbox-model-btn agent-mode-compact-pill' shape='round' size='small'>
               <span className='flex items-center gap-6px min-w-0 leading-none'>
                 <span className='block truncate leading-none'>{currentLabel}</span>
-                <Down size={12} className='text-t-tertiary shrink-0' />
+                <Down size={12} className='text-tertiary shrink-0' />
               </span>
             </Button>
           </Dropdown>

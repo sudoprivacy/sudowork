@@ -179,7 +179,7 @@ const JsonImportModal: React.FC<JsonImportModalProps> = ({ visible, server, onCa
     >
       <div className='space-y-3'>
         <div>
-          <div className='mb-2 text-sm text-t-secondary'>{t('settings.mcpImportPlaceholder')}</div>
+          <div className='mb-2 text-sm text-secondary'>{t('settings.mcpImportPlaceholder')}</div>
           <div className='relative'>
             <CodeMirror
               value={jsonInput}

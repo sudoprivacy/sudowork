@@ -29,7 +29,7 @@ const MessageLoadingIndicator: React.FC = () => {
 
   return (
     <div className={classNames('min-w-0 flex w-full message-item [&>div]:max-w-full m-t-10px max-w-full md:max-w-800px mx-auto group justify-start')}>
-      <div className='flex items-center gap-8px text-t-secondary'>
+      <div className='flex items-center gap-8px text-secondary'>
         <img src={streamingAvatar} alt='AI Loading Avatar' className='loading w-40px h-40px max-w-none object-contain' />
         <span className='text-13px leading-20px'>{thinkingLabel}</span>
       </div>

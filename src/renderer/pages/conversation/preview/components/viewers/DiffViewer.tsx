@@ -118,10 +118,10 @@ const DiffPreview: React.FC<DiffPreviewProps> = ({ content, hideToolbar = false,
       {!hideToolbar && (
         <div className='flex items-center justify-between h-40px px-12px bg-bg-2 flex-shrink-0'>
           <div className='flex items-center gap-4px'>
-            <div className={`px-12px py-4px rd-4px cursor-pointer transition-colors text-12px ${viewMode === 'source' ? 'bg-primary text-white' : 'text-t-secondary hover:bg-bg-3'}`} onClick={() => handleViewModeChange('source')}>
+            <div className={`px-12px py-4px rd-4px cursor-pointer transition-colors text-12px ${viewMode === 'source' ? 'bg-primary text-white' : 'text-secondary hover:bg-bg-3'}`} onClick={() => handleViewModeChange('source')}>
               {t('preview.source')}
             </div>
-            <div className={`px-12px py-4px rd-4px cursor-pointer transition-colors text-12px ${viewMode === 'preview' ? 'bg-primary text-white' : 'text-t-secondary hover:bg-bg-3'}`} onClick={() => handleViewModeChange('preview')}>
+            <div className={`px-12px py-4px rd-4px cursor-pointer transition-colors text-12px ${viewMode === 'preview' ? 'bg-primary text-white' : 'text-secondary hover:bg-bg-3'}`} onClick={() => handleViewModeChange('preview')}>
               {t('preview.preview')}
             </div>
           </div>
@@ -129,16 +129,16 @@ const DiffPreview: React.FC<DiffPreviewProps> = ({ content, hideToolbar = false,
           <div className='flex items-center gap-8px'>
             {viewMode === 'preview' && (
               <Checkbox className='whitespace-nowrap text-12px' checked={sideBySide} onChange={(value) => setSideBySide(value)}>
-                <span className='text-12px text-t-secondary'>side-by-side</span>
+                <span className='text-12px text-secondary'>side-by-side</span>
               </Checkbox>
             )}
             <div className='flex items-center gap-4px px-8px py-4px rd-4px cursor-pointer hover:bg-bg-3 transition-colors' onClick={handleDownload} title={t('preview.downloadDiff')}>
-              <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' className='text-t-secondary'>
+              <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' className='text-secondary'>
                 <path d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4' />
                 <polyline points='7 10 12 15 17 10' />
                 <line x1='12' y1='15' x2='12' y2='3' />
               </svg>
-              <span className='text-12px text-t-secondary'>{t('common.download')}</span>
+              <span className='text-12px text-secondary'>{t('common.download')}</span>
             </div>
           </div>
         </div>

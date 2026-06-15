@@ -43,7 +43,7 @@ const GeminiModelSelector: React.FC<{
     const displayLabel = customLabel || t('conversation.welcome.useCliModel');
 
     if (variant === 'settings') {
-      return <div className='text-14px text-t-secondary min-w-160px'>{displayLabel}</div>;
+      return <div className='text-14px text-secondary min-w-160px'>{displayLabel}</div>;
     }
 
     return (
@@ -148,8 +148,8 @@ const GeminiModelSelector: React.FC<{
                             trigger='hover'
                             content={
                               <div className='max-w-240px space-y-6px'>
-                                <div className='text-12px text-t-tertiary leading-5'>{option.description}</div>
-                                {option.modelHint && <div className='text-11px text-t-tertiary'>{option.modelHint}</div>}
+                                <div className='text-12px text-tertiary leading-5'>{option.description}</div>
+                                {option.modelHint && <div className='text-11px text-tertiary'>{option.modelHint}</div>}
                               </div>
                             }
                           >

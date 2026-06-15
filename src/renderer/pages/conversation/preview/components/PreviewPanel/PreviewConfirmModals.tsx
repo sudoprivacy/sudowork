@@ -88,7 +88,7 @@ const PreviewConfirmModals: React.FC<PreviewConfirmModalsProps> = ({ showExitCon
     <>
       {/* 退出编辑确认对话框 / Exit edit confirmation modal */}
       <Modal visible={showExitConfirm} title={t('preview.unsavedChangesTitle')} onCancel={onCancelExit} onOk={onConfirmExit} okText={t('preview.confirmExit')} cancelText={t('preview.continueEdit')} escToExit style={{ borderRadius: '12px' }} alignCenter getPopupContainer={() => document.body}>
-        <div className='text-14px text-t-secondary'>{t('preview.unsavedChangesMessage')}</div>
+        <div className='text-14px text-secondary'>{t('preview.unsavedChangesMessage')}</div>
       </Modal>
 
       {/* 关闭tab确认对话框 / Close tab confirmation modal */}
@@ -105,10 +105,10 @@ const PreviewConfirmModals: React.FC<PreviewConfirmModalsProps> = ({ showExitCon
         getPopupContainer={() => document.body}
         footer={
           <div className='flex justify-end gap-8px'>
-            <button className='px-16px py-6px cursor-pointer border-none hover:bg-bg-3 transition-colors text-14px text-t-primary' onClick={onCancelCloseTab}>
+            <button className='px-16px py-6px cursor-pointer border-none hover:bg-bg-3 transition-colors text-14px text-foreground' onClick={onCancelCloseTab}>
               {t('common.cancel')}
             </button>
-            <button className='px-16px py-6px cursor-pointer border-none hover:bg-bg-3 transition-colors text-14px text-t-primary' onClick={onCloseWithoutSave}>
+            <button className='px-16px py-6px cursor-pointer border-none hover:bg-bg-3 transition-colors text-14px text-foreground' onClick={onCloseWithoutSave}>
               {t('preview.closeWithoutSave')}
             </button>
             <button className='px-16px py-6px cursor-pointer border-none bg-primary text-white hover:opacity-80 transition-opacity text-14px' onClick={onSaveAndCloseTab}>
@@ -117,7 +117,7 @@ const PreviewConfirmModals: React.FC<PreviewConfirmModalsProps> = ({ showExitCon
           </div>
         }
       >
-        <div className='text-14px text-t-secondary'>{t('preview.closeTabMessage')}</div>
+        <div className='text-14px text-secondary'>{t('preview.closeTabMessage')}</div>
       </Modal>
     </>
   );

@@ -89,7 +89,7 @@ const AgentPillBar: React.FC<AgentPillBarProps> = ({ availableAgents, selectedAg
               marginLeft: isMobile ? -14 : 0,
               marginRight: isMobile ? -14 : 0,
               gap: 4,
-              color: 'var(--text-primary)',
+              color: 'var(--foreground)',
             }}
           >
             {/* Shared Remote icon */}
@@ -98,7 +98,7 @@ const AgentPillBar: React.FC<AgentPillBarProps> = ({ availableAgents, selectedAg
             </span>
             {/* Remote tab */}
             <div data-agent-pill='true' data-session-mode='remote' className={`group relative flex items-center cursor-pointer whitespace-nowrap ${sessionMode === 'remote' ? `opacity-100 px-12px py-8px rd-20px mx-2px ${styles.agentItemSelected}` : 'opacity-60 p-4px hover:opacity-100'}`} style={sessionMode === 'remote' ? { transition: 'opacity 0.2s ease, background-color 0.2s ease' } : { transition: 'opacity 0.2s ease' }} onClick={() => onSessionModeChange?.('remote')}>
-              <span className='font-semibold text-14px ml-4px' style={{ color: 'var(--text-primary)' }}>
+              <span className='font-semibold text-14px ml-4px' style={{ color: 'var(--foreground)' }}>
                 Remote
               </span>
             </div>
@@ -106,7 +106,7 @@ const AgentPillBar: React.FC<AgentPillBarProps> = ({ availableAgents, selectedAg
             <>
               <div className='text-16px lh-1 p-2px select-none opacity-30'>|</div>
               <div data-agent-pill='true' data-session-mode='local' className={`group relative flex items-center cursor-pointer whitespace-nowrap ${sessionMode === 'local' ? `opacity-100 px-12px py-8px rd-20px mx-2px ${styles.agentItemSelected}` : 'opacity-60 p-4px hover:opacity-100'}`} style={sessionMode === 'local' ? { transition: 'opacity 0.2s ease, background-color 0.2s ease' } : { transition: 'opacity 0.2s ease' }} onClick={() => onSessionModeChange?.('local')}>
-                <span className='font-semibold text-14px ml-4px' style={{ color: 'var(--text-primary)' }}>
+                <span className='font-semibold text-14px ml-4px' style={{ color: 'var(--foreground)' }}>
                   Local
                 </span>
               </div>
@@ -125,14 +125,14 @@ const AgentPillBar: React.FC<AgentPillBarProps> = ({ availableAgents, selectedAg
               maxWidth: isMobile ? 'none' : '100%',
               marginLeft: isMobile ? -14 : 0,
               marginRight: isMobile ? -14 : 0,
-              color: 'var(--text-primary)',
+              color: 'var(--foreground)',
             }}
           >
             <div className={`group relative flex items-center whitespace-nowrap px-12px py-8px rd-20px mx-2px ${styles.agentItemSelected}`} style={{ transition: 'opacity 0.2s ease, background-color 0.2s ease' }}>
               <span className='inline-flex h-20px w-20px shrink-0 items-center justify-center leading-none'>
                 <img src={getAgentLogo('remote-agent')} alt='Remote Agent' width={20} height={20} style={{ objectFit: 'contain', display: 'block' }} />
               </span>
-              <span className='font-semibold text-14px ml-4px' style={{ color: 'var(--text-primary)' }}>
+              <span className='font-semibold text-14px ml-4px' style={{ color: 'var(--foreground)' }}>
                 Remote Agent
               </span>
             </div>
@@ -155,7 +155,7 @@ const AgentPillBar: React.FC<AgentPillBarProps> = ({ availableAgents, selectedAg
             overflow: isMobile ? 'visible' : 'hidden',
             gap: isMobile ? 6 : 4,
             flexWrap: isMobile ? 'wrap' : 'nowrap',
-            color: 'var(--text-primary)',
+            color: 'var(--foreground)',
           }}
         >
           {sortedAgents
@@ -174,7 +174,7 @@ const AgentPillBar: React.FC<AgentPillBarProps> = ({ availableAgents, selectedAg
                     <span
                       className={`font-medium text-14px ${isSelected ? 'font-semibold ml-4px' : isMobile ? 'max-w-0 opacity-0 overflow-hidden' : 'max-w-0 opacity-0 overflow-hidden group-hover:max-w-100px group-hover:opacity-100 group-hover:ml-2'}`}
                       style={{
-                        color: 'var(--text-primary)',
+                        color: 'var(--foreground)',
                         transition: isSelected ? 'color 0.2s ease, font-weight 0.2s ease' : isMobile ? 'none' : 'max-width 0.6s cubic-bezier(0.2, 0.8, 0.3, 1), opacity 0.5s cubic-bezier(0.2, 0.8, 0.3, 1) 0.05s, margin 0.6s cubic-bezier(0.2, 0.8, 0.3, 1)',
                       }}
                     >

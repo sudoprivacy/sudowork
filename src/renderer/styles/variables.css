@@ -106,8 +106,9 @@
   --bg-active: #e0ded4;
 
   /* Text */
-  --text-primary: #1d011d;
+  --foreground: #1d011d;
   --text-secondary: #6e6060;
+  --text-tertiary: #8c8878;
   --text-disabled: #b8b0a8;
   --text-0: #1d011d;
   --text-white: #faf9f6;
@@ -214,8 +215,9 @@
   --bg-active: #28281c;
 
   /* Text */
-  --text-primary: #e8e6d8;
+  --foreground: #e8e6d8;
   --text-secondary: #a8a498;
+  --text-tertiary: #606050;
   --text-disabled: #686458;
   --text-0: #f0ede0;
   --text-white: #f0ede0;

@@ -19,7 +19,7 @@ export type SidebarNavItemProps = {
 
 const SidebarNavItem: React.FC<SidebarNavItemProps> = ({ icon, label, selected = false, collapsed = false, onClick, className, dataAttributes }) => {
   return (
-    <button type='button' className={classNames('sidebar-nav-item group relative flex h-40px w-full cursor-pointer items-center border-0 bg-transparent text-left outline-none transition-colors', collapsed ? 'justify-center px-0' : 'gap-12px px-12px', selected ? 'sidebar-nav-item--selected' : 'text-t-secondary hover:bg-hover hover:text-t-primary', className)} onClick={onClick} {...dataAttributes}>
+    <button type='button' className={classNames('sidebar-nav-item group relative flex h-40px w-full cursor-pointer items-center border-0 bg-transparent text-left outline-none transition-colors', collapsed ? 'justify-center px-0' : 'gap-12px px-12px', selected ? 'sidebar-nav-item--selected' : 'text-secondary hover:bg-hover hover:text-foreground', className)} onClick={onClick} {...dataAttributes}>
       <span className='sidebar-nav-item__rail absolute left-0 top-8px h-24px w-2px rd-r-2px bg-transparent transition-colors' />
       <span className='sidebar-nav-item__icon inline-flex h-20px w-20px shrink-0 items-center justify-center' style={{ color: selected ? 'var(--ui-accent-orange)' : undefined }}>
         {icon}

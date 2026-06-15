@@ -84,28 +84,28 @@ const InstallConfigModal: React.FC<InstallConfigModalProps> = ({ visible, templa
       }
     >
       <div className='flex flex-col gap-4 py-1'>
-        {template.description && <div className='text-13px text-t-secondary leading-relaxed'>{template.description}</div>}
+        {template.description && <div className='text-13px text-secondary leading-relaxed'>{template.description}</div>}
 
         <div className='flex flex-col gap-2'>
-          <label className='block text-13px text-t-secondary'>显示名称（可选）</label>
+          <label className='block text-13px text-secondary'>显示名称（可选）</label>
           <Input placeholder={`默认：${template.name}`} value={displayName} onChange={setDisplayName} disabled={submitting} />
         </div>
 
         {hasNoConfig ? (
-          <div className='text-13px text-t-tertiary py-3 text-center bg-[var(--color-fill-1)] rd-8px'>此模板无需配置，点击"安装"即可</div>
+          <div className='text-13px text-tertiary py-3 text-center bg-[var(--color-fill-1)] rd-8px'>此模板无需配置，点击"安装"即可</div>
         ) : (
           <div className='flex flex-col gap-4'>
             {/* 用户配置项区域 */}
             {items.length > 0 && (
               <div className='flex flex-col gap-3.5'>
-                <div className='text-13px font-500 text-t-primary'>用户配置项</div>
+                <div className='text-13px font-500 text-foreground'>用户配置项</div>
                 {items.map((it) => (
                   <div key={it.key} className='flex flex-col gap-1.5'>
-                    <label className='block text-13px text-t-primary'>
+                    <label className='block text-13px text-foreground'>
                       {it.name}
                       {it.required && <span className='text-red-500 ml-1'>*</span>}
                     </label>
-                    {it.description && <div className='text-12px text-t-tertiary'>{it.description}</div>}
+                    {it.description && <div className='text-12px text-tertiary'>{it.description}</div>}
                     <Input
                       placeholder={it.target === 'headers' ? `请求头 ${it.key}` : `环境变量 ${it.key}`}
                       value={values[it.key] ?? ''}
@@ -130,14 +130,14 @@ const InstallConfigModal: React.FC<InstallConfigModalProps> = ({ visible, templa
             {/* 鉴权凭据区域 */}
             {authItems.length > 0 && (
               <div className='flex flex-col gap-3.5'>
-                <div className='text-13px font-500 text-t-primary'>鉴权凭据</div>
+                <div className='text-13px font-500 text-foreground'>鉴权凭据</div>
                 {authItems.map((it) => (
                   <div key={it.key} className='flex flex-col gap-1.5'>
-                    <label className='block text-13px text-t-primary'>
+                    <label className='block text-13px text-foreground'>
                       {it.name}
                       {it.required && <span className='text-red-500 ml-1'>*</span>}
                     </label>
-                    {it.description && <div className='text-12px text-t-tertiary'>{it.description}</div>}
+                    {it.description && <div className='text-12px text-tertiary'>{it.description}</div>}
                     <Input
                       placeholder={`凭据 ${it.key}`}
                       value={authValues[it.key] ?? ''}

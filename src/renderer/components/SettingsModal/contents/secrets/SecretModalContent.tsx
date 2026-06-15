@@ -37,19 +37,19 @@ const SecretModalContent: React.FC = () => {
       <div className='px-12px sm:px-16px md:px-0 pb-18px'>
         <div className='max-w-820px mx-auto w-full'>
           <div className='flex items-center justify-between mb-12px'>
-            <h2 className='text-20px font-600 text-t-primary m-0'>{t('settings.secrets.title', '秘钥管理')}</h2>
+            <h2 className='text-20px font-600 text-foreground m-0'>{t('settings.secrets.title', '秘钥管理')}</h2>
             <button onClick={handleRefresh} className='cursor-pointer p-4px rd-6px border-none bg-transparent hover:bg-fill-2 transition-colors' title={t('settings.secrets.refresh', '刷新配置项')}>
               <img src={itemRefreshIcon} alt='refresh' className='w-16px h-16px' />
             </button>
           </div>
           <div className='space-y-8px'>
-            <div className='text-13px text-t-secondary leading-relaxed'>{guideText}</div>
+            <div className='text-13px text-secondary leading-relaxed'>{guideText}</div>
             <div className='flex flex-wrap gap-x-12px gap-y-6px'>
               {setupSteps.map((stepLabel, idx) => (
                 <div key={stepLabel} className='inline-flex items-center gap-6px'>
                   <span className='inline-flex items-center justify-center w-16px h-16px rd-50% text-10px font-600 bg-[rgba(var(--ui-accent-orange-rgb),0.12)] text-[var(--ui-accent-orange)]'>{idx + 1}</span>
                   <CheckOne theme='outline' size='12' className='text-[var(--ui-accent-orange)]' />
-                  <span className='text-12px text-t-secondary'>{stepLabel}</span>
+                  <span className='text-12px text-secondary'>{stepLabel}</span>
                 </div>
               ))}
             </div>

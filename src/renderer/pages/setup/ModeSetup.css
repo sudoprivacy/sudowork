@@ -29,7 +29,7 @@
 
 .mode-setup .app-window-controls__button:hover {
   background: rgba(0, 0, 0, 0.05);
-  color: var(--text-primary);
+  color: var(--foreground);
 }
 
 .mode-setup .app-window-controls__button--close:hover {
@@ -185,11 +185,11 @@
 
 .mode-setup__card h3 {
   margin: 0;
-  color: var(--text-primary);
+  color: var(--foreground);
 }
 
 [data-theme='dark'] .mode-setup__card h3 {
-  color: var(--text-primary);
+  color: var(--foreground);
 }
 
 .mode-setup__card:hover {
@@ -359,7 +359,7 @@
   border: 1px solid #e5e6eb !important;
   font-size: 14px;
   background: #ffffff !important;
-  color: var(--text-primary) !important;
+  color: var(--foreground) !important;
   outline: none;
   transition:
     border-color 0.2s,
@@ -373,7 +373,7 @@
 .mode-setup .mode-setup__input,
 .mode-setup .mode-setup__input .arco-input,
 .mode-setup .mode-setup__input input {
-  color: var(--text-primary) !important;
+  color: var(--foreground) !important;
 }
 
 .arco-input.mode-setup__input:focus {
@@ -384,7 +384,7 @@
 [data-theme='dark'] .arco-input.mode-setup__input {
   background: rgba(255, 255, 255, 0.04) !important;
   border-color: rgba(255, 255, 255, 0.12) !important;
-  color: var(--text-primary) !important;
+  color: var(--foreground) !important;
 }
 
 [data-theme='dark'] .arco-input.mode-setup__input::placeholder {
@@ -399,7 +399,7 @@
 [data-theme='dark'] .mode-setup .mode-setup__input .arco-input-inner-wrapper {
   background: rgba(255, 255, 255, 0.04) !important;
   border-color: rgba(255, 255, 255, 0.12) !important;
-  color: var(--text-primary) !important;
+  color: var(--foreground) !important;
 }
 
 [data-theme='dark'] .mode-setup .mode-setup__input .arco-input-inner-wrapper:hover,

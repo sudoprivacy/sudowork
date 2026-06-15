@@ -44,7 +44,7 @@ const StatusCard: React.FC<{
     success: { bg: '#52c41a15', text: '#52c41a' },
     warning: { bg: '#faad1415', text: '#faad14' },
     error: { bg: '#ff4d4f15', text: '#ff4d4f' },
-    info: { bg: `${'var(--text-primary)'}15`, text: 'var(--text-primary)' },
+    info: { bg: `${'var(--foreground)'}15`, text: 'var(--foreground)' },
   };
 
   const colors = statusColors[status];
@@ -56,13 +56,13 @@ const StatusCard: React.FC<{
           {icon}
         </div>
         <div className='flex-1 min-w-0'>
-          <div className='text-13px text-t-secondary mb-4px'>{title}</div>
-          <div className='text-20px font-600 text-t-primary truncate' title={String(value)}>
+          <div className='text-13px text-secondary mb-4px'>{title}</div>
+          <div className='text-20px font-600 text-foreground truncate' title={String(value)}>
             {value}
           </div>
           {description && (
             <Tooltip content={description}>
-              <div className='text-12px text-t-tertiary mt-4px truncate'>{description}</div>
+              <div className='text-12px text-tertiary mt-4px truncate'>{description}</div>
             </Tooltip>
           )}
         </div>
@@ -445,7 +445,7 @@ const CopilotModalContent: React.FC = () => {
 
         <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-16px mb-24px'>
           <StatusCard title='连接状态' value={isConnected ? '已连接' : '未连接'} icon={<Folder theme='outline' size='24' fill={isConnected ? 'var(--success)' : '#999'} />} status={isConnected ? 'success' : 'error'} description={status?.gatewayUrl} />
-          <StatusCard title='Agent' value={status?.agentName || '未设置'} icon={<Robot theme='outline' size='24' fill={'var(--text-primary)'} />} status='info' description={status?.model} />
+          <StatusCard title='Agent' value={status?.agentName || '未设置'} icon={<Robot theme='outline' size='24' fill={'var(--foreground)'} />} status='info' description={status?.model} />
           <StatusCard title='工作区' value={status?.workspace ? '已配置' : '未配置'} icon={<Folder theme='outline' size='24' fill={status?.workspace ? 'var(--warning)' : '#999'} />} status={status?.workspace ? 'success' : 'info'} description={status?.workspace} />
           <StatusCard title='会话状态' value={status?.hasActiveSession ? '活动中' : '空闲'} icon={<User theme='outline' size='24' fill={status?.hasActiveSession ? 'var(--success)' : '#999'} />} status={status?.hasActiveSession ? 'success' : 'info'} description={status?.sessionKey || '无活动会话'} />
         </div>

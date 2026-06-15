@@ -38,7 +38,7 @@ const CronJobManager: React.FC<CronJobManagerProps> = ({ conversationId }) => {
         position='bottom'
         content={
           <div className='flex flex-col gap-8px p-4px max-w-240px'>
-            <div className='text-13px text-t-secondary'>{t('cron.status.unconfiguredHint')}</div>
+            <div className='text-13px text-secondary'>{t('cron.status.unconfiguredHint')}</div>
             <Button type='primary' size='mini' onClick={handleCreateClick}>
               {t('cron.status.createNow')}
             </Button>
@@ -84,7 +84,7 @@ const CronJobManager: React.FC<CronJobManagerProps> = ({ conversationId }) => {
       <Tooltip content={tooltipContent}>
         <Button type='text' size='small' className='cron-job-manager-button chat-header-cron-pill !h-auto !w-auto !min-w-0 !px-0 !py-0' onClick={() => setDrawerVisible(true)}>
           <span className='inline-flex items-center gap-2px rounded-full px-8px py-2px bg-2'>
-            <AlarmClock theme='outline' size={16} fill={'var(--text-primary)'} />
+            <AlarmClock theme='outline' size={16} fill={'var(--foreground)'} />
             <span className={`ml-4px w-8px h-8px rounded-full ${hasError ? 'bg-[#f53f3f]' : isPaused ? 'bg-[#ff7d00]' : 'bg-[#00b42a]'}`} />
           </span>
         </Button>

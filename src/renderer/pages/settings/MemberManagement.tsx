@@ -183,12 +183,12 @@ const MemberManagement: React.FC = () => {
       <div className='flex flex-col gap-6 py-2'>
         <div className='flex items-center justify-between'>
           <div className='flex flex-col gap-1'>
-            <div className='text-20px font-600 text-t-primary leading-32px'>{t('settings.memberManagement', { defaultValue: '成员管理' })}</div>
-            <div className='text-13px text-t-secondary'>管理企业成员加入申请及 API 权限分配</div>
+            <div className='text-20px font-600 text-foreground leading-32px'>{t('settings.memberManagement', { defaultValue: '成员管理' })}</div>
+            <div className='text-13px text-secondary'>管理企业成员加入申请及 API 权限分配</div>
           </div>
           <Badge count={pendingUsers.length} dot={pendingUsers.length > 0}>
             <div className='p-2 bg-fill-2 rd-8px'>
-              <Peoples size='20' className='text-t-secondary' />
+              <Peoples size='20' className='text-secondary' />
             </div>
           </Badge>
         </div>

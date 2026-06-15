@@ -104,8 +104,8 @@ const MessageFileSend: React.FC<{ message: IMessageFileSend }> = ({ message }) =
     return (
       <div className='w-full'>
         <div className='bg-message-tips rd-8px p-x-12px p-y-8px flex items-center gap-8px' {...clickableProps}>
-          <Picture theme='filled' size='18' className='flex-shrink-0 text-t-secondary' />
-          <span className='text-t-secondary text-13px'>{fileName}</span>
+          <Picture theme='filled' size='18' className='flex-shrink-0 text-secondary' />
+          <span className='text-secondary text-13px'>{fileName}</span>
         </div>
       </div>
     );
@@ -116,8 +116,8 @@ const MessageFileSend: React.FC<{ message: IMessageFileSend }> = ({ message }) =
       <div className='bg-message-tips rd-8px p-x-12px p-y-8px flex items-center gap-8px' {...clickableProps}>
         <span className='flex-shrink-0'>{resolveFileIcon(fileName, { size: 18, theme: 'filled' })}</span>
         <div className='flex flex-col gap-2px'>
-          <span className='text-t-primary text-14px'>{fileName}</span>
-          <span className='text-t-tertiary text-12px'>{typeLabel}</span>
+          <span className='text-foreground text-14px'>{fileName}</span>
+          <span className='text-tertiary text-12px'>{typeLabel}</span>
         </div>
       </div>
     </div>

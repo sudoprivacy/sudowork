@@ -403,7 +403,7 @@ const MessageAcpQuestion: React.FC<MessageAcpQuestionProps> = React.memo(({ mess
         {!hasResponded && !isCancelled && (
           <>
             <div className='mt-10px'>
-              <Text className='text-xs text-t-secondary'>{items.length > 1 ? `${currentStep + 1}/${items.length}` : t('messages.chooseAction')}</Text>
+              <Text className='text-xs text-secondary'>{items.length > 1 ? `${currentStep + 1}/${items.length}` : t('messages.chooseAction')}</Text>
             </div>
 
             {currentItem ? (
@@ -421,7 +421,7 @@ const MessageAcpQuestion: React.FC<MessageAcpQuestionProps> = React.memo(({ mess
                               {option.label}
                               {renderOptionExtras(option)}
                             </Button>
-                            {option.description ? <Text className='text-xs text-t-secondary pl-4px'>{option.description}</Text> : null}
+                            {option.description ? <Text className='text-xs text-secondary pl-4px'>{option.description}</Text> : null}
                           </div>
                         );
                       })}
@@ -460,7 +460,7 @@ const MessageAcpQuestion: React.FC<MessageAcpQuestionProps> = React.memo(({ mess
                   ) : null}
 
                   {!!currentValueLabel && (
-                    <Text className='text-xs text-t-secondary'>
+                    <Text className='text-xs text-secondary'>
                       {t('messages.option')}: {currentValueLabel}
                     </Text>
                   )}
@@ -503,7 +503,7 @@ const MessageAcpQuestion: React.FC<MessageAcpQuestionProps> = React.memo(({ mess
                     borderColor: skipped ? 'rgb(var(--gray-3))' : 'var(--success-line)',
                   }}
                 >
-                  <div className='text-xs text-t-secondary mb-1'>
+                  <div className='text-xs text-secondary mb-1'>
                     {items.length > 1 ? `${idx + 1}. ` : ''}
                     {item.prompt}
                   </div>

@@ -21,7 +21,7 @@ const MessageCronBadge: React.FC<MessageCronBadgeProps> = ({ meta }) => {
   const { i18n } = useTranslation();
 
   return (
-    <div className='inline-flex items-center gap-4px mb-4px px-12px py-2px rounded-full text-t-secondary bg-fill-2'>
+    <div className='inline-flex items-center gap-4px mb-4px px-12px py-2px rounded-full text-secondary bg-fill-2'>
       <AlarmClock strokeWidth={4} theme='outline' size={13} fill={'var(--text-secondary)'} className='flex items-center' />
       <span>{formatTime(meta.triggeredAt, i18n.language)}</span>
     </div>

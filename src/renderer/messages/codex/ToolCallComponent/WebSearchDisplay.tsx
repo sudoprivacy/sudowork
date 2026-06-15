@@ -33,7 +33,7 @@ const WebSearchDisplay: React.FC<{ content: WebSearchUpdate }> = ({ content }) =
       {/* Display query if available 显示搜索查询 */}
       {subtype === 'web_search_end' && 'query' in data && data.query && (
         <div className='text-sm mb-2'>
-          <div className='text-xs text-t-secondary mb-1'>{t('tools.labels.search_query')}</div>
+          <div className='text-xs text-secondary mb-1'>{t('tools.labels.search_query')}</div>
           <div className='bg-1 p-2 rounded text-sm border'>
             <span className='text-primary font-medium'>{data.query}</span>
           </div>

@@ -189,11 +189,11 @@ const SkillCard: React.FC<{
       {/* Content */}
       <div className='flex-1 min-w-0'>
         <div className='flex items-center gap-6px pr-58px min-w-0'>
-          <span className='flex-1 min-w-0 font-medium text-13px text-t-primary truncate'>{skill.display_name}</span>
-          {loadingVersion && !latestVersion && <span className='px-5px py-0px bg-fill-3 text-t-tertiary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px animate-pulse'>...</span>}
-          {latestVersion && <span className='px-5px py-0px bg-fill-3 text-t-secondary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px'>v{latestVersion}</span>}
+          <span className='flex-1 min-w-0 font-medium text-13px text-foreground truncate'>{skill.display_name}</span>
+          {loadingVersion && !latestVersion && <span className='px-5px py-0px bg-fill-3 text-tertiary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px animate-pulse'>...</span>}
+          {latestVersion && <span className='px-5px py-0px bg-fill-3 text-secondary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px'>v{latestVersion}</span>}
         </div>
-        <div className='text-11px text-t-secondary mt-3px line-clamp-2 leading-relaxed'>{skill.description}</div>
+        <div className='text-11px text-secondary mt-3px line-clamp-2 leading-relaxed'>{skill.description}</div>
       </div>
 
       {/* Action - top right */}
@@ -269,10 +269,10 @@ const InstalledSkillCard: React.FC<{
       {/* Content */}
       <div className='flex-1 min-w-0'>
         <div className='flex items-center gap-6px pr-58px min-w-0'>
-          <span className='flex-1 min-w-0 font-medium text-13px text-t-primary truncate'>{displayName}</span>
-          {!skill.isBuiltin && displayVersion && <span className='px-5px py-0px bg-fill-3 text-t-secondary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px'>v{displayVersion}</span>}
+          <span className='flex-1 min-w-0 font-medium text-13px text-foreground truncate'>{displayName}</span>
+          {!skill.isBuiltin && displayVersion && <span className='px-5px py-0px bg-fill-3 text-secondary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px'>v{displayVersion}</span>}
         </div>
-        <div className='mt-3px min-h-30px'>{description ? <div className='text-11px text-t-secondary line-clamp-2 leading-15px'>{description}</div> : <div className='text-11px text-t-tertiary italic line-clamp-2 leading-15px'>{skill.name}</div>}</div>
+        <div className='mt-3px min-h-30px'>{description ? <div className='text-11px text-secondary line-clamp-2 leading-15px'>{description}</div> : <div className='text-11px text-tertiary italic line-clamp-2 leading-15px'>{skill.name}</div>}</div>
       </div>
 
       {/* Actions - top right */}
@@ -420,7 +420,7 @@ const SkillDetailModal: React.FC<{
       <div className='flex flex-col max-h-80vh'>
         {/* Close button */}
         <div className='flex justify-end mb-4px'>
-          <div className='w-28px h-28px flex items-center justify-center rd-full bg-fill-2 hover:bg-fill-3 cursor-pointer transition-colors text-t-secondary' onClick={onClose}>
+          <div className='w-28px h-28px flex items-center justify-center rd-full bg-fill-2 hover:bg-fill-3 cursor-pointer transition-colors text-secondary' onClick={onClose}>
             <Close size='14' />
           </div>
         </div>
@@ -430,11 +430,11 @@ const SkillDetailModal: React.FC<{
             {/* Icon + Name header */}
             <div className='flex flex-col items-center mb-20px'>
               <div className='w-72px h-72px rd-14px overflow-hidden bg-fill-2 mb-12px'>{skill.icon ? <img src={skill.icon} alt={skill.display_name} className='w-full h-full object-cover' onError={handleSkillIconError} /> : <div className='w-full h-full flex items-center justify-center text-34px'>{skill.emoji || '📦'}</div>}</div>
-              <div className='font-semibold text-17px text-t-primary text-center'>{skill.display_name}</div>
+              <div className='font-semibold text-17px text-foreground text-center'>{skill.display_name}</div>
               {skill.categories && skill.categories.length > 0 && (
                 <div className='flex gap-4px mt-6px flex-wrap justify-center'>
                   {skill.categories.map((cat, idx) => (
-                    <span key={idx} className='px-7px py-1px bg-fill-2 text-t-secondary text-11px rd-4px'>
+                    <span key={idx} className='px-7px py-1px bg-fill-2 text-secondary text-11px rd-4px'>
                       {cat}
                     </span>
                   ))}
@@ -452,9 +452,9 @@ const SkillDetailModal: React.FC<{
                 <div className='bg-fill-1 rd-10px p-14px'>
                   <div className='flex items-center gap-6px mb-8px'>
                     <span className='text-14px'>✦</span>
-                    <span className='font-medium text-13px text-t-primary'>{t('settings.skill.introduction', { defaultValue: '技能介绍' })}</span>
+                    <span className='font-medium text-13px text-foreground'>{t('settings.skill.introduction', { defaultValue: '技能介绍' })}</span>
                   </div>
-                  <div className='text-12px text-t-secondary leading-relaxed'>{skill.description}</div>
+                  <div className='text-12px text-secondary leading-relaxed'>{skill.description}</div>
                 </div>
 
                 {/* 怎么使用 */}
@@ -462,22 +462,22 @@ const SkillDetailModal: React.FC<{
                   <div className='bg-fill-1 rd-10px p-14px'>
                     <div className='flex items-center gap-6px mb-10px'>
                       <span className='text-14px'>📄</span>
-                      <span className='font-medium text-13px text-t-primary'>{t('settings.skill.howToUse', { defaultValue: '怎么使用？' })}</span>
+                      <span className='font-medium text-13px text-foreground'>{t('settings.skill.howToUse', { defaultValue: '怎么使用？' })}</span>
                     </div>
                     <div className='space-y-6px'>
                       {coreFeatures.map((feature, idx) => (
                         <div key={idx} className='flex items-start gap-6px'>
-                          <span className='text-t-tertiary text-11px mt-1px flex-shrink-0'>•</span>
-                          <div className='text-12px text-t-secondary leading-relaxed'>
+                          <span className='text-tertiary text-11px mt-1px flex-shrink-0'>•</span>
+                          <div className='text-12px text-secondary leading-relaxed'>
                             {feature.title}
-                            {feature.desc && <span className='text-t-tertiary'>{feature.title ? `，${feature.desc}` : feature.desc}</span>}
+                            {feature.desc && <span className='text-tertiary'>{feature.title ? `，${feature.desc}` : feature.desc}</span>}
                           </div>
                         </div>
                       ))}
                       {applicableScenarios.map((scenario, idx) => (
                         <div key={`s-${idx}`} className='flex items-start gap-6px'>
-                          <span className='text-t-tertiary text-11px mt-1px flex-shrink-0'>•</span>
-                          <div className='text-12px text-t-secondary leading-relaxed'>{scenario}</div>
+                          <span className='text-tertiary text-11px mt-1px flex-shrink-0'>•</span>
+                          <div className='text-12px text-secondary leading-relaxed'>{scenario}</div>
                         </div>
                       ))}
                     </div>
@@ -518,7 +518,7 @@ const SkillDetailModal: React.FC<{
                   ) : (
                     <Popconfirm title='确认卸载该技能？' onOk={onUninstall} okText='卸载' cancelText='取消' okButtonProps={{ status: 'danger' }}>
                       <Tooltip content={t('common.delete', { defaultValue: '删除' })}>
-                        <div className='w-36px h-36px flex items-center justify-center rd-8px border hover:bg-fill-2 cursor-pointer transition-colors text-t-secondary'>
+                        <div className='w-36px h-36px flex items-center justify-center rd-8px border hover:bg-fill-2 cursor-pointer transition-colors text-secondary'>
                           <Delete size='16' />
                         </div>
                       </Tooltip>
@@ -551,7 +551,7 @@ const SkillDetailModal: React.FC<{
           {/* Security badge */}
           <div className='flex items-center gap-5px mt-10px justify-center'>
             <Shield size='12' className='text-success flex-shrink-0' />
-            <span className='text-10px text-t-tertiary'>已通过安全与合规验证，无恶意代码或数据泄露风险。</span>
+            <span className='text-10px text-tertiary'>已通过安全与合规验证，无恶意代码或数据泄露风险。</span>
           </div>
         </div>
       </div>
@@ -1682,14 +1682,14 @@ const SkillModalContent: React.FC = () => {
 
         {/* Search - always rendered to preserve layout, hidden on installed tab */}
         <div className={classNames('flex-1 min-w-0 transition-opacity duration-150', activeTab === 'installed' ? 'opacity-0 pointer-events-none' : '')}>
-          <Input placeholder={t('settings.skill.searchPlaceholder', { defaultValue: '搜索...' })} value={searchQuery} onChange={setSearchQuery} prefix={<Search size='14' className='text-t-tertiary' />} size='small' className='skill-hub-input' />
+          <Input placeholder={t('settings.skill.searchPlaceholder', { defaultValue: '搜索...' })} value={searchQuery} onChange={setSearchQuery} prefix={<Search size='14' className='text-tertiary' />} size='small' className='skill-hub-input' />
         </div>
         {activeTab === 'installed' && isElectronDesktop() && (
           <button type='button' className='group h-34px px-4 py-0 border border-solid rd-999px flex items-center gap-8px flex-shrink-0 cursor-pointer transition-all outline-none bg-[color-mix(in_srgb,var(--color-fill-2)_84%,transparent)] border-[color-mix(in_srgb,var(--color-border-2)_70%,transparent)] hover:bg-[color-mix(in_srgb,var(--color-primary-light-1)_58%,transparent)] hover:border-[color-mix(in_srgb,var(--color-primary)_36%,transparent)]' onClick={onImportButtonClick}>
             <span className='w-22px h-22px rd-full flex items-center justify-center bg-[color-mix(in_srgb,var(--color-primary)_14%,transparent)] text-[var(--color-primary)] transition-transform group-hover:scale-105'>{isEnterprise ? <Plus size='13' /> : <UploadOne size='13' />}</span>
             <span className='flex items-baseline gap-5px leading-none'>
-              <span className='text-12px font-medium text-t-primary'>{isEnterprise ? t('common.create', { defaultValue: '创建' }) : t('common.upload', { defaultValue: '上传' })}</span>
-              <span className='text-11px text-t-secondary'>{t('settings.customSkills', { defaultValue: 'Custom Skills' })}</span>
+              <span className='text-12px font-medium text-foreground'>{isEnterprise ? t('common.create', { defaultValue: '创建' }) : t('common.upload', { defaultValue: '上传' })}</span>
+              <span className='text-11px text-secondary'>{t('settings.customSkills', { defaultValue: 'Custom Skills' })}</span>
             </span>
           </button>
         )}
@@ -1712,8 +1712,8 @@ const SkillModalContent: React.FC = () => {
             {/* Enterprise mode: show tenant skills from local tenant/ directory */}
             {activeTab === 'exclusive' && isEnterprise ? (
               filteredTenantSkills.length === 0 ? (
-                <div className='flex flex-col items-center justify-center py-48px text-t-secondary gap-8px'>
-                  <Shield size='32' className='text-t-tertiary' />
+                <div className='flex flex-col items-center justify-center py-48px text-secondary gap-8px'>
+                  <Shield size='32' className='text-tertiary' />
                   <span className='text-13px'>{t('settings.skill.noTenantSkills', { defaultValue: '暂无专属技能' })}</span>
                 </div>
               ) : (
@@ -1745,8 +1745,8 @@ const SkillModalContent: React.FC = () => {
                 </div>
               )
             ) : activeTab === 'exclusive' && !enterpriseCode ? (
-              <div className='flex flex-col items-center justify-center py-48px text-t-secondary gap-8px'>
-                <Shield size='32' className='text-t-tertiary' />
+              <div className='flex flex-col items-center justify-center py-48px text-secondary gap-8px'>
+                <Shield size='32' className='text-tertiary' />
                 <span className='text-13px'>{t('settings.skill.noEnterpriseCode', { defaultValue: '当前账号没有企业编码，无法加载专属技能。' })}</span>
               </div>
             ) : loading || !installedSkillsReady ? (
@@ -1754,8 +1754,8 @@ const SkillModalContent: React.FC = () => {
                 <Spin size={28} />
               </div>
             ) : skills.length === 0 ? (
-              <div className='flex flex-col items-center justify-center py-48px text-t-secondary gap-8px'>
-                <Lightning size='32' className='text-t-tertiary' />
+              <div className='flex flex-col items-center justify-center py-48px text-secondary gap-8px'>
+                <Lightning size='32' className='text-tertiary' />
                 <span className='text-13px'>{t('settings.skill.noResults', { defaultValue: '暂无技能' })}</span>
               </div>
             ) : (
@@ -1828,9 +1828,9 @@ const SkillModalContent: React.FC = () => {
               </div>
             ) : installedList.length === 0 ? (
               <div className='flex flex-col items-center justify-center py-48px gap-8px'>
-                <Lightning size='32' className='text-t-tertiary' />
-                <div className='text-13px text-t-secondary'>{t('settings.skill.noInstalledSkills', { defaultValue: '暂无已安装的技能' })}</div>
-                <div className='text-12px text-t-tertiary'>{t('settings.skill.noInstalledSkillsHint', { defaultValue: '前往技能库安装你需要的技能' })}</div>
+                <Lightning size='32' className='text-tertiary' />
+                <div className='text-13px text-secondary'>{t('settings.skill.noInstalledSkills', { defaultValue: '暂无已安装的技能' })}</div>
+                <div className='text-12px text-tertiary'>{t('settings.skill.noInstalledSkillsHint', { defaultValue: '前往技能库安装你需要的技能' })}</div>
                 <Button size='small' type='outline' className='mt-4px' onClick={() => setActiveTab('store')}>
                   {t('settings.skill.browseStore', { defaultValue: '浏览技能库' })}
                 </Button>
@@ -1839,37 +1839,37 @@ const SkillModalContent: React.FC = () => {
               <div className='pb-16px space-y-20px'>
                 <section>
                   <div className='flex items-center justify-between gap-8px mb-10px'>
-                    <div className='text-13px font-medium text-t-primary'>{t('settings.customSkills')}</div>
-                    <span className='px-6px py-0px bg-fill-2 text-t-secondary text-11px rd-full leading-18px'>{customInstalledSkills.length}</span>
+                    <div className='text-13px font-medium text-foreground'>{t('settings.customSkills')}</div>
+                    <span className='px-6px py-0px bg-fill-2 text-secondary text-11px rd-full leading-18px'>{customInstalledSkills.length}</span>
                   </div>
-                  {customInstalledSkills.length > 0 ? isEnterprise ? renderCustomSkillGridWithEnterpriseActions(customInstalledSkills) : renderInstalledSkillGrid(customInstalledSkills) : <div className='bg-fill-1 border border-dashed rd-12px px-14px py-18px text-12px text-t-tertiary'>{t('settings.noCustomSkills')}</div>}
+                  {customInstalledSkills.length > 0 ? isEnterprise ? renderCustomSkillGridWithEnterpriseActions(customInstalledSkills) : renderInstalledSkillGrid(customInstalledSkills) : <div className='bg-fill-1 border border-dashed rd-12px px-14px py-18px text-12px text-tertiary'>{t('settings.noCustomSkills')}</div>}
                 </section>
 
                 {/* Tenant skills section - enterprise mode only */}
                 {isEnterprise && (
                   <section>
                     <div className='flex items-center justify-between gap-8px mb-10px'>
-                      <div className='text-13px font-medium text-t-primary'>{t('settings.tenantSkills', { defaultValue: '专属技能' })}</div>
-                      <span className='px-6px py-0px bg-fill-2 text-t-secondary text-11px rd-full leading-18px'>{localTenantSkills.length}</span>
+                      <div className='text-13px font-medium text-foreground'>{t('settings.tenantSkills', { defaultValue: '专属技能' })}</div>
+                      <span className='px-6px py-0px bg-fill-2 text-secondary text-11px rd-full leading-18px'>{localTenantSkills.length}</span>
                     </div>
-                    {localTenantSkills.length > 0 ? renderInstalledSkillGrid(localTenantSkills, true) : <div className='bg-fill-1 border border-dashed rd-12px px-14px py-18px text-12px text-t-tertiary'>{t('settings.noTenantSkills', { defaultValue: '暂无专属技能' })}</div>}
+                    {localTenantSkills.length > 0 ? renderInstalledSkillGrid(localTenantSkills, true) : <div className='bg-fill-1 border border-dashed rd-12px px-14px py-18px text-12px text-tertiary'>{t('settings.noTenantSkills', { defaultValue: '暂无专属技能' })}</div>}
                   </section>
                 )}
 
                 <section>
                   <div className='flex items-center justify-between gap-8px mb-10px'>
-                    <div className='text-13px font-medium text-t-primary'>{t('settings.hubSkills', { defaultValue: 'Hub Skills' })}</div>
-                    <span className='px-6px py-0px bg-fill-2 text-t-secondary text-11px rd-full leading-18px'>{hubInstalledSkills.length}</span>
+                    <div className='text-13px font-medium text-foreground'>{t('settings.hubSkills', { defaultValue: 'Hub Skills' })}</div>
+                    <span className='px-6px py-0px bg-fill-2 text-secondary text-11px rd-full leading-18px'>{hubInstalledSkills.length}</span>
                   </div>
-                  {hubInstalledSkills.length > 0 ? renderInstalledSkillGrid(hubInstalledSkills, isEnterprise) : <div className='bg-fill-1 border border-dashed rd-12px px-14px py-18px text-12px text-t-tertiary'>{t('settings.noHubSkills', { defaultValue: 'No hub-installed skills' })}</div>}
+                  {hubInstalledSkills.length > 0 ? renderInstalledSkillGrid(hubInstalledSkills, isEnterprise) : <div className='bg-fill-1 border border-dashed rd-12px px-14px py-18px text-12px text-tertiary'>{t('settings.noHubSkills', { defaultValue: 'No hub-installed skills' })}</div>}
                 </section>
 
                 <section>
                   <div className='flex items-center justify-between gap-8px mb-10px'>
-                    <div className='text-13px font-medium text-t-primary'>{t('settings.builtinSkills')}</div>
-                    <span className='px-6px py-0px bg-fill-2 text-t-secondary text-11px rd-full leading-18px'>{builtinInstalledSkills.length}</span>
+                    <div className='text-13px font-medium text-foreground'>{t('settings.builtinSkills')}</div>
+                    <span className='px-6px py-0px bg-fill-2 text-secondary text-11px rd-full leading-18px'>{builtinInstalledSkills.length}</span>
                   </div>
-                  {builtinInstalledSkills.length > 0 ? renderInstalledSkillGrid(builtinInstalledSkills) : <div className='bg-fill-1 border border-dashed rd-12px px-14px py-18px text-12px text-t-tertiary'>{t('settings.noBuiltinSkills')}</div>}
+                  {builtinInstalledSkills.length > 0 ? renderInstalledSkillGrid(builtinInstalledSkills) : <div className='bg-fill-1 border border-dashed rd-12px px-14px py-18px text-12px text-tertiary'>{t('settings.noBuiltinSkills')}</div>}
                 </section>
               </div>
             )}
@@ -1978,12 +1978,12 @@ const SkillModalContent: React.FC = () => {
       <Modal visible={importSourceVisible} onCancel={() => setImportSourceVisible(false)} footer={null} closable={false} maskClosable style={{ width: 420 }} className='skill-import-source-modal'>
         <div className='flex flex-col gap-16px'>
           <div className='flex items-center justify-between'>
-            <div className='font-semibold text-15px text-t-primary'>{t('settings.skill.importSourceTitle', { defaultValue: '导入自定义技能' })}</div>
-            <button type='button' className='w-28px h-28px flex items-center justify-center rd-full bg-fill-2 hover:bg-fill-3 cursor-pointer transition-colors text-t-secondary border-none outline-none' onClick={() => setImportSourceVisible(false)}>
+            <div className='font-semibold text-15px text-foreground'>{t('settings.skill.importSourceTitle', { defaultValue: '导入自定义技能' })}</div>
+            <button type='button' className='w-28px h-28px flex items-center justify-center rd-full bg-fill-2 hover:bg-fill-3 cursor-pointer transition-colors text-secondary border-none outline-none' onClick={() => setImportSourceVisible(false)}>
               <Close size='14' />
             </button>
           </div>
-          <div className='text-12px text-t-secondary leading-relaxed'>{t('settings.skill.importSourceDescription', { defaultValue: '请选择导入方式。' })}</div>
+          <div className='text-12px text-secondary leading-relaxed'>{t('settings.skill.importSourceDescription', { defaultValue: '请选择导入方式。' })}</div>
           <div className='grid grid-cols-2 gap-10px'>
             <button
               type='button'
@@ -1993,8 +1993,8 @@ const SkillModalContent: React.FC = () => {
                 void handleImportLocalSkill('zip');
               }}
             >
-              <div className='font-medium text-13px text-t-primary'>{t('settings.skill.importZipOption', { defaultValue: '从文件导入' })}</div>
-              <div className='mt-4px text-11px text-t-secondary'>{t('settings.skill.importZipOptionDescription', { defaultValue: '打开文件选择框，仅显示 zip 文件。' })}</div>
+              <div className='font-medium text-13px text-foreground'>{t('settings.skill.importZipOption', { defaultValue: '从文件导入' })}</div>
+              <div className='mt-4px text-11px text-secondary'>{t('settings.skill.importZipOptionDescription', { defaultValue: '打开文件选择框，仅显示 zip 文件。' })}</div>
             </button>
             <button
               type='button'
@@ -2004,8 +2004,8 @@ const SkillModalContent: React.FC = () => {
                 void handleImportLocalSkill('directory');
               }}
             >
-              <div className='font-medium text-13px text-t-primary'>{t('settings.skill.importFolderOption', { defaultValue: '从文件夹导入' })}</div>
-              <div className='mt-4px text-11px text-t-secondary'>{t('settings.skill.importFolderOptionDescription', { defaultValue: '选择包含 SKILL.md 的技能目录。' })}</div>
+              <div className='font-medium text-13px text-foreground'>{t('settings.skill.importFolderOption', { defaultValue: '从文件夹导入' })}</div>
+              <div className='mt-4px text-11px text-secondary'>{t('settings.skill.importFolderOptionDescription', { defaultValue: '选择包含 SKILL.md 的技能目录。' })}</div>
             </button>
           </div>
         </div>

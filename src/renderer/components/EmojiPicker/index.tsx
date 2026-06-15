@@ -144,7 +144,7 @@ const EmojiPicker: React.FC<EmojiPickerProps> = ({ value, onChange, children, pl
             ))}
           </div>
         ) : (
-          <div className='text-center text-t-secondary py-16px text-14px'>{t('settings.noRecentEmojis', { defaultValue: 'No recent emojis' })}</div>
+          <div className='text-center text-secondary py-16px text-14px'>{t('settings.noRecentEmojis', { defaultValue: 'No recent emojis' })}</div>
         )}
       </div>
     </div>

@@ -24,7 +24,7 @@ interface McpServerHeaderProps {
 
 const getStatusIcon = (status?: IMcpServer['status'], oauthStatus?: McpOAuthStatus) => {
   if (status === 'testing' || oauthStatus?.isChecking) {
-    return <LoadingOne fill={'var(--text-primary)'} className='h-6' />;
+    return <LoadingOne fill={'var(--foreground)'} className='h-6' />;
   }
 
   if (status === 'error') {

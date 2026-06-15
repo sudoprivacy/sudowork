@@ -143,7 +143,7 @@ const UserProfile: React.FC = () => {
   return (
     <SettingsPageWrapper contentClassName='max-w-200'>
       <div className='flex flex-col gap-6 py-2'>
-        <div className='text-20px font-600 text-t-primary leading-32px'>{t('settings.profile')}</div>
+        <div className='text-20px font-600 text-foreground leading-32px'>{t('settings.profile')}</div>
 
         {isEnterprise ? (
           <>
@@ -153,32 +153,32 @@ const UserProfile: React.FC = () => {
                 <User theme='outline' size={32} fill='#fff' />
               </Avatar>
               <div className='flex-1'>
-                <div className='text-18px font-600 text-t-primary'>{enterpriseProfile?.username || '--'}</div>
+                <div className='text-18px font-600 text-foreground'>{enterpriseProfile?.username || '--'}</div>
                 <div className='flex gap-2 mt-2'>
-                  <span className='inline-flex items-center h-6 px-2.5 rd-6px text-12px bg-fill-2 text-t-secondary'>{enterpriseProfile?.role || '--'}</span>
+                  <span className='inline-flex items-center h-6 px-2.5 rd-6px text-12px bg-fill-2 text-secondary'>{enterpriseProfile?.role || '--'}</span>
                 </div>
               </div>
             </div>
 
             {/* Enterprise: Usage Stats */}
             <div className='p-6 bg-2 rd-16px border border-solid border-[var(--color-border-2)]'>
-              <div className='text-14px font-600 text-t-primary mb-4'>资源使用</div>
+              <div className='text-14px font-600 text-foreground mb-4'>资源使用</div>
               <div className='grid grid-cols-4 gap-4'>
                 <div className='text-center'>
-                  <div className='text-24px font-700 text-t-primary'>{enterpriseProfile?.usage?.input_tokens?.toLocaleString() || 0}</div>
-                  <div className='text-12px text-t-tertiary'>输入 Token</div>
+                  <div className='text-24px font-700 text-foreground'>{enterpriseProfile?.usage?.input_tokens?.toLocaleString() || 0}</div>
+                  <div className='text-12px text-tertiary'>输入 Token</div>
                 </div>
                 <div className='text-center'>
-                  <div className='text-24px font-700 text-t-primary'>{enterpriseProfile?.usage?.output_tokens?.toLocaleString() || 0}</div>
-                  <div className='text-12px text-t-tertiary'>输出 Token</div>
+                  <div className='text-24px font-700 text-foreground'>{enterpriseProfile?.usage?.output_tokens?.toLocaleString() || 0}</div>
+                  <div className='text-12px text-tertiary'>输出 Token</div>
                 </div>
                 <div className='text-center'>
-                  <div className='text-24px font-700 text-t-primary'>{enterpriseProfile?.usage?.total_tokens?.toLocaleString() || 0}</div>
-                  <div className='text-12px text-t-tertiary'>总 Token</div>
+                  <div className='text-24px font-700 text-foreground'>{enterpriseProfile?.usage?.total_tokens?.toLocaleString() || 0}</div>
+                  <div className='text-12px text-tertiary'>总 Token</div>
                 </div>
                 <div className='text-center'>
-                  <div className='text-24px font-700 text-t-primary'>{enterpriseProfile?.usage?.session_count || 0}</div>
-                  <div className='text-12px text-t-tertiary'>会话数</div>
+                  <div className='text-24px font-700 text-foreground'>{enterpriseProfile?.usage?.session_count || 0}</div>
+                  <div className='text-12px text-tertiary'>会话数</div>
                 </div>
               </div>
             </div>
@@ -190,13 +190,13 @@ const UserProfile: React.FC = () => {
               <ConsumerAvatar />
               <div className='flex-1'>
                 <div className='flex items-center gap-2'>
-                  <div className='text-18px font-600 text-t-primary'>{profile?.nickname || currentUser?.nickname || 'Sudowork 用户'}</div>
+                  <div className='text-18px font-600 text-foreground'>{profile?.nickname || currentUser?.nickname || 'Sudowork 用户'}</div>
                   <Button type='outline' size='mini' icon={<Edit size={14} fill='currentColor' />} onClick={handleEditNickname}>
                     编辑
                   </Button>
                 </div>
                 <div className='flex gap-3 mt-2'>
-                  <span className='text-12px text-t-secondary flex items-center gap-1'>
+                  <span className='text-12px text-secondary flex items-center gap-1'>
                     <Phone size='14' /> {profile?.phone || currentUser?.phone || '未绑定'}
                   </span>
                 </div>
@@ -205,19 +205,19 @@ const UserProfile: React.FC = () => {
 
             {/* Consumer: Today Stats */}
             <div className='p-6 bg-2 rd-16px border border-solid border-[var(--color-border-2)]'>
-              <div className='text-14px font-600 text-t-primary mb-4'>{t('settings.userProfile.todayUsage')}</div>
+              <div className='text-14px font-600 text-foreground mb-4'>{t('settings.userProfile.todayUsage')}</div>
               <div className='grid grid-cols-3 gap-4'>
                 <div className='text-center'>
-                  <div className='text-24px font-700 text-t-primary min-h-8 flex items-center justify-center'>{stats === null ? <Spin size={20} /> : (stats.usage_today?.tokens?.toLocaleString() ?? '0')}</div>
-                  <div className='text-12px text-t-tertiary'>{t('settings.userProfile.tokens')}</div>
+                  <div className='text-24px font-700 text-foreground min-h-8 flex items-center justify-center'>{stats === null ? <Spin size={20} /> : (stats.usage_today?.tokens?.toLocaleString() ?? '0')}</div>
+                  <div className='text-12px text-tertiary'>{t('settings.userProfile.tokens')}</div>
                 </div>
                 <div className='text-center'>
                   <div className='text-24px font-700 text-primary min-h-8 flex items-center justify-center'>{stats === null ? <Spin size={20} /> : todayPoints}</div>
-                  <div className='text-12px text-t-tertiary'>{t('settings.userProfile.consumedPoints')}</div>
+                  <div className='text-12px text-tertiary'>{t('settings.userProfile.consumedPoints')}</div>
                 </div>
                 <div className='text-center'>
-                  <div className='text-24px font-700 text-t-primary min-h-8 flex items-center justify-center'>{stats === null ? <Spin size={20} /> : (stats.usage_today?.requests ?? 0)}</div>
-                  <div className='text-12px text-t-tertiary'>{t('settings.userProfile.requests')}</div>
+                  <div className='text-24px font-700 text-foreground min-h-8 flex items-center justify-center'>{stats === null ? <Spin size={20} /> : (stats.usage_today?.requests ?? 0)}</div>
+                  <div className='text-12px text-tertiary'>{t('settings.userProfile.requests')}</div>
                 </div>
               </div>
             </div>

@@ -628,7 +628,7 @@ const SendBox: React.FC<{
           {/* Skill tags - displayed above input */}
           {selectedSkills.length > 0 && (
             <div className='flex flex-col gap-6px mb-8px'>
-              <div className='flex items-center gap-4px text-11px text-t-secondary'>
+              <div className='flex items-center gap-4px text-11px text-secondary'>
                 <Lightning size='12' className='text-[var(--ui-accent-orange)]' />
                 <span>{t('messages.skills.activeSkills', { defaultValue: '当前使用技能' })}</span>
               </div>

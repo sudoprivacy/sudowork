@@ -148,16 +148,16 @@ const TenantConfigItemGroup: React.FC<TenantConfigItemGroupProps> = ({ configIte
         header={
           <div className='flex items-center justify-between group px-12px py-12px md:px-16px min-h-44px'>
             <div className='flex items-center gap-12px flex-1 min-w-0'>
-              <span className='inline-flex h-28px w-28px shrink-0 items-center justify-center rd-8px text-t-tertiary transition-colors group-hover:bg-fill-1 group-hover:text-t-secondary'>
+              <span className='inline-flex h-28px w-28px shrink-0 items-center justify-center rd-8px text-tertiary transition-colors group-hover:bg-fill-1 group-hover:text-secondary'>
                 <Right theme='outline' size='14' className='transition-transform' style={{ transform: collapsed ? 'rotate(0deg)' : 'rotate(90deg)' }} />
               </span>
               <div className='flex h-28px w-28px items-center justify-center rd-7px bg-fill-1'>
                 <ConfigItemIcon iconUrl={configItem.icon_url} name={configItem.name} />
               </div>
-              <span className='truncate text-14px font-600 leading-none text-t-primary'>{configItem.name}</span>
+              <span className='truncate text-14px font-600 leading-none text-foreground'>{configItem.name}</span>
             </div>
             <div className='flex items-center gap-8px' onClick={(e) => e.stopPropagation()}>
-              <span className={enabled ? 'whitespace-nowrap text-13px font-500 leading-none text-success' : 'whitespace-nowrap text-13px leading-none text-t-secondary'}>
+              <span className={enabled ? 'whitespace-nowrap text-13px font-500 leading-none text-success' : 'whitespace-nowrap text-13px leading-none text-secondary'}>
                 <span className={enabled ? 'mr-6px inline-block h-5px w-5px rd-50% bg-success align-middle' : 'mr-6px inline-block h-5px w-5px rd-50% bg-[var(--color-text-3)] align-middle'} />
                 {statusText}
               </span>

@@ -35,7 +35,7 @@ const MessageToolCall: React.FC<{ message: IMessageToolCall }> = ({ message }) =
     return <Alert content={OpName + ':' + file_path} type={status === 'error' ? 'error' : status === 'success' ? 'success' : 'info'}></Alert>;
   }
   if (message.content.name === 'google_web_search') {
-    return <Alert icon={<MessageSearch theme='outline' fill={'var(--text-primary)'} className='lh-[1]' />} content={message.content.args.query}></Alert>;
+    return <Alert icon={<MessageSearch theme='outline' fill={'var(--foreground)'} className='lh-[1]' />} content={message.content.args.query}></Alert>;
   }
   if (message.content.name === 'run_shell_command') {
     const shellSnippet = `\`\`\`shell\n${message.content.args.command}\n#${message.content.args.description}`;
@@ -44,7 +44,7 @@ const MessageToolCall: React.FC<{ message: IMessageToolCall }> = ({ message }) =
   if (message.content.name === 'replace') {
     return <ReplacePreview message={message} />;
   }
-  return <div className='text-t-primary'>{message.content.name}</div>;
+  return <div className='text-foreground'>{message.content.name}</div>;
 };
 
 export default MessageToolCall;

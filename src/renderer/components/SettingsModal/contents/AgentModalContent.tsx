@@ -71,11 +71,11 @@ const SkillCard: React.FC<SkillCardProps> = ({ skill, checked, onToggle, disable
       </div>
       <div className='flex-1 min-w-0'>
         <div className='flex items-center gap-6px'>
-          <span className='font-medium text-13px text-t-primary truncate'>{displayName}</span>
-          {!skill.isBuiltin && displayVersion && <span className='px-5px py-0px bg-fill-3 text-t-secondary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px'>v{displayVersion}</span>}
+          <span className='font-medium text-13px text-foreground truncate'>{displayName}</span>
+          {!skill.isBuiltin && displayVersion && <span className='px-5px py-0px bg-fill-3 text-secondary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px'>v{displayVersion}</span>}
           {skill.isBuiltin && <Shield size='14' className='text-primary flex-shrink-0' />}
         </div>
-        {description && <div className='text-11px text-t-secondary mt-3px line-clamp-2 leading-relaxed'>{description}</div>}
+        {description && <div className='text-11px text-secondary mt-3px line-clamp-2 leading-relaxed'>{description}</div>}
       </div>
     </div>
   );
@@ -154,15 +154,15 @@ const InstalledAssistantCard: React.FC<InstalledAssistantCardProps> = (props) =>
       {/* Content */}
       <div className='flex-1 min-w-0'>
         <div className='h-20px flex items-center'>
-          <span className='font-medium text-13px text-t-primary truncate' title={displayName.length > 15 ? displayName : undefined}>
+          <span className='font-medium text-13px text-foreground truncate' title={displayName.length > 15 ? displayName : undefined}>
             {displayName.length > 15 ? `${displayName.slice(0, 15)}...` : displayName}
           </span>
         </div>
-        <div className='mt-3px min-h-30px'>{description ? <div className='text-11px text-t-secondary line-clamp-2 leading-15px'>{description}</div> : null}</div>
+        <div className='mt-3px min-h-30px'>{description ? <div className='text-11px text-secondary line-clamp-2 leading-15px'>{description}</div> : null}</div>
         {assistant.enabledSkills && assistant.enabledSkills.length > 0 && (
           <div className='mt-4px flex items-center gap-4px'>
             <Lightning size='12' className='text-primary flex-shrink-0' />
-            <span className='text-10px text-t-tertiary'>{t('settings.assistant.relatedSkills', { count: assistant.enabledSkills.length, defaultValue: `${assistant.enabledSkills.length} 个关联技能` })}</span>
+            <span className='text-10px text-tertiary'>{t('settings.assistant.relatedSkills', { count: assistant.enabledSkills.length, defaultValue: `${assistant.enabledSkills.length} 个关联技能` })}</span>
           </div>
         )}
       </div>
@@ -251,13 +251,13 @@ const HubAssistantCard: React.FC<{
       {/* Content */}
       <div className='flex-1 min-w-0'>
         <div className='flex items-center gap-6px pr-100px min-w-0'>
-          <span className='flex-1 min-w-0 font-medium text-13px text-t-primary truncate'>{displayName}</span>
+          <span className='flex-1 min-w-0 font-medium text-13px text-foreground truncate'>{displayName}</span>
         </div>
-        <div className='text-11px text-t-secondary mt-3px line-clamp-2 leading-relaxed'>{assistant.description}</div>
+        <div className='text-11px text-secondary mt-3px line-clamp-2 leading-relaxed'>{assistant.description}</div>
         {assistant.skills && assistant.skills.length > 0 && (
           <div className='mt-4px flex items-center gap-4px'>
             <Lightning size='12' className='text-primary flex-shrink-0' />
-            <span className='text-10px text-t-tertiary'>{t('settings.assistant.relatedSkills', { count: assistant.skills.length, defaultValue: `${assistant.skills.length} 个关联技能` })}</span>
+            <span className='text-10px text-tertiary'>{t('settings.assistant.relatedSkills', { count: assistant.skills.length, defaultValue: `${assistant.skills.length} 个关联技能` })}</span>
           </div>
         )}
       </div>
@@ -338,13 +338,13 @@ const TenantAssistantCard: React.FC<{
       {/* Content */}
       <div className='flex-1 min-w-0'>
         <div className='flex items-center gap-6px pr-100px min-w-0'>
-          <span className='flex-1 min-w-0 font-medium text-13px text-t-primary truncate'>{displayName}</span>
+          <span className='flex-1 min-w-0 font-medium text-13px text-foreground truncate'>{displayName}</span>
         </div>
-        <div className='text-11px text-t-secondary mt-3px line-clamp-2 leading-relaxed'>{assistant.description || ''}</div>
+        <div className='text-11px text-secondary mt-3px line-clamp-2 leading-relaxed'>{assistant.description || ''}</div>
         {assistant.enabledSkills && assistant.enabledSkills.length > 0 && (
           <div className='mt-4px flex items-center gap-4px'>
             <Lightning size='12' className='text-primary flex-shrink-0' />
-            <span className='text-10px text-t-tertiary'>{t('settings.assistant.relatedSkills', { count: assistant.enabledSkills.length, defaultValue: `${assistant.enabledSkills.length} 个关联技能` })}</span>
+            <span className='text-10px text-tertiary'>{t('settings.assistant.relatedSkills', { count: assistant.enabledSkills.length, defaultValue: `${assistant.enabledSkills.length} 个关联技能` })}</span>
           </div>
         )}
       </div>
@@ -536,7 +536,7 @@ const AssistantDetailModal: React.FC<{
       <div className='flex flex-col max-h-80vh'>
         {/* Close button */}
         <div className='flex justify-end mb-4px'>
-          <div className='w-28px h-28px flex items-center justify-center rd-full bg-fill-2 hover:bg-fill-3 cursor-pointer transition-colors text-t-secondary' onClick={onClose}>
+          <div className='w-28px h-28px flex items-center justify-center rd-full bg-fill-2 hover:bg-fill-3 cursor-pointer transition-colors text-secondary' onClick={onClose}>
             <Close size='14' />
           </div>
         </div>
@@ -560,11 +560,11 @@ const AssistantDetailModal: React.FC<{
                   </div>
                 )}
               </div>
-              <div className='font-semibold text-17px text-t-primary text-center'>{displayName}</div>
+              <div className='font-semibold text-17px text-foreground text-center'>{displayName}</div>
               {assistant.categories && assistant.categories.length > 0 && (
                 <div className='flex gap-4px mt-6px flex-wrap justify-center'>
                   {assistant.categories.map((cat, idx) => (
-                    <span key={idx} className='px-7px py-1px bg-fill-2 text-t-secondary text-11px rd-4px'>
+                    <span key={idx} className='px-7px py-1px bg-fill-2 text-secondary text-11px rd-4px'>
                       {cat}
                     </span>
                   ))}
@@ -582,9 +582,9 @@ const AssistantDetailModal: React.FC<{
                 <div className='bg-fill-1 rd-10px p-14px'>
                   <div className='flex items-center gap-6px mb-8px'>
                     <span className='text-14px'>✦</span>
-                    <span className='font-medium text-13px text-t-primary'>{t('settings.assistant.introduction', { defaultValue: '助手介绍' })}</span>
+                    <span className='font-medium text-13px text-foreground'>{t('settings.assistant.introduction', { defaultValue: '助手介绍' })}</span>
                   </div>
-                  <div className='text-12px text-t-secondary leading-relaxed'>{assistant.description}</div>
+                  <div className='text-12px text-secondary leading-relaxed'>{assistant.description}</div>
                 </div>
 
                 {/* Associated skills */}
@@ -592,12 +592,12 @@ const AssistantDetailModal: React.FC<{
                   <div className='bg-fill-1 rd-10px p-14px'>
                     <div className='flex items-center gap-6px mb-10px'>
                       <Lightning size='14' className='text-primary' />
-                      <span className='font-medium text-13px text-t-primary'>{t('settings.assistant.relatedSkills', { defaultValue: '关联技能' })}</span>
-                      <span className='text-12px text-t-tertiary'>({relatedSkillDetails.length})</span>
-                      {installedSkillCount > 0 && <span className='text-12px text-t-tertiary'>· {t('settings.assistant.skillsInstalled', { installed: installedSkillCount, defaultValue: `${installedSkillCount} 已安装` })}</span>}
+                      <span className='font-medium text-13px text-foreground'>{t('settings.assistant.relatedSkills', { defaultValue: '关联技能' })}</span>
+                      <span className='text-12px text-tertiary'>({relatedSkillDetails.length})</span>
+                      {installedSkillCount > 0 && <span className='text-12px text-tertiary'>· {t('settings.assistant.skillsInstalled', { installed: installedSkillCount, defaultValue: `${installedSkillCount} 已安装` })}</span>}
                     </div>
                     {loadingSkills ? (
-                      <div className='text-center text-t-secondary text-12px py-16px'>{t('common.loading', { defaultValue: '加载中...' })}</div>
+                      <div className='text-center text-secondary text-12px py-16px'>{t('common.loading', { defaultValue: '加载中...' })}</div>
                     ) : (
                       <div className='space-y-8px'>
                         {relatedSkillDetails.map((skill) => {
@@ -630,18 +630,18 @@ const AssistantDetailModal: React.FC<{
                               </div>
                               <div className='flex-1 min-w-0'>
                                 <div className='flex items-center gap-4px'>
-                                  <span className='font-medium text-13px text-t-primary truncate'>{skillDisplayName}</span>
+                                  <span className='font-medium text-13px text-foreground truncate'>{skillDisplayName}</span>
                                   {isBuiltinSkill && <Shield size='12' className='text-primary flex-shrink-0' />}
                                 </div>
-                                <div className='text-11px text-t-tertiary truncate'>{skill.description}</div>
+                                <div className='text-11px text-tertiary truncate'>{skill.description}</div>
                               </div>
-                              <span className={`px-4px py-0px text-10px rd-3px whitespace-nowrap ${isSkillInstalled ? 'bg-primary-light text-primary' : 'bg-fill-3 text-t-secondary'}`}>{isSkillInstalled ? t('settings.skill.installed', { defaultValue: '已安装' }) : t('settings.skill.notInstalled', { defaultValue: '未安装' })}</span>
+                              <span className={`px-4px py-0px text-10px rd-3px whitespace-nowrap ${isSkillInstalled ? 'bg-primary-light text-primary' : 'bg-fill-3 text-secondary'}`}>{isSkillInstalled ? t('settings.skill.installed', { defaultValue: '已安装' }) : t('settings.skill.notInstalled', { defaultValue: '未安装' })}</span>
                             </div>
                           );
                         })}
                       </div>
                     )}
-                    <div className='mt-12px text-11px text-t-tertiary'>{t('settings.assistant.skillsInstallHint', { defaultValue: '安装助手时会自动安装关联的技能' })}</div>
+                    <div className='mt-12px text-11px text-tertiary'>{t('settings.assistant.skillsInstallHint', { defaultValue: '安装助手时会自动安装关联的技能' })}</div>
                   </div>
                 )}
               </div>
@@ -657,7 +657,7 @@ const AssistantDetailModal: React.FC<{
                 {t('settings.skill.goUse', { defaultValue: '去使用' })}
               </Button>
             ) : !hasDownloadUrl ? (
-              <div className='flex-1 text-center text-t-secondary text-13px py-12px'>{t('settings.assistant.noDownloadUrl', { defaultValue: '该助手暂不支持安装，请联系管理员' })}</div>
+              <div className='flex-1 text-center text-secondary text-13px py-12px'>{t('settings.assistant.noDownloadUrl', { defaultValue: '该助手暂不支持安装，请联系管理员' })}</div>
             ) : installing ? (
               <div className='flex-1'>
                 <Progress percent={installProgress} size='small' />
@@ -2068,7 +2068,7 @@ const AgentModalContent: React.FC = () => {
 
         {/* Search - for store/exclusive tabs */}
         <div className={classNames('flex-1 min-w-0 transition-opacity duration-150', activeTab === 'installed' ? 'opacity-0 pointer-events-none' : '')}>
-          <Input placeholder={t('settings.assistant.searchPlaceholder', { defaultValue: '搜索...' })} value={hubSearchQuery} onChange={setHubSearchQuery} prefix={<Search size='14' className='text-t-tertiary' />} size='small' className='assistant-hub-input' />
+          <Input placeholder={t('settings.assistant.searchPlaceholder', { defaultValue: '搜索...' })} value={hubSearchQuery} onChange={setHubSearchQuery} prefix={<Search size='14' className='text-tertiary' />} size='small' className='assistant-hub-input' />
         </div>
 
         {/* Create button — only on installed tab */}
@@ -2078,8 +2078,8 @@ const AgentModalContent: React.FC = () => {
               <Plus size='13' />
             </span>
             <span className='flex items-baseline gap-5px leading-none'>
-              <span className='text-12px font-medium text-t-primary'>{t('settings.createAssistant', { defaultValue: '创建' })}</span>
-              <span className='text-11px text-t-secondary'>{t('settings.customAssistants', { defaultValue: '自定义助手' })}</span>
+              <span className='text-12px font-medium text-foreground'>{t('settings.createAssistant', { defaultValue: '创建' })}</span>
+              <span className='text-11px text-secondary'>{t('settings.customAssistants', { defaultValue: '自定义助手' })}</span>
             </span>
           </button>
         )}
@@ -2106,8 +2106,8 @@ const AgentModalContent: React.FC = () => {
                   <Spin size={28} />
                 </div>
               ) : hubAssistantList.length === 0 ? (
-                <div className='flex flex-col items-center justify-center py-48px text-t-secondary gap-8px'>
-                  <Shield size='32' className='text-t-tertiary' />
+                <div className='flex flex-col items-center justify-center py-48px text-secondary gap-8px'>
+                  <Shield size='32' className='text-tertiary' />
                   <span className='text-13px'>{t('settings.assistant.noTenantAssistants', { defaultValue: '暂无专属助手' })}</span>
                 </div>
               ) : (
@@ -2139,8 +2139,8 @@ const AgentModalContent: React.FC = () => {
                 </div>
               )
             ) : activeTab === 'exclusive' && !enterpriseCode ? (
-              <div className='flex flex-col items-center justify-center py-48px text-t-secondary gap-8px'>
-                <Shield size='32' className='text-t-tertiary' />
+              <div className='flex flex-col items-center justify-center py-48px text-secondary gap-8px'>
+                <Shield size='32' className='text-tertiary' />
                 <span className='text-13px'>{t('settings.assistant.noEnterpriseCode', { defaultValue: '当前账号没有企业编码，无法加载专属助手。' })}</span>
               </div>
             ) : hubLoading || !hubInstalledSkillsReady ? (
@@ -2148,8 +2148,8 @@ const AgentModalContent: React.FC = () => {
                 <Spin size={28} />
               </div>
             ) : hubAssistantList.length === 0 ? (
-              <div className='flex flex-col items-center justify-center py-48px text-t-secondary gap-8px'>
-                <Robot theme='outline' size={32} className='text-t-tertiary' />
+              <div className='flex flex-col items-center justify-center py-48px text-secondary gap-8px'>
+                <Robot theme='outline' size={32} className='text-tertiary' />
                 <span className='text-13px'>{t('settings.assistant.noResults', { defaultValue: '暂无助手' })}</span>
               </div>
             ) : (
@@ -2211,9 +2211,9 @@ const AgentModalContent: React.FC = () => {
         <AionScrollArea className='flex-1 min-h-0' disableOverflow>
           {assistants.length === 0 ? (
             <div className='flex flex-col items-center justify-center py-48px gap-8px'>
-              <Robot theme='outline' size={32} className='text-t-tertiary' />
-              <div className='text-13px text-t-secondary'>{t('settings.assistantsEmpty', { defaultValue: '暂无助手' })}</div>
-              <div className='text-12px text-t-tertiary'>{t('settings.assistantsEmptyHint', { defaultValue: '点击下方"创建助手"按钮添加你的助手' })}</div>
+              <Robot theme='outline' size={32} className='text-tertiary' />
+              <div className='text-13px text-secondary'>{t('settings.assistantsEmpty', { defaultValue: '暂无助手' })}</div>
+              <div className='text-12px text-tertiary'>{t('settings.assistantsEmptyHint', { defaultValue: '点击下方"创建助手"按钮添加你的助手' })}</div>
               <Button size='small' type='outline' className='mt-4px' onClick={() => handleCreate()}>
                 {t('settings.createAssistant', { defaultValue: '创建助手' })}
               </Button>
@@ -2223,39 +2223,39 @@ const AgentModalContent: React.FC = () => {
               {/* Custom assistants section */}
               <section>
                 <div className='flex items-center justify-between gap-8px mb-10px'>
-                  <div className='text-13px font-medium text-t-primary'>{t('settings.customAssistants', { defaultValue: '自定义助手' })}</div>
-                  <span className='px-6px py-0px bg-fill-2 text-t-secondary text-11px rd-full leading-18px'>{customAssistants.length}</span>
+                  <div className='text-13px font-medium text-foreground'>{t('settings.customAssistants', { defaultValue: '自定义助手' })}</div>
+                  <span className='px-6px py-0px bg-fill-2 text-secondary text-11px rd-full leading-18px'>{customAssistants.length}</span>
                 </div>
-                {customAssistants.length > 0 ? isEnterprise ? renderCustomAssistantGridWithEnterpriseActions(customAssistants) : renderAssistantGrid(customAssistants) : <div className='bg-fill-1 border border-dashed rd-12px px-14px py-18px text-12px text-t-tertiary'>{t('settings.noCustomAssistants', { defaultValue: '暂无自定义助手' })}</div>}
+                {customAssistants.length > 0 ? isEnterprise ? renderCustomAssistantGridWithEnterpriseActions(customAssistants) : renderAssistantGrid(customAssistants) : <div className='bg-fill-1 border border-dashed rd-12px px-14px py-18px text-12px text-tertiary'>{t('settings.noCustomAssistants', { defaultValue: '暂无自定义助手' })}</div>}
               </section>
 
               {/* Tenant assistants section - enterprise mode only */}
               {isEnterprise && (
                 <section>
                   <div className='flex items-center justify-between gap-8px mb-10px'>
-                    <div className='text-13px font-medium text-t-primary'>{t('settings.tenantAssistants', { defaultValue: '专属助手' })}</div>
-                    <span className='px-6px py-0px bg-fill-2 text-t-secondary text-11px rd-full leading-18px'>{filteredTenantAssistants.length}</span>
+                    <div className='text-13px font-medium text-foreground'>{t('settings.tenantAssistants', { defaultValue: '专属助手' })}</div>
+                    <span className='px-6px py-0px bg-fill-2 text-secondary text-11px rd-full leading-18px'>{filteredTenantAssistants.length}</span>
                   </div>
-                  {filteredTenantAssistants.length > 0 ? renderAssistantGrid(filteredTenantAssistants, true, true) : <div className='bg-fill-1 border border-dashed rd-12px px-14px py-18px text-12px text-t-tertiary'>{t('settings.noTenantAssistants', { defaultValue: '暂无专属助手' })}</div>}
+                  {filteredTenantAssistants.length > 0 ? renderAssistantGrid(filteredTenantAssistants, true, true) : <div className='bg-fill-1 border border-dashed rd-12px px-14px py-18px text-12px text-tertiary'>{t('settings.noTenantAssistants', { defaultValue: '暂无专属助手' })}</div>}
                 </section>
               )}
 
               {/* Hub/store assistants section */}
               <section>
                 <div className='flex items-center justify-between gap-8px mb-10px'>
-                  <div className='text-13px font-medium text-t-primary'>{t('settings.hubAssistants', { defaultValue: '商店助手' })}</div>
-                  <span className='px-6px py-0px bg-fill-2 text-t-secondary text-11px rd-full leading-18px'>{hubAssistants.length}</span>
+                  <div className='text-13px font-medium text-foreground'>{t('settings.hubAssistants', { defaultValue: '商店助手' })}</div>
+                  <span className='px-6px py-0px bg-fill-2 text-secondary text-11px rd-full leading-18px'>{hubAssistants.length}</span>
                 </div>
-                {hubAssistants.length > 0 ? renderAssistantGrid(hubAssistants, isEnterprise, true, !isEnterprise) : <div className='bg-fill-1 border border-dashed rd-12px px-14px py-18px text-12px text-t-tertiary'>{t('settings.noHubAssistants', { defaultValue: '暂无商店助手' })}</div>}
+                {hubAssistants.length > 0 ? renderAssistantGrid(hubAssistants, isEnterprise, true, !isEnterprise) : <div className='bg-fill-1 border border-dashed rd-12px px-14px py-18px text-12px text-tertiary'>{t('settings.noHubAssistants', { defaultValue: '暂无商店助手' })}</div>}
               </section>
 
               {/* Builtin assistants section - Hidden: temporarily disabled */}
               {/* <section>
                 <div className='flex items-center justify-between gap-8px mb-10px'>
-                  <div className='text-13px font-medium text-t-primary'>{t('settings.builtinAssistants', { defaultValue: '内置助手' })}</div>
-                  <span className='px-6px py-0px bg-fill-2 text-t-secondary text-11px rd-full leading-18px'>{builtinAssistants.length}</span>
+                  <div className='text-13px font-medium text-foreground'>{t('settings.builtinAssistants', { defaultValue: '内置助手' })}</div>
+                  <span className='px-6px py-0px bg-fill-2 text-secondary text-11px rd-full leading-18px'>{builtinAssistants.length}</span>
                 </div>
-                {builtinAssistants.length > 0 ? renderAssistantGrid(builtinAssistants) : <div className='bg-fill-1 border border-dashed rd-12px px-14px py-18px text-12px text-t-tertiary'>{t('settings.noBuiltinAssistants', { defaultValue: '暂无内置助手' })}</div>}
+                {builtinAssistants.length > 0 ? renderAssistantGrid(builtinAssistants) : <div className='bg-fill-1 border border-dashed rd-12px px-14px py-18px text-12px text-tertiary'>{t('settings.noBuiltinAssistants', { defaultValue: '暂无内置助手' })}</div>}
               </section> */}
             </div>
           )}
@@ -2272,7 +2272,7 @@ const AgentModalContent: React.FC = () => {
                 e.stopPropagation();
                 setEditVisible(false);
               }}
-              className='absolute right-4 top-2 cursor-pointer text-t-secondary hover:text-t-primary transition-colors p-1'
+              className='absolute right-4 top-2 cursor-pointer text-secondary hover:text-foreground transition-colors p-1'
               style={{ zIndex: 10, WebkitAppRegion: 'no-drag' } as React.CSSProperties}
             >
               <Close size={18} />
@@ -2355,10 +2355,10 @@ const AgentModalContent: React.FC = () => {
               <div className='mt-10px border overflow-hidden rounded-4px' style={{ height: '300px' }}>
                 {!activeAssistant?.isBuiltin && !isReadonlyAssistant && (
                   <div className='flex items-center h-36px bg-fill-2 border-b flex-shrink-0'>
-                    <div className={`flex items-center h-full px-16px cursor-pointer transition-all text-13px font-medium ${promptViewMode === 'edit' ? 'text-primary border-b-2px border-solid border-primary bg-bg-1' : 'text-t-secondary hover:text-t-primary'}`} onClick={() => setPromptViewMode('edit')}>
+                    <div className={`flex items-center h-full px-16px cursor-pointer transition-all text-13px font-medium ${promptViewMode === 'edit' ? 'text-primary border-b-2px border-solid border-primary bg-bg-1' : 'text-secondary hover:text-foreground'}`} onClick={() => setPromptViewMode('edit')}>
                       {t('settings.promptEdit', { defaultValue: 'Edit' })}
                     </div>
-                    <div className={`flex items-center h-full px-16px cursor-pointer transition-all text-13px font-medium ${promptViewMode === 'preview' ? 'text-primary border-b-2px border-solid border-primary bg-bg-1' : 'text-t-secondary hover:text-t-primary'}`} onClick={() => setPromptViewMode('preview')}>
+                    <div className={`flex items-center h-full px-16px cursor-pointer transition-all text-13px font-medium ${promptViewMode === 'preview' ? 'text-primary border-b-2px border-solid border-primary bg-bg-1' : 'text-secondary hover:text-foreground'}`} onClick={() => setPromptViewMode('preview')}>
                       {t('settings.promptPreview', { defaultValue: 'Preview' })}
                     </div>
                   </div>
@@ -2369,7 +2369,7 @@ const AgentModalContent: React.FC = () => {
                       <Input.TextArea value={editContext} onChange={(value) => setEditContext(value)} placeholder={t('settings.assistantRulesPlaceholder', { defaultValue: 'Enter rules in Markdown format...' })} autoSize={false} className='border-none rounded-none bg-transparent h-full resize-none' />
                     </div>
                   ) : (
-                    <div className='p-16px'>{editContext ? <MarkdownView hiddenCodeCopyButton>{editContext}</MarkdownView> : <div className='text-t-secondary text-center py-32px'>{t('settings.promptPreviewEmpty', { defaultValue: 'No content to preview' })}</div>}</div>
+                    <div className='p-16px'>{editContext ? <MarkdownView hiddenCodeCopyButton>{editContext}</MarkdownView> : <div className='text-secondary text-center py-32px'>{t('settings.promptPreviewEmpty', { defaultValue: 'No content to preview' })}</div>}</div>
                   )}
                 </div>
               </div>
@@ -2381,7 +2381,7 @@ const AgentModalContent: React.FC = () => {
                 <Typography.Text bold>{t('settings.assistantSkills', { defaultValue: 'Skills' })}</Typography.Text>
               </div>
               <Collapse defaultActiveKey={['custom-skills']}>
-                <Collapse.Item header={<span className='text-13px font-medium'>{t('settings.customSkills', { defaultValue: 'Custom Skills' })}</span>} name='custom-skills' className='mb-8px' extra={<span className='text-12px text-t-secondary'>{customSelectableSkills.length}</span>}>
+                <Collapse.Item header={<span className='text-13px font-medium'>{t('settings.customSkills', { defaultValue: 'Custom Skills' })}</span>} name='custom-skills' className='mb-8px' extra={<span className='text-12px text-secondary'>{customSelectableSkills.length}</span>}>
                   <div className='grid gap-8px' style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
                     {customSelectableSkills.map((skill) => (
                       <SkillCard
@@ -2400,10 +2400,10 @@ const AgentModalContent: React.FC = () => {
                         disabled={isReadonlyAssistant}
                       />
                     ))}
-                    {customSelectableSkills.length === 0 && <div className='text-center text-t-secondary text-12px py-16px col-span-full'>{t('settings.noCustomSkills', { defaultValue: 'No custom skills available' })}</div>}
+                    {customSelectableSkills.length === 0 && <div className='text-center text-secondary text-12px py-16px col-span-full'>{t('settings.noCustomSkills', { defaultValue: 'No custom skills available' })}</div>}
                   </div>
                 </Collapse.Item>
-                <Collapse.Item header={<span className='text-13px font-medium'>{t('settings.builtinSkills', { defaultValue: 'Builtin Skills' })}</span>} name='builtin-skills' extra={<span className='text-12px text-t-secondary'>{builtinSelectableSkills.length}</span>}>
+                <Collapse.Item header={<span className='text-13px font-medium'>{t('settings.builtinSkills', { defaultValue: 'Builtin Skills' })}</span>} name='builtin-skills' extra={<span className='text-12px text-secondary'>{builtinSelectableSkills.length}</span>}>
                   <div className='grid gap-8px' style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
                     {builtinSelectableSkills.map((skill) => (
                       <SkillCard
@@ -2422,7 +2422,7 @@ const AgentModalContent: React.FC = () => {
                         disabled={isReadonlyAssistant}
                       />
                     ))}
-                    {builtinSelectableSkills.length === 0 && <div className='text-center text-t-secondary text-12px py-16px col-span-full'>{t('settings.noBuiltinSkills', { defaultValue: 'No builtin skills available' })}</div>}
+                    {builtinSelectableSkills.length === 0 && <div className='text-center text-secondary text-12px py-16px col-span-full'>{t('settings.noBuiltinSkills', { defaultValue: 'No builtin skills available' })}</div>}
                   </div>
                 </Collapse.Item>
               </Collapse>
@@ -2450,7 +2450,7 @@ const AgentModalContent: React.FC = () => {
             </Avatar.Group>
             <div>
               <div className='font-medium'>{activeAssistant.nameI18n?.[localeKey] || activeAssistant.name}</div>
-              <div className='text-12px text-t-secondary'>{activeAssistant.descriptionI18n?.[localeKey] || activeAssistant.description}</div>
+              <div className='text-12px text-secondary'>{activeAssistant.descriptionI18n?.[localeKey] || activeAssistant.description}</div>
             </div>
           </div>
         )}
@@ -2490,7 +2490,7 @@ const AgentModalContent: React.FC = () => {
             </Avatar.Group>
             <div>
               <div className='font-medium'>{duplicateAssistant.display_name || duplicateAssistant.name}</div>
-              <div className='text-12px text-t-secondary line-clamp-2'>{duplicateAssistant.description}</div>
+              <div className='text-12px text-secondary line-clamp-2'>{duplicateAssistant.description}</div>
             </div>
           </div>
         )}
@@ -2511,7 +2511,7 @@ const AgentModalContent: React.FC = () => {
             </Avatar.Group>
             <div>
               <div className='font-medium'>{duplicateInstalledAssistant.nameI18n?.[localeKey] || duplicateInstalledAssistant.name}</div>
-              <div className='text-12px text-t-secondary line-clamp-2'>{duplicateInstalledAssistant.descriptionI18n?.[localeKey] || duplicateInstalledAssistant.description}</div>
+              <div className='text-12px text-secondary line-clamp-2'>{duplicateInstalledAssistant.descriptionI18n?.[localeKey] || duplicateInstalledAssistant.description}</div>
             </div>
           </div>
         )}
@@ -2562,7 +2562,7 @@ const AgentModalContent: React.FC = () => {
             </Avatar.Group>
             <div>
               <div className='font-medium'>{uploadAssistant.nameI18n?.[localeKey] || uploadAssistant.name}</div>
-              <div className='text-12px text-t-secondary line-clamp-2'>{uploadAssistant.descriptionI18n?.[localeKey] || uploadAssistant.description}</div>
+              <div className='text-12px text-secondary line-clamp-2'>{uploadAssistant.descriptionI18n?.[localeKey] || uploadAssistant.description}</div>
             </div>
           </div>
         )}

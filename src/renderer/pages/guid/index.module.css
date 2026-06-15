@@ -102,7 +102,7 @@
 }
 
 :global([data-theme='dark']) .actionTools :global(.sendbox-model-btn) {
-  color: var(--text-primary) !important;
+  color: var(--foreground) !important;
 }
 
 .actionSubmit {

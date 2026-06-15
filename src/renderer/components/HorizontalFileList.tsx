@@ -143,7 +143,7 @@ const HorizontalFileList: React.FC<HorizontalFileListProps> = ({ children }) => 
               boxShadow: 'var(--shadow-md)',
             }}
           >
-            <IconLeft style={{ fontSize: '14px', color: 'var(--text-t-primary)' }} />
+            <IconLeft style={{ fontSize: '14px', color: 'var(--text-foreground)' }} />
           </button>
         </div>
       )}
@@ -165,7 +165,7 @@ const HorizontalFileList: React.FC<HorizontalFileListProps> = ({ children }) => 
               boxShadow: 'var(--shadow-md)',
             }}
           >
-            <IconRight style={{ fontSize: '14px', color: 'var(--text-t-primary)' }} />
+            <IconRight style={{ fontSize: '14px', color: 'var(--text-foreground)' }} />
           </button>
         </div>
       )}

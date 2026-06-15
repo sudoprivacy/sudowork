@@ -121,16 +121,16 @@ const EditConfigModal: React.FC<EditConfigModalProps> = ({ visible, server, load
           <Spin size={28} />
         </div>
       ) : schema.length === 0 ? (
-        <div className='text-13px text-t-tertiary py-6 text-center bg-[var(--color-fill-1)] rd-8px'>此 MCP 暂无可编辑的用户配置项</div>
+        <div className='text-13px text-tertiary py-6 text-center bg-[var(--color-fill-1)] rd-8px'>此 MCP 暂无可编辑的用户配置项</div>
       ) : (
         <div className='flex flex-col gap-3.5 py-1'>
           {schema.map((it) => (
             <div key={it.key} className='flex flex-col gap-1.5'>
-              <label className='block text-13px text-t-primary'>
+              <label className='block text-13px text-foreground'>
                 {it.name}
                 {it.required && <span className='text-red-500 ml-1'>*</span>}
               </label>
-              {it.description && <div className='text-12px text-t-tertiary'>{it.description}</div>}
+              {it.description && <div className='text-12px text-tertiary'>{it.description}</div>}
               <Input
                 placeholder={it.target === 'headers' ? `请求头 ${it.key}` : `环境变量 ${it.key}`}
                 value={values[it.key] ?? ''}

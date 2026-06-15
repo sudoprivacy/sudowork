@@ -17,7 +17,7 @@ interface PolicyRow {
 
 const BooleanValue: React.FC<{ value: unknown; positiveLabel?: string; negativeLabel?: string }> = ({ value, positiveLabel = '允许', negativeLabel = '禁止' }) => {
   if (typeof value !== 'boolean') {
-    return <span className='text-t-tertiary'>未配置</span>;
+    return <span className='text-tertiary'>未配置</span>;
   }
   return value ? (
     <Tag size='small' color='green'>
@@ -137,12 +137,12 @@ const KNOWN_ROWS: PolicyRow[] = [
 
 const fallbackRender = (v: unknown): React.ReactNode => {
   if (typeof v === 'boolean') return <BooleanValue value={v} />;
-  if (v === null || v === undefined) return <span className='text-t-tertiary'>—</span>;
-  if (typeof v === 'string' || typeof v === 'number') return <span className='text-t-primary'>{String(v)}</span>;
+  if (v === null || v === undefined) return <span className='text-tertiary'>—</span>;
+  if (typeof v === 'string' || typeof v === 'number') return <span className='text-foreground'>{String(v)}</span>;
   try {
-    return <span className='font-mono text-12px text-t-secondary'>{JSON.stringify(v)}</span>;
+    return <span className='font-mono text-12px text-secondary'>{JSON.stringify(v)}</span>;
   } catch {
-    return <span className='text-t-tertiary'>[Object]</span>;
+    return <span className='text-tertiary'>[Object]</span>;
   }
 };
 
@@ -162,8 +162,8 @@ const PolicyTab: React.FC<PolicyTabProps> = ({ policy, loading = false }) => {
       {KNOWN_ROWS.map((row) => (
         <div key={row.key} className='flex items-center justify-between gap-4 px-4 py-3.5 border-b last:border-b-0'>
           <div className='flex-1 min-w-0'>
-            <div className='text-14px font-500 text-t-primary'>{row.label}</div>
-            <div className='text-12px text-t-tertiary mt-0.5'>{row.description}</div>
+            <div className='text-14px font-500 text-foreground'>{row.label}</div>
+            <div className='text-12px text-tertiary mt-0.5'>{row.description}</div>
           </div>
           <div className='shrink-0'>{row.renderValue(policy?.[row.key])}</div>
         </div>
@@ -172,8 +172,8 @@ const PolicyTab: React.FC<PolicyTabProps> = ({ policy, loading = false }) => {
       {extraRows.map(([key, value]) => (
         <div key={key} className='flex items-center justify-between gap-4 px-4 py-3.5 border-b last:border-b-0'>
           <div className='flex-1 min-w-0'>
-            <div className='text-14px font-500 text-t-primary'>{key}</div>
-            <div className='text-12px text-t-tertiary mt-0.5'>企业自定义策略字段</div>
+            <div className='text-14px font-500 text-foreground'>{key}</div>
+            <div className='text-12px text-tertiary mt-0.5'>企业自定义策略字段</div>
           </div>
           <div className='shrink-0'>{fallbackRender(value)}</div>
         </div>

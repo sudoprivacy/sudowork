@@ -18,7 +18,7 @@
 .avatar-selector-title {
   font-size: 16px;
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--foreground);
   line-height: 24px;
 }
 .avatar-selector-close {
@@ -48,7 +48,7 @@
 .avatar-selector-section-label {
   font-size: 13px;
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--foreground);
   margin-bottom: 12px;
   display: flex;
   align-items: center;
@@ -85,7 +85,7 @@
 }
 .avatar-selector-chip:hover {
   background: var(--color-fill-3);
-  color: var(--text-primary);
+  color: var(--foreground);
 }
 .avatar-selector-chip:active {
   transform: scale(0.96);
@@ -249,7 +249,7 @@
 .avatar-selector-preset-name {
   font-size: 14px;
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--foreground);
 }
 .avatar-selector-preset-desc {
   font-size: 11px;

@@ -153,7 +153,7 @@ const GeminiModalContent: React.FC = () => {
                   <div className={'flex flex-wrap items-center justify-end gap-12px mt-12px w-full justify-start md:mt-0 md:w-auto md:justify-end'}>
                     {props.googleAccount ? (
                       <>
-                        <span className='text-14px text-t-primary'>{props.googleAccount}</span>
+                        <span className='text-14px text-foreground'>{props.googleAccount}</span>
                         <Button
                           size='small'
                           className='rd-100px'

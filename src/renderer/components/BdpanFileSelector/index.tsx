@@ -236,7 +236,7 @@ const BdpanFileSelector: React.FC<Props> = ({ visible, onCancel, onConfirm }) =>
       return (
         <div className='flex flex-col items-center justify-center h-300px gap-12px'>
           <Spin size={32} />
-          <span className='text-t-secondary text-14px'>{t('conversation.bdpan.checking')}</span>
+          <span className='text-secondary text-14px'>{t('conversation.bdpan.checking')}</span>
         </div>
       );
     }
@@ -245,7 +245,7 @@ const BdpanFileSelector: React.FC<Props> = ({ visible, onCancel, onConfirm }) =>
       return (
         <div className='flex flex-col items-center justify-center h-300px gap-12px'>
           <Spin size={32} />
-          <span className='text-t-secondary text-14px'>{t('conversation.bdpan.gettingAuthUrl')}</span>
+          <span className='text-secondary text-14px'>{t('conversation.bdpan.gettingAuthUrl')}</span>
         </div>
       );
     }
@@ -254,7 +254,7 @@ const BdpanFileSelector: React.FC<Props> = ({ visible, onCancel, onConfirm }) =>
       return (
         <div className='flex flex-col items-center justify-center h-300px gap-16px p-24px'>
           <div className='flex items-center gap-8px'>
-            <span className='text-t-primary text-14px whitespace-nowrap'>{t('conversation.bdpan.authCode')}</span>
+            <span className='text-foreground text-14px whitespace-nowrap'>{t('conversation.bdpan.authCode')}</span>
             <Input style={{ width: 160 }} maxLength={32} placeholder={t('conversation.bdpan.authCodePlaceholder')} value={authCode} onChange={setAuthCode} onPressEnter={submitAuthCode} disabled={step === 'submitting_code'} />
             <Button type='primary' loading={step === 'submitting_code'} disabled={authCode.trim().length !== 32} onClick={submitAuthCode}>
               {t('conversation.bdpan.authCodeSubmit')}
@@ -267,8 +267,8 @@ const BdpanFileSelector: React.FC<Props> = ({ visible, onCancel, onConfirm }) =>
     if (step === 'error') {
       return (
         <div className='flex flex-col items-center justify-center h-300px gap-16px p-24px'>
-          <p className='text-t-primary text-14px text-center m-0'>{t('conversation.bdpan.loginFailed')}</p>
-          {errorMsg && <p className='text-t-secondary text-12px text-center m-0'>{errorMsg}</p>}
+          <p className='text-foreground text-14px text-center m-0'>{t('conversation.bdpan.loginFailed')}</p>
+          {errorMsg && <p className='text-secondary text-12px text-center m-0'>{errorMsg}</p>}
           <div className='flex gap-8px'>
             <Button onClick={onCancel}>{t('conversation.bdpan.cancel')}</Button>
             <Button type='primary' onClick={startLogin}>
@@ -292,9 +292,9 @@ const BdpanFileSelector: React.FC<Props> = ({ visible, onCancel, onConfirm }) =>
               const isLast = i === crumbs.length - 1;
               return (
                 <React.Fragment key={crumb.path}>
-                  {i > 0 && <span className='text-t-secondary text-13px'>/</span>}
+                  {i > 0 && <span className='text-secondary text-13px'>/</span>}
                   {isLast ? (
-                    <span className='text-t-primary text-13px font-medium'>{crumb.label}</span>
+                    <span className='text-foreground text-13px font-medium'>{crumb.label}</span>
                   ) : (
                     <button className='text-[var(--color-primary-6)] text-13px hover:underline bg-transparent border-none cursor-pointer p-0' onClick={() => loadFiles(crumb.path, root)}>
                       {crumb.label}
@@ -322,13 +322,13 @@ const BdpanFileSelector: React.FC<Props> = ({ visible, onCancel, onConfirm }) =>
               <Spin />
             </div>
           ) : files.length === 0 ? (
-            <div className='flex items-center justify-center h-full text-t-secondary text-14px'>{t('conversation.bdpan.emptyDir')}</div>
+            <div className='flex items-center justify-center h-full text-secondary text-14px'>{t('conversation.bdpan.emptyDir')}</div>
           ) : (
             files.map((file, index) => (
               <div key={file.path} className={`flex items-center gap-10px px-16px py-10px cursor-pointer transition-colors select-none ${selected.has(file.path) ? 'bg-[rgba(var(--primary-6),0.14)]' : 'hover:bg-[var(--bg-2)]'}`} onClick={(e) => handleFileClick(file, index, e)}>
                 {file.isdir ? <FolderOpen size={18} fill='var(--color-text-3)' /> : <FileDisplayOne size={18} fill='var(--color-text-3)' />}
-                <span className='flex-1 text-t-primary text-14px truncate'>{file.filename}</span>
-                {file.isdir && <span className='text-t-secondary text-12px'>›</span>}
+                <span className='flex-1 text-foreground text-14px truncate'>{file.filename}</span>
+                {file.isdir && <span className='text-secondary text-12px'>›</span>}
               </div>
             ))
           )}
@@ -336,7 +336,7 @@ const BdpanFileSelector: React.FC<Props> = ({ visible, onCancel, onConfirm }) =>
 
         {/* Footer */}
         <div className='flex items-center justify-between px-16px py-12px border-t border-[var(--bg-3)] flex-shrink-0'>
-          <span className='text-t-secondary text-13px'>{selected.size > 0 ? t('conversation.bdpan.selectedCount', { count: selected.size }) : t('conversation.bdpan.selectHint')}</span>
+          <span className='text-secondary text-13px'>{selected.size > 0 ? t('conversation.bdpan.selectedCount', { count: selected.size }) : t('conversation.bdpan.selectHint')}</span>
           <div className='flex items-center gap-8px'>
             <Button onClick={onCancel}>{t('conversation.bdpan.cancel')}</Button>
             <Button
@@ -358,10 +358,10 @@ const BdpanFileSelector: React.FC<Props> = ({ visible, onCancel, onConfirm }) =>
   const headerConfig = {
     render: () => (
       <div className='flex items-center justify-between pb-20px' style={{ borderBottom: '1px solid var(--bg-3)' }}>
-        <h3 className='text-18px font-500 text-t-primary m-0'>{t('conversation.bdpan.title')}</h3>
+        <h3 className='text-18px font-500 text-foreground m-0'>{t('conversation.bdpan.title')}</h3>
         <div className='flex items-center gap-12px'>
           {username && (
-            <span className='text-t-secondary text-13px'>
+            <span className='text-secondary text-13px'>
               {username}{' '}
               <button className='text-[var(--color-primary-6)] text-13px hover:underline bg-transparent border-none cursor-pointer p-0' onClick={logout}>
                 {t('conversation.bdpan.logout')}
