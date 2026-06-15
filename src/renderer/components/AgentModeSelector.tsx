@@ -6,7 +6,7 @@
 
 import { ipcBridge } from '@/common';
 import ActionChip from '@/renderer/components/ui/ActionChip';
-import { getAgentModes, supportsModeSwitch, type AgentModeOption } from '@/renderer/constants/agentModes';
+import { getAgentModes, supportsModeSwitch, type AgentModeOption } from '@/renderer/utils/agentModes';
 import { useLayoutContext } from '@/renderer/context/LayoutContext';
 import { iconColors } from '@/renderer/theme/colors';
 import { getAgentLogo } from '@/renderer/utils/agentLogo';

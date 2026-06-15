@@ -13,7 +13,7 @@ import { ConfigStorage } from '@/common/storage';
 import { DEFAULT_PRESET_AGENT_TYPE, resolvePresetAgentBackend } from '@/types/acpTypes';
 import type { AcpBackend, AcpBackendConfig, AcpModelInfo, AvailableAgent, EffectiveAgentInfo, PresetAgentType } from '../types';
 import { fetchAssistantsAsConfigs } from '@/renderer/shared/agents/assistantAdapter';
-import { getAgentModes } from '@/renderer/constants/agentModes';
+import { getAgentModes } from '@/renderer/utils/agentModes';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import useSWR, { mutate } from 'swr';
