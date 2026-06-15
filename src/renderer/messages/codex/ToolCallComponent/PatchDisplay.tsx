@@ -63,7 +63,7 @@ const PatchDisplay: React.FC<{ content: PatchUpdate }> = ({ content }) => {
       {/* Display file changes if available */}
       {changeSummary && changeSummary.length > 0 && (
         <div className='text-sm mb-2'>
-          <div className='text-xs text-t-secondary mb-1'>{t('tools.labels.file_changes')}</div>
+          <div className='text-xs text-secondary mb-1'>{t('tools.labels.file_changes')}</div>
           <div className='bg-1 p-2 rounded text-sm'>
             {changeSummary.map(({ file, action }, index) => (
               <div key={index} className='flex items-center gap-2'>

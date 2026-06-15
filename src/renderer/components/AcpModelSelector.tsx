@@ -453,7 +453,7 @@ const AcpModelSelector: React.FC<{
           {providerModelGroups.map((group, groupIndex) => (
             <div key={group.key} className='flex flex-col gap-2px'>
               <div className='flex items-center justify-between gap-8px pl-10px pr-2px pt-4px pb-2px min-h-24px'>
-                <span className='text-12px leading-18px text-t-secondary truncate'>{group.name || t('common.other', { defaultValue: 'Other' })}</span>
+                <span className='text-12px leading-18px text-secondary truncate'>{group.name || t('common.other', { defaultValue: 'Other' })}</span>
                 {backend === 'scode' && groupIndex === 0 && (
                   <span onClick={(e) => e.stopPropagation()}>
                     <Tooltip content={t('common.refresh')} position='top'>
@@ -472,7 +472,7 @@ const AcpModelSelector: React.FC<{
                 return (
                   <div
                     key={`${group.key}-${model.id}`}
-                    className={classNames('flex items-center gap-8px px-10px h-38px rd-8px cursor-pointer text-14px text-t-primary transition-colors hover:bg-hover active:bg-active', selected && 'bg-2')}
+                    className={classNames('flex items-center gap-8px px-10px h-38px rd-8px cursor-pointer text-14px text-foreground transition-colors hover:bg-hover active:bg-active', selected && 'bg-2')}
                     onClick={() => {
                       handleSelectModel(model.id);
                       setDropdownOpen(false);

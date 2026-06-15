@@ -236,8 +236,8 @@ const SecuritySettings: React.FC = () => {
       <div className='p-6 flex flex-col gap-2'>
         {/* 页面标题 */}
         <div className='flex flex-col gap-0.5'>
-          <h2 className='text-24px font-600 text-t-primary my-0'>{t('settings.security')}</h2>
-          <p className='text-13px text-t-secondary my-0'>{t('settings.securitySettings.subtitle')}</p>
+          <h2 className='text-24px font-600 text-foreground my-0'>{t('settings.security')}</h2>
+          <p className='text-13px text-secondary my-0'>{t('settings.securitySettings.subtitle')}</p>
         </div>
 
         <SettingsList>
@@ -245,7 +245,7 @@ const SecuritySettings: React.FC = () => {
             icon={<Shield theme='outline' size='22' />}
             title={t('settings.securitySettings.envProtection.title')}
             tag={
-              <Tag size='small' className='rd-4px bg-fill-2 text-t-secondary'>
+              <Tag size='small' className='rd-4px bg-fill-2 text-secondary'>
                 {t('settings.securitySettings.envProtection.tag')}
               </Tag>
             }
@@ -262,7 +262,7 @@ const SecuritySettings: React.FC = () => {
             icon={<Lock theme='outline' size='22' />}
             title={t('settings.securitySettings.infoProtection.title')}
             tag={
-              <Tag size='small' className='rd-4px bg-fill-2 text-t-secondary'>
+              <Tag size='small' className='rd-4px bg-fill-2 text-secondary'>
                 {t('settings.securitySettings.infoProtection.tag')}
               </Tag>
             }
@@ -279,7 +279,7 @@ const SecuritySettings: React.FC = () => {
             icon={<Scan theme='outline' size='22' />}
             title={t('settings.securitySettings.skillScan.title')}
             tag={
-              <Tag size='small' className='rd-4px bg-fill-2 text-t-secondary'>
+              <Tag size='small' className='rd-4px bg-fill-2 text-secondary'>
                 {t('settings.securitySettings.skillScan.tag')}
               </Tag>
             }
@@ -304,13 +304,13 @@ const SecuritySettings: React.FC = () => {
                 </div>
                 <div className='flex-1 mt--1'>
                   <div className='flex items-center gap-1.5 mb-0.5'>
-                    <h3 className='text-15px font-600 text-t-primary'>安全 Hook 防护</h3>
+                    <h3 className='text-15px font-600 text-foreground'>安全 Hook 防护</h3>
                     <Tag color='purple' size='small' className='rd-4px'>
                       <CheckOne theme='filled' size='12' className='mr-1' />
                       实时拦截
                     </Tag>
                   </div>
-                  <p className='text-13px text-t-secondary my-0 leading-relaxed'>监控第三方 AI 工具的文件访问和网络请求，仅对黑名单中的规则进行拦截，匹配时弹出确认框，经您授权后才允许执行。</p>
+                  <p className='text-13px text-secondary my-0 leading-relaxed'>监控第三方 AI 工具的文件访问和网络请求，仅对黑名单中的规则进行拦截，匹配时弹出确认框，经您授权后才允许执行。</p>
 
                   {/* 主开关 */}
                   <div className='flex items-center justify-end gap-2.5'>
@@ -324,12 +324,12 @@ const SecuritySettings: React.FC = () => {
                   {/* 黑名单规则 - 关闭时显示提示，开启时显示规则列表 */}
                   <div className='border-t pt-2'>
                     {!hookEnabled ? (
-                      <div className='text-center py-2 text-t-tertiary text-13px'>安全 Hook 防护已关闭</div>
+                      <div className='text-center py-2 text-tertiary text-13px'>安全 Hook 防护已关闭</div>
                     ) : (
                       <>
                         {/* 规则说明 */}
                         <div className='mb-1.5'>
-                          <span className='text-13px text-t-secondary'>
+                          <span className='text-13px text-secondary'>
                             当前黑名单规则：{blacklistConfig.rules.filter((r) => r.enabled).length} 条生效
                             {blacklistConfig.rules.length === 0 && '（为空时不拦截任何请求）'}
                           </span>
@@ -337,14 +337,14 @@ const SecuritySettings: React.FC = () => {
 
                         {/* Rules section */}
                         <div className='flex items-center justify-between mb-1.5'>
-                          <h4 className='text-15px font-500 text-t-primary my-1'>拦截规则</h4>
+                          <h4 className='text-15px font-500 text-foreground my-1'>拦截规则</h4>
                           <Button type='primary' size='small' icon={<Plus theme='outline' size='14' />} onClick={openAddModal}>
                             添加规则
                           </Button>
                         </div>
 
                         {blacklistConfig.rules.length === 0 ? (
-                          <div className='text-center py-2.5 text-t-tertiary bg-fill-1 rd-8px'>暂无拦截规则</div>
+                          <div className='text-center py-2.5 text-tertiary bg-fill-1 rd-8px'>暂无拦截规则</div>
                         ) : (
                           <Table
                             data={blacklistConfig.rules}
@@ -434,7 +434,7 @@ const SecuritySettings: React.FC = () => {
             >
               <div className='flex flex-col gap-4'>
                 <div>
-                  <label className='block text-14px text-t-secondary mb-1'>类型</label>
+                  <label className='block text-14px text-secondary mb-1'>类型</label>
                   <Select value={ruleForm.type} onChange={(val) => setRuleForm({ ...ruleForm, type: val })} style={{ width: '100%' }}>
                     <Option value='network'>网络请求 (域名/IP)</Option>
                     <Option value='file'>文件操作 (路径)</Option>
@@ -443,7 +443,7 @@ const SecuritySettings: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className='block text-14px text-t-secondary mb-1'>匹配方式</label>
+                  <label className='block text-14px text-secondary mb-1'>匹配方式</label>
                   <Select value={ruleForm.matchType} onChange={(val) => setRuleForm({ ...ruleForm, matchType: val })} style={{ width: '100%' }}>
                     <Option value='exact'>精确匹配</Option>
                     <Option value='wildcard'>通配符匹配</Option>
@@ -451,12 +451,12 @@ const SecuritySettings: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className='block text-14px text-t-secondary mb-1'>{ruleForm.type === 'network' ? '域名/IP 模式' : ruleForm.type === 'file' ? '路径模式' : '命令模式'}</label>
+                  <label className='block text-14px text-secondary mb-1'>{ruleForm.type === 'network' ? '域名/IP 模式' : ruleForm.type === 'file' ? '路径模式' : '命令模式'}</label>
                   <Input placeholder={ruleForm.type === 'network' ? '例如: *.example.com 或 192.168.1.*' : ruleForm.type === 'file' ? '例如: /etc/* 或 ~/.ssh/*' : '例如: rm* 或 npm*'} value={ruleForm.pattern} onChange={(val) => setRuleForm({ ...ruleForm, pattern: val })} />
                 </div>
 
                 <div>
-                  <label className='block text-14px text-t-secondary mb-1'>描述 (可选)</label>
+                  <label className='block text-14px text-secondary mb-1'>描述 (可选)</label>
                   <TextArea placeholder='规则说明' value={ruleForm.description} onChange={(val) => setRuleForm({ ...ruleForm, description: val })} autoSize={{ minRows: 2, maxRows: 4 }} />
                 </div>
               </div>
@@ -465,7 +465,7 @@ const SecuritySettings: React.FC = () => {
         )}
 
         {/* 底部提示 */}
-        <div className='f-center gap-2 text-14px text-t-tertiary mt-4'>
+        <div className='f-center gap-2 text-14px text-tertiary mt-4'>
           <Shield theme='outline' size='16' fill='currentColor' />
           <span>您的每一次操作都在系统严格保护之下</span>
         </div>

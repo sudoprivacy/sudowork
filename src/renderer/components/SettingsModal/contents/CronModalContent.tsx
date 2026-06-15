@@ -138,14 +138,14 @@ const CronJobCardGrid: React.FC<{
         const { isPaused } = getJobStatusFlags(job);
         return (
           <div key={job.id} className='bg-2 rd-12px px-20px py-16px cursor-pointer hover:bg-3 transition-colors border' onClick={() => onSelectJob(job)}>
-            <div className='text-15px font-medium text-t-primary mb-8px'>{job.name}</div>
-            {!isPaused && job.schedule.description && <div className='text-13px text-t-secondary mb-8px'>{job.schedule.description}</div>}
+            <div className='text-15px font-medium text-foreground mb-8px'>{job.name}</div>
+            {!isPaused && job.schedule.description && <div className='text-13px text-secondary mb-8px'>{job.schedule.description}</div>}
             {!isPaused && job.state.nextRunAtMs && (
-              <div className='text-13px text-t-secondary'>
-                {t('cron.create.nextRun')} <span className='font-medium text-t-primary'>{formatNextRun(job.state.nextRunAtMs)}</span>
+              <div className='text-13px text-secondary'>
+                {t('cron.create.nextRun')} <span className='font-medium text-foreground'>{formatNextRun(job.state.nextRunAtMs)}</span>
               </div>
             )}
-            {isPaused && <div className='text-13px text-t-secondary'>{t('cron.status.paused')}</div>}
+            {isPaused && <div className='text-13px text-secondary'>{t('cron.status.paused')}</div>}
           </div>
         );
       })}
@@ -177,7 +177,7 @@ const CronJobDetail: React.FC<{
   return (
     <div className='space-y-24px'>
       {/* Back nav */}
-      <div className='flex items-center gap-4px text-13px text-t-secondary cursor-pointer hover:text-t-primary' onClick={onBack}>
+      <div className='flex items-center gap-4px text-13px text-secondary cursor-pointer hover:text-foreground' onClick={onBack}>
         <ArrowLeft theme='outline' size={14} />
         <span>{t('cron.allScheduledTasks', { defaultValue: '全部定时任务' })}</span>
       </div>
@@ -185,13 +185,13 @@ const CronJobDetail: React.FC<{
       {/* Header */}
       <div className='flex items-start justify-between gap-16px'>
         <div>
-          <h2 className='text-22px font-bold text-t-primary m-0 mb-8px'>{job.name}</h2>
+          <h2 className='text-22px font-bold text-foreground m-0 mb-8px'>{job.name}</h2>
           <div className='flex items-center gap-8px'>
             <Tag color={hasError ? 'red' : isPaused ? 'orangered' : 'green'} size='small'>
               {hasError ? t('cron.status.error') : isPaused ? t('cron.status.paused') : t('cron.status.active')}
             </Tag>
             {!isPaused && job.state.nextRunAtMs && (
-              <span className='text-13px text-t-secondary'>
+              <span className='text-13px text-secondary'>
                 {t('cron.create.nextRun')} {formatNextRun(job.state.nextRunAtMs)}
               </span>
             )}
@@ -212,32 +212,32 @@ const CronJobDetail: React.FC<{
       <div className='grid grid-cols-1 md:grid-cols-2 gap-24px'>
         {/* Description */}
         <div>
-          <div className='text-13px text-t-secondary mb-4px'>{t('cron.create.description', { defaultValue: '描述' })}</div>
-          <div className='text-14px text-t-primary'>{job.schedule.description || '-'}</div>
+          <div className='text-13px text-secondary mb-4px'>{t('cron.create.description', { defaultValue: '描述' })}</div>
+          <div className='text-14px text-foreground'>{job.schedule.description || '-'}</div>
         </div>
         {/* Instructions / Prompt */}
         <div>
-          <div className='text-13px text-t-secondary mb-4px'>{t('cron.create.prompt', { defaultValue: '指令' })}</div>
-          <div className='bg-2 rd-8px px-12px py-8px text-13px text-t-primary break-words whitespace-pre-wrap max-h-120px overflow-y-auto'>{job.target.payload.text}</div>
+          <div className='text-13px text-secondary mb-4px'>{t('cron.create.prompt', { defaultValue: '指令' })}</div>
+          <div className='bg-2 rd-8px px-12px py-8px text-13px text-foreground break-words whitespace-pre-wrap max-h-120px overflow-y-auto'>{job.target.payload.text}</div>
         </div>
         {/* Execution mode */}
         <div>
-          <div className='text-13px text-t-secondary mb-4px'>{t('cron.create.conversationMode', { defaultValue: '执行模式' })}</div>
-          <div className='text-14px text-t-primary'>{(job.metadata.conversationMode ?? 'new') === 'new' ? t('cron.create.conversationMode.new', { defaultValue: '每次新建会话' }) : t('cron.create.conversationMode.reuse', { defaultValue: '复用已有会话' })}</div>
+          <div className='text-13px text-secondary mb-4px'>{t('cron.create.conversationMode', { defaultValue: '执行模式' })}</div>
+          <div className='text-14px text-foreground'>{(job.metadata.conversationMode ?? 'new') === 'new' ? t('cron.create.conversationMode.new', { defaultValue: '每次新建会话' }) : t('cron.create.conversationMode.reuse', { defaultValue: '复用已有会话' })}</div>
         </div>
         {/* Working directory */}
         {job.metadata.workspace && (
           <div>
-            <div className='text-13px text-t-secondary mb-4px'>{t('cron.create.workspace', { defaultValue: '工作目录' })}</div>
-            <div className='text-14px text-t-primary truncate' title={job.metadata.workspace}>
+            <div className='text-13px text-secondary mb-4px'>{t('cron.create.workspace', { defaultValue: '工作目录' })}</div>
+            <div className='text-14px text-foreground truncate' title={job.metadata.workspace}>
               {job.metadata.workspace.split('/').pop() || job.metadata.workspace}
             </div>
           </div>
         )}
         {/* Assistant */}
         <div>
-          <div className='text-13px text-t-secondary mb-4px'>{t('cron.create.agent', { defaultValue: '数字助手' })}</div>
-          <div className='text-14px text-t-primary flex items-center gap-6px'>
+          <div className='text-13px text-secondary mb-4px'>{t('cron.create.agent', { defaultValue: '数字助手' })}</div>
+          <div className='text-14px text-foreground flex items-center gap-6px'>
             {(() => {
               const avatarValue = selectedAssistant?.avatar?.trim();
               if (!avatarValue) return null;
@@ -260,10 +260,10 @@ const CronJobDetail: React.FC<{
 
       {/* Repeats */}
       <div>
-        <div className='text-13px text-t-secondary mb-8px'>{t('cron.create.frequency', { defaultValue: '重复' })}</div>
+        <div className='text-13px text-secondary mb-8px'>{t('cron.create.frequency', { defaultValue: '重复' })}</div>
         <div className='flex items-center gap-12px'>
           <Switch size='small' checked={job.enabled} onChange={(checked) => onToggle(job.id, checked)} />
-          <span className='text-14px text-t-primary'>{job.schedule.description}</span>
+          <span className='text-14px text-foreground'>{job.schedule.description}</span>
         </div>
       </div>
 
@@ -284,7 +284,7 @@ const CronJobDetail: React.FC<{
         const convId = targetConvId;
         return (
           <div>
-            <div className='text-13px text-t-secondary mb-4px'>{t('cron.goToConversation')}</div>
+            <div className='text-13px text-secondary mb-4px'>{t('cron.goToConversation')}</div>
             <span className='text-14px text-primary cursor-pointer hover:underline' onClick={() => onNavigate(convId)}>
               {targetConvTitle}
             </span>
@@ -493,7 +493,7 @@ const CronJobFormDrawer: React.FC<{
               e.stopPropagation();
               onClose();
             }}
-            className='absolute right-4 top-2 cursor-pointer text-t-secondary hover:text-t-primary transition-colors p-1'
+            className='absolute right-4 top-2 cursor-pointer text-secondary hover:text-foreground transition-colors p-1'
             style={{ zIndex: 10, WebkitAppRegion: 'no-drag' } as React.CSSProperties}
           >
             <Close size={18} />
@@ -532,7 +532,7 @@ const CronJobFormDrawer: React.FC<{
 
         {/* Frequency */}
         <div className='mb-16px'>
-          <div className='text-14px text-t-primary mb-8px'>{t('cron.create.frequency', { defaultValue: '频率' })}</div>
+          <div className='text-14px text-foreground mb-8px'>{t('cron.create.frequency', { defaultValue: '频率' })}</div>
           <Select value={frequency} onChange={(v) => setFrequency(v as FrequencyPreset)}>
             {FREQUENCY_PRESETS.map((preset) => (
               <Select.Option key={preset} value={preset}>
@@ -551,7 +551,7 @@ const CronJobFormDrawer: React.FC<{
                   </Select.Option>
                 ))}
               </Select>
-              <span className='text-t-secondary'>:</span>
+              <span className='text-secondary'>:</span>
               <Select value={minute} onChange={(v) => setMinute(v)} style={{ width: 80 }}>
                 {MINUTE_OPTIONS.map((o) => (
                   <Select.Option key={o.value} value={o.value}>
@@ -575,12 +575,12 @@ const CronJobFormDrawer: React.FC<{
             </div>
           )}
 
-          <div className='text-12px text-t-secondary mt-4px'>{t('cron.create.frequencyHint', { defaultValue: '定时任务会有几分钟的随机延迟' })}</div>
+          <div className='text-12px text-secondary mt-4px'>{t('cron.create.frequencyHint', { defaultValue: '定时任务会有几分钟的随机延迟' })}</div>
         </div>
 
         {/* More options */}
         <div>
-          <div className='flex items-center gap-4px text-14px text-t-secondary cursor-pointer hover:text-t-primary mb-12px' onClick={() => setShowMore(!showMore)}>
+          <div className='flex items-center gap-4px text-14px text-secondary cursor-pointer hover:text-foreground mb-12px' onClick={() => setShowMore(!showMore)}>
             <span>{t('cron.create.moreOptions', { defaultValue: '更多选项' })}</span>
             <span className={`transition-transform ${showMore ? 'rotate-180' : ''}`}>▾</span>
           </div>
@@ -589,7 +589,7 @@ const CronJobFormDrawer: React.FC<{
             <div className='grid grid-cols-1 md:grid-cols-2 gap-12px'>
               {/* Execution mode */}
               <div className='col-span-2'>
-                <div className='text-13px text-t-secondary mb-4px'>{t('cron.create.conversationMode', { defaultValue: '执行模式' })}</div>
+                <div className='text-13px text-secondary mb-4px'>{t('cron.create.conversationMode', { defaultValue: '执行模式' })}</div>
                 <Select value={conversationMode} onChange={(v) => setConversationMode(v as 'new' | 'reuse')}>
                   <Select.Option value='new'>{t('cron.create.conversationMode.new', { defaultValue: '每次新建会话（推荐）' })}</Select.Option>
                   <Select.Option value='reuse'>{t('cron.create.conversationMode.reuse', { defaultValue: '复用已有会话（适合持续追加）' })}</Select.Option>
@@ -599,7 +599,7 @@ const CronJobFormDrawer: React.FC<{
               {/* Reuse-mode conversation picker — optional. Empty means "auto-create on first run". */}
               {conversationMode === 'reuse' && (
                 <div className='col-span-2'>
-                  <div className='text-13px text-t-secondary mb-4px'>{t('cron.create.reuseConversation', { defaultValue: '绑定会话' })}</div>
+                  <div className='text-13px text-secondary mb-4px'>{t('cron.create.reuseConversation', { defaultValue: '绑定会话' })}</div>
                   <Select
                     value={selectedConversationId}
                     onChange={(v) => setSelectedConversationId(v as string)}
@@ -613,7 +613,7 @@ const CronJobFormDrawer: React.FC<{
                     }}
                   >
                     <Select.Option value=''>
-                      <span className='text-t-secondary'>{t('cron.create.reuseConversationPlaceholder', { defaultValue: '首次运行时自动创建' })}</span>
+                      <span className='text-secondary'>{t('cron.create.reuseConversationPlaceholder', { defaultValue: '首次运行时自动创建' })}</span>
                     </Select.Option>
                     {conversations.map((c) => (
                       <Select.Option key={c.id} value={c.id}>
@@ -621,17 +621,17 @@ const CronJobFormDrawer: React.FC<{
                       </Select.Option>
                     ))}
                   </Select>
-                  <div className='text-12px text-t-secondary mt-4px'>{t('cron.create.reuseConversationHint', { defaultValue: '选择已有会话，首次运行将直接追加到该会话' })}</div>
+                  <div className='text-12px text-secondary mt-4px'>{t('cron.create.reuseConversationHint', { defaultValue: '选择已有会话，首次运行将直接追加到该会话' })}</div>
                 </div>
               )}
 
               {/* Agent/Assistant selector */}
               {!(sessionMode !== 'remote' && conversationMode === 'reuse' && selectedConversationId) && (
                 <div>
-                  <div className='text-13px text-t-secondary mb-4px'>{t('cron.create.agent', { defaultValue: '数字助手' })}</div>
+                  <div className='text-13px text-secondary mb-4px'>{t('cron.create.agent', { defaultValue: '数字助手' })}</div>
                   <Select value={selectedAssistantId} onChange={(v) => setSelectedAssistantId(v as string)} disabled={sessionMode !== 'remote' && editJob != null && conversationMode === 'reuse'}>
                     <Select.Option value={DEFAULT_ASSISTANT}>
-                      <span className='text-t-secondary'>{t('cron.create.agentPlaceholder', { defaultValue: '默认 (Sudo Code)' })}</span>
+                      <span className='text-secondary'>{t('cron.create.agentPlaceholder', { defaultValue: '默认 (Sudo Code)' })}</span>
                     </Select.Option>
                     {selectedAssistantId !== DEFAULT_ASSISTANT && !assistants.some((a) => a.id === selectedAssistantId) && (
                       <Select.Option value={selectedAssistantId}>
@@ -659,9 +659,9 @@ const CronJobFormDrawer: React.FC<{
               {/* Workspace selector — local mode only */}
               {sessionMode !== 'remote' && !(conversationMode === 'reuse' && selectedConversationId) && (
                 <div>
-                  <div className='text-13px text-t-secondary mb-4px'>{t('cron.create.workspace', { defaultValue: '工作目录' })}</div>
+                  <div className='text-13px text-secondary mb-4px'>{t('cron.create.workspace', { defaultValue: '工作目录' })}</div>
                   <Button long onClick={handleSelectFolder} className='!justify-start !text-left' disabled={editJob != null && conversationMode === 'reuse'}>
-                    {workspace ? <span className='truncate'>{workspace.split('/').pop()}</span> : <span className='text-t-secondary'>{t('cron.create.selectFolder', { defaultValue: '选择文件夹' })}</span>}
+                    {workspace ? <span className='truncate'>{workspace.split('/').pop()}</span> : <span className='text-secondary'>{t('cron.create.selectFolder', { defaultValue: '选择文件夹' })}</span>}
                   </Button>
                 </div>
               )}
@@ -815,8 +815,8 @@ const CronModalContent: React.FC = () => {
             {/* Header */}
             <div className='flex items-center justify-between gap-16px'>
               <div className='min-w-0'>
-                <h2 className='text-20px font-bold text-t-primary m-0 mb-4px'>{t('cron.scheduledTasks')}</h2>
-                <div className='text-13px text-t-secondary'>{t('cron.create.listSubtitle', { defaultValue: '设定定时任务，让 Agent 按计划自动执行' })}</div>
+                <h2 className='text-20px font-bold text-foreground m-0 mb-4px'>{t('cron.scheduledTasks')}</h2>
+                <div className='text-13px text-secondary'>{t('cron.create.listSubtitle', { defaultValue: '设定定时任务，让 Agent 按计划自动执行' })}</div>
               </div>
               {jobs.length > 0 && (
                 <Button type='primary' shape='round' className='cron-create-chip' onClick={handleCreate}>
@@ -831,7 +831,7 @@ const CronModalContent: React.FC = () => {
             {/* Enterprise mode: Remote/Local switcher */}
             {isEnterprise && (
               <div className='bg-2 rd-12px px-16px py-12px flex items-center justify-between'>
-                <div className='flex items-center gap-8px text-13px text-t-secondary'>
+                <div className='flex items-center gap-8px text-13px text-secondary'>
                   <Info theme='outline' size={16} fill={'var(--text-secondary)'} />
                   <span>{t('cron.mode.select', { defaultValue: '数据存储位置' })}</span>
                 </div>
@@ -864,7 +864,7 @@ const CronModalContent: React.FC = () => {
             {/* Info banner (local mode only) */}
             {sessionMode === 'local' && (
               <SettingsList>
-                <SettingsListItem icon={<Sun theme='outline' size={20} />} title={t('cron.create.keepAwake', { defaultValue: '保持唤醒' })} description={t('cron.create.awakeBanner', { defaultValue: '定时任务仅在电脑唤醒时运行' })} status={<span className='text-13px text-t-secondary'>{keepAwake ? t('common.enabled', { defaultValue: '已启用' }) : t('common.disabled', { defaultValue: '已关闭' })}</span>} action={<Switch size='small' className='cron-keep-awake-switch' checked={keepAwake} onChange={handleKeepAwakeChange} />} />
+                <SettingsListItem icon={<Sun theme='outline' size={20} />} title={t('cron.create.keepAwake', { defaultValue: '保持唤醒' })} description={t('cron.create.awakeBanner', { defaultValue: '定时任务仅在电脑唤醒时运行' })} status={<span className='text-13px text-secondary'>{keepAwake ? t('common.enabled', { defaultValue: '已启用' }) : t('common.disabled', { defaultValue: '已关闭' })}</span>} action={<Switch size='small' className='cron-keep-awake-switch' checked={keepAwake} onChange={handleKeepAwakeChange} />} />
               </SettingsList>
             )}
 

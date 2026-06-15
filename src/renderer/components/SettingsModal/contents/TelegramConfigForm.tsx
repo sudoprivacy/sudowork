@@ -28,10 +28,10 @@ const PreferenceRow: React.FC<{
   <div className='flex items-center justify-between gap-24px py-12px'>
     <div className='flex-1'>
       <div className='flex items-center gap-8px'>
-        <span className='text-14px text-t-primary'>{label}</span>
+        <span className='text-14px text-foreground'>{label}</span>
         {extra}
       </div>
-      {description && <div className='text-12px text-t-tertiary mt-2px'>{description}</div>}
+      {description && <div className='text-12px text-tertiary mt-2px'>{description}</div>}
     </div>
     <div className='flex items-center'>{children}</div>
   </div>
@@ -42,7 +42,7 @@ const PreferenceRow: React.FC<{
  */
 const SectionHeader: React.FC<{ title: string; action?: React.ReactNode }> = ({ title, action }) => (
   <div className='flex items-center justify-between mb-12px'>
-    <h3 className='text-14px font-500 text-t-primary m-0'>{title}</h3>
+    <h3 className='text-14px font-500 text-foreground m-0'>{title}</h3>
     {action}
   </div>
 );
@@ -412,7 +412,7 @@ const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({ pluginStatus, m
       {pluginStatus?.enabled && pluginStatus?.connected && authorizedUsers.length === 0 && (
         <div className='bg-blue-50 dark:bg-blue-900/20 rd-12px p-16px border border-blue-200 dark:border-blue-800'>
           <SectionHeader title={t('settings.assistant.nextSteps', 'Next Steps')} />
-          <div className='text-14px text-t-secondary space-y-8px'>
+          <div className='text-14px text-secondary space-y-8px'>
             <p className='m-0'>
               <strong>1.</strong> {t('settings.assistant.step1', 'Open Telegram and search for your bot')}
               {pluginStatus.botUsername && (
@@ -458,14 +458,14 @@ const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({ pluginStatus, m
                 <div key={pairing.code} className='flex items-center justify-between bg-fill-2 rd-8px p-12px'>
                   <div className='flex-1'>
                     <div className='flex items-center gap-8px'>
-                      <span className='text-14px font-500 text-t-primary'>{pairing.displayName || 'Unknown User'}</span>
+                      <span className='text-14px font-500 text-foreground'>{pairing.displayName || 'Unknown User'}</span>
                       <Tooltip content={t('settings.assistant.copyCode', 'Copy pairing code')}>
-                        <button className='p-4px bg-transparent border-none text-t-tertiary hover:text-t-primary cursor-pointer' onClick={() => copyToClipboard(pairing.code)}>
+                        <button className='p-4px bg-transparent border-none text-tertiary hover:text-foreground cursor-pointer' onClick={() => copyToClipboard(pairing.code)}>
                           <Copy size={14} />
                         </button>
                       </Tooltip>
                     </div>
-                    <div className='text-12px text-t-tertiary mt-4px'>
+                    <div className='text-12px text-tertiary mt-4px'>
                       {t('settings.assistant.pairingCode', 'Code')}: <code className='bg-fill-3 px-4px rd-2px'>{pairing.code}</code>
                       <span className='mx-8px'>|</span>
                       {t('settings.assistant.expiresIn', 'Expires in')}: {getRemainingTime(pairing.expiresAt)}
@@ -509,8 +509,8 @@ const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({ pluginStatus, m
               {authorizedUsers.map((user) => (
                 <div key={user.id} className='flex items-center justify-between bg-fill-2 rd-8px p-12px'>
                   <div className='flex-1'>
-                    <div className='text-14px font-500 text-t-primary'>{user.displayName || 'Unknown User'}</div>
-                    <div className='text-12px text-t-tertiary mt-4px'>
+                    <div className='text-14px font-500 text-foreground'>{user.displayName || 'Unknown User'}</div>
+                    <div className='text-12px text-tertiary mt-4px'>
                       {t('settings.assistant.platform', 'Platform')}: {user.platformType}
                       <span className='mx-8px'>|</span>
                       {t('settings.assistant.authorizedAt', 'Authorized')}: {formatTime(user.authorizedAt)}

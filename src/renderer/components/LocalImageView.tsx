@@ -54,7 +54,7 @@ const LocalImageView: React.FC<{
   if (loading)
     return (
       <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-        <LoadingTwo className='loading' style={{ display: 'flex' }} theme='outline' size='14' fill={'var(--text-primary)'} strokeWidth={2} />
+        <LoadingTwo className='loading' style={{ display: 'flex' }} theme='outline' size='14' fill={'var(--foreground)'} strokeWidth={2} />
         <span>{alt}</span>
       </span>
     );

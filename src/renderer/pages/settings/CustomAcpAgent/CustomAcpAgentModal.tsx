@@ -260,7 +260,7 @@ const CustomAcpAgentModal: React.FC<CustomAcpAgentModalProps> = ({ visible, agen
         {/* CLI 选择卡片（仅新增模式显示）/ CLI selection cards (only shown in add mode) */}
         {!agent && (
           <div>
-            <div className='mb-2 text-sm font-medium text-t-primary'>{t('settings.selectCli') || 'Select CLI'}</div>
+            <div className='mb-2 text-sm font-medium text-foreground'>{t('settings.selectCli') || 'Select CLI'}</div>
             {loadingAgents ? (
               <div className='f-center py-4'>
                 <Spin />
@@ -276,7 +276,7 @@ const CustomAcpAgentModal: React.FC<CustomAcpAgentModalProps> = ({ visible, agen
                     <div key={detectedAgent.cliPath} className={`p-2.5 rounded-lg cursor-pointer transition-all flex items-center gap-2 relative border border-solid ${isSelected ? 'bg-[var(--color-fill-2)] border-primary' : 'bg-2 border-transparent hover:bg-[var(--color-fill-2)] hover:border-[var(--color-border-2)]'}`} onClick={() => handleSelectCli(detectedAgent.cliPath || '')}>
                       {logo && <img src={logo} alt={`${detectedAgent.name} logo`} className='w-6 h-6 object-contain flex-shrink-0' />}
                       <div className='min-w-0 flex-1'>
-                        <div className='font-medium text-sm text-t-primary'>{detectedAgent.name}</div>
+                        <div className='font-medium text-sm text-foreground'>{detectedAgent.name}</div>
                       </div>
                       {isSelected && <CheckSmall theme='filled' size={16} className='text-primary flex-shrink-0' />}
                     </div>
@@ -290,7 +290,7 @@ const CustomAcpAgentModal: React.FC<CustomAcpAgentModalProps> = ({ visible, agen
         {/* 显示名称输入（选中 CLI 或编辑模式时显示）/ Display name input (shown when CLI selected or in edit mode) */}
         {(selectedCli || agent) && (
           <div>
-            <div className='mb-2 text-sm font-medium text-t-primary'>{t('settings.agentDisplayName') || 'Display Name'}</div>
+            <div className='mb-2 text-sm font-medium text-foreground'>{t('settings.agentDisplayName') || 'Display Name'}</div>
             <Input value={agentName} onChange={(v) => setAgentName(v)} placeholder={t('settings.agentNamePlaceholder') || 'Enter a name for this agent'} />
           </div>
         )}
@@ -305,7 +305,7 @@ const CustomAcpAgentModal: React.FC<CustomAcpAgentModalProps> = ({ visible, agen
             bordered={false}
             style={{ background: 'transparent' }}
           >
-            <Collapse.Item name='advanced' header={<span className='text-sm text-t-secondary'>{t('settings.advancedMode') || 'Advanced Configuration'}</span>}>
+            <Collapse.Item name='advanced' header={<span className='text-sm text-secondary'>{t('settings.advancedMode') || 'Advanced Configuration'}</span>}>
               <div className='pt-2'>
                 <CodeMirror
                   value={jsonInput}

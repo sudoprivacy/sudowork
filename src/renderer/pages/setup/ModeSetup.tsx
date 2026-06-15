@@ -144,7 +144,7 @@ const ModeSetup: React.FC = () => {
         <div className='mode-setup__header'>
           <img src={SudoworkIcon} alt='Sudowork' className='mode-setup__logo' />
           <h1 className='text-28px font-700 tracking-tighter bg-gradient-to-br from-primary to-purple-600 bg-clip-text text-transparent mb-8px'>欢迎使用 SudoWork</h1>
-          <p className='text-14px text-t-secondary'>请选择您的使用模式</p>
+          <p className='text-14px text-secondary'>请选择您的使用模式</p>
         </div>
 
         {/* Cards */}
@@ -157,7 +157,7 @@ const ModeSetup: React.FC = () => {
                 <circle cx='12' cy='7' r='4' />
               </svg>
             </div>
-            <h3 className='text-16px font-600 text-t-primary'>普通用户</h3>
+            <h3 className='text-16px font-600 text-foreground'>普通用户</h3>
             <div className='mode-setup__card__check'>
               <svg viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='3' strokeLinecap='round' strokeLinejoin='round'>
                 <polyline points='20 6 9 17 4 12' />
@@ -173,7 +173,7 @@ const ModeSetup: React.FC = () => {
                 <polyline points='9 22 9 12 15 12 15 22' />
               </svg>
             </div>
-            <h3 className='text-16px font-600 text-t-primary'>企业用户</h3>
+            <h3 className='text-16px font-600 text-foreground'>企业用户</h3>
             <div className='mode-setup__card__check'>
               <svg viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='3' strokeLinecap='round' strokeLinejoin='round'>
                 <polyline points='20 6 9 17 4 12' />
@@ -186,9 +186,9 @@ const ModeSetup: React.FC = () => {
         <div className={`mode-setup__form ${selectedCard === 'enterprise' ? 'mode-setup__form--visible' : ''}`}>
           <div className='flex flex-col gap-12px w-full'>
             <div className='flex flex-col gap-8px'>
-              <div className='text-13px font-600 text-t-primary'>企业服务器地址</div>
+              <div className='text-13px font-600 text-foreground'>企业服务器地址</div>
               <Input size='large' placeholder='https://your-company-server.com' value={serverUrl} onChange={setServerUrl} className='mode-setup__input' />
-              {serverUrl && !isValidServerUrl(serverUrl) ? <p className='text-12px text-danger ml-4px'>请输入有效的 HTTP/HTTPS 地址</p> : serverUrl.startsWith('http://') ? <p className='text-12px text-warning ml-4px'>建议使用 HTTPS 协议以确保安全</p> : <p className='text-12px text-t-tertiary ml-4px'>请输入管理员提供的企业服务器地址</p>}
+              {serverUrl && !isValidServerUrl(serverUrl) ? <p className='text-12px text-danger ml-4px'>请输入有效的 HTTP/HTTPS 地址</p> : serverUrl.startsWith('http://') ? <p className='text-12px text-warning ml-4px'>建议使用 HTTPS 协议以确保安全</p> : <p className='text-12px text-tertiary ml-4px'>请输入管理员提供的企业服务器地址</p>}
             </div>
 
             {verifyResult && <div className={`mode-setup__verify-result ${verifyResult.success ? 'mode-setup__verify-result--success' : 'mode-setup__verify-result--error'}`}>{verifyResult.success ? <span>{verifyResult.tenantName} — 连接成功</span> : <span>{verifyResult.message}</span>}</div>}

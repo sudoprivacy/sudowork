@@ -86,7 +86,7 @@ const McpLibraryTab: React.FC<McpLibraryTabProps> = ({ templates, installedTempl
                 <McpIcon icon={tpl.icon} size={40} />
                 <div className='flex-1 min-w-0'>
                   <div className='flex items-center gap-2'>
-                    <span className='text-14px font-500 text-t-primary truncate'>{tpl.name}</span>
+                    <span className='text-14px font-500 text-foreground truncate'>{tpl.name}</span>
                     <RiskLevelTag level={tpl.risk_level} />
                     {installed && (
                       <Tag size='small' color='green' icon={<CheckOne theme='outline' size='12' />}>
@@ -94,14 +94,14 @@ const McpLibraryTab: React.FC<McpLibraryTabProps> = ({ templates, installedTempl
                       </Tag>
                     )}
                   </div>
-                  {tpl.description && <div className='text-12px text-t-tertiary mt-0.5 truncate'>{tpl.description}</div>}
+                  {tpl.description && <div className='text-12px text-tertiary mt-0.5 truncate'>{tpl.description}</div>}
                   <div className='flex items-center gap-1.5 mt-1'>
                     {tpl.tags.map((tag) => (
-                      <span key={tag} className='text-11px text-t-tertiary px-1.5 py-px rd-4px bg-[var(--color-fill-2)]'>
+                      <span key={tag} className='text-11px text-tertiary px-1.5 py-px rd-4px bg-[var(--color-fill-2)]'>
                         #{tag}
                       </span>
                     ))}
-                    <span className='text-11px text-t-tertiary ml-auto'>已安装 {tpl.downloads} 次</span>
+                    <span className='text-11px text-tertiary ml-auto'>已安装 {tpl.downloads} 次</span>
                   </div>
                 </div>
                 <div className='shrink-0'>

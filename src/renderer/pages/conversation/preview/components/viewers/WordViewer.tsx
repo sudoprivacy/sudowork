@@ -276,13 +276,13 @@ const WordPreview: React.FC<WordPreviewProps> = ({ filePath, content, hideToolba
     toolbarExtrasContext.setExtras({
       left: (
         <div className='flex items-center gap-8px'>
-          <span className='text-13px text-t-secondary'>📄 {t('preview.word.title')}</span>
-          <span className='text-11px text-t-tertiary'>{t('preview.readOnlyLabel')}</span>
+          <span className='text-13px text-secondary'>📄 {t('preview.word.title')}</span>
+          <span className='text-11px text-tertiary'>{t('preview.readOnlyLabel')}</span>
         </div>
       ),
       right: (
         <div className='flex items-center gap-8px'>
-          <div className='flex items-center gap-4px px-8px py-4px rd-4px cursor-pointer hover:bg-bg-3 transition-colors text-12px text-t-secondary' onClick={handleOpenInSystem} title={t('preview.openWithApp', { app: 'Word' })}>
+          <div className='flex items-center gap-4px px-8px py-4px rd-4px cursor-pointer hover:bg-bg-3 transition-colors text-12px text-secondary' onClick={handleOpenInSystem} title={t('preview.openWithApp', { app: 'Word' })}>
             <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2'>
               <path d='M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6' />
               <polyline points='15 3 21 3 21 9' />
@@ -302,7 +302,7 @@ const WordPreview: React.FC<WordPreviewProps> = ({ filePath, content, hideToolba
   if (loading) {
     return (
       <div className='flex items-center justify-center h-full'>
-        <div className='text-14px text-t-secondary'>{t('preview.word.loading')}</div>
+        <div className='text-14px text-secondary'>{t('preview.word.loading')}</div>
       </div>
     );
   }
@@ -320,7 +320,7 @@ const WordPreview: React.FC<WordPreviewProps> = ({ filePath, content, hideToolba
       <div className='flex items-center justify-center h-full'>
         <div className='text-center'>
           <div className='text-16px text-danger mb-8px'>❌ {error}</div>
-          <div className='text-12px text-t-secondary'>{t('preview.word.invalid')}</div>
+          <div className='text-12px text-secondary'>{t('preview.word.invalid')}</div>
         </div>
       </div>
     );
@@ -335,12 +335,12 @@ const WordPreview: React.FC<WordPreviewProps> = ({ filePath, content, hideToolba
         {!usePortalToolbar && !hideToolbar && (
           <div className='flex items-center justify-between h-40px px-12px bg-bg-2 flex-shrink-0'>
             <div className='flex items-center gap-8px'>
-              <span className='text-13px text-t-secondary'>📄 {t('preview.word.title')}</span>
-              <span className='text-11px text-t-tertiary'>{t('preview.readOnlyLabel')}</span>
+              <span className='text-13px text-secondary'>📄 {t('preview.word.title')}</span>
+              <span className='text-11px text-tertiary'>{t('preview.readOnlyLabel')}</span>
             </div>
 
             <div className='flex items-center gap-8px'>
-              <div className='flex items-center gap-4px px-8px py-4px rd-4px cursor-pointer hover:bg-bg-3 transition-colors text-12px text-t-secondary' onClick={handleOpenInSystem} title={t('preview.openWithApp', { app: 'Word' })}>
+              <div className='flex items-center gap-4px px-8px py-4px rd-4px cursor-pointer hover:bg-bg-3 transition-colors text-12px text-secondary' onClick={handleOpenInSystem} title={t('preview.openWithApp', { app: 'Word' })}>
                 <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2'>
                   <path d='M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6' />
                   <polyline points='15 3 21 3 21 9' />
@@ -373,11 +373,11 @@ const WordPreview: React.FC<WordPreviewProps> = ({ filePath, content, hideToolba
           {!usePortalToolbar && !hideToolbar && (
             <div className='flex items-center justify-between h-40px px-12px bg-bg-2 flex-shrink-0'>
               <div className='flex items-center gap-8px'>
-                <span className='text-13px text-t-secondary'>📄 {t('preview.word.title')}</span>
-                <span className='text-11px text-t-tertiary'>{t('preview.readOnlyLabel')}</span>
+                <span className='text-13px text-secondary'>📄 {t('preview.word.title')}</span>
+                <span className='text-11px text-tertiary'>{t('preview.readOnlyLabel')}</span>
               </div>
               <div className='flex items-center gap-8px'>
-                <div className='flex items-center gap-4px px-8px py-4px rd-4px cursor-pointer hover:bg-bg-3 transition-colors text-12px text-t-secondary' onClick={handleOpenInSystem} title={t('preview.openWithApp', { app: 'Word' })}>
+                <div className='flex items-center gap-4px px-8px py-4px rd-4px cursor-pointer hover:bg-bg-3 transition-colors text-12px text-secondary' onClick={handleOpenInSystem} title={t('preview.openWithApp', { app: 'Word' })}>
                   <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2'>
                     <path d='M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6' />
                     <polyline points='15 3 21 3 21 9' />
@@ -393,8 +393,8 @@ const WordPreview: React.FC<WordPreviewProps> = ({ filePath, content, hideToolba
           )}
           <div className='flex-1 flex items-center justify-center'>
             <div className='text-center'>
-              <div className='text-14px text-t-secondary mb-8px'>{t('preview.word.emptyContent')}</div>
-              <div className='text-12px text-t-tertiary'>{filePath}</div>
+              <div className='text-14px text-secondary mb-8px'>{t('preview.word.emptyContent')}</div>
+              <div className='text-12px text-tertiary'>{filePath}</div>
             </div>
           </div>
         </div>
@@ -408,12 +408,12 @@ const WordPreview: React.FC<WordPreviewProps> = ({ filePath, content, hideToolba
         {!usePortalToolbar && !hideToolbar && (
           <div className='flex items-center justify-between h-40px px-12px bg-bg-2 flex-shrink-0'>
             <div className='flex items-center gap-8px'>
-              <span className='text-13px text-t-secondary'>📄 {t('preview.word.title')}</span>
-              <span className='text-11px text-t-tertiary'>{t('preview.readOnlyLabel')}</span>
+              <span className='text-13px text-secondary'>📄 {t('preview.word.title')}</span>
+              <span className='text-11px text-tertiary'>{t('preview.readOnlyLabel')}</span>
             </div>
 
             <div className='flex items-center gap-8px'>
-              <div className='flex items-center gap-4px px-8px py-4px rd-4px cursor-pointer hover:bg-bg-3 transition-colors text-12px text-t-secondary' onClick={handleOpenInSystem} title={t('preview.openWithApp', { app: 'Word' })}>
+              <div className='flex items-center gap-4px px-8px py-4px rd-4px cursor-pointer hover:bg-bg-3 transition-colors text-12px text-secondary' onClick={handleOpenInSystem} title={t('preview.openWithApp', { app: 'Word' })}>
                 <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2'>
                   <path d='M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6' />
                   <polyline points='15 3 21 3 21 9' />
@@ -439,7 +439,7 @@ const WordPreview: React.FC<WordPreviewProps> = ({ filePath, content, hideToolba
   // Should not reach here, but keep for type safety
   return (
     <div className='flex items-center justify-center h-full'>
-      <div className='text-14px text-t-secondary'>{t('preview.word.loading')}</div>
+      <div className='text-14px text-secondary'>{t('preview.word.loading')}</div>
     </div>
   );
 };

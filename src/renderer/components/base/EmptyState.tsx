@@ -125,13 +125,13 @@ const EmptyState: React.FC<EmptyStateProps> = ({ icon, title, description, actio
       )}
     >
       {/* 图标区域 / Icon area */}
-      <div className='empty-state__icon mb-24px text-t-tertiary'>{icon || defaultIcon}</div>
+      <div className='empty-state__icon mb-24px text-tertiary'>{icon || defaultIcon}</div>
 
       {/* 标题 / Title */}
-      {title && <div className='empty-state__title text-16px font-500 text-t-primary mb-8px text-center'>{title}</div>}
+      {title && <div className='empty-state__title text-16px font-500 text-foreground mb-8px text-center'>{title}</div>}
 
       {/* 描述 / Description */}
-      {description && <div className='empty-state__description text-13px text-t-secondary mb-20px text-center max-w-300px'>{description}</div>}
+      {description && <div className='empty-state__description text-13px text-secondary mb-20px text-center max-w-300px'>{description}</div>}
 
       {/* 操作按钮 / Action buttons */}
       {actions && actions.length > 0 && (

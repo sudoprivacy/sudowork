@@ -58,7 +58,7 @@ const ProductImprovementDialog: React.FC<ProductImprovementDialogProps> = ({ vis
   const header = {
     render: () => (
       <div className="flex items-center justify-between w-full pb-20px border-b border-[var(--bg-3)]">
-        <h3 className="text-16px font-600 text-t-primary m-0">
+        <h3 className="text-16px font-600 text-foreground m-0">
           {t('settings.productImprovement.dialogTitle', '产品体验改进计划')}
         </h3>
         <button
@@ -84,7 +84,7 @@ const ProductImprovementDialog: React.FC<ProductImprovementDialogProps> = ({ vis
     >
       <div className="flex flex-col gap-16px">
         {/* 说明内容 */}
-        <div className="text-14px text-t-secondary leading-relaxed">
+        <div className="text-14px text-secondary leading-relaxed">
           {t(
             'settings.productImprovement.description',
             '帮助我们持续优化产品体验，为您带来更好的服务。'
@@ -94,7 +94,7 @@ const ProductImprovementDialog: React.FC<ProductImprovementDialogProps> = ({ vis
         {/* 隐私保障 */}
         <div className="flex items-start gap-10px p-12px rd-10px bg-[var(--bg-2)]">
           <Shield size={18} fill="var(--success)" className="flex-shrink-0 mt-1px" />
-          <div className="text-13px text-t-secondary leading-relaxed">
+          <div className="text-13px text-secondary leading-relaxed">
             {t(
               'settings.productImprovement.privacy',
               '开启后将匿名收集 SudoWork 性能指标，仅用于产品改进，不会收集您的对话内容或个人信息。您可以随时关闭此功能。'

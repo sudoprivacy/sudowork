@@ -15,7 +15,7 @@ const ComponentsShowcase: React.FC = () => {
 
       <div>
         <h1 className='text-3xl font-bold mb-2'>Sudowork 自定义组件样式展示</h1>
-        <p className='text-t-secondary'>展示所有在 styles/arco-override.scss 中自定义的组件样式</p>
+        <p className='text-secondary'>展示所有在 styles/arco-override.scss 中自定义的组件样式</p>
       </div>
 
       {/* Message */}
@@ -94,7 +94,7 @@ const ComponentsShowcase: React.FC = () => {
             Gray Tag
           </Tag>
         </div>
-        <p className='text-sm text-t-secondary'>提示：切换到深色模式查看优化效果</p>
+        <p className='text-sm text-secondary'>提示：切换到深色模式查看优化效果</p>
       </section>
 
       {/* Steps */}
@@ -136,7 +136,7 @@ const ComponentsShowcase: React.FC = () => {
         >
           <div className='p-6'>
             <p>这是使用 ModalWrapper 封装的自定义模态框。</p>
-            <p className='mt-2 text-t-secondary'>特性：圆角 12px、自定义关闭按钮、主题背景色。</p>
+            <p className='mt-2 text-secondary'>特性：圆角 12px、自定义关闭按钮、主题背景色。</p>
           </div>
         </ModalWrapper>
       </section>

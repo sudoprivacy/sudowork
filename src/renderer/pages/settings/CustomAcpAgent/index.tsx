@@ -174,7 +174,7 @@ const CustomAcpAgent: React.FC<CustomAcpAgentProps> = ({ message }) => {
       >
         <div className='py-2'>
           {customAgents.length === 0 ? (
-            <div className='text-center py-4 text-t-secondary'>{t('settings.noCustomAgentConfigured') || 'No custom agents configured'}</div>
+            <div className='text-center py-4 text-secondary'>{t('settings.noCustomAgentConfigured') || 'No custom agents configured'}</div>
           ) : (
             <div className='space-y-2'>
               {customAgents.map((agent) => (
@@ -186,7 +186,7 @@ const CustomAcpAgent: React.FC<CustomAcpAgentProps> = ({ message }) => {
                       <Button type='text' size='small' status='danger' icon={<Delete size={'14'} />} onClick={() => handleConfirmDelete(agent)} />
                     </div>
                   </div>
-                  <div className='text-sm text-t-secondary'>
+                  <div className='text-sm text-secondary'>
                     <div>
                       <span className='font-medium'>{t('settings.command') || 'CLI Path'}:</span> {agent.defaultCliPath}
                     </div>

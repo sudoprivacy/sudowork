@@ -632,7 +632,7 @@ const GuidPage: React.FC = () => {
                   <div className='flex-shrink-0'>{selectedAssistantAvatar?.isImageAvatar && selectedAssistantAvatar.avatarImage ? <img src={selectedAssistantAvatar.avatarImage} alt='' width={28} height={28} style={{ objectFit: 'contain' }} /> : selectedAssistantAvatar?.avatarValue ? <span style={{ fontSize: 24, lineHeight: '28px' }}>{selectedAssistantAvatar.avatarValue}</span> : <Robot theme='outline' size={24} />}</div>
 
                   {/* Name */}
-                  <span className='text-xl font-semibold text-t-primary truncate'>{selectedAssistantConfig.nameI18n?.[localeKey] || selectedAssistantConfig.name}</span>
+                  <span className='text-xl font-semibold text-foreground truncate'>{selectedAssistantConfig.nameI18n?.[localeKey] || selectedAssistantConfig.name}</span>
 
                   {/* Edit button */}
                   <div className='flex items-center justify-center w-28px h-28px rd-full cursor-pointer hover:bg-fill-2 transition-colors flex-shrink-0' onClick={() => setEditDrawerVisible(true)}>
@@ -750,7 +750,7 @@ const GuidPage: React.FC = () => {
                       className='px-12px py-6px text-13px rd-16px cursor-pointer transition-colors shadow-sm'
                       style={{
                         background: 'var(--bg-2)',
-                        color: 'var(--text-primary)',
+                        color: 'var(--foreground)',
                         border: '1px solid var(--bg-3)',
                       }}
                       onClick={() => {

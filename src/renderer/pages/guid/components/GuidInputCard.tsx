@@ -131,7 +131,7 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({ input, onInputChange, onK
       {/* 已选技能标签 */}
       {selectedSkills && selectedSkills.length > 0 && (
         <div className='flex flex-col gap-6px mb-8px'>
-          <div className='flex items-center gap-4px text-11px text-t-secondary'>
+          <div className='flex items-center gap-4px text-11px text-secondary'>
             <Lightning size='12' className='text-[var(--ui-accent-orange)]' />
             <span>当前使用技能</span>
           </div>
@@ -179,7 +179,7 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({ input, onInputChange, onK
       )}
       {actionRow}
       {dir && (
-        <div className='flex items-start justify-between gap-10px mt-8px px-10px py-6px text-13px text-t-secondary' style={{ borderTop: '1px solid var(--border-default)' }}>
+        <div className='flex items-start justify-between gap-10px mt-8px px-10px py-6px text-13px text-secondary' style={{ borderTop: '1px solid var(--border-default)' }}>
           <div className='flex items-start min-w-0 flex-1 gap-8px'>
             <FolderOpen className='mt-1px flex-shrink-0' theme='outline' size='16' fill={'var(--text-secondary)'} style={{ lineHeight: 0 }} />
             <Tooltip content={dir} position='top' disabled={isMobile}>
@@ -195,7 +195,7 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({ input, onInputChange, onK
             </Tooltip>
           </div>
           <Tooltip content={t('conversation.welcome.clearWorkspace')} position='top' disabled={isMobile}>
-            <button type='button' className='mt-1px h-28px w-28px rd-999px flex items-center justify-center flex-shrink-0 text-t-tertiary hover:text-danger hover:bg-danger-soft active:bg-danger-soft transition-colors' onClick={onClearDir} aria-label={t('conversation.welcome.clearWorkspace')} style={{ border: '1px solid var(--border-default)' }}>
+            <button type='button' className='mt-1px h-28px w-28px rd-999px flex items-center justify-center flex-shrink-0 text-tertiary hover:text-danger hover:bg-danger-soft active:bg-danger-soft transition-colors' onClick={onClearDir} aria-label={t('conversation.welcome.clearWorkspace')} style={{ border: '1px solid var(--border-default)' }}>
               <IconClose strokeWidth={3} style={{ fontSize: 15 }} />
             </button>
           </Tooltip>

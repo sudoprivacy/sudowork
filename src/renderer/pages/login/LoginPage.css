@@ -46,7 +46,7 @@
 
 .app-window-controls__button:hover {
   background: rgba(0, 0, 0, 0.05);
-  color: var(--text-primary);
+  color: var(--foreground);
 }
 
 .app-window-controls__button--close:hover {
@@ -188,7 +188,7 @@ body.login-page-active {
   border: 1px solid var(--border-default);
   border-radius: 8px;
   background: var(--bg-1);
-  color: var(--text-primary);
+  color: var(--foreground);
   font-size: 13px;
   cursor: pointer;
   transition:
@@ -204,7 +204,7 @@ body.login-page-active {
 }
 
 .login-page__lang-select option {
-  color: var(--text-primary);
+  color: var(--foreground);
 }
 
 /* ========================================
@@ -235,7 +235,7 @@ body.login-page-active {
 }
 
 .login-tab:hover {
-  color: var(--text-primary);
+  color: var(--foreground);
 }
 
 .login-tab--active {
@@ -304,7 +304,7 @@ body.login-page-active {
 
 /* Dark mode - subtitle and section descriptions in light color */
 [data-theme='dark'] .login-page__subtitle,
-[data-theme='dark'] .login-page .text-t-secondary {
+[data-theme='dark'] .login-page .text-secondary {
   color: rgba(255, 255, 255, 0.7) !important;
 }
 
@@ -320,7 +320,7 @@ body.login-page-active {
   display: block;
   margin-bottom: 8px;
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--foreground);
   font-size: 13px;
 }
 
@@ -348,7 +348,7 @@ body.login-page-active {
   font-size: 15px;
   transition: border-color 0.2s ease;
   background: var(--bg-1);
-  color: var(--text-primary);
+  color: var(--foreground);
 }
 
 .login-page__input::placeholder {
@@ -544,7 +544,7 @@ body.login-page-active {
 .login-page .login-input .arco-input {
   background: transparent !important;
   border: none !important;
-  color: var(--text-primary) !important;
+  color: var(--foreground) !important;
 }
 
 .login-page .login-input .arco-input-inner-wrapper {
@@ -605,7 +605,7 @@ body.login-page-active {
 .login-btn-secondary {
   background: var(--fill-1) !important;
   border: 1px solid var(--border-default) !important;
-  color: var(--text-primary) !important;
+  color: var(--foreground) !important;
 }
 
 .login-btn-secondary:hover,
@@ -613,7 +613,7 @@ body.login-page-active {
 .login-btn-secondary:active {
   background: var(--fill-2) !important;
   border: 1px solid var(--border-default) !important;
-  color: var(--text-primary) !important;
+  color: var(--foreground) !important;
   transform: none !important;
   box-shadow: none !important;
   outline: none !important;

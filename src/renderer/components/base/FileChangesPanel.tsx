@@ -64,7 +64,7 @@ const FileChangesPanel: React.FC<FileChangesPanelProps> = ({ title, files, defau
           {/* 绿色圆点 / Green dot */}
           <span className='w-8px h-8px rounded-full shrink-0' style={{ backgroundColor: '#52c41a' }}></span>
           {/* 标题 / Title */}
-          <span className='text-14px text-t-primary font-medium'>{title}</span>
+          <span className='text-14px text-foreground font-medium'>{title}</span>
         </div>
         {/* 展开/收起箭头 / Expand/collapse arrow */}
         <Down theme='outline' size='16' fill={'var(--text-secondary)'} className={classNames('transition-transform duration-200', expanded && 'rotate-180')} />
@@ -77,7 +77,7 @@ const FileChangesPanel: React.FC<FileChangesPanelProps> = ({ title, files, defau
             <div key={`${file.fullPath}-${index}`} className={classNames('group flex items-center justify-between px-16px py-12px hover:bg-3 transition-colors')}>
               {/* 文件名 / File name */}
               <div className='flex items-center min-w-0'>
-                <span className='text-14px text-t-primary truncate'>{file.fileName}</span>
+                <span className='text-14px text-foreground truncate'>{file.fileName}</span>
               </div>
               {/* 变更统计 + 预览按钮 / Change statistics + Preview button */}
               <div className='flex items-center gap-8px shrink-0'>
@@ -104,7 +104,7 @@ const FileChangesPanel: React.FC<FileChangesPanelProps> = ({ title, files, defau
                 )}
                 {/* 预览按钮 - 点击打开文件预览 / Preview button - click to open file preview */}
                 <span
-                  className='group-hover:opacity-100 transition-opacity shrink-0 ml-4px flex items-center gap-4px text-12px text-t-secondary cursor-pointer rd-4px px-4px py-2px hover:bg-4'
+                  className='group-hover:opacity-100 transition-opacity shrink-0 ml-4px flex items-center gap-4px text-12px text-secondary cursor-pointer rd-4px px-4px py-2px hover:bg-4'
                   onClick={(e) => {
                     e.stopPropagation();
                     onFileClick?.(file);

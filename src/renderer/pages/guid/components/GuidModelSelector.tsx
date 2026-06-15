@@ -42,8 +42,8 @@ type GuidModelSelectorProps = {
 
 const PANEL_CLASS = 'flex flex-col gap-2px p-6px rd-12px border bg-popup max-h-[min(60vh,420px)] overflow-y-auto scrollbar-hide';
 const PANEL_STYLE: React.CSSProperties = { minWidth: 200, boxShadow: '0 8px 28px rgba(0, 0, 0, 0.12)' };
-const GROUP_TITLE_CLASS = 'px-10px pt-4px pb-2px text-12px leading-18px text-t-secondary';
-const ROW_CLASS = 'flex items-center gap-8px px-10px h-38px rd-8px cursor-pointer text-14px text-t-primary transition-colors hover:bg-hover active:bg-active';
+const GROUP_TITLE_CLASS = 'px-10px pt-4px pb-2px text-12px leading-18px text-secondary';
+const ROW_CLASS = 'flex items-center gap-8px px-10px h-38px rd-8px cursor-pointer text-14px text-foreground transition-colors hover:bg-hover active:bg-active';
 
 const HealthDot: React.FC<{ status: string }> = ({ status }) => {
   if (status === 'unknown') return null;
@@ -78,7 +78,7 @@ const GeminiSubMenu: React.FC<{
       <div className={ROW_CLASS}>
         <HealthDot status={healthStatus} />
         <span className='flex-1 truncate'>{label}</span>
-        <Right theme='outline' size='14' className='shrink-0 text-t-tertiary' />
+        <Right theme='outline' size='14' className='shrink-0 text-tertiary' />
       </div>
     </Dropdown>
   );
@@ -149,8 +149,8 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({ isGeminiMode, mod
           <div className={PANEL_CLASS} style={PANEL_STYLE}>
             {!enabledModelList || enabledModelList.length === 0 ? (
               <>
-                <div className='px-10px py-12px text-t-secondary text-14px text-center'>{t('settings.noAvailableModels')}</div>
-                <div className={classNames(ROW_CLASS, '!h-32px text-12px text-t-secondary')} onClick={() => navigate('/settings/model')}>
+                <div className='px-10px py-12px text-secondary text-14px text-center'>{t('settings.noAvailableModels')}</div>
+                <div className={classNames(ROW_CLASS, '!h-32px text-12px text-secondary')} onClick={() => navigate('/settings/model')}>
                   <Plus theme='outline' size='12' />
                   <span>{t('settings.addModel')}</span>
                 </div>
@@ -192,8 +192,8 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({ isGeminiMode, mod
                                 trigger='hover'
                                 content={
                                   <div className='max-w-240px space-y-6px'>
-                                    <div className='text-12px text-t-secondary leading-5'>{option.description}</div>
-                                    {option.modelHint && <div className='text-11px text-t-tertiary'>{option.modelHint}</div>}
+                                    <div className='text-12px text-secondary leading-5'>{option.description}</div>
+                                    {option.modelHint && <div className='text-11px text-tertiary'>{option.modelHint}</div>}
                                   </div>
                                 }
                               >
@@ -208,7 +208,7 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({ isGeminiMode, mod
                     </div>
                   );
                 })}
-                <div className={classNames(ROW_CLASS, '!h-32px text-12px text-t-secondary')} onClick={() => navigate('/settings/model')}>
+                <div className={classNames(ROW_CLASS, '!h-32px text-12px text-secondary')} onClick={() => navigate('/settings/model')}>
                   <Plus theme='outline' size='12' />
                   <span>{t('settings.addModel')}</span>
                 </div>

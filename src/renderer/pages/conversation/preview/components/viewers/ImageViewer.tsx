@@ -64,12 +64,12 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({ filePath, content, fileName
 
   const renderStatus = () => {
     if (loading) {
-      return <div className='text-14px text-t-secondary'>{t('common.loading', { defaultValue: 'Loading...' })}</div>;
+      return <div className='text-14px text-secondary'>{t('common.loading', { defaultValue: 'Loading...' })}</div>;
     }
 
     if (error) {
       return (
-        <div className='text-center text-14px text-t-secondary'>
+        <div className='text-center text-14px text-secondary'>
           <div>{error}</div>
           {filePath && <div className='text-12px'>{filePath}</div>}
         </div>

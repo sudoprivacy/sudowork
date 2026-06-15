@@ -183,7 +183,7 @@ const WeeklyModelUsageChart: React.FC<WeeklyModelUsageChartProps> = ({ className
         axisPointer: { type: 'shadow' },
         backgroundColor: getCSSVar('--fill-0') || '#ffffff',
         borderColor: getCSSVar('--border-default') || '#e5e6eb',
-        textStyle: { color: getCSSVar('--text-primary') || '#1d2129', fontFamily: 'PingFang SC, Microsoft YaHei, sans-serif' },
+        textStyle: { color: getCSSVar('--foreground') || '#1d2129', fontFamily: 'PingFang SC, Microsoft YaHei, sans-serif' },
         formatter: (params: EChartsTooltipParam[]) => {
           if (!params || !params.length) return '';
           const dataIndex = params[0].dataIndex;
@@ -250,7 +250,7 @@ const WeeklyModelUsageChart: React.FC<WeeklyModelUsageChartProps> = ({ className
         axisPointer: { type: 'shadow' },
         backgroundColor: getCSSVar('--fill-0') || '#ffffff',
         borderColor: getCSSVar('--border-default') || '#e5e6eb',
-        textStyle: { color: getCSSVar('--text-primary') || '#1d2129', fontFamily: 'PingFang SC, Microsoft YaHei, sans-serif' },
+        textStyle: { color: getCSSVar('--foreground') || '#1d2129', fontFamily: 'PingFang SC, Microsoft YaHei, sans-serif' },
         formatter: (params: EChartsTooltipParam[]) => {
           if (!params || !params.length) return '';
           const dataIndex = params[0].dataIndex;
@@ -309,7 +309,7 @@ const WeeklyModelUsageChart: React.FC<WeeklyModelUsageChartProps> = ({ className
 
   return (
     <div className={`p-6 bg-2 rd-16px border border-solid border-[var(--color-border-2)] ${className || ''}`}>
-      <div className='text-14px font-600 text-t-primary mb-4'>{t('settings.modelUsage.title') || '模型用量'}</div>
+      <div className='text-14px font-600 text-foreground mb-4'>{t('settings.modelUsage.title') || '模型用量'}</div>
 
       <div className='mb-4'>
         <RangePicker value={dateRange} onChange={handleDateChange} format='YYYY-MM-DD' allowClear={false} style={{ width: '100%' }} placeholder={[t('settings.modelUsage.startDate') || '开始日期', t('settings.modelUsage.endDate') || '结束日期']} />
@@ -320,16 +320,16 @@ const WeeklyModelUsageChart: React.FC<WeeklyModelUsageChartProps> = ({ className
           <Spin />
         </div>
       ) : !data.length ? (
-        <div className='py-15 text-center text-t-tertiary text-14px'>{t('settings.modelUsage.noData') || '暂无模型用量数据'}</div>
+        <div className='py-15 text-center text-tertiary text-14px'>{t('settings.modelUsage.noData') || '暂无模型用量数据'}</div>
       ) : (
         <div className='flex flex-col gap-5'>
           <div>
-            <div className='text-13px font-600 text-t-secondary mb-2'>{t('settings.modelUsage.pointsTitle')}</div>
+            <div className='text-13px font-600 text-secondary mb-2'>{t('settings.modelUsage.pointsTitle')}</div>
             <ReactECharts option={pointsChartOption} style={{ height: '220px' }} opts={{ renderer: 'canvas' }} />
           </div>
           <div className='h-px bg-[var(--color-border-2)]' />
           <div>
-            <div className='text-13px font-600 text-t-secondary mb-2'>{t('settings.modelUsage.tokensTitle')}</div>
+            <div className='text-13px font-600 text-secondary mb-2'>{t('settings.modelUsage.tokensTitle')}</div>
             <ReactECharts option={modelChartOption} style={{ height: '300px' }} opts={{ renderer: 'canvas' }} />
           </div>
         </div>

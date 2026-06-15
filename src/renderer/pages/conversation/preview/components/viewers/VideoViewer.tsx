@@ -31,11 +31,11 @@ const VideoViewer: React.FC<VideoViewerProps> = ({ filePath, content, fileName }
     toolbarExtrasContext.setExtras({
       left: (
         <div className='flex items-center gap-8px'>
-          <span className='flex items-center gap-4px text-13px text-t-secondary'>
+          <span className='flex items-center gap-4px text-13px text-secondary'>
             <VideoFile theme='filled' size='14' fill='currentColor' />
             {t('preview.video.title', { defaultValue: 'Video' })}
           </span>
-          <span className='text-11px text-t-tertiary'>{t('preview.readOnlyLabel')}</span>
+          <span className='text-11px text-tertiary'>{t('preview.readOnlyLabel')}</span>
         </div>
       ),
       right: null,
@@ -46,7 +46,7 @@ const VideoViewer: React.FC<VideoViewerProps> = ({ filePath, content, fileName }
   if (!videoSrc) {
     return (
       <div className='flex-1 flex items-center justify-center bg-bg-1 p-24px'>
-        <div className='text-center text-14px text-t-secondary'>{t('preview.video.pathMissing', { defaultValue: 'Video file path is missing' })}</div>
+        <div className='text-center text-14px text-secondary'>{t('preview.video.pathMissing', { defaultValue: 'Video file path is missing' })}</div>
       </div>
     );
   }
@@ -55,8 +55,8 @@ const VideoViewer: React.FC<VideoViewerProps> = ({ filePath, content, fileName }
     return (
       <div className='flex-1 flex items-center justify-center bg-bg-1 p-24px'>
         <div className='max-w-520px text-center'>
-          <div className='text-15px text-t-primary mb-8px'>{error}</div>
-          {filePath && <div className='text-12px text-t-tertiary break-all'>{filePath}</div>}
+          <div className='text-15px text-foreground mb-8px'>{error}</div>
+          {filePath && <div className='text-12px text-tertiary break-all'>{filePath}</div>}
         </div>
       </div>
     );

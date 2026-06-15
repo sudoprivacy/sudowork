@@ -151,9 +151,9 @@ const ConfirmationDetails: React.FC<{
         );
       }
       case 'info':
-        return <span className='text-t-primary'>{confirmationDetails.prompt}</span>;
+        return <span className='text-foreground'>{confirmationDetails.prompt}</span>;
       case 'mcp':
-        return <span className='text-t-primary'>{confirmationDetails.toolDisplayName}</span>;
+        return <span className='text-foreground'>{confirmationDetails.toolDisplayName}</span>;
     }
   }, [confirmationDetails]);
 
@@ -168,7 +168,7 @@ const ConfirmationDetails: React.FC<{
       {confirmationDetails.type === 'edit' ? <EditConfirmationDiff diff={confirmationDetails?.fileDiff || ''} fileName={confirmationDetails.fileName} title={isConfirm ? confirmationDetails.title : content.description} /> : node}
       {content.status === 'Confirming' && (
         <>
-          <div className='mt-10px text-t-primary'>{question}</div>
+          <div className='mt-10px text-foreground'>{question}</div>
           <Radio.Group direction='vertical' size='mini' value={selected} onChange={setSelected}>
             {options.map((item) => {
               return (
@@ -316,8 +316,8 @@ const ImageDisplay: React.FC<{
   if (loading) {
     return (
       <div className='flex items-center gap-8px my-8px'>
-        <LoadingOne className='loading' theme='outline' size='14' fill={'var(--text-primary)'} />
-        <span className='text-t-secondary text-sm'>{t('common.loading', { defaultValue: 'Loading...' })}</span>
+        <LoadingOne className='loading' theme='outline' size='14' fill={'var(--foreground)'} />
+        <span className='text-secondary text-sm'>{t('common.loading', { defaultValue: 'Loading...' })}</span>
       </div>
     );
   }
@@ -325,7 +325,7 @@ const ImageDisplay: React.FC<{
   // 错误状态 Error state
   if (error || !imageUrl) {
     return (
-      <div className='flex items-center gap-8px my-8px text-t-secondary text-sm'>
+      <div className='flex items-center gap-8px my-8px text-secondary text-sm'>
         <span>{t('messages.imageLoadFailed', { defaultValue: 'Failed to load image' })}</span>
       </div>
     );
@@ -355,10 +355,10 @@ const ImageDisplay: React.FC<{
         {/* 操作按钮 Action buttons */}
         <div className='flex gap-8px'>
           <Tooltip content={t('common.copy', { defaultValue: 'Copy' })}>
-            <Button type='secondary' size='small' shape='circle' icon={<Copy theme='outline' size='14' fill={'var(--text-primary)'} />} onClick={handleCopy} />
+            <Button type='secondary' size='small' shape='circle' icon={<Copy theme='outline' size='14' fill={'var(--foreground)'} />} onClick={handleCopy} />
           </Tooltip>
           <Tooltip content={t('common.download', { defaultValue: 'Download' })}>
-            <Button type='secondary' size='small' shape='circle' icon={<Download theme='outline' size='14' fill={'var(--text-primary)'} />} onClick={handleDownload} />
+            <Button type='secondary' size='small' shape='circle' icon={<Download theme='outline' size='14' fill={'var(--foreground)'} />} onClick={handleDownload} />
           </Tooltip>
         </div>
       </div>
@@ -389,7 +389,7 @@ const ToolResultDisplay: React.FC<{
   // Wrap long content with CollapsibleContent
   return (
     <CollapsibleContent maxHeight={RESULT_MAX_HEIGHT} defaultCollapsed={collapsed ?? false} useMask={false}>
-      <pre className='text-t-primary whitespace-pre-wrap break-words m-0' style={{ fontSize: `${TEXT_CONFIG.FONT_SIZE}px`, lineHeight: TEXT_CONFIG.LINE_HEIGHT }}>
+      <pre className='text-foreground whitespace-pre-wrap break-words m-0' style={{ fontSize: `${TEXT_CONFIG.FONT_SIZE}px`, lineHeight: TEXT_CONFIG.LINE_HEIGHT }}>
         {display}
       </pre>
     </CollapsibleContent>
@@ -491,7 +491,7 @@ const MessageToolGroup: React.FC<IMessageToolGroupProps> = ({ message }) => {
             <Alert
               className={ALERT_CLASSES}
               type={status === 'Error' ? 'error' : status === 'Success' ? 'success' : status === 'Canceled' ? 'warning' : 'info'}
-              icon={isLoading && <LoadingOne theme='outline' size='12' fill={'var(--text-primary)'} className='loading lh-[1] flex' />}
+              icon={isLoading && <LoadingOne theme='outline' size='12' fill={'var(--foreground)'} className='loading lh-[1] flex' />}
               content={
                 <div>
                   <Tag className={'mr-4px'}>
@@ -504,7 +504,7 @@ const MessageToolGroup: React.FC<IMessageToolGroupProps> = ({ message }) => {
 
             {(description || resultDisplay || status === 'Error') && (
               <div className='mt-8px'>
-                {description && <div className={`text-12px text-t-secondary mb-2 ${status === 'Error' ? 'whitespace-pre-wrap break-words' : 'truncate'}`}>{description}</div>}
+                {description && <div className={`text-12px text-secondary mb-2 ${status === 'Error' ? 'whitespace-pre-wrap break-words' : 'truncate'}`}>{description}</div>}
                 {resultDisplay && (
                   <div>
                     {/* 在 Alert 外展示完整结果 Display full result outside Alert */}

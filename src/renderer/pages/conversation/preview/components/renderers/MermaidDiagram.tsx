@@ -97,9 +97,9 @@ const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ code, theme }) => {
           </svg>
           <span className='font-medium'>{t('preview.mermaidError', 'Mermaid diagram render failed')}</span>
         </div>
-        <div className='text-12px text-t-secondary mb-12px'>{state.message}</div>
+        <div className='text-12px text-secondary mb-12px'>{state.message}</div>
         <details className='cursor-pointer'>
-          <summary className='text-12px text-t-secondary hover:text-t-primary'>{t('preview.viewSource', 'View source')}</summary>
+          <summary className='text-12px text-secondary hover:text-foreground'>{t('preview.viewSource', 'View source')}</summary>
           <pre className='mt-8px p-12px bg-bg-2 rounded-4px overflow-auto text-12px'>
             <code>{code}</code>
           </pre>

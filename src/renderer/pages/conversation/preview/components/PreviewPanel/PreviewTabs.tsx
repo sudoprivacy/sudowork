@@ -108,7 +108,7 @@ const PreviewTabs: React.FC<PreviewTabsProps> = ({ tabs, activeTabId, tabFadeSta
         <div ref={tabsContainerRef} className='flex items-center h-full flex-1 overflow-x-auto'>
           {tabs.length > 0 ? (
             tabs.map((tab) => (
-              <div key={tab.id} className={`flex items-center gap-6px px-10px h-full cursor-pointer transition-colors flex-shrink-0 ${tab.id === activeTabId ? 'bg-bg-1 text-t-primary font-medium' : 'text-t-secondary hover:bg-bg-3'}`} onClick={() => onSwitchTab(tab.id)} onContextMenu={(e) => onContextMenu(e, tab.id)}>
+              <div key={tab.id} className={`flex items-center gap-6px px-10px h-full cursor-pointer transition-colors flex-shrink-0 ${tab.id === activeTabId ? 'bg-bg-1 text-foreground font-medium' : 'text-secondary hover:bg-bg-3'}`} onClick={() => onSwitchTab(tab.id)} onContextMenu={(e) => onContextMenu(e, tab.id)}>
                 <span className='text-13px whitespace-nowrap flex items-center gap-4px font-medium'>
                   {tab.title}
                   {/* 未保存指示器 / Unsaved indicator */}
@@ -127,7 +127,7 @@ const PreviewTabs: React.FC<PreviewTabsProps> = ({ tabs, activeTabId, tabFadeSta
               </div>
             ))
           ) : (
-            <div className='text-12px text-t-tertiary px-10px'>{t('preview.noTabs')}</div>
+            <div className='text-12px text-tertiary px-10px'>{t('preview.noTabs')}</div>
           )}
         </div>
 

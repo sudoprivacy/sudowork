@@ -6,10 +6,10 @@ import { presetExtra } from 'unocss-preset-extra';
 // 用途：正文、标题等文字内容（推荐用于文本）
 // Usage: Body text, headings, etc. (Recommended for text)
 const textColors = {
-  // 自定义语义化文字色 / Custom semantic text colors
-  't-primary': 'var(--text-primary)', // text-t-primary - 主要文字
-  't-secondary': 'var(--text-secondary)', // text-t-secondary - 次要文字
-  't-tertiary': 'var(--bg-6)', // text-t-tertiary - 三级说明/提示文字
+  // 前景色 / Foreground colors（正文文字，区别于 text-primary 橙色主操作色）
+  foreground: 'var(--foreground)', // text-foreground - 主要前景/正文
+  secondary: 'var(--text-secondary)', // text-secondary - 次要前景
+  tertiary: 'var(--text-tertiary)', // text-tertiary - 三级前景/提示
 };
 
 // ==================== 语义状态色 / Semantic State Colors ====================
@@ -145,7 +145,7 @@ export default defineConfig({
     'library-card': 'group bg-fill-0 rd-12px p-12px flex items-start gap-12px relative overflow-hidden shadow-[0_1px_3px_rgba(0,0,0,0.08)] transition-all duration-200 hover:-translate-y-px hover:shadow-[0_4px_12px_rgba(0,0,0,0.1)]',
     // 分类筛选 chip：结构 + 两种互斥状态（idle / active），避免 hover 与选中态冲突
     'category-chip': 'flex-shrink-0 inline-flex items-center justify-center h-28px px-12px rd-16px border border-transparent text-12px leading-18px whitespace-nowrap cursor-pointer transition-colors',
-    'category-chip-idle': 'text-t-secondary hover:bg-fill-2 hover:text-t-primary',
+    'category-chip-idle': 'text-secondary hover:bg-fill-2 hover:text-foreground',
     'category-chip-active': 'bg-[rgba(var(--ui-accent-orange-rgb),0.12)] text-[var(--ui-accent-orange)] font-medium',
   },
   theme: {

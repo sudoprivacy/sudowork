@@ -34,7 +34,7 @@ const MentionSelectorBadge: React.FC<MentionSelectorBadgeProps> = ({ visible, op
         droplist={mentionMenu}
       >
         <div className='flex items-center gap-6px bg-fill-2 px-10px py-4px rd-16px cursor-pointer select-none'>
-          <span className='text-14px font-medium text-t-primary'>@{agentLabel}</span>
+          <span className='text-14px font-medium text-foreground'>@{agentLabel}</span>
           <Down theme='outline' size={12} />
         </div>
       </Dropdown>

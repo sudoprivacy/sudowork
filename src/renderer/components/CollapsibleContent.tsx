@@ -202,7 +202,7 @@ export const CollapsibleContent: React.FC<CollapsibleContentProps> = ({ children
       {/* 展开/折叠按钮 Expand/Collapse button */}
       {needsCollapse && (
         <div className='flex justify-center relative z-10'>
-          <button onClick={toggleCollapse} className='flex items-center gap-1 px-3 py-1.5 text-sm text-t-primary hover:text-primary transition-colors cursor-pointer border-none bg-transparent font-medium [&_svg]:transition-colors [&_svg]:inline-block [&_svg]:align-middle' type='button'>
+          <button onClick={toggleCollapse} className='flex items-center gap-1 px-3 py-1.5 text-sm text-foreground hover:text-primary transition-colors cursor-pointer border-none bg-transparent font-medium [&_svg]:transition-colors [&_svg]:inline-block [&_svg]:align-middle' type='button'>
             {isCollapsed ? (
               <>
                 {/* 展开更多 Expand more */}

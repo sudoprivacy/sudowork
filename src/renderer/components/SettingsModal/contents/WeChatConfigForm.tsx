@@ -30,8 +30,8 @@ const PreferenceRow: React.FC<{
 }> = ({ label, description, children }) => (
   <div className='flex items-center justify-between gap-24px py-12px'>
     <div className='flex-1'>
-      <span className='text-14px text-t-primary'>{label}</span>
-      {description && <div className='text-12px text-t-tertiary mt-2px'>{description}</div>}
+      <span className='text-14px text-foreground'>{label}</span>
+      {description && <div className='text-12px text-tertiary mt-2px'>{description}</div>}
     </div>
     <div className='flex items-center'>{children}</div>
   </div>
@@ -194,18 +194,18 @@ const WeChatConfigForm: React.FC<WeChatConfigFormProps> = ({ pluginStatus, model
 
     return (
       <div className='flex flex-col items-center gap-12px p-16px rd-8px bg-fill-1 border border-fill-3'>
-        <div className='text-14px font-500 text-t-primary'>{phase === 'scanned' ? t('settings.channels.wechat.scanned', 'Scanned! Confirm on your phone...') : t('settings.channels.wechat.scanQR', 'Scan with WeChat')}</div>
+        <div className='text-14px font-500 text-foreground'>{phase === 'scanned' ? t('settings.channels.wechat.scanned', 'Scanned! Confirm on your phone...') : t('settings.channels.wechat.scanQR', 'Scan with WeChat')}</div>
         <div className='bg-white rd-8px p-12px'>
           {qrUrl ? (
             <QRCodeSVG value={qrUrl} size={200} level='H' />
           ) : (
             <div className='flex flex-col items-center gap-8px'>
               <Spin size={32} />
-              <span className='text-12px text-t-tertiary'>{t('settings.channels.wechat.loadingQR', 'Loading QR code...')}</span>
+              <span className='text-12px text-tertiary'>{t('settings.channels.wechat.loadingQR', 'Loading QR code...')}</span>
             </div>
           )}
         </div>
-        <div className='text-12px text-t-tertiary'>{t('settings.channels.wechat.scanHint', 'Open WeChat on your phone and scan the QR code above')}</div>
+        <div className='text-12px text-tertiary'>{t('settings.channels.wechat.scanHint', 'Open WeChat on your phone and scan the QR code above')}</div>
       </div>
     );
   };
@@ -215,7 +215,7 @@ const WeChatConfigForm: React.FC<WeChatConfigFormProps> = ({ pluginStatus, model
       return (
         <div className='flex items-center gap-8px p-12px rd-8px bg-[rgba(var(--green-6),0.08)] border border-[rgba(var(--green-6),0.3)]'>
           <div className='w-8px h-8px rd-50% bg-green-500' />
-          <span className='text-13px text-t-primary'>{t('settings.channels.wechat.connected', 'WeChat is connected')}</span>
+          <span className='text-13px text-foreground'>{t('settings.channels.wechat.connected', 'WeChat is connected')}</span>
         </div>
       );
     }
@@ -224,7 +224,7 @@ const WeChatConfigForm: React.FC<WeChatConfigFormProps> = ({ pluginStatus, model
       return (
         <div className='flex flex-col items-center gap-12px p-24px'>
           <Spin size={32} />
-          <span className='text-14px text-t-secondary'>{t('settings.channels.wechat.installing', 'Preparing QR code...')}</span>
+          <span className='text-14px text-secondary'>{t('settings.channels.wechat.installing', 'Preparing QR code...')}</span>
         </div>
       );
     }
@@ -243,7 +243,7 @@ const WeChatConfigForm: React.FC<WeChatConfigFormProps> = ({ pluginStatus, model
 
     return (
       <div className='flex flex-col gap-12px'>
-        <div className='text-13px text-t-secondary leading-relaxed'>
+        <div className='text-13px text-secondary leading-relaxed'>
           {t('settings.channels.wechat.installDesc', 'Scan the QR code with WeChat to connect your personal WeChat account.')} <span className='text-warning text-12px'>{t('settings.channels.wechat.privacyWarning', 'Note: All messages sent via WeChat will pass through WeChat servers first.')}</span>{' '}
           <a
             className='text-primary hover:underline cursor-pointer text-12px'

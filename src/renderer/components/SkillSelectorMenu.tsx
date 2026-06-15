@@ -153,7 +153,7 @@ const SkillSelectorMenu: React.FC<SkillSelectorMenuProps> = ({ title, hint, item
               type='button'
               className={classNames('px-10px py-4px rounded-8px text-13px font-medium cursor-pointer border-none outline-none transition-colors', {
                 'bg-primary text-white': activeTab === 'skills',
-                'bg-transparent text-t-secondary hover:text-t-primary hover:bg-fill-2': activeTab !== 'skills',
+                'bg-transparent text-secondary hover:text-foreground hover:bg-fill-2': activeTab !== 'skills',
               })}
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => onTabChange?.('skills')}
@@ -164,7 +164,7 @@ const SkillSelectorMenu: React.FC<SkillSelectorMenuProps> = ({ title, hint, item
               type='button'
               className={classNames('px-10px py-4px rounded-8px text-13px font-medium cursor-pointer border-none outline-none transition-colors', {
                 'bg-primary text-white': activeTab === 'files',
-                'bg-transparent text-t-secondary hover:text-t-primary hover:bg-fill-2': activeTab !== 'files',
+                'bg-transparent text-secondary hover:text-foreground hover:bg-fill-2': activeTab !== 'files',
               })}
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => onTabChange?.('files')}
@@ -173,10 +173,10 @@ const SkillSelectorMenu: React.FC<SkillSelectorMenuProps> = ({ title, hint, item
             </button>
           </div>
         ) : (
-          <div className='text-13px font-semibold text-t-primary'>{title}</div>
+          <div className='text-13px font-semibold text-foreground'>{title}</div>
         )}
-        {hint && !showTabs && <div className='text-13px text-t-secondary truncate'>{hint}</div>}
-        {showTabs && <div className='text-11px text-t-secondary truncate'>Tab to switch</div>}
+        {hint && !showTabs && <div className='text-13px text-secondary truncate'>{hint}</div>}
+        {showTabs && <div className='text-11px text-secondary truncate'>Tab to switch</div>}
       </div>
 
       {/* Search box */}
@@ -193,13 +193,13 @@ const SkillSelectorMenu: React.FC<SkillSelectorMenuProps> = ({ title, hint, item
               background: 'color-mix(in srgb, var(--color-fill-2) 60%, transparent)',
             }}
           >
-            <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round' className='shrink-0 text-t-tertiary'>
+            <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round' className='shrink-0 text-tertiary'>
               <circle cx='11' cy='11' r='8' />
               <path d='m21 21-4.35-4.35' />
             </svg>
-            <input type='text' className='flex-1 min-w-0 text-13px bg-transparent border-none outline-none text-t-primary placeholder:text-t-tertiary' style={{ caretColor: 'var(--color-primary)' }} placeholder={activeTab === 'skills' ? skillsSearchPlaceholder : filesSearchPlaceholder} value={searchQuery} onChange={(e) => onSearchChange(e.target.value)} onKeyDown={handleSearchKeyDown} />
+            <input type='text' className='flex-1 min-w-0 text-13px bg-transparent border-none outline-none text-foreground placeholder:text-tertiary' style={{ caretColor: 'var(--color-primary)' }} placeholder={activeTab === 'skills' ? skillsSearchPlaceholder : filesSearchPlaceholder} value={searchQuery} onChange={(e) => onSearchChange(e.target.value)} onKeyDown={handleSearchKeyDown} />
             {searchQuery && (
-              <button type='button' className='shrink-0 w-16px h-16px flex items-center justify-center rounded-full text-t-tertiary hover:text-t-secondary cursor-pointer border-none outline-none text-11px bg-transparent' onMouseDown={(e) => e.preventDefault()} onClick={() => onSearchChange('')}>
+              <button type='button' className='shrink-0 w-16px h-16px flex items-center justify-center rounded-full text-tertiary hover:text-secondary cursor-pointer border-none outline-none text-11px bg-transparent' onMouseDown={(e) => e.preventDefault()} onClick={() => onSearchChange('')}>
                 ✕
               </button>
             )}
@@ -213,8 +213,8 @@ const SkillSelectorMenu: React.FC<SkillSelectorMenuProps> = ({ title, hint, item
         {activeTab === 'skills' && (
           <>
             {loading && items.length === 0 && <SkillSelectorSkeleton count={4} />}
-            {loading && items.length > 0 && <div className='px-10px py-12px text-13px text-t-secondary'>{resolvedLoadingText}</div>}
-            {!loading && items.length === 0 && <div className='px-10px py-12px text-13px text-t-secondary'>{searchQuery ? noSearchResultsText : emptyText}</div>}
+            {loading && items.length > 0 && <div className='px-10px py-12px text-13px text-secondary'>{resolvedLoadingText}</div>}
+            {!loading && items.length === 0 && <div className='px-10px py-12px text-13px text-secondary'>{searchQuery ? noSearchResultsText : emptyText}</div>}
             {!loading &&
               items.map((item, index) => {
                 const isSelected = selectedKeys.includes(item.key);
@@ -246,10 +246,10 @@ const SkillSelectorMenu: React.FC<SkillSelectorMenuProps> = ({ title, hint, item
                       {/* Content */}
                       <div className='min-w-0 flex-1'>
                         <div className='flex items-center gap-6px min-w-0'>
-                          <span className={classNames('text-14px truncate', index === activeIndex ? 'text-t-primary font-semibold' : 'text-t-primary font-medium')}>{item.displayName}</span>
+                          <span className={classNames('text-14px truncate', index === activeIndex ? 'text-foreground font-semibold' : 'text-foreground font-medium')}>{item.displayName}</span>
                           {isSelected && <span className='px-4px py-0px bg-primary text-white text-9px rd-3px whitespace-nowrap flex-shrink-0 leading-14px'>已添加</span>}
                         </div>
-                        {item.description && <div className='text-11px text-t-secondary truncate mt-1px'>{item.description}</div>}
+                        {item.description && <div className='text-11px text-secondary truncate mt-1px'>{item.description}</div>}
                       </div>
                     </div>
                   </button>
@@ -261,7 +261,7 @@ const SkillSelectorMenu: React.FC<SkillSelectorMenuProps> = ({ title, hint, item
         {/* Files tab content */}
         {activeTab === 'files' && (
           <>
-            {fileItems.length === 0 && <div className='px-10px py-12px text-13px text-t-secondary'>{searchQuery ? noSearchResultsText : filesEmptyText}</div>}
+            {fileItems.length === 0 && <div className='px-10px py-12px text-13px text-secondary'>{searchQuery ? noSearchResultsText : filesEmptyText}</div>}
             {fileItems.map((file, index) => (
               <button
                 key={file.relativePath}
@@ -286,14 +286,14 @@ const SkillSelectorMenu: React.FC<SkillSelectorMenuProps> = ({ title, hint, item
                   <div className='w-24px h-24px flex-shrink-0 rd-4px bg-fill-2 flex items-center justify-center overflow-hidden'>{resolveFileIcon(file.name, { size: 16, theme: 'filled' })}</div>
                   <div className='min-w-0 flex-1'>
                     <div className='flex items-center gap-6px min-w-0'>
-                      <span className={classNames('text-13px truncate', index === activeIndex ? 'text-t-primary font-semibold' : 'text-t-primary font-medium')}>{file.name}</span>
+                      <span className={classNames('text-13px truncate', index === activeIndex ? 'text-foreground font-semibold' : 'text-foreground font-medium')}>{file.name}</span>
                       {file.isDraft && (
                         <span className='px-4px py-0px text-9px rd-3px whitespace-nowrap flex-shrink-0 leading-14px' style={{ background: 'var(--warning-soft)', color: 'var(--warning)' }}>
                           {t('conversation.workspace.drafts.badge', { defaultValue: '草稿' })}
                         </span>
                       )}
                     </div>
-                    <div className='text-11px text-t-secondary truncate mt-1px'>{file.relativePath}</div>
+                    <div className='text-11px text-secondary truncate mt-1px'>{file.relativePath}</div>
                   </div>
                 </div>
               </button>

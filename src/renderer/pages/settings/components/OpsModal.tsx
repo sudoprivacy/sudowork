@@ -105,9 +105,9 @@ const OpsModal: React.FC<OpsModalProps> = ({ visible, onClose, onConfigSaved }) 
         <div className='flex flex-col gap-4'>
           <div className='flex items-center justify-between p-3 bg-fill-1 rd-8px'>
             <div className='flex-1'>
-              <div className='text-14px text-t-primary font-500'>Sudo Code 配置文件</div>
+              <div className='text-14px text-foreground font-500'>Sudo Code 配置文件</div>
               <Tooltip content='~/.nexus/sudocode/sudocode.json'>
-                <div className='text-12px text-t-tertiary mt-0.5'>直接编辑配置文件</div>
+                <div className='text-12px text-tertiary mt-0.5'>直接编辑配置文件</div>
               </Tooltip>
             </div>
             <Button size='small' icon={<Edit theme='outline' size='14' />} onClick={openConfigEditor} loading={configLoading}>
@@ -115,7 +115,7 @@ const OpsModal: React.FC<OpsModalProps> = ({ visible, onClose, onConfigSaved }) 
             </Button>
           </div>
 
-          <div className='text-12px text-t-tertiary text-center'>此区域仅供运维人员使用</div>
+          <div className='text-12px text-tertiary text-center'>此区域仅供运维人员使用</div>
         </div>
       </Modal>
 

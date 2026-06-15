@@ -58,12 +58,12 @@ const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({ title, hint, items,
           background: 'color-mix(in srgb, var(--color-bg-1) 84%, transparent)',
         }}
       >
-        <div className='text-13px font-semibold text-t-primary'>{title}</div>
-        {hint && <div className='text-13px text-t-secondary truncate'>{hint}</div>}
+        <div className='text-13px font-semibold text-foreground'>{title}</div>
+        {hint && <div className='text-13px text-secondary truncate'>{hint}</div>}
       </div>
       <div role='listbox' aria-busy={loading} className='overflow-y-auto p-6px' style={{ maxHeight: 'min(34vh, 260px)' }}>
-        {loading && <div className='px-10px py-12px text-13px text-t-secondary'>{resolvedLoadingText}</div>}
-        {!loading && items.length === 0 && <div className='px-10px py-12px text-13px text-t-secondary'>{emptyText}</div>}
+        {loading && <div className='px-10px py-12px text-13px text-secondary'>{resolvedLoadingText}</div>}
+        {!loading && items.length === 0 && <div className='px-10px py-12px text-13px text-secondary'>{emptyText}</div>}
         {!loading &&
           items.map((item, index) => (
             <button
@@ -88,10 +88,10 @@ const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({ title, hint, items,
             >
               <div className='flex items-center justify-between gap-8px'>
                 <div className='min-w-0 flex items-baseline gap-10px'>
-                  <div className={classNames('text-14px whitespace-nowrap', index === activeIndex ? 'text-t-primary font-semibold' : 'text-t-primary font-medium')}>{item.label}</div>
-                  {item.description && <div className='text-12px text-t-secondary truncate'>{item.description}</div>}
+                  <div className={classNames('text-14px whitespace-nowrap', index === activeIndex ? 'text-foreground font-semibold' : 'text-foreground font-medium')}>{item.label}</div>
+                  {item.description && <div className='text-12px text-secondary truncate'>{item.description}</div>}
                 </div>
-                {item.badge && <span className={classNames('text-10px rounded-999px px-6px py-1px shrink-0', index === activeIndex ? 'text-t-primary bg-[var(--color-bg-1)]' : 'text-t-secondary bg-[var(--color-bg-1)]')}>{item.badge}</span>}
+                {item.badge && <span className={classNames('text-10px rounded-999px px-6px py-1px shrink-0', index === activeIndex ? 'text-foreground bg-[var(--color-bg-1)]' : 'text-secondary bg-[var(--color-bg-1)]')}>{item.badge}</span>}
               </div>
             </button>
           ))}

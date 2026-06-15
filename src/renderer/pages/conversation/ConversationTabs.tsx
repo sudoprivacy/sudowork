@@ -72,7 +72,7 @@ interface CreateConversationTriggerProps {
 const CreateConversationTrigger: React.FC<CreateConversationTriggerProps> = ({ disabled, title, menu }) => (
   <Dropdown droplist={menu} trigger='click' position='bl' disabled={disabled}>
     <div className={`flex items-center justify-center w-40px h-40px shrink-0 transition-colors duration-200 ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:bg-[var(--fill-2)]'}`} style={{ borderLeft: '1px solid var(--border-default)' }} title={title}>
-      <Plus theme='outline' size='16' fill={'var(--text-primary)'} strokeWidth={3} />
+      <Plus theme='outline' size='16' fill={'var(--foreground)'} strokeWidth={3} />
     </div>
   </Dropdown>
 );

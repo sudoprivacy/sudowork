@@ -134,11 +134,11 @@ const ExtensionSettingsPage: React.FC = () => {
     <SettingsPageWrapper>
       <div className='relative w-full h-full min-h-100'>
         {loading && !tab && (
-          <div className='absolute inset-0 f-center text-t-secondary text-14px'>
+          <div className='absolute inset-0 f-center text-secondary text-14px'>
             <span className='animate-pulse'>Loading…</span>
           </div>
         )}
-        {error && <div className='f-center h-full text-t-secondary text-14px'>{error}</div>}
+        {error && <div className='f-center h-full text-secondary text-14px'>{error}</div>}
         {tab &&
           (isExternalTab ? (
             <WebviewHost
@@ -154,7 +154,7 @@ const ExtensionSettingsPage: React.FC = () => {
           ) : (
             <>
               {loading && (
-                <div className='absolute inset-0 f-center text-t-secondary text-14px'>
+                <div className='absolute inset-0 f-center text-secondary text-14px'>
                   <span className='animate-pulse'>Loading…</span>
                 </div>
               )}

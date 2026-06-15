@@ -71,20 +71,20 @@ const PointsDashboard: React.FC<{ remainingPoints: number; usedPoints: number; b
 
   const statItems = [
     { label: t('settings.recharge.remainingPoints') || '剩余积分', value: remainingPoints, valueClass: 'italic text-[var(--ui-accent-orange)]' },
-    { label: t('settings.recharge.usedPoints') || '累计已用', value: usedPoints, valueClass: 'text-t-primary' },
+    { label: t('settings.recharge.usedPoints') || '累计已用', value: usedPoints, valueClass: 'text-foreground' },
     { label: t('settings.recharge.bonusPoints') || '赠送积分', value: bonusPoints, valueClass: 'text-success' },
   ];
 
   return (
     <div className={PANEL_CLASS}>
-      <div className='text-14px font-600 text-t-primary mb-6'>{t('settings.recharge.pointsInfo') || '积分信息'}</div>
+      <div className='text-14px font-600 text-foreground mb-6'>{t('settings.recharge.pointsInfo') || '积分信息'}</div>
       <div className='grid grid-cols-3'>
         {statItems.map(({ label, value, valueClass }) => (
           <div key={label} className={`flex flex-col gap-2`}>
-            <div className='text-13px font-500 text-t-secondary'>{label}</div>
+            <div className='text-13px font-500 text-secondary'>{label}</div>
             <div className='flex items-baseline gap-2'>
               <span className={`text-32px font-700 leading-none ${valueClass}`}>{value.toLocaleString()}</span>
-              <span className='text-12px font-600 text-t-tertiary'>PTS</span>
+              <span className='text-12px font-600 text-tertiary'>PTS</span>
             </div>
           </div>
         ))}
@@ -438,7 +438,7 @@ const RechargeCenter: React.FC = () => {
   // Render package selection
   const renderPackageSelection = () => (
     <div className='p-6 bg-1 rd-16px border border-solid border-[var(--border-light)]'>
-      <div className='text-14px font-600 text-t-primary mb-4'>{t('settings.recharge.selectPackageRecharge') || '选择套餐充值'}</div>
+      <div className='text-14px font-600 text-foreground mb-4'>{t('settings.recharge.selectPackageRecharge') || '选择套餐充值'}</div>
 
       {loading && packages.length === 0 ? (
         <div className='flex justify-center py-10'>
@@ -455,9 +455,9 @@ const RechargeCenter: React.FC = () => {
                 ${selectedPackage?.amount === pkg.amount ? 'bg-3 border-primary' : 'bg-2 border-transparent hover:bg-3'}
               `}
             >
-              <div className='text-22px font-700 text-t-primary'>{formatCurrency(pkg.amount_cny, 'CNY')}</div>
+              <div className='text-22px font-700 text-foreground'>{formatCurrency(pkg.amount_cny, 'CNY')}</div>
               <div className='text-15px font-600 text-brand mt-3'>{(pkg.points + pkg.bonus).toLocaleString()} PTS</div>
-              {pkg.description && <div className='text-12px text-t-secondary mt-1.5 truncate'>{pkg.description}</div>}
+              {pkg.description && <div className='text-12px text-secondary mt-1.5 truncate'>{pkg.description}</div>}
               {selectedPackage?.amount === pkg.amount && (
                 <div className='absolute top-2 right-2 size-4 rd-full bg-primary f-center'>
                   <CheckSmall theme='outline' size='10' fill='#fff' />
@@ -469,12 +469,12 @@ const RechargeCenter: React.FC = () => {
       )}
 
       <div className='pt-4'>
-        <div className='text-14px font-500 text-t-primary mb-3'>{t('settings.recharge.selectPayment') || '支付方式'}</div>
+        <div className='text-14px font-500 text-foreground mb-3'>{t('settings.recharge.selectPayment') || '支付方式'}</div>
         <div className='flex items-center gap-6'>
           {paymentOptions.map(({ method, Icon, fill, label }) => (
             <button key={method} onClick={() => setPaymentMethod(method)} className={`relative flex items-center gap-2 px-4 py-2 rd-12px border border-solid transition-all cursor-pointer ${paymentMethod === method ? 'bg-3 border-primary' : 'bg-2 border-transparent hover:bg-3'}`}>
               <Icon size={18} fill={[fill]} theme='filled' />
-              <span className='text-14px text-t-primary'>{label}</span>
+              <span className='text-14px text-foreground'>{label}</span>
               {paymentMethod === method && (
                 <div className='absolute -top-1 -right-1 w-3.5 h-3.5 rd-full bg-primary f-center'>
                   <CheckSmall theme='outline' size='9' fill='#fff' />
@@ -499,7 +499,7 @@ const RechargeCenter: React.FC = () => {
   const renderPaying = () => (
     <div className={PANEL_CLASS}>
       <div className='text-center'>
-        <div className='text-14px text-t-secondary mb-2'>{t('settings.recharge.scanToPay', { method: paymentMethod === 'ALIPAY' ? '支付宝' : '微信' }) || `请使用${paymentMethod === 'ALIPAY' ? '支付宝' : '微信'}扫码支付`}</div>
+        <div className='text-14px text-secondary mb-2'>{t('settings.recharge.scanToPay', { method: paymentMethod === 'ALIPAY' ? '支付宝' : '微信' }) || `请使用${paymentMethod === 'ALIPAY' ? '支付宝' : '微信'}扫码支付`}</div>
 
         {/* QR Code */}
         <div className='inline-block p-4 bg-white rd-12px border border-solid border-[var(--border-light)]'>
@@ -516,19 +516,19 @@ const RechargeCenter: React.FC = () => {
 
         {/* Order Info */}
         <div className='mt-4 space-y-2'>
-          <div className='text-16px font-600 text-t-primary'>{selectedPackage && formatCurrency(selectedPackage.amount_cny, 'CNY')}</div>
-          <div className='text-14px text-t-secondary'>
+          <div className='text-16px font-600 text-foreground'>{selectedPackage && formatCurrency(selectedPackage.amount_cny, 'CNY')}</div>
+          <div className='text-14px text-secondary'>
             {t('settings.recharge.pointsToGet') || '获得积分'}: <span className='text-primary font-500'>{(selectedPackage?.points || 0) + (selectedPackage?.bonus || 0)} PTS</span>
           </div>
           {expiredAt && (
-            <div className='text-12px text-t-tertiary'>
+            <div className='text-12px text-tertiary'>
               {t('settings.recharge.expireAt') || '过期时间'}: {expiredAt.toLocaleTimeString()}
             </div>
           )}
         </div>
 
         {/* Status */}
-        <div className='f-center gap-2 mt-4 text-14px text-t-secondary'>
+        <div className='f-center gap-2 mt-4 text-14px text-secondary'>
           <Refresh size={16} className='animate-spin' />
           <span>{t('settings.recharge.waitingPayment') || '等待支付...'}</span>
         </div>
@@ -547,8 +547,8 @@ const RechargeCenter: React.FC = () => {
   const renderSuccess = () => (
     <div className={`${PANEL_CLASS} flex flex-col items-center py-10 space-y-4`}>
       <CheckOne size={64} className='text-success' />
-      <div className='text-20px font-600 text-t-primary'>{t('settings.recharge.success') || '充值成功'}</div>
-      <div className='text-14px text-t-secondary'>{t('settings.recharge.successDesc') || '积分已到账，请查收'}</div>
+      <div className='text-20px font-600 text-foreground'>{t('settings.recharge.success') || '充值成功'}</div>
+      <div className='text-14px text-secondary'>{t('settings.recharge.successDesc') || '积分已到账，请查收'}</div>
       <Button type='primary' onClick={resetState}>
         {t('settings.recharge.continueRecharge') || '继续充值'}
       </Button>
@@ -559,8 +559,8 @@ const RechargeCenter: React.FC = () => {
   const renderFailed = () => (
     <div className={`${PANEL_CLASS} flex flex-col items-center py-10 space-y-4`}>
       <CloseOne size={64} className='text-danger' />
-      <div className='text-20px font-600 text-t-primary'>{t('settings.recharge.failed') || '充值失败'}</div>
-      <div className='text-14px text-t-secondary'>{error}</div>
+      <div className='text-20px font-600 text-foreground'>{t('settings.recharge.failed') || '充值失败'}</div>
+      <div className='text-14px text-secondary'>{error}</div>
       <div className='flex gap-3'>
         <Button onClick={resetState}>{t('common.close') || '关闭'}</Button>
         <Button type='primary' onClick={resetState}>
@@ -589,7 +589,7 @@ const RechargeCenter: React.FC = () => {
   return (
     <SettingsPageWrapper contentClassName='max-w-200'>
       <div className='flex flex-col gap-6 py-2'>
-        <div className='text-20px font-600 text-t-primary leading-32px'>{t('settings.rechargeCenter') || '充值中心'}</div>
+        <div className='text-20px font-600 text-foreground leading-32px'>{t('settings.rechargeCenter') || '充值中心'}</div>
 
         {/* Points Dashboard */}
         {statsLoading ? (

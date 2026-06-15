@@ -218,13 +218,13 @@ function CodeBlock(props: any) {
                     margin: '0',
                     border: 'none',
                     background: 'transparent',
-                    color: 'var(--text-primary)',
+                    color: 'var(--foreground)',
                     overflowX: 'visible',
                     whiteSpace: 'pre',
                   }}
                   codeTagProps={{
                     style: {
-                      color: 'var(--text-primary)',
+                      color: 'var(--foreground)',
                     },
                   }}
                 />
@@ -276,7 +276,7 @@ const createInitStyle = (currentTheme = 'light', cssVars?: Record<string, string
   .markdown-shadow-body {
     word-break: break-word;
     overflow-wrap: anywhere;
-    color: var(--text-primary);
+    color: var(--foreground);
     max-width: 100%;
   }
   .markdown-shadow-body>p:first-child
@@ -438,7 +438,7 @@ const ShadowView = ({ children }: { children: React.ReactNode }) => {
       '--color-text-1': computedStyle.getPropertyValue('--color-text-1'),
       '--color-text-2': computedStyle.getPropertyValue('--color-text-2'),
       '--color-text-3': computedStyle.getPropertyValue('--color-text-3'),
-      '--text-primary': computedStyle.getPropertyValue('--text-primary'),
+      '--foreground': computedStyle.getPropertyValue('--foreground'),
       '--text-secondary': computedStyle.getPropertyValue('--text-secondary'),
     };
 

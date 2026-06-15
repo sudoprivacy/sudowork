@@ -96,8 +96,8 @@ const PwdLoginSection: React.FC = () => {
   return (
     <div className='rd-8px border border-solid border-fill-3 overflow-hidden'>
       <div className='px-16px py-12px bg-fill-1'>
-        <h3 className='text-14px font-500 text-t-primary m-0'>{t('pwdLogin.section.title', '网站自动登录')}</h3>
-        <div className='text-12px text-t-tertiary mt-2px'>{t('pwdLogin.section.desc', '为网站保存登录凭证，sudowork 自动填表并识别验证码登录。密码仅存于本地 Nexus 密钥库，绝不进入 AI 上下文。')}</div>
+        <h3 className='text-14px font-500 text-foreground m-0'>{t('pwdLogin.section.title', '网站自动登录')}</h3>
+        <div className='text-12px text-tertiary mt-2px'>{t('pwdLogin.section.desc', '为网站保存登录凭证，sudowork 自动填表并识别验证码登录。密码仅存于本地 Nexus 密钥库，绝不进入 AI 上下文。')}</div>
       </div>
       <Collapse bordered={false}>
         {entries.map((e) => (
@@ -106,7 +106,7 @@ const PwdLoginSection: React.FC = () => {
             name={e.title}
             header={
               <div className='flex items-center gap-8px'>
-                <span className='text-14px text-t-primary'>{e.title}</span>
+                <span className='text-14px text-foreground'>{e.title}</span>
                 {e.source === 'custom' && (
                   <Tag size='small' color='arcoblue'>
                     {t('pwdLogin.section.custom', '自定义')}
@@ -125,7 +125,7 @@ const PwdLoginSection: React.FC = () => {
               </div>
             }
           >
-            <div className='text-12px text-t-tertiary mb-6px break-all'>{e.url}</div>
+            <div className='text-12px text-tertiary mb-6px break-all'>{e.url}</div>
             <CredentialRow entry={e} onSaved={load} />
           </Collapse.Item>
         ))}

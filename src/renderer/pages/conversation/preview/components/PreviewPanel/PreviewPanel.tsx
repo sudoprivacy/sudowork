@@ -450,7 +450,7 @@ const PreviewPanel: React.FC = () => {
             {/* 左侧：编辑器 / Left: Editor */}
             <div className='flex flex-col relative' style={{ width: `${splitRatio}%` }}>
               <div className='h-40px flex items-center px-12px bg-bg-2'>
-                <span className='text-12px text-t-secondary'>{t('preview.editor')}</span>
+                <span className='text-12px text-secondary'>{t('preview.editor')}</span>
               </div>
               <div className='flex-1 overflow-hidden'>
                 <MarkdownEditor value={content} onChange={updateContent} containerRef={editorContainerRef} onScroll={handleEditorScroll} />
@@ -462,7 +462,7 @@ const PreviewPanel: React.FC = () => {
             {/* 右侧：预览 / Right: Preview */}
             <div className='flex flex-col' style={{ width: `${100 - splitRatio}%`, minWidth: 0 }}>
               <div className='h-40px flex items-center px-12px bg-bg-2'>
-                <span className='text-12px text-t-secondary'>{t('preview.preview')}</span>
+                <span className='text-12px text-secondary'>{t('preview.preview')}</span>
               </div>
               <div className='flex flex-col flex-1 overflow-hidden'>
                 <MarkdownPreview content={content} hideToolbar containerRef={previewContainerRef} onScroll={handlePreviewScroll} filePath={metadata?.filePath} />
@@ -495,7 +495,7 @@ const PreviewPanel: React.FC = () => {
             {/* 左侧：编辑器 / Left: Editor */}
             <div className='flex flex-col relative' style={{ width: `${splitRatio}%` }}>
               <div className='h-40px flex items-center px-12px bg-bg-2'>
-                <span className='text-12px text-t-secondary'>{t('preview.editor')}</span>
+                <span className='text-12px text-secondary'>{t('preview.editor')}</span>
               </div>
               <div className='flex-1 overflow-hidden'>
                 <HTMLEditor value={content} onChange={updateContent} containerRef={editorContainerRef} onScroll={handleEditorScroll} filePath={metadata?.filePath} />
@@ -507,7 +507,7 @@ const PreviewPanel: React.FC = () => {
             {/* 右侧：预览 / Right: Preview */}
             <div className='flex flex-col' style={{ width: `${100 - splitRatio}%`, minWidth: 0 }}>
               <div className='h-40px flex items-center justify-between px-12px bg-bg-2'>
-                <span className='text-12px text-t-secondary'>{t('preview.preview')}</span>
+                <span className='text-12px text-secondary'>{t('preview.preview')}</span>
               </div>
               <div className='flex flex-col flex-1 overflow-hidden'>
                 {/* prettier-ignore */}
@@ -547,7 +547,7 @@ const PreviewPanel: React.FC = () => {
             {/* 左侧：编辑器 / Left: Editor */}
             <div className='flex flex-col relative' style={{ width: `${splitRatio}%` }}>
               <div className='h-40px flex items-center px-12px bg-bg-2'>
-                <span className='text-12px text-t-secondary'>{t('preview.editor')}</span>
+                <span className='text-12px text-secondary'>{t('preview.editor')}</span>
               </div>
               <div className='flex-1 overflow-hidden'>
                 <TextEditor value={content} onChange={updateContent} containerRef={editorContainerRef} onScroll={handleEditorScroll} />
@@ -559,7 +559,7 @@ const PreviewPanel: React.FC = () => {
             {/* 右侧：预览 / Right: Preview */}
             <div className='flex flex-col' style={{ width: `${100 - splitRatio}%`, minWidth: 0 }}>
               <div className='h-40px flex items-center px-12px bg-bg-2'>
-                <span className='text-12px text-t-secondary'>{t('preview.preview')}</span>
+                <span className='text-12px text-secondary'>{t('preview.preview')}</span>
               </div>
               <div className='flex flex-col flex-1 overflow-hidden'>
                 <CodePreview content={content} language={metadata?.language} hideToolbar containerRef={previewContainerRef} onScroll={handlePreviewScroll} />

@@ -296,10 +296,10 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
 
       <Modal visible={exportModalVisible} title={t('conversation.history.exportDialogTitle')} onCancel={closeExportModal} footer={null} style={{ borderRadius: '12px' }} className='conversation-export-modal' alignCenter getPopupContainer={() => document.body}>
         <div className='py-8px'>
-          <div className='text-14px mb-16px text-t-secondary'>{exportTask?.mode === 'batch' ? t('conversation.history.exportDialogBatchDescription', { count: exportTask.conversationIds.length }) : t('conversation.history.exportDialogSingleDescription')}</div>
+          <div className='text-14px mb-16px text-secondary'>{exportTask?.mode === 'batch' ? t('conversation.history.exportDialogBatchDescription', { count: exportTask.conversationIds.length }) : t('conversation.history.exportDialogSingleDescription')}</div>
 
           <div className='mb-16px p-16px rounded-12px bg-fill-1'>
-            <div className='text-14px mb-8px text-t-primary'>{t('conversation.history.exportTargetFolder')}</div>
+            <div className='text-14px mb-8px text-foreground'>{t('conversation.history.exportTargetFolder')}</div>
             <div
               className='flex items-center justify-between px-12px py-10px rounded-8px transition-colors'
               style={{
@@ -319,7 +319,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
             </div>
           </div>
 
-          <div className='flex items-center gap-8px mb-20px text-14px text-t-secondary'>
+          <div className='flex items-center gap-8px mb-20px text-14px text-secondary'>
             <span>💡</span>
             <span>{t('conversation.history.exportDialogHint')}</span>
           </div>
@@ -381,7 +381,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
 
       {/* Workspace Rename Modal / 工作空间重命名弹窗 */}
       <Modal title={t('conversation.workspace.renameWorkspace.title')} visible={wsRenameModal.visible} onOk={handleWorkspaceRenameConfirm} onCancel={() => setWsRenameModal({ visible: false, workspace: '', name: '' })} okText={t('common.confirm')} cancelText={t('common.cancel')} confirmLoading={wsRenameLoading} okButtonProps={{ disabled: !wsRenameModal.name.trim() }} style={{ borderRadius: '12px' }} alignCenter getPopupContainer={() => document.body}>
-        <div className='text-13px text-t-secondary mb-8px'>{t('conversation.workspace.renameWorkspace.hint')}</div>
+        <div className='text-13px text-secondary mb-8px'>{t('conversation.workspace.renameWorkspace.hint')}</div>
         <Input autoFocus value={wsRenameModal.name} onChange={(v) => setWsRenameModal((prev) => ({ ...prev, name: v }))} onPressEnter={handleWorkspaceRenameConfirm} placeholder={t('conversation.workspace.renameWorkspace.placeholder')} />
       </Modal>
 
@@ -390,7 +390,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragCancel={handleDragCancel}>
           {pinnedConversations.length > 0 && (
             <div className='mb-8px min-w-0'>
-              {!collapsed && <div className='chat-history__section px-12px py-8px text-13px text-t-secondary font-bold'>{t('conversation.history.pinnedSection')}</div>}
+              {!collapsed && <div className='chat-history__section px-12px py-8px text-13px text-secondary font-bold'>{t('conversation.history.pinnedSection')}</div>}
               <SortableContext items={pinnedIds} strategy={verticalListSortingStrategy}>
                 <div className='min-w-0'>
                   {pinnedConversations.map((conversation) => {
@@ -409,7 +409,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
         {activeTab === 'scheduled' && filteredScheduledGroups.length > 0 && (
           <div className='mb-8px min-w-0'>
             {!collapsed && (
-              <div className='chat-history__section px-12px py-8px text-13px text-t-secondary font-bold flex items-center gap-6px cursor-pointer hover:text-t-primary transition-colors select-none' onClick={handleToggleScheduledSection}>
+              <div className='chat-history__section px-12px py-8px text-13px text-secondary font-bold flex items-center gap-6px cursor-pointer hover:text-foreground transition-colors select-none' onClick={handleToggleScheduledSection}>
                 <Down size={12} className={classNames('line-height-0 transition-transform duration-200 flex-shrink-0', scheduledSectionExpanded ? 'rotate-0' : '-rotate-90')} />
                 <span>{t('cron.sidebar.scheduled', { defaultValue: 'Scheduled' })}</span>
               </div>
@@ -425,7 +425,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
                       siderCollapsed={collapsed}
                       header={
                         <div className='flex items-center gap-8px text-14px min-w-0'>
-                          <span className='font-medium truncate flex-1 text-t-primary min-w-0'>{jobName}</span>
+                          <span className='font-medium truncate flex-1 text-foreground min-w-0'>{jobName}</span>
                         </div>
                       }
                     >
@@ -443,7 +443,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
             return (
               <div key={section.timeline} className='mb-8px min-w-0'>
                 {!collapsed && (
-                  <div className='chat-history__section px-12px py-8px text-13px text-t-secondary font-bold flex items-center gap-6px cursor-pointer hover:text-t-primary transition-colors select-none' onClick={() => handleToggleTimeline(section.timeline)}>
+                  <div className='chat-history__section px-12px py-8px text-13px text-secondary font-bold flex items-center gap-6px cursor-pointer hover:text-foreground transition-colors select-none' onClick={() => handleToggleTimeline(section.timeline)}>
                     <Down size={12} className={classNames('line-height-0 transition-transform duration-200 flex-shrink-0', sectionExpanded ? 'rotate-0' : '-rotate-90')} />
                     <span>{section.timeline}</span>
                   </div>
@@ -461,10 +461,10 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
                             siderCollapsed={collapsed}
                             header={
                               <div className='flex items-center gap-8px text-14px min-w-0'>
-                                <span className='font-medium truncate flex-1 text-t-primary min-w-0'>{group.displayName}</span>
+                                <span className='font-medium truncate flex-1 text-foreground min-w-0'>{group.displayName}</span>
                                 <button
                                   type='button'
-                                  className='opacity-0 group-hover:opacity-100 hover:text-t-primary text-t-secondary flex-shrink-0 border-none bg-transparent p-0 cursor-pointer transition-opacity'
+                                  className='opacity-0 group-hover:opacity-100 hover:text-foreground text-secondary flex-shrink-0 border-none bg-transparent p-0 cursor-pointer transition-opacity'
                                   title={t('conversation.workspace.renameWorkspace.title')}
                                   onClick={(e) => {
                                     e.stopPropagation();

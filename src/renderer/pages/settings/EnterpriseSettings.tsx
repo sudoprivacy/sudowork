@@ -105,7 +105,7 @@ const EnterpriseSettings: React.FC = () => {
       <div className='mb-6 rd-16px bg-2 p-6'>
         <div className='flex items-center gap-2 mb-5'>
           <BuildingTwo theme='outline' size={20} className='text-2' />
-          <h3 className='text-16px font-600 text-t-primary m-0'>企业连接信息</h3>
+          <h3 className='text-16px font-600 text-foreground m-0'>企业连接信息</h3>
         </div>
 
         <div className='flex flex-col gap-4'>
@@ -113,23 +113,23 @@ const EnterpriseSettings: React.FC = () => {
           <div className='flex items-center justify-between py-2'>
             <div className='flex items-center gap-2'>
               <BuildingTwo theme='outline' size={16} className='text-3' />
-              <span className='text-14px text-t-secondary'>企业名称</span>
+              <span className='text-14px text-secondary'>企业名称</span>
             </div>
-            <span className='text-14px text-t-primary font-500'>{tenantName || '--'}</span>
+            <span className='text-14px text-foreground font-500'>{tenantName || '--'}</span>
           </div>
 
           {/* Connection Status */}
           <div className='flex items-center justify-between py-2'>
             <div className='flex items-center gap-2'>
               {connectionStatus === 'connected' ? <Success theme='filled' size={16} fill={['#00b42a']} /> : connectionStatus === 'checking' ? <Spin size={16} /> : <Close theme='filled' size={16} fill={['#f53f3f']} />}
-              <span className='text-14px text-t-secondary'>连接状态</span>
+              <span className='text-14px text-secondary'>连接状态</span>
             </div>
             <span className={`text-14px font-500 ${connectionStatus === 'connected' ? 'text-success' : connectionStatus === 'disconnected' ? 'text-danger' : 'text-3'}`}>{connectionStatus === 'connected' ? '已连接' : connectionStatus === 'checking' ? '检查中...' : '未连接'}</span>
           </div>
 
           {/* Server URL (editable) */}
           <div className='flex flex-col gap-2 pt-2'>
-            <span className='text-14px text-t-secondary'>服务器地址</span>
+            <span className='text-14px text-secondary'>服务器地址</span>
             <div className='flex gap-2'>
               <Input value={editingServerUrl} onChange={setEditingServerUrl} placeholder='https://your-company-server.com' className='flex-1 h-8 rounded-8px bg-fill-0' disabled={saving} />
               <Button type='primary' size='small' loading={saving} onClick={() => void handleSaveServerUrl()} disabled={editingServerUrl.trim() === serverUrl.trim() || !editingServerUrl.trim()}>

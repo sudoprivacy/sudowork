@@ -30,13 +30,13 @@ const PreferenceRow: React.FC<{
   <div className='flex items-center justify-between gap-24px py-12px'>
     <div className='flex-1'>
       <div className='flex items-center gap-8px'>
-        <span className='text-14px text-t-primary'>
+        <span className='text-14px text-foreground'>
           {label}
           {required && <span className='text-red-500 ml-2px'>*</span>}
         </span>
         {extra}
       </div>
-      {description && <div className='text-12px text-t-tertiary mt-2px'>{description}</div>}
+      {description && <div className='text-12px text-tertiary mt-2px'>{description}</div>}
     </div>
     <div className='flex items-center'>{children}</div>
   </div>
@@ -47,7 +47,7 @@ const PreferenceRow: React.FC<{
  */
 const SectionHeader: React.FC<{ title: string; action?: React.ReactNode }> = ({ title, action }) => (
   <div className='flex items-center justify-between mb-12px'>
-    <h3 className='text-14px font-500 text-t-primary m-0'>{title}</h3>
+    <h3 className='text-14px font-500 text-foreground m-0'>{title}</h3>
     {action}
   </div>
 );
@@ -478,7 +478,7 @@ const DingTalkConfigForm: React.FC<DingTalkConfigFormProps> = ({ pluginStatus, m
       {/* Test Connection Button */}
       {!hasExistingUsers && !pluginStatus?.connected && (
         <div className='flex justify-end'>
-          {pluginStatus?.hasToken && !clientId.trim() && !clientSecret.trim() ? <span className='text-12px text-t-tertiary mr-12px self-center'>{t('settings.dingtalk.credentialsSaved', 'Credentials already configured. Enter new values to update.')}</span> : null}
+          {pluginStatus?.hasToken && !clientId.trim() && !clientSecret.trim() ? <span className='text-12px text-tertiary mr-12px self-center'>{t('settings.dingtalk.credentialsSaved', 'Credentials already configured. Enter new values to update.')}</span> : null}
           <Button type='primary' loading={testLoading} onClick={handleTestConnection} disabled={(!isEnterprise && pluginStatus?.hasToken && !clientId.trim() && !clientSecret.trim()) || (isEnterprise && !clientId.trim() && !clientSecret.trim())}>
             {t('settings.dingtalk.testAndConnect', 'Test & Connect')}
           </Button>
@@ -538,7 +538,7 @@ const DingTalkConfigForm: React.FC<DingTalkConfigFormProps> = ({ pluginStatus, m
           <SectionHeader title={t('settings.dingtalk.connectionStatus', 'Connection Status')} action={<span className={`text-12px px-8px py-2px rd-4px ${pluginStatus?.connected ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' : pluginStatus?.error ? 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300' : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300'}`}>{pluginStatus?.connected ? t('settings.dingtalk.statusConnected', 'Connected') : pluginStatus?.error ? t('settings.dingtalk.statusError', 'Error') : t('settings.dingtalk.statusConnecting', 'Connecting...')}</span>} />
           {pluginStatus?.error && <div className='text-14px text-red-600 dark:text-red-400 mb-12px'>{pluginStatus.error}</div>}
           {pluginStatus?.connected && (
-            <div className='text-14px text-t-secondary space-y-8px'>
+            <div className='text-14px text-secondary space-y-8px'>
               <p className='m-0 font-500'>{t('settings.assistant.nextSteps', 'Next Steps')}:</p>
               <p className='m-0'>
                 <strong>1.</strong> {t('settings.dingtalk.step1', 'Open DingTalk and find your bot application')}
@@ -554,7 +554,7 @@ const DingTalkConfigForm: React.FC<DingTalkConfigFormProps> = ({ pluginStatus, m
               </p>
             </div>
           )}
-          {!pluginStatus?.connected && !pluginStatus?.error && <div className='text-14px text-t-secondary'>{t('settings.dingtalk.waitingConnection', 'Connection is being established. Please wait...')}</div>}
+          {!pluginStatus?.connected && !pluginStatus?.error && <div className='text-14px text-secondary'>{t('settings.dingtalk.waitingConnection', 'Connection is being established. Please wait...')}</div>}
         </div>
       )}
 
@@ -582,14 +582,14 @@ const DingTalkConfigForm: React.FC<DingTalkConfigFormProps> = ({ pluginStatus, m
                 <div key={pairing.code} className='flex items-center justify-between bg-fill-2 rd-8px p-12px'>
                   <div className='flex-1'>
                     <div className='flex items-center gap-8px'>
-                      <span className='text-14px font-500 text-t-primary'>{pairing.displayName || 'Unknown User'}</span>
+                      <span className='text-14px font-500 text-foreground'>{pairing.displayName || 'Unknown User'}</span>
                       <Tooltip content={t('settings.assistant.copyCode', 'Copy pairing code')}>
-                        <button className='p-4px bg-transparent border-none text-t-tertiary hover:text-t-primary cursor-pointer' onClick={() => copyToClipboard(pairing.code)}>
+                        <button className='p-4px bg-transparent border-none text-tertiary hover:text-foreground cursor-pointer' onClick={() => copyToClipboard(pairing.code)}>
                           <Copy size={14} />
                         </button>
                       </Tooltip>
                     </div>
-                    <div className='text-12px text-t-tertiary mt-4px'>
+                    <div className='text-12px text-tertiary mt-4px'>
                       {t('settings.assistant.pairingCode', 'Code')}: <code className='bg-fill-3 px-4px rd-2px'>{pairing.code}</code>
                       <span className='mx-8px'>|</span>
                       {t('settings.assistant.expiresIn', 'Expires in')}: {getRemainingTime(pairing.expiresAt)}
@@ -633,8 +633,8 @@ const DingTalkConfigForm: React.FC<DingTalkConfigFormProps> = ({ pluginStatus, m
               {authorizedUsers.map((user) => (
                 <div key={user.id} className='flex items-center justify-between bg-fill-2 rd-8px p-12px'>
                   <div className='flex-1'>
-                    <div className='text-14px font-500 text-t-primary'>{user.displayName || 'Unknown User'}</div>
-                    <div className='text-12px text-t-tertiary mt-4px'>
+                    <div className='text-14px font-500 text-foreground'>{user.displayName || 'Unknown User'}</div>
+                    <div className='text-12px text-tertiary mt-4px'>
                       {t('settings.assistant.platform', 'Platform')}: {user.platformType}
                       <span className='mx-8px'>|</span>
                       {t('settings.assistant.authorizedAt', 'Authorized')}: {formatTime(user.authorizedAt)}

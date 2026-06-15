@@ -103,13 +103,13 @@ const InstallJsonModal: React.FC<InstallJsonModalProps> = ({ visible, onCancel, 
       <div className='space-y-3'>
         {/* 名称输入框 */}
         <div>
-          <div className='mb-2 text-sm text-t-secondary'>{t('settings.mcpInstallJsonName', { defaultValue: '名称（选填）' })}</div>
+          <div className='mb-2 text-sm text-secondary'>{t('settings.mcpInstallJsonName', { defaultValue: '名称（选填）' })}</div>
           <Input value={name} onChange={setName} placeholder={t('settings.mcpInstallJsonNamePlaceholder', { defaultValue: '留空则从 JSON 中自动提取' })} style={{ marginBottom: 12 }} />
         </div>
 
         {/* JSON 编辑器 */}
         <div>
-          <div className='mb-2 text-sm text-t-secondary'>从 MCP 服务介绍页面复制 JSON 配置，并粘贴到下面的输入框中。（必填）</div>
+          <div className='mb-2 text-sm text-secondary'>从 MCP 服务介绍页面复制 JSON 配置，并粘贴到下面的输入框中。（必填）</div>
           <div className='relative'>
             <CodeMirror
               value={jsonInput}

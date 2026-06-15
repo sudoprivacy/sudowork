@@ -71,25 +71,25 @@ const PreviewHistoryDropdown: React.FC<PreviewHistoryDropdownProps> = ({ history
     >
       {/* 头部：历史版本标题 + 文件名 / Header: History title + filename */}
       <div className='px-8px py-6px' style={{ borderColor: 'var(--border-default, #e5e6eb)' }}>
-        <div className='text-12px text-t-secondary'>{t('preview.historyVersions')}</div>
-        <div className='text-11px text-t-tertiary truncate'>{historyTarget?.fileName || historyTarget?.title || t('preview.currentFile')}</div>
+        <div className='text-12px text-secondary'>{t('preview.historyVersions')}</div>
+        <div className='text-11px text-tertiary truncate'>{historyTarget?.fileName || historyTarget?.title || t('preview.currentFile')}</div>
       </div>
 
       {/* 列表内容：固定高度可滚动 / List content: fixed height scrollable */}
       <div className='overflow-y-auto' style={{ maxHeight: '240px' }}>
         {historyLoading ? (
-          <div className='py-16px text-center text-12px text-t-secondary'>{t('preview.loading')}</div>
+          <div className='py-16px text-center text-12px text-secondary'>{t('preview.loading')}</div>
         ) : historyError ? (
           <div className='py-16px text-center text-12px' style={{ color: 'var(--danger, #f53f3f)' }}>
             {historyError}
           </div>
         ) : historyVersions.length === 0 ? (
-          <div className='py-16px text-center text-12px text-t-secondary'>{t('preview.noHistory')}</div>
+          <div className='py-16px text-center text-12px text-secondary'>{t('preview.noHistory')}</div>
         ) : (
           historyVersions.map((snapshot) => (
             <div key={snapshot.id} className='px-12px py-8px cursor-pointer hover:bg-bg-2 transition-colors' onClick={() => onSnapshotSelect(snapshot)}>
-              <div className='text-12px text-t-primary'>{new Date(snapshot.createdAt).toLocaleString()}</div>
-              <div className='text-11px text-t-tertiary'>{(snapshot.size / 1024).toFixed(1)} KB</div>
+              <div className='text-12px text-foreground'>{new Date(snapshot.createdAt).toLocaleString()}</div>
+              <div className='text-11px text-tertiary'>{(snapshot.size / 1024).toFixed(1)} KB</div>
             </div>
           ))
         )}

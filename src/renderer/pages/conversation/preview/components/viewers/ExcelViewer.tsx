@@ -342,9 +342,9 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ filePath, content: _content
   const toolbarLeft = useMemo(
     () => (
       <div className='flex items-center gap-8px'>
-        <span className='text-13px text-t-secondary'>📊 {t('preview.excel.title')}</span>
-        <span className='text-11px text-t-tertiary'>{t('preview.readOnlyLabel')}</span>
-        {typeof sheetCount === 'number' && <span className='text-12px text-t-secondary'>{t('preview.excel.sheetCount', { count: sheetCount })}</span>}
+        <span className='text-13px text-secondary'>📊 {t('preview.excel.title')}</span>
+        <span className='text-11px text-tertiary'>{t('preview.readOnlyLabel')}</span>
+        {typeof sheetCount === 'number' && <span className='text-12px text-secondary'>{t('preview.excel.sheetCount', { count: sheetCount })}</span>}
       </div>
     ),
     [sheetCount] // eslint-disable-line react-hooks/exhaustive-deps
@@ -371,8 +371,8 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ filePath, content: _content
       return (
         <div className='flex items-center justify-center h-200px'>
           <div className='text-center'>
-            <div className='text-14px text-t-secondary mb-8px'>{t('preview.excel.emptySheet')}</div>
-            <div className='text-12px text-t-tertiary'>{t('preview.excel.emptySheetHint')}</div>
+            <div className='text-14px text-secondary mb-8px'>{t('preview.excel.emptySheet')}</div>
+            <div className='text-12px text-tertiary'>{t('preview.excel.emptySheetHint')}</div>
           </div>
         </div>
       );
@@ -468,7 +468,7 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ filePath, content: _content
         }}
       >
         <table
-          className='border-collapse text-13px text-t-primary'
+          className='border-collapse text-13px text-foreground'
           style={{
             borderCollapse: 'collapse',
             border: '1px solid var(--color-border-2, #d4d4d8)',
@@ -521,7 +521,7 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ filePath, content: _content
   if (loading) {
     return (
       <div className='flex items-center justify-center h-full'>
-        <div className='text-14px text-t-secondary'>{t('preview.excel.loading')}</div>
+        <div className='text-14px text-secondary'>{t('preview.excel.loading')}</div>
       </div>
     );
   }
@@ -539,7 +539,7 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ filePath, content: _content
       <div className='flex items-center justify-center h-full'>
         <div className='text-center'>
           <div className='text-16px text-danger mb-8px'>❌ {error}</div>
-          <div className='text-12px text-t-secondary'>{t('preview.excel.invalid')}</div>
+          <div className='text-12px text-secondary'>{t('preview.excel.invalid')}</div>
         </div>
       </div>
     );
@@ -554,8 +554,8 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ filePath, content: _content
         {!usePortalToolbar && !hideToolbar && (
           <div className='flex items-center justify-between h-40px px-12px bg-bg-2 border-b flex-shrink-0'>
             <div className='flex items-center gap-8px'>
-              <span className='text-13px text-t-secondary'>📊 {t('preview.excel.title')}</span>
-              <span className='text-11px text-t-tertiary'>{t('preview.readOnlyLabel')}</span>
+              <span className='text-13px text-secondary'>📊 {t('preview.excel.title')}</span>
+              <span className='text-11px text-tertiary'>{t('preview.readOnlyLabel')}</span>
             </div>
 
             <div className='flex items-center gap-8px'>
@@ -585,7 +585,7 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ filePath, content: _content
   if (!excelData || excelData.sheets.length === 0) {
     return (
       <div className='flex items-center justify-center h-full'>
-        <div className='text-14px text-t-secondary'>{t('preview.excel.noSheets')}</div>
+        <div className='text-14px text-secondary'>{t('preview.excel.noSheets')}</div>
       </div>
     );
   }
@@ -599,12 +599,12 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ filePath, content: _content
       {!usePortalToolbar && !hideToolbar && (
         <div className='flex items-center justify-between h-40px px-12px bg-bg-2 border-b flex-shrink-0'>
           <div className='flex items-center gap-8px'>
-            <span className='text-13px text-t-secondary'>📊 {t('preview.excel.title')}</span>
-            <span className='text-11px text-t-tertiary'>{t('preview.readOnlyLabel')}</span>
+            <span className='text-13px text-secondary'>📊 {t('preview.excel.title')}</span>
+            <span className='text-11px text-tertiary'>{t('preview.readOnlyLabel')}</span>
           </div>
 
           <div className='flex items-center gap-8px'>
-            <span className='text-12px text-t-secondary'>{t('preview.excel.sheetCount', { count: excelData.sheets.length })}</span>
+            <span className='text-12px text-secondary'>{t('preview.excel.sheetCount', { count: excelData.sheets.length })}</span>
             {filePath && (
               <Button size='mini' type='text' onClick={handleOpenInSystem} title={t('preview.openWithApp', { app: 'Excel' })}>
                 <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2'>

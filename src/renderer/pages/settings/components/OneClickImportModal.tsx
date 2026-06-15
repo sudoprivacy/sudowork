@@ -161,26 +161,26 @@ const OneClickImportModal: React.FC<OneClickImportModalProps> = ({ visible, onCa
         <div className='py-8'>
           <div className='flex items-center gap-3 bg-fill-1 rounded-lg p-4'>
             <Spin size={20} />
-            <div className='text-t-secondary text-sm'>{t('settings.mcpLoadingTools')}</div>
+            <div className='text-secondary text-sm'>{t('settings.mcpLoadingTools')}</div>
           </div>
         </div>
       ) : importableServers.length > 0 ? (
         <div>
           <div className='mb-3 flex items-center gap-2'>
             <Check theme='filled' size={20} fill={'var(--success)'} />
-            <span className='text-t-primary'>{t('settings.mcpToolsLoaded', { count: importableServers.length })}</span>
+            <span className='text-foreground'>{t('settings.mcpToolsLoaded', { count: importableServers.length })}</span>
           </div>
           <div className='bg-base rounded-lg max-h-[200px] overflow-y-auto'>
             {importableServers.map((server, index) => (
               <div key={index} className='p-3' style={index < importableServers.length - 1 ? { borderBottom: '1px solid var(--bg-3)' } : undefined}>
-                <div className='font-medium text-t-primary'>{server.name}</div>
-                {server.description && <div className='text-sm text-t-secondary mt-1'>{server.description}</div>}
+                <div className='font-medium text-foreground'>{server.name}</div>
+                {server.description && <div className='text-sm text-secondary mt-1'>{server.description}</div>}
               </div>
             ))}
           </div>
         </div>
       ) : (
-        <div className='text-center py-8 text-t-secondary'>{t('settings.mcpNoServersFound')}</div>
+        <div className='text-center py-8 text-secondary'>{t('settings.mcpNoServersFound')}</div>
       )}
     </div>
   );
@@ -192,19 +192,19 @@ const OneClickImportModal: React.FC<OneClickImportModalProps> = ({ visible, onCa
         <div>
           <div className='mb-3 flex items-center gap-2'>
             <Check theme='filled' size={20} fill={'var(--success)'} />
-            <span className='text-t-primary'>{t('settings.mcpImportedSuccess', { count: importableServers.length })}</span>
+            <span className='text-foreground'>{t('settings.mcpImportedSuccess', { count: importableServers.length })}</span>
           </div>
           <div className='bg-base rounded-lg max-h-[200px] overflow-y-auto'>
             {importableServers.map((server, index) => (
               <div key={index} className='p-3' style={index < importableServers.length - 1 ? { borderBottom: '1px solid var(--bg-3)' } : undefined}>
-                <div className='font-medium text-t-primary'>{server.name}</div>
-                {server.description && <div className='text-sm text-t-secondary mt-1'>{server.description}</div>}
+                <div className='font-medium text-foreground'>{server.name}</div>
+                {server.description && <div className='text-sm text-secondary mt-1'>{server.description}</div>}
               </div>
             ))}
           </div>
         </div>
       ) : (
-        <div className='text-center py-8 text-t-secondary'>{t('settings.mcpNoServersFound')}</div>
+        <div className='text-center py-8 text-secondary'>{t('settings.mcpNoServersFound')}</div>
       )}
     </div>
   );
@@ -244,7 +244,7 @@ const OneClickImportModal: React.FC<OneClickImportModalProps> = ({ visible, onCa
   return (
     <AionModal header={{ title: t('settings.mcpOneKeyImport'), showClose: true }} visible={visible} onCancel={onCancel} footer={{ render: renderFooter }} style={{ width: 600, height: 420 }} contentStyle={{ borderRadius: 16, padding: '24px', background: 'var(--bg-1)', overflow: 'hidden', height: 420 - 96 }}>
       <div className='flex flex-col h-[275px] mt-5'>
-        <div className='mb-6 text-t-secondary text-sm'>{t('settings.mcpImportDescription')}</div>
+        <div className='mb-6 text-secondary text-sm'>{t('settings.mcpImportDescription')}</div>
 
         <div className='mb-6'>
           <AionSteps current={currentStep} size='small'>

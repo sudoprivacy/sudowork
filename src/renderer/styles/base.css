@@ -58,7 +58,7 @@ body {
   font-weight: 600;
   font-size: 13px;
   letter-spacing: 0.2px;
-  color: var(--text-primary);
+  color: var(--foreground);
   flex: 1;
   display: flex;
   align-items: center;
@@ -134,7 +134,7 @@ body {
   border: none;
   border-radius: 6px;
   background-color: transparent;
-  color: var(--text-primary);
+  color: var(--foreground);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -166,7 +166,7 @@ body {
   height: var(--titlebar-height);
   border: none;
   background: transparent;
-  color: var(--text-primary);
+  color: var(--foreground);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -198,7 +198,7 @@ body {
   border: none;
   border-radius: 6px;
   background: transparent;
-  color: var(--text-primary);
+  color: var(--foreground);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -222,7 +222,7 @@ body {
 .conversation-toggle-floating {
   border: none;
   background: var(--bg-1);
-  color: var(--text-primary);
+  color: var(--foreground);
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
 }
 
@@ -374,7 +374,7 @@ body,
 
   .settings-mobile-top-nav__item--active {
     background: var(--bg-active);
-    color: var(--text-primary);
+    color: var(--foreground);
     border-color: var(--border-default);
   }
 
@@ -753,7 +753,7 @@ body,
 .sidebar-segmented-control__item--active {
   /* 激活段：用与会话条目悬浮相同的暖色凹陷区分，深色文字，无投影 */
   background: var(--bg-hover) !important;
-  color: var(--text-primary) !important;
+  color: var(--foreground) !important;
 }
 
 .sidebar-segmented-control__item--active:hover {
@@ -822,7 +822,7 @@ body,
 
 .store-action-icon:hover {
   background: var(--color-fill-3);
-  color: var(--text-primary);
+  color: var(--foreground);
 }
 
 .store-action-icon > svg {
@@ -1046,7 +1046,7 @@ body,
   }
 
   & .d2h-file-name {
-    color: var(--text-primary);
+    color: var(--foreground);
   }
 
   & .d2h-file-stats {
@@ -1071,7 +1071,7 @@ body,
 
   /* Code lines */
   & .d2h-code-line {
-    color: var(--text-primary);
+    color: var(--foreground);
     background-color: var(--bg-1);
   }
 
@@ -1128,12 +1128,12 @@ body,
   /* Code changes highlighting */
   & .d2h-code-line ins {
     background-color: rgba(35, 195, 67, 0.4);
-    color: var(--text-primary);
+    color: var(--foreground);
   }
 
   & .d2h-code-line del {
     background-color: rgba(245, 63, 63, 0.4);
-    color: var(--text-primary);
+    color: var(--foreground);
   }
 
   /* Side by side view */
@@ -1145,7 +1145,7 @@ body,
 
   & .d2h-code-side-line {
     background-color: var(--bg-1);
-    color: var(--text-primary);
+    color: var(--foreground);
   }
 
   /* Context (unchanged) lines in side-by-side */
@@ -1214,7 +1214,7 @@ body,
 .sendbox-tools .sendbox-model-btn:active,
 .sendbox-tools .sendbox-model-btn:focus,
 .sendbox-tools .sendbox-model-btn:focus-visible {
-  color: var(--text-primary) !important;
+  color: var(--foreground) !important;
 }
 
 /* Mobile: allow horizontal scrolling for sendbox tools (model/permission pills) */
@@ -1326,7 +1326,7 @@ body,
 
 .error-message-text {
   font-size: var(--text-sm);
-  color: var(--text-primary);
+  color: var(--foreground);
   line-height: 1.5;
   word-break: break-word;
 }
@@ -1374,7 +1374,7 @@ body,
 
 .success-message-text {
   font-size: var(--text-sm);
-  color: var(--text-primary);
+  color: var(--foreground);
   line-height: 1.5;
   word-break: break-word;
 }
@@ -1399,7 +1399,7 @@ body,
 
 .warning-message-text {
   font-size: var(--text-sm);
-  color: var(--text-primary);
+  color: var(--foreground);
   line-height: 1.5;
   word-break: break-word;
 }
@@ -1424,7 +1424,7 @@ body,
 
 .info-message-text {
   font-size: var(--text-sm);
-  color: var(--text-primary);
+  color: var(--foreground);
   line-height: 1.5;
   word-break: break-word;
 }

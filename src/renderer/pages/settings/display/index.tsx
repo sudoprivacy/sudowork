@@ -16,7 +16,7 @@ const PreferenceRow: React.FC<{
   children: React.ReactNode;
 }> = ({ label, children }) => (
   <div className='flex flex-col items-stretch gap-2.5 py-3 md:flex-row md:items-center md:justify-between md:gap-6'>
-    <div className='text-14px text-t-primary leading-22px'>{label}</div>
+    <div className='text-14px text-foreground leading-22px'>{label}</div>
     <div className='w-full flex md:flex-1 md:justify-end'>{children}</div>
   </div>
 );

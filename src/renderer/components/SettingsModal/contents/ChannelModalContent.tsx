@@ -635,15 +635,15 @@ const ChannelModalContent: React.FC = () => {
       const publicCallbackUrl = publicBaseUrl ? `${publicBaseUrl}${callbackPath}` : null;
 
       if (fields.length === 0) {
-        return <div className='text-14px text-t-secondary py-12px'>{status.extensionMeta?.description || t('settings.channels.extension.noConfig', { defaultValue: 'No extra configuration required.' })}</div>;
+        return <div className='text-14px text-secondary py-12px'>{status.extensionMeta?.description || t('settings.channels.extension.noConfig', { defaultValue: 'No extra configuration required.' })}</div>;
       }
 
       return (
         <div className='space-y-10px py-4px'>
-          {status.extensionMeta?.description && <div className='text-13px text-t-secondary leading-relaxed'>{status.extensionMeta.description}</div>}
+          {status.extensionMeta?.description && <div className='text-13px text-secondary leading-relaxed'>{status.extensionMeta.description}</div>}
           {pluginType === 'ext-wecom-bot' && (
-            <div className='text-12px leading-relaxed p-10px rd-8px bg-[rgba(var(--orange-6),0.08)] border border-[rgba(var(--orange-6),0.3)] text-t-secondary'>
-              <div className='font-500 text-t-primary mb-6px'>企微回调地址说明</div>
+            <div className='text-12px leading-relaxed p-10px rd-8px bg-[rgba(var(--orange-6),0.08)] border border-[rgba(var(--orange-6),0.3)] text-secondary'>
+              <div className='font-500 text-foreground mb-6px'>企微回调地址说明</div>
               <div>本机 Callback URL: {localCallbackUrl}</div>
               {lanCallbackUrl ? <div>局域网 Callback URL: {lanCallbackUrl}</div> : null}
               {publicCallbackUrl ? <div>公网 Callback URL(配置值): {publicCallbackUrl}</div> : null}
@@ -658,7 +658,7 @@ const ChannelModalContent: React.FC = () => {
             if (field.type === 'boolean') {
               return (
                 <div key={`${pluginType}-${field.key}`} className='flex items-center justify-between'>
-                  <span className='text-13px text-t-primary'>{label}</span>
+                  <span className='text-13px text-foreground'>{label}</span>
                   <Switch checked={Boolean(rawValue)} onChange={(checked) => updateExtensionFieldValue(pluginType, field.key, checked)} />
                 </div>
               );
@@ -667,7 +667,7 @@ const ChannelModalContent: React.FC = () => {
             if (field.type === 'number') {
               return (
                 <div key={`${pluginType}-${field.key}`} className='space-y-6px'>
-                  <div className='text-13px text-t-primary'>{label}</div>
+                  <div className='text-13px text-foreground'>{label}</div>
                   <InputNumber value={typeof rawValue === 'number' ? rawValue : undefined} onChange={(value) => updateExtensionFieldValue(pluginType, field.key, Number(value || 0))} className='w-full' />
                 </div>
               );
@@ -676,7 +676,7 @@ const ChannelModalContent: React.FC = () => {
             if (field.type === 'select') {
               return (
                 <div key={`${pluginType}-${field.key}`} className='space-y-6px'>
-                  <div className='text-13px text-t-primary'>{label}</div>
+                  <div className='text-13px text-foreground'>{label}</div>
                   <Select value={typeof rawValue === 'string' ? rawValue : undefined} options={(field.options || []).map((option) => ({ label: option, value: option }))} onChange={(value) => updateExtensionFieldValue(pluginType, field.key, String(value))} placeholder={t('settings.channels.extension.selectPlaceholder', { defaultValue: 'Please select' })} allowClear />
                 </div>
               );
@@ -684,7 +684,7 @@ const ChannelModalContent: React.FC = () => {
 
             return (
               <div key={`${pluginType}-${field.key}`} className='space-y-6px'>
-                <div className='text-13px text-t-primary'>{label}</div>
+                <div className='text-13px text-foreground'>{label}</div>
                 <Input value={typeof rawValue === 'string' ? rawValue : ''} onChange={(value) => updateExtensionFieldValue(pluginType, field.key, value)} placeholder={field.label} type={field.type === 'password' ? 'password' : 'text'} />
               </div>
             );
@@ -833,14 +833,14 @@ const ChannelModalContent: React.FC = () => {
   return (
     <AionScrollArea className='h-full'>
       <div className={'mx-auto w-full max-w-820px pb-18px px-12px sm:px-16px md:px-0'}>
-        <h2 className='text-20px font-600 text-t-primary m-0'>{t('settings.channels.title', 'Channels')}</h2>
+        <h2 className='text-20px font-600 text-foreground m-0'>{t('settings.channels.title', 'Channels')}</h2>
         <div className='space-y-8px mt-8px'>
-          <div className='text-13px text-t-secondary leading-relaxed'>{channelGuideText}</div>
+          <div className='text-13px text-secondary leading-relaxed'>{channelGuideText}</div>
           <div className='flex flex-wrap gap-x-12px gap-y-6px'>
             {channelSetupSteps.map((stepLabel, idx) => (
               <div key={stepLabel} className='inline-flex items-center gap-6px'>
                 <span className='inline-flex items-center justify-center w-16px h-16px rd-50% text-10px font-600 bg-[rgba(var(--ui-accent-orange-rgb),0.12)] text-[var(--ui-accent-orange)]'>{idx + 1}</span>
-                <span className='text-12px text-t-secondary'>{stepLabel}</span>
+                <span className='text-12px text-secondary'>{stepLabel}</span>
               </div>
             ))}
           </div>

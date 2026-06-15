@@ -125,7 +125,7 @@ const DirectorySelectionModal: React.FC<DirectorySelectionModalProps> = ({ visib
       maskStyle={{ zIndex: 2990 }}
       footer={
         <div className='w-full flex justify-between items-center'>
-          <div className='text-t-secondary text-14px overflow-hidden text-ellipsis whitespace-nowrap max-w-[70vw]' title={selectedPath || currentPath}>
+          <div className='text-secondary text-14px overflow-hidden text-ellipsis whitespace-nowrap max-w-[70vw]' title={selectedPath || currentPath}>
             {selectedPath || currentPath || (isFileMode ? t('fileSelection.pleaseSelectFile') : t('fileSelection.pleaseSelectDirectory'))}
           </div>
           <div className='flex gap-10px'>
@@ -142,7 +142,7 @@ const DirectorySelectionModal: React.FC<DirectorySelectionModalProps> = ({ visib
           <div className='h-full overflow-y-auto'>
             {directoryData.canGoUp && (
               <div className='flex items-center p-10px border-b cursor-pointer hover:bg-hover transition' onClick={handleGoUp}>
-                <IconUp className='mr-10px text-t-secondary' />
+                <IconUp className='mr-10px text-secondary' />
                 <span>..</span>
               </div>
             )}

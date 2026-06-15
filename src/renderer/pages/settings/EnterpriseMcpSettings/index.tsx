@@ -179,8 +179,8 @@ const EnterpriseMcpSettings: React.FC = () => {
     <SettingsPageWrapper contentClassName='max-w-1200px'>
       <div className='p-6 flex flex-col gap-4'>
         <div className='flex flex-col gap-0.5'>
-          <h2 className='text-24px font-600 text-t-primary my-0'>MCP 服务</h2>
-          <p className='text-13px text-t-secondary my-0'>管理企业、部门与个人 MCP 服务，安装模板，查看企业策略。</p>
+          <h2 className='text-24px font-600 text-foreground my-0'>MCP 服务</h2>
+          <p className='text-13px text-secondary my-0'>管理企业、部门与个人 MCP 服务，安装模板，查看企业策略。</p>
         </div>
 
         <AdminRedirectBanner visible={isAdmin} serverUrl={serverUrl} />
@@ -210,6 +210,6 @@ const LoadingBlock: React.FC = () => (
   </div>
 );
 
-const ErrorBlock: React.FC<{ message: string }> = ({ message }) => <div className='py-10 text-center text-13px text-t-tertiary'>{message}</div>;
+const ErrorBlock: React.FC<{ message: string }> = ({ message }) => <div className='py-10 text-center text-13px text-tertiary'>{message}</div>;
 
 export default EnterpriseMcpSettings;

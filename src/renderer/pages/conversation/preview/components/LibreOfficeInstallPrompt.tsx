@@ -38,11 +38,11 @@ const LibreOfficeInstallPrompt: React.FC<LibreOfficeInstallPromptProps> = ({ fil
     <div className='h-full w-full bg-bg-1 flex items-center justify-center'>
       <div className='text-center max-w-400px px-24px'>
         <div className='text-48px mb-16px'>{icon}</div>
-        <div className='text-16px text-t-primary font-medium mb-8px'>{t(titleKey)}</div>
+        <div className='text-16px text-foreground font-medium mb-8px'>{t(titleKey)}</div>
 
         {!installing ? (
           <>
-            <div className='text-13px text-t-secondary mb-24px'>{t('preview.libreOffice.installPrompt')}</div>
+            <div className='text-13px text-secondary mb-24px'>{t('preview.libreOffice.installPrompt')}</div>
             <div className='flex items-center justify-center gap-12px'>
               <Button type='primary' onClick={onInstall}>
                 {t('preview.libreOffice.installButton')}
@@ -51,18 +51,18 @@ const LibreOfficeInstallPrompt: React.FC<LibreOfficeInstallPromptProps> = ({ fil
           </>
         ) : (
           <>
-            <div className='text-13px text-t-secondary mb-16px'>
+            <div className='text-13px text-secondary mb-16px'>
               {t('preview.libreOffice.installing')}
               {phase && ` — ${t(`preview.libreOffice.phase.${phase}`, { defaultValue: phase })}`}
             </div>
             <Progress percent={percent ?? 0} status='normal' showText={false} strokeWidth={6} className='!mb-4px !max-w-280px !mx-auto' />
             {percent !== undefined && (
-              <div className='text-12px text-t-tertiary'>{percent}%</div>
+              <div className='text-12px text-tertiary'>{percent}%</div>
             )}
           </>
         )}
 
-        <div className='text-11px text-t-tertiary mt-16px'>{t('preview.libreOffice.systemPrompt')}</div>
+        <div className='text-11px text-tertiary mt-16px'>{t('preview.libreOffice.systemPrompt')}</div>
       </div>
     </div>
   );

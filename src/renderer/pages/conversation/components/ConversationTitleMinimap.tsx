@@ -525,10 +525,10 @@ const ConversationTitleMinimap: React.FC<ConversationTitleMinimapProps> = ({ tit
     );
 
     const titleNode = (
-      <div className='conversation-minimap-header px-12px border-b border-solid text-12px text-t-secondary box-border' style={{ borderColor: visualStyle.borderColor, height: `${HEADER_HEIGHT}px` }}>
+      <div className='conversation-minimap-header px-12px border-b border-solid text-12px text-secondary box-border' style={{ borderColor: visualStyle.borderColor, height: `${HEADER_HEIGHT}px` }}>
         {isSearchMode ? (
           <div className='h-full flex items-center gap-8px w-full min-w-0'>
-            <IconSearch className='shrink-0 text-14px text-t-secondary' />
+            <IconSearch className='shrink-0 text-14px text-secondary' />
             {countNode}
             <Input
               ref={searchInputRef}
@@ -557,9 +557,9 @@ const ConversationTitleMinimap: React.FC<ConversationTitleMinimapProps> = ({ tit
               openSearchPanel();
             }}
           >
-            <IconSearch className='shrink-0 text-14px text-t-secondary' />
+            <IconSearch className='shrink-0 text-14px text-secondary' />
             {countNode}
-            <span className='text-12px text-t-secondary truncate'>{t('conversation.minimap.searchHint', { defaultValue: '点击这里搜索关键词' })}</span>
+            <span className='text-12px text-secondary truncate'>{t('conversation.minimap.searchHint', { defaultValue: '点击这里搜索关键词' })}</span>
           </button>
         )}
       </div>
@@ -617,12 +617,12 @@ const ConversationTitleMinimap: React.FC<ConversationTitleMinimapProps> = ({ tit
                 jumpToItem(item);
               }}
             >
-              <div className={classNames('text-11px mb-2px', isIndexMatch(item.index, normalizedKeyword) ? 'text-[rgb(var(--primary-6))] font-semibold' : 'text-t-secondary')}>#{item.index}</div>
-              <div className='text-13px text-t-primary font-medium leading-18px' style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>
+              <div className={classNames('text-11px mb-2px', isIndexMatch(item.index, normalizedKeyword) ? 'text-[rgb(var(--primary-6))] font-semibold' : 'text-secondary')}>#{item.index}</div>
+              <div className='text-13px text-foreground font-medium leading-18px' style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>
                 Q: {renderHighlightedText(item.questionRaw || item.question, normalizedKeyword)}
               </div>
               {item.answer && (
-                <div className='text-12px text-t-secondary leading-18px mt-2px' style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>
+                <div className='text-12px text-secondary leading-18px mt-2px' style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>
                   A: {renderHighlightedText(item.answerRaw || item.answer, normalizedKeyword)}
                 </div>
               )}
@@ -635,7 +635,7 @@ const ConversationTitleMinimap: React.FC<ConversationTitleMinimapProps> = ({ tit
 
   return (
     <>
-      <span ref={triggerRef} className={classNames('conversation-minimap-trigger font-bold text-16px text-t-primary inline-block overflow-hidden text-ellipsis whitespace-nowrap max-w-full cursor-pointer', visible && 'text-[rgb(var(--primary-6))]')} onMouseEnter={openPanel} onMouseLeave={scheduleClosePanel}>
+      <span ref={triggerRef} className={classNames('conversation-minimap-trigger font-bold text-16px text-foreground inline-block overflow-hidden text-ellipsis whitespace-nowrap max-w-full cursor-pointer', visible && 'text-[rgb(var(--primary-6))]')} onMouseEnter={openPanel} onMouseLeave={scheduleClosePanel}>
         {title}
       </span>
       {visible &&

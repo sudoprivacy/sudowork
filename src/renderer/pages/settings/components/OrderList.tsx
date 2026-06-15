@@ -144,18 +144,18 @@ const OrderList: React.FC<OrderListProps> = ({ onContinuePay, refreshKey }) => {
   }
 
   if (orders.length === 0) {
-    return <div className='py-6 text-center text-t-tertiary text-14px'>{t('settings.orders.noOrders') || '暂无订单记录'}</div>;
+    return <div className='py-6 text-center text-tertiary text-14px'>{t('settings.orders.noOrders') || '暂无订单记录'}</div>;
   }
 
   return (
     <div className='bg-fill-0 rd-16px overflow-hidden border border-solid border-[var(--border-light)] bg-transparent!'>
       <div className='px-5 py-4  flex items-center justify-between'>
-        <div className='font-600 text-14px text-t-primary'>{t('settings.orders.title') || '订单记录'}</div>
+        <div className='font-600 text-14px text-foreground'>{t('settings.orders.title') || '订单记录'}</div>
         <div className='flex items-center gap-3'>
           <button onClick={() => void fetchOrders()} className='p-1 rd-4px hover:bg-fill-1 transition-colors cursor-pointer border-none bg-transparent' style={{ outline: 'none', boxShadow: 'none' }} title={t('settings.orders.refresh') || '刷新'}>
-            <Refresh size={16} className='text-t-secondary' />
+            <Refresh size={16} className='text-secondary' />
           </button>
-          <div className='text-12px text-t-secondary'>{t('settings.orders.total', { count: orders.length }) || `共 ${orders.length} 条`}</div>
+          <div className='text-12px text-secondary'>{t('settings.orders.total', { count: orders.length }) || `共 ${orders.length} 条`}</div>
         </div>
       </div>
 
@@ -167,9 +167,9 @@ const OrderList: React.FC<OrderListProps> = ({ onContinuePay, refreshKey }) => {
           return (
             <div key={order.order_no} className='px-4 py-2.5 border-b last:border-b-0 flex items-center gap-3'>
               {/* 订单号 */}
-              <div className='flex-1 min-w-0 text-13px text-t-secondary truncate'>{order.order_no}</div>
+              <div className='flex-1 min-w-0 text-13px text-secondary truncate'>{order.order_no}</div>
               {/* 充值金额 */}
-              <div className='w-20 flex-shrink-0 text-15px font-500 text-t-primary'>{formatAmount(order.amount_cny)}</div>
+              <div className='w-20 flex-shrink-0 text-15px font-500 text-foreground'>{formatAmount(order.amount_cny)}</div>
               {/* 积分 */}
               <div className='w-22.5 flex-shrink-0 text-14px text-primary font-500'>{order.points.toLocaleString()} PTS</div>
               {/* 支付方式 */}
@@ -184,7 +184,7 @@ const OrderList: React.FC<OrderListProps> = ({ onContinuePay, refreshKey }) => {
                 </Tag>
               </div>
               {/* 创建时间 */}
-              <div className='w-25 flex-shrink-0 text-12px text-t-tertiary'>{formatDateTime(order.created_at)}</div>
+              <div className='w-25 flex-shrink-0 text-12px text-tertiary'>{formatDateTime(order.created_at)}</div>
               {/* 操作 */}
               <div className='w-20 flex-shrink-0'>
                 {order.status === OrderStatusEnum.PAYING && (

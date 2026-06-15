@@ -427,8 +427,8 @@ const LoginPage: React.FC = () => {
             <Protect theme='filled' size={32} />
           </div>
           <div>
-            <h2 className='text-20px font-700 text-t-primary'>{statusMsg.text}</h2>
-            <p className='text-14px text-t-secondary mt-8px px-20px'>{statusMsg.sub}</p>
+            <h2 className='text-20px font-700 text-foreground'>{statusMsg.text}</h2>
+            <p className='text-14px text-secondary mt-8px px-20px'>{statusMsg.sub}</p>
           </div>
           {statusMsg.type === 'rejected' ? (
             <Button
@@ -499,7 +499,7 @@ const LoginPage: React.FC = () => {
               <img src={tenantConfig.logo || SudoworkIcon} alt={tenantConfig.app_name} className='w-64px h-64px object-contain' />
             </div>
             <h1 className='text-28px font-800 tracking-tighter bg-gradient-to-br from-primary to-purple-600 bg-clip-text text-transparent mb-8px'>{tenantConfig.app_name}</h1>
-            <p className='text-13px text-t-secondary'>{tenantConfig.login_desp}</p>
+            <p className='text-13px text-secondary'>{tenantConfig.login_desp}</p>
           </div>
 
           {/* Enterprise login tabs: password / key / oauth2 */}
@@ -519,21 +519,21 @@ const LoginPage: React.FC = () => {
             {loginTab === 'password' ? (
               <>
                 <div className='flex flex-col gap-8px'>
-                  <div className='text-12px font-600 text-t-secondary ml-4px'>用户名</div>
-                  <Input size='large' prefix={<User className='text-t-tertiary' />} placeholder='请输入用户名' value={username} onChange={setUsername} className='login-input !rd-12px h-48px' />
+                  <div className='text-12px font-600 text-secondary ml-4px'>用户名</div>
+                  <Input size='large' prefix={<User className='text-tertiary' />} placeholder='请输入用户名' value={username} onChange={setUsername} className='login-input !rd-12px h-48px' />
                 </div>
                 <div className='flex flex-col gap-8px'>
-                  <div className='text-12px font-600 text-t-secondary ml-4px'>密码</div>
-                  <Input.Password size='large' prefix={<Lock className='text-t-tertiary' />} placeholder='请输入密码' value={password} onChange={setPassword} className='login-input !rd-12px h-48px' />
+                  <div className='text-12px font-600 text-secondary ml-4px'>密码</div>
+                  <Input.Password size='large' prefix={<Lock className='text-tertiary' />} placeholder='请输入密码' value={password} onChange={setPassword} className='login-input !rd-12px h-48px' />
                 </div>
               </>
             ) : loginTab === 'key' ? (
               <div className='flex flex-col gap-8px'>
-                <div className='text-12px font-600 text-t-secondary ml-4px'>API Key</div>
-                <Input size='large' prefix={<Key className='text-t-tertiary' />} placeholder='moss_sk_xxx.yyy' value={apiKey} onChange={setApiKey} className='login-input !rd-12px h-48px' />
+                <div className='text-12px font-600 text-secondary ml-4px'>API Key</div>
+                <Input size='large' prefix={<Key className='text-tertiary' />} placeholder='moss_sk_xxx.yyy' value={apiKey} onChange={setApiKey} className='login-input !rd-12px h-48px' />
               </div>
             ) : (
-              <div className='flex flex-col gap-8px text-center'>{oauth2Loading ? <div className='text-13px text-t-tertiary py-12px'>正在检查 OAuth2 配置…</div> : oauth2Config?.enabled ? <div className='text-13px text-t-secondary py-4px'>点击下方按钮，将在浏览器中完成身份认证。</div> : <div className='text-13px text-t-tertiary py-12px'>管理员未启用 OAuth2 登录</div>}</div>
+              <div className='flex flex-col gap-8px text-center'>{oauth2Loading ? <div className='text-13px text-tertiary py-12px'>正在检查 OAuth2 配置…</div> : oauth2Config?.enabled ? <div className='text-13px text-secondary py-4px'>点击下方按钮，将在浏览器中完成身份认证。</div> : <div className='text-13px text-tertiary py-12px'>管理员未启用 OAuth2 登录</div>}</div>
             )}
 
             {loginTab === 'oauth2' ? (
@@ -547,7 +547,7 @@ const LoginPage: React.FC = () => {
             )}
 
             <div className='text-center mt-12px'>
-              <span className='text-12px text-t-tertiary cursor-pointer hover:text-t-secondary transition-colors' onClick={handleBackToModeSelect}>
+              <span className='text-12px text-tertiary cursor-pointer hover:text-secondary transition-colors' onClick={handleBackToModeSelect}>
                 ← 返回模式选择
               </span>
             </div>
@@ -575,7 +575,7 @@ const LoginPage: React.FC = () => {
             <img src={tenantConfig.logo || SudoworkIcon} alt={tenantConfig.app_name} className='w-64px h-64px object-contain' />
           </div>
           <h1 className='text-28px font-800 tracking-tighter bg-gradient-to-br from-primary to-purple-600 bg-clip-text text-transparent mb-8px'>{tenantConfig.app_name}</h1>
-          <p className='text-13px text-t-secondary'>{tenantConfig.login_desp}</p>
+          <p className='text-13px text-secondary'>{tenantConfig.login_desp}</p>
         </div>
 
         {/* Tab switcher */}
@@ -590,14 +590,14 @@ const LoginPage: React.FC = () => {
 
         <div className='flex flex-col gap-20px mt-24px'>
           <div className='flex flex-col gap-8px'>
-            <div className='text-12px font-600 text-t-secondary ml-4px'>手机号码</div>
-            <Input size='large' prefix={<Phone className='text-t-tertiary' />} placeholder='11 位手机号' value={currentPhone} onChange={handlePhoneChange} className='login-input !rd-12px h-48px' />
+            <div className='text-12px font-600 text-secondary ml-4px'>手机号码</div>
+            <Input size='large' prefix={<Phone className='text-tertiary' />} placeholder='11 位手机号' value={currentPhone} onChange={handlePhoneChange} className='login-input !rd-12px h-48px' />
           </div>
 
           <div className='flex flex-col gap-8px'>
-            <div className='text-12px font-600 text-t-secondary ml-4px'>身份验证</div>
+            <div className='text-12px font-600 text-secondary ml-4px'>身份验证</div>
             <Space size='small' className='w-full'>
-              <Input size='large' prefix={<Key className='text-t-tertiary' />} placeholder='6 位验证码' value={code} onChange={setCode} className='login-input !rd-12px h-48px flex-1' />
+              <Input size='large' prefix={<Key className='text-tertiary' />} placeholder='6 位验证码' value={code} onChange={setCode} className='login-input !rd-12px h-48px flex-1' />
               <Button size='large' disabled={currentCountdown > 0} onClick={handleSendCode} className='!rd-8px h-48px font-600 min-w-120px'>
                 {currentCountdown > 0 ? `${currentCountdown}s` : '发送验证码'}
               </Button>
@@ -607,13 +607,13 @@ const LoginPage: React.FC = () => {
           {mode === 'register' && (
             <>
               <div className='flex flex-col gap-8px'>
-                <div className='text-12px font-600 text-t-secondary ml-4px'>昵称</div>
-                <Input size='large' prefix={<User className='text-t-tertiary' />} placeholder='请输入您的昵称' value={nickname} onChange={setNickname} className='login-input !rd-12px h-48px' maxLength={20} />
+                <div className='text-12px font-600 text-secondary ml-4px'>昵称</div>
+                <Input size='large' prefix={<User className='text-tertiary' />} placeholder='请输入您的昵称' value={nickname} onChange={setNickname} className='login-input !rd-12px h-48px' maxLength={20} />
               </div>
 
               <div className='flex flex-col gap-8px'>
-                <div className='text-12px font-600 text-t-secondary ml-4px'>邀请码</div>
-                <Input size='large' prefix={<Protect className='text-t-tertiary' />} placeholder='请输入 6 位邀请码' value={invitationCode} onChange={setInvitationCode} className='login-input !rd-12px h-48px' maxLength={6} />
+                <div className='text-12px font-600 text-secondary ml-4px'>邀请码</div>
+                <Input size='large' prefix={<Protect className='text-tertiary' />} placeholder='请输入 6 位邀请码' value={invitationCode} onChange={setInvitationCode} className='login-input !rd-12px h-48px' maxLength={6} />
               </div>
             </>
           )}
@@ -623,7 +623,7 @@ const LoginPage: React.FC = () => {
           </Button>
 
           <div className='text-center mt-12px'>
-            <span className='text-12px text-t-tertiary cursor-pointer hover:text-t-secondary transition-colors' onClick={handleBackToModeSelect}>
+            <span className='text-12px text-tertiary cursor-pointer hover:text-secondary transition-colors' onClick={handleBackToModeSelect}>
               ← 返回模式选择
             </span>
           </div>
