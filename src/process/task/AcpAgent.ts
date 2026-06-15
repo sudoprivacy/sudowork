@@ -75,6 +75,7 @@ import { extractTextFromMessage, processCronInMessage } from './MessageMiddlewar
 import { processAtFileReferences } from './acp/AcpAtFileProcessor';
 import { StreamTextBuffer, CronTextAccumulator, filterThinkTagsFromMessage, preprocessContentMessage } from './acp/AcpMessagePipeline';
 import { clearAcpSessionId, saveAcpSessionId, saveSessionMode, saveModelId, saveContextUsage } from './acp/AcpPersistence';
+import { extractLatestScodeAssistantUsageFromJsonl, findScodeSessionFile, normalizePromptUsageForMessage, SCODE_LATE_RECONCILIATION_DEFAULTS } from './acpUsageReconciliation';
 import { resolveImageConfig, callImagesGenerations, callImagesEdits, saveImageResult, resolveChatModel, callChatCompletionsWithImage, readSudorouterCredentials } from '../bridge/imageGenerationBridge';
 import { resolveWorkspaceSkillsDir } from '../utils/workspaceSkillsDir';
 import { readAssistantResource, ruleFilePattern } from '@process/utils/assistantResources';
@@ -124,22 +125,6 @@ interface InitializeResult {
 function normalizeToolCallStatus(status: string | undefined): 'pending' | 'in_progress' | 'completed' | 'failed' {
   if (!status) return 'pending';
   return status as 'pending' | 'in_progress' | 'completed' | 'failed';
-}
-
-function normalizePromptUsageForMessage(usage: AcpPromptResponseUsage): TurnTokenUsage | null {
-  if (typeof usage.totalTokens !== 'number') return null;
-  return {
-    totalTokens: usage.totalTokens,
-    ...(typeof usage.inputTokens === 'number' && { inputTokens: usage.inputTokens }),
-    ...(typeof usage.outputTokens === 'number' && { outputTokens: usage.outputTokens }),
-    ...(usage.cachedReadTokens !== undefined && { cachedReadTokens: usage.cachedReadTokens }),
-    ...(usage.cachedWriteTokens !== undefined && { cachedWriteTokens: usage.cachedWriteTokens }),
-    ...(usage.thoughtTokens !== undefined && { thoughtTokens: usage.thoughtTokens }),
-    ...(usage.contextWindowTokens !== undefined && { contextWindowTokens: usage.contextWindowTokens }),
-    ...(usage.estimatedSessionTokens !== undefined && { estimatedSessionTokens: usage.estimatedSessionTokens }),
-    ...(usage.costUnits !== undefined && { costUnits: usage.costUnits }),
-    ...(usage.costCurrency !== undefined && { costCurrency: usage.costCurrency }),
-  };
 }
 
 export interface AcpAgentData {
@@ -192,6 +177,8 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
   private pendingModelSwitchNotice: string | null = null;
   private hasReceivedUsageUpdate = false;
   private lastAssistantTextMsgId: string | null = null;
+  /** Pending token usage to apply when assistant text message arrives */
+  private pendingTokenUsage: TurnTokenUsage | null = null;
   private turnHadVisibleAssistantContent = false;
   private turnEventSequence = 0;
   private lastVisibleAssistantContentSequence = 0;
@@ -706,6 +693,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
     this.stopPromise = null;
     this.hasReceivedUsageUpdate = false;
     this.lastAssistantTextMsgId = null;
+    this.pendingTokenUsage = null;
     this.turnHadVisibleAssistantContent = false;
     this.turnEventSequence = 0;
     this.lastVisibleAssistantContentSequence = 0;
@@ -1016,8 +1004,11 @@ This identity statement takes priority over the default identity in USER.md.
         // Handle sendToConnection error result (not thrown)
         if (!result.success) {
           const acpError = (result as { success: false; error: AcpError }).error;
+          // Telemetry: end turn tracking (error)
+          endTurnError(this.conversation_id, acpError.type?.toString() || 'UNKNOWN');
+          // Telemetry: end conversation tracking (error)
           endConversationError(this.conversation_id);
-          conversationBreadcrumbs.error(this.conversation_id, acpError.type.toString() || 'unknown', acpError.message);
+          conversationBreadcrumbs.error(this.conversation_id, acpError.type?.toString() || 'unknown', acpError.message);
         }
         return result;
       }
@@ -1027,8 +1018,11 @@ This identity statement takes priority over the default identity in USER.md.
       // Handle sendToConnection error result (not thrown)
       if (!result.success) {
         const acpError = (result as { success: false; error: AcpError }).error;
+        // Telemetry: end turn tracking (error)
+        endTurnError(this.conversation_id, acpError.type?.toString() || 'UNKNOWN');
+        // Telemetry: end conversation tracking (error)
         endConversationError(this.conversation_id);
-        conversationBreadcrumbs.error(this.conversation_id, acpError.type.toString() || 'unknown', acpError.message);
+        conversationBreadcrumbs.error(this.conversation_id, acpError.type?.toString() || 'unknown', acpError.message);
       }
       return result;
     } catch (e) {
@@ -1046,21 +1040,33 @@ This identity statement takes priority over the default identity in USER.md.
       let errorCode: string | undefined;
       if (errorMsg.includes('timeout') || errorMsg.includes('Timeout') || errorMsg.includes('timed out')) {
         errorCode = 'E002';
+        // Telemetry: end turn tracking (error)
+        endTurnError(this.conversation_id, 'E002');
         endConversationError(this.conversation_id, 'E002');
       } else if (errorMsg.includes('authentication') || errorMsg.includes('认证失败')) {
         errorCode = 'E006';
+        // Telemetry: end turn tracking (error)
+        endTurnError(this.conversation_id, 'E006');
         endConversationError(this.conversation_id, 'E006');
       } else if (errorMsg.includes('interrupted') || errorMsg.includes('SSE') || errorMsg.includes('stream')) {
         errorCode = 'E003';
+        // Telemetry: end turn tracking (error)
+        endTurnError(this.conversation_id, 'E003');
         endConversationError(this.conversation_id, 'E003');
       } else if (errorMsg.includes('parse') || errorMsg.includes('JSON') || errorMsg.includes('invalid response')) {
         errorCode = 'E005';
+        // Telemetry: end turn tracking (error)
+        endTurnError(this.conversation_id, 'E005');
         endConversationError(this.conversation_id, 'E005');
       } else if (errorMsg.includes('connection') || errorMsg.includes('Connection')) {
         errorCode = 'E001';
+        // Telemetry: end turn tracking (error)
+        endTurnError(this.conversation_id, 'E001');
         endConversationError(this.conversation_id, 'E001');
       } else {
         errorCode = 'E009';
+        // Telemetry: end turn tracking (error)
+        endTurnError(this.conversation_id, 'E009');
         endConversationError(this.conversation_id, 'E009');
       }
 
@@ -1241,6 +1247,10 @@ This identity statement takes priority over the default identity in USER.md.
       } else if (errorMsg.includes('timeout') || errorMsg.includes('Timeout') || errorMsg.includes('timed out')) {
         errorType = AcpErrorType.TIMEOUT;
         retryable = true;
+        // For scode backend, attempt late reconciliation after timeout
+        if (this.options.backend === 'scode') {
+          void this.attemptScodeLateReconciliation();
+        }
       } else if (errorMsg.includes('permission') || errorMsg.includes('Permission')) {
         errorType = AcpErrorType.PERMISSION_DENIED;
       } else if (errorMsg.includes('connection') || errorMsg.includes('Connection')) {
@@ -1359,6 +1369,106 @@ This identity statement takes priority over the default identity in USER.md.
     } catch (err) {
       mainWarn('[AcpAgent]', `Failed to clear context overflow recovery state: ${err instanceof Error ? err.message : String(err)}`);
     }
+  }
+
+  private async sleepForLateReconciliation(ms: number): Promise<void> {
+    await new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  private getLatestAssistantTextMsgIdFromDb(): string | null {
+    try {
+      const db = getDatabase();
+      const result = db.getConversationMessages(this.conversation_id, 0, 100, 'DESC');
+      for (const msg of result.data) {
+        if (msg.type === 'text' && msg.position === 'left') {
+          return msg.msg_id || msg.id;
+        }
+      }
+    } catch (err) {
+      mainWarn('[AcpAgent]', `[LATE-RECONCILE] Failed to read latest assistant message: ${err instanceof Error ? err.message : String(err)}`);
+    }
+    return null;
+  }
+
+  private patchAssistantTokenUsage(msgId: string, tokenUsage: TurnTokenUsage, options: { flush?: boolean } = {}): void {
+    if (options.flush) {
+      this.streamTextBuffer.flushAll();
+    }
+
+    const usagePatch: IResponseMessage = {
+      type: 'content',
+      conversation_id: this.conversation_id,
+      msg_id: msgId,
+      data: {
+        content: '',
+        tokenUsage,
+      },
+    };
+    const tMessage = transformMessage(usagePatch);
+    if (tMessage) {
+      addOrUpdateMessage(this.conversation_id, tMessage, this.options.backend);
+    }
+    ipcBridge.acpConversation.responseStream.emit(usagePatch);
+  }
+
+  /**
+   * SCode can continue running after Sudowork's prompt call times out. In that
+   * case the final usage lands in the SCode session JSONL later, so poll for a
+   * bounded window and patch only tokenUsage onto the latest assistant message.
+   */
+  private async attemptScodeLateReconciliation(): Promise<void> {
+    if (this.options.backend !== 'scode' || !this.workspace || !this.extra.acpSessionId) {
+      return;
+    }
+
+    const sessionId = this.extra.acpSessionId;
+    const { attempts, intervalMs } = SCODE_LATE_RECONCILIATION_DEFAULTS;
+    let sessionFile: string | null = null;
+
+    for (let attempt = 1; attempt <= attempts; attempt++) {
+      try {
+        sessionFile = sessionFile ?? (await findScodeSessionFile(this.workspace, sessionId));
+        if (!sessionFile) {
+          mainLog('[AcpAgent]', `[LATE-RECONCILE] SCode session file not found for ${sessionId}, attempt ${attempt}/${attempts}`);
+        } else {
+          const content = await fs.promises.readFile(sessionFile, 'utf-8');
+          const usageEntry = extractLatestScodeAssistantUsageFromJsonl(content);
+          if (usageEntry) {
+            const patchMsgId = this.lastAssistantTextMsgId || this.getLatestAssistantTextMsgIdFromDb();
+            if (!patchMsgId) {
+              mainLog('[AcpAgent]', `[LATE-RECONCILE] Usage found for ${sessionId}, but no assistant message is available to patch`);
+              return;
+            }
+
+            mainLog('[AcpAgent]', `[LATE-RECONCILE] Applying SCode usage from ${sessionFile} to msg_id=${patchMsgId}`);
+            this.patchAssistantTokenUsage(patchMsgId, usageEntry.usage);
+            updateTurnTokens(this.conversation_id, {
+              totalTokens: usageEntry.usage.totalTokens,
+              inputTokens: usageEntry.usage.inputTokens ?? 0,
+              outputTokens: usageEntry.usage.outputTokens ?? 0,
+              cachedReadTokens: usageEntry.usage.cachedReadTokens,
+              cachedWriteTokens: usageEntry.usage.cachedWriteTokens,
+              thoughtTokens: usageEntry.usage.thoughtTokens,
+              contextWindowTokens: usageEntry.usage.contextWindowTokens,
+              estimatedSessionTokens: usageEntry.usage.estimatedSessionTokens,
+              costUnits: usageEntry.usage.costUnits,
+              costCurrency: usageEntry.usage.costCurrency,
+            });
+            return;
+          }
+
+          mainLog('[AcpAgent]', `[LATE-RECONCILE] No assistant usage yet in ${sessionFile}, attempt ${attempt}/${attempts}`);
+        }
+      } catch (err) {
+        mainWarn('[AcpAgent]', `[LATE-RECONCILE] Attempt ${attempt}/${attempts} failed: ${err instanceof Error ? err.message : String(err)}`);
+      }
+
+      if (attempt < attempts) {
+        await this.sleepForLateReconciliation(intervalMs);
+      }
+    }
+
+    mainLog('[AcpAgent]', `[LATE-RECONCILE] No SCode usage reconciled for ${sessionId} after ${attempts} attempts`);
   }
 
   async confirm(id: string, callId: string, data: AcpPermissionOption) {
@@ -2899,22 +3009,15 @@ This identity statement takes priority over the default identity in USER.md.
     updateTurnTokens(this.conversation_id, usage);
 
     const tokenUsage = normalizePromptUsageForMessage(usage);
-    if (tokenUsage && this.lastAssistantTextMsgId) {
-      this.streamTextBuffer.flushAll();
-      const usagePatch: IResponseMessage = {
-        type: 'content',
-        conversation_id: this.conversation_id,
-        msg_id: this.lastAssistantTextMsgId,
-        data: {
-          content: '',
-          tokenUsage,
-        },
-      };
-      const tMessage = transformMessage(usagePatch);
-      if (tMessage) {
-        addOrUpdateMessage(this.conversation_id, tMessage, this.options.backend);
+    if (tokenUsage) {
+      if (this.lastAssistantTextMsgId) {
+        // Assistant text already arrived - patch usage directly
+        this.patchAssistantTokenUsage(this.lastAssistantTextMsgId, tokenUsage, { flush: true });
+      } else {
+        // Usage arrived before assistant text - store as pending
+        this.pendingTokenUsage = tokenUsage;
+        mainLog('[AcpAgent]', `[PENDING-USAGE] Stored pending usage: total=${tokenUsage.totalTokens}`);
       }
-      ipcBridge.acpConversation.responseStream.emit(usagePatch);
     }
 
     if (this.hasReceivedUsageUpdate) return;
@@ -3407,6 +3510,13 @@ This identity statement takes priority over the default identity in USER.md.
       case 'text':
         if (message.position === 'left') {
           this.lastAssistantTextMsgId = message.msg_id || message.id;
+          // Apply pending token usage if it arrived before the assistant text
+          if (this.pendingTokenUsage) {
+            const pendingUsage = this.pendingTokenUsage;
+            this.pendingTokenUsage = null;
+            mainLog('[AcpAgent]', `[PENDING-USAGE] Applying pending usage to msg_id=${this.lastAssistantTextMsgId}: total=${pendingUsage.totalTokens}`);
+            this.patchAssistantTokenUsage(this.lastAssistantTextMsgId, pendingUsage);
+          }
         }
         responseMessage.type = 'content';
         responseMessage.data = message.content.content;
