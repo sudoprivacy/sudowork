@@ -28,7 +28,6 @@ import { STORAGE_KEYS } from '@/common/storageKeys';
 import { showShareLoading, updateShareSuccess, updateShareError } from '@/renderer/utils/shareNotify';
 import FlexFullContainer from '@/renderer/components/FlexFullContainer';
 import EmptyState from '@/renderer/components/base/EmptyState';
-import { useLayoutContext } from '@/renderer/context/LayoutContext';
 import useDebounce from '@/renderer/hooks/useDebounce';
 import { usePreviewContext } from '@/renderer/pages/conversation/preview';
 import { emitter } from '@/renderer/utils/emitter';
@@ -75,8 +74,6 @@ const ChangeWorkspaceIcon: React.FC<React.SVGProps<SVGSVGElement>> = ({ classNam
 
 const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, eventPrefix = 'acp', backend, dataSource = 'local', readonly = false, messageApi: externalMessageApi, workspaceDisplayName: storedDisplayName }) => {
   const { t } = useTranslation();
-  const layout = useLayoutContext();
-  const isMobile = layout?.isMobile ?? false;
   const { openPreview } = usePreviewContext();
   const navigate = useNavigate();
 
@@ -1245,7 +1242,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
               />
             ) : (
               <Tree
-                className={`${isMobile ? '!pl-20px !pr-10px chat-workspace-tree--mobile' : '!pl-32px !pr-16px'} workspace-tree`}
+                className='!pl-32px !pr-16px workspace-tree'
                 showLine
                 key={treeHook.treeKey}
                 selectedKeys={treeHook.selected}
@@ -1288,36 +1285,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                         <span className='overflow-hidden text-ellipsis whitespace-nowrap flex-1 min-w-0'>{displayTitle}</span>
                         {isPasteTarget && <span className='ml-1 text-xs text-blue-700 font-bold bg-blue-500 text-white px-1.5 py-0.5 rounded flex-shrink-0'>PASTE</span>}
                       </span>
-                      <span className='flex items-center gap-6px flex-shrink-0'>
-                        {!isFile && directFileCount > 0 && <span className='workspace-tree__count-badge'>{directFileCount}</span>}
-                        {isMobile && (
-                          <button
-                            type='button'
-                            className='workspace-header__toggle workspace-node-more-btn h-28px w-28px rd-8px f-center text-secondary hover:text-foreground active:text-foreground flex-shrink-0'
-                            aria-label={t('common.more')}
-                            onMouseDown={(event) => {
-                              event.stopPropagation();
-                            }}
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              const rect = (event.currentTarget as HTMLButtonElement).getBoundingClientRect();
-                              const menuWidth = 220;
-                              const menuHeight = 220;
-                              const maxX = typeof window !== 'undefined' ? Math.max(8, window.innerWidth - menuWidth - 8) : rect.left;
-                              const maxY = typeof window !== 'undefined' ? Math.max(8, window.innerHeight - menuHeight - 8) : rect.bottom;
-                              const menuX = Math.min(Math.max(8, rect.left - menuWidth + rect.width), maxX);
-                              const menuY = Math.min(Math.max(8, rect.bottom + 4), maxY);
-                              openNodeContextMenu(nodeData, menuX, menuY);
-                            }}
-                          >
-                            <div className='flex flex-col gap-2px items-center justify-center' style={{ width: '12px', height: '12px' }}>
-                              <div className='w-2px h-2px rounded-full bg-current'></div>
-                              <div className='w-2px h-2px rounded-full bg-current'></div>
-                              <div className='w-2px h-2px rounded-full bg-current'></div>
-                            </div>
-                          </button>
-                        )}
-                      </span>
+                      <span className='flex items-center gap-6px flex-shrink-0'>{!isFile && directFileCount > 0 && <span className='workspace-tree__count-badge'>{directFileCount}</span>}</span>
                     </div>
                   );
                 }}
