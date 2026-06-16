@@ -19,12 +19,9 @@ import { usePresetAssistantInfo } from '@/renderer/hooks/usePresetAssistantInfo'
 import { useTerminalActiveCount } from '@/renderer/hooks/useTerminalActiveCount';
 import { CronJobIndicator } from '@/renderer/pages/cron';
 import { cleanupSiderTooltips, getSiderTooltipProps } from '@/renderer/utils/siderTooltip';
-import { useLayoutContext } from '@/renderer/context/LayoutContext';
 
 const ConversationRow: React.FC<ConversationRowProps> = (props) => {
   const { conversation, collapsed, tooltipEnabled, batchMode, checked, selected, menuVisible } = props;
-  const layout = useLayoutContext();
-  const isMobile = layout?.isMobile ?? false;
   const { onToggleChecked, onConversationClick, onOpenMenu, onMenuVisibleChange, onEditStart, onDelete, onExport, onTogglePin, getJobStatus } = props;
   const { t } = useTranslation();
 
@@ -38,9 +35,9 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
   const cronStatus = getJobStatus(conversation.id);
   const ptyActiveCount = useTerminalActiveCount(conversation.id);
   const siderTooltipProps = getSiderTooltipProps(tooltipEnabled);
-  const inlineNameTooltipEnabled = !collapsed && !isMobile && !!conversation.name;
+  const inlineNameTooltipEnabled = !collapsed && !!conversation.name;
 
-  const actionReserveClass = isPinned ? (isMobile ? 'mr-56px' : 'mr-36px') : isMobile || menuVisible ? 'mr-36px' : 'group-hover:mr-36px';
+  const actionReserveClass = isPinned ? 'mr-36px' : menuVisible ? 'mr-36px' : 'group-hover:mr-36px';
 
   const renderLeadingIcon = () => {
     if (cronStatus !== 'none') {
@@ -119,8 +116,8 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
         {!batchMode && (
           <div
             className={classNames('absolute right-0px top-0px h-full items-center justify-end !collapsed-hidden pr-8px', {
-              flex: isMobile || isPinned || menuVisible,
-              'hidden group-hover:flex': !isMobile && !isPinned && !menuVisible,
+              flex: isPinned || menuVisible,
+              'hidden group-hover:flex': !isPinned && !menuVisible,
             })}
             style={{
               backgroundImage: `linear-gradient(to right, transparent, var(--row-fade) 50%)`,
@@ -195,8 +192,8 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
             >
               <span
                 className={classNames('f-center cursor-pointer hover:bg-fill-2 rd-4px p-4px transition-colors relative text-foreground', {
-                  flex: isMobile || menuVisible,
-                  'hidden group-hover:flex': !isMobile && !menuVisible,
+                  flex: menuVisible,
+                  'hidden group-hover:flex': !menuVisible,
                 })}
                 onClick={(event) => {
                   event.stopPropagation();
