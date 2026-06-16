@@ -58,25 +58,6 @@ body {
   pointer-events: none;
 }
 
-.app-titlebar__brand-logo {
-  width: 26px;
-  height: 26px;
-  display: block;
-  color: inherit;
-}
-
-.app-titlebar__brand-text {
-  display: block;
-  font-size: 16px;
-  font-weight: 700;
-  line-height: 1;
-  color: inherit;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 42vw;
-}
-
 .app-titlebar__toolbar {
   display: flex;
   align-items: center;
@@ -430,24 +411,6 @@ body,
   transform: translateY(1px);
 }
 
-.sidebar-segmented-control {
-  background: transparent;
-  border-radius: 10px;
-}
-
-.sidebar-segmented-control__item {
-  color: var(--text-secondary);
-}
-
-.sidebar-segmented-control__item--active {
-  background: var(--bg-hover) !important;
-  color: var(--foreground) !important;
-}
-
-.sidebar-segmented-control__item--active:hover {
-  background: var(--bg-active) !important;
-}
-
 /* 用 Arco Tabs line 仅当切换器，无内容面板 */
 .sidebar-tabs.arco-tabs .arco-tabs-content {
   display: none;
@@ -598,9 +561,7 @@ body,
   --row-fade: var(--bg-active);
 }
 
-.chat-history__item-name,
-.chat-history__item-editor,
-.settings-sider__item-label {
+.chat-history__item-name {
   transition:
     opacity 0.25s ease,
     transform 0.25s ease;
@@ -614,11 +575,6 @@ body,
   max-width: 100%;
 }
 
-.settings-sider__item-label {
-  display: block;
-}
-
-.chat-history__placeholder,
 .chat-history__section {
   transition:
     opacity 0.3s ease,
@@ -627,44 +583,16 @@ body,
     padding 0.3s ease;
 }
 
-.chat-history__placeholder {
-  max-height: 140px;
-}
-
 .chat-history__section {
   max-height: 60px; /* 增加高度以适应缩放，避免文字被裁剪 */
-}
-
-.chat-history--collapsed .chat-history__placeholder,
-.chat-history--collapsed .chat-history__section {
-  opacity: 0;
-  max-height: 0;
-  margin-top: 0 !important;
-  margin-bottom: 0 !important;
-  padding-top: 0 !important;
-  padding-bottom: 0 !important;
-}
-
-.chat-history--collapsed .chat-history__item-name,
-.chat-history--collapsed .chat-history__item-editor {
-  opacity: 0;
-  transform: translateX(-8px);
-}
-
-.settings-sider--collapsed .settings-sider__item-label {
-  opacity: 0;
-  transform: translateX(-8px);
 }
 
 @media (prefers-reduced-motion: reduce) {
   .chat-history,
   .chat-history__item,
   .chat-history__item-name,
-  .chat-history__item-editor,
   .settings-sider,
   .settings-sider__item,
-  .settings-sider__item-label,
-  .chat-history__placeholder,
   .chat-history__section {
     transition: none;
   }
@@ -859,29 +787,6 @@ body,
 .sendbox-tools .sendbox-model-btn:focus,
 .sendbox-tools .sendbox-model-btn:focus-visible {
   color: var(--foreground) !important;
-}
-
-/* 模型设置 +/-/编辑 按钮：常态融入行背景，hover/focus 才显高亮块 */
-.model-provider-action-btn.arco-btn {
-  background-color: transparent !important;
-  border-color: transparent !important;
-  box-shadow: none !important;
-  transition:
-    background-color 0.18s ease,
-    color 0.18s ease;
-}
-
-[data-theme='light'] .model-provider-action-btn.arco-btn:hover,
-[data-theme='light'] .model-provider-action-btn.arco-btn:focus-visible,
-[data-theme='light'] .model-provider-action-btn.arco-btn:active {
-  background-color: var(--fill-0) !important;
-  border-color: var(--color-border-2) !important;
-}
-
-[data-theme='dark'] .model-provider-action-btn.arco-btn:hover,
-[data-theme='dark'] .model-provider-action-btn.arco-btn:focus-visible,
-[data-theme='dark'] .model-provider-action-btn.arco-btn:active {
-  background-color: var(--color-bg-1) !important;
 }
 
 .chat-workspace .workspace-search-input .arco-input-inner-wrapper {
