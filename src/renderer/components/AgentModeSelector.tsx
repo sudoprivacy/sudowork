@@ -398,7 +398,7 @@ const AgentModePill = forwardRef<HTMLDivElement, AgentModePillProps>(function Ag
       <span className='shrink-0 inline-flex items-center'>{renderLogo()}</span>
       {!hideText && (
         <>
-          <span className='text-sm text-foreground whitespace-nowrap'>{displayName}</span>
+          <span className='text-sm whitespace-nowrap'>{displayName}</span>
           {canSwitchMode && modeSuffix && <span className='text-xs text-tertiary whitespace-nowrap'>({modeSuffix})</span>}
         </>
       )}

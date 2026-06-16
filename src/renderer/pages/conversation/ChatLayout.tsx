@@ -542,7 +542,7 @@ const ChatLayout: React.FC<{
 
   return (
     <ArcoLayout
-      className='size-full color-black '
+      className='size-full'
       style={
         {
           // fontFamily: `cursive,"anthropicSans","anthropicSans Fallback",system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif`,
