@@ -220,7 +220,7 @@ export function mergeSudorouterIntoScodeConfig(existing: ScodeConfig | null | un
     nextModels[normalizeModelAlias(modelId)] = buildSudorouterModelEntry(modelId);
   }
 
-  const defaultModel = resolveDefaultModelAlias(existing?.default_model, nextModels) || modelIds[0];
+  const defaultModel = SCODE_AUTO_MODEL_ALIAS;
   const nextConfig: ScodeConfig = {
     ...existing,
     auth_modes: {
