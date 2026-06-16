@@ -1148,6 +1148,7 @@ export class ActionExecutor {
 
       // Update message with error
       const errorResponse = buildChatErrorResponse(error.message);
+      errorResponse.replyMarkup = getErrorRecoveryMarkup(context.platform as PluginType, error.message);
       if (supportsEdit && thinkingMsgId) {
         await context.editMessage(thinkingMsgId, errorResponse);
       } else {
