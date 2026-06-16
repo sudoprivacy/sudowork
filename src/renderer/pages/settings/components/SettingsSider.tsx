@@ -9,7 +9,7 @@ import { useExtI18n } from '@/renderer/hooks/useExtI18n';
 import { extensions as extensionsIpc, type IExtensionSettingsTab } from '@/common/ipcBridge';
 import { isElectronDesktop, resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import { getSiderTooltipProps } from '@/renderer/utils/siderTooltip';
-import SidebarNavItem from '@/renderer/components/ui/SidebarNavItem';
+import SidebarNavItem from '@/renderer/layouts/components/SidebarNavItem';
 
 /** Builtin settings tab IDs in display order (must match router paths). */
 const BUILTIN_TAB_IDS = ['profile', 'recharge', 'members', 'model', 'agent', 'tools', 'skill', 'security', 'display', 'webui', 'runtime', 'system', 'about'] as const; // 隐藏'copilot'；'cron'已移至左侧边栏

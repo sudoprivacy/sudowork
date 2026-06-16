@@ -16,8 +16,8 @@ import { useMultiAgentDetection } from '@renderer/hooks/useMultiAgentDetection';
 import { cleanupSiderTooltips } from '@renderer/utils/siderTooltip';
 import { emitter } from '@renderer/utils/emitter';
 import SudoworkIcon from '@renderer/assets/sudowork-icon-dark.svg';
-import Sider from '@renderer/layouts/sider';
-import Titlebar from '@/renderer/components/Titlebar';
+import Sider from '@/renderer/layouts/components/Sider';
+import Titlebar from '@/renderer/layouts/components/TitleBar';
 import { ConfigStorage } from '@/common/storage';
 import { ipcBridge } from '@/common';
 
