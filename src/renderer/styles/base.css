@@ -74,15 +74,6 @@ body {
   max-width: 42vw;
 }
 
-.chat-layout-header--mobile-unified {
-  height: 46px !important;
-  min-height: 46px;
-  padding: 0 12px !important;
-  background: linear-gradient(180deg, var(--bg-2) 0%, transparent 100%) !important;
-  border-bottom: none;
-  box-shadow: none;
-}
-
 .app-titlebar__toolbar {
   display: flex;
   align-items: center;
@@ -202,115 +193,6 @@ body,
 
 .bg-animate {
   animation: bg-animate 1s alternate infinite;
-}
-
-@media (max-width: 767px) {
-  html {
-    -webkit-text-size-adjust: 100%;
-  }
-
-  .message-item .markdown-shadow-body {
-    font-size: 16px !important;
-    line-height: 1.6 !important;
-  }
-
-  .message-item .markdown-shadow-body p,
-  .message-item .markdown-shadow-body li,
-  .message-item .markdown-shadow-body blockquote {
-    font-size: 16px !important;
-    line-height: 1.6 !important;
-  }
-
-  .chat-history__item-name {
-    font-size: 15px !important;
-    line-height: 24px !important;
-  }
-
-  .chat-history__section {
-    font-size: 14px !important;
-    line-height: 20px !important;
-  }
-
-  .chat-workspace .workspace-toolbar-search {
-    padding-bottom: 10px !important;
-  }
-
-  .chat-workspace .workspace-search-input .arco-input-inner-wrapper,
-  .chat-workspace .workspace-search-input .arco-input {
-    min-height: 40px;
-    font-size: 15px !important;
-    line-height: 22px !important;
-  }
-
-  .chat-workspace .workspace-toolbar-row {
-    min-height: 40px;
-    align-items: center;
-  }
-
-  .chat-workspace .workspace-title-label {
-    font-size: 15px !important;
-    line-height: 24px !important;
-  }
-
-  .chat-workspace .workspace-toolbar-actions {
-    gap: 10px !important;
-  }
-
-  .chat-workspace .workspace-toolbar-icon-btn {
-    width: 28px;
-    height: 28px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .chat-workspace .workspace-tree .arco-tree-node-title {
-    font-size: 15px !important;
-    line-height: 24px !important;
-  }
-
-  .chat-workspace .workspace-tree .arco-tree-node-title-wrapper {
-    min-height: 34px;
-    display: flex;
-    align-items: center;
-  }
-
-  .chat-workspace .workspace-node-more-btn {
-    width: 32px !important;
-    height: 32px !important;
-    border-radius: 10px !important;
-  }
-
-  .chat-workspace .workspace-tree .arco-tree-node {
-    margin-bottom: 2px;
-  }
-
-  .agent-mode-compact-pill {
-    min-height: 32px !important;
-    height: 32px !important;
-    padding: 0 10px !important;
-    border-radius: 999px !important;
-  }
-
-  .agent-mode-compact-pill .arco-btn-content {
-    line-height: 1;
-  }
-
-  .agent-mode-compact-pill--readonly,
-  .agent-mode-compact-pill--readonly:hover,
-  .agent-mode-compact-pill--readonly:active,
-  .agent-mode-compact-pill--readonly:focus,
-  .agent-mode-compact-pill--readonly:focus-visible {
-    cursor: default !important;
-    pointer-events: none !important;
-    background: var(--color-fill-2) !important;
-    border: none !important;
-    box-shadow: none !important;
-  }
-
-  .chat-header-cron-pill {
-    margin-right: 4px;
-  }
 }
 
 .cron-create-chip,
@@ -458,62 +340,6 @@ body,
   }
   .\!collapsed-hidden {
     display: none !important;
-  }
-}
-
-/* 移动端安全区工具类；iOS 17+ Chrome/Safari 需在 CSS 用 env() 而非内联样式 */
-@supports (padding-bottom: env(safe-area-inset-bottom)) {
-  .safe-area-bottom {
-    padding-bottom: env(safe-area-inset-bottom, 0px);
-  }
-
-  .safe-area-top {
-    padding-top: env(safe-area-inset-top, 0px);
-  }
-}
-
-/* 移动端侧栏定位：用 dvh 适配移动浏览器 chrome 高度变化 */
-@media (max-width: 767px) {
-  .sider-tooltip-popup {
-    display: none !important;
-    pointer-events: none !important;
-  }
-
-  .layout-sider {
-    top: 0 !important;
-    height: 100vh !important;
-    height: 100dvh !important;
-    display: flex !important;
-    flex-direction: column !important;
-    /* 用 padding 处理安全区，而非调整 height */
-    padding-top: env(safe-area-inset-top, 0px);
-    padding-bottom: env(safe-area-inset-bottom, 0px);
-    box-sizing: border-box !important;
-  }
-
-  .layout-sider > .arco-layout-sider-children {
-    display: flex !important;
-    flex-direction: column !important;
-    flex: 1 !important;
-    min-height: 0 !important;
-    height: auto !important;
-  }
-
-  .layout-sider-header {
-    flex-shrink: 0 !important;
-  }
-
-  .layout-sider-content {
-    flex: 1 !important;
-    min-height: 0 !important;
-    height: auto !important;
-    overflow: hidden !important;
-  }
-
-  /* footer 固定底部，额外 padding 兜底 iOS Chrome */
-  .sider-footer {
-    flex-shrink: 0 !important;
-    padding-bottom: 20px;
   }
 }
 
@@ -707,13 +533,6 @@ body,
 /* 拖动时禁用过渡，保证流畅 */
 .layout-sider--dragging {
   transition: none !important;
-}
-
-@media (max-width: 767px) {
-  /* 移动端用 transform 动画，性能更好 */
-  .layout-sider {
-    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1001,12 +820,6 @@ body,
   width: 100% !important;
   padding-left: 266px;
   box-sizing: border-box;
-}
-
-@media (max-width: 767px) {
-  .arco-message-wrapper {
-    padding-left: 0;
-  }
 }
 
 .arco-select-view,
