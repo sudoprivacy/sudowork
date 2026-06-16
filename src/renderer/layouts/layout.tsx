@@ -18,9 +18,9 @@ import { emitter } from '@renderer/utils/emitter';
 import SudoworkIcon from '@renderer/assets/sudowork-icon-dark.svg';
 import Sider from '@renderer/layouts/sider';
 import Titlebar from '@/renderer/components/Titlebar';
-import { useCommandPalette } from '@/renderer/hooks/useCommandPalette';
-import CommandPalette from '@/renderer/components/CommandPalette';
-import PwaPullToRefresh from '@/renderer/components/PwaPullToRefresh';
+// import { useCommandPalette } from '@/renderer/hooks/useCommandPalette';
+// import CommandPalette from '@/renderer/components/CommandPalette';
+// import PwaPullToRefresh from '@/renderer/components/PwaPullToRefresh';
 import { ConfigStorage } from '@/common/storage';
 import { ipcBridge } from '@/common';
 
@@ -60,7 +60,7 @@ const DEFAULT_SIDER_WIDTH = 260;
 
 const Layout: React.FC = () => {
   const { config } = useTenantConfig(); // 获取租户配置
-  const { visible: commandPaletteVisible, close: closeCommandPalette } = useCommandPalette();
+  // const { visible: commandPaletteVisible, close: closeCommandPalette } = useCommandPalette();
   const [collapsed, setCollapsed] = useState(false);
   const { onClick } = useDebug();
   const navigate = useNavigate();
@@ -134,12 +134,12 @@ const Layout: React.FC = () => {
             <Outlet />
             {multiAgentContextHolder}
             {directorySelectionContextHolder}
-            <PwaPullToRefresh />
+            {/* <PwaPullToRefresh /> */}
             <Suspense fallback={null}>
               <UpdateModal />
             </Suspense>
             {/* Safety warning modal is hidden while the safety hook feature is disabled. */}
-            <CommandPalette visible={commandPaletteVisible} onClose={closeCommandPalette} />
+            {/* <CommandPalette visible={commandPaletteVisible} onClose={closeCommandPalette} /> */}
           </ArcoLayout.Content>
         </ArcoLayout>
       </div>

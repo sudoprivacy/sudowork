@@ -4,12 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
-import type { TChatConversation } from '@/common/storage';
 import { Search, FileSuccess, History, Setting, Star } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import type { TChatConversation } from '@/common/storage';
+import { ipcBridge } from '@/common';
 import { emitter } from '@/renderer/utils/emitter';
 import { getActivityTime } from '@/renderer/utils/timeline';
 import { formatSessionTime } from '@/renderer/utils/messageTime';
