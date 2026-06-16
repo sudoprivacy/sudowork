@@ -639,7 +639,7 @@ const WebviewHost: React.FC<WebviewHostProps> = ({ url, id: _id, showNavBar = fa
 
       {/* Loading indicator (when no nav bar) */}
       {!showNavBar && isLoading && (
-        <div className='absolute inset-0 flex items-center justify-center text-secondary text-14px z-10 pointer-events-none'>
+        <div className='absolute inset-0 f-center text-secondary text-14px z-10 pointer-events-none'>
           <span className='animate-pulse'>{t('conversation.rightPanel.browser.loading')}</span>
         </div>
       )}

@@ -358,7 +358,7 @@ const UpdateModal: React.FC = () => {
       case 'upToDate':
         return (
           <div className='flex flex-col items-center justify-center py-48px'>
-            <div className='w-56px h-56px bg-success-soft rounded-full flex items-center justify-center mb-20px'>
+            <div className='w-56px h-56px bg-success-soft rounded-full f-center mb-20px'>
               <CheckOne theme='filled' size='28' fill='var(--success)' />
             </div>
             <div className='text-16px text-foreground font-600 mb-8px'>{t('update.upToDateTitle')}</div>
@@ -434,7 +434,7 @@ const UpdateModal: React.FC = () => {
       case 'downloading':
         return (
           <div className='flex flex-col items-center justify-center py-48px px-32px'>
-            <div className='w-56px h-56px bg-[rgb(var(--primary-6))]/12 rounded-full flex items-center justify-center mb-20px'>
+            <div className='w-56px h-56px bg-[rgb(var(--primary-6))]/12 rounded-full f-center mb-20px'>
               <Download size='24' fill='rgb(var(--primary-6))' className='animate-bounce' />
             </div>
             <div className='text-16px text-foreground font-600 mb-20px'>{t('update.downloadingTitle')}</div>
@@ -453,7 +453,7 @@ const UpdateModal: React.FC = () => {
       case 'downloaded':
         return (
           <div className='flex flex-col items-center justify-center py-48px px-32px'>
-            <div className='w-56px h-56px bg-success-soft rounded-full flex items-center justify-center mb-20px'>
+            <div className='w-56px h-56px bg-success-soft rounded-full f-center mb-20px'>
               <CheckOne theme='filled' size='28' fill='var(--success)' />
             </div>
             <div className='text-16px text-foreground font-600 mb-8px'>{t('update.readyToInstall')}</div>
@@ -472,7 +472,7 @@ const UpdateModal: React.FC = () => {
       case 'success':
         return (
           <div className='flex flex-col items-center justify-center py-48px px-32px'>
-            <div className='w-56px h-56px bg-success-soft rounded-full flex items-center justify-center mb-20px'>
+            <div className='w-56px h-56px bg-success-soft rounded-full f-center mb-20px'>
               <CheckOne theme='filled' size='28' fill='var(--success)' />
             </div>
             <div className='text-16px text-foreground font-600 mb-8px'>{t('update.downloadCompleteTitle')}</div>
@@ -491,7 +491,7 @@ const UpdateModal: React.FC = () => {
       case 'error':
         return (
           <div className='flex flex-col items-center justify-center py-48px px-32px'>
-            <div className='w-56px h-56px bg-danger-soft rounded-full flex items-center justify-center mb-20px'>
+            <div className='w-56px h-56px bg-danger-soft rounded-full f-center mb-20px'>
               <CloseOne theme='filled' size='28' fill='var(--danger)' />
             </div>
             <div className='text-16px text-foreground font-600 mb-8px'>{t('update.errorTitle')}</div>

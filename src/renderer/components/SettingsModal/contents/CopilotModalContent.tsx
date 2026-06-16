@@ -9,11 +9,10 @@ import type { SudoclawConfig, SudoclawProvider, ISudoclawStatus } from '@/common
 import { buildScodeConfigFromSudoclawConfig } from '@/common/sudoworkAuthLogin';
 import { mergeSudorouterIntoScodeConfig } from '@/common/scodeConfig';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
-import { Alert, Button, Card, Collapse, Form, Input, Message, Modal, Popconfirm, Select, Space, Spin, Tag, Tooltip, Typography } from '@arco-design/web-react';
-import { Delete, Edit, Folder, Plus, Refresh, Robot, User } from '@icon-park/react';
+import { Alert, Button, Card, Form, Message, Modal, Space, Spin, Tag, Tooltip, Typography } from '@arco-design/web-react';
+import { Folder, Refresh, Robot, User } from '@icon-park/react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { fs } from '@/common/ipcBridge';
 
 const { Title, Text } = Typography;
 
@@ -52,7 +51,7 @@ const StatusCard: React.FC<{
   return (
     <Card className='rd-12px hover:shadow-md transition-shadow'>
       <div className='flex items-start gap-12px'>
-        <div className='w-48px h-48px rounded-12px flex items-center justify-center flex-shrink-0' style={{ backgroundColor: colors.bg }}>
+        <div className='w-48px h-48px rounded-12px f-center flex-shrink-0' style={{ backgroundColor: colors.bg }}>
           {icon}
         </div>
         <div className='flex-1 min-w-0'>

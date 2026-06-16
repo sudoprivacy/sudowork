@@ -13,7 +13,7 @@
 import { ipcBridge, skillHub } from '@/common';
 import type { IInstalledSkillInfo } from '@/common/ipcBridge';
 import { getPresetById } from '@/common/presets/presetResolver';
-import { resolveAssistantName, fetchAssistantsAsConfigs } from '@/renderer/shared/agents/assistantAdapter';
+import { resolveAssistantName } from '@/renderer/shared/agents/assistantAdapter';
 import type { AcpBackendConfig } from '@/types/acpTypes';
 import { DEFAULT_PRESET_AGENT_TYPE, normalizePresetAgentType } from '@/types/acpTypes';
 import { getAgentLogo } from '@/renderer/utils/agentLogo';
@@ -520,9 +520,9 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
                             {icon ? (
                               <img src={icon} alt={displayName} className='w-full h-full object-cover' onError={handleSkillIconError} />
                             ) : emoji ? (
-                              <div className='w-full h-full flex items-center justify-center text-22px'>{emoji}</div>
+                              <div className='w-full h-full f-center text-22px'>{emoji}</div>
                             ) : (
-                              <div className='w-full h-full flex items-center justify-center bg-primary-light'>
+                              <div className='w-full h-full f-center bg-primary-light'>
                                 <Lightning size='22' className='text-primary' />
                               </div>
                             )}
@@ -588,9 +588,9 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
                             {icon ? (
                               <img src={icon} alt={displayName} className='w-full h-full object-cover' onError={handleSkillIconError} />
                             ) : emoji ? (
-                              <div className='w-full h-full flex items-center justify-center text-22px'>{emoji}</div>
+                              <div className='w-full h-full f-center text-22px'>{emoji}</div>
                             ) : (
-                              <div className='w-full h-full flex items-center justify-center bg-primary-light'>
+                              <div className='w-full h-full f-center bg-primary-light'>
                                 <Lightning size='22' className='text-primary' />
                               </div>
                             )}

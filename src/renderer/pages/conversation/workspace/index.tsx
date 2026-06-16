@@ -884,7 +884,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
         }
       >
         {!readonly && dragImportHook.isDragging && (
-          <div className='absolute inset-0 pointer-events-none z-30 flex items-center justify-center px-32px'>
+          <div className='absolute inset-0 pointer-events-none z-30 f-center px-32px'>
             <div
               className='w-full max-w-480px text-center text-white rounded-16px px-32px py-28px'
               style={{
@@ -1293,7 +1293,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                         {isMobile && (
                           <button
                             type='button'
-                            className='workspace-header__toggle workspace-node-more-btn h-28px w-28px rd-8px flex items-center justify-center text-secondary hover:text-foreground active:text-foreground flex-shrink-0'
+                            className='workspace-header__toggle workspace-node-more-btn h-28px w-28px rd-8px f-center text-secondary hover:text-foreground active:text-foreground flex-shrink-0'
                             aria-label={t('common.more')}
                             onMouseDown={(event) => {
                               event.stopPropagation();

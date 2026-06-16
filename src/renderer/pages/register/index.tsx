@@ -75,7 +75,7 @@ const RegisterPage: React.FC = () => {
     return (
       <div className='login-page'>
         <div className='login-page__card text-center flex flex-col items-center gap-24px py-48px'>
-          <div className='w-64px h-64px rd-full flex items-center justify-center bg-danger/10 text-danger'>
+          <div className='w-64px h-64px rd-full f-center bg-danger/10 text-danger'>
             <Protect theme='filled' size={32} />
           </div>
           <div>

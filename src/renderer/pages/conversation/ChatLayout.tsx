@@ -88,7 +88,7 @@ const ConversationHeaderToggle: React.FC<ConversationHeaderToggleProps> = ({ col
     <Tooltip content={title} position='bottom'>
       <button
         type='button'
-        className='conversation-toggle-floating absolute left-0 top-1/2 flex items-center justify-center rounded-full pointer-events-auto transition-colors duration-200 -translate-y-1/2'
+        className='conversation-toggle-floating absolute left-0 top-1/2 f-center rounded-full pointer-events-auto transition-colors duration-200 -translate-y-1/2'
         style={{
           width: '34px',
           height: '34px',
@@ -763,7 +763,7 @@ const ChatLayout: React.FC<{
         {workspaceEnabled && layout?.isMobile && !rightSiderCollapsed && (
           <button
             type='button'
-            className='fixed z-101 flex items-center justify-center transition-colors workspace-toggle-floating'
+            className='fixed z-101 f-center transition-colors workspace-toggle-floating'
             style={{
               top: '50%',
               right: `${mobileWorkspaceHandleRight}px`,

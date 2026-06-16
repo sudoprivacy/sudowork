@@ -127,7 +127,7 @@ const EmojiPicker: React.FC<EmojiPickerProps> = ({ value, onChange, children, pl
       {/* Category Tabs */}
       <div className='flex items-center gap-2px px-8px py-6px border-b border-[var(--color-border-2)] overflow-x-auto'>
         {categoryKeys.map((key) => (
-          <button key={key} className={`flex-shrink-0 w-28px h-28px flex items-center justify-center rounded-md text-16px cursor-pointer border-none bg-transparent hover:bg-fill-2 transition-colors ${activeCategory === key ? 'bg-fill-2' : ''}`} onClick={() => setActiveCategory(key)} title={EMOJI_CATEGORIES[key].label}>
+          <button key={key} className={`flex-shrink-0 w-28px h-28px f-center rounded-md text-16px cursor-pointer border-none bg-transparent hover:bg-fill-2 transition-colors ${activeCategory === key ? 'bg-fill-2' : ''}`} onClick={() => setActiveCategory(key)} title={EMOJI_CATEGORIES[key].label}>
             {EMOJI_CATEGORIES[key].icon}
           </button>
         ))}
@@ -138,7 +138,7 @@ const EmojiPicker: React.FC<EmojiPickerProps> = ({ value, onChange, children, pl
         {currentEmojis.length > 0 ? (
           <div className='grid grid-cols-8 gap-2px'>
             {currentEmojis.map((emoji: string, index: number) => (
-              <button key={`${emoji}-${index}`} className='w-32px h-32px flex items-center justify-center text-20px cursor-pointer border-none bg-transparent rounded-md hover:bg-fill-2 transition-colors' onClick={() => handleSelectEmoji(emoji)}>
+              <button key={`${emoji}-${index}`} className='w-32px h-32px f-center text-20px cursor-pointer border-none bg-transparent rounded-md hover:bg-fill-2 transition-colors' onClick={() => handleSelectEmoji(emoji)}>
                 {emoji}
               </button>
             ))}
@@ -152,7 +152,7 @@ const EmojiPicker: React.FC<EmojiPickerProps> = ({ value, onChange, children, pl
 
   return (
     <Popover trigger='click' position={placement} popupVisible={visible} onVisibleChange={setVisible} content={pickerContent} unmountOnExit>
-      {children || <div className='w-40px h-40px flex items-center justify-center text-24px bg-fill-2 rounded-lg cursor-pointer hover:bg-fill-3 transition-colors'>{value || '😀'}</div>}
+      {children || <div className='w-40px h-40px f-center text-24px bg-fill-2 rounded-lg cursor-pointer hover:bg-fill-3 transition-colors'>{value || '😀'}</div>}
     </Popover>
   );
 };

@@ -423,7 +423,7 @@ const LoginPage: React.FC = () => {
     return (
       <div className='login-page'>
         <div className='login-page__card text-center flex flex-col items-center gap-24px py-48px'>
-          <div className={`w-64px h-64px rd-full flex items-center justify-center ${statusMsg.type === 'rejected' ? 'bg-danger/10 text-danger' : 'bg-warning/10 text-warning'}`}>
+          <div className={`w-64px h-64px rd-full f-center ${statusMsg.type === 'rejected' ? 'bg-danger/10 text-danger' : 'bg-warning/10 text-warning'}`}>
             <Protect theme='filled' size={32} />
           </div>
           <div>

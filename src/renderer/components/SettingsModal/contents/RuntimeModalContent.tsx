@@ -629,7 +629,7 @@ const RuntimeModalContent: React.FC = () => {
                   <div key={record.key} className='py-14px first:pt-0 last:pb-0'>
                     <div className='flex flex-col gap-12px md:flex-row md:items-center md:justify-between md:gap-16px'>
                       <div className='flex items-center gap-12px min-w-0 flex-1'>
-                        <div className={classNames('w-28px h-28px rd-8px flex items-center justify-center flex-shrink-0 text-9px md:text-10px font-700 shadow-sm', badgeColors[record.key] || 'bg-blue-1 color-blue-6 border border-blue-3')}>{record.key === 'shareone' ? <ShareOne theme='outline' size={16} className='block' /> : record.badge}</div>
+                        <div className={classNames('w-28px h-28px rd-8px f-center flex-shrink-0 text-9px md:text-10px font-700 shadow-sm', badgeColors[record.key] || 'bg-blue-1 color-blue-6 border border-blue-3')}>{record.key === 'shareone' ? <ShareOne theme='outline' size={16} className='block' /> : record.badge}</div>
 
                         <div className='min-w-0 flex-1 space-y-4px'>
                           <div className='flex flex-col gap-4px lg:flex-row lg:items-center lg:gap-8px'>

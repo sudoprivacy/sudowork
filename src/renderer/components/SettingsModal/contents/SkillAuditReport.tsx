@@ -257,7 +257,7 @@ export const SkillAuditDetailModal: React.FC<{
             <button type='button' className='text-11px px-8px py-3px rd-4px bg-fill-2 hover:bg-fill-3 text-secondary cursor-pointer border-none outline-none transition-colors' onClick={() => void handleRerunAudit()} disabled={loading}>
               {t('settings.skill.audit.rerun', { defaultValue: '重新审计' })}
             </button>
-            <div className='w-28px h-28px flex items-center justify-center rd-full bg-fill-2 hover:bg-fill-3 cursor-pointer transition-colors text-secondary' onClick={onClose}>
+            <div className='w-28px h-28px f-center rd-full bg-fill-2 hover:bg-fill-3 cursor-pointer transition-colors text-secondary' onClick={onClose}>
               <Close size='14' />
             </div>
           </div>
@@ -412,7 +412,7 @@ export const SkillAuditReportModal: React.FC<{
             <span className='font-semibold text-15px text-foreground'>{t('settings.skill.audit.reportTitle', { defaultValue: '安全审计报告' })}</span>
             <span className='text-12px text-tertiary'>— {skillName}</span>
           </div>
-          <div className='w-28px h-28px flex items-center justify-center rd-full bg-fill-2 hover:bg-fill-3 cursor-pointer transition-colors text-secondary' onClick={onClose}>
+          <div className='w-28px h-28px f-center rd-full bg-fill-2 hover:bg-fill-3 cursor-pointer transition-colors text-secondary' onClick={onClose}>
             <Close size='14' />
           </div>
         </div>
