@@ -15,5 +15,3 @@ let mobileFocusBlockedUntil = 0;
 export const blockMobileInputFocus = (durationMs = 700): void => {
   mobileFocusBlockedUntil = Date.now() + Math.max(0, durationMs);
 };
-
-export const shouldBlockMobileInputFocus = (): boolean => Date.now() < mobileFocusBlockedUntil;
