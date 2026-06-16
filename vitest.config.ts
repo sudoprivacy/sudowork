@@ -1,8 +1,9 @@
-import { defineConfig } from 'vitest/config';
 import path from 'path';
+import { defineConfig } from 'vitest/config';
 
 const aliases = {
   '@/': path.resolve(__dirname, './src') + '/',
+  '@common/': path.resolve(__dirname, './src/common') + '/',
   '@process/': path.resolve(__dirname, './src/process') + '/',
   '@renderer/': path.resolve(__dirname, './src/renderer') + '/',
   '@worker/': path.resolve(__dirname, './src/worker') + '/',
