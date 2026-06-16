@@ -231,11 +231,6 @@ body,
     line-height: 20px !important;
   }
 
-  .sendbox-input--mobile {
-    font-size: 16px !important;
-    line-height: 24px !important;
-  }
-
   .chat-workspace .workspace-toolbar-search {
     padding-bottom: 10px !important;
   }
@@ -1048,26 +1043,6 @@ body,
 .sendbox-tools .sendbox-model-btn:focus,
 .sendbox-tools .sendbox-model-btn:focus-visible {
   color: var(--foreground) !important;
-}
-
-@media (max-width: 767px) {
-  .sendbox-tools-scroll-mobile {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    min-width: 0;
-    max-width: calc(100vw - 140px);
-    overflow-x: auto;
-    overflow-y: hidden;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-    touch-action: pan-x;
-  }
-
-  .sendbox-tools-scroll-mobile::-webkit-scrollbar {
-    display: none;
-  }
 }
 
 /* 模型设置 +/-/编辑 按钮：常态融入行背景，hover/focus 才显高亮块 */
