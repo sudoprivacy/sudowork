@@ -96,6 +96,12 @@ Common Prettier rules to follow (avoids needing a fix pass):
 
 ## Git Conventions
 
+### Branch Updates
+
+- When updating a PR branch with the latest `dev`, use `git rebase origin/dev`.
+- Do not merge `dev` into PR branches; merge commits are rejected by PR checks.
+- After rebasing an already-pushed PR branch, update it with `git push --force-with-lease`.
+
 ### Commit Messages
 
 - **Language**: English
