@@ -5,15 +5,18 @@ html,
 body {
   color: var(--foreground);
   font-family:
-    'PingFang SC',
-    'Microsoft YaHei',
+    system-ui,
     -apple-system,
     BlinkMacSystemFont,
     'Segoe UI',
     Roboto,
     'Helvetica Neue',
     Arial,
+    'PingFang SC',
+    'Hiragino Sans GB',
+    'Microsoft YaHei',
     sans-serif;
+  letter-spacing: 0.01em;
 }
 
 .app-titlebar {
@@ -1084,24 +1087,6 @@ body,
 /* 间隙露出与标题栏/侧栏一致的框体底色 */
 .layout {
   background-color: var(--bg-2);
-}
-
-/* 品牌外观规则（原 default-theme.css 文档级规则）；置于 base 之后以保持原注入顺序的层叠优先级 */
-
-body {
-  font-family:
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    'Segoe UI',
-    Roboto,
-    'Helvetica Neue',
-    Arial,
-    'PingFang SC',
-    'Hiragino Sans GB',
-    'Microsoft YaHei',
-    sans-serif;
-  letter-spacing: 0.01em;
 }
 
 ::-webkit-scrollbar {
