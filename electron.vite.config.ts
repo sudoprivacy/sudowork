@@ -1,9 +1,9 @@
-import { defineConfig, externalizeDepsPlugin } from 'electron-vite';
 import { resolve } from 'path';
 import { execSync } from 'child_process';
+import { defineConfig, externalizeDepsPlugin } from 'electron-vite';
 import UnoCSS from 'unocss/vite';
-import unoConfig from './uno.config.ts';
 import { viteStaticCopy } from 'vite-plugin-static-copy';
+import unoConfig from './uno.config.ts';
 
 // Icon Park transform plugin (replaces webpack icon-park-loader)
 function iconParkPlugin() {
