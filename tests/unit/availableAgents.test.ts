@@ -22,9 +22,8 @@ describe('availableAgents helpers', () => {
     expect(AVAILABLE_AGENTS_SWR_KEY).toBe('acp.agents.available');
   });
 
-  it('filters out gemini cli entries but keeps builtin gemini', () => {
+  it('filters out gemini agents from UI', () => {
     expect(filterAvailableAgentsForUi(agents)).toEqual([
-      { backend: 'gemini', name: 'Gemini' },
       { backend: 'claude', name: 'Claude Code', cliPath: '/usr/local/bin/claude' },
       { backend: 'custom', name: 'Custom Agent', customAgentId: 'custom-1' },
       { backend: 'custom', name: 'Preset Assistant', customAgentId: 'builtin-writer', isPreset: true },
@@ -35,7 +34,6 @@ describe('availableAgents helpers', () => {
   it('splits conversation dropdown agents into cli and preset groups', () => {
     expect(splitConversationDropdownAgents(filterAvailableAgentsForUi(agents))).toEqual({
       cliAgents: [
-        { backend: 'gemini', name: 'Gemini' },
         { backend: 'claude', name: 'Claude Code', cliPath: '/usr/local/bin/claude' },
       ],
       presetAssistants: [

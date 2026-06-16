@@ -8,8 +8,13 @@ import type { AvailableAgent } from './types';
 
 export const AVAILABLE_AGENTS_SWR_KEY = 'acp.agents.available';
 
+/**
+ * Single source of truth for which agents are visible in the UI.
+ * Backend `enabled` flag controls detection/MCP sync; this function
+ * controls what the user sees after detection.
+ */
 export function filterAvailableAgentsForUi(availableAgents: AvailableAgent[]): AvailableAgent[] {
-  return availableAgents;
+  return availableAgents.filter((agent) => agent.backend !== 'gemini');
 }
 
 export function splitConversationDropdownAgents(availableAgents: AvailableAgent[]): {
