@@ -9,7 +9,6 @@ import { AlarmClock, DeleteOne } from '@icon-park/react';
 import React, { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import dayjs from 'dayjs';
-import { useLayoutContext } from '@/renderer/context/LayoutContext';
 import type { ICronJob } from '@/common/ipcBridge';
 
 const FormItem = Form.Item;
@@ -25,8 +24,6 @@ interface CronJobDrawerProps {
 
 const CronJobDrawer: React.FC<CronJobDrawerProps> = ({ visible, job, onClose, onSave, onDelete }) => {
   const { t } = useTranslation();
-  const layout = useLayoutContext();
-  const isMobile = layout?.isMobile ?? false;
   const [form] = Form.useForm();
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -88,9 +85,8 @@ const CronJobDrawer: React.FC<CronJobDrawerProps> = ({ visible, job, onClose, on
 
   return (
     <Drawer
-      placement={isMobile ? 'bottom' : 'right'}
-      width={isMobile ? 'calc(100vw - 12px)' : 400}
-      height={isMobile ? 'min(84vh, 760px)' : undefined}
+      placement='right'
+      width={400}
       title={
         <div className='inline-flex items-center gap-8px'>
           <AlarmClock theme='outline' size={18} strokeWidth={4} fill='currentColor' className='flex items-center' />
@@ -102,7 +98,6 @@ const CronJobDrawer: React.FC<CronJobDrawerProps> = ({ visible, job, onClose, on
       bodyStyle={{
         overflowY: 'auto',
         overflowX: 'hidden',
-        padding: isMobile ? '14px 14px 18px' : undefined,
       }}
       footer={
         <div className='flex justify-between'>

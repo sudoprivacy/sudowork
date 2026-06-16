@@ -4,6 +4,23 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Checkbox, Input, Message, Modal, Tooltip, Tree } from '@arco-design/web-react';
+import type { RefInputType } from '@arco-design/web-react/es/Input/interface';
+import { Cloudy, DownSmall, FileText, FolderOpen, Magic, Refresh, Search } from '@icon-park/react';
+import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
+import { useWorkspaceEvents } from './hooks/useWorkspaceEvents';
+import { useWorkspaceFileOps } from './hooks/useWorkspaceFileOps';
+import { useWorkspaceModals } from './hooks/useWorkspaceModals';
+import { useWorkspacePaste } from './hooks/useWorkspacePaste';
+import { useWorkspaceTree } from './hooks/useWorkspaceTree';
+import { useWorkspaceDragImport } from './hooks/useWorkspaceDragImport';
+import WorkspaceSkills, { type WorkspaceSkillsHandle } from './WorkspaceSkills';
+import { resolveWorkspaceSkillRoot } from './skillRoots';
+import type { WorkspaceProps } from './types';
+import { extractNodeData, extractNodeKey, findNodeByKey, getTargetFolderPath, sortTreeNodes, updateTreeNodeChildren } from './utils/treeHelpers';
 import { ipcBridge } from '@/common';
 import type { IDirOrFile } from '@/common/ipcBridge';
 import { DRAFTS_DIR_NAME, isReservedDraftsDirName } from '@/common/constants';
@@ -17,29 +34,12 @@ import { usePreviewContext } from '@/renderer/pages/conversation/preview';
 import { emitter } from '@/renderer/utils/emitter';
 import { isElectronDesktop } from '@/renderer/utils/platform';
 import { getLastDirectoryName, isTemporaryWorkspace as checkIsTemporaryWorkspace, isChannelWorkspace as checkIsChannelWorkspace, getWorkspaceDisplayName as getDisplayName } from '@/renderer/utils/workspace';
-import { Checkbox, Input, Message, Modal, Tooltip, Tree } from '@arco-design/web-react';
-import type { RefInputType } from '@arco-design/web-react/es/Input/interface';
-import { Cloudy, DownSmall, FileText, FolderOpen, Magic, Refresh, Search } from '@icon-park/react';
 import { resolveFileIcon } from '@/renderer/utils/fileIcon';
-import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
-import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
 import DirectorySelectionModal from '@/renderer/components/DirectorySelectionModal';
 import BdpanDirPicker from '@/renderer/components/BdpanDirPicker';
 import { uuid } from '@/common/utils';
-import { useWorkspaceEvents } from './hooks/useWorkspaceEvents';
-import { useWorkspaceFileOps } from './hooks/useWorkspaceFileOps';
-import { useWorkspaceModals } from './hooks/useWorkspaceModals';
-import { useWorkspacePaste } from './hooks/useWorkspacePaste';
-import { useWorkspaceTree } from './hooks/useWorkspaceTree';
-import { useWorkspaceDragImport } from './hooks/useWorkspaceDragImport';
 // TaskPanel temporarily hidden per product feedback — see commit 9420ab13.
 // import TaskPanel from './TaskPanel';
-import WorkspaceSkills, { type WorkspaceSkillsHandle } from './WorkspaceSkills';
-import { resolveWorkspaceSkillRoot } from './skillRoots';
-import type { WorkspaceProps } from './types';
-import { extractNodeData, extractNodeKey, findNodeByKey, getTargetFolderPath, sortTreeNodes, updateTreeNodeChildren } from './utils/treeHelpers';
 import './workspace-card.css';
 
 const WORKSPACE_FOLDER_ICON_COLOR = '#f59e0b';
