@@ -4,12 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
-import { useLayoutContext } from '@/renderer/context/LayoutContext';
+import React, { useCallback, useMemo, useRef, useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { PreviewToolbarExtrasProvider, type PreviewToolbarExtras } from '../../context/PreviewToolbarExtrasContext';
 import { usePreviewContext } from '../../context/PreviewContext';
-import { useResizableSplit } from '@/renderer/hooks/useResizableSplit';
-import React, { useCallback, useMemo, useRef, useState, useEffect } from 'react';
 import AudioPreview from '../viewers/AudioViewer';
 import CodePreview from '../viewers/CodeViewer';
 import DiffPreview from '../viewers/DiffViewer';
@@ -25,10 +23,11 @@ import TextEditor from '../editors/TextEditor';
 import VideoPreview from '../viewers/VideoViewer';
 import WordPreview from '../viewers/WordViewer';
 import URLViewer from '../viewers/URLViewer';
-import { PreviewTabs, PreviewToolbar, PreviewContextMenu, PreviewConfirmModals, PreviewHistoryDropdown, type ContextMenuState, type CloseTabConfirmState, type PreviewTab } from '.';
 import { DEFAULT_SPLIT_RATIO, MAX_SPLIT_WIDTH, MIN_SPLIT_WIDTH } from '../../constants';
 import { usePreviewHistory, usePreviewKeyboardShortcuts, useScrollSync, useTabOverflow, useThemeDetection } from '../../hooks';
-import { useTranslation } from 'react-i18next';
+import { PreviewTabs, PreviewToolbar, PreviewContextMenu, PreviewConfirmModals, PreviewHistoryDropdown, type ContextMenuState, type CloseTabConfirmState, type PreviewTab } from '.';
+import { useResizableSplit } from '@/renderer/hooks/useResizableSplit';
+import { ipcBridge } from '@/common';
 
 /**
  * 预览面板主组件
@@ -40,7 +39,6 @@ import { useTranslation } from 'react-i18next';
 const PreviewPanel: React.FC = () => {
   const { t } = useTranslation();
   const { isOpen, tabs, activeTabId, activeTab, closeTab, switchTab, closePreview, updateContent, saveContent, addDomSnippet } = usePreviewContext();
-  const layout = useLayoutContext();
 
   // 视图状态 / View states
   const [viewMode, setViewMode] = useState<'source' | 'preview'>('preview');
@@ -435,15 +433,6 @@ const PreviewPanel: React.FC = () => {
     if (isMarkdown) {
       // 分屏模式：左右分割（编辑器 + 预览）/ Split-screen mode: Editor + Preview
       if (isSplitScreenEnabled && sourceViewEnabled) {
-        // 移动端：全屏显示预览，隐藏编辑器 / Mobile: Full-screen preview, hide editor
-        if (layout?.isMobile) {
-          return (
-            <div className='flex-1 overflow-hidden'>
-              <MarkdownPreview content={content} hideToolbar filePath={metadata?.filePath} />
-            </div>
-          );
-        }
-
         // 桌面端：左右分割布局 / Desktop: Split layout
         return (
           <div className='flex flex-1 relative overflow-hidden'>
@@ -480,15 +469,6 @@ const PreviewPanel: React.FC = () => {
     if (isHTML) {
       // 分屏模式：左右分割（编辑器 + 预览）/ Split-screen mode: Editor + Preview
       if (isSplitScreenEnabled && sourceViewEnabled) {
-        // 移动端：全屏显示预览，隐藏编辑器 / Mobile: Full-screen preview, hide editor
-        if (layout?.isMobile) {
-          return (
-            <div className='flex-1 overflow-hidden'>
-              <HTMLRenderer content={content} filePath={previewFilePath} copySuccessMessage={t('preview.html.copySuccess')} inspectMode={inspectMode} onElementSelected={handleElementSelected} />
-            </div>
-          );
-        }
-
         // 桌面端：左右分割布局 / Desktop: Split layout
         return (
           <div className='flex flex-1 relative overflow-hidden'>
