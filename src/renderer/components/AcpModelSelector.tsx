@@ -4,22 +4,21 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
-import { resolvePreferredAcpModelId } from '@/common/acp/defaultModels';
-import type { IResponseMessage } from '@/common/ipcBridge';
-import { ConfigStorage } from '@/common/storage';
-import type { IProvider } from '@/common/storage';
-import type { AcpModelInfo } from '@/types/acpTypes';
-import { useLayoutContext } from '@/renderer/context/LayoutContext';
-import { usePreviewContext } from '@/renderer/pages/conversation/preview';
-import { getModelDisplayLabel } from '@/renderer/utils/agentUiDisplay';
-import { buildProviderModelGroups } from '@/renderer/utils/modelProviderGroups';
 import { Button, Dropdown, Message, Tooltip } from '@arco-design/web-react';
 import { IconRefresh } from '@arco-design/web-react/icon';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import useSWR from 'swr';
+import { ipcBridge } from '@/common';
+import { resolvePreferredAcpModelId } from '@/common/acp/defaultModels';
+import type { IResponseMessage } from '@/common/ipcBridge';
+import { ConfigStorage } from '@/common/storage';
+import type { IProvider } from '@/common/storage';
+import type { AcpModelInfo } from '@/types/acpTypes';
+import { usePreviewContext } from '@/renderer/pages/conversation/preview';
+import { getModelDisplayLabel } from '@/renderer/utils/agentUiDisplay';
+import { buildProviderModelGroups } from '@/renderer/utils/modelProviderGroups';
 
 function buildFallbackModelInfo(modelId?: string | null): AcpModelInfo | null {
   if (!modelId) return null;
@@ -53,7 +52,6 @@ const AcpModelSelector: React.FC<{
 }> = ({ conversationId, backend, initialModelId }) => {
   const { t } = useTranslation();
   const { isOpen: isPreviewOpen } = usePreviewContext();
-  const layout = useLayoutContext();
   const fallbackModelId = resolvePreferredAcpModelId({
     backend,
     explicitModelId: initialModelId,
@@ -396,8 +394,7 @@ const AcpModelSelector: React.FC<{
     defaultModelLabel,
     fallbackLabel: t('conversation.welcome.useCliModel'),
   });
-  const compact = isPreviewOpen || layout?.isMobile;
-  const isMobileCompact = Boolean(layout?.isMobile);
+  const compact = isPreviewOpen;
 
   // 获取模型配置数据（包含健康状态）
   const { data: modelConfig } = useSWR<IProvider[]>('model.config', () => ipcBridge.mode.getModelConfig.invoke());
@@ -419,7 +416,7 @@ const AcpModelSelector: React.FC<{
   if (!modelInfo) {
     return (
       <Tooltip content={t('conversation.welcome.modelSwitchNotSupported')} position='top'>
-        <Button className={classNames('sendbox-model-btn header-model-btn', compact && '!max-w-[120px]', isMobileCompact && '!max-w-[160px]')} shape='round' size='small' style={{ cursor: 'default' }}>
+        <Button className={classNames('sendbox-model-btn header-model-btn', compact && '!max-w-[120px]')} shape='round' size='small' style={{ cursor: 'default' }}>
           <span className='flex items-center gap-6px min-w-0'>
             <span className={compact ? 'block truncate' : undefined}>{t('conversation.welcome.useCliModel')}</span>
           </span>
@@ -432,7 +429,7 @@ const AcpModelSelector: React.FC<{
   if (!modelInfo.canSwitch) {
     return (
       <Tooltip content={displayLabel} position='top'>
-        <Button className={classNames('sendbox-model-btn header-model-btn', compact && '!max-w-[120px]', isMobileCompact && '!max-w-[160px]')} shape='round' size='small' style={{ cursor: 'default' }}>
+        <Button className={classNames('sendbox-model-btn header-model-btn', compact && '!max-w-[120px]')} shape='round' size='small' style={{ cursor: 'default' }}>
           <span className='flex items-center gap-6px min-w-0'>
             {currentModelHealth.status !== 'unknown' && <div className={`w-6px h-6px rounded-full shrink-0 ${currentModelHealth.color}`} />}
             <span className={compact ? 'block truncate' : undefined}>{displayLabel}</span>
@@ -488,7 +485,7 @@ const AcpModelSelector: React.FC<{
         </div>
       }
     >
-      <Button className={classNames('sendbox-model-btn header-model-btn', compact && '!max-w-[120px]', isMobileCompact && '!max-w-[160px]')} shape='round' size='small'>
+      <Button className={classNames('sendbox-model-btn header-model-btn', compact && '!max-w-[120px]')} shape='round' size='small'>
         <span className='flex items-center gap-6px min-w-0'>
           {currentModelHealth.status !== 'unknown' && <div className={`w-6px h-6px rounded-full shrink-0 ${currentModelHealth.color}`} />}
           <span className={compact ? 'block truncate' : undefined}>{displayLabel}</span>
