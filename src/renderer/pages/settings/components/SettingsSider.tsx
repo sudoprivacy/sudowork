@@ -1,5 +1,4 @@
 import { Communication, Computer, Connection, Dollar, Earth, HardDiskOne, Info, Lightning, LinkCloud, Peoples, Puzzle, Robot, Shield, System, Toolkit, User, BuildingTwo } from '@icon-park/react';
-import classNames from 'classnames';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -200,7 +199,7 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
 
   const siderTooltipProps = getSiderTooltipProps(tooltipEnabled);
   return (
-    <div className={classNames('flex-1 min-h-0 settings-sider flex flex-col gap-0.5 overflow-y-auto overflow-x-hidden scrollbar-hide', { 'settings-sider--collapsed': collapsed })}>
+    <div className='flex-1 min-h-0 settings-sider flex flex-col gap-0.5 overflow-y-auto overflow-x-hidden scrollbar-hide'>
       {menus.map((item) => {
         const isSelected = pathname.includes(item.path);
         return (
