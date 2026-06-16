@@ -19,6 +19,14 @@ body {
   letter-spacing: 0.01em;
 }
 
+html,
+body,
+#root,
+.layout,
+.layout-content {
+  min-width: var(--app-min-width); /* prevent layout collapse on very small screens */
+}
+
 .app-titlebar {
   display: flex;
   align-items: center;
@@ -143,14 +151,6 @@ body {
 
 .conversation-toggle-floating:active {
   background: var(--bg-active);
-}
-
-html,
-body,
-#root,
-.layout,
-.layout-content {
-  min-width: var(--app-min-width); /* prevent layout collapse on very small screens */
 }
 
 .loading {
