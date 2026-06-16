@@ -100,8 +100,8 @@ class RuntimeInstaller {
         // install pipeline short-circuits (returning users with everything
         // already in place). Idempotent + never throws.
         try {
-          const { ensureSudoworkBuiltinMcpInstalled } = await import('../mcpServices/SudoworkBuiltinMcpRegistration');
-          await ensureSudoworkBuiltinMcpInstalled();
+          const { ensureBrowserPanelMcpRegistered } = await import('../mcpServices/SudoworkBuiltinMcpRegistration');
+          await ensureBrowserPanelMcpRegistered();
         } catch (err) {
           mainLog(TAG, `browser-panel MCP registration skipped: ${String(err)}`);
         }
@@ -515,19 +515,11 @@ class RuntimeInstaller {
       return false;
     }
 
-    // Ensure browser-panel MCP is registered into Claude Code's user config.
-    // We do this here (not only from CliInstallService.install) because users
-    // who already had Claude installed before this version of sudowork won't
-    // trigger CliInstallService.install — but they still need the entry to be
-    // added once. The function is idempotent and never throws.
-    const claudeResult = results.find((r) => r.step === 'claude');
-    if (claudeResult?.ok) {
-      try {
-        const { ensureSudoworkBuiltinMcpInstalled } = await import('../mcpServices/SudoworkBuiltinMcpRegistration');
-        await ensureSudoworkBuiltinMcpInstalled();
-      } catch (err) {
-        mainLog(TAG, `browser-panel MCP registration skipped: ${String(err)}`);
-      }
+    try {
+      const { ensureBrowserPanelMcpRegistered } = await import('../mcpServices/SudoworkBuiltinMcpRegistration');
+      await ensureBrowserPanelMcpRegistered();
+    } catch (err) {
+      mainLog(TAG, `browser-panel MCP registration skipped: ${String(err)}`);
     }
 
     initStatusManager.setStatus('installing', '正在校验组件状态...', 96);

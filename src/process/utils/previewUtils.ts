@@ -28,11 +28,11 @@ export function handlePreviewOpenEvent(message: IResponseMessage | { type: strin
     return false;
   }
 
-  // URL previews: skip auto-opening in BrowserPanel. The agent operates its
-  // own Chrome via ai-dev-browser; mirroring the URL into BrowserPanel creates
-  // two independent sessions with unsynchronized state (cookies, DOM, scroll)
-  // which confuses users. BrowserPanel will be connected properly when the
-  // browser-panel MCP is wired to scode (phase 2).
+  // URL previews from ai-dev-browser navigation (page_goto) are swallowed.
+  // The agent's browser skill operates its own Chrome; mirroring the URL into
+  // BrowserPanel creates two independent sessions with unsynchronized state.
+  // Users who want visible browsing should use the browser-panel MCP tools
+  // (panel_open, panel_navigate) which route directly to BrowserPanel.
   if (data.contentType === 'url') {
     return true; // swallow — do not mirror
   }
