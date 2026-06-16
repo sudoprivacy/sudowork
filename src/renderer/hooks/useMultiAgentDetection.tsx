@@ -2,10 +2,11 @@
  * Hook for detecting multi-agent mode on application startup
  */
 
-import { ipcBridge } from '@/common';
 import { Message } from '@arco-design/web-react';
 import React, { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { filterAvailableAgentsForUi } from '@/renderer/shared/agents/availableAgents';
+import { ipcBridge } from '@/common';
 
 export const useMultiAgentDetection = () => {
   const { t } = useTranslation();
@@ -16,8 +17,7 @@ export const useMultiAgentDetection = () => {
       try {
         const response = await ipcBridge.acpConversation.getAvailableAgents.invoke();
         if (response && response.success && response.data) {
-          // 检测是否有多个ACP智能体（不包括内置的Gemini）
-          const acpAgents = response.data.filter((agent: { backend: string; name: string; cliPath?: string }) => agent.backend !== 'gemini');
+          const acpAgents = filterAvailableAgentsForUi(response.data);
           if (acpAgents.length > 1) {
             message.success(t('conversation.welcome.multiAgentModeEnabled'));
           }

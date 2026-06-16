@@ -4,14 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Robot } from '@icon-park/react';
+import React from 'react';
+import type { AvailableAgent } from '../types';
+import styles from '../index.module.css';
 import { getAgentLogo } from '@/renderer/utils/agentLogo';
 import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import { useLayoutContext } from '@/renderer/context/LayoutContext';
-import type { AvailableAgent } from '../types';
 import type { AcpBackendAll } from '@/types/acpTypes';
-import { Robot } from '@icon-park/react';
-import React from 'react';
-import styles from '../index.module.css';
 
 type AgentPillBarProps = {
   availableAgents: AvailableAgent[];
@@ -159,7 +159,7 @@ const AgentPillBar: React.FC<AgentPillBarProps> = ({ availableAgents, selectedAg
           }}
         >
           {sortedAgents
-            .filter((agent) => agent.backend !== 'custom' && agent.backend !== 'gemini')
+            .filter((agent) => agent.backend !== 'custom')
             .map((agent, index) => {
               const isSelected = selectedAgentKey === getAgentKey(agent);
               const extensionAvatar = resolveExtensionAssetUrl(agent.isExtension ? agent.avatar : undefined);

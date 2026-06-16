@@ -23,7 +23,7 @@ export type UseConversationAgentsResult = {
 
 /**
  * Hook to fetch available CLI agents and preset assistants for the conversation tab dropdown.
- * Filters out gemini-CLI agents (BUG-4: matches useGuidAgentSelection filter logic).
+ * Agent visibility is controlled by filterAvailableAgentsForUi (SSOT).
  */
 export const useConversationAgents = (): UseConversationAgentsResult => {
   const {

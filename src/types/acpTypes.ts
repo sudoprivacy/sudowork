@@ -362,7 +362,7 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
     name: 'Google CLI',
     cliCommand: 'gemini',
     authRequired: true,
-    enabled: true, // ✅ 内置 Gemini 后端，使用 `gemini` 命令启动（无需安装 CLI）
+    enabled: false, // Gemini is accessed via model platform (API key), not as a standalone agent backend
     supportsStreaming: true,
   },
   qwen: {
