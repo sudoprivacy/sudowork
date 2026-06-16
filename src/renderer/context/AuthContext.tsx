@@ -1,11 +1,12 @@
 import { ipcBridge } from '@/common';
 import { SUDOWORK_SERVER_BASE_URL } from '@/common/sudoworkServer';
-import { ConfigStorage, DEFAULT_IMAGE_GENERATION_MODEL } from '@/common/storage';
+import { ConfigStorage, DEFAULT_IMAGE_GENERATION_MODEL, type IConfigStorageRefer } from '@/common/storage';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { withCsrfToken } from '@/webserver/middleware/csrfClient';
 import { getSudorouterPrimaryModelPath, mergeSudorouterProvidersIntoConfig } from '@/common/sudoclawModelConfig';
-import { buildScodeConfigFromLoginPayload } from '@/common/scodeConfig';
+import { buildScodeConfigFromLoginPayload, SCODE_AUTO_MODEL_ALIAS } from '@/common/scodeConfig';
 import { extractLoginSudoclawPayload, mergeLoginUserData } from '@/common/sudoworkAuthLogin';
+import type { AcpModelInfo } from '@/types/acpTypes';
 
 type AuthStatus = 'checking' | 'syncing' | 'authenticated' | 'unauthenticated';
 
@@ -80,6 +81,39 @@ interface RegisterResult {
   success: boolean;
   message?: string;
   code?: LoginErrorCode;
+}
+
+async function syncScodeGuidModelPreference(modelId: string): Promise<void> {
+  try {
+    const config = ((await ConfigStorage.get('acp.config').catch((): undefined => undefined)) || {}) as IConfigStorageRefer['acp.config'];
+    const backendConfig = config.scode || {};
+    await ConfigStorage.set('acp.config', {
+      ...config,
+      scode: {
+        ...backendConfig,
+        preferredModelId: modelId,
+      },
+    });
+  } catch {
+    /* best-effort */
+  }
+
+  try {
+    const cached = ((await ConfigStorage.get('acp.cachedModels').catch((): undefined => undefined)) || {}) as Record<string, AcpModelInfo>;
+    const scodeCached = cached.scode as AcpModelInfo | undefined;
+    if (!scodeCached?.availableModels?.length) return;
+    const match = scodeCached.availableModels.find((model) => model.id === modelId);
+    await ConfigStorage.set('acp.cachedModels', {
+      ...cached,
+      scode: {
+        ...scodeCached,
+        currentModelId: modelId,
+        currentModelLabel: match?.label || modelId,
+      },
+    });
+  } catch {
+    /* best-effort */
+  }
 }
 
 type LoginSuccessResponse = {
@@ -362,6 +396,7 @@ async function handleLoginSuccess(data: LoginSuccessResponse, setUser: SetAuthUs
       if (defaultModel) {
         await ipcBridge.scode.setDefaultModel.invoke({ modelId: defaultModel }).catch(() => {});
       }
+      await syncScodeGuidModelPreference(SCODE_AUTO_MODEL_ALIAS);
 
       // Sync sudoclaw.json only for legacy gateway compatibility. Failure must not block Sudocode.
       try {
@@ -652,6 +687,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
           setUser(authStorage.user);
           setStatus('authenticated');
           setReady(true);
+          await syncScodeGuidModelPreference(SCODE_AUTO_MODEL_ALIAS);
 
           // Sync token to ConfigStorage for eeclawBridge
           // Prefer ProcessConfig's refresh_token if it's newer (main process may have rotated it)
@@ -714,6 +750,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         setUser({ ...authStorage.user, token: authStorage.access_token });
         setStatus('authenticated');
         setReady(true);
+        await syncScodeGuidModelPreference(SCODE_AUTO_MODEL_ALIAS);
 
         const restoredUserId = resolveConsumerUserId(authStorage.user);
         // 从 localStorage 恢复登录状态时，也保存手机号到文件
@@ -776,6 +813,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         setUser(parsed);
         setStatus('authenticated');
         setReady(true);
+        await syncScodeGuidModelPreference(SCODE_AUTO_MODEL_ALIAS);
 
         const restoredUserId = resolveConsumerUserId(parsed as Partial<AuthUser>);
         if (isDesktopRuntime && parsed.phone) {
@@ -1026,6 +1064,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
           if (defaultModel) {
             await ipcBridge.scode.setDefaultModel.invoke({ modelId: defaultModel }).catch(() => {});
           }
+          await syncScodeGuidModelPreference(SCODE_AUTO_MODEL_ALIAS);
         }
       } else {
         await ipcBridge.scode.saveConfig.invoke({ config: {} }).catch(() => {});

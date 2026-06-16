@@ -66,7 +66,7 @@ describe('scodeConfig', () => {
     expect(next.models?.['custom-openai/gpt-4o']?.supports_tools).toBe(true);
     expect(next.models?.['custom-openai/gpt-4o']?.supports_reasoning).toBe(true);
     expect(next.models?.['custom-openai/gpt-4o']?.context).toEqual({ input: 128, output: 32 });
-    expect(next.default_model).toBe('custom-openai/gpt-4o');
+    expect(next.default_model).toBe(SCODE_AUTO_MODEL_ALIAS);
   });
 
   it('adds and replaces a custom OpenAI-compatible provider', () => {
@@ -112,7 +112,34 @@ describe('scodeConfig', () => {
     expect(next.auth_modes?.['api-key']).toBeUndefined();
     expect(next.models?.['gemini-3-flash-preview']).toBeTruthy();
     expect(next.models?.['custom-openai/gpt-4o']).toBeUndefined();
-    expect(next.default_model).toBe('gemini-3-flash-preview');
+    expect(next.default_model).toBe(SCODE_AUTO_MODEL_ALIAS);
+  });
+
+  it('defaults new login configs to the auto sudorouter model alias', () => {
+    const next = buildScodeConfigFromLoginPayload({
+      sudorouterKey: 'router-key',
+      modelServiceUrl: 'https://hk.sudorouter.ai/v1',
+      models: ['gemini-3-flash-preview'],
+    });
+
+    expect(next.default_model).toBe(SCODE_AUTO_MODEL_ALIAS);
+    expect(next.models?.[SCODE_AUTO_MODEL_ALIAS]?.providers?.proxy?.model).toBe(SCODE_AUTO_ROUTER_MODEL_ID);
+  });
+
+  it('resets existing user-selected sudorouter model to auto on login refresh', () => {
+    const next = buildScodeConfigFromLoginPayload(
+      {
+        sudorouterKey: 'router-key',
+        modelServiceUrl: 'https://hk.sudorouter.ai/v1',
+        models: ['gemini-3-flash-preview', 'gpt-4o'],
+      },
+      {
+        default_model: 'gpt-4o',
+        models: {},
+      }
+    );
+
+    expect(next.default_model).toBe(SCODE_AUTO_MODEL_ALIAS);
   });
 
   it('extracts and reapplies custom providers for database-backed scode settings', () => {
