@@ -7,143 +7,93 @@
 import { app } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
-import { getEnhancedEnv } from '@process/utils/shellEnv';
-import { safeExec } from '@process/utils/safeExec';
 import { getNodeBinaryPath } from '@process/services/claudeCli/NodeRuntimeService';
 import { mainError, mainLog, mainWarn } from '@process/utils/mainLogger';
+import { ProcessConfig } from '@process/initStorage';
+import type { IMcpServer } from '@/common/storage';
 
 /**
- * Auto-register the browser-panel MCP server into the user's Claude Code
- * config so Claude can spawn it as a stdio MCP subprocess.
+ * Register the browser-panel MCP server into Sudowork's unified MCP config
+ * (ProcessConfig 'mcp.config'). This makes it available to ALL agent backends
+ * (scode, claude, gemini, etc.) via the existing syncMcpToAgents mechanism.
+ *
+ * Replaces the old approach of hardcoding into Claude Code's config via
+ * `claude mcp add`, which only worked for CC and bypassed Sudowork's MCP
+ * management layer.
  *
  * Lifecycle:
- *  - Called once per app boot, AFTER bundled Node and Claude CLI are installed
- *    (see CliInstallService).
- *  - `claude mcp list` is parsed for our entry. If absent or pointing at a
- *    stale path, we `claude mcp remove` + `claude mcp add`. Same `name` keeps
- *    the entry stable across upgrades.
- *  - Errors are logged but never re-thrown — registration failure must not
- *    block startup. The user can fall back to /browser slash commands.
- *  - We do NOT clean up on sudowork uninstall (Electron has no uninstall
- *    hook). The MCP child returns a structured browser_unavailable error
- *    when the loopback HTTP server isn't reachable, so the stale entry
- *    degrades gracefully rather than crashing Claude.
+ *  - Called once per app boot (idempotent)
+ *  - Adds/updates browser-panel entry in mcp.config if missing or stale
+ *  - Errors are logged but never re-thrown — must not block startup
  */
 
 const MCP_NAME = 'browser-panel';
-const TIMEOUT_MS = 15_000;
-
-const getExecEnv = () => ({ env: { ...getEnhancedEnv(), NODE_OPTIONS: '', TERM: 'dumb', NO_COLOR: '1' } as NodeJS.ProcessEnv });
 
 /** Resolve the path to the bundled MCP server entry JS in both dev and packaged modes. */
 function getMcpScriptPath(): string {
   if (app.isPackaged) {
     return path.join(process.resourcesPath, 'browser-panel-mcp', 'index.js');
   }
-  return path.join(app.getAppPath(), 'resources', 'browser-panel-mcp', 'index.js');
-}
-
-/** Discovery file the MCP child reads to find the sudowork main loopback server. */
-function getDiscoveryFilePath(): string {
-  return path.join(app.getPath('userData'), 'browser-panel-mcp.json');
-}
-
-interface ExistingEntry {
-  present: boolean;
-  /** Raw line text — used for mismatch detection. */
-  rawLine?: string;
-}
-
-async function detectExistingEntry(): Promise<ExistingEntry> {
-  try {
-    const { stdout } = await safeExec('claude mcp list', { timeout: TIMEOUT_MS, ...getExecEnv() });
-    if (!stdout || stdout.includes('No MCP servers configured')) return { present: false };
-    /* eslint-disable no-control-regex */
-    const lines = stdout
-      .split('\n')
-      .map((line) => line.replace(/\[[0-9;]*m/g, '').replace(/\[[0-9;]*m/g, '').trim())
-      .filter(Boolean);
-    /* eslint-enable no-control-regex */
-    for (const line of lines) {
-      if (line.startsWith(`${MCP_NAME}:`)) {
-        return { present: true, rawLine: line };
-      }
-    }
-    return { present: false };
-  } catch (err) {
-    mainWarn('SudoworkBuiltinMcp', `claude mcp list failed: ${String(err)}`);
-    return { present: false };
-  }
-}
-
-function quoteForShell(s: string): string {
-  return `"${s.replace(/(["\\$`])/g, '\\$1')}"`;
-}
-
-async function addEntry(scriptPath: string, nodePath: string): Promise<void> {
-  // claude mcp add -s user <name> -- <command> [args...]
-  //
-  // We intentionally do NOT pass `-e BROWSER_PANEL_MCP_DISCOVERY=...`
-  // here: claude's CLI uses commander's variadic env flag (`-e <env...>`),
-  // which greedily consumes the following positional name. The MCP server
-  // already falls back to the platform-default discovery path
-  // (~/Library/Application Support/sudowork/browser-panel-mcp.json on
-  // macOS, %APPDATA%/sudowork/... on Windows, $XDG_CONFIG_HOME/sudowork/...
-  // on Linux), which matches what BrowserPanelHttpServer writes via
-  // app.getPath('userData'). The discovery env override is still honored
-  // by the child when set externally (tests, custom installs).
-  const cmd = `claude mcp add -s user ${quoteForShell(MCP_NAME)} -- ${quoteForShell(nodePath)} ${quoteForShell(scriptPath)}`;
-  mainLog('SudoworkBuiltinMcp', `claude mcp add ${MCP_NAME}: ${cmd}`);
-  await safeExec(cmd, { timeout: TIMEOUT_MS, ...getExecEnv() });
-}
-
-async function removeEntry(): Promise<void> {
-  const cmd = `claude mcp remove -s user ${quoteForShell(MCP_NAME)}`;
-  try {
-    await safeExec(cmd, { timeout: TIMEOUT_MS, ...getExecEnv() });
-  } catch (err) {
-    mainWarn('SudoworkBuiltinMcp', `claude mcp remove (precondition) failed: ${String(err)}`);
-  }
+  // Dev mode: try compiled JS first, fall back to source
+  const compiledPath = path.join(app.getAppPath(), 'resources', 'browser-panel-mcp', 'index.js');
+  if (fs.existsSync(compiledPath)) return compiledPath;
+  return path.join(app.getAppPath(), 'resources', 'browser-panel-mcp', 'src', 'index.ts');
 }
 
 /**
- * Ensure the browser-panel MCP server is registered with Claude Code.
+ * Ensure the browser-panel MCP server is registered in Sudowork's mcp.config.
  * Idempotent and non-throwing — safe to call from startup paths.
  */
-export async function ensureSudoworkBuiltinMcpInstalled(): Promise<void> {
+export async function ensureBrowserPanelMcpRegistered(): Promise<void> {
   try {
     const scriptPath = getMcpScriptPath();
     if (!fs.existsSync(scriptPath)) {
-      mainWarn('SudoworkBuiltinMcp', `bundled MCP script not found at ${scriptPath} — skipping registration`);
+      mainWarn('BrowserPanelMcp', `bundled MCP script not found at ${scriptPath} — skipping registration`);
       return;
     }
     const nodePath = getNodeBinaryPath();
     if (!fs.existsSync(nodePath)) {
-      mainWarn('SudoworkBuiltinMcp', `bundled node not found at ${nodePath} — skipping registration`);
+      mainWarn('BrowserPanelMcp', `bundled node not found at ${nodePath} — skipping registration`);
       return;
     }
 
-    const discoveryFilePath = getDiscoveryFilePath();
-    void discoveryFilePath; // reserved for future env injection if claude's CLI gains a non-variadic env flag
-    const existing = await detectExistingEntry();
-    const expectedNeedle = scriptPath; // we re-add whenever the path doesn't appear in the entry line
+    const mcpConfig: IMcpServer[] = (await ProcessConfig.get('mcp.config').catch((): undefined => undefined)) || [];
 
-    if (existing.present && existing.rawLine && existing.rawLine.includes(expectedNeedle) && existing.rawLine.includes(nodePath)) {
-      mainLog('SudoworkBuiltinMcp', `entry already current: ${existing.rawLine}`);
+    // Check if browser-panel already exists with correct config
+    const existing = mcpConfig.find((s) => s.name === MCP_NAME);
+    if (existing) {
+      const transport = existing.transport;
+      if (transport.type === 'stdio' && transport.command === nodePath && transport.args?.[0] === scriptPath) {
+        mainLog('BrowserPanelMcp', 'already registered with correct config');
+        return;
+      }
+      // Update stale entry
+      mainLog('BrowserPanelMcp', 'updating stale entry');
+      existing.transport = { type: 'stdio', command: nodePath, args: [scriptPath] };
+      // Preserve user's enabled/disabled choice on update
+      await ProcessConfig.set('mcp.config', mcpConfig);
+      mainLog('BrowserPanelMcp', 'registration updated');
       return;
     }
 
-    if (existing.present) {
-      mainLog('SudoworkBuiltinMcp', `entry stale, re-adding: ${existing.rawLine}`);
-      await removeEntry();
-    } else {
-      mainLog('SudoworkBuiltinMcp', 'entry missing, adding…');
-    }
+    // Add new entry
+    const now = Date.now();
+    const newServer: IMcpServer = {
+      id: `mcp_builtin_${MCP_NAME}_${now}`,
+      name: MCP_NAME,
+      description: 'Open URLs in the right-side panel visible to the user. Use for demos, previews, and login flows where the user needs to see or interact with the page.',
+      enabled: false,
+      transport: { type: 'stdio', command: nodePath, args: [scriptPath] },
+      createdAt: now,
+      updatedAt: now,
+      originalJson: '',
+    };
 
-    await addEntry(scriptPath, nodePath);
-    mainLog('SudoworkBuiltinMcp', 'registration complete');
+    mcpConfig.push(newServer);
+    await ProcessConfig.set('mcp.config', mcpConfig);
+    mainLog('BrowserPanelMcp', 'registered as builtin MCP server');
   } catch (err) {
-    mainError('SudoworkBuiltinMcp', `unexpected failure: ${String(err)}`);
-    // Swallow — must not block startup.
+    mainError('BrowserPanelMcp', `registration failed: ${String(err)}`);
   }
 }
+

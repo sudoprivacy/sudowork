@@ -14,7 +14,7 @@ import os from 'os';
 
 const TAG = 'ScodeMcpAgent';
 export const SCODE_SETTINGS_PATH = path.join(os.homedir(), '.nexus', 'sudocode', 'settings.json');
-const SCODE_DISABLED_MCP_SERVERS = new Set(['chrome-devtools']);
+const SCODE_DISABLED_MCP_SERVERS = new Set<string>();
 
 function isDisabledForScode(serverName: string): boolean {
   return SCODE_DISABLED_MCP_SERVERS.has(serverName);
