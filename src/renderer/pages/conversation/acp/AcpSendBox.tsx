@@ -1,3 +1,8 @@
+import { Button, Dropdown, Message, Tag } from '@arco-design/web-react';
+import { Plus, Shield, UploadOne } from '@icon-park/react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { shouldCancelAcpFinishTimeout } from './acpFinishTimeout';
 import { ipcBridge } from '@/common';
 import type { AcpBackend } from '@/types/acpTypes';
 import { transformMessage, type TMessage } from '@/common/chatLib';
@@ -11,12 +16,8 @@ import { useAddOrUpdateMessage, useUpdateMessageList } from '@/renderer/messages
 import { allSupportedExts } from '@/renderer/services/FileService';
 import { emitter, useAddEventListener } from '@/renderer/utils/emitter';
 import { mergeFileSelectionItems } from '@/renderer/utils/fileSelection';
-import { Button, Dropdown, Message, Tag } from '@arco-design/web-react';
-import { Plus, Shield, UploadOne } from '@icon-park/react';
 import BdpanLogo from '@/renderer/assets/logos/bdpan.png';
 import BdpanFileSelector from '@/renderer/components/BdpanFileSelector';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useTranslation } from 'react-i18next';
 import FilePreview from '@/renderer/components/FilePreview';
 import HorizontalFileList from '@/renderer/components/HorizontalFileList';
 import { usePreviewContext } from '@/renderer/pages/conversation/preview';
@@ -31,7 +32,6 @@ import AcpConfigSelector from '@/renderer/components/AcpConfigSelector';
 import { useSlashCommands } from '@/renderer/hooks/useSlashCommands';
 import { filterUserVisibleAtPath, filterUserVisibleFiles } from '@/renderer/utils/messageFiles';
 import { useWorkspaceFiles } from '@/renderer/hooks/useWorkspaceFiles';
-import { shouldCancelAcpFinishTimeout } from './acpFinishTimeout';
 
 const useAcpSendBoxDraft = getSendBoxDraftHook('acp', {
   _type: 'acp',
@@ -915,7 +915,7 @@ const AcpSendBox: React.FC<{
                 {selectedFileCount > 0 && <span className='absolute -right-3px -top-3px f-center min-w-14px h-14px rounded-full bg-[var(--ui-accent-orange)] px-3px text-9px text-white font-600 pointer-events-none'>{selectedFileCount}</span>}
               </span>
             </Dropdown>
-            <AgentModeSelector backend={backend} conversationId={conversation_id} compact initialMode={sessionMode} compactLeadingIcon={<Shield theme='outline' fill='currentColor' />} modeLabelFormatter={(mode) => t(`agentMode.${mode.value}`, { defaultValue: mode.label })} compactLabelPrefix={t('agentMode.permission')} hideCompactLabelPrefixOnMobile />
+            <AgentModeSelector backend={backend} conversationId={conversation_id} compact initialMode={sessionMode} compactLeadingIcon={<Shield theme='outline' fill='currentColor' />} modeLabelFormatter={(mode) => t(`agentMode.${mode.value}`, { defaultValue: mode.label })} compactLabelPrefix={t('agentMode.permission')} />
             <AcpConfigSelector conversationId={conversation_id} backend={backend} />
           </div>
         }
