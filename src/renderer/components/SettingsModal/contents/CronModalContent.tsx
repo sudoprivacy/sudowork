@@ -4,6 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Button, Drawer, Form, Input, Message, Popconfirm, Select, Switch, Tag } from '@arco-design/web-react';
+import { Add, AlarmClock, ArrowLeft, Close, DeleteOne, Edit, Info, PlayOne, Sun } from '@icon-park/react';
+import dayjs from 'dayjs';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
+import { useAppMode } from '@renderer/hooks/useAppMode';
+import { useEnterpriseSessionMode } from '@renderer/hooks/useEnterpriseSessionMode';
+import { emitter } from '@renderer/utils/emitter';
 import { ipcBridge } from '@/common';
 import type { ICronJob } from '@/common/ipcBridge';
 import type { TChatConversation } from '@/common/storage';
@@ -15,15 +24,6 @@ import EmptyState from '@/renderer/components/base/EmptyState';
 import { SettingsList, SettingsListItem } from '@/renderer/components/ui/SettingsList';
 import { useAllCronJobs } from '@/renderer/pages/cron/hooks/useCronJobs';
 import { type FrequencyPreset, FREQUENCY_PRESETS, WEEKDAYS, frequencyToSchedule, getJobStatusFlags, scheduleToFrequency } from '@/renderer/pages/cron/utils/cronUtils';
-import { Button, Drawer, Form, Input, Message, Popconfirm, Select, Switch, Tag } from '@arco-design/web-react';
-import { Add, AlarmClock, ArrowLeft, Close, DeleteOne, Edit, Info, PlayOne, Sun } from '@icon-park/react';
-import dayjs from 'dayjs';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
-import { useAppMode } from '@renderer/hooks/useAppMode';
-import { useEnterpriseSessionMode } from '@renderer/hooks/useEnterpriseSessionMode';
-import { emitter } from '@renderer/utils/emitter';
 import { useAuth } from '@/renderer/context/AuthContext';
 import { useConversationTabs } from '@/renderer/pages/conversation/context/ConversationTabsContext';
 
@@ -819,7 +819,7 @@ const CronModalContent: React.FC = () => {
                 <div className='text-13px text-secondary'>{t('cron.create.listSubtitle', { defaultValue: '设定定时任务，让 Agent 按计划自动执行' })}</div>
               </div>
               {jobs.length > 0 && (
-                <Button type='primary' shape='round' className='cron-create-chip' onClick={handleCreate}>
+                <Button type='primary' shape='round' onClick={handleCreate}>
                   <span className='inline-flex items-center justify-center gap-4px'>
                     <Add theme='outline' size={14} className='block' />
                     <span>{t('cron.create.button', { defaultValue: '新建任务' })}</span>
@@ -869,7 +869,7 @@ const CronModalContent: React.FC = () => {
             )}
 
             {/* Job cards or empty state */}
-            {!loading && jobs.length === 0 ? <EmptyState simple icon={<AlarmClock theme='outline' size={56} className='text-[var(--ui-accent-orange)]' />} title={t('cron.noTasks', { defaultValue: '暂无定时任务' })} description={t('cron.create.emptyHint', { defaultValue: '创建自动执行的 Agent 任务' })} actions={[{ label: t('cron.create.button', { defaultValue: '新建任务' }), onClick: handleCreate, className: 'cron-create-chip' }]} /> : <CronJobCardGrid jobs={jobs} onSelectJob={handleSelectJob} />}
+            {!loading && jobs.length === 0 ? <EmptyState simple icon={<AlarmClock theme='outline' size={56} className='text-[var(--ui-accent-orange)]' />} title={t('cron.noTasks', { defaultValue: '暂无定时任务' })} description={t('cron.create.emptyHint', { defaultValue: '创建自动执行的 Agent 任务' })} actions={[{ label: t('cron.create.button', { defaultValue: '新建任务' }), onClick: handleCreate }]} /> : <CronJobCardGrid jobs={jobs} onSelectJob={handleSelectJob} />}
           </div>
         )}
       </AionScrollArea>

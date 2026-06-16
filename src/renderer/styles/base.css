@@ -45,19 +45,6 @@ body {
   padding-right: 12px;
 }
 
-.app-titlebar__brand {
-  font-weight: 600;
-  font-size: 13px;
-  letter-spacing: 0.2px;
-  color: var(--foreground);
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  pointer-events: none;
-}
-
 .app-titlebar__toolbar {
   display: flex;
   align-items: center;
@@ -143,11 +130,6 @@ body {
   background-color: var(--bg-active);
 }
 
-.workspace-toggle-floating {
-  background-color: var(--bg-2);
-  border: 1px solid var(--bg-3);
-}
-
 .conversation-toggle-floating {
   border: none;
   background: var(--bg-1);
@@ -177,40 +159,6 @@ body,
 
 .bg-animate {
   animation: bg-animate 1s alternate infinite;
-}
-
-.cron-create-chip,
-.cron-create-chip.arco-btn-primary {
-  min-height: 34px !important;
-  padding: 0 14px !important;
-  border-radius: 999px !important;
-  background: var(--ui-accent-orange) !important;
-  border-color: var(--ui-accent-orange) !important;
-  color: #fff !important;
-  box-shadow: 0 8px 18px rgba(var(--ui-accent-orange-rgb), 0.18) !important;
-}
-
-.cron-create-chip:hover,
-.cron-create-chip:focus-visible,
-.cron-create-chip.arco-btn-primary:hover,
-.cron-create-chip.arco-btn-primary:focus-visible {
-  background: var(--ui-accent-orange-hover) !important;
-  border-color: var(--ui-accent-orange-hover) !important;
-  color: #fff !important;
-}
-
-.cron-create-chip .arco-btn-content {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-}
-
-.cron-create-chip svg,
-.cron-create-chip svg * {
-  color: #fff !important;
-  stroke: currentColor !important;
-  fill: none !important;
 }
 
 .cron-keep-awake-switch.arco-switch-checked {
@@ -373,44 +321,6 @@ body,
   overflow: hidden;
 }
 
-.sidebar-nav-item {
-  border-radius: 10px;
-  border: 1px solid transparent;
-}
-
-.sidebar-nav-item--selected {
-  background: transparent !important;
-  box-shadow: none;
-}
-
-.sidebar-nav-item--selected:hover {
-  background: transparent !important;
-}
-
-.sidebar-nav-item--selected .sidebar-nav-item__rail {
-  background: var(--ui-accent-orange) !important;
-}
-
-.sidebar-nav-item__rail {
-  top: 9px;
-  height: 22px;
-}
-
-.sidebar-nav-item--selected .sidebar-nav-item__icon {
-  color: var(--ui-accent-orange) !important;
-}
-
-.sidebar-nav-item--selected .sidebar-nav-item__icon svg,
-.sidebar-nav-item--selected .sidebar-nav-item__icon svg * {
-  color: var(--ui-accent-orange) !important;
-  stroke: currentColor !important;
-  fill: none !important;
-}
-
-.sidebar-nav-item__icon {
-  transform: translateY(1px);
-}
-
 /* 用 Arco Tabs line 仅当切换器，无内容面板 */
 .sidebar-tabs.arco-tabs .arco-tabs-content {
   display: none;
@@ -434,10 +344,6 @@ body,
 .batch-actions-popover .arco-popover-content {
   border-radius: 12px;
   padding: 12px;
-}
-
-.batch-actions-popover__item {
-  border-radius: 8px;
 }
 
 .channel-settings-collapse .arco-collapse-item-icon,

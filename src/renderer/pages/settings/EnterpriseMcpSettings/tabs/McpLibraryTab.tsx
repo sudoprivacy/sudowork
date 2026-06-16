@@ -1,11 +1,11 @@
 import React, { useMemo, useState } from 'react';
 import { Input, Button, Tag, Message } from '@arco-design/web-react';
 import { Search, DownloadOne, CheckOne } from '@icon-park/react';
-import EmptyState from '@/renderer/components/base/EmptyState';
 import McpIcon from '../components/McpIcon';
 import RiskLevelTag from '../components/RiskLevelTag';
 import InstallConfigModal from '../components/InstallConfigModal';
 import type { EnterpriseMcpTemplateDto } from '../types';
+import EmptyState from '@/renderer/components/base/EmptyState';
 
 interface McpLibraryTabProps {
   templates: EnterpriseMcpTemplateDto[];

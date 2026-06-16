@@ -218,13 +218,13 @@ const Sider: React.FC = () => {
                 content={
                   <div className='flex flex-col gap-1.5 w-45'>
                     <div className='px-0.5 pb-0.5 text-12px leading-18px text-secondary'>{t('conversation.history.selectedCount', { count: batchApi?.selectedCount ?? 0 })}</div>
-                    <Button long type='secondary' className='batch-actions-popover__item' onClick={() => batchApi?.onToggleSelectAll()}>
+                    <Button long type='secondary' className='rd-2' onClick={() => batchApi?.onToggleSelectAll()}>
                       {batchApi?.allSelected ? t('common.cancel') : t('conversation.history.selectAll')}
                     </Button>
-                    <Button long type='secondary' className='batch-actions-popover__item' disabled={!batchApi?.selectedCount} onClick={() => batchApi?.onBatchExport()}>
+                    <Button long type='secondary' className='rd-2' disabled={!batchApi?.selectedCount} onClick={() => batchApi?.onBatchExport()}>
                       {t('conversation.history.batchExport')}
                     </Button>
-                    <Button long type='secondary' status='danger' className='batch-actions-popover__item' disabled={!batchApi?.selectedCount} onClick={() => batchApi?.onBatchDelete()}>
+                    <Button long type='secondary' status='danger' className='rd-2' disabled={!batchApi?.selectedCount} onClick={() => batchApi?.onBatchDelete()}>
                       {t('conversation.history.batchDelete')}
                     </Button>
                   </div>
