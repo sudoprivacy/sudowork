@@ -153,7 +153,7 @@ const Sider: React.FC = () => {
           <div className='size-full flex flex-col py-2 overflow-hidden box-border'>
             {/* 新会话按钮 - 带边框的按钮风格 / New Chat button with border style */}
             <div
-              className='h-10.5 f-center gap-2 px-3.5 mb-3 rd-12px cursor-pointer transition-all border bg-1 hover:bg-hover active:bg-fill-2'
+              className='h-10.5 flex-shrink-0 f-center gap-2 px-3.5 mb-3 rd-12px cursor-pointer transition-all border bg-1 hover:bg-hover active:bg-fill-2'
               onClick={() => {
                 cleanupSiderTooltips();
                 blurActiveElement();
