@@ -10,7 +10,6 @@ import type { AvailableAgent } from '../types';
 import styles from '../index.module.css';
 import { getAgentLogo } from '@/renderer/utils/agentLogo';
 import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
-import { useLayoutContext } from '@/renderer/context/LayoutContext';
 import type { AcpBackendAll } from '@/types/acpTypes';
 
 type AgentPillBarProps = {
@@ -29,9 +28,6 @@ type AgentPillBarProps = {
 };
 
 const AgentPillBar: React.FC<AgentPillBarProps> = ({ availableAgents, selectedAgentKey, getAgentKey, onSelectAgent, sessionMode, onSessionModeChange, isEnterprise, localModeAvailable }) => {
-  const layout = useLayoutContext();
-  const isMobile = layout?.isMobile ?? false;
-
   // Define priority order for agent display
   const getAgentPriority = (agent: AvailableAgent): number => {
     const backend = agent.backend;
@@ -84,10 +80,8 @@ const AgentPillBar: React.FC<AgentPillBarProps> = ({ availableAgents, selectedAg
               borderRadius: '30px',
               backgroundColor: 'var(--color-guid-agent-bar, var(--aou-2))',
               transition: 'background-color 0.35s ease',
-              width: isMobile ? 'calc(100% + 28px)' : 'fit-content',
-              maxWidth: isMobile ? 'none' : '100%',
-              marginLeft: isMobile ? -14 : 0,
-              marginRight: isMobile ? -14 : 0,
+              width: 'fit-content',
+              maxWidth: '100%',
               gap: 4,
               color: 'var(--foreground)',
             }}
@@ -121,10 +115,8 @@ const AgentPillBar: React.FC<AgentPillBarProps> = ({ availableAgents, selectedAg
               padding: '6px',
               borderRadius: '30px',
               backgroundColor: 'var(--color-guid-agent-bar, var(--aou-2))',
-              width: isMobile ? 'calc(100% + 28px)' : 'fit-content',
-              maxWidth: isMobile ? 'none' : '100%',
-              marginLeft: isMobile ? -14 : 0,
-              marginRight: isMobile ? -14 : 0,
+              width: 'fit-content',
+              maxWidth: '100%',
               color: 'var(--foreground)',
             }}
           >
@@ -148,13 +140,11 @@ const AgentPillBar: React.FC<AgentPillBarProps> = ({ availableAgents, selectedAg
             borderRadius: '30px',
             backgroundColor: 'var(--color-guid-agent-bar, var(--aou-2))',
             transition: 'background-color 0.35s ease',
-            width: isMobile ? 'calc(100% + 28px)' : 'fit-content',
-            maxWidth: isMobile ? 'none' : '100%',
-            marginLeft: isMobile ? -14 : 0,
-            marginRight: isMobile ? -14 : 0,
-            overflow: isMobile ? 'visible' : 'hidden',
-            gap: isMobile ? 6 : 4,
-            flexWrap: isMobile ? 'wrap' : 'nowrap',
+            width: 'fit-content',
+            maxWidth: '100%',
+            overflow: 'hidden',
+            gap: 4,
+            flexWrap: 'nowrap',
             color: 'var(--foreground)',
           }}
         >
@@ -168,14 +158,14 @@ const AgentPillBar: React.FC<AgentPillBarProps> = ({ availableAgents, selectedAg
 
               return (
                 <React.Fragment key={getAgentKey(agent)}>
-                  {!isMobile && index > 0 && <div className='text-16px lh-1 p-2px select-none opacity-30'>|</div>}
-                  <div data-agent-pill='true' data-agent-key={getAgentKey(agent)} data-agent-backend={agent.backend} data-agent-selected={isSelected ? 'true' : 'false'} className={`group relative flex items-center cursor-pointer whitespace-nowrap overflow-hidden ${isSelected ? `opacity-100 px-12px py-8px rd-20px mx-2px ${styles.agentItemSelected}` : isMobile ? 'opacity-70 p-4px' : 'opacity-60 p-4px hover:opacity-100'}`} style={isSelected ? (isMobile ? { animation: 'none', transition: 'opacity 0.2s ease, background-color 0.2s ease' } : undefined) : { transition: 'opacity 0.2s ease' }} onClick={() => onSelectAgent(getAgentKey(agent))}>
+                  {index > 0 && <div className='text-16px lh-1 p-2px select-none opacity-30'>|</div>}
+                  <div data-agent-pill='true' data-agent-key={getAgentKey(agent)} data-agent-backend={agent.backend} data-agent-selected={isSelected ? 'true' : 'false'} className={`group relative flex items-center cursor-pointer whitespace-nowrap overflow-hidden ${isSelected ? `opacity-100 px-12px py-8px rd-20px mx-2px ${styles.agentItemSelected}` : 'opacity-60 p-4px hover:opacity-100'}`} style={isSelected ? undefined : { transition: 'opacity 0.2s ease' }} onClick={() => onSelectAgent(getAgentKey(agent))}>
                     <span className='inline-flex h-20px w-20px shrink-0 items-center justify-center leading-none'>{isEmojiAvatar ? <span style={{ fontSize: 18, lineHeight: 1 }}>{agent.avatar}</span> : logoSrc ? <img src={logoSrc} alt={`${agent.backend} logo`} width={20} height={20} style={{ objectFit: 'contain', display: 'block' }} /> : <Robot theme='outline' size={20} fill='currentColor' />}</span>
                     <span
-                      className={`font-medium text-14px ${isSelected ? 'font-semibold ml-4px' : isMobile ? 'max-w-0 opacity-0 overflow-hidden' : 'max-w-0 opacity-0 overflow-hidden group-hover:max-w-100px group-hover:opacity-100 group-hover:ml-2'}`}
+                      className={`font-medium text-14px ${isSelected ? 'font-semibold ml-4px' : 'max-w-0 opacity-0 overflow-hidden group-hover:max-w-100px group-hover:opacity-100 group-hover:ml-2'}`}
                       style={{
                         color: 'var(--foreground)',
-                        transition: isSelected ? 'color 0.2s ease, font-weight 0.2s ease' : isMobile ? 'none' : 'max-width 0.6s cubic-bezier(0.2, 0.8, 0.3, 1), opacity 0.5s cubic-bezier(0.2, 0.8, 0.3, 1) 0.05s, margin 0.6s cubic-bezier(0.2, 0.8, 0.3, 1)',
+                        transition: isSelected ? 'color 0.2s ease, font-weight 0.2s ease' : 'max-width 0.6s cubic-bezier(0.2, 0.8, 0.3, 1), opacity 0.5s cubic-bezier(0.2, 0.8, 0.3, 1) 0.05s, margin 0.6s cubic-bezier(0.2, 0.8, 0.3, 1)',
                       }}
                     >
                       {agent.name}
