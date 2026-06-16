@@ -4,10 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
-import type { TChatConversation } from '@/common/storage';
-import { emitter } from '@/renderer/utils/emitter';
-import { blockMobileInputFocus, blurActiveElement } from '@/renderer/utils/focus';
 import { Checkbox, Message, Modal } from '@arco-design/web-react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -16,6 +12,10 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useConversationTabs } from '../../context/ConversationTabsContext';
 import type { SidebarTabKey } from '../types';
 import { isConversationPinned } from '../utils/groupingHelpers';
+import { blockMobileInputFocus, blurActiveElement } from '@/renderer/utils/focus';
+import { emitter } from '@/renderer/utils/emitter';
+import type { TChatConversation } from '@/common/storage';
+import { ipcBridge } from '@/common';
 
 type UseConversationActionsParams = {
   batchMode: boolean;
@@ -121,12 +121,21 @@ export const useConversationActions = ({ batchMode, onSessionClick, onBatchModeC
 
       Modal.confirm({
         title: t('conversation.history.deleteTitle'),
-        content: React.createElement('div', null,
+        content: React.createElement(
+          'div',
+          null,
           React.createElement('div', null, t('conversation.history.deleteConfirm')),
-          hasWorkspace && React.createElement(Checkbox, {
-            onChange: (checked: boolean) => { deleteWorkspaceRef.current = checked; },
-            style: { marginTop: 12 },
-          }, t('conversation.history.deleteWorkspaceOption'))
+          hasWorkspace &&
+            React.createElement(
+              Checkbox,
+              {
+                onChange: (checked: boolean) => {
+                  deleteWorkspaceRef.current = checked;
+                },
+                style: { marginTop: 12 },
+              },
+              t('conversation.history.deleteWorkspaceOption')
+            )
         ),
         okText: t('conversation.history.confirmDelete'),
         cancelText: t('conversation.history.cancelDelete'),
@@ -161,18 +170,27 @@ export const useConversationActions = ({ batchMode, onSessionClick, onBatchModeC
       }
 
       const selectedIds = Array.from(selectedConversationIds);
-      const selectedConvs = conversations.filter(c => selectedIds.includes(c.id));
-      const hasAnyWorkspace = selectedConvs.some(c => !!(c.extra as { workspace?: string } | undefined)?.workspace);
+      const selectedConvs = conversations.filter((c) => selectedIds.includes(c.id));
+      const hasAnyWorkspace = selectedConvs.some((c) => !!(c.extra as { workspace?: string } | undefined)?.workspace);
       const deleteWorkspaceRef = { current: false };
 
       Modal.confirm({
         title: t('conversation.history.batchDelete'),
-        content: React.createElement('div', null,
+        content: React.createElement(
+          'div',
+          null,
           React.createElement('div', null, t('conversation.history.batchDeleteConfirm', { count: selectedConversationIds.size })),
-          hasAnyWorkspace && React.createElement(Checkbox, {
-            onChange: (checked: boolean) => { deleteWorkspaceRef.current = checked; },
-            style: { marginTop: 12 },
-          }, t('conversation.history.deleteWorkspaceOption'))
+          hasAnyWorkspace &&
+            React.createElement(
+              Checkbox,
+              {
+                onChange: (checked: boolean) => {
+                  deleteWorkspaceRef.current = checked;
+                },
+                style: { marginTop: 12 },
+              },
+              t('conversation.history.deleteWorkspaceOption')
+            )
         ),
         okText: t('conversation.history.confirmDelete'),
         cancelText: t('conversation.history.cancelDelete'),
