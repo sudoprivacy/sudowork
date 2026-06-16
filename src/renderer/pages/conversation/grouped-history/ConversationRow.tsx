@@ -37,7 +37,7 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
   const siderTooltipProps = getSiderTooltipProps(tooltipEnabled);
   const inlineNameTooltipEnabled = !collapsed && !!conversation.name;
 
-  const actionReserveClass = isPinned ? 'mr-36px' : menuVisible ? 'mr-36px' : 'group-hover:mr-36px';
+  const actionReserveClass = isPinned ? 'mr-9' : menuVisible ? 'mr-9' : 'group-hover:mr-9';
 
   const renderLeadingIcon = () => {
     if (cronStatus !== 'none') {
@@ -48,21 +48,21 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
       if (assistantInfo.isEmoji) {
         return <span className='text-18px leading-none flex-shrink-0'>{assistantInfo.logo}</span>;
       }
-      return <img src={assistantInfo.logo} alt={assistantInfo.name} className='w-20px h-20px rounded-50% flex-shrink-0' />;
+      return <img src={assistantInfo.logo} alt={assistantInfo.name} className='w-5 h-5 rounded-50% flex-shrink-0' />;
     }
 
     // For Moss sessions, use remote-agent logo
     if (isMossSession) {
       const mossLogo = getAgentLogo('remote-agent');
       if (mossLogo) {
-        return <img src={mossLogo} alt='Moss Server' className='w-20px h-20px rounded-50% flex-shrink-0' />;
+        return <img src={mossLogo} alt='Moss Server' className='w-5 h-5 rounded-50% flex-shrink-0' />;
       }
     }
 
     const backendKey = getBackendKeyFromConversation(conversation as TChatConversation);
     const logo = getAgentLogo(backendKey);
     if (logo) {
-      return <img src={logo} alt={`${backendKey || 'agent'} logo`} className='w-20px h-20px rounded-50% flex-shrink-0' />;
+      return <img src={logo} alt={`${backendKey || 'agent'} logo`} className='w-5 h-5 rounded-50% flex-shrink-0' />;
     }
 
     return <MessageOne theme='outline' size='20' className='line-height-0 flex-shrink-0' />;
@@ -81,7 +81,7 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
     <Tooltip key={conversation.id} {...siderTooltipProps} content={conversation.name || t('conversation.welcome.newConversation')} position='right'>
       <div
         id={'c-' + conversation.id}
-        className={classNames('chat-history__item px-12px py-8px rd-8px flex justify-start items-center group cursor-pointer relative overflow-hidden shrink-0 conversation-item [&.conversation-item+&.conversation-item]:mt-2px min-w-0 transition-colors', {
+        className={classNames('chat-history__item px-3 py-2 rd-8px flex justify-start items-center group cursor-pointer relative overflow-hidden shrink-0 conversation-item [&.conversation-item+&.conversation-item]:mt-0.5 min-w-0 transition-colors', {
           'hover:bg-hover': !batchMode,
           '!bg-active conversation-item--selected': selected,
           'bg-[rgba(var(--primary-6),0.08)]': batchMode && checked,
@@ -90,7 +90,7 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
       >
         {batchMode && (
           <span
-            className='mr-8px f-center'
+            className='mr-2 f-center'
             onClick={(event) => {
               event.stopPropagation();
               onToggleChecked(conversation as TChatConversation);
@@ -102,12 +102,12 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
         {renderLeadingIcon()}
         {ptyActiveCount > 0 && (
           <Tooltip mini content={t('conversation.history.terminalRunning', { count: ptyActiveCount, defaultValue: '{{count}} terminal still running' })}>
-            <span className='f-center ml-6px collapsed-hidden text-[rgb(var(--ui-accent-orange))]'>
+            <span className='f-center ml-1.5 collapsed-hidden text-[rgb(var(--ui-accent-orange))]'>
               <Loading theme='outline' size='12' className='animate-spin' />
             </span>
           </Tooltip>
         )}
-        <FlexFullContainer className={classNames('h-24px min-w-0 flex-1 collapsed-hidden ml-10px', actionReserveClass)}>
+        <FlexFullContainer className={classNames('h-6 min-w-0 flex-1 collapsed-hidden ml-2.5', actionReserveClass)}>
           <Tooltip content={conversation.name} disabled={!inlineNameTooltipEnabled} trigger='hover' popupVisible={inlineNameTooltipEnabled ? undefined : false} unmountOnExit popupHoverStay={false} position='top'>
             <div className={classNames('chat-history__item-name overflow-hidden text-ellipsis block w-full text-14px lh-24px whitespace-nowrap min-w-0 group-hover:text-1', selected && !batchMode ? 'text-1 font-medium' : 'text-2')}>{conversation.name}</div>
           </Tooltip>
@@ -115,7 +115,7 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
 
         {!batchMode && (
           <div
-            className={classNames('absolute right-0px top-0px h-full items-center justify-end !collapsed-hidden pr-8px', {
+            className={classNames('absolute right-0 top-0 h-full items-center justify-end !collapsed-hidden pr-2', {
               flex: isPinned || menuVisible,
               'hidden group-hover:flex': !isPinned && !menuVisible,
             })}
@@ -127,7 +127,7 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
             }}
           >
             {isPinned && !menuVisible && (
-              <span className='f-center text-secondary group-hover:hidden pr-4px'>
+              <span className='f-center text-secondary group-hover:hidden pr-1'>
                 <Pushpin theme='outline' size='16' />
               </span>
             )}
@@ -154,14 +154,14 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
                 >
                   {/* Pin menu - available for both local and Moss sessions */}
                   <Menu.Item key='pin'>
-                    <div className='flex items-center gap-8px'>
+                    <div className='flex items-center gap-2'>
                       <Pushpin theme='outline' size='14' />
                       <span>{isPinned ? t('conversation.history.unpin') : t('conversation.history.pin')}</span>
                     </div>
                   </Menu.Item>
                   {/* Rename menu - available for all sessions (including Moss sessions saved locally) */}
                   <Menu.Item key='rename'>
-                    <div className='flex items-center gap-8px'>
+                    <div className='flex items-center gap-2'>
                       <EditOne theme='outline' size='14' />
                       <span>{t('conversation.history.rename')}</span>
                     </div>
@@ -169,14 +169,14 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
                   {/* Export menu - only for local sessions */}
                   {!isMossSession && (
                     <Menu.Item key='export'>
-                      <div className='flex items-center gap-8px'>
+                      <div className='flex items-center gap-2'>
                         <Export theme='outline' size='14' />
                         <span>{t('conversation.history.export')}</span>
                       </div>
                     </Menu.Item>
                   )}
                   <Menu.Item key='delete'>
-                    <div className='flex items-center gap-8px text-warning'>
+                    <div className='flex items-center gap-2 text-warning'>
                       <DeleteOne theme='outline' size='14' />
                       <span>{t('conversation.history.deleteTitle')}</span>
                     </div>
@@ -191,7 +191,7 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
               unmountOnExit={false}
             >
               <span
-                className={classNames('f-center cursor-pointer hover:bg-fill-2 rd-4px p-4px transition-colors relative text-foreground', {
+                className={classNames('f-center cursor-pointer hover:bg-fill-2 rd-4px p-1 transition-colors relative text-foreground', {
                   flex: menuVisible,
                   'hidden group-hover:flex': !menuVisible,
                 })}
@@ -201,9 +201,9 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
                 }}
               >
                 <div className='flex flex-row gap-1 items-center justify-center' style={{ width: '20px', height: '16px' }}>
-                  <div className='w-2px h-2px rounded-full bg-current'></div>
-                  <div className='w-2px h-2px rounded-full bg-current'></div>
-                  <div className='w-2px h-2px rounded-full bg-current'></div>
+                  <div className='w-0.5 h-0.5 rounded-full bg-current'></div>
+                  <div className='w-0.5 h-0.5 rounded-full bg-current'></div>
+                  <div className='w-0.5 h-0.5 rounded-full bg-current'></div>
                 </div>
               </span>
             </Dropdown>
