@@ -18,9 +18,6 @@ import { emitter } from '@renderer/utils/emitter';
 import SudoworkIcon from '@renderer/assets/sudowork-icon-dark.svg';
 import Sider from '@renderer/layouts/sider';
 import Titlebar from '@/renderer/components/Titlebar';
-// import { useCommandPalette } from '@/renderer/hooks/useCommandPalette';
-// import CommandPalette from '@/renderer/components/CommandPalette';
-// import PwaPullToRefresh from '@/renderer/components/PwaPullToRefresh';
 import { ConfigStorage } from '@/common/storage';
 import { ipcBridge } from '@/common';
 
@@ -134,7 +131,6 @@ const Layout: React.FC = () => {
             <Outlet />
             {multiAgentContextHolder}
             {directorySelectionContextHolder}
-            {/* <PwaPullToRefresh /> */}
             <Suspense fallback={null}>
               <UpdateModal />
             </Suspense>
