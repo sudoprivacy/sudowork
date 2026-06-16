@@ -4,6 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Checkbox, Dropdown, Menu, Tooltip } from '@arco-design/web-react';
+import { DeleteOne, EditOne, Export, Loading, MessageOne, Pushpin } from '@icon-park/react';
+import classNames from 'classnames';
+import React from 'react';
+import { useTranslation } from 'react-i18next';
+import type { ConversationRowProps } from './types';
+import { getBackendKeyFromConversation } from './utils/exportHelpers';
+import { isConversationPinned } from './utils/groupingHelpers';
 import type { TChatConversation } from '@/common/storage';
 import { getAgentLogo } from '@/renderer/utils/agentLogo';
 import FlexFullContainer from '@/renderer/components/FlexFullContainer';
@@ -12,15 +20,6 @@ import { useTerminalActiveCount } from '@/renderer/hooks/useTerminalActiveCount'
 import { CronJobIndicator } from '@/renderer/pages/cron';
 import { cleanupSiderTooltips, getSiderTooltipProps } from '@/renderer/utils/siderTooltip';
 import { useLayoutContext } from '@/renderer/context/LayoutContext';
-import { Checkbox, Dropdown, Menu, Tooltip } from '@arco-design/web-react';
-import { DeleteOne, EditOne, Export, Loading, MessageOne, Pushpin } from '@icon-park/react';
-import classNames from 'classnames';
-import React from 'react';
-import { useTranslation } from 'react-i18next';
-
-import type { ConversationRowProps } from './types';
-import { getBackendKeyFromConversation } from './utils/exportHelpers';
-import { isConversationPinned } from './utils/groupingHelpers';
 
 const ConversationRow: React.FC<ConversationRowProps> = (props) => {
   const { conversation, collapsed, tooltipEnabled, batchMode, checked, selected, menuVisible } = props;
