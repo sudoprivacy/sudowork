@@ -4,12 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { TChatConversation } from '@/common/storage';
-import { ipcBridge } from '@/common';
-import DirectorySelectionModal from '@/renderer/components/DirectorySelectionModal';
-import FlexFullContainer from '@/renderer/components/FlexFullContainer';
-import { useCronJobsMap } from '@/renderer/pages/cron';
-import { emitter } from '@/renderer/utils/emitter';
 import { DndContext, DragOverlay, closestCenter } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { Empty, Input, Message, Modal } from '@arco-design/web-react';
@@ -29,6 +23,12 @@ import { useConversations } from './hooks/useConversations';
 import { useDragAndDrop } from './hooks/useDragAndDrop';
 import { useExport } from './hooks/useExport';
 import type { ConversationRowProps, ConversationItem, WorkspaceGroupedHistoryProps } from './types';
+import { emitter } from '@/renderer/utils/emitter';
+import { useCronJobsMap } from '@/renderer/pages/cron';
+import FlexFullContainer from '@/renderer/components/FlexFullContainer';
+import DirectorySelectionModal from '@/renderer/components/DirectorySelectionModal';
+import { ipcBridge } from '@/common';
+import type { TChatConversation } from '@/common/storage';
 
 const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSessionClick, collapsed = false, tooltipEnabled = false, batchMode = false, onBatchModeChange, activeTab = 'timeline', onBatchApiChange }) => {
   const { id } = useParams();

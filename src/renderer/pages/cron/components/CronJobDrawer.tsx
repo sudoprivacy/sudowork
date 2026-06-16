@@ -4,13 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { ICronJob } from '@/common/ipcBridge';
-import { useLayoutContext } from '@/renderer/context/LayoutContext';
 import { Drawer, Form, Input, Switch, Message, Button, Popconfirm } from '@arco-design/web-react';
 import { AlarmClock, DeleteOne } from '@icon-park/react';
 import React, { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import dayjs from 'dayjs';
+import { useLayoutContext } from '@/renderer/context/LayoutContext';
+import type { ICronJob } from '@/common/ipcBridge';
 
 const FormItem = Form.Item;
 const TextArea = Input.TextArea;
