@@ -1,8 +1,7 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import classNames from 'classnames';
-import { ArrowCircleLeft, ExpandLeft, ExpandRight, Plus } from '@icon-park/react';
+import { ExpandLeft, ExpandRight } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
-import { useLocation, useNavigate } from 'react-router-dom';
 
 import { WORKSPACE_STATE_EVENT, dispatchWorkspaceToggleEvent } from '@renderer/utils/workspaceEvents';
 import type { WorkspaceStateDetail } from '@renderer/utils/workspaceEvents';
@@ -18,10 +17,6 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
   const { t } = useTranslation();
   const [workspaceCollapsed, setWorkspaceCollapsed] = useState(true);
   const layout = useLayoutContext();
-  const location = useLocation();
-  const navigate = useNavigate();
-  const menuRef = useRef<HTMLDivElement | null>(null);
-  const lastNonSettingsPathRef = useRef('/guid');
 
   // 监听工作空间折叠状态，保持按钮图标一致 / Sync workspace collapsed state for toggle button
   useEffect(() => {
@@ -48,13 +43,8 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
   const showWorkspaceButton = workspaceAvailable && (!isDesktopRuntime || isMacRuntime);
 
   const workspaceTooltip = workspaceCollapsed ? t('common.expandMore', { defaultValue: 'Expand workspace' }) : t('common.collapse', { defaultValue: 'Collapse workspace' });
-  const newConversationTooltip = t('conversation.workspace.createNewConversation');
-  const backToChatTooltip = t('common.back', { defaultValue: 'Back to Chat' });
-  const isSettingsRoute = location.pathname.startsWith('/settings');
-  const iconSize = layout?.isMobile ? 24 : 18;
-  const showSiderToggle = Boolean(layout?.setSiderCollapsed) && (!layout?.isMobile || !isSettingsRoute);
-  const showBackToChatButton = Boolean(layout?.isMobile && isSettingsRoute);
-  const showNewConversationButton = Boolean(layout?.isMobile && workspaceAvailable);
+  const iconSize = 18;
+  const showSiderToggle = Boolean(layout?.setSiderCollapsed);
   const siderTooltip = layout?.siderCollapsed ? t('common.expandMore', { defaultValue: 'Expand sidebar' }) : t('common.collapse', { defaultValue: 'Collapse sidebar' });
 
   const handleSiderToggle = () => {
@@ -69,74 +59,28 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
     dispatchWorkspaceToggleEvent();
   };
 
-  const handleCreateConversation = () => {
-    void navigate('/guid');
-  };
-
-  const handleBackToChat = () => {
-    const target = lastNonSettingsPathRef.current;
-    if (target && !target.startsWith('/settings')) {
-      void navigate(target);
-      return;
-    }
-    void navigate(-1);
-  };
-
-  useEffect(() => {
-    if (!isSettingsRoute) {
-      const path = `${location.pathname}${location.search}${location.hash}`;
-      lastNonSettingsPathRef.current = path;
-      try {
-        sessionStorage.setItem('aion:last-non-settings-path', path);
-      } catch {
-        // ignore
-      }
-      return;
-    }
-    try {
-      const stored = sessionStorage.getItem('aion:last-non-settings-path');
-      if (stored) {
-        lastNonSettingsPathRef.current = stored;
-      }
-    } catch {
-      // ignore
-    }
-  }, [isSettingsRoute, location.pathname, location.search, location.hash]);
-
   const menuStyle: React.CSSProperties = useMemo(() => {
-    if (!isMacRuntime || layout?.isMobile) return {};
+    if (!isMacRuntime) return {};
     return { marginLeft: '80px' };
-  }, [isMacRuntime, layout?.isMobile]);
+  }, [isMacRuntime]);
 
   return (
     <div
       className={classNames('flex items-center gap-8px app-titlebar', {
-        'app-titlebar--mobile': layout?.isMobile,
-        'app-titlebar--mobile-conversation': layout?.isMobile && workspaceAvailable,
         'app-titlebar--desktop': isDesktopRuntime,
         'app-titlebar--mac': isMacRuntime,
       })}
     >
-      <div ref={menuRef} className='flex items-center [-webkit-app-region:no-drag]' style={menuStyle}>
-        {showBackToChatButton && (
-          <button type='button' className={classNames('app-titlebar__button', layout?.isMobile && 'app-titlebar__button--mobile')} onClick={handleBackToChat} aria-label={backToChatTooltip}>
-            <ArrowCircleLeft theme='outline' size={iconSize} fill='currentColor' />
-          </button>
-        )}
+      <div className='flex items-center [-webkit-app-region:no-drag]' style={menuStyle}>
         {showSiderToggle && (
-          <button type='button' className={classNames('app-titlebar__button hover:bg-transparent! active:bg-transparent!', layout?.isMobile && 'app-titlebar__button--mobile')} onClick={handleSiderToggle} aria-label={siderTooltip}>
+          <button type='button' className='app-titlebar__button hover:bg-transparent! active:bg-transparent!' onClick={handleSiderToggle} aria-label={siderTooltip}>
             {layout?.siderCollapsed ? <ExpandLeft theme='outline' size={iconSize} fill='currentColor' /> : <ExpandRight theme='outline' size={iconSize} fill='currentColor' />}
           </button>
         )}
       </div>
       <div className='app-titlebar__toolbar'>
-        {showNewConversationButton && (
-          <button type='button' className={classNames('app-titlebar__button', layout?.isMobile && 'app-titlebar__button--mobile')} onClick={handleCreateConversation} aria-label={newConversationTooltip}>
-            <Plus theme='outline' size={iconSize} fill='currentColor' />
-          </button>
-        )}
         {showWorkspaceButton && (
-          <button type='button' className={classNames('app-titlebar__button', layout?.isMobile && 'app-titlebar__button--mobile')} onClick={handleWorkspaceToggle} aria-label={workspaceTooltip}>
+          <button type='button' className='app-titlebar__button' onClick={handleWorkspaceToggle} aria-label={workspaceTooltip}>
             {workspaceCollapsed ? <ExpandRight theme='outline' size={iconSize} fill='currentColor' /> : <ExpandLeft theme='outline' size={iconSize} fill='currentColor' />}
           </button>
         )}

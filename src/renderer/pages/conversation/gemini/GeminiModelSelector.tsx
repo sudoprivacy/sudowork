@@ -1,13 +1,13 @@
-import type { GeminiModelSelection } from '@/renderer/pages/conversation/gemini/useGeminiModelSelection';
-import { usePreviewContext } from '@/renderer/pages/conversation/preview';
-import { useLayoutContext } from '@/renderer/context/LayoutContext';
-import { getModelDisplayLabel } from '@/renderer/utils/agentUiDisplay';
 import { Button, Dropdown, Menu, Tooltip } from '@arco-design/web-react';
 import { Down } from '@icon-park/react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import classNames from 'classnames';
 import useSWR from 'swr';
+import { getModelDisplayLabel } from '@/renderer/utils/agentUiDisplay';
+import { useLayoutContext } from '@/renderer/context/LayoutContext';
+import { usePreviewContext } from '@/renderer/pages/conversation/preview';
+import type { GeminiModelSelection } from '@/renderer/pages/conversation/gemini/useGeminiModelSelection';
 import { ipcBridge } from '@/common';
 import type { IProvider } from '@/common/storage';
 

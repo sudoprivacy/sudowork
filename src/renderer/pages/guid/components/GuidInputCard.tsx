@@ -4,16 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import FilePreview from '@/renderer/components/FilePreview';
-import ContextMenu, { type ContextMenuItem } from '@/renderer/components/ContextMenu';
-import { useLayoutContext } from '@/renderer/context/LayoutContext';
-import { useCompositionInput } from '@/renderer/hooks/useCompositionInput';
 import { Input, Tag, Tooltip } from '@arco-design/web-react';
 import { IconClose, IconPaste } from '@arco-design/web-react/icon';
 import { CloseSmall, FolderOpen, Lightning } from '@icon-park/react';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import styles from '../index.module.css';
+import { useCompositionInput } from '@/renderer/hooks/useCompositionInput';
+import ContextMenu, { type ContextMenuItem } from '@/renderer/components/ContextMenu';
+import FilePreview from '@/renderer/components/FilePreview';
 
 type GuidInputCardProps = {
   // Input state
@@ -58,12 +57,11 @@ type GuidInputCardProps = {
   actionRow: React.ReactNode;
 };
 
+// eslint-disable-next-line max-len
 const GuidInputCard: React.FC<GuidInputCardProps> = ({ input, onInputChange, onKeyDown, onPaste, onFocus, onBlur, onSelect, placeholder, isInputActive, isFileDragging, activeBorderColor, inactiveBorderColor, activeShadow, dragHandlers, mentionOpen, mentionSelectorBadge, mentionDropdown, skillSelectorOpen, skillSelectorMenu, selectedSkills, onRemoveSkill, getSkillDisplayName, files, onRemoveFile, dir, onClearDir, actionRow }) => {
-  const layout = useLayoutContext();
-  const isMobile = layout?.isMobile ?? false;
   const { t } = useTranslation();
   const { compositionHandlers, isComposing } = useCompositionInput();
-  const textareaAutoSize = isMobile ? { minRows: 2, maxRows: 8 } : { minRows: 3, maxRows: 20 };
+  const textareaAutoSize = { minRows: 3, maxRows: 20 };
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; items: ContextMenuItem[] } | null>(null);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -110,9 +108,6 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({ input, onInputChange, onK
       style={{
         zIndex: 1,
         transition: 'box-shadow 0.25s ease, border-color 0.25s ease, border-width 0.25s ease',
-        width: isMobile ? 'calc(100% + 28px)' : undefined,
-        marginLeft: isMobile ? -14 : undefined,
-        marginRight: isMobile ? -14 : undefined,
         ...(isFileDragging
           ? {
               backgroundColor: 'rgba(var(--ui-accent-orange-rgb), 0.08)',
@@ -182,19 +177,13 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({ input, onInputChange, onK
         <div className='flex items-start justify-between gap-10px mt-8px px-10px py-6px text-13px text-secondary' style={{ borderTop: '1px solid var(--border-default)' }}>
           <div className='flex items-start min-w-0 flex-1 gap-8px'>
             <FolderOpen className='mt-1px flex-shrink-0' theme='outline' size='16' fill={'var(--text-secondary)'} style={{ lineHeight: 0 }} />
-            <Tooltip content={dir} position='top' disabled={isMobile}>
+            <Tooltip content={dir} position='top'>
               <span className='block min-w-0 whitespace-normal break-all leading-18px'>
-                {isMobile ? (
-                  <span className='text-12px lh-18px'>{dir}</span>
-                ) : (
-                  <>
-                    {t('conversation.welcome.currentWorkspace')}: {dir}
-                  </>
-                )}
+                {t('conversation.welcome.currentWorkspace')}: {dir}
               </span>
             </Tooltip>
           </div>
-          <Tooltip content={t('conversation.welcome.clearWorkspace')} position='top' disabled={isMobile}>
+          <Tooltip content={t('conversation.welcome.clearWorkspace')} position='top'>
             <button type='button' className='mt-1px h-28px w-28px rd-999px f-center flex-shrink-0 text-tertiary hover:text-danger hover:bg-danger-soft active:bg-danger-soft transition-colors' onClick={onClearDir} aria-label={t('conversation.welcome.clearWorkspace')} style={{ border: '1px solid var(--border-default)' }}>
               <IconClose strokeWidth={3} style={{ fontSize: 15 }} />
             </button>

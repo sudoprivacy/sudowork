@@ -35,17 +35,6 @@ body {
   -webkit-app-region: drag;
 }
 
-.app-titlebar--mobile {
-  height: 58px;
-  min-height: 58px;
-  padding: 6px 10px 0;
-}
-
-.app-titlebar--mobile-conversation {
-  background: linear-gradient(180deg, var(--bg-1) 0%, var(--bg-2) 100%) !important;
-  border-bottom: none !important;
-}
-
 .app-titlebar--mac {
   height: 45px;
   min-height: 36px;
@@ -71,29 +60,6 @@ body {
   height: 26px;
   display: block;
   color: inherit;
-}
-
-.app-titlebar--mobile .app-titlebar__brand-logo {
-  width: 28px;
-  height: 28px;
-}
-
-.app-titlebar--mobile .app-titlebar__brand {
-  position: absolute;
-  left: 50%;
-  transform: translateX(calc(-50% + var(--app-titlebar-mobile-center-offset, 0px)));
-  max-width: calc(100% - 180px);
-}
-
-.app-titlebar__brand-mobile {
-  display: inline-flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: center;
-  flex-wrap: nowrap;
-  gap: 6px;
-  min-width: 0;
-  white-space: nowrap;
 }
 
 .app-titlebar__brand-text {
@@ -147,17 +113,6 @@ body {
 
 .app-titlebar__button:active {
   background-color: var(--bg-active);
-}
-
-.app-titlebar__button--mobile {
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
-}
-
-.app-titlebar__button--mobile svg {
-  width: 24px !important;
-  height: 24px !important;
 }
 
 .app-window-controls__button {
@@ -333,54 +288,6 @@ body,
 
   .chat-workspace .workspace-tree .arco-tree-node {
     margin-bottom: 2px;
-  }
-
-  .settings-mobile-top-nav {
-    display: flex;
-    gap: 8px;
-    overflow-x: auto;
-    overflow-y: hidden;
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-    padding-bottom: 10px;
-    margin-bottom: 12px;
-  }
-
-  .settings-mobile-top-nav::-webkit-scrollbar {
-    display: none;
-  }
-
-  .settings-mobile-top-nav__item {
-    flex: 0 0 auto;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    height: 36px;
-    padding: 0 12px;
-    border-radius: 999px;
-    border: 1px solid var(--border-default);
-    background: var(--bg-1);
-    color: var(--text-secondary);
-    font-size: 14px;
-    line-height: 20px;
-  }
-
-  .settings-mobile-top-nav__item--active {
-    background: var(--bg-active);
-    color: var(--foreground);
-    border-color: var(--border-default);
-  }
-
-  .settings-mobile-top-nav__icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    line-height: 0;
-  }
-
-  .settings-mobile-top-nav__label {
-    white-space: nowrap;
-    font-weight: 500;
   }
 
   .agent-mode-compact-pill {
@@ -601,13 +508,6 @@ body,
     flex-shrink: 0 !important;
   }
 
-  .layout-sider-header--mobile {
-    min-height: 72px !important;
-    padding-top: 14px !important;
-    padding-bottom: 12px !important;
-    gap: 14px !important;
-  }
-
   .layout-sider-content {
     flex: 1 !important;
     min-height: 0 !important;
@@ -619,25 +519,6 @@ body,
   .sider-footer {
     flex-shrink: 0 !important;
     padding-bottom: 20px;
-  }
-
-  .sider-action-btn-mobile {
-    height: 44px !important;
-    gap: 12px !important;
-    padding-inline: 14px !important;
-    border-radius: 10px !important;
-  }
-
-  .sider-action-icon-btn-mobile {
-    width: 44px !important;
-    height: 44px !important;
-    border-radius: 10px !important;
-  }
-
-  .sider-footer-btn-mobile {
-    min-height: 44px !important;
-    padding: 10px 14px !important;
-    border-radius: 10px !important;
   }
 }
 
