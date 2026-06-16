@@ -12,7 +12,6 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useConversationTabs } from '../../context/ConversationTabsContext';
 import type { SidebarTabKey } from '../types';
 import { isConversationPinned } from '../utils/groupingHelpers';
-import { blockMobileInputFocus, blurActiveElement } from '@/renderer/utils/focus';
 import { emitter } from '@/renderer/utils/emitter';
 import type { TChatConversation } from '@/common/storage';
 import { ipcBridge } from '@/common';
@@ -63,8 +62,6 @@ export const useConversationActions = ({ batchMode, onSessionClick, onBatchModeC
         toggleSelectedConversation(conversation);
         return;
       }
-      blockMobileInputFocus();
-      blurActiveElement();
 
       const customWorkspace = conversation.extra?.customWorkspace;
       const newWorkspace = conversation.extra?.workspace;

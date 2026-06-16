@@ -6,7 +6,6 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { Button, Dropdown, Message, Popover, Tabs } from '@arco-design/web-react';
 import type { BatchHistoryApi } from '@renderer/pages/conversation/grouped-history/types';
 import { cleanupSiderTooltips } from '@renderer/utils/siderTooltip';
-import { blurActiveElement } from '@renderer/utils/focus';
 import { useAuth } from '@renderer/context/AuthContext';
 import { addEventListener, emitter } from '@renderer/utils/emitter';
 import { ConfigStorage } from '@common/storage';
@@ -97,7 +96,6 @@ const Sider: React.FC = () => {
 
   const handleSettingsClick = () => {
     cleanupSiderTooltips();
-    blurActiveElement();
     if (isSettings) {
       const target = lastNonSettingsPathRef.current || '/guid';
       void navigate(target);
@@ -156,7 +154,6 @@ const Sider: React.FC = () => {
               className='h-10.5 flex-shrink-0 f-center gap-2 px-3.5 mb-3 rd-12px cursor-pointer transition-all border bg-1 hover:bg-hover active:bg-fill-2'
               onClick={() => {
                 cleanupSiderTooltips();
-                blurActiveElement();
                 setIsBatchMode(false);
                 // 清除持久化的 agent 选择，确保新会话时不恢复之前的助手
                 void ConfigStorage.set('guid.lastSelectedAgent', '');
@@ -182,7 +179,6 @@ const Sider: React.FC = () => {
                     selected={isSelected}
                     onClick={() => {
                       cleanupSiderTooltips();
-                      blurActiveElement();
                       handleFunctionMenuClick(menu.id);
                       onSessionClick();
                     }}

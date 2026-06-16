@@ -96,7 +96,7 @@ const Layout: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
-  const layoutContextValue = useMemo(() => ({ isMobile: false, siderCollapsed: collapsed, setSiderCollapsed: setCollapsed }), [collapsed, setCollapsed]);
+  const layoutContextValue = useMemo(() => ({ siderCollapsed: collapsed, setSiderCollapsed: setCollapsed }), [collapsed, setCollapsed]);
 
   return (
     <LayoutContext.Provider value={layoutContextValue}>
