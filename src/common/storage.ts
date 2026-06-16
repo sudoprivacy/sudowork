@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { AcpBackend, AcpBackendAll, AcpBackendConfig } from '@/types/acpTypes';
 import { storage } from '@office-ai/platform';
+import type { AcpBackend, AcpBackendAll, AcpBackendConfig } from '@/types/acpTypes';
 
 /**
  * @description 聊天相关的存储
@@ -232,7 +232,7 @@ export interface IEnvStorageRefer {
  * Conversation source type - identifies where the conversation was created
  * 会话来源类型 - 标识会话创建的来源
  */
-export type ConversationSource = 'aionui' | 'telegram' | 'lark' | 'dingtalk' | 'wechat' | (string & {});
+export type ConversationSource = 'aionui' | 'telegram' | 'lark' | 'dingtalk' | 'wechat' | (string & NonNullable<unknown>);
 
 interface IChatConversation<T, Extra> {
   createTime: number;
