@@ -1,3 +1,10 @@
+import { Layout as ArcoLayout, Tooltip } from '@arco-design/web-react';
+import { ExpandLeft, ExpandRight, Right } from '@icon-park/react';
+import React, { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { createPortal } from 'react-dom';
+import useSWR from 'swr';
+import classNames from 'classnames';
 import { fetchAssistantsAsConfigs } from '@/renderer/shared/agents/assistantAdapter';
 import { STORAGE_KEYS } from '@/common/storageKeys';
 import AgentModeSelector from '@/renderer/components/AgentModeSelector';
@@ -9,15 +16,8 @@ import { useConversationTabs } from '@/renderer/pages/conversation/context/Conve
 import { PreviewPanel, usePreviewContext } from '@/renderer/pages/conversation/preview';
 import ConversationTitleMinimap from '@/renderer/pages/conversation/components/ConversationTitleMinimap';
 import { blurActiveElement } from '@/renderer/utils/focus';
-import { Layout as ArcoLayout, Tooltip } from '@arco-design/web-react';
-import { ExpandLeft, ExpandRight, Right } from '@icon-park/react';
-import React, { useEffect, useRef, useState } from 'react';
-import { useTranslation } from 'react-i18next';
-import { createPortal } from 'react-dom';
-import useSWR from 'swr';
 import { WORKSPACE_HAS_FILES_EVENT, WORKSPACE_TOGGLE_EVENT, dispatchWorkspaceStateEvent, dispatchWorkspaceToggleEvent, type WorkspaceHasFilesDetail } from '@/renderer/utils/workspaceEvents';
 import { ACP_BACKENDS_ALL } from '@/types/acpTypes';
-import classNames from 'classnames';
 import { isElectronDesktop } from '@/renderer/utils/platform';
 
 const MIN_CHAT_RATIO = 25;
