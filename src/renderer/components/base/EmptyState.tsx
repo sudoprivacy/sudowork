@@ -5,7 +5,7 @@
  */
 
 import React from 'react';
-import { Empty, Button } from '@arco-design/web-react';
+import { Button } from '@arco-design/web-react';
 import classNames from 'classnames';
 import './EmptyState.css';
 
@@ -137,7 +137,7 @@ const EmptyState: React.FC<EmptyStateProps> = ({ icon, title, description, actio
       {actions && actions.length > 0 && (
         <div className='empty-state__actions flex gap-12px flex-wrap justify-center'>
           {actions.map((action, index) => (
-            <Button key={index} type={action.type || 'primary'} onClick={action.onClick} disabled={action.disabled} className={classNames('empty-state__action-btn px-20px min-w-100px', action.className)} style={{ borderRadius: 'var(--radius-md)' }}>
+            <Button key={index} type={action.type || 'primary'} shape='round' onClick={action.onClick} disabled={action.disabled} className={classNames('empty-state__action-btn px-20px min-w-100px', action.className)}>
               {action.label}
             </Button>
           ))}

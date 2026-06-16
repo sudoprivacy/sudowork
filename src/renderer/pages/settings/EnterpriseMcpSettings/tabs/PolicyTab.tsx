@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { Tag } from '@arco-design/web-react';
-import EmptyState from '@/renderer/components/base/EmptyState';
 import type { EnterpriseMcpPolicyDto } from '../types';
+import EmptyState from '@/renderer/components/base/EmptyState';
 
 interface PolicyTabProps {
   policy: EnterpriseMcpPolicyDto | null;

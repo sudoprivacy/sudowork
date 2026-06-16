@@ -2,12 +2,12 @@ import React, { useMemo, useState } from 'react';
 import { Switch, Button, Popconfirm, Message } from '@arco-design/web-react';
 import { Edit, Delete } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
-import EmptyState from '@/renderer/components/base/EmptyState';
 import McpIcon from '../components/McpIcon';
 import RiskLevelTag from '../components/RiskLevelTag';
 import EditConfigModal from '../components/EditConfigModal';
 import InstallJsonModal from '../components/InstallJsonModal';
 import type { EnterpriseMcpServerDto, EnterpriseMcpUserConfigItem } from '../types';
+import EmptyState from '@/renderer/components/base/EmptyState';
 
 interface MyMcpTabProps {
   servers: EnterpriseMcpServerDto[];
