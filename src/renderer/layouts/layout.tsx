@@ -57,7 +57,6 @@ const DEFAULT_SIDER_WIDTH = 260;
 
 const Layout: React.FC = () => {
   const { config } = useTenantConfig(); // 获取租户配置
-  // const { visible: commandPaletteVisible, close: closeCommandPalette } = useCommandPalette();
   const [collapsed, setCollapsed] = useState(false);
   const { onClick } = useDebug();
   const navigate = useNavigate();
@@ -135,7 +134,6 @@ const Layout: React.FC = () => {
               <UpdateModal />
             </Suspense>
             {/* Safety warning modal is hidden while the safety hook feature is disabled. */}
-            {/* <CommandPalette visible={commandPaletteVisible} onClose={closeCommandPalette} /> */}
           </ArcoLayout.Content>
         </ArcoLayout>
       </div>
