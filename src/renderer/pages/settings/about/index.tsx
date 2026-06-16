@@ -9,12 +9,12 @@ import { IconLink } from '@arco-design/web-react/icon';
 import { Setting } from '@icon-park/react';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import SettingsPageWrapper from './components/SettingsPageWrapper';
-import { useTenantConfig } from '@/renderer/context/TenantConfigContext';
-import { buildVersion, buildDate, buildCommit, isNightlyBuild } from '@/common/buildInfo';
-import OpsModal from '@/renderer/pages/settings/components/OpsModal';
-import sudoIcon from '@/renderer/assets/sudowork-icon-dark.svg';
-import { openExternalUrl } from '@/renderer/utils/platform';
+import { useTenantConfig } from '@renderer/context/TenantConfigContext';
+import { buildVersion, buildDate, buildCommit, isNightlyBuild } from '@common/buildInfo';
+import sudoIcon from '@renderer/assets/sudowork-icon-dark.svg';
+import { openExternalUrl } from '@renderer/utils/platform';
+import SettingsPageWrapper from '../components/SettingsPageWrapper';
+import OpsModal from './components/OpsModal';
 
 const OFFICIAL_WEBSITE_URL = 'https://sudowork.sudoprivacy.com';
 const PRIVACY_POLICY_URL = 'https://sudowork.sudoprivacy.com/privacy.html';

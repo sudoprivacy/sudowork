@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
 import { Button, Input, Message, Modal, Tooltip, Typography } from '@arco-design/web-react';
 import { Edit } from '@icon-park/react';
 import React, { useCallback, useState } from 'react';
+import { ipcBridge } from '@/common';
 
 const { Text } = Typography;
 
