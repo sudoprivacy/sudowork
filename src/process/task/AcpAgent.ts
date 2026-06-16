@@ -202,6 +202,8 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
 
   // Turn-level file tracking for precise cleanup on cancel
   private currentTurnFiles: Map<string, TrackedTurnFile> = new Map();
+  // Files already forwarded to channel clients this turn (prevents duplicate file_send)
+  private sentChannelFilePaths: Set<string> = new Set();
   private currentTurnProtectedFinalPaths = new Set<string>();
   private pendingCurrentTurnPostCleanup = false;
   private readonly fileIntentClassifier = new FileIntentClassifier();
@@ -702,6 +704,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
     // ★ Reset turn-level file tracking for new turn
     // 重置 Turn 级别文件追踪，开始新的 Turn
     this.currentTurnFiles.clear();
+    this.sentChannelFilePaths.clear();
     this.currentTurnProtectedFinalPaths.clear();
     this.pendingCurrentTurnPostCleanup = false;
     this.workspaceFileSnapshot = this.getWorkspaceFiles();
@@ -2530,6 +2533,7 @@ This identity statement takes priority over the default identity in USER.md.
               mainLog('[AcpAgent]', `[TRACK-BASH] Bash tool detected, status: ${toolStatus}`);
               if (toolStatus === 'completed') {
                 this.trackBashGeneratedFiles(rawInput?.command as string | undefined);
+                this.deliverBashGeneratedFilesToChannel();
               }
             }
 
@@ -4282,6 +4286,27 @@ This identity statement takes priority over the default identity in USER.md.
       },
     };
     this.handleStreamEvent(fileMessage);
+  }
+
+  /**
+   * Forward bash-generated deliverable files (images/documents placed in the
+   * workspace root) to channel clients as file_send messages. Restores the
+   * behavior lost in 0a49297b9 where bash-produced deliverables were sent to
+   * IM channels. Reads from currentTurnFiles (populated by
+   * trackBashGeneratedFiles) so this stays decoupled from cleanup tracking.
+   */
+  private deliverBashGeneratedFilesToChannel(): void {
+    if (this.currentTurnFiles.size === 0) return;
+    for (const [relativePath, file] of this.currentTurnFiles) {
+      if (file.source !== 'bash-generated') continue;
+      // Historical 5501a245 filter: workspace root only + image/document extension
+      if (relativePath.includes('/') || relativePath.includes('\\')) continue;
+      const ext = nodePath.extname(relativePath).toLowerCase();
+      if (!AcpAgent.IMAGE_EXTENSIONS.has(ext) && !AcpAgent.DOCUMENT_EXTENSIONS.has(ext)) continue;
+      if (this.sentChannelFilePaths.has(file.actualPath)) continue;
+      this.sentChannelFilePaths.add(file.actualPath);
+      this.sendFileToChannels(file.actualPath);
+    }
   }
 }
 
