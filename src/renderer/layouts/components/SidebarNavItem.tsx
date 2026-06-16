@@ -21,9 +21,7 @@ const SidebarNavItem: React.FC<SidebarNavItemProps> = ({ icon, label, selected =
   return (
     <button type='button' className={classNames('rd-[10px] group relative flex h-40px w-full cursor-pointer items-center border-0 bg-transparent text-left outline-none transition-colors', collapsed ? 'justify-center px-0' : 'gap-12px px-12px', selected ? '!bg-active' : 'text-secondary hover:bg-hover hover:text-foreground', className)} onClick={onClick} {...dataAttributes}>
       <span className={classNames('absolute left-0 top-[9px] h-[22px] w-2px rd-r-2px transition-colors', selected ? '!bg-[var(--ui-accent-orange)]' : 'bg-transparent')} />
-      <span className='translate-y-px inline-flex h-20px w-20px shrink-0 items-center justify-center' style={{ color: selected ? 'var(--ui-accent-orange)' : undefined }}>
-        {icon}
-      </span>
+      <span className={classNames('translate-y-px inline-flex h-20px w-20px shrink-0 items-center justify-center', selected && 'text-[var(--ui-accent-orange)]')}>{icon}</span>
       {!collapsed && <span className={classNames('min-w-0 flex-1 truncate text-14px leading-22px', selected ? 'font-600 text-[var(--ui-accent-orange)]' : 'font-500')}>{label}</span>}
     </button>
   );
