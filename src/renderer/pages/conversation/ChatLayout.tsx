@@ -369,16 +369,16 @@ const ChatLayout: React.FC<{
     storageKey: 'chat-workspace-split-ratio',
   });
 
-  const isDesktop = !layout?.isMobile;
   const safeContainerWidth = Math.max(containerWidth || 0, 1);
-  const activeWorkspaceRatio = workspaceEnabled && isDesktop && !rightSiderCollapsed ? workspaceSplitRatio : 0;
+  const activeWorkspaceRatio = workspaceEnabled && !rightSiderCollapsed ? workspaceSplitRatio : 0;
   const availableRatioForChatPreview = Math.max(1, 100 - activeWorkspaceRatio);
   const availableWidthForChatPreview = (safeContainerWidth * availableRatioForChatPreview) / 100;
   const minChatRatioByPx = (MIN_CHAT_PANEL_PX / Math.max(availableWidthForChatPreview, 1)) * 100;
   const minPreviewRatioByPx = (MIN_PREVIEW_PANEL_PX / Math.max(availableWidthForChatPreview, 1)) * 100;
-  const dynamicChatMinRatio = workspaceEnabled && isDesktop && isPreviewOpen ? Math.max(MIN_CHAT_RATIO, minChatRatioByPx) : MIN_CHAT_RATIO;
-  const dynamicChatMaxCandidate = workspaceEnabled && isDesktop && isPreviewOpen ? Math.min(80, 100 - Math.max(MIN_PREVIEW_RATIO, minPreviewRatioByPx)) : 80;
+  const dynamicChatMinRatio = workspaceEnabled && isPreviewOpen ? Math.max(MIN_CHAT_RATIO, minChatRatioByPx) : MIN_CHAT_RATIO;
+  const dynamicChatMaxCandidate = workspaceEnabled && isPreviewOpen ? Math.min(80, 100 - Math.max(MIN_PREVIEW_RATIO, minPreviewRatioByPx)) : 80;
   const dynamicChatMaxRatio = Math.max(dynamicChatMinRatio, dynamicChatMaxCandidate);
+  const isDesktop = true;
 
   const {
     splitRatio: chatSplitRatio,
@@ -391,7 +391,7 @@ const ChatLayout: React.FC<{
     storageKey: 'chat-preview-split-ratio',
   });
 
-  const effectiveWorkspaceRatio = workspaceEnabled && isDesktop && !rightSiderCollapsed ? workspaceSplitRatio : 0;
+  const effectiveWorkspaceRatio = workspaceEnabled && !rightSiderCollapsed ? workspaceSplitRatio : 0;
   const availableChatPreviewRatio = Math.max(0, 100 - effectiveWorkspaceRatio);
   const isConversationCollapsed = !layout?.isMobile && conversationCollapsed;
   const chatFlex = isConversationCollapsed ? 0 : isDesktop ? (isPreviewOpen ? (availableChatPreviewRatio * chatSplitRatio) / 100 : 100 - effectiveWorkspaceRatio) : 100;
@@ -464,10 +464,10 @@ const ChatLayout: React.FC<{
   }, [isPreviewOpen, isDesktop, layout, rightSiderCollapsed, workspaceEnabled]);
 
   const mobileWorkspaceHandleRight = rightSiderCollapsed ? 0 : Math.max(0, Math.round(workspaceWidthPx) - 14);
-  const showDesktopWorkspaceSidebar = workspaceEnabled && isDesktop && !rightSiderCollapsed;
+  const showDesktopWorkspaceSidebar = workspaceEnabled && !rightSiderCollapsed;
   const desktopWorkspaceSidebarWidth = Math.max(300, Math.round(workspaceWidthPx));
   const showWorkspaceHeader = props.siderTitle != null;
-  const showConversationCollapseToggle = workspaceEnabled && isDesktop && !rightSiderCollapsed;
+  const showConversationCollapseToggle = workspaceEnabled && !rightSiderCollapsed;
   const toggleConversationCollapsed = () => setConversationCollapsed((prev) => !prev);
   const conversationCollapseTitle = isConversationCollapsed ? t('conversation.layout.expandConversation', { defaultValue: 'Expand conversation' }) : t('conversation.layout.collapseConversation', { defaultValue: 'Collapse conversation' });
   const conversationToggleProps = {
@@ -538,7 +538,7 @@ const ChatLayout: React.FC<{
 
   // 预览打开时使用顶部标题栏布局（聊天+预览位于标题栏下方）
   // When preview is open on desktop, keep chat+preview below the header.
-  const useHeaderFullWidth = isPreviewOpen && isDesktop;
+  const useHeaderFullWidth = isPreviewOpen;
 
   return (
     <ArcoLayout
@@ -646,7 +646,7 @@ const ChatLayout: React.FC<{
         ) : (
           <>
             {!isConversationCollapsed && (
-              <div className='flex flex-col relative' style={{ flexGrow: isPreviewOpen && isDesktop ? 0 : chatFlex, flexShrink: 0, flexBasis: isPreviewOpen && isDesktop ? `${chatFlex}%` : 0, display: isPreviewOpen && layout?.isMobile ? 'none' : 'flex', minWidth: isDesktop ? '240px' : '100%' }}>
+              <div className='flex flex-col relative' style={{ flexGrow: isPreviewOpen ? 0 : chatFlex, flexShrink: 0, flexBasis: isPreviewOpen ? `${chatFlex}%` : 0, display: isPreviewOpen && layout?.isMobile ? 'none' : 'flex', minWidth: '240px' }}>
                 <ArcoLayout.Content
                   className='flex flex-col h-full'
                   onClick={() => {
@@ -707,7 +707,7 @@ const ChatLayout: React.FC<{
                     borderLeft: rightSiderCollapsed ? 'none' : '1px solid var(--bg-3)',
                   }}
                 >
-                  {isDesktop && !rightSiderCollapsed && createWorkspaceDragHandle({ className: 'absolute left-0 top-0 bottom-0', style: {}, reverse: true })}
+                  {!rightSiderCollapsed && createWorkspaceDragHandle({ className: 'absolute left-0 top-0 bottom-0', style: {}, reverse: true })}
                   {showWorkspaceHeader ? (
                     <>
                       <WorkspacePanelHeader showToggle={!isMacRuntime && !isWindowsRuntime} collapsed={rightSiderCollapsed} onToggle={() => dispatchWorkspaceToggleEvent()} togglePlacement={layout?.isMobile ? 'left' : 'right'}>
