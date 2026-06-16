@@ -6,9 +6,9 @@ import { useLocation, useNavigate } from 'react-router-dom';
 
 import { WORKSPACE_STATE_EVENT, dispatchWorkspaceToggleEvent } from '@renderer/utils/workspaceEvents';
 import type { WorkspaceStateDetail } from '@renderer/utils/workspaceEvents';
-import WindowControls from '../WindowControls';
-import { useLayoutContext } from '@/renderer/context/LayoutContext';
-import { isElectronDesktop, isMacOS } from '@/renderer/utils/platform';
+import WindowControls from '@renderer/components/WindowControls';
+import { useLayoutContext } from '@renderer/context/LayoutContext';
+import { isElectronDesktop, isMacOS } from '@renderer/utils/platform';
 
 interface TitlebarProps {
   workspaceAvailable: boolean;

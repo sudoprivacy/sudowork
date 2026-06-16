@@ -12,11 +12,11 @@ import { addEventListener, emitter } from '@renderer/utils/emitter';
 import { ConfigStorage } from '@common/storage';
 import { useAppMode } from '@renderer/hooks/useAppMode';
 import { useCronEnabled } from '@renderer/hooks/useCronEnabled';
-import SidebarNavItem from '@renderer/components/ui/SidebarNavItem';
 
 import WorkspaceGroupedHistory from '@renderer/pages/conversation/WorkspaceGroupedHistory';
-import SettingsSider from '@renderer/pages/settings/SettingsSider';
 import { maskPhone } from '@renderer/utils';
+import SettingsSider from '@/renderer/pages/settings/components/SettingsSider';
+import SidebarNavItem from '@/renderer/layouts/components/SidebarNavItem';
 
 const Sider: React.FC = () => {
   // 侧栏收起由外层 ArcoLayout.Sider 把宽度动画到 0 整体隐藏，内容始终保持展开态，
