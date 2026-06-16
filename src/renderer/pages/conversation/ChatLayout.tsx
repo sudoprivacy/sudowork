@@ -45,9 +45,9 @@ interface WorkspaceHeaderProps {
 }
 
 const WorkspacePanelHeader: React.FC<WorkspaceHeaderProps> = ({ children, showToggle = false, collapsed, onToggle, togglePlacement = 'right' }) => (
-  <div className='workspace-panel-header flex items-center justify-start px-12px py-4px gap-12px border-b border-[var(--bg-3)]' style={{ height: WORKSPACE_HEADER_HEIGHT, minHeight: WORKSPACE_HEADER_HEIGHT }}>
+  <div className='workspace-panel-header flex items-center justify-start px-3 py-1 gap-3 border-b border-[var(--bg-3)]' style={{ height: WORKSPACE_HEADER_HEIGHT, minHeight: WORKSPACE_HEADER_HEIGHT }}>
     {showToggle && togglePlacement === 'left' && (
-      <button type='button' className='workspace-header__toggle mr-4px' aria-label='Toggle workspace' onClick={onToggle}>
+      <button type='button' className='workspace-header__toggle mr-1' aria-label='Toggle workspace' onClick={onToggle}>
         {collapsed ? <ExpandRight size={16} /> : <ExpandLeft size={16} />}
       </button>
     )}
@@ -446,12 +446,12 @@ const ChatLayout: React.FC<{
   const headerBlock = (
     <>
       <ConversationTabs />
-      <ArcoLayout.Header className='h-36px flex items-center justify-between p-16px gap-16px !bg-1 chat-layout-header overflow-hidden'>
+      <ArcoLayout.Header className='h-9 flex items-center justify-between p-4 gap-4 !bg-1 chat-layout-header overflow-hidden'>
         <div className='shrink-0'>{props.headerLeft}</div>
-        <FlexFullContainer className='h-full min-w-0' containerClassName='flex items-center gap-16px'>
+        <FlexFullContainer className='h-full min-w-0' containerClassName='flex items-center gap-4'>
           {!hasTabs && <ConversationTitleMinimap title={props.title} conversationId={conversationId} />}
         </FlexFullContainer>
-        <div className='flex items-center gap-12px shrink-0'>
+        <div className='flex items-center gap-3 shrink-0'>
           {props.headerExtra}
           {(backend || agentLogo) && <AgentModeSelector backend={backend} agentName={displayName} agentLogo={agentLogo} agentLogoIsEmoji={agentLogoIsEmoji} compact={false} showLogoInCompact={false} compactLabelType='mode' />}
           {isWindowsRuntime && workspaceEnabled && (
@@ -486,7 +486,7 @@ const ChatLayout: React.FC<{
                       </div>
                     )}
                     {!isConversationCollapsed && (
-                      <div className='preview-panel flex flex-col relative overflow-visible mt-[6px] mb-[12px] mr-[12px] ml-[8px] rounded-[15px]' style={{ flexGrow: 1, flexShrink: 1, flexBasis: 0, border: '1px solid var(--bg-3)', minWidth: '260px' }}>
+                      <div className='preview-panel flex flex-col relative overflow-visible mt-1.5 mb-3 mr-3 ml-2 rounded-[15px]' style={{ flexGrow: 1, flexShrink: 1, flexBasis: 0, border: '1px solid var(--bg-3)', minWidth: '260px' }}>
                         {createPreviewDragHandle({
                           className: 'absolute top-0 bottom-0 z-30',
                           style: { width: '20px', left: '-20px' },
@@ -547,7 +547,7 @@ const ChatLayout: React.FC<{
                     </div>
                   )}
                   {!isConversationCollapsed && (
-                    <div className='preview-panel flex flex-col relative overflow-visible mt-[6px] mb-[12px] mr-[12px] ml-[8px] rounded-[15px]' style={{ flexGrow: 1, flexShrink: 1, flexBasis: 0, border: '1px solid var(--bg-3)', minWidth: '260px' }}>
+                    <div className='preview-panel flex flex-col relative overflow-visible mt-1.5 mb-3 mr-3 ml-2 rounded-[15px]' style={{ flexGrow: 1, flexShrink: 1, flexBasis: 0, border: '1px solid var(--bg-3)', minWidth: '260px' }}>
                       {createPreviewDragHandle({
                         className: 'absolute top-0 bottom-0 z-30',
                         style: { width: '20px', left: '-20px' },
@@ -576,7 +576,7 @@ const ChatLayout: React.FC<{
             )}
             {isPreviewOpen && (
               <div
-                className='preview-panel flex flex-col relative overflow-visible my-[12px] mr-[12px] ml-[8px] rounded-[15px]'
+                className='preview-panel flex flex-col relative overflow-visible my-3 mr-3 ml-2 rounded-[15px]'
                 style={{
                   flexGrow: 1,
                   flexShrink: 1,
