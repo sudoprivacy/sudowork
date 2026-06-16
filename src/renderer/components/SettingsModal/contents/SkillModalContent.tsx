@@ -183,7 +183,7 @@ const SkillCard: React.FC<{
     <div className='library-card cursor-pointer' onClick={onClick}>
       {/* Icon */}
       <div className='w-48px flex-shrink-0 flex flex-col items-center'>
-        <div className='w-48px h-48px rd-8px overflow-hidden bg-fill-2 border'>{skill.icon ? <img src={skill.icon} alt={skill.display_name} className='w-full h-full object-cover' onError={handleSkillIconError} /> : <div className='w-full h-full flex items-center justify-center text-22px'>{skill.emoji || '📦'}</div>}</div>
+        <div className='w-48px h-48px rd-8px overflow-hidden bg-fill-2 border'>{skill.icon ? <img src={skill.icon} alt={skill.display_name} className='w-full h-full object-cover' onError={handleSkillIconError} /> : <div className='w-full h-full f-center text-22px'>{skill.emoji || '📦'}</div>}</div>
       </div>
 
       {/* Content */}
@@ -257,9 +257,9 @@ const InstalledSkillCard: React.FC<{
           {icon ? (
             <img src={icon} alt={displayName} className='w-full h-full object-cover' onError={handleSkillIconError} />
           ) : emoji ? (
-            <div className='w-full h-full flex items-center justify-center text-22px'>{emoji}</div>
+            <div className='w-full h-full f-center text-22px'>{emoji}</div>
           ) : (
-            <div className='w-full h-full flex items-center justify-center bg-primary-light'>
+            <div className='w-full h-full f-center bg-primary-light'>
               <Lightning size='22' className='text-primary' />
             </div>
           )}
@@ -420,7 +420,7 @@ const SkillDetailModal: React.FC<{
       <div className='flex flex-col max-h-80vh'>
         {/* Close button */}
         <div className='flex justify-end mb-4px'>
-          <div className='w-28px h-28px flex items-center justify-center rd-full bg-fill-2 hover:bg-fill-3 cursor-pointer transition-colors text-secondary' onClick={onClose}>
+          <div className='w-28px h-28px f-center rd-full bg-fill-2 hover:bg-fill-3 cursor-pointer transition-colors text-secondary' onClick={onClose}>
             <Close size='14' />
           </div>
         </div>
@@ -429,7 +429,7 @@ const SkillDetailModal: React.FC<{
           <div className='px-8px pb-16px'>
             {/* Icon + Name header */}
             <div className='flex flex-col items-center mb-20px'>
-              <div className='w-72px h-72px rd-14px overflow-hidden bg-fill-2 mb-12px'>{skill.icon ? <img src={skill.icon} alt={skill.display_name} className='w-full h-full object-cover' onError={handleSkillIconError} /> : <div className='w-full h-full flex items-center justify-center text-34px'>{skill.emoji || '📦'}</div>}</div>
+              <div className='w-72px h-72px rd-14px overflow-hidden bg-fill-2 mb-12px'>{skill.icon ? <img src={skill.icon} alt={skill.display_name} className='w-full h-full object-cover' onError={handleSkillIconError} /> : <div className='w-full h-full f-center text-34px'>{skill.emoji || '📦'}</div>}</div>
               <div className='font-semibold text-17px text-foreground text-center'>{skill.display_name}</div>
               {skill.categories && skill.categories.length > 0 && (
                 <div className='flex gap-4px mt-6px flex-wrap justify-center'>
@@ -518,7 +518,7 @@ const SkillDetailModal: React.FC<{
                   ) : (
                     <Popconfirm title='确认卸载该技能？' onOk={onUninstall} okText='卸载' cancelText='取消' okButtonProps={{ status: 'danger' }}>
                       <Tooltip content={t('common.delete', { defaultValue: '删除' })}>
-                        <div className='w-36px h-36px flex items-center justify-center rd-8px border hover:bg-fill-2 cursor-pointer transition-colors text-secondary'>
+                        <div className='w-36px h-36px f-center rd-8px border hover:bg-fill-2 cursor-pointer transition-colors text-secondary'>
                           <Delete size='16' />
                         </div>
                       </Tooltip>
@@ -1686,7 +1686,7 @@ const SkillModalContent: React.FC = () => {
         </div>
         {activeTab === 'installed' && isElectronDesktop() && (
           <button type='button' className='group h-34px px-4 py-0 border border-solid rd-999px flex items-center gap-8px flex-shrink-0 cursor-pointer transition-all outline-none bg-[color-mix(in_srgb,var(--color-fill-2)_84%,transparent)] border-[color-mix(in_srgb,var(--color-border-2)_70%,transparent)] hover:bg-[color-mix(in_srgb,var(--color-primary-light-1)_58%,transparent)] hover:border-[color-mix(in_srgb,var(--color-primary)_36%,transparent)]' onClick={onImportButtonClick}>
-            <span className='w-22px h-22px rd-full flex items-center justify-center bg-[color-mix(in_srgb,var(--color-primary)_14%,transparent)] text-[var(--color-primary)] transition-transform group-hover:scale-105'>{isEnterprise ? <Plus size='13' /> : <UploadOne size='13' />}</span>
+            <span className='w-22px h-22px rd-full f-center bg-[color-mix(in_srgb,var(--color-primary)_14%,transparent)] text-[var(--color-primary)] transition-transform group-hover:scale-105'>{isEnterprise ? <Plus size='13' /> : <UploadOne size='13' />}</span>
             <span className='flex items-baseline gap-5px leading-none'>
               <span className='text-12px font-medium text-foreground'>{isEnterprise ? t('common.create', { defaultValue: '创建' }) : t('common.upload', { defaultValue: '上传' })}</span>
               <span className='text-11px text-secondary'>{t('settings.customSkills', { defaultValue: 'Custom Skills' })}</span>
@@ -1979,7 +1979,7 @@ const SkillModalContent: React.FC = () => {
         <div className='flex flex-col gap-16px'>
           <div className='flex items-center justify-between'>
             <div className='font-semibold text-15px text-foreground'>{t('settings.skill.importSourceTitle', { defaultValue: '导入自定义技能' })}</div>
-            <button type='button' className='w-28px h-28px flex items-center justify-center rd-full bg-fill-2 hover:bg-fill-3 cursor-pointer transition-colors text-secondary border-none outline-none' onClick={() => setImportSourceVisible(false)}>
+            <button type='button' className='w-28px h-28px f-center rd-full bg-fill-2 hover:bg-fill-3 cursor-pointer transition-colors text-secondary border-none outline-none' onClick={() => setImportSourceVisible(false)}>
               <Close size='14' />
             </button>
           </div>

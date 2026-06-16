@@ -199,7 +199,7 @@ const SkillSelectorMenu: React.FC<SkillSelectorMenuProps> = ({ title, hint, item
             </svg>
             <input type='text' className='flex-1 min-w-0 text-13px bg-transparent border-none outline-none text-foreground placeholder:text-tertiary' style={{ caretColor: 'var(--color-primary)' }} placeholder={activeTab === 'skills' ? skillsSearchPlaceholder : filesSearchPlaceholder} value={searchQuery} onChange={(e) => onSearchChange(e.target.value)} onKeyDown={handleSearchKeyDown} />
             {searchQuery && (
-              <button type='button' className='shrink-0 w-16px h-16px flex items-center justify-center rounded-full text-tertiary hover:text-secondary cursor-pointer border-none outline-none text-11px bg-transparent' onMouseDown={(e) => e.preventDefault()} onClick={() => onSearchChange('')}>
+              <button type='button' className='shrink-0 w-16px h-16px f-center rounded-full text-tertiary hover:text-secondary cursor-pointer border-none outline-none text-11px bg-transparent' onMouseDown={(e) => e.preventDefault()} onClick={() => onSearchChange('')}>
                 ✕
               </button>
             )}
@@ -242,7 +242,7 @@ const SkillSelectorMenu: React.FC<SkillSelectorMenuProps> = ({ title, hint, item
                   >
                     <div className='flex items-center gap-8px'>
                       {/* Icon / Emoji */}
-                      <div className='w-28px h-28px flex-shrink-0 rd-6px overflow-hidden bg-fill-2 flex items-center justify-center text-16px'>{item.icon ? <img src={item.icon} alt={item.displayName} className='w-full h-full object-cover' onError={handleSkillIconError} /> : <span>{item.emoji || '⚡'}</span>}</div>
+                      <div className='w-28px h-28px flex-shrink-0 rd-6px overflow-hidden bg-fill-2 f-center text-16px'>{item.icon ? <img src={item.icon} alt={item.displayName} className='w-full h-full object-cover' onError={handleSkillIconError} /> : <span>{item.emoji || '⚡'}</span>}</div>
                       {/* Content */}
                       <div className='min-w-0 flex-1'>
                         <div className='flex items-center gap-6px min-w-0'>
@@ -283,7 +283,7 @@ const SkillSelectorMenu: React.FC<SkillSelectorMenuProps> = ({ title, hint, item
                 onClick={() => onSelectFile?.(file)}
               >
                 <div className='flex items-center gap-8px'>
-                  <div className='w-24px h-24px flex-shrink-0 rd-4px bg-fill-2 flex items-center justify-center overflow-hidden'>{resolveFileIcon(file.name, { size: 16, theme: 'filled' })}</div>
+                  <div className='w-24px h-24px flex-shrink-0 rd-4px bg-fill-2 f-center overflow-hidden'>{resolveFileIcon(file.name, { size: 16, theme: 'filled' })}</div>
                   <div className='min-w-0 flex-1'>
                     <div className='flex items-center gap-6px min-w-0'>
                       <span className={classNames('text-13px truncate', index === activeIndex ? 'text-foreground font-semibold' : 'text-foreground font-medium')}>{file.name}</span>

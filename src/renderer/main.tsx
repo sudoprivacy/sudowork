@@ -92,7 +92,7 @@ const Main = () => {
     <div className='size-full relative'>
       <Router layout={<Layout />} />
       {!authReady && (
-        <div className='fixed inset-0 flex items-center justify-center bg-transparent z-9999 pointer-events-none'>
+        <div className='fixed inset-0 f-center bg-transparent z-9999 pointer-events-none'>
           <AppLoader />
         </div>
       )}

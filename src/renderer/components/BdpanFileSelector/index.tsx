@@ -368,7 +368,7 @@ const BdpanFileSelector: React.FC<Props> = ({ visible, onCancel, onConfirm }) =>
               </button>
             </span>
           )}
-          <button onClick={onCancel} className='w-32px h-32px flex items-center justify-center rd-8px transition-colors duration-200 cursor-pointer border-0 bg-transparent p-0 hover:bg-2 focus:outline-none' aria-label='Close'>
+          <button onClick={onCancel} className='w-32px h-32px f-center rd-8px transition-colors duration-200 cursor-pointer border-0 bg-transparent p-0 hover:bg-2 focus:outline-none' aria-label='Close'>
             <Close size={20} fill='#86909c' />
           </button>
         </div>

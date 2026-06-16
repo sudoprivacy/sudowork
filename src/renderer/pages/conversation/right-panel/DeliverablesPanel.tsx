@@ -93,7 +93,7 @@ const DeliverablesPanel: React.FC<DeliverablesPanelProps> = ({ conversationId })
 const EmptyState: React.FC<{ loading: boolean }> = ({ loading }) => {
   const { t } = useTranslation();
   if (loading) {
-    return <div className='flex-1 flex items-center justify-center text-12px text-secondary'>{t('conversation.rightPanel.deliverables.loading')}</div>;
+    return <div className='flex-1 f-center text-12px text-secondary'>{t('conversation.rightPanel.deliverables.loading')}</div>;
   }
   return (
     <div className='flex-1 flex flex-col items-center justify-center text-center px-24px'>

@@ -19,8 +19,8 @@ import { getInstalledSkillDisplay, normalizeSkillVersion, handleSkillIconError }
 import { COS_HUB_BASE } from '@/shared/cos';
 import { isElectronDesktop, resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import { DEFAULT_PRESET_AGENT_TYPE, normalizePresetAgentType, type AcpBackendConfig } from '@/types/acpTypes';
-import { Avatar, Button, Checkbox, Collapse, Drawer, Input, Message, Modal, Popconfirm, Progress, Select, Spin, Switch, Tag, Tooltip, Typography } from '@arco-design/web-react';
-import { Close, Copy, Delete, Edit, Lightning, PreviewOpen, Plus, Robot, Shield, Search, Install, Upload, Share, UploadOne, Check } from '@icon-park/react';
+import { Avatar, Button, Checkbox, Collapse, Drawer, Input, Message, Modal, Popconfirm, Progress, Select, Spin, Switch, Tooltip, Typography } from '@arco-design/web-react';
+import { Close, Copy, Delete, Edit, Lightning, PreviewOpen, Plus, Robot, Shield, Search, Install, Upload, Share, Check } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -90,9 +90,9 @@ const SkillCard: React.FC<SkillCardProps> = ({ skill, checked, onToggle, disable
         {icon ? (
           <img src={icon} alt={displayName} className='w-full h-full object-cover' />
         ) : emoji ? (
-          <div className='w-full h-full flex items-center justify-center text-22px'>{emoji}</div>
+          <div className='w-full h-full f-center text-22px'>{emoji}</div>
         ) : (
-          <div className='w-full h-full flex items-center justify-center bg-primary-light'>
+          <div className='w-full h-full f-center bg-primary-light'>
             <Lightning size='22' className='text-primary' />
           </div>
         )}
@@ -174,9 +174,9 @@ const InstalledAssistantCard: React.FC<InstalledAssistantCardProps> = (props) =>
           {avatarImage ? (
             <img src={avatarImage} alt={displayName} className='w-full h-full object-cover' />
           ) : hasEmojiAvatar ? (
-            <div className='w-full h-full flex items-center justify-center text-22px'>{resolvedAvatar}</div>
+            <div className='w-full h-full f-center text-22px'>{resolvedAvatar}</div>
           ) : (
-            <div className='w-full h-full flex items-center justify-center bg-primary-light'>
+            <div className='w-full h-full f-center bg-primary-light'>
               <Robot theme='filled' size='22' className='text-primary' />
             </div>
           )}
@@ -286,14 +286,14 @@ const HubAssistantCard: React.FC<{
         <div className='w-48px h-48px rd-8px overflow-hidden bg-fill-2'>
           {resolvedAvatar ? (
             hasEmojiAvatar ? (
-              <div className='w-full h-full flex items-center justify-center text-22px'>{resolvedAvatar}</div>
+              <div className='w-full h-full f-center text-22px'>{resolvedAvatar}</div>
             ) : (
               <img src={resolvedAvatar} alt={displayName} className='w-full h-full object-cover' />
             )
           ) : assistant.emoji ? (
-            <div className='w-full h-full flex items-center justify-center text-22px'>{assistant.emoji}</div>
+            <div className='w-full h-full f-center text-22px'>{assistant.emoji}</div>
           ) : (
-            <div className='w-full h-full flex items-center justify-center bg-primary-light'>
+            <div className='w-full h-full f-center bg-primary-light'>
               <Robot theme='filled' size='22' className='text-primary' />
             </div>
           )}
@@ -390,7 +390,7 @@ const TenantAssistantCard: React.FC<{
       {/* Icon */}
       <div className='w-48px flex-shrink-0 flex flex-col items-center'>
         <div className='w-48px h-48px rd-8px overflow-hidden bg-fill-2'>
-          <div className='w-full h-full flex items-center justify-center bg-primary-light'>
+          <div className='w-full h-full f-center bg-primary-light'>
             <Robot theme='filled' size='22' className='text-primary' />
           </div>
         </div>
@@ -604,7 +604,7 @@ const AssistantDetailModal: React.FC<{
       <div className='flex flex-col max-h-80vh'>
         {/* Close button */}
         <div className='flex justify-end mb-4px'>
-          <div className='w-28px h-28px flex items-center justify-center rd-full bg-fill-2 hover:bg-fill-3 cursor-pointer transition-colors text-secondary' onClick={onClose}>
+          <div className='w-28px h-28px f-center rd-full bg-fill-2 hover:bg-fill-3 cursor-pointer transition-colors text-secondary' onClick={onClose}>
             <Close size='14' />
           </div>
         </div>
@@ -616,14 +616,14 @@ const AssistantDetailModal: React.FC<{
               <div className='w-72px h-72px rd-14px overflow-hidden bg-fill-2 mb-12px'>
                 {resolvedAvatar ? (
                   hasEmojiAvatar ? (
-                    <div className='w-full h-full flex items-center justify-center text-34px'>{resolvedAvatar}</div>
+                    <div className='w-full h-full f-center text-34px'>{resolvedAvatar}</div>
                   ) : (
                     <img src={resolvedAvatar} alt={displayName} className='w-full h-full object-cover' />
                   )
                 ) : assistant.emoji ? (
-                  <div className='w-full h-full flex items-center justify-center text-34px'>{assistant.emoji}</div>
+                  <div className='w-full h-full f-center text-34px'>{assistant.emoji}</div>
                 ) : (
-                  <div className='w-full h-full flex items-center justify-center bg-primary-light'>
+                  <div className='w-full h-full f-center bg-primary-light'>
                     <Robot theme='filled' size='34' className='text-primary' />
                   </div>
                 )}
@@ -689,9 +689,9 @@ const AssistantDetailModal: React.FC<{
                                 {skillIconUrl ? (
                                   <img src={skillIconUrl} alt={skillDisplayName} className='w-full h-full object-cover' onError={handleSkillIconError} />
                                 ) : skill.emoji ? (
-                                  <div className='w-full h-full flex items-center justify-center text-16px'>{skill.emoji}</div>
+                                  <div className='w-full h-full f-center text-16px'>{skill.emoji}</div>
                                 ) : (
-                                  <div className='w-full h-full flex items-center justify-center bg-primary-light'>
+                                  <div className='w-full h-full f-center bg-primary-light'>
                                     <Lightning size='14' className='text-primary' />
                                   </div>
                                 )}
@@ -2500,7 +2500,7 @@ const AgentModalContent: React.FC = () => {
         {/* Create button — only on installed tab */}
         {activeTab === 'installed' && (
           <button type='button' className='group h-34px px-4 py-0 border border-solid rd-999px flex items-center gap-8px flex-shrink-0 cursor-pointer transition-all outline-none bg-[color-mix(in_srgb,var(--color-fill-2)_84%,transparent)] border-[color-mix(in_srgb,var(--color-border-2)_70%,transparent)] hover:bg-[color-mix(in_srgb,var(--color-primary-light-1)_58%,transparent)] hover:border-[color-mix(in_srgb,var(--color-primary)_36%,transparent)]' onClick={() => void handleCreate()}>
-            <span className='w-22px h-22px rd-full flex items-center justify-center bg-[color-mix(in_srgb,var(--color-primary)_14%,transparent)] text-[var(--color-primary)] transition-transform group-hover:scale-105'>
+            <span className='w-22px h-22px rd-full f-center bg-[color-mix(in_srgb,var(--color-primary)_14%,transparent)] text-[var(--color-primary)] transition-transform group-hover:scale-105'>
               <Plus size='13' />
             </span>
             <span className='flex items-baseline gap-5px leading-none'>

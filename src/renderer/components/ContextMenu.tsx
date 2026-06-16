@@ -90,7 +90,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, items, onClose }) => {
           }}
           disabled={item.disabled}
         >
-          {item.icon && <span className='mr-3 flex items-center justify-center opacity-80'>{item.icon}</span>}
+          {item.icon && <span className='mr-3 f-center opacity-80'>{item.icon}</span>}
           <span className='flex-1 text-left font-medium leading-tight'>{item.label}</span>
         </button>
       ))}
