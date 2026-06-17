@@ -735,7 +735,8 @@
     "todayUsage": "今日の使用量",
     "tokens": "Tokens",
     "consumedPoints": "消費ポイント",
-    "requests": "リクエスト数"
+    "requests": "リクエスト数",
+    "changePassword": "パスワード変更"
   },
   "extensionAssistantReadonly": "拡張アシスタントは読み取り専用です。複製して編集することができます。",
   "secrets": "シークレット管理",
@@ -761,5 +762,18 @@
   "secrets.refreshFailed": "Failed to refresh config items",
   "secrets.tenantSaveSuccess": "Configuration saved successfully",
   "secrets.tenantSaveFailed": "Failed to save configuration",
-  "secrets.tenantFieldRequired": "Please fill in all configuration items"
+  "secrets.tenantFieldRequired": "Please fill in all configuration items",
+  "changePassword": {
+    "title": "パスワード変更",
+    "oldPasswordLabel": "現在のパスワード",
+    "oldPasswordPlaceholder": "現在のパスワードを入力",
+    "newPasswordLabel": "新しいパスワード",
+    "newPasswordPlaceholder": "8-20桁、大文字・小文字・数字を含む",
+    "ruleHint": "8-20桁、大文字・小文字・数字をそれぞれ含めてください。",
+    "cancel": "キャンセル",
+    "confirm": "変更する",
+    "oldPasswordRequired": "現在のパスワードを入力してください",
+    "newPasswordRequired": "新しいパスワードを入力してください",
+    "success": "パスワードを変更しました"
+  }
 }

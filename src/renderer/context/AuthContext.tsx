@@ -1,8 +1,8 @@
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { ipcBridge } from '@/common';
 import { SUDOWORK_SERVER_BASE_URL } from '@/common/sudoworkServer';
 import { ConfigStorage, type IConfigStorageRefer } from '@/common/storage';
 import { resolveLoginImageModelId } from '@/common/imageGenerationModelConfig';
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { withCsrfToken } from '@/webserver/middleware/csrfClient';
 import { getSudorouterPrimaryModelPath, mergeSudorouterProvidersIntoConfig } from '@/common/sudoclawModelConfig';
 import { buildScodeConfigFromLoginPayload, SCODE_AUTO_MODEL_ALIAS } from '@/common/scodeConfig';
@@ -82,6 +82,28 @@ interface RegisterResult {
   success: boolean;
   message?: string;
   code?: LoginErrorCode;
+}
+
+interface PasswordLoginParams {
+  phone: string;
+  password: string;
+}
+
+interface PasswordRegisterParams {
+  phone: string;
+  password: string;
+  nickname: string;
+  invitation_code: string;
+}
+
+interface ChangePasswordParams {
+  oldPassword: string;
+  newPassword: string;
+}
+
+interface PasswordAuthResult {
+  success: boolean;
+  message?: string;
 }
 
 async function syncScodeGuidModelPreference(modelId: string): Promise<void> {
@@ -165,6 +187,9 @@ interface AuthContextValue {
   forceRefreshToken: () => Promise<string | null>;
   enterpriseLogin: (params: EnterpriseLoginParams | EnterpriseLoginParamsByKey) => Promise<LoginResult>;
   enterpriseLoginWithOAuth2: (params: Record<string, string>) => Promise<LoginResult>;
+  loginByPassword: (params: PasswordLoginParams) => Promise<PasswordAuthResult>;
+  registerByPassword: (params: PasswordRegisterParams) => Promise<PasswordAuthResult>;
+  changePassword: (params: ChangePasswordParams) => Promise<PasswordAuthResult>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -1021,6 +1046,83 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     }
   }, []);
 
+  // 用户名密码登录（system login_method=1 时使用），复用 handleLoginSuccess
+  const loginByPassword = useCallback(async ({ phone, password }: PasswordLoginParams): Promise<PasswordAuthResult> => {
+    const deviceId = getDeviceId();
+    try {
+      const response = await fetch(`${SUDOWORK_SERVER_BASE_URL}/api/v1/auth/login-by-config`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Device-Id': deviceId,
+        },
+        body: JSON.stringify({ phone, password }),
+      });
+      const data = (await response.json()) as AuthApiResponse;
+      if (!response.ok || !data.success || !data.data) {
+        return { success: false, message: data?.msg || data?.message || '登录失败' };
+      }
+      await handleLoginSuccess({ data: data.data }, setUser, setStatus, setReady, setSyncMessage, 'sudo');
+      return { success: true };
+    } catch (error) {
+      console.error('Login by password failed:', error);
+      return { success: false, message: error instanceof Error ? error.message : '连接到中控服务器失败' };
+    }
+  }, []);
+
+  // 用户名密码注册（system login_method=1 时使用），复用 handleLoginSuccess
+  const registerByPassword = useCallback(async ({ phone, password, nickname, invitation_code }: PasswordRegisterParams): Promise<PasswordAuthResult> => {
+    const deviceId = getDeviceId();
+    try {
+      const response = await fetch(`${SUDOWORK_SERVER_BASE_URL}/api/v1/auth/register-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Device-Id': deviceId,
+        },
+        body: JSON.stringify({ phone, password, nickname, invitation_code }),
+      });
+      const data = (await response.json()) as AuthApiResponse;
+      if (!response.ok || !data.success || !data.data) {
+        return { success: false, message: data?.msg || data?.message || '注册失败' };
+      }
+      await handleLoginSuccess({ data: data.data }, setUser, setStatus, setReady, setSyncMessage, 'sudo');
+      return { success: true };
+    } catch (error) {
+      console.error('Register by password failed:', error);
+      return { success: false, message: error instanceof Error ? error.message : '连接到中控服务器失败' };
+    }
+  }, []);
+
+  // 修改密码（login_method=1 的用户改自己的密码）；token 过期时由调用方提示重登
+  const changePassword = useCallback(
+    async ({ oldPassword, newPassword }: ChangePasswordParams): Promise<PasswordAuthResult> => {
+      const token = await ensureValidToken();
+      if (!token) {
+        return { success: false, message: '登录状态已过期，请重新登录' };
+      }
+      try {
+        const response = await fetch(`${SUDOWORK_SERVER_BASE_URL}/api/v1/auth/change-password`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ oldPassword, newPassword }),
+        });
+        const data = (await response.json()) as AuthApiResponse;
+        if (!response.ok || !data.success) {
+          return { success: false, message: data?.msg || data?.message || '修改密码失败' };
+        }
+        return { success: true };
+      } catch (error) {
+        console.error('Change password failed:', error);
+        return { success: false, message: error instanceof Error ? error.message : '连接到中控服务器失败' };
+      }
+    },
+    [ensureValidToken]
+  );
+
   // Shared post-login handling for all enterprise grant types (password / api_key / oauth2).
   // Persists tokens, sets up scode/session mode, and updates auth state.
   const finalizeEnterpriseLogin = useCallback(async (result: Awaited<ReturnType<typeof ipcBridge.eeclaw.login.invoke>>, deviceId: string, sessionType: 'password' | 'api_key' | 'oauth2'): Promise<LoginResult> => {
@@ -1330,8 +1432,11 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       forceRefreshToken,
       enterpriseLogin,
       enterpriseLoginWithOAuth2,
+      loginByPassword,
+      registerByPassword,
+      changePassword,
     }),
-    [login, register, logout, ready, refresh, status, syncMessage, user, ensureValidToken, forceRefreshToken, enterpriseLogin, enterpriseLoginWithOAuth2]
+    [login, register, logout, ready, refresh, status, syncMessage, user, ensureValidToken, forceRefreshToken, enterpriseLogin, enterpriseLoginWithOAuth2, loginByPassword, registerByPassword, changePassword]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

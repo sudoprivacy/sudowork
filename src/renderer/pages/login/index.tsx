@@ -1,15 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import AppLoader from '../../components/AppLoader';
-import { useAuth } from '../../context/AuthContext';
 import { Button, Input, Message, Space } from '@arco-design/web-react';
 import { Phone, Protect, Key, User, Lock } from '@icon-park/react';
+import AppLoader from '../../components/AppLoader';
+import { useAuth } from '../../context/AuthContext';
+import WindowControls from '../../components/WindowControls';
+import PasswordAuthPanel from './PasswordAuthPanel';
 import { SUDOWORK_SERVER_BASE_URL } from '@/common/sudoworkServer';
 import { DEFAULT_TENANT_CONFIG, TENANT_CONFIG_STORAGE_KEY, resolveTenantConfig } from '@/common/types/tenantConfig';
 import SudoworkIcon from '@/renderer/assets/sudowork-icon-dark.svg';
-import WindowControls from '../../components/WindowControls';
 import { isElectronDesktop, isMacOS } from '@/renderer/utils/platform';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
+import { useSystemLoginMethod } from '@/renderer/hooks/useSystemLoginMethod';
 import { ConfigStorage } from '@/common/storage';
 import { ipcBridge } from '@/common';
 import './LoginPage.css';
@@ -55,6 +57,7 @@ const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const { status, login, register, enterpriseLogin, enterpriseLoginWithOAuth2 } = useAuth();
   const { isEnterprise } = useAppMode();
+  const { loginMethod } = useSystemLoginMethod();
 
   // Enterprise login state
   const [loginTab, setLoginTab] = useState<'password' | 'key' | 'oauth2'>('password');
@@ -553,6 +556,26 @@ const LoginPage: React.FC = () => {
             </div>
           </div>
         </div>
+      </div>
+    );
+  }
+
+  // C 端：登录方式探测中（避免手机/密码面板闪烁）
+  if (loginMethod === null) {
+    return <AppLoader />;
+  }
+
+  // C 端：用户名密码登录方式（login_method=1）
+  if (loginMethod === 1) {
+    return (
+      <div className='login-page'>
+        {showWindowControls && <WindowControls />}
+        <div className='login-page__background'>
+          <div className='login-page__background-circle login-page__background-circle--lg' />
+          <div className='login-page__background-circle login-page__background-circle--md' />
+          <div className='login-page__background-circle login-page__background-circle--sm' />
+        </div>
+        <PasswordAuthPanel appName={tenantConfig.app_name} logo={tenantConfig.logo} defaultLogo={SudoworkIcon} />
       </div>
     );
   }
