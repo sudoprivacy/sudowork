@@ -849,6 +849,7 @@
   "openclaw.gatewayUrlRequired": "Please enter Gateway URL",
   "openclaw.workspaceOpened": "Workspace opened",
   "openclaw.failedToOpenWorkspace": "Failed to open workspace",
+  "shareoneEnableBlocked": "Please enter the ShareOne API key before enabling it",
   "profile": "User Center",
   "memberManagement": "Member Management",
   "sudorouter": "Sudorouter",

@@ -851,6 +851,7 @@
   "openclaw.gatewayUrlRequired": "请输入 Gateway URL",
   "openclaw.workspaceOpened": "工作区已打开",
   "openclaw.failedToOpenWorkspace": "打开工作区失败",
+  "shareoneEnableBlocked": "请先填写 ShareOne API Key，再启用",
   "profile": "用户中心",
   "memberManagement": "成员管理",
   "sudorouter": "Sudorouter",

@@ -130,7 +130,7 @@ const Layout: React.FC = () => {
             </ArcoLayout.Content>
           </ArcoLayout.Sider>
 
-          <ArcoLayout.Content className='bg-2 layout-content flex flex-col min-h-0'>
+          <ArcoLayout.Content className='bg-2 layout-content flex flex-col min-h-0 overflow-y-hidden'>
             <Outlet />
             {multiAgentContextHolder}
             {directorySelectionContextHolder}

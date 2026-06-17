@@ -5,24 +5,31 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, act } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import React from 'react';
 
-const { mockMessageSuccess, mockMessageError } = vi.hoisted(() => ({
+const { mockMessageSuccess, mockMessageError, mockMessageWarning } = vi.hoisted(() => ({
   mockMessageSuccess: vi.fn(),
   mockMessageError: vi.fn(),
+  mockMessageWarning: vi.fn(),
 }));
 
 vi.mock('@arco-design/web-react', async () => {
   const actual = await vi.importActual<typeof import('@arco-design/web-react')>('@arco-design/web-react');
   return {
     ...actual,
-    Message: { success: mockMessageSuccess, error: mockMessageError },
+    Message: { success: mockMessageSuccess, error: mockMessageError, warning: mockMessageWarning },
   };
 });
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string, defaultValue?: string) => defaultValue || key }),
+  useTranslation: () => ({
+    t: (key: string, arg1?: string | Record<string, unknown>, arg2?: Record<string, unknown>) => {
+      if (typeof arg1 === 'string') return arg1;
+      if (typeof arg2 === 'string') return arg2;
+      return key;
+    },
+  }),
 }));
 
 import TenantConfigItemGroup from '@/renderer/components/SettingsModal/contents/secrets/TenantConfigItemGroup';
@@ -36,6 +43,13 @@ const mockConfigItem: TenantConfigItem = {
     { id: 10, config_key: 'max_tokens', config_desc: '最大token数', name: '最大Token数', required: 1 },
     { id: 11, config_key: 'temperature', config_desc: '温度参数', name: '温度参数', required: 0 },
   ],
+};
+
+const mockShareoneConfigItem: TenantConfigItem = {
+  id: 2,
+  name: 'shareone',
+  pinyin: 'shareone',
+  entries: [{ id: 20, config_key: 'X-API-Key', config_desc: 'API Key', name: 'API Key', required: 1 }],
 };
 
 const defaultProps = {
@@ -124,26 +138,13 @@ describe('TenantConfigItemGroup', () => {
   });
 
   it('should pre-fill values from props', () => {
-    render(
-      <TenantConfigItemGroup
-        {...defaultProps}
-        enabled={true}
-        values={{ max_tokens: '2048', temperature: '0.5' }}
-      />,
-    );
+    render(<TenantConfigItemGroup {...defaultProps} enabled={true} values={{ max_tokens: '2048', temperature: '0.5' }} />);
     expect(screen.getByText('model_config')).toBeInTheDocument();
   });
 
   it('should call onSave with current values when save is clicked', async () => {
     const mockOnSave = vi.fn().mockResolvedValue(true);
-    render(
-      <TenantConfigItemGroup
-        {...defaultProps}
-        enabled={true}
-        onSave={mockOnSave}
-        values={{ max_tokens: '', temperature: '' }}
-      />,
-    );
+    render(<TenantConfigItemGroup {...defaultProps} enabled={true} onSave={mockOnSave} values={{ max_tokens: '', temperature: '' }} />);
 
     // Collapse is collapsed by default, save button is inside the panel
     // Test that the component renders without error
@@ -152,13 +153,7 @@ describe('TenantConfigItemGroup', () => {
 
   it('should show success message on successful save', async () => {
     const mockOnSave = vi.fn().mockResolvedValue(true);
-    render(
-      <TenantConfigItemGroup
-        {...defaultProps}
-        enabled={true}
-        onSave={mockOnSave}
-      />,
-    );
+    render(<TenantConfigItemGroup {...defaultProps} enabled={true} onSave={mockOnSave} />);
 
     // Component renders correctly
     expect(screen.getByText('model_config')).toBeInTheDocument();
@@ -166,13 +161,7 @@ describe('TenantConfigItemGroup', () => {
 
   it('should show error message on failed save', async () => {
     const mockOnSave = vi.fn().mockResolvedValue(false);
-    render(
-      <TenantConfigItemGroup
-        {...defaultProps}
-        enabled={true}
-        onSave={mockOnSave}
-      />,
-    );
+    render(<TenantConfigItemGroup {...defaultProps} enabled={true} onSave={mockOnSave} />);
 
     expect(screen.getByText('model_config')).toBeInTheDocument();
   });
@@ -181,14 +170,7 @@ describe('TenantConfigItemGroup', () => {
     const mockOnSave = vi.fn().mockResolvedValue(true);
     const mockOnToggleEnabled = vi.fn();
 
-    render(
-      <TenantConfigItemGroup
-        {...defaultProps}
-        enabled={true}
-        onSave={mockOnSave}
-        onToggleEnabled={mockOnToggleEnabled}
-      />,
-    );
+    render(<TenantConfigItemGroup {...defaultProps} enabled={true} onSave={mockOnSave} onToggleEnabled={mockOnToggleEnabled} />);
 
     expect(screen.getByText('model_config')).toBeInTheDocument();
   });
@@ -201,12 +183,7 @@ describe('TenantConfigItemGroup', () => {
 
   it('should call onToggleEnabled when Switch is toggled', () => {
     const mockOnToggleEnabled = vi.fn();
-    render(
-      <TenantConfigItemGroup
-        {...defaultProps}
-        onToggleEnabled={mockOnToggleEnabled}
-      />,
-    );
+    render(<TenantConfigItemGroup {...defaultProps} onToggleEnabled={mockOnToggleEnabled} />);
 
     const switchEl = screen.getByRole('switch');
     fireEvent.click(switchEl);
@@ -214,24 +191,23 @@ describe('TenantConfigItemGroup', () => {
     expect(mockOnToggleEnabled).toHaveBeenCalledWith(true);
   });
 
+  it('should block enabling shareone until the API key is filled', () => {
+    const mockOnToggleEnabled = vi.fn();
+    render(<TenantConfigItemGroup {...defaultProps} configItem={mockShareoneConfigItem} onToggleEnabled={mockOnToggleEnabled} values={{ 'X-API-Key': '' }} />);
+
+    const switchEl = screen.getByRole('switch');
+    fireEvent.click(switchEl);
+
+    expect(mockOnToggleEnabled).not.toHaveBeenCalled();
+    expect(mockMessageWarning).toHaveBeenCalledOnce();
+  });
+
   it('should update values when props change', () => {
-    const { rerender } = render(
-      <TenantConfigItemGroup
-        {...defaultProps}
-        enabled={true}
-        values={{ max_tokens: '100', temperature: '0.1' }}
-      />,
-    );
+    const { rerender } = render(<TenantConfigItemGroup {...defaultProps} enabled={true} values={{ max_tokens: '100', temperature: '0.1' }} />);
 
     expect(screen.getByText('model_config')).toBeInTheDocument();
 
-    rerender(
-      <TenantConfigItemGroup
-        {...defaultProps}
-        enabled={true}
-        values={{ max_tokens: '200', temperature: '0.2' }}
-      />,
-    );
+    rerender(<TenantConfigItemGroup {...defaultProps} enabled={true} values={{ max_tokens: '200', temperature: '0.2' }} />);
 
     expect(screen.getByText('model_config')).toBeInTheDocument();
   });
