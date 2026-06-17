@@ -1543,6 +1543,20 @@ export interface IAssistantHubSkill {
   visible_to?: { department_ids: string[] | null } | null;
   /** Enterprise mode: version */
   version?: string;
+  /** Latest assistant package version from Assistant Hub */
+  latestVersion?: IAssistantHubVersionLike | null;
+}
+
+export interface IAssistantHubVersionLike {
+  id?: string;
+  version?: string;
+  source_url?: string;
+  sourceUrl?: string;
+  checksum?: string;
+  changelog?: string | null;
+  readme_content?: string | null;
+  created_at?: string;
+  assistant_id?: string;
 }
 
 export interface IAssistantHubVersion {
@@ -1557,8 +1571,14 @@ export interface IAssistantHubVersion {
 }
 
 export interface IAssistantHubDetail {
-  assistant: IAssistantHubSkill;
-  versions: IAssistantHubVersion[];
+  assistant?: IAssistantHubSkill;
+  versions?: IAssistantHubVersion[];
+  sourceUrl?: string;
+  source_url?: string;
+  version?: string;
+  latest_version?: string;
+  latestVersion?: IAssistantHubVersionLike | null;
+  checksum?: string;
 }
 
 export interface IAssistantHubListResponse {
@@ -1598,7 +1618,7 @@ export const assistantHub = {
   /** Fetch assistant categories from Assistant Hub API (type=1 for assistants) */
   fetchCategories: bridge.buildProvider<IBridgeResponse<string[]>, void>('assistant-hub.fetch-categories'),
   /** Fetch assistant detail from Assistant Hub API */
-  fetchAssistantDetail: bridge.buildProvider<IBridgeResponse<IAssistantHubDetail>, { assistantId: string }>('assistant-hub.fetch-assistant-detail'),
+  fetchAssistantDetail: bridge.buildProvider<IBridgeResponse<IAssistantHubDetail>, { assistantId: string; silent?: boolean }>('assistant-hub.fetch-assistant-detail'),
   /** Fetch skill details by IDs from Skill Hub API (for installation preview) */
   fetchSkillDetailsByIds: bridge.buildProvider<IBridgeResponse<ISkillHubSkill[]>, { skillIds: string[] }>('assistant-hub.fetch-skill-details-by-ids'),
   /** Download and install assistant from Hub, optionally installing selected associated skills */
