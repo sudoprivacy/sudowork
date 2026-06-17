@@ -6,7 +6,7 @@
 
 import type { IRegisteredAction, ActionHandler } from './types';
 import { ChatActionNames, createSuccessResponse, createErrorResponse } from './types';
-import { createResponseActionsKeyboard, createErrorRecoveryKeyboard } from '../plugins/telegram/TelegramKeyboards';
+import { createResponseActionsKeyboard } from '../plugins/telegram/TelegramKeyboards';
 import { getChannelMessageService } from '../agent/ChannelMessageService';
 
 /**
@@ -177,7 +177,6 @@ export function buildChatErrorResponse(error: string): {
     type: 'text',
     text: `❌ <b>Processing Failed</b>\n\n${error}\n\nPlease retry or start a new conversation.`,
     parseMode: 'HTML',
-    replyMarkup: createErrorRecoveryKeyboard(),
   };
 }
 

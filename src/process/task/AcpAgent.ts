@@ -198,10 +198,16 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
 
   // Workspace file tracking for channel file_send messages
   private workspaceFileSnapshot = new Map<string, number>();
+  // Turn-start snapshot of deliverable files (path -> mtime), decoupled from
+  // workspaceFileSnapshot which gets mutated by trackBashGeneratedFiles.
+  // Used purely to decide "new in this turn" at turn-end.
+  private turnStartDeliverableSnapshot = new Map<string, number>();
   private customSkillsSnapshot = new Set<string>();
 
   // Turn-level file tracking for precise cleanup on cancel
   private currentTurnFiles: Map<string, TrackedTurnFile> = new Map();
+  // Files already forwarded to channel clients this turn (prevents duplicate file_send)
+  private sentChannelFilePaths: Set<string> = new Set();
   private currentTurnProtectedFinalPaths = new Set<string>();
   private pendingCurrentTurnPostCleanup = false;
   private readonly fileIntentClassifier = new FileIntentClassifier();
@@ -702,6 +708,8 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
     // ★ Reset turn-level file tracking for new turn
     // 重置 Turn 级别文件追踪，开始新的 Turn
     this.currentTurnFiles.clear();
+    this.sentChannelFilePaths.clear();
+    this.turnStartDeliverableSnapshot = this.captureDeliverableSnapshot();
     this.currentTurnProtectedFinalPaths.clear();
     this.pendingCurrentTurnPostCleanup = false;
     this.workspaceFileSnapshot = this.getWorkspaceFiles();
@@ -2530,6 +2538,7 @@ This identity statement takes priority over the default identity in USER.md.
               mainLog('[AcpAgent]', `[TRACK-BASH] Bash tool detected, status: ${toolStatus}`);
               if (toolStatus === 'completed') {
                 this.trackBashGeneratedFiles(rawInput?.command as string | undefined);
+                this.deliverBashGeneratedFilesToChannel();
               }
             }
 
@@ -2917,6 +2926,7 @@ This identity statement takes priority over the default identity in USER.md.
       // Capture rich GeneratedFileEntry records BEFORE archiveCurrentTurnFiles
       // wipes currentTurnFiles — the renderer needs them to draw preview cards.
       const generatedEntries = this.buildGeneratedFileEntries();
+      this.deliverWorkspaceFilesAtTurnEnd();
       await this.archiveCurrentTurnFiles();
       this.emitFallbackCompletionMessage(finalFiles);
       this.emitGeneratedFilesMarkerMessage(generatedEntries);
@@ -4251,9 +4261,14 @@ This identity statement takes priority over the default identity in USER.md.
 
   /**
    * Send file_send message to channel clients for generated files.
-   * Called when a tool call completes successfully.
+   * Returns true if the file was actually forwarded; false if it was already
+   * sent earlier in this turn (deduped via sentChannelFilePaths) or if the
+   * file does not exist. Callers MUST NOT add to sentChannelFilePaths before
+   * calling this method — the centralized has/add inside this function is the
+   * single chokepoint for dedup. Any external add would poison the has-check
+   * and cause this method to return false without forwarding.
    */
-  private sendFileToChannels(filePath: string): void {
+  private sendFileToChannels(filePath: string): boolean {
     // Resolve relative paths to absolute paths using workspace root
     let resolvedPath = filePath;
     if (!nodePath.isAbsolute(filePath)) {
@@ -4264,12 +4279,19 @@ This identity statement takes priority over the default identity in USER.md.
     try {
       if (!fs.existsSync(resolvedPath)) {
         console.warn(`[AcpAgent] sendFileToChannels: file not found: ${resolvedPath}`);
-        return;
+        return false;
       }
     } catch {
       console.warn(`[AcpAgent] sendFileToChannels: error checking file existence: ${resolvedPath}`);
-      return;
+      return false;
     }
+
+    // Centralized dedup: any forwarder reaches this single chokepoint.
+    // Strategy 1 / Strategy 2 / bash / turn-end fallback all share the same Set.
+    if (this.sentChannelFilePaths.has(resolvedPath)) {
+      return false;
+    }
+    this.sentChannelFilePaths.add(resolvedPath);
 
     const fileMessage: IResponseMessage = {
       type: 'file_send',
@@ -4282,6 +4304,99 @@ This identity statement takes priority over the default identity in USER.md.
       },
     };
     this.handleStreamEvent(fileMessage);
+    return true;
+  }
+
+  /**
+   * Forward bash-generated deliverable files (images/documents placed in the
+   * workspace root) to channel clients as file_send messages. Restores the
+   * behavior lost in 0a49297b9 where bash-produced deliverables were sent to
+   * IM channels. Reads from currentTurnFiles (populated by
+   * trackBashGeneratedFiles) so this stays decoupled from cleanup tracking.
+   */
+  private deliverBashGeneratedFilesToChannel(): void {
+    if (this.currentTurnFiles.size === 0) return;
+    for (const [relativePath, file] of this.currentTurnFiles) {
+      if (file.source !== 'bash-generated') continue;
+      // Historical 5501a245 filter: workspace root only + image/document extension
+      if (relativePath.includes('/') || relativePath.includes('\\')) continue;
+      const ext = nodePath.extname(relativePath).toLowerCase();
+      if (!AcpAgent.IMAGE_EXTENSIONS.has(ext) && !AcpAgent.DOCUMENT_EXTENSIONS.has(ext)) continue;
+      this.sendFileToChannels(file.actualPath);
+    }
+  }
+
+  /**
+   * Snapshot deliverable files (images/documents) in workspace root with their mtime.
+   * Used by turn-start to record baseline; turn-end compares to detect new/modified files.
+   */
+  private captureDeliverableSnapshot(): Map<string, number> {
+    const snap = new Map<string, number>();
+    if (!this.workspace) return snap;
+    try {
+      const entries = fs.readdirSync(this.workspace, { withFileTypes: true });
+      for (const entry of entries) {
+        if (!entry.isFile()) continue;
+        if (entry.name === '.drafts') continue;
+        const ext = nodePath.extname(entry.name).toLowerCase();
+        if (!AcpAgent.IMAGE_EXTENSIONS.has(ext) && !AcpAgent.DOCUMENT_EXTENSIONS.has(ext)) continue;
+        const fullPath = nodePath.join(this.workspace, entry.name);
+        try {
+          const stat = fs.statSync(fullPath);
+          snap.set(fullPath, stat.mtimeMs);
+        } catch {
+          // stat failed, skip
+        }
+      }
+    } catch {
+      // workspace not readable, return empty
+    }
+    return snap;
+  }
+
+  /**
+   * Turn-end fallback: scan workspace root for deliverable files that are new
+   * or modified compared to turnStartDeliverableSnapshot, forward them via
+   * sendFileToChannels. Captures images generated by tools that bypass
+   * deliverBashGeneratedFilesToChannel (e.g. MCP image_gen, direct write_file png).
+   * Shares sentChannelFilePaths with the bash path to prevent duplicates —
+   * dedup happens inside sendFileToChannels itself; this method must NOT
+   * add to sentChannelFilePaths before calling sendFileToChannels, otherwise
+   * the inner has-check would short-circuit and handleStreamEvent never fires.
+   */
+  private deliverWorkspaceFilesAtTurnEnd(): void {
+    if (!this.workspace) return;
+    let candidate = 0;
+    let sent = 0;
+    try {
+      const entries = fs.readdirSync(this.workspace, { withFileTypes: true });
+      for (const entry of entries) {
+        if (!entry.isFile()) continue;
+        if (entry.name === '.drafts') continue;
+        const ext = nodePath.extname(entry.name).toLowerCase();
+        if (!AcpAgent.IMAGE_EXTENSIONS.has(ext) && !AcpAgent.DOCUMENT_EXTENSIONS.has(ext)) continue;
+        const fullPath = nodePath.join(this.workspace, entry.name);
+        try {
+          const stat = fs.statSync(fullPath);
+          const prevMtime = this.turnStartDeliverableSnapshot.get(fullPath);
+          const isNewOrModified = prevMtime === undefined || stat.mtimeMs > prevMtime;
+          if (!isNewOrModified) continue;
+          candidate++;
+          // Dedup is handled inside sendFileToChannels (which returns whether
+          // the file was actually forwarded). Do NOT add to sentChannelFilePaths
+          // here — that would poison the inner has-check and prevent the file
+          // from ever reaching handleStreamEvent.
+          if (this.sendFileToChannels(fullPath)) {
+            sent++;
+          }
+        } catch {
+          // stat failed, skip
+        }
+      }
+    } catch {
+      // workspace not readable, skip
+    }
+    mainLog('[AcpAgent]', `[TURN-END-DELIVER] candidate=${candidate}, sent=${sent}`);
   }
 }
 
