@@ -6,9 +6,9 @@
 
 import { ipcBridge, skillHub, assistantHub } from '@/common';
 import { eeclaw } from '@/common/ipcBridge';
-import type { IInstalledSkillInfo, IAssistantHubSkill, IAssistantHubDetail, ISkillHubSkill } from '@/common/ipcBridge';
+import type { IInstalledSkillInfo, IAssistantHubSkill, IAssistantHubDetail, IAssistantHubVersionLike, ISkillHubSkill } from '@/common/ipcBridge';
 import { toBackendConfig, resolveAssistantName } from '@/renderer/shared/agents/assistantAdapter';
-import type { AssistantCategory } from '@/process/AssistantManager';
+import type { AssistantCategory, IAssistantInfo } from '@/process/AssistantManager';
 import { resolveLocaleKey, uuid } from '@/common/utils';
 import coworkSvg from '@/renderer/assets/cowork.svg';
 import EmojiPicker from '@/renderer/components/EmojiPicker';
@@ -38,9 +38,37 @@ type AssistantListItem = AcpBackendConfig & {
   _kind?: string;
   _category?: AssistantCategory;
   _isHubInstalled?: boolean;
+  _hubId?: string;
+  _installedVersion?: string;
+  _hubMeta?: IAssistantHubSkill;
 };
 
 type AssistantStoreTab = 'store' | 'exclusive' | 'installed';
+
+type AssistantLatestVersion = {
+  version: string;
+  sourceUrl: string;
+  checksum: string;
+  fetchedAt: number;
+};
+
+const VERSION_CACHE_TTL = 5 * 60 * 1000;
+const VERSION_FAILURE_CACHE_TTL = 60 * 1000;
+
+const normalizeAssistantLookupKey = (value: string | null | undefined) => value?.trim().toLowerCase();
+const normalizeAssistantVersion = (version?: string | null) => normalizeSkillVersion(version).replace(/^v(?=\d)/i, '');
+
+const resolveAssistantVersionLike = (assistant: IAssistantHubSkill, versionLike?: IAssistantHubVersionLike | null): AssistantLatestVersion | null => {
+  const sourceUrl = versionLike?.source_url || versionLike?.sourceUrl || assistant._sourceUrl;
+  const version = normalizeAssistantVersion(versionLike?.version || assistant.version);
+  if (!sourceUrl || !version) return null;
+  return {
+    version,
+    sourceUrl,
+    checksum: versionLike?.checksum || '',
+    fetchedAt: Date.now(),
+  };
+};
 
 // ==================== SkillCard (for drawer skill selection) ====================
 
@@ -91,6 +119,9 @@ type InstalledAssistantCardProps = {
   onToggleEnabled: (enabled: boolean) => void;
   onDelete: () => void;
   onDuplicate: () => void;
+  onUpdate?: () => void;
+  hasUpdate?: boolean;
+  updating?: boolean;
   onUpload?: () => void;
   onClick: () => void;
   /** Enterprise mode: publish button element */
@@ -107,7 +138,7 @@ type InstalledAssistantCardProps = {
 
 const InstalledAssistantCard: React.FC<InstalledAssistantCardProps> = (props) => {
   const { assistant, isExtension, localeKey, avatarImageMap } = props;
-  const { onToggleEnabled, onDelete, onDuplicate, onUpload, onClick } = props;
+  const { onToggleEnabled, onDelete, onDuplicate, onUpdate, hasUpdate, updating, onUpload, onClick } = props;
   const { enterprisePublishButton, hideDelete, allowToggle, allowDelete, enterpriseMode } = props;
   const { t } = useTranslation();
   const isCustom = enterpriseMode ? assistant._category === 'custom' || (!assistant._category && !assistant.isBuiltin && !isExtension && !assistant._isHubInstalled) : !assistant.isBuiltin && !isExtension && !assistant._isHubInstalled;
@@ -133,6 +164,7 @@ const InstalledAssistantCard: React.FC<InstalledAssistantCardProps> = (props) =>
   const avatarImage = resolveAvatarImage(resolvedAvatar);
   const displayName = assistant.nameI18n?.[localeKey] || assistant.name;
   const description = assistant.descriptionI18n?.[localeKey] || assistant.description || '';
+  const displayVersion = enterpriseMode ? '' : normalizeAssistantVersion(assistant._installedVersion);
 
   return (
     <div className={classNames('library-card cursor-pointer', !isEnabled && 'opacity-65')} onClick={onClick}>
@@ -157,6 +189,7 @@ const InstalledAssistantCard: React.FC<InstalledAssistantCardProps> = (props) =>
           <span className='font-medium text-13px text-foreground truncate' title={displayName.length > 15 ? displayName : undefined}>
             {displayName.length > 15 ? `${displayName.slice(0, 15)}...` : displayName}
           </span>
+          {displayVersion && !assistant.isBuiltin && <span className='ml-6px px-5px py-0px bg-fill-3 text-t-secondary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px'>v{displayVersion}</span>}
         </div>
         <div className='mt-3px min-h-30px'>{description ? <div className='text-11px text-secondary line-clamp-2 leading-15px'>{description}</div> : null}</div>
         {assistant.enabledSkills && assistant.enabledSkills.length > 0 && (
@@ -170,6 +203,20 @@ const InstalledAssistantCard: React.FC<InstalledAssistantCardProps> = (props) =>
       {/* Top-right: edit/view + upload (custom only) + duplicate button + shield (builtin) or delete (custom) */}
       <div className='absolute top-10px right-10px flex items-center gap-6px' onClick={(e) => e.stopPropagation()}>
         {/* Edit/View button - custom assistants show edit, readonly assistants show view */}
+        {hasUpdate && (
+          <Tooltip content={t('settings.assistant.updateAvailable', { defaultValue: '可更新' })}>
+            <button
+              type='button'
+              className='store-action-icon'
+              onClick={(e) => {
+                e.stopPropagation();
+                onUpdate?.();
+              }}
+            >
+              {updating ? <Spin size={10} /> : <Install size='13' />}
+            </button>
+          </Tooltip>
+        )}
         <Tooltip content={isReadonly ? t('settings.assistant.view', { defaultValue: '查看' }) : t('settings.assistant.edit', { defaultValue: '编辑' })}>
           <button type='button' className='store-action-icon' onClick={onClick}>
             {isReadonly ? <PreviewOpen size='13' /> : <Edit size='13' />}
@@ -214,9 +261,14 @@ const HubAssistantCard: React.FC<{
   installing: boolean;
   installProgress: number;
   onInstall: (e: React.MouseEvent) => void;
+  onUpdate?: (e: React.MouseEvent) => void;
   onDuplicate: (e: React.MouseEvent) => void;
   onClick: () => void;
-}> = ({ assistant, isInstalled, installing, installProgress, onInstall, onDuplicate, onClick }) => {
+  hasUpdate?: boolean;
+  updating?: boolean;
+  latestVersion?: string;
+  loadingVersion?: boolean;
+}> = ({ assistant, isInstalled, installing, installProgress, onInstall, onUpdate, onDuplicate, onClick, hasUpdate, updating, latestVersion, loadingVersion }) => {
   const { t } = useTranslation();
 
   const displayName = assistant.display_name || assistant.name;
@@ -252,6 +304,8 @@ const HubAssistantCard: React.FC<{
       <div className='flex-1 min-w-0'>
         <div className='flex items-center gap-6px pr-100px min-w-0'>
           <span className='flex-1 min-w-0 font-medium text-13px text-foreground truncate'>{displayName}</span>
+          {loadingVersion && !latestVersion && <span className='px-5px py-0px bg-fill-3 text-t-tertiary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px animate-pulse'>...</span>}
+          {latestVersion && <span className='px-5px py-0px bg-fill-3 text-t-secondary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px'>v{latestVersion}</span>}
         </div>
         <div className='text-11px text-secondary mt-3px line-clamp-2 leading-relaxed'>{assistant.description}</div>
         {assistant.skills && assistant.skills.length > 0 && (
@@ -267,9 +321,11 @@ const HubAssistantCard: React.FC<{
         {/* Duplicate button - only for installed assistants */}
         {isInstalled && (
           <>
-            <span className='store-action-badge' style={{ backgroundColor: 'rgba(var(--ui-accent-orange-rgb), 0.10)', color: 'var(--ui-accent-orange)' }}>
-              {t('settings.assistant.installed', { defaultValue: '已安装' })}
-            </span>
+            {!hasUpdate && !updating && (
+              <span className='store-action-badge' style={{ backgroundColor: 'rgba(var(--ui-accent-orange-rgb), 0.10)', color: 'var(--ui-accent-orange)' }}>
+                {t('settings.assistant.installed', { defaultValue: '已安装' })}
+              </span>
+            )}
             <Tooltip content={t('settings.assistant.duplicate', { defaultValue: '复制' })}>
               <button type='button' className='store-action-icon' onClick={onDuplicate}>
                 <Copy size='13' />
@@ -278,10 +334,16 @@ const HubAssistantCard: React.FC<{
           </>
         )}
         {/* Install button or progress - only show if hasDownloadUrl */}
-        {installing ? (
+        {installing || updating ? (
           <div className='w-52px'>
             <Progress percent={installProgress} size='mini' />
           </div>
+        ) : isInstalled && hasUpdate ? (
+          <Tooltip content={t('settings.assistant.update', { defaultValue: '更新' })}>
+            <button type='button' className='store-action-icon' onClick={onUpdate}>
+              <Install size='13' />
+            </button>
+          </Tooltip>
         ) : !isInstalled && hasDownloadUrl ? (
           <Tooltip content={t('settings.assistant.install', { defaultValue: '安装' })}>
             <button type='button' className='store-action-icon' onClick={onInstall}>
@@ -384,9 +446,13 @@ const AssistantDetailModal: React.FC<{
   installing: boolean;
   installProgress: number;
   onInstall: (selectedSkillIds: string[]) => void;
+  latestVersionInfo?: AssistantLatestVersion;
+  installedVersion?: string;
+  onUpdate?: (selectedSkillIds: string[]) => void;
+  updating?: boolean;
   onGoUse?: () => void;
   installedSkills: IInstalledSkillInfo[];
-}> = ({ assistant, visible, onClose, isInstalled, installing, installProgress, onInstall, onGoUse, installedSkills }) => {
+}> = ({ assistant, visible, onClose, isInstalled, installing, installProgress, onInstall, latestVersionInfo, installedVersion, onUpdate, updating = false, onGoUse, installedSkills }) => {
   const { t } = useTranslation();
   const [detail, setDetail] = useState<IAssistantHubDetail | null>(null);
   const [loading, setLoading] = useState(false);
@@ -398,7 +464,7 @@ const AssistantDetailModal: React.FC<{
   const { isEnterprise } = useAppMode();
 
   // Check if assistant has a valid download URL
-  const hasDownloadUrl = Boolean(assistant?._sourceUrl);
+  const hasDownloadUrl = Boolean(latestVersionInfo?.sourceUrl || assistant?._sourceUrl);
 
   // Build a map of local installed skills by ID for quick lookup (memoized to prevent infinite loops)
   const localSkillByIdMap = useMemo(() => {
@@ -530,6 +596,8 @@ const AssistantDetailModal: React.FC<{
   const resolvedAvatar = assistant.avatar?.trim();
   const emojiRegex = /^(?:\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(?:\u200D(?:\p{Emoji_Presentation}|\p{Emoji}\uFE0F))*$/u;
   const hasEmojiAvatar = Boolean(resolvedAvatar && emojiRegex.test(resolvedAvatar));
+  const hasUpdate = isInstalled && latestVersionInfo && (!installedVersion || latestVersionInfo.version !== installedVersion);
+  const associatedSkillIds = !isEnterprise && assistant.skills?.length > 0 ? assistant.skills : relatedSkillDetails.map((s) => s.id);
 
   return (
     <Modal visible={visible} onCancel={onClose} footer={null} closable={false} maskClosable style={{ width: 480 }} className='assistant-detail-modal' wrapClassName='assistant-detail-modal-wrap'>
@@ -652,7 +720,14 @@ const AssistantDetailModal: React.FC<{
         {/* Action buttons */}
         <div className='px-8px pt-12px border-t mt-4px'>
           <div className='flex gap-8px items-center'>
-            {isInstalled ? (
+            {isInstalled && hasUpdate ? (
+              <Button type='primary' long size='large' className='flex-1' loading={updating} loadingFixedWidth onClick={() => onUpdate?.(associatedSkillIds)}>
+                <span className='flex items-center gap-6px justify-center'>
+                  <Install size='15' />
+                  {t('settings.assistant.updateTo', { version: latestVersionInfo.version, defaultValue: `更新至 v${latestVersionInfo.version}` })}
+                </span>
+              </Button>
+            ) : isInstalled ? (
               <Button type='primary' long size='large' className='flex-1' onClick={onGoUse || onClose}>
                 {t('settings.skill.goUse', { defaultValue: '去使用' })}
               </Button>
@@ -663,7 +738,7 @@ const AssistantDetailModal: React.FC<{
                 <Progress percent={installProgress} size='small' />
               </div>
             ) : (
-              <Button type='primary' long size='large' onClick={() => onInstall(relatedSkillDetails.map((s) => s.id))}>
+              <Button type='primary' long size='large' onClick={() => onInstall(associatedSkillIds)}>
                 <span className='flex items-center gap-6px justify-center'>
                   <Install size='15' />
                   {t('settings.assistant.install', { defaultValue: '安装助手' })}
@@ -723,8 +798,11 @@ const AgentModalContent: React.FC = () => {
   const [hubNextCursor, setHubNextCursor] = useState<string | null>(null);
   const [hubDetailAssistant, setHubDetailAssistant] = useState<IAssistantHubSkill | null>(null);
   const [hubDetailVisible, setHubDetailVisible] = useState(false);
-  const [hubInstalledAssistantNames, setHubInstalledAssistantNames] = useState<Set<string>>(new Set());
+  const [hubInstalledAssistants, setHubInstalledAssistants] = useState<Map<string, string>>(new Map());
   const [installingAssistantId, setInstallingAssistantId] = useState<string | null>(null);
+  const [updatingAssistantId, setUpdatingAssistantId] = useState<string | null>(null);
+  const [latestAssistantVersions, setLatestAssistantVersions] = useState<Map<string, AssistantLatestVersion>>(new Map());
+  const [loadingAssistantVersionIds, setLoadingAssistantVersionIds] = useState<Set<string>>(new Set());
   const [installProgress, setInstallProgress] = useState(0);
   const [hubInstalledSkillsReady, setHubInstalledSkillsReady] = useState(false);
   // Duplicate assistant state
@@ -897,6 +975,10 @@ const AgentModalContent: React.FC = () => {
   selectedHubCategoryRef.current = selectedHubCategory;
   const hubSearchQueryRef = useRef(hubSearchQuery);
   hubSearchQueryRef.current = hubSearchQuery;
+  const latestAssistantVersionsRef = useRef(latestAssistantVersions);
+  latestAssistantVersionsRef.current = latestAssistantVersions;
+  const failedAssistantVersionFetchesRef = useRef<Map<string, number>>(new Map());
+  const fetchingAssistantVersionIdsRef = useRef<Set<string>>(new Set());
 
   // Resolve tenant ID for exclusive tab
   const resolveAssistantTenantId = useCallback(
@@ -916,13 +998,133 @@ const AgentModalContent: React.FC = () => {
     try {
       const res = await ipcBridge.assistantHub.getInstalledAssistants.invoke();
       if (res.success && res.data) {
-        const names = new Set(res.data.map((a) => a.name));
-        setHubInstalledAssistantNames(names);
+        const map = new Map<string, string>();
+        for (const assistant of res.data) {
+          const isHubInstalled = assistant.isHubInstalled || assistant.meta?.source_type === 'hub';
+          const installedVersion = isHubInstalled ? normalizeAssistantVersion(assistant.meta?.installed_version) : '';
+          const keys = isEnterprise ? [assistant.name] : [assistant.name, assistant.meta?.name, assistant.meta?.id, assistant.meta?.nameI18n?.[localeKey], assistant.meta?.nameI18n?.['zh-CN'], assistant.meta?.nameI18n?.['en-US']];
+          keys.forEach((key) => {
+            if (key) {
+              map.set(key, installedVersion);
+            }
+            if (isEnterprise) return;
+            const normalizedKey = normalizeAssistantLookupKey(key);
+            if (normalizedKey) {
+              map.set(normalizedKey, installedVersion);
+            }
+          });
+        }
+        setHubInstalledAssistants(map);
       }
     } catch (err) {
       console.error('Failed to fetch installed assistants:', err);
     }
-  }, []);
+  }, [isEnterprise, localeKey]);
+
+  const fetchLatestAssistantVersions = useCallback(
+    async (assistantList: IAssistantHubSkill[], existingMap?: Map<string, AssistantLatestVersion>) => {
+      if (isEnterprise) {
+        return existingMap || new Map<string, AssistantLatestVersion>();
+      }
+
+      const now = Date.now();
+      const versionMap = existingMap ? new Map(existingMap) : new Map<string, AssistantLatestVersion>();
+      let hasInlineVersionMapChange = false;
+      const toFetch = assistantList.filter((assistant) => {
+        const cached = versionMap.get(assistant.id);
+        const failedAt = failedAssistantVersionFetchesRef.current.get(assistant.id);
+        const inlineVersion = resolveAssistantVersionLike(assistant, assistant.latestVersion);
+        if (fetchingAssistantVersionIdsRef.current.has(assistant.id)) return false;
+        if (failedAt && now - failedAt <= VERSION_FAILURE_CACHE_TTL) return false;
+        if (inlineVersion && (!cached || cached.version !== inlineVersion.version || cached.sourceUrl !== inlineVersion.sourceUrl || cached.checksum !== inlineVersion.checksum)) {
+          versionMap.set(assistant.id, {
+            ...inlineVersion,
+            fetchedAt: now,
+          });
+          hasInlineVersionMapChange = true;
+          return false;
+        }
+        if (!cached) return true;
+        return now - cached.fetchedAt > VERSION_CACHE_TTL;
+      });
+
+      if (hasInlineVersionMapChange) {
+        setLatestAssistantVersions(versionMap);
+      }
+
+      if (toFetch.length === 0) {
+        return versionMap;
+      }
+
+      const idsToFetch = toFetch.map((assistant) => assistant.id);
+      idsToFetch.forEach((id) => fetchingAssistantVersionIdsRef.current.add(id));
+      setLoadingAssistantVersionIds((prev) => {
+        const next = new Set(prev);
+        idsToFetch.forEach((id) => next.add(id));
+        return next;
+      });
+
+      try {
+        const batchSize = 10;
+        let hasVersionMapChange = false;
+        for (let i = 0; i < toFetch.length; i += batchSize) {
+          const batch = toFetch.slice(i, i + batchSize);
+          const results = await Promise.all(
+            batch.map(async (assistant) => {
+              try {
+                const res = await assistantHub.fetchAssistantDetail.invoke({ assistantId: assistant.id, silent: true });
+                const detailAssistant = res.success ? res.data?.assistant || (res.data as IAssistantHubSkill | undefined) : undefined;
+                const latest: IAssistantHubVersionLike | undefined = res.success ? res.data?.versions?.[0] || res.data?.latestVersion || undefined : undefined;
+                const fallbackAssistant = {
+                  ...assistant,
+                  ...detailAssistant,
+                  version: detailAssistant?.version || res.data?.version || res.data?.latest_version || assistant.version,
+                  _sourceUrl: detailAssistant?._sourceUrl || res.data?.sourceUrl || res.data?.source_url || assistant._sourceUrl,
+                };
+                const versionInfo = resolveAssistantVersionLike(fallbackAssistant, latest);
+                if (versionInfo) {
+                  failedAssistantVersionFetchesRef.current.delete(assistant.id);
+                  return {
+                    assistantId: assistant.id,
+                    versionInfo: {
+                      ...versionInfo,
+                      checksum: versionInfo.checksum || res.data?.checksum || '',
+                    } satisfies AssistantLatestVersion,
+                  };
+                }
+                failedAssistantVersionFetchesRef.current.set(assistant.id, Date.now());
+              } catch {
+                failedAssistantVersionFetchesRef.current.set(assistant.id, Date.now());
+              }
+              return null;
+            })
+          );
+
+          for (const result of results) {
+            if (result) {
+              versionMap.set(result.assistantId, result.versionInfo);
+              hasVersionMapChange = true;
+            }
+          }
+        }
+
+        if (hasVersionMapChange) {
+          setLatestAssistantVersions(versionMap);
+        }
+        return versionMap;
+      } finally {
+        setLoadingAssistantVersionIds((prev) => {
+          const next = new Set(prev);
+          idsToFetch.forEach((id) => {
+            fetchingAssistantVersionIdsRef.current.delete(id);
+            next.delete(id);
+          });
+          return next;
+        });
+      }
+    },
+    [isEnterprise]
+  );
 
   // Fetch Hub assistants list
   const fetchHubAssistants = useCallback(
@@ -963,6 +1165,9 @@ const AgentModalContent: React.FC = () => {
             const hasMoreValue = res.data.has_more === true || raw.hasMore === true;
             setHubNextCursor(nextCursorValue);
             setHubHasMore(hasMoreValue);
+            if (!isEnterprise) {
+              void fetchLatestAssistantVersions(newAssistants, append ? latestAssistantVersionsRef.current : undefined);
+            }
           }
         }
       } catch (err) {
@@ -973,7 +1178,7 @@ const AgentModalContent: React.FC = () => {
         setHubLoadingMore(false);
       }
     },
-    [activeTab, currentAssistantTenantId, t]
+    [activeTab, currentAssistantTenantId, fetchLatestAssistantVersions, isEnterprise, t]
   );
 
   // Load more Hub assistants (infinite scroll)
@@ -1190,15 +1395,55 @@ const AgentModalContent: React.FC = () => {
     });
   }, []);
 
+  const assistantInfoToHubSkill = useCallback(
+    (info: IAssistantInfo): IAssistantHubSkill => {
+      const meta = info.meta || {};
+      const assistantName = meta.name || info.name;
+      const displayName = meta.nameI18n?.[localeKey] || meta.nameI18n?.['zh-CN'] || meta.nameI18n?.['en-US'] || meta.display_name || meta.name || info.name;
+      const description = meta.descriptionI18n?.[localeKey] || meta.descriptionI18n?.['zh-CN'] || meta.descriptionI18n?.['en-US'] || '';
+
+      return {
+        id: meta.id || assistantName,
+        name: assistantName,
+        display_name: displayName,
+        description,
+        avatar: meta.avatar || null,
+        emoji: meta.emoji || null,
+        category: meta.category_id || (meta.categories || [])[0] || '',
+        categories: meta.categories || [],
+        preset_agent_type: meta.presetAgentType || null,
+        skills: meta.enabledSkills || meta.defaultEnabledSkills || meta.skills || [],
+        tag: meta.tag === 'system' ? 'system' : meta.tag === 'custom' ? 'custom' : 'hub',
+        homepage: meta.homepage || null,
+        author_id: meta.author_id || '',
+        star_count: 0,
+        applicable_scenarios: meta.applicable_scenarios || null,
+        core_features: meta.core_features || null,
+        created_at: meta.installed_at || '',
+        updated_at: meta.installed_at || '',
+        defaultInitPrompt: meta.defaultInitPrompt || null,
+        visible_to: meta.visible_to || null,
+        version: normalizeAssistantVersion(meta.installed_version),
+      };
+    },
+    [localeKey]
+  );
+
   const loadAssistants = useCallback(async () => {
     try {
       // Fetch raw IAssistantInfo[] and convert to AssistantListItem with _category preserved
       const result = await ipcBridge.assistantHub.getInstalledAssistants.invoke();
-      const localAgents: AssistantListItem[] = (result?.data ?? []).map((info) => ({
-        ...toBackendConfig(info),
-        _category: info.category,
-        _isHubInstalled: info.isHubInstalled,
-      }));
+      const localAgents: AssistantListItem[] = (result?.data ?? []).map((info) => {
+        const isPersonalHubAssistant = !isEnterprise && (info.isHubInstalled || info.meta?.source_type === 'hub');
+        return {
+          ...toBackendConfig(info),
+          _category: info.category,
+          _isHubInstalled: info.isHubInstalled,
+          _hubId: isPersonalHubAssistant ? info.meta?.id : undefined,
+          _installedVersion: isPersonalHubAssistant ? normalizeAssistantVersion(info.meta?.installed_version) : undefined,
+          _hubMeta: isPersonalHubAssistant ? assistantInfoToHubSkill(info) : undefined,
+        };
+      });
 
       const mergedAgents = [...localAgents];
       for (const extAssistant of normalizedExtensionAssistants) {
@@ -1224,13 +1469,50 @@ const AgentModalContent: React.FC = () => {
     } catch (error) {
       console.error('Failed to load assistant presets:', error);
     }
-  }, [normalizedExtensionAssistants, sortAssistants]);
+  }, [assistantInfoToHubSkill, isEnterprise, normalizedExtensionAssistants, sortAssistants]);
 
   useEffect(() => {
     void loadAssistants();
   }, [loadAssistants]);
 
   // Install Hub assistant (defined after loadAssistants since it depends on it)
+  const resolveAssistantVersionInfo = useCallback(
+    async (assistant: IAssistantHubSkill): Promise<AssistantLatestVersion | null> => {
+      if (isEnterprise) {
+        if (!assistant._sourceUrl) return null;
+        return {
+          version: '1.0.0',
+          sourceUrl: assistant._sourceUrl,
+          checksum: '',
+          fetchedAt: Date.now(),
+        };
+      }
+
+      const cached = latestAssistantVersionsRef.current.get(assistant.id);
+      if (cached) return cached;
+
+      const inlineVersion = resolveAssistantVersionLike(assistant, assistant.latestVersion);
+      if (inlineVersion) return inlineVersion;
+
+      const fetchedMap = await fetchLatestAssistantVersions([assistant], latestAssistantVersionsRef.current);
+      const fetched = fetchedMap.get(assistant.id);
+      if (fetched) return fetched;
+
+      const fallbackVersion = normalizeAssistantVersion(assistant.version || (assistant._sourceUrl ? '1.0.0' : ''));
+      if (assistant._sourceUrl && fallbackVersion) {
+        return {
+          version: fallbackVersion,
+          sourceUrl: assistant._sourceUrl,
+          checksum: '',
+          fetchedAt: Date.now(),
+        };
+      }
+
+      return null;
+    },
+    [fetchLatestAssistantVersions, isEnterprise]
+  );
+
   const handleInstallHubAssistant = useCallback(
     async (assistantId: string, selectedSkillIds: string[] = []) => {
       if (!isElectronDesktop()) {
@@ -1241,9 +1523,9 @@ const AgentModalContent: React.FC = () => {
       const assistant = hubAssistantList.find((a) => a.id === assistantId);
       if (!assistant) return;
 
-      // Check for valid download URL (some assistants like builtin ones don't have downloadable packages)
-      const sourceUrl = assistant._sourceUrl;
-      if (!sourceUrl) {
+      const versionInfo = await resolveAssistantVersionInfo(assistant);
+
+      if (!versionInfo?.sourceUrl) {
         Message.error(t('settings.assistant.noDownloadUrl', { defaultValue: '该助手暂不支持安装，请联系管理员' }));
         return;
       }
@@ -1252,14 +1534,12 @@ const AgentModalContent: React.FC = () => {
       setInstallProgress(0);
 
       try {
-        // Use default version since API doesn't provide version info
-        const version = '1.0.0';
         const res = await assistantHub.downloadAndInstallAssistant.invoke({
           assistantName: assistant.name,
           displayName: assistant.display_name || assistant.name,
-          sourceUrl: sourceUrl,
-          version: version,
-          checksum: '',
+          sourceUrl: versionInfo.sourceUrl,
+          version: versionInfo.version,
+          checksum: versionInfo.checksum,
           assistantMeta: assistant,
           selectedSkillIds,
         });
@@ -1303,7 +1583,60 @@ const AgentModalContent: React.FC = () => {
         setInstallProgress(0);
       }
     },
-    [hubAssistantList, fetchInstalledAssistantNames, loadAssistants, refreshAgentDetection, t]
+    [hubAssistantList, resolveAssistantVersionInfo, fetchInstalledAssistantNames, loadAssistants, refreshAgentDetection, t]
+  );
+
+  const handleUpdateHubAssistant = useCallback(
+    async (assistantId: string, selectedSkillIds: string[] = [], assistantMeta?: IAssistantHubSkill) => {
+      if (isEnterprise || !isElectronDesktop()) return;
+
+      const assistant = assistantMeta || hubAssistantList.find((a) => a.id === assistantId) || (hubDetailAssistant?.id === assistantId ? hubDetailAssistant : undefined);
+      if (!assistant) return;
+
+      const versionInfo = await resolveAssistantVersionInfo(assistant);
+      if (!versionInfo?.sourceUrl) {
+        Message.error(t('settings.assistant.noDownloadUrl', { defaultValue: '该助手暂不支持安装，请联系管理员' }));
+        return;
+      }
+
+      setUpdatingAssistantId(assistantId);
+      setInstallProgress(0);
+
+      try {
+        const res = await assistantHub.downloadAndInstallAssistant.invoke({
+          assistantName: assistant.name,
+          displayName: assistant.display_name || assistant.name,
+          sourceUrl: versionInfo.sourceUrl,
+          version: versionInfo.version,
+          checksum: versionInfo.checksum,
+          assistantMeta: assistant,
+          selectedSkillIds,
+        });
+
+        const displayName = assistant.display_name || assistant.name;
+        if (res.success && res.data) {
+          Message.success(
+            t('settings.assistant.updateSuccess', {
+              name: displayName,
+              version: versionInfo.version,
+              defaultValue: `已更新 ${displayName} 至 v${versionInfo.version}`,
+            })
+          );
+          await fetchInstalledAssistantNames();
+          await loadAssistants();
+          await refreshAgentDetection();
+        } else {
+          Message.error(t('settings.assistant.updateFailed', { msg: res.msg || 'Unknown error', defaultValue: `更新失败: ${res.msg || '未知错误'}` }));
+        }
+      } catch (err) {
+        console.error('Failed to update assistant:', err);
+        Message.error(t('settings.assistant.updateFailed', { msg: String(err), defaultValue: `更新失败: ${String(err)}` }));
+      } finally {
+        setUpdatingAssistantId(null);
+        setInstallProgress(0);
+      }
+    },
+    [hubAssistantList, hubDetailAssistant, isEnterprise, resolveAssistantVersionInfo, fetchInstalledAssistantNames, loadAssistants, refreshAgentDetection, t]
   );
 
   // Go use installed assistant (navigate to guid page with assistant pre-selected)
@@ -1508,7 +1841,7 @@ const AgentModalContent: React.FC = () => {
 
         // Read the assistant rule content if already installed
         let ruleContent: string | undefined = undefined;
-        if (hubInstalledAssistantNames.has(duplicateAssistant.name)) {
+        if (hubInstalledAssistants.has(duplicateAssistant.id) || hubInstalledAssistants.has(duplicateAssistant.name)) {
           try {
             const content = await ipcBridge.fs.readAssistantRule.invoke({
               assistantId: duplicateAssistant.name,
@@ -1674,7 +2007,7 @@ const AgentModalContent: React.FC = () => {
       console.error('Failed to duplicate assistant:', err);
       agentMessage.error(t('settings.assistant.duplicateFailed', { defaultValue: '复制失败' }));
     }
-  }, [duplicateAssistant, duplicateInstalledAssistant, duplicateTenantAssistant, hubInstalledAssistantNames, localeKey, loadAssistants, t, isEnterprise, handleUploadCustomAssistant]);
+  }, [duplicateAssistant, duplicateInstalledAssistant, duplicateTenantAssistant, hubInstalledAssistants, localeKey, loadAssistants, t, isEnterprise, handleUploadCustomAssistant]);
 
   // ---- Enterprise mode: Install tenant assistant ----
   const handleInstallTenantAssistant = useCallback(
@@ -1723,22 +2056,90 @@ const AgentModalContent: React.FC = () => {
 
   // ===== 分类逻辑：以目录分类（_category）为主，其他字段仅作兼容兜底 =====
   // Tenant assistants: 目录分类为 tenant
-  const localTenantAssistants = assistants.filter((a) => a._category === 'tenant');
+  const localTenantAssistants = useMemo(() => assistants.filter((a) => a._category === 'tenant'), [assistants]);
   // Filter tenant assistants by search query
-  const filteredTenantAssistants = hubSearchQuery.trim()
-    ? localTenantAssistants.filter((a) => {
-        const displayName = a.nameI18n?.[localeKey] || a.name;
-        const description = a.descriptionI18n?.[localeKey] || a.description || '';
-        const query = hubSearchQuery.trim().toLowerCase();
-        return displayName.toLowerCase().includes(query) || description.toLowerCase().includes(query);
-      })
-    : localTenantAssistants;
+  const filteredTenantAssistants = useMemo(() => {
+    const query = hubSearchQuery.trim().toLowerCase();
+    if (!query) return localTenantAssistants;
+    return localTenantAssistants.filter((a) => {
+      const displayName = a.nameI18n?.[localeKey] || a.name;
+      const description = a.descriptionI18n?.[localeKey] || a.description || '';
+      return displayName.toLowerCase().includes(query) || description.toLowerCase().includes(query);
+    });
+  }, [hubSearchQuery, localTenantAssistants, localeKey]);
   // Hub assistants: 目录分类为 hub（_isHubInstalled 仅作兼容兜底）
-  const hubAssistants = assistants.filter((a) => a._category === 'hub' || (!a._category && !a.isBuiltin && a._isHubInstalled));
+  const hubAssistants = useMemo(() => assistants.filter((a) => a._category === 'hub' || (!a._category && !a.isBuiltin && a._isHubInstalled)), [assistants]);
   // Builtin assistants: 目录分类为 system 或 isBuiltin 为 true
-  const builtinAssistants = assistants.filter((a) => a._category === 'system' || a.isBuiltin || isExtensionAssistant(a));
+  const builtinAssistants = useMemo(() => assistants.filter((a) => a._category === 'system' || a.isBuiltin || isExtensionAssistant(a)), [assistants, isExtensionAssistant]);
   // Custom assistants: 目录分类为 custom（其他字段仅作兼容兜底）
-  const customAssistants = assistants.filter((a) => a._category === 'custom' || (!a._category && !a.isBuiltin && !a._isHubInstalled && !isExtensionAssistant(a)));
+  const customAssistants = useMemo(() => assistants.filter((a) => a._category === 'custom' || (!a._category && !a.isBuiltin && !a._isHubInstalled && !isExtensionAssistant(a))), [assistants, isExtensionAssistant]);
+
+  const getAssistantLookupKeys = useCallback((assistant: Pick<IAssistantHubSkill, 'id' | 'name'> & Partial<Pick<IAssistantHubSkill, 'display_name'>>) => [assistant.id, assistant.name, assistant.display_name].map(normalizeAssistantLookupKey).filter((key): key is string => Boolean(key)), []);
+
+  const isHubAssistantInstalled = useCallback((assistant: Pick<IAssistantHubSkill, 'id' | 'name'> & Partial<Pick<IAssistantHubSkill, 'display_name'>>) => getAssistantLookupKeys(assistant).some((key) => hubInstalledAssistants.has(key)), [getAssistantLookupKeys, hubInstalledAssistants]);
+
+  const getHubAssistantInstalledVersion = useCallback(
+    (assistant: Pick<IAssistantHubSkill, 'id' | 'name'> & Partial<Pick<IAssistantHubSkill, 'display_name'>>) => {
+      for (const key of getAssistantLookupKeys(assistant)) {
+        const version = hubInstalledAssistants.get(key);
+        if (version) return normalizeAssistantVersion(version);
+      }
+      return '';
+    },
+    [getAssistantLookupKeys, hubInstalledAssistants]
+  );
+
+  const installedAssistantToHubAssistant = useCallback(
+    (assistant: AssistantListItem): IAssistantHubSkill => ({
+      ...(assistant._hubMeta || {}),
+      id: assistant._hubId || assistant.id,
+      name: assistant._hubMeta?.name || resolveAssistantName(assistant.id),
+      display_name: assistant._hubMeta?.display_name || assistant.nameI18n?.[localeKey] || assistant.name,
+      description: assistant._hubMeta?.description || assistant.descriptionI18n?.[localeKey] || assistant.description || '',
+      avatar: assistant._hubMeta?.avatar || assistant.avatar || null,
+      emoji: assistant._hubMeta?.emoji || null,
+      category: assistant._hubMeta?.category || assistant._category || '',
+      categories: assistant._hubMeta?.categories || (assistant._category ? [assistant._category] : []),
+      preset_agent_type: assistant._hubMeta?.preset_agent_type || assistant.presetAgentType || null,
+      skills: assistant._hubMeta?.skills || assistant.enabledSkills || [],
+      tag: assistant._hubMeta?.tag || 'hub',
+      homepage: assistant._hubMeta?.homepage || null,
+      author_id: assistant._hubMeta?.author_id || '',
+      star_count: assistant._hubMeta?.star_count || 0,
+      applicable_scenarios: assistant._hubMeta?.applicable_scenarios || null,
+      core_features: assistant._hubMeta?.core_features || null,
+      created_at: assistant._hubMeta?.created_at || '',
+      updated_at: assistant._hubMeta?.updated_at || '',
+      version: assistant._installedVersion,
+    }),
+    [localeKey]
+  );
+
+  const installedHubVersionTargets = useMemo(() => {
+    if (isEnterprise) return [];
+
+    const assistantById = new Map(hubAssistantList.map((assistant) => [assistant.id, assistant]));
+    const targets = new Map<string, IAssistantHubSkill>();
+
+    for (const assistant of hubAssistantList) {
+      if (isHubAssistantInstalled(assistant)) {
+        targets.set(assistant.id, assistant);
+      }
+    }
+
+    for (const assistant of hubAssistants) {
+      const hubId = assistant._hubId;
+      if (!hubId || targets.has(hubId)) continue;
+      targets.set(hubId, assistantById.get(hubId) || installedAssistantToHubAssistant(assistant));
+    }
+
+    return [...targets.values()];
+  }, [hubAssistantList, hubAssistants, installedAssistantToHubAssistant, isHubAssistantInstalled, isEnterprise]);
+
+  useEffect(() => {
+    if (isEnterprise || installedHubVersionTargets.length === 0) return;
+    void fetchLatestAssistantVersions(installedHubVersionTargets, latestAssistantVersionsRef.current);
+  }, [fetchLatestAssistantVersions, installedHubVersionTargets, isEnterprise]);
 
   // Avatar helpers
   const isEmoji = useCallback((str: string) => {
@@ -1986,9 +2387,34 @@ const AgentModalContent: React.FC = () => {
 
   const renderAssistantGrid = (list: AssistantListItem[], hideDelete = false, allowToggle = false, allowDelete = false) => (
     <div className='grid gap-16px' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
-      {list.map((assistant) => (
-        <InstalledAssistantCard key={assistant.id} assistant={assistant} isExtension={isExtensionAssistant(assistant)} localeKey={localeKey} avatarImageMap={avatarImageMap} onToggleEnabled={(enabled) => void handleToggleEnabled(assistant, enabled)} onDelete={() => void handleDeleteFromCard(assistant)} onDuplicate={() => handleOpenDuplicateModalFromInstalled(assistant)} onUpload={canUploadAssistant(assistant) ? () => handleUploadAssistant(assistant) : undefined} onClick={() => void handleEdit(assistant)} hideDelete={hideDelete} allowToggle={allowToggle} allowDelete={allowDelete} enterpriseMode={isEnterprise} />
-      ))}
+      {list.map((assistant) => {
+        const hubId = !isEnterprise ? assistant._hubId : undefined;
+        const latestVersion = hubId ? latestAssistantVersions.get(hubId) : undefined;
+        const installedVersion = !isEnterprise ? normalizeAssistantVersion(assistant._installedVersion) : '';
+        const hasUpdate = Boolean(!isEnterprise && assistant._isHubInstalled && hubId && latestVersion && (!installedVersion || latestVersion.version !== installedVersion));
+
+        return (
+          <InstalledAssistantCard
+            key={assistant.id}
+            assistant={assistant}
+            isExtension={isExtensionAssistant(assistant)}
+            localeKey={localeKey}
+            avatarImageMap={avatarImageMap}
+            onToggleEnabled={(enabled) => void handleToggleEnabled(assistant, enabled)}
+            onDelete={() => void handleDeleteFromCard(assistant)}
+            onDuplicate={() => handleOpenDuplicateModalFromInstalled(assistant)}
+            onUpdate={!isEnterprise && hubId ? () => void handleUpdateHubAssistant(hubId, assistant.enabledSkills || [], installedAssistantToHubAssistant(assistant)) : undefined}
+            hasUpdate={!isEnterprise && hasUpdate}
+            updating={!isEnterprise && hubId ? updatingAssistantId === hubId : false}
+            onUpload={canUploadAssistant(assistant) ? () => handleUploadAssistant(assistant) : undefined}
+            onClick={() => void handleEdit(assistant)}
+            hideDelete={hideDelete}
+            allowToggle={allowToggle}
+            allowDelete={allowDelete}
+            enterpriseMode={isEnterprise}
+          />
+        );
+      })}
     </div>
   );
 
@@ -2025,7 +2451,7 @@ const AgentModalContent: React.FC = () => {
             </Tooltip>
           ) : undefined;
 
-        return <InstalledAssistantCard key={assistantId} assistant={assistant} isExtension={isExtensionAssistant(assistant)} localeKey={localeKey} avatarImageMap={avatarImageMap} onToggleEnabled={(enabled) => void handleToggleEnabled(assistant, enabled)} onDelete={() => void handleDeleteFromCard(assistant)} onDuplicate={() => handleOpenDuplicateModalFromInstalled(assistant)} onClick={() => void handleEdit(assistant)} enterprisePublishButton={enterprisePublishButton} />;
+        return <InstalledAssistantCard key={assistantId} assistant={assistant} isExtension={isExtensionAssistant(assistant)} localeKey={localeKey} avatarImageMap={avatarImageMap} onToggleEnabled={(enabled) => void handleToggleEnabled(assistant, enabled)} onDelete={() => void handleDeleteFromCard(assistant)} onDuplicate={() => handleOpenDuplicateModalFromInstalled(assistant)} hasUpdate={false} onClick={() => void handleEdit(assistant)} enterprisePublishButton={enterprisePublishButton} />;
       })}
     </div>
   );
@@ -2155,8 +2581,13 @@ const AgentModalContent: React.FC = () => {
             ) : (
               <div className='grid gap-16px pb-16px' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
                 {hubAssistantList.map((assistant) => {
-                  const isInstalled = hubInstalledAssistantNames.has(assistant.name);
+                  const isInstalled = isEnterprise ? hubInstalledAssistants.has(assistant.name) : isHubAssistantInstalled(assistant);
                   const isInstalling = installingAssistantId === assistant.id;
+                  const isUpdating = !isEnterprise && updatingAssistantId === assistant.id;
+                  const latestVersion = !isEnterprise ? latestAssistantVersions.get(assistant.id) : undefined;
+                  const installedVersion = !isEnterprise ? getHubAssistantInstalledVersion(assistant) : '';
+                  const hasUpdate = !isEnterprise && isInstalled && !!latestVersion && (!installedVersion || latestVersion.version !== installedVersion);
+                  const isLoadingVersion = !isEnterprise && loadingAssistantVersionIds.has(assistant.id);
                   return (
                     <HubAssistantCard
                       key={assistant.id}
@@ -2170,10 +2601,22 @@ const AgentModalContent: React.FC = () => {
                         setHubDetailAssistant(assistant);
                         setHubDetailVisible(true);
                       }}
+                      onUpdate={
+                        !isEnterprise
+                          ? (e) => {
+                              e.stopPropagation();
+                              void handleUpdateHubAssistant(assistant.id, assistant.skills || []);
+                            }
+                          : undefined
+                      }
+                      hasUpdate={!isEnterprise && hasUpdate}
+                      updating={isUpdating}
                       onDuplicate={(e) => {
                         e.stopPropagation();
                         handleOpenDuplicateModal(assistant);
                       }}
+                      latestVersion={!isEnterprise ? latestVersion?.version || normalizeAssistantVersion(assistant.version) : undefined}
+                      loadingVersion={isLoadingVersion}
                       onClick={() => {
                         setHubDetailAssistant(assistant);
                         setHubDetailVisible(true);
@@ -2576,7 +3019,7 @@ const AgentModalContent: React.FC = () => {
           setHubDetailVisible(false);
           setHubDetailAssistant(null);
         }}
-        isInstalled={hubDetailAssistant ? hubInstalledAssistantNames.has(hubDetailAssistant.name) : false}
+        isInstalled={hubDetailAssistant ? (isEnterprise ? hubInstalledAssistants.has(hubDetailAssistant.name) : isHubAssistantInstalled(hubDetailAssistant)) : false}
         installing={installingAssistantId === hubDetailAssistant?.id}
         installProgress={installProgress}
         onInstall={(selectedSkillIds) => {
@@ -2584,6 +3027,18 @@ const AgentModalContent: React.FC = () => {
             void handleInstallHubAssistant(hubDetailAssistant.id, selectedSkillIds);
           }
         }}
+        latestVersionInfo={!isEnterprise && hubDetailAssistant ? latestAssistantVersions.get(hubDetailAssistant.id) : undefined}
+        installedVersion={!isEnterprise && hubDetailAssistant ? getHubAssistantInstalledVersion(hubDetailAssistant) : undefined}
+        onUpdate={
+          !isEnterprise
+            ? (selectedSkillIds) => {
+                if (hubDetailAssistant) {
+                  void handleUpdateHubAssistant(hubDetailAssistant.id, selectedSkillIds);
+                }
+              }
+            : undefined
+        }
+        updating={!isEnterprise && hubDetailAssistant ? updatingAssistantId === hubDetailAssistant.id : false}
         onGoUse={handleGoUseHubAssistant}
         installedSkills={installedSkills}
       />

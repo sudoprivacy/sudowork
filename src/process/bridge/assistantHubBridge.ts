@@ -4,7 +4,7 @@
  */
 
 import { ipcBridge } from '@/common';
-import type { IAssistantHubSkill, IAssistantHubListResponse, IAssistantHubDetail, IAssistantInstallResult, ISkillHubSkill, IBridgeResponse } from '@/common/ipcBridge';
+import type { IAssistantHubSkill, IAssistantHubListResponse, IAssistantHubDetail, IAssistantInstallResult, ISkillHubSkill, IBridgeResponse, IAssistantHubVersionLike } from '@/common/ipcBridge';
 import { assistantManager } from '@/process/AssistantManager';
 import { getAssistantsDir, getHubAssistantsDir, getSystemAssistantsDir, getCustomAssistantsDir } from '@/process/initStorage';
 import { skillManager } from '@/process/SkillManager';
@@ -440,8 +440,13 @@ export function initAssistantHubBridge(): void {
       // API returns: { data: { assistants: [{ id, name, profession, description, avatar, categories, sourceUrl, ... }] } }
       const rawAssistants = result.data?.assistants || [];
 
-      const mappedAssistants = rawAssistants.map(
-        (a: Record<string, unknown>): IAssistantHubSkill => ({
+      const mappedAssistants = rawAssistants.map((a: Record<string, unknown>): IAssistantHubSkill => {
+        const versions = a.versions as IAssistantHubVersionLike[] | undefined;
+        const latestVersion = (a.latestVersion as IAssistantHubVersionLike | undefined) || versions?.[0] || null;
+        const version = [a.version, a.latest_version, latestVersion?.version, versions?.[0]?.version].find((value): value is string => typeof value === 'string' && value.length > 0);
+        const sourceUrl = [a.sourceUrl, a.source_url, latestVersion?.source_url, versions?.[0]?.source_url].find((value): value is string => typeof value === 'string' && value.length > 0);
+
+        return {
           id: a.id as string,
           name: a.name as string,
           display_name: (a.profession as string) || (a.name as string),
@@ -463,10 +468,12 @@ export function initAssistantHubBridge(): void {
           updated_at: a.updatedAt as string,
           // Default init prompt from API
           defaultInitPrompt: (a.defaultInitPrompt as string) || null,
+          version,
+          latestVersion,
           // Store sourceUrl for download (not in original type but needed for install)
-          _sourceUrl: a.sourceUrl as string,
-        })
-      );
+          _sourceUrl: sourceUrl,
+        };
+      });
 
       const mappedData = {
         assistants: mappedAssistants,
@@ -527,7 +534,7 @@ export function initAssistantHubBridge(): void {
   });
 
   // Fetch assistant detail from Hub API
-  ipcBridge.assistantHub.fetchAssistantDetail.provider(async ({ assistantId }) => {
+  ipcBridge.assistantHub.fetchAssistantDetail.provider(async ({ assistantId, silent }) => {
     try {
       // 企业模式：从本地 hub/ 目录读取详情
       if (isEnterpriseMode()) {
@@ -583,7 +590,9 @@ export function initAssistantHubBridge(): void {
       const data = await response.json();
       return { success: true, data: data.data };
     } catch (error) {
-      mainError('AssistantHub', 'Failed to fetch assistant detail:', error);
+      if (!silent) {
+        mainError('AssistantHub', 'Failed to fetch assistant detail:', error);
+      }
       return { success: false, msg: error instanceof Error ? error.message : String(error) };
     }
   });
@@ -787,7 +796,7 @@ export function initAssistantHubBridge(): void {
               };
               // Use skillHubBridge's writeSkillMetaFile for consistency
               const { isEnterpriseMode: checkEnterprise } = await import('@/common/enterpriseDebugConfig');
-              const isEnterprise = await checkEnterprise();
+              const isEnterprise = checkEnterprise();
               const skillMetaFileName = isEnterprise ? '_moss_meta.json' : '_sudowork_meta.json';
               await fs.writeFile(path.join(skillDir, skillMetaFileName), JSON.stringify(skillMeta, null, 2), 'utf-8');
 
