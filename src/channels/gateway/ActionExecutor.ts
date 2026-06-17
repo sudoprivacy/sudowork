@@ -128,6 +128,28 @@ function getErrorRecoveryMarkup(platform: PluginType, errorMessage?: string) {
 }
 
 /**
+ * Lark 的 markdown card 不接受本地路径图片引用（`![](C:\...png)` 或 `![](/abs/path.png)`）：
+ * 飞书会返回 230099 / 子错码 11310 "the card contains images but no imagekey is passed in"。
+ * 对 Lark 平台的 text 仅去除本地路径形式的 markdown image，
+ * 保留 http(s)/data/file 协议的远程图片（飞书 markdown card 能正常渲染网络图）。
+ * 图片本身改由 file_send 走 image_key 上传通道发送，文字此时只承担"配文"职责。
+ *
+ * Lark only. Other platforms (dingtalk/wechat/telegram) returned as-is so this
+ * helper is non-invasive — the existing DingTalk path strips elsewhere in
+ * ChannelResponseRouter.
+ */
+function stripLarkUnusableImageMarkdown(text: string | undefined, platform: PluginType): string | undefined {
+  if (platform !== 'lark' || !text) return text;
+  return text
+    .replace(/!\[[^\]]*\]\(([^)]+)\)/g, (match, imgPath: string) => {
+      if (/^(https?:|data:|file:)/i.test(imgPath)) return match;
+      return '';
+    })
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+/**
  * Escape/format text for platform
  */
 function formatTextForPlatform(text: string, platform: PluginType): string {
@@ -762,8 +784,12 @@ export class ActionExecutor {
         // When updating thinking message, always target thinkingMsgId directly
         // (not sentMessageIds[last], which may be a file/image message)
         const targetMsgId = forceThinkingTarget && thinkingMsgId ? thinkingMsgId : sentMessageIds[sentMessageIds.length - 1] || thinkingMsgId;
+        // Lark markdown cards reject `![](local-path)`. Non-Lark platforms get
+        // the original msg back from the helper (identity), so no behavior change.
+        const sanitizedText = stripLarkUnusableImageMarkdown(msg.text, context.platform as PluginType);
+        const safeMsg = sanitizedText === msg.text ? msg : { ...msg, text: sanitizedText };
         try {
-          await context.editMessage(targetMsgId, msg);
+          await context.editMessage(targetMsgId, safeMsg);
         } catch {
           // Ignore edit errors (message not modified, etc.)
         }
@@ -816,8 +842,11 @@ export class ActionExecutor {
           // 关键：第一个 thinking 更新必须立即发送，不能用节流延迟。
           // 如果用定时器延迟，后续 UPDATE 会在定时器触发前覆盖内容，导致第一条消息永远丢失。
           lastUpdateTime = Date.now();
+          // Lark markdown card rejects local-path image refs; helper is a no-op for other platforms.
+          const sanitizedText = stripLarkUnusableImageMarkdown(streamOutgoing.text, context.platform as PluginType);
+          const safeStreamOutgoing = sanitizedText === streamOutgoing.text ? streamOutgoing : { ...streamOutgoing, text: sanitizedText };
           try {
-            await context.editMessage(thinkingMsgId, streamOutgoing);
+            await context.editMessage(thinkingMsgId, safeStreamOutgoing);
           } catch {
             // Ignore edit errors
           }
@@ -1074,7 +1103,10 @@ export class ActionExecutor {
           // with the last text content so it stops spinning
           if (lastTextContent && supportsEdit && sentMessageIds.length > 0) {
             const responseMarkup = getResponseActionsMarkup(context.platform as PluginType, lastTextContent.text);
-            const finalMessage: IUnifiedOutgoingMessage = { ...lastTextContent, replyMarkup: responseMarkup };
+            // Strip Lark-incompatible markdown image refs from the final card text
+            // (image is sent separately via pendingFilesToSend below). No-op for non-Lark.
+            const sanitizedFinalText = stripLarkUnusableImageMarkdown(lastTextContent.text, context.platform as PluginType);
+            const finalMessage: IUnifiedOutgoingMessage = { ...lastTextContent, text: sanitizedFinalText, replyMarkup: responseMarkup };
             const lastMsgId = sentMessageIds[sentMessageIds.length - 1];
             await context.editMessage(lastMsgId, finalMessage);
           } else if (!supportsEdit && lastTextContent) {
@@ -1091,7 +1123,9 @@ export class ActionExecutor {
           }
         } else {
           const responseMarkup = getResponseActionsMarkup(context.platform as PluginType, lastMessageContent.text);
-          const finalMessage: IUnifiedOutgoingMessage = { ...lastMessageContent, replyMarkup: responseMarkup };
+          // Strip Lark-incompatible markdown image refs. No-op for non-Lark.
+          const sanitizedFinalText = stripLarkUnusableImageMarkdown(lastMessageContent.text, context.platform as PluginType);
+          const finalMessage: IUnifiedOutgoingMessage = { ...lastMessageContent, text: sanitizedFinalText, replyMarkup: responseMarkup };
 
           if (supportsEdit && sentMessageIds.length > 0) {
             const lastMsgId = sentMessageIds[sentMessageIds.length - 1];
