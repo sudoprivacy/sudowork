@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { useCallback, useEffect, useRef } from 'react';
+import { createContext } from '../utils/createContext';
 import { ipcBridge } from '@/common';
 import type { TMessage } from '@/common/chatLib';
 import { composeMessage } from '@/common/chatLib';
-import { useCallback, useEffect, useRef } from 'react';
-import { createContext } from '../utils/createContext';
 
 const [useMessageList, MessageListProvider, useUpdateMessageList] = createContext([] as TMessage[]);
 
@@ -139,7 +139,16 @@ function composeMessageWithIndex(message: TMessage, list: TMessage[], index: Mes
       const existingMsg = list[existingIdx];
       if (existingMsg.type === 'acp_tool_call') {
         const newList = list.slice();
-        const merged = { ...existingMsg.content, ...message.content };
+        const merged = {
+          ...existingMsg.content,
+          ...message.content,
+          update: {
+            ...existingMsg.content.update,
+            ...message.content.update,
+            rawInput: message.content.update?.rawInput ?? existingMsg.content.update?.rawInput,
+            content: message.content.update?.content ?? existingMsg.content.update?.content,
+          },
+        };
         newList[existingIdx] = { ...existingMsg, content: merged };
         return newList;
       }

@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { IResponseMessage } from './ipcBridge';
+import { uuid } from './utils';
 import type { CodexPermissionRequest } from '@/common/codex/types';
 import type { ExecCommandBeginData, ExecCommandEndData, ExecCommandOutputDeltaData, McpToolCallBeginData, McpToolCallEndData, PatchApplyBeginData, PatchApplyEndData, TurnDiffData, WebSearchBeginData, WebSearchEndData } from '@/common/codex/types/eventData';
 import type { AcpBackend, AcpPermissionRequest, PlanUpdate, ToolCallUpdate } from '@/types/acpTypes';
-import type { IResponseMessage } from './ipcBridge';
-import { uuid } from './utils';
 
 /**
  * 安全的路径拼接函数，兼容Windows和Mac
@@ -695,8 +695,18 @@ export const composeMessage = (message: TMessage | undefined, list: TMessage[] |
     for (let i = 0, len = list.length; i < len; i++) {
       const msg = list[i];
       if (msg.type === 'acp_tool_call' && msg.content.update?.toolCallId === message.content.update?.toolCallId) {
-        // Create new object instead of mutating original
-        const merged = { ...msg.content, ...message.content };
+        // Preserve previously streamed fields inside `update` so a completion
+        // packet that only contains status/content does not wipe rawInput/title.
+        const merged = {
+          ...msg.content,
+          ...message.content,
+          update: {
+            ...msg.content.update,
+            ...message.content.update,
+            rawInput: message.content.update?.rawInput ?? msg.content.update?.rawInput,
+            content: message.content.update?.content ?? msg.content.update?.content,
+          },
+        };
         return updateMessage(i, { ...msg, content: merged });
       }
     }

@@ -115,6 +115,51 @@ describe('AcpAdapter - rawInput merging (#1113)', () => {
     expect((messages[0] as any).content.update.rawInput).toEqual({ path: '/some/file.txt' });
   });
 
+  it('should preserve previous rawInput when tool_call_update only changes status/content', () => {
+    const initialToolCall: ToolCallUpdate = {
+      sessionId: 'test-session',
+      update: {
+        sessionUpdate: 'tool_call',
+        toolCallId: 'tool-999',
+        status: 'pending',
+        title: 'Bash',
+        kind: 'execute',
+        rawInput: {
+          command: 'bash write_file --path /tmp/demo.txt',
+          description: 'write file',
+        },
+      },
+    };
+
+    adapter.convertSessionUpdate(initialToolCall);
+
+    const toolCallUpdateStatus: ToolCallUpdateStatus = {
+      sessionId: 'test-session',
+      update: {
+        sessionUpdate: 'tool_call_update',
+        toolCallId: 'tool-999',
+        status: 'completed',
+        content: [
+          {
+            type: 'content',
+            content: {
+              type: 'text',
+              text: 'done',
+            },
+          },
+        ],
+      },
+    };
+
+    const messages = adapter.convertSessionUpdate(toolCallUpdateStatus);
+
+    expect(messages).toHaveLength(1);
+    expect((messages[0] as any).content.update.rawInput).toEqual({
+      command: 'bash write_file --path /tmp/demo.txt',
+      description: 'write file',
+    });
+  });
+
   it('should return null for tool_call_update without existing tool call', () => {
     const toolCallUpdateStatus: ToolCallUpdateStatus = {
       sessionId: 'test-session',
@@ -208,18 +253,12 @@ describe('AcpAdapter - AskUserQuestion v2', () => {
       expect.objectContaining({
         id: 'save_scope',
         prompt: '保存到哪里？',
-        options: [
-          expect.objectContaining({ label: 'Project', value: 'project' }),
-          expect.objectContaining({ label: 'User', value: 'user' }),
-        ],
+        options: [expect.objectContaining({ label: 'Project', value: 'project' }), expect.objectContaining({ label: 'User', value: 'user' })],
       }),
       expect.objectContaining({
         id: 'default_language',
         prompt: '默认语言？',
-        options: [
-          expect.objectContaining({ label: 'zh-CN', value: 'zh-CN' }),
-          expect.objectContaining({ label: 'en-US', value: 'en-US' }),
-        ],
+        options: [expect.objectContaining({ label: 'zh-CN', value: 'zh-CN' }), expect.objectContaining({ label: 'en-US', value: 'en-US' })],
       }),
     ]);
   });
@@ -274,9 +313,7 @@ describe('AcpAdapter - AskUserQuestion v2', () => {
                     ],
                   },
                 ],
-                answers: [
-                  { id: 'save_scope', value: 'project', label: 'Project' },
-                ],
+                answers: [{ id: 'save_scope', value: 'project', label: 'Project' }],
               }),
             },
           },
