@@ -294,6 +294,29 @@ export function mergeCustomProviderIntoScodeConfig(existing: ScodeConfig | null 
   return nextConfig;
 }
 
+/**
+ * Extract sudorouter credentials (baseUrl + apiKey) from a ScodeConfig.
+ * Pure function, no side effects. Returns undefined for any field that is
+ * missing or not a non-empty string. Never throws — invalid input yields `{}`.
+ *
+ * Symmetric with mergeSudorouterIntoScodeConfig: that one writes, this one reads.
+ */
+export function extractSudorouterCreds(config: unknown): { baseUrl?: string; apiKey?: string } {
+  const result: { baseUrl?: string; apiKey?: string } = {};
+  if (!config || typeof config !== 'object') return result;
+  const authModes = (config as ScodeConfig)?.auth_modes;
+  const sudorouter = authModes?.proxy?.[SUDOROUTER_PROVIDER_ID];
+  if (!sudorouter || typeof sudorouter !== 'object') return result;
+  const { baseUrl, apiKey } = sudorouter as { baseUrl?: unknown; apiKey?: unknown };
+  if (typeof baseUrl === 'string' && baseUrl.trim()) {
+    result.baseUrl = baseUrl;
+  }
+  if (typeof apiKey === 'string' && apiKey.trim()) {
+    result.apiKey = apiKey;
+  }
+  return result;
+}
+
 export function removeCustomProviderFromScodeConfig(existing: ScodeConfig | null | undefined, providerId: string): ScodeConfig {
   const normalizedProviderId = providerId.trim();
   const nextApiKeyProviders = { ...(existing?.auth_modes?.['api-key'] || {}) };

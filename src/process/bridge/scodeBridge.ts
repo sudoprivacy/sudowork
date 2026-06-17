@@ -11,16 +11,17 @@
  * Also exports helper functions for use within the main process.
  */
 
+import fs from 'fs';
+import path from 'path';
+import { SCODE_DIR, isScodeInstalled, getScodeVersionState, ensureScodeInstalled } from '@process/services/scode/ScodeInstallService';
+import { syncUserKeyFromScodeConfig } from '@process/services/authProxy/userKeySync';
+import { readSettings, removeDisabledMcpServersFromSettings, writeSettings } from '@process/services/mcpServices/agents/ScodeMcpAgent';
+import { getDatabase } from '@process/database';
+import { mainLog, mainWarn } from '@process/utils/mainLogger';
 import { ipcBridge } from '@/common';
 import { modelInputForModelId } from '@/common/imageUtils';
 import type { ScodeModelEntry } from '@/common/ipcBridge';
 import { addScodeAutoModel, extractCustomProvidersFromScodeConfig, mergeCustomProvidersIntoScodeConfig, normalizeCustomApiKeyModelsInScodeConfig, type ScodeCustomModelProvider } from '@/common/scodeConfig';
-import { SCODE_DIR, isScodeInstalled, getScodeVersionState, ensureScodeInstalled } from '@process/services/scode/ScodeInstallService';
-import { readSettings, removeDisabledMcpServersFromSettings, writeSettings } from '@process/services/mcpServices/agents/ScodeMcpAgent';
-import { getDatabase } from '@process/database';
-import fs from 'fs';
-import path from 'path';
-import { mainLog, mainWarn } from '@process/utils/mainLogger';
 
 const TAG = 'ScodeBridge';
 const SUDOCODE_CONFIG_PATH = path.join(SCODE_DIR, 'sudocode.json');
@@ -45,6 +46,8 @@ function writeConfig(config: Record<string, unknown>): void {
       /* ignore */
     }
   }
+  // Mirror sudorouter creds into Nexus (fire-and-forget; never throws).
+  void syncUserKeyFromScodeConfig(config);
 }
 
 function getCustomProvidersForUser(userId: string): ScodeCustomModelProvider[] {
