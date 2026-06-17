@@ -496,6 +496,8 @@
   "mcpRemoveStarted": "Removing MCP configuration from {{count}} agents...",
   "mcpSyncPartialFailed": "MCP configuration sync partially failed: {{errors}}",
   "mcpRemovePartialFailed": "MCP configuration removal partially failed: {{errors}}",
+  "mcpSyncSuccess": "MCP configuration synced",
+  "mcpRemoveSuccess": "MCP configuration removed",
   "mcpSyncFailed": "MCP configuration sync failed: {{error}}",
   "mcpRemoveFailed": "MCP configuration removal failed: {{error}}",
   "mcpSyncFailedNoAgents": "No available agents detected, unable to sync MCP configuration",
