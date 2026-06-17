@@ -1242,23 +1242,31 @@ export class DingTalkPlugin extends BasePlugin {
 
     const boundary = `----DingTalkBoundary${Date.now()}`;
     const CRLF = '\r\n';
-    const fileData = fileBuffer.toString('binary');
 
-    // Build multipart/form-data body
-    const body =
+    // 钉钉 /media/upload multipart 的 filename 字段若含非 ASCII（如中文），
+    // 服务端会返回 errcode=-1 errmsg=系统繁忙。而 mediaId 与 multipart filename
+    // 不绑定，用户最终看到的 fileName 来自 sendMediaViaAPI 的 msgParam
+    // （走 JSON UTF-8 通道），与此处无关。所以这里用基于扩展名的 ASCII 占位名。
+    const ext = path.extname(fileName) || '';
+    const uploadFileName = `upload${ext}`;
+
+    // 用 Buffer.concat 直接拼接：header / footer UTF-8 编码，文件内容保留原始字节，
+    // 避免历史 `toString('binary')` + `Buffer.from(body, 'binary')` 双重 latin1
+    // 往返路径中任何意外引入的非 ASCII 字符被截断为 0x?? 单字节。
+    const header = Buffer.from(
       `--${boundary}${CRLF}` +
-      `Content-Disposition: form-data; name="media"; filename="${fileName}"${CRLF}` +
-      `Content-Type: application/octet-stream${CRLF}` +
-      CRLF +
-      fileData +
-      CRLF +
-      `--${boundary}--${CRLF}`;
+        `Content-Disposition: form-data; name="media"; filename="${uploadFileName}"${CRLF}` +
+        `Content-Type: application/octet-stream${CRLF}` +
+        CRLF,
+      'utf8',
+    );
+    const footer = Buffer.from(`${CRLF}--${boundary}--${CRLF}`, 'utf8');
 
     const url = `${DingTalkPlugin.DINGTALK_OAPI_BASE}/media/upload?access_token=${encodeURIComponent(token)}&type=${uploadType}`;
 
     return new Promise((resolve, reject) => {
       const urlObj = new URL(url);
-      const bodyBuffer = Buffer.from(body, 'binary');
+      const bodyBuffer = Buffer.concat([header, fileBuffer, footer]);
 
       const options = {
         hostname: urlObj.hostname,

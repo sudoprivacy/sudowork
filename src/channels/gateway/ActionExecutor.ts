@@ -139,7 +139,7 @@ function getErrorRecoveryMarkup(platform: PluginType, errorMessage?: string) {
  * ChannelResponseRouter.
  */
 function stripLarkUnusableImageMarkdown(text: string | undefined, platform: PluginType): string | undefined {
-  if (platform !== 'lark' || !text) return text;
+  if ((platform !== 'lark' && platform !== 'dingtalk') || !text) return text;
   return text
     .replace(/!\[[^\]]*\]\(([^)]+)\)/g, (match, imgPath: string) => {
       if (/^(https?:|data:|file:)/i.test(imgPath)) return match;
