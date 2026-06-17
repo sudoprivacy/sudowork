@@ -4,19 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { IMessageText } from '@/common/chatLib';
-import { NEXUS_FILES_MARKER } from '@/common/constants';
-import { parseGeneratedFilesMarker } from '@/common/generatedFiles';
 import { Alert, Message, Tag, Tooltip } from '@arco-design/web-react';
 import { Copy, Lightning } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { useMemo, useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { copyText } from '@/renderer/utils/clipboard';
-import { filterUserVisibleFiles } from '@/renderer/utils/messageFiles';
-import { getInstalledSkillDisplay } from '@/renderer/utils/skillDisplay';
-import { skillHub } from '@/common/ipcBridge';
-import { isElectronDesktop } from '@/renderer/utils/platform';
 import CollapsibleContent from '../components/CollapsibleContent';
 import FilePreview from '../components/FilePreview';
 import HorizontalFileList from '../components/HorizontalFileList';
@@ -24,6 +16,14 @@ import MarkdownView from '../components/Markdown';
 import { stripThinkTags, hasThinkTags } from '../utils/thinkTagFilter';
 import GeneratedFileCards from './GeneratedFileCard';
 import MessageCronBadge from './MessageCronBadge';
+import { isElectronDesktop } from '@/renderer/utils/platform';
+import { skillHub } from '@/common/ipcBridge';
+import { getInstalledSkillDisplay } from '@/renderer/utils/skillDisplay';
+import { filterUserVisibleFiles } from '@/renderer/utils/messageFiles';
+import { copyText } from '@/renderer/utils/clipboard';
+import { parseGeneratedFilesMarker } from '@/common/generatedFiles';
+import { NEXUS_FILES_MARKER } from '@/common/constants';
+import type { IMessageText } from '@/common/chatLib';
 
 const parseFileMarker = (content: string) => {
   const markerIndex = content.indexOf(NEXUS_FILES_MARKER);
@@ -39,6 +39,12 @@ const parseFileMarker = (content: string) => {
         .filter(Boolean)
     : [];
   return { text, files };
+};
+
+export const stripInjectedUserPrompt = (content: string): string => {
+  if (!content.includes('[User Request]')) return content;
+  const parts = content.split('[User Request]');
+  return parts[parts.length - 1]?.trim() || content;
 };
 
 const useFormatContent = (content: string) => {
@@ -67,10 +73,19 @@ const MessageText: React.FC<{ message: IMessageText; isStreaming?: boolean; foot
     return rawContent;
   }, [message.content.content]);
 
+  const isUserMessage = message.position === 'right';
+
+  const displayContent = useMemo(() => {
+    if (!isUserMessage || typeof contentToRender !== 'string') {
+      return contentToRender;
+    }
+    return stripInjectedUserPrompt(contentToRender);
+  }, [contentToRender, isUserMessage]);
+
   // Pull out AI-generated-file preview cards (NEXUS_GENERATED_FILES marker).
   // Done before parseFileMarker so the user-side NEXUS_FILES path can keep
   // assuming its content is unprefixed.
-  const generated = useMemo(() => (typeof contentToRender === 'string' ? parseGeneratedFilesMarker(contentToRender) : { textBefore: contentToRender as string, files: [], ok: false }), [contentToRender]);
+  const generated = useMemo(() => (typeof displayContent === 'string' ? parseGeneratedFilesMarker(displayContent) : { textBefore: displayContent as string, files: [], ok: false }), [displayContent]);
 
   const { text: rawText, files } = parseFileMarker(generated.textBefore);
   const text = rawText.trimEnd();
@@ -78,8 +93,7 @@ const MessageText: React.FC<{ message: IMessageText; isStreaming?: boolean; foot
   const { data, json } = useFormatContent(text);
   const { t } = useTranslation();
   const [showCopyAlert, setShowCopyAlert] = useState(false);
-  const isUserMessage = message.position === 'right';
-  const hasCodeFence = typeof contentToRender === 'string' ? /```/.test(contentToRender) : false;
+  const hasCodeFence = typeof displayContent === 'string' ? /```/.test(displayContent) : false;
   const hasCodeLikeContent = json || hasCodeFence;
   const skills = message.content.skills || [];
 

@@ -4,17 +4,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { getDatabase } from '@process/database';
+import WorkerManage from '@process/WorkerManage';
+import { initMossApi, type MossSessionApi } from '@process/remote/MossSessionApi';
+import { mainLog, mainError } from '@process/utils/mainLogger';
+import { ProcessConfig } from '@process/initStorage';
 import type { IConversationProvider, IProviderConfig } from './types';
 import type { TChatConversation } from '@/common/storage';
 import type { TMessage } from '@/common/chatLib';
 import type { ICreateConversationParams, IBridgeResponse, ISendMessageParams } from '@/common/ipcBridge';
 import type { AcpModelInfo } from '@/types/acpTypes';
-import { getDatabase } from '@process/database';
-import WorkerManage from '@process/WorkerManage';
-import { initMossApi, type MossSessionApi } from '@process/remote/MossSessionApi';
-import { mainLog, mainError } from '@process/utils/mainLogger';
 import { uuid } from '@/common/utils';
-import { ProcessConfig } from '@process/initStorage';
 import { isRemoteContainerPath } from '@/common/utils/workspaceSkillSync';
 
 const HIDDEN_CRON_SESSIONS_KEY = 'remote.hiddenCronSessionIds';
@@ -560,7 +560,7 @@ export class RemoteConversationProvider implements IConversationProvider {
       if (msgRole === 'user' && Array.isArray(contentArray)) {
         for (const block of contentArray) {
           if (block?.type === 'text') {
-            const textContent = block.text || '';
+            const textContent = this.extractDisplayUserContent(block.text || '');
             if (textContent && textContent.trim()) {
               messages.push({
                 id: `${conversationId}-${messageIndex++}`,
@@ -623,14 +623,15 @@ export class RemoteConversationProvider implements IConversationProvider {
           : typeof contentArray === 'string'
             ? contentArray
             : '';
-        if (textContent && textContent.trim()) {
+        const displayText = this.extractDisplayUserContent(textContent);
+        if (displayText && displayText.trim()) {
           messages.push({
             id: `${conversationId}-${messageIndex++}`,
             conversation_id: conversationId,
             type: 'text',
             role: 'user',
             position: 'right',
-            content: { content: textContent },
+            content: { content: displayText },
             create_time: timestamp,
             status: finishedMessageStatus,
           } as unknown as TMessage);
@@ -738,6 +739,15 @@ export class RemoteConversationProvider implements IConversationProvider {
       }
     }
     return typeof input === 'object' ? (input as Record<string, unknown>) : { input };
+  }
+
+  private extractDisplayUserContent(content: string): string {
+    let userContent = content;
+    if (userContent.includes('[User Request]')) {
+      const parts = userContent.split('[User Request]');
+      userContent = parts[parts.length - 1]?.trim() || userContent;
+    }
+    return userContent;
   }
 
   private getMossToolKind(toolName: string): 'read' | 'edit' | 'execute' {
