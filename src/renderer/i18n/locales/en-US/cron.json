@@ -66,7 +66,7 @@
   "create.frequency": "Frequency",
   "create.frequencyHint": "Scheduled tasks may have a few minutes of random delay",
   "create.moreOptions": "More Options",
-  "create.agent": "Assistant",
+  "create.agent": "Agent",
   "create.agentPlaceholder": "Default",
   "create.workspace": "Working Directory",
   "create.selectFolder": "Select Folder",
