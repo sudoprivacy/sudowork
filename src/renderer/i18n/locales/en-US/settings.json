@@ -815,7 +815,6 @@
   "skill.downloadSuccess": "Downloaded {{name}} locally",
   "skill.downloadFailed": "Download failed: {{msg}}",
   "skill.desktopOnly": "Skill installation is only available in desktop app",
-
   "openclaw.gatewayUrl": "Gateway URL",
   "openclaw.gatewayUrlDesc": "OpenClaw Gateway API endpoint (e.g., http://localhost:8888)",
   "openclaw.gatewayToken": "Gateway Token",
@@ -875,7 +874,8 @@
     "todayUsage": "Today's Usage",
     "tokens": "Tokens",
     "consumedPoints": "Consumed Points",
-    "requests": "Requests"
+    "requests": "Requests",
+    "changePassword": "Change Password"
   },
   "recharge": {
     "title": "Recharge Points",
@@ -977,5 +977,18 @@
     "privacy": "When enabled, SudoWork performance metrics will be anonymously collected for product improvement only. We do not collect your conversation content or personal information. You can turn off this feature at any time.",
     "confirm": "Enable",
     "cancel": "Not Now"
+  },
+  "changePassword": {
+    "title": "Change Password",
+    "oldPasswordLabel": "Current Password",
+    "oldPasswordPlaceholder": "Enter current password",
+    "newPasswordLabel": "New Password",
+    "newPasswordPlaceholder": "8-20 chars, with upper, lower, digit",
+    "ruleHint": "8-20 characters, must include uppercase, lowercase and digit.",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "oldPasswordRequired": "Please enter current password",
+    "newPasswordRequired": "Please enter new password",
+    "success": "Password changed successfully"
   }
 }
