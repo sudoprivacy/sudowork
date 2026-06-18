@@ -11,6 +11,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const BATCH_URL = 'https://logs.test/v1/logs/batch';
+const TEST_LOG_REPORT_KEY = 'test-log-report-key';
 
 function encodeConfig(data: Record<string, unknown>): string {
   return Buffer.from(encodeURIComponent(JSON.stringify(data)), 'utf-8').toString('base64');
@@ -66,6 +67,13 @@ describe('Sudowork Log personal error upload sink', () => {
         },
       },
     }));
+    vi.doMock('@/common/systemConfig', () => ({
+      getLogReportBaseUrl: vi.fn(() => 'https://sudolog.sudoprivacy.com'),
+      isLogReportEnabled: vi.fn(() => true),
+    }));
+    vi.doMock('@/process/credentialsCache', () => ({
+      getLogReportKey: vi.fn(() => TEST_LOG_REPORT_KEY),
+    }));
 
     fetchMock = vi.fn(async () => ({
       ok: true,
@@ -81,6 +89,8 @@ describe('Sudowork Log personal error upload sink', () => {
     uploader.resetSudoworkLogUploaderForTest();
     consoleInfoSpy.mockRestore();
     vi.unstubAllGlobals();
+    vi.unmock('@/common/systemConfig');
+    vi.unmock('@/process/credentialsCache');
     delete process.env.SUDOWORK_LOG_BATCH_URL;
     delete process.env.SUDOWORK_LOG_BASE_URL;
     rmSync(homeDir, { recursive: true, force: true });
@@ -186,7 +196,7 @@ describe('Sudowork Log personal error upload sink', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, request] = fetchMock.mock.calls[0];
     expect(url).toBe(BATCH_URL);
-    expect(request.headers['X-API-Key']).toBeTruthy();
+    expect(request.headers['X-API-Key']).toBe(TEST_LOG_REPORT_KEY);
 
     const body = JSON.parse(request.body);
     expect(body.logs).toHaveLength(1);
