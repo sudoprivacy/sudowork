@@ -67,6 +67,8 @@ interface IAICardSession {
   openSpaceId: string;
   isFinished: boolean;
   inputingStarted: boolean;
+  /** Last full content pushed via streamAICard; used to finishAICard older cards verbatim. */
+  lastContent: string;
 }
 
 export class DingTalkPlugin extends BasePlugin {
@@ -494,6 +496,12 @@ export class DingTalkPlugin extends BasePlugin {
         await this.finishAICard(cardSession.outTrackId, truncatedText);
         this.aiCardSessions.set(messageId, { ...cardSession, isFinished: true });
 
+        // 流结束：把之前各段仍未 finalize 的 card 一并 finalize（停转圈）。
+        // 此时所有 update 已送达，各 card 的 lastContent 即其最终内容，无竞态。
+        // Stream ended: finalize any earlier segment cards that are still loading. All updates
+        // have landed by now, so each card's lastContent is its final text — no race.
+        await this.finalizePendingCards();
+
         // Send extracted local images as separate messages after AI Card is finalized
         if (imagePaths.length > 0) {
           await this.sendLocalImages(chatId, imagePaths);
@@ -653,6 +661,15 @@ export class DingTalkPlugin extends BasePlugin {
    * Returns a synthetic messageId for tracking
    */
   private async createAndDeliverAICard(chatType: 'user' | 'group', id: string, _initialText: string): Promise<string> {
+    // 创建新 card 前 finalize 之前所有未完成的 card（停转圈），让用户看到"上一条消息已完成"。
+    // 安全前提：ActionExecutor 的 msg_id 路由会把建卡 await 窗口内到达的同段 update 暂存
+    // （deferred），不会打到这些刚 finish 的旧 card；上一段被 throttle 的尾内容也由
+    // ActionExecutor 在到达此处之前 flush 到旧 card，故 finalize 时 lastContent 已完整。
+    // Finalize earlier cards before creating a new one so each message stops spinning in turn.
+    // Safe because ActionExecutor's msg_id routing defers same-segment updates during this await,
+    // and flushes the previous segment's throttled tail before reaching here.
+    await this.finalizePendingCards();
+
     const token = await this.getAccessToken();
     const outTrackId = `aion_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
@@ -686,6 +703,7 @@ export class DingTalkPlugin extends BasePlugin {
       openSpaceId,
       isFinished: false,
       inputingStarted: false,
+      lastContent: '',
     });
 
     // Set initial content so the card is not empty
@@ -734,6 +752,13 @@ export class DingTalkPlugin extends BasePlugin {
       isError: false,
       guid: `${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
     });
+
+    // Record the last full content so finalizePendingCards can finishAICard older cards
+    // with the exact text they currently show (avoids both truncation and the loading spinner).
+    const sessionForContent = this.findCardSessionByTrackId(outTrackId);
+    if (sessionForContent) {
+      sessionForContent.lastContent = content;
+    }
   }
 
   /**
@@ -752,6 +777,24 @@ export class DingTalkPlugin extends BasePlugin {
         },
       },
     });
+  }
+
+  /**
+   * Finalize every still-loading AI Card (flowStatus -> FINISHED) using each card's last
+   * streamed content. Called before creating a new card so prior segment cards stop
+   * showing the loading spinner. Idempotent: already-finished cards are skipped.
+   */
+  private async finalizePendingCards(): Promise<void> {
+    for (const session of this.aiCardSessions.values()) {
+      if (session.isFinished) continue;
+      try {
+        await this.finishAICard(session.outTrackId, session.lastContent || '');
+      } catch (error) {
+        mainWarn('DingTalkPlugin', 'Failed to finalize previous AI Card before creating a new one', error);
+      }
+      // Mark finished regardless of success so we don't retry a failing card on every new card.
+      session.isFinished = true;
+    }
   }
 
   /**
@@ -1242,23 +1285,31 @@ export class DingTalkPlugin extends BasePlugin {
 
     const boundary = `----DingTalkBoundary${Date.now()}`;
     const CRLF = '\r\n';
-    const fileData = fileBuffer.toString('binary');
 
-    // Build multipart/form-data body
-    const body =
+    // 钉钉 /media/upload multipart 的 filename 字段若含非 ASCII（如中文），
+    // 服务端会返回 errcode=-1 errmsg=系统繁忙。而 mediaId 与 multipart filename
+    // 不绑定，用户最终看到的 fileName 来自 sendMediaViaAPI 的 msgParam
+    // （走 JSON UTF-8 通道），与此处无关。所以这里用基于扩展名的 ASCII 占位名。
+    const ext = path.extname(fileName) || '';
+    const uploadFileName = `upload${ext}`;
+
+    // 用 Buffer.concat 直接拼接：header / footer UTF-8 编码，文件内容保留原始字节，
+    // 避免历史 `toString('binary')` + `Buffer.from(body, 'binary')` 双重 latin1
+    // 往返路径中任何意外引入的非 ASCII 字符被截断为 0x?? 单字节。
+    const header = Buffer.from(
       `--${boundary}${CRLF}` +
-      `Content-Disposition: form-data; name="media"; filename="${fileName}"${CRLF}` +
-      `Content-Type: application/octet-stream${CRLF}` +
-      CRLF +
-      fileData +
-      CRLF +
-      `--${boundary}--${CRLF}`;
+        `Content-Disposition: form-data; name="media"; filename="${uploadFileName}"${CRLF}` +
+        `Content-Type: application/octet-stream${CRLF}` +
+        CRLF,
+      'utf8',
+    );
+    const footer = Buffer.from(`${CRLF}--${boundary}--${CRLF}`, 'utf8');
 
     const url = `${DingTalkPlugin.DINGTALK_OAPI_BASE}/media/upload?access_token=${encodeURIComponent(token)}&type=${uploadType}`;
 
     return new Promise((resolve, reject) => {
       const urlObj = new URL(url);
-      const bodyBuffer = Buffer.from(body, 'binary');
+      const bodyBuffer = Buffer.concat([header, fileBuffer, footer]);
 
       const options = {
         hostname: urlObj.hostname,

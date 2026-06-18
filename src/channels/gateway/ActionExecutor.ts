@@ -139,7 +139,7 @@ function getErrorRecoveryMarkup(platform: PluginType, errorMessage?: string) {
  * ChannelResponseRouter.
  */
 function stripLarkUnusableImageMarkdown(text: string | undefined, platform: PluginType): string | undefined {
-  if (platform !== 'lark' || !text) return text;
+  if ((platform !== 'lark' && platform !== 'dingtalk') || !text) return text;
   return text
     .replace(/!\[[^\]]*\]\(([^)]+)\)/g, (match, imgPath: string) => {
       if (/^(https?:|data:|file:)/i.test(imgPath)) return match;
@@ -775,21 +775,53 @@ export class ActionExecutor {
       // Buffer pending files to send after stream ends (ensure text outputs first, files last)
       const pendingFilesToSend: IUnifiedOutgoingMessage[] = [];
 
+      // msg_id → cardId 精确路由表。composeMessage 对同段文本 insert/update 复用同一个 msg_id
+      // (chatLib.ts:730)，用它把流式 update 精确路由到该段的 card，而不是盲目打 sentMessageIds[last]
+      // —— 后者会与异步建卡竞态，把内容打错 card 或被 isFinished 分支吞掉。
+      // msg_id → cardId routing. composeMessage reuses one msg_id per text segment, so we can
+      // route streaming updates to the exact card instead of sentMessageIds[last], which races
+      // with async card creation and misroutes content.
+      const msgIdToCardId: Map<string, string> = new Map();
+      // 正在 await 创建 card 的 msg_id 集合。建卡 await 窗口内到达的同段 update，其 msg_id 在
+      // msgIdToCardId 里还没有（newMsgId 要等 await 后），用此集合识别并暂存，建卡完成后 flush。
+      // msg_ids whose card is still being created (await window). Updates arriving in this window
+      // can't find their card in msgIdToCardId yet, so we defer them and flush once the card lands.
+      const creatingCardForMsg: Set<string> = new Set();
+      // 按 msg_id 暂存的 deferred update（全量覆盖，依赖 streamAICard isFull=true）。
+      // Deferred updates keyed by msg_id (last-write-wins, relies on streamAICard isFull=true).
+      const deferredByMsgId: Map<string, IUnifiedOutgoingMessage> = new Map();
+
       // 执行消息编辑的函数
       // Function to perform message edit
       const doEditMessage = async (msg: IUnifiedOutgoingMessage, forceThinkingTarget = false) => {
         if (!supportsEdit) return; // WeChat doesn't support edit
 
+        // 路由决策：优先按 msg_id 精确路由；建卡窗口内的同段 update 暂存；其余 fallback 到 last。
+        // Routing: prefer exact msg_id lookup; defer if that segment's card is still being created;
+        // otherwise fall back to sentMessageIds[last] (legacy behavior).
+        let targetMsgId: string | undefined;
+        let deferred = false;
+        if (forceThinkingTarget && thinkingMsgId) {
+          targetMsgId = thinkingMsgId;
+        } else if (msg.msg_id && msgIdToCardId.has(msg.msg_id)) {
+          targetMsgId = msgIdToCardId.get(msg.msg_id);
+        } else if (msg.msg_id && creatingCardForMsg.has(msg.msg_id)) {
+          // 该段的 card 还在异步创建，暂存最新全量内容，建卡完成后 flush 到正确 card。
+          // This segment's card is still being created; stash the latest full content and flush later.
+          deferredByMsgId.set(msg.msg_id, msg);
+          deferred = true;
+        } else {
+          targetMsgId = sentMessageIds[sentMessageIds.length - 1] || thinkingMsgId;
+        }
+        if (deferred) return;
+
         lastUpdateTime = Date.now();
-        // When updating thinking message, always target thinkingMsgId directly
-        // (not sentMessageIds[last], which may be a file/image message)
-        const targetMsgId = forceThinkingTarget && thinkingMsgId ? thinkingMsgId : sentMessageIds[sentMessageIds.length - 1] || thinkingMsgId;
         // Lark markdown cards reject `![](local-path)`. Non-Lark platforms get
         // the original msg back from the helper (identity), so no behavior change.
         const sanitizedText = stripLarkUnusableImageMarkdown(msg.text, context.platform as PluginType);
         const safeMsg = sanitizedText === msg.text ? msg : { ...msg, text: sanitizedText };
         try {
-          await context.editMessage(targetMsgId, safeMsg);
+          await context.editMessage(targetMsgId!, safeMsg);
         } catch {
           // Ignore edit errors (message not modified, etc.)
         }
@@ -814,7 +846,7 @@ export class ActionExecutor {
         // Tool confirmation cards set replyMarkup (e.g., for Confirming status),
         // but DingTalk interprets replyMarkup as "stream complete" and finishes the AI Card.
         // Channel conversations use yoloMode (auto-approve), so confirmation buttons are unnecessary.
-        const streamOutgoing: IUnifiedOutgoingMessage = { ...outgoingMessage, replyMarkup: undefined };
+        const streamOutgoing: IUnifiedOutgoingMessage = { ...outgoingMessage, replyMarkup: undefined, msg_id: message.msg_id };
 
         // 保存最后一条消息内容（不含 replyMarkup，最终消息会单独添加）
         // Save last message content (without replyMarkup, final message adds it separately)
@@ -835,6 +867,9 @@ export class ActionExecutor {
           // First text streaming message: update thinking message instead of inserting
           // 第一个text流式消息：更新thinking消息而不是插入新消息
           thinkingUpdated = true;
+          // 首个 text 段复用 thinking card，建立 msg_id → thinkingMsgId 映射，后续同段 update 精确路由。
+          // First text segment reuses the thinking card; map its msg_id so later updates route here.
+          if (streamOutgoing.msg_id) msgIdToCardId.set(streamOutgoing.msg_id, thinkingMsgId);
 
           // CRITICAL: First thinking update must be sent IMMEDIATELY without throttle delay.
           // If we delay it with a timer, subsequent UPDATE messages will overwrite the content
@@ -927,13 +962,44 @@ export class ActionExecutor {
             const fileValid = streamOutgoing.fileUrl ? isValidFilePath(streamOutgoing.fileUrl) : false;
             const imageValid = streamOutgoing.imageUrl ? isValidFilePath(streamOutgoing.imageUrl) : false;
             console.log(`[ActionExecutor] 📥 NEW message: type=${streamOutgoing.type}, imageUrl=${streamOutgoing.imageUrl || 'none'}(valid=${imageValid}), fileUrl=${streamOutgoing.fileUrl || 'none'}(valid=${fileValid}), sentFiles now=${Array.from(sentFiles).join(',') || 'empty'}`);
+            const segmentMsgId = streamOutgoing.msg_id;
             try {
-              const newMsgId = await context.sendMessage(streamOutgoing);
+              // 先标记该段 card 正在创建，使后续 await 窗口内到达的同段 update 被 deferred。
+              // Mark this segment's card as creating first, so same-segment updates in the await
+              // window below are deferred instead of misrouted.
+              if (segmentMsgId) creatingCardForMsg.add(segmentMsgId);
+              // 切换到新段前，把上一段被 throttle 暂存的尾内容 flush 到它的 card。否则接下来
+              // createAndDeliverAICard 会 finalize 旧 card，而这段尾还没 stream → 旧 card 缺尾。
+              // Flush the previous segment's throttled tail to its card before the new card is created
+              // and the old one finalized, otherwise that tail never lands and the old card reads truncated.
+              if (pendingMessage) {
+                if (pendingUpdateTimer) {
+                  clearTimeout(pendingUpdateTimer);
+                  pendingUpdateTimer = null;
+                }
+                await doEditMessage(pendingMessage);
+                pendingMessage = null;
+              }
+              const createdCardId = await context.sendMessage(streamOutgoing);
               // image/file 已在上方特殊处理并 return，此处仅处理 text/buttons
               // image/file already handled above with return, here only text/buttons
-              sentMessageIds.push(newMsgId);
+              sentMessageIds.push(createdCardId);
+              // 建立 msg_id → cardId 映射，并 flush 建卡窗口内暂存的同段 update 到新 card。
+              // Register msg_id → cardId and flush any deferred updates for this segment to the new card.
+              if (segmentMsgId) {
+                msgIdToCardId.set(segmentMsgId, createdCardId);
+                const deferred = deferredByMsgId.get(segmentMsgId);
+                if (deferred) {
+                  deferredByMsgId.delete(segmentMsgId);
+                  void doEditMessage(deferred);
+                }
+              }
             } catch {
               // Ignore send errors
+            } finally {
+              // 无论成功失败都要清理 creating 标记，否则该段后续 update 会永久 deferred 而丢失。
+              // Always clear the creating flag so later updates don't defer forever on a failed card.
+              if (segmentMsgId) creatingCardForMsg.delete(segmentMsgId);
             }
           } else {
             // For non-edit platforms (WeChat), buffer files to send after text.
