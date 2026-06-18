@@ -10,14 +10,15 @@
 import http from 'http';
 import type { IncomingMessage, ServerResponse } from 'http';
 import { URL } from 'url';
-import type { AuthProxyRule } from '@/common/types/authProxy';
-import { resolveSecret } from '@/common/nexus/secret-cache';
 import { mainLog } from '@process/utils/mainLogger';
 import { injectAuth, injectMultiAuth } from './authInjectors';
 import { validateRemoteUrl } from './ssrfGuard';
 import { findRuleForUrl, getRules } from './configItemsLoader';
+import { parseSecretKeys, parseSecretMap } from './secretHeaderParser';
 import { handleSecretsRequest } from './secretsApi';
 import { handlePwdLoginRequest } from './pwdLoginApi';
+import { resolveSecret } from '@/common/nexus/secret-cache';
+import type { AuthProxyRule } from '@/common/types/authProxy';
 
 // ============================================================================
 // Types
@@ -27,7 +28,8 @@ interface ProxyRequestInfo {
   token: string | null;
   remoteUrl: string | null;
   secretNamespace: string | null;
-  secretKey: string | null;
+  secretKey: string[] | null;
+  secretMap: Record<string, string> | null;
   authScheme: string | null;
   authHeader: string | null;
   authPrefix: string | null;
@@ -37,17 +39,7 @@ interface ProxyRequestInfo {
 // Headers to strip before forwarding
 // ============================================================================
 
-const CONTROL_HEADERS = [
-  'authorization',
-  'x-secret-namespace',
-  'x-secret-key',
-  'x-auth-scheme',
-  'x-auth-header',
-  'x-auth-prefix',
-  'x-remote-url',
-  'host',
-  'connection',
-];
+const CONTROL_HEADERS = ['authorization', 'x-secret-namespace', 'x-secret-key', 'x-secret-map', 'x-auth-scheme', 'x-auth-header', 'x-auth-prefix', 'x-remote-url', 'host', 'connection'];
 
 const UPSTREAM_TIMEOUT_MS = 30_000;
 
@@ -228,51 +220,82 @@ export class AuthProxyServer {
   // Auth resolution
   // --------------------------------------------------------------------------
 
-  private async resolveAndInjectAuth(
-    info: ProxyRequestInfo,
-  ): Promise<{ headers: Record<string, string>; url?: string; error?: string; statusCode?: number }> {
+  private async resolveAndInjectAuth(info: ProxyRequestInfo): Promise<{ headers: Record<string, string>; url?: string; error?: string; statusCode?: number }> {
     let secretValue: string;
     let scheme: string | null;
     let bearerPrefix: string | null;
     let rule: AuthProxyRule | null = null;
 
-    // Priority 1: Explicit X-Secret-Namespace + X-Secret-Key
-    if (info.secretNamespace && info.secretKey) {
-      secretValue = resolveSecret(info.secretNamespace, info.secretKey, '');
-      scheme = info.authScheme;
-      bearerPrefix = null;
-    } else {
-      // Priority 2: URL pattern matching
-      rule = findRuleForUrl(info.remoteUrl!, this.minimatchFn);
-      if (!rule) {
-        return { headers: {}, error: 'No matching secret found. Provide X-Secret-Namespace + X-Secret-Key, or configure a URL pattern rule.' };
+    // Priority 1: Explicit X-Secret-Namespace + X-Secret-Key (supports multiple keys)
+    if (info.secretNamespace && info.secretKey && info.secretKey.length > 0) {
+      const keys = info.secretKey;
+
+      // bearer/basic are single-value schemes: only the first key can be injected.
+      // Application layer controls this by passing a single key when it needs them.
+      if (keys.length === 1 || info.authScheme === 'bearer' || info.authScheme === 'basic') {
+        secretValue = resolveSecret(info.secretNamespace, keys[0], '');
+        scheme = info.authScheme;
+        bearerPrefix = null;
+        if (!secretValue) {
+          return { headers: {}, error: `Secret not found: ${info.secretNamespace}/${keys[0]}` };
+        }
+        const prefix = info.authPrefix ?? bearerPrefix ?? 'Bearer';
+        return injectAuth({
+          scheme: scheme ?? 'bearer',
+          secret: secretValue,
+          headerName: info.authHeader,
+          prefix,
+        });
       }
 
-      // Determine scheme: request headers can override server config
-      scheme = info.authScheme ?? rule.scheme;
-      bearerPrefix = rule.bearerPrefix;
-
-      // Single-entry schemes (bearer/basic)
-      if ((scheme === 'bearer' || scheme === 'basic') && rule.entries.length >= 1) {
-        const entry = rule.entries[0];
-        secretValue = resolveSecret(rule.secretNamespace, entry.configKey, '');
-      } else if (scheme === 'header' || scheme === 'query') {
-        // Multi-entry schemes
-        return this.resolveMultiEntryAuth(rule, scheme);
-      } else {
-        // scheme is null or unknown, try single entry
-        if (rule.entries.length >= 1) {
-          secretValue = resolveSecret(rule.secretNamespace, rule.entries[0].configKey, '');
-          scheme = 'bearer';
-        } else {
-          return { headers: {}, error: `Config item "${rule.name}" has no entries with secret values` };
+      // Multiple keys with header/query scheme: aggregate via injectMultiAuth.
+      // Uses X-Secret-Map (vaultKey -> upstreamName) if provided; falls back to vaultKey.
+      const effectiveScheme = info.authScheme ?? 'header';
+      const entries: Array<{ configKey: string; secret: string }> = [];
+      for (const k of keys) {
+        const secret = resolveSecret(info.secretNamespace, k, '');
+        if (!secret) {
+          mainLog('AuthProxy', `Missing secret for ${info.secretNamespace}/${k}, skipping`);
+          continue;
         }
+        entries.push({ configKey: k, secret });
+      }
+      if (entries.length === 0) {
+        return { headers: {}, error: `No secrets found for namespace "${info.secretNamespace}"` };
+      }
+      return injectMultiAuth(effectiveScheme, entries, info.secretMap ?? undefined);
+    }
+
+    // Priority 2: URL pattern matching
+    rule = findRuleForUrl(info.remoteUrl!, this.minimatchFn);
+    if (!rule) {
+      return { headers: {}, error: 'No matching secret found. Provide X-Secret-Namespace + X-Secret-Key, or configure a URL pattern rule.' };
+    }
+
+    // Determine scheme: request headers can override server config
+    scheme = info.authScheme ?? rule.scheme;
+    bearerPrefix = rule.bearerPrefix;
+
+    // Single-entry schemes (bearer/basic)
+    if ((scheme === 'bearer' || scheme === 'basic') && rule.entries.length >= 1) {
+      const entry = rule.entries[0];
+      secretValue = resolveSecret(rule.secretNamespace, entry.configKey, '');
+    } else if (scheme === 'header' || scheme === 'query') {
+      // Multi-entry schemes
+      return this.resolveMultiEntryAuth(rule, scheme);
+    } else {
+      // scheme is null or unknown, try single entry
+      if (rule.entries.length >= 1) {
+        secretValue = resolveSecret(rule.secretNamespace, rule.entries[0].configKey, '');
+        scheme = 'bearer';
+      } else {
+        return { headers: {}, error: `Config item "${rule.name}" has no entries with secret values` };
       }
     }
 
     if (!secretValue) {
-      const missingKey = rule ? rule.entries[0]?.configKey : info.secretKey;
-      return { headers: {}, error: `Secret not found: ${rule ? rule.secretNamespace : info.secretNamespace}/${missingKey}` };
+      const missingKey = rule ? rule.entries[0]?.configKey : undefined;
+      return { headers: {}, error: `Secret not found: ${rule ? rule.secretNamespace : info.secretNamespace}/${missingKey ?? ''}` };
     }
 
     // Inject auth
@@ -285,10 +308,7 @@ export class AuthProxyServer {
     });
   }
 
-  private resolveMultiEntryAuth(
-    rule: AuthProxyRule,
-    scheme: string,
-  ): { headers: Record<string, string>; url?: string; error?: string; statusCode?: number } {
+  private resolveMultiEntryAuth(rule: AuthProxyRule, scheme: string): { headers: Record<string, string>; url?: string; error?: string; statusCode?: number } {
     const entries: Array<{ configKey: string; secret: string }> = [];
 
     for (const entry of rule.entries) {
@@ -318,17 +338,15 @@ export class AuthProxyServer {
       token,
       remoteUrl: req.headers['x-remote-url'] as string | null,
       secretNamespace: req.headers['x-secret-namespace'] as string | null,
-      secretKey: req.headers['x-secret-key'] as string | null,
+      secretKey: parseSecretKeys(req),
+      secretMap: parseSecretMap(req.headers['x-secret-map'] as string | null),
       authScheme: req.headers['x-auth-scheme'] as string | null,
       authHeader: req.headers['x-auth-header'] as string | null,
       authPrefix: req.headers['x-auth-prefix'] as string | null,
     };
   }
 
-  private buildUpstreamHeaders(
-    req: IncomingMessage,
-    authHeaders: Record<string, string>,
-  ): Record<string, string> {
+  private buildUpstreamHeaders(req: IncomingMessage, authHeaders: Record<string, string>): Record<string, string> {
     const headers: Record<string, string> = {};
 
     // Copy original headers, excluding control headers
@@ -355,12 +373,7 @@ export class AuthProxyServer {
     return headers;
   }
 
-  private proxyRequest(
-    targetUrl: string,
-    req: IncomingMessage,
-    res: ServerResponse,
-    headers: Record<string, string>,
-  ): Promise<void> {
+  private proxyRequest(targetUrl: string, req: IncomingMessage, res: ServerResponse, headers: Record<string, string>): Promise<void> {
     return new Promise((resolve) => {
       const parsed = new URL(targetUrl);
 
