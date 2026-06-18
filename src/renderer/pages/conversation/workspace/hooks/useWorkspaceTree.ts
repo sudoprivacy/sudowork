@@ -4,13 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { SelectedNodeRef } from '../types';
+import { ensureDraftsDirectoryNode, filterValidExpandedKeys, getAllDirKeys, getFirstLevelKeys, getLimitedDepthKeys } from '../utils/treeHelpers';
 import { ipcBridge } from '@/common';
 import type { IDirOrFile } from '@/common/ipcBridge';
 import { emitter } from '@/renderer/utils/emitter';
 import { dispatchWorkspaceHasFilesEvent } from '@/renderer/utils/workspaceEvents';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import type { SelectedNodeRef } from '../types';
-import { ensureDraftsDirectoryNode, filterValidExpandedKeys, getAllDirKeys, getFirstLevelKeys, getLimitedDepthKeys } from '../utils/treeHelpers';
 
 interface UseWorkspaceTreeOptions {
   workspace: string;
@@ -272,7 +272,7 @@ export function useWorkspaceTree({ workspace, conversation_id, eventPrefix, back
           }
         });
     },
-    [backend, conversation_id, dataSource, eventPrefix, workspace, setLoadingHandler]
+    [backend, conversation_id, dataSource, eventPrefix, getPersistedExpandedKeys, setExpandedKeys, workspace, setLoadingHandler]
   );
 
   /**
@@ -282,6 +282,13 @@ export function useWorkspaceTree({ workspace, conversation_id, eventPrefix, back
   const refreshWorkspace = useCallback(() => {
     return loadWorkspace(workspace);
   }, [workspace, loadWorkspace]);
+
+  // Whenever the active conversation/workspace changes, load the current tree
+  // directly from the latest props instead of relying on external reset hooks.
+  useEffect(() => {
+    if (!workspace) return;
+    void loadWorkspace(workspace);
+  }, [conversation_id, workspace, loadWorkspace]);
 
   /**
    * 确保节点被选中，并可选地发送事件
@@ -362,7 +369,7 @@ export function useWorkspaceTree({ workspace, conversation_id, eventPrefix, back
         }
       }
     },
-    [eventPrefix, conversation_id]
+    [eventPrefix]
   );
 
   /**

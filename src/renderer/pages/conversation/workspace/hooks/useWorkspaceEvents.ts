@@ -4,12 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
-import type { IDirOrFile } from '@/common/ipcBridge';
-import { emitter, useAddEventListener } from '@/renderer/utils/emitter';
 import { useEffect, useRef } from 'react';
 import type { ContextMenuState } from '../types';
 import { getAllDirKeys } from '../utils/treeHelpers';
+import { ipcBridge } from '@/common';
+import type { IDirOrFile } from '@/common/ipcBridge';
+import { emitter, useAddEventListener } from '@/renderer/utils/emitter';
 
 interface UseWorkspaceEventsOptions {
   conversation_id: string;
@@ -77,11 +77,10 @@ export function useWorkspaceEvents(options: UseWorkspaceEventsOptions) {
     setContextMenu({ visible: false, x: 0, y: 0, node: null });
     closeRenameModal();
     closeDeleteModal();
-    refreshWorkspace();
     if (eventPrefix === 'acp') {
       emitter.emit('acp.selected.file', []);
     }
-  }, [conversation_id, eventPrefix]); // Only depend on conversation_id to avoid infinite loop
+  }, [closeDeleteModal, closeRenameModal, conversation_id, eventPrefix, setContextMenu, setFiles, setSelected, setTreeKey, selectedKeysRef, selectedNodeRef]);
 
   /**
    * 监听 Agent 响应流 - 自动刷新工作空间
@@ -102,7 +101,7 @@ export function useWorkspaceEvents(options: UseWorkspaceEventsOptions) {
     return () => {
       unsubscribeAcp();
     };
-  }, [dataSource]); // event listeners are stable, refreshWorkspace is captured from closure
+  }, [dataSource, refreshWorkspace]);
 
   useEffect(() => {
     if (dataSource !== 'moss-session') {
@@ -169,7 +168,7 @@ export function useWorkspaceEvents(options: UseWorkspaceEventsOptions) {
       unsubscribeStream();
       unsubscribeConversation();
     };
-  }, [conversation_id, dataSource]);
+  }, [conversation_id, dataSource, refreshWorkspace]);
 
   /**
    * inotify 风格的工作空间目录监听 — 任何文件/子目录变化都会触发刷新
@@ -292,6 +291,20 @@ export function useWorkspaceEvents(options: UseWorkspaceEventsOptions) {
     },
     [eventPrefix, conversation_id, setSelected, selectedKeysRef, selectedNodeRef]
   );
+
+  useEffect(() => {
+    if (!conversation_id || dataSource === 'moss-session') return undefined;
+
+    const unsubscribeRefresh = ipcBridge.conversation.responseStream.on((message) => {
+      if (message.conversation_id !== conversation_id) return;
+      if (message.type !== 'finish') return;
+      refreshRef.current();
+    });
+
+    return () => {
+      unsubscribeRefresh();
+    };
+  }, [conversation_id, dataSource]);
 
   /**
    * 监听搜索工作空间响应

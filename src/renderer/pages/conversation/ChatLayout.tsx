@@ -216,8 +216,6 @@ const ChatLayout: React.FC<{
       } else {
         if (detail.hasFiles && rightSiderCollapsed) {
           setRightSiderCollapsed(false);
-        } else if (!detail.hasFiles && !rightSiderCollapsed) {
-          setRightSiderCollapsed(true);
         }
       }
     };
