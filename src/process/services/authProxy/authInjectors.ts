@@ -75,20 +75,22 @@ export function injectAuth(params: InjectAuthParams): InjectAuthResult {
 
 /**
  * Inject multiple headers for header/query schemes with multiple entries.
- * Each entry has its own configKey as the header name / query param name.
+ *
+ * @param nameMap - Optional mapping from Vault configKey to the upstream
+ *                  header / query param name. Entries not present in the map
+ *                  (or when the map is omitted) fall back to `entry.configKey`,
+ *                  preserving the URL-pattern path's original behavior.
  */
-export function injectMultiAuth(
-  scheme: string,
-  entries: Array<{ configKey: string; secret: string }>,
-): InjectAuthResult {
+export function injectMultiAuth(scheme: string, entries: Array<{ configKey: string; secret: string }>, nameMap?: Record<string, string>): InjectAuthResult {
   const headers: Record<string, string> = {};
   const queryParts: string[] = [];
 
   for (const entry of entries) {
+    const name = nameMap?.[entry.configKey] ?? entry.configKey;
     if (scheme === 'header') {
-      headers[entry.configKey] = entry.secret;
+      headers[name] = entry.secret;
     } else if (scheme === 'query') {
-      queryParts.push(`${entry.configKey}=${encodeURIComponent(entry.secret)}`);
+      queryParts.push(`${name}=${encodeURIComponent(entry.secret)}`);
     }
   }
 

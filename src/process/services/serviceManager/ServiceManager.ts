@@ -259,6 +259,13 @@ export class ServiceManager {
           } catch (err) {
             mainWarn('ServiceManager', 'Auth Proxy start failed (non-critical):', err);
           }
+          // Sync sudorouter creds from sudocode.json into Nexus (Nexus ready, cache preloaded).
+          try {
+            const { syncUserKeyOnStartup } = await import('@process/services/authProxy/userKeySync');
+            await syncUserKeyOnStartup();
+          } catch (err) {
+            mainWarn('ServiceManager', 'User key sync failed (non-critical):', err);
+          }
           this.secretsReadyResolve?.(true);
         })
         .catch((err) => {
