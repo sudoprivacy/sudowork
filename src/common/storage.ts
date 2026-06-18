@@ -71,6 +71,9 @@ export interface IConfigStorageRefer {
   'guid.sessionMode'?: 'remote' | 'local';
   // 迁移标记：修复老版本中助手 enabled 默认值问题 / Migration flag: fix assistant enabled default value issue
   'migration.assistantEnabledFixed'?: boolean;
+  // 迁移标记：旧版硬编码默认图像生成模型（gpt-image-1.5）一次性迁移到当前默认；迁移后用户显式选择不再被覆盖
+  // Migration flag: one-time migration of the legacy hardcoded image generation model (gpt-image-1.5) to the current default; after migration, explicit user selections are preserved
+  'migration.imageGenerationModelDefaultMigrated'?: boolean;
   // 迁移标记：为 cowork 助手添加默认启用的 skills / Migration flag: add default enabled skills for cowork assistant
   /** @deprecated Use migration.builtinDefaultSkillsAdded_v2 instead */
   'migration.coworkDefaultSkillsAdded'?: boolean;

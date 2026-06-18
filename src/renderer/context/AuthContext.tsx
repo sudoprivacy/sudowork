@@ -1,6 +1,7 @@
 import { ipcBridge } from '@/common';
 import { SUDOWORK_SERVER_BASE_URL } from '@/common/sudoworkServer';
-import { ConfigStorage, DEFAULT_IMAGE_GENERATION_MODEL, type IConfigStorageRefer } from '@/common/storage';
+import { ConfigStorage, type IConfigStorageRefer } from '@/common/storage';
+import { resolveLoginImageModelId } from '@/common/imageGenerationModelConfig';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { withCsrfToken } from '@/webserver/middleware/csrfClient';
 import { getSudorouterPrimaryModelPath, mergeSudorouterProvidersIntoConfig } from '@/common/sudoclawModelConfig';
@@ -305,6 +306,13 @@ function resolveConsumerTenantId(user: Partial<AuthUser> & { tenant_id?: string 
   return resolveString(user.tenant_id) || resolveString(user.enterprise_code) || resolveString(fallbackTenantId);
 }
 
+// 同步图像生成模型到 sudocode/sudoclaw：尊重用户已保存的选择，不再无条件覆盖为默认值
+// Apply the image model on login: respect the user's saved selection instead of unconditionally forcing the default.
+async function applyLoginImageModel(): Promise<void> {
+  const saved = await ConfigStorage.get('tools.imageGenerationModel').catch((): undefined => undefined);
+  await ipcBridge.scode.setImageModel.invoke({ modelId: resolveLoginImageModelId(saved) }).catch(() => {});
+}
+
 // 处理登录成功后的通用逻辑
 async function handleLoginSuccess(data: LoginSuccessResponse, setUser: SetAuthUser, setStatus: SetAuthStatus, setReady: SetAuthReady, setSyncMessage: SetSyncMessage, tenantIdFallback?: string) {
   const deviceId = getDeviceId();
@@ -390,7 +398,7 @@ async function handleLoginSuccess(data: LoginSuccessResponse, setUser: SetAuthUs
         console.warn('[Auth] Failed to restore custom scode models:', err);
         return null;
       });
-      await ipcBridge.scode.setImageModel.invoke({ modelId: DEFAULT_IMAGE_GENERATION_MODEL }).catch(() => {});
+      await applyLoginImageModel();
       // Sync settings.json to the merged default model while preserving a user-selected custom model.
       const defaultModel = restoreRes?.data?.default_model || scodeConfig.default_model;
       if (defaultModel) {
@@ -1058,7 +1066,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
             console.warn('[Auth] Failed to restore custom scode models on enterprise login:', err);
             return null;
           });
-          await ipcBridge.scode.setImageModel.invoke({ modelId: DEFAULT_IMAGE_GENERATION_MODEL }).catch(() => {});
+          await applyLoginImageModel();
           // Sync settings.json to the merged default model while preserving a user-selected custom model.
           const defaultModel = restoreRes?.data?.default_model || scodeConfig.default_model;
           if (defaultModel) {
