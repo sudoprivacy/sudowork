@@ -5,9 +5,9 @@
  */
 
 /**
- * Assistant edit drawer for the GUID page.
- * Provides the same editing experience as the Settings > Assistants drawer,
- * allowing users to modify assistant details without leaving the conversation page.
+ * Agent edit drawer for the GUID page.
+ * Provides the same editing experience as the Settings > Agents drawer,
+ * allowing users to modify agent details without leaving the conversation page.
  */
 
 import { Avatar, Button, Checkbox, Collapse, Drawer, Input, Message, Select, Typography } from '@arco-design/web-react';
@@ -86,7 +86,7 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
   // Extension assistants are loaded from extensions, not from acp.customAgents,
   // so they won't be found by the drawer loader. This check is a safety fallback.
   const isExtension = assistant?.id?.startsWith('ext-') ?? false;
-  // Only custom assistants can be edited; hub-installed, builtin, and extension assistants are readonly
+  // Only custom agents can be edited; hub-installed, builtin, and extension agents are readonly
   const isReadonly = isExtension || isHubInstalled || isBuiltin;
 
   // Responsive drawer width
@@ -114,7 +114,7 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
     })();
   }, []);
 
-  // Load assistant data when drawer opens
+  // Load agent data when drawer opens
   useEffect(() => {
     if (!visible || !assistantId) return;
     let cancelled = false;
@@ -244,7 +244,7 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
   const handleSave = useCallback(async () => {
     if (!assistant) return;
 
-    // Block saving for readonly assistants (hub, builtin, extension)
+    // Block saving for readonly agents (hub, builtin, extension)
     if (isReadonly) {
       Message.warning(
         t('settings.assistantReadonly', {

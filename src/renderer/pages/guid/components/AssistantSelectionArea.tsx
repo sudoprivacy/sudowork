@@ -16,7 +16,7 @@ type AssistantSelectionAreaProps = {
   customAgents: AcpBackendConfig[];
   localeKey: string;
   onSelectAssistant: (assistantId: string) => void;
-  /** Enterprise mode available agents (cloud assistants) for Remote mode */
+  /** Enterprise mode available agents (cloud agents) for Remote mode */
   availableAgents?: AvailableAgent[];
   /** Current session mode (remote/local) for enterprise mode */
   sessionMode?: 'remote' | 'local';
@@ -40,16 +40,16 @@ function dedupeAssistantsForDisplay(agents: AcpBackendConfig[], localeKey: strin
 }
 
 /**
- * Renders the assistant selection grid (pill list) when no assistant is selected.
- * The selected assistant view (header, description, prompts) is now handled
+ * Renders the agent selection grid (pill list) when no agent is selected.
+ * The selected agent view (header, description, prompts) is now handled
  * directly in GuidPage for proper layout ordering.
  */
 const AssistantSelectionArea: React.FC<AssistantSelectionAreaProps> = ({ customAgents, localeKey, onSelectAssistant, availableAgents, sessionMode, isEnterprise }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
 
-  // Enterprise Remote mode: render assistants from customAgents
-  // E端 Remote 模式：助手来自本地 hub/system/custom/tenant 文件夹，id 为 UUID，存放在 customAgents
+  // Enterprise Remote mode: render agents from customAgents
+  // E端 Remote 模式：智能体来自本地 hub/system/custom/tenant 文件夹，id 为 UUID，存放在 customAgents
   if (isEnterprise && sessionMode === 'remote') {
     const cloudAssistants = dedupeAssistantsForDisplay(
       (customAgents || []).filter((a) => a.enabled !== false),
@@ -81,19 +81,19 @@ const AssistantSelectionArea: React.FC<AssistantSelectionAreaProps> = ({ customA
   // Local mode / C端：需要 customAgents 数据才能渲染
   if (!customAgents || customAgents.length === 0) return null;
 
-  // Separate preset assistants (builtin + hub-installed) from user-created custom assistants
+  // Separate preset agents (builtin + hub-installed) from user-created custom agents
   const presetAgents = customAgents.filter((a) => a.isPreset);
   const userCreatedAgents = customAgents.filter((a) => !a.isPreset);
 
   // const allowedPresetIds = ['builtin-ui-ux-pro-max', 'builtin-planning-with-files', 'builtin-beautiful-mermaid', 'builtin-moltbook', 'builtin-copilot', 'builtin-doctor', 'builtin-jiansheku'];
   // const allowedBuiltinPresets = presetAgents.filter((a) => allowedPresetIds.includes(a.id));
-  const allowedBuiltinPresets: AcpBackendConfig[] = []; // Hidden: builtin assistants temporarily disabled
+  const allowedBuiltinPresets: AcpBackendConfig[] = []; // Hidden: builtin agents temporarily disabled
   const hubInstalledPresets = presetAgents.filter((a) => !a.id.startsWith('builtin-'));
 
-  // Combine: allowed builtin presets + hub-installed presets + user-created custom assistants
+  // Combine: allowed builtin presets + hub-installed presets + user-created custom agents
   const filteredAgents = dedupeAssistantsForDisplay([...allowedBuiltinPresets, ...hubInstalledPresets, ...userCreatedAgents], localeKey);
 
-  // Assistant List View
+  // Agent List View
   return (
     <div className='mt-16px w-full'>
       <div className='flex flex-wrap gap-8px justify-center'>

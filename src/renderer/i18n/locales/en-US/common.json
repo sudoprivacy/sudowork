@@ -70,7 +70,7 @@
   "tray.showWindow": "Show Sudowork",
   "tray.quit": "Quit",
   "siderMenu": {
-    "agent": "Digital Assistants",
+    "agent": "Agent",
     "skillStore": "Skill Store",
     "security": "Security",
     "webui": "Remote Access",

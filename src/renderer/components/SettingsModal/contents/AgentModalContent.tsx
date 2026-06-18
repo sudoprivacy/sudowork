@@ -2915,8 +2915,8 @@ const AgentModalContent: React.FC = () => {
         wrapStyle={{ zIndex: 10000 }}
         maskStyle={{ zIndex: 9999 }}
       >
-        <p>{t('settings.duplicateAssistantConfirm', { defaultValue: '确认复制该智能体到自定义列表？复制后可在"我的智能体"中进行编辑。' })}</p>
-        {/* Hub assistant preview */}
+        <p>{t('settings.duplicateAssistantConfirm', { defaultValue: 'Confirm duplicate this agent to the custom list? After duplication, you can edit it in "My Agents".' })}</p>
+        {/* Hub agent preview */}
         {duplicateAssistant && (
           <div className='mt-12px p-12px bg-fill-2 rounded-lg flex items-center gap-12px'>
             <Avatar.Group size={32}>
@@ -2937,7 +2937,7 @@ const AgentModalContent: React.FC = () => {
             </div>
           </div>
         )}
-        {/* Installed assistant preview */}
+        {/* Installed agent preview */}
         {duplicateInstalledAssistant && (
           <div className='mt-12px p-12px bg-fill-2 rounded-lg flex items-center gap-12px'>
             <Avatar.Group size={32}>
@@ -2987,8 +2987,8 @@ const AgentModalContent: React.FC = () => {
         wrapStyle={{ zIndex: 10000 }}
         maskStyle={{ zIndex: 9999 }}
       >
-        <p>{t('settings.uploadAssistantConfirm', { defaultValue: '确认上传该智能体到智能体商店？上传后同一租户下的其他用户可以下载使用。' })}</p>
-        {/* Assistant preview */}
+        <p>{t('settings.uploadAssistantConfirm', { defaultValue: 'Confirm upload this agent to the agent store? Other users in the same tenant will be able to download and use it after upload.' })}</p>
+        {/* Agent preview */}
         {uploadAssistant && (
           <div className='mt-12px p-12px bg-fill-2 rounded-lg flex items-center gap-12px'>
             <Avatar.Group size={32}>
@@ -3011,7 +3011,7 @@ const AgentModalContent: React.FC = () => {
         )}
       </Modal>
 
-      {/* Hub Assistant Detail Modal */}
+      {/* Hub Agent Detail Modal */}
       <AssistantDetailModal
         assistant={hubDetailAssistant}
         visible={hubDetailVisible}
