@@ -355,6 +355,13 @@ export interface IUnifiedOutgoingMessage {
   fileName?: string;
   replyToMessageId?: string;
   silent?: boolean;
+  /**
+   * Originating TMessage msg_id (from composeMessage). Used by ActionExecutor to route
+   * streaming updates to the exact AI card that handled the segment's insert, instead of
+   * blindly targeting sentMessageIds[last] (which races with async card creation).
+   * Optional because not every message carries one; plugins do not read it.
+   */
+  msg_id?: string;
 }
 
 /**
