@@ -877,7 +877,8 @@
     "todayUsage": "今日使用",
     "tokens": "Tokens",
     "consumedPoints": "消耗积分",
-    "requests": "请求数"
+    "requests": "请求数",
+    "changePassword": "修改密码"
   },
   "recharge": {
     "title": "充值积分",
@@ -979,5 +980,18 @@
     "privacy": "开启后将匿名收集 SudoWork 性能指标，仅用于产品改进，不会收集您的对话内容或个人信息。您可以随时关闭此功能。",
     "confirm": "确认开启",
     "cancel": "暂不开启"
+  },
+  "changePassword": {
+    "title": "修改密码",
+    "oldPasswordLabel": "原始密码",
+    "oldPasswordPlaceholder": "请输入原始密码",
+    "newPasswordLabel": "新密码",
+    "newPasswordPlaceholder": "8-20 位，含大写、小写、数字",
+    "ruleHint": "8-20 位，需同时包含大写字母、小写字母和数字。",
+    "cancel": "取消",
+    "confirm": "确认修改",
+    "oldPasswordRequired": "请输入原始密码",
+    "newPasswordRequired": "请输入新密码",
+    "success": "密码修改成功"
   }
 }

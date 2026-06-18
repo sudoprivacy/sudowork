@@ -731,7 +731,8 @@
     "todayUsage": "Bugünkü Kullanım",
     "tokens": "Tokens",
     "consumedPoints": "Tüketilen Puan",
-    "requests": "İstekler"
+    "requests": "İstekler",
+    "changePassword": "Şifre Değiştir"
   },
   "extensionAssistantReadonly": "Uzantı asistanları salt okunurdur. Kopyalayıp düzenleyebilirsiniz.",
   "secrets": "Gizli Anahtarlar",
@@ -757,5 +758,18 @@
   "secrets.refreshFailed": "Failed to refresh config items",
   "secrets.tenantSaveSuccess": "Configuration saved successfully",
   "secrets.tenantSaveFailed": "Failed to save configuration",
-  "secrets.tenantFieldRequired": "Please fill in all configuration items"
+  "secrets.tenantFieldRequired": "Please fill in all configuration items",
+  "changePassword": {
+    "title": "Şifre Değiştir",
+    "oldPasswordLabel": "Mevcut şifre",
+    "oldPasswordPlaceholder": "Mevcut şifreyi girin",
+    "newPasswordLabel": "Yeni şifre",
+    "newPasswordPlaceholder": "8-20 karakter, büyük/küçük harf ve rakam",
+    "ruleHint": "8-20 karakter; büyük harf, küçük harf ve rakam içermelidir.",
+    "cancel": "İptal",
+    "confirm": "Değiştir",
+    "oldPasswordRequired": "Lütfen mevcut şifreyi girin",
+    "newPasswordRequired": "Lütfen yeni şifreyi girin",
+    "success": "Şifre başarıyla değiştirildi"
+  }
 }
