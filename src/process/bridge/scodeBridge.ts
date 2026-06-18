@@ -22,9 +22,12 @@ import { ipcBridge } from '@/common';
 import { modelInputForModelId } from '@/common/imageUtils';
 import type { ScodeModelEntry } from '@/common/ipcBridge';
 import { addScodeAutoModel, extractCustomProvidersFromScodeConfig, mergeCustomProvidersIntoScodeConfig, normalizeCustomApiKeyModelsInScodeConfig, type ScodeCustomModelProvider } from '@/common/scodeConfig';
+import { SUDOCLAW_DIR } from '@process/services/sudoclaw/SudoclawInstallService';
+import { writeSudoclawImageGenerationModel } from '@process/bridge/imageGenerationModelSync';
 
 const TAG = 'ScodeBridge';
 const SUDOCODE_CONFIG_PATH = path.join(SCODE_DIR, 'sudocode.json');
+const SUDOCLAW_CONFIG_PATH = path.join(SUDOCLAW_DIR, 'sudoclaw.json');
 
 /** Read existing sudocode.json, returns empty object on failure */
 function readExistingConfig(): Record<string, unknown> {
@@ -343,9 +346,13 @@ export function registerScodeBridge(): void {
 
   ipcBridge.scode.setImageModel.provider(async ({ modelId }) => {
     try {
-      if (modelId) {
-        writeScodeImageModel(modelId);
-      }
+      // null/empty means the feature is off — clear both stores so the running
+      // tool stops using the last model instead of silently keeping it.
+      const resolved = modelId ?? '';
+      writeScodeImageModel(resolved);
+      // The image-generation tool reads sudoclaw.json first, so keep it in sync
+      // on every save; otherwise the settings change never reaches the tool.
+      writeSudoclawImageGenerationModel(resolved, SUDOCLAW_CONFIG_PATH);
       return { success: true };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
