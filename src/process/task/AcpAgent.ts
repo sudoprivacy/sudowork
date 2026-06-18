@@ -47,7 +47,8 @@ import { detectBashDraftRestoreCommand, FileIntentClassifier, type BashDraftRest
 import { buildAcpModelIdentityReminder, SCODE_COMPLETION_REMINDER, shouldRunCurrentTurnPostCleanup, shouldSkipAcpWorkspaceTrackingPath } from './acpWorkspaceTracking';
 import { mergeScodeProxyModelInfo, isModelVisionCapable, getScodeProxyModelInfoSync } from '@process/services/scode/scodeProxyModels';
 import { installWorkspaceSkillsFromTrackedFiles } from './workspaceSkillInstaller';
-import { appendGeneratedFilesMarker, extractExtension, mimeForExtension, type GeneratedFileEntry } from '@/common/generatedFiles';
+import { buildGeneratedFileEntries as buildGeneratedFileEntriesFromTracked, resolveFinalFileDisplayPath as resolveFinalFileDisplayPathPure } from './generatedFileEntries';
+import { appendGeneratedFilesMarker, type GeneratedFileEntry } from '@/common/generatedFiles';
 import BaseAgent from './BaseAgent';
 
 // Telemetry imports for conversation tracking
@@ -1659,16 +1660,24 @@ This identity statement takes priority over the default identity in USER.md.
     return removedCount;
   }
 
-  private async archiveCurrentTurnFiles(): Promise<void> {
+  /**
+   * Archive the current turn's tracked files and return the deliverables marker
+   * entries built from their FINAL on-disk paths. Building happens here — after
+   * `archiveTurnFiles` has moved/renamed files but before `currentTurnFiles` is
+   * cleared — so the marker records the real post-archive location.
+   */
+  private async archiveCurrentTurnFiles(): Promise<GeneratedFileEntry[]> {
     if (!this.workspace || this.currentTurnFiles.size === 0) {
-      return;
+      return [];
     }
 
     this.currentTurnProtectedFinalPaths = this.getCurrentTurnFinalRootPaths();
     this.pendingCurrentTurnPostCleanup = true;
-    await archiveTurnFiles(this.workspace, this.currentTurnFiles);
+    const archivedPaths = await archiveTurnFiles(this.workspace, this.currentTurnFiles);
+    const entries = this.buildGeneratedFileEntries(archivedPaths);
     this.currentTurnFiles.clear();
     mainLog('[AcpAgent]', '[TURN-ARCHIVE] Archived currentTurnFiles and cleared tracking');
+    return entries;
   }
 
   private getCurrentTurnFinalRootPaths(): Set<string> {
@@ -1734,65 +1743,31 @@ This identity statement takes priority over the default identity in USER.md.
    * `intent==='final'` files, enriched with on-disk size + extension + mime so
    * the renderer can show a preview card without re-stat'ing every file.
    *
-   * Captured BEFORE `archiveCurrentTurnFiles` clears `currentTurnFiles` —
-   * caller is responsible for invocation order.
+   * `archivedPaths` (returned by `archiveTurnFiles`) maps tracking keys to the
+   * file's FINAL on-disk location so the marker records the post-archive path
+   * (after drafts → root restore + collision rename), not the pre-archive one.
    */
-  private buildGeneratedFileEntries(): GeneratedFileEntry[] {
+  private buildGeneratedFileEntries(archivedPaths?: ReadonlyMap<string, string>): GeneratedFileEntry[] {
     if (!this.workspace || this.currentTurnFiles.size === 0) return [];
 
-    const workspaceRoot = nodePath.resolve(this.workspace);
-    const seen = new Set<string>();
-    const entries: GeneratedFileEntry[] = [];
-    const now = Date.now();
-
-    for (const file of this.currentTurnFiles.values()) {
-      if (file.intent !== 'final') continue;
-
-      const absolutePath = nodePath.resolve(file.actualPath);
-      if (seen.has(absolutePath)) continue;
-      seen.add(absolutePath);
-
-      const relativePath = this.resolveFinalFileDisplayPath(file, workspaceRoot);
-      const ext = extractExtension(absolutePath);
-
-      let size: number | undefined;
-      try {
-        const stat = fs.statSync(absolutePath);
-        if (stat.isFile()) size = stat.size;
-      } catch {
-        // file may have moved between archive + lookup — leave size undefined
-      }
-
-      entries.push({
-        path: absolutePath,
-        relativePath: relativePath !== absolutePath ? relativePath : undefined,
-        kind: file.kind === 'edit' ? 'edit' : 'create',
-        ext,
-        mime: mimeForExtension(ext),
-        size,
-        createdAt: now,
-      });
-    }
-
-    // Stable order: by relative (or absolute) path
-    return entries.sort((a, b) => (a.relativePath ?? a.path).localeCompare(b.relativePath ?? b.path));
+    return buildGeneratedFileEntriesFromTracked({
+      workspaceRoot: nodePath.resolve(this.workspace),
+      trackedFiles: this.currentTurnFiles,
+      archivedPaths,
+      statSize: (absolutePath) => {
+        try {
+          const stat = fs.statSync(absolutePath);
+          return stat.isFile() ? stat.size : undefined;
+        } catch {
+          // file may have moved between archive + lookup — leave size undefined
+          return undefined;
+        }
+      },
+    });
   }
 
-  private resolveFinalFileDisplayPath(file: TrackedTurnFile, workspaceRoot: string): string {
-    const resolvedActualPath = nodePath.resolve(file.actualPath);
-    const actualRelativePath = nodePath.relative(workspaceRoot, resolvedActualPath);
-
-    if (actualRelativePath && !actualRelativePath.startsWith('..') && !nodePath.isAbsolute(actualRelativePath) && !actualRelativePath.startsWith(`${DRAFTS_DIR_NAME}${nodePath.sep}`)) {
-      return actualRelativePath.replace(/\\/g, '/');
-    }
-
-    const requestedPath = file.requestedPath || nodePath.basename(file.actualPath);
-    const normalizedRequestedPath = requestedPath.replace(/\\/g, '/').replace(/^\.\//, '');
-    if (!normalizedRequestedPath || normalizedRequestedPath.startsWith('../') || normalizedRequestedPath.includes('/../') || normalizedRequestedPath.startsWith(`${DRAFTS_DIR_NAME}/`)) {
-      return nodePath.basename(file.actualPath);
-    }
-
-    return normalizedRequestedPath;
+  private resolveFinalFileDisplayPath(file: TrackedTurnFile, workspaceRoot: string, overrideAbsolutePath?: string): string {
+    return resolveFinalFileDisplayPathPure(file, workspaceRoot, overrideAbsolutePath);
   }
 
   private emitFallbackCompletionMessage(finalFiles: Array<{ path: string; reason: string }>): void {
@@ -1924,6 +1899,27 @@ This identity statement takes priority over the default identity in USER.md.
         mainLog('[AcpAgent]', `[TRACK] rightPanelBrowser.open emit failed: ${String(err)}`);
       }
     }
+  }
+
+  private trackRootDeliverableFile(input: { requestedPath: string; actualPath: string; kind: 'create' | 'edit' }): void {
+    if (!this.workspace || !input.requestedPath) return;
+
+    const workspaceRoot = nodePath.resolve(this.workspace);
+    const relativePath = nodePath.relative(workspaceRoot, nodePath.resolve(input.actualPath));
+    if (!relativePath || relativePath.startsWith('..') || nodePath.isAbsolute(relativePath) || relativePath.includes(nodePath.sep)) {
+      return;
+    }
+
+    this.currentTurnFiles.set(relativePath, {
+      actualPath: input.actualPath,
+      path: input.actualPath,
+      requestedPath: input.requestedPath,
+      intent: 'final',
+      reason: 'Root-level turn-end deliverable file',
+      source: 'bash-generated',
+      kind: input.kind,
+    });
+    mainLog('[AcpAgent]', `[TRACK] Root deliverable: ${relativePath}, intent: final, actualPath: ${input.actualPath}`);
   }
 
   /**
@@ -2908,8 +2904,6 @@ This identity statement takes priority over the default identity in USER.md.
   }
 
   private async handleEndTurn(): Promise<void> {
-    const finalFiles = !this.userCancelled ? this.getCurrentTurnFinalFileSummaries() : [];
-
     if (!this.userCancelled) {
       // Telemetry: end turn tracking (success)
       endTurnSuccess(this.conversation_id);
@@ -2923,11 +2917,15 @@ This identity statement takes priority over the default identity in USER.md.
 
     if (!this.userCancelled) {
       await this.installTrackedWorkspaceSkills();
-      // Capture rich GeneratedFileEntry records BEFORE archiveCurrentTurnFiles
-      // wipes currentTurnFiles — the renderer needs them to draw preview cards.
-      const generatedEntries = this.buildGeneratedFileEntries();
+      // Turn-end fallback: discover root-level deliverables the per-tool tracking
+      // missed and both forward them to channels AND track them, so they enter
+      // currentTurnFiles → the deliverables marker (not only the temp space /
+      // channel). Must run before the final-file summary + archive below.
       this.deliverWorkspaceFilesAtTurnEnd();
-      await this.archiveCurrentTurnFiles();
+      const finalFiles = this.getCurrentTurnFinalFileSummaries();
+      // Archive FIRST, then build the marker from the returned final paths, so
+      // the recorded path matches the file's real post-archive location.
+      const generatedEntries = await this.archiveCurrentTurnFiles();
       this.emitFallbackCompletionMessage(finalFiles);
       this.emitGeneratedFilesMarkerMessage(generatedEntries);
     }
@@ -4363,11 +4361,21 @@ This identity statement takes priority over the default identity in USER.md.
    * dedup happens inside sendFileToChannels itself; this method must NOT
    * add to sentChannelFilePaths before calling sendFileToChannels, otherwise
    * the inner has-check would short-circuit and handleStreamEvent never fires.
+   *
+   * Besides channel forwarding, each new/modified root deliverable that is not
+   * already tracked is recorded into currentTurnFiles via trackTurnFile so it
+   * also enters the generated-files marker (deliverables panel), keeping the
+   * temp-space/channel view and the deliverables view consistent.
    */
   private deliverWorkspaceFilesAtTurnEnd(): void {
     if (!this.workspace) return;
     let candidate = 0;
     let sent = 0;
+    let tracked = 0;
+    const trackedAbsolute = new Set<string>();
+    for (const file of this.currentTurnFiles.values()) {
+      trackedAbsolute.add(nodePath.resolve(file.actualPath));
+    }
     try {
       const entries = fs.readdirSync(this.workspace, { withFileTypes: true });
       for (const entry of entries) {
@@ -4389,6 +4397,21 @@ This identity statement takes priority over the default identity in USER.md.
           if (this.sendFileToChannels(fullPath)) {
             sent++;
           }
+
+          // Also surface in the deliverables panel: track the file into the
+          // current turn so archiveCurrentTurnFiles emits a marker entry for it.
+          // Skip files already tracked by a tool-call branch to avoid clobbering
+          // their richer classification (content/source/operationIntent).
+          const resolvedFullPath = nodePath.resolve(fullPath);
+          if (!trackedAbsolute.has(resolvedFullPath)) {
+            this.trackRootDeliverableFile({
+              requestedPath: entry.name,
+              actualPath: fullPath,
+              kind: prevMtime === undefined ? 'create' : 'edit',
+            });
+            trackedAbsolute.add(resolvedFullPath);
+            tracked++;
+          }
         } catch {
           // stat failed, skip
         }
@@ -4396,7 +4419,7 @@ This identity statement takes priority over the default identity in USER.md.
     } catch {
       // workspace not readable, skip
     }
-    mainLog('[AcpAgent]', `[TURN-END-DELIVER] candidate=${candidate}, sent=${sent}`);
+    mainLog('[AcpAgent]', `[TURN-END-DELIVER] candidate=${candidate}, sent=${sent}, tracked=${tracked}`);
   }
 }
 

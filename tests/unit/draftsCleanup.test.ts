@@ -461,7 +461,7 @@ describe('turn-level archive and cancel cleanup', () => {
     await fs.rm(testWorkspace, { recursive: true, force: true });
   });
 
-  test('archiveTurnFiles moves tracked drafts into .drafts and restores finals to root', async () => {
+  test('archiveTurnFiles moves user-initiated drafts into .drafts and restores finals to root', async () => {
     const draftPath = path.join(testWorkspace, 'generate_report.py');
     const finalPath = path.join(testWorkspace, '.drafts', 'report.pdf');
     await fs.writeFile(draftPath, 'print("build report")');
@@ -475,9 +475,10 @@ describe('turn-level archive and cancel cleanup', () => {
           path: draftPath,
           requestedPath: 'generate_report.py',
           intent: 'draft',
-          reason: 'Helper script',
+          reason: 'User asked to move helper script to drafts',
           source: 'write',
           kind: 'create',
+          userInitiated: true,
         },
       ],
       [
@@ -494,12 +495,76 @@ describe('turn-level archive and cancel cleanup', () => {
       ],
     ]);
 
-    await archiveTurnFiles(testWorkspace, trackedFiles);
+    const finalPaths = await archiveTurnFiles(testWorkspace, trackedFiles);
 
     expect(fsSync.existsSync(path.join(testWorkspace, '.drafts', 'generate_report.py'))).toBe(true);
     expect(fsSync.existsSync(draftPath)).toBe(false);
     expect(fsSync.existsSync(path.join(testWorkspace, 'report.pdf'))).toBe(true);
     expect(fsSync.existsSync(finalPath)).toBe(false);
+
+    // The returned map records each file's FINAL on-disk location.
+    expect(finalPaths.get('generate_report.py')).toBe(path.resolve(testWorkspace, '.drafts', 'generate_report.py'));
+    expect(finalPaths.get('.drafts/report.pdf')).toBe(path.resolve(testWorkspace, 'report.pdf'));
+  });
+
+  test('archiveTurnFiles returns the collision-renamed path when the root destination already exists', async () => {
+    const existingFinal = path.join(testWorkspace, 'report.pdf');
+    const draftFinal = path.join(testWorkspace, '.drafts', 'report.pdf');
+    await fs.writeFile(existingFinal, 'old final');
+    await fs.writeFile(draftFinal, 'new final');
+
+    const trackedFiles = new Map<string, TrackedTurnFile>([
+      [
+        '.drafts/report.pdf',
+        {
+          actualPath: draftFinal,
+          path: draftFinal,
+          requestedPath: 'report.pdf',
+          intent: 'final',
+          reason: 'Matches requested target type .pdf',
+          source: 'bash-generated',
+          kind: 'create',
+        },
+      ],
+    ]);
+
+    const finalPaths = await archiveTurnFiles(testWorkspace, trackedFiles);
+
+    const resolved = finalPaths.get('.drafts/report.pdf');
+    expect(resolved).toBeDefined();
+    // Original report.pdf is untouched; the archived copy got a timestamp suffix.
+    expect(resolved).not.toBe(path.resolve(existingFinal));
+    expect(path.basename(resolved!)).toMatch(/^report_\d+\.pdf$/);
+    expect(fsSync.existsSync(resolved!)).toBe(true);
+    expect(fsSync.readFileSync(existingFinal, 'utf-8')).toBe('old final');
+  });
+
+  test('archiveTurnFiles leaves AI-auto drafts in place and records their original path', async () => {
+    const autoDraftPath = path.join(testWorkspace, 'slide_1.png');
+    await fs.writeFile(autoDraftPath, 'png bytes');
+
+    const trackedFiles = new Map<string, TrackedTurnFile>([
+      [
+        'slide_1.png',
+        {
+          actualPath: autoDraftPath,
+          path: autoDraftPath,
+          requestedPath: 'slide_1.png',
+          intent: 'draft',
+          reason: 'Intermediate asset',
+          source: 'write',
+          kind: 'create',
+          userInitiated: false,
+        },
+      ],
+    ]);
+
+    const finalPaths = await archiveTurnFiles(testWorkspace, trackedFiles);
+
+    // AI-auto draft stays where the model wrote it (not moved to .drafts).
+    expect(fsSync.existsSync(autoDraftPath)).toBe(true);
+    expect(fsSync.existsSync(path.join(testWorkspace, '.drafts', 'slide_1.png'))).toBe(false);
+    expect(finalPaths.get('slide_1.png')).toBe(path.resolve(autoDraftPath));
   });
 
   test('cleanupTrackedDraftsOnCancel removes only current-turn drafts', async () => {
