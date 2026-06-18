@@ -4,13 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { CUSTOM_AVATAR_IMAGE_MAP } from '../constants';
-import type { AcpBackendConfig, AvailableAgent } from '../types';
 import { Plus, Robot } from '@icon-park/react';
 import React from 'react';
-import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
+import type { AcpBackendConfig, AvailableAgent } from '../types';
+import { CUSTOM_AVATAR_IMAGE_MAP } from '../constants';
+import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 
 type AssistantSelectionAreaProps = {
   customAgents: AcpBackendConfig[];
@@ -119,7 +119,7 @@ const AssistantSelectionArea: React.FC<AssistantSelectionAreaProps> = ({ customA
           })}
         <div className='group f-center h-28px min-w-28px px-8px gap-4px rd-100px bg-fill-0 cursor-pointer whitespace-nowrap b-1 b-dashed select-none transition-colors duration-300 hover:bg-fill-2' style={{ borderWidth: '1px', borderColor: 'var(--bg-3)' }} onClick={() => navigate('/settings/agent')}>
           <Plus theme='outline' size={14} className='flex-shrink-0 line-height-0 text-[var(--color-text-3)] group-hover:text-[var(--color-text-2)] transition-colors duration-300' />
-          <span className='text-14px text-2 group-hover:text-1 transition-colors duration-300'>{t('settings.createAssistant', { defaultValue: 'Add Assistant' })}</span>
+          <span className='text-14px text-2 group-hover:text-1 transition-colors duration-300'>{t('settings.createAssistant', { defaultValue: '创建智能体' })}</span>
         </div>
       </div>
     </div>

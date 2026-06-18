@@ -70,7 +70,7 @@
   "tray.showWindow": "显示 Sudowork",
   "tray.quit": "退出",
   "siderMenu": {
-    "agent": "数字助手",
+    "agent": "智能体",
     "skillStore": "技能商店",
     "security": "安全防护",
     "webui": "远程连接",
