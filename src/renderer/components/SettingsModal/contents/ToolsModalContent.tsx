@@ -5,6 +5,7 @@
  */
 
 import { ConfigStorage, DEFAULT_IMAGE_GENERATION_MODEL, type IConfigStorageRefer, type IMcpServer } from '@/common/storage';
+import { migrateImageGenerationModelConfig, pickImageGenerationModelId } from '@/common/imageGenerationModelConfig';
 import { acpConversation, scode } from '@/common/ipcBridge';
 import { Divider, Form, Switch, Tooltip, Message, Button, Dropdown, Menu, Modal } from '@arco-design/web-react';
 import { Help, Down, Plus } from '@icon-park/react';
@@ -18,8 +19,6 @@ import McpServerItem from '@/renderer/pages/settings/McpManagement/McpServerItem
 import { useMcpServers, useMcpAgentStatus, useMcpOperations, useMcpConnection, useMcpModal, useMcpServerCRUD, useMcpOAuth } from '@/renderer/hooks/mcp';
 
 type MessageInstance = ReturnType<typeof Message.useMessage>[0];
-
-const LEGACY_DEFAULT_IMAGE_GENERATION_MODEL = 'gpt-image-1.5';
 
 const IMAGE_GENERATION_MODEL_OPTIONS = [
   { label: 'gemini-3.1-flash-image', value: 'gemini-3.1-flash-image' },
@@ -254,34 +253,26 @@ const ToolsModalContent: React.FC = () => {
       }));
   }, [data]);
 
-  const syncImageGenerationModel = useCallback((modelConfig: Partial<IConfigStorageRefer['tools.imageGenerationModel']>) => {
-    const modelId = modelConfig.switch && modelConfig.useModel ? modelConfig.useModel : null;
-    scode.setImageModel.invoke({ modelId }).catch(console.error);
+  // Sync from a *complete* config — never infer "off" from a partial that just omits `switch`.
+  const syncImageGenerationModel = useCallback((modelConfig: IConfigStorageRefer['tools.imageGenerationModel']) => {
+    const modelId = pickImageGenerationModelId(modelConfig);
+    return scode.setImageModel.invoke({ modelId }).catch(console.error);
   }, []);
 
   useEffect(() => {
     const loadConfigs = async () => {
       try {
         const saved = await ConfigStorage.get('tools.imageGenerationModel');
-        if (saved) {
-          // Always ensure useModel is set
-          if (!saved.useModel || saved.useModel === LEGACY_DEFAULT_IMAGE_GENERATION_MODEL) {
-            const nextConfig = {
-              ...saved,
-              useModel: DEFAULT_IMAGE_GENERATION_MODEL,
-            };
-            setImageGenerationModel(nextConfig);
-            ConfigStorage.set('tools.imageGenerationModel', nextConfig).catch(() => {});
-            syncImageGenerationModel(nextConfig);
-          } else {
-            setImageGenerationModel(saved);
-          }
-        } else {
-          // Default: switch on, hardcoded model
-          const defaultConfig = { useModel: DEFAULT_IMAGE_GENERATION_MODEL, switch: true } as IConfigStorageRefer['tools.imageGenerationModel'];
-          setImageGenerationModel(defaultConfig);
-          ConfigStorage.set('tools.imageGenerationModel', defaultConfig).catch(() => {});
-          syncImageGenerationModel(defaultConfig);
+        const alreadyMigrated = (await ConfigStorage.get('migration.imageGenerationModelDefaultMigrated').catch((): boolean => false)) === true;
+        const { config, changed } = migrateImageGenerationModelConfig(saved, alreadyMigrated);
+
+        setImageGenerationModel(config);
+        if (changed) {
+          await ConfigStorage.set('tools.imageGenerationModel', config).catch(() => {});
+          await syncImageGenerationModel(config);
+        }
+        if (!alreadyMigrated) {
+          await ConfigStorage.set('migration.imageGenerationModelDefaultMigrated', true).catch(() => {});
         }
       } catch (error) {
         console.error('Failed to load image generation model config:', error);
@@ -293,7 +284,7 @@ const ToolsModalContent: React.FC = () => {
 
   const handleImageGenerationModelChange = (value: Partial<IConfigStorageRefer['tools.imageGenerationModel']>) => {
     setImageGenerationModel((prev) => {
-      const newImageGenerationModel = { ...prev, ...value };
+      const newImageGenerationModel = { ...prev, ...value } as IConfigStorageRefer['tools.imageGenerationModel'];
       ConfigStorage.set('tools.imageGenerationModel', newImageGenerationModel).catch((error) => {
         console.error('Failed to update image generation model config:', error);
       });
