@@ -489,7 +489,7 @@ export class RemoteCronProvider implements ICronProvider {
       createTime,
       modifyTime: now,
       status: 'running',
-      source: 'aionui',
+      source: 'sudowork',
       extra: {
         workspace: job.workspace ?? undefined,
         backend: 'remote-agent',

@@ -159,7 +159,7 @@ export class RemoteConversationProvider implements IConversationProvider {
         mossSessionPending: true,
       },
       status: 'pending',
-      source: 'aionui',
+      source: 'sudowork',
     };
 
     // Insert to local database first (for sidebar display)
@@ -420,7 +420,7 @@ export class RemoteConversationProvider implements IConversationProvider {
         createTime,
         modifyTime,
         status: session.status === 'ended' || session.status === 'terminated' ? 'finished' : 'running',
-        source: 'aionui',
+        source: 'sudowork',
         extra,
       };
 

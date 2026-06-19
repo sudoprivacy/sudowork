@@ -458,7 +458,7 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
       // 发送刷新事件更新侧边栏
       ipcBridge.database.conversationChanged.emit({
         conversationId: this.conversation_id,
-        source: 'aionui',
+        source: 'sudowork',
         action: 'updated',
       });
     } catch (error) {

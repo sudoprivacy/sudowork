@@ -508,8 +508,8 @@ export function initConversationBridge(): void {
         mainWarn('conversationBridge', 'Failed to cleanup cron jobs:', cronError);
       }
 
-      // If source is not 'aionui' (e.g., telegram), cleanup channel resources
-      if (source && source !== 'aionui') {
+      // If source is not 'sudowork' (e.g., telegram), cleanup channel resources
+      if (source && source !== 'sudowork') {
         try {
           const { getChannelManager } = await import('@/channels/core/ChannelManager');
           const channelManager = getChannelManager();
@@ -978,7 +978,7 @@ export function initConversationBridge(): void {
       if (result.nameUpdated) {
         ipcBridge.database.conversationChanged.emit({
           conversationId: conversation_id,
-          source: 'aionui',
+          source: 'sudowork',
           action: 'updated',
         });
       }
