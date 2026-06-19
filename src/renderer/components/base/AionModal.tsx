@@ -339,7 +339,7 @@ const AionModal: React.FC<AionModalProps> = ({
     return (
       <div className={headerClassName} style={headerStyle}>
         {headerConfig.title && (
-          <h3 className={TITLE_BASE_CLASS} id='aion-modal-title'>
+          <h3 className={TITLE_BASE_CLASS} id='sudowork-modal-title'>
             {headerConfig.title}
           </h3>
         )}
@@ -371,10 +371,10 @@ const AionModal: React.FC<AionModalProps> = ({
   };
 
   return (
-    <Modal {...props} title={null} closable={false} footer={null} escToExit={escToExitProp} onCancel={onCancel} className={`aionui-modal ${className}`} style={finalStyle} getPopupContainer={() => document.body}>
-      <div className='aionui-modal-wrapper' style={{ borderRadius: borderRadiusVal }} role='dialog' aria-modal='true' aria-labelledby={headerConfig.title ? 'aion-modal-title' : undefined}>
+    <Modal {...props} title={null} closable={false} footer={null} escToExit={escToExitProp} onCancel={onCancel} className={`sudowork-modal ${className}`} style={finalStyle} getPopupContainer={() => document.body}>
+      <div className='sudowork-modal-wrapper' style={{ borderRadius: borderRadiusVal }} role='dialog' aria-modal='true' aria-labelledby={headerConfig.title ? 'sudowork-modal-title' : undefined}>
         {renderHeader()}
-        <div className='aionui-modal-body-content' style={bodyInlineStyle}>
+        <div className='sudowork-modal-body-content' style={bodyInlineStyle}>
           {children}
         </div>
         {renderFooter()}

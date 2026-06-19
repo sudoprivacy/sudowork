@@ -23,7 +23,7 @@ export function getAppDataExtensionsDir(): string {
     return path.join(app.getPath('userData'), EXTENSIONS_DIR_NAME);
   } catch {
     const appData = process.env.APPDATA || path.join(os.homedir(), '.config');
-    return path.join(appData, 'AionUI', EXTENSIONS_DIR_NAME);
+    return path.join(appData, 'Sudowork', EXTENSIONS_DIR_NAME);
   }
 }
 

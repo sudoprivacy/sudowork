@@ -4,22 +4,22 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import fs from 'fs';
+import path from 'path';
 import { ensureDirectory, getDataPath } from '@process/utils';
 import type Database from 'better-sqlite3';
 import BetterSqlite3 from 'better-sqlite3';
-import fs from 'fs';
-import path from 'path';
+import { mainLog, mainError } from '@process/utils/mainLogger';
+import { resolveSecret, cachePut } from '@common/nexus/secret-cache';
+import { SecretMigrationCoordinator } from '@common/nexus/secret-migration';
 import { runMigrations as executeMigrations } from './migrations';
 import { CURRENT_DB_VERSION, getDatabaseVersion, initSchema, setDatabaseVersion } from './schema';
 import type { IConversationRow, IMessageRow, IPaginatedResult, IQueryResult, IUser, TChatConversation, TMessage } from './types';
 import { conversationToRow, messageToRow, rowToConversation, rowToMessage } from './types';
-import { mainLog, mainError } from '@process/utils/mainLogger';
 import type { IChannelPluginConfig, IChannelUser, IChannelSession, IChannelPairingRequest, IChannelUserRow, IChannelSessionRow, IChannelPairingCodeRow, PluginType, PluginStatus } from '@/channels/types';
 import type { ScodeCustomModelProvider } from '@/common/scodeConfig';
 import type { ConversationSource, TProviderWithModel } from '@/common/storage';
 import { rowToChannelUser, rowToChannelSession, rowToPairingRequest } from '@/channels/types';
-import { resolveSecret, cachePut } from '@common/nexus/secret-cache';
-import { SecretMigrationCoordinator } from '@common/nexus/secret-migration';
 
 /**
  * True ONLY for errors indicating the SQLite *file* itself is corrupt/unreadable as
@@ -45,7 +45,7 @@ function isCorruptDatabaseFileError(error: unknown): boolean {
  * Main database class for Sudowork
  * Uses better-sqlite3 for fast, synchronous SQLite operations
  */
-export class AionUIDatabase {
+export class SudoworkDatabase {
   private db: Database.Database;
   private readonly defaultUserId = 'system_default_user';
   private readonly systemPasswordPlaceholder = '';
@@ -1468,11 +1468,11 @@ export class AionUIDatabase {
 }
 
 // Export singleton instance
-let dbInstance: AionUIDatabase | null = null;
+let dbInstance: SudoworkDatabase | null = null;
 
-export function getDatabase(): AionUIDatabase {
+export function getDatabase(): SudoworkDatabase {
   if (!dbInstance) {
-    dbInstance = new AionUIDatabase();
+    dbInstance = new SudoworkDatabase();
   }
   return dbInstance;
 }
