@@ -230,6 +230,29 @@ const WebviewHost: React.FC<WebviewHostProps> = ({ url, id: _id, showNavBar = fa
       setWebviewReady(true);
       injectClickInterceptor();
 
+      // file:// HTML pages often omit background-color, defaulting to transparent.
+      // In dark-themed containers this makes dark text invisible. Inject a white
+      // fallback that yields to any explicit background set by the page itself.
+      if (/^file:/i.test(currentUrl)) {
+        webviewEl
+          .executeJavaScript(
+            `
+          (function() {
+            const html = document.documentElement;
+            const body = document.body;
+            const htmlBg = getComputedStyle(html).backgroundColor;
+            const bodyBg = getComputedStyle(body).backgroundColor;
+            const isTransparent = (c) => !c || c === 'transparent' || c === 'rgba(0, 0, 0, 0)';
+            if (isTransparent(htmlBg) && isTransparent(bodyBg)) {
+              html.style.backgroundColor = '#fff';
+            }
+          })();
+          true;
+        `
+          )
+          .catch(() => {});
+      }
+
       // Report the webContents id once it's available. The id is stable for the
       // lifetime of the <webview> element, so report on first dom-ready only.
       if (onWebContentsIdReady) {
