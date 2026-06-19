@@ -70,7 +70,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
   }, [scheduledGroups, currentPinnedIds]);
 
   // ── Timeline section collapse state ──
-  const TIMELINE_EXPANSION_KEY = 'aionui_timeline_expansion';
+  const TIMELINE_EXPANSION_KEY = 'sudowork_timeline_expansion';
   // Map of timeline label → expanded boolean. undefined means "use default" (true).
   const [expandedTimeline, setExpandedTimeline] = React.useState<Record<string, boolean>>(() => {
     try {
@@ -106,7 +106,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
   }, []);
 
   // ── Scheduled section top-level collapse state ──
-  const SCHEDULED_SECTION_KEY = 'aionui_scheduled_section_expanded';
+  const SCHEDULED_SECTION_KEY = 'sudowork_scheduled_section_expanded';
   const [scheduledSectionExpanded, setScheduledSectionExpanded] = React.useState<boolean>(() => {
     try {
       const stored = localStorage.getItem(SCHEDULED_SECTION_KEY);
@@ -129,7 +129,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
     });
   }, []);
 
-  const SCHEDULED_EXPANSION_KEY = 'aionui_scheduled_expansion';
+  const SCHEDULED_EXPANSION_KEY = 'sudowork_scheduled_expansion';
   const [expandedScheduled, setExpandedScheduled] = React.useState<string[]>(() => {
     try {
       const stored = localStorage.getItem(SCHEDULED_EXPANSION_KEY);

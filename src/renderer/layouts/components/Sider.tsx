@@ -40,7 +40,7 @@ const Sider: React.FC = () => {
   const [userMenuWidth, setUserMenuWidth] = useState<number>();
 
   // Sidebar tab state: 'timeline' or 'scheduled'
-  const SIDER_TAB_STORAGE_KEY = 'aionui_sider_tab';
+  const SIDER_TAB_STORAGE_KEY = 'sudowork_sider_tab';
   const [activeTab, setActiveTab] = useState<'timeline' | 'scheduled'>(() => {
     try {
       const stored = localStorage.getItem(SIDER_TAB_STORAGE_KEY);

@@ -6,6 +6,10 @@
 
 import './bootstrap/runtimePatches';
 import './bootstrap/crashHandler';
+import { migrateLocalStorageKeys } from '@common/storageKeys';
+
+// One-time migration of legacy 'aionui_*' localStorage keys to 'sudowork_*'
+migrateLocalStorageKeys();
 import type { PropsWithChildren } from 'react';
 import React from 'react';
 import { createRoot } from 'react-dom/client';

@@ -83,7 +83,7 @@ vi.mock('../../src/renderer/utils/emitter', () => ({
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-const STORAGE_KEY = 'aionui_workspace_expansion';
+const STORAGE_KEY = 'sudowork_workspace_expansion';
 
 const makeWorkspaceSection = (workspaces: string[]): TimelineSection[] => [
   {
