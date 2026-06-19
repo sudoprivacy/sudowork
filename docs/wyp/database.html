@@ -100,7 +100,7 @@
   <p>Sudowork 用 <strong>better-sqlite3</strong>（同步 API，避免 mutex 争用）作为<strong>唯一的结构化持久化存储</strong>，只在 <strong>主进程</strong>访问，渲染进程通过 IPC 桥间接查询。核心实现：</p>
   <table>
     <tr><th>文件</th><th>职责</th></tr>
-    <tr><td><code>src/process/database/index.ts</code></td><td><code>AionUIDatabase</code> 类：所有 CRUD 方法（约 1400 行）</td></tr>
+    <tr><td><code>src/process/database/index.ts</code></td><td><code>SudoworkDatabase</code> 类：所有 CRUD 方法（约 1400 行）</td></tr>
     <tr><td><code>src/process/database/schema.ts</code></td><td>全新安装时的基础建表 + 当前版本号 <code>CURRENT_DB_VERSION = 22</code></td></tr>
     <tr><td><code>src/process/database/migrations.ts</code></td><td>v1→v22 的迁移脚本（演进表结构 / 约束 / 索引）</td></tr>
     <tr><td><code>src/process/database/types.ts</code></td><td>行类型 ↔ 业务类型（<code>TChatConversation</code> / <code>TMessage</code>）的转换</td></tr>
@@ -132,7 +132,7 @@
   <p>新人最容易搞混的就是"这个数据到底存哪"。记住这条分界：<strong>结构化、需查询/分页/外键的业务数据进 DB；全局应用配置走 .txt 文件；二进制大文件走文件系统、DB 只留路径。</strong></p>
   <table>
     <tr><th>数据</th><th>位置</th><th>实现</th></tr>
-    <tr><td>账户 / 会话 / 消息 / 定时任务 / 渠道 / 模型 provider</td><td><span class="tag t-core">SQLite</span></td><td><code>AionUIDatabase</code></td></tr>
+    <tr><td>账户 / 会话 / 消息 / 定时任务 / 渠道 / 模型 provider</td><td><span class="tag t-core">SQLite</span></td><td><code>SudoworkDatabase</code></td></tr>
     <tr><td>模型配置 <code>model.config</code>、MCP 配置 <code>mcp.config</code>、各 Agent 鉴权（<code>acp.config</code> 的 authToken/cliPath/yoloMode）、语言/主题/自定义 CSS</td><td><span class="tag t-user">config.txt</span></td><td><code>ConfigStorage</code>（<code>src/common/storage.ts</code>），文件 <code>sudowork-config.txt</code></td></tr>
     <tr><td>会话历史的文件态备份</td><td>txt</td><td><code>sudowork-chat-history/&lt;id&gt;.txt</code>（首启迁移 DB 的来源）</td></tr>
     <tr><td>图片 / 附件 / 工作区产物</td><td><span class="tag" style="color:var(--accent-4);border-color:var(--accent-4)">文件系统</span></td><td><code>{userData}/data/images/</code> 等，DB 内仅引用路径</td></tr>
@@ -160,7 +160,7 @@
   <div class="note warn">⚠️ <strong>最易混淆点：本地 users 表 ≠ 产品登录账号。</strong>产品意义上的"登录注册"（个人手机号 / 企业账号）走的是<strong>后端接口</strong>（中控 / MOSS），那套身份存在 localStorage（<code>sudowork_auth_v2</code> / <code>eeclaw_auth_v1</code>）+ config.txt，<strong>不会写入本地 users 表</strong>。本地 users 表只有两个作用，且通常落在<strong>同一行</strong>上：</div>
   <table>
     <tr><th>作用</th><th>说明</th></tr>
-    <tr><td><strong>① WebUI 门禁账号</strong></td><td>浏览器访问 WebUI 时的那道本地登录（默认 <code>admin</code> + 随机密码，<code>--resetpass</code> 重置）。用 bcrypt 校验、用该行 <code>jwt_secret</code> 签 <code>aionui-session</code> cookie。<strong>纯本地，与中控/MOSS 无关</strong>；桌面 GUI 模式不会用到</td></tr>
+    <tr><td><strong>① WebUI 门禁账号</strong></td><td>浏览器访问 WebUI 时的那道本地登录（默认 <code>admin</code> + 随机密码，<code>--resetpass</code> 重置）。用 bcrypt 校验、用该行 <code>jwt_secret</code> 签 <code>sudowork-session</code> cookie。<strong>纯本地，与中控/MOSS 无关</strong>；桌面 GUI 模式不会用到</td></tr>
     <tr><td><strong>② 本地数据 owner</strong></td><td><code>conversations.user_id</code> 外键指向它。桌面/单用户场景所有会话都归属占位行 <code>system_default_user</code>（<code>defaultUserId</code>）；不传 userId 时默认用它</td></tr>
   </table>
   <p style="color:var(--muted); font-size:13px;">初始化时若只有 <code>system_default_user</code> 占位行，会直接把它的用户名/密码设成 admin —— 所以本地实际就是<strong>一个账号</strong>，既当 WebUI 登录、又当所有本地数据的 owner。两套身份互不写入：手机号登录不在本地 users 建行，本地 admin 也不同步到后端。详见 <a href="api-endpoints.html">远端接口清单</a>。</p>
@@ -213,7 +213,7 @@
     <tr><td>extra</td><td>TEXT(JSON)</td><td>工作区等扩展信息</td></tr>
     <tr><td>model</td><td>TEXT(JSON)?</td><td>provider+model 配置</td></tr>
     <tr><td>status</td><td>TEXT CHECK?</td><td>pending | running | finished</td></tr>
-    <tr><td>source</td><td>TEXT?</td><td>会话来源：aionui / telegram / lark / dingtalk / wechat ...（v8 加入，v15 起放开约束）</td></tr>
+    <tr><td>source</td><td>TEXT?</td><td>会话来源：sudowork / telegram / lark / dingtalk / wechat ...（v8 加入，v15 起放开约束）</td></tr>
     <tr><td>channel_chat_id</td><td>TEXT?</td><td>渠道会话隔离 ID（如 <code>user:xxx</code> / <code>group:xxx</code>）</td></tr>
     <tr><td>created_at / updated_at</td><td>INTEGER</td><td>时间戳</td></tr>
   </table>
@@ -324,7 +324,7 @@
     <div class="arrow-v">▼ &nbsp;<span class="arrow-label">ipcBridge.database.getConversationMessages({ conversation_id, page, pageSize })</span></div>
     <div class="box b-orange" style="text-align:center;"><div class="title">Main：databaseBridge</div><div class="path">src/process/bridge/</div></div>
     <div class="arrow-v">▼ &nbsp;<span class="arrow-label">getDatabase() 单例</span></div>
-    <div class="box b-blue" style="text-align:center;"><div class="title">AionUIDatabase（better-sqlite3 同步调用）</div><div class="path">src/process/database/index.ts</div></div>
+    <div class="box b-blue" style="text-align:center;"><div class="title">SudoworkDatabase（better-sqlite3 同步调用）</div><div class="path">src/process/database/index.ts</div></div>
   </div>
   <p>渲染进程<strong>不能</strong>直接打开 SQLite，所有读写都要经 IPC 桥到主进程。主进程用 <code>getDatabase()</code> 拿单例（<code>export.ts</code>），同步 API 直接查询。</p>
 

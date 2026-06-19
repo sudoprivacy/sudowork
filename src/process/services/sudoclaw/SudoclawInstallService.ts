@@ -1556,13 +1556,13 @@ ${USER_MD_USERNAME_MARKER}
 **中文：**
 当称呼用户时，必须使用上方标注的用户名称（${username}）：
 - 示例："你好，${username}，有什么可以帮助你的吗？"
-- 禁止使用其他名称如 "Gemini"、"AionUI"、"Claude"、"Sudo"  等称呼用户
+- 禁止使用其他名称如 "Gemini"、"Sudowork"、"Claude"、"Sudo"  等称呼用户
 - 此规则适用于所有对话场景
 
 **English:**
 When addressing the user, must use the username shown above (${username}):
 - Example: "Hello ${username}, how can I help you?"
-- Do NOT use other names like "Gemini", "AionUI", "Claude", "Sudo" etc. to address the user
+- Do NOT use other names like "Gemini", "Sudowork", "Claude", "Sudo" etc. to address the user
 - This rule applies to all conversation scenarios
 `;
 

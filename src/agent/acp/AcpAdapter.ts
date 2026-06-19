@@ -9,7 +9,7 @@ import { uuid } from '@/common/utils';
 import type { AcpBackend, AcpSessionUpdate, AgentMessageChunkUpdate, AgentThoughtChunkUpdate, PlanUpdate, ToolCallUpdate, ToolCallUpdateStatus } from '@/types/acpTypes';
 
 /**
- * Adapter class to convert ACP messages to AionUI message format
+ * Adapter class to convert ACP messages to Sudowork message format
  */
 export class AcpAdapter {
   private conversationId: string;
@@ -42,7 +42,7 @@ export class AcpAdapter {
   }
 
   /**
-   * Convert ACP session update to AionUI messages
+   * Convert ACP session update to Sudowork messages
    */
   convertSessionUpdate(sessionUpdate: AcpSessionUpdate): TMessage[] {
     const messages: TMessage[] = [];
@@ -128,7 +128,7 @@ export class AcpAdapter {
   }
 
   /**
-   * Convert ACP session update chunk to AionUI message
+   * Convert ACP session update chunk to Sudowork message
    */
   private convertSessionUpdateChunk(update: AgentMessageChunkUpdate['update']): TMessage | null {
     const msgId = this.getCurrentMessageId(); // Use consistent msg_id for streaming chunks
@@ -154,7 +154,7 @@ export class AcpAdapter {
   }
 
   /**
-   * Convert ACP thought chunk to AionUI message
+   * Convert ACP thought chunk to Sudowork message
    */
   private convertThoughtChunk(update: AgentThoughtChunkUpdate['update']): TMessage | null {
     const baseMessage = {
@@ -592,7 +592,7 @@ export class AcpAdapter {
   }
 
   /**
-   * Convert plan update to AionUI message
+   * Convert plan update to Sudowork message
    */
   private convertPlanUpdate(update: PlanUpdate): IMessagePlan | null {
     const baseMessage = {

@@ -361,7 +361,7 @@ export function initFsBridge(): void {
           targetUrl,
           {
             headers: {
-              'User-Agent': 'AionUI-Preview',
+              'User-Agent': 'Sudowork-Preview',
               Referer: 'https://github.com/sudoprivacy/Sudowork',
             },
           },
