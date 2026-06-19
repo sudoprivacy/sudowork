@@ -618,7 +618,7 @@ const HTMLRenderer: React.FC<HTMLRendererProps> = ({ content, filePath, containe
   const proxyHeight = webviewContentHeight > 0 ? webviewContentHeight : '100%';
 
   return (
-    <div ref={containerRef || divRef} className={`h-full w-full ${isInteractiveHtmlFile ? 'overflow-hidden' : 'overflow-auto'} relative ${currentTheme === 'dark' ? 'bg-bg-1' : 'bg-white'}`}>
+    <div ref={containerRef || divRef} className={`h-full w-full ${isInteractiveHtmlFile ? 'overflow-hidden' : 'overflow-auto'} relative bg-white`}>
       {isElectron ? (
         <>
           {/* 代理滚动层：使容器可滚动 / Proxy scroll layer: makes container scrollable */}
