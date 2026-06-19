@@ -86,7 +86,7 @@ jobs:
           LINUX='{"platform":"linux","os":"ubuntu-latest","command":"node scripts/build-with-builder.js auto --linux","artifact-name":"linux-build","arch":"x64-arm64"}'
 
           if [ "$PLATFORM" = "all" ]; then
-            MATRIX="{\"include\":[$MACOS_ARM64,$WINDOWS_X64]}"
+            MATRIX="{\"include\":[$MACOS_ARM64,$MACOS_X64,$WINDOWS_X64]}"
           elif [ "$PLATFORM" = "macos-arm64" ]; then
             MATRIX="{\"include\":[$MACOS_ARM64]}"
           elif [ "$PLATFORM" = "macos-x64" ]; then
