@@ -235,7 +235,7 @@ export interface IEnvStorageRefer {
  * Conversation source type - identifies where the conversation was created
  * 会话来源类型 - 标识会话创建的来源
  */
-export type ConversationSource = 'aionui' | 'telegram' | 'lark' | 'dingtalk' | 'wechat' | (string & NonNullable<unknown>);
+export type ConversationSource = 'sudowork' | 'telegram' | 'lark' | 'dingtalk' | 'wechat' | (string & NonNullable<unknown>);
 
 interface IChatConversation<T, Extra> {
   createTime: number;
@@ -249,7 +249,7 @@ interface IChatConversation<T, Extra> {
   status?: 'pending' | 'running' | 'finished' | undefined;
   /** 处理开始时间戳（毫秒），用于恢复计时器 / Processing start timestamp in milliseconds for timer restoration */
   processingStartTime?: number;
-  /** 会话来源，默认为 aionui / Conversation source, defaults to aionui */
+  /** 会话来源，默认为 sudowork / Conversation source, defaults to sudowork */
   source?: ConversationSource;
   /** Channel chat isolation ID (e.g. user:xxx, group:xxx) */
   channelChatId?: string;

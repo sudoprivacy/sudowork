@@ -199,7 +199,7 @@ export class SessionManager {
 
   /**
    * Clear session by conversation ID
-   * Used when a conversation is deleted from AionUI
+   * Used when a conversation is deleted from Sudowork
    */
   clearSessionByConversationId(conversationId: string): IChannelSession | null {
     const db = getDatabase();

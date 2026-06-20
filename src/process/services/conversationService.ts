@@ -36,8 +36,8 @@ export interface ICreateConversationResult {
  * 通用会话创建服务
  * Common conversation creation service
  *
- * 提供统一的会话创建逻辑，供 AionUI、Telegram 及其他 IM 使用
- * Provides unified conversation creation logic for AionUI, Telegram and other IMs
+ * 提供统一的会话创建逻辑，供 Sudowork、Telegram 及其他 IM 使用
+ * Provides unified conversation creation logic for Sudowork, Telegram and other IMs
  */
 export class ConversationService {
   /**
@@ -64,7 +64,7 @@ export class ConversationService {
             backend: 'remote-agent',
           },
           status: 'finished',
-          source: source || 'aionui',
+          source: source || 'sudowork',
         } as TChatConversation;
       } else if (type === 'acp') {
         conversation = await createAcpAgent(params);
@@ -98,7 +98,7 @@ export class ConversationService {
       // Note: Don't call initAgent() here - let it be lazy initialized when sendMessage() is called.
       WorkerManage.buildConversation(conversation);
 
-      mainLog('ConversationService', `Created ${type} conversation ${conversation.id} with source=${source || 'aionui'}`);
+      mainLog('ConversationService', `Created ${type} conversation ${conversation.id} with source=${source || 'sudowork'}`);
       return { success: true, conversation };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);

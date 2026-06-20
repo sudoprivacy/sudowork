@@ -48,7 +48,7 @@ export const FilesystemPermissionSchema = z.enum([
 
 export const ExtPermissionsSchema = z
   .object({
-    /** Read/write to AionUI persistent storage */
+    /** Read/write to Sudowork persistent storage */
     storage: z.boolean().default(false),
     /** Network access control */
     network: NetworkPermissionSchema.default(false),

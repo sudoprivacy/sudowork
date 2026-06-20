@@ -91,10 +91,10 @@ export interface EngineValidationResult {
 }
 
 /**
- * Validate that an extension's engine requirements are satisfied by the current AionUI version.
+ * Validate that an extension's engine requirements are satisfied by the current Sudowork version.
  *
  * Checks:
- * 1. engine.aionui — does the running AionUI version satisfy the required range?
+ * 1. engine.sudowork — does the running Sudowork version satisfy the required range?
  * 2. engine.extensionApi — (future) does the extension API version match?
  */
 export function validateEngineCompatibility(extension: LoadedExtension): EngineValidationResult {
@@ -108,10 +108,10 @@ export function validateEngineCompatibility(extension: LoadedExtension): EngineV
   const apiVersion = extension.manifest.apiVersion;
 
   // Check Nexus core version compatibility
-  if (engine?.aionui) {
-    if (!satisfiesVersion(NEXUS_VERSION, engine.aionui)) {
+  if (engine?.sudowork) {
+    if (!satisfiesVersion(NEXUS_VERSION, engine.sudowork)) {
       result.valid = false;
-      result.issues.push(`Extension "${extension.manifest.name}" requires AionUI ${engine.aionui} but current version is ${NEXUS_VERSION}`);
+      result.issues.push(`Extension "${extension.manifest.name}" requires Sudowork ${engine.sudowork} but current version is ${NEXUS_VERSION}`);
     }
   }
 

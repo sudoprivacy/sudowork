@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import type { McpOperationResult } from '../McpProtocol';
 import { AbstractMcpAgent } from '../McpProtocol';
 import type { IMcpServer } from '../../../../common/storage';
 import { ProcessConfig } from '../../../initStorage';
-import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 
 /**
  * Sudowork 本地 MCP 代理实现
@@ -22,13 +22,13 @@ import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
  *
  * 与其他 ACP Backend MCP Agents 的区别：
  * - ACP Backend Agents: 管理真实的 CLI 工具的 MCP 配置 (如 claude mcp, qwen mcp 命令)
- * - AionuiMcpAgent: 管理 Sudowork 本地 @office-ai/aioncli-core 的运行时 MCP 配置
+ * - SudoworkMcpAgent: 管理 Sudowork 本地 @office-ai/aioncli-core 的运行时 MCP 配置
  */
-export class AionuiMcpAgent extends AbstractMcpAgent {
+export class SudoworkMcpAgent extends AbstractMcpAgent {
   constructor() {
-    // 使用 'aionui' 作为 backend type 来区分真实的 Gemini CLI
+    // 使用 'sudowork' 作为 backend type 来区分真实的 Gemini CLI
     // 虽然配置最终被 AgentManager 使用，但在 MCP 管理层面它是独立的 agent
-    super('aionui');
+    super('sudowork');
   }
 
   getSupportedTransports(): string[] {
@@ -55,7 +55,7 @@ export class AionuiMcpAgent extends AbstractMcpAgent {
         return supportedTypes.includes(server.transport.type);
       });
     } catch (error) {
-      mainWarn('AionuiMcpAgent', 'Failed to detect MCP servers:', error);
+      mainWarn('SudoworkMcpAgent', 'Failed to detect MCP servers:', error);
       return [];
     }
   }
@@ -87,7 +87,7 @@ export class AionuiMcpAgent extends AbstractMcpAgent {
             updatedAt: Date.now(),
           });
         } else {
-          mainWarn('AionuiMcpAgent', `Skipping ${server.name}: unsupported transport type ${server.transport.type}`);
+          mainWarn('SudoworkMcpAgent', `Skipping ${server.name}: unsupported transport type ${server.transport.type}`);
         }
       });
 
@@ -95,10 +95,10 @@ export class AionuiMcpAgent extends AbstractMcpAgent {
       const mergedServers = Array.from(serverMap.values());
       await ProcessConfig.set('mcp.config', mergedServers);
 
-      mainLog('AionuiMcpAgent', 'Installed MCP servers:', mcpServers.map((s) => s.name).join(', '));
+      mainLog('SudoworkMcpAgent', 'Installed MCP servers:', mcpServers.map((s) => s.name).join(', '));
       return { success: true };
     } catch (error) {
-      mainError('AionuiMcpAgent', 'Failed to install MCP servers:', error);
+      mainError('SudoworkMcpAgent', 'Failed to install MCP servers:', error);
       return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   }
@@ -111,11 +111,11 @@ export class AionuiMcpAgent extends AbstractMcpAgent {
    * 1. Toggle 关闭时：前端已经设置 enabled: false，不需要后端再次修改
    * 2. 删除服务器时：前端已经从配置中删除，不需要后端再次删除
    *
-   * AionuiMcpAgent 只负责读取配置（detectMcpServers）和添加配置（installMcpServers），
+   * SudoworkMcpAgent 只负责读取配置（detectMcpServers）和添加配置（installMcpServers），
    * 不应该在 remove 流程中修改配置，避免与前端的配置管理产生冲突
    */
   removeMcpServer(mcpServerName: string): Promise<McpOperationResult> {
-    mainLog('AionuiMcpAgent', `Skip removing '${mcpServerName}' - config managed by renderer`);
+    mainLog('SudoworkMcpAgent', `Skip removing '${mcpServerName}' - config managed by renderer`);
     return Promise.resolve({ success: true });
   }
 }

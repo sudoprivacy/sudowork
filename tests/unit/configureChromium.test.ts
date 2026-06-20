@@ -12,7 +12,7 @@ import path from 'path';
 const originalEnv = { ...process.env };
 
 function createSandbox(): string {
-  return fs.mkdtempSync(path.join(os.tmpdir(), 'aionui-cdp-test-'));
+  return fs.mkdtempSync(path.join(os.tmpdir(), 'sudowork-cdp-test-'));
 }
 
 function removeSandbox(dir: string): void {

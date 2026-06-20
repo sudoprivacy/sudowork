@@ -63,7 +63,7 @@ const About: React.FC = () => {
 
         {/* 操作按钮 / Actions */}
         <div className='flex items-center gap-2 mt-8'>
-          <Button size='small' type='outline' onClick={() => window.dispatchEvent(new Event('aionui-open-update-modal'))}>
+          <Button size='small' type='outline' onClick={() => window.dispatchEvent(new Event('sudowork-open-update-modal'))}>
             {t('settings.checkForUpdates')}
           </Button>
           <Button size='small' type='text' className='opacity-50 hover:opacity-100 transition-opacity' onClick={() => setOpsVisible(true)} icon={<Setting theme='outline' size='14' />} />

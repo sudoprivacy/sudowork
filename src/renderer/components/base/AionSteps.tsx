@@ -58,10 +58,10 @@ export interface AionStepsProps extends StepsProps {
  * </AionSteps>
  * ```
  *
- * @see styles/arco-override.scss for custom styles (.aionui-steps)
+ * @see styles/arco-override.scss for custom styles (.sudowork-steps)
  */
 const AionSteps: React.FC<AionStepsProps> & { Step: typeof Steps.Step } = ({ className, ...props }) => {
-  return <Steps {...props} className={classNames('aionui-steps', className)} />;
+  return <Steps {...props} className={classNames('sudowork-steps', className)} />;
 };
 
 AionSteps.displayName = 'AionSteps';

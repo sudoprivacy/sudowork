@@ -65,19 +65,19 @@ if (process.env.ELECTRON_RUN_AS_NODE === '1' && process.platform === 'darwin' &&
 }
 
 // ============ Deep Link Protocol ============
-// Register aionui:// protocol scheme for external app integration (e.g., New API token quick-add)
-const PROTOCOL_SCHEME = 'aionui';
-// Additional schemes the app also handles. `sudowork` is what the packaged
-// macOS/Windows build registers in its manifest (electron-builder.yml), so the
-// OAuth2 redirect (sudowork://oauth2-callback) routes to a packaged app.
-const PROTOCOL_SCHEMES = [PROTOCOL_SCHEME, 'sudowork'];
+// Register sudowork:// protocol scheme for external app integration (e.g., New API token quick-add)
+const PROTOCOL_SCHEME = 'sudowork';
+// The packaged macOS/Windows build registers this scheme in its manifest
+// (electron-builder.yml), so the OAuth2 redirect (sudowork://oauth2-callback)
+// routes to the app.
+const PROTOCOL_SCHEMES = [PROTOCOL_SCHEME];
 const isDeepLinkArg = (arg: string): boolean => PROTOCOL_SCHEMES.some((s) => arg.startsWith(`${s}://`));
 
 /**
- * Parse an aionui:// URL into action and params.
+ * Parse a sudowork:// URL into action and params.
  * Supports two formats:
- *   1. aionui://add-provider?baseUrl=xxx&apiKey=xxx
- *   2. aionui://provider/add?v=1&data=<base64 JSON>  (one-api / new-api style)
+ *   1. sudowork://add-provider?baseUrl=xxx&apiKey=xxx
+ *   2. sudowork://provider/add?v=1&data=<base64 JSON>  (one-api / new-api style)
  */
 const parseDeepLinkUrl = (url: string): { action: string; params: Record<string, string> } | null => {
   try {
@@ -1047,8 +1047,7 @@ const handleAppReady = async (): Promise<void> => {
 };
 
 // ============ Protocol Registration ============
-// Register all supported schemes (aionui:// for legacy integrations, sudowork://
-// for the packaged-app manifest used by the OAuth2 redirect) as default clients.
+// Register sudowork:// scheme as default protocol client for deep links and OAuth2 redirect.
 for (const scheme of PROTOCOL_SCHEMES) {
   if (process.defaultApp) {
     // Dev mode: need to pass execPath explicitly
@@ -1058,7 +1057,7 @@ for (const scheme of PROTOCOL_SCHEMES) {
   }
 }
 
-// macOS: handle aionui:// URLs via the open-url event
+// macOS: handle sudowork:// URLs via the open-url event
 app.on('open-url', (event, url) => {
   event.preventDefault();
   handleDeepLinkUrl(url);

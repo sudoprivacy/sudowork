@@ -42,7 +42,7 @@ export interface CreateCronJobParams {
 }
 
 /**
- * CronService - Core scheduling service for AionUI
+ * CronService - Core scheduling service for Sudowork
  *
  * Manages scheduled tasks that send messages to conversations at specified times.
  * Handles conflicts when conversation is busy.

@@ -319,7 +319,7 @@ export function initAssistantHubBridge(): void {
       for (const conversationId of deletedConversationIds) {
         ipcBridge.database.conversationChanged.emit({
           conversationId,
-          source: 'aionui',
+          source: 'sudowork',
           action: 'deleted',
         });
       }

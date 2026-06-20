@@ -5,6 +5,7 @@
  */
 
 import { execSync } from 'child_process';
+import { mainLog, mainWarn } from '@process/utils/mainLogger';
 import type { AcpBackend } from '../../../types/acpTypes';
 import type { IMcpServer } from '../../../common/storage';
 import { ClaudeMcpAgent } from './agents/ClaudeMcpAgent';
@@ -12,11 +13,10 @@ import { CodebuddyMcpAgent } from './agents/CodebuddyMcpAgent';
 import { QwenMcpAgent } from './agents/QwenMcpAgent';
 import { IflowMcpAgent } from './agents/IflowMcpAgent';
 import { GeminiMcpAgent } from './agents/GeminiMcpAgent';
-import { AionuiMcpAgent } from './agents/AionuiMcpAgent';
+import { SudoworkMcpAgent } from './agents/SudoworkMcpAgent';
 import { CodexMcpAgent } from './agents/CodexMcpAgent';
 import { ScodeMcpAgent } from './agents/ScodeMcpAgent';
 import type { IMcpProtocol, DetectedMcpServer, McpConnectionTestResult, McpSyncResult, McpSource } from './McpProtocol';
-import { mainLog, mainWarn } from '@process/utils/mainLogger';
 
 /**
  * MCP服务 - 负责协调各个Agent的MCP操作协议
@@ -24,7 +24,7 @@ import { mainLog, mainWarn } from '@process/utils/mainLogger';
  *
  * Agent 类型说明：
  * - AcpBackend ('claude', 'qwen', 'iflow', 'gemini', 'codex'等): 支持的 ACP 后端
- * - 'aionui': @office-ai/aioncli-core (Sudowork 本地管理的 Gemini 实现)
+ * - 'sudowork': @office-ai/aioncli-core (Sudowork 本地管理的 Gemini 实现)
  */
 export class McpService {
   private agents: Map<McpSource, IMcpProtocol>;
@@ -83,7 +83,7 @@ export class McpService {
       ['qwen', new QwenMcpAgent()],
       ['iflow', new IflowMcpAgent()],
       ['gemini', new GeminiMcpAgent()],
-      ['aionui', new AionuiMcpAgent()], // Sudowork 本地 @office-ai/aioncli-core
+      ['sudowork', new SudoworkMcpAgent()], // Sudowork 本地 @office-ai/aioncli-core
       ['codex', new CodexMcpAgent()],
     ]);
   }
@@ -97,18 +97,18 @@ export class McpService {
 
   /**
    * 根据 agent 配置获取正确的 MCP agent 实例
-   * Fork Gemini (cliPath=undefined) 使用 AionuiMcpAgent
+   * Fork Gemini (cliPath=undefined) 使用 SudoworkMcpAgent
    * Native Gemini (cliPath='gemini') 使用 GeminiMcpAgent
    *
    * Get the correct MCP agent instance based on agent config.
-   * Fork Gemini (cliPath=undefined) uses AionuiMcpAgent.
+   * Fork Gemini (cliPath=undefined) uses SudoworkMcpAgent.
    * Native Gemini (cliPath='gemini') uses GeminiMcpAgent.
    */
   private getAgentForConfig(agent: { backend: AcpBackend; cliPath?: string }): IMcpProtocol | undefined {
-    // Fork Gemini 使用 AionuiMcpAgent 管理 MCP 配置
-    // Fork Gemini uses AionuiMcpAgent to manage MCP config
+    // Fork Gemini 使用 SudoworkMcpAgent 管理 MCP 配置
+    // Fork Gemini uses SudoworkMcpAgent to manage MCP config
     if (agent.backend === 'gemini' && !agent.cliPath) {
-      return this.agents.get('aionui');
+      return this.agents.get('sudowork');
     }
     return this.agents.get(agent.backend);
   }
@@ -163,9 +163,9 @@ export class McpService {
       const promises = allAgentsToCheck.map(async (agent) => {
         try {
           // 跳过 fork 的 Gemini（backend='gemini' 且 cliPath=undefined）
-          // fork 的 Gemini 的 MCP 配置应该由 AionuiMcpAgent 管理
+          // fork 的 Gemini 的 MCP 配置应该由 SudoworkMcpAgent 管理
           if (agent.backend === 'gemini' && !agent.cliPath) {
-            mainLog('McpService', `Skipping fork Gemini (ACP only, MCP managed by AionuiMcpAgent)`);
+            mainLog('McpService', `Skipping fork Gemini (ACP only, MCP managed by SudoworkMcpAgent)`);
             return null;
           }
 
@@ -198,7 +198,7 @@ export class McpService {
 
   /**
    * Get supported transport types for a given agent config.
-   * Fork Gemini (backend='gemini', no cliPath) uses AionuiMcpAgent.
+   * Fork Gemini (backend='gemini', no cliPath) uses SudoworkMcpAgent.
    */
   getSupportedTransportsForAgent(agent: { backend: string; cliPath?: string }): string[] {
     const agentInstance = this.getAgentForConfig(agent as { backend: AcpBackend; cliPath?: string });

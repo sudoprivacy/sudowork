@@ -915,7 +915,7 @@ export const nexus = {
 
 // Deep link protocol handling / 深度链接协议处理
 export const deepLink = {
-  /** Emitted when app is opened via aionui:// protocol URL */
+  /** Emitted when app is opened via sudowork:// protocol URL */
   received: bridge.buildEmitter<{
     action: string; // e.g. 'add-provider'
     params: Record<string, string>; // parsed query params

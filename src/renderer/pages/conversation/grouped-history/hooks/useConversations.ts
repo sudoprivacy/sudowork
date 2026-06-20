@@ -16,7 +16,7 @@ import { useParams } from 'react-router-dom';
 import type { GroupedHistoryResult } from '../types';
 import { buildGroupedHistory } from '../utils/groupingHelpers';
 
-const EXPANSION_STORAGE_KEY = 'aionui_workspace_expansion';
+const EXPANSION_STORAGE_KEY = 'sudowork_workspace_expansion';
 
 export const useConversations = () => {
   const [conversations, setConversations] = useState<TChatConversation[]>([]);
