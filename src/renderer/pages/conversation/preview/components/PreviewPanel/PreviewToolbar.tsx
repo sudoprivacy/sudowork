@@ -209,12 +209,12 @@ const PreviewToolbar: React.FC<PreviewToolbarProps> = ({ contentType, isMarkdown
   const isDiff = contentType === 'diff';
   const preferActionButtonsInFront = Boolean(leftExtra);
 
-  const toolbarBtn = 'flex items-center gap-2px px-8px py-3px rd-4px cursor-pointer transition-colors duration-150 text-12px font-medium text-secondary hover:text-foreground hover:bg-bg-3';
+  const toolbarBtn = 'flex items-center gap-2px px-8px py-3px rd-4px cursor-pointer transition-colors duration-150 text-12px font-medium text-secondary hover:text-foreground';
   const toolbarBtnActive = '!text-white bg-brand hover:!text-white hover:bg-brand-hover';
   const toolbarIconSize = 12;
 
   return (
-    <div className='flex items-center justify-between h-32px px-10px bg-bg-2 flex-shrink-0 border-b overflow-x-auto'>
+    <div className='flex items-center justify-between h-32px px-10px flex-shrink-0 border-b overflow-x-auto'>
       <div className='flex items-center justify-between gap-8px w-full' style={{ minWidth: 'max-content' }}>
         {/* 左侧：Tabs（Markdown/HTML）+ 文件名 / Left: Tabs (Markdown/HTML) + Filename */}
         <div className='flex items-center h-full gap-8px'>
@@ -222,7 +222,7 @@ const PreviewToolbar: React.FC<PreviewToolbarProps> = ({ contentType, isMarkdown
             <>
               <div className='flex items-center h-full gap-0'>
                 <div
-                  className={`flex items-center h-full px-10px cursor-pointer transition-all duration-150 text-12px font-medium ${viewMode === 'source' ? 'text-brand bg-aou-2 border-b-4 border-brand' : 'text-secondary hover:text-foreground hover:bg-bg-3'}`}
+                  className={`flex items-center h-full px-10px cursor-pointer transition-all duration-150 text-12px font-medium ${viewMode === 'source' ? 'text-brand bg-aou-2 border-b-4 border-brand' : 'text-secondary hover:text-foreground'}`}
                   onClick={() => {
                     try {
                       onViewModeChange('source');
@@ -234,7 +234,7 @@ const PreviewToolbar: React.FC<PreviewToolbarProps> = ({ contentType, isMarkdown
                   {isHTML ? t('preview.code') : t('preview.source')}
                 </div>
                 <div
-                  className={`flex items-center h-full px-10px cursor-pointer transition-all duration-150 text-12px font-medium ${viewMode === 'preview' ? 'text-brand bg-aou-2 border-b-4 border-brand' : 'text-secondary hover:text-foreground hover:bg-bg-3'}`}
+                  className={`flex items-center h-full px-10px cursor-pointer transition-all duration-150 text-12px font-medium ${viewMode === 'preview' ? 'text-brand bg-aou-2 border-b-4 border-brand' : 'text-secondary hover:text-foreground'}`}
                   onClick={() => {
                     try {
                       onViewModeChange('preview');
@@ -260,7 +260,7 @@ const PreviewToolbar: React.FC<PreviewToolbarProps> = ({ contentType, isMarkdown
                     </div>
                   )}
                   <div
-                    className={`flex items-center px-8px py-3px rd-4px cursor-pointer transition-colors duration-150 ${isSplitScreenEnabled ? toolbarBtnActive : 'text-secondary hover:bg-bg-3'}`}
+                    className={`flex items-center px-8px py-3px rd-4px cursor-pointer transition-colors duration-150 ${isSplitScreenEnabled ? toolbarBtnActive : 'text-secondary'}`}
                     onClick={() => {
                       try {
                         onSplitScreenToggle();
@@ -310,7 +310,7 @@ const PreviewToolbar: React.FC<PreviewToolbarProps> = ({ contentType, isMarkdown
 
           {isEditable && isEditMode && (
             <div
-              className={`flex items-center px-8px py-3px rd-4px cursor-pointer transition-colors duration-150 ${isSplitScreenEnabled ? toolbarBtnActive : 'text-secondary hover:bg-bg-3'}`}
+              className={`flex items-center px-8px py-3px rd-4px cursor-pointer transition-colors duration-150 ${isSplitScreenEnabled ? toolbarBtnActive : 'text-secondary'}`}
               onClick={() => {
                 try {
                   onSplitScreenToggle();

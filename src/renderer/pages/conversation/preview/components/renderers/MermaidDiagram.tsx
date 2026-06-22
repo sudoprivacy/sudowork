@@ -100,7 +100,7 @@ const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ code, theme }) => {
         <div className='text-12px text-secondary mb-12px'>{state.message}</div>
         <details className='cursor-pointer'>
           <summary className='text-12px text-secondary hover:text-foreground'>{t('preview.viewSource', 'View source')}</summary>
-          <pre className='mt-8px p-12px bg-bg-2 rounded-4px overflow-auto text-12px'>
+          <pre className='mt-8px p-12px rounded-4px overflow-auto text-12px'>
             <code>{code}</code>
           </pre>
         </details>

@@ -87,7 +87,7 @@ const PreviewHistoryDropdown: React.FC<PreviewHistoryDropdownProps> = ({ history
           <div className='py-16px text-center text-12px text-secondary'>{t('preview.noHistory')}</div>
         ) : (
           historyVersions.map((snapshot) => (
-            <div key={snapshot.id} className='px-12px py-8px cursor-pointer hover:bg-bg-2 transition-colors' onClick={() => onSnapshotSelect(snapshot)}>
+            <div key={snapshot.id} className='px-12px py-8px cursor-pointer transition-colors' onClick={() => onSnapshotSelect(snapshot)}>
               <div className='text-12px text-foreground'>{new Date(snapshot.createdAt).toLocaleString()}</div>
               <div className='text-11px text-tertiary'>{(snapshot.size / 1024).toFixed(1)} KB</div>
             </div>

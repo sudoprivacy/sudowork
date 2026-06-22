@@ -121,14 +121,14 @@ const CodePreview: React.FC<CodePreviewProps> = ({ content, language = 'text', o
     <div className='flex flex-col w-full h-full overflow-hidden'>
       {/* 工具栏：原文/预览切换 + 下载按钮 / Toolbar: Source/Preview toggle + Download button */}
       {!hideToolbar && (
-        <div className='flex items-center justify-between h-40px px-12px bg-bg-2 flex-shrink-0'>
+        <div className='flex items-center justify-between h-40px px-12px flex-shrink-0'>
           <div className='flex items-center gap-4px'>
             {/* 原文按钮 / Source button */}
-            <div className={`px-12px py-4px rd-4px cursor-pointer transition-colors text-12px ${viewMode === 'source' ? 'bg-primary text-white' : 'text-secondary hover:bg-bg-3'}`} onClick={() => handleViewModeChange('source')}>
+            <div className={`px-12px py-4px rd-4px cursor-pointer transition-colors text-12px ${viewMode === 'source' ? 'bg-primary text-white' : 'text-secondary'}`} onClick={() => handleViewModeChange('source')}>
               {t('preview.source')}
             </div>
             {/* 预览按钮 / Preview button */}
-            <div className={`px-12px py-4px rd-4px cursor-pointer transition-colors text-12px ${viewMode === 'preview' ? 'bg-primary text-white' : 'text-secondary hover:bg-bg-3'}`} onClick={() => handleViewModeChange('preview')}>
+            <div className={`px-12px py-4px rd-4px cursor-pointer transition-colors text-12px ${viewMode === 'preview' ? 'bg-primary text-white' : 'text-secondary'}`} onClick={() => handleViewModeChange('preview')}>
               {t('preview.preview')}
             </div>
           </div>
@@ -136,7 +136,7 @@ const CodePreview: React.FC<CodePreviewProps> = ({ content, language = 'text', o
           {/* 右侧按钮组：下载 + 关闭 / Right button group: Download + Close */}
           <div className='flex items-center gap-8px'>
             {/* 下载按钮 / Download button */}
-            <div className='flex items-center gap-4px px-8px py-4px rd-4px cursor-pointer hover:bg-bg-3 transition-colors' onClick={handleDownload} title={t('preview.downloadCode', { language: language.toUpperCase() })}>
+            <div className='flex items-center gap-4px px-8px py-4px rd-4px cursor-pointer transition-colors' onClick={handleDownload} title={t('preview.downloadCode', { language: language.toUpperCase() })}>
               <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' className='text-secondary'>
                 <path d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4' />
                 <polyline points='7 10 12 15 17 10' />
@@ -150,11 +150,11 @@ const CodePreview: React.FC<CodePreviewProps> = ({ content, language = 'text', o
 
       {/* 内容区域 / Content area */}
       <div ref={containerRef} className='flex-1 overflow-auto p-16px'>
-        {isRenderedTruncated && <div className='mb-12px px-10px py-8px rd-6px bg-bg-2 text-12px text-secondary'>{t('preview.largeTextTruncatedHint', { count: renderedContent.length })}</div>}
+        {isRenderedTruncated && <div className='mb-12px px-10px py-8px rd-6px text-12px text-secondary'>{t('preview.largeTextTruncatedHint', { count: renderedContent.length })}</div>}
         {viewMode === 'source' || isLargeContent ? (
           // 原文模式或大文本：显示纯文本，避免高亮器阻塞
           // Source mode or large text: render plain text to avoid highlighter blocking
-          <pre className='w-full m-0 p-12px bg-bg-2 rd-8px overflow-auto font-mono text-12px text-foreground whitespace-pre-wrap break-words'>{displayedContent}</pre>
+          <pre className='w-full m-0 p-12px rd-8px overflow-auto font-mono text-12px text-foreground whitespace-pre-wrap break-words'>{displayedContent}</pre>
         ) : (
           // 预览模式：语法高亮 / Preview mode: Syntax highlighting
           <SyntaxHighlighter style={currentTheme === 'dark' ? vs2015 : vs} language={language} PreTag='div' wrapLongLines={language === 'text' || language === 'txt'} customStyle={language === 'text' || language === 'txt' ? { whiteSpace: 'pre-wrap', wordBreak: 'break-word' } : undefined}>

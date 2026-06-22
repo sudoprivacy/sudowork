@@ -610,7 +610,7 @@ const WebviewHost: React.FC<WebviewHostProps> = ({ url, id: _id, showNavBar = fa
       )}
       {/* Navigation bar (optional) */}
       {showNavBar && (
-        <div className='aion-url-viewer-toolbar relative z-10 flex items-center gap-6px h-40px px-10px bg-bg-2 border-b flex-shrink-0'>
+        <div className='aion-url-viewer-toolbar relative z-10 flex items-center gap-6px h-40px px-10px border-b flex-shrink-0'>
           <button onClick={handleGoBack} disabled={!canGoBack} className='toolbar-btn icon-btn' aria-label={t('conversation.rightPanel.browser.back')}>
             <Left theme='outline' size={16} />
           </button>

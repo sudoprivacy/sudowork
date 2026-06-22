@@ -35,7 +35,7 @@ const LibreOfficeInstallPrompt: React.FC<LibreOfficeInstallPromptProps> = ({ fil
   const titleKey = FILE_TYPE_TITLES[fileType] || 'preview.document';
 
   return (
-    <div className='h-full w-full bg-bg-1 flex items-center justify-center'>
+    <div className='h-full w-full flex items-center justify-center'>
       <div className='text-center max-w-400px px-24px'>
         <div className='text-48px mb-16px'>{icon}</div>
         <div className='text-16px text-foreground font-medium mb-8px'>{t(titleKey)}</div>

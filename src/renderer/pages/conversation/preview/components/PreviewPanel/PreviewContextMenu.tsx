@@ -145,17 +145,17 @@ const PreviewContextMenu: React.FC<PreviewContextMenuProps> = ({ contextMenu, ta
       }}
     >
       {/* 关闭左侧 / Close tabs to the left */}
-      <div className={`px-12px py-8px text-12px transition-colors ${hasLeftTabs ? 'cursor-pointer text-foreground hover:bg-bg-3' : 'opacity-50 cursor-not-allowed text-tertiary'}`} onClick={() => hasLeftTabs && onCloseLeft(contextMenu.tabId!)}>
+      <div className={`px-12px py-8px text-12px transition-colors ${hasLeftTabs ? 'cursor-pointer text-foreground' : 'opacity-50 cursor-not-allowed text-tertiary'}`} onClick={() => hasLeftTabs && onCloseLeft(contextMenu.tabId!)}>
         {t('preview.closeLeft')}
       </div>
 
       {/* 关闭右侧 / Close tabs to the right */}
-      <div className={`px-12px py-8px text-12px transition-colors ${hasRightTabs ? 'cursor-pointer text-foreground hover:bg-bg-3' : 'opacity-50 cursor-not-allowed text-tertiary'}`} onClick={() => hasRightTabs && onCloseRight(contextMenu.tabId!)}>
+      <div className={`px-12px py-8px text-12px transition-colors ${hasRightTabs ? 'cursor-pointer text-foreground' : 'opacity-50 cursor-not-allowed text-tertiary'}`} onClick={() => hasRightTabs && onCloseRight(contextMenu.tabId!)}>
         {t('preview.closeRight')}
       </div>
 
       {/* 关闭其他 / Close other tabs */}
-      <div className={`px-12px py-8px text-12px transition-colors ${hasOtherTabs ? 'cursor-pointer text-foreground hover:bg-bg-3' : 'opacity-50 cursor-not-allowed text-tertiary'}`} onClick={() => hasOtherTabs && onCloseOthers(contextMenu.tabId!)}>
+      <div className={`px-12px py-8px text-12px transition-colors ${hasOtherTabs ? 'cursor-pointer text-foreground' : 'opacity-50 cursor-not-allowed text-tertiary'}`} onClick={() => hasOtherTabs && onCloseOthers(contextMenu.tabId!)}>
         {t('preview.closeOthers')}
       </div>
 
@@ -163,7 +163,7 @@ const PreviewContextMenu: React.FC<PreviewContextMenuProps> = ({ contextMenu, ta
       <div className='h-1px bg-border-1 my-4px mx-8px' />
 
       {/* 全部关闭 / Close all tabs */}
-      <div className='px-12px py-8px text-12px text-foreground cursor-pointer hover:bg-bg-3 transition-colors' onClick={onCloseAll}>
+      <div className='px-12px py-8px text-12px text-foreground cursor-pointer transition-colors' onClick={onCloseAll}>
         {t('preview.closeAll')}
       </div>
     </div>

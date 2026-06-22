@@ -151,10 +151,10 @@ const PDFPreview: React.FC<PDFPreviewProps> = ({ filePath, content, hideToolbar 
   }
 
   return (
-    <div className='h-full w-full bg-bg-1 flex flex-col'>
+    <div className='h-full w-full flex flex-col'>
       {messageContextHolder}
       {!usePortalToolbar && !hideToolbar && (
-        <div className='flex items-center justify-between h-40px px-12px bg-bg-2 flex-shrink-0'>
+        <div className='flex items-center justify-between h-40px px-12px flex-shrink-0'>
           <div className='flex items-center gap-8px'>
             <span className='text-13px text-secondary'>📄 {t('preview.pdf.title')}</span>
             <span className='text-11px text-tertiary'>{t('preview.readOnlyLabel')}</span>
@@ -172,7 +172,7 @@ const PDFPreview: React.FC<PDFPreviewProps> = ({ filePath, content, hideToolbar 
         </div>
       )}
       {/* PDF 内容区域 / PDF content area */}
-      <div className='flex-1 overflow-hidden bg-bg-1'>
+      <div className='flex-1 overflow-hidden'>
         {/* key 确保文件路径改变时 webview 重新挂载 / key ensures webview remounts when file path changes */}
         <webview key={pdfSrc} ref={webviewRef} src={pdfSrc} className='w-full h-full' style={{ display: 'inline-flex' }} webpreferences={JSON.stringify(webPreferences)} allowpopups={true} />
       </div>

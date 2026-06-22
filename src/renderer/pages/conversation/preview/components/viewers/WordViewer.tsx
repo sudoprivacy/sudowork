@@ -282,7 +282,7 @@ const WordPreview: React.FC<WordPreviewProps> = ({ filePath, content, hideToolba
       ),
       right: (
         <div className='flex items-center gap-8px'>
-          <div className='flex items-center gap-4px px-8px py-4px rd-4px cursor-pointer hover:bg-bg-3 transition-colors text-12px text-secondary' onClick={handleOpenInSystem} title={t('preview.openWithApp', { app: 'Word' })}>
+          <div className='flex items-center gap-4px px-8px py-4px rd-4px cursor-pointer transition-colors text-12px text-secondary' onClick={handleOpenInSystem} title={t('preview.openWithApp', { app: 'Word' })}>
             <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2'>
               <path d='M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6' />
               <polyline points='15 3 21 3 21 9' />
@@ -329,18 +329,18 @@ const WordPreview: React.FC<WordPreviewProps> = ({ filePath, content, hideToolba
   // LibreOffice 可用且已生成 PDF：显示 PDF 预览
   if (useLibreOffice && pdfPath) {
     return (
-      <div className='h-full w-full flex flex-col bg-bg-1'>
+      <div className='h-full w-full flex flex-col'>
         {messageContextHolder}
 
         {!usePortalToolbar && !hideToolbar && (
-          <div className='flex items-center justify-between h-40px px-12px bg-bg-2 flex-shrink-0'>
+          <div className='flex items-center justify-between h-40px px-12px flex-shrink-0'>
             <div className='flex items-center gap-8px'>
               <span className='text-13px text-secondary'>📄 {t('preview.word.title')}</span>
               <span className='text-11px text-tertiary'>{t('preview.readOnlyLabel')}</span>
             </div>
 
             <div className='flex items-center gap-8px'>
-              <div className='flex items-center gap-4px px-8px py-4px rd-4px cursor-pointer hover:bg-bg-3 transition-colors text-12px text-secondary' onClick={handleOpenInSystem} title={t('preview.openWithApp', { app: 'Word' })}>
+              <div className='flex items-center gap-4px px-8px py-4px rd-4px cursor-pointer transition-colors text-12px text-secondary' onClick={handleOpenInSystem} title={t('preview.openWithApp', { app: 'Word' })}>
                 <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2'>
                   <path d='M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6' />
                   <polyline points='15 3 21 3 21 9' />
@@ -368,16 +368,16 @@ const WordPreview: React.FC<WordPreviewProps> = ({ filePath, content, hideToolba
     // If markdown content is empty, show a helpful message
     if (!markdown || markdown.trim().length === 0) {
       return (
-        <div className='h-full w-full flex flex-col bg-bg-1'>
+        <div className='h-full w-full flex flex-col'>
           {messageContextHolder}
           {!usePortalToolbar && !hideToolbar && (
-            <div className='flex items-center justify-between h-40px px-12px bg-bg-2 flex-shrink-0'>
+            <div className='flex items-center justify-between h-40px px-12px flex-shrink-0'>
               <div className='flex items-center gap-8px'>
                 <span className='text-13px text-secondary'>📄 {t('preview.word.title')}</span>
                 <span className='text-11px text-tertiary'>{t('preview.readOnlyLabel')}</span>
               </div>
               <div className='flex items-center gap-8px'>
-                <div className='flex items-center gap-4px px-8px py-4px rd-4px cursor-pointer hover:bg-bg-3 transition-colors text-12px text-secondary' onClick={handleOpenInSystem} title={t('preview.openWithApp', { app: 'Word' })}>
+                <div className='flex items-center gap-4px px-8px py-4px rd-4px cursor-pointer transition-colors text-12px text-secondary' onClick={handleOpenInSystem} title={t('preview.openWithApp', { app: 'Word' })}>
                   <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2'>
                     <path d='M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6' />
                     <polyline points='15 3 21 3 21 9' />
@@ -402,18 +402,18 @@ const WordPreview: React.FC<WordPreviewProps> = ({ filePath, content, hideToolba
     }
 
     return (
-      <div className='flex-1 min-h-0 w-full flex flex-col bg-bg-1'>
+      <div className='flex-1 min-h-0 w-full flex flex-col'>
         {messageContextHolder}
 
         {!usePortalToolbar && !hideToolbar && (
-          <div className='flex items-center justify-between h-40px px-12px bg-bg-2 flex-shrink-0'>
+          <div className='flex items-center justify-between h-40px px-12px flex-shrink-0'>
             <div className='flex items-center gap-8px'>
               <span className='text-13px text-secondary'>📄 {t('preview.word.title')}</span>
               <span className='text-11px text-tertiary'>{t('preview.readOnlyLabel')}</span>
             </div>
 
             <div className='flex items-center gap-8px'>
-              <div className='flex items-center gap-4px px-8px py-4px rd-4px cursor-pointer hover:bg-bg-3 transition-colors text-12px text-secondary' onClick={handleOpenInSystem} title={t('preview.openWithApp', { app: 'Word' })}>
+              <div className='flex items-center gap-4px px-8px py-4px rd-4px cursor-pointer transition-colors text-12px text-secondary' onClick={handleOpenInSystem} title={t('preview.openWithApp', { app: 'Word' })}>
                 <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2'>
                   <path d='M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6' />
                   <polyline points='15 3 21 3 21 9' />

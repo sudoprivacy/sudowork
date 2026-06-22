@@ -13,7 +13,7 @@ export type SettingsListProps = {
 };
 
 export const SettingsList: React.FC<SettingsListProps> = ({ children, className }) => {
-  return <div className={classNames('overflow-hidden rd-12px border bg-bg-1', className)}>{children}</div>;
+  return <div className={classNames('overflow-hidden rd-12px border', className)}>{children}</div>;
 };
 
 export type SettingsListItemProps = {

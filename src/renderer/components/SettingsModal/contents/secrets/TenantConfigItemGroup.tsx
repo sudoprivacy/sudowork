@@ -152,7 +152,7 @@ const TenantConfigItemGroup: React.FC<TenantConfigItemGroupProps> = ({ configIte
   );
 
   return (
-    <div className='overflow-hidden rd-12px border bg-bg-1'>
+    <div className='overflow-hidden rd-12px border'>
       <Collapse activeKey={collapsed ? [] : [`tenant-${configItem.id}`]} onChange={() => setCollapsed((prev) => !prev)} className='[&_div.arco-collapse-item-header-title]:flex-1 border-0 bg-transparent [&_.arco-collapse-item-icon]:hidden [&_.arco-collapse-item-header-icon]:hidden [&_.arco-collapse-item-header]:px-0 [&_.arco-collapse-item-header]:py-0'>
         <Collapse.Item
           header={
