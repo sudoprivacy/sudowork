@@ -775,5 +775,10 @@
     "oldPasswordRequired": "현재 비밀번호를 입력하세요",
     "newPasswordRequired": "새 비밀번호를 입력하세요",
     "success": "비밀번호가 변경되었습니다"
-  }
+  },
+  "exportLogs": "로그 내보내기",
+  "exportLogsDesc": "모든 sudowork 및 scode 로그를 하나의 zip 파일로 묶습니다.",
+  "exportLogsSuccess": "로그를 내보냈습니다",
+  "exportLogsFailed": "로그 내보내기에 실패했습니다",
+  "exportLogsEmpty": "내보낼 로그가 없습니다"
 }

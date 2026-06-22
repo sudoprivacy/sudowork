@@ -771,5 +771,10 @@
     "oldPasswordRequired": "Lütfen mevcut şifreyi girin",
     "newPasswordRequired": "Lütfen yeni şifreyi girin",
     "success": "Şifre başarıyla değiştirildi"
-  }
+  },
+  "exportLogs": "Günlükleri Dışa Aktar",
+  "exportLogsDesc": "Tüm sudowork ve scode günlüklerini tek bir zip dosyasında paketler.",
+  "exportLogsSuccess": "Günlükler başarıyla dışa aktarıldı",
+  "exportLogsFailed": "Günlükler dışa aktarılamadı",
+  "exportLogsEmpty": "Dışa aktarılacak günlük yok"
 }

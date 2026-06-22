@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { IConfirmation } from '@/common/chatLib';
-import { bridge } from '@office-ai/platform';
 import type { OpenDialogOptions } from 'electron';
+import { bridge } from '@office-ai/platform';
 import type { McpSource } from '../process/services/mcpServices/McpProtocol';
 import type { AcpBackend, AcpBackendAll, AcpModelInfo, PresetAgentType } from '../types/acpTypes';
+import type { SyncAllResult } from '../process/sync/remoteToLocalSync';
 import type { ScodeCustomModelProvider } from './scodeConfig';
 import type { SlashCommandItem } from './slash/types';
 import type { IMcpServer, IProvider, TChatConversation, TProviderWithModel, ICssTheme } from './storage';
@@ -16,7 +16,7 @@ import type { SecretMetadata } from './nexus/nexus-secret-client';
 import type { PreviewHistoryTarget, PreviewSnapshotInfo } from './types/preview';
 import type { UpdateCheckRequest, UpdateCheckResult, UpdateDownloadProgressEvent, UpdateDownloadRequest, UpdateDownloadResult, AutoUpdateStatus } from './updateTypes';
 import type { ProtocolDetectionRequest, ProtocolDetectionResponse } from './utils/protocolDetector';
-import type { SyncAllResult } from '../process/sync/remoteToLocalSync';
+import type { IConfirmation } from '@/common/chatLib';
 
 export const shell = {
   openFile: bridge.buildProvider<void, string>('open-file'), // 使用系统默认程序打开文件
@@ -954,6 +954,11 @@ export const systemSettings = {
   // Default URL for new tabs in the right-panel BrowserPanel
   getBrowserDefaultUrl: bridge.buildProvider<string, void>('system-settings:get-browser-default-url'),
   setBrowserDefaultUrl: bridge.buildProvider<void, { url: string }>('system-settings:set-browser-default-url'),
+};
+
+export const logs = {
+  // 枚举 ~/.nexus/logs/ 下实际存在的日志文件（列表随轮转变化，需运行时枚举）
+  listLogFiles: bridge.buildProvider<IBridgeResponse<{ files: Array<{ name: string; path: string; size: number }> }>, void>('logs:list-files'),
 };
 
 // Right-panel BrowserPanel control API. The panel itself lives in the renderer
