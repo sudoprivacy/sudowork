@@ -105,9 +105,19 @@ const SHA256SUMS = {
   'nexus-local-connector-macos-arm64.tar.gz': '973f42b4e7dfb040ea9a91501ca26c364640b0aaeb909ab39141b824913560a8',
   'nexus-local-connector-macos-x86_64.tar.gz': '70a53b0fab2b189883dd8c22893c18b790332bac54fe18944545e282b22dfdd8',
   'nexus-local-connector-windows-x86_64.zip': '42a5060a2afce89b90a6538bd9b9fe2b7d5c23ab7268a4a4763a620dbe77ef8d',
-  // fuse-plugin v0.1.0 — linux-only FUSE service plugin, signed by
-  // kernel-dogfood-v1.pub.
+  // fuse-plugin v0.1.0 — FUSE service plugin signed by kernel-dogfood-v1.pub.
+  // Linux ships from the official release; macOS dylibs are produced via the
+  // local trust-root recipe documented at
+  // nexi-lab/nexus/docs/superpowers/specs/2026-06-23-local-plugin-signing-dev-root.md
+  // while the upstream signed-release pipeline is blocked on the sealed-keystore
+  // dogfood follow-up. The macOS sums below land empty in this PR — the Mac team
+  // fills them in alongside the first signed dylib upload to the COS bucket
+  // (issue #915). Until then `installSignedKernelPlugin` refuses to install an
+  // artifact whose SHA is not listed here, so the macOS install fails closed
+  // rather than copying an unverified dylib.
   'nexus-fuse-plugin-linux-x86_64.tar.gz': '1a8c74210ce6e9a1632fab382e21af1d0d55a976b77c4f7def3656fb1af3696b',
+  // 'nexus-fuse-plugin-macos-arm64.tar.gz': '<TBD — sealed by kernel team>',
+  // 'nexus-fuse-plugin-macos-x86_64.tar.gz': '<TBD — sealed by kernel team>',
 };
 
 
@@ -689,14 +699,19 @@ async function installLocalConnectorPlugin(platform, arch, force) {
 }
 
 function getFusePluginArtifactName(platform, arch) {
-  // Linux-only; macFUSE / WinFsp adapters are out of scope for the
-  // current fuse-plugin release.
+  // macOS runs the FUSE protocol via FUSE-T (userspace driver provisioned
+  // lazily by `FuseTInstallService`, not eagerly here). Windows stays on
+  // the existing WinFsp path — separate adapter, not shipped by this
+  // fuse-plugin release.
   if (platform === 'linux' && arch === 'x64') return 'nexus-fuse-plugin-linux-x86_64.tar.gz';
+  if (platform === 'darwin' && arch === 'arm64') return 'nexus-fuse-plugin-macos-arm64.tar.gz';
+  if (platform === 'darwin' && arch === 'x64') return 'nexus-fuse-plugin-macos-x86_64.tar.gz';
   return null;
 }
 
 function getFusePluginDylibName(platform) {
   if (platform === 'linux') return 'libnexus_fuse_plugin.so';
+  if (platform === 'darwin') return 'libnexus_fuse_plugin.dylib';
   return null;
 }
 

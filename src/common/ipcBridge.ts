@@ -688,6 +688,32 @@ export const libreOffice = {
   installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('libreoffice.install-result'),
 };
 
+// FUSE-T installer (macOS) / FUSE-T 安装（macOS 专用）
+// Userspace FUSE driver required by nexus-fuse-plugin on macOS. Lazy: NOT
+// invoked from RuntimeInstaller.ensureAll() — callers (sudocode mount path,
+// future renderer UI) must explicitly call ensureInstalled before requesting
+// a FUSE mount. First call prompts for admin password; subsequent calls are
+// no-ops once the system bundle exists at /Library/Filesystems/fuse-t.fs.
+// See sudowork issue #915 + nexi-lab/nexus PR #4409 for rationale.
+export type IFuseTInstallPhase = 'downloading' | 'installing' | 'cleanup';
+
+export interface IFuseTStatus {
+  installed: boolean;
+  version?: string;
+  bundlePath?: string;
+}
+
+export const fuseT = {
+  checkInstalled: bridge.buildProvider<IBridgeResponse<IFuseTStatus>, void>('fuse-t.check-installed'),
+  ensureInstalled: bridge.buildProvider<IBridgeResponse<void>, void>('fuse-t.ensure-installed'),
+  /** Returns the current install state so the UI can restore progress after navigation */
+  getInstallState: bridge.buildProvider<IBridgeResponse<{ installing: boolean; phase?: IFuseTInstallPhase; percent?: number }>, void>('fuse-t.get-install-state'),
+  /** Emitted periodically during installation with current phase and download percent */
+  installProgress: bridge.buildEmitter<{ phase: IFuseTInstallPhase; percent?: number }>('fuse-t.install-progress'),
+  /** Emitted once when installation completes (success or failure) */
+  installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('fuse-t.install-result'),
+};
+
 // Python runtime installer / Python 运行环境安装
 export type IPythonInstallPhase = 'downloading' | 'installing' | 'configuring' | 'cleanup';
 
