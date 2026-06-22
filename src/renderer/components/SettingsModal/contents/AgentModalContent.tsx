@@ -240,7 +240,13 @@ const InstalledAssistantCard: React.FC<InstalledAssistantCardProps> = (props) =>
         {canToggle && <Switch size='small' checked={isEnabled} onChange={(checked) => onToggleEnabled(checked)} className={isEnabled ? '!bg-[var(--ui-accent-orange)] !border-[var(--ui-accent-orange)]' : ''} />}
         {/* Delete button - only for custom assistants that are not readonly */}
         {canDelete && (
-          <Popconfirm title={t('settings.deleteAssistantConfirmTitle', { defaultValue: '删除该助手会一并删除已关联会话。如需保留，请导出会话进行备份。是否确认删除？' })} onOk={onDelete} okText={t('common.delete', { defaultValue: '删除' })} cancelText={t('common.cancel', { defaultValue: '取消' })} okButtonProps={{ status: 'danger' }}>
+          <Popconfirm
+            title={t('settings.deleteAssistantConfirmTitle', { defaultValue: '删除该助手会一并删除已关联会话。如需保留，请导出会话进行备份。是否确认删除？' })}
+            onOk={onDelete}
+            okText={t('common.delete', { defaultValue: '删除' })}
+            cancelText={t('common.cancel', { defaultValue: '取消' })}
+            okButtonProps={{ status: 'danger' }}
+          >
             <Tooltip content={t('settings.assistant.delete', { defaultValue: '删除' })}>
               <button type='button' className='store-action-icon store-action-icon--danger'>
                 <Delete size='13' />
@@ -612,7 +618,9 @@ const AssistantDetailModal: React.FC<{
                                 </div>
                                 <div className='text-11px text-tertiary truncate'>{skill.description}</div>
                               </div>
-                              <span className={`px-4px py-0px text-10px rd-3px whitespace-nowrap ${isSkillInstalled ? 'bg-primary-light text-primary' : 'bg-fill-3 text-secondary'}`}>{isSkillInstalled ? t('settings.skill.installed', { defaultValue: '已安装' }) : t('settings.skill.notInstalled', { defaultValue: '未安装' })}</span>
+                              <span className={`px-4px py-0px text-10px rd-3px whitespace-nowrap ${isSkillInstalled ? 'bg-primary-light text-primary' : 'bg-fill-3 text-secondary'}`}>
+                                {isSkillInstalled ? t('settings.skill.installed', { defaultValue: '已安装' }) : t('settings.skill.notInstalled', { defaultValue: '未安装' })}
+                              </span>
                             </div>
                           );
                         })}
@@ -1109,7 +1117,10 @@ const AgentModalContent: React.FC = () => {
   useEffect(() => {
     if (!isEnterprise || !isElectronDesktop()) return;
 
-    const handleSyncCompleted = (data: { skills: { hub: { installed: string[]; skipped: string[]; deleted: string[]; failed: Array<{ id: string; name: string; error: string }> }; tenant: { installed: string[]; skipped: string[]; deleted: string[]; failed: Array<{ id: string; name: string; error: string }> } }; assistants: { hub: { installed: string[]; skipped: string[]; deleted: string[]; failed: Array<{ id: string; name: string; error: string }> }; tenant: { installed: string[]; skipped: string[]; deleted: string[]; failed: Array<{ id: string; name: string; error: string }> } } }) => {
+    const handleSyncCompleted = (data: {
+      skills: { hub: { installed: string[]; skipped: string[]; deleted: string[]; failed: Array<{ id: string; name: string; error: string }> }; tenant: { installed: string[]; skipped: string[]; deleted: string[]; failed: Array<{ id: string; name: string; error: string }> } };
+      assistants: { hub: { installed: string[]; skipped: string[]; deleted: string[]; failed: Array<{ id: string; name: string; error: string }> }; tenant: { installed: string[]; skipped: string[]; deleted: string[]; failed: Array<{ id: string; name: string; error: string }> } };
+    }) => {
       // Merge hub and tenant results for display
       const mergedSkills = {
         installed: [...data.skills.hub.installed, ...data.skills.tenant.installed],
@@ -2237,7 +2248,21 @@ const AgentModalContent: React.FC = () => {
             </Tooltip>
           ) : undefined;
 
-        return <InstalledAssistantCard key={assistantId} assistant={assistant} isExtension={isExtensionAssistant(assistant)} localeKey={localeKey} avatarImageMap={avatarImageMap} onToggleEnabled={(enabled) => void handleToggleEnabled(assistant, enabled)} onDelete={() => void handleDeleteFromCard(assistant)} onDuplicate={() => handleOpenDuplicateModalFromInstalled(assistant)} hasUpdate={false} onClick={() => void handleEdit(assistant)} enterprisePublishButton={enterprisePublishButton} />;
+        return (
+          <InstalledAssistantCard
+            key={assistantId}
+            assistant={assistant}
+            isExtension={isExtensionAssistant(assistant)}
+            localeKey={localeKey}
+            avatarImageMap={avatarImageMap}
+            onToggleEnabled={(enabled) => void handleToggleEnabled(assistant, enabled)}
+            onDelete={() => void handleDeleteFromCard(assistant)}
+            onDuplicate={() => handleOpenDuplicateModalFromInstalled(assistant)}
+            hasUpdate={false}
+            onClick={() => void handleEdit(assistant)}
+            enterprisePublishButton={enterprisePublishButton}
+          />
+        );
       })}
     </div>
   );
@@ -2285,7 +2310,11 @@ const AgentModalContent: React.FC = () => {
 
         {/* Create button — only on installed tab */}
         {activeTab === 'installed' && (
-          <button type='button' className='group h-34px px-4 py-0 border border-solid rd-999px flex items-center gap-8px flex-shrink-0 cursor-pointer transition-all outline-none bg-[color-mix(in_srgb,var(--color-fill-2)_84%,transparent)] border-[color-mix(in_srgb,var(--color-border-2)_70%,transparent)] hover:bg-[color-mix(in_srgb,var(--color-primary-light-1)_58%,transparent)] hover:border-[color-mix(in_srgb,var(--color-primary)_36%,transparent)]' onClick={() => void handleCreate()}>
+          <button
+            type='button'
+            className='group h-34px px-4 py-0 border border-solid rd-999px flex items-center gap-8px flex-shrink-0 cursor-pointer transition-all outline-none bg-[color-mix(in_srgb,var(--color-fill-2)_84%,transparent)] border-[color-mix(in_srgb,var(--color-border-2)_70%,transparent)] hover:bg-[color-mix(in_srgb,var(--color-primary-light-1)_58%,transparent)] hover:border-[color-mix(in_srgb,var(--color-primary)_36%,transparent)]'
+            onClick={() => void handleCreate()}
+          >
             <span className='w-22px h-22px rd-full f-center bg-[color-mix(in_srgb,var(--color-primary)_14%,transparent)] text-[var(--color-primary)] transition-transform group-hover:scale-105'>
               <Plus size='13' />
             </span>
@@ -2455,7 +2484,15 @@ const AgentModalContent: React.FC = () => {
                   <div className='text-13px font-medium text-foreground'>{t('settings.customAssistants', { defaultValue: '自定义智能体' })}</div>
                   <span className='px-6px py-0px bg-fill-2 text-secondary text-11px rd-full leading-18px'>{customAssistants.length}</span>
                 </div>
-                {customAssistants.length > 0 ? isEnterprise ? renderCustomAssistantGridWithEnterpriseActions(customAssistants) : renderAssistantGrid(customAssistants) : <div className='bg-fill-1 border border-dashed rd-12px px-14px py-18px text-12px text-tertiary'>{t('settings.noCustomAssistants', { defaultValue: '暂无自定义智能体' })}</div>}
+                {customAssistants.length > 0 ? (
+                  isEnterprise ? (
+                    renderCustomAssistantGridWithEnterpriseActions(customAssistants)
+                  ) : (
+                    renderAssistantGrid(customAssistants)
+                  )
+                ) : (
+                  <div className='bg-fill-1 border border-dashed rd-12px px-14px py-18px text-12px text-tertiary'>{t('settings.noCustomAssistants', { defaultValue: '暂无自定义智能体' })}</div>
+                )}
               </section>
 
               {/* Tenant assistants section - enterprise mode only */}
@@ -2652,7 +2689,18 @@ const AgentModalContent: React.FC = () => {
       </Drawer>
 
       {/* Delete Confirmation Modal */}
-      <Modal title={t('settings.deleteAssistantTitle', { defaultValue: '删除智能体' })} visible={deleteConfirmVisible} onCancel={() => setDeleteConfirmVisible(false)} onOk={handleDeleteConfirm} okButtonProps={{ status: 'danger' }} okText={t('common.delete', { defaultValue: '删除' })} cancelText={t('common.cancel', { defaultValue: '取消' })} className='w-[90vw] md:w-[400px]' wrapStyle={{ zIndex: 10000 }} maskStyle={{ zIndex: 9999 }}>
+      <Modal
+        title={t('settings.deleteAssistantTitle', { defaultValue: '删除智能体' })}
+        visible={deleteConfirmVisible}
+        onCancel={() => setDeleteConfirmVisible(false)}
+        onOk={handleDeleteConfirm}
+        okButtonProps={{ status: 'danger' }}
+        okText={t('common.delete', { defaultValue: '删除' })}
+        cancelText={t('common.cancel', { defaultValue: '取消' })}
+        className='w-[90vw] md:w-[400px]'
+        wrapStyle={{ zIndex: 10000 }}
+        maskStyle={{ zIndex: 9999 }}
+      >
         <p>{t('settings.deleteAssistantConfirm', { defaultValue: '删除该智能体会一并删除已关联会话。如需保留，请导出会话进行备份。是否确认删除？' })}</p>
         {activeAssistant && (
           <div className='mt-12px p-12px bg-fill-2 rounded-lg flex items-center gap-12px'>
