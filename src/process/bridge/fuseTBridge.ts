@@ -19,6 +19,9 @@ import { app, ipcMain } from 'electron';
 import { ipcBridge } from '../../common';
 import type { FuseTInstallPhase } from '../services/fuset/FuseTInstallService';
 import { fuseTInstallService } from '../services/fuset/FuseTInstallService';
+import { mainLog } from '../utils/mainLogger';
+
+const TAG = 'FuseTBridge';
 
 interface InstallState {
   installing: boolean;
@@ -29,6 +32,7 @@ interface InstallState {
 let installState: InstallState = { installing: false };
 
 export function initFuseTBridge(): void {
+  mainLog(TAG, `initFuseTBridge() entered (app.isPackaged=${app.isPackaged})`);
   ipcBridge.fuseT.checkInstalled.provider(async () => {
     try {
       const status = await fuseTInstallService.checkInstalled();
@@ -93,5 +97,8 @@ export function initFuseTBridge(): void {
         return { success: false, msg: err instanceof Error ? err.message : String(err) };
       }
     });
+    mainLog(TAG, 'Registered dev IPC handles: dev.fuse-t.check-installed, dev.fuse-t.ensure-installed');
+  } else {
+    mainLog(TAG, 'Skipped dev IPC handles (app.isPackaged=true)');
   }
 }
