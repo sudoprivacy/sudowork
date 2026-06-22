@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Close } from '@icon-park/react';
 import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import SyntaxHighlighter from 'react-syntax-highlighter';
@@ -34,7 +33,7 @@ interface CodePreviewProps {
  * 使用 SyntaxHighlighter 渲染代码块，支持原文/预览切换和下载功能
  * Uses SyntaxHighlighter to render code block, supports source/preview toggle and download
  */
-const CodePreview: React.FC<CodePreviewProps> = ({ content, language = 'text', onClose, hideToolbar = false, viewMode: externalViewMode, onViewModeChange, containerRef: externalContainerRef, onScroll }) => {
+const CodePreview: React.FC<CodePreviewProps> = ({ content, language = 'text', hideToolbar = false, viewMode: externalViewMode, onViewModeChange, containerRef: externalContainerRef, onScroll }) => {
   const { t } = useTranslation();
   const internalContainerRef = useRef<HTMLDivElement>(null);
   const containerRef = externalContainerRef || internalContainerRef;
@@ -100,7 +99,28 @@ const CodePreview: React.FC<CodePreviewProps> = ({ content, language = 'text', o
     const link = document.createElement('a');
     link.href = url;
     // 根据语言设置文件扩展名 / Set file extension based on language
-    const ext = language === 'javascript' || language === 'js' ? 'js' : language === 'typescript' || language === 'ts' ? 'ts' : language === 'python' || language === 'py' ? 'py' : language === 'java' ? 'java' : language === 'cpp' || language === 'c++' ? 'cpp' : language === 'c' ? 'c' : language === 'html' ? 'html' : language === 'css' ? 'css' : language === 'json' ? 'json' : language === 'markdown' || language === 'md' ? 'md' : 'txt';
+    const ext =
+      language === 'javascript' || language === 'js'
+        ? 'js'
+        : language === 'typescript' || language === 'ts'
+          ? 'ts'
+          : language === 'python' || language === 'py'
+            ? 'py'
+            : language === 'java'
+              ? 'java'
+              : language === 'cpp' || language === 'c++'
+                ? 'cpp'
+                : language === 'c'
+                  ? 'c'
+                  : language === 'html'
+                    ? 'html'
+                    : language === 'css'
+                      ? 'css'
+                      : language === 'json'
+                        ? 'json'
+                        : language === 'markdown' || language === 'md'
+                          ? 'md'
+                          : 'txt';
     link.download = `code-${Date.now()}.${ext}`;
     document.body.appendChild(link);
     link.click();
