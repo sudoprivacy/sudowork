@@ -17,8 +17,8 @@
 import { appendFileSync, existsSync, mkdirSync, statSync, renameSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { app } from 'electron';
-import { ipcBridge } from '@/common';
 import { enqueueSudoworkLogError } from './sudoworkLogUploader';
+import { ipcBridge } from '@/common';
 
 // 日志级别
 type LogLevel = 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'PERF';
@@ -32,7 +32,7 @@ let logsDir: string | null = null;
 /**
  * 获取日志目录 ~/.nexus/logs/
  */
-function getLogsDir(): string {
+export function getLogsDir(): string {
   if (!logsDir) {
     // 使用 getDataPath 获取 ~/.nexus
     const homePath = app.getPath('home');

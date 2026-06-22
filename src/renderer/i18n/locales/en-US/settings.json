@@ -990,5 +990,10 @@
     "oldPasswordRequired": "Please enter current password",
     "newPasswordRequired": "Please enter new password",
     "success": "Password changed successfully"
-  }
+  },
+  "exportLogs": "Export Logs",
+  "exportLogsDesc": "Package all sudowork and scode logs into a zip file.",
+  "exportLogsSuccess": "Logs exported successfully",
+  "exportLogsFailed": "Failed to export logs",
+  "exportLogsEmpty": "No logs available to export"
 }

@@ -775,5 +775,10 @@
     "oldPasswordRequired": "現在のパスワードを入力してください",
     "newPasswordRequired": "新しいパスワードを入力してください",
     "success": "パスワードを変更しました"
-  }
+  },
+  "exportLogs": "ログをエクスポート",
+  "exportLogsDesc": "すべての sudowork と scode のログを 1 つの zip ファイルにまとめます。",
+  "exportLogsSuccess": "ログのエクスポートに成功しました",
+  "exportLogsFailed": "ログのエクスポートに失敗しました",
+  "exportLogsEmpty": "エクスポートできるログがありません"
 }

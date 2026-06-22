@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { acpDetector } from '@/agent/acp/AcpDetector';
+import { mainError } from '@process/utils/mainLogger';
 import { initAcpConversationBridge } from './acpConversationBridge';
 import { initApplicationBridge } from './applicationBridge';
 import { initAuthBridge } from './authBridge';
@@ -13,7 +13,6 @@ import { initChannelBridge } from './channelBridge';
 import { initConversationBridge } from './conversationBridge';
 import { initCronBridge } from './cronBridge';
 import { initDatabaseBridge } from './databaseBridge';
-import { mainError } from '@process/utils/mainLogger';
 import { initDialogBridge } from './dialogBridge';
 import { initDocumentBridge } from './documentBridge';
 import { initFileWatchBridge } from './fileWatchBridge';
@@ -28,6 +27,7 @@ import { initStarOfficeBridge } from './starOfficeBridge';
 import { initUpdateBridge } from './updateBridge';
 import { initWebuiBridge } from './webuiBridge';
 import { initSystemSettingsBridge } from './systemSettingsBridge';
+import { initLogsBridge } from './logsBridge';
 import { initWindowControlsBridge } from './windowControlsBridge';
 import { initExtensionsBridge } from './extensionsBridge';
 import { initNexusBridge } from './nexusBridge';
@@ -59,6 +59,7 @@ import { initDeliverablesBridge } from './deliverablesBridge';
 // to handle renderer errors during startup
 import { initEeclawBridge } from './eeclawBridge';
 import { registerScodeBridge } from './scodeBridge';
+import { acpDetector } from '@/agent/acp/AcpDetector';
 
 /**
  * 初始化所有IPC桥接模块
@@ -89,6 +90,7 @@ export function initAllBridges(): void {
   initChannelBridge();
   initCronBridge();
   initSystemSettingsBridge();
+  initLogsBridge();
   initExtensionsBridge();
   initStarOfficeBridge();
   initNexusBridge();

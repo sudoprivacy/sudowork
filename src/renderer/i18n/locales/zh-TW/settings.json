@@ -775,5 +775,10 @@
     "oldPasswordRequired": "請輸入原始密碼",
     "newPasswordRequired": "請輸入新密碼",
     "success": "密碼修改成功"
-  }
+  },
+  "exportLogs": "匯出日誌",
+  "exportLogsDesc": "將全部 sudowork 與 scode 日誌打包為一個 zip 檔案。",
+  "exportLogsSuccess": "日誌匯出成功",
+  "exportLogsFailed": "日誌匯出失敗",
+  "exportLogsEmpty": "沒有可匯出的日誌"
 }
