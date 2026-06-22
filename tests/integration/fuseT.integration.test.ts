@@ -29,9 +29,9 @@
  * a real admin password.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 
@@ -58,17 +58,31 @@ describe('FUSE-T — lazy install contract', () => {
   });
 
   it('initAllBridges wires initFuseTBridge but the bridge itself does not auto-install', async () => {
-    // The bridge registers IPC providers — but nothing inside
-    // `initFuseTBridge()` should call `ensureInstalled()` eagerly.
-    // The provider is only triggered when a renderer / worker
-    // explicitly invokes `ipcBridge.fuseT.ensureInstalled`. Read the
-    // bridge source and assert no top-level call to ensureInstalled.
+    // The bridge registers IPC providers + dev-only direct handles — but
+    // nothing inside `initFuseTBridge()` should call `ensureInstalled()`
+    // eagerly. The handlers only fire when a renderer / worker explicitly
+    // invokes the channel. Read the bridge source and assert no top-level
+    // call to ensureInstalled.
     const bridge = fs.readFileSync(path.join(REPO_ROOT, 'src/process/bridge/fuseTBridge.ts'), 'utf-8');
-    // Allow the string `ensureInstalled` inside the provider body, but
-    // not as a bare top-level call. Cheap proxy: ensureInstalled must
-    // only appear inside `provider(async ...)` blocks.
-    const stripped = bridge.replace(/provider\(async[\s\S]*?\}\);/g, '/* provider-body */');
+    // Strip the two legitimate handler-body shapes (the bridge's
+    // provider(async ...) blocks and the dev-only ipcMain.handle(...,
+    // async ...) blocks). Any remaining occurrence of `ensureInstalled`
+    // or `install(` would be an eager call at init time — the regression
+    // we care about.
+    const stripped = bridge.replace(/provider\(async[\s\S]*?\}\);/g, '/* provider-body */').replace(/ipcMain\.handle\([^,]+,\s*async[\s\S]*?\}\);/g, '/* dev-handle-body */');
     expect(stripped).not.toMatch(/fuseTInstallService\.ensureInstalled|fuseTInstallService\.install\(/);
+  });
+
+  it('dev-only direct IPC handles are gated behind !app.isPackaged', () => {
+    // The dev smoke channels (`dev.fuse-t.check-installed` /
+    // `dev.fuse-t.ensure-installed`) bypass the bridge.buildProvider
+    // subscribe/callback wrapping so a Mac smoke tester can drive the
+    // lazy install from the DevTools console. They must NEVER register
+    // in packaged builds — that would expose an admin-password prompt
+    // trigger to any renderer code.
+    const bridge = fs.readFileSync(path.join(REPO_ROOT, 'src/process/bridge/fuseTBridge.ts'), 'utf-8');
+    expect(bridge).toMatch(/if \(!app\.isPackaged\)[\s\S]*?ipcMain\.handle\('dev\.fuse-t\.ensure-installed'/);
+    expect(bridge).toMatch(/if \(!app\.isPackaged\)[\s\S]*?ipcMain\.handle\('dev\.fuse-t\.check-installed'/);
   });
 });
 

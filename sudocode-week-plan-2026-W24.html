@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>sudocode roadmap — 已迁移至 GitHub</title>
+<style>
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    color: #1a1a1a;
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 60px 24px 80px;
+    line-height: 1.75;
+    font-size: 16px;
+  }
+  h1 { font-size: 26px; margin-bottom: 8px; }
+  .meta { color: #6b7280; font-size: 14px; margin-bottom: 32px; }
+  .callout {
+    background: #eff6ff;
+    border-left: 4px solid #2563eb;
+    padding: 18px 22px;
+    margin: 24px 0;
+    border-radius: 4px;
+  }
+  .callout-warn {
+    background: #fef3c7;
+    border-left-color: #f59e0b;
+    color: #78350f;
+  }
+  .big-link {
+    display: inline-block;
+    background: #2563eb;
+    color: white;
+    padding: 12px 24px;
+    border-radius: 6px;
+    text-decoration: none;
+    font-weight: 600;
+    margin: 8px 0;
+  }
+  .big-link:hover { background: #1d4ed8; }
+  code {
+    background: #f3f4f6;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-family: "SF Mono", Consolas, monospace;
+    font-size: 14px;
+  }
+  hr { border: none; border-top: 1px solid #e5e7eb; margin: 36px 0; }
+  h2 { font-size: 18px; margin-top: 32px; color: #2563eb; }
+  ul li { margin: 6px 0; }
+</style>
+</head>
+<body>
+
+<h1>sudo code roadmap — 已迁移至 GitHub</h1>
+<div class="meta">2026-06-10 · 这个页面已退役，仅保留作为 W24 snapshot 参考</div>
+
+<div class="callout">
+  <strong>📍 Canonical roadmap 在这里：</strong><br><br>
+  <a class="big-link" href="https://github.com/sudoprivacy/sudocode/blob/main/ROADMAP.md">
+    github.com/sudoprivacy/sudocode/blob/main/ROADMAP.md →
+  </a>
+</div>
+
+<p>原本这页是 2026-W24 的周计划，但我们决定把 sudocode 的 plan 收敛成 <strong>仅一个 SSOT</strong>——<code>ROADMAP.md</code> 跟代码一起 version-control，team 和 contributors 都能看，scope 变化通过 PR 更新。</p>
+
+<p>ShareOne 这种 mirror 适合"周报 / 点对点分享"，不适合做 living plan 的 SSOT，所以从今天起不再更新。</p>
+
+<hr>
+
+<h2>📌 当前 sudocode 三个 Q2 目标（取自 ROADMAP.md）</h2>
+
+<ul>
+  <li><strong>Goal 1 · 锁基线</strong>：sudocode CLI e2e 覆盖率 ≥ 90%，sudocode CI green。分母 ~44（剔除 sudowork-UI-only + L2 deferred 的 LSP/Workers/Cron/Plugins）</li>
+  <li><strong>Goal 2 · claude-code parity</strong>：每个 gap 写明 resolution（<code>[BUILD]</code>/<code>[CHERRY-PICK]</code>/<code>[SKIP]</code>/<code>[N/A]</code>/<code>[OBSERVE]</code>）。CHANGELOG 驱动（claude-code 源码私有），<code>ultraworkers/claw-code</code> 保留作为 cherry-pick 来源</li>
+  <li><strong>Goal 3 · Ship features real users miss</strong>：用户摩擦优先 over CHANGELOG triage。当前已 commit：<code>!</code> bash mode（带 <code>pwd</code> 显式展示——比 CC 更扎实，因为 CC 那个连 pwd 都不显示，<code>!ls</code> 看不到上下文）</li>
+</ul>
+
+<hr>
+
+<h2>🔗 相关链接</h2>
+
+<ul>
+  <li>📋 <a href="https://github.com/sudoprivacy/sudocode/blob/main/ROADMAP.md">ROADMAP.md</a> — canonical（goals only）</li>
+  <li>📊 <a href="https://github.com/sudoprivacy/sudocode/blob/main/rust/PARITY.md">rust/PARITY.md</a> — 详细 parity 状态（tool surface / slash commands）</li>
+  <li>🔀 <a href="https://github.com/sudoprivacy/sudocode/pull/189">PR #189</a> — 初次添加 ROADMAP.md</li>
+</ul>
+
+<div class="callout callout-warn" style="margin-top: 40px;">
+  <strong>给老 W24 plan 读者的提示</strong>：原 W24 daily breakdown 那套已经从 plan 里搬走。ROADMAP.md 只写最终目标不追踪任务——日程跟踪去看对应的 PR / issue。
+</div>
+
+</body>
+</html>

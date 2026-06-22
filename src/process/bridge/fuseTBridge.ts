@@ -14,6 +14,8 @@
  * mount. See `FuseTInstallService` for the rationale.
  */
 
+import { app, ipcMain } from 'electron';
+
 import { ipcBridge } from '../../common';
 import type { FuseTInstallPhase } from '../services/fuset/FuseTInstallService';
 import { fuseTInstallService } from '../services/fuset/FuseTInstallService';
@@ -62,4 +64,34 @@ export function initFuseTBridge(): void {
       }, 0);
     }
   });
+
+  // Dev-only direct IPC handles for the Mac smoke checklist (#915).
+  //
+  // The production renderer talks to FUSE-T via the bridge providers above
+  // (`ipcBridge.fuseT.ensureInstalled.invoke()`), which uses
+  // `@office-ai/platform`'s subscribe/callback RPC protocol. DevTools console
+  // cannot reach the bundled `ipcBridge` module, so a Mac smoke tester can't
+  // drive that path from the console. These direct `ipcMain.handle` channels
+  // let them call `window.electronAPI.devFuseT*` instead, but they ONLY
+  // register in dev mode — packaged builds expose nothing extra and the
+  // window.electronAPI.devFuseT* methods come back with "not handled" errors.
+  if (!app.isPackaged) {
+    ipcMain.handle('dev.fuse-t.check-installed', async () => {
+      try {
+        const status = await fuseTInstallService.checkInstalled();
+        return { success: true, data: status };
+      } catch (err) {
+        return { success: false, msg: err instanceof Error ? err.message : String(err) };
+      }
+    });
+
+    ipcMain.handle('dev.fuse-t.ensure-installed', async () => {
+      try {
+        await fuseTInstallService.ensureInstalled();
+        return { success: true };
+      } catch (err) {
+        return { success: false, msg: err instanceof Error ? err.message : String(err) };
+      }
+    });
+  }
 }
