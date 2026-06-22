@@ -659,12 +659,6 @@ body,
   box-sizing: border-box;
 }
 
-.arco-select-view,
-.arco-input,
-.arco-input-inner-wrapper {
-  background-color: var(--fill-0) !important;
-}
-
 ::placeholder {
   color: #a1a2aa !important;
 }

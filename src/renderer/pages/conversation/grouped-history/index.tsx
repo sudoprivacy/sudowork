@@ -24,7 +24,7 @@ import { useDragAndDrop } from './hooks/useDragAndDrop';
 import { useExport } from './hooks/useExport';
 import type { ConversationRowProps, ConversationItem, WorkspaceGroupedHistoryProps } from './types';
 import { emitter } from '@/renderer/utils/emitter';
-import { useCronJobsMap } from '@/renderer/pages/cron';
+import { useCronJobsMap } from '@/renderer/pages/cron/hooks/useCronJobs';
 import FlexFullContainer from '@/renderer/components/FlexFullContainer';
 import DirectorySelectionModal from '@/renderer/components/DirectorySelectionModal';
 import { ipcBridge } from '@/common';

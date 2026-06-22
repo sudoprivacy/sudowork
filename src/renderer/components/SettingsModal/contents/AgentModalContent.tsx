@@ -2758,32 +2758,32 @@ const AgentModalContent: React.FC = () => {
               </Typography.Text>
               <div className='mt-10px flex items-center gap-12px'>
                 {activeAssistant?.isBuiltin || isReadonlyAssistant ? (
-                  <Avatar shape='square' size={40} className='bg-bg-1 rounded-4px'>
+                  <Avatar shape='square' size={40} className='rounded-lg'>
                     {editAvatarImage ? <img src={editAvatarImage} alt='' width={24} height={24} style={{ objectFit: 'contain' }} /> : editAvatar ? <span className='text-24px'>{editAvatar}</span> : <Robot theme='outline' size={20} />}
                   </Avatar>
                 ) : (
                   <EmojiPicker value={editAvatar} onChange={(emoji) => setEditAvatar(emoji)} placement='br'>
                     <div className='cursor-pointer'>
-                      <Avatar shape='square' size={40} className='bg-bg-1 rounded-4px hover:bg-fill-2 transition-colors'>
+                      <Avatar shape='square' size={40} className='rounded-lg hover:bg-fill-2 transition-colors'>
                         {editAvatarImage ? <img src={editAvatarImage} alt='' width={24} height={24} style={{ objectFit: 'contain' }} /> : editAvatar ? <span className='text-24px'>{editAvatar}</span> : <Robot theme='outline' size={20} />}
                       </Avatar>
                     </div>
                   </EmojiPicker>
                 )}
-                <Input value={editName} onChange={(value) => setEditName(value)} disabled={activeAssistant?.isBuiltin || isReadonlyAssistant} placeholder={t('settings.agentNamePlaceholder', { defaultValue: 'Enter a name for this agent' })} className='flex-1 rounded-4px bg-bg-1' />
+                <Input value={editName} onChange={(value) => setEditName(value)} disabled={activeAssistant?.isBuiltin || isReadonlyAssistant} placeholder={t('settings.agentNamePlaceholder', { defaultValue: 'Enter a name for this agent' })} className='flex-1' />
               </div>
             </div>
 
             {/* Description */}
             <div className='flex-shrink-0'>
               <Typography.Text bold>{t('settings.assistantDescription', { defaultValue: '智能体描述' })}</Typography.Text>
-              <Input className='mt-10px rounded-4px bg-bg-1' value={editDescription} onChange={(value) => setEditDescription(value)} disabled={activeAssistant?.isBuiltin || isReadonlyAssistant} placeholder={t('settings.assistantDescriptionPlaceholder', { defaultValue: '帮你解决什么问题' })} />
+              <Input className='mt-10px' value={editDescription} onChange={(value) => setEditDescription(value)} disabled={activeAssistant?.isBuiltin || isReadonlyAssistant} placeholder={t('settings.assistantDescriptionPlaceholder', { defaultValue: '帮你解决什么问题' })} />
             </div>
 
             {/* Main Agent - locked to Sudo Code */}
             <div className='flex-shrink-0'>
               <Typography.Text bold>{t('settings.assistantMainAgent', { defaultValue: '主智能体' })}</Typography.Text>
-              <Select className='mt-10px w-full rounded-4px' value={DEFAULT_PRESET_AGENT_TYPE} disabled>
+              <Select className='mt-10px w-full' value={DEFAULT_PRESET_AGENT_TYPE} disabled>
                 <Select.Option key='scode' value='scode'>
                   Sudo Code
                 </Select.Option>
@@ -2795,13 +2795,13 @@ const AgentModalContent: React.FC = () => {
               <Typography.Text bold className='flex-shrink-0'>
                 {t('settings.assistantRules', { defaultValue: '规则' })}
               </Typography.Text>
-              <div className='mt-10px border overflow-hidden rounded-4px' style={{ height: '300px' }}>
+              <div className='mt-10px border overflow-hidden rounded-8px' style={{ height: '300px' }}>
                 {!activeAssistant?.isBuiltin && !isReadonlyAssistant && (
                   <div className='flex items-center h-36px bg-fill-2 border-b flex-shrink-0'>
-                    <div className={`flex items-center h-full px-16px cursor-pointer transition-all text-13px font-medium ${promptViewMode === 'edit' ? 'text-primary border-b-2px border-solid border-primary bg-bg-1' : 'text-secondary hover:text-foreground'}`} onClick={() => setPromptViewMode('edit')}>
+                    <div className={`flex items-center h-full px-16px cursor-pointer transition-all text-13px font-medium ${promptViewMode === 'edit' ? 'text-primary border-b-2px border-solid border-primary' : 'text-secondary hover:text-foreground'}`} onClick={() => setPromptViewMode('edit')}>
                       {t('settings.promptEdit', { defaultValue: 'Edit' })}
                     </div>
-                    <div className={`flex items-center h-full px-16px cursor-pointer transition-all text-13px font-medium ${promptViewMode === 'preview' ? 'text-primary border-b-2px border-solid border-primary bg-bg-1' : 'text-secondary hover:text-foreground'}`} onClick={() => setPromptViewMode('preview')}>
+                    <div className={`flex items-center h-full px-16px cursor-pointer transition-all text-13px font-medium ${promptViewMode === 'preview' ? 'text-primary border-b-2px border-solid border-primary' : 'text-secondary hover:text-foreground'}`} onClick={() => setPromptViewMode('preview')}>
                       {t('settings.promptPreview', { defaultValue: 'Preview' })}
                     </div>
                   </div>

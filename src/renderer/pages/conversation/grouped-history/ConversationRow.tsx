@@ -17,7 +17,7 @@ import { getAgentLogo } from '@/renderer/utils/agentLogo';
 import FlexFullContainer from '@/renderer/components/FlexFullContainer';
 import { usePresetAssistantInfo } from '@/renderer/hooks/usePresetAssistantInfo';
 import { useTerminalActiveCount } from '@/renderer/hooks/useTerminalActiveCount';
-import { CronJobIndicator } from '@/renderer/pages/cron';
+import CronJobIndicator from '@/renderer/pages/cron/components/CronJobIndicator';
 import { cleanupSiderTooltips, getSiderTooltipProps } from '@/renderer/utils/siderTooltip';
 
 const ConversationRow: React.FC<ConversationRowProps> = (props) => {
