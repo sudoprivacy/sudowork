@@ -645,7 +645,7 @@ const WebviewHost: React.FC<WebviewHostProps> = ({ url, id: _id, showNavBar = fa
       )}
 
       {/* Webview content area */}
-      <div ref={contentRef} className='relative z-0 flex-1 min-h-0 overflow-hidden' style={{ minHeight: 0 }} onWheel={handleOuterWheelZoom}>
+      <div ref={contentRef} className='relative z-0 flex-1 min-h-0 overflow-hidden bg-white' style={{ minHeight: 0 }} onWheel={handleOuterWheelZoom}>
         <webview
           ref={webviewRef as any}
           src={currentUrl}
