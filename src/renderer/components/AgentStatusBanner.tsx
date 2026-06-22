@@ -30,10 +30,6 @@ const STATUS_LABELS: Record<string, string> = {
   error: 'agentStatus.error',
 };
 
-function resolveGatewayHealthStatus(gatewayRunning: boolean): string {
-  return gatewayRunning ? 'connected' : 'disconnected';
-}
-
 const AgentStatusDot: React.FC<{ conversation_id: string; conversationType?: TChatConversation['type'] }> = ({ conversation_id, conversationType }) => {
   const [status, setStatus] = useState('');
   const [restarting, setRestarting] = useState(false);
