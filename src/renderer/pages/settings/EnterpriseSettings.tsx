@@ -131,7 +131,7 @@ const EnterpriseSettings: React.FC = () => {
           <div className='flex flex-col gap-2 pt-2'>
             <span className='text-14px text-secondary'>服务器地址</span>
             <div className='flex gap-2'>
-              <Input value={editingServerUrl} onChange={setEditingServerUrl} placeholder='https://your-company-server.com' className='flex-1 h-8 rounded-8px bg-fill-0' disabled={saving} />
+              <Input value={editingServerUrl} onChange={setEditingServerUrl} placeholder='https://your-company-server.com' className='flex-1 h-8' disabled={saving} />
               <Button type='primary' size='small' loading={saving} onClick={() => void handleSaveServerUrl()} disabled={editingServerUrl.trim() === serverUrl.trim() || !editingServerUrl.trim()}>
                 保存
               </Button>

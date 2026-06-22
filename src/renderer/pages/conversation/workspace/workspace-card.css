@@ -558,7 +558,6 @@
 }
 
 .chat-workspace .workspace-card__toolbar .workspace-search-input .arco-input-inner-wrapper {
-  border-radius: 8px !important;
   background: var(--color-fill-2, rgba(128, 128, 128, 0.1)) !important;
   border: 1px solid var(--bg-3) !important;
   height: 32px !important;

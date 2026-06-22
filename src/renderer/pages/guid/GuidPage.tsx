@@ -4,30 +4,24 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { resolveLocaleKey } from '@/common/utils';
-import { useInputFocusRing } from '@/renderer/hooks/useInputFocusRing';
-import { useCronEnabled } from '@/renderer/hooks/useCronEnabled';
-import { openExternalUrl, isElectronDesktop, resolveExtensionAssetUrl } from '@/renderer/utils/platform';
-import { useConversationTabs } from '@/renderer/pages/conversation/context/ConversationTabsContext';
-import { getInstalledSkillDisplay, resolveSkillIcon } from '@/renderer/utils/skillDisplay';
-import { useSkillSelectorController, type SkillSelectorItem, stripAtQuery } from '@/renderer/hooks/useSkillSelectorController';
-import SkillSelectorMenu, { type SkillSelectorMenuItem } from '@/renderer/components/SkillSelectorMenu';
-import { resolveAssistantName } from '@/renderer/shared/agents/assistantAdapter';
-import { ipcBridge } from '@/common';
-import { useAuth } from '@/renderer/context/AuthContext';
-import { skillHub } from '@/common/ipcBridge';
-import AgentPillBar from './components/AgentPillBar';
+import { Message } from '@arco-design/web-react';
+import { EditTwo, Left, Robot } from '@icon-park/react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { mutate } from 'swr';
+import SkillSettings from '../settings/SkillSettings';
+import AgentSettings from '../settings/AgentSettings';
+import SecuritySettings from '../settings/SecuritySettings';
+import WebuiSettings from '../settings/WebuiSettings';
+import CronSettings from '../settings/CronSettings';
 import AssistantSelectionArea from './components/AssistantSelectionArea';
 import AssistantAgentDropdown from './components/AssistantAgentDropdown';
 import AssistantEditDrawer from './components/AssistantEditDrawer';
 import { CUSTOM_AVATAR_IMAGE_MAP } from './constants';
 import { AgentPillBarSkeleton, AssistantsSkeleton } from './components/GuidSkeleton';
 import GuidActionRow from './components/GuidActionRow';
-import SkillSettings from '../settings/SkillSettings';
-import AgentSettings from '../settings/AgentSettings';
-import SecuritySettings from '../settings/SecuritySettings';
-import WebuiSettings from '../settings/WebuiSettings';
-import CronSettings from '../settings/CronSettings';
+import AgentPillBar from './components/AgentPillBar';
 import GuidInputCard from './components/GuidInputCard';
 import GuidModelSelector from './components/GuidModelSelector';
 import MentionDropdown from './components/MentionDropdown';
@@ -42,16 +36,22 @@ import { useGuidSend } from './hooks/useGuidSend';
 import { useTypewriterPlaceholder } from './hooks/useTypewriterPlaceholder';
 import { getGuidDraft, setGuidDraft } from './hooks/useGuidDraft';
 import type { AcpBackendConfig } from './types';
-import { DEFAULT_PRESET_AGENT_TYPE, normalizePresetAgentType } from '@/types/acpTypes';
-import { Message } from '@arco-design/web-react';
-import { EditTwo, Left, Robot } from '@icon-park/react';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useTranslation } from 'react-i18next';
-import { useLocation, useNavigate } from 'react-router-dom';
+import styles from './index.module.css';
 import { useAddEventListener } from '@/renderer/utils/emitter';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
-import { mutate } from 'swr';
-import styles from './index.module.css';
+import { skillHub } from '@/common/ipcBridge';
+import { useAuth } from '@/renderer/context/AuthContext';
+import { ipcBridge } from '@/common';
+import { resolveAssistantName } from '@/renderer/shared/agents/assistantAdapter';
+import SkillSelectorMenu, { type SkillSelectorMenuItem } from '@/renderer/components/SkillSelectorMenu';
+import { useSkillSelectorController, type SkillSelectorItem, stripAtQuery } from '@/renderer/hooks/useSkillSelectorController';
+import { getInstalledSkillDisplay, resolveSkillIcon } from '@/renderer/utils/skillDisplay';
+import { useConversationTabs } from '@/renderer/pages/conversation/context/ConversationTabsContext';
+import { openExternalUrl, isElectronDesktop, resolveExtensionAssetUrl } from '@/renderer/utils/platform';
+import { useCronEnabled } from '@/renderer/hooks/useCronEnabled';
+import { useInputFocusRing } from '@/renderer/hooks/useInputFocusRing';
+import { resolveLocaleKey } from '@/common/utils';
+import { DEFAULT_PRESET_AGENT_TYPE, normalizePresetAgentType } from '@/types/acpTypes';
 
 const GuidPage: React.FC = () => {
   const { t, i18n } = useTranslation();
@@ -514,7 +514,18 @@ const GuidPage: React.FC = () => {
   const mentionDropdownNode = <MentionDropdown menuRef={mention.mentionMenuRef} options={mention.filteredMentionOptions} selectedKey={mention.mentionMenuSelectedKey} onSelect={mention.selectMentionAgent} />;
 
   // Build the model selector node
-  const modelSelectorNode = <GuidModelSelector isGeminiMode={isGeminiMode} modelList={modelSelection.modelList} currentModel={modelSelection.currentModel} setCurrentModel={modelSelection.setCurrentModel} geminiModeLookup={modelSelection.geminiModeLookup} currentAcpCachedModelInfo={agentSelection.currentAcpCachedModelInfo} selectedAcpModel={agentSelection.selectedAcpModel} setSelectedAcpModel={agentSelection.setSelectedAcpModel} />;
+  const modelSelectorNode = (
+    <GuidModelSelector
+      isGeminiMode={isGeminiMode}
+      modelList={modelSelection.modelList}
+      currentModel={modelSelection.currentModel}
+      setCurrentModel={modelSelection.setCurrentModel}
+      geminiModeLookup={modelSelection.geminiModeLookup}
+      currentAcpCachedModelInfo={agentSelection.currentAcpCachedModelInfo}
+      selectedAcpModel={agentSelection.selectedAcpModel}
+      setSelectedAcpModel={agentSelection.setSelectedAcpModel}
+    />
+  );
 
   // Build the action row
   const actionRowNode = (
@@ -629,7 +640,15 @@ const GuidPage: React.FC = () => {
                   </div>
 
                   {/* Avatar */}
-                  <div className='flex-shrink-0'>{selectedAssistantAvatar?.isImageAvatar && selectedAssistantAvatar.avatarImage ? <img src={selectedAssistantAvatar.avatarImage} alt='' width={28} height={28} style={{ objectFit: 'contain' }} /> : selectedAssistantAvatar?.avatarValue ? <span style={{ fontSize: 24, lineHeight: '28px' }}>{selectedAssistantAvatar.avatarValue}</span> : <Robot theme='outline' size={24} />}</div>
+                  <div className='flex-shrink-0'>
+                    {selectedAssistantAvatar?.isImageAvatar && selectedAssistantAvatar.avatarImage ? (
+                      <img src={selectedAssistantAvatar.avatarImage} alt='' width={28} height={28} style={{ objectFit: 'contain' }} />
+                    ) : selectedAssistantAvatar?.avatarValue ? (
+                      <span style={{ fontSize: 24, lineHeight: '28px' }}>{selectedAssistantAvatar.avatarValue}</span>
+                    ) : (
+                      <Robot theme='outline' size={24} />
+                    )}
+                  </div>
 
                   {/* Name */}
                   <span className='text-xl font-semibold text-foreground truncate'>{selectedAssistantConfig.nameI18n?.[localeKey] || selectedAssistantConfig.name}</span>
@@ -641,7 +660,9 @@ const GuidPage: React.FC = () => {
                 </div>
 
                 {/* Agent dropdown - disabled for preset assistants (builtin or hub-installed) */}
-                {agentSelection.availableAgents && agentSelection.availableAgents.length > 0 && <AssistantAgentDropdown availableAgents={agentSelection.availableAgents} currentAgentType={currentAssistantAgentType} onSelectAgent={handleChangeAssistantAgent} disabled={selectedAssistantConfig?.isPreset ?? false} />}
+                {agentSelection.availableAgents && agentSelection.availableAgents.length > 0 && (
+                  <AssistantAgentDropdown availableAgents={agentSelection.availableAgents} currentAgentType={currentAssistantAgentType} onSelectAgent={handleChangeAssistantAgent} disabled={selectedAssistantConfig?.isPreset ?? false} />
+                )}
               </div>
 
               {/* Agent Fallback Notice */}
@@ -667,7 +688,20 @@ const GuidPage: React.FC = () => {
                 {t('conversation.welcome.title')}
               </p>
 
-              {agentSelection.availableAgents === undefined ? <AgentPillBarSkeleton /> : agentSelection.availableAgents.length > 0 ? <AgentPillBar availableAgents={agentSelection.availableAgents} selectedAgentKey={agentSelection.selectedAgentKey} getAgentKey={agentSelection.getAgentKey} onSelectAgent={handleSelectAgentFromPillBar} sessionMode={agentSelection.sessionMode} onSessionModeChange={agentSelection.setSessionMode} isEnterprise={isEnterprise} localModeAvailable={user?.localModeAvailable} /> : null}
+              {agentSelection.availableAgents === undefined ? (
+                <AgentPillBarSkeleton />
+              ) : agentSelection.availableAgents.length > 0 ? (
+                <AgentPillBar
+                  availableAgents={agentSelection.availableAgents}
+                  selectedAgentKey={agentSelection.selectedAgentKey}
+                  getAgentKey={agentSelection.getAgentKey}
+                  onSelectAgent={handleSelectAgentFromPillBar}
+                  sessionMode={agentSelection.sessionMode}
+                  onSessionModeChange={agentSelection.setSessionMode}
+                  isEnterprise={isEnterprise}
+                  localModeAvailable={user?.localModeAvailable}
+                />
+              ) : null}
 
               <PromptTemplates
                 visible={!agentSelection.isPresetAgent}
@@ -699,7 +733,9 @@ const GuidPage: React.FC = () => {
             activeShadow={activeShadow}
             dragHandlers={guidInput.dragHandlers}
             mentionOpen={mention.mentionOpen}
-            mentionSelectorBadge={<MentionSelectorBadge visible={mention.mentionSelectorVisible} open={mention.mentionSelectorOpen} onOpenChange={mention.setMentionSelectorOpen} agentLabel={mention.selectedAgentLabel} mentionMenu={mentionDropdownNode} onResetQuery={() => mention.setMentionQuery(null)} />}
+            mentionSelectorBadge={
+              <MentionSelectorBadge visible={mention.mentionSelectorVisible} open={mention.mentionSelectorOpen} onOpenChange={mention.setMentionSelectorOpen} agentLabel={mention.selectedAgentLabel} mentionMenu={mentionDropdownNode} onResetQuery={() => mention.setMentionQuery(null)} />
+            }
             mentionDropdown={mentionDropdownNode}
             skillSelectorOpen={skillSelectorController.isOpen}
             skillSelectorMenu={
@@ -766,7 +802,13 @@ const GuidPage: React.FC = () => {
             )
           ) : (
             /* Assistant selection grid */
-            <>{agentSelection.availableAgents === undefined ? <AssistantsSkeleton /> : <AssistantSelectionArea customAgents={agentSelection.customAgents} localeKey={localeKey} onSelectAssistant={handleSelectAssistant} availableAgents={agentSelection.availableAgents} sessionMode={agentSelection.sessionMode} isEnterprise={isEnterprise} />}</>
+            <>
+              {agentSelection.availableAgents === undefined ? (
+                <AssistantsSkeleton />
+              ) : (
+                <AssistantSelectionArea customAgents={agentSelection.customAgents} localeKey={localeKey} onSelectAssistant={handleSelectAssistant} availableAgents={agentSelection.availableAgents} sessionMode={agentSelection.sessionMode} isEnterprise={isEnterprise} />
+              )}
+            </>
           )}
         </div>
       )}

@@ -365,20 +365,20 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
                   </div>
                 </EmojiPicker>
               )}
-              <Input value={editName} onChange={(value) => setEditName(value)} disabled={isBuiltin || isReadonly} placeholder={t('settings.agentNamePlaceholder', { defaultValue: '请输入智能体名称' })} className='flex-1 rounded-4px' />
+              <Input value={editName} onChange={(value) => setEditName(value)} disabled={isBuiltin || isReadonly} placeholder={t('settings.agentNamePlaceholder', { defaultValue: '请输入智能体名称' })} className='flex-1' />
             </div>
           </div>
 
           {/* Description */}
           <div className='flex-shrink-0'>
             <Typography.Text bold>{t('settings.assistantDescription', { defaultValue: '智能体描述' })}</Typography.Text>
-            <Input className='mt-10px rounded-4px' value={editDescription} onChange={(value) => setEditDescription(value)} disabled={isBuiltin || isReadonly} placeholder={t('settings.assistantDescriptionPlaceholder', { defaultValue: '帮你解决什么问题' })} />
+            <Input className='mt-10px' value={editDescription} onChange={(value) => setEditDescription(value)} disabled={isBuiltin || isReadonly} placeholder={t('settings.assistantDescriptionPlaceholder', { defaultValue: '帮你解决什么问题' })} />
           </div>
 
           {/* Main Agent - locked to Sudo Code */}
           <div className='flex-shrink-0'>
             <Typography.Text bold>{t('settings.assistantMainAgent', { defaultValue: '主智能体' })}</Typography.Text>
-            <Select className='mt-10px w-full rounded-4px' value={DEFAULT_PRESET_AGENT_TYPE} disabled>
+            <Select className='mt-10px w-full' value={DEFAULT_PRESET_AGENT_TYPE} disabled>
               <Select.Option key='scode' value='scode'>
                 <span className='flex items-center gap-6px'>
                   {getAgentLogo('scode') && <img src={getAgentLogo('scode') || undefined} alt='' width={16} height={16} style={{ objectFit: 'contain' }} />}
