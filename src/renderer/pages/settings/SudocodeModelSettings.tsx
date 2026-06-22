@@ -500,7 +500,12 @@ const SudocodeModelSettingsContent: React.FC = () => {
             <Button icon={<Refresh />} onClick={loadConfig}>
               刷新
             </Button>
-            <Button type='primary' icon={<Plus theme='outline' size='16' fill='white' strokeWidth={2} />} onClick={openAddDialog} className='!bg-[var(--ui-accent-orange)] !border-[var(--ui-accent-orange)] !text-white hover:!bg-[var(--ui-accent-orange-hover)] hover:!border-[var(--ui-accent-orange-hover)] hover:!text-white'>
+            <Button
+              type='primary'
+              icon={<Plus theme='outline' size='16' fill='white' strokeWidth={2} />}
+              onClick={openAddDialog}
+              className='!bg-[var(--ui-accent-orange)] !border-[var(--ui-accent-orange)] !text-white hover:!bg-[var(--ui-accent-orange-hover)] hover:!border-[var(--ui-accent-orange-hover)] hover:!text-white'
+            >
               添加模型
             </Button>
           </Space>

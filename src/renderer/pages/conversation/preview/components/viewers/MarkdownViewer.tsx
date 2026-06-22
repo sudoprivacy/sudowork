@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Close } from '@icon-park/react';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -179,7 +178,7 @@ const rewriteExternalMediaUrls = (markdown: string): string => {
 // 该函数参数较多，保持单行可以让 Prettier 控制格式，同时使用 eslint-disable 规避长度限制
 // This line has many props; keep it single-line for Prettier and silence max-len warning explicitly
 // eslint-disable-next-line max-len
-const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({ content, onClose, hideToolbar = false, viewMode: externalViewMode, onViewModeChange, onContentChange, containerRef: externalContainerRef, onScroll: externalOnScroll, filePath }) => {
+const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({ content, hideToolbar = false, viewMode: externalViewMode, onViewModeChange, onContentChange, containerRef: externalContainerRef, onScroll: externalOnScroll, filePath }) => {
   const { t } = useTranslation();
   const internalContainerRef = useRef<HTMLDivElement>(null);
   const containerRef = externalContainerRef || internalContainerRef; // 使用外部 ref 或内部 ref / Use external ref or internal ref
