@@ -1,6 +1,6 @@
+import { useCallback, useState } from 'react';
 import { ipcBridge } from '@/common';
 import { useAuth } from '@/renderer/context/AuthContext';
-import { useCallback, useState } from 'react';
 
 interface ModelUsageData {
   date: string;

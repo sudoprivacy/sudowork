@@ -1,5 +1,5 @@
-import type { EnterpriseMcpClient } from './client';
 import type { EnterpriseMcpPolicyDto } from '../types';
+import type { EnterpriseMcpClient } from './client';
 
 interface PolicyResponse {
   success: true;

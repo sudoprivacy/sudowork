@@ -2,5 +2,5 @@
 
 ## 代码清理
 
-- [ ] 清理未用到的变量及相关性代码
+- [ ] 清理未用到的变量及相关性代码 bunx eslint src/renderer/ --format unix 2>/dev/null | grep "no-unused-vars" | cut -d: -f1 | sort -u
 - [ ] 当前项目中修改智能体存在多个功能相同的组件，需要统一合并

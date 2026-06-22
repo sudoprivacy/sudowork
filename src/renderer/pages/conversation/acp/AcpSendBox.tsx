@@ -2,7 +2,6 @@ import { Button, Dropdown, Message, Tag } from '@arco-design/web-react';
 import { Plus, Shield, UploadOne } from '@icon-park/react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { shouldCancelAcpFinishTimeout } from './acpFinishTimeout';
 import { ipcBridge } from '@/common';
 import type { AcpBackend } from '@/types/acpTypes';
 import { transformMessage, type TMessage } from '@/common/chatLib';
@@ -32,6 +31,7 @@ import AcpConfigSelector from '@/renderer/components/AcpConfigSelector';
 import { useSlashCommands } from '@/renderer/hooks/useSlashCommands';
 import { filterUserVisibleAtPath, filterUserVisibleFiles } from '@/renderer/utils/messageFiles';
 import { useWorkspaceFiles } from '@/renderer/hooks/useWorkspaceFiles';
+import { shouldCancelAcpFinishTimeout } from './acpFinishTimeout';
 
 const useAcpSendBoxDraft = getSendBoxDraftHook('acp', {
   _type: 'acp',

@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { CodexToolCallUpdate } from '@/common/chatLib';
 import { Tag } from '@arco-design/web-react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import type { CodexToolCallUpdate } from '@/common/chatLib';
 import BaseToolCallDisplay from './BaseToolCallDisplay';
 
 type McpToolUpdate = Extract<CodexToolCallUpdate, { subtype: 'mcp_tool_call_begin' | 'mcp_tool_call_end' }>;

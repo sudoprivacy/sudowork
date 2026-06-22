@@ -4,12 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
-import type { GeneratedFileEntry } from '@/common/generatedFiles';
-import GeneratedFileCards from '@/renderer/messages/GeneratedFileCard';
 import { FileCabinet } from '@icon-park/react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { ipcBridge } from '@/common';
+import type { GeneratedFileEntry } from '@/common/generatedFiles';
+import GeneratedFileCards from '@/renderer/messages/GeneratedFileCard';
 
 interface DeliverablesPanelProps {
   conversationId?: string;

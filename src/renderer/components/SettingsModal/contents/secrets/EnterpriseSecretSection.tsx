@@ -5,12 +5,12 @@
  */
 
 import { Collapse, Input, Tooltip } from '@arco-design/web-react';
-import configItemDefaultIcon from '@/renderer/assets/config-item-default.svg';
-import { ConfigStorage } from '@/common/storage';
-import { useAuth } from '@/renderer/context/AuthContext';
 import { Right } from '@icon-park/react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import configItemDefaultIcon from '@/renderer/assets/config-item-default.svg';
+import { ConfigStorage } from '@/common/storage';
+import { useAuth } from '@/renderer/context/AuthContext';
 import PreferenceRow from './PreferenceRow';
 import type { TenantConfigItem } from './types';
 

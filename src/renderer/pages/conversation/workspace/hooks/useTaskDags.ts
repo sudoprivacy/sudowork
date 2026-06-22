@@ -5,9 +5,9 @@
  * 找到 JSON 路径后用 readFile 读取内容，并通过 fileWatch 监听文件内容变更。
  */
 
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ipcBridge } from '@/common';
 import type { IDirOrFile } from '@/common/ipcBridge';
-import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Dag } from '../TaskPanel';
 
 /**

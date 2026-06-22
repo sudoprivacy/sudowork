@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { CronMessageMeta } from '@/common/chatLib';
 import { AlarmClock } from '@icon-park/react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import type { CronMessageMeta } from '@/common/chatLib';
 
 type MessageCronBadgeProps = {
   meta: CronMessageMeta;

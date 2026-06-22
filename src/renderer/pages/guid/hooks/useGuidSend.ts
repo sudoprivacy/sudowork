@@ -4,17 +4,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Message } from '@arco-design/web-react';
+import { useCallback } from 'react';
+import { type TFunction } from 'i18next';
+import type { NavigateFunction } from 'react-router-dom';
 import { ipcBridge } from '@/common';
 import type { TProviderWithModel } from '@/common/storage';
 import { emitter } from '@/renderer/utils/emitter';
 import { updateWorkspaceTime } from '@/renderer/utils/workspaceHistory';
 import { isAcpRoutedPresetType, type PresetAgentType } from '@/types/acpTypes';
 import { getPresetByAgentId, resolveSessionMode } from '@/common/presets/presetResolver';
-import { Message } from '@arco-design/web-react';
-import { useCallback } from 'react';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
-import { type TFunction } from 'i18next';
-import type { NavigateFunction } from 'react-router-dom';
 import type { AcpBackend, AvailableAgent, EffectiveAgentInfo } from '../types';
 
 export type GuidSendDeps = {

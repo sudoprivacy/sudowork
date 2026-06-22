@@ -10,8 +10,8 @@ import { SUDOWORK_SERVER_BASE_URL } from '@/common/sudoworkServer';
 import { ConfigStorage } from '@/common/storage';
 import type { TenantConfig, TenantConfigResponse } from '@/common/types/tenantConfig';
 import { DEFAULT_TENANT_CONFIG, TENANT_CONFIG_STORAGE_KEY, resolveTenantConfig } from '@/common/types/tenantConfig';
-import { useAuth } from './AuthContext';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
+import { useAuth } from './AuthContext';
 
 const POLL_INTERVAL_MS = 10 * 60 * 1000; // 10 分钟
 

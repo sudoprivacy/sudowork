@@ -65,7 +65,20 @@
     "no-constant-condition": "warn",
     "no-empty-pattern": "warn",
     "import/no-named-as-default-member": "warn",
-    "import/order": "warn",
+    "import/order": [
+      "warn",
+      {
+        "groups": ["builtin", "external", "internal", "parent", "sibling", "index"],
+        "pathGroups": [
+          { "pattern": "@/**", "group": "internal" },
+          { "pattern": "@common/**", "group": "internal" },
+          { "pattern": "@process/**", "group": "internal" },
+          { "pattern": "@renderer/**", "group": "internal" },
+          { "pattern": "@worker/**", "group": "internal" }
+        ],
+        "pathGroupsExcludedImportTypes": ["builtin"]
+      }
+    ],
     "@typescript-eslint/no-floating-promises": "error",
     "@typescript-eslint/await-thenable": "error",
     "react-hooks/set-state-in-effect": "off",

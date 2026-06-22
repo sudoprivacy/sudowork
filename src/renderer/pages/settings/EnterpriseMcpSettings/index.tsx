@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Tabs, Message, Spin } from '@arco-design/web-react';
-import SettingsPageWrapper from '../components/SettingsPageWrapper';
 import { ConfigStorage } from '@/common/storage';
+import SettingsPageWrapper from '../components/SettingsPageWrapper';
 import EnterpriseMcpTab from './tabs/EnterpriseMcpTab';
 import McpLibraryTab from './tabs/McpLibraryTab';
 import MyMcpTab from './tabs/MyMcpTab';

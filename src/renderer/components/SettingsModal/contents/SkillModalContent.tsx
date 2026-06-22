@@ -4,22 +4,22 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import AionScrollArea from '@/renderer/components/base/AionScrollArea';
-import { ipcBridge } from '@/common';
-import { eeclaw, skillHub } from '@/common/ipcBridge';
-import { resolveSkillIcon, getInstalledSkillDisplay, normalizeSkillVersion, handleSkillIconError } from '@/renderer/utils/skillDisplay';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, Spin, Message, Input, Progress, Modal, Popconfirm, Switch, Tooltip } from '@arco-design/web-react';
 import { Download, Search, Delete, Close, Shield, Lightning, UploadOne, Install, Share, Plus, Check } from '@icon-park/react';
 import classNames from 'classnames';
+import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
+import AionScrollArea from '@/renderer/components/base/AionScrollArea';
+import { ipcBridge } from '@/common';
+import { eeclaw, skillHub } from '@/common/ipcBridge';
+import { resolveSkillIcon, getInstalledSkillDisplay, normalizeSkillVersion, handleSkillIconError } from '@/renderer/utils/skillDisplay';
 import { isElectronDesktop } from '@/renderer/utils/platform';
 import { addEventListener, emitter } from '@/renderer/utils/emitter';
 import type { ISkillHubSkill, ISkillHubDetail, ISkillHubListResponse, IInstalledSkillInfo, ISkillHubMeta } from '@/common/ipcBridge';
 import { useAuth } from '@/renderer/context/AuthContext';
-import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
-import { SkillAuditSummary, SkillAuditDetailModal, SkillAuditReportModal } from './SkillAuditReport';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
+import { SkillAuditSummary, SkillAuditDetailModal, SkillAuditReportModal } from './SkillAuditReport';
 
 // ==================== Helpers ====================
 

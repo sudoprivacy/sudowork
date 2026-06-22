@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
 import { Image } from '@arco-design/web-react';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { ipcBridge } from '@/common';
 
 interface ImagePreviewProps {
   filePath?: string;

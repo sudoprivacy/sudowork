@@ -4,12 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { AcpQuestionAnswerItem, AcpQuestionItem, AcpQuestionItemOption, IMessageAcpQuestion } from '@/common/chatLib';
-import { uuid } from '@/common/utils';
-import { acpConversation } from '@/common/ipcBridge';
 import { Button, Card, Input, Message, Tag, Typography } from '@arco-design/web-react';
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { AcpQuestionAnswerItem, AcpQuestionItem, AcpQuestionItemOption, IMessageAcpQuestion } from '@/common/chatLib';
+import { uuid } from '@/common/utils';
+import { acpConversation } from '@/common/ipcBridge';
 
 const { Text } = Typography;
 const TextArea = Input.TextArea;

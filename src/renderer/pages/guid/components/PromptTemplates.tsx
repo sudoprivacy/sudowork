@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { DEFAULT_PROMPT_CATEGORIES } from '../constants';
-import styles from '../index.module.css';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { DEFAULT_PROMPT_CATEGORIES } from '../constants';
+import styles from '../index.module.css';
 
 type PromptTemplatesProps = {
   /** Whether the component should be visible */

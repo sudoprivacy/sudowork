@@ -4,6 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Button, Dropdown, Menu, Message, Spin } from '@arco-design/web-react';
+import { Down, Refresh } from '@icon-park/react';
+import React, { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { QRCodeSVG } from 'qrcode.react';
 import type { IChannelPluginStatus } from '@/channels/types';
 import { openExternalUrl } from '@/renderer/utils/platform';
 import { acpConversation, channel } from '@/common/ipcBridge';
@@ -12,11 +17,6 @@ import GeminiModelSelector from '@/renderer/pages/conversation/gemini/GeminiMode
 import type { GeminiModelSelection } from '@/renderer/pages/conversation/gemini/useGeminiModelSelection';
 import { CHANNEL_DEFAULT_AGENT_BACKEND, type AcpBackendAll } from '@/types/acpTypes';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
-import { Button, Dropdown, Menu, Message, Spin } from '@arco-design/web-react';
-import { Down, Refresh } from '@icon-park/react';
-import React, { useCallback, useEffect, useState } from 'react';
-import { useTranslation } from 'react-i18next';
-import { QRCodeSVG } from 'qrcode.react';
 
 const WECHAT_GUIDE_URL = 'https://sudowork.sudoprivacy.com/guides/weixin-clawbot.html';
 

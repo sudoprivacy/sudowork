@@ -8,9 +8,9 @@ import { Plus, Robot } from '@icon-park/react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
+import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import type { AcpBackendConfig, AvailableAgent } from '../types';
 import { CUSTOM_AVATAR_IMAGE_MAP } from '../constants';
-import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 
 type AssistantSelectionAreaProps = {
   customAgents: AcpBackendConfig[];

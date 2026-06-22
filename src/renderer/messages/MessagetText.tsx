@@ -9,13 +9,6 @@ import { Copy, Lightning } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { useMemo, useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import CollapsibleContent from '../components/CollapsibleContent';
-import FilePreview from '../components/FilePreview';
-import HorizontalFileList from '../components/HorizontalFileList';
-import MarkdownView from '../components/Markdown';
-import { stripThinkTags, hasThinkTags } from '../utils/thinkTagFilter';
-import GeneratedFileCards from './GeneratedFileCard';
-import MessageCronBadge from './MessageCronBadge';
 import { isElectronDesktop } from '@/renderer/utils/platform';
 import { skillHub } from '@/common/ipcBridge';
 import { getInstalledSkillDisplay } from '@/renderer/utils/skillDisplay';
@@ -24,6 +17,13 @@ import { copyText } from '@/renderer/utils/clipboard';
 import { parseGeneratedFilesMarker } from '@/common/generatedFiles';
 import { NEXUS_FILES_MARKER } from '@/common/constants';
 import type { IMessageText } from '@/common/chatLib';
+import { stripThinkTags, hasThinkTags } from '../utils/thinkTagFilter';
+import MarkdownView from '../components/Markdown';
+import HorizontalFileList from '../components/HorizontalFileList';
+import FilePreview from '../components/FilePreview';
+import CollapsibleContent from '../components/CollapsibleContent';
+import MessageCronBadge from './MessageCronBadge';
+import GeneratedFileCards from './GeneratedFileCard';
 
 const parseFileMarker = (content: string) => {
   const markerIndex = content.indexOf(NEXUS_FILES_MARKER);

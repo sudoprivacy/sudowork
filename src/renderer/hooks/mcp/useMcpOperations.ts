@@ -1,9 +1,9 @@
 import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { globalMessageQueue } from './messageQueue';
 import { acpConversation, mcpService } from '@/common/ipcBridge';
 import { ConfigStorage } from '@/common/storage';
 import type { IMcpServer } from '@/common/storage';
+import { globalMessageQueue } from './messageQueue';
 
 /**
  * 截断过长的错误消息，保持可读性

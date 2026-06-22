@@ -1,6 +1,6 @@
 // hooks/useTheme.ts
-import { ConfigStorage } from '@/common/storage';
 import { useCallback, useEffect, useState } from 'react';
+import { ConfigStorage } from '@/common/storage';
 
 export type Theme = 'light' | 'dark';
 export type ThemePreference = 'light' | 'dark' | 'system';

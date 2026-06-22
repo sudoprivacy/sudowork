@@ -7,9 +7,9 @@
 import { MessageOne } from '@icon-park/react';
 import React from 'react';
 
-import { getBackendKeyFromConversation } from './utils/exportHelpers';
 import { getAgentLogo } from '@/renderer/utils/agentLogo';
 import type { TChatConversation } from '@/common/storage';
+import { getBackendKeyFromConversation } from './utils/exportHelpers';
 
 type DragOverlayContentProps = {
   conversation?: TChatConversation;

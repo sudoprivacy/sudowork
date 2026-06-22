@@ -8,12 +8,12 @@ import { Button, Collapse, Input, Message, Switch } from '@arco-design/web-react
 import { Right } from '@icon-park/react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import PreferenceRow from './PreferenceRow';
-import type { TenantConfigItem, TenantConfigValues } from './types';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
 import { ConfigStorage } from '@/common/storage';
 import configItemDefaultIcon from '@/renderer/assets/config-item-default.svg';
 import { SUDOWORK_SERVER_BASE_URL } from '@/common/sudoworkServer';
+import type { TenantConfigItem, TenantConfigValues } from './types';
+import PreferenceRow from './PreferenceRow';
 
 function resolveIconUrl(iconUrl: string | null, baseUrl?: string): string {
   if (!iconUrl) return configItemDefaultIcon;

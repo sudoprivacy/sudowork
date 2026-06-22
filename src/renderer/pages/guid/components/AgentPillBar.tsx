@@ -6,11 +6,11 @@
 
 import { Robot } from '@icon-park/react';
 import React from 'react';
-import type { AvailableAgent } from '../types';
-import styles from '../index.module.css';
 import { getAgentLogo } from '@/renderer/utils/agentLogo';
 import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import type { AcpBackendAll } from '@/types/acpTypes';
+import styles from '../index.module.css';
+import type { AvailableAgent } from '../types';
 
 type AgentPillBarProps = {
   availableAgents: AvailableAgent[];

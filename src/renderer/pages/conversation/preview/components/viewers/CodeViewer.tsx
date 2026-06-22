@@ -4,16 +4,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useAutoScroll } from '@/renderer/hooks/useAutoScroll';
-import { useTextSelection } from '@/renderer/hooks/useTextSelection';
-import { useTypingAnimation } from '@/renderer/hooks/useTypingAnimation';
-import { LARGE_TEXT_VIEWER_RENDER_LIMIT, LARGE_TEXT_VIEWER_THRESHOLD } from '../../constants';
-import { useContainerScroll, useContainerScrollTarget } from '../../hooks/useScrollSyncHelpers';
 import { Close } from '@icon-park/react';
 import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import SyntaxHighlighter from 'react-syntax-highlighter';
 import { vs, vs2015 } from 'react-syntax-highlighter/dist/esm/styles/hljs';
+import { useAutoScroll } from '@/renderer/hooks/useAutoScroll';
+import { useTextSelection } from '@/renderer/hooks/useTextSelection';
+import { useTypingAnimation } from '@/renderer/hooks/useTypingAnimation';
+import { LARGE_TEXT_VIEWER_RENDER_LIMIT, LARGE_TEXT_VIEWER_THRESHOLD } from '../../constants';
+import { useContainerScroll, useContainerScrollTarget } from '../../hooks/useScrollSyncHelpers';
 import SelectionToolbar from '../renderers/SelectionToolbar';
 
 interface CodePreviewProps {

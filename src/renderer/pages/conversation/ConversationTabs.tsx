@@ -9,10 +9,6 @@ import { Close, Plus, Robot } from '@icon-park/react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { useConversationTabs } from './context/ConversationTabsContext';
-import { useConversationAgents } from './hooks/useConversationAgents';
-import { applyDefaultConversationName } from './utils/newConversationName';
-import { buildCliAgentParams, buildPresetAssistantParams } from './utils/createConversationParams';
 import { updateWorkspaceTime } from '@/renderer/utils/workspaceHistory';
 import { cleanupSiderTooltips } from '@/renderer/utils/siderTooltip';
 import { emitter } from '@/renderer/utils/emitter';
@@ -20,6 +16,10 @@ import { getAgentLogo } from '@/renderer/utils/agentLogo';
 import { CUSTOM_AVATAR_IMAGE_MAP } from '@/renderer/pages/guid/constants';
 import { ipcBridge } from '@/common';
 import { formatSessionTime } from '@/renderer/utils/messageTime';
+import { buildCliAgentParams, buildPresetAssistantParams } from './utils/createConversationParams';
+import { applyDefaultConversationName } from './utils/newConversationName';
+import { useConversationAgents } from './hooks/useConversationAgents';
+import { useConversationTabs } from './context/ConversationTabsContext';
 
 const TAB_OVERFLOW_THRESHOLD = 10;
 

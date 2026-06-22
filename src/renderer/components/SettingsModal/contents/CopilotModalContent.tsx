@@ -4,15 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Alert, Button, Card, Form, Message, Modal, Space, Spin, Tag, Tooltip, Typography } from '@arco-design/web-react';
+import { Folder, Refresh, Robot, User } from '@icon-park/react';
+import React, { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
 import type { SudoclawConfig, SudoclawProvider, ISudoclawStatus } from '@/common/ipcBridge';
 import { buildScodeConfigFromSudoclawConfig } from '@/common/sudoworkAuthLogin';
 import { mergeSudorouterIntoScodeConfig } from '@/common/scodeConfig';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
-import { Alert, Button, Card, Form, Message, Modal, Space, Spin, Tag, Tooltip, Typography } from '@arco-design/web-react';
-import { Folder, Refresh, Robot, User } from '@icon-park/react';
-import React, { useCallback, useEffect, useState } from 'react';
-import { useTranslation } from 'react-i18next';
 
 const { Title, Text } = Typography;
 

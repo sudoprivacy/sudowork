@@ -1,5 +1,5 @@
-import { ipcBridge } from '@/common';
 import useSWR from 'swr';
+import { ipcBridge } from '@/common';
 
 export interface GeminiModeOption {
   label: string;

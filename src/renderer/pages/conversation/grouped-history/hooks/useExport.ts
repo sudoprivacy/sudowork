@@ -4,12 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
-import type { TChatConversation } from '@/common/storage';
-import { isElectronDesktop } from '@/renderer/utils/platform';
 import { Message } from '@arco-design/web-react';
 import { useCallback, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { ipcBridge } from '@/common';
+import type { TChatConversation } from '@/common/storage';
+import { isElectronDesktop } from '@/renderer/utils/platform';
 
 import type { ExportTask, ExportZipFile } from '../types';
 import { appendWorkspaceFilesToZip, buildConversationJson, buildConversationMarkdown, buildTopicFolderName, EXPORT_IO_TIMEOUT_MS, formatTimestamp, joinFilePath, sanitizeFileName, withTimeout } from '../utils/exportHelpers';

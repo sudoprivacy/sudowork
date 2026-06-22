@@ -4,16 +4,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
-import { libreOffice as libreOfficeIpc } from '@/common/ipcBridge';
-import type { ExcelWorkbookData } from '@/common/types/conversion';
-import { usePreviewToolbarExtras } from '../../context/PreviewToolbarExtrasContext';
 import { Button, Message } from '@arco-design/web-react';
 import { IconRefresh } from '@arco-design/web-react/icon';
 import React, { useCallback, useEffect, useState, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import PDFViewer from './PDFViewer';
+import { ipcBridge } from '@/common';
+import { libreOffice as libreOfficeIpc } from '@/common/ipcBridge';
+import type { ExcelWorkbookData } from '@/common/types/conversion';
+import { usePreviewToolbarExtras } from '../../context/PreviewToolbarExtrasContext';
 import LibreOfficeInstallPrompt from '../LibreOfficeInstallPrompt';
+import PDFViewer from './PDFViewer';
 
 // Excel 表格滚动容器样式 - 使滚动条始终可见
 // Excel table scroll container styles - make scrollbar always visible

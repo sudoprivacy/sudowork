@@ -8,10 +8,10 @@ import { Button, Message } from '@arco-design/web-react';
 import React, { useCallback, useEffect, useState } from 'react';
 import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
-import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { ShareOne } from '@icon-park/react';
-import { nexus as nexusIpc, claudeCli as claudeCliIpc, libreOffice as libreOfficeIpc, pythonRuntime as pythonRuntimeIpc, scode as scodeIpc, nodeRuntime as nodeRuntimeIpc, acpConversation, shareoneCli } from '@/common/ipcBridge';
 import { mutate } from 'swr';
+import AionScrollArea from '@/renderer/components/base/AionScrollArea';
+import { nexus as nexusIpc, claudeCli as claudeCliIpc, libreOffice as libreOfficeIpc, pythonRuntime as pythonRuntimeIpc, scode as scodeIpc, nodeRuntime as nodeRuntimeIpc, acpConversation, shareoneCli } from '@/common/ipcBridge';
 import type { ICliStatus, ILibreOfficeInstallPhase, IPythonInstallPhase, NexusInstallPhase } from '@/common/ipcBridge';
 import { getRuntimeActions, getStatusInfo, isInstalled, type LoadState, type ToolRow } from './runtimeStatus';
 

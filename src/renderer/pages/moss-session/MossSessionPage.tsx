@@ -4,6 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Button, Input, Spin, Typography } from '@arco-design/web-react';
+import { SendOne } from '@icon-park/react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { ipcBridge } from '@/common';
 import type { IResponseMessage } from '@/common/ipcBridge';
 import { uuid } from '@/common/utils';
@@ -11,10 +15,6 @@ import { useAddEventListener } from '@/renderer/utils/emitter';
 import MessageList from '@/renderer/messages/MessageList';
 import { MessageListProvider, useMessageList, useUpdateMessageList } from '@/renderer/messages/hooks';
 import FlexFullContainer from '@renderer/components/FlexFullContainer';
-import { Button, Input, Spin, Typography } from '@arco-design/web-react';
-import { SendOne } from '@icon-park/react';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
 import type { TMessage } from '@/common/chatLib';
 import HOC from '@/renderer/utils/HOC';
 

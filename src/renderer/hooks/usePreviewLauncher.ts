@@ -4,13 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { useCallback, useState } from 'react';
 import { ipcBridge } from '@/common';
 import { joinPath } from '@/common/chatLib';
 import type { PreviewContentType } from '@/common/types/preview';
 import { useConversationContextSafe } from '@/renderer/context/ConversationContext';
 import { usePreviewContext } from '@/renderer/pages/conversation/preview';
 import { LARGE_TEXT_PREVIEW_MAX_LENGTH, LARGE_TEXT_PREVIEW_THRESHOLD } from '@/renderer/pages/conversation/preview/constants';
-import { useCallback, useState } from 'react';
 
 const LARGE_TEXT_PREVIEW_TYPES = new Set<PreviewContentType>(['code', 'markdown', 'html', 'diff']);
 

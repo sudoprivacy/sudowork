@@ -7,13 +7,6 @@
 import { Input, InputNumber, Message, Select, Switch } from '@arco-design/web-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import ChannelItem from './channels/ChannelItem';
-import type { ChannelConfig } from './channels/types';
-import DingTalkConfigForm from './DingTalkConfigForm';
-import LarkConfigForm from './LarkConfigForm';
-import TelegramConfigForm from './TelegramConfigForm';
-import WeChatConfigForm from './WeChatConfigForm';
-import WeComConfigForm from './WeComConfigForm';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
 import { useGeminiModelSelection } from '@/renderer/pages/conversation/gemini/useGeminiModelSelection';
 import type { GeminiModelSelection } from '@/renderer/pages/conversation/gemini/useGeminiModelSelection';
@@ -23,6 +16,13 @@ import { ConfigStorage } from '@/common/storage';
 import { channel, webui, type IWebUIStatus } from '@/common/ipcBridge';
 import type { IProvider, TProviderWithModel } from '@/common/storage';
 import type { IChannelPluginStatus } from '@/channels/types';
+import WeComConfigForm from './WeComConfigForm';
+import WeChatConfigForm from './WeChatConfigForm';
+import TelegramConfigForm from './TelegramConfigForm';
+import LarkConfigForm from './LarkConfigForm';
+import DingTalkConfigForm from './DingTalkConfigForm';
+import type { ChannelConfig } from './channels/types';
+import ChannelItem from './channels/ChannelItem';
 
 type ChannelModelConfigKey = 'assistant.telegram.defaultModel' | 'assistant.lark.defaultModel' | 'assistant.dingtalk.defaultModel' | 'assistant.wechat.defaultModel' | 'assistant.wecom.defaultModel';
 

@@ -10,11 +10,6 @@ import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import useSWR from 'swr';
-import { emitter } from '../../utils/emitter';
-import AcpChat from './acp/AcpChat';
-import ChatLayout from './ChatLayout';
-import ChatSider from './ChatSider';
-import { TaskPanelHeaderProvider } from './workspace/TaskPanelHeaderContext';
 import AgentStatusDot from '@/renderer/components/AgentStatusBanner';
 import AcpModelSelector from '@/renderer/components/AcpModelSelector';
 import { usePresetAssistantInfo } from '@/renderer/hooks/usePresetAssistantInfo';
@@ -22,6 +17,11 @@ import addChatIcon from '@/renderer/assets/add-chat.svg';
 import { uuid } from '@/common/utils';
 import type { TChatConversation } from '@/common/storage';
 import { ipcBridge } from '@/common';
+import { emitter } from '../../utils/emitter';
+import { TaskPanelHeaderProvider } from './workspace/TaskPanelHeaderContext';
+import ChatSider from './ChatSider';
+import ChatLayout from './ChatLayout';
+import AcpChat from './acp/AcpChat';
 
 const _AssociatedConversation: React.FC<{ conversation_id: string }> = ({ conversation_id }) => {
   const { data } = useSWR(['getAssociateConversation', conversation_id], () => ipcBridge.conversation.getAssociateConversation.invoke({ conversation_id }));

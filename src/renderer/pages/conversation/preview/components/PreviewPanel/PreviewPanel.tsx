@@ -6,6 +6,8 @@
 
 import React, { useCallback, useMemo, useRef, useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useResizableSplit } from '@/renderer/hooks/useResizableSplit';
+import { ipcBridge } from '@/common';
 import { PreviewToolbarExtrasProvider, type PreviewToolbarExtras } from '../../context/PreviewToolbarExtrasContext';
 import { usePreviewContext } from '../../context/PreviewContext';
 import AudioPreview from '../viewers/AudioViewer';
@@ -26,8 +28,6 @@ import URLViewer from '../viewers/URLViewer';
 import { DEFAULT_SPLIT_RATIO, MAX_SPLIT_WIDTH, MIN_SPLIT_WIDTH } from '../../constants';
 import { usePreviewHistory, usePreviewKeyboardShortcuts, useScrollSync, useTabOverflow, useThemeDetection } from '../../hooks';
 import { PreviewTabs, PreviewToolbar, PreviewContextMenu, PreviewConfirmModals, PreviewHistoryDropdown, type ContextMenuState, type CloseTabConfirmState, type PreviewTab } from '.';
-import { useResizableSplit } from '@/renderer/hooks/useResizableSplit';
-import { ipcBridge } from '@/common';
 
 /**
  * 预览面板主组件

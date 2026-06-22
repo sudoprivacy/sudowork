@@ -6,7 +6,6 @@
 
 import './bootstrap/runtimePatches';
 import './bootstrap/crashHandler';
-import { migrateLocalStorageKeys } from '@common/storageKeys';
 import type { PropsWithChildren } from 'react';
 import React from 'react';
 import { createRoot } from 'react-dom/client';
@@ -19,6 +18,7 @@ import jaJP from '@arco-design/web-react/es/locale/ja-JP';
 import koKR from '@arco-design/web-react/es/locale/ko-KR';
 import zhCN from '@arco-design/web-react/es/locale/zh-CN';
 import zhTW from '@arco-design/web-react/es/locale/zh-TW';
+import { migrateLocalStorageKeys } from '@common/storageKeys';
 import '@icon-park/react/styles/index.css';
 import 'uno.css';
 import '../adapter/browser';

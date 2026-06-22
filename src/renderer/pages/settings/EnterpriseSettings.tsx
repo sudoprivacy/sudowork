@@ -7,11 +7,11 @@
 import React, { useEffect, useState } from 'react';
 import { Button, Input, Message, Spin } from '@arco-design/web-react';
 import { BuildingTwo, Success, Close } from '@icon-park/react';
-import SettingsPageWrapper from './components/SettingsPageWrapper';
 import { ConfigStorage } from '@/common/storage';
 import { ipcBridge } from '@/common';
 import { TENANT_CONFIG_STORAGE_KEY, resolveTenantConfig } from '@/common/types/tenantConfig';
 import { useAuth } from '@/renderer/context/AuthContext';
+import SettingsPageWrapper from './components/SettingsPageWrapper';
 
 const EnterpriseSettings: React.FC = () => {
   const { logout } = useAuth();

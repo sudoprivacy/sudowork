@@ -13,6 +13,12 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 
+import { emitter } from '@/renderer/utils/emitter';
+import { useCronJobsMap } from '@/renderer/pages/cron/hooks/useCronJobs';
+import FlexFullContainer from '@/renderer/components/FlexFullContainer';
+import DirectorySelectionModal from '@/renderer/components/DirectorySelectionModal';
+import { ipcBridge } from '@/common';
+import type { TChatConversation } from '@/common/storage';
 import WorkspaceCollapse from '../WorkspaceCollapse';
 import ConversationRow from './ConversationRow';
 import DragOverlayContent from './DragOverlayContent';
@@ -23,12 +29,6 @@ import { useConversations } from './hooks/useConversations';
 import { useDragAndDrop } from './hooks/useDragAndDrop';
 import { useExport } from './hooks/useExport';
 import type { ConversationRowProps, ConversationItem, WorkspaceGroupedHistoryProps } from './types';
-import { emitter } from '@/renderer/utils/emitter';
-import { useCronJobsMap } from '@/renderer/pages/cron/hooks/useCronJobs';
-import FlexFullContainer from '@/renderer/components/FlexFullContainer';
-import DirectorySelectionModal from '@/renderer/components/DirectorySelectionModal';
-import { ipcBridge } from '@/common';
-import type { TChatConversation } from '@/common/storage';
 
 const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSessionClick, collapsed = false, tooltipEnabled = false, batchMode = false, onBatchModeChange, activeTab = 'timeline', onBatchApiChange }) => {
   const { id } = useParams();

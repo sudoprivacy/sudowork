@@ -4,13 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Button, Divider, Form, Input, Message } from '@arco-design/web-react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
 import { ConfigStorage } from '@/common/storage';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { useThemeContext } from '@/renderer/context/ThemeContext';
-import { Button, Divider, Form, Input, Message } from '@arco-design/web-react';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { useTranslation } from 'react-i18next';
 
 type GeminiConfig = Parameters<typeof ConfigStorage.set<'gemini.config'>>[1];
 

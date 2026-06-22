@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import useSWR, { mutate } from 'swr';
 import { ipcBridge } from '@/common';
 import { resolvePreferredAcpModelId } from '@/common/acp/defaultModels';
 import { getPresetById } from '@/common/presets/presetResolver';
@@ -11,14 +13,12 @@ import { DEFAULT_CODEX_MODELS } from '@/common/codex/codexModels';
 import type { IProvider } from '@/common/storage';
 import { ConfigStorage } from '@/common/storage';
 import { DEFAULT_PRESET_AGENT_TYPE, resolvePresetAgentBackend } from '@/types/acpTypes';
-import type { AcpBackend, AcpBackendConfig, AcpModelInfo, AvailableAgent, EffectiveAgentInfo, PresetAgentType } from '../types';
 import { fetchAssistantsAsConfigs } from '@/renderer/shared/agents/assistantAdapter';
 import { getAgentModes } from '@/renderer/utils/agentModes';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import useSWR, { mutate } from 'swr';
 import { emitter } from '@/renderer/utils/emitter';
 import { EECLAW_AUTH_STORAGE_KEY } from '@/renderer/context/AuthContext';
+import type { AcpBackend, AcpBackendConfig, AcpModelInfo, AvailableAgent, EffectiveAgentInfo, PresetAgentType } from '../types';
 
 // Module-level cache for cross-component-tree synchronous access (e.g., useConversations)
 // 模块级缓存，供非 GuidPage 组件树（如 useConversations）同步读取

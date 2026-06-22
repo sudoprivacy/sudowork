@@ -4,8 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { PreviewMetadata } from '../../context/PreviewContext';
-import { useTextSelection } from '@/renderer/hooks/useTextSelection';
 import { Checkbox } from '@arco-design/web-react';
 import classNames from 'classnames';
 import { html } from 'diff2html';
@@ -14,8 +12,10 @@ import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 're
 import ReactDOM from 'react-dom';
 import SyntaxHighlighter from 'react-syntax-highlighter';
 import { vs, vs2015 } from 'react-syntax-highlighter/dist/esm/styles/hljs';
-import SelectionToolbar from '../renderers/SelectionToolbar';
 import { useTranslation } from 'react-i18next';
+import { useTextSelection } from '@/renderer/hooks/useTextSelection';
+import SelectionToolbar from '../renderers/SelectionToolbar';
+import type { PreviewMetadata } from '../../context/PreviewContext';
 
 interface DiffPreviewProps {
   content: string; // Diff content

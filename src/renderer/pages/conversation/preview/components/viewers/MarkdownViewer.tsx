@@ -4,11 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { joinPath } from '@/common/chatLib';
-import { ipcBridge } from '@/common';
-import { useAutoScroll } from '@/renderer/hooks/useAutoScroll';
-import { useTextSelection } from '@/renderer/hooks/useTextSelection';
-import { useTypingAnimation } from '@/renderer/hooks/useTypingAnimation';
 import { Close } from '@icon-park/react';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
@@ -22,11 +17,16 @@ import remarkBreaks from 'remark-breaks';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import { Streamdown } from 'streamdown';
+import { joinPath } from '@/common/chatLib';
+import { ipcBridge } from '@/common';
+import { useTypingAnimation } from '@/renderer/hooks/useTypingAnimation';
+import { useTextSelection } from '@/renderer/hooks/useTextSelection';
+import { useAutoScroll } from '@/renderer/hooks/useAutoScroll';
+import { convertLatexDelimiters } from '@/renderer/utils/latexDelimiters';
+import { useContainerScroll, useContainerScrollTarget } from '../../hooks/useScrollSyncHelpers';
+import SelectionToolbar from '../renderers/SelectionToolbar';
 import MarkdownEditor from '../editors/MarkdownEditor';
 import MermaidDiagram from '../renderers/MermaidDiagram';
-import SelectionToolbar from '../renderers/SelectionToolbar';
-import { useContainerScroll, useContainerScrollTarget } from '../../hooks/useScrollSyncHelpers';
-import { convertLatexDelimiters } from '@/renderer/utils/latexDelimiters';
 
 interface MarkdownPreviewProps {
   content: string; // Markdown 内容 / Markdown content

@@ -9,9 +9,9 @@ import React, { useCallback, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { AtMentionTab } from '@/renderer/hooks/useSkillSelectorController';
 import type { WorkspaceFileItem } from '@/renderer/hooks/useWorkspaceFiles';
-import SkillSelectorSkeleton from './base/SkillSelectorSkeleton';
 import { handleSkillIconError } from '@/renderer/utils/skillDisplay';
 import { resolveFileIcon } from '@/renderer/utils/fileIcon';
+import SkillSelectorSkeleton from './base/SkillSelectorSkeleton';
 
 export interface SkillSelectorMenuItem {
   key: string;

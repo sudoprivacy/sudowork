@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { useCallback, useState } from 'react';
 import { ipcBridge } from '@/common';
 import type { IDirOrFile } from '@/common/ipcBridge';
 import { ConfigStorage } from '@/common/storage';
 import { usePasteService } from '@/renderer/hooks/usePasteService';
-import { useCallback, useState } from 'react';
 import type { MessageApi, PasteConfirmState, SelectedNodeRef } from '../types';
 import { getTargetFolderPath } from '../utils/treeHelpers';
 

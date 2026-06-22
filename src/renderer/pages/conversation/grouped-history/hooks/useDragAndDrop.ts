@@ -8,10 +8,10 @@ import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core';
 import { PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove } from '@dnd-kit/sortable';
 import { useCallback, useRef, useState } from 'react';
-import { assignInitialSortOrders, computeSortOrder, getConversationSortOrder, needsReindex, reindexSortOrders } from '../utils/sortOrderHelpers';
 import { ipcBridge } from '@/common';
 import type { TChatConversation } from '@/common/storage';
 import { emitter } from '@/renderer/utils/emitter';
+import { assignInitialSortOrders, computeSortOrder, getConversationSortOrder, needsReindex, reindexSortOrders } from '../utils/sortOrderHelpers';
 
 type UseDragAndDropParams = {
   pinnedConversations: TChatConversation[];

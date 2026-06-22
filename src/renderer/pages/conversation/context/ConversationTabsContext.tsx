@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import type { TChatConversation } from '@/common/storage';
 import { STORAGE_KEYS } from '@/common/storageKeys';
 import { ipcBridge } from '@/common';
 import { addEventListener } from '@/renderer/utils/emitter';
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 
 /** 会话 Tab 数据结构 / Conversation Tab data structure */
 export interface ConversationTab {

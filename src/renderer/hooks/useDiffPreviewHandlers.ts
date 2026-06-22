@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { useCallback } from 'react';
 import type { FileChangeItem } from '@/renderer/components/base/FileChangesPanel';
 import { usePreviewLauncher } from '@/renderer/hooks/usePreviewLauncher';
 import { extractContentFromDiff } from '@/renderer/utils/diffUtils';
 import { getFileTypeInfo } from '@/renderer/utils/fileType';
-import { useCallback } from 'react';
 
 interface DiffPreviewHandlersOptions {
   /** Diff text content */

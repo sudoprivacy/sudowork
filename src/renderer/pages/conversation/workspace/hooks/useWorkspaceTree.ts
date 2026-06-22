@@ -5,12 +5,12 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { SelectedNodeRef } from '../types';
-import { ensureDraftsDirectoryNode, filterValidExpandedKeys, getAllDirKeys, getFirstLevelKeys, getLimitedDepthKeys } from '../utils/treeHelpers';
 import { ipcBridge } from '@/common';
 import type { IDirOrFile } from '@/common/ipcBridge';
 import { emitter } from '@/renderer/utils/emitter';
 import { dispatchWorkspaceHasFilesEvent } from '@/renderer/utils/workspaceEvents';
+import { ensureDraftsDirectoryNode, filterValidExpandedKeys, getAllDirKeys, getFirstLevelKeys, getLimitedDepthKeys } from '../utils/treeHelpers';
+import type { SelectedNodeRef } from '../types';
 
 interface UseWorkspaceTreeOptions {
   workspace: string;

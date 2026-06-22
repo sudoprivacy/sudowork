@@ -4,15 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
-import { libreOffice as libreOfficeIpc } from '@/common/ipcBridge';
-import { usePreviewToolbarExtras } from '../../context/PreviewToolbarExtrasContext';
 import { Button, Message } from '@arco-design/web-react';
 import { IconRefresh } from '@arco-design/web-react/icon';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import PDFViewer from './PDFViewer';
+import { libreOffice as libreOfficeIpc } from '@/common/ipcBridge';
+import { ipcBridge } from '@/common';
+import { usePreviewToolbarExtras } from '../../context/PreviewToolbarExtrasContext';
 import LibreOfficeInstallPrompt from '../LibreOfficeInstallPrompt';
+import PDFViewer from './PDFViewer';
 
 interface PPTPreviewProps {
   filePath?: string;

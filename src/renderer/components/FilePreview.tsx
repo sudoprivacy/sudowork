@@ -6,10 +6,10 @@
 
 import { Close } from '@icon-park/react';
 import React, { useCallback, useEffect, useState } from 'react';
+import { Image } from '@arco-design/web-react';
 import type { PreviewContentType } from '@/common/types/preview';
 import { getFileExtension } from '@/renderer/services/FileService';
 import { ipcBridge } from '@/common';
-import { Image } from '@arco-design/web-react';
 import { resolveFileIcon } from '@/renderer/utils/fileIcon';
 import { usePreviewLauncher } from '@/renderer/hooks/usePreviewLauncher';
 

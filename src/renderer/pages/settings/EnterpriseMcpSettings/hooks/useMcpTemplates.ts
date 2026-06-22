@@ -1,7 +1,7 @@
 import useSWR from 'swr';
-import { useEnterpriseMcpClient } from './useEnterpriseMcpClient';
 import type { ListTemplatesParams } from '../api/mcpTemplates';
 import type { EnterpriseMcpTemplateListResponse } from '../types';
+import { useEnterpriseMcpClient } from './useEnterpriseMcpClient';
 
 export function templatesSwrKey(params: ListTemplatesParams) {
   return ['enterprise-mcp', 'templates', params.category ?? '', params.search ?? '', params.page ?? 1, params.page_size ?? 20] as const;

@@ -4,13 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ConfigStorage, DEFAULT_IMAGE_GENERATION_MODEL, type IConfigStorageRefer, type IMcpServer } from '@/common/storage';
-import { migrateImageGenerationModelConfig, pickImageGenerationModelId } from '@/common/imageGenerationModelConfig';
-import { acpConversation, scode } from '@/common/ipcBridge';
 import { Divider, Form, Switch, Tooltip, Message, Button, Dropdown, Menu, Modal } from '@arco-design/web-react';
 import { Help, Down, Plus } from '@icon-park/react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { acpConversation, scode } from '@/common/ipcBridge';
+import { migrateImageGenerationModelConfig, pickImageGenerationModelId } from '@/common/imageGenerationModelConfig';
+import { ConfigStorage, DEFAULT_IMAGE_GENERATION_MODEL, type IConfigStorageRefer, type IMcpServer } from '@/common/storage';
 import useConfigModelListWithImage from '@/renderer/hooks/useConfigModelListWithImage';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import AionSelect from '@/renderer/components/base/AionSelect';

@@ -4,13 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
-import type { BdpanFileEntry } from '@/common/ipcBridge';
-import AionModal from '@/renderer/components/base/AionModal';
 import { Button, Input, Message, Spin } from '@arco-design/web-react';
 import { Close, FileDisplayOne, FolderOpen, Refresh } from '@icon-park/react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import AionModal from '@/renderer/components/base/AionModal';
+import type { BdpanFileEntry } from '@/common/ipcBridge';
+import { ipcBridge } from '@/common';
 
 type Step = 'checking' | 'getting_auth_url' | 'enter_code' | 'submitting_code' | 'file_browser' | 'error';
 

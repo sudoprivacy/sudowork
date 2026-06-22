@@ -4,12 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
-import type { TChatConversation } from '@/common/storage';
 import { Button, Dropdown, Menu, Message } from '@arco-design/web-react';
 import { Connection, Refresh } from '@icon-park/react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { TChatConversation } from '@/common/storage';
+import { ipcBridge } from '@/common';
 import { useAddEventListener } from '@/renderer/utils/emitter';
 
 const DOT_COLORS: Record<string, string> = {

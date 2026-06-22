@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { resolveLocalFileUrl } from '@/renderer/utils/platform';
-import { usePreviewToolbarExtras } from '../../context/PreviewToolbarExtrasContext';
 import { AudioFile } from '@icon-park/react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { resolveLocalFileUrl } from '@/renderer/utils/platform';
+import { usePreviewToolbarExtras } from '../../context/PreviewToolbarExtrasContext';
 
 interface AudioViewerProps {
   filePath?: string;

@@ -4,15 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { useCallback } from 'react';
 import { ipcBridge } from '@/common';
 import type { IDirOrFile, MossWorkspaceFilePreview } from '@/common/ipcBridge';
 import type { PreviewContentType } from '@/common/types/preview';
 import { emitter } from '@/renderer/utils/emitter';
 import { LARGE_TEXT_PREVIEW_MAX_LENGTH, LARGE_TEXT_PREVIEW_THRESHOLD } from '@/renderer/pages/conversation/preview/constants';
 import { removeWorkspaceEntry, renameWorkspaceEntry } from '@/renderer/utils/workspaceFs';
-import { useCallback } from 'react';
-import type { MessageApi, RenameModalState, DeleteModalState } from '../types';
 import type { FileOrFolderItem } from '@/renderer/types/files';
+import type { MessageApi, RenameModalState, DeleteModalState } from '../types';
 import { getPathSeparator, replacePathInList, updateTreeForRename } from '../utils/treeHelpers';
 
 // Module-level cache for LibreOffice availability

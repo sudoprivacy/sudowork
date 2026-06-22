@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { IMessageAcpPermission } from '@/common/chatLib';
-import { conversation } from '@/common/ipcBridge';
 import { Button, Card, Radio, Typography } from '@arco-design/web-react';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { conversation } from '@/common/ipcBridge';
+import type { IMessageAcpPermission } from '@/common/chatLib';
 
 const { Text } = Typography;
 

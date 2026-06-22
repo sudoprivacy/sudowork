@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { useCallback, useEffect, useState } from 'react';
 import { useDragUpload } from '@/renderer/hooks/useDragUpload';
 import { usePasteService } from '@/renderer/hooks/usePasteService';
 import { allSupportedExts, type FileMetadata } from '@/renderer/services/FileService';
 import { measureCaretTop, scrollCaretToLastLine } from '../utils/caretUtils';
-import { useCallback, useEffect, useState } from 'react';
 import { getGuidDraft, setGuidDraft } from './useGuidDraft';
 
 export type GuidInputResult = {

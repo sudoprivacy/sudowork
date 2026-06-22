@@ -15,12 +15,12 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Modal, Spin, Message } from '@arco-design/web-react';
 import { Close, Shield, FolderOpen } from '@icon-park/react';
+import { useTranslation } from 'react-i18next';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { skillHub, shell } from '@/common/ipcBridge';
 import { isElectronDesktop } from '@/renderer/utils/platform';
 import type { SkillAuditReport, AuditFinding, AuditCategorySummary, AuditCategory } from '@/common/skillAuditTypes';
 import { AUDIT_CATEGORY_CONFIG } from '@/common/skillAuditTypes';
-import { useTranslation } from 'react-i18next';
 
 // ==================== Audit Summary Component ====================
 

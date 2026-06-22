@@ -5,11 +5,11 @@
  */
 
 import { useEffect, useRef } from 'react';
-import type { ContextMenuState } from '../types';
-import { getAllDirKeys } from '../utils/treeHelpers';
 import { ipcBridge } from '@/common';
 import type { IDirOrFile } from '@/common/ipcBridge';
 import { emitter, useAddEventListener } from '@/renderer/utils/emitter';
+import { getAllDirKeys } from '../utils/treeHelpers';
+import type { ContextMenuState } from '../types';
 
 interface UseWorkspaceEventsOptions {
   conversation_id: string;
