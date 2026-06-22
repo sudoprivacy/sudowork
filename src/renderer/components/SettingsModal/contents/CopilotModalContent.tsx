@@ -4,28 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Alert, Button, Card, Form, Message, Modal, Space, Spin, Tag, Tooltip, Typography } from '@arco-design/web-react';
+import { Alert, Button, Card, Space, Spin, Tag, Tooltip, Typography } from '@arco-design/web-react';
 import { Folder, Refresh, Robot, User } from '@icon-park/react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
-import type { SudoclawConfig, SudoclawProvider, ISudoclawStatus } from '@/common/ipcBridge';
-import { buildScodeConfigFromSudoclawConfig } from '@/common/sudoworkAuthLogin';
-import { mergeSudorouterIntoScodeConfig } from '@/common/scodeConfig';
+import type { ISudoclawStatus } from '@/common/ipcBridge';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 
 const { Title, Text } = Typography;
-
-const DEFAULT_BASE_URL = 'https://hk.sudorouter.ai/v1';
-
-const API_TYPE_OPTIONS = [
-  { value: 'openai-responses', label: 'OpenAI' },
-  { value: 'anthropic-messages', label: 'Anthropic' },
-  { value: 'google-generative-ai', label: 'Google Generative AI' },
-  { value: 'custom', label: 'Custom' },
-];
-
-type ProviderEntry = { key: string; provider: SudoclawProvider };
 
 // ==================== 子组件 / Sub-components ====================
 
@@ -74,11 +61,8 @@ const StatusCard: React.FC<{
 
 const CopilotModalContent: React.FC = () => {
   const { t } = useTranslation();
-  const [form] = Form.useForm();
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState<ISudoclawStatus | null>(null);
-  const [providers, setProviders] = useState<ProviderEntry[]>([]);
-  const [saving, setSaving] = useState(false);
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'ok' | 'error'>('idle');
   const [testError, setTestError] = useState<{ error?: string; stdout?: string; stderr?: string } | null>(null);
 
@@ -89,31 +73,9 @@ const CopilotModalContent: React.FC = () => {
     setLoading(true);
     setRuntimeLoading(true);
     try {
-      const [configRes, statusRes] = await Promise.all([ipcBridge.sudoclaw.getConfig.invoke(), ipcBridge.sudoclaw.getStatus.invoke()]);
+      const statusRes = await ipcBridge.sudoclaw.getStatus.invoke();
       if (statusRes?.success && statusRes.data) {
         setStatus(statusRes.data);
-      }
-      if (configRes?.success && configRes.data) {
-        const c = configRes.data;
-        form.setFieldsValue({
-          primaryModel: c.agents?.defaults?.model?.primary || 'sudorouter/gemini-3.5-flash',
-          modelsMode: c.models?.mode || 'merge',
-        });
-        const prov = c.models?.providers || {};
-        setProviders(
-          Object.entries(prov)
-            .filter(([key]) => key.trim() && !/^provider_\d+$/.test(key))
-            .map(([key, p]) => ({
-              key,
-              provider: { baseUrl: p.baseUrl, apiKey: p.apiKey, api: p.api, models: p.models || [] },
-            }))
-        );
-      } else {
-        form.setFieldsValue({
-          primaryModel: 'sudorouter/gemini-3.5-flash',
-          modelsMode: 'merge',
-        });
-        setProviders([]);
       }
     } catch (err) {
       console.error('[CopilotSettings] Load failed:', err);
@@ -121,167 +83,6 @@ const CopilotModalContent: React.FC = () => {
       setLoading(false);
       setRuntimeLoading(false);
     }
-  }, [form]);
-
-  const buildPatchFromForm = useCallback((): SudoclawConfig => {
-    const values = form.getFieldsValue();
-    const providersMap: Record<string, SudoclawProvider> = {};
-    for (const { key, provider } of providers) {
-      const k = key.trim();
-      if (!k) continue;
-      if (/^provider_\d+$/.test(k)) continue;
-      const hasData = provider.baseUrl || provider.apiKey || provider.api || (provider.models?.length && provider.models.some((m) => m.id?.trim()));
-      if (!hasData) continue;
-      const models = provider.models?.filter((m) => m.id?.trim()).map((m) => ({ id: m.id.trim(), name: m.name?.trim() || undefined }));
-      providersMap[k] = {
-        baseUrl: provider.baseUrl || undefined,
-        apiKey: provider.apiKey || undefined,
-        api: provider.api || undefined,
-        models: models?.length ? models : [],
-      };
-    }
-    return {
-      models: {
-        mode: values.modelsMode || 'merge',
-        providers: providersMap,
-      },
-      agents: {
-        defaults: {
-          model: {
-            primary: values.primaryModel || 'sudorouter/gemini-3.5-flash',
-          },
-        },
-      },
-    };
-  }, [form, providers]);
-
-  const saveConfig = useCallback(async () => {
-    setSaving(true);
-    try {
-      const patch = buildPatchFromForm();
-
-      // 主：写入 sudocode.json
-      const sudorouterScodeConfig = buildScodeConfigFromSudoclawConfig(patch);
-      if (sudorouterScodeConfig?.auth_modes?.proxy?.sudorouter && sudorouterScodeConfig.models) {
-        const currentScodeConfig = await ipcBridge.scode.getConfig.invoke().catch((): null => null);
-        const scodeConfig = mergeSudorouterIntoScodeConfig(currentScodeConfig?.data || {}, {
-          sudorouterKey: sudorouterScodeConfig.auth_modes.proxy.sudorouter.apiKey,
-          modelServiceUrl: sudorouterScodeConfig.auth_modes.proxy.sudorouter.baseUrl,
-          models: Object.keys(sudorouterScodeConfig.models),
-        });
-        const scodeRes = await ipcBridge.scode.saveConfig.invoke({ config: scodeConfig });
-        if (!scodeRes?.success) {
-          Message.error(scodeRes?.msg || t('common.saveFailed', { defaultValue: 'Save failed' }));
-          return;
-        }
-      }
-
-      // 备：同步写入 sudoclaw.json
-      await ipcBridge.sudoclaw.saveConfig.invoke({ config: patch }).catch((err) => {
-        console.warn('[CopilotSettings] Failed to sync sudoclaw.json (backup):', err);
-      });
-
-      // Prompt user to restart Gateway
-      Modal.confirm({
-        title: '配置已保存',
-        content: '配置已保存成功。需要重启 Gateway 才能生效，是否立即重启？',
-        okText: '重启 Gateway',
-        cancelText: '稍后重启',
-        onOk: async () => {
-          const restartRes = await ipcBridge.sudoclaw.restartGateway.invoke();
-          if (restartRes?.success) {
-            Message.success('Gateway 重启中...');
-            setTimeout(() => {
-              void loadConfig();
-            }, 3000);
-          } else {
-            Message.error(restartRes?.msg || '重启失败');
-          }
-        },
-      });
-    } catch (err) {
-      Message.error(err instanceof Error ? err.message : String(err));
-    } finally {
-      setSaving(false);
-    }
-  }, [buildPatchFromForm, t, loadConfig]);
-
-  const handleAddProvider = useCallback(() => {
-    setProviders((prev) => {
-      const hasSudorouter = prev.some((p) => p.key === 'sudorouter');
-      const defaultKey = hasSudorouter ? `provider_${Date.now()}` : 'sudorouter';
-      return [
-        ...prev,
-        {
-          key: defaultKey,
-          provider: {
-            baseUrl: DEFAULT_BASE_URL,
-            models: [{ id: 'gemini-3.5-flash', name: 'gemini-3.5-flash' }],
-          },
-        },
-      ];
-    });
-  }, []);
-
-  const handleRemoveProvider = useCallback((idx: number) => {
-    setProviders((prev) => prev.filter((_, i) => i !== idx));
-  }, []);
-
-  const handleProviderChange = useCallback((idx: number, field: keyof SudoclawProvider, value: string | SudoclawProvider['models']) => {
-    setProviders((prev) => {
-      const next = [...prev];
-      const entry = next[idx];
-      if (!entry) return prev;
-      next[idx] = {
-        ...entry,
-        provider: { ...entry.provider, [field]: value },
-      };
-      return next;
-    });
-  }, []);
-
-  const handleProviderKeyChange = useCallback((idx: number, key: string) => {
-    setProviders((prev) => {
-      const next = [...prev];
-      next[idx] = { ...next[idx]!, key };
-      return next;
-    });
-  }, []);
-
-  const handleAddModel = useCallback((idx: number) => {
-    setProviders((prev) => {
-      const next = [...prev];
-      const entry = next[idx];
-      if (!entry) return prev;
-      const models = [...(entry.provider.models || []), { id: '', name: '' }];
-      next[idx] = { ...entry, provider: { ...entry.provider, models } };
-      return next;
-    });
-  }, []);
-
-  const handleModelChange = useCallback((providerIdx: number, modelIdx: number, field: 'id' | 'name', value: string) => {
-    setProviders((prev) => {
-      const next = [...prev];
-      const entry = next[providerIdx];
-      if (!entry) return prev;
-      const models = [...(entry.provider.models || [])];
-      const m = models[modelIdx];
-      if (!m) return prev;
-      models[modelIdx] = { ...m, [field]: value };
-      next[providerIdx] = { ...entry, provider: { ...entry.provider, models } };
-      return next;
-    });
-  }, []);
-
-  const handleRemoveModel = useCallback((providerIdx: number, modelIdx: number) => {
-    setProviders((prev) => {
-      const next = [...prev];
-      const entry = next[providerIdx];
-      if (!entry) return prev;
-      const models = (entry.provider.models || []).filter((_, i) => i !== modelIdx);
-      next[providerIdx] = { ...entry, provider: { ...entry.provider, models } };
-      return next;
-    });
   }, []);
 
   const handleRefreshRuntime = async () => {
@@ -304,46 +105,6 @@ const CopilotModalContent: React.FC = () => {
       setTestError({ error: err instanceof Error ? err.message : String(err) });
     } finally {
       setRuntimeLoading(false);
-    }
-  };
-
-  const restartGateway = async () => {
-    try {
-      const isRunning = testStatus === 'ok';
-      Modal.confirm({
-        title: isRunning ? '重启 Sudoclaw Gateway' : '启动 Sudoclaw Gateway',
-        content: isRunning ? '确定要重启 Sudoclaw Gateway 吗？这可能会中断正在进行的对话。' : 'Sudoclaw Gateway 未运行，是否立即启动？',
-        okText: '确定',
-        cancelText: '取消',
-        onOk: async () => {
-          const res = await ipcBridge.sudoclaw.restartGateway.invoke();
-          if (res?.success) {
-            Message.success(isRunning ? 'Gateway 重启中...' : 'Gateway 启动中...');
-            // Refresh status and test connection after restart
-            setTestStatus('testing');
-            setTimeout(async () => {
-              await loadConfig();
-              try {
-                const testRes = await ipcBridge.sudoclaw.testGateway.invoke();
-                if (testRes?.success && testRes.data?.success) {
-                  setTestStatus('ok');
-                  setTestError(null);
-                } else {
-                  setTestStatus('error');
-                  setTestError({ error: testRes?.data?.error || 'Connection failed' });
-                }
-              } catch (err) {
-                setTestStatus('error');
-                setTestError({ error: err instanceof Error ? err.message : String(err) });
-              }
-            }, 3000);
-          } else {
-            Message.error(res?.msg || '重启失败');
-          }
-        },
-      });
-    } catch (error) {
-      Message.error('重启失败');
     }
   };
 

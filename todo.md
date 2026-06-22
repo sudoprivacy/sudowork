@@ -4,9 +4,9 @@
 
 - [ ] 清理未用到的变量及相关性代码 bunx eslint src/renderer/ --format unix 2>/dev/null | grep "no-unused-vars" | cut -d: -f1 | sort -u
       ✅ /Users/xiaohei/Documents/freelancer/jinjing/sudoclaw/sudowork/src/renderer/components/AgentStatusBanner.tsx
-      /Users/xiaohei/Documents/freelancer/jinjing/sudoclaw/sudowork/src/renderer/components/Markdown.tsx
-      /Users/xiaohei/Documents/freelancer/jinjing/sudoclaw/sudowork/src/renderer/components/SettingsModal/contents/CopilotModalContent.tsx
-      /Users/xiaohei/Documents/freelancer/jinjing/sudoclaw/sudowork/src/renderer/components/SettingsModal/contents/SkillModalContent.tsx
+      ✅ /Users/xiaohei/Documents/freelancer/jinjing/sudoclaw/sudowork/src/renderer/components/Markdown.tsx
+      ✅ /Users/xiaohei/Documents/freelancer/jinjing/sudoclaw/sudowork/src/renderer/components/SettingsModal/contents/CopilotModalContent.tsx
+      ✅ /Users/xiaohei/Documents/freelancer/jinjing/sudoclaw/sudowork/src/renderer/components/SettingsModal/contents/SkillModalContent.tsx
       /Users/xiaohei/Documents/freelancer/jinjing/sudoclaw/sudowork/src/renderer/components/SettingsModal/contents/TelegramConfigForm.tsx
       /Users/xiaohei/Documents/freelancer/jinjing/sudoclaw/sudowork/src/renderer/components/SettingsModal/contents/ToolsModalContent.tsx
       /Users/xiaohei/Documents/freelancer/jinjing/sudoclaw/sudowork/src/renderer/components/SettingsModal/contents/WebuiModalContent.tsx

@@ -42,7 +42,7 @@ const formatCode = (code: string) => {
       },
       2
     );
-  } catch (error) {
+  } catch {
     return content;
   }
 };
