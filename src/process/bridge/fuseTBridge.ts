@@ -97,7 +97,16 @@ export function initFuseTBridge(): void {
         return { success: false, msg: err instanceof Error ? err.message : String(err) };
       }
     });
-    mainLog(TAG, 'Registered dev IPC handles: dev.fuse-t.check-installed, dev.fuse-t.ensure-installed');
+
+    ipcMain.handle('dev.fuse-t.probe', async () => {
+      try {
+        const probe = await fuseTInstallService.runProbe();
+        return { success: true, data: probe };
+      } catch (err) {
+        return { success: false, msg: err instanceof Error ? err.message : String(err) };
+      }
+    });
+    mainLog(TAG, 'Registered dev IPC handles: dev.fuse-t.check-installed, dev.fuse-t.ensure-installed, dev.fuse-t.probe');
   } else {
     mainLog(TAG, 'Skipped dev IPC handles (app.isPackaged=true)');
   }

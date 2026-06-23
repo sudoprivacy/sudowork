@@ -83,6 +83,7 @@ describe('FUSE-T — lazy install contract', () => {
     const bridge = fs.readFileSync(path.join(REPO_ROOT, 'src/process/bridge/fuseTBridge.ts'), 'utf-8');
     expect(bridge).toMatch(/if \(!app\.isPackaged\)[\s\S]*?ipcMain\.handle\('dev\.fuse-t\.ensure-installed'/);
     expect(bridge).toMatch(/if \(!app\.isPackaged\)[\s\S]*?ipcMain\.handle\('dev\.fuse-t\.check-installed'/);
+    expect(bridge).toMatch(/if \(!app\.isPackaged\)[\s\S]*?ipcMain\.handle\('dev\.fuse-t\.probe'/);
   });
 });
 

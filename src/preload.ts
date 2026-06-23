@@ -56,6 +56,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // NOT exposed in packaged builds.
   devFuseTCheckInstalled: () => ipcRenderer.invoke('dev.fuse-t.check-installed'),
   devFuseTEnsureInstalled: () => ipcRenderer.invoke('dev.fuse-t.ensure-installed'),
+  // Detailed probe dump — every detection layer + errno — for diagnosing
+  // "checkInstalled returns installed:false while FUSE-T is verifiably present"
+  // (#915 Mac smoke). Dev-only.
+  devFuseTProbe: () => ipcRenderer.invoke('dev.fuse-t.probe'),
   // ==================== Crash Reporter (渲染进程上报) ====================
   // 上报 JS 异常到主进程 CrashReporter
   crashReportException: (data: { error_name: string; error_message: string; stack_trace?: string; context?: Record<string, unknown> }) => ipcRenderer.invoke('crash.report-exception', data),

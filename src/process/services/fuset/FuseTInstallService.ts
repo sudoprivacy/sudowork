@@ -115,6 +115,14 @@ function getDownloadUrls(): string[] {
 export type FuseTInstallPhase = 'downloading' | 'installing' | 'cleanup';
 export type FuseTProgressCallback = (phase: FuseTInstallPhase, percent?: number) => void;
 
+/** Structured detection-probe details (used by `dev.fuse-t.probe` for #915 smoke). */
+export interface FuseTProbeResult {
+  platform: NodeJS.Platform;
+  candidates: Array<{ path: string; exists: boolean; error?: string }>;
+  pkgutil: { regex: string; matched: boolean; stdout?: string; error?: string };
+  checkInstalledReturn: FuseTStatus;
+}
+
 export interface FuseTStatus {
   installed: boolean;
   version?: string;
@@ -147,7 +155,45 @@ export class FuseTInstallService {
     if (await pkgUtilHasFuseT()) {
       return { installed: true, bundlePath: 'pkgutil:org.fuse-t.*', version: FUSE_T_VERSION };
     }
+    mainWarn(TAG, `checkInstalled: all probes miss. platform=${process.platform} candidates=[${FUSE_T_BUNDLE_CANDIDATES.join(', ')}] pkgutilRegex=${FUSE_T_PKGUTIL_REGEX}`);
     return { installed: false };
+  }
+
+  /**
+   * Detailed probe dump — runs every detection layer independently and
+   * captures the raw outcome (including errors). Used by the
+   * `dev.fuse-t.probe` IPC channel during Mac-side smoke (#915) when
+   * `checkInstalled()` returns `installed: false` but the user has
+   * verified FUSE-T is actually installed.
+   */
+  async runProbe(): Promise<FuseTProbeResult> {
+    const candidates: Array<{ path: string; exists: boolean; error?: string }> = [];
+    for (const p of FUSE_T_BUNDLE_CANDIDATES) {
+      try {
+        await fs.promises.access(p, fs.constants.F_OK);
+        candidates.push({ path: p, exists: true });
+      } catch (err) {
+        candidates.push({
+          path: p,
+          exists: false,
+          error: err instanceof Error ? `${(err as NodeJS.ErrnoException).code ?? 'ERR'}: ${err.message}` : String(err),
+        });
+      }
+    }
+    const pkgutil: FuseTProbeResult['pkgutil'] = { regex: FUSE_T_PKGUTIL_REGEX, matched: false };
+    try {
+      const { stdout } = await execFileAsync('pkgutil', ['--pkgs', '--regexp', FUSE_T_PKGUTIL_REGEX]);
+      pkgutil.stdout = stdout;
+      pkgutil.matched = stdout.trim().length > 0;
+    } catch (err) {
+      pkgutil.error = err instanceof Error ? `${err.message}` : String(err);
+    }
+    return {
+      platform: process.platform,
+      candidates,
+      pkgutil,
+      checkInstalledReturn: await this.checkInstalled(),
+    };
   }
 
   /**
@@ -250,7 +296,16 @@ async function fileExists(p: string): Promise<boolean> {
   try {
     await fs.promises.access(p, fs.constants.F_OK);
     return true;
-  } catch {
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException)?.code;
+    // ENOENT is the expected "path absent" signal — keep it quiet.
+    // Anything else (EACCES from TCC / sandbox, ELOOP from a broken
+    // symlink, etc.) silently dropped a true install on Mac dev's
+    // smoke (#915) — log so the next failure surfaces the actual
+    // errno instead of looking like a clean "not installed".
+    if (code && code !== 'ENOENT') {
+      mainWarn(TAG, `fs.access(${p}) failed: ${code} — ${err instanceof Error ? err.message : String(err)}`);
+    }
     return false;
   }
 }
@@ -265,10 +320,12 @@ async function pkgUtilHasFuseT(): Promise<boolean> {
   try {
     const { stdout } = await execFileAsync('pkgutil', ['--pkgs', '--regexp', FUSE_T_PKGUTIL_REGEX]);
     return stdout.trim().length > 0;
-  } catch {
+  } catch (err) {
     // Non-zero exit (no matches) or missing pkgutil — treat as "not
     // installed" rather than failing the check. The disk-path probe
-    // already covers the common case.
+    // already covers the common case. Log the actual reason though,
+    // since silently dropping a real install path tripped #915 once.
+    mainWarn(TAG, `pkgutil --pkgs --regexp ${FUSE_T_PKGUTIL_REGEX} failed: ${err instanceof Error ? err.message : String(err)}`);
     return false;
   }
 }
