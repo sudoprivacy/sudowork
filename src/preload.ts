@@ -47,19 +47,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   terminalWrite: (params: { sessionId: string; data: string }) => ipcRenderer.invoke('terminal.write', params),
   terminalResize: (params: { sessionId: string; cols: number; rows: number }) => ipcRenderer.invoke('terminal.resize', params),
   terminalDispose: (params: { sessionId: string }) => ipcRenderer.invoke('terminal.dispose', params),
-  // ==================== FUSE-T smoke testing (dev mode only) ====================
-  // Direct IPC handles registered only when `!app.isPackaged`, see fuseTBridge.ts.
-  // The production renderer path is `ipcBridge.fuseT.ensureInstalled.invoke()`
-  // (bridge.buildProvider's subscribe/callback protocol). DevTools console can't
-  // import the bundled ipcBridge module, so these direct handles exist purely so
-  // a Mac smoke tester can drive the lazy install from the console — they are
-  // NOT exposed in packaged builds.
-  devFuseTCheckInstalled: () => ipcRenderer.invoke('dev.fuse-t.check-installed'),
-  devFuseTEnsureInstalled: () => ipcRenderer.invoke('dev.fuse-t.ensure-installed'),
-  // Detailed probe dump — every detection layer + errno — for diagnosing
-  // "checkInstalled returns installed:false while FUSE-T is verifiably present"
-  // (#915 Mac smoke). Dev-only.
-  devFuseTProbe: () => ipcRenderer.invoke('dev.fuse-t.probe'),
   // ==================== Crash Reporter (渲染进程上报) ====================
   // 上报 JS 异常到主进程 CrashReporter
   crashReportException: (data: { error_name: string; error_message: string; stack_trace?: string; context?: Record<string, unknown> }) => ipcRenderer.invoke('crash.report-exception', data),

@@ -49,6 +49,7 @@
  */
 
 import { execFile } from 'child_process';
+import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as https from 'https';
 import * as http from 'http';
@@ -95,33 +96,45 @@ const FUSE_T_PKGUTIL_REGEX = '^org\\.fuse-t\\.';
 const FUSE_T_VERSION = (runtimeVersions as Record<string, string>)['fuse-t'];
 
 /**
+ * Pinned SHA256 sums for each FUSE-T pkg version we will install.
+ *
+ * The other installers in this codebase (vault, local-connector,
+ * nexus-fuse-plugin) refuse to run an extracted dylib whose archive
+ * SHA wasn't listed against a pinned table. The FUSE-T pkg deserves
+ * the same gate — we're about to hand `installer -pkg` administrator
+ * privileges, so the bytes had better match what we audited at PR
+ * time.
+ *
+ * To bump:
+ *   1. `gh release view <ver> --repo macos-fuse-t/fuse-t` to confirm
+ *      the new release exists.
+ *   2. `curl -sL <pkg-url> -o /tmp/fuse-t.pkg && sha256sum /tmp/fuse-t.pkg`.
+ *   3. Update `runtime-versions.json` + add the new entry here.
+ */
+const FUSE_T_PKG_SHA256SUMS: Record<string, string> = {
+  '1.2.7': '6a29c747e61a86a405a189efc3de42812d73147135f93a1bb0624c1e7b90e654',
+};
+
+/**
  * Download mirrors for the FUSE-T pkg, tried in order. The COS mirror is
  * primary (consistent with the existing node / scode / nexus / vault mirror
  * pattern, and avoids GitHub release rate-limits from inside GFW); the
  * upstream GitHub release is the fallback so the install still works
  * before the COS mirror is populated and on dev machines outside GFW.
+ *
+ * Filename convention is upstream's `fuse-t-macos-installer-<version>.pkg`,
+ * verified empirically against
+ * https://github.com/macos-fuse-t/fuse-t/releases/download/1.2.7/fuse-t-macos-installer-1.2.7.pkg.
+ * The COS mirrors must serve the same filename so users moving between
+ * mirrors don't see different artifacts.
  */
 function getDownloadUrls(): string[] {
-  // Filename convention is upstream's `fuse-t-macos-installer-<version>.pkg`
-  // (verified empirically against
-  // https://github.com/macos-fuse-t/fuse-t/releases/download/1.2.7/fuse-t-macos-installer-1.2.7.pkg
-  // during the Mac smoke checklist on #915). The COS mirrors mirror this
-  // exact filename — repointing the kernel team at a renamed artifact would
-  // silently regress installs as users move between mirrors.
   const pkgName = `fuse-t-macos-installer-${FUSE_T_VERSION}.pkg`;
   return [`https://sudowork-runtime-1309794936.cos.ap-beijing.myqcloud.com/fuse-t/release/v${FUSE_T_VERSION}/${pkgName}`, `https://sudoclaw-download-1309794936.cos.ap-beijing.myqcloud.com/fuse-t/release/v${FUSE_T_VERSION}/${pkgName}`, `https://github.com/macos-fuse-t/fuse-t/releases/download/${FUSE_T_VERSION}/${pkgName}`];
 }
 
 export type FuseTInstallPhase = 'downloading' | 'installing' | 'cleanup';
 export type FuseTProgressCallback = (phase: FuseTInstallPhase, percent?: number) => void;
-
-/** Structured detection-probe details (used by `dev.fuse-t.probe` for #915 smoke). */
-export interface FuseTProbeResult {
-  platform: NodeJS.Platform;
-  candidates: Array<{ path: string; exists: boolean; error?: string }>;
-  pkgutil: { regex: string; matched: boolean; stdout?: string; error?: string };
-  checkInstalledReturn: FuseTStatus;
-}
 
 export interface FuseTStatus {
   installed: boolean;
@@ -160,43 +173,6 @@ export class FuseTInstallService {
   }
 
   /**
-   * Detailed probe dump — runs every detection layer independently and
-   * captures the raw outcome (including errors). Used by the
-   * `dev.fuse-t.probe` IPC channel during Mac-side smoke (#915) when
-   * `checkInstalled()` returns `installed: false` but the user has
-   * verified FUSE-T is actually installed.
-   */
-  async runProbe(): Promise<FuseTProbeResult> {
-    const candidates: Array<{ path: string; exists: boolean; error?: string }> = [];
-    for (const p of FUSE_T_BUNDLE_CANDIDATES) {
-      try {
-        await fs.promises.access(p, fs.constants.F_OK);
-        candidates.push({ path: p, exists: true });
-      } catch (err) {
-        candidates.push({
-          path: p,
-          exists: false,
-          error: err instanceof Error ? `${(err as NodeJS.ErrnoException).code ?? 'ERR'}: ${err.message}` : String(err),
-        });
-      }
-    }
-    const pkgutil: FuseTProbeResult['pkgutil'] = { regex: FUSE_T_PKGUTIL_REGEX, matched: false };
-    try {
-      const { stdout } = await execFileAsync('pkgutil', ['--pkgs', '--regexp', FUSE_T_PKGUTIL_REGEX]);
-      pkgutil.stdout = stdout;
-      pkgutil.matched = stdout.trim().length > 0;
-    } catch (err) {
-      pkgutil.error = err instanceof Error ? `${err.message}` : String(err);
-    }
-    return {
-      platform: process.platform,
-      candidates,
-      pkgutil,
-      checkInstalledReturn: await this.checkInstalled(),
-    };
-  }
-
-  /**
    * Cache path for the downloaded pkg under `~/.nexus-vfs/downloads/`.
    * Re-uses the same staging dir as the rest of the nexus-vfs installer so
    * housekeeping (e.g. clearing the runtime cache during a re-install) stays
@@ -232,16 +208,37 @@ export class FuseTInstallService {
       throw new Error('FUSE-T is macOS-only; cannot install on this platform');
     }
 
+    const expectedSha = FUSE_T_PKG_SHA256SUMS[FUSE_T_VERSION];
+    if (!expectedSha) {
+      // Refuse to ship an unverified binary up to `installer -pkg` with
+      // administrator privileges. Mirrors the fail-closed gate the
+      // `installSignedKernelPlugin` path uses for the dylibs — the
+      // FUSE-T pkg deserves at least the same audit floor.
+      throw new Error(`No pinned SHA256 for FUSE-T v${FUSE_T_VERSION}; refusing to install an unverified pkg. Bump runtime-versions.json + add the matching entry to FUSE_T_PKG_SHA256SUMS.`);
+    }
+
     const pkgPath = this.getCachedPkgPath();
     fs.mkdirSync(path.dirname(pkgPath), { recursive: true });
 
     try {
-      if (fs.existsSync(pkgPath) && fs.statSync(pkgPath).size > 0) {
+      if (fs.existsSync(pkgPath) && fs.statSync(pkgPath).size > 0 && sha256OfFile(pkgPath) === expectedSha) {
         onProgress?.('downloading', 100);
       } else {
         await this.downloadWithFallback(getDownloadUrls(), pkgPath, (percent) => {
           onProgress?.('downloading', percent);
         });
+        const actualSha = sha256OfFile(pkgPath);
+        if (actualSha !== expectedSha) {
+          // Drop the bad pkg before throwing so a retry hits the
+          // download path (a re-pull from a different mirror might
+          // succeed if the mismatch was a corrupted byte stream).
+          try {
+            fs.rmSync(pkgPath);
+          } catch {
+            /* ignore */
+          }
+          throw new Error(`FUSE-T pkg SHA256 mismatch for v${FUSE_T_VERSION}: expected ${expectedSha}, got ${actualSha}`);
+        }
       }
 
       onProgress?.('installing');
@@ -290,6 +287,10 @@ export class FuseTInstallService {
     }
     throw new Error(`Failed to download FUSE-T pkg from all ${urls.length} mirrors. Last error: ${lastErr instanceof Error ? lastErr.message : String(lastErr)}`);
   }
+}
+
+function sha256OfFile(filePath: string): string {
+  return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
 }
 
 async function fileExists(p: string): Promise<boolean> {

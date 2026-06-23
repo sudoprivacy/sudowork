@@ -58,32 +58,33 @@ describe('FUSE-T — lazy install contract', () => {
   });
 
   it('initAllBridges wires initFuseTBridge but the bridge itself does not auto-install', async () => {
-    // The bridge registers IPC providers + dev-only direct handles — but
-    // nothing inside `initFuseTBridge()` should call `ensureInstalled()`
-    // eagerly. The handlers only fire when a renderer / worker explicitly
-    // invokes the channel. Read the bridge source and assert no top-level
-    // call to ensureInstalled.
+    // The bridge registers IPC providers — but nothing inside
+    // `initFuseTBridge()` should call `ensureInstalled()` eagerly. The
+    // providers only fire when a renderer / worker explicitly invokes
+    // `ipcBridge.fuseT.ensureInstalled`. Read the bridge source and
+    // assert no top-level call to ensureInstalled.
     const bridge = fs.readFileSync(path.join(REPO_ROOT, 'src/process/bridge/fuseTBridge.ts'), 'utf-8');
-    // Strip the two legitimate handler-body shapes (the bridge's
-    // provider(async ...) blocks and the dev-only ipcMain.handle(...,
-    // async ...) blocks). Any remaining occurrence of `ensureInstalled`
-    // or `install(` would be an eager call at init time — the regression
-    // we care about.
-    const stripped = bridge.replace(/provider\(async[\s\S]*?\}\);/g, '/* provider-body */').replace(/ipcMain\.handle\([^,]+,\s*async[\s\S]*?\}\);/g, '/* dev-handle-body */');
+    // Strip provider(async ...) bodies — any remaining occurrence of
+    // `ensureInstalled` or `install(` would be an eager call at init
+    // time — the regression we care about.
+    const stripped = bridge.replace(/provider\(async[\s\S]*?\}\);/g, '/* provider-body */');
     expect(stripped).not.toMatch(/fuseTInstallService\.ensureInstalled|fuseTInstallService\.install\(/);
   });
 
-  it('dev-only direct IPC handles are gated behind !app.isPackaged', () => {
-    // The dev smoke channels (`dev.fuse-t.check-installed` /
-    // `dev.fuse-t.ensure-installed`) bypass the bridge.buildProvider
-    // subscribe/callback wrapping so a Mac smoke tester can drive the
-    // lazy install from the DevTools console. They must NEVER register
-    // in packaged builds — that would expose an admin-password prompt
-    // trigger to any renderer code.
+  it('the bridge exposes no dev-only IPC bypass channels', () => {
+    // Earlier iterations added `dev.fuse-t.*` raw `ipcMain.handle`
+    // channels to bypass the bridge.buildProvider subscribe/callback
+    // RPC during Mac smoke. They have to stay gone in the merged tree:
+    // each one is a boundary leak around the bridge abstraction, and an
+    // accidental re-introduction without the `!app.isPackaged` gate
+    // would expose an admin-password prompt trigger to any renderer.
+    // Production callers reach FUSE-T via `ipcBridge.fuseT.*.invoke()`,
+    // full stop.
     const bridge = fs.readFileSync(path.join(REPO_ROOT, 'src/process/bridge/fuseTBridge.ts'), 'utf-8');
-    expect(bridge).toMatch(/if \(!app\.isPackaged\)[\s\S]*?ipcMain\.handle\('dev\.fuse-t\.ensure-installed'/);
-    expect(bridge).toMatch(/if \(!app\.isPackaged\)[\s\S]*?ipcMain\.handle\('dev\.fuse-t\.check-installed'/);
-    expect(bridge).toMatch(/if \(!app\.isPackaged\)[\s\S]*?ipcMain\.handle\('dev\.fuse-t\.probe'/);
+    expect(bridge).not.toMatch(/ipcMain\.handle\(['"]dev\.fuse-t\./);
+    expect(bridge).not.toMatch(/from 'electron'/);
+    const preload = fs.readFileSync(path.join(REPO_ROOT, 'src/preload.ts'), 'utf-8');
+    expect(preload).not.toMatch(/devFuseT/);
   });
 });
 
@@ -144,6 +145,21 @@ describe('FUSE-T — eager dylib dispatch in download-nexus-vfs.js', () => {
     expectHexLine('nexus-fuse-plugin-linux-x86_64.tar.gz');
     expectHexLine('nexus-fuse-plugin-macos-arm64.tar.gz');
     expectHexLine('nexus-fuse-plugin-macos-x86_64.tar.gz');
+  });
+
+  it('FuseTInstallService has a pinned SHA256 for the active fuse-t version (no unverified pkg)', () => {
+    // The pkg install path runs `installer -pkg` with administrator
+    // privileges. Refusing to install a binary whose SHA isn't on the
+    // pinned table is the same fail-closed gate `installSignedKernelPlugin`
+    // uses for the dylibs. If the runtime-versions.json pin drifts ahead
+    // of FUSE_T_PKG_SHA256SUMS, this catches it before a user runs into
+    // the runtime "No pinned SHA256 for FUSE-T v…" error.
+    const versions = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'src/shared/runtime-versions.json'), 'utf-8')) as Record<string, string>;
+    const service = fs.readFileSync(path.join(REPO_ROOT, 'src/process/services/fuset/FuseTInstallService.ts'), 'utf-8');
+    const pinned = versions['fuse-t'];
+    expect(pinned).toBeTruthy();
+    const tableEntryRe = new RegExp(`'${pinned.replace(/[.]/g, '\\.')}':\\s*'([a-f0-9]{64})'`);
+    expect(service).toMatch(tableEntryRe);
   });
 
   it('fuse-t + nexus-fuse-plugin version pins live in runtime-versions.json (single source of truth)', () => {
