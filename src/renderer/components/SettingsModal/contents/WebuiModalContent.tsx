@@ -4,11 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Message, Tabs } from '@arco-design/web-react';
+import { Tabs } from '@arco-design/web-react';
 import { Communication } from '@icon-park/react';
-import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import React, { Suspense, useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { webui, type IWebUIStatus } from '@/common/ipcBridge';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import ChannelDingTalkLogo from '@/renderer/assets/channel-logos/dingtalk.svg';
 import ChannelLarkLogo from '@/renderer/assets/channel-logos/lark.svg';
@@ -40,143 +39,6 @@ const WebuiModalContent: React.FC = () => {
   }, []);
   // 检测是否在 Electron 桌面环境 / Check if running in Electron desktop environment
   const isDesktop = isElectronDesktop();
-  const [status, setStatus] = useState<IWebUIStatus | null>(null);
-  const [allowRemote, setAllowRemote] = useState(false);
-  // 二维码登录相关状态 / QR code login related state
-  const [qrUrl, setQrUrl] = useState<string | null>(null);
-  const qrRefreshTimerRef = useRef<NodeJS.Timeout | null>(null);
-  // 加载状态 / Load status
-  const loadStatus = useCallback(async () => {
-    try {
-      let result: { success: boolean; data?: IWebUIStatus } | null = null;
-
-      // 优先使用直接 IPC（Electron 环境）/ Prefer direct IPC (Electron environment)
-      if (window.electronAPI?.webuiGetStatus) {
-        result = await window.electronAPI.webuiGetStatus();
-      } else {
-        // 后备方案：使用 bridge（减少超时）/ Fallback: use bridge (reduced timeout)
-        const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 1500));
-        result = await Promise.race([webui.getStatus.invoke(), timeoutPromise]);
-      }
-
-      if (result && result.success && result.data) {
-        setStatus(result.data);
-        setAllowRemote(result.data.allowRemote);
-        // 注意：如果 running 但没有密码，会在下面的 useEffect 中自动重置
-        // Note: If running but no password, auto-reset will be triggered in the useEffect below
-      } else {
-        setStatus(
-          (prev) =>
-            prev || {
-              running: false,
-              port: 25808,
-              allowRemote: false,
-              localUrl: 'http://localhost:25808',
-              adminUsername: 'admin',
-            }
-        );
-      }
-    } catch (error) {
-      console.error('[WebuiModal] Failed to load WebUI status:', error);
-    }
-  }, []);
-
-  useEffect(() => {
-    void loadStatus();
-  }, [loadStatus]);
-
-  // 监听状态变更事件 / Listen to status change events
-  useEffect(() => {
-    const unsubscribe = webui.statusChanged.on((data) => {
-      if (data.running) {
-        setStatus((prev) => ({
-          ...(prev || { adminUsername: 'admin' }),
-          running: true,
-          port: data.port ?? prev?.port ?? 25808,
-          allowRemote: prev?.allowRemote ?? false,
-          localUrl: data.localUrl ?? `http://localhost:${data.port ?? 25808}`,
-          networkUrl: data.networkUrl,
-          lanIP: prev?.lanIP,
-          initialPassword: prev?.initialPassword,
-        }));
-      } else {
-        setStatus((prev) => (prev ? { ...prev, running: false } : null));
-      }
-    });
-    return () => unsubscribe();
-  }, []);
-
-  // 监听密码重置结果事件（Web 环境后备）/ Listen to password reset result events (Web environment fallback)
-  useEffect(() => {
-    const unsubscribe = webui.resetPasswordResult.on((data) => {
-      if (data.success && data.newPassword) {
-        setStatus((prev) => (prev ? { ...prev, initialPassword: data.newPassword } : null));
-      }
-    });
-    return () => unsubscribe();
-  }, []);
-
-  // 生成二维码 / Generate QR code
-  const generateQRCode = useCallback(async () => {
-    if (!status?.running) return;
-    try {
-      // 优先使用直接 IPC（Electron 环境）/ Prefer direct IPC (Electron environment)
-      let result: { success: boolean; data?: { token: string; expiresAt: number; qrUrl: string }; msg?: string } | null = null;
-
-      if (window.electronAPI?.webuiGenerateQRToken) {
-        result = await window.electronAPI.webuiGenerateQRToken();
-      } else {
-        // 后备方案：使用 bridge / Fallback: use bridge
-        result = await webui.generateQRToken.invoke();
-      }
-
-      if (result && result.success && result.data) {
-        setQrUrl(result.data.qrUrl);
-
-        // 设置自动刷新定时器（4分钟后自动刷新，因为 token 5分钟过期）
-        // Set auto-refresh timer (refresh after 4 minutes, as token expires in 5 minutes)
-        if (qrRefreshTimerRef.current) {
-          clearTimeout(qrRefreshTimerRef.current);
-        }
-        qrRefreshTimerRef.current = setTimeout(
-          () => {
-            void generateQRCode();
-          },
-          4 * 60 * 1000
-        );
-      } else {
-        console.error('Generate QR code failed:', result?.msg);
-        Message.error(t('settings.webui.qrGenerateFailed'));
-      }
-    } catch (error) {
-      console.error('Generate QR code error:', error);
-      Message.error(t('settings.webui.qrGenerateFailed'));
-    }
-  }, [status?.running, t]);
-
-  // 当服务器启动且允许远程访问时自动生成二维码 / Auto-generate QR code when server starts and remote access is allowed
-  useEffect(() => {
-    if (status?.running && allowRemote && !qrUrl) {
-      void generateQRCode();
-    }
-    // 清理定时器 / Cleanup timer
-    return () => {
-      if (qrRefreshTimerRef.current) {
-        clearTimeout(qrRefreshTimerRef.current);
-      }
-    };
-  }, [status?.running, allowRemote, generateQRCode, qrUrl]);
-
-  // 服务器停止或关闭远程访问时清除二维码 / Clear QR code when server stops or remote access is disabled
-  useEffect(() => {
-    if (!status?.running || !allowRemote) {
-      setQrUrl(null);
-      if (qrRefreshTimerRef.current) {
-        clearTimeout(qrRefreshTimerRef.current);
-        qrRefreshTimerRef.current = null;
-      }
-    }
-  }, [status?.running, allowRemote]);
 
   // 浏览器端只显示 Channels 配置，不显示 WebUI 服务配置 / In browser mode, only show Channels config, not WebUI service config
   if (!isDesktop) {
@@ -200,15 +62,6 @@ const WebuiModalContent: React.FC = () => {
         <div className='max-w-820px mx-auto w-full'>
           <div className='settings-remote-tabs mb-12px'>
             <Tabs activeTab={activeTab} onChange={handleTabChange} type='line'>
-              {/* <Tabs.TabPane
-          key='webui'
-          title={
-            <span data-webui-tab='webui' className={`inline-flex items-center gap-6px transition-colors ${activeTab === 'webui' ? 'text-foreground font-600' : 'text-secondary'}`}>
-              <Earth theme='outline' size='15' />
-              <span>WebUI</span>
-            </span>
-          }
-        /> */}
               <Tabs.TabPane
                 key='channels'
                 title={
