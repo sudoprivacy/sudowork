@@ -64,11 +64,33 @@ const execFileAsync = promisify(execFile);
 const TAG = 'FuseTInstallService';
 
 /**
- * Canonical filesystem-bundle install location, written by the upstream pkg.
- * Presence here is the authoritative "FUSE-T is installed" signal — if the
- * user manually removes the bundle the install state resets.
+ * FUSE-T install markers, probed in order. The driver moved layouts
+ * between major versions:
+ *
+ *   - FUSE-T 1.2.x ships an FSKit framework at
+ *     `/Library/Frameworks/fuse_t.framework` (Apple's kext-free FSKit
+ *     replacement; 1.2 is the first release that uses it).
+ *   - FUSE-T 1.0 / 1.1 used the older `/Library/Filesystems/fuse-t.fs`
+ *     filesystem bundle.
+ *
+ * Probe both so detection works across a user-driven upgrade or a
+ * dev machine that hasn't migrated yet. A hit on either path means
+ * FUSE-T is present and the lazy installer should treat
+ * `ensureInstalled()` as a no-op.
  */
-const FUSE_T_BUNDLE_PATH = '/Library/Filesystems/fuse-t.fs';
+const FUSE_T_BUNDLE_CANDIDATES = [
+  '/Library/Frameworks/fuse_t.framework', // FUSE-T 1.2+ (FSKit)
+  '/Library/Filesystems/fuse-t.fs', // FUSE-T 1.0 / 1.1 (legacy bundle)
+];
+
+/**
+ * pkgutil registry probe. Falls through to here if neither bundle
+ * candidate matches — handles future layout changes by asking macOS's
+ * installer registry directly instead of pinning to a path. Matches
+ * any pkg id under the `org.fuse-t.` namespace so versioned suffixes
+ * (`org.fuse-t.fskit.1.2.7`, `org.fuse-t.core.1.2.7`, ...) all count.
+ */
+const FUSE_T_PKGUTIL_REGEX = '^org\\.fuse-t\\.';
 
 const FUSE_T_VERSION = (runtimeVersions as Record<string, string>)['fuse-t'];
 
@@ -109,15 +131,23 @@ export class FuseTInstallService {
     if (process.platform !== 'darwin') {
       return { installed: false };
     }
-    const bundleExists = await fileExists(FUSE_T_BUNDLE_PATH);
-    if (!bundleExists) {
-      return { installed: false };
+    // Fast path: probe both known install layouts. No subprocess, just
+    // an fs.access per candidate; the loop short-circuits on the first
+    // match. Covers the FSKit (1.2+) and legacy filesystem-bundle (1.0
+    // / 1.1) cases.
+    for (const candidate of FUSE_T_BUNDLE_CANDIDATES) {
+      if (await fileExists(candidate)) {
+        return { installed: true, bundlePath: candidate, version: FUSE_T_VERSION };
+      }
     }
-    return {
-      installed: true,
-      bundlePath: FUSE_T_BUNDLE_PATH,
-      version: FUSE_T_VERSION,
-    };
+    // Slow path: pkgutil registry. Only runs when neither known layout
+    // is on disk — keeps the common case (installed at a known path)
+    // off the subprocess hot path while still catching a future FUSE-T
+    // release that ships at yet another layout.
+    if (await pkgUtilHasFuseT()) {
+      return { installed: true, bundlePath: 'pkgutil:org.fuse-t.*', version: FUSE_T_VERSION };
+    }
+    return { installed: false };
   }
 
   /**
@@ -190,7 +220,7 @@ export class FuseTInstallService {
 
     const verified = await this.checkInstalled();
     if (!verified.installed) {
-      throw new Error(`FUSE-T install completed but ${FUSE_T_BUNDLE_PATH} is missing — installer may have failed silently`);
+      throw new Error(`FUSE-T install completed but no marker found at any of ${FUSE_T_BUNDLE_CANDIDATES.join(', ')} and pkgutil shows no org.fuse-t.* package — installer may have failed silently`);
     }
     mainLog(TAG, `FUSE-T installed: ${verified.bundlePath} (v${FUSE_T_VERSION})`);
   }
@@ -221,6 +251,24 @@ async function fileExists(p: string): Promise<boolean> {
     await fs.promises.access(p, fs.constants.F_OK);
     return true;
   } catch {
+    return false;
+  }
+}
+
+/**
+ * Query macOS's pkgutil registry for any package id under `org.fuse-t.*`.
+ * Used as the slow-path fallback when neither `FUSE_T_BUNDLE_CANDIDATES`
+ * entry is present on disk — covers any future FUSE-T layout shift,
+ * since pkgutil records every receipt the system `installer` writes.
+ */
+async function pkgUtilHasFuseT(): Promise<boolean> {
+  try {
+    const { stdout } = await execFileAsync('pkgutil', ['--pkgs', '--regexp', FUSE_T_PKGUTIL_REGEX]);
+    return stdout.trim().length > 0;
+  } catch {
+    // Non-zero exit (no matches) or missing pkgutil — treat as "not
+    // installed" rather than failing the check. The disk-path probe
+    // already covers the common case.
     return false;
   }
 }
