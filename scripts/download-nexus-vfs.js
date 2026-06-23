@@ -71,50 +71,51 @@ const FUSE_PLUGIN_GITHUB_URL = `https://github.com/nexi-lab/nexus/releases/downl
  * nexusd-cluster sums are populated after COS mirror; vault sums from CI artifacts.
  */
 const SHA256SUMS = {
-  // nexusd-cluster v0.2.2 — cuts nexus-vfs main 1beefb060 (Merge #59),
-  // includes #57 (plugin-as-grpc-service), #58 (trust-root
-  // kernel-dogfood-v1.pub in TRUSTED_KEY_FILES), #59 (sys_readdir
-  // leaf-name fix). Deliberately does NOT include #60 (KernelHandle v3
-  // sys_stat_batch) — v3 kernel strictly rejects PLUGIN_API_VERSION
-  // mismatch, and the current signed plugins (vault v0.1.3,
-  // local-connector v0.1.1, fuse v0.1.0) are all ABI v2. v0.3.0 is the
-  // future-fleet version for v3-rebuilt plugins; v0.2.2 is what pairs
-  // with today's signed plugin set.
+  // nexusd-cluster v0.3.0 — first ABI-v3 cluster release. Adds
+  // `sys_stat_batch` to KernelHandle (#60). The v3 kernel strictly
+  // rejects PLUGIN_API_VERSION mismatch, so EVERY signed plugin pinned
+  // below must also be a v3 rebuild — see the matched v0.2.0 set for
+  // vault / local-connector and the v0.4.0 fuse-plugin (the first
+  // release shipped after vault dogfood signing went green on v3).
   // Sums lifted from
-  // https://sudowork-runtime-1309794936.cos.ap-beijing.myqcloud.com/nexus-vfs/release/v0.2.2/SHA256SUMS.txt
-  'nexusd-cluster-linux-aarch64.tar.gz': 'fadc8c54c8cca44dc58dbd6194c203354ee282afe2ce9daec8a6056e4683e8c3',
-  'nexusd-cluster-linux-x86_64.tar.gz': 'b5a7730dadd2cbbf47727a3bb6e7989d8facf178fec75076061845867493b0d9',
-  'nexusd-cluster-macos-aarch64.tar.gz': '93eda20acfc5b64135781cc41aff2e4265b1046800967ed4ca85e2321c53175c',
-  'nexusd-cluster-macos-x86_64.tar.gz': 'd6464618413853320ac33103239880a36e564e36f41ff9456e1fa76db89269ec',
-  'nexusd-cluster-windows-aarch64.zip': 'be530516894f4115ad1971f5a6c6a0d4191ba8141f6b213da128381bb552e056',
-  'nexusd-cluster-windows-x86_64.zip': '03e589f7a288a62e0399d4c9dececbb16be342f258842dfb6c6b37b6c3919901',
-  // vault plugin v0.1.3 — kernel-dogfood-v1.pub signed release, pinned
-  // to nexus-vfs main 5ac7d15c3 (Merge #57); plugin ABI v2, matches the
-  // v0.2.2 cluster above. Sums computed locally by sha256sum on the
+  // https://sudowork-runtime-1309794936.cos.ap-beijing.myqcloud.com/nexus-vfs/release/v0.3.0/SHA256SUMS.txt
+  'nexusd-cluster-linux-aarch64.tar.gz': '1afa3e5b0fd239cd8a36a4bd2fd6409890eb5bb8a3d8d3d9a5e8357faec8b610',
+  'nexusd-cluster-linux-x86_64.tar.gz': 'b5589082304cf9cbc693381f3bf52d53554573bee0aa8bbdc23f17ca3a7cf486',
+  'nexusd-cluster-macos-aarch64.tar.gz': '0b07557accd3982ac9823ba8128377ea2e4e8a7ab8aaaf9d243bf9e06688df0e',
+  'nexusd-cluster-macos-x86_64.tar.gz': '7bd7e03a97ba024459503d137d7622e8315a2bb976a5884156a37c2a8d90313d',
+  'nexusd-cluster-windows-aarch64.zip': 'ec97d5ff5fe7b51f29cf5c2b1b0ab7d709df99e10ce3e974aa12cc9e14220ebd',
+  'nexusd-cluster-windows-x86_64.zip': 'c318f749cb1ed5a6dad87559499bf5ae9fbb53ad9decb94e3711060aa8e8050d',
+  // vault plugin v0.2.0 — first ABI-v3 rebuild of the dogfood-signed
+  // vault. Same source as v0.1.4 plus a re-tag against nexus-vfs v0.3.0.
+  // Required so the v3 cluster will actually load the vault dylib — v2
+  // vault gets refused at PluginLoader::load and every gRPC method then
+  // returns UNIMPLEMENTED. Sums computed locally by sha256sum on the
   // four assets at
-  // https://github.com/nexi-lab/nexus/releases/tag/vault-v0.1.3 — vault
-  // v0.1.3 is not yet mirrored to COS so the downloader falls through
+  // https://github.com/nexi-lab/nexus/releases/tag/vault-v0.2.0 — vault
+  // v0.2.0 is not yet mirrored to COS so the downloader falls through
   // to the GitHub release fallback for this artifact.
-  'nexus-vault-linux-x86_64.tar.gz': 'ce831d12f55bdd935d928d78df7f4a25078636529d020a1bd0235f68bb8f22f2',
-  'nexus-vault-macos-arm64.tar.gz': '603543170a09208fdd9aa3ce5c6aac6149215726042d51d53db4a083fbe728d6',
-  'nexus-vault-macos-x86_64.tar.gz': '276e1198c55eeed616ba50d5aa5a421ddbb89459a1be1227f44cc5927692e1eb',
-  'nexus-vault-windows-x86_64.zip': '5b91322ddb745c2049e9d675290e3b1a32b2d26bcb67bd96f85dff0f91a3799d',
-  // local-connector v0.1.1 — driver dylib that mounts a host fs path,
-  // signed by kernel-dogfood-v1.pub.
-  'nexus-local-connector-linux-x86_64.tar.gz': '16f22e0e93a08e537f8f4010c2838eb4e3bf81ed88804e24b4a5e5c0206cf17d',
-  'nexus-local-connector-macos-arm64.tar.gz': '973f42b4e7dfb040ea9a91501ca26c364640b0aaeb909ab39141b824913560a8',
-  'nexus-local-connector-macos-x86_64.tar.gz': '70a53b0fab2b189883dd8c22893c18b790332bac54fe18944545e282b22dfdd8',
-  'nexus-local-connector-windows-x86_64.zip': '42a5060a2afce89b90a6538bd9b9fe2b7d5c23ab7268a4a4763a620dbe77ef8d',
-  // fuse-plugin v0.2.0 — FUSE service plugin signed by kernel-dogfood-v1.pub.
-  // First release to ship cross-platform binaries (linux x86_64 + macOS arm64
-  // + macOS x86_64). Sums lifted from
-  // https://github.com/nexi-lab/nexus/releases/tag/fuse-v0.2.0 via
-  // `gh release download fuse-v0.2.0 ... && sha256sum`. Bump pin when nexus
-  // tags a newer fuse-vX.Y.Z release and run the same recipe; CI's
-  // signed-plugin download integration test will catch a mismatch.
-  'nexus-fuse-plugin-linux-x86_64.tar.gz': 'b2397a6213b714fb66234dc9cdd5929cb5c3ea6f0d16e63f1b2f0ffa629aac22',
-  'nexus-fuse-plugin-macos-arm64.tar.gz': 'ce4c09e29398f8ba7a4adb8fab227fe6728c800e03920e6f58dec5e893d7358a',
-  'nexus-fuse-plugin-macos-x86_64.tar.gz': 'e90aa99388ec081246caae1bb44c85de3d9575ace0dc899bf6e6fe7534983422',
+  'nexus-vault-linux-x86_64.tar.gz': 'b209e62e8076d2f567d291f203335009d449683b2199e275d23073a04e59ce30',
+  'nexus-vault-macos-arm64.tar.gz': 'a723b032f119669544156558af3f08425a59a5c95caa87ad9c1cfff1bc876b6d',
+  'nexus-vault-macos-x86_64.tar.gz': '38a7bfed062e34323f83fd6aed03322016976847ea74c90e05bff93f6f8bb874',
+  'nexus-vault-windows-x86_64.zip': 'c89c894f926a0e659364f96bf3192091e58122bbad73ecb3847f70d97a00dc21',
+  // local-connector v0.2.0 — ABI-v3 rebuild of the local-FS driver,
+  // signed by kernel-dogfood-v1.pub. Same source as v0.1.1 plus the
+  // re-tag; needed so the v3 cluster will load it. Sums from
+  // https://github.com/nexi-lab/nexus/releases/tag/local-connector-v0.2.0.
+  'nexus-local-connector-linux-x86_64.tar.gz': '9ff9f574b72241e4b89627b5852effa51042b6c3799d3ce55dcf5bc0910d7ffc',
+  'nexus-local-connector-macos-arm64.tar.gz': 'f5d9abfe0239c9c4c4a49b0154532da64fdd67dda41b07f8490855f7343442f7',
+  'nexus-local-connector-macos-x86_64.tar.gz': '8a589380b276ffcbb425558dcc6baa6b9910d6dd6b53cd81127b5a33e0004f7a',
+  'nexus-local-connector-windows-x86_64.zip': '49078141537918f423d5939d976270dfbe52eb628db677009694ba306be8e9e9',
+  // fuse-plugin v0.4.0 — ABI-v3 rebuild. Adds the macOS preflight that
+  // returns `dispatch("status") == "fuse-t-missing"` instead of crashing
+  // the mount when FUSE-T is not installed; sudowork's supervisor reads
+  // that string to drive `fuseTInstallService.ensureInstalled()` (the
+  // poll wiring lands in a follow-up PR). Aggregates the v0.3.0 WinFsp
+  // adapter that never published a release. Sums from
+  // https://github.com/nexi-lab/nexus/releases/tag/fuse-v0.4.0.
+  'nexus-fuse-plugin-linux-x86_64.tar.gz': '1208d8d3b57d42f6415fa155f7588174eec268a0d2946062fa25bf929805c283',
+  'nexus-fuse-plugin-macos-arm64.tar.gz': '8485c2094bf8714adbd2f8a83d19b95911c3230774e7f84a4b11268c296fe08b',
+  'nexus-fuse-plugin-macos-x86_64.tar.gz': '009245ca9275d64cde92c69003e806a0947b8e2b1a42f78a6a133c132dc8b93d',
 };
 
 
