@@ -44,7 +44,7 @@ function dedupeAssistantsForDisplay(agents: AcpBackendConfig[], localeKey: strin
  * The selected agent view (header, description, prompts) is now handled
  * directly in GuidPage for proper layout ordering.
  */
-const AssistantSelectionArea: React.FC<AssistantSelectionAreaProps> = ({ customAgents, localeKey, onSelectAssistant, availableAgents, sessionMode, isEnterprise }) => {
+const AssistantSelectionArea: React.FC<AssistantSelectionAreaProps> = ({ customAgents, localeKey, onSelectAssistant, sessionMode, isEnterprise }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
 
@@ -67,8 +67,15 @@ const AssistantSelectionArea: React.FC<AssistantSelectionAreaProps> = ({ customA
             const avatarImage = mappedAvatar || resolvedAvatar;
             const isImageAvatar = Boolean(avatarImage && (/\.(svg|png|jpe?g|webp|gif)$/i.test(avatarImage) || /^(https?:|aion-asset:\/\/|file:\/\/|data:)/i.test(avatarImage)));
             return (
-              <div key={assistant.id} className='h-28px group flex items-center gap-8px px-16px rd-100px cursor-pointer transition-all b-1 b-solid bg-fill-0 hover:bg-fill-1 select-none' style={{ borderWidth: '1px', borderColor: 'var(--bg-3)' }} onClick={() => onSelectAssistant(`custom:${assistant.id}`)}>
-                <span className='inline-flex h-16px w-16px shrink-0 items-center justify-center leading-none'>{isImageAvatar ? <img src={avatarImage} alt='' width={16} height={16} style={{ objectFit: 'contain', display: 'block' }} /> : avatarValue ? <span style={{ fontSize: 16, lineHeight: 1 }}>{avatarValue}</span> : <Robot theme='outline' size={16} />}</span>
+              <div
+                key={assistant.id}
+                className='h-28px group flex items-center gap-8px px-16px rd-100px cursor-pointer transition-all b-1 b-solid bg-fill-0 hover:bg-fill-1 select-none'
+                style={{ borderWidth: '1px', borderColor: 'var(--bg-3)' }}
+                onClick={() => onSelectAssistant(`custom:${assistant.id}`)}
+              >
+                <span className='inline-flex h-16px w-16px shrink-0 items-center justify-center leading-none'>
+                  {isImageAvatar ? <img src={avatarImage} alt='' width={16} height={16} style={{ objectFit: 'contain', display: 'block' }} /> : avatarValue ? <span style={{ fontSize: 16, lineHeight: 1 }}>{avatarValue}</span> : <Robot theme='outline' size={16} />}
+                </span>
                 <span className='text-14px text-2 hover:text-1'>{assistant.nameI18n?.[localeKey] || assistant.name}</span>
               </div>
             );
@@ -111,8 +118,15 @@ const AssistantSelectionArea: React.FC<AssistantSelectionAreaProps> = ({ customA
             const avatarImage = mappedAvatar || resolvedAvatar;
             const isImageAvatar = Boolean(avatarImage && (/\.(svg|png|jpe?g|webp|gif)$/i.test(avatarImage) || /^(https?:|aion-asset:\/\/|file:\/\/|data:)/i.test(avatarImage)));
             return (
-              <div key={assistant.id} className='h-28px group flex items-center gap-8px px-16px rd-100px cursor-pointer transition-all b-1 b-solid bg-fill-0 hover:bg-fill-1 select-none' style={{ borderWidth: '1px', borderColor: 'var(--bg-3)' }} onClick={() => onSelectAssistant(`custom:${assistant.id}`)}>
-                <span className='inline-flex h-16px w-16px shrink-0 items-center justify-center leading-none'>{isImageAvatar ? <img src={avatarImage} alt='' width={16} height={16} style={{ objectFit: 'contain', display: 'block' }} /> : avatarValue ? <span style={{ fontSize: 16, lineHeight: 1 }}>{avatarValue}</span> : <Robot theme='outline' size={16} />}</span>
+              <div
+                key={assistant.id}
+                className='h-28px group flex items-center gap-8px px-16px rd-100px cursor-pointer transition-all b-1 b-solid bg-fill-0 hover:bg-fill-1 select-none'
+                style={{ borderWidth: '1px', borderColor: 'var(--bg-3)' }}
+                onClick={() => onSelectAssistant(`custom:${assistant.id}`)}
+              >
+                <span className='inline-flex h-16px w-16px shrink-0 items-center justify-center leading-none'>
+                  {isImageAvatar ? <img src={avatarImage} alt='' width={16} height={16} style={{ objectFit: 'contain', display: 'block' }} /> : avatarValue ? <span style={{ fontSize: 16, lineHeight: 1 }}>{avatarValue}</span> : <Robot theme='outline' size={16} />}
+                </span>
                 <span className='text-14px text-2 hover:text-1'>{assistant.nameI18n?.[localeKey] || assistant.name}</span>
               </div>
             );

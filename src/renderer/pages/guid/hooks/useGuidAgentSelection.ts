@@ -202,7 +202,7 @@ type UseGuidAgentSelectionOptions = {
 /**
  * Hook that manages agent selection, availability, and preset assistant logic.
  */
-export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assistantFromUrl }: UseGuidAgentSelectionOptions): GuidAgentSelectionResult => {
+export const useGuidAgentSelection = ({ localeKey, assistantFromUrl }: UseGuidAgentSelectionOptions): GuidAgentSelectionResult => {
   const { isEnterprise } = useAppMode();
 
   // Initial selected agent key: enterprise mode defaults to generic 'remote-agent'
@@ -537,7 +537,11 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
   // 企业 Remote 模式下，这些目录已从 Moss server 同步，因此无需另走云端接口。
   useEffect(() => {
     let isActive = true;
-    Promise.all([fetchAssistantsAsConfigs(), ipcBridge.extensions.getAssistants.invoke().catch(() => [] as Record<string, unknown>[]), isEnterprise && sessionMode === 'remote' ? ipcBridge.eeclaw.getCloudAssistants.invoke().catch(() => ({ data: [] as CloudAssistant[] })) : Promise.resolve({ data: [] as CloudAssistant[] })])
+    Promise.all([
+      fetchAssistantsAsConfigs(),
+      ipcBridge.extensions.getAssistants.invoke().catch(() => [] as Record<string, unknown>[]),
+      isEnterprise && sessionMode === 'remote' ? ipcBridge.eeclaw.getCloudAssistants.invoke().catch(() => ({ data: [] as CloudAssistant[] })) : Promise.resolve({ data: [] as CloudAssistant[] }),
+    ])
       .then(([agents, extAssistants, cloudAssistantsResult]) => {
         if (!isActive) return;
         const cloudAssistants = Array.isArray(cloudAssistantsResult?.data) ? (cloudAssistantsResult.data as CloudAssistant[]) : [];
@@ -868,7 +872,7 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
           assistantId: customAgentId,
           locale: localeKey,
         });
-      } catch (_error) {
+      } catch {
         // skills may not exist, this is normal
       }
 
@@ -887,7 +891,7 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
           if (!skills && preset.skillFile) {
             try {
               skills = await ipcBridge.fs.readBuiltinSkill.invoke({ fileName: preset.skillFile });
-            } catch (_e) {
+            } catch {
               // skills fallback failure is ok
             }
           }

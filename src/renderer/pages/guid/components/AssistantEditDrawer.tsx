@@ -47,17 +47,6 @@ const AVATAR_IMAGE_MAP: Record<string, string> = {
   '\u{1F6E0}\u{FE0F}': coworkSvg,
 };
 
-/** Built-in agent options with backend IDs for filtering */
-const AGENT_OPTIONS = [
-  { value: 'gemini', label: 'Gemini CLI', backendId: 'gemini' },
-  { value: 'claude', label: 'Claude Code', backendId: 'claude' },
-  { value: 'qwen', label: 'Qwen Code', backendId: 'qwen' },
-  { value: 'codex', label: 'Codex', backendId: 'codex' },
-  { value: 'codebuddy', label: 'CodeBuddy', backendId: 'codebuddy' },
-  { value: 'opencode', label: 'OpenCode', backendId: 'opencode' },
-  { value: 'scode', label: 'Sudo Code', backendId: 'scode' },
-] as const;
-
 const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assistantId, localeKey, onClose, onSaved }) => {
   const { t } = useTranslation();
   const { isEnterprise } = useAppMode();
@@ -75,9 +64,6 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
   // Skills state
   const [installedSkills, setInstalledSkills] = useState<IInstalledSkillInfo[]>([]);
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
-
-  // Available backends for agent selector filtering
-  const [availableBackends, setAvailableBackends] = useState<Set<string>>(new Set(['gemini']));
 
   // Current assistant data
   const [assistant, setAssistant] = useState<AssistantConfigWithMeta | null>(null);
@@ -98,20 +84,6 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
     updateWidth();
     window.addEventListener('resize', updateWidth);
     return () => window.removeEventListener('resize', updateWidth);
-  }, []);
-
-  // Load available backends
-  useEffect(() => {
-    void (async () => {
-      try {
-        const resp = await ipcBridge.acpConversation.getAvailableAgents.invoke();
-        if (resp.success && resp.data) {
-          setAvailableBackends(new Set(resp.data.map((a) => a.backend)));
-        }
-      } catch {
-        // fallback to default
-      }
-    })();
   }, []);
 
   // Load agent data when drawer opens
