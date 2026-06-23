@@ -416,7 +416,7 @@ const PreviewPanel: React.FC = () => {
       // 使用系统默认应用打开文件 / Open file with system default application
       await ipcBridge.shell.openFile.invoke(metadata.filePath);
       messageApi.success(t('preview.openInSystemSuccess'));
-    } catch (err) {
+    } catch {
       messageApi.error(t('preview.openInSystemFailed'));
     }
   }, [metadata?.filePath, messageApi, t]);

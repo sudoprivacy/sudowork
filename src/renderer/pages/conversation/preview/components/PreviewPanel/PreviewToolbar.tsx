@@ -5,7 +5,6 @@
  */
 
 import { Dropdown } from '@arco-design/web-react';
-import { Close } from '@icon-park/react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import type { PreviewHistoryTarget } from '@/common/types/preview';
@@ -204,7 +203,36 @@ interface PreviewToolbarProps {
  * Contains filename, view mode toggle, edit button, snapshot/history buttons, download button, close button, etc.
  */
 // eslint-disable-next-line max-len
-const PreviewToolbar: React.FC<PreviewToolbarProps> = ({ contentType, isMarkdown, isHTML, isEditable, isEditMode, viewMode, isSplitScreenEnabled, fileName, showOpenInSystemButton, historyTarget, snapshotSaving, showHistoryControls = true, sourceViewEnabled = true, onViewModeChange, onSplitScreenToggle, onEditClick, onExitEdit, onSaveSnapshot, onRefreshHistory, renderHistoryDropdown, onOpenInSystem, onDownload, onClose, inspectMode, onInspectModeToggle, leftExtra, rightExtra, isDirty, onSave, isSaving }) => {
+const PreviewToolbar: React.FC<PreviewToolbarProps> = ({
+  contentType,
+  isMarkdown,
+  isHTML,
+  isEditable,
+  isEditMode,
+  viewMode,
+  isSplitScreenEnabled,
+  showOpenInSystemButton,
+  historyTarget,
+  snapshotSaving,
+  showHistoryControls = true,
+  sourceViewEnabled = true,
+  onViewModeChange,
+  onSplitScreenToggle,
+  onEditClick,
+  onExitEdit,
+  onSaveSnapshot,
+  onRefreshHistory,
+  renderHistoryDropdown,
+  onOpenInSystem,
+  onDownload,
+  inspectMode,
+  onInspectModeToggle,
+  leftExtra,
+  rightExtra,
+  isDirty,
+  onSave,
+  isSaving,
+}) => {
   const { t } = useTranslation();
   const isDiff = contentType === 'diff';
   const preferActionButtonsInFront = Boolean(leftExtra);
