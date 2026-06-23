@@ -74,7 +74,13 @@ const Sider: React.FC = () => {
   };
 
   // 功能菜单项定义 / Function menu items definition
-  const functionMenus = [{ id: 'agent', label: t('common.siderMenu.agent'), icon: Robot, path: '/settings/agent' }, { id: 'skill-store', label: t('common.siderMenu.skillStore'), icon: Lightning, path: '/settings/skill' }, { id: 'security', label: t('common.siderMenu.security'), icon: Shield, path: '/settings/security' }, ...(!isEnterprise ? [{ id: 'webui' as const, label: t('common.siderMenu.webui'), icon: Earth, path: '/settings/webui' }] : []), ...(cronEnabled ? [{ id: 'cron' as const, label: t('common.siderMenu.cron'), icon: AlarmClock, path: '/settings/cron' }] : [])];
+  const functionMenus = [
+    { id: 'agent', label: t('common.siderMenu.agent'), icon: Robot, path: '/settings/agent' },
+    { id: 'skill-store', label: t('common.siderMenu.skillStore'), icon: Lightning, path: '/settings/skill' },
+    { id: 'security', label: t('common.siderMenu.security'), icon: Shield, path: '/settings/security' },
+    ...(!isEnterprise ? [{ id: 'webui' as const, label: t('common.siderMenu.webui'), icon: Earth, path: '/settings/webui' }] : []),
+    ...(cronEnabled ? [{ id: 'cron' as const, label: t('common.siderMenu.cron'), icon: AlarmClock, path: '/settings/cron' }] : []),
+  ];
 
   // 处理功能菜单点击 — 在 GuidPage 内联显示，通过 query param 传递 menuId
   const handleFunctionMenuClick = (menuId: string) => {
@@ -230,7 +236,10 @@ const Sider: React.FC = () => {
                   </div>
                 }
               >
-                <div className={classNames('batch-mode-trigger size-8 f-center rd-8px cursor-pointer transition-all shrink-0', isBatchMode ? 'bg-[rgba(var(--ui-accent-orange-rgb),0.12)] text-[var(--ui-accent-orange)]' : 'hover:bg-hover active:bg-fill-2 text-secondary')} onClick={() => setIsBatchMode((prev) => !prev)}>
+                <div
+                  className={classNames('batch-mode-trigger size-8 f-center rd-8px cursor-pointer transition-all shrink-0', isBatchMode ? 'bg-[rgba(var(--ui-accent-orange-rgb),0.12)] text-[var(--ui-accent-orange)]' : 'hover:bg-hover active:bg-fill-2 text-secondary')}
+                  onClick={() => setIsBatchMode((prev) => !prev)}
+                >
                   <ListCheckbox theme='outline' size='18' className='block leading-none' />
                 </div>
               </Popover>
@@ -259,7 +268,7 @@ const Sider: React.FC = () => {
                   <SettingTwo theme='outline' size='17' fill={'var(--text-secondary)'} />
                   <span>{t('common.settings')}</span>
                 </div>
-                <div className='h-1px mx-1 my-0.5 bg-[var(--border-light)]' />
+                <div className='mx-1 border-b-0.5px border-light' />
                 <div
                   className='flex items-center gap-2.5 px-2.5 h-9.5 rd-8px cursor-pointer text-14px text-danger transition-colors hover:bg-hover active:bg-active'
                   onClick={async () => {
@@ -282,7 +291,7 @@ const Sider: React.FC = () => {
               setUserMenuOpen(visible);
             }}
           >
-            <div ref={userTriggerRef} className='flex items-center gap-2.5 px-2 py-2.5 cursor-pointer transition-colors rd-12px w-full border hover:bg-hover active:bg-fill-2 border-light'>
+            <div ref={userTriggerRef} className='flex items-center gap-2.5 px-2 py-2.5 cursor-pointer transition-colors rd-12px w-full border hover:bg-hover active:bg-fill-2'>
               <div className='size-8 rd-50% bg-[var(--color-fill-3)] f-center text-foreground text-14px font-bold shrink-0'>{userInfo.avatar ? <img src={userInfo.avatar} alt={userInfo.name} className='w-full h-full rd-50% object-cover' /> : <span>{userInfo.name.charAt(0).toUpperCase()}</span>}</div>
               <div className='flex-1 min-w-0'>
                 <div className='text-14px font-medium text-foreground truncate'>{userInfo.name}</div>

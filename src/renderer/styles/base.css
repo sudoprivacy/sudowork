@@ -346,11 +346,6 @@ body,
   padding: 12px;
 }
 
-.channel-settings-collapse .arco-collapse-item-icon,
-.channel-settings-collapse .arco-collapse-item-header-icon {
-  display: none !important;
-}
-
 .store-action-icon {
   width: 24px;
   height: 24px;
