@@ -7,7 +7,6 @@
 import { Button, Progress } from '@arco-design/web-react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { libreOffice as libreOfficeIpc } from '@/common/ipcBridge';
 
 interface LibreOfficeInstallPromptProps {
   fileType: 'word' | 'excel' | 'ppt';
@@ -56,9 +55,7 @@ const LibreOfficeInstallPrompt: React.FC<LibreOfficeInstallPromptProps> = ({ fil
               {phase && ` — ${t(`preview.libreOffice.phase.${phase}`, { defaultValue: phase })}`}
             </div>
             <Progress percent={percent ?? 0} status='normal' showText={false} strokeWidth={6} className='!mb-4px !max-w-280px !mx-auto' />
-            {percent !== undefined && (
-              <div className='text-12px text-tertiary'>{percent}%</div>
-            )}
+            {percent !== undefined && <div className='text-12px text-tertiary'>{percent}%</div>}
           </>
         )}
 
