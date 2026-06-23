@@ -65,7 +65,7 @@
     - `src/renderer/pages/settings/EnterpriseMcpSettings/types.ts`
     - `src/renderer/shared/agents/types.ts`
   - 含枚举（移至 `src/common/enum.ts`，剩余纯类型转 `.d.ts`）
-    - `src/common/codex/types/eventTypes.ts`
+    - ✅ `src/common/codex/types/eventTypes.ts`
     - `src/common/codex/types/toolTypes.ts`
   - 含运行时值（需先提取常量再转 `.d.ts`）
     - `src/agent/sudoclaw/types.ts`

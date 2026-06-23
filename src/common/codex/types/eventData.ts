@@ -3,7 +3,7 @@
  * Copyright 2025 Sudowork (sudowork.ai)
  * SPDX-License-Identifier: Apache-2.0
  */
-import type { CodexAgentEventType } from './eventTypes';
+import type { CodexAgentEventEnums } from '@/common/enum';
 
 // JSON-RPC 消息的泛型结构 - 使用 CodexEventMsg 自动推断类型
 export type CodexJsonRpcEvent<T extends CodexEventMsg['type'] = CodexEventMsg['type']> = {
@@ -344,14 +344,14 @@ export interface ElicitationCreateData {
 
 // Event data type map for type-safe event handling
 export type EventDataMap = {
-  [CodexAgentEventType.EXEC_COMMAND_BEGIN]: Extract<CodexEventMsg, { type: 'exec_command_begin' }>;
-  [CodexAgentEventType.EXEC_COMMAND_OUTPUT_DELTA]: Extract<CodexEventMsg, { type: 'exec_command_output_delta' }>;
-  [CodexAgentEventType.EXEC_COMMAND_END]: Extract<CodexEventMsg, { type: 'exec_command_end' }>;
-  [CodexAgentEventType.APPLY_PATCH_APPROVAL_REQUEST]: Extract<CodexEventMsg, { type: 'apply_patch_approval_request' }>;
-  [CodexAgentEventType.PATCH_APPLY_BEGIN]: Extract<CodexEventMsg, { type: 'patch_apply_begin' }>;
-  [CodexAgentEventType.PATCH_APPLY_END]: Extract<CodexEventMsg, { type: 'patch_apply_end' }>;
-  [CodexAgentEventType.MCP_TOOL_CALL_BEGIN]: Extract<CodexEventMsg, { type: 'mcp_tool_call_begin' }>;
-  [CodexAgentEventType.MCP_TOOL_CALL_END]: Extract<CodexEventMsg, { type: 'mcp_tool_call_end' }>;
-  [CodexAgentEventType.WEB_SEARCH_BEGIN]: Extract<CodexEventMsg, { type: 'web_search_begin' }>;
-  [CodexAgentEventType.WEB_SEARCH_END]: Extract<CodexEventMsg, { type: 'web_search_end' }>;
+  [CodexAgentEventEnums.EXEC_COMMAND_BEGIN]: Extract<CodexEventMsg, { type: 'exec_command_begin' }>;
+  [CodexAgentEventEnums.EXEC_COMMAND_OUTPUT_DELTA]: Extract<CodexEventMsg, { type: 'exec_command_output_delta' }>;
+  [CodexAgentEventEnums.EXEC_COMMAND_END]: Extract<CodexEventMsg, { type: 'exec_command_end' }>;
+  [CodexAgentEventEnums.APPLY_PATCH_APPROVAL_REQUEST]: Extract<CodexEventMsg, { type: 'apply_patch_approval_request' }>;
+  [CodexAgentEventEnums.PATCH_APPLY_BEGIN]: Extract<CodexEventMsg, { type: 'patch_apply_begin' }>;
+  [CodexAgentEventEnums.PATCH_APPLY_END]: Extract<CodexEventMsg, { type: 'patch_apply_end' }>;
+  [CodexAgentEventEnums.MCP_TOOL_CALL_BEGIN]: Extract<CodexEventMsg, { type: 'mcp_tool_call_begin' }>;
+  [CodexAgentEventEnums.MCP_TOOL_CALL_END]: Extract<CodexEventMsg, { type: 'mcp_tool_call_end' }>;
+  [CodexAgentEventEnums.WEB_SEARCH_BEGIN]: Extract<CodexEventMsg, { type: 'web_search_begin' }>;
+  [CodexAgentEventEnums.WEB_SEARCH_END]: Extract<CodexEventMsg, { type: 'web_search_end' }>;
 };

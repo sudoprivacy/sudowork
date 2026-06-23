@@ -1433,7 +1433,7 @@ This identity statement takes priority over the default identity in USER.md.
     };
     const tMessage = transformMessage(usagePatch);
     if (tMessage) {
-      addOrUpdateMessage(this.conversation_id, tMessage, this.options.backend);
+      addOrUpdateMessage(this.conversation_id, tMessage);
     }
     ipcBridge.acpConversation.responseStream.emit(usagePatch);
   }
@@ -2109,7 +2109,7 @@ This identity statement takes priority over the default identity in USER.md.
       content: { content: msg.data as string },
       createdAt: Date.now(),
     };
-    addOrUpdateMessage(this.conversation_id, tMessage, this.options.backend);
+    addOrUpdateMessage(this.conversation_id, tMessage);
   }
 
   kill(): Promise<void> {
@@ -3262,7 +3262,7 @@ This identity statement takes priority over the default identity in USER.md.
           this.streamTextBuffer.queue(tMessage, this.options.backend);
         } else {
           this.streamTextBuffer.flushAll();
-          addOrUpdateMessage(message.conversation_id, tMessage, this.options.backend);
+          addOrUpdateMessage(message.conversation_id, tMessage);
         }
 
         if (isStreamTextChunk) {
