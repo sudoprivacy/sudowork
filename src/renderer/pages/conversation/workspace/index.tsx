@@ -7,7 +7,7 @@
 import { Checkbox, Input, Message, Modal, Tooltip, Tree } from '@arco-design/web-react';
 import type { RefInputType } from '@arco-design/web-react/es/Input/interface';
 import { Cloudy, DownSmall, FileText, FolderOpen, Magic, Refresh, Search } from '@icon-park/react';
-import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
@@ -53,24 +53,6 @@ function isHiddenWorkspaceEntry(name: string): boolean {
 function resolveWorkspaceFileIcon(fileName: string): React.ReactNode | null {
   return resolveFileIcon(fileName, { size: 16, theme: 'outline' });
 }
-
-const ChangeWorkspaceIcon: React.FC<React.SVGProps<SVGSVGElement>> = ({ className, ...rest }) => {
-  const clipPathId = useId();
-  return (
-    <svg className={className} viewBox='0 0 24 24' role='img' aria-hidden='true' focusable='false' {...rest}>
-      <rect width='24' height='24' rx='2' fill='var(--workspace-btn-bg, var(--color-bg-1))' />
-      <g clipPath={`url(#${clipPathId})`}>
-        <path fillRule='evenodd' clipRule='evenodd' d='M10.8215 8.66602L9.15482 6.99935H5.33333V16.9993H18.6667V8.66602H10.8215ZM4.5 6.99935C4.5 6.53912 4.8731 6.16602 5.33333 6.16602H9.15482C9.37583 6.16602 9.5878 6.25382 9.74407 6.41009L11.1667 7.83268H18.6667C19.1269 7.83268 19.5 8.20578 19.5 8.66602V16.9993C19.5 17.4596 19.1269 17.8327 18.6667 17.8327H5.33333C4.8731 17.8327 4.5 17.4596 4.5 16.9993V6.99935Z' fill='var(--color-text-3, var(--text-secondary))' />
-        <path d='M13.0775 12.4158L12.1221 11.4603L12.7113 10.8711L14.6726 12.8324L12.7113 14.7937L12.1221 14.2044L13.0774 13.2491H9.5V12.4158H13.0775Z' fill='var(--color-text-3, var(--text-secondary))' />
-      </g>
-      <defs>
-        <clipPath id={clipPathId}>
-          <rect width='20' height='20' fill='transparent' transform='translate(2 2)' />
-        </clipPath>
-      </defs>
-    </svg>
-  );
-};
 
 const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, eventPrefix = 'acp', backend, dataSource = 'local', readonly = false, messageApi: externalMessageApi, workspaceDisplayName: storedDisplayName }) => {
   const { t } = useTranslation();
@@ -1018,14 +1000,37 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
 
         {/* Rename Modal */}
         {!readonly && (
-          <Modal visible={modalsHook.renameModal.visible} title={t('conversation.workspace.contextMenu.renameTitle')} onCancel={modalsHook.closeRenameModal} onOk={fileOpsHook.handleRenameConfirm} okText={t('common.confirm')} cancelText={t('common.cancel')} confirmLoading={modalsHook.renameLoading} style={{ borderRadius: '12px' }} alignCenter getPopupContainer={() => document.body}>
+          <Modal
+            visible={modalsHook.renameModal.visible}
+            title={t('conversation.workspace.contextMenu.renameTitle')}
+            onCancel={modalsHook.closeRenameModal}
+            onOk={fileOpsHook.handleRenameConfirm}
+            okText={t('common.confirm')}
+            cancelText={t('common.cancel')}
+            confirmLoading={modalsHook.renameLoading}
+            style={{ borderRadius: '12px' }}
+            alignCenter
+            getPopupContainer={() => document.body}
+          >
             <Input autoFocus value={modalsHook.renameModal.value} onChange={(value) => modalsHook.setRenameModal((prev) => ({ ...prev, value }))} onPressEnter={fileOpsHook.handleRenameConfirm} placeholder={t('conversation.workspace.contextMenu.renamePlaceholder')} />
           </Modal>
         )}
 
         {/* Workspace Rename Modal (root directory) */}
         {!readonly && (
-          <Modal title={t('conversation.workspace.renameWorkspace.title')} visible={wsRenameModal.visible} onOk={handleWorkspaceRenameConfirm} onCancel={() => setWsRenameModal({ visible: false, name: '' })} okText={t('common.confirm')} cancelText={t('common.cancel')} confirmLoading={wsRenameLoading} okButtonProps={{ disabled: !wsRenameModal.name.trim() }} style={{ borderRadius: '12px' }} alignCenter getPopupContainer={() => document.body}>
+          <Modal
+            title={t('conversation.workspace.renameWorkspace.title')}
+            visible={wsRenameModal.visible}
+            onOk={handleWorkspaceRenameConfirm}
+            onCancel={() => setWsRenameModal({ visible: false, name: '' })}
+            okText={t('common.confirm')}
+            cancelText={t('common.cancel')}
+            confirmLoading={wsRenameLoading}
+            okButtonProps={{ disabled: !wsRenameModal.name.trim() }}
+            style={{ borderRadius: '12px' }}
+            alignCenter
+            getPopupContainer={() => document.body}
+          >
             <div className='text-13px text-secondary mb-8px'>{t('conversation.workspace.renameWorkspace.hint')}</div>
             <Input autoFocus value={wsRenameModal.name} onChange={(v) => setWsRenameModal((prev) => ({ ...prev, name: v }))} onPressEnter={handleWorkspaceRenameConfirm} placeholder={t('conversation.workspace.renameWorkspace.placeholder')} />
           </Modal>
@@ -1033,7 +1038,19 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
 
         {/* New Folder Modal */}
         {!readonly && (
-          <Modal title={t('conversation.workspace.newFolder.title')} visible={newFolderModal.visible} onOk={handleNewFolderConfirm} onCancel={() => setNewFolderModal({ visible: false, name: '', parentPath: '' })} okText={t('common.confirm')} cancelText={t('common.cancel')} confirmLoading={newFolderLoading} okButtonProps={{ disabled: !newFolderModal.name.trim() }} style={{ borderRadius: '12px' }} alignCenter getPopupContainer={() => document.body}>
+          <Modal
+            title={t('conversation.workspace.newFolder.title')}
+            visible={newFolderModal.visible}
+            onOk={handleNewFolderConfirm}
+            onCancel={() => setNewFolderModal({ visible: false, name: '', parentPath: '' })}
+            okText={t('common.confirm')}
+            cancelText={t('common.cancel')}
+            confirmLoading={newFolderLoading}
+            okButtonProps={{ disabled: !newFolderModal.name.trim() }}
+            style={{ borderRadius: '12px' }}
+            alignCenter
+            getPopupContainer={() => document.body}
+          >
             <div className='text-13px text-secondary mb-8px'>{t('conversation.workspace.newFolder.hint')}</div>
             <Input autoFocus value={newFolderModal.name} onChange={(v) => setNewFolderModal((prev) => ({ ...prev, name: v }))} onPressEnter={handleNewFolderConfirm} placeholder={t('conversation.workspace.newFolder.placeholder')} />
           </Modal>
@@ -1041,7 +1058,18 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
 
         {/* Delete Modal */}
         {!readonly && (
-          <Modal visible={modalsHook.deleteModal.visible} title={t('conversation.workspace.contextMenu.deleteTitle')} onCancel={modalsHook.closeDeleteModal} onOk={fileOpsHook.handleDeleteConfirm} okText={t('common.confirm')} cancelText={t('common.cancel')} confirmLoading={modalsHook.deleteModal.loading} style={{ borderRadius: '12px' }} alignCenter getPopupContainer={() => document.body}>
+          <Modal
+            visible={modalsHook.deleteModal.visible}
+            title={t('conversation.workspace.contextMenu.deleteTitle')}
+            onCancel={modalsHook.closeDeleteModal}
+            onOk={fileOpsHook.handleDeleteConfirm}
+            okText={t('common.confirm')}
+            cancelText={t('common.cancel')}
+            confirmLoading={modalsHook.deleteModal.loading}
+            style={{ borderRadius: '12px' }}
+            alignCenter
+            getPopupContainer={() => document.body}
+          >
             <div className='text-14px text-secondary'>{t('conversation.workspace.contextMenu.deleteConfirm')}</div>
           </Modal>
         )}
@@ -1209,7 +1237,19 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
         {/* Main content area — Skills grid OR Search + Tree. */}
         {activeTab === 'skills' && (
           <FlexFullContainer containerClassName='workspace-card__body workspace-card__body--skills overflow-y-auto'>
-            <WorkspaceSkills ref={skillsHandleRef} workspace={workspace} eventPrefix={eventPrefix} backend={backend} conversationId={conversation_id} dataSource={dataSource === 'moss-session' ? 'moss-session' : 'workspace'} searchQuery={searchText} onLoadingChange={setSkillsLoading} onSynced={() => setLastSyncAt(Date.now())} onCountChange={setSkillCount} watchIdRef={watchIdRef} />
+            <WorkspaceSkills
+              ref={skillsHandleRef}
+              workspace={workspace}
+              eventPrefix={eventPrefix}
+              backend={backend}
+              conversationId={conversation_id}
+              dataSource={dataSource === 'moss-session' ? 'moss-session' : 'workspace'}
+              searchQuery={searchText}
+              onLoadingChange={setSkillsLoading}
+              onSynced={() => setLastSyncAt(Date.now())}
+              onCountChange={setSkillCount}
+              watchIdRef={watchIdRef}
+            />
           </FlexFullContainer>
         )}
 

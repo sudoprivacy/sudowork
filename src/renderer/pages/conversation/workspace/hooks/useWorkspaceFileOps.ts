@@ -169,7 +169,32 @@ async function createRemoteTextPreviewFile(fileName: string, content: string): P
  * File operations logic (open, delete, rename, preview, add to chat)
  */
 export function useWorkspaceFileOps(options: UseWorkspaceFileOpsOptions) {
-  const { workspace, eventPrefix, conversation_id, dataSource = 'local', readonly = false, messageApi, t, setFiles, setSelected, setExpandedKeys, selectedKeysRef, selectedNodeRef, ensureNodeSelected, refreshWorkspace, renameModal, deleteModal, renameLoading, setRenameLoading, closeRenameModal, closeDeleteModal, closeContextMenu, setRenameModal, setDeleteModal, openPreview } = options;
+  const {
+    workspace,
+    eventPrefix,
+    conversation_id,
+    dataSource = 'local',
+    readonly = false,
+    messageApi,
+    t,
+    setFiles,
+    setSelected,
+    setExpandedKeys,
+    selectedKeysRef,
+    selectedNodeRef,
+    ensureNodeSelected,
+    refreshWorkspace,
+    renameModal,
+    deleteModal,
+    renameLoading,
+    setRenameLoading,
+    closeRenameModal,
+    closeDeleteModal,
+    closeContextMenu,
+    setRenameModal,
+    setDeleteModal,
+    openPreview,
+  } = options;
 
   /**
    * 打开文件或文件夹（使用系统默认程序）
@@ -180,7 +205,7 @@ export function useWorkspaceFileOps(options: UseWorkspaceFileOpsOptions) {
       if (!nodeData) return;
       try {
         await ipcBridge.shell.openFile.invoke(nodeData.fullPath);
-      } catch (error) {
+      } catch {
         messageApi.error(t('conversation.workspace.contextMenu.openFailed') || 'Failed to open');
       }
     },
@@ -196,7 +221,7 @@ export function useWorkspaceFileOps(options: UseWorkspaceFileOpsOptions) {
       if (!nodeData) return;
       try {
         await ipcBridge.shell.showItemInFolder.invoke(nodeData.fullPath);
-      } catch (error) {
+      } catch {
         messageApi.error(t('conversation.workspace.contextMenu.revealFailed') || 'Failed to reveal');
       }
     },
@@ -244,7 +269,7 @@ export function useWorkspaceFileOps(options: UseWorkspaceFileOpsOptions) {
       emitter.emit(`${eventPrefix}.workspace.refresh` as any);
       closeDeleteModal();
       setTimeout(() => refreshWorkspace(), 200);
-    } catch (error) {
+    } catch {
       messageApi.error(t('conversation.workspace.contextMenu.deleteFailed'));
       setDeleteModal((prev) => ({ ...prev, loading: false }));
     }
@@ -429,7 +454,51 @@ export function useWorkspaceFileOps(options: UseWorkspaceFileOpsOptions) {
           contentType = 'video';
         } else if (audioExtensions.includes(ext)) {
           contentType = 'audio';
-        } else if (['js', 'ts', 'tsx', 'jsx', 'py', 'java', 'go', 'rs', 'c', 'cpp', 'h', 'hpp', 'css', 'scss', 'json', 'xml', 'yaml', 'yml', 'txt', 'log', 'sh', 'bash', 'zsh', 'fish', 'sql', 'rb', 'php', 'swift', 'kt', 'scala', 'r', 'lua', 'vim', 'toml', 'ini', 'cfg', 'conf', 'env', 'gitignore', 'dockerignore', 'editorconfig'].includes(ext)) {
+        } else if (
+          [
+            'js',
+            'ts',
+            'tsx',
+            'jsx',
+            'py',
+            'java',
+            'go',
+            'rs',
+            'c',
+            'cpp',
+            'h',
+            'hpp',
+            'css',
+            'scss',
+            'json',
+            'xml',
+            'yaml',
+            'yml',
+            'txt',
+            'log',
+            'sh',
+            'bash',
+            'zsh',
+            'fish',
+            'sql',
+            'rb',
+            'php',
+            'swift',
+            'kt',
+            'scala',
+            'r',
+            'lua',
+            'vim',
+            'toml',
+            'ini',
+            'cfg',
+            'conf',
+            'env',
+            'gitignore',
+            'dockerignore',
+            'editorconfig',
+          ].includes(ext)
+        ) {
           contentType = 'code';
         } else {
           // 未知扩展名也默认为 code 类型，尝试作为文本读取 / Unknown extensions also default to code type, try to read as text
@@ -545,7 +614,7 @@ export function useWorkspaceFileOps(options: UseWorkspaceFileOpsOptions) {
           // Markdown and media files default to read-only mode
           editable: readonly || dataSource === 'moss-session' || contentType === 'markdown' || contentType === 'image' || contentType === 'video' || contentType === 'audio' || isLargeTextTruncated ? false : undefined,
         });
-      } catch (error) {
+      } catch {
         messageApi.error(t('conversation.workspace.contextMenu.previewFailed'));
       }
     },
