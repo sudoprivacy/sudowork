@@ -102,7 +102,14 @@ export function initAllBridges(): void {
   initSudoclawBridge();
   initNodeRuntimeBridge();
   initPythonRuntimeBridge();
-  initFuseTBridge();
+  console.error('[FuseTTrace] before initFuseTBridge call');
+  try {
+    initFuseTBridge();
+    console.error('[FuseTTrace] after initFuseTBridge call (returned normally)');
+  } catch (err) {
+    console.error('[FuseTTrace] initFuseTBridge THREW:', err);
+    throw err;
+  }
   initSudoworkServerBridge();
   // Safety hook IPC is hidden while the feature is disabled.
   // initSafetyBridge();
