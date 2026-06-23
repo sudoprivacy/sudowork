@@ -14,8 +14,8 @@
       ✅ /Users/xiaohei/Documents/freelancer/jinjing/sudoclaw/sudowork/src/renderer/context/AuthContext.tsx
       ✅ /Users/xiaohei/Documents/freelancer/jinjing/sudoclaw/sudowork/src/renderer/hooks/mcp/useMcpAgentStatus.ts
       ✅ /Users/xiaohei/Documents/freelancer/jinjing/sudoclaw/sudowork/src/renderer/hooks/mcp/useMcpServerCRUD.ts
-      /Users/xiaohei/Documents/freelancer/jinjing/sudoclaw/sudowork/src/renderer/hooks/useMultiAgentDetection.tsx
-      /Users/xiaohei/Documents/freelancer/jinjing/sudoclaw/sudowork/src/renderer/hooks/usePreviewLauncher.ts
+      ✅ /Users/xiaohei/Documents/freelancer/jinjing/sudoclaw/sudowork/src/renderer/hooks/useMultiAgentDetection.tsx
+      ✅ /Users/xiaohei/Documents/freelancer/jinjing/sudoclaw/sudowork/src/renderer/hooks/usePreviewLauncher.ts
       /Users/xiaohei/Documents/freelancer/jinjing/sudoclaw/sudowork/src/renderer/hooks/useResizableSplit.tsx
       /Users/xiaohei/Documents/freelancer/jinjing/sudoclaw/sudowork/src/renderer/hooks/useTheme.ts
       /Users/xiaohei/Documents/freelancer/jinjing/sudoclaw/sudowork/src/renderer/messages/acp/MessageAcpQuestion.tsx

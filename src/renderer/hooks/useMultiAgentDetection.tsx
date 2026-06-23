@@ -3,7 +3,7 @@
  */
 
 import { Message } from '@arco-design/web-react';
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { filterAvailableAgentsForUi } from '@/renderer/shared/agents/availableAgents';
 import { ipcBridge } from '@/common';

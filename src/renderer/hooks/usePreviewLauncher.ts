@@ -136,7 +136,7 @@ export const usePreviewLauncher = () => {
               editable: normalizedContent.truncated ? false : editable,
             });
             return;
-          } catch (error) {
+          } catch {
             // 读取失败，如果已经显示了乐观预览，则只记录警告
             // Read failed, log warning if optimistic preview is already shown
           }
