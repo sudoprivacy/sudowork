@@ -75,6 +75,9 @@ export default defineConfig(({ mode }) => {
     __BUILD_DATE__: JSON.stringify(buildMeta.date),
     __BUILD_COMMIT__: JSON.stringify(buildMeta.commit),
     __BUILD_IS_NIGHTLY__: JSON.stringify(buildMeta.isNightly),
+    // Optional sudowork-server base URL injection. Empty string means "not injected"
+    // so the runtime helper falls back to the literal default.
+    __SUDOWORK_SERVER_BASE_URL__: JSON.stringify(process.env.BUILD_SERVER_BASE_URL ?? ''),
   };
 
   return {

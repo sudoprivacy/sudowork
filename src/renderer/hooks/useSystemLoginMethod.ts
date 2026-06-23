@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { SUDOWORK_SERVER_BASE_URL } from '@/common/sudoworkServer';
+import { getSudoworkServerBaseUrl } from '@/common/sudoworkServer';
 
 /** 0 = 手机验证码（现状）；1 = 用户名密码（本次新增） */
 export type LoginMethod = 0 | 1;
@@ -25,7 +25,7 @@ async function fetchLoginMethod(): Promise<LoginMethod> {
   if (inflight) return inflight;
   inflight = (async (): Promise<LoginMethod> => {
     try {
-      const res = await fetch(`${SUDOWORK_SERVER_BASE_URL}/api/v1/system-config`);
+      const res = await fetch(`${await getSudoworkServerBaseUrl()}/api/v1/system-config`);
       const data = (await res.json()) as { data?: { login_method?: unknown } };
       const loginMethod: LoginMethod = data?.data?.login_method === 1 ? 1 : 0;
       cachedLoginMethod = loginMethod;

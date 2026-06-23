@@ -17,7 +17,7 @@
 import { app } from 'electron';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { ProcessConfig } from '../initStorage';
+import { ProcessConfig, getSudoworkServerBaseUrlSync } from '../initStorage';
 import { buildVersion } from '../../common/buildInfo';
 import type { TelemetryEvent, TelemetryBatchRequest, TelemetryBatchResponse, TelemetryConfig, StoredTelemetryEvent, PerfTelemetryEvent, ConversationTelemetryEvent, InstallTelemetryEvent, TurnTelemetryEvent, StepTelemetryEvent, PerfData, ConversationData, InstallData, TurnData, StepData } from '../../shared/types/telemetry';
 import { mapElectronArch, DEFAULT_TELEMETRY_CONFIG } from '../../shared/types/telemetry';
@@ -447,7 +447,9 @@ export class TelemetryBatchReporter {
 
   /** 发送批量请求 */
   private async sendBatch(request: TelemetryBatchRequest): Promise<TelemetryBatchResponse> {
-    const url = this.config.serverUrl!;
+    // 现读：用户自定义 telemetry.serverUrl 优先；否则用现读的 sudowork-server baseUrl 派生
+    const customServerUrl = await ProcessConfig.get('telemetry.serverUrl').catch(() => undefined as unknown as string | undefined);
+    const url = customServerUrl || `${getSudoworkServerBaseUrlSync()}/api/v1/telemetry/batch`;
     const encryptor = getTelemetryEncryptor();
 
     try {

@@ -3,18 +3,16 @@
  * and maintains an in-memory cache for Auth Proxy URL matching.
  */
 
-import type { AuthProxyRule } from '@/common/types/authProxy';
-import { SUDOWORK_SERVER_BASE_URL } from '@/common/sudoworkServer';
+import { getSudoworkServerBaseUrlSync } from '@process/initStorage';
 import { mainLog, mainWarn } from '@process/utils/mainLogger';
 import { adaptConfigItems, adaptConfigItem } from './configItemsAdapter';
+import type { AuthProxyRule } from '@/common/types/authProxy';
 
 // ============================================================================
 // Cache
 // ============================================================================
 
-const CONFIG_ITEMS_API = `${SUDOWORK_SERVER_BASE_URL}/api/v1/config/items`;
-
-let rulesCache: Map<number, AuthProxyRule> = new Map();
+const rulesCache: Map<number, AuthProxyRule> = new Map();
 let lastSuccessfulRules: AuthProxyRule[] = [];
 let rawConfigItemsCache: RawConfigItem[] = [];
 
@@ -80,12 +78,9 @@ export function findRuleForUrl(url: string, minimatchFn: (str: string, pattern: 
  * @param accessToken - User's access token for sudowork-server API
  * @param enabledConfigItemIds - IDs of config items the user has enabled
  */
-export async function refreshRules(
-  accessToken: string,
-  enabledConfigItemIds: number[],
-): Promise<AuthProxyRule[]> {
+export async function refreshRules(accessToken: string, enabledConfigItemIds: number[]): Promise<AuthProxyRule[]> {
   try {
-    const response = await fetch(CONFIG_ITEMS_API, {
+    const response = await fetch(`${getSudoworkServerBaseUrlSync()}/api/v1/config/items`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
 

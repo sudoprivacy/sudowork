@@ -23,6 +23,7 @@ import guid from './guid.json';
 import agent from './agent.json';
 import agentStatus from './agentStatus.json';
 import telemetry from './telemetry.json';
+import setup from './setup.json';
 
 export default {
   common,
@@ -45,4 +46,5 @@ export default {
   agent,
   agentStatus,
   telemetry,
+  setup,
 };

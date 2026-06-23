@@ -18,6 +18,7 @@ import starOffice from './starOffice.json';
 import guid from './guid.json';
 import agent from './agent.json';
 import agentStatus from './agentStatus.json';
+import setup from './setup.json';
 
 export default {
   common,
@@ -39,4 +40,5 @@ export default {
   guid,
   agent,
   agentStatus,
+  setup,
 };

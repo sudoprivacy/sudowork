@@ -9,17 +9,18 @@ import fs from 'fs/promises';
 import path from 'path';
 import { app } from 'electron';
 import { application } from '../common/ipcBridge';
-import type { TMessage } from '@/common/chatLib';
-import { ASSISTANT_PRESETS } from '@/common/presets/assistantPresets';
 import type { IChatConversationRefer, IConfigStorageRefer, IEnvStorageRefer, IMcpServer } from '../common/storage';
 import { ChatMessageStorage, ChatStorage, ConfigStorage, EnvStorage } from '../common/storage';
 import { copyDirectoryRecursively, ensureDirectory, getConfigPath, getDataPath, getTempPath, verifyDirectoryFiles } from './utils';
 import { getDatabase } from './database/export';
-import type { AcpBackendConfig } from '@/types/acpTypes';
 import { perfLog, mainLog, mainWarn, mainError } from './utils/mainLogger';
 import { SKILL_SUBDIRS, ENTERPRISE_SKILL_SUBDIRS } from './constants/skillStorage';
 import { ASSISTANT_SUBDIRS, ENTERPRISE_ASSISTANT_SUBDIRS } from './constants/assistantStorage';
+import type { AcpBackendConfig } from '@/types/acpTypes';
+import { ASSISTANT_PRESETS } from '@/common/presets/assistantPresets';
+import type { TMessage } from '@/common/chatLib';
 import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
+import { BUILD_SUDOWORK_SERVER_BASE_URL, normalizeSudoworkServerUrl } from '@/common/sudoworkServer';
 // Platform and architecture types (moved from deleted updateConfig)
 type PlatformType = 'win32' | 'darwin' | 'linux';
 type ArchitectureType = 'x64' | 'arm64' | 'ia32' | 'arm';
@@ -1172,6 +1173,20 @@ export const ProcessChat = chatFile;
 export const ProcessChatMessage = chatMessageFile;
 
 export const ProcessEnv = envFile;
+
+/**
+ * Main-process sync resolver for the sudowork-server base URL.
+ *
+ * Mirrors the renderer-side `getSudoworkServerBaseUrl()` priority chain
+ * (user setting > build define > literal fallback), but reads `ProcessConfig`
+ * synchronously since main-process call sites are not necessarily async.
+ *
+ * Read on every call — do NOT cache the result.
+ */
+export function getSudoworkServerBaseUrlSync(): string {
+  const raw = configFile.getSync('system.sudoworkServerUrl');
+  return normalizeSudoworkServerUrl(raw) ?? BUILD_SUDOWORK_SERVER_BASE_URL;
+}
 
 export const getSystemDir = () => {
   return {

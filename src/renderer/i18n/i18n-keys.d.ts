@@ -1913,6 +1913,10 @@ export type I18nKey =
   | 'settings.zentao.testAndConnect'
   | 'settings.zentao.username'
   | 'settings.zentao.usernameDesc'
+  | 'setup.serverUrl.hint'
+  | 'setup.serverUrl.invalidUrl'
+  | 'setup.serverUrl.placeholder'
+  | 'setup.serverUrl.toggle'
   | 'starOffice.monitor.assistPromptInstalled'
   | 'starOffice.monitor.checking'
   | 'starOffice.monitor.connectedInline'
@@ -2021,22 +2025,4 @@ export type I18nKey =
   | 'update.showInFolder'
   | 'update.upToDateTitle';
 
-export type I18nModule =
-  | 'common'
-  | 'agentMode'
-  | 'update'
-  | 'login'
-  | 'fileSelection'
-  | 'preview'
-  | 'conversation'
-  | 'settings'
-  | 'messages'
-  | 'mcp'
-  | 'acp'
-  | 'codex'
-  | 'tools'
-  | 'gemini'
-  | 'cron'
-  | 'starOffice'
-  | 'guid'
-  | 'agent';
+export type I18nModule = 'common' | 'agentMode' | 'update' | 'login' | 'fileSelection' | 'preview' | 'conversation' | 'settings' | 'messages' | 'mcp' | 'acp' | 'codex' | 'tools' | 'gemini' | 'cron' | 'starOffice' | 'guid' | 'agent' | 'setup';

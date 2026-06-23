@@ -1,0 +1,8 @@
+{
+  "serverUrl": {
+    "toggle": "Özel sunucu adresi kullan",
+    "placeholder": "https://your-sudowork-server.com",
+    "hint": "Boş bırakırsanız varsayılan sunucu kullanılır",
+    "invalidUrl": "Lütfen geçerli bir HTTP/HTTPS adresi girin"
+  }
+}

@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { ipcBridge } from '@/common';
-import { SUDOWORK_SERVER_BASE_URL } from '@/common/sudoworkServer';
+import { getSudoworkServerBaseUrl } from '@/common/sudoworkServer';
 import { ConfigStorage, type IConfigStorageRefer } from '@/common/storage';
 import { resolveLoginImageModelId } from '@/common/imageGenerationModelConfig';
 import { withCsrfToken } from '@/webserver/middleware/csrfClient';
@@ -566,7 +566,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
           const authStorage: AuthStorage = JSON.parse(stored);
           const { refresh_token, device_id } = authStorage;
 
-          const response = await fetch(`${SUDOWORK_SERVER_BASE_URL}/api/v1/auth/refresh`, {
+          const response = await fetch(`${await getSudoworkServerBaseUrl()}/api/v1/auth/refresh`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ refresh_token, device_id }),
@@ -967,7 +967,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     const deviceId = getDeviceId();
 
     try {
-      const response = await fetch(`${SUDOWORK_SERVER_BASE_URL}/api/v1/auth/login`, {
+      const response = await fetch(`${await getSudoworkServerBaseUrl()}/api/v1/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1015,7 +1015,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     const deviceId = getDeviceId();
 
     try {
-      const response = await fetch(`${SUDOWORK_SERVER_BASE_URL}/api/v1/auth/register`, {
+      const response = await fetch(`${await getSudoworkServerBaseUrl()}/api/v1/auth/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1050,7 +1050,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   const loginByPassword = useCallback(async ({ phone, password }: PasswordLoginParams): Promise<PasswordAuthResult> => {
     const deviceId = getDeviceId();
     try {
-      const response = await fetch(`${SUDOWORK_SERVER_BASE_URL}/api/v1/auth/login-by-config`, {
+      const response = await fetch(`${await getSudoworkServerBaseUrl()}/api/v1/auth/login-by-config`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1074,7 +1074,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   const registerByPassword = useCallback(async ({ phone, password, nickname, invitation_code }: PasswordRegisterParams): Promise<PasswordAuthResult> => {
     const deviceId = getDeviceId();
     try {
-      const response = await fetch(`${SUDOWORK_SERVER_BASE_URL}/api/v1/auth/register-password`, {
+      const response = await fetch(`${await getSudoworkServerBaseUrl()}/api/v1/auth/register-password`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1102,7 +1102,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         return { success: false, message: '登录状态已过期，请重新登录' };
       }
       try {
-        const response = await fetch(`${SUDOWORK_SERVER_BASE_URL}/api/v1/auth/change-password`, {
+        const response = await fetch(`${await getSudoworkServerBaseUrl()}/api/v1/auth/change-password`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -1366,7 +1366,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         const authStorage: AuthStorage = JSON.parse(stored);
         const { refresh_token, device_id } = authStorage;
 
-        await fetch(`${SUDOWORK_SERVER_BASE_URL}/api/v1/auth/logout`, {
+        await fetch(`${await getSudoworkServerBaseUrl()}/api/v1/auth/logout`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ refresh_token, device_id }),

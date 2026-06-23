@@ -1,0 +1,8 @@
+{
+  "serverUrl": {
+    "toggle": "Use a custom server address",
+    "placeholder": "https://your-sudowork-server.com",
+    "hint": "Leave empty to use the default server",
+    "invalidUrl": "Please enter a valid HTTP/HTTPS address"
+  }
+}

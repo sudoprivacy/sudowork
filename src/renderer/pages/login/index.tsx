@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Input, Message, Space } from '@arco-design/web-react';
 import { Phone, Protect, Key, User, Lock } from '@icon-park/react';
-import { SUDOWORK_SERVER_BASE_URL } from '@/common/sudoworkServer';
+import { getSudoworkServerBaseUrl } from '@/common/sudoworkServer';
 import { DEFAULT_TENANT_CONFIG, TENANT_CONFIG_STORAGE_KEY, resolveTenantConfig } from '@/common/types/tenantConfig';
 import SudoworkIcon from '@/renderer/assets/sudowork-icon-dark.svg';
 import { isElectronDesktop, isMacOS } from '@/renderer/utils/platform';
@@ -236,7 +236,7 @@ const LoginPage: React.FC = () => {
 
     setLoading(true);
     try {
-      const res = await fetch(`${SUDOWORK_SERVER_BASE_URL}/api/v1/auth/send-code`, {
+      const res = await fetch(`${await getSudoworkServerBaseUrl()}/api/v1/auth/send-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone: currentPhone }),

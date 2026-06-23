@@ -1,0 +1,8 @@
+{
+  "serverUrl": {
+    "toggle": "カスタムサーバーアドレスを使用",
+    "placeholder": "https://your-sudowork-server.com",
+    "hint": "空欄の場合はデフォルトのサーバーを使用します",
+    "invalidUrl": "有効な HTTP/HTTPS アドレスを入力してください"
+  }
+}

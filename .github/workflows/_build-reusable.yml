@@ -19,6 +19,10 @@ on:
         description: 'Append short commit hash to artifact names'
         type: boolean
         default: false
+      server_base_url:
+        description: 'Optional sudowork-server base URL injected via Vite define (empty = use literal fallback)'
+        type: string
+        default: ''
 
 env:
   BUN_INSTALL_REGISTRY: 'https://registry.npmjs.org/'
@@ -66,6 +70,12 @@ jobs:
     runs-on: ${{ matrix.os }}
     needs: code-quality
     if: ${{ always() && (inputs.skip_code_quality || needs.code-quality.result == 'success') }}
+
+    # Job-level env propagates to every step in this job AND to subprocesses spawned by those steps
+    # (e.g. build-with-builder.js → electron-vite). Existing release/nightly callers do not pass
+    # `server_base_url`, so this resolves to '' and the runtime helper falls back to the literal default.
+    env:
+      BUILD_SERVER_BASE_URL: ${{ inputs.server_base_url }}
 
     outputs:
       commit-short: ${{ steps.commit.outputs.short }}

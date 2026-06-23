@@ -18,7 +18,7 @@
 import { app } from 'electron';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { ProcessConfig } from '../initStorage';
+import { ProcessConfig, getSudoworkServerBaseUrlSync } from '../initStorage';
 import { buildVersion } from '../../common/buildInfo';
 import type { NativeCrashEvent, RendererCrashEvent, JsExceptionEvent, Breadcrumb, CrashContext, CrashEventBase, CrashBatchRequest, CrashBatchResponse, StoredCrashEvent, CrashReporterConfig, CrashProcessType, CrashReason } from '../../shared/types/crash';
 import { DEFAULT_CRASH_REPORTER_CONFIG } from '../../shared/types/crash';
@@ -672,7 +672,10 @@ export class CrashReporter {
 
   /** 发送批量请求 */
   private async sendBatch(request: CrashBatchRequest): Promise<CrashBatchResponse> {
-    const url = this.config.serverUrl!;
+    // 现读：用户自定义 telemetry.serverUrl 优先（转换 /telemetry/batch → /crash/events/batch）；
+    // 否则用现读的 sudowork-server baseUrl 派生 crash 上报地址
+    const customServerUrl = await ProcessConfig.get('telemetry.serverUrl').catch(() => undefined as unknown as string | undefined);
+    const url = customServerUrl ? customServerUrl.replace('/telemetry/batch', '/crash/events/batch') : `${getSudoworkServerBaseUrlSync()}/api/v1/crash/events/batch`;
     const encryptor = getTelemetryEncryptor();
 
     try {
