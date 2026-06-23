@@ -32,6 +32,7 @@ interface InstallState {
 let installState: InstallState = { installing: false };
 
 export function initFuseTBridge(): void {
+  process.stdout.write(`[FUSE_TRACE_RAW] initFuseTBridge body entered; app.isPackaged=${app.isPackaged}\n`);
   mainLog(TAG, `initFuseTBridge() entered (app.isPackaged=${app.isPackaged})`);
   ipcBridge.fuseT.checkInstalled.provider(async () => {
     try {

@@ -102,14 +102,15 @@ export function initAllBridges(): void {
   initSudoclawBridge();
   initNodeRuntimeBridge();
   initPythonRuntimeBridge();
-  console.error('[FuseTTrace] before initFuseTBridge call');
+  process.stdout.write(`[FUSE_TRACE_RAW] reached call site; typeof initFuseTBridge=${typeof initFuseTBridge}\n`);
   try {
     initFuseTBridge();
-    console.error('[FuseTTrace] after initFuseTBridge call (returned normally)');
+    process.stdout.write('[FUSE_TRACE_RAW] initFuseTBridge() returned normally\n');
   } catch (err) {
-    console.error('[FuseTTrace] initFuseTBridge THREW:', err);
+    process.stdout.write(`[FUSE_TRACE_RAW] initFuseTBridge THREW: ${err instanceof Error ? err.stack : String(err)}\n`);
     throw err;
   }
+  process.stdout.write('[FUSE_TRACE_RAW] post-fuset, continuing to initSudoworkServerBridge\n');
   initSudoworkServerBridge();
   // Safety hook IPC is hidden while the feature is disabled.
   // initSafetyBridge();
