@@ -283,9 +283,6 @@ const WebuiModalContent: React.FC = () => {
         </div>
       </div>
 
-      {/* {activeTab === 'webui' ? (
-        webuiPanel
-      ) : ( */}
       <div className='flex-1 min-h-0 px-[12px] md:px-[28px] pb-18px'>
         <div className='max-w-820px mx-auto w-full'>
           {activeTab === 'secrets' ? (
@@ -299,7 +296,6 @@ const WebuiModalContent: React.FC = () => {
           )}
         </div>
       </div>
-      {/* )} */}
 
       {/* 设置新密码弹窗 / Set New Password Modal */}
       <AionModal visible={setPasswordModalVisible} onCancel={() => setSetPasswordModalVisible(false)} onOk={handleSetNewPassword} confirmLoading={passwordLoading} title={t('settings.webui.setNewPassword')} size='small'>
