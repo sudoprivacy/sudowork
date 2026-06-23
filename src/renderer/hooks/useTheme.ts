@@ -26,7 +26,7 @@ const applyTheme = (theme: Theme) => {
   document.body.setAttribute('arco-theme', theme);
   try {
     localStorage.setItem(THEME_CACHE_KEY, theme);
-  } catch (_e) {
+  } catch {
     /* noop */
   }
 };
