@@ -14,7 +14,8 @@ import { ProcessConfig } from '@/process/initStorage';
 import { getDataPath } from '@/process/utils';
 import { ConversationService } from '@/process/services/conversationService';
 import { transcriptionService } from '@/process/services/transcription/TranscriptionService';
-import { resolveMediaText } from './voiceTranscription';
+import type { AcpBackend } from '@/types/acpTypes';
+import { acpDetector } from '@/agent/acp/AcpDetector';
 import { buildChatErrorResponse, chatActions } from '../actions/ChatActions';
 import { handlePairingShow, platformActions } from '../actions/PlatformActions';
 import { getChannelDefaultModel, systemActions } from '../actions/SystemActions';
@@ -31,9 +32,8 @@ import { createMainMenuCard as createDingTalkMainMenuCard, createErrorRecoveryCa
 import { convertHtmlToDingTalkMarkdown } from '../plugins/dingtalk/DingTalkAdapter';
 import { createMainMenuKeyboard, createToolConfirmationKeyboard } from '../plugins/telegram/TelegramKeyboards';
 import { escapeHtml } from '../plugins/telegram/TelegramAdapter';
+import { resolveMediaText } from './voiceTranscription';
 import type { PluginManager } from './PluginManager';
-import type { AcpBackend } from '@/types/acpTypes';
-import { acpDetector } from '@/agent/acp/AcpDetector';
 
 function getChannelWorkspacePath(platform: string): string {
   const dir = path.join(getDataPath(), 'channel-media', platform);
@@ -509,7 +509,15 @@ export class ActionExecutor {
         // Read selected agent for this platform (defaults to claude)
         let savedAgent: unknown = undefined;
         try {
-          savedAgent = await (platform === 'lark' ? ProcessConfig.get('assistant.lark.agent') : platform === 'dingtalk' ? ProcessConfig.get('assistant.dingtalk.agent') : platform === 'wechat' ? ProcessConfig.get('assistant.wechat.agent') : platform === 'wecom' ? ProcessConfig.get('assistant.wecom.agent') : ProcessConfig.get('assistant.telegram.agent'));
+          savedAgent = await (platform === 'lark'
+            ? ProcessConfig.get('assistant.lark.agent')
+            : platform === 'dingtalk'
+              ? ProcessConfig.get('assistant.dingtalk.agent')
+              : platform === 'wechat'
+                ? ProcessConfig.get('assistant.wechat.agent')
+                : platform === 'wecom'
+                  ? ProcessConfig.get('assistant.wecom.agent')
+                  : ProcessConfig.get('assistant.telegram.agent'));
         } catch {
           // ignore
         }
@@ -1050,7 +1058,9 @@ export class ActionExecutor {
             // [DEBUG] Log file send decision with validation status
             const fileValid = rawFileUrl ? isValidFilePath(rawFileUrl) : false;
             const imageValid = rawImageUrl ? isValidFilePath(rawImageUrl) : false;
-            console.log(`[ActionExecutor] 📎 File check: fileUrl=${rawFileUrl || 'none'}(valid=${fileValid}), imageUrl=${rawImageUrl || 'none'}(valid=${imageValid}), sentFiles=${Array.from(sentFiles).join(',') || 'empty'}, userInputFiles=${Array.from(userInputFiles).join(',') || 'empty'}, fileToSend=${fileToSend || 'skip'}, imageToSend=${imageToSend || 'skip'}`);
+            console.log(
+              `[ActionExecutor] 📎 File check: fileUrl=${rawFileUrl || 'none'}(valid=${fileValid}), imageUrl=${rawImageUrl || 'none'}(valid=${imageValid}), sentFiles=${Array.from(sentFiles).join(',') || 'empty'}, userInputFiles=${Array.from(userInputFiles).join(',') || 'empty'}, fileToSend=${fileToSend || 'skip'}, imageToSend=${imageToSend || 'skip'}`
+            );
 
             // 处理文件发送：WeCom 缓存到流结束，其他渠道立即发送
             // Handle file send: WeCom buffers until stream ends, other channels send immediately

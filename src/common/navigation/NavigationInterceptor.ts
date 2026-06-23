@@ -191,10 +191,7 @@ export class NavigationInterceptor {
    * (ai-dev-browser CLI tools or browser-panel MCP tools).
    */
   private static isKnownNavToolName(baseName: string): boolean {
-    return (
-      (NAVIGATION_TOOLS as readonly string[]).includes(baseName) ||
-      (BROWSER_PANEL_NAV_MCP_TOOLS as readonly string[]).includes(baseName)
-    );
+    return (NAVIGATION_TOOLS as readonly string[]).includes(baseName) || (BROWSER_PANEL_NAV_MCP_TOOLS as readonly string[]).includes(baseName);
   }
 
   /**
@@ -217,11 +214,7 @@ export class NavigationInterceptor {
    */
   private static extractWrappedMcpToolName(data: NavigationToolData): string | null {
     // Path A — qualifiedName lookup.
-    const qualifiedSources: Array<unknown> = [
-      data.qualifiedName,
-      data.rawInput?.qualifiedName,
-      data.arguments?.qualifiedName,
-    ];
+    const qualifiedSources: Array<unknown> = [data.qualifiedName, data.rawInput?.qualifiedName, data.arguments?.qualifiedName];
     for (const value of qualifiedSources) {
       if (typeof value === 'string' && value.trim()) {
         const tail = value.split(/__|[-./]/).pop();
@@ -230,11 +223,7 @@ export class NavigationInterceptor {
     }
 
     // Path B — server + tool fields, gated on server="browser-panel".
-    const serverToolSources: Array<{ server?: unknown; tool?: unknown } | undefined> = [
-      { server: data.server, tool: data.tool },
-      data.rawInput as { server?: unknown; tool?: unknown } | undefined,
-      data.arguments as { server?: unknown; tool?: unknown } | undefined,
-    ];
+    const serverToolSources: Array<{ server?: unknown; tool?: unknown } | undefined> = [{ server: data.server, tool: data.tool }, data.rawInput as { server?: unknown; tool?: unknown } | undefined, data.arguments as { server?: unknown; tool?: unknown } | undefined];
     for (const src of serverToolSources) {
       if (!src) continue;
       if (src.server === 'browser-panel' && typeof src.tool === 'string' && src.tool.trim()) {

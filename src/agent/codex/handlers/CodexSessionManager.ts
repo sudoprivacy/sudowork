@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { randomBytes } from 'crypto';
 import { uuid } from '@/common/utils';
 import type { ICodexMessageEmitter } from '@/agent/codex/messaging/CodexMessageEmitter';
-import { randomBytes } from 'crypto';
 
 export type CodexSessionStatus = 'initializing' | 'connecting' | 'connected' | 'authenticated' | 'session_active' | 'error' | 'disconnected';
 
@@ -193,7 +193,7 @@ export class CodexSessionManager {
         return randomBytes(Math.ceil(length / 2))
           .toString('hex')
           .substring(0, length);
-      } catch (e) {
+      } catch {
         // 回退方案
         return Math.random()
           .toString(36)

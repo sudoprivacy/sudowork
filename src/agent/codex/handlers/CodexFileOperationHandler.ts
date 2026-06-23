@@ -4,12 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import fs from 'fs/promises';
+import path from 'path';
 import { uuid } from '@/common/utils';
 import type { ICodexMessageEmitter } from '@/agent/codex/messaging/CodexMessageEmitter';
 import type { FileChange } from '@/common/codex/types';
 import { ipcBridge } from '@/common';
-import fs from 'fs/promises';
-import path from 'path';
 
 export interface FileOperation {
   method: string;

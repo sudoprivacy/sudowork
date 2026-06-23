@@ -90,7 +90,7 @@ if (win.electronAPI) {
 
     try {
       socket = new WebSocket(socketUrl);
-    } catch (error) {
+    } catch {
       scheduleReconnect();
       return;
     }
@@ -150,7 +150,7 @@ if (win.electronAPI) {
         }
 
         emitterRef.emit(payload.name, payload.data);
-      } catch (error) {
+      } catch {
         // 忽略格式错误的消息 / Ignore malformed payloads
       }
     });
@@ -207,7 +207,7 @@ if (win.electronAPI) {
         try {
           socket.send(JSON.stringify(message));
           return;
-        } catch (error) {
+        } catch {
           scheduleReconnect();
         }
       }

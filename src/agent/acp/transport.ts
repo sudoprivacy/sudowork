@@ -13,8 +13,8 @@
 
 import type { ChildProcess } from 'child_process';
 import type { AcpMessage, AcpIncomingMessage } from '@/types/acpTypes';
-import { killChild } from './utils';
 import { processSupervisor } from '@process/ProcessSupervisor';
+import { killChild } from './utils';
 import { ACP_PERF_LOG } from './acpConnectors';
 
 // ── Transport interface ────────────────────────────────────────────

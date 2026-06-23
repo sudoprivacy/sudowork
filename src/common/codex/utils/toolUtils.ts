@@ -273,7 +273,7 @@ export class ToolRegistry {
       .filter((tool) => this.isToolAvailable(tool!))
       .sort((a, b) => a!.priority - b!.priority);
 
-    return availableTools[0] || this.getDefaultTool(eventType);
+    return availableTools[0] || this.getDefaultTool();
   }
 
   /**
@@ -353,7 +353,7 @@ export class ToolRegistry {
   /**
    * 获取默认工具
    */
-  private getDefaultTool(eventType: CodexAgentEventType): ToolDefinition {
+  private getDefaultTool(): ToolDefinition {
     return {
       id: 'unknown',
       name: 'Unknown',

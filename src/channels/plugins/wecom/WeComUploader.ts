@@ -290,7 +290,7 @@ export class WeComUploader {
    * Clear all pending responses (for cleanup)
    */
   clearPending(): void {
-    for (const [reqId, pending] of this.pendingResponses) {
+    for (const [_, pending] of this.pendingResponses) {
       pending.reject(new Error('WeComUploader cleared'));
     }
     this.pendingResponses.clear();
