@@ -6,6 +6,7 @@
 
 import './bootstrap/runtimePatches';
 import './bootstrap/crashHandler';
+import './bootstrap/devTriggers';
 import type { PropsWithChildren } from 'react';
 import React from 'react';
 import { createRoot } from 'react-dom/client';
@@ -67,7 +68,12 @@ const arcoLocales: Record<string, typeof enUS> = {
   'en-US': enUS,
 };
 
-const AppProviders: React.FC<PropsWithChildren> = ({ children }) => React.createElement(InitProvider, null, React.createElement(AuthProvider, null, React.createElement(DashboardStatsProvider, null, React.createElement(TenantConfigProvider, null, React.createElement(ThemeProvider, null, React.createElement(PreviewProvider, null, React.createElement(ConversationTabsProvider, null, children)))))));
+const AppProviders: React.FC<PropsWithChildren> = ({ children }) =>
+  React.createElement(
+    InitProvider,
+    null,
+    React.createElement(AuthProvider, null, React.createElement(DashboardStatsProvider, null, React.createElement(TenantConfigProvider, null, React.createElement(ThemeProvider, null, React.createElement(PreviewProvider, null, React.createElement(ConversationTabsProvider, null, children))))))
+  );
 
 const Config: React.FC<PropsWithChildren> = ({ children }) => {
   const {
