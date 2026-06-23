@@ -7,6 +7,7 @@ import { app } from 'electron';
 import { mainLog, mainWarn } from '@process/utils/mainLogger';
 import { extractTarGzWithProgress, extractZipWithProgress } from '../archiveProgress';
 import runtimeVersions from '@/shared/runtime-versions.json';
+import runtimeSha256 from '@/shared/runtime-sha256.json';
 import { COS_RUNTIME_BASE, COS_LEGACY_NEXUS_VFS_BASE } from '@/shared/cos';
 import type { NexusVfsStage } from './DynamicNexusVfsService';
 
@@ -50,14 +51,13 @@ const VAULT_DYLIB_NAME_MAP: Record<string, string> = {
   win32: 'nexus_vault.dll',
 };
 
-/** Known-good SHA256 sums for vault v0.1.3. Must stay byte-identical to
- *  scripts/download-nexus-vfs.js — U9 unit test enforces this. */
-export const NEXUS_VAULT_SHA256SUMS: Record<string, string> = {
-  'nexus-vault-linux-x86_64.tar.gz': 'ce831d12f55bdd935d928d78df7f4a25078636529d020a1bd0235f68bb8f22f2',
-  'nexus-vault-macos-arm64.tar.gz': '603543170a09208fdd9aa3ce5c6aac6149215726042d51d53db4a083fbe728d6',
-  'nexus-vault-macos-x86_64.tar.gz': '276e1198c55eeed616ba50d5aa5a421ddbb89459a1be1227f44cc5927692e1eb',
-  'nexus-vault-windows-x86_64.zip': '5b91322ddb745c2049e9d675290e3b1a32b2d26bcb67bd96f85dff0f91a3799d',
-};
+/** Known-good SHA256 sums for vault. Sourced from
+ *  `src/shared/runtime-sha256.json` so the build-time downloader
+ *  (`scripts/download-nexus-vfs.js`) and this runtime re-installer always
+ *  see the SAME bytes. The previous hand-maintained table here drifted
+ *  silently when PR #918 bumped vault to v0.2.0 — runtime stayed on the
+ *  v0.1.3 SHA and every Mac install hit a SHA-mismatch error. */
+export const NEXUS_VAULT_SHA256SUMS: Record<string, string> = runtimeSha256 as Record<string, string>;
 
 // ── Module-level pure functions (export so tests can call directly without
 //    poking class internals) ───────────────────────────────────────────────────

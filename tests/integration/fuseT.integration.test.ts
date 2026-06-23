@@ -130,21 +130,23 @@ describe('FUSE-T — eager dylib dispatch in download-nexus-vfs.js', () => {
     expect(script).toContain("'libnexus_fuse_plugin.dylib'");
   });
 
-  it('macOS + Linux fuse-plugin SHA256 sums are filled with 64-hex hashes', () => {
+  it('macOS + Linux fuse-plugin SHA256 sums are filled in the canonical JSON', () => {
     // Earlier in PR #916 these landed commented-out (fail-closed pending the
     // first cross-platform fuse-vX.Y.Z release). v0.2.0 shipped all three
     // archives, so the verifier now has real sums for every platform we
-    // dispatch to. Assert each line is a 64-char hex string — a regression
+    // dispatch to. Assert each entry is a 64-char hex string — a regression
     // like a placeholder or a truncated copy/paste would otherwise let an
     // unverified dylib pass when CI doesn't actually exercise the macOS
     // download path on Linux runners.
-    const expectHexLine = (artifact: string): void => {
-      const re = new RegExp(`'${artifact.replace(/[.]/g, '\\.')}':\\s*'([a-f0-9]{64})'`);
-      expect(script).toMatch(re);
-    };
-    expectHexLine('nexus-fuse-plugin-linux-x86_64.tar.gz');
-    expectHexLine('nexus-fuse-plugin-macos-arm64.tar.gz');
-    expectHexLine('nexus-fuse-plugin-macos-x86_64.tar.gz');
+    //
+    // Sums migrated out of `scripts/download-nexus-vfs.js` into
+    // `src/shared/runtime-sha256.json` to fix the cross-file drift PR
+    // #918 hit on Mac smoke (script bumped, runtime tables not); the
+    // assertion now reads the canonical JSON directly.
+    const sha = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'src/shared/runtime-sha256.json'), 'utf-8')) as Record<string, string>;
+    for (const artifact of ['nexus-fuse-plugin-linux-x86_64.tar.gz', 'nexus-fuse-plugin-macos-arm64.tar.gz', 'nexus-fuse-plugin-macos-x86_64.tar.gz']) {
+      expect(sha[artifact], `missing SHA for ${artifact}`).toMatch(/^[a-f0-9]{64}$/);
+    }
   });
 
   it('FuseTInstallService has a pinned SHA256 for the active fuse-t version (no unverified pkg)', () => {

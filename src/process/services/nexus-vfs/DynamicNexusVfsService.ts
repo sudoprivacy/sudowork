@@ -11,6 +11,7 @@ import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import { processSupervisor } from '@process/ProcessSupervisor';
 import { extractTarGzWithProgress, extractZipWithProgress } from '../archiveProgress';
 import runtimeVersions from '@/shared/runtime-versions.json';
+import runtimeSha256 from '@/shared/runtime-sha256.json';
 import { COS_RUNTIME_BASE, COS_LEGACY_NEXUS_VFS_BASE } from '@/shared/cos';
 import { vaultPluginInstaller } from './VaultPluginInstaller';
 
@@ -49,16 +50,13 @@ const OS_NAME_MAP: Record<string, string> = { darwin: 'macos', win32: 'windows',
 /** Node.js process.arch → artifact arch token (note: arm64 → aarch64). */
 const ARCH_NAME_MAP: Record<string, string> = { arm64: 'aarch64', x64: 'x86_64' };
 
-/** Known-good SHA256 sums for v0.2.2 (mirrors SHA256SUMS.txt in the bucket;
- *  keep in sync with scripts/download-nexus-vfs.js). */
-const NEXUS_VFS_SHA256SUMS: Record<string, string> = {
-  'nexusd-cluster-linux-aarch64.tar.gz': 'fadc8c54c8cca44dc58dbd6194c203354ee282afe2ce9daec8a6056e4683e8c3',
-  'nexusd-cluster-linux-x86_64.tar.gz': 'b5a7730dadd2cbbf47727a3bb6e7989d8facf178fec75076061845867493b0d9',
-  'nexusd-cluster-macos-aarch64.tar.gz': '93eda20acfc5b64135781cc41aff2e4265b1046800967ed4ca85e2321c53175c',
-  'nexusd-cluster-macos-x86_64.tar.gz': 'd6464618413853320ac33103239880a36e564e36f41ff9456e1fa76db89269ec',
-  'nexusd-cluster-windows-aarch64.zip': 'be530516894f4115ad1971f5a6c6a0d4191ba8141f6b213da128381bb552e056',
-  'nexusd-cluster-windows-x86_64.zip': '03e589f7a288a62e0399d4c9dececbb16be342f258842dfb6c6b37b6c3919901',
-};
+/** Known-good SHA256 sums for the cluster binaries. Sourced from
+ *  `src/shared/runtime-sha256.json` so the build-time downloader
+ *  (`scripts/download-nexus-vfs.js`) and this runtime re-installer always
+ *  see the SAME bytes. Pre-#918 these were two parallel hand-maintained
+ *  tables; bumping the script alone left this side stuck on the old
+ *  SHA, which is exactly how the v0.3.0 Mac smoke broke. */
+const NEXUS_VFS_SHA256SUMS: Record<string, string> = runtimeSha256 as Record<string, string>;
 
 export type NexusVfsStage = 'idle' | 'checking' | 'downloading' | 'installing' | 'starting' | 'ready' | 'error';
 
