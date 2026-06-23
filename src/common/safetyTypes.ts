@@ -77,7 +77,7 @@ export type SafetyConfirmationAction = 'allow' | 'deny';
 export type BlacklistMatchType = 'exact' | 'wildcard';
 
 /** Single blacklist rule */
-export interface BlacklistRule {
+export interface IBlacklistRule {
   /** Unique identifier */
   id: string;
   /** Whether this rule is active */
@@ -99,12 +99,12 @@ export interface BlacklistRule {
 }
 
 /** Blacklist configuration */
-export interface BlacklistConfig {
+export interface IBlacklistConfig {
   /** List of blacklist rules */
-  rules: BlacklistRule[];
+  rules: IBlacklistRule[];
 }
 
 /** Default blacklist configuration */
-export const DEFAULT_BLACKLIST_CONFIG: BlacklistConfig = {
+export const DEFAULT_BLACKLIST_CONFIG: IBlacklistConfig = {
   rules: [],
 };

@@ -3,8 +3,9 @@ import { Card, Tag, Switch, Button, Modal, Input, Select, Table, Space, Popconfi
 import type { ReactNode } from 'react';
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
+import { nanoid } from 'nanoid';
 import { ipcBridge } from '@/common';
-import type { BlacklistConfig, BlacklistRule, BlacklistMatchType } from '@/common/safetyTypes';
+import type { IBlacklistConfig, IBlacklistRule, BlacklistMatchType } from '@/common/safetyTypes';
 import { DEFAULT_BLACKLIST_CONFIG } from '@/common/safetyTypes';
 import SettingsPageWrapper from './components/SettingsPageWrapper';
 
@@ -12,29 +13,7 @@ const Option = Select.Option;
 const TextArea = Input.TextArea;
 const SAFETY_HOOK_SETTINGS_VISIBLE = false;
 
-// Generate unique ID for rules
-const generateRuleId = (): string => `rule_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
-const Item = ({ icon, title, tag, description, status, action }: { icon: ReactNode; title: ReactNode; tag?: ReactNode; description?: ReactNode; status?: ReactNode; action?: ReactNode }) => (
-  <div className='p-4 flex items-center gap-3'>
-    <span className='size-10 shrink-0 f-center rd-2 border bg-1 text-secondary'>{icon}</span>
-    <div className='w-0 flex-1'>
-      <div className='flex min-w-0 flex-wrap items-center gap-8px'>
-        <div className='truncate text-15px font-600 text-foreground'>{title}</div>
-        {tag}
-      </div>
-      {description && <div className='mt-1 text-13px leading-20px text-secondary truncate'>{description}</div>}
-    </div>
-    {(status || action) && (
-      <span className='flex shrink-0 flex-wrap items-center justify-end gap-3'>
-        {status}
-        {action}
-      </span>
-    )}
-  </div>
-);
-
-const SecuritySettings: React.FC = () => {
+export default function SecuritySettings() {
   const { t } = useTranslation();
 
   // 安全功能状态
@@ -44,9 +23,9 @@ const SecuritySettings: React.FC = () => {
   const [hookEnabled, setHookEnabled] = useState(true);
 
   // Blacklist state
-  const [blacklistConfig, setBlacklistConfig] = useState<BlacklistConfig>(DEFAULT_BLACKLIST_CONFIG);
+  const [blacklistConfig, setBlacklistConfig] = useState<IBlacklistConfig>(DEFAULT_BLACKLIST_CONFIG);
   const [showRuleModal, setShowRuleModal] = useState(false);
-  const [editingRule, setEditingRule] = useState<BlacklistRule | null>(null);
+  const [editingRule, setEditingRule] = useState<IBlacklistRule | null>(null);
   const [ruleForm, setRuleForm] = useState({
     type: 'network' as 'network' | 'file' | 'process',
     pattern: '',
@@ -126,8 +105,8 @@ const SecuritySettings: React.FC = () => {
       return;
     }
 
-    const newRule: BlacklistRule = {
-      id: editingRule?.id || generateRuleId(),
+    const newRule: IBlacklistRule = {
+      id: editingRule?.id || nanoid(),
       enabled: true,
       type: ruleForm.type,
       pattern: ruleForm.pattern.trim(),
@@ -223,7 +202,7 @@ const SecuritySettings: React.FC = () => {
   );
 
   // Open edit modal
-  const openEditModal = useCallback((rule: BlacklistRule) => {
+  const openEditModal = useCallback((rule: IBlacklistRule) => {
     setEditingRule(rule);
     setRuleForm({
       type: rule.type,
@@ -487,6 +466,23 @@ const SecuritySettings: React.FC = () => {
       </div>
     </SettingsPageWrapper>
   );
-};
+}
 
-export default SecuritySettings;
+const Item = ({ icon, title, tag, description, status, action }: { icon: ReactNode; title: ReactNode; tag?: ReactNode; description?: ReactNode; status?: ReactNode; action?: ReactNode }) => (
+  <div className='p-4 flex items-center gap-3'>
+    <span className='size-10 shrink-0 f-center rd-2 border bg-1 text-secondary'>{icon}</span>
+    <div className='w-0 flex-1'>
+      <div className='flex min-w-0 flex-wrap items-center gap-8px'>
+        <div className='truncate text-15px font-600 text-foreground'>{title}</div>
+        {tag}
+      </div>
+      {description && <div className='mt-1 text-13px leading-20px text-secondary truncate'>{description}</div>}
+    </div>
+    {(status || action) && (
+      <span className='flex shrink-0 flex-wrap items-center justify-end gap-3'>
+        {status}
+        {action}
+      </span>
+    )}
+  </div>
+);

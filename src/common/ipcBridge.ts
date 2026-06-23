@@ -10,7 +10,7 @@ import type { IConfirmation } from '@/common/chatLib';
 import type { IAssistantMeta } from '@/process/constants/assistantStorage';
 import type { IAssistantInfo } from '@/process/AssistantManager';
 import type { IChannelPairingRequest, IChannelPluginStatus, IChannelSession, IChannelUser, IPluginCredentials } from '@/channels/types';
-import type { SafetyStatus, BlacklistConfig } from '@/common/safetyTypes';
+import type { SafetyStatus, IBlacklistConfig } from '@/common/safetyTypes';
 import type { AuthProxyRule } from '@/common/types/authProxy';
 import type { McpSource } from '../process/services/mcpServices/McpProtocol';
 import type { AcpBackend, AcpBackendAll, AcpModelInfo, PresetAgentType } from '../types/acpTypes';
@@ -1817,9 +1817,9 @@ export const safety = {
   /** Safety status change event (Main -> Renderer) */
   onStatusChange: bridge.buildEmitter<SafetyStatus>('safety.status-change'),
   /** Get blacklist configuration */
-  getBlacklist: bridge.buildProvider<IBridgeResponse<BlacklistConfig>, void>('safety.get-blacklist'),
+  getBlacklist: bridge.buildProvider<IBridgeResponse<IBlacklistConfig>, void>('safety.get-blacklist'),
   /** Set blacklist configuration */
-  setBlacklist: bridge.buildProvider<IBridgeResponse, { config: BlacklistConfig }>('safety.set-blacklist'),
+  setBlacklist: bridge.buildProvider<IBridgeResponse, { config: IBlacklistConfig }>('safety.set-blacklist'),
 };
 
 // ==================== Health Monitor API ====================
