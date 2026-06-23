@@ -128,7 +128,7 @@ export const useMcpAgentStatus = () => {
 
         // 处理配置数据
         processAgentConfigs(servers, mcpConfigsResponse.data, targetServerName);
-      } catch (error) {
+      } catch {
         // 出错时保持当前状态，避免闪烁
       } finally {
         // 清除加载状态
@@ -201,7 +201,7 @@ export const useMcpAgentStatus = () => {
 
         return updated;
       });
-    } catch (error) {
+    } catch {
       // 检查失败时静默处理
     } finally {
       // 清除加载状态

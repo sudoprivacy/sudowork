@@ -761,7 +761,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
           }
           return;
         }
-      } catch (e) {
+      } catch {
         localStorage.removeItem(EECLAW_AUTH_STORAGE_KEY);
       }
     }
@@ -824,7 +824,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
           await refreshTokens();
         }
         return;
-      } catch (e) {
+      } catch {
         localStorage.removeItem(AUTH_STORAGE_KEY);
       }
     }
@@ -879,7 +879,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
           console.warn('[Auth] Consumer user ID missing on legacy restore; telemetry will not be reported');
         }
         return;
-      } catch (e) {
+      } catch {
         localStorage.removeItem('sudowork_auth_v1');
       }
     }
