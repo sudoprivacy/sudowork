@@ -15,11 +15,14 @@ const SAFETY_HOOK_SETTINGS_VISIBLE = false;
 // Generate unique ID for rules
 const generateRuleId = (): string => `rule_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-const Item = ({ icon, title, description, status, action }: { icon: ReactNode; title: ReactNode; description?: ReactNode; status?: ReactNode; action?: ReactNode }) => (
+const Item = ({ icon, title, tag, description, status, action }: { icon: ReactNode; title: ReactNode; tag?: ReactNode; description?: ReactNode; status?: ReactNode; action?: ReactNode }) => (
   <div className='p-4 flex items-center gap-3'>
     <span className='size-10 shrink-0 f-center rd-2 border bg-1 text-secondary'>{icon}</span>
     <div className='w-0 flex-1'>
-      <div className='truncate text-15px font-600 text-foreground'>{title}</div>
+      <div className='flex min-w-0 flex-wrap items-center gap-8px'>
+        <div className='truncate text-15px font-600 text-foreground'>{title}</div>
+        {tag}
+      </div>
       {description && <div className='mt-1 text-13px leading-20px text-secondary truncate'>{description}</div>}
     </div>
     {(status || action) && (
@@ -257,7 +260,7 @@ const SecuritySettings: React.FC = () => {
             icon={<Shield theme='outline' size='22' />}
             title={t('settings.securitySettings.envProtection.title')}
             tag={
-              <Tag size='small' className='rd-4px bg-fill-2 text-secondary'>
+              <Tag className='rd-full' bordered>
                 {t('settings.securitySettings.envProtection.tag')}
               </Tag>
             }
@@ -274,7 +277,7 @@ const SecuritySettings: React.FC = () => {
             icon={<Lock theme='outline' size='22' />}
             title={t('settings.securitySettings.infoProtection.title')}
             tag={
-              <Tag size='small' className='rd-4px bg-fill-2 text-secondary'>
+              <Tag className='rd-full' bordered>
                 {t('settings.securitySettings.infoProtection.tag')}
               </Tag>
             }
@@ -291,7 +294,7 @@ const SecuritySettings: React.FC = () => {
             icon={<Scan theme='outline' size='22' />}
             title={t('settings.securitySettings.skillScan.title')}
             tag={
-              <Tag size='small' className='rd-4px bg-fill-2 text-secondary'>
+              <Tag className='rd-full' bordered>
                 {t('settings.securitySettings.skillScan.tag')}
               </Tag>
             }
