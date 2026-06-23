@@ -80,7 +80,13 @@ const FUSE_T_VERSION = (runtimeVersions as Record<string, string>)['fuse-t'];
  * before the COS mirror is populated and on dev machines outside GFW.
  */
 function getDownloadUrls(): string[] {
-  const pkgName = `fuse-t-${FUSE_T_VERSION}.pkg`;
+  // Filename convention is upstream's `fuse-t-macos-installer-<version>.pkg`
+  // (verified empirically against
+  // https://github.com/macos-fuse-t/fuse-t/releases/download/1.2.7/fuse-t-macos-installer-1.2.7.pkg
+  // during the Mac smoke checklist on #915). The COS mirrors mirror this
+  // exact filename — repointing the kernel team at a renamed artifact would
+  // silently regress installs as users move between mirrors.
+  const pkgName = `fuse-t-macos-installer-${FUSE_T_VERSION}.pkg`;
   return [`https://sudowork-runtime-1309794936.cos.ap-beijing.myqcloud.com/fuse-t/release/v${FUSE_T_VERSION}/${pkgName}`, `https://sudoclaw-download-1309794936.cos.ap-beijing.myqcloud.com/fuse-t/release/v${FUSE_T_VERSION}/${pkgName}`, `https://github.com/macos-fuse-t/fuse-t/releases/download/${FUSE_T_VERSION}/${pkgName}`];
 }
 
