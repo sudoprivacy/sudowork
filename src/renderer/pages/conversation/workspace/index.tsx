@@ -124,7 +124,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
           return;
         }
 
-        const skillRoot = resolveWorkspaceSkillRoot(workspace, eventPrefix, backend);
+        const skillRoot = resolveWorkspaceSkillRoot(workspace, backend);
         const result = await ipcBridge.fs.scanForSkills.invoke({ folderPath: skillRoot.path }).catch((): undefined => undefined);
         if (cancelled) return;
         setSkillCount(result?.success ? result.data.length : 0);
