@@ -13,7 +13,7 @@ type AgentType = 'acp' | 'remote-agent';
  * Base class for agent runtime instances (ACP).
  * Each conversation has one agent that owns its transport connection.
  */
-class BaseAgent<Data, ConfirmationOption extends any = any> {
+class BaseAgent<Data, ConfirmationOption = any> {
   type: AgentType;
   protected conversation_id: string;
   protected confirmations: Array<IConfirmation<ConfirmationOption>> = [];

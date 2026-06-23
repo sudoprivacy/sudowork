@@ -332,6 +332,7 @@ export class AdbResultSidechannel {
     // Same TTL guard as `popOldest` — a hash match is worthless if the
     // entry is from a prior session with the same cmd (e.g. a previous
     // `browser --list` before a submodule bump).
+    // eslint-disable-next-line no-constant-condition
     while (true) {
       const queue = this.byCmdHash.get(cmdHash);
       if (!queue || queue.length === 0) return null;
