@@ -196,7 +196,7 @@ export interface IConfigStorageRefer {
   // Safety hook enabled state / 安全 Hook 启用状态
   'safetyHook.enabled'?: boolean;
   // Safety hook blacklist configuration / 安全 Hook 黑名单配置
-  'safetyHook.blacklist'?: import('./safetyTypes').IBlacklistConfig;
+  'safetyHook.blacklist'?: import('@/types/security').IBlacklistConfig;
   // 建设库 enabled state / 建设库启用状态
   'settings.jsb.enabled'?: boolean;
   'settings.tenant.enabled'?: Record<number, boolean>;

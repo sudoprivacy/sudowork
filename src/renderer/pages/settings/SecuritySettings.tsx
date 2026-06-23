@@ -5,8 +5,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { nanoid } from 'nanoid';
 import { ipcBridge } from '@/common';
-import type { IBlacklistConfig, IBlacklistRule, BlacklistMatchType } from '@/common/safetyTypes';
-import { DEFAULT_BLACKLIST_CONFIG } from '@/common/safetyTypes';
+import type { IBlacklistConfig, IBlacklistRule, BlacklistMatchType } from '@/types/security';
+import { DEFAULT_BLACKLIST_CONFIG } from '@/common/constants';
 import SettingsPageWrapper from './components/SettingsPageWrapper';
 
 const Option = Select.Option;
