@@ -13,7 +13,7 @@ const MessagePlan: React.FC<{ message: IMessagePlan }> = ({ message }) => {
       </div>
       {showMore && (
         <div className='p-l-20px flex flex-col gap-8px pt-8px'>
-          {message.content.entries.map((item, index) => {
+          {message.content.entries.map((item) => {
             return (
               <div className='flex flex-row items-center color-#86909C gap-8px'>
                 {item.status === 'completed' ? (

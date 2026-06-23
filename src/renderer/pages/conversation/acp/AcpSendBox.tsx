@@ -684,7 +684,7 @@ const AcpSendBox: React.FC<{
           addOrUpdateMessageRef.current(errorMessage, true);
           resetState(); // Stop loading state on failure
         }
-      } catch (error) {
+      } catch {
         // Stop loading state on error
         resetState();
       }
@@ -915,7 +915,15 @@ const AcpSendBox: React.FC<{
                 {selectedFileCount > 0 && <span className='absolute -right-3px -top-3px f-center min-w-14px h-14px rounded-full bg-[var(--ui-accent-orange)] px-3px text-9px text-white font-600 pointer-events-none'>{selectedFileCount}</span>}
               </span>
             </Dropdown>
-            <AgentModeSelector backend={backend} conversationId={conversation_id} compact initialMode={sessionMode} compactLeadingIcon={<Shield theme='outline' fill='currentColor' />} modeLabelFormatter={(mode) => t(`agentMode.${mode.value}`, { defaultValue: mode.label })} compactLabelPrefix={t('agentMode.permission')} />
+            <AgentModeSelector
+              backend={backend}
+              conversationId={conversation_id}
+              compact
+              initialMode={sessionMode}
+              compactLeadingIcon={<Shield theme='outline' fill='currentColor' />}
+              modeLabelFormatter={(mode) => t(`agentMode.${mode.value}`, { defaultValue: mode.label })}
+              compactLabelPrefix={t('agentMode.permission')}
+            />
             <AcpConfigSelector conversationId={conversation_id} backend={backend} />
           </div>
         }
