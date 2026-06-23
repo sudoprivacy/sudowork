@@ -7,6 +7,7 @@
 import { Button, Drawer, Form, Input, Message, Popconfirm, Select, Switch, Tag } from '@arco-design/web-react';
 import { Add, AlarmClock, ArrowLeft, Close, DeleteOne, Edit, Info, PlayOne, Sun } from '@icon-park/react';
 import dayjs from 'dayjs';
+import type { ReactNode } from 'react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
@@ -21,7 +22,6 @@ import { fetchAssistantsAsConfigs } from '@/renderer/shared/agents/assistantAdap
 import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import EmptyState from '@/renderer/components/base/EmptyState';
-import { SettingsList, SettingsListItem } from '@/renderer/components/ui/SettingsList';
 import { useAllCronJobs } from '@/renderer/pages/cron/hooks/useCronJobs';
 import { type FrequencyPreset, FREQUENCY_PRESETS, WEEKDAYS, frequencyToSchedule, getJobStatusFlags, scheduleToFrequency } from '@/renderer/pages/cron/utils/cronUtils';
 import { useAuth } from '@/renderer/context/AuthContext';
@@ -673,9 +673,21 @@ const CronJobFormDrawer: React.FC<{
   );
 };
 
-// ═══════════════════════════════════════════════════
-// MAIN COMPONENT — 3-level view
-// ═══════════════════════════════════════════════════
+const Item = ({ icon, title, description, status, action }: { icon: ReactNode; title: ReactNode; description?: ReactNode; status?: ReactNode; action?: ReactNode }) => (
+  <div className='p-4 flex items-center gap-3'>
+    <span className='size-10 shrink-0 f-center rd-2 border bg-1 text-secondary'>{icon}</span>
+    <div className='w-0 flex-1'>
+      <div className='truncate text-15px font-600 text-foreground'>{title}</div>
+      {description && <div className='mt-1 text-13px leading-20px text-secondary truncate'>{description}</div>}
+    </div>
+    {(status || action) && (
+      <span className='flex shrink-0 flex-wrap items-center justify-end gap-3'>
+        {status}
+        {action}
+      </span>
+    )}
+  </div>
+);
 
 const CronModalContent: React.FC = () => {
   const { t } = useTranslation();
@@ -863,13 +875,29 @@ const CronModalContent: React.FC = () => {
 
             {/* Info banner (local mode only) */}
             {sessionMode === 'local' && (
-              <SettingsList>
-                <SettingsListItem icon={<Sun theme='outline' size={20} />} title={t('cron.create.keepAwake', { defaultValue: '保持唤醒' })} description={t('cron.create.awakeBanner', { defaultValue: '定时任务仅在电脑唤醒时运行' })} status={<span className='text-13px text-secondary'>{keepAwake ? t('common.enabled', { defaultValue: '已启用' }) : t('common.disabled', { defaultValue: '已关闭' })}</span>} action={<Switch size='small' className='cron-keep-awake-switch' checked={keepAwake} onChange={handleKeepAwakeChange} />} />
-              </SettingsList>
+              <div className='overflow-hidden rd-12px border'>
+                <Item
+                  icon={<Sun theme='outline' size={20} />}
+                  title={t('cron.create.keepAwake', { defaultValue: '保持唤醒' })}
+                  description={t('cron.create.awakeBanner', { defaultValue: '定时任务仅在电脑唤醒时运行' })}
+                  status={<span className='text-13px text-secondary'>{keepAwake ? t('common.enabled', { defaultValue: '已启用' }) : t('common.disabled', { defaultValue: '已关闭' })}</span>}
+                  action={<Switch size='small' className='cron-keep-awake-switch' checked={keepAwake} onChange={handleKeepAwakeChange} />}
+                />
+              </div>
             )}
 
             {/* Job cards or empty state */}
-            {!loading && jobs.length === 0 ? <EmptyState simple icon={<AlarmClock theme='outline' size={56} className='text-[var(--ui-accent-orange)]' />} title={t('cron.noTasks', { defaultValue: '暂无定时任务' })} description={t('cron.create.emptyHint', { defaultValue: '创建自动执行的 Agent 任务' })} actions={[{ label: t('cron.create.button', { defaultValue: '新建任务' }), onClick: handleCreate }]} /> : <CronJobCardGrid jobs={jobs} onSelectJob={handleSelectJob} />}
+            {!loading && jobs.length === 0 ? (
+              <EmptyState
+                simple
+                icon={<AlarmClock theme='outline' size={56} className='text-[var(--ui-accent-orange)]' />}
+                title={t('cron.noTasks', { defaultValue: '暂无定时任务' })}
+                description={t('cron.create.emptyHint', { defaultValue: '创建自动执行的 Agent 任务' })}
+                actions={[{ label: t('cron.create.button', { defaultValue: '新建任务' }), onClick: handleCreate }]}
+              />
+            ) : (
+              <CronJobCardGrid jobs={jobs} onSelectJob={handleSelectJob} />
+            )}
           </div>
         )}
       </AionScrollArea>

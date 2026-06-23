@@ -1,11 +1,11 @@
 import { Shield, CheckOne, Lock, Scan, AllApplication, Delete, Edit, Plus } from '@icon-park/react';
 import { Card, Tag, Switch, Button, Modal, Input, Select, Table, Space, Popconfirm, Message, Tooltip } from '@arco-design/web-react';
+import type { ReactNode } from 'react';
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
 import type { BlacklistConfig, BlacklistRule, BlacklistMatchType } from '@/common/safetyTypes';
 import { DEFAULT_BLACKLIST_CONFIG } from '@/common/safetyTypes';
-import { SettingsList, SettingsListItem } from '@/renderer/components/ui/SettingsList';
 import SettingsPageWrapper from './components/SettingsPageWrapper';
 
 const Option = Select.Option;
@@ -14,6 +14,22 @@ const SAFETY_HOOK_SETTINGS_VISIBLE = false;
 
 // Generate unique ID for rules
 const generateRuleId = (): string => `rule_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+const Item = ({ icon, title, description, status, action }: { icon: ReactNode; title: ReactNode; description?: ReactNode; status?: ReactNode; action?: ReactNode }) => (
+  <div className='p-4 flex items-center gap-3'>
+    <span className='size-10 shrink-0 f-center rd-2 border bg-1 text-secondary'>{icon}</span>
+    <div className='w-0 flex-1'>
+      <div className='truncate text-15px font-600 text-foreground'>{title}</div>
+      {description && <div className='mt-1 text-13px leading-20px text-secondary truncate'>{description}</div>}
+    </div>
+    {(status || action) && (
+      <span className='flex shrink-0 flex-wrap items-center justify-end gap-3'>
+        {status}
+        {action}
+      </span>
+    )}
+  </div>
+);
 
 const SecuritySettings: React.FC = () => {
   const { t } = useTranslation();
@@ -236,8 +252,8 @@ const SecuritySettings: React.FC = () => {
           <p className='text-13px text-secondary my-0'>{t('settings.securitySettings.subtitle')}</p>
         </div>
 
-        <SettingsList>
-          <SettingsListItem
+        <div className='overflow-hidden rd-12px border'>
+          <Item
             icon={<Shield theme='outline' size='22' />}
             title={t('settings.securitySettings.envProtection.title')}
             tag={
@@ -254,7 +270,7 @@ const SecuritySettings: React.FC = () => {
             }
             action={<Switch checked={envProtection} disabled size='small' className='settings-accent-switch' />}
           />
-          <SettingsListItem
+          <Item
             icon={<Lock theme='outline' size='22' />}
             title={t('settings.securitySettings.infoProtection.title')}
             tag={
@@ -271,7 +287,7 @@ const SecuritySettings: React.FC = () => {
             }
             action={<Switch checked={infoProtection} disabled size='small' className='settings-accent-switch' />}
           />
-          <SettingsListItem
+          <Item
             icon={<Scan theme='outline' size='22' />}
             title={t('settings.securitySettings.skillScan.title')}
             tag={
@@ -288,7 +304,7 @@ const SecuritySettings: React.FC = () => {
             }
             action={<Switch checked={skillScan} disabled size='small' className='settings-accent-switch' />}
           />
-        </SettingsList>
+        </div>
 
         {SAFETY_HOOK_SETTINGS_VISIBLE && (
           <>
