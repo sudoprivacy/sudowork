@@ -6,6 +6,12 @@
 
 import type { OpenDialogOptions } from 'electron';
 import { bridge } from '@office-ai/platform';
+import type { IConfirmation } from '@/common/chatLib';
+import type { IAssistantMeta } from '@/process/constants/assistantStorage';
+import type { IAssistantInfo } from '@/process/AssistantManager';
+import type { IChannelPairingRequest, IChannelPluginStatus, IChannelSession, IChannelUser, IPluginCredentials } from '@/channels/types';
+import type { SafetyStatus, BlacklistConfig } from '@/common/safetyTypes';
+import type { AuthProxyRule } from '@/common/types/authProxy';
 import type { McpSource } from '../process/services/mcpServices/McpProtocol';
 import type { AcpBackend, AcpBackendAll, AcpModelInfo, PresetAgentType } from '../types/acpTypes';
 import type { SyncAllResult } from '../process/sync/remoteToLocalSync';
@@ -13,10 +19,10 @@ import type { ScodeCustomModelProvider } from './scodeConfig';
 import type { SlashCommandItem } from './slash/types';
 import type { IMcpServer, IProvider, TChatConversation, TProviderWithModel, ICssTheme } from './storage';
 import type { SecretMetadata } from './nexus/nexus-secret-client';
+import type { FusePluginStatus } from './nexus/fuse-plugin-status';
 import type { PreviewHistoryTarget, PreviewSnapshotInfo } from './types/preview';
 import type { UpdateCheckRequest, UpdateCheckResult, UpdateDownloadProgressEvent, UpdateDownloadRequest, UpdateDownloadResult, AutoUpdateStatus } from './updateTypes';
 import type { ProtocolDetectionRequest, ProtocolDetectionResponse } from './utils/protocolDetector';
-import type { IConfirmation } from '@/common/chatLib';
 
 export const shell = {
   openFile: bridge.buildProvider<void, string>('open-file'), // 使用系统默认程序打开文件
@@ -446,7 +452,10 @@ export const moss = {
 };
 
 export const mode = {
-  fetchModelList: bridge.buildProvider<IBridgeResponse<{ mode: Array<string | { id: string; name: string }>; fix_base_url?: string }>, { base_url?: string; api_key: string; try_fix?: boolean; platform?: string; bedrockConfig?: { authMethod: 'accessKey' | 'profile'; region: string; accessKeyId?: string; secretAccessKey?: string; profile?: string } }>('mode.get-model-list'),
+  fetchModelList: bridge.buildProvider<
+    IBridgeResponse<{ mode: Array<string | { id: string; name: string }>; fix_base_url?: string }>,
+    { base_url?: string; api_key: string; try_fix?: boolean; platform?: string; bedrockConfig?: { authMethod: 'accessKey' | 'profile'; region: string; accessKeyId?: string; secretAccessKey?: string; profile?: string } }
+  >('mode.get-model-list'),
   saveModelConfig: bridge.buildProvider<IBridgeResponse, IProvider[]>('mode.save-model-config'),
   getModelConfig: bridge.buildProvider<IProvider[], void>('mode.get-model-config'),
   /** 协议检测接口 - 自动检测 API 端点使用的协议类型 / Protocol detection - auto-detect API protocol type */
@@ -703,6 +712,32 @@ export interface IFuseTStatus {
   bundlePath?: string;
 }
 
+/**
+ * Discriminates what the FUSE-T supervisor actually did when the
+ * renderer / sudocode invoked `runLazyInstallProbe`. Matches the
+ * variants exported by `FuseTSupervisor` so a UI can surface the
+ * right toast (install fired vs already mounted vs cluster down)
+ * without re-parsing free-form strings.
+ */
+export type IFuseTLazyInstallOutcome = 'already-mounted' | 'unmounted-no-prereq-action' | 'installed-and-mounted' | 'installed-but-not-mounted' | 'plugin-unreachable' | 'platform-unsupported' | 'install-failed';
+
+// `FusePluginStatus` (imported above + re-exported below) is the
+// canonical wire-format union — it mirrors the bytes the Rust plugin's
+// `dispatch("status")` returns. Lives in `nexus/fuse-plugin-status.ts`
+// so the renderer (via this IPC type) and the main-process supervisor
+// (via `@process/services/nexus-vfs/FusePluginClient`) both consume
+// the SAME literal set — no parallel `IFusePluginStatus` drifting
+// against `FusePluginStatus`.
+export type { FusePluginStatus } from './nexus/fuse-plugin-status';
+
+export interface IFuseTLazyInstallResult {
+  outcome: IFuseTLazyInstallOutcome;
+  initialStatus: FusePluginStatus;
+  finalStatus?: FusePluginStatus;
+  rawStatus?: string;
+  errorMessage?: string;
+}
+
 export const fuseT = {
   checkInstalled: bridge.buildProvider<IBridgeResponse<IFuseTStatus>, void>('fuse-t.check-installed'),
   ensureInstalled: bridge.buildProvider<IBridgeResponse<void>, void>('fuse-t.ensure-installed'),
@@ -712,6 +747,17 @@ export const fuseT = {
   installProgress: bridge.buildEmitter<{ phase: IFuseTInstallPhase; percent?: number }>('fuse-t.install-progress'),
   /** Emitted once when installation completes (success or failure) */
   installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('fuse-t.install-result'),
+  /**
+   * Explicit-trigger lazy install probe — the only path that ends in
+   * an admin-password prompt when the supervisor decides FUSE-T is
+   * actually missing. Closes the lazy contract started by PR #916 +
+   * the macOS preflight added in nexi-lab/nexus PR #4414. Renderers
+   * (or sudocode invoking through IPC) call this exactly when a
+   * cross-machine FUSE mount is about to be needed; calling it
+   * proactively at app startup would re-introduce the admin-prompt
+   * regression the lazy split exists to avoid.
+   */
+  runLazyInstallProbe: bridge.buildProvider<IBridgeResponse<IFuseTLazyInstallResult>, void>('fuse-t.run-lazy-install-probe'),
 };
 
 // Python runtime installer / Python 运行环境安装
@@ -1541,9 +1587,6 @@ export const skillHub = {
 
 // ==================== Assistant Hub API ====================
 
-import type { IAssistantMeta } from '@/process/constants/assistantStorage';
-import type { IAssistantInfo } from '@/process/AssistantManager';
-
 /** Assistant from Hub API (mirrors ISkillHubSkill pattern) */
 export interface IAssistantHubSkill {
   id: string;
@@ -1653,14 +1696,14 @@ export const assistantHub = {
   /** Fetch skill details by IDs from Skill Hub API (for installation preview) */
   fetchSkillDetailsByIds: bridge.buildProvider<IBridgeResponse<ISkillHubSkill[]>, { skillIds: string[] }>('assistant-hub.fetch-skill-details-by-ids'),
   /** Download and install assistant from Hub, optionally installing selected associated skills */
-  downloadAndInstallAssistant: bridge.buildProvider<IBridgeResponse<IAssistantInstallResult>, { assistantName: string; displayName: string; sourceUrl: string; version: string; checksum: string; assistantMeta: IAssistantHubSkill; selectedSkillIds?: string[] }>('assistant-hub.download-and-install-assistant'),
+  downloadAndInstallAssistant: bridge.buildProvider<IBridgeResponse<IAssistantInstallResult>, { assistantName: string; displayName: string; sourceUrl: string; version: string; checksum: string; assistantMeta: IAssistantHubSkill; selectedSkillIds?: string[] }>(
+    'assistant-hub.download-and-install-assistant'
+  ),
   /** Upload custom assistant to Hub (create zip and POST to /api/assistants) */
   uploadAssistantToHub: bridge.buildProvider<IBridgeResponse<{ success: boolean; message?: string }>, { name: string; displayName: string; profession: string; description?: string; categories?: string[]; skills?: string[]; tenantId: string }>('assistant-hub.upload-assistant-to-hub'),
 };
 
 // ==================== Channel API ====================
-
-import type { IChannelPairingRequest, IChannelPluginStatus, IChannelSession, IChannelUser, IPluginCredentials } from '@/channels/types';
 
 export const channel = {
   // Plugin Management
@@ -1732,8 +1775,6 @@ export const sudoworkServer = {
 };
 
 // ==================== Safety Hook API ====================
-
-import type { SafetyStatus, BlacklistConfig } from '@/common/safetyTypes';
 
 // ==================== Tools API ====================
 
@@ -1976,8 +2017,6 @@ export const telemetry = {
 // ==================== Auth Proxy API ====================
 // Manage Auth Proxy server lifecycle, rules cache, and status
 
-import type { AuthProxyRule } from '@/common/types/authProxy';
-
 export const authProxy = {
   /** Get all cached Config Items rules */
   getRules: bridge.buildProvider<IBridgeResponse<AuthProxyRule[]>, void>('authProxy.getRules'),
@@ -2097,7 +2136,9 @@ export const eeclaw = {
   /** Upload custom skill to Moss Server */
   uploadCustomSkill: bridge.buildProvider<IBridgeResponse<{ id: string; name: string; status: string }>, { skillName: string; displayName: string; description?: string; version?: string; sourcePath?: string }>('eeclaw.upload-custom-skill'),
   /** Upload custom assistant to Moss Server */
-  uploadCustomAssistant: bridge.buildProvider<IBridgeResponse<{ id: string; name: string; status: string }>, { assistantName: string; assistantId: string; displayName: string; description?: string; version?: string; enabledSkills?: string[]; memoryMode?: 'session' | 'user'; sourcePath?: string }>('eeclaw.upload-custom-assistant'),
+  uploadCustomAssistant: bridge.buildProvider<IBridgeResponse<{ id: string; name: string; status: string }>, { assistantName: string; assistantId: string; displayName: string; description?: string; version?: string; enabledSkills?: string[]; memoryMode?: 'session' | 'user'; sourcePath?: string }>(
+    'eeclaw.upload-custom-assistant'
+  ),
 
   // === Tenant Skill/Assistant ===
   /** Fetch tenant-exclusive skills from Moss Server */

@@ -71,6 +71,20 @@ describe('FUSE-T — lazy install contract', () => {
     expect(stripped).not.toMatch(/fuseTInstallService\.ensureInstalled|fuseTInstallService\.install\(/);
   });
 
+  it('the bridge registers `runLazyInstallProbe` and routes it through FuseTSupervisor', () => {
+    // The lazy contract closes here: the only path that ends in an
+    // admin-password prompt MUST be the supervisor-mediated probe.
+    // A direct call to `fuseTInstallService.ensureInstalled` from
+    // `runLazyInstallProbe`'s body (skipping the supervisor) would
+    // re-introduce the bug PR #916 was designed to prevent — the
+    // supervisor's "is FUSE-T actually missing?" probe is what
+    // makes repeated calls cheap.
+    const bridge = fs.readFileSync(path.join(REPO_ROOT, 'src/process/bridge/fuseTBridge.ts'), 'utf-8');
+    expect(bridge).toMatch(/ipcBridge\.fuseT\.runLazyInstallProbe\.provider/);
+    expect(bridge).toMatch(/FuseTSupervisor/);
+    expect(bridge).toMatch(/supervisor\.runLazyInstallProbe\(/);
+  });
+
   it('the bridge exposes no dev-only IPC bypass channels', () => {
     // Earlier iterations added `dev.fuse-t.*` raw `ipcMain.handle`
     // channels to bypass the bridge.buildProvider subscribe/callback
