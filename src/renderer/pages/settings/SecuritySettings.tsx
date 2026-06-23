@@ -23,7 +23,6 @@ const SecuritySettings: React.FC = () => {
   const infoProtection = true;
   const skillScan = true;
   const [hookEnabled, setHookEnabled] = useState(true);
-  const [, setIsHookLoading] = useState(true);
 
   // Blacklist state
   const [blacklistConfig, setBlacklistConfig] = useState<BlacklistConfig>(DEFAULT_BLACKLIST_CONFIG);
@@ -39,7 +38,6 @@ const SecuritySettings: React.FC = () => {
   // 初始化时获取安全 Hook 实际状态
   useEffect(() => {
     if (!SAFETY_HOOK_SETTINGS_VISIBLE) {
-      setIsHookLoading(false);
       return;
     }
 
@@ -51,8 +49,6 @@ const SecuritySettings: React.FC = () => {
         }
       } catch (err) {
         console.error('[SecuritySettings] Failed to load safety hook status:', err);
-      } finally {
-        setIsHookLoading(false);
       }
     };
     void loadHookStatus();

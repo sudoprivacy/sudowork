@@ -31,7 +31,7 @@ export const SettingsListItem: React.FC<SettingsListItemProps> = ({ icon, title,
   return (
     <div className={classNames('border-0 border-b px-18px py-16px last:border-b-0', className)}>
       <div className='flex flex-wrap items-center gap-14px'>
-        {icon && <div className='flex h-40px w-40px shrink-0 items-center justify-center rd-8px border bg-fill-1 text-secondary'>{icon}</div>}
+        {icon && <div className='size-10 shrink-0 f-center rd-8px border bg-fill-1 text-secondary'>{icon}</div>}
         <div className='min-w-0 flex-1'>
           <div className='flex min-w-0 flex-wrap items-center gap-8px'>
             <div className='min-w-0 truncate text-15px font-600 text-foreground'>{title}</div>
