@@ -152,7 +152,7 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ filePath, content: _content
     try {
       await ipcBridge.shell.openFile.invoke(filePath);
       messageApi.success(t('preview.openInSystemSuccess'));
-    } catch (err) {
+    } catch {
       messageApi.error(t('preview.openInSystemFailed'));
     }
   }, [filePath, messageApi, t]);
@@ -184,7 +184,7 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ filePath, content: _content
             }
           }
         }
-      } catch (err) {
+      } catch {
         messageApi.error(t('preview.excel.loadFailed'));
       } finally {
         setLoading(false);

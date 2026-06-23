@@ -26,10 +26,10 @@
       ✅ /Users/xiaohei/Documents/freelancer/jinjing/sudoclaw/sudowork/src/renderer/pages/conversation/preview/components/PreviewPanel/PreviewPanel.tsx
       ✅ /Users/xiaohei/Documents/freelancer/jinjing/sudoclaw/sudowork/src/renderer/pages/conversation/preview/components/PreviewPanel/PreviewToolbar.tsx
       ✅ /Users/xiaohei/Documents/freelancer/jinjing/sudoclaw/sudowork/src/renderer/pages/conversation/preview/components/renderers/HTMLRenderer.tsx
-      /Users/xiaohei/Documents/freelancer/jinjing/sudoclaw/sudowork/src/renderer/pages/conversation/preview/components/viewers/ExcelViewer.tsx
-      /Users/xiaohei/Documents/freelancer/jinjing/sudoclaw/sudowork/src/renderer/pages/conversation/preview/components/viewers/PDFViewer.tsx
-      /Users/xiaohei/Documents/freelancer/jinjing/sudoclaw/sudowork/src/renderer/pages/conversation/preview/components/viewers/PPTViewer.tsx
-      /Users/xiaohei/Documents/freelancer/jinjing/sudoclaw/sudowork/src/renderer/pages/conversation/preview/components/viewers/WordViewer.tsx
+      ✅ /Users/xiaohei/Documents/freelancer/jinjing/sudoclaw/sudowork/src/renderer/pages/conversation/preview/components/viewers/ExcelViewer.tsx
+      ✅ /Users/xiaohei/Documents/freelancer/jinjing/sudoclaw/sudowork/src/renderer/pages/conversation/preview/components/viewers/PDFViewer.tsx
+      ✅ /Users/xiaohei/Documents/freelancer/jinjing/sudoclaw/sudowork/src/renderer/pages/conversation/preview/components/viewers/PPTViewer.tsx
+      ✅ /Users/xiaohei/Documents/freelancer/jinjing/sudoclaw/sudowork/src/renderer/pages/conversation/preview/components/viewers/WordViewer.tsx
       /Users/xiaohei/Documents/freelancer/jinjing/sudoclaw/sudowork/src/renderer/pages/conversation/preview/hooks/useScrollSyncHelpers.ts
       /Users/xiaohei/Documents/freelancer/jinjing/sudoclaw/sudowork/src/renderer/pages/conversation/utils/createConversationParams.ts
       /Users/xiaohei/Documents/freelancer/jinjing/sudoclaw/sudowork/src/renderer/pages/conversation/workspace/hooks/useWorkspaceFileOps.ts

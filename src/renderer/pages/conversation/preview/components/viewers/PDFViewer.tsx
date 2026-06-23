@@ -47,7 +47,7 @@ const PDFPreview: React.FC<PDFPreviewProps> = ({ filePath, content, hideToolbar 
     try {
       await ipcBridge.shell.openFile.invoke(filePath);
       messageApi.success(t('preview.openInSystemSuccess'));
-    } catch (err) {
+    } catch {
       messageApi.error(t('preview.openInSystemFailed'));
     }
   }, [filePath, messageApi, t]);

@@ -32,7 +32,7 @@ const CACHE_TIMEOUT = 5 * 60 * 1000; // 5 分钟
  * 优先使用 LibreOffice 转 PDF 预览（最佳保真度），
  * 如果 LibreOffice 不可用则回退到 Markdown 转换
  */
-const WordPreview: React.FC<WordPreviewProps> = ({ filePath, content, hideToolbar = false }) => {
+const WordPreview: React.FC<WordPreviewProps> = ({ filePath, hideToolbar = false }) => {
   const { t } = useTranslation();
   const [pdfPath, setPdfPath] = useState<string | undefined>(undefined);
   const [markdown, setMarkdown] = useState<string>('');
@@ -100,7 +100,7 @@ const WordPreview: React.FC<WordPreviewProps> = ({ filePath, content, hideToolba
     try {
       await ipcBridge.shell.openFile.invoke(currentFilePath);
       messageApiRef.current.info(t('preview.openInSystemSuccess'));
-    } catch (err) {
+    } catch {
       messageApiRef.current.error(t('preview.openInSystemFailed'));
     }
   }, [t]);
@@ -148,10 +148,10 @@ const WordPreview: React.FC<WordPreviewProps> = ({ filePath, content, hideToolba
           setMarkdown(response.result.data as string);
         }
       }
-    } catch (err) {
+    } catch {
       try {
         messageApiRef.current.error(t('preview.word.loadFailed'));
-      } catch (e) {
+      } catch {
         // Ignore
       }
     } finally {
@@ -259,7 +259,7 @@ const WordPreview: React.FC<WordPreviewProps> = ({ filePath, content, hideToolba
         setError(`${errorMessage}\n${t('preview.pathLabel')}: ${filePath}`);
         try {
           messageApiRef.current?.error?.(errorMessage);
-        } catch (e) {
+        } catch {
           // Ignore
         }
       } finally {

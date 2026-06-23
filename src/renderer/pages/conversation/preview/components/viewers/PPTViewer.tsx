@@ -68,20 +68,7 @@ const PPTPreview: React.FC<PPTPreviewProps> = ({ filePath, content, hideToolbar 
     try {
       await ipcBridge.shell.openFile.invoke(filePath);
       messageApiRef.current.info(t('preview.openInSystemSuccess'));
-    } catch (err) {
-      messageApiRef.current.error(t('preview.openInSystemFailed'));
-    }
-  }, [filePath, t]);
-
-  const handleShowInFolder = useCallback(async () => {
-    if (!filePath) {
-      messageApiRef.current.error(t('preview.errors.openWithoutPath'));
-      return;
-    }
-
-    try {
-      await ipcBridge.shell.showItemInFolder.invoke(filePath);
-    } catch (err) {
+    } catch {
       messageApiRef.current.error(t('preview.openInSystemFailed'));
     }
   }, [filePath, t]);
@@ -141,10 +128,10 @@ const PPTPreview: React.FC<PPTPreviewProps> = ({ filePath, content, hideToolbar 
             pdfCache.set(filePath, { pdfPath: response.result.data as string, timestamp: Date.now(), mtime });
           }
         }
-      } catch (err) {
+      } catch {
         try {
           messageApiRef.current.error(t('preview.ppt.loadFailed'));
-        } catch (e) {
+        } catch {
           // Ignore if messageApi is not initialized
         }
       } finally {
@@ -215,7 +202,7 @@ const PPTPreview: React.FC<PPTPreviewProps> = ({ filePath, content, hideToolbar 
         setError(`${errorMessage}\n${t('preview.pathLabel')}: ${filePath}`);
         try {
           messageApiRef.current.error(errorMessage);
-        } catch (e) {
+        } catch {
           // Ignore if messageApi is not initialized
         }
       } finally {
