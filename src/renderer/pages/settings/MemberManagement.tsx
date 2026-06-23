@@ -58,7 +58,7 @@ const MemberManagement: React.FC = () => {
             Message.success(`已批准 ${user.nickname}，Key 已下发。`);
             void fetchMembers();
           }
-        } catch (e) {
+        } catch {
           Message.error('审批失败');
         }
       },
@@ -87,7 +87,7 @@ const MemberManagement: React.FC = () => {
             Message.success(`已拒绝 ${user.nickname} 的申请。`);
             void fetchMembers();
           }
-        } catch (e) {
+        } catch {
           Message.error('拒绝失败');
         }
       },
@@ -118,7 +118,7 @@ const MemberManagement: React.FC = () => {
           } else {
             Message.error(data.msg || '删除失败');
           }
-        } catch (e) {
+        } catch {
           Message.error('删除失败');
         }
       },

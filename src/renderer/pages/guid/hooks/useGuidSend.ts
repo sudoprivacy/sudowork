@@ -77,7 +77,40 @@ export type GuidSendResult = {
  * Hook that manages the send logic for all conversation types.
  */
 export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
-  const { input, setInput, files, setFiles, dir, setDir, setLoading, selectedSkills, selectedAgent, selectedAgentKey, selectedAgentInfo, isPresetAgent, selectedMode, selectedAcpModel, currentModel, sessionMode, findAgentByKey, getEffectiveAgentType, resolvePresetRulesAndSkills, resolveEnabledSkills, isMainAgentAvailable, getAvailableFallbackAgent, currentEffectiveAgentInfo, isGoogleAuth, setMentionOpen, setMentionQuery, setMentionSelectorOpen, setMentionActiveIndex, resetAgentSelection, setSelectedSkills, navigate, closeAllTabs, openTab, t } = deps;
+  const {
+    input,
+    setInput,
+    files,
+    setFiles,
+    dir,
+    setDir,
+    setLoading,
+    selectedSkills,
+    selectedAgent,
+    selectedAgentKey,
+    selectedAgentInfo,
+    isPresetAgent,
+    selectedMode,
+    selectedAcpModel,
+    currentModel,
+    sessionMode,
+    findAgentByKey,
+    getEffectiveAgentType,
+    resolvePresetRulesAndSkills,
+    resolveEnabledSkills,
+    isMainAgentAvailable,
+    getAvailableFallbackAgent,
+    setMentionOpen,
+    setMentionQuery,
+    setMentionSelectorOpen,
+    setMentionActiveIndex,
+    resetAgentSelection,
+    setSelectedSkills,
+    navigate,
+    closeAllTabs,
+    openTab,
+    t,
+  } = deps;
 
   const { isEnterprise } = useAppMode();
 
@@ -243,7 +276,29 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
         throw error;
       }
     }
-  }, [input, files, dir, selectedAgent, selectedAgentKey, selectedAgentInfo, isPresetAgent, selectedMode, selectedAcpModel, currentModel, sessionMode, findAgentByKey, getEffectiveAgentType, resolvePresetRulesAndSkills, resolveEnabledSkills, isMainAgentAvailable, getAvailableFallbackAgent, navigate, closeAllTabs, openTab, t]);
+  }, [
+    input,
+    files,
+    dir,
+    selectedAgent,
+    selectedAgentKey,
+    selectedAgentInfo,
+    isPresetAgent,
+    selectedMode,
+    selectedAcpModel,
+    currentModel,
+    sessionMode,
+    findAgentByKey,
+    getEffectiveAgentType,
+    resolvePresetRulesAndSkills,
+    resolveEnabledSkills,
+    isMainAgentAvailable,
+    getAvailableFallbackAgent,
+    navigate,
+    closeAllTabs,
+    openTab,
+    t,
+  ]);
 
   const sendMessageHandler = useCallback(() => {
     setLoading(true);

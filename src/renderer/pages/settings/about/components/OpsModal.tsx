@@ -41,7 +41,7 @@ const OpsModal: React.FC<OpsModalProps> = ({ visible, onClose, onConfigSaved }) 
       } else {
         Message.warning('无法读取配置文件内容');
       }
-    } catch (error) {
+    } catch {
       Message.error('读取配置失败');
     } finally {
       setConfigLoading(false);
@@ -84,7 +84,7 @@ const OpsModal: React.FC<OpsModalProps> = ({ visible, onClose, onConfigSaved }) 
           }
         },
       });
-    } catch (error) {
+    } catch {
       Message.error('重启失败');
     }
   }, []);

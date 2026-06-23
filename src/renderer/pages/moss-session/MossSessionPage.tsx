@@ -13,7 +13,7 @@ import type { IResponseMessage } from '@/common/ipcBridge';
 import { uuid } from '@/common/utils';
 import { useAddEventListener } from '@/renderer/utils/emitter';
 import MessageList from '@/renderer/messages/MessageList';
-import { MessageListProvider, useMessageList, useUpdateMessageList } from '@/renderer/messages/hooks';
+import { MessageListProvider, useUpdateMessageList } from '@/renderer/messages/hooks';
 import FlexFullContainer from '@renderer/components/FlexFullContainer';
 import type { TMessage } from '@/common/chatLib';
 import HOC from '@/renderer/utils/HOC';
@@ -28,7 +28,6 @@ const MossSessionPage: React.FC = () => {
   const { sessionId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
   const updateMessageList = useUpdateMessageList();
-  const messages = useMessageList();
 
   const [wsUrl, setWsUrl] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
