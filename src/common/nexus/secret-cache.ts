@@ -58,7 +58,7 @@ class SecretCacheImpl {
     }
 
     try {
-      const secrets = await this.client.listSecrets();
+      const secrets = this.client.listSecrets();
       console.log('[SecretCache] listSecrets returned:', secrets.length, 'secrets');
       for (const secret of secrets) {
         if (secret.deleted) {
@@ -66,7 +66,7 @@ class SecretCacheImpl {
         }
         console.log('[SecretCache] Getting secret:', secret.namespace, secret.key);
         try {
-          const value = await this.client.getSecret(secret.namespace, secret.key);
+          const value = this.client.getSecret(secret.namespace, secret.key);
           this.cache.set(`${secret.namespace}:${secret.key}`, value);
           this.migrated.add(`${secret.namespace}:${secret.key}`);
         } catch (err) {
@@ -132,7 +132,7 @@ class SecretCacheImpl {
     if (!this.client) {
       throw new Error('SecretCache not initialized. Call initialize() first.');
     }
-    await this.client.putSecret(namespace, key, value);
+    this.client.putSecret(namespace, key, value);
   }
 
   /**
