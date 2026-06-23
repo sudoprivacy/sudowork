@@ -100,6 +100,32 @@ describe('FUSE-T — lazy install contract', () => {
     const preload = fs.readFileSync(path.join(REPO_ROOT, 'src/preload.ts'), 'utf-8');
     expect(preload).not.toMatch(/devFuseT/);
   });
+
+  it('the renderer dev-trigger shim uses official ipcBridge.*.invoke() and is build-time gated', () => {
+    // The renderer-side debug shim that publishes
+    // `window.__sudoworkDebug.fuseT.*` for CDP-driven Mac smoke MUST:
+    //   (a) only emit code when Vite's DEV flag is true (so the
+    //       production bundle ships zero of it),
+    //   (b) route through the official `ipcBridge.fuseT.*.invoke()`
+    //       wrappers,
+    //   (c) NOT reach for `ipcRenderer` / raw electron / hand-written
+    //       `subscribe-` strings — those would re-introduce the
+    //       boundary leak the bridge above is built to prevent.
+    // Together these mean a Mac-smoke debug session never gets a
+    // second route to the supervisor that bypasses
+    // `bridge.buildProvider`.
+    const shim = fs.readFileSync(path.join(REPO_ROOT, 'src/renderer/bootstrap/devTriggers.ts'), 'utf-8');
+    expect(shim).toMatch(/import\.meta\.env\.DEV/);
+    expect(shim).toMatch(/ipcBridge\.fuseT\.runLazyInstallProbe\.invoke/);
+    expect(shim).not.toMatch(/ipcRenderer/);
+    expect(shim).not.toMatch(/ipcMain/);
+    expect(shim).not.toMatch(/from 'electron'/);
+    expect(shim).not.toMatch(/['"]subscribe-/);
+    // And the renderer entrypoint must actually import it; an
+    // orphan shim ships dead code but solves nothing.
+    const entry = fs.readFileSync(path.join(REPO_ROOT, 'src/renderer/index.ts'), 'utf-8');
+    expect(entry).toMatch(/['"]\.\/bootstrap\/devTriggers['"]/);
+  });
 });
 
 describe('FUSE-T — IPC platform gate', () => {
