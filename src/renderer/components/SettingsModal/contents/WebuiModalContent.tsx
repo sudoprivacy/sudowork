@@ -4,12 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Form, Input, Message, Tabs } from '@arco-design/web-react';
+import { Message, Tabs } from '@arco-design/web-react';
 import { Communication } from '@icon-park/react';
 import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { webui, type IWebUIStatus } from '@/common/ipcBridge';
-import AionModal from '@/renderer/components/base/AionModal';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import ChannelDingTalkLogo from '@/renderer/assets/channel-logos/dingtalk.svg';
 import ChannelLarkLogo from '@/renderer/assets/channel-logos/lark.svg';
@@ -39,23 +38,13 @@ const WebuiModalContent: React.FC = () => {
   const handleTabChange = useCallback((key: string) => {
     setActiveTab(key === 'channels' ? 'channels' : 'secrets');
   }, []);
-
   // 检测是否在 Electron 桌面环境 / Check if running in Electron desktop environment
   const isDesktop = isElectronDesktop();
-
   const [status, setStatus] = useState<IWebUIStatus | null>(null);
-
   const [allowRemote, setAllowRemote] = useState(false);
-
-  // 设置新密码弹窗 / Set new password modal
-  const [setPasswordModalVisible, setSetPasswordModalVisible] = useState(false);
-  const [passwordLoading, setPasswordLoading] = useState(false);
-  const [form] = Form.useForm();
-
   // 二维码登录相关状态 / QR code login related state
   const [qrUrl, setQrUrl] = useState<string | null>(null);
   const qrRefreshTimerRef = useRef<NodeJS.Timeout | null>(null);
-
   // 加载状态 / Load status
   const loadStatus = useCallback(async () => {
     try {
@@ -126,40 +115,6 @@ const WebuiModalContent: React.FC = () => {
     });
     return () => unsubscribe();
   }, []);
-
-  // 提交新密码 / Submit new password
-  const handleSetNewPassword = async () => {
-    try {
-      const values = await form.validate();
-      setPasswordLoading(true);
-
-      let result: { success: boolean; msg?: string };
-
-      // 优先使用直接 IPC（Electron 环境）/ Prefer direct IPC (Electron environment)
-      if (window.electronAPI?.webuiChangePassword) {
-        result = await window.electronAPI.webuiChangePassword(values.newPassword);
-      } else {
-        // 后备方案：使用 bridge / Fallback: use bridge
-        result = await webui.changePassword.invoke({
-          newPassword: values.newPassword,
-        });
-      }
-
-      if (result.success) {
-        Message.success(t('settings.webui.passwordChanged'));
-        setSetPasswordModalVisible(false);
-        form.resetFields();
-        setStatus((prev) => (prev ? { ...prev, initialPassword: undefined } : null));
-      } else {
-        Message.error(result.msg || t('settings.webui.passwordChangeFailed'));
-      }
-    } catch (error) {
-      console.error('Set new password error:', error);
-      Message.error(t('settings.webui.passwordChangeFailed'));
-    } finally {
-      setPasswordLoading(false);
-    }
-  };
 
   // 生成二维码 / Generate QR code
   const generateQRCode = useCallback(async () => {
@@ -296,40 +251,6 @@ const WebuiModalContent: React.FC = () => {
           )}
         </div>
       </div>
-
-      {/* 设置新密码弹窗 / Set New Password Modal */}
-      <AionModal visible={setPasswordModalVisible} onCancel={() => setSetPasswordModalVisible(false)} onOk={handleSetNewPassword} confirmLoading={passwordLoading} title={t('settings.webui.setNewPassword')} size='small'>
-        <Form form={form} layout='vertical' className='pt-16px'>
-          <Form.Item
-            label={t('settings.webui.newPassword')}
-            field='newPassword'
-            rules={[
-              { required: true, message: t('settings.webui.newPasswordRequired') },
-              { minLength: 8, message: t('settings.webui.passwordMinLength') },
-            ]}
-          >
-            <Input.Password placeholder={t('settings.webui.newPasswordPlaceholder')} />
-          </Form.Item>
-          <Form.Item
-            label={t('settings.webui.confirmPassword')}
-            field='confirmPassword'
-            rules={[
-              { required: true, message: t('settings.webui.confirmPasswordRequired') },
-              {
-                validator: (value, callback) => {
-                  if (value !== form.getFieldValue('newPassword')) {
-                    callback(t('settings.webui.passwordMismatch'));
-                  } else {
-                    callback();
-                  }
-                },
-              },
-            ]}
-          >
-            <Input.Password placeholder={t('settings.webui.confirmPasswordPlaceholder')} />
-          </Form.Item>
-        </Form>
-      </AionModal>
     </div>
   );
 };
