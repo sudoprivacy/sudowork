@@ -5,14 +5,14 @@
  */
 
 import { mainWarn } from '@process/utils/mainLogger';
-import { composeMessage, transformMessage, type TMessage } from '../../common/chatLib';
-import { uuid } from '../../common/utils';
-import type { IResponseMessage } from '../../common/ipcBridge';
-import { channelEventBus, type IAgentMessageEvent } from './ChannelEventBus';
 import WorkerManage from '@/process/WorkerManage';
 import { getDatabase } from '@/process/database';
 import type BaseAgent from '@/process/task/BaseAgent';
 import { queueConversationWorkspaceSkillSync } from '@/process/bridge/conversationBridge';
+import { composeMessage, transformMessage, type TMessage } from '../../common/chatLib';
+import { uuid } from '../../common/utils';
+import type { IResponseMessage } from '../../common/ipcBridge';
+import { channelEventBus, type IAgentMessageEvent } from './ChannelEventBus';
 
 /**
  * Streaming callback for progress updates

@@ -4,12 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { getDatabase } from '@/process/database';
 import { serviceManager } from '@process/services/serviceManager';
 import { ExtensionRegistry } from '@/extensions';
 import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
 import { getChannelMessageService } from '../agent/ChannelMessageService';
-import { getChannelDefaultModel } from '../actions/SystemActions';
 import { ActionExecutor } from '../gateway/ActionExecutor';
 import { PluginManager, registerPlugin } from '../gateway/PluginManager';
 import { PairingService } from '../pairing/PairingService';
@@ -19,7 +17,7 @@ import { TelegramPlugin } from '../plugins/telegram/TelegramPlugin';
 import { WeChatPlugin } from '../plugins/wechat/WeChatPlugin';
 import { WeComPlugin } from '../plugins/wecom/WeComPlugin';
 import { ZentaoPlugin } from '../plugins/zentao/ZentaoPlugin';
-import { isBuiltinChannelPlatform, resolveChannelConvType } from '../types';
+import { resolveChannelConvType } from '../types';
 import type { ChannelPlatform, IChannelPluginConfig, IPluginCredentials, PluginType } from '../types';
 import { SessionManager } from './SessionManager';
 import { LocalChannelProvider } from './LocalChannelProvider';

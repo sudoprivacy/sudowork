@@ -8,15 +8,15 @@ import { Button, Dropdown, Tooltip } from '@arco-design/web-react';
 import { ArrowUp, FolderOpen, Plus, Shield, UploadOne } from '@icon-park/react';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { AcpBackend, AcpBackendConfig, AvailableAgent } from '../types';
-import styles from '../index.module.css';
-import PresetAgentTag from './PresetAgentTag';
 import { ipcBridge } from '@/common';
 import AgentModeSelector from '@/renderer/components/AgentModeSelector';
 import { getAgentModes, supportsModeSwitch, type AgentModeOption } from '@/renderer/utils/agentModes';
 import ActionChip from '@/renderer/components/ui/ActionChip';
 import BdpanLogo from '@/renderer/assets/logos/bdpan.png';
 import BdpanFileSelector from '@/renderer/components/BdpanFileSelector';
+import styles from '../index.module.css';
+import type { AcpBackend, AcpBackendConfig, AvailableAgent } from '../types';
+import PresetAgentTag from './PresetAgentTag';
 
 type GuidActionRowProps = {
   // File handling

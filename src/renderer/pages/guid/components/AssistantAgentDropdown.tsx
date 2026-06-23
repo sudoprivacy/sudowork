@@ -9,13 +9,13 @@
  * Shown on the right side of the assistant header in the GUID page.
  */
 
+import { Check, Down, Robot } from '@icon-park/react';
+import { Popover } from '@arco-design/web-react';
+import React, { useMemo, useState } from 'react';
 import { normalizePresetAgentType, type AcpBackend } from '@/types/acpTypes';
 import { getAgentLogo } from '@/renderer/utils/agentLogo';
 import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import type { AvailableAgent } from '../types';
-import { Check, Down, Robot } from '@icon-park/react';
-import { Popover } from '@arco-design/web-react';
-import React, { useMemo, useState } from 'react';
 
 type AgentOption = {
   value: string;

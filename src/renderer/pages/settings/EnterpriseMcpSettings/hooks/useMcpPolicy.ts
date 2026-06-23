@@ -1,6 +1,6 @@
 import useSWR from 'swr';
-import { useEnterpriseMcpClient } from './useEnterpriseMcpClient';
 import type { EnterpriseMcpPolicyDto } from '../types';
+import { useEnterpriseMcpClient } from './useEnterpriseMcpClient';
 
 export const MCP_POLICY_SWR_KEY = ['enterprise-mcp', 'policy'] as const;
 

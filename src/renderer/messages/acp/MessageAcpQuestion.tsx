@@ -4,12 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { AcpQuestionAnswerItem, AcpQuestionItem, AcpQuestionItemOption, IMessageAcpQuestion } from '@/common/chatLib';
-import { uuid } from '@/common/utils';
-import { acpConversation } from '@/common/ipcBridge';
 import { Button, Card, Input, Message, Tag, Typography } from '@arco-design/web-react';
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { AcpQuestionAnswerItem, AcpQuestionItem, AcpQuestionItemOption, IMessageAcpQuestion } from '@/common/chatLib';
+import { uuid } from '@/common/utils';
+import { acpConversation } from '@/common/ipcBridge';
 
 const { Text } = Typography;
 const TextArea = Input.TextArea;
@@ -218,7 +218,6 @@ const MessageAcpQuestion: React.FC<MessageAcpQuestionProps> = React.memo(({ mess
   const [isResponding, setIsResponding] = useState(false);
   const [hasResponded, setHasResponded] = useState(message.content?.answered || false);
   const isCancelled = message.content?.cancelled === true;
-  const [selectedAnswer, setSelectedAnswer] = useState<string | null>(message.content?.selectedAnswer || null);
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>(initialSelectedOptions);
   const [selectedMulti, setSelectedMulti] = useState<Record<string, string[]>>(initialSelectedMulti);
   const [customAnswers, setCustomAnswers] = useState<Record<string, string>>(initialCustomAnswers);
@@ -336,7 +335,6 @@ const MessageAcpQuestion: React.FC<MessageAcpQuestionProps> = React.memo(({ mess
     }
 
     setIsResponding(true);
-    setSelectedAnswer(answerPayload.display);
 
     try {
       const result = message.content?.toolCallId
@@ -361,11 +359,9 @@ const MessageAcpQuestion: React.FC<MessageAcpQuestionProps> = React.memo(({ mess
         message.content.selectedAnswer = answerPayload.display;
         message.content.answerItems = answerPayload.answerItems;
       } else {
-        setSelectedAnswer(null);
         Message.error(result?.msg || t('messages.failedToSendQuestionAnswer'));
       }
     } catch (error) {
-      setSelectedAnswer(null);
       console.error('Error sending question answer:', error);
       Message.error(t('messages.failedToSendQuestionAnswer'));
     } finally {

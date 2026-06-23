@@ -2,10 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Input, Message, Space } from '@arco-design/web-react';
 import { Phone, Protect, Key, User, Lock } from '@icon-park/react';
-import AppLoader from '../../components/AppLoader';
-import { useAuth } from '../../context/AuthContext';
-import WindowControls from '../../components/WindowControls';
-import PasswordAuthPanel from './PasswordAuthPanel';
 import { SUDOWORK_SERVER_BASE_URL } from '@/common/sudoworkServer';
 import { DEFAULT_TENANT_CONFIG, TENANT_CONFIG_STORAGE_KEY, resolveTenantConfig } from '@/common/types/tenantConfig';
 import SudoworkIcon from '@/renderer/assets/sudowork-icon-dark.svg';
@@ -14,6 +10,10 @@ import { useAppMode } from '@/renderer/hooks/useAppMode';
 import { useSystemLoginMethod } from '@/renderer/hooks/useSystemLoginMethod';
 import { ConfigStorage } from '@/common/storage';
 import { ipcBridge } from '@/common';
+import WindowControls from '../../components/WindowControls';
+import { useAuth } from '../../context/AuthContext';
+import AppLoader from '../../components/AppLoader';
+import PasswordAuthPanel from './PasswordAuthPanel';
 import './LoginPage.css';
 
 // Generate a random state token to bind the OAuth2 authorize request to its callback.

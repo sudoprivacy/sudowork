@@ -4,12 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { joinPath } from '@/common/chatLib';
-import { ipcBridge } from '@/common';
-import { useAutoScroll } from '@/renderer/hooks/useAutoScroll';
-import { useTextSelection } from '@/renderer/hooks/useTextSelection';
-import { useTypingAnimation } from '@/renderer/hooks/useTypingAnimation';
-import { Close } from '@icon-park/react';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -22,11 +16,16 @@ import remarkBreaks from 'remark-breaks';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import { Streamdown } from 'streamdown';
+import { joinPath } from '@/common/chatLib';
+import { ipcBridge } from '@/common';
+import { useTypingAnimation } from '@/renderer/hooks/useTypingAnimation';
+import { useTextSelection } from '@/renderer/hooks/useTextSelection';
+import { useAutoScroll } from '@/renderer/hooks/useAutoScroll';
+import { convertLatexDelimiters } from '@/renderer/utils/latexDelimiters';
+import { useContainerScroll, useContainerScrollTarget } from '../../hooks/useScrollSyncHelpers';
+import SelectionToolbar from '../renderers/SelectionToolbar';
 import MarkdownEditor from '../editors/MarkdownEditor';
 import MermaidDiagram from '../renderers/MermaidDiagram';
-import SelectionToolbar from '../renderers/SelectionToolbar';
-import { useContainerScroll, useContainerScrollTarget } from '../../hooks/useScrollSyncHelpers';
-import { convertLatexDelimiters } from '@/renderer/utils/latexDelimiters';
 
 interface MarkdownPreviewProps {
   content: string; // Markdown 内容 / Markdown content
@@ -179,7 +178,7 @@ const rewriteExternalMediaUrls = (markdown: string): string => {
 // 该函数参数较多，保持单行可以让 Prettier 控制格式，同时使用 eslint-disable 规避长度限制
 // This line has many props; keep it single-line for Prettier and silence max-len warning explicitly
 // eslint-disable-next-line max-len
-const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({ content, onClose, hideToolbar = false, viewMode: externalViewMode, onViewModeChange, onContentChange, containerRef: externalContainerRef, onScroll: externalOnScroll, filePath }) => {
+const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({ content, hideToolbar = false, viewMode: externalViewMode, onViewModeChange, onContentChange, containerRef: externalContainerRef, onScroll: externalOnScroll, filePath }) => {
   const { t } = useTranslation();
   const internalContainerRef = useRef<HTMLDivElement>(null);
   const containerRef = externalContainerRef || internalContainerRef; // 使用外部 ref 或内部 ref / Use external ref or internal ref
@@ -345,7 +344,7 @@ const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({ content, onClose, hid
     <div className='flex flex-col w-full h-full overflow-hidden'>
       {/* 工具栏：Tabs 切换 + 下载按钮 / Toolbar: Tabs toggle + Download button */}
       {!hideToolbar && (
-        <div className='flex items-center justify-between h-40px px-12px bg-bg-2 flex-shrink-0 border-b overflow-x-auto'>
+        <div className='flex items-center justify-between h-40px px-12px flex-shrink-0 border-b overflow-x-auto'>
           <div className='flex items-center justify-between gap-12px w-full' style={{ minWidth: 'max-content' }}>
             {/* 左侧：原文/预览 Tabs / Left: Source/Preview Tabs */}
             <div className='flex items-center h-full gap-2px'>
@@ -353,7 +352,7 @@ const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({ content, onClose, hid
               <div
                 className={`
                   flex items-center h-full px-16px cursor-pointer transition-all text-14px font-medium
-                  ${viewMode === 'preview' ? 'text-primary border-b-2px border-solid border-primary' : 'text-secondary hover:text-foreground hover:bg-bg-3'}
+                  ${viewMode === 'preview' ? 'text-primary border-b-2px border-solid border-primary' : 'text-secondary hover:text-foreground'}
                 `}
                 onClick={() => handleViewModeChange('preview')}
               >
@@ -363,7 +362,7 @@ const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({ content, onClose, hid
               <div
                 className={`
                   flex items-center h-full px-16px cursor-pointer transition-all text-14px font-medium
-                  ${viewMode === 'source' ? 'text-primary border-b-2px border-solid border-primary' : 'text-secondary hover:text-foreground hover:bg-bg-3'}
+                  ${viewMode === 'source' ? 'text-primary border-b-2px border-solid border-primary' : 'text-secondary hover:text-foreground'}
                 `}
                 onClick={() => handleViewModeChange('source')}
               >
@@ -374,7 +373,7 @@ const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({ content, onClose, hid
             {/* 右侧按钮组：下载 + 关闭 / Right button group: Download + Close */}
             <div className='flex items-center gap-8px flex-shrink-0'>
               {/* 下载按钮 / Download button */}
-              <div className='flex items-center gap-4px px-8px py-4px rd-4px cursor-pointer hover:bg-bg-3 transition-colors' onClick={handleDownload} title={t('preview.downloadMarkdown')}>
+              <div className='flex items-center gap-4px px-8px py-4px rd-4px cursor-pointer transition-colors' onClick={handleDownload} title={t('preview.downloadMarkdown')}>
                 <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' className='text-secondary'>
                   <path d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4' />
                   <polyline points='7 10 12 15 17 10' />

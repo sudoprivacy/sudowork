@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
-import type { PreviewHistoryTarget, PreviewSnapshotInfo } from '@/common/types/preview';
 import { Message } from '@arco-design/web-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { PreviewHistoryTarget, PreviewSnapshotInfo } from '@/common/types/preview';
+import { ipcBridge } from '@/common';
 import { SNAPSHOT_DEBOUNCE_TIME } from '../constants';
 
 /**

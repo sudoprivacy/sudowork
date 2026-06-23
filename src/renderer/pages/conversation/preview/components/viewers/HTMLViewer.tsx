@@ -315,34 +315,34 @@ const HTMLPreview: React.FC<HTMLPreviewProps> = ({ content, filePath, hideToolba
   };
 
   return (
-    <div className='h-full w-full flex flex-col bg-bg-1'>
+    <div className='h-full w-full flex flex-col'>
       {messageContextHolder}
 
       {/* 工具栏 */}
       {!hideToolbar && (
-        <div className='flex items-center justify-between h-40px px-12px bg-bg-2 border-b flex-shrink-0'>
+        <div className='flex items-center justify-between h-40px px-12px border-b flex-shrink-0'>
           <div className='flex items-center gap-8px'>
             {/* 编辑按钮 */}
-            <button onClick={handleToggleEdit} className={`px-12px py-4px rd-4px text-12px transition-colors ${editMode ? 'bg-primary text-white' : 'bg-bg-3 text-foreground hover:bg-bg-4'}`}>
+            <button onClick={handleToggleEdit} className={`px-12px py-4px rd-4px text-12px transition-colors ${editMode ? 'bg-primary text-white' : 'text-foreground'}`}>
               {editMode ? `💾 ${t('common.save')}` : `✏️ ${t('common.edit')}`}
             </button>
 
             {/* 元素选择器按钮 */}
-            <button onClick={handleToggleInspector} className={`px-12px py-4px rd-4px text-12px transition-colors ${inspectorMode ? 'bg-primary text-white' : 'bg-bg-3 text-foreground hover:bg-bg-4'}`} title={t('preview.html.inspectorTooltip')}>
+            <button onClick={handleToggleInspector} className={`px-12px py-4px rd-4px text-12px transition-colors ${inspectorMode ? 'bg-primary text-white' : 'text-foreground'}`} title={t('preview.html.inspectorTooltip')}>
               🔍 {inspectorMode ? t('preview.html.inspecting') : t('preview.html.inspectorButton')}
             </button>
 
             {/* 选中的元素路径 */}
             {selectedElement && (
               <div className='text-12px text-secondary ml-2'>
-                {t('preview.html.selectedLabel')} <code className='bg-bg-3 px-4px rd-2px'>{selectedElement.path}</code>
+                {t('preview.html.selectedLabel')} <code className='px-4px rd-2px'>{selectedElement.path}</code>
               </div>
             )}
           </div>
 
           <div className='flex items-center gap-8px'>
             {/* 下载按钮 */}
-            <button onClick={handleDownload} className='flex items-center gap-4px px-8px py-4px rd-4px cursor-pointer hover:bg-bg-3 transition-colors' title={t('preview.html.downloadHtml')}>
+            <button onClick={handleDownload} className='flex items-center gap-4px px-8px py-4px rd-4px cursor-pointer transition-colors' title={t('preview.html.downloadHtml')}>
               <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' className='text-secondary'>
                 <path d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4' />
                 <polyline points='7 10 12 15 17 10' />
@@ -388,18 +388,18 @@ const HTMLPreview: React.FC<HTMLPreviewProps> = ({ content, filePath, hideToolba
       {/* 右键菜单 */}
       {contextMenu && (
         <div
-          className='fixed bg-bg-1 border rd-6px shadow-lg py-4px z-9999'
+          className='fixed border rd-6px shadow-lg py-4px z-9999'
           style={{
             left: contextMenu.x,
             top: contextMenu.y,
           }}
           onClick={(e) => e.stopPropagation()}
         >
-          <div className='px-12px py-6px text-13px text-foreground hover:bg-bg-2 cursor-pointer transition-colors' onClick={() => handleCopyHTML(contextMenu.element.html)}>
+          <div className='px-12px py-6px text-13px text-foreground cursor-pointer transition-colors' onClick={() => handleCopyHTML(contextMenu.element.html)}>
             📋 {t('preview.html.copyElementHtml')}
           </div>
           <div
-            className='px-12px py-6px text-13px text-foreground hover:bg-bg-2 cursor-pointer transition-colors'
+            className='px-12px py-6px text-13px text-foreground cursor-pointer transition-colors'
             onClick={() => {
               console.log('[HTMLPreview] Element info:', contextMenu.element);
               messageApi.info(t('preview.html.printedToConsole'));

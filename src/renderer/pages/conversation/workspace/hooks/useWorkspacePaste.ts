@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { useCallback, useState } from 'react';
 import { ipcBridge } from '@/common';
 import type { IDirOrFile } from '@/common/ipcBridge';
 import { ConfigStorage } from '@/common/storage';
 import { usePasteService } from '@/renderer/hooks/usePasteService';
-import { useCallback, useState } from 'react';
 import type { MessageApi, PasteConfirmState, SelectedNodeRef } from '../types';
 import { getTargetFolderPath } from '../utils/treeHelpers';
 
@@ -112,7 +112,7 @@ export function useWorkspacePaste(options: UseWorkspacePasteOptions) {
             const fallback = failedFiles.length > 0 ? 'Some files failed to copy' : res.msg;
             messageApi.warning(fallback || t('common.unknownError') || 'Paste failed');
           }
-        } catch (error) {
+        } catch {
           messageApi.error(t('common.unknownError') || 'Paste failed');
         } finally {
           // 操作完成后重置粘贴目标文件夹（成功或失败都重置）
@@ -167,7 +167,7 @@ export function useWorkspacePaste(options: UseWorkspacePasteOptions) {
       }
 
       closePasteConfirm();
-    } catch (error) {
+    } catch {
       messageApi.error(t('common.unknownError') || 'Paste failed');
     } finally {
       setPasteTargetFolder(null);

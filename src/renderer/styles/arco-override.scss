@@ -315,6 +315,12 @@ body[arco-theme='dark'] .arco-message {
   }
 }
 
+.arco-select-view,
+.arco-input,
+.arco-input-inner-wrapper {
+  background-color: var(--fill-0) !important;
+}
+
 // ---------- Skill Hub input / select ----------
 // 与按钮背景一致以便识别 / match button background for visibility
 .skill-hub {

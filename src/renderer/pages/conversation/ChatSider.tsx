@@ -8,14 +8,14 @@ import { Message } from '@arco-design/web-react';
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import ChatWorkspace from './workspace';
-import BrowserPanel from './right-panel/BrowserPanel';
-import DeliverablesPanel from './right-panel/DeliverablesPanel';
-import TerminalPanel from './right-panel/TerminalPanel';
 import { useAddEventListener } from '@/renderer/utils/emitter';
 import { ipcBridge } from '@/common';
 import { STORAGE_KEYS } from '@/common/storageKeys';
 import type { TChatConversation } from '@/common/storage';
+import ChatWorkspace from './workspace';
+import BrowserPanel from './right-panel/BrowserPanel';
+import DeliverablesPanel from './right-panel/DeliverablesPanel';
+import TerminalPanel from './right-panel/TerminalPanel';
 import './workspace/workspace-card.css';
 
 type RightPanelTab = 'workspace' | 'browser' | 'terminal' | 'deliverables';

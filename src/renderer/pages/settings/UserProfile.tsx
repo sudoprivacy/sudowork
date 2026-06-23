@@ -2,6 +2,9 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Avatar, Button, Modal, Input, Message, Spin } from '@arco-design/web-react';
 import { User, Phone, Edit, Lock } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
+import { formatUsagePoints } from '@/common/tokenUsage';
+import type { UserProfileData } from '@/common/ipcBridge';
+import { ipcBridge } from '@/common';
 import { useAuth } from '../../context/AuthContext';
 import { useDashboardStats } from '../../context/DashboardStatsContext';
 import { useAppMode } from '../../hooks/useAppMode';
@@ -10,9 +13,6 @@ import ConsumerAvatar from './components/ConsumerAvatar';
 import WeeklyModelUsageChart from './components/WeeklyModelUsageChart';
 import SettingsPageWrapper from './components/SettingsPageWrapper';
 import ChangePasswordModal from './components/ChangePasswordModal';
-import { formatUsagePoints } from '@/common/tokenUsage';
-import type { UserProfileData } from '@/common/ipcBridge';
-import { ipcBridge } from '@/common';
 
 const UserProfile: React.FC = () => {
   const { t } = useTranslation();

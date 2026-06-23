@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { Button, Input, Message } from '@arco-design/web-react';
 import { User, Lock, Ticket } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
-import { useAuth } from '../../context/AuthContext';
 import { validatePassword } from '@/renderer/utils/passwordValidation';
+import { useAuth } from '../../context/AuthContext';
 import './LoginPage.css';
 
 interface PasswordAuthPanelProps {

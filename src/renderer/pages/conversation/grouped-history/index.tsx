@@ -13,6 +13,12 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 
+import { emitter } from '@/renderer/utils/emitter';
+import { useCronJobsMap } from '@/renderer/pages/cron/hooks/useCronJobs';
+import FlexFullContainer from '@/renderer/components/FlexFullContainer';
+import DirectorySelectionModal from '@/renderer/components/DirectorySelectionModal';
+import { ipcBridge } from '@/common';
+import type { TChatConversation } from '@/common/storage';
 import WorkspaceCollapse from '../WorkspaceCollapse';
 import ConversationRow from './ConversationRow';
 import DragOverlayContent from './DragOverlayContent';
@@ -23,12 +29,6 @@ import { useConversations } from './hooks/useConversations';
 import { useDragAndDrop } from './hooks/useDragAndDrop';
 import { useExport } from './hooks/useExport';
 import type { ConversationRowProps, ConversationItem, WorkspaceGroupedHistoryProps } from './types';
-import { emitter } from '@/renderer/utils/emitter';
-import { useCronJobsMap } from '@/renderer/pages/cron';
-import FlexFullContainer from '@/renderer/components/FlexFullContainer';
-import DirectorySelectionModal from '@/renderer/components/DirectorySelectionModal';
-import { ipcBridge } from '@/common';
-import type { TChatConversation } from '@/common/storage';
 
 const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSessionClick, collapsed = false, tooltipEnabled = false, batchMode = false, onBatchModeChange, activeTab = 'timeline', onBatchApiChange }) => {
   const { id } = useParams();
@@ -187,7 +187,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
       } else {
         Message.error(result?.msg || t('conversation.workspace.renameWorkspace.failed'));
       }
-    } catch (error) {
+    } catch {
       Message.error(t('conversation.workspace.renameWorkspace.failed'));
     } finally {
       setWsRenameLoading(false);
@@ -196,18 +196,33 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
 
   const { selectedConversationIds, setSelectedConversationIds, selectedCount, allSelected, toggleSelectedConversation, handleToggleSelectAll } = useBatchSelection(batchMode, conversations);
 
-  const { renameModalVisible, renameModalName, setRenameModalName, renameLoading, dropdownVisibleId, handleConversationClick, handleDeleteClick, handleBatchDelete, handleEditStart, handleRenameConfirm, handleRenameCancel, handleTogglePin, handleMenuVisibleChange, handleOpenMenu } = useConversationActions({
-    batchMode,
-    activeTab,
-    onSessionClick,
-    onBatchModeChange,
-    selectedConversationIds,
-    setSelectedConversationIds,
-    toggleSelectedConversation,
-    markAsRead,
-  });
+  const { renameModalVisible, renameModalName, setRenameModalName, renameLoading, dropdownVisibleId, handleConversationClick, handleDeleteClick, handleBatchDelete, handleEditStart, handleRenameConfirm, handleRenameCancel, handleTogglePin, handleMenuVisibleChange, handleOpenMenu } =
+    useConversationActions({
+      batchMode,
+      activeTab,
+      onSessionClick,
+      onBatchModeChange,
+      selectedConversationIds,
+      setSelectedConversationIds,
+      toggleSelectedConversation,
+      markAsRead,
+    });
 
-  const { exportTask, exportModalVisible, exportTargetPath, exportModalLoading, exportFinished, showExportDirectorySelector, setShowExportDirectorySelector, closeExportModal, handleSelectExportDirectoryFromModal, handleSelectExportFolder, handleExportConversation, handleBatchExport, handleConfirmExport } = useExport({
+  const {
+    exportTask,
+    exportModalVisible,
+    exportTargetPath,
+    exportModalLoading,
+    exportFinished,
+    showExportDirectorySelector,
+    setShowExportDirectorySelector,
+    closeExportModal,
+    handleSelectExportDirectoryFromModal,
+    handleSelectExportFolder,
+    handleExportConversation,
+    handleBatchExport,
+    handleConfirmExport,
+  } = useExport({
     conversations: conversations as TChatConversation[],
     selectedConversationIds,
     setSelectedConversationIds,
@@ -290,7 +305,19 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
 
   return (
     <FlexFullContainer>
-      <Modal title={t('conversation.history.renameTitle')} visible={renameModalVisible} onOk={handleRenameConfirm} onCancel={handleRenameCancel} okText={t('conversation.history.saveName')} cancelText={t('conversation.history.cancelEdit')} confirmLoading={renameLoading} okButtonProps={{ disabled: !renameModalName.trim() }} style={{ borderRadius: '12px' }} alignCenter getPopupContainer={() => document.body}>
+      <Modal
+        title={t('conversation.history.renameTitle')}
+        visible={renameModalVisible}
+        onOk={handleRenameConfirm}
+        onCancel={handleRenameCancel}
+        okText={t('conversation.history.saveName')}
+        cancelText={t('conversation.history.cancelEdit')}
+        confirmLoading={renameLoading}
+        okButtonProps={{ disabled: !renameModalName.trim() }}
+        style={{ borderRadius: '12px' }}
+        alignCenter
+        getPopupContainer={() => document.body}
+      >
         <Input autoFocus value={renameModalName} onChange={setRenameModalName} onPressEnter={handleRenameConfirm} placeholder={t('conversation.history.renamePlaceholder')} allowClear />
       </Modal>
 
@@ -380,7 +407,19 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
       <DirectorySelectionModal visible={showExportDirectorySelector} onConfirm={handleSelectExportDirectoryFromModal} onCancel={() => setShowExportDirectorySelector(false)} />
 
       {/* Workspace Rename Modal / 工作空间重命名弹窗 */}
-      <Modal title={t('conversation.workspace.renameWorkspace.title')} visible={wsRenameModal.visible} onOk={handleWorkspaceRenameConfirm} onCancel={() => setWsRenameModal({ visible: false, workspace: '', name: '' })} okText={t('common.confirm')} cancelText={t('common.cancel')} confirmLoading={wsRenameLoading} okButtonProps={{ disabled: !wsRenameModal.name.trim() }} style={{ borderRadius: '12px' }} alignCenter getPopupContainer={() => document.body}>
+      <Modal
+        title={t('conversation.workspace.renameWorkspace.title')}
+        visible={wsRenameModal.visible}
+        onOk={handleWorkspaceRenameConfirm}
+        onCancel={() => setWsRenameModal({ visible: false, workspace: '', name: '' })}
+        okText={t('common.confirm')}
+        cancelText={t('common.cancel')}
+        confirmLoading={wsRenameLoading}
+        okButtonProps={{ disabled: !wsRenameModal.name.trim() }}
+        style={{ borderRadius: '12px' }}
+        alignCenter
+        getPopupContainer={() => document.body}
+      >
         <div className='text-13px text-secondary mb-8px'>{t('conversation.workspace.renameWorkspace.hint')}</div>
         <Input autoFocus value={wsRenameModal.name} onChange={(v) => setWsRenameModal((prev) => ({ ...prev, name: v }))} onPressEnter={handleWorkspaceRenameConfirm} placeholder={t('conversation.workspace.renameWorkspace.placeholder')} />
       </Modal>

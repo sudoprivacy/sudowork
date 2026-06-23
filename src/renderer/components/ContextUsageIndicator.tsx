@@ -7,11 +7,11 @@
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { Tooltip } from '@arco-design/web-react';
 import type { TokenUsageData } from '@/common/storage';
 
 // 默认上下文限制
 import { DEFAULT_CONTEXT_LIMIT } from '@/renderer/utils/constants';
-import { Tooltip } from '@arco-design/web-react';
 
 interface ContextUsageIndicatorProps {
   tokenUsage: TokenUsageData | null;

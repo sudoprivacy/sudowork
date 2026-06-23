@@ -6,10 +6,6 @@
 
 import './bootstrap/runtimePatches';
 import './bootstrap/crashHandler';
-import { migrateLocalStorageKeys } from '@common/storageKeys';
-
-// One-time migration of legacy 'aionui_*' localStorage keys to 'sudowork_*'
-migrateLocalStorageKeys();
 import type { PropsWithChildren } from 'react';
 import React from 'react';
 import { createRoot } from 'react-dom/client';
@@ -22,6 +18,7 @@ import jaJP from '@arco-design/web-react/es/locale/ja-JP';
 import koKR from '@arco-design/web-react/es/locale/ko-KR';
 import zhCN from '@arco-design/web-react/es/locale/zh-CN';
 import zhTW from '@arco-design/web-react/es/locale/zh-TW';
+import { migrateLocalStorageKeys } from '@common/storageKeys';
 import '@icon-park/react/styles/index.css';
 import 'uno.css';
 import '../adapter/browser';
@@ -37,6 +34,9 @@ import '@renderer/i18n';
 import HOC from '@renderer/utils/HOC';
 import '@renderer/styles/index.css';
 import './styles/arco-override.scss';
+
+// One-time migration of legacy 'aionui_*' localStorage keys to 'sudowork_*'
+migrateLocalStorageKeys();
 const root = createRoot(document.getElementById('root'));
 
 // Patch Korean locale with missing properties from English locale

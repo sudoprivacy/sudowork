@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Table, Button, Tabs, Tag, Space, Message, Modal, Badge } from '@arco-design/web-react';
 import { User, DeleteFour, Peoples } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
+import { ipcBridge } from '@/common';
 import { useAuth } from '../../context/AuthContext';
 import SettingsPageWrapper from './components/SettingsPageWrapper';
-import { ipcBridge } from '@/common';
 
 const MemberManagement: React.FC = () => {
   const { t } = useTranslation();
@@ -58,7 +58,7 @@ const MemberManagement: React.FC = () => {
             Message.success(`已批准 ${user.nickname}，Key 已下发。`);
             void fetchMembers();
           }
-        } catch (e) {
+        } catch {
           Message.error('审批失败');
         }
       },
@@ -87,7 +87,7 @@ const MemberManagement: React.FC = () => {
             Message.success(`已拒绝 ${user.nickname} 的申请。`);
             void fetchMembers();
           }
-        } catch (e) {
+        } catch {
           Message.error('拒绝失败');
         }
       },
@@ -118,7 +118,7 @@ const MemberManagement: React.FC = () => {
           } else {
             Message.error(data.msg || '删除失败');
           }
-        } catch (e) {
+        } catch {
           Message.error('删除失败');
         }
       },

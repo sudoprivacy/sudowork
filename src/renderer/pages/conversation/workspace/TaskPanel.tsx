@@ -159,8 +159,6 @@ function makeLayout(nodeW: number, nodeH: number, colGap: number, rowGap: number
   };
 }
 
-// Panel DAG layout (compact)
-const computeLayout = makeLayout(148, 60, 64, 12, 16);
 // Fullscreen DAG layout (larger nodes)
 const computeFullLayout = makeLayout(200, 100, 110, 50, 40);
 
@@ -287,54 +285,6 @@ const DAGEdges: React.FC<{ tasks: SubTask[]; positions: Record<string, NodePos> 
 // ─────────────────────────────────────────────────────────────────────────────
 // Compact panel TaskNode (for detail drawer context)
 // ─────────────────────────────────────────────────────────────────────────────
-
-const PanelTaskNode: React.FC<{ task: SubTask; pos: NodePos; selected: boolean; onClick: (t: SubTask) => void }> = ({ task, pos, selected, onClick }) => {
-  const sc = STATUS_CFG[task.status] ?? STATUS_CFG.pending;
-  const tc = TYPE_CFG[task.type] ?? TYPE_CFG.custom;
-  const isRunning = task.status === 'running';
-  return (
-    <div
-      onClick={() => onClick(task)}
-      style={{
-        position: 'absolute',
-        left: pos.x,
-        top: pos.y,
-        width: pos.w,
-        height: pos.h,
-        borderRadius: 8,
-        cursor: 'pointer',
-        userSelect: 'none',
-        background: selected ? 'var(--color-primary-light-1, var(--color-primary-light-1))' : task.status === 'failed' ? 'var(--danger-soft)' : 'var(--color-bg-1, #fff)',
-        border: `1.5px solid ${selected ? 'var(--color-primary, var(--primary))' : sc.border}`,
-        boxShadow: selected ? '0 0 0 3px rgba(59,130,246,0.15)' : isRunning ? `0 0 0 2px ${sc.border}` : '0 1px 3px rgba(0,0,0,0.05)',
-        padding: '7px 9px',
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'space-between',
-        transition: 'box-shadow 0.15s, border-color 0.15s, transform 0.1s',
-        animation: isRunning ? 'copilotNodePulse 2s ease-in-out infinite' : 'none',
-      }}
-      onMouseEnter={(e) => {
-        (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-1px)';
-      }}
-      onMouseLeave={(e) => {
-        (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)';
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 5 }}>
-        <span style={{ fontSize: 13, lineHeight: 1, marginTop: 1, flexShrink: 0 }}>{tc.icon}</span>
-        <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--color-text-1, var(--foreground))', lineHeight: 1.3, flex: 1, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{task.name}</span>
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4 }}>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 5px', borderRadius: 99, fontSize: 10, fontWeight: 600, color: sc.color, background: sc.bg, border: `1px solid ${sc.border}`, whiteSpace: 'nowrap' }}>
-          <span style={{ width: 5, height: 5, borderRadius: '50%', background: sc.dot, flexShrink: 0, animation: sc.pulse ? 'copilotPulse 1.4s ease-in-out infinite' : 'none' }} />
-          {sc.label}
-        </span>
-        <span style={{ fontSize: 9.5, color: 'var(--color-text-3, #cbd5e1)', fontFamily: 'monospace' }}>{task.task_id}</span>
-      </div>
-    </div>
-  );
-};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Fullscreen large TaskNode
@@ -492,7 +442,10 @@ const DetailDrawer: React.FC<{ task: SubTask; dag: Dag; onClose: () => void; dar
               {task.dependencies.map((d) => {
                 const dep = dag.tasks.find((t) => t.task_id === d);
                 return (
-                  <span key={d} style={{ padding: '2px 8px', borderRadius: 6, background: dark ? 'var(--bg-base)' : dep ? STATUS_CFG[dep.status].bg : 'var(--color-fill-1)', border: `1px solid ${border}`, fontSize: 10.5, fontFamily: 'monospace', color: dark ? 'var(--text-secondary)' : 'var(--text-tertiary)' }}>
+                  <span
+                    key={d}
+                    style={{ padding: '2px 8px', borderRadius: 6, background: dark ? 'var(--bg-base)' : dep ? STATUS_CFG[dep.status].bg : 'var(--color-fill-1)', border: `1px solid ${border}`, fontSize: 10.5, fontFamily: 'monospace', color: dark ? 'var(--text-secondary)' : 'var(--text-tertiary)' }}
+                  >
                     {d}
                     {dep ? ` · ${STATUS_CFG[dep.status].label}` : ''}
                   </span>

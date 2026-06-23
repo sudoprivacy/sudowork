@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { CodexToolCallUpdate } from '@/common/chatLib';
 import { Card, Tag } from '@arco-design/web-react';
 import React from 'react';
+import type { CodexToolCallUpdate } from '@/common/chatLib';
 
 type GenericUpdate = Extract<CodexToolCallUpdate, { subtype: 'generic' }>;
 

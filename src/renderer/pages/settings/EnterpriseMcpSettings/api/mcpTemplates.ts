@@ -1,5 +1,5 @@
-import type { EnterpriseMcpClient } from './client';
 import type { EnterpriseMcpServerDto, EnterpriseMcpTemplateDto, EnterpriseMcpTemplateListResponse } from '../types';
+import type { EnterpriseMcpClient } from './client';
 
 interface ListTemplatesEnvelope {
   success: true;

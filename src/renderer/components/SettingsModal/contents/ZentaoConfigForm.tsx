@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { IChannelPluginStatus } from '@/channels/types';
-import { channel } from '@/common/ipcBridge';
 import { Button, Input, Message } from '@arco-design/web-react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { channel } from '@/common/ipcBridge';
+import type { IChannelPluginStatus } from '@/channels/types';
 import ChannelItem from './channels/ChannelItem';
 import type { ChannelConfig } from './channels/types';
 

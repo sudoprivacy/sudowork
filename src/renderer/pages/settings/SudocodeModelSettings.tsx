@@ -8,13 +8,13 @@ import { Button, Checkbox, Form, Input, InputNumber, Message, Popconfirm, Select
 import { Delete, Download, Edit, LinkCloud, PreviewOpen, Plus, Refresh, SettingTwo } from '@icon-park/react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import SettingsPageWrapper from './components/SettingsPageWrapper';
 import { ipcBridge } from '@/common';
 import type { ScodeConfig, ScodeModelEntry } from '@/common/ipcBridge';
 import { buildCustomModelAlias, extractCustomProvidersFromScodeConfig, mergeCustomProviderIntoScodeConfig, removeCustomProviderFromScodeConfig, type ScodeCustomModelProvider } from '@/common/scodeConfig';
 import AionModal from '@/renderer/components/base/AionModal';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { useAuth } from '@/renderer/context/AuthContext';
+import SettingsPageWrapper from './components/SettingsPageWrapper';
 
 const { Title, Text } = Typography;
 
@@ -500,7 +500,12 @@ const SudocodeModelSettingsContent: React.FC = () => {
             <Button icon={<Refresh />} onClick={loadConfig}>
               刷新
             </Button>
-            <Button type='primary' icon={<Plus theme='outline' size='16' fill='white' strokeWidth={2} />} onClick={openAddDialog} className='!bg-[var(--ui-accent-orange)] !border-[var(--ui-accent-orange)] !text-white hover:!bg-[var(--ui-accent-orange-hover)] hover:!border-[var(--ui-accent-orange-hover)] hover:!text-white'>
+            <Button
+              type='primary'
+              icon={<Plus theme='outline' size='16' fill='white' strokeWidth={2} />}
+              onClick={openAddDialog}
+              className='!bg-[var(--ui-accent-orange)] !border-[var(--ui-accent-orange)] !text-white hover:!bg-[var(--ui-accent-orange-hover)] hover:!border-[var(--ui-accent-orange-hover)] hover:!text-white'
+            >
               添加模型
             </Button>
           </Space>

@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getAgentLogo } from '@/renderer/utils/agentLogo';
 import { CUSTOM_AVATAR_IMAGE_MAP } from '../constants';
 import type { AvailableAgent, MentionOption } from '../types';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 export type GuidMentionResult = {
   mentionQuery: string | null;

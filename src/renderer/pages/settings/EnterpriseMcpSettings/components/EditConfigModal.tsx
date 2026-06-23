@@ -42,7 +42,7 @@ const EditConfigModal: React.FC<EditConfigModalProps> = ({ visible, server, load
           setSchema([]);
           setValues({});
         }
-      } catch (err) {
+      } catch {
         if (!cancelled) {
           Message.error('加载用户配置失败');
         }

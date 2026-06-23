@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { IResponseMessage } from './ipcBridge';
-import { uuid } from './utils';
 import type { CodexPermissionRequest } from '@/common/codex/types';
 import type { ExecCommandBeginData, ExecCommandEndData, ExecCommandOutputDeltaData, McpToolCallBeginData, McpToolCallEndData, PatchApplyBeginData, PatchApplyEndData, TurnDiffData, WebSearchBeginData, WebSearchEndData } from '@/common/codex/types/eventData';
 import type { AcpBackend, AcpPermissionRequest, PlanUpdate, ToolCallUpdate } from '@/types/acpTypes';
+import { uuid } from './utils';
+import type { IResponseMessage } from './ipcBridge';
 
 /**
  * 安全的路径拼接函数，兼容Windows和Mac

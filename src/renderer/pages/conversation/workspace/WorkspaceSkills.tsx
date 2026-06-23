@@ -34,11 +34,11 @@
  * reports loading state back via callbacks.
  */
 
-import { ipcBridge } from '@/common';
 import { Tooltip } from '@arco-design/web-react';
 import { Book, Branch, Browser, Bug, Calendar, Code, FileText, FolderOpen, Picture, SettingConfig, Star, Tool } from '@icon-park/react';
 import React, { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { ipcBridge } from '@/common';
 import { resolveSkillIcon, handleSkillIconError } from '@/renderer/utils/skillDisplay';
 import { emitter } from '@/renderer/utils/emitter';
 import { resolveWorkspaceSkillRoot } from './skillRoots';
@@ -409,7 +409,7 @@ const WorkspaceSkills = React.forwardRef<WorkspaceSkillsHandle, WorkspaceSkillsP
         return;
       }
 
-      const skillRoot = resolveWorkspaceSkillRoot(workspace, eventPrefix, backend);
+      const skillRoot = resolveWorkspaceSkillRoot(workspace, backend);
       const result = await ipcBridge.fs.scanForSkills.invoke({ folderPath: skillRoot.path }).catch((): undefined => undefined);
 
       if (reqSeqRef.current !== mySeq) return;

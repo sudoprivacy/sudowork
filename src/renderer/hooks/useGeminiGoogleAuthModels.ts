@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
-import { ConfigStorage } from '@/common/storage';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import useSWR from 'swr';
+import { ConfigStorage } from '@/common/storage';
+import { ipcBridge } from '@/common';
 import { getGeminiModeList, type GeminiModeOption } from './useModeModeList';
 
 export interface GeminiGoogleAuthModelResult {

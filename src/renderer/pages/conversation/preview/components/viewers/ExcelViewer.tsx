@@ -4,16 +4,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
-import { libreOffice as libreOfficeIpc } from '@/common/ipcBridge';
-import type { ExcelWorkbookData } from '@/common/types/conversion';
-import { usePreviewToolbarExtras } from '../../context/PreviewToolbarExtrasContext';
 import { Button, Message } from '@arco-design/web-react';
 import { IconRefresh } from '@arco-design/web-react/icon';
 import React, { useCallback, useEffect, useState, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import PDFViewer from './PDFViewer';
+import { ipcBridge } from '@/common';
+import { libreOffice as libreOfficeIpc } from '@/common/ipcBridge';
+import type { ExcelWorkbookData } from '@/common/types/conversion';
+import { usePreviewToolbarExtras } from '../../context/PreviewToolbarExtrasContext';
 import LibreOfficeInstallPrompt from '../LibreOfficeInstallPrompt';
+import PDFViewer from './PDFViewer';
 
 // Excel 表格滚动容器样式 - 使滚动条始终可见
 // Excel table scroll container styles - make scrollbar always visible
@@ -152,7 +152,7 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ filePath, content: _content
     try {
       await ipcBridge.shell.openFile.invoke(filePath);
       messageApi.success(t('preview.openInSystemSuccess'));
-    } catch (err) {
+    } catch {
       messageApi.error(t('preview.openInSystemFailed'));
     }
   }, [filePath, messageApi, t]);
@@ -184,7 +184,7 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ filePath, content: _content
             }
           }
         }
-      } catch (err) {
+      } catch {
         messageApi.error(t('preview.excel.loadFailed'));
       } finally {
         setLoading(false);
@@ -457,7 +457,7 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ filePath, content: _content
 
     return (
       <div
-        className='p-10px bg-bg-1 excel-scroll-container'
+        className='p-10px excel-scroll-container'
         style={{
           ...excelScrollContainerStyle,
           position: 'absolute',
@@ -552,7 +552,7 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ filePath, content: _content
         {messageContextHolder}
 
         {!usePortalToolbar && !hideToolbar && (
-          <div className='flex items-center justify-between h-40px px-12px bg-bg-2 border-b flex-shrink-0'>
+          <div className='flex items-center justify-between h-40px px-12px border-b flex-shrink-0'>
             <div className='flex items-center gap-8px'>
               <span className='text-13px text-secondary'>📊 {t('preview.excel.title')}</span>
               <span className='text-11px text-tertiary'>{t('preview.readOnlyLabel')}</span>
@@ -597,7 +597,7 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ filePath, content: _content
       {messageContextHolder}
 
       {!usePortalToolbar && !hideToolbar && (
-        <div className='flex items-center justify-between h-40px px-12px bg-bg-2 border-b flex-shrink-0'>
+        <div className='flex items-center justify-between h-40px px-12px border-b flex-shrink-0'>
           <div className='flex items-center gap-8px'>
             <span className='text-13px text-secondary'>📊 {t('preview.excel.title')}</span>
             <span className='text-11px text-tertiary'>{t('preview.readOnlyLabel')}</span>
@@ -622,12 +622,12 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ filePath, content: _content
         </div>
       )}
 
-      <div className='flex-1 overflow-auto flex flex-col bg-bg-1 excel-scroll-container' style={{ ...excelScrollContainerStyle, position: 'relative' }}>
+      <div className='flex-1 overflow-auto flex flex-col excel-scroll-container' style={{ ...excelScrollContainerStyle, position: 'relative' }}>
         {excelData.sheets.length === 1 ? (
           renderSheetTable(excelData.sheets[0].name)
         ) : (
           <>
-            <div className='flex items-center h-28px px-8px bg-bg-1 border-b overflow-x-auto flex-shrink-0'>
+            <div className='flex items-center h-28px px-8px border-b overflow-x-auto flex-shrink-0'>
               {excelData.sheets.map((sheet) => (
                 <button
                   key={sheet.name}

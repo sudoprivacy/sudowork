@@ -1,7 +1,7 @@
-import { getAgentLogo } from '@/renderer/utils/agentLogo';
 import { Tag, Tooltip } from '@arco-design/web-react';
 import { LoadingOne } from '@icon-park/react';
 import React from 'react';
+import { getAgentLogo } from '@/renderer/utils/agentLogo';
 
 interface McpAgentStatusDisplayProps {
   serverName: string;

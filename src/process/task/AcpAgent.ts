@@ -6,6 +6,10 @@
  * Merged AcpAgentManager + AcpAgent — owns AcpConnection directly.
  */
 
+import { spawn } from 'child_process';
+import * as fs from 'node:fs';
+import * as nodePath from 'node:path';
+import { app } from 'electron';
 import { AcpAdapter } from '@/agent/acp/AcpAdapter';
 import { AcpApprovalStore, createAcpApprovalKey } from '@/agent/acp/ApprovalStore';
 import { AcpConnection } from '@/agent/acp/AcpConnection';
@@ -23,43 +27,79 @@ import { appendNexusFilesMarker } from '@/common/nexusFiles';
 import type { IResponseMessage } from '@/common/ipcBridge';
 import { NavigationInterceptor, type NavigationToolData } from '@/common/navigation';
 import { parseError, uuid } from '@/common/utils';
-import type { AcpBackend, AcpError, AcpModelInfo, AcpPermissionOption, AcpPermissionRequest, AcpPromptResponseUsage, AcpQuestionRequest, AcpQuestionResponseAnswer, AcpResult, AcpSessionConfigOption, AcpSessionUpdate, AvailableCommandsUpdate, ToolCallUpdate, ToolCallUpdateStatus } from '@/types/acpTypes';
+import type {
+  AcpBackend,
+  AcpError,
+  AcpModelInfo,
+  AcpPermissionOption,
+  AcpPermissionRequest,
+  AcpPromptResponseUsage,
+  AcpQuestionRequest,
+  AcpQuestionResponseAnswer,
+  AcpResult,
+  AcpSessionConfigOption,
+  AcpSessionUpdate,
+  AvailableCommandsUpdate,
+  ToolCallUpdate,
+  ToolCallUpdateStatus,
+} from '@/types/acpTypes';
 import { ACP_BACKENDS_ALL, AcpErrorType, createAcpError } from '@/types/acpTypes';
 import { ExtensionRegistry } from '@/extensions';
-import { spawn } from 'child_process';
-import * as fs from 'node:fs';
-import * as nodePath from 'node:path';
 import { getEnhancedEnv, resolveNpxPath } from '@process/utils/shellEnv';
 import { applyPresetRuntime } from '@process/task/presetRuntime';
 import { assistantManager } from '@/process/AssistantManager';
 import { getDatabase } from '@process/database';
+import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
+import { translateLLMError } from '@process/utils/llmErrorTranslation';
+import { classifyLlmError } from '@process/utils/llmErrorClassification';
+import { mergeScodeProxyModelInfo, isModelVisionCapable, getScodeProxyModelInfoSync } from '@process/services/scode/scodeProxyModels';
+import { appendGeneratedFilesMarker, type GeneratedFileEntry } from '@/common/generatedFiles';
+import { readAssistantResource, ruleFilePattern } from '@process/utils/assistantResources';
+import { protectUnsupportedAcpSlashPrompt } from '@/common/slash/sudoworkCommands';
 import { clearSkillsCache, getCustomSkillsDir, ProcessConfig } from '../initStorage';
 import { addMessage, addOrUpdateMessage, nextTickToLocalFinish } from '../message';
 import { handlePreviewOpenEvent } from '../utils/previewUtils';
-import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
 import { mainLog, mainWarn, mainError } from '../utils/mainLogger';
-import { translateLLMError } from '@process/utils/llmErrorTranslation';
-import { classifyLlmError } from '@process/utils/llmErrorClassification';
+import {
+  startConversationTracking,
+  endConversationSuccess,
+  endConversationError,
+  endConversationUserCancel,
+  startToolCallTracking,
+  endToolCallTracking,
+  startPermissionRequestTracking,
+  endPermissionRequestTracking,
+  recordFileOperationStep,
+  startTurnTracking,
+  updateTurnTokens,
+  endTurnSuccess,
+  endTurnError,
+  getCurrentTurnId,
+} from '../telemetry';
+import { conversationBreadcrumbs, apiBreadcrumbs, mcpBreadcrumbs } from '../telemetry/BreadcrumbTracker';
+import { resolveImageConfig, callImagesGenerations, callImagesEdits, saveImageResult, resolveChatModel, callChatCompletionsWithImage, readSudorouterCredentials } from '../bridge/imageGenerationBridge';
+import { resolveWorkspaceSkillsDir } from '../utils/workspaceSkillsDir';
 import { injectSkillsDirectoryHint, prepareFirstMessageWithSkillsIndex } from './agentUtils';
 import { AcpSkillManager } from './AcpSkillManager';
 import { archiveTurnFiles, cleanupIntermediateFiles, cleanupTrackedDraftsOnCancel, type TrackedTurnFile } from './draftsCleanup';
 import { detectBashDraftRestoreCommand, FileIntentClassifier, type BashDraftRestoreDetection, type FileIntentSource, type FileOperationIntent } from './FileIntentClassifier';
 import { buildAcpModelIdentityReminder, SCODE_COMPLETION_REMINDER, shouldRunCurrentTurnPostCleanup, shouldSkipAcpWorkspaceTrackingPath } from './acpWorkspaceTracking';
-import { mergeScodeProxyModelInfo, isModelVisionCapable, getScodeProxyModelInfoSync } from '@process/services/scode/scodeProxyModels';
 import { installWorkspaceSkillsFromTrackedFiles } from './workspaceSkillInstaller';
 import { buildGeneratedFileEntries as buildGeneratedFileEntriesFromTracked, resolveFinalFileDisplayPath as resolveFinalFileDisplayPathPure } from './generatedFileEntries';
-import { appendGeneratedFilesMarker, type GeneratedFileEntry } from '@/common/generatedFiles';
 import BaseAgent from './BaseAgent';
+import { hasCronCommands } from './CronCommandDetector';
+import { detectChannelQueryIntent, executeChannelInfoCommand, type ChannelQueryCommand } from './ChannelInfoDetector';
+import { extractTextFromMessage, processCronInMessage } from './MessageMiddleware';
+import { processAtFileReferences } from './acp/AcpAtFileProcessor';
+import { StreamTextBuffer, CronTextAccumulator, preprocessContentMessage } from './acp/AcpMessagePipeline';
+import { clearAcpSessionId, saveAcpSessionId, saveSessionMode, saveModelId, saveContextUsage } from './acp/AcpPersistence';
+import { extractLatestScodeAssistantUsageFromJsonl, findScodeSessionFile, normalizePromptUsageForMessage, SCODE_LATE_RECONCILIATION_DEFAULTS } from './acpUsageReconciliation';
 
 // Telemetry imports for conversation tracking
-import { startConversationTracking, endConversationSuccess, endConversationError, endConversationUserCancel } from '../telemetry';
 
 // Telemetry imports for turn/step tracking
-import { startTurnTracking, updateTurnTokens, endTurnSuccess, endTurnError, getCurrentTurnId } from '../telemetry';
-import { startToolCallTracking, endToolCallTracking, startPermissionRequestTracking, endPermissionRequestTracking, recordFileOperationStep, startThinkingTracking, endThinkingTracking } from '../telemetry';
 
 // CrashReporter imports for breadcrumb tracking
-import { conversationBreadcrumbs, apiBreadcrumbs, systemBreadcrumbs, mcpBreadcrumbs } from '../telemetry/BreadcrumbTracker';
 
 /** Default prompt timeout in seconds */
 const DEFAULT_PROMPT_TIMEOUT_SECONDS = 300;
@@ -70,18 +110,6 @@ const PROMPT_TIMEOUT_MAX_SECONDS = 3600;
 const TEXT_ATTACHMENT_BLOCK_BYTES = 1024 * 1024;
 const CONTEXT_OVERFLOW_REASONS = new Set(['context_window_exceeded', 'single_request_too_large', 'request_body_too_large']);
 const CONTEXT_RISK_TEXT_EXTENSIONS = new Set(['.txt', '.md', '.markdown', '.json', '.jsonl', '.csv', '.tsv', '.xml', '.yaml', '.yml', '.log']);
-import { hasCronCommands } from './CronCommandDetector';
-import { detectChannelQueryIntent, executeChannelInfoCommand, type ChannelQueryCommand } from './ChannelInfoDetector';
-import { extractTextFromMessage, processCronInMessage } from './MessageMiddleware';
-import { processAtFileReferences } from './acp/AcpAtFileProcessor';
-import { StreamTextBuffer, CronTextAccumulator, filterThinkTagsFromMessage, preprocessContentMessage } from './acp/AcpMessagePipeline';
-import { clearAcpSessionId, saveAcpSessionId, saveSessionMode, saveModelId, saveContextUsage } from './acp/AcpPersistence';
-import { extractLatestScodeAssistantUsageFromJsonl, findScodeSessionFile, normalizePromptUsageForMessage, SCODE_LATE_RECONCILIATION_DEFAULTS } from './acpUsageReconciliation';
-import { resolveImageConfig, callImagesGenerations, callImagesEdits, saveImageResult, resolveChatModel, callChatCompletionsWithImage, readSudorouterCredentials } from '../bridge/imageGenerationBridge';
-import { resolveWorkspaceSkillsDir } from '../utils/workspaceSkillsDir';
-import { readAssistantResource, ruleFilePattern } from '@process/utils/assistantResources';
-import { app } from 'electron';
-import { protectUnsupportedAcpSlashPrompt } from '@/common/slash/sudoworkCommands';
 
 /** Enable ACP performance diagnostics via ACP_PERF=1 */
 const ACP_PERF_LOG = process.env.ACP_PERF === '1';
@@ -556,7 +584,9 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
             const errMsg = error instanceof Error ? error.message : String(error);
             mainWarn('ACP', `Failed to set model from settings: ${errMsg}`);
             if (errMsg.includes('model_not_found') || errMsg.includes('无可用渠道')) {
-              this.emitErrorMessage(`Model "${configuredModel}" is not available on your API relay service. ` + `Please add this model to your relay's channel configuration, ` + `or update ANTHROPIC_MODEL in ~/.claude/settings.json to a supported model name. ` + `Falling back to the relay's default model.`);
+              this.emitErrorMessage(
+                `Model "${configuredModel}" is not available on your API relay service. ` + `Please add this model to your relay's channel configuration, ` + `or update ANTHROPIC_MODEL in ~/.claude/settings.json to a supported model name. ` + `Falling back to the relay's default model.`
+              );
             }
           }
         }
@@ -618,7 +648,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
         await this.createOrResumeSession();
         this.emitStatusMessage('authenticated');
         return;
-      } catch (_err) {
+      } catch {
         // Need auth
       }
 
@@ -632,10 +662,10 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
         await this.createOrResumeSession();
         this.emitStatusMessage('authenticated');
         return;
-      } catch (error) {
+      } catch {
         this.emitStatusMessage('error');
       }
-    } catch (error) {
+    } catch {
       this.emitStatusMessage('error');
     }
   }
@@ -792,25 +822,25 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
       // Intercept /model slash command locally so model switching does not depend on backend command support.
       const modelMatch = data.content.trim().match(/^\/model(?:\s+(.*))?$/);
       if (modelMatch !== null) {
-        return await this.handleModelCommand(modelMatch, data);
+        return await this.handleModelCommand(modelMatch);
       }
 
       // Intercept /image sub-commands
       const imageMatch = data.content.trim().match(/^\/image(?:\s+([\s\S]+))?$/);
       if (imageMatch !== null) {
-        return await this.handleImageCommand((imageMatch[1] || '').trim(), data);
+        return await this.handleImageCommand((imageMatch[1] || '').trim());
       }
 
       // Intercept /browser sub-commands (open / status / eval / screenshot)
       const browserMatch = data.content.trim().match(/^\/browser(?:\s+([\s\S]+))?$/);
       if (browserMatch !== null) {
-        return await this.handleBrowserCommand((browserMatch[1] || '').trim(), data);
+        return await this.handleBrowserCommand((browserMatch[1] || '').trim());
       }
 
       // Intercept channel query intent (natural language)
       const channelQueryCommand = detectChannelQueryIntent(data.content);
       if (channelQueryCommand) {
-        return await this.handleChannelQueryIntent(channelQueryCommand, data.msg_id);
+        return await this.handleChannelQueryIntent(channelQueryCommand);
       }
 
       const initStart = Date.now();
@@ -1561,7 +1591,7 @@ This identity statement takes priority over the default identity in USER.md.
 
     // 2. Respond to pending permission requests with Cancelled
     //    (ACP spec: client MUST do this when cancelling)
-    for (const [callId, pending] of this.pendingPermissions) {
+    for (const [_callId, pending] of this.pendingPermissions) {
       pending.reject(new Error('Cancelled'));
     }
     this.pendingPermissions.clear();
@@ -3633,7 +3663,7 @@ This identity statement takes priority over the default identity in USER.md.
     }
   }
 
-  private async handleModelCommand(modelMatch: RegExpMatchArray, data: { msg_id?: string }): Promise<AcpResult> {
+  private async handleModelCommand(modelMatch: RegExpMatchArray): Promise<AcpResult> {
     const modelArg = (modelMatch[1] || '').trim();
     const responseMsgId = uuid();
 
@@ -3725,7 +3755,7 @@ This identity statement takes priority over the default identity in USER.md.
     return { success: true, data: null };
   }
 
-  private async handleImageCommand(args: string, data: { msg_id?: string }): Promise<AcpResult> {
+  private async handleImageCommand(args: string): Promise<AcpResult> {
     const responseMsgId = uuid();
     const saveDir = this.workspace || '.';
 
@@ -3853,7 +3883,7 @@ This identity statement takes priority over the default identity in USER.md.
    *   /browser eval <js>       — run JS in the active tab, stream result back
    *   /browser screenshot      — capture the active tab and return as image
    */
-  private async handleBrowserCommand(args: string, data: { msg_id?: string }): Promise<AcpResult> {
+  private async handleBrowserCommand(args: string): Promise<AcpResult> {
     const responseMsgId = uuid();
     ipcBridge.acpConversation.responseStream.emit({
       type: 'start',
@@ -3942,7 +3972,7 @@ This identity statement takes priority over the default identity in USER.md.
     return { success: true, data: null };
   }
 
-  private async handleChannelQueryIntent(command: ChannelQueryCommand, msg_id?: string): Promise<AcpResult> {
+  private async handleChannelQueryIntent(command: ChannelQueryCommand): Promise<AcpResult> {
     const responseMsgId = uuid();
 
     ipcBridge.acpConversation.responseStream.emit({

@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { useEffect, useState } from 'react';
 import { ipcBridge } from '@/common';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
 import { useTenantConfig } from '@/renderer/context/TenantConfigContext';
-import { useEffect, useState } from 'react';
 
 /**
  * Whether tool calls are shown in the chat stream.

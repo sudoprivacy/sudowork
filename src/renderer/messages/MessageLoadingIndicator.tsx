@@ -1,7 +1,7 @@
 import React from 'react';
 import classNames from 'classnames';
-import sudoclawProDark from '@/renderer/assets/sudoclaw_transparent_large.png';
 import { useTranslation } from 'react-i18next';
+import sudoclawProDark from '@/renderer/assets/sudoclaw_transparent_large.png';
 
 const sudoclawProWhite = sudoclawProDark;
 

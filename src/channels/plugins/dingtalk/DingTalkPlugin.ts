@@ -4,16 +4,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { DWClient, TOPIC_ROBOT, TOPIC_CARD, EventAck } from 'dingtalk-stream';
-import type { DWClientDownStream } from 'dingtalk-stream';
 import fs from 'fs';
 import path from 'path';
 import https from 'https';
+import { DWClient, TOPIC_ROBOT, TOPIC_CARD, EventAck } from 'dingtalk-stream';
+import type { DWClientDownStream } from 'dingtalk-stream';
 
+import { mainLog, mainWarn, mainError } from '@/process/utils/mainLogger';
 import type { BotInfo, IChannelPluginConfig, IUnifiedOutgoingMessage, PluginType } from '../../types';
 import { BasePlugin } from '../BasePlugin';
-import { DINGTALK_MESSAGE_LIMIT, encodeChatId, extractCardAction, parseChatId, toDingTalkSendParams, toUnifiedIncomingMessage, convertHtmlToDingTalkMarkdown, getDefaultExtension, getDefaultMimeType, extractMediaDownloadInfo, setMediaLocalPath, getUploadMediaType, getDingTalkFileType } from './DingTalkAdapter';
-import { mainLog, mainWarn, mainError } from '@/process/utils/mainLogger';
+import { DINGTALK_MESSAGE_LIMIT, encodeChatId, extractCardAction, parseChatId, toDingTalkSendParams, toUnifiedIncomingMessage, getDefaultExtension, extractMediaDownloadInfo, setMediaLocalPath, getUploadMediaType, getDingTalkFileType } from './DingTalkAdapter';
 import type { DingTalkStreamMessage } from './DingTalkAdapter';
 
 /**
@@ -29,7 +29,7 @@ const EVENT_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 const EVENT_CACHE_CLEANUP_INTERVAL = 60 * 1000; // 1 minute
 
 // Reconnection settings
-const RECONNECT_INITIAL_DELAY = 1000;  // 1 second
+const RECONNECT_INITIAL_DELAY = 1000; // 1 second
 const RECONNECT_MAX_DELAY = 60 * 1000; // 60 seconds
 const RECONNECT_BACKOFF_FACTOR = 2;
 const HEALTH_CHECK_INTERVAL = 30 * 1000; // 30 seconds
@@ -250,7 +250,9 @@ export class DingTalkPlugin extends BasePlugin {
     if (this.client) {
       try {
         this.client.disconnect();
-      } catch {}
+      } catch {
+        console.log('e');
+      }
       this.client = null;
     }
 
@@ -285,10 +287,7 @@ export class DingTalkPlugin extends BasePlugin {
         })
         .catch((error) => {
           mainError('DingTalkPlugin', 'Reconnection failed:', error);
-          this.reconnectDelay = Math.min(
-            this.reconnectDelay * RECONNECT_BACKOFF_FACTOR,
-            RECONNECT_MAX_DELAY
-          );
+          this.reconnectDelay = Math.min(this.reconnectDelay * RECONNECT_BACKOFF_FACTOR, RECONNECT_MAX_DELAY);
           this.scheduleReconnect();
         });
     }, this.reconnectDelay);
@@ -481,7 +480,7 @@ export class DingTalkPlugin extends BasePlugin {
     await this.ensureAccessToken();
 
     const { rawText } = toDingTalkSendParams(message);
-    let text = rawText || message.text || '';
+    const text = rawText || message.text || '';
 
     // Extract local image refs to avoid gray placeholder in AI Card
     const { cleanText, imagePaths } = this.extractLocalImageRefs(text);
@@ -857,17 +856,20 @@ export class DingTalkPlugin extends BasePlugin {
    */
   private extractLocalImageRefs(text: string): { cleanText: string; imagePaths: string[] } {
     const imagePaths: string[] = [];
-    const cleanText = text.replace(/!\[[^\]]*\]\(([^)]+)\)/g, (match, imgPath: string) => {
-      if (/^(https?:|data:|file:)/i.test(imgPath)) {
+    const cleanText = text
+      .replace(/!\[[^\]]*\]\(([^)]+)\)/g, (match, imgPath: string) => {
+        if (/^(https?:|data:|file:)/i.test(imgPath)) {
+          return match;
+        }
+        const ext = path.extname(imgPath).toLowerCase();
+        if (LOCAL_IMAGE_EXTENSIONS.includes(ext)) {
+          imagePaths.push(imgPath);
+          return '';
+        }
         return match;
-      }
-      const ext = path.extname(imgPath).toLowerCase();
-      if (LOCAL_IMAGE_EXTENSIONS.includes(ext)) {
-        imagePaths.push(imgPath);
-        return '';
-      }
-      return match;
-    }).replace(/\n{3,}/g, '\n\n').trim();
+      })
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
     return { cleanText, imagePaths };
   }
 
@@ -1296,13 +1298,7 @@ export class DingTalkPlugin extends BasePlugin {
     // 用 Buffer.concat 直接拼接：header / footer UTF-8 编码，文件内容保留原始字节，
     // 避免历史 `toString('binary')` + `Buffer.from(body, 'binary')` 双重 latin1
     // 往返路径中任何意外引入的非 ASCII 字符被截断为 0x?? 单字节。
-    const header = Buffer.from(
-      `--${boundary}${CRLF}` +
-        `Content-Disposition: form-data; name="media"; filename="${uploadFileName}"${CRLF}` +
-        `Content-Type: application/octet-stream${CRLF}` +
-        CRLF,
-      'utf8',
-    );
+    const header = Buffer.from(`--${boundary}${CRLF}` + `Content-Disposition: form-data; name="media"; filename="${uploadFileName}"${CRLF}` + `Content-Type: application/octet-stream${CRLF}` + CRLF, 'utf8');
     const footer = Buffer.from(`${CRLF}--${boundary}--${CRLF}`, 'utf8');
 
     const url = `${DingTalkPlugin.DINGTALK_OAPI_BASE}/media/upload?access_token=${encodeURIComponent(token)}&type=${uploadType}`;
@@ -1358,14 +1354,7 @@ export class DingTalkPlugin extends BasePlugin {
    * Send image or file message via DingTalk robot API.
    * Uses the new api.dingtalk.com endpoint with header-based auth.
    */
-  private async sendMediaViaAPI(
-    chatType: 'user' | 'group',
-    id: string,
-    mediaType: 'image' | 'file',
-    mediaId: string,
-    fileName?: string,
-    fileType?: string,
-  ): Promise<string> {
+  private async sendMediaViaAPI(chatType: 'user' | 'group', id: string, mediaType: 'image' | 'file', mediaId: string, fileName?: string, fileType?: string): Promise<string> {
     const token = await this.getAccessToken();
 
     let msgKey: string;

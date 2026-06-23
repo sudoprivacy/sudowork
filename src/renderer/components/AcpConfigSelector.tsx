@@ -4,13 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
-import type { IResponseMessage } from '@/common/ipcBridge';
-import type { AcpBackend, AcpSessionConfigOption } from '@/types/acpTypes';
 import { Button, Dropdown, Menu } from '@arco-design/web-react';
 import { Down } from '@icon-park/react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { AcpBackend, AcpSessionConfigOption } from '@/types/acpTypes';
+import type { IResponseMessage } from '@/common/ipcBridge';
+import { ipcBridge } from '@/common';
 
 /**
  * Backends that currently support ACP configOptions (e.g., thought_level).

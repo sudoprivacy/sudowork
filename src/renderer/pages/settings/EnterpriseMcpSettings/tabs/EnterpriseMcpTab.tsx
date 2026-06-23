@@ -1,10 +1,10 @@
 import React, { useMemo } from 'react';
 import { Switch, Message, Tooltip } from '@arco-design/web-react';
+import EmptyState from '@/renderer/components/base/EmptyState';
 import McpIcon from '../components/McpIcon';
 import ScopeBadge from '../components/ScopeBadge';
 import RiskLevelTag from '../components/RiskLevelTag';
 import type { EnterpriseMcpServerDto } from '../types';
-import EmptyState from '@/renderer/components/base/EmptyState';
 
 interface EnterpriseMcpTabProps {
   servers: EnterpriseMcpServerDto[];

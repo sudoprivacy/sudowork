@@ -1,6 +1,6 @@
 import useSWR from 'swr';
-import { useEnterpriseMcpClient } from './useEnterpriseMcpClient';
 import type { EnterpriseMcpServerDto } from '../types';
+import { useEnterpriseMcpClient } from './useEnterpriseMcpClient';
 
 export const MCP_SERVERS_SWR_KEY = ['enterprise-mcp', 'servers'] as const;
 

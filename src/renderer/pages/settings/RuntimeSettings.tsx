@@ -5,8 +5,8 @@
  */
 
 import React from 'react';
-import SettingsPageWrapper from './components/SettingsPageWrapper';
 import RuntimeModalContent from '@/renderer/components/SettingsModal/contents/RuntimeModalContent';
+import SettingsPageWrapper from './components/SettingsPageWrapper';
 
 const RuntimeSettings: React.FC = () => {
   return (

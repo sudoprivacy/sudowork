@@ -1,8 +1,8 @@
-import { ipcBridge } from '@/common';
-import { joinPath } from '@/common/chatLib';
 import { Image } from '@arco-design/web-react';
 import { LoadingTwo } from '@icon-park/react';
 import React, { useEffect, useMemo, useState } from 'react';
+import { joinPath } from '@/common/chatLib';
+import { ipcBridge } from '@/common';
 import { createContext } from '../utils/createContext';
 
 const [useLocalImage, LocalImageProvider, useUpdateLocalImage] = createContext({ root: '' });

@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { formatMessageTime } from '@/renderer/utils/messageTime';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import { formatMessageTime } from '@/renderer/utils/messageTime';
 
 interface MessageTimeSeparatorProps {
   timestamp: number;

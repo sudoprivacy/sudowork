@@ -4,12 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useThemeContext } from '@/renderer/context/ThemeContext';
 import { html } from '@codemirror/lang-html';
 import { history, historyKeymap } from '@codemirror/commands';
 import { keymap } from '@codemirror/view';
 import CodeMirror from '@uiw/react-codemirror';
 import React, { useMemo, useRef, useCallback } from 'react';
+import { useThemeContext } from '@/renderer/context/ThemeContext';
 import { useCodeMirrorScroll, useScrollSyncTarget } from '../../hooks/useScrollSyncHelpers';
 
 interface HTMLEditorProps {

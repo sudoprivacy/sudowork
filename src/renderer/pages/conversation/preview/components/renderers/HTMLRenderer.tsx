@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ipcBridge } from '@/common';
 import { useTypingAnimation } from '@/renderer/hooks/useTypingAnimation';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useScrollSyncTarget } from '../../hooks/useScrollSyncHelpers';
 import { generateInspectScript } from './htmlInspectScript';
 
@@ -196,9 +196,6 @@ const HTMLRenderer: React.FC<HTMLRendererProps> = ({ content, filePath, containe
   const [webviewContentHeight, setWebviewContentHeight] = useState(0); // webview 内容高度 / webview content height
   const [generatedHtmlFilePath, setGeneratedHtmlFilePath] = useState('');
   const [inlinedHtmlContent, setInlinedHtmlContent] = useState<string>(''); // 内联化后的 HTML（用于 browser iframe）/ Inlined HTML (for browser iframe)
-  const [currentTheme, setCurrentTheme] = useState<'light' | 'dark'>(() => {
-    return (document.documentElement.getAttribute('data-theme') as 'light' | 'dark') || 'light';
-  });
 
   // 检测是否在 Electron 环境 / Detect if in Electron environment
   const isElectron = useMemo(() => typeof window !== 'undefined' && window.electronAPI !== undefined, []);
@@ -244,22 +241,6 @@ const HTMLRenderer: React.FC<HTMLRendererProps> = ({ content, filePath, containe
   const isStandaloneHtmlDocument = useMemo(() => {
     return isStandaloneHtmlContent && (!effectiveFilePath || HTML_FILE_EXTENSION_PATTERN.test(effectiveFilePath));
   }, [effectiveFilePath, isStandaloneHtmlContent]);
-
-  // 监听主题变化 / Monitor theme changes
-  useEffect(() => {
-    const updateTheme = () => {
-      const theme = (document.documentElement.getAttribute('data-theme') as 'light' | 'dark') || 'light';
-      setCurrentTheme(theme);
-    };
-
-    const observer = new MutationObserver(updateTheme);
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['data-theme'],
-    });
-
-    return () => observer.disconnect();
-  }, []);
 
   // 判断是否应该直接从文件加载（支持相对资源和完整 HTML 文件）- 仅 Electron 环境
   // Determine if should load directly from file (supports relative resources and full HTML files) - Electron only

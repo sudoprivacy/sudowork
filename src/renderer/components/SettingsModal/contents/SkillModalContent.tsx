@@ -4,22 +4,22 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import AionScrollArea from '@/renderer/components/base/AionScrollArea';
-import { ipcBridge } from '@/common';
-import { eeclaw, skillHub } from '@/common/ipcBridge';
-import { resolveSkillIcon, getInstalledSkillDisplay, normalizeSkillVersion, handleSkillIconError } from '@/renderer/utils/skillDisplay';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, Spin, Message, Input, Progress, Modal, Popconfirm, Switch, Tooltip } from '@arco-design/web-react';
 import { Download, Search, Delete, Close, Shield, Lightning, UploadOne, Install, Share, Plus, Check } from '@icon-park/react';
 import classNames from 'classnames';
+import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
+import AionScrollArea from '@/renderer/components/base/AionScrollArea';
+import { ipcBridge } from '@/common';
+import { eeclaw, skillHub } from '@/common/ipcBridge';
+import { resolveSkillIcon, getInstalledSkillDisplay, normalizeSkillVersion, handleSkillIconError } from '@/renderer/utils/skillDisplay';
 import { isElectronDesktop } from '@/renderer/utils/platform';
 import { addEventListener, emitter } from '@/renderer/utils/emitter';
 import type { ISkillHubSkill, ISkillHubDetail, ISkillHubListResponse, IInstalledSkillInfo, ISkillHubMeta } from '@/common/ipcBridge';
 import { useAuth } from '@/renderer/context/AuthContext';
-import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
-import { SkillAuditSummary, SkillAuditDetailModal, SkillAuditReportModal } from './SkillAuditReport';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
+import { SkillAuditSummary, SkillAuditDetailModal, SkillAuditReportModal } from './SkillAuditReport';
 
 // ==================== Helpers ====================
 
@@ -359,7 +359,30 @@ const SkillDetailModal: React.FC<{
   auditSkillName?: string;
   /** Callback when "View Audit Details" is clicked */
   onViewAuditDetails?: (skillName: string) => void;
-}> = ({ skill, visible, onClose, isInstalled, isHubInstalled, hasVersion, latestVersionInfo, installing, downloading, installProgress, onInstall, onDownload, onUninstall, uninstalling, onGoUse, onUpdate, updating = false, installedVersion, skipApiFetch = false, hideActions = false, auditSkillName, onViewAuditDetails }) => {
+}> = ({
+  skill,
+  visible,
+  onClose,
+  isInstalled,
+  isHubInstalled,
+  hasVersion,
+  latestVersionInfo,
+  installing,
+  downloading,
+  installProgress,
+  onInstall,
+  onDownload,
+  onUninstall,
+  uninstalling,
+  onGoUse,
+  onUpdate,
+  updating = false,
+  installedVersion,
+  skipApiFetch = false,
+  hideActions = false,
+  auditSkillName,
+  onViewAuditDetails,
+}) => {
   const canUninstall = isInstalled && isHubInstalled;
   const [detail, setDetail] = useState<ISkillHubDetail | null>(null);
   const [loading, setLoading] = useState(false);
@@ -429,7 +452,9 @@ const SkillDetailModal: React.FC<{
           <div className='px-8px pb-16px'>
             {/* Icon + Name header */}
             <div className='flex flex-col items-center mb-20px'>
-              <div className='w-72px h-72px rd-14px overflow-hidden bg-fill-2 mb-12px'>{skill.icon ? <img src={skill.icon} alt={skill.display_name} className='w-full h-full object-cover' onError={handleSkillIconError} /> : <div className='w-full h-full f-center text-34px'>{skill.emoji || '📦'}</div>}</div>
+              <div className='w-72px h-72px rd-14px overflow-hidden bg-fill-2 mb-12px'>
+                {skill.icon ? <img src={skill.icon} alt={skill.display_name} className='w-full h-full object-cover' onError={handleSkillIconError} /> : <div className='w-full h-full f-center text-34px'>{skill.emoji || '📦'}</div>}
+              </div>
               <div className='font-semibold text-17px text-foreground text-center'>{skill.display_name}</div>
               {skill.categories && skill.categories.length > 0 && (
                 <div className='flex gap-4px mt-6px flex-wrap justify-center'>
@@ -634,29 +659,10 @@ const SkillModalContent: React.FC = () => {
   const { isEnterprise } = useAppMode();
 
   // Upload/Publish state for enterprise mode
-  const [uploadingSkillName, setUploadingSkillName] = useState<string | null>(null);
   const [publishingSkillName, setPublishingSkillName] = useState<string | null>(null);
 
   // Track if sync has been triggered for current tab session (avoid loop)
   const syncTriggeredRef = useRef(false);
-
-  // Tenant skills state for exclusive tab in enterprise mode
-  const [tenantSkills, setTenantSkills] = useState<
-    Array<{
-      id: string;
-      name: string;
-      displayName?: string;
-      description?: string;
-      version?: string;
-      status: 'pending' | 'approved' | 'rejected';
-      author?: string;
-      authorName?: string;
-      approvedAt?: string;
-      installed?: boolean;
-    }>
-  >([]);
-  const [tenantSkillsLoading, setTenantSkillsLoading] = useState(false);
-  const [installingTenantSkillId, setInstallingTenantSkillId] = useState<string | null>(null);
 
   // Sync status state
   const [syncStatus, setSyncStatus] = useState<{
@@ -723,7 +729,6 @@ const SkillModalContent: React.FC = () => {
       const displayName = skill.meta?.display_name || skillName;
       const description = skill.meta?.description || '';
 
-      setUploadingSkillName(skillName);
       try {
         const res = await eeclaw.uploadCustomSkill.invoke({ skillName, displayName, description });
         if (res.success && res.data) {
@@ -742,8 +747,6 @@ const SkillModalContent: React.FC = () => {
       } catch (err) {
         console.error('Failed to upload custom skill:', err);
         return { success: false, msg: String(err) };
-      } finally {
-        setUploadingSkillName(null);
       }
     },
     [fetchInstalledList, t]
@@ -859,47 +862,6 @@ const SkillModalContent: React.FC = () => {
   );
 
   // ---- Enterprise mode: Install tenant skill ----
-  const handleInstallTenantSkill = useCallback(
-    async (skillId: string, skillName: string) => {
-      if (!isElectronDesktop()) return;
-
-      setInstallingTenantSkillId(skillId);
-      try {
-        const res = await eeclaw.installTenantSkill.invoke({ skillId });
-        if (res.success && res.data) {
-          Message.success(
-            t('settings.skill.installTenantSuccess', {
-              name: skillName,
-              defaultValue: `专属技能 "${skillName}" 已安装`,
-            })
-          );
-          // Update tenant skills list to mark as installed
-          setTenantSkills((prev) => prev.map((s) => (s.id === skillId ? { ...s, installed: true } : s)));
-          await fetchInstalledList();
-          emitter.emit('skills.changed');
-        } else {
-          Message.error(
-            t('settings.skill.installTenantFailed', {
-              msg: res.msg || 'Unknown error',
-              defaultValue: `安装失败: ${res.msg || '未知错误'}`,
-            })
-          );
-        }
-      } catch (err) {
-        console.error('Failed to install tenant skill:', err);
-        Message.error(
-          t('settings.skill.installTenantFailed', {
-            msg: String(err),
-            defaultValue: `安装失败: ${String(err)}`,
-          })
-        );
-      } finally {
-        setInstallingTenantSkillId(null);
-      }
-    },
-    [fetchInstalledList, t]
-  );
-
   // ---- Fetch latest versions ----
   // Only used in personal mode to check for skill updates
   // Enterprise mode doesn't need this - versions are managed by Moss Server
@@ -1171,7 +1133,10 @@ const SkillModalContent: React.FC = () => {
   useEffect(() => {
     if (!isEnterprise || !isElectronDesktop()) return;
 
-    const handleSyncCompleted = (data: { skills: { hub: { installed: string[]; skipped: string[]; deleted: string[]; failed: Array<{ id: string; name: string; error: string }> }; tenant: { installed: string[]; skipped: string[]; deleted: string[]; failed: Array<{ id: string; name: string; error: string }> } }; assistants: { hub: { installed: string[]; skipped: string[]; deleted: string[]; failed: Array<{ id: string; name: string; error: string }> }; tenant: { installed: string[]; skipped: string[]; deleted: string[]; failed: Array<{ id: string; name: string; error: string }> } } }) => {
+    const handleSyncCompleted = (data: {
+      skills: { hub: { installed: string[]; skipped: string[]; deleted: string[]; failed: Array<{ id: string; name: string; error: string }> }; tenant: { installed: string[]; skipped: string[]; deleted: string[]; failed: Array<{ id: string; name: string; error: string }> } };
+      assistants: { hub: { installed: string[]; skipped: string[]; deleted: string[]; failed: Array<{ id: string; name: string; error: string }> }; tenant: { installed: string[]; skipped: string[]; deleted: string[]; failed: Array<{ id: string; name: string; error: string }> } };
+    }) => {
       // Merge hub and tenant results for display
       const mergedSkills = {
         installed: [...data.skills.hub.installed, ...data.skills.tenant.installed],
@@ -1224,27 +1189,6 @@ const SkillModalContent: React.FC = () => {
         console.error('Failed to trigger sync:', err);
         setSyncStatus({ syncing: false, skills: { installed: [], skipped: [], deleted: [], failed: [] }, assistants: { installed: [], skipped: [], deleted: [], failed: [] } });
       });
-  }, [isEnterprise, activeTab]);
-
-  // Fetch tenant skills when switching to exclusive tab in enterprise mode
-  useEffect(() => {
-    if (!isEnterprise || activeTab !== 'exclusive' || !isElectronDesktop()) return;
-
-    const fetchTenantSkills = async () => {
-      setTenantSkillsLoading(true);
-      try {
-        const res = await eeclaw.getTenantSkills.invoke();
-        if (res.success && res.data) {
-          setTenantSkills(res.data);
-        }
-      } catch (err) {
-        console.error('Failed to fetch tenant skills:', err);
-      } finally {
-        setTenantSkillsLoading(false);
-      }
-    };
-
-    void fetchTenantSkills();
   }, [isEnterprise, activeTab]);
 
   // Load installed list when switching to installed tab
@@ -1685,7 +1629,11 @@ const SkillModalContent: React.FC = () => {
           <Input placeholder={t('settings.skill.searchPlaceholder', { defaultValue: '搜索...' })} value={searchQuery} onChange={setSearchQuery} prefix={<Search size='14' className='text-tertiary' />} size='small' className='skill-hub-input' />
         </div>
         {activeTab === 'installed' && isElectronDesktop() && (
-          <button type='button' className='group h-34px px-4 py-0 border border-solid rd-999px flex items-center gap-8px flex-shrink-0 cursor-pointer transition-all outline-none bg-[color-mix(in_srgb,var(--color-fill-2)_84%,transparent)] border-[color-mix(in_srgb,var(--color-border-2)_70%,transparent)] hover:bg-[color-mix(in_srgb,var(--color-primary-light-1)_58%,transparent)] hover:border-[color-mix(in_srgb,var(--color-primary)_36%,transparent)]' onClick={onImportButtonClick}>
+          <button
+            type='button'
+            className='group h-34px px-4 py-0 border border-solid rd-999px flex items-center gap-8px flex-shrink-0 cursor-pointer transition-all outline-none bg-[color-mix(in_srgb,var(--color-fill-2)_84%,transparent)] border-[color-mix(in_srgb,var(--color-border-2)_70%,transparent)] hover:bg-[color-mix(in_srgb,var(--color-primary-light-1)_58%,transparent)] hover:border-[color-mix(in_srgb,var(--color-primary)_36%,transparent)]'
+            onClick={onImportButtonClick}
+          >
             <span className='w-22px h-22px rd-full f-center bg-[color-mix(in_srgb,var(--color-primary)_14%,transparent)] text-[var(--color-primary)] transition-transform group-hover:scale-105'>{isEnterprise ? <Plus size='13' /> : <UploadOne size='13' />}</span>
             <span className='flex items-baseline gap-5px leading-none'>
               <span className='text-12px font-medium text-foreground'>{isEnterprise ? t('common.create', { defaultValue: '创建' }) : t('common.upload', { defaultValue: '上传' })}</span>
@@ -1719,7 +1667,6 @@ const SkillModalContent: React.FC = () => {
               ) : (
                 <div className='grid gap-16px pb-16px' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
                   {filteredTenantSkills.map((skill) => {
-                    const skillHubId = skill.meta?.id;
                     // Tenant skills have category 'tenant'
                     return (
                       <InstalledSkillCard
@@ -1842,7 +1789,15 @@ const SkillModalContent: React.FC = () => {
                     <div className='text-13px font-medium text-foreground'>{t('settings.customSkills')}</div>
                     <span className='px-6px py-0px bg-fill-2 text-secondary text-11px rd-full leading-18px'>{customInstalledSkills.length}</span>
                   </div>
-                  {customInstalledSkills.length > 0 ? isEnterprise ? renderCustomSkillGridWithEnterpriseActions(customInstalledSkills) : renderInstalledSkillGrid(customInstalledSkills) : <div className='bg-fill-1 border border-dashed rd-12px px-14px py-18px text-12px text-tertiary'>{t('settings.noCustomSkills')}</div>}
+                  {customInstalledSkills.length > 0 ? (
+                    isEnterprise ? (
+                      renderCustomSkillGridWithEnterpriseActions(customInstalledSkills)
+                    ) : (
+                      renderInstalledSkillGrid(customInstalledSkills)
+                    )
+                  ) : (
+                    <div className='bg-fill-1 border border-dashed rd-12px px-14px py-18px text-12px text-tertiary'>{t('settings.noCustomSkills')}</div>
+                  )}
                 </section>
 
                 {/* Tenant skills section - enterprise mode only */}

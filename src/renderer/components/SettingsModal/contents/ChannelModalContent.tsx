@@ -4,25 +4,25 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { IChannelPluginStatus } from '@/channels/types';
-import type { IProvider, TProviderWithModel } from '@/common/storage';
-import { channel, webui, type IWebUIStatus } from '@/common/ipcBridge';
-import { ConfigStorage } from '@/common/storage';
-import AionScrollArea from '@/renderer/components/base/AionScrollArea';
-import { useModelProviderList } from '@/renderer/hooks/useModelProviderList';
-import type { GeminiModelSelection } from '@/renderer/pages/conversation/gemini/useGeminiModelSelection';
-import { useGeminiModelSelection } from '@/renderer/pages/conversation/gemini/useGeminiModelSelection';
 import { Input, InputNumber, Message, Select, Switch } from '@arco-design/web-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
-import ChannelItem from './channels/ChannelItem';
-import type { ChannelConfig } from './channels/types';
-import DingTalkConfigForm from './DingTalkConfigForm';
-import LarkConfigForm from './LarkConfigForm';
-import TelegramConfigForm from './TelegramConfigForm';
-import WeChatConfigForm from './WeChatConfigForm';
+import { useGeminiModelSelection } from '@/renderer/pages/conversation/gemini/useGeminiModelSelection';
+import type { GeminiModelSelection } from '@/renderer/pages/conversation/gemini/useGeminiModelSelection';
+import { useModelProviderList } from '@/renderer/hooks/useModelProviderList';
+import AionScrollArea from '@/renderer/components/base/AionScrollArea';
+import { ConfigStorage } from '@/common/storage';
+import { channel, webui, type IWebUIStatus } from '@/common/ipcBridge';
+import type { IProvider, TProviderWithModel } from '@/common/storage';
+import type { IChannelPluginStatus } from '@/channels/types';
 import WeComConfigForm from './WeComConfigForm';
+import WeChatConfigForm from './WeChatConfigForm';
+import TelegramConfigForm from './TelegramConfigForm';
+import LarkConfigForm from './LarkConfigForm';
+import DingTalkConfigForm from './DingTalkConfigForm';
+import type { ChannelConfig } from './channels/types';
+import ChannelItem from './channels/ChannelItem';
 
 type ChannelModelConfigKey = 'assistant.telegram.defaultModel' | 'assistant.lark.defaultModel' | 'assistant.dingtalk.defaultModel' | 'assistant.wechat.defaultModel' | 'assistant.wecom.defaultModel';
 
@@ -677,7 +677,13 @@ const ChannelModalContent: React.FC = () => {
               return (
                 <div key={`${pluginType}-${field.key}`} className='space-y-6px'>
                   <div className='text-13px text-foreground'>{label}</div>
-                  <Select value={typeof rawValue === 'string' ? rawValue : undefined} options={(field.options || []).map((option) => ({ label: option, value: option }))} onChange={(value) => updateExtensionFieldValue(pluginType, field.key, String(value))} placeholder={t('settings.channels.extension.selectPlaceholder', { defaultValue: 'Please select' })} allowClear />
+                  <Select
+                    value={typeof rawValue === 'string' ? rawValue : undefined}
+                    options={(field.options || []).map((option) => ({ label: option, value: option }))}
+                    onChange={(value) => updateExtensionFieldValue(pluginType, field.key, String(value))}
+                    placeholder={t('settings.channels.extension.selectPlaceholder', { defaultValue: 'Please select' })}
+                    allowClear
+                  />
                 </div>
               );
             }
@@ -809,7 +815,27 @@ const ChannelModalContent: React.FC = () => {
       }));
 
     return [telegramChannel, larkChannel, dingtalkChannel, wechatChannel, wecomChannel, ...extensionChannels];
-  }, [pluginStatus, larkPluginStatus, dingtalkPluginStatus, wechatPluginStatus, wecomPluginStatus, extensionStatuses, extensionLoadingMap, telegramModelSelection, larkModelSelection, dingtalkModelSelection, wechatModelSelection, wecomModelSelection, wechatEnableLoading, wecomEnableLoading, enableLoading, larkEnableLoading, dingtalkEnableLoading, renderExtensionConfigForm, t]);
+  }, [
+    pluginStatus,
+    larkPluginStatus,
+    dingtalkPluginStatus,
+    wechatPluginStatus,
+    wecomPluginStatus,
+    extensionStatuses,
+    extensionLoadingMap,
+    telegramModelSelection,
+    larkModelSelection,
+    dingtalkModelSelection,
+    wechatModelSelection,
+    wecomModelSelection,
+    wechatEnableLoading,
+    wecomEnableLoading,
+    enableLoading,
+    larkEnableLoading,
+    dingtalkEnableLoading,
+    renderExtensionConfigForm,
+    t,
+  ]);
 
   // Get toggle handler for each channel
   const getToggleHandler = (channelId: string) => {

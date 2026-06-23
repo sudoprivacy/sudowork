@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { IRegisteredAction, ActionHandler } from './types';
-import { ChatActionNames, createSuccessResponse, createErrorResponse } from './types';
 import { createResponseActionsKeyboard } from '../plugins/telegram/TelegramKeyboards';
 import { getChannelMessageService } from '../agent/ChannelMessageService';
+import type { IRegisteredAction, ActionHandler } from './types';
+import { ChatActionNames, createSuccessResponse, createErrorResponse } from './types';
 
 /**
  * ChatActions - Handlers for chat/AI-related actions
@@ -21,7 +21,7 @@ import { getChannelMessageService } from '../agent/ChannelMessageService';
  * Note: The actual AI processing is handled by ActionExecutor
  * This handler just prepares the response format
  */
-export const handleChatSend: ActionHandler = async (context) => {
+export const handleChatSend: ActionHandler = async () => {
   // This action is special - it triggers AI processing
   // The ActionExecutor will handle the actual AI call
   // This handler is a placeholder for the action registration
@@ -55,7 +55,7 @@ export const handleChatRegenerate: ActionHandler = async (context, params) => {
 /**
  * Handle chat.continue - Continue the AI response
  */
-export const handleChatContinue: ActionHandler = async (context, params) => {
+export const handleChatContinue: ActionHandler = async () => {
   // This will trigger a continuation
   // The ActionExecutor will handle the actual AI call
   return createSuccessResponse({
@@ -69,7 +69,7 @@ export const handleChatContinue: ActionHandler = async (context, params) => {
  * Handle action.copy - Copy response content
  * Note: Copy is handled client-side in Telegram
  */
-export const handleCopy: ActionHandler = async (context, params) => {
+export const handleCopy: ActionHandler = async () => {
   // Telegram doesn't support programmatic copy
   // We just show a toast message
   return {

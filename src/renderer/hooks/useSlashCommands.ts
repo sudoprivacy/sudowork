@@ -1,7 +1,7 @@
+import { useEffect, useRef, useState } from 'react';
 import { isSlashCommandListEnabled } from '@/common/slash/availability';
 import type { SlashCommandItem } from '@/common/slash/types';
 import { ipcBridge } from '@/common';
-import { useEffect, useRef, useState } from 'react';
 
 interface CacheEntry {
   commands: SlashCommandItem[];

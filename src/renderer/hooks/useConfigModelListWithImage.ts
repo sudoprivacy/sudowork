@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import useSWR from 'swr';
-import { ipcBridge } from '../../common';
 import { DEFAULT_IMAGE_GENERATION_MODEL } from '@/common/storage';
+import { ipcBridge } from '../../common';
 
 const useConfigModelListWithImage = () => {
   const { data } = useSWR('configModelListWithImage', () => {

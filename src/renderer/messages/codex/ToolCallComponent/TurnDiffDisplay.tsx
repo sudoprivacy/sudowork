@@ -4,12 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import React, { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { CodexToolCallUpdate } from '@/common/chatLib';
 import FileChangesPanel from '@/renderer/components/base/FileChangesPanel';
 import { useDiffPreviewHandlers } from '@/renderer/hooks/useDiffPreviewHandlers';
 import { parseDiff } from '@/renderer/utils/diffUtils';
-import React, { useMemo } from 'react';
-import { useTranslation } from 'react-i18next';
 
 type TurnDiffContent = Extract<CodexToolCallUpdate, { subtype: 'turn_diff' }>;
 

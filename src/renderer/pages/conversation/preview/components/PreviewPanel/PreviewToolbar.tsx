@@ -4,11 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { PreviewHistoryTarget } from '@/common/types/preview';
 import { Dropdown } from '@arco-design/web-react';
-import { Close } from '@icon-park/react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import type { PreviewHistoryTarget } from '@/common/types/preview';
 
 /**
  * PreviewToolbar 组件属性
@@ -204,17 +203,46 @@ interface PreviewToolbarProps {
  * Contains filename, view mode toggle, edit button, snapshot/history buttons, download button, close button, etc.
  */
 // eslint-disable-next-line max-len
-const PreviewToolbar: React.FC<PreviewToolbarProps> = ({ contentType, isMarkdown, isHTML, isEditable, isEditMode, viewMode, isSplitScreenEnabled, fileName, showOpenInSystemButton, historyTarget, snapshotSaving, showHistoryControls = true, sourceViewEnabled = true, onViewModeChange, onSplitScreenToggle, onEditClick, onExitEdit, onSaveSnapshot, onRefreshHistory, renderHistoryDropdown, onOpenInSystem, onDownload, onClose, inspectMode, onInspectModeToggle, leftExtra, rightExtra, isDirty, onSave, isSaving }) => {
+const PreviewToolbar: React.FC<PreviewToolbarProps> = ({
+  contentType,
+  isMarkdown,
+  isHTML,
+  isEditable,
+  isEditMode,
+  viewMode,
+  isSplitScreenEnabled,
+  showOpenInSystemButton,
+  historyTarget,
+  snapshotSaving,
+  showHistoryControls = true,
+  sourceViewEnabled = true,
+  onViewModeChange,
+  onSplitScreenToggle,
+  onEditClick,
+  onExitEdit,
+  onSaveSnapshot,
+  onRefreshHistory,
+  renderHistoryDropdown,
+  onOpenInSystem,
+  onDownload,
+  inspectMode,
+  onInspectModeToggle,
+  leftExtra,
+  rightExtra,
+  isDirty,
+  onSave,
+  isSaving,
+}) => {
   const { t } = useTranslation();
   const isDiff = contentType === 'diff';
   const preferActionButtonsInFront = Boolean(leftExtra);
 
-  const toolbarBtn = 'flex items-center gap-2px px-8px py-3px rd-4px cursor-pointer transition-colors duration-150 text-12px font-medium text-secondary hover:text-foreground hover:bg-bg-3';
+  const toolbarBtn = 'flex items-center gap-2px px-8px py-3px rd-4px cursor-pointer transition-colors duration-150 text-12px font-medium text-secondary hover:text-foreground';
   const toolbarBtnActive = '!text-white bg-brand hover:!text-white hover:bg-brand-hover';
   const toolbarIconSize = 12;
 
   return (
-    <div className='flex items-center justify-between h-32px px-10px bg-bg-2 flex-shrink-0 border-b overflow-x-auto'>
+    <div className='flex items-center justify-between h-32px px-10px flex-shrink-0 border-b overflow-x-auto'>
       <div className='flex items-center justify-between gap-8px w-full' style={{ minWidth: 'max-content' }}>
         {/* 左侧：Tabs（Markdown/HTML）+ 文件名 / Left: Tabs (Markdown/HTML) + Filename */}
         <div className='flex items-center h-full gap-8px'>
@@ -222,7 +250,7 @@ const PreviewToolbar: React.FC<PreviewToolbarProps> = ({ contentType, isMarkdown
             <>
               <div className='flex items-center h-full gap-0'>
                 <div
-                  className={`flex items-center h-full px-10px cursor-pointer transition-all duration-150 text-12px font-medium ${viewMode === 'source' ? 'text-brand bg-aou-2 border-b-4 border-brand' : 'text-secondary hover:text-foreground hover:bg-bg-3'}`}
+                  className={`flex items-center h-full px-10px cursor-pointer transition-all duration-150 text-12px font-medium ${viewMode === 'source' ? 'text-brand bg-aou-2 border-b-4 border-brand' : 'text-secondary hover:text-foreground'}`}
                   onClick={() => {
                     try {
                       onViewModeChange('source');
@@ -234,7 +262,7 @@ const PreviewToolbar: React.FC<PreviewToolbarProps> = ({ contentType, isMarkdown
                   {isHTML ? t('preview.code') : t('preview.source')}
                 </div>
                 <div
-                  className={`flex items-center h-full px-10px cursor-pointer transition-all duration-150 text-12px font-medium ${viewMode === 'preview' ? 'text-brand bg-aou-2 border-b-4 border-brand' : 'text-secondary hover:text-foreground hover:bg-bg-3'}`}
+                  className={`flex items-center h-full px-10px cursor-pointer transition-all duration-150 text-12px font-medium ${viewMode === 'preview' ? 'text-brand bg-aou-2 border-b-4 border-brand' : 'text-secondary hover:text-foreground'}`}
                   onClick={() => {
                     try {
                       onViewModeChange('preview');
@@ -260,7 +288,7 @@ const PreviewToolbar: React.FC<PreviewToolbarProps> = ({ contentType, isMarkdown
                     </div>
                   )}
                   <div
-                    className={`flex items-center px-8px py-3px rd-4px cursor-pointer transition-colors duration-150 ${isSplitScreenEnabled ? toolbarBtnActive : 'text-secondary hover:bg-bg-3'}`}
+                    className={`flex items-center px-8px py-3px rd-4px cursor-pointer transition-colors duration-150 ${isSplitScreenEnabled ? toolbarBtnActive : 'text-secondary'}`}
                     onClick={() => {
                       try {
                         onSplitScreenToggle();
@@ -310,7 +338,7 @@ const PreviewToolbar: React.FC<PreviewToolbarProps> = ({ contentType, isMarkdown
 
           {isEditable && isEditMode && (
             <div
-              className={`flex items-center px-8px py-3px rd-4px cursor-pointer transition-colors duration-150 ${isSplitScreenEnabled ? toolbarBtnActive : 'text-secondary hover:bg-bg-3'}`}
+              className={`flex items-center px-8px py-3px rd-4px cursor-pointer transition-colors duration-150 ${isSplitScreenEnabled ? toolbarBtnActive : 'text-secondary'}`}
               onClick={() => {
                 try {
                   onSplitScreenToggle();

@@ -4,14 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ConfigStorage, DEFAULT_IMAGE_GENERATION_MODEL, type IConfigStorageRefer, type IMcpServer } from '@/common/storage';
-import { migrateImageGenerationModelConfig, pickImageGenerationModelId } from '@/common/imageGenerationModelConfig';
-import { acpConversation, scode } from '@/common/ipcBridge';
-import { Divider, Form, Switch, Tooltip, Message, Button, Dropdown, Menu, Modal } from '@arco-design/web-react';
-import { Help, Down, Plus } from '@icon-park/react';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Divider, Form, Switch, Message, Button, Dropdown, Menu, Modal } from '@arco-design/web-react';
+import { Down, Plus } from '@icon-park/react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import useConfigModelListWithImage from '@/renderer/hooks/useConfigModelListWithImage';
+import { acpConversation, scode } from '@/common/ipcBridge';
+import { migrateImageGenerationModelConfig, pickImageGenerationModelId } from '@/common/imageGenerationModelConfig';
+import { ConfigStorage, DEFAULT_IMAGE_GENERATION_MODEL, type IConfigStorageRefer, type IMcpServer } from '@/common/storage';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import AionSelect from '@/renderer/components/base/AionSelect';
 import AddMcpServerModal from '@/renderer/pages/settings/components/AddMcpServerModal';
@@ -209,17 +208,52 @@ const ModalMcpManagementSection: React.FC<{ message: MessageInstance }> = ({ mes
           <AionScrollArea className={'max-h-360px max-h-none'} disableOverflow>
             <div className='space-y-12px'>
               {mcpServers.map((server) => (
-                <McpServerItem key={server.id} server={server} isCollapsed={mcpCollapseKey[server.id] || false} agentInstallStatus={agentInstallStatus} isServerLoading={isServerLoading} isTestingConnection={testingServers[server.id] || false} oauthStatus={oauthStatus[server.id]} isLoggingIn={loggingIn[server.id]} onToggleCollapse={() => toggleServerCollapse(server.id)} onTestConnection={handleTestMcpConnection} onEditServer={showEditMcpModal} onDeleteServer={showDeleteConfirm} onToggleServer={handleToggleMcpServer} onOAuthLogin={handleOAuthLogin} />
+                <McpServerItem
+                  key={server.id}
+                  server={server}
+                  isCollapsed={mcpCollapseKey[server.id] || false}
+                  agentInstallStatus={agentInstallStatus}
+                  isServerLoading={isServerLoading}
+                  isTestingConnection={testingServers[server.id] || false}
+                  oauthStatus={oauthStatus[server.id]}
+                  isLoggingIn={loggingIn[server.id]}
+                  onToggleCollapse={() => toggleServerCollapse(server.id)}
+                  onTestConnection={handleTestMcpConnection}
+                  onEditServer={showEditMcpModal}
+                  onDeleteServer={showDeleteConfirm}
+                  onToggleServer={handleToggleMcpServer}
+                  onOAuthLogin={handleOAuthLogin}
+                />
               ))}
               {extensionMcpServers.map((server) => (
-                <McpServerItem key={server.id} server={server} isCollapsed={mcpCollapseKey[server.id] || false} agentInstallStatus={agentInstallStatus} isServerLoading={isServerLoading} isTestingConnection={false} onToggleCollapse={() => toggleServerCollapse(server.id)} onTestConnection={handleTestMcpConnection} onEditServer={() => {}} onDeleteServer={() => {}} onToggleServer={() => Promise.resolve()} isReadOnly />
+                <McpServerItem
+                  key={server.id}
+                  server={server}
+                  isCollapsed={mcpCollapseKey[server.id] || false}
+                  agentInstallStatus={agentInstallStatus}
+                  isServerLoading={isServerLoading}
+                  isTestingConnection={false}
+                  onToggleCollapse={() => toggleServerCollapse(server.id)}
+                  onTestConnection={handleTestMcpConnection}
+                  onEditServer={() => {}}
+                  onDeleteServer={() => {}}
+                  onToggleServer={() => Promise.resolve()}
+                  isReadOnly
+                />
               ))}
             </div>
           </AionScrollArea>
         )}
       </div>
 
-      <AddMcpServerModal visible={showMcpModal} server={editingMcpServer} onCancel={hideMcpModal} onSubmit={editingMcpServer ? (serverData) => wrappedHandleEditMcpServer(editingMcpServer, serverData) : wrappedHandleAddMcpServer} onBatchImport={wrappedHandleBatchImportMcpServers} importMode={importMode} />
+      <AddMcpServerModal
+        visible={showMcpModal}
+        server={editingMcpServer}
+        onCancel={hideMcpModal}
+        onSubmit={editingMcpServer ? (serverData) => wrappedHandleEditMcpServer(editingMcpServer, serverData) : wrappedHandleAddMcpServer}
+        onBatchImport={wrappedHandleBatchImportMcpServers}
+        importMode={importMode}
+      />
 
       <Modal title={t('settings.mcpDeleteServer')} visible={deleteConfirmVisible} onCancel={hideDeleteConfirm} onOk={handleConfirmDelete} okButtonProps={{ status: 'danger' }} okText={t('common.confirm')} cancelText={t('common.cancel')}>
         <p>{t('settings.mcpDeleteConfirm')}</p>
@@ -232,26 +266,6 @@ const ToolsModalContent: React.FC = () => {
   const { t } = useTranslation();
   const [mcpMessage, mcpMessageContext] = Message.useMessage({ maxCount: 10 });
   const [imageGenerationModel, setImageGenerationModel] = useState<IConfigStorageRefer['tools.imageGenerationModel'] | undefined>();
-  const { modelListWithImage: data } = useConfigModelListWithImage();
-
-  const imageGenerationModelList = useMemo(() => {
-    if (!data) return [];
-    // Filter models that support image generation
-    // 筛选支持图片生成的模型
-    const isImageModel = (modelName: string) => {
-      const name = modelName.toLowerCase();
-      return name.includes('image') || name.includes('banana');
-    };
-    return (data || [])
-      .filter((v) => {
-        const filteredModels = v.model.filter(isImageModel);
-        return filteredModels.length > 0;
-      })
-      .map((v) => ({
-        ...v,
-        model: v.model.filter(isImageModel),
-      }));
-  }, [data]);
 
   // Sync from a *complete* config — never infer "off" from a partial that just omits `switch`.
   const syncImageGenerationModel = useCallback((modelConfig: IConfigStorageRefer['tools.imageGenerationModel']) => {
@@ -288,7 +302,7 @@ const ToolsModalContent: React.FC = () => {
       ConfigStorage.set('tools.imageGenerationModel', newImageGenerationModel).catch((error) => {
         console.error('Failed to update image generation model config:', error);
       });
-      syncImageGenerationModel(newImageGenerationModel);
+      void syncImageGenerationModel(newImageGenerationModel);
       return newImageGenerationModel;
     });
   };

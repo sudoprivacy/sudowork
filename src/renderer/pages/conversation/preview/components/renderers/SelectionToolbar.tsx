@@ -6,9 +6,9 @@
 
 import React from 'react';
 import { useFloating, offset, flip, shift, autoUpdate } from '@floating-ui/react';
-import { usePreviewContext } from '../../context/PreviewContext';
-import type { SelectionPosition } from '@/renderer/hooks/useTextSelection';
 import { useTranslation } from 'react-i18next';
+import type { SelectionPosition } from '@/renderer/hooks/useTextSelection';
+import { usePreviewContext } from '../../context/PreviewContext';
 
 interface SelectionToolbarProps {
   selectedText: string; // 选中的文本 / Selected text

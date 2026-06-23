@@ -9,10 +9,10 @@ import { IconClose, IconPaste } from '@arco-design/web-react/icon';
 import { CloseSmall, FolderOpen, Lightning } from '@icon-park/react';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import styles from '../index.module.css';
 import { useCompositionInput } from '@/renderer/hooks/useCompositionInput';
 import ContextMenu, { type ContextMenuItem } from '@/renderer/components/ContextMenu';
 import FilePreview from '@/renderer/components/FilePreview';
+import styles from '../index.module.css';
 
 type GuidInputCardProps = {
   // Input state

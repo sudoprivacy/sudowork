@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { ipcBridge } from '@/common';
 import type { PreviewContentType } from '@/common/types/preview';
 import { emitter } from '@/renderer/utils/emitter';
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 
 /** DOM 片段数据结构 / DOM snippet data structure */
 export interface DomSnippet {

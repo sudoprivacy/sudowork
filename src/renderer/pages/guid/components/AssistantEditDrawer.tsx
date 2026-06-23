@@ -47,17 +47,6 @@ const AVATAR_IMAGE_MAP: Record<string, string> = {
   '\u{1F6E0}\u{FE0F}': coworkSvg,
 };
 
-/** Built-in agent options with backend IDs for filtering */
-const AGENT_OPTIONS = [
-  { value: 'gemini', label: 'Gemini CLI', backendId: 'gemini' },
-  { value: 'claude', label: 'Claude Code', backendId: 'claude' },
-  { value: 'qwen', label: 'Qwen Code', backendId: 'qwen' },
-  { value: 'codex', label: 'Codex', backendId: 'codex' },
-  { value: 'codebuddy', label: 'CodeBuddy', backendId: 'codebuddy' },
-  { value: 'opencode', label: 'OpenCode', backendId: 'opencode' },
-  { value: 'scode', label: 'Sudo Code', backendId: 'scode' },
-] as const;
-
 const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assistantId, localeKey, onClose, onSaved }) => {
   const { t } = useTranslation();
   const { isEnterprise } = useAppMode();
@@ -75,9 +64,6 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
   // Skills state
   const [installedSkills, setInstalledSkills] = useState<IInstalledSkillInfo[]>([]);
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
-
-  // Available backends for agent selector filtering
-  const [availableBackends, setAvailableBackends] = useState<Set<string>>(new Set(['gemini']));
 
   // Current assistant data
   const [assistant, setAssistant] = useState<AssistantConfigWithMeta | null>(null);
@@ -98,20 +84,6 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
     updateWidth();
     window.addEventListener('resize', updateWidth);
     return () => window.removeEventListener('resize', updateWidth);
-  }, []);
-
-  // Load available backends
-  useEffect(() => {
-    void (async () => {
-      try {
-        const resp = await ipcBridge.acpConversation.getAvailableAgents.invoke();
-        if (resp.success && resp.data) {
-          setAvailableBackends(new Set(resp.data.map((a) => a.backend)));
-        }
-      } catch {
-        // fallback to default
-      }
-    })();
   }, []);
 
   // Load agent data when drawer opens
@@ -353,32 +325,32 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
             </Typography.Text>
             <div className='mt-10px flex items-center gap-12px'>
               {isBuiltin || isReadonly ? (
-                <Avatar shape='square' size={40} className='bg-bg-1 rounded-4px'>
+                <Avatar shape='square' size={40} className='rounded-4px'>
                   {editAvatarImage ? <img src={editAvatarImage} alt='' width={24} height={24} style={{ objectFit: 'contain' }} /> : editAvatar && isEmoji(editAvatar) ? <span className='text-24px'>{editAvatar}</span> : <Robot theme='outline' size={20} />}
                 </Avatar>
               ) : (
                 <EmojiPicker value={editAvatar} onChange={(emoji) => setEditAvatar(emoji)} placement='br'>
                   <div className='cursor-pointer'>
-                    <Avatar shape='square' size={40} className='bg-bg-1 rounded-4px hover:bg-fill-2 transition-colors'>
+                    <Avatar shape='square' size={40} className='rounded-4px hover:bg-fill-2 transition-colors'>
                       {editAvatarImage ? <img src={editAvatarImage} alt='' width={24} height={24} style={{ objectFit: 'contain' }} /> : editAvatar && isEmoji(editAvatar) ? <span className='text-24px'>{editAvatar}</span> : <Robot theme='outline' size={20} />}
                     </Avatar>
                   </div>
                 </EmojiPicker>
               )}
-              <Input value={editName} onChange={(value) => setEditName(value)} disabled={isBuiltin || isReadonly} placeholder={t('settings.agentNamePlaceholder', { defaultValue: '请输入智能体名称' })} className='flex-1 rounded-4px bg-bg-1' />
+              <Input value={editName} onChange={(value) => setEditName(value)} disabled={isBuiltin || isReadonly} placeholder={t('settings.agentNamePlaceholder', { defaultValue: '请输入智能体名称' })} className='flex-1' />
             </div>
           </div>
 
           {/* Description */}
           <div className='flex-shrink-0'>
             <Typography.Text bold>{t('settings.assistantDescription', { defaultValue: '智能体描述' })}</Typography.Text>
-            <Input className='mt-10px rounded-4px bg-bg-1' value={editDescription} onChange={(value) => setEditDescription(value)} disabled={isBuiltin || isReadonly} placeholder={t('settings.assistantDescriptionPlaceholder', { defaultValue: '帮你解决什么问题' })} />
+            <Input className='mt-10px' value={editDescription} onChange={(value) => setEditDescription(value)} disabled={isBuiltin || isReadonly} placeholder={t('settings.assistantDescriptionPlaceholder', { defaultValue: '帮你解决什么问题' })} />
           </div>
 
           {/* Main Agent - locked to Sudo Code */}
           <div className='flex-shrink-0'>
             <Typography.Text bold>{t('settings.assistantMainAgent', { defaultValue: '主智能体' })}</Typography.Text>
-            <Select className='mt-10px w-full rounded-4px' value={DEFAULT_PRESET_AGENT_TYPE} disabled>
+            <Select className='mt-10px w-full' value={DEFAULT_PRESET_AGENT_TYPE} disabled>
               <Select.Option key='scode' value='scode'>
                 <span className='flex items-center gap-6px'>
                   {getAgentLogo('scode') && <img src={getAgentLogo('scode') || undefined} alt='' width={16} height={16} style={{ objectFit: 'contain' }} />}
@@ -396,10 +368,10 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
             <div className='mt-10px border overflow-hidden rounded-4px' style={{ height: '300px' }}>
               {!isBuiltin && !isReadonly && (
                 <div className='flex items-center h-36px bg-fill-2 border-b flex-shrink-0'>
-                  <div className={`flex items-center h-full px-16px cursor-pointer transition-all text-13px font-medium ${promptViewMode === 'edit' ? 'text-primary border-b-2px border-solid border-primary bg-bg-1' : 'text-secondary hover:text-foreground'}`} onClick={() => setPromptViewMode('edit')}>
+                  <div className={`flex items-center h-full px-16px cursor-pointer transition-all text-13px font-medium ${promptViewMode === 'edit' ? 'text-primary border-b-2px border-solid border-primary' : 'text-secondary hover:text-foreground'}`} onClick={() => setPromptViewMode('edit')}>
                     {t('settings.promptEdit', { defaultValue: 'Edit' })}
                   </div>
-                  <div className={`flex items-center h-full px-16px cursor-pointer transition-all text-13px font-medium ${promptViewMode === 'preview' ? 'text-primary border-b-2px border-solid border-primary bg-bg-1' : 'text-secondary hover:text-foreground'}`} onClick={() => setPromptViewMode('preview')}>
+                  <div className={`flex items-center h-full px-16px cursor-pointer transition-all text-13px font-medium ${promptViewMode === 'preview' ? 'text-primary border-b-2px border-solid border-primary' : 'text-secondary hover:text-foreground'}`} onClick={() => setPromptViewMode('preview')}>
                     {t('settings.promptPreview', { defaultValue: 'Preview' })}
                   </div>
                 </div>

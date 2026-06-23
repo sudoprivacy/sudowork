@@ -4,6 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { FolderOpen, ShareOne } from '@icon-park/react';
+import { Message, Tooltip } from '@arco-design/web-react';
+import classNames from 'classnames';
+import React, { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { GeneratedFileEntry } from '@/common/generatedFiles';
 import { ipcBridge } from '@/common';
 import { usePreviewLauncher } from '@/renderer/hooks/usePreviewLauncher';
@@ -11,11 +16,6 @@ import { getContentTypeByExtension } from '@/renderer/pages/conversation/preview
 import { formatFileSize } from '@/renderer/services/FileService';
 import { resolveFileIcon } from '@/renderer/utils/fileIcon';
 import { emitter } from '@/renderer/utils/emitter';
-import { FolderOpen, ShareOne } from '@icon-park/react';
-import { Message, Tooltip } from '@arco-design/web-react';
-import classNames from 'classnames';
-import React, { useCallback, useEffect, useState } from 'react';
-import { useTranslation } from 'react-i18next';
 
 interface GeneratedFileCardProps {
   entry: GeneratedFileEntry;

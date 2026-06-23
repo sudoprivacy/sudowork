@@ -1,5 +1,5 @@
-import type { EnterpriseMcpClient } from './client';
 import type { EnterpriseMcpServerDto, EnterpriseMcpUserConfigItem } from '../types';
+import type { EnterpriseMcpClient } from './client';
 
 interface ListServersResponse {
   success: true;

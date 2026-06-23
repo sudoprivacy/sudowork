@@ -13,7 +13,7 @@ import useSWR, { mutate } from 'swr';
 import { useNavigate } from 'react-router-dom';
 import { ipcBridge, skillHub, assistantHub } from '@/common';
 import { eeclaw } from '@/common/ipcBridge';
-import type { IInstalledSkillInfo, IAssistantHubSkill, IAssistantHubDetail, IAssistantHubVersionLike, ISkillHubSkill } from '@/common/ipcBridge';
+import type { IInstalledSkillInfo, IAssistantHubSkill, IAssistantHubVersionLike, ISkillHubSkill } from '@/common/ipcBridge';
 import { toBackendConfig, resolveAssistantName } from '@/renderer/shared/agents/assistantAdapter';
 import type { AssistantCategory, IAssistantInfo } from '@/process/AssistantManager';
 import { resolveLocaleKey, uuid } from '@/common/utils';
@@ -116,7 +116,7 @@ type InstalledAssistantCardProps = {
   isExtension: boolean;
   localeKey: string;
   avatarImageMap: Record<string, string>;
-  onToggleEnabled: (enabled: boolean) => void;
+  onToggleEnabled: (_enabled: boolean) => void;
   onDelete: () => void;
   onDuplicate: () => void;
   onUpdate?: () => void;
@@ -240,7 +240,13 @@ const InstalledAssistantCard: React.FC<InstalledAssistantCardProps> = (props) =>
         {canToggle && <Switch size='small' checked={isEnabled} onChange={(checked) => onToggleEnabled(checked)} className={isEnabled ? '!bg-[var(--ui-accent-orange)] !border-[var(--ui-accent-orange)]' : ''} />}
         {/* Delete button - only for custom assistants that are not readonly */}
         {canDelete && (
-          <Popconfirm title={t('settings.deleteAssistantConfirmTitle', { defaultValue: '删除该助手会一并删除已关联会话。如需保留，请导出会话进行备份。是否确认删除？' })} onOk={onDelete} okText={t('common.delete', { defaultValue: '删除' })} cancelText={t('common.cancel', { defaultValue: '取消' })} okButtonProps={{ status: 'danger' }}>
+          <Popconfirm
+            title={t('settings.deleteAssistantConfirmTitle', { defaultValue: '删除该助手会一并删除已关联会话。如需保留，请导出会话进行备份。是否确认删除？' })}
+            onOk={onDelete}
+            okText={t('common.delete', { defaultValue: '删除' })}
+            cancelText={t('common.cancel', { defaultValue: '取消' })}
+            okButtonProps={{ status: 'danger' }}
+          >
             <Tooltip content={t('settings.assistant.delete', { defaultValue: '删除' })}>
               <button type='button' className='store-action-icon store-action-icon--danger'>
                 <Delete size='13' />
@@ -260,9 +266,9 @@ const HubAssistantCard: React.FC<{
   isInstalled: boolean;
   installing: boolean;
   installProgress: number;
-  onInstall: (e: React.MouseEvent) => void;
-  onUpdate?: (e: React.MouseEvent) => void;
-  onDuplicate: (e: React.MouseEvent) => void;
+  onInstall: (_e: React.MouseEvent) => void;
+  onUpdate?: (_e: React.MouseEvent) => void;
+  onDuplicate: (_e: React.MouseEvent) => void;
   onClick: () => void;
   hasUpdate?: boolean;
   updating?: boolean;
@@ -356,86 +362,6 @@ const HubAssistantCard: React.FC<{
   );
 };
 
-// ==================== TenantAssistantCard (for exclusive tab in enterprise mode) ====================
-
-const TenantAssistantCard: React.FC<{
-  assistant: {
-    id: string;
-    name: string;
-    displayName?: string;
-    description?: string;
-    version?: string;
-    status: string;
-    author?: string;
-    authorName?: string;
-    enabledSkills?: string[];
-    approvedAt?: string;
-    installed?: boolean;
-  };
-  isInstalled: boolean;
-  installing: boolean;
-  installProgress: number;
-  onDuplicate: (e: React.MouseEvent) => void;
-  onClick: () => void;
-}> = ({ assistant, isInstalled, installing, installProgress, onDuplicate, onClick }) => {
-  const { t } = useTranslation();
-
-  const displayName = assistant.displayName || (assistant as { display_name?: string }).display_name || assistant.name;
-
-  // Tenant assistants are synced from server and always considered installed
-  // Show "已安装" badge and duplicate button (same as hub installed assistants)
-
-  return (
-    <div className='library-card cursor-pointer' onClick={onClick}>
-      {/* Icon */}
-      <div className='w-48px flex-shrink-0 flex flex-col items-center'>
-        <div className='w-48px h-48px rd-8px overflow-hidden bg-fill-2'>
-          <div className='w-full h-full f-center bg-primary-light'>
-            <Robot theme='filled' size='22' className='text-primary' />
-          </div>
-        </div>
-        {/* Tenant assistants are always installed after sync */}
-      </div>
-
-      {/* Content */}
-      <div className='flex-1 min-w-0'>
-        <div className='flex items-center gap-6px pr-100px min-w-0'>
-          <span className='flex-1 min-w-0 font-medium text-13px text-foreground truncate'>{displayName}</span>
-        </div>
-        <div className='text-11px text-secondary mt-3px line-clamp-2 leading-relaxed'>{assistant.description || ''}</div>
-        {assistant.enabledSkills && assistant.enabledSkills.length > 0 && (
-          <div className='mt-4px flex items-center gap-4px'>
-            <Lightning size='12' className='text-primary flex-shrink-0' />
-            <span className='text-10px text-tertiary'>{t('settings.assistant.relatedSkills', { count: assistant.enabledSkills.length, defaultValue: `${assistant.enabledSkills.length} 个关联技能` })}</span>
-          </div>
-        )}
-      </div>
-
-      {/* Actions - top right */}
-      <div className='absolute top-10px right-10px flex items-center gap-6px' onClick={(e) => e.stopPropagation()}>
-        {/* Installing progress */}
-        {installing ? (
-          <div className='w-52px'>
-            <Progress percent={installProgress} size='mini' />
-          </div>
-        ) : (
-          /* Duplicate button - tenant assistants are always installed, show duplicate like hub */
-          <>
-            <span className='store-action-badge' style={{ backgroundColor: 'rgba(var(--ui-accent-orange-rgb), 0.10)', color: 'var(--ui-accent-orange)' }}>
-              {t('settings.assistant.installed', { defaultValue: '已安装' })}
-            </span>
-            <Tooltip content={t('settings.assistant.duplicate', { defaultValue: '复制' })}>
-              <button type='button' className='store-action-icon' onClick={onDuplicate}>
-                <Copy size='13' />
-              </button>
-            </Tooltip>
-          </>
-        )}
-      </div>
-    </div>
-  );
-};
-
 // ==================== AssistantDetailModal (for store assistants) ====================
 
 const AssistantDetailModal: React.FC<{
@@ -445,16 +371,15 @@ const AssistantDetailModal: React.FC<{
   isInstalled: boolean;
   installing: boolean;
   installProgress: number;
-  onInstall: (selectedSkillIds: string[]) => void;
+  onInstall: (_selectedSkillIds: string[]) => void;
   latestVersionInfo?: AssistantLatestVersion;
   installedVersion?: string;
-  onUpdate?: (selectedSkillIds: string[]) => void;
+  onUpdate?: (_selectedSkillIds: string[]) => void;
   updating?: boolean;
   onGoUse?: () => void;
   installedSkills: IInstalledSkillInfo[];
 }> = ({ assistant, visible, onClose, isInstalled, installing, installProgress, onInstall, latestVersionInfo, installedVersion, onUpdate, updating = false, onGoUse, installedSkills }) => {
   const { t } = useTranslation();
-  const [detail, setDetail] = useState<IAssistantHubDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [relatedSkillDetails, setRelatedSkillDetails] = useState<ISkillHubSkill[]>([]);
   const [relatedSkillTags, setRelatedSkillTags] = useState<Map<string, string>>(new Map());
@@ -491,7 +416,6 @@ const AssistantDetailModal: React.FC<{
   // Fetch assistant detail and related skill details
   useEffect(() => {
     if (!visible || !assistant) {
-      setDetail(null);
       setRelatedSkillDetails([]);
       return;
     }
@@ -502,15 +426,6 @@ const AssistantDetailModal: React.FC<{
     const fetchData = async () => {
       try {
         if (isElectronDesktop()) {
-          // In enterprise mode, skip SkillHub API calls - only use local data
-          if (!isEnterprise) {
-            // Fetch assistant detail from Hub (personal mode only)
-            const res = await assistantHub.fetchAssistantDetail.invoke({ assistantId: assistant.id });
-            if (res.success && res.data) {
-              setDetail(res.data);
-            }
-          }
-
           // Fetch related skill details by IDs
           const skillIds = assistant.skills || [];
           if (skillIds.length > 0) {
@@ -703,7 +618,9 @@ const AssistantDetailModal: React.FC<{
                                 </div>
                                 <div className='text-11px text-tertiary truncate'>{skill.description}</div>
                               </div>
-                              <span className={`px-4px py-0px text-10px rd-3px whitespace-nowrap ${isSkillInstalled ? 'bg-primary-light text-primary' : 'bg-fill-3 text-secondary'}`}>{isSkillInstalled ? t('settings.skill.installed', { defaultValue: '已安装' }) : t('settings.skill.notInstalled', { defaultValue: '未安装' })}</span>
+                              <span className={`px-4px py-0px text-10px rd-3px whitespace-nowrap ${isSkillInstalled ? 'bg-primary-light text-primary' : 'bg-fill-3 text-secondary'}`}>
+                                {isSkillInstalled ? t('settings.skill.installed', { defaultValue: '已安装' }) : t('settings.skill.notInstalled', { defaultValue: '未安装' })}
+                              </span>
                             </div>
                           );
                         })}
@@ -781,7 +698,6 @@ const AgentModalContent: React.FC = () => {
   // Skills state
   const [installedSkills, setInstalledSkills] = useState<IInstalledSkillInfo[]>([]);
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
-  const [availableBackends, setAvailableBackends] = useState<Set<string>>(new Set(['gemini']));
   const textareaWrapperRef = useRef<HTMLDivElement>(null);
 
   // Hub state (for store/exclusive tabs)
@@ -826,30 +742,10 @@ const AgentModalContent: React.FC = () => {
   const { isEnterprise } = useAppMode();
 
   // Upload/Publish state for enterprise mode
-  const [uploadingAssistantName, setUploadingAssistantName] = useState<string | null>(null);
   const [publishingAssistantName, setPublishingAssistantName] = useState<string | null>(null);
 
   // Track if sync has been triggered for current tab session (avoid loop)
   const syncTriggeredRef = useRef(false);
-
-  // Tenant assistants state for exclusive tab in enterprise mode
-  const [tenantAssistants, setTenantAssistants] = useState<
-    Array<{
-      id: string;
-      name: string;
-      displayName?: string;
-      description?: string;
-      version?: string;
-      status: 'pending' | 'approved' | 'rejected';
-      author?: string;
-      authorName?: string;
-      enabledSkills?: string[];
-      approvedAt?: string;
-      installed?: boolean;
-    }>
-  >([]);
-  const [tenantAssistantsLoading, setTenantAssistantsLoading] = useState(false);
-  const [installingTenantAssistantId, setInstallingTenantAssistantId] = useState<string | null>(null);
 
   // Sync status state
   const [syncStatus, setSyncStatus] = useState<{
@@ -867,7 +763,7 @@ const AgentModalContent: React.FC = () => {
   );
 
   // Extension data
-  const { data: extensionAcpAdapters } = useSWR('extensions.acpAdapters', () => ipcBridge.extensions.getAcpAdapters.invoke().catch(() => [] as Record<string, unknown>[]));
+  useSWR('extensions.acpAdapters', () => ipcBridge.extensions.getAcpAdapters.invoke().catch(() => [] as Record<string, unknown>[]));
   const { data: extensionAssistants } = useSWR('extensions.assistants', () => ipcBridge.extensions.getAssistants.invoke().catch(() => [] as Record<string, unknown>[]));
 
   const normalizedExtensionAssistants = React.useMemo<AssistantListItem[]>(() => {
@@ -927,20 +823,6 @@ const AgentModalContent: React.FC = () => {
     updateDrawerWidth();
     window.addEventListener('resize', updateDrawerWidth);
     return () => window.removeEventListener('resize', updateDrawerWidth);
-  }, []);
-
-  // Load available agent backends
-  useEffect(() => {
-    void (async () => {
-      try {
-        const resp = await ipcBridge.acpConversation.getAvailableAgents.invoke();
-        if (resp.success && resp.data) {
-          setAvailableBackends(new Set(resp.data.map((a) => a.backend)));
-        }
-      } catch {
-        // fallback to default
-      }
-    })();
   }, []);
 
   // Load installed skills
@@ -1235,7 +1117,10 @@ const AgentModalContent: React.FC = () => {
   useEffect(() => {
     if (!isEnterprise || !isElectronDesktop()) return;
 
-    const handleSyncCompleted = (data: { skills: { hub: { installed: string[]; skipped: string[]; deleted: string[]; failed: Array<{ id: string; name: string; error: string }> }; tenant: { installed: string[]; skipped: string[]; deleted: string[]; failed: Array<{ id: string; name: string; error: string }> } }; assistants: { hub: { installed: string[]; skipped: string[]; deleted: string[]; failed: Array<{ id: string; name: string; error: string }> }; tenant: { installed: string[]; skipped: string[]; deleted: string[]; failed: Array<{ id: string; name: string; error: string }> } } }) => {
+    const handleSyncCompleted = (data: {
+      skills: { hub: { installed: string[]; skipped: string[]; deleted: string[]; failed: Array<{ id: string; name: string; error: string }> }; tenant: { installed: string[]; skipped: string[]; deleted: string[]; failed: Array<{ id: string; name: string; error: string }> } };
+      assistants: { hub: { installed: string[]; skipped: string[]; deleted: string[]; failed: Array<{ id: string; name: string; error: string }> }; tenant: { installed: string[]; skipped: string[]; deleted: string[]; failed: Array<{ id: string; name: string; error: string }> } };
+    }) => {
       // Merge hub and tenant results for display
       const mergedSkills = {
         installed: [...data.skills.hub.installed, ...data.skills.tenant.installed],
@@ -1290,27 +1175,6 @@ const AgentModalContent: React.FC = () => {
         console.error('Failed to trigger sync:', err);
         setSyncStatus({ syncing: false, skills: { installed: [], skipped: [], deleted: [], failed: [] }, assistants: { installed: [], skipped: [], deleted: [], failed: [] } });
       });
-  }, [isEnterprise, activeTab]);
-
-  // Fetch tenant assistants when switching to exclusive tab in enterprise mode
-  useEffect(() => {
-    if (!isEnterprise || activeTab !== 'exclusive' || !isElectronDesktop()) return;
-
-    const fetchTenantAssistants = async () => {
-      setTenantAssistantsLoading(true);
-      try {
-        const res = await eeclaw.getTenantAssistants.invoke();
-        if (res.success && res.data) {
-          setTenantAssistants(res.data);
-        }
-      } catch (err) {
-        console.error('Failed to fetch tenant assistants:', err);
-      } finally {
-        setTenantAssistantsLoading(false);
-      }
-    };
-
-    void fetchTenantAssistants();
   }, [isEnterprise, activeTab]);
 
   // IntersectionObserver for infinite scroll
@@ -1667,14 +1531,6 @@ const AgentModalContent: React.FC = () => {
     setDuplicateConfirmVisible(true);
   }, []);
 
-  // Open duplicate confirm modal for tenant assistant (enterprise mode)
-  const handleOpenDuplicateModalFromTenant = useCallback((assistant: { id: string; name: string; displayName?: string; description?: string; enabledSkills?: string[] }) => {
-    setDuplicateAssistant(null);
-    setDuplicateInstalledAssistant(null);
-    setDuplicateTenantAssistant(assistant);
-    setDuplicateConfirmVisible(true);
-  }, []);
-
   // Open upload confirm modal for custom assistant
   const handleUploadAssistant = useCallback(
     (assistant: AssistantListItem) => {
@@ -1751,7 +1607,6 @@ const AgentModalContent: React.FC = () => {
       const description = assistant.descriptionI18n?.[localeKey] || assistant.description || '';
       const assistantId = assistant.id; // UUID for server reference
 
-      setUploadingAssistantName(assistantName);
       try {
         console.log('[handleUploadCustomAssistant] Calling eeclaw.uploadCustomAssistant.invoke with:', { assistantName, assistantId, displayName, description });
         const res = await eeclaw.uploadCustomAssistant.invoke({
@@ -1778,8 +1633,6 @@ const AgentModalContent: React.FC = () => {
       } catch (err) {
         console.error('Failed to upload custom assistant:', err);
         return { success: false, msg: String(err) };
-      } finally {
-        setUploadingAssistantName(null);
       }
     },
     [localeKey, loadAssistants, t]
@@ -2009,47 +1862,6 @@ const AgentModalContent: React.FC = () => {
     }
   }, [duplicateAssistant, duplicateInstalledAssistant, duplicateTenantAssistant, hubInstalledAssistants, localeKey, loadAssistants, t, isEnterprise, handleUploadCustomAssistant]);
 
-  // ---- Enterprise mode: Install tenant assistant ----
-  const handleInstallTenantAssistant = useCallback(
-    async (assistantId: string, assistantName: string) => {
-      if (!isElectronDesktop()) return;
-
-      setInstallingTenantAssistantId(assistantId);
-      try {
-        const res = await eeclaw.installTenantAssistant.invoke({ assistantId });
-        if (res.success && res.data) {
-          agentMessage.success(
-            t('settings.assistant.installTenantSuccess', {
-              name: assistantName,
-              defaultValue: `专属助手 "${assistantName}" 已安装`,
-            })
-          );
-          // Update tenant assistants list to mark as installed
-          setTenantAssistants((prev) => prev.map((a) => (a.id === assistantId ? { ...a, installed: true } : a)));
-          void loadAssistants();
-        } else {
-          agentMessage.error(
-            t('settings.assistant.installTenantFailed', {
-              msg: res.msg || 'Unknown error',
-              defaultValue: `安装失败: ${res.msg || '未知错误'}`,
-            })
-          );
-        }
-      } catch (err) {
-        console.error('Failed to install tenant assistant:', err);
-        agentMessage.error(
-          t('settings.assistant.installTenantFailed', {
-            msg: String(err),
-            defaultValue: `安装失败: ${String(err)}`,
-          })
-        );
-      } finally {
-        setInstallingTenantAssistantId(null);
-      }
-    },
-    [loadAssistants, t]
-  );
-
   const activeAssistant = assistants.find((assistant) => assistant.id === activeAssistantId) || null;
   // Only custom assistants can be edited; hub/tenant-installed, builtin, and extension assistants are readonly
   const isReadonlyAssistant = Boolean(activeAssistant && (isExtensionAssistant(activeAssistant) || activeAssistant._isHubInstalled || activeAssistant.isBuiltin || (isEnterprise && (activeAssistant._category === 'hub' || activeAssistant._category === 'tenant'))));
@@ -2069,8 +1881,6 @@ const AgentModalContent: React.FC = () => {
   }, [hubSearchQuery, localTenantAssistants, localeKey]);
   // Hub assistants: 目录分类为 hub（_isHubInstalled 仅作兼容兜底）
   const hubAssistants = useMemo(() => assistants.filter((a) => a._category === 'hub' || (!a._category && !a.isBuiltin && a._isHubInstalled)), [assistants]);
-  // Builtin assistants: 目录分类为 system 或 isBuiltin 为 true
-  const builtinAssistants = useMemo(() => assistants.filter((a) => a._category === 'system' || a.isBuiltin || isExtensionAssistant(a)), [assistants, isExtensionAssistant]);
   // Custom assistants: 目录分类为 custom（其他字段仅作兼容兜底）
   const customAssistants = useMemo(() => assistants.filter((a) => a._category === 'custom' || (!a._category && !a.isBuiltin && !a._isHubInstalled && !isExtensionAssistant(a))), [assistants, isExtensionAssistant]);
 
@@ -2304,19 +2114,6 @@ const AgentModalContent: React.FC = () => {
     }
   };
 
-  const handleDeleteClick = () => {
-    if (!activeAssistant) return;
-    if (activeAssistant.isBuiltin) {
-      agentMessage.warning(t('settings.cannotDeleteBuiltin', { defaultValue: 'Cannot delete builtin assistants' }));
-      return;
-    }
-    if (isExtensionAssistant(activeAssistant)) {
-      agentMessage.warning(t('settings.extensionAssistantReadonly', { defaultValue: 'Extension assistants are read-only. You can duplicate it and edit the copy.' }));
-      return;
-    }
-    setDeleteConfirmVisible(true);
-  };
-
   const handleDeleteConfirm = async () => {
     if (!activeAssistant) return;
     try {
@@ -2451,7 +2248,21 @@ const AgentModalContent: React.FC = () => {
             </Tooltip>
           ) : undefined;
 
-        return <InstalledAssistantCard key={assistantId} assistant={assistant} isExtension={isExtensionAssistant(assistant)} localeKey={localeKey} avatarImageMap={avatarImageMap} onToggleEnabled={(enabled) => void handleToggleEnabled(assistant, enabled)} onDelete={() => void handleDeleteFromCard(assistant)} onDuplicate={() => handleOpenDuplicateModalFromInstalled(assistant)} hasUpdate={false} onClick={() => void handleEdit(assistant)} enterprisePublishButton={enterprisePublishButton} />;
+        return (
+          <InstalledAssistantCard
+            key={assistantId}
+            assistant={assistant}
+            isExtension={isExtensionAssistant(assistant)}
+            localeKey={localeKey}
+            avatarImageMap={avatarImageMap}
+            onToggleEnabled={(enabled) => void handleToggleEnabled(assistant, enabled)}
+            onDelete={() => void handleDeleteFromCard(assistant)}
+            onDuplicate={() => handleOpenDuplicateModalFromInstalled(assistant)}
+            hasUpdate={false}
+            onClick={() => void handleEdit(assistant)}
+            enterprisePublishButton={enterprisePublishButton}
+          />
+        );
       })}
     </div>
   );
@@ -2499,7 +2310,11 @@ const AgentModalContent: React.FC = () => {
 
         {/* Create button — only on installed tab */}
         {activeTab === 'installed' && (
-          <button type='button' className='group h-34px px-4 py-0 border border-solid rd-999px flex items-center gap-8px flex-shrink-0 cursor-pointer transition-all outline-none bg-[color-mix(in_srgb,var(--color-fill-2)_84%,transparent)] border-[color-mix(in_srgb,var(--color-border-2)_70%,transparent)] hover:bg-[color-mix(in_srgb,var(--color-primary-light-1)_58%,transparent)] hover:border-[color-mix(in_srgb,var(--color-primary)_36%,transparent)]' onClick={() => void handleCreate()}>
+          <button
+            type='button'
+            className='group h-34px px-4 py-0 border border-solid rd-999px flex items-center gap-8px flex-shrink-0 cursor-pointer transition-all outline-none bg-[color-mix(in_srgb,var(--color-fill-2)_84%,transparent)] border-[color-mix(in_srgb,var(--color-border-2)_70%,transparent)] hover:bg-[color-mix(in_srgb,var(--color-primary-light-1)_58%,transparent)] hover:border-[color-mix(in_srgb,var(--color-primary)_36%,transparent)]'
+            onClick={() => void handleCreate()}
+          >
             <span className='w-22px h-22px rd-full f-center bg-[color-mix(in_srgb,var(--color-primary)_14%,transparent)] text-[var(--color-primary)] transition-transform group-hover:scale-105'>
               <Plus size='13' />
             </span>
@@ -2669,7 +2484,15 @@ const AgentModalContent: React.FC = () => {
                   <div className='text-13px font-medium text-foreground'>{t('settings.customAssistants', { defaultValue: '自定义智能体' })}</div>
                   <span className='px-6px py-0px bg-fill-2 text-secondary text-11px rd-full leading-18px'>{customAssistants.length}</span>
                 </div>
-                {customAssistants.length > 0 ? isEnterprise ? renderCustomAssistantGridWithEnterpriseActions(customAssistants) : renderAssistantGrid(customAssistants) : <div className='bg-fill-1 border border-dashed rd-12px px-14px py-18px text-12px text-tertiary'>{t('settings.noCustomAssistants', { defaultValue: '暂无自定义智能体' })}</div>}
+                {customAssistants.length > 0 ? (
+                  isEnterprise ? (
+                    renderCustomAssistantGridWithEnterpriseActions(customAssistants)
+                  ) : (
+                    renderAssistantGrid(customAssistants)
+                  )
+                ) : (
+                  <div className='bg-fill-1 border border-dashed rd-12px px-14px py-18px text-12px text-tertiary'>{t('settings.noCustomAssistants', { defaultValue: '暂无自定义智能体' })}</div>
+                )}
               </section>
 
               {/* Tenant assistants section - enterprise mode only */}
@@ -2691,15 +2514,6 @@ const AgentModalContent: React.FC = () => {
                 </div>
                 {hubAssistants.length > 0 ? renderAssistantGrid(hubAssistants, isEnterprise, true, !isEnterprise) : <div className='bg-fill-1 border border-dashed rd-12px px-14px py-18px text-12px text-tertiary'>{t('settings.noHubAssistants', { defaultValue: '暂无智能体库智能体' })}</div>}
               </section>
-
-              {/* Builtin assistants section - Hidden: temporarily disabled */}
-              {/* <section>
-                <div className='flex items-center justify-between gap-8px mb-10px'>
-                  <div className='text-13px font-medium text-foreground'>{t('settings.builtinAssistants', { defaultValue: '内置助手' })}</div>
-                  <span className='px-6px py-0px bg-fill-2 text-secondary text-11px rd-full leading-18px'>{builtinAssistants.length}</span>
-                </div>
-                {builtinAssistants.length > 0 ? renderAssistantGrid(builtinAssistants) : <div className='bg-fill-1 border border-dashed rd-12px px-14px py-18px text-12px text-tertiary'>{t('settings.noBuiltinAssistants', { defaultValue: '暂无内置助手' })}</div>}
-              </section> */}
             </div>
           )}
         </AionScrollArea>
@@ -2758,32 +2572,32 @@ const AgentModalContent: React.FC = () => {
               </Typography.Text>
               <div className='mt-10px flex items-center gap-12px'>
                 {activeAssistant?.isBuiltin || isReadonlyAssistant ? (
-                  <Avatar shape='square' size={40} className='bg-bg-1 rounded-4px'>
+                  <Avatar shape='square' size={40} className='rounded-lg'>
                     {editAvatarImage ? <img src={editAvatarImage} alt='' width={24} height={24} style={{ objectFit: 'contain' }} /> : editAvatar ? <span className='text-24px'>{editAvatar}</span> : <Robot theme='outline' size={20} />}
                   </Avatar>
                 ) : (
                   <EmojiPicker value={editAvatar} onChange={(emoji) => setEditAvatar(emoji)} placement='br'>
                     <div className='cursor-pointer'>
-                      <Avatar shape='square' size={40} className='bg-bg-1 rounded-4px hover:bg-fill-2 transition-colors'>
+                      <Avatar shape='square' size={40} className='rounded-lg hover:bg-fill-2 transition-colors'>
                         {editAvatarImage ? <img src={editAvatarImage} alt='' width={24} height={24} style={{ objectFit: 'contain' }} /> : editAvatar ? <span className='text-24px'>{editAvatar}</span> : <Robot theme='outline' size={20} />}
                       </Avatar>
                     </div>
                   </EmojiPicker>
                 )}
-                <Input value={editName} onChange={(value) => setEditName(value)} disabled={activeAssistant?.isBuiltin || isReadonlyAssistant} placeholder={t('settings.agentNamePlaceholder', { defaultValue: 'Enter a name for this agent' })} className='flex-1 rounded-4px bg-bg-1' />
+                <Input value={editName} onChange={(value) => setEditName(value)} disabled={activeAssistant?.isBuiltin || isReadonlyAssistant} placeholder={t('settings.agentNamePlaceholder', { defaultValue: 'Enter a name for this agent' })} className='flex-1' />
               </div>
             </div>
 
             {/* Description */}
             <div className='flex-shrink-0'>
               <Typography.Text bold>{t('settings.assistantDescription', { defaultValue: '智能体描述' })}</Typography.Text>
-              <Input className='mt-10px rounded-4px bg-bg-1' value={editDescription} onChange={(value) => setEditDescription(value)} disabled={activeAssistant?.isBuiltin || isReadonlyAssistant} placeholder={t('settings.assistantDescriptionPlaceholder', { defaultValue: '帮你解决什么问题' })} />
+              <Input className='mt-10px' value={editDescription} onChange={(value) => setEditDescription(value)} disabled={activeAssistant?.isBuiltin || isReadonlyAssistant} placeholder={t('settings.assistantDescriptionPlaceholder', { defaultValue: '帮你解决什么问题' })} />
             </div>
 
             {/* Main Agent - locked to Sudo Code */}
             <div className='flex-shrink-0'>
               <Typography.Text bold>{t('settings.assistantMainAgent', { defaultValue: '主智能体' })}</Typography.Text>
-              <Select className='mt-10px w-full rounded-4px' value={DEFAULT_PRESET_AGENT_TYPE} disabled>
+              <Select className='mt-10px w-full' value={DEFAULT_PRESET_AGENT_TYPE} disabled>
                 <Select.Option key='scode' value='scode'>
                   Sudo Code
                 </Select.Option>
@@ -2795,13 +2609,13 @@ const AgentModalContent: React.FC = () => {
               <Typography.Text bold className='flex-shrink-0'>
                 {t('settings.assistantRules', { defaultValue: '规则' })}
               </Typography.Text>
-              <div className='mt-10px border overflow-hidden rounded-4px' style={{ height: '300px' }}>
+              <div className='mt-10px border overflow-hidden rounded-8px' style={{ height: '300px' }}>
                 {!activeAssistant?.isBuiltin && !isReadonlyAssistant && (
                   <div className='flex items-center h-36px bg-fill-2 border-b flex-shrink-0'>
-                    <div className={`flex items-center h-full px-16px cursor-pointer transition-all text-13px font-medium ${promptViewMode === 'edit' ? 'text-primary border-b-2px border-solid border-primary bg-bg-1' : 'text-secondary hover:text-foreground'}`} onClick={() => setPromptViewMode('edit')}>
+                    <div className={`flex items-center h-full px-16px cursor-pointer transition-all text-13px font-medium ${promptViewMode === 'edit' ? 'text-primary border-b-2px border-solid border-primary' : 'text-secondary hover:text-foreground'}`} onClick={() => setPromptViewMode('edit')}>
                       {t('settings.promptEdit', { defaultValue: 'Edit' })}
                     </div>
-                    <div className={`flex items-center h-full px-16px cursor-pointer transition-all text-13px font-medium ${promptViewMode === 'preview' ? 'text-primary border-b-2px border-solid border-primary bg-bg-1' : 'text-secondary hover:text-foreground'}`} onClick={() => setPromptViewMode('preview')}>
+                    <div className={`flex items-center h-full px-16px cursor-pointer transition-all text-13px font-medium ${promptViewMode === 'preview' ? 'text-primary border-b-2px border-solid border-primary' : 'text-secondary hover:text-foreground'}`} onClick={() => setPromptViewMode('preview')}>
                       {t('settings.promptPreview', { defaultValue: 'Preview' })}
                     </div>
                   </div>
@@ -2875,7 +2689,18 @@ const AgentModalContent: React.FC = () => {
       </Drawer>
 
       {/* Delete Confirmation Modal */}
-      <Modal title={t('settings.deleteAssistantTitle', { defaultValue: '删除智能体' })} visible={deleteConfirmVisible} onCancel={() => setDeleteConfirmVisible(false)} onOk={handleDeleteConfirm} okButtonProps={{ status: 'danger' }} okText={t('common.delete', { defaultValue: '删除' })} cancelText={t('common.cancel', { defaultValue: '取消' })} className='w-[90vw] md:w-[400px]' wrapStyle={{ zIndex: 10000 }} maskStyle={{ zIndex: 9999 }}>
+      <Modal
+        title={t('settings.deleteAssistantTitle', { defaultValue: '删除智能体' })}
+        visible={deleteConfirmVisible}
+        onCancel={() => setDeleteConfirmVisible(false)}
+        onOk={handleDeleteConfirm}
+        okButtonProps={{ status: 'danger' }}
+        okText={t('common.delete', { defaultValue: '删除' })}
+        cancelText={t('common.cancel', { defaultValue: '取消' })}
+        className='w-[90vw] md:w-[400px]'
+        wrapStyle={{ zIndex: 10000 }}
+        maskStyle={{ zIndex: 9999 }}
+      >
         <p>{t('settings.deleteAssistantConfirm', { defaultValue: '删除该智能体会一并删除已关联会话。如需保留，请导出会话进行备份。是否确认删除？' })}</p>
         {activeAssistant && (
           <div className='mt-12px p-12px bg-fill-2 rounded-lg flex items-center gap-12px'>

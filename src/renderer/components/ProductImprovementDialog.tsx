@@ -13,8 +13,8 @@
 import React, { useCallback } from 'react';
 import { Button } from '@arco-design/web-react';
 import { useTranslation } from 'react-i18next';
-import AionModal from './base/AionModal';
 import { Shield, Close } from '@icon-park/react';
+import AionModal from './base/AionModal';
 
 interface ProductImprovementDialogProps {
   /** 是否显示弹窗 */

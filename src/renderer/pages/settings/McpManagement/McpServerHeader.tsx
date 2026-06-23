@@ -1,10 +1,10 @@
-import type { IMcpServer } from '@/common/storage';
 import { Button, Dropdown, Menu, Switch, Tooltip } from '@arco-design/web-react';
 import { Check, CloseOne, CloseSmall, LoadingOne, Refresh, Write, DeleteFour, SettingOne, Login } from '@icon-park/react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import McpAgentStatusDisplay from './McpAgentStatusDisplay';
+import type { IMcpServer } from '@/common/storage';
 import type { McpOAuthStatus } from '@/renderer/hooks/mcp/useMcpOAuth';
+import McpAgentStatusDisplay from './McpAgentStatusDisplay';
 
 interface McpServerHeaderProps {
   server: IMcpServer;

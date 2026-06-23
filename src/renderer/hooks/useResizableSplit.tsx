@@ -190,7 +190,7 @@ export const useResizableSplit = (options: UseResizableSplitOptions = {}) => {
           try {
             dragHandle.setPointerCapture(pointerId);
             dragHandle.addEventListener('lostpointercapture', handleLostPointerCapture);
-          } catch (error) {
+          } catch {
             // 忽略 pointer capture 失败，继续使用备用逻辑 / Ignore failures silently
           }
         }
@@ -230,8 +230,13 @@ export const useResizableSplit = (options: UseResizableSplitOptions = {}) => {
     lineClassName?: string;
     lineStyle?: CSSProperties;
   } = {}) => (
-    <div className={classNames('group absolute top-0 bottom-0 z-20 cursor-col-resize flex items-center', linePlacement ? (linePlacement === 'start' ? 'justify-start' : 'justify-end') : reverse ? 'justify-start' : 'justify-end', className)} style={{ width: '12px', ...style }} onPointerDown={handleDragStart(reverse)} onDoubleClick={() => setSplitRatio(defaultWidth)}>
-      <span className={classNames('pointer-events-none block h-full w-2px bg-bg-3 opacity-90 rd-full transition-all duration-150 group-hover:w-6px group-hover:bg-aou-6 group-active:w-6px group-active:bg-aou-6', lineClassName)} style={lineStyle} />
+    <div
+      className={classNames('group absolute top-0 bottom-0 z-20 cursor-col-resize flex items-center', linePlacement ? (linePlacement === 'start' ? 'justify-start' : 'justify-end') : reverse ? 'justify-start' : 'justify-end', className)}
+      style={{ width: '12px', ...style }}
+      onPointerDown={handleDragStart(reverse)}
+      onDoubleClick={() => setSplitRatio(defaultWidth)}
+    >
+      <span className={classNames('pointer-events-none block h-full w-2px opacity-90 rd-full transition-all duration-150 group-hover:w-6px group-hover:bg-aou-6 group-active:w-6px group-active:bg-aou-6', lineClassName)} style={lineStyle} />
     </div>
   );
 

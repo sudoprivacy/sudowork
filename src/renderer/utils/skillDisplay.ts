@@ -6,9 +6,9 @@
 
 import type { IInstalledSkillInfo } from '@/common/ipcBridge';
 import defaultSkillIcon from '@/renderer/assets/icon-catalogue.svg';
-import uploadSkillDefaultIcon from '../../../resources/upload_skill_default.svg';
 import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import { COS_HUB_BASE, COS_LEGACY_HUB_BASE } from '@/shared/cos';
+import uploadSkillDefaultIcon from '../../../resources/upload_skill_default.svg';
 
 /** COS base URL for Hub skill icons (role-based hub bucket; primary). */
 const HUB_SKILL_ICON_COS_BASE = `${COS_HUB_BASE}/`;

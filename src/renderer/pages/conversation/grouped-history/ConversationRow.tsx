@@ -9,16 +9,16 @@ import { DeleteOne, EditOne, Export, Loading, MessageOne, Pushpin } from '@icon-
 import classNames from 'classnames';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import type { ConversationRowProps } from './types';
-import { getBackendKeyFromConversation } from './utils/exportHelpers';
-import { isConversationPinned } from './utils/groupingHelpers';
 import type { TChatConversation } from '@/common/storage';
 import { getAgentLogo } from '@/renderer/utils/agentLogo';
 import FlexFullContainer from '@/renderer/components/FlexFullContainer';
 import { usePresetAssistantInfo } from '@/renderer/hooks/usePresetAssistantInfo';
 import { useTerminalActiveCount } from '@/renderer/hooks/useTerminalActiveCount';
-import { CronJobIndicator } from '@/renderer/pages/cron';
+import CronJobIndicator from '@/renderer/pages/cron/components/CronJobIndicator';
 import { cleanupSiderTooltips, getSiderTooltipProps } from '@/renderer/utils/siderTooltip';
+import { isConversationPinned } from './utils/groupingHelpers';
+import { getBackendKeyFromConversation } from './utils/exportHelpers';
+import type { ConversationRowProps } from './types';
 
 const ConversationRow: React.FC<ConversationRowProps> = (props) => {
   const { conversation, collapsed, tooltipEnabled, batchMode, checked, selected, menuVisible } = props;

@@ -7,9 +7,9 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { init } from '@/common/ipcBridge';
+import { isElectronDesktop, isMacOS } from '@/renderer/utils/platform';
 import { useInit } from '../context/InitContext';
 import WindowControls from './WindowControls';
-import { isElectronDesktop, isMacOS } from '@/renderer/utils/platform';
 
 // Windows/Linux 显示自定义窗口按钮；macOS 由系统原生信号灯负责，避免重复
 // Windows/Linux render custom window controls; macOS relies on native traffic lights, so skip them to avoid duplicates

@@ -118,7 +118,25 @@ export function createPairingStatusCard(pairingCode: string): DingTalkCard {
 export function createPairingHelpCard(): DingTalkCard {
   return {
     title: 'Pairing Help',
-    text: ['### Pairing Help', '', '**What is pairing?**', 'Pairing links your DingTalk account with the local Sudowork application.', 'You need to pair before using the AI assistant.', '', '**How to pair:**', '1. Send any message to this bot', '2. You will receive a pairing code', '3. Open Sudowork desktop app', '4. Go to WebUI > Channels > DingTalk', '5. Click "Approve" for your code', '', '**FAQ:**', '- Pairing code valid for 10 minutes', '- Sudowork app must be running', '- One account can only pair once'].join('\n'),
+    text: [
+      '### Pairing Help',
+      '',
+      '**What is pairing?**',
+      'Pairing links your DingTalk account with the local Sudowork application.',
+      'You need to pair before using the AI assistant.',
+      '',
+      '**How to pair:**',
+      '1. Send any message to this bot',
+      '2. You will receive a pairing code',
+      '3. Open Sudowork desktop app',
+      '4. Go to WebUI > Channels > DingTalk',
+      '5. Click "Approve" for your code',
+      '',
+      '**FAQ:**',
+      '- Pairing code valid for 10 minutes',
+      '- Sudowork app must be running',
+      '- One account can only pair once',
+    ].join('\n'),
     btns: [btn('Get Pairing Code', 'pairing.show')],
   };
 }
@@ -172,7 +190,19 @@ export function createSessionStatusCard(session?: { id: string; agentType: Chann
 export function createHelpCard(): DingTalkCard {
   return {
     title: 'Sudowork Assistant Help',
-    text: ['### Sudowork Assistant Help', '', 'A remote assistant to interact with Sudowork via DingTalk.', '', '**Common Actions:**', '- New Chat - Start a new session', '- Agent - Switch AI agent', '- Status - View current session status', '- Help - Show this help message', '', 'Send a message to chat with the AI assistant.'].join('\n'),
+    text: [
+      '### Sudowork Assistant Help',
+      '',
+      'A remote assistant to interact with Sudowork via DingTalk.',
+      '',
+      '**Common Actions:**',
+      '- New Chat - Start a new session',
+      '- Agent - Switch AI agent',
+      '- Status - View current session status',
+      '- Help - Show this help message',
+      '',
+      'Send a message to chat with the AI assistant.',
+    ].join('\n'),
     btnOrientation: '0',
     btns: [btn('Features', 'help.features'), btn('Pairing Guide', 'help.pairing'), btn('Tips', 'help.tips')],
   };
@@ -184,7 +214,24 @@ export function createHelpCard(): DingTalkCard {
 export function createFeaturesCard(): DingTalkCard {
   return {
     title: 'Features',
-    text: ['### Features', '', '**AI Chat**', '- Natural language conversation', '- Streaming output, real-time display', '- Context memory support', '', '**Session Management**', '- Single session mode', '- Clear context anytime', '- View session status', '', '**Message Actions**', '- Copy reply content', '- Regenerate reply', '- Continue conversation'].join('\n'),
+    text: [
+      '### Features',
+      '',
+      '**AI Chat**',
+      '- Natural language conversation',
+      '- Streaming output, real-time display',
+      '- Context memory support',
+      '',
+      '**Session Management**',
+      '- Single session mode',
+      '- Clear context anytime',
+      '- View session status',
+      '',
+      '**Message Actions**',
+      '- Copy reply content',
+      '- Regenerate reply',
+      '- Continue conversation',
+    ].join('\n'),
     btns: [btn('Back to Help', 'help.show')],
   };
 }
@@ -195,7 +242,20 @@ export function createFeaturesCard(): DingTalkCard {
 export function createPairingGuideCard(): DingTalkCard {
   return {
     title: 'Pairing Guide',
-    text: ['### Pairing Guide', '', '**First-time Setup:**', '1. Send any message to the bot', '2. Bot displays pairing code', '3. Approve pairing in Sudowork settings', '4. Ready to use after pairing', '', '**Notes:**', '- Pairing code valid for 10 minutes', '- Sudowork app must be running', '- One DingTalk account can only pair once'].join('\n'),
+    text: [
+      '### Pairing Guide',
+      '',
+      '**First-time Setup:**',
+      '1. Send any message to the bot',
+      '2. Bot displays pairing code',
+      '3. Approve pairing in Sudowork settings',
+      '4. Ready to use after pairing',
+      '',
+      '**Notes:**',
+      '- Pairing code valid for 10 minutes',
+      '- Sudowork app must be running',
+      '- One DingTalk account can only pair once',
+    ].join('\n'),
     btns: [btn('Back to Help', 'help.show')],
   };
 }
@@ -206,7 +266,9 @@ export function createPairingGuideCard(): DingTalkCard {
 export function createTipsCard(): DingTalkCard {
   return {
     title: 'Tips',
-    text: ['### Tips', '', '**Effective Conversations:**', '- Be clear and specific', '- Feel free to ask follow-ups', '- Regenerate if not satisfied', '', '**Quick Actions:**', '- Use card buttons for quick access', '- Tap message buttons for actions', '- New chat clears history context'].join('\n'),
+    text: ['### Tips', '', '**Effective Conversations:**', '- Be clear and specific', '- Feel free to ask follow-ups', '- Regenerate if not satisfied', '', '**Quick Actions:**', '- Use card buttons for quick access', '- Tap message buttons for actions', '- New chat clears history context'].join(
+      '\n'
+    ),
     btns: [btn('Back to Help', 'help.show')],
   };
 }

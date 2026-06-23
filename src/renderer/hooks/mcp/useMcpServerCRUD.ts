@@ -8,7 +8,15 @@ import type { IMcpServer } from '@/common/storage';
  * MCP服务器CRUD操作Hook
  * 处理MCP服务器的增加、编辑、删除、启用/禁用等操作
  */
-export const useMcpServerCRUD = (mcpServers: IMcpServer[], saveMcpServers: (serversOrUpdater: IMcpServer[] | ((prev: IMcpServer[]) => IMcpServer[])) => Promise<void>, syncMcpToAgents: (server: IMcpServer, skipRecheck?: boolean) => Promise<void>, removeMcpFromAgents: (serverName: string, successMessage?: string, transportType?: string) => Promise<void>, checkSingleServerInstallStatus: (serverName: string) => Promise<void>, setAgentInstallStatus: React.Dispatch<React.SetStateAction<Record<string, string[]>>>, message: ReturnType<typeof import('@arco-design/web-react').Message.useMessage>[0]) => {
+export const useMcpServerCRUD = (
+  mcpServers: IMcpServer[],
+  saveMcpServers: (serversOrUpdater: IMcpServer[] | ((prev: IMcpServer[]) => IMcpServer[])) => Promise<void>,
+  syncMcpToAgents: (server: IMcpServer, skipRecheck?: boolean) => Promise<void>,
+  removeMcpFromAgents: (serverName: string, successMessage?: string, transportType?: string) => Promise<void>,
+  checkSingleServerInstallStatus: (serverName: string) => Promise<void>,
+  setAgentInstallStatus: React.Dispatch<React.SetStateAction<Record<string, string[]>>>,
+  message: ReturnType<typeof import('@arco-design/web-react').Message.useMessage>[0]
+) => {
   const { t } = useTranslation();
 
   // 添加MCP服务器
@@ -184,7 +192,7 @@ export const useMcpServerCRUD = (mcpServers: IMcpServer[], saveMcpServers: (serv
         } else {
           message.success(t('settings.mcpDeleted'));
         }
-      } catch (error) {
+      } catch {
         message.error(t('settings.mcpDeleteError'));
       }
     },
@@ -233,7 +241,7 @@ export const useMcpServerCRUD = (mcpServers: IMcpServer[], saveMcpServers: (serv
             return updated;
           });
         }
-      } catch (error) {
+      } catch {
         message.error(enabled ? t('settings.mcpSyncError') : t('settings.mcpRemoveError'));
       }
     },

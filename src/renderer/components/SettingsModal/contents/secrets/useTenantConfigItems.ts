@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { secret, authProxy } from '@/common/ipcBridge';
 import { buildNamespace } from '@/common/nexus/namespace';
 import { MossSecretClient } from '@/common/nexus/moss-secret-client';
@@ -11,7 +12,6 @@ import { SUDOWORK_SERVER_BASE_URL } from '@/common/sudoworkServer';
 import { ConfigStorage } from '@/common/storage';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
 import { useAuth } from '@/renderer/context/AuthContext';
-import { useCallback, useEffect, useRef, useState } from 'react';
 import type { TenantConfigEntry, TenantConfigItem, TenantConfigValues } from './types';
 
 const TENANT_ENABLED_STORAGE_KEY = 'settings.tenant.enabled';

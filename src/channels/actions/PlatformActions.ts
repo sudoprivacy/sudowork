@@ -4,12 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { IActionContext, IActionResult, IRegisteredAction, ActionHandler } from './types';
-import { PlatformActionNames, createSuccessResponse, createErrorResponse } from './types';
 import { getPairingService } from '../pairing/PairingService';
 import { createPairingCodeKeyboard, createPairingStatusKeyboard, createMainMenuKeyboard } from '../plugins/telegram/TelegramKeyboards';
 import { createPairingCard, createPairingStatusCard, createMainMenuCard, createPairingHelpCard } from '../plugins/lark/LarkCards';
 import { createMainMenuCard as createDingTalkMainMenuCard, createPairingCard as createDingTalkPairingCard, createPairingStatusCard as createDingTalkPairingStatusCard, createPairingHelpCard as createDingTalkPairingHelpCard } from '../plugins/dingtalk/DingTalkCards';
+import { PlatformActionNames, createSuccessResponse, createErrorResponse } from './types';
+import type { IRegisteredAction, ActionHandler } from './types';
 
 /**
  * PlatformActions - Handlers for platform-specific actions
@@ -98,7 +98,20 @@ export const handlePairingShow: ActionHandler = async (context) => {
 
     return createSuccessResponse({
       type: 'text',
-      text: ['🔗 <b>Device Pairing</b>', '', 'Please approve this pairing request in the Sudowork app:', '', `<code>${code}</code>`, '', `⏱ Valid for: ${expiresInMinutes} minutes`, '', '<b>Steps:</b>', '1. Open Sudowork app', '2. Go to WebUI → Channels', '3. Click "Approve" in pending pairing requests'].join('\n'),
+      text: [
+        '🔗 <b>Device Pairing</b>',
+        '',
+        'Please approve this pairing request in the Sudowork app:',
+        '',
+        `<code>${code}</code>`,
+        '',
+        `⏱ Valid for: ${expiresInMinutes} minutes`,
+        '',
+        '<b>Steps:</b>',
+        '1. Open Sudowork app',
+        '2. Go to WebUI → Channels',
+        '3. Click "Approve" in pending pairing requests',
+      ].join('\n'),
       parseMode: 'HTML',
       replyMarkup: getPairingCodeMarkup(platform, code),
     });
@@ -185,7 +198,24 @@ export const handlePairingHelp: ActionHandler = async (context) => {
 
   return createSuccessResponse({
     type: 'text',
-    text: ['❓ <b>Pairing Help</b>', '', '<b>What is pairing?</b>', `Pairing links your ${platformName} account with the local Sudowork application.`, 'You need to pair before using the AI assistant.', '', '<b>Pairing steps:</b>', '1. Get pairing code (send any message)', '2. Open Sudowork app', '3. Go to WebUI → Channels', '4. Click "Approve" in pending requests', '', '<b>FAQ:</b>', '• Pairing code valid for 10 minutes, refresh if expired', '• Sudowork app must be running', '• Ensure network connection is stable'].join('\n'),
+    text: [
+      '❓ <b>Pairing Help</b>',
+      '',
+      '<b>What is pairing?</b>',
+      `Pairing links your ${platformName} account with the local Sudowork application.`,
+      'You need to pair before using the AI assistant.',
+      '',
+      '<b>Pairing steps:</b>',
+      '1. Get pairing code (send any message)',
+      '2. Open Sudowork app',
+      '3. Go to WebUI → Channels',
+      '4. Click "Approve" in pending requests',
+      '',
+      '<b>FAQ:</b>',
+      '• Pairing code valid for 10 minutes, refresh if expired',
+      '• Sudowork app must be running',
+      '• Ensure network connection is stable',
+    ].join('\n'),
     parseMode: 'HTML',
     replyMarkup: getPairingHelpMarkup(platform),
   });

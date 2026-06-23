@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { resolveLocalFileUrl } from '@/renderer/utils/platform';
-import { usePreviewToolbarExtras } from '../../context/PreviewToolbarExtrasContext';
 import { VideoFile } from '@icon-park/react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { resolveLocalFileUrl } from '@/renderer/utils/platform';
+import { usePreviewToolbarExtras } from '../../context/PreviewToolbarExtrasContext';
 
 interface VideoViewerProps {
   filePath?: string;
@@ -45,7 +45,7 @@ const VideoViewer: React.FC<VideoViewerProps> = ({ filePath, content, fileName }
 
   if (!videoSrc) {
     return (
-      <div className='flex-1 f-center bg-bg-1 p-24px'>
+      <div className='flex-1 f-center p-24px'>
         <div className='text-center text-14px text-secondary'>{t('preview.video.pathMissing', { defaultValue: 'Video file path is missing' })}</div>
       </div>
     );
@@ -53,7 +53,7 @@ const VideoViewer: React.FC<VideoViewerProps> = ({ filePath, content, fileName }
 
   if (error) {
     return (
-      <div className='flex-1 f-center bg-bg-1 p-24px'>
+      <div className='flex-1 f-center p-24px'>
         <div className='max-w-520px text-center'>
           <div className='text-15px text-foreground mb-8px'>{error}</div>
           {filePath && <div className='text-12px text-tertiary break-all'>{filePath}</div>}

@@ -6,8 +6,6 @@
 
 import { exec } from 'child_process';
 import { promisify } from 'util';
-
-const execAsync = promisify(exec);
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -19,6 +17,8 @@ import { ExtensionRegistry } from '@/extensions';
 import { getEnhancedEnv } from '@process/utils/shellEnv';
 import { SUDOCLAW_BIN_DIR } from '@/process/services/sudoclaw/SudoclawInstallService';
 import { getScodePath } from '@/process/services/scode/ScodeInstallService';
+
+const execAsync = promisify(exec);
 
 /** Nexus bin directory for Claude/Gemini CLI symlinks */
 const NEXUS_BIN_DIR = path.join(os.homedir(), '.nexus', 'bin');

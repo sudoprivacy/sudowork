@@ -8,8 +8,8 @@ import type { BrowserWindow } from 'electron';
 import { ipcMain } from 'electron';
 
 import { bridge } from '@office-ai/platform';
-import { ADAPTER_BRIDGE_EVENT_KEY } from './constant';
 import { forwardBroadcastToAvatars } from '../process/avatarBroadcast';
+import { ADAPTER_BRIDGE_EVENT_KEY } from './constant';
 
 /**
  * Bridge event data structure for IPC communication
