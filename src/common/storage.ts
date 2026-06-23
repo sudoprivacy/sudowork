@@ -6,6 +6,7 @@
 
 import { storage } from '@office-ai/platform';
 import type { AcpBackend, AcpBackendAll, AcpBackendConfig } from '@/types/acpTypes';
+import type { IBlacklistConfig } from '@/types/security';
 
 /**
  * @description 聊天相关的存储
@@ -196,7 +197,7 @@ export interface IConfigStorageRefer {
   // Safety hook enabled state / 安全 Hook 启用状态
   'safetyHook.enabled'?: boolean;
   // Safety hook blacklist configuration / 安全 Hook 黑名单配置
-  'safetyHook.blacklist'?: import('@/types/security').IBlacklistConfig;
+  'safetyHook.blacklist'?: IBlacklistConfig;
   // 建设库 enabled state / 建设库启用状态
   'settings.jsb.enabled'?: boolean;
   'settings.tenant.enabled'?: Record<number, boolean>;
