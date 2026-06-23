@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Button, Dropdown, Empty, Input, Menu, Message, Spin, Tooltip } from '@arco-design/web-react';
-import { CheckOne, CloseOne, Copy, Delete, Down, Refresh } from '@icon-park/react';
+import { Button, Dropdown, Input, Menu, Message, Tooltip } from '@arco-design/web-react';
+import { Down } from '@icon-park/react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { IChannelPairingRequest, IChannelPluginStatus, IChannelUser } from '@/channels/types';
+import type { IChannelPluginStatus } from '@/channels/types';
 import { acpConversation, channel } from '@/common/ipcBridge';
 import { ConfigStorage } from '@/common/storage';
 import { openExternalUrl } from '@/renderer/utils/platform';
@@ -71,61 +71,10 @@ const WeComConfigForm: React.FC<WeComConfigFormProps> = ({ pluginStatus, modelSe
   const [testLoading, setTestLoading] = useState(false);
   const [_credentialsTested, setCredentialsTested] = useState(false);
   const [touched, setTouched] = useState({ botId: false, secret: false });
-  const [pairingLoading, setPairingLoading] = useState(false);
-  const [usersLoading, setUsersLoading] = useState(false);
-  const [pendingPairings, setPendingPairings] = useState<IChannelPairingRequest[]>([]);
-  const [authorizedUsers, setAuthorizedUsers] = useState<IChannelUser[]>([]);
 
   // Agent selection
   const [availableAgents, setAvailableAgents] = useState<Array<{ backend: AcpBackendAll; name: string; customAgentId?: string; isPreset?: boolean }>>([]);
   const [selectedAgent, setSelectedAgent] = useState<{ backend: AcpBackendAll; name?: string; customAgentId?: string }>({ backend: 'gemini' });
-
-  // Load pending pairings
-  const loadPendingPairings = useCallback(async () => {
-    setPairingLoading(true);
-    try {
-      const result = await channel.getPendingPairings.invoke();
-      if (result.success && result.data) {
-        setPendingPairings(result.data.filter((p) => p.platformType === 'wecom'));
-      }
-    } catch (error) {
-      console.error('[WeComConfig] Failed to load pending pairings:', error);
-    } finally {
-      setPairingLoading(false);
-    }
-  }, []);
-
-  // Load authorized users
-  const loadAuthorizedUsers = useCallback(async () => {
-    setUsersLoading(true);
-    try {
-      const result = await channel.getAuthorizedUsers.invoke();
-      if (result.success && result.data) {
-        setAuthorizedUsers(result.data.filter((u) => u.platformType === 'wecom'));
-      }
-    } catch (error) {
-      console.error('[WeComConfig] Failed to load authorized users:', error);
-    } finally {
-      setUsersLoading(false);
-    }
-  }, []);
-
-  // Initial load
-  useEffect(() => {
-    void loadPendingPairings();
-    void loadAuthorizedUsers();
-  }, [loadPendingPairings, loadAuthorizedUsers]);
-
-  // Refresh when plugin status changes
-  useEffect(() => {
-    if (pluginStatus?.enabled) {
-      void loadPendingPairings();
-      void loadAuthorizedUsers();
-    } else {
-      setPendingPairings([]);
-      setAuthorizedUsers([]);
-    }
-  }, [pluginStatus?.enabled]);
 
   // Load saved credentials for backfill (when hasToken or when disabled but credentials exist)
   useEffect(() => {
@@ -199,33 +148,6 @@ const WeComConfigForm: React.FC<WeComConfigFormProps> = ({ pluginStatus, modelSe
       Message.error(t('common.saveFailed', 'Failed to save'));
     }
   };
-
-  // Listen for pairing requests
-  useEffect(() => {
-    const unsubscribe = channel.pairingRequested.on((request) => {
-      if (request.platformType !== 'wecom') return;
-      setPendingPairings((prev) => {
-        const exists = prev.some((p) => p.code === request.code);
-        if (exists) return prev;
-        return [request, ...prev];
-      });
-    });
-    return () => unsubscribe();
-  }, []);
-
-  // Listen for user authorization
-  useEffect(() => {
-    const unsubscribe = channel.userAuthorized.on((user) => {
-      if (user.platformType !== 'wecom') return;
-      setAuthorizedUsers((prev) => {
-        const exists = prev.some((u) => u.id === user.id);
-        if (exists) return prev;
-        return [user, ...prev];
-      });
-      setPendingPairings((prev) => prev.filter((p) => p.platformUserId !== user.platformUserId));
-    });
-    return () => unsubscribe();
-  }, []);
 
   // Test WeCom connection
   const handleTestConnection = async () => {
@@ -305,83 +227,9 @@ const WeComConfigForm: React.FC<WeComConfigFormProps> = ({ pluginStatus, modelSe
     [onCredentialsChange]
   );
 
-  // Approve pairing
-  const handleApprovePairing = async (code: string) => {
-    try {
-      const result = await channel.approvePairing.invoke({ code });
-      if (result.success) {
-        Message.success(t('settings.assistant.pairingApproved', 'Pairing approved'));
-        await loadPendingPairings();
-        await loadAuthorizedUsers();
-      } else {
-        // Check if it's "already approved" - show as info instead of error
-        const errorMsg = result.msg || t('settings.assistant.approveFailed', 'Failed to approve pairing');
-        if (errorMsg.toLowerCase().includes('already')) {
-          Message.info(t('settings.assistant.pairingAlreadyApproved', 'Pairing already approved'));
-          await loadPendingPairings();
-          await loadAuthorizedUsers();
-        } else {
-          Message.error(errorMsg);
-        }
-      }
-    } catch (error: any) {
-      Message.error(error.message);
-    }
-  };
-
-  // Reject pairing
-  const handleRejectPairing = async (code: string) => {
-    try {
-      const result = await channel.rejectPairing.invoke({ code });
-      if (result.success) {
-        Message.info(t('settings.assistant.pairingRejected', 'Pairing rejected'));
-        await loadPendingPairings();
-      } else {
-        Message.error(result.msg || t('settings.assistant.rejectFailed', 'Failed to reject pairing'));
-      }
-    } catch (error: any) {
-      Message.error(error.message);
-    }
-  };
-
-  // Revoke user
-  const handleRevokeUser = async (userId: string) => {
-    try {
-      const result = await channel.revokeUser.invoke({ userId });
-      if (result.success) {
-        Message.success(t('settings.assistant.userRevoked', 'User access revoked'));
-        await loadAuthorizedUsers();
-      } else {
-        Message.error(result.msg || t('settings.assistant.revokeFailed', 'Failed to revoke user'));
-      }
-    } catch (error: any) {
-      Message.error(error.message);
-    }
-  };
-
-  // Copy to clipboard
-  const copyToClipboard = (text: string) => {
-    void navigator.clipboard.writeText(text);
-    Message.success(t('common.copySuccess', 'Copied'));
-  };
-
-  // Format timestamp
-  const formatTime = (timestamp: number) => {
-    return new Date(timestamp).toLocaleString();
-  };
-
-  // Calculate remaining time
-  const getRemainingTime = (expiresAt: number) => {
-    const remaining = Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000 / 60));
-    return `${remaining} min`;
-  };
-
-  const hasExistingUsers = authorizedUsers.length > 0;
   // Lock credentials when plugin is enabled and has valid token
   // Unlock when disabled to allow reconfiguration
   const isCredentialsLocked = pluginStatus?.enabled && pluginStatus?.hasToken;
-  // Check if we have valid credentials (either from input or hasToken)
-  const hasValidCredentials = !!(botId.trim() && secret.trim()) || !!pluginStatus?.hasToken;
   const isGeminiAgent = selectedAgent.backend === 'gemini';
   const agentOptions: Array<{ backend: AcpBackendAll; name: string; customAgentId?: string; isExtension?: boolean }> = availableAgents.length > 0 ? availableAgents : [{ backend: CHANNEL_DEFAULT_AGENT_BACKEND, name: 'Sudo Code' }];
 
