@@ -107,7 +107,7 @@ export function isEnterpriseMode(): boolean {
   try {
     // This will only work in main process where ProcessConfig is available
     // 这只在主进程中有效，因为 ProcessConfig 可用
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const processConfig = require('@process/initStorage').ProcessConfig;
     if (processConfig && processConfig.getSync) {
       const mode = processConfig.getSync('system.appMode');
