@@ -105,19 +105,16 @@ const SHA256SUMS = {
   'nexus-local-connector-macos-arm64.tar.gz': '973f42b4e7dfb040ea9a91501ca26c364640b0aaeb909ab39141b824913560a8',
   'nexus-local-connector-macos-x86_64.tar.gz': '70a53b0fab2b189883dd8c22893c18b790332bac54fe18944545e282b22dfdd8',
   'nexus-local-connector-windows-x86_64.zip': '42a5060a2afce89b90a6538bd9b9fe2b7d5c23ab7268a4a4763a620dbe77ef8d',
-  // fuse-plugin v0.1.0 — FUSE service plugin signed by kernel-dogfood-v1.pub.
-  // Linux ships from the official release; macOS dylibs are produced via the
-  // local trust-root recipe documented at
-  // nexi-lab/nexus/docs/superpowers/specs/2026-06-23-local-plugin-signing-dev-root.md
-  // while the upstream signed-release pipeline is blocked on the sealed-keystore
-  // dogfood follow-up. The macOS sums below land empty in this PR — the Mac team
-  // fills them in alongside the first signed dylib upload to the COS bucket
-  // (issue #915). Until then `installSignedKernelPlugin` refuses to install an
-  // artifact whose SHA is not listed here, so the macOS install fails closed
-  // rather than copying an unverified dylib.
-  'nexus-fuse-plugin-linux-x86_64.tar.gz': '1a8c74210ce6e9a1632fab382e21af1d0d55a976b77c4f7def3656fb1af3696b',
-  // 'nexus-fuse-plugin-macos-arm64.tar.gz': '<TBD — sealed by kernel team>',
-  // 'nexus-fuse-plugin-macos-x86_64.tar.gz': '<TBD — sealed by kernel team>',
+  // fuse-plugin v0.2.0 — FUSE service plugin signed by kernel-dogfood-v1.pub.
+  // First release to ship cross-platform binaries (linux x86_64 + macOS arm64
+  // + macOS x86_64). Sums lifted from
+  // https://github.com/nexi-lab/nexus/releases/tag/fuse-v0.2.0 via
+  // `gh release download fuse-v0.2.0 ... && sha256sum`. Bump pin when nexus
+  // tags a newer fuse-vX.Y.Z release and run the same recipe; CI's
+  // signed-plugin download integration test will catch a mismatch.
+  'nexus-fuse-plugin-linux-x86_64.tar.gz': 'b2397a6213b714fb66234dc9cdd5929cb5c3ea6f0d16e63f1b2f0ffa629aac22',
+  'nexus-fuse-plugin-macos-arm64.tar.gz': 'ce4c09e29398f8ba7a4adb8fab227fe6728c800e03920e6f58dec5e893d7358a',
+  'nexus-fuse-plugin-macos-x86_64.tar.gz': 'e90aa99388ec081246caae1bb44c85de3d9575ace0dc899bf6e6fe7534983422',
 };
 
 

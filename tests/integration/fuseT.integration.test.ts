@@ -129,22 +129,30 @@ describe('FUSE-T — eager dylib dispatch in download-nexus-vfs.js', () => {
     expect(script).toContain("'libnexus_fuse_plugin.dylib'");
   });
 
-  it('macOS fuse-plugin SHA256 sums are deliberately commented-out (fail-closed)', () => {
-    // The dispatch is wired but the verifier refuses to install without
-    // a known SHA — this is what protects users from a silent install
-    // of an unsigned dylib while the kernel-team release pipeline is
-    // blocked. If someone uncomments these without filling in real
-    // SHAs, fail-closed degrades into accept-unsigned.
-    expect(script).toMatch(/\/\/\s*'nexus-fuse-plugin-macos-arm64\.tar\.gz':/);
-    expect(script).toMatch(/\/\/\s*'nexus-fuse-plugin-macos-x86_64\.tar\.gz':/);
+  it('macOS + Linux fuse-plugin SHA256 sums are filled with 64-hex hashes', () => {
+    // Earlier in PR #916 these landed commented-out (fail-closed pending the
+    // first cross-platform fuse-vX.Y.Z release). v0.2.0 shipped all three
+    // archives, so the verifier now has real sums for every platform we
+    // dispatch to. Assert each line is a 64-char hex string — a regression
+    // like a placeholder or a truncated copy/paste would otherwise let an
+    // unverified dylib pass when CI doesn't actually exercise the macOS
+    // download path on Linux runners.
+    const expectHexLine = (artifact: string): void => {
+      const re = new RegExp(`'${artifact.replace(/[.]/g, '\\.')}':\\s*'([a-f0-9]{64})'`);
+      expect(script).toMatch(re);
+    };
+    expectHexLine('nexus-fuse-plugin-linux-x86_64.tar.gz');
+    expectHexLine('nexus-fuse-plugin-macos-arm64.tar.gz');
+    expectHexLine('nexus-fuse-plugin-macos-x86_64.tar.gz');
   });
 
-  it('fuse-t version pin lives in runtime-versions.json (single source of truth)', () => {
+  it('fuse-t + nexus-fuse-plugin version pins live in runtime-versions.json (single source of truth)', () => {
     const versions = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'src/shared/runtime-versions.json'), 'utf-8')) as Record<string, string>;
     expect(versions['fuse-t']).toMatch(/^\d+\.\d+\.\d+$/);
-    // Also asserted: fuse-plugin's own version pin is unchanged. The
-    // macOS dispatch reuses the existing nexus-fuse-plugin version —
-    // bumping it requires updating Linux SHAs too, so flag drift.
-    expect(versions['nexus-fuse-plugin']).toBe('0.1.0');
+    // nexus-fuse-plugin must stay at or above v0.2.0 — that's the first
+    // release that ships macOS arm64 + x86_64 dylibs. A regression to
+    // 0.1.x would drop the macOS archives the dispatch in
+    // download-nexus-vfs.js now references, breaking macOS installs.
+    expect(versions['nexus-fuse-plugin']).toMatch(/^0\.(?:[2-9]|\d{2,})\.\d+$/);
   });
 });
