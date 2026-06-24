@@ -4,7 +4,7 @@ export type RiskLevel = 'none' | 'low' | 'medium' | 'high' | 'critical';
 /** Event type from counterparty */
 export type EventType = 'network' | 'file' | 'process';
 
-export interface NetworkEventData {
+export interface INetworkEventData {
   requestId: string;
   url: string;
   method: string;
@@ -12,29 +12,29 @@ export interface NetworkEventData {
   body: string;
 }
 
-export interface FileEventData {
+export interface IFileEventData {
   path: string;
   flags: string[];
 }
 
-export interface ProcessEventData {
+export interface IProcessEventData {
   command: string;
   args: string[];
 }
 
-export type EventData = NetworkEventData | FileEventData | ProcessEventData;
+export type IEventData = INetworkEventData | IFileEventData | IProcessEventData;
 
-export interface EventFileData {
+export interface IEventFileData {
   type: EventType;
-  data: EventData;
+  data: IEventData;
 }
 
-export interface ActionFileData {
+export interface IActionFileData {
   allow?: boolean;
   reason?: string;
 }
 
-export interface SafetyStatus {
+export interface ISafetyStatus {
   level: RiskLevel;
   eventType?: EventType;
   eventUuid?: string;
@@ -42,14 +42,14 @@ export interface SafetyStatus {
     code: string;
     message: string;
     detectedAt: number;
-    networkData?: NetworkEventData;
-    fileData?: FileEventData;
-    processData?: ProcessEventData;
+    networkData?: INetworkEventData;
+    fileData?: IFileEventData;
+    processData?: IProcessEventData;
     metadata?: Record<string, unknown>;
   };
 }
 
-export type SafetyConfirmationAction = 'allow' | 'deny';
+export type ISafetyConfirmationAction = 'allow' | 'deny';
 
 export type IBlacklistMatchType = 'exact' | 'wildcard';
 

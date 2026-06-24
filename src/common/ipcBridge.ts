@@ -10,7 +10,7 @@ import type { IConfirmation } from '@/common/chatLib';
 import type { IAssistantMeta } from '@/process/constants/assistantStorage';
 import type { IAssistantInfo } from '@/process/AssistantManager';
 import type { IChannelPairingRequest, IChannelPluginStatus, IChannelSession, IChannelUser, IPluginCredentials } from '@/channels/types';
-import type { SafetyStatus, IBlacklistConfig } from '@common/types/security';
+import type { ISafetyStatus, IBlacklistConfig } from '@common/types/security';
 import type { AuthProxyRule } from '@/common/types/authProxy';
 import type { McpSource } from '../process/services/mcpServices/McpProtocol';
 import type { AcpBackend, AcpBackendAll, AcpModelInfo, PresetAgentType } from '../types/acpTypes';
@@ -1807,7 +1807,7 @@ export const tools = {
 
 export const safety = {
   /** Get current safety status */
-  getStatus: bridge.buildProvider<IBridgeResponse<SafetyStatus>, void>('safety.get-status'),
+  getStatus: bridge.buildProvider<IBridgeResponse<ISafetyStatus>, void>('safety.get-status'),
   /** Get service enabled status */
   getEnabled: bridge.buildProvider<IBridgeResponse<{ enabled: boolean }>, void>('safety.get-enabled'),
   /** User confirmation action (allow/deny) */
@@ -1815,7 +1815,7 @@ export const safety = {
   /** Enable/disable safety hook service */
   setEnabled: bridge.buildProvider<IBridgeResponse, { enabled: boolean }>('safety.set-enabled'),
   /** Safety status change event (Main -> Renderer) */
-  onStatusChange: bridge.buildEmitter<SafetyStatus>('safety.status-change'),
+  onStatusChange: bridge.buildEmitter<ISafetyStatus>('safety.status-change'),
   /** Get blacklist configuration */
   getBlacklist: bridge.buildProvider<IBridgeResponse<IBlacklistConfig>, void>('safety.get-blacklist'),
   /** Set blacklist configuration */
