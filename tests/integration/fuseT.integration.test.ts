@@ -85,6 +85,20 @@ describe('FUSE-T — lazy install contract', () => {
     expect(bridge).toMatch(/supervisor\.runLazyInstallProbe\(/);
   });
 
+  it('the bridge resets installing=false synchronously in finally (no setTimeout deferral)', () => {
+    // The 2026-06-24 Win cold-start smoke observed `getInstallState()`
+    // returning `{installing: true}` immediately after a
+    // `runLazyInstallProbe()` resolved with `platform-unsupported`.
+    // Root cause: both providers used `setTimeout(() => { installState
+    // = { installing: false } }, 0)` in their finally blocks. The
+    // setTimeout deferred the reset past the IPC promise resolution,
+    // so any renderer that read state in the same tick saw stale
+    // `installing: true`. A synchronous reset in `finally` runs
+    // before the returned promise resolves to the renderer.
+    const bridge = fs.readFileSync(path.join(REPO_ROOT, 'src/process/bridge/fuseTBridge.ts'), 'utf-8');
+    expect(bridge).not.toMatch(/setTimeout\([^)]*installState/);
+  });
+
   it('the bridge exposes no dev-only IPC bypass channels', () => {
     // Earlier iterations added `dev.fuse-t.*` raw `ipcMain.handle`
     // channels to bypass the bridge.buildProvider subscribe/callback
