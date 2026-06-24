@@ -6,6 +6,7 @@
 
 import type { TFunction } from 'i18next';
 import type { ICronJob, ICronSchedule } from '@/common/ipcBridge';
+import type { FrequencyPreset, IFrequencyScheduleOptions, IScheduleFrequency } from '@/renderer/pages/cron/types';
 
 /**
  * Format schedule for display - use human-readable description
@@ -33,11 +34,6 @@ export function getJobStatusFlags(job: ICronJob): { hasError: boolean; isPaused:
   };
 }
 
-/**
- * Frequency presets for human-friendly schedule selection
- */
-export type FrequencyPreset = 'manual' | 'hourly' | 'daily' | 'weekdays' | 'weekly';
-
 export const FREQUENCY_PRESETS: FrequencyPreset[] = ['manual', 'hourly', 'daily', 'weekdays', 'weekly'];
 
 export const WEEKDAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'] as const;
@@ -46,7 +42,7 @@ export const WEEKDAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'] as con
  * Convert frequency preset + options to a CronSchedule.
  * Pass a `t` function from `useTranslation()` to get i18n-aware descriptions.
  */
-export function frequencyToSchedule(preset: FrequencyPreset, options?: { hour?: number; minute?: number; weekday?: string }, t?: TFunction): ICronSchedule | null {
+export function frequencyToSchedule(preset: FrequencyPreset, options?: IFrequencyScheduleOptions, t?: TFunction): ICronSchedule | null {
   const hour = options?.hour ?? 9;
   const minute = options?.minute ?? 0;
   const timeStr = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
@@ -73,12 +69,7 @@ export function frequencyToSchedule(preset: FrequencyPreset, options?: { hour?: 
 /**
  * Try to parse an existing CronSchedule back into a frequency preset
  */
-export function scheduleToFrequency(schedule: ICronSchedule): {
-  preset: FrequencyPreset;
-  hour: number;
-  minute: number;
-  weekday: string;
-} {
+export function scheduleToFrequency(schedule: ICronSchedule): IScheduleFrequency {
   if (schedule.kind !== 'cron') {
     return { preset: 'daily', hour: 9, minute: 0, weekday: 'MON' };
   }
