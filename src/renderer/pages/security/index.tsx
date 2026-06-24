@@ -1,19 +1,18 @@
 import { Shield, CheckOne, Lock, Scan, AllApplication, Delete, Edit, Plus } from '@icon-park/react';
-import { Card, Tag, Switch, Button, Modal, Input, Select, Table, Space, Popconfirm, Message, Tooltip } from '@arco-design/web-react';
-import type { ReactNode } from 'react';
+import { Card, Tag, Switch, Button, Modal, Table, Space, Popconfirm, Message, Tooltip } from '@arco-design/web-react';
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { nanoid } from 'nanoid';
 import { ipcBridge } from '@/common';
 import type { IBlacklistConfig, IBlacklistRule, BlacklistMatchType } from '@/types/security';
 import { DEFAULT_BLACKLIST_CONFIG } from '@/common/constants';
-import SettingsPageWrapper from './components/SettingsPageWrapper';
+import SettingsPageWrapper from '../settings/components/SettingsPageWrapper';
+import SecurityItem from './components/SecurityItem';
+import RuleModal from './components/RuleModal';
 
-const Option = Select.Option;
-const TextArea = Input.TextArea;
 const SAFETY_HOOK_SETTINGS_VISIBLE = false;
 
-export default function SecuritySettings() {
+export default function SecurityPage() {
   const { t } = useTranslation();
 
   // 安全功能状态
@@ -46,7 +45,7 @@ export default function SecuritySettings() {
           setHookEnabled(result.data.enabled);
         }
       } catch (err) {
-        console.error('[SecuritySettings] Failed to load safety hook status:', err);
+        console.error('[SecurityPage] Failed to load safety hook status:', err);
       }
     };
     void loadHookStatus();
@@ -65,7 +64,7 @@ export default function SecuritySettings() {
           setBlacklistConfig(result.data);
         }
       } catch (err) {
-        console.error('[SecuritySettings] Failed to load blacklist config:', err);
+        console.error('[SecurityPage] Failed to load blacklist config:', err);
       }
     };
     void loadBlacklist();
@@ -77,12 +76,12 @@ export default function SecuritySettings() {
     try {
       const result = await ipcBridge.safety.setEnabled.invoke({ enabled: checked });
       if (!result.success) {
-        console.error('[SecuritySettings] Failed to set safety hook enabled:', result.msg);
+        console.error('[SecurityPage] Failed to set safety hook enabled:', result.msg);
         //  revert state if failed
         setHookEnabled(!checked);
       }
     } catch (err) {
-      console.error('[SecuritySettings] Failed to toggle safety hook:', err);
+      console.error('[SecurityPage] Failed to toggle safety hook:', err);
       // Revert state if failed
       setHookEnabled(!checked);
     }
@@ -138,7 +137,7 @@ export default function SecuritySettings() {
         Message.error(result.msg || '保存规则失败');
       }
     } catch (err) {
-      console.error('[SecuritySettings] Failed to save rule:', err);
+      console.error('[SecurityPage] Failed to save rule:', err);
       const errMsg = err instanceof Error ? err.message : String(err);
       if (errMsg.includes('fetch') || errMsg.includes('ECONNREFUSED') || errMsg.includes('network')) {
         Message.error(`Nexus连接异常: ${errMsg}`);
@@ -163,7 +162,7 @@ export default function SecuritySettings() {
           Message.error(result.msg || '删除规则失败');
         }
       } catch (err) {
-        console.error('[SecuritySettings] Failed to delete rule:', err);
+        console.error('[SecurityPage] Failed to delete rule:', err);
         const errMsg = err instanceof Error ? err.message : String(err);
         if (errMsg.includes('fetch') || errMsg.includes('ECONNREFUSED') || errMsg.includes('network')) {
           Message.error(`Nexus连接异常: ${errMsg}`);
@@ -189,7 +188,7 @@ export default function SecuritySettings() {
           Message.error(result.msg || '切换规则失败');
         }
       } catch (err) {
-        console.error('[SecuritySettings] Failed to toggle rule:', err);
+        console.error('[SecurityPage] Failed to toggle rule:', err);
         const errMsg = err instanceof Error ? err.message : String(err);
         if (errMsg.includes('fetch') || errMsg.includes('ECONNREFUSED') || errMsg.includes('network')) {
           Message.error(`Nexus连接异常: ${errMsg}`);
@@ -235,7 +234,7 @@ export default function SecuritySettings() {
         </div>
 
         <div className='overflow-hidden rd-12px border'>
-          <Item
+          <SecurityItem
             icon={<Shield theme='outline' size='22' />}
             title={t('settings.securitySettings.envProtection.title')}
             tag={
@@ -252,7 +251,7 @@ export default function SecuritySettings() {
             }
             action={<Switch checked={envProtection} disabled size='small' className='settings-accent-switch' />}
           />
-          <Item
+          <SecurityItem
             icon={<Lock theme='outline' size='22' />}
             title={t('settings.securitySettings.infoProtection.title')}
             tag={
@@ -269,7 +268,7 @@ export default function SecuritySettings() {
             }
             action={<Switch checked={infoProtection} disabled size='small' className='settings-accent-switch' />}
           />
-          <Item
+          <SecurityItem
             icon={<Scan theme='outline' size='22' />}
             title={t('settings.securitySettings.skillScan.title')}
             tag={
@@ -415,46 +414,17 @@ export default function SecuritySettings() {
             </Card>
 
             {/* Rule Modal */}
-            <Modal
-              title={editingRule ? '编辑规则' : '添加规则'}
-              visible={showRuleModal}
+            <RuleModal
+              isVisible={showRuleModal}
+              editingRule={editingRule}
+              ruleForm={ruleForm}
+              onFormChange={setRuleForm}
               onOk={handleSaveRule}
               onCancel={() => {
                 setShowRuleModal(false);
                 setEditingRule(null);
               }}
-              autoFocus={false}
-              focusLock={true}
-            >
-              <div className='flex flex-col gap-4'>
-                <div>
-                  <label className='block text-14px text-secondary mb-1'>类型</label>
-                  <Select value={ruleForm.type} onChange={(val) => setRuleForm({ ...ruleForm, type: val })} style={{ width: '100%' }}>
-                    <Option value='network'>网络请求 (域名/IP)</Option>
-                    <Option value='file'>文件操作 (路径)</Option>
-                    <Option value='process'>进程执行 (命令)</Option>
-                  </Select>
-                </div>
-
-                <div>
-                  <label className='block text-14px text-secondary mb-1'>匹配方式</label>
-                  <Select value={ruleForm.matchType} onChange={(val) => setRuleForm({ ...ruleForm, matchType: val })} style={{ width: '100%' }}>
-                    <Option value='exact'>精确匹配</Option>
-                    <Option value='wildcard'>通配符匹配</Option>
-                  </Select>
-                </div>
-
-                <div>
-                  <label className='block text-14px text-secondary mb-1'>{ruleForm.type === 'network' ? '域名/IP 模式' : ruleForm.type === 'file' ? '路径模式' : '命令模式'}</label>
-                  <Input placeholder={ruleForm.type === 'network' ? '例如: *.example.com 或 192.168.1.*' : ruleForm.type === 'file' ? '例如: /etc/* 或 ~/.ssh/*' : '例如: rm* 或 npm*'} value={ruleForm.pattern} onChange={(val) => setRuleForm({ ...ruleForm, pattern: val })} />
-                </div>
-
-                <div>
-                  <label className='block text-14px text-secondary mb-1'>描述 (可选)</label>
-                  <TextArea placeholder='规则说明' value={ruleForm.description} onChange={(val) => setRuleForm({ ...ruleForm, description: val })} autoSize={{ minRows: 2, maxRows: 4 }} />
-                </div>
-              </div>
-            </Modal>
+            />
           </>
         )}
 
@@ -467,22 +437,3 @@ export default function SecuritySettings() {
     </SettingsPageWrapper>
   );
 }
-
-const Item = ({ icon, title, tag, description, status, action }: { icon: ReactNode; title: ReactNode; tag?: ReactNode; description?: ReactNode; status?: ReactNode; action?: ReactNode }) => (
-  <div className='p-4 flex items-center gap-3'>
-    <span className='size-10 shrink-0 f-center rd-2 border bg-1 text-secondary'>{icon}</span>
-    <div className='w-0 flex-1'>
-      <div className='flex min-w-0 flex-wrap items-center gap-8px'>
-        <div className='truncate text-15px font-600 text-foreground'>{title}</div>
-        {tag}
-      </div>
-      {description && <div className='mt-1 text-13px leading-20px text-secondary truncate'>{description}</div>}
-    </div>
-    {(status || action) && (
-      <span className='flex shrink-0 flex-wrap items-center justify-end gap-3'>
-        {status}
-        {action}
-      </span>
-    )}
-  </div>
-);

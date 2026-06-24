@@ -77,7 +77,7 @@ const Sider: React.FC = () => {
   const functionMenus = [
     { id: 'agent', label: t('common.siderMenu.agent'), icon: Robot, path: '/settings/agent' },
     { id: 'skill-store', label: t('common.siderMenu.skillStore'), icon: Lightning, path: '/settings/skill' },
-    { id: 'security', label: t('common.siderMenu.security'), icon: Shield, path: '/settings/security' },
+    { id: 'security', label: t('common.siderMenu.security'), icon: Shield, path: '/app/security' },
     ...(!isEnterprise ? [{ id: 'webui' as const, label: t('common.siderMenu.webui'), icon: Earth, path: '/settings/webui' }] : []),
     ...(cronEnabled ? [{ id: 'cron' as const, label: t('common.siderMenu.cron'), icon: AlarmClock, path: '/settings/cron' }] : []),
   ];
@@ -91,7 +91,11 @@ const Sider: React.FC = () => {
     } catch {
       // ignore
     }
-    void navigate(`/guid?menu=${menuId}`);
+    if (menuId === 'security') {
+      void navigate('/app/security');
+    } else {
+      void navigate(`/guid?menu=${menuId}`);
+    }
   };
 
   useEffect(() => {
@@ -176,7 +180,7 @@ const Sider: React.FC = () => {
             {/* 功能菜单区域 / Function menu area */}
             <div className='mb-4 flex flex-col gap-0.5'>
               {functionMenus.map((menu) => {
-                const isSelected = pathname.startsWith('/guid') && new URLSearchParams(search).get('menu') === menu.id;
+                const isSelected = pathname === menu.path || (pathname.startsWith('/guid') && new URLSearchParams(search).get('menu') === menu.id);
                 return (
                   <SidebarNavItem
                     key={menu.id}

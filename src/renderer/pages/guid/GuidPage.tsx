@@ -27,7 +27,6 @@ import { resolveLocaleKey } from '@/common/utils';
 import { DEFAULT_PRESET_AGENT_TYPE, normalizePresetAgentType } from '@/types/acpTypes';
 import SkillSettings from '../settings/SkillSettings';
 import AgentSettings from '../settings/AgentSettings';
-import SecuritySettings from '../settings/SecuritySettings';
 import WebuiSettings from '../settings/WebuiSettings';
 import CronSettings from '../settings/CronSettings';
 import AssistantSelectionArea from './components/AssistantSelectionArea';
@@ -621,7 +620,6 @@ const GuidPage: React.FC = () => {
         <div className={styles.functionMenuContainer}>
           {selectedMenu === 'skill-store' && <SkillSettings />}
           {selectedMenu === 'agent' && <AgentSettings />}
-          {selectedMenu === 'security' && <SecuritySettings />}
           {selectedMenu === 'webui' && <WebuiSettings />}
           {selectedMenu === 'cron' && cronEnabled && <CronSettings />}
         </div>
