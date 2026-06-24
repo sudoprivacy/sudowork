@@ -12,6 +12,8 @@ import { initStatusManager } from '../initStatus';
 import { isSudoclawHealthPayload, SUDOCLAW_HEALTH_TIMEOUT_MS, type SudoclawHealthPayload } from '../sudoclaw/sudoclawHealth';
 import { AdbResultSidechannel } from '../sudoclaw/AdbResultSidechannel';
 import { runtimeInstaller } from './RuntimeInstaller';
+import { getSkillHubBaseUrl } from '@/common/systemConfig';
+import { getSkillhubToken } from '@/process/credentialsCache';
 
 type SudoclawGateway = import('@/agent/sudoclaw/SudoclawGatewayManager').OpenClawGatewayManager;
 
@@ -522,6 +524,15 @@ export class ServiceManager {
         mainWarn('ServiceManager', 'Could not read sudorouter provider creds from sudoclaw.json', err);
       }
 
+      // Server-driven skillhub address + token injected into the gateway subprocess env so
+      // child scripts (e.g. skills/_builtin/.../sudoclaw-skill.mjs) follow the dispatched
+      // values instead of their hardcoded fallbacks (§4.3).
+      const skillhubEnv: Record<string, string> = {};
+      const skillhubBase = getSkillHubBaseUrl();
+      const skillhubToken = getSkillhubToken();
+      if (skillhubBase) skillhubEnv.SKILLHUB_BASE_URL = skillhubBase;
+      if (skillhubToken) skillhubEnv.SKILLHUB_AUTHORIZATION = skillhubToken;
+
       this.gateway = new OpenClawGatewayManager({
         port: SUDOCLAW_DEFAULT_PORT,
         stateDir: SUDOCLAW_DIR,
@@ -532,6 +543,7 @@ export class ServiceManager {
           ...pythonPathEnv,
           ...sudoworkBinEnv,
           ...sudorouterEnv,
+          ...skillhubEnv,
         },
         forceSubprocessGateway: true,
       });

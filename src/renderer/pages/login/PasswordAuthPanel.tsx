@@ -11,13 +11,14 @@ interface PasswordAuthPanelProps {
   appName: string;
   logo?: string;
   defaultLogo: string;
+  onBackToModeSelect?: () => void;
 }
 
 /**
  * 用户名密码 登录/注册面板（system login_method=1 时由 LoginPage 渲染）。
  * 自包含，不与手机验证码逻辑交织；登录/注册成功复用 AuthContext 的 handleLoginSuccess。
  */
-const PasswordAuthPanel: React.FC<PasswordAuthPanelProps> = ({ appName, logo, defaultLogo }) => {
+const PasswordAuthPanel: React.FC<PasswordAuthPanelProps> = ({ appName, logo, defaultLogo, onBackToModeSelect }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { loginByPassword, registerByPassword } = useAuth();
@@ -145,6 +146,14 @@ const PasswordAuthPanel: React.FC<PasswordAuthPanelProps> = ({ appName, logo, de
         </Button>
 
         {mode === 'login' && <div className='text-center text-12px text-tertiary mt-12px'>{t('login.pwdFootNote')}</div>}
+
+        {onBackToModeSelect && (
+          <div className='text-center mt-12px'>
+            <span className='text-12px text-tertiary cursor-pointer hover:text-secondary transition-colors' onClick={onBackToModeSelect}>
+              ← 返回模式选择
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );

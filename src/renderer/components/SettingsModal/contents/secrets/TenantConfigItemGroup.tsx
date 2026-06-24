@@ -11,7 +11,7 @@ import { useTranslation } from 'react-i18next';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
 import { ConfigStorage } from '@/common/storage';
 import configItemDefaultIcon from '@/renderer/assets/config-item-default.svg';
-import { SUDOWORK_SERVER_BASE_URL } from '@/common/sudoworkServer';
+import { BUILD_SUDOWORK_SERVER_BASE_URL, getSudoworkServerBaseUrl } from '@/common/sudoworkServer';
 import type { TenantConfigItem, TenantConfigValues } from './types';
 import PreferenceRow from './PreferenceRow';
 
@@ -20,10 +20,8 @@ function resolveIconUrl(iconUrl: string | null, baseUrl?: string): string {
   if (iconUrl.startsWith('data:') || iconUrl.startsWith('http://') || iconUrl.startsWith('https://')) {
     return iconUrl;
   }
-  if (baseUrl) {
-    return `${baseUrl.replace(/\/+$/, '')}${iconUrl.startsWith('/') ? iconUrl : `/${iconUrl}`}`;
-  }
-  return `${SUDOWORK_SERVER_BASE_URL}${iconUrl}`;
+  const resolvedBase = (baseUrl ?? BUILD_SUDOWORK_SERVER_BASE_URL).replace(/\/+$/, '');
+  return `${resolvedBase}${iconUrl.startsWith('/') ? iconUrl : `/${iconUrl}`}`;
 }
 
 const ConfigItemIcon: React.FC<{ iconUrl?: string; name: string }> = ({ iconUrl, name }) => {
@@ -36,13 +34,19 @@ const ConfigItemIcon: React.FC<{ iconUrl?: string; name: string }> = ({ iconUrl,
   }, [iconUrl]);
 
   useEffect(() => {
-    if (!isEnterprise) return;
     let mounted = true;
     void (async () => {
       try {
-        const serverUrl = await ConfigStorage.get('eeclaw.serverUrl');
-        if (mounted && typeof serverUrl === 'string') {
-          setBaseUrl(serverUrl);
+        if (isEnterprise) {
+          const serverUrl = await ConfigStorage.get('eeclaw.serverUrl');
+          if (mounted && typeof serverUrl === 'string') {
+            setBaseUrl(serverUrl);
+          }
+        } else {
+          const resolved = await getSudoworkServerBaseUrl();
+          if (mounted) {
+            setBaseUrl(resolved);
+          }
         }
       } catch {
         // silent

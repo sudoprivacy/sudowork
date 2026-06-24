@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { SUDOWORK_SERVER_BASE_URL } from '@/common/sudoworkServer';
+import { ipcBridge } from '@/common';
+import { fetchSystemConfig } from '@/common/systemConfig';
 
 /** 0 = 手机验证码（现状）；1 = 用户名密码（本次新增） */
 export type LoginMethod = 0 | 1;
@@ -25,9 +26,15 @@ async function fetchLoginMethod(): Promise<LoginMethod> {
   if (inflight) return inflight;
   inflight = (async (): Promise<LoginMethod> => {
     try {
-      const res = await fetch(`${SUDOWORK_SERVER_BASE_URL}/api/v1/system-config`);
-      const data = (await res.json()) as { data?: { login_method?: unknown } };
-      const loginMethod: LoginMethod = data?.data?.login_method === 1 ? 1 : 0;
+      // Reuse the shared client; fetchSystemConfig() also fills the renderer's
+      // system-config module cache (setSystemConfigCache) so synchronous base-url
+      // helpers work for renderer consumers.
+      const data = await fetchSystemConfig();
+      // Sync to main-process cache (see main.tsx for rationale).
+      if (data) {
+        void ipcBridge.systemConfig.syncFromRenderer.invoke({ data }).catch(() => {});
+      }
+      const loginMethod: LoginMethod = data?.login_method === 1 ? 1 : 0;
       cachedLoginMethod = loginMethod;
       cachedAt = Date.now();
       return loginMethod;

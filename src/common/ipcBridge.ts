@@ -23,6 +23,7 @@ import type { FusePluginStatus } from './nexus/fuse-plugin-status';
 import type { PreviewHistoryTarget, PreviewSnapshotInfo } from './types/preview';
 import type { UpdateCheckRequest, UpdateCheckResult, UpdateDownloadProgressEvent, UpdateDownloadRequest, UpdateDownloadResult, AutoUpdateStatus } from './updateTypes';
 import type { ProtocolDetectionRequest, ProtocolDetectionResponse } from './utils/protocolDetector';
+import type { SystemConfig } from '@/common/systemConfig';
 
 export const shell = {
   openFile: bridge.buildProvider<void, string>('open-file'), // 使用系统默认程序打开文件
@@ -1772,6 +1773,25 @@ export interface ISudoworkServerConfig {
 export const sudoworkServer = {
   getConfig: bridge.buildProvider<ISudoworkServerConfig, void>('sudowork-server.get-config'),
   updateConfig: bridge.buildProvider<void, Partial<ISudoworkServerConfig>>('sudowork-server.update-config'),
+};
+
+// ==================== System Config (server-driven) ====================
+// Renderer fetches the AES-256-GCM credentials envelope with the user's JWT and forwards
+// {nonce, ciphertext} here; the main process decrypts + caches the plaintext (main-only)
+// and triggers CrashReporter backfill. JWT never leaves the renderer.
+
+export const systemConfig = {
+  /** Decrypt + cache the credentials envelope; triggers CrashReporter.flushAll() backfill. */
+  cacheCredentials: bridge.buildProvider<IBridgeResponse<{ cached: boolean }>, { nonce: string; ciphertext: string }>('system-config.cache-credentials'),
+  /**
+   * Sync a renderer-fetched systemConfig snapshot into the main-process cache.
+   * The `systemConfig` module has ONE instance per process; without this channel, a
+   * renderer-side fetchSystemConfig only fills the renderer's copy and main-process
+   * readers (skillHubBridge / sudorouter / log-report) keep seeing the stale fallback.
+   * Payload is non-null SystemConfig — callers MUST NOT invoke when fetchSystemConfig
+   * returned null (renderer fetch failure), as that would wipe main-side cache.
+   */
+  syncFromRenderer: bridge.buildProvider<IBridgeResponse<void>, { data: SystemConfig }>('system-config.sync-from-renderer'),
 };
 
 // ==================== Safety Hook API ====================

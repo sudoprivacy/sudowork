@@ -5,8 +5,9 @@
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useAuth } from './AuthContext';
 import { ipcBridge } from '@/common';
-import { SUDOWORK_SERVER_BASE_URL } from '@/common/sudoworkServer';
+import { getSudoworkServerBaseUrl } from '@/common/sudoworkServer';
 import { ConfigStorage } from '@/common/storage';
 import type { TenantConfig, TenantConfigResponse } from '@/common/types/tenantConfig';
 import { DEFAULT_TENANT_CONFIG, TENANT_CONFIG_STORAGE_KEY, resolveTenantConfig } from '@/common/types/tenantConfig';
@@ -111,7 +112,7 @@ export const TenantConfigProvider: React.FC<React.PropsWithChildren> = ({ childr
       }
 
       const serverConfig = await ipcBridge.sudoworkServer.getConfig.invoke();
-      const baseUrl = serverConfig.baseUrl || SUDOWORK_SERVER_BASE_URL;
+      const baseUrl = serverConfig.baseUrl || (await getSudoworkServerBaseUrl());
       const token = await ensureValidToken();
 
       if (!token) {

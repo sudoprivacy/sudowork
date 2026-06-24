@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Input, Message, Space } from '@arco-design/web-react';
 import { Phone, Protect, Key, User, Lock } from '@icon-park/react';
-import { SUDOWORK_SERVER_BASE_URL } from '@/common/sudoworkServer';
+import { getSudoworkServerBaseUrl } from '@/common/sudoworkServer';
 import { DEFAULT_TENANT_CONFIG, TENANT_CONFIG_STORAGE_KEY, resolveTenantConfig } from '@/common/types/tenantConfig';
 import SudoworkIcon from '@/renderer/assets/sudowork-icon-dark.svg';
 import { isElectronDesktop, isMacOS } from '@/renderer/utils/platform';
@@ -236,7 +236,7 @@ const LoginPage: React.FC = () => {
 
     setLoading(true);
     try {
-      const res = await fetch(`${SUDOWORK_SERVER_BASE_URL}/api/v1/auth/send-code`, {
+      const res = await fetch(`${await getSudoworkServerBaseUrl()}/api/v1/auth/send-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone: currentPhone }),
@@ -536,7 +536,15 @@ const LoginPage: React.FC = () => {
                 <Input size='large' prefix={<Key className='text-tertiary' />} placeholder='moss_sk_xxx.yyy' value={apiKey} onChange={setApiKey} className='login-input !rd-12px h-48px' />
               </div>
             ) : (
-              <div className='flex flex-col gap-8px text-center'>{oauth2Loading ? <div className='text-13px text-tertiary py-12px'>正在检查 OAuth2 配置…</div> : oauth2Config?.enabled ? <div className='text-13px text-secondary py-4px'>点击下方按钮，将在浏览器中完成身份认证。</div> : <div className='text-13px text-tertiary py-12px'>管理员未启用 OAuth2 登录</div>}</div>
+              <div className='flex flex-col gap-8px text-center'>
+                {oauth2Loading ? (
+                  <div className='text-13px text-tertiary py-12px'>正在检查 OAuth2 配置…</div>
+                ) : oauth2Config?.enabled ? (
+                  <div className='text-13px text-secondary py-4px'>点击下方按钮，将在浏览器中完成身份认证。</div>
+                ) : (
+                  <div className='text-13px text-tertiary py-12px'>管理员未启用 OAuth2 登录</div>
+                )}
+              </div>
             )}
 
             {loginTab === 'oauth2' ? (
@@ -575,7 +583,7 @@ const LoginPage: React.FC = () => {
           <div className='login-page__background-circle login-page__background-circle--md' />
           <div className='login-page__background-circle login-page__background-circle--sm' />
         </div>
-        <PasswordAuthPanel appName={tenantConfig.app_name} logo={tenantConfig.logo} defaultLogo={SudoworkIcon} />
+        <PasswordAuthPanel appName={tenantConfig.app_name} logo={tenantConfig.logo} defaultLogo={SudoworkIcon} onBackToModeSelect={handleBackToModeSelect} />
       </div>
     );
   }

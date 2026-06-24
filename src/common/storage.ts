@@ -103,13 +103,23 @@ export interface IConfigStorageRefer {
   // 内置资源最后复制的版本号，用于优化启动速度 / Last copied version of builtin resources for startup optimization
   'system.lastBuiltinResourcesVersion'?: string;
   /**
-   * @deprecated Server URL is now hardcoded in src/common/sudoworkServer.ts.
-   * This config key is kept for backward compatibility but is no longer used.
+   * @deprecated Superseded by `system.sudoworkServerUrl` below. The current sudowork-server URL
+   * is resolved at runtime via `src/common/sudoworkServer.ts` (renderer `getSudoworkServerBaseUrl`)
+   * and `src/process/initStorage.ts#getSudoworkServerBaseUrlSync` (main), with priority:
+   * user setting > build-time `__SUDOWORK_SERVER_BASE_URL__` define > literal fallback.
+   * This key is kept for backward compatibility but is no longer read or written.
    */
   'sudowork.server'?: {
     baseUrl: string;
     enterpriseCode?: string;
   };
+  /**
+   * User-configured sudowork-server base URL (optional override).
+   * Resolved by helpers in `src/common/sudoworkServer.ts` (renderer) and
+   * `src/process/initStorage.ts#getSudoworkServerBaseUrlSync` (main).
+   * Empty / absent → fall back to build-time define, then to literal.
+   */
+  'system.sudoworkServerUrl'?: string;
   // Telegram assistant default model / Telegram 助手默认模型
   'assistant.telegram.defaultModel'?: {
     id: string;
@@ -480,9 +490,6 @@ export interface IProvider {
 }
 
 export type TProviderWithModel = Omit<IProvider, 'model'> & { useModel: string };
-
-/** Default base URL for SudoRouter image generation */
-export const DEFAULT_IMAGE_BASE_URL = 'https://hk.sudorouter.ai/v1';
 
 /** Default model used for image parsing/understanding (看图) via SudoRouter */
 export const DEFAULT_IMAGE_PARSING_MODEL = 'gemini-3.5-flash';

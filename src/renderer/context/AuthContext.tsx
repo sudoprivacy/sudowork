@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { ipcBridge } from '@/common';
-import { SUDOWORK_SERVER_BASE_URL } from '@/common/sudoworkServer';
+import { getSudoworkServerBaseUrl } from '@/common/sudoworkServer';
 import { ConfigStorage, type IConfigStorageRefer } from '@/common/storage';
 import { resolveLoginImageModelId } from '@/common/imageGenerationModelConfig';
 import { withCsrfToken } from '@/webserver/middleware/csrfClient';
@@ -339,6 +339,32 @@ async function applyLoginImageModel(): Promise<void> {
 }
 
 // 处理登录成功后的通用逻辑
+/**
+ * Fetch the server-driven credentials envelope (with the renderer-held JWT) and forward
+ * {nonce, ciphertext} to the main process for decryption + caching. Used by BOTH login
+ * paths — active login (handleLoginSuccess) and restart restore (refresh) — per §6.4, so
+ * reporters/skillhub keep working after a restart without a manual re-login.
+ * The JWT never leaves the renderer; only the encrypted envelope crosses IPC.
+ */
+async function fetchAndCacheCredentials(): Promise<void> {
+  if (!isDesktopRuntime) return;
+  try {
+    const stored = localStorage.getItem(AUTH_STORAGE_KEY);
+    if (!stored) return;
+    const authStorage = JSON.parse(stored) as AuthStorage;
+    const jwt = authStorage.access_token;
+    if (!jwt) return;
+    const res = await fetch(`${await getSudoworkServerBaseUrl()}/api/v1/system-config/credentials`, {
+      headers: { Authorization: `Bearer ${jwt}` },
+    });
+    const json = (await res.json()) as { success?: boolean; nonce?: string; ciphertext?: string };
+    if (!json?.success || !json.nonce || !json.ciphertext) return;
+    await ipcBridge.systemConfig.cacheCredentials.invoke({ nonce: json.nonce, ciphertext: json.ciphertext });
+  } catch (err) {
+    console.warn('[Auth] fetch/cache server credentials failed:', err);
+  }
+}
+
 async function handleLoginSuccess(data: LoginSuccessResponse, setUser: SetAuthUser, setStatus: SetAuthStatus, setReady: SetAuthReady, setSyncMessage: SetSyncMessage, tenantIdFallback?: string) {
   const deviceId = getDeviceId();
   const mergedUser = mergeLoginUserData(data) as unknown as AuthUser;
@@ -478,6 +504,9 @@ async function handleLoginSuccess(data: LoginSuccessResponse, setUser: SetAuthUs
   setReady(true);
 
   if (isDesktopRuntime) {
+    // §6.4 active-login path: cache server-driven credentials BEFORE restarting the gateway
+    // subprocess so env injection (skillhub url/token) sees the dispatched values.
+    await fetchAndCacheCredentials();
     void restartSudoclawGatewayIfInstalled();
   }
 }
@@ -566,7 +595,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
           const authStorage: AuthStorage = JSON.parse(stored);
           const { refresh_token, device_id } = authStorage;
 
-          const response = await fetch(`${SUDOWORK_SERVER_BASE_URL}/api/v1/auth/refresh`, {
+          const response = await fetch(`${await getSudoworkServerBaseUrl()}/api/v1/auth/refresh`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ refresh_token, device_id }),
@@ -783,6 +812,9 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         setUser({ ...authStorage.user, token: authStorage.access_token });
         setStatus('authenticated');
         setReady(true);
+        // §6.4 restart-restore path: also cache credentials so reporters/skillhub work after
+        // a restart without requiring a manual re-login (fire-and-forget, don't block restore).
+        void fetchAndCacheCredentials();
         await syncScodeGuidModelPreference(SCODE_AUTO_MODEL_ALIAS);
 
         const restoredUserId = resolveConsumerUserId(authStorage.user);
@@ -967,7 +999,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     const deviceId = getDeviceId();
 
     try {
-      const response = await fetch(`${SUDOWORK_SERVER_BASE_URL}/api/v1/auth/login`, {
+      const response = await fetch(`${await getSudoworkServerBaseUrl()}/api/v1/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1015,7 +1047,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     const deviceId = getDeviceId();
 
     try {
-      const response = await fetch(`${SUDOWORK_SERVER_BASE_URL}/api/v1/auth/register`, {
+      const response = await fetch(`${await getSudoworkServerBaseUrl()}/api/v1/auth/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1050,7 +1082,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   const loginByPassword = useCallback(async ({ phone, password }: PasswordLoginParams): Promise<PasswordAuthResult> => {
     const deviceId = getDeviceId();
     try {
-      const response = await fetch(`${SUDOWORK_SERVER_BASE_URL}/api/v1/auth/login-by-config`, {
+      const response = await fetch(`${await getSudoworkServerBaseUrl()}/api/v1/auth/login-by-config`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1074,7 +1106,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   const registerByPassword = useCallback(async ({ phone, password, nickname, invitation_code }: PasswordRegisterParams): Promise<PasswordAuthResult> => {
     const deviceId = getDeviceId();
     try {
-      const response = await fetch(`${SUDOWORK_SERVER_BASE_URL}/api/v1/auth/register-password`, {
+      const response = await fetch(`${await getSudoworkServerBaseUrl()}/api/v1/auth/register-password`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1102,7 +1134,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         return { success: false, message: '登录状态已过期，请重新登录' };
       }
       try {
-        const response = await fetch(`${SUDOWORK_SERVER_BASE_URL}/api/v1/auth/change-password`, {
+        const response = await fetch(`${await getSudoworkServerBaseUrl()}/api/v1/auth/change-password`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -1366,7 +1398,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         const authStorage: AuthStorage = JSON.parse(stored);
         const { refresh_token, device_id } = authStorage;
 
-        await fetch(`${SUDOWORK_SERVER_BASE_URL}/api/v1/auth/logout`, {
+        await fetch(`${await getSudoworkServerBaseUrl()}/api/v1/auth/logout`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ refresh_token, device_id }),

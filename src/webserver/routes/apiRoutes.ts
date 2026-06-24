@@ -4,19 +4,18 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { type Express, type NextFunction, type Request, type RequestHandler, type Response } from 'express';
 import fs from 'fs';
 import path from 'path';
 import http from 'http';
 import https from 'https';
 import { URL } from 'url';
-import { TokenMiddleware } from '@/webserver/auth/middleware/TokenMiddleware';
-import { ExtensionRegistry } from '@/extensions';
+import { type Express, type NextFunction, type Request, type RequestHandler, type Response } from 'express';
 import directoryApi from '../directoryApi';
 import { apiRateLimiter } from '../middleware/security';
-
-const SKILL_HUB_BASE_URL = 'https://sudoworkhub.sudoprivacy.com/api/skills';
-const SKILL_HUB_AUTHORIZATION = 'sud0@sudo';
+import { TokenMiddleware } from '@/webserver/auth/middleware/TokenMiddleware';
+import { ExtensionRegistry } from '@/extensions';
+import { getSkillHubBaseUrl } from '@/common/systemConfig';
+import { getSkillhubToken } from '@/process/credentialsCache';
 
 function normalizeMountPath(input: string): string {
   if (!input || input.trim() === '') return '/';
@@ -251,9 +250,14 @@ export function registerApiRoutes(app: Express): void {
       const query = typeof req.query.query === 'string' ? req.query.query : '';
       const category = typeof req.query.category === 'string' ? req.query.category : typeof req.query.categories === 'string' ? req.query.categories : '';
 
+      const token = getSkillhubToken();
+      if (!token) {
+        console.error('[SkillHub API] skillhub token not provisioned, skip');
+        return res.json({ success: false, msg: 'skillhub token missing' });
+      }
       const params = new URLSearchParams({ page, size, query, category });
-      const response = await fetch(`${SKILL_HUB_BASE_URL}?${params}`, {
-        headers: { Authorization: SKILL_HUB_AUTHORIZATION },
+      const response = await fetch(`${getSkillHubBaseUrl()}/api/skills?${params}`, {
+        headers: { Authorization: token },
       });
       const data = await response.json();
       res.json({ success: true, data });
@@ -278,8 +282,13 @@ export function registerApiRoutes(app: Express): void {
       if (category) params.set('category', category);
       if (tenantId) params.set('tenant_id', tenantId);
 
-      const response = await fetch(`https://sudoworkhub.sudoprivacy.com/api/skills/cursor?${params}`, {
-        headers: { Authorization: SKILL_HUB_AUTHORIZATION },
+      const token = getSkillhubToken();
+      if (!token) {
+        console.error('[SkillHub API] skillhub token not provisioned, skip');
+        return res.json({ success: false, msg: 'skillhub token missing' });
+      }
+      const response = await fetch(`${getSkillHubBaseUrl()}/api/skills/cursor?${params}`, {
+        headers: { Authorization: token },
       });
       const result = await response.json();
       // Return only the data part to match IBridgeResponse<ISkillHubListResponse>
@@ -292,8 +301,13 @@ export function registerApiRoutes(app: Express): void {
 
   app.get('/api/categories', apiRateLimiter, validateApiAccess, async (_req: Request, res: Response) => {
     try {
-      const response = await fetch('https://sudoworkhub.sudoprivacy.com/api/categories', {
-        headers: { Authorization: SKILL_HUB_AUTHORIZATION },
+      const token = getSkillhubToken();
+      if (!token) {
+        console.error('[SkillHub API] skillhub token not provisioned, skip');
+        return res.json({ success: false, msg: 'skillhub token missing' });
+      }
+      const response = await fetch(`${getSkillHubBaseUrl()}/api/categories`, {
+        headers: { Authorization: token },
       });
       const data = await response.json();
       res.json({ success: true, data: data.data || [] });
@@ -306,8 +320,13 @@ export function registerApiRoutes(app: Express): void {
   app.get('/api/skill-hub/skills/:skillId', apiRateLimiter, validateApiAccess, async (req: Request, res: Response) => {
     try {
       const { skillId } = req.params;
-      const response = await fetch(`${SKILL_HUB_BASE_URL}/${skillId}`, {
-        headers: { Authorization: SKILL_HUB_AUTHORIZATION },
+      const token = getSkillhubToken();
+      if (!token) {
+        console.error('[SkillHub API] skillhub token not provisioned, skip');
+        return res.json({ success: false, msg: 'skillhub token missing' });
+      }
+      const response = await fetch(`${getSkillHubBaseUrl()}/api/skills/${skillId}`, {
+        headers: { Authorization: token },
       });
       const data = await response.json();
       res.json({ success: true, data: data.data });

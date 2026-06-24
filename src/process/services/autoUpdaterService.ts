@@ -4,14 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { EventEmitter } from 'events';
 import { autoUpdater } from 'electron-updater';
 import type { ProgressInfo, UpdateInfo } from 'electron-updater';
 import log from 'electron-log';
-import { EventEmitter } from 'events';
-import { COS_RELEASE_BASE } from '@/shared/cos';
+import { getCosReleaseBase, isVersionUpdateEnabled } from '@/common/systemConfig';
 
-/** COS mirror base URL for Chinese users (role-based release bucket) */
-const COS_MIRROR_BASE = `${COS_RELEASE_BASE}/sudowork/release/latest`;
+/** COS mirror base URL for Chinese users (release bucket, server-driven cos_domain) */
+const getCosMirrorBase = (): string => `${getCosReleaseBase()}/sudowork/release/latest`;
 
 /** Timeout for GitHub API accessibility check */
 const GITHUB_API_TIMEOUT = 5000; // 5 seconds
@@ -248,11 +248,11 @@ class AutoUpdaterService extends EventEmitter {
   async switchToMirror(): Promise<void> {
     autoUpdater.setFeedURL({
       provider: 'generic',
-      url: COS_MIRROR_BASE,
+      url: getCosMirrorBase(),
     });
 
     this._mirrorStatus = { useMirror: true, reason: 'github_unreachable' };
-    log.info(`Switched to COS mirror: ${COS_MIRROR_BASE}/${this.getYmlFileName()}`);
+    log.info(`Switched to COS mirror: ${getCosMirrorBase()}/${this.getYmlFileName()}`);
   }
 
   private setupEventHandlers(): void {
@@ -327,6 +327,9 @@ class AutoUpdaterService extends EventEmitter {
   }
 
   async checkForUpdates(): Promise<{ success: boolean; updateInfo?: UpdateInfo; error?: string }> {
+    if (!isVersionUpdateEnabled()) {
+      return { success: false, error: 'version_update disabled by server config' };
+    }
     try {
       if (!this._isInitialized) {
         throw new Error('AutoUpdaterService not initialized');
@@ -355,6 +358,9 @@ class AutoUpdaterService extends EventEmitter {
   }
 
   async downloadUpdate(): Promise<{ success: boolean; error?: string }> {
+    if (!isVersionUpdateEnabled()) {
+      return { success: false, error: 'version_update disabled by server config' };
+    }
     try {
       if (!this._isInitialized) {
         throw new Error('AutoUpdaterService not initialized');
@@ -391,6 +397,9 @@ class AutoUpdaterService extends EventEmitter {
    * Check for updates and notify (for startup)
    */
   async checkForUpdatesAndNotify(): Promise<void> {
+    if (!isVersionUpdateEnabled()) {
+      return;
+    }
     try {
       // Ensure clean state: prevent stale allowDowngrade=true from prior setAllowPrerelease(true) calls
       autoUpdater.allowDowngrade = false;

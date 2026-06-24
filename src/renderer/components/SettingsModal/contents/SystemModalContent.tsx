@@ -11,6 +11,7 @@ import { useTranslation } from 'react-i18next';
 import useSWR from 'swr';
 import { ipcBridge } from '@/common';
 import { ConfigStorage } from '@/common/storage';
+import { isProductImprovementEnabled } from '@/common/systemConfig';
 import LanguageSwitcher from '@/renderer/components/LanguageSwitcher';
 import ProductImprovementDialog from '@/renderer/components/ProductImprovementDialog';
 import { formatTimestamp, joinFilePath } from '@/renderer/pages/conversation/grouped-history/utils/exportHelpers';
@@ -392,7 +393,7 @@ const SystemModalContent: React.FC = () => {
       hint: t('settings.avatarEnabledDesc'),
       component: <Switch checked={avatarEnabled} onChange={handleAvatarEnabledChange} className='settings-accent-switch' style={avatarEnabled ? { backgroundColor: 'var(--ui-accent-orange)' } : undefined} />,
     },
-    ...(isEnterprise
+    ...(isEnterprise || !isProductImprovementEnabled()
       ? []
       : [
           {

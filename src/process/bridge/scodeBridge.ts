@@ -18,12 +18,13 @@ import { syncUserKeyFromScodeConfig } from '@process/services/authProxy/userKeyS
 import { readSettings, removeDisabledMcpServersFromSettings, writeSettings } from '@process/services/mcpServices/agents/ScodeMcpAgent';
 import { getDatabase } from '@process/database';
 import { mainLog, mainWarn } from '@process/utils/mainLogger';
+import { SUDOCLAW_DIR } from '@process/services/sudoclaw/SudoclawInstallService';
+import { writeSudoclawImageGenerationModel } from '@process/bridge/imageGenerationModelSync';
 import { ipcBridge } from '@/common';
 import { modelInputForModelId } from '@/common/imageUtils';
 import type { ScodeModelEntry } from '@/common/ipcBridge';
 import { addScodeAutoModel, extractCustomProvidersFromScodeConfig, mergeCustomProvidersIntoScodeConfig, normalizeCustomApiKeyModelsInScodeConfig, type ScodeCustomModelProvider } from '@/common/scodeConfig';
-import { SUDOCLAW_DIR } from '@process/services/sudoclaw/SudoclawInstallService';
-import { writeSudoclawImageGenerationModel } from '@process/bridge/imageGenerationModelSync';
+import { getSudorouterBaseUrl } from '@/common/systemConfig';
 
 const TAG = 'ScodeBridge';
 const SUDOCODE_CONFIG_PATH = path.join(SCODE_DIR, 'sudocode.json');
@@ -97,9 +98,6 @@ export function writeScodeImageModel(modelId: string): void {
   mainLog(TAG, `Updated tools.imageGenerationModel to "${modelId}"`);
 }
 
-/** Live model-list endpoint for proxy model discovery. */
-const SPECIFIC_PRICING_URL = 'https://hk.sudorouter.ai/api/specific_pricing';
-
 type SpecificPricingResponse = {
   success?: boolean;
   data?: Array<{ model_id?: string }>;
@@ -117,7 +115,7 @@ type SpecificPricingResponse = {
 export async function syncScodeModelsFromPricing(): Promise<void> {
   let json: SpecificPricingResponse;
   try {
-    const response = await fetch(SPECIFIC_PRICING_URL, { signal: AbortSignal.timeout(15000) });
+    const response = await fetch(`${getSudorouterBaseUrl()}/api/specific_pricing`, { signal: AbortSignal.timeout(15000) });
     json = (await response.json()) as SpecificPricingResponse;
   } catch (err) {
     mainWarn(TAG, `specific_pricing fetch failed, keeping existing models: ${err instanceof Error ? err.message : String(err)}`);

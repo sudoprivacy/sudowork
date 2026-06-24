@@ -10,6 +10,9 @@
  * 使用 RSA-2048 + AES-256-GCM 混合加密方案
  */
 
+import { getSystemConfigCache } from '@/common/systemConfig';
+import { getProductImprovementPublicKey } from '@/process/credentialsCache';
+
 // ============================================================
 // RSA 公钥配置
 // ============================================================
@@ -36,6 +39,25 @@ YBicgOr0E4jBhAtecVQOsbk2XADVSrEWGigJEZ1KJ6AP/2C2t9Om/8d/KP9w4F0H
 eQIDAQAB
 -----END PUBLIC KEY-----
 `;
+
+/**
+ * Resolve the qms encryption public key for the current dispatch state (D6).
+ *
+ * - `product_improvement.encryption_required=true` → use the dispatched
+ *   `credentials.product_improvement.public_key` (when provisioned).
+ * - Otherwise (or when the dispatched key is absent) → the hardcoded `TELEMETRY_PUBLIC_KEY_PEM`.
+ *
+ * Encryption-failure plaintext fallback behavior is unchanged (handled at the encrypt
+ * call sites in TelemetryBatchReporter / CrashReporter).
+ */
+export function resolveTelemetryPublicKey(): string {
+  const cache = getSystemConfigCache();
+  if (cache?.product_improvement?.encryption_required) {
+    const dispatched = getProductImprovementPublicKey();
+    if (dispatched) return dispatched;
+  }
+  return TELEMETRY_PUBLIC_KEY_PEM;
+}
 
 // ============================================================
 // 加密配置
