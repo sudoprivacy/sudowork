@@ -28,6 +28,15 @@ const crypto = require('crypto');
 const { execFileSync } = require('child_process');
 const runtimeVersions = require('../src/shared/runtime-versions.json');
 const runtimeSha256 = require('../src/shared/runtime-sha256.json');
+const {
+  OS_NAME,
+  CLUSTER_ARCH,
+  getClusterArtifact,
+  getClusterBinary,
+  getPluginArtifact,
+  getPluginDylib,
+  getPluginSig,
+} = require('./plugin-naming.js');
 
 const VERSION = runtimeVersions['nexus-vfs'];
 const VAULT_VERSION = runtimeVersions['nexus-vault'];
@@ -92,68 +101,39 @@ const FUSE_PLUGIN_READY_MARKER = path.join(PLUGIN_DIR, '.nexus-fuse-plugin-ready
 
 const isWindows = process.platform === 'win32';
 
-// Uniform mapping across all three OSes for v0.0.1-rc1.
-const OS_NAME_MAP = { darwin: 'macos', win32: 'windows', linux: 'linux' };
-const ARCH_NAME_MAP = { arm64: 'aarch64', x64: 'x86_64' };
+// Cluster + plugin archive/dylib naming lives in scripts/plugin-naming.js
+// (the SSOT). The wrappers below preserve the original (platform, arch) =
+// defaults from process.platform / process.arch so callers that omit args
+// keep working — that's a stable contract for the install helpers below.
+//
+// Why the per-plugin one-line wrappers stay: they pin a plugin's logical
+// name at the call site (`getVaultArtifactName`) and make a re-grep across
+// the file trivial. Removing them would inline string literals (vault,
+// local-connector, fuse-plugin) into every caller and make the platform
+// matrix harder to audit.
 
 function getBinaryName() {
-  return isWindows ? 'nexusd-cluster.exe' : 'nexusd-cluster';
+  return getClusterBinary(process.platform);
 }
 
 function getArtifactName(platform = process.platform, arch = process.arch) {
-  const osName = OS_NAME_MAP[platform];
-  const archName = ARCH_NAME_MAP[arch];
-  if (!osName || !archName) {
+  const name = getClusterArtifact(platform, arch);
+  if (!name) {
     throw new Error(`Unsupported platform: ${platform}-${arch}`);
   }
-  const ext = platform === 'win32' ? '.zip' : '.tar.gz';
-  return `nexusd-cluster-${osName}-${archName}${ext}`;
+  return name;
 }
 
-/**
- * Vault plugin artifact name. The vault dylib uses different naming from nexusd-cluster:
- * - macOS: libnexus_vault.dylib (arm64 only, no x86_64)
- * - Linux: libnexus_vault.so (x86_64 only in v0.1.0)
- * - Windows: nexus_vault.dll (x86_64 only in v0.1.0)
- *
- * Archive naming: nexus-vault-{os}-{arch}.{tar.gz|zip}
- */
 function getVaultArtifactName(platform = process.platform, arch = process.arch) {
-  const VAULT_PLATFORM_MAP = {
-    'darwin-arm64': 'nexus-vault-macos-arm64',
-    'darwin-x64': 'nexus-vault-macos-x86_64',
-    'linux-x64': 'nexus-vault-linux-x86_64',
-    'win32-x64': 'nexus-vault-windows-x86_64',
-  };
-  const key = `${platform}-${arch}`;
-  const name = VAULT_PLATFORM_MAP[key];
-  if (!name) return null; // not available for this platform
-  const ext = platform === 'win32' ? '.zip' : '.tar.gz';
-  return `${name}${ext}`;
+  return getPluginArtifact(platform, arch, 'nexus_vault');
 }
 
-/** Platform-specific vault dylib filename inside the archive. */
 function getVaultDylibName(platform = process.platform) {
-  if (platform === 'darwin') return 'libnexus_vault.dylib';
-  if (platform === 'linux') return 'libnexus_vault.so';
-  if (platform === 'win32') return 'nexus_vault.dll';
-  return null;
+  return getPluginDylib(platform, 'nexus_vault');
 }
 
-/**
- * Detached-signature filename for a given dylib. Convention is defined by
- * `nexus_plugin_abi::signing::SIGNATURE_FILE_SUFFIX` in nexus-vfs — `.sig`
- * appended to the dylib filename verbatim. The kernel's PluginLoader reads
- * this file alongside the dylib and Ed25519-verifies before any dlopen.
- *
- * Vault releases starting at v0.1.2 ship the `.sig` inside the archive; the
- * v0.1.1 archive predates signing and lacks it (extraction is permissive
- * here so this script keeps working against an old archive — the cluster's
- * own verify path is the binding gate).
- */
 function getVaultSigName(platform = process.platform) {
-  const dylib = getVaultDylibName(platform);
-  return dylib ? `${dylib}.sig` : null;
+  return getPluginSig(platform, 'nexus_vault');
 }
 
 function sha256OfFile(filePath) {
@@ -618,20 +598,11 @@ async function installSignedKernelPlugin(spec, platform, arch, force) {
 
 /** Per-platform archive name for the local-connector release. */
 function getLocalConnectorArtifactName(platform, arch) {
-  const map = {
-    'darwin-arm64': 'nexus-local-connector-macos-arm64.tar.gz',
-    'darwin-x64': 'nexus-local-connector-macos-x86_64.tar.gz',
-    'linux-x64': 'nexus-local-connector-linux-x86_64.tar.gz',
-    'win32-x64': 'nexus-local-connector-windows-x86_64.zip',
-  };
-  return map[`${platform}-${arch}`] || null;
+  return getPluginArtifact(platform, arch, 'nexus_local_connector');
 }
 
 function getLocalConnectorDylibName(platform) {
-  if (platform === 'darwin') return 'libnexus_local_connector.dylib';
-  if (platform === 'linux') return 'libnexus_local_connector.so';
-  if (platform === 'win32') return 'nexus_local_connector.dll';
-  return null;
+  return getPluginDylib(platform, 'nexus_local_connector');
 }
 
 async function installLocalConnectorPlugin(platform, arch, force) {
@@ -660,17 +631,13 @@ function getFusePluginArtifactName(platform, arch) {
   // macOS runs the FUSE protocol via FUSE-T (userspace driver provisioned
   // lazily by `FuseTInstallService`, not eagerly here). Windows stays on
   // the existing WinFsp path — separate adapter, not shipped by this
-  // fuse-plugin release.
-  if (platform === 'linux' && arch === 'x64') return 'nexus-fuse-plugin-linux-x86_64.tar.gz';
-  if (platform === 'darwin' && arch === 'arm64') return 'nexus-fuse-plugin-macos-arm64.tar.gz';
-  if (platform === 'darwin' && arch === 'x64') return 'nexus-fuse-plugin-macos-x86_64.tar.gz';
-  return null;
+  // fuse-plugin release. The `publishedPlatforms` whitelist in
+  // plugin-naming.js is the SSOT for that policy.
+  return getPluginArtifact(platform, arch, 'nexus_fuse_plugin');
 }
 
 function getFusePluginDylibName(platform) {
-  if (platform === 'linux') return 'libnexus_fuse_plugin.so';
-  if (platform === 'darwin') return 'libnexus_fuse_plugin.dylib';
-  return null;
+  return getPluginDylib(platform, 'nexus_fuse_plugin');
 }
 
 async function installFusePlugin(platform, arch, force) {
@@ -717,7 +684,7 @@ async function main() {
   const platform = process.platform;
   const arch = process.arch;
 
-  if (!OS_NAME_MAP[platform] || !ARCH_NAME_MAP[arch]) {
+  if (!OS_NAME[platform] || !CLUSTER_ARCH[arch]) {
     console.warn(`⚠️  Unsupported platform: ${platform}-${arch}; skipping nexus-vfs.`);
     process.exit(0);
   }

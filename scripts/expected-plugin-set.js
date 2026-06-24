@@ -1,65 +1,38 @@
 #!/usr/bin/env node
 /**
  * Derive the expected set of nexus-vfs plugins for a given (platform, arch)
- * from src/shared/runtime-sha256.json. Used by the Cold Start Smoke CI job
- * (.github/workflows/pr-cold-start-smoke.yml) to assert the cluster loads
- * EXACTLY the set we publish for this platform — fewer = regression, more =
- * unexpected extra.
+ * for the Cold Start Smoke CI job (.github/workflows/pr-cold-start-smoke.yml).
  *
- * Why data-driven (vs hardcoded in YAML): the windows-x64 case is a live
- * landmine — vault + local-connector publish there but fuse-plugin doesn't
- * (FUSE-T is mac-only; Win uses WinFsp via a separate adapter). The plan
- * doc claims "Windows: 3 plugins" but the actual table publishes 2. Keeping
- * the count derivation in one place (here) means a future "publish fuse-
- * plugin for win" only requires adding the SHA entry; the smoke assertion
- * tightens automatically.
+ * Two layers of truth combined:
+ *   - `scripts/plugin-naming.js` — SSOT for archive/dylib naming + per-plugin
+ *     publishedPlatforms. Single hand-edited table; consumed by both the
+ *     download script and this helper.
+ *   - `src/shared/runtime-sha256.json` — SSOT for "the bytes we know how to
+ *     verify". A SHA entry is the cryptographic proof we actually publish
+ *     this artifact today.
+ *
+ * The intersection — published-by-naming AND present-in-SHA-table — is the
+ * smoke's expected set. The two layers normally agree, but the AND is
+ * belt-and-suspenders: it catches the case where someone updates the
+ * naming map but forgets the SHA entry (the inverse of the PR #919 bug
+ * the SHA SSOT was designed to prevent).
  *
  * Usage:
  *   node scripts/expected-plugin-set.js                       # current host
  *   node scripts/expected-plugin-set.js --platform linux --arch x64
  *   node scripts/expected-plugin-set.js --format names        # one name per line
+ *   node scripts/expected-plugin-set.js --format dylibs
+ *   node scripts/expected-plugin-set.js --format count
  *
  * Default output is JSON: {"platform":"linux","arch":"x64","plugins":[
- *   {"name":"nexus_vault","dylib":"libnexus_vault.so"},
+ *   {"name":"nexus_vault","dylib":"libnexus_vault.so","artifact":"..."},
  *   ...
  * ],"count":3}
  */
 
 const path = require('path');
 const sha = require(path.join(__dirname, '..', 'src', 'shared', 'runtime-sha256.json'));
-
-// Mirrors download-nexus-vfs.js. Vault/local-connector/fuse-plugin all use
-// arm64/x86_64 in their archive filenames (NOT aarch64 like nexusd-cluster).
-const OS_NAME = { darwin: 'macos', linux: 'linux', win32: 'windows' };
-const PLUGIN_ARCH_NAME = { arm64: 'arm64', x64: 'x86_64' };
-
-const PLUGINS = [
-  {
-    name: 'nexus_vault',
-    artifactPrefix: 'nexus-vault',
-    dylib: { darwin: 'libnexus_vault.dylib', linux: 'libnexus_vault.so', win32: 'nexus_vault.dll' },
-  },
-  {
-    name: 'nexus_local_connector',
-    artifactPrefix: 'nexus-local-connector',
-    dylib: {
-      darwin: 'libnexus_local_connector.dylib',
-      linux: 'libnexus_local_connector.so',
-      win32: 'nexus_local_connector.dll',
-    },
-  },
-  {
-    name: 'nexus_fuse_plugin',
-    artifactPrefix: 'nexus-fuse-plugin',
-    dylib: {
-      darwin: 'libnexus_fuse_plugin.dylib',
-      linux: 'libnexus_fuse_plugin.so',
-      // Intentionally absent: Windows uses WinFsp via separate adapter, not
-      // this fuse-plugin release. Mirrors getFusePluginDylibName() in the
-      // download script.
-    },
-  },
-];
+const { PLUGINS, getPluginDylib, getPluginArtifact } = require(path.join(__dirname, 'plugin-naming.js'));
 
 function parseArgs(argv) {
   const out = { platform: process.platform, arch: process.arch, format: 'json' };
@@ -73,19 +46,14 @@ function parseArgs(argv) {
 }
 
 function expectedPluginsFor(platform, arch) {
-  const osName = OS_NAME[platform];
-  const archName = PLUGIN_ARCH_NAME[arch];
-  if (!osName || !archName) return [];
-  const ext = platform === 'win32' ? '.zip' : '.tar.gz';
-
   const out = [];
   for (const plugin of PLUGINS) {
-    const dylib = plugin.dylib[platform];
+    const dylib = getPluginDylib(platform, plugin.name);
     if (!dylib) continue;
-    const artifact = `${plugin.artifactPrefix}-${osName}-${archName}${ext}`;
-    if (Object.prototype.hasOwnProperty.call(sha, artifact)) {
-      out.push({ name: plugin.name, dylib, artifact });
-    }
+    const artifact = getPluginArtifact(platform, arch, plugin.name);
+    if (!artifact) continue;
+    if (!Object.prototype.hasOwnProperty.call(sha, artifact)) continue;
+    out.push({ name: plugin.name, dylib, artifact });
   }
   return out;
 }
