@@ -6,7 +6,7 @@
 
 import { Button, Drawer, Form, Input, Message, Select } from '@arco-design/web-react';
 import { Close } from '@icon-park/react';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
 import type { ICronJob } from '@/common/ipcBridge';
@@ -23,36 +23,6 @@ const TextArea = Input.TextArea;
 const HOUR_OPTIONS = Array.from({ length: 24 }, (_, i) => ({ value: i, label: `${String(i).padStart(2, '0')}` }));
 const MINUTE_OPTIONS = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55].map((minute) => ({ value: minute, label: String(minute).padStart(2, '0') }));
 
-function useFrequencyLabels(): Record<FrequencyPreset, string> {
-  const { t } = useTranslation();
-  return useMemo(
-    () => ({
-      manual: t('cron.create.frequency.manual'),
-      hourly: t('cron.create.frequency.hourly'),
-      daily: t('cron.create.frequency.daily'),
-      weekdays: t('cron.create.frequency.weekdays'),
-      weekly: t('cron.create.frequency.weekly'),
-    }),
-    [t]
-  );
-}
-
-function useWeekdayLabels(): Record<string, string> {
-  const { t } = useTranslation();
-  return useMemo(
-    () => ({
-      SUN: t('cron.create.weekday.SUN'),
-      MON: t('cron.create.weekday.MON'),
-      TUE: t('cron.create.weekday.TUE'),
-      WED: t('cron.create.weekday.WED'),
-      THU: t('cron.create.weekday.THU'),
-      FRI: t('cron.create.weekday.FRI'),
-      SAT: t('cron.create.weekday.SAT'),
-    }),
-    [t]
-  );
-}
-
 function throwIfCronError(result: unknown): void {
   const errorEnvelope = result as { __error?: string } | null | undefined;
   if (errorEnvelope && typeof errorEnvelope === 'object' && typeof errorEnvelope.__error === 'string') {
@@ -61,10 +31,8 @@ function throwIfCronError(result: unknown): void {
 }
 
 export default function CronJobFormDrawer({ visible, editJob, sessionMode, onClose, onSaved }: ICronJobFormDrawerProps) {
-  const { t } = useTranslation();
-  const frequencyLabels = useFrequencyLabels();
-  const weekdayLabels = useWeekdayLabels();
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
+
   const localeKey = i18n.language?.startsWith('zh') ? 'zh-CN' : 'en-US';
   const assistants = useAssistantsForCron();
 
@@ -80,6 +48,23 @@ export default function CronJobFormDrawer({ visible, editJob, sessionMode, onClo
   const [selectedAssistantId, setSelectedAssistantId] = useState<string>(DEFAULT_ASSISTANT);
   const [selectedConversationId, setSelectedConversationId] = useState<string>('');
   const [conversations, setConversations] = useState<TChatConversation[]>([]);
+
+  const frequencyLabels: Record<FrequencyPreset, string> = {
+    manual: t('cron.create.frequency.manual'),
+    hourly: t('cron.create.frequency.hourly'),
+    daily: t('cron.create.frequency.daily'),
+    weekdays: t('cron.create.frequency.weekdays'),
+    weekly: t('cron.create.frequency.weekly'),
+  };
+  const weekdayLabels: Record<string, string> = {
+    SUN: t('cron.create.weekday.SUN'),
+    MON: t('cron.create.weekday.MON'),
+    TUE: t('cron.create.weekday.TUE'),
+    WED: t('cron.create.weekday.WED'),
+    THU: t('cron.create.weekday.THU'),
+    FRI: t('cron.create.weekday.FRI'),
+    SAT: t('cron.create.weekday.SAT'),
+  };
 
   useEffect(() => {
     if (visible) {
