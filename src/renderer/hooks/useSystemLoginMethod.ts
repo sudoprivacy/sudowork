@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { ipcBridge } from '@/common';
 import { fetchSystemConfig } from '@/common/systemConfig';
 
 /** 0 = 手机验证码（现状）；1 = 用户名密码（本次新增） */
@@ -29,6 +30,10 @@ async function fetchLoginMethod(): Promise<LoginMethod> {
       // system-config module cache (setSystemConfigCache) so synchronous base-url
       // helpers work for renderer consumers.
       const data = await fetchSystemConfig();
+      // Sync to main-process cache (see main.tsx for rationale).
+      if (data) {
+        void ipcBridge.systemConfig.syncFromRenderer.invoke({ data }).catch(() => {});
+      }
       const loginMethod: LoginMethod = data?.login_method === 1 ? 1 : 0;
       cachedLoginMethod = loginMethod;
       cachedAt = Date.now();

@@ -60,21 +60,23 @@ export interface DecryptedCredentials {
   product_improvement?: { api_key: string; public_key?: string };
 }
 
-// ---- module-level cache (per-process instance, 5 min TTL, mirrors useSystemLoginMethod) ----
-const CACHE_TTL_MS = 5 * 60 * 1000;
+// ---- module-level cache (per-process instance; resides for the process lifetime) ----
+// No TTL: once filled (by startup bootstrap, autoUpdater branch, or renderer push), the
+// cache stays put until the process exits. A time-based expiry would force every consumer
+// to fall back to the hardcoded URL whenever no refresh path happened to fire — and there
+// is no consumer or scheduler that re-fetches on expiry, so an expired cache was silently
+// equivalent to a permanently absent cache. server-side dispatch changes are picked up on
+// the next startup / re-login (the same windows that fill the cache in the first place).
 let cachedConfig: SystemConfig | null = null;
-let cachedAt = 0;
 
 /** Fill/replace the in-process cache (called by main `index.ts` and renderer `useSystemLoginMethod`). */
 export function setSystemConfigCache(data: SystemConfig | null): void {
   cachedConfig = data;
-  cachedAt = data ? Date.now() : 0;
 }
 
-/** Read the in-process cache; null when empty or expired (caller then falls back). */
+/** Read the in-process cache; null only when never filled. */
 export function getSystemConfigCache(): SystemConfig | null {
-  if (cachedConfig && Date.now() - cachedAt < CACHE_TTL_MS) return cachedConfig;
-  return null;
+  return cachedConfig;
 }
 
 // ---- fetch (public, no auth; fetch + res.json() work in both processes) ----

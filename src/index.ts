@@ -40,6 +40,7 @@ import { SERVER_CONFIG } from './webserver/config/constants';
 import { applyZoomToWindow } from './process/utils/zoom';
 import i18n from '@process/i18n';
 import { mainLog, mainError } from './process/utils/mainLogger';
+import { ensureMainSystemConfig } from './process/services/systemConfigBootstrap';
 import { isNightlyBuild } from './common/buildInfo';
 // @ts-expect-error - electron-squirrel-startup doesn't have types
 import electronSquirrelStartup from 'electron-squirrel-startup';
@@ -891,6 +892,8 @@ const handleAppReady = async (): Promise<void> => {
       return;
     }
 
+    await ensureMainSystemConfig();
+
     const userConfigInfo = loadUserWebUIConfig();
     if (userConfigInfo.exists && userConfigInfo.path) {
       // Config file loaded from user directory
@@ -926,6 +929,8 @@ const handleAppReady = async (): Promise<void> => {
 
     // Wait for backend initialization to complete before proceeding with tray/settings
     await initDone;
+
+    await ensureMainSystemConfig();
 
     // Telemetry: initialize telemetry modules after process config is ready
     try {

@@ -16,7 +16,7 @@
 
 import { mainError } from '@process/utils/mainLogger';
 import { systemConfig } from '@/common/ipcBridge';
-import { decryptCredentials } from '@/common/systemConfig';
+import { decryptCredentials, setSystemConfigCache } from '@/common/systemConfig';
 import { setCredentialsCache } from '@/process/credentialsCache';
 import { flushCrashReporter } from '@/process/telemetry/CrashReporter';
 import { reinitTelemetryEncryptor } from '@/process/telemetry/TelemetryEncryptor';
@@ -38,5 +38,13 @@ export function initSystemConfigBridge(): void {
       mainError('systemConfig', 'decrypt/cache credentials failed:', err);
       return { success: true, data: { cached: false } };
     }
+  });
+
+  // Sync renderer-fetched systemConfig snapshot into the main-process cache.
+  // See channel doc in src/common/ipcBridge.ts for the rationale (per-process module
+  // cache means renderer fills do NOT propagate to main without this hop).
+  systemConfig.syncFromRenderer.provider(async ({ data }) => {
+    setSystemConfigCache(data);
+    return { success: true };
   });
 }
