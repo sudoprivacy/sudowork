@@ -1,7 +1,6 @@
 import { Button, Message, Popconfirm, Switch, Tag } from '@arco-design/web-react';
 import { DeleteOne, Edit, PlayOne } from '@icon-park/react';
-import dayjs from 'dayjs';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAppMode } from '@renderer/hooks/useAppMode';
@@ -13,7 +12,7 @@ import type { TChatConversation } from '@/common/storage';
 import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import CronJobFormDrawer from '@/renderer/pages/cron/components/CronJobFormDrawer';
 import { useAssistantsForCron } from '@/renderer/pages/cron/hooks/useAssistantsForCron';
-import { getJobStatusFlags, unwrapCronResult } from '@/renderer/pages/cron/utils';
+import { formatNextRunRelative, getJobStatusFlags, unwrapCronResult } from '@/renderer/pages/cron/utils';
 import { useAuth } from '@/renderer/context/AuthContext';
 import { useConversationTabs } from '@/renderer/pages/conversation/context/ConversationTabsContext';
 import PageWrapper from '@renderer/components/base/PageWrapper';
@@ -22,22 +21,6 @@ function getCronJobConversationTarget(job: ICronJob): string | undefined {
   const isNewMode = (job.metadata.conversationMode ?? 'new') === 'new';
   if (isNewMode) return job.state.lastConversationId;
   return job.metadata.conversationId || job.state.lastConversationId;
-}
-
-function useFormatNextRunRelative() {
-  const { t } = useTranslation();
-  return useCallback(
-    (nextRunAtMs?: number): string => {
-      if (!nextRunAtMs) return '';
-      const d = dayjs(nextRunAtMs);
-      const now = dayjs();
-      const time = d.format('HH:mm');
-      if (d.isSame(now, 'day')) return t('cron.create.nextRunToday', { time });
-      if (d.isSame(now.add(1, 'day'), 'day')) return t('cron.create.nextRunTomorrow', { time });
-      return d.format('MM-DD HH:mm');
-    },
-    [t]
-  );
 }
 
 export default function CronJobDetailPage() {
@@ -51,7 +34,6 @@ export default function CronJobDetailPage() {
   const { sessionMode } = useEnterpriseSessionMode({ localModeAvailable: canUseLocalCronMode, remoteModeAvailable: isEnterprise });
   const [job, setJob] = useState<ICronJob | null>(null);
   const [drawerVisible, setDrawerVisible] = useState(false);
-  const formatNextRun = useFormatNextRunRelative();
   const assistants = useAssistantsForCron();
   const localeKey = i18n.language?.startsWith('zh') ? 'zh-CN' : 'en-US';
 
@@ -152,7 +134,7 @@ export default function CronJobDetailPage() {
           </Tag>
           {!isPaused && job.state.nextRunAtMs && (
             <span>
-              {t('cron.create.nextRun')} {formatNextRun(job.state.nextRunAtMs)}
+              {t('cron.create.nextRun')} {formatNextRunRelative(t, job.state.nextRunAtMs)}
             </span>
           )}
         </div>
@@ -169,7 +151,7 @@ export default function CronJobDetailPage() {
         </>
       }
     >
-      <div className='space-y-6'>
+      <div className='space-y-6 mt-6'>
         {/* Info sections */}
         <div className='grid grid-cols-1 md:grid-cols-2 gap-6'>
           <div>

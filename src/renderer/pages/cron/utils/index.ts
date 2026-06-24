@@ -1,6 +1,17 @@
+import dayjs from 'dayjs';
 import type { TFunction } from 'i18next';
 import type { ICronJob, ICronSchedule } from '@/common/ipcBridge';
 import type { FrequencyPreset, IFrequencyScheduleOptions, IScheduleFrequency } from '@/renderer/pages/cron/types';
+
+export function formatNextRunRelative(t: TFunction, nextRunAtMs?: number): string {
+  if (!nextRunAtMs) return '';
+  const d = dayjs(nextRunAtMs);
+  const now = dayjs();
+  const time = d.format('HH:mm');
+  if (d.isSame(now, 'day')) return t('cron.create.nextRunToday', { time });
+  if (d.isSame(now.add(1, 'day'), 'day')) return t('cron.create.nextRunTomorrow', { time });
+  return d.format('MM-DD HH:mm');
+}
 
 /**
  * cron bridge 遇到错误时会返回 `{ __error: string }` 包装对象，而不是直接 reject。

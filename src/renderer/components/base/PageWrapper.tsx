@@ -1,4 +1,4 @@
-import { ArrowLeft } from '@icon-park/react';
+import { Left } from '@icon-park/react';
 import classNames from 'classnames';
 import React from 'react';
 
@@ -7,8 +7,8 @@ export default function PageWrapper({ children, className, contentClassName, tit
     <div className={classNames('page-wrapper w-full min-h-full box-border overflow-y-auto px-3 md:px-10 py-8', className)}>
       <div className={classNames('page-content mx-auto w-full md:max-w-240', contentClassName)}>
         {back && (
-          <div className='flex items-center gap-1 text-13px text-secondary cursor-pointer hover:text-foreground mb-4' onClick={back.onClick}>
-            <ArrowLeft theme='outline' size={14} />
+          <div className='inline-flex items-center gap-1 text-13px text-secondary cursor-pointer hover:text-foreground hover:bg-base rd-2 px-2 py-1 mb-4 -ml-2' onClick={back.onClick}>
+            <Left theme='outline' size={18} />
             <span>{back.label}</span>
           </div>
         )}
