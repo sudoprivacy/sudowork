@@ -690,7 +690,7 @@ const Item = ({ icon, title, description, status, action }: { icon: ReactNode; t
   </div>
 );
 
-const CronPageContent: React.FC = () => {
+export default function CronPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { isEnterprise } = useAppMode();
@@ -817,101 +817,95 @@ const CronPageContent: React.FC = () => {
   );
 
   return (
-    <div className='flex flex-col h-full w-full'>
-      <AionScrollArea className='flex-1 min-h-0 pb-16px' disableOverflow>
-        {/* ── DETAIL VIEW ── */}
-        {currentJob ? (
-          <CronJobDetail job={currentJob} onBack={handleBackToList} onEdit={handleEdit} onDelete={handleDelete} onToggle={handleToggle} onTrigger={handleTrigger} onNavigate={handleNavigate} />
-        ) : (
-          /* ── LIST VIEW ── */
-          <div className='space-y-16px'>
-            {/* Header */}
-            <div className='flex items-center justify-between gap-16px'>
-              <div className='min-w-0'>
-                <h2 className='text-20px font-bold text-foreground m-0 mb-4px'>{t('cron.scheduledTasks')}</h2>
-                <div className='text-13px text-secondary'>{t('cron.create.listSubtitle', { defaultValue: '设定定时任务，让 Agent 按计划自动执行' })}</div>
-              </div>
-              {jobs.length > 0 && (
-                <Button type='primary' shape='round' onClick={handleCreate}>
-                  <span className='inline-flex items-center justify-center gap-4px'>
-                    <Add theme='outline' size={14} className='block' />
-                    <span>{t('cron.create.button', { defaultValue: '新建任务' })}</span>
-                  </span>
-                </Button>
-              )}
-            </div>
-
-            {/* Enterprise mode: Remote/Local switcher */}
-            {isEnterprise && (
-              <div className='bg-2 rd-12px px-16px py-12px flex items-center justify-between'>
-                <div className='flex items-center gap-8px text-13px text-secondary'>
-                  <Info theme='outline' size={16} fill={'var(--text-secondary)'} />
-                  <span>{t('cron.mode.select', { defaultValue: '数据存储位置' })}</span>
+    <PageWrapper>
+      <div className='flex flex-col h-full w-full'>
+        <AionScrollArea className='flex-1 min-h-0 pb-16px' disableOverflow>
+          {/* ── DETAIL VIEW ── */}
+          {currentJob ? (
+            <CronJobDetail job={currentJob} onBack={handleBackToList} onEdit={handleEdit} onDelete={handleDelete} onToggle={handleToggle} onTrigger={handleTrigger} onNavigate={handleNavigate} />
+          ) : (
+            /* ── LIST VIEW ── */
+            <div className='space-y-16px'>
+              {/* Header */}
+              <div className='flex items-center justify-between gap-16px'>
+                <div className='min-w-0'>
+                  <h2 className='text-20px font-bold text-foreground m-0 mb-4px'>{t('cron.scheduledTasks')}</h2>
+                  <div className='text-13px text-secondary'>{t('cron.create.listSubtitle', { defaultValue: '设定定时任务，让 Agent 按计划自动执行' })}</div>
                 </div>
-                <div className='flex items-center gap-4px'>
-                  {canUseLocalCronMode && (
-                    <Button size='small' shape='round' type={sessionMode === 'local' ? 'primary' : 'text'} onClick={() => setSessionMode('local')}>
-                      {t('cron.mode.local', { defaultValue: '本地' })}
+                {jobs.length > 0 && (
+                  <Button type='primary' shape='round' onClick={handleCreate}>
+                    <span className='inline-flex items-center justify-center gap-4px'>
+                      <Add theme='outline' size={14} className='block' />
+                      <span>{t('cron.create.button', { defaultValue: '新建任务' })}</span>
+                    </span>
+                  </Button>
+                )}
+              </div>
+
+              {/* Enterprise mode: Remote/Local switcher */}
+              {isEnterprise && (
+                <div className='bg-2 rd-12px px-16px py-12px flex items-center justify-between'>
+                  <div className='flex items-center gap-8px text-13px text-secondary'>
+                    <Info theme='outline' size={16} fill={'var(--text-secondary)'} />
+                    <span>{t('cron.mode.select', { defaultValue: '数据存储位置' })}</span>
+                  </div>
+                  <div className='flex items-center gap-4px'>
+                    {canUseLocalCronMode && (
+                      <Button size='small' shape='round' type={sessionMode === 'local' ? 'primary' : 'text'} onClick={() => setSessionMode('local')}>
+                        {t('cron.mode.local', { defaultValue: '本地' })}
+                      </Button>
+                    )}
+                    <Button size='small' shape='round' type={sessionMode === 'remote' ? 'primary' : 'text'} onClick={() => setSessionMode('remote')}>
+                      {t('cron.mode.remote', { defaultValue: '云端' })}
                     </Button>
-                  )}
-                  <Button size='small' shape='round' type={sessionMode === 'remote' ? 'primary' : 'text'} onClick={() => setSessionMode('remote')}>
-                    {t('cron.mode.remote', { defaultValue: '云端' })}
+                  </div>
+                </div>
+              )}
+
+              {/* Error state (remote mode: Moss API unavailable) */}
+              {error && sessionMode === 'remote' && (
+                <div className='bg-red-1 rd-12px px-16px py-12px flex items-center justify-between'>
+                  <div className='flex items-center gap-8px text-13px text-red-6'>
+                    <Info theme='outline' size={16} />
+                    <span>{t('cron.error.serverUnavailable', { defaultValue: '无法连接服务器' })}</span>
+                  </div>
+                  <Button size='small' shape='round' onClick={() => void refetch()}>
+                    {t('common.retry', { defaultValue: '重试' })}
                   </Button>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* Error state (remote mode: Moss API unavailable) */}
-            {error && sessionMode === 'remote' && (
-              <div className='bg-red-1 rd-12px px-16px py-12px flex items-center justify-between'>
-                <div className='flex items-center gap-8px text-13px text-red-6'>
-                  <Info theme='outline' size={16} />
-                  <span>{t('cron.error.serverUnavailable', { defaultValue: '无法连接服务器' })}</span>
+              {/* Info banner (local mode only) */}
+              {sessionMode === 'local' && (
+                <div className='overflow-hidden rd-12px border'>
+                  <Item
+                    icon={<Sun theme='outline' size={20} />}
+                    title={t('cron.create.keepAwake', { defaultValue: '保持唤醒' })}
+                    description={t('cron.create.awakeBanner', { defaultValue: '定时任务仅在电脑唤醒时运行' })}
+                    status={<span className='text-13px text-secondary'>{keepAwake ? t('common.enabled', { defaultValue: '已启用' }) : t('common.disabled', { defaultValue: '已关闭' })}</span>}
+                    action={<Switch size='small' className='cron-keep-awake-switch' checked={keepAwake} onChange={handleKeepAwakeChange} />}
+                  />
                 </div>
-                <Button size='small' shape='round' onClick={() => void refetch()}>
-                  {t('common.retry', { defaultValue: '重试' })}
-                </Button>
-              </div>
-            )}
+              )}
 
-            {/* Info banner (local mode only) */}
-            {sessionMode === 'local' && (
-              <div className='overflow-hidden rd-12px border'>
-                <Item
-                  icon={<Sun theme='outline' size={20} />}
-                  title={t('cron.create.keepAwake', { defaultValue: '保持唤醒' })}
-                  description={t('cron.create.awakeBanner', { defaultValue: '定时任务仅在电脑唤醒时运行' })}
-                  status={<span className='text-13px text-secondary'>{keepAwake ? t('common.enabled', { defaultValue: '已启用' }) : t('common.disabled', { defaultValue: '已关闭' })}</span>}
-                  action={<Switch size='small' className='cron-keep-awake-switch' checked={keepAwake} onChange={handleKeepAwakeChange} />}
+              {/* Job cards or empty state */}
+              {!loading && jobs.length === 0 ? (
+                <EmptyState
+                  simple
+                  icon={<AlarmClock theme='outline' size={56} className='text-[var(--ui-accent-orange)]' />}
+                  title={t('cron.noTasks', { defaultValue: '暂无定时任务' })}
+                  description={t('cron.create.emptyHint', { defaultValue: '创建自动执行的 Agent 任务' })}
+                  actions={[{ label: t('cron.create.button', { defaultValue: '新建任务' }), onClick: handleCreate }]}
                 />
-              </div>
-            )}
+              ) : (
+                <CronJobCardGrid jobs={jobs} onSelectJob={handleSelectJob} />
+              )}
+            </div>
+          )}
+        </AionScrollArea>
 
-            {/* Job cards or empty state */}
-            {!loading && jobs.length === 0 ? (
-              <EmptyState
-                simple
-                icon={<AlarmClock theme='outline' size={56} className='text-[var(--ui-accent-orange)]' />}
-                title={t('cron.noTasks', { defaultValue: '暂无定时任务' })}
-                description={t('cron.create.emptyHint', { defaultValue: '创建自动执行的 Agent 任务' })}
-                actions={[{ label: t('cron.create.button', { defaultValue: '新建任务' }), onClick: handleCreate }]}
-              />
-            ) : (
-              <CronJobCardGrid jobs={jobs} onSelectJob={handleSelectJob} />
-            )}
-          </div>
-        )}
-      </AionScrollArea>
-
-      <CronJobFormDrawer visible={drawerVisible} editJob={editingJob} sessionMode={sessionMode} onClose={() => setDrawerVisible(false)} onSaved={() => void refetch()} />
-    </div>
-  );
-};
-
-export default function CronPage() {
-  return (
-    <PageWrapper>
-      <CronPageContent />
+        <CronJobFormDrawer visible={drawerVisible} editJob={editingJob} sessionMode={sessionMode} onClose={() => setDrawerVisible(false)} onSaved={() => void refetch()} />
+      </div>
     </PageWrapper>
   );
 }
