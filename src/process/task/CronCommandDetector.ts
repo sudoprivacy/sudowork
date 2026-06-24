@@ -10,12 +10,23 @@
 export type CronCommand = { kind: 'create'; name: string; schedule: string; scheduleDescription: string; message: string } | { kind: 'list' } | { kind: 'delete'; jobId: string };
 
 /**
- * Remove markdown code blocks from content to avoid detecting commands in examples
- * This prevents documentation examples like ```[CRON_LIST]``` from being executed
+ * Normalize markdown code blocks before command detection.
+ *
+ * Documentation/prose fenced blocks are removed so examples don't get executed.
+ * But models (e.g. scode) routinely wrap their REAL multi-line `[CRON_CREATE]`
+ * block in a fence despite the skill telling them not to — deleting those would
+ * silently drop a genuine command. So a fence whose body contains a cron marker
+ * is unwrapped (fence delimiters stripped, command kept) instead of removed.
  */
 function stripCodeBlocks(content: string): string {
-  // Remove fenced code blocks (```...```)
-  return content.replace(/```[\s\S]*?```/g, '');
+  return content.replace(/```[\s\S]*?```/g, (block) => {
+    if (/\[CRON_(?:CREATE|LIST|DELETE)/i.test(block)) {
+      // Strip only the opening (with optional language tag) and closing fence
+      // markers, preserving the command text inside for detection.
+      return block.replace(/^```[a-zA-Z0-9]*[ \t]*\r?\n?/, '').replace(/\r?\n?```$/, '');
+    }
+    return '';
+  });
 }
 
 /**
@@ -26,8 +37,10 @@ function stripCodeBlocks(content: string): string {
  * - [CRON_LIST] - List all scheduled tasks
  * - [CRON_DELETE: task-id] - Delete a scheduled task
  *
- * NOTE: Commands inside markdown code blocks are ignored to prevent
- * documentation examples from being executed.
+ * NOTE: Prose code blocks are ignored to prevent documentation examples from
+ * being executed, but a fenced block whose body is itself a cron command is
+ * unwrapped and honored (see stripCodeBlocks) — models often wrap real commands
+ * in a fence despite being told not to.
  *
  * @param content - The text content to scan
  * @returns Array of detected commands
@@ -152,10 +165,16 @@ export function stripCronCommands(content: string): string {
     return content;
   }
 
-  return content
-    .replace(/\[CRON_CREATE\][\s\S]*?\[\/CRON_CREATE\]/gi, '')
-    .replace(/\[CRON_LIST\]/gi, '')
-    .replace(/\[CRON_DELETE:[^\]]+\]/gi, '')
-    .replace(/\n{3,}/g, '\n\n') // Collapse multiple newlines
-    .trim();
+  return (
+    content
+      .replace(/\[CRON_CREATE\][\s\S]*?\[\/CRON_CREATE\]/gi, '')
+      .replace(/\[CRON_LIST\]/gi, '')
+      .replace(/\[CRON_DELETE:[^\]]+\]/gi, '')
+      // A command the model wrapped in a code fence leaves an empty ``` ``` block
+      // behind after the command text is removed — drop those so the UI doesn't
+      // render a stray empty code block.
+      .replace(/```[a-zA-Z0-9]*[ \t]*\r?\n?\s*```/g, '')
+      .replace(/\n{3,}/g, '\n\n') // Collapse multiple newlines
+      .trim()
+  );
 }

@@ -3360,11 +3360,18 @@ This identity statement takes priority over the default identity in USER.md.
       }
     }
 
-    // On finish, process any skill commands (cron, channel-info) from accumulated content
-    // Must save content BEFORE reset, then process all command types, then reset at the end
+    // On finish, process any skill commands (cron, channel-info) from accumulated content.
+    // Capture the content, then reset the accumulator IMMEDIATELY — before any await.
+    // Processing a command sends a feedback prompt via sendToConnection, whose ACP
+    // `session/prompt` only resolves when the *nested* feedback turn ends. The skill
+    // mandates LIST-then-CREATE, so the follow-up [CRON_CREATE] always streams inside
+    // that nested turn and accumulates here. If we reset only after the await, the
+    // parent finish wipes the nested turn's freshly-accumulated command before the
+    // nested turn's own finish handler can read it — so the create silently never ran.
     if (v.type === 'finish' && this.cronAccumulator.currentMsgContent) {
       const savedContent = this.cronAccumulator.currentMsgContent;
       const savedMsgId = this.cronAccumulator.currentMsgId;
+      this.cronAccumulator.reset();
 
       // Process cron commands
       if (hasCronCommands(savedContent)) {
@@ -3394,9 +3401,6 @@ This identity statement takes priority over the default identity in USER.md.
           await this.sendToConnection(feedbackMessage);
         }
       }
-
-      // Reset accumulator AFTER all command processing
-      this.cronAccumulator.reset();
     }
 
     ipcBridge.acpConversation.responseStream.emit(v);
