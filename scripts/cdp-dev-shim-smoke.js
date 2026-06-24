@@ -85,7 +85,7 @@ async function findPageTarget(cdpPort, waitSeconds) {
 // One-shot Runtime.evaluate. Opens a fresh WS so call N+1 doesn't
 // inherit half-handled callbacks from call N — CDP is happy with this
 // and the cost is negligible compared to the renderer evaluation.
-function evaluateInRenderer(wsUrl, expression) {
+function evaluateInRendererOnce(wsUrl, expression) {
   return new Promise((resolve, reject) => {
     const ws = new WebSocket(wsUrl);
     const timeout = setTimeout(() => {
@@ -119,7 +119,9 @@ function evaluateInRenderer(wsUrl, expression) {
       clearTimeout(timeout);
       ws.close();
       if (msg.error) {
-        reject(new Error(`CDP error: ${JSON.stringify(msg.error)}`));
+        const err = new Error(`CDP error: ${JSON.stringify(msg.error)}`);
+        err.cdpError = msg.error;
+        reject(err);
       } else if (msg.result?.exceptionDetails) {
         reject(new Error(`Renderer threw: ${JSON.stringify(msg.result.exceptionDetails)}`));
       } else {
@@ -131,6 +133,29 @@ function evaluateInRenderer(wsUrl, expression) {
       reject(err);
     });
   });
+}
+
+// Retry on transient CDP errors that mean "the page reloaded under us".
+// Vite triggers a renderer reload when it discovers new
+// optimizable deps on first navigation, which destroys the execution
+// context partway through an evaluate. Up to N attempts with brief
+// pauses; refetch the page target each time in case the URL changed
+// (HMR keeps the same target id, but a hard reload may not).
+async function evaluateInRendererResilient(cdpPort, expression, attempts = 5) {
+  let lastErr = null;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      const page = await findPageTarget(cdpPort, 30);
+      return await evaluateInRendererOnce(page.webSocketDebuggerUrl, expression);
+    } catch (err) {
+      lastErr = err;
+      const transient = /Execution context was destroyed|Target closed|No target with given id|Cannot find context with specified id/i.test(err.message);
+      if (!transient || i === attempts - 1) throw err;
+      console.log(`[cdp-dev-shim-smoke] transient CDP error (attempt ${i + 1}/${attempts}): ${err.message}; retrying`);
+      await sleep(2000);
+    }
+  }
+  throw lastErr;
 }
 
 // Wrap the renderer-side call in a try/catch that JSON-stringifies the
@@ -146,28 +171,31 @@ function wrap(jsExpr) {
 async function main() {
   const { cdpPort, expectOutcome, waitSeconds } = parseArgs(process.argv.slice(2));
   console.log(`[cdp-dev-shim-smoke] waiting for CDP page target on :${cdpPort} (up to ${waitSeconds}s)`);
-  const page = await findPageTarget(cdpPort, waitSeconds);
-  console.log(`[cdp-dev-shim-smoke] CDP target: ${page.url}`);
-  const wsUrl = page.webSocketDebuggerUrl;
+  const initialPage = await findPageTarget(cdpPort, waitSeconds);
+  console.log(`[cdp-dev-shim-smoke] initial CDP target: ${initialPage.url}`);
 
   // The renderer may still be hydrating when CDP first answers — the
   // shim is attached during `import './bootstrap/devTriggers'` which
-  // can lag the initial page navigation. Spin until it shows up.
+  // can lag the initial page navigation. Vite also reloads the page
+  // shortly after open when it discovers new optimizable deps, which
+  // destroys the execution context. Both are handled by the resilient
+  // evaluate wrapper — it retries on context-destroyed and refetches
+  // the page target each attempt.
   const waitExpr = `(async () => {
     const start = Date.now();
-    while (!window.__sudoworkDebug?.fuseT && Date.now() - start < 60000) {
+    while (!window.__sudoworkDebug?.fuseT && Date.now() - start < 30000) {
       await new Promise((r) => setTimeout(r, 500));
     }
     return !!window.__sudoworkDebug?.fuseT;
   })()`;
-  const waitRes = await evaluateInRenderer(wsUrl, waitExpr);
+  const waitRes = await evaluateInRendererResilient(cdpPort, waitExpr);
   if (!waitRes?.result?.value) {
-    throw new Error('window.__sudoworkDebug.fuseT never appeared on the renderer (60s timeout). devTriggers.ts may not be imported, or this is a production build.');
+    throw new Error('window.__sudoworkDebug.fuseT never appeared on the renderer (30s timeout). devTriggers.ts may not be imported, or this is a production build.');
   }
   console.log('[cdp-dev-shim-smoke] shim ready on window.__sudoworkDebug.fuseT');
 
   // Probe 1: runLazyInstallProbe.
-  const probeRes = await evaluateInRenderer(wsUrl, wrap('window.__sudoworkDebug.fuseT.runLazyInstallProbe()'));
+  const probeRes = await evaluateInRendererResilient(cdpPort, wrap('window.__sudoworkDebug.fuseT.runLazyInstallProbe()'));
   const probeParsed = JSON.parse(probeRes?.result?.value || '{}');
   console.log(`[cdp-dev-shim-smoke] runLazyInstallProbe: ${JSON.stringify(probeParsed)}`);
   if (!probeParsed.ok) throw new Error(`runLazyInstallProbe threw: ${probeParsed.error}`);
@@ -184,7 +212,7 @@ async function main() {
   // Probe 2: getInstallState — back-to-back with probe 1 because that's
   // the timing window that exposed the Win bug. The synchronous-reset
   // fix in fuseTBridge.ts must hold here.
-  const stateRes = await evaluateInRenderer(wsUrl, wrap('window.__sudoworkDebug.fuseT.getInstallState()'));
+  const stateRes = await evaluateInRendererResilient(cdpPort, wrap('window.__sudoworkDebug.fuseT.getInstallState()'));
   const stateParsed = JSON.parse(stateRes?.result?.value || '{}');
   console.log(`[cdp-dev-shim-smoke] getInstallState: ${JSON.stringify(stateParsed)}`);
   if (!stateParsed.ok) throw new Error(`getInstallState threw: ${stateParsed.error}`);
