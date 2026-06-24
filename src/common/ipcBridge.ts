@@ -10,7 +10,7 @@ import type { IConfirmation } from '@/common/chatLib';
 import type { IAssistantMeta } from '@/process/constants/assistantStorage';
 import type { IAssistantInfo } from '@/process/AssistantManager';
 import type { IChannelPairingRequest, IChannelPluginStatus, IChannelSession, IChannelUser, IPluginCredentials } from '@/channels/types';
-import type { SafetyStatus, IBlacklistConfig } from '@/types/security';
+import type { SafetyStatus, IBlacklistConfig } from '@common/types/security';
 import type { AuthProxyRule } from '@/common/types/authProxy';
 import type { McpSource } from '../process/services/mcpServices/McpProtocol';
 import type { AcpBackend, AcpBackendAll, AcpModelInfo, PresetAgentType } from '../types/acpTypes';

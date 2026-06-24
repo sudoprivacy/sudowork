@@ -2,7 +2,7 @@
  * Sudowork 应用程序共用常量
  */
 
-import type { IBlacklistConfig } from '@/types/security';
+import type { IBlacklistConfig } from '@common/types/security';
 
 /** 临时文件时间戳分隔符 */
 export const NEXUS_TIMESTAMP_SEPARATOR = '_nexus_';

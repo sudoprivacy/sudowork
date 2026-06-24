@@ -1,6 +1,6 @@
 import React from 'react';
 import { Modal, Input, Select } from '@arco-design/web-react';
-import type { IBlacklistRule, IBlacklistMatchType } from '@/types/security';
+import type { IBlacklistRule, IBlacklistMatchType } from '@common/types/security';
 
 const Option = Select.Option;
 const TextArea = Input.TextArea;

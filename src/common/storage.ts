@@ -6,7 +6,7 @@
 
 import { storage } from '@office-ai/platform';
 import type { AcpBackend, AcpBackendAll, AcpBackendConfig } from '@/types/acpTypes';
-import type { IBlacklistConfig } from '@/types/security';
+import type { IBlacklistConfig } from '@common/types/security';
 
 /**
  * @description 聊天相关的存储
