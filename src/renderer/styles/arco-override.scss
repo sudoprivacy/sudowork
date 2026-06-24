@@ -121,6 +121,34 @@ body[arco-theme='dark'] {
   }
 }
 
+// ---------- Drawer ----------
+// Electron 顶部标题栏使用 -webkit-app-region: drag；Drawer 通过 portal 挂到 body 后，
+.arco-drawer {
+  &,
+  &-mask,
+  &-close-icon {
+    -webkit-app-region: no-drag;
+  }
+
+  &-footer,
+  &-header {
+    border-color: var(--border-light);
+  }
+
+  &-close-icon {
+    transform: translateY(-3px);
+    &::before {
+      width: 26px;
+      height: 26px;
+    }
+
+    svg {
+      width: 18px;
+      height: 18px;
+    }
+  }
+}
+
 // Sudowork SudoworkModal wrapper
 .sudowork-modal {
   .arco-modal-content {

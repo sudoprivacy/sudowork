@@ -5,7 +5,6 @@
  */
 
 import { Button, Drawer, Form, Input, Message, Select } from '@arco-design/web-react';
-import { Close } from '@icon-park/react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
@@ -216,22 +215,8 @@ export default function CronJobFormDrawer({ visible, editJob, sessionMode, onClo
     <Drawer
       placement='right'
       width={520}
-      title={
-        <>
-          <span className='text-16px font-medium'>{editJob ? t('cron.create.editTitle', { defaultValue: '编辑定时任务' }) : t('cron.create.title', { defaultValue: '创建定时任务' })}</span>
-          <div
-            onClick={(event) => {
-              event.stopPropagation();
-              onClose();
-            }}
-            className='absolute right-4 top-2 cursor-pointer text-secondary hover:text-foreground transition-colors p-1'
-            style={{ zIndex: 10, WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-          >
-            <Close size={18} />
-          </div>
-        </>
-      }
-      closable={false}
+      title={editJob ? t('cron.create.editTitle', { defaultValue: '编辑定时任务' }) : t('cron.create.title', { defaultValue: '创建定时任务' })}
+      closable
       visible={visible}
       onCancel={onClose}
       footer={
