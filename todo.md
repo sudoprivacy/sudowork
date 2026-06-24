@@ -47,35 +47,7 @@
       ✅ /Users/xiaohei/Documents/freelancer/jinjing/sudoclaw/sudowork/src/renderer/pages/settings/EnterpriseMcpSettings/components/EditConfigModal.tsx
       ✅ /Users/xiaohei/Documents/freelancer/jinjing/sudoclaw/sudowork/src/renderer/pages/settings/MemberManagement.tsx
 
-- [ ] 扫清项目中散落的 types，统一迁移至 `src/types/`（纯类型转 `.d.ts`，运行时常量移至 `src/common/constants.ts`，枚举移至 `src/common/enum.ts`）
-  > 扫描命令：`grep -rn "^export const\|^export function\|^export class\|^export enum" <文件>`
-  - 纯类型文件（直接转 `.d.ts`）
-    - `src/common/nexus/types.ts`
-    - `src/common/slash/types.ts`
-    - `src/common/updateTypes.ts`
-    - `src/process/providers/cron/types.ts`
-    - `src/process/providers/types.ts`
-    - `src/process/services/safety/types.ts`
-    - `src/renderer/components/SettingsModal/contents/channels/types.ts`
-    - `src/renderer/components/SettingsModal/contents/secrets/types.ts`
-    - `src/renderer/messages/types.ts`
-    - `src/renderer/pages/conversation/grouped-history/types.ts`
-    - `src/renderer/pages/conversation/workspace/types.ts`
-    - `src/renderer/pages/guid/types.ts`
-    - `src/renderer/pages/settings/EnterpriseMcpSettings/types.ts`
-    - `src/renderer/shared/agents/types.ts`
-  - 含枚举（移至 `src/common/enum.ts`，剩余纯类型转 `.d.ts`）
-    - ✅ `src/common/codex/types/eventTypes.ts`
-    - `src/common/codex/types/toolTypes.ts`
-  - 含运行时值（需先提取常量再转 `.d.ts`）
-    - `src/agent/sudoclaw/types.ts`
-    - `src/channels/types.ts`
-    - `src/channels/actions/types.ts`
-    - `src/channels/plugins/wechat/types.ts`
-    - `src/common/codex/types/errorTypes.ts`
-    - `src/common/codex/types/permissionTypes.ts`
-    - `src/common/skillAuditTypes.ts`
-    - `src/extensions/types.ts`
-    - `src/process/database/types.ts`
+- [ ] `src/types/` 边界策略：只存放 ① 第三方无类型包的 `.d.ts` shim；② 跨两个及以上进程（main/renderer/worker）共用的类型。模块内部类型保持原地，不强制迁移。
+
 
 - [ ] 当前项目中修改智能体存在多个功能相同的组件，需要统一合并

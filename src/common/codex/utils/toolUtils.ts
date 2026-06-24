@@ -5,7 +5,7 @@
  */
 
 // Import values (enums) and types separately
-import { CodexAgentEventEnums } from '@/common/enum';
+import { CodexAgentEventType } from '../types/eventTypes';
 import { ToolCategory, OutputFormat, RendererType } from '../types/toolTypes';
 import type { EventDataMap, McpInvocation, McpToolInfo, ToolAvailability, ToolCapabilities, ToolDefinition, ToolRenderer } from '../types';
 
@@ -23,7 +23,7 @@ export type { EventDataMap, McpInvocation, McpToolInfo, ToolAvailability, ToolCa
 export class ToolRegistry {
   private tools = new Map<string, ToolDefinition>();
   private mcpTools = new Map<string, ToolDefinition>();
-  private eventTypeMapping = new Map<CodexAgentEventEnums, string[]>();
+  private eventTypeMapping = new Map<CodexAgentEventType, string[]>();
 
   constructor() {
     this.initializeBuiltinTools();
@@ -112,14 +112,14 @@ export class ToolRegistry {
     });
 
     // 设置事件类型映射
-    this.eventTypeMapping.set(CodexAgentEventEnums.EXEC_COMMAND_BEGIN, ['shell_exec']);
-    this.eventTypeMapping.set(CodexAgentEventEnums.EXEC_COMMAND_OUTPUT_DELTA, ['shell_exec']);
-    this.eventTypeMapping.set(CodexAgentEventEnums.EXEC_COMMAND_END, ['shell_exec']);
-    this.eventTypeMapping.set(CodexAgentEventEnums.APPLY_PATCH_APPROVAL_REQUEST, ['file_operations']);
-    this.eventTypeMapping.set(CodexAgentEventEnums.PATCH_APPLY_BEGIN, ['file_operations']);
-    this.eventTypeMapping.set(CodexAgentEventEnums.PATCH_APPLY_END, ['file_operations']);
-    this.eventTypeMapping.set(CodexAgentEventEnums.WEB_SEARCH_BEGIN, ['web_search']);
-    this.eventTypeMapping.set(CodexAgentEventEnums.WEB_SEARCH_END, ['web_search']);
+    this.eventTypeMapping.set(CodexAgentEventType.EXEC_COMMAND_BEGIN, ['shell_exec']);
+    this.eventTypeMapping.set(CodexAgentEventType.EXEC_COMMAND_OUTPUT_DELTA, ['shell_exec']);
+    this.eventTypeMapping.set(CodexAgentEventType.EXEC_COMMAND_END, ['shell_exec']);
+    this.eventTypeMapping.set(CodexAgentEventType.APPLY_PATCH_APPROVAL_REQUEST, ['file_operations']);
+    this.eventTypeMapping.set(CodexAgentEventType.PATCH_APPLY_BEGIN, ['file_operations']);
+    this.eventTypeMapping.set(CodexAgentEventType.PATCH_APPLY_END, ['file_operations']);
+    this.eventTypeMapping.set(CodexAgentEventType.WEB_SEARCH_BEGIN, ['web_search']);
+    this.eventTypeMapping.set(CodexAgentEventType.WEB_SEARCH_END, ['web_search']);
   }
 
   /**
@@ -249,10 +249,10 @@ export class ToolRegistry {
   /**
    * 根据事件类型和数据解析对应的工具
    */
-  resolveToolForEvent(eventType: CodexAgentEventEnums, eventData?: EventDataMap[keyof EventDataMap]): ToolDefinition | null {
+  resolveToolForEvent(eventType: CodexAgentEventType, eventData?: EventDataMap[keyof EventDataMap]): ToolDefinition | null {
     // 1. 特殊处理MCP工具调用
-    if (eventType === CodexAgentEventEnums.MCP_TOOL_CALL_BEGIN || eventType === CodexAgentEventEnums.MCP_TOOL_CALL_END) {
-      const mcpData = eventData as EventDataMap[CodexAgentEventEnums.MCP_TOOL_CALL_BEGIN];
+    if (eventType === CodexAgentEventType.MCP_TOOL_CALL_BEGIN || eventType === CodexAgentEventType.MCP_TOOL_CALL_END) {
+      const mcpData = eventData as EventDataMap[CodexAgentEventType.MCP_TOOL_CALL_BEGIN];
       if (mcpData?.invocation) {
         const toolId = this.inferMcpToolId(mcpData.invocation);
         const mcpTool = this.mcpTools.get(toolId);

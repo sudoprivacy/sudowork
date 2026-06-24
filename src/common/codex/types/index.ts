@@ -7,8 +7,8 @@
 // Export all codex types from the modular structure
 // Using explicit re-exports to avoid Rollup resolution issues
 
-// From enum.ts (moved to src/common/enum.ts)
-export { CodexAgentEventEnums } from '@/common/enum';
+// From eventTypes.ts
+export { CodexAgentEventType } from './eventTypes';
 
 // From eventData.ts - export types normally (not with 'export type') to allow re-exporting
 export {

@@ -5,7 +5,7 @@
  */
 
 // Codex Agent Event Types
-export enum CodexAgentEventEnums {
+export enum CodexAgentEventType {
   // 会话和配置事件 Session and configuration events
   /**
    * 会话配置事件 - 确认客户端的配置消息
@@ -170,7 +170,7 @@ export enum CodexAgentEventEnums {
 
   /**
    * 执行批准请求事件 - 请求批准命令执行
-   * prompt: 帮我创建一个文件 hello.txt , 内容为 'hello codex'
+   * prompt: 帮我创建一个文件 hello.txt , 内容为 ’hello codex‘
    * payload:  {
       "type": "exec_approval_request",
       "call_id": "call_W5qxMSKOP2eHaEq16QCtrhVS",
@@ -184,7 +184,7 @@ export enum CodexAgentEventEnums {
   //  补丁/文件修改事件 Patch/file modification events
   /**
    * 应用补丁批准请求事件 - 请求批准应用代码补丁
-   * prompt: 帮我创建一个文件 hello.txt , 内容为 'hello codex'
+   * prompt: 帮我创建一个文件 hello.txt , 内容为 ’hello codex‘
    * payload: {
       type: 'apply_patch_approval_request',
       call_id: 'patch-7',
