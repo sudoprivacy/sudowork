@@ -242,7 +242,14 @@ const OneClickImportModal: React.FC<OneClickImportModalProps> = ({ visible, onCa
   );
 
   return (
-    <AionModal header={{ title: t('settings.mcpOneKeyImport'), showClose: true }} visible={visible} onCancel={onCancel} footer={{ render: renderFooter }} style={{ width: 600, height: 420 }} contentStyle={{ borderRadius: 16, padding: '24px', background: 'var(--bg-1)', overflow: 'hidden', height: 420 - 96 }}>
+    <AionModal
+      header={{ title: t('settings.mcpOneKeyImport'), showClose: true }}
+      visible={visible}
+      onCancel={onCancel}
+      footer={{ render: renderFooter }}
+      style={{ width: 600, height: 420 }}
+      contentStyle={{ borderRadius: 16, padding: '24px', background: 'var(--bg-1)', overflow: 'hidden', height: 420 - 96 }}
+    >
       <div className='flex flex-col h-[275px] mt-5'>
         <div className='mb-6 text-secondary text-sm'>{t('settings.mcpImportDescription')}</div>
 

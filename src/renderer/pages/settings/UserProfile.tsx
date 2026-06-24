@@ -5,13 +5,13 @@ import { useTranslation } from 'react-i18next';
 import { formatUsagePoints } from '@/common/tokenUsage';
 import type { UserProfileData } from '@/common/ipcBridge';
 import { ipcBridge } from '@/common';
+import PageWrapper from '@renderer/components/base/PageWrapper';
 import { useAuth } from '../../context/AuthContext';
 import { useDashboardStats } from '../../context/DashboardStatsContext';
 import { useAppMode } from '../../hooks/useAppMode';
 import { useSystemLoginMethod } from '../../hooks/useSystemLoginMethod';
 import ConsumerAvatar from './components/ConsumerAvatar';
 import WeeklyModelUsageChart from './components/WeeklyModelUsageChart';
-import PageWrapper from '@renderer/components/base/PageWrapper';
 import ChangePasswordModal from './components/ChangePasswordModal';
 
 const UserProfile: React.FC = () => {

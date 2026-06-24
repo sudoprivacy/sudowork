@@ -3,8 +3,8 @@ import { Table, Button, Tabs, Tag, Space, Message, Modal, Badge } from '@arco-de
 import { User, DeleteFour, Peoples } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
-import { useAuth } from '../../context/AuthContext';
 import PageWrapper from '@renderer/components/base/PageWrapper';
+import { useAuth } from '../../context/AuthContext';
 
 const MemberManagement: React.FC = () => {
   const { t } = useTranslation();

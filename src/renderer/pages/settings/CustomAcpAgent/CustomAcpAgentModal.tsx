@@ -273,7 +273,11 @@ const CustomAcpAgentModal: React.FC<CustomAcpAgentModalProps> = ({ visible, agen
                   const logo = BACKEND_LOGO_MAP[detectedAgent.backend];
                   const isSelected = selectedCli === detectedAgent.cliPath;
                   return (
-                    <div key={detectedAgent.cliPath} className={`p-2.5 rounded-lg cursor-pointer transition-all flex items-center gap-2 relative border border-solid ${isSelected ? 'bg-[var(--color-fill-2)] border-primary' : 'bg-2 border-transparent hover:bg-[var(--color-fill-2)] hover:border-[var(--color-border-2)]'}`} onClick={() => handleSelectCli(detectedAgent.cliPath || '')}>
+                    <div
+                      key={detectedAgent.cliPath}
+                      className={`p-2.5 rounded-lg cursor-pointer transition-all flex items-center gap-2 relative border border-solid ${isSelected ? 'bg-[var(--color-fill-2)] border-primary' : 'bg-2 border-transparent hover:bg-[var(--color-fill-2)] hover:border-[var(--color-border-2)]'}`}
+                      onClick={() => handleSelectCli(detectedAgent.cliPath || '')}
+                    >
                       {logo && <img src={logo} alt={`${detectedAgent.name} logo`} className='w-6 h-6 object-contain flex-shrink-0' />}
                       <div className='min-w-0 flex-1'>
                         <div className='font-medium text-sm text-foreground'>{detectedAgent.name}</div>
