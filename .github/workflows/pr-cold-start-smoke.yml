@@ -109,6 +109,48 @@ jobs:
         # SHA mismatches against src/shared/runtime-sha256.json fail fast here.
         run: bun run nexus-vfs:download
 
+      # ─── macOS-only prereq: install FUSE-T so fuse-plugin's dlopen succeeds.
+      # The macOS build of nexus-fuse-plugin hard-links /usr/local/lib/libfuse.2.dylib
+      # — FUSE-T's PKG installs a libfuse compat shim there. Without this step
+      # the cluster skips fuse-plugin with `dlopen ... Library not loaded:
+      # /usr/local/lib/libfuse.2.dylib` and the smoke would (correctly) fail
+      # with count=2.
+      #
+      # This installs into the runner's system root via the same .pkg path
+      # FuseTInstallService.ts uses at runtime — SHA-pinned for integrity. We
+      # do this BEFORE the smoke step so its `sudo installer` invocation is
+      # not observed by the smoke's admin-watcher (separate step, separate
+      # process scope). Smoke then validates the post-install steady state
+      # cold start, which is the path real users hit on every launch after
+      # their first FUSE mount.
+      #
+      # Why not also test the pre-install path: the lazy-install branch is
+      # already covered by 9 unit tests in src/process/services/fuset/*.test.ts,
+      # and CI runners can't authentically simulate the
+      # "first-mount triggers osascript prompt" scenario anyway.
+      - name: Install FUSE-T prereq (macOS)
+        if: matrix.platform == 'macos-arm64'
+        shell: bash
+        run: |
+          set -euo pipefail
+          FUSE_T_VERSION=$(node -p "require('./src/shared/runtime-versions.json')['fuse-t']")
+          PKG="fuse-t-macos-installer-${FUSE_T_VERSION}.pkg"
+          URL="https://github.com/macos-fuse-t/fuse-t/releases/download/${FUSE_T_VERSION}/${PKG}"
+          # SHA pinned in src/process/services/fuset/FuseTInstallService.ts for v1.2.7.
+          EXPECTED_SHA=6a29c747e61a86a405a189efc3de42812d73147135f93a1bb0624c1e7b90e654
+          DL=/tmp/${PKG}
+          curl -fsSL "$URL" -o "$DL"
+          ACTUAL_SHA=$(shasum -a 256 "$DL" | awk '{print $1}')
+          if [ "$ACTUAL_SHA" != "$EXPECTED_SHA" ]; then
+            echo "::error::FUSE-T pkg SHA256 mismatch (got $ACTUAL_SHA expected $EXPECTED_SHA)"
+            exit 1
+          fi
+          sudo installer -pkg "$DL" -target /
+          echo "FUSE-T ${FUSE_T_VERSION} installed; framework at:"
+          ls -lah /Library/Frameworks/fuse_t.framework 2>/dev/null || echo "  (framework path not present)"
+          echo "libfuse compat shim at:"
+          ls -lah /usr/local/lib/libfuse.2.dylib 2>/dev/null || echo "  (no libfuse compat shim)"
+
       # ─── Linux smoke ────────────────────────────────────────────────────
       - name: Cold-start smoke (Linux)
         if: matrix.platform == 'linux-x64'
