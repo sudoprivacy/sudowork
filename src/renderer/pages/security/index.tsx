@@ -226,60 +226,58 @@ export default function SecurityPage() {
 
   return (
     <PageWrapper title={t('settings.security')} subtitle={t('settings.securitySettings.subtitle')}>
-      <div className='p-6 flex flex-col gap-2'>
-        <div className='overflow-hidden rd-12px border'>
-          <SecurityItem
-            icon={<Shield theme='outline' size='22' />}
-            title={t('settings.securitySettings.envProtection.title')}
-            tag={
-              <Tag className='rd-full' bordered>
-                {t('settings.securitySettings.envProtection.tag')}
-              </Tag>
-            }
-            description={t('settings.securitySettings.envProtection.description')}
-            status={
-              <span className='inline-flex items-center gap-1.5 text-13px font-500 text-success'>
-                <span className='h-1.25 w-1.25 rd-50% bg-success' />
-                {t('settings.securitySettings.protecting')}
-              </span>
-            }
-            action={<Switch checked={envProtection} disabled size='small' className='settings-accent-switch' />}
-          />
-          <SecurityItem
-            icon={<Lock theme='outline' size='22' />}
-            title={t('settings.securitySettings.infoProtection.title')}
-            tag={
-              <Tag className='rd-full' bordered>
-                {t('settings.securitySettings.infoProtection.tag')}
-              </Tag>
-            }
-            description={t('settings.securitySettings.infoProtection.description')}
-            status={
-              <span className='inline-flex items-center gap-1.5 text-13px font-500 text-success'>
-                <span className='h-1.25 w-1.25 rd-50% bg-success' />
-                {t('settings.securitySettings.protecting')}
-              </span>
-            }
-            action={<Switch checked={infoProtection} disabled size='small' className='settings-accent-switch' />}
-          />
-          <SecurityItem
-            icon={<Scan theme='outline' size='22' />}
-            title={t('settings.securitySettings.skillScan.title')}
-            tag={
-              <Tag className='rd-full' bordered>
-                {t('settings.securitySettings.skillScan.tag')}
-              </Tag>
-            }
-            description={t('settings.securitySettings.skillScan.description')}
-            status={
-              <span className='inline-flex items-center gap-1.5 text-13px font-500 text-success'>
-                <span className='h-1.25 w-1.25 rd-50% bg-success' />
-                {t('settings.securitySettings.protecting')}
-              </span>
-            }
-            action={<Switch checked={skillScan} disabled size='small' className='settings-accent-switch' />}
-          />
-        </div>
+      <div className='flex flex-col gap-3'>
+        <SecurityItem
+          icon={<Shield theme='outline' size='22' />}
+          title={t('settings.securitySettings.envProtection.title')}
+          tag={
+            <Tag className='rd-full' bordered>
+              {t('settings.securitySettings.envProtection.tag')}
+            </Tag>
+          }
+          description={t('settings.securitySettings.envProtection.description')}
+          status={
+            <span className='inline-flex items-center gap-1.5 text-13px font-500 text-success'>
+              <span className='h-1.25 w-1.25 rd-50% bg-success' />
+              {t('settings.securitySettings.protecting')}
+            </span>
+          }
+          action={<Switch checked={envProtection} disabled size='small' className='settings-accent-switch' />}
+        />
+        <SecurityItem
+          icon={<Lock theme='outline' size='22' />}
+          title={t('settings.securitySettings.infoProtection.title')}
+          tag={
+            <Tag className='rd-full' bordered>
+              {t('settings.securitySettings.infoProtection.tag')}
+            </Tag>
+          }
+          description={t('settings.securitySettings.infoProtection.description')}
+          status={
+            <span className='inline-flex items-center gap-1.5 text-13px font-500 text-success'>
+              <span className='h-1.25 w-1.25 rd-50% bg-success' />
+              {t('settings.securitySettings.protecting')}
+            </span>
+          }
+          action={<Switch checked={infoProtection} disabled size='small' className='settings-accent-switch' />}
+        />
+        <SecurityItem
+          icon={<Scan theme='outline' size='22' />}
+          title={t('settings.securitySettings.skillScan.title')}
+          tag={
+            <Tag className='rd-full' bordered>
+              {t('settings.securitySettings.skillScan.tag')}
+            </Tag>
+          }
+          description={t('settings.securitySettings.skillScan.description')}
+          status={
+            <span className='inline-flex items-center gap-1.5 text-13px font-500 text-success'>
+              <span className='h-1.25 w-1.25 rd-50% bg-success' />
+              {t('settings.securitySettings.protecting')}
+            </span>
+          }
+          action={<Switch checked={skillScan} disabled size='small' className='settings-accent-switch' />}
+        />
 
         {SAFETY_HOOK_SETTINGS_VISIBLE && (
           <>
