@@ -11,7 +11,7 @@ import { useTranslation } from 'react-i18next';
 
 export type CronJobStatus = 'none' | 'active' | 'paused' | 'error' | 'unread' | 'unconfigured';
 
-interface CronJobIndicatorProps {
+interface ICronJobIndicatorProps {
   status: CronJobStatus;
   size?: number;
   className?: string;
@@ -21,7 +21,7 @@ interface CronJobIndicatorProps {
  * Simple indicator icon for conversations with cron jobs
  * Used in ChatHistory to distinguish conversations with scheduled tasks
  */
-const CronJobIndicator: React.FC<CronJobIndicatorProps> = ({ status, size = 14, className = '' }) => {
+const CronJobIndicator: React.FC<ICronJobIndicatorProps> = ({ status, size = 14, className = '' }) => {
   const { t } = useTranslation();
 
   if (status === 'none') {

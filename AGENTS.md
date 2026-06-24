@@ -38,19 +38,46 @@ bun run test:e2e           # E2E tests (Playwright)
 - **Utilities**: camelCase (`formatDate.ts`)
 - **Constants**: UPPER_SNAKE_CASE
 - **Unused params**: prefix with `_`
+- **Boolean values**: variables, state, and props must start with `is` (`isLoading`, `isOpen`, `isDisabled`, `isVisible`, `isActive`)
 
 ### TypeScript
 
 - Strict mode enabled
 - Use path aliases: `@/*`, `@process/*`, `@renderer/*`, `@worker/*`
-- Prefer `type` over `interface` (per ESLint config)
+- Use `type` for simple aliases, unions, intersections, and utility-derived types.
+- Use `interface` for structured object shapes, including component props.
 
 ### React
 
 - Functional components only
+- Prefer `function` declarations for React components instead of `const` arrow functions.
 - Hooks: `use*` prefix
-- Event handlers: `on*` prefix
-- Props type: `${ComponentName}Props`
+- Event handler props and custom callback props must start with `on` (`onClick`, `onChange`, `onConfirm`, `onClose`, `onValueChange`).
+- Component props must use `interface`, named `I<ComponentName>Props`, and be placed at the bottom of the file.
+
+```tsx
+// ✅
+export default function RuleModal({ isOpen, onOk }: IRuleModalProps) {
+  const isDisabled = false;
+  // ...
+}
+
+function HelperComponent() {
+  // ...
+}
+
+interface IRuleModalProps {
+  isOpen: boolean;
+  onOk: () => void;
+  onValueChange: (value: string) => void;
+}
+
+// ❌
+type Props = { open: boolean; ok: () => void };
+const RuleModal: React.FC<Props> = ({ open, ok }) => {
+  // ...
+};
+```
 
 ### Styling
 

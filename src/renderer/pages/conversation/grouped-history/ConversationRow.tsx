@@ -112,7 +112,6 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
             <div className={classNames('chat-history__item-name overflow-hidden text-ellipsis block w-full text-14px lh-24px whitespace-nowrap min-w-0 group-hover:text-1', selected && !batchMode ? 'text-1 font-medium' : 'text-2')}>{conversation.name}</div>
           </Tooltip>
         </FlexFullContainer>
-
         {!batchMode && (
           <div
             className={classNames('absolute right-0 top-0 h-full items-center justify-end !collapsed-hidden pr-2', {

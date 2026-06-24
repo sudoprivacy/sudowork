@@ -7,6 +7,9 @@
 
 import { Button, Descriptions, Popover } from '@arco-design/web-react';
 import { IconMoon, IconSun } from '@arco-design/web-react/icon';
+import { DndContext, PointerSensor, useDraggable, useSensor, useSensors } from '@dnd-kit/core';
+import type { DragEndEvent } from '@dnd-kit/core';
+import { CSS } from '@dnd-kit/utilities';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useParams } from 'react-router-dom';
@@ -14,8 +17,12 @@ import type { ThemePreference } from '@/renderer/hooks/useTheme';
 import { useThemeContext } from '@/renderer/context/ThemeContext';
 
 type DebugThemeOption = Extract<ThemePreference, 'light' | 'dark'>;
+type DebugPanelOffset = { x: number; y: number };
 
-const DebuggerInfo: React.FC = () => {
+const DEBUG_PANEL_MARGIN = 16;
+const DEBUG_PANEL_DRAG_THRESHOLD = 4;
+
+function DebuggerInfo() {
   const location = useLocation();
   const params = useParams();
 
@@ -31,9 +38,9 @@ const DebuggerInfo: React.FC = () => {
       <Descriptions column={1} data={rows.map(([label, value]) => ({ label, value }))} size='small' layout='inline-horizontal' labelStyle={{ width: 64, minWidth: 64 }} />
     </div>
   );
-};
+}
 
-const DebuggerThemeSwitch: React.FC = () => {
+function DebuggerThemeSwitch() {
   const { themePreference, setTheme } = useThemeContext();
   const { t } = useTranslation();
 
@@ -67,20 +74,54 @@ const DebuggerThemeSwitch: React.FC = () => {
       </div>
     </div>
   );
-};
+}
 
-const DebugPanel: React.FC = () => {
+function DebugPanelTrigger({ offset, visible, onVisibleChange, content }: IDebugPanelTriggerProps) {
+  const { attributes, listeners, setNodeRef, transform } = useDraggable({ id: 'debug-panel-trigger' });
+  const x = offset.x + (transform?.x ?? 0);
+  const y = offset.y + (transform?.y ?? 0);
+
+  return (
+    <div
+      ref={setNodeRef}
+      className='fixed z-9999 cursor-grab touch-none active:cursor-grabbing'
+      style={{
+        right: DEBUG_PANEL_MARGIN,
+        bottom: DEBUG_PANEL_MARGIN,
+        transform: CSS.Translate.toString({ x, y, scaleX: 1, scaleY: 1 }),
+      }}
+      {...attributes}
+      {...listeners}
+    >
+      <Popover position='tr' popupVisible={visible} className='!w-[420px] !max-w-[420px]' triggerProps={{ autoFitPosition: false }} content={content}>
+        <Button size='small' type='primary' onClick={() => onVisibleChange(!visible)}>
+          Debugger
+        </Button>
+      </Popover>
+    </div>
+  );
+}
+
+function DebugPanel() {
   const [visible, setVisible] = useState(false);
+  const [offset, setOffset] = useState<DebugPanelOffset>({ x: 0, y: 0 });
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: DEBUG_PANEL_DRAG_THRESHOLD } }));
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    setOffset((current) => ({
+      x: current.x + event.delta.x,
+      y: current.y + event.delta.y,
+    }));
+  };
 
   if (!import.meta.env.DEV) return null;
 
   return (
-    <div className='fixed bottom-4 right-4 z-9999'>
-      <Popover
-        position='tr'
-        popupVisible={visible}
-        className='!w-[420px] !max-w-[420px]'
-        triggerProps={{ autoFitPosition: false }}
+    <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+      <DebugPanelTrigger
+        offset={offset}
+        visible={visible}
+        onVisibleChange={setVisible}
         content={
           <div>
             <div className='flex items-center justify-between mb-2'>
@@ -93,13 +134,16 @@ const DebugPanel: React.FC = () => {
             <DebuggerThemeSwitch />
           </div>
         }
-      >
-        <Button size='small' type='primary' onClick={() => setVisible((v) => !v)}>
-          Debugger
-        </Button>
-      </Popover>
-    </div>
+      />
+    </DndContext>
   );
-};
+}
 
 export default DebugPanel;
+
+interface IDebugPanelTriggerProps {
+  offset: DebugPanelOffset;
+  visible: boolean;
+  onVisibleChange: (visible: boolean) => void;
+  content: React.ReactNode;
+}

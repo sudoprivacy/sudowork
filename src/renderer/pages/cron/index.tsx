@@ -193,7 +193,7 @@ function CronJobDetail({ job, onBack, onEdit, onDelete, onToggle, onTrigger, onN
           <Popconfirm title={t('cron.confirmDelete')} onOk={() => onDelete(job.id)}>
             <Button type='text' size='small' status='danger' icon={<DeleteOne theme='outline' size={16} />} />
           </Popconfirm>
-          <Button type='primary' size='small' shape='round' icon={<PlayOne theme='outline' size={14} />} onClick={() => onTrigger(job.id)}>
+          <Button type='primary' size='small' shape='round' icon={<PlayOne theme='outline' />} onClick={() => onTrigger(job.id)}>
             {t('cron.actions.runNow', { defaultValue: '立即执行' })}
           </Button>
         </div>
