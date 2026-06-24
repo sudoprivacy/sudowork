@@ -6,8 +6,14 @@
  */
 
 import { Button, Descriptions, Popover } from '@arco-design/web-react';
+import { IconMoon, IconSun } from '@arco-design/web-react/icon';
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useLocation, useParams } from 'react-router-dom';
+import type { ThemePreference } from '@/renderer/hooks/useTheme';
+import { useThemeContext } from '@/renderer/context/ThemeContext';
+
+type DebugThemeOption = Extract<ThemePreference, 'light' | 'dark'>;
 
 const DebuggerInfo: React.FC = () => {
   const location = useLocation();
@@ -23,6 +29,42 @@ const DebuggerInfo: React.FC = () => {
   return (
     <div className='font-mono'>
       <Descriptions column={1} data={rows.map(([label, value]) => ({ label, value }))} size='small' layout='inline-horizontal' labelStyle={{ width: 64, minWidth: 64 }} />
+    </div>
+  );
+};
+
+const DebuggerThemeSwitch: React.FC = () => {
+  const { themePreference, setTheme } = useThemeContext();
+  const { t } = useTranslation();
+
+  const themeOptions: { value: DebugThemeOption; label: string; icon: React.ReactNode }[] = [
+    { value: 'light', label: t('settings.lightMode'), icon: <IconSun style={{ fontSize: 14 }} /> },
+    { value: 'dark', label: t('settings.darkMode'), icon: <IconMoon style={{ fontSize: 14 }} /> },
+  ];
+
+  return (
+    <div className='mt-3 flex items-center justify-between gap-3 border-t border-light pt-3'>
+      <div className='shrink-0 font-sans text-12px text-3'>{t('settings.theme')}</div>
+      <div className='inline-flex items-center gap-1 rounded-full bg-fill-1 p-1'>
+        {themeOptions.map((option) => {
+          const isActive = themePreference === option.value;
+
+          return (
+            <Button
+              key={option.value}
+              size='mini'
+              type={isActive ? 'primary' : 'text'}
+              icon={option.icon}
+              className='!h-7 !rounded-full'
+              onClick={() => {
+                if (!isActive) void setTheme(option.value);
+              }}
+            >
+              {option.label}
+            </Button>
+          );
+        })}
+      </div>
     </div>
   );
 };
@@ -48,6 +90,7 @@ const DebugPanel: React.FC = () => {
               </Button>
             </div>
             <DebuggerInfo />
+            <DebuggerThemeSwitch />
           </div>
         }
       >
