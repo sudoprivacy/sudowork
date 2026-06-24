@@ -1,0 +1,20 @@
+{
+  "id": "a7f3c2e1-9b4d-4e6a-8c12-3f5d7e9a1b20",
+  "name": "hyperframes",
+  "display_name": "HyperFrames 视频",
+  "description": "用纯 HTML/CSS/动画渲染 MP4 视频。写一个 HTML 合成,自动渲染成确定性的 MP4 —— 无需视频剪辑技能,FFmpeg 自动提供。",
+  "icon": "icon.svg",
+  "emoji": "🎬",
+  "category": "",
+  "categories": [
+    "创作"
+  ],
+  "applicable_scenarios": "[\"讲解/演示视频:把一段说明做成动画视频\",\"社交媒体短视频:文字+图片+动效合成\",\"幻灯片转视频:把要点渲染成带动画的 MP4\",\"营销/产品动效:用 HTML 动画生成宣传片段\"]",
+  "core_features": "[{\"title\": \"HTML 即视频\", \"desc\": \"用标准 HTML/CSS 写合成,无需专有时间线\"}, {\"title\": \"确定性输出\", \"desc\": \"同样输入生成同样 MP4,可复现\"}, {\"title\": \"零依赖安装\", \"desc\": \"自带 ffmpeg(ffmpeg-static)+ 自动下 Chromium,用户无需装环境\"}]",
+  "homepage": "https://github.com/heygen-com/hyperframes",
+  "author_id": "None",
+  "source_type": "hub",
+  "is_builtin": false,
+  "installed_version": "0.1.0",
+  "installed_at": "2026-06-24T00:00:00.000Z"
+}
