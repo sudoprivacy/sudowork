@@ -225,14 +225,8 @@ export default function SecurityPage() {
   }, []);
 
   return (
-    <PageWrapper>
+    <PageWrapper title={t('settings.security')} subtitle={t('settings.securitySettings.subtitle')}>
       <div className='p-6 flex flex-col gap-2'>
-        {/* 页面标题 */}
-        <div className='flex flex-col gap-0.5'>
-          <h2 className='text-24px font-600 text-foreground my-0'>{t('settings.security')}</h2>
-          <p className='text-13px text-secondary my-0'>{t('settings.securitySettings.subtitle')}</p>
-        </div>
-
         <div className='overflow-hidden rd-12px border'>
           <SecurityItem
             icon={<Shield theme='outline' size='22' />}
@@ -412,19 +406,6 @@ export default function SecurityPage() {
                 </div>
               </div>
             </Card>
-
-            {/* Rule Modal */}
-            <RuleModal
-              isVisible={showRuleModal}
-              editingRule={editingRule}
-              ruleForm={ruleForm}
-              onFormChange={setRuleForm}
-              onOk={handleSaveRule}
-              onCancel={() => {
-                setShowRuleModal(false);
-                setEditingRule(null);
-              }}
-            />
           </>
         )}
 
@@ -434,6 +415,19 @@ export default function SecurityPage() {
           <span>您的每一次操作都在系统严格保护之下</span>
         </div>
       </div>
+
+      {/* Rule Modal */}
+      <RuleModal
+        isVisible={showRuleModal}
+        editingRule={editingRule}
+        ruleForm={ruleForm}
+        onFormChange={setRuleForm}
+        onOk={handleSaveRule}
+        onCancel={() => {
+          setShowRuleModal(false);
+          setEditingRule(null);
+        }}
+      />
     </PageWrapper>
   );
 }
