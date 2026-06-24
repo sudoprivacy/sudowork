@@ -8,11 +8,10 @@ import { Tooltip } from '@arco-design/web-react';
 import { AlarmClock, Attention, PauseOne } from '@icon-park/react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import { CronJobStatusEnums } from '@/renderer/utils/enum';
 
-export type CronJobStatus = 'none' | 'active' | 'paused' | 'error' | 'unread' | 'unconfigured';
-
-interface ICronJobIndicatorProps {
-  status: CronJobStatus;
+interface ICronStatusIconProps {
+  status: CronJobStatusEnums;
   size?: number;
   className?: string;
 }
@@ -21,10 +20,10 @@ interface ICronJobIndicatorProps {
  * Simple indicator icon for conversations with cron jobs
  * Used in ChatHistory to distinguish conversations with scheduled tasks
  */
-const CronJobIndicator: React.FC<ICronJobIndicatorProps> = ({ status, size = 14, className = '' }) => {
+const CronStatusIcon: React.FC<ICronStatusIconProps> = ({ status, size = 14, className = '' }) => {
   const { t } = useTranslation();
 
-  if (status === 'none') {
+  if (status === CronJobStatusEnums.None) {
     return null;
   }
 
@@ -38,7 +37,7 @@ const CronJobIndicator: React.FC<ICronJobIndicatorProps> = ({ status, size = 14,
     };
 
     switch (status) {
-      case 'unread':
+      case CronJobStatusEnums.Unread:
         // Show alarm clock with red dot overlay for unread executions
         return (
           <span className='relative inline-flex'>
@@ -54,13 +53,13 @@ const CronJobIndicator: React.FC<ICronJobIndicatorProps> = ({ status, size = 14,
             />
           </span>
         );
-      case 'active':
+      case CronJobStatusEnums.Active:
         return <AlarmClock {...iconProps} />;
-      case 'paused':
+      case CronJobStatusEnums.Paused:
         return <PauseOne {...iconProps} />;
-      case 'error':
+      case CronJobStatusEnums.Error:
         return <Attention {...iconProps} />;
-      case 'unconfigured':
+      case CronJobStatusEnums.Unconfigured:
         return <AlarmClock {...iconProps} />;
       default:
         return null;
@@ -69,15 +68,15 @@ const CronJobIndicator: React.FC<ICronJobIndicatorProps> = ({ status, size = 14,
 
   const getTooltip = () => {
     switch (status) {
-      case 'unread':
+      case CronJobStatusEnums.Unread:
         return t('cron.status.unread');
-      case 'active':
+      case CronJobStatusEnums.Active:
         return t('cron.status.active');
-      case 'paused':
+      case CronJobStatusEnums.Paused:
         return t('cron.status.paused');
-      case 'error':
+      case CronJobStatusEnums.Error:
         return t('cron.status.error');
-      case 'unconfigured':
+      case CronJobStatusEnums.Unconfigured:
         return t('cron.status.unconfigured');
       default:
         return '';
@@ -91,4 +90,4 @@ const CronJobIndicator: React.FC<ICronJobIndicatorProps> = ({ status, size = 14,
   );
 };
 
-export default CronJobIndicator;
+export default CronStatusIcon;

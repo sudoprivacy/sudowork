@@ -9,6 +9,7 @@ import { useAppMode } from '@renderer/hooks/useAppMode';
 import { ipcBridge } from '@/common';
 import type { ICronJob } from '@/common/ipcBridge';
 import { addEventListener, emitter } from '@/renderer/utils/emitter';
+import { CronJobStatusEnums } from '@/renderer/utils/enum';
 
 /**
  * Common cron job actions
@@ -257,7 +258,7 @@ export function useAllCronJobs() {
 
   // Computed values
   const activeCount = useMemo(() => jobs.filter((j) => j.enabled).length, [jobs]);
-  const hasError = useMemo(() => jobs.some((j) => j.state.lastStatus === 'error'), [jobs]);
+  const hasError = useMemo(() => jobs.some((j) => j.state.lastStatus === CronJobStatusEnums.Error), [jobs]);
 
   return {
     jobs,
@@ -288,7 +289,7 @@ export function useCronJobsMap() {
   }, []);
 
   // Stubs kept for call-site compatibility
-  const getJobStatus = useCallback((_conversationId: string): 'none' | 'active' | 'paused' | 'error' | 'unread' => 'none', []);
+  const getJobStatus = useCallback((_conversationId: string): CronJobStatusEnums => CronJobStatusEnums.None, []);
   const markAsRead = useCallback((_conversationId: string) => {}, []);
   const setActiveConversation = useCallback((_conversationId: string) => {}, []);
   const hasUnread = useCallback((_conversationId: string) => false, []);

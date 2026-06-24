@@ -14,8 +14,9 @@ import { getAgentLogo } from '@/renderer/utils/agentLogo';
 import FlexFullContainer from '@/renderer/components/FlexFullContainer';
 import { usePresetAssistantInfo } from '@/renderer/hooks/usePresetAssistantInfo';
 import { useTerminalActiveCount } from '@/renderer/hooks/useTerminalActiveCount';
-import CronJobIndicator from '@/renderer/pages/cron/components/CronJobIndicator';
+import CronStatusIcon from '@/renderer/pages/cron/components/CronStatusIcon';
 import { cleanupSiderTooltips, getSiderTooltipProps } from '@/renderer/utils/siderTooltip';
+import { CronJobStatusEnums } from '@/renderer/utils/enum';
 import { isConversationPinned } from './utils/groupingHelpers';
 import { getBackendKeyFromConversation } from './utils/exportHelpers';
 import type { ConversationRowProps } from './types';
@@ -40,8 +41,8 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
   const actionReserveClass = isPinned ? 'mr-9' : menuVisible ? 'mr-9' : 'group-hover:mr-9';
 
   const renderLeadingIcon = () => {
-    if (cronStatus !== 'none') {
-      return <CronJobIndicator status={cronStatus} size={20} className='flex-shrink-0' />;
+    if (cronStatus != CronJobStatusEnums.None) {
+      return <CronStatusIcon status={cronStatus} size={20} className='flex-shrink-0' />;
     }
 
     if (assistantInfo) {
