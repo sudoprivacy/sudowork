@@ -8,12 +8,10 @@ import React from 'react';
 import CronModalContent from '@/renderer/components/SettingsModal/contents/CronModalContent';
 import PageWrapper from '@renderer/components/base/PageWrapper';
 
-const CronSettings: React.FC = () => {
+export default function CronPage() {
   return (
     <PageWrapper>
       <CronModalContent />
     </PageWrapper>
   );
-};
-
-export default CronSettings;
+}

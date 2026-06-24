@@ -21,14 +21,12 @@ import { useSkillSelectorController, type SkillSelectorItem, stripAtQuery } from
 import { getInstalledSkillDisplay, resolveSkillIcon } from '@/renderer/utils/skillDisplay';
 import { useConversationTabs } from '@/renderer/pages/conversation/context/ConversationTabsContext';
 import { openExternalUrl, isElectronDesktop, resolveExtensionAssetUrl } from '@/renderer/utils/platform';
-import { useCronEnabled } from '@/renderer/hooks/useCronEnabled';
 import { useInputFocusRing } from '@/renderer/hooks/useInputFocusRing';
 import { resolveLocaleKey } from '@/common/utils';
 import { DEFAULT_PRESET_AGENT_TYPE, normalizePresetAgentType } from '@/types/acpTypes';
 import SkillSettings from '../settings/SkillSettings';
 import AgentSettings from '../settings/AgentSettings';
 import WebuiSettings from '../settings/WebuiSettings';
-import CronSettings from '../settings/CronSettings';
 import AssistantSelectionArea from './components/AssistantSelectionArea';
 import AssistantAgentDropdown from './components/AssistantAgentDropdown';
 import AssistantEditDrawer from './components/AssistantEditDrawer';
@@ -68,7 +66,6 @@ const GuidPage: React.FC = () => {
   const selectedMenu = searchParams.get('menu');
   const skillParam = searchParams.get('skill');
   const assistantParam = searchParams.get('assistant');
-  const cronEnabled = useCronEnabled();
 
   // Skill selector state
   const [installedSkills, setInstalledSkills] = useState<any[]>([]);
@@ -621,7 +618,6 @@ const GuidPage: React.FC = () => {
           {selectedMenu === 'skill-store' && <SkillSettings />}
           {selectedMenu === 'agent' && <AgentSettings />}
           {selectedMenu === 'webui' && <WebuiSettings />}
-          {selectedMenu === 'cron' && cronEnabled && <CronSettings />}
         </div>
       ) : (
         /* Normal/Assistant conversation area */
