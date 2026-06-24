@@ -237,8 +237,8 @@ export default function CronJobFormDrawer({ visible, editJob, sessionMode, onClo
           <TextArea placeholder={t('cron.create.promptPlaceholder', { defaultValue: '输入触发时要发送的指令...' })} autoSize={{ minRows: 4, maxRows: 10 }} />
         </Form.Item>
 
-        <div className='mb-16px'>
-          <div className='text-14px text-foreground mb-8px'>{t('cron.create.frequency', { defaultValue: '频率' })}</div>
+        <div className='mb-4'>
+          <div className='text-14px text-foreground mb-2'>{t('cron.create.frequency', { defaultValue: '频率' })}</div>
           <Select value={frequency} onChange={(value) => setFrequency(value as FrequencyPreset)}>
             {FREQUENCY_PRESETS.map((preset) => (
               <Select.Option key={preset} value={preset}>
@@ -268,7 +268,7 @@ export default function CronJobFormDrawer({ visible, editJob, sessionMode, onClo
           )}
 
           {frequency === 'weekly' && (
-            <div className='mt-8px'>
+            <div className='mt-2'>
               <Select value={weekday} onChange={(value) => setWeekday(value)}>
                 {WEEKDAYS.map((day) => (
                   <Select.Option key={day} value={day}>
@@ -279,19 +279,19 @@ export default function CronJobFormDrawer({ visible, editJob, sessionMode, onClo
             </div>
           )}
 
-          <div className='text-12px text-secondary mt-4px'>{t('cron.create.frequencyHint', { defaultValue: '定时任务会有几分钟的随机延迟' })}</div>
+          <div className='text-12px text-secondary mt-1'>{t('cron.create.frequencyHint', { defaultValue: '定时任务会有几分钟的随机延迟' })}</div>
         </div>
 
         <div>
-          <div className='flex items-center gap-4px text-14px text-secondary cursor-pointer hover:text-foreground mb-12px' onClick={() => setShowMore(!showMore)}>
+          <div className='flex items-center gap-1 text-14px text-secondary cursor-pointer hover:text-foreground mb-3' onClick={() => setShowMore(!showMore)}>
             <span>{t('cron.create.moreOptions', { defaultValue: '更多选项' })}</span>
             <span className={`transition-transform ${showMore ? 'rotate-180' : ''}`}>▾</span>
           </div>
 
           {showMore && (
-            <div className='grid grid-cols-1 md:grid-cols-2 gap-12px'>
+            <div className='grid grid-cols-1 md:grid-cols-2 gap-3'>
               <div className='col-span-2'>
-                <div className='text-13px text-secondary mb-4px'>{t('cron.create.conversationMode', { defaultValue: '执行模式' })}</div>
+                <div className='text-13px text-secondary mb-1'>{t('cron.create.conversationMode', { defaultValue: '执行模式' })}</div>
                 <Select value={conversationMode} onChange={(value) => setConversationMode(value as 'new' | 'reuse')}>
                   <Select.Option value='new'>{t('cron.create.conversationMode.new', { defaultValue: '每次新建会话（推荐）' })}</Select.Option>
                   <Select.Option value='reuse'>{t('cron.create.conversationMode.reuse', { defaultValue: '复用已有会话（适合持续追加）' })}</Select.Option>
@@ -300,7 +300,7 @@ export default function CronJobFormDrawer({ visible, editJob, sessionMode, onClo
 
               {conversationMode === 'reuse' && (
                 <div className='col-span-2'>
-                  <div className='text-13px text-secondary mb-4px'>{t('cron.create.reuseConversation', { defaultValue: '绑定会话' })}</div>
+                  <div className='text-13px text-secondary mb-1'>{t('cron.create.reuseConversation', { defaultValue: '绑定会话' })}</div>
                   <Select
                     value={selectedConversationId}
                     onChange={(value) => setSelectedConversationId(value as string)}
@@ -322,13 +322,13 @@ export default function CronJobFormDrawer({ visible, editJob, sessionMode, onClo
                       </Select.Option>
                     ))}
                   </Select>
-                  <div className='text-12px text-secondary mt-4px'>{t('cron.create.reuseConversationHint', { defaultValue: '选择已有会话，首次运行将直接追加到该会话' })}</div>
+                  <div className='text-12px text-secondary mt-1'>{t('cron.create.reuseConversationHint', { defaultValue: '选择已有会话，首次运行将直接追加到该会话' })}</div>
                 </div>
               )}
 
               {!(sessionMode !== 'remote' && conversationMode === 'reuse' && selectedConversationId) && (
                 <div>
-                  <div className='text-13px text-secondary mb-4px'>{t('cron.create.agent', { defaultValue: '数字助手' })}</div>
+                  <div className='text-13px text-secondary mb-1'>{t('cron.create.agent', { defaultValue: '数字助手' })}</div>
                   <Select value={selectedAssistantId} onChange={(value) => setSelectedAssistantId(value as string)} disabled={sessionMode !== 'remote' && editJob != null && conversationMode === 'reuse'}>
                     <Select.Option value={DEFAULT_ASSISTANT}>
                       <span className='text-secondary'>{t('cron.create.agentPlaceholder', { defaultValue: '默认 (Sudo Code)' })}</span>
@@ -345,7 +345,7 @@ export default function CronJobFormDrawer({ visible, editJob, sessionMode, onClo
                       const isImageAvatar = Boolean(avatarImage && (/\.(svg|png|jpe?g|webp|gif)$/i.test(avatarImage) || /^(https?:|aion-asset:\/\/|file:\/\/|data:)/i.test(avatarImage)));
                       return (
                         <Select.Option key={assistant.id} value={assistant.id}>
-                          <span className='flex items-center gap-6px'>
+                          <span className='flex items-center gap-1.5'>
                             {isImageAvatar ? <img src={avatarImage} alt='' width={16} height={16} style={{ objectFit: 'contain' }} /> : avatarValue ? <span style={{ fontSize: 14, lineHeight: '16px' }}>{avatarValue}</span> : null}
                             <span>{assistant.nameI18n?.[localeKey] || assistant.name}</span>
                           </span>
@@ -358,7 +358,7 @@ export default function CronJobFormDrawer({ visible, editJob, sessionMode, onClo
 
               {sessionMode !== 'remote' && !(conversationMode === 'reuse' && selectedConversationId) && (
                 <div>
-                  <div className='text-13px text-secondary mb-4px'>{t('cron.create.workspace', { defaultValue: '工作目录' })}</div>
+                  <div className='text-13px text-secondary mb-1'>{t('cron.create.workspace', { defaultValue: '工作目录' })}</div>
                   <Button long onClick={handleSelectFolder} className='!justify-start !text-left' disabled={editJob != null && conversationMode === 'reuse'}>
                     {workspace ? <span className='truncate'>{workspace.split('/').pop()}</span> : <span className='text-secondary'>{t('cron.create.selectFolder', { defaultValue: '选择文件夹' })}</span>}
                   </Button>
