@@ -65,16 +65,33 @@ describe('nexus-vfs SHA256 SSOT', () => {
     });
   }
 
-  it('every artifact the script knows how to download has a SHA entry in the JSON', () => {
+  it('every artifact the naming SSOT knows how to name has a SHA entry in the JSON', () => {
     const sha = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'src/shared/runtime-sha256.json'), 'utf-8')) as Record<string, string>;
-    const script = fs.readFileSync(path.join(REPO_ROOT, 'scripts/download-nexus-vfs.js'), 'utf-8');
-    // The script names each archive (e.g. `nexusd-cluster-macos-x86_64.tar.gz`)
-    // wherever it builds a download URL. Pull every such occurrence
-    // and confirm we have a SHA for it; missing entries are exactly
-    // what made the v0.1.1 → v0.3.0 transition fail-closed at runtime.
-    const archives = Array.from(script.matchAll(/(nexus(?:d-cluster|-vault|-local-connector|-fuse-plugin)-[a-z0-9_-]+?\.(?:tar\.gz|zip))/g)).map((m) => m[1]);
+    // Source of truth for "what archives can this codebase ask to download"
+    // is the plugin-naming.js SSOT module. Enumerating from there (rather
+    // than regex-ing the download script's source) lets the assertion stay
+    // accurate after the script was refactored to compute names via helpers
+    // instead of inlining them. The invariant is unchanged: every name the
+    // codebase can produce must have a SHA entry, or runtime verification
+    // will fail-closed on download.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const naming = require(path.join(REPO_ROOT, 'scripts/plugin-naming.js')) as {
+      allKnownArchives: () => string[];
+    };
+    const archives = naming.allKnownArchives();
     expect(archives.length).toBeGreaterThan(0);
     const missing = Array.from(new Set(archives)).filter((a) => !(a in sha));
     expect(missing, `Missing SHA entries for ${missing.join(', ')}`).toEqual([]);
+  });
+
+  it('the naming SSOT module itself contains no inline SHA literal', () => {
+    // Symmetric to the CONSUMERS check — plugin-naming.js is a naming SSOT
+    // and must not creep into being a SHA SSOT too. Verifies the boundary
+    // stays clean: names live here, hashes live in runtime-sha256.json.
+    const src = fs.readFileSync(path.join(REPO_ROOT, 'scripts/plugin-naming.js'), 'utf-8');
+    const match = src.match(SHA_HEX_64);
+    if (match) {
+      throw new Error(`scripts/plugin-naming.js contains inline SHA literal "${match[0]}". Hashes belong in runtime-sha256.json.`);
+    }
   });
 });
