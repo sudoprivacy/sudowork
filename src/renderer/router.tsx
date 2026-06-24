@@ -21,6 +21,7 @@ const ToolsSettings = React.lazy(() => import('./pages/settings/ToolsSettings'))
 const WebuiSettings = React.lazy(() => import('./pages/settings/WebuiSettings'));
 const SecurityPage = React.lazy(() => import('./pages/security'));
 const CronPage = React.lazy(() => import('./pages/cron'));
+const CronJobDetailPage = React.lazy(() => import('./pages/cron/detail'));
 const ExtensionSettingsPage = React.lazy(() => import('./pages/settings/ExtensionSettingsPage'));
 const LoginPage = React.lazy(() => import('./pages/login'));
 const RegisterPage = React.lazy(() => import('./pages/register'));
@@ -70,7 +71,7 @@ const ProtectedLayout: React.FC<{ layout: React.ReactElement }> = ({ layout }) =
   }
 
   // Client cron disabled: the cron settings page is not reachable.
-  if (!cronEnabled && location.pathname === '/app/cron') {
+  if (!cronEnabled && location.pathname.startsWith('/app/cron')) {
     return <Navigate to='/settings/agent' replace />;
   }
 
@@ -105,6 +106,7 @@ const PanelRoute: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
           <Route path='/app/security' element={withRouteFallback(SecurityPage)} />
           <Route path='/settings/security' element={withRouteFallback(SecurityPage)} />
           <Route path='/app/cron' element={withRouteFallback(CronPage)} />
+          <Route path='/app/cron/:jobId' element={withRouteFallback(CronJobDetailPage)} />
           <Route path='/settings/profile' element={withRouteFallback(UserProfile)} />
           <Route path='/settings/recharge' element={withRouteFallback(RechargeCenter)} />
           <Route path='/settings/members' element={withRouteFallback(MemberManagement)} />

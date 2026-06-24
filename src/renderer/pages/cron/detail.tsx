@@ -1,0 +1,252 @@
+import { Button, Message, Popconfirm, Switch, Tag } from '@arco-design/web-react';
+import { ArrowLeft, DeleteOne, Edit, PlayOne } from '@icon-park/react';
+import dayjs from 'dayjs';
+import React, { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { useNavigate, useParams } from 'react-router-dom';
+import { useAppMode } from '@renderer/hooks/useAppMode';
+import { useEnterpriseSessionMode } from '@renderer/hooks/useEnterpriseSessionMode';
+import { emitter } from '@renderer/utils/emitter';
+import { ipcBridge } from '@/common';
+import type { ICronJob } from '@/common/ipcBridge';
+import type { TChatConversation } from '@/common/storage';
+import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
+import AionScrollArea from '@/renderer/components/base/AionScrollArea';
+import CronJobFormDrawer from '@/renderer/pages/cron/components/CronJobFormDrawer';
+import { useAssistantsForCron } from '@/renderer/pages/cron/hooks/useAssistantsForCron';
+import { getJobStatusFlags, unwrapCronResult } from '@/renderer/pages/cron/utils';
+import { useAuth } from '@/renderer/context/AuthContext';
+import { useConversationTabs } from '@/renderer/pages/conversation/context/ConversationTabsContext';
+import PageWrapper from '@renderer/components/base/PageWrapper';
+
+function getCronJobConversationTarget(job: ICronJob): string | undefined {
+  const isNewMode = (job.metadata.conversationMode ?? 'new') === 'new';
+  if (isNewMode) return job.state.lastConversationId;
+  return job.metadata.conversationId || job.state.lastConversationId;
+}
+
+function useFormatNextRunRelative() {
+  const { t } = useTranslation();
+  return useCallback(
+    (nextRunAtMs?: number): string => {
+      if (!nextRunAtMs) return '';
+      const d = dayjs(nextRunAtMs);
+      const now = dayjs();
+      const time = d.format('HH:mm');
+      if (d.isSame(now, 'day')) return t('cron.create.nextRunToday', { time });
+      if (d.isSame(now.add(1, 'day'), 'day')) return t('cron.create.nextRunTomorrow', { time });
+      return d.format('MM-DD HH:mm');
+    },
+    [t]
+  );
+}
+
+export default function CronJobDetailPage() {
+  const { jobId } = useParams<{ jobId: string }>();
+  const { t, i18n } = useTranslation();
+  const navigate = useNavigate();
+  const { isEnterprise } = useAppMode();
+  const { user } = useAuth();
+  const { openTab } = useConversationTabs();
+  const canUseLocalCronMode = !isEnterprise || user?.localModeAvailable === true;
+  const { sessionMode } = useEnterpriseSessionMode({ localModeAvailable: canUseLocalCronMode, remoteModeAvailable: isEnterprise });
+  const [job, setJob] = useState<ICronJob | null>(null);
+  const [drawerVisible, setDrawerVisible] = useState(false);
+  const formatNextRun = useFormatNextRunRelative();
+  const assistants = useAssistantsForCron();
+  const localeKey = i18n.language?.startsWith('zh') ? 'zh-CN' : 'en-US';
+
+  // Fetch fresh job data on mount
+  useEffect(() => {
+    if (!jobId) return;
+    void (async () => {
+      const result = await ipcBridge.cron.getJob.invoke({ jobId });
+      setJob(result);
+      if (result) {
+        const targetConvId = getCronJobConversationTarget(result);
+        if (targetConvId) {
+          try {
+            const conv = (await ipcBridge.conversation.get.invoke({ id: targetConvId })) as TChatConversation | null;
+            if (conv) openTab(conv);
+          } catch {
+            // ignore — conversation tab is best-effort
+          }
+          emitter.emit('conversation.remote.sync', targetConvId);
+        }
+      }
+    })();
+  }, [jobId, openTab]);
+
+  // Keep job state in sync with background updates
+  useEffect(() => {
+    if (!jobId) return;
+    return ipcBridge.cron.onJobUpdated.on((updated: ICronJob) => {
+      if (updated.id === jobId) setJob(updated);
+    });
+  }, [jobId]);
+
+  const handleToggle = async (id: string, enabled: boolean) => {
+    try {
+      const updated = unwrapCronResult(await ipcBridge.cron.updateJob.invoke({ jobId: id, updates: { enabled } }));
+      setJob(updated);
+      Message.success(enabled ? t('cron.resumeSuccess') : t('cron.pauseSuccess'));
+    } catch (err) {
+      Message.error(String(err));
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      unwrapCronResult(await ipcBridge.cron.removeJob.invoke({ jobId: id }));
+      Message.success(t('cron.deleteSuccess'));
+      emitter.emit('cron.jobs.refresh');
+      void navigate(-1);
+    } catch (err) {
+      Message.error(String(err));
+    }
+  };
+
+  const handleTrigger = async (id: string) => {
+    try {
+      unwrapCronResult(await ipcBridge.cron.triggerJob.invoke({ jobId: id }));
+      const updatedJob = await ipcBridge.cron.getJob.invoke({ jobId: id });
+      Message.success(t('cron.runNowSuccess'));
+      emitter.emit('chat.history.refresh');
+      if (updatedJob) {
+        setJob(updatedJob);
+        const targetConversationId = getCronJobConversationTarget(updatedJob);
+        if (targetConversationId) {
+          void navigate(`/conversation/${targetConversationId}`);
+          emitter.emit('conversation.remote.sync', targetConversationId);
+          window.setTimeout(() => emitter.emit('conversation.remote.sync', targetConversationId), 1000);
+          window.setTimeout(() => emitter.emit('conversation.remote.sync', targetConversationId), 3000);
+        }
+      }
+    } catch (err) {
+      Message.error(String(err));
+    }
+  };
+
+  const handleSaved = async () => {
+    if (!jobId) return;
+    const updated = await ipcBridge.cron.getJob.invoke({ jobId });
+    if (updated) setJob(updated);
+  };
+
+  if (!job) return null;
+
+  const { hasError, isPaused } = getJobStatusFlags(job);
+  const selectedAssistant = job.metadata.presetAssistantId ? assistants.find((a) => a.id === job.metadata.presetAssistantId) : undefined;
+  const assistantName = selectedAssistant ? selectedAssistant.nameI18n?.[localeKey] || selectedAssistant.name || 'Sudo Code' : job.metadata.presetAssistantId || 'Sudo Code';
+
+  const targetConvId = getCronJobConversationTarget(job);
+  const isNewMode = (job.metadata.conversationMode ?? 'new') === 'new';
+
+  return (
+    <PageWrapper>
+      <div className='flex flex-col h-full w-full'>
+        <AionScrollArea className='flex-1 min-h-0 pb-4' disableOverflow>
+          <div className='space-y-6'>
+            {/* Back nav */}
+            <div className='flex items-center gap-1 text-13px text-secondary cursor-pointer hover:text-foreground' onClick={() => navigate(-1)}>
+              <ArrowLeft theme='outline' size={14} />
+              <span>{t('cron.allScheduledTasks', { defaultValue: '全部定时任务' })}</span>
+            </div>
+
+            {/* Header */}
+            <div className='flex items-start justify-between gap-4'>
+              <div>
+                <h2 className='text-22px font-bold text-foreground m-0 mb-2'>{job.name}</h2>
+                <div className='flex items-center gap-2'>
+                  <Tag color={hasError ? 'red' : isPaused ? 'orangered' : 'green'} size='small'>
+                    {hasError ? t('cron.status.error') : isPaused ? t('cron.status.paused') : t('cron.status.active')}
+                  </Tag>
+                  {!isPaused && job.state.nextRunAtMs && (
+                    <span className='text-13px text-secondary'>
+                      {t('cron.create.nextRun')} {formatNextRun(job.state.nextRunAtMs)}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className='flex items-center gap-2 shrink-0'>
+                <Button type='text' size='small' icon={<Edit theme='outline' size={16} />} onClick={() => setDrawerVisible(true)} />
+                <Popconfirm title={t('cron.confirmDelete')} onOk={() => void handleDelete(job.id)}>
+                  <Button type='text' size='small' status='danger' icon={<DeleteOne theme='outline' size={16} />} />
+                </Popconfirm>
+                <Button type='primary' size='small' shape='round' icon={<PlayOne theme='outline' />} onClick={() => void handleTrigger(job.id)}>
+                  {t('cron.actions.runNow', { defaultValue: '立即执行' })}
+                </Button>
+              </div>
+            </div>
+
+            {/* Info sections */}
+            <div className='grid grid-cols-1 md:grid-cols-2 gap-6'>
+              <div>
+                <div className='text-13px text-secondary mb-1'>{t('cron.create.description', { defaultValue: '描述' })}</div>
+                <div className='text-14px text-foreground'>{job.schedule.description || '-'}</div>
+              </div>
+              <div>
+                <div className='text-13px text-secondary mb-1'>{t('cron.create.prompt', { defaultValue: '指令' })}</div>
+                <div className='bg-2 rd-8px px-3 py-2 text-13px text-foreground break-words whitespace-pre-wrap max-h-30 overflow-y-auto'>{job.target.payload.text}</div>
+              </div>
+              <div>
+                <div className='text-13px text-secondary mb-1'>{t('cron.create.conversationMode', { defaultValue: '执行模式' })}</div>
+                <div className='text-14px text-foreground'>{(job.metadata.conversationMode ?? 'new') === 'new' ? t('cron.create.conversationMode.new', { defaultValue: '每次新建会话' }) : t('cron.create.conversationMode.reuse', { defaultValue: '复用已有会话' })}</div>
+              </div>
+              {job.metadata.workspace && (
+                <div>
+                  <div className='text-13px text-secondary mb-1'>{t('cron.create.workspace', { defaultValue: '工作目录' })}</div>
+                  <div className='text-14px text-foreground truncate' title={job.metadata.workspace}>
+                    {job.metadata.workspace.split('/').pop() || job.metadata.workspace}
+                  </div>
+                </div>
+              )}
+              <div>
+                <div className='text-13px text-secondary mb-1'>{t('cron.create.agent', { defaultValue: '数字助手' })}</div>
+                <div className='text-14px text-foreground flex items-center gap-1.5'>
+                  {(() => {
+                    const avatarValue = selectedAssistant?.avatar?.trim();
+                    if (!avatarValue) return null;
+                    const resolvedAvatar = resolveExtensionAssetUrl(avatarValue);
+                    const avatarImage = resolvedAvatar || avatarValue;
+                    const isImageAvatar = /\.(svg|png|jpe?g|webp|gif)$/i.test(avatarImage) || /^(https?:|aion-asset:\/\/|file:\/\/|data:)/i.test(avatarImage);
+                    return isImageAvatar ? <img src={avatarImage} alt='' width={16} height={16} style={{ objectFit: 'contain' }} /> : <span style={{ fontSize: 14, lineHeight: '16px' }}>{avatarValue}</span>;
+                  })()}
+                  <span>{assistantName}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Error info */}
+            {hasError && job.state.lastError && (
+              <div className='bg-red-1 rd-8px px-3 py-2 text-13px text-red-6'>
+                <span className='font-medium'>{t('cron.lastError')}:</span> {job.state.lastError}
+              </div>
+            )}
+
+            {/* Repeats */}
+            <div>
+              <div className='text-13px text-secondary mb-2'>{t('cron.create.frequency', { defaultValue: '重复' })}</div>
+              <div className='flex items-center gap-3'>
+                <Switch size='small' checked={job.enabled} onChange={(checked) => void handleToggle(job.id, checked)} />
+                <span className='text-14px text-foreground'>{job.schedule.description}</span>
+              </div>
+            </div>
+
+            {/* Conversation link */}
+            {targetConvId && (
+              <div>
+                <div className='text-13px text-secondary mb-1'>{t('cron.goToConversation')}</div>
+                <span className='text-14px text-primary cursor-pointer hover:underline' onClick={() => void navigate(`/conversation/${targetConvId}`)}>
+                  {isNewMode ? t('cron.goToLastConversation', { defaultValue: '查看最近执行会话' }) : job.metadata.conversationTitle || t('cron.goToConversationLink', { defaultValue: '查看会话' })}
+                </span>
+              </div>
+            )}
+          </div>
+        </AionScrollArea>
+
+        <CronJobFormDrawer visible={drawerVisible} editJob={job} sessionMode={sessionMode} onClose={() => setDrawerVisible(false)} onSaved={() => void handleSaved()} />
+      </div>
+    </PageWrapper>
+  );
+}
