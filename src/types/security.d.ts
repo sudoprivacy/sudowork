@@ -51,14 +51,14 @@ export interface SafetyStatus {
 
 export type SafetyConfirmationAction = 'allow' | 'deny';
 
-export type BlacklistMatchType = 'exact' | 'wildcard';
+export type IBlacklistMatchType = 'exact' | 'wildcard';
 
 export interface IBlacklistRule {
   id: string;
   enabled: boolean;
   type: 'network' | 'file' | 'process';
   pattern: string;
-  matchType: BlacklistMatchType;
+  matchType: IBlacklistMatchType;
   riskLevel: RiskLevel;
   description?: string;
   createdAt: number;

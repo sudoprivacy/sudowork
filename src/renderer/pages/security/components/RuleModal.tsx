@@ -1,27 +1,11 @@
 import React from 'react';
 import { Modal, Input, Select } from '@arco-design/web-react';
-import type { IBlacklistRule, BlacklistMatchType } from '@/types/security';
+import type { IBlacklistRule, IBlacklistMatchType } from '@/types/security';
 
 const Option = Select.Option;
 const TextArea = Input.TextArea;
 
-type RuleForm = {
-  type: 'network' | 'file' | 'process';
-  pattern: string;
-  matchType: BlacklistMatchType;
-  description: string;
-};
-
-type Props = {
-  isVisible: boolean;
-  editingRule: IBlacklistRule | null;
-  ruleForm: RuleForm;
-  onFormChange: (form: RuleForm) => void;
-  onOk: () => void;
-  onCancel: () => void;
-};
-
-export default function RuleModal({ isVisible, editingRule, ruleForm, onFormChange, onOk, onCancel }: Props) {
+export default function RuleModal({ isVisible, editingRule, ruleForm, onFormChange, onOk, onCancel }: IRuleModalProps) {
   return (
     <Modal title={editingRule ? '编辑规则' : '添加规则'} visible={isVisible} onOk={onOk} onCancel={onCancel} autoFocus={false} focusLock={true}>
       <div className='flex flex-col gap-4'>
@@ -54,4 +38,20 @@ export default function RuleModal({ isVisible, editingRule, ruleForm, onFormChan
       </div>
     </Modal>
   );
+}
+
+interface RuleForm {
+  type: 'network' | 'file' | 'process';
+  pattern: string;
+  matchType: IBlacklistMatchType;
+  description: string;
+}
+
+interface IRuleModalProps {
+  isVisible: boolean;
+  editingRule: IBlacklistRule | null;
+  ruleForm: RuleForm;
+  onFormChange: (form: RuleForm) => void;
+  onOk: () => void;
+  onCancel: () => void;
 }

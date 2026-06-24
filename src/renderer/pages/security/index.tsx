@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { nanoid } from 'nanoid';
 import { ipcBridge } from '@/common';
-import type { IBlacklistConfig, IBlacklistRule, BlacklistMatchType } from '@/types/security';
+import type { IBlacklistConfig, IBlacklistRule, IBlacklistMatchType } from '@/types/security';
 import { DEFAULT_BLACKLIST_CONFIG } from '@/common/constants';
 import SettingsPageWrapper from '../settings/components/SettingsPageWrapper';
 import SecurityItem from './components/SecurityItem';
@@ -28,7 +28,7 @@ export default function SecurityPage() {
   const [ruleForm, setRuleForm] = useState({
     type: 'network' as 'network' | 'file' | 'process',
     pattern: '',
-    matchType: 'wildcard' as BlacklistMatchType,
+    matchType: 'wildcard' as IBlacklistMatchType,
     description: '',
   });
 
@@ -367,8 +367,8 @@ export default function SecurityPage() {
                                 title: '匹配',
                                 dataIndex: 'matchType',
                                 width: 70,
-                                render: (matchType: BlacklistMatchType) => {
-                                  const labels: Record<BlacklistMatchType, string> = {
+                                render: (matchType: IBlacklistMatchType) => {
+                                  const labels: Record<IBlacklistMatchType, string> = {
                                     exact: '精确',
                                     wildcard: '通配',
                                   };
