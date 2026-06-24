@@ -10,16 +10,7 @@ import { ipcBridge } from '@/common';
 import type { ICronJob } from '@/common/ipcBridge';
 import { addEventListener, emitter } from '@/renderer/utils/emitter';
 import { CronJobStatusEnums } from '@/renderer/utils/enum';
-
-/**
- * Common cron job actions
- */
-interface CronJobActionsResult {
-  pauseJob: (jobId: string) => Promise<void>;
-  resumeJob: (jobId: string) => Promise<void>;
-  deleteJob: (jobId: string) => Promise<void>;
-  updateJob: (jobId: string, updates: Partial<ICronJob>) => Promise<ICronJob>;
-}
+import type { ICronJobActionsResult, ICronJobEventHandlers } from '@/renderer/pages/cron/types';
 
 /**
  * Creates common cron job action handlers
@@ -38,7 +29,7 @@ function unwrapCronResult<T>(result: T): T {
   return result;
 }
 
-function useCronJobActions(onJobUpdated?: (jobId: string, job: ICronJob) => void, onJobDeleted?: (jobId: string) => void): CronJobActionsResult {
+function useCronJobActions(onJobUpdated?: (jobId: string, job: ICronJob) => void, onJobDeleted?: (jobId: string) => void): ICronJobActionsResult {
   const pauseJob = useCallback(
     async (jobId: string) => {
       const updated = unwrapCronResult(await ipcBridge.cron.updateJob.invoke({ jobId, updates: { enabled: false } }));
@@ -76,18 +67,9 @@ function useCronJobActions(onJobUpdated?: (jobId: string, job: ICronJob) => void
 }
 
 /**
- * Event handlers for cron job subscription
- */
-interface CronJobEventHandlers {
-  onJobCreated: (job: ICronJob) => void;
-  onJobUpdated: (job: ICronJob) => void;
-  onJobRemoved: (data: { jobId: string }) => void;
-}
-
-/**
  * Subscribe to cron job events with unified cleanup
  */
-function useCronJobSubscription(handlers: CronJobEventHandlers) {
+function useCronJobSubscription(handlers: ICronJobEventHandlers) {
   useEffect(() => {
     const unsubCreate = ipcBridge.cron.onJobCreated.on(handlers.onJobCreated);
     const unsubUpdate = ipcBridge.cron.onJobUpdated.on(handlers.onJobUpdated);
@@ -137,7 +119,7 @@ export function useCronJobs(conversationId?: string) {
   }, [fetchJobs]);
 
   // Event handlers
-  const eventHandlers = useMemo<CronJobEventHandlers>(
+  const eventHandlers = useMemo<ICronJobEventHandlers>(
     () => ({
       onJobCreated: (job: ICronJob) => {
         if (job.metadata.conversationId === conversationId) {
@@ -228,7 +210,7 @@ export function useAllCronJobs() {
   }, [isEnterprise, fetchJobs]);
 
   // Event handlers
-  const eventHandlers = useMemo<CronJobEventHandlers>(
+  const eventHandlers = useMemo<ICronJobEventHandlers>(
     () => ({
       onJobCreated: (job: ICronJob) => {
         setJobs((prev) => (prev.some((j) => j.id === job.id) ? prev : [...prev, job]));
