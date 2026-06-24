@@ -23,7 +23,36 @@ interface Props {
 }
 ```
 
-## 布尔值 / Booleans
+## React 组件声明 / Component declaration
+
+优先使用 `function` 声明，而非 `const` 箭头函数。
+
+```tsx
+// ✅
+export default function MyComponent() { ... }
+function HelperComponent() { ... }
+
+// ❌
+const MyComponent: React.FC = () => { ... }
+const MyComponent = () => { ... }
+```
+
+## Props 类型 / Props types
+
+用 `interface` 声明 props，命名为 `I<ComponentName>Props`，放在文件底部。
+
+```tsx
+// ✅
+export default function RuleModal({ onOk }: IRuleModalProps) { ... }
+
+interface IRuleModalProps {
+  onOk: () => void;
+}
+
+// ❌
+type Props = { onOk: () => void };
+export default function RuleModal({ onOk }: Props) { ... }
+```
 
 布尔值（变量、state、prop）以 `is` 开头。
 Boolean values (variables, state, props) start with `is`.
