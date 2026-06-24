@@ -220,7 +220,7 @@ export default function CronJobFormDrawer({ visible, editJob, sessionMode, onClo
       visible={visible}
       onCancel={onClose}
       footer={
-        <div className='flex justify-end gap-8px'>
+        <div className='flex justify-end gap-2'>
           <Button shape='round' onClick={onClose}>
             {t('cron.create.cancel', { defaultValue: '取消' })}
           </Button>
@@ -254,7 +254,7 @@ export default function CronJobFormDrawer({ visible, editJob, sessionMode, onClo
           </Select>
 
           {showTimeSelector && (
-            <div className='flex items-center gap-8px mt-8px'>
+            <div className='flex items-center gap-2 mt-2'>
               <Select value={hour} onChange={(value) => setHour(value)} style={{ width: 80 }}>
                 {HOUR_OPTIONS.map((option) => (
                   <Select.Option key={option.value} value={option.value}>
