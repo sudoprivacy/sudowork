@@ -61,9 +61,13 @@ export function initFuseTBridge(): void {
       ipcBridge.fuseT.installResult.emit({ success: false, msg });
       return { success: false, msg };
     } finally {
-      setTimeout(() => {
-        installState = { installing: false };
-      }, 0);
+      // Reset synchronously. A prior setTimeout(..., 0) deferral leaked
+      // `installing: true` to any caller that read `getInstallState()`
+      // in the same tick as the provider resolving — observed in the
+      // 2026-06-24 Win cold-start smoke after a `runLazyInstallProbe()`
+      // returning `platform-unsupported`. Setting in `finally` runs
+      // before the returned promise resolves to the renderer.
+      installState = { installing: false };
     }
   });
 
@@ -105,9 +109,7 @@ export function initFuseTBridge(): void {
       ipcBridge.fuseT.installResult.emit({ success: false, msg });
       return { success: false, msg };
     } finally {
-      setTimeout(() => {
-        installState = { installing: false };
-      }, 0);
+      installState = { installing: false };
     }
   });
   mainLog(TAG, 'FUSE-T IPC providers registered');
