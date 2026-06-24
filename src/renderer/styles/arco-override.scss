@@ -84,27 +84,6 @@ body[arco-theme='dark'] {
   }
 }
 
-// ---------- Steps (Sudowork wrapper) ----------
-.sudowork-steps {
-  .arco-steps-item-process .arco-steps-item-icon {
-    background-color: var(--aou-6-brand) !important;
-    border-color: var(--aou-6-brand) !important;
-  }
-
-  .arco-steps-item-finish .arco-steps-item-icon {
-    background-color: #e8f3ff !important;
-    border-color: #e8f3ff !important;
-    border-radius: 50% !important;
-
-    .arco-steps-icon {
-      line-height: 28px !important;
-    }
-  }
-}
-
-// ---------- Modal ----------
-// Native Arco Modal (Modal.confirm/info and any non-SudoworkModal usage):
-// larger corner radius + lighter header/footer dividers.
 .arco-modal {
   border-radius: 16px;
   &-header {
@@ -115,8 +94,6 @@ body[arco-theme='dark'] {
   }
 }
 
-// ---------- Drawer ----------
-// Electron 顶部标题栏使用 -webkit-app-region: drag；Drawer 通过 portal 挂到 body 后，
 .arco-drawer {
   &,
   &-mask,
