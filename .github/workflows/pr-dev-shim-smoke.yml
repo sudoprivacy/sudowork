@@ -75,6 +75,11 @@ jobs:
         # secrets-grpc-e2e in pr-integration-smoke.yml.
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Install uv
+        # `bun run start` chains `hook:build` which builds the Python
+        # safety hook via `uv sync`. Same setup as _build-reusable.yml.
+        uses: astral-sh/setup-uv@v7
+
       - name: Install Linux apt deps (Electron + xvfb)
         if: matrix.platform == 'linux-x64'
         run: |
