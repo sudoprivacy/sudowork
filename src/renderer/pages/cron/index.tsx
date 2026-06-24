@@ -52,10 +52,6 @@ function useFormatNextRunRelative() {
   );
 }
 
-// ═══════════════════════════════════════════════════
-// 1. LIST VIEW — Card Grid
-// ═══════════════════════════════════════════════════
-
 function CronJobCardGrid({ jobs, onSelectJob }: ICronJobCardGridProps) {
   const { t } = useTranslation();
   const formatNextRun = useFormatNextRunRelative();
@@ -79,10 +75,6 @@ function CronJobCardGrid({ jobs, onSelectJob }: ICronJobCardGridProps) {
     </div>
   );
 }
-
-// ═══════════════════════════════════════════════════
-// 2. DETAIL VIEW — Single job details
-// ═══════════════════════════════════════════════════
 
 function CronJobDetail({ job, onBack, onEdit, onDelete, onToggle, onTrigger, onNavigate }: ICronJobDetailProps) {
   const { t, i18n } = useTranslation();
