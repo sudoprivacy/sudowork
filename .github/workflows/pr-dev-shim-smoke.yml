@@ -124,6 +124,12 @@ jobs:
       - name: Cold-start + dev-shim smoke (Linux)
         if: matrix.platform == 'linux-x64'
         shell: bash
+        env:
+          # Force chromium-level logging so a sandbox / GPU init failure
+          # shows up in the log instead of vanishing after "starting
+          # electron app..." (round-2 symptom).
+          ELECTRON_ENABLE_LOGGING: '1'
+          ELECTRON_ENABLE_STACK_DUMPING: '1'
         run: |
           set -uo pipefail
           export NEXUS_CDP_PORT=9230
@@ -131,7 +137,15 @@ jobs:
           : > "$LOG"
 
           # Background `bun run start` under xvfb so Electron has a display.
-          xvfb-run -a --server-args='-screen 0 1280x1024x24' bun run start > "$LOG" 2>&1 &
+          # `-- --no-sandbox --disable-gpu --disable-dev-shm-usage` is
+          # passed through electron-vite to Electron itself. GitHub
+          # runners don't expose user namespaces for chromium's sandbox,
+          # /dev/shm is too small for Electron's default IPC, and there
+          # is no GPU to initialize — without these three Electron
+          # silently aborts before opening CDP.
+          xvfb-run -a --server-args='-screen 0 1280x1024x24' \
+            bun run start -- --no-sandbox --disable-gpu --disable-dev-shm-usage \
+            > "$LOG" 2>&1 &
           DEV_PID=$!
           echo "started bun run start as PID=$DEV_PID"
 
