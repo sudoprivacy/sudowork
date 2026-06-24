@@ -1,5 +1,5 @@
 import { Button, Message, Popconfirm, Switch, Tag } from '@arco-design/web-react';
-import { ArrowLeft, DeleteOne, Edit, PlayOne } from '@icon-park/react';
+import { DeleteOne, Edit, PlayOne } from '@icon-park/react';
 import dayjs from 'dayjs';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -11,7 +11,6 @@ import { ipcBridge } from '@/common';
 import type { ICronJob } from '@/common/ipcBridge';
 import type { TChatConversation } from '@/common/storage';
 import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
-import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import CronJobFormDrawer from '@/renderer/pages/cron/components/CronJobFormDrawer';
 import { useAssistantsForCron } from '@/renderer/pages/cron/hooks/useAssistantsForCron';
 import { getJobStatusFlags, unwrapCronResult } from '@/renderer/pages/cron/utils';
@@ -143,110 +142,99 @@ export default function CronJobDetailPage() {
   const isNewMode = (job.metadata.conversationMode ?? 'new') === 'new';
 
   return (
-    <PageWrapper>
-      <div className='flex flex-col h-full w-full'>
-        <AionScrollArea className='flex-1 min-h-0 pb-4' disableOverflow>
-          <div className='space-y-6'>
-            {/* Back nav */}
-            <div className='flex items-center gap-1 text-13px text-secondary cursor-pointer hover:text-foreground' onClick={() => navigate(-1)}>
-              <ArrowLeft theme='outline' size={14} />
-              <span>{t('cron.allScheduledTasks', { defaultValue: '全部定时任务' })}</span>
-            </div>
-
-            {/* Header */}
-            <div className='flex items-start justify-between gap-4'>
-              <div>
-                <h2 className='text-22px font-bold text-foreground m-0 mb-2'>{job.name}</h2>
-                <div className='flex items-center gap-2'>
-                  <Tag color={hasError ? 'red' : isPaused ? 'orangered' : 'green'} size='small'>
-                    {hasError ? t('cron.status.error') : isPaused ? t('cron.status.paused') : t('cron.status.active')}
-                  </Tag>
-                  {!isPaused && job.state.nextRunAtMs && (
-                    <span className='text-13px text-secondary'>
-                      {t('cron.create.nextRun')} {formatNextRun(job.state.nextRunAtMs)}
-                    </span>
-                  )}
-                </div>
-              </div>
-              <div className='flex items-center gap-2 shrink-0'>
-                <Button type='text' size='small' icon={<Edit theme='outline' size={16} />} onClick={() => setDrawerVisible(true)} />
-                <Popconfirm title={t('cron.confirmDelete')} onOk={() => void handleDelete(job.id)}>
-                  <Button type='text' size='small' status='danger' icon={<DeleteOne theme='outline' size={16} />} />
-                </Popconfirm>
-                <Button type='primary' size='small' shape='round' icon={<PlayOne theme='outline' />} onClick={() => void handleTrigger(job.id)}>
-                  {t('cron.actions.runNow', { defaultValue: '立即执行' })}
-                </Button>
-              </div>
-            </div>
-
-            {/* Info sections */}
-            <div className='grid grid-cols-1 md:grid-cols-2 gap-6'>
-              <div>
-                <div className='text-13px text-secondary mb-1'>{t('cron.create.description', { defaultValue: '描述' })}</div>
-                <div className='text-14px text-foreground'>{job.schedule.description || '-'}</div>
-              </div>
-              <div>
-                <div className='text-13px text-secondary mb-1'>{t('cron.create.prompt', { defaultValue: '指令' })}</div>
-                <div className='bg-2 rd-8px px-3 py-2 text-13px text-foreground break-words whitespace-pre-wrap max-h-30 overflow-y-auto'>{job.target.payload.text}</div>
-              </div>
-              <div>
-                <div className='text-13px text-secondary mb-1'>{t('cron.create.conversationMode', { defaultValue: '执行模式' })}</div>
-                <div className='text-14px text-foreground'>{(job.metadata.conversationMode ?? 'new') === 'new' ? t('cron.create.conversationMode.new', { defaultValue: '每次新建会话' }) : t('cron.create.conversationMode.reuse', { defaultValue: '复用已有会话' })}</div>
-              </div>
-              {job.metadata.workspace && (
-                <div>
-                  <div className='text-13px text-secondary mb-1'>{t('cron.create.workspace', { defaultValue: '工作目录' })}</div>
-                  <div className='text-14px text-foreground truncate' title={job.metadata.workspace}>
-                    {job.metadata.workspace.split('/').pop() || job.metadata.workspace}
-                  </div>
-                </div>
-              )}
-              <div>
-                <div className='text-13px text-secondary mb-1'>{t('cron.create.agent', { defaultValue: '数字助手' })}</div>
-                <div className='text-14px text-foreground flex items-center gap-1.5'>
-                  {(() => {
-                    const avatarValue = selectedAssistant?.avatar?.trim();
-                    if (!avatarValue) return null;
-                    const resolvedAvatar = resolveExtensionAssetUrl(avatarValue);
-                    const avatarImage = resolvedAvatar || avatarValue;
-                    const isImageAvatar = /\.(svg|png|jpe?g|webp|gif)$/i.test(avatarImage) || /^(https?:|aion-asset:\/\/|file:\/\/|data:)/i.test(avatarImage);
-                    return isImageAvatar ? <img src={avatarImage} alt='' width={16} height={16} style={{ objectFit: 'contain' }} /> : <span style={{ fontSize: 14, lineHeight: '16px' }}>{avatarValue}</span>;
-                  })()}
-                  <span>{assistantName}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Error info */}
-            {hasError && job.state.lastError && (
-              <div className='bg-red-1 rd-8px px-3 py-2 text-13px text-red-6'>
-                <span className='font-medium'>{t('cron.lastError')}:</span> {job.state.lastError}
-              </div>
-            )}
-
-            {/* Repeats */}
-            <div>
-              <div className='text-13px text-secondary mb-2'>{t('cron.create.frequency', { defaultValue: '重复' })}</div>
-              <div className='flex items-center gap-3'>
-                <Switch size='small' checked={job.enabled} onChange={(checked) => void handleToggle(job.id, checked)} />
-                <span className='text-14px text-foreground'>{job.schedule.description}</span>
-              </div>
-            </div>
-
-            {/* Conversation link */}
-            {targetConvId && (
-              <div>
-                <div className='text-13px text-secondary mb-1'>{t('cron.goToConversation')}</div>
-                <span className='text-14px text-primary cursor-pointer hover:underline' onClick={() => void navigate(`/conversation/${targetConvId}`)}>
-                  {isNewMode ? t('cron.goToLastConversation', { defaultValue: '查看最近执行会话' }) : job.metadata.conversationTitle || t('cron.goToConversationLink', { defaultValue: '查看会话' })}
-                </span>
-              </div>
-            )}
+    <PageWrapper
+      back={{ label: t('cron.allScheduledTasks', { defaultValue: '全部定时任务' }), onClick: () => void navigate(-1) }}
+      title={job.name}
+      subtitle={
+        <div className='flex items-center gap-2 mt-1'>
+          <Tag color={hasError ? 'red' : isPaused ? 'orangered' : 'green'} size='small'>
+            {hasError ? t('cron.status.error') : isPaused ? t('cron.status.paused') : t('cron.status.active')}
+          </Tag>
+          {!isPaused && job.state.nextRunAtMs && (
+            <span>
+              {t('cron.create.nextRun')} {formatNextRun(job.state.nextRunAtMs)}
+            </span>
+          )}
+        </div>
+      }
+      actions={
+        <>
+          <Button type='text' size='small' icon={<Edit theme='outline' size={16} />} onClick={() => setDrawerVisible(true)} />
+          <Popconfirm title={t('cron.confirmDelete')} onOk={() => void handleDelete(job.id)}>
+            <Button type='text' size='small' status='danger' icon={<DeleteOne theme='outline' size={16} />} />
+          </Popconfirm>
+          <Button type='primary' size='small' shape='round' icon={<PlayOne theme='outline' />} onClick={() => void handleTrigger(job.id)}>
+            {t('cron.actions.runNow', { defaultValue: '立即执行' })}
+          </Button>
+        </>
+      }
+    >
+      <div className='space-y-6'>
+        {/* Info sections */}
+        <div className='grid grid-cols-1 md:grid-cols-2 gap-6'>
+          <div>
+            <div className='text-13px text-secondary mb-1'>{t('cron.create.description', { defaultValue: '描述' })}</div>
+            <div className='text-14px text-foreground'>{job.schedule.description || '-'}</div>
           </div>
-        </AionScrollArea>
+          <div>
+            <div className='text-13px text-secondary mb-1'>{t('cron.create.prompt', { defaultValue: '指令' })}</div>
+            <div className='bg-2 rd-8px px-3 py-2 text-13px text-foreground break-words whitespace-pre-wrap max-h-30 overflow-y-auto'>{job.target.payload.text}</div>
+          </div>
+          <div>
+            <div className='text-13px text-secondary mb-1'>{t('cron.create.conversationMode', { defaultValue: '执行模式' })}</div>
+            <div className='text-14px text-foreground'>{(job.metadata.conversationMode ?? 'new') === 'new' ? t('cron.create.conversationMode.new', { defaultValue: '每次新建会话' }) : t('cron.create.conversationMode.reuse', { defaultValue: '复用已有会话' })}</div>
+          </div>
+          {job.metadata.workspace && (
+            <div>
+              <div className='text-13px text-secondary mb-1'>{t('cron.create.workspace', { defaultValue: '工作目录' })}</div>
+              <div className='text-14px text-foreground truncate' title={job.metadata.workspace}>
+                {job.metadata.workspace.split('/').pop() || job.metadata.workspace}
+              </div>
+            </div>
+          )}
+          <div>
+            <div className='text-13px text-secondary mb-1'>{t('cron.create.agent', { defaultValue: '数字助手' })}</div>
+            <div className='text-14px text-foreground flex items-center gap-1.5'>
+              {(() => {
+                const avatarValue = selectedAssistant?.avatar?.trim();
+                if (!avatarValue) return null;
+                const resolvedAvatar = resolveExtensionAssetUrl(avatarValue);
+                const avatarImage = resolvedAvatar || avatarValue;
+                const isImageAvatar = /\.(svg|png|jpe?g|webp|gif)$/i.test(avatarImage) || /^(https?:|aion-asset:\/\/|file:\/\/|data:)/i.test(avatarImage);
+                return isImageAvatar ? <img src={avatarImage} alt='' width={16} height={16} style={{ objectFit: 'contain' }} /> : <span style={{ fontSize: 14, lineHeight: '16px' }}>{avatarValue}</span>;
+              })()}
+              <span>{assistantName}</span>
+            </div>
+          </div>
+        </div>
 
-        <CronJobFormDrawer visible={drawerVisible} editJob={job} sessionMode={sessionMode} onClose={() => setDrawerVisible(false)} onSaved={() => void handleSaved()} />
+        {/* Error info */}
+        {hasError && job.state.lastError && (
+          <div className='bg-red-1 rd-8px px-3 py-2 text-13px text-red-6'>
+            <span className='font-medium'>{t('cron.lastError')}:</span> {job.state.lastError}
+          </div>
+        )}
+
+        {/* Repeats */}
+        <div>
+          <div className='text-13px text-secondary mb-2'>{t('cron.create.frequency', { defaultValue: '重复' })}</div>
+          <div className='flex items-center gap-3'>
+            <Switch size='small' checked={job.enabled} onChange={(checked) => void handleToggle(job.id, checked)} />
+            <span className='text-14px text-foreground'>{job.schedule.description}</span>
+          </div>
+        </div>
+
+        {/* Conversation link */}
+        {targetConvId && (
+          <div>
+            <div className='text-13px text-secondary mb-1'>{t('cron.goToConversation')}</div>
+            <span className='text-14px text-primary cursor-pointer hover:underline' onClick={() => void navigate(`/conversation/${targetConvId}`)}>
+              {isNewMode ? t('cron.goToLastConversation', { defaultValue: '查看最近执行会话' }) : job.metadata.conversationTitle || t('cron.goToConversationLink', { defaultValue: '查看会话' })}
+            </span>
+          </div>
+        )}
       </div>
+      <CronJobFormDrawer visible={drawerVisible} editJob={job} sessionMode={sessionMode} onClose={() => setDrawerVisible(false)} onSaved={() => void handleSaved()} />
     </PageWrapper>
   );
 }

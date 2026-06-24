@@ -1,9 +1,3 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAppMode } from '@renderer/hooks/useAppMode';
 import { ipcBridge } from '@/common';

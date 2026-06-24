@@ -1,9 +1,3 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import { Button, Switch } from '@arco-design/web-react';
 import { Add, AlarmClock, Info, Sun } from '@icon-park/react';
 import React, { useEffect, useState } from 'react';
