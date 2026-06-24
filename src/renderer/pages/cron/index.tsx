@@ -7,7 +7,6 @@
 import { Button, Drawer, Form, Input, Message, Popconfirm, Select, Switch, Tag } from '@arco-design/web-react';
 import { Add, AlarmClock, ArrowLeft, Close, DeleteOne, Edit, Info, PlayOne, Sun } from '@icon-park/react';
 import dayjs from 'dayjs';
-import type { ReactNode } from 'react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
@@ -22,8 +21,9 @@ import { fetchAssistantsAsConfigs } from '@/renderer/shared/agents/assistantAdap
 import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import EmptyState from '@/renderer/components/base/EmptyState';
+import Item from '@/renderer/pages/cron/components/Item';
 import { useAllCronJobs } from '@/renderer/pages/cron/hooks/useCronJobs';
-import { type FrequencyPreset, FREQUENCY_PRESETS, WEEKDAYS, frequencyToSchedule, getJobStatusFlags, scheduleToFrequency } from '@/renderer/pages/cron/utils/cronUtils';
+import { type FrequencyPreset, FREQUENCY_PRESETS, WEEKDAYS, frequencyToSchedule, getJobStatusFlags, scheduleToFrequency } from '@/renderer/pages/cron/utils';
 import { useAuth } from '@/renderer/context/AuthContext';
 import { useConversationTabs } from '@/renderer/pages/conversation/context/ConversationTabsContext';
 import PageWrapper from '@renderer/components/base/PageWrapper';
@@ -127,10 +127,7 @@ const MINUTE_OPTIONS = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55].map((m) =>
 // 1. LIST VIEW — Card Grid
 // ═══════════════════════════════════════════════════
 
-const CronJobCardGrid: React.FC<{
-  jobs: ICronJob[];
-  onSelectJob: (job: ICronJob) => void;
-}> = ({ jobs, onSelectJob }) => {
+function CronJobCardGrid({ jobs, onSelectJob }: ICronJobCardGridProps) {
   const { t } = useTranslation();
   const formatNextRun = useFormatNextRunRelative();
   return (
@@ -152,21 +149,13 @@ const CronJobCardGrid: React.FC<{
       })}
     </div>
   );
-};
+}
 
 // ═══════════════════════════════════════════════════
 // 2. DETAIL VIEW — Single job details
 // ═══════════════════════════════════════════════════
 
-const CronJobDetail: React.FC<{
-  job: ICronJob;
-  onBack: () => void;
-  onEdit: (job: ICronJob) => void;
-  onDelete: (jobId: string) => void;
-  onToggle: (jobId: string, enabled: boolean) => void;
-  onTrigger: (jobId: string) => void;
-  onNavigate: (conversationId: string) => void;
-}> = ({ job, onBack, onEdit, onDelete, onToggle, onTrigger, onNavigate }) => {
+function CronJobDetail({ job, onBack, onEdit, onDelete, onToggle, onTrigger, onNavigate }: ICronJobDetailProps) {
   const { t, i18n } = useTranslation();
   const formatNextRun = useFormatNextRunRelative();
   const { hasError, isPaused } = getJobStatusFlags(job);
@@ -294,19 +283,13 @@ const CronJobDetail: React.FC<{
       })()}
     </div>
   );
-};
+}
 
 // ═══════════════════════════════════════════════════
 // 3. CREATE/EDIT DRAWER
 // ═══════════════════════════════════════════════════
 
-const CronJobFormDrawer: React.FC<{
-  visible: boolean;
-  editJob?: ICronJob | null;
-  sessionMode: 'local' | 'remote';
-  onClose: () => void;
-  onSaved: () => void;
-}> = ({ visible, editJob, sessionMode, onClose, onSaved }) => {
+function CronJobFormDrawer({ visible, editJob, sessionMode, onClose, onSaved }: ICronJobFormDrawerProps) {
   const { t } = useTranslation();
   const frequencyLabels = useFrequencyLabels();
   const weekdayLabels = useWeekdayLabels();
@@ -672,23 +655,7 @@ const CronJobFormDrawer: React.FC<{
       </Form>
     </Drawer>
   );
-};
-
-const Item = ({ icon, title, description, status, action }: { icon: ReactNode; title: ReactNode; description?: ReactNode; status?: ReactNode; action?: ReactNode }) => (
-  <div className='p-4 flex items-center gap-3'>
-    <span className='size-10 shrink-0 f-center rd-2 border bg-1 text-secondary'>{icon}</span>
-    <div className='w-0 flex-1'>
-      <div className='truncate text-15px font-600 text-foreground'>{title}</div>
-      {description && <div className='mt-1 text-13px leading-20px text-secondary truncate'>{description}</div>}
-    </div>
-    {(status || action) && (
-      <span className='flex shrink-0 flex-wrap items-center justify-end gap-3'>
-        {status}
-        {action}
-      </span>
-    )}
-  </div>
-);
+}
 
 export default function CronPage() {
   const { t } = useTranslation();
@@ -908,4 +875,27 @@ export default function CronPage() {
       </div>
     </PageWrapper>
   );
+}
+
+interface ICronJobCardGridProps {
+  jobs: ICronJob[];
+  onSelectJob: (job: ICronJob) => void;
+}
+
+interface ICronJobDetailProps {
+  job: ICronJob;
+  onBack: () => void;
+  onEdit: (job: ICronJob) => void;
+  onDelete: (jobId: string) => void;
+  onToggle: (jobId: string, enabled: boolean) => void;
+  onTrigger: (jobId: string) => void;
+  onNavigate: (conversationId: string) => void;
+}
+
+interface ICronJobFormDrawerProps {
+  visible: boolean;
+  editJob?: ICronJob | null;
+  sessionMode: 'local' | 'remote';
+  onClose: () => void;
+  onSaved: () => void;
 }
