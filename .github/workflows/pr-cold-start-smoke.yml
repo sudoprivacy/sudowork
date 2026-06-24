@@ -68,18 +68,15 @@ jobs:
             node_platform: win32
             node_arch: x64
           # Intentionally NOT in matrix:
-          #   - macos-arm64: blocked on an upstream nexus-fuse-plugin issue.
-          #     libnexus_fuse_plugin.dylib hard-links /usr/local/lib/libfuse.2.dylib
-          #     (a macFUSE path). On a clean macos-14 runner this dlopen fails and
-          #     the cluster correctly skips fuse-plugin → smoke gets count=2 not 3.
-          #     Pre-installing FUSE-T does NOT fix it: FUSE-T 1.2.7's pkg installs
-          #     /Library/Frameworks/fuse_t.framework but does NOT drop a
-          #     /usr/local/lib/libfuse.2.dylib symlink (empirically verified in
-          #     CI run 28080399237 / job 83133769408). The right fix is to relink
-          #     the macOS fuse-plugin build against FUSE-T's framework, which
-          #     belongs in the nexi-lab/nexus fuse-plugin release pipeline.
-          #     Until that lands, manual Mac smoke (via Mac dev session) gates
-          #     mac cold-start regressions; this CI job covers the rest.
+          #   - macos-arm64: blocked on nexi-lab/nexus#4425. Root cause:
+          #     fuse-plugin's macOS dylib hard-links libfuse.2.dylib (macFUSE
+          #     libfuse2), but FUSE-T 1.2.7 ships only libfuse3 at a different
+          #     prefix and no libfuse2 anywhere. Cluster dlopen fails BEFORE
+          #     fuse_t_detect runs, the lazy install supervisor can't probe,
+          #     and the smoke (correctly) flags count=2 not 3. Issue has the
+          #     full pkg payload listing + proposed fix paths. Until it
+          #     closes, manual Mac smoke (via Mac dev session) gates mac
+          #     cold-start regressions; linux + windows here cover the rest.
           #   - macos-x64: cross-build only on macos-14 runner; no native runner.
           #   - windows-arm64: no native plugin artifacts published yet.
           #   - linux-arm64: no plugin artifacts published yet.
