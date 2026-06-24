@@ -1,12 +1,12 @@
 {
   "_doc": "Canonical SHA256 sums for every downloadable nexus-vfs runtime artifact. Single source of truth — scripts/download-nexus-vfs.js (build/install-time), DynamicNexusVfsService.ts (runtime cluster re-installer), and VaultPluginInstaller.ts (runtime vault re-installer) all read from this file. Bump versions in runtime-versions.json AND update the matching entry here in one commit; do NOT inline a SHA back into any source file. Verified against the per-release SHA256SUMS.txt in the COS bucket.",
 
-  "nexusd-cluster-linux-aarch64.tar.gz": "1afa3e5b0fd239cd8a36a4bd2fd6409890eb5bb8a3d8d3d9a5e8357faec8b610",
-  "nexusd-cluster-linux-x86_64.tar.gz": "b5589082304cf9cbc693381f3bf52d53554573bee0aa8bbdc23f17ca3a7cf486",
-  "nexusd-cluster-macos-aarch64.tar.gz": "0b07557accd3982ac9823ba8128377ea2e4e8a7ab8aaaf9d243bf9e06688df0e",
-  "nexusd-cluster-macos-x86_64.tar.gz": "7bd7e03a97ba024459503d137d7622e8315a2bb976a5884156a37c2a8d90313d",
-  "nexusd-cluster-windows-aarch64.zip": "ec97d5ff5fe7b51f29cf5c2b1b0ab7d709df99e10ce3e974aa12cc9e14220ebd",
-  "nexusd-cluster-windows-x86_64.zip": "c318f749cb1ed5a6dad87559499bf5ae9fbb53ad9decb94e3711060aa8e8050d",
+  "nexusd-cluster-linux-aarch64.tar.gz": "6629a229eaa3f274e937a528f029f1fba06437e4d8068534204b38e9c9d7a4f2",
+  "nexusd-cluster-linux-x86_64.tar.gz": "ab97e36c75c76bcea35ce5ffac5116bce741e87682558b0e24e0853c604ab3c4",
+  "nexusd-cluster-macos-aarch64.tar.gz": "588b93ea07a9a9d51f95ba43da9fb2c6484fff0cf4f6351ada53b32268b29836",
+  "nexusd-cluster-macos-x86_64.tar.gz": "1c1e885969e649353264d859ad1a12aab6fa91b47cd079e3010c878f457dcb90",
+  "nexusd-cluster-windows-aarch64.zip": "c87f665e12a202ce3da85fa3f928e9713a4240ca9bb8bdd8df562728eae8e8a5",
+  "nexusd-cluster-windows-x86_64.zip": "79de886dcb2b2430b482a7ad6a9bcfbaa53137c1174f2050e2f0c03f7f6c696f",
 
   "nexus-vault-linux-x86_64.tar.gz": "890b154f121820297f3937306dd1e8ac39b58c4bdad3823427f4fd2279138d2c",
   "nexus-vault-macos-arm64.tar.gz": "a6ef1ac686f8d795662052a7cc456e85efec4461e269ae77de9d180af198a522",

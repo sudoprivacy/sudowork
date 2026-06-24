@@ -49,6 +49,15 @@ const COS_BASE_URLS = [
   `https://sudoclaw-download-1309794936.cos.ap-beijing.myqcloud.com/nexus-vfs/release/v${VERSION}`,
 ];
 
+// GitHub Release fallback for nexus-vfs cluster, mirroring the same pattern
+// used by vault/local-connector/fuse-plugin below. nexus-vfs's release.yml
+// `publish-cos` step is gated on TENCENT_SECRET_ID/KEY; when those aren't
+// configured the upload silently skips and primary COS 404s. The GitHub
+// release (`publish-github-release` step, `softprops/action-gh-release@v2`)
+// is unconditional on tag push, so the GH-release fallback is always
+// available even when the COS mirror is empty.
+const NEXUS_VFS_GITHUB_URL = `https://github.com/nexi-lab/nexus-vfs/releases/download/v${VERSION}`;
+
 // Vault plugin is released from the nexus repo (separate from nexus-vfs).
 const VAULT_COS_BASE_URLS = [
   `https://sudowork-runtime-1309794936.cos.ap-beijing.myqcloud.com/nexus-vault/release/v${VAULT_VERSION}`,
@@ -292,7 +301,7 @@ function findBinary(dir) {
 
 async function installForPlatform(platform, arch, force) {
   const artifact = getArtifactName(platform, arch);
-  const urls = COS_BASE_URLS.map((base) => `${base}/${artifact}`);
+  const urls = [...COS_BASE_URLS.map((base) => `${base}/${artifact}`), `${NEXUS_VFS_GITHUB_URL}/${artifact}`];
   const binName = getBinaryName();
   const installedBinary = path.join(BIN_DIR, binName);
 
