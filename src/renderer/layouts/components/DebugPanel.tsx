@@ -51,7 +51,7 @@ const DebugPanel: React.FC = () => {
           </div>
         }
       >
-        <Button size='small' type='primary' className='!bg-purple-600 !border-purple-600 !rd-full' onClick={() => setVisible((v) => !v)}>
+        <Button size='small' type='primary' onClick={() => setVisible((v) => !v)}>
           Debugger
         </Button>
       </Popover>
