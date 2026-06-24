@@ -17,6 +17,7 @@ import { cleanupSiderTooltips } from '@renderer/utils/siderTooltip';
 import { emitter } from '@renderer/utils/emitter';
 import SudoworkIcon from '@renderer/assets/sudowork-icon-dark.svg';
 import UpdateModal from '@renderer/layouts/components/UpdateModal';
+import DebugPanel from '@renderer/layouts/components/DebugPanel';
 import Sider from '@/renderer/layouts/components/Sider';
 import Titlebar from '@/renderer/layouts/components/TitleBar';
 import { ConfigStorage } from '@/common/storage';
@@ -130,6 +131,7 @@ const Layout: React.FC = () => {
             {multiAgentContextHolder}
             {directorySelectionContextHolder}
             <UpdateModal />
+            <DebugPanel />
           </ArcoLayout.Content>
         </ArcoLayout>
       </div>
