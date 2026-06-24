@@ -25,9 +25,13 @@ try {
   JSZip = require('jszip');
 }
 
-const SKILL_HUB_BASE_URL = 'https://sudoworkhub.sudoprivacy.com/api/skills';
-const SKILL_HUB_CURSOR_URL = 'https://sudoworkhub.sudoprivacy.com/api/skills/cursor';
-const AUTHORIZATION = 'sud0@sudo';
+// Server-driven hub root + token: env-injected when run under the app
+// (SKILLHUB_BASE_URL / SKILLHUB_AUTHORIZATION); fallback to the hardcoded defaults for
+// standalone CLI use so old resources keep working.
+const HUB_ROOT = process.env.SKILLHUB_BASE_URL?.trim() || 'https://sudoworkhub.sudoprivacy.com';
+const SKILL_HUB_BASE_URL = `${HUB_ROOT}/api/skills`;
+const SKILL_HUB_CURSOR_URL = `${HUB_ROOT}/api/skills/cursor`;
+const AUTHORIZATION = process.env.SKILLHUB_AUTHORIZATION?.trim() || 'sud0@sudo';
 
 const NEXUS_DIR = path.join(os.homedir(), '.nexus');
 const SKILLS_DIR = path.join(NEXUS_DIR, 'skills');

@@ -9,6 +9,8 @@ import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from '
 import { join } from 'node:path';
 import { app } from 'electron';
 import { buildVersion } from '@/common/buildInfo';
+import { getLogReportBaseUrl, isLogReportEnabled } from '@/common/systemConfig';
+import { getLogReportKey } from '@/process/credentialsCache';
 import { mapElectronArch } from '@/shared/types/telemetry';
 
 type LogUploadErrorEntry = {
@@ -82,8 +84,6 @@ type PersonalConfigSnapshot = {
 const SUDO_LOG_TENANT_ID = 'sudo';
 const LOG_PRODUCT = 'sudowork';
 const API_KEY_HEADER = 'X-API-Key';
-const API_KEY = 'sk-8f3a2b1c9d5e7f6a4b3c2d1e8f9a0b7c';
-const DEFAULT_BATCH_URL = 'https://sudolog.sudoprivacy.com/v1/logs/batch';
 const CACHE_FILE_NAME = 'sudowork-log-error-cache.json';
 const MAX_QUEUE_SIZE = 500;
 const MAX_BATCH_SIZE = 50;
@@ -170,7 +170,7 @@ function getBatchUrl(): string {
     return new URL('/v1/logs/batch', baseUrl).toString();
   }
 
-  return DEFAULT_BATCH_URL;
+  return `${getLogReportBaseUrl()}/v1/logs/batch`;
 }
 
 function hashIdentifier(value?: unknown): string | undefined {
@@ -354,7 +354,7 @@ class SudoworkLogUploader {
 
   public enqueue(entry: LogUploadErrorEntry): void {
     const config = getConfigSnapshot();
-    if (config.appMode !== 'c') {
+    if (config.appMode !== 'c' || !isLogReportEnabled()) {
       this.dropAndClear();
       return;
     }
@@ -481,7 +481,7 @@ class SudoworkLogUploader {
   }
 
   private async flush(): Promise<void> {
-    if (!isPersonalMode()) {
+    if (!isPersonalMode() || !isLogReportEnabled()) {
       this.dropAndClear();
       return;
     }
@@ -548,11 +548,18 @@ class SudoworkLogUploader {
     const timeout = setTimeout(() => controller.abort(), SEND_TIMEOUT_MS);
 
     try {
+      const apiKey = getLogReportKey();
+      if (!apiKey) {
+        // D8: log_report key not provisioned — skip upload. Identity gating (§6.1) already
+        // prevents pre-login reports; this covers the post-login key-missing case.
+        console.error('[SudoworkLog] log_report key not provisioned, skip sendBatch');
+        return { success: false, received: 0, error: 'log_report key missing', retryable: false };
+      }
       const response = await fetch(getBatchUrl(), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          [API_KEY_HEADER]: API_KEY,
+          [API_KEY_HEADER]: apiKey,
         },
         body: JSON.stringify(request),
         signal: controller.signal,

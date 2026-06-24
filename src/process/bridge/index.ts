@@ -38,6 +38,7 @@ import { initAssistantHubBridge } from './assistantHubBridge';
 import { initSudoclawBridge } from './sudoclawBridge';
 import { initInitBridge } from './initBridge';
 import { initSudoworkServerBridge } from './sudoworkServerBridge';
+import { initSystemConfigBridge } from './systemConfigBridge';
 import { initNodeRuntimeBridge } from './nodeRuntimeBridge';
 import { initPythonRuntimeBridge } from './pythonRuntimeBridge';
 import { initFuseTBridge } from './fuseTBridge';
@@ -104,6 +105,7 @@ export function initAllBridges(): void {
   initPythonRuntimeBridge();
   initFuseTBridge();
   initSudoworkServerBridge();
+  initSystemConfigBridge();
   // Safety hook IPC is hidden while the feature is disabled.
   // initSafetyBridge();
   initBdpanBridge();

@@ -3,6 +3,13 @@
  * Hub API calls for fetching assistants, categories, and installing from Hub.
  */
 
+import fs from 'fs/promises';
+import fsSync from 'fs';
+import path from 'path';
+import https from 'node:https';
+import http from 'node:http';
+import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
+import JSZip from 'jszip';
 import { ipcBridge } from '@/common';
 import type { IAssistantHubSkill, IAssistantHubListResponse, IAssistantHubDetail, IAssistantInstallResult, ISkillHubSkill, IBridgeResponse, IAssistantHubVersionLike } from '@/common/ipcBridge';
 import { assistantManager } from '@/process/AssistantManager';
@@ -10,23 +17,13 @@ import { getAssistantsDir, getHubAssistantsDir, getSystemAssistantsDir, getCusto
 import { skillManager } from '@/process/SkillManager';
 import { getDatabase } from '@/process/database';
 import { DEFAULT_PRESET_AGENT_TYPE, normalizePresetAgentType } from '@/types/acpTypes';
-import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
 import { ASSISTANTS_ROOT_DIR, ENTERPRISE_ASSISTANT_SUBDIRS } from '@/process/constants/enterpriseStorage';
-import fs from 'fs/promises';
-import fsSync from 'fs';
-import path from 'path';
-import https from 'node:https';
-import http from 'node:http';
-import JSZip from 'jszip';
+import { getSkillHubBaseUrl } from '@/common/systemConfig';
+import { getSkillhubToken } from '@/process/credentialsCache';
 
 const { existsSync } = fsSync;
 
-// Hub API constants (same service as Skill Hub)
-const ASSISTANT_HUB_BASE_URL = 'https://sudoworkhub.sudoprivacy.com/api/assistants';
-const ASSISTANT_HUB_CURSOR_URL = 'https://sudoworkhub.sudoprivacy.com/api/assistants/cursor';
-const ASSISTANT_CATEGORY_URL = 'https://sudoworkhub.sudoprivacy.com/api/categories';
-const AUTHORIZATION = 'sud0@sudo';
 const ASSISTANT_META_FILE = '_sudowork_meta.json';
 const MOSS_ASSISTANT_META_FILE = '_moss_meta.json';
 
@@ -431,8 +428,13 @@ export function initAssistantHubBridge(): void {
       if (category) params.set('category', category);
       if (typeof tenantId === 'string' && tenantId.trim()) params.set('tenant_id', tenantId.trim());
 
-      const response = await fetch(`${ASSISTANT_HUB_CURSOR_URL}?${params}`, {
-        headers: { Authorization: AUTHORIZATION },
+      const token = getSkillhubToken();
+      if (!token) {
+        mainError('AssistantHub', 'skillhub token not provisioned, skip fetchAssistants');
+        return { success: false, msg: 'skillhub token missing' };
+      }
+      const response = await fetch(`${getSkillHubBaseUrl()}/api/assistants/cursor?${params}`, {
+        headers: { Authorization: token },
       });
       const result = await response.json();
 
@@ -522,8 +524,13 @@ export function initAssistantHubBridge(): void {
       }
 
       // 个人模式：从 SudoPrivacy Assistant Hub API 获取分类
-      const response = await fetch(`${ASSISTANT_CATEGORY_URL}?type=1`, {
-        headers: { Authorization: AUTHORIZATION },
+      const token = getSkillhubToken();
+      if (!token) {
+        mainError('AssistantHub', 'skillhub token not provisioned, skip fetchCategories');
+        return { success: false, msg: 'skillhub token missing' };
+      }
+      const response = await fetch(`${getSkillHubBaseUrl()}/api/categories?type=1`, {
+        headers: { Authorization: token },
       });
       const data = await response.json();
       return { success: true, data: data.data || [] };
@@ -583,9 +590,16 @@ export function initAssistantHubBridge(): void {
       }
 
       // 个人模式：从 SudoPrivacy Assistant Hub API 获取详情
-      const url = `${ASSISTANT_HUB_BASE_URL}/${assistantId}`;
+      const token = getSkillhubToken();
+      if (!token) {
+        if (!silent) {
+          mainError('AssistantHub', 'skillhub token not provisioned, skip fetchAssistantDetail');
+        }
+        return { success: false, msg: 'skillhub token missing' };
+      }
+      const url = `${getSkillHubBaseUrl()}/api/assistants/${assistantId}`;
       const response = await fetch(url, {
-        headers: { Authorization: AUTHORIZATION },
+        headers: { Authorization: token },
       });
       const data = await response.json();
       return { success: true, data: data.data };
@@ -604,12 +618,18 @@ export function initAssistantHubBridge(): void {
         return { success: true, data: [] };
       }
 
+      const token = getSkillhubToken();
+      if (!token) {
+        mainError('AssistantHub', 'skillhub token not provisioned, skip fetchSkillDetailsByIds');
+        return { success: false, msg: 'skillhub token missing' };
+      }
+
       // Fetch all skills in parallel
       const responses = await Promise.all(
         skillIds.map(async (id) => {
           try {
-            const response = await fetch(`https://sudoworkhub.sudoprivacy.com/api/skills/${id}`, {
-              headers: { Authorization: AUTHORIZATION },
+            const response = await fetch(`${getSkillHubBaseUrl()}/api/skills/${id}`, {
+              headers: { Authorization: token },
             });
             const data = await response.json();
             if (data.success && data.data?.skill) {
@@ -633,6 +653,12 @@ export function initAssistantHubBridge(): void {
   // Download and install assistant from Hub, optionally installing selected associated skills
   ipcBridge.assistantHub.downloadAndInstallAssistant.provider(async ({ assistantName, displayName, sourceUrl, version, checksum, assistantMeta, selectedSkillIds }) => {
     try {
+      const token = getSkillhubToken();
+      if (!token) {
+        mainError('AssistantHub', 'skillhub token not provisioned, skip downloadAndInstallAssistant');
+        return { success: false, msg: 'skillhub token missing' };
+      }
+
       // Download zip file
       const zipBuffer = await downloadFile(sourceUrl);
 
@@ -699,8 +725,8 @@ export function initAssistantHubBridge(): void {
 
           // Fetch skill detail from Hub to get name and download URL (for non-builtin skills)
           try {
-            const skillDetailResponse = await fetch(`https://sudoworkhub.sudoprivacy.com/api/skills/${skillId}`, {
-              headers: { Authorization: AUTHORIZATION },
+            const skillDetailResponse = await fetch(`${getSkillHubBaseUrl()}/api/skills/${skillId}`, {
+              headers: { Authorization: token },
             });
             const skillDetailData = await skillDetailResponse.json();
 
@@ -887,6 +913,12 @@ export function registerUploadAssistantToHubBridge() {
     }
 
     try {
+      const token = getSkillhubToken();
+      if (!token) {
+        mainError('AssistantHub', 'skillhub token not provisioned, skip uploadAssistantToHub');
+        return { success: false, msg: 'skillhub token missing' };
+      }
+
       // Get custom assistants directory
       const assistantsDir = getCustomAssistantsDir();
       const assistantDir = path.join(assistantsDir, name);
@@ -993,13 +1025,13 @@ export function registerUploadAssistantToHubBridge() {
       formData.append('source_url', zipBlob, zipFileName);
 
       // Upload to Hub API
-      const uploadUrl = ASSISTANT_HUB_BASE_URL;
+      const uploadUrl = `${getSkillHubBaseUrl()}/api/assistants`;
 
       // Real API call
       const response = await fetch(uploadUrl, {
         method: 'POST',
         headers: {
-          Authorization: AUTHORIZATION,
+          Authorization: token,
         },
         body: formData,
       });

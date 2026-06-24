@@ -1774,6 +1774,16 @@ export const sudoworkServer = {
   updateConfig: bridge.buildProvider<void, Partial<ISudoworkServerConfig>>('sudowork-server.update-config'),
 };
 
+// ==================== System Config (server-driven) ====================
+// Renderer fetches the AES-256-GCM credentials envelope with the user's JWT and forwards
+// {nonce, ciphertext} here; the main process decrypts + caches the plaintext (main-only)
+// and triggers CrashReporter backfill. JWT never leaves the renderer.
+
+export const systemConfig = {
+  /** Decrypt + cache the credentials envelope; triggers CrashReporter.flushAll() backfill. */
+  cacheCredentials: bridge.buildProvider<IBridgeResponse<{ cached: boolean }>, { nonce: string; ciphertext: string }>('system-config.cache-credentials'),
+};
+
 // ==================== Safety Hook API ====================
 
 // ==================== Tools API ====================

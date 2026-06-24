@@ -17,8 +17,8 @@
  */
 
 import * as crypto from 'crypto';
-import { TELEMETRY_PUBLIC_KEY_PEM, ENCRYPTION_CONFIG } from './keys';
 import { mainLog, mainWarn, mainError } from '../utils/mainLogger';
+import { ENCRYPTION_CONFIG, resolveTelemetryPublicKey } from './keys';
 
 // ============================================================
 // 类型定义
@@ -84,7 +84,7 @@ export class TelemetryEncryptor {
 
     try {
       // 解析 PEM 格式公钥
-      const pemKey = TELEMETRY_PUBLIC_KEY_PEM.trim();
+      const pemKey = resolveTelemetryPublicKey().trim();
 
       // 检查是否为占位符密钥
       if (pemKey.includes('PlaceholderPublicKeyContent') || pemKey.includes('ExampleKeyForDevelopment')) {
@@ -114,6 +114,18 @@ export class TelemetryEncryptor {
       this.enabled = false;
       this.initialized = true;
     }
+  }
+
+  /**
+   * Re-initialize with the current dispatch state (D6).
+   * Called after server-driven credentials are cached so an `encryption_required=true`
+   * dispatch swaps in the server's public key (resolveTelemetryPublicKey reads it live).
+   */
+  public async reinitialize(): Promise<void> {
+    this.initialized = false;
+    this.publicKey = null;
+    this.enabled = ENCRYPTION_CONFIG.enabled;
+    await this.initialize();
   }
 
   /**
@@ -153,7 +165,7 @@ export class TelemetryEncryptor {
           padding: crypto.constants.RSA_PKCS1_OAEP_PADDING,
           oaepHash: config.rsa.hash,
         },
-        aesKey,
+        aesKey
       );
 
       // Step 6: Base64 编码
@@ -222,6 +234,11 @@ export const getTelemetryEncryptor = (): TelemetryEncryptor => {
 /** 初始化加密器 */
 export const initTelemetryEncryptor = async (): Promise<void> => {
   await getTelemetryEncryptor().initialize();
+};
+
+/** 重新初始化加密器（凭据到达后用下发公钥，D6） */
+export const reinitTelemetryEncryptor = async (): Promise<void> => {
+  await getTelemetryEncryptor().reinitialize();
 };
 
 /** 加密数据 */

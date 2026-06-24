@@ -1,6 +1,6 @@
 import type { SudoclawConfig, SudoclawProvider, SudoclawProviderModel } from './ipcBridge';
+import { getSudorouterBaseUrl } from './systemConfig';
 
-const SUDOROUTER_BASE_URL = 'https://hk.sudorouter.ai/v1';
 const DEFAULT_PRIMARY_MODEL = 'gemini-3.5-flash';
 
 type MergeSudorouterProvidersParams = {
@@ -46,7 +46,7 @@ export function buildSudorouterProviderModel(modelId: string): SudoclawProviderM
 export function buildSudorouterProvider(modelId: string, apiKey?: string, existingProvider?: SudoclawProvider): SudoclawProvider {
   const provider: SudoclawProvider = {
     ...existingProvider,
-    baseUrl: SUDOROUTER_BASE_URL,
+    baseUrl: `${getSudorouterBaseUrl()}/v1`,
     api: getSudorouterApiType(modelId),
     models: [buildSudorouterProviderModel(modelId)],
   };
@@ -95,7 +95,7 @@ export function mergeSudorouterProvidersIntoConfig(config: SudoclawConfig | null
   const existingCanonicalProvider = existingProviders.sudorouter;
   mergedProviders.sudorouter = {
     ...existingCanonicalProvider,
-    baseUrl: params.baseUrl?.trim() || existingCanonicalProvider?.baseUrl || SUDOROUTER_BASE_URL,
+    baseUrl: params.baseUrl?.trim() || existingCanonicalProvider?.baseUrl || `${getSudorouterBaseUrl()}/v1`,
     api: existingCanonicalProvider?.api || getSudorouterApiType(getPreferredSudorouterPrimaryModel(modelIds)),
     models: canonicalSudorouterModels,
   };

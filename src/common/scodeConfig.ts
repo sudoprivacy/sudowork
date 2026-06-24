@@ -1,5 +1,6 @@
 import { modelInputForModelId } from './imageUtils';
 import type { ScodeConfig, ScodeModelEntry } from './ipcBridge';
+import { getSudorouterBaseUrl } from './systemConfig';
 
 export type LoginSudoclawPayload = {
   sudorouterKey?: string;
@@ -237,7 +238,7 @@ export function mergeSudorouterIntoScodeConfig(existing: ScodeConfig | null | un
     web_search: {
       ...(existing?.web_search || {}),
       provider: existing?.web_search?.provider || 'tavily',
-      apiUrl: existing?.web_search?.apiUrl || 'https://hk.sudorouter.ai/search/tavily/search',
+      apiUrl: existing?.web_search?.apiUrl || `${getSudorouterBaseUrl()}/search/tavily/search`,
       apiKey: existing?.web_search?.apiKey || payload.sudorouterKey || '',
     },
   };

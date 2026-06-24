@@ -16,6 +16,7 @@ import Layout from '@renderer/layouts/layout';
 import Router from '@renderer/router';
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary';
 import { ipcBridge } from '@/common';
+import { fetchSystemConfig, isProductImprovementEnabled } from '@/common/systemConfig';
 
 const Main = () => {
   const { ready: authReady } = useAuth();
@@ -34,10 +35,12 @@ const Main = () => {
     }
 
     if (initReady && !optInChecked) {
-      ipcBridge.telemetry.getOptInShown
-        .invoke()
-        .then((result) => {
-          if (result.success && !result.data) {
+      // Fill the renderer system-config cache so the product_improvement switch
+      // (server-driven) is accurate before deciding whether to show the opt-in dialog.
+      Promise.all([ipcBridge.telemetry.getOptInShown.invoke(), fetchSystemConfig()])
+        .then(([result]) => {
+          // §4.5: hide the opt-in dialog when product_improvement is disabled server-side.
+          if (result.success && !result.data && isProductImprovementEnabled()) {
             // Opt-in dialog hasn't been shown yet - this is a new user (first install)
             setShowOptInDialog(true);
           }

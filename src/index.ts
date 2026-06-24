@@ -684,24 +684,29 @@ const createWindow = (): void => {
   const isCiRuntime = process.env.CI === 'true' || process.env.CI === '1' || process.env.GITHUB_ACTIONS === 'true';
   const disableAutoUpdater = process.env.NEXUS_DISABLE_AUTO_UPDATE === '1' || process.env.NEXUS_E2E_TEST === '1' || isCiRuntime;
   if (!disableAutoUpdater) {
-    Promise.all([import('./process/services/autoUpdaterService'), import('./process/bridge/updateBridge')])
-      .then(([{ autoUpdaterService }, { createAutoUpdateStatusBroadcast }]) => {
+    Promise.all([import('./process/services/autoUpdaterService'), import('./process/bridge/updateBridge'), import('./common/systemConfig')])
+      .then(([{ autoUpdaterService }, { createAutoUpdateStatusBroadcast }, { fetchSystemConfig, isVersionUpdateEnabled }]) => {
         // Create status broadcast callback that emits via ipcBridge (pure emitter, no window binding)
         const statusBroadcast = createAutoUpdateStatusBroadcast();
         autoUpdaterService.initialize(statusBroadcast);
-        // Skip auto-update check for nightly builds – nightly versions should only be
-        // updated manually via the in-app update modal which already handles nightly isolation.
-        // nightly 版本跳过自动更新检查，避免弹出指向正式 release 版本的更新提醒。
-        // nightly 版本的更新应通过应用内手动检查完成（UpdateModal 已实现 nightly 隔离逻辑）。
-        if (isNightlyBuild) {
-          mainLog('App', 'Nightly build detected, skipping auto-update check');
-        } else {
-          // Check for updates after 3 seconds delay
-          // 3秒后检查更新
-          setTimeout(() => {
-            void autoUpdaterService.checkForUpdatesAndNotify();
-          }, 3000);
-        }
+        // §4.1(3)/§4.4: fill the main-process system-config cache first (eliminates the startup
+        // race where version_update.enabled is read before the cache is populated), then gate.
+        void fetchSystemConfig().then(() => {
+          // Skip auto-update check for nightly builds – nightly versions should only be
+          // updated manually via the in-app update modal which already handles nightly isolation.
+          if (isNightlyBuild) {
+            mainLog('App', 'Nightly build detected, skipping auto-update check');
+          } else if (!isVersionUpdateEnabled()) {
+            // §4.4: server disabled auto-update — skip the check entirely.
+            mainLog('App', 'version_update disabled by server config, skipping auto-update check');
+          } else {
+            // Check for updates after 3 seconds delay
+            // 3秒后检查更新
+            setTimeout(() => {
+              void autoUpdaterService.checkForUpdatesAndNotify();
+            }, 3000);
+          }
+        });
       })
       .catch((error) => {
         console.error('[App] Failed to initialize autoUpdaterService:', error);

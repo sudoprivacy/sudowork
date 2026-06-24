@@ -78,6 +78,11 @@ export default defineConfig(({ mode }) => {
     // Optional sudowork-server base URL injection. Empty string means "not injected"
     // so the runtime helper falls back to the literal default.
     __SUDOWORK_SERVER_BASE_URL__: JSON.stringify(process.env.BUILD_SERVER_BASE_URL ?? ''),
+    // Server-driven endpoint base URLs (system-config). Same convention: empty = not injected.
+    __SUDOROUTER_BASE_URL__: JSON.stringify(process.env.BUILD_SUDOROUTER_BASE_URL ?? ''),
+    __SKILLHUB_BASE_URL__: JSON.stringify(process.env.BUILD_SKILLHUB_BASE_URL ?? ''),
+    __LOG_REPORT_BASE_URL__: JSON.stringify(process.env.BUILD_LOG_REPORT_BASE_URL ?? ''),
+    __COS_RELEASE_BASE__: JSON.stringify(process.env.BUILD_COS_RELEASE_BASE ?? ''),
   };
 
   return {
