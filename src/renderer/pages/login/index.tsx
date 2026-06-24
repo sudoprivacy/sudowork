@@ -536,7 +536,15 @@ const LoginPage: React.FC = () => {
                 <Input size='large' prefix={<Key className='text-tertiary' />} placeholder='moss_sk_xxx.yyy' value={apiKey} onChange={setApiKey} className='login-input !rd-12px h-48px' />
               </div>
             ) : (
-              <div className='flex flex-col gap-8px text-center'>{oauth2Loading ? <div className='text-13px text-tertiary py-12px'>正在检查 OAuth2 配置…</div> : oauth2Config?.enabled ? <div className='text-13px text-secondary py-4px'>点击下方按钮，将在浏览器中完成身份认证。</div> : <div className='text-13px text-tertiary py-12px'>管理员未启用 OAuth2 登录</div>}</div>
+              <div className='flex flex-col gap-8px text-center'>
+                {oauth2Loading ? (
+                  <div className='text-13px text-tertiary py-12px'>正在检查 OAuth2 配置…</div>
+                ) : oauth2Config?.enabled ? (
+                  <div className='text-13px text-secondary py-4px'>点击下方按钮，将在浏览器中完成身份认证。</div>
+                ) : (
+                  <div className='text-13px text-tertiary py-12px'>管理员未启用 OAuth2 登录</div>
+                )}
+              </div>
             )}
 
             {loginTab === 'oauth2' ? (
@@ -575,7 +583,7 @@ const LoginPage: React.FC = () => {
           <div className='login-page__background-circle login-page__background-circle--md' />
           <div className='login-page__background-circle login-page__background-circle--sm' />
         </div>
-        <PasswordAuthPanel appName={tenantConfig.app_name} logo={tenantConfig.logo} defaultLogo={SudoworkIcon} />
+        <PasswordAuthPanel appName={tenantConfig.app_name} logo={tenantConfig.logo} defaultLogo={SudoworkIcon} onBackToModeSelect={handleBackToModeSelect} />
       </div>
     );
   }
