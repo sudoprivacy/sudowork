@@ -29,7 +29,6 @@ const RechargeCenter = React.lazy(() => import('./pages/settings/RechargeCenter'
 const MemberManagement = React.lazy(() => import('./pages/settings/MemberManagement'));
 const EnterpriseSettings = React.lazy(() => import('./pages/settings/EnterpriseSettings'));
 const EnterpriseMcpSettings = React.lazy(() => import('./pages/settings/EnterpriseMcpSettings'));
-const ComponentsShowcase = React.lazy(() => import('./pages/test/ComponentsShowcase'));
 
 const withRouteFallback = (Component: React.LazyExoticComponent<React.ComponentType>) => (
   <Suspense fallback={<AppLoader />}>
@@ -113,7 +112,6 @@ const PanelRoute: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
           <Route path='/settings/mcp' element={withRouteFallback(EnterpriseMcpSettings)} />
           <Route path='/settings/ext/:tabId' element={withRouteFallback(ExtensionSettingsPage)} />
           <Route path='/settings' element={<SettingsDefaultRoute />} />
-          <Route path='/test/components' element={withRouteFallback(ComponentsShowcase)} />
         </Route>
         <Route path='*' element={<Navigate to={isSignedIn ? '/guid' : '/login'} replace />} />
       </Routes>

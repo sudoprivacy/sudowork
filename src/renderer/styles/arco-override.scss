@@ -41,7 +41,6 @@ body[arco-theme='dark'] {
   --arcoblue-10: 255, 236, 220;
 }
 
-// ---------- Button ----------
 .arco-btn {
   // Default button shape (round/pill) is configured via ConfigProvider
   // componentConfig in src/renderer/index.ts, not here.
@@ -69,15 +68,12 @@ body[arco-theme='dark'] {
   }
 }
 
-// ---------- Tooltip / Popover / Popconfirm ----------
-
 .arco-tooltip-content,
 .arco-popover-content,
 .arco-popconfirm-content {
   border-radius: 12px;
 }
 
-// ---------- Collapse ----------
 .arco-collapse {
   .arco-collapse-item-header {
     border-bottom: none;
@@ -111,11 +107,9 @@ body[arco-theme='dark'] {
 // larger corner radius + lighter header/footer dividers.
 .arco-modal {
   border-radius: 16px;
-
   &-header {
     border-bottom-color: var(--border-light);
   }
-
   &-footer {
     border-top-color: var(--border-light);
   }
@@ -241,105 +235,6 @@ body[arco-theme='dark'] .arco-message {
 
   .arco-tree-node:hover .arco-tree-node-title {
     background-color: var(--color-fill-3) !important;
-  }
-}
-
-// ---------- Settings tabs ----------
-// 设置弹窗移动端 Tabs 样式 / Settings modal mobile tabs
-.settings-mobile-tabs {
-  .arco-tabs-nav {
-    border-bottom: 1px solid var(--color-border-2);
-  }
-
-  .arco-tabs-nav-tab {
-    font-size: 14px;
-    padding: 8px 0;
-    margin: 0 12px;
-    color: var(--color-text-2);
-
-    &:first-child {
-      margin-left: 0;
-    }
-  }
-
-  .arco-tabs-nav-tab-active {
-    color: var(--color-text-1);
-    font-weight: 500;
-  }
-
-  .arco-tabs-nav-ink {
-    height: 2px;
-    background: var(--color-primary);
-  }
-}
-
-// WebUI / Channels tabs in Remote settings
-.settings-remote-tabs {
-  .arco-tabs-nav {
-    border-bottom: 1px solid var(--color-border-2);
-  }
-
-  .arco-tabs-nav-tab {
-    color: var(--color-text-2);
-    padding: 8px 0;
-
-    &:hover {
-      color: var(--color-text-1);
-    }
-  }
-
-  .arco-tabs-nav-tab-active {
-    color: var(--color-text-1);
-    font-weight: 600;
-  }
-
-  .arco-tabs-nav-ink {
-    height: 2px;
-    background: var(--color-primary);
-  }
-
-  // Direct nav-line overrides
-  .arco-tabs-header-nav {
-    border-bottom: 1px solid transparent !important;
-
-    &::before {
-      display: none !important;
-    }
-  }
-
-  .arco-tabs-header-nav-line.arco-tabs-header-nav-horizontal > .arco-tabs-header-scroll > .arco-tabs-header-title {
-    margin: 0 16px 0 0 !important;
-    padding: 8px 0 12px !important;
-
-    &:first-of-type {
-      margin-left: 0 !important;
-    }
-  }
-
-  .arco-tabs-header-title,
-  .arco-tabs-header-title-text {
-    margin-left: 0 !important;
-    padding-left: 0 !important;
-  }
-
-  .arco-tabs-header-scroll {
-    padding-left: 0 !important;
-  }
-
-  .arco-tabs-header-title-active,
-  .arco-tabs-header-title-active:hover {
-    color: var(--ui-accent-orange) !important;
-    font-weight: 600 !important;
-  }
-
-  .arco-tabs-header-ink,
-  .arco-tabs-header-ink-inner {
-    background-color: var(--ui-accent-orange) !important;
-  }
-
-  .arco-tabs-header-ink {
-    height: 2px !important;
-    border-radius: 999px !important;
   }
 }
 
