@@ -9,6 +9,18 @@ import type { ICronJob, ICronSchedule } from '@/common/ipcBridge';
 import type { FrequencyPreset, IFrequencyScheduleOptions, IScheduleFrequency } from '@/renderer/pages/cron/types';
 
 /**
+ * cron bridge 遇到错误时会返回 `{ __error: string }` 包装对象，而不是直接 reject。
+ * 这里统一把包装对象还原成异常，方便调用方用 try/catch 处理。
+ */
+export function unwrapCronResult<T>(result: T): T {
+  const envelope = result as { __error?: unknown } | null | undefined;
+  if (envelope && typeof envelope === 'object' && typeof envelope.__error === 'string') {
+    throw new Error(envelope.__error);
+  }
+  return result;
+}
+
+/**
  * Format schedule for display - use human-readable description
  */
 export function formatSchedule(job: ICronJob): string {

@@ -15,20 +15,13 @@ import type { AcpBackendAll } from '@/types/acpTypes';
 import { DEFAULT_PRESET_AGENT_TYPE, resolvePresetAgentBackend } from '@/types/acpTypes';
 import { useAssistantsForCron } from '@/renderer/pages/cron/hooks/useAssistantsForCron';
 import type { FrequencyPreset } from '@/renderer/pages/cron/types';
-import { FREQUENCY_PRESETS, WEEKDAYS, frequencyToSchedule, scheduleToFrequency } from '@/renderer/pages/cron/utils';
+import { FREQUENCY_PRESETS, WEEKDAYS, frequencyToSchedule, scheduleToFrequency, unwrapCronResult } from '@/renderer/pages/cron/utils';
 import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 
 const DEFAULT_ASSISTANT = '__default__';
 const TextArea = Input.TextArea;
 const HOUR_OPTIONS = Array.from({ length: 24 }, (_, i) => ({ value: i, label: `${String(i).padStart(2, '0')}` }));
 const MINUTE_OPTIONS = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55].map((minute) => ({ value: minute, label: String(minute).padStart(2, '0') }));
-
-function throwIfCronError(result: unknown): void {
-  const errorEnvelope = result as { __error?: string } | null | undefined;
-  if (errorEnvelope && typeof errorEnvelope === 'object' && typeof errorEnvelope.__error === 'string') {
-    throw new Error(errorEnvelope.__error);
-  }
-}
 
 export default function CronJobFormDrawer({ visible, editJob, sessionMode, onClose, onSaved }: ICronJobFormDrawerProps) {
   const { t, i18n } = useTranslation();
@@ -199,9 +192,7 @@ export default function CronJobFormDrawer({ visible, editJob, sessionMode, onClo
         });
       }
 
-      // The cron bridge wraps provider errors in an envelope so the IPC layer
-      // (which has no rejection path) doesn't hang the UI. Unwrap it here.
-      throwIfCronError(result);
+      unwrapCronResult(result);
 
       Message.success(t('cron.drawer.saveSuccess'));
       onSaved();

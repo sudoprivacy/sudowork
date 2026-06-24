@@ -11,23 +11,7 @@ import type { ICronJob } from '@/common/ipcBridge';
 import { addEventListener, emitter } from '@/renderer/utils/emitter';
 import { CronJobStatusEnums } from '@/renderer/utils/enum';
 import type { ICronJobActionsResult, ICronJobEventHandlers } from '@/renderer/pages/cron/types';
-
-/**
- * Creates common cron job action handlers
- */
-/**
- * The cron bridge providers return an `{ __error: string }` envelope instead of
- * rejecting, because the underlying IPC library has no rejection path (see
- * src/process/bridge/cronBridge.ts). This helper unwraps the envelope and
- * throws a real Error so callers can use normal try/catch.
- */
-function unwrapCronResult<T>(result: T): T {
-  const envelope = result as { __error?: unknown } | null | undefined;
-  if (envelope && typeof envelope === 'object' && typeof envelope.__error === 'string') {
-    throw new Error(envelope.__error);
-  }
-  return result;
-}
+import { unwrapCronResult } from '@/renderer/pages/cron/utils';
 
 function useCronJobActions(onJobUpdated?: (jobId: string, job: ICronJob) => void, onJobDeleted?: (jobId: string) => void): ICronJobActionsResult {
   const pauseJob = useCallback(
@@ -175,15 +159,7 @@ export function useAllCronJobs() {
     setLoading(true);
     setError(null);
     try {
-      const allJobs = await ipcBridge.cron.listJobs.invoke();
-      // Handle error envelope
-      const envelope = allJobs as { __error?: unknown } | null | undefined;
-      if (envelope && typeof envelope === 'object' && typeof envelope.__error === 'string') {
-        setError(new Error(envelope.__error));
-        setJobs([]);
-      } else {
-        setJobs(allJobs || []);
-      }
+      setJobs(unwrapCronResult(await ipcBridge.cron.listJobs.invoke()) || []);
     } catch (err) {
       console.error('[useAllCronJobs] Failed to fetch jobs:', err);
       setError(err instanceof Error ? err : new Error('Failed to fetch'));

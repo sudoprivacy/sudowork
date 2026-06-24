@@ -23,22 +23,10 @@ import CronJobFormDrawer from '@/renderer/pages/cron/components/CronJobFormDrawe
 import Item from '@/renderer/pages/cron/components/Item';
 import { useAssistantsForCron } from '@/renderer/pages/cron/hooks/useAssistantsForCron';
 import { useAllCronJobs } from '@/renderer/pages/cron/hooks/useCronJobs';
-import { getJobStatusFlags } from '@/renderer/pages/cron/utils';
+import { getJobStatusFlags, unwrapCronResult } from '@/renderer/pages/cron/utils';
 import { useAuth } from '@/renderer/context/AuthContext';
 import { useConversationTabs } from '@/renderer/pages/conversation/context/ConversationTabsContext';
 import PageWrapper from '@renderer/components/base/PageWrapper';
-
-function throwIfCronError(result: unknown): void {
-  const errorEnvelope = result as { __error?: string } | null | undefined;
-  if (errorEnvelope && typeof errorEnvelope === 'object' && typeof errorEnvelope.__error === 'string') {
-    throw new Error(errorEnvelope.__error);
-  }
-}
-
-function unwrapCronResult<T>(result: T): T {
-  throwIfCronError(result);
-  return result;
-}
 
 function getCronJobConversationTarget(job: ICronJob): string | undefined {
   const isNewMode = (job.metadata.conversationMode ?? 'new') === 'new';
