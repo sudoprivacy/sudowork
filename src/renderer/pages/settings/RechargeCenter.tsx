@@ -4,7 +4,7 @@ import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/renderer/context/AuthContext';
 import { ipcBridge } from '@/common';
-import SettingsPageWrapper from './components/SettingsPageWrapper';
+import PageWrapper from '@renderer/components/base/PageWrapper';
 import OrderList from './components/OrderList';
 
 // Lazy load QRCodeSVG
@@ -587,7 +587,7 @@ const RechargeCenter: React.FC = () => {
   };
 
   return (
-    <SettingsPageWrapper contentClassName='max-w-200'>
+    <PageWrapper contentClassName='max-w-200'>
       <div className='flex flex-col gap-6 py-2'>
         <div className='text-20px font-600 text-foreground leading-32px'>{t('settings.rechargeCenter') || '充值中心'}</div>
 
@@ -606,7 +606,7 @@ const RechargeCenter: React.FC = () => {
         {/* Order List */}
         <OrderList onContinuePay={handleContinuePay} refreshKey={orderListRefreshKey} />
       </div>
-    </SettingsPageWrapper>
+    </PageWrapper>
   );
 };
 

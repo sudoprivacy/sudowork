@@ -9,7 +9,7 @@ import { useTranslation } from 'react-i18next';
 import FontSizeControl from '@/renderer/pages/settings/display/components/FontSizeControl';
 import { ThemeSwitcher } from '@/renderer/pages/settings/display/components/ThemeSwitcher';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
-import SettingsPageWrapper from '@/renderer/pages/settings/components/SettingsPageWrapper';
+import PageWrapper from '@renderer/components/base/PageWrapper';
 
 const PreferenceRow: React.FC<{
   label: string;
@@ -30,7 +30,7 @@ const DisplaySettings: React.FC = () => {
   ];
 
   return (
-    <SettingsPageWrapper>
+    <PageWrapper>
       <div className='flex flex-col h-full w-full'>
         {/* 内容区域 / Content Area */}
         <AionScrollArea className='flex-1 min-h-0 pb-4' disableOverflow>
@@ -47,7 +47,7 @@ const DisplaySettings: React.FC = () => {
           </div>
         </AionScrollArea>
       </div>
-    </SettingsPageWrapper>
+    </PageWrapper>
   );
 };
 

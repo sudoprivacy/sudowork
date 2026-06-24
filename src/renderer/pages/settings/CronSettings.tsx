@@ -6,13 +6,13 @@
 
 import React from 'react';
 import CronModalContent from '@/renderer/components/SettingsModal/contents/CronModalContent';
-import SettingsPageWrapper from './components/SettingsPageWrapper';
+import PageWrapper from '@renderer/components/base/PageWrapper';
 
 const CronSettings: React.FC = () => {
   return (
-    <SettingsPageWrapper>
+    <PageWrapper>
       <CronModalContent />
-    </SettingsPageWrapper>
+    </PageWrapper>
   );
 };
 

@@ -6,7 +6,7 @@ import { nanoid } from 'nanoid';
 import { ipcBridge } from '@/common';
 import type { IBlacklistConfig, IBlacklistRule, IBlacklistMatchType } from '@common/types/security';
 import { DEFAULT_BLACKLIST_CONFIG } from '@/common/constants';
-import SettingsPageWrapper from '../settings/components/SettingsPageWrapper';
+import PageWrapper from '@renderer/components/base/PageWrapper';
 import SecurityItem from './components/SecurityItem';
 import RuleModal from './components/RuleModal';
 
@@ -225,7 +225,7 @@ export default function SecurityPage() {
   }, []);
 
   return (
-    <SettingsPageWrapper>
+    <PageWrapper>
       <div className='p-6 flex flex-col gap-2'>
         {/* 页面标题 */}
         <div className='flex flex-col gap-0.5'>
@@ -434,6 +434,6 @@ export default function SecurityPage() {
           <span>您的每一次操作都在系统严格保护之下</span>
         </div>
       </div>
-    </SettingsPageWrapper>
+    </PageWrapper>
   );
 }

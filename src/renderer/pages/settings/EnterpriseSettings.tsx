@@ -11,7 +11,7 @@ import { ConfigStorage } from '@/common/storage';
 import { ipcBridge } from '@/common';
 import { TENANT_CONFIG_STORAGE_KEY, resolveTenantConfig } from '@/common/types/tenantConfig';
 import { useAuth } from '@/renderer/context/AuthContext';
-import SettingsPageWrapper from './components/SettingsPageWrapper';
+import PageWrapper from '@renderer/components/base/PageWrapper';
 
 const EnterpriseSettings: React.FC = () => {
   const { logout } = useAuth();
@@ -91,16 +91,16 @@ const EnterpriseSettings: React.FC = () => {
 
   if (loading) {
     return (
-      <SettingsPageWrapper>
+      <PageWrapper>
         <div className='f-center py-25'>
           <Spin size={32} />
         </div>
-      </SettingsPageWrapper>
+      </PageWrapper>
     );
   }
 
   return (
-    <SettingsPageWrapper>
+    <PageWrapper>
       {/* Card 1: Enterprise Connection Info */}
       <div className='mb-6 rd-16px bg-2 p-6'>
         <div className='flex items-center gap-2 mb-5'>
@@ -139,7 +139,7 @@ const EnterpriseSettings: React.FC = () => {
           </div>
         </div>
       </div>
-    </SettingsPageWrapper>
+    </PageWrapper>
   );
 };
 

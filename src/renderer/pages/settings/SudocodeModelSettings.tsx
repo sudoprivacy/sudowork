@@ -14,7 +14,7 @@ import { buildCustomModelAlias, extractCustomProvidersFromScodeConfig, mergeCust
 import AionModal from '@/renderer/components/base/AionModal';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { useAuth } from '@/renderer/context/AuthContext';
-import SettingsPageWrapper from './components/SettingsPageWrapper';
+import PageWrapper from '@renderer/components/base/PageWrapper';
 
 const { Title, Text } = Typography;
 
@@ -611,9 +611,9 @@ const SudocodeModelSettingsContent: React.FC = () => {
 
 const SudocodeModelSettings: React.FC = () => {
   return (
-    <SettingsPageWrapper contentClassName='max-w-275'>
+    <PageWrapper contentClassName='max-w-275'>
       <SudocodeModelSettingsContent />
-    </SettingsPageWrapper>
+    </PageWrapper>
   );
 };
 

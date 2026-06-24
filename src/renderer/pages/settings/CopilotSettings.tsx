@@ -6,13 +6,13 @@
 
 import React from 'react';
 import CopilotModalContent from '@/renderer/components/SettingsModal/contents/CopilotModalContent';
-import SettingsPageWrapper from './components/SettingsPageWrapper';
+import PageWrapper from '@renderer/components/base/PageWrapper';
 
 const CopilotSettings: React.FC = () => {
   return (
-    <SettingsPageWrapper>
+    <PageWrapper>
       <CopilotModalContent />
-    </SettingsPageWrapper>
+    </PageWrapper>
   );
 };
 
