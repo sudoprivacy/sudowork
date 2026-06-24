@@ -60,7 +60,7 @@ function CronJobCardGrid({ jobs, onSelectJob }: ICronJobCardGridProps) {
       {jobs.map((job) => {
         const { isPaused } = getJobStatusFlags(job);
         return (
-          <div key={job.id} className='bg-2 rd-12px px-5 py-4 cursor-pointer hover:bg-3 transition-colors border' onClick={() => onSelectJob(job)}>
+          <div key={job.id} className='item-card' onClick={() => onSelectJob(job)}>
             <div className='text-15px font-medium text-foreground mb-2'>{job.name}</div>
             {!isPaused && job.schedule.description && <div className='text-13px text-secondary mb-2'>{job.schedule.description}</div>}
             {!isPaused && job.state.nextRunAtMs && (
@@ -393,15 +393,13 @@ export default function CronPage() {
 
               {/* Info banner (local mode only) */}
               {sessionMode === 'local' && (
-                <div className='overflow-hidden rd-12px border'>
-                  <Item
-                    icon={<Sun theme='outline' size={20} />}
-                    title={t('cron.create.keepAwake', { defaultValue: '保持唤醒' })}
-                    description={t('cron.create.awakeBanner', { defaultValue: '定时任务仅在电脑唤醒时运行' })}
-                    status={<span className='text-13px text-secondary'>{keepAwake ? t('common.enabled', { defaultValue: '已启用' }) : t('common.disabled', { defaultValue: '已关闭' })}</span>}
-                    action={<Switch size='small' className='cron-keep-awake-switch' checked={keepAwake} onChange={handleKeepAwakeChange} />}
-                  />
-                </div>
+                <Item
+                  icon={<Sun theme='outline' size={20} />}
+                  title={t('cron.create.keepAwake', { defaultValue: '保持唤醒' })}
+                  description={t('cron.create.awakeBanner', { defaultValue: '定时任务仅在电脑唤醒时运行' })}
+                  status={<span className='text-13px text-secondary'>{keepAwake ? t('common.enabled', { defaultValue: '已启用' }) : t('common.disabled', { defaultValue: '已关闭' })}</span>}
+                  action={<Switch size='small' className='cron-keep-awake-switch' checked={keepAwake} onChange={handleKeepAwakeChange} />}
+                />
               )}
 
               {/* Job cards or empty state */}
