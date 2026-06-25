@@ -4,13 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
-import ActionChip from '@/renderer/components/ui/ActionChip';
-import type { IProvider, TProviderWithModel } from '@/common/storage';
-import { getModelDisplayLabel } from '@/renderer/utils/agentUiDisplay';
-import { buildProviderModelGroups } from '@/renderer/utils/modelProviderGroups';
-import type { AcpModelInfo } from '../types';
-import { getAvailableModels } from '../utils/modelUtils';
 import { Dropdown, Tooltip } from '@arco-design/web-react';
 import { Brain, Plus, Right } from '@icon-park/react';
 import classNames from 'classnames';
@@ -18,6 +11,13 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import useSWR from 'swr';
+import { ipcBridge } from '@/common';
+import ActionChip from '@/renderer/components/ui/ActionChip';
+import type { IProvider, TProviderWithModel } from '@/common/storage';
+import { getModelDisplayLabel } from '@/renderer/utils/agentUiDisplay';
+import { buildProviderModelGroups } from '@/renderer/utils/modelProviderGroups';
+import type { AcpModelInfo } from '../types';
+import { getAvailableModels } from '../utils/modelUtils';
 
 type GeminiModeOption = {
   label?: string;

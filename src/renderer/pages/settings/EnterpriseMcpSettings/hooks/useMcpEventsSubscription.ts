@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { mutate } from 'swr';
-import { useEnterpriseMcpClient } from './useEnterpriseMcpClient';
 import { subscribeMcpEvents } from '../api/mcpEvents';
+import { useEnterpriseMcpClient } from './useEnterpriseMcpClient';
 import { MCP_SERVERS_SWR_KEY } from './useMcpServers';
 import { MCP_POLICY_SWR_KEY } from './useMcpPolicy';
 

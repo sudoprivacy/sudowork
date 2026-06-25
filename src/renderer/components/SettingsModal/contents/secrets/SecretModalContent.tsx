@@ -4,17 +4,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import classNames from 'classnames';
 import { CheckOne } from '@icon-park/react';
 import React, { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import itemRefreshIcon from '@/renderer/assets/item-refresh.svg';
-import TenantConfigSection from './TenantConfigSection';
+import { useAppMode } from '@/renderer/hooks/useAppMode';
+import { ZentaoChannelItem } from '../ZentaoConfigForm';
 import { EnterpriseSecretSection } from './EnterpriseSecretSection';
 import PwdLoginSection from './PwdLoginSection';
-import { ZentaoChannelItem } from '../ZentaoConfigForm';
-import { useAppMode } from '@/renderer/hooks/useAppMode';
+import TenantConfigSection from './TenantConfigSection';
 
 /**
  * Secret Management Content Component

@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { resolveLocalFileUrl } from '@/renderer/utils/platform';
-import { usePreviewToolbarExtras } from '../../context/PreviewToolbarExtrasContext';
 import { AudioFile } from '@icon-park/react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { resolveLocalFileUrl } from '@/renderer/utils/platform';
+import { usePreviewToolbarExtras } from '../../context/PreviewToolbarExtrasContext';
 
 interface AudioViewerProps {
   filePath?: string;
@@ -45,7 +45,7 @@ const AudioViewer: React.FC<AudioViewerProps> = ({ filePath, content, fileName }
 
   if (!audioSrc) {
     return (
-      <div className='flex-1 flex items-center justify-center bg-bg-1 p-24px'>
+      <div className='flex-1 f-center p-24px'>
         <div className='text-center text-14px text-secondary'>{t('preview.audio.pathMissing', { defaultValue: 'Audio file path is missing' })}</div>
       </div>
     );
@@ -53,7 +53,7 @@ const AudioViewer: React.FC<AudioViewerProps> = ({ filePath, content, fileName }
 
   if (error) {
     return (
-      <div className='flex-1 flex items-center justify-center bg-bg-1 p-24px'>
+      <div className='flex-1 f-center p-24px'>
         <div className='max-w-520px text-center'>
           <div className='text-15px text-foreground mb-8px'>{error}</div>
           {filePath && <div className='text-12px text-tertiary break-all'>{filePath}</div>}
@@ -63,7 +63,7 @@ const AudioViewer: React.FC<AudioViewerProps> = ({ filePath, content, fileName }
   }
 
   return (
-    <div className='flex-1 flex items-center justify-center bg-bg-1 p-24px overflow-hidden'>
+    <div className='flex-1 f-center p-24px overflow-hidden'>
       <div className='w-full max-w-560px flex flex-col items-center gap-16px'>
         <AudioFile theme='filled' size='48' fill='var(--color-text-3)' />
         <div className='max-w-full truncate text-14px text-secondary'>{fileName || filePath || t('preview.audio.title', { defaultValue: 'Audio' })}</div>

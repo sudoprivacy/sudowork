@@ -1,7 +1,8 @@
-import { ipcBridge } from '@/common';
-import { SUDOWORK_SERVER_BASE_URL } from '@/common/sudoworkServer';
-import { ConfigStorage, DEFAULT_IMAGE_GENERATION_MODEL, type IConfigStorageRefer } from '@/common/storage';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { ipcBridge } from '@/common';
+import { getSudoworkServerBaseUrl } from '@/common/sudoworkServer';
+import { ConfigStorage, type IConfigStorageRefer } from '@/common/storage';
+import { resolveLoginImageModelId } from '@/common/imageGenerationModelConfig';
 import { withCsrfToken } from '@/webserver/middleware/csrfClient';
 import { getSudorouterPrimaryModelPath, mergeSudorouterProvidersIntoConfig } from '@/common/sudoclawModelConfig';
 import { buildScodeConfigFromLoginPayload, SCODE_AUTO_MODEL_ALIAS } from '@/common/scodeConfig';
@@ -81,6 +82,28 @@ interface RegisterResult {
   success: boolean;
   message?: string;
   code?: LoginErrorCode;
+}
+
+interface PasswordLoginParams {
+  phone: string;
+  password: string;
+}
+
+interface PasswordRegisterParams {
+  phone: string;
+  password: string;
+  nickname: string;
+  invitation_code: string;
+}
+
+interface ChangePasswordParams {
+  oldPassword: string;
+  newPassword: string;
+}
+
+interface PasswordAuthResult {
+  success: boolean;
+  message?: string;
 }
 
 async function syncScodeGuidModelPreference(modelId: string): Promise<void> {
@@ -164,6 +187,9 @@ interface AuthContextValue {
   forceRefreshToken: () => Promise<string | null>;
   enterpriseLogin: (params: EnterpriseLoginParams | EnterpriseLoginParamsByKey) => Promise<LoginResult>;
   enterpriseLoginWithOAuth2: (params: Record<string, string>) => Promise<LoginResult>;
+  loginByPassword: (params: PasswordLoginParams) => Promise<PasswordAuthResult>;
+  registerByPassword: (params: PasswordRegisterParams) => Promise<PasswordAuthResult>;
+  changePassword: (params: ChangePasswordParams) => Promise<PasswordAuthResult>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -305,7 +331,40 @@ function resolveConsumerTenantId(user: Partial<AuthUser> & { tenant_id?: string 
   return resolveString(user.tenant_id) || resolveString(user.enterprise_code) || resolveString(fallbackTenantId);
 }
 
+// 同步图像生成模型到 sudocode/sudoclaw：尊重用户已保存的选择，不再无条件覆盖为默认值
+// Apply the image model on login: respect the user's saved selection instead of unconditionally forcing the default.
+async function applyLoginImageModel(): Promise<void> {
+  const saved = await ConfigStorage.get('tools.imageGenerationModel').catch((): undefined => undefined);
+  await ipcBridge.scode.setImageModel.invoke({ modelId: resolveLoginImageModelId(saved) }).catch(() => {});
+}
+
 // 处理登录成功后的通用逻辑
+/**
+ * Fetch the server-driven credentials envelope (with the renderer-held JWT) and forward
+ * {nonce, ciphertext} to the main process for decryption + caching. Used by BOTH login
+ * paths — active login (handleLoginSuccess) and restart restore (refresh) — per §6.4, so
+ * reporters/skillhub keep working after a restart without a manual re-login.
+ * The JWT never leaves the renderer; only the encrypted envelope crosses IPC.
+ */
+async function fetchAndCacheCredentials(): Promise<void> {
+  if (!isDesktopRuntime) return;
+  try {
+    const stored = localStorage.getItem(AUTH_STORAGE_KEY);
+    if (!stored) return;
+    const authStorage = JSON.parse(stored) as AuthStorage;
+    const jwt = authStorage.access_token;
+    if (!jwt) return;
+    const res = await fetch(`${await getSudoworkServerBaseUrl()}/api/v1/system-config/credentials`, {
+      headers: { Authorization: `Bearer ${jwt}` },
+    });
+    const json = (await res.json()) as { success?: boolean; nonce?: string; ciphertext?: string };
+    if (!json?.success || !json.nonce || !json.ciphertext) return;
+    await ipcBridge.systemConfig.cacheCredentials.invoke({ nonce: json.nonce, ciphertext: json.ciphertext });
+  } catch (err) {
+    console.warn('[Auth] fetch/cache server credentials failed:', err);
+  }
+}
+
 async function handleLoginSuccess(data: LoginSuccessResponse, setUser: SetAuthUser, setStatus: SetAuthStatus, setReady: SetAuthReady, setSyncMessage: SetSyncMessage, tenantIdFallback?: string) {
   const deviceId = getDeviceId();
   const mergedUser = mergeLoginUserData(data) as unknown as AuthUser;
@@ -380,7 +439,9 @@ async function handleLoginSuccess(data: LoginSuccessResponse, setUser: SetAuthUs
 
     try {
       const currentScodeConfig = await ipcBridge.scode.getConfig.invoke().catch((): null => null);
-      const scodeConfig = buildScodeConfigFromLoginPayload(loginSudoclawPayload, currentScodeConfig?.data);
+      const pricingRes = await ipcBridge.scode.fetchSpecificPricing.invoke().catch((): null => null);
+      const pricingItems = pricingRes?.data ?? [];
+      const scodeConfig = buildScodeConfigFromLoginPayload(loginSudoclawPayload, currentScodeConfig?.data, pricingItems);
       const scodeSaveRes = await ipcBridge.scode.saveConfig.invoke({ config: scodeConfig });
       if (!scodeSaveRes?.success) {
         throw new Error(scodeSaveRes?.msg || 'Sudocode saveConfig failed');
@@ -390,7 +451,7 @@ async function handleLoginSuccess(data: LoginSuccessResponse, setUser: SetAuthUs
         console.warn('[Auth] Failed to restore custom scode models:', err);
         return null;
       });
-      await ipcBridge.scode.setImageModel.invoke({ modelId: DEFAULT_IMAGE_GENERATION_MODEL }).catch(() => {});
+      await applyLoginImageModel();
       // Sync settings.json to the merged default model while preserving a user-selected custom model.
       const defaultModel = restoreRes?.data?.default_model || scodeConfig.default_model;
       if (defaultModel) {
@@ -445,6 +506,9 @@ async function handleLoginSuccess(data: LoginSuccessResponse, setUser: SetAuthUs
   setReady(true);
 
   if (isDesktopRuntime) {
+    // §6.4 active-login path: cache server-driven credentials BEFORE restarting the gateway
+    // subprocess so env injection (skillhub url/token) sees the dispatched values.
+    await fetchAndCacheCredentials();
     void restartSudoclawGatewayIfInstalled();
   }
 }
@@ -533,7 +597,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
           const authStorage: AuthStorage = JSON.parse(stored);
           const { refresh_token, device_id } = authStorage;
 
-          const response = await fetch(`${SUDOWORK_SERVER_BASE_URL}/api/v1/auth/refresh`, {
+          const response = await fetch(`${await getSudoworkServerBaseUrl()}/api/v1/auth/refresh`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ refresh_token, device_id }),
@@ -728,7 +792,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
           }
           return;
         }
-      } catch (e) {
+      } catch {
         localStorage.removeItem(EECLAW_AUTH_STORAGE_KEY);
       }
     }
@@ -750,6 +814,9 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         setUser({ ...authStorage.user, token: authStorage.access_token });
         setStatus('authenticated');
         setReady(true);
+        // §6.4 restart-restore path: also cache credentials so reporters/skillhub work after
+        // a restart without requiring a manual re-login (fire-and-forget, don't block restore).
+        void fetchAndCacheCredentials();
         await syncScodeGuidModelPreference(SCODE_AUTO_MODEL_ALIAS);
 
         const restoredUserId = resolveConsumerUserId(authStorage.user);
@@ -791,7 +858,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
           await refreshTokens();
         }
         return;
-      } catch (e) {
+      } catch {
         localStorage.removeItem(AUTH_STORAGE_KEY);
       }
     }
@@ -846,7 +913,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
           console.warn('[Auth] Consumer user ID missing on legacy restore; telemetry will not be reported');
         }
         return;
-      } catch (e) {
+      } catch {
         localStorage.removeItem('sudowork_auth_v1');
       }
     }
@@ -934,7 +1001,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     const deviceId = getDeviceId();
 
     try {
-      const response = await fetch(`${SUDOWORK_SERVER_BASE_URL}/api/v1/auth/login`, {
+      const response = await fetch(`${await getSudoworkServerBaseUrl()}/api/v1/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -982,7 +1049,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     const deviceId = getDeviceId();
 
     try {
-      const response = await fetch(`${SUDOWORK_SERVER_BASE_URL}/api/v1/auth/register`, {
+      const response = await fetch(`${await getSudoworkServerBaseUrl()}/api/v1/auth/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1012,6 +1079,83 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       };
     }
   }, []);
+
+  // 用户名密码登录（system login_method=1 时使用），复用 handleLoginSuccess
+  const loginByPassword = useCallback(async ({ phone, password }: PasswordLoginParams): Promise<PasswordAuthResult> => {
+    const deviceId = getDeviceId();
+    try {
+      const response = await fetch(`${await getSudoworkServerBaseUrl()}/api/v1/auth/login-by-config`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Device-Id': deviceId,
+        },
+        body: JSON.stringify({ phone, password }),
+      });
+      const data = (await response.json()) as AuthApiResponse;
+      if (!response.ok || !data.success || !data.data) {
+        return { success: false, message: data?.msg || data?.message || '登录失败' };
+      }
+      await handleLoginSuccess({ data: data.data }, setUser, setStatus, setReady, setSyncMessage, 'sudo');
+      return { success: true };
+    } catch (error) {
+      console.error('Login by password failed:', error);
+      return { success: false, message: error instanceof Error ? error.message : '连接到中控服务器失败' };
+    }
+  }, []);
+
+  // 用户名密码注册（system login_method=1 时使用），复用 handleLoginSuccess
+  const registerByPassword = useCallback(async ({ phone, password, nickname, invitation_code }: PasswordRegisterParams): Promise<PasswordAuthResult> => {
+    const deviceId = getDeviceId();
+    try {
+      const response = await fetch(`${await getSudoworkServerBaseUrl()}/api/v1/auth/register-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Device-Id': deviceId,
+        },
+        body: JSON.stringify({ phone, password, nickname, invitation_code }),
+      });
+      const data = (await response.json()) as AuthApiResponse;
+      if (!response.ok || !data.success || !data.data) {
+        return { success: false, message: data?.msg || data?.message || '注册失败' };
+      }
+      await handleLoginSuccess({ data: data.data }, setUser, setStatus, setReady, setSyncMessage, 'sudo');
+      return { success: true };
+    } catch (error) {
+      console.error('Register by password failed:', error);
+      return { success: false, message: error instanceof Error ? error.message : '连接到中控服务器失败' };
+    }
+  }, []);
+
+  // 修改密码（login_method=1 的用户改自己的密码）；token 过期时由调用方提示重登
+  const changePassword = useCallback(
+    async ({ oldPassword, newPassword }: ChangePasswordParams): Promise<PasswordAuthResult> => {
+      const token = await ensureValidToken();
+      if (!token) {
+        return { success: false, message: '登录状态已过期，请重新登录' };
+      }
+      try {
+        const response = await fetch(`${await getSudoworkServerBaseUrl()}/api/v1/auth/change-password`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ oldPassword, newPassword }),
+        });
+        const data = (await response.json()) as AuthApiResponse;
+        if (!response.ok || !data.success) {
+          return { success: false, message: data?.msg || data?.message || '修改密码失败' };
+        }
+        return { success: true };
+      } catch (error) {
+        console.error('Change password failed:', error);
+        return { success: false, message: error instanceof Error ? error.message : '连接到中控服务器失败' };
+      }
+    },
+    [ensureValidToken]
+  );
 
   // Shared post-login handling for all enterprise grant types (password / api_key / oauth2).
   // Persists tokens, sets up scode/session mode, and updates auth state.
@@ -1050,7 +1194,9 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         const loginSudoclawPayload = extractLoginSudoclawPayload(result);
         if (loginSudoclawPayload) {
           const currentScodeConfig = await ipcBridge.scode.getConfig.invoke().catch((): null => null);
-          const scodeConfig = buildScodeConfigFromLoginPayload(loginSudoclawPayload, currentScodeConfig?.data);
+          const pricingRes = await ipcBridge.scode.fetchSpecificPricing.invoke().catch((): null => null);
+          const pricingItems = pricingRes?.data ?? [];
+          const scodeConfig = buildScodeConfigFromLoginPayload(loginSudoclawPayload, currentScodeConfig?.data, pricingItems);
           await ipcBridge.scode.saveConfig.invoke({ config: scodeConfig }).catch((err) => {
             console.warn('[Auth] Failed to save scode config on enterprise login:', err);
           });
@@ -1058,7 +1204,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
             console.warn('[Auth] Failed to restore custom scode models on enterprise login:', err);
             return null;
           });
-          await ipcBridge.scode.setImageModel.invoke({ modelId: DEFAULT_IMAGE_GENERATION_MODEL }).catch(() => {});
+          await applyLoginImageModel();
           // Sync settings.json to the merged default model while preserving a user-selected custom model.
           const defaultModel = restoreRes?.data?.default_model || scodeConfig.default_model;
           if (defaultModel) {
@@ -1256,7 +1402,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         const authStorage: AuthStorage = JSON.parse(stored);
         const { refresh_token, device_id } = authStorage;
 
-        await fetch(`${SUDOWORK_SERVER_BASE_URL}/api/v1/auth/logout`, {
+        await fetch(`${await getSudoworkServerBaseUrl()}/api/v1/auth/logout`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ refresh_token, device_id }),
@@ -1322,8 +1468,11 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       forceRefreshToken,
       enterpriseLogin,
       enterpriseLoginWithOAuth2,
+      loginByPassword,
+      registerByPassword,
+      changePassword,
     }),
-    [login, register, logout, ready, refresh, status, syncMessage, user, ensureValidToken, forceRefreshToken, enterpriseLogin, enterpriseLoginWithOAuth2]
+    [login, register, logout, ready, refresh, status, syncMessage, user, ensureValidToken, forceRefreshToken, enterpriseLogin, enterpriseLoginWithOAuth2, loginByPassword, registerByPassword, changePassword]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

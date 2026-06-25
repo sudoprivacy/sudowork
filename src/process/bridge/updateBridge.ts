@@ -4,17 +4,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
-import type { UpdateCheckResult, UpdateDownloadProgressEvent, UpdateDownloadRequest, UpdateDownloadResult, UpdateReleaseInfo, GitHubReleaseAsset } from '@/common/updateTypes';
-import { uuid } from '@/common/utils';
 import { app } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
 import semver from 'semver';
-import { autoUpdaterService } from '../services/autoUpdaterService';
 import { mainLog, mainError } from '@process/utils/mainLogger';
+import { autoUpdaterService } from '../services/autoUpdaterService';
+import { uuid } from '@/common/utils';
+import type { UpdateCheckResult, UpdateDownloadProgressEvent, UpdateDownloadRequest, UpdateDownloadResult, UpdateReleaseInfo, GitHubReleaseAsset } from '@/common/updateTypes';
+import { ipcBridge } from '@/common';
 import { isNightlyBuild, buildDate, buildCommit, isNightlyTag, parseNightlyDate, parseNightlyCommit, compareNightlyTags } from '@/common/buildInfo';
-import { COS_RELEASE_BASE } from '@/shared/cos';
+import { getCosReleaseBase } from '@/common/systemConfig';
 
 type GitHubReleaseApiAsset = {
   name: string;
@@ -57,8 +57,18 @@ const ALLOWED_DOWNLOAD_HOSTS = new Set<string>([
 ]);
 const MAX_REDIRECTS = 8;
 
-/** COS mirror base URL for Chinese users (role-based release bucket) */
-const COS_MIRROR_BASE = `${COS_RELEASE_BASE}/sudowork/release/latest`;
+/** COS mirror base URL (release bucket; server-driven cos_domain). */
+const getCosMirrorBase = (): string => `${getCosReleaseBase()}/sudowork/release/latest`;
+
+/** Whether a download host is allowlisted: the static set, or the server-dispatched cos release host (§4.4). */
+const isAllowedDownloadHost = (hostname: string): boolean => {
+  if (ALLOWED_DOWNLOAD_HOSTS.has(hostname)) return true;
+  try {
+    return new URL(getCosReleaseBase()).host === hostname;
+  } catch {
+    return false;
+  }
+};
 
 /** COS yml file structure */
 interface COSYmlInfo {
@@ -139,13 +149,13 @@ const buildReleaseInfoFromCOS = (ymlInfo: COSYmlInfo): UpdateReleaseInfo => {
     assets: [
       {
         name: fileName,
-        url: `${COS_MIRROR_BASE}/${fileName}`,
+        url: `${getCosMirrorBase()}/${fileName}`,
         size: ymlInfo.files?.[0]?.size || 0,
       },
     ],
     recommendedAsset: {
       name: fileName,
-      url: `${COS_MIRROR_BASE}/${fileName}`,
+      url: `${getCosMirrorBase()}/${fileName}`,
       size: ymlInfo.files?.[0]?.size || 0,
     },
   };
@@ -156,7 +166,7 @@ const buildReleaseInfoFromCOS = (ymlInfo: COSYmlInfo): UpdateReleaseInfo => {
  */
 const checkUpdateFromCOS = async (): Promise<UpdateReleaseInfo | null> => {
   const ymlFileName = getCOSYmlFileName();
-  const ymlUrl = `${COS_MIRROR_BASE}/${ymlFileName}`;
+  const ymlUrl = `${getCosMirrorBase()}/${ymlFileName}`;
 
   mainLog('Update', `Checking update from COS mirror: ${ymlUrl}`);
 
@@ -326,7 +336,7 @@ const selectDownloadSource = async (originalUrl: string, originalName: string): 
   }
 
   // Use COS mirror
-  const cosUrl = `${COS_MIRROR_BASE}/${convertToCOSName(originalName)}`;
+  const cosUrl = `${getCosMirrorBase()}/${convertToCOSName(originalName)}`;
   mainLog('Update', `GitHub unreachable, using COS mirror: ${cosUrl}`);
   return cosUrl;
 };
@@ -342,7 +352,7 @@ const assertAllowedUrl = (rawUrl: string) => {
   if (parsed.protocol !== 'https:') {
     throw new Error('Only https download URLs are allowed');
   }
-  if (!ALLOWED_DOWNLOAD_HOSTS.has(parsed.hostname)) {
+  if (!isAllowedDownloadHost(parsed.hostname)) {
     throw new Error(`Download host not allowed: ${parsed.hostname}`);
   }
 };

@@ -4,20 +4,19 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
-import AgentModeSelector from '@/renderer/components/AgentModeSelector';
-import { getAgentModes, supportsModeSwitch, type AgentModeOption } from '@/renderer/utils/agentModes';
-import { useLayoutContext } from '@/renderer/context/LayoutContext';
-import ActionChip from '@/renderer/components/ui/ActionChip';
-import type { AcpBackend, AcpBackendConfig, AvailableAgent } from '../types';
-import PresetAgentTag from './PresetAgentTag';
 import { Button, Dropdown, Tooltip } from '@arco-design/web-react';
-import BdpanLogo from '@/renderer/assets/logos/bdpan.png';
-import BdpanFileSelector from '@/renderer/components/BdpanFileSelector';
 import { ArrowUp, FolderOpen, Plus, Shield, UploadOne } from '@icon-park/react';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { ipcBridge } from '@/common';
+import AgentModeSelector from '@/renderer/components/AgentModeSelector';
+import { getAgentModes, supportsModeSwitch, type AgentModeOption } from '@/renderer/utils/agentModes';
+import ActionChip from '@/renderer/components/ui/ActionChip';
+import BdpanLogo from '@/renderer/assets/logos/bdpan.png';
+import BdpanFileSelector from '@/renderer/components/BdpanFileSelector';
 import styles from '../index.module.css';
+import type { AcpBackend, AcpBackendConfig, AvailableAgent } from '../types';
+import PresetAgentTag from './PresetAgentTag';
 
 type GuidActionRowProps = {
   // File handling
@@ -52,8 +51,6 @@ type GuidActionRowProps = {
 
 const GuidActionRow: React.FC<GuidActionRowProps> = ({ files, onFilesUploaded, onSelectWorkspace, modelSelectorNode, selectedAgent, effectiveModeAgent, selectedMode, onModeSelect, isPresetAgent, selectedAgentInfo, customAgents, localeKey, onClosePresetTag, onTriggerSkillSelector, loading, isButtonDisabled, onSend }) => {
   const { t } = useTranslation();
-  const layout = useLayoutContext();
-  const isMobile = Boolean(layout?.isMobile);
   const [bdpanSelectorVisible, setBdpanSelectorVisible] = useState(false);
   const [fileMenuOpen, setFileMenuOpen] = useState(false);
   const modeBackend = effectiveModeAgent || selectedAgent;
@@ -62,7 +59,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({ files, onFilesUploaded, o
 
   const getModeDisplayLabel = (mode: AgentModeOption): string => t(`agentMode.${mode.value}`, { defaultValue: mode.label });
 
-  const permissionLabel = currentModeOption ? (isMobile ? getModeDisplayLabel(currentModeOption) : `${t('agentMode.permission')} · ${getModeDisplayLabel(currentModeOption)}`) : t('agentMode.permission');
+  const permissionLabel = currentModeOption ? `${t('agentMode.permission')} · ${getModeDisplayLabel(currentModeOption)}` : t('agentMode.permission');
 
   return (
     <>

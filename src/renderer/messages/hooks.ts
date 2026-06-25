@@ -5,10 +5,10 @@
  */
 
 import { useCallback, useEffect, useRef } from 'react';
-import { createContext } from '../utils/createContext';
 import { ipcBridge } from '@/common';
 import type { TMessage } from '@/common/chatLib';
 import { composeMessage } from '@/common/chatLib';
+import { createContext } from '../utils/createContext';
 
 const [useMessageList, MessageListProvider, useUpdateMessageList] = createContext([] as TMessage[]);
 

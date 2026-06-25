@@ -1,17 +1,19 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import AppLoader from '../../components/AppLoader';
-import { useAuth } from '../../context/AuthContext';
 import { Button, Input, Message, Space } from '@arco-design/web-react';
 import { Phone, Protect, Key, User, Lock } from '@icon-park/react';
-import { SUDOWORK_SERVER_BASE_URL } from '@/common/sudoworkServer';
+import { getSudoworkServerBaseUrl } from '@/common/sudoworkServer';
 import { DEFAULT_TENANT_CONFIG, TENANT_CONFIG_STORAGE_KEY, resolveTenantConfig } from '@/common/types/tenantConfig';
 import SudoworkIcon from '@/renderer/assets/sudowork-icon-dark.svg';
-import WindowControls from '../../components/WindowControls';
 import { isElectronDesktop, isMacOS } from '@/renderer/utils/platform';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
+import { useSystemLoginMethod } from '@/renderer/hooks/useSystemLoginMethod';
 import { ConfigStorage } from '@/common/storage';
 import { ipcBridge } from '@/common';
+import WindowControls from '../../components/WindowControls';
+import { useAuth } from '../../context/AuthContext';
+import AppLoader from '../../components/AppLoader';
+import PasswordAuthPanel from './PasswordAuthPanel';
 import './LoginPage.css';
 
 // Generate a random state token to bind the OAuth2 authorize request to its callback.
@@ -55,6 +57,7 @@ const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const { status, login, register, enterpriseLogin, enterpriseLoginWithOAuth2 } = useAuth();
   const { isEnterprise } = useAppMode();
+  const { loginMethod } = useSystemLoginMethod();
 
   // Enterprise login state
   const [loginTab, setLoginTab] = useState<'password' | 'key' | 'oauth2'>('password');
@@ -233,7 +236,7 @@ const LoginPage: React.FC = () => {
 
     setLoading(true);
     try {
-      const res = await fetch(`${SUDOWORK_SERVER_BASE_URL}/api/v1/auth/send-code`, {
+      const res = await fetch(`${await getSudoworkServerBaseUrl()}/api/v1/auth/send-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone: currentPhone }),
@@ -423,7 +426,7 @@ const LoginPage: React.FC = () => {
     return (
       <div className='login-page'>
         <div className='login-page__card text-center flex flex-col items-center gap-24px py-48px'>
-          <div className={`w-64px h-64px rd-full flex items-center justify-center ${statusMsg.type === 'rejected' ? 'bg-danger/10 text-danger' : 'bg-warning/10 text-warning'}`}>
+          <div className={`w-64px h-64px rd-full f-center ${statusMsg.type === 'rejected' ? 'bg-danger/10 text-danger' : 'bg-warning/10 text-warning'}`}>
             <Protect theme='filled' size={32} />
           </div>
           <div>
@@ -533,7 +536,15 @@ const LoginPage: React.FC = () => {
                 <Input size='large' prefix={<Key className='text-tertiary' />} placeholder='moss_sk_xxx.yyy' value={apiKey} onChange={setApiKey} className='login-input !rd-12px h-48px' />
               </div>
             ) : (
-              <div className='flex flex-col gap-8px text-center'>{oauth2Loading ? <div className='text-13px text-tertiary py-12px'>正在检查 OAuth2 配置…</div> : oauth2Config?.enabled ? <div className='text-13px text-secondary py-4px'>点击下方按钮，将在浏览器中完成身份认证。</div> : <div className='text-13px text-tertiary py-12px'>管理员未启用 OAuth2 登录</div>}</div>
+              <div className='flex flex-col gap-8px text-center'>
+                {oauth2Loading ? (
+                  <div className='text-13px text-tertiary py-12px'>正在检查 OAuth2 配置…</div>
+                ) : oauth2Config?.enabled ? (
+                  <div className='text-13px text-secondary py-4px'>点击下方按钮，将在浏览器中完成身份认证。</div>
+                ) : (
+                  <div className='text-13px text-tertiary py-12px'>管理员未启用 OAuth2 登录</div>
+                )}
+              </div>
             )}
 
             {loginTab === 'oauth2' ? (
@@ -553,6 +564,26 @@ const LoginPage: React.FC = () => {
             </div>
           </div>
         </div>
+      </div>
+    );
+  }
+
+  // C 端：登录方式探测中（避免手机/密码面板闪烁）
+  if (loginMethod === null) {
+    return <AppLoader />;
+  }
+
+  // C 端：用户名密码登录方式（login_method=1）
+  if (loginMethod === 1) {
+    return (
+      <div className='login-page'>
+        {showWindowControls && <WindowControls />}
+        <div className='login-page__background'>
+          <div className='login-page__background-circle login-page__background-circle--lg' />
+          <div className='login-page__background-circle login-page__background-circle--md' />
+          <div className='login-page__background-circle login-page__background-circle--sm' />
+        </div>
+        <PasswordAuthPanel appName={tenantConfig.app_name} logo={tenantConfig.logo} defaultLogo={SudoworkIcon} onBackToModeSelect={handleBackToModeSelect} />
       </div>
     );
   }

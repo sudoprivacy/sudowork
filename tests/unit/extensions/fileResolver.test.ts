@@ -15,7 +15,7 @@ describe('extensions/fileResolver', () => {
   let warnSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(async () => {
-    extensionDir = await fs.mkdtemp(path.join(os.tmpdir(), 'aionui-ext-file-resolver-'));
+    extensionDir = await fs.mkdtemp(path.join(os.tmpdir(), 'sudowork-ext-file-resolver-'));
     warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
   });
 

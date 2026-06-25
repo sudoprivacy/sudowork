@@ -29,10 +29,7 @@ import {
   UpdateSecretDescriptionRequestSchema,
   UpdateSecretDescriptionResponseSchema,
 } from './generated/nexus/secrets/v1/secrets_pb.js';
-import type {
-  SecretMetadata as ProtoSecretMetadata,
-  SecretVersion,
-} from './generated/nexus/secrets/v1/secrets_pb.js';
+import type { SecretMetadata as ProtoSecretMetadata, SecretVersion } from './generated/nexus/secrets/v1/secrets_pb.js';
 
 // Re-export compatible types for callers
 export interface SecretMetadata {
@@ -131,14 +128,14 @@ export class NexusSecretClient {
   }
 
   batchPut(secrets: Array<{ namespace: string; key: string; value: string; description?: string }>): SecretMetadata[] {
-    const items = secrets.map(s => create(PutSecretRequestSchema, s));
+    const items = secrets.map((s) => create(PutSecretRequestSchema, s));
     const req = create(BatchPutSecretsRequestSchema, { secrets: items });
     const resp = fromBinary(BatchPutSecretsResponseSchema, new Uint8Array(this.dispatch('secret_batch_put', toBinary(BatchPutSecretsRequestSchema, req))));
     return resp.results.map(toSecretMetadata);
   }
 
   batchGet(queries: Array<{ namespace: string; key: string; version?: number }>): Record<string, string> {
-    const items = queries.map(q => create(GetSecretRequestSchema, q));
+    const items = queries.map((q) => create(GetSecretRequestSchema, q));
     const req = create(BatchGetSecretsRequestSchema, { queries: items });
     const resp = fromBinary(BatchGetSecretsResponseSchema, new Uint8Array(this.dispatch('secret_batch_get', toBinary(BatchGetSecretsRequestSchema, req))));
     return { ...resp.secrets };

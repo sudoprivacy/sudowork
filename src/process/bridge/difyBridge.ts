@@ -31,12 +31,14 @@ import { mainError, mainLog, mainWarn } from '@process/utils/mainLogger';
 import { bindSession as orchestratorBind, unbindSession as orchestratorUnbind } from '@process/services/dify/enhancementOrchestrator';
 import { dify } from '@/common/ipcBridge';
 import type { IBridgeResponse, IDifyAgent, IDifyChatChunk, IDifyChatStreamStart, IDifyConversation, IDifyConversationList, IDifyFileUploadResult, IDifyMessageList, IDifyMeta, IDifyParameters } from '@/common/ipcBridge';
-import { SUDOWORK_SERVER_BASE_URL } from '@/common/sudoworkServer';
+import { getSudoworkServerBaseUrlSync } from '@process/initStorage';
 
-const API_BASE = `${SUDOWORK_SERVER_BASE_URL}/api/v1/agents`;
+function apiBase(): string {
+  return `${getSudoworkServerBaseUrlSync()}/api/v1/agents`;
+}
 
 function agentUrl(assistantId: string, suffix = ''): string {
-  return `${API_BASE}/${encodeURIComponent(assistantId)}${suffix}`;
+  return `${apiBase()}/${encodeURIComponent(assistantId)}${suffix}`;
 }
 
 interface ActiveStream {
@@ -233,7 +235,7 @@ export function initDifyBridge(): void {
 
   dify.getVisibleAgents.provider(async ({ accessToken }): Promise<IBridgeResponse<IDifyAgent[]>> => {
     if (!accessToken) return { success: false, msg: 'accessToken is required', data: [] };
-    const res = await sudoworkServerCall<IDifyAgent[]>(`${API_BASE}/visible`, {
+    const res = await sudoworkServerCall<IDifyAgent[]>(`${apiBase()}/visible`, {
       headers: jsonHeaders(accessToken),
     });
     return { ...res, data: res.data ?? [] };

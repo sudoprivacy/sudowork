@@ -4,19 +4,19 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { useParams } from 'react-router-dom';
 import { ipcBridge } from '@/common';
 import type { TChatConversation } from '@/common/storage';
 import { addEventListener } from '@/renderer/utils/emitter';
 import { useAllCronJobs } from '@/renderer/pages/cron/hooks/useCronJobs';
 import { getRendererSessionMode } from '@/renderer/pages/guid/hooks/useGuidAgentSelection';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useTranslation } from 'react-i18next';
-import { useParams } from 'react-router-dom';
 
 import type { GroupedHistoryResult } from '../types';
 import { buildGroupedHistory } from '../utils/groupingHelpers';
 
-const EXPANSION_STORAGE_KEY = 'aionui_workspace_expansion';
+const EXPANSION_STORAGE_KEY = 'sudowork_workspace_expansion';
 
 export const useConversations = () => {
   const [conversations, setConversations] = useState<TChatConversation[]>([]);

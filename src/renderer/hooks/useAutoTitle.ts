@@ -5,6 +5,13 @@ import { useConversationTabs } from '@/renderer/pages/conversation/context/Conve
 import { emitter } from '@/renderer/utils/emitter';
 import { stripThinkTags, hasThinkTags } from '@/renderer/utils/thinkTagFilter';
 
+/**
+ * useAutoTitle —— 自动为对话生成标题。
+ *
+ * 返回 checkAndUpdateTitle(conversationId, messageContent)：在用户发送消息时调用，
+ * 当对话名仍为默认值（"新对话" / "Remote Agent"）或过长（> 50 字符，通常是误用整条消息当标题）时，
+ * 取消息首行前 50 字符（先剥离 <think> 思考内容）作为新标题，写库并刷新 tab 名与历史列表。
+ */
 export const useAutoTitle = () => {
   const { t } = useTranslation();
   const { updateTabName } = useConversationTabs();

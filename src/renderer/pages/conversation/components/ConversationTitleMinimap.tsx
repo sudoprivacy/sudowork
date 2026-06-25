@@ -4,9 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
-import type { IMessageText, TMessage } from '@/common/chatLib';
-import { dispatchChatMessageJump } from '@/renderer/utils/chatMinimapEvents';
 import { Empty, Input, Spin } from '@arco-design/web-react';
 import { IconSearch } from '@arco-design/web-react/icon';
 import type { RefInputType } from '@arco-design/web-react/es/Input/interface';
@@ -14,6 +11,9 @@ import classNames from 'classnames';
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
+import { dispatchChatMessageJump } from '@/renderer/utils/chatMinimapEvents';
+import type { IMessageText, TMessage } from '@/common/chatLib';
+import { ipcBridge } from '@/common';
 
 interface ConversationTitleMinimapProps {
   title?: React.ReactNode;

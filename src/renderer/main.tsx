@@ -16,6 +16,23 @@ import Layout from '@renderer/layouts/layout';
 import Router from '@renderer/router';
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary';
 import { ipcBridge } from '@/common';
+import { fetchSystemConfig, isProductImprovementEnabled, type SystemConfig } from '@/common/systemConfig';
+
+/**
+ * Fetch systemConfig in the renderer AND push the snapshot to the main process so the
+ * main-side cache stays aligned (the systemConfig module has one cache per process; a
+ * renderer-only fetch would leave main-side readers — skillHub / sudorouter /
+ * log-report — using a stale or empty cache).
+ * Null result = fetch failure; do NOT propagate (would wipe whatever main-process
+ * startup bootstrap previously cached).
+ */
+async function fetchSystemConfigAndSync(): Promise<SystemConfig | null> {
+  const data = await fetchSystemConfig();
+  if (data) {
+    void ipcBridge.systemConfig.syncFromRenderer.invoke({ data }).catch(() => {});
+  }
+  return data;
+}
 
 const Main = () => {
   const { ready: authReady } = useAuth();
@@ -34,10 +51,12 @@ const Main = () => {
     }
 
     if (initReady && !optInChecked) {
-      ipcBridge.telemetry.getOptInShown
-        .invoke()
-        .then((result) => {
-          if (result.success && !result.data) {
+      // Fill the renderer system-config cache so the product_improvement switch
+      // (server-driven) is accurate before deciding whether to show the opt-in dialog.
+      Promise.all([ipcBridge.telemetry.getOptInShown.invoke(), fetchSystemConfigAndSync()])
+        .then(([result]) => {
+          // §4.5: hide the opt-in dialog when product_improvement is disabled server-side.
+          if (result.success && !result.data && isProductImprovementEnabled()) {
             // Opt-in dialog hasn't been shown yet - this is a new user (first install)
             setShowOptInDialog(true);
           }
@@ -92,7 +111,7 @@ const Main = () => {
     <div className='size-full relative'>
       <Router layout={<Layout />} />
       {!authReady && (
-        <div className='fixed inset-0 flex items-center justify-center bg-transparent z-9999 pointer-events-none'>
+        <div className='fixed inset-0 f-center bg-transparent z-9999 pointer-events-none'>
           <AppLoader />
         </div>
       )}

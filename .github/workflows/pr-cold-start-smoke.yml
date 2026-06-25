@@ -1,0 +1,438 @@
+name: '✓PR Cold Start Smoke'
+
+# Pin the "new-user cold start has zero admin/UAC subprocesses AND loads the
+# expected plugin set" invariant cross-platform. PR #919 was caught by a Mac
+# AI's eyeballs (SHA drift between runtime-versions.json and the per-installer
+# SHA tables left lc + fp unloaded). This job catches that entire class of
+# regression before merge.
+#
+# Scope is intentionally narrow:
+#   - Spawns nexusd-cluster directly (no Electron — Electron in headless CI is
+#     brittle, and Electron just wraps the cluster). The cluster's stderr is
+#     the canonical "plugins loaded" gate.
+#   - Watches for admin-prompt subprocess names in parallel. macOS: osascript
+#     "with administrator privileges" + installer -pkg + sudo. Windows: runas
+#     / consent (UAC dialog backend) / UserAccountControlSettings. Linux:
+#     pkexec / kdesudo / polkit-auth-agent (sudo excluded — apt-get is
+#     legitimate noise in setup).
+#   - Asserts the loaded plugin set EQUALS the expected set for this platform,
+#     derived from src/shared/runtime-sha256.json via the
+#     scripts/expected-plugin-set.js helper. Data-driven so a future "publish
+#     fuse-plugin for win" tightens automatically — no YAML edit needed.
+#
+# What this does NOT test (intentional):
+#   - UI rendering (Electron headless is brittle in CI)
+#   - The actual FUSE-T install path (osascript installer -pkg) — that path is
+#     unit-tested in src/process/services/fuset/*.test.ts (9 cases) and
+#     manual-tested on a real Mac with macFUSE coexistence
+#   - Mount data flow
+#
+# Wall budget per platform: ~5min (most is COS download).
+
+on:
+  pull_request:
+    branches: [main, dev]
+
+concurrency:
+  group: pr-cold-start-smoke-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  BUN_INSTALL_REGISTRY: 'https://registry.npmjs.org/'
+  # Distinct from the :2028 used by secrets-grpc-e2e so future "run both
+  # together" doesn't break either.
+  CLUSTER_PORT: '2029'
+
+jobs:
+  cold-start-smoke:
+    name: Cold Start Smoke (${{ matrix.platform }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # ubuntu-latest: full 3-plugin set (vault + local-connector + fuse-plugin).
+          - platform: linux-x64
+            os: ubuntu-latest
+            node_platform: linux
+            node_arch: x64
+          # windows-2022: x64. Only 2 plugins published (no Win fuse-plugin —
+          # WinFsp is via separate adapter). UAC contract is the interesting
+          # one here.
+          - platform: windows-x64
+            os: windows-2022
+            node_platform: win32
+            node_arch: x64
+          # macos-14: arm64 runner. Full 3-plugin set. THE platform where
+          # the FUSE-T lazy contract could break (eager osascript install).
+          # Re-enabled after nexi-lab/nexus#4425 closed via fuse-v0.4.2:
+          # fuse-plugin's macOS dylib now links libfuse3.4.dylib (via fuser
+          # vendor + libfuse3 feature) and bakes two LC_RPATH entries
+          # (/Library/Application Support/fuse-t/lib for .pkg, /usr/local/lib
+          # for brew), so dlopen succeeds against either FUSE-T install
+          # path. This job exercises the .pkg path specifically — the
+          # production install path sudowork uses via FuseTInstallService.
+          - platform: macos-arm64
+            os: macos-14
+            node_platform: darwin
+            node_arch: arm64
+          # Intentionally NOT in matrix:
+          #   - macos-x64: cross-build only on macos-14 runner; no native runner.
+          #   - windows-arm64: no native plugin artifacts published yet.
+          #   - linux-arm64: no plugin artifacts published yet.
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --no-frozen-lockfile
+
+      - name: Compute expected plugin set
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXPECTED=$(node scripts/expected-plugin-set.js \
+            --platform ${{ matrix.node_platform }} \
+            --arch ${{ matrix.node_arch }})
+          echo "expected plugin set: $EXPECTED"
+
+      - name: Download nexus-vfs cluster + plugins from COS
+        # Same step as in secrets-grpc-e2e. Honors src/shared/runtime-versions.json;
+        # SHA mismatches against src/shared/runtime-sha256.json fail fast here.
+        run: bun run nexus-vfs:download
+
+      # ─── macOS-only prereq: install FUSE-T via .pkg ─────────────────────
+      # fuse-plugin v0.4.2 (nexi-lab/nexus#4430) cut over to libfuse3 and
+      # bakes two LC_RPATH entries:
+      #   - /Library/Application Support/fuse-t/lib (.pkg install path)
+      #   - /usr/local/lib                          (brew install path)
+      # so a successful FUSE-T install on EITHER path makes dlopen succeed.
+      # This job exercises the **.pkg path** specifically — the production
+      # install path sudowork users hit via FuseTInstallService (osascript
+      # + installer -pkg). NOT brew, because brew dev environments hide a
+      # whole class of "framework not registered with pkg-config" /
+      # "wrong libfuse2 compat" bugs that real users would trip on.
+      #
+      # Step ordering: this `sudo installer` invocation lands BEFORE the
+      # smoke step's admin-watcher arms, so the watcher still observes a
+      # clean process tree for the cluster cold start it actually gates on.
+      #
+      # Why not the pre-install (lazy) path: the lazy-install branch is
+      # already covered by 9 unit tests in src/process/services/fuset/*.test.ts.
+      # CI runners can't authentically simulate "first-mount triggers
+      # osascript password prompt", and we have no Mac dev with which to
+      # type the prompt anyway.
+      - name: Install FUSE-T prereq via .pkg (macOS — production install path)
+        if: matrix.platform == 'macos-arm64'
+        shell: bash
+        run: |
+          set -euo pipefail
+          FUSE_T_VERSION=$(node -p "require('./src/shared/runtime-versions.json')['fuse-t']")
+          PKG="fuse-t-macos-installer-${FUSE_T_VERSION}.pkg"
+          URL="https://github.com/macos-fuse-t/fuse-t/releases/download/${FUSE_T_VERSION}/${PKG}"
+          # SHA pinned in src/process/services/fuset/FuseTInstallService.ts for v1.2.7.
+          EXPECTED_SHA=6a29c747e61a86a405a189efc3de42812d73147135f93a1bb0624c1e7b90e654
+          DL=/tmp/${PKG}
+          curl -fsSL "$URL" -o "$DL"
+          ACTUAL_SHA=$(shasum -a 256 "$DL" | awk '{print $1}')
+          if [ "$ACTUAL_SHA" != "$EXPECTED_SHA" ]; then
+            echo "::error::FUSE-T pkg SHA256 mismatch (got $ACTUAL_SHA expected $EXPECTED_SHA)"
+            exit 1
+          fi
+          sudo installer -pkg "$DL" -target /
+
+          echo "=== FUSE-T install verification (.pkg path) ==="
+          # The framework is the user-visible install marker (FSKit). 1.2+
+          # uses /Library/Frameworks/fuse_t.framework.
+          ls -lah /Library/Frameworks/fuse_t.framework 2>/dev/null || {
+            echo "::error::FUSE-T framework not present at /Library/Frameworks/fuse_t.framework after pkg install"
+            exit 1
+          }
+          # The .pkg-specific dylib path that fuse-plugin v0.4.2's
+          # LC_RPATH points at. If this missing → dlopen would fail and
+          # the smoke would fall back to count=2, defeating the whole
+          # point of re-adding macos-arm64 to the matrix.
+          LIBFUSE3=/Library/Application\ Support/fuse-t/lib/libfuse3.4.dylib
+          ls -lah "$LIBFUSE3" 2>/dev/null || {
+            echo "::error::libfuse3 not present at expected .pkg path: $LIBFUSE3"
+            echo "          fuse-plugin's LC_RPATH expects this; without it dlopen fails."
+            exit 1
+          }
+          echo "FUSE-T ${FUSE_T_VERSION} installed via .pkg; libfuse3 compat in place."
+
+      # ─── Linux smoke ────────────────────────────────────────────────────
+      - name: Cold-start smoke (Linux)
+        if: matrix.platform == 'linux-x64'
+        shell: bash
+        run: |
+          set -euo pipefail
+          CLUSTER_BIN="$HOME/.nexus-vfs/bin/nexusd-cluster"
+          PLUGIN_DIR="$HOME/.nexus-vfs/plugins"
+          CLUSTER_LOG=/tmp/cluster.log
+          ADMIN_LOG=/tmp/admin-procs.log
+          mkdir -p /tmp/cluster-data
+          : > "$ADMIN_LOG"
+
+          # Background watcher — Linux desktop escalation primitives. sudo is
+          # deliberately excluded (apt setup uses passwordless sudo and we
+          # don't want to false-positive on that).
+          (
+            while true; do
+              pgrep -fa 'pkexec|kdesudo|gksu|polkit-.*-authentication-agent' \
+                2>/dev/null >> "$ADMIN_LOG" || true
+              sleep 1
+            done
+          ) &
+          WATCHER_PID=$!
+
+          RUST_LOG=info,kernel::kernel::plugins=info \
+            nohup "$CLUSTER_BIN" \
+              --bind-addr 0.0.0.0:${CLUSTER_PORT} \
+              --data-dir /tmp/cluster-data \
+              --no-tls \
+              --bootstrap-mode static \
+              --plugin-dir "$PLUGIN_DIR" \
+              > "$CLUSTER_LOG" 2>&1 &
+          CLUSTER_PID=$!
+
+          LISTENING=0
+          for i in $(seq 1 60); do
+            if (echo > /dev/tcp/127.0.0.1/${CLUSTER_PORT}) >/dev/null 2>&1; then
+              echo "cluster listening on :${CLUSTER_PORT} after ${i}s"
+              LISTENING=1
+              break
+            fi
+            sleep 1
+          done
+
+          # Let plugin-load lines flush.
+          sleep 3
+
+          kill "$WATCHER_PID" 2>/dev/null || true
+          kill "$CLUSTER_PID" 2>/dev/null || true
+          sleep 1
+
+          echo "=== cluster log (head -80) ==="
+          head -80 "$CLUSTER_LOG" || true
+          echo "=== admin-procs.log (expected empty) ==="
+          cat "$ADMIN_LOG" || true
+          echo "=== end log dump ==="
+
+          if [ "$LISTENING" -ne 1 ]; then
+            echo "::error::cluster failed to bind :${CLUSTER_PORT} within 60s — see log dump above"
+            exit 1
+          fi
+
+          node scripts/assert-cold-start.js \
+            --cluster-log "$CLUSTER_LOG" \
+            --admin-log "$ADMIN_LOG" \
+            --platform ${{ matrix.node_platform }} \
+            --arch ${{ matrix.node_arch }}
+
+      # ─── macOS smoke ────────────────────────────────────────────────────
+      - name: Cold-start smoke (macOS)
+        if: matrix.platform == 'macos-arm64'
+        shell: bash
+        run: |
+          set -euo pipefail
+          CLUSTER_BIN="$HOME/.nexus-vfs/bin/nexusd-cluster"
+          PLUGIN_DIR="$HOME/.nexus-vfs/plugins"
+          CLUSTER_LOG=/tmp/cluster.log
+          ADMIN_LOG=/tmp/admin-procs.log
+          mkdir -p /tmp/cluster-data
+          : > "$ADMIN_LOG"
+
+          # macOS-specific escalation surface: FuseTInstallService's lazy
+          # install path uses `osascript -e "do shell script ... with
+          # administrator privileges"` which forks `installer -pkg`. If
+          # cluster boot eagerly triggers this, the lazy contract is broken.
+          # `sudo` deliberately INCLUDED (unlike the Linux case): the prereq
+          # step ran in a separate step scope and is already done by the
+          # time the watcher arms, so any sudo here means cluster bootstrap
+          # decided to escalate on its own.
+          (
+            while true; do
+              ps -A -o pid=,command= 2>/dev/null \
+                | grep -E '(osascript.*administrator|installer.*-pkg|/usr/bin/sudo|security authorize)' \
+                | grep -v 'grep -E' \
+                >> "$ADMIN_LOG" || true
+              sleep 1
+            done
+          ) &
+          WATCHER_PID=$!
+
+          RUST_LOG=info,kernel::kernel::plugins=info \
+            nohup "$CLUSTER_BIN" \
+              --bind-addr 0.0.0.0:${CLUSTER_PORT} \
+              --data-dir /tmp/cluster-data \
+              --no-tls \
+              --bootstrap-mode static \
+              --plugin-dir "$PLUGIN_DIR" \
+              > "$CLUSTER_LOG" 2>&1 &
+          CLUSTER_PID=$!
+
+          LISTENING=0
+          for i in $(seq 1 60); do
+            if (echo > /dev/tcp/127.0.0.1/${CLUSTER_PORT}) >/dev/null 2>&1; then
+              echo "cluster listening on :${CLUSTER_PORT} after ${i}s"
+              LISTENING=1
+              break
+            fi
+            sleep 1
+          done
+
+          # Let plugin-load lines flush.
+          sleep 3
+
+          kill "$WATCHER_PID" 2>/dev/null || true
+          kill "$CLUSTER_PID" 2>/dev/null || true
+          sleep 1
+
+          echo "=== cluster log (head -80) ==="
+          head -80 "$CLUSTER_LOG" || true
+          echo "=== admin-procs.log (expected empty) ==="
+          cat "$ADMIN_LOG" || true
+          echo "=== end log dump ==="
+
+          if [ "$LISTENING" -ne 1 ]; then
+            echo "::error::cluster failed to bind :${CLUSTER_PORT} within 60s — see log dump above"
+            exit 1
+          fi
+
+          node scripts/assert-cold-start.js \
+            --cluster-log "$CLUSTER_LOG" \
+            --admin-log "$ADMIN_LOG" \
+            --platform ${{ matrix.node_platform }} \
+            --arch ${{ matrix.node_arch }}
+
+      # ─── Windows smoke ──────────────────────────────────────────────────
+      - name: Cold-start smoke (Windows)
+        if: matrix.platform == 'windows-x64'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $clusterBin = Join-Path $env:USERPROFILE '.nexus-vfs\bin\nexusd-cluster.exe'
+          $pluginDir = Join-Path $env:USERPROFILE '.nexus-vfs\plugins'
+          $dataDir = Join-Path $env:TEMP 'cluster-data'
+          $clusterLog = Join-Path $env:TEMP 'cluster.log'
+          $clusterErr = Join-Path $env:TEMP 'cluster.err'
+          $adminLog = Join-Path $env:TEMP 'admin-procs.log'
+          New-Item -ItemType Directory -Force $dataDir | Out-Null
+          if (-not (Test-Path $adminLog)) { New-Item -ItemType File -Force $adminLog | Out-Null }
+          Clear-Content $adminLog -Force
+
+          # Background watcher for the Windows escalation surface. consent.exe
+          # is the UAC dialog backend; runas.exe is direct elevation;
+          # UserAccountControlSettings.exe is the settings panel. None should
+          # spawn during a cold start that respects the lazy contract.
+          $watcher = Start-Job -ScriptBlock {
+            param($adminLogPath)
+            while ($true) {
+              try {
+                $procs = Get-Process -ErrorAction SilentlyContinue |
+                  Where-Object { $_.ProcessName -match '^(runas|consent|UserAccountControlSettings)$' }
+                if ($procs) {
+                  $procs | ForEach-Object {
+                    "PID=$($_.Id) Name=$($_.ProcessName) Path=$($_.Path)" |
+                      Out-File -Append -Encoding utf8 $adminLogPath
+                  }
+                }
+              } catch {}
+              Start-Sleep -Seconds 1
+            }
+          } -ArgumentList $adminLog
+
+          $env:RUST_LOG = 'info,kernel::kernel::plugins=info'
+          $cluster = Start-Process -FilePath $clusterBin `
+            -ArgumentList @(
+              '--bind-addr', "0.0.0.0:$env:CLUSTER_PORT",
+              '--data-dir', $dataDir,
+              '--no-tls',
+              '--bootstrap-mode', 'static',
+              '--plugin-dir', $pluginDir
+            ) `
+            -RedirectStandardOutput $clusterLog `
+            -RedirectStandardError $clusterErr `
+            -PassThru -NoNewWindow
+
+          $listening = $false
+          for ($i = 1; $i -le 60; $i++) {
+            try {
+              $tcp = New-Object System.Net.Sockets.TcpClient
+              $tcp.Connect('127.0.0.1', [int]$env:CLUSTER_PORT)
+              $tcp.Close()
+              Write-Host "cluster listening on :$env:CLUSTER_PORT after $i s"
+              $listening = $true
+              break
+            } catch {
+              Start-Sleep -Seconds 1
+            }
+          }
+
+          Start-Sleep -Seconds 3
+
+          Stop-Job $watcher -ErrorAction SilentlyContinue
+          Remove-Job $watcher -ErrorAction SilentlyContinue
+          if (-not $cluster.HasExited) {
+            Stop-Process -Id $cluster.Id -Force -ErrorAction SilentlyContinue
+          }
+          Start-Sleep -Seconds 1
+
+          # Rust tracing goes to stderr. Concat stderr after stdout for assertion.
+          if (Test-Path $clusterErr) {
+            Get-Content $clusterErr | Add-Content $clusterLog
+          }
+
+          Write-Host '=== cluster log (head 80) ==='
+          Get-Content $clusterLog -TotalCount 80
+          Write-Host '=== admin-procs.log (expected empty) ==='
+          if (Test-Path $adminLog) { Get-Content $adminLog }
+          Write-Host '=== end log dump ==='
+
+          if (-not $listening) {
+            Write-Host "::error::cluster failed to bind :$env:CLUSTER_PORT within 60s — see log dump above"
+            exit 1
+          }
+
+          & node scripts/assert-cold-start.js `
+            --cluster-log $clusterLog `
+            --admin-log $adminLog `
+            --platform win32 `
+            --arch x64
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      # ─── Failure-tail dump (best-effort across platforms) ────────────────
+      - name: Full cluster log on failure (POSIX)
+        if: failure() && matrix.platform != 'windows-x64'
+        shell: bash
+        run: |
+          echo '=== FULL CLUSTER LOG ==='
+          cat /tmp/cluster.log 2>/dev/null || true
+          echo '=== FULL ADMIN-PROCS ==='
+          cat /tmp/admin-procs.log 2>/dev/null || true
+
+      - name: Full cluster log on failure (Windows)
+        if: failure() && matrix.platform == 'windows-x64'
+        shell: pwsh
+        run: |
+          Write-Host '=== FULL CLUSTER LOG ==='
+          $clusterLog = Join-Path $env:TEMP 'cluster.log'
+          if (Test-Path $clusterLog) { Get-Content $clusterLog }
+          Write-Host '=== FULL ADMIN-PROCS ==='
+          $adminLog = Join-Path $env:TEMP 'admin-procs.log'
+          if (Test-Path $adminLog) { Get-Content $adminLog }

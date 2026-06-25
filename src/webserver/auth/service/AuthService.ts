@@ -4,13 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
+import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
+import { resolveSecret, cachePut } from '@common/nexus/secret-cache';
 import type { AuthUser } from '../repository/UserRepository';
 import { UserRepository } from '../repository/UserRepository';
 import { AUTH_CONFIG } from '../../config/constants';
-import { resolveSecret, cachePut } from '@common/nexus/secret-cache';
 
 interface TokenPayload {
   userId: string;
@@ -247,8 +247,8 @@ export class AuthService {
 
     return jwt.sign(payload, this.getJwtSecret(), {
       expiresIn: this.TOKEN_EXPIRY,
-      issuer: 'aionui',
-      audience: 'aionui-webui',
+      issuer: 'sudowork',
+      audience: 'sudowork-webui',
     });
   }
 
@@ -277,8 +277,8 @@ export class AuthService {
       }
 
       const decoded = jwt.verify(token, this.getJwtSecret(), {
-        issuer: 'aionui',
-        audience: 'aionui-webui',
+        issuer: 'sudowork',
+        audience: 'sudowork-webui',
       }) as RawTokenPayload;
 
       return {
@@ -298,7 +298,7 @@ export class AuthService {
    * 验证 WebSocket Token
    * Verify WebSocket token
    *
-   * 复用 Web 登录 token (audience: aionui-webui)
+   * 复用 Web 登录 token (audience: sudowork-webui)
    *
    * @param token - JWT token string
    * @returns Token payload if valid, null otherwise
@@ -311,8 +311,8 @@ export class AuthService {
       }
 
       const decoded = jwt.verify(token, this.getJwtSecret(), {
-        issuer: 'aionui',
-        audience: 'aionui-webui', // 使用与 Web 登录相同的 audience
+        issuer: 'sudowork',
+        audience: 'sudowork-webui', // 使用与 Web 登录相同的 audience
       }) as RawTokenPayload;
 
       return {

@@ -6,6 +6,7 @@
 
 import { storage } from '@office-ai/platform';
 import type { AcpBackend, AcpBackendAll, AcpBackendConfig } from '@/types/acpTypes';
+import type { IBlacklistConfig } from '@common/types/security';
 
 /**
  * @description 聊天相关的存储
@@ -71,6 +72,9 @@ export interface IConfigStorageRefer {
   'guid.sessionMode'?: 'remote' | 'local';
   // 迁移标记：修复老版本中助手 enabled 默认值问题 / Migration flag: fix assistant enabled default value issue
   'migration.assistantEnabledFixed'?: boolean;
+  // 迁移标记：旧版硬编码默认图像生成模型（gpt-image-1.5）一次性迁移到当前默认；迁移后用户显式选择不再被覆盖
+  // Migration flag: one-time migration of the legacy hardcoded image generation model (gpt-image-1.5) to the current default; after migration, explicit user selections are preserved
+  'migration.imageGenerationModelDefaultMigrated'?: boolean;
   // 迁移标记：为 cowork 助手添加默认启用的 skills / Migration flag: add default enabled skills for cowork assistant
   /** @deprecated Use migration.builtinDefaultSkillsAdded_v2 instead */
   'migration.coworkDefaultSkillsAdded'?: boolean;
@@ -100,13 +104,23 @@ export interface IConfigStorageRefer {
   // 内置资源最后复制的版本号，用于优化启动速度 / Last copied version of builtin resources for startup optimization
   'system.lastBuiltinResourcesVersion'?: string;
   /**
-   * @deprecated Server URL is now hardcoded in src/common/sudoworkServer.ts.
-   * This config key is kept for backward compatibility but is no longer used.
+   * @deprecated Superseded by `system.sudoworkServerUrl` below. The current sudowork-server URL
+   * is resolved at runtime via `src/common/sudoworkServer.ts` (renderer `getSudoworkServerBaseUrl`)
+   * and `src/process/initStorage.ts#getSudoworkServerBaseUrlSync` (main), with priority:
+   * user setting > build-time `__SUDOWORK_SERVER_BASE_URL__` define > literal fallback.
+   * This key is kept for backward compatibility but is no longer read or written.
    */
   'sudowork.server'?: {
     baseUrl: string;
     enterpriseCode?: string;
   };
+  /**
+   * User-configured sudowork-server base URL (optional override).
+   * Resolved by helpers in `src/common/sudoworkServer.ts` (renderer) and
+   * `src/process/initStorage.ts#getSudoworkServerBaseUrlSync` (main).
+   * Empty / absent → fall back to build-time define, then to literal.
+   */
+  'system.sudoworkServerUrl'?: string;
   // Telegram assistant default model / Telegram 助手默认模型
   'assistant.telegram.defaultModel'?: {
     id: string;
@@ -183,7 +197,7 @@ export interface IConfigStorageRefer {
   // Safety hook enabled state / 安全 Hook 启用状态
   'safetyHook.enabled'?: boolean;
   // Safety hook blacklist configuration / 安全 Hook 黑名单配置
-  'safetyHook.blacklist'?: import('./safetyTypes').BlacklistConfig;
+  'safetyHook.blacklist'?: IBlacklistConfig;
   // 建设库 enabled state / 建设库启用状态
   'settings.jsb.enabled'?: boolean;
   'settings.tenant.enabled'?: Record<number, boolean>;
@@ -232,7 +246,7 @@ export interface IEnvStorageRefer {
  * Conversation source type - identifies where the conversation was created
  * 会话来源类型 - 标识会话创建的来源
  */
-export type ConversationSource = 'aionui' | 'telegram' | 'lark' | 'dingtalk' | 'wechat' | (string & NonNullable<unknown>);
+export type ConversationSource = 'sudowork' | 'telegram' | 'lark' | 'dingtalk' | 'wechat' | (string & NonNullable<unknown>);
 
 interface IChatConversation<T, Extra> {
   createTime: number;
@@ -246,7 +260,7 @@ interface IChatConversation<T, Extra> {
   status?: 'pending' | 'running' | 'finished' | undefined;
   /** 处理开始时间戳（毫秒），用于恢复计时器 / Processing start timestamp in milliseconds for timer restoration */
   processingStartTime?: number;
-  /** 会话来源，默认为 aionui / Conversation source, defaults to aionui */
+  /** 会话来源，默认为 sudowork / Conversation source, defaults to sudowork */
   source?: ConversationSource;
   /** Channel chat isolation ID (e.g. user:xxx, group:xxx) */
   channelChatId?: string;
@@ -477,9 +491,6 @@ export interface IProvider {
 }
 
 export type TProviderWithModel = Omit<IProvider, 'model'> & { useModel: string };
-
-/** Default base URL for SudoRouter image generation */
-export const DEFAULT_IMAGE_BASE_URL = 'https://hk.sudorouter.ai/v1';
 
 /** Default model used for image parsing/understanding (看图) via SudoRouter */
 export const DEFAULT_IMAGE_PARSING_MODEL = 'gemini-3.5-flash';

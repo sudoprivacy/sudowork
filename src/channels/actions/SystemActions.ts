@@ -10,18 +10,27 @@ import type { TProviderWithModel } from '@/common/storage';
 import { ProcessConfig } from '@/process/initStorage';
 import { ConversationService } from '@/process/services/conversationService';
 import WorkerManage from '@/process/WorkerManage';
+import { GOOGLE_AUTH_PROVIDER_ID } from '@/common/constants';
+import type { AcpBackend } from '@/types/acpTypes';
 import { getChannelMessageService } from '../agent/ChannelMessageService';
 import { getChannelManager } from '../core/ChannelManager';
 import type { AgentDisplayInfo } from '../plugins/telegram/TelegramKeyboards';
 import { createAgentSelectionKeyboard, createHelpKeyboard, createMainMenuKeyboard, createSessionControlKeyboard } from '../plugins/telegram/TelegramKeyboards';
 import { getChannelConversationName, resolveChannelConvType } from '../types';
 import { createAgentSelectionCard, createFeaturesCard, createHelpCard, createMainMenuCard, createPairingGuideCard, createSessionStatusCard, createSettingsCard, createTipsCard } from '../plugins/lark/LarkCards';
-import { createAgentSelectionCard as createDingTalkAgentSelectionCard, createFeaturesCard as createDingTalkFeaturesCard, createHelpCard as createDingTalkHelpCard, createMainMenuCard as createDingTalkMainMenuCard, createPairingGuideCard as createDingTalkPairingGuideCard, createSessionStatusCard as createDingTalkSessionStatusCard, createSettingsCard as createDingTalkSettingsCard, createTipsCard as createDingTalkTipsCard } from '../plugins/dingtalk/DingTalkCards';
+import {
+  createAgentSelectionCard as createDingTalkAgentSelectionCard,
+  createFeaturesCard as createDingTalkFeaturesCard,
+  createHelpCard as createDingTalkHelpCard,
+  createMainMenuCard as createDingTalkMainMenuCard,
+  createPairingGuideCard as createDingTalkPairingGuideCard,
+  createSessionStatusCard as createDingTalkSessionStatusCard,
+  createSettingsCard as createDingTalkSettingsCard,
+  createTipsCard as createDingTalkTipsCard,
+} from '../plugins/dingtalk/DingTalkCards';
 import type { ChannelAgentType, PluginType } from '../types';
 import type { ActionHandler, IRegisteredAction } from './types';
 import { SystemActionNames, createErrorResponse, createSuccessResponse } from './types';
-import { GOOGLE_AUTH_PROVIDER_ID } from '@/common/constants';
-import type { AcpBackend } from '@/types/acpTypes';
 
 /**
  * Get the default model for Channel assistant (Telegram/Lark)
@@ -43,7 +52,14 @@ export async function getChannelDefaultModel(platform: PluginType): Promise<TPro
     };
 
     // Try to get saved model selection
-    const savedModel = platform === 'lark' ? await ProcessConfig.get('assistant.lark.defaultModel') : platform === 'dingtalk' ? await ProcessConfig.get('assistant.dingtalk.defaultModel') : platform === 'wecom' ? await ProcessConfig.get('assistant.wecom.defaultModel') : await ProcessConfig.get('assistant.telegram.defaultModel');
+    const savedModel =
+      platform === 'lark'
+        ? await ProcessConfig.get('assistant.lark.defaultModel')
+        : platform === 'dingtalk'
+          ? await ProcessConfig.get('assistant.dingtalk.defaultModel')
+          : platform === 'wecom'
+            ? await ProcessConfig.get('assistant.wecom.defaultModel')
+            : await ProcessConfig.get('assistant.telegram.defaultModel');
     if (savedModel?.id && savedModel?.useModel) {
       // Google Auth is frontend-only (OAuth browser flow), not usable in channels.
       // Fall through to find a provider with a valid API key instead.
@@ -275,7 +291,18 @@ export const handleHelpShow: ActionHandler = async (context) => {
   }
   return createSuccessResponse({
     type: 'text',
-    text: ['❓ <b>Sudowork Assistant</b>', '', 'A remote assistant to interact with Sudowork via Telegram.', '', '<b>Common Actions:</b>', '• 🆕 New Chat - Start a new session', '• 📊 Status - View current session status', '• ❓ Help - Show this help message', '', 'Send a message to chat with the AI assistant.'].join('\n'),
+    text: [
+      '❓ <b>Sudowork Assistant</b>',
+      '',
+      'A remote assistant to interact with Sudowork via Telegram.',
+      '',
+      '<b>Common Actions:</b>',
+      '• 🆕 New Chat - Start a new session',
+      '• 📊 Status - View current session status',
+      '• ❓ Help - Show this help message',
+      '',
+      'Send a message to chat with the AI assistant.',
+    ].join('\n'),
     parseMode: 'HTML',
     replyMarkup: createHelpKeyboard(),
   });
@@ -301,7 +328,24 @@ export const handleHelpFeatures: ActionHandler = async (context) => {
   }
   return createSuccessResponse({
     type: 'text',
-    text: ['🤖 <b>Features</b>', '', '<b>AI Chat</b>', '• Natural language conversation', '• Streaming output, real-time display', '• Context memory support', '', '<b>Session Management</b>', '• Single session mode', '• Clear context anytime', '• View session status', '', '<b>Message Actions</b>', '• Copy reply content', '• Regenerate reply', '• Continue conversation'].join('\n'),
+    text: [
+      '🤖 <b>Features</b>',
+      '',
+      '<b>AI Chat</b>',
+      '• Natural language conversation',
+      '• Streaming output, real-time display',
+      '• Context memory support',
+      '',
+      '<b>Session Management</b>',
+      '• Single session mode',
+      '• Clear context anytime',
+      '• View session status',
+      '',
+      '<b>Message Actions</b>',
+      '• Copy reply content',
+      '• Regenerate reply',
+      '• Continue conversation',
+    ].join('\n'),
     parseMode: 'HTML',
     replyMarkup: createHelpKeyboard(),
   });
@@ -327,7 +371,20 @@ export const handleHelpPairing: ActionHandler = async (context) => {
   }
   return createSuccessResponse({
     type: 'text',
-    text: ['🔗 <b>Pairing Guide</b>', '', '<b>First-time Setup:</b>', '1. Send any message to the bot', '2. Bot displays pairing code', '3. Approve pairing in Sudowork settings', '4. Ready to use after pairing', '', '<b>Notes:</b>', '• Pairing code valid for 10 minutes', '• Sudowork app must be running', '• One Telegram account can only pair once'].join('\n'),
+    text: [
+      '🔗 <b>Pairing Guide</b>',
+      '',
+      '<b>First-time Setup:</b>',
+      '1. Send any message to the bot',
+      '2. Bot displays pairing code',
+      '3. Approve pairing in Sudowork settings',
+      '4. Ready to use after pairing',
+      '',
+      '<b>Notes:</b>',
+      '• Pairing code valid for 10 minutes',
+      '• Sudowork app must be running',
+      '• One Telegram account can only pair once',
+    ].join('\n'),
     parseMode: 'HTML',
     replyMarkup: createHelpKeyboard(),
   });
@@ -353,7 +410,19 @@ export const handleHelpTips: ActionHandler = async (context) => {
   }
   return createSuccessResponse({
     type: 'text',
-    text: ['💬 <b>Tips</b>', '', '<b>Effective Conversations:</b>', '• Be clear and specific', '• Feel free to ask follow-ups', '• Regenerate if not satisfied', '', '<b>Quick Actions:</b>', '• Use bottom buttons for quick access', '• Tap message buttons for actions', '• New chat clears history context'].join('\n'),
+    text: [
+      '💬 <b>Tips</b>',
+      '',
+      '<b>Effective Conversations:</b>',
+      '• Be clear and specific',
+      '• Feel free to ask follow-ups',
+      '• Regenerate if not satisfied',
+      '',
+      '<b>Quick Actions:</b>',
+      '• Use bottom buttons for quick access',
+      '• Tap message buttons for actions',
+      '• New chat clears history context',
+    ].join('\n'),
     parseMode: 'HTML',
     replyMarkup: createHelpKeyboard(),
   });
@@ -486,9 +555,6 @@ export const handleAgentSelect: ActionHandler = async (context, params) => {
   }
   sessionManager.clearSession(context.channelUser.id, context.chatId);
 
-  // Create new session with the selected agent type (scoped by chatId)
-  const session = sessionManager.createSession(context.channelUser, newAgentType, undefined, context.chatId);
-
   const markup = context.platform === 'lark' ? createMainMenuCard() : context.platform === 'dingtalk' ? createDingTalkMainMenuCard() : createMainMenuKeyboard();
   return createSuccessResponse({
     type: 'text',
@@ -512,7 +578,7 @@ function getAgentDisplayName(agentType: ChannelAgentType): string {
  * Map backend type to ChannelAgentType
  * Only returns types that are supported by channels
  */
-function backendToChannelAgentType(backend: string): ChannelAgentType | null {
+function backendToChannelAgentType(): ChannelAgentType | null {
   return 'acp';
 }
 
@@ -541,7 +607,7 @@ function getAvailableChannelAgents(): AgentDisplayInfo[] {
 
   // Add detected agents (claude, gemini, codex, etc.)
   for (const agent of detectedAgents) {
-    const channelType = backendToChannelAgentType(agent.backend);
+    const channelType = backendToChannelAgentType();
     if (channelType && !seenTypes.has(channelType)) {
       availableAgents.push({
         type: channelType,

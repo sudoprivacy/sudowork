@@ -73,7 +73,11 @@ export async function killChild(child: ChildProcess, isDetached: boolean): Promi
       try {
         process.kill(-pid, 'SIGKILL');
       } catch {
-        try { child.kill('SIGKILL'); } catch { /* already dead */ }
+        try {
+          child.kill('SIGKILL');
+        } catch {
+          /* already dead */
+        }
       }
     }
   } else {
@@ -81,7 +85,11 @@ export async function killChild(child: ChildProcess, isDetached: boolean): Promi
     if (pid) {
       await waitForProcessExit(pid, 2000);
       if (isProcessAlive(pid)) {
-        try { child.kill('SIGKILL'); } catch { /* already dead */ }
+        try {
+          child.kill('SIGKILL');
+        } catch {
+          /* already dead */
+        }
       }
     }
   }

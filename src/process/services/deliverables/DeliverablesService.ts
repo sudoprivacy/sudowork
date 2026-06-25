@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import fs from 'node:fs';
+import nodePath from 'node:path';
 import { parseGeneratedFilesMarker, type GeneratedFileEntry } from '@/common/generatedFiles';
 import { getDatabase } from '@process/database';
 import { mainError } from '@process/utils/mainLogger';
@@ -58,21 +60,66 @@ class DeliverablesService {
       return [];
     }
 
-    return dedupeAndSort(collected);
+    const workspace = resolveConversationWorkspace(db, conversationId);
+    const reconciled = collected.map((entry) => reconcileEntryPath(entry, workspace));
+    return dedupeAndSort(reconciled);
   }
 }
 
 /**
- * Latest-wins by absolute path, then sort by createdAt DESC. The chronological
- * scan above pushes newest entries last, so a Map insertion / re-insertion
- * naturally keeps the latest.
+ * Best-effort lookup of the conversation's workspace root from the persisted
+ * `extra.workspace` field. Defensive: tolerates a database that doesn't expose
+ * `getConversation` (e.g. trimmed mocks in unit tests) by returning undefined.
+ */
+function resolveConversationWorkspace(db: ReturnType<typeof getDatabase>, conversationId: string): string | undefined {
+  const candidate = db as unknown as { getConversation?: (id: string) => { success?: boolean; data?: { extra?: { workspace?: unknown } } } };
+  if (typeof candidate.getConversation !== 'function') return undefined;
+  try {
+    const result = candidate.getConversation(conversationId);
+    const workspace = result?.data?.extra?.workspace;
+    return typeof workspace === 'string' && workspace.length > 0 ? workspace : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Repair stale absolute paths recorded by older markers. When `entry.path` no
+ * longer exists on disk but the entry's `relativePath` resolves to an existing
+ * file under the current session workspace, return a copy with the corrected
+ * absolute path so the deliverable card stays clickable after a workspace move.
+ */
+function reconcileEntryPath(entry: GeneratedFileEntry, workspace: string | undefined): GeneratedFileEntry {
+  if (!workspace || !entry.relativePath) return entry;
+  try {
+    if (fs.existsSync(entry.path)) return entry;
+  } catch {
+    // fall through to attempt repair
+  }
+  const repaired = nodePath.resolve(workspace, entry.relativePath);
+  const relative = nodePath.relative(nodePath.resolve(workspace), repaired);
+  if (!relative || relative.startsWith('..') || nodePath.isAbsolute(relative)) return entry;
+  try {
+    if (!fs.existsSync(repaired)) return entry;
+  } catch {
+    return entry;
+  }
+  return { ...entry, path: repaired };
+}
+
+/**
+ * Latest-wins dedup, then sort by createdAt DESC. The chronological scan above
+ * pushes newest entries last, so a Map re-insertion keeps the latest. Dedup
+ * prefers `relativePath` (stable across workspace moves) and falls back to the
+ * absolute `path` when an entry has no relativePath.
  */
 function dedupeAndSort(entries: GeneratedFileEntry[]): GeneratedFileEntry[] {
-  const byPath = new Map<string, GeneratedFileEntry>();
+  const byKey = new Map<string, GeneratedFileEntry>();
   for (const entry of entries) {
-    byPath.set(entry.path, entry);
+    const key = entry.relativePath ?? entry.path;
+    byKey.set(key, entry);
   }
-  return [...byPath.values()].sort((a, b) => b.createdAt - a.createdAt);
+  return [...byKey.values()].sort((a, b) => b.createdAt - a.createdAt);
 }
 
 export const deliverablesService = new DeliverablesService();

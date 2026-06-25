@@ -6,7 +6,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import useSWR, { mutate } from 'swr';
-import type { AcpBackend, AcpBackendConfig, AcpModelInfo, AvailableAgent, EffectiveAgentInfo, PresetAgentType } from '../types';
 import { ipcBridge } from '@/common';
 import { resolvePreferredAcpModelId } from '@/common/acp/defaultModels';
 import { getPresetById } from '@/common/presets/presetResolver';
@@ -19,6 +18,7 @@ import { getAgentModes } from '@/renderer/utils/agentModes';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
 import { emitter } from '@/renderer/utils/emitter';
 import { EECLAW_AUTH_STORAGE_KEY } from '@/renderer/context/AuthContext';
+import type { AcpBackend, AcpBackendConfig, AcpModelInfo, AvailableAgent, EffectiveAgentInfo, PresetAgentType } from '../types';
 
 // Module-level cache for cross-component-tree synchronous access (e.g., useConversations)
 // 模块级缓存，供非 GuidPage 组件树（如 useConversations）同步读取
@@ -202,7 +202,7 @@ type UseGuidAgentSelectionOptions = {
 /**
  * Hook that manages agent selection, availability, and preset assistant logic.
  */
-export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assistantFromUrl }: UseGuidAgentSelectionOptions): GuidAgentSelectionResult => {
+export const useGuidAgentSelection = ({ localeKey, assistantFromUrl }: UseGuidAgentSelectionOptions): GuidAgentSelectionResult => {
   const { isEnterprise } = useAppMode();
 
   // Initial selected agent key: enterprise mode defaults to generic 'remote-agent'
@@ -550,7 +550,11 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
         return fetchAssistantsAsConfigs();
       }
     })();
-    Promise.all([assistantsPromise, ipcBridge.extensions.getAssistants.invoke().catch(() => [] as Record<string, unknown>[]), isEnterprise && sessionMode === 'remote' ? ipcBridge.eeclaw.getCloudAssistants.invoke().catch(() => ({ data: [] as CloudAssistant[] })) : Promise.resolve({ data: [] as CloudAssistant[] })])
+    Promise.all([
+      assistantsPromise,
+      ipcBridge.extensions.getAssistants.invoke().catch(() => [] as Record<string, unknown>[]),
+      isEnterprise && sessionMode === 'remote' ? ipcBridge.eeclaw.getCloudAssistants.invoke().catch(() => ({ data: [] as CloudAssistant[] })) : Promise.resolve({ data: [] as CloudAssistant[] }),
+    ])
       .then(([agents, extAssistants, cloudAssistantsResult]) => {
         if (!isActive) return;
         const cloudAssistants = Array.isArray(cloudAssistantsResult?.data) ? (cloudAssistantsResult.data as CloudAssistant[]) : [];
@@ -881,7 +885,7 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
           assistantId: customAgentId,
           locale: localeKey,
         });
-      } catch (_error) {
+      } catch {
         // skills may not exist, this is normal
       }
 
@@ -900,7 +904,7 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
           if (!skills && preset.skillFile) {
             try {
               skills = await ipcBridge.fs.readBuiltinSkill.invoke({ fileName: preset.skillFile });
-            } catch (_e) {
+            } catch {
               // skills fallback failure is ok
             }
           }

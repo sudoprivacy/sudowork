@@ -15,11 +15,11 @@
  * Action files: /safe/action/{uuid}
  */
 
-import type { SafetyStatus } from '@/common/safetyTypes';
+import type { ISafetyStatus } from '@common/types/security';
 import { ipcBridge } from '@/common';
-import { readEnabledState, writeEnabledState, ensureEnabledState, ensureSecurityHookDirs, listEventFilenames, readEventFile, writeActionFile, deleteEventFile, actionExists, readHookConfig, eventToSafetyStatus } from './SecurityHookFile';
-import { initBlacklist } from './SafetyBlacklistService';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
+import { writeEnabledState, ensureEnabledState, ensureSecurityHookDirs, listEventFilenames, readEventFile, writeActionFile, deleteEventFile, actionExists, readHookConfig, eventToSafetyStatus } from './SecurityHookFile';
+import { initBlacklist } from './SafetyBlacklistService';
 
 export interface SafetyPollingConfig {
   pollingIntervalMs: number;
@@ -38,8 +38,8 @@ export class SafetyPollingService {
 
   private interval: NodeJS.Timeout | null = null;
   private config: SafetyPollingConfig | null = null;
-  private currentStatus: SafetyStatus = { level: 'none' };
-  private eventListeners: Set<(status: SafetyStatus) => void> = new Set();
+  private currentStatus: ISafetyStatus = { level: 'none' };
+  private eventListeners: Set<(status: ISafetyStatus) => void> = new Set();
   private currentEventUuid: string | null = null;
   private currentEventFilename: string | null = null;
   private enabled: boolean = true;
@@ -231,7 +231,7 @@ export class SafetyPollingService {
   /**
    * Get current safety status
    */
-  getStatus(): SafetyStatus {
+  getStatus(): ISafetyStatus {
     return this.currentStatus;
   }
 
@@ -286,7 +286,7 @@ export class SafetyPollingService {
   /**
    * Subscribe to status changes
    */
-  onStatusChange(listener: (status: SafetyStatus) => void): () => void {
+  onStatusChange(listener: (status: ISafetyStatus) => void): () => void {
     this.eventListeners.add(listener);
     return () => {
       this.eventListeners.delete(listener);
@@ -296,7 +296,7 @@ export class SafetyPollingService {
   /**
    * Notify all listeners of status change
    */
-  private notifyListeners(status: SafetyStatus): void {
+  private notifyListeners(status: ISafetyStatus): void {
     this.eventListeners.forEach((listener) => {
       try {
         listener(status);

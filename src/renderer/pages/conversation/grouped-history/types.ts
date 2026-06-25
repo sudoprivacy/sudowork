@@ -5,6 +5,7 @@
  */
 
 import type { TChatConversation } from '@/common/storage';
+import type { CronJobStatusEnums } from '@/renderer/utils/enum';
 
 /**
  * Unified conversation type for sidebar rendering
@@ -73,7 +74,7 @@ export type ConversationRowProps = {
   onDelete: (conversation: ConversationItem) => void;
   onExport: (conversation: TChatConversation) => void;
   onTogglePin: (conversation: ConversationItem) => void;
-  getJobStatus: (conversationId: string) => 'none' | 'active' | 'paused' | 'error' | 'unread';
+  getJobStatus: (conversationId: string) => CronJobStatusEnums;
 };
 
 /**

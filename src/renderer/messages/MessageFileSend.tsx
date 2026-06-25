@@ -4,12 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Picture } from '@icon-park/react';
+import React, { useCallback } from 'react';
 import type { IMessageFileSend } from '@/common/chatLib';
 import type { PreviewContentType } from '@/common/types/preview';
 import { usePreviewLauncher } from '@/renderer/hooks/usePreviewLauncher';
 import { resolveFileIcon } from '@/renderer/utils/fileIcon';
-import { Picture } from '@icon-park/react';
-import React, { useCallback } from 'react';
 
 const FILE_TYPE_LABELS: Record<string, string> = {
   '.pdf': 'PDF 文档',

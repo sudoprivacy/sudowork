@@ -7,11 +7,11 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import SettingsPageWrapper from './components/SettingsPageWrapper';
 import { extensions as extensionsIpc, type IExtensionSettingsTab } from '@/common/ipcBridge';
 import { useExtI18n } from '@/renderer/hooks/useExtI18n';
 import WebviewHost from '@/renderer/components/WebviewHost';
 import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
+import PageWrapper from '@renderer/components/base/PageWrapper';
 
 const isExternalSettingsUrl = (url?: string): boolean => /^https?:\/\//i.test(url || '');
 
@@ -131,7 +131,7 @@ const ExtensionSettingsPage: React.FC = () => {
   }, [loading, postLocaleInit]);
 
   return (
-    <SettingsPageWrapper>
+    <PageWrapper>
       <div className='relative w-full h-full min-h-100'>
         {loading && !tab && (
           <div className='absolute inset-0 f-center text-secondary text-14px'>
@@ -176,7 +176,7 @@ const ExtensionSettingsPage: React.FC = () => {
             </>
           ))}
       </div>
-    </SettingsPageWrapper>
+    </PageWrapper>
   );
 };
 

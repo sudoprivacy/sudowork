@@ -4,12 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { CUSTOM_AVATAR_IMAGE_MAP } from '../constants';
-import type { AcpBackendConfig, AvailableAgent } from '../types';
 import { IconClose } from '@arco-design/web-react/icon';
 import { Robot } from '@icon-park/react';
 import React from 'react';
 import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
+import type { AcpBackendConfig, AvailableAgent } from '../types';
+import { CUSTOM_AVATAR_IMAGE_MAP } from '../constants';
 import styles from '../index.module.css';
 
 type PresetAgentTagProps = {

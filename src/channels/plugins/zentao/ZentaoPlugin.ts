@@ -5,7 +5,7 @@
  */
 
 import { BasePlugin } from '../BasePlugin';
-import type { IChannelPluginConfig, IUnifiedIncomingMessage, IUnifiedOutgoingMessage, PluginType } from '../../types';
+import type { IChannelPluginConfig, IUnifiedOutgoingMessage, PluginType } from '../../types';
 
 export class ZentaoPlugin extends BasePlugin {
   readonly type: PluginType = 'zentao';

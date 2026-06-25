@@ -98,7 +98,7 @@ export interface AionModalProps extends Omit<ModalProps, 'title' | 'footer'> {
 
 const HEADER_BASE_CLASS = 'flex items-center justify-between pb-20px';
 const TITLE_BASE_CLASS = 'text-18px font-500 text-foreground m-0';
-const CLOSE_BUTTON_CLASS = 'w-32px h-32px flex items-center justify-center rd-8px transition-colors duration-200 cursor-pointer border-0 bg-transparent p-0 hover:bg-2 focus:outline-none';
+const CLOSE_BUTTON_CLASS = 'w-32px h-32px f-center rd-8px transition-colors duration-200 cursor-pointer border-0 bg-transparent p-0 hover:bg-2 focus:outline-none';
 const FOOTER_BASE_CLASS = 'flex-shrink-0 bg-transparent';
 
 /**
@@ -338,7 +338,11 @@ const AionModal: React.FC<AionModalProps> = ({
 
     return (
       <div className={headerClassName} style={headerStyle}>
-        {headerConfig.title && <h3 className={TITLE_BASE_CLASS} id='aion-modal-title'>{headerConfig.title}</h3>}
+        {headerConfig.title && (
+          <h3 className={TITLE_BASE_CLASS} id='sudowork-modal-title'>
+            {headerConfig.title}
+          </h3>
+        )}
         {headerConfig.showClose && (
           <button onClick={onCancel} className={CLOSE_BUTTON_CLASS} aria-label={headerConfig.closeIcon ? t('common.ariaLabel.close') : t('common.ariaLabel.close')}>
             {headerConfig.closeIcon || <Close size={20} fill='#86909c' />}
@@ -367,20 +371,10 @@ const AionModal: React.FC<AionModalProps> = ({
   };
 
   return (
-    <Modal
-      {...props}
-      title={null}
-      closable={false}
-      footer={null}
-      escToExit={escToExitProp}
-      onCancel={onCancel}
-      className={`aionui-modal ${className}`}
-      style={finalStyle}
-      getPopupContainer={() => document.body}
-    >
-      <div className='aionui-modal-wrapper' style={{ borderRadius: borderRadiusVal }} role='dialog' aria-modal='true' aria-labelledby={headerConfig.title ? 'aion-modal-title' : undefined}>
+    <Modal {...props} title={null} closable={false} footer={null} escToExit={escToExitProp} onCancel={onCancel} className={`sudowork-modal ${className}`} style={finalStyle} getPopupContainer={() => document.body}>
+      <div className='sudowork-modal-wrapper' style={{ borderRadius: borderRadiusVal }} role='dialog' aria-modal='true' aria-labelledby={headerConfig.title ? 'sudowork-modal-title' : undefined}>
         {renderHeader()}
-        <div className='aionui-modal-body-content' style={bodyInlineStyle}>
+        <div className='sudowork-modal-body-content' style={bodyInlineStyle}>
           {children}
         </div>
         {renderFooter()}

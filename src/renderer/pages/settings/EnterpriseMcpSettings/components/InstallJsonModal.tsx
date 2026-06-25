@@ -99,7 +99,17 @@ const InstallJsonModal: React.FC<InstallJsonModalProps> = ({ visible, onCancel, 
   const canSubmit = !loading;
 
   return (
-    <AionModal visible={visible} onCancel={onCancel} onOk={handleSubmit} okText='安装' cancelText='取消' okButtonProps={{ disabled: !canSubmit, loading }} header={{ title: t('settings.mcpInstallJsonTitle', { defaultValue: '安装 MCP' }), showClose: true }} style={{ width: 600, height: 520 }} contentStyle={{ borderRadius: 16, padding: '24px', background: 'var(--bg-1)', overflow: 'auto', height: 490 - 80 }}>
+    <AionModal
+      visible={visible}
+      onCancel={onCancel}
+      onOk={handleSubmit}
+      okText='安装'
+      cancelText='取消'
+      okButtonProps={{ disabled: !canSubmit, loading }}
+      header={{ title: t('settings.mcpInstallJsonTitle', { defaultValue: '安装 MCP' }), showClose: true }}
+      style={{ width: 600, height: 520 }}
+      contentStyle={{ borderRadius: 16, padding: '24px', background: 'var(--bg-1)', overflow: 'auto', height: 490 - 80 }}
+    >
       <div className='space-y-3'>
         {/* 名称输入框 */}
         <div>

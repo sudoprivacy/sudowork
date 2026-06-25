@@ -14,7 +14,7 @@ describe('extensions/entryPointResolver', () => {
   let extensionDir = '';
 
   beforeEach(async () => {
-    extensionDir = await fs.mkdtemp(path.join(os.tmpdir(), 'aionui-ext-entry-resolver-'));
+    extensionDir = await fs.mkdtemp(path.join(os.tmpdir(), 'sudowork-ext-entry-resolver-'));
   });
 
   afterEach(async () => {

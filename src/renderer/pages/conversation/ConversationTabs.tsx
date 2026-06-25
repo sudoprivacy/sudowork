@@ -4,23 +4,22 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
-import { CUSTOM_AVATAR_IMAGE_MAP } from '@/renderer/pages/guid/constants';
-import { getAgentLogo } from '@/renderer/utils/agentLogo';
-import { emitter } from '@/renderer/utils/emitter';
-import { cleanupSiderTooltips } from '@/renderer/utils/siderTooltip';
-import { updateWorkspaceTime } from '@/renderer/utils/workspaceHistory';
 import { Dropdown, Menu, Message } from '@arco-design/web-react';
 import { Close, Plus, Robot } from '@icon-park/react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { useConversationTabs } from './context/ConversationTabsContext';
-import { useConversationAgents } from './hooks/useConversationAgents';
-import { applyDefaultConversationName } from './utils/newConversationName';
-import { buildCliAgentParams, buildPresetAssistantParams } from './utils/createConversationParams';
-import { useLayoutContext } from '@/renderer/context/LayoutContext';
+import { updateWorkspaceTime } from '@/renderer/utils/workspaceHistory';
+import { cleanupSiderTooltips } from '@/renderer/utils/siderTooltip';
+import { emitter } from '@/renderer/utils/emitter';
+import { getAgentLogo } from '@/renderer/utils/agentLogo';
+import { CUSTOM_AVATAR_IMAGE_MAP } from '@/renderer/pages/guid/constants';
+import { ipcBridge } from '@/common';
 import { formatSessionTime } from '@/renderer/utils/messageTime';
+import { buildCliAgentParams, buildPresetAssistantParams } from './utils/createConversationParams';
+import { applyDefaultConversationName } from './utils/newConversationName';
+import { useConversationAgents } from './hooks/useConversationAgents';
+import { useConversationTabs } from './context/ConversationTabsContext';
 
 const TAB_OVERFLOW_THRESHOLD = 10;
 
@@ -33,19 +32,18 @@ interface ConversationTabViewProps {
   tabId: string;
   tabName: string;
   isActive: boolean;
-  isMobile: boolean;
   contextMenu: React.ReactNode;
   timeLabel?: string;
   onSwitch: (tabId: string) => void;
   onClose: (tabId: string) => void;
 }
 
-const ConversationTabView: React.FC<ConversationTabViewProps> = ({ tabId, tabName, isActive, isMobile, contextMenu, timeLabel, onSwitch, onClose }) => {
+const ConversationTabView: React.FC<ConversationTabViewProps> = ({ tabId, tabName, isActive, contextMenu, timeLabel, onSwitch, onClose }) => {
   const tabClassName = `flex items-center gap-8px px-12px h-full max-w-240px cursor-pointer transition-all duration-200 shrink-0 border-r border-[color:var(--border-default)] ${isActive ? 'bg-1 text-[color:var(--color-text-1)] font-medium' : 'bg-2 text-[color:var(--color-text-3)] hover:text-[color:var(--color-text-2)] border-b border-[color:var(--border-default)]'}`;
 
   return (
     <Dropdown droplist={contextMenu} trigger='contextMenu' position='bl'>
-      <div className={tabClassName} style={{ borderRight: '1px solid var(--border-default)' }} onClick={() => onSwitch(tabId)} title={isMobile ? undefined : tabName}>
+      <div className={tabClassName} style={{ borderRight: '1px solid var(--border-default)' }} onClick={() => onSwitch(tabId)} title={tabName}>
         <span className='text-15px whitespace-nowrap overflow-hidden text-ellipsis select-none flex-1'>{tabName}</span>
         {timeLabel && <span className='text-11px text-[color:var(--color-text-4)] whitespace-nowrap shrink-0'>{timeLabel}</span>}
         <Close
@@ -85,8 +83,6 @@ const CreateConversationTrigger: React.FC<CreateConversationTriggerProps> = ({ d
  * Displays all open conversation tabs, supports switching, closing, and creating new conversations
  */
 const ConversationTabs: React.FC = () => {
-  const layout = useLayoutContext();
-  const isMobile = layout?.isMobile ?? false;
   const { openTabs, activeTabId, switchTab, closeTab, closeAllTabs, closeTabsToLeft, closeTabsToRight, closeOtherTabs, openTab } = useConversationTabs();
   const navigate = useNavigate();
   const { t, i18n } = useTranslation();
@@ -334,7 +330,6 @@ const ConversationTabs: React.FC = () => {
               tabId: tab.id,
               tabName: tab.name,
               isActive: tab.id === activeTabId,
-              isMobile,
               contextMenu: getContextMenu(tab.id),
               timeLabel: tabTimeLabel,
               onSwitch: handleSwitchTab,

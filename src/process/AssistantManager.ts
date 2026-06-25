@@ -15,7 +15,7 @@ import { mainLog, mainWarn, mainError } from './utils/mainLogger';
 import type { IAssistantMeta } from './constants/assistantStorage';
 import { getEnterpriseTenantAssistantsDir } from './constants/enterpriseStorage';
 import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
-import { SUDOWORK_SERVER_BASE_URL } from '@/common/sudoworkServer';
+import { getSudoworkServerBaseUrlSync } from './initStorage';
 
 export type AssistantCategory = 'custom' | 'hub' | 'system' | 'tenant';
 
@@ -235,7 +235,7 @@ export class AssistantManager {
 
     let visibleMap: Map<string, IAssistantEnhancement> | null = null;
     try {
-      const resp = await fetch(`${SUDOWORK_SERVER_BASE_URL}/api/v1/agents/visible`, {
+      const resp = await fetch(`${getSudoworkServerBaseUrlSync()}/api/v1/agents/visible`, {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);

@@ -278,8 +278,8 @@ const WebviewHost: React.FC<WebviewHostProps> = ({ url, id: _id, showNavBar = fa
           .executeJavaScript(
             `
           (function() {
-            if (window.__aionuiZoomInjected) return true;
-            window.__aionuiZoomInjected = true;
+            if (window.__sudoworkZoomInjected) return true;
+            window.__sudoworkZoomInjected = true;
             window.addEventListener('wheel', function(e) {
               if (!(e.ctrlKey || e.metaKey)) return;
               e.preventDefault();
@@ -610,7 +610,7 @@ const WebviewHost: React.FC<WebviewHostProps> = ({ url, id: _id, showNavBar = fa
       )}
       {/* Navigation bar (optional) */}
       {showNavBar && (
-        <div className='aion-url-viewer-toolbar relative z-10 flex items-center gap-6px h-40px px-10px bg-bg-2 border-b flex-shrink-0'>
+        <div className='aion-url-viewer-toolbar relative z-10 flex items-center gap-6px h-40px px-10px border-b flex-shrink-0'>
           <button onClick={handleGoBack} disabled={!canGoBack} className='toolbar-btn icon-btn' aria-label={t('conversation.rightPanel.browser.back')}>
             <Left theme='outline' size={16} />
           </button>
@@ -639,13 +639,13 @@ const WebviewHost: React.FC<WebviewHostProps> = ({ url, id: _id, showNavBar = fa
 
       {/* Loading indicator (when no nav bar) */}
       {!showNavBar && isLoading && (
-        <div className='absolute inset-0 flex items-center justify-center text-secondary text-14px z-10 pointer-events-none'>
+        <div className='absolute inset-0 f-center text-secondary text-14px z-10 pointer-events-none'>
           <span className='animate-pulse'>{t('conversation.rightPanel.browser.loading')}</span>
         </div>
       )}
 
       {/* Webview content area */}
-      <div ref={contentRef} className='relative z-0 flex-1 min-h-0 overflow-hidden' style={{ minHeight: 0 }} onWheel={handleOuterWheelZoom}>
+      <div ref={contentRef} className='relative z-0 flex-1 min-h-0 overflow-hidden bg-white' style={{ minHeight: 0 }} onWheel={handleOuterWheelZoom}>
         <webview
           ref={webviewRef as any}
           src={currentUrl}

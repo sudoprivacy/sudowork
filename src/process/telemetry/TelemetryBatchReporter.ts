@@ -17,14 +17,16 @@
 import { app } from 'electron';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { ProcessConfig } from '../initStorage';
+import { ProcessConfig, getSudoworkServerBaseUrlSync } from '../initStorage';
 import { buildVersion } from '../../common/buildInfo';
 import type { TelemetryEvent, TelemetryBatchRequest, TelemetryBatchResponse, TelemetryConfig, StoredTelemetryEvent, PerfTelemetryEvent, ConversationTelemetryEvent, InstallTelemetryEvent, TurnTelemetryEvent, StepTelemetryEvent, PerfData, ConversationData, InstallData, TurnData, StepData } from '../../shared/types/telemetry';
 import { mapElectronArch, DEFAULT_TELEMETRY_CONFIG } from '../../shared/types/telemetry';
 import { mainLog, mainWarn, mainError } from '../utils/mainLogger';
+import { getProductImprovementApiKey } from '../credentialsCache';
 import { getTelemetryEncryptor, initTelemetryEncryptor, isEncryptionAvailable } from './TelemetryEncryptor';
 import { ENCRYPTION_CONFIG } from './keys';
 import { getUserContextSync } from './UserContext';
+import { isProductImprovementEnabled } from '@/common/systemConfig';
 
 // ============================================================
 // 类型定义
@@ -43,9 +45,6 @@ interface TelemetryEventPayloadMap {
 // ============================================================
 // 常量定义
 // ============================================================
-
-/** sudowork-qms API Key - 用于认证上报请求 */
-const API_KEY = 'sk-8f3a2b1c9d5e7f6a4b3c2d1e8f9a0b7c';
 
 /** 本地存储文件名 */
 const STORAGE_FILE_NAME = 'telemetry-cache.json';
@@ -188,7 +187,7 @@ export class TelemetryBatchReporter {
    * @param agentType - Agent 类型 (sudocode, claude 等)
    */
   public record<K extends TelemetryEventType>(type: K, data: TelemetryEventPayloadMap[K], agentType?: string): void {
-    if (!isPersonalMode() || !this.enabled || !this.initialized) {
+    if (!isPersonalMode() || !isProductImprovementEnabled() || !this.enabled || !this.initialized) {
       return;
     }
 
@@ -226,7 +225,7 @@ export class TelemetryBatchReporter {
    * 用于应用退出前上报剩余事件
    */
   public async flushAll(): Promise<void> {
-    if (!isPersonalMode()) {
+    if (!isPersonalMode() || !isProductImprovementEnabled()) {
       this.eventQueue = [];
       await this.clearCacheFile();
       return;
@@ -339,7 +338,7 @@ export class TelemetryBatchReporter {
 
   /** 执行批量上报 */
   private async flush(): Promise<void> {
-    if (!isPersonalMode()) {
+    if (!isPersonalMode() || !isProductImprovementEnabled()) {
       this.eventQueue = [];
       await this.clearCacheFile();
       return;
@@ -447,14 +446,22 @@ export class TelemetryBatchReporter {
 
   /** 发送批量请求 */
   private async sendBatch(request: TelemetryBatchRequest): Promise<TelemetryBatchResponse> {
-    const url = this.config.serverUrl!;
+    // 现读：用户自定义 telemetry.serverUrl 优先；否则用现读的 sudowork-server baseUrl 派生
+    const customServerUrl = await ProcessConfig.get('telemetry.serverUrl').catch(() => undefined as unknown as string | undefined);
+    const url = customServerUrl || `${getSudoworkServerBaseUrlSync()}/api/v1/telemetry/batch`;
     const encryptor = getTelemetryEncryptor();
 
     try {
+      const apiKey = getProductImprovementApiKey();
+      if (!apiKey) {
+        // D8: product_improvement api_key not provisioned — skip upload.
+        mainError('Telemetry', 'product_improvement api_key not provisioned, skip sendBatch');
+        return { success: false, received: 0, error: 'product_improvement api_key missing' };
+      }
       let body: string;
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
-        'X-API-Key': API_KEY,
+        'X-API-Key': apiKey,
       };
 
       // 如果加密器可用，使用加密请求

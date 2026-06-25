@@ -20,7 +20,7 @@ import { mainLog, mainError } from '../utils/mainLogger';
 export function initApplicationBridge(): void {
   ipcBridge.application.restart.provider(() => {
     // 清理所有工作进程
-    WorkerManage.clear();
+    void WorkerManage.clear();
     // 重启应用 - 使用标准的 Electron 重启方式
     app.relaunch();
     app.exit(0);

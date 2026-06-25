@@ -4,16 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
-import ActionChip from '@/renderer/components/ui/ActionChip';
-import { getAgentModes, supportsModeSwitch, type AgentModeOption } from '@/renderer/utils/agentModes';
-import { useLayoutContext } from '@/renderer/context/LayoutContext';
-import { getAgentLogo } from '@/renderer/utils/agentLogo';
 import { Dropdown, Message, Tooltip } from '@arco-design/web-react';
 import { Down, Robot } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { forwardRef, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { ipcBridge } from '@/common';
+import ActionChip from '@/renderer/components/ui/ActionChip';
+import { getAgentModes, supportsModeSwitch, type AgentModeOption } from '@/renderer/utils/agentModes';
+import { getAgentLogo } from '@/renderer/utils/agentLogo';
 
 /**
  * Walk up the DOM tree to find the nearest ancestor that clips overflow.
@@ -67,8 +66,6 @@ export interface AgentModeSelectorProps {
   modeLabelFormatter?: (mode: AgentModeOption) => string;
   /** Optional compact prefix text, e.g. "Permission" / "权限" */
   compactLabelPrefix?: string;
-  /** Hide compact prefix on mobile */
-  hideCompactLabelPrefixOnMobile?: boolean;
 }
 
 /**
@@ -78,10 +75,8 @@ export interface AgentModeSelectorProps {
  * 代理模式选择器 - 用于切换代理模式的下拉组件
  * 显示代理 logo 和名称，通过下拉菜单选择模式
  */
-const AgentModeSelector: React.FC<AgentModeSelectorProps> = ({ backend, agentName, agentLogo, agentLogoIsEmoji, conversationId, compact, showLogoInCompact = false, compactLabelType = 'mode', initialMode, onModeSelect, compactLabelOverride, compactLeadingIcon, modeLabelFormatter, compactLabelPrefix, hideCompactLabelPrefixOnMobile = false }) => {
+const AgentModeSelector: React.FC<AgentModeSelectorProps> = ({ backend, agentName, agentLogo, agentLogoIsEmoji, conversationId, compact, showLogoInCompact = false, compactLabelType = 'mode', initialMode, onModeSelect, compactLabelOverride, compactLeadingIcon, modeLabelFormatter, compactLabelPrefix }) => {
   const { t } = useTranslation();
-  const layout = useLayoutContext();
-  const isMobile = Boolean(layout?.isMobile);
   const modes = getAgentModes(backend);
   const defaultMode = modes[0]?.value ?? 'default';
   // Validate initialMode against available modes; fall back to backend's default
@@ -218,7 +213,7 @@ const AgentModeSelector: React.FC<AgentModeSelectorProps> = ({ backend, agentNam
   if (compact) {
     const legacyCompactBehavior = !showLogoInCompact && compactLabelType === 'mode';
     const baseCompactLabel = compactLabelType === 'agent' ? agentName || backend || 'Agent' : canSwitchMode ? getCurrentModeLabel() : agentName || backend || 'Agent';
-    const compactLabel = compactLabelOverride || (compactLabelPrefix && compactLabelType !== 'agent' ? (hideCompactLabelPrefixOnMobile && isMobile ? baseCompactLabel : `${compactLabelPrefix} · ${baseCompactLabel}`) : baseCompactLabel);
+    const compactLabel = compactLabelOverride || (compactLabelPrefix && compactLabelType !== 'agent' ? `${compactLabelPrefix} · ${baseCompactLabel}` : baseCompactLabel);
     if (!canInteract && legacyCompactBehavior) {
       return null;
     }
@@ -403,7 +398,7 @@ const AgentModePill = forwardRef<HTMLDivElement, AgentModePillProps>(function Ag
       <span className='shrink-0 inline-flex items-center'>{renderLogo()}</span>
       {!hideText && (
         <>
-          <span className='text-sm text-foreground whitespace-nowrap'>{displayName}</span>
+          <span className='text-sm whitespace-nowrap'>{displayName}</span>
           {canSwitchMode && modeSuffix && <span className='text-xs text-tertiary whitespace-nowrap'>({modeSuffix})</span>}
         </>
       )}

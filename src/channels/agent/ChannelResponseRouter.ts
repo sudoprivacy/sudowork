@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { channelEventBus } from './ChannelEventBus';
-import { getChannelManager } from '../core/ChannelManager';
 import { mainLog, mainWarn } from '@process/utils/mainLogger';
 import type { TChatConversation } from '@/common/storage';
+import { getChannelManager } from '../core/ChannelManager';
+import { channelEventBus } from './ChannelEventBus';
 
 /** Channel source types that need response routing */
 export const CHANNEL_SOURCE_TYPES = new Set(['telegram', 'lark', 'dingtalk', 'wechat', 'wecom']);
@@ -119,10 +119,14 @@ export function setupChannelResponseRouting(conversation: TChatConversation): ()
             // DingTalk AI Card: finalize to remove loading indicator
             // Strip local image markdown from text to prevent editMessage from re-extracting and re-sending images
             if (channelSource === 'dingtalk' && msgId) {
-              const cleanForEdit = accumulatedText.trim().replace(/!\[[^\]]*\]\(([^)]+)\)/g, (match, imgPath: string) => {
-                if (/^(https?:|data:|file:)/i.test(imgPath)) return match;
-                return '';
-              }).replace(/\n{3,}/g, '\n\n').trim();
+              const cleanForEdit = accumulatedText
+                .trim()
+                .replace(/!\[[^\]]*\]\(([^)]+)\)/g, (match, imgPath: string) => {
+                  if (/^(https?:|data:|file:)/i.test(imgPath)) return match;
+                  return '';
+                })
+                .replace(/\n{3,}/g, '\n\n')
+                .trim();
               await plugin.editMessage(channelChatId, msgId, { type: 'text', text: cleanForEdit, parseMode: 'HTML', replyMarkup: {} as any });
             }
           }

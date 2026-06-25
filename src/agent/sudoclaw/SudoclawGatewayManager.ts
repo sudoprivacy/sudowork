@@ -6,13 +6,13 @@
 
 import { execFile, spawn, type ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
-import { getEnhancedEnv } from '@process/utils/shellEnv';
 import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { getNodeBinaryPath } from '@process/services/claudeCli/NodeRuntimeService';
 import { app } from 'electron';
+import { getNodeBinaryPath } from '@process/services/claudeCli/NodeRuntimeService';
+import { getEnhancedEnv } from '@process/utils/shellEnv';
 import { mainError, mainLog, mainWarn } from '@process/utils/mainLogger';
 
 interface GatewayManagerConfig {

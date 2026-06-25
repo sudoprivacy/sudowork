@@ -1351,6 +1351,23 @@ const migration_v22: IMigration = {
 };
 
 /**
+ * Migration v22 -> v23: Rename conversation source 'aionui' to 'sudowork'
+ * Part of the product rename from AionUI to Sudowork.
+ */
+const migration_v23: IMigration = {
+  version: 23,
+  name: "Rename conversation source 'aionui' to 'sudowork'",
+  up: (db) => {
+    db.exec(`UPDATE conversations SET source = 'sudowork' WHERE source = 'aionui';`);
+    mainLog('Migration v23', "Renamed conversation source 'aionui' to 'sudowork'");
+  },
+  down: (db) => {
+    db.exec(`UPDATE conversations SET source = 'aionui' WHERE source = 'sudowork';`);
+    mainLog('Migration v23', "Rolled back: Renamed conversation source 'sudowork' to 'aionui'");
+  },
+};
+
+/**
  * All migrations in order
  */
 // prettier-ignore
@@ -1358,7 +1375,7 @@ export const ALL_MIGRATIONS: IMigration[] = [
   migration_v1, migration_v2, migration_v3, migration_v4, migration_v5, migration_v6,
   migration_v7, migration_v8, migration_v9, migration_v10, migration_v11, migration_v12,
   migration_v13, migration_v14, migration_v15, migration_v16, migration_v17, migration_v18,
-  migration_v19, migration_v20, migration_v21, migration_v22,
+  migration_v19, migration_v20, migration_v21, migration_v22, migration_v23,
 ];
 
 /**

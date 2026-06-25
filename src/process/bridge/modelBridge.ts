@@ -65,7 +65,7 @@ async function fetchOpenAICompatibleModels(baseUrl: string, apiKey: string): Pro
     headers: {
       Accept: 'application/json',
       Authorization: `Bearer ${apiKey}`,
-      'User-Agent': 'AionUI/1.0',
+      'User-Agent': 'Sudowork/1.0',
     },
     signal: AbortSignal.timeout(15000),
   });

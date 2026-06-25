@@ -30,7 +30,7 @@ export function subscribeMcpEvents(client: EnterpriseMcpClient, opts: SubscribeO
     if (closed) return;
     try {
       es = await client.openEventStream('/api/v1/mcp/events');
-    } catch (err) {
+    } catch {
       scheduleReconnect();
       return;
     }

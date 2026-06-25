@@ -23,7 +23,7 @@ afterEach(() => {
 
 describe('extensions/statePersistence', () => {
   it('reads and writes extension states from NEXUS_EXTENSION_STATES_FILE when provided', () => {
-    const sandbox = createTempDir('aionui-state-');
+    const sandbox = createTempDir('sudowork-state-');
     const statesFile = path.join(sandbox, 'isolated', 'extension-states.json');
     process.env.NEXUS_EXTENSION_STATES_FILE = statesFile;
 

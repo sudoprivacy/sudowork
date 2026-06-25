@@ -735,7 +735,8 @@
     "todayUsage": "今日使用",
     "tokens": "Tokens",
     "consumedPoints": "消耗積分",
-    "requests": "請求數"
+    "requests": "請求數",
+    "changePassword": "修改密碼"
   },
   "extensionAssistantReadonly": "擴展助手為唯讀，你可以複製它並編輯副本。",
   "secrets": "金鑰管理",
@@ -761,5 +762,23 @@
   "secrets.refreshFailed": "Failed to refresh config items",
   "secrets.tenantSaveSuccess": "Configuration saved successfully",
   "secrets.tenantSaveFailed": "Failed to save configuration",
-  "secrets.tenantFieldRequired": "Please fill in all configuration items"
+  "secrets.tenantFieldRequired": "Please fill in all configuration items",
+  "changePassword": {
+    "title": "修改密碼",
+    "oldPasswordLabel": "原始密碼",
+    "oldPasswordPlaceholder": "請輸入原始密碼",
+    "newPasswordLabel": "新密碼",
+    "newPasswordPlaceholder": "8-20 位，含大寫、小寫、數字",
+    "ruleHint": "8-20 位，需同時包含大寫字母、小寫字母和數字。",
+    "cancel": "取消",
+    "confirm": "確認修改",
+    "oldPasswordRequired": "請輸入原始密碼",
+    "newPasswordRequired": "請輸入新密碼",
+    "success": "密碼修改成功"
+  },
+  "exportLogs": "匯出日誌",
+  "exportLogsDesc": "將全部 sudowork 與 scode 日誌打包為一個 zip 檔案。",
+  "exportLogsSuccess": "日誌匯出成功",
+  "exportLogsFailed": "日誌匯出失敗",
+  "exportLogsEmpty": "沒有可匯出的日誌"
 }

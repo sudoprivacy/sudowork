@@ -4,6 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Checkbox, Input, Message, Modal, Tooltip, Tree } from '@arco-design/web-react';
+import type { RefInputType } from '@arco-design/web-react/es/Input/interface';
+import { Cloudy, DownSmall, FileText, FolderOpen, Magic, Refresh, Search } from '@icon-park/react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import { ipcBridge } from '@/common';
 import type { IDirOrFile } from '@/common/ipcBridge';
 import { DRAFTS_DIR_NAME, isReservedDraftsDirName } from '@/common/constants';
@@ -11,35 +18,27 @@ import { STORAGE_KEYS } from '@/common/storageKeys';
 import { showShareLoading, updateShareSuccess, updateShareError } from '@/renderer/utils/shareNotify';
 import FlexFullContainer from '@/renderer/components/FlexFullContainer';
 import EmptyState from '@/renderer/components/base/EmptyState';
-import { useLayoutContext } from '@/renderer/context/LayoutContext';
 import useDebounce from '@/renderer/hooks/useDebounce';
 import { usePreviewContext } from '@/renderer/pages/conversation/preview';
 import { emitter } from '@/renderer/utils/emitter';
 import { isElectronDesktop } from '@/renderer/utils/platform';
 import { getLastDirectoryName, isTemporaryWorkspace as checkIsTemporaryWorkspace, isChannelWorkspace as checkIsChannelWorkspace, getWorkspaceDisplayName as getDisplayName } from '@/renderer/utils/workspace';
-import { Checkbox, Input, Message, Modal, Tooltip, Tree } from '@arco-design/web-react';
-import type { RefInputType } from '@arco-design/web-react/es/Input/interface';
-import { Cloudy, DownSmall, FileText, FolderOpen, Magic, Refresh, Search } from '@icon-park/react';
 import { resolveFileIcon } from '@/renderer/utils/fileIcon';
-import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
-import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
 import DirectorySelectionModal from '@/renderer/components/DirectorySelectionModal';
 import BdpanDirPicker from '@/renderer/components/BdpanDirPicker';
 import { uuid } from '@/common/utils';
-import { useWorkspaceEvents } from './hooks/useWorkspaceEvents';
-import { useWorkspaceFileOps } from './hooks/useWorkspaceFileOps';
-import { useWorkspaceModals } from './hooks/useWorkspaceModals';
-import { useWorkspacePaste } from './hooks/useWorkspacePaste';
-import { useWorkspaceTree } from './hooks/useWorkspaceTree';
+import { extractNodeData, extractNodeKey, findNodeByKey, getTargetFolderPath, sortTreeNodes, updateTreeNodeChildren } from './utils/treeHelpers';
+import type { WorkspaceProps } from './types';
+import { resolveWorkspaceSkillRoot } from './skillRoots';
+import WorkspaceSkills, { type WorkspaceSkillsHandle } from './WorkspaceSkills';
 import { useWorkspaceDragImport } from './hooks/useWorkspaceDragImport';
+import { useWorkspaceTree } from './hooks/useWorkspaceTree';
+import { useWorkspacePaste } from './hooks/useWorkspacePaste';
+import { useWorkspaceModals } from './hooks/useWorkspaceModals';
+import { useWorkspaceFileOps } from './hooks/useWorkspaceFileOps';
+import { useWorkspaceEvents } from './hooks/useWorkspaceEvents';
 // TaskPanel temporarily hidden per product feedback — see commit 9420ab13.
 // import TaskPanel from './TaskPanel';
-import WorkspaceSkills, { type WorkspaceSkillsHandle } from './WorkspaceSkills';
-import { resolveWorkspaceSkillRoot } from './skillRoots';
-import type { WorkspaceProps } from './types';
-import { extractNodeData, extractNodeKey, findNodeByKey, getTargetFolderPath, sortTreeNodes, updateTreeNodeChildren } from './utils/treeHelpers';
 import './workspace-card.css';
 
 const WORKSPACE_FOLDER_ICON_COLOR = '#f59e0b';
@@ -55,28 +54,8 @@ function resolveWorkspaceFileIcon(fileName: string): React.ReactNode | null {
   return resolveFileIcon(fileName, { size: 16, theme: 'outline' });
 }
 
-const ChangeWorkspaceIcon: React.FC<React.SVGProps<SVGSVGElement>> = ({ className, ...rest }) => {
-  const clipPathId = useId();
-  return (
-    <svg className={className} viewBox='0 0 24 24' role='img' aria-hidden='true' focusable='false' {...rest}>
-      <rect width='24' height='24' rx='2' fill='var(--workspace-btn-bg, var(--color-bg-1))' />
-      <g clipPath={`url(#${clipPathId})`}>
-        <path fillRule='evenodd' clipRule='evenodd' d='M10.8215 8.66602L9.15482 6.99935H5.33333V16.9993H18.6667V8.66602H10.8215ZM4.5 6.99935C4.5 6.53912 4.8731 6.16602 5.33333 6.16602H9.15482C9.37583 6.16602 9.5878 6.25382 9.74407 6.41009L11.1667 7.83268H18.6667C19.1269 7.83268 19.5 8.20578 19.5 8.66602V16.9993C19.5 17.4596 19.1269 17.8327 18.6667 17.8327H5.33333C4.8731 17.8327 4.5 17.4596 4.5 16.9993V6.99935Z' fill='var(--color-text-3, var(--text-secondary))' />
-        <path d='M13.0775 12.4158L12.1221 11.4603L12.7113 10.8711L14.6726 12.8324L12.7113 14.7937L12.1221 14.2044L13.0774 13.2491H9.5V12.4158H13.0775Z' fill='var(--color-text-3, var(--text-secondary))' />
-      </g>
-      <defs>
-        <clipPath id={clipPathId}>
-          <rect width='20' height='20' fill='transparent' transform='translate(2 2)' />
-        </clipPath>
-      </defs>
-    </svg>
-  );
-};
-
 const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, eventPrefix = 'acp', backend, dataSource = 'local', readonly = false, messageApi: externalMessageApi, workspaceDisplayName: storedDisplayName }) => {
   const { t } = useTranslation();
-  const layout = useLayoutContext();
-  const isMobile = layout?.isMobile ?? false;
   const { openPreview } = usePreviewContext();
   const navigate = useNavigate();
 
@@ -145,7 +124,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
           return;
         }
 
-        const skillRoot = resolveWorkspaceSkillRoot(workspace, eventPrefix, backend);
+        const skillRoot = resolveWorkspaceSkillRoot(workspace, backend);
         const result = await ipcBridge.fs.scanForSkills.invoke({ folderPath: skillRoot.path }).catch((): undefined => undefined);
         if (cancelled) return;
         setSkillCount(result?.success ? result.data.length : 0);
@@ -884,7 +863,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
         }
       >
         {!readonly && dragImportHook.isDragging && (
-          <div className='absolute inset-0 pointer-events-none z-30 flex items-center justify-center px-32px'>
+          <div className='absolute inset-0 pointer-events-none z-30 f-center px-32px'>
             <div
               className='w-full max-w-480px text-center text-white rounded-16px px-32px py-28px'
               style={{
@@ -1021,14 +1000,37 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
 
         {/* Rename Modal */}
         {!readonly && (
-          <Modal visible={modalsHook.renameModal.visible} title={t('conversation.workspace.contextMenu.renameTitle')} onCancel={modalsHook.closeRenameModal} onOk={fileOpsHook.handleRenameConfirm} okText={t('common.confirm')} cancelText={t('common.cancel')} confirmLoading={modalsHook.renameLoading} style={{ borderRadius: '12px' }} alignCenter getPopupContainer={() => document.body}>
+          <Modal
+            visible={modalsHook.renameModal.visible}
+            title={t('conversation.workspace.contextMenu.renameTitle')}
+            onCancel={modalsHook.closeRenameModal}
+            onOk={fileOpsHook.handleRenameConfirm}
+            okText={t('common.confirm')}
+            cancelText={t('common.cancel')}
+            confirmLoading={modalsHook.renameLoading}
+            style={{ borderRadius: '12px' }}
+            alignCenter
+            getPopupContainer={() => document.body}
+          >
             <Input autoFocus value={modalsHook.renameModal.value} onChange={(value) => modalsHook.setRenameModal((prev) => ({ ...prev, value }))} onPressEnter={fileOpsHook.handleRenameConfirm} placeholder={t('conversation.workspace.contextMenu.renamePlaceholder')} />
           </Modal>
         )}
 
         {/* Workspace Rename Modal (root directory) */}
         {!readonly && (
-          <Modal title={t('conversation.workspace.renameWorkspace.title')} visible={wsRenameModal.visible} onOk={handleWorkspaceRenameConfirm} onCancel={() => setWsRenameModal({ visible: false, name: '' })} okText={t('common.confirm')} cancelText={t('common.cancel')} confirmLoading={wsRenameLoading} okButtonProps={{ disabled: !wsRenameModal.name.trim() }} style={{ borderRadius: '12px' }} alignCenter getPopupContainer={() => document.body}>
+          <Modal
+            title={t('conversation.workspace.renameWorkspace.title')}
+            visible={wsRenameModal.visible}
+            onOk={handleWorkspaceRenameConfirm}
+            onCancel={() => setWsRenameModal({ visible: false, name: '' })}
+            okText={t('common.confirm')}
+            cancelText={t('common.cancel')}
+            confirmLoading={wsRenameLoading}
+            okButtonProps={{ disabled: !wsRenameModal.name.trim() }}
+            style={{ borderRadius: '12px' }}
+            alignCenter
+            getPopupContainer={() => document.body}
+          >
             <div className='text-13px text-secondary mb-8px'>{t('conversation.workspace.renameWorkspace.hint')}</div>
             <Input autoFocus value={wsRenameModal.name} onChange={(v) => setWsRenameModal((prev) => ({ ...prev, name: v }))} onPressEnter={handleWorkspaceRenameConfirm} placeholder={t('conversation.workspace.renameWorkspace.placeholder')} />
           </Modal>
@@ -1036,7 +1038,19 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
 
         {/* New Folder Modal */}
         {!readonly && (
-          <Modal title={t('conversation.workspace.newFolder.title')} visible={newFolderModal.visible} onOk={handleNewFolderConfirm} onCancel={() => setNewFolderModal({ visible: false, name: '', parentPath: '' })} okText={t('common.confirm')} cancelText={t('common.cancel')} confirmLoading={newFolderLoading} okButtonProps={{ disabled: !newFolderModal.name.trim() }} style={{ borderRadius: '12px' }} alignCenter getPopupContainer={() => document.body}>
+          <Modal
+            title={t('conversation.workspace.newFolder.title')}
+            visible={newFolderModal.visible}
+            onOk={handleNewFolderConfirm}
+            onCancel={() => setNewFolderModal({ visible: false, name: '', parentPath: '' })}
+            okText={t('common.confirm')}
+            cancelText={t('common.cancel')}
+            confirmLoading={newFolderLoading}
+            okButtonProps={{ disabled: !newFolderModal.name.trim() }}
+            style={{ borderRadius: '12px' }}
+            alignCenter
+            getPopupContainer={() => document.body}
+          >
             <div className='text-13px text-secondary mb-8px'>{t('conversation.workspace.newFolder.hint')}</div>
             <Input autoFocus value={newFolderModal.name} onChange={(v) => setNewFolderModal((prev) => ({ ...prev, name: v }))} onPressEnter={handleNewFolderConfirm} placeholder={t('conversation.workspace.newFolder.placeholder')} />
           </Modal>
@@ -1044,7 +1058,18 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
 
         {/* Delete Modal */}
         {!readonly && (
-          <Modal visible={modalsHook.deleteModal.visible} title={t('conversation.workspace.contextMenu.deleteTitle')} onCancel={modalsHook.closeDeleteModal} onOk={fileOpsHook.handleDeleteConfirm} okText={t('common.confirm')} cancelText={t('common.cancel')} confirmLoading={modalsHook.deleteModal.loading} style={{ borderRadius: '12px' }} alignCenter getPopupContainer={() => document.body}>
+          <Modal
+            visible={modalsHook.deleteModal.visible}
+            title={t('conversation.workspace.contextMenu.deleteTitle')}
+            onCancel={modalsHook.closeDeleteModal}
+            onOk={fileOpsHook.handleDeleteConfirm}
+            okText={t('common.confirm')}
+            cancelText={t('common.cancel')}
+            confirmLoading={modalsHook.deleteModal.loading}
+            style={{ borderRadius: '12px' }}
+            alignCenter
+            getPopupContainer={() => document.body}
+          >
             <div className='text-14px text-secondary'>{t('conversation.workspace.contextMenu.deleteConfirm')}</div>
           </Modal>
         )}
@@ -1212,7 +1237,19 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
         {/* Main content area — Skills grid OR Search + Tree. */}
         {activeTab === 'skills' && (
           <FlexFullContainer containerClassName='workspace-card__body workspace-card__body--skills overflow-y-auto'>
-            <WorkspaceSkills ref={skillsHandleRef} workspace={workspace} eventPrefix={eventPrefix} backend={backend} conversationId={conversation_id} dataSource={dataSource === 'moss-session' ? 'moss-session' : 'workspace'} searchQuery={searchText} onLoadingChange={setSkillsLoading} onSynced={() => setLastSyncAt(Date.now())} onCountChange={setSkillCount} watchIdRef={watchIdRef} />
+            <WorkspaceSkills
+              ref={skillsHandleRef}
+              workspace={workspace}
+              eventPrefix={eventPrefix}
+              backend={backend}
+              conversationId={conversation_id}
+              dataSource={dataSource === 'moss-session' ? 'moss-session' : 'workspace'}
+              searchQuery={searchText}
+              onLoadingChange={setSkillsLoading}
+              onSynced={() => setLastSyncAt(Date.now())}
+              onCountChange={setSkillCount}
+              watchIdRef={watchIdRef}
+            />
           </FlexFullContainer>
         )}
 
@@ -1245,7 +1282,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
               />
             ) : (
               <Tree
-                className={`${isMobile ? '!pl-20px !pr-10px chat-workspace-tree--mobile' : '!pl-32px !pr-16px'} workspace-tree`}
+                className='!pl-32px !pr-16px workspace-tree'
                 showLine
                 key={treeHook.treeKey}
                 selectedKeys={treeHook.selected}
@@ -1288,36 +1325,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                         <span className='overflow-hidden text-ellipsis whitespace-nowrap flex-1 min-w-0'>{displayTitle}</span>
                         {isPasteTarget && <span className='ml-1 text-xs text-blue-700 font-bold bg-blue-500 text-white px-1.5 py-0.5 rounded flex-shrink-0'>PASTE</span>}
                       </span>
-                      <span className='flex items-center gap-6px flex-shrink-0'>
-                        {!isFile && directFileCount > 0 && <span className='workspace-tree__count-badge'>{directFileCount}</span>}
-                        {isMobile && (
-                          <button
-                            type='button'
-                            className='workspace-header__toggle workspace-node-more-btn h-28px w-28px rd-8px flex items-center justify-center text-secondary hover:text-foreground active:text-foreground flex-shrink-0'
-                            aria-label={t('common.more')}
-                            onMouseDown={(event) => {
-                              event.stopPropagation();
-                            }}
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              const rect = (event.currentTarget as HTMLButtonElement).getBoundingClientRect();
-                              const menuWidth = 220;
-                              const menuHeight = 220;
-                              const maxX = typeof window !== 'undefined' ? Math.max(8, window.innerWidth - menuWidth - 8) : rect.left;
-                              const maxY = typeof window !== 'undefined' ? Math.max(8, window.innerHeight - menuHeight - 8) : rect.bottom;
-                              const menuX = Math.min(Math.max(8, rect.left - menuWidth + rect.width), maxX);
-                              const menuY = Math.min(Math.max(8, rect.bottom + 4), maxY);
-                              openNodeContextMenu(nodeData, menuX, menuY);
-                            }}
-                          >
-                            <div className='flex flex-col gap-2px items-center justify-center' style={{ width: '12px', height: '12px' }}>
-                              <div className='w-2px h-2px rounded-full bg-current'></div>
-                              <div className='w-2px h-2px rounded-full bg-current'></div>
-                              <div className='w-2px h-2px rounded-full bg-current'></div>
-                            </div>
-                          </button>
-                        )}
-                      </span>
+                      <span className='flex items-center gap-6px flex-shrink-0'>{!isFile && directFileCount > 0 && <span className='workspace-tree__count-badge'>{directFileCount}</span>}</span>
                     </div>
                   );
                 }}

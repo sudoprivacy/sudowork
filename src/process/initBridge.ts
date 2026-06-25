@@ -17,14 +17,14 @@ initAllBridges();
 
 // Refresh enterprise config cache on startup
 // 启动时刷新企业配置缓存
-(async () => {
+void (async () => {
   await refreshEnterpriseCache();
   mainLog('initBridge', 'Enterprise config cache refreshed');
 })();
 
 // Initialize cron service in all modes
 // CronService depends on local SQLite, local agents — now available in enterprise mode too
-(async () => {
+void (async () => {
   void cronService.init().catch((error) => {
     mainWarn('initBridge', 'CronService initialization failed:', error.message);
   });

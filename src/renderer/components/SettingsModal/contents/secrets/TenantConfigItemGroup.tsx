@@ -8,22 +8,20 @@ import { Button, Collapse, Input, Message, Switch } from '@arco-design/web-react
 import { Right } from '@icon-park/react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import PreferenceRow from './PreferenceRow';
-import type { TenantConfigItem, TenantConfigValues } from './types';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
 import { ConfigStorage } from '@/common/storage';
 import configItemDefaultIcon from '@/renderer/assets/config-item-default.svg';
-import { SUDOWORK_SERVER_BASE_URL } from '@/common/sudoworkServer';
+import { BUILD_SUDOWORK_SERVER_BASE_URL, getSudoworkServerBaseUrl } from '@/common/sudoworkServer';
+import type { TenantConfigItem, TenantConfigValues } from './types';
+import PreferenceRow from './PreferenceRow';
 
 function resolveIconUrl(iconUrl: string | null, baseUrl?: string): string {
   if (!iconUrl) return configItemDefaultIcon;
   if (iconUrl.startsWith('data:') || iconUrl.startsWith('http://') || iconUrl.startsWith('https://')) {
     return iconUrl;
   }
-  if (baseUrl) {
-    return `${baseUrl.replace(/\/+$/, '')}${iconUrl.startsWith('/') ? iconUrl : `/${iconUrl}`}`;
-  }
-  return `${SUDOWORK_SERVER_BASE_URL}${iconUrl}`;
+  const resolvedBase = (baseUrl ?? BUILD_SUDOWORK_SERVER_BASE_URL).replace(/\/+$/, '');
+  return `${resolvedBase}${iconUrl.startsWith('/') ? iconUrl : `/${iconUrl}`}`;
 }
 
 const ConfigItemIcon: React.FC<{ iconUrl?: string; name: string }> = ({ iconUrl, name }) => {
@@ -36,13 +34,19 @@ const ConfigItemIcon: React.FC<{ iconUrl?: string; name: string }> = ({ iconUrl,
   }, [iconUrl]);
 
   useEffect(() => {
-    if (!isEnterprise) return;
     let mounted = true;
     void (async () => {
       try {
-        const serverUrl = await ConfigStorage.get('eeclaw.serverUrl');
-        if (mounted && typeof serverUrl === 'string') {
-          setBaseUrl(serverUrl);
+        if (isEnterprise) {
+          const serverUrl = await ConfigStorage.get('eeclaw.serverUrl');
+          if (mounted && typeof serverUrl === 'string') {
+            setBaseUrl(serverUrl);
+          }
+        } else {
+          const resolved = await getSudoworkServerBaseUrl();
+          if (mounted) {
+            setBaseUrl(resolved);
+          }
         }
       } catch {
         // silent
@@ -152,7 +156,7 @@ const TenantConfigItemGroup: React.FC<TenantConfigItemGroupProps> = ({ configIte
   );
 
   return (
-    <div className='overflow-hidden rd-12px border bg-bg-1'>
+    <div className='overflow-hidden rd-12px border'>
       <Collapse activeKey={collapsed ? [] : [`tenant-${configItem.id}`]} onChange={() => setCollapsed((prev) => !prev)} className='[&_div.arco-collapse-item-header-title]:flex-1 border-0 bg-transparent [&_.arco-collapse-item-icon]:hidden [&_.arco-collapse-item-header-icon]:hidden [&_.arco-collapse-item-header]:px-0 [&_.arco-collapse-item-header]:py-0'>
         <Collapse.Item
           header={

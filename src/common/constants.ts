@@ -1,14 +1,8 @@
 /**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
+ * Sudowork 应用程序共用常量
  */
 
-/**
- * AionUI应用程序共用常量
- */
-
-// ===== 文件处理相关常量 =====
+import type { IBlacklistConfig } from '@common/types/security';
 
 /** 临时文件时间戳分隔符 */
 export const NEXUS_TIMESTAMP_SEPARATOR = '_nexus_';
@@ -244,3 +238,6 @@ function fileExtname(filePath: string): string {
 // Stable ID for the Google Auth virtual provider.
 // Shared between frontend (useModelProviderList) and backend (SystemActions).
 export const GOOGLE_AUTH_PROVIDER_ID = 'google-auth-gemini';
+
+/** 黑名单默认配置（空规则集） */
+export const DEFAULT_BLACKLIST_CONFIG: IBlacklistConfig = { rules: [] };

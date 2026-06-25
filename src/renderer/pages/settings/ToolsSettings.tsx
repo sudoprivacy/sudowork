@@ -5,14 +5,14 @@
  */
 
 import React from 'react';
-import SettingsPageWrapper from './components/SettingsPageWrapper';
 import ToolsModalContent from '@/renderer/components/SettingsModal/contents/ToolsModalContent';
+import PageWrapper from '@renderer/components/base/PageWrapper';
 
 const ToolsSettings: React.FC = () => {
   return (
-    <SettingsPageWrapper contentClassName='max-w-300'>
+    <PageWrapper contentClassName='max-w-300'>
       <ToolsModalContent />
-    </SettingsPageWrapper>
+    </PageWrapper>
   );
 };
 

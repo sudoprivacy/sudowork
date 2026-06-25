@@ -4,6 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Switch, Tag } from '@arco-design/web-react';
+import { Right } from '@icon-park/react';
+import React from 'react';
+import { useTranslation } from 'react-i18next';
 import ChannelDingTalkLogo from '@/renderer/assets/channel-logos/dingtalk.svg';
 import ChannelLarkLogo from '@/renderer/assets/channel-logos/lark.svg';
 import ChannelTelegramLogo from '@/renderer/assets/channel-logos/telegram.svg';
@@ -11,10 +15,6 @@ import ChannelWeChatLogo from '@/renderer/assets/channel-logos/wechat.svg';
 import ChannelWeComLogo from '@/renderer/assets/channel-logos/wecom.svg';
 import ChannelZentaoLogo from '@/renderer/assets/channel-logos/zentao.svg';
 import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
-import { Switch, Tag } from '@arco-design/web-react';
-import { Right } from '@icon-park/react';
-import React from 'react';
-import { useTranslation } from 'react-i18next';
 import type { ChannelConfig } from './types';
 
 interface ChannelHeaderProps {
@@ -61,7 +61,17 @@ const ChannelHeader: React.FC<ChannelHeaderProps> = ({ channel, onToggleEnabled,
         {statusText}
       </span>
       <div className='ml-auto flex items-center justify-end' onClick={(e) => e.stopPropagation()}>
-        <Switch data-channel-switch-for={channel.id} data-channel-switch-disabled={isDisabled ? 'true' : 'false'} aria-disabled={isDisabled ? 'true' : undefined} checked={channel.enabled} onChange={onToggleEnabled} size='small' disabled={isDisabled} className='settings-accent-switch' style={channel.enabled ? { backgroundColor: 'var(--ui-accent-orange)' } : undefined} />
+        <Switch
+          data-channel-switch-for={channel.id}
+          data-channel-switch-disabled={isDisabled ? 'true' : 'false'}
+          aria-disabled={isDisabled ? 'true' : undefined}
+          checked={channel.enabled}
+          onChange={onToggleEnabled}
+          size='small'
+          disabled={isDisabled}
+          className='settings-accent-switch'
+          style={channel.enabled ? { backgroundColor: 'var(--ui-accent-orange)' } : undefined}
+        />
       </div>
     </div>
   );

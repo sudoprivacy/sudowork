@@ -91,10 +91,10 @@ export async function resetPasswordCLI(username: string): Promise<void> {
       log.error('Database is not initialized yet');
       log.info('');
       log.info('Please run Sudowork at least once to initialize the database:');
-      log.info('  aionui --webui');
+      log.info('  sudowork --webui');
       log.info('');
       log.info('Then you can reset the password using:');
-      log.info('  aionui --resetpass <username>');
+      log.info('  sudowork --resetpass <username>');
       process.exit(1);
     }
 

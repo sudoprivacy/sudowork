@@ -27,6 +27,7 @@ import { initStarOfficeBridge } from './starOfficeBridge';
 import { initUpdateBridge } from './updateBridge';
 import { initWebuiBridge } from './webuiBridge';
 import { initSystemSettingsBridge } from './systemSettingsBridge';
+import { initLogsBridge } from './logsBridge';
 import { initWindowControlsBridge } from './windowControlsBridge';
 import { initExtensionsBridge } from './extensionsBridge';
 import { initNexusBridge } from './nexusBridge';
@@ -38,8 +39,10 @@ import { initSudoclawBridge } from './sudoclawBridge';
 import { initInitBridge } from './initBridge';
 import { initSudoworkServerBridge } from './sudoworkServerBridge';
 import { initDifyBridge } from './difyBridge';
+import { initSystemConfigBridge } from './systemConfigBridge';
 import { initNodeRuntimeBridge } from './nodeRuntimeBridge';
 import { initPythonRuntimeBridge } from './pythonRuntimeBridge';
+import { initFuseTBridge } from './fuseTBridge';
 // Safety hook IPC is temporarily disabled; keep safetyBridge.ts for restoration.
 // import { initSafetyBridge } from './safetyBridge';
 import { initBdpanBridge } from './bdpanBridge';
@@ -90,6 +93,7 @@ export function initAllBridges(): void {
   initChannelBridge();
   initCronBridge();
   initSystemSettingsBridge();
+  initLogsBridge();
   initExtensionsBridge();
   initStarOfficeBridge();
   initNexusBridge();
@@ -100,8 +104,10 @@ export function initAllBridges(): void {
   initSudoclawBridge();
   initNodeRuntimeBridge();
   initPythonRuntimeBridge();
+  initFuseTBridge();
   initSudoworkServerBridge();
   initDifyBridge();
+  initSystemConfigBridge();
   // Safety hook IPC is hidden while the feature is disabled.
   // initSafetyBridge();
   initBdpanBridge();
@@ -135,7 +141,34 @@ export async function initializeAcpDetector(): Promise<void> {
 
 // 导出初始化函数供单独使用
 
-export { initAcpConversationBridge, initApplicationBridge, initAssistantHubBridge, initAuthBridge, initBedrockBridge, initChannelBridge, initConversationBridge, initCronBridge, initDatabaseBridge, initDialogBridge, initDocumentBridge, initExtensionsBridge, initFsBridge, initGeminiBridge, initMcpBridge, initModelBridge, initNexusBridge, initPreviewHistoryBridge, initShellBridge, initSkillHubBridge, initStarOfficeBridge, initSudoclawBridge, initSystemSettingsBridge, initUpdateBridge, initWebuiBridge, initWindowControlsBridge };
+export {
+  initAcpConversationBridge,
+  initApplicationBridge,
+  initAssistantHubBridge,
+  initAuthBridge,
+  initBedrockBridge,
+  initChannelBridge,
+  initConversationBridge,
+  initCronBridge,
+  initDatabaseBridge,
+  initDialogBridge,
+  initDocumentBridge,
+  initExtensionsBridge,
+  initFsBridge,
+  initGeminiBridge,
+  initMcpBridge,
+  initModelBridge,
+  initNexusBridge,
+  initPreviewHistoryBridge,
+  initShellBridge,
+  initSkillHubBridge,
+  initStarOfficeBridge,
+  initSudoclawBridge,
+  initSystemSettingsBridge,
+  initUpdateBridge,
+  initWebuiBridge,
+  initWindowControlsBridge,
+};
 
 // 导出窗口控制相关工具函数
 export { registerWindowMaximizeListeners } from './windowControlsBridge';

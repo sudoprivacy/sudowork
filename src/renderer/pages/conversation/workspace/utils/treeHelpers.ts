@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { NodeInstance } from '@arco-design/web-react/es/Tree/interface';
 import type { IDirOrFile } from '@/common/ipcBridge';
 import { DRAFTS_DIR_NAME } from '@/common/constants';
-import type { NodeInstance } from '@arco-design/web-react/es/Tree/interface';
 
 /**
  * 递归排序树节点：文件夹优先，然后按文件名正序排列

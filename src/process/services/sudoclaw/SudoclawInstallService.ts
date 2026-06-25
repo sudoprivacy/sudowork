@@ -22,9 +22,10 @@ import * as https from 'https';
 import * as os from 'os';
 import * as path from 'path';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
-import runtimeVersions from '@/shared/runtime-versions.json';
 import { extractTarGzWithProgress } from '../archiveProgress';
+import runtimeVersions from '@/shared/runtime-versions.json';
 import { buildVersion } from '@/common/buildInfo';
+import { getSudorouterBaseUrl } from '@/common/systemConfig';
 
 type SudoclawInstallResult = {
   installed: boolean;
@@ -72,7 +73,6 @@ export const SUDOCLAW_CONFIG_PATH = path.join(SUDOCLAW_DIR, CONFIG_FILENAME);
 const SUDOCLAW_DEFAULT_GATEWAY_RELOAD = {
   mode: 'hot' as const,
 };
-const SUDOCLAW_TAVILY_WEB_SEARCH_BASE_URL = 'https://hk.sudorouter.ai/search/tavily';
 
 /** Remove only the extracted Sudoclaw CLI runtime, preserving user config and workspace data. */
 export function removeSudoclawCli(): void {
@@ -470,7 +470,7 @@ export function repairSudoclawConfig(): void {
               webSearch: {
                 ...existingWebSearch,
                 ...(shouldBackfillApiKey ? { apiKey: sudorouterApiKey } : {}),
-                ...(shouldBackfillBaseUrl ? { baseUrl: SUDOCLAW_TAVILY_WEB_SEARCH_BASE_URL } : {}),
+                ...(shouldBackfillBaseUrl ? { baseUrl: `${getSudorouterBaseUrl()}/search/tavily` } : {}),
               },
             },
           };
@@ -646,12 +646,12 @@ export function ensureDefaultConfig(): void {
       mode: 'merge' as const,
       providers: {
         sudorouter: {
-          baseUrl: 'https://hk.sudorouter.ai/v1',
+          baseUrl: `${getSudorouterBaseUrl()}/v1`,
           api: 'google-generative-ai',
           models: [{ id: 'gemini-3.5-flash', name: 'gemini-3.5-flash', input: ['text', 'image'] }],
         },
         'sudorouter-gemini-3.5-flash': {
-          baseUrl: 'https://hk.sudorouter.ai/v1',
+          baseUrl: `${getSudorouterBaseUrl()}/v1`,
           api: 'google-generative-ai',
           models: [{ id: 'gemini-3.5-flash', name: 'gemini-3.5-flash', input: ['text', 'image'] }],
         },
@@ -672,7 +672,7 @@ export function ensureDefaultConfig(): void {
           enabled: true,
           config: {
             webSearch: {
-              baseUrl: SUDOCLAW_TAVILY_WEB_SEARCH_BASE_URL,
+              baseUrl: `${getSudorouterBaseUrl()}/search/tavily`,
             },
           },
         },
@@ -1556,13 +1556,13 @@ ${USER_MD_USERNAME_MARKER}
 **中文：**
 当称呼用户时，必须使用上方标注的用户名称（${username}）：
 - 示例："你好，${username}，有什么可以帮助你的吗？"
-- 禁止使用其他名称如 "Gemini"、"AionUI"、"Claude"、"Sudo"  等称呼用户
+- 禁止使用其他名称如 "Gemini"、"Sudowork"、"Claude"、"Sudo"  等称呼用户
 - 此规则适用于所有对话场景
 
 **English:**
 When addressing the user, must use the username shown above (${username}):
 - Example: "Hello ${username}, how can I help you?"
-- Do NOT use other names like "Gemini", "AionUI", "Claude", "Sudo" etc. to address the user
+- Do NOT use other names like "Gemini", "Sudowork", "Claude", "Sudo" etc. to address the user
 - This rule applies to all conversation scenarios
 `;
 

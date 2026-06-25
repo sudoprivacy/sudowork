@@ -5,10 +5,12 @@
  */
 
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button, Input, Message } from '@arco-design/web-react';
 import { ipcBridge } from '@/common';
 import { ConfigStorage } from '@/common/storage';
 import { setAppMode } from '@/common/eeclawMode';
+import { normalizeSudoworkServerUrl } from '@/common/sudoworkServer';
 import { TENANT_CONFIG_STORAGE_KEY, resolveTenantConfig } from '@/common/types/tenantConfig';
 import SudoworkIcon from '@/renderer/assets/sudowork-icon-dark.svg';
 import WindowControls from '@/renderer/components/WindowControls';
@@ -44,10 +46,13 @@ function isValidServerUrl(url: string): boolean {
 }
 
 const ModeSetup: React.FC = () => {
+  const { t } = useTranslation();
   const [selectedCard, setSelectedCard] = useState<CardType>(null);
   const [serverUrl, setServerUrl] = useState('');
   const [verifying, setVerifying] = useState(false);
   const [verifyResult, setVerifyResult] = useState<{ success: boolean; tenantName?: string; message?: string } | null>(null);
+  const [showConsumerServerForm, setShowConsumerServerForm] = useState(false);
+  const [consumerServerUrl, setConsumerServerUrl] = useState('');
 
   const handleCardSelect = (card: CardType) => {
     setSelectedCard(card);
@@ -56,10 +61,27 @@ const ModeSetup: React.FC = () => {
       setServerUrl('');
       setVerifyResult(null);
     }
+    // Switching away from consumer collapses the custom-server form (state preserved if user toggles back)
+    if (card !== 'consumer') {
+      setShowConsumerServerForm(false);
+    }
   };
 
   const handleConsumerNext = async () => {
     try {
+      // Persist user-supplied sudowork-server baseUrl (if any) BEFORE setAppMode/reload,
+      // so the very first API call after reload picks it up via current-read helpers.
+      const normalized = normalizeSudoworkServerUrl(consumerServerUrl);
+      if (normalized) {
+        if (!isValidServerUrl(normalized)) {
+          Message.error(t('setup.serverUrl.invalidUrl'));
+          return;
+        }
+        await ConfigStorage.set('system.sudoworkServerUrl', normalized);
+      } else {
+        // Empty input → clear any previously-saved override, fall back to build-define / literal.
+        await ConfigStorage.set('system.sudoworkServerUrl', undefined);
+      }
       await setAppMode('c');
       // Notify main process to start consumer services, then reload renderer
       // (avoids full app relaunch — same approach as enterprise mode)
@@ -195,9 +217,22 @@ const ModeSetup: React.FC = () => {
           </div>
         </div>
 
+        {/* Consumer: custom sudowork-server URL (collapsed toggle below the cards) */}
+        {selectedCard === 'consumer' && (
+          <button type='button' className='mt-12px text-12px text-tertiary underline cursor-pointer bg-transparent border-none' style={{ WebkitAppRegion: 'no-drag' } as WebkitAppRegionStyle} onClick={() => setShowConsumerServerForm((v) => !v)}>
+            {t('setup.serverUrl.toggle')}
+          </button>
+        )}
+        <div className={`mode-setup__form ${selectedCard === 'consumer' && showConsumerServerForm ? 'mode-setup__form--visible' : ''}`}>
+          <div className='flex flex-col gap-8px w-full'>
+            <Input size='large' placeholder={t('setup.serverUrl.placeholder')} value={consumerServerUrl} onChange={setConsumerServerUrl} className='mode-setup__input' />
+            {consumerServerUrl && !isValidServerUrl(consumerServerUrl) ? <p className='text-12px text-danger ml-4px'>{t('setup.serverUrl.invalidUrl')}</p> : <p className='text-12px text-tertiary ml-4px'>{t('setup.serverUrl.hint')}</p>}
+          </div>
+        </div>
+
         {/* Consumer button */}
         <div style={getModeActionStyle(selectedCard === 'consumer')}>
-          <Button type='primary' size='large' onClick={handleConsumerNext} className='mode-setup__btn mode-setup__btn--consumer'>
+          <Button type='primary' size='large' onClick={handleConsumerNext} className='mode-setup__btn mode-setup__btn--consumer' disabled={consumerServerUrl.trim().length > 0 && !isValidServerUrl(consumerServerUrl)}>
             开始使用
           </Button>
         </div>

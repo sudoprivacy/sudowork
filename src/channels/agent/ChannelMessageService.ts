@@ -4,13 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { mainWarn } from '@process/utils/mainLogger';
 import WorkerManage from '@/process/WorkerManage';
 import { getDatabase } from '@/process/database';
 import type BaseAgent from '@/process/task/BaseAgent';
+import { queueConversationWorkspaceSkillSync } from '@/process/bridge/conversationBridge';
 import { composeMessage, transformMessage, type TMessage } from '../../common/chatLib';
 import { uuid } from '../../common/utils';
-import { channelEventBus, type IAgentMessageEvent } from './ChannelEventBus';
 import type { IResponseMessage } from '../../common/ipcBridge';
+import { channelEventBus, type IAgentMessageEvent } from './ChannelEventBus';
 
 /**
  * Streaming callback for progress updates
@@ -218,6 +220,14 @@ export class ChannelMessageService {
       const db = getDatabase();
       const dbResult = db.getConversation(conversationId);
       const isFromChannel = dbResult.success && (dbResult.data?.source === 'lark' || dbResult.data?.source === 'telegram' || dbResult.data?.source === 'dingtalk' || dbResult.data?.source === 'wechat');
+
+      if (dbResult.success && dbResult.data) {
+        try {
+          await queueConversationWorkspaceSkillSync(dbResult.data);
+        } catch (syncError) {
+          mainWarn('ChannelMessageService', 'Skill sync failed (non-blocking)', syncError);
+        }
+      }
 
       task = await WorkerManage.getTaskByIdRollbackBuild(conversationId, {
         yoloMode: isFromChannel,

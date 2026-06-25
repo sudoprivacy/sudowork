@@ -5,14 +5,14 @@
  */
 
 import React from 'react';
-import SettingsPageWrapper from './components/SettingsPageWrapper';
 import WebuiModalContent from '@/renderer/components/SettingsModal/contents/WebuiModalContent';
+import PageWrapper from '@renderer/components/base/PageWrapper';
 
 const WebuiSettings: React.FC = () => {
   return (
-    <SettingsPageWrapper>
+    <PageWrapper>
       <WebuiModalContent />
-    </SettingsPageWrapper>
+    </PageWrapper>
   );
 };
 

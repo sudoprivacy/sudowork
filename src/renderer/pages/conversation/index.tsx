@@ -2,13 +2,13 @@ import { Spin } from '@arco-design/web-react';
 import React, { useCallback, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import useSWR from 'swr';
-import ChatConversation from './ChatConversation';
-import { useConversationTabs } from './context/ConversationTabsContext';
-import { usePreviewContext } from '@/renderer/pages/conversation/preview';
 import { shouldSyncWorkspaceSkills } from '@/common/utils/workspaceSkillSync';
 import { ipcBridge } from '@/common';
+import { usePreviewContext } from '@/renderer/pages/conversation/preview';
 import { addEventListener, emitter } from '@/renderer/utils/emitter';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
+import ChatConversation from './ChatConversation';
+import { useConversationTabs } from './context/ConversationTabsContext';
 
 const ChatConversationIndex: React.FC = () => {
   const { id } = useParams();

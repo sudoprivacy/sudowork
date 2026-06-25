@@ -18,8 +18,6 @@ import katex from 'katex';
 // Import KaTeX CSS to make it available in the document
 import 'katex/dist/katex.min.css';
 
-import { copyText } from '@/renderer/utils/clipboard';
-import { openExternalUrl } from '@/renderer/utils/platform';
 import { Message } from '@arco-design/web-react';
 import { Copy, Down, Up } from '@icon-park/react';
 import { theme } from '@office-ai/platform';
@@ -27,6 +25,8 @@ import classNames from 'classnames';
 import React, { useMemo, useState } from 'react';
 import ReactDOM from 'react-dom';
 import { useTranslation } from 'react-i18next';
+import { openExternalUrl } from '@/renderer/utils/platform';
+import { copyText } from '@/renderer/utils/clipboard';
 import markdownThemeCss from '../styles/markdown.css?raw';
 import { convertLatexDelimiters } from '../utils/latexDelimiters';
 import LocalImageView from './LocalImageView';
@@ -42,7 +42,7 @@ const formatCode = (code: string) => {
       },
       2
     );
-  } catch (error) {
+  } catch {
     return content;
   }
 };

@@ -5,14 +5,14 @@
  */
 
 import React from 'react';
-import SettingsPageWrapper from './components/SettingsPageWrapper';
 import AgentModalContent from '@/renderer/components/SettingsModal/contents/AgentModalContent';
+import PageWrapper from '@renderer/components/base/PageWrapper';
 
 const AgentSettings: React.FC = () => {
   return (
-    <SettingsPageWrapper contentClassName='max-w-240'>
+    <PageWrapper contentClassName='max-w-240'>
       <AgentModalContent />
-    </SettingsPageWrapper>
+    </PageWrapper>
   );
 };
 

@@ -54,6 +54,7 @@ const initPromise = (async (): Promise<void> => {
     // Ignore detection errors, use default
   }
 
+  // eslint-disable-next-line import/no-named-as-default-member
   await i18n.init({
     resources: {
       [DEFAULT_LANGUAGE]: { translation: getLocaleModules(DEFAULT_LANGUAGE) },

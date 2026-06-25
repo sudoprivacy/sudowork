@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { IChannelPluginConfig, IChannelPluginStatus, IChannelUser, IChannelPairingRequest, IChannelSession, PluginType, PluginStatus, ChannelPlatform } from '../types';
+import type { IChannelPluginConfig, IChannelUser, IChannelPairingRequest, IChannelSession, PluginType, PluginStatus, ChannelPlatform } from '../types';
 
 /**
  * IChannelProvider - Interface for channel data and management operations

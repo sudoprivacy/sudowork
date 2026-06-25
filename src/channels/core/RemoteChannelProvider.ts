@@ -5,7 +5,7 @@
  */
 
 import { getMossServerUrl, getAuthToken } from '@/common/enterpriseDebugConfig';
-import type { IChannelPluginConfig, PluginStatus, IChannelUser, PluginType, IChannelPairingRequest, IChannelSession, ChannelPlatform } from '../types';
+import type { IChannelPluginConfig, IChannelUser, PluginType, IChannelPairingRequest, IChannelSession, ChannelPlatform } from '../types';
 import type { IChannelProvider } from './IChannelProvider';
 
 /**
@@ -43,7 +43,7 @@ export class RemoteChannelProvider implements IChannelProvider {
       type: p.platform || p.type,
       name: p.name || p.platform || p.type,
       enabled: p.enabled,
-      credentials: p.credentials && Object.keys(p.credentials).length > 0 ? p.credentials : (p.config && Object.keys(p.config).length > 0 ? p.config : undefined),
+      credentials: p.credentials && Object.keys(p.credentials).length > 0 ? p.credentials : p.config && Object.keys(p.config).length > 0 ? p.config : undefined,
       config: p.config || {},
       status: p.status || 'stopped',
       lastConnected: p.lastConnected,
@@ -63,7 +63,7 @@ export class RemoteChannelProvider implements IChannelProvider {
       type: p.platform || p.type,
       name: p.name || p.platform || p.type,
       enabled: p.enabled,
-      credentials: p.credentials && Object.keys(p.credentials).length > 0 ? p.credentials : (p.config && Object.keys(p.config).length > 0 ? p.config : undefined),
+      credentials: p.credentials && Object.keys(p.credentials).length > 0 ? p.credentials : p.config && Object.keys(p.config).length > 0 ? p.config : undefined,
       config: p.config || {},
       status: p.status || 'stopped',
       lastConnected: p.lastConnected,
@@ -95,13 +95,13 @@ export class RemoteChannelProvider implements IChannelProvider {
     }
   }
 
-  async updatePluginStatus(pluginId: string, status: PluginStatus, lastConnected?: number): Promise<boolean> {
+  async updatePluginStatus(): Promise<boolean> {
     // Enterprise mode: plugin status is managed by Moss Server internally.
     // No API endpoint needed — status changes are reflected automatically.
     return true;
   }
 
-  async updatePluginEnabled(pluginId: string, enabled: boolean, status: PluginStatus): Promise<boolean> {
+  async updatePluginEnabled(pluginId: string, enabled: boolean): Promise<boolean> {
     const action = enabled ? 'enable' : 'disable';
 
     // When enabling, include existing credentials in the request body to prevent

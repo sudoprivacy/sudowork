@@ -1,12 +1,12 @@
 // hooks/useTheme.ts
-import { ConfigStorage } from '@/common/storage';
 import { useCallback, useEffect, useState } from 'react';
+import { ConfigStorage } from '@/common/storage';
 
 export type Theme = 'light' | 'dark';
 export type ThemePreference = 'light' | 'dark' | 'system';
 
 const DEFAULT_PREFERENCE: ThemePreference = 'system';
-const THEME_CACHE_KEY = '__aionui_theme';
+const THEME_CACHE_KEY = '__sudowork_theme';
 
 const getSystemTheme = (): Theme => {
   if (typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: dark)').matches) {
@@ -26,7 +26,7 @@ const applyTheme = (theme: Theme) => {
   document.body.setAttribute('arco-theme', theme);
   try {
     localStorage.setItem(THEME_CACHE_KEY, theme);
-  } catch (_e) {
+  } catch {
     /* noop */
   }
 };

@@ -39,7 +39,7 @@ class ConversionService {
    * 将 Word 文档转换为 Markdown
    *
    * Simple implementation using mammoth + turndown.
-   * This is the same approach as AionUi-main which works without LibreOffice.
+   * This is the same approach as Sudowork-main which works without LibreOffice.
    */
   public async wordToMarkdown(filePath: string): Promise<ConversionResult<string>> {
     try {

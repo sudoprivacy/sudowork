@@ -1,9 +1,9 @@
-import type { IMcpServer, IMcpServerTransport, IMcpTool } from '@/common/storage';
 import { Alert, Button } from '@arco-design/web-react';
 import React, { useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import CodeMirror from '@uiw/react-codemirror';
 import { json } from '@codemirror/lang-json';
+import type { IMcpServer, IMcpServerTransport, IMcpTool } from '@/common/storage';
 import { useThemeContext } from '@/renderer/context/ThemeContext';
 import AionModal from '@/renderer/components/base/AionModal';
 

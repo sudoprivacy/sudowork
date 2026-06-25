@@ -38,7 +38,7 @@ export class LocalConversationProvider implements IConversationProvider {
 
     const result = await ConversationService.createConversation({
       ...params,
-      source: 'aionui',
+      source: 'sudowork',
     });
 
     if (!result.success || !result.conversation) {

@@ -6,13 +6,13 @@
 
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
+import useSWR from 'swr';
 import { getPresetById } from '@/common/presets/presetResolver';
 import type { TChatConversation } from '@/common/storage';
 import { ipcBridge } from '@/common';
 import { fetchAssistantsAsConfigs } from '@/renderer/shared/agents/assistantAdapter';
 import CoworkLogo from '@/renderer/assets/cowork.svg';
 import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
-import useSWR from 'swr';
 export interface PresetAssistantInfo {
   name: string;
   logo: string;

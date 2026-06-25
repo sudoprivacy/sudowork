@@ -1,0 +1,8 @@
+{
+  "serverUrl": {
+    "toggle": "使用自定义服务器地址",
+    "placeholder": "https://your-sudowork-server.com",
+    "hint": "留空则使用默认服务器",
+    "invalidUrl": "请输入有效的 HTTP/HTTPS 地址"
+  }
+}

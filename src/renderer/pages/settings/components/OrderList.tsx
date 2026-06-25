@@ -3,12 +3,12 @@
  * Displays user's recharge order history
  */
 
-import { ipcBridge } from '@/common';
-import { useAuth } from '@/renderer/context/AuthContext';
 import { Tag, Button, Spin, Message } from '@arco-design/web-react';
 import { Alipay, Wechat, Refresh } from '@icon-park/react';
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useAuth } from '@/renderer/context/AuthContext';
+import { ipcBridge } from '@/common';
 
 // Order status enum
 enum OrderStatusEnum {

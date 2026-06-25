@@ -4,13 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
-import type { BdpanFileEntry } from '@/common/ipcBridge';
-import AionModal from '@/renderer/components/base/AionModal';
 import { Button, Input, Message, Spin } from '@arco-design/web-react';
 import { Close, FileDisplayOne, FolderOpen, Refresh } from '@icon-park/react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import AionModal from '@/renderer/components/base/AionModal';
+import type { BdpanFileEntry } from '@/common/ipcBridge';
+import { ipcBridge } from '@/common';
 
 type Step = 'checking' | 'getting_auth_url' | 'enter_code' | 'submitting_code' | 'file_browser' | 'error';
 
@@ -368,7 +368,7 @@ const BdpanFileSelector: React.FC<Props> = ({ visible, onCancel, onConfirm }) =>
               </button>
             </span>
           )}
-          <button onClick={onCancel} className='w-32px h-32px flex items-center justify-center rd-8px transition-colors duration-200 cursor-pointer border-0 bg-transparent p-0 hover:bg-2 focus:outline-none' aria-label='Close'>
+          <button onClick={onCancel} className='w-32px h-32px f-center rd-8px transition-colors duration-200 cursor-pointer border-0 bg-transparent p-0 hover:bg-2 focus:outline-none' aria-label='Close'>
             <Close size={20} fill='#86909c' />
           </button>
         </div>

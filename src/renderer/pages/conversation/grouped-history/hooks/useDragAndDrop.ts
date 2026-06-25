@@ -7,12 +7,10 @@
 import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core';
 import { PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove } from '@dnd-kit/sortable';
+import { useCallback, useRef, useState } from 'react';
 import { ipcBridge } from '@/common';
 import type { TChatConversation } from '@/common/storage';
-import { useLayoutContext } from '@/renderer/context/LayoutContext';
 import { emitter } from '@/renderer/utils/emitter';
-import { useCallback, useRef, useState } from 'react';
-
 import { assignInitialSortOrders, computeSortOrder, getConversationSortOrder, needsReindex, reindexSortOrders } from '../utils/sortOrderHelpers';
 
 type UseDragAndDropParams = {
@@ -22,13 +20,11 @@ type UseDragAndDropParams = {
 };
 
 export const useDragAndDrop = ({ pinnedConversations, batchMode, collapsed }: UseDragAndDropParams) => {
-  const layout = useLayoutContext();
-  const isMobile = layout?.isMobile ?? false;
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeConversation, setActiveConversation] = useState<TChatConversation | null>(null);
   const isDraggingRef = useRef(false);
 
-  const isDragEnabled = !batchMode && !collapsed && !isMobile;
+  const isDragEnabled = !batchMode && !collapsed;
 
   const sensors = useSensors(
     useSensor(PointerSensor, {

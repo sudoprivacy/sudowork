@@ -66,6 +66,8 @@ export default defineConfig({
         'src/process/services/pwdLogin/memorySafety.ts',
         'src/process/services/pwdLogin/pwdAdapters.ts',
         'src/process/services/pwdLogin/pwdLoginService.ts',
+        'src/process/services/fuset/FuseTSupervisor.ts',
+        'src/process/services/nexus-vfs/FusePluginClient.ts',
         'src/process/bridge/updateBridge.ts',
         'src/process/bridge/applicationBridge.ts',
         'src/process/bridge/documentBridge.ts',
@@ -77,6 +79,7 @@ export default defineConfig({
         'src/agent/acp/AcpConnection.ts',
         'src/agent/acp/modelInfo.ts',
         'src/process/task/acpWorkspaceTracking.ts',
+        'src/process/task/CronCommandDetector.ts',
         // Common
         'src/common/chatLib.ts',
         'src/common/nexusFiles.ts',

@@ -54,12 +54,10 @@ export const useMcpOperations = (mcpServers: IMcpServer[], message: ReturnType<t
             message.warning({ content: t(`settings.${partialFailedKey}`, { errors: truncatedErrors }), duration: 6000 });
           });
         } else {
-          if (successMessage) {
-            await globalMessageQueue.add(() => {
-              message.success(successMessage);
-            });
-          }
-          // 不再显示"开始操作"消息，因为已经在操作开始时显示了
+          const msg = successMessage ?? t(operation === 'sync' ? 'settings.mcpSyncSuccess' : 'settings.mcpRemoveSuccess');
+          await globalMessageQueue.add(() => {
+            message.success(msg);
+          });
         }
 
         // 然后更新UI状态

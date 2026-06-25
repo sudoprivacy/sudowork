@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
 import { useEffect, useState } from 'react';
+import { ipcBridge } from '@/common';
 
 const counts = new Map<string, number>();
 const listeners = new Set<(convId: string, count: number) => void>();

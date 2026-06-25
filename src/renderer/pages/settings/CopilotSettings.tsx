@@ -5,14 +5,14 @@
  */
 
 import React from 'react';
-import SettingsPageWrapper from './components/SettingsPageWrapper';
 import CopilotModalContent from '@/renderer/components/SettingsModal/contents/CopilotModalContent';
+import PageWrapper from '@renderer/components/base/PageWrapper';
 
 const CopilotSettings: React.FC = () => {
   return (
-    <SettingsPageWrapper>
+    <PageWrapper>
       <CopilotModalContent />
-    </SettingsPageWrapper>
+    </PageWrapper>
   );
 };
 

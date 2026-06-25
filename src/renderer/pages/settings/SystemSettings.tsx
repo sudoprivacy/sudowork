@@ -5,14 +5,14 @@
  */
 
 import React from 'react';
-import SettingsPageWrapper from './components/SettingsPageWrapper';
 import SystemModalContent from '@/renderer/components/SettingsModal/contents/SystemModalContent';
+import PageWrapper from '@renderer/components/base/PageWrapper';
 
 const SystemSettings: React.FC = () => {
   return (
-    <SettingsPageWrapper>
+    <PageWrapper>
       <SystemModalContent />
-    </SettingsPageWrapper>
+    </PageWrapper>
   );
 };
 

@@ -1,19 +1,27 @@
 #!/usr/bin/env python3
 """Browser-Panel MCP Config Registration Integration Test
 
-Scenarios (following integration-test-generator pattern):
-  1. Fresh boot → browser-panel registered in ProcessConfig mcp.config
-  2. Default state → enabled=false (product decision)
-  3. Transport format → stdio with correct node + script paths
-  4. Sync to scode → browser-panel appears in ~/.nexus/sudocode/settings.json
-  5. Idempotency → no duplicate entries after re-registration
+Real user journey: "Sudowork boots → registers browser-panel in config →
+agent backend reads config → can spawn the MCP server process."
 
-Reads the actual ProcessConfig file on disk to verify that Sudowork's
-boot-time registration wrote the correct browser-panel MCP entry.
-Can run after Sudowork has started (reads persisted config) or standalone
-(writes a mock config and verifies the format).
+Workflow (5 steps, strong data flow):
+  1. Read ProcessConfig from disk → find browser-panel entry
+  2. Verify transport points to real files → node binary + MCP script exist
+  3. Verify entry has correct IMcpServer shape → agent can parse it
+  4. Verify no duplicates → idempotent registration across reboots
+  5. Cross-check with scode settings.json → sync pipeline works end-to-end
 
-Does NOT require a running Sudowork instance — reads config files directly.
+Data flow: Step 1 finds the entry → Steps 2-5 all validate properties
+OF THAT SAME ENTRY. If step 1 fails, nothing else can run.
+
+Would catch these real bugs:
+  - Registration writes wrong key format (agent can't parse)
+  - Node binary path hardcoded to dev machine (CI/other users break)
+  - MCP script path wrong after build (agent spawns nonexistent file)
+  - Duplicate entries from non-idempotent registration (agent confusion)
+  - syncMcpToAgents not running (scode never sees browser-panel)
+
+Requires: Sudowork has run at least once (reads persisted config).
 """
 
 import base64
@@ -49,7 +57,7 @@ def read_process_config() -> dict:
 
 
 def get_mcp_config() -> list:
-    """Extract mcp.config from ProcessConfig."""
+    """Extract mcp.config array from ProcessConfig."""
     config = read_process_config()
     mcp_config = config.get("mcp.config")
     if isinstance(mcp_config, str):
@@ -60,96 +68,11 @@ def get_mcp_config() -> list:
     return mcp_config if isinstance(mcp_config, list) else []
 
 
-def read_scode_settings() -> dict:
-    """Read scode's settings.json."""
-    if not SCODE_SETTINGS_PATH.exists():
-        return {}
-    try:
-        return json.loads(SCODE_SETTINGS_PATH.read_text(encoding="utf-8"))
-    except Exception:
-        return {}
-
-
-def find_browser_panel(mcp_config: list) -> dict | None:
-    """Find browser-panel entry in mcp.config."""
-    for entry in mcp_config:
-        if isinstance(entry, dict) and entry.get("name") == "browser-panel":
-            return entry
-    return None
-
-
-def test_registration_exists(mcp_config: list) -> dict:
-    """Scenario 1: browser-panel is registered in mcp.config."""
-    entry = find_browser_panel(mcp_config)
-    assert entry is not None, \
-        f"browser-panel not found in mcp.config ({len(mcp_config)} entries: {[e.get('name') for e in mcp_config]})"
-    return entry
-
-
-def test_default_disabled(entry: dict) -> None:
-    """Scenario 2: browser-panel defaults to enabled=false."""
-    # Note: if user has already toggled it, this test verifies the field exists
-    assert "enabled" in entry, f"Missing 'enabled' field: {entry.keys()}"
-    # We check the field exists and is boolean; the actual value may have been
-    # toggled by the user, so we only assert type
-    assert isinstance(entry["enabled"], bool), \
-        f"'enabled' should be boolean, got {type(entry['enabled'])}"
-
-
-def test_transport_format(entry: dict) -> None:
-    """Scenario 3: transport is stdio with valid node + script paths."""
-    transport = entry.get("transport", {})
-    assert transport.get("type") == "stdio", \
-        f"Expected transport type 'stdio', got {transport.get('type')}"
-
-    command = transport.get("command", "")
-    assert "node" in command.lower() or command.endswith("/node"), \
-        f"Transport command should be a node binary, got: {command}"
-    assert os.path.isfile(command), \
-        f"Node binary not found: {command}"
-
-    args = transport.get("args", [])
-    assert len(args) >= 1, f"Transport args should have at least 1 entry (script path), got: {args}"
-    script_path = args[0]
-    assert "browser-panel-mcp" in script_path, \
-        f"First arg should reference browser-panel-mcp, got: {script_path}"
-    assert os.path.isfile(script_path), \
-        f"MCP script not found: {script_path}"
-
-
-def test_scode_sync(entry: dict) -> None:
-    """Scenario 4: browser-panel synced to scode settings.json (if enabled)."""
-    settings = read_scode_settings()
-    mcp_servers = settings.get("mcpServers", {})
-
-    if entry.get("enabled"):
-        assert "browser-panel" in mcp_servers, \
-            f"browser-panel enabled but not in scode settings: {list(mcp_servers.keys())}"
-        scode_entry = mcp_servers["browser-panel"]
-        assert scode_entry.get("type") == "stdio" or scode_entry.get("command"), \
-            f"scode entry missing transport details: {scode_entry}"
-    else:
-        # If disabled, it should NOT be in scode settings
-        # (syncMcpToAgents removes disabled servers)
-        if "browser-panel" in mcp_servers:
-            print("    (WARN: browser-panel disabled but still in scode settings — may be stale)")
-
-
-def test_no_duplicates(mcp_config: list) -> None:
-    """Scenario 5: no duplicate browser-panel entries (idempotency)."""
-    names = [e.get("name") for e in mcp_config if isinstance(e, dict)]
-    counts = Counter(names)
-    bp_count = counts.get("browser-panel", 0)
-    assert bp_count <= 1, \
-        f"Found {bp_count} browser-panel entries (expected 0 or 1). Idempotency broken."
-
-
 def main():
     print("=" * 60)
-    print("  Browser-Panel MCP Config Registration Test")
+    print("  Browser-Panel MCP: Registration → Agent Sync Pipeline")
     print("=" * 60)
 
-    # Check if config exists
     if not CONFIG_PATH.exists():
         print(f"\n  SKIP: ProcessConfig not found at {CONFIG_PATH}")
         print("  (Sudowork must have run at least once)")
@@ -158,79 +81,113 @@ def main():
     mcp_config = get_mcp_config()
     if not mcp_config:
         print(f"\n  SKIP: mcp.config is empty or missing")
-        print("  (Sudowork must have run with the new registration code)")
         sys.exit(0)
 
-    results = []
+    # ── Step 1: Find browser-panel entry in config ──
+    print(f"\n  [1/5] Find browser-panel in ProcessConfig...", end=" ")
+    entry = None
+    for e in mcp_config:
+        if isinstance(e, dict) and e.get("name") == "browser-panel":
+            entry = e
+            break
 
-    # Scenario 1
-    print(f"\n  [1/5] Registration exists...", end=" ")
-    try:
-        entry = test_registration_exists(mcp_config)
-        print(f"PASS (id: {entry.get('id', 'N/A')})")
-        results.append(True)
-    except AssertionError as e:
-        print(f"FAIL: {e}")
-        results.append(False)
-        entry = None
+    assert entry is not None, \
+        f"browser-panel not found in mcp.config ({len(mcp_config)} entries: " \
+        f"{[e.get('name') for e in mcp_config if isinstance(e, dict)]})"
+    print(f"PASS (id: {entry.get('id', 'N/A')})")
 
-    if entry is None:
-        print("\n  Cannot continue without browser-panel entry")
-        sys.exit(1)
+    # ── Step 2: Verify transport points to real files ──
+    # Data flows from step 1: we validate THE ENTRY we just found.
+    # An agent would use these paths to spawn the MCP server process.
+    # If either file is missing, agent gets ENOENT and tools are unavailable.
+    print(f"  [2/5] Transport → real node binary + MCP script...", end=" ")
+    transport = entry.get("transport", {})
+    assert transport.get("type") == "stdio", \
+        f"Expected stdio transport, got: {transport.get('type')}"
 
-    # Scenario 2
-    print(f"  [2/5] Default disabled...", end=" ")
-    try:
-        test_default_disabled(entry)
-        print(f"PASS (enabled={entry.get('enabled')})")
-        results.append(True)
-    except AssertionError as e:
-        print(f"FAIL: {e}")
-        results.append(False)
+    node_path = transport.get("command", "")
+    assert os.path.isfile(node_path), \
+        f"Node binary not found (agent would get ENOENT): {node_path}"
 
-    # Scenario 3
-    print(f"  [3/5] Transport format...", end=" ")
-    try:
-        test_transport_format(entry)
-        print("PASS")
-        results.append(True)
-    except AssertionError as e:
-        print(f"FAIL: {e}")
-        results.append(False)
+    args = transport.get("args", [])
+    assert len(args) >= 1, \
+        f"Transport args must have script path, got: {args}"
+    script_path = args[0]
+    assert "browser-panel-mcp" in script_path, \
+        f"Script path must reference browser-panel-mcp: {script_path}"
+    assert os.path.isfile(script_path), \
+        f"MCP script not found (agent would get ENOENT): {script_path}"
+    print(f"PASS (node: ...{node_path[-30:]}, script: ...{script_path[-40:]})")
 
-    # Scenario 4
-    print(f"  [4/5] Scode sync...", end=" ")
-    try:
-        test_scode_sync(entry)
-        print("PASS")
-        results.append(True)
-    except AssertionError as e:
-        print(f"FAIL: {e}")
-        results.append(False)
+    # ── Step 3: Verify IMcpServer shape ──
+    # Data flows from step 1: same entry.
+    # The renderer and McpService parse these fields. Missing fields = crash.
+    print(f"  [3/5] Entry shape → IMcpServer fields present...", end=" ")
+    required_fields = {"id", "name", "enabled", "transport", "createdAt", "updatedAt"}
+    missing_fields = required_fields - set(entry.keys())
+    assert not missing_fields, \
+        f"Missing IMcpServer fields (renderer would crash): {missing_fields}"
+    assert isinstance(entry["enabled"], bool), \
+        f"'enabled' must be boolean (toggle switch depends on it), got: {type(entry['enabled']).__name__}"
+    assert isinstance(entry["createdAt"], (int, float)), \
+        f"'createdAt' must be number, got: {type(entry['createdAt']).__name__}"
+    print(f"PASS (enabled={entry['enabled']})")
 
-    # Scenario 5
-    print(f"  [5/5] No duplicates...", end=" ")
-    try:
-        test_no_duplicates(mcp_config)
-        print(f"PASS (total mcp entries: {len(mcp_config)})")
-        results.append(True)
-    except AssertionError as e:
-        print(f"FAIL: {e}")
-        results.append(False)
+    # ── Step 4: Verify no duplicates (idempotent registration) ──
+    # Data flows from mcp_config (all entries).
+    # If boot creates duplicates, agent might spawn multiple server instances
+    # or UI shows duplicate toggle switches.
+    print(f"  [4/5] No duplicates → idempotent registration...", end=" ")
+    bp_entries = [e for e in mcp_config if isinstance(e, dict) and e.get("name") == "browser-panel"]
+    assert len(bp_entries) == 1, \
+        f"Expected exactly 1 browser-panel entry, found {len(bp_entries)}. " \
+        f"IDs: {[e.get('id') for e in bp_entries]}"
+    print(f"PASS (1 entry among {len(mcp_config)} total)")
 
-    # Summary
-    passed = sum(results)
-    total = len(results)
-    print(f"\n{'=' * 60}")
-    if all(results):
-        print(f"  ALL {total} SCENARIOS PASSED")
-        print("=" * 60)
-        sys.exit(0)
+    # ── Step 5: Cross-check scode settings.json (sync pipeline) ──
+    # Data flows from step 1 (entry.enabled) + scode settings file.
+    # syncMcpToAgents should propagate enabled MCPs to scode settings.
+    print(f"  [5/5] Scode sync → settings.json consistency...", end=" ")
+    if not SCODE_SETTINGS_PATH.exists():
+        print("SKIP (scode settings.json not found)")
     else:
-        print(f"  {passed}/{total} PASSED, {total - passed} FAILED")
-        print("=" * 60)
-        sys.exit(1)
+        try:
+            settings = json.loads(SCODE_SETTINGS_PATH.read_text(encoding="utf-8"))
+        except Exception:
+            settings = {}
+        mcp_servers = settings.get("mcpServers", {})
+
+        if entry["enabled"]:
+            # If enabled in config, must be in scode settings
+            assert "browser-panel" in mcp_servers, \
+                f"browser-panel enabled in config but missing from scode settings " \
+                f"(syncMcpToAgents broken). scode has: {list(mcp_servers.keys())}"
+            # Verify scode entry has matching command
+            scode_entry = mcp_servers["browser-panel"]
+            scode_cmd = scode_entry.get("command", "")
+            assert scode_cmd == node_path or "node" in scode_cmd.lower(), \
+                f"scode browser-panel command doesn't match config: {scode_cmd}"
+            print(f"PASS (enabled=true, synced to scode)")
+        else:
+            # If disabled, should NOT be in scode
+            if "browser-panel" in mcp_servers:
+                print(f"WARN (disabled but still in scode — may be stale from prior toggle)")
+            else:
+                print(f"PASS (disabled, correctly absent from scode)")
+
+    # ── Summary ──
+    print(f"\n{'=' * 60}")
+    print(f"  ALL STEPS PASSED")
+    print(f"  Entry: {entry.get('name')} (id={entry.get('id')})")
+    print(f"  Enabled: {entry.get('enabled')}")
+    print(f"  Node: {node_path}")
+    print(f"  Script: {script_path}")
+    print("=" * 60)
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except AssertionError as e:
+        print(f"FAIL: {e}")
+        sys.exit(1)

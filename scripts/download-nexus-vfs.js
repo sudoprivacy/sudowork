@@ -27,6 +27,16 @@ const https = require('https');
 const crypto = require('crypto');
 const { execFileSync } = require('child_process');
 const runtimeVersions = require('../src/shared/runtime-versions.json');
+const runtimeSha256 = require('../src/shared/runtime-sha256.json');
+const {
+  OS_NAME,
+  CLUSTER_ARCH,
+  getClusterArtifact,
+  getClusterBinary,
+  getPluginArtifact,
+  getPluginDylib,
+  getPluginSig,
+} = require('./plugin-naming.js');
 
 const VERSION = runtimeVersions['nexus-vfs'];
 const VAULT_VERSION = runtimeVersions['nexus-vault'];
@@ -38,6 +48,15 @@ const COS_BASE_URLS = [
   `https://sudowork-runtime-1309794936.cos.ap-beijing.myqcloud.com/nexus-vfs/release/v${VERSION}`,
   `https://sudoclaw-download-1309794936.cos.ap-beijing.myqcloud.com/nexus-vfs/release/v${VERSION}`,
 ];
+
+// GitHub Release fallback for nexus-vfs cluster, mirroring the same pattern
+// used by vault/local-connector/fuse-plugin below. nexus-vfs's release.yml
+// `publish-cos` step is gated on TENCENT_SECRET_ID/KEY; when those aren't
+// configured the upload silently skips and primary COS 404s. The GitHub
+// release (`publish-github-release` step, `softprops/action-gh-release@v2`)
+// is unconditional on tag push, so the GH-release fallback is always
+// available even when the COS mirror is empty.
+const NEXUS_VFS_GITHUB_URL = `https://github.com/nexi-lab/nexus-vfs/releases/download/v${VERSION}`;
 
 // Vault plugin is released from the nexus repo (separate from nexus-vfs).
 const VAULT_COS_BASE_URLS = [
@@ -66,49 +85,16 @@ const FUSE_PLUGIN_GITHUB_URL = `https://github.com/nexi-lab/nexus/releases/downl
 /**
  * Known-good SHA256 sums (mirrors SHA256SUMS.txt in the bucket).
  * A download whose hash is not listed here is rejected — no silent acceptance.
- * Note: there is intentionally NO macos-x86_64 entry (Intel Macs unsupported).
  *
- * nexusd-cluster sums are populated after COS mirror; vault sums from CI artifacts.
+ * Single source of truth lives in `src/shared/runtime-sha256.json` so the
+ * runtime re-installers (DynamicNexusVfsService, VaultPluginInstaller) read
+ * the SAME table — bumping a version in `runtime-versions.json` without a
+ * matched bump here used to leave the runtime stuck on the old SHA while
+ * the script downloaded the new bytes (the #918 → Mac smoke regression).
+ * Strip the `_doc` key so legitimate artifact lookups don't accidentally
+ * match a documentation string.
  */
-const SHA256SUMS = {
-  // nexusd-cluster v0.2.2 — cuts nexus-vfs main 1beefb060 (Merge #59),
-  // includes #57 (plugin-as-grpc-service), #58 (trust-root
-  // kernel-dogfood-v1.pub in TRUSTED_KEY_FILES), #59 (sys_readdir
-  // leaf-name fix). Deliberately does NOT include #60 (KernelHandle v3
-  // sys_stat_batch) — v3 kernel strictly rejects PLUGIN_API_VERSION
-  // mismatch, and the current signed plugins (vault v0.1.3,
-  // local-connector v0.1.1, fuse v0.1.0) are all ABI v2. v0.3.0 is the
-  // future-fleet version for v3-rebuilt plugins; v0.2.2 is what pairs
-  // with today's signed plugin set.
-  // Sums lifted from
-  // https://sudowork-runtime-1309794936.cos.ap-beijing.myqcloud.com/nexus-vfs/release/v0.2.2/SHA256SUMS.txt
-  'nexusd-cluster-linux-aarch64.tar.gz': 'fadc8c54c8cca44dc58dbd6194c203354ee282afe2ce9daec8a6056e4683e8c3',
-  'nexusd-cluster-linux-x86_64.tar.gz': 'b5a7730dadd2cbbf47727a3bb6e7989d8facf178fec75076061845867493b0d9',
-  'nexusd-cluster-macos-aarch64.tar.gz': '93eda20acfc5b64135781cc41aff2e4265b1046800967ed4ca85e2321c53175c',
-  'nexusd-cluster-macos-x86_64.tar.gz': 'd6464618413853320ac33103239880a36e564e36f41ff9456e1fa76db89269ec',
-  'nexusd-cluster-windows-aarch64.zip': 'be530516894f4115ad1971f5a6c6a0d4191ba8141f6b213da128381bb552e056',
-  'nexusd-cluster-windows-x86_64.zip': '03e589f7a288a62e0399d4c9dececbb16be342f258842dfb6c6b37b6c3919901',
-  // vault plugin v0.1.3 — kernel-dogfood-v1.pub signed release, pinned
-  // to nexus-vfs main 5ac7d15c3 (Merge #57); plugin ABI v2, matches the
-  // v0.2.2 cluster above. Sums computed locally by sha256sum on the
-  // four assets at
-  // https://github.com/nexi-lab/nexus/releases/tag/vault-v0.1.3 — vault
-  // v0.1.3 is not yet mirrored to COS so the downloader falls through
-  // to the GitHub release fallback for this artifact.
-  'nexus-vault-linux-x86_64.tar.gz': 'ce831d12f55bdd935d928d78df7f4a25078636529d020a1bd0235f68bb8f22f2',
-  'nexus-vault-macos-arm64.tar.gz': '603543170a09208fdd9aa3ce5c6aac6149215726042d51d53db4a083fbe728d6',
-  'nexus-vault-macos-x86_64.tar.gz': '276e1198c55eeed616ba50d5aa5a421ddbb89459a1be1227f44cc5927692e1eb',
-  'nexus-vault-windows-x86_64.zip': '5b91322ddb745c2049e9d675290e3b1a32b2d26bcb67bd96f85dff0f91a3799d',
-  // local-connector v0.1.1 — driver dylib that mounts a host fs path,
-  // signed by kernel-dogfood-v1.pub.
-  'nexus-local-connector-linux-x86_64.tar.gz': '16f22e0e93a08e537f8f4010c2838eb4e3bf81ed88804e24b4a5e5c0206cf17d',
-  'nexus-local-connector-macos-arm64.tar.gz': '973f42b4e7dfb040ea9a91501ca26c364640b0aaeb909ab39141b824913560a8',
-  'nexus-local-connector-macos-x86_64.tar.gz': '70a53b0fab2b189883dd8c22893c18b790332bac54fe18944545e282b22dfdd8',
-  'nexus-local-connector-windows-x86_64.zip': '42a5060a2afce89b90a6538bd9b9fe2b7d5c23ab7268a4a4763a620dbe77ef8d',
-  // fuse-plugin v0.1.0 — linux-only FUSE service plugin, signed by
-  // kernel-dogfood-v1.pub.
-  'nexus-fuse-plugin-linux-x86_64.tar.gz': '1a8c74210ce6e9a1632fab382e21af1d0d55a976b77c4f7def3656fb1af3696b',
-};
+const SHA256SUMS = Object.fromEntries(Object.entries(runtimeSha256).filter(([key]) => !key.startsWith('_')));
 
 
 
@@ -124,68 +110,39 @@ const FUSE_PLUGIN_READY_MARKER = path.join(PLUGIN_DIR, '.nexus-fuse-plugin-ready
 
 const isWindows = process.platform === 'win32';
 
-// Uniform mapping across all three OSes for v0.0.1-rc1.
-const OS_NAME_MAP = { darwin: 'macos', win32: 'windows', linux: 'linux' };
-const ARCH_NAME_MAP = { arm64: 'aarch64', x64: 'x86_64' };
+// Cluster + plugin archive/dylib naming lives in scripts/plugin-naming.js
+// (the SSOT). The wrappers below preserve the original (platform, arch) =
+// defaults from process.platform / process.arch so callers that omit args
+// keep working — that's a stable contract for the install helpers below.
+//
+// Why the per-plugin one-line wrappers stay: they pin a plugin's logical
+// name at the call site (`getVaultArtifactName`) and make a re-grep across
+// the file trivial. Removing them would inline string literals (vault,
+// local-connector, fuse-plugin) into every caller and make the platform
+// matrix harder to audit.
 
 function getBinaryName() {
-  return isWindows ? 'nexusd-cluster.exe' : 'nexusd-cluster';
+  return getClusterBinary(process.platform);
 }
 
 function getArtifactName(platform = process.platform, arch = process.arch) {
-  const osName = OS_NAME_MAP[platform];
-  const archName = ARCH_NAME_MAP[arch];
-  if (!osName || !archName) {
+  const name = getClusterArtifact(platform, arch);
+  if (!name) {
     throw new Error(`Unsupported platform: ${platform}-${arch}`);
   }
-  const ext = platform === 'win32' ? '.zip' : '.tar.gz';
-  return `nexusd-cluster-${osName}-${archName}${ext}`;
+  return name;
 }
 
-/**
- * Vault plugin artifact name. The vault dylib uses different naming from nexusd-cluster:
- * - macOS: libnexus_vault.dylib (arm64 only, no x86_64)
- * - Linux: libnexus_vault.so (x86_64 only in v0.1.0)
- * - Windows: nexus_vault.dll (x86_64 only in v0.1.0)
- *
- * Archive naming: nexus-vault-{os}-{arch}.{tar.gz|zip}
- */
 function getVaultArtifactName(platform = process.platform, arch = process.arch) {
-  const VAULT_PLATFORM_MAP = {
-    'darwin-arm64': 'nexus-vault-macos-arm64',
-    'darwin-x64': 'nexus-vault-macos-x86_64',
-    'linux-x64': 'nexus-vault-linux-x86_64',
-    'win32-x64': 'nexus-vault-windows-x86_64',
-  };
-  const key = `${platform}-${arch}`;
-  const name = VAULT_PLATFORM_MAP[key];
-  if (!name) return null; // not available for this platform
-  const ext = platform === 'win32' ? '.zip' : '.tar.gz';
-  return `${name}${ext}`;
+  return getPluginArtifact(platform, arch, 'nexus_vault');
 }
 
-/** Platform-specific vault dylib filename inside the archive. */
 function getVaultDylibName(platform = process.platform) {
-  if (platform === 'darwin') return 'libnexus_vault.dylib';
-  if (platform === 'linux') return 'libnexus_vault.so';
-  if (platform === 'win32') return 'nexus_vault.dll';
-  return null;
+  return getPluginDylib(platform, 'nexus_vault');
 }
 
-/**
- * Detached-signature filename for a given dylib. Convention is defined by
- * `nexus_plugin_abi::signing::SIGNATURE_FILE_SUFFIX` in nexus-vfs — `.sig`
- * appended to the dylib filename verbatim. The kernel's PluginLoader reads
- * this file alongside the dylib and Ed25519-verifies before any dlopen.
- *
- * Vault releases starting at v0.1.2 ship the `.sig` inside the archive; the
- * v0.1.1 archive predates signing and lacks it (extraction is permissive
- * here so this script keeps working against an old archive — the cluster's
- * own verify path is the binding gate).
- */
 function getVaultSigName(platform = process.platform) {
-  const dylib = getVaultDylibName(platform);
-  return dylib ? `${dylib}.sig` : null;
+  return getPluginSig(platform, 'nexus_vault');
 }
 
 function sha256OfFile(filePath) {
@@ -344,7 +301,7 @@ function findBinary(dir) {
 
 async function installForPlatform(platform, arch, force) {
   const artifact = getArtifactName(platform, arch);
-  const urls = COS_BASE_URLS.map((base) => `${base}/${artifact}`);
+  const urls = [...COS_BASE_URLS.map((base) => `${base}/${artifact}`), `${NEXUS_VFS_GITHUB_URL}/${artifact}`];
   const binName = getBinaryName();
   const installedBinary = path.join(BIN_DIR, binName);
 
@@ -650,20 +607,11 @@ async function installSignedKernelPlugin(spec, platform, arch, force) {
 
 /** Per-platform archive name for the local-connector release. */
 function getLocalConnectorArtifactName(platform, arch) {
-  const map = {
-    'darwin-arm64': 'nexus-local-connector-macos-arm64.tar.gz',
-    'darwin-x64': 'nexus-local-connector-macos-x86_64.tar.gz',
-    'linux-x64': 'nexus-local-connector-linux-x86_64.tar.gz',
-    'win32-x64': 'nexus-local-connector-windows-x86_64.zip',
-  };
-  return map[`${platform}-${arch}`] || null;
+  return getPluginArtifact(platform, arch, 'nexus_local_connector');
 }
 
 function getLocalConnectorDylibName(platform) {
-  if (platform === 'darwin') return 'libnexus_local_connector.dylib';
-  if (platform === 'linux') return 'libnexus_local_connector.so';
-  if (platform === 'win32') return 'nexus_local_connector.dll';
-  return null;
+  return getPluginDylib(platform, 'nexus_local_connector');
 }
 
 async function installLocalConnectorPlugin(platform, arch, force) {
@@ -689,15 +637,16 @@ async function installLocalConnectorPlugin(platform, arch, force) {
 }
 
 function getFusePluginArtifactName(platform, arch) {
-  // Linux-only; macFUSE / WinFsp adapters are out of scope for the
-  // current fuse-plugin release.
-  if (platform === 'linux' && arch === 'x64') return 'nexus-fuse-plugin-linux-x86_64.tar.gz';
-  return null;
+  // macOS runs the FUSE protocol via FUSE-T (userspace driver provisioned
+  // lazily by `FuseTInstallService`, not eagerly here). Windows stays on
+  // the existing WinFsp path — separate adapter, not shipped by this
+  // fuse-plugin release. The `publishedPlatforms` whitelist in
+  // plugin-naming.js is the SSOT for that policy.
+  return getPluginArtifact(platform, arch, 'nexus_fuse_plugin');
 }
 
 function getFusePluginDylibName(platform) {
-  if (platform === 'linux') return 'libnexus_fuse_plugin.so';
-  return null;
+  return getPluginDylib(platform, 'nexus_fuse_plugin');
 }
 
 async function installFusePlugin(platform, arch, force) {
@@ -744,7 +693,7 @@ async function main() {
   const platform = process.platform;
   const arch = process.arch;
 
-  if (!OS_NAME_MAP[platform] || !ARCH_NAME_MAP[arch]) {
+  if (!OS_NAME[platform] || !CLUSTER_ARCH[arch]) {
     console.warn(`⚠️  Unsupported platform: ${platform}-${arch}; skipping nexus-vfs.`);
     process.exit(0);
   }

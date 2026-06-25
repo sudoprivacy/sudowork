@@ -4,15 +4,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
-import { ConfigStorage } from '@/common/storage';
-import LanguageSwitcher from '@/renderer/components/LanguageSwitcher';
-import ProductImprovementDialog from '@/renderer/components/ProductImprovementDialog';
-import { Alert, Button, Form, Input, InputNumber, Modal, Switch, Tooltip } from '@arco-design/web-react';
+import { Alert, Button, Form, Input, InputNumber, Message, Modal, Switch, Tooltip } from '@arco-design/web-react';
 import { FolderOpen } from '@icon-park/react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import useSWR from 'swr';
+import { ipcBridge } from '@/common';
+import { ConfigStorage } from '@/common/storage';
+import { isProductImprovementEnabled } from '@/common/systemConfig';
+import LanguageSwitcher from '@/renderer/components/LanguageSwitcher';
+import ProductImprovementDialog from '@/renderer/components/ProductImprovementDialog';
+import { formatTimestamp, joinFilePath } from '@/renderer/pages/conversation/grouped-history/utils/exportHelpers';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
 import { useShowToolCalls } from '@/renderer/hooks/useShowToolCalls';
@@ -192,6 +194,44 @@ const SystemModalContent: React.FC = () => {
       .catch(() => {});
   }, []);
 
+  // 导出日志：打包 ~/.nexus/logs/ 下全部日志为 zip / Export all logs under ~/.nexus/logs/ as a zip
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleExportLogs = useCallback(async () => {
+    setIsExporting(true);
+    try {
+      const listRes = await ipcBridge.logs.listLogFiles.invoke();
+      if (!listRes.success || !listRes.data || listRes.data.files.length === 0) {
+        Message.warning(t('settings.exportLogsEmpty'));
+        return;
+      }
+      const { files } = listRes.data;
+
+      const dirRes = await ipcBridge.dialog.showOpen.invoke({ properties: ['openDirectory', 'createDirectory'] });
+      if (!dirRes.success || !dirRes.data || dirRes.data.canceled || dirRes.data.filePaths.length === 0) {
+        return;
+      }
+      const targetDir = dirRes.data.filePaths[0];
+      const zipPath = joinFilePath(targetDir, `sudowork-logs-${formatTimestamp()}.zip`);
+
+      const ok = await ipcBridge.fs.createZip.invoke({
+        path: zipPath,
+        files: files.map((f) => ({ name: f.name, sourcePath: f.path })),
+      });
+      if (!ok) {
+        Message.error(t('settings.exportLogsFailed'));
+        return;
+      }
+      await ipcBridge.shell.showItemInFolder.invoke(zipPath);
+      Message.success(t('settings.exportLogsSuccess'));
+    } catch (error) {
+      console.error('Failed to export logs:', error);
+      Message.error(t('settings.exportLogsFailed'));
+    } finally {
+      setIsExporting(false);
+    }
+  }, [t]);
+
   const handleAvatarEnabledChange = useCallback((checked: boolean) => {
     setAvatarEnabled(checked);
     ipcBridge.systemSettings.setAvatarEnabled.invoke({ enabled: checked }).catch(() => {
@@ -353,7 +393,7 @@ const SystemModalContent: React.FC = () => {
       hint: t('settings.avatarEnabledDesc'),
       component: <Switch checked={avatarEnabled} onChange={handleAvatarEnabledChange} className='settings-accent-switch' style={avatarEnabled ? { backgroundColor: 'var(--ui-accent-orange)' } : undefined} />,
     },
-    ...(isEnterprise
+    ...(isEnterprise || !isProductImprovementEnabled()
       ? []
       : [
           {
@@ -380,6 +420,16 @@ const SystemModalContent: React.FC = () => {
       label: t('settings.browserDefaultUrl'),
       hint: t('settings.browserDefaultUrlDesc'),
       component: <Input value={browserDefaultUrl} onChange={setBrowserDefaultUrl} onBlur={handleBrowserDefaultUrlBlur} placeholder='https://www.baidu.com/' style={{ width: 260 }} />,
+    },
+    {
+      key: 'exportLogs',
+      label: t('settings.exportLogs'),
+      hint: t('settings.exportLogsDesc'),
+      component: (
+        <Button onClick={handleExportLogs} loading={isExporting} disabled={isExporting}>
+          {t('settings.exportLogs')}
+        </Button>
+      ),
     },
   ];
 

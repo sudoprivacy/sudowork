@@ -307,7 +307,7 @@ export class MossWsConnection {
         // must fail fast, not strand connect() awaiting forever.
         reject(err);
       });
-      this.ws.on('close', (code, reason) => this.handleClose(code, reason.toString()));
+      this.ws.on('close', (code) => this.handleClose(code));
     });
   }
 
@@ -626,7 +626,32 @@ export class MossWsConnection {
     if (msg.type === 'auth_status') return;
     if (msg.type === 'prompt_suggestion') return;
 
-    if (msg.type && !['assistant', 'user', 'result', 'system', 'tool_progress', 'tool_use_summary', 'streamlined_text', 'streamlined_tool_use_summary', 'stream_event', 'rate_limit_event', 'auth_status', 'prompt_suggestion', 'control_request', 'thinking', 'finish', 'end_turn', 'tool_use', 'tool_result', 'content', 'text', 'hello'].includes(msg.type)) {
+    if (
+      msg.type &&
+      ![
+        'assistant',
+        'user',
+        'result',
+        'system',
+        'tool_progress',
+        'tool_use_summary',
+        'streamlined_text',
+        'streamlined_tool_use_summary',
+        'stream_event',
+        'rate_limit_event',
+        'auth_status',
+        'prompt_suggestion',
+        'control_request',
+        'thinking',
+        'finish',
+        'end_turn',
+        'tool_use',
+        'tool_result',
+        'content',
+        'text',
+        'hello',
+      ].includes(msg.type)
+    ) {
       mainLog('MossWsConnection', `Unknown message type: ${msg.type}`);
       return;
     }
@@ -822,7 +847,7 @@ export class MossWsConnection {
     }
   }
 
-  private handleClose(code: number, reason: string): void {
+  private handleClose(code: number): void {
     const wasConnected = this.state === 'connected';
     this.state = 'closed';
     this.ws = null;

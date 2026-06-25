@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { createHash } from 'node:crypto';
 import type { BaseInfo, IWeChatGetConfigResponse, IWeChatGetUploadUrlRequest, IWeChatGetUploadUrlResponse, IWeChatGetUpdatesResponse, IWeChatQrCodeResponse, IWeChatQrStatusResponse, IWeChatSendMessagePayload, IWeChatSendTypingPayload } from './types';
 import { WECHAT_API_BASE_URL, WECHAT_API_TIMEOUT_MS, WECHAT_CHANNEL_VERSION, WECHAT_LONG_POLL_TIMEOUT_MS } from './types';
 import { decryptAesEcb, normalizeAesKey } from './WeChatCrypto';
-import { createHash } from 'node:crypto';
 
 /**
  * WeChatApiClient - HTTP client for iLink Bot API (protobuf-over-JSON).

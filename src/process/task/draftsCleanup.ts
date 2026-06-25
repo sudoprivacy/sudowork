@@ -308,9 +308,22 @@ export async function cleanupIntermediateFiles(workspace: string, options: Clean
   }
 }
 
-export async function archiveTurnFiles(workspace: string, trackedFiles: ReadonlyMap<string, TrackedTurnFile>): Promise<void> {
+/**
+ * Archive the current turn's tracked files (drafts → .drafts/, finals → root),
+ * returning a map of `trackingKey → final absolute path on disk` for every file
+ * that still exists after archiving.
+ *
+ * Callers (e.g. the generated-files marker builder) MUST use these returned
+ * paths instead of the pre-archive `actualPath`, because a final file may have
+ * been moved out of `.drafts/` and/or renamed by timestamp-collision handling
+ * during this call. Files that were skipped (missing on disk, outside the
+ * workspace) are intentionally omitted from the map so callers fall back to
+ * their recorded path.
+ */
+export async function archiveTurnFiles(workspace: string, trackedFiles: ReadonlyMap<string, TrackedTurnFile>): Promise<Map<string, string>> {
+  const finalPaths = new Map<string, string>();
   if (!fsSync.existsSync(workspace)) {
-    return;
+    return finalPaths;
   }
 
   const workspaceRoot = path.resolve(workspace);
@@ -335,6 +348,7 @@ export async function archiveTurnFiles(workspace: string, trackedFiles: Readonly
     // surfaces — chat cards / deliverables tab filter to intent='final', and
     // the workspace tree hides INTERMEDIATE_DIR_SEGMENTS.
     if (file.intent === 'draft' && !file.userInitiated) {
+      finalPaths.set(trackedKey, srcPath);
       mainLog('draftsCleanup', `[TURN-ARCHIVE] Leaving AI-auto draft in place: ${trackedKey} (${file.reason})`);
       continue;
     }
@@ -347,12 +361,14 @@ export async function archiveTurnFiles(workspace: string, trackedFiles: Readonly
 
     const resolvedDestPath = path.resolve(destPath);
     if (srcPath === resolvedDestPath) {
+      finalPaths.set(trackedKey, srcPath);
       continue;
     }
 
     try {
       await fs.mkdir(path.dirname(resolvedDestPath), { recursive: true });
       const finalDestPath = await moveWithTimestampCollision(srcPath, resolvedDestPath);
+      finalPaths.set(trackedKey, path.resolve(finalDestPath));
       if (file.intent === 'draft') {
         movedDrafts++;
       } else if (inDrafts || path.dirname(srcPath) !== path.dirname(finalDestPath)) {
@@ -360,6 +376,8 @@ export async function archiveTurnFiles(workspace: string, trackedFiles: Readonly
       }
       mainLog('draftsCleanup', `[TURN-ARCHIVE] Moved ${trackedKey} to ${path.relative(workspaceRoot, finalDestPath)} (${file.intent}: ${file.reason})`);
     } catch (err) {
+      // Move failed — the file is still at its original location.
+      finalPaths.set(trackedKey, srcPath);
       mainError('draftsCleanup', `[TURN-ARCHIVE] Failed to move ${trackedKey}:`, err);
     }
   }
@@ -367,6 +385,8 @@ export async function archiveTurnFiles(workspace: string, trackedFiles: Readonly
   if (movedDrafts > 0 || movedFinals > 0) {
     mainLog('draftsCleanup', `[TURN-ARCHIVE] Completed: moved ${movedDrafts} draft file(s), restored ${movedFinals} final file(s)`);
   }
+
+  return finalPaths;
 }
 
 export async function cleanupTrackedDraftsOnCancel(workspace: string, trackedFiles: ReadonlyMap<string, TrackedTurnFile>): Promise<number> {

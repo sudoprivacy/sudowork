@@ -66,7 +66,7 @@
   "create.frequency": "频率",
   "create.frequencyHint": "定时任务会有几分钟的随机延迟",
   "create.moreOptions": "更多选项",
-  "create.agent": "数字助手",
+  "create.agent": "智能体",
   "create.agentPlaceholder": "默认",
   "create.workspace": "工作目录",
   "create.selectFolder": "选择文件夹",

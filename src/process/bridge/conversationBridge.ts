@@ -7,8 +7,6 @@
 import * as os from 'os';
 import * as path from 'path';
 import { spawn } from 'child_process';
-import type { TChatConversation } from '@/common/storage';
-import type { IDirOrFile, MossSessionAvailableSkill, MossWorkspaceNode } from '@/common/ipcBridge';
 import fs from 'fs/promises';
 import { getDatabase } from '@process/database';
 import { cronService } from '@process/services/cron/CronService';
@@ -27,15 +25,17 @@ import { copyFilesToDirectory, readDirectoryRecursive } from '../utils';
 import { resolveWorkspaceSkillsDir } from '../utils/workspaceSkillsDir';
 import { INTERMEDIATE_DIR_SEGMENTS } from '../task/FileIntentClassifier';
 import WorkerManage from '../WorkerManage';
-import { migrateConversationToDatabase } from './migrationUtils';
-import { closeTerminalsByConversation } from './terminalBridge';
-import { closeBrowserTabsByConversation } from './browserPanelBridge';
 import { skillManager } from '../SkillManager';
 import { ConversationManageWithDB } from '../message';
-import { setupChannelResponseRouting } from '@/channels/agent/ChannelResponseRouter';
 import { startConversationTracking, endConversationSuccess, endConversationError } from '../telemetry';
 import { getConversationProvider, isRemoteProvider } from '../providers';
 import { getMossApi, getMossApiServerUrl, initMossApi } from '../remote/MossSessionApi';
+import { closeBrowserTabsByConversation } from './browserPanelBridge';
+import { closeTerminalsByConversation } from './terminalBridge';
+import { migrateConversationToDatabase } from './migrationUtils';
+import { setupChannelResponseRouting } from '@/channels/agent/ChannelResponseRouter';
+import type { IDirOrFile, MossSessionAvailableSkill, MossWorkspaceNode } from '@/common/ipcBridge';
+import type { TChatConversation } from '@/common/storage';
 import { getSudoworkAcpSlashCommands } from '@/common/slash/sudoworkCommands';
 import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
 
@@ -234,7 +234,7 @@ async function syncConversationWorkspaceSkills(conversation: TChatConversation |
   });
 }
 
-function queueConversationWorkspaceSkillSync(conversation: TChatConversation | undefined, requestedSkillNames?: string[]): Promise<void> {
+export function queueConversationWorkspaceSkillSync(conversation: TChatConversation | undefined, requestedSkillNames?: string[]): Promise<void> {
   if (!shouldSyncWorkspaceSkills(conversation, requestedSkillNames)) {
     return Promise.resolve();
   }
@@ -508,8 +508,8 @@ export function initConversationBridge(): void {
         mainWarn('conversationBridge', 'Failed to cleanup cron jobs:', cronError);
       }
 
-      // If source is not 'aionui' (e.g., telegram), cleanup channel resources
-      if (source && source !== 'aionui') {
+      // If source is not 'sudowork' (e.g., telegram), cleanup channel resources
+      if (source && source !== 'sudowork') {
         try {
           const { getChannelManager } = await import('@/channels/core/ChannelManager');
           const channelManager = getChannelManager();
@@ -978,7 +978,7 @@ export function initConversationBridge(): void {
       if (result.nameUpdated) {
         ipcBridge.database.conversationChanged.emit({
           conversationId: conversation_id,
-          source: 'aionui',
+          source: 'sudowork',
           action: 'updated',
         });
       }

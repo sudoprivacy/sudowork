@@ -1,8 +1,9 @@
-import type { SudoclawConfig, SudoclawProvider } from '@/common/ipcBridge';
-import { cachePut } from '@/common/nexus/secret-cache';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import type { SudoclawConfig, SudoclawProvider } from '@/common/ipcBridge';
+import { cachePut } from '@/common/nexus/secret-cache';
+import { getSudorouterBaseUrl } from '@/common/systemConfig';
 
 type RuntimeAgentModelsFile = {
   providers?: Record<string, Record<string, unknown> & { models?: Array<Record<string, unknown>> }>;
@@ -195,7 +196,7 @@ export function buildClaudeSettings(config: SudoclawConfig): Record<string, unkn
 
   return {
     env: {
-      ANTHROPIC_BASE_URL: 'https://hk.sudorouter.ai',
+      ANTHROPIC_BASE_URL: getSudorouterBaseUrl(),
       ANTHROPIC_AUTH_TOKEN: apiKey,
       ANTHROPIC_MODEL: modelId || 'gemini-3.5-flash',
     },

@@ -4,22 +4,29 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { CodexToolCallUpdate, IMessageAcpToolCall, IMessageToolGroup, TMessage, TurnTokenUsage } from '@/common/chatLib';
-import { ipcBridge } from '@/common';
-import { useConversationContextSafe } from '@/renderer/context/ConversationContext';
-import { CHAT_MESSAGE_JUMP_EVENT, type ChatMessageJumpDetail } from '@/renderer/utils/chatMinimapEvents';
 import { Image, Message } from '@arco-design/web-react';
 import { Down } from '@icon-park/react';
-import MessageAcpPermission from '@renderer/messages/acp/MessageAcpPermission';
-import MessageAcpQuestion from '@renderer/messages/acp/MessageAcpQuestion';
-import MessageAcpToolCall from '@renderer/messages/acp/MessageAcpToolCall';
-import MessageAgentStatus from '@renderer/messages/MessageAgentStatus';
 import classNames from 'classnames';
 import React, { createContext, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Virtuoso } from 'react-virtuoso';
+import { IconCopy } from '@arco-design/web-react/icon';
+import type { CodexToolCallUpdate, IMessageAcpToolCall, IMessageToolGroup, TMessage, TurnTokenUsage } from '@/common/chatLib';
+import { ipcBridge } from '@/common';
+import { useConversationContextSafe } from '@/renderer/context/ConversationContext';
+import { CHAT_MESSAGE_JUMP_EVENT, type ChatMessageJumpDetail } from '@/renderer/utils/chatMinimapEvents';
+import MessageAcpPermission from '@renderer/messages/acp/MessageAcpPermission';
+import MessageAcpQuestion from '@renderer/messages/acp/MessageAcpQuestion';
+import MessageAcpToolCall from '@renderer/messages/acp/MessageAcpToolCall';
+import MessageAgentStatus from '@renderer/messages/MessageAgentStatus';
+import ContextMenu, { type ContextMenuItem } from '@/renderer/components/ContextMenu';
+import { copyText } from '@/renderer/utils/clipboard';
+import { NEXUS_FILES_MARKER } from '@/common/constants';
+import { useShowToolCalls } from '@/renderer/hooks/useShowToolCalls';
+import { shouldShowTimeSeparator } from '@/renderer/utils/messageTime';
 import { uuid } from '../utils';
 import HOC from '../utils/HOC';
+import { stripThinkTags, hasThinkTags } from '../utils/thinkTagFilter';
 import MessageCodexToolCall from './codex/MessageCodexToolCall';
 import type { FileChangeInfo } from './codex/MessageFileChanges';
 import MessageFileChanges, { parseDiff } from './codex/MessageFileChanges';
@@ -34,13 +41,6 @@ import MessageText from './MessagetText';
 import TurnActions from './TurnActions';
 import type { WriteFileResult } from './types';
 import { BOTTOM_BUFFER_PX, useAutoScroll } from './useAutoScroll';
-import ContextMenu, { type ContextMenuItem } from '@/renderer/components/ContextMenu';
-import { copyText } from '@/renderer/utils/clipboard';
-import { IconCopy } from '@arco-design/web-react/icon';
-import { stripThinkTags, hasThinkTags } from '../utils/thinkTagFilter';
-import { NEXUS_FILES_MARKER } from '@/common/constants';
-import { useShowToolCalls } from '@/renderer/hooks/useShowToolCalls';
-import { shouldShowTimeSeparator } from '@/renderer/utils/messageTime';
 import MessageTimeSeparator from './MessageTimeSeparator';
 import MessageLoadingIndicator from './MessageLoadingIndicator';
 

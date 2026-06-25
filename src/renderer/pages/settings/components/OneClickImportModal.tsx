@@ -1,10 +1,9 @@
-import type { IMcpServer, IMcpTool } from '@/common/storage';
-import { acpConversation, mcpService } from '@/common/ipcBridge';
-import { Button, Select, Spin } from '@arco-design/web-react';
+import { Button, Select, Spin, Steps } from '@arco-design/web-react';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Check } from '@icon-park/react';
-import AionSteps from '@/renderer/components/base/AionSteps';
+import { acpConversation, mcpService } from '@/common/ipcBridge';
+import type { IMcpServer, IMcpTool } from '@/common/storage';
 import AionModal from '@/renderer/components/base/AionModal';
 
 interface OneClickImportModalProps {
@@ -242,16 +241,23 @@ const OneClickImportModal: React.FC<OneClickImportModalProps> = ({ visible, onCa
   );
 
   return (
-    <AionModal header={{ title: t('settings.mcpOneKeyImport'), showClose: true }} visible={visible} onCancel={onCancel} footer={{ render: renderFooter }} style={{ width: 600, height: 420 }} contentStyle={{ borderRadius: 16, padding: '24px', background: 'var(--bg-1)', overflow: 'hidden', height: 420 - 96 }}>
+    <AionModal
+      header={{ title: t('settings.mcpOneKeyImport'), showClose: true }}
+      visible={visible}
+      onCancel={onCancel}
+      footer={{ render: renderFooter }}
+      style={{ width: 600, height: 420 }}
+      contentStyle={{ borderRadius: 16, padding: '24px', background: 'var(--bg-1)', overflow: 'hidden', height: 420 - 96 }}
+    >
       <div className='flex flex-col h-[275px] mt-5'>
         <div className='mb-6 text-secondary text-sm'>{t('settings.mcpImportDescription')}</div>
 
         <div className='mb-6'>
-          <AionSteps current={currentStep} size='small'>
-            <AionSteps.Step title={t('settings.mcpStepSelectAgent')} icon={currentStep > 1 ? <Check theme='filled' size={16} fill='#165dff' /> : undefined} />
-            <AionSteps.Step title={t('settings.mcpStepFetchTools')} icon={currentStep > 2 ? <Check theme='filled' size={16} fill='#165dff' /> : undefined} />
-            <AionSteps.Step title={t('settings.mcpStepImportSuccess')} />
-          </AionSteps>
+          <Steps current={currentStep} size='small'>
+            <Steps.Step title={t('settings.mcpStepSelectAgent')} icon={currentStep > 1 ? <Check theme='filled' size={16} fill='#165dff' /> : undefined} />
+            <Steps.Step title={t('settings.mcpStepFetchTools')} icon={currentStep > 2 ? <Check theme='filled' size={16} fill='#165dff' /> : undefined} />
+            <Steps.Step title={t('settings.mcpStepImportSuccess')} />
+          </Steps>
         </div>
 
         <div className={`mb-6 flex-1 overflow-y-auto ${currentStep === 1 ? 'min-h-[60px]' : 'min-h-[180px]'}`}>

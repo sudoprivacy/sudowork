@@ -5,12 +5,12 @@
  */
 
 import { Collapse, Input, Tooltip } from '@arco-design/web-react';
-import configItemDefaultIcon from '@/renderer/assets/config-item-default.svg';
-import { ConfigStorage } from '@/common/storage';
-import { useAuth } from '@/renderer/context/AuthContext';
 import { Right } from '@icon-park/react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import configItemDefaultIcon from '@/renderer/assets/config-item-default.svg';
+import { ConfigStorage } from '@/common/storage';
+import { useAuth } from '@/renderer/context/AuthContext';
 import PreferenceRow from './PreferenceRow';
 import type { TenantConfigItem } from './types';
 
@@ -89,7 +89,7 @@ export const EnterpriseSecretSection: React.FC = () => {
         <span className='text-13px font-500 text-secondary'>{t('settings.secrets.enterprise.title', '企业凭据')}</span>
       </div>
       {items.map((item) => (
-        <div key={item.id} className='overflow-hidden rd-12px border bg-bg-1'>
+        <div key={item.id} className='overflow-hidden rd-12px border'>
           <Collapse defaultActiveKey={[]} className='border-0 bg-transparent [&_.arco-collapse-item-icon]:hidden [&_.arco-collapse-item-header-icon]:hidden [&_.arco-collapse-item-header]:px-0 [&_.arco-collapse-item-header]:py-0 [&_div.arco-collapse-item-header-title]:flex-1'>
             <Collapse.Item
               header={

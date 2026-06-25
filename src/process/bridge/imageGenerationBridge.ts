@@ -8,7 +8,7 @@ import fs from 'fs/promises';
 import fsSync from 'fs';
 import path from 'path';
 import { app } from 'electron';
-import { DEFAULT_IMAGE_BASE_URL } from '../../common/storage';
+import { getSudorouterBaseUrl, isSudorouterBaseUrl } from '../../common/systemConfig';
 import { detectImageMimeType, IMAGE_TARGET_RAW_SIZE } from '../../common/imageUtils';
 import { ipcBridge } from '../../common';
 import type { IBridgeResponse } from '../../common/ipcBridge';
@@ -95,7 +95,7 @@ export function readSudorouterCredentials(): { baseUrl: string; apiKey: string }
     const config = JSON.parse(raw) as { auth_modes?: { proxy?: Record<string, { baseUrl?: string; apiKey?: string }> } };
     const sr = config?.auth_modes?.proxy?.sudorouter;
     if (sr?.apiKey) {
-      const baseUrl = (sr.baseUrl || DEFAULT_IMAGE_BASE_URL).replace(/\/+$/, '');
+      const baseUrl = (sr.baseUrl || `${getSudorouterBaseUrl()}/v1`).replace(/\/+$/, '');
       return { baseUrl, apiKey: sr.apiKey };
     }
   } catch {
@@ -106,7 +106,7 @@ export function readSudorouterCredentials(): { baseUrl: string; apiKey: string }
     const config = JSON.parse(raw) as { models?: { providers?: Record<string, { baseUrl?: string; apiKey?: string }> } };
     const sr = config?.models?.providers?.sudorouter;
     if (sr?.apiKey) {
-      const baseUrl = (sr.baseUrl || DEFAULT_IMAGE_BASE_URL).replace(/\/+$/, '');
+      const baseUrl = (sr.baseUrl || `${getSudorouterBaseUrl()}/v1`).replace(/\/+$/, '');
       return { baseUrl, apiKey: sr.apiKey };
     }
   } catch (e) {
@@ -147,7 +147,7 @@ export async function resolveImageConfig(): Promise<{ baseUrl: string; apiKey: s
   // Fall back to model.config sudorouter provider
   const providers = (await ProcessConfig.get('model.config').catch((): null => null)) || [];
   for (const provider of providers) {
-    if (provider.baseUrl?.includes('sudorouter.ai') && provider.apiKey) {
+    if (isSudorouterBaseUrl(provider.baseUrl) && provider.apiKey) {
       const baseUrl = provider.baseUrl.replace(/\/+$/, '');
       console.log('[ImageGen] routing user model via model.config sudorouter:', imageModelId);
       return { baseUrl, apiKey: provider.apiKey, model: imageModelId };

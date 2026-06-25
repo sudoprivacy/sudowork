@@ -4,22 +4,21 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { AcpBackend, AcpIncomingMessage, AcpMessage, AcpNotification, AcpPermissionRequest, AcpPromptResponseUsage, AcpQuestionRequest, AcpQuestionResponseAnswer, AcpRequest, AcpResponse, AcpSessionConfigOption, AcpSessionModels, AcpSessionUpdate } from '@/types/acpTypes';
-import type { AcpTransport } from './transport';
-import { StdioAcpTransport, GrpcAcpTransport } from './transport';
-import { ACP_METHODS, JSONRPC_VERSION } from '@/types/acpTypes';
-import type { ChildProcess } from 'child_process';
 import { execFile as execFileCb } from 'child_process';
 import { promisify } from 'util';
 import { promises as fs } from 'fs';
 import os from 'os';
 import path from 'path';
-import { buildAcpModelInfo, summarizeAcpModelInfo } from './modelInfo';
+import { ACP_METHODS, JSONRPC_VERSION } from '@/types/acpTypes';
+import type { AcpBackend, AcpIncomingMessage, AcpMessage, AcpNotification, AcpPermissionRequest, AcpPromptResponseUsage, AcpQuestionRequest, AcpQuestionResponseAnswer, AcpRequest, AcpResponse, AcpSessionConfigOption, AcpSessionModels, AcpSessionUpdate } from '@/types/acpTypes';
 import { mainLog } from '@process/utils/mainLogger';
 import { resolveNpxPath } from '@process/utils/shellEnv';
 import { recordFirstToken } from '@process/telemetry';
-import { ACP_PERF_LOG, connectClaude, connectCodebuddy, connectCodex, prepareCleanEnv, spawnGenericBackend } from './acpConnectors';
 import { getAuthProxyPort, registerToken, revokeToken } from '@process/services/authProxy';
+import { buildAcpModelInfo, summarizeAcpModelInfo } from './modelInfo';
+import { StdioAcpTransport, GrpcAcpTransport } from './transport';
+import type { AcpTransport } from './transport';
+import { ACP_PERF_LOG, connectClaude, connectCodebuddy, connectCodex, prepareCleanEnv, spawnGenericBackend } from './acpConnectors';
 import type { SpawnResult } from './acpConnectors';
 import { readTextFile, writeTextFile } from './utils';
 
@@ -583,7 +582,7 @@ export class AcpConnection {
       } else {
         // Unknown message format, ignore
       }
-    } catch (_error) {
+    } catch {
       // Handle message parsing errors silently
     }
   }

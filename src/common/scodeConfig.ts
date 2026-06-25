@@ -1,5 +1,6 @@
 import { modelInputForModelId } from './imageUtils';
 import type { ScodeConfig, ScodeModelEntry } from './ipcBridge';
+import { getSudorouterBaseUrl } from './systemConfig';
 
 export type LoginSudoclawPayload = {
   sudorouterKey?: string;
@@ -28,6 +29,29 @@ const OPENAI_COMPAT_API = 'openai-completions';
 const OPENAI_RESPONSES_API = 'openai-responses';
 export const SCODE_AUTO_MODEL_ALIAS = 'auto';
 export const SCODE_AUTO_ROUTER_MODEL_ID = 'claude-opus-4-8';
+
+export type SpecificPricingItem = {
+  model_id: string;
+  model_ratio?: number;
+};
+
+export function resolveAutoRouterModelId(modelIds: string[], pricingItems?: SpecificPricingItem[]): string | null {
+  if (modelIds.length === 0) return null;
+  if (modelIds.length === 1) return modelIds[0];
+  if (modelIds.includes(SCODE_AUTO_ROUTER_MODEL_ID)) return SCODE_AUTO_ROUTER_MODEL_ID;
+  const idSet = new Set(modelIds);
+  let best: string | null = null;
+  let bestRatio = -Infinity;
+  for (const it of pricingItems || []) {
+    if (typeof it.model_ratio !== 'number') continue;
+    if (!idSet.has(it.model_id)) continue;
+    if (it.model_ratio > bestRatio) {
+      bestRatio = it.model_ratio;
+      best = it.model_id;
+    }
+  }
+  return best ?? modelIds[0];
+}
 
 function uniqueStrings(values: string[]): string[] {
   return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
@@ -82,9 +106,10 @@ function buildSudorouterModelEntry(modelId: string, alias = modelId): ScodeModel
   };
 }
 
-export function addScodeAutoModel(models: Record<string, ScodeModelEntry>): Record<string, ScodeModelEntry> {
-  models[SCODE_AUTO_MODEL_ALIAS] = buildSudorouterModelEntry(SCODE_AUTO_ROUTER_MODEL_ID, SCODE_AUTO_MODEL_ALIAS);
-  return models;
+export function addScodeAutoModel(models: Record<string, ScodeModelEntry>, modelIds: string[], pricingItems?: SpecificPricingItem[]): string | null {
+  const id = resolveAutoRouterModelId(modelIds, pricingItems);
+  if (id) models[SCODE_AUTO_MODEL_ALIAS] = buildSudorouterModelEntry(id, SCODE_AUTO_MODEL_ALIAS);
+  return id;
 }
 
 function buildCustomApiKeyModelEntry(providerId: string, model: ScodeCustomModelProvider['models'][number], alias: string): ScodeModelEntry {
@@ -200,11 +225,11 @@ export function normalizeCustomApiKeyModelsInScodeConfig(config: ScodeConfig | n
   return nextConfig;
 }
 
-export function buildScodeConfigFromLoginPayload(payload: LoginSudoclawPayload, existing?: ScodeConfig | null): ScodeConfig {
-  return mergeSudorouterIntoScodeConfig(existing || {}, payload);
+export function buildScodeConfigFromLoginPayload(payload: LoginSudoclawPayload, existing?: ScodeConfig | null, pricingItems?: SpecificPricingItem[]): ScodeConfig {
+  return mergeSudorouterIntoScodeConfig(existing || {}, payload, pricingItems);
 }
 
-export function mergeSudorouterIntoScodeConfig(existing: ScodeConfig | null | undefined, payload: LoginSudoclawPayload): ScodeConfig {
+export function mergeSudorouterIntoScodeConfig(existing: ScodeConfig | null | undefined, payload: LoginSudoclawPayload, pricingItems?: SpecificPricingItem[]): ScodeConfig {
   const modelIds = uniqueStrings(payload.models);
   const existingModels = existing?.models || {};
   const nextModels: Record<string, ScodeModelEntry> = {};
@@ -215,12 +240,11 @@ export function mergeSudorouterIntoScodeConfig(existing: ScodeConfig | null | un
     }
   }
 
-  addScodeAutoModel(nextModels);
+  const autoModelId = addScodeAutoModel(nextModels, modelIds, pricingItems);
   for (const modelId of modelIds) {
     nextModels[normalizeModelAlias(modelId)] = buildSudorouterModelEntry(modelId);
   }
 
-  const defaultModel = SCODE_AUTO_MODEL_ALIAS;
   const nextConfig: ScodeConfig = {
     ...existing,
     auth_modes: {
@@ -237,13 +261,13 @@ export function mergeSudorouterIntoScodeConfig(existing: ScodeConfig | null | un
     web_search: {
       ...(existing?.web_search || {}),
       provider: existing?.web_search?.provider || 'tavily',
-      apiUrl: existing?.web_search?.apiUrl || 'https://hk.sudorouter.ai/search/tavily/search',
+      apiUrl: existing?.web_search?.apiUrl || `${getSudorouterBaseUrl()}/search/tavily/search`,
       apiKey: existing?.web_search?.apiKey || payload.sudorouterKey || '',
     },
   };
 
-  if (defaultModel) {
-    nextConfig.default_model = defaultModel;
+  if (autoModelId) {
+    nextConfig.default_model = SCODE_AUTO_MODEL_ALIAS;
   } else {
     delete nextConfig.default_model;
   }
@@ -292,6 +316,29 @@ export function mergeCustomProviderIntoScodeConfig(existing: ScodeConfig | null 
   }
 
   return nextConfig;
+}
+
+/**
+ * Extract sudorouter credentials (baseUrl + apiKey) from a ScodeConfig.
+ * Pure function, no side effects. Returns undefined for any field that is
+ * missing or not a non-empty string. Never throws — invalid input yields `{}`.
+ *
+ * Symmetric with mergeSudorouterIntoScodeConfig: that one writes, this one reads.
+ */
+export function extractSudorouterCreds(config: unknown): { baseUrl?: string; apiKey?: string } {
+  const result: { baseUrl?: string; apiKey?: string } = {};
+  if (!config || typeof config !== 'object') return result;
+  const authModes = (config as ScodeConfig)?.auth_modes;
+  const sudorouter = authModes?.proxy?.[SUDOROUTER_PROVIDER_ID];
+  if (!sudorouter || typeof sudorouter !== 'object') return result;
+  const { baseUrl, apiKey } = sudorouter as { baseUrl?: unknown; apiKey?: unknown };
+  if (typeof baseUrl === 'string' && baseUrl.trim()) {
+    result.baseUrl = baseUrl;
+  }
+  if (typeof apiKey === 'string' && apiKey.trim()) {
+    result.apiKey = apiKey;
+  }
+  return result;
 }
 
 export function removeCustomProviderFromScodeConfig(existing: ScodeConfig | null | undefined, providerId: string): ScodeConfig {

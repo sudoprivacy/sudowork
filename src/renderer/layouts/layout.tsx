@@ -6,7 +6,7 @@
 
 import { Layout as ArcoLayout } from '@arco-design/web-react';
 import classNames from 'classnames';
-import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { LayoutContext } from '@renderer/context/LayoutContext';
 import { useTenantConfig } from '@renderer/context/TenantConfigContext';
@@ -16,11 +16,10 @@ import { useMultiAgentDetection } from '@renderer/hooks/useMultiAgentDetection';
 import { cleanupSiderTooltips } from '@renderer/utils/siderTooltip';
 import { emitter } from '@renderer/utils/emitter';
 import SudoworkIcon from '@renderer/assets/sudowork-icon-dark.svg';
-import Sider from '@renderer/layouts/sider';
-import Titlebar from '@/renderer/components/Titlebar';
-// import { useCommandPalette } from '@/renderer/hooks/useCommandPalette';
-// import CommandPalette from '@/renderer/components/CommandPalette';
-// import PwaPullToRefresh from '@/renderer/components/PwaPullToRefresh';
+import UpdateModal from '@renderer/layouts/components/UpdateModal';
+import DebugPanel from '@renderer/layouts/components/DebugPanel';
+import Sider from '@/renderer/layouts/components/Sider';
+import Titlebar from '@/renderer/layouts/components/TitleBar';
 import { ConfigStorage } from '@/common/storage';
 import { ipcBridge } from '@/common';
 
@@ -54,13 +53,10 @@ const useDebug = () => {
   return { onClick };
 };
 
-const UpdateModal = React.lazy(() => import('@/renderer/components/UpdateModal'));
-
 const DEFAULT_SIDER_WIDTH = 260;
 
 const Layout: React.FC = () => {
   const { config } = useTenantConfig(); // 获取租户配置
-  // const { visible: commandPaletteVisible, close: closeCommandPalette } = useCommandPalette();
   const [collapsed, setCollapsed] = useState(false);
   const { onClick } = useDebug();
   const navigate = useNavigate();
@@ -101,7 +97,7 @@ const Layout: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
-  const layoutContextValue = useMemo(() => ({ isMobile: false, siderCollapsed: collapsed, setSiderCollapsed: setCollapsed }), [collapsed, setCollapsed]);
+  const layoutContextValue = useMemo(() => ({ siderCollapsed: collapsed, setSiderCollapsed: setCollapsed }), [collapsed, setCollapsed]);
 
   return (
     <LayoutContext.Provider value={layoutContextValue}>
@@ -134,12 +130,8 @@ const Layout: React.FC = () => {
             <Outlet />
             {multiAgentContextHolder}
             {directorySelectionContextHolder}
-            {/* <PwaPullToRefresh /> */}
-            <Suspense fallback={null}>
-              <UpdateModal />
-            </Suspense>
-            {/* Safety warning modal is hidden while the safety hook feature is disabled. */}
-            {/* <CommandPalette visible={commandPaletteVisible} onClose={closeCommandPalette} /> */}
+            <UpdateModal />
+            <DebugPanel />
           </ArcoLayout.Content>
         </ArcoLayout>
       </div>

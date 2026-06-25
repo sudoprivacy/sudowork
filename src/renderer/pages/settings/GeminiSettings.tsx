@@ -5,14 +5,14 @@
  */
 
 import React from 'react';
-import SettingsPageWrapper from './components/SettingsPageWrapper';
 import GeminiModalContent from '@/renderer/components/SettingsModal/contents/GeminiModalContent';
+import PageWrapper from '@renderer/components/base/PageWrapper';
 
 const GeminiSettings: React.FC = () => {
   return (
-    <SettingsPageWrapper>
+    <PageWrapper>
       <GeminiModalContent />
-    </SettingsPageWrapper>
+    </PageWrapper>
   );
 };
 

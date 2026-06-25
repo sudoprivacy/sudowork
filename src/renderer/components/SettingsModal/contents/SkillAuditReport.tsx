@@ -15,12 +15,12 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Modal, Spin, Message } from '@arco-design/web-react';
 import { Close, Shield, FolderOpen } from '@icon-park/react';
+import { useTranslation } from 'react-i18next';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { skillHub, shell } from '@/common/ipcBridge';
 import { isElectronDesktop } from '@/renderer/utils/platform';
 import type { SkillAuditReport, AuditFinding, AuditCategorySummary, AuditCategory } from '@/common/skillAuditTypes';
 import { AUDIT_CATEGORY_CONFIG } from '@/common/skillAuditTypes';
-import { useTranslation } from 'react-i18next';
 
 // ==================== Audit Summary Component ====================
 
@@ -257,7 +257,7 @@ export const SkillAuditDetailModal: React.FC<{
             <button type='button' className='text-11px px-8px py-3px rd-4px bg-fill-2 hover:bg-fill-3 text-secondary cursor-pointer border-none outline-none transition-colors' onClick={() => void handleRerunAudit()} disabled={loading}>
               {t('settings.skill.audit.rerun', { defaultValue: '重新审计' })}
             </button>
-            <div className='w-28px h-28px flex items-center justify-center rd-full bg-fill-2 hover:bg-fill-3 cursor-pointer transition-colors text-secondary' onClick={onClose}>
+            <div className='w-28px h-28px f-center rd-full bg-fill-2 hover:bg-fill-3 cursor-pointer transition-colors text-secondary' onClick={onClose}>
               <Close size='14' />
             </div>
           </div>
@@ -412,7 +412,7 @@ export const SkillAuditReportModal: React.FC<{
             <span className='font-semibold text-15px text-foreground'>{t('settings.skill.audit.reportTitle', { defaultValue: '安全审计报告' })}</span>
             <span className='text-12px text-tertiary'>— {skillName}</span>
           </div>
-          <div className='w-28px h-28px flex items-center justify-center rd-full bg-fill-2 hover:bg-fill-3 cursor-pointer transition-colors text-secondary' onClick={onClose}>
+          <div className='w-28px h-28px f-center rd-full bg-fill-2 hover:bg-fill-3 cursor-pointer transition-colors text-secondary' onClick={onClose}>
             <Close size='14' />
           </div>
         </div>

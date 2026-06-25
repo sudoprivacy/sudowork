@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
 import fsSync, { existsSync } from 'fs';
 import fs from 'fs/promises';
 import path from 'path';
@@ -13,21 +12,21 @@ import https from 'node:https';
 import http from 'node:http';
 import { app } from 'electron';
 import JSZip from 'jszip';
-import { clearSkillsCache, getSkillsDir, getHubSkillsDir, getCustomSkillsDir, getBuiltinSkillsDir, SKILL_SUBDIRS, ProcessConfig } from '@/process/initStorage';
-import { skillManager, SkillCategory, SkillStatus, ISkillMeta } from '@/process/SkillManager';
 import WorkerManage from '@process/WorkerManage';
 import { serviceManager } from '@process/services/serviceManager';
+import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
+import { clearSkillsCache, getSkillsDir, getHubSkillsDir, getCustomSkillsDir, getBuiltinSkillsDir, SKILL_SUBDIRS, ProcessConfig } from '@/process/initStorage';
+import { skillManager, SkillCategory, SkillStatus, ISkillMeta } from '@/process/SkillManager';
 import { toAssetUrl } from '@/extensions/assetProtocol';
 import { AcpSkillManager } from '@/process/task/AcpSkillManager';
-import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
+import { ipcBridge } from '@/common';
 import { buildSkillDisplayName, canonicalizeSkillMarkdownPath, findRootSkillMarkdownFileName, isSkillMarkdownFileName, parseSkillFrontmatter, resolveSkillIconFromFiles } from '@/process/utils/skillPackage';
 import { scanSkillDirectory, readAuditReport } from '@/process/services/safety/SkillAuditScanner';
 import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
 import { SKILLS_ROOT_DIR, ENTERPRISE_SKILL_SUBDIRS } from '@/process/constants/enterpriseStorage';
+import { getSkillHubBaseUrl } from '@/common/systemConfig';
+import { getSkillhubToken } from '@/process/credentialsCache';
 
-const SKILL_HUB_BASE_URL = 'https://sudoworkhub.sudoprivacy.com/api/skills';
-const SKILL_HUB_CURSOR_URL = 'https://sudoworkhub.sudoprivacy.com/api/skills/cursor';
-const AUTHORIZATION = 'sud0@sudo';
 const VERSION_FILE_NAME = 'sudowork-version';
 /** Metadata file saved alongside installed hub skills. Prefixed to avoid conflicts with skill content. */
 const SKILL_HUB_META_FILE = '_sudowork_meta.json';
@@ -710,8 +709,13 @@ export function initSkillHubBridge(): void {
       if (query) params.set('query', query);
       if (category) params.set('categories', category);
       if (typeof tenantId === 'string' && tenantId.trim()) params.set('tenant_id', tenantId.trim());
-      const response = await fetch(`${SKILL_HUB_CURSOR_URL}?${params}`, {
-        headers: { Authorization: AUTHORIZATION },
+      const token = getSkillhubToken();
+      if (!token) {
+        mainError('SkillHub', 'skillhub token not provisioned, skip fetchSkills');
+        return { success: false, msg: 'skillhub token missing' };
+      }
+      const response = await fetch(`${getSkillHubBaseUrl()}/api/skills/cursor?${params}`, {
+        headers: { Authorization: token },
       });
       const result = await response.json();
       // API returns { success, message, data: { skills, next_cursor, has_more } }
@@ -758,8 +762,13 @@ export function initSkillHubBridge(): void {
       }
 
       // 个人模式：从 SudoPrivacy Skill Hub API 获取分类
-      const response = await fetch('https://sudoworkhub.sudoprivacy.com/api/categories', {
-        headers: { Authorization: AUTHORIZATION },
+      const token = getSkillhubToken();
+      if (!token) {
+        mainError('SkillHub', 'skillhub token not provisioned, skip fetchCategories');
+        return { success: false, msg: 'skillhub token missing' };
+      }
+      const response = await fetch(`${getSkillHubBaseUrl()}/api/categories`, {
+        headers: { Authorization: token },
       });
       const data = await response.json();
       return { success: true, data: data.data || [] };
@@ -822,8 +831,13 @@ export function initSkillHubBridge(): void {
       }
 
       // 个人模式：从 SudoPrivacy Skill Hub API 获取详情
-      const response = await fetch(`${SKILL_HUB_BASE_URL}/${skillId}`, {
-        headers: { Authorization: AUTHORIZATION },
+      const token = getSkillhubToken();
+      if (!token) {
+        mainError('SkillHub', 'skillhub token not provisioned, skip fetchSkillDetail');
+        return { success: false, msg: 'skillhub token missing' };
+      }
+      const response = await fetch(`${getSkillHubBaseUrl()}/api/skills/${skillId}`, {
+        headers: { Authorization: token },
       });
       const data = await response.json();
       return { success: true, data: data.data };
@@ -1005,23 +1019,23 @@ export function initSkillHubBridge(): void {
         category: skill.category,
         meta: skill.meta
           ? {
-            ...skill.meta,
-            // 补充 ISkillHubMeta 必填字段
-            name: skill.meta.name || skill.name,
-            id: skill.meta.id || skill.name,
-            display_name: skill.meta.display_name || skill.name,
-            description: skill.meta.description || '',
-            icon: skill.meta.icon || '',
-            emoji: skill.meta.emoji ?? null,
-            category: skill.meta.category || '',
-            categories: skill.meta.categories || [],
-            applicable_scenarios: skill.meta.applicable_scenarios ?? null,
-            core_features: skill.meta.core_features ?? null,
-            homepage: skill.meta.homepage ?? null,
-            author_id: skill.meta.author_id || '',
-            installed_version: skill.meta.installed_version || skill.version,
-            installed_at: skill.meta.installed_at || '',
-          }
+              ...skill.meta,
+              // 补充 ISkillHubMeta 必填字段
+              name: skill.meta.name || skill.name,
+              id: skill.meta.id || skill.name,
+              display_name: skill.meta.display_name || skill.name,
+              description: skill.meta.description || '',
+              icon: skill.meta.icon || '',
+              emoji: skill.meta.emoji ?? null,
+              category: skill.meta.category || '',
+              categories: skill.meta.categories || [],
+              applicable_scenarios: skill.meta.applicable_scenarios ?? null,
+              core_features: skill.meta.core_features ?? null,
+              homepage: skill.meta.homepage ?? null,
+              author_id: skill.meta.author_id || '',
+              installed_version: skill.meta.installed_version || skill.version,
+              installed_at: skill.meta.installed_at || '',
+            }
           : undefined,
       }));
       return { success: true, data: result };

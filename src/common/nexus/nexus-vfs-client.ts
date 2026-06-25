@@ -3,6 +3,7 @@
  * Copyright 2025 Sudowork (sudowork.ai)
  * SPDX-License-Identifier: Apache-2.0
  */
+/* eslint-disable @typescript-eslint/no-require-imports */
 
 /**
  * Nexus RPC Client
@@ -31,9 +32,7 @@ function loadNativeBinding(): typeof import('../../../native/nexus-napi') {
   try {
     const { app } = require('electron');
     const path = require('path');
-    const appRoot = app.isPackaged
-      ? app.getAppPath().replace('app.asar', 'app.asar.unpacked')
-      : app.getAppPath();
+    const appRoot = app.isPackaged ? app.getAppPath().replace('app.asar', 'app.asar.unpacked') : app.getAppPath();
     return require(path.join(appRoot, 'native', 'nexus-napi'));
   } catch {
     throw new Error('nexus-napi native module not available. Run `bun run build:native` first.');
@@ -79,13 +78,7 @@ export class Nexus {
     }
   }
 
-  public async write(
-    path: string,
-    content: string | Buffer,
-    _if_match?: string,
-    _if_none_match?: boolean,
-    _force?: boolean,
-  ): Promise<Record<string, unknown>> {
+  public async write(path: string, content: string | Buffer, _if_match?: string, _if_none_match?: boolean, _force?: boolean): Promise<Record<string, unknown>> {
     try {
       const buf = typeof content === 'string' ? Buffer.from(content, 'utf-8') : content;
       this.client.write(path, buf, this.authToken);
@@ -101,7 +94,7 @@ export class Nexus {
       const buf = this.client.read(path, this.authToken);
       if (returnMetadata) {
         // Fetch stat separately for metadata
-        const stat = await this.callRPC('sys_stat', { path }) as Record<string, unknown> | null;
+        const stat = (await this.callRPC('sys_stat', { path })) as Record<string, unknown> | null;
         return { content: buf, ...(stat ?? {}) };
       }
       return buf;
@@ -214,7 +207,7 @@ export interface NexusListItem {
 export class NexusError extends Error {
   constructor(
     message: string,
-    public path?: string,
+    public path?: string
   ) {
     super(message);
   }

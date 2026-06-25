@@ -4,13 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { TChatConversation } from '@/common/storage';
-import { STORAGE_KEYS } from '@/common/storageKeys';
-import { ipcBridge } from '@/common';
-import { useAddEventListener } from '@/renderer/utils/emitter';
 import { Message } from '@arco-design/web-react';
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
+import { useAddEventListener } from '@/renderer/utils/emitter';
+import { ipcBridge } from '@/common';
+import { STORAGE_KEYS } from '@/common/storageKeys';
+import type { TChatConversation } from '@/common/storage';
 import ChatWorkspace from './workspace';
 import BrowserPanel from './right-panel/BrowserPanel';
 import DeliverablesPanel from './right-panel/DeliverablesPanel';
@@ -82,10 +83,11 @@ const ChatSider: React.FC<{
   } else if (conversation?.type === 'remote-agent') {
     workspaceNode = <ChatWorkspace conversation_id={conversation.id} workspace={workspace || conversation.id} workspaceDisplayName={extra?.workspaceDisplayName} eventPrefix='remote-agent' backend='remote-agent' dataSource='moss-session' readonly messageApi={messageApi} />;
   }
+  const messageContextPortal = typeof document !== 'undefined' ? createPortal(messageContext, document.body) : messageContext;
 
   return (
     <>
-      {messageContext}
+      {messageContextPortal}
       <div className='flex h-full min-h-0 flex-col bg-[var(--color-bg-1)]'>
         <div className='right-panel-tabs'>
           {(['workspace', 'browser', 'terminal', 'deliverables'] as RightPanelTab[]).map((tab) => {

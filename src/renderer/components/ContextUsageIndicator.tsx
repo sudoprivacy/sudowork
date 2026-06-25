@@ -7,11 +7,11 @@
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { Tooltip } from '@arco-design/web-react';
 import type { TokenUsageData } from '@/common/storage';
 
 // 默认上下文限制
 import { DEFAULT_CONTEXT_LIMIT } from '@/renderer/utils/constants';
-import { Tooltip } from '@arco-design/web-react';
 
 interface ContextUsageIndicatorProps {
   tokenUsage: TokenUsageData | null;
@@ -71,7 +71,7 @@ const ContextUsageIndicator: React.FC<ContextUsageIndicatorProps> = ({ tokenUsag
 
   return (
     <Tooltip content={`${percentage.toFixed(1)}% · ${displayTotal} / ${displayLimit} ${t('conversation.contextUsage.contextUsed', 'context used')}`} position='top' className='context-usage-popover'>
-      <div className={`context-usage-indicator cursor-pointer flex items-center justify-center ${className}`} style={{ width: size, height: size }}>
+      <div className={`context-usage-indicator cursor-pointer f-center ${className}`} style={{ width: size, height: size }}>
         <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ transform: 'rotate(-90deg)' }}>
           {/* 背景圆环 */}
           <circle cx={size / 2} cy={size / 2} r={radius} fill='none' stroke={getTrackColor()} strokeWidth={strokeWidth} />

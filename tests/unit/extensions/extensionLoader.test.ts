@@ -49,7 +49,7 @@ afterEach(() => {
 
 describe('extensions/ExtensionLoader', () => {
   it('prioritizes explicit env extensions over duplicate user-installed extensions and skips implicit examples', async () => {
-    const sandbox = createTempDir('aionui-loader-');
+    const sandbox = createTempDir('sudowork-loader-');
     const homeDir = path.join(sandbox, 'home');
     const envDir = path.join(sandbox, 'env-extensions');
     const projectRoot = path.join(sandbox, 'project');
@@ -73,11 +73,11 @@ describe('extensions/ExtensionLoader', () => {
   });
 
   it('keeps E2E discovery hermetic by ignoring user, appdata, and implicit example sources', async () => {
-    const sandbox = createTempDir('aionui-loader-e2e-');
+    const sandbox = createTempDir('sudowork-loader-e2e-');
     const homeDir = path.join(sandbox, 'home');
     const envDir = path.join(sandbox, 'env-extensions');
     const projectRoot = path.join(sandbox, 'project');
-    const appDataExtensionsDir = path.join(homeDir, 'AppData', 'Roaming', 'AionUI', 'extensions');
+    const appDataExtensionsDir = path.join(homeDir, 'AppData', 'Roaming', 'Sudowork', 'extensions');
 
     fs.mkdirSync(projectRoot, { recursive: true });
     fs.mkdirSync(envDir, { recursive: true });

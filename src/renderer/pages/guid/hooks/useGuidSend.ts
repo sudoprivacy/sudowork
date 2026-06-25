@@ -8,7 +8,6 @@ import { Message } from '@arco-design/web-react';
 import { useCallback } from 'react';
 import { type TFunction } from 'i18next';
 import type { NavigateFunction } from 'react-router-dom';
-import type { AcpBackend, AvailableAgent, EffectiveAgentInfo } from '../types';
 import { ipcBridge } from '@/common';
 import type { TProviderWithModel } from '@/common/storage';
 import { emitter } from '@/renderer/utils/emitter';
@@ -16,6 +15,7 @@ import { updateWorkspaceTime } from '@/renderer/utils/workspaceHistory';
 import { isAcpRoutedPresetType, type PresetAgentType } from '@/types/acpTypes';
 import { getPresetByAgentId, resolveSessionMode } from '@/common/presets/presetResolver';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
+import type { AcpBackend, AvailableAgent, EffectiveAgentInfo } from '../types';
 
 export type GuidSendDeps = {
   // Input state
@@ -77,7 +77,40 @@ export type GuidSendResult = {
  * Hook that manages the send logic for all conversation types.
  */
 export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
-  const { input, setInput, files, setFiles, dir, setDir, setLoading, selectedSkills, selectedAgent, selectedAgentKey, selectedAgentInfo, isPresetAgent, selectedMode, selectedAcpModel, currentModel, sessionMode, findAgentByKey, getEffectiveAgentType, resolvePresetRulesAndSkills, resolveEnabledSkills, isMainAgentAvailable, getAvailableFallbackAgent, currentEffectiveAgentInfo, isGoogleAuth, setMentionOpen, setMentionQuery, setMentionSelectorOpen, setMentionActiveIndex, resetAgentSelection, setSelectedSkills, navigate, closeAllTabs, openTab, t } = deps;
+  const {
+    input,
+    setInput,
+    files,
+    setFiles,
+    dir,
+    setDir,
+    setLoading,
+    selectedSkills,
+    selectedAgent,
+    selectedAgentKey,
+    selectedAgentInfo,
+    isPresetAgent,
+    selectedMode,
+    selectedAcpModel,
+    currentModel,
+    sessionMode,
+    findAgentByKey,
+    getEffectiveAgentType,
+    resolvePresetRulesAndSkills,
+    resolveEnabledSkills,
+    isMainAgentAvailable,
+    getAvailableFallbackAgent,
+    setMentionOpen,
+    setMentionQuery,
+    setMentionSelectorOpen,
+    setMentionActiveIndex,
+    resetAgentSelection,
+    setSelectedSkills,
+    navigate,
+    closeAllTabs,
+    openTab,
+    t,
+  } = deps;
 
   const { isEnterprise } = useAppMode();
 
@@ -272,7 +305,29 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
         throw error;
       }
     }
-  }, [input, files, dir, selectedAgent, selectedAgentKey, selectedAgentInfo, isPresetAgent, selectedMode, selectedAcpModel, currentModel, sessionMode, findAgentByKey, getEffectiveAgentType, resolvePresetRulesAndSkills, resolveEnabledSkills, isMainAgentAvailable, getAvailableFallbackAgent, navigate, closeAllTabs, openTab, t]);
+  }, [
+    input,
+    files,
+    dir,
+    selectedAgent,
+    selectedAgentKey,
+    selectedAgentInfo,
+    isPresetAgent,
+    selectedMode,
+    selectedAcpModel,
+    currentModel,
+    sessionMode,
+    findAgentByKey,
+    getEffectiveAgentType,
+    resolvePresetRulesAndSkills,
+    resolveEnabledSkills,
+    isMainAgentAvailable,
+    getAvailableFallbackAgent,
+    navigate,
+    closeAllTabs,
+    openTab,
+    t,
+  ]);
 
   const sendMessageHandler = useCallback(() => {
     setLoading(true);

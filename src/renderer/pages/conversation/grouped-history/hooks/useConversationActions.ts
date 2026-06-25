@@ -1,21 +1,14 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import { Checkbox, Message, Modal } from '@arco-design/web-react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
 
-import { useConversationTabs } from '../../context/ConversationTabsContext';
-import type { SidebarTabKey } from '../types';
-import { isConversationPinned } from '../utils/groupingHelpers';
-import { blockMobileInputFocus, blurActiveElement } from '@/renderer/utils/focus';
 import { emitter } from '@/renderer/utils/emitter';
 import type { TChatConversation } from '@/common/storage';
 import { ipcBridge } from '@/common';
+import { useConversationTabs } from '../../context/ConversationTabsContext';
+import type { SidebarTabKey } from '../types';
+import { isConversationPinned } from '../utils/groupingHelpers';
 
 type UseConversationActionsParams = {
   batchMode: boolean;
@@ -63,8 +56,6 @@ export const useConversationActions = ({ batchMode, onSessionClick, onBatchModeC
         toggleSelectedConversation(conversation);
         return;
       }
-      blockMobileInputFocus();
-      blurActiveElement();
 
       const customWorkspace = conversation.extra?.customWorkspace;
       const newWorkspace = conversation.extra?.workspace;

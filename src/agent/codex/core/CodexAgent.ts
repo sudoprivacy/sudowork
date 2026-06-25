@@ -4,16 +4,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import crypto from 'crypto';
+import { lt } from 'semver';
 import type { NetworkError, CodexEventEnvelope } from '@/agent/codex/connection/CodexConnection';
 import { CodexConnection } from '@/agent/codex/connection/CodexConnection';
 import type { FileChange, CodexEventParams, CodexJsonRpcEvent } from '@/common/codex/types';
 import type { CodexEventHandler } from '@/agent/codex/handlers/CodexEventHandler';
 import type { CodexSessionManager } from '@/agent/codex/handlers/CodexSessionManager';
 import type { CodexFileOperationHandler } from '@/agent/codex/handlers/CodexFileOperationHandler';
+import { getConfiguredAppClientName, getConfiguredAppClientVersion, getConfiguredCodexMcpProtocolVersion } from '../../../common/utils/appConfig';
 import { ApprovalStore, createExecApprovalKey, createPatchApprovalKey } from './ApprovalStore';
 import type { ReviewDecision } from './ApprovalStore';
-import { getConfiguredAppClientName, getConfiguredAppClientVersion, getConfiguredCodexMcpProtocolVersion } from '../../../common/utils/appConfig';
-import { lt } from 'semver';
 
 interface LegacyNetworkErrorDetails {
   networkErrorType?: string;
@@ -355,8 +356,6 @@ export class CodexAgent {
 
   private generateConversationId(): string {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const crypto = require('crypto');
       if (typeof crypto.randomUUID === 'function') {
         return crypto.randomUUID();
       }

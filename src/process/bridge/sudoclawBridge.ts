@@ -4,19 +4,20 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
-import type { SudoclawConfig } from '@/common/ipcBridge';
-import { cachePut } from '@common/nexus/secret-cache';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { spawn } from 'child_process';
+import { cachePut } from '@common/nexus/secret-cache';
 import WorkerManage from '../WorkerManage';
 import { SUDOCLAW_DIR, getSudoclawInstalledVersion, isSudoclawInstalled, SUDOCLAW_DEFAULT_PORT, installSudoclawManually, removeSudoclawCli } from '../services/sudoclaw/SudoclawInstallService';
 import { syncSudoclawRuntimeState } from '../services/sudoclaw/sudoclawRuntimeSync';
 import { checkSudoclawHealth, SUDOCLAW_HEALTH_TIMEOUT_MS } from '../services/sudoclaw/sudoclawHealth';
 import { getNodeBinaryPath } from '../services/claudeCli/NodeRuntimeService';
 import { mainError, mainLog, mainWarn } from '../utils/mainLogger';
+import { getSudorouterBaseUrl } from '@/common/systemConfig';
+import type { SudoclawConfig } from '@/common/ipcBridge';
+import { ipcBridge } from '@/common';
 
 interface InstallState {
   installing: boolean;
@@ -90,7 +91,7 @@ function syncToClaudeSettings(config: SudoclawConfig): void {
   // Create new settings with fixed values
   const settings: Record<string, unknown> = {
     env: {
-      ANTHROPIC_BASE_URL: 'https://hk.sudorouter.ai',
+      ANTHROPIC_BASE_URL: getSudorouterBaseUrl(),
       ANTHROPIC_AUTH_TOKEN: apiKey,
       ANTHROPIC_MODEL: modelId || 'gemini-3.5-flash',
     },

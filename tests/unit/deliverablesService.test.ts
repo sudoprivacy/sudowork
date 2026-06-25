@@ -1,10 +1,14 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import nodePath from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { appendGeneratedFilesMarker, type GeneratedFileEntry } from '@/common/generatedFiles';
 
 const getConversationMessagesMock = vi.fn();
+const getConversationMock = vi.fn();
 
 vi.mock('@process/database', () => ({
-  getDatabase: () => ({ getConversationMessages: getConversationMessagesMock }),
+  getDatabase: () => ({ getConversationMessages: getConversationMessagesMock, getConversation: getConversationMock }),
 }));
 
 vi.mock('@process/utils/mainLogger', () => ({
@@ -35,10 +39,13 @@ const paginated = (messages: unknown[]) => ({ data: messages, total: messages.le
 describe('DeliverablesService.listForConversation', () => {
   beforeEach(() => {
     getConversationMessagesMock.mockReset();
+    getConversationMock.mockReset();
+    getConversationMock.mockReturnValue({ success: false });
   });
 
   afterEach(() => {
     getConversationMessagesMock.mockReset();
+    getConversationMock.mockReset();
   });
 
   it('returns [] for an empty conversation id', () => {
@@ -57,7 +64,7 @@ describe('DeliverablesService.listForConversation', () => {
   });
 
   it('extracts files from a single assistant marker message', () => {
-    const files = [entry({ path: '/w/a.html', createdAt: 100 }), entry({ path: '/w/b.md', ext: 'md', createdAt: 200 })];
+    const files = [entry({ path: '/w/a.html', relativePath: 'a.html', createdAt: 100 }), entry({ path: '/w/b.md', relativePath: 'b.md', ext: 'md', createdAt: 200 })];
     getConversationMessagesMock.mockReturnValue(paginated([markerMessage(files)]));
     const result = deliverablesService.listForConversation('c1');
     expect(result.map((f) => f.path)).toEqual(['/w/b.md', '/w/a.html']); // newest first
@@ -92,5 +99,51 @@ describe('DeliverablesService.listForConversation', () => {
     });
     expect(() => deliverablesService.listForConversation('c1')).not.toThrow();
     expect(deliverablesService.listForConversation('c1')).toEqual([]);
+  });
+
+  it('repairs a stale absolute path when relativePath resolves under the current workspace', () => {
+    const workspace = fs.mkdtempSync(nodePath.join(os.tmpdir(), 'deliverables-repair-'));
+    const realFile = nodePath.join(workspace, 'report.html');
+    fs.writeFileSync(realFile, '<html></html>');
+    try {
+      getConversationMock.mockReturnValue({ success: true, data: { extra: { workspace } } });
+      getConversationMessagesMock.mockReturnValue(
+        paginated([markerMessage([entry({ path: '/old/gone/report.html', relativePath: 'report.html', createdAt: 100 })])]),
+      );
+      const result = deliverablesService.listForConversation('c1');
+      expect(result).toHaveLength(1);
+      expect(result[0].path).toBe(nodePath.resolve(realFile));
+    } finally {
+      fs.rmSync(workspace, { recursive: true, force: true });
+    }
+  });
+
+  it('leaves the path untouched when the stale path resolves nowhere', () => {
+    getConversationMock.mockReturnValue({ success: true, data: { extra: { workspace: '/nonexistent-workspace' } } });
+    getConversationMessagesMock.mockReturnValue(
+      paginated([markerMessage([entry({ path: '/old/gone/report.html', relativePath: 'report.html', createdAt: 100 })])]),
+    );
+    const result = deliverablesService.listForConversation('c1');
+    expect(result).toHaveLength(1);
+    expect(result[0].path).toBe('/old/gone/report.html');
+  });
+
+  it('does not repair a stale path to a file outside the workspace', () => {
+    const workspace = fs.mkdtempSync(nodePath.join(os.tmpdir(), 'deliverables-repair-root-'));
+    const outsideDir = fs.mkdtempSync(nodePath.join(os.tmpdir(), 'deliverables-repair-outside-'));
+    const outsideFile = nodePath.join(outsideDir, 'secret.html');
+    fs.writeFileSync(outsideFile, '<html></html>');
+    try {
+      getConversationMock.mockReturnValue({ success: true, data: { extra: { workspace } } });
+      getConversationMessagesMock.mockReturnValue(
+        paginated([markerMessage([entry({ path: '/old/gone/secret.html', relativePath: nodePath.relative(workspace, outsideFile), createdAt: 100 })])]),
+      );
+      const result = deliverablesService.listForConversation('c1');
+      expect(result).toHaveLength(1);
+      expect(result[0].path).toBe('/old/gone/secret.html');
+    } finally {
+      fs.rmSync(workspace, { recursive: true, force: true });
+      fs.rmSync(outsideDir, { recursive: true, force: true });
+    }
   });
 });

@@ -103,7 +103,7 @@
 
   /* Interactive State */
   --bg-hover: #ebe9df;
-  --bg-active: #e0ded4;
+  --bg-active: #e8e9d8;
 
   /* Text */
   --foreground: #1d011d;
@@ -118,8 +118,8 @@
   --color-text-4: #c8c0bc;
 
   /* Border - 淡化一档（更贴近背景，柔和分隔） */
-  --border-default: #dad4c6;
-  --border-light: #e6e2d8;
+  --border-default: #e0dbd0;
+  --border-light: #eae7de;
 
   /* Fill & Inverse */
   --fill: #f5f4ef;

@@ -4,25 +4,24 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
-import type { TChatConversation } from '@/common/storage';
-import { uuid } from '@/common/utils';
-import addChatIcon from '@/renderer/assets/add-chat.svg';
-import { usePresetAssistantInfo } from '@/renderer/hooks/usePresetAssistantInfo';
 import { Button, Dropdown, Menu, Tooltip, Typography } from '@arco-design/web-react';
 import { History } from '@icon-park/react';
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import useSWR from 'swr';
-import { emitter } from '../../utils/emitter';
-import AcpChat from './acp/AcpChat';
-import ChatLayout from './ChatLayout';
-import ChatSider from './ChatSider';
 import AgentStatusDot from '@/renderer/components/AgentStatusBanner';
 import AcpModelSelector from '@/renderer/components/AcpModelSelector';
+import { usePresetAssistantInfo } from '@/renderer/hooks/usePresetAssistantInfo';
+import addChatIcon from '@/renderer/assets/add-chat.svg';
+import { uuid } from '@/common/utils';
+import type { TChatConversation } from '@/common/storage';
+import { ipcBridge } from '@/common';
+import { emitter } from '../../utils/emitter';
 import { TaskPanelHeaderProvider } from './workspace/TaskPanelHeaderContext';
-// import SkillRuleGenerator from './components/SkillRuleGenerator'; // Temporarily hidden
+import ChatSider from './ChatSider';
+import ChatLayout from './ChatLayout';
+import AcpChat from './acp/AcpChat';
 
 const _AssociatedConversation: React.FC<{ conversation_id: string }> = ({ conversation_id }) => {
   const { data } = useSWR(['getAssociateConversation', conversation_id], () => ipcBridge.conversation.getAssociateConversation.invoke({ conversation_id }));
@@ -30,7 +29,7 @@ const _AssociatedConversation: React.FC<{ conversation_id: string }> = ({ conver
   const list = useMemo(() => {
     if (!data?.length) return [];
     return data.filter((conversation) => conversation.id !== conversation_id);
-  }, [data]);
+  }, [data, conversation_id]);
   if (!list.length) return null;
   return (
     <Dropdown
@@ -101,7 +100,6 @@ const _AddNewConversation: React.FC<{ conversation: TChatConversation }> = ({ co
 const ChatConversation: React.FC<{
   conversation?: TChatConversation;
 }> = ({ conversation }) => {
-  const { t } = useTranslation();
   // Remote-agent workspaces are loaded from Moss Server, so they may not have a
   // local workspace path in conversation.extra.
   const workspaceEnabled = Boolean(conversation && (conversation.type === 'remote-agent' || conversation.extra?.workspace));

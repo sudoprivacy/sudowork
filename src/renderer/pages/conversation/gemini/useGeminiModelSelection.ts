@@ -1,9 +1,9 @@
-import type { IProvider, TProviderWithModel } from '@/common/storage';
-import type { GeminiModeOption } from '@/renderer/hooks/useModeModeList';
-import { useModelProviderList } from '@/renderer/hooks/useModelProviderList';
 import { Message } from '@arco-design/web-react';
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { IProvider, TProviderWithModel } from '@/common/storage';
+import type { GeminiModeOption } from '@/renderer/hooks/useModeModeList';
+import { useModelProviderList } from '@/renderer/hooks/useModelProviderList';
 
 export interface GeminiModelSelection {
   currentModel?: TProviderWithModel;

@@ -1,16 +1,18 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Avatar, Button, Modal, Input, Message, Spin } from '@arco-design/web-react';
-import { User, Phone, Edit } from '@icon-park/react';
+import { User, Phone, Edit, Lock } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
-import { useAuth } from '../../context/AuthContext';
-import { useDashboardStats } from '../../context/DashboardStatsContext';
-import { useAppMode } from '../../hooks/useAppMode';
-import ConsumerAvatar from './components/ConsumerAvatar';
-import WeeklyModelUsageChart from './components/WeeklyModelUsageChart';
-import SettingsPageWrapper from './components/SettingsPageWrapper';
 import { formatUsagePoints } from '@/common/tokenUsage';
 import type { UserProfileData } from '@/common/ipcBridge';
 import { ipcBridge } from '@/common';
+import PageWrapper from '@renderer/components/base/PageWrapper';
+import { useAuth } from '../../context/AuthContext';
+import { useDashboardStats } from '../../context/DashboardStatsContext';
+import { useAppMode } from '../../hooks/useAppMode';
+import { useSystemLoginMethod } from '../../hooks/useSystemLoginMethod';
+import ConsumerAvatar from './components/ConsumerAvatar';
+import WeeklyModelUsageChart from './components/WeeklyModelUsageChart';
+import ChangePasswordModal from './components/ChangePasswordModal';
 
 const UserProfile: React.FC = () => {
   const { t } = useTranslation();
@@ -19,6 +21,8 @@ const UserProfile: React.FC = () => {
   const { isEnterprise } = useAppMode();
   const [editingNickname, setEditingNickname] = useState('');
   const [editModalVisible, setEditModalVisible] = useState(false);
+  const { loginMethod } = useSystemLoginMethod();
+  const [changePwdModalVisible, setChangePwdModalVisible] = useState(false);
 
   // Enterprise mode state
   const [enterpriseProfile, setEnterpriseProfile] = useState<UserProfileData | null>(null);
@@ -141,7 +145,7 @@ const UserProfile: React.FC = () => {
   }, [stats?.usage_today]);
 
   return (
-    <SettingsPageWrapper contentClassName='max-w-200'>
+    <PageWrapper contentClassName='max-w-200'>
       <div className='flex flex-col gap-6 py-2'>
         <div className='text-20px font-600 text-foreground leading-32px'>{t('settings.profile')}</div>
 
@@ -194,6 +198,11 @@ const UserProfile: React.FC = () => {
                   <Button type='outline' size='mini' icon={<Edit size={14} fill='currentColor' />} onClick={handleEditNickname}>
                     编辑
                   </Button>
+                  {loginMethod === 1 && (
+                    <Button type='outline' size='mini' icon={<Lock size={14} fill='currentColor' />} onClick={() => setChangePwdModalVisible(true)}>
+                      {t('settings.userProfile.changePassword')}
+                    </Button>
+                  )}
                 </div>
                 <div className='flex gap-3 mt-2'>
                   <span className='text-12px text-secondary flex items-center gap-1'>
@@ -232,7 +241,9 @@ const UserProfile: React.FC = () => {
       <Modal title='编辑昵称' visible={editModalVisible} onOk={handleSaveNickname} onCancel={() => setEditModalVisible(false)} okText='保存' cancelText='取消'>
         <Input value={editingNickname} onChange={(val) => setEditingNickname(val)} placeholder='请输入昵称' onPressEnter={handleSaveNickname} />
       </Modal>
-    </SettingsPageWrapper>
+      {/* Change Password Modal (only when login_method=1) */}
+      <ChangePasswordModal visible={changePwdModalVisible} onClose={() => setChangePwdModalVisible(false)} />
+    </PageWrapper>
   );
 };
 

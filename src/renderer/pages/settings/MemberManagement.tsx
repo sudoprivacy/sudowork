@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Table, Button, Tabs, Tag, Space, Message, Modal, Badge } from '@arco-design/web-react';
 import { User, DeleteFour, Peoples } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
-import { useAuth } from '../../context/AuthContext';
-import SettingsPageWrapper from './components/SettingsPageWrapper';
 import { ipcBridge } from '@/common';
+import PageWrapper from '@renderer/components/base/PageWrapper';
+import { useAuth } from '../../context/AuthContext';
 
 const MemberManagement: React.FC = () => {
   const { t } = useTranslation();
@@ -58,7 +58,7 @@ const MemberManagement: React.FC = () => {
             Message.success(`已批准 ${user.nickname}，Key 已下发。`);
             void fetchMembers();
           }
-        } catch (e) {
+        } catch {
           Message.error('审批失败');
         }
       },
@@ -87,7 +87,7 @@ const MemberManagement: React.FC = () => {
             Message.success(`已拒绝 ${user.nickname} 的申请。`);
             void fetchMembers();
           }
-        } catch (e) {
+        } catch {
           Message.error('拒绝失败');
         }
       },
@@ -118,7 +118,7 @@ const MemberManagement: React.FC = () => {
           } else {
             Message.error(data.msg || '删除失败');
           }
-        } catch (e) {
+        } catch {
           Message.error('删除失败');
         }
       },
@@ -179,7 +179,7 @@ const MemberManagement: React.FC = () => {
   ];
 
   return (
-    <SettingsPageWrapper contentClassName='max-w-225'>
+    <PageWrapper contentClassName='max-w-225'>
       <div className='flex flex-col gap-6 py-2'>
         <div className='flex items-center justify-between'>
           <div className='flex flex-col gap-1'>
@@ -207,7 +207,7 @@ const MemberManagement: React.FC = () => {
           </Tabs.TabPane>
         </Tabs>
       </div>
-    </SettingsPageWrapper>
+    </PageWrapper>
   );
 };
 

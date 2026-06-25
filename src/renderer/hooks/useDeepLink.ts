@@ -17,7 +17,7 @@ export type IDeepLinkPayload = {
 };
 
 /**
- * Hook to listen for aionui:// deep link events from main process.
+ * Hook to listen for sudowork:// deep link events from main process.
  * Routes 'add-provider' action to the model settings page.
  */
 export const useDeepLink = () => {

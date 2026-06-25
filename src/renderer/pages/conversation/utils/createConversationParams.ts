@@ -52,7 +52,7 @@ export async function getDefaultGeminiModel(): Promise<TProviderWithModel> {
  * Determine the conversation type from a CLI agent's backend.
  * codex uses ACP path (type: 'acp' + extra.backend = 'codex').
  */
-export function getConversationTypeForBackend(backend: string): ICreateConversationParams['type'] {
+export function getConversationTypeForBackend(): ICreateConversationParams['type'] {
   // All backends use ACP protocol.
   // claude, gemini, qwen, codex, iflow, goose, auggie, kimi, opencode, copilot, qoder, codebuddy, droid, vibe, etc.
   return 'acp';
@@ -62,7 +62,7 @@ export function getConversationTypeForBackend(backend: string): ICreateConversat
  * Determine the conversation type from a preset assistant's presetAgentType.
  * Legacy sudoclaw preset metadata is normalized to scode.
  */
-export function getConversationTypeForPreset(presetAgentType: string | undefined): ICreateConversationParams['type'] {
+export function getConversationTypeForPreset(): ICreateConversationParams['type'] {
   return 'acp';
 }
 
@@ -74,7 +74,7 @@ export function getConversationTypeForPreset(presetAgentType: string | undefined
 export async function buildCliAgentParams(agent: AvailableAgent, workspace: string): Promise<ICreateConversationParams> {
   const { backend, name: agentName, cliPath } = agent;
 
-  const type = getConversationTypeForBackend(backend);
+  const type = getConversationTypeForBackend();
 
   const extra: ICreateConversationParams['extra'] = {
     workspace,
@@ -130,7 +130,7 @@ This identity statement takes priority over the default identity in USER.md.
     presetContext = identityBlock + (loadedRules || '');
   }
 
-  const type = getConversationTypeForPreset(presetAgentType);
+  const type = getConversationTypeForPreset();
   const presetBackend = resolvePresetAgentBackend(presetAgentType);
 
   const extra: ICreateConversationParams['extra'] = {

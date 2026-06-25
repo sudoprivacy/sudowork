@@ -5,6 +5,7 @@
  */
 
 import { AuthType } from '@office-ai/aioncli-core';
+import { resolveSecret } from '@common/nexus/secret-cache';
 import type { TProviderWithModel } from './storage';
 import { OpenAIRotatingClient, type OpenAIClientConfig } from './adapters/OpenAIRotatingClient';
 import { GeminiRotatingClient, type GeminiClientConfig } from './adapters/GeminiRotatingClient';
@@ -12,7 +13,6 @@ import { AnthropicRotatingClient, type AnthropicClientConfig } from './adapters/
 import type { RotatingApiClientOptions } from './RotatingApiClient';
 import { getProviderAuthType } from './utils/platformAuthType';
 import { isNewApiPlatform } from './utils/platformConstants';
-import { resolveSecret, cachePut } from '@common/nexus/secret-cache';
 
 export interface ClientOptions {
   timeout?: number;

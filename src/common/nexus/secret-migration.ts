@@ -13,17 +13,14 @@
  * 5. Trigger cache preload
  */
 
-import { secretCache, markMigrated } from './secret-cache';
-import type { NexusSecretClient } from './nexus-secret-client';
-import { getNexusSecretClient } from './nexus-secret-client';
-import { resolveConfig } from './config';
 import { decryptCredentials } from '@/channels/utils/credentialCrypto';
 import { getDatabase } from '@process/database/export';
 import { UserRepository } from '@/webserver/auth/repository/UserRepository';
 import { ProcessConfig } from '@process/initStorage';
-import fs from 'node:fs';
-import path from 'node:path';
-import os from 'node:os';
+import { secretCache, markMigrated } from './secret-cache';
+import type { NexusSecretClient } from './nexus-secret-client';
+import { getNexusSecretClient } from './nexus-secret-client';
+import { resolveConfig } from './config';
 
 // ============================================================================
 // Types
@@ -75,7 +72,7 @@ export class SecretMigrationCoordinator {
    * Initialize the coordinator with optional credentials for Nexus authentication.
    * Uses resolveConfig() to get full config if no options provided.
    */
-  initialize(options?: { apiKey?: string; subject?: string; agentId?: string; zoneId?: string }): void {
+  initialize(): void {
     this.client = getNexusSecretClient();
     secretCache.initialize();
   }
@@ -249,10 +246,10 @@ export class SecretMigrationCoordinator {
 
     try {
       // Step 1: Write secret to Nexus
-      await this.client.putSecret(namespace, key, value);
+      this.client.putSecret(namespace, key, value);
 
       // Step 2: Read back to verify - ensure secret was stored correctly
-      const storedValue = await this.client.getSecret(namespace, key);
+      const storedValue = this.client.getSecret(namespace, key);
 
       // Step 3: Data integrity check
       if (storedValue !== value) {
@@ -317,7 +314,7 @@ export class SecretMigrationCoordinator {
             try {
               await this.migrateSecret(namespace, field, value);
               migrated++;
-            } catch (error) {
+            } catch {
               // Error already logged in migrateSecret
               failed++;
             }
@@ -366,7 +363,7 @@ export class SecretMigrationCoordinator {
           try {
             await this.migrateSecret(namespace, 'api_key', provider.apiKey);
             migrated++;
-          } catch (error) {
+          } catch {
             failed++;
           }
         }
@@ -379,7 +376,7 @@ export class SecretMigrationCoordinator {
             try {
               await this.migrateSecret(`provider:${provider.id}`, 'access_key_id', config.accessKeyId);
               migrated++;
-            } catch (error) {
+            } catch {
               failed++;
             }
           }
@@ -388,7 +385,7 @@ export class SecretMigrationCoordinator {
             try {
               await this.migrateSecret(`provider:${provider.id}`, 'secret_access_key', config.secretAccessKey);
               migrated++;
-            } catch (error) {
+            } catch {
               failed++;
             }
           }
@@ -433,7 +430,7 @@ export class SecretMigrationCoordinator {
           try {
             await this.migrateSecret(namespace, 'auth_token', authToken);
             migrated++;
-          } catch (error) {
+          } catch {
             failed++;
           }
         }
@@ -466,7 +463,7 @@ export class SecretMigrationCoordinator {
           try {
             await this.migrateSecret(namespace, key, user.jwt_secret);
             migrated++;
-          } catch (error) {
+          } catch {
             failed++;
           }
         }

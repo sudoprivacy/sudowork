@@ -1,0 +1,8 @@
+{
+  "serverUrl": {
+    "toggle": "사용자 지정 서버 주소 사용",
+    "placeholder": "https://your-sudowork-server.com",
+    "hint": "비워두면 기본 서버를 사용합니다",
+    "invalidUrl": "유효한 HTTP/HTTPS 주소를 입력하세요"
+  }
+}

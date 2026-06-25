@@ -4,34 +4,32 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Button, Input, Message, Tag, Tooltip } from '@arco-design/web-react';
+import { ArrowUp, CloseSmall, Lightning } from '@icon-park/react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { IconPaste } from '@arco-design/web-react/icon';
 import { useInputFocusRing } from '@/renderer/hooks/useInputFocusRing';
 import SlashCommandMenu, { type SlashCommandMenuItem } from '@/renderer/components/SlashCommandMenu';
 import { useSlashCommandController } from '@/renderer/hooks/useSlashCommandController';
 import SkillSelectorMenu, { type SkillSelectorMenuItem } from '@/renderer/components/SkillSelectorMenu';
 import { useSkillSelectorController, type SkillSelectorItem, stripAtQuery, replaceAtQuery } from '@/renderer/hooks/useSkillSelectorController';
 import type { WorkspaceFileItem } from '@/renderer/hooks/useWorkspaceFiles';
-import { useLayoutContext } from '@/renderer/context/LayoutContext';
 import { usePreviewContext } from '@/renderer/pages/conversation/preview';
-import { blurActiveElement, shouldBlockMobileInputFocus } from '@/renderer/utils/focus';
-import { Button, Input, Message, Tag, Tooltip } from '@arco-design/web-react';
-import { ArrowUp, CloseSmall, Lightning } from '@icon-park/react';
 import type { SlashCommandItem } from '@/common/slash/types';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useTranslation } from 'react-i18next';
-import { useCompositionInput } from '../hooks/useCompositionInput';
-import { useDragUpload } from '../hooks/useDragUpload';
-import { useLatestRef } from '../hooks/useLatestRef';
-import { usePasteService } from '../hooks/usePasteService';
 import ContextMenu, { type ContextMenuItem } from '@/renderer/components/ContextMenu';
 import ActionChip from '@/renderer/components/ui/ActionChip';
-import { IconPaste } from '@arco-design/web-react/icon';
-import type { FileMetadata } from '../services/FileService';
-import { allSupportedExts } from '../services/FileService';
 import type { IInstalledSkillInfo } from '@/common/ipcBridge';
 import { isElectronDesktop } from '@/renderer/utils/platform';
 import { skillHub } from '@/common/ipcBridge';
 import { resolveSkillIcon, getInstalledSkillDisplay } from '@/renderer/utils/skillDisplay';
 import { addEventListener } from '@/renderer/utils/emitter';
+import { allSupportedExts } from '../services/FileService';
+import type { FileMetadata } from '../services/FileService';
+import { usePasteService } from '../hooks/usePasteService';
+import { useLatestRef } from '../hooks/useLatestRef';
+import { useDragUpload } from '../hooks/useDragUpload';
+import { useCompositionInput } from '../hooks/useCompositionInput';
 
 const constVoid = (): void => undefined;
 // 临界值：超过该字符数直接切换至多行模式，避免为超长文本做昂贵的宽度测量
@@ -66,8 +64,6 @@ const SendBox: React.FC<{
   /** Called when a file is selected via @ selector, allowing parent to track the file */
   onAtFileSelected?: (file: WorkspaceFileItem) => void;
 }> = ({ onSend, onStop, prefix, className, loading, tools, disabled, placeholder, value: input = '', onChange: setInput = constVoid, onFilesAdded, supportedExts = allSupportedExts, defaultMultiLine = false, lockMultiLine = false, topAttached = false, sendButtonPrefix, slashCommands = [], onSlashBuiltinCommand, onSkillsChange, initialSelectedSkills = [], workspaceFiles, onAtFileSelected }) => {
-  const layout = useLayoutContext();
-  const isMobile = layout?.isMobile ?? false;
   const { t } = useTranslation();
   const [isLoading, setIsLoading] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
@@ -78,7 +74,6 @@ const SendBox: React.FC<{
   const containerRef = useRef<HTMLDivElement>(null);
   const singleLineWidthRef = useRef<number>(0);
   const measurementCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const mobileUserFocusIntentUntilRef = useRef(0);
   const latestInputRef = useLatestRef(input);
   const setInputRef = useLatestRef(setInput);
   const [cursorPosition, setCursorPosition] = useState(0);
@@ -154,15 +149,6 @@ const SendBox: React.FC<{
     }, 100);
     return () => clearTimeout(timer);
   }, []);
-
-  // 移动端挂载后主动清除焦点，拦截路由切换导致的非用户触发聚焦
-  useEffect(() => {
-    if (!isMobile) return;
-    const timer = setTimeout(() => {
-      blurActiveElement();
-    }, 0);
-    return () => clearTimeout(timer);
-  }, [isMobile]);
 
   // 检测是否单行
   // Detect whether to use single-line or multi-line mode
@@ -439,24 +425,10 @@ const SendBox: React.FC<{
       }
     },
   });
-  const markMobileFocusIntent = useCallback(() => {
-    if (!isMobile) return;
-    mobileUserFocusIntentUntilRef.current = Date.now() + 1500;
-  }, [isMobile]);
-
   const handleInputFocus = useCallback(() => {
-    if (isMobile && Date.now() > mobileUserFocusIntentUntilRef.current) {
-      blurActiveElement();
-      return;
-    }
-    if (isMobile && shouldBlockMobileInputFocus()) {
-      blurActiveElement();
-      return;
-    }
-    mobileUserFocusIntentUntilRef.current = 0;
     handlePasteFocus();
     setIsInputFocused(true);
-  }, [handlePasteFocus, isMobile]);
+  }, [handlePasteFocus]);
   const handleInputBlur = useCallback(() => {
     setIsInputFocused(false);
   }, []);
@@ -664,17 +636,17 @@ const SendBox: React.FC<{
         </div>
         <div className={isSingleLine ? 'flex items-center gap-2 w-full min-w-0 overflow-hidden' : 'w-full overflow-hidden'}>
           {isSingleLine && (
-            <div className={isMobile ? 'sendbox-tools sendbox-tools-scroll-mobile' : 'flex-shrink-0 sendbox-tools flex items-center'}>
+            <div className='flex-shrink-0 sendbox-tools flex items-center'>
               {tools}
               {skillTriggerButton}
             </div>
           )}
           <Input.TextArea
-            autoFocus={!isMobile}
+            autoFocus={true}
             disabled={disabled}
             value={input}
             placeholder={placeholder}
-            className={`pl-0 pr-0 !b-none focus:shadow-none m-0 !bg-transparent !focus:bg-transparent !hover:bg-transparent lh-[20px] !resize-none text-14px ${isMobile ? 'sendbox-input--mobile' : ''}`}
+            className='pl-0 pr-0 !b-none focus:shadow-none m-0 !bg-transparent !focus:bg-transparent !hover:bg-transparent lh-[20px] !resize-none text-14px'
             style={{
               width: isSingleLine ? 'auto' : '100%',
               flex: isSingleLine ? 1 : 'none',
@@ -701,8 +673,6 @@ const SendBox: React.FC<{
             }}
             onPaste={onPaste}
             onContextMenu={handleContextMenu}
-            onTouchStart={markMobileFocusIntent}
-            onMouseDown={markMobileFocusIntent}
             onFocus={handleInputFocus}
             onBlur={handleInputBlur}
             {...compositionHandlers}
@@ -727,7 +697,7 @@ const SendBox: React.FC<{
         </div>
         {!isSingleLine && (
           <div className='flex items-center justify-between gap-2 w-full'>
-            <div className={isMobile ? 'sendbox-tools sendbox-tools-scroll-mobile' : 'sendbox-tools flex items-center'}>
+            <div className='sendbox-tools flex items-center'>
               {tools}
               {skillTriggerButton}
             </div>

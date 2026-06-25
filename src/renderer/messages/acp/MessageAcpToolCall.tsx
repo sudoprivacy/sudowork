@@ -4,13 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Card, Tag } from '@arco-design/web-react';
+import { createTwoFilesPatch } from 'diff';
+import React, { useMemo } from 'react';
 import type { IMessageAcpToolCall } from '@/common/chatLib';
 import FileChangesPanel from '@/renderer/components/base/FileChangesPanel';
 import { useDiffPreviewHandlers } from '@/renderer/hooks/useDiffPreviewHandlers';
 import { parseDiff } from '@/renderer/utils/diffUtils';
-import { Card, Tag } from '@arco-design/web-react';
-import { createTwoFilesPatch } from 'diff';
-import React, { useMemo } from 'react';
 import MarkdownView from '../../components/Markdown';
 
 const StatusTag: React.FC<{ status: string }> = ({ status }) => {

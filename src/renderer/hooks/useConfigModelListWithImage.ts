@@ -1,7 +1,8 @@
 import { useMemo } from 'react';
 import useSWR from 'swr';
-import { ipcBridge } from '../../common';
 import { DEFAULT_IMAGE_GENERATION_MODEL } from '@/common/storage';
+import { ipcBridge } from '../../common';
+import { isSudorouterBaseUrl } from '@/common/systemConfig';
 
 const useConfigModelListWithImage = () => {
   const { data } = useSWR('configModelListWithImage', () => {
@@ -30,7 +31,7 @@ const useConfigModelListWithImage = () => {
         // AntigravityTools 平台：添加常用图像模型
         // AntigravityTools platform: add common image models
         platform.model = platform.model.concat(['gemini-3-pro-image-1x1']);
-      } else if (platform.baseUrl && platform.baseUrl.includes('sudorouter.ai')) {
+      } else if (isSudorouterBaseUrl(platform.baseUrl)) {
         // SudoRouter 平台：添加图像生成模型
         // SudoRouter platform: add image generation model
         const hasSudorouterImage = platform.model.some((m) => m.includes(DEFAULT_IMAGE_GENERATION_MODEL));

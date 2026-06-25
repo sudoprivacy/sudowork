@@ -6,20 +6,20 @@
 
 import { app } from 'electron';
 import { safeExec } from '@process/utils/safeExec';
-import type { AcpBackendAll } from '@/types/acpTypes';
-import { JSONRPC_VERSION } from '@/types/acpTypes';
-import type { IMcpServer } from '@/common/storage';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import { getEnhancedEnv, resolveNpxPath } from '@/process/utils/shellEnv';
 import { mainWarn, mainError } from '@process/utils/mainLogger';
+import { getEnhancedEnv, resolveNpxPath } from '@/process/utils/shellEnv';
+import type { IMcpServer } from '@/common/storage';
+import { JSONRPC_VERSION } from '@/types/acpTypes';
+import type { AcpBackendAll } from '@/types/acpTypes';
 
 /**
  * MCP源类型 - 包括所有ACP后端和Sudowork内置
  */
-export type McpSource = AcpBackendAll | 'aionui';
+export type McpSource = AcpBackendAll | 'sudowork';
 
 /**
  * MCP操作结果接口

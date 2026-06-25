@@ -105,10 +105,10 @@ const PreviewConfirmModals: React.FC<PreviewConfirmModalsProps> = ({ showExitCon
         getPopupContainer={() => document.body}
         footer={
           <div className='flex justify-end gap-8px'>
-            <button className='px-16px py-6px cursor-pointer border-none hover:bg-bg-3 transition-colors text-14px text-foreground' onClick={onCancelCloseTab}>
+            <button className='px-16px py-6px cursor-pointer border-none transition-colors text-14px text-foreground' onClick={onCancelCloseTab}>
               {t('common.cancel')}
             </button>
-            <button className='px-16px py-6px cursor-pointer border-none hover:bg-bg-3 transition-colors text-14px text-foreground' onClick={onCloseWithoutSave}>
+            <button className='px-16px py-6px cursor-pointer border-none transition-colors text-14px text-foreground' onClick={onCloseWithoutSave}>
               {t('preview.closeWithoutSave')}
             </button>
             <button className='px-16px py-6px cursor-pointer border-none bg-primary text-white hover:opacity-80 transition-opacity text-14px' onClick={onSaveAndCloseTab}>

@@ -16,11 +16,11 @@ import { promisify } from 'util';
 import { existsSync, mkdirSync, promises as fs, readFileSync, writeFileSync } from 'fs';
 import os from 'os';
 import path from 'path';
+import { app } from 'electron';
 import { CLAUDE_ACP_NPX_PACKAGE, CODEBUDDY_ACP_NPX_PACKAGE, CODEX_ACP_BRIDGE_VERSION, CODEX_ACP_NPX_PACKAGE } from '@/types/acpTypes';
 import { findSuitableNodeBin, getEnhancedEnv, resolveNpxPath } from '@process/utils/shellEnv';
 import { mainLog, mainWarn } from '@process/utils/mainLogger';
 import { isSafetyHookEnabled } from '@process/services/safety/SafetyPollingService';
-import { app } from 'electron';
 
 const execFile = promisify(execFileCb);
 
@@ -116,7 +116,14 @@ export function resolveScodeAuthModeFromConfig(config: unknown, settings: unknow
   if (!configRecord) return null;
 
   const settingsRecord = asRecord(settings);
-  const currentModel = typeof modelOverride === 'string' && modelOverride.trim() ? modelOverride.trim() : typeof settingsRecord?.model === 'string' && settingsRecord.model.trim() ? settingsRecord.model.trim() : typeof configRecord.default_model === 'string' && configRecord.default_model.trim() ? configRecord.default_model.trim() : null;
+  const currentModel =
+    typeof modelOverride === 'string' && modelOverride.trim()
+      ? modelOverride.trim()
+      : typeof settingsRecord?.model === 'string' && settingsRecord.model.trim()
+        ? settingsRecord.model.trim()
+        : typeof configRecord.default_model === 'string' && configRecord.default_model.trim()
+          ? configRecord.default_model.trim()
+          : null;
   if (!currentModel) return null;
 
   const models = asRecord(configRecord.models);

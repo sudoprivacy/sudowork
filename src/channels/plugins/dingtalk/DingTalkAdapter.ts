@@ -158,9 +158,7 @@ export function extractMediaDownloadInfo(data: DingTalkStreamMessage): { downloa
   // richText messages may contain picture items with downloadCode
   if (msgtype === 'richText') {
     const items = getRichTextItems(data);
-    const pictureItem = items.find(
-      (item) => item.downloadCode && (item.type === 'picture' || !!item.pictureDownloadCode),
-    );
+    const pictureItem = items.find((item) => item.downloadCode && (item.type === 'picture' || !!item.pictureDownloadCode));
     if (pictureItem?.downloadCode) {
       return { downloadCode: pictureItem.downloadCode };
     }
@@ -693,9 +691,12 @@ const DINGTALK_UPLOAD_IMAGE_EXTENSIONS = new Set(['jpg', 'jpeg', 'gif', 'png', '
  */
 const DINGTALK_FILE_TYPE_MAP: Record<string, string> = {
   pdf: 'pdf',
-  doc: 'doc', docx: 'doc',
-  xls: 'xlsx', xlsx: 'xlsx',
-  ppt: 'ppt', pptx: 'ppt',
+  doc: 'doc',
+  docx: 'doc',
+  xls: 'xlsx',
+  xlsx: 'xlsx',
+  ppt: 'ppt',
+  pptx: 'ppt',
   zip: 'zip',
   rar: 'rar',
 };

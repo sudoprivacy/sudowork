@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { IResponseMessage } from './ipcBridge';
-import { uuid } from './utils';
 import type { CodexPermissionRequest } from '@/common/codex/types';
 import type { ExecCommandBeginData, ExecCommandEndData, ExecCommandOutputDeltaData, McpToolCallBeginData, McpToolCallEndData, PatchApplyBeginData, PatchApplyEndData, TurnDiffData, WebSearchBeginData, WebSearchEndData } from '@/common/codex/types/eventData';
 import type { AcpBackend, AcpPermissionRequest, PlanUpdate, ToolCallUpdate } from '@/types/acpTypes';
+import { uuid } from './utils';
+import type { IResponseMessage } from './ipcBridge';
 
 /**
  * 安全的路径拼接函数，兼容Windows和Mac
@@ -381,7 +381,7 @@ export type IMessageFileSend = IMessage<'file_send', IFileSendData>;
 export type TMessage = IMessageText | IMessageTips | IMessageToolCall | IMessageToolGroup | IMessageAgentStatus | IMessageAcpPermission | IMessageAcpQuestion | IMessageAcpToolCall | IMessageCodexPermission | IMessageCodexToolCall | IMessagePlan | IMessageAvailableCommands | IMessageFileSend;
 
 // 统一所有需要用户交互的用户类型
-export interface IConfirmation<Option extends any = any> {
+export interface IConfirmation<Option = any> {
   title?: string;
   id: string;
   action?: string;

@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import * as crypto from 'crypto';
 import { channel as channelBridge } from '@/common/ipcBridge';
 import { getDatabase } from '@/process/database';
-import * as crypto from 'crypto';
 import type { IChannelPairingRequest, IChannelUser, PluginType } from '../types';
 
 /**

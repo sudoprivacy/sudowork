@@ -5,12 +5,12 @@
  */
 
 import { getDatabase } from '@/process/database';
-import type { IChannelPluginConfig, PluginStatus, IChannelUser, PluginType, IChannelPairingRequest, IChannelSession, ChannelPlatform } from '../types';
-import type { IChannelProvider } from './IChannelProvider';
+import type { IChannelPluginConfig, PluginStatus, IChannelUser, PluginType, IChannelPairingRequest, IChannelSession } from '../types';
 import { TelegramPlugin } from '../plugins/telegram/TelegramPlugin';
 import { LarkPlugin } from '../plugins/lark/LarkPlugin';
 import { DingTalkPlugin } from '../plugins/dingtalk/DingTalkPlugin';
 import { WeComPlugin } from '../plugins/wecom/WeComPlugin';
+import type { IChannelProvider } from './IChannelProvider';
 
 /**
  * LocalChannelProvider - Implementation of IChannelProvider using local SQLite database
@@ -18,12 +18,12 @@ import { WeComPlugin } from '../plugins/wecom/WeComPlugin';
 export class LocalChannelProvider implements IChannelProvider {
   async getPlugins(): Promise<IChannelPluginConfig[]> {
     const result = getDatabase().getChannelPlugins();
-    return result.success ? (result.data || []) : [];
+    return result.success ? result.data || [] : [];
   }
 
   async getPlugin(pluginId: string): Promise<IChannelPluginConfig | null> {
     const result = getDatabase().getChannelPlugin(pluginId);
-    return result.success ? (result.data || null) : null;
+    return result.success ? result.data || null : null;
   }
 
   async upsertPlugin(plugin: IChannelPluginConfig): Promise<boolean> {
@@ -48,12 +48,12 @@ export class LocalChannelProvider implements IChannelProvider {
 
   async getUsers(): Promise<IChannelUser[]> {
     const result = getDatabase().getChannelUsers();
-    return result.success ? (result.data || []) : [];
+    return result.success ? result.data || [] : [];
   }
 
   async getUserByPlatform(platformUserId: string, platformType: PluginType): Promise<IChannelUser | null> {
     const result = getDatabase().getChannelUserByPlatform(platformUserId, platformType);
-    return result.success ? (result.data || null) : null;
+    return result.success ? result.data || null : null;
   }
 
   async deleteUser(userId: string): Promise<boolean> {
@@ -63,17 +63,17 @@ export class LocalChannelProvider implements IChannelProvider {
 
   async deleteUsersByPlatform(platformType: string): Promise<number> {
     const result = getDatabase().deleteChannelUsersByPlatform(platformType);
-    return result.success ? (result.data || 0) : 0;
+    return result.success ? result.data || 0 : 0;
   }
 
   async getSessions(): Promise<IChannelSession[]> {
     const result = getDatabase().getChannelSessions();
-    return result.success ? (result.data || []) : [];
+    return result.success ? result.data || [] : [];
   }
 
   async getPendingPairingRequests(): Promise<IChannelPairingRequest[]> {
     const result = getDatabase().getPendingPairingRequests();
-    return result.success ? (result.data || []) : [];
+    return result.success ? result.data || [] : [];
   }
 
   async approvePairing(code: string): Promise<boolean> {
@@ -119,7 +119,7 @@ export class LocalChannelProvider implements IChannelProvider {
     return { success: true };
   }
 
-  async syncChannelSettings(platform: ChannelPlatform, agent: { backend: string; customAgentId?: string; name?: string }, model?: { id: string; useModel: string }): Promise<{ success: boolean; error?: string }> {
+  async syncChannelSettings(): Promise<{ success: boolean; error?: string }> {
     // Local mode: no-op, ChannelManager handles session clearing directly
     return { success: true };
   }

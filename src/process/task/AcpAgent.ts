@@ -9,13 +9,7 @@
 import { spawn } from 'child_process';
 import * as fs from 'node:fs';
 import * as nodePath from 'node:path';
-import { getEnhancedEnv, resolveNpxPath } from '@process/utils/shellEnv';
-import { applyPresetRuntime } from '@process/task/presetRuntime';
-import { getDatabase } from '@process/database';
-import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
-import { translateLLMError } from '@process/utils/llmErrorTranslation';
-import { classifyLlmError } from '@process/utils/llmErrorClassification';
-import { clearSkillsCache, getCustomSkillsDir, ProcessConfig } from '../initStorage';
+import { app } from 'electron';
 import { AcpAdapter } from '@/agent/acp/AcpAdapter';
 import { AcpApprovalStore, createAcpApprovalKey } from '@/agent/acp/ApprovalStore';
 import { AcpConnection } from '@/agent/acp/AcpConnection';
@@ -33,32 +27,80 @@ import { appendNexusFilesMarker } from '@/common/nexusFiles';
 import type { IResponseMessage } from '@/common/ipcBridge';
 import { NavigationInterceptor, type NavigationToolData } from '@/common/navigation';
 import { parseError, uuid } from '@/common/utils';
-import type { AcpBackend, AcpError, AcpModelInfo, AcpPermissionOption, AcpPermissionRequest, AcpPromptResponseUsage, AcpQuestionRequest, AcpQuestionResponseAnswer, AcpResult, AcpSessionConfigOption, AcpSessionUpdate, AvailableCommandsUpdate, ToolCallUpdate, ToolCallUpdateStatus } from '@/types/acpTypes';
+import type {
+  AcpBackend,
+  AcpError,
+  AcpModelInfo,
+  AcpPermissionOption,
+  AcpPermissionRequest,
+  AcpPromptResponseUsage,
+  AcpQuestionRequest,
+  AcpQuestionResponseAnswer,
+  AcpResult,
+  AcpSessionConfigOption,
+  AcpSessionUpdate,
+  AvailableCommandsUpdate,
+  ToolCallUpdate,
+  ToolCallUpdateStatus,
+} from '@/types/acpTypes';
 import { ACP_BACKENDS_ALL, AcpErrorType, createAcpError } from '@/types/acpTypes';
 import { ExtensionRegistry } from '@/extensions';
+import { getEnhancedEnv, resolveNpxPath } from '@process/utils/shellEnv';
+import { applyPresetRuntime } from '@process/task/presetRuntime';
 import { assistantManager } from '@/process/AssistantManager';
+import { getDatabase } from '@process/database';
+import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
+import { translateLLMError } from '@process/utils/llmErrorTranslation';
+import { classifyLlmError } from '@process/utils/llmErrorClassification';
+import { mergeScodeProxyModelInfo, isModelVisionCapable, getScodeProxyModelInfoSync } from '@process/services/scode/scodeProxyModels';
+import { appendGeneratedFilesMarker, type GeneratedFileEntry } from '@/common/generatedFiles';
+import { readAssistantResource, ruleFilePattern } from '@process/utils/assistantResources';
+import { protectUnsupportedAcpSlashPrompt } from '@/common/slash/sudoworkCommands';
+import { cdpPort as chromiumCdpPort } from '@/utils/configureChromium';
+import { clearSkillsCache, getCustomSkillsDir, ProcessConfig } from '../initStorage';
 import { addMessage, addOrUpdateMessage, nextTickToLocalFinish } from '../message';
 import { handlePreviewOpenEvent } from '../utils/previewUtils';
 import { mainLog, mainWarn, mainError } from '../utils/mainLogger';
+import {
+  startConversationTracking,
+  endConversationSuccess,
+  endConversationError,
+  endConversationUserCancel,
+  startToolCallTracking,
+  endToolCallTracking,
+  startPermissionRequestTracking,
+  endPermissionRequestTracking,
+  recordFileOperationStep,
+  startTurnTracking,
+  updateTurnTokens,
+  endTurnSuccess,
+  endTurnError,
+  getCurrentTurnId,
+} from '../telemetry';
+import { conversationBreadcrumbs, apiBreadcrumbs, mcpBreadcrumbs } from '../telemetry/BreadcrumbTracker';
+import { resolveImageConfig, callImagesGenerations, callImagesEdits, saveImageResult, resolveChatModel, callChatCompletionsWithImage, readSudorouterCredentials } from '../bridge/imageGenerationBridge';
+import { resolveWorkspaceSkillsDir } from '../utils/workspaceSkillsDir';
 import { injectSkillsDirectoryHint, prepareFirstMessageWithSkillsIndex } from './agentUtils';
 import { AcpSkillManager } from './AcpSkillManager';
 import { archiveTurnFiles, cleanupIntermediateFiles, cleanupTrackedDraftsOnCancel, type TrackedTurnFile } from './draftsCleanup';
 import { detectBashDraftRestoreCommand, FileIntentClassifier, type BashDraftRestoreDetection, type FileIntentSource, type FileOperationIntent } from './FileIntentClassifier';
 import { buildAcpModelIdentityReminder, SCODE_COMPLETION_REMINDER, shouldRunCurrentTurnPostCleanup, shouldSkipAcpWorkspaceTrackingPath } from './acpWorkspaceTracking';
-import { mergeScodeProxyModelInfo, isModelVisionCapable, getScodeProxyModelInfoSync } from '@process/services/scode/scodeProxyModels';
 import { installWorkspaceSkillsFromTrackedFiles } from './workspaceSkillInstaller';
-import { appendGeneratedFilesMarker, extractExtension, mimeForExtension, type GeneratedFileEntry } from '@/common/generatedFiles';
+import { buildGeneratedFileEntries as buildGeneratedFileEntriesFromTracked, resolveFinalFileDisplayPath as resolveFinalFileDisplayPathPure } from './generatedFileEntries';
 import BaseAgent from './BaseAgent';
+import { hasCronCommands } from './CronCommandDetector';
+import { detectChannelQueryIntent, executeChannelInfoCommand, type ChannelQueryCommand } from './ChannelInfoDetector';
+import { extractTextFromMessage, processCronInMessage } from './MessageMiddleware';
+import { processAtFileReferences } from './acp/AcpAtFileProcessor';
+import { StreamTextBuffer, CronTextAccumulator, preprocessContentMessage } from './acp/AcpMessagePipeline';
+import { clearAcpSessionId, saveAcpSessionId, saveSessionMode, saveModelId, saveContextUsage } from './acp/AcpPersistence';
+import { extractLatestScodeAssistantUsageFromJsonl, findScodeSessionFile, normalizePromptUsageForMessage, SCODE_LATE_RECONCILIATION_DEFAULTS } from './acpUsageReconciliation';
 
 // Telemetry imports for conversation tracking
-import { startConversationTracking, endConversationSuccess, endConversationError, endConversationUserCancel } from '../telemetry';
 
 // Telemetry imports for turn/step tracking
-import { startTurnTracking, updateTurnTokens, endTurnSuccess, endTurnError, getCurrentTurnId } from '../telemetry';
-import { startToolCallTracking, endToolCallTracking, startPermissionRequestTracking, endPermissionRequestTracking, recordFileOperationStep, startThinkingTracking, endThinkingTracking } from '../telemetry';
 
 // CrashReporter imports for breadcrumb tracking
-import { conversationBreadcrumbs, apiBreadcrumbs, systemBreadcrumbs, mcpBreadcrumbs } from '../telemetry/BreadcrumbTracker';
 
 /** Default prompt timeout in seconds */
 const DEFAULT_PROMPT_TIMEOUT_SECONDS = 300;
@@ -69,18 +111,6 @@ const PROMPT_TIMEOUT_MAX_SECONDS = 3600;
 const TEXT_ATTACHMENT_BLOCK_BYTES = 1024 * 1024;
 const CONTEXT_OVERFLOW_REASONS = new Set(['context_window_exceeded', 'single_request_too_large', 'request_body_too_large']);
 const CONTEXT_RISK_TEXT_EXTENSIONS = new Set(['.txt', '.md', '.markdown', '.json', '.jsonl', '.csv', '.tsv', '.xml', '.yaml', '.yml', '.log']);
-import { hasCronCommands } from './CronCommandDetector';
-import { detectChannelQueryIntent, executeChannelInfoCommand, type ChannelQueryCommand } from './ChannelInfoDetector';
-import { extractTextFromMessage, processCronInMessage } from './MessageMiddleware';
-import { processAtFileReferences } from './acp/AcpAtFileProcessor';
-import { StreamTextBuffer, CronTextAccumulator, filterThinkTagsFromMessage, preprocessContentMessage } from './acp/AcpMessagePipeline';
-import { clearAcpSessionId, saveAcpSessionId, saveSessionMode, saveModelId, saveContextUsage } from './acp/AcpPersistence';
-import { extractLatestScodeAssistantUsageFromJsonl, findScodeSessionFile, normalizePromptUsageForMessage, SCODE_LATE_RECONCILIATION_DEFAULTS } from './acpUsageReconciliation';
-import { resolveImageConfig, callImagesGenerations, callImagesEdits, saveImageResult, resolveChatModel, callChatCompletionsWithImage, readSudorouterCredentials } from '../bridge/imageGenerationBridge';
-import { resolveWorkspaceSkillsDir } from '../utils/workspaceSkillsDir';
-import { readAssistantResource, ruleFilePattern } from '@process/utils/assistantResources';
-import { app } from 'electron';
-import { protectUnsupportedAcpSlashPrompt } from '@/common/slash/sudoworkCommands';
 
 /** Enable ACP performance diagnostics via ACP_PERF=1 */
 const ACP_PERF_LOG = process.env.ACP_PERF === '1';
@@ -369,13 +399,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
       }
 
       // Apply preset-specific runtime configuration (env vars, scripts, model configs)
-      let cdpPort = 9230;
-      try {
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        cdpPort = require('@/utils/configureChromium').cdpPort || 9230;
-      } catch {
-        /* use default */
-      }
+      const cdpPort = chromiumCdpPort || 9230;
       const presetResult = await applyPresetRuntime({
         presetAssistantId: this.extra.presetAssistantId,
         backend: this.extra.backend,
@@ -555,7 +579,9 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
             const errMsg = error instanceof Error ? error.message : String(error);
             mainWarn('ACP', `Failed to set model from settings: ${errMsg}`);
             if (errMsg.includes('model_not_found') || errMsg.includes('无可用渠道')) {
-              this.emitErrorMessage(`Model "${configuredModel}" is not available on your API relay service. ` + `Please add this model to your relay's channel configuration, ` + `or update ANTHROPIC_MODEL in ~/.claude/settings.json to a supported model name. ` + `Falling back to the relay's default model.`);
+              this.emitErrorMessage(
+                `Model "${configuredModel}" is not available on your API relay service. ` + `Please add this model to your relay's channel configuration, ` + `or update ANTHROPIC_MODEL in ~/.claude/settings.json to a supported model name. ` + `Falling back to the relay's default model.`
+              );
             }
           }
         }
@@ -617,7 +643,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
         await this.createOrResumeSession();
         this.emitStatusMessage('authenticated');
         return;
-      } catch (_err) {
+      } catch {
         // Need auth
       }
 
@@ -631,10 +657,10 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
         await this.createOrResumeSession();
         this.emitStatusMessage('authenticated');
         return;
-      } catch (error) {
+      } catch {
         this.emitStatusMessage('error');
       }
-    } catch (error) {
+    } catch {
       this.emitStatusMessage('error');
     }
   }
@@ -791,25 +817,25 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
       // Intercept /model slash command locally so model switching does not depend on backend command support.
       const modelMatch = data.content.trim().match(/^\/model(?:\s+(.*))?$/);
       if (modelMatch !== null) {
-        return await this.handleModelCommand(modelMatch, data);
+        return await this.handleModelCommand(modelMatch);
       }
 
       // Intercept /image sub-commands
       const imageMatch = data.content.trim().match(/^\/image(?:\s+([\s\S]+))?$/);
       if (imageMatch !== null) {
-        return await this.handleImageCommand((imageMatch[1] || '').trim(), data);
+        return await this.handleImageCommand((imageMatch[1] || '').trim());
       }
 
       // Intercept /browser sub-commands (open / status / eval / screenshot)
       const browserMatch = data.content.trim().match(/^\/browser(?:\s+([\s\S]+))?$/);
       if (browserMatch !== null) {
-        return await this.handleBrowserCommand((browserMatch[1] || '').trim(), data);
+        return await this.handleBrowserCommand((browserMatch[1] || '').trim());
       }
 
       // Intercept channel query intent (natural language)
       const channelQueryCommand = detectChannelQueryIntent(data.content);
       if (channelQueryCommand) {
-        return await this.handleChannelQueryIntent(channelQueryCommand, data.msg_id);
+        return await this.handleChannelQueryIntent(channelQueryCommand);
       }
 
       const initStart = Date.now();
@@ -871,13 +897,7 @@ This identity statement takes priority over the default identity in USER.md.
           // appendix that applyPresetRuntime injected at init — leaving the
           // assistant unable to locate its own scripts and forcing a `find`.
           try {
-            let cdpPort = 9230;
-            try {
-              // eslint-disable-next-line @typescript-eslint/no-var-requires
-              cdpPort = require('@/utils/configureChromium').cdpPort || 9230;
-            } catch {
-              /* use default */
-            }
+            const cdpPort = chromiumCdpPort || 9230;
             const reloadPresetResult = await applyPresetRuntime({
               presetAssistantId: this.options.presetAssistantId,
               backend: this.extra.backend,
@@ -1433,7 +1453,7 @@ This identity statement takes priority over the default identity in USER.md.
     };
     const tMessage = transformMessage(usagePatch);
     if (tMessage) {
-      addOrUpdateMessage(this.conversation_id, tMessage, this.options.backend);
+      addOrUpdateMessage(this.conversation_id, tMessage);
     }
     ipcBridge.acpConversation.responseStream.emit(usagePatch);
   }
@@ -1580,7 +1600,7 @@ This identity statement takes priority over the default identity in USER.md.
 
     // 2. Respond to pending permission requests with Cancelled
     //    (ACP spec: client MUST do this when cancelling)
-    for (const [callId, pending] of this.pendingPermissions) {
+    for (const [_callId, pending] of this.pendingPermissions) {
       pending.reject(new Error('Cancelled'));
     }
     this.pendingPermissions.clear();
@@ -1679,16 +1699,24 @@ This identity statement takes priority over the default identity in USER.md.
     return removedCount;
   }
 
-  private async archiveCurrentTurnFiles(): Promise<void> {
+  /**
+   * Archive the current turn's tracked files and return the deliverables marker
+   * entries built from their FINAL on-disk paths. Building happens here — after
+   * `archiveTurnFiles` has moved/renamed files but before `currentTurnFiles` is
+   * cleared — so the marker records the real post-archive location.
+   */
+  private async archiveCurrentTurnFiles(): Promise<GeneratedFileEntry[]> {
     if (!this.workspace || this.currentTurnFiles.size === 0) {
-      return;
+      return [];
     }
 
     this.currentTurnProtectedFinalPaths = this.getCurrentTurnFinalRootPaths();
     this.pendingCurrentTurnPostCleanup = true;
-    await archiveTurnFiles(this.workspace, this.currentTurnFiles);
+    const archivedPaths = await archiveTurnFiles(this.workspace, this.currentTurnFiles);
+    const entries = this.buildGeneratedFileEntries(archivedPaths);
     this.currentTurnFiles.clear();
     mainLog('[AcpAgent]', '[TURN-ARCHIVE] Archived currentTurnFiles and cleared tracking');
+    return entries;
   }
 
   private getCurrentTurnFinalRootPaths(): Set<string> {
@@ -1754,65 +1782,31 @@ This identity statement takes priority over the default identity in USER.md.
    * `intent==='final'` files, enriched with on-disk size + extension + mime so
    * the renderer can show a preview card without re-stat'ing every file.
    *
-   * Captured BEFORE `archiveCurrentTurnFiles` clears `currentTurnFiles` —
-   * caller is responsible for invocation order.
+   * `archivedPaths` (returned by `archiveTurnFiles`) maps tracking keys to the
+   * file's FINAL on-disk location so the marker records the post-archive path
+   * (after drafts → root restore + collision rename), not the pre-archive one.
    */
-  private buildGeneratedFileEntries(): GeneratedFileEntry[] {
+  private buildGeneratedFileEntries(archivedPaths?: ReadonlyMap<string, string>): GeneratedFileEntry[] {
     if (!this.workspace || this.currentTurnFiles.size === 0) return [];
 
-    const workspaceRoot = nodePath.resolve(this.workspace);
-    const seen = new Set<string>();
-    const entries: GeneratedFileEntry[] = [];
-    const now = Date.now();
-
-    for (const file of this.currentTurnFiles.values()) {
-      if (file.intent !== 'final') continue;
-
-      const absolutePath = nodePath.resolve(file.actualPath);
-      if (seen.has(absolutePath)) continue;
-      seen.add(absolutePath);
-
-      const relativePath = this.resolveFinalFileDisplayPath(file, workspaceRoot);
-      const ext = extractExtension(absolutePath);
-
-      let size: number | undefined;
-      try {
-        const stat = fs.statSync(absolutePath);
-        if (stat.isFile()) size = stat.size;
-      } catch {
-        // file may have moved between archive + lookup — leave size undefined
-      }
-
-      entries.push({
-        path: absolutePath,
-        relativePath: relativePath !== absolutePath ? relativePath : undefined,
-        kind: file.kind === 'edit' ? 'edit' : 'create',
-        ext,
-        mime: mimeForExtension(ext),
-        size,
-        createdAt: now,
-      });
-    }
-
-    // Stable order: by relative (or absolute) path
-    return entries.sort((a, b) => (a.relativePath ?? a.path).localeCompare(b.relativePath ?? b.path));
+    return buildGeneratedFileEntriesFromTracked({
+      workspaceRoot: nodePath.resolve(this.workspace),
+      trackedFiles: this.currentTurnFiles,
+      archivedPaths,
+      statSize: (absolutePath) => {
+        try {
+          const stat = fs.statSync(absolutePath);
+          return stat.isFile() ? stat.size : undefined;
+        } catch {
+          // file may have moved between archive + lookup — leave size undefined
+          return undefined;
+        }
+      },
+    });
   }
 
-  private resolveFinalFileDisplayPath(file: TrackedTurnFile, workspaceRoot: string): string {
-    const resolvedActualPath = nodePath.resolve(file.actualPath);
-    const actualRelativePath = nodePath.relative(workspaceRoot, resolvedActualPath);
-
-    if (actualRelativePath && !actualRelativePath.startsWith('..') && !nodePath.isAbsolute(actualRelativePath) && !actualRelativePath.startsWith(`${DRAFTS_DIR_NAME}${nodePath.sep}`)) {
-      return actualRelativePath.replace(/\\/g, '/');
-    }
-
-    const requestedPath = file.requestedPath || nodePath.basename(file.actualPath);
-    const normalizedRequestedPath = requestedPath.replace(/\\/g, '/').replace(/^\.\//, '');
-    if (!normalizedRequestedPath || normalizedRequestedPath.startsWith('../') || normalizedRequestedPath.includes('/../') || normalizedRequestedPath.startsWith(`${DRAFTS_DIR_NAME}/`)) {
-      return nodePath.basename(file.actualPath);
-    }
-
-    return normalizedRequestedPath;
+  private resolveFinalFileDisplayPath(file: TrackedTurnFile, workspaceRoot: string, overrideAbsolutePath?: string): string {
+    return resolveFinalFileDisplayPathPure(file, workspaceRoot, overrideAbsolutePath);
   }
 
   private emitFallbackCompletionMessage(finalFiles: Array<{ path: string; reason: string }>): void {
@@ -1944,6 +1938,27 @@ This identity statement takes priority over the default identity in USER.md.
         mainLog('[AcpAgent]', `[TRACK] rightPanelBrowser.open emit failed: ${String(err)}`);
       }
     }
+  }
+
+  private trackRootDeliverableFile(input: { requestedPath: string; actualPath: string; kind: 'create' | 'edit' }): void {
+    if (!this.workspace || !input.requestedPath) return;
+
+    const workspaceRoot = nodePath.resolve(this.workspace);
+    const relativePath = nodePath.relative(workspaceRoot, nodePath.resolve(input.actualPath));
+    if (!relativePath || relativePath.startsWith('..') || nodePath.isAbsolute(relativePath) || relativePath.includes(nodePath.sep)) {
+      return;
+    }
+
+    this.currentTurnFiles.set(relativePath, {
+      actualPath: input.actualPath,
+      path: input.actualPath,
+      requestedPath: input.requestedPath,
+      intent: 'final',
+      reason: 'Root-level turn-end deliverable file',
+      source: 'bash-generated',
+      kind: input.kind,
+    });
+    mainLog('[AcpAgent]', `[TRACK] Root deliverable: ${relativePath}, intent: final, actualPath: ${input.actualPath}`);
   }
 
   /**
@@ -2114,7 +2129,7 @@ This identity statement takes priority over the default identity in USER.md.
       content: { content: msg.data as string },
       createdAt: Date.now(),
     };
-    addOrUpdateMessage(this.conversation_id, tMessage, this.options.backend);
+    addOrUpdateMessage(this.conversation_id, tMessage);
   }
 
   kill(): Promise<void> {
@@ -2928,8 +2943,6 @@ This identity statement takes priority over the default identity in USER.md.
   }
 
   private async handleEndTurn(): Promise<void> {
-    const finalFiles = !this.userCancelled ? this.getCurrentTurnFinalFileSummaries() : [];
-
     if (!this.userCancelled) {
       // Telemetry: end turn tracking (success)
       endTurnSuccess(this.conversation_id);
@@ -2943,11 +2956,15 @@ This identity statement takes priority over the default identity in USER.md.
 
     if (!this.userCancelled) {
       await this.installTrackedWorkspaceSkills();
-      // Capture rich GeneratedFileEntry records BEFORE archiveCurrentTurnFiles
-      // wipes currentTurnFiles — the renderer needs them to draw preview cards.
-      const generatedEntries = this.buildGeneratedFileEntries();
+      // Turn-end fallback: discover root-level deliverables the per-tool tracking
+      // missed and both forward them to channels AND track them, so they enter
+      // currentTurnFiles → the deliverables marker (not only the temp space /
+      // channel). Must run before the final-file summary + archive below.
       this.deliverWorkspaceFilesAtTurnEnd();
-      await this.archiveCurrentTurnFiles();
+      const finalFiles = this.getCurrentTurnFinalFileSummaries();
+      // Archive FIRST, then build the marker from the returned final paths, so
+      // the recorded path matches the file's real post-archive location.
+      const generatedEntries = await this.archiveCurrentTurnFiles();
       this.emitFallbackCompletionMessage(finalFiles);
       this.emitGeneratedFilesMarkerMessage(generatedEntries);
     }
@@ -3265,7 +3282,7 @@ This identity statement takes priority over the default identity in USER.md.
           this.streamTextBuffer.queue(tMessage, this.options.backend);
         } else {
           this.streamTextBuffer.flushAll();
-          addOrUpdateMessage(message.conversation_id, tMessage, this.options.backend);
+          addOrUpdateMessage(message.conversation_id, tMessage);
         }
 
         if (isStreamTextChunk) {
@@ -3352,11 +3369,18 @@ This identity statement takes priority over the default identity in USER.md.
       }
     }
 
-    // On finish, process any skill commands (cron, channel-info) from accumulated content
-    // Must save content BEFORE reset, then process all command types, then reset at the end
+    // On finish, process any skill commands (cron, channel-info) from accumulated content.
+    // Capture the content, then reset the accumulator IMMEDIATELY — before any await.
+    // Processing a command sends a feedback prompt via sendToConnection, whose ACP
+    // `session/prompt` only resolves when the *nested* feedback turn ends. The skill
+    // mandates LIST-then-CREATE, so the follow-up [CRON_CREATE] always streams inside
+    // that nested turn and accumulates here. If we reset only after the await, the
+    // parent finish wipes the nested turn's freshly-accumulated command before the
+    // nested turn's own finish handler can read it — so the create silently never ran.
     if (v.type === 'finish' && this.cronAccumulator.currentMsgContent) {
       const savedContent = this.cronAccumulator.currentMsgContent;
       const savedMsgId = this.cronAccumulator.currentMsgId;
+      this.cronAccumulator.reset();
 
       // Process cron commands
       if (hasCronCommands(savedContent)) {
@@ -3386,9 +3410,6 @@ This identity statement takes priority over the default identity in USER.md.
           await this.sendToConnection(feedbackMessage);
         }
       }
-
-      // Reset accumulator AFTER all command processing
-      this.cronAccumulator.reset();
     }
 
     ipcBridge.acpConversation.responseStream.emit(v);
@@ -3655,7 +3676,7 @@ This identity statement takes priority over the default identity in USER.md.
     }
   }
 
-  private async handleModelCommand(modelMatch: RegExpMatchArray, data: { msg_id?: string }): Promise<AcpResult> {
+  private async handleModelCommand(modelMatch: RegExpMatchArray): Promise<AcpResult> {
     const modelArg = (modelMatch[1] || '').trim();
     const responseMsgId = uuid();
 
@@ -3747,7 +3768,7 @@ This identity statement takes priority over the default identity in USER.md.
     return { success: true, data: null };
   }
 
-  private async handleImageCommand(args: string, data: { msg_id?: string }): Promise<AcpResult> {
+  private async handleImageCommand(args: string): Promise<AcpResult> {
     const responseMsgId = uuid();
     const saveDir = this.workspace || '.';
 
@@ -3875,7 +3896,7 @@ This identity statement takes priority over the default identity in USER.md.
    *   /browser eval <js>       — run JS in the active tab, stream result back
    *   /browser screenshot      — capture the active tab and return as image
    */
-  private async handleBrowserCommand(args: string, data: { msg_id?: string }): Promise<AcpResult> {
+  private async handleBrowserCommand(args: string): Promise<AcpResult> {
     const responseMsgId = uuid();
     ipcBridge.acpConversation.responseStream.emit({
       type: 'start',
@@ -3964,7 +3985,7 @@ This identity statement takes priority over the default identity in USER.md.
     return { success: true, data: null };
   }
 
-  private async handleChannelQueryIntent(command: ChannelQueryCommand, msg_id?: string): Promise<AcpResult> {
+  private async handleChannelQueryIntent(command: ChannelQueryCommand): Promise<AcpResult> {
     const responseMsgId = uuid();
 
     ipcBridge.acpConversation.responseStream.emit({
@@ -4383,11 +4404,21 @@ This identity statement takes priority over the default identity in USER.md.
    * dedup happens inside sendFileToChannels itself; this method must NOT
    * add to sentChannelFilePaths before calling sendFileToChannels, otherwise
    * the inner has-check would short-circuit and handleStreamEvent never fires.
+   *
+   * Besides channel forwarding, each new/modified root deliverable that is not
+   * already tracked is recorded into currentTurnFiles via trackTurnFile so it
+   * also enters the generated-files marker (deliverables panel), keeping the
+   * temp-space/channel view and the deliverables view consistent.
    */
   private deliverWorkspaceFilesAtTurnEnd(): void {
     if (!this.workspace) return;
     let candidate = 0;
     let sent = 0;
+    let tracked = 0;
+    const trackedAbsolute = new Set<string>();
+    for (const file of this.currentTurnFiles.values()) {
+      trackedAbsolute.add(nodePath.resolve(file.actualPath));
+    }
     try {
       const entries = fs.readdirSync(this.workspace, { withFileTypes: true });
       for (const entry of entries) {
@@ -4409,6 +4440,21 @@ This identity statement takes priority over the default identity in USER.md.
           if (this.sendFileToChannels(fullPath)) {
             sent++;
           }
+
+          // Also surface in the deliverables panel: track the file into the
+          // current turn so archiveCurrentTurnFiles emits a marker entry for it.
+          // Skip files already tracked by a tool-call branch to avoid clobbering
+          // their richer classification (content/source/operationIntent).
+          const resolvedFullPath = nodePath.resolve(fullPath);
+          if (!trackedAbsolute.has(resolvedFullPath)) {
+            this.trackRootDeliverableFile({
+              requestedPath: entry.name,
+              actualPath: fullPath,
+              kind: prevMtime === undefined ? 'create' : 'edit',
+            });
+            trackedAbsolute.add(resolvedFullPath);
+            tracked++;
+          }
         } catch {
           // stat failed, skip
         }
@@ -4416,7 +4462,7 @@ This identity statement takes priority over the default identity in USER.md.
     } catch {
       // workspace not readable, skip
     }
-    mainLog('[AcpAgent]', `[TURN-END-DELIVER] candidate=${candidate}, sent=${sent}`);
+    mainLog('[AcpAgent]', `[TURN-END-DELIVER] candidate=${candidate}, sent=${sent}, tracked=${tracked}`);
   }
 }
 

@@ -206,7 +206,15 @@ const CustomAcpAgent: React.FC<CustomAcpAgentProps> = ({ message }) => {
 
       <CustomAcpAgentModal visible={showModal} agent={editingAgent} onCancel={() => setShowModal(false)} onSubmit={handleSaveAgent} />
 
-      <Modal title={t('settings.deleteCustomAgent') || 'Delete Custom Agent'} visible={deleteConfirmVisible} onCancel={() => setDeleteConfirmVisible(false)} onOk={handleDeleteAgent} okButtonProps={{ status: 'danger' }} okText={t('common.confirm') || 'Confirm'} cancelText={t('common.cancel') || 'Cancel'}>
+      <Modal
+        title={t('settings.deleteCustomAgent') || 'Delete Custom Agent'}
+        visible={deleteConfirmVisible}
+        onCancel={() => setDeleteConfirmVisible(false)}
+        onOk={handleDeleteAgent}
+        okButtonProps={{ status: 'danger' }}
+        okText={t('common.confirm') || 'Confirm'}
+        cancelText={t('common.cancel') || 'Cancel'}
+      >
         <p>
           {t('settings.deleteCustomAgentConfirm') || 'Are you sure you want to delete this custom agent?'}
           {agentToDelete && <strong className='block mt-2'>{agentToDelete.name}</strong>}

@@ -40,6 +40,7 @@ import { SERVER_CONFIG } from './webserver/config/constants';
 import { applyZoomToWindow } from './process/utils/zoom';
 import i18n from '@process/i18n';
 import { mainLog, mainError } from './process/utils/mainLogger';
+import { ensureMainSystemConfig } from './process/services/systemConfigBootstrap';
 import { isNightlyBuild } from './common/buildInfo';
 // @ts-expect-error - electron-squirrel-startup doesn't have types
 import electronSquirrelStartup from 'electron-squirrel-startup';
@@ -65,19 +66,19 @@ if (process.env.ELECTRON_RUN_AS_NODE === '1' && process.platform === 'darwin' &&
 }
 
 // ============ Deep Link Protocol ============
-// Register aionui:// protocol scheme for external app integration (e.g., New API token quick-add)
-const PROTOCOL_SCHEME = 'aionui';
-// Additional schemes the app also handles. `sudowork` is what the packaged
-// macOS/Windows build registers in its manifest (electron-builder.yml), so the
-// OAuth2 redirect (sudowork://oauth2-callback) routes to a packaged app.
-const PROTOCOL_SCHEMES = [PROTOCOL_SCHEME, 'sudowork'];
+// Register sudowork:// protocol scheme for external app integration (e.g., New API token quick-add)
+const PROTOCOL_SCHEME = 'sudowork';
+// The packaged macOS/Windows build registers this scheme in its manifest
+// (electron-builder.yml), so the OAuth2 redirect (sudowork://oauth2-callback)
+// routes to the app.
+const PROTOCOL_SCHEMES = [PROTOCOL_SCHEME];
 const isDeepLinkArg = (arg: string): boolean => PROTOCOL_SCHEMES.some((s) => arg.startsWith(`${s}://`));
 
 /**
- * Parse an aionui:// URL into action and params.
+ * Parse a sudowork:// URL into action and params.
  * Supports two formats:
- *   1. aionui://add-provider?baseUrl=xxx&apiKey=xxx
- *   2. aionui://provider/add?v=1&data=<base64 JSON>  (one-api / new-api style)
+ *   1. sudowork://add-provider?baseUrl=xxx&apiKey=xxx
+ *   2. sudowork://provider/add?v=1&data=<base64 JSON>  (one-api / new-api style)
  */
 const parseDeepLinkUrl = (url: string): { action: string; params: Record<string, string> } | null => {
   try {
@@ -684,24 +685,29 @@ const createWindow = (): void => {
   const isCiRuntime = process.env.CI === 'true' || process.env.CI === '1' || process.env.GITHUB_ACTIONS === 'true';
   const disableAutoUpdater = process.env.NEXUS_DISABLE_AUTO_UPDATE === '1' || process.env.NEXUS_E2E_TEST === '1' || isCiRuntime;
   if (!disableAutoUpdater) {
-    Promise.all([import('./process/services/autoUpdaterService'), import('./process/bridge/updateBridge')])
-      .then(([{ autoUpdaterService }, { createAutoUpdateStatusBroadcast }]) => {
+    Promise.all([import('./process/services/autoUpdaterService'), import('./process/bridge/updateBridge'), import('./common/systemConfig')])
+      .then(([{ autoUpdaterService }, { createAutoUpdateStatusBroadcast }, { fetchSystemConfig, isVersionUpdateEnabled }]) => {
         // Create status broadcast callback that emits via ipcBridge (pure emitter, no window binding)
         const statusBroadcast = createAutoUpdateStatusBroadcast();
         autoUpdaterService.initialize(statusBroadcast);
-        // Skip auto-update check for nightly builds – nightly versions should only be
-        // updated manually via the in-app update modal which already handles nightly isolation.
-        // nightly 版本跳过自动更新检查，避免弹出指向正式 release 版本的更新提醒。
-        // nightly 版本的更新应通过应用内手动检查完成（UpdateModal 已实现 nightly 隔离逻辑）。
-        if (isNightlyBuild) {
-          mainLog('App', 'Nightly build detected, skipping auto-update check');
-        } else {
-          // Check for updates after 3 seconds delay
-          // 3秒后检查更新
-          setTimeout(() => {
-            void autoUpdaterService.checkForUpdatesAndNotify();
-          }, 3000);
-        }
+        // §4.1(3)/§4.4: fill the main-process system-config cache first (eliminates the startup
+        // race where version_update.enabled is read before the cache is populated), then gate.
+        void fetchSystemConfig().then(() => {
+          // Skip auto-update check for nightly builds – nightly versions should only be
+          // updated manually via the in-app update modal which already handles nightly isolation.
+          if (isNightlyBuild) {
+            mainLog('App', 'Nightly build detected, skipping auto-update check');
+          } else if (!isVersionUpdateEnabled()) {
+            // §4.4: server disabled auto-update — skip the check entirely.
+            mainLog('App', 'version_update disabled by server config, skipping auto-update check');
+          } else {
+            // Check for updates after 3 seconds delay
+            // 3秒后检查更新
+            setTimeout(() => {
+              void autoUpdaterService.checkForUpdatesAndNotify();
+            }, 3000);
+          }
+        });
       })
       .catch((error) => {
         console.error('[App] Failed to initialize autoUpdaterService:', error);
@@ -886,6 +892,8 @@ const handleAppReady = async (): Promise<void> => {
       return;
     }
 
+    await ensureMainSystemConfig();
+
     const userConfigInfo = loadUserWebUIConfig();
     if (userConfigInfo.exists && userConfigInfo.path) {
       // Config file loaded from user directory
@@ -921,6 +929,8 @@ const handleAppReady = async (): Promise<void> => {
 
     // Wait for backend initialization to complete before proceeding with tray/settings
     await initDone;
+
+    await ensureMainSystemConfig();
 
     // Telemetry: initialize telemetry modules after process config is ready
     try {
@@ -1047,8 +1057,7 @@ const handleAppReady = async (): Promise<void> => {
 };
 
 // ============ Protocol Registration ============
-// Register all supported schemes (aionui:// for legacy integrations, sudowork://
-// for the packaged-app manifest used by the OAuth2 redirect) as default clients.
+// Register sudowork:// scheme as default protocol client for deep links and OAuth2 redirect.
 for (const scheme of PROTOCOL_SCHEMES) {
   if (process.defaultApp) {
     // Dev mode: need to pass execPath explicitly
@@ -1058,7 +1067,7 @@ for (const scheme of PROTOCOL_SCHEMES) {
   }
 }
 
-// macOS: handle aionui:// URLs via the open-url event
+// macOS: handle sudowork:// URLs via the open-url event
 app.on('open-url', (event, url) => {
   event.preventDefault();
   handleDeepLinkUrl(url);

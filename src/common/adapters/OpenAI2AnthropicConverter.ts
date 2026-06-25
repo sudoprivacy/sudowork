@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { ProtocolConverter, ConverterConfig } from './ProtocolConverter';
 import type Anthropic from '@anthropic-ai/sdk';
+import type { ProtocolConverter, ConverterConfig } from './ProtocolConverter';
 
 // OpenAI types - compatible with actual OpenAI SDK types
 export interface OpenAIChatCompletionParams {
