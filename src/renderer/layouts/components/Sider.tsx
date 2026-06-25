@@ -164,7 +164,7 @@ const Sider: React.FC = () => {
           <div className='size-full flex flex-col py-2 overflow-hidden box-border'>
             {/* 新会话按钮 - 带边框的按钮风格 / New Chat button with border style */}
             <div
-              className='h-10.5 flex-shrink-0 f-center gap-2 px-3.5 mb-3 rd-12px cursor-pointer transition-all border bg-1 hover:bg-hover active:bg-fill-2'
+              className='h-10.5 flex-shrink-0 f-center gap-2 px-3.5 mb-3 rd-3 cursor-pointer transition-all border bg-1 hover:bg-hover active:bg-fill-2'
               onClick={() => {
                 cleanupSiderTooltips();
                 setIsBatchMode(false);
@@ -264,7 +264,7 @@ const Sider: React.FC = () => {
           /* 用户信息下拉菜单 */
           <Dropdown
             droplist={
-              <div className='flex flex-col gap-0.5 p-1.5 rd-12px border bg-popup' style={{ width: userMenuWidth ? userMenuWidth - 12 : undefined, minWidth: 200, boxShadow: '0 8px 28px rgba(0, 0, 0, 0.12)' }}>
+              <div className='flex flex-col gap-0.5 p-1.5 rd-3 border bg-popup' style={{ width: userMenuWidth ? userMenuWidth - 12 : undefined, minWidth: 200, boxShadow: '0 8px 28px rgba(0, 0, 0, 0.12)' }}>
                 <div
                   className='flex items-center gap-2.5 px-2.5 h-9.5 rd-8px cursor-pointer text-14px text-foreground transition-colors hover:bg-hover active:bg-active'
                   onClick={() => {
@@ -298,7 +298,7 @@ const Sider: React.FC = () => {
               setUserMenuOpen(visible);
             }}
           >
-            <div ref={userTriggerRef} className='flex items-center gap-2.5 px-2 py-2.5 cursor-pointer transition-colors rd-12px w-full border hover:bg-hover active:bg-fill-2'>
+            <div ref={userTriggerRef} className='flex items-center gap-2.5 px-2 py-2.5 cursor-pointer transition-colors rd-3 w-full border hover:bg-hover active:bg-fill-2'>
               <div className='size-8 rd-50% bg-fill-3 f-center text-foreground text-14px font-bold shrink-0'>{userInfo.avatar ? <img src={userInfo.avatar} alt={userInfo.name} className='w-full h-full rd-50% object-cover' /> : <span>{userInfo.name.charAt(0).toUpperCase()}</span>}</div>
               <div className='flex-1 min-w-0'>
                 <div className='text-14px font-medium text-foreground truncate'>{userInfo.name}</div>
@@ -311,7 +311,7 @@ const Sider: React.FC = () => {
           /* 设置页面 - 主题切换 + 返回按钮 */
           <div className='flex flex-col gap-0.5'>
             {/* 返回按钮 */}
-            <div className='flex items-center gap-2.5 px-1 py-2.5 rd-8px cursor-pointer transition-colors hover:bg-hover active:bg-fill-2 ml-0.5' onClick={handleSettingsClick}>
+            <div className='border rd-3 flex items-center gap-2.5 px-1 py-2.5 cursor-pointer transition-colors hover:bg-hover active:bg-fill-2 ml-0.5' onClick={handleSettingsClick}>
               <div className='size-8 rd-50% bg-fill-3 f-center text-foreground text-14px font-bold shrink-0'>
                 <Return theme='outline' size='16' fill={'var(--foreground)'} />
               </div>

@@ -17,7 +17,7 @@ const SkillSettings = React.lazy(() => import('./pages/settings/SkillSettings'))
 const CopilotSettings = React.lazy(() => import('./pages/settings/CopilotSettings'));
 const RuntimeSettings = React.lazy(() => import('./pages/settings/RuntimeSettings'));
 const SystemSettings = React.lazy(() => import('./pages/settings/system'));
-const ToolsSettings = React.lazy(() => import('./pages/settings/ToolsSettings'));
+const ToolsSettings = React.lazy(() => import('./pages/settings/tools'));
 const WebuiSettings = React.lazy(() => import('./pages/settings/WebuiSettings'));
 const SecurityPage = React.lazy(() => import('./pages/security'));
 const CronPage = React.lazy(() => import('./pages/cron'));
