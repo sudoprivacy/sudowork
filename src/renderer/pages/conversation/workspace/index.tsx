@@ -1090,7 +1090,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                   {t('conversation.workspace.migration.moveToNewFolder')}
                 </div>
                 <div
-                  className='flex items-center justify-between px-12px py-10px rounded-8px cursor-pointer transition-colors hover:bg-[var(--color-fill-2)]'
+                  className='flex items-center justify-between px-12px py-10px rounded-8px cursor-pointer transition-colors hover:bg-fill-2'
                   style={{
                     backgroundColor: 'var(--color-bg-1)',
                     border: '1px solid var(--color-border-2)',

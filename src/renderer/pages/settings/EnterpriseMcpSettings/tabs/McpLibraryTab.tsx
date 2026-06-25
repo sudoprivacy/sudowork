@@ -97,7 +97,7 @@ const McpLibraryTab: React.FC<McpLibraryTabProps> = ({ templates, installedTempl
                   {tpl.description && <div className='text-12px text-tertiary mt-0.5 truncate'>{tpl.description}</div>}
                   <div className='flex items-center gap-1.5 mt-1'>
                     {tpl.tags.map((tag) => (
-                      <span key={tag} className='text-11px text-tertiary px-1.5 py-px rd-4px bg-[var(--color-fill-2)]'>
+                      <span key={tag} className='text-11px text-tertiary px-1.5 py-px rd-4px bg-fill-2'>
                         #{tag}
                       </span>
                     ))}

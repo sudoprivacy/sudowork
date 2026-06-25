@@ -121,7 +121,7 @@ const EditConfigModal: React.FC<EditConfigModalProps> = ({ visible, server, load
           <Spin size={28} />
         </div>
       ) : schema.length === 0 ? (
-        <div className='text-13px text-tertiary py-6 text-center bg-[var(--color-fill-1)] rd-8px'>此 MCP 暂无可编辑的用户配置项</div>
+        <div className='text-13px text-tertiary py-6 text-center bg-fill-1 rd-8px'>此 MCP 暂无可编辑的用户配置项</div>
       ) : (
         <div className='flex flex-col gap-3.5 py-1'>
           {schema.map((it) => (

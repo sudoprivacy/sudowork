@@ -80,7 +80,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, items, onClose }) => {
       {items.map((item, index) => (
         <button
           key={index}
-          className={`w-full flex items-center px-4 py-2.5 text-[14px] transition-all hover:bg-[var(--color-fill-3)] active:bg-[var(--color-fill-4)] disabled:opacity-40 disabled:cursor-not-allowed border-none bg-transparent ${item.danger ? 'text-danger' : 'text-[var(--color-text-1)]'}`}
+          className={`w-full flex items-center px-4 py-2.5 text-[14px] transition-all hover:bg-fill-3 active:bg-fill-4 disabled:opacity-40 disabled:cursor-not-allowed border-none bg-transparent ${item.danger ? 'text-danger' : 'text-[var(--color-text-1)]'}`}
           onClick={(e) => {
             e.stopPropagation();
             if (!item.disabled) {

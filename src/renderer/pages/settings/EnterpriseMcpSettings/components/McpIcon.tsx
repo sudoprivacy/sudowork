@@ -43,7 +43,7 @@ const McpIcon: React.FC<McpIconProps> = ({ icon, size = 36, className = '' }) =>
   const showImage = url && !errored;
 
   return (
-    <div className={`rounded-8px bg-[var(--color-fill-2)] f-center flex-shrink-0 overflow-hidden ${className}`} style={{ width: size, height: size }}>
+    <div className={`rounded-8px bg-fill-2 f-center flex-shrink-0 overflow-hidden ${className}`} style={{ width: size, height: size }}>
       {showImage ? <img src={url} alt='' className='w-full h-full object-contain' onError={() => setErrored(true)} /> : <Connection theme='outline' size={Math.floor(size * 0.5)} className='text-tertiary' />}
     </div>
   );

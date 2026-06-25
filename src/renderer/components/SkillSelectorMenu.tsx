@@ -64,7 +64,32 @@ interface SkillSelectorMenuProps {
   noSearchResultsText?: string;
 }
 
-const SkillSelectorMenu: React.FC<SkillSelectorMenuProps> = ({ title, hint, items, selectedKeys, activeIndex, loading = false, loadingText, onHoverItem, onSelectItem, emptyText, showTabs = false, activeTab = 'skills', onTabChange, fileItems = [], onSelectFile, filesTabTitle = 'Files', skillsTabTitle = 'Skills', filesEmptyText = 'No files', searchQuery = '', onSearchChange, onDismiss, skillsSearchPlaceholder = '搜索技能...', filesSearchPlaceholder = '搜索文件...', noSearchResultsText = '未找到匹配结果' }) => {
+const SkillSelectorMenu: React.FC<SkillSelectorMenuProps> = ({
+  title,
+  hint,
+  items,
+  selectedKeys,
+  activeIndex,
+  loading = false,
+  loadingText,
+  onHoverItem,
+  onSelectItem,
+  emptyText,
+  showTabs = false,
+  activeTab = 'skills',
+  onTabChange,
+  fileItems = [],
+  onSelectFile,
+  filesTabTitle = 'Files',
+  skillsTabTitle = 'Skills',
+  filesEmptyText = 'No files',
+  searchQuery = '',
+  onSearchChange,
+  onDismiss,
+  skillsSearchPlaceholder = '搜索技能...',
+  filesSearchPlaceholder = '搜索文件...',
+  noSearchResultsText = '未找到匹配结果',
+}) => {
   const { t } = useTranslation();
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -197,7 +222,15 @@ const SkillSelectorMenu: React.FC<SkillSelectorMenuProps> = ({ title, hint, item
               <circle cx='11' cy='11' r='8' />
               <path d='m21 21-4.35-4.35' />
             </svg>
-            <input type='text' className='flex-1 min-w-0 text-13px bg-transparent border-none outline-none text-foreground placeholder:text-tertiary' style={{ caretColor: 'var(--color-primary)' }} placeholder={activeTab === 'skills' ? skillsSearchPlaceholder : filesSearchPlaceholder} value={searchQuery} onChange={(e) => onSearchChange(e.target.value)} onKeyDown={handleSearchKeyDown} />
+            <input
+              type='text'
+              className='flex-1 min-w-0 text-13px bg-transparent border-none outline-none text-foreground placeholder:text-tertiary'
+              style={{ caretColor: 'var(--color-primary)' }}
+              placeholder={activeTab === 'skills' ? skillsSearchPlaceholder : filesSearchPlaceholder}
+              value={searchQuery}
+              onChange={(e) => onSearchChange(e.target.value)}
+              onKeyDown={handleSearchKeyDown}
+            />
             {searchQuery && (
               <button type='button' className='shrink-0 w-16px h-16px f-center rounded-full text-tertiary hover:text-secondary cursor-pointer border-none outline-none text-11px bg-transparent' onMouseDown={(e) => e.preventDefault()} onClick={() => onSearchChange('')}>
                 ✕
@@ -229,7 +262,7 @@ const SkillSelectorMenu: React.FC<SkillSelectorMenuProps> = ({ title, hint, item
                     }}
                     className={classNames('w-full text-left px-10px py-6px rounded-8px transition-all border border-solid outline-none cursor-pointer mb-2px last:mb-0', {
                       'border-[var(--color-border-2)]': index === activeIndex,
-                      'border-transparent hover:bg-[var(--color-fill-1)]': index !== activeIndex,
+                      'border-transparent hover:bg-fill-1': index !== activeIndex,
                     })}
                     style={{
                       minHeight: '42px',
@@ -272,7 +305,7 @@ const SkillSelectorMenu: React.FC<SkillSelectorMenuProps> = ({ title, hint, item
                 }}
                 className={classNames('w-full text-left px-10px py-6px rounded-8px transition-all border border-solid outline-none cursor-pointer mb-2px last:mb-0', {
                   'border-[var(--color-border-2)]': index === activeIndex,
-                  'border-transparent hover:bg-[var(--color-fill-1)]': index !== activeIndex,
+                  'border-transparent hover:bg-fill-1': index !== activeIndex,
                 })}
                 style={{
                   minHeight: '38px',

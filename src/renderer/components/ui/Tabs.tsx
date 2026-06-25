@@ -17,7 +17,7 @@ export default function Tabs({ items, value, onChange, className, itemClassName 
             title={item.title}
             className={classNames(
               'h-7 inline-flex items-center gap-1.5 border-none rd-full px-3 text-xs font-inherit transition-all',
-              'bg-[var(--color-fill-2)] text-secondary hover:bg-[var(--color-fill-3)] hover:text-foreground',
+              'bg-fill-2 text-secondary hover:bg-fill-3 hover:text-foreground',
               'active:scale-96 disabled:cursor-not-allowed disabled:opacity-55',
               isActive && 'bg-primary text-white hover:bg-primary hover:text-white hover:brightness-112',
               item.isDisabled ? 'cursor-not-allowed' : 'cursor-pointer',

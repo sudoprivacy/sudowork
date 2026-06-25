@@ -125,7 +125,7 @@ const AvatarSelectorModal: React.FC<AvatarSelectorModalProps> = ({ visible, onCl
           </div>
 
           {/* 结果区：四状态 */}
-          <div className={`mt-16px min-h-132px flex items-center justify-center border border-dashed border-[var(--bg-3)] rd-12px bg-[var(--color-fill-1)] p-20px text-center ${genState === 'result' || genState === 'generating' ? 'flex-row gap-28px' : 'flex-col gap-12px'}`}>
+          <div className={`mt-16px min-h-132px flex items-center justify-center border border-dashed border-[var(--bg-3)] rd-12px bg-fill-1 p-20px text-center ${genState === 'result' || genState === 'generating' ? 'flex-row gap-28px' : 'flex-col gap-12px'}`}>
             {genState === 'idle' && (
               <div className='text-12px text-secondary leading-[1.6]'>
                 {t('settings.avatarSelector.idleLine1', '输入描述后点击「生成」')}
@@ -168,7 +168,7 @@ const AvatarSelectorModal: React.FC<AvatarSelectorModalProps> = ({ visible, onCl
             {PRESETS.map((preset) => {
               const presetName = t(`settings.avatarSelector.preset.${preset.nameKey}`, preset.nameFallback);
               return (
-                <div key={preset.value} className='avatar-selector-preset-card flex items-center gap-12px border border-transparent rd-12px bg-[var(--color-fill-1)] p-12px cursor-pointer' onClick={() => handleUsePreset(preset.value)}>
+                <div key={preset.value} className='avatar-selector-preset-card flex items-center gap-12px border border-transparent rd-12px bg-fill-1 p-12px cursor-pointer' onClick={() => handleUsePreset(preset.value)}>
                   <img className='h-40px w-40px flex-shrink-0 rd-full object-cover' src={preset.src} alt={presetName} />
                   <div>
                     <div className='text-14px font-600 text-foreground'>{presetName}</div>

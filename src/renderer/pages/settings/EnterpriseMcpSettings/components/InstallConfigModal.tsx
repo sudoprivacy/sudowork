@@ -92,7 +92,7 @@ const InstallConfigModal: React.FC<InstallConfigModalProps> = ({ visible, templa
         </div>
 
         {hasNoConfig ? (
-          <div className='text-13px text-tertiary py-3 text-center bg-[var(--color-fill-1)] rd-8px'>此模板无需配置，点击"安装"即可</div>
+          <div className='text-13px text-tertiary py-3 text-center bg-fill-1 rd-8px'>此模板无需配置，点击"安装"即可</div>
         ) : (
           <div className='flex flex-col gap-4'>
             {/* 用户配置项区域 */}
