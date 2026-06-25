@@ -163,28 +163,6 @@
   opacity: 1 !important;
 }
 
-/* 预设助手标签 */
-.presetAgentTagName {
-  max-width: 200px;
-}
-
-/* iPhone专门优化 */
-@supports (-webkit-touch-callout: none) {
-  .actionTools {
-    flex: 1 1 auto;
-    min-width: 0;
-    overflow-x: auto;
-    overflow-y: hidden;
-    white-space: nowrap;
-    -webkit-overflow-scrolling: touch;
-    touch-action: pan-x;
-  }
-
-  .presetAgentTagName {
-    max-width: 100px;
-  }
-}
-
 /* 功能菜单容器 - 占满整个区域 */
 .functionMenuContainer {
   width: 100%;

@@ -41,7 +41,7 @@ export const AssistantsSkeleton: React.FC = () => {
   const widths = [80, 100, 90];
   return (
     <div className='mt-16px w-full'>
-      <div className='flex flex-wrap gap-8px justify-center'>
+      <div className='f-center flex-wrap gap-2'>
         {widths.map((w, i) => (
           <div key={i} className={styles.skeletonPill} style={{ width: w, height: 28 }} />
         ))}
