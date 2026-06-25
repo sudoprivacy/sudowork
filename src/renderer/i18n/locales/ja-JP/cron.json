@@ -71,6 +71,7 @@
   "create.workspace": "作業ディレクトリ",
   "create.selectFolder": "フォルダーを選択",
   "create.listSubtitle": "スケジュールタスクを設定して、Agentを自動で実行させましょう",
+  "create.emptyHint": "自動実行する Agent タスクを作成",
   "create.editTitle": "スケジュールタスクを編集",
   "create.cancel": "キャンセル",
   "create.awakeBanner": "スケジュールタスクはパソコンが起動中のみ実行されます",
@@ -93,6 +94,9 @@
   "create.conversationMode": "実行モード",
   "create.conversationMode.new": "毎回新しい会話を作成（推奨）",
   "create.conversationMode.reuse": "既存の会話を再利用（継続追加向け）",
+  "create.reuseConversation": "会話をバインド",
+  "create.reuseConversationPlaceholder": "初回実行時に自動作成",
+  "create.reuseConversationHint": "既存の会話を選択すると、初回実行時からその会話に追記されます",
   "goToLastConversation": "最新の実行会話を表示",
   "sidebar.scheduled": "スケジュール済み"
 }

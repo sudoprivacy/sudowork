@@ -72,6 +72,7 @@
   "create.workspace": "Çalışma Dizini",
   "create.selectFolder": "Klasör Seç",
   "create.listSubtitle": "Agent'ın otomatik çalışması için zamanlanmış görevler ayarlayın",
+  "create.emptyHint": "Otomatik çalışan Agent görevleri oluşturun",
   "create.editTitle": "Zamanlanmış Görevi Düzenle",
   "create.cancel": "İptal",
   "create.awakeBanner": "Zamanlanmış görevler yalnızca bilgisayar açıkken çalışır",
@@ -94,6 +95,9 @@
   "create.conversationMode": "Çalıştırma Modu",
   "create.conversationMode.new": "Her seferinde yeni konuşma oluştur (Önerilen)",
   "create.conversationMode.reuse": "Mevcut konuşmayı yeniden kullan (sürekli ekleme için)",
+  "create.reuseConversation": "Konuşma bağla",
+  "create.reuseConversationPlaceholder": "İlk çalıştırmada otomatik oluştur",
+  "create.reuseConversationHint": "Mevcut bir konuşma seçerseniz ilk çalıştırmadan itibaren o konuşmaya eklenir",
   "goToLastConversation": "Son çalıştırma konuşmasını görüntüle",
   "sidebar.scheduled": "Planlanmış"
 }

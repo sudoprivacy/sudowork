@@ -71,6 +71,7 @@
   "create.workspace": "작업 디렉토리",
   "create.selectFolder": "폴더 선택",
   "create.listSubtitle": "예약 작업을 설정하여 Agent가 자동으로 실행되도록 합니다",
+  "create.emptyHint": "자동 실행되는 Agent 작업 만들기",
   "create.editTitle": "예약 작업 편집",
   "create.cancel": "취소",
   "create.awakeBanner": "예약 작업은 컴퓨터가 켜져 있을 때만 실행됩니다",
@@ -93,6 +94,9 @@
   "create.conversationMode": "실행 모드",
   "create.conversationMode.new": "매번 새 대화 생성 (권장)",
   "create.conversationMode.reuse": "기존 대화 재사용 (계속 추가 목적)",
+  "create.reuseConversation": "대화 바인딩",
+  "create.reuseConversationPlaceholder": "첫 실행 시 자동 생성",
+  "create.reuseConversationHint": "기존 대화를 선택하면 첫 실행부터 해당 대화에 추가됩니다",
   "goToLastConversation": "최근 실행 대화 보기",
   "sidebar.scheduled": "예약됨"
 }
