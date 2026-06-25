@@ -7,6 +7,7 @@ import { ipcBridge } from '@/common';
 import profileBoy from '@/renderer/assets/profile_boy.jpg';
 import profileGirl from '@/renderer/assets/profile_girl.jpg';
 import avatarLoadingSvg from '@/renderer/assets/avatar_loading.svg';
+import Tabs from '@/renderer/components/ui/Tabs';
 import { useUserAvatar } from '../hooks/useUserAvatar';
 import type { AvatarGenState, IGeneratedAvatarResult } from '../types';
 import './AvatarSelectorModal.css';
@@ -44,7 +45,7 @@ const AvatarSelectorModal: React.FC<AvatarSelectorModalProps> = ({ visible, onCl
   const inputRef = useRef<RefInputType>(null);
 
   const [prompt, setPrompt] = useState('');
-  const [selectedChip, setSelectedChip] = useState<string | null>(null);
+  const [selectedStyleKey, setSelectedStyleKey] = useState('');
   const [genState, setGenState] = useState<AvatarGenState>('idle');
   const [result, setResult] = useState<IGeneratedAvatarResult | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
@@ -53,15 +54,18 @@ const AvatarSelectorModal: React.FC<AvatarSelectorModalProps> = ({ visible, onCl
   useEffect(() => {
     if (visible) {
       setPrompt('');
-      setSelectedChip(null);
+      setSelectedStyleKey('');
       setGenState('idle');
       setResult(null);
       setErrorMsg('');
     }
   }, [visible]);
 
-  const handleChipClick = (label: string) => {
-    setSelectedChip(label);
+  const handleStyleChange = (key: string) => {
+    const item = STYLE_CHIPS.find((chip) => chip.key === key);
+    if (!item) return;
+    const label = t(`settings.avatarSelector.style.${item.key}`, item.fallback);
+    setSelectedStyleKey(key);
     setPrompt(t('settings.avatarSelector.promptTemplate', { style: label, defaultValue: '一个{{style}}风格的头像' }));
     inputRef.current?.focus();
   };
@@ -111,20 +115,11 @@ const AvatarSelectorModal: React.FC<AvatarSelectorModalProps> = ({ visible, onCl
             <span className='text-11px font-400 text-secondary'>{t('settings.avatarSelector.aiGenerateHint', '选择风格或直接描述，由 AI 为你生成')}</span>
           </div>
 
-          <div className='flex flex-wrap gap-8px'>
-            {STYLE_CHIPS.map(({ key, fallback }) => {
-              const label = t(`settings.avatarSelector.style.${key}`, fallback);
-              return (
-                <button key={label} className={`avatar-selector-chip h-28px inline-flex items-center border-none rd-full bg-[var(--color-fill-2)] px-12px text-12px text-secondary font-inherit cursor-pointer${selectedChip === label ? ' selected' : ''}`} onClick={() => handleChipClick(label)}>
-                  {label}
-                </button>
-              );
-            })}
-          </div>
+          <Tabs value={selectedStyleKey} onChange={handleStyleChange} items={STYLE_CHIPS.map(({ key, fallback }) => ({ value: key, label: t(`settings.avatarSelector.style.${key}`, fallback) }))} />
 
           <div className='mt-12px flex gap-8px'>
             <Input className='flex-1' ref={inputRef} value={prompt} onChange={setPrompt} placeholder={t('settings.avatarSelector.promptPlaceholder', '描述你想要的头像，例如：一个治愈插画风格的头像')} onPressEnter={handleGenerate} />
-            <Button type='primary' className='avatar-selector-primary-btn' icon={<SparkleIcon />} disabled={generateDisabled} onClick={handleGenerate}>
+            <Button type='primary' icon={<SparkleIcon />} disabled={generateDisabled} onClick={handleGenerate}>
               {t('settings.avatarSelector.generate', '生成')}
             </Button>
           </div>
@@ -149,7 +144,7 @@ const AvatarSelectorModal: React.FC<AvatarSelectorModalProps> = ({ visible, onCl
             {genState === 'result' && result && (
               <>
                 <img className='h-64px w-64px rd-full object-cover shadow-[0_2px_8px_rgba(0,0,0,0.12)]' src={result.dataUrl} alt={t('settings.avatarSelector.generatedAvatarAlt', '生成的头像')} />
-                <Button type='primary' className='avatar-selector-primary-btn' icon={<Check />} onClick={handleUseGenerated}>
+                <Button type='primary' icon={<Check />} onClick={handleUseGenerated}>
                   {t('settings.avatarSelector.useThisAvatar', '使用此头像')}
                 </Button>
               </>

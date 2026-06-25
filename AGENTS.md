@@ -52,7 +52,7 @@ bun run test:e2e           # E2E tests (Playwright)
 - Functional components only
 - Prefer `function` declarations for React components instead of `const` arrow functions.
 - Hooks: `use*` prefix
-- Event handler props and custom callback props must start with `on` (`onClick`, `onChange`, `onConfirm`, `onClose`, `onValueChange`).
+- Event handler functions, event handler props, and custom callback props must start with `on` (`onKeyDown`, `onClick`, `onChange`, `onConfirm`, `onClose`, `onValueChange`). Do not use `handle*` for event handlers.
 - Component props must use `interface`, named `I<ComponentName>Props`, and be placed at the bottom of the file.
 
 ```tsx
@@ -82,6 +82,7 @@ const RuleModal: React.FC<Props> = ({ open, ok }) => {
 ### Styling
 
 - UnoCSS atomic classes preferred
+- Prefer scale-based UnoCSS spacing utilities (`gap-2`, `mt-3`, `px-4`) over raw pixel utilities (`gap-8px`, `mt-12px`, `px-16px`) unless exact pixel matching is required.
 - CSS modules for component-specific styles: `*.module.css`
 - Prefer Arco Design components over native HTML elements (`Button` not `<button>`, `Input` not `<input>`, etc.); fall back to native only when Arco has no equivalent
 - Use Arco Design semantic colors
@@ -90,6 +91,7 @@ const RuleModal: React.FC<Props> = ({ open, ok }) => {
 
 - English for code comments
 - JSDoc for function documentation
+- Do not add file-level license headers to new or edited files.
 
 ## Testing
 
