@@ -9,6 +9,7 @@ import profileBoy from '@/renderer/assets/profile_boy.jpg';
 import profileGirl from '@/renderer/assets/profile_girl.jpg';
 import avatarLoadingSvg from '@/renderer/assets/avatar_loading.svg';
 import { useUserAvatar } from '../hooks/useUserAvatar';
+import type { AvatarGenState, IGeneratedAvatarResult } from '../types';
 import './AvatarSelectorModal.css';
 
 const STYLE_CHIPS = [
@@ -33,8 +34,6 @@ const SparkleIcon: React.FC = () => (
   </svg>
 );
 
-type GenState = 'idle' | 'generating' | 'result' | 'error';
-
 interface AvatarSelectorModalProps {
   visible: boolean;
   onClose: () => void;
@@ -47,8 +46,8 @@ const AvatarSelectorModal: React.FC<AvatarSelectorModalProps> = ({ visible, onCl
 
   const [prompt, setPrompt] = useState('');
   const [selectedChip, setSelectedChip] = useState<string | null>(null);
-  const [genState, setGenState] = useState<GenState>('idle');
-  const [result, setResult] = useState<{ localPath: string; dataUrl: string } | null>(null);
+  const [genState, setGenState] = useState<AvatarGenState>('idle');
+  const [result, setResult] = useState<IGeneratedAvatarResult | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
 
   // 每次打开重置为初始态

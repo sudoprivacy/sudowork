@@ -2,11 +2,10 @@ import { useCallback, useEffect, useState } from 'react';
 import { ipcBridge } from '@/common';
 import profileBoy from '@/renderer/assets/profile_boy.jpg';
 import profileGirl from '@/renderer/assets/profile_girl.jpg';
+import type { UserAvatarRecord } from '../types';
 
 const STORAGE_KEY = 'sudowork_user_avatar_v1';
 const CHANGE_EVENT = 'sudowork-avatar-changed';
-
-export type UserAvatarRecord = { type: 'preset'; value: 'boy' | 'girl' } | { type: 'generated'; localPath: string };
 
 const PRESET_SRC: Record<'boy' | 'girl', string> = {
   boy: profileBoy,

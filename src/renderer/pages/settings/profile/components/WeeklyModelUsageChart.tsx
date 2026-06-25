@@ -6,6 +6,7 @@ import type { Dayjs } from 'dayjs';
 import dayjs from 'dayjs';
 import { useModelUsageStats } from '@/renderer/hooks/useModelUsageStats';
 import { costToUsagePoints, formatUsagePoints } from '@/common/tokenUsage';
+import type { IModelUsageChartData, IEChartsTooltipParam } from '../types';
 
 const { RangePicker } = DatePicker;
 
@@ -19,12 +20,6 @@ const CHART_COLORS = [
   '#f53f3f', // danger
   '#b5bcd6', // aou-4
 ];
-
-interface EChartsTooltipParam {
-  dataIndex: number;
-  seriesName: string;
-  value: number;
-}
 
 interface WeeklyModelUsageChartProps {
   className?: string;
@@ -53,18 +48,7 @@ const WeeklyModelUsageChart: React.FC<WeeklyModelUsageChartProps> = ({ className
     }
   }, [error, t]);
 
-  interface ChartDataResult {
-    dates: string[];
-    models: string[];
-    series: { name: string; type: string; stack: string; color: string; data: number[] }[];
-    pointSeries: { name: string; type: string; stack: string; color: string; data: number[]; barMaxWidth: number }[];
-    totals: number[];
-    pointTotals: number[];
-    dateMap: Map<string, Map<string, number>>;
-    pointDateMap: Map<string, Map<string, number>>;
-  }
-
-  const chartData = useMemo<ChartDataResult>(() => {
+  const chartData = useMemo<IModelUsageChartData>(() => {
     if (!data.length) return { dates: [], models: [], series: [], pointSeries: [], totals: [], pointTotals: [], dateMap: new Map(), pointDateMap: new Map() };
 
     const dateMap = new Map<string, Map<string, number>>();
@@ -184,7 +168,7 @@ const WeeklyModelUsageChart: React.FC<WeeklyModelUsageChartProps> = ({ className
         backgroundColor: getCSSVar('--fill-0') || '#ffffff',
         borderColor: getCSSVar('--border-default') || '#e5e6eb',
         textStyle: { color: getCSSVar('--foreground') || '#1d2129', fontFamily: 'PingFang SC, Microsoft YaHei, sans-serif' },
-        formatter: (params: EChartsTooltipParam[]) => {
+        formatter: (params: IEChartsTooltipParam[]) => {
           if (!params || !params.length) return '';
           const dataIndex = params[0].dataIndex;
           const dayRaw = rawData[dataIndex];
@@ -251,7 +235,7 @@ const WeeklyModelUsageChart: React.FC<WeeklyModelUsageChartProps> = ({ className
         backgroundColor: getCSSVar('--fill-0') || '#ffffff',
         borderColor: getCSSVar('--border-default') || '#e5e6eb',
         textStyle: { color: getCSSVar('--foreground') || '#1d2129', fontFamily: 'PingFang SC, Microsoft YaHei, sans-serif' },
-        formatter: (params: EChartsTooltipParam[]) => {
+        formatter: (params: IEChartsTooltipParam[]) => {
           if (!params || !params.length) return '';
           const dataIndex = params[0].dataIndex;
           const date = chartData.dates[dataIndex];
