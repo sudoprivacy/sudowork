@@ -47,14 +47,13 @@ const backgroundColors = {
   control: 'var(--bg-control)', // bg-control - 控件填充/中性浅底
   emphasis: 'var(--bg-emphasis)', // bg-emphasis - 强调背景/分隔填充
   strong: 'var(--bg-strong)', // bg-strong - 更强填充/按下或禁用面
-  'inverse-muted': 'var(--bg-inverse-muted)', // bg-inverse-muted - 深中性色面/低强调反色底
   hover: 'var(--bg-hover)', // bg-hover - 交互悬停态
   active: 'var(--bg-active)', // bg-active - 交互按下态
   1: 'var(--bg-1)', // bg-1 - legacy alias of bg-subtle
   2: 'var(--bg-2)', // bg-2 - legacy alias of bg-muted
   3: 'var(--bg-3)', // bg-3 - legacy alias of bg-emphasis
   4: 'var(--bg-4)', // bg-4 - legacy alias of bg-strong
-  6: 'var(--bg-6)', // bg-6 - legacy alias of bg-inverse-muted
+  6: 'var(--bg-6)', // bg-6
 };
 
 // ==================== 品牌色 / Brand Colors ====================

@@ -93,23 +93,13 @@ const OpsModal: React.FC<OpsModalProps> = ({ visible, onClose, onConfigSaved }) 
 
   return (
     <>
-      <Modal
-        title={
-          <div className='flex items-center gap-2'>
-            <span>{t('settings.ops.title', '运维中心')}</span>
-          </div>
-        }
-        visible={visible}
-        onCancel={onClose}
-        footer={null}
-        style={{ width: 500 }}
-      >
+      <Modal title={t('settings.ops.title', '运维中心')} visible={visible} onCancel={onClose} footer={null} style={{ width: 500 }}>
         <div className='flex flex-col gap-4'>
-          <div className='flex items-center justify-between p-3 bg-fill-1 rd-8px'>
+          <div className='flex items-center justify-between p-3 bg-muted rd-8px'>
             <div className='flex-1'>
               <div className='text-14px text-foreground font-500'>{t('settings.ops.configFile', 'Sudo Code 配置文件')}</div>
               <Tooltip content='~/.nexus/sudocode/sudocode.json'>
-                <div className='text-12px text-tertiary mt-0.5'>{t('settings.ops.editConfigFile', '直接编辑配置文件')}</div>
+                <div className='text-12px text-secondary mt-0.5'>{t('settings.ops.editConfigFile', '直接编辑配置文件')}</div>
               </Tooltip>
             </div>
             <Button size='small' icon={<Edit theme='outline' size='14' />} onClick={openConfigEditor} loading={configLoading}>
