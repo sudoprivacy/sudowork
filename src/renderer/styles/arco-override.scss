@@ -91,10 +91,12 @@ body[arco-theme='dark'] {
 .arco-collapse {
   .arco-collapse-item-header {
     border-bottom: none;
+    background-color: var(--bg-control);
   }
-  .arco-collapse-item-icon,
-  .arco-collapse-item-header-icon {
-    display: none;
+  .arco-collapse-item-content {
+    border-style: dashed;
+    border-top-width: 1px;
+    border-color: var(--border-light);
   }
 }
 

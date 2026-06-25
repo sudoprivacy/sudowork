@@ -24,11 +24,11 @@ interface McpServerHeaderProps {
 
 const getStatusIcon = (status?: IMcpServer['status'], oauthStatus?: McpOAuthStatus) => {
   if (status === 'testing' || oauthStatus?.isChecking) {
-    return <LoadingOne fill={'var(--foreground)'} className='h-6' />;
+    return <LoadingOne fill={'var(--foreground)'} />;
   }
 
   if (status === 'error') {
-    return <CloseSmall fill={'var(--danger)'} className='h-6' />;
+    return <CloseSmall fill={'var(--danger)'} />;
   }
 
   if (oauthStatus?.needsLogin) {
@@ -36,10 +36,10 @@ const getStatusIcon = (status?: IMcpServer['status'], oauthStatus?: McpOAuthStat
   }
 
   if (status === 'connected' || oauthStatus?.isAuthenticated) {
-    return <Check fill={'var(--success)'} className='h-6 items-center' />;
+    return <Check fill={'var(--success)'} className='items-center' />;
   }
 
-  return <CloseOne fill={'var(--text-secondary)'} className='h-6' />;
+  return <CloseOne fill={'var(--text-secondary)'} />;
 };
 
 const getStatusText = (status?: IMcpServer['status'], oauthStatus?: McpOAuthStatus, t?: any) => {
@@ -78,7 +78,7 @@ const McpServerHeader: React.FC<McpServerHeaderProps> = ({ server, agentInstallS
 
   return (
     <div className='flex items-center justify-between group'>
-      <div className='flex items-center gap-2'>
+      <div className='flex items-center gap-4'>
         <span>{server.name}</span>
         <Tooltip content={statusText} position='top'>
           <span className='flex items-center cursor-default'>{statusIcon}</span>
@@ -116,7 +116,7 @@ const McpServerHeader: React.FC<McpServerHeaderProps> = ({ server, agentInstallS
               <Button size='mini' icon={<SettingOne size={'14'} />} />
             </Dropdown>
           </div>
-          <Switch checked={server.enabled} onChange={(checked) => onToggleServer(server.id, checked)} size='small' disabled={server.status === 'testing'} className='settings-accent-switch' style={server.enabled ? { backgroundColor: 'var(--ui-accent-orange)' } : undefined} />
+          <Switch checked={server.enabled} onChange={(checked) => onToggleServer(server.id, checked)} disabled={server.status === 'testing'} className='settings-accent-switch' style={server.enabled ? { backgroundColor: 'var(--ui-accent-orange)' } : undefined} />
         </div>
       )}
     </div>

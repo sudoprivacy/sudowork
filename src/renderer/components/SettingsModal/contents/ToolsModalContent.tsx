@@ -1,11 +1,5 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
-import { Divider, Form, Switch, Message, Button, Dropdown, Menu, Modal, Select } from '@arco-design/web-react';
-import { Down, Plus } from '@icon-park/react';
+import { Form, Switch, Message, Button, Modal, Select, Dropdown, Menu } from '@arco-design/web-react';
+import { Plus } from '@icon-park/react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { acpConversation, scode } from '@/common/ipcBridge';
@@ -141,53 +135,42 @@ const ModalMcpManagementSection: React.FC<{ message: MessageInstance }> = ({ mes
     await handleDeleteMcpServer(serverToDelete);
   }, [serverToDelete, hideDeleteConfirm, handleDeleteMcpServer]);
 
+  const handleAddJsonServer = useCallback(() => {
+    setImportMode('json');
+    showAddMcpModal();
+  }, [setImportMode, showAddMcpModal]);
+
+  const handleAddOneClickServer = useCallback(() => {
+    setImportMode('oneclick');
+    showAddMcpModal();
+  }, [setImportMode, showAddMcpModal]);
+
   const renderAddButton = () => {
     if (detectedAgents.length > 0) {
       return (
-        <Dropdown
+        <Dropdown.Button
           trigger='click'
+          type='outline'
+          position='br'
           droplist={
             <Menu>
-              <Menu.Item
-                key='json'
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setImportMode('json');
-                  showAddMcpModal();
-                }}
-              >
+              <Menu.Item key='json' onClick={handleAddJsonServer}>
                 {t('settings.mcpImportFromJSON')}
               </Menu.Item>
-              <Menu.Item
-                key='oneclick'
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setImportMode('oneclick');
-                  showAddMcpModal();
-                }}
-              >
+              <Menu.Item key='oneclick' onClick={handleAddOneClickServer}>
                 {t('settings.mcpOneKeyImport')}
               </Menu.Item>
             </Menu>
           }
         >
-          <Button type='outline' icon={<Plus size={'16'} />} shape='round' onClick={(e) => e.stopPropagation()}>
-            {t('settings.mcpAddServer')} <Down size='12' />
-          </Button>
-        </Dropdown>
+          <Plus fill='var(--primary)' size={18} />
+          {t('settings.mcpAddServer')}
+        </Dropdown.Button>
       );
     }
 
     return (
-      <Button
-        type='outline'
-        icon={<Plus size={'16'} />}
-        shape='round'
-        onClick={() => {
-          setImportMode('json');
-          showAddMcpModal();
-        }}
-      >
+      <Button type='outline' icon={<Plus size={18} fill={'var(--primary)'} />} shape='round' onClick={handleAddJsonServer}>
         {t('settings.mcpAddServer')}
       </Button>
     );
@@ -314,7 +297,7 @@ const ToolsModalContent: React.FC = () => {
       <AionScrollArea className='flex-1 min-h-0 pb-16px' disableOverflow>
         <div className='space-y-16px'>
           {/* MCP 工具配置 */}
-          <div className='px-[12px] md:px-[32px] py-[24px] bg-2 rd-12px md:rd-16px flex flex-col min-h-0 border'>
+          <div className='px-[12px] md:px-[32px] py-[24px] bg-2 rd-12px md:rd-16px flex flex-col min-h-0 border border-light'>
             <div className='flex-1 min-h-0'>
               <AionScrollArea className={'h-full overflow-visible'} disableOverflow>
                 <ModalMcpManagementSection message={mcpMessage} />
@@ -322,13 +305,13 @@ const ToolsModalContent: React.FC = () => {
             </div>
           </div>
           {/* 图像生成 */}
-          <div className='px-[12px] md:px-[32px] py-[24px] bg-2 rd-12px md:rd-16px border'>
-            <div className='flex items-center justify-between mb-16px'>
+          <div className='px-[12px] md:px-[32px] py-[24px] bg-2 rd-12px md:rd-16px border border-light'>
+            <div className='flex items-center justify-between'>
               <span className='text-14px text-foreground'>{t('settings.imageGeneration')}</span>
               <Switch checked={imageGenerationModel?.switch} onChange={(checked) => handleImageGenerationModelChange({ switch: checked })} className='settings-accent-switch' style={imageGenerationModel?.switch ? { backgroundColor: 'var(--ui-accent-orange)' } : undefined} />
             </div>
 
-            <Divider className='mt-0px mb-20px' />
+            <div className='my-5 border-b border-light' />
 
             <Form layout='horizontal' labelAlign='left' className='space-y-12px'>
               <Form.Item label={t('settings.imageGenerationModel')}>
