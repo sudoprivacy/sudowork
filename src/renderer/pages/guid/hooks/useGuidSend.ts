@@ -178,6 +178,20 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
 
         console.log(`Remote agent conversation created: ${conversation.id}`);
 
+        // Bind the conversation to the Dify enhancement orchestrator if the
+        // chosen assistant has Dify enhancement enabled. This is a best-effort
+        // call: failures (offline server, non-enhanced assistant, missing
+        // token) just leave the session unbound and AcpAgent runs as today.
+        try {
+          const { bindAssistantSession } = await import('@/renderer/shared/dify/sessionBinding');
+          await bindAssistantSession({
+            conversationId: conversation.id,
+            presetAssistantIdOrName: agentInfo?.customAgentId || agentInfo?.name,
+          });
+        } catch (bindErr) {
+          console.warn('[Dify] bindSession on create failed:', bindErr);
+        }
+
         // Store initial message for AcpSendBox to read
         // 存储初始消息供 AcpSendBox 使用
         const initialMessageData = {
@@ -253,6 +267,21 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
         if (!conversation || !conversation.id) {
           console.error('Failed to create ACP conversation - conversation object is null or missing id');
           return;
+        }
+
+        // Bind the conversation to Dify enhancement when the chosen assistant
+        // is a sudohub preset. Non-preset / custom assistants get a no-op since
+        // resolveSudohubAssistantId returns null for them.
+        if (isPreset) {
+          try {
+            const { bindAssistantSession } = await import('@/renderer/shared/dify/sessionBinding');
+            await bindAssistantSession({
+              conversationId: conversation.id,
+              presetAssistantIdOrName: agentInfo?.customAgentId || acpAgentInfo?.customAgentId,
+            });
+          } catch (bindErr) {
+            console.warn('[Dify] bindSession on ACP create failed:', bindErr);
+          }
         }
 
         if (isCustomWorkspace) {

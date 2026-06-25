@@ -96,6 +96,15 @@ export const useConversationActions = ({ batchMode, onSessionClick, onBatchModeC
         return false;
       }
 
+      // Tear down any Dify enhancement binding for this conversation.
+      // Non-blocking and idempotent; safe to call regardless of binding state.
+      try {
+        const { unbindAssistantSession } = await import('@/renderer/shared/dify/sessionBinding');
+        void unbindAssistantSession(conversation.id);
+      } catch {
+        /* best-effort */
+      }
+
       emitter.emit('conversation.deleted', conversation.id);
       if (id === conversation.id) {
         void navigate('/');

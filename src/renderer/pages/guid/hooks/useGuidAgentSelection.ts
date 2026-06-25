@@ -537,8 +537,21 @@ export const useGuidAgentSelection = ({ localeKey, assistantFromUrl }: UseGuidAg
   // 企业 Remote 模式下，这些目录已从 Moss server 同步，因此无需另走云端接口。
   useEffect(() => {
     let isActive = true;
+    // Use the visibility-aware variant so admin-revoked enterprise assistants
+    // disappear from the picker. Token comes from localStorage via the same
+    // helper used by sessionBinding; falls back to the unfiltered list when
+    // logged out, keeping personal-mode behavior intact.
+    const assistantsPromise = (async () => {
+      try {
+        const { readAccessToken } = await import('@/renderer/shared/dify/sessionBinding');
+        const { fetchVisibleAssistantsAsConfigs } = await import('@/renderer/shared/agents/assistantAdapter');
+        return fetchVisibleAssistantsAsConfigs(readAccessToken());
+      } catch {
+        return fetchAssistantsAsConfigs();
+      }
+    })();
     Promise.all([
-      fetchAssistantsAsConfigs(),
+      assistantsPromise,
       ipcBridge.extensions.getAssistants.invoke().catch(() => [] as Record<string, unknown>[]),
       isEnterprise && sessionMode === 'remote' ? ipcBridge.eeclaw.getCloudAssistants.invoke().catch(() => ({ data: [] as CloudAssistant[] })) : Promise.resolve({ data: [] as CloudAssistant[] }),
     ])

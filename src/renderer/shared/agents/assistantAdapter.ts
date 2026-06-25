@@ -46,6 +46,26 @@ export async function fetchAssistantsAsConfigs(): Promise<AcpBackendConfig[]> {
   return result.data.map(toBackendConfig);
 }
 
+/**
+ * Variant that asks the main process to additionally filter the list against
+ * sudowork-server's `/agents/visible`. Hub/tenant assistants the current user
+ * is not allowed to see (per `assistant_acl`) are dropped before mapping.
+ *
+ * The token is read from localStorage at the call site so we don't tie this
+ * helper to any React context. Pass `null` (or an empty string) when not
+ * logged in — the main process falls back to the unfiltered list.
+ */
+export async function fetchVisibleAssistantsAsConfigs(accessToken: string | null): Promise<AcpBackendConfig[]> {
+  if (!accessToken) {
+    return fetchAssistantsAsConfigs();
+  }
+  const result = await ipcBridge.assistantHub.getInstalledAssistantsWithVisibility.invoke({
+    accessToken,
+  });
+  if (!result?.data) return [];
+  return result.data.map(toBackendConfig);
+}
+
 /** Resolve the lookup name for an assistant from its AcpBackendConfig id. */
 export function resolveAssistantName(configId: string): string {
   return configId.startsWith('builtin-') ? configId.slice('builtin-'.length) : configId;

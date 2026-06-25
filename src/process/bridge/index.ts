@@ -38,6 +38,7 @@ import { initAssistantHubBridge } from './assistantHubBridge';
 import { initSudoclawBridge } from './sudoclawBridge';
 import { initInitBridge } from './initBridge';
 import { initSudoworkServerBridge } from './sudoworkServerBridge';
+import { initDifyBridge } from './difyBridge';
 import { initSystemConfigBridge } from './systemConfigBridge';
 import { initNodeRuntimeBridge } from './nodeRuntimeBridge';
 import { initPythonRuntimeBridge } from './pythonRuntimeBridge';
@@ -105,6 +106,7 @@ export function initAllBridges(): void {
   initPythonRuntimeBridge();
   initFuseTBridge();
   initSudoworkServerBridge();
+  initDifyBridge();
   initSystemConfigBridge();
   // Safety hook IPC is hidden while the feature is disabled.
   // initSafetyBridge();
@@ -139,7 +141,34 @@ export async function initializeAcpDetector(): Promise<void> {
 
 // 导出初始化函数供单独使用
 
-export { initAcpConversationBridge, initApplicationBridge, initAssistantHubBridge, initAuthBridge, initBedrockBridge, initChannelBridge, initConversationBridge, initCronBridge, initDatabaseBridge, initDialogBridge, initDocumentBridge, initExtensionsBridge, initFsBridge, initGeminiBridge, initMcpBridge, initModelBridge, initNexusBridge, initPreviewHistoryBridge, initShellBridge, initSkillHubBridge, initStarOfficeBridge, initSudoclawBridge, initSystemSettingsBridge, initUpdateBridge, initWebuiBridge, initWindowControlsBridge };
+export {
+  initAcpConversationBridge,
+  initApplicationBridge,
+  initAssistantHubBridge,
+  initAuthBridge,
+  initBedrockBridge,
+  initChannelBridge,
+  initConversationBridge,
+  initCronBridge,
+  initDatabaseBridge,
+  initDialogBridge,
+  initDocumentBridge,
+  initExtensionsBridge,
+  initFsBridge,
+  initGeminiBridge,
+  initMcpBridge,
+  initModelBridge,
+  initNexusBridge,
+  initPreviewHistoryBridge,
+  initShellBridge,
+  initSkillHubBridge,
+  initStarOfficeBridge,
+  initSudoclawBridge,
+  initSystemSettingsBridge,
+  initUpdateBridge,
+  initWebuiBridge,
+  initWindowControlsBridge,
+};
 
 // 导出窗口控制相关工具函数
 export { registerWindowMaximizeListeners } from './windowControlsBridge';

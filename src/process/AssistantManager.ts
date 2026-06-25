@@ -13,10 +13,18 @@ import { getAssistantsDir, getHubAssistantsDir, getSystemAssistantsDir, getCusto
 import { ASSISTANT_META_FILE, MOSS_ASSISTANT_META_FILE } from './constants/assistantStorage';
 import { mainLog, mainWarn, mainError } from './utils/mainLogger';
 import type { IAssistantMeta } from './constants/assistantStorage';
-import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
 import { getEnterpriseTenantAssistantsDir } from './constants/enterpriseStorage';
+import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
+import { getSudoworkServerBaseUrlSync } from './initStorage';
 
 export type AssistantCategory = 'custom' | 'hub' | 'system' | 'tenant';
+
+export interface IAssistantEnhancement {
+  enabled: boolean;
+  mode?: 'agent-chat' | 'workflow' | 'rag-only';
+  /** Surfaced for debugging; client code should not call Dify directly with it. */
+  difyAppId?: string;
+}
 
 export interface IAssistantInfo {
   /** Unique identifier from server */
@@ -28,6 +36,27 @@ export interface IAssistantInfo {
   enabled: boolean;
   category: AssistantCategory;
   meta: IAssistantMeta;
+  /**
+   * Filled in when `getInstalledAssistantsWithVisibility(accessToken)` is
+   * called. `undefined` means we haven't checked / can't check (offline);
+   * `{enabled: false}` is the explicit "no enhancement" answer.
+   */
+  enhancement?: IAssistantEnhancement;
+}
+
+interface VisibleAssistantEntry {
+  assistant_id: string;
+  enhancement?: {
+    enabled?: boolean;
+    mode?: 'agent-chat' | 'workflow' | 'rag-only';
+    dify_app_id?: string;
+  };
+}
+
+interface VisibleResponse {
+  success: boolean;
+  data?: VisibleAssistantEntry[];
+  msg?: string;
 }
 
 /**
@@ -181,6 +210,79 @@ export class AssistantManager {
     }
 
     return assistants;
+  }
+
+  /**
+   * Variant of `getInstalledAssistants` that reconciles the local disk view
+   * with sudowork-server's visibility/enhancement table.
+   *
+   * Behavior:
+   *   - For `system` and `custom` assistants the server is bypassed; these
+   *     are local-only artifacts and the server has no opinion.
+   *   - For `hub` and `tenant` assistants we look up each entry by its meta
+   *     `id`. Missing from the visible list = filtered out (admin revoked
+   *     access). Present = annotated with the `enhancement` field.
+   *   - On any server error we degrade to the unfiltered list with
+   *     `enhancement` set to `{enabled: false}` — the user keeps working,
+   *     they just don't get Dify augmentation until the server is back.
+   *
+   * Callers (renderer) pass their access token because the main process
+   * doesn't cache it.
+   */
+  async getInstalledAssistantsWithVisibility(accessToken: string): Promise<IAssistantInfo[]> {
+    const installed = await this.getInstalledAssistants();
+    if (!accessToken) return installed;
+
+    let visibleMap: Map<string, IAssistantEnhancement> | null = null;
+    try {
+      const resp = await fetch(`${getSudoworkServerBaseUrlSync()}/api/v1/agents/visible`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const body = (await resp.json()) as VisibleResponse;
+      if (body.success && Array.isArray(body.data)) {
+        visibleMap = new Map();
+        for (const entry of body.data) {
+          if (!entry.assistant_id) continue;
+          const enh = entry.enhancement;
+          visibleMap.set(entry.assistant_id, {
+            enabled: !!enh?.enabled,
+            mode: enh?.mode,
+            difyAppId: enh?.dify_app_id,
+          });
+        }
+      }
+    } catch (err) {
+      mainWarn('AssistantManager', 'visible probe failed, degrading gracefully:', err);
+    }
+
+    if (!visibleMap) {
+      // server unreachable: keep the list, mark enhancement undefined
+      return installed.map((item): IAssistantInfo => ({ ...item, enhancement: undefined }));
+    }
+
+    const out: IAssistantInfo[] = [];
+    for (const item of installed) {
+      const needsAclGate = item.category === 'hub' || item.category === 'tenant';
+      const assistantId = item.meta.id ?? item.id;
+      if (!needsAclGate) {
+        out.push({ ...item, enhancement: { enabled: false } });
+        continue;
+      }
+      if (!assistantId) {
+        // Old-format hub assistant without server id: keep visible (legacy compat)
+        out.push({ ...item, enhancement: { enabled: false } });
+        continue;
+      }
+      const enh = visibleMap.get(assistantId);
+      if (!enh) {
+        // not in visible list → admin revoked or assistant was deleted server-side
+        mainLog('AssistantManager', `hiding hub assistant ${assistantId}: not in visible set`);
+        continue;
+      }
+      out.push({ ...item, enhancement: enh });
+    }
+    return out;
   }
 
   /**

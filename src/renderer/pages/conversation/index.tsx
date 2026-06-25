@@ -134,6 +134,30 @@ const ChatConversationIndex: React.FC = () => {
     }
   }, [data, openTab]);
 
+  // Re-bind the conversation to its Dify enhancement orchestrator each time
+  // the conversation page mounts. The main process holds bindings only in
+  // memory, so a process restart (or app relaunch) clears them; rebinding on
+  // page mount guarantees the orchestrator is warm before the user types.
+  // This is a no-op for non-enhanced assistants (resolveSudohubAssistantId
+  // returns null) and for missing tokens.
+  useEffect(() => {
+    if (!data?.id) return;
+    const extra = data.extra as { presetAssistantId?: string; customAgentId?: string } | undefined;
+    const assistantHint = extra?.presetAssistantId || extra?.customAgentId;
+    if (!assistantHint) return;
+    void (async () => {
+      try {
+        const { bindAssistantSession } = await import('@/renderer/shared/dify/sessionBinding');
+        await bindAssistantSession({
+          conversationId: data.id,
+          presetAssistantIdOrName: assistantHint,
+        });
+      } catch (err) {
+        console.warn('[Dify] rebind on conversation mount failed:', err);
+      }
+    })();
+  }, [data?.id, data?.extra]);
+
   if (isLoading) return <Spin loading></Spin>;
   return <ChatConversation conversation={data}></ChatConversation>;
 };

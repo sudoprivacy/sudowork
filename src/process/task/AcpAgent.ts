@@ -920,6 +920,16 @@ This identity statement takes priority over the default identity in USER.md.
         } catch (error) {
           mainWarn('[AcpAgent]', 'Failed to reload preset context:', error);
         }
+
+        // Append Dify enhancement prelude to system prompt (.md) if this
+        // conversation was bound via ipcBridge.dify.bindSession. Cheap when
+        // not bound — short-circuits on missing session.
+        try {
+          const { enhancePresetContext } = await import('@process/services/dify/enhancementOrchestrator');
+          this.options.presetContext = await enhancePresetContext(this.conversation_id, this.options.presetContext || '');
+        } catch (enhanceErr) {
+          mainWarn('[AcpAgent]', 'Failed to apply Dify enhancement prelude:', enhanceErr);
+        }
       }
 
       if (data.msg_id && data.content) {
@@ -1021,6 +1031,16 @@ This identity statement takes priority over the default identity in USER.md.
               contentToSend = identityBlock + '\n\n[User Request]\n' + contentToSend;
             }
           }
+        }
+
+        // Dify enhancement: wrap user message with <knowledge_context> block
+        // when this conversation has a bound Dify-enhanced assistant. Falls
+        // through unchanged for non-enhanced sessions or on any error.
+        try {
+          const { augmentUserContent } = await import('@process/services/dify/enhancementOrchestrator');
+          contentToSend = await augmentUserContent(this.conversation_id, contentToSend);
+        } catch (augErr) {
+          mainWarn('[AcpAgent]', 'Dify augment failed; sending original message:', augErr);
         }
 
         const agentSendStart = Date.now();

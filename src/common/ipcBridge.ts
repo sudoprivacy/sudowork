@@ -1676,6 +1676,13 @@ export interface IAssistantInstallResult {
 export const assistantHub = {
   /** Get all installed assistants (enabled + disabled) with full metadata */
   getInstalledAssistants: bridge.buildProvider<IBridgeResponse<IAssistantInfo[]>, void>('assistant-hub.get-installed-assistants'),
+  /**
+   * Same as `getInstalledAssistants` but reconciles with sudowork-server's
+   * `/agents/visible` to filter out hub/tenant assistants the current user is
+   * not allowed to see, and annotates each entry with Dify `enhancement`.
+   * Falls back to the unfiltered list if the server is unreachable.
+   */
+  getInstalledAssistantsWithVisibility: bridge.buildProvider<IBridgeResponse<IAssistantInfo[]>, { accessToken: string }>('assistant-hub.get-installed-assistants-with-visibility'),
   /** Enable an assistant (set meta.enabled = true). Optionally specify category to disambiguate assistants with same name in different directories. */
   enableAssistant: bridge.buildProvider<IBridgeResponse<void>, { name: string; category?: 'custom' | 'hub' | 'system' | 'tenant' }>('assistant-hub.enable-assistant'),
   /** Disable an assistant (set meta.enabled = false). Optionally specify category to disambiguate assistants with same name in different directories. */
@@ -1775,6 +1782,258 @@ export interface ISudoworkServerConfig {
 export const sudoworkServer = {
   getConfig: bridge.buildProvider<ISudoworkServerConfig, void>('sudowork-server.get-config'),
   updateConfig: bridge.buildProvider<void, Partial<ISudoworkServerConfig>>('sudowork-server.update-config'),
+};
+
+// ==================== Dify (RAG + Agent) API ====================
+
+/** A Dify-backed assistant as surfaced by sudowork-server /api/v1/agents/visible.
+ * Mirrors the response shape — kept flat so renderer code can render directly
+ * alongside local assistants. */
+export interface IDifyAgent {
+  assistant_id: string;
+  runtime: 'dify';
+  dify_app_id: string;
+  dify_app_mode: string;
+  dify_tenant_id: string;
+  created_at: number;
+  updated_at: number;
+  /** Display fields are filled in by sudowork-server in a later iteration; for
+   * P0+P1 we may have only the IDs and the renderer falls back to "Agent — N". */
+  name?: string;
+  description?: string;
+  icon?: string;
+}
+
+/** One SSE frame as forwarded by sudowork-server. We pass the raw Dify event
+ * payload through with no transformation so the renderer can react to the
+ * full Dify event taxonomy (`message`, `message_end`, `agent_message`, etc.). */
+export interface IDifyChatChunk {
+  /** Stable id used by the renderer to correlate chunks with their stream. */
+  streamId: string;
+  /** Dify event name, e.g. 'message'. Empty string if upstream didn't tag. */
+  event: string;
+  /** Raw JSON payload as Dify sent it. */
+  data: Record<string, unknown>;
+}
+
+export interface IDifyChatStreamStart {
+  streamId: string;
+  assistantId: string;
+}
+
+export interface IDifyChatStreamEnd {
+  streamId: string;
+  /** True if the upstream stream ended normally. */
+  ok: boolean;
+  /** Filled when ok=false. */
+  error?: string;
+}
+
+/** Common shape for all non-streaming proxy calls — every method below uses it. */
+export interface IDifyAuthArgs {
+  accessToken: string;
+  assistantId: string;
+}
+
+/** Conversation entry as returned by sudowork-server (forwarded from Dify). */
+export interface IDifyConversation {
+  id: string;
+  name: string;
+  inputs?: Record<string, unknown>;
+  status?: string;
+  introduction?: string | null;
+  created_at?: number;
+  updated_at?: number;
+}
+
+export interface IDifyConversationList {
+  limit: number;
+  has_more: boolean;
+  data: IDifyConversation[];
+}
+
+export interface IDifyMessage {
+  id: string;
+  conversation_id: string;
+  parent_message_id?: string | null;
+  inputs?: Record<string, unknown>;
+  query?: string;
+  answer?: string;
+  feedback?: { rating: 'like' | 'dislike' | null };
+  retriever_resources?: unknown[];
+  message_files?: unknown[];
+  agent_thoughts?: unknown[];
+  status?: string;
+  error?: string | null;
+  created_at?: number;
+}
+
+export interface IDifyMessageList {
+  limit: number;
+  has_more: boolean;
+  data: IDifyMessage[];
+}
+
+export interface IDifyFileUploadResult {
+  id: string;
+  name: string;
+  size: number;
+  mime_type?: string;
+  extension?: string | null;
+  preview_url?: string | null;
+  source_url?: string | null;
+}
+
+export interface IDifyParameters {
+  user_input_form?: unknown[];
+  file_upload?: Record<string, unknown>;
+  system_parameters?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+export interface IDifyMeta {
+  tool_icons?: Record<string, string>;
+  [key: string]: unknown;
+}
+
+export const dify = {
+  /** List the agents the current user can see.
+   * `accessToken` is the SudoWork-server JWT held by the renderer; passing it
+   * per-call matches how authProxyBridge already works (token is renderer-owned). */
+  getVisibleAgents: bridge.buildProvider<IBridgeResponse<IDifyAgent[]>, { accessToken: string }>('dify.get-visible-agents'),
+
+  /** Start a streaming chat. The provider returns immediately; chunks/end
+   * events are emitted via `chunk` / `end` below. Caller correlates by streamId. */
+  startChat: bridge.buildProvider<
+    IBridgeResponse<IDifyChatStreamStart>,
+    IDifyAuthArgs & {
+      query: string;
+      conversationId?: string;
+      inputs?: Record<string, unknown>;
+      files?: unknown[];
+      autoGenerateName?: boolean;
+    }
+  >('dify.start-chat'),
+
+  /** Cancel an in-flight chat stream from the renderer side. */
+  cancelChat: bridge.buildProvider<IBridgeResponse<void>, { streamId: string }>('dify.cancel-chat'),
+
+  /** Tell Dify itself to stop generation for an in-flight task id. */
+  stopChatTask: bridge.buildProvider<IBridgeResponse<unknown>, IDifyAuthArgs & { taskId: string }>('dify.stop-chat-task'),
+
+  /** Per-frame SSE event (Main -> Renderer). */
+  chunk: bridge.buildEmitter<IDifyChatChunk>('dify.chunk'),
+
+  /** Stream finished (success or error). */
+  end: bridge.buildEmitter<IDifyChatStreamEnd>('dify.end'),
+
+  // ===== Conversations =====
+  listConversations: bridge.buildProvider<
+    IBridgeResponse<IDifyConversationList>,
+    IDifyAuthArgs & {
+      lastId?: string;
+      limit?: number;
+      sortBy?: 'created_at' | '-created_at' | 'updated_at' | '-updated_at';
+    }
+  >('dify.list-conversations'),
+
+  renameConversation: bridge.buildProvider<IBridgeResponse<IDifyConversation>, IDifyAuthArgs & { conversationId: string; name?: string; autoGenerate?: boolean }>('dify.rename-conversation'),
+
+  deleteConversation: bridge.buildProvider<IBridgeResponse<void>, IDifyAuthArgs & { conversationId: string }>('dify.delete-conversation'),
+
+  // ===== Messages =====
+  listMessages: bridge.buildProvider<IBridgeResponse<IDifyMessageList>, IDifyAuthArgs & { conversationId: string; firstId?: string; limit?: number }>('dify.list-messages'),
+
+  sendFeedback: bridge.buildProvider<IBridgeResponse<unknown>, IDifyAuthArgs & { messageId: string; rating: 'like' | 'dislike' | null; content?: string }>('dify.send-feedback'),
+
+  getSuggested: bridge.buildProvider<IBridgeResponse<{ result: string; data: string[] }>, IDifyAuthArgs & { messageId: string }>('dify.get-suggested'),
+
+  // ===== App-level meta =====
+  getParameters: bridge.buildProvider<IBridgeResponse<IDifyParameters>, IDifyAuthArgs>('dify.get-parameters'),
+
+  getMeta: bridge.buildProvider<IBridgeResponse<IDifyMeta>, IDifyAuthArgs>('dify.get-meta'),
+
+  // ===== File upload =====
+  /** Upload a file from the renderer. `bytes` is the raw content; `name` and
+   * `mimeType` describe it. Main process wraps it in multipart/form-data. */
+  uploadFile: bridge.buildProvider<IBridgeResponse<IDifyFileUploadResult>, IDifyAuthArgs & { name: string; mimeType: string; bytes: ArrayBuffer | Uint8Array }>('dify.upload-file'),
+
+  /** Upload a file from a local path (when the renderer already has it on disk).
+   * Avoids round-tripping bytes through IPC. */
+  uploadFileFromPath: bridge.buildProvider<IBridgeResponse<IDifyFileUploadResult>, IDifyAuthArgs & { filePath: string; mimeType?: string }>('dify.upload-file-from-path'),
+
+  // ===== Audio =====
+  audioToText: bridge.buildProvider<IBridgeResponse<{ text: string }>, IDifyAuthArgs & { name: string; mimeType: string; bytes: ArrayBuffer | Uint8Array }>('dify.audio-to-text'),
+
+  /** Text-to-audio: main process writes the upstream binary to a temp file and
+   * returns its path so the renderer can <audio src=…> it without IPC chunking. */
+  textToAudio: bridge.buildProvider<IBridgeResponse<{ filePath: string; mimeType: string }>, IDifyAuthArgs & { messageId?: string; text?: string; voice?: string; streaming?: boolean }>('dify.text-to-audio'),
+
+  // ===== Enhancement (pre-injection) =====
+
+  /** Probe whether an assistant has Dify enhancement enabled, and which mode. */
+  getEnhancement: bridge.buildProvider<IBridgeResponse<{ enabled: boolean; mode?: 'agent-chat' | 'workflow' | 'rag-only' }>, IDifyAuthArgs>('dify.get-enhancement'),
+
+  /**
+   * Run a blocking enhancement call. Used for `agent-chat` and `rag-only`
+   * modes where there's nothing meaningful to stream. Returns the text to
+   * inject into the local ACP context.
+   */
+  invokeEnhancement: bridge.buildProvider<
+    IBridgeResponse<{
+      text: string;
+      mode: 'agent-chat' | 'workflow' | 'rag-only';
+      elapsedMs: number;
+      citations?: unknown[];
+    }>,
+    IDifyAuthArgs & { query: string; conversationId?: string }
+  >('dify.invoke-enhancement'),
+
+  /**
+   * Run a streaming enhancement call (workflow mode). The provider returns a
+   * streamId; progress events fire via `enhancementProgress`, the final
+   * injection text fires via `enhancementResult`, and any error fires via
+   * `enhancementEnd`. The caller awaits `enhancementResult` before sending
+   * the user's message into the local ACP.
+   */
+  startEnhancement: bridge.buildProvider<IBridgeResponse<{ streamId: string }>, IDifyAuthArgs & { query: string; conversationId?: string }>('dify.start-enhancement'),
+
+  /** Per-node progress (Main -> Renderer). */
+  enhancementProgress: bridge.buildEmitter<{
+    streamId: string;
+    step: string;
+    nodeId?: string;
+    nodeType?: string;
+  }>('dify.enhancement-progress'),
+
+  /** Final injection text (Main -> Renderer). */
+  enhancementResult: bridge.buildEmitter<{
+    streamId: string;
+    text: string;
+    mode: 'agent-chat' | 'workflow' | 'rag-only';
+    elapsedMs: number;
+    citations?: unknown[];
+  }>('dify.enhancement-result'),
+
+  /** Stream lifecycle terminator (Main -> Renderer). */
+  enhancementEnd: bridge.buildEmitter<{
+    streamId: string;
+    ok: boolean;
+    error?: string;
+  }>('dify.enhancement-end'),
+
+  /**
+   * Register an Acp conversation as enhanced. Renderer calls this once after
+   * creating a conversation that targets an installed sudohub assistant. The
+   * main process caches (assistantId, accessToken) so AcpAgent can transparently
+   * augment each user message before forwarding to the local backend.
+   *
+   * Calling with the same conversationId overwrites the previous binding.
+   */
+  bindSession: bridge.buildProvider<IBridgeResponse<void>, { conversationId: string; accessToken: string; assistantId: string }>('dify.bind-session'),
+
+  /** Tear down a previously bound session (called when conversation is closed). */
+  unbindSession: bridge.buildProvider<IBridgeResponse<void>, { conversationId: string }>('dify.unbind-session'),
 };
 
 // ==================== System Config (server-driven) ====================

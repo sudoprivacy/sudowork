@@ -252,6 +252,16 @@ export function initAssistantHubBridge(): void {
     }
   });
 
+  ipcBridge.assistantHub.getInstalledAssistantsWithVisibility.provider(async ({ accessToken }) => {
+    try {
+      const assistants = await assistantManager.getInstalledAssistantsWithVisibility(accessToken || '');
+      return { success: true, data: assistants };
+    } catch (error) {
+      mainError('AssistantHub', 'Failed to get installed assistants with visibility:', error);
+      return { success: false, msg: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
   ipcBridge.assistantHub.enableAssistant.provider(async ({ name, category }) => {
     const result = await assistantManager.enableAssistant(name, category);
     return result.success ? { success: true, data: undefined } : { success: false, msg: result.msg };
