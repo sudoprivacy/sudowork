@@ -25,45 +25,69 @@ bunx vite-node /tmp/u.mjs; rm -f /tmp/u.mjs
 
 ## 已知坑（本项目高频 bug，验证过）
 
-### 1. 没有全局 `border-style: solid` 重置 —— 边框「隐形」
+### 1. `border-solid` 永远是多余的 —— preflight 已全局重置
 
-项目的 preflight 只重置了 `color: inherit`，**没有** Tailwind 那条 `*,::before,::after{border-style:solid}`。后果：
+项目 preflight **已有** Tailwind 同款重置：`*, ::before, ::after { border-width: 0; border-style: solid; border-color: var(--border-default); }`。后果：
 
-- `border` / `border-l` 这类工具类**只设宽度**，`border-style` 停留在初始值 `none` → 边框完全不渲染。
-- 原生 `<button>` 因为 UA 样式自带 border-style 看起来正常，`<div>` 则完全不显示——这是「选中却没有边框色」类 bug 的根因。
+- 所有元素默认 `border-style: solid`，写 `border` / `border-l` 就会渲染（不需要再加 `border-solid`）。
+- 显式的 `border-solid` / `border-l-solid` 是**冗余**的，应删除。
 
-**修法**：需要可见边框时，显式补样式：整框用 `border border-solid`；单边线用 `border-l border-l-solid`（见坑 2）。
-
-### 2. `border-solid` 是「四边」样式，单边线会变成一个框
-
-`border-solid` 设的是 `border-style: solid`（四边）。若只给了某一边宽度（如 `border-l`），其余三边的 `border-width` 仍是浏览器初始的 `medium`(~3px)，一旦 solid 生效，四边全渲染 → 本想要一条竖线，结果出来一个矩形框。
-
-**单边分隔线的正确写法**：方向性样式 + 方向性宽度 + 颜色，例如左竖线：
+**修法**：边框写法只需 `border` + 颜色，或 `border-l` + 颜色。例如：
 
 ```
-border-l border-l-solid border-[var(--border-light)]
+border border-light           # 整框，用 shortcut
+border-l border-light         # 左边线，用 shortcut
+border-b border-[var(--border-default)]  # 底边线，用 arbitrary 值
 ```
 
-其余三边 style 仍为 `none`，不渲染。
+看到 `border-solid` / `border-l-solid` 等显式 style 声明时，直接删掉（preflight 已覆盖）。
 
-### 3. 边框色 token `b-base` / `b-light` / `b-2` 与方向前缀撞名
+### 2. 边框色：优先用 `border-light` shortcut，避免 arbitrary 值
 
-`theme.colors` 里定义了 `b-light: var(--border-light)` 等，本意是 `border-b-light` 当边框色用。但 UnoCSS 会**优先**把 `border-b-light` 解析成 `border-b`(底边) + `light`(内置灰)，生成 `border-bottom-color: rgb(246 246 246)`，**不是** `var(--border-light)`，也不是你要的边。
+项目 `shortcuts` 已定义 `border-light: border-[var(--border-light)]` 和 `divide-light: divide-[var(--border-light)]`，这是最常用的浅边框色。
 
-**修法**：边框色直接用 arbitrary 值 `border-[var(--border-light)]` / `border-[var(--border-base)]`，绕开撞名。审查时把可疑的 `border-b-light`/`border-b-base`/`border-b-2` 用生成器验证一遍。
+**修法**：
+- 整框/单边框：`border border-light` / `border-l border-light`（用 shortcut）
+- 分割线：`divide-y divide-light`（用 shortcut）
+- 其他边框色（如 `--border-default`）：`border-[var(--border-default)]`（用 arbitrary 值）
 
-### 4. 用现成 shortcut / 语义 token，别手写或硬编码
+看到 `border-[var(--border-light)]` 时，替换为 `border-light` shortcut。
 
-- `flex items-center justify-center` → `f-center`（已在 shortcuts 定义）。
-- 颜色一律走 token，禁止硬编码 hex/rgb：
-  - 语义色 `primary` `success` `danger` `warning` `info`（+ `-soft`/`-line` 变体）
-  - 背景/边框数字档 `bg-1`..`bg-6` / `border-1`..`border-6`（数字键 bg 与 border 通用）
-  - 前景/正文 `text-foreground`（主）`text-secondary`（次）`text-tertiary`（三级）（注意 `text-primary` 是橙色主操作色，非正文色）
-  - 边框 `var(--border-base)` `var(--border-light)`（用法见坑 3）
-  - 品牌 `brand` `brand-light` `brand-hover`
-    实在没有对应 token 时才用 `text-[var(--xxx)]` / `bg-[var(--xxx)]`。
+### 3. 优先用已有 shortcuts，别手写展开形式
 
-### 5. 间距/尺寸：px 后缀 → 数字 scale（默认就转，这是核心职责）
+项目 `uno.config.ts` 已定义以下 shortcuts，**遇到匹配场景必须优先用 shortcut**：
+
+| Shortcut | 展开形式 | 用途 |
+|----------|---------|------|
+| `f-center` | `flex items-center justify-center` | 居中布局 |
+| `border-light` | `border-[var(--border-light)]` | 浅边框色（搭配 border / border-b 等） |
+| `divide-light` | `divide-[var(--border-light)]` | 浅分割线色（搭配 divide-y / divide-x） |
+| `scrollbar-hide` | `scrollbar-width-none [&::-webkit-scrollbar]:hidden` | 隐藏滚动条 |
+| `item-card` | `bg-fill-0 rd-12px p-4 cursor-pointer shadow-[...] transition-all ...` | 卡片样式（完整交互态） |
+| `category-chip` | `flex-shrink-0 inline-flex items-center ... h-28px px-12px rd-16px ...` | 筛选 chip 基础结构 |
+| `category-chip-idle` | `text-secondary hover:bg-fill-2 hover:text-foreground` | chip 默认态 |
+| `category-chip-active` | `bg-[rgba(...)] text-[var(--ui-accent-orange)] font-medium` | chip 激活态 |
+
+**修法示例**：
+- `flex items-center justify-center` → `f-center`
+- `border-[var(--border-light)]` → `border-light`
+- `divide-y divide-[var(--border-light)]` → `divide-y divide-light`
+- 手写展开的 scrollbar hide → `scrollbar-hide`
+
+### 4. 用语义 token，禁止硬编码 hex/rgb
+
+颜色一律走 token（`uno.config.ts` 的 `theme.colors` 或自定义 rules）：
+
+- **语义色**：`primary` `success` `danger` `warning` `info`（+ `-soft`/`-line` 变体）
+- **背景**：`bg-base` `bg-1`..`bg-6` `bg-hover` `bg-active` / `bg-fill-0`..`bg-fill-4`（自定义 rule）
+- **前景/正文**：`text-foreground`（主）`text-secondary`（次）`text-tertiary`（三级）/ `text-0`..`text-4`（自定义 rule）
+  - 注意 `text-primary` 是橙色主操作色，**不是**正文色
+- **品牌**：`brand` `brand-light` `brand-hover`
+- **边框**：见坑 2，优先用 `border-light` shortcut
+
+实在没有对应 token 时才用 `text-[var(--xxx)]` / `bg-[var(--xxx)]`。
+
+### 5. 间距/尺寸：px 后缀 → 数字 scale（核心职责，默认就转）
 
 **标准是数字 scale，px 后缀的间距/尺寸类视为「不标准」，默认转成 scale。** 例如 `gap-8px` → `gap-2`、`mt-32px` → `mt-8`、`p-16px` → `p-4`、`py-8px` → `py-2`、`w-14px` → `w-3.5`。不需要用户特意点名「换风格」——只要你在处理某文件，看到 px 间距就顺手规范掉。
 

@@ -419,10 +419,10 @@ const SystemSettings: React.FC = () => {
         {modalContextHolder}
 
         {/* 内容区域 / Content Area */}
-        <AionScrollArea className='flex-1 min-h-0 pb-16px' disableOverflow>
-          <div className='space-y-16px'>
+        <AionScrollArea className='flex-1 min-h-0 pb-4' disableOverflow>
+          <div className='space-y-4'>
             {/* 偏好设置与高级设置合并展示 / Combined preferences and advanced settings */}
-            <div className='px-[12px] md:px-[32px] py-16px bg-2 rd-16px space-y-12px'>
+            <div className='px-3 md:px-8 py-4 bg-2 rd-16px space-y-3'>
               <div className='w-full flex flex-col divide-y divide-light'>
                 {preferenceItems.map((item) => (
                   <PreferenceRow key={item.key} label={item.label} hint={item.hint}>
@@ -430,9 +430,9 @@ const SystemSettings: React.FC = () => {
                   </PreferenceRow>
                 ))}
               </div>
-              <Form form={form} layout='vertical' className='space-y-16px' onValuesChange={handleValuesChange}>
+              <Form form={form} layout='vertical' className='space-y-4' onValuesChange={handleValuesChange}>
                 <DirInputItem label={t('settings.workDir')} field='workDir' />
-                {error && <Alert className='mt-16px' type='error' content={typeof error === 'string' ? error : JSON.stringify(error)} />}
+                {error && <Alert className='mt-4' type='error' content={typeof error === 'string' ? error : JSON.stringify(error)} />}
               </Form>
             </div>
           </div>
