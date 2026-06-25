@@ -6,6 +6,7 @@
 
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import Tabs from '@/renderer/components/ui/Tabs';
 import { DEFAULT_PROMPT_CATEGORIES } from '../constants';
 import styles from '../index.module.css';
 
@@ -38,13 +39,16 @@ const PromptTemplates: React.FC<PromptTemplatesProps> = ({ visible, onSelectProm
       </div>
 
       {/* Category tags */}
-      <div className='flex flex-wrap gap-8px mb-4px'>
-        {DEFAULT_PROMPT_CATEGORIES.map((category) => (
-          <div key={category.key} className={`${styles.promptCategoryTag} ${activeCategory === category.key ? styles.promptCategoryTagActive : ''}`} onClick={() => setActiveCategory(activeCategory === category.key ? null : category.key)}>
-            {category.icon} {t(category.labelKey)}
-          </div>
-        ))}
-      </div>
+      <Tabs
+        className='mb-1'
+        value={activeCategory ?? ''}
+        items={DEFAULT_PROMPT_CATEGORIES.map((category) => ({
+          value: category.key,
+          label: t(category.labelKey),
+          icon: category.icon,
+        }))}
+        onChange={(value) => setActiveCategory(activeCategory === value ? null : value)}
+      />
 
       {/* Expanded prompt list */}
       {activeCategory && currentCategory && (

@@ -31,23 +31,6 @@
   box-sizing: border-box;
 }
 
-/* 移动端描述框宽度与输入框保持一致 */
-@media (max-width: 768px) {
-  .assistantDescription {
-    width: calc(100% + 28px);
-    margin-left: -14px;
-    margin-right: -14px;
-    border-radius: 20px;
-  }
-
-  .agentFallbackNotice {
-    width: calc(100% + 28px);
-    margin-left: -14px;
-    margin-right: -14px;
-    border-radius: 20px;
-  }
-}
-
 /* Agent Fallback Notice */
 .agentFallbackNotice {
   width: 100%;
@@ -141,44 +124,6 @@
   border-radius: 4px;
 }
 
-/* 移动端优化 */
-@media (max-width: 768px) {
-  .guidLayout {
-    width: clamp(var(--app-min-width, 360px), calc(100% - 24px), 100%);
-    padding: 0 12px;
-    padding-bottom: 100px; /* 为底部快捷按钮留出空间 */
-    box-sizing: border-box;
-  }
-
-  .guidInputCard {
-    width: 100%;
-  }
-
-  .actionRow {
-    flex-wrap: nowrap;
-    gap: 8px;
-  }
-
-  .actionTools {
-    gap: 8px;
-    flex: 1 1 auto;
-    min-width: 0;
-    overflow-x: auto;
-    overflow-y: hidden;
-    white-space: nowrap;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-  }
-
-  .actionTools::-webkit-scrollbar {
-    display: none;
-  }
-
-  .actionTools > * {
-    flex: 0 0 auto;
-  }
-}
-
 /* 小屏手机再收窄一点安全边距，提升可操作面积 */
 @media (max-width: 420px) {
   .guidLayout {
@@ -229,20 +174,6 @@
   bottom: calc(32px + env(safe-area-inset-bottom, 0px));
 }
 
-@media (max-width: 768px) {
-  .guidContainer {
-    justify-content: flex-start;
-    overflow-y: auto;
-    overflow-x: hidden;
-    padding-top: 20px;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .guidContainer .guidLayout {
-    margin-top: 0;
-  }
-}
-
 /* 浅色占位符 */
 .lightPlaceholder :global(textarea::placeholder) {
   color: #a1a2aa !important;
@@ -291,24 +222,6 @@
 
 .presetAgentTagClose:hover {
   background: var(--color-fill-4);
-}
-
-/* 移动端助手标签优化 */
-@media (max-width: 768px) {
-  .presetAgentTagName {
-    max-width: 120px;
-  }
-
-  .actionTools {
-    gap: 6px;
-    flex: 1 1 auto;
-    min-width: 0;
-    overflow-x: auto;
-    overflow-y: hidden;
-    white-space: nowrap;
-    -webkit-overflow-scrolling: touch;
-    touch-action: pan-x;
-  }
 }
 
 /* iPhone专门优化 */
@@ -393,36 +306,6 @@
   width: 100%;
   margin-bottom: 16px;
   animation: fade-in 0.3s ease-out;
-}
-
-.promptCategoryTag {
-  display: inline-flex;
-  align-items: center;
-  padding: 4px 12px;
-  font-size: 13px;
-  border-radius: 16px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  background: var(--color-fill-1);
-  color: var(--color-text-2);
-  border: 1px solid var(--ui-border-strong);
-  user-select: none;
-}
-
-.promptCategoryTag:hover {
-  background: var(--color-fill-2);
-  color: var(--color-text-1);
-}
-
-.promptCategoryTagActive {
-  background: rgba(var(--ui-accent-orange-rgb), 0.12);
-  color: var(--ui-accent-orange);
-  border-color: rgba(var(--ui-accent-orange-rgb), 0.52);
-}
-
-.promptCategoryTagActive:hover {
-  background: rgba(var(--ui-accent-orange-rgb), 0.16);
-  color: var(--ui-accent-orange);
 }
 
 .promptListContainer {
