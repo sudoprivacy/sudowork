@@ -93,7 +93,7 @@ const UserProfile: React.FC = () => {
 
   const handleSaveNickname = async () => {
     if (!editingNickname.trim()) {
-      Message.warning('昵称不能为空');
+      Message.warning(t('settings.userProfile.nicknameRequired', '昵称不能为空'));
       return;
     }
 
@@ -108,13 +108,13 @@ const UserProfile: React.FC = () => {
 
       // 检查 401
       if (res.status === 401) {
-        Message.error('登录状态已过期，请重新登录');
+        Message.error(t('settings.userProfile.loginExpired', '登录状态已过期，请重新登录'));
         return;
       }
 
       const data = await res.json();
       if (data.success) {
-        Message.success('昵称已更新');
+        Message.success(t('settings.userProfile.nicknameUpdated', '昵称已更新'));
         setEditModalVisible(false);
         // 更新本地存储的用户信息
         const stored = localStorage.getItem('sudowork_auth_v2');
@@ -131,11 +131,11 @@ const UserProfile: React.FC = () => {
         await refreshDashboard({ force: true });
         await refreshAuth();
       } else {
-        Message.error(data.msg || '更新失败');
+        Message.error(data.msg || t('settings.userProfile.updateFailed', '更新失败'));
       }
     } catch (e) {
       console.error('Failed to update nickname:', e);
-      Message.error('更新失败');
+      Message.error(t('settings.userProfile.updateFailed', '更新失败'));
     }
   };
 
@@ -147,7 +147,7 @@ const UserProfile: React.FC = () => {
   return (
     <PageWrapper contentClassName='max-w-200'>
       <div className='flex flex-col gap-6 py-2'>
-        <div className='text-20px font-600 text-foreground leading-32px'>{t('settings.profile')}</div>
+        <div className='text-20px font-600 text-foreground leading-32px'>{t('settings.profile', '用户中心')}</div>
 
         {isEnterprise ? (
           <>
@@ -166,23 +166,23 @@ const UserProfile: React.FC = () => {
 
             {/* Enterprise: Usage Stats */}
             <div className='p-6 bg-2 rd-16px border border-solid border-[var(--color-border-2)]'>
-              <div className='text-14px font-600 text-foreground mb-4'>资源使用</div>
+              <div className='text-14px font-600 text-foreground mb-4'>{t('settings.userProfile.resourceUsage', '资源使用')}</div>
               <div className='grid grid-cols-4 gap-4'>
                 <div className='text-center'>
                   <div className='text-24px font-700 text-foreground'>{enterpriseProfile?.usage?.input_tokens?.toLocaleString() || 0}</div>
-                  <div className='text-12px text-tertiary'>输入 Token</div>
+                  <div className='text-12px text-tertiary'>{t('settings.userProfile.inputTokens', '输入 Token')}</div>
                 </div>
                 <div className='text-center'>
                   <div className='text-24px font-700 text-foreground'>{enterpriseProfile?.usage?.output_tokens?.toLocaleString() || 0}</div>
-                  <div className='text-12px text-tertiary'>输出 Token</div>
+                  <div className='text-12px text-tertiary'>{t('settings.userProfile.outputTokens', '输出 Token')}</div>
                 </div>
                 <div className='text-center'>
                   <div className='text-24px font-700 text-foreground'>{enterpriseProfile?.usage?.total_tokens?.toLocaleString() || 0}</div>
-                  <div className='text-12px text-tertiary'>总 Token</div>
+                  <div className='text-12px text-tertiary'>{t('settings.userProfile.totalTokens', '总 Token')}</div>
                 </div>
                 <div className='text-center'>
                   <div className='text-24px font-700 text-foreground'>{enterpriseProfile?.usage?.session_count || 0}</div>
-                  <div className='text-12px text-tertiary'>会话数</div>
+                  <div className='text-12px text-tertiary'>{t('settings.userProfile.sessions', '会话数')}</div>
                 </div>
               </div>
             </div>
@@ -194,19 +194,19 @@ const UserProfile: React.FC = () => {
               <ConsumerAvatar />
               <div className='flex-1'>
                 <div className='flex items-center gap-2'>
-                  <div className='text-18px font-600 text-foreground'>{profile?.nickname || currentUser?.nickname || 'Sudowork 用户'}</div>
+                  <div className='text-18px font-600 text-foreground'>{profile?.nickname || currentUser?.nickname || t('settings.userProfile.defaultNickname', 'Sudowork 用户')}</div>
                   <Button type='outline' size='mini' icon={<Edit size={14} fill='currentColor' />} onClick={handleEditNickname}>
-                    编辑
+                    {t('settings.userProfile.edit', '编辑')}
                   </Button>
                   {loginMethod === 1 && (
                     <Button type='outline' size='mini' icon={<Lock size={14} fill='currentColor' />} onClick={() => setChangePwdModalVisible(true)}>
-                      {t('settings.userProfile.changePassword')}
+                      {t('settings.userProfile.changePassword', '修改密码')}
                     </Button>
                   )}
                 </div>
                 <div className='flex gap-3 mt-2'>
                   <span className='text-12px text-secondary flex items-center gap-1'>
-                    <Phone size='14' /> {profile?.phone || currentUser?.phone || '未绑定'}
+                    <Phone size='14' /> {profile?.phone || currentUser?.phone || t('settings.userProfile.unbound', '未绑定')}
                   </span>
                 </div>
               </div>
@@ -214,19 +214,19 @@ const UserProfile: React.FC = () => {
 
             {/* Consumer: Today Stats */}
             <div className='p-6 bg-2 rd-16px border border-solid border-[var(--color-border-2)]'>
-              <div className='text-14px font-600 text-foreground mb-4'>{t('settings.userProfile.todayUsage')}</div>
+              <div className='text-14px font-600 text-foreground mb-4'>{t('settings.userProfile.todayUsage', '今日使用')}</div>
               <div className='grid grid-cols-3 gap-4'>
                 <div className='text-center'>
                   <div className='text-24px font-700 text-foreground min-h-8 flex items-center justify-center'>{stats === null ? <Spin size={20} /> : (stats.usage_today?.tokens?.toLocaleString() ?? '0')}</div>
-                  <div className='text-12px text-tertiary'>{t('settings.userProfile.tokens')}</div>
+                  <div className='text-12px text-tertiary'>{t('settings.userProfile.tokens', 'Tokens')}</div>
                 </div>
                 <div className='text-center'>
                   <div className='text-24px font-700 text-primary min-h-8 flex items-center justify-center'>{stats === null ? <Spin size={20} /> : todayPoints}</div>
-                  <div className='text-12px text-tertiary'>{t('settings.userProfile.consumedPoints')}</div>
+                  <div className='text-12px text-tertiary'>{t('settings.userProfile.consumedPoints', '消耗积分')}</div>
                 </div>
                 <div className='text-center'>
                   <div className='text-24px font-700 text-foreground min-h-8 flex items-center justify-center'>{stats === null ? <Spin size={20} /> : (stats.usage_today?.requests ?? 0)}</div>
-                  <div className='text-12px text-tertiary'>{t('settings.userProfile.requests')}</div>
+                  <div className='text-12px text-tertiary'>{t('settings.userProfile.requests', '请求数')}</div>
                 </div>
               </div>
             </div>
@@ -238,8 +238,8 @@ const UserProfile: React.FC = () => {
       </div>
 
       {/* Edit Nickname Modal (consumer only) */}
-      <Modal title='编辑昵称' visible={editModalVisible} onOk={handleSaveNickname} onCancel={() => setEditModalVisible(false)} okText='保存' cancelText='取消'>
-        <Input value={editingNickname} onChange={(val) => setEditingNickname(val)} placeholder='请输入昵称' onPressEnter={handleSaveNickname} />
+      <Modal title={t('settings.userProfile.editNickname', '编辑昵称')} visible={editModalVisible} onOk={handleSaveNickname} onCancel={() => setEditModalVisible(false)} okText={t('common.save', '保存')} cancelText={t('common.cancel', '取消')}>
+        <Input value={editingNickname} onChange={(val) => setEditingNickname(val)} placeholder={t('settings.userProfile.nicknamePlaceholder', '请输入昵称')} onPressEnter={handleSaveNickname} />
       </Modal>
       {/* Change Password Modal (only when login_method=1) */}
       <ChangePasswordModal visible={changePwdModalVisible} onClose={() => setChangePwdModalVisible(false)} />

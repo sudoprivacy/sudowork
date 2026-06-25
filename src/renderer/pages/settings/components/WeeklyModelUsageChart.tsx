@@ -49,7 +49,7 @@ const WeeklyModelUsageChart: React.FC<WeeklyModelUsageChartProps> = ({ className
 
   useEffect(() => {
     if (error) {
-      Message.error(t('settings.modelUsage.loadFailed') || '加载模型用量数据失败');
+      Message.error(t('settings.modelUsage.loadFailed', '加载模型用量数据失败'));
     }
   }, [error, t]);
 
@@ -198,7 +198,7 @@ const WeeklyModelUsageChart: React.FC<WeeklyModelUsageChartProps> = ({ className
               return `<div style="display:flex;justify-content:space-between;gap:12px"><span>${p.seriesName}</span><span style="font-weight:600">${percent}% (${rawValue.toLocaleString()})</span></div>`;
             })
             .join('');
-          return `<div style="font-weight:600;margin-bottom:8px">${date}</div>${items}<div style="display:flex;justify-content:space-between;gap:12px;margin-top:8px;border-top:1px solid var(--border-default);padding-top:8px"><span>${t('settings.modelUsage.total')}</span><span style="font-weight:600">${total.toLocaleString()}</span></div>`;
+          return `<div style="font-weight:600;margin-bottom:8px">${date}</div>${items}<div style="display:flex;justify-content:space-between;gap:12px;margin-top:8px;border-top:1px solid var(--border-default);padding-top:8px"><span>${t('settings.modelUsage.total', '总计')}</span><span style="font-weight:600">${total.toLocaleString()}</span></div>`;
         },
       },
       legend: {
@@ -260,7 +260,7 @@ const WeeklyModelUsageChart: React.FC<WeeklyModelUsageChartProps> = ({ className
             .filter((p) => p.value > 0)
             .map((p) => `<div style="display:flex;justify-content:space-between;gap:12px"><span>${p.seriesName}</span><span style="font-weight:600">${formatUsagePoints(p.value) || '0'}</span></div>`)
             .join('');
-          return `<div style="font-weight:600;margin-bottom:8px">${date}</div>${items}<div style="display:flex;justify-content:space-between;gap:12px;margin-top:8px;border-top:1px solid var(--border-default);padding-top:8px"><span>${t('settings.modelUsage.total')}</span><span style="font-weight:600">${formatUsagePoints(totalPoints) || '0'}</span></div>`;
+          return `<div style="font-weight:600;margin-bottom:8px">${date}</div>${items}<div style="display:flex;justify-content:space-between;gap:12px;margin-top:8px;border-top:1px solid var(--border-default);padding-top:8px"><span>${t('settings.modelUsage.total', '总计')}</span><span style="font-weight:600">${formatUsagePoints(totalPoints) || '0'}</span></div>`;
         },
       },
       legend: {
@@ -300,7 +300,7 @@ const WeeklyModelUsageChart: React.FC<WeeklyModelUsageChartProps> = ({ className
       const maxRange = 30;
       const daysDiff = Math.abs(date[1].diff(date[0], 'day'));
       if (daysDiff > maxRange) {
-        Message.warning(t('settings.modelUsage.maxRangeWarning') || '时间范围不能超过30天');
+        Message.warning(t('settings.modelUsage.maxRangeWarning', '时间范围不能超过30天'));
         return;
       }
       setDateRange([date[0].toDate(), date[1].toDate()]);
@@ -309,10 +309,10 @@ const WeeklyModelUsageChart: React.FC<WeeklyModelUsageChartProps> = ({ className
 
   return (
     <div className={`p-6 bg-2 rd-16px border border-solid border-[var(--color-border-2)] ${className || ''}`}>
-      <div className='text-14px font-600 text-foreground mb-4'>{t('settings.modelUsage.title') || '模型用量'}</div>
+      <div className='text-14px font-600 text-foreground mb-4'>{t('settings.modelUsage.title', '模型用量')}</div>
 
       <div className='mb-4'>
-        <RangePicker value={dateRange} onChange={handleDateChange} format='YYYY-MM-DD' allowClear={false} style={{ width: '100%' }} placeholder={[t('settings.modelUsage.startDate') || '开始日期', t('settings.modelUsage.endDate') || '结束日期']} />
+        <RangePicker value={dateRange} onChange={handleDateChange} format='YYYY-MM-DD' allowClear={false} style={{ width: '100%' }} placeholder={[t('settings.modelUsage.startDate', '开始日期'), t('settings.modelUsage.endDate', '结束日期')]} />
       </div>
 
       {loading ? (
@@ -320,16 +320,16 @@ const WeeklyModelUsageChart: React.FC<WeeklyModelUsageChartProps> = ({ className
           <Spin />
         </div>
       ) : !data.length ? (
-        <div className='py-15 text-center text-tertiary text-14px'>{t('settings.modelUsage.noData') || '暂无模型用量数据'}</div>
+        <div className='py-15 text-center text-tertiary text-14px'>{t('settings.modelUsage.noData', '暂无模型用量数据')}</div>
       ) : (
         <div className='flex flex-col gap-5'>
           <div>
-            <div className='text-13px font-600 text-secondary mb-2'>{t('settings.modelUsage.pointsTitle')}</div>
+            <div className='text-13px font-600 text-secondary mb-2'>{t('settings.modelUsage.pointsTitle', '积分用量')}</div>
             <ReactECharts option={pointsChartOption} style={{ height: '220px' }} opts={{ renderer: 'canvas' }} />
           </div>
           <div className='h-px bg-[var(--color-border-2)]' />
           <div>
-            <div className='text-13px font-600 text-secondary mb-2'>{t('settings.modelUsage.tokensTitle')}</div>
+            <div className='text-13px font-600 text-secondary mb-2'>{t('settings.modelUsage.tokensTitle', 'Token 用量')}</div>
             <ReactECharts option={modelChartOption} style={{ height: '300px' }} opts={{ renderer: 'canvas' }} />
           </div>
         </div>

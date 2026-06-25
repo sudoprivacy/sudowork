@@ -896,7 +896,52 @@
     "tokens": "Tokens",
     "consumedPoints": "消耗积分",
     "requests": "请求数",
-    "changePassword": "修改密码"
+    "changePassword": "修改密码",
+    "resourceUsage": "资源使用",
+    "inputTokens": "输入 Token",
+    "outputTokens": "输出 Token",
+    "totalTokens": "总 Token",
+    "sessions": "会话数",
+    "defaultNickname": "Sudowork 用户",
+    "edit": "编辑",
+    "unbound": "未绑定",
+    "editNickname": "编辑昵称",
+    "nicknamePlaceholder": "请输入昵称",
+    "nicknameRequired": "昵称不能为空",
+    "loginExpired": "登录状态已过期，请重新登录",
+    "nicknameUpdated": "昵称已更新",
+    "updateFailed": "更新失败"
+  },
+  "avatarSelector": {
+    "title": "选择头像",
+    "aiGenerateTitle": "AI 生成头像",
+    "aiGenerateHint": "选择风格或直接描述，由 AI 为你生成",
+    "promptTemplate": "一个{{style}}风格的头像",
+    "promptPlaceholder": "描述你想要的头像，例如：一个治愈插画风格的头像",
+    "generate": "生成",
+    "generateFailed": "生成失败，请稍后再试",
+    "avatarUpdated": "头像已更新",
+    "idleLine1": "输入描述后点击「生成」",
+    "idleLine2": "AI 生成的头像将显示在这里",
+    "generating": "正在生成头像…",
+    "generatedAvatarAlt": "生成的头像",
+    "useThisAvatar": "使用此头像",
+    "retryHint": "描述已保留，可调整后直接再次点击「生成」重试",
+    "presetDivider": "或选择预设头像",
+    "style": {
+      "healingIllustration": "治愈插画",
+      "inkPainting": "国风水墨",
+      "retroFilm": "复古胶片",
+      "cuteHandDrawn": "萌系手绘",
+      "blackWhiteLine": "黑白线稿",
+      "cartoonSticker": "卡通贴纸"
+    },
+    "preset": {
+      "boyName": "学院男生",
+      "boyDesc": "清爽简约",
+      "girlName": "文化女生",
+      "girlDesc": "温柔气质"
+    }
   },
   "recharge": {
     "title": "充值积分",

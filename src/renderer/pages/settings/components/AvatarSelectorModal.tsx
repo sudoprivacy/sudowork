@@ -8,6 +8,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Button, Input, Message } from '@arco-design/web-react';
 import type { RefInputType } from '@arco-design/web-react/es/Input/interface';
 import { Check, Close } from '@icon-park/react';
+import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
 import AionModal from '@/renderer/components/base/AionModal';
 import profileBoy from '@/renderer/assets/profile_boy.jpg';
@@ -16,11 +17,18 @@ import avatarLoadingSvg from '@/renderer/assets/avatar_loading.svg';
 import { useUserAvatar } from '../hooks/useUserAvatar';
 import './AvatarSelectorModal.css';
 
-const STYLE_CHIPS = ['治愈插画', '国风水墨', '复古胶片', '萌系手绘', '黑白线稿', '卡通贴纸'];
+const STYLE_CHIPS = [
+  { key: 'healingIllustration', fallback: '治愈插画' },
+  { key: 'inkPainting', fallback: '国风水墨' },
+  { key: 'retroFilm', fallback: '复古胶片' },
+  { key: 'cuteHandDrawn', fallback: '萌系手绘' },
+  { key: 'blackWhiteLine', fallback: '黑白线稿' },
+  { key: 'cartoonSticker', fallback: '卡通贴纸' },
+];
 
-const PRESETS: Array<{ value: 'boy' | 'girl'; src: string; name: string; desc: string }> = [
-  { value: 'boy', src: profileBoy, name: '学院男生', desc: '清爽简约' },
-  { value: 'girl', src: profileGirl, name: '文化女生', desc: '温柔气质' },
+const PRESETS: Array<{ value: 'boy' | 'girl'; src: string; nameKey: string; nameFallback: string; descKey: string; descFallback: string }> = [
+  { value: 'boy', src: profileBoy, nameKey: 'boyName', nameFallback: '学院男生', descKey: 'boyDesc', descFallback: '清爽简约' },
+  { value: 'girl', src: profileGirl, nameKey: 'girlName', nameFallback: '文化女生', descKey: 'girlDesc', descFallback: '温柔气质' },
 ];
 
 // 「生成」按钮图标：1:1 还原原型 avatar-selector-prototype.html 的双星闪光 SVG
@@ -39,6 +47,7 @@ interface AvatarSelectorModalProps {
 }
 
 const AvatarSelectorModal: React.FC<AvatarSelectorModalProps> = ({ visible, onClose }) => {
+  const { t } = useTranslation();
   const { setAvatar } = useUserAvatar();
   const inputRef = useRef<RefInputType>(null);
 
@@ -61,7 +70,7 @@ const AvatarSelectorModal: React.FC<AvatarSelectorModalProps> = ({ visible, onCl
 
   const handleChipClick = (label: string) => {
     setSelectedChip(label);
-    setPrompt(`一个${label}风格的头像`);
+    setPrompt(t('settings.avatarSelector.promptTemplate', { style: label, defaultValue: '一个{{style}}风格的头像' }));
     inputRef.current?.focus();
   };
 
@@ -73,7 +82,7 @@ const AvatarSelectorModal: React.FC<AvatarSelectorModalProps> = ({ visible, onCl
     try {
       const res = await ipcBridge.tools.generateUserAvatar.invoke({ prompt: trimmed });
       if (!res.success || !res.data) {
-        setErrorMsg(res.msg || '生成失败，请稍后再试');
+        setErrorMsg(res.msg || t('settings.avatarSelector.generateFailed', '生成失败，请稍后再试'));
         setGenState('error');
         return;
       }
@@ -88,13 +97,13 @@ const AvatarSelectorModal: React.FC<AvatarSelectorModalProps> = ({ visible, onCl
   const handleUseGenerated = () => {
     if (!result) return;
     setAvatar({ type: 'generated', localPath: result.localPath });
-    Message.success('头像已更新');
+    Message.success(t('settings.avatarSelector.avatarUpdated', '头像已更新'));
     onClose();
   };
 
   const handleUsePreset = (value: 'boy' | 'girl') => {
     setAvatar({ type: 'preset', value });
-    Message.success('头像已更新');
+    Message.success(t('settings.avatarSelector.avatarUpdated', '头像已更新'));
     onClose();
   };
 
@@ -109,8 +118,8 @@ const AvatarSelectorModal: React.FC<AvatarSelectorModalProps> = ({ visible, onCl
       header={{
         render: () => (
           <div className='avatar-selector-header'>
-            <span className='avatar-selector-title'>选择头像</span>
-            <button className='avatar-selector-close' aria-label='关闭' onClick={onClose}>
+            <span className='avatar-selector-title'>{t('settings.avatarSelector.title', '选择头像')}</span>
+            <button className='avatar-selector-close' aria-label={t('common.close', '关闭')} onClick={onClose}>
               <Close size={20} fill='#86909c' />
             </button>
           </div>
@@ -121,22 +130,25 @@ const AvatarSelectorModal: React.FC<AvatarSelectorModalProps> = ({ visible, onCl
         {/* ========== AI 生成 ========== */}
         <div className='avatar-selector-section'>
           <div className='avatar-selector-section-label'>
-            AI 生成头像
-            <span className='avatar-selector-hint'>选择风格或直接描述，由 AI 为你生成</span>
+            {t('settings.avatarSelector.aiGenerateTitle', 'AI 生成头像')}
+            <span className='avatar-selector-hint'>{t('settings.avatarSelector.aiGenerateHint', '选择风格或直接描述，由 AI 为你生成')}</span>
           </div>
 
           <div className='avatar-selector-chips'>
-            {STYLE_CHIPS.map((label) => (
-              <button key={label} className={`avatar-selector-chip${selectedChip === label ? ' selected' : ''}`} onClick={() => handleChipClick(label)}>
-                {label}
-              </button>
-            ))}
+            {STYLE_CHIPS.map(({ key, fallback }) => {
+              const label = t(`settings.avatarSelector.style.${key}`, fallback);
+              return (
+                <button key={label} className={`avatar-selector-chip${selectedChip === label ? ' selected' : ''}`} onClick={() => handleChipClick(label)}>
+                  {label}
+                </button>
+              );
+            })}
           </div>
 
           <div className='avatar-selector-input-row'>
-            <Input ref={inputRef} value={prompt} onChange={setPrompt} placeholder='描述你想要的头像，例如：一个治愈插画风格的头像' onPressEnter={handleGenerate} />
+            <Input ref={inputRef} value={prompt} onChange={setPrompt} placeholder={t('settings.avatarSelector.promptPlaceholder', '描述你想要的头像，例如：一个治愈插画风格的头像')} onPressEnter={handleGenerate} />
             <Button type='primary' className='avatar-selector-primary-btn' icon={<SparkleIcon />} disabled={generateDisabled} onClick={handleGenerate}>
-              生成
+              {t('settings.avatarSelector.generate', '生成')}
             </Button>
           </div>
 
@@ -144,24 +156,24 @@ const AvatarSelectorModal: React.FC<AvatarSelectorModalProps> = ({ visible, onCl
           <div className={`avatar-selector-result state-${genState}`}>
             {genState === 'idle' && (
               <div className='avatar-selector-idle-text'>
-                输入描述后点击「生成」
+                {t('settings.avatarSelector.idleLine1', '输入描述后点击「生成」')}
                 <br />
-                AI 生成的头像将显示在这里
+                {t('settings.avatarSelector.idleLine2', 'AI 生成的头像将显示在这里')}
               </div>
             )}
 
             {genState === 'generating' && (
               <>
                 <img className='avatar-selector-loading-icon animate-spin' src={avatarLoadingSvg} alt='' />
-                <div className='avatar-selector-loading-text'>正在生成头像…</div>
+                <div className='avatar-selector-loading-text'>{t('settings.avatarSelector.generating', '正在生成头像…')}</div>
               </>
             )}
 
             {genState === 'result' && result && (
               <>
-                <img className='avatar-selector-preview' src={result.dataUrl} alt='生成的头像' />
+                <img className='avatar-selector-preview' src={result.dataUrl} alt={t('settings.avatarSelector.generatedAvatarAlt', '生成的头像')} />
                 <Button type='primary' className='avatar-selector-primary-btn' icon={<Check />} onClick={handleUseGenerated}>
-                  使用此头像
+                  {t('settings.avatarSelector.useThisAvatar', '使用此头像')}
                 </Button>
               </>
             )}
@@ -169,27 +181,30 @@ const AvatarSelectorModal: React.FC<AvatarSelectorModalProps> = ({ visible, onCl
             {genState === 'error' && (
               <>
                 <div className='avatar-selector-error-text'>{errorMsg}</div>
-                <div className='avatar-selector-error-sub'>描述已保留，可调整后直接再次点击「生成」重试</div>
+                <div className='avatar-selector-error-sub'>{t('settings.avatarSelector.retryHint', '描述已保留，可调整后直接再次点击「生成」重试')}</div>
               </>
             )}
           </div>
         </div>
 
         {/* ========== 分隔 ========== */}
-        <div className='avatar-selector-divider'>或选择预设头像</div>
+        <div className='avatar-selector-divider'>{t('settings.avatarSelector.presetDivider', '或选择预设头像')}</div>
 
         {/* ========== 预设头像 ========== */}
         <div className='avatar-selector-section'>
           <div className='avatar-selector-preset-grid'>
-            {PRESETS.map((preset) => (
-              <div key={preset.value} className='avatar-selector-preset-card' onClick={() => handleUsePreset(preset.value)}>
-                <img className='avatar-selector-preset-avatar' src={preset.src} alt={preset.name} />
-                <div>
-                  <div className='avatar-selector-preset-name'>{preset.name}</div>
-                  <div className='avatar-selector-preset-desc'>{preset.desc}</div>
+            {PRESETS.map((preset) => {
+              const presetName = t(`settings.avatarSelector.preset.${preset.nameKey}`, preset.nameFallback);
+              return (
+                <div key={preset.value} className='avatar-selector-preset-card' onClick={() => handleUsePreset(preset.value)}>
+                  <img className='avatar-selector-preset-avatar' src={preset.src} alt={presetName} />
+                  <div>
+                    <div className='avatar-selector-preset-name'>{presetName}</div>
+                    <div className='avatar-selector-preset-desc'>{t(`settings.avatarSelector.preset.${preset.descKey}`, preset.descFallback)}</div>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>

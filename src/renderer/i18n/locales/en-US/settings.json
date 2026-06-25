@@ -893,7 +893,52 @@
     "tokens": "Tokens",
     "consumedPoints": "Consumed Points",
     "requests": "Requests",
-    "changePassword": "Change Password"
+    "changePassword": "Change Password",
+    "resourceUsage": "Resource Usage",
+    "inputTokens": "Input Tokens",
+    "outputTokens": "Output Tokens",
+    "totalTokens": "Total Tokens",
+    "sessions": "Sessions",
+    "defaultNickname": "Sudowork User",
+    "edit": "Edit",
+    "unbound": "Not bound",
+    "editNickname": "Edit Nickname",
+    "nicknamePlaceholder": "Enter nickname",
+    "nicknameRequired": "Nickname cannot be empty",
+    "loginExpired": "Login session expired. Please log in again.",
+    "nicknameUpdated": "Nickname updated",
+    "updateFailed": "Update failed"
+  },
+  "avatarSelector": {
+    "title": "Choose Avatar",
+    "aiGenerateTitle": "AI Avatar Generation",
+    "aiGenerateHint": "Choose a style or describe it directly, and AI will generate it for you",
+    "promptTemplate": "An avatar in {{style}} style",
+    "promptPlaceholder": "Describe the avatar you want, e.g. a healing illustration style avatar",
+    "generate": "Generate",
+    "generateFailed": "Generation failed. Please try again later.",
+    "avatarUpdated": "Avatar updated",
+    "idleLine1": "Enter a description and click Generate",
+    "idleLine2": "The AI-generated avatar will appear here",
+    "generating": "Generating avatar…",
+    "generatedAvatarAlt": "Generated avatar",
+    "useThisAvatar": "Use this avatar",
+    "retryHint": "Your description is kept. Adjust it and click Generate again to retry.",
+    "presetDivider": "Or choose a preset avatar",
+    "style": {
+      "healingIllustration": "Healing illustration",
+      "inkPainting": "Ink painting",
+      "retroFilm": "Retro film",
+      "cuteHandDrawn": "Cute hand-drawn",
+      "blackWhiteLine": "Black and white line art",
+      "cartoonSticker": "Cartoon sticker"
+    },
+    "preset": {
+      "boyName": "Campus boy",
+      "boyDesc": "Fresh and simple",
+      "girlName": "Cultural girl",
+      "girlDesc": "Gentle temperament"
+    }
   },
   "recharge": {
     "title": "Recharge Points",
