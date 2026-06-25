@@ -60,15 +60,15 @@ const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({ visible, onCl
 
   return (
     <Modal title={t('settings.changePassword.title', '修改密码')} visible={visible} onOk={handleSubmit} onCancel={onClose} okText={t('settings.changePassword.confirm', '确认修改')} cancelText={t('settings.changePassword.cancel', '取消')} confirmLoading={loading}>
-      <div className='flex flex-col gap-16px'>
-        <div className='flex flex-col gap-8px'>
-          <div className='text-12px font-600 text-secondary ml-4px'>{t('settings.changePassword.oldPasswordLabel', '原始密码')}</div>
-          <Input.Password size='large' prefix={<Lock className='text-tertiary' />} placeholder={t('settings.changePassword.oldPasswordPlaceholder', '请输入原始密码')} value={oldPassword} onChange={setOldPassword} maxLength={20} className='!rd-12px h-40px' />
+      <div className='flex flex-col gap-4'>
+        <div className='flex flex-col gap-2'>
+          <div className='text-12px font-600 text-secondary ml-1'>{t('settings.changePassword.oldPasswordLabel', '原始密码')}</div>
+          <Input.Password size='large' prefix={<Lock className='text-tertiary' />} placeholder={t('settings.changePassword.oldPasswordPlaceholder', '请输入原始密码')} value={oldPassword} onChange={setOldPassword} maxLength={20} className='!rd-12px h-10' />
         </div>
-        <div className='flex flex-col gap-8px'>
-          <div className='text-12px font-600 text-secondary ml-4px'>{t('settings.changePassword.newPasswordLabel', '新密码')}</div>
-          <Input.Password size='large' prefix={<Lock className='text-tertiary' />} placeholder={t('settings.changePassword.newPasswordPlaceholder', '8-20 位，含大写、小写、数字')} value={newPassword} onChange={setNewPassword} maxLength={20} className='!rd-12px h-40px' />
-          <div className='text-12px text-tertiary ml-4px'>{t('settings.changePassword.ruleHint', '8-20 位，需同时包含大写字母、小写字母和数字。')}</div>
+        <div className='flex flex-col gap-2'>
+          <div className='text-12px font-600 text-secondary ml-1'>{t('settings.changePassword.newPasswordLabel', '新密码')}</div>
+          <Input.Password size='large' prefix={<Lock className='text-tertiary' />} placeholder={t('settings.changePassword.newPasswordPlaceholder', '8-20 位，含大写、小写、数字')} value={newPassword} onChange={setNewPassword} maxLength={20} className='!rd-12px h-10' />
+          <div className='text-12px text-tertiary ml-1'>{t('settings.changePassword.ruleHint', '8-20 位，需同时包含大写字母、小写字母和数字。')}</div>
         </div>
       </div>
     </Modal>

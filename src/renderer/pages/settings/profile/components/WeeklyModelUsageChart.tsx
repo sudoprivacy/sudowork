@@ -292,7 +292,7 @@ const WeeklyModelUsageChart: React.FC<WeeklyModelUsageChartProps> = ({ className
   };
 
   return (
-    <div className={`p-6 bg-2 rd-16px border border-solid border-[var(--color-border-2)] ${className || ''}`}>
+    <div className={`p-6 bg-2 rd-16px border border-light ${className || ''}`}>
       <div className='text-14px font-600 text-foreground mb-4'>{t('settings.modelUsage.title', '模型用量')}</div>
 
       <div className='mb-4'>
@@ -311,7 +311,7 @@ const WeeklyModelUsageChart: React.FC<WeeklyModelUsageChartProps> = ({ className
             <div className='text-13px font-600 text-secondary mb-2'>{t('settings.modelUsage.pointsTitle', '积分用量')}</div>
             <ReactECharts option={pointsChartOption} style={{ height: '220px' }} opts={{ renderer: 'canvas' }} />
           </div>
-          <div className='h-px bg-[var(--color-border-2)]' />
+          <div className='border-t border-light' />
           <div>
             <div className='text-13px font-600 text-secondary mb-2'>{t('settings.modelUsage.tokensTitle', 'Token 用量')}</div>
             <ReactECharts option={modelChartOption} style={{ height: '300px' }} opts={{ renderer: 'canvas' }} />
