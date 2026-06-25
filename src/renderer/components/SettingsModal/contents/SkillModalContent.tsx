@@ -655,6 +655,12 @@ const SkillModalContent: React.FC = () => {
   const enterpriseCode = user?.enterprise_code?.trim();
   const currentTenantId = resolveSkillTenantId(activeTab, enterpriseCode);
 
+  // Keep fetchSkills stable: read current activeTab/currentTenantId from refs instead of the closure
+  const activeTabRef = useRef(activeTab);
+  activeTabRef.current = activeTab;
+  const currentTenantIdRef = useRef(currentTenantId);
+  currentTenantIdRef.current = currentTenantId;
+
   // Enterprise mode detection - use useAppMode hook for renderer process
   const { isEnterprise } = useAppMode();
 
@@ -663,6 +669,8 @@ const SkillModalContent: React.FC = () => {
 
   // Track if sync has been triggered for current tab session (avoid loop)
   const syncTriggeredRef = useRef(false);
+  // Skip the debounced-search effect's first mount run — initial load is handled by the category-change effect
+  const searchInitializedRef = useRef(false);
 
   // Sync status state
   const [syncStatus, setSyncStatus] = useState<{
@@ -957,9 +965,9 @@ const SkillModalContent: React.FC = () => {
         // Always read the CURRENT values from refs — no stale-closure risk
         const category = selectedCategoryRef.current === 'all' ? '' : selectedCategoryRef.current;
         const query = searchQueryRef.current.trim();
-        const tenantId = currentTenantId;
+        const tenantId = currentTenantIdRef.current;
 
-        if (activeTab === 'exclusive' && !tenantId) {
+        if (activeTabRef.current === 'exclusive' && !tenantId) {
           setSkills([]);
           setNextCursor(null);
           setHasMore(false);
@@ -1007,7 +1015,7 @@ const SkillModalContent: React.FC = () => {
       }
     },
     // Minimal stable deps — selectedCategory/searchQuery/latestVersions read from refs
-    [activeTab, currentTenantId, fetchLatestVersions, t]
+    [fetchLatestVersions, t]
   );
 
   // ---- Load more ----
@@ -1078,7 +1086,11 @@ const SkillModalContent: React.FC = () => {
 
   // Debounced search reload
   useEffect(() => {
-    if (activeTab === 'installed') return;
+    if (!searchInitializedRef.current) {
+      searchInitializedRef.current = true;
+      return;
+    }
+    if (activeTabRef.current === 'installed') return;
     const timer = setTimeout(() => {
       setSkills([]);
       setLatestVersions(new Map());
@@ -1087,7 +1099,7 @@ const SkillModalContent: React.FC = () => {
       void fetchSkills();
     }, 300);
     return () => clearTimeout(timer);
-  }, [activeTab, searchQuery, fetchSkills]);
+  }, [searchQuery, fetchSkills]);
 
   // Fetch categories on mount
   useEffect(() => {

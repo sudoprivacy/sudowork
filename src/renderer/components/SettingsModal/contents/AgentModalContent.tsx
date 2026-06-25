@@ -746,6 +746,8 @@ const AgentModalContent: React.FC = () => {
 
   // Track if sync has been triggered for current tab session (avoid loop)
   const syncTriggeredRef = useRef(false);
+  // Skip the debounced-search effect's first mount run — initial load is handled by the category-change effect
+  const searchInitializedRef = useRef(false);
 
   // Sync status state
   const [syncStatus, setSyncStatus] = useState<{
@@ -873,6 +875,12 @@ const AgentModalContent: React.FC = () => {
   );
 
   const currentAssistantTenantId = resolveAssistantTenantId(activeTab);
+
+  // Keep fetchHubAssistants stable: read current activeTab/currentAssistantTenantId from refs
+  const activeTabRef = useRef(activeTab);
+  activeTabRef.current = activeTab;
+  const currentAssistantTenantIdRef = useRef(currentAssistantTenantId);
+  currentAssistantTenantIdRef.current = currentAssistantTenantId;
 
   // Fetch installed assistants for comparison with Hub
   const fetchInstalledAssistantNames = useCallback(async () => {
@@ -1019,8 +1027,8 @@ const AgentModalContent: React.FC = () => {
         const query = hubSearchQueryRef.current.trim();
         // Enterprise mode: use sourceType to specify directory (hub or tenant)
         // Personal mode: use tenantId for tenant assistants
-        const sourceType = isEnterprise && activeTab === 'exclusive' ? 'tenant' : undefined;
-        const tenantId = isEnterprise ? undefined : currentAssistantTenantId;
+        const sourceType = isEnterprise && activeTabRef.current === 'exclusive' ? 'tenant' : undefined;
+        const tenantId = isEnterprise ? undefined : currentAssistantTenantIdRef.current;
 
         if (isElectronDesktop()) {
           const res = await assistantHub.fetchAssistants.invoke({ cursor, limit: 40, query, category, tenantId, sourceType });
@@ -1060,7 +1068,7 @@ const AgentModalContent: React.FC = () => {
         setHubLoadingMore(false);
       }
     },
-    [activeTab, currentAssistantTenantId, fetchLatestAssistantVersions, isEnterprise, t]
+    [fetchLatestAssistantVersions, isEnterprise, t]
   );
 
   // Load more Hub assistants (infinite scroll)
@@ -1103,7 +1111,11 @@ const AgentModalContent: React.FC = () => {
 
   // Debounced search reload for Hub
   useEffect(() => {
-    if (activeTab === 'installed') return;
+    if (!searchInitializedRef.current) {
+      searchInitializedRef.current = true;
+      return;
+    }
+    if (activeTabRef.current === 'installed') return;
     const timer = setTimeout(() => {
       setHubAssistantList([]);
       setHubNextCursor(null);
@@ -1111,7 +1123,7 @@ const AgentModalContent: React.FC = () => {
       void fetchHubAssistants();
     }, 300);
     return () => clearTimeout(timer);
-  }, [activeTab, hubSearchQuery, fetchHubAssistants]);
+  }, [hubSearchQuery, fetchHubAssistants]);
 
   // Listen for sync completed event (enterprise mode)
   useEffect(() => {
