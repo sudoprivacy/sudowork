@@ -81,8 +81,8 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
 
   return (
     <>
-      <div className={styles.actionRow}>
-        <div className={styles.actionTools}>
+      <div className='flex items-center justify-between w-full gap-2 mt-3'>
+        <div className={`${styles.actionTools} inline-flex items-center gap-2.5 shrink min-w-0`}>
           <Dropdown
             trigger={'click'}
             popupVisible={fileMenuOpen}

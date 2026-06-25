@@ -52,23 +52,6 @@
   box-sizing: border-box;
 }
 
-.actionRow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  gap: 8px;
-  margin-top: 12px;
-}
-
-.actionTools {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  flex-shrink: 1;
-  min-width: 0;
-}
-
 /* 首页输入框下方「模型 / 模式」按钮：跟随主题使用更柔和的填充 */
 .actionTools :global(.sendbox-model-btn) {
   background: color-mix(in srgb, var(--horizon-surface) 90%, var(--color-fill-1)) !important;
@@ -181,55 +164,12 @@
 }
 
 /* 预设助手标签 */
-.presetAgentTag {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background: var(--color-fill-2);
-  padding: 4px 6px 4px 10px;
-  border-radius: 16px;
-  cursor: pointer;
-  user-select: none;
-  transition: background-color 0.2s;
-  max-width: 100%;
-  min-width: 0;
-}
-
-.presetAgentTag:hover {
-  background: var(--color-fill-3);
-}
-
 .presetAgentTagName {
-  font-size: 14px;
-  color: var(--color-text-1);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   max-width: 200px;
-}
-
-.presetAgentTagClose {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  margin-left: 2px;
-  transition: background-color 0.2s;
-  flex-shrink: 0;
-}
-
-.presetAgentTagClose:hover {
-  background: var(--color-fill-4);
 }
 
 /* iPhone专门优化 */
 @supports (-webkit-touch-callout: none) {
-  .actionRow {
-    flex-wrap: nowrap !important;
-  }
-
   .actionTools {
     flex: 1 1 auto;
     min-width: 0;
@@ -274,19 +214,4 @@
   to {
     opacity: 1;
   }
-}
-
-/* Prompt Templates */
-.promptTemplatesContainer {
-  width: 100%;
-  margin-bottom: 16px;
-  animation: fade-in 0.3s ease-out;
-}
-
-.promptListContainer {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 8px;
-  animation: panel-slide-in 0.25s ease-out;
 }

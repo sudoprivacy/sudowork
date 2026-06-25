@@ -5,7 +5,6 @@
  */
 
 import React from 'react';
-import styles from '../index.module.css';
 
 type QuickActionButtonsProps = {
   onOpenLink: (url: string) => void;
@@ -16,7 +15,7 @@ type QuickActionButtonsProps = {
 const QuickActionButtons: React.FC<QuickActionButtonsProps> = () => {
   // Removed feedback, like, and remote connection buttons as requested
   return (
-    <div className={`absolute left-50% -translate-x-1/2 flex flex-col justify-center items-center ${styles.guidQuickActions}`}>
+    <div className='absolute left-50% bottom-[calc(32px+env(safe-area-inset-bottom,0px))] -translate-x-1/2 flex flex-col justify-center items-center'>
       {/* Placeholder div to maintain spacing if needed */}
       <div className='h-36px'></div>
     </div>
