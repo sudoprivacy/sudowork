@@ -3,7 +3,7 @@ import { Modal, Input, Message } from '@arco-design/web-react';
 import { Lock } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { validatePassword } from '@/renderer/utils/passwordValidation';
-import { useAuth } from '../../../context/AuthContext';
+import { useAuth } from '@renderer/context/AuthContext';
 
 interface ChangePasswordModalProps {
   visible: boolean;

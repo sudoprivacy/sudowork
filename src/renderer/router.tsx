@@ -25,7 +25,7 @@ const CronJobDetailPage = React.lazy(() => import('./pages/cron/detail'));
 const ExtensionSettingsPage = React.lazy(() => import('./pages/settings/ExtensionSettingsPage'));
 const LoginPage = React.lazy(() => import('./pages/login'));
 const RegisterPage = React.lazy(() => import('./pages/register'));
-const UserProfile = React.lazy(() => import('./pages/settings/UserProfile'));
+const UserProfile = React.lazy(() => import('./pages/settings/profile'));
 const RechargeCenter = React.lazy(() => import('./pages/settings/RechargeCenter'));
 const MemberManagement = React.lazy(() => import('./pages/settings/MemberManagement'));
 const EnterpriseSettings = React.lazy(() => import('./pages/settings/EnterpriseSettings'));
