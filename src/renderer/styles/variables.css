@@ -131,16 +131,16 @@
   --border-light: #eae7de;
 
   /* Semantic - 实色(文字/图标/圆点) + soft(浅底) + line(描边) */
-  --success: #35847e;
-  --success-soft: #e3efed;
-  --success-line: #bcd7d2;
-  --warning: #b07a10;
-  --warning-soft: #f6ecd6;
-  --warning-line: #e6cf9c;
-  --danger: #b03030;
-  --danger-soft: #f5e0e0;
-  --danger-line: #e3b8b8;
-  --info: #0f7887;
+  --success: #2e7d32; /* 成功实色：文字、图标、状态点 */
+  --success-soft: #e7f3e8; /* 成功浅底：标签、提示块、弱背景 */
+  --success-line: #b8d8bb; /* 成功描边：边框、分隔线 */
+  --warning: #b07a10; /* 警告实色：文字、图标、状态点 */
+  --warning-soft: #f6ecd6; /* 警告浅底：标签、提示块、弱背景 */
+  --warning-line: #e6cf9c; /* 警告描边：边框、分隔线 */
+  --danger: #b03030; /* 危险/错误实色：文字、图标、状态点 */
+  --danger-soft: #f5e0e0; /* 危险/错误浅底：标签、提示块、弱背景 */
+  --danger-line: #e3b8b8; /* 危险/错误描边：边框、分隔线 */
+  --info: #0f7887; /* 信息实色：文字、图标、状态点 */
 
   /* Message & Component */
   --message-user-bg: #e9e4f0;
@@ -243,16 +243,16 @@
   --border-light: #34342a;
 
   /* Semantic - 实色(文字/图标/圆点) + soft(浅底) + line(描边) */
-  --success: #68a99d;
-  --success-soft: #1c2b29;
-  --success-line: #2f4a45;
-  --warning: #d4963a;
-  --warning-soft: #2e2616;
-  --warning-line: #4a3c20;
-  --danger: #c86060;
-  --danger-soft: #2e1c1c;
-  --danger-line: #4a2f2f;
-  --info: #6e8ddb;
+  --success: #79b87d; /* 成功实色：文字、图标、状态点 */
+  --success-soft: #1d2b1f; /* 成功浅底：标签、提示块、弱背景 */
+  --success-line: #335237; /* 成功描边：边框、分隔线 */
+  --warning: #d4963a; /* 警告实色：文字、图标、状态点 */
+  --warning-soft: #2e2616; /* 警告浅底：标签、提示块、弱背景 */
+  --warning-line: #4a3c20; /* 警告描边：边框、分隔线 */
+  --danger: #c86060; /* 危险/错误实色：文字、图标、状态点 */
+  --danger-soft: #2e1c1c; /* 危险/错误浅底：标签、提示块、弱背景 */
+  --danger-line: #4a2f2f; /* 危险/错误描边：边框、分隔线 */
+  --info: #6e8ddb; /* 信息实色：文字、图标、状态点 */
 
   /* Message & Component */
   --message-user-bg: #3a3444;

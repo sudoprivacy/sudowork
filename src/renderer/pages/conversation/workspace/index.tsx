@@ -1496,7 +1496,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                   >
                     {t('conversation.workspace.contextMenu.rename')}
                   </button>
-                  <div className='h-1px bg-3 my-2px'></div>
+                  <div className='h-1px bg-muted my-2px'></div>
                   <button
                     type='button'
                     className={menuButtonBase}
@@ -1574,7 +1574,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                       {t('conversation.workspace.contextMenu.newFolder')}
                     </button>
                   )}
-                  <div className='h-1px bg-3 my-2px'></div>
+                  <div className='h-1px bg-muted my-2px'></div>
                   <button
                     type='button'
                     className={menuButtonBase}
@@ -1598,7 +1598,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                       {shareoneInstalled && isShareoneSupported ? t('conversation.workspace.contextMenu.shareone', { defaultValue: 'ShareOne' }) : t('settings.runtimeSettings.status.disabled', { defaultValue: '未启用' })}
                     </button>
                   )}
-                  <div className='h-1px bg-3 my-2px'></div>
+                  <div className='h-1px bg-muted my-2px'></div>
                   {!isContextMenuNodeDrafts && (
                     <button
                       type='button'
