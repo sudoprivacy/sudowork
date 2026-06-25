@@ -16,7 +16,7 @@
 
 import type { Nexus } from '@/common/nexus';
 import { getNexusRpcClient } from '@/common/nexus';
-import type { SafetyStatus, EventFileData, ActionFileData, RiskLevel, NetworkEventData, FileEventData, ProcessEventData } from '@/common/safetyTypes';
+import type { SafetyStatus, EventFileData, ActionFileData, RiskLevel, NetworkEventData, FileEventData, ProcessEventData } from '@common/types/security';
 import { mainLog, mainError } from '@process/utils/mainLogger';
 
 /** Nexus security hook directory paths */
@@ -107,7 +107,7 @@ export async function readEnabledState(): Promise<{ enabled: boolean; fastPass: 
       enabled: config.enabled === true,
       fastPass: config.fastPass === true,
     };
-  } catch (error) {
+  } catch {
     return null;
   }
 }
@@ -128,9 +128,9 @@ export async function writeEnabledState(enabled: boolean, fastPass: boolean = fa
     };
     await client.write(HOOK_CONFIG_PATH, JSON.stringify(merged));
     mainLog('SecurityHook', `Wrote state: enabled=${enabled}, fastPass=${fastPass}`);
-  } catch (error) {
-    mainError('SecurityHook', 'Failed to write state:', error);
-    throw error;
+  } catch (err) {
+    mainError('SecurityHook', 'Failed to write state:', err);
+    throw err;
   }
 }
 
@@ -195,8 +195,8 @@ export async function listEventFilenames(): Promise<string[]> {
       }
       return (path || name).split('/').pop() || name;
     });
-  } catch (error) {
-    mainError('SecurityHook', 'Failed to list event filenames:', error);
+  } catch (err) {
+    mainError('SecurityHook', 'Failed to list event filenames:', err);
     return [];
   }
 }
@@ -267,7 +267,7 @@ export async function actionExists(eventUuid: string): Promise<boolean> {
   try {
     const client = getNexusClient();
     return await client.exists(`${ACTION_DIR}/${eventUuid}`);
-  } catch (error) {
+  } catch {
     return false;
   }
 }

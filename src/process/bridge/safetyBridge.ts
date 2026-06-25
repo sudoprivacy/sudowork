@@ -11,10 +11,10 @@
  */
 
 import { ipcBridge } from '@/common';
-import { SafetyPollingService } from '../services/safety/SafetyPollingService';
 import { mainLog, mainError } from '@process/utils/mainLogger';
-import { getNexusClient, CONFIG_DIR, readHookConfig, writeHookConfig, HOOK_CONFIG_PATH, DEFAULT_HOOK_CONFIG } from '../services/safety/SecurityHookFile';
-import type { BlacklistConfig } from '@/common/safetyTypes';
+import type { BlacklistConfig } from '@common/types/security';
+import { SafetyPollingService } from '../services/safety/SafetyPollingService';
+import { getNexusClient, CONFIG_DIR, readHookConfig, writeHookConfig, DEFAULT_HOOK_CONFIG } from '../services/safety/SecurityHookFile';
 
 export function initSafetyBridge(): void {
   // Get current safety status

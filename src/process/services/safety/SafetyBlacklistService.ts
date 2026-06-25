@@ -11,10 +11,10 @@
  * Nexus is the SINGLE SOURCE OF TRUTH for all blacklist data.
  */
 
-import type { BlacklistConfig, BlacklistRule } from '@/common/safetyTypes';
-import { DEFAULT_BLACKLIST_CONFIG } from '@/common/safetyTypes';
-import { getNexusClient, CONFIG_DIR, readHookConfig, writeHookConfig, HOOK_CONFIG_PATH, DEFAULT_HOOK_CONFIG } from './SecurityHookFile';
+import type { BlacklistConfig, BlacklistRule } from '@common/types/security';
+import { DEFAULT_BLACKLIST_CONFIG } from '@common/types/security';
 import { mainLog, mainError } from '@process/utils/mainLogger';
+import { getNexusClient, CONFIG_DIR, readHookConfig, writeHookConfig, HOOK_CONFIG_PATH, DEFAULT_HOOK_CONFIG } from './SecurityHookFile';
 
 /** Unified hook config path (blacklist is stored alongside enabled state) */
 export const BLACKLIST_CONFIG_PATH = HOOK_CONFIG_PATH;

@@ -15,11 +15,11 @@
  * Action files: /safe/action/{uuid}
  */
 
-import type { SafetyStatus } from '@/common/safetyTypes';
+import type { SafetyStatus } from '@common/types/security';
 import { ipcBridge } from '@/common';
-import { readEnabledState, writeEnabledState, ensureEnabledState, ensureSecurityHookDirs, listEventFilenames, readEventFile, writeActionFile, deleteEventFile, actionExists, readHookConfig, eventToSafetyStatus } from './SecurityHookFile';
-import { initBlacklist } from './SafetyBlacklistService';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
+import { writeEnabledState, ensureEnabledState, ensureSecurityHookDirs, listEventFilenames, readEventFile, writeActionFile, deleteEventFile, actionExists, readHookConfig, eventToSafetyStatus } from './SecurityHookFile';
+import { initBlacklist } from './SafetyBlacklistService';
 
 export interface SafetyPollingConfig {
   pollingIntervalMs: number;

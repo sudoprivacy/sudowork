@@ -8,7 +8,7 @@
  * Safety Service Types
  */
 
-import type { RiskLevel, SafetyStatus, EventFileData, ActionFileData } from '@/common/safetyTypes';
+import type { RiskLevel, SafetyStatus, EventFileData, ActionFileData } from '@common/types/security';
 
 export type { RiskLevel, SafetyStatus, EventFileData, ActionFileData };
 
