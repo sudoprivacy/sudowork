@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Divider, Form, Switch, Message, Button, Dropdown, Menu, Modal } from '@arco-design/web-react';
+import { Divider, Form, Switch, Message, Button, Dropdown, Menu, Modal, Select } from '@arco-design/web-react';
 import { Down, Plus } from '@icon-park/react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -12,7 +12,6 @@ import { acpConversation, scode } from '@/common/ipcBridge';
 import { migrateImageGenerationModelConfig, pickImageGenerationModelId } from '@/common/imageGenerationModelConfig';
 import { ConfigStorage, DEFAULT_IMAGE_GENERATION_MODEL, type IConfigStorageRefer, type IMcpServer } from '@/common/storage';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
-import AionSelect from '@/renderer/components/base/AionSelect';
 import AddMcpServerModal from '@/renderer/pages/settings/components/AddMcpServerModal';
 import McpServerItem from '@/renderer/pages/settings/McpManagement/McpServerItem';
 import { useMcpServers, useMcpAgentStatus, useMcpOperations, useMcpConnection, useMcpModal, useMcpServerCRUD, useMcpOAuth } from '@/renderer/hooks/mcp';
@@ -333,7 +332,7 @@ const ToolsModalContent: React.FC = () => {
 
             <Form layout='horizontal' labelAlign='left' className='space-y-12px'>
               <Form.Item label={t('settings.imageGenerationModel')}>
-                <AionSelect
+                <Select
                   value={imageGenerationModel?.useModel || DEFAULT_IMAGE_GENERATION_MODEL}
                   disabled={!imageGenerationModel?.switch}
                   onChange={(val) => {
