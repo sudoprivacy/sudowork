@@ -44,6 +44,7 @@ const backgroundColors = {
   base: 'var(--bg-base)', // bg-base - 页面底色
   subtle: 'var(--bg-subtle)', // bg-subtle - 轻区域/面板背景
   muted: 'var(--bg-muted)', // bg-muted - 次级块/弱背景
+  control: 'var(--bg-control)', // bg-control - 控件填充/中性浅底
   emphasis: 'var(--bg-emphasis)', // bg-emphasis - 强调背景/分隔填充
   strong: 'var(--bg-strong)', // bg-strong - 更强填充/按下或禁用面
   'inverse-muted': 'var(--bg-inverse-muted)', // bg-inverse-muted - 深中性色面/低强调反色底

@@ -33,7 +33,7 @@ export default function DirInputItem({ label, field }: IDirInputItemProps) {
         };
 
         return (
-          <div className='h-8 flex items-center rd-8px border border-transparent pl-3.5 bg-fill-0'>
+          <div className='h-8 flex items-center rd-8px border border-transparent pl-3.5 bg-control'>
             <Tooltip content={currentValue || t('settings.dirNotConfigured')} position='top'>
               <div className='flex-1 min-w-0 text-13px text-foreground truncate '>{currentValue || t('settings.dirNotConfigured')}</div>
             </Tooltip>

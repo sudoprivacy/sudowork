@@ -1,9 +1,9 @@
 import classNames from 'classnames';
 import React from 'react';
 
-export default function Tabs({ items, value, onChange, className, itemClassName }: ITabsProps) {
+export default function Tabs({ items, value, onChange, className, itemClassName, ariaLabel }: ITabsProps) {
   return (
-    <div role='tablist' className={classNames('flex flex-wrap gap-2', className)}>
+    <div role='tablist' aria-label={ariaLabel} className={classNames('flex flex-wrap gap-2', className)}>
       {items.map((item) => {
         const isActive = item.value === value;
         return (
@@ -49,4 +49,5 @@ interface ITabsProps {
   onChange: (value: string) => void;
   className?: string;
   itemClassName?: string;
+  ariaLabel?: string;
 }

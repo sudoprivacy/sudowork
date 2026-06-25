@@ -5,13 +5,13 @@ import useSWR from 'swr';
 import { ipcBridge } from '@/common';
 import { ConfigStorage } from '@/common/storage';
 import { isProductImprovementEnabled } from '@/common/systemConfig';
-import LanguageSwitcher from '@/renderer/components/LanguageSwitcher';
 import OptInDialog from '@/renderer/pages/settings/system/components/OptInDialog';
 import { formatTimestamp, joinFilePath } from '@/renderer/pages/conversation/grouped-history/utils/exportHelpers';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
 import { useShowToolCalls } from '@/renderer/hooks/useShowToolCalls';
 import PageWrapper from '@renderer/components/base/PageWrapper';
+import LanguageSwitcher from './components/LanguageSwitcher';
 import DirInputItem from './components/DirInputItem';
 import PreferenceRow from './components/PreferenceRow';
 
@@ -422,7 +422,7 @@ const SystemSettings: React.FC = () => {
         <AionScrollArea className='flex-1 min-h-0 pb-4' disableOverflow>
           <div className='space-y-4'>
             {/* 偏好设置与高级设置合并展示 / Combined preferences and advanced settings */}
-            <div className='px-3 md:px-8 py-4 bg-2 rd-16px space-y-3'>
+            <div className='px-3 md:px-8 py-4 rd-16px space-y-3'>
               <div className='w-full flex flex-col divide-y divide-light'>
                 {preferenceItems.map((item) => (
                   <PreferenceRow key={item.key} label={item.label} hint={item.hint}>
