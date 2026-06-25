@@ -6,13 +6,13 @@
 
 import React from 'react';
 import SkillModalContent from '@/renderer/components/SettingsModal/contents/SkillModalContent';
-import SettingsPageWrapper from './components/SettingsPageWrapper';
+import PageWrapper from '@renderer/components/base/PageWrapper';
 
 const SkillSettings: React.FC = () => {
   return (
-    <SettingsPageWrapper contentClassName='max-w-300'>
+    <PageWrapper contentClassName='max-w-300'>
       <SkillModalContent />
-    </SettingsPageWrapper>
+    </PageWrapper>
   );
 };
 

@@ -47,4 +47,7 @@
       ✅ /Users/xiaohei/Documents/freelancer/jinjing/sudoclaw/sudowork/src/renderer/pages/settings/EnterpriseMcpSettings/components/EditConfigModal.tsx
       ✅ /Users/xiaohei/Documents/freelancer/jinjing/sudoclaw/sudowork/src/renderer/pages/settings/MemberManagement.tsx
 
+- [ ] `src/types/` 边界策略：只存放 ① 第三方无类型包的 `.d.ts` shim；② 跨两个及以上进程（main/renderer/worker）共用的类型。模块内部类型保持原地，不强制迁移。
+
+
 - [ ] 当前项目中修改智能体存在多个功能相同的组件，需要统一合并

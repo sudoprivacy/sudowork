@@ -66,7 +66,7 @@ export class StreamTextBuffer {
 
     clearTimeout(entry.timer);
     this.buffered.delete(key);
-    addOrUpdateMessage(entry.conversationId, entry.message, entry.backend);
+    addOrUpdateMessage(entry.conversationId, entry.message);
   }
 
   flushAll(): void {

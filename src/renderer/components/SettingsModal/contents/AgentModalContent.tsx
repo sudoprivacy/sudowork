@@ -167,7 +167,7 @@ const InstalledAssistantCard: React.FC<InstalledAssistantCardProps> = (props) =>
   const displayVersion = enterpriseMode ? '' : normalizeAssistantVersion(assistant._installedVersion);
 
   return (
-    <div className={classNames('library-card cursor-pointer', !isEnabled && 'opacity-65')} onClick={onClick}>
+    <div className={classNames('item-card group flex items-start gap-12px relative overflow-hidden', !isEnabled && 'opacity-65')} onClick={onClick}>
       {/* Avatar */}
       <div className='w-48px flex-shrink-0'>
         <div className='w-48px h-48px rd-8px overflow-hidden bg-fill-2'>
@@ -286,7 +286,7 @@ const HubAssistantCard: React.FC<{
   const hasDownloadUrl = Boolean(assistant._sourceUrl);
 
   return (
-    <div className='library-card cursor-pointer' onClick={onClick}>
+    <div className='item-card group flex items-start gap-12px relative overflow-hidden' onClick={onClick}>
       {/* Icon */}
       <div className='w-48px flex-shrink-0 flex flex-col items-center'>
         <div className='w-48px h-48px rd-8px overflow-hidden bg-fill-2'>
@@ -2521,22 +2521,8 @@ const AgentModalContent: React.FC = () => {
 
       {/* ==================== Edit Drawer ==================== */}
       <Drawer
-        title={
-          <>
-            <span>{isCreating ? t('settings.createAssistant', { defaultValue: '创建智能体' }) : t('settings.editAssistant', { defaultValue: '智能体详情' })}</span>
-            <div
-              onClick={(e) => {
-                e.stopPropagation();
-                setEditVisible(false);
-              }}
-              className='absolute right-4 top-2 cursor-pointer text-secondary hover:text-foreground transition-colors p-1'
-              style={{ zIndex: 10, WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-            >
-              <Close size={18} />
-            </div>
-          </>
-        }
-        closable={false}
+        title={isCreating ? t('settings.createAssistant', { defaultValue: '创建智能体' }) : t('settings.editAssistant', { defaultValue: '智能体详情' })}
+        closable
         visible={editVisible}
         placement='right'
         width={drawerWidth}
@@ -2548,10 +2534,7 @@ const AgentModalContent: React.FC = () => {
         headerStyle={{ background: 'var(--color-bg-1)' }}
         bodyStyle={{ background: 'var(--color-bg-1)' }}
         footer={
-          <div className='flex items-center gap-8px'>
-            <Button type='primary' onClick={handleSave} disabled={!isCreating && isReadonlyAssistant} className='w-[100px] rounded-[100px]'>
-              {isCreating ? t('common.create', { defaultValue: 'Create' }) : t('common.save', { defaultValue: 'Save' })}
-            </Button>
+          <div className='flex justify-end gap-2'>
             <Button
               onClick={() => {
                 setEditVisible(false);
@@ -2559,6 +2542,9 @@ const AgentModalContent: React.FC = () => {
               className='w-[100px] rounded-[100px] bg-fill-2'
             >
               {t('common.cancel', { defaultValue: 'Cancel' })}
+            </Button>
+            <Button type='primary' onClick={handleSave} disabled={!isCreating && isReadonlyAssistant} className='w-[100px] rounded-[100px]'>
+              {isCreating ? t('common.create', { defaultValue: 'Create' }) : t('common.save', { defaultValue: 'Save' })}
             </Button>
           </div>
         }

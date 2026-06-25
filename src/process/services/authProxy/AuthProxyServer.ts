@@ -8,6 +8,7 @@
  */
 
 import http from 'http';
+import https from 'https';
 import type { IncomingMessage, ServerResponse } from 'http';
 import { URL } from 'url';
 import { mainLog } from '@process/utils/mainLogger';
@@ -387,7 +388,7 @@ export class AuthProxyServer {
       };
 
       const isHttps = parsed.protocol === 'https:';
-      const requestModule = isHttps ? require('https') : http;
+      const requestModule = isHttps ? https : http;
 
       const upstream = requestModule.request(options, (upstreamRes: http.IncomingMessage) => {
         // Forward status code and headers

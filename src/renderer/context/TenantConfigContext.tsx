@@ -5,7 +5,6 @@
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { useAuth } from './AuthContext';
 import { ipcBridge } from '@/common';
 import { getSudoworkServerBaseUrl } from '@/common/sudoworkServer';
 import { ConfigStorage } from '@/common/storage';

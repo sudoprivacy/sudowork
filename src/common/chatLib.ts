@@ -381,7 +381,7 @@ export type IMessageFileSend = IMessage<'file_send', IFileSendData>;
 export type TMessage = IMessageText | IMessageTips | IMessageToolCall | IMessageToolGroup | IMessageAgentStatus | IMessageAcpPermission | IMessageAcpQuestion | IMessageAcpToolCall | IMessageCodexPermission | IMessageCodexToolCall | IMessagePlan | IMessageAvailableCommands | IMessageFileSend;
 
 // 统一所有需要用户交互的用户类型
-export interface IConfirmation<Option extends any = any> {
+export interface IConfirmation<Option = any> {
   title?: string;
   id: string;
   action?: string;

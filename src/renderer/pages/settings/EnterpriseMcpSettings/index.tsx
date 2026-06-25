@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Tabs, Message, Spin } from '@arco-design/web-react';
 import { ConfigStorage } from '@/common/storage';
-import SettingsPageWrapper from '../components/SettingsPageWrapper';
+import PageWrapper from '@renderer/components/base/PageWrapper';
 import EnterpriseMcpTab from './tabs/EnterpriseMcpTab';
 import McpLibraryTab from './tabs/McpLibraryTab';
 import MyMcpTab from './tabs/MyMcpTab';
@@ -158,7 +158,19 @@ const EnterpriseMcpSettings: React.FC = () => {
       if (serversError) {
         return <ErrorBlock message={describeMcpError(serversError)} />;
       }
-      return <MyMcpTab servers={servers} loading={serversLoading} onToggleEnabled={handleToggleEnabled} onDelete={handleDelete} loadUserConfig={loadUserConfig} saveUserConfig={saveUserConfig} serverHasUserConfig={serverHasUserConfig} allowInstall={policy?.allow_personal_mcp} onInstalled={() => void mutateServers()} />;
+      return (
+        <MyMcpTab
+          servers={servers}
+          loading={serversLoading}
+          onToggleEnabled={handleToggleEnabled}
+          onDelete={handleDelete}
+          loadUserConfig={loadUserConfig}
+          saveUserConfig={saveUserConfig}
+          serverHasUserConfig={serverHasUserConfig}
+          allowInstall={policy?.allow_personal_mcp}
+          onInstalled={() => void mutateServers()}
+        />
+      );
     }
     if (key === 'policy') {
       if (policyLoading && !policy) {
@@ -176,7 +188,7 @@ const EnterpriseMcpSettings: React.FC = () => {
   };
 
   return (
-    <SettingsPageWrapper contentClassName='max-w-1200px'>
+    <PageWrapper contentClassName='max-w-1200px'>
       <div className='p-6 flex flex-col gap-4'>
         <div className='flex flex-col gap-0.5'>
           <h2 className='text-24px font-600 text-foreground my-0'>MCP 服务</h2>
@@ -200,7 +212,7 @@ const EnterpriseMcpSettings: React.FC = () => {
           </Tabs.TabPane>
         </Tabs>
       </div>
-    </SettingsPageWrapper>
+    </PageWrapper>
   );
 };
 

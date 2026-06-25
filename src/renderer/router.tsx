@@ -19,8 +19,9 @@ const RuntimeSettings = React.lazy(() => import('./pages/settings/RuntimeSetting
 const SystemSettings = React.lazy(() => import('./pages/settings/SystemSettings'));
 const ToolsSettings = React.lazy(() => import('./pages/settings/ToolsSettings'));
 const WebuiSettings = React.lazy(() => import('./pages/settings/WebuiSettings'));
-const SecuritySettings = React.lazy(() => import('./pages/settings/SecuritySettings'));
-const CronSettings = React.lazy(() => import('./pages/settings/CronSettings'));
+const SecurityPage = React.lazy(() => import('./pages/security'));
+const CronPage = React.lazy(() => import('./pages/cron'));
+const CronJobDetailPage = React.lazy(() => import('./pages/cron/detail'));
 const ExtensionSettingsPage = React.lazy(() => import('./pages/settings/ExtensionSettingsPage'));
 const LoginPage = React.lazy(() => import('./pages/login'));
 const RegisterPage = React.lazy(() => import('./pages/register'));
@@ -29,7 +30,6 @@ const RechargeCenter = React.lazy(() => import('./pages/settings/RechargeCenter'
 const MemberManagement = React.lazy(() => import('./pages/settings/MemberManagement'));
 const EnterpriseSettings = React.lazy(() => import('./pages/settings/EnterpriseSettings'));
 const EnterpriseMcpSettings = React.lazy(() => import('./pages/settings/EnterpriseMcpSettings'));
-const ComponentsShowcase = React.lazy(() => import('./pages/test/ComponentsShowcase'));
 
 const withRouteFallback = (Component: React.LazyExoticComponent<React.ComponentType>) => (
   <Suspense fallback={<AppLoader />}>
@@ -71,7 +71,7 @@ const ProtectedLayout: React.FC<{ layout: React.ReactElement }> = ({ layout }) =
   }
 
   // Client cron disabled: the cron settings page is not reachable.
-  if (!cronEnabled && location.pathname === '/settings/cron') {
+  if (!cronEnabled && location.pathname.startsWith('/app/cron')) {
     return <Navigate to='/settings/agent' replace />;
   }
 
@@ -103,8 +103,10 @@ const PanelRoute: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
           <Route path='/settings/about' element={withRouteFallback(About)} />
           <Route path='/settings/tools' element={withRouteFallback(ToolsSettings)} />
           <Route path='/settings/skill' element={withRouteFallback(SkillSettings)} />
-          <Route path='/settings/security' element={withRouteFallback(SecuritySettings)} />
-          <Route path='/settings/cron' element={withRouteFallback(CronSettings)} />
+          <Route path='/app/security' element={withRouteFallback(SecurityPage)} />
+          <Route path='/settings/security' element={withRouteFallback(SecurityPage)} />
+          <Route path='/app/cron' element={withRouteFallback(CronPage)} />
+          <Route path='/app/cron/:jobId' element={withRouteFallback(CronJobDetailPage)} />
           <Route path='/settings/profile' element={withRouteFallback(UserProfile)} />
           <Route path='/settings/recharge' element={withRouteFallback(RechargeCenter)} />
           <Route path='/settings/members' element={withRouteFallback(MemberManagement)} />
@@ -112,7 +114,6 @@ const PanelRoute: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
           <Route path='/settings/mcp' element={withRouteFallback(EnterpriseMcpSettings)} />
           <Route path='/settings/ext/:tabId' element={withRouteFallback(ExtensionSettingsPage)} />
           <Route path='/settings' element={<SettingsDefaultRoute />} />
-          <Route path='/test/components' element={withRouteFallback(ComponentsShowcase)} />
         </Route>
         <Route path='*' element={<Navigate to={isSignedIn ? '/guid' : '/login'} replace />} />
       </Routes>

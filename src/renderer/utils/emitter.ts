@@ -63,6 +63,8 @@ interface EventTypes {
   // Open a URL in the right-panel BrowserPanel — fired when the AI writes an
   // HTML file or when slash / MCP tools request opening a URL there.
   'right-panel.browser.open': [{ url: string; switchTab?: boolean }];
+  // Cron job list refresh (e.g. after delete from detail page)
+  'cron.jobs.refresh': void;
 }
 
 export const emitter = new EventEmitter<EventTypes>();

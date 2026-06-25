@@ -1,43 +1,13 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAppMode } from '@renderer/hooks/useAppMode';
 import { ipcBridge } from '@/common';
 import type { ICronJob } from '@/common/ipcBridge';
 import { addEventListener, emitter } from '@/renderer/utils/emitter';
+import { CronJobStatusEnums } from '@/renderer/utils/enum';
+import type { ICronJobActionsResult, ICronJobEventHandlers } from '@/renderer/pages/cron/types';
+import { unwrapCronResult } from '@/renderer/pages/cron/utils';
 
-/**
- * Common cron job actions
- */
-interface CronJobActionsResult {
-  pauseJob: (jobId: string) => Promise<void>;
-  resumeJob: (jobId: string) => Promise<void>;
-  deleteJob: (jobId: string) => Promise<void>;
-  updateJob: (jobId: string, updates: Partial<ICronJob>) => Promise<ICronJob>;
-}
-
-/**
- * Creates common cron job action handlers
- */
-/**
- * The cron bridge providers return an `{ __error: string }` envelope instead of
- * rejecting, because the underlying IPC library has no rejection path (see
- * src/process/bridge/cronBridge.ts). This helper unwraps the envelope and
- * throws a real Error so callers can use normal try/catch.
- */
-function unwrapCronResult<T>(result: T): T {
-  const envelope = result as { __error?: unknown } | null | undefined;
-  if (envelope && typeof envelope === 'object' && typeof envelope.__error === 'string') {
-    throw new Error(envelope.__error);
-  }
-  return result;
-}
-
-function useCronJobActions(onJobUpdated?: (jobId: string, job: ICronJob) => void, onJobDeleted?: (jobId: string) => void): CronJobActionsResult {
+function useCronJobActions(onJobUpdated?: (jobId: string, job: ICronJob) => void, onJobDeleted?: (jobId: string) => void): ICronJobActionsResult {
   const pauseJob = useCallback(
     async (jobId: string) => {
       const updated = unwrapCronResult(await ipcBridge.cron.updateJob.invoke({ jobId, updates: { enabled: false } }));
@@ -75,18 +45,9 @@ function useCronJobActions(onJobUpdated?: (jobId: string, job: ICronJob) => void
 }
 
 /**
- * Event handlers for cron job subscription
- */
-interface CronJobEventHandlers {
-  onJobCreated: (job: ICronJob) => void;
-  onJobUpdated: (job: ICronJob) => void;
-  onJobRemoved: (data: { jobId: string }) => void;
-}
-
-/**
  * Subscribe to cron job events with unified cleanup
  */
-function useCronJobSubscription(handlers: CronJobEventHandlers) {
+function useCronJobSubscription(handlers: ICronJobEventHandlers) {
   useEffect(() => {
     const unsubCreate = ipcBridge.cron.onJobCreated.on(handlers.onJobCreated);
     const unsubUpdate = ipcBridge.cron.onJobUpdated.on(handlers.onJobUpdated);
@@ -136,7 +97,7 @@ export function useCronJobs(conversationId?: string) {
   }, [fetchJobs]);
 
   // Event handlers
-  const eventHandlers = useMemo<CronJobEventHandlers>(
+  const eventHandlers = useMemo<ICronJobEventHandlers>(
     () => ({
       onJobCreated: (job: ICronJob) => {
         if (job.metadata.conversationId === conversationId) {
@@ -192,15 +153,7 @@ export function useAllCronJobs() {
     setLoading(true);
     setError(null);
     try {
-      const allJobs = await ipcBridge.cron.listJobs.invoke();
-      // Handle error envelope
-      const envelope = allJobs as { __error?: unknown } | null | undefined;
-      if (envelope && typeof envelope === 'object' && typeof envelope.__error === 'string') {
-        setError(new Error(envelope.__error));
-        setJobs([]);
-      } else {
-        setJobs(allJobs || []);
-      }
+      setJobs(unwrapCronResult(await ipcBridge.cron.listJobs.invoke()) || []);
     } catch (err) {
       console.error('[useAllCronJobs] Failed to fetch jobs:', err);
       setError(err instanceof Error ? err : new Error('Failed to fetch'));
@@ -227,7 +180,7 @@ export function useAllCronJobs() {
   }, [isEnterprise, fetchJobs]);
 
   // Event handlers
-  const eventHandlers = useMemo<CronJobEventHandlers>(
+  const eventHandlers = useMemo<ICronJobEventHandlers>(
     () => ({
       onJobCreated: (job: ICronJob) => {
         setJobs((prev) => (prev.some((j) => j.id === job.id) ? prev : [...prev, job]));
@@ -257,7 +210,7 @@ export function useAllCronJobs() {
 
   // Computed values
   const activeCount = useMemo(() => jobs.filter((j) => j.enabled).length, [jobs]);
-  const hasError = useMemo(() => jobs.some((j) => j.state.lastStatus === 'error'), [jobs]);
+  const hasError = useMemo(() => jobs.some((j) => j.state.lastStatus === CronJobStatusEnums.Error), [jobs]);
 
   return {
     jobs,
@@ -288,7 +241,7 @@ export function useCronJobsMap() {
   }, []);
 
   // Stubs kept for call-site compatibility
-  const getJobStatus = useCallback((_conversationId: string): 'none' | 'active' | 'paused' | 'error' | 'unread' => 'none', []);
+  const getJobStatus = useCallback((_conversationId: string): CronJobStatusEnums => CronJobStatusEnums.None, []);
   const markAsRead = useCallback((_conversationId: string) => {}, []);
   const setActiveConversation = useCallback((_conversationId: string) => {}, []);
   const hasUnread = useCallback((_conversationId: string) => false, []);

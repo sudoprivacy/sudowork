@@ -1,11 +1,29 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
+import dayjs from 'dayjs';
 import type { TFunction } from 'i18next';
 import type { ICronJob, ICronSchedule } from '@/common/ipcBridge';
+import type { FrequencyPreset, IFrequencyScheduleOptions, IScheduleFrequency } from '@/renderer/pages/cron/types';
+
+export function formatNextRunRelative(t: TFunction, nextRunAtMs?: number): string {
+  if (!nextRunAtMs) return '';
+  const d = dayjs(nextRunAtMs);
+  const now = dayjs();
+  const time = d.format('HH:mm');
+  if (d.isSame(now, 'day')) return t('cron.create.nextRunToday', { time });
+  if (d.isSame(now.add(1, 'day'), 'day')) return t('cron.create.nextRunTomorrow', { time });
+  return d.format('MM-DD HH:mm');
+}
+
+/**
+ * cron bridge 遇到错误时会返回 `{ __error: string }` 包装对象，而不是直接 reject。
+ * 这里统一把包装对象还原成异常，方便调用方用 try/catch 处理。
+ */
+export function unwrapCronResult<T>(result: T): T {
+  const envelope = result as { __error?: unknown } | null | undefined;
+  if (envelope && typeof envelope === 'object' && typeof envelope.__error === 'string') {
+    throw new Error(envelope.__error);
+  }
+  return result;
+}
 
 /**
  * Format schedule for display - use human-readable description
@@ -33,11 +51,6 @@ export function getJobStatusFlags(job: ICronJob): { hasError: boolean; isPaused:
   };
 }
 
-/**
- * Frequency presets for human-friendly schedule selection
- */
-export type FrequencyPreset = 'manual' | 'hourly' | 'daily' | 'weekdays' | 'weekly';
-
 export const FREQUENCY_PRESETS: FrequencyPreset[] = ['manual', 'hourly', 'daily', 'weekdays', 'weekly'];
 
 export const WEEKDAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'] as const;
@@ -46,7 +59,7 @@ export const WEEKDAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'] as con
  * Convert frequency preset + options to a CronSchedule.
  * Pass a `t` function from `useTranslation()` to get i18n-aware descriptions.
  */
-export function frequencyToSchedule(preset: FrequencyPreset, options?: { hour?: number; minute?: number; weekday?: string }, t?: TFunction): ICronSchedule | null {
+export function frequencyToSchedule(preset: FrequencyPreset, options?: IFrequencyScheduleOptions, t?: TFunction): ICronSchedule | null {
   const hour = options?.hour ?? 9;
   const minute = options?.minute ?? 0;
   const timeStr = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
@@ -73,12 +86,7 @@ export function frequencyToSchedule(preset: FrequencyPreset, options?: { hour?: 
 /**
  * Try to parse an existing CronSchedule back into a frequency preset
  */
-export function scheduleToFrequency(schedule: ICronSchedule): {
-  preset: FrequencyPreset;
-  hour: number;
-  minute: number;
-  weekday: string;
-} {
+export function scheduleToFrequency(schedule: ICronSchedule): IScheduleFrequency {
   if (schedule.kind !== 'cron') {
     return { preset: 'daily', hour: 9, minute: 0, weekday: 'MON' };
   }

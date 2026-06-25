@@ -146,8 +146,7 @@ export default defineConfig({
     'border-light': 'border-[var(--border-light)]', // 浅边框 / lighter border（搭配 border / border-b）
     'divide-light': 'divide-[var(--border-light)]', // 浅分割线 / lighter divider color（搭配 divide-y / divide-x）
     'scrollbar-hide': 'scrollbar-width-none [&::-webkit-scrollbar]:hidden',
-    // 技能/数字助手商店卡片：悬浮白卡 + hover 抬升 / elevated white store card
-    'library-card': 'group bg-fill-0 rd-12px p-12px flex items-start gap-12px relative overflow-hidden shadow-[0_1px_3px_rgba(0,0,0,0.08)] transition-all duration-200 hover:-translate-y-px hover:shadow-[0_4px_12px_rgba(0,0,0,0.1)]',
+    'item-card': 'bg-fill-0 rd-12px p-4 cursor-pointer shadow-[0_1px_3px_rgba(0,0,0,0.08)] transition-all duration-200 hover:-translate-y-px hover:shadow-[0_4px_12px_rgba(0,0,0,0.1)]',
     // 分类筛选 chip：结构 + 两种互斥状态（idle / active），避免 hover 与选中态冲突
     'category-chip': 'flex-shrink-0 inline-flex items-center justify-center h-28px px-12px rd-16px border border-transparent text-12px leading-18px whitespace-nowrap cursor-pointer transition-colors',
     'category-chip-idle': 'text-secondary hover:bg-fill-2 hover:text-foreground',

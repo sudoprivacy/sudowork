@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import crypto from 'crypto';
 import { lt } from 'semver';
 import type { NetworkError, CodexEventEnvelope } from '@/agent/codex/connection/CodexConnection';
 import { CodexConnection } from '@/agent/codex/connection/CodexConnection';
@@ -355,8 +356,6 @@ export class CodexAgent {
 
   private generateConversationId(): string {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const crypto = require('crypto');
       if (typeof crypto.randomUUID === 'function') {
         return crypto.randomUUID();
       }

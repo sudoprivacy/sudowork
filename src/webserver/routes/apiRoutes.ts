@@ -6,9 +6,6 @@
 
 import fs from 'fs';
 import path from 'path';
-import http from 'http';
-import https from 'https';
-import { URL } from 'url';
 import { type Express, type NextFunction, type Request, type RequestHandler, type Response } from 'express';
 import directoryApi from '../directoryApi';
 import { apiRateLimiter } from '../middleware/security';

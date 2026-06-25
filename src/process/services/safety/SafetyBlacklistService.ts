@@ -11,10 +11,10 @@
  * Nexus is the SINGLE SOURCE OF TRUTH for all blacklist data.
  */
 
-import type { BlacklistConfig, BlacklistRule } from '@/common/safetyTypes';
-import { DEFAULT_BLACKLIST_CONFIG } from '@/common/safetyTypes';
-import { getNexusClient, CONFIG_DIR, readHookConfig, writeHookConfig, HOOK_CONFIG_PATH, DEFAULT_HOOK_CONFIG } from './SecurityHookFile';
+import { DEFAULT_BLACKLIST_CONFIG } from '@/common/constants';
+import type { IBlacklistConfig, IBlacklistRule } from '@common/types/security';
 import { mainLog, mainError } from '@process/utils/mainLogger';
+import { getNexusClient, CONFIG_DIR, readHookConfig, writeHookConfig, HOOK_CONFIG_PATH, DEFAULT_HOOK_CONFIG } from './SecurityHookFile';
 
 /** Unified hook config path (blacklist is stored alongside enabled state) */
 export const BLACKLIST_CONFIG_PATH = HOOK_CONFIG_PATH;
@@ -29,11 +29,11 @@ export function generateRuleId(): string {
 /**
  * Load blacklist configuration from unified Nexus config
  */
-export async function loadBlacklist(): Promise<BlacklistConfig> {
+export async function loadBlacklist(): Promise<IBlacklistConfig> {
   try {
     const hookConfig = await readHookConfig();
     if (hookConfig) {
-      const blacklist = (hookConfig.blacklist || {}) as BlacklistConfig;
+      const blacklist = (hookConfig.blacklist || {}) as IBlacklistConfig;
       return {
         ...DEFAULT_BLACKLIST_CONFIG,
         ...blacklist,
@@ -49,7 +49,7 @@ export async function loadBlacklist(): Promise<BlacklistConfig> {
 /**
  * Save blacklist configuration to Nexus (read-merge-write into unified config)
  */
-export async function saveBlacklist(config: BlacklistConfig): Promise<boolean> {
+export async function saveBlacklist(config: IBlacklistConfig): Promise<boolean> {
   try {
     const client = getNexusClient();
     await client.mkdir(CONFIG_DIR, true);
@@ -71,9 +71,9 @@ export async function saveBlacklist(config: BlacklistConfig): Promise<boolean> {
 /**
  * Add a new blacklist rule
  */
-export async function addBlacklistRule(rule: Omit<BlacklistRule, 'id' | 'createdAt' | 'updatedAt'>): Promise<BlacklistConfig> {
+export async function addBlacklistRule(rule: Omit<IBlacklistRule, 'id' | 'createdAt' | 'updatedAt'>): Promise<IBlacklistConfig> {
   const config = await loadBlacklist();
-  const newRule: BlacklistRule = {
+  const newRule: IBlacklistRule = {
     ...rule,
     id: generateRuleId(),
     createdAt: Date.now(),
@@ -87,7 +87,7 @@ export async function addBlacklistRule(rule: Omit<BlacklistRule, 'id' | 'created
 /**
  * Update an existing blacklist rule
  */
-export async function updateBlacklistRule(ruleId: string, updates: Partial<Omit<BlacklistRule, 'id' | 'createdAt'>>): Promise<BlacklistConfig | null> {
+export async function updateBlacklistRule(ruleId: string, updates: Partial<Omit<IBlacklistRule, 'id' | 'createdAt'>>): Promise<IBlacklistConfig | null> {
   const config = await loadBlacklist();
   const index = config.rules.findIndex((r) => r.id === ruleId);
   if (index === -1) {
@@ -105,7 +105,7 @@ export async function updateBlacklistRule(ruleId: string, updates: Partial<Omit<
 /**
  * Delete a blacklist rule
  */
-export async function deleteBlacklistRule(ruleId: string): Promise<BlacklistConfig> {
+export async function deleteBlacklistRule(ruleId: string): Promise<IBlacklistConfig> {
   const config = await loadBlacklist();
   config.rules = config.rules.filter((r) => r.id !== ruleId);
   await saveBlacklist(config);
@@ -129,7 +129,7 @@ export async function initBlacklist(): Promise<void> {
     await client.mkdir(CONFIG_DIR, true);
     const merged = {
       ...(hookConfig || DEFAULT_HOOK_CONFIG),
-      blacklist: { rules: [] as BlacklistRule[] },
+      blacklist: { rules: [] as IBlacklistRule[] },
     };
     await writeHookConfig(merged);
     mainLog('SafetyBlacklist', 'Initialized empty blacklist in unified config');

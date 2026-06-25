@@ -85,13 +85,10 @@ export function createMcpServersApi(client: EnterpriseMcpClient): McpServersApi 
       });
     },
     async installJson(json_config, name) {
-      const res = await client.request<{ success: true; data: EnterpriseMcpServerDto }>(
-        '/api/v1/me/mcp-servers/install-json',
-        {
-          method: 'POST',
-          body: { json_config, ...(name ? { name } : {}) },
-        },
-      );
+      const res = await client.request<{ success: true; data: EnterpriseMcpServerDto }>('/api/v1/me/mcp-servers/install-json', {
+        method: 'POST',
+        body: { json_config, ...(name ? { name } : {}) },
+      });
       return res.data;
     },
   };

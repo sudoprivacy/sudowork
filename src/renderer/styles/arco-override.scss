@@ -6,6 +6,7 @@
 // 该 token 同时影响 Card/Tag/Menu/Checkbox 等使用 small 圆角的组件。
 body {
   --border-radius-small: 8px;
+  --border-radius-medium: 10px;
 
   // Arco 边框 token 桥接：Arco 组件在 body 上消费 --color-border-2（写到 :root 会被 body 遮蔽），
   // 故在此覆盖为项目语义 token。值引用 --border-light，自动随主题切换。
@@ -40,7 +41,6 @@ body[arco-theme='dark'] {
   --arcoblue-10: 255, 236, 220;
 }
 
-// ---------- Button ----------
 .arco-btn {
   // Default button shape (round/pill) is configured via ConfigProvider
   // componentConfig in src/renderer/index.ts, not here.
@@ -68,56 +68,55 @@ body[arco-theme='dark'] {
   }
 }
 
-// ---------- Tooltip / Popover / Popconfirm ----------
-// Unify popup corner radius. Tooltip already follows --border-radius-small (8px),
-// but Popover/Popconfirm default to --border-radius-medium (4px) which looks too
-// square next to the rest of the rounded UI. Pin all popup surfaces to 12px.
 .arco-tooltip-content,
 .arco-popover-content,
 .arco-popconfirm-content {
   border-radius: 12px;
 }
 
-// ---------- Collapse ----------
 .arco-collapse {
-  border: none;
-  border-radius: 8px;
-
   .arco-collapse-item-header {
     border-bottom: none;
   }
-}
-
-// ---------- Steps (Sudowork wrapper) ----------
-.sudowork-steps {
-  .arco-steps-item-process .arco-steps-item-icon {
-    background-color: var(--aou-6-brand) !important;
-    border-color: var(--aou-6-brand) !important;
-  }
-
-  .arco-steps-item-finish .arco-steps-item-icon {
-    background-color: #e8f3ff !important;
-    border-color: #e8f3ff !important;
-    border-radius: 50% !important;
-
-    .arco-steps-icon {
-      line-height: 28px !important;
-    }
+  .arco-collapse-item-icon,
+  .arco-collapse-item-header-icon {
+    display: none;
   }
 }
 
-// ---------- Modal ----------
-// Native Arco Modal (Modal.confirm/info and any non-SudoworkModal usage):
-// larger corner radius + lighter header/footer dividers.
 .arco-modal {
   border-radius: 16px;
-
   &-header {
     border-bottom-color: var(--border-light);
   }
-
   &-footer {
     border-top-color: var(--border-light);
+  }
+}
+
+.arco-drawer {
+  &,
+  &-mask,
+  &-close-icon {
+    -webkit-app-region: no-drag;
+  }
+
+  &-footer,
+  &-header {
+    border-color: var(--border-light);
+  }
+
+  &-close-icon {
+    transform: translateY(-3px);
+    &::before {
+      width: 26px;
+      height: 26px;
+    }
+
+    svg {
+      width: 18px;
+      height: 18px;
+    }
   }
 }
 
@@ -214,111 +213,6 @@ body[arco-theme='dark'] .arco-message {
   .arco-tree-node:hover .arco-tree-node-title {
     background-color: var(--color-fill-3) !important;
   }
-}
-
-// ---------- Settings tabs ----------
-// 设置弹窗移动端 Tabs 样式 / Settings modal mobile tabs
-.settings-mobile-tabs {
-  .arco-tabs-nav {
-    border-bottom: 1px solid var(--color-border-2);
-  }
-
-  .arco-tabs-nav-tab {
-    font-size: 14px;
-    padding: 8px 0;
-    margin: 0 12px;
-    color: var(--color-text-2);
-
-    &:first-child {
-      margin-left: 0;
-    }
-  }
-
-  .arco-tabs-nav-tab-active {
-    color: var(--color-text-1);
-    font-weight: 500;
-  }
-
-  .arco-tabs-nav-ink {
-    height: 2px;
-    background: var(--color-primary);
-  }
-}
-
-// WebUI / Channels tabs in Remote settings
-.settings-remote-tabs {
-  .arco-tabs-nav {
-    border-bottom: 1px solid var(--color-border-2);
-  }
-
-  .arco-tabs-nav-tab {
-    color: var(--color-text-2);
-    padding: 8px 0;
-
-    &:hover {
-      color: var(--color-text-1);
-    }
-  }
-
-  .arco-tabs-nav-tab-active {
-    color: var(--color-text-1);
-    font-weight: 600;
-  }
-
-  .arco-tabs-nav-ink {
-    height: 2px;
-    background: var(--color-primary);
-  }
-
-  // Direct nav-line overrides
-  .arco-tabs-header-nav {
-    border-bottom: 1px solid transparent !important;
-
-    &::before {
-      display: none !important;
-    }
-  }
-
-  .arco-tabs-header-nav-line.arco-tabs-header-nav-horizontal > .arco-tabs-header-scroll > .arco-tabs-header-title {
-    margin: 0 16px 0 0 !important;
-    padding: 8px 0 12px !important;
-
-    &:first-of-type {
-      margin-left: 0 !important;
-    }
-  }
-
-  .arco-tabs-header-title,
-  .arco-tabs-header-title-text {
-    margin-left: 0 !important;
-    padding-left: 0 !important;
-  }
-
-  .arco-tabs-header-scroll {
-    padding-left: 0 !important;
-  }
-
-  .arco-tabs-header-title-active,
-  .arco-tabs-header-title-active:hover {
-    color: var(--ui-accent-orange) !important;
-    font-weight: 600 !important;
-  }
-
-  .arco-tabs-header-ink,
-  .arco-tabs-header-ink-inner {
-    background-color: var(--ui-accent-orange) !important;
-  }
-
-  .arco-tabs-header-ink {
-    height: 2px !important;
-    border-radius: 999px !important;
-  }
-}
-
-.arco-select-view,
-.arco-input,
-.arco-input-inner-wrapper {
-  background-color: var(--fill-0) !important;
 }
 
 // ---------- Skill Hub input / select ----------

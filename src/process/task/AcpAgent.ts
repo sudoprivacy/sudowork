@@ -56,6 +56,7 @@ import { mergeScodeProxyModelInfo, isModelVisionCapable, getScodeProxyModelInfoS
 import { appendGeneratedFilesMarker, type GeneratedFileEntry } from '@/common/generatedFiles';
 import { readAssistantResource, ruleFilePattern } from '@process/utils/assistantResources';
 import { protectUnsupportedAcpSlashPrompt } from '@/common/slash/sudoworkCommands';
+import { cdpPort as chromiumCdpPort } from '@/utils/configureChromium';
 import { clearSkillsCache, getCustomSkillsDir, ProcessConfig } from '../initStorage';
 import { addMessage, addOrUpdateMessage, nextTickToLocalFinish } from '../message';
 import { handlePreviewOpenEvent } from '../utils/previewUtils';
@@ -398,13 +399,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
       }
 
       // Apply preset-specific runtime configuration (env vars, scripts, model configs)
-      let cdpPort = 9230;
-      try {
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        cdpPort = require('@/utils/configureChromium').cdpPort || 9230;
-      } catch {
-        /* use default */
-      }
+      const cdpPort = chromiumCdpPort || 9230;
       const presetResult = await applyPresetRuntime({
         presetAssistantId: this.extra.presetAssistantId,
         backend: this.extra.backend,
@@ -902,13 +897,7 @@ This identity statement takes priority over the default identity in USER.md.
           // appendix that applyPresetRuntime injected at init — leaving the
           // assistant unable to locate its own scripts and forcing a `find`.
           try {
-            let cdpPort = 9230;
-            try {
-              // eslint-disable-next-line @typescript-eslint/no-var-requires
-              cdpPort = require('@/utils/configureChromium').cdpPort || 9230;
-            } catch {
-              /* use default */
-            }
+            const cdpPort = chromiumCdpPort || 9230;
             const reloadPresetResult = await applyPresetRuntime({
               presetAssistantId: this.options.presetAssistantId,
               backend: this.extra.backend,
@@ -1444,7 +1433,7 @@ This identity statement takes priority over the default identity in USER.md.
     };
     const tMessage = transformMessage(usagePatch);
     if (tMessage) {
-      addOrUpdateMessage(this.conversation_id, tMessage, this.options.backend);
+      addOrUpdateMessage(this.conversation_id, tMessage);
     }
     ipcBridge.acpConversation.responseStream.emit(usagePatch);
   }
@@ -2120,7 +2109,7 @@ This identity statement takes priority over the default identity in USER.md.
       content: { content: msg.data as string },
       createdAt: Date.now(),
     };
-    addOrUpdateMessage(this.conversation_id, tMessage, this.options.backend);
+    addOrUpdateMessage(this.conversation_id, tMessage);
   }
 
   kill(): Promise<void> {
@@ -3273,7 +3262,7 @@ This identity statement takes priority over the default identity in USER.md.
           this.streamTextBuffer.queue(tMessage, this.options.backend);
         } else {
           this.streamTextBuffer.flushAll();
-          addOrUpdateMessage(message.conversation_id, tMessage, this.options.backend);
+          addOrUpdateMessage(message.conversation_id, tMessage);
         }
 
         if (isStreamTextChunk) {

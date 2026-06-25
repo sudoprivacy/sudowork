@@ -38,24 +38,52 @@ bun run test:e2e           # E2E tests (Playwright)
 - **Utilities**: camelCase (`formatDate.ts`)
 - **Constants**: UPPER_SNAKE_CASE
 - **Unused params**: prefix with `_`
+- **Boolean values**: variables, state, and props must start with `is` (`isLoading`, `isOpen`, `isDisabled`, `isVisible`, `isActive`)
 
 ### TypeScript
 
 - Strict mode enabled
 - Use path aliases: `@/*`, `@process/*`, `@renderer/*`, `@worker/*`
-- Prefer `type` over `interface` (per ESLint config)
+- Use `type` for simple aliases, unions, intersections, and utility-derived types.
+- Use `interface` for structured object shapes, including component props.
 
 ### React
 
 - Functional components only
+- Prefer `function` declarations for React components instead of `const` arrow functions.
 - Hooks: `use*` prefix
-- Event handlers: `on*` prefix
-- Props type: `${ComponentName}Props`
+- Event handler props and custom callback props must start with `on` (`onClick`, `onChange`, `onConfirm`, `onClose`, `onValueChange`).
+- Component props must use `interface`, named `I<ComponentName>Props`, and be placed at the bottom of the file.
+
+```tsx
+// ✅
+export default function RuleModal({ isOpen, onOk }: IRuleModalProps) {
+  const isDisabled = false;
+  // ...
+}
+
+function HelperComponent() {
+  // ...
+}
+
+interface IRuleModalProps {
+  isOpen: boolean;
+  onOk: () => void;
+  onValueChange: (value: string) => void;
+}
+
+// ❌
+type Props = { open: boolean; ok: () => void };
+const RuleModal: React.FC<Props> = ({ open, ok }) => {
+  // ...
+};
+```
 
 ### Styling
 
 - UnoCSS atomic classes preferred
 - CSS modules for component-specific styles: `*.module.css`
+- Prefer Arco Design components over native HTML elements (`Button` not `<button>`, `Input` not `<input>`, etc.); fall back to native only when Arco has no equivalent
 - Use Arco Design semantic colors
 
 ### Comments
@@ -68,16 +96,19 @@ bun run test:e2e           # E2E tests (Playwright)
 **Framework**: Vitest 4 (`vitest.config.ts`)
 
 **Structure**:
+
 - `tests/unit/` - Individual functions, utilities, components
 - `tests/integration/` - IPC, database, service interactions
 - `tests/regression/` - Regression test cases
 - `tests/e2e/` - End-to-end tests (Playwright, `playwright.config.ts`)
 
 **Two test environments**:
+
 - `node` (default) - main process, utilities, services
 - `jsdom` - files named `*.dom.test.ts`
 
 **Workflow rules**:
+
 - Run `bun run test` before every commit
 - New features must include corresponding test cases
 - When modifying logic, update affected existing tests
@@ -90,6 +121,7 @@ bun run test:e2e           # E2E tests (Playwright)
 **Run `bunx tsc --noEmit` to verify there are no type errors** — TypeScript strict mode is enabled and type errors block merges.
 
 Common Prettier rules to follow (avoids needing a fix pass):
+
 - Single-element arrays that fit on one line → inline: `[{ id: 'a', value: 'b' }]`
 - Trailing commas required in multi-line arrays/objects
 - Single quotes for strings

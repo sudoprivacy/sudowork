@@ -13,7 +13,7 @@ import { useTenantConfig } from '@renderer/context/TenantConfigContext';
 import { buildVersion, buildDate, buildCommit, isNightlyBuild } from '@common/buildInfo';
 import sudoIcon from '@renderer/assets/sudowork-icon-dark.svg';
 import { openExternalUrl } from '@renderer/utils/platform';
-import SettingsPageWrapper from '../components/SettingsPageWrapper';
+import PageWrapper from '@renderer/components/base/PageWrapper';
 import OpsModal from './components/OpsModal';
 
 const OFFICIAL_WEBSITE_URL = 'https://sudowork.sudoprivacy.com';
@@ -25,7 +25,7 @@ const About: React.FC = () => {
   const [opsVisible, setOpsVisible] = useState<boolean>(false);
 
   return (
-    <SettingsPageWrapper contentClassName='max-w-120'>
+    <PageWrapper contentClassName='max-w-120'>
       <div className='f-center flex-col w-full min-h-[62vh] py-8 text-center'>
         {/* Logo 磁贴 / Logo tile */}
         <div className='f-center w-19 h-19 rd-18px bg-1 border shadow-sm'>
@@ -71,7 +71,7 @@ const About: React.FC = () => {
       </div>
 
       <OpsModal visible={opsVisible} onClose={() => setOpsVisible(false)} />
-    </SettingsPageWrapper>
+    </PageWrapper>
   );
 };
 

@@ -180,7 +180,7 @@ const SkillCard: React.FC<{
 }> = ({ skill, isInstalled, hasVersion, installing, installProgress, onInstall, onClick, hasUpdate, onUpdate, updating, latestVersion, loadingVersion }) => {
   const { t } = useTranslation();
   return (
-    <div className='library-card cursor-pointer' onClick={onClick}>
+    <div className='item-card group flex items-start gap-3 relative overflow-hidden' onClick={onClick}>
       {/* Icon */}
       <div className='w-48px flex-shrink-0 flex flex-col items-center'>
         <div className='w-48px h-48px rd-8px overflow-hidden bg-fill-2 border'>{skill.icon ? <img src={skill.icon} alt={skill.display_name} className='w-full h-full object-cover' onError={handleSkillIconError} /> : <div className='w-full h-full f-center text-22px'>{skill.emoji || '📦'}</div>}</div>
@@ -250,7 +250,7 @@ const InstalledSkillCard: React.FC<{
   const { t } = useTranslation();
 
   return (
-    <div className={classNames('library-card', !isEnabled && 'opacity-65', hasDetail && 'cursor-pointer')} onClick={hasDetail ? onClick : undefined}>
+    <div className={classNames('item-card group flex items-start gap-3 relative overflow-hidden', !isEnabled && 'opacity-65', !hasDetail && 'cursor-default')} onClick={hasDetail ? onClick : undefined}>
       {/* Icon */}
       <div className='w-48px flex-shrink-0'>
         <div className='w-48px h-48px rd-8px overflow-hidden bg-fill-2'>

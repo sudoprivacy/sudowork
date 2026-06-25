@@ -38,6 +38,8 @@ const Sider: React.FC = () => {
   // 账户菜单触发区，用于让弹层宽度与之对齐
   const userTriggerRef = useRef<HTMLDivElement>(null);
   const [userMenuWidth, setUserMenuWidth] = useState<number>();
+  // Batch-action API published up from the history list; drives the popover content.
+  const [batchApi, setBatchApi] = useState<BatchHistoryApi | null>(null);
 
   // Sidebar tab state: 'timeline' or 'scheduled'
   const SIDER_TAB_STORAGE_KEY = 'sudowork_sider_tab';
@@ -51,6 +53,45 @@ const Sider: React.FC = () => {
     return 'timeline';
   });
 
+  // 功能菜单项定义 / Function menu items definition
+  const Menus = [
+    { id: 'agent', label: t('common.siderMenu.agent'), icon: Robot, path: '/settings/agent' },
+    { id: 'skill-store', label: t('common.siderMenu.skillStore'), icon: Lightning, path: '/settings/skill' },
+    { id: 'security', label: t('common.siderMenu.security'), icon: Shield, path: '/app/security' },
+    ...(!isEnterprise ? [{ id: 'webui' as const, label: t('common.siderMenu.webui'), icon: Earth, path: '/settings/webui' }] : []),
+    ...(cronEnabled ? [{ id: 'cron' as const, label: t('common.siderMenu.cron'), icon: AlarmClock, path: '/app/cron' }] : []),
+  ];
+
+  const isSettings = pathname.startsWith('/settings');
+  const lastNonSettingsPathRef = useRef('/guid');
+
+  // 从 AuthContext 获取实际用户信息（手机号脱敏展示）
+  const userInfo = {
+    email: maskPhone(currentUser?.phone || ''),
+    name: currentUser?.nickname || 'Sudowork 用户',
+    avatar: null as string | null,
+  };
+
+  // With client cron disabled the scheduled tab is hidden, so fall back to the
+  // timeline even if 'scheduled' was previously persisted.
+  const effectiveTab: 'timeline' | 'scheduled' = cronEnabled ? activeTab : 'timeline';
+
+  // Batch management only applies to conversations (timeline tab); leaving the
+  // timeline tab exits batch mode so the popover can't be opened under 定时任务.
+  // Dismiss the batch popover when clicking truly blank space, but keep it open
+  // when interacting with the trigger, the popover itself, or a conversation row
+  // (so ticking row checkboxes doesn't exit batch mode).
+
+  const workspaceHistoryProps = {
+    collapsed: false,
+    tooltipEnabled: false,
+    onSessionClick,
+    batchMode: isBatchMode,
+    onBatchModeChange: setIsBatchMode,
+    activeTab: effectiveTab,
+    onBatchApiChange: setBatchApi,
+  };
+
   // Listen for command palette tab switch events
   useEffect(() => {
     const removeListener = addEventListener('sider.tab.switch', (tab) => {
@@ -63,30 +104,6 @@ const Sider: React.FC = () => {
     });
     return removeListener;
   }, []);
-  const isSettings = pathname.startsWith('/settings');
-  const lastNonSettingsPathRef = useRef('/guid');
-
-  // 从 AuthContext 获取实际用户信息（手机号脱敏展示）
-  const userInfo = {
-    email: maskPhone(currentUser?.phone || ''),
-    name: currentUser?.nickname || 'Sudowork 用户',
-    avatar: null as string | null,
-  };
-
-  // 功能菜单项定义 / Function menu items definition
-  const functionMenus = [{ id: 'agent', label: t('common.siderMenu.agent'), icon: Robot, path: '/settings/agent' }, { id: 'skill-store', label: t('common.siderMenu.skillStore'), icon: Lightning, path: '/settings/skill' }, { id: 'security', label: t('common.siderMenu.security'), icon: Shield, path: '/settings/security' }, ...(!isEnterprise ? [{ id: 'webui' as const, label: t('common.siderMenu.webui'), icon: Earth, path: '/settings/webui' }] : []), ...(cronEnabled ? [{ id: 'cron' as const, label: t('common.siderMenu.cron'), icon: AlarmClock, path: '/settings/cron' }] : [])];
-
-  // 处理功能菜单点击 — 在 GuidPage 内联显示，通过 query param 传递 menuId
-  const handleFunctionMenuClick = (menuId: string) => {
-    const nextTab: 'timeline' | 'scheduled' = menuId === 'cron' ? 'scheduled' : 'timeline';
-    setActiveTab(nextTab);
-    try {
-      localStorage.setItem(SIDER_TAB_STORAGE_KEY, nextTab);
-    } catch {
-      // ignore
-    }
-    void navigate(`/guid?menu=${menuId}`);
-  };
 
   useEffect(() => {
     if (!pathname.startsWith('/settings')) {
@@ -94,29 +111,6 @@ const Sider: React.FC = () => {
     }
   }, [pathname, search, hash]);
 
-  const handleSettingsClick = () => {
-    cleanupSiderTooltips();
-    if (isSettings) {
-      const target = lastNonSettingsPathRef.current || '/guid';
-      void navigate(target);
-    } else {
-      void navigate('/settings/profile');
-    }
-    onSessionClick();
-  };
-
-  // Batch-action API published up from the history list; drives the popover content.
-  const [batchApi, setBatchApi] = useState<BatchHistoryApi | null>(null);
-
-  // With client cron disabled the scheduled tab is hidden, so fall back to the
-  // timeline even if 'scheduled' was previously persisted.
-  const effectiveTab: 'timeline' | 'scheduled' = cronEnabled ? activeTab : 'timeline';
-
-  // Batch management only applies to conversations (timeline tab); leaving the
-  // timeline tab exits batch mode so the popover can't be opened under 定时任务.
-  // Dismiss the batch popover when clicking truly blank space, but keep it open
-  // when interacting with the trigger, the popover itself, or a conversation row
-  // (so ticking row checkboxes doesn't exit batch mode).
   useEffect(() => {
     if (!isBatchMode) return;
     const handlePointerDown = (event: MouseEvent) => {
@@ -129,14 +123,33 @@ const Sider: React.FC = () => {
     document.addEventListener('mousedown', handlePointerDown);
     return () => document.removeEventListener('mousedown', handlePointerDown);
   }, [isBatchMode]);
-  const workspaceHistoryProps = {
-    collapsed: false,
-    tooltipEnabled: false,
-    onSessionClick,
-    batchMode: isBatchMode,
-    onBatchModeChange: setIsBatchMode,
-    activeTab: effectiveTab,
-    onBatchApiChange: setBatchApi,
+
+  // 处理功能菜单点击 — path 以 /app/ 开头的跳转独立路由，其余在 GuidPage 内联显示
+  const onMenuClick = (menuId: string) => {
+    try {
+      const nextTab: 'timeline' | 'scheduled' = menuId === 'cron' ? 'scheduled' : 'timeline';
+      setActiveTab(nextTab);
+      localStorage.setItem(SIDER_TAB_STORAGE_KEY, nextTab);
+      const menu = Menus.find((m) => m.id === menuId);
+      if (menu?.path.startsWith('/app/')) {
+        void navigate(menu.path);
+      } else {
+        void navigate(`/guid?menu=${menuId}`);
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleSettingsClick = () => {
+    cleanupSiderTooltips();
+    if (isSettings) {
+      const target = lastNonSettingsPathRef.current || '/guid';
+      void navigate(target);
+    } else {
+      void navigate('/settings/profile');
+    }
+    onSessionClick();
   };
 
   return (
@@ -169,8 +182,8 @@ const Sider: React.FC = () => {
 
             {/* 功能菜单区域 / Function menu area */}
             <div className='mb-4 flex flex-col gap-0.5'>
-              {functionMenus.map((menu) => {
-                const isSelected = pathname.startsWith('/guid') && new URLSearchParams(search).get('menu') === menu.id;
+              {Menus.map((menu) => {
+                const isSelected = pathname === menu.path || (pathname.startsWith('/guid') && new URLSearchParams(search).get('menu') === menu.id);
                 return (
                   <SidebarNavItem
                     key={menu.id}
@@ -179,7 +192,7 @@ const Sider: React.FC = () => {
                     selected={isSelected}
                     onClick={() => {
                       cleanupSiderTooltips();
-                      handleFunctionMenuClick(menu.id);
+                      onMenuClick(menu.id);
                       onSessionClick();
                     }}
                   />
@@ -230,7 +243,10 @@ const Sider: React.FC = () => {
                   </div>
                 }
               >
-                <div className={classNames('batch-mode-trigger size-8 f-center rd-8px cursor-pointer transition-all shrink-0', isBatchMode ? 'bg-[rgba(var(--ui-accent-orange-rgb),0.12)] text-[var(--ui-accent-orange)]' : 'hover:bg-hover active:bg-fill-2 text-secondary')} onClick={() => setIsBatchMode((prev) => !prev)}>
+                <div
+                  className={classNames('batch-mode-trigger size-8 f-center rd-8px cursor-pointer transition-all shrink-0', isBatchMode ? 'bg-[rgba(var(--ui-accent-orange-rgb),0.12)] text-[var(--ui-accent-orange)]' : 'hover:bg-hover active:bg-fill-2 text-secondary')}
+                  onClick={() => setIsBatchMode((prev) => !prev)}
+                >
                   <ListCheckbox theme='outline' size='18' className='block leading-none' />
                 </div>
               </Popover>
@@ -259,7 +275,7 @@ const Sider: React.FC = () => {
                   <SettingTwo theme='outline' size='17' fill={'var(--text-secondary)'} />
                   <span>{t('common.settings')}</span>
                 </div>
-                <div className='h-1px mx-1 my-0.5 bg-[var(--border-light)]' />
+                <div className='mx-1 border-b-0.5px border-light' />
                 <div
                   className='flex items-center gap-2.5 px-2.5 h-9.5 rd-8px cursor-pointer text-14px text-danger transition-colors hover:bg-hover active:bg-active'
                   onClick={async () => {
@@ -282,7 +298,7 @@ const Sider: React.FC = () => {
               setUserMenuOpen(visible);
             }}
           >
-            <div ref={userTriggerRef} className='flex items-center gap-2.5 px-2 py-2.5 cursor-pointer transition-colors rd-12px w-full border hover:bg-hover active:bg-fill-2 border-light'>
+            <div ref={userTriggerRef} className='flex items-center gap-2.5 px-2 py-2.5 cursor-pointer transition-colors rd-12px w-full border hover:bg-hover active:bg-fill-2'>
               <div className='size-8 rd-50% bg-[var(--color-fill-3)] f-center text-foreground text-14px font-bold shrink-0'>{userInfo.avatar ? <img src={userInfo.avatar} alt={userInfo.name} className='w-full h-full rd-50% object-cover' /> : <span>{userInfo.name.charAt(0).toUpperCase()}</span>}</div>
               <div className='flex-1 min-w-0'>
                 <div className='text-14px font-medium text-foreground truncate'>{userInfo.name}</div>

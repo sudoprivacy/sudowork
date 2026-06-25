@@ -5,13 +5,13 @@ import { useTranslation } from 'react-i18next';
 import { formatUsagePoints } from '@/common/tokenUsage';
 import type { UserProfileData } from '@/common/ipcBridge';
 import { ipcBridge } from '@/common';
+import PageWrapper from '@renderer/components/base/PageWrapper';
 import { useAuth } from '../../context/AuthContext';
 import { useDashboardStats } from '../../context/DashboardStatsContext';
 import { useAppMode } from '../../hooks/useAppMode';
 import { useSystemLoginMethod } from '../../hooks/useSystemLoginMethod';
 import ConsumerAvatar from './components/ConsumerAvatar';
 import WeeklyModelUsageChart from './components/WeeklyModelUsageChart';
-import SettingsPageWrapper from './components/SettingsPageWrapper';
 import ChangePasswordModal from './components/ChangePasswordModal';
 
 const UserProfile: React.FC = () => {
@@ -145,7 +145,7 @@ const UserProfile: React.FC = () => {
   }, [stats?.usage_today]);
 
   return (
-    <SettingsPageWrapper contentClassName='max-w-200'>
+    <PageWrapper contentClassName='max-w-200'>
       <div className='flex flex-col gap-6 py-2'>
         <div className='text-20px font-600 text-foreground leading-32px'>{t('settings.profile')}</div>
 
@@ -243,7 +243,7 @@ const UserProfile: React.FC = () => {
       </Modal>
       {/* Change Password Modal (only when login_method=1) */}
       <ChangePasswordModal visible={changePwdModalVisible} onClose={() => setChangePwdModalVisible(false)} />
-    </SettingsPageWrapper>
+    </PageWrapper>
   );
 };
 

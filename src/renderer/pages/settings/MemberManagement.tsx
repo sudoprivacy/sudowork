@@ -3,8 +3,8 @@ import { Table, Button, Tabs, Tag, Space, Message, Modal, Badge } from '@arco-de
 import { User, DeleteFour, Peoples } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
+import PageWrapper from '@renderer/components/base/PageWrapper';
 import { useAuth } from '../../context/AuthContext';
-import SettingsPageWrapper from './components/SettingsPageWrapper';
 
 const MemberManagement: React.FC = () => {
   const { t } = useTranslation();
@@ -179,7 +179,7 @@ const MemberManagement: React.FC = () => {
   ];
 
   return (
-    <SettingsPageWrapper contentClassName='max-w-225'>
+    <PageWrapper contentClassName='max-w-225'>
       <div className='flex flex-col gap-6 py-2'>
         <div className='flex items-center justify-between'>
           <div className='flex flex-col gap-1'>
@@ -207,7 +207,7 @@ const MemberManagement: React.FC = () => {
           </Tabs.TabPane>
         </Tabs>
       </div>
-    </SettingsPageWrapper>
+    </PageWrapper>
   );
 };
 

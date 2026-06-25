@@ -6,13 +6,13 @@
 
 import React from 'react';
 import RuntimeModalContent from '@/renderer/components/SettingsModal/contents/RuntimeModalContent';
-import SettingsPageWrapper from './components/SettingsPageWrapper';
+import PageWrapper from '@renderer/components/base/PageWrapper';
 
 const RuntimeSettings: React.FC = () => {
   return (
-    <SettingsPageWrapper contentClassName='max-w-160'>
+    <PageWrapper contentClassName='max-w-160'>
       <RuntimeModalContent />
-    </SettingsPageWrapper>
+    </PageWrapper>
   );
 };
 

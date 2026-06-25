@@ -246,10 +246,10 @@ export class SecretMigrationCoordinator {
 
     try {
       // Step 1: Write secret to Nexus
-      await this.client.putSecret(namespace, key, value);
+      this.client.putSecret(namespace, key, value);
 
       // Step 2: Read back to verify - ensure secret was stored correctly
-      const storedValue = await this.client.getSecret(namespace, key);
+      const storedValue = this.client.getSecret(namespace, key);
 
       // Step 3: Data integrity check
       if (storedValue !== value) {

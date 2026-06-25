@@ -11,7 +11,7 @@
  */
 
 import { Avatar, Button, Checkbox, Collapse, Drawer, Input, Message, Select, Typography } from '@arco-design/web-react';
-import { Close, Lightning, Robot, Shield } from '@icon-park/react';
+import { Lightning, Robot, Shield } from '@icon-park/react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { mutate } from 'swr';
@@ -279,22 +279,8 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
 
   return (
     <Drawer
-      title={
-        <>
-          <span>{t('settings.editAssistant', { defaultValue: '智能体详情' })}</span>
-          <div
-            onClick={(e) => {
-              e.stopPropagation();
-              onClose();
-            }}
-            className='absolute right-4 top-2 cursor-pointer text-secondary hover:text-foreground transition-colors p-1'
-            style={{ zIndex: 10, WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-          >
-            <Close size={18} />
-          </div>
-        </>
-      }
-      closable={false}
+      title={t('settings.editAssistant', { defaultValue: '智能体详情' })}
+      closable
       visible={visible}
       placement='right'
       width={drawerWidth}
@@ -304,15 +290,13 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
       headerStyle={{ background: 'var(--color-bg-1)' }}
       bodyStyle={{ background: 'var(--color-bg-1)' }}
       footer={
-        <div className='flex items-center justify-between w-full'>
-          <div className='flex items-center gap-8px'>
-            <Button type='primary' onClick={handleSave} disabled={isReadonly} className='w-[100px] rounded-[100px]'>
-              {t('common.save', { defaultValue: 'Save' })}
-            </Button>
-            <Button onClick={onClose} className='w-[100px] rounded-[100px] bg-fill-2'>
-              {t('common.cancel', { defaultValue: 'Cancel' })}
-            </Button>
-          </div>
+        <div className='flex justify-end gap-2'>
+          <Button onClick={onClose} className='w-[100px] rounded-[100px] bg-fill-2'>
+            {t('common.cancel', { defaultValue: 'Cancel' })}
+          </Button>
+          <Button type='primary' onClick={handleSave} disabled={isReadonly} className='w-[100px] rounded-[100px]'>
+            {t('common.save', { defaultValue: 'Save' })}
+          </Button>
         </div>
       }
     >

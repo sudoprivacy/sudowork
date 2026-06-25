@@ -8,15 +8,15 @@
  * Safety Service Types
  */
 
-import type { RiskLevel, SafetyStatus, EventFileData, ActionFileData } from '@/common/safetyTypes';
+import type { IActionFileData, IEventFileData, ISafetyStatus, RiskLevel } from '@common/types/security';
 
-export type { RiskLevel, SafetyStatus, EventFileData, ActionFileData };
+export type { IActionFileData, IEventFileData, ISafetyStatus, RiskLevel };
 
 /**
  * Safety check result from external API
  */
 export interface SafetyCheckResult {
-  status: SafetyStatus;
+  status: ISafetyStatus;
   raw?: unknown;
 }
 
