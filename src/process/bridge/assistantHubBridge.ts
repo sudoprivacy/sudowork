@@ -3,6 +3,13 @@
  * Hub API calls for fetching assistants, categories, and installing from Hub.
  */
 
+import fs from 'fs/promises';
+import fsSync from 'fs';
+import path from 'path';
+import https from 'node:https';
+import http from 'node:http';
+import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
+import JSZip from 'jszip';
 import { ipcBridge } from '@/common';
 import type { IAssistantHubSkill, IAssistantHubListResponse, IAssistantHubDetail, IAssistantInstallResult, ISkillHubSkill, IBridgeResponse, IAssistantHubVersionLike } from '@/common/ipcBridge';
 import { assistantManager } from '@/process/AssistantManager';
@@ -10,15 +17,8 @@ import { getAssistantsDir, getHubAssistantsDir, getSystemAssistantsDir, getCusto
 import { skillManager } from '@/process/SkillManager';
 import { getDatabase } from '@/process/database';
 import { DEFAULT_PRESET_AGENT_TYPE, normalizePresetAgentType } from '@/types/acpTypes';
-import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
 import { ASSISTANTS_ROOT_DIR, ENTERPRISE_ASSISTANT_SUBDIRS } from '@/process/constants/enterpriseStorage';
-import fs from 'fs/promises';
-import fsSync from 'fs';
-import path from 'path';
-import https from 'node:https';
-import http from 'node:http';
-import JSZip from 'jszip';
 
 const { existsSync } = fsSync;
 
@@ -251,6 +251,16 @@ export function initAssistantHubBridge(): void {
       return { success: true, data: assistants };
     } catch (error) {
       mainError('AssistantHub', 'Failed to get installed assistants:', error);
+      return { success: false, msg: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcBridge.assistantHub.getInstalledAssistantsWithVisibility.provider(async ({ accessToken }) => {
+    try {
+      const assistants = await assistantManager.getInstalledAssistantsWithVisibility(accessToken || '');
+      return { success: true, data: assistants };
+    } catch (error) {
+      mainError('AssistantHub', 'Failed to get installed assistants with visibility:', error);
       return { success: false, msg: error instanceof Error ? error.message : String(error) };
     }
   });

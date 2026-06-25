@@ -6,6 +6,16 @@
  * Merged AcpAgentManager + AcpAgent — owns AcpConnection directly.
  */
 
+import { spawn } from 'child_process';
+import * as fs from 'node:fs';
+import * as nodePath from 'node:path';
+import { getEnhancedEnv, resolveNpxPath } from '@process/utils/shellEnv';
+import { applyPresetRuntime } from '@process/task/presetRuntime';
+import { getDatabase } from '@process/database';
+import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
+import { translateLLMError } from '@process/utils/llmErrorTranslation';
+import { classifyLlmError } from '@process/utils/llmErrorClassification';
+import { clearSkillsCache, getCustomSkillsDir, ProcessConfig } from '../initStorage';
 import { AcpAdapter } from '@/agent/acp/AcpAdapter';
 import { AcpApprovalStore, createAcpApprovalKey } from '@/agent/acp/ApprovalStore';
 import { AcpConnection } from '@/agent/acp/AcpConnection';
@@ -26,20 +36,10 @@ import { parseError, uuid } from '@/common/utils';
 import type { AcpBackend, AcpError, AcpModelInfo, AcpPermissionOption, AcpPermissionRequest, AcpPromptResponseUsage, AcpQuestionRequest, AcpQuestionResponseAnswer, AcpResult, AcpSessionConfigOption, AcpSessionUpdate, AvailableCommandsUpdate, ToolCallUpdate, ToolCallUpdateStatus } from '@/types/acpTypes';
 import { ACP_BACKENDS_ALL, AcpErrorType, createAcpError } from '@/types/acpTypes';
 import { ExtensionRegistry } from '@/extensions';
-import { spawn } from 'child_process';
-import * as fs from 'node:fs';
-import * as nodePath from 'node:path';
-import { getEnhancedEnv, resolveNpxPath } from '@process/utils/shellEnv';
-import { applyPresetRuntime } from '@process/task/presetRuntime';
 import { assistantManager } from '@/process/AssistantManager';
-import { getDatabase } from '@process/database';
-import { clearSkillsCache, getCustomSkillsDir, ProcessConfig } from '../initStorage';
 import { addMessage, addOrUpdateMessage, nextTickToLocalFinish } from '../message';
 import { handlePreviewOpenEvent } from '../utils/previewUtils';
-import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
 import { mainLog, mainWarn, mainError } from '../utils/mainLogger';
-import { translateLLMError } from '@process/utils/llmErrorTranslation';
-import { classifyLlmError } from '@process/utils/llmErrorClassification';
 import { injectSkillsDirectoryHint, prepareFirstMessageWithSkillsIndex } from './agentUtils';
 import { AcpSkillManager } from './AcpSkillManager';
 import { archiveTurnFiles, cleanupIntermediateFiles, cleanupTrackedDraftsOnCancel, type TrackedTurnFile } from './draftsCleanup';
@@ -900,6 +900,16 @@ This identity statement takes priority over the default identity in USER.md.
         } catch (error) {
           mainWarn('[AcpAgent]', 'Failed to reload preset context:', error);
         }
+
+        // Append Dify enhancement prelude to system prompt (.md) if this
+        // conversation was bound via ipcBridge.dify.bindSession. Cheap when
+        // not bound — short-circuits on missing session.
+        try {
+          const { enhancePresetContext } = await import('@process/services/dify/enhancementOrchestrator');
+          this.options.presetContext = await enhancePresetContext(this.conversation_id, this.options.presetContext || '');
+        } catch (enhanceErr) {
+          mainWarn('[AcpAgent]', 'Failed to apply Dify enhancement prelude:', enhanceErr);
+        }
       }
 
       if (data.msg_id && data.content) {
@@ -1001,6 +1011,16 @@ This identity statement takes priority over the default identity in USER.md.
               contentToSend = identityBlock + '\n\n[User Request]\n' + contentToSend;
             }
           }
+        }
+
+        // Dify enhancement: wrap user message with <knowledge_context> block
+        // when this conversation has a bound Dify-enhanced assistant. Falls
+        // through unchanged for non-enhanced sessions or on any error.
+        try {
+          const { augmentUserContent } = await import('@process/services/dify/enhancementOrchestrator');
+          contentToSend = await augmentUserContent(this.conversation_id, contentToSend);
+        } catch (augErr) {
+          mainWarn('[AcpAgent]', 'Dify augment failed; sending original message:', augErr);
         }
 
         const agentSendStart = Date.now();

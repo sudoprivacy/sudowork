@@ -4,6 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import useSWR, { mutate } from 'swr';
+import type { AcpBackend, AcpBackendConfig, AcpModelInfo, AvailableAgent, EffectiveAgentInfo, PresetAgentType } from '../types';
 import { ipcBridge } from '@/common';
 import { resolvePreferredAcpModelId } from '@/common/acp/defaultModels';
 import { getPresetById } from '@/common/presets/presetResolver';
@@ -11,12 +14,9 @@ import { DEFAULT_CODEX_MODELS } from '@/common/codex/codexModels';
 import type { IProvider } from '@/common/storage';
 import { ConfigStorage } from '@/common/storage';
 import { DEFAULT_PRESET_AGENT_TYPE, resolvePresetAgentBackend } from '@/types/acpTypes';
-import type { AcpBackend, AcpBackendConfig, AcpModelInfo, AvailableAgent, EffectiveAgentInfo, PresetAgentType } from '../types';
 import { fetchAssistantsAsConfigs } from '@/renderer/shared/agents/assistantAdapter';
 import { getAgentModes } from '@/renderer/utils/agentModes';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import useSWR, { mutate } from 'swr';
 import { emitter } from '@/renderer/utils/emitter';
 import { EECLAW_AUTH_STORAGE_KEY } from '@/renderer/context/AuthContext';
 
@@ -537,7 +537,20 @@ export const useGuidAgentSelection = ({ modelList, isGoogleAuth, localeKey, assi
   // 企业 Remote 模式下，这些目录已从 Moss server 同步，因此无需另走云端接口。
   useEffect(() => {
     let isActive = true;
-    Promise.all([fetchAssistantsAsConfigs(), ipcBridge.extensions.getAssistants.invoke().catch(() => [] as Record<string, unknown>[]), isEnterprise && sessionMode === 'remote' ? ipcBridge.eeclaw.getCloudAssistants.invoke().catch(() => ({ data: [] as CloudAssistant[] })) : Promise.resolve({ data: [] as CloudAssistant[] })])
+    // Use the visibility-aware variant so admin-revoked enterprise assistants
+    // disappear from the picker. Token comes from localStorage via the same
+    // helper used by sessionBinding; falls back to the unfiltered list when
+    // logged out, keeping personal-mode behavior intact.
+    const assistantsPromise = (async () => {
+      try {
+        const { readAccessToken } = await import('@/renderer/shared/dify/sessionBinding');
+        const { fetchVisibleAssistantsAsConfigs } = await import('@/renderer/shared/agents/assistantAdapter');
+        return fetchVisibleAssistantsAsConfigs(readAccessToken());
+      } catch {
+        return fetchAssistantsAsConfigs();
+      }
+    })();
+    Promise.all([assistantsPromise, ipcBridge.extensions.getAssistants.invoke().catch(() => [] as Record<string, unknown>[]), isEnterprise && sessionMode === 'remote' ? ipcBridge.eeclaw.getCloudAssistants.invoke().catch(() => ({ data: [] as CloudAssistant[] })) : Promise.resolve({ data: [] as CloudAssistant[] })])
       .then(([agents, extAssistants, cloudAssistantsResult]) => {
         if (!isActive) return;
         const cloudAssistants = Array.isArray(cloudAssistantsResult?.data) ? (cloudAssistantsResult.data as CloudAssistant[]) : [];
