@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Button, Input, Message, Modal } from '@arco-design/web-react';
+import { Button, Divider, Input, Message, Modal } from '@arco-design/web-react';
 import type { RefInputType } from '@arco-design/web-react/es/Input/interface';
 import { Check } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
@@ -10,7 +10,6 @@ import avatarLoadingSvg from '@/renderer/assets/avatar_loading.svg';
 import Tabs from '@/renderer/components/ui/Tabs';
 import { useUserAvatar } from '../hooks/useUserAvatar';
 import type { AvatarGenState, IGeneratedAvatarResult } from '../types';
-import './AvatarSelectorModal.css';
 
 const STYLE_CHIPS = [
   { key: 'healingIllustration', fallback: '治愈插画' },
@@ -160,7 +159,14 @@ const AvatarSelectorModal: React.FC<AvatarSelectorModalProps> = ({ visible, onCl
         </div>
 
         {/* ========== 分隔 ========== */}
-        <div className='avatar-selector-divider mt-24px mb-20px flex items-center gap-12px text-12px text-secondary'>{t('settings.avatarSelector.presetDivider', '或选择预设头像')}</div>
+        <Divider
+          className='mt-24px mb-20px text-12px text-secondary'
+          style={{
+            borderBottomStyle: 'dashed',
+          }}
+        >
+          {t('settings.avatarSelector.presetDivider', '或选择预设头像')}
+        </Divider>
 
         {/* ========== 预设头像 ========== */}
         <div>
@@ -168,7 +174,11 @@ const AvatarSelectorModal: React.FC<AvatarSelectorModalProps> = ({ visible, onCl
             {PRESETS.map((preset) => {
               const presetName = t(`settings.avatarSelector.preset.${preset.nameKey}`, preset.nameFallback);
               return (
-                <div key={preset.value} className='avatar-selector-preset-card flex items-center gap-12px border border-transparent rd-12px bg-control p-12px cursor-pointer' onClick={() => handleUsePreset(preset.value)}>
+                <div
+                  key={preset.value}
+                  className='flex items-center gap-12px border border-transparent rd-12px bg-control p-12px cursor-pointer transition-[background,border-color,transform] duration-150 hover:bg-fill-2 hover:border-[var(--bg-3)] active:scale-98'
+                  onClick={() => handleUsePreset(preset.value)}
+                >
                   <img className='h-40px w-40px flex-shrink-0 rd-full object-cover' src={preset.src} alt={presetName} />
                   <div>
                     <div className='text-14px font-600 text-foreground'>{presetName}</div>
