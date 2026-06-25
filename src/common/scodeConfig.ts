@@ -30,6 +30,29 @@ const OPENAI_RESPONSES_API = 'openai-responses';
 export const SCODE_AUTO_MODEL_ALIAS = 'auto';
 export const SCODE_AUTO_ROUTER_MODEL_ID = 'claude-opus-4-8';
 
+export type SpecificPricingItem = {
+  model_id: string;
+  model_ratio?: number;
+};
+
+export function resolveAutoRouterModelId(modelIds: string[], pricingItems?: SpecificPricingItem[]): string | null {
+  if (modelIds.length === 0) return null;
+  if (modelIds.length === 1) return modelIds[0];
+  if (modelIds.includes(SCODE_AUTO_ROUTER_MODEL_ID)) return SCODE_AUTO_ROUTER_MODEL_ID;
+  const idSet = new Set(modelIds);
+  let best: string | null = null;
+  let bestRatio = -Infinity;
+  for (const it of pricingItems || []) {
+    if (typeof it.model_ratio !== 'number') continue;
+    if (!idSet.has(it.model_id)) continue;
+    if (it.model_ratio > bestRatio) {
+      bestRatio = it.model_ratio;
+      best = it.model_id;
+    }
+  }
+  return best ?? modelIds[0];
+}
+
 function uniqueStrings(values: string[]): string[] {
   return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
 }
@@ -83,9 +106,10 @@ function buildSudorouterModelEntry(modelId: string, alias = modelId): ScodeModel
   };
 }
 
-export function addScodeAutoModel(models: Record<string, ScodeModelEntry>): Record<string, ScodeModelEntry> {
-  models[SCODE_AUTO_MODEL_ALIAS] = buildSudorouterModelEntry(SCODE_AUTO_ROUTER_MODEL_ID, SCODE_AUTO_MODEL_ALIAS);
-  return models;
+export function addScodeAutoModel(models: Record<string, ScodeModelEntry>, modelIds: string[], pricingItems?: SpecificPricingItem[]): string | null {
+  const id = resolveAutoRouterModelId(modelIds, pricingItems);
+  if (id) models[SCODE_AUTO_MODEL_ALIAS] = buildSudorouterModelEntry(id, SCODE_AUTO_MODEL_ALIAS);
+  return id;
 }
 
 function buildCustomApiKeyModelEntry(providerId: string, model: ScodeCustomModelProvider['models'][number], alias: string): ScodeModelEntry {
@@ -201,11 +225,11 @@ export function normalizeCustomApiKeyModelsInScodeConfig(config: ScodeConfig | n
   return nextConfig;
 }
 
-export function buildScodeConfigFromLoginPayload(payload: LoginSudoclawPayload, existing?: ScodeConfig | null): ScodeConfig {
-  return mergeSudorouterIntoScodeConfig(existing || {}, payload);
+export function buildScodeConfigFromLoginPayload(payload: LoginSudoclawPayload, existing?: ScodeConfig | null, pricingItems?: SpecificPricingItem[]): ScodeConfig {
+  return mergeSudorouterIntoScodeConfig(existing || {}, payload, pricingItems);
 }
 
-export function mergeSudorouterIntoScodeConfig(existing: ScodeConfig | null | undefined, payload: LoginSudoclawPayload): ScodeConfig {
+export function mergeSudorouterIntoScodeConfig(existing: ScodeConfig | null | undefined, payload: LoginSudoclawPayload, pricingItems?: SpecificPricingItem[]): ScodeConfig {
   const modelIds = uniqueStrings(payload.models);
   const existingModels = existing?.models || {};
   const nextModels: Record<string, ScodeModelEntry> = {};
@@ -216,12 +240,11 @@ export function mergeSudorouterIntoScodeConfig(existing: ScodeConfig | null | un
     }
   }
 
-  addScodeAutoModel(nextModels);
+  const autoModelId = addScodeAutoModel(nextModels, modelIds, pricingItems);
   for (const modelId of modelIds) {
     nextModels[normalizeModelAlias(modelId)] = buildSudorouterModelEntry(modelId);
   }
 
-  const defaultModel = SCODE_AUTO_MODEL_ALIAS;
   const nextConfig: ScodeConfig = {
     ...existing,
     auth_modes: {
@@ -243,8 +266,8 @@ export function mergeSudorouterIntoScodeConfig(existing: ScodeConfig | null | un
     },
   };
 
-  if (defaultModel) {
-    nextConfig.default_model = defaultModel;
+  if (autoModelId) {
+    nextConfig.default_model = SCODE_AUTO_MODEL_ALIAS;
   } else {
     delete nextConfig.default_model;
   }

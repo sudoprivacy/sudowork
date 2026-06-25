@@ -23,7 +23,7 @@ import { writeSudoclawImageGenerationModel } from '@process/bridge/imageGenerati
 import { ipcBridge } from '@/common';
 import { modelInputForModelId } from '@/common/imageUtils';
 import type { ScodeModelEntry } from '@/common/ipcBridge';
-import { addScodeAutoModel, extractCustomProvidersFromScodeConfig, mergeCustomProvidersIntoScodeConfig, normalizeCustomApiKeyModelsInScodeConfig, type ScodeCustomModelProvider } from '@/common/scodeConfig';
+import { addScodeAutoModel, extractCustomProvidersFromScodeConfig, mergeCustomProvidersIntoScodeConfig, normalizeCustomApiKeyModelsInScodeConfig, type ScodeCustomModelProvider, type SpecificPricingItem } from '@/common/scodeConfig';
 import { getSudorouterBaseUrl } from '@/common/systemConfig';
 
 const TAG = 'ScodeBridge';
@@ -100,8 +100,31 @@ export function writeScodeImageModel(modelId: string): void {
 
 type SpecificPricingResponse = {
   success?: boolean;
-  data?: Array<{ model_id?: string }>;
+  data?: SpecificPricingItem[];
 };
+
+/**
+ * Fetch sudorouter's specific_pricing items (including model_ratio).
+ * Returns [] on any fetch/parse failure or success!==true; each failure mode logs its own warn,
+ * so callers see the same diagnostic granularity as before the extraction.
+ */
+export async function fetchSpecificPricingItems(): Promise<SpecificPricingItem[]> {
+  let json: SpecificPricingResponse;
+  try {
+    const response = await fetch(`${getSudorouterBaseUrl()}/api/specific_pricing`, { signal: AbortSignal.timeout(15000) });
+    json = (await response.json()) as SpecificPricingResponse;
+  } catch (err) {
+    mainWarn(TAG, `specific_pricing fetch failed: ${err instanceof Error ? err.message : String(err)}`);
+    return [];
+  }
+
+  if (json.success !== true || !Array.isArray(json.data)) {
+    mainWarn(TAG, 'specific_pricing returned success!=true or no data');
+    return [];
+  }
+
+  return json.data.filter((it): it is SpecificPricingItem => typeof it?.model_id === 'string' && it.model_id.trim().length > 0);
+}
 
 /**
  * Fetch the live model list from sudorouter's specific_pricing endpoint and
@@ -113,21 +136,9 @@ type SpecificPricingResponse = {
  * degrades to the last-known list instead of going empty.
  */
 export async function syncScodeModelsFromPricing(): Promise<void> {
-  let json: SpecificPricingResponse;
-  try {
-    const response = await fetch(`${getSudorouterBaseUrl()}/api/specific_pricing`, { signal: AbortSignal.timeout(15000) });
-    json = (await response.json()) as SpecificPricingResponse;
-  } catch (err) {
-    mainWarn(TAG, `specific_pricing fetch failed, keeping existing models: ${err instanceof Error ? err.message : String(err)}`);
-    return;
-  }
+  const pricingItems = await fetchSpecificPricingItems();
 
-  if (json.success !== true || !Array.isArray(json.data)) {
-    mainWarn(TAG, 'specific_pricing returned success!=true or no data, keeping existing models');
-    return;
-  }
-
-  const modelIds = json.data.map((m) => (typeof m.model_id === 'string' ? m.model_id.trim() : '')).filter(Boolean);
+  const modelIds = pricingItems.map((m) => m.model_id.trim()).filter(Boolean);
   if (modelIds.length === 0) {
     mainWarn(TAG, 'specific_pricing returned empty model list, keeping existing models');
     return;
@@ -144,7 +155,7 @@ export async function syncScodeModelsFromPricing(): Promise<void> {
     }
   }
 
-  addScodeAutoModel(models);
+  addScodeAutoModel(models, modelIds, pricingItems);
   for (const modelId of modelIds) {
     models[modelId] = {
       alias: modelId,
@@ -341,6 +352,8 @@ export function registerScodeBridge(): void {
       return { success: false, msg };
     }
   });
+
+  ipcBridge.scode.fetchSpecificPricing.provider(async () => ({ success: true, data: await fetchSpecificPricingItems() }));
 
   ipcBridge.scode.setImageModel.provider(async ({ modelId }) => {
     try {

@@ -12,10 +12,11 @@ import type { IAssistantInfo } from '@/process/AssistantManager';
 import type { IChannelPairingRequest, IChannelPluginStatus, IChannelSession, IChannelUser, IPluginCredentials } from '@/channels/types';
 import type { ISafetyStatus, IBlacklistConfig } from '@common/types/security';
 import type { AuthProxyRule } from '@/common/types/authProxy';
+import type { SystemConfig } from '@/common/systemConfig';
 import type { McpSource } from '../process/services/mcpServices/McpProtocol';
 import type { AcpBackend, AcpBackendAll, AcpModelInfo, PresetAgentType } from '../types/acpTypes';
 import type { SyncAllResult } from '../process/sync/remoteToLocalSync';
-import type { ScodeCustomModelProvider } from './scodeConfig';
+import type { ScodeCustomModelProvider, SpecificPricingItem } from './scodeConfig';
 import type { SlashCommandItem } from './slash/types';
 import type { IMcpServer, IProvider, TChatConversation, TProviderWithModel, ICssTheme } from './storage';
 import type { SecretMetadata } from './nexus/nexus-secret-client';
@@ -23,7 +24,6 @@ import type { FusePluginStatus } from './nexus/fuse-plugin-status';
 import type { PreviewHistoryTarget, PreviewSnapshotInfo } from './types/preview';
 import type { UpdateCheckRequest, UpdateCheckResult, UpdateDownloadProgressEvent, UpdateDownloadRequest, UpdateDownloadResult, AutoUpdateStatus } from './updateTypes';
 import type { ProtocolDetectionRequest, ProtocolDetectionResponse } from './utils/protocolDetector';
-import type { SystemConfig } from '@/common/systemConfig';
 
 export const shell = {
   openFile: bridge.buildProvider<void, string>('open-file'), // 使用系统默认程序打开文件
@@ -905,6 +905,8 @@ export const scode = {
   setDefaultModel: bridge.buildProvider<IBridgeResponse<void>, { modelId: string }>('scode.set-default-model'),
   /** Fetch live model list from sudorouter specific_pricing, rewrite sudocode.json models, return resolved model info */
   refreshModels: bridge.buildProvider<IBridgeResponse<AcpModelInfo>, void>('scode.refresh-models'),
+  /** Read-only fetch of sudorouter specific_pricing items (no write to sudocode.json) */
+  fetchSpecificPricing: bridge.buildProvider<IBridgeResponse<SpecificPricingItem[]>, void>('scode.fetch-specific-pricing'),
   /** Sync image generation model to sudocode.json tools.imageGenerationModel */
   setImageModel: bridge.buildProvider<IBridgeResponse<void>, { modelId: string | null }>('scode.set-image-model'),
   /** Get scode installation status */
