@@ -16,7 +16,7 @@
 
 import type { Nexus } from '@/common/nexus';
 import { getNexusRpcClient } from '@/common/nexus';
-import type { SafetyStatus, EventFileData, ActionFileData, RiskLevel, NetworkEventData, FileEventData, ProcessEventData } from '@common/types/security';
+import type { IActionFileData, IEventFileData, IFileEventData, INetworkEventData, IProcessEventData, ISafetyStatus, RiskLevel } from '@common/types/security';
 import { mainLog, mainError } from '@process/utils/mainLogger';
 
 /** Nexus security hook directory paths */
@@ -204,7 +204,7 @@ export async function listEventFilenames(): Promise<string[]> {
 /**
  * Read and parse an event file via Nexus RPC
  */
-export async function readEventFile(eventUuidOrPath: string): Promise<EventFileData | null> {
+export async function readEventFile(eventUuidOrPath: string): Promise<IEventFileData | null> {
   try {
     const client = getNexusClient();
     const filePath = eventUuidOrPath.startsWith('/') ? eventUuidOrPath : `${EVENT_DIR}/${eventUuidOrPath}`;
@@ -212,15 +212,15 @@ export async function readEventFile(eventUuidOrPath: string): Promise<EventFileD
     const result = await client.read(filePath, false);
 
     if (Buffer.isBuffer(result)) {
-      return JSON.parse(result.toString('utf-8')) as EventFileData;
+      return JSON.parse(result.toString('utf-8')) as IEventFileData;
     }
 
     if (result && typeof result === 'object' && 'content' in result) {
       const content = result.content;
       if (Buffer.isBuffer(content)) {
-        return JSON.parse(content.toString('utf-8')) as EventFileData;
+        return JSON.parse(content.toString('utf-8')) as IEventFileData;
       }
-      return JSON.parse(String(content)) as EventFileData;
+      return JSON.parse(String(content)) as IEventFileData;
     }
 
     return null;
@@ -233,7 +233,7 @@ export async function readEventFile(eventUuidOrPath: string): Promise<EventFileD
 /**
  * Write action file to action directory via Nexus RPC
  */
-export async function writeActionFile(eventUuid: string, data: ActionFileData): Promise<boolean> {
+export async function writeActionFile(eventUuid: string, data: IActionFileData): Promise<boolean> {
   try {
     const filePath = `${ACTION_DIR}/${eventUuid}`;
     const client = getNexusClient();
@@ -275,18 +275,18 @@ export async function actionExists(eventUuid: string): Promise<boolean> {
 /**
  * Convert event file data to SafetyStatus
  */
-export function eventToSafetyStatus(eventUuid: string, data: EventFileData): SafetyStatus {
+export function eventToSafetyStatus(eventUuid: string, data: IEventFileData): ISafetyStatus {
   let level: RiskLevel = 'medium';
   let code = 'UNKNOWN_EVENT';
   let message = 'Unknown event detected';
 
   if (data.type === 'network') {
-    const networkData = data.data as NetworkEventData;
+    const networkData = data.data as INetworkEventData;
     code = `NETWORK_${networkData.method}`;
     message = `Network request: ${networkData.method} ${networkData.url}`;
     level = 'low';
   } else if (data.type === 'file') {
-    const fileData = data.data as FileEventData;
+    const fileData = data.data as IFileEventData;
     const flags = fileData.flags || [];
 
     if (flags.includes('O_WRONLY') || flags.includes('O_RDWR')) {
@@ -312,7 +312,7 @@ export function eventToSafetyStatus(eventUuid: string, data: EventFileData): Saf
       message = `File operation: ${fileData.path}`;
     }
   } else if (data.type === 'process') {
-    const processData = data.data as ProcessEventData;
+    const processData = data.data as IProcessEventData;
     code = 'PROCESS_EXEC';
     message = `Process execution: ${processData.command}${processData.args.length > 0 ? ' ' + processData.args.join(' ') : ''}`;
     level = 'high';
@@ -326,9 +326,9 @@ export function eventToSafetyStatus(eventUuid: string, data: EventFileData): Saf
       code,
       message,
       detectedAt: Date.now(),
-      networkData: data.type === 'network' ? (data.data as NetworkEventData) : undefined,
-      fileData: data.type === 'file' ? (data.data as FileEventData) : undefined,
-      processData: data.type === 'process' ? (data.data as ProcessEventData) : undefined,
+      networkData: data.type === 'network' ? (data.data as INetworkEventData) : undefined,
+      fileData: data.type === 'file' ? (data.data as IFileEventData) : undefined,
+      processData: data.type === 'process' ? (data.data as IProcessEventData) : undefined,
     },
   };
 }

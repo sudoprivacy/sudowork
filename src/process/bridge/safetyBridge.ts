@@ -12,7 +12,7 @@
 
 import { ipcBridge } from '@/common';
 import { mainLog, mainError } from '@process/utils/mainLogger';
-import type { BlacklistConfig } from '@common/types/security';
+import type { IBlacklistConfig } from '@common/types/security';
 import { SafetyPollingService } from '../services/safety/SafetyPollingService';
 import { getNexusClient, CONFIG_DIR, readHookConfig, writeHookConfig, DEFAULT_HOOK_CONFIG } from '../services/safety/SecurityHookFile';
 
@@ -88,7 +88,7 @@ export function initSafetyBridge(): void {
       if (!hookConfig || !hookConfig.blacklist) {
         return { success: true, data: { rules: [] } };
       }
-      return { success: true, data: (hookConfig.blacklist as BlacklistConfig) || { rules: [] } };
+      return { success: true, data: (hookConfig.blacklist as IBlacklistConfig) || { rules: [] } };
     } catch (err) {
       // If file doesn't exist, return empty config
       const errorMsg = err instanceof Error ? err.message : String(err);
@@ -103,7 +103,7 @@ export function initSafetyBridge(): void {
   });
 
   // Set blacklist configuration - write to unified hook config (read-merge-write)
-  ipcBridge.safety.setBlacklist.provider(async ({ config }: { config: BlacklistConfig }) => {
+  ipcBridge.safety.setBlacklist.provider(async ({ config }: { config: IBlacklistConfig }) => {
     try {
       const client = getNexusClient();
       await client.mkdir(CONFIG_DIR, true);

@@ -68,20 +68,3 @@ export interface IBlacklistRule {
 export interface IBlacklistConfig {
   rules: IBlacklistRule[];
 }
-
-// Alias for backward compatibility
-export type NetworkEventData = INetworkEventData;
-export type FileEventData = IFileEventData;
-export type ProcessEventData = IProcessEventData;
-export type EventData = IEventData;
-export type EventFileData = IEventFileData;
-export type ActionFileData = IActionFileData;
-export type SafetyStatus = ISafetyStatus;
-export type SafetyConfirmationAction = ISafetyConfirmationAction;
-export type BlacklistMatchType = IBlacklistMatchType;
-export type BlacklistRule = IBlacklistRule;
-export type BlacklistConfig = IBlacklistConfig;
-
-export const DEFAULT_BLACKLIST_CONFIG: IBlacklistConfig = {
-  rules: [],
-};
