@@ -1,7 +1,7 @@
 import { Collapse } from '@arco-design/web-react';
 import React from 'react';
 import type { IMcpServer } from '@/common/storage';
-import type { McpOAuthStatus } from '@/renderer/hooks/mcp/useMcpOAuth';
+import type { McpOAuthStatus } from '../hooks/useMcpOAuth';
 import McpServerHeader from './McpServerHeader';
 import McpServerToolsList from './McpServerToolsList';
 

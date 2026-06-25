@@ -3,7 +3,7 @@ import { Check, CloseOne, CloseSmall, LoadingOne, Refresh, Write, DeleteFour, Se
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import type { IMcpServer } from '@/common/storage';
-import type { McpOAuthStatus } from '@/renderer/hooks/mcp/useMcpOAuth';
+import type { McpOAuthStatus } from '../hooks/useMcpOAuth';
 import McpAgentStatusDisplay from './McpAgentStatusDisplay';
 
 interface McpServerHeaderProps {

@@ -5,10 +5,10 @@ import { useTranslation } from 'react-i18next';
 import { acpConversation } from '@/common/ipcBridge';
 import type { IMcpServer } from '@/common/storage';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
-import { useMcpServers, useMcpAgentStatus, useMcpOperations, useMcpConnection, useMcpModal, useMcpServerCRUD, useMcpOAuth } from '@/renderer/hooks/mcp';
-import AddMcpServerModal from '../../components/AddMcpServerModal';
-import McpServerItem from '../../McpManagement/McpServerItem';
+import { useMcpServers, useMcpAgentStatus, useMcpOperations, useMcpConnection, useMcpModal, useMcpServerCRUD, useMcpOAuth } from '../hooks';
 import type { McpImportMode, MessageInstance } from '../types';
+import AddMcpServerModal from './AddMcpServerModal';
+import McpServerItem from './McpServerItem';
 
 export default function McpManagementSection({ message }: IMcpManagementSectionProps) {
   const { t } = useTranslation();
