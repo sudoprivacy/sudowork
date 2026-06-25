@@ -105,13 +105,6 @@
   color: var(--foreground) !important;
 }
 
-.actionSubmit {
-  display: flex;
-  align-items: center;
-  flex-shrink: 0;
-  margin-left: auto;
-}
-
 .lightPlaceholder::placeholder {
   color: #a1a2aa;
   opacity: 1;
@@ -183,11 +176,6 @@
 
   .actionTools > * {
     flex: 0 0 auto;
-  }
-
-  .actionSubmit {
-    flex-shrink: 0;
-    margin-left: 8px;
   }
 }
 
@@ -337,10 +325,6 @@
     white-space: nowrap;
     -webkit-overflow-scrolling: touch;
     touch-action: pan-x;
-  }
-
-  .actionSubmit {
-    flex-shrink: 0;
   }
 
   .presetAgentTagName {

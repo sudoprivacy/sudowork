@@ -936,7 +936,7 @@ body,
 [class*='guidContainer'] [class*='guidInputCard']:focus-within,
 .relative.p-16px.border-3.b.bg-fill-3.b-solid.rd-20px.flex.flex-col:has(.sendbox-tools):focus-within {
   overflow: visible !important;
-  border: 2px solid transparent !important;
+  /* border: 2px solid transparent !important;
   background-color: var(--color-fill-3) !important;
   background-image: linear-gradient(var(--color-fill-3), var(--color-fill-3)), var(--retroma-aurora-input-gradient) !important;
   background-size:
@@ -956,7 +956,7 @@ body,
     var(--retroma-aurora-input-shadow) !important;
   animation:
     elegantFlow 2.4s linear infinite,
-    softGlow 3s ease-in-out infinite;
+    softGlow 3s ease-in-out infinite; */
 }
 
 .guidContainer .guidInputCard textarea::placeholder,
