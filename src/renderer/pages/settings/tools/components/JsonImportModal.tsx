@@ -1,11 +1,10 @@
-import { Alert, Button } from '@arco-design/web-react';
+import { Alert, Button, Modal } from '@arco-design/web-react';
 import React, { useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import CodeMirror from '@uiw/react-codemirror';
 import { json } from '@codemirror/lang-json';
 import type { IMcpServer, IMcpServerTransport, IMcpTool } from '@/common/storage';
 import { useThemeContext } from '@/renderer/context/ThemeContext';
-import AionModal from '@/renderer/components/base/AionModal';
 
 interface JsonImportModalProps {
   visible: boolean;
@@ -168,15 +167,7 @@ const JsonImportModal: React.FC<JsonImportModalProps> = ({ visible, server, onCa
   if (!visible) return null;
 
   return (
-    <AionModal
-      visible={visible}
-      onCancel={onCancel}
-      onOk={handleSubmit}
-      okButtonProps={{ disabled: !validation.isValid }}
-      header={{ title: server ? t('settings.mcpEditServer') : t('settings.mcpImportFromJSON'), showClose: true }}
-      style={{ width: 600, height: 450 }}
-      contentStyle={{ borderRadius: 16, padding: '24px', background: 'var(--bg-1)', overflow: 'auto', height: 420 - 80 }} // 与“添加模型”弹窗保持统一尺寸 / Keep same size as Add Model modal
-    >
+    <Modal visible={visible} onCancel={onCancel} onOk={handleSubmit} okButtonProps={{ disabled: !validation.isValid }} title={server ? t('settings.mcpEditServer') : t('settings.mcpImportFromJSON')} style={{ width: 600 }} okText={t('common.confirm')} cancelText={t('common.cancel')}>
       <div className='space-y-3'>
         <div>
           <div className='mb-2 text-sm text-secondary'>{t('settings.mcpImportPlaceholder')}</div>
@@ -260,10 +251,9 @@ const JsonImportModal: React.FC<JsonImportModalProps> = ({ visible, server, onCa
 
         <Alert
           type='info'
-          showIcon
+          title={t('settings.mcpImportTips')}
           content={
             <div>
-              <div>{t('settings.mcpImportTips')}</div>
               <ul className='list-disc pl-5 mt-2 space-y-1 text-sm'>
                 <li>{t('settings.mcpImportTip1')}</li>
                 <li>{t('settings.mcpImportTip2')}</li>
@@ -273,7 +263,7 @@ const JsonImportModal: React.FC<JsonImportModalProps> = ({ visible, server, onCa
           }
         />
       </div>
-    </AionModal>
+    </Modal>
   );
 };
 

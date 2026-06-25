@@ -1,10 +1,9 @@
-import { Button, Select, Spin, Steps } from '@arco-design/web-react';
+import { Button, Modal, Select, Spin, Steps } from '@arco-design/web-react';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Check } from '@icon-park/react';
 import { acpConversation, mcpService } from '@/common/ipcBridge';
 import type { IMcpServer, IMcpTool } from '@/common/storage';
-import AionModal from '@/renderer/components/base/AionModal';
 
 interface OneClickImportModalProps {
   visible: boolean;
@@ -214,26 +213,26 @@ const OneClickImportModal: React.FC<OneClickImportModalProps> = ({ visible, onCa
     <div className='flex justify-end gap-2.5'>
       {currentStep === 1 && (
         <>
-          <Button onClick={onCancel} className='min-w-25' style={{ borderRadius: 8 }}>
+          <Button onClick={onCancel} className='min-w-25'>
             {t('common.cancel')}
           </Button>
-          <Button type='primary' onClick={handleNextStep} disabled={!selectedAgent} className='min-w-30' style={{ borderRadius: 8 }}>
+          <Button type='primary' onClick={handleNextStep} disabled={!selectedAgent}>
             {t('settings.mcpNextStep')}
           </Button>
         </>
       )}
       {currentStep === 2 && (
         <>
-          <Button onClick={handlePrevStep} className='min-w-25' style={{ borderRadius: 8 }}>
+          <Button onClick={handlePrevStep} style={{ borderRadius: 8 }}>
             {t('settings.mcpPrevStep')}
           </Button>
-          <Button type='primary' onClick={handleNextStep} disabled={loadingImport || importableServers.length === 0} className='min-w-30' style={{ borderRadius: 8 }}>
+          <Button type='primary' onClick={handleNextStep} disabled={loadingImport || importableServers.length === 0}>
             {t('settings.mcpImportButton')}
           </Button>
         </>
       )}
       {currentStep === 3 && (
-        <Button type='primary' onClick={onCancel} className='min-w-30' style={{ borderRadius: 8 }}>
+        <Button type='primary' onClick={onCancel}>
           {t('settings.mcpConfirmButton')}
         </Button>
       )}
@@ -241,14 +240,7 @@ const OneClickImportModal: React.FC<OneClickImportModalProps> = ({ visible, onCa
   );
 
   return (
-    <AionModal
-      header={{ title: t('settings.mcpOneKeyImport'), showClose: true }}
-      visible={visible}
-      onCancel={onCancel}
-      footer={{ render: renderFooter }}
-      style={{ width: 600, height: 420 }}
-      contentStyle={{ borderRadius: 16, padding: '24px', background: 'var(--bg-1)', overflow: 'hidden', height: 420 - 96 }}
-    >
+    <Modal visible={visible} onCancel={onCancel} footer={renderFooter()} title={t('settings.mcpOneKeyImport')} style={{ width: 600 }}>
       <div className='flex flex-col h-[275px] mt-5'>
         <div className='mb-6 text-secondary text-sm'>{t('settings.mcpImportDescription')}</div>
 
@@ -266,7 +258,7 @@ const OneClickImportModal: React.FC<OneClickImportModalProps> = ({ visible, onCa
           {currentStep === 3 && renderStep3()}
         </div>
       </div>
-    </AionModal>
+    </Modal>
   );
 };
 

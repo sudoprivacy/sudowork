@@ -141,6 +141,7 @@ export default function McpManagementSection({ message }: IMcpManagementSectionP
           trigger='click'
           type='outline'
           position='br'
+          onClick={onAddJsonServer}
           droplist={
             <Menu>
               <Menu.Item key='json' onClick={onAddJsonServer}>
