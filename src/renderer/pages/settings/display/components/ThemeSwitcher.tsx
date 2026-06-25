@@ -21,13 +21,13 @@ export const ThemeSwitcher = () => {
   const { t } = useTranslation();
 
   const options: { value: ThemePreference; label: string; icon: React.ReactNode }[] = [
-    { value: 'light', label: t('settings.lightMode'), icon: <IconSun style={{ fontSize: 16 }} /> },
-    { value: 'dark', label: t('settings.darkMode'), icon: <IconMoon style={{ fontSize: 16 }} /> },
-    { value: 'system', label: t('settings.systemMode'), icon: <IconDesktop style={{ fontSize: 16 }} /> },
+    { value: 'light', label: t('settings.lightMode', '浅色'), icon: <IconSun style={{ fontSize: 16 }} /> },
+    { value: 'dark', label: t('settings.darkMode', '深色'), icon: <IconMoon style={{ fontSize: 16 }} /> },
+    { value: 'system', label: t('settings.systemMode', '系统'), icon: <IconDesktop style={{ fontSize: 16 }} /> },
   ];
 
   return (
-    <div className='inline-flex items-center gap-1' role='radiogroup' aria-label={t('settings.theme')}>
+    <div className='inline-flex items-center gap-1' role='radiogroup' aria-label={t('settings.theme', '主题')}>
       {options.map((option) => {
         const isActive = themePreference === option.value;
         return (

@@ -25,8 +25,8 @@ const DisplaySettings: React.FC = () => {
   const { t } = useTranslation();
 
   const displayItems = [
-    { key: 'theme', label: t('settings.theme'), component: <ThemeSwitcher /> },
-    { key: 'fontSize', label: t('settings.fontSize'), component: <FontSizeControl /> },
+    { key: 'theme', label: t('settings.theme', '主题'), component: <ThemeSwitcher /> },
+    { key: 'fontSize', label: t('settings.fontSize', '缩放'), component: <FontSizeControl /> },
   ];
 
   return (
