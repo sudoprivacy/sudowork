@@ -439,7 +439,9 @@ async function handleLoginSuccess(data: LoginSuccessResponse, setUser: SetAuthUs
 
     try {
       const currentScodeConfig = await ipcBridge.scode.getConfig.invoke().catch((): null => null);
-      const scodeConfig = buildScodeConfigFromLoginPayload(loginSudoclawPayload, currentScodeConfig?.data);
+      const pricingRes = await ipcBridge.scode.fetchSpecificPricing.invoke().catch((): null => null);
+      const pricingItems = pricingRes?.data ?? [];
+      const scodeConfig = buildScodeConfigFromLoginPayload(loginSudoclawPayload, currentScodeConfig?.data, pricingItems);
       const scodeSaveRes = await ipcBridge.scode.saveConfig.invoke({ config: scodeConfig });
       if (!scodeSaveRes?.success) {
         throw new Error(scodeSaveRes?.msg || 'Sudocode saveConfig failed');
@@ -1192,7 +1194,9 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         const loginSudoclawPayload = extractLoginSudoclawPayload(result);
         if (loginSudoclawPayload) {
           const currentScodeConfig = await ipcBridge.scode.getConfig.invoke().catch((): null => null);
-          const scodeConfig = buildScodeConfigFromLoginPayload(loginSudoclawPayload, currentScodeConfig?.data);
+          const pricingRes = await ipcBridge.scode.fetchSpecificPricing.invoke().catch((): null => null);
+          const pricingItems = pricingRes?.data ?? [];
+          const scodeConfig = buildScodeConfigFromLoginPayload(loginSudoclawPayload, currentScodeConfig?.data, pricingItems);
           await ipcBridge.scode.saveConfig.invoke({ config: scodeConfig }).catch((err) => {
             console.warn('[Auth] Failed to save scode config on enterprise login:', err);
           });
