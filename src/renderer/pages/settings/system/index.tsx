@@ -6,7 +6,7 @@ import { ipcBridge } from '@/common';
 import { ConfigStorage } from '@/common/storage';
 import { isProductImprovementEnabled } from '@/common/systemConfig';
 import LanguageSwitcher from '@/renderer/components/LanguageSwitcher';
-import ProductImprovementDialog from '@/renderer/components/ProductImprovementDialog';
+import ProductImprovementDialog from '@/renderer/pages/settings/system/components/ProductImprovementDialog';
 import { formatTimestamp, joinFilePath } from '@/renderer/pages/conversation/grouped-history/utils/exportHelpers';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
@@ -414,12 +414,9 @@ const SystemSettings: React.FC = () => {
   );
 
   return (
-    <PageWrapper>
+    <PageWrapper title={t('settings.system')}>
       <div className='flex flex-col h-full w-full'>
         {modalContextHolder}
-
-        {/* 产品体验改进计划弹窗 / Product improvement dialog */}
-        <ProductImprovementDialog visible={showProductImprovementDialog} onClose={handleProductImprovementDialogClose} />
 
         {/* 内容区域 / Content Area */}
         <AionScrollArea className='flex-1 min-h-0 pb-16px' disableOverflow>
@@ -441,6 +438,9 @@ const SystemSettings: React.FC = () => {
           </div>
         </AionScrollArea>
       </div>
+
+      {/* 产品体验改进计划弹窗 / Product improvement dialog */}
+      <ProductImprovementDialog visible={showProductImprovementDialog} onClose={handleProductImprovementDialogClose} />
     </PageWrapper>
   );
 };

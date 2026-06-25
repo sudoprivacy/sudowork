@@ -7,7 +7,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import AppLoader from '@renderer/components/AppLoader';
 import InitLoading from '@renderer/components/InitLoading';
-import ProductImprovementDialog from '@renderer/components/ProductImprovementDialog';
+import ProductImprovementDialog from '@/renderer/pages/settings/system/components/ProductImprovementDialog';
 import ModeSetup from '@renderer/pages/setup/ModeSetup';
 import { useAuth } from '@renderer/context/AuthContext';
 import { useInit } from '@renderer/context/InitContext';
