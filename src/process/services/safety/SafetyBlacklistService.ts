@@ -11,8 +11,7 @@
  * Nexus is the SINGLE SOURCE OF TRUTH for all blacklist data.
  */
 
-import type { BlacklistConfig, BlacklistRule } from '@common/types/security';
-import { DEFAULT_BLACKLIST_CONFIG } from '@common/types/security';
+import { DEFAULT_BLACKLIST_CONFIG, type BlacklistConfig, type BlacklistRule } from '@common/types/security';
 import { mainLog, mainError } from '@process/utils/mainLogger';
 import { getNexusClient, CONFIG_DIR, readHookConfig, writeHookConfig, HOOK_CONFIG_PATH, DEFAULT_HOOK_CONFIG } from './SecurityHookFile';
 
