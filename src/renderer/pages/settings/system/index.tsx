@@ -6,7 +6,7 @@ import { ipcBridge } from '@/common';
 import { ConfigStorage } from '@/common/storage';
 import { isProductImprovementEnabled } from '@/common/systemConfig';
 import LanguageSwitcher from '@/renderer/components/LanguageSwitcher';
-import ProductImprovementDialog from '@/renderer/pages/settings/system/components/ProductImprovementDialog';
+import OptInDialog from '@/renderer/pages/settings/system/components/OptInDialog';
 import { formatTimestamp, joinFilePath } from '@/renderer/pages/conversation/grouped-history/utils/exportHelpers';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
@@ -164,14 +164,14 @@ const SystemSettings: React.FC = () => {
   // 产品体验改进计划状态 / Product improvement program state
   const [productImprovementEnabled, setProductImprovementEnabled] = useState(false);
   const [productImprovementLoading, setProductImprovementLoading] = useState(true);
-  const [showProductImprovementDialog, setShowProductImprovementDialog] = useState(false);
+  const [isOptInDialogOpen, setIsOptInDialogOpen] = useState(false);
 
   // 获取产品体验改进计划设置 / Fetch product improvement setting
   useEffect(() => {
     if (isEnterprise) {
       setProductImprovementEnabled(false);
       setProductImprovementLoading(false);
-      setShowProductImprovementDialog(false);
+      setIsOptInDialogOpen(false);
       return;
     }
 
@@ -192,7 +192,7 @@ const SystemSettings: React.FC = () => {
   const handleProductImprovementChange = useCallback((checked: boolean) => {
     if (checked) {
       // 开启时先弹出告知弹窗
-      setShowProductImprovementDialog(true);
+      setIsOptInDialogOpen(true);
     } else {
       // 关闭时直接保存
       setProductImprovementEnabled(false);
@@ -204,8 +204,8 @@ const SystemSettings: React.FC = () => {
   }, []);
 
   // 弹窗确认处理 / Dialog confirm handler
-  const handleProductImprovementDialogClose = useCallback((confirmed: boolean) => {
-    setShowProductImprovementDialog(false);
+  const handleOptInDialogClose = useCallback((confirmed: boolean) => {
+    setIsOptInDialogOpen(false);
     if (confirmed) {
       setProductImprovementEnabled(true);
       ipcBridge.telemetry.setEnabled.invoke({ enabled: true }).catch(() => {
@@ -440,7 +440,7 @@ const SystemSettings: React.FC = () => {
       </div>
 
       {/* 产品体验改进计划弹窗 / Product improvement dialog */}
-      <ProductImprovementDialog visible={showProductImprovementDialog} onClose={handleProductImprovementDialogClose} />
+      <OptInDialog isOpen={isOptInDialogOpen} onClose={handleOptInDialogClose} />
     </PageWrapper>
   );
 };

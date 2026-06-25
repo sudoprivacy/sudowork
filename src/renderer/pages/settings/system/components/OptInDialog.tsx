@@ -1,11 +1,5 @@
 /**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
-/**
- * ProductImprovementDialog - 产品体验改进计划弹窗
+ * OptInDialog - 产品体验改进计划弹窗
  *
  * 用户开启产品体验改进计划时显示
  */
@@ -14,11 +8,11 @@ import React, { useCallback } from 'react';
 import { Button } from '@arco-design/web-react';
 import { useTranslation } from 'react-i18next';
 import { Shield, Close } from '@icon-park/react';
-import AionModal from '../../../../components/base/AionModal';
+import AionModal from '@/renderer/components/base/AionModal';
 
-interface ProductImprovementDialogProps {
+interface IOptInDialogProps {
   /** 是否显示弹窗 */
-  visible: boolean;
+  isOpen: boolean;
   /** 关闭弹窗回调 - confirmed 表示用户是否确认开启 */
   onClose: (confirmed: boolean) => void;
 }
@@ -26,7 +20,7 @@ interface ProductImprovementDialogProps {
 /**
  * 产品体验改进计划弹窗组件
  */
-const ProductImprovementDialog: React.FC<ProductImprovementDialogProps> = ({ visible, onClose }) => {
+export default function OptInDialog({ isOpen, onClose }: IOptInDialogProps) {
   const { t } = useTranslation();
 
   const handleConfirm = useCallback(() => {
@@ -60,7 +54,7 @@ const ProductImprovementDialog: React.FC<ProductImprovementDialogProps> = ({ vis
   };
 
   return (
-    <AionModal visible={visible} onCancel={handleCancel} header={header} footer={{ render: () => footer, style: { padding: '0 20px 20px' } }} size='small' contentStyle={{ padding: '20px' }} className='product-improvement-dialog'>
+    <AionModal visible={isOpen} onCancel={handleCancel} header={header} footer={{ render: () => footer, style: { padding: '0 20px 20px' } }} size='small' contentStyle={{ padding: '20px' }} className='product-improvement-dialog'>
       <div className='flex flex-col gap-16px'>
         {/* 说明内容 */}
         <div className='text-14px text-secondary leading-relaxed'>{t('settings.productImprovement.description', '帮助我们持续优化产品体验，为您带来更好的服务。')}</div>
@@ -73,6 +67,4 @@ const ProductImprovementDialog: React.FC<ProductImprovementDialogProps> = ({ vis
       </div>
     </AionModal>
   );
-};
-
-export default ProductImprovementDialog;
+}
