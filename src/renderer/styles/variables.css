@@ -89,8 +89,15 @@
   --retroma-aurora-placeholder: #8f7c7b;
 
   /* ---------- 通用中性结构 ---------- */
-  /* Background */
-  --bg-base: #faf9f6;
+  /* Semantic background tokens */
+  --bg-base: #faf9f6; /* 页面/应用底色；接近 --color-fill-0 */
+  --bg-subtle: #f5f4ef; /* 轻区域/面板背景；接近 --bg-1 / --color-bg-1 */
+  --bg-muted: #eeede5; /* 次级块/弱背景；接近 --bg-2 / --color-bg-2 */
+  --bg-emphasis: #e2e0d4; /* 强调背景/分隔填充；接近 --bg-3 / --color-bg-3 / --color-fill-3 */
+  --bg-strong: #cbc8b8; /* 更强填充/按下或禁用面；接近 --bg-4 / --color-bg-4 / --color-fill-4 */
+  --bg-inverse-muted: #8c8878; /* 深中性色面/低强调反色底；接近 --bg-6 */
+
+  /* FIXME: 兼容期保留的旧背景 token，后续业务代码都要迁移到上方语义化 bg token。 */
   --bg-1: #f5f4ef;
   --bg-2: #eeede5;
   --bg-3: #e2e0d4;
@@ -197,8 +204,15 @@
   --retroma-aurora-placeholder: #958a83;
 
   /* ---------- 通用中性结构 ---------- */
-  /* Background */
-  --bg-base: #0f0f0c;
+  /* Semantic background tokens */
+  --bg-base: #0f0f0c; /* 页面/应用底色；接近 --color-fill-0 */
+  --bg-subtle: #18180f; /* 轻区域/面板背景；接近 --bg-1 / --color-bg-1 */
+  --bg-muted: #222217; /* 次级块/弱背景；接近 --bg-2 / --color-bg-2 */
+  --bg-emphasis: #2e2e20; /* 强调背景/分隔填充；接近 --bg-3 / --color-bg-3 / --color-fill-3 */
+  --bg-strong: #3c3c2c; /* 更强填充/按下或禁用面；接近 --bg-4 / --color-bg-4 / --color-fill-4 */
+  --bg-inverse-muted: #606050; /* 深中性色面/低强调反色底；接近 --bg-6 */
+
+  /* FIXME: 兼容期保留的旧背景 token，后续业务代码都要迁移到上方语义化 bg token。 */
   --bg-1: #18180f;
   --bg-2: #222217;
   --bg-3: #2e2e20;

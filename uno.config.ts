@@ -41,14 +41,19 @@ const semanticColors = {
 // 📝 text-1 到 text-4 通过自定义规则支持，指向 Arco 的 --color-text-*
 // text-1 to text-4 are supported via custom rules, pointing to Arco's --color-text-*
 const backgroundColors = {
-  base: 'var(--bg-base)', // bg-base - 主背景
-  1: 'var(--bg-1)', // bg-1 - 次级背景
-  2: 'var(--bg-2)', // bg-2 - 三级背景
-  3: 'var(--bg-3)', // bg-3
-  4: 'var(--bg-4)', // bg-4
-  6: 'var(--bg-6)', // bg-6
-  hover: 'var(--bg-hover)', // bg-hover - 悬停背景
-  active: 'var(--bg-active)', // bg-active - 激活背景
+  base: 'var(--bg-base)', // bg-base - 页面底色
+  subtle: 'var(--bg-subtle)', // bg-subtle - 轻区域/面板背景
+  muted: 'var(--bg-muted)', // bg-muted - 次级块/弱背景
+  emphasis: 'var(--bg-emphasis)', // bg-emphasis - 强调背景/分隔填充
+  strong: 'var(--bg-strong)', // bg-strong - 更强填充/按下或禁用面
+  'inverse-muted': 'var(--bg-inverse-muted)', // bg-inverse-muted - 深中性色面/低强调反色底
+  hover: 'var(--bg-hover)', // bg-hover - 交互悬停态
+  active: 'var(--bg-active)', // bg-active - 交互按下态
+  1: 'var(--bg-1)', // bg-1 - legacy alias of bg-subtle
+  2: 'var(--bg-2)', // bg-2 - legacy alias of bg-muted
+  3: 'var(--bg-3)', // bg-3 - legacy alias of bg-emphasis
+  4: 'var(--bg-4)', // bg-4 - legacy alias of bg-strong
+  6: 'var(--bg-6)', // bg-6 - legacy alias of bg-inverse-muted
 };
 
 // ==================== 品牌色 / Brand Colors ====================
