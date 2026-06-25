@@ -315,20 +315,3 @@
   margin-top: 8px;
   animation: panel-slide-in 0.25s ease-out;
 }
-
-.promptItem {
-  padding: 8px 14px;
-  font-size: 13px;
-  border-radius: 12px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  background: var(--color-fill-1);
-  color: var(--color-text-2);
-  border: 1px solid var(--ui-border-strong);
-}
-
-.promptItem:hover {
-  background: var(--color-fill-2);
-  color: var(--color-text-1);
-  border-color: var(--color-border-3);
-}

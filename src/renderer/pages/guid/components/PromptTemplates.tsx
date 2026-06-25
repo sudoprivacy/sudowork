@@ -5,6 +5,7 @@
  */
 
 import React, { useState } from 'react';
+import { Button } from '@arco-design/web-react';
 import { useTranslation } from 'react-i18next';
 import Tabs from '@/renderer/components/ui/Tabs';
 import { DEFAULT_PROMPT_CATEGORIES } from '../constants';
@@ -33,9 +34,7 @@ const PromptTemplates: React.FC<PromptTemplatesProps> = ({ visible, onSelectProm
     <div className={styles.promptTemplatesContainer}>
       {/* Title */}
       <div className='flex items-center gap-6px mb-10px'>
-        <span className='text-13px' style={{ color: 'var(--color-text-3)' }}>
-          💡 {t('guid.promptTemplates.title', { defaultValue: 'Prompt Templates' })}
-        </span>
+        <span className='text-13px text-secondary'>💡 {t('guid.promptTemplates.title', { defaultValue: '常用提示词' })}</span>
       </div>
 
       {/* Category tags */}
@@ -54,9 +53,9 @@ const PromptTemplates: React.FC<PromptTemplatesProps> = ({ visible, onSelectProm
       {activeCategory && currentCategory && (
         <div className={styles.promptListContainer}>
           {currentCategory.prompts.map((prompt) => (
-            <div key={prompt.labelKey} className={styles.promptItem} onClick={() => onSelectPrompt(t(prompt.contentKey))}>
+            <Button key={prompt.labelKey} size='small' shape='square' className='!border-default' onClick={() => onSelectPrompt(t(prompt.contentKey))}>
               {t(prompt.labelKey)}
-            </div>
+            </Button>
           ))}
         </div>
       )}
