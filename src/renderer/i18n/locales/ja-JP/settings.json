@@ -763,6 +763,21 @@
   "secrets.tenantSaveSuccess": "Configuration saved successfully",
   "secrets.tenantSaveFailed": "Failed to save configuration",
   "secrets.tenantFieldRequired": "Please fill in all configuration items",
+  "promptTimeout": "LLM リクエストタイムアウト",
+  "promptTimeoutDesc": "Agent と LLM 間の通信の最大待機時間。範囲：30-3600 秒",
+  "idleTimeout": "Agent アイドルタイムアウト",
+  "idleTimeoutDesc": "アイドル状態の Agent プロセスの回収時間（メモリ解放用）。範囲：1-60 分",
+  "browserDefaultUrl": "ブラウザのデフォルトホームページ",
+  "browserDefaultUrlDesc": "右パネルのブラウザで新しいタブを開いた際にデフォルトで開く URL。",
+  "productImprovement": {
+    "title": "製品体験改善プログラムに参加",
+    "description": "製品体験の継続的な改善にご協力ください。より良いサービスをご提供します。",
+    "hint": "有効にしても会話内容や個人情報は収集されません。いつでもこの機能をオフにできます。",
+    "dialogTitle": "製品体験改善プログラム",
+    "privacy": "有効にすると、SudoWork のパフォーマンス指標を匿名で収集し、製品改善のみに使用します。会話内容や個人情報は収集しません。いつでもこの機能をオフにできます。",
+    "confirm": "有効にする",
+    "cancel": "今はしない"
+  },
   "changePassword": {
     "title": "パスワード変更",
     "oldPasswordLabel": "現在のパスワード",

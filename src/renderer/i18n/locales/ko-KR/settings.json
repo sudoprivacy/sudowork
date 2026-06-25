@@ -763,6 +763,21 @@
   "secrets.tenantSaveSuccess": "Configuration saved successfully",
   "secrets.tenantSaveFailed": "Failed to save configuration",
   "secrets.tenantFieldRequired": "Please fill in all configuration items",
+  "promptTimeout": "LLM 요청 타임아웃",
+  "promptTimeoutDesc": "Agent와 LLM 간 통신의 최대 대기 시간. 범위: 30-3600초",
+  "idleTimeout": "Agent 유휴 타임아웃",
+  "idleTimeoutDesc": "유휴 Agent 프로세스 회수 시간(메모리 해제용). 범위: 1-60분",
+  "browserDefaultUrl": "브라우저 기본 홈페이지",
+  "browserDefaultUrlDesc": "오른쪽 패널 브라우저에서 새 탭을 열 때 기본으로 열리는 URL.",
+  "productImprovement": {
+    "title": "제품 체험 개선 프로그램 참여",
+    "description": "제품 체험을 지속적으로 개선하여 더 나은 서비스를 제공할 수 있도록 도와주세요.",
+    "hint": "활성화해도 대화 내용이나 개인정보는 수집되지 않으며 언제든 이 기능을 끌 수 있습니다.",
+    "dialogTitle": "제품 체험 개선 프로그램",
+    "privacy": "활성화하면 SudoWork 성능 지표를 익명으로 수집하여 제품 개선에만 사용합니다. 대화 내용이나 개인정보는 수집하지 않으며 언제든 이 기능을 끌 수 있습니다.",
+    "confirm": "활성화",
+    "cancel": "나중에"
+  },
   "changePassword": {
     "title": "비밀번호 변경",
     "oldPasswordLabel": "현재 비밀번호",

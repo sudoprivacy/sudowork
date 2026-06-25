@@ -763,6 +763,21 @@
   "secrets.tenantSaveSuccess": "Configuration saved successfully",
   "secrets.tenantSaveFailed": "Failed to save configuration",
   "secrets.tenantFieldRequired": "Please fill in all configuration items",
+  "promptTimeout": "LLM 請求逾時",
+  "promptTimeoutDesc": "Agent 與大模型通訊的最大等待時間。範圍：30-3600 秒",
+  "idleTimeout": "Agent 閒置逾時",
+  "idleTimeoutDesc": "閒置 Agent 行程回收時間，用於釋放記憶體。範圍：1-60 分鐘",
+  "browserDefaultUrl": "瀏覽器預設首頁",
+  "browserDefaultUrlDesc": "右側欄瀏覽器新建分頁時預設開啟的網址。",
+  "productImprovement": {
+    "title": "參與產品體驗改進計畫",
+    "description": "幫助我們持續優化產品體驗，為您帶來更好的服務。",
+    "hint": "開啟後不會收集您的對話內容或個人資訊，您可以隨時關閉此功能。",
+    "dialogTitle": "產品體驗改進計畫",
+    "privacy": "開啟後將匿名收集 SudoWork 效能指標，僅用於產品改進，不會收集您的對話內容或個人資訊。您可以隨時關閉此功能。",
+    "confirm": "確認開啟",
+    "cancel": "暫不開啟"
+  },
   "changePassword": {
     "title": "修改密碼",
     "oldPasswordLabel": "原始密碼",

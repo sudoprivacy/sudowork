@@ -759,6 +759,21 @@
   "secrets.tenantSaveSuccess": "Configuration saved successfully",
   "secrets.tenantSaveFailed": "Failed to save configuration",
   "secrets.tenantFieldRequired": "Please fill in all configuration items",
+  "promptTimeout": "LLM İstek Zaman Aşımı",
+  "promptTimeoutDesc": "Agent ile LLM arasında iletişim için maksimum bekleme süresi. Aralık: 30-3600 saniye",
+  "idleTimeout": "Agent Boşta Kalma Zaman Aşımı",
+  "idleTimeoutDesc": "Belleği boşaltmak için boşta olan Agent sürecinin geri kazanım süresi. Aralık: 1-60 dakika",
+  "browserDefaultUrl": "Tarayıcı Varsayılan Ana Sayfası",
+  "browserDefaultUrlDesc": "Sağ panel tarayıcısında yeni sekme açıldığında varsayılan olarak açılan URL.",
+  "productImprovement": {
+    "title": "Ürün Deneyimi İyileştirme Programına Katıl",
+    "description": "Daha iyi hizmet sunabilmemiz için ürün deneyimini sürekli iyileştirmemize yardımcı olun.",
+    "hint": "Etkinleştirildiğinde sohbet içeriğiniz veya kişisel bilgileriniz toplanmaz. Bu özelliği istediğiniz zaman kapatabilirsiniz.",
+    "dialogTitle": "Ürün Deneyimi İyileştirme Programı",
+    "privacy": "Etkinleştirildiğinde SudoWork performans ölçümleri yalnızca ürün iyileştirme amacıyla anonim olarak toplanır. Sohbet içeriğiniz veya kişisel bilgileriniz toplanmaz. Bu özelliği istediğiniz zaman kapatabilirsiniz.",
+    "confirm": "Etkinleştir",
+    "cancel": "Şimdi Değil"
+  },
   "changePassword": {
     "title": "Şifre Değiştir",
     "oldPasswordLabel": "Mevcut şifre",
