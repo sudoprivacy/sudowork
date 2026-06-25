@@ -298,7 +298,7 @@ const Sider: React.FC = () => {
               setUserMenuOpen(visible);
             }}
           >
-            <div ref={userTriggerRef} className='flex items-center gap-2.5 px-2 py-2.5 cursor-pointer transition-colors rd-3 w-full border hover:bg-hover active:bg-fill-2'>
+            <div ref={userTriggerRef} className='flex items-center gap-2.5 px-3 py-2.5 cursor-pointer transition-colors rd-3 w-full border hover:bg-hover active:bg-fill-2'>
               <div className='size-8 rd-50% bg-fill-3 f-center text-foreground text-14px font-bold shrink-0'>{userInfo.avatar ? <img src={userInfo.avatar} alt={userInfo.name} className='w-full h-full rd-50% object-cover' /> : <span>{userInfo.name.charAt(0).toUpperCase()}</span>}</div>
               <div className='flex-1 min-w-0'>
                 <div className='text-14px font-medium text-foreground truncate'>{userInfo.name}</div>
@@ -311,7 +311,7 @@ const Sider: React.FC = () => {
           /* 设置页面 - 主题切换 + 返回按钮 */
           <div className='flex flex-col gap-0.5'>
             {/* 返回按钮 */}
-            <div className='border rd-3 flex items-center gap-2.5 px-1 py-2.5 cursor-pointer transition-colors hover:bg-hover active:bg-fill-2 ml-0.5' onClick={handleSettingsClick}>
+            <div className='border rd-3 flex items-center gap-2.5 px-3 py-2.5 cursor-pointer transition-colors hover:bg-hover active:bg-fill-2 ml-0.5' onClick={handleSettingsClick}>
               <div className='size-8 rd-50% bg-fill-3 f-center text-foreground text-14px font-bold shrink-0'>
                 <Return theme='outline' size='16' fill={'var(--foreground)'} />
               </div>

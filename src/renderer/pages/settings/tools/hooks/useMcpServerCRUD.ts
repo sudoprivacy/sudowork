@@ -60,7 +60,7 @@ export const useMcpServerCRUD = (
       // 返回新添加/更新的服务器，用于后续的连接测试
       return serverToSync;
     },
-    [saveMcpServers, syncMcpToAgents, message, t, checkSingleServerInstallStatus]
+    [saveMcpServers, checkSingleServerInstallStatus]
   );
 
   // 批量导入MCP服务器
@@ -128,7 +128,7 @@ export const useMcpServerCRUD = (
       // 返回新添加的服务器列表，用于后续的连接测试
       return addedServers;
     },
-    [saveMcpServers, syncMcpToAgents, message, t, checkSingleServerInstallStatus]
+    [saveMcpServers, syncMcpToAgents, checkSingleServerInstallStatus]
   );
 
   // 编辑MCP服务器

@@ -5,7 +5,6 @@
  */
 
 import { Switch, Tag } from '@arco-design/web-react';
-import { Right } from '@icon-park/react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import ChannelDingTalkLogo from '@/renderer/assets/channel-logos/dingtalk.svg';
@@ -23,7 +22,7 @@ interface ChannelHeaderProps {
   collapsed?: boolean;
 }
 
-const ChannelHeader: React.FC<ChannelHeaderProps> = ({ channel, onToggleEnabled, collapsed = true }) => {
+const ChannelHeader: React.FC<ChannelHeaderProps> = ({ channel, onToggleEnabled }) => {
   const { t } = useTranslation();
   const channelLogoMap: Record<string, { src: string; alt: string }> = {
     telegram: { src: ChannelTelegramLogo, alt: 'Telegram' },
@@ -44,10 +43,10 @@ const ChannelHeader: React.FC<ChannelHeaderProps> = ({ channel, onToggleEnabled,
 
   return (
     <div className='flex flex-wrap items-center gap-x-12px gap-y-8px px-12px py-12px md:px-16px group min-h-44px' data-channel-header={channel.id}>
-      <span className='inline-flex h-28px w-28px shrink-0 items-center justify-center rd-8px text-tertiary transition-colors group-hover:bg-fill-1 group-hover:text-secondary'>
+      {/* <span className='inline-flex shrink-0 items-center justify-center rd-8px text-tertiary transition-colors group-hover:bg-fill-1 group-hover:text-secondary'>
         <Right theme='outline' size='14' className='transition-transform' style={{ transform: collapsed ? 'rotate(0deg)' : 'rotate(90deg)' }} />
-      </span>
-      <div className='flex h-28px w-28px items-center justify-center rd-7px bg-fill-1'>{logoSrc && <img src={logoSrc} alt={logoAlt} className='h-18px w-18px object-contain shrink-0' />}</div>
+      </span> */}
+      <div className='ml-4 flex h-28px w-28px items-center justify-center rd-7px bg-fill-1'>{logoSrc && <img src={logoSrc} alt={logoAlt} className='h-18px w-18px object-contain shrink-0' />}</div>
       <div className='flex min-w-120px flex-1 items-center gap-8px'>
         <span className='truncate text-14px font-600 leading-none text-foreground'>{channel.title}</span>
         {channel.status === 'coming_soon' && (

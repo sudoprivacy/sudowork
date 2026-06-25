@@ -5,7 +5,6 @@
  */
 
 import { Collapse, Input, Tooltip } from '@arco-design/web-react';
-import { Right } from '@icon-park/react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import configItemDefaultIcon from '@/renderer/assets/config-item-default.svg';
@@ -94,10 +93,7 @@ export const EnterpriseSecretSection: React.FC = () => {
             <Collapse.Item
               header={
                 <div className='group flex items-center gap-12px px-12px py-12px md:px-16px'>
-                  <span className='inline-flex h-28px w-28px shrink-0 items-center justify-center rd-8px text-tertiary transition-colors group-hover:bg-fill-1 group-hover:text-secondary'>
-                    <Right theme='outline' size='14' className='transition-transform' />
-                  </span>
-                  <div className='flex h-28px w-28px items-center justify-center rd-7px bg-fill-1'>
+                  <div className='ml-2.5 flex h-28px w-28px items-center justify-center rd-7px bg-fill-1'>
                     <ConfigItemIcon iconUrl={item.icon_url} name={item.name} baseUrl={iconBaseUrl} />
                   </div>
                   <span className='min-w-0 flex-1 truncate text-14px font-600 text-foreground'>{item.name}</span>
