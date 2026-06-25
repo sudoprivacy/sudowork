@@ -66,7 +66,7 @@ const About: React.FC = () => {
           <Button size='small' type='outline' onClick={() => window.dispatchEvent(new Event('sudowork-open-update-modal'))}>
             {t('settings.checkForUpdates', '检查更新')}
           </Button>
-          <Button size='small' type='text' className='opacity-50 hover:opacity-100 transition-opacity' onClick={() => setOpsVisible(true)} icon={<Setting theme='outline' size='14' />} />
+          <Button type='text' className='opacity-50 hover:opacity-100 transition-opacity' onClick={() => setOpsVisible(true)} icon={<Setting theme='outline' />} />
         </div>
       </div>
 

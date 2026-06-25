@@ -127,7 +127,7 @@
 
   /* Border - 淡化一档（更贴近背景，柔和分隔） */
   --border-default: #e0dbd0;
-  --border-light: #eae7de;
+  --border-light: #e3ded2;
 
   /* Semantic - 实色(文字/图标/圆点) + soft(浅底) + line(描边) */
   --success: #2e7d32; /* 成功实色：文字、图标、状态点 */
@@ -202,11 +202,12 @@
   /* ---------- 通用中性结构 ---------- */
   /* Semantic background tokens */
   --bg-base: #0f0f0c; /* 页面/应用底色；接近 --color-fill-0 */
-  --bg-subtle: #18180f; /* 轻区域/面板背景；接近 --bg-1 / --color-bg-1 */
-  --bg-muted: #222217; /* 次级块/弱背景；接近 --bg-2 / --color-bg-2 */
+  --bg-subtle: #202018; /* 轻区域/面板背景；由 --bg-1 / --color-bg-1 提亮 */
+  --bg-muted: #29291f; /* 次级块/弱背景；由 --bg-2 / --color-bg-2 提亮 */
   --bg-control: rgba(255, 255, 255, 0.08); /* 控件填充/中性浅底；接近 --color-fill-2 */
-  --bg-emphasis: #2e2e20; /* 强调背景/分隔填充；接近 --bg-3 / --color-bg-3 / --color-fill-3 */
-  --bg-strong: #3c3c2c; /* 更强填充/按下或禁用面；接近 --bg-4 / --color-bg-4 / --color-fill-4 */
+  --bg-emphasis: #343428; /* 强调背景/分隔填充；由 --bg-3 / --color-bg-3 提亮 */
+  --bg-strong: #464638; /* 更强填充/按下或禁用面；由 --bg-4 / --color-bg-4 提亮 */
+  --bg-inverse-muted: #686858; /* 深中性色面/低强调反色底；由 --bg-6 提亮 */
 
   /* FIXME: 兼容期保留的旧背景 token，后续业务代码都要迁移到上方语义化 bg token。 */
   --bg-1: #18180f;

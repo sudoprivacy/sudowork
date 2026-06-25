@@ -152,20 +152,20 @@ const UserProfile: React.FC = () => {
         {isEnterprise ? (
           <>
             {/* Enterprise: Identity */}
-            <div className='flex items-center gap-5 p-6 bg-2 rd-16px border border-light'>
+            <div className='flex items-center gap-5 p-6 rd-16px border border-light'>
               <Avatar size={64} className='bg-primary'>
                 <User theme='outline' size={32} fill='#fff' />
               </Avatar>
               <div className='flex-1'>
                 <div className='text-18px font-600 text-foreground'>{enterpriseProfile?.username || '--'}</div>
                 <div className='flex gap-2 mt-2'>
-                  <span className='inline-flex items-center h-6 px-2.5 rd-6px text-12px bg-fill-2 text-secondary'>{enterpriseProfile?.role || '--'}</span>
+                  <span className='inline-flex items-center h-6 px-2.5 rd-6px text-12px bg-control text-secondary'>{enterpriseProfile?.role || '--'}</span>
                 </div>
               </div>
             </div>
 
             {/* Enterprise: Usage Stats */}
-            <div className='p-6 bg-2 rd-16px border border-light'>
+            <div className='p-6 rd-16px border border-light'>
               <div className='text-14px font-600 text-foreground mb-4'>{t('settings.userProfile.resourceUsage', '资源使用')}</div>
               <div className='grid grid-cols-4 gap-4'>
                 <div className='text-center'>
@@ -190,7 +190,7 @@ const UserProfile: React.FC = () => {
         ) : (
           <>
             {/* Consumer: Identity */}
-            <div className='flex items-center gap-5 p-6 bg-2 rd-16px border border-light'>
+            <div className='flex items-center gap-5 p-6 rd-16px border border-light'>
               <ConsumerAvatar />
               <div className='flex-1'>
                 <div className='flex items-center gap-2'>
@@ -213,7 +213,7 @@ const UserProfile: React.FC = () => {
             </div>
 
             {/* Consumer: Today Stats */}
-            <div className='p-6 bg-2 rd-16px border border-light'>
+            <div className='p-6 rd-16px border border-light'>
               <div className='text-14px font-600 text-foreground mb-4'>{t('settings.userProfile.todayUsage', '今日使用')}</div>
               <div className='grid grid-cols-3 gap-4'>
                 <div className='text-center'>

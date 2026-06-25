@@ -95,7 +95,7 @@ const OpsModal: React.FC<OpsModalProps> = ({ visible, onClose, onConfigSaved }) 
     <>
       <Modal title={t('settings.ops.title', '运维中心')} visible={visible} onCancel={onClose} footer={null} style={{ width: 500 }}>
         <div className='flex flex-col gap-4'>
-          <div className='flex items-center justify-between p-3 bg-muted rd-8px'>
+          <div className='flex items-center justify-between p-3 border-light rd-8px'>
             <div className='flex-1'>
               <div className='text-14px text-foreground font-500'>{t('settings.ops.configFile', 'Sudo Code 配置文件')}</div>
               <Tooltip content='~/.nexus/sudocode/sudocode.json'>
@@ -107,7 +107,7 @@ const OpsModal: React.FC<OpsModalProps> = ({ visible, onClose, onConfigSaved }) 
             </Button>
           </div>
 
-          <div className='text-12px text-tertiary text-center'>{t('settings.ops.staffOnly', '此区域仅供运维人员使用')}</div>
+          <div className='text-12px text-secondary text-center'>{t('settings.ops.staffOnly', '此区域仅供运维人员使用')}</div>
         </div>
       </Modal>
 
