@@ -1,11 +1,4 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
-import { Alert, Button, Form, Input, InputNumber, Message, Modal, Switch, Tooltip } from '@arco-design/web-react';
-import { FolderOpen } from '@icon-park/react';
+import { Alert, Button, Form, Input, InputNumber, Message, Modal, Switch } from '@arco-design/web-react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import useSWR from 'swr';
@@ -18,6 +11,9 @@ import { formatTimestamp, joinFilePath } from '@/renderer/pages/conversation/gro
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
 import { useShowToolCalls } from '@/renderer/hooks/useShowToolCalls';
+import PageWrapper from '@renderer/components/base/PageWrapper';
+import DirInputItem from './components/DirInputItem';
+import PreferenceRow from './components/PreferenceRow';
 
 /** Default prompt timeout in seconds */
 const DEFAULT_PROMPT_TIMEOUT = 300;
@@ -32,80 +28,6 @@ const IDLE_TIMEOUT_MIN = 1;
 const IDLE_TIMEOUT_MAX = 60;
 
 /**
- * 目录选择输入组件 / Directory selection input component
- * 用于选择和显示系统目录路径 / Used for selecting and displaying system directory paths
- */
-const DirInputItem: React.FC<{
-  /** 标签文本 / Label text */
-  label: string;
-  /** 表单字段名 / Form field name */
-  field: string;
-}> = ({ label, field }) => {
-  const { t } = useTranslation();
-  return (
-    <Form.Item label={label} field={field}>
-      {(value, form) => {
-        const currentValue = form.getFieldValue(field) || '';
-
-        const handlePick = () => {
-          ipcBridge.dialog.showOpen
-            .invoke({
-              defaultPath: currentValue,
-              properties: ['openDirectory', 'createDirectory'],
-            })
-            .then((res) => {
-              if (res?.success && res.data && !res.data.canceled && res.data.filePaths.length > 0) {
-                form.setFieldValue(field, res.data.filePaths[0]);
-              }
-            })
-            .catch((error) => {
-              console.error('Failed to open directory dialog:', error);
-            });
-        };
-
-        return (
-          <div className='aion-dir-input h-[32px] flex items-center rounded-8px border border-solid border-transparent pl-14px bg-[var(--fill-0)]'>
-            <Tooltip content={currentValue || t('settings.dirNotConfigured')} position='top'>
-              <div className='flex-1 min-w-0 text-13px text-foreground truncate '>{currentValue || t('settings.dirNotConfigured')}</div>
-            </Tooltip>
-            <Button
-              type='text'
-              style={{ borderLeft: '1px solid var(--color-border-2)', borderRadius: '0 8px 8px 0' }}
-              icon={<FolderOpen theme='outline' size='18' fill={'var(--foreground)'} />}
-              onClick={(e) => {
-                e.stopPropagation();
-                handlePick();
-              }}
-            />
-          </div>
-        );
-      }}
-    </Form.Item>
-  );
-};
-
-/**
- * 偏好设置行组件 / Preference row component
- * 用于显示标签和对应的控件，统一的水平布局 / Used for displaying labels and corresponding controls in a unified horizontal layout
- */
-const PreferenceRow: React.FC<{
-  /** 标签文本 / Label text */
-  label: string;
-  /** 控件元素 / Control element */
-  children: React.ReactNode;
-  /** 提示文本 / Hint text */
-  hint?: string;
-}> = ({ label, children, hint }) => (
-  <div className='flex items-center justify-between gap-24px py-12px'>
-    <div className='flex flex-col'>
-      <div className='text-14px text-2'>{label}</div>
-      {hint && <div className='text-12px text-secondary opacity-60'>{hint}</div>}
-    </div>
-    <div className='flex-1 flex justify-end'>{children}</div>
-  </div>
-);
-
-/**
  * 系统设置内容组件 / System settings content component
  *
  * 提供系统级配置选项，包括语言和目录配置
@@ -116,7 +38,7 @@ const PreferenceRow: React.FC<{
  * - 高级设置：缓存目录、工作目录配置 / Advanced: cache directory, work directory configuration
  * - 配置变更自动保存 / Auto-save on configuration changes
  */
-const SystemModalContent: React.FC = () => {
+const SystemSettings: React.FC = () => {
   const { t } = useTranslation();
   const [form] = Form.useForm();
   const [modal, modalContextHolder] = Modal.useModal();
@@ -378,7 +300,11 @@ const SystemModalContent: React.FC = () => {
             key: 'showTokenUsageBadges',
             label: t('settings.showTokenUsageBadges'),
             hint: t('settings.showTokenUsageBadgesDesc'),
-            component: showTokenUsageBadgesLoading ? <div style={{ width: 44, height: 22 }} /> : <Switch checked={showTokenUsageBadges} onChange={handleShowTokenUsageBadgesChange} className='settings-accent-switch' style={showTokenUsageBadges ? { backgroundColor: 'var(--ui-accent-orange)' } : undefined} />,
+            component: showTokenUsageBadgesLoading ? (
+              <div style={{ width: 44, height: 22 }} />
+            ) : (
+              <Switch checked={showTokenUsageBadges} onChange={handleShowTokenUsageBadgesChange} className='settings-accent-switch' style={showTokenUsageBadges ? { backgroundColor: 'var(--ui-accent-orange)' } : undefined} />
+            ),
           },
         ]),
     {
@@ -400,7 +326,11 @@ const SystemModalContent: React.FC = () => {
             key: 'productImprovement',
             label: t('settings.productImprovement.title'),
             hint: t('settings.productImprovement.hint'),
-            component: productImprovementLoading ? <div style={{ width: 44, height: 22 }} /> : <Switch checked={productImprovementEnabled} onChange={handleProductImprovementChange} className='settings-accent-switch' style={productImprovementEnabled ? { backgroundColor: 'var(--ui-accent-orange)' } : undefined} />,
+            component: productImprovementLoading ? (
+              <div style={{ width: 44, height: 22 }} />
+            ) : (
+              <Switch checked={productImprovementEnabled} onChange={handleProductImprovementChange} className='settings-accent-switch' style={productImprovementEnabled ? { backgroundColor: 'var(--ui-accent-orange)' } : undefined} />
+            ),
           },
         ]),
     {
@@ -484,34 +414,35 @@ const SystemModalContent: React.FC = () => {
   );
 
   return (
-    <div className='flex flex-col h-full w-full'>
-      {modalContextHolder}
+    <PageWrapper>
+      <div className='flex flex-col h-full w-full'>
+        {modalContextHolder}
 
-      {/* 产品体验改进计划弹窗 / Product improvement dialog */}
-      <ProductImprovementDialog visible={showProductImprovementDialog} onClose={handleProductImprovementDialogClose} />
+        {/* 产品体验改进计划弹窗 / Product improvement dialog */}
+        <ProductImprovementDialog visible={showProductImprovementDialog} onClose={handleProductImprovementDialogClose} />
 
-      {/* 内容区域 / Content Area */}
-      <AionScrollArea className='flex-1 min-h-0 pb-16px' disableOverflow>
-        <div className='space-y-16px'>
-          {/* 偏好设置与高级设置合并展示 / Combined preferences and advanced settings */}
-          <div className='px-[12px] md:px-[32px] py-16px bg-2 rd-16px space-y-12px'>
-            <div className='w-full flex flex-col divide-y divide-light'>
-              {preferenceItems.map((item) => (
-                <PreferenceRow key={item.key} label={item.label} hint={item.hint}>
-                  {item.component}
-                </PreferenceRow>
-              ))}
+        {/* 内容区域 / Content Area */}
+        <AionScrollArea className='flex-1 min-h-0 pb-16px' disableOverflow>
+          <div className='space-y-16px'>
+            {/* 偏好设置与高级设置合并展示 / Combined preferences and advanced settings */}
+            <div className='px-[12px] md:px-[32px] py-16px bg-2 rd-16px space-y-12px'>
+              <div className='w-full flex flex-col divide-y divide-light'>
+                {preferenceItems.map((item) => (
+                  <PreferenceRow key={item.key} label={item.label} hint={item.hint}>
+                    {item.component}
+                  </PreferenceRow>
+                ))}
+              </div>
+              <Form form={form} layout='vertical' className='space-y-16px' onValuesChange={handleValuesChange}>
+                <DirInputItem label={t('settings.workDir')} field='workDir' />
+                {error && <Alert className='mt-16px' type='error' content={typeof error === 'string' ? error : JSON.stringify(error)} />}
+              </Form>
             </div>
-            <Form form={form} layout='vertical' className='space-y-16px' onValuesChange={handleValuesChange}>
-              {/* <DirInputItem label={t('settings.cacheDir')} field='cacheDir' /> */} {/* Cache directory setting temporarily disabled */}
-              <DirInputItem label={t('settings.workDir')} field='workDir' />
-              {error && <Alert className='mt-16px' type='error' content={typeof error === 'string' ? error : JSON.stringify(error)} />}
-            </Form>
           </div>
-        </div>
-      </AionScrollArea>
-    </div>
+        </AionScrollArea>
+      </div>
+    </PageWrapper>
   );
 };
 
-export default SystemModalContent;
+export default SystemSettings;

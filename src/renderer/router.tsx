@@ -16,7 +16,7 @@ const SudocodeModelSettings = React.lazy(() => import('./pages/settings/Sudocode
 const SkillSettings = React.lazy(() => import('./pages/settings/SkillSettings'));
 const CopilotSettings = React.lazy(() => import('./pages/settings/CopilotSettings'));
 const RuntimeSettings = React.lazy(() => import('./pages/settings/RuntimeSettings'));
-const SystemSettings = React.lazy(() => import('./pages/settings/SystemSettings'));
+const SystemSettings = React.lazy(() => import('./pages/settings/system'));
 const ToolsSettings = React.lazy(() => import('./pages/settings/ToolsSettings'));
 const WebuiSettings = React.lazy(() => import('./pages/settings/WebuiSettings'));
 const SecurityPage = React.lazy(() => import('./pages/security'));
