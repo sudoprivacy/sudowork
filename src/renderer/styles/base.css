@@ -928,17 +928,17 @@ body,
 /* ===== Aurora Inputs ===== */
 .guidContainer .guidInputCard,
 [class*='guidContainer'] [class*='guidInputCard'],
-.relative.p-16px.border-3.b.bg-dialog-fill-0.b-solid.rd-20px.flex.flex-col:has(.sendbox-tools) {
+.relative.p-16px.border-3.b.bg-fill-3.b-solid.rd-20px.flex.flex-col:has(.sendbox-tools) {
   position: relative;
 }
 
 .guidContainer .guidInputCard:focus-within,
 [class*='guidContainer'] [class*='guidInputCard']:focus-within,
-.relative.p-16px.border-3.b.bg-dialog-fill-0.b-solid.rd-20px.flex.flex-col:has(.sendbox-tools):focus-within {
+.relative.p-16px.border-3.b.bg-fill-3.b-solid.rd-20px.flex.flex-col:has(.sendbox-tools):focus-within {
   overflow: visible !important;
   border: 2px solid transparent !important;
-  background-color: var(--dialog-fill-0) !important;
-  background-image: linear-gradient(var(--dialog-fill-0), var(--dialog-fill-0)), var(--retroma-aurora-input-gradient) !important;
+  background-color: var(--color-fill-3) !important;
+  background-image: linear-gradient(var(--color-fill-3), var(--color-fill-3)), var(--retroma-aurora-input-gradient) !important;
   background-size:
     100% 100%,
     220% 100% !important;
@@ -961,7 +961,7 @@ body,
 
 .guidContainer .guidInputCard textarea::placeholder,
 [class*='guidContainer'] [class*='guidInputCard'] textarea::placeholder,
-.relative.p-16px.border-3.b.bg-dialog-fill-0.b-solid.rd-20px.flex.flex-col:has(.sendbox-tools) textarea::placeholder {
+.relative.p-16px.border-3.b.bg-fill-3.b-solid.rd-20px.flex.flex-col:has(.sendbox-tools) textarea::placeholder {
   color: var(--retroma-aurora-placeholder) !important;
   opacity: 1 !important;
 }

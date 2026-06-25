@@ -136,7 +136,7 @@ body.login-page-active {
   z-index: 1;
   width: 100%;
   max-width: 400px;
-  background: var(--fill-0);
+  background: var(--color-fill-0);
   backdrop-filter: blur(20px);
   border-radius: 24px;
   box-shadow:

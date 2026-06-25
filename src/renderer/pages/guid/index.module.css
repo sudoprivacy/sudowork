@@ -88,7 +88,7 @@
 
 /* 首页输入框下方「模型 / 模式」按钮：跟随主题使用更柔和的填充 */
 .actionTools :global(.sendbox-model-btn) {
-  background: color-mix(in srgb, var(--horizon-surface) 90%, var(--fill)) !important;
+  background: color-mix(in srgb, var(--horizon-surface) 90%, var(--color-fill-1)) !important;
   border: 1px solid var(--border-default) !important;
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.28) inset !important;
   color: var(--color-text-2) !important;
@@ -229,7 +229,7 @@
 }
 
 .agentItemSelected {
-  background-color: var(--fill-0);
+  background-color: var(--color-fill-0);
   transition:
     opacity 0.5s cubic-bezier(0.2, 0.8, 0.3, 1),
     background-color 0.25s ease-out;

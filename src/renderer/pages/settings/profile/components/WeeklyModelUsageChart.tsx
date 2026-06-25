@@ -165,7 +165,7 @@ const WeeklyModelUsageChart: React.FC<WeeklyModelUsageChartProps> = ({ className
       tooltip: {
         trigger: 'axis',
         axisPointer: { type: 'shadow' },
-        backgroundColor: getCSSVar('--fill-0') || '#ffffff',
+        backgroundColor: getCSSVar('--color-fill-0') || '#ffffff',
         borderColor: getCSSVar('--border-default') || '#e5e6eb',
         textStyle: { color: getCSSVar('--foreground') || '#1d2129', fontFamily: 'PingFang SC, Microsoft YaHei, sans-serif' },
         formatter: (params: IEChartsTooltipParam[]) => {
@@ -232,7 +232,7 @@ const WeeklyModelUsageChart: React.FC<WeeklyModelUsageChartProps> = ({ className
       tooltip: {
         trigger: 'axis',
         axisPointer: { type: 'shadow' },
-        backgroundColor: getCSSVar('--fill-0') || '#ffffff',
+        backgroundColor: getCSSVar('--color-fill-0') || '#ffffff',
         borderColor: getCSSVar('--border-default') || '#e5e6eb',
         textStyle: { color: getCSSVar('--foreground') || '#1d2129', fontFamily: 'PingFang SC, Microsoft YaHei, sans-serif' },
         formatter: (params: IEChartsTooltipParam[]) => {

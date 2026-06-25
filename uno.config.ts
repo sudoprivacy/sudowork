@@ -102,9 +102,9 @@ export default defineConfig({
     // Arco Design official text colors: text-1, text-2, text-3, text-4
     [/^text-([1-4])$/, ([, d]: RegExpExecArray) => ({ color: `var(--color-text-${d})` })],
 
-    // Arco Design 官方填充色 fill-1 到 fill-4
-    // Arco Design official fill colors: bg-fill-1, bg-fill-2, bg-fill-3, bg-fill-4
-    [/^bg-fill-([1-4])$/, ([, d]: RegExpExecArray) => ({ 'background-color': `var(--color-fill-${d})` })],
+    // Arco Design 官方填充色 fill-1 到 fill-4，fill-0 为项目扩展
+    // Arco Design official fill colors: bg-fill-1..4; bg-fill-0 is project-specific
+    [/^bg-fill-([0-4])$/, ([, d]: RegExpExecArray) => ({ 'background-color': `var(--color-fill-${d})` })],
 
     // Arco Design 官方浅色系 primary-light-1 到 -light-4(link 无引用已移除;success/warning/danger 走语义 token)
     [/^bg-primary-light-([1-4])$/, ([, d]: RegExpExecArray) => ({ 'background-color': `var(--color-primary-light-${d})` })],
@@ -114,10 +114,8 @@ export default defineConfig({
     ['bg-popup', { 'background-color': 'var(--color-bg-popup)' }],
 
     // 项目自定义颜色 / Project custom colors
-    ['bg-dialog-fill-0', { 'background-color': 'var(--dialog-fill-0)' }],
     ['text-0', { color: 'var(--text-0)' }],
     ['text-white', { color: 'var(--text-white)' }],
-    ['bg-fill-0', { 'background-color': 'var(--fill-0)' }],
   ],
   // Preflights - Global base styles 全局基础样式
   preflights: [

@@ -100,6 +100,11 @@
   --color-bg-2: #eeede5;
   --color-bg-3: #e2e0d4;
   --color-bg-4: #cbc8b8;
+  --color-fill-0: #faf9f6;
+  --color-fill-1: #f7f8fa;
+  --color-fill-2: #f2f3f5;
+  --color-fill-3: #e5e6eb;
+  --color-fill-4: #c9cdd4;
 
   /* Interactive State */
   --bg-hover: #ebe9df;
@@ -120,12 +125,6 @@
   /* Border - 淡化一档（更贴近背景，柔和分隔） */
   --border-default: #e0dbd0;
   --border-light: #eae7de;
-
-  /* Fill & Inverse */
-  --fill: #f5f4ef;
-  --color-fill: #f5f4ef;
-  --fill-0: #faf9f6;
-  --dialog-fill-0: #faf9f6;
 
   /* Semantic - 实色(文字/图标/圆点) + soft(浅底) + line(描边) */
   --success: #35847e;
@@ -209,6 +208,11 @@
   --color-bg-2: #222217;
   --color-bg-3: #2e2e20;
   --color-bg-4: #3c3c2c;
+  --color-fill-0: rgba(255, 252, 240, 0.07);
+  --color-fill-1: rgba(255, 255, 255, 0.04);
+  --color-fill-2: rgba(255, 255, 255, 0.08);
+  --color-fill-3: rgba(255, 255, 255, 0.12);
+  --color-fill-4: rgba(255, 255, 255, 0.16);
 
   /* Interactive State */
   --bg-hover: #1e1e14;
@@ -229,12 +233,6 @@
   /* Border */
   --border-default: #4a4a38;
   --border-light: #34342a;
-
-  /* Fill & Inverse */
-  --fill: #18180f;
-  --color-fill: #18180f;
-  --fill-0: rgba(255, 252, 240, 0.07);
-  --dialog-fill-0: #2e2e20;
 
   /* Semantic - 实色(文字/图标/圆点) + soft(浅底) + line(描边) */
   --success: #68a99d;
