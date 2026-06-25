@@ -1,4 +1,4 @@
-import { Form, Message, Select, Switch } from '@arco-design/web-react';
+import { Form, Select, Switch } from '@arco-design/web-react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { migrateImageGenerationModelConfig, pickImageGenerationModelId } from '@/common/imageGenerationModelConfig';
@@ -24,7 +24,6 @@ const IMAGE_GENERATION_MODEL_OPTIONS: ImageGenerationModelOption[] = [
 
 export default function ToolsSettings() {
   const { t } = useTranslation();
-  const [mcpMessage, mcpMessageContext] = Message.useMessage({ maxCount: 10 });
   const [imageGenerationModel, setImageGenerationModel] = useState<IConfigStorageRefer['tools.imageGenerationModel'] | undefined>();
 
   const syncImageGenerationModel = useCallback((modelConfig: IConfigStorageRefer['tools.imageGenerationModel']) => {
@@ -69,14 +68,12 @@ export default function ToolsSettings() {
   return (
     <PageWrapper contentClassName='max-w-300' title={t('settings.tools')}>
       <div className='flex flex-col h-full w-full'>
-        {mcpMessageContext}
-
         <AionScrollArea className='flex-1 min-h-0 pb-16px' disableOverflow>
           <div className='space-y-16px'>
             <div className='px-[12px] md:px-[32px] py-[24px] bg-2 rd-12px md:rd-16px flex flex-col min-h-0 border border-light'>
               <div className='flex-1 min-h-0'>
                 <AionScrollArea className='h-full overflow-visible' disableOverflow>
-                  <McpManagementSection message={mcpMessage} />
+                  <McpManagementSection />
                 </AionScrollArea>
               </div>
             </div>

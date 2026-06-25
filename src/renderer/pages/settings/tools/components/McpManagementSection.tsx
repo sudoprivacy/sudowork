@@ -1,4 +1,4 @@
-import { Button, Dropdown, Menu, Modal } from '@arco-design/web-react';
+import { Button, Dropdown, Menu, Message, Modal } from '@arco-design/web-react';
 import { Plus } from '@icon-park/react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -6,15 +6,15 @@ import { acpConversation } from '@/common/ipcBridge';
 import type { IMcpServer } from '@/common/storage';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { useMcpServers, useMcpAgentStatus, useMcpOperations, useMcpConnection, useMcpModal, useMcpServerCRUD, useMcpOAuth } from '../hooks';
-import type { McpImportMode, MessageInstance } from '../types';
+import type { McpImportMode } from '../types';
 import AddMcpServerModal from './AddMcpServerModal';
 import McpServerItem from './McpServerItem';
 
-export default function McpManagementSection({ message }: IMcpManagementSectionProps) {
+export default function McpManagementSection() {
   const { t } = useTranslation();
   const { mcpServers, extensionMcpServers, saveMcpServers } = useMcpServers();
   const { agentInstallStatus, setAgentInstallStatus, isServerLoading, checkSingleServerInstallStatus } = useMcpAgentStatus();
-  const { syncMcpToAgents, removeMcpFromAgents } = useMcpOperations(mcpServers, message);
+  const { syncMcpToAgents, removeMcpFromAgents } = useMcpOperations();
   const { oauthStatus, loggingIn, checkOAuthStatus, login } = useMcpOAuth();
 
   const onAuthRequired = useCallback(
@@ -24,9 +24,9 @@ export default function McpManagementSection({ message }: IMcpManagementSectionP
     [checkOAuthStatus]
   );
 
-  const { testingServers, handleTestMcpConnection } = useMcpConnection(mcpServers, saveMcpServers, message, onAuthRequired);
+  const { testingServers, handleTestMcpConnection } = useMcpConnection(mcpServers, saveMcpServers, onAuthRequired);
   const { showMcpModal, editingMcpServer, deleteConfirmVisible, serverToDelete, mcpCollapseKey, showAddMcpModal, showEditMcpModal, hideMcpModal, showDeleteConfirm, hideDeleteConfirm, toggleServerCollapse } = useMcpModal();
-  const { handleAddMcpServer, handleBatchImportMcpServers, handleEditMcpServer, handleDeleteMcpServer, handleToggleMcpServer } = useMcpServerCRUD(mcpServers, saveMcpServers, syncMcpToAgents, removeMcpFromAgents, checkSingleServerInstallStatus, setAgentInstallStatus, message);
+  const { handleAddMcpServer, handleBatchImportMcpServers, handleEditMcpServer, handleDeleteMcpServer, handleToggleMcpServer } = useMcpServerCRUD(mcpServers, saveMcpServers, syncMcpToAgents, removeMcpFromAgents, checkSingleServerInstallStatus, setAgentInstallStatus);
 
   const [detectedAgents, setDetectedAgents] = useState<Array<{ backend: string; name: string }>>([]);
   const [importMode, setImportMode] = useState<McpImportMode>('json');
@@ -59,13 +59,13 @@ export default function McpManagementSection({ message }: IMcpManagementSectionP
       const result = await login(server);
 
       if (result.success) {
-        message.success(`${server.name}: ${t('settings.mcpOAuthLoginSuccess') || 'Login successful'}`);
+        Message.success(`${server.name}: ${t('settings.mcpOAuthLoginSuccess') || 'Login successful'}`);
         void handleTestMcpConnection(server);
       } else {
-        message.error(`${server.name}: ${result.error || t('settings.mcpOAuthLoginFailed') || 'Login failed'}`);
+        Message.error(`${server.name}: ${result.error || t('settings.mcpOAuthLoginFailed') || 'Login failed'}`);
       }
     },
-    [login, message, t, handleTestMcpConnection]
+    [login, t, handleTestMcpConnection]
   );
 
   const onAddMcpServer = useCallback(
@@ -225,8 +225,4 @@ export default function McpManagementSection({ message }: IMcpManagementSectionP
       </Modal>
     </div>
   );
-}
-
-interface IMcpManagementSectionProps {
-  message: MessageInstance;
 }

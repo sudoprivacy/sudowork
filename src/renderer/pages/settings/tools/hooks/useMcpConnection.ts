@@ -1,3 +1,4 @@
+import { Message } from '@arco-design/web-react';
 import { useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { mcpService } from '@/common/ipcBridge';
@@ -19,12 +20,7 @@ const truncateErrorMessage = (message: string, maxLength: number = 150): string 
  * MCP连接测试管理Hook
  * 处理MCP服务器的连接测试和状态更新
  */
-export const useMcpConnection = (
-  mcpServers: IMcpServer[],
-  saveMcpServers: (serversOrUpdater: IMcpServer[] | ((prev: IMcpServer[]) => IMcpServer[])) => Promise<void>,
-  message: ReturnType<typeof import('@arco-design/web-react').Message.useMessage>[0],
-  onAuthRequired?: (server: IMcpServer) => void // 新增：当需要认证时的回调
-) => {
+export const useMcpConnection = (mcpServers: IMcpServer[], saveMcpServers: (serversOrUpdater: IMcpServer[] | ((prev: IMcpServer[]) => IMcpServer[])) => Promise<void>, onAuthRequired?: (server: IMcpServer) => void) => {
   const { t } = useTranslation();
   const [testingServers, setTestingServers] = useState<Record<string, boolean>>({});
 
@@ -54,7 +50,7 @@ export const useMcpConnection = (
           if (result.needsAuth) {
             await updateServerStatus('disconnected');
             await globalMessageQueue.add(() => {
-              message.warning(`${server.name}: ${t('settings.mcpAuthRequired') || 'Authentication required'}`);
+              Message.warning(`${server.name}: ${t('settings.mcpAuthRequired') || 'Authentication required'}`);
             });
 
             // 触发认证回调
@@ -72,7 +68,7 @@ export const useMcpConnection = (
               lastConnected: Date.now(),
             });
             await globalMessageQueue.add(() => {
-              message.success(`${server.name}: ${t('settings.mcpTestConnectionSuccess')}`);
+              Message.success(`${server.name}: ${t('settings.mcpTestConnectionSuccess')}`);
             });
 
             // 连接测试成功，不执行额外操作
@@ -84,7 +80,7 @@ export const useMcpConnection = (
             });
             const errorMsg = truncateErrorMessage(result.error || t('settings.mcpError'));
             await globalMessageQueue.add(() => {
-              message.error({ content: `${server.name}: ${errorMsg}`, duration: 5000 });
+              Message.error({ content: `${server.name}: ${errorMsg}`, duration: 5000 });
             });
           }
         } else {
@@ -94,7 +90,7 @@ export const useMcpConnection = (
           });
           const errorMsg = truncateErrorMessage(response.msg || t('settings.mcpError'));
           await globalMessageQueue.add(() => {
-            message.error({ content: `${server.name}: ${errorMsg}`, duration: 5000 });
+            Message.error({ content: `${server.name}: ${errorMsg}`, duration: 5000 });
           });
         }
       } catch (error) {
@@ -104,13 +100,13 @@ export const useMcpConnection = (
         });
         const errorMsg = truncateErrorMessage(error instanceof Error ? error.message : t('settings.mcpError'));
         await globalMessageQueue.add(() => {
-          message.error({ content: `${server.name}: ${errorMsg}`, duration: 5000 });
+          Message.error({ content: `${server.name}: ${errorMsg}`, duration: 5000 });
         });
       } finally {
         setTestingServers((prev) => ({ ...prev, [server.id]: false }));
       }
     },
-    [saveMcpServers, message, t, onAuthRequired]
+    [saveMcpServers, t, onAuthRequired]
   );
 
   return {

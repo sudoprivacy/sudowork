@@ -1,3 +1,4 @@
+import { Message } from '@arco-design/web-react';
 import type React from 'react';
 import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -14,8 +15,7 @@ export const useMcpServerCRUD = (
   syncMcpToAgents: (server: IMcpServer, skipRecheck?: boolean) => Promise<void>,
   removeMcpFromAgents: (serverName: string, successMessage?: string, transportType?: string) => Promise<void>,
   checkSingleServerInstallStatus: (serverName: string) => Promise<void>,
-  setAgentInstallStatus: React.Dispatch<React.SetStateAction<Record<string, string[]>>>,
-  message: ReturnType<typeof import('@arco-design/web-react').Message.useMessage>[0]
+  setAgentInstallStatus: React.Dispatch<React.SetStateAction<Record<string, string[]>>>
 ) => {
   const { t } = useTranslation();
 
@@ -149,14 +149,14 @@ export const useMcpServerCRUD = (
         return prevServers.map((server) => (server.id === editingMcpServer.id ? updatedServer : server));
       });
 
-      message.success(t('settings.mcpImportSuccess'));
+      Message.success(t('settings.mcpImportSuccess'));
       // 编辑后立即检查该服务器的安装状态（仅安装状态）
       setTimeout(() => void checkSingleServerInstallStatus(serverData.name), 100);
 
       // 返回更新后的服务器对象，用于后续的连接测试
       return updatedServer;
     },
-    [saveMcpServers, message, t, checkSingleServerInstallStatus]
+    [saveMcpServers, t, checkSingleServerInstallStatus]
   );
 
   // 删除MCP服务器
@@ -190,13 +190,13 @@ export const useMcpServerCRUD = (
         if (targetServer.enabled) {
           await removeMcpFromAgents(targetServer.name, t('settings.mcpDeletedWithCleanup'), targetServer.transport.type);
         } else {
-          message.success(t('settings.mcpDeleted'));
+          Message.success(t('settings.mcpDeleted'));
         }
       } catch {
-        message.error(t('settings.mcpDeleteError'));
+        Message.error(t('settings.mcpDeleteError'));
       }
     },
-    [saveMcpServers, setAgentInstallStatus, removeMcpFromAgents, message, t]
+    [saveMcpServers, setAgentInstallStatus, removeMcpFromAgents, t]
   );
 
   // 启用/禁用MCP服务器
@@ -242,10 +242,10 @@ export const useMcpServerCRUD = (
           });
         }
       } catch {
-        message.error(enabled ? t('settings.mcpSyncError') : t('settings.mcpRemoveError'));
+        Message.error(enabled ? t('settings.mcpSyncError') : t('settings.mcpRemoveError'));
       }
     },
-    [saveMcpServers, syncMcpToAgents, removeMcpFromAgents, checkSingleServerInstallStatus, setAgentInstallStatus, message, t]
+    [saveMcpServers, syncMcpToAgents, removeMcpFromAgents, checkSingleServerInstallStatus, setAgentInstallStatus, t]
   );
 
   return {
