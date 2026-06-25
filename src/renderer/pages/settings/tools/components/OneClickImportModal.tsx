@@ -168,7 +168,7 @@ const OneClickImportModal: React.FC<OneClickImportModalProps> = ({ visible, onCa
             <Check theme='filled' size={20} fill={'var(--success)'} />
             <span className='text-foreground'>{t('settings.mcpToolsLoaded', { count: importableServers.length })}</span>
           </div>
-          <div className='bg-base rounded-lg max-h-[200px] overflow-y-auto'>
+          <div className='bg-base rounded-lg max-h-50 overflow-y-auto'>
             {importableServers.map((server, index) => (
               <div key={index} className='p-3' style={index < importableServers.length - 1 ? { borderBottom: '1px solid var(--bg-3)' } : undefined}>
                 <div className='font-medium text-foreground'>{server.name}</div>
@@ -192,7 +192,7 @@ const OneClickImportModal: React.FC<OneClickImportModalProps> = ({ visible, onCa
             <Check theme='filled' size={20} fill={'var(--success)'} />
             <span className='text-foreground'>{t('settings.mcpImportedSuccess', { count: importableServers.length })}</span>
           </div>
-          <div className='bg-base rounded-lg max-h-[200px] overflow-y-auto'>
+          <div className='bg-base rounded-lg max-h-50 overflow-y-auto'>
             {importableServers.map((server, index) => (
               <div key={index} className='p-3' style={index < importableServers.length - 1 ? { borderBottom: '1px solid var(--bg-3)' } : undefined}>
                 <div className='font-medium text-foreground'>{server.name}</div>
@@ -246,13 +246,13 @@ const OneClickImportModal: React.FC<OneClickImportModalProps> = ({ visible, onCa
 
         <div className='mb-6'>
           <Steps current={currentStep} size='small'>
-            <Steps.Step title={t('settings.mcpStepSelectAgent')} icon={currentStep > 1 ? <Check theme='filled' size={16} fill='#165dff' /> : undefined} />
-            <Steps.Step title={t('settings.mcpStepFetchTools')} icon={currentStep > 2 ? <Check theme='filled' size={16} fill='#165dff' /> : undefined} />
+            <Steps.Step title={t('settings.mcpStepSelectAgent')} icon={currentStep > 1 ? <Check theme='filled' size={16} /> : undefined} />
+            <Steps.Step title={t('settings.mcpStepFetchTools')} icon={currentStep > 2 ? <Check theme='filled' size={16} /> : undefined} />
             <Steps.Step title={t('settings.mcpStepImportSuccess')} />
           </Steps>
         </div>
 
-        <div className={`mb-6 flex-1 overflow-y-auto ${currentStep === 1 ? 'min-h-[60px]' : 'min-h-[180px]'}`}>
+        <div className={`mb-6 flex-1 overflow-y-auto ${currentStep === 1 ? 'min-h-15' : 'min-h-45'}`}>
           {currentStep === 1 && renderStep1()}
           {currentStep === 2 && renderStep2()}
           {currentStep === 3 && renderStep3()}

@@ -167,18 +167,18 @@ export default function McpManagementSection() {
   };
 
   return (
-    <div className='flex flex-col gap-16px min-h-0'>
-      <div className='flex gap-8px items-center justify-between'>
+    <div className='flex flex-col gap-4 min-h-0'>
+      <div className='flex gap-2 items-center justify-between'>
         <div className='text-14px text-foreground'>{t('settings.mcpSettings')}</div>
         <div>{renderAddButton()}</div>
       </div>
 
       <div className='flex-1 min-h-0'>
         {mcpServers.length === 0 && extensionMcpServers.length === 0 ? (
-          <div className='py-24px text-center text-secondary text-14px border border-dashed rd-12px'>{t('settings.mcpNoServersFound')}</div>
+          <div className='py-6 text-center text-secondary text-14px border border-dashed rd-12px'>{t('settings.mcpNoServersFound')}</div>
         ) : (
-          <AionScrollArea className={'max-h-360px max-h-none'} disableOverflow>
-            <div className='space-y-12px'>
+          <AionScrollArea className={'max-h-90 max-h-none'} disableOverflow>
+            <div className='space-y-3'>
               {mcpServers.map((server) => (
                 <McpServerItem
                   key={server.id}

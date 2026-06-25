@@ -40,7 +40,7 @@ const McpAgentStatusDisplay: React.FC<McpAgentStatusDisplayProps> = ({ serverNam
                       transitionDelay: animationDelay,
                     }}
                   >
-                    <img src={logo} alt={agent} className='w-[21px] h-[21px] border border-solid border-[var(--color-border-2)] rounded-sm' style={{ backgroundColor: 'var(--color-fill-3)' }} />
+                    <img src={logo} alt={agent} className='w-[21px] h-[21px] border border-light rounded-sm' style={{ backgroundColor: 'var(--color-fill-3)' }} />
                   </div>
                 </Tooltip>
               );

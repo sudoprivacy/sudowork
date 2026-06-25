@@ -68,9 +68,9 @@ export default function ToolsSettings() {
   return (
     <PageWrapper contentClassName='max-w-300' title={t('settings.tools')}>
       <div className='flex flex-col h-full w-full'>
-        <AionScrollArea className='flex-1 min-h-0 pb-16px' disableOverflow>
-          <div className='space-y-16px'>
-            <div className='px-[12px] md:px-[32px] py-[24px] bg-2 rd-12px md:rd-16px flex flex-col min-h-0 border border-light'>
+        <AionScrollArea className='flex-1 min-h-0 pb-4' disableOverflow>
+          <div className='space-y-4'>
+            <div className='px-3 md:px-8 py-6 bg-2 rd-12px md:rd-16px flex flex-col min-h-0 border border-light'>
               <div className='flex-1 min-h-0'>
                 <AionScrollArea className='h-full overflow-visible' disableOverflow>
                   <McpManagementSection />
@@ -78,7 +78,7 @@ export default function ToolsSettings() {
               </div>
             </div>
 
-            <div className='px-[12px] md:px-[32px] py-[24px] bg-2 rd-12px md:rd-16px border border-light'>
+            <div className='px-3 md:px-8 py-6 bg-2 rd-12px md:rd-16px border border-light'>
               <div className='flex items-center justify-between'>
                 <span className='text-14px text-foreground'>{t('settings.imageGeneration')}</span>
                 <Switch checked={imageGenerationModel?.switch} onChange={(checked) => onImageGenerationModelChange({ switch: checked })} className='settings-accent-switch' style={imageGenerationModel?.switch ? { backgroundColor: 'var(--ui-accent-orange)' } : undefined} />
@@ -86,7 +86,7 @@ export default function ToolsSettings() {
 
               <div className='my-5 border-b border-light' />
 
-              <Form layout='horizontal' labelAlign='left' className='space-y-12px'>
+              <Form layout='horizontal' labelAlign='left' className='space-y-3'>
                 <Form.Item label={t('settings.imageGenerationModel')}>
                   <Select
                     value={imageGenerationModel?.useModel || DEFAULT_IMAGE_GENERATION_MODEL}
