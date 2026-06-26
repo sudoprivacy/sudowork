@@ -1,7 +1,7 @@
 import { Collapse } from '@arco-design/web-react';
 import React from 'react';
 import type { IMcpServer } from '@/common/storage';
-import type { McpOAuthStatus } from '../hooks/useMcpOAuth';
+import type { IMcpOAuthStatus } from '../types';
 import McpServerHeader from './McpServerHeader';
 import McpServerToolsList from './McpServerToolsList';
 
@@ -11,7 +11,7 @@ interface McpServerItemProps {
   agentInstallStatus: Record<string, string[]>;
   isServerLoading: (serverName: string) => boolean;
   isTestingConnection: boolean;
-  oauthStatus?: McpOAuthStatus;
+  oauthStatus?: IMcpOAuthStatus;
   isLoggingIn?: boolean;
   /** Extension-contributed servers are read-only (no edit/delete/toggle) */
   isReadOnly?: boolean;

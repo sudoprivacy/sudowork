@@ -3,7 +3,7 @@ import { Check, CloseOne, CloseSmall, LoadingOne, Refresh, Write, DeleteFour, Se
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import type { IMcpServer } from '@/common/storage';
-import type { McpOAuthStatus } from '../hooks/useMcpOAuth';
+import type { IMcpOAuthStatus } from '../types';
 import McpAgentStatusDisplay from './McpAgentStatusDisplay';
 
 interface McpServerHeaderProps {
@@ -11,7 +11,7 @@ interface McpServerHeaderProps {
   agentInstallStatus: Record<string, string[]>;
   isServerLoading: (serverName: string) => boolean;
   isTestingConnection: boolean;
-  oauthStatus?: McpOAuthStatus;
+  oauthStatus?: IMcpOAuthStatus;
   isLoggingIn?: boolean;
   /** Extension-contributed servers are read-only */
   isReadOnly?: boolean;
@@ -22,7 +22,7 @@ interface McpServerHeaderProps {
   onOAuthLogin?: (server: IMcpServer) => void;
 }
 
-const getStatusIcon = (status?: IMcpServer['status'], oauthStatus?: McpOAuthStatus) => {
+const getStatusIcon = (status?: IMcpServer['status'], oauthStatus?: IMcpOAuthStatus) => {
   if (status === 'testing' || oauthStatus?.isChecking) {
     return <LoadingOne fill={'var(--foreground)'} />;
   }
@@ -42,7 +42,7 @@ const getStatusIcon = (status?: IMcpServer['status'], oauthStatus?: McpOAuthStat
   return <CloseOne fill={'var(--text-secondary)'} />;
 };
 
-const getStatusText = (status?: IMcpServer['status'], oauthStatus?: McpOAuthStatus, t?: any) => {
+const getStatusText = (status?: IMcpServer['status'], oauthStatus?: IMcpOAuthStatus, t?: any) => {
   // 优先级1: 测试中状态
   if (status === 'testing' || oauthStatus?.isChecking) {
     return t?.('settings.mcpTesting') || 'testing';

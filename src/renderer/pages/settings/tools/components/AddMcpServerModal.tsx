@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import type { IMcpServer } from '@/common/storage';
 import { acpConversation } from '@/common/ipcBridge';
+import type { McpImportMode } from '../types';
 import JsonImportModal from './JsonImportModal';
 import OneClickImportModal from './OneClickImportModal';
 
@@ -10,7 +11,7 @@ interface AddMcpServerModalProps {
   onCancel: () => void;
   onSubmit: (server: Omit<IMcpServer, 'id' | 'createdAt' | 'updatedAt'>) => void;
   onBatchImport?: (servers: Omit<IMcpServer, 'id' | 'createdAt' | 'updatedAt'>[]) => void;
-  importMode?: 'json' | 'oneclick';
+  importMode?: McpImportMode;
 }
 
 const AddMcpServerModal: React.FC<AddMcpServerModalProps> = ({ visible, server, onCancel, onSubmit, onBatchImport, importMode = 'json' }) => {

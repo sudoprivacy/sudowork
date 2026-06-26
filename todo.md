@@ -54,6 +54,6 @@
 
 - [ ] 整理功能模块及步骤
   - [ ] 整理功能代码
-  - [ ] 扫描出关联的components，hooks, utils 内聚到功能目录
+  - [ ] 扫描出关联的components，hooks, utils,types内聚到功能目录
   - [ ] 扫描丢失的国际化 key
   - [ ] 修正 UnoCSS 的用法

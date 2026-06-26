@@ -5,6 +5,7 @@ import CodeMirror from '@uiw/react-codemirror';
 import { json } from '@codemirror/lang-json';
 import type { IMcpServer, IMcpServerTransport, IMcpTool } from '@/common/storage';
 import { useThemeContext } from '@/renderer/context/ThemeContext';
+import type { IValidationResult } from '../types';
 
 interface JsonImportModalProps {
   visible: boolean;
@@ -14,22 +15,17 @@ interface JsonImportModalProps {
   onBatchImport?: (servers: Omit<IMcpServer, 'id' | 'createdAt' | 'updatedAt'>[]) => void;
 }
 
-interface ValidationResult {
-  isValid: boolean;
-  errorMessage?: string;
-}
-
 const JsonImportModal: React.FC<JsonImportModalProps> = ({ visible, server, onCancel, onSubmit, onBatchImport }) => {
   const { t } = useTranslation();
   const { theme } = useThemeContext();
   const [jsonInput, setJsonInput] = useState('');
   const [copyStatus, setCopyStatus] = useState<'idle' | 'success' | 'error'>('idle');
-  const [validation, setValidation] = useState<ValidationResult>({ isValid: true });
+  const [validation, setValidation] = useState<IValidationResult>({ isValid: true });
 
   /**
    * JSON语法校验
    */
-  const validateJsonSyntax = useCallback((input: string): ValidationResult => {
+  const validateJsonSyntax = useCallback((input: string): IValidationResult => {
     if (!input.trim()) {
       return { isValid: true }; // 空值视为有效
     }

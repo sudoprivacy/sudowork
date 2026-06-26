@@ -6,7 +6,7 @@ import { acpConversation } from '@/common/ipcBridge';
 import type { IMcpServer } from '@/common/storage';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { useMcpServers, useMcpAgentStatus, useMcpOperations, useMcpConnection, useMcpModal, useMcpServerCRUD, useMcpOAuth } from '../hooks';
-import type { McpImportMode } from '../types';
+import type { IDetectedAgent, McpImportMode } from '../types';
 import AddMcpServerModal from './AddMcpServerModal';
 import McpServerItem from './McpServerItem';
 
@@ -28,7 +28,7 @@ export default function McpManagementSection() {
   const { showMcpModal, editingMcpServer, deleteConfirmVisible, serverToDelete, mcpCollapseKey, showAddMcpModal, showEditMcpModal, hideMcpModal, showDeleteConfirm, hideDeleteConfirm, toggleServerCollapse } = useMcpModal();
   const { handleAddMcpServer, handleBatchImportMcpServers, handleEditMcpServer, handleDeleteMcpServer, handleToggleMcpServer } = useMcpServerCRUD(mcpServers, saveMcpServers, syncMcpToAgents, removeMcpFromAgents, checkSingleServerInstallStatus, setAgentInstallStatus);
 
-  const [detectedAgents, setDetectedAgents] = useState<Array<{ backend: string; name: string }>>([]);
+  const [detectedAgents, setDetectedAgents] = useState<IDetectedAgent[]>([]);
   const [importMode, setImportMode] = useState<McpImportMode>('json');
 
   useEffect(() => {

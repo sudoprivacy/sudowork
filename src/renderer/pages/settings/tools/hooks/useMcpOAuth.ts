@@ -1,20 +1,14 @@
 import { useState, useCallback } from 'react';
 import { mcpService } from '@/common/ipcBridge';
 import type { IMcpServer } from '@/common/storage';
-
-export interface McpOAuthStatus {
-  isAuthenticated: boolean;
-  needsLogin: boolean;
-  isChecking: boolean;
-  error?: string;
-}
+import type { IMcpOAuthStatus } from '../types';
 
 /**
  * MCP OAuth 管理 Hook
  * 处理 MCP 服务器的 OAuth 认证状态检查和登录流程
  */
 export const useMcpOAuth = () => {
-  const [oauthStatus, setOAuthStatus] = useState<Record<string, McpOAuthStatus>>({});
+  const [oauthStatus, setOAuthStatus] = useState<Record<string, IMcpOAuthStatus>>({});
   const [loggingIn, setLoggingIn] = useState<Record<string, boolean>>({});
 
   // 检查 OAuth 状态

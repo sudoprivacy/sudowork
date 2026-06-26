@@ -7,13 +7,9 @@ import { ConfigStorage, DEFAULT_IMAGE_GENERATION_MODEL, type IConfigStorageRefer
 import AionScrollArea from '@renderer/components/base/AionScrollArea';
 import PageWrapper from '@renderer/components/base/PageWrapper';
 import McpManagementSection from './components/McpManagementSection';
+import type { IImageGenerationModelOption } from './types';
 
-type ImageGenerationModelOption = {
-  label: string;
-  value: string;
-};
-
-const IMAGE_GENERATION_MODEL_OPTIONS: ImageGenerationModelOption[] = [
+const IMAGE_GENERATION_MODEL_OPTIONS: IImageGenerationModelOption[] = [
   { label: 'gemini-3.1-flash-image', value: 'gemini-3.1-flash-image' },
   { label: 'gemini-3-pro-image', value: 'gemini-3-pro-image' },
   { label: 'gemini-2.5-flash-image', value: 'gemini-2.5-flash-image' },

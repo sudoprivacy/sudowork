@@ -4,23 +4,9 @@ import { useTranslation } from 'react-i18next';
 import { acpConversation, mcpService } from '@/common/ipcBridge';
 import { ConfigStorage } from '@/common/storage';
 import type { IMcpServer } from '@/common/storage';
+import type { IMcpOperationResponse, IMcpOperationResult } from '../types';
 import { truncateErrorMessage } from '../utils';
 import { globalMessageQueue } from '../utils/messageQueue';
-
-// 定义MCP操作结果类型
-interface McpOperationResult {
-  agent: string;
-  success: boolean;
-  error?: string;
-}
-
-interface McpOperationResponse {
-  success: boolean;
-  data?: {
-    results: McpOperationResult[];
-  };
-  msg?: string;
-}
 
 /**
  * MCP操作管理Hook
@@ -31,14 +17,14 @@ export const useMcpOperations = () => {
 
   // 处理MCP配置同步到agents的结果
   const handleMcpOperationResult = useCallback(
-    async (response: McpOperationResponse, operation: 'sync' | 'remove', successMessage?: string, skipRecheck = false) => {
+    async (response: IMcpOperationResponse, operation: 'sync' | 'remove', successMessage?: string, skipRecheck = false) => {
       if (response.success && response.data) {
         const { results } = response.data;
-        const failedAgents = results.filter((r: McpOperationResult) => !r.success);
+        const failedAgents = results.filter((r: IMcpOperationResult) => !r.success);
 
         // 立即显示操作开始的消息，然后触发状态更新
         if (failedAgents.length > 0) {
-          const failedNames = failedAgents.map((r: McpOperationResult) => `${r.agent}: ${truncateErrorMessage(r.error || '')}`).join(', ');
+          const failedNames = failedAgents.map((r: IMcpOperationResult) => `${r.agent}: ${truncateErrorMessage(r.error || '')}`).join(', ');
           const truncatedErrors = truncateErrorMessage(failedNames, 200);
           const partialFailedKey = operation === 'sync' ? 'mcpSyncPartialFailed' : 'mcpRemovePartialFailed';
           await globalMessageQueue.add(() => {

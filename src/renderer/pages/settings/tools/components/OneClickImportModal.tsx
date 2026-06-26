@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Check } from '@icon-park/react';
 import { acpConversation, mcpService } from '@/common/ipcBridge';
 import type { IMcpServer, IMcpTool } from '@/common/storage';
+import type { IDetectedAgent } from '../types';
 
 interface OneClickImportModalProps {
   visible: boolean;
@@ -13,7 +14,7 @@ interface OneClickImportModalProps {
 
 const OneClickImportModal: React.FC<OneClickImportModalProps> = ({ visible, onCancel, onBatchImport }) => {
   const { t } = useTranslation();
-  const [detectedAgents, setDetectedAgents] = useState<Array<{ backend: string; name: string }>>([]);
+  const [detectedAgents, setDetectedAgents] = useState<IDetectedAgent[]>([]);
   const [selectedAgent, setSelectedAgent] = useState<string>('');
   const [importableServers, setImportableServers] = useState<IMcpServer[]>([]);
   const [loadingImport, setLoadingImport] = useState(false);
