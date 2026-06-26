@@ -149,7 +149,7 @@ export const useMcpServerCRUD = (
         return prevServers.map((server) => (server.id === editingMcpServer.id ? updatedServer : server));
       });
 
-      Message.success(t('settings.mcpImportSuccess'));
+      Message.success(t('settings.mcpImportSuccess', '导入成功'));
       // 编辑后立即检查该服务器的安装状态（仅安装状态）
       setTimeout(() => void checkSingleServerInstallStatus(serverData.name), 100);
 
@@ -188,12 +188,12 @@ export const useMcpServerCRUD = (
       try {
         // 如果服务器是启用状态，需要从所有agents中删除MCP配置
         if (targetServer.enabled) {
-          await removeMcpFromAgents(targetServer.name, t('settings.mcpDeletedWithCleanup'), targetServer.transport.type);
+          await removeMcpFromAgents(targetServer.name, t('settings.mcpDeletedWithCleanup', 'MCP 服务器已删除并清理配置'), targetServer.transport.type);
         } else {
-          Message.success(t('settings.mcpDeleted'));
+          Message.success(t('settings.mcpDeleted', 'MCP 服务器已删除'));
         }
       } catch {
-        Message.error(t('settings.mcpDeleteError'));
+        Message.error(t('settings.mcpDeleteError', '删除 MCP 配置时出错'));
       }
     },
     [saveMcpServers, setAgentInstallStatus, removeMcpFromAgents, t]
@@ -242,7 +242,7 @@ export const useMcpServerCRUD = (
           });
         }
       } catch {
-        Message.error(enabled ? t('settings.mcpSyncError') : t('settings.mcpRemoveError'));
+        Message.error(enabled ? t('settings.mcpSyncError', 'MCP 配置同步失败') : t('settings.mcpRemoveError', 'MCP 配置移除失败'));
       }
     },
     [saveMcpServers, syncMcpToAgents, removeMcpFromAgents, checkSingleServerInstallStatus, setAgentInstallStatus, t]

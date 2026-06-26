@@ -50,15 +50,14 @@
 - [ ] `src/types/` 边界策略：只存放 ① 第三方无类型包的 `.d.ts` shim；② 跨两个及以上进程（main/renderer/worker）共用的类型。模块内部类型保持原地，不强制迁移。
 
 - [ ] 当前项目中修改智能体存在多个功能相同的组件，需要统一合并
-- [ ] 清理当前项目错误的Message使用 Message.useMessage 不应该这种的
 
 - [ ] 整理功能模块及步骤
-  - [ ] 整理功能代码
-  - [ ] 扫描出关联的components，hooks, utils,types内聚到功能目录
-        扫描该模块下的引用的组件，如果只有该模块自己在用的话，就收纳到该模块对应的components内
-        扫描该模块下的引用的hook，如果只有该模块自己在用的话，就收纳到该模块对应的hooks内
-        扫描该模块内部用到的工具方法，可以放到它下面的utils目录
-        抽出些该模块的interface放到该模块对应的types目录，除了组件props的interface，其他的我觉得都可以收纳过去
-  - [ ] 扫描丢失的国际化 key
-        使用.claude/agents/i18n-checker.md 这个agent扫描 xxxx
-  - [ ] 修正 UnoCSS 的用法
+  1. 整理功能代码：梳理 `{模块路径}` 下各文件的职责，删除冗余逻辑，拆分过长组件
+  2. 扫描 components/hooks/utils/types，内聚到功能目录
+     1. 组件：扫描 `{模块路径}` 下所有 import，找出只被本模块引用的组件，迁移到 `components/`
+     2. Hooks：找出只被本模块引用的 hook，迁移到 `hooks/`
+     3. 工具方法：找出只被本模块引用的工具函数，迁移到 `utils/`
+     4. Interface：找出只被本模块引用的非 props interface，迁移到 `types/`
+  3. 扫描缺失国际化 key：使用 `.claude/agents/i18n-checker.md` agent 扫描 `{模块路径}`，补全缺失的 i18n key
+  4. 清理错误的 `Message.useMessage` 用法：在 `{模块路径}` 下全局搜索 `Message.useMessage`，替换为正确的 `Message.info` 调用方式
+  5. 修正 UnoCSS 的用法：使用 `.claude/agents/unocss-style-fixer.md` agent 检查 `{模块路径}` 下不符合项目 UnoCSS 规范的写法并修正

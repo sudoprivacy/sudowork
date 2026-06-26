@@ -45,26 +45,26 @@ const getStatusIcon = (status?: IMcpServer['status'], oauthStatus?: IMcpOAuthSta
 const getStatusText = (status?: IMcpServer['status'], oauthStatus?: IMcpOAuthStatus, t?: any) => {
   // 优先级1: 测试中状态
   if (status === 'testing' || oauthStatus?.isChecking) {
-    return t?.('settings.mcpTesting') || 'testing';
+    return t?.('settings.mcpTesting', '测试中');
   }
 
   // 优先级2: 错误状态
   if (status === 'error') {
-    return t?.('settings.mcpError') || 'error';
+    return t?.('settings.mcpError', '错误');
   }
 
   // 优先级3: OAuth 需要登录
   if (oauthStatus?.needsLogin) {
-    return t?.('settings.mcpNeedsLogin') || 'disconnected · Enter to login';
+    return t?.('settings.mcpNeedsLogin', '未登录 · 点击登录');
   }
 
   // 优先级4: 连接成功或已认证
   if (status === 'connected' || oauthStatus?.isAuthenticated) {
-    return t?.('settings.mcpConnected') || 'connected';
+    return t?.('settings.mcpConnected', '已连接');
   }
 
   // 默认: 未连接
-  return t?.('settings.mcpDisconnected') || 'disconnected';
+  return t?.('settings.mcpDisconnected', '已断开');
 };
 
 const McpServerHeader: React.FC<McpServerHeaderProps> = ({ server, agentInstallStatus, isServerLoading, isTestingConnection, oauthStatus, isLoggingIn, isReadOnly, onTestConnection, onEditServer, onDeleteServer, onToggleServer, onOAuthLogin }) => {
@@ -85,11 +85,11 @@ const McpServerHeader: React.FC<McpServerHeaderProps> = ({ server, agentInstallS
         </Tooltip>
         {isReadOnly && <McpAgentStatusDisplay serverName={server.name} agentInstallStatus={agentInstallStatus} isLoadingAgentStatus={isServerLoading(server.name)} alwaysVisible />}
         {!isReadOnly && needsLogin && onOAuthLogin && (
-          <Button size='mini' type='primary' icon={<Login size={'14'} />} title={t('settings.mcpLogin') || 'Login'} loading={isLoggingIn} onClick={() => onOAuthLogin(server)}>
-            {t('settings.mcpLogin') || 'Login'}
+          <Button size='mini' type='primary' icon={<Login size={'14'} />} title={t('settings.mcpLogin', '登录')} loading={isLoggingIn} onClick={() => onOAuthLogin(server)}>
+            {t('settings.mcpLogin', '登录')}
           </Button>
         )}
-        {!isReadOnly && !needsLogin && <Button size='mini' icon={<Refresh size={'14'} />} title={t('settings.mcpTestConnection')} loading={isTestingConnection} onClick={() => onTestConnection(server)} />}
+        {!isReadOnly && !needsLogin && <Button size='mini' icon={<Refresh size={'14'} />} title={t('settings.mcpTestConnection', '检测MCP可用状态')} loading={isTestingConnection} onClick={() => onTestConnection(server)} />}
       </div>
       {!isReadOnly && (
         <div className='flex items-center gap-2' onClick={(e) => e.stopPropagation()}>
@@ -101,13 +101,13 @@ const McpServerHeader: React.FC<McpServerHeaderProps> = ({ server, agentInstallS
                   <Menu.Item key='edit' onClick={() => onEditServer(server)}>
                     <div className='flex items-center gap-2'>
                       <Write size={'14'} />
-                      {t('settings.mcpEditServer')}
+                      {t('settings.mcpEditServer', '编辑')}
                     </div>
                   </Menu.Item>
                   <Menu.Item key='delete' onClick={() => onDeleteServer(server.id)}>
                     <div className='flex items-center gap-2 text-danger'>
                       <DeleteFour size={'14'} />
-                      {t('settings.mcpDeleteServer')}
+                      {t('settings.mcpDeleteServer', '删除')}
                     </div>
                   </Menu.Item>
                 </Menu>

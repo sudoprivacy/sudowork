@@ -143,7 +143,7 @@ const OneClickImportModal: React.FC<OneClickImportModalProps> = ({ visible, onCa
   // 渲染步骤1: 选择Agent
   const renderStep1 = () => (
     <div className='py-4'>
-      <Select placeholder={t('settings.mcpSelectCLI')} value={selectedAgent} onChange={setSelectedAgent} className='w-full' size='large'>
+      <Select placeholder={t('settings.mcpSelectCLI', '选择 CLI')} value={selectedAgent} onChange={setSelectedAgent} className='w-full' size='large'>
         {detectedAgents.map((agent) => (
           <Select.Option key={agent.backend} value={agent.backend}>
             {agent.name}
@@ -160,14 +160,14 @@ const OneClickImportModal: React.FC<OneClickImportModalProps> = ({ visible, onCa
         <div className='py-8'>
           <div className='flex items-center gap-3 bg-fill-1 rounded-lg p-4'>
             <Spin size={20} />
-            <div className='text-secondary text-sm'>{t('settings.mcpLoadingTools')}</div>
+            <div className='text-secondary text-sm'>{t('settings.mcpLoadingTools', '读取CLI工具列表中...')}</div>
           </div>
         </div>
       ) : importableServers.length > 0 ? (
         <div>
           <div className='mb-3 flex items-center gap-2'>
             <Check theme='filled' size={20} fill={'var(--success)'} />
-            <span className='text-foreground'>{t('settings.mcpToolsLoaded', { count: importableServers.length })}</span>
+            <span className='text-foreground'>{t('settings.mcpToolsLoaded', { count: importableServers.length, defaultValue: '读取到{{count}}个工具' })}</span>
           </div>
           <div className='bg-base rounded-lg max-h-50 overflow-y-auto'>
             {importableServers.map((server, index) => (
@@ -179,7 +179,7 @@ const OneClickImportModal: React.FC<OneClickImportModalProps> = ({ visible, onCa
           </div>
         </div>
       ) : (
-        <div className='text-center py-8 text-secondary'>{t('settings.mcpNoServersFound')}</div>
+        <div className='text-center py-8 text-secondary'>{t('settings.mcpNoServersFound', '未找到 MCP 服务器')}</div>
       )}
     </div>
   );
@@ -191,7 +191,7 @@ const OneClickImportModal: React.FC<OneClickImportModalProps> = ({ visible, onCa
         <div>
           <div className='mb-3 flex items-center gap-2'>
             <Check theme='filled' size={20} fill={'var(--success)'} />
-            <span className='text-foreground'>{t('settings.mcpImportedSuccess', { count: importableServers.length })}</span>
+            <span className='text-foreground'>{t('settings.mcpImportedSuccess', { count: importableServers.length, defaultValue: '已导入{{count}}个工具' })}</span>
           </div>
           <div className='bg-base rounded-lg max-h-50 overflow-y-auto'>
             {importableServers.map((server, index) => (
@@ -203,7 +203,7 @@ const OneClickImportModal: React.FC<OneClickImportModalProps> = ({ visible, onCa
           </div>
         </div>
       ) : (
-        <div className='text-center py-8 text-secondary'>{t('settings.mcpNoServersFound')}</div>
+        <div className='text-center py-8 text-secondary'>{t('settings.mcpNoServersFound', '未找到 MCP 服务器')}</div>
       )}
     </div>
   );
@@ -215,41 +215,41 @@ const OneClickImportModal: React.FC<OneClickImportModalProps> = ({ visible, onCa
       {currentStep === 1 && (
         <>
           <Button onClick={onCancel} className='min-w-25'>
-            {t('common.cancel')}
+            {t('common.cancel', '取消')}
           </Button>
           <Button type='primary' onClick={handleNextStep} disabled={!selectedAgent}>
-            {t('settings.mcpNextStep')}
+            {t('settings.mcpNextStep', '下一步')}
           </Button>
         </>
       )}
       {currentStep === 2 && (
         <>
           <Button onClick={handlePrevStep} style={{ borderRadius: 8 }}>
-            {t('settings.mcpPrevStep')}
+            {t('settings.mcpPrevStep', '上一步')}
           </Button>
           <Button type='primary' onClick={handleNextStep} disabled={loadingImport || importableServers.length === 0}>
-            {t('settings.mcpImportButton')}
+            {t('settings.mcpImportButton', '导入')}
           </Button>
         </>
       )}
       {currentStep === 3 && (
         <Button type='primary' onClick={onCancel}>
-          {t('settings.mcpConfirmButton')}
+          {t('settings.mcpConfirmButton', '确定')}
         </Button>
       )}
     </div>
   );
 
   return (
-    <Modal visible={visible} onCancel={onCancel} footer={renderFooter()} title={t('settings.mcpOneKeyImport')} style={{ width: 600 }}>
+    <Modal visible={visible} onCancel={onCancel} footer={renderFooter()} title={t('settings.mcpOneKeyImport', '一键导入')} style={{ width: 600 }}>
       <div className='flex flex-col h-[275px] mt-5'>
-        <div className='mb-6 text-secondary text-sm'>{t('settings.mcpImportDescription')}</div>
+        <div className='mb-6 text-secondary text-sm'>{t('settings.mcpImportDescription', 'Sudowork会自动获取的您在CLI Agent中已安装的MCP，并一键导入')}</div>
 
         <div className='mb-6'>
           <Steps current={currentStep} size='small'>
-            <Steps.Step title={t('settings.mcpStepSelectAgent')} icon={currentStep > 1 ? <Check theme='filled' size={16} /> : undefined} />
-            <Steps.Step title={t('settings.mcpStepFetchTools')} icon={currentStep > 2 ? <Check theme='filled' size={16} /> : undefined} />
-            <Steps.Step title={t('settings.mcpStepImportSuccess')} />
+            <Steps.Step title={t('settings.mcpStepSelectAgent', '选择Agent')} icon={currentStep > 1 ? <Check theme='filled' size={16} /> : undefined} />
+            <Steps.Step title={t('settings.mcpStepFetchTools', '获取mcp')} icon={currentStep > 2 ? <Check theme='filled' size={16} /> : undefined} />
+            <Steps.Step title={t('settings.mcpStepImportSuccess', '导入成功')} />
           </Steps>
         </div>
 

@@ -26,7 +26,7 @@
   "copyMessage": "复制整条消息",
   "paste": "粘贴",
   "copySuccess": "已复制",
-  "copyFailed": "Copy failed",
+  "copyFailed": "复制失败",
   "download": "下载",
   "close": "关闭",
   "retry": "重试",

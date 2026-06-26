@@ -40,7 +40,7 @@ export const useMcpConnection = (mcpServers: IMcpServer[], saveMcpServers: (serv
           if (result.needsAuth) {
             await updateServerStatus('disconnected');
             await globalMessageQueue.add(() => {
-              Message.warning(`${server.name}: ${t('settings.mcpAuthRequired') || 'Authentication required'}`);
+              Message.warning(`${server.name}: ${t('settings.mcpAuthRequired', '需要身份验证')}`);
             });
 
             // 触发认证回调
@@ -58,7 +58,7 @@ export const useMcpConnection = (mcpServers: IMcpServer[], saveMcpServers: (serv
               lastConnected: Date.now(),
             });
             await globalMessageQueue.add(() => {
-              Message.success(`${server.name}: ${t('settings.mcpTestConnectionSuccess')}`);
+              Message.success(`${server.name}: ${t('settings.mcpTestConnectionSuccess', '连接测试成功')}`);
             });
 
             // 连接测试成功，不执行额外操作
@@ -68,7 +68,7 @@ export const useMcpConnection = (mcpServers: IMcpServer[], saveMcpServers: (serv
             await updateServerStatus('error', {
               enabled: false,
             });
-            const errorMsg = truncateErrorMessage(result.error || t('settings.mcpError'));
+            const errorMsg = truncateErrorMessage(result.error || t('settings.mcpError', '错误'));
             await globalMessageQueue.add(() => {
               Message.error({ content: `${server.name}: ${errorMsg}`, duration: 5000 });
             });
@@ -78,7 +78,7 @@ export const useMcpConnection = (mcpServers: IMcpServer[], saveMcpServers: (serv
           await updateServerStatus('error', {
             enabled: false,
           });
-          const errorMsg = truncateErrorMessage(response.msg || t('settings.mcpError'));
+          const errorMsg = truncateErrorMessage(response.msg || t('settings.mcpError', '错误'));
           await globalMessageQueue.add(() => {
             Message.error({ content: `${server.name}: ${errorMsg}`, duration: 5000 });
           });
@@ -88,7 +88,7 @@ export const useMcpConnection = (mcpServers: IMcpServer[], saveMcpServers: (serv
         await updateServerStatus('error', {
           enabled: false,
         });
-        const errorMsg = truncateErrorMessage(error instanceof Error ? error.message : t('settings.mcpError'));
+        const errorMsg = truncateErrorMessage(error instanceof Error ? error.message : t('settings.mcpError', '错误'));
         await globalMessageQueue.add(() => {
           Message.error({ content: `${server.name}: ${errorMsg}`, duration: 5000 });
         });

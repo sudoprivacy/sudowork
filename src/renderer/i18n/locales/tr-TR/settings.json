@@ -462,6 +462,8 @@
   "mcpRemoveStarted": "{{count}} ajandan MCP yapılandırması kaldırılıyor...",
   "mcpSyncPartialFailed": "MCP yapılandırma senkronizasyonu kısmen başarısız oldu: {{errors}}",
   "mcpRemovePartialFailed": "MCP yapılandırma kaldırma işlemi kısmen başarısız oldu: {{errors}}",
+  "mcpSyncSuccess": "MCP yapılandırması senkronize edildi",
+  "mcpRemoveSuccess": "MCP yapılandırması kaldırıldı",
   "mcpSyncFailed": "MCP yapılandırma senkronizasyonu başarısız oldu: {{error}}",
   "mcpRemoveFailed": "MCP yapılandırma kaldırma işlemi başarısız oldu: {{error}}",
   "mcpSyncFailedNoAgents": "Mevcut ajan bulunamadı, MCP yapılandırması senkronize edilemedi",

@@ -62,7 +62,7 @@ export default function ToolsSettings() {
   };
 
   return (
-    <PageWrapper contentClassName='max-w-300' title={t('settings.tools')}>
+    <PageWrapper contentClassName='max-w-300' title={t('settings.tools', '工具')}>
       <div className='flex flex-col h-full w-full'>
         <AionScrollArea className='flex-1 min-h-0 pb-4' disableOverflow>
           <div className='space-y-4'>
@@ -76,14 +76,14 @@ export default function ToolsSettings() {
 
             <div className='px-3 md:px-8 py-6 bg-2 rd-12px md:rd-16px border border-light'>
               <div className='flex items-center justify-between'>
-                <span className='text-14px text-foreground'>{t('settings.imageGeneration')}</span>
+                <span className='text-14px text-foreground'>{t('settings.imageGeneration', '图像生成')}</span>
                 <Switch checked={imageGenerationModel?.switch} onChange={(checked) => onImageGenerationModelChange({ switch: checked })} className='settings-accent-switch' style={imageGenerationModel?.switch ? { backgroundColor: 'var(--ui-accent-orange)' } : undefined} />
               </div>
 
               <div className='my-5 border-b border-light' />
 
               <Form layout='horizontal' labelAlign='left' className='space-y-3'>
-                <Form.Item label={t('settings.imageGenerationModel')}>
+                <Form.Item label={t('settings.imageGenerationModel', '图像模型')}>
                   <Select
                     value={imageGenerationModel?.useModel || DEFAULT_IMAGE_GENERATION_MODEL}
                     disabled={!imageGenerationModel?.switch}

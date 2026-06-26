@@ -25,8 +25,8 @@ const McpServerToolsList: React.FC<McpServerToolsListProps> = ({ server }) => {
                   <div className='font-medium text-sm text-primary break-words'>{tool.name}</div>
                 </div>
                 <div className='flex-1 min-w-0'>
-                  <Tooltip content={tool.description || t('settings.mcpNoDescription')}>
-                    <div className='text-xs text-secondary line-clamp-1 cursor-pointer'>{tool.description || t('settings.mcpNoDescription')}</div>
+                  <Tooltip content={tool.description || t('settings.mcpNoDescription', '暂无描述')}>
+                    <div className='text-xs text-secondary line-clamp-1 cursor-pointer'>{tool.description || t('settings.mcpNoDescription', '暂无描述')}</div>
                   </Tooltip>
                 </div>
               </div>

@@ -163,10 +163,19 @@ const JsonImportModal: React.FC<JsonImportModalProps> = ({ visible, server, onCa
   if (!visible) return null;
 
   return (
-    <Modal visible={visible} onCancel={onCancel} onOk={handleSubmit} okButtonProps={{ disabled: !validation.isValid }} title={server ? t('settings.mcpEditServer') : t('settings.mcpImportFromJSON')} style={{ width: 600 }} okText={t('common.confirm')} cancelText={t('common.cancel')}>
+    <Modal
+      visible={visible}
+      onCancel={onCancel}
+      onOk={handleSubmit}
+      okButtonProps={{ disabled: !validation.isValid }}
+      title={server ? t('settings.mcpEditServer', '编辑') : t('settings.mcpImportFromJSON', '从 JSON 导入')}
+      style={{ width: 600 }}
+      okText={t('common.confirm', '确定')}
+      cancelText={t('common.cancel', '取消')}
+    >
       <div className='space-y-3'>
         <div>
-          <div className='mb-2 text-sm text-secondary'>{t('settings.mcpImportPlaceholder')}</div>
+          <div className='mb-2 text-sm text-secondary'>{t('settings.mcpImportPlaceholder', '从 MCP 服务介绍页面复制 JSON 配置（最好是 NPX 或 UVX 配置），并粘贴到下面的输入框中。')}</div>
           <div className='relative'>
             <CodeMirror
               value={jsonInput}
@@ -236,24 +245,24 @@ const JsonImportModal: React.FC<JsonImportModalProps> = ({ visible, server, onCa
                   backdropFilter: 'blur(4px)',
                 }}
               >
-                {copyStatus === 'success' ? t('common.copySuccess') : copyStatus === 'error' ? t('common.copyFailed') : t('common.copy')}
+                {copyStatus === 'success' ? t('common.copySuccess', '已复制') : copyStatus === 'error' ? t('common.copyFailed', '复制失败') : t('common.copy', '复制')}
               </Button>
             )}
           </div>
 
           {/* JSON 格式错误提示 */}
-          {!validation.isValid && jsonInput.trim() && <div className='mt-2 text-sm text-danger'>{t('settings.mcpJsonFormatError') || 'JSON format error'}</div>}
+          {!validation.isValid && jsonInput.trim() && <div className='mt-2 text-sm text-danger'>{t('settings.mcpJsonFormatError', 'JSON 格式错误')}</div>}
         </div>
 
         <Alert
           type='info'
-          title={t('settings.mcpImportTips')}
+          title={t('settings.mcpImportTips', '导入提示')}
           content={
             <div>
               <ul className='list-disc pl-5 mt-2 space-y-1 text-sm'>
-                <li>{t('settings.mcpImportTip1')}</li>
-                <li>{t('settings.mcpImportTip2')}</li>
-                <li>{t('settings.mcpImportTip3')}</li>
+                <li>{t('settings.mcpImportTip1', '请使用包含顶层 "mcpServers" 字段的有效 JSON 对象。')}</li>
+                <li>{t('settings.mcpImportTip2', '每个服务需定义 "command"（stdio）或 "url"（http/sse）之一。')}</li>
+                <li>{t('settings.mcpImportTip3', '支持一次导入多个服务。')}</li>
               </ul>
             </div>
           }

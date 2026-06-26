@@ -465,6 +465,8 @@
   "mcpRemoveStarted": "正在從 {{count}} 個智慧體中移除 MCP 配置...",
   "mcpSyncPartialFailed": "MCP 配置同步部分失敗：{{errors}}",
   "mcpRemovePartialFailed": "MCP 配置移除部分失敗：{{errors}}",
+  "mcpSyncSuccess": "MCP 配置已同步",
+  "mcpRemoveSuccess": "MCP 配置已移除",
   "mcpSyncFailed": "MCP 配置同步失敗：{{error}}",
   "mcpRemoveFailed": "MCP 配置移除失敗：{{error}}",
   "mcpSyncFailedNoAgents": "未檢測到可用的智慧體，無法同步 MCP 配置",

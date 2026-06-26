@@ -59,10 +59,10 @@ export default function McpManagementSection() {
       const result = await login(server);
 
       if (result.success) {
-        Message.success(`${server.name}: ${t('settings.mcpOAuthLoginSuccess') || 'Login successful'}`);
+        Message.success(`${server.name}: ${t('settings.mcpOAuthLoginSuccess', 'OAuth 登录成功')}`);
         void handleTestMcpConnection(server);
       } else {
-        Message.error(`${server.name}: ${result.error || t('settings.mcpOAuthLoginFailed') || 'Login failed'}`);
+        Message.error(`${server.name}: ${result.error || t('settings.mcpOAuthLoginFailed', 'OAuth 登录失败')}`);
       }
     },
     [login, t, handleTestMcpConnection]
@@ -145,23 +145,23 @@ export default function McpManagementSection() {
           droplist={
             <Menu>
               <Menu.Item key='json' onClick={onAddJsonServer}>
-                {t('settings.mcpImportFromJSON')}
+                {t('settings.mcpImportFromJSON', '从 JSON 导入')}
               </Menu.Item>
               <Menu.Item key='oneclick' onClick={onAddOneClickServer}>
-                {t('settings.mcpOneKeyImport')}
+                {t('settings.mcpOneKeyImport', '一键导入')}
               </Menu.Item>
             </Menu>
           }
         >
           <Plus fill='var(--primary)' size={18} />
-          {t('settings.mcpAddServer')}
+          {t('settings.mcpAddServer', '手动添加')}
         </Dropdown.Button>
       );
     }
 
     return (
       <Button type='outline' icon={<Plus size={18} fill={'var(--primary)'} />} shape='round' onClick={onAddJsonServer}>
-        {t('settings.mcpAddServer')}
+        {t('settings.mcpAddServer', '手动添加')}
       </Button>
     );
   };
@@ -169,13 +169,13 @@ export default function McpManagementSection() {
   return (
     <div className='flex flex-col gap-4 min-h-0'>
       <div className='flex gap-2 items-center justify-between'>
-        <div className='text-14px text-foreground'>{t('settings.mcpSettings')}</div>
+        <div className='text-14px text-foreground'>{t('settings.mcpSettings', 'MCP 工具配置')}</div>
         <div>{renderAddButton()}</div>
       </div>
 
       <div className='flex-1 min-h-0'>
         {mcpServers.length === 0 && extensionMcpServers.length === 0 ? (
-          <div className='py-6 text-center text-secondary text-14px border border-dashed rd-12px'>{t('settings.mcpNoServersFound')}</div>
+          <div className='py-6 text-center text-secondary text-14px border border-dashed rd-12px'>{t('settings.mcpNoServersFound', '未找到 MCP 服务器')}</div>
         ) : (
           <AionScrollArea className={'max-h-90 max-h-none'} disableOverflow>
             <div className='space-y-3'>
@@ -220,8 +220,8 @@ export default function McpManagementSection() {
 
       <AddMcpServerModal visible={showMcpModal} server={editingMcpServer} onCancel={hideMcpModal} onSubmit={editingMcpServer ? (serverData) => onEditMcpServer(editingMcpServer, serverData) : onAddMcpServer} onBatchImport={onBatchImportMcpServers} importMode={importMode} />
 
-      <Modal title={t('settings.mcpDeleteServer')} visible={deleteConfirmVisible} onCancel={hideDeleteConfirm} onOk={onConfirmDelete} okButtonProps={{ status: 'danger' }} okText={t('common.confirm')} cancelText={t('common.cancel')}>
-        <p>{t('settings.mcpDeleteConfirm')}</p>
+      <Modal title={t('settings.mcpDeleteServer', '删除')} visible={deleteConfirmVisible} onCancel={hideDeleteConfirm} onOk={onConfirmDelete} okButtonProps={{ status: 'danger' }} okText={t('common.confirm', '确定')} cancelText={t('common.cancel', '取消')}>
+        <p>{t('settings.mcpDeleteConfirm', '确定要删除此 MCP 服务器吗？')}</p>
       </Modal>
     </div>
   );

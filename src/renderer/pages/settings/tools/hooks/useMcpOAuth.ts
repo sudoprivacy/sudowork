@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { mcpService } from '@/common/ipcBridge';
 import type { IMcpServer } from '@/common/storage';
 import type { IMcpOAuthStatus } from '../types';
@@ -8,6 +9,7 @@ import type { IMcpOAuthStatus } from '../types';
  * 处理 MCP 服务器的 OAuth 认证状态检查和登录流程
  */
 export const useMcpOAuth = () => {
+  const { t } = useTranslation();
   const [oauthStatus, setOAuthStatus] = useState<Record<string, IMcpOAuthStatus>>({});
   const [loggingIn, setLoggingIn] = useState<Record<string, boolean>>({});
 
@@ -66,71 +68,77 @@ export const useMcpOAuth = () => {
   }, []);
 
   // 执行 OAuth 登录
-  const login = useCallback(async (server: IMcpServer): Promise<{ success: boolean; error?: string }> => {
-    setLoggingIn((prev) => ({ ...prev, [server.id]: true }));
+  const login = useCallback(
+    async (server: IMcpServer): Promise<{ success: boolean; error?: string }> => {
+      setLoggingIn((prev) => ({ ...prev, [server.id]: true }));
 
-    try {
-      const response = await mcpService.loginMcpOAuth.invoke({
-        server,
-        config: undefined, // 使用自动发现
-      });
+      try {
+        const response = await mcpService.loginMcpOAuth.invoke({
+          server,
+          config: undefined, // 使用自动发现
+        });
 
-      if (response.success && response.data?.success) {
-        // 登录成功，更新状态
-        setOAuthStatus((prev) => ({
-          ...prev,
-          [server.id]: {
-            isAuthenticated: true,
-            needsLogin: false,
-            isChecking: false,
-          },
-        }));
-        return { success: true };
-      } else {
+        if (response.success && response.data?.success) {
+          // 登录成功，更新状态
+          setOAuthStatus((prev) => ({
+            ...prev,
+            [server.id]: {
+              isAuthenticated: true,
+              needsLogin: false,
+              isChecking: false,
+            },
+          }));
+          return { success: true };
+        } else {
+          return {
+            success: false,
+            error: response.data?.error || response.msg || t('settings.mcpOAuthLoginFailed', 'OAuth 登录失败'),
+          };
+        }
+      } catch (error) {
         return {
           success: false,
-          error: response.data?.error || response.msg || 'Login failed',
+          error: error instanceof Error ? error.message : t('settings.unknownError', '未知错误'),
         };
+      } finally {
+        setLoggingIn((prev) => ({ ...prev, [server.id]: false }));
       }
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      };
-    } finally {
-      setLoggingIn((prev) => ({ ...prev, [server.id]: false }));
-    }
-  }, []);
+    },
+    [t]
+  );
 
   // 登出
-  const logout = useCallback(async (serverName: string, serverId: string): Promise<{ success: boolean; error?: string }> => {
-    try {
-      const response = await mcpService.logoutMcpOAuth.invoke(serverName);
+  const logout = useCallback(
+    async (serverName: string, serverId: string): Promise<{ success: boolean; error?: string }> => {
+      try {
+        const response = await mcpService.logoutMcpOAuth.invoke(serverName);
 
-      if (response.success) {
-        // 登出成功，更新状态
-        setOAuthStatus((prev) => ({
-          ...prev,
-          [serverId]: {
-            isAuthenticated: false,
-            needsLogin: true,
-            isChecking: false,
-          },
-        }));
-        return { success: true };
-      } else {
+        if (response.success) {
+          // 登出成功，更新状态
+          setOAuthStatus((prev) => ({
+            ...prev,
+            [serverId]: {
+              isAuthenticated: false,
+              needsLogin: true,
+              isChecking: false,
+            },
+          }));
+          return { success: true };
+        } else {
+          return {
+            success: false,
+            error: response.msg || t('settings.mcpOAuthLoginFailed', 'OAuth 登录失败'),
+          };
+        }
+      } catch (error) {
         return {
           success: false,
-          error: response.msg || 'Logout failed',
+          error: error instanceof Error ? error.message : t('settings.unknownError', '未知错误'),
         };
       }
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      };
-    }
-  }, []);
+    },
+    [t]
+  );
 
   // 批量检查多个服务器的 OAuth 状态
   const checkMultipleServers = useCallback(

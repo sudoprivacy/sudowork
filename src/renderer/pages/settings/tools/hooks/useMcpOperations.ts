@@ -26,12 +26,12 @@ export const useMcpOperations = () => {
         if (failedAgents.length > 0) {
           const failedNames = failedAgents.map((r: IMcpOperationResult) => `${r.agent}: ${truncateErrorMessage(r.error || '')}`).join(', ');
           const truncatedErrors = truncateErrorMessage(failedNames, 200);
-          const partialFailedKey = operation === 'sync' ? 'mcpSyncPartialFailed' : 'mcpRemovePartialFailed';
+          const partialFailedMessage = operation === 'sync' ? t('settings.mcpSyncPartialFailed', { errors: truncatedErrors, defaultValue: 'MCP 配置同步部分失败：{{errors}}' }) : t('settings.mcpRemovePartialFailed', { errors: truncatedErrors, defaultValue: 'MCP 配置移除部分失败：{{errors}}' });
           await globalMessageQueue.add(() => {
-            Message.warning({ content: t(`settings.${partialFailedKey}`, { errors: truncatedErrors }), duration: 6000 });
+            Message.warning({ content: partialFailedMessage, duration: 6000 });
           });
         } else {
-          const msg = successMessage ?? t(operation === 'sync' ? 'settings.mcpSyncSuccess' : 'settings.mcpRemoveSuccess');
+          const msg = successMessage ?? (operation === 'sync' ? t('settings.mcpSyncSuccess', 'MCP 配置已同步') : t('settings.mcpRemoveSuccess', 'MCP 配置已移除'));
           await globalMessageQueue.add(() => {
             Message.success(msg);
           });
@@ -50,10 +50,10 @@ export const useMcpOperations = () => {
             });
         }
       } else {
-        const failedKey = operation === 'sync' ? 'mcpSyncFailed' : 'mcpRemoveFailed';
-        const errorMsg = truncateErrorMessage(response.msg || t('settings.unknownError'));
+        const errorMsg = truncateErrorMessage(response.msg || t('settings.unknownError', '未知错误'));
+        const failedMessage = operation === 'sync' ? t('settings.mcpSyncFailed', { error: errorMsg, defaultValue: 'MCP 配置同步失败：{{error}}' }) : t('settings.mcpRemoveFailed', { error: errorMsg, defaultValue: 'MCP 配置移除失败：{{error}}' });
         await globalMessageQueue.add(() => {
-          Message.error({ content: t(`settings.${failedKey}`, { error: errorMsg }), duration: 6000 });
+          Message.error({ content: failedMessage, duration: 6000 });
         });
       }
     },
@@ -70,7 +70,7 @@ export const useMcpOperations = () => {
 
         // 显示开始移除的消息（通过队列）
         await globalMessageQueue.add(() => {
-          Message.info(t('settings.mcpRemoveStarted', { count: compatibleCount }));
+          Message.info(t('settings.mcpRemoveStarted', { count: compatibleCount, defaultValue: '正在从 {{count}} 个智能体中移除 MCP 配置...' }));
         });
 
         const removeResponse = await mcpService.removeMcpFromAgents.invoke({
@@ -93,7 +93,7 @@ export const useMcpOperations = () => {
 
         // 显示开始同步的消息（通过队列）
         await globalMessageQueue.add(() => {
-          Message.info(t('settings.mcpSyncStarted', { count: compatibleCount }));
+          Message.info(t('settings.mcpSyncStarted', { count: compatibleCount, defaultValue: '正在将 MCP 配置添加到 {{count}} 个智能体...' }));
         });
 
         const syncResponse = await mcpService.syncMcpToAgents.invoke({
@@ -107,7 +107,7 @@ export const useMcpOperations = () => {
         // Fix: Handle case when no agents are available, show user-friendly error message
         console.error('[useMcpOperations] Failed to get available agents:', agentsResponse.msg);
         await globalMessageQueue.add(() => {
-          Message.error(t('settings.mcpSyncFailedNoAgents'));
+          Message.error(t('settings.mcpSyncFailedNoAgents', '未检测到可用的智能体，无法同步 MCP 配置'));
         });
       }
     },

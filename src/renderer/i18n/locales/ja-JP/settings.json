@@ -465,6 +465,8 @@
   "mcpRemoveStarted": "{{count}} 個のエージェントから MCP 設定を削除しています...",
   "mcpSyncPartialFailed": "MCP 設定の同期が部分的に失敗しました：{{errors}}",
   "mcpRemovePartialFailed": "MCP 設定の削除が部分的に失敗しました：{{errors}}",
+  "mcpSyncSuccess": "MCP 設定が同期されました",
+  "mcpRemoveSuccess": "MCP 設定が削除されました",
   "mcpSyncFailed": "MCP 設定の同期に失敗しました：{{error}}",
   "mcpRemoveFailed": "MCP 設定の削除に失敗しました：{{error}}",
   "mcpSyncFailedNoAgents": "利用可能なエージェントが検出されませんでした。MCP 設定を同期できません",
