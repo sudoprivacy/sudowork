@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, Input, Message } from '@arco-design/web-react';
 import { ipcBridge } from '@/common';
@@ -53,6 +53,20 @@ const ModeSetup: React.FC = () => {
   const [verifyResult, setVerifyResult] = useState<{ success: boolean; tenantName?: string; message?: string } | null>(null);
   const [showConsumerServerForm, setShowConsumerServerForm] = useState(false);
   const [consumerServerUrl, setConsumerServerUrl] = useState('');
+
+  // Backfill any previously-saved custom sudowork-server URL so the existing
+  // override is preserved (not wiped) when the user returns here without
+  // re-entering an address. Submission logic is unchanged: a non-empty value
+  // is kept on submit; an emptied field falls back to the default server.
+  useEffect(() => {
+    void (async () => {
+      const raw = await ConfigStorage.get('system.sudoworkServerUrl').catch((): string | undefined => undefined);
+      const normalized = normalizeSudoworkServerUrl(raw);
+      if (normalized) {
+        setConsumerServerUrl(normalized);
+      }
+    })();
+  }, []);
 
   const handleCardSelect = (card: CardType) => {
     setSelectedCard(card);
@@ -210,7 +224,13 @@ const ModeSetup: React.FC = () => {
             <div className='flex flex-col gap-8px'>
               <div className='text-13px font-600 text-foreground'>企业服务器地址</div>
               <Input size='large' placeholder='https://your-company-server.com' value={serverUrl} onChange={setServerUrl} className='mode-setup__input' />
-              {serverUrl && !isValidServerUrl(serverUrl) ? <p className='text-12px text-danger ml-4px'>请输入有效的 HTTP/HTTPS 地址</p> : serverUrl.startsWith('http://') ? <p className='text-12px text-warning ml-4px'>建议使用 HTTPS 协议以确保安全</p> : <p className='text-12px text-tertiary ml-4px'>请输入管理员提供的企业服务器地址</p>}
+              {serverUrl && !isValidServerUrl(serverUrl) ? (
+                <p className='text-12px text-danger ml-4px'>请输入有效的 HTTP/HTTPS 地址</p>
+              ) : serverUrl.startsWith('http://') ? (
+                <p className='text-12px text-warning ml-4px'>建议使用 HTTPS 协议以确保安全</p>
+              ) : (
+                <p className='text-12px text-tertiary ml-4px'>请输入管理员提供的企业服务器地址</p>
+              )}
             </div>
 
             {verifyResult && <div className={`mode-setup__verify-result ${verifyResult.success ? 'mode-setup__verify-result--success' : 'mode-setup__verify-result--error'}`}>{verifyResult.success ? <span>{verifyResult.tenantName} — 连接成功</span> : <span>{verifyResult.message}</span>}</div>}
