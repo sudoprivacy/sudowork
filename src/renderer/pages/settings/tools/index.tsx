@@ -63,7 +63,7 @@ export default function ToolsSettings() {
 
   return (
     <PageWrapper contentClassName='max-w-300' title={t('settings.tools', '工具')}>
-      <div className='flex flex-col h-full w-full'>
+      <div className='flex flex-col h-full w-full pt-4'>
         <AionScrollArea className='flex-1 min-h-0 pb-4' disableOverflow>
           <div className='space-y-4'>
             <div className='px-3 md:px-8 py-6 bg-2 rd-12px md:rd-16px flex flex-col min-h-0 border border-light'>

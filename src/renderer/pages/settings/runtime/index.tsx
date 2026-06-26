@@ -1,15 +1,13 @@
-import { Button, Message } from '@arco-design/web-react';
+import { Message } from '@arco-design/web-react';
 import React, { useCallback, useEffect, useState } from 'react';
-import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
-import { ShareOne } from '@icon-park/react';
 import { mutate } from 'swr';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { nexus as nexusIpc, claudeCli as claudeCliIpc, libreOffice as libreOfficeIpc, pythonRuntime as pythonRuntimeIpc, scode as scodeIpc, nodeRuntime as nodeRuntimeIpc, acpConversation, shareoneCli } from '@/common/ipcBridge';
 import type { ICliStatus, ILibreOfficeInstallPhase, IPythonInstallPhase, NexusInstallPhase } from '@/common/ipcBridge';
 import PageWrapper from '@renderer/components/base/PageWrapper';
+import RuntimeToolRow from './components/RuntimeToolRow';
 import type { LoadState, ToolRow } from './types';
-import { badgeColors, getRuntimeActions, getStatusInfo, isInstalled } from './utils';
 
 type RefreshOptions = {
   silent?: boolean;
@@ -594,53 +592,9 @@ export default function RuntimeSettings() {
           <div className='space-y-16px pt-16px'>
             <div className='bg-2 rd-16px border px-16px md:px-24px lg:px-28px py-16px md:py-18px'>
               <div className='flex flex-col divide-y divide-light'>
-                {tableData.map((record) => {
-                  const { dotColor, statusText } = getStatusInfo(record, t);
-                  const version = record.status?.version;
-                  const loading = record.loadState !== 'idle';
-                  const installed = isInstalled(record);
-                  const isShareOne = record.key === 'shareone';
-                  const isShareOneDisabled = isShareOne && statusText === t('settings.runtimeSettings.status.disabled', { defaultValue: '未启用' });
-                  const source = record.status?.source;
-                  const sourceLabel = source && source !== 'none' ? t(`settings.runtimeSettings.source.${source}`, { defaultValue: source }) : undefined;
-                  const actions = getRuntimeActions(record, t);
-
-                  return (
-                    <div key={record.key} className='py-14px first:pt-0 last:pb-0'>
-                      <div className='flex flex-col gap-12px md:flex-row md:items-center md:justify-between md:gap-16px'>
-                        <div className='flex items-center gap-12px min-w-0 flex-1'>
-                          <div className={classNames('w-28px h-28px rd-8px f-center flex-shrink-0 text-9px md:text-10px font-700 shadow-sm', badgeColors[record.key] || 'bg-blue-1 color-blue-6 border border-blue-3')}>
-                            {record.key === 'shareone' ? <ShareOne theme='outline' size={16} className='block' /> : record.badge}
-                          </div>
-
-                          <div className='min-w-0 flex-1 space-y-4px'>
-                            <div className='flex flex-col gap-4px lg:flex-row lg:items-center lg:gap-8px'>
-                              <span className='text-14px font-600 text-foreground leading-none'>{record.displayName}</span>
-                              <span className='w-fit px-8px py-2px rd-999px text-10px font-mono leading-none bg-fill-1 text-secondary border'>{record.command}</span>
-                            </div>
-
-                            <div className='flex flex-wrap items-center gap-6px'>
-                              <span className={classNames('inline-flex items-center gap-6px px-8px py-2px rd-999px text-11px border', isShareOneDisabled ? 'bg-[var(--color-primary-light-1)] text-[var(--color-primary-6)] border-[var(--color-primary-light-3)]' : 'bg-fill-1 text-secondary')}>
-                                <span className={classNames('w-6px h-6px rd-full flex-shrink-0', dotColor)} />
-                                <span className='leading-none font-500'>{statusText}</span>
-                              </span>
-                              {version && <span className='px-8px py-2px rd-999px text-10px font-500 bg-fill-1 text-secondary border whitespace-nowrap'>{version}</span>}
-                              {sourceLabel && installed && <span className='px-8px py-2px rd-999px text-10px font-500 bg-[var(--color-primary-light-1)] text-[var(--color-primary-6)] border border-[var(--color-primary-light-3)] whitespace-nowrap'>{sourceLabel}</span>}
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className='flex flex-wrap items-center gap-3 md:justify-end md:max-w-280px'>
-                          {actions.map((action) => (
-                            <Button key={`${record.key}-${action.key}`} type='outline' size='small' status={action.status} disabled={loading} onClick={action.onClick} className='min-w-72px'>
-                              {action.label}
-                            </Button>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
+                {tableData.map((record) => (
+                  <RuntimeToolRow key={record.key} record={record} />
+                ))}
               </div>
             </div>
           </div>
