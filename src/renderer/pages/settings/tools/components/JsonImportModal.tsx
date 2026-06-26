@@ -7,15 +7,7 @@ import type { IMcpServer, IMcpServerTransport, IMcpTool } from '@/common/storage
 import { useThemeContext } from '@/renderer/context/ThemeContext';
 import type { IValidationResult } from '../types';
 
-interface JsonImportModalProps {
-  visible: boolean;
-  server?: IMcpServer;
-  onCancel: () => void;
-  onSubmit: (server: Omit<IMcpServer, 'id' | 'createdAt' | 'updatedAt'>) => void;
-  onBatchImport?: (servers: Omit<IMcpServer, 'id' | 'createdAt' | 'updatedAt'>[]) => void;
-}
-
-const JsonImportModal: React.FC<JsonImportModalProps> = ({ visible, server, onCancel, onSubmit, onBatchImport }) => {
+const JsonImportModal: React.FC<IJsonImportModalProps> = ({ visible, server, onCancel, onSubmit, onBatchImport }) => {
   const { t } = useTranslation();
   const { theme } = useThemeContext();
   const [jsonInput, setJsonInput] = useState('');
@@ -273,3 +265,11 @@ const JsonImportModal: React.FC<JsonImportModalProps> = ({ visible, server, onCa
 };
 
 export default JsonImportModal;
+
+interface IJsonImportModalProps {
+  visible: boolean;
+  server?: IMcpServer;
+  onCancel: () => void;
+  onSubmit: (server: Omit<IMcpServer, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  onBatchImport?: (servers: Omit<IMcpServer, 'id' | 'createdAt' | 'updatedAt'>[]) => void;
+}
