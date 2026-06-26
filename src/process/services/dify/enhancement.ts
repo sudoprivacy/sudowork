@@ -16,7 +16,11 @@
  */
 
 import { mainLog, mainWarn } from '@process/utils/mainLogger';
-import { dify } from '@/common/ipcBridge';
+// Direct main-process helpers — we MUST NOT route these calls through the
+// `dify.*` IPC bridge from here because the bridge's adapter only broadcasts
+// to renderer windows (not back to main). The main-side provider would never
+// fire and the Promise would hang. See difyBridge.ts:callGetEnhancement.
+import { callGetEnhancement, callInvokeEnhancement, callStartEnhancementStream } from '@process/bridge/difyBridge';
 
 export type EnhancementMode = 'agent-chat' | 'workflow' | 'rag-only';
 
@@ -65,12 +69,19 @@ export interface AugmentResult {
  * enhancement, never a requirement.
  */
 export async function probeEnhancement(accessToken: string, assistantId: string): Promise<EnhancementMeta> {
+  const t0 = Date.now();
+  mainLog('DifyEnhancement', `probe start assistantId=${assistantId}`);
   try {
-    const resp = await dify.getEnhancement.invoke({ accessToken, assistantId });
-    if (!resp.success || !resp.data) return { enabled: false };
-    return resp.data as EnhancementMeta;
+    const resp = await callGetEnhancement(accessToken, assistantId);
+    if (!resp.success || !resp.data) {
+      mainLog('DifyEnhancement', `probe done in ${Date.now() - t0}ms → disabled (success=${resp.success}, msg=${resp.msg ?? '∅'})`);
+      return { enabled: false };
+    }
+    const meta = resp.data as EnhancementMeta;
+    mainLog('DifyEnhancement', `probe done in ${Date.now() - t0}ms → enabled=${meta.enabled} mode=${meta.mode ?? '∅'}`);
+    return meta;
   } catch (err) {
-    mainWarn('DifyEnhancement', 'probe failed; treating as disabled:', err);
+    mainWarn('DifyEnhancement', `probe failed in ${Date.now() - t0}ms; treating as disabled:`, err);
     return { enabled: false };
   }
 }
@@ -91,10 +102,19 @@ export function getEnhancementPromptSuffix(meta: EnhancementMeta): string {
  * endpoint so we can surface per-node progress to the renderer; otherwise we
  * use the blocking endpoint.
  *
+ * `query` is what we send to Dify as the user's question — keep it small and
+ * semantically clean (the raw user text, not the scode system prompt). If
+ * `finalMessage` is supplied, the returned `augmentedMessage` will be
+ * `<knowledge_context>${dify_text}</knowledge_context>\n\n${finalMessage}` —
+ * this is how AcpAgent layers the Dify result on top of the fully-wrapped
+ * scode message (preset rules + identity override + file intent marking
+ * etc.). Without `finalMessage` we fall back to wrapping `query` itself,
+ * which matches the original single-argument behavior.
+ *
  * The `onProgress` callback fires for workflow steps so the renderer can
  * render a `🟢 step name` row in the chat transcript while we wait.
  */
-export async function augmentMessage(args: { accessToken: string; assistantId: string; meta: EnhancementMeta; query: string; conversationId?: string; onProgress?: (step: string) => void }): Promise<AugmentResult | null> {
+export async function augmentMessage(args: { accessToken: string; assistantId: string; meta: EnhancementMeta; query: string; finalMessage?: string; conversationId?: string; onProgress?: (step: string) => void }): Promise<AugmentResult | null> {
   if (!args.meta.enabled || !args.meta.mode) return null;
 
   const mode = args.meta.mode;
@@ -107,20 +127,25 @@ export async function augmentMessage(args: { accessToken: string; assistantId: s
 
 async function runBlockingAugment(args: Parameters<typeof augmentMessage>[0], mode: EnhancementMode): Promise<AugmentResult | null> {
   const start = Date.now();
-  const resp = await dify.invokeEnhancement.invoke({
+  mainLog('DifyEnhancement', `blocking invoke start mode=${mode} assistantId=${args.assistantId} queryLen=${args.query.length} finalMessageLen=${args.finalMessage?.length ?? 0}`);
+  const resp = await callInvokeEnhancement({
     accessToken: args.accessToken,
     assistantId: args.assistantId,
     query: args.query,
     conversationId: args.conversationId,
   });
   if (!resp.success || !resp.data) {
-    mainWarn('DifyEnhancement', `blocking invoke failed: ${resp.msg ?? 'unknown'}`);
+    mainWarn('DifyEnhancement', `blocking invoke failed in ${Date.now() - start}ms: ${resp.msg ?? 'unknown'}`);
     return null;
   }
   const text = resp.data.text ?? '';
-  if (text.length === 0) return null;
+  if (text.length === 0) {
+    mainLog('DifyEnhancement', `blocking invoke returned empty text in ${Date.now() - start}ms — skipping augment`);
+    return null;
+  }
+  mainLog('DifyEnhancement', `blocking invoke done in ${Date.now() - start}ms textLen=${text.length}`);
   return {
-    augmentedMessage: composeMessage(text, mode, args.query),
+    augmentedMessage: composeMessage(text, mode, args.finalMessage ?? args.query),
     injectedText: text,
     promptSuffix: ENHANCEMENT_PRELUDE[mode],
     mode,
@@ -129,72 +154,59 @@ async function runBlockingAugment(args: Parameters<typeof augmentMessage>[0], mo
 }
 
 async function runWorkflowAugment(args: Parameters<typeof augmentMessage>[0], mode: EnhancementMode): Promise<AugmentResult | null> {
-  const start = await dify.startEnhancement.invoke({
+  const begin = Date.now();
+  mainLog('DifyEnhancement', `workflow stream start mode=${mode} assistantId=${args.assistantId} queryLen=${args.query.length} finalMessageLen=${args.finalMessage?.length ?? 0}`);
+
+  // Direct call — see `callStartEnhancementStream` for why the original
+  // event-based path via `dify.startEnhancement.invoke` + `dify.enhancement*`
+  // listeners cannot work from the main process (the IPC bridge's adapter
+  // only broadcasts events to renderer windows, never back to main, so the
+  // Promise + listeners would hang forever exactly the way blocking mode
+  // used to hang before we added `callGetEnhancement`).
+  const resp = await callStartEnhancementStream({
     accessToken: args.accessToken,
     assistantId: args.assistantId,
     query: args.query,
     conversationId: args.conversationId,
+    onProgress: (step) => {
+      try {
+        args.onProgress?.(step);
+      } catch (err) {
+        mainWarn('DifyEnhancement', 'workflow onProgress callback threw:', err);
+      }
+    },
   });
-  if (!start.success || !start.data) {
-    mainWarn('DifyEnhancement', `start workflow failed: ${start.msg ?? 'unknown'}`);
+  if (!resp.success || !resp.data) {
+    mainWarn('DifyEnhancement', `workflow stream failed in ${Date.now() - begin}ms: ${resp.msg ?? 'unknown'}`);
     return null;
   }
-  const { streamId } = start.data;
-  const begin = Date.now();
-
-  return new Promise<AugmentResult | null>((resolve) => {
-    let injected: { text: string; elapsedMs: number } | null = null;
-
-    const onProgress = (evt: { streamId: string; step: string }) => {
-      if (evt.streamId !== streamId) return;
-      try {
-        args.onProgress?.(evt.step);
-      } catch (err) {
-        mainWarn('DifyEnhancement', 'onProgress callback threw:', err);
-      }
-    };
-    const onResult = (evt: { streamId: string; text: string; elapsedMs: number }) => {
-      if (evt.streamId !== streamId) return;
-      injected = { text: evt.text, elapsedMs: evt.elapsedMs };
-    };
-    const onEnd = (evt: { streamId: string; ok: boolean; error?: string }) => {
-      if (evt.streamId !== streamId) return;
-      // Detach listeners — IPC emitters expose `.off` symmetric to `.on` in
-      // sudowork's bridge runtime; if the project uses a different teardown
-      // primitive this will need adjustment when integrated.
-      try {
-        (dify.enhancementProgress as any).off?.(onProgress);
-        (dify.enhancementResult as any).off?.(onResult);
-        (dify.enhancementEnd as any).off?.(onEnd);
-      } catch {
-        /* best-effort cleanup */
-      }
-      if (!evt.ok || !injected) {
-        mainWarn('DifyEnhancement', `workflow stream ended without result: ${evt.error ?? 'unknown'}`);
-        resolve(null);
-        return;
-      }
-      mainLog('DifyEnhancement', `workflow ${streamId} finished in ${injected.elapsedMs}ms`);
-      resolve({
-        augmentedMessage: composeMessage(injected.text, mode, args.query),
-        injectedText: injected.text,
-        promptSuffix: ENHANCEMENT_PRELUDE[mode],
-        mode,
-        elapsedMs: injected.elapsedMs || Date.now() - begin,
-      });
-    };
-
-    dify.enhancementProgress.on(onProgress);
-    dify.enhancementResult.on(onResult);
-    dify.enhancementEnd.on(onEnd);
-  });
+  const text = resp.data.text;
+  if (text.length === 0) {
+    mainLog('DifyEnhancement', `workflow stream returned empty text in ${Date.now() - begin}ms — skipping augment`);
+    return null;
+  }
+  const elapsedMs = resp.data.elapsedMs || Date.now() - begin;
+  mainLog('DifyEnhancement', `workflow stream done in ${elapsedMs}ms textLen=${text.length}`);
+  return {
+    augmentedMessage: composeMessage(text, mode, args.finalMessage ?? args.query),
+    injectedText: text,
+    promptSuffix: ENHANCEMENT_PRELUDE[mode],
+    mode,
+    elapsedMs,
+  };
 }
 
-function composeMessage(injected: string, mode: EnhancementMode, originalQuery: string): string {
+function composeMessage(injected: string, mode: EnhancementMode, userContentForAssistant: string): string {
+  // `userContentForAssistant` is whatever AcpAgent built for the local agent
+  // (identity override + preset rules + file intent marking + user typed
+  // text). The Dify-side `injected` text is the RAG / Agent / Workflow
+  // result keyed off the *raw* user query — see `augmentMessage` docstring
+  // for why we don't want the scode system prompt pollution to also leak
+  // into the Dify query.
   const block = `<knowledge_context source="enterprise_knowledge_agent" mode="${mode}">
 ${injected.trim()}
 </knowledge_context>
 
-${originalQuery}`;
+${userContentForAssistant}`;
   return block;
 }

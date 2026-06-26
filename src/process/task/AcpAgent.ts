@@ -937,6 +937,15 @@ This identity statement takes priority over the default identity in USER.md.
         if (contentToSend.includes(NEXUS_FILES_MARKER)) {
           contentToSend = contentToSend.split(NEXUS_FILES_MARKER)[0].trimEnd();
         }
+        // Snapshot the user's RAW typed text right after marker-stripping.
+        // Everything below this point appends scode-specific scaffolding —
+        // file refs, skill tags, the full preset system prompt for first
+        // messages, identity-override blocks for subsequent messages. That
+        // scaffolding is *local-agent context* and must not pollute the
+        // query we send to Dify (which should answer the user's actual
+        // intent, not the scode bootstrap prose). We pass this snapshot to
+        // `augmentUserContent` as the Dify-side query at the very end.
+        const rawUserQuery = contentToSend;
 
         if (data.files && data.files.length > 0) {
           const fileRefs = data.files
@@ -1036,9 +1045,18 @@ This identity statement takes priority over the default identity in USER.md.
         // Dify enhancement: wrap user message with <knowledge_context> block
         // when this conversation has a bound Dify-enhanced assistant. Falls
         // through unchanged for non-enhanced sessions or on any error.
+        //
+        // We pass two args: `rawUserQuery` is what Dify sees as the user's
+        // question; `contentToSend` (already fully wrapped with scode
+        // scaffolding above) is what the local agent ultimately receives,
+        // with the Dify-returned text prepended as a <knowledge_context>
+        // block. This separation is critical — without it, Dify's RAG /
+        // Agent receives the entire 10K scode bootstrap prompt instead of
+        // the actual question, and just parrots whatever fallback line is
+        // closest at hand.
         try {
           const { augmentUserContent } = await import('@process/services/dify/enhancementOrchestrator');
-          contentToSend = await augmentUserContent(this.conversation_id, contentToSend);
+          contentToSend = await augmentUserContent(this.conversation_id, rawUserQuery, contentToSend);
         } catch (augErr) {
           mainWarn('[AcpAgent]', 'Dify augment failed; sending original message:', augErr);
         }

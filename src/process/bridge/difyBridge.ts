@@ -67,11 +67,201 @@ interface ServerEnvelope<T> {
  * renderer-facing IBridgeResponse. The shape contract: the server already
  * wraps everything in `{ success, data, msg }`; we just relay.
  */
-async function sudoworkServerCall<T>(url: string, init: RequestInit): Promise<IBridgeResponse<T>> {
+/**
+ * Hard cap for non-streaming calls into sudowork-server. Anything beyond this
+ * is treated as "Dify enhancement timed out" — the AcpAgent caller will then
+ * fall through to the graceful-degrade path and send the user's message
+ * verbatim instead of hanging the chat indefinitely.
+ *
+ * Sized to cover agent-chat: Dify Agent ReAct chains can run for minutes
+ * when the workflow includes several retrieval + tool-use steps. blocking
+ * `/enhancement/invoke` aggregates the entire upstream stream before
+ * returning a single JSON envelope, so this deadline covers TCP connect +
+ * TLS + the full server-side Dify round-trip. Workflow and rag-only finish
+ * well under this; they share the same constant for consistency.
+ */
+const SUDOWORK_SERVER_CALL_TIMEOUT_MS = 300000;
+
+/**
+ * Direct-call entry point for in-process consumers (the enhancement
+ * orchestrator runs in the main process alongside this bridge — going through
+ * the IPC `bridge.adapter` would broadcast the event only to renderer
+ * windows, and the local provider would never see its own invocation, so the
+ * Promise hangs forever. Calling this helper directly side-steps that.)
+ */
+export async function callGetEnhancement(
+  accessToken: string,
+  assistantId: string,
+): Promise<IBridgeResponse<{ enabled: boolean; mode?: 'agent-chat' | 'workflow' | 'rag-only' }>> {
+  if (!accessToken || !assistantId) {
+    return { success: false, msg: 'accessToken and assistantId required' };
+  }
+  return sudoworkServerCall<{ enabled: boolean; mode?: 'agent-chat' | 'workflow' | 'rag-only' }>(
+    agentUrl(assistantId, '/enhancement'),
+    { headers: jsonHeaders(accessToken) },
+  );
+}
+
+/** See `callGetEnhancement` for why direct calls exist alongside the IPC provider. */
+export async function callInvokeEnhancement(args: {
+  accessToken: string;
+  assistantId: string;
+  query: string;
+  conversationId?: string;
+}): Promise<IBridgeResponse<{ text: string; mode: 'agent-chat' | 'workflow' | 'rag-only'; elapsedMs: number; citations?: unknown[] }>> {
+  if (!args.accessToken || !args.assistantId || !args.query) {
+    return { success: false, msg: 'accessToken, assistantId and query required' };
+  }
+  return sudoworkServerCall(agentUrl(args.assistantId, '/enhancement/invoke'), {
+    method: 'POST',
+    headers: jsonHeaders(args.accessToken),
+    body: JSON.stringify({ query: args.query, conversation_id: args.conversationId ?? '' }),
+  });
+}
+
+/**
+ * Direct-call version of the streaming enhancement path (workflow mode). The
+ * IPC `dify.startEnhancement.invoke()` returns a streamId and then dispatches
+ * `dify.enhancementProgress / Result / End` events to the renderer. That's
+ * unusable from the orchestrator (which already lives in the main process —
+ * see callGetEnhancement docstring for the bridge-broadcast-only quirk that
+ * dropped main → main IPC calls). This helper pumps the SSE stream inline
+ * and resolves a single Promise with the final result; per-node progress is
+ * forwarded via the optional `onProgress` callback so the orchestrator can
+ * still surface "🟢 step name" rows without going through IPC.
+ */
+export async function callStartEnhancementStream(args: {
+  accessToken: string;
+  assistantId: string;
+  query: string;
+  conversationId?: string;
+  onProgress?: (step: string, nodeId?: string, nodeType?: string) => void;
+}): Promise<IBridgeResponse<{ text: string; mode: 'agent-chat' | 'workflow' | 'rag-only'; elapsedMs: number; citations?: unknown[] }>> {
+  if (!args.accessToken || !args.assistantId || !args.query) {
+    return { success: false, msg: 'accessToken, assistantId and query required' };
+  }
+
+  const url = agentUrl(args.assistantId, '/enhancement/invoke-stream');
+  mainLog('DifyBridge', `callStartEnhancementStream enter url=${url}`);
+
   let resp: Response;
   try {
-    resp = await fetch(url, init);
+    resp = await fetch(url, {
+      method: 'POST',
+      headers: jsonHeaders(args.accessToken),
+      body: JSON.stringify({ query: args.query, conversation_id: args.conversationId ?? '' }),
+    });
   } catch (err) {
+    mainWarn('DifyBridge', `callStartEnhancementStream connect failed: ${(err as Error).message}`);
+    return { success: false, msg: `connect failed: ${(err as Error).message}` };
+  }
+  if (!resp.ok || !resp.body) {
+    const detail = await resp.text().catch(() => '');
+    return { success: false, msg: `upstream ${resp.status}: ${detail.slice(0, 200)}` };
+  }
+
+  // Inline SSE pump — mirrors `pumpEnhancementSse` but resolves a single
+  // Promise instead of emitting IPC events. Resolves on `result`/`error`/
+  // stream-end. Bails on dangling streams via an inactivity timer so the
+  // chat doesn't sit at "正在处理中" forever if the server stops sending.
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder('utf-8');
+  let buffer = '';
+  let result: { text: string; mode: 'agent-chat' | 'workflow' | 'rag-only'; elapsedMs: number; citations?: unknown[] } | null = null;
+
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      let sep = buffer.indexOf('\n\n');
+      while (sep !== -1) {
+        const rawFrame = buffer.slice(0, sep);
+        buffer = buffer.slice(sep + 2);
+        sep = buffer.indexOf('\n\n');
+
+        let event = '';
+        const dataLines: string[] = [];
+        for (const line of rawFrame.split('\n')) {
+          if (line.startsWith('event:')) event = line.slice(6).trim();
+          else if (line.startsWith('data:')) dataLines.push(line.slice(5).trim());
+        }
+        if (dataLines.length === 0) continue;
+        let payload: Record<string, unknown> = {};
+        try {
+          payload = JSON.parse(dataLines.join('\n'));
+        } catch {
+          continue;
+        }
+        if (event === 'progress' || payload.kind === 'progress') {
+          try {
+            args.onProgress?.(
+              String(payload.step ?? ''),
+              payload.nodeId as string | undefined,
+              payload.nodeType as string | undefined,
+            );
+          } catch (err) {
+            mainWarn('DifyBridge', 'callStartEnhancementStream onProgress threw:', err);
+          }
+        } else if (event === 'result' || payload.kind === 'result') {
+          result = {
+            text: String(payload.text ?? ''),
+            mode: (payload.mode as 'agent-chat' | 'workflow' | 'rag-only') ?? 'workflow',
+            elapsedMs: Number(payload.elapsedMs ?? 0),
+            citations: payload.citations as unknown[] | undefined,
+          };
+        } else if (event === 'error' || payload.kind === 'error') {
+          const msg = String(payload.message ?? 'enhancement error');
+          mainWarn('DifyBridge', `callStartEnhancementStream upstream error: ${msg}`);
+          return { success: false, msg };
+        }
+      }
+    }
+  } catch (err) {
+    mainWarn('DifyBridge', `callStartEnhancementStream read failed: ${(err as Error).message}`);
+    return { success: false, msg: `stream read failed: ${(err as Error).message}` };
+  }
+
+  if (!result) {
+    return { success: false, msg: 'stream ended without result' };
+  }
+  return { success: true, data: result };
+}
+
+async function sudoworkServerCall<T>(url: string, init: RequestInit): Promise<IBridgeResponse<T>> {
+  const t0 = Date.now();
+  mainLog('DifyBridge', `sudoworkServerCall enter url=${url} method=${init.method ?? 'GET'}`);
+  // Merge any caller-supplied AbortSignal with our timeout. If the caller did
+  // not provide one, the timeout signal alone gates the fetch.
+  const timeoutSignal = AbortSignal.timeout(SUDOWORK_SERVER_CALL_TIMEOUT_MS);
+  const signal = init.signal
+    ? AbortSignal.any([init.signal, timeoutSignal])
+    : timeoutSignal;
+  // Belt-and-suspenders: some Electron Node builds have surprised us with
+  // AbortSignal.timeout being silently ignored on `fetch`. Add an explicit
+  // setTimeout that calls AbortController.abort() — at worst we get two
+  // abort sources racing, at best this is the one that actually fires.
+  const controller = new AbortController();
+  const hardTimer = setTimeout(() => {
+    mainWarn('DifyBridge', `sudoworkServerCall hard-timeout after ${SUDOWORK_SERVER_CALL_TIMEOUT_MS}ms; aborting url=${url}`);
+    controller.abort(new Error('sudoworkServerCall hard timeout'));
+  }, SUDOWORK_SERVER_CALL_TIMEOUT_MS);
+  const finalSignal = AbortSignal.any([signal, controller.signal]);
+
+  let resp: Response;
+  try {
+    resp = await fetch(url, { ...init, signal: finalSignal });
+    clearTimeout(hardTimer);
+  } catch (err) {
+    clearTimeout(hardTimer);
+    const elapsed = Date.now() - t0;
+    const isTimeout = (err as Error).name === 'TimeoutError' || (err as Error).name === 'AbortError';
+    if (isTimeout) {
+      mainWarn('DifyBridge', `sudoworkServerCall timed out after ${elapsed}ms url=${url}`);
+      return { success: false, msg: `sudowork-server timeout after ${elapsed}ms` };
+    }
+    mainWarn('DifyBridge', `sudoworkServerCall network error after ${elapsed}ms url=${url}: ${(err as Error).message}`);
     return { success: false, msg: `network: ${(err as Error).message}` };
   }
   let body: unknown = null;
@@ -494,6 +684,7 @@ export function initDifyBridge(): void {
   // ============================================================================
 
   dify.getEnhancement.provider(async ({ accessToken, assistantId }) => {
+    mainLog('DifyBridge', `getEnhancement provider invoked assistantId=${assistantId} tokenLen=${accessToken?.length ?? 0}`);
     if (!accessToken || !assistantId) {
       return { success: false, msg: 'accessToken and assistantId required' };
     }
@@ -501,6 +692,7 @@ export function initDifyBridge(): void {
   });
 
   dify.invokeEnhancement.provider(async ({ accessToken, assistantId, query, conversationId }) => {
+    mainLog('DifyBridge', `invokeEnhancement provider invoked assistantId=${assistantId} queryLen=${query?.length ?? 0} tokenLen=${accessToken?.length ?? 0}`);
     if (!accessToken || !assistantId || !query) {
       return { success: false, msg: 'accessToken, assistantId and query required' };
     }

@@ -74,31 +74,47 @@ export async function enhancePresetContext(conversationId: string, presetContext
 
 /**
  * Optionally wrap the user message with a `<knowledge_context>` block.
- * Returns the original message verbatim if:
+ *
+ * `rawUserQuery` is what we send to Dify — the cleanest semantic
+ * representation of the user's intent (typically `data.content` after
+ * stripping internal markers). Keep this small and focused.
+ *
+ * `fullAssistantMessage` is what the local agent ultimately receives — the
+ * fully-wrapped scode prompt (identity override + assistant rules + preset
+ * runtime appendix + file intent marking + the actual user query). The
+ * returned string is `<knowledge_context>${dify_text}</knowledge_context>
+ * \n\n${fullAssistantMessage}`. If omitted, falls back to wrapping
+ * `rawUserQuery` itself (original single-argument behavior, kept for
+ * non-AcpAgent callers).
+ *
+ * Returns the original `fullAssistantMessage` (or `rawUserQuery` if not
+ * provided) verbatim if:
  *   - the session was never bound
  *   - the bound assistant has no enhancement
  *   - the Dify call fails for any reason (graceful degrade)
  */
-export async function augmentUserContent(conversationId: string, userContent: string, onProgress?: (step: string) => void): Promise<string> {
+export async function augmentUserContent(conversationId: string, rawUserQuery: string, fullAssistantMessage?: string, onProgress?: (step: string) => void): Promise<string> {
+  const fallback = fullAssistantMessage ?? rawUserQuery;
   const binding = SESSIONS.get(conversationId);
-  if (!binding) return userContent;
+  if (!binding) return fallback;
   const meta = await ensureMeta(binding);
-  if (!meta.enabled) return userContent;
+  if (!meta.enabled) return fallback;
 
   try {
     const result = await augmentMessage({
       accessToken: binding.accessToken,
       assistantId: binding.assistantId,
       meta,
-      query: userContent,
+      query: rawUserQuery,
+      finalMessage: fullAssistantMessage,
       conversationId: binding.difyConversationId,
       onProgress,
     });
-    if (!result) return userContent;
+    if (!result) return fallback;
     return result.augmentedMessage;
   } catch (err) {
     mainWarn('DifyEnhancementOrchestrator', 'augment failed; passing through:', err);
-    return userContent;
+    return fallback;
   }
 }
 
