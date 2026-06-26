@@ -5,15 +5,13 @@
  */
 
 import React from 'react';
-import RuntimeModalContent from '@/renderer/components/SettingsModal/contents/RuntimeModalContent';
 import PageWrapper from '@renderer/components/base/PageWrapper';
+import RuntimeModalContent from './components/RuntimeModalContent';
 
-const RuntimeSettings: React.FC = () => {
+export default function RuntimeSettings() {
   return (
     <PageWrapper contentClassName='max-w-160'>
       <RuntimeModalContent />
     </PageWrapper>
   );
-};
-
-export default RuntimeSettings;
+}
