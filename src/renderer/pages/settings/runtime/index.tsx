@@ -8,8 +8,8 @@ import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { nexus as nexusIpc, claudeCli as claudeCliIpc, libreOffice as libreOfficeIpc, pythonRuntime as pythonRuntimeIpc, scode as scodeIpc, nodeRuntime as nodeRuntimeIpc, acpConversation, shareoneCli } from '@/common/ipcBridge';
 import type { ICliStatus, ILibreOfficeInstallPhase, IPythonInstallPhase, NexusInstallPhase } from '@/common/ipcBridge';
 import PageWrapper from '@renderer/components/base/PageWrapper';
-import { getRuntimeActions, getStatusInfo, isInstalled, type LoadState, type ToolRow } from './runtimeStatus';
-import { badgeColors } from './utils';
+import type { LoadState, ToolRow } from './types';
+import { badgeColors, getRuntimeActions, getStatusInfo, isInstalled } from './utils';
 
 type RefreshOptions = {
   silent?: boolean;
@@ -630,9 +630,9 @@ export default function RuntimeSettings() {
                           </div>
                         </div>
 
-                        <div className='flex flex-wrap items-center gap-6px md:justify-end md:max-w-280px'>
+                        <div className='flex flex-wrap items-center gap-3 md:justify-end md:max-w-280px'>
                           {actions.map((action) => (
-                            <Button key={`${record.key}-${action.key}`} type='outline' size='small' status={action.status} disabled={loading} onClick={action.onClick} className='min-w-72px !rd-8px !text-11px !font-500'>
+                            <Button key={`${record.key}-${action.key}`} type='outline' size='small' status={action.status} disabled={loading} onClick={action.onClick} className='min-w-72px'>
                               {action.label}
                             </Button>
                           ))}
