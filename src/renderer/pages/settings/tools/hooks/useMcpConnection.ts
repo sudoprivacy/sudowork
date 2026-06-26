@@ -3,18 +3,8 @@ import { useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { mcpService } from '@/common/ipcBridge';
 import type { IMcpServer } from '@/common/storage';
-import { globalMessageQueue } from './messageQueue';
-
-/**
- * 截断过长的错误消息，保持可读性
- * Truncate long error messages to keep them readable
- */
-const truncateErrorMessage = (message: string, maxLength: number = 150): string => {
-  if (message.length <= maxLength) {
-    return message;
-  }
-  return message.substring(0, maxLength) + '...';
-};
+import { truncateErrorMessage } from '../utils';
+import { globalMessageQueue } from '../utils/messageQueue';
 
 /**
  * MCP连接测试管理Hook

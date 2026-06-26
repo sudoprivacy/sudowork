@@ -4,18 +4,8 @@ import { useTranslation } from 'react-i18next';
 import { acpConversation, mcpService } from '@/common/ipcBridge';
 import { ConfigStorage } from '@/common/storage';
 import type { IMcpServer } from '@/common/storage';
-import { globalMessageQueue } from './messageQueue';
-
-/**
- * 截断过长的错误消息，保持可读性
- * Truncate long error messages to keep them readable
- */
-const truncateErrorMessage = (message: string, maxLength: number = 150): string => {
-  if (message.length <= maxLength) {
-    return message;
-  }
-  return message.substring(0, maxLength) + '...';
-};
+import { truncateErrorMessage } from '../utils';
+import { globalMessageQueue } from '../utils/messageQueue';
 
 // 定义MCP操作结果类型
 interface McpOperationResult {
