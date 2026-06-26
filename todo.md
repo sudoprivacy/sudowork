@@ -55,5 +55,10 @@
 - [ ] 整理功能模块及步骤
   - [ ] 整理功能代码
   - [ ] 扫描出关联的components，hooks, utils,types内聚到功能目录
+        扫描该模块下的引用的组件，如果只有该模块自己在用的话，就收纳到该模块对应的components内
+        扫描该模块下的引用的hook，如果只有该模块自己在用的话，就收纳到该模块对应的hooks内
+        扫描该模块内部用到的工具方法，可以放到它下面的utils目录
+        抽出些该模块的interface放到该模块对应的types目录，除了组件props的interface，其他的我觉得都可以收纳过去
   - [ ] 扫描丢失的国际化 key
+        使用.claude/agents/i18n-checker.md 这个agent扫描 xxxx
   - [ ] 修正 UnoCSS 的用法
