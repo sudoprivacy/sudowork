@@ -603,17 +603,12 @@ export default function RuntimeSettings() {
   };
 
   return (
-    <PageWrapper contentClassName='max-w-160'>
+    <PageWrapper contentClassName='max-w-160' title={t('settings.runtimeSettings.title')} subtitle={t('settings.runtimeSettings.description')}>
       <div className='flex flex-col h-full w-full'>
         <AionScrollArea className='flex-1 min-h-0 pb-16px' disableOverflow>
-          <div className={'space-y-16px px-24px px-0'}>
+          <div className={'space-y-16px px-24px px-0 pt-16px'}>
             <div className='max-w-820px mx-auto bg-2 rd-16px border px-16px md:px-24px lg:px-28px py-16px md:py-18px'>
-              <div className='flex flex-col gap-4px'>
-                <h3 className='text-17px md:text-18px font-600 text-foreground m-0 leading-24px'>{t('settings.runtimeSettings.title')}</h3>
-                <p className='text-13px md:text-14px text-secondary m-0 leading-22px'>{t('settings.runtimeSettings.description')}</p>
-              </div>
-
-              <div className='mt-16px flex flex-col divide-y divide-light'>
+              <div className='flex flex-col divide-y divide-light'>
                 {tableData.map((record) => {
                   const { dotColor, statusText } = getStatusInfo(record, t);
                   const version = record.status?.version;
