@@ -169,9 +169,9 @@ const OneClickImportModal: React.FC<OneClickImportModalProps> = ({ visible, onCa
             <Check theme='filled' size={20} fill={'var(--success)'} />
             <span className='text-foreground'>{t('settings.mcpToolsLoaded', { count: importableServers.length, defaultValue: '读取到{{count}}个工具' })}</span>
           </div>
-          <div className='bg-base rounded-lg max-h-50 overflow-y-auto'>
+          <div className='bg-base rounded-lg max-h-50 overflow-y-auto divide-y divide-light'>
             {importableServers.map((server, index) => (
-              <div key={index} className='p-3' style={index < importableServers.length - 1 ? { borderBottom: '1px solid var(--bg-3)' } : undefined}>
+              <div key={index} className='p-3'>
                 <div className='font-medium text-foreground'>{server.name}</div>
                 {server.description && <div className='text-sm text-secondary mt-1'>{server.description}</div>}
               </div>
@@ -193,9 +193,9 @@ const OneClickImportModal: React.FC<OneClickImportModalProps> = ({ visible, onCa
             <Check theme='filled' size={20} fill={'var(--success)'} />
             <span className='text-foreground'>{t('settings.mcpImportedSuccess', { count: importableServers.length, defaultValue: '已导入{{count}}个工具' })}</span>
           </div>
-          <div className='bg-base rounded-lg max-h-50 overflow-y-auto'>
+          <div className='bg-base rounded-lg max-h-50 overflow-y-auto divide-y divide-light'>
             {importableServers.map((server, index) => (
-              <div key={index} className='p-3' style={index < importableServers.length - 1 ? { borderBottom: '1px solid var(--bg-3)' } : undefined}>
+              <div key={index} className='p-3'>
                 <div className='font-medium text-foreground'>{server.name}</div>
                 {server.description && <div className='text-sm text-secondary mt-1'>{server.description}</div>}
               </div>

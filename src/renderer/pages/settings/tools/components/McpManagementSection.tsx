@@ -177,7 +177,7 @@ export default function McpManagementSection() {
         {mcpServers.length === 0 && extensionMcpServers.length === 0 ? (
           <div className='py-6 text-center text-secondary text-14px border border-dashed rd-12px'>{t('settings.mcpNoServersFound', '未找到 MCP 服务器')}</div>
         ) : (
-          <AionScrollArea className={'max-h-90 max-h-none'} disableOverflow>
+          <AionScrollArea className={'max-h-none'} disableOverflow>
             <div className='space-y-3'>
               {mcpServers.map((server) => (
                 <McpServerItem
