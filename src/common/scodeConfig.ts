@@ -261,8 +261,8 @@ export function mergeSudorouterIntoScodeConfig(existing: ScodeConfig | null | un
     web_search: {
       ...(existing?.web_search || {}),
       provider: existing?.web_search?.provider || 'tavily',
-      apiUrl: existing?.web_search?.apiUrl || `${getSudorouterBaseUrl()}/search/tavily/search`,
-      apiKey: existing?.web_search?.apiKey || payload.sudorouterKey || '',
+      apiUrl: `${getSudorouterBaseUrl()}/search/tavily/search`,
+      apiKey: payload.sudorouterKey || '',
     },
   };
 
