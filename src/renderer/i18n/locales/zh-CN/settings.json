@@ -950,6 +950,7 @@
     "selectPayment": "支付方式",
     "alipay": "支付宝",
     "wechat": "微信支付",
+    "wechatShort": "微信",
     "paying": "等待支付",
     "success": "充值成功",
     "failed": "充值失败",
@@ -964,6 +965,8 @@
     "noOrders": "暂无充值记录",
     "loadPackagesFailed": "加载套餐失败",
     "createOrderFailed": "创建订单失败",
+    "getPaymentQrFailed": "获取支付二维码失败",
+    "getOrderInfoFailed": "获取订单信息失败",
     "waitingPayment": "等待支付...",
     "expireAt": "过期时间",
     "createOrder": "创建订单",
@@ -984,7 +987,8 @@
     "noOrders": "暂无订单记录",
     "loadFailed": "加载订单失败",
     "continuePay": "继续支付",
-    "refresh": "刷新"
+    "refresh": "刷新",
+    "pendingPayment": "待支付"
   },
   "secrets": "秘钥管理",
   "secrets.title": "秘钥管理",

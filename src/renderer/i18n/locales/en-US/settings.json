@@ -947,6 +947,7 @@
     "selectPayment": "Payment Method",
     "alipay": "Alipay",
     "wechat": "WeChat Pay",
+    "wechatShort": "WeChat",
     "paying": "Waiting for Payment",
     "success": "Recharge Successful",
     "failed": "Recharge Failed",
@@ -961,6 +962,8 @@
     "noOrders": "No recharge records",
     "loadPackagesFailed": "Failed to load packages",
     "createOrderFailed": "Failed to create order",
+    "getPaymentQrFailed": "Failed to get payment QR code",
+    "getOrderInfoFailed": "Failed to get order information",
     "waitingPayment": "Waiting for payment...",
     "expireAt": "Expires at",
     "createOrder": "Create Order",
@@ -981,7 +984,8 @@
     "noOrders": "No orders yet",
     "loadFailed": "Failed to load orders",
     "continuePay": "Continue Payment",
-    "refresh": "Refresh"
+    "refresh": "Refresh",
+    "pendingPayment": "Pending payment"
   },
   "secrets": "Secrets",
   "secrets.title": "Secrets",

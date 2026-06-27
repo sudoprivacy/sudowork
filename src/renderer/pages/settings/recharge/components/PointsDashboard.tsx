@@ -7,14 +7,14 @@ export default function PointsDashboard({ remainingPoints, usedPoints, bonusPoin
   const { t } = useTranslation();
 
   const statItems = [
-    { label: t('settings.recharge.remainingPoints') || '剩余积分', value: remainingPoints, valueClass: 'italic text-primary' },
-    { label: t('settings.recharge.usedPoints') || '累计已用', value: usedPoints, valueClass: 'text-foreground' },
-    { label: t('settings.recharge.bonusPoints') || '赠送积分', value: bonusPoints, valueClass: 'text-foreground' },
+    { label: t('settings.recharge.remainingPoints', '剩余积分'), value: remainingPoints, valueClass: 'italic text-primary' },
+    { label: t('settings.recharge.usedPoints', '累计已用'), value: usedPoints, valueClass: 'text-foreground' },
+    { label: t('settings.recharge.bonusPoints', '赠送积分'), value: bonusPoints, valueClass: 'text-foreground' },
   ];
 
   return (
     <div className={PANEL_CLASS}>
-      <div className='text-14px font-600 text-foreground mb-6'>{t('settings.recharge.pointsInfo') || '积分信息'}</div>
+      <div className='text-14px font-600 text-foreground mb-6'>{t('settings.recharge.pointsInfo', '积分信息')}</div>
       <div className='grid grid-cols-3'>
         {statItems.map(({ label, value, valueClass }) => (
           <div key={label} className={`flex flex-col gap-2`}>
