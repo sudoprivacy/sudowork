@@ -42,14 +42,23 @@ border-b border-[var(--border-default)]  # 底边线，用 arbitrary 值
 
 看到 `border-solid` / `border-l-solid` 等显式 style 声明时，直接删掉（preflight 已覆盖）。
 
-### 2. 边框色：优先用 `border-light` shortcut，避免 arbitrary 值
+### 2. 边框色：优先用 shortcut，避免 arbitrary 值
 
-项目 `shortcuts` 已定义 `border-light: border-[var(--border-light)]` 和 `divide-light: divide-[var(--border-light)]`，这是最常用的浅边框色。
+项目 `shortcuts` 已定义三档边框色：
+
+| Shortcut         | 变量               | 适用场景                       |
+| ---------------- | ------------------ | ------------------------------ |
+| `border-default` | `--border-default` | 标准边框，大多数情况           |
+| `border-light`   | `--border-light`   | 浅色边框，muted 背景面板       |
+| `border-tiny`    | `--border-tiny`    | 极浅边框，白色/fill-0 背景面板 |
+
+分割线对应：`divide-light`、`divide-tiny`。
 
 **修法**：
-- 整框/单边框：`border border-light` / `border-l border-light`（用 shortcut）
+
+- 整框/单边框：`border border-light` / `border border-tiny`（用 shortcut）
 - 分割线：`divide-y divide-light`（用 shortcut）
-- 其他边框色（如 `--border-default`）：`border-[var(--border-default)]`（用 arbitrary 值）
+- 其他边框色：`border-[var(--border-default)]`（用 arbitrary 值）
 
 看到 `border-[var(--border-light)]` 时，替换为 `border-light` shortcut。
 
@@ -57,18 +66,19 @@ border-b border-[var(--border-default)]  # 底边线，用 arbitrary 值
 
 项目 `uno.config.ts` 已定义以下 shortcuts，**遇到匹配场景必须优先用 shortcut**：
 
-| Shortcut | 展开形式 | 用途 |
-|----------|---------|------|
-| `f-center` | `flex items-center justify-center` | 居中布局 |
-| `border-light` | `border-[var(--border-light)]` | 浅边框色（搭配 border / border-b 等） |
-| `divide-light` | `divide-[var(--border-light)]` | 浅分割线色（搭配 divide-y / divide-x） |
-| `scrollbar-hide` | `scrollbar-width-none [&::-webkit-scrollbar]:hidden` | 隐藏滚动条 |
-| `item-card` | `bg-fill-0 rd-12px p-4 cursor-pointer shadow-[...] transition-all ...` | 卡片样式（完整交互态） |
-| `category-chip` | `flex-shrink-0 inline-flex items-center ... h-28px px-12px rd-16px ...` | 筛选 chip 基础结构 |
-| `category-chip-idle` | `text-secondary hover:bg-fill-2 hover:text-foreground` | chip 默认态 |
-| `category-chip-active` | `bg-[rgba(...)] text-[var(--ui-accent-orange)] font-medium` | chip 激活态 |
+| Shortcut               | 展开形式                                                                | 用途                                   |
+| ---------------------- | ----------------------------------------------------------------------- | -------------------------------------- |
+| `f-center`             | `flex items-center justify-center`                                      | 居中布局                               |
+| `border-light`         | `border-[var(--border-light)]`                                          | 浅边框色（搭配 border / border-b 等）  |
+| `divide-light`         | `divide-[var(--border-light)]`                                          | 浅分割线色（搭配 divide-y / divide-x） |
+| `scrollbar-hide`       | `scrollbar-width-none [&::-webkit-scrollbar]:hidden`                    | 隐藏滚动条                             |
+| `item-card`            | `bg-fill-0 rd-12px p-4 cursor-pointer shadow-[...] transition-all ...`  | 卡片样式（完整交互态）                 |
+| `category-chip`        | `flex-shrink-0 inline-flex items-center ... h-28px px-12px rd-16px ...` | 筛选 chip 基础结构                     |
+| `category-chip-idle`   | `text-secondary hover:bg-fill-2 hover:text-foreground`                  | chip 默认态                            |
+| `category-chip-active` | `bg-[rgba(...)] text-[var(--ui-accent-orange)] font-medium`             | chip 激活态                            |
 
 **修法示例**：
+
 - `flex items-center justify-center` → `f-center`
 - `border-[var(--border-light)]` → `border-light`
 - `divide-y divide-[var(--border-light)]` → `divide-y divide-light`
@@ -131,6 +141,7 @@ grep -rn "\.可疑class\b" src/renderer/styles/
 两处都查不到 → 死类，删。任一处命中 → 保留。
 
 注意排除「误判」：
+
 - 运行时动态拼接 / `clsx` 条件类 / 模板变量里的类名——这些静态 grep 可能扫不全，删前先确认不是动态引用。
 - 业务/第三方约定的非 UnoCSS 类（如 Arco 的 `arco-*`、`react-*` 库的 hook 类、`data-*` 配套的语义类、滚动锚点类）——这些不归 UnoCSS 管，**保留**。
 - 选择器钩子类（仅作 JS querySelector / CSS 后代选择器锚点，自身不需要样式）——保留，但建议确认确有引用。

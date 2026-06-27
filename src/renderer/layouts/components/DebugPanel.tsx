@@ -50,7 +50,7 @@ function DebuggerThemeSwitch() {
   ];
 
   return (
-    <div className='mt-3 flex items-center justify-between gap-3 border-t border-light pt-3'>
+    <div className='mt-3 flex items-center justify-between gap-3 border-t border-tiny pt-3'>
       <div className='shrink-0 font-sans text-12px text-3'>{t('settings.theme')}</div>
       <div className='inline-flex items-center gap-1 rounded-full bg-fill-1 p-1'>
         {themeOptions.map((option) => {

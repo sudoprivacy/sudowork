@@ -128,7 +128,7 @@
   /* Border - 淡化一档（更贴近背景，柔和分隔） */
   --border-default: #e0dbd0;
   --border-light: #e3ded2;
-  --border-tiny: #eeebe5;
+  --border-tiny: #f2f0ec;
 
   /* Semantic - 实色(文字/图标/圆点) + soft(浅底) + line(描边) */
   --success: #2e7d32; /* 成功实色：文字、图标、状态点 */
@@ -241,7 +241,7 @@
   /* Border */
   --border-default: #4a4a38;
   --border-light: #34342a;
-  --border-tiny: #2c2c22;
+  --border-tiny: #39392b;
 
   /* Semantic - 实色(文字/图标/圆点) + soft(浅底) + line(描边) */
   --success: #79b87d; /* 成功实色：文字、图标、状态点 */

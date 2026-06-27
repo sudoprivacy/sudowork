@@ -148,7 +148,9 @@ export default defineConfig({
     'f-center': 'flex items-center justify-center',
     'border-light': 'border-[var(--border-light)]', // 浅边框 / lighter border（搭配 border / border-b）
     'border-default': 'border-[var(--border-default)]', // 默认边框 default border
+    'border-tiny': 'border-[var(--border-tiny)]', // 极浅边框，适用于白色/浅色面板 / very subtle border for white panels
     'divide-light': 'divide-[var(--border-light)]', // 浅分割线 / lighter divider color（搭配 divide-y / divide-x）
+    'divide-tiny': 'divide-[var(--border-tiny)]', // 极浅分割线 / very subtle divider
     'scrollbar-hide': 'scrollbar-width-none [&::-webkit-scrollbar]:hidden',
     'item-card': 'bg-fill-0 rd-12px p-4 cursor-pointer shadow-[0_1px_3px_rgba(0,0,0,0.08)] transition-all duration-200 hover:-translate-y-px hover:shadow-[0_4px_12px_rgba(0,0,0,0.1)]',
     // 分类筛选 chip：结构 + 两种互斥状态（idle / active），避免 hover 与选中态冲突
