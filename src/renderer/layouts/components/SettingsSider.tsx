@@ -111,7 +111,7 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
       skill: { id: 'skill', label: t('settings.skill'), icon: <Sparkles />, path: 'skill' },
       security: { id: 'security', label: t('settings.security'), icon: <ShieldCheck />, path: 'security' },
       display: { id: 'display', label: t('settings.display'), icon: <Monitor />, path: 'display' },
-      // copilot: { id: 'copilot', label: t('settings.copilot'), icon: <Config />, path: 'copilot' },
+      // copilot: { id: 'copilot', label: t('settings.copilot'), icon: <BotMessageSquare />, path: 'copilot' },
       webui: { id: 'webui', label: t('settings.webui'), icon: isDesktop ? <Globe /> : <MessageSquare />, path: 'webui' },
       runtime: { id: 'runtime', label: t('settings.runtime'), icon: <HardDrive />, path: 'runtime' },
       system: { id: 'system', label: t('settings.system'), icon: <Settings />, path: 'system' },

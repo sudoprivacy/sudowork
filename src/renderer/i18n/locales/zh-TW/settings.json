@@ -904,7 +904,29 @@
       "descPlaceholder": "規則說明"
     }
   },
+  "copilot": "Copilot",
   "rechargeCenter": "充值中心",
+  "copilotSettings": {
+    "subtitle": "配置 Sudo Code",
+    "testing": "測試中...",
+    "connected": "已連線",
+    "disconnected": "未連線",
+    "connectionFailed": "連線失敗",
+    "sudoclawConnectionFailed": "Sudoclaw 連線失敗",
+    "sudoclawInstallHint": "請確認 Sudoclaw 已安裝並正在執行。",
+    "statusAbnormal": "Sudoclaw 狀態異常",
+    "gatewayRunningNoSession": "Gateway 正在執行但尚未建立會話，請嘗試重新啟動 Gateway。",
+    "connectionStatus": "連線狀態",
+    "agent": "Agent",
+    "notSet": "未設定",
+    "workspace": "工作區",
+    "configured": "已配置",
+    "notConfigured": "未配置",
+    "sessionStatus": "會話狀態",
+    "active": "活動中",
+    "idle": "閒置",
+    "noActiveSession": "無活動會話"
+  },
   "recharge": {
     "selectPackageRecharge": "選擇套餐充值",
     "selectPayment": "支付方式",

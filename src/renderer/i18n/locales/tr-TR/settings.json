@@ -900,7 +900,29 @@
       "descPlaceholder": "Kural açıklaması"
     }
   },
+  "copilot": "Copilot",
   "rechargeCenter": "Yükleme Merkezi",
+  "copilotSettings": {
+    "subtitle": "Sudo Code'u yapılandır",
+    "testing": "Test ediliyor...",
+    "connected": "Bağlandı",
+    "disconnected": "Bağlı değil",
+    "connectionFailed": "Bağlantı başarısız",
+    "sudoclawConnectionFailed": "Sudoclaw bağlantısı başarısız",
+    "sudoclawInstallHint": "Sudoclaw'un kurulu ve çalışır durumda olduğundan emin olun.",
+    "statusAbnormal": "Sudoclaw durumu anormal",
+    "gatewayRunningNoSession": "Gateway çalışıyor, ancak oturum kurulmadı. Gateway'i yeniden başlatmayı deneyin.",
+    "connectionStatus": "Bağlantı Durumu",
+    "agent": "Agent",
+    "notSet": "Ayarlanmadı",
+    "workspace": "Çalışma Alanı",
+    "configured": "Yapılandırıldı",
+    "notConfigured": "Yapılandırılmadı",
+    "sessionStatus": "Oturum Durumu",
+    "active": "Aktif",
+    "idle": "Boşta",
+    "noActiveSession": "Aktif oturum yok"
+  },
   "recharge": {
     "selectPackageRecharge": "Yükleme paketi seç",
     "selectPayment": "Ödeme yöntemi",

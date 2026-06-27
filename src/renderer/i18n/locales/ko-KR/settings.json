@@ -904,7 +904,29 @@
       "descPlaceholder": "규칙 설명"
     }
   },
+  "copilot": "Copilot",
   "rechargeCenter": "충전 센터",
+  "copilotSettings": {
+    "subtitle": "Sudo Code 구성",
+    "testing": "테스트 중...",
+    "connected": "연결됨",
+    "disconnected": "연결 안 됨",
+    "connectionFailed": "연결 실패",
+    "sudoclawConnectionFailed": "Sudoclaw 연결 실패",
+    "sudoclawInstallHint": "Sudoclaw가 설치되어 실행 중인지 확인하세요.",
+    "statusAbnormal": "Sudoclaw 상태 이상",
+    "gatewayRunningNoSession": "Gateway가 실행 중이지만 세션이 설정되지 않았습니다. Gateway를 다시 시작해 보세요.",
+    "connectionStatus": "연결 상태",
+    "agent": "Agent",
+    "notSet": "설정되지 않음",
+    "workspace": "워크스페이스",
+    "configured": "구성됨",
+    "notConfigured": "구성되지 않음",
+    "sessionStatus": "세션 상태",
+    "active": "활성",
+    "idle": "유휴",
+    "noActiveSession": "활성 세션 없음"
+  },
   "recharge": {
     "selectPackageRecharge": "충전 패키지 선택",
     "selectPayment": "결제 방법",

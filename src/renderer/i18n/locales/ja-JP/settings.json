@@ -904,7 +904,29 @@
       "descPlaceholder": "ルールの説明"
     }
   },
+  "copilot": "Copilot",
   "rechargeCenter": "チャージセンター",
+  "copilotSettings": {
+    "subtitle": "Sudo Code を設定",
+    "testing": "テスト中...",
+    "connected": "接続済み",
+    "disconnected": "未接続",
+    "connectionFailed": "接続に失敗しました",
+    "sudoclawConnectionFailed": "Sudoclaw の接続に失敗しました",
+    "sudoclawInstallHint": "Sudoclaw がインストールされ、実行中であることを確認してください。",
+    "statusAbnormal": "Sudoclaw の状態が異常です",
+    "gatewayRunningNoSession": "Gateway は実行中ですが、セッションが確立されていません。Gateway を再起動してください。",
+    "connectionStatus": "接続状態",
+    "agent": "Agent",
+    "notSet": "未設定",
+    "workspace": "ワークスペース",
+    "configured": "設定済み",
+    "notConfigured": "未設定",
+    "sessionStatus": "セッション状態",
+    "active": "アクティブ",
+    "idle": "アイドル",
+    "noActiveSession": "アクティブなセッションはありません"
+  },
   "recharge": {
     "selectPackageRecharge": "チャージプランを選択",
     "selectPayment": "支払い方法",
