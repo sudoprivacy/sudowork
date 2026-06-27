@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Avatar, Button, Modal, Input, Message, Spin } from '@arco-design/web-react';
-import { IconEdit, IconLock } from '@arco-design/web-react/icon';
-import { User, Phone } from '@icon-park/react';
+import { IconEdit, IconLock, IconMobile, IconUser } from '@arco-design/web-react/icon';
 import { useTranslation } from 'react-i18next';
 import { formatUsagePoints } from '@/common/tokenUsage';
 import type { UserProfileData } from '@/common/ipcBridge';
@@ -155,7 +154,7 @@ const UserProfile: React.FC = () => {
             {/* Enterprise: Identity */}
             <div className='flex items-center gap-5 p-6 rd-16px border border-light'>
               <Avatar size={64} className='bg-primary'>
-                <User theme='outline' size={32} fill='#fff' />
+                <IconUser style={{ fontSize: 32, color: '#fff' }} />
               </Avatar>
               <div className='flex-1'>
                 <div className='text-18px font-600 text-foreground'>{enterpriseProfile?.username || '--'}</div>
@@ -207,7 +206,7 @@ const UserProfile: React.FC = () => {
                 </div>
                 <div className='flex gap-3 mt-2'>
                   <span className='text-12px text-secondary flex items-center gap-1'>
-                    <Phone size='14' /> {profile?.phone || currentUser?.phone || t('settings.userProfile.unbound', '未绑定')}
+                    <IconMobile className='text-14px' /> {profile?.phone || currentUser?.phone || t('settings.userProfile.unbound', '未绑定')}
                   </span>
                 </div>
               </div>

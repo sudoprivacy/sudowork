@@ -93,8 +93,8 @@ function DebugPanelTrigger({ offset, visible, onVisibleChange, content }: IDebug
       {...attributes}
       {...listeners}
     >
-      <Popover position='tr' popupVisible={visible} className='!w-[420px] !max-w-[420px]' triggerProps={{ autoFitPosition: false }} content={content}>
-        <Button size='small' type='primary' onClick={() => onVisibleChange(!visible)}>
+      <Popover trigger='click' position='tr' popupVisible={visible} onVisibleChange={onVisibleChange} className='!w-[420px] !max-w-[420px]' triggerProps={{ autoFitPosition: false }} content={content}>
+        <Button size='small' type='primary'>
           Debugger
         </Button>
       </Popover>
