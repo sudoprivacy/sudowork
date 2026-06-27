@@ -79,6 +79,13 @@ body[arco-theme='dark'] {
   }
 }
 
+.arco-dropdown {
+  .arco-dropdown-menu-item {
+    height: 40px;
+    line-height: 40px;
+  }
+}
+
 .arco-modal {
   border-radius: 16px;
   &-header {

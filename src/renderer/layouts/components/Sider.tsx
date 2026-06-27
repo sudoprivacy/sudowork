@@ -3,7 +3,7 @@ import { AlarmClock, ArrowLeft, Bot, ChevronDown, Globe, ListChecks, LogOut, Plu
 import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Button, Dropdown, Message, Popover, Tabs } from '@arco-design/web-react';
+import { Button, Dropdown, Menu, Message, Popover, Tabs } from '@arco-design/web-react';
 import type { BatchHistoryApi } from '@renderer/pages/conversation/grouped-history/types';
 import { cleanupSiderTooltips } from '@renderer/utils/siderTooltip';
 import { useAuth } from '@renderer/context/AuthContext';
@@ -265,31 +265,36 @@ const Sider: React.FC = () => {
           /* 用户信息下拉菜单 */
           <Dropdown
             droplist={
-              <div className='flex flex-col gap-0.5 p-1.5 rd-3 border' style={{ width: userMenuWidth, minWidth: 200, boxShadow: '0 8px 28px rgba(0, 0, 0, 0.12)' }}>
-                <div
-                  className='flex items-center gap-2.5 px-2.5 h-9.5 rd-8px cursor-pointer text-14px text-foreground transition-colors hover:bg-hover active:bg-active'
-                  onClick={() => {
+              <Menu
+                style={{ width: userMenuWidth, minWidth: 200 }}
+                onClickMenuItem={async (key) => {
+                  if (key === 'settings') {
                     handleSettingsClick();
                     setUserMenuOpen(false);
-                  }}
-                >
-                  <Settings size={17} strokeWidth={1.8} className='text-secondary' />
-                  <span>{t('common.settings')}</span>
-                </div>
-                <div className='mx-1 border-b-0.5px border-light' />
-                <div
-                  className='flex items-center gap-2.5 px-2.5 h-9.5 rd-8px cursor-pointer text-14px text-danger transition-colors hover:bg-hover active:bg-active'
-                  onClick={async () => {
+                    return;
+                  }
+
+                  if (key === 'logout') {
                     setUserMenuOpen(false);
                     await logout();
                     Message.success(t('login.logoutSuccess'));
                     void navigate('/login', { replace: true });
-                  }}
-                >
-                  <LogOut size={17} strokeWidth={1.8} className='text-danger' />
-                  <span>{t('login.logout', { defaultValue: '退出登录' })}</span>
-                </div>
-              </div>
+                  }
+                }}
+              >
+                <Menu.Item key='settings'>
+                  <div className='flex items-center gap-2.5 '>
+                    <Settings size={17} strokeWidth={1.8} className='text-secondary' />
+                    <span>{t('common.settings')}</span>
+                  </div>
+                </Menu.Item>
+                <Menu.Item key='logout'>
+                  <div className='flex items-center gap-2.5 text-danger'>
+                    <LogOut size={17} strokeWidth={1.8} className='text-danger' />
+                    <span>{t('login.logout', { defaultValue: '退出登录' })}</span>
+                  </div>
+                </Menu.Item>
+              </Menu>
             }
             trigger='click'
             position='tr'
