@@ -488,7 +488,11 @@ const LoginPage: React.FC = () => {
   if (isEnterprise) {
     return (
       <div className='login-page'>
-        {showWindowControls && <WindowControls />}
+        {showWindowControls && (
+          <div className='app-window-controls'>
+            <WindowControls />
+          </div>
+        )}
 
         <div className='login-page__background'>
           <div className='login-page__background-circle login-page__background-circle--lg' />
@@ -577,7 +581,11 @@ const LoginPage: React.FC = () => {
   if (loginMethod === 1) {
     return (
       <div className='login-page'>
-        {showWindowControls && <WindowControls />}
+        {showWindowControls && (
+          <div className='app-window-controls'>
+            <WindowControls />
+          </div>
+        )}
         <div className='login-page__background'>
           <div className='login-page__background-circle login-page__background-circle--lg' />
           <div className='login-page__background-circle login-page__background-circle--md' />
@@ -591,7 +599,11 @@ const LoginPage: React.FC = () => {
   return (
     <div className='login-page'>
       {/* 桌面端窗口控制按钮 / Window controls for desktop */}
-      {showWindowControls && <WindowControls />}
+      {showWindowControls && (
+        <div className='app-window-controls'>
+          <WindowControls />
+        </div>
+      )}
 
       {/* 装饰性背景 */}
       <div className='login-page__background'>
