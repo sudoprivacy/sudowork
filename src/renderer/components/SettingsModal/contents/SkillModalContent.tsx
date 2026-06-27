@@ -442,9 +442,8 @@ const SkillDetailModal: React.FC<{
   const hasUpdate = isInstalled && latestVersionInfo && (!installedVersion || latestVersionInfo.version !== installedVersion);
 
   return (
-    <Modal visible={visible} onCancel={onClose} footer={null} closable={false} maskClosable style={{ width: 480 }} className='skill-detail-modal' wrapClassName='skill-detail-modal-wrap'>
+    <Modal visible={visible} onCancel={onClose} footer={null} closable={false} maskClosable style={{ width: 480 }}>
       <div className='flex flex-col max-h-80vh'>
-        {/* Close button */}
         <div className='flex justify-end mb-4px'>
           <div className='w-28px h-28px f-center rd-full bg-fill-2 hover:bg-fill-3 cursor-pointer transition-colors text-secondary' onClick={onClose}>
             <Close size='14' />
@@ -579,7 +578,7 @@ const SkillDetailModal: React.FC<{
           {/* Security badge */}
           <div className='flex items-center gap-5px mt-10px justify-center'>
             <Shield size='12' className='text-success flex-shrink-0' />
-            <span className='text-10px text-tertiary'>已通过安全与合规验证，无恶意代码或数据泄露风险。</span>
+            <span className='text-10px text-secondary'>已通过安全与合规验证，无恶意代码或数据泄露风险。</span>
           </div>
         </div>
       </div>
