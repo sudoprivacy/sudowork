@@ -8,12 +8,7 @@ import { OrderStatusEnum } from '../types';
 import type { Order } from '../types';
 import { formatAmount, formatDateTime } from '../utils';
 
-interface OrderListProps {
-  onContinuePay: (orderNo: string) => void;
-  refreshKey?: number; // 用于触发刷新
-}
-
-const OrderList: React.FC<OrderListProps> = ({ onContinuePay, refreshKey }) => {
+const OrderList: React.FC<IOrderListProps> = ({ onContinuePay, refreshKey }) => {
   const { t } = useTranslation();
   const { user: currentUser, ensureValidToken } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
@@ -99,13 +94,11 @@ const OrderList: React.FC<OrderListProps> = ({ onContinuePay, refreshKey }) => {
   }
 
   return (
-    <div className='bg-fill-0 rd-16px overflow-hidden border border-solid border-[var(--border-light)] bg-transparent!'>
-      <div className='px-5 py-4  flex items-center justify-between'>
+    <div className='bg-muted rd-16px overflow-hidden border border-solid border-[var(--border-light)]'>
+      <div className='px-5 py-4  flex items-center justify-between border-b border-light'>
         <div className='font-600 text-14px text-foreground'>{t('settings.orders.title') || '订单记录'}</div>
         <div className='flex items-center gap-3'>
-          <button onClick={() => void fetchOrders()} className='p-1 rd-4px hover:bg-fill-1 transition-colors cursor-pointer border-none bg-transparent' style={{ outline: 'none', boxShadow: 'none' }} title={t('settings.orders.refresh') || '刷新'}>
-            <Refresh size={16} className='text-secondary' />
-          </button>
+          <Button type='text' size='mini' iconOnly icon={<Refresh size={16} className='text-secondary' />} onClick={() => void fetchOrders()} title={t('settings.orders.refresh') || '刷新'} />
           <div className='text-12px text-secondary'>{t('settings.orders.total', { count: orders.length }) || `共 ${orders.length} 条`}</div>
         </div>
       </div>
@@ -116,7 +109,7 @@ const OrderList: React.FC<OrderListProps> = ({ onContinuePay, refreshKey }) => {
           // 将 PAYING 状态显示为"待支付"
           const displayStatusText = order.status === OrderStatusEnum.PAYING ? '待支付' : order.status_text;
           return (
-            <div key={order.order_no} className='px-4 py-2.5 border-b last:border-b-0 flex items-center gap-3'>
+            <div key={order.order_no} className='p-4 border-b last:border-b-0 flex items-center gap-3 border-light'>
               {/* 订单号 */}
               <div className='flex-1 min-w-0 text-13px text-secondary truncate'>{order.order_no}</div>
               {/* 充值金额 */}
@@ -153,3 +146,8 @@ const OrderList: React.FC<OrderListProps> = ({ onContinuePay, refreshKey }) => {
 };
 
 export default OrderList;
+
+interface IOrderListProps {
+  onContinuePay: (orderNo: string) => void;
+  refreshKey?: number; // 用于触发刷新
+}

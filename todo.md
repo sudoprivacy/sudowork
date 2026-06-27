@@ -59,7 +59,7 @@
      3. 工具方法：找出只被本模块引用的工具函数，迁移到 `utils/`
      4. Interface：找出只被本模块引用的非 props interface，迁移到 `types/`
      5. 去除 bg-fill-n，bg-n 这种方式的使用
-     6. 修正图标使用 '@arco-design/web-react/icon'，现在的用法是错误的
   3. 扫描缺失国际化 key：使用 `.claude/agents/i18n-checker.md` agent 扫描 `{模块路径}`，补全缺失的 i18n key
   4. 清理错误的 `Message.useMessage` 用法：在 `{模块路径}` 下全局搜索 `Message.useMessage`，替换为正确的 `Message.info` 调用方式
   5. 修正 UnoCSS 的用法：使用 `.claude/agents/unocss-style-fixer.md` agent 检查 `{模块路径}` 下不符合项目 UnoCSS 规范的写法并修正
+  6. 使用 .claude/agents/i18n-checker.md 扫描
