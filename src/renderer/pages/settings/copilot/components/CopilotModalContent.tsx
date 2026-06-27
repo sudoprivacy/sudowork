@@ -1,9 +1,3 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import { Alert, Button, Card, Space, Spin, Tag, Tooltip, Typography } from '@arco-design/web-react';
 import { Folder, Robot, User } from '@icon-park/react';
 import { IconRefresh } from '@arco-design/web-react/icon';
