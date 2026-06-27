@@ -5,16 +5,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Button, Descriptions, Popover } from '@arco-design/web-react';
+import { Button, Descriptions, Popover, Select } from '@arco-design/web-react';
 import { IconMoon, IconSun } from '@arco-design/web-react/icon';
 import { DndContext, PointerSensor, useDraggable, useSensor, useSensors } from '@dnd-kit/core';
 import type { DragEndEvent } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useLocation, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import type { ThemePreference } from '@/renderer/hooks/useTheme';
 import { useThemeContext } from '@/renderer/context/ThemeContext';
+import { REGISTERED_ROUTE_PATHS } from '@/renderer/router';
 
 type DebugThemeOption = Extract<ThemePreference, 'light' | 'dark'>;
 type DebugPanelOffset = { x: number; y: number };
@@ -76,6 +77,36 @@ function DebuggerThemeSwitch() {
   );
 }
 
+function DebuggerRouteJump({ onAfterNavigate }: IDebuggerRouteJumpProps) {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [route, setRoute] = useState(location.pathname + location.search + location.hash);
+
+  const onJump = () => {
+    const nextRoute = route.trim();
+    if (!nextRoute) return;
+
+    void navigate(nextRoute.startsWith('/') ? nextRoute : `/${nextRoute}`);
+    onAfterNavigate();
+  };
+
+  return (
+    <div className='mt-3 flex items-center gap-2 border-t border-tiny pt-3'>
+      <div className='shrink-0 font-sans text-12px text-3'>路由</div>
+      <Select size='small' value={route} onChange={setRoute} showSearch placeholder='选择路由' className='min-w-0 flex-1'>
+        {REGISTERED_ROUTE_PATHS.map((path) => (
+          <Select.Option key={path} value={path}>
+            {path}
+          </Select.Option>
+        ))}
+      </Select>
+      <Button size='small' type='primary' onClick={onJump}>
+        跳转
+      </Button>
+    </div>
+  );
+}
+
 function DebugPanelTrigger({ offset, visible, onVisibleChange, content }: IDebugPanelTriggerProps) {
   const { attributes, listeners, setNodeRef, transform } = useDraggable({ id: 'debug-panel-trigger' });
   const x = offset.x + (transform?.x ?? 0);
@@ -95,7 +126,7 @@ function DebugPanelTrigger({ offset, visible, onVisibleChange, content }: IDebug
     >
       <Popover trigger='click' position='tr' popupVisible={visible} onVisibleChange={onVisibleChange} className='!w-[420px] !max-w-[420px]' triggerProps={{ autoFitPosition: false }} content={content}>
         <Button size='small' type='primary'>
-          Debugger
+          调试
         </Button>
       </Popover>
     </div>
@@ -125,12 +156,13 @@ function DebugPanel() {
         content={
           <div>
             <div className='flex items-center justify-between mb-2'>
-              <span className='font-sans font-600 text-14px text-1'>Debugger</span>
+              <span className='font-sans font-600 text-14px text-1'>调试面板</span>
               <Button size='mini' type='text' onClick={() => setVisible(false)}>
                 ✕
               </Button>
             </div>
             <DebuggerInfo />
+            <DebuggerRouteJump onAfterNavigate={() => setVisible(false)} />
             <DebuggerThemeSwitch />
           </div>
         }
@@ -146,4 +178,8 @@ interface IDebugPanelTriggerProps {
   visible: boolean;
   onVisibleChange: (visible: boolean) => void;
   content: React.ReactNode;
+}
+
+interface IDebuggerRouteJumpProps {
+  onAfterNavigate: () => void;
 }
