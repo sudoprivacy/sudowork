@@ -1,8 +1,3 @@
-/**
- * OrderList Component
- * Displays user's recharge order history
- */
-
 import { Tag, Button, Spin, Message } from '@arco-design/web-react';
 import { Alipay, Wechat, Refresh } from '@icon-park/react';
 import React, { useState, useEffect, useCallback } from 'react';
