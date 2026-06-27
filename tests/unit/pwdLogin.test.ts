@@ -158,9 +158,12 @@ vi.mock('@/common/nexus/nexus-secret-client', () => ({
       }
       return out;
     },
-    batchPut: (secrets: Array<{ namespace: string; key: string; value: string }>) => {
+    batchPut: (secrets: Array<{ namespace: string; key: string; value: string; description?: string }>) => {
       batchPutCalls.push(secrets);
       for (const s of secrets) secretStore.set(`${s.namespace}/${s.key}`, s.value);
+      // Mirror the real NexusSecretClient.batchPut return shape — putSecretResilient
+      // reads the first element to surface metadata to its caller.
+      return secrets.map((s) => ({ namespace: s.namespace, key: s.key, currentVersion: 1, deleted: false, description: s.description }));
     },
     listSecrets: (namespace: string) => {
       listSecretsCalls.push(namespace);
