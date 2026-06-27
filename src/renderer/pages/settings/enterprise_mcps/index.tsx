@@ -188,13 +188,8 @@ const EnterpriseMcpSettings: React.FC = () => {
   };
 
   return (
-    <PageWrapper>
-      <div className='p-6 flex flex-col gap-4'>
-        <div className='flex flex-col gap-0.5'>
-          <h2 className='text-24px font-600 text-foreground my-0'>MCP 服务</h2>
-          <p className='text-13px text-secondary my-0'>管理企业、部门与个人 MCP 服务，安装模板，查看企业策略。</p>
-        </div>
-
+    <PageWrapper title='MCP 服务' subtitle='管理企业、部门与个人 MCP 服务，安装模板，查看企业策略。'>
+      <div className='flex flex-col gap-4'>
         <AdminRedirectBanner visible={isAdmin} serverUrl={serverUrl} />
 
         <Tabs activeTab={activeKey} onChange={setActiveKey} type='line'>
