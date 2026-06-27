@@ -5,7 +5,7 @@
  */
 
 import { Button, Input, Message, Modal, Tooltip, Typography } from '@arco-design/web-react';
-import { Edit } from '@icon-park/react';
+import { IconEdit } from '@arco-design/web-react/icon';
 import React, { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
@@ -102,7 +102,7 @@ const OpsModal: React.FC<OpsModalProps> = ({ visible, onClose, onConfigSaved }) 
                 <div className='text-12px text-secondary mt-0.5'>{t('settings.ops.editConfigFile', '直接编辑配置文件')}</div>
               </Tooltip>
             </div>
-            <Button size='small' icon={<Edit theme='outline' size='14' />} onClick={openConfigEditor} loading={configLoading}>
+            <Button size='small' icon={<IconEdit />} onClick={openConfigEditor} loading={configLoading}>
               {t('settings.ops.editConfig', '编辑配置')}
             </Button>
           </div>
