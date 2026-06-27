@@ -14,16 +14,16 @@ export default function StatusCard({ title, value, icon, status = 'info', descri
 
   return (
     <Card className='rd-12px hover:shadow-md transition-shadow'>
-      <div className='flex items-start gap-12px'>
-        <div className='w-48px h-48px rounded-12px f-center flex-shrink-0'>{icon}</div>
+      <div className='flex items-start gap-3'>
+        <div className='w-12 h-12 rd-12px f-center flex-shrink-0'>{icon}</div>
         <div className='flex-1 min-w-0'>
-          <div className='text-13px text-secondary mb-4px'>{title}</div>
+          <div className='text-13px text-secondary mb-1'>{title}</div>
           <div className='text-20px font-600 text-foreground truncate' title={String(value)}>
             {value}
           </div>
           {description && (
             <Tooltip content={description}>
-              <div className='text-12px text-tertiary mt-4px truncate'>{description}</div>
+              <div className='text-12px text-tertiary mt-1 truncate'>{description}</div>
             </Tooltip>
           )}
         </div>

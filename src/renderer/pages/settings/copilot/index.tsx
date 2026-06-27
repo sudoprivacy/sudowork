@@ -87,7 +87,7 @@ export default function CopilotSettings() {
   if (isLoading) {
     return (
       <PageWrapper title={t('settings.copilot', 'Copilot')} subtitle={t('settings.copilotSettings.subtitle', '配置 Sudo Code')}>
-        <div className='flex items-center justify-center py-48px h-full'>
+        <div className='f-center py-12 h-full'>
           <Spin tip={t('common.loading', '加载中...')} />
         </div>
       </PageWrapper>
@@ -121,14 +121,14 @@ export default function CopilotSettings() {
   return (
     <PageWrapper title={t('settings.copilot', 'Copilot')} subtitle={t('settings.copilotSettings.subtitle', '配置 Sudo Code')} actions={actions}>
       <AionScrollArea className='h-full'>
-        <div className='px-16px md:px-24px py-16px'>
+        <div className='px-4 md:px-6 py-4'>
           {testStatus === 'error' && (
             <Alert
               type='error'
-              className='mb-24px'
+              className='mb-6'
               content={
                 <div>
-                  <div className='font-500 mb-4px'>{t('settings.copilotSettings.sudoclawConnectionFailed', 'Sudoclaw 连接失败')}</div>
+                  <div className='font-500 mb-1'>{t('settings.copilotSettings.sudoclawConnectionFailed', 'Sudoclaw 连接失败')}</div>
                   <div className='text-13px'>{testError?.error || t('settings.copilotSettings.sudoclawInstallHint', '请确保 Sudoclaw 已安装并运行。')}</div>
                 </div>
               }
@@ -138,17 +138,17 @@ export default function CopilotSettings() {
           {testStatus === 'ok' && !isConnected && (
             <Alert
               type='warning'
-              className='mb-24px'
+              className='mb-6'
               content={
                 <div>
-                  <div className='font-500 mb-4px'>{t('settings.copilotSettings.statusAbnormal', 'Sudoclaw 状态异常')}</div>
+                  <div className='font-500 mb-1'>{t('settings.copilotSettings.statusAbnormal', 'Sudoclaw 状态异常')}</div>
                   <div className='text-13px'>{t('settings.copilotSettings.gatewayRunningNoSession', 'Gateway 运行中但会话未建立，请尝试重启 Gateway。')}</div>
                 </div>
               }
             />
           )}
 
-          <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-16px mb-24px'>
+          <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6'>
             <StatusCard
               title={t('settings.copilotSettings.connectionStatus', '连接状态')}
               value={isConnected ? t('settings.copilotSettings.connected', '已连接') : t('settings.copilotSettings.disconnected', '未连接')}
