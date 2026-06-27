@@ -115,6 +115,10 @@ border-b border-[var(--border-default)]  # 底边线，用 arbitrary 值
 
 **只转间距/尺寸类**：`p/px/py/pt/pb/pl/pr`、`m/mx/my/mt/mb/ml/mr`、`gap`、`space-x/space-y`、`w/h/size`、`inset/top/right/bottom/left`（含负值，如 `-top-4px` → `-top-1`）。
 
+**同宽高合并为 `size-*`**：当同一个元素同时写了等值的宽高类时，优先合并为 `size-*`，表达更清晰，也避免后续只改一边导致宽高不一致。例如 `w-12 h-12` → `size-12`、`w-6 h-6` → `size-6`、`w-48px h-48px` → 先按 scale 转成 `w-12 h-12`，再合并为 `size-12`。仅在宽高值完全一致时合并；`w-full h-12`、`w-10 h-12` 这类不同语义不要合并。
+
+**同值横纵向间距合并为四向间距**：当同一个元素同时写了等值的横向和纵向 spacing 时，优先合并为四向写法，减少重复。例如 `px-4 py-4` → `p-4`、`mx-4 my-4` → `m-4`。如果存在响应式或状态变体覆盖，只合并不会改变级联语义的部分，例如 `px-4 md:px-6 py-4` → `p-4 md:px-6`；`px-4 py-4 md:py-6` → `p-4 md:py-6`。不同值不要合并，例如 `px-4 py-2` 保持原样。
+
 **保持 px 不动**（没有对应数字 scale，硬转才是不标准）：`text-*`(字号)、`rd-*`(圆角)、`leading-*`(行高)。
 
 **不能整除的奇数 px 留着**：scale 只支持整数与 .5 档（=偶数 px）。`p-13px`、`gap-15px` 这类无法干净换算的，保持 px 或改 arbitrary `p-[13px]`，别硬凑 `p-3.25`。

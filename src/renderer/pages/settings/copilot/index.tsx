@@ -121,7 +121,7 @@ export default function CopilotSettings() {
   return (
     <PageWrapper title={t('settings.copilot', 'Copilot')} subtitle={t('settings.copilotSettings.subtitle', '配置 Sudo Code')} actions={actions}>
       <AionScrollArea className='h-full'>
-        <div className='px-4 md:px-6 py-4'>
+        <div className='mt-3'>
           {testStatus === 'error' && (
             <Alert
               type='error'
