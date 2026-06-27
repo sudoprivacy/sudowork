@@ -5,7 +5,8 @@
  */
 
 import { Alert, Button, Card, Space, Spin, Tag, Tooltip, Typography } from '@arco-design/web-react';
-import { Folder, Refresh, Robot, User } from '@icon-park/react';
+import { Folder, Robot, User } from '@icon-park/react';
+import { IconRefresh } from '@arco-design/web-react/icon';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
@@ -171,7 +172,7 @@ const CopilotModalContent: React.FC = () => {
                 未连接
               </Tag>
             )}
-            <Button type='primary' icon={<Refresh />} loading={runtimeLoading} onClick={handleRefreshRuntime}>
+            <Button type='primary' icon={<IconRefresh />} loading={runtimeLoading} onClick={handleRefreshRuntime}>
               刷新
             </Button>
           </Space>
