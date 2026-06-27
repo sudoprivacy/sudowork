@@ -1,5 +1,7 @@
 import { Button, Dropdown, Menu, Switch, Tooltip } from '@arco-design/web-react';
-import { Check, CloseOne, CloseSmall, LoadingOne, Refresh, Write, DeleteFour, SettingOne, Login } from '@icon-park/react';
+import { IconRefresh, IconSettings } from '@arco-design/web-react/icon';
+import { Check, CloseOne, CloseSmall, LoadingOne, Write, DeleteFour } from '@icon-park/react';
+import { LogIn } from 'lucide-react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import type { IMcpServer } from '@/common/storage';
@@ -85,11 +87,11 @@ const McpServerHeader: React.FC<McpServerHeaderProps> = ({ server, agentInstallS
         </Tooltip>
         {isReadOnly && <McpAgentStatusDisplay serverName={server.name} agentInstallStatus={agentInstallStatus} isLoadingAgentStatus={isServerLoading(server.name)} alwaysVisible />}
         {!isReadOnly && needsLogin && onOAuthLogin && (
-          <Button size='mini' type='primary' icon={<Login size={'14'} />} title={t('settings.mcpLogin', '登录')} loading={isLoggingIn} onClick={() => onOAuthLogin(server)}>
+          <Button size='mini' type='primary' icon={<LogIn size={14} />} title={t('settings.mcpLogin', '登录')} loading={isLoggingIn} onClick={() => onOAuthLogin(server)}>
             {t('settings.mcpLogin', '登录')}
           </Button>
         )}
-        {!isReadOnly && !needsLogin && <Button size='mini' icon={<Refresh size={'14'} />} title={t('settings.mcpTestConnection', '检测MCP可用状态')} loading={isTestingConnection} onClick={() => onTestConnection(server)} />}
+        {!isReadOnly && !needsLogin && <Button size='mini' icon={<IconRefresh />} title={t('settings.mcpTestConnection', '检测MCP可用状态')} loading={isTestingConnection} onClick={() => onTestConnection(server)} />}
       </div>
       {!isReadOnly && (
         <div className='flex items-center gap-2' onClick={(e) => e.stopPropagation()}>
@@ -113,7 +115,7 @@ const McpServerHeader: React.FC<McpServerHeaderProps> = ({ server, agentInstallS
                 </Menu>
               }
             >
-              <Button size='mini' icon={<SettingOne size={'14'} />} />
+              <Button size='mini' icon={<IconSettings />} />
             </Dropdown>
           </div>
           <Switch checked={server.enabled} onChange={(checked) => onToggleServer(server.id, checked)} disabled={server.status === 'testing'} className='settings-accent-switch' style={server.enabled ? { backgroundColor: 'var(--ui-accent-orange)' } : undefined} />

@@ -169,7 +169,7 @@ const OneClickImportModal: React.FC<OneClickImportModalProps> = ({ visible, onCa
             <Check theme='filled' size={20} fill={'var(--success)'} />
             <span className='text-foreground'>{t('settings.mcpToolsLoaded', { count: importableServers.length, defaultValue: '读取到{{count}}个工具' })}</span>
           </div>
-          <div className='bg-base rounded-lg max-h-50 overflow-y-auto divide-y divide-light'>
+          <div className='bg-control rounded-lg max-h-50 overflow-y-auto divide-y divide-light'>
             {importableServers.map((server, index) => (
               <div key={index} className='p-3'>
                 <div className='font-medium text-foreground'>{server.name}</div>
@@ -193,7 +193,7 @@ const OneClickImportModal: React.FC<OneClickImportModalProps> = ({ visible, onCa
             <Check theme='filled' size={20} fill={'var(--success)'} />
             <span className='text-foreground'>{t('settings.mcpImportedSuccess', { count: importableServers.length, defaultValue: '已导入{{count}}个工具' })}</span>
           </div>
-          <div className='bg-base rounded-lg max-h-50 overflow-y-auto divide-y divide-light'>
+          <div className='bg-control rounded-lg max-h-50 overflow-y-auto divide-y divide-light'>
             {importableServers.map((server, index) => (
               <div key={index} className='p-3'>
                 <div className='font-medium text-foreground'>{server.name}</div>
@@ -224,9 +224,7 @@ const OneClickImportModal: React.FC<OneClickImportModalProps> = ({ visible, onCa
       )}
       {currentStep === 2 && (
         <>
-          <Button onClick={handlePrevStep} style={{ borderRadius: 8 }}>
-            {t('settings.mcpPrevStep', '上一步')}
-          </Button>
+          <Button onClick={handlePrevStep}>{t('settings.mcpPrevStep', '上一步')}</Button>
           <Button type='primary' onClick={handleNextStep} disabled={loadingImport || importableServers.length === 0}>
             {t('settings.mcpImportButton', '导入')}
           </Button>

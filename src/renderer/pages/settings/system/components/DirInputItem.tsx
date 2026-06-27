@@ -1,5 +1,5 @@
 import { Button, Form, Tooltip } from '@arco-design/web-react';
-import { FolderOpen } from '@icon-park/react';
+import { FolderOpen } from 'lucide-react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
@@ -40,7 +40,7 @@ export default function DirInputItem({ label, field }: IDirInputItemProps) {
             <Button
               type='text'
               style={{ borderLeft: '1px solid var(--color-border-2)', borderRadius: '0 8px 8px 0' }}
-              icon={<FolderOpen theme='outline' size='18' fill={'var(--foreground)'} />}
+              icon={<FolderOpen size={14} className='text-foreground' />}
               onClick={(e) => {
                 e.stopPropagation();
                 handlePick();

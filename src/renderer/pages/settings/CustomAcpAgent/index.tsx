@@ -1,5 +1,5 @@
 import { Button, Collapse, Modal } from '@arco-design/web-react';
-import { Plus, EditTwo, Delete } from '@icon-park/react';
+import { IconPlus, IconEdit, IconDelete } from '@arco-design/web-react/icon';
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { mutate } from 'swr';
@@ -159,7 +159,7 @@ const CustomAcpAgent: React.FC<CustomAcpAgentProps> = ({ message }) => {
             {t('settings.customAcpAgent') || 'Custom ACP Agents'}
             <Button
               type='outline'
-              icon={<Plus size={'14'} />}
+              icon={<IconPlus />}
               shape='round'
               onClick={(e) => {
                 e.stopPropagation();
@@ -182,8 +182,8 @@ const CustomAcpAgent: React.FC<CustomAcpAgentProps> = ({ message }) => {
                   <div className='flex items-center justify-between mb-2'>
                     <div className='font-medium'>{agent.name || 'Custom Agent'}</div>
                     <div className='flex gap-2'>
-                      <Button type='text' size='small' icon={<EditTwo size={'14'} />} onClick={() => handleEdit(agent)} />
-                      <Button type='text' size='small' status='danger' icon={<Delete size={'14'} />} onClick={() => handleConfirmDelete(agent)} />
+                      <Button type='text' size='small' icon={<IconEdit />} onClick={() => handleEdit(agent)} />
+                      <Button type='text' size='small' status='danger' icon={<IconDelete />} onClick={() => handleConfirmDelete(agent)} />
                     </div>
                   </div>
                   <div className='text-sm text-secondary'>

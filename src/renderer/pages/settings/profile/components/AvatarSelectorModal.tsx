@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Button, Divider, Input, Message, Modal } from '@arco-design/web-react';
+import { IconCheck } from '@arco-design/web-react/icon';
 import type { RefInputType } from '@arco-design/web-react/es/Input/interface';
-import { Check } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
 import profileBoy from '@/renderer/assets/profile_boy.jpg';
@@ -142,7 +142,7 @@ const AvatarSelectorModal: React.FC<AvatarSelectorModalProps> = ({ visible, onCl
             {genState === 'result' && result && (
               <>
                 <img className='h-16 w-16 rd-full object-cover shadow-[0_2px_8px_rgba(0,0,0,0.12)]' src={result.dataUrl} alt={t('settings.avatarSelector.generatedAvatarAlt', '生成的头像')} />
-                <Button type='primary' icon={<Check />} onClick={handleUseGenerated}>
+                <Button type='primary' icon={<IconCheck />} onClick={handleUseGenerated}>
                   {t('settings.avatarSelector.useThisAvatar', '使用此头像')}
                 </Button>
               </>

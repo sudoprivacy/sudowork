@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Table, Button, Tabs, Tag, Space, Message, Modal, Badge } from '@arco-design/web-react';
-import { User, DeleteFour, Peoples } from '@icon-park/react';
+import { IconDelete } from '@arco-design/web-react/icon';
+import { User, Peoples } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
 import PageWrapper from '@renderer/components/base/PageWrapper';
@@ -174,7 +175,7 @@ const MemberManagement: React.FC = () => {
     {
       title: '管理',
       align: 'right' as const,
-      render: (_: any, record: any) => record.role !== 'ADMIN' && <Button type='text' status='danger' icon={<DeleteFour />} onClick={() => handleDelete(record)} />,
+      render: (_: any, record: any) => record.role !== 'ADMIN' && <Button type='text' status='danger' icon={<IconDelete />} onClick={() => handleDelete(record)} />,
     },
   ];
 

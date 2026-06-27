@@ -1,6 +1,6 @@
 import React from 'react';
 import { Button } from '@arco-design/web-react';
-import { Right } from '@icon-park/react';
+import { IconRight } from '@arco-design/web-react/icon';
 
 interface AdminRedirectBannerProps {
   visible: boolean;
@@ -21,7 +21,7 @@ const AdminRedirectBanner: React.FC<AdminRedirectBannerProps> = ({ visible, serv
   return (
     <div className='flex items-center justify-between gap-4 px-4 py-3 rd-12px bg-primary-light-1 border border-solid mb-4'>
       <div className='text-13px text-foreground'>您是管理员，可前往企业后台配置 MCP 模板、策略与组织级实例。</div>
-      <Button type='primary' size='small' onClick={handleClick} icon={<Right theme='outline' size='14' />}>
+      <Button type='primary' size='small' onClick={handleClick} icon={<IconRight />}>
         前往企业后台
       </Button>
     </div>

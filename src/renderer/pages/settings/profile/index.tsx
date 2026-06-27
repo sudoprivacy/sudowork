@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Avatar, Button, Modal, Input, Message, Spin } from '@arco-design/web-react';
-import { User, Phone, Edit, Lock } from '@icon-park/react';
+import { IconEdit, IconLock } from '@arco-design/web-react/icon';
+import { User, Phone } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { formatUsagePoints } from '@/common/tokenUsage';
 import type { UserProfileData } from '@/common/ipcBridge';
@@ -195,11 +196,11 @@ const UserProfile: React.FC = () => {
               <div className='flex-1'>
                 <div className='flex items-center gap-2'>
                   <div className='text-18px font-600 text-foreground'>{profile?.nickname || currentUser?.nickname || t('settings.userProfile.defaultNickname', 'Sudowork 用户')}</div>
-                  <Button type='outline' size='mini' icon={<Edit size={14} fill='currentColor' />} onClick={handleEditNickname}>
+                  <Button type='outline' size='mini' icon={<IconEdit />} onClick={handleEditNickname}>
                     {t('settings.userProfile.edit', '编辑')}
                   </Button>
                   {loginMethod === 1 && (
-                    <Button type='outline' size='mini' icon={<Lock size={14} fill='currentColor' />} onClick={() => setChangePwdModalVisible(true)}>
+                    <Button type='outline' size='mini' icon={<IconLock />} onClick={() => setChangePwdModalVisible(true)}>
                       {t('settings.userProfile.changePassword', '修改密码')}
                     </Button>
                   )}

@@ -5,8 +5,7 @@
  */
 
 import { Button, Typography } from '@arco-design/web-react';
-import { IconLink } from '@arco-design/web-react/icon';
-import { Setting } from '@icon-park/react';
+import { IconLink, IconSettings } from '@arco-design/web-react/icon';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useTenantConfig } from '@renderer/context/TenantConfigContext';
@@ -66,7 +65,7 @@ const About: React.FC = () => {
           <Button size='small' type='outline' onClick={() => window.dispatchEvent(new Event('sudowork-open-update-modal'))}>
             {t('settings.checkForUpdates', '检查更新')}
           </Button>
-          <Button type='text' className='opacity-50 hover:opacity-100 transition-opacity' onClick={() => setOpsVisible(true)} icon={<Setting theme='outline' />} />
+          <Button type='text' className='opacity-50 hover:opacity-100 transition-opacity' onClick={() => setOpsVisible(true)} icon={<IconSettings />} />
         </div>
       </div>
 

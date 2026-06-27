@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Switch, Button, Popconfirm, Message } from '@arco-design/web-react';
-import { Edit, Delete } from '@icon-park/react';
+import { IconEdit, IconDelete } from '@arco-design/web-react/icon';
 import { useTranslation } from 'react-i18next';
 import EmptyState from '@/renderer/components/base/EmptyState';
 import McpIcon from '../components/McpIcon';
@@ -101,13 +101,13 @@ const MyMcpTab: React.FC<MyMcpTabProps> = ({ servers, loading = false, onToggleE
           </div>
           <div className='shrink-0 flex items-center gap-1'>
             {serverHasUserConfig?.get(srv.id) && (
-              <Button type='text' size='mini' icon={<Edit theme='outline' size='14' />} onClick={() => setEditing(srv)}>
+              <Button type='text' size='mini' icon={<IconEdit />} onClick={() => setEditing(srv)}>
                 修改配置
               </Button>
             )}
             <Switch checked={!srv.user_disabled} onChange={(v) => void handleToggle(srv, v)} size='small' />
             <Popconfirm title='确认删除该 MCP？' content='此操作不可撤销，已写入的配置将被一并清除。' onOk={() => void handleDelete(srv)} okText='删除' cancelText='取消' okButtonProps={{ status: 'danger' }}>
-              <Button type='text' size='mini' status='danger' icon={<Delete theme='outline' size='14' />} />
+              <Button type='text' size='mini' status='danger' icon={<IconDelete />} />
             </Popconfirm>
           </div>
         </div>

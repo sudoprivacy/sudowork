@@ -1,4 +1,5 @@
 import { Button, Dropdown, Menu, Message, Modal } from '@arco-design/web-react';
+import { IconPlus } from '@arco-design/web-react/icon';
 import { Plus } from '@icon-park/react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -160,7 +161,7 @@ export default function McpManagementSection() {
     }
 
     return (
-      <Button type='outline' icon={<Plus size={18} fill={'var(--primary)'} />} shape='round' onClick={onAddJsonServer}>
+      <Button type='outline' icon={<IconPlus />} shape='round' onClick={onAddJsonServer}>
         {t('settings.mcpAddServer', '手动添加')}
       </Button>
     );

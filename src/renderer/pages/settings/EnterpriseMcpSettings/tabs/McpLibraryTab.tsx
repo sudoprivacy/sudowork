@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Input, Button, Tag, Message } from '@arco-design/web-react';
-import { Search, DownloadOne, CheckOne } from '@icon-park/react';
+import { IconCheck, IconDownload } from '@arco-design/web-react/icon';
+import { Search, CheckOne } from '@icon-park/react';
 import EmptyState from '@/renderer/components/base/EmptyState';
 import McpIcon from '../components/McpIcon';
 import RiskLevelTag from '../components/RiskLevelTag';
@@ -106,11 +107,11 @@ const McpLibraryTab: React.FC<McpLibraryTabProps> = ({ templates, installedTempl
                 </div>
                 <div className='shrink-0'>
                   {installed ? (
-                    <Button type='outline' size='small' disabled icon={<CheckOne theme='outline' size='14' />}>
+                    <Button type='outline' size='small' disabled icon={<IconCheck />}>
                       已安装
                     </Button>
                   ) : (
-                    <Button type='outline' size='small' icon={<DownloadOne theme='outline' size='14' />} onClick={() => handleClickInstall(tpl)}>
+                    <Button type='outline' size='small' icon={<IconDownload />} onClick={() => handleClickInstall(tpl)}>
                       安装
                     </Button>
                   )}
