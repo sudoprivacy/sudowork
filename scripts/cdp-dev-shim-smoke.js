@@ -161,10 +161,28 @@ async function evaluateInRendererResilient(cdpPort, expression, attempts = 5) {
 // Wrap the renderer-side call in a try/catch that JSON-stringifies the
 // result. Avoids depending on returnByValue's handling of nested
 // promises and gives us a uniform parse path on the node side.
+//
+// EACH probe self-waits for the shim. A previous version did one
+// up-front "is shim ready?" check then called the probe — but Vite/HMR
+// can reload the renderer in the window between the two evaluates,
+// wiping `window.__sudoworkDebug` and surfacing as
+// `TypeError: Cannot read properties of undefined (reading 'fuseT')`
+// (observed PR #937 round 1 on dev tip). Self-waiting in every probe
+// means a mid-eval reload either gets caught by the resilient retry
+// loop (Execution context destroyed) OR by the inner wait (shim missing
+// post-reload).
 function wrap(jsExpr) {
   return `(async () => {
-    try { return JSON.stringify({ ok: true, data: await ${jsExpr} }); }
-    catch (e) { return JSON.stringify({ ok: false, error: String(e && e.stack || e) }); }
+    try {
+      const start = Date.now();
+      while (!window.__sudoworkDebug?.fuseT && Date.now() - start < 30000) {
+        await new Promise((r) => setTimeout(r, 500));
+      }
+      if (!window.__sudoworkDebug?.fuseT) {
+        return JSON.stringify({ ok: false, error: 'window.__sudoworkDebug.fuseT missing after 30s wait — devTriggers.ts may not be loaded, or this is a production build' });
+      }
+      return JSON.stringify({ ok: true, data: await ${jsExpr} });
+    } catch (e) { return JSON.stringify({ ok: false, error: String(e && e.stack || e) }); }
   })()`;
 }
 
@@ -174,25 +192,10 @@ async function main() {
   const initialPage = await findPageTarget(cdpPort, waitSeconds);
   console.log(`[cdp-dev-shim-smoke] initial CDP target: ${initialPage.url}`);
 
-  // The renderer may still be hydrating when CDP first answers — the
-  // shim is attached during `import './bootstrap/devTriggers'` which
-  // can lag the initial page navigation. Vite also reloads the page
-  // shortly after open when it discovers new optimizable deps, which
-  // destroys the execution context. Both are handled by the resilient
-  // evaluate wrapper — it retries on context-destroyed and refetches
-  // the page target each attempt.
-  const waitExpr = `(async () => {
-    const start = Date.now();
-    while (!window.__sudoworkDebug?.fuseT && Date.now() - start < 30000) {
-      await new Promise((r) => setTimeout(r, 500));
-    }
-    return !!window.__sudoworkDebug?.fuseT;
-  })()`;
-  const waitRes = await evaluateInRendererResilient(cdpPort, waitExpr);
-  if (!waitRes?.result?.value) {
-    throw new Error('window.__sudoworkDebug.fuseT never appeared on the renderer (30s timeout). devTriggers.ts may not be imported, or this is a production build.');
-  }
-  console.log('[cdp-dev-shim-smoke] shim ready on window.__sudoworkDebug.fuseT');
+  // Each probe expression self-waits for `window.__sudoworkDebug.fuseT`
+  // (see wrap()). No need for a separate up-front check — that's the
+  // race condition that PR #937 round 1 hit (Vite reloaded between the
+  // up-front check and the probe call, wiping the shim).
 
   // Probe 1: runLazyInstallProbe.
   const probeRes = await evaluateInRendererResilient(cdpPort, wrap('window.__sudoworkDebug.fuseT.runLazyInstallProbe()'));
