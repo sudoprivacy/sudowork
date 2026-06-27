@@ -1,9 +1,3 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, Spin, Message, Input, Progress, Modal, Popconfirm, Switch, Tooltip } from '@arco-design/web-react';
 import { Search, Delete, Close, Shield, Lightning, UploadOne, Install, Share, Plus, Check } from '@icon-park/react';
@@ -442,14 +436,8 @@ const SkillDetailModal: React.FC<{
   const hasUpdate = isInstalled && latestVersionInfo && (!installedVersion || latestVersionInfo.version !== installedVersion);
 
   return (
-    <Modal visible={visible} onCancel={onClose} footer={null} closable={false} maskClosable style={{ width: 480 }}>
+    <Modal visible={visible} onCancel={onClose} footer={null} maskClosable style={{ width: 480 }}>
       <div className='flex flex-col max-h-80vh'>
-        <div className='flex justify-end mb-4px'>
-          <div className='w-28px h-28px f-center rd-full bg-fill-2 hover:bg-fill-3 cursor-pointer transition-colors text-secondary' onClick={onClose}>
-            <Close size='14' />
-          </div>
-        </div>
-
         <AionScrollArea className='flex-1 min-h-0'>
           <div className='px-8px pb-16px'>
             {/* Icon + Name header */}
@@ -558,11 +546,11 @@ const SkillDetailModal: React.FC<{
               </div>
             ) : hasVersion ? (
               <>
-                <Tooltip content={t('settings.skill.install', { defaultValue: '安装技能' })}>
+                <Tooltip content={t('settings.skill.install', { defaultValue: '安装' })}>
                   <Button type='primary' long size='large' onClick={onInstall} disabled={downloading}>
                     <span className='flex items-center gap-6px justify-center'>
                       <Install size='15' />
-                      {t('settings.skill.install', { defaultValue: '安装技能' })}
+                      {t('settings.skill.install', { defaultValue: '安装' })}
                     </span>
                   </Button>
                 </Tooltip>
