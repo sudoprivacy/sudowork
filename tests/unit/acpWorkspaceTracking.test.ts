@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { buildAcpModelIdentityReminder, SCODE_COMPLETION_REMINDER, shouldRunCurrentTurnPostCleanup, shouldSkipAcpWorkspaceTrackingPath } from '@/process/task/acpWorkspaceTracking';
+import { buildAcpModelIdentityReminder, SCODE_COMPLETION_REMINDER, shouldInjectLanguageReminder, shouldRunCurrentTurnPostCleanup, shouldSkipAcpWorkspaceTrackingPath } from '@/process/task/acpWorkspaceTracking';
 
 describe('acpWorkspaceTracking', () => {
   test('skips sandbox runtime side effects', () => {
@@ -33,6 +33,24 @@ describe('acpWorkspaceTracking', () => {
   test('runs post-cleanup only when the current turn produced tracked files', () => {
     expect(shouldRunCurrentTurnPostCleanup(true)).toBe(true);
     expect(shouldRunCurrentTurnPostCleanup(false)).toBe(false);
+  });
+
+  describe('shouldInjectLanguageReminder', () => {
+    test('covers scode and claude backends', () => {
+      expect(shouldInjectLanguageReminder('scode')).toBe(true);
+      expect(shouldInjectLanguageReminder('claude')).toBe(true);
+    });
+
+    test('skips other backends', () => {
+      expect(shouldInjectLanguageReminder('gemini')).toBe(false);
+      expect(shouldInjectLanguageReminder('codex')).toBe(false);
+      expect(shouldInjectLanguageReminder('qwen')).toBe(false);
+    });
+
+    test('handles missing backend', () => {
+      expect(shouldInjectLanguageReminder(undefined)).toBe(false);
+      expect(shouldInjectLanguageReminder('')).toBe(false);
+    });
   });
 
   describe('buildAcpModelIdentityReminder', () => {

@@ -38,6 +38,12 @@ export function buildAcpModelIdentityReminder(backend: string, activeModelNotice
   );
 }
 
+const LANGUAGE_REMINDER_BACKENDS = new Set(['scode', 'claude']);
+
+export function shouldInjectLanguageReminder(backend: string | undefined): boolean {
+  return backend ? LANGUAGE_REMINDER_BACKENDS.has(backend) : false;
+}
+
 export function shouldRunCurrentTurnPostCleanup(pendingCurrentTurnPostCleanup: boolean): boolean {
   return pendingCurrentTurnPostCleanup;
 }

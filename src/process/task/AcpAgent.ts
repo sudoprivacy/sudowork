@@ -84,7 +84,7 @@ import { injectSkillsDirectoryHint, prepareFirstMessageWithSkillsIndex } from '.
 import { AcpSkillManager } from './AcpSkillManager';
 import { archiveTurnFiles, cleanupIntermediateFiles, cleanupTrackedDraftsOnCancel, type TrackedTurnFile } from './draftsCleanup';
 import { detectBashDraftRestoreCommand, FileIntentClassifier, type BashDraftRestoreDetection, type FileIntentSource, type FileOperationIntent } from './FileIntentClassifier';
-import { buildAcpModelIdentityReminder, SCODE_COMPLETION_REMINDER, shouldRunCurrentTurnPostCleanup, shouldSkipAcpWorkspaceTrackingPath } from './acpWorkspaceTracking';
+import { buildAcpModelIdentityReminder, SCODE_COMPLETION_REMINDER, shouldInjectLanguageReminder, shouldRunCurrentTurnPostCleanup, shouldSkipAcpWorkspaceTrackingPath } from './acpWorkspaceTracking';
 import { installWorkspaceSkillsFromTrackedFiles } from './workspaceSkillInstaller';
 import { buildGeneratedFileEntries as buildGeneratedFileEntriesFromTracked, resolveFinalFileDisplayPath as resolveFinalFileDisplayPathPure } from './generatedFileEntries';
 import BaseAgent from './BaseAgent';
@@ -1268,7 +1268,7 @@ This identity statement takes priority over the default identity in USER.md.
         processedContent,
         this.acpAvailableSlashCommands.map((command) => command.name)
       );
-      if (this.extra.backend === 'scode') {
+      if (shouldInjectLanguageReminder(this.extra.backend)) {
         processedContent = SCODE_COMPLETION_REMINDER + processedContent;
       }
 
