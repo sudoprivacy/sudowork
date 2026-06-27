@@ -67,16 +67,16 @@ const OrderList: React.FC<IOrderListProps> = ({ onContinuePay, refreshKey }) => 
   const getPaymentMethodStyle = (method: 'ALIPAY' | 'WECHAT') => {
     if (method === 'ALIPAY') {
       return {
-        bgColor: 'bg-[#1677FF]/10',
-        textColor: 'text-[#1677FF]',
-        icon: <Alipay size={14} fill={['#1677FF']} />,
+        bgColor: 'bg-success-soft',
+        textColor: 'text-info',
+        icon: <Alipay size={14} fill='currentColor' />,
         label: t('settings.recharge.alipay', '支付宝'),
       };
     }
     return {
-      bgColor: 'bg-[#07C160]/10',
-      textColor: 'text-[#07C160]',
-      icon: <Wechat size={14} fill={['#07C160']} />,
+      bgColor: 'bg-success-soft',
+      textColor: 'text-success',
+      icon: <Wechat size={14} fill='currentColor' />,
       label: t('settings.recharge.wechat', '微信'),
     };
   };
@@ -117,7 +117,7 @@ const OrderList: React.FC<IOrderListProps> = ({ onContinuePay, refreshKey }) => 
               {/* 积分 */}
               <div className='w-22.5 flex-shrink-0 text-14px text-primary font-500'>{order.points.toLocaleString()} PTS</div>
               {/* 支付方式 */}
-              <div className={`flex-shrink-0 flex items-center gap-1 px-2 py-1 rd-full ${paymentStyle.bgColor}`}>
+              <div className={`flex-shrink-0 flex items-center gap-1 px-2 py-1 rd-full ${paymentStyle.bgColor} ${paymentStyle.textColor}`}>
                 {paymentStyle.icon}
                 <span className={`text-12px font-500 ${paymentStyle.textColor}`}>{paymentStyle.label}</span>
               </div>
