@@ -7,7 +7,7 @@ export default function PointsDashboard({ remainingPoints, usedPoints, bonusPoin
   const { t } = useTranslation();
 
   const statItems = [
-    { label: t('settings.recharge.remainingPoints') || '剩余积分', value: remainingPoints, valueClass: 'italic text-[var(--ui-accent-orange)]' },
+    { label: t('settings.recharge.remainingPoints') || '剩余积分', value: remainingPoints, valueClass: 'italic text-primary' },
     { label: t('settings.recharge.usedPoints') || '累计已用', value: usedPoints, valueClass: 'text-foreground' },
     { label: t('settings.recharge.bonusPoints') || '赠送积分', value: bonusPoints, valueClass: 'text-foreground' },
   ];

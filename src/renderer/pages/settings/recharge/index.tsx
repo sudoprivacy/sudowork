@@ -355,7 +355,7 @@ const RechargeCenter: React.FC = () => {
 
   // Render package selection
   const renderPackageSelection = () => (
-    <div className='p-6 bg-muted rd-16px border border-solid border-[var(--border-light)]'>
+    <div className='p-6 bg-muted rd-16px border border-light'>
       <div className='text-14px font-600 text-foreground mb-4'>{t('settings.recharge.selectPackageRecharge') || '选择套餐充值'}</div>
 
       {loading && packages.length === 0 ? (
@@ -420,7 +420,7 @@ const RechargeCenter: React.FC = () => {
         <div className='text-14px text-secondary mb-2'>{t('settings.recharge.scanToPay', { method: paymentMethod === 'ALIPAY' ? '支付宝' : '微信' }) || `请使用${paymentMethod === 'ALIPAY' ? '支付宝' : '微信'}扫码支付`}</div>
 
         {/* QR Code */}
-        <div className='inline-block p-4 bg-white rd-12px border border-solid border-[var(--border-light)]'>
+        <div className='inline-block p-4 bg-white rd-12px border border-light'>
           <Suspense
             fallback={
               <div className='w-50 h-50 f-center'>

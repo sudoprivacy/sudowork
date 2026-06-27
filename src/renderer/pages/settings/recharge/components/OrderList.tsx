@@ -94,7 +94,7 @@ const OrderList: React.FC<IOrderListProps> = ({ onContinuePay, refreshKey }) => 
   }
 
   return (
-    <div className='bg-muted rd-16px overflow-hidden border border-solid border-[var(--border-light)]'>
+    <div className='bg-muted rd-16px overflow-hidden border border-light'>
       <div className='px-5 py-4  flex items-center justify-between border-b border-light'>
         <div className='font-600 text-14px text-foreground'>{t('settings.orders.title') || '订单记录'}</div>
         <div className='flex items-center gap-3'>
