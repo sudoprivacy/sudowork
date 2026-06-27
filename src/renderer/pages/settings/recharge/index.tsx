@@ -6,16 +6,13 @@ import { useAuth } from '@/renderer/context/AuthContext';
 import { ipcBridge } from '@/common';
 import PageWrapper from '@renderer/components/base/PageWrapper';
 import OrderList from './components/OrderList';
-import type { CreateOrderResponse, OrderStatus, PayOrderResponse, RechargePackage } from './types';
+import type { CreateOrderResponse, OrderStatus, PaymentMethod, PayOrderResponse, RechargePackage, RechargeStep } from './types';
 
 // Lazy load QRCodeSVG
 const QRCodeSVGLazy = React.lazy(async () => {
   const mod = await import('qrcode.react');
   return { default: mod.QRCodeSVG };
 });
-
-type RechargeStep = 'select' | 'loading' | 'paying' | 'success' | 'failed';
-type PaymentMethod = 'ALIPAY' | 'WECHAT';
 
 enum OrderStatusEnum {
   PENDING = 0,

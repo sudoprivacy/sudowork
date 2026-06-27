@@ -42,3 +42,7 @@ export interface Order {
   payment_method: 'ALIPAY' | 'WECHAT';
   created_at: string;
 }
+
+export type RechargeStep = 'select' | 'loading' | 'paying' | 'success' | 'failed';
+
+export type PaymentMethod = 'ALIPAY' | 'WECHAT';
