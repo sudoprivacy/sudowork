@@ -9,144 +9,16 @@ import { Delete, Download, Edit, LinkCloud, PreviewOpen, Plus, Refresh, SettingT
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
-import type { ScodeConfig, ScodeModelEntry } from '@/common/ipcBridge';
+import type { ScodeConfig } from '@/common/ipcBridge';
 import { buildCustomModelAlias, extractCustomProvidersFromScodeConfig, mergeCustomProviderIntoScodeConfig, removeCustomProviderFromScodeConfig, type ScodeCustomModelProvider } from '@/common/scodeConfig';
 import AionModal from '@/renderer/components/base/AionModal';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { useAuth } from '@/renderer/context/AuthContext';
 import PageWrapper from '@renderer/components/base/PageWrapper';
+import type { EditableModel, EditingModelTarget, ProviderRow } from './types';
+import { PROVIDER_PRESETS, buildProviderRows, contextLabel, editableModelFromEntry, findModelEntry, getConfiguredModelIds, maskSecret, normalizeDefaultModel, presetValueForProvider, sanitizeProviderId } from './utils';
 
 const { Title, Text } = Typography;
-
-type ProviderRow = {
-  id: string;
-  baseUrl: string;
-  apiKey: string;
-  modelIds: string[];
-};
-
-type EditableModel = ScodeCustomModelProvider['models'][number];
-
-type EditingModelTarget = {
-  provider: ProviderRow;
-  modelId: string;
-};
-
-const PROVIDER_PRESETS = [
-  { label: '智谱 Coding Plan / GLM Coding Plan', value: 'zhipu-coding-plan', providerId: 'zhipu-coding-plan', baseUrl: 'https://open.bigmodel.cn/api/coding/paas/v4', apiKeyRequired: true },
-  { label: 'Kimi Coding Plan', value: 'kimi-coding-plan', providerId: 'kimi-coding-plan', baseUrl: 'https://api.moonshot.cn/v1', apiKeyRequired: true },
-  { label: '智谱开放平台 / GLM API', value: 'zhipu-glm', providerId: 'zhipu-glm', baseUrl: 'https://open.bigmodel.cn/api/paas/v4', apiKeyRequired: true },
-  { label: 'Kimi 中国版 / Kimi China', value: 'kimi-china', providerId: 'kimi-china', baseUrl: 'https://api.moonshot.cn/v1', apiKeyRequired: true },
-  { label: 'MiniMax 中国版 / MiniMax China', value: 'minimax-china', providerId: 'minimax-china', baseUrl: 'https://api.minimax.chat/v1', apiKeyRequired: true },
-  { label: '深度求索 / DeepSeek', value: 'deepseek', providerId: 'deepseek', baseUrl: 'https://api.deepseek.com/v1', apiKeyRequired: true },
-  { label: 'Ollama 本地 / Ollama', value: 'ollama', providerId: 'ollama', baseUrl: 'http://localhost:11434/v1', apiKeyRequired: false },
-  { label: '自定义 / Custom', value: 'custom', providerId: 'custom-openai', baseUrl: '', apiKeyRequired: true },
-];
-
-function getEntryProvider(entry: ScodeModelEntry | undefined, mode: 'proxy' | 'api-key'): string | undefined {
-  return entry?.providers?.[mode]?.provider;
-}
-
-function buildProviderRows(config: ScodeConfig | null): { sudorouterModels: string[]; customProviders: ProviderRow[] } {
-  const models = config?.models || {};
-  const apiKeyProviders = config?.auth_modes?.['api-key'] || {};
-  const rows = new Map<string, ProviderRow>();
-  const sudorouterModels: string[] = [];
-
-  for (const [providerId, provider] of Object.entries(apiKeyProviders)) {
-    rows.set(providerId, {
-      id: providerId,
-      baseUrl: provider.baseUrl || '',
-      apiKey: provider.apiKey || '',
-      modelIds: [],
-    });
-  }
-
-  for (const [alias, entry] of Object.entries(models)) {
-    const proxyProvider = getEntryProvider(entry, 'proxy');
-    if (proxyProvider === 'sudorouter') {
-      sudorouterModels.push(entry.alias || alias);
-    }
-
-    const apiKeyProvider = getEntryProvider(entry, 'api-key');
-    if (apiKeyProvider) {
-      const row =
-        rows.get(apiKeyProvider) ||
-        ({
-          id: apiKeyProvider,
-          baseUrl: '',
-          apiKey: '',
-          modelIds: [],
-        } satisfies ProviderRow);
-      row.modelIds.push(entry.alias || alias);
-      rows.set(apiKeyProvider, row);
-    }
-  }
-
-  return {
-    sudorouterModels,
-    customProviders: Array.from(rows.values()).sort((a, b) => a.id.localeCompare(b.id)),
-  };
-}
-
-function maskSecret(value: string): string {
-  if (!value) return '';
-  if (value.length <= 10) return `${value.slice(0, 2)}******`;
-  return `${value.slice(0, 6)}...${value.slice(-4)}`;
-}
-
-function sanitizeProviderId(value: string): string {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9_-]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-}
-
-function contextLabel(input?: number, output?: number, defaultText = '默认'): string {
-  const inputText = input ? `${input}K` : defaultText;
-  const outputText = output ? `${output}K` : defaultText;
-  return `${inputText} / ${outputText}`;
-}
-
-function findModelEntry(config: ScodeConfig | null, modelId: string): ScodeModelEntry | undefined {
-  return config?.models?.[modelId] || Object.values(config?.models || {}).find((entry) => entry.alias === modelId);
-}
-
-function getConfiguredModelIds(config: ScodeConfig | null): string[] {
-  return Object.entries(config?.models || {}).map(([alias, entry]) => entry.alias || alias);
-}
-
-function presetValueForProvider(provider?: ProviderRow): string {
-  if (!provider) return 'custom';
-  return PROVIDER_PRESETS.find((item) => item.providerId === provider.id && (!item.baseUrl || item.baseUrl === provider.baseUrl))?.value || 'custom';
-}
-
-function editableModelFromEntry(config: ScodeConfig | null, modelId: string): EditableModel {
-  const entry = findModelEntry(config, modelId);
-  const providerModelId = entry?.providers?.['api-key']?.model || modelId;
-  return {
-    id: providerModelId,
-    name: entry?.name || providerModelId,
-    input: entry?.input,
-    supportsTools: entry?.supports_tools,
-    supportsReasoning: entry?.supports_reasoning,
-    inputContext: entry?.context?.input,
-    outputContext: entry?.context?.output,
-  };
-}
-
-function normalizeDefaultModel(config: ScodeConfig, previousModelId?: string, nextModelId?: string): ScodeConfig {
-  if (previousModelId && nextModelId && config.default_model === previousModelId && config.models?.[nextModelId]) {
-    return { ...config, default_model: nextModelId };
-  }
-  if (config.default_model && !config.models?.[config.default_model]) {
-    const nextConfig = { ...config };
-    delete nextConfig.default_model;
-    return nextConfig;
-  }
-  return config;
-}
 
 const AddModelDialog: React.FC<{
   visible: boolean;
