@@ -6,22 +6,15 @@ import { useAuth } from '@/renderer/context/AuthContext';
 import { ipcBridge } from '@/common';
 import PageWrapper from '@renderer/components/base/PageWrapper';
 import OrderList from './components/OrderList';
+import { OrderStatusEnum } from './types';
 import type { CreateOrderResponse, OrderStatus, PaymentMethod, PayOrderResponse, RechargePackage, RechargeStep } from './types';
+import { formatCurrency } from './utils';
 
 // Lazy load QRCodeSVG
 const QRCodeSVGLazy = React.lazy(async () => {
   const mod = await import('qrcode.react');
   return { default: mod.QRCodeSVG };
 });
-
-enum OrderStatusEnum {
-  PENDING = 0,
-  PAYING = 1,
-  SUCCESS = 2,
-  FAILED = 3,
-  REFUNDED = 4,
-  CANCELLED = 5,
-}
 
 // ==================== Component ====================
 
@@ -382,14 +375,6 @@ const RechargeCenter: React.FC = () => {
   useEffect(() => {
     return () => stopPolling();
   }, [stopPolling]);
-
-  // Format currency
-  const formatCurrency = (amount: number, currency: 'USD' | 'CNY') => {
-    if (currency === 'CNY') {
-      return `¥${amount}`;
-    }
-    return `$${amount}`;
-  };
 
   // Payment method options
   const paymentOptions: { method: PaymentMethod; Icon: typeof Alipay; fill: string; label: string }[] = [

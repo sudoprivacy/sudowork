@@ -9,17 +9,9 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/renderer/context/AuthContext';
 import { ipcBridge } from '@/common';
+import { OrderStatusEnum } from '../types';
 import type { Order } from '../types';
-
-// Order status enum
-enum OrderStatusEnum {
-  PENDING = 0,
-  PAYING = 1,
-  SUCCESS = 2,
-  FAILED = 3,
-  REFUNDED = 4,
-  CANCELLED = 5,
-}
+import { formatAmount, formatDateTime } from '../utils';
 
 interface OrderListProps {
   onContinuePay: (orderNo: string) => void;
@@ -80,32 +72,6 @@ const OrderList: React.FC<OrderListProps> = ({ onContinuePay, refreshKey }) => {
         return 'gray';
     }
   };
-
-  // 格式化日期时间（处理时区）
-  const formatDateTime = (dateStr: string) => {
-    // 服务端返回的时间可能是 ISO 格式或 SQLite 格式
-    // SQLite 格式: "2024-04-20 12:00:00" (无时区，通常为 UTC)
-    // ISO 格式: "2024-04-20T12:00:00.000Z" (有 Z 表示 UTC)
-
-    let date: Date;
-    if (dateStr.includes('T')) {
-      // ISO 格式，直接解析
-      date = new Date(dateStr);
-    } else {
-      // SQLite 格式，假设为 UTC，添加 Z 后缀
-      date = new Date(dateStr + 'Z');
-    }
-
-    // 转换为本地时间显示
-    const month = date.getMonth() + 1;
-    const day = date.getDate();
-    const hour = date.getHours().toString().padStart(2, '0');
-    const minute = date.getMinutes().toString().padStart(2, '0');
-    return `${month}-${day} ${hour}:${minute}`;
-  };
-
-  // 格式化金额
-  const formatAmount = (amount: number) => `¥${amount.toFixed(2)}`;
 
   // 支付方式样式
   const getPaymentMethodStyle = (method: 'ALIPAY' | 'WECHAT') => {

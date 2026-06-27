@@ -1,3 +1,12 @@
+export enum OrderStatusEnum {
+  PENDING = 0,
+  PAYING = 1,
+  SUCCESS = 2,
+  FAILED = 3,
+  REFUNDED = 4,
+  CANCELLED = 5,
+}
+
 export interface RechargePackage {
   amount: number;
   points: number;
@@ -24,7 +33,7 @@ export interface PayOrderResponse {
 
 export interface OrderStatus {
   order_no: string;
-  status: 0 | 1 | 2 | 3 | 4 | 5;
+  status: OrderStatusEnum;
   amount_usd: number;
   amount_cny: number;
   points: number;
@@ -37,7 +46,7 @@ export interface Order {
   amount_usd: number;
   amount_cny: number;
   points: number;
-  status: number;
+  status: OrderStatusEnum;
   status_text: string;
   payment_method: 'ALIPAY' | 'WECHAT';
   created_at: string;
