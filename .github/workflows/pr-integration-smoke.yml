@@ -66,6 +66,37 @@ jobs:
       - name: Run MCP server protocol test
         run: python3 tests/integration/browser_panel_mcp_server.py
 
+  authproxy-secrets-http-e2e:
+    # End-to-end of the SKILL → AuthProxyServer HTTP → handler path
+    # (the bug surface user 进二 hit on v0.2.7). Boots a real
+    # AuthProxyServer in-process and drives real fetch() calls against
+    # it with real token auth. Cluster + vault dylib are mocked here
+    # (covered by Vault Secrets gRPC E2E above); this job specifically
+    # locks in the HTTP transport + token auth + handler routing layers
+    # those gRPC tests don't reach.
+    name: AuthProxy /secrets HTTP E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --no-frozen-lockfile
+
+      - name: Run authProxy /secrets HTTP e2e
+        run: bunx vitest run tests/integration/authProxySecretsHttp.integration.test.ts
+
   vault-signed-download:
     name: Vault Signed Download
     runs-on: ubuntu-latest
