@@ -158,7 +158,7 @@ const OneClickImportModal: React.FC<OneClickImportModalProps> = ({ visible, onCa
     <div>
       {loadingImport ? (
         <div className='py-8'>
-          <div className='flex items-center gap-3 bg-fill-1 rounded-lg p-4'>
+          <div className='flex items-center gap-3 bg-control rounded-3 p-4'>
             <Spin size={20} />
             <div className='text-secondary text-sm'>{t('settings.mcpLoadingTools', '读取CLI工具列表中...')}</div>
           </div>
