@@ -1,5 +1,5 @@
 import { Button, Checkbox, Form, Input, InputNumber, Message, Modal, Select, Spin, Tag } from '@arco-design/web-react';
-import { Download, PreviewOpen } from '@icon-park/react';
+import { IconDownload, IconEye } from '@arco-design/web-react/icon';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
@@ -196,14 +196,14 @@ export default function AddModelDialog({ visible, onClose, onSubmit, existingPro
           <Input
             type={showApiKey ? 'text' : 'password'}
             placeholder={selectedPreset?.apiKeyRequired === false ? t('settings.sudocodeModel.apiKeyOptionalPlaceholder', '本地服务可留空') : t('settings.sudocodeModel.apiKeyRequiredPlaceholder', '输入你的 API Key')}
-            suffix={<Button type='text' size='mini' icon={<PreviewOpen />} onClick={() => setShowApiKey((prev) => !prev)} />}
+            suffix={<Button type='text' size='mini' icon={<IconEye />} onClick={() => setShowApiKey((prev) => !prev)} />}
           />
         </Form.Item>
         <Form.Item
           label={
             <div className='flex items-center justify-between gap-3 w-full'>
               <span>{t('settings.sudocodeModel.modelIdLabel', '模型名称')}</span>
-              <Button size='mini' icon={<Download />} loading={fetchingModels} onClick={() => void handleFetchProviderModels()}>
+              <Button size='mini' icon={<IconDownload />} loading={fetchingModels} onClick={() => void handleFetchProviderModels()}>
                 {t('settings.fetchModelList')}
               </Button>
             </div>
