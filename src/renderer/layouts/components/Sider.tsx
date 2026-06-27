@@ -260,12 +260,12 @@ const Sider: React.FC = () => {
         )}
       </div>
       {/* Footer - User info area */}
-      <div className='shrink-0 sider-footer mt-auto pt-2 px-0'>
+      <div className='shrink-0 mt-auto pt-2 px-0'>
         {!isSettings ? (
           /* 用户信息下拉菜单 */
           <Dropdown
             droplist={
-              <div className='flex flex-col gap-0.5 p-1.5 rd-3 border bg-popup' style={{ width: userMenuWidth, minWidth: 200, boxShadow: '0 8px 28px rgba(0, 0, 0, 0.12)' }}>
+              <div className='flex flex-col gap-0.5 p-1.5 rd-3 border' style={{ width: userMenuWidth, minWidth: 200, boxShadow: '0 8px 28px rgba(0, 0, 0, 0.12)' }}>
                 <div
                   className='flex items-center gap-2.5 px-2.5 h-9.5 rd-8px cursor-pointer text-14px text-foreground transition-colors hover:bg-hover active:bg-active'
                   onClick={() => {
