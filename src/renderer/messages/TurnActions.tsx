@@ -151,7 +151,7 @@ const TurnActions: React.FC<TurnActionsProps> = ({ turnTexts, turnTextsRaw, conv
         </Tooltip>
         {showTokenUsageBadge && totalTokens && (
           <Tooltip content={usageTooltip}>
-            <div className='ml-4px max-w-full truncate text-11px leading-18px px-6px py-1px rd-4px border border-solid border-[var(--color-border-2)] text-secondary bg-fill-1'>
+            <div className='ml-4px max-w-full truncate text-11px leading-18px px-6px py-1px rd-4px border border-light text-secondary bg-fill-1'>
               {t('messages.tokenUsageSummary', { defaultValue: '{{total}} tokens', total: totalTokens })}
               {points ? ` · ${t('messages.tokenUsagePointsShort', { defaultValue: '{{value}} points', value: points })}` : ''}
               {inputTokens && outputTokens ? ` · ${t('messages.tokenUsageInOut', { defaultValue: 'in {{input}} / out {{output}}', input: inputTokens, output: outputTokens })}` : ''}

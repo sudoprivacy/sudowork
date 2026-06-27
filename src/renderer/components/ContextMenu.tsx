@@ -70,7 +70,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, items, onClose }) => {
   return ReactDOM.createPortal(
     <div
       ref={menuRef}
-      className='fixed z-[9999] min-w-[180px] bg-popup border border-solid border-[var(--color-border-2)] rounded-xl shadow-[0_8px_24px_rgba(0,0,0,0.2)] py-1.5 overflow-hidden animate-in fade-in zoom-in-95 duration-150 ease-out'
+      className='fixed z-[9999] min-w-[180px] bg-popup border border-solid rounded-xl shadow-[0_8px_24px_rgba(0,0,0,0.2)] py-1.5 overflow-hidden animate-in fade-in zoom-in-95 duration-150 ease-out'
       style={{
         left: position.x,
         top: position.y,
