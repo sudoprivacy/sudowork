@@ -152,6 +152,19 @@ const Sider: React.FC = () => {
     onSessionClick();
   };
 
+  const onUserMenuClick = async (key: string) => {
+    if (key === 'settings') {
+      handleSettingsClick();
+      setUserMenuOpen(false);
+      return;
+    } else if (key === 'logout') {
+      setUserMenuOpen(false);
+      await logout();
+      Message.success(t('login.logoutSuccess'));
+      void navigate('/login', { replace: true });
+    }
+  };
+
   return (
     <div className='size-full flex flex-col'>
       {/* Main content area */}
@@ -265,23 +278,7 @@ const Sider: React.FC = () => {
           /* 用户信息下拉菜单 */
           <Dropdown
             droplist={
-              <Menu
-                style={{ width: userMenuWidth, minWidth: 200 }}
-                onClickMenuItem={async (key) => {
-                  if (key === 'settings') {
-                    handleSettingsClick();
-                    setUserMenuOpen(false);
-                    return;
-                  }
-
-                  if (key === 'logout') {
-                    setUserMenuOpen(false);
-                    await logout();
-                    Message.success(t('login.logoutSuccess'));
-                    void navigate('/login', { replace: true });
-                  }
-                }}
-              >
+              <Menu style={{ width: userMenuWidth, minWidth: 200 }} onClickMenuItem={onUserMenuClick}>
                 <Menu.Item key='settings'>
                   <div className='flex items-center gap-2.5 '>
                     <Settings size={17} strokeWidth={1.8} className='text-secondary' />
