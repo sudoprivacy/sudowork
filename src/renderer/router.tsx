@@ -26,7 +26,7 @@ const ExtensionSettingsPage = React.lazy(() => import('./pages/settings/Extensio
 const LoginPage = React.lazy(() => import('./pages/login'));
 const RegisterPage = React.lazy(() => import('./pages/register'));
 const UserProfile = React.lazy(() => import('./pages/settings/profile'));
-const RechargeCenter = React.lazy(() => import('./pages/settings/RechargeCenter'));
+const RechargeCenter = React.lazy(() => import('./pages/settings/recharge'));
 const MemberManagement = React.lazy(() => import('./pages/settings/MemberManagement'));
 const EnterpriseSettings = React.lazy(() => import('./pages/settings/EnterpriseSettings'));
 const EnterpriseMcpSettings = React.lazy(() => import('./pages/settings/EnterpriseMcpSettings'));

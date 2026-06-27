@@ -72,7 +72,7 @@ const PointsDashboard: React.FC<{ remainingPoints: number; usedPoints: number; b
   const statItems = [
     { label: t('settings.recharge.remainingPoints') || '剩余积分', value: remainingPoints, valueClass: 'italic text-[var(--ui-accent-orange)]' },
     { label: t('settings.recharge.usedPoints') || '累计已用', value: usedPoints, valueClass: 'text-foreground' },
-    { label: t('settings.recharge.bonusPoints') || '赠送积分', value: bonusPoints, valueClass: 'text-success' },
+    { label: t('settings.recharge.bonusPoints') || '赠送积分', value: bonusPoints, valueClass: 'text-foreground' },
   ];
 
   return (
@@ -84,7 +84,7 @@ const PointsDashboard: React.FC<{ remainingPoints: number; usedPoints: number; b
             <div className='text-13px font-500 text-secondary'>{label}</div>
             <div className='flex items-baseline gap-2'>
               <span className={`text-32px font-700 leading-none ${valueClass}`}>{value.toLocaleString()}</span>
-              <span className='text-12px font-600 text-tertiary'>PTS</span>
+              <span className='text-12px font-600 text-secondary'>PTS</span>
             </div>
           </div>
         ))}
