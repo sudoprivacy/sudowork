@@ -1,9 +1,3 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import { Button, Typography } from '@arco-design/web-react';
 import { IconLink, IconSettings } from '@arco-design/web-react/icon';
 import React, { useState } from 'react';
@@ -65,7 +59,7 @@ const About: React.FC = () => {
           <Button size='small' type='outline' onClick={() => window.dispatchEvent(new Event('sudowork-open-update-modal'))}>
             {t('settings.checkForUpdates', '检查更新')}
           </Button>
-          <Button type='text' className='opacity-50 hover:opacity-100 transition-opacity' onClick={() => setOpsVisible(true)} icon={<IconSettings />} />
+          <Button type='text' className='opacity-50 hover:opacity-100 transition-opacity' onClick={() => setOpsVisible(true)} icon={<IconSettings fontSize={20} />} />
         </div>
       </div>
 

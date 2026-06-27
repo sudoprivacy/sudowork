@@ -1,9 +1,3 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import { Button, Input, Message, Modal, Tooltip, Typography } from '@arco-design/web-react';
 import { IconEdit } from '@arco-design/web-react/icon';
 import React, { useCallback, useState } from 'react';
