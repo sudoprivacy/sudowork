@@ -11,16 +11,12 @@
 import type { IncomingMessage, ServerResponse } from 'http';
 import type { URL } from 'url';
 import { getNexusSecretClient } from '@common/nexus/nexus-secret-client';
+import { putSecretResilient } from '@common/nexus/nexus-secret-resilient';
 import { cachePut, cacheDelete } from '@common/nexus/secret-cache';
 import { mainLog, mainWarn } from '@process/utils/mainLogger';
 import { ProcessConfig } from '@/process/initStorage';
-import {
-  findConfigItemByNamespace,
-  buildRuleFromRawItem,
-  addRuleToCache,
-  removeRuleFromCache,
-} from './configItemsLoader';
 import { ipcBridge } from '@/common';
+import { findConfigItemByNamespace, buildRuleFromRawItem, addRuleToCache, removeRuleFromCache } from './configItemsLoader';
 
 // ============================================================================
 // Mutex for serializing enabled-state writes
@@ -83,9 +79,7 @@ async function applyEnableSideEffect(namespace: string, intentEnable: boolean): 
       try {
         const client = getNexusSecretClient();
         const activeSecrets = client.listSecrets(namespace, false);
-        const hasActiveEntry = configItem.entries.some((entry) =>
-          activeSecrets.some((s) => s.key === entry.config_key),
-        );
+        const hasActiveEntry = configItem.entries.some((entry) => activeSecrets.some((s) => s.key === entry.config_key));
         if (!hasActiveEntry) {
           map[configItem.id] = false;
           removeRuleFromCache(configItem.id);
@@ -131,12 +125,7 @@ async function handleList(req: IncomingMessage, res: ServerResponse, parsedUrl: 
   }
 }
 
-async function handlePut(
-  req: IncomingMessage,
-  res: ServerResponse,
-  namespace: string,
-  key: string,
-): Promise<void> {
+async function handlePut(req: IncomingMessage, res: ServerResponse, namespace: string, key: string): Promise<void> {
   try {
     let body: string;
     try {
@@ -164,15 +153,25 @@ async function handlePut(
       return;
     }
 
-    const client = getNexusSecretClient();
-    const result = client.putSecret(namespace, key, value, description as string | undefined);
+    // putSecretResilient transparently falls back to batch_put if the
+    // deployed vault dylib is missing the single-secret dispatch — the
+    // recurring "plugin ABI skew" pattern documented in memory
+    // [[vault_plugin_secret_get_missing]]. Without this, 进二 (v0.2.7)'s
+    // bug class (API key won't persist → 500 → skill falls back to local
+    // file → user keeps falling back to credits) could recur in any
+    // future release that pins a vault dylib build missing secret_put.
+    const result = putSecretResilient(namespace, key, value, description as string | undefined);
 
     // PUT on a previously soft-deleted secret creates a new version but keeps deleted state.
     // restoreSecret clears deleted state, making the secret active again.
     // For non-deleted or first-create secrets, restoreSecret returns error which we ignore.
+    // (No resilient wrapper here — restore has no batch variant upstream.)
     try {
-      client.restoreSecret(namespace, key);
-    } catch {}
+      getNexusSecretClient().restoreSecret(namespace, key);
+    } catch {
+      // Intentional: restoreSecret throws on non-deleted secrets (the
+      // common path for first-time PUT). The throw isn't a failure.
+    }
 
     cachePut(namespace, key, value);
 
@@ -185,12 +184,7 @@ async function handlePut(
   }
 }
 
-async function handleDelete(
-  req: IncomingMessage,
-  res: ServerResponse,
-  namespace: string,
-  key: string,
-): Promise<void> {
+async function handleDelete(req: IncomingMessage, res: ServerResponse, namespace: string, key: string): Promise<void> {
   try {
     const client = getNexusSecretClient();
     const result = client.deleteSecret(namespace, key);
@@ -209,12 +203,7 @@ async function handleDelete(
 // Main entry point
 // ============================================================================
 
-export async function handleSecretsRequest(
-  req: IncomingMessage,
-  res: ServerResponse,
-  pathname: string,
-  parsedUrl: URL,
-): Promise<void> {
+export async function handleSecretsRequest(req: IncomingMessage, res: ServerResponse, pathname: string, parsedUrl: URL): Promise<void> {
   try {
     const segments = pathname.split('/').filter(Boolean);
     const method = req.method ?? 'GET';

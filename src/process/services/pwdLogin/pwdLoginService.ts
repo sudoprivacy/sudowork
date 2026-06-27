@@ -13,6 +13,7 @@ import type { IPwdLoginParams, IPwdLoginResult } from '@/common/ipcBridge';
 import { BaseApprovalStore, type IApprovalKey } from '@/common/approval/ApprovalStore';
 import { PermissionType } from '@/common/codex/types/permissionTypes';
 import { getNexusSecretClient } from '@/common/nexus/nexus-secret-client';
+import { putSecretResilient, getSecretResilient } from '@/common/nexus/nexus-secret-resilient';
 import { buildNamespace } from '@/common/nexus/namespace';
 import { mainError, mainLog } from '@process/utils/mainLogger';
 import { ProcessConfig } from '@/process/initStorage';
@@ -55,36 +56,9 @@ export interface PwdLoginEntryStatus {
   hasCredential: boolean;
 }
 
-/** True when a gRPC error is "method not found" — some deployed vault plugin
- *  builds are missing the single-secret `secret_get`/`secret_put` dispatch but
- *  DO have the batch + list variants. We transparently fall back to those. */
-function isMethodNotFound(err: unknown): boolean {
-  return err instanceof Error && /method not found/i.test(err.message);
-}
-
-/** getSecret with a batchGet fallback (resilient to plugins missing secret_get). */
-function getSecretResilient(namespace: string, key: string): string {
-  const client = getNexusSecretClient();
-  try {
-    return client.getSecret(namespace, key);
-  } catch (err) {
-    if (!isMethodNotFound(err)) throw err;
-    const result = client.batchGet([{ namespace, key }]);
-    const values = Object.values(result);
-    return values.length ? values[0] : '';
-  }
-}
-
-/** putSecret with a batchPut fallback (resilient to plugins missing secret_put). */
-function putSecretResilient(namespace: string, key: string, value: string, description?: string): void {
-  const client = getNexusSecretClient();
-  try {
-    client.putSecret(namespace, key, value, description);
-  } catch (err) {
-    if (!isMethodNotFound(err)) throw err;
-    client.batchPut([{ namespace, key, value, description }]);
-  }
-}
+// Resilient wrappers (single → batch fallback for vault dylib builds missing
+// the per-secret dispatch entries) moved to @common/nexus/nexus-secret-resilient
+// so every secret-writing caller follows the same policy. Import above.
 
 async function getRegistry(): Promise<PwdLoginEntry[]> {
   try {
