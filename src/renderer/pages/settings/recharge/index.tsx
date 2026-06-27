@@ -6,48 +6,13 @@ import { useAuth } from '@/renderer/context/AuthContext';
 import { ipcBridge } from '@/common';
 import PageWrapper from '@renderer/components/base/PageWrapper';
 import OrderList from './components/OrderList';
+import type { CreateOrderResponse, OrderStatus, PayOrderResponse, RechargePackage } from './types';
 
 // Lazy load QRCodeSVG
 const QRCodeSVGLazy = React.lazy(async () => {
   const mod = await import('qrcode.react');
   return { default: mod.QRCodeSVG };
 });
-
-// ==================== Types ====================
-
-interface RechargePackage {
-  amount: number;
-  points: number;
-  bonus: number;
-  description: string;
-  amount_cny: number;
-  exchange_rate: number;
-}
-
-interface CreateOrderResponse {
-  order_no: string;
-  amount_usd: number;
-  amount_cny: number;
-  points: number;
-  quota: number;
-  expired_at: string;
-}
-
-interface PayOrderResponse {
-  order_no: string;
-  qr_code_url: string;
-  order_info: string;
-}
-
-interface OrderStatus {
-  order_no: string;
-  status: 0 | 1 | 2 | 3 | 4 | 5;
-  amount_usd: number;
-  amount_cny: number;
-  points: number;
-  created_at: string;
-  paid_at?: string;
-}
 
 type RechargeStep = 'select' | 'loading' | 'paying' | 'success' | 'failed';
 type PaymentMethod = 'ALIPAY' | 'WECHAT';
@@ -587,11 +552,8 @@ const RechargeCenter: React.FC = () => {
   };
 
   return (
-    <PageWrapper contentClassName='max-w-200'>
+    <PageWrapper title={t('settings.rechargeCenter') || '充值中心'}>
       <div className='flex flex-col gap-6 py-2'>
-        <div className='text-20px font-600 text-foreground leading-32px'>{t('settings.rechargeCenter') || '充值中心'}</div>
-
-        {/* Points Dashboard */}
         {statsLoading ? (
           <div className='flex justify-center py-10'>
             <Spin />

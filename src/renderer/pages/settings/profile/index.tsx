@@ -145,10 +145,8 @@ const UserProfile: React.FC = () => {
   }, [stats?.usage_today]);
 
   return (
-    <PageWrapper contentClassName='max-w-200'>
+    <PageWrapper title={t('settings.profile', '用户中心')}>
       <div className='flex flex-col gap-6 py-2'>
-        <div className='text-20px font-600 text-foreground leading-32px'>{t('settings.profile', '用户中心')}</div>
-
         {isEnterprise ? (
           <>
             {/* Enterprise: Identity */}

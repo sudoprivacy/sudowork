@@ -9,6 +9,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/renderer/context/AuthContext';
 import { ipcBridge } from '@/common';
+import type { Order } from '../types';
 
 // Order status enum
 enum OrderStatusEnum {
@@ -18,17 +19,6 @@ enum OrderStatusEnum {
   FAILED = 3,
   REFUNDED = 4,
   CANCELLED = 5,
-}
-
-interface Order {
-  order_no: string;
-  amount_usd: number;
-  amount_cny: number;
-  points: number;
-  status: OrderStatusEnum;
-  status_text: string;
-  payment_method: 'ALIPAY' | 'WECHAT';
-  created_at: string;
 }
 
 interface OrderListProps {
