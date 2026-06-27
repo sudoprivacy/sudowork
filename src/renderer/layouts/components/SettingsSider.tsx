@@ -1,4 +1,4 @@
-import { Communication, Computer, Connection, Dollar, Earth, HardDiskOne, Info, Lightning, LinkCloud, Peoples, Puzzle, Robot, Shield, System, Toolkit, User, BuildingTwo } from '@icon-park/react';
+import { Bot, Building2, Cable, Cloud, CreditCard, Globe, HardDrive, Info, MessageSquare, Monitor, Puzzle, Settings, ShieldCheck, Sparkles, User, Users, Wrench } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -95,26 +95,26 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
     // Build builtin items
     const builtinMap: Record<string, SiderItem> = {
       profile: { id: 'profile', label: t('settings.profile'), icon: <User />, path: 'profile' },
-      enterprise: { id: 'enterprise', label: t('settings.enterprise', { defaultValue: '企业设置' }), icon: <BuildingTwo />, path: 'enterprise' },
-      mcp: { id: 'mcp', label: t('settings.mcpService', { defaultValue: 'MCP 服务' }), icon: <Connection />, path: 'mcp' },
-      recharge: { id: 'recharge', label: t('settings.rechargeCenter') || '充值中心', icon: <Dollar />, path: 'recharge' },
+      enterprise: { id: 'enterprise', label: t('settings.enterprise', { defaultValue: '企业设置' }), icon: <Building2 />, path: 'enterprise' },
+      mcp: { id: 'mcp', label: t('settings.mcpService', { defaultValue: 'MCP 服务' }), icon: <Cable />, path: 'mcp' },
+      recharge: { id: 'recharge', label: t('settings.rechargeCenter') || '充值中心', icon: <CreditCard />, path: 'recharge' },
       members: {
         id: 'members',
         label: t('settings.memberManagement'),
-        icon: <Peoples />,
+        icon: <Users />,
         path: 'members',
         hidden: true, // 固定隐藏，服务端已只有一个企业
       },
-      model: { id: 'model', label: t('settings.model'), icon: <LinkCloud />, path: 'model' },
-      agent: { id: 'agent', label: t('settings.agent'), icon: <Robot />, path: 'agent' },
-      tools: { id: 'tools', label: t('settings.tools'), icon: <Toolkit />, path: 'tools' },
-      skill: { id: 'skill', label: t('settings.skill'), icon: <Lightning />, path: 'skill' },
-      security: { id: 'security', label: t('settings.security'), icon: <Shield />, path: 'security' },
-      display: { id: 'display', label: t('settings.display'), icon: <Computer />, path: 'display' },
+      model: { id: 'model', label: t('settings.model'), icon: <Cloud />, path: 'model' },
+      agent: { id: 'agent', label: t('settings.agent'), icon: <Bot />, path: 'agent' },
+      tools: { id: 'tools', label: t('settings.tools'), icon: <Wrench />, path: 'tools' },
+      skill: { id: 'skill', label: t('settings.skill'), icon: <Sparkles />, path: 'skill' },
+      security: { id: 'security', label: t('settings.security'), icon: <ShieldCheck />, path: 'security' },
+      display: { id: 'display', label: t('settings.display'), icon: <Monitor />, path: 'display' },
       // copilot: { id: 'copilot', label: t('settings.copilot'), icon: <Config />, path: 'copilot' },
-      webui: { id: 'webui', label: t('settings.webui'), icon: isDesktop ? <Earth /> : <Communication />, path: 'webui' },
-      runtime: { id: 'runtime', label: t('settings.runtime'), icon: <HardDiskOne />, path: 'runtime' },
-      system: { id: 'system', label: t('settings.system'), icon: <System />, path: 'system' },
+      webui: { id: 'webui', label: t('settings.webui'), icon: isDesktop ? <Globe /> : <MessageSquare />, path: 'webui' },
+      runtime: { id: 'runtime', label: t('settings.runtime'), icon: <HardDrive />, path: 'runtime' },
+      system: { id: 'system', label: t('settings.system'), icon: <Settings />, path: 'system' },
       about: { id: 'about', label: t('settings.about'), icon: <Info />, path: 'about' },
     };
 
@@ -209,9 +209,9 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
                 item.isImageIcon ? (
                   <span className='f-center h-5 w-5'>{item.icon}</span>
                 ) : (
-                  React.cloneElement(item.icon as React.ReactElement<{ theme?: string; size?: string | number; className?: string }>, {
-                    theme: 'outline',
+                  React.cloneElement(item.icon as React.ReactElement<{ size?: string | number; strokeWidth?: number; className?: string }>, {
                     size: '20',
+                    strokeWidth: 1.8,
                     className: 'flex',
                   })
                 )

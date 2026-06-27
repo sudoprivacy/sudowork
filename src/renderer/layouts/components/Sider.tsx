@@ -1,6 +1,5 @@
-import { IconPlus } from '@arco-design/web-react/icon';
-import { AlarmClock, Down, Earth, Lightning, ListCheckbox, Logout, Return, Robot, SettingTwo, Shield } from '@icon-park/react';
 import classNames from 'classnames';
+import { AlarmClock, ArrowLeft, Bot, ChevronDown, Globe, ListChecks, LogOut, Plus, Settings, ShieldCheck, Sparkles } from 'lucide-react';
 import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -15,8 +14,8 @@ import { useCronEnabled } from '@renderer/hooks/useCronEnabled';
 
 import WorkspaceGroupedHistory from '@renderer/pages/conversation/WorkspaceGroupedHistory';
 import { maskPhone } from '@renderer/utils';
-import SettingsSider from './SettingsSider';
 import SidebarNavItem from '@/renderer/layouts/components/SidebarNavItem';
+import SettingsSider from './SettingsSider';
 
 const Sider: React.FC = () => {
   // 侧栏收起由外层 ArcoLayout.Sider 把宽度动画到 0 整体隐藏，内容始终保持展开态，
@@ -56,10 +55,10 @@ const Sider: React.FC = () => {
 
   // 功能菜单项定义 / Function menu items definition
   const Menus = [
-    { id: 'agent', label: t('common.siderMenu.agent'), icon: Robot, path: '/settings/agent' },
-    { id: 'skill-store', label: t('common.siderMenu.skillStore'), icon: Lightning, path: '/settings/skill' },
-    { id: 'security', label: t('common.siderMenu.security'), icon: Shield, path: '/app/security' },
-    ...(!isEnterprise ? [{ id: 'webui' as const, label: t('common.siderMenu.webui'), icon: Earth, path: '/settings/webui' }] : []),
+    { id: 'agent', label: t('common.siderMenu.agent'), icon: Bot, path: '/settings/agent' },
+    { id: 'skill-store', label: t('common.siderMenu.skillStore'), icon: Sparkles, path: '/settings/skill' },
+    { id: 'security', label: t('common.siderMenu.security'), icon: ShieldCheck, path: '/app/security' },
+    ...(!isEnterprise ? [{ id: 'webui' as const, label: t('common.siderMenu.webui'), icon: Globe, path: '/settings/webui' }] : []),
     ...(cronEnabled ? [{ id: 'cron' as const, label: t('common.siderMenu.cron'), icon: AlarmClock, path: '/app/cron' }] : []),
   ];
 
@@ -177,7 +176,7 @@ const Sider: React.FC = () => {
                 onSessionClick();
               }}
             >
-              <IconPlus className='text-foreground shrink-0' />
+              <Plus size={18} strokeWidth={1.8} className='text-foreground shrink-0' />
               <span className='text-15px font-medium text-foreground truncate'>{t('conversation.welcome.newConversation')}</span>
             </div>
 
@@ -185,10 +184,11 @@ const Sider: React.FC = () => {
             <div className='mb-4 flex flex-col gap-0.5'>
               {Menus.map((menu) => {
                 const isSelected = pathname === menu.path || (pathname.startsWith('/guid') && new URLSearchParams(search).get('menu') === menu.id);
+                const MenuIcon = menu.icon;
                 return (
                   <SidebarNavItem
                     key={menu.id}
-                    icon={<menu.icon theme='outline' size='20' className='block leading-none' />}
+                    icon={<MenuIcon size={20} strokeWidth={1.8} className='block leading-none' />}
                     label={menu.label}
                     selected={isSelected}
                     onClick={() => {
@@ -248,7 +248,7 @@ const Sider: React.FC = () => {
                   className={classNames('batch-mode-trigger size-8 f-center rd-8px cursor-pointer transition-all shrink-0', isBatchMode ? 'bg-[rgba(var(--ui-accent-orange-rgb),0.12)] text-[var(--ui-accent-orange)]' : 'hover:bg-hover active:bg-fill-2 text-secondary')}
                   onClick={() => setIsBatchMode((prev) => !prev)}
                 >
-                  <ListCheckbox theme='outline' size='18' className='block leading-none' />
+                  <ListChecks size={18} strokeWidth={1.8} className='block leading-none' />
                 </div>
               </Popover>
             </div>
@@ -260,12 +260,12 @@ const Sider: React.FC = () => {
         )}
       </div>
       {/* Footer - User info area */}
-      <div className={classNames('shrink-0 sider-footer mt-auto pt-2 px-0', isSettings ? '' : 'pr-4')}>
+      <div className={classNames('shrink-0 sider-footer mt-auto pt-2', isSettings ? 'px-0' : 'px-4')}>
         {!isSettings ? (
           /* 用户信息下拉菜单 */
           <Dropdown
             droplist={
-              <div className='flex flex-col gap-0.5 p-1.5 rd-3 border bg-popup' style={{ width: userMenuWidth ? userMenuWidth - 12 : undefined, minWidth: 200, boxShadow: '0 8px 28px rgba(0, 0, 0, 0.12)' }}>
+              <div className='flex flex-col gap-0.5 p-1.5 rd-3 border bg-popup' style={{ width: userMenuWidth, minWidth: 200, boxShadow: '0 8px 28px rgba(0, 0, 0, 0.12)' }}>
                 <div
                   className='flex items-center gap-2.5 px-2.5 h-9.5 rd-8px cursor-pointer text-14px text-foreground transition-colors hover:bg-hover active:bg-active'
                   onClick={() => {
@@ -273,7 +273,7 @@ const Sider: React.FC = () => {
                     setUserMenuOpen(false);
                   }}
                 >
-                  <SettingTwo theme='outline' size='17' fill={'var(--text-secondary)'} />
+                  <Settings size={17} strokeWidth={1.8} className='text-secondary' />
                   <span>{t('common.settings')}</span>
                 </div>
                 <div className='mx-1 border-b-0.5px border-light' />
@@ -286,7 +286,7 @@ const Sider: React.FC = () => {
                     void navigate('/login', { replace: true });
                   }}
                 >
-                  <Logout theme='outline' size='17' fill='var(--danger)' />
+                  <LogOut size={17} strokeWidth={1.8} className='text-danger' />
                   <span>{t('login.logout', { defaultValue: '退出登录' })}</span>
                 </div>
               </div>
@@ -305,7 +305,7 @@ const Sider: React.FC = () => {
                 <div className='text-14px font-medium text-foreground truncate'>{userInfo.name}</div>
                 <div className='text-12px text-secondary truncate'>{userInfo.email}</div>
               </div>
-              <Down theme='outline' size='16' fill={'var(--text-secondary)'} className='shrink-0' />
+              <ChevronDown size={16} strokeWidth={1.8} className='shrink-0 text-secondary' />
             </div>
           </Dropdown>
         ) : (
@@ -314,7 +314,7 @@ const Sider: React.FC = () => {
             {/* 返回按钮 */}
             <div className='border rd-3 flex items-center gap-2.5 px-3 py-2.5 cursor-pointer transition-colors hover:bg-hover active:bg-fill-2 ml-0.5' onClick={handleSettingsClick}>
               <div className='size-8 rd-50% bg-fill-3 f-center text-foreground text-14px font-bold shrink-0'>
-                <Return theme='outline' size='16' fill={'var(--foreground)'} />
+                <ArrowLeft size={16} strokeWidth={1.8} />
               </div>
               <div className='flex-1 min-w-0'>
                 <div className='text-14px font-medium text-foreground truncate'>{t('common.back')}</div>

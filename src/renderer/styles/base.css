@@ -904,7 +904,7 @@ body,
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--brand);
+  background: var(--bg-4);
 }
 
 .message-item.user .message-bubble {
