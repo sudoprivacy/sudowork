@@ -1,4 +1,4 @@
-import { Alert, Button, Card, Space, Spin, Tag, Tooltip, Typography } from '@arco-design/web-react';
+import { Alert, Button, Space, Spin, Tag, Typography } from '@arco-design/web-react';
 import { Folder, Robot, User } from '@icon-park/react';
 import { IconRefresh } from '@arco-design/web-react/icon';
 import React, { useCallback, useEffect, useState } from 'react';
@@ -6,51 +6,9 @@ import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
 import type { ISudoclawStatus } from '@/common/ipcBridge';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
+import StatusCard from '@/renderer/pages/settings/copilot/components/StatusCard';
 
 const { Title, Text } = Typography;
-
-// ==================== 子组件 / Sub-components ====================
-
-/**
- * 状态卡片 / Status Card
- */
-const StatusCard: React.FC<{
-  title: string;
-  value: string | number;
-  icon: React.ReactNode;
-  status?: 'success' | 'warning' | 'error' | 'info';
-  description?: string;
-}> = ({ title, value, icon, status = 'info', description }) => {
-  const statusColors = {
-    success: { bg: '#52c41a15', text: '#52c41a' },
-    warning: { bg: '#faad1415', text: '#faad14' },
-    error: { bg: '#ff4d4f15', text: '#ff4d4f' },
-    info: { bg: `${'var(--foreground)'}15`, text: 'var(--foreground)' },
-  };
-
-  const colors = statusColors[status];
-
-  return (
-    <Card className='rd-12px hover:shadow-md transition-shadow'>
-      <div className='flex items-start gap-12px'>
-        <div className='w-48px h-48px rounded-12px f-center flex-shrink-0' style={{ backgroundColor: colors.bg }}>
-          {icon}
-        </div>
-        <div className='flex-1 min-w-0'>
-          <div className='text-13px text-secondary mb-4px'>{title}</div>
-          <div className='text-20px font-600 text-foreground truncate' title={String(value)}>
-            {value}
-          </div>
-          {description && (
-            <Tooltip content={description}>
-              <div className='text-12px text-tertiary mt-4px truncate'>{description}</div>
-            </Tooltip>
-          )}
-        </div>
-      </div>
-    </Card>
-  );
-};
 
 // ==================== 主组件 / Main Component ====================
 
