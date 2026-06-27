@@ -1,11 +1,10 @@
-import { Button, Checkbox, Form, Input, InputNumber, Message, Select, Spin, Tag } from '@arco-design/web-react';
+import { Button, Checkbox, Form, Input, InputNumber, Message, Modal, Select, Spin, Tag } from '@arco-design/web-react';
 import { Download, PreviewOpen } from '@icon-park/react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
 import type { ScodeConfig } from '@/common/ipcBridge';
 import { buildCustomModelAlias, type ScodeCustomModelProvider } from '@/common/scodeConfig';
-import AionModal from '@/renderer/components/base/AionModal';
 import { editableModelFromEntry, findModelEntry, presetValueForProvider, sanitizeProviderId, PROVIDER_PRESETS } from '../utils';
 import type { EditableModel, EditingModelTarget } from '../types';
 
@@ -165,14 +164,7 @@ export default function AddModelDialog({ visible, onClose, onSubmit, existingPro
   };
 
   return (
-    <AionModal
-      visible={visible}
-      header={{ title: isEditing ? t('settings.sudocodeModel.editModelTitle', '编辑模型') : t('settings.addModel', '添加模型'), showClose: true }}
-      style={{ width: 760 }}
-      contentStyle={{ background: 'var(--bg-1)', padding: '20px 24px 16px', overflow: 'auto' }}
-      onCancel={onClose}
-      footer={null}
-    >
+    <Modal visible={visible} title={isEditing ? t('settings.sudocodeModel.editModelTitle', '编辑模型') : t('settings.addModel', '添加模型')} style={{ width: 760 }} onCancel={onClose} footer={null}>
       <div className='mb-4 flex items-center gap-2'>
         <Tag bordered>{t('settings.sudocodeModel.openAIOnlyHint', '仅支持 OpenAI 兼容协议 API')}</Tag>
       </div>
@@ -253,7 +245,7 @@ export default function AddModelDialog({ visible, onClose, onSubmit, existingPro
           {t('common.save', '保存')}
         </Button>
       </div>
-    </AionModal>
+    </Modal>
   );
 }
 
