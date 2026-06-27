@@ -28,7 +28,7 @@ const RegisterPage = React.lazy(() => import('./pages/register'));
 const UserProfile = React.lazy(() => import('./pages/settings/profile'));
 const RechargeCenter = React.lazy(() => import('./pages/settings/recharge'));
 const MemberManagement = React.lazy(() => import('./pages/settings/MemberManagement'));
-const EnterpriseSettings = React.lazy(() => import('./pages/settings/EnterpriseSettings'));
+const EnterpriseSettings = React.lazy(() => import('./pages/settings/enterprise'));
 const EnterpriseMcpSettings = React.lazy(() => import('./pages/settings/enterprise_mcps'));
 
 const withRouteFallback = (Component: React.LazyExoticComponent<React.ComponentType>) => (
