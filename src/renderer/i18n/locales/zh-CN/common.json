@@ -76,6 +76,7 @@
     "webui": "远程连接",
     "cron": "定时任务"
   },
+  "notSet": "未设置",
   "ariaLabel": {
     "close": "关闭",
     "edit": "编辑",

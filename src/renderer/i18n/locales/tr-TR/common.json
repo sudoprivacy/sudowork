@@ -41,6 +41,7 @@
   "confirmDelete": "Silmeyi Onayla",
   "deleteSuccess": "Başarıyla silindi",
   "deleteFailed": "Silme başarısız",
+  "notSet": "Ayarlanmamış",
   "default": "Varsayılan",
   "defaultModel": "Varsayılan Model",
   "modelSwitchSuccess": "{{model}} modeline geçildi",
