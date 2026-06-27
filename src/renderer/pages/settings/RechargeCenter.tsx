@@ -64,7 +64,7 @@ enum OrderStatusEnum {
 // ==================== Component ====================
 
 // 充值页通用「面板」容器样式 / Shared panel container style
-const PANEL_CLASS = 'p-6 bg-2 rd-16px border border-solid border-[var(--border-light)]';
+const PANEL_CLASS = 'p-6 bg-muted rd-16px border border-solid border-[var(--border-light)]';
 
 const PointsDashboard: React.FC<{ remainingPoints: number; usedPoints: number; bonusPoints: number }> = ({ remainingPoints, usedPoints, bonusPoints }) => {
   const { t } = useTranslation();
@@ -452,7 +452,7 @@ const RechargeCenter: React.FC = () => {
               onClick={() => setSelectedPackage(pkg)}
               className={`
                 relative p-4 rd-12px border border-solid transition-all cursor-pointer text-left
-                ${selectedPackage?.amount === pkg.amount ? 'bg-3 border-primary' : 'bg-2 border-transparent hover:bg-3'}
+                ${selectedPackage?.amount === pkg.amount ? 'bg-3 border-primary' : 'bg-muted border-transparent hover:bg-3'}
               `}
             >
               <div className='text-22px font-700 text-foreground'>{formatCurrency(pkg.amount_cny, 'CNY')}</div>
@@ -472,7 +472,7 @@ const RechargeCenter: React.FC = () => {
         <div className='text-14px font-500 text-foreground mb-3'>{t('settings.recharge.selectPayment') || '支付方式'}</div>
         <div className='flex items-center gap-6'>
           {paymentOptions.map(({ method, Icon, fill, label }) => (
-            <button key={method} onClick={() => setPaymentMethod(method)} className={`relative flex items-center gap-2 px-4 py-2 rd-12px border border-solid transition-all cursor-pointer ${paymentMethod === method ? 'bg-3 border-primary' : 'bg-2 border-transparent hover:bg-3'}`}>
+            <button key={method} onClick={() => setPaymentMethod(method)} className={`relative flex items-center gap-2 px-4 py-2 rd-12px border border-solid transition-all cursor-pointer ${paymentMethod === method ? 'bg-3 border-primary' : 'bg-muted border-transparent hover:bg-3'}`}>
               <Icon size={18} fill={[fill]} theme='filled' />
               <span className='text-14px text-foreground'>{label}</span>
               {paymentMethod === method && (

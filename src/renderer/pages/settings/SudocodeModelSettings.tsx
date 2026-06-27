@@ -524,22 +524,22 @@ const SudocodeModelSettingsContent: React.FC = () => {
         </div>
 
         <div className='grid grid-cols-1 md:grid-cols-3 gap-3 mb-5'>
-          <div className='bg-2 rd-3 border border-light p-4'>
+          <div className='bg-muted rd-3 border border-light p-4'>
             <div className='text-12px text-secondary mb-1.5'>{t('common.defaultModel', '默认模型')}</div>
             <div className='text-16px font-600 text-foreground truncate'>{config?.default_model || t('common.notSet', '未设置')}</div>
           </div>
-          <div className='bg-2 rd-3 border border-light p-4'>
+          <div className='bg-muted rd-3 border border-light p-4'>
             <div className='text-12px text-secondary mb-1.5'>{t('settings.sudocodeModel.sudorouterModels', 'Sudorouter 模型')}</div>
             <div className='text-16px font-600 text-foreground'>{sudorouterModels.length}</div>
           </div>
-          <div className='bg-2 rd-3 border border-light p-4'>
+          <div className='bg-muted rd-3 border border-light p-4'>
             <div className='text-12px text-secondary mb-1.5'>{t('settings.sudocodeModel.customProviders', '第三方提供商')}</div>
             <div className='text-16px font-600 text-foreground'>{customProviders.length}</div>
           </div>
         </div>
 
         <div className='space-y-4'>
-          <section className='border border-light rd-3 overflow-hidden bg-2'>
+          <section className='border border-light rd-3 overflow-hidden bg-muted'>
             <div className='px-4 py-3 flex items-center justify-between'>
               <div className='flex items-center gap-2 font-600 text-foreground'>
                 <LinkCloud theme='outline' size='18' />
@@ -551,14 +551,14 @@ const SudocodeModelSettingsContent: React.FC = () => {
           </section>
 
           {customProviders.length === 0 ? (
-            <div className='border border-light border-dashed rd-3 bg-2 py-12 text-center'>
+            <div className='border border-light border-dashed rd-3 bg-muted py-12 text-center'>
               <SettingTwo theme='outline' size='42' className='text-tertiary mb-3' />
               <div className='text-15px font-600 text-foreground mb-1'>{t('settings.sudocodeModel.noCustomProviders', '还没有第三方模型')}</div>
               <Text type='secondary'>{t('settings.sudocodeModel.noCustomProvidersHint', '添加 OpenAI 兼容 API 后，可在 Sudo Code 模型下拉中选择。')}</Text>
             </div>
           ) : (
             customProviders.map((provider) => (
-              <section key={provider.id} className='border border-light rd-3 overflow-hidden bg-2'>
+              <section key={provider.id} className='border border-light rd-3 overflow-hidden bg-muted'>
                 <div className='px-4 py-3 border-b border-light flex items-center justify-between gap-3 flex-wrap'>
                   <div className='min-w-0'>
                     <div className='flex items-center gap-2 font-600 text-foreground'>

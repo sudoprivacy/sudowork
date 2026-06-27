@@ -66,7 +66,7 @@ export default function ToolsSettings() {
       <div className='flex flex-col h-full w-full pt-4'>
         <AionScrollArea className='flex-1 min-h-0 pb-4' disableOverflow>
           <div className='space-y-4'>
-            <div className='px-3 md:px-8 py-6 bg-2 rd-12px md:rd-16px flex flex-col min-h-0 border border-light'>
+            <div className='px-3 md:px-8 py-6 bg-muted rd-12px md:rd-16px flex flex-col min-h-0 border border-light'>
               <div className='flex-1 min-h-0'>
                 <AionScrollArea className='h-full overflow-visible' disableOverflow>
                   <McpManagementSection />
@@ -74,7 +74,7 @@ export default function ToolsSettings() {
               </div>
             </div>
 
-            <div className='px-3 md:px-8 py-6 bg-2 rd-12px md:rd-16px border border-light'>
+            <div className='px-3 md:px-8 py-6 bg-muted rd-12px md:rd-16px border border-light'>
               <div className='flex items-center justify-between'>
                 <span className='text-14px text-foreground'>{t('settings.imageGeneration', '图像生成')}</span>
                 <Switch checked={imageGenerationModel?.switch} onChange={(checked) => onImageGenerationModelChange({ switch: checked })} className='settings-accent-switch' style={imageGenerationModel?.switch ? { backgroundColor: 'var(--ui-accent-orange)' } : undefined} />

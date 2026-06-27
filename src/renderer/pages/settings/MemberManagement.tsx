@@ -195,13 +195,13 @@ const MemberManagement: React.FC = () => {
 
         <Tabs activeTab={activeTab} onChange={setActiveTab} type='capsule'>
           <Tabs.TabPane key='pending' title={`待审批 (${pendingUsers.length})`}>
-            <div className='mt-4 bg-2 rd-16px border overflow-hidden min-h-50'>
+            <div className='mt-4 bg-muted rd-16px border overflow-hidden min-h-50'>
               <Table loading={loading} data={pendingUsers} columns={pendingColumns} rowKey='id' pagination={false} className='[&_.arco-table-th]:bg-transparent' />
             </div>
           </Tabs.TabPane>
 
           <Tabs.TabPane key='approved' title='正式成员'>
-            <div className='mt-4 bg-2 rd-16px border overflow-hidden min-h-50'>
+            <div className='mt-4 bg-muted rd-16px border overflow-hidden min-h-50'>
               <Table loading={loading} data={approvedUsers} columns={approvedColumns} rowKey='id' pagination={false} className='[&_.arco-table-th]:bg-transparent' />
             </div>
           </Tabs.TabPane>

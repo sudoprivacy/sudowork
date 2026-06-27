@@ -82,7 +82,7 @@ const McpLibraryTab: React.FC<McpLibraryTabProps> = ({ templates, installedTempl
           {filtered.map((tpl) => {
             const installed = installedTemplateIds?.has(tpl.id);
             return (
-              <div key={tpl.id} className='flex items-center gap-3 px-4 py-3 rd-12px bg-1 hover:bg-2 transition-colors'>
+              <div key={tpl.id} className='flex items-center gap-3 px-4 py-3 rd-12px bg-1 hover:bg-muted transition-colors'>
                 <McpIcon icon={tpl.icon} size={40} />
                 <div className='flex-1 min-w-0'>
                   <div className='flex items-center gap-2'>

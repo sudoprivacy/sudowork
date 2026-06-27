@@ -102,7 +102,7 @@ const EnterpriseSettings: React.FC = () => {
   return (
     <PageWrapper>
       {/* Card 1: Enterprise Connection Info */}
-      <div className='mb-6 rd-16px bg-2 p-6'>
+      <div className='mb-6 rd-16px bg-muted p-6'>
         <div className='flex items-center gap-2 mb-5'>
           <BuildingTwo theme='outline' size={20} className='text-2' />
           <h3 className='text-16px font-600 text-foreground m-0'>企业连接信息</h3>

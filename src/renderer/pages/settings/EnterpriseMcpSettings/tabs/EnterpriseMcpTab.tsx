@@ -44,7 +44,7 @@ const EnterpriseMcpTab: React.FC<EnterpriseMcpTabProps> = ({ servers, loading = 
   return (
     <div className='flex flex-col gap-2.5'>
       {filtered.map((srv) => (
-        <div key={srv.id} className='flex items-center gap-3 px-4 py-3 rd-12px bg-1 hover:bg-2 transition-colors'>
+        <div key={srv.id} className='flex items-center gap-3 px-4 py-3 rd-12px bg-1 hover:bg-muted transition-colors'>
           <McpIcon icon={srv.icon} size={40} />
           <div className='flex-1 min-w-0'>
             <div className='flex items-center gap-2'>
