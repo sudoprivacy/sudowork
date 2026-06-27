@@ -588,9 +588,9 @@ export default function RuntimeSettings() {
   return (
     <PageWrapper title={t('settings.runtimeSettings.title')} subtitle={t('settings.runtimeSettings.description')}>
       <div className='flex flex-col h-full w-full'>
-        <AionScrollArea className='flex-1 min-h-0 pb-16px' disableOverflow>
-          <div className='space-y-16px pt-16px'>
-            <div className='bg-2 rd-16px border px-16px md:px-24px lg:px-28px py-16px md:py-18px'>
+        <AionScrollArea className='flex-1 min-h-0 pb-4' disableOverflow>
+          <div className='space-y-4 pt-4'>
+            <div className='bg-2 rd-16px border px-4 md:px-6 lg:px-7 py-4 md:py-4.5'>
               <div className='flex flex-col divide-y divide-light'>
                 {tableData.map((record) => (
                   <RuntimeToolRow key={record.key} record={record} />

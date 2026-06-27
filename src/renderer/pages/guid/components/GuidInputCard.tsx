@@ -227,7 +227,7 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
           <Tooltip content={t('conversation.welcome.clearWorkspace')} position='top'>
             <button
               type='button'
-              className='mt-1px h-28px w-28px rd-999px f-center flex-shrink-0 text-tertiary hover:text-danger hover:bg-danger-soft active:bg-danger-soft transition-colors'
+              className='mt-1px h-28px w-28px rd-full f-center flex-shrink-0 text-tertiary hover:text-danger hover:bg-danger-soft active:bg-danger-soft transition-colors'
               onClick={onClearDir}
               aria-label={t('conversation.welcome.clearWorkspace')}
               style={{ border: '1px solid var(--border-default)' }}
