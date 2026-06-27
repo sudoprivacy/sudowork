@@ -18,9 +18,9 @@ import type { EditingModelTarget, ProviderRow } from './types';
 import { buildProviderRows, contextLabel, findModelEntry, getConfiguredModelIds, maskSecret, normalizeDefaultModel } from './utils';
 import AddModelDialog from './components/AddModelDialog';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
-const SudocodeModelSettingsContent: React.FC = () => {
+const SudocodeModelSettings: React.FC = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
   const [config, setConfig] = useState<ScodeConfig | null>(null);
@@ -106,141 +106,126 @@ const SudocodeModelSettingsContent: React.FC = () => {
     [config, saveConfig]
   );
 
-  if (loading) {
-    return (
-      <div className='h-full f-center'>
-        <Spin tip={t('settings.sudocodeModel.loadingConfig', '加载模型配置...')} />
-      </div>
-    );
-  }
-
   return (
-    <AionScrollArea className='h-full'>
-      <div className='px-4 md:px-6 py-4'>
-        <div className='flex items-center justify-between gap-4 mb-5 flex-wrap'>
-          <div>
-            <Title heading={5} className='!m-0 text-20px'>
-              {t('settings.sudocodeModel.pageTitle', '模型')}
-            </Title>
-            <Text type='secondary'>{t('settings.sudocodeModel.pageDescription', '管理 sudocode.json 中供本地 Sudo Code 使用的模型。')}</Text>
-          </div>
-          <Space>
-            <Button icon={<Refresh />} onClick={loadConfig}>
-              {t('common.refresh', '刷新')}
-            </Button>
-            <Button
-              type='primary'
-              icon={<Plus theme='outline' size='16' fill='white' strokeWidth={2} />}
-              onClick={openAddDialog}
-              className='!bg-[var(--ui-accent-orange)] !border-[var(--ui-accent-orange)] !text-white hover:!bg-[var(--ui-accent-orange-hover)] hover:!border-[var(--ui-accent-orange-hover)] hover:!text-white'
-            >
-              {t('settings.addModel', '添加模型')}
-            </Button>
-          </Space>
+    <PageWrapper
+      title={t('settings.sudocodeModel.pageTitle', '模型')}
+      subtitle={t('settings.sudocodeModel.pageDescription', '管理 sudocode.json 中供本地 Sudo Code 使用的模型。')}
+      actions={
+        <Space>
+          <Button icon={<Refresh />} onClick={loadConfig}>
+            {t('common.refresh', '刷新')}
+          </Button>
+          <Button
+            type='primary'
+            icon={<Plus theme='outline' size='16' fill='white' strokeWidth={2} />}
+            onClick={openAddDialog}
+            className='!bg-[var(--ui-accent-orange)] !border-[var(--ui-accent-orange)] !text-white hover:!bg-[var(--ui-accent-orange-hover)] hover:!border-[var(--ui-accent-orange-hover)] hover:!text-white'
+          >
+            {t('settings.addModel', '添加模型')}
+          </Button>
+        </Space>
+      }
+    >
+      {loading ? (
+        <div className='h-full f-center'>
+          <Spin tip={t('settings.sudocodeModel.loadingConfig', '加载模型配置...')} />
         </div>
+      ) : (
+        <AionScrollArea className='h-full'>
+          <div className='grid grid-cols-1 md:grid-cols-3 gap-3 mb-5'>
+            <div className='bg-muted rd-3 border border-light p-4'>
+              <div className='text-12px text-secondary mb-1.5'>{t('common.defaultModel', '默认模型')}</div>
+              <div className='text-16px font-600 text-foreground truncate'>{config?.default_model || t('common.notSet', '未设置')}</div>
+            </div>
+            <div className='bg-muted rd-3 border border-light p-4'>
+              <div className='text-12px text-secondary mb-1.5'>{t('settings.sudocodeModel.sudorouterModels', 'Sudorouter 模型')}</div>
+              <div className='text-16px font-600 text-foreground'>{sudorouterModels.length}</div>
+            </div>
+            <div className='bg-muted rd-3 border border-light p-4'>
+              <div className='text-12px text-secondary mb-1.5'>{t('settings.sudocodeModel.customProviders', '第三方提供商')}</div>
+              <div className='text-16px font-600 text-foreground'>{customProviders.length}</div>
+            </div>
+          </div>
 
-        <div className='grid grid-cols-1 md:grid-cols-3 gap-3 mb-5'>
-          <div className='bg-muted rd-3 border border-light p-4'>
-            <div className='text-12px text-secondary mb-1.5'>{t('common.defaultModel', '默认模型')}</div>
-            <div className='text-16px font-600 text-foreground truncate'>{config?.default_model || t('common.notSet', '未设置')}</div>
-          </div>
-          <div className='bg-muted rd-3 border border-light p-4'>
-            <div className='text-12px text-secondary mb-1.5'>{t('settings.sudocodeModel.sudorouterModels', 'Sudorouter 模型')}</div>
-            <div className='text-16px font-600 text-foreground'>{sudorouterModels.length}</div>
-          </div>
-          <div className='bg-muted rd-3 border border-light p-4'>
-            <div className='text-12px text-secondary mb-1.5'>{t('settings.sudocodeModel.customProviders', '第三方提供商')}</div>
-            <div className='text-16px font-600 text-foreground'>{customProviders.length}</div>
-          </div>
-        </div>
-
-        <div className='space-y-4'>
-          <section className='border border-light rd-3 overflow-hidden bg-muted'>
-            <div className='px-4 py-3 flex items-center justify-between'>
-              <div className='flex items-center gap-2 font-600 text-foreground'>
-                <LinkCloud theme='outline' size='18' />
-                Sudorouter
+          <div className='space-y-4'>
+            <section className='border border-light rd-3 overflow-hidden bg-muted'>
+              <div className='px-4 py-3 flex items-center justify-between'>
+                <div className='flex items-center gap-2 font-600 text-foreground'>
+                  <LinkCloud theme='outline' size='18' />
+                  Sudorouter
+                </div>
+                <Tag color='green'>{t('settings.sudocodeModel.sudorouterDefaultTag', '登录账号默认')}</Tag>
               </div>
-              <Tag color='green'>{t('settings.sudocodeModel.sudorouterDefaultTag', '登录账号默认')}</Tag>
-            </div>
-            <div className='p-3 flex flex-wrap gap-2'>{sudorouterModels.length === 0 ? <Text type='secondary'>{t('settings.sudocodeModel.noSudorouterModels', '暂无登录下发模型')}</Text> : sudorouterModels.map((model) => <Tag key={model}>{model}</Tag>)}</div>
-          </section>
+              <div className='p-3 flex flex-wrap gap-2'>{sudorouterModels.length === 0 ? <Text type='secondary'>{t('settings.sudocodeModel.noSudorouterModels', '暂无登录下发模型')}</Text> : sudorouterModels.map((model) => <Tag key={model}>{model}</Tag>)}</div>
+            </section>
 
-          {customProviders.length === 0 ? (
-            <div className='border border-light border-dashed rd-3 bg-muted py-12 text-center'>
-              <SettingTwo theme='outline' size='42' className='text-tertiary mb-3' />
-              <div className='text-15px font-600 text-foreground mb-1'>{t('settings.sudocodeModel.noCustomProviders', '还没有第三方模型')}</div>
-              <Text type='secondary'>{t('settings.sudocodeModel.noCustomProvidersHint', '添加 OpenAI 兼容 API 后，可在 Sudo Code 模型下拉中选择。')}</Text>
-            </div>
-          ) : (
-            customProviders.map((provider) => (
-              <section key={provider.id} className='border border-light rd-3 overflow-hidden bg-muted'>
-                <div className='px-4 py-3 border-b border-light flex items-center justify-between gap-3 flex-wrap'>
-                  <div className='min-w-0'>
-                    <div className='flex items-center gap-2 font-600 text-foreground'>
-                      <LinkCloud theme='outline' size='18' />
-                      <span className='truncate'>{provider.id}</span>
-                      <Tag color='blue'>{t('settings.sudocodeModel.openAICompatibleTag', 'OpenAI 兼容')}</Tag>
-                    </div>
-                    <div className='text-12px text-secondary truncate mt-1'>{provider.baseUrl}</div>
-                  </div>
-                  <Space>
-                    <Tag bordered>{maskSecret(provider.apiKey) || t('common.notSet', '未设置')}</Tag>
-                    <Popconfirm title={t('settings.sudocodeModel.deleteProviderConfirm', '删除该第三方提供商及其模型？')} onOk={() => void handleRemoveProvider(provider.id)}>
-                      <Button status='danger' icon={<Delete />} loading={saving}>
-                        {t('common.delete', '删除')}
-                      </Button>
-                    </Popconfirm>
-                  </Space>
-                </div>
-                <div className='divide-y divide-light'>
-                  {provider.modelIds.map((modelId) => {
-                    const entry = findModelEntry(config, modelId);
-                    const displayModelId = entry?.providers?.['api-key']?.model || entry?.name || modelId;
-                    const input = entry?.input || [];
-                    return (
-                      <div key={modelId} className='px-4 py-3 flex items-center justify-between gap-3 flex-wrap'>
-                        <div className='min-w-0'>
-                          <div className='text-14px font-600 text-foreground truncate'>{displayModelId}</div>
-                          <div className='mt-1.5 flex flex-wrap gap-1.5'>
-                            {entry?.supports_tools !== false && <Tag size='small'>{t('settings.sudocodeModel.supportsTools', '工具调用')}</Tag>}
-                            {input.includes('image') && (
-                              <Tag size='small' color='arcoblue'>
-                                {t('settings.sudocodeModel.supportsVision', '图片输入')}
-                              </Tag>
-                            )}
-                            {entry?.supports_reasoning && (
-                              <Tag size='small' color='purple'>
-                                {t('settings.sudocodeModel.supportsReasoning', '推理模式')}
-                              </Tag>
-                            )}
-                            <Tag size='small' color='gray'>
-                              {t('settings.sudocodeModel.contextLabel', '上下文')} {contextLabel(entry?.context?.input, entry?.context?.output, t('common.default', '默认'))}
-                            </Tag>
-                          </div>
-                        </div>
-                        <Button icon={<Edit />} loading={saving} onClick={() => openEditDialog(provider, modelId)}>
-                          {t('common.edit', '编辑')}
-                        </Button>
+            {customProviders.length === 0 ? (
+              <div className='border border-light border-dashed rd-3 bg-muted py-12 text-center'>
+                <SettingTwo theme='outline' size='42' className='text-tertiary mb-3' />
+                <div className='text-15px font-600 text-foreground mb-1'>{t('settings.sudocodeModel.noCustomProviders', '还没有第三方模型')}</div>
+                <Text type='secondary'>{t('settings.sudocodeModel.noCustomProvidersHint', '添加 OpenAI 兼容 API 后，可在 Sudo Code 模型下拉中选择。')}</Text>
+              </div>
+            ) : (
+              customProviders.map((provider) => (
+                <section key={provider.id} className='border border-light rd-3 overflow-hidden bg-muted'>
+                  <div className='px-4 py-3 border-b border-light flex items-center justify-between gap-3 flex-wrap'>
+                    <div className='min-w-0'>
+                      <div className='flex items-center gap-2 font-600 text-foreground'>
+                        <LinkCloud theme='outline' size='18' />
+                        <span className='truncate'>{provider.id}</span>
+                        <Tag color='blue'>{t('settings.sudocodeModel.openAICompatibleTag', 'OpenAI 兼容')}</Tag>
                       </div>
-                    );
-                  })}
-                </div>
-              </section>
-            ))
-          )}
-        </div>
-      </div>
-
+                      <div className='text-12px text-secondary truncate mt-1'>{provider.baseUrl}</div>
+                    </div>
+                    <Space>
+                      <Tag bordered>{maskSecret(provider.apiKey) || t('common.notSet', '未设置')}</Tag>
+                      <Popconfirm title={t('settings.sudocodeModel.deleteProviderConfirm', '删除该第三方提供商及其模型？')} onOk={() => void handleRemoveProvider(provider.id)}>
+                        <Button status='danger' icon={<Delete />} loading={saving}>
+                          {t('common.delete', '删除')}
+                        </Button>
+                      </Popconfirm>
+                    </Space>
+                  </div>
+                  <div className='divide-y divide-light'>
+                    {provider.modelIds.map((modelId) => {
+                      const entry = findModelEntry(config, modelId);
+                      const displayModelId = entry?.providers?.['api-key']?.model || entry?.name || modelId;
+                      const input = entry?.input || [];
+                      return (
+                        <div key={modelId} className='px-4 py-3 flex items-center justify-between gap-3 flex-wrap'>
+                          <div className='min-w-0'>
+                            <div className='text-14px font-600 text-foreground truncate'>{displayModelId}</div>
+                            <div className='mt-1.5 flex flex-wrap gap-1.5'>
+                              {entry?.supports_tools !== false && <Tag size='small'>{t('settings.sudocodeModel.supportsTools', '工具调用')}</Tag>}
+                              {input.includes('image') && (
+                                <Tag size='small' color='arcoblue'>
+                                  {t('settings.sudocodeModel.supportsVision', '图片输入')}
+                                </Tag>
+                              )}
+                              {entry?.supports_reasoning && (
+                                <Tag size='small' color='purple'>
+                                  {t('settings.sudocodeModel.supportsReasoning', '推理模式')}
+                                </Tag>
+                              )}
+                              <Tag size='small' color='gray'>
+                                {t('settings.sudocodeModel.contextLabel', '上下文')} {contextLabel(entry?.context?.input, entry?.context?.output, t('common.default', '默认'))}
+                              </Tag>
+                            </div>
+                          </div>
+                          <Button icon={<Edit />} loading={saving} onClick={() => openEditDialog(provider, modelId)}>
+                            {t('common.edit', '编辑')}
+                          </Button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+              ))
+            )}
+          </div>
+        </AionScrollArea>
+      )}
       <AddModelDialog visible={dialogVisible} onClose={closeDialog} onSubmit={handleSubmitProvider} existingProviderIds={customProviders.map((provider) => provider.id)} existingModelIds={configuredModelIds} config={config} editingTarget={editingTarget} />
-    </AionScrollArea>
-  );
-};
-
-const SudocodeModelSettings: React.FC = () => {
-  return (
-    <PageWrapper contentClassName='max-w-275'>
-      <SudocodeModelSettingsContent />
     </PageWrapper>
   );
 };

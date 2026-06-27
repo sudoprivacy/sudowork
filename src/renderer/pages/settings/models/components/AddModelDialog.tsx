@@ -164,7 +164,16 @@ export default function AddModelDialog({ visible, onClose, onSubmit, existingPro
   };
 
   return (
-    <Modal visible={visible} title={isEditing ? t('settings.sudocodeModel.editModelTitle', '编辑模型') : t('settings.addModel', '添加模型')} style={{ width: 760 }} onCancel={onClose} footer={null}>
+    <Modal
+      visible={visible}
+      title={isEditing ? t('settings.sudocodeModel.editModelTitle', '编辑模型') : t('settings.addModel', '添加模型')}
+      style={{ width: 760 }}
+      onCancel={onClose}
+      onOk={handleSubmit}
+      okText={t('common.save', '保存')}
+      cancelText={t('common.cancel', '取消')}
+      confirmLoading={saving}
+    >
       <div className='mb-4 flex items-center gap-2'>
         <Tag bordered>{t('settings.sudocodeModel.openAIOnlyHint', '仅支持 OpenAI 兼容协议 API')}</Tag>
       </div>
@@ -237,14 +246,6 @@ export default function AddModelDialog({ visible, onClose, onSubmit, existingPro
           </Form.Item>
         </div>
       </Form>
-      <div className='flex justify-end gap-2.5 mt-2.5'>
-        <Button onClick={onClose} className='px-5 min-w-20' style={{ borderRadius: 'var(--radius-md)' }}>
-          {t('common.cancel', '取消')}
-        </Button>
-        <Button type='primary' onClick={handleSubmit} loading={saving} className='px-5 min-w-20' style={{ borderRadius: 'var(--radius-md)' }}>
-          {t('common.save', '保存')}
-        </Button>
-      </div>
     </Modal>
   );
 }

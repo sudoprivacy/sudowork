@@ -646,14 +646,6 @@ body,
   }
 }
 
-/* Message 居中于对话区（排除左侧栏），用 padding-left 偏移并保持内部消息居中 */
-.arco-message-wrapper {
-  left: 0 !important;
-  width: 100% !important;
-  padding-left: 266px;
-  box-sizing: border-box;
-}
-
 ::placeholder {
   color: #a1a2aa !important;
 }

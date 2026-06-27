@@ -203,19 +203,19 @@ body[arco-theme='dark'] {
 // Dark mode status backgrounds
 body[arco-theme='dark'] .arco-message {
   &-success {
-    background: linear-gradient(270deg, rgba(249, 255, 242, 0.3) 0%, rgba(210, 255, 217, 0.3) 100%) !important;
+    background: linear-gradient(270deg, #162312 0%, #1d3524 100%) !important;
   }
 
   &-warning {
-    background: linear-gradient(90deg, rgba(255, 243, 220, 0.3) 0%, rgba(255, 248, 222, 0.3) 100%) !important;
+    background: linear-gradient(90deg, #2b1d11 0%, #3a2614 100%) !important;
   }
 
   &-info {
-    background: linear-gradient(90deg, rgba(232, 243, 255, 0.3) 0%, rgba(248, 248, 255, 0.3) 49.52%) !important;
+    background: linear-gradient(90deg, #111a2c 0%, #172136 49.52%) !important;
   }
 
   &-error {
-    background: linear-gradient(90deg, rgba(255, 221, 219, 0.3) 0%, rgba(255, 243, 240, 0.3) 100%) !important;
+    background: linear-gradient(90deg, #2b1114 0%, #3a1a1a 100%) !important;
   }
 }
 
