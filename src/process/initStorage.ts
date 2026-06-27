@@ -977,6 +977,19 @@ const initStorage = async () => {
     mainError('Sudowork', 'Failed to initialize default MCP servers:', error);
   }
 
+  // 初始化 sudowork-server URL 默认值
+  // 仅当用户未设置自定义地址时写入安装包注入的默认 URL，
+  // 使运行时解析与模式选择页回填都能拿到一个明确值。
+  try {
+    const existingServerUrl = await configFile.get('system.sudoworkServerUrl').catch((): undefined => undefined);
+    if (!normalizeSudoworkServerUrl(existingServerUrl)) {
+      await configFile.set('system.sudoworkServerUrl', BUILD_SUDOWORK_SERVER_BASE_URL);
+      mainLog('Sudowork', 'Default sudowork-server URL initialized');
+    }
+  } catch (error) {
+    mainError('Sudowork', 'Failed to initialize default sudowork-server URL:', error);
+  }
+
   // 4.5 异步迁移旧技能目录结构到分目录结构
   // Async migrate legacy skill directory structure to categorized subdirectories
   await migrateSkillsToSubdirectories();
