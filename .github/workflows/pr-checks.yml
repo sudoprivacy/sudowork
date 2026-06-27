@@ -56,7 +56,12 @@ jobs:
         run: bun install --no-frozen-lockfile
 
       - name: Run secrets unit tests
-        run: bunx vitest run tests/unit/secrets/nexus-secret-client.test.ts tests/unit/secrets/secret-cache.test.ts
+        # secretsGrpcOnly is a static source-code guard (refuses HTTP
+        # secrets paths reintroducing the pre-PR-#733 bug that hit
+        # external user 进二 on v0.2.7). Pure file reads, no native deps
+        # — fits in this cheap unit-test job, not the heavy
+        # pr-integration-smoke that spins up a real cluster.
+        run: bunx vitest run tests/unit/secrets/nexus-secret-client.test.ts tests/unit/secrets/secret-cache.test.ts tests/integration/secretsGrpcOnly.integration.test.ts
 
   # Job 3: Build test across all platforms (parallel with code-quality and unit-tests)
   build-test:
