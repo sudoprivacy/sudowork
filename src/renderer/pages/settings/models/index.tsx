@@ -5,8 +5,7 @@
  */
 
 import { Button, Message, Popconfirm, Space, Spin, Tag, Typography } from '@arco-design/web-react';
-import { IconDelete } from '@arco-design/web-react/icon';
-import { Edit, LinkCloud, Plus, Refresh, SettingTwo } from '@icon-park/react';
+import { IconCloud, IconDelete, IconEdit, IconPlus, IconRefresh, IconSettings } from '@arco-design/web-react/icon';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
@@ -113,15 +112,10 @@ const SudocodeModelSettings: React.FC = () => {
       subtitle={t('settings.sudocodeModel.pageDescription', '管理 sudocode.json 中供本地 Sudo Code 使用的模型。')}
       actions={
         <Space>
-          <Button icon={<Refresh />} onClick={loadConfig}>
+          <Button icon={<IconRefresh />} onClick={loadConfig}>
             {t('common.refresh', '刷新')}
           </Button>
-          <Button
-            type='primary'
-            icon={<Plus theme='outline' size='16' fill='white' strokeWidth={2} />}
-            onClick={openAddDialog}
-            className='!bg-[var(--ui-accent-orange)] !border-[var(--ui-accent-orange)] !text-white hover:!bg-[var(--ui-accent-orange-hover)] hover:!border-[var(--ui-accent-orange-hover)] hover:!text-white'
-          >
+          <Button type='primary' icon={<IconPlus />} onClick={openAddDialog} className='!bg-[var(--ui-accent-orange)] !border-[var(--ui-accent-orange)] !text-white hover:!bg-[var(--ui-accent-orange-hover)] hover:!border-[var(--ui-accent-orange-hover)] hover:!text-white'>
             {t('settings.addModel', '添加模型')}
           </Button>
         </Space>
@@ -152,7 +146,7 @@ const SudocodeModelSettings: React.FC = () => {
             <section className='border border-light rd-3 overflow-hidden bg-muted'>
               <div className='px-4 py-3 flex items-center justify-between'>
                 <div className='flex items-center gap-2 font-600 text-foreground'>
-                  <LinkCloud theme='outline' size='18' />
+                  <IconCloud className='text-18px' />
                   Sudorouter
                 </div>
                 <Tag color='green'>{t('settings.sudocodeModel.sudorouterDefaultTag', '登录账号默认')}</Tag>
@@ -162,7 +156,7 @@ const SudocodeModelSettings: React.FC = () => {
 
             {customProviders.length === 0 ? (
               <div className='border border-light border-dashed rd-3 bg-muted py-12 text-center'>
-                <SettingTwo theme='outline' size='42' className='text-tertiary mb-3' />
+                <IconSettings className='text-32px text-tertiary mb-3' />
                 <div className='text-15px font-600 text-foreground mb-1'>{t('settings.sudocodeModel.noCustomProviders', '还没有第三方模型')}</div>
                 <Text type='secondary'>{t('settings.sudocodeModel.noCustomProvidersHint', '添加 OpenAI 兼容 API 后，可在 Sudo Code 模型下拉中选择。')}</Text>
               </div>
@@ -172,7 +166,7 @@ const SudocodeModelSettings: React.FC = () => {
                   <div className='px-4 py-3 border-b border-light flex items-center justify-between gap-3 flex-wrap'>
                     <div className='min-w-0'>
                       <div className='flex items-center gap-2 font-600 text-foreground'>
-                        <LinkCloud theme='outline' size='18' />
+                        <IconCloud className='text-18px' />
                         <span className='truncate'>{provider.id}</span>
                         <Tag color='blue'>{t('settings.sudocodeModel.openAICompatibleTag', 'OpenAI 兼容')}</Tag>
                       </div>
@@ -213,7 +207,7 @@ const SudocodeModelSettings: React.FC = () => {
                               </Tag>
                             </div>
                           </div>
-                          <Button icon={<Edit />} loading={saving} onClick={() => openEditDialog(provider, modelId)}>
+                          <Button icon={<IconEdit />} loading={saving} onClick={() => openEditDialog(provider, modelId)}>
                             {t('common.edit', '编辑')}
                           </Button>
                         </div>
