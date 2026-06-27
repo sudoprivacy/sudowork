@@ -13,8 +13,9 @@
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { Modal, Spin, Message } from '@arco-design/web-react';
-import { Close, Shield, FolderOpen } from '@icon-park/react';
+import { Button, Modal, Spin, Message } from '@arco-design/web-react';
+import { Close, Shield } from '@icon-park/react';
+import { FolderOpen } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { skillHub, shell } from '@/common/ipcBridge';
@@ -116,23 +117,16 @@ export const SkillAuditSummary: React.FC<{
             {t('settings.skill.audit.reportPath', { defaultValue: '安全审计报告' })}：{report.reportPath}
           </div>
         )}
-        <div className='flex items-center gap-8px flex-shrink-0'>
+        <div className='flex items-center flex-shrink-0'>
           {report.reportPath && isElectronDesktop() && (
-            <button
-              type='button'
-              className='text-11px text-secondary hover:text-primary cursor-pointer bg-transparent border-none outline-none whitespace-nowrap flex items-center gap-3px'
-              onClick={() => {
-                void shell.showItemInFolder.invoke(report.reportPath!);
-              }}
-            >
-              <FolderOpen size='12' />
+            <Button type='text' size='mini' icon={<FolderOpen size={12} />} className='!text-11px !text-secondary' onClick={() => void shell.showItemInFolder.invoke(report.reportPath!)}>
               {t('settings.skill.audit.openFilePath', { defaultValue: '打开路径' })}
-            </button>
+            </Button>
           )}
           {onViewDetails && (
-            <button type='button' className='text-11px text-primary hover:text-primary-dark cursor-pointer bg-transparent border-none outline-none whitespace-nowrap flex-shrink-0' onClick={onViewDetails}>
+            <Button type='text' size='mini' className='!text-11px flex-shrink-0' onClick={onViewDetails}>
               {t('settings.skill.audit.viewDetails', { defaultValue: '查看详情' })}
-            </button>
+            </Button>
           )}
         </div>
       </div>
