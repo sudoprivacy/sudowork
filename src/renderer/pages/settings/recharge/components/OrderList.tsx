@@ -1,5 +1,6 @@
 import { Tag, Button, Spin, Message } from '@arco-design/web-react';
-import { Alipay, Wechat, Refresh } from '@icon-park/react';
+import { IconRefresh } from '@arco-design/web-react/icon';
+import { Alipay, Wechat } from '@icon-park/react';
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/renderer/context/AuthContext';
@@ -98,7 +99,7 @@ const OrderList: React.FC<IOrderListProps> = ({ onContinuePay, refreshKey }) => 
       <div className='px-5 py-4  flex items-center justify-between border-b border-light'>
         <div className='font-600 text-14px text-foreground'>{t('settings.orders.title', '订单记录')}</div>
         <div className='flex items-center gap-3'>
-          <Button type='text' size='mini' iconOnly icon={<Refresh size={16} className='text-secondary' />} onClick={() => void fetchOrders()} title={t('settings.orders.refresh', '刷新')} />
+          <Button type='text' size='mini' iconOnly icon={<IconRefresh className='text-secondary text-16px' />} onClick={() => void fetchOrders()} title={t('settings.orders.refresh', '刷新')} />
           <div className='text-12px text-secondary'>{t('settings.orders.total', { count: orders.length, defaultValue: '共 {{count}} 条' })}</div>
         </div>
       </div>
