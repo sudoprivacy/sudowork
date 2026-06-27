@@ -63,3 +63,4 @@
   4. 清理该目录下错误的 `Message.useMessage` 用法：在 `{模块路径}` 下全局搜索 `Message.useMessage`，替换为正确的 `Message.info` 调用方式
   5. 修正 UnoCSS 的用法：使用 `.claude/agents/unocss-style-fixer.md` agent 检查 `{模块路径}` 下不符合项目 UnoCSS 规范的写法并修正
   6. 使用 .claude/agents/icon-compat-checker.md 扫描该目录
+  7. 看看能否使用 lucide-react的icon替换该目录下的'@icon-park/react'

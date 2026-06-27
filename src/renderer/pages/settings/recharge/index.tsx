@@ -1,5 +1,5 @@
 import { Button, Message, Spin } from '@arco-design/web-react';
-import { Alipay, Wechat, Refresh, CheckOne, CheckSmall, CloseOne } from '@icon-park/react';
+import { Check, CircleCheck, CircleX, CreditCard, MessageCircle, RefreshCw } from 'lucide-react';
 import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/renderer/context/AuthContext';
@@ -348,9 +348,9 @@ const RechargeCenter: React.FC = () => {
   }, [stopPolling]);
 
   // Payment method options
-  const paymentOptions: { method: PaymentMethod; Icon: typeof Alipay; iconClassName: string; label: string }[] = [
-    { method: 'ALIPAY', Icon: Alipay, iconClassName: 'text-info', label: t('settings.recharge.alipay', '支付宝') },
-    { method: 'WECHAT', Icon: Wechat, iconClassName: 'text-success', label: t('settings.recharge.wechat', '微信支付') },
+  const paymentOptions = [
+    { method: 'ALIPAY' as const, Icon: CreditCard, iconClassName: 'text-info', label: t('settings.recharge.alipay', '支付宝') },
+    { method: 'WECHAT' as const, Icon: MessageCircle, iconClassName: 'text-success', label: t('settings.recharge.wechat', '微信支付') },
   ];
 
   // Render package selection
@@ -378,7 +378,7 @@ const RechargeCenter: React.FC = () => {
               {pkg.description && <div className='text-12px text-secondary mt-1.5 truncate'>{pkg.description}</div>}
               {selectedPackage?.amount === pkg.amount && (
                 <div className='absolute top-2 right-2 size-4 rd-full bg-primary f-center text-white'>
-                  <CheckSmall theme='outline' size='10' fill='currentColor' />
+                  <Check size={10} />
                 </div>
               )}
             </div>
@@ -391,11 +391,11 @@ const RechargeCenter: React.FC = () => {
         <div className='flex items-center gap-6'>
           {paymentOptions.map(({ method, Icon, iconClassName, label }) => (
             <button key={method} onClick={() => setPaymentMethod(method)} className={`relative flex items-center gap-2 px-4 py-2 rd-12px border transition-all cursor-pointer ${paymentMethod === method ? 'bg-emphasis border-primary' : 'bg-muted border-light hover:bg-emphasis'}`}>
-              <Icon size={18} fill='currentColor' theme='filled' className={iconClassName} />
+              <Icon size={18} className={iconClassName} />
               <span className='text-14px text-foreground'>{label}</span>
               {paymentMethod === method && (
                 <div className='absolute -top-1 -right-1 w-3.5 h-3.5 rd-full bg-primary f-center text-white'>
-                  <CheckSmall theme='outline' size='9' fill='currentColor' />
+                  <Check size={9} />
                 </div>
               )}
             </button>
@@ -447,7 +447,7 @@ const RechargeCenter: React.FC = () => {
 
         {/* Status */}
         <div className='f-center gap-2 mt-4 text-14px text-secondary'>
-          <Refresh size={16} className='animate-spin' />
+          <RefreshCw size={16} className='animate-spin' />
           <span>{t('settings.recharge.waitingPayment', '等待支付...')}</span>
         </div>
 
@@ -464,7 +464,7 @@ const RechargeCenter: React.FC = () => {
   // Render success state
   const renderSuccess = () => (
     <div className={`${PANEL_CLASS} flex flex-col items-center py-10 space-y-4`}>
-      <CheckOne size={64} className='text-success' />
+      <CircleCheck size={64} className='text-success' />
       <div className='text-20px font-600 text-foreground'>{t('settings.recharge.success', '充值成功')}</div>
       <div className='text-14px text-secondary'>{t('settings.recharge.successDesc', '积分已到账，请查收')}</div>
       <Button type='primary' onClick={resetState}>
@@ -476,7 +476,7 @@ const RechargeCenter: React.FC = () => {
   // Render failed state
   const renderFailed = () => (
     <div className={`${PANEL_CLASS} flex flex-col items-center py-10 space-y-4`}>
-      <CloseOne size={64} className='text-danger' />
+      <CircleX size={64} className='text-danger' />
       <div className='text-20px font-600 text-foreground'>{t('settings.recharge.failed', '充值失败')}</div>
       <div className='text-14px text-secondary'>{error}</div>
       <div className='flex gap-3'>

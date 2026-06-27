@@ -1,6 +1,6 @@
 import { Tag, Button, Spin, Message } from '@arco-design/web-react';
 import { IconRefresh } from '@arco-design/web-react/icon';
-import { Alipay, Wechat } from '@icon-park/react';
+import { CreditCard, MessageCircle } from 'lucide-react';
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/renderer/context/AuthContext';
@@ -70,14 +70,14 @@ const OrderList: React.FC<IOrderListProps> = ({ onContinuePay, refreshKey }) => 
       return {
         bgColor: 'bg-success-soft',
         textColor: 'text-info',
-        icon: <Alipay size={14} fill='currentColor' />,
+        icon: <CreditCard size={14} />,
         label: t('settings.recharge.alipay', '支付宝'),
       };
     }
     return {
       bgColor: 'bg-success-soft',
       textColor: 'text-success',
-      icon: <Wechat size={14} fill='currentColor' />,
+      icon: <MessageCircle size={14} />,
       label: t('settings.recharge.wechat', '微信'),
     };
   };
