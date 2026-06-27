@@ -29,7 +29,7 @@ const UserProfile = React.lazy(() => import('./pages/settings/profile'));
 const RechargeCenter = React.lazy(() => import('./pages/settings/recharge'));
 const MemberManagement = React.lazy(() => import('./pages/settings/MemberManagement'));
 const EnterpriseSettings = React.lazy(() => import('./pages/settings/EnterpriseSettings'));
-const EnterpriseMcpSettings = React.lazy(() => import('./pages/settings/EnterpriseMcpSettings'));
+const EnterpriseMcpSettings = React.lazy(() => import('./pages/settings/enterprise_mcps'));
 
 const withRouteFallback = (Component: React.LazyExoticComponent<React.ComponentType>) => (
   <Suspense fallback={<AppLoader />}>

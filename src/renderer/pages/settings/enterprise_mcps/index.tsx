@@ -188,7 +188,7 @@ const EnterpriseMcpSettings: React.FC = () => {
   };
 
   return (
-    <PageWrapper contentClassName='max-w-1200px'>
+    <PageWrapper>
       <div className='p-6 flex flex-col gap-4'>
         <div className='flex flex-col gap-0.5'>
           <h2 className='text-24px font-600 text-foreground my-0'>MCP 服务</h2>
