@@ -1,5 +1,6 @@
 import { Button, Switch } from '@arco-design/web-react';
-import { Add, AlarmClock, Info, Sun } from '@icon-park/react';
+import { IconPlus } from '@arco-design/web-react/icon';
+import { AlarmClock, Info, Sun } from '@icon-park/react';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
@@ -86,12 +87,9 @@ export default function CronPage() {
                 <div className='text-13px text-secondary'>{t('cron.create.listSubtitle', '设定定时任务，让 Agent 按计划自动执行')}</div>
               </div>
               {jobs.length > 0 && (
-                <Button type='primary' shape='round' onClick={() => setDrawerVisible(true)}>
-                  <span className='inline-flex items-center justify-center gap-1'>
-                    <Add theme='outline' size={14} className='block' />
-                    <span>{t('cron.create.button', '新建任务')}</span>
-                  </span>
-                </Button>
+                 <Button type='primary' shape='round' icon={<IconPlus />} onClick={() => setDrawerVisible(true)}>
+                   {t('cron.create.button', '新建任务')}
+                 </Button>
               )}
             </div>
 

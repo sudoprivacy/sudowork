@@ -1,4 +1,5 @@
-import { AlarmClock, Down, Earth, Lightning, ListCheckbox, Logout, Plus, Return, Robot, SettingTwo, Shield } from '@icon-park/react';
+import { IconPlus } from '@arco-design/web-react/icon';
+import { AlarmClock, Down, Earth, Lightning, ListCheckbox, Logout, Return, Robot, SettingTwo, Shield } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -14,7 +15,7 @@ import { useCronEnabled } from '@renderer/hooks/useCronEnabled';
 
 import WorkspaceGroupedHistory from '@renderer/pages/conversation/WorkspaceGroupedHistory';
 import { maskPhone } from '@renderer/utils';
-import SettingsSider from '@/renderer/pages/settings/components/SettingsSider';
+import SettingsSider from './SettingsSider';
 import SidebarNavItem from '@/renderer/layouts/components/SidebarNavItem';
 
 const Sider: React.FC = () => {
@@ -158,13 +159,13 @@ const Sider: React.FC = () => {
       <div className='flex-1 min-h-0 overflow-y-auto scrollbar-hide'>
         {isSettings ? (
           <Suspense fallback={<div className='size-full' />}>
-            <SettingsSider></SettingsSider>
+            <SettingsSider />
           </Suspense>
         ) : (
           <div className='size-full flex flex-col py-2 overflow-hidden box-border'>
             {/* 新会话按钮 - 带边框的按钮风格 / New Chat button with border style */}
             <div
-              className='h-10.5 flex-shrink-0 f-center gap-2 px-3.5 mb-3 rd-3 cursor-pointer transition-all border bg-1 hover:bg-hover active:bg-fill-2'
+              className='h-10.5 flex-shrink-0 f-center gap-2 px-3.5 mb-3 rd-3 cursor-pointer transition-all border bg-subtle hover:bg-hover active:bg-fill-2'
               onClick={() => {
                 cleanupSiderTooltips();
                 setIsBatchMode(false);
@@ -176,7 +177,7 @@ const Sider: React.FC = () => {
                 onSessionClick();
               }}
             >
-              <Plus theme='outline' size='20' fill='currentColor' className='text-foreground shrink-0 block leading-none' />
+              <IconPlus className='text-foreground shrink-0' />
               <span className='text-15px font-medium text-foreground truncate'>{t('conversation.welcome.newConversation')}</span>
             </div>
 
