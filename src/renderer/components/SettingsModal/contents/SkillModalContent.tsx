@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, Spin, Message, Input, Progress, Modal, Popconfirm, Switch, Tooltip } from '@arco-design/web-react';
 import { Search, Delete, Close, Shield, Lightning, UploadOne, Install, Share, Plus, Check } from '@icon-park/react';
-import { IconDownload } from '@arco-design/web-react/icon';
+import { IconDownload, IconRefresh } from '@arco-design/web-react/icon';
+import { PackagePlus } from 'lucide-react';
 import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
@@ -482,10 +483,10 @@ const SkillDetailModal: React.FC<{
                     <div className='space-y-6px'>
                       {coreFeatures.map((feature, idx) => (
                         <div key={idx} className='flex items-start gap-6px'>
-                          <span className='text-tertiary text-11px mt-1px flex-shrink-0'>•</span>
+                          <span className='text-secondary text-11px mt-1px flex-shrink-0'>•</span>
                           <div className='text-12px text-secondary leading-relaxed'>
                             {feature.title}
-                            {feature.desc && <span className='text-tertiary'>{feature.title ? `，${feature.desc}` : feature.desc}</span>}
+                            {feature.desc && <span>{feature.title ? `，${feature.desc}` : feature.desc}</span>}
                           </div>
                         </div>
                       ))}
@@ -513,11 +514,8 @@ const SkillDetailModal: React.FC<{
               <>
                 {hasUpdate ? (
                   <Tooltip content={t('settings.skill.updateTo', { version: latestVersionInfo?.version, defaultValue: `更新至 v${latestVersionInfo?.version || ''}` })}>
-                    <Button type='primary' long size='large' className='flex-1' loading={updating} loadingFixedWidth onClick={onUpdate}>
-                      <span className='inline-flex items-center gap-6px justify-center whitespace-nowrap'>
-                        <Install size='15' />
-                        {t('settings.skill.updateTo', { version: latestVersionInfo?.version, defaultValue: `更新至 v${latestVersionInfo?.version || ''}` })}
-                      </span>
+                    <Button type='primary' long size='large' className='flex-1' loading={updating} loadingFixedWidth icon={<IconRefresh style={{ fontSize: 15 }} />} onClick={onUpdate}>
+                      {t('settings.skill.updateTo', { version: latestVersionInfo?.version, defaultValue: `更新至 v${latestVersionInfo?.version || ''}` })}
                     </Button>
                   </Tooltip>
                 ) : (
@@ -547,11 +545,8 @@ const SkillDetailModal: React.FC<{
             ) : hasVersion ? (
               <>
                 <Tooltip content={t('settings.skill.install', { defaultValue: '安装' })}>
-                  <Button type='primary' long size='large' onClick={onInstall} disabled={downloading}>
-                    <span className='flex items-center gap-6px justify-center'>
-                      <Install size='15' />
-                      {t('settings.skill.install', { defaultValue: '安装' })}
-                    </span>
+                  <Button type='primary' long size='large' icon={<PackagePlus size={15} />} onClick={onInstall} disabled={downloading}>
+                    {t('settings.skill.install', { defaultValue: '安装' })}
                   </Button>
                 </Tooltip>
                 <Tooltip content={t('common.download', { defaultValue: '下载' })}>
@@ -564,7 +559,7 @@ const SkillDetailModal: React.FC<{
           </div>
 
           {/* Security badge */}
-          <div className='flex items-center gap-5px mt-10px justify-center'>
+          <div className='f-center gap-2 mt-3'>
             <Shield size='12' className='text-success flex-shrink-0' />
             <span className='text-10px text-secondary'>已通过安全与合规验证，无恶意代码或数据泄露风险。</span>
           </div>

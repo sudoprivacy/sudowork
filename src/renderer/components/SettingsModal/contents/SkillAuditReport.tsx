@@ -112,7 +112,7 @@ export const SkillAuditSummary: React.FC<{
       {/* Report path and view details */}
       <div className='mt-10px pt-8px border-t flex items-center justify-between'>
         {report.reportPath && (
-          <div className='text-11px text-tertiary truncate flex-1 min-w-0 mr-8px'>
+          <div className='text-11px truncate flex-1 min-w-0 mr-8px'>
             {t('settings.skill.audit.reportPath', { defaultValue: '安全审计报告' })}：{report.reportPath}
           </div>
         )}
@@ -153,7 +153,7 @@ const CategoryRow: React.FC<{ summary: AuditCategorySummary }> = ({ summary }) =
         <span className='text-14px flex-shrink-0 leading-18px'>✅</span>
         <span className='text-12px text-secondary leading-18px'>
           {t(`settings.skill.audit.no_${summary.category}` as any, { defaultValue: `无${summary.label}` })}
-          <span className='text-tertiary'> – {summary.safeDescription}</span>
+          <span> – {summary.safeDescription}</span>
         </span>
       </div>
     );
@@ -325,7 +325,11 @@ const CategoryFilterTab: React.FC<{
   active: boolean;
   onClick: () => void;
 }> = ({ label, count, active, onClick }) => (
-  <button type='button' className={`px-10px py-4px rd-16px text-11px cursor-pointer transition-colors whitespace-nowrap flex-shrink-0 border-none outline-none flex items-center gap-4px ${active ? 'bg-primary text-white' : 'bg-fill-2 text-secondary hover:bg-fill-3 hover:text-foreground'}`} onClick={onClick}>
+  <button
+    type='button'
+    className={`px-10px py-4px rd-16px text-11px cursor-pointer transition-colors whitespace-nowrap flex-shrink-0 border-none outline-none flex items-center gap-4px ${active ? 'bg-primary text-white' : 'bg-fill-2 text-secondary hover:bg-fill-3 hover:text-foreground'}`}
+    onClick={onClick}
+  >
     {label}
     <span className={`text-10px ${active ? 'text-white/70' : 'text-tertiary'}`}>{count}</span>
   </button>
