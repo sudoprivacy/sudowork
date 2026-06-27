@@ -34,12 +34,12 @@ export default function RuntimeToolRow({ record }: IRuntimeToolRowProps) {
             </div>
 
             <div className='flex flex-wrap items-center gap-1.5'>
-              <span className={classNames('inline-flex items-center gap-1.5 px-2 py-1.5 rd-full text-10px font-500 leading-none border', isShareOneDisabled ? 'bg-[var(--color-primary-light-1)] text-[var(--color-primary-6)] border-[var(--color-primary-light-3)]' : 'bg-subtle text-secondary')}>
+              <span className={classNames('inline-flex items-center gap-1.5 px-2 py-1.5 rd-full text-10px font-500 leading-none border', isShareOneDisabled ? 'bg-primary-light-1 text-primary border-[var(--color-primary-light-3)]' : 'bg-subtle text-secondary')}>
                 <span className={classNames('w-1.5 h-1.5 rd-full flex-shrink-0', dotColor)} />
                 <span>{statusText}</span>
               </span>
               {version && <span className='px-2 py-1.5 rd-full text-10px font-500 leading-none bg-subtle text-secondary border whitespace-nowrap'>{version}</span>}
-              {sourceLabel && installed && <span className='px-2 py-1.5 rd-full text-10px font-500 leading-none bg-[var(--color-primary-light-1)] text-[var(--color-primary-6)] border border-[var(--color-primary-light-3)] whitespace-nowrap'>{sourceLabel}</span>}
+              {sourceLabel && installed && <span className='px-2 py-1.5 rd-full text-10px font-500 leading-none bg-primary-light-1 text-primary border border-[var(--color-primary-light-3)] whitespace-nowrap'>{sourceLabel}</span>}
             </div>
           </div>
         </div>
