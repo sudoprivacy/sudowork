@@ -5,7 +5,8 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { getRuntimeActionDescriptors, getStatusInfo, resolveRuntimeStatus, type ToolRow } from '@/renderer/components/SettingsModal/contents/runtimeStatus';
+import { getRuntimeActionDescriptors, getStatusInfo, resolveRuntimeStatus } from '../../src/renderer/pages/settings/runtime/utils';
+import type { ToolRow } from '../../src/renderer/pages/settings/runtime/types';
 
 const t = (key: string, opts?: Record<string, unknown>): string => {
   if (key === 'settings.runtimeSettings.status.running') {
@@ -58,13 +59,14 @@ describe('runtimeStatus helpers', () => {
     });
   });
 
-  it('renders service runtime as running only from actual runtime data', () => {
+  it('renders nexus runtime as running only from actual runtime data', () => {
     const record = createRecord({
-      key: 'sudoclaw',
+      key: 'nexus',
       status: { installed: true, source: 'managed', version: '1.2.3' },
       statusResolved: true,
-      sudoclawGatewayRunning: true,
-      sudoclawGatewayPort: 7331,
+      nexusInstalled: true,
+      nexusRunning: true,
+      nexusPort: 7331,
     });
 
     expect(resolveRuntimeStatus(record)).toBe('running');
