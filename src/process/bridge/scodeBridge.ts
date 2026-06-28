@@ -189,7 +189,18 @@ export async function syncScodeModelsFromPricing(): Promise<void> {
 export async function resolveImageModelForMainSync(): Promise<{ modelId: string | null }> {
   const { ProcessConfig } = await import('@process/initStorage');
   const { fetchSpecificImagePricingItems } = await import('@/common/imagePricingSource');
-  const { pickDefaultImageModelFromPricing, pickImageGenerationModelId, resolveImageModelWithAvailability } = await import('@/common/imageGenerationModelConfig');
+  const { pickDefaultImageModelFromPricing, pickImageGenerationModelId, resolveImageModelWithAvailability } = await import(
+    '@/common/imageGenerationModelConfig'
+  );
+  const { getSystemConfigCache } = await import('@/common/systemConfig');
+
+  // 冷启动竞态修复：syncImageModelOnStartup 可能在 ensureMainSystemConfig（填充 systemConfigCache）
+  // 之前触发，此时 getSudorouterBaseUrl() 会 fallback 到 build 硬编码而非服务器 dispatch 的真实
+  // sudorouter，导致用错误的 pricing 列表校验（或 fetch 失败而不修正）。等待 cache 填充后再继续。
+  const cacheDeadline = Date.now() + 35_000;
+  while (!getSystemConfigCache() && Date.now() < cacheDeadline) {
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
 
   const saved = await ProcessConfig.get('tools.imageGenerationModel');
   const items = await fetchSpecificImagePricingItems();
@@ -217,7 +228,13 @@ export async function resolveImageModelForMainSync(): Promise<{ modelId: string 
 async function syncImageModelOnStartup(): Promise<void> {
   try {
     const { modelId } = await resolveImageModelForMainSync();
-    writeScodeImageModel(modelId ?? '');
+    const resolved = modelId ?? '';
+    writeScodeImageModel(resolved);
+    // sudoclaw.json 的 imageGenerationModel 是运行期生图主路径读取的字段(resolveImageConfig 先读它)。
+    // 桌面模式启动时不会自动拉起 sudoclaw 网关,故 syncImageModelToSudoclaw(入口B,网关健康后才触发)
+    // 不会执行——若不同步,失效模型会残留在 sudoclaw.json 导致生图失败。此处复用写 sudoclaw 的 helper
+    // (自带 existsSync 守卫,文件不存在则 no-op,等网关首次写入)。
+    writeSudoclawImageGenerationModel(resolved, SUDOCLAW_CONFIG_PATH);
   } catch (err) {
     mainWarn(TAG, `Failed to sync image model on startup: ${err instanceof Error ? err.message : String(err)}`);
   }
