@@ -12,7 +12,7 @@ import { getSudoworkServerBaseUrl } from '@/common/sudoworkServer';
 import { ConfigStorage } from '@/common/storage';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
 import { useAuth } from '@/renderer/context/AuthContext';
-import type { TenantConfigEntry, TenantConfigItem, TenantConfigValues } from '../../../../pages/settings/channels/types';
+import type { TenantConfigEntry, TenantConfigItem, TenantConfigValues } from '../types';
 
 const TENANT_ENABLED_STORAGE_KEY = 'settings.tenant.enabled';
 

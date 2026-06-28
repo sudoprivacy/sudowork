@@ -129,7 +129,7 @@ const useChannelModelSelection = (configKey: ChannelModelConfigKey): GeminiModel
 /**
  * Assistant Settings Content Component
  */
-const ChannelModalContent: React.FC = () => {
+const ChannelPanel: React.FC = () => {
   const { t } = useTranslation();
   const { isEnterprise } = useAppMode();
 
@@ -876,4 +876,4 @@ const ChannelModalContent: React.FC = () => {
   );
 };
 
-export default ChannelModalContent;
+export default ChannelPanel;

@@ -7,7 +7,7 @@
 import { Button, Spin } from '@arco-design/web-react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { useTenantConfigItems } from '../../../../components/SettingsModal/contents/secrets/useTenantConfigItems';
+import { useTenantConfigItems } from '../hooks/useTenantConfigItems';
 import TenantConfigItemGroup from './TenantConfigItemGroup';
 
 interface TenantConfigSectionProps {

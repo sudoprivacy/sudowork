@@ -13,7 +13,7 @@ import TenantConfigSection from './TenantConfigSection';
 /**
  * Secret Management Content Component
  */
-const SecretModalContent: React.FC = () => {
+const SecretPanel: React.FC = () => {
   const { t } = useTranslation();
   const { isEnterprise } = useAppMode();
 
@@ -67,4 +67,4 @@ const SecretModalContent: React.FC = () => {
   );
 };
 
-export default SecretModalContent;
+export default SecretPanel;

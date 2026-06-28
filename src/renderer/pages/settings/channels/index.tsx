@@ -8,8 +8,8 @@ import ChannelLarkLogo from '@/renderer/assets/channel-logos/lark.svg';
 import ChannelTelegramLogo from '@/renderer/assets/channel-logos/telegram.svg';
 import ChannelWeChatLogo from '@/renderer/assets/channel-logos/wechat.svg';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
-import SecretModalContent from './components/SecretModalContent';
-import ChannelModalContent from './components/ChannelModalContent';
+import SecretPanel from './components/SecretPanel';
+import ChannelPanel from './components/ChannelPanel';
 
 const CHANNEL_LOGOS = [
   { src: ChannelWeChatLogo, alt: 'WeChat' },
@@ -59,7 +59,7 @@ const WebuiSettings: React.FC = () => {
           </Tabs>
         </div>
 
-        <div className='flex-1 min-h-0 pb-4'>{activeTab === 'secrets' ? <SecretModalContent /> : <ChannelModalContent />}</div>
+        <div className='flex-1 min-h-0 pb-4'>{activeTab === 'secrets' ? <SecretPanel /> : <ChannelPanel />}</div>
       </div>
     </PageWrapper>
   );
