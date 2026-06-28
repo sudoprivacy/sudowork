@@ -17,7 +17,7 @@ export const useGeminiModelSelection = ({ initialModel, onSelectModel }: UseGemi
 
   useEffect(() => {
     setCurrentModel(initialModel);
-  }, [initialModel?.id, initialModel?.useModel]);
+  }, [initialModel]);
 
   const { providers, geminiModeLookup, getAvailableModels, formatModelLabel } = useModelProviderList();
 
