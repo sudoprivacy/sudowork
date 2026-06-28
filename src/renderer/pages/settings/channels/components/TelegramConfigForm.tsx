@@ -1,6 +1,6 @@
 import { Button, Dropdown, Empty, Input, Menu, Message, Spin, Tooltip } from '@arco-design/web-react';
-import { Copy, Down } from '@icon-park/react';
-import { IconCheckCircle, IconCloseCircle, IconDelete, IconRefresh } from '@arco-design/web-react/icon';
+import { Down } from '@icon-park/react';
+import { IconCheckCircle, IconCloseCircle, IconCopy, IconDelete, IconRefresh } from '@arco-design/web-react/icon';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { IChannelPairingRequest, IChannelPluginStatus, IChannelUser } from '@/channels/types';
@@ -418,7 +418,7 @@ const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({ pluginStatus, m
                       <span className='text-14px font-500 text-foreground'>{pairing.displayName || 'Unknown User'}</span>
                       <Tooltip content={t('settings.assistant.copyCode', 'Copy pairing code')}>
                         <button className='p-1 bg-transparent border-none text-tertiary hover:text-foreground cursor-pointer' onClick={() => copyToClipboard(pairing.code)}>
-                          <Copy size={14} />
+                          <IconCopy style={{ fontSize: 14 }} />
                         </button>
                       </Tooltip>
                     </div>

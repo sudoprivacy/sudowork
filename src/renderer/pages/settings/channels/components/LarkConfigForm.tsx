@@ -1,6 +1,6 @@
 import { Button, Dropdown, Empty, Input, Menu, Message, Modal, Spin, Tooltip } from '@arco-design/web-react';
-import { CheckOne, CloseOne, Copy, Down } from '@icon-park/react';
-import { IconCheckCircle, IconCloseCircle, IconDelete, IconRefresh, IconScan } from '@arco-design/web-react/icon';
+import { CheckOne, CloseOne, Down } from '@icon-park/react';
+import { IconCheckCircle, IconCloseCircle, IconCopy, IconDelete, IconRefresh, IconScan } from '@arco-design/web-react/icon';
 import { QRCodeSVG } from 'qrcode.react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -612,7 +612,7 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
             )}
             {larkAuthPhase === 'success' && (
               <div className='flex flex-col items-center gap-2 py-8'>
-                <CheckOne size={48} theme='filled' fill='#22c55e' />
+                <CheckOne size={48} theme='filled' fill='currentColor' className='text-success' />
                 <span className='text-14px text-foreground'>
                   {t('settings.lark.larkCli.loginSuccess', '扫码登录成功')}
                   {larkAuthLoggedInUser ? ` — ${larkAuthLoggedInUser}` : ''}
@@ -621,7 +621,7 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
             )}
             {(larkAuthPhase === 'error' || larkAuthPhase === 'expired') && (
               <div className='flex flex-col items-center gap-2 py-6'>
-                <CloseOne size={32} theme='filled' fill='#ef4444' />
+                <CloseOne size={32} theme='filled' fill='currentColor' className='text-danger' />
                 <span className='text-13px text-danger text-center px-3 break-words'>{larkAuthError}</span>
               </div>
             )}
@@ -931,7 +931,7 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
                       <span className='text-14px font-500 text-foreground'>{pairing.displayName || 'Unknown User'}</span>
                       <Tooltip content={t('settings.assistant.copyCode', 'Copy pairing code')}>
                         <button className='p-1 bg-transparent border-none text-tertiary hover:text-foreground cursor-pointer' onClick={() => copyToClipboard(pairing.code)}>
-                          <Copy size={14} />
+                          <IconCopy style={{ fontSize: 14 }} />
                         </button>
                       </Tooltip>
                     </div>

@@ -1,5 +1,6 @@
 import { Button, Dropdown, Menu, Message, Spin } from '@arco-design/web-react';
-import { Down, Refresh } from '@icon-park/react';
+import { IconRefresh } from '@arco-design/web-react/icon';
+import { Down } from '@icon-park/react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { QRCodeSVG } from 'qrcode.react';
@@ -211,7 +212,7 @@ const WeChatConfigForm: React.FC<WeChatConfigFormProps> = ({ pluginStatus, model
         <div className='flex flex-col gap-3 p-3 rd-8px bg-danger-soft border border-danger-line'>
           <div className='text-13px text-danger'>{errorMessage}</div>
           <Button type='outline' status='warning' onClick={handleStartLogin} className='self-start'>
-            <Refresh size={14} className='mr-1' />
+            <IconRefresh style={{ fontSize: 14 }} className='mr-1' />
             {t('common.retry', 'Retry')}
           </Button>
         </div>
