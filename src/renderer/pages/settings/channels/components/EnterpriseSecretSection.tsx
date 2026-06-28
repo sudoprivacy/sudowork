@@ -83,7 +83,6 @@ export const EnterpriseSecretSection: React.FC = () => {
                 </div>
               }
               name={`enterprise-${item.id}`}
-              className='[&_div.arco-collapse-item-content-box]:px-12px [&_div.arco-collapse-item-content-box]:py-12px md:[&_div.arco-collapse-item-content-box]:px-16px'
             >
               <div className='space-y-12px border-t pt-12px'>
                 {item.entries.map((entry) => (

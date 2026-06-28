@@ -8,7 +8,7 @@ import { CHANNEL_LOGOS } from './utils';
 import SecretPanel from './components/SecretPanel';
 import ChannelPanel from './components/ChannelPanel';
 
-const WebuiSettings: React.FC = () => {
+const Page: React.FC = () => {
   const { t } = useTranslation();
   const { isEnterprise } = useAppMode();
   const [activeTab, setActiveTab] = useState<'channels' | 'secrets'>('channels');
@@ -30,7 +30,7 @@ const WebuiSettings: React.FC = () => {
                   <span>Channels</span>
                   <span className='inline-flex items-center gap-4px ml-2px'>
                     {CHANNEL_LOGOS.map((item) => (
-                      <span key={item.alt} className='inline-flex items-center justify-center w-16px h-16px rd-50% border bg-fill-1' title={item.alt} aria-label={item.alt}>
+                      <span key={item.alt} className='inline-flex items-center justify-center w-16px h-16px' title={item.alt} aria-label={item.alt}>
                         <img src={item.src} alt={item.alt} className='w-14px h-14px object-contain' />
                       </span>
                     ))}
@@ -55,4 +55,4 @@ const WebuiSettings: React.FC = () => {
   );
 };
 
-export default WebuiSettings;
+export default Page;

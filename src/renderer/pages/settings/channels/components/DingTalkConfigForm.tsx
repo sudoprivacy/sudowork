@@ -327,7 +327,7 @@ const DingTalkConfigForm: React.FC<DingTalkConfigFormProps> = ({ pluginStatus, m
   const agentOptions: Array<{ backend: AcpBackendAll; name: string; customAgentId?: string; isExtension?: boolean }> = availableAgents.length > 0 ? availableAgents : [{ backend: CHANNEL_DEFAULT_AGENT_BACKEND, name: 'Sudo Code' }];
 
   return (
-    <div className='flex flex-col gap-24px'>
+    <div className='flex flex-col gap-24px -mt3'>
       {/* Client ID */}
       <PreferenceRow
         label={t('settings.dingtalk.clientId', 'Client ID')}

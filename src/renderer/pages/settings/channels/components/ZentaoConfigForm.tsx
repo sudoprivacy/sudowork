@@ -132,7 +132,7 @@ const ZentaoConfigForm: React.FC<{ pluginStatus?: IChannelPluginStatus | null; o
   const isCredentialsLocked = pluginStatus?.enabled && pluginStatus?.hasToken;
 
   return (
-    <div className='flex flex-col gap-24px'>
+    <div className='flex flex-col gap-24px -mt-3'>
       {/* Server URL */}
       <PreferenceRow label={t('settings.zentao.serverUrl', 'Server URL')} description={t('settings.zentao.serverUrlDesc', 'Zentao server access URL')} required>
         <Input

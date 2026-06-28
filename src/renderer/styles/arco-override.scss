@@ -71,11 +71,17 @@ body[arco-theme='dark'] {
   .arco-collapse-item-header {
     border-bottom: none;
     background-color: var(--bg-control);
+    .arco-collapse-item-header-title {
+      flex: 1;
+    }
   }
   .arco-collapse-item-content {
     border-style: dashed;
     border-top-width: 1px;
     border-color: var(--border-light);
+    .arco-collapse-item-content-box {
+      padding: 16px;
+    }
   }
 }
 

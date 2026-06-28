@@ -507,7 +507,7 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
     <div className='flex flex-col gap-24px'>
       {/* Consumer mode: QR Login (replaces manual App ID / App Secret entry) */}
       {!isEnterprise && (
-        <div className='flex flex-col gap-8px mt-4'>
+        <div className='flex flex-col gap-8px'>
           <div className='flex items-center justify-between mb-12px'>
             <h3 className='text-14px font-500 text-foreground m-0'>{t('settings.lark.larkCli.title', '扫码登录飞书')}</h3>
           </div>
