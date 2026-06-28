@@ -119,7 +119,7 @@ const PwdLoginSection: React.FC = () => {
               </div>
             }
           >
-            <div className='text-12px text-tertiary mb-6px break-all'>{e.url}</div>
+            <div className='text-12px text-secondary mb-6px break-all'>{e.url}</div>
             <CredentialRow entry={e} onSaved={load} />
           </Collapse.Item>
         ))}
