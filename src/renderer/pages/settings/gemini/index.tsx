@@ -23,7 +23,6 @@ const GeminiSettings: React.FC = () => {
   const [googleAccountLoading, setGoogleAccountLoading] = useState(false);
   const [userLoggedOut, setUserLoggedOut] = useState(false);
   const [currentAccountEmail, setCurrentAccountEmail] = useState<string | null>(null);
-  const [message, messageContext] = Message.useMessage();
   const readyRef = useRef(false);
   const saveTimerRef = useRef<number | undefined>(undefined);
 
@@ -139,14 +138,13 @@ const GeminiSettings: React.FC = () => {
   return (
     <PageWrapper>
       <div className='flex flex-col h-full w-full'>
-        {messageContext}
         <AionScrollArea className='flex-1 min-h-0' disableOverflow>
-          <div className='space-y-16px'>
-            <div className='px-[12px] py-[24px] md:px-[32px] bg-2 rd-12px md:rd-16px border'>
+          <div className='space-y-4'>
+            <div className='px-6 py-4 bg-muted rd-12px md:rd-16px border border-light'>
               <Form form={form} layout='horizontal' labelCol={{ flex: '140px' }} labelAlign='left' wrapperCol={{ flex: '1' }} onValuesChange={debouncedSave}>
                 <Form.Item label={t('settings.personalAuth')} field='googleAccount' layout='horizontal'>
                   {(props) => (
-                    <div className={'flex flex-wrap items-center justify-end gap-12px mt-12px w-full justify-start md:mt-0 md:w-auto md:justify-end'}>
+                    <div className={'flex flex-wrap items-center gap-3 mt-3 w-full justify-start md:mt-0 md:w-auto md:justify-end'}>
                       {props.googleAccount ? (
                         <>
                           <span className='text-14px text-foreground'>{props.googleAccount}</span>
@@ -183,18 +181,18 @@ const GeminiSettings: React.FC = () => {
                                 if (result.success) {
                                   loadGoogleAuthStatus(form.getFieldValue('proxy'));
                                   if (result.data?.account) {
-                                    message.success(t('settings.googleLoginSuccess', { defaultValue: 'Successfully logged in' }));
+                                    Message.success(t('settings.googleLoginSuccess', { defaultValue: 'Successfully logged in' }));
                                   }
                                 } else {
                                   // 登录失败，显示错误消息
                                   // Login failed, show error message
                                   const errorMsg = result.msg || t('settings.googleLoginFailed', { defaultValue: 'Login failed. Please try again.' });
-                                  message.error(errorMsg);
+                                  Message.error(errorMsg);
                                   console.error('[GoogleAuth] Login failed:', result.msg);
                                 }
                               })
                               .catch((error) => {
-                                message.error(t('settings.googleLoginFailed', { defaultValue: 'Login failed. Please try again.' }));
+                                Message.error(t('settings.googleLoginFailed', { defaultValue: 'Login failed. Please try again.' }));
                                 console.error('Failed to login to Google:', error);
                               })
                               .finally(() => {
@@ -208,15 +206,15 @@ const GeminiSettings: React.FC = () => {
                     </div>
                   )}
                 </Form.Item>
-                <Divider className='mt-0px mb-20px' />
+                <Divider className='mt-0 mb-5' />
 
                 <Form.Item label={t('settings.proxyConfig')} field='proxy' layout='vertical' rules={[{ match: /^https?:\/\/.+$/, message: t('settings.proxyHttpOnly') }]}>
-                  <Input className='aion-input' placeholder={t('settings.proxyHttpOnly')} />
+                  <Input placeholder={t('settings.proxyHttpOnly')} />
                 </Form.Item>
-                <Divider className='mt-0px mb-20px' />
+                <Divider className='mt-0 mb-5' />
 
                 <Form.Item label='GOOGLE_CLOUD_PROJECT' field='GOOGLE_CLOUD_PROJECT' layout='vertical'>
-                  <Input className='aion-input' placeholder={t('settings.googleCloudProjectPlaceholder')} />
+                  <Input placeholder={t('settings.googleCloudProjectPlaceholder')} />
                 </Form.Item>
               </Form>
             </div>
