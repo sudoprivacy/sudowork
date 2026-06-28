@@ -7,11 +7,11 @@ import type { IChannelPairingRequest, IChannelPluginStatus, IChannelUser } from 
 import { acpConversation, channel } from '@/common/ipcBridge';
 import { ConfigStorage } from '@/common/storage';
 import { openExternalUrl } from '@/renderer/utils/platform';
-import GeminiModelSelector from '@/renderer/pages/settings/channels/components/GeminiModelSelector';
 import { CHANNEL_DEFAULT_AGENT_BACKEND, type AcpBackendAll } from '@/types/acpTypes';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
 import type { GeminiModelSelection } from '../types';
 import { DINGTALK_DEV_DOCS_URL } from '../utils';
+import GeminiModelSelector from './GeminiModelSelector';
 
 /**
  * Preference row component

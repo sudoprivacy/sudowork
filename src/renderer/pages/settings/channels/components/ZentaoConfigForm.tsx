@@ -3,7 +3,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { channel } from '@/common/ipcBridge';
 import type { IChannelPluginStatus } from '@/channels/types';
-import type { ChannelConfig } from '@/renderer/pages/settings/channels/types';
+import type { ChannelConfig } from '../types';
 import ChannelItem from './ChannelItem';
 
 /**
