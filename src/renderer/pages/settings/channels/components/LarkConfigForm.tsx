@@ -14,7 +14,6 @@ import type { GeminiModelSelection, LarkAuthPhase } from '../types';
 import { LARK_DEV_DOCS_URL } from '../utils';
 import GeminiModelSelector from './GeminiModelSelector';
 import PreferenceRow from './PreferenceRow';
-import SectionHeader from './SectionHeader';
 
 interface LarkConfigFormProps {
   pluginStatus: IChannelPluginStatus | null;
@@ -509,7 +508,9 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
       {/* Consumer mode: QR Login (replaces manual App ID / App Secret entry) */}
       {!isEnterprise && (
         <div className='flex flex-col gap-8px mt-4'>
-          <SectionHeader title={t('settings.lark.larkCli.title', '扫码登录飞书')} />
+          <div className='flex items-center justify-between mb-12px'>
+            <h3 className='text-14px font-500 text-foreground m-0'>{t('settings.lark.larkCli.title', '扫码登录飞书')}</h3>
+          </div>
           <div className='text-12px text-secondary'>{t('settings.lark.larkCli.description', '扫码自动完成飞书应用创建与授权登录，无需手动填写 App ID 与 App Secret。')}</div>
           {larkAuthLoggedInUser ? (
             <div className='flex items-center justify-between bg-fill-1 rd-8px p-12px'>
@@ -879,16 +880,14 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
         <div
           className={`rd-12px p-16px border ${pluginStatus?.connected ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' : pluginStatus?.error ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' : 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800'}`}
         >
-          <SectionHeader
-            title={t('settings.lark.connectionStatus', 'Connection Status')}
-            action={
-              <span
-                className={`text-12px px-8px py-2px rd-4px ${pluginStatus?.connected ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' : pluginStatus?.error ? 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300' : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300'}`}
-              >
-                {pluginStatus?.connected ? t('settings.lark.statusConnected', 'Connected') : pluginStatus?.error ? t('settings.lark.statusError', 'Error') : t('settings.lark.statusConnecting', 'Connecting...')}
-              </span>
-            }
-          />
+          <div className='flex items-center justify-between mb-12px'>
+            <h3 className='text-14px font-500 text-foreground m-0'>{t('settings.lark.connectionStatus', 'Connection Status')}</h3>
+            <span
+              className={`text-12px px-8px py-2px rd-4px ${pluginStatus?.connected ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' : pluginStatus?.error ? 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300' : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300'}`}
+            >
+              {pluginStatus?.connected ? t('settings.lark.statusConnected', 'Connected') : pluginStatus?.error ? t('settings.lark.statusError', 'Error') : t('settings.lark.statusConnecting', 'Connecting...')}
+            </span>
+          </div>
           {pluginStatus?.error && <div className='text-14px text-red-600 dark:text-red-400 mb-12px'>{pluginStatus.error}</div>}
           {pluginStatus?.connected && (
             <div className='text-14px text-secondary space-y-8px'>
@@ -914,14 +913,12 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
       {/* Pending Pairings */}
       {pluginStatus?.enabled && authorizedUsers.length === 0 && (
         <div className='bg-fill-1 rd-12px pt-16px pr-16px pb-16px pl-0'>
-          <SectionHeader
-            title={t('settings.assistant.pendingPairings', 'Pending Pairing Requests')}
-            action={
-              <Button size='mini' type='text' icon={<IconRefresh style={{ fontSize: 14 }} />} loading={pairingLoading} onClick={loadPendingPairings}>
-                {t('conversation.workspace.refresh', 'Refresh')}
-              </Button>
-            }
-          />
+          <div className='flex items-center justify-between mb-12px'>
+            <h3 className='text-14px font-500 text-foreground m-0'>{t('settings.assistant.pendingPairings', 'Pending Pairing Requests')}</h3>
+            <Button size='mini' type='text' icon={<IconRefresh style={{ fontSize: 14 }} />} loading={pairingLoading} onClick={loadPendingPairings}>
+              {t('conversation.workspace.refresh', 'Refresh')}
+            </Button>
+          </div>
 
           {pairingLoading ? (
             <div className='flex justify-center py-24px'>
@@ -966,14 +963,12 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
       {/* Authorized Users */}
       {authorizedUsers.length > 0 && (
         <div className='bg-fill-1 rd-12px pt-16px pr-16px pb-16px pl-0'>
-          <SectionHeader
-            title={t('settings.assistant.authorizedUsers', 'Authorized Users')}
-            action={
-              <Button size='mini' type='text' icon={<IconRefresh style={{ fontSize: 14 }} />} loading={usersLoading} onClick={loadAuthorizedUsers}>
-                {t('common.refresh', 'Refresh')}
-              </Button>
-            }
-          />
+          <div className='flex items-center justify-between mb-12px'>
+            <h3 className='text-14px font-500 text-foreground m-0'>{t('settings.assistant.authorizedUsers', 'Authorized Users')}</h3>
+            <Button size='mini' type='text' icon={<IconRefresh style={{ fontSize: 14 }} />} loading={usersLoading} onClick={loadAuthorizedUsers}>
+              {t('common.refresh', 'Refresh')}
+            </Button>
+          </div>
 
           {usersLoading ? (
             <div className='flex justify-center py-24px'>

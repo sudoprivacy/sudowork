@@ -13,7 +13,6 @@ import type { GeminiModelSelection } from '../types';
 import { DINGTALK_DEV_DOCS_URL } from '../utils';
 import GeminiModelSelector from './GeminiModelSelector';
 import PreferenceRow from './PreferenceRow';
-import SectionHeader from './SectionHeader';
 
 interface DingTalkConfigFormProps {
   pluginStatus: IChannelPluginStatus | null;
@@ -499,16 +498,14 @@ const DingTalkConfigForm: React.FC<DingTalkConfigFormProps> = ({ pluginStatus, m
         <div
           className={`rd-12px p-16px border ${pluginStatus?.connected ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' : pluginStatus?.error ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' : 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800'}`}
         >
-          <SectionHeader
-            title={t('settings.dingtalk.connectionStatus', 'Connection Status')}
-            action={
-              <span
-                className={`text-12px px-8px py-2px rd-4px ${pluginStatus?.connected ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' : pluginStatus?.error ? 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300' : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300'}`}
-              >
-                {pluginStatus?.connected ? t('settings.dingtalk.statusConnected', 'Connected') : pluginStatus?.error ? t('settings.dingtalk.statusError', 'Error') : t('settings.dingtalk.statusConnecting', 'Connecting...')}
-              </span>
-            }
-          />
+          <div className='flex items-center justify-between mb-12px'>
+            <h3 className='text-14px font-500 text-foreground m-0'>{t('settings.dingtalk.connectionStatus', 'Connection Status')}</h3>
+            <span
+              className={`text-12px px-8px py-2px rd-4px ${pluginStatus?.connected ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' : pluginStatus?.error ? 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300' : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300'}`}
+            >
+              {pluginStatus?.connected ? t('settings.dingtalk.statusConnected', 'Connected') : pluginStatus?.error ? t('settings.dingtalk.statusError', 'Error') : t('settings.dingtalk.statusConnecting', 'Connecting...')}
+            </span>
+          </div>
           {pluginStatus?.error && <div className='text-14px text-red-600 dark:text-red-400 mb-12px'>{pluginStatus.error}</div>}
           {pluginStatus?.connected && (
             <div className='text-14px text-secondary space-y-8px'>
@@ -534,14 +531,12 @@ const DingTalkConfigForm: React.FC<DingTalkConfigFormProps> = ({ pluginStatus, m
       {/* Pending Pairings */}
       {pluginStatus?.enabled && authorizedUsers.length === 0 && (
         <div className='bg-fill-1 rd-12px pt-16px pr-16px pb-16px pl-0'>
-          <SectionHeader
-            title={t('settings.assistant.pendingPairings', 'Pending Pairing Requests')}
-            action={
-              <Button size='mini' type='text' icon={<IconRefresh style={{ fontSize: 14 }} />} loading={pairingLoading} onClick={loadPendingPairings}>
-                {t('conversation.workspace.refresh', 'Refresh')}
-              </Button>
-            }
-          />
+          <div className='flex items-center justify-between mb-12px'>
+            <h3 className='text-14px font-500 text-foreground m-0'>{t('settings.assistant.pendingPairings', 'Pending Pairing Requests')}</h3>
+            <Button size='mini' type='text' icon={<IconRefresh style={{ fontSize: 14 }} />} loading={pairingLoading} onClick={loadPendingPairings}>
+              {t('conversation.workspace.refresh', 'Refresh')}
+            </Button>
+          </div>
 
           {pairingLoading ? (
             <div className='flex justify-center py-24px'>
@@ -586,14 +581,12 @@ const DingTalkConfigForm: React.FC<DingTalkConfigFormProps> = ({ pluginStatus, m
       {/* Authorized Users */}
       {authorizedUsers.length > 0 && (
         <div className='bg-fill-1 rd-12px pt-16px pr-16px pb-16px pl-0'>
-          <SectionHeader
-            title={t('settings.assistant.authorizedUsers', 'Authorized Users')}
-            action={
-              <Button size='mini' type='text' icon={<IconRefresh style={{ fontSize: 14 }} />} loading={usersLoading} onClick={loadAuthorizedUsers}>
-                {t('common.refresh', 'Refresh')}
-              </Button>
-            }
-          />
+          <div className='flex items-center justify-between mb-12px'>
+            <h3 className='text-14px font-500 text-foreground m-0'>{t('settings.assistant.authorizedUsers', 'Authorized Users')}</h3>
+            <Button size='mini' type='text' icon={<IconRefresh style={{ fontSize: 14 }} />} loading={usersLoading} onClick={loadAuthorizedUsers}>
+              {t('common.refresh', 'Refresh')}
+            </Button>
+          </div>
 
           {usersLoading ? (
             <div className='flex justify-center py-24px'>

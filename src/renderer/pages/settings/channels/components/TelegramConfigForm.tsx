@@ -11,7 +11,6 @@ import { useAppMode } from '@/renderer/hooks/useAppMode';
 import type { GeminiModelSelection } from '../types';
 import GeminiModelSelector from './GeminiModelSelector';
 import PreferenceRow from './PreferenceRow';
-import SectionHeader from './SectionHeader';
 
 interface TelegramConfigFormProps {
   pluginStatus: IChannelPluginStatus | null;
@@ -369,7 +368,9 @@ const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({ pluginStatus, m
       {/* Next Steps Guide - show when bot is enabled and no authorized users yet */}
       {pluginStatus?.enabled && pluginStatus?.connected && authorizedUsers.length === 0 && (
         <div className='bg-blue-50 dark:bg-blue-900/20 rd-12px p-16px border border-blue-200 dark:border-blue-800'>
-          <SectionHeader title={t('settings.assistant.nextSteps', 'Next Steps')} />
+          <div className='flex items-center justify-between mb-12px'>
+            <h3 className='text-14px font-500 text-foreground m-0'>{t('settings.assistant.nextSteps', 'Next Steps')}</h3>
+          </div>
           <div className='text-14px text-secondary space-y-8px'>
             <p className='m-0'>
               <strong>1.</strong> {t('settings.assistant.step1', 'Open Telegram and search for your bot')}
@@ -395,14 +396,12 @@ const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({ pluginStatus, m
       {/* Pending Pairings - show when bot is enabled and no authorized users yet */}
       {pluginStatus?.enabled && authorizedUsers.length === 0 && (
         <div className='bg-fill-1 rd-12px pt-16px pr-16px pb-16px pl-0'>
-          <SectionHeader
-            title={t('settings.assistant.pendingPairings', 'Pending Pairing Requests')}
-            action={
-              <Button size='mini' type='text' icon={<IconRefresh style={{ fontSize: 14 }} />} loading={pairingLoading} onClick={loadPendingPairings}>
-                {t('common.refresh', 'Refresh')}
-              </Button>
-            }
-          />
+          <div className='flex items-center justify-between mb-12px'>
+            <h3 className='text-14px font-500 text-foreground m-0'>{t('settings.assistant.pendingPairings', 'Pending Pairing Requests')}</h3>
+            <Button size='mini' type='text' icon={<IconRefresh style={{ fontSize: 14 }} />} loading={pairingLoading} onClick={loadPendingPairings}>
+              {t('common.refresh', 'Refresh')}
+            </Button>
+          </div>
 
           {pairingLoading ? (
             <div className='flex justify-center py-24px'>
@@ -447,14 +446,12 @@ const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({ pluginStatus, m
       {/* Authorized Users - show when there are authorized users */}
       {authorizedUsers.length > 0 && (
         <div className='bg-fill-1 rd-12px pt-16px pr-16px pb-16px pl-0'>
-          <SectionHeader
-            title={t('settings.assistant.authorizedUsers', 'Authorized Users')}
-            action={
-              <Button size='mini' type='text' icon={<IconRefresh style={{ fontSize: 14 }} />} loading={usersLoading} onClick={loadAuthorizedUsers}>
-                {t('common.refresh', 'Refresh')}
-              </Button>
-            }
-          />
+          <div className='flex items-center justify-between mb-12px'>
+            <h3 className='text-14px font-500 text-foreground m-0'>{t('settings.assistant.authorizedUsers', 'Authorized Users')}</h3>
+            <Button size='mini' type='text' icon={<IconRefresh style={{ fontSize: 14 }} />} loading={usersLoading} onClick={loadAuthorizedUsers}>
+              {t('common.refresh', 'Refresh')}
+            </Button>
+          </div>
 
           {usersLoading ? (
             <div className='flex justify-center py-24px'>
