@@ -877,6 +877,7 @@
   "shareoneEnableBlocked": "Please enter the ShareOne API key before enabling it",
   "profile": "User Center",
   "memberManagement": "Member Management",
+  "memberManagementDescription": "Manage enterprise member join requests and API permission assignments",
   "sudorouter": "Sudorouter",
   "copilot": "Copilot",
   "copilotSettings": {

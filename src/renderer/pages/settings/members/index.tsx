@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Table, Button, Tabs, Tag, Space, Message, Modal, Badge } from '@arco-design/web-react';
 import { IconDelete } from '@arco-design/web-react/icon';
 import { User, Peoples } from '@icon-park/react';
@@ -16,7 +16,9 @@ const MemberManagement: React.FC = () => {
   const [pendingUsers, setPendingUsers] = useState<any[]>([]);
   const [approvedUsers, setApprovedUsers] = useState<any[]>([]);
 
-  const fetchMembers = async () => {
+  const fetchMembers = useCallback(async () => {
+    if (!currentUser?.token) return;
+
     setLoading(true);
     try {
       const serverConfig = await ipcBridge.sudoworkServer.getConfig.invoke();
@@ -33,11 +35,11 @@ const MemberManagement: React.FC = () => {
       console.error('Failed to fetch members:', e);
     }
     setLoading(false);
-  };
+  }, [currentUser?.token]);
 
   useEffect(() => {
-    if (currentUser?.token) void fetchMembers();
-  }, [currentUser]);
+    void fetchMembers();
+  }, [fetchMembers]);
 
   const handleApprove = (user: any) => {
     Modal.confirm({
@@ -180,20 +182,18 @@ const MemberManagement: React.FC = () => {
   ];
 
   return (
-    <PageWrapper>
-      <div className='flex flex-col gap-6 py-2'>
-        <div className='flex items-center justify-between'>
-          <div className='flex flex-col gap-1'>
-            <div className='text-20px font-600 text-foreground leading-32px'>{t('settings.memberManagement', { defaultValue: '成员管理' })}</div>
-            <div className='text-13px text-secondary'>管理企业成员加入申请及 API 权限分配</div>
+    <PageWrapper
+      title={t('settings.memberManagement', { defaultValue: '成员管理' })}
+      subtitle={t('settings.memberManagementDescription', { defaultValue: '管理企业成员加入申请及 API 权限分配' })}
+      actions={
+        <Badge count={pendingUsers.length} dot={pendingUsers.length > 0} className='mt-1'>
+          <div className='p-2 bg-control rd-8px'>
+            <Peoples size='20' className='text-secondary' />
           </div>
-          <Badge count={pendingUsers.length} dot={pendingUsers.length > 0}>
-            <div className='p-2 bg-fill-2 rd-8px'>
-              <Peoples size='20' className='text-secondary' />
-            </div>
-          </Badge>
-        </div>
-
+        </Badge>
+      }
+    >
+      <div className='flex flex-col gap-6 py-2'>
         <Tabs activeTab={activeTab} onChange={setActiveTab} type='capsule'>
           <Tabs.TabPane key='pending' title={`待审批 (${pendingUsers.length})`}>
             <div className='mt-4 bg-muted rd-16px border overflow-hidden min-h-50'>

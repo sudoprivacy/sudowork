@@ -880,6 +880,7 @@
   "shareoneEnableBlocked": "请先填写 ShareOne API Key，再启用",
   "profile": "用户中心",
   "memberManagement": "成员管理",
+  "memberManagementDescription": "管理企业成员加入申请及 API 权限分配",
   "sudorouter": "Sudorouter",
   "copilot": "Copilot",
   "copilotSettings": {

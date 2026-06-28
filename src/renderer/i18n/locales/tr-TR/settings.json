@@ -806,6 +806,8 @@
     }
   },
   "extensionAssistantReadonly": "Uzantı asistanları salt okunurdur. Kopyalayıp düzenleyebilirsiniz.",
+  "memberManagement": "Üye Yönetimi",
+  "memberManagementDescription": "Kurumsal üye katılım isteklerini ve API izin atamalarını yönetin",
   "secrets": "Gizli Anahtarlar",
   "secrets.title": "Gizli Anahtarlar",
   "secrets.description": "Hizmet kimlik bilgilerini ve API anahtarlarını yönetin. Gizli anahtarlar yerel Nexus kasasında güvenli bir şekilde saklanır.",

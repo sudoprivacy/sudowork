@@ -810,6 +810,8 @@
     }
   },
   "extensionAssistantReadonly": "확장 어시스턴트는 읽기 전용입니다. 복제하여 편집할 수 있습니다.",
+  "memberManagement": "멤버 관리",
+  "memberManagementDescription": "기업 멤버 가입 요청과 API 권한 할당을 관리합니다",
   "secrets": "시크릿 관리",
   "secrets.title": "시크릿 관리",
   "secrets.description": "서비스 자격 증명 및 API 키를 관리합니다. 시크릿은 로컬 Nexus vault에 안전하게 저장됩니다.",

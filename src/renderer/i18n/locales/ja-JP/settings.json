@@ -810,6 +810,8 @@
     }
   },
   "extensionAssistantReadonly": "拡張アシスタントは読み取り専用です。複製して編集することができます。",
+  "memberManagement": "メンバー管理",
+  "memberManagementDescription": "企業メンバーの参加申請と API 権限割り当てを管理します",
   "secrets": "シークレット管理",
   "secrets.title": "シークレット管理",
   "secrets.description": "サービスの認証情報とAPIキーを管理します。シークレットはローカルNexus vaultに安全に保存されます。",

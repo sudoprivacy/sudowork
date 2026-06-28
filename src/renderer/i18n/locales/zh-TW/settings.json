@@ -810,6 +810,8 @@
     }
   },
   "extensionAssistantReadonly": "擴展助手為唯讀，你可以複製它並編輯副本。",
+  "memberManagement": "成員管理",
+  "memberManagementDescription": "管理企業成員加入申請及 API 權限分配",
   "secrets": "金鑰管理",
   "secrets.title": "金鑰管理",
   "secrets.description": "管理各服務的金鑰憑證，金鑰安全儲存在本地 Nexus 金鑰庫中。",
