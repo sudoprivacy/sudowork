@@ -3,20 +3,10 @@ import { Communication } from '@icon-park/react';
 import React, { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import PageWrapper from '@renderer/components/base/PageWrapper';
-import ChannelDingTalkLogo from '@/renderer/assets/channel-logos/dingtalk.svg';
-import ChannelLarkLogo from '@/renderer/assets/channel-logos/lark.svg';
-import ChannelTelegramLogo from '@/renderer/assets/channel-logos/telegram.svg';
-import ChannelWeChatLogo from '@/renderer/assets/channel-logos/wechat.svg';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
+import { CHANNEL_LOGOS } from './utils';
 import SecretPanel from './components/SecretPanel';
 import ChannelPanel from './components/ChannelPanel';
-
-const CHANNEL_LOGOS = [
-  { src: ChannelWeChatLogo, alt: 'WeChat' },
-  { src: ChannelTelegramLogo, alt: 'Telegram' },
-  { src: ChannelLarkLogo, alt: 'Lark' },
-  { src: ChannelDingTalkLogo, alt: 'DingTalk' },
-] as const;
 
 const WebuiSettings: React.FC = () => {
   const { t } = useTranslation();

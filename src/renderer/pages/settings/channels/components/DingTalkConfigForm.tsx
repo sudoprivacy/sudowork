@@ -11,6 +11,7 @@ import GeminiModelSelector from '@/renderer/pages/settings/channels/components/G
 import { CHANNEL_DEFAULT_AGENT_BACKEND, type AcpBackendAll } from '@/types/acpTypes';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
 import type { GeminiModelSelection } from '../hooks/useGeminiModelSelection';
+import { DINGTALK_DEV_DOCS_URL } from '../utils';
 
 /**
  * Preference row component
@@ -54,7 +55,6 @@ interface DingTalkConfigFormProps {
   onCredentialsChange?: (creds: { clientId: string; clientSecret: string }) => void;
 }
 
-const DINGTALK_DEV_DOCS_URL = 'https://sudowork.sudoprivacy.com/guides/dingtalk.html';
 const DingTalkConfigForm: React.FC<DingTalkConfigFormProps> = ({ pluginStatus, modelSelection, onStatusChange, onCredentialsChange }) => {
   const { t } = useTranslation();
   const { isEnterprise } = useAppMode();

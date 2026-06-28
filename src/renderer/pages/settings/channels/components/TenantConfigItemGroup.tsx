@@ -3,19 +3,10 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
 import { ConfigStorage } from '@/common/storage';
-import configItemDefaultIcon from '@/renderer/assets/config-item-default.svg';
-import { BUILD_SUDOWORK_SERVER_BASE_URL, getSudoworkServerBaseUrl } from '@/common/sudoworkServer';
+import { getSudoworkServerBaseUrl } from '@/common/sudoworkServer';
 import type { TenantConfigItem, TenantConfigValues } from '../types';
+import { resolveConfigItemIconUrl, shouldBlockEnableUntilConfigured } from '../utils';
 import PreferenceRow from './PreferenceRow';
-
-function resolveIconUrl(iconUrl: string | null, baseUrl?: string): string {
-  if (!iconUrl) return configItemDefaultIcon;
-  if (iconUrl.startsWith('data:') || iconUrl.startsWith('http://') || iconUrl.startsWith('https://')) {
-    return iconUrl;
-  }
-  const resolvedBase = (baseUrl ?? BUILD_SUDOWORK_SERVER_BASE_URL).replace(/\/+$/, '');
-  return `${resolvedBase}${iconUrl.startsWith('/') ? iconUrl : `/${iconUrl}`}`;
-}
 
 const ConfigItemIcon: React.FC<{ iconUrl?: string; name: string }> = ({ iconUrl, name }) => {
   const [useDefault, setUseDefault] = useState(false);
@@ -50,7 +41,7 @@ const ConfigItemIcon: React.FC<{ iconUrl?: string; name: string }> = ({ iconUrl,
     };
   }, [isEnterprise]);
 
-  const src = useDefault ? configItemDefaultIcon : resolveIconUrl(iconUrl ?? null, baseUrl);
+  const src = useDefault ? resolveConfigItemIconUrl(null) : resolveConfigItemIconUrl(iconUrl ?? null, baseUrl);
 
   return <img src={src} alt={name} className='w-16px h-16px object-contain shrink-0' onError={() => setUseDefault(true)} />;
 };
@@ -62,11 +53,6 @@ interface TenantConfigItemGroupProps {
   saving: boolean;
   onToggleEnabled: (enabled: boolean) => void;
   onSave: (values: TenantConfigValues) => Promise<boolean>;
-}
-
-function shouldBlockEnableUntilConfigured(configItem: TenantConfigItem, values: TenantConfigValues): boolean {
-  if (configItem.pinyin !== 'shareone') return false;
-  return configItem.entries.some((entry) => entry.required === 1 && !values[entry.config_key]?.trim());
 }
 
 const TenantConfigItemGroup: React.FC<TenantConfigItemGroupProps> = ({ configItem, values: externalValues, enabled, saving, onToggleEnabled, onSave }) => {

@@ -10,6 +10,7 @@ import GeminiModelSelector from '@/renderer/pages/settings/channels/components/G
 import { CHANNEL_DEFAULT_AGENT_BACKEND, type AcpBackendAll } from '@/types/acpTypes';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
 import type { GeminiModelSelection } from '../hooks/useGeminiModelSelection';
+import { WECOM_DEV_DOCS_URL } from '../utils';
 
 /**
  * Preference row component
@@ -53,7 +54,6 @@ interface WeComConfigFormProps {
   onCredentialsChange?: (credentials: { botId: string; secret: string }) => void;
 }
 
-const WECOM_DEV_DOCS_URL = 'https://sudowork.sudoprivacy.com/guides/wecom.html';
 const WeComConfigForm: React.FC<WeComConfigFormProps> = ({ pluginStatus, modelSelection, onStatusChange, onCredentialsChange }) => {
   const { t } = useTranslation();
   const { isEnterprise } = useAppMode();

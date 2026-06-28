@@ -10,6 +10,7 @@ import type { IChannelPluginStatus } from '@/channels/types';
 import { useGeminiModelSelection, type GeminiModelSelection } from '../hooks/useGeminiModelSelection';
 import { useModelProviderList } from '../hooks/useModelProviderList';
 import type { ChannelConfig } from '../types';
+import { BUILTIN_CHANNEL_TYPES } from '../utils';
 import WeComConfigForm from './WeComConfigForm';
 import WeChatConfigForm from './WeChatConfigForm';
 import TelegramConfigForm from './TelegramConfigForm';
@@ -31,8 +32,6 @@ type ExtensionFieldSchema = {
 };
 
 type ExtensionFieldValues = Record<string, Record<string, string | number | boolean>>;
-
-const BUILTIN_CHANNEL_TYPES = new Set(['telegram', 'lark', 'dingtalk', 'wechat', 'wecom']);
 
 /**
  * Internal hook: wraps useGeminiModelSelection with ConfigStorage persistence

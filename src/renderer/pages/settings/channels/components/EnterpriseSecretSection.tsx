@@ -1,22 +1,11 @@
 import { Collapse, Input, Tooltip } from '@arco-design/web-react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import configItemDefaultIcon from '@/renderer/assets/config-item-default.svg';
 import { ConfigStorage } from '@/common/storage';
 import { useAuth } from '@/renderer/context/AuthContext';
 import type { TenantConfigItem } from '../types';
+import { resolveEnterpriseConfigItemIconUrl } from '../utils';
 import PreferenceRow from './PreferenceRow';
-
-function resolveIconUrl(iconUrl: string | null, baseUrl?: string): string {
-  if (!iconUrl) return configItemDefaultIcon;
-  if (iconUrl.startsWith('data:') || iconUrl.startsWith('http://') || iconUrl.startsWith('https://')) {
-    return iconUrl;
-  }
-  if (baseUrl) {
-    return `${baseUrl.replace(/\/+$/, '')}${iconUrl.startsWith('/') ? iconUrl : `/${iconUrl}`}`;
-  }
-  return configItemDefaultIcon;
-}
 
 const ConfigItemIcon: React.FC<{ iconUrl?: string; name: string; baseUrl?: string }> = ({ iconUrl, name, baseUrl }) => {
   const [useDefault, setUseDefault] = useState(false);
@@ -25,7 +14,7 @@ const ConfigItemIcon: React.FC<{ iconUrl?: string; name: string; baseUrl?: strin
     setUseDefault(false);
   }, [iconUrl]);
 
-  const src = useDefault ? configItemDefaultIcon : resolveIconUrl(iconUrl ?? null, baseUrl);
+  const src = useDefault ? resolveEnterpriseConfigItemIconUrl(null) : resolveEnterpriseConfigItemIconUrl(iconUrl ?? null, baseUrl);
   return <img src={src} alt={name} className='w-16px h-16px object-contain shrink-0' onError={() => setUseDefault(true)} />;
 };
 

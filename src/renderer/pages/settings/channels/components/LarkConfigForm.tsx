@@ -12,6 +12,7 @@ import GeminiModelSelector from '@/renderer/pages/settings/channels/components/G
 import { CHANNEL_DEFAULT_AGENT_BACKEND, type AcpBackendAll } from '@/types/acpTypes';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
 import type { GeminiModelSelection } from '../hooks/useGeminiModelSelection';
+import { LARK_DEV_DOCS_URL } from '../utils';
 
 const PreferenceRow: React.FC<{
   label: string;
@@ -48,8 +49,6 @@ interface LarkConfigFormProps {
   onStatusChange: (status: IChannelPluginStatus | null) => void;
   onCredentialsChange?: (creds: { appId: string; appSecret: string; encryptKey?: string; verificationToken?: string }) => void;
 }
-
-const LARK_DEV_DOCS_URL = 'https://sudowork.sudoprivacy.com/guides/feishu.html';
 
 type LarkAuthPhase = 'idle' | 'initializing' | 'app-setup' | 'qrcode' | 'success' | 'error' | 'expired';
 
