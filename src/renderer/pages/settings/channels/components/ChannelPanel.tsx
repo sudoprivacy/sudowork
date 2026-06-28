@@ -2,8 +2,8 @@ import { Input, InputNumber, Message, Select, Switch } from '@arco-design/web-re
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
-import { useGeminiModelSelection } from '@/renderer/pages/conversation/gemini/useGeminiModelSelection';
-import type { GeminiModelSelection } from '@/renderer/pages/conversation/gemini/useGeminiModelSelection';
+import { useGeminiModelSelection } from '@/renderer/pages/settings/channels/hooks/useGeminiModelSelection';
+import type { GeminiModelSelection } from '@/renderer/pages/settings/channels/hooks/useGeminiModelSelection';
 import { useModelProviderList } from '@/renderer/hooks/useModelProviderList';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { ConfigStorage } from '@/common/storage';
