@@ -11,7 +11,7 @@ const MossSessionPage = React.lazy(() => import('./pages/moss-session/MossSessio
 const About = React.lazy(() => import('./pages/settings/about'));
 const AgentSettings = React.lazy(() => import('./pages/settings/AgentSettings'));
 const DisplaySettings = React.lazy(() => import('./pages/settings/display'));
-const GeminiSettings = React.lazy(() => import('./pages/settings/GeminiSettings'));
+const GeminiSettings = React.lazy(() => import('./pages/settings/gemini'));
 const SudocodeModelSettings = React.lazy(() => import('./pages/settings/models'));
 const SkillSettings = React.lazy(() => import('./pages/settings/SkillSettings'));
 const CopilotSettings = React.lazy(() => import('./pages/settings/copilot'));
