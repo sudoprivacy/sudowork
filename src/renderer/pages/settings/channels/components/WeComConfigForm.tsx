@@ -196,7 +196,7 @@ const WeComConfigForm: React.FC<WeComConfigFormProps> = ({ pluginStatus, modelSe
   const agentOptions: Array<{ backend: AcpBackendAll; name: string; customAgentId?: string; isExtension?: boolean }> = availableAgents.length > 0 ? availableAgents : [{ backend: CHANNEL_DEFAULT_AGENT_BACKEND, name: 'Sudo Code' }];
 
   return (
-    <div className='flex flex-col gap-6 --mt-3'>
+    <div className='flex flex-col gap-6 -mt-3'>
       {/* Bot ID */}
       <PreferenceRow
         label={t('settings.wecom.botId', 'Bot ID')}
