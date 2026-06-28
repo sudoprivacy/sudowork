@@ -46,10 +46,16 @@ export function classifyLlmError(error: unknown): LlmErrorClassification {
   const message = extractErrorMessage(error);
 
   if (includesAny(message, SINGLE_REQUEST_PATTERNS)) {
+    // single_request errors mean THIS one message exceeded the model's per-request
+    // size cap (e.g. oversized image, big paste). The conversation history is fine
+    // — only the current input is too large. Setting recoverableByNewSession=false
+    // prevents callers (e.g. AcpAgent.markRuntimeContextPoisoned) from tearing
+    // down the ACP session, which would otherwise silently drop full chat history
+    // on every oversized-attach attempt.
     return {
       type: 'single_request_too_large',
-      recoverableByNewSession: true,
-      userMessage: '这次请求内容过大，超过当前模型处理限制。已为后续消息准备新的运行时上下文；如果要重试这份附件，请先压缩图片、拆分文件，或减少本次输入。',
+      recoverableByNewSession: false,
+      userMessage: '这次请求内容过大，超出当前模型单次请求限制。请压缩图片、拆分文件，或减少本次输入后重试；先前对话历史保留。',
     };
   }
 
