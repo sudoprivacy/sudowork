@@ -31,6 +31,21 @@ export interface GeminiModelSelection {
   handleSelectModel: (provider: IProvider, modelName: string) => Promise<void>;
 }
 
+export type ChannelModelConfigKey = 'assistant.telegram.defaultModel' | 'assistant.lark.defaultModel' | 'assistant.dingtalk.defaultModel' | 'assistant.wechat.defaultModel' | 'assistant.wecom.defaultModel';
+
+export type ExtensionFieldType = 'text' | 'password' | 'select' | 'number' | 'boolean';
+
+export type ExtensionFieldSchema = {
+  key: string;
+  label: string;
+  type: ExtensionFieldType;
+  required?: boolean;
+  options?: string[];
+  default?: string | number | boolean;
+};
+
+export type ExtensionFieldValues = Record<string, Record<string, string | number | boolean>>;
+
 /**
  * API response entry for a single config entry within a config item.
  */

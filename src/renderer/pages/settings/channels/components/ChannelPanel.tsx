@@ -3,13 +3,10 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
-import { ConfigStorage } from '@/common/storage';
 import { channel, webui, type IWebUIStatus } from '@/common/ipcBridge';
-import type { IProvider, TProviderWithModel } from '@/common/storage';
 import type { IChannelPluginStatus } from '@/channels/types';
-import { useGeminiModelSelection } from '../hooks/useGeminiModelSelection';
-import { useModelProviderList } from '../hooks/useModelProviderList';
-import type { ChannelConfig, GeminiModelSelection } from '../types';
+import { useChannelModelSelection } from '../hooks/useChannelModelSelection';
+import type { ChannelConfig, ExtensionFieldSchema, ExtensionFieldValues } from '../types';
 import { BUILTIN_CHANNEL_TYPES } from '../utils';
 import WeComConfigForm from './WeComConfigForm';
 import WeChatConfigForm from './WeChatConfigForm';
@@ -17,112 +14,6 @@ import TelegramConfigForm from './TelegramConfigForm';
 import LarkConfigForm from './LarkConfigForm';
 import DingTalkConfigForm from './DingTalkConfigForm';
 import ChannelItem from './ChannelItem';
-
-type ChannelModelConfigKey = 'assistant.telegram.defaultModel' | 'assistant.lark.defaultModel' | 'assistant.dingtalk.defaultModel' | 'assistant.wechat.defaultModel' | 'assistant.wecom.defaultModel';
-
-type ExtensionFieldType = 'text' | 'password' | 'select' | 'number' | 'boolean';
-
-type ExtensionFieldSchema = {
-  key: string;
-  label: string;
-  type: ExtensionFieldType;
-  required?: boolean;
-  options?: string[];
-  default?: string | number | boolean;
-};
-
-type ExtensionFieldValues = Record<string, Record<string, string | number | boolean>>;
-
-/**
- * Internal hook: wraps useGeminiModelSelection with ConfigStorage persistence
- * for a specific channel config key (e.g. 'assistant.telegram.defaultModel').
- *
- * Restoration is done by resolving the saved model reference into a full
- * TProviderWithModel and passing it as `initialModel` — this avoids triggering
- * the onSelectModel callback (and its toast) on mount.
- */
-const useChannelModelSelection = (configKey: ChannelModelConfigKey): GeminiModelSelection => {
-  const { t } = useTranslation();
-
-  // Resolve persisted model into a full TProviderWithModel for initialModel.
-  // useModelProviderList is SWR-backed so the duplicate call inside
-  // useGeminiModelSelection is deduplicated automatically.
-  const { providers } = useModelProviderList();
-  const [resolvedInitialModel, setResolvedInitialModel] = useState<TProviderWithModel | undefined>(undefined);
-  const [restored, setRestored] = useState(false);
-
-  useEffect(() => {
-    if (restored || providers.length === 0) return;
-
-    const restore = async () => {
-      try {
-        const saved = (await ConfigStorage.get(configKey)) as { id: string; useModel: string } | undefined;
-        if (!saved?.id || !saved?.useModel) {
-          // Nothing saved — mark restored so we don't keep retrying
-          setRestored(true);
-          return;
-        }
-
-        const provider = providers.find((p) => p.id === saved.id);
-        if (!provider) {
-          // Provider not found in current list — don't mark as restored.
-          // The Google Auth provider may load after API-key providers;
-          // leaving restored=false lets this effect re-run when providers update.
-          return;
-        }
-
-        // Google Auth provider's model array only contains top-level modes
-        // ('auto', 'auto-gemini-2.5', 'manual'), but sub-model values like
-        // 'gemini-2.5-flash' are also valid — skip strict membership check.
-        const isGoogleAuth = provider.platform?.toLowerCase().includes('gemini-with-google-auth');
-        if (isGoogleAuth || provider.model?.includes(saved.useModel)) {
-          setResolvedInitialModel({
-            ...provider,
-            useModel: saved.useModel,
-          } as TProviderWithModel);
-        }
-        setRestored(true);
-      } catch (error) {
-        console.error(`[ChannelSettings] Failed to restore model for ${configKey}:`, error);
-        setRestored(true);
-      }
-    };
-
-    void restore();
-  }, [configKey, providers, restored]);
-
-  // Only called on explicit user selection — not during restoration
-  const onSelectModel = useCallback(
-    async (provider: IProvider, modelName: string) => {
-      try {
-        const modelRef = { id: provider.id, useModel: modelName };
-        await ConfigStorage.set(configKey, modelRef);
-
-        // Derive platform from configKey and sync to channel system
-        const platform = configKey.replace('assistant.', '').replace('.defaultModel', '') as 'telegram' | 'lark' | 'dingtalk' | 'wechat';
-        const agentKey = `assistant.${platform}.agent` as const;
-        const currentAgent = await ConfigStorage.get(agentKey);
-        await channel.syncChannelSettings
-          .invoke({
-            platform,
-            agent: (currentAgent as { backend: string; customAgentId?: string; name?: string }) || { backend: 'gemini' },
-            model: modelRef,
-          })
-          .catch((err) => console.warn(`[ChannelSettings] syncChannelSettings failed for ${platform}:`, err));
-
-        // Toast notification is handled by useGeminiModelSelection hook
-        return true;
-      } catch (error) {
-        console.error(`[ChannelSettings] Failed to save model for ${configKey}:`, error);
-        Message.error(t('settings.assistant.modelSaveFailed', 'Failed to save model'));
-        return false;
-      }
-    },
-    [configKey, t]
-  );
-
-  return useGeminiModelSelection({ initialModel: resolvedInitialModel, onSelectModel });
-};
 
 /**
  * Assistant Settings Content Component
