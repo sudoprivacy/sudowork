@@ -12,23 +12,7 @@ import { useAppMode } from '@/renderer/hooks/useAppMode';
 import type { GeminiModelSelection } from '../types';
 import { WECHAT_GUIDE_URL } from '../utils';
 import GeminiModelSelector from './GeminiModelSelector';
-
-/**
- * Preference row component (matches DingTalk pattern)
- */
-const PreferenceRow: React.FC<{
-  label: string;
-  description?: React.ReactNode;
-  children: React.ReactNode;
-}> = ({ label, description, children }) => (
-  <div className='flex items-center justify-between gap-24px py-12px'>
-    <div className='flex-1'>
-      <span className='text-14px text-foreground'>{label}</span>
-      {description && <div className='text-12px text-secondary mt-2px'>{description}</div>}
-    </div>
-    <div className='flex items-center'>{children}</div>
-  </div>
-);
+import PreferenceRow from './PreferenceRow';
 
 interface WeChatConfigFormProps {
   pluginStatus: IChannelPluginStatus | null;

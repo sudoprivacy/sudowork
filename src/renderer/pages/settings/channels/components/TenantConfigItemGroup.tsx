@@ -158,7 +158,7 @@ const TenantConfigItemGroup: React.FC<TenantConfigItemGroupProps> = ({ configIte
           name={`tenant-${configItem.id}`}
           className='[&_div.arco-collapse-item-content-box]:px-12px [&_div.arco-collapse-item-content-box]:pb-12px [&_div.arco-collapse-item-content-box]:pt-0 md:[&_div.arco-collapse-item-content-box]:px-16px'
         >
-          <div className='flex flex-col gap-16px border-t pt-12px'>
+          <div className='flex flex-col gap-16px pt-12px'>
             <div className='bg-fill-1 rd-12px pt-16px pr-16px pb-16px pl-0'>
               {configItem.entries.map((entry) => (
                 <PreferenceRow key={entry.id} label={entry.name} description={entry.config_desc || undefined} required={entry.required === 1}>

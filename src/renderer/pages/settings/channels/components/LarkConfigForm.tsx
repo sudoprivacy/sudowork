@@ -13,28 +13,7 @@ import { useAppMode } from '@/renderer/hooks/useAppMode';
 import type { GeminiModelSelection } from '../types';
 import { LARK_DEV_DOCS_URL } from '../utils';
 import GeminiModelSelector from './GeminiModelSelector';
-
-const PreferenceRow: React.FC<{
-  label: string;
-  description?: React.ReactNode;
-  extra?: React.ReactNode;
-  required?: boolean;
-  children: React.ReactNode;
-}> = ({ label, description, extra, required, children }) => (
-  <div className='flex items-center justify-between gap-24px py-12px'>
-    <div className='flex-1'>
-      <div className='flex items-center gap-8px'>
-        <span className='text-14px text-foreground'>
-          {label}
-          {required && <span className='text-red-500 ml-2px'>*</span>}
-        </span>
-        {extra}
-      </div>
-      {description && <div className='text-12px text-secondary mt-2px'>{description}</div>}
-    </div>
-    <div className='flex items-center'>{children}</div>
-  </div>
-);
+import PreferenceRow from './PreferenceRow';
 
 const SectionHeader: React.FC<{ title: string; action?: React.ReactNode }> = ({ title, action }) => (
   <div className='flex items-center justify-between mb-12px'>
@@ -537,7 +516,7 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
     <div className='flex flex-col gap-24px'>
       {/* Consumer mode: QR Login (replaces manual App ID / App Secret entry) */}
       {!isEnterprise && (
-        <div className='flex flex-col gap-8px'>
+        <div className='flex flex-col gap-8px mt-4'>
           <SectionHeader title={t('settings.lark.larkCli.title', '扫码登录飞书')} />
           <div className='text-12px text-secondary'>{t('settings.lark.larkCli.description', '扫码自动完成飞书应用创建与授权登录，无需手动填写 App ID 与 App Secret。')}</div>
           {larkAuthLoggedInUser ? (
