@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Table, Button, Tabs, Tag, Space, Message, Modal, Badge } from '@arco-design/web-react';
 import { IconDelete } from '@arco-design/web-react/icon';
-import { User, Peoples } from '@icon-park/react';
+import { User, Users } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
 import PageWrapper from '@renderer/components/base/PageWrapper';
@@ -134,7 +134,7 @@ const MemberManagement: React.FC = () => {
       dataIndex: 'nickname',
       render: (val: string) => (
         <Space>
-          <User theme='outline' size='14' />
+          <User size={14} />
           <span className='font-500'>{val}</span>
         </Space>
       ),
@@ -188,7 +188,7 @@ const MemberManagement: React.FC = () => {
       actions={
         <Badge count={pendingUsers.length} dot={pendingUsers.length > 0} className='mt-1'>
           <div className='p-2 bg-control rd-8px'>
-            <Peoples size='20' className='text-secondary' />
+            <Users size={20} className='text-secondary' />
           </div>
         </Badge>
       }
