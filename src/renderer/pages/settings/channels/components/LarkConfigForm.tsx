@@ -10,7 +10,7 @@ import { ConfigStorage } from '@/common/storage';
 import { openExternalUrl } from '@/renderer/utils/platform';
 import { CHANNEL_DEFAULT_AGENT_BACKEND, type AcpBackendAll } from '@/types/acpTypes';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
-import type { GeminiModelSelection } from '../types';
+import type { GeminiModelSelection, LarkAuthPhase } from '../types';
 import { LARK_DEV_DOCS_URL } from '../utils';
 import GeminiModelSelector from './GeminiModelSelector';
 import PreferenceRow from './PreferenceRow';
@@ -22,8 +22,6 @@ interface LarkConfigFormProps {
   onStatusChange: (status: IChannelPluginStatus | null) => void;
   onCredentialsChange?: (creds: { appId: string; appSecret: string; encryptKey?: string; verificationToken?: string }) => void;
 }
-
-type LarkAuthPhase = 'idle' | 'initializing' | 'app-setup' | 'qrcode' | 'success' | 'error' | 'expired';
 
 const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSelection, onStatusChange, onCredentialsChange }) => {
   const { t } = useTranslation();

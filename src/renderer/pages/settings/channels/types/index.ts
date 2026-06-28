@@ -46,6 +46,10 @@ export type ExtensionFieldSchema = {
 
 export type ExtensionFieldValues = Record<string, Record<string, string | number | boolean>>;
 
+export type LoginPhase = 'idle' | 'loading' | 'qrcode' | 'scanned' | 'success' | 'error';
+
+export type LarkAuthPhase = 'idle' | 'initializing' | 'app-setup' | 'qrcode' | 'success' | 'error' | 'expired';
+
 /**
  * API response entry for a single config entry within a config item.
  */

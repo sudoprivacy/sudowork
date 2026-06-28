@@ -9,7 +9,7 @@ import { acpConversation, channel } from '@/common/ipcBridge';
 import { ConfigStorage } from '@/common/storage';
 import { CHANNEL_DEFAULT_AGENT_BACKEND, type AcpBackendAll } from '@/types/acpTypes';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
-import type { GeminiModelSelection } from '../types';
+import type { GeminiModelSelection, LoginPhase } from '../types';
 import { WECHAT_GUIDE_URL } from '../utils';
 import GeminiModelSelector from './GeminiModelSelector';
 import PreferenceRow from './PreferenceRow';
@@ -19,8 +19,6 @@ interface WeChatConfigFormProps {
   modelSelection: GeminiModelSelection;
   onStatusChange?: (status: IChannelPluginStatus | null) => void;
 }
-
-type LoginPhase = 'idle' | 'loading' | 'qrcode' | 'scanned' | 'success' | 'error';
 
 const WeChatConfigForm: React.FC<WeChatConfigFormProps> = ({ pluginStatus, modelSelection, onStatusChange }) => {
   const { t } = useTranslation();
