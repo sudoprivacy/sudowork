@@ -858,7 +858,7 @@ const ChannelModalContent: React.FC = () => {
 
   return (
     <AionScrollArea className='h-full'>
-      <div className={'mx-auto w-full max-w-820px pb-18px px-12px sm:px-16px md:px-0'}>
+      <div className={'w-full pb-18px px-12px sm:px-16px md:px-0'}>
         <h2 className='text-20px font-600 text-foreground m-0'>{t('settings.channels.title', 'Channels')}</h2>
         <div className='space-y-8px mt-8px'>
           <div className='text-13px text-secondary leading-relaxed'>{channelGuideText}</div>

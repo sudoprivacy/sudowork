@@ -35,7 +35,7 @@ const SecretModalContent: React.FC = () => {
   return (
     <AionScrollArea className='h-full'>
       <div className='px-12px sm:px-16px md:px-0 pb-18px'>
-        <div className='max-w-820px mx-auto w-full'>
+        <div className='w-full'>
           <div className='flex items-center justify-between mb-12px'>
             <h2 className='text-20px font-600 text-foreground m-0'>{t('settings.secrets.title', '秘钥管理')}</h2>
             <button onClick={handleRefresh} className='cursor-pointer p-4px rd-6px border-none bg-transparent hover:bg-fill-2 transition-colors' title={t('settings.secrets.refresh', '刷新配置项')}>
