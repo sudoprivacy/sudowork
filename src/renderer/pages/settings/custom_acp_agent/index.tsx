@@ -178,7 +178,7 @@ const CustomAcpAgent: React.FC<CustomAcpAgentProps> = ({ message }) => {
           ) : (
             <div className='space-y-2'>
               {customAgents.map((agent) => (
-                <div key={agent.id} className='p-4 bg-fill-2 rounded-lg'>
+                <div key={agent.id} className='p-4 bg-muted rounded-lg'>
                   <div className='flex items-center justify-between mb-2'>
                     <div className='font-medium'>{agent.name || 'Custom Agent'}</div>
                     <div className='flex gap-2'>
