@@ -84,7 +84,6 @@ export default defineConfig({
         'src/common/chatLib.ts',
         'src/common/nexus/hubErrors.ts',
         'src/common/runtime-errors.ts',
-        'src/common/image-attachment-guard.ts',
         'src/common/nexusFiles.ts',
         'src/common/scodeConfig.ts',
         'src/common/slash/sudoworkCommands.ts',
