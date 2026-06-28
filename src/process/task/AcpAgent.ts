@@ -1323,7 +1323,12 @@ This identity statement takes priority over the default identity in USER.md.
         retryable = true;
       }
 
-      this.emitErrorMessage(classification.type === 'unknown' ? translateLLMError(errorMsg) : classification.userMessage);
+      // Pass classification.type as errorClass when it's a known runtime error class —
+      // the renderer routes to a differentiated RuntimeErrorBanner per class (PR-B).
+      // For 'unknown' we send no errorClass so renderer falls back to the legacy
+      // plain-text tip path.
+      const runtimeErrorMeta = classification.type !== 'unknown' ? { errorClass: classification.type } : undefined;
+      this.emitErrorMessage(classification.type === 'unknown' ? translateLLMError(errorMsg) : classification.userMessage, true, runtimeErrorMeta);
 
       // Breadcrumb: API response error
       apiBreadcrumbs.responseError(`session/prompt`, errorType === AcpErrorType.TIMEOUT ? 408 : 500, errorMsg);
@@ -3519,7 +3524,7 @@ This identity statement takes priority over the default identity in USER.md.
     });
   }
 
-  private emitErrorMessage(error: string, withFinish: boolean = true): void {
+  private emitErrorMessage(error: string, withFinish: boolean = true, classification?: { errorClass: string; errorBytes?: number }): void {
     const errorMessage: TMessage = {
       id: uuid(),
       conversation_id: this.conversation_id,
@@ -3529,6 +3534,8 @@ This identity statement takes priority over the default identity in USER.md.
       content: {
         content: error,
         type: 'error',
+        ...(classification?.errorClass ? { errorClass: classification.errorClass } : {}),
+        ...(classification?.errorBytes !== undefined ? { errorBytes: classification.errorBytes } : {}),
       },
     };
     this.emitMessage(errorMessage);

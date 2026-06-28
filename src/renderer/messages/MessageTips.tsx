@@ -11,6 +11,7 @@ import React, { useMemo } from 'react';
 import type { IMessageTips } from '@/common/chatLib';
 import MarkdownView from '../components/Markdown';
 import CollapsibleContent from '../components/CollapsibleContent';
+import RuntimeErrorBanner from './RuntimeErrorBanner';
 
 const icon = {
   success: <CheckOne theme='filled' size='16' fill={theme.Color.FunctionalColor.success} className='m-t-2px' />,
@@ -33,8 +34,16 @@ const useFormatContent = (content: string) => {
 };
 
 const MessageTips: React.FC<{ message: IMessageTips }> = ({ message }) => {
-  const { content, type } = message.content;
+  const { content, type, errorClass, errorBytes } = message.content;
+  // Hooks must run unconditionally — call before any early return.
   const { json, data } = useFormatContent(content);
+
+  // Classified runtime error → render the differentiated banner.
+  // Falls back to the legacy text tip if the renderer doesn't recognise
+  // the errorClass (RuntimeErrorBanner handles that defensively).
+  if (type === 'error' && errorClass) {
+    return <RuntimeErrorBanner errorClass={errorClass} errorBytes={errorBytes} fallbackContent={content} />;
+  }
 
   const displayContent = json ? '' : content;
 
