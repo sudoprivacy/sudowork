@@ -526,12 +526,12 @@ const ChannelPanel: React.FC = () => {
           {status.extensionMeta?.description && <div className='text-13px text-secondary leading-relaxed'>{status.extensionMeta.description}</div>}
           {pluginType === 'ext-wecom-bot' && (
             <div className='text-12px leading-relaxed p-10px rd-8px bg-[rgba(var(--orange-6),0.08)] border border-[rgba(var(--orange-6),0.3)] text-secondary'>
-              <div className='font-500 text-foreground mb-6px'>企微回调地址说明</div>
-              <div>本机 Callback URL: {localCallbackUrl}</div>
-              {lanCallbackUrl ? <div>局域网 Callback URL: {lanCallbackUrl}</div> : null}
-              {publicCallbackUrl ? <div>公网 Callback URL(配置值): {publicCallbackUrl}</div> : null}
-              <div className='mt-6px'>仅开启 WebUI 远程访问（LAN）通常不能直接通过企微回调。企微服务器需要可访问的公网 HTTPS 地址。</div>
-              <div>建议：使用反向代理 + 证书，或 Cloudflare Tunnel / ngrok 映射到本机。</div>
+              <div className='font-500 text-foreground mb-6px'>{t('settings.channels.extension.wecomCallbackTitle', '企微回调地址说明')}</div>
+              <div>{t('settings.channels.extension.localCallbackUrl', { url: localCallbackUrl, defaultValue: '本机 Callback URL: {{url}}' })}</div>
+              {lanCallbackUrl ? <div>{t('settings.channels.extension.lanCallbackUrl', { url: lanCallbackUrl, defaultValue: '局域网 Callback URL: {{url}}' })}</div> : null}
+              {publicCallbackUrl ? <div>{t('settings.channels.extension.publicCallbackUrl', { url: publicCallbackUrl, defaultValue: '公网 Callback URL(配置值): {{url}}' })}</div> : null}
+              <div className='mt-6px'>{t('settings.channels.extension.wecomCallbackRemoteHint', '仅开启 WebUI 远程访问（LAN）通常不能直接通过企微回调。企微服务器需要可访问的公网 HTTPS 地址。')}</div>
+              <div>{t('settings.channels.extension.wecomCallbackSuggestion', '建议：使用反向代理 + 证书，或 Cloudflare Tunnel / ngrok 映射到本机。')}</div>
             </div>
           )}
           {fields.map((field) => {

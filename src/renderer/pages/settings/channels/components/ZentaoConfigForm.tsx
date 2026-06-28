@@ -208,11 +208,11 @@ const ZentaoConfigForm: React.FC<{ pluginStatus?: IChannelPluginStatus | null; o
           {pluginStatus?.error && <div className='text-14px text-red-600 dark:text-red-400 mb-12px'>{pluginStatus.error}</div>}
           {pluginStatus?.connected && (
             <div className='text-14px text-secondary space-y-8px'>
-              <p className='m-0 font-500'>下一步操作：</p>
-              <p className='m-0'>可以和 Sudoclaw 对话，直接使用禅道技能进行项目问题的跟踪与处理。</p>
+              <p className='m-0 font-500'>{t('settings.assistant.nextSteps', '下一步操作')}:</p>
+              <p className='m-0'>{t('settings.zentao.nextStepsText', '可以和 Sudoclaw 对话，直接使用禅道技能进行项目问题的跟踪与处理。')}</p>
             </div>
           )}
-          {!pluginStatus?.connected && !pluginStatus?.error && <div className='text-14px text-secondary'>正在建立连接，请稍候...</div>}
+          {!pluginStatus?.connected && !pluginStatus?.error && <div className='text-14px text-secondary'>{t('settings.zentao.waitingConnection', '正在建立连接，请稍候...')}</div>}
         </div>
       )}
     </div>

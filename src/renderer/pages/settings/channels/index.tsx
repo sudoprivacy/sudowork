@@ -27,7 +27,7 @@ const Page: React.FC = () => {
               title={
                 <span data-webui-tab='channels' className={`inline-flex items-center gap-6px leading-none transition-colors ${activeTab === 'channels' ? 'text-foreground font-600' : 'text-secondary'}`}>
                   <Communication theme='outline' size='15' />
-                  <span>Channels</span>
+                  <span>{t('settings.channels.title', '渠道配置')}</span>
                   <span className='inline-flex items-center gap-4px ml-2px'>
                     {CHANNEL_LOGOS.map((item) => (
                       <span key={item.alt} className='inline-flex items-center justify-center w-16px h-16px' title={item.alt} aria-label={item.alt}>

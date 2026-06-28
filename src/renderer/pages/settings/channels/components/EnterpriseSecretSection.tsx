@@ -18,8 +18,6 @@ const ConfigItemIcon: React.FC<{ iconUrl?: string; name: string; baseUrl?: strin
   return <img src={src} alt={name} className='w-16px h-16px object-contain shrink-0' onError={() => setUseDefault(true)} />;
 };
 
-const LOCKED_TIP = '企业凭据禁止操作';
-
 export const EnterpriseSecretSection: React.FC = () => {
   const { t } = useTranslation();
   const { ensureValidToken, user } = useAuth();
@@ -87,7 +85,7 @@ export const EnterpriseSecretSection: React.FC = () => {
               <div className='space-y-12px border-t pt-12px'>
                 {item.entries.map((entry) => (
                   <PreferenceRow key={entry.id} label={entry.name} description={entry.config_desc || undefined} required={entry.required === 1}>
-                    <Tooltip content={LOCKED_TIP}>
+                    <Tooltip content={t('settings.secrets.enterprise.lockedTip', '企业凭据禁止操作')}>
                       <Input.Password value='••••••••' style={{ width: 240 }} disabled />
                     </Tooltip>
                   </PreferenceRow>

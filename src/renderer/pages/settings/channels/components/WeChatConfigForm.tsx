@@ -230,7 +230,7 @@ const WeChatConfigForm: React.FC<WeChatConfigFormProps> = ({ pluginStatus, model
               openExternalUrl(WECHAT_GUIDE_URL).catch(console.error);
             }}
           >
-            跟随教程
+            {t('settings.channels.wechat.guideLink', '跟随教程')}
           </a>
         </div>
         <Button type='primary' onClick={handleStartLogin} className='self-start'>

@@ -161,7 +161,13 @@ const TenantConfigItemGroup: React.FC<TenantConfigItemGroupProps> = ({ configIte
             <div className='bg-fill-1 rd-12px pt-16px px-4 pb-16px'>
               {configItem.entries.map((entry) => (
                 <PreferenceRow key={entry.id} label={entry.name} description={entry.config_desc || undefined} required={entry.required === 1}>
-                  <Input.Password value={localValues[entry.config_key] || ''} onChange={(val) => handleValueChange(entry.config_key, val)} placeholder={`请输入${entry.name}`} style={{ width: 240 }} disabled={saving} />
+                  <Input.Password
+                    value={localValues[entry.config_key] || ''}
+                    onChange={(val) => handleValueChange(entry.config_key, val)}
+                    placeholder={t('settings.secrets.tenantValuePlaceholder', { entryName: entry.name, defaultValue: '请输入{{entryName}}' })}
+                    style={{ width: 240 }}
+                    disabled={saving}
+                  />
                 </PreferenceRow>
               ))}
             </div>

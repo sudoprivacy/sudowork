@@ -99,5 +99,6 @@
     "newConversation": "新しい会話",
     "openFolder": "フォルダを開く",
     "addSkill": "スキルを追加"
-  }
+  },
+  "enabled": "有効"
 }
