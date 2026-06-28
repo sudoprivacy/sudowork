@@ -272,10 +272,10 @@ const CustomAcpAgentModal: React.FC<CustomAcpAgentModalProps> = ({ visible, agen
                   return (
                     <div
                       key={detectedAgent.cliPath}
-                      className={`p-2.5 rounded-lg cursor-pointer transition-all flex items-center gap-2 relative border ${isSelected ? 'bg-muted border-primary' : 'bg-muted border-transparent hover:bg-subtle hover:border-light'}`}
+                      className={`p-2.5 rd-8px cursor-pointer transition-all flex items-center gap-2 relative border ${isSelected ? 'bg-muted border-primary' : 'bg-muted border-transparent hover:bg-subtle hover:border-light'}`}
                       onClick={() => handleSelectCli(detectedAgent.cliPath || '')}
                     >
-                      {logo && <img src={logo} alt={`${detectedAgent.name} logo`} className='w-6 h-6 object-contain flex-shrink-0' />}
+                      {logo && <img src={logo} alt={`${detectedAgent.name} logo`} className='size-6 object-contain flex-shrink-0' />}
                       <div className='min-w-0 flex-1'>
                         <div className='font-medium text-sm text-foreground'>{detectedAgent.name}</div>
                       </div>
@@ -326,13 +326,7 @@ const CustomAcpAgentModal: React.FC<CustomAcpAgentModalProps> = ({ visible, agen
                     dropCursor: false,
                     allowMultipleSelections: false,
                   }}
-                  style={{
-                    fontSize: '12px',
-                    border: validation.isValid || !jsonInput.trim() ? '1px solid var(--color-border-2)' : '1px solid var(--danger)',
-                    borderRadius: '6px',
-                    overflow: 'hidden',
-                  }}
-                  className='[&_.cm-editor]:rounded-[6px]'
+                  className={`text-12px border ${validation.isValid || !jsonInput.trim() ? 'border-light' : 'border-danger'} rd-6px overflow-hidden [&_.cm-editor]:rd-6px`}
                 />
                 {!validation.isValid && jsonInput.trim() && <div className='mt-2 text-xs text-danger'>{validation.errorMessage}</div>}
               </div>

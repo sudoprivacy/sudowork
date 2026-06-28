@@ -1,4 +1,4 @@
-import { Button, Collapse, Modal } from '@arco-design/web-react';
+import { Button, Collapse, Message, Modal } from '@arco-design/web-react';
 import { IconPlus, IconEdit, IconDelete } from '@arco-design/web-react/icon';
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -8,11 +8,7 @@ import type { AcpBackendConfig } from '@/types/acpTypes';
 import { acpConversation } from '@/common/ipcBridge';
 import CustomAcpAgentModal from './components/CustomAcpAgentModal';
 
-interface CustomAcpAgentProps {
-  message: ReturnType<typeof import('@arco-design/web-react').Message.useMessage>[0];
-}
-
-const CustomAcpAgent: React.FC<CustomAcpAgentProps> = ({ message }) => {
+const CustomAcpAgent: React.FC = () => {
   const { t } = useTranslation();
   const [customAgents, setCustomAgents] = useState<AcpBackendConfig[]>([]);
   const [showModal, setShowModal] = useState(false);
@@ -101,15 +97,15 @@ const CustomAcpAgent: React.FC<CustomAcpAgentProps> = ({ message }) => {
         setCustomAgents(updatedAgents);
         setShowModal(false);
         setEditingAgent(null);
-        message.success(t('settings.customAcpAgentSaved', '自定义代理已保存'));
+        Message.success(t('settings.customAcpAgentSaved', '自定义代理已保存'));
 
         await refreshAgentDetection();
       } catch (error) {
         console.error('Failed to save custom agent config:', error);
-        message.error(t('settings.customAcpAgentSaveFailed', '保存自定义代理失败'));
+        Message.error(t('settings.customAcpAgentSaveFailed', '保存自定义代理失败'));
       }
     },
-    [customAgents, editingAgent, message, t, refreshAgentDetection]
+    [customAgents, editingAgent, t, refreshAgentDetection]
   );
 
   /**
@@ -126,14 +122,14 @@ const CustomAcpAgent: React.FC<CustomAcpAgentProps> = ({ message }) => {
       setCustomAgents(updatedAgents);
       setDeleteConfirmVisible(false);
       setAgentToDelete(null);
-      message.success(t('settings.customAcpAgentDeleted', '自定义代理已删除'));
+      Message.success(t('settings.customAcpAgentDeleted', '自定义代理已删除'));
 
       await refreshAgentDetection();
     } catch (error) {
       console.error('Failed to delete custom agent config:', error);
-      message.error(t('settings.customAcpAgentDeleteFailed', '删除自定义代理失败'));
+      Message.error(t('settings.customAcpAgentDeleteFailed', '删除自定义代理失败'));
     }
-  }, [agentToDelete, customAgents, message, t, refreshAgentDetection]);
+  }, [agentToDelete, customAgents, t, refreshAgentDetection]);
 
   const handleAddNew = useCallback(() => {
     setEditingAgent(null);
@@ -153,7 +149,7 @@ const CustomAcpAgent: React.FC<CustomAcpAgentProps> = ({ message }) => {
   return (
     <div>
       <Collapse.Item
-        className={' [&_div.arco-collapse-item-header-title]:flex-1'}
+        className='[&_div.arco-collapse-item-header-title]:flex-1'
         header={
           <div className='flex items-center justify-between'>
             {t('settings.customAcpAgent', '自定义 ACP 代理')}
@@ -178,7 +174,7 @@ const CustomAcpAgent: React.FC<CustomAcpAgentProps> = ({ message }) => {
           ) : (
             <div className='space-y-2'>
               {customAgents.map((agent) => (
-                <div key={agent.id} className='p-4 bg-muted rounded-lg'>
+                <div key={agent.id} className='p-4 bg-muted rd-8px'>
                   <div className='flex items-center justify-between mb-2'>
                     <div className='font-medium'>{agent.name || t('settings.customAgentDefaultName', '自定义代理')}</div>
                     <div className='flex gap-2'>
