@@ -8,7 +8,7 @@ import { getModelDisplayLabel } from '@/renderer/utils/agentUiDisplay';
 import { usePreviewContext } from '@/renderer/pages/conversation/preview';
 import { ipcBridge } from '@/common';
 import type { IProvider } from '@/common/storage';
-import type { GeminiModelSelection } from '../hooks/useGeminiModelSelection';
+import type { GeminiModelSelection } from '../types';
 
 // Unified model dropdown for chat header, send box, and channel settings
 const GeminiModelSelector: React.FC<{

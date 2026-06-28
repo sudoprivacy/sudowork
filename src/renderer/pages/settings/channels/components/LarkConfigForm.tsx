@@ -11,7 +11,7 @@ import { openExternalUrl } from '@/renderer/utils/platform';
 import GeminiModelSelector from '@/renderer/pages/settings/channels/components/GeminiModelSelector';
 import { CHANNEL_DEFAULT_AGENT_BACKEND, type AcpBackendAll } from '@/types/acpTypes';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
-import type { GeminiModelSelection } from '../hooks/useGeminiModelSelection';
+import type { GeminiModelSelection } from '../types';
 import { LARK_DEV_DOCS_URL } from '../utils';
 
 const PreferenceRow: React.FC<{

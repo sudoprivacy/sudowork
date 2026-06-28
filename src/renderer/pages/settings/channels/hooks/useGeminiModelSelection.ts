@@ -2,18 +2,8 @@ import { Message } from '@arco-design/web-react';
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { IProvider, TProviderWithModel } from '@/common/storage';
-import type { GeminiModeOption } from '@/renderer/hooks/useModeModeList';
+import type { GeminiModelSelection } from '../types';
 import { useModelProviderList } from './useModelProviderList';
-
-export interface GeminiModelSelection {
-  currentModel?: TProviderWithModel;
-  providers: IProvider[];
-  geminiModeLookup: Map<string, GeminiModeOption>;
-  formatModelLabel: (provider?: { platform?: string }, modelName?: string) => string;
-  getDisplayModelName: (modelName?: string) => string;
-  getAvailableModels: (provider: IProvider) => string[];
-  handleSelectModel: (provider: IProvider, modelName: string) => Promise<void>;
-}
 
 export interface UseGeminiModelSelectionOptions {
   initialModel: TProviderWithModel | undefined;

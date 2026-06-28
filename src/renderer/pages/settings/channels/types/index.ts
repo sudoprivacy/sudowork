@@ -1,4 +1,6 @@
 import type { ReactNode } from 'react';
+import type { IProvider, TProviderWithModel } from '@/common/storage';
+import type { GeminiModeOption } from '@/renderer/hooks/useModeModeList';
 
 export type ChannelStatus = 'active' | 'coming_soon';
 
@@ -17,6 +19,16 @@ export interface ChannelConfig {
   /** Whether this channel comes from an extension (shows blue 'ext' badge) */
   isExtension?: boolean;
   content: ReactNode;
+}
+
+export interface GeminiModelSelection {
+  currentModel?: TProviderWithModel;
+  providers: IProvider[];
+  geminiModeLookup: Map<string, GeminiModeOption>;
+  formatModelLabel: (provider?: { platform?: string }, modelName?: string) => string;
+  getDisplayModelName: (modelName?: string) => string;
+  getAvailableModels: (provider: IProvider) => string[];
+  handleSelectModel: (provider: IProvider, modelName: string) => Promise<void>;
 }
 
 /**

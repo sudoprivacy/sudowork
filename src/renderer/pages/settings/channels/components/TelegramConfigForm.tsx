@@ -9,7 +9,7 @@ import { ConfigStorage } from '@/common/storage';
 import GeminiModelSelector from '@/renderer/pages/settings/channels/components/GeminiModelSelector';
 import { CHANNEL_DEFAULT_AGENT_BACKEND, type AcpBackendAll } from '@/types/acpTypes';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
-import type { GeminiModelSelection } from '../hooks/useGeminiModelSelection';
+import type { GeminiModelSelection } from '../types';
 
 /**
  * Preference row component
