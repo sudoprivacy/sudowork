@@ -4,8 +4,8 @@ import { ipcBridge } from '@/common';
 import { GOOGLE_AUTH_PROVIDER_ID } from '@/common/constants';
 import type { IProvider } from '@/common/storage';
 import { hasSpecificModelCapability } from '@/renderer/utils/modelCapabilities';
-import { useGeminiGoogleAuthModels } from './useGeminiGoogleAuthModels';
-import type { GeminiModeOption } from './useModeModeList';
+import { useGeminiGoogleAuthModels } from '@/renderer/hooks/useGeminiGoogleAuthModels';
+import type { GeminiModeOption } from '@/renderer/hooks/useModeModeList';
 
 export interface ModelProviderListResult {
   providers: IProvider[];

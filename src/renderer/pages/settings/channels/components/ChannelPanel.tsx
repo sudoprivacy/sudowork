@@ -2,13 +2,13 @@ import { Input, InputNumber, Message, Select, Switch } from '@arco-design/web-re
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
-import { useModelProviderList } from '@/renderer/hooks/useModelProviderList';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { ConfigStorage } from '@/common/storage';
 import { channel, webui, type IWebUIStatus } from '@/common/ipcBridge';
 import type { IProvider, TProviderWithModel } from '@/common/storage';
 import type { IChannelPluginStatus } from '@/channels/types';
 import { useGeminiModelSelection, type GeminiModelSelection } from '../hooks/useGeminiModelSelection';
+import { useModelProviderList } from '../hooks/useModelProviderList';
 import type { ChannelConfig } from '../types';
 import WeComConfigForm from './WeComConfigForm';
 import WeChatConfigForm from './WeChatConfigForm';

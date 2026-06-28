@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { IProvider, TProviderWithModel } from '@/common/storage';
 import type { GeminiModeOption } from '@/renderer/hooks/useModeModeList';
-import { useModelProviderList } from '@/renderer/hooks/useModelProviderList';
+import { useModelProviderList } from './useModelProviderList';
 
 export interface GeminiModelSelection {
   currentModel?: TProviderWithModel;
