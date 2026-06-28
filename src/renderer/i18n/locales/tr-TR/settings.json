@@ -776,5 +776,8 @@
   "exportLogsDesc": "Tüm sudowork ve scode günlüklerini tek bir zip dosyasında paketler.",
   "exportLogsSuccess": "Günlükler başarıyla dışa aktarıldı",
   "exportLogsFailed": "Günlükler dışa aktarılamadı",
-  "exportLogsEmpty": "Dışa aktarılacak günlük yok"
+  "exportLogsEmpty": "Dışa aktarılacak günlük yok",
+  "hubEmpty.tokenMissing": "Skill Hub yapılandırılmamış — sudowork-server oturum durumunuzu kontrol edin",
+  "hubEmpty.fetchFailed": "Getirme başarısız, lütfen tekrar deneyin",
+  "hubEmpty.retry": "Tekrar dene"
 }

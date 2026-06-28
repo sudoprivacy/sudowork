@@ -229,6 +229,19 @@ async function main() {
   }
 
   console.log(`[cdp-dev-shim-smoke] PASS — outcome=${outcome}, installing=false`);
+
+  // NOTE: a prior revision of this script also navigated to /skill-store
+  // and asserted the HubEmptyState testid (PR #940). It was removed
+  // after one CI run because CI's clean profile shows a setup/login
+  // wizard, not the main sidebar — the assumption that 技能商店 is
+  // clickable doesn't hold. Adding a "skip-auth dev shim" to make it
+  // reachable would be a boundary leak (per
+  // feedback_pr_merge_hygiene + fuseT.integration.test guards).
+  // Wiring coverage for that path now lives in
+  // tests/unit/SkillModalContent.integration.dom.test.tsx — jsdom +
+  // mocked bridge — which tests the same render path without
+  // requiring app navigation. Real-app-with-auth e2e remains a
+  // follow-up gated on CI auth plumbing.
 }
 
 main().catch((err) => {

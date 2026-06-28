@@ -21,6 +21,7 @@ import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
 import { ASSISTANTS_ROOT_DIR, ENTERPRISE_ASSISTANT_SUBDIRS } from '@/process/constants/enterpriseStorage';
 import { getSkillHubBaseUrl } from '@/common/systemConfig';
 import { getSkillhubToken } from '@/process/credentialsCache';
+import { tokenMissingResponse } from '@common/nexus/hubErrors';
 
 const { existsSync } = fsSync;
 
@@ -441,7 +442,7 @@ export function initAssistantHubBridge(): void {
       const token = getSkillhubToken();
       if (!token) {
         mainError('AssistantHub', 'skillhub token not provisioned, skip fetchAssistants');
-        return { success: false, msg: 'skillhub token missing' };
+        return tokenMissingResponse('assistantHub');
       }
       const response = await fetch(`${getSkillHubBaseUrl()}/api/assistants/cursor?${params}`, {
         headers: { Authorization: token },
@@ -537,7 +538,7 @@ export function initAssistantHubBridge(): void {
       const token = getSkillhubToken();
       if (!token) {
         mainError('AssistantHub', 'skillhub token not provisioned, skip fetchCategories');
-        return { success: false, msg: 'skillhub token missing' };
+        return tokenMissingResponse('assistantHub');
       }
       const response = await fetch(`${getSkillHubBaseUrl()}/api/categories?type=1`, {
         headers: { Authorization: token },
@@ -605,7 +606,7 @@ export function initAssistantHubBridge(): void {
         if (!silent) {
           mainError('AssistantHub', 'skillhub token not provisioned, skip fetchAssistantDetail');
         }
-        return { success: false, msg: 'skillhub token missing' };
+        return tokenMissingResponse('assistantHub');
       }
       const url = `${getSkillHubBaseUrl()}/api/assistants/${assistantId}`;
       const response = await fetch(url, {
@@ -631,7 +632,7 @@ export function initAssistantHubBridge(): void {
       const token = getSkillhubToken();
       if (!token) {
         mainError('AssistantHub', 'skillhub token not provisioned, skip fetchSkillDetailsByIds');
-        return { success: false, msg: 'skillhub token missing' };
+        return tokenMissingResponse('assistantHub');
       }
 
       // Fetch all skills in parallel
@@ -666,7 +667,7 @@ export function initAssistantHubBridge(): void {
       const token = getSkillhubToken();
       if (!token) {
         mainError('AssistantHub', 'skillhub token not provisioned, skip downloadAndInstallAssistant');
-        return { success: false, msg: 'skillhub token missing' };
+        return tokenMissingResponse('assistantHub');
       }
 
       // Download zip file
@@ -926,7 +927,7 @@ export function registerUploadAssistantToHubBridge() {
       const token = getSkillhubToken();
       if (!token) {
         mainError('AssistantHub', 'skillhub token not provisioned, skip uploadAssistantToHub');
-        return { success: false, msg: 'skillhub token missing' };
+        return tokenMissingResponse('assistantHub');
       }
 
       // Get custom assistants directory

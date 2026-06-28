@@ -12,6 +12,8 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { ipcBridge } from '@/common';
+import { parseHubError, type HubError } from '@common/nexus/hubErrors';
+import HubEmptyState from '@renderer/components/HubEmptyState';
 import { eeclaw, skillHub } from '@/common/ipcBridge';
 import { resolveSkillIcon, getInstalledSkillDisplay, normalizeSkillVersion, handleSkillIconError } from '@/renderer/utils/skillDisplay';
 import { isElectronDesktop } from '@/renderer/utils/platform';
@@ -603,6 +605,9 @@ const SkillModalContent: React.FC = () => {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
+  // Typed error from last fetchSkills — drives HubEmptyState (token
+  // missing vs network failure vs actually-empty). See hubErrors.ts.
+  const [hubError, setHubError] = useState<HubError | null>(null);
 
   // Detail modal state
   const [detailSkill, setDetailSkill] = useState<ISkillHubSkill | null>(null);
@@ -982,6 +987,7 @@ const SkillModalContent: React.FC = () => {
         }
 
         if (skillsRes.success && skillsRes.data) {
+          setHubError(null);
           const newSkills = skillsRes.data.skills || [];
           if (append) {
             setSkills((prev) => {
@@ -1005,9 +1011,16 @@ const SkillModalContent: React.FC = () => {
           setNextCursor(nextCursorValue);
           setHasMore(hasMoreValue);
           void fetchLatestVersions(newSkills, append ? latestVersionsRef.current : undefined);
+        } else if (!skillsRes.success) {
+          // Typed bridge failure (token missing / fetch fail) — drive
+          // differentiated empty state via HubEmptyState rather than
+          // showing the generic "未找到技能" text that hides the cause.
+          setHubError(parseHubError(skillsRes as { success: false; errorCode?: string; msg?: string }));
+          if (!append) setSkills([]);
         }
       } catch (err) {
         console.error('Failed to fetch skills:', err);
+        setHubError({ code: 'FETCH_FAILED', message: err instanceof Error ? err.message : String(err), retriable: true });
         Message.error(t('settings.skill.fetchFailed', { defaultValue: '获取技能失败' }));
       } finally {
         setLoading(false);
@@ -1713,10 +1726,14 @@ const SkillModalContent: React.FC = () => {
                 <Spin size={28} />
               </div>
             ) : skills.length === 0 ? (
-              <div className='flex flex-col items-center justify-center py-48px text-secondary gap-8px'>
-                <Lightning size='32' className='text-tertiary' />
-                <span className='text-13px'>{t('settings.skill.noResults', { defaultValue: '暂无技能' })}</span>
-              </div>
+              hubError ? (
+                <HubEmptyState error={hubError} onRetry={() => void fetchSkills()} />
+              ) : (
+                <div className='flex flex-col items-center justify-center py-48px text-secondary gap-8px'>
+                  <Lightning size='32' className='text-tertiary' />
+                  <span className='text-13px'>{t('settings.skill.noResults', { defaultValue: '暂无技能' })}</span>
+                </div>
+              )
             ) : (
               <div className='grid gap-16px pb-16px' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
                 {skills.map((skill) => {

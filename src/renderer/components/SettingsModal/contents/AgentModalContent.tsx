@@ -12,6 +12,8 @@ import { useTranslation } from 'react-i18next';
 import useSWR, { mutate } from 'swr';
 import { useNavigate } from 'react-router-dom';
 import { ipcBridge, skillHub, assistantHub } from '@/common';
+import { parseHubError, type HubError } from '@common/nexus/hubErrors';
+import HubEmptyState from '@renderer/components/HubEmptyState';
 import { eeclaw } from '@/common/ipcBridge';
 import type { IInstalledSkillInfo, IAssistantHubSkill, IAssistantHubVersionLike, ISkillHubSkill } from '@/common/ipcBridge';
 import { toBackendConfig, resolveAssistantName } from '@/renderer/shared/agents/assistantAdapter';
@@ -710,6 +712,10 @@ const AgentModalContent: React.FC = () => {
   const [hubSearchQuery, setHubSearchQuery] = useState('');
   const [hubLoading, setHubLoading] = useState(true);
   const [hubLoadingMore, setHubLoadingMore] = useState(false);
+  // Typed error from the most recent hub fetch — null on success.
+  // Drives the differentiated empty state (token-missing vs
+  // network-failed vs actually-empty). See HubEmptyState component.
+  const [hubError, setHubError] = useState<HubError | null>(null);
   const [hubHasMore, setHubHasMore] = useState(false);
   const [hubNextCursor, setHubNextCursor] = useState<string | null>(null);
   const [hubDetailAssistant, setHubDetailAssistant] = useState<IAssistantHubSkill | null>(null);
@@ -1033,6 +1039,10 @@ const AgentModalContent: React.FC = () => {
         if (isElectronDesktop()) {
           const res = await assistantHub.fetchAssistants.invoke({ cursor, limit: 40, query, category, tenantId, sourceType });
           if (res.success && res.data) {
+            // Successful fetch — clear any prior typed error so the
+            // empty-state UI falls back to the generic "暂无智能体"
+            // case if the catalog is genuinely empty.
+            setHubError(null);
             const newAssistants = res.data.assistants || [];
             if (append) {
               setHubAssistantList((prev) => {
@@ -1058,10 +1068,21 @@ const AgentModalContent: React.FC = () => {
             if (!isEnterprise) {
               void fetchLatestAssistantVersions(newAssistants, append ? latestAssistantVersionsRef.current : undefined);
             }
+          } else if (!res.success) {
+            // Bridge returned a typed failure — surface to the empty
+            // state instead of silently showing "暂无智能体". Cast
+            // is safe inside this !success branch; the bridge type
+            // is a discriminated union but the response interface
+            // collapses success: boolean.
+            setHubError(parseHubError(res as { success: false; errorCode?: string; msg?: string }));
+            if (!append) setHubAssistantList([]);
           }
         }
       } catch (err) {
         console.error('Failed to fetch Hub assistants:', err);
+        // Caught exception path → coerce into FETCH_FAILED so the
+        // empty-state UI offers a retry CTA.
+        setHubError({ code: 'FETCH_FAILED', message: err instanceof Error ? err.message : String(err), retriable: true });
         Message.error(t('settings.assistant.fetchFailed', { defaultValue: '获取助手失败' }));
       } finally {
         setHubLoading(false);
@@ -2524,7 +2545,13 @@ const AgentModalContent: React.FC = () => {
                   <div className='text-13px font-medium text-foreground'>{t('settings.hubAssistants', { defaultValue: '智能体库' })}</div>
                   <span className='px-6px py-0px bg-fill-2 text-secondary text-11px rd-full leading-18px'>{hubAssistants.length}</span>
                 </div>
-                {hubAssistants.length > 0 ? renderAssistantGrid(hubAssistants, isEnterprise, true, !isEnterprise) : <div className='bg-fill-1 border border-dashed rd-12px px-14px py-18px text-12px text-tertiary'>{t('settings.noHubAssistants', { defaultValue: '暂无智能体库智能体' })}</div>}
+                {hubAssistants.length > 0 ? (
+                  renderAssistantGrid(hubAssistants, isEnterprise, true, !isEnterprise)
+                ) : hubError ? (
+                  <HubEmptyState error={hubError} onRetry={() => void fetchHubAssistants()} />
+                ) : (
+                  <div className='bg-fill-1 border border-dashed rd-12px px-14px py-18px text-12px text-tertiary'>{t('settings.noHubAssistants', { defaultValue: '暂无智能体库智能体' })}</div>
+                )}
               </section>
             </div>
           )}

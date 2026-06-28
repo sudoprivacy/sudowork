@@ -1,0 +1,63 @@
+name: "hub empty state differentiates token-missing from actually-empty"
+description: >
+  Verify the HubEmptyState observability fix: when the skill-store
+  catalog can't be fetched because sudowork-server hasn't provisioned
+  a skillhub token (the common consumer-mode / mid-setup state, and
+  the cause of the 'silent empty catalog' bug observed in Win-PC-0
+  dev profile cold-launch 2026-06-28), the user sees a distinct
+  "Skill Hub not configured / 未配置 Skill Hub — 请检查 sudowork-server
+  登录状态" message with a lock icon — NOT the misleading generic
+  "未找到技能" / "No skills found" that pre-PR users saw.
+
+  Same observability gap class as 进二's v0.2.7 secrets-failure
+  bug, but the catalog subsystem (not vault). Locked in here so
+  future renderer refactors that drop the differentiated empty state
+  surface as a screenshot judge failure rather than silently
+  regressing to "No skills found" again.
+
+  Tag: no-api — runs against a fresh CI profile that has no
+  sudowork-server credentials provisioned, which deterministically
+  reproduces the TOKEN_MISSING state (no setup flow completed → no
+  skillhub token cached → fetchSkills returns errorCode:
+  TOKEN_MISSING → HubEmptyState renders the lock-state copy).
+
+tags: [no-api, smoke]
+
+steps:
+  # ── Phase 0: Wait for app startup ──
+  - op: wait_for_app_ready
+    timeout: 300
+
+  # ── Phase 1: Navigate to skill store via sidebar ──
+  # 技能商店 is the sidebar item for the skill catalog. Clicking it
+  # opens SkillModalContent in the main area.
+  - op: mouse_click
+    text: "技能商店"
+    wait: 3
+  - op: screenshot
+    path: "screenshots/hub-empty-state-00-skill-store-opened.png"
+
+  # ── Phase 2: Ensure we're on the 'store catalog' tab ──
+  # 技能库 is the default-active tab when entering the skill store;
+  # an explicit click guards against future default changes (e.g.
+  # 'remember last tab' behaviour). This is the tab where remote
+  # catalog fetch happens — and where the empty state we care about
+  # surfaces.
+  - op: mouse_click
+    text: "技能库"
+    wait: 5
+  - op: screenshot
+    path: "screenshots/hub-empty-state-01-skill-library-tab.png"
+
+  # ── Phase 3: Verify HubEmptyState differentiated copy is shown ──
+  # The judge checks the screenshot for the lock-state message. Pre-PR,
+  # this assertion would FAIL (the UI would show "未找到技能"); post-PR,
+  # the differentiated copy is visible.
+  - op: judge
+    expect: "Skill Hub 未配置 或 sudowork-server 登录状态需要检查 的提示文案"
+
+  # ── Phase 4: Confirm NO retry button (TOKEN_MISSING is not retriable
+  #             from the empty-state alone — retrying the fetch with the
+  #             same null token wouldn't help; user must fix login). ──
+  - op: judge
+    expect: "页面上没有'重试'按钮（因为 token 缺失场景下重试没有意义）"

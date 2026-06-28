@@ -67,6 +67,38 @@ jobs:
         # no native deps either.
         run: bunx vitest run tests/unit/secrets/nexus-secret-client.test.ts tests/unit/secrets/secret-cache.test.ts tests/unit/secrets/nexus-secret-resilient.test.ts tests/unit/secrets/secretsApi.test.ts tests/integration/secretsGrpcOnly.integration.test.ts
 
+  # Job 2b: Hub catalog empty-state differentiation tests
+  unit-tests-hub:
+    name: Hub Unit Tests
+    if: github.event.action != 'edited'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --no-frozen-lockfile
+
+      - name: Run hub unit tests
+        # hubErrors: typed error parser unit (mocked, no deps).
+        # HubEmptyState: DOM test (jsdom) for the 3-way empty-state UI
+        # that surfaces TOKEN_MISSING vs FETCH_FAILED vs actually-empty
+        # — observability fix for the bug class where users (e.g. 进二
+        # on v0.2.7) saw silent empty catalogs without any signal that
+        # their skillhub token wasn't provisioned.
+        run: bunx vitest run tests/unit/hubErrors.test.ts tests/unit/HubEmptyState.dom.test.tsx
+
   # Job 3: Build test across all platforms (parallel with code-quality and unit-tests)
   build-test:
     name: Build Test (${{ matrix.platform }})

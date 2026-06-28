@@ -82,6 +82,7 @@ export default defineConfig({
         'src/process/task/CronCommandDetector.ts',
         // Common
         'src/common/chatLib.ts',
+        'src/common/nexus/hubErrors.ts',
         'src/common/nexusFiles.ts',
         'src/common/scodeConfig.ts',
         'src/common/slash/sudoworkCommands.ts',
@@ -90,6 +91,7 @@ export default defineConfig({
         'src/common/update/models/VersionInfo.ts',
         'src/common/types/conversion.ts',
         // Renderer utils
+        'src/renderer/components/HubEmptyState.tsx',
         'src/renderer/messages/useAutoScroll.ts',
         'src/renderer/utils/emitter.ts',
         // Preview components
