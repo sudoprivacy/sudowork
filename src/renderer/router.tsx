@@ -18,7 +18,7 @@ const CopilotSettings = React.lazy(() => import('./pages/settings/copilot'));
 const RuntimeSettings = React.lazy(() => import('./pages/settings/runtime'));
 const SystemSettings = React.lazy(() => import('./pages/settings/system'));
 const ToolsSettings = React.lazy(() => import('./pages/settings/tools'));
-const WebuiSettings = React.lazy(() => import('./pages/settings/WebuiSettings'));
+const WebuiSettings = React.lazy(() => import('./pages/settings/channels'));
 const SecurityPage = React.lazy(() => import('./pages/security'));
 const CronPage = React.lazy(() => import('./pages/cron'));
 const CronJobDetailPage = React.lazy(() => import('./pages/cron/detail'));

@@ -26,7 +26,7 @@ import { resolveLocaleKey } from '@/common/utils';
 import { DEFAULT_PRESET_AGENT_TYPE, normalizePresetAgentType } from '@/types/acpTypes';
 import SkillSettings from '../settings/SkillSettings';
 import AgentSettings from '../settings/AgentSettings';
-import WebuiSettings from '../settings/WebuiSettings';
+import WebuiSettings from '../settings/channels';
 import AssistantSelectionArea from './components/AssistantSelectionArea';
 import AssistantAgentDropdown from './components/AssistantAgentDropdown';
 import AssistantEditDrawer from './components/AssistantEditDrawer';
