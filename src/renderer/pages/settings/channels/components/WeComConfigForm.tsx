@@ -1,5 +1,5 @@
 import { Button, Dropdown, Input, Menu, Message, Tooltip } from '@arco-design/web-react';
-import { Down } from '@icon-park/react';
+import { IconDown } from '@arco-design/web-react/icon';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { IChannelPluginStatus } from '@/channels/types';
@@ -359,9 +359,8 @@ const WeComConfigForm: React.FC<WeComConfigFormProps> = ({ pluginStatus, modelSe
                 </Menu>
               }
             >
-              <Button type='secondary' className='min-w-40 flex items-center justify-between gap-2'>
-                <span className='truncate'>{agentOptions[0]?.name || 'Sudo Code'}</span>
-                <Down theme='outline' size={14} />
+              <Button type='secondary' className='min-w-40' icon={<IconDown style={{ fontSize: 14 }} />}>
+                {agentOptions[0]?.name || 'Sudo Code'}
               </Button>
             </Dropdown>
           </PreferenceRow>

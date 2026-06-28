@@ -1,5 +1,5 @@
 import { Button, Dropdown, Menu, Tooltip } from '@arco-design/web-react';
-import { Down } from '@icon-park/react';
+import { IconDown } from '@arco-design/web-react/icon';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import classNames from 'classnames';
@@ -70,12 +70,11 @@ const GeminiModelSelector: React.FC<{
 
   const triggerButton =
     variant === 'settings' ? (
-      <Button type='secondary' className='min-w-40 flex items-center justify-between gap-2'>
+      <Button type='secondary' className='min-w-40' icon={<IconDown style={{ fontSize: 14 }} />}>
         <div className='flex items-center gap-2 min-w-0'>
           {currentModelHealth.status !== 'unknown' && <div className={`size-1.5 rd-full shrink-0 ${currentModelHealth.color}`} />}
           <span className='truncate'>{label}</span>
         </div>
-        <Down theme='outline' size={14} />
       </Button>
     ) : (
       <Button className={classNames('sendbox-model-btn header-model-btn', compact && '!max-w-[120px]')} shape='round' size='small'>

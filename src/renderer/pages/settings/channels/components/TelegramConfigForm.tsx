@@ -1,6 +1,5 @@
 import { Button, Dropdown, Empty, Input, Menu, Message, Spin, Tooltip } from '@arco-design/web-react';
-import { Down } from '@icon-park/react';
-import { IconCheckCircle, IconCloseCircle, IconCopy, IconDelete, IconRefresh } from '@arco-design/web-react/icon';
+import { IconCheckCircle, IconCloseCircle, IconCopy, IconDelete, IconDown, IconRefresh } from '@arco-design/web-react/icon';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { IChannelPairingRequest, IChannelPluginStatus, IChannelUser } from '@/channels/types';
@@ -349,9 +348,8 @@ const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({ pluginStatus, m
                 </Menu>
               }
             >
-              <Button type='secondary' className='min-w-40 flex items-center justify-between gap-2'>
-                <span className='truncate'>{agentOptions[0]?.name || 'Sudo Code'}</span>
-                <Down theme='outline' size={14} />
+              <Button type='secondary' className='min-w-40' icon={<IconDown style={{ fontSize: 14 }} />}>
+                {agentOptions[0]?.name || 'Sudo Code'}
               </Button>
             </Dropdown>
           </PreferenceRow>

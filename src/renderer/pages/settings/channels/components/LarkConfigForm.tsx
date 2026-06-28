@@ -1,6 +1,6 @@
 import { Button, Dropdown, Empty, Input, Menu, Message, Modal, Spin, Tooltip } from '@arco-design/web-react';
-import { CheckOne, CloseOne, Down } from '@icon-park/react';
-import { IconCheckCircle, IconCloseCircle, IconCopy, IconDelete, IconRefresh, IconScan } from '@arco-design/web-react/icon';
+import { IconCheckCircle, IconCloseCircle, IconCopy, IconDelete, IconDown, IconRefresh, IconScan } from '@arco-design/web-react/icon';
+import { ChevronDown, CircleCheck, CircleX } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -612,7 +612,7 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
             )}
             {larkAuthPhase === 'success' && (
               <div className='flex flex-col items-center gap-2 py-8'>
-                <CheckOne size={48} theme='filled' fill='currentColor' className='text-success' />
+                <CircleCheck size={48} className='text-success' />
                 <span className='text-14px text-foreground'>
                   {t('settings.lark.larkCli.loginSuccess', '扫码登录成功')}
                   {larkAuthLoggedInUser ? ` — ${larkAuthLoggedInUser}` : ''}
@@ -621,7 +621,7 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
             )}
             {(larkAuthPhase === 'error' || larkAuthPhase === 'expired') && (
               <div className='flex flex-col items-center gap-2 py-6'>
-                <CloseOne size={32} theme='filled' fill='currentColor' className='text-danger' />
+                <CircleX size={32} className='text-danger' />
                 <span className='text-13px text-danger text-center px-3 break-words'>{larkAuthError}</span>
               </div>
             )}
@@ -742,7 +742,7 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
 
           {/* Optional fields toggle */}
           <div className='flex items-center gap-1 text-12px text-tertiary cursor-pointer select-none' onClick={() => setShowOptional((prev) => !prev)}>
-            <Down theme='outline' size={12} style={{ transform: showOptional ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
+            <ChevronDown size={12} style={{ transform: showOptional ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
             <span>{showOptional ? t('settings.lark.hideOptionalFields', 'Hide optional settings') : t('settings.lark.showOptionalFields', 'Show optional settings')}</span>
           </div>
 
@@ -859,9 +859,8 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
                 </Menu>
               }
             >
-              <Button type='secondary' className='min-w-40 flex items-center justify-between gap-2'>
-                <span className='truncate'>{agentOptions[0]?.name || 'Sudo Code'}</span>
-                <Down theme='outline' size={14} />
+              <Button type='secondary' className='min-w-40' icon={<IconDown style={{ fontSize: 14 }} />}>
+                {agentOptions[0]?.name || 'Sudo Code'}
               </Button>
             </Dropdown>
           </PreferenceRow>

@@ -1,5 +1,5 @@
 import { Tabs } from '@arco-design/web-react';
-import { Communication } from '@icon-park/react';
+import { MessagesSquare } from 'lucide-react';
 import React, { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import PageWrapper from '@renderer/components/base/PageWrapper';
@@ -26,7 +26,7 @@ const Page: React.FC = () => {
               key='channels'
               title={
                 <span data-webui-tab='channels' className={`inline-flex items-center gap-1.5 leading-none transition-colors ${activeTab === 'channels' ? 'text-foreground font-600' : 'text-secondary'}`}>
-                  <Communication theme='outline' size='15' />
+                  <MessagesSquare size={15} />
                   <span>{t('settings.channels.title', '渠道配置')}</span>
                   <span className='inline-flex items-center gap-1 ml-0.5'>
                     {CHANNEL_LOGOS.map((item) => (

@@ -1,5 +1,5 @@
 import classNames from 'classnames';
-import { CheckOne } from '@icon-park/react';
+import { Check } from 'lucide-react';
 import React, { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
@@ -42,7 +42,7 @@ const SecretPanel: React.FC = () => {
               {setupSteps.map((stepLabel, idx) => (
                 <div key={stepLabel} className='inline-flex items-center gap-1.5'>
                   <span className='inline-flex items-center justify-center size-4 rd-full text-10px font-600 bg-[rgba(var(--ui-accent-orange-rgb),0.12)] text-[var(--ui-accent-orange)]'>{idx + 1}</span>
-                  <CheckOne theme='outline' size='12' className='text-[var(--ui-accent-orange)]' />
+                  <Check size={12} className='text-[var(--ui-accent-orange)]' />
                   <span className='text-12px text-secondary'>{stepLabel}</span>
                 </div>
               ))}
