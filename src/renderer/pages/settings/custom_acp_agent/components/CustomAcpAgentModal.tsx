@@ -1,9 +1,3 @@
-/**
- * 自定义 ACP 代理配置弹窗
- * Custom ACP Agent Configuration Modal
- *
- * Redesigned modal with CLI card selection, logo display, and collapsible advanced JSON config.
- */
 import { Alert, Input, Spin, Collapse } from '@arco-design/web-react';
 import React, { useState, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';

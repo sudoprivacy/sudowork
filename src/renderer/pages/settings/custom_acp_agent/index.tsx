@@ -6,7 +6,7 @@ import { mutate } from 'swr';
 import { ConfigStorage } from '@/common/storage';
 import type { AcpBackendConfig } from '@/types/acpTypes';
 import { acpConversation } from '@/common/ipcBridge';
-import CustomAcpAgentModal from './CustomAcpAgentModal';
+import CustomAcpAgentModal from './components/CustomAcpAgentModal';
 
 interface CustomAcpAgentProps {
   message: ReturnType<typeof import('@arco-design/web-react').Message.useMessage>[0];
