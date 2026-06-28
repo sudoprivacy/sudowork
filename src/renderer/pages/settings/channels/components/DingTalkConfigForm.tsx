@@ -127,7 +127,7 @@ const DingTalkConfigForm: React.FC<DingTalkConfigFormProps> = ({ pluginStatus, m
       setPendingPairings([]);
       setAuthorizedUsers([]);
     }
-  }, [pluginStatus?.enabled]);
+  }, [pluginStatus?.enabled, loadPendingPairings, loadAuthorizedUsers]);
 
   // Load saved credentials for backfill
   useEffect(() => {
@@ -151,7 +151,7 @@ const DingTalkConfigForm: React.FC<DingTalkConfigFormProps> = ({ pluginStatus, m
     };
 
     void loadCredentials();
-  }, [pluginStatus, isEnterprise]);
+  }, [pluginStatus, isEnterprise, clientId, clientSecret]);
 
   // Load available agents + saved selection
   useEffect(() => {

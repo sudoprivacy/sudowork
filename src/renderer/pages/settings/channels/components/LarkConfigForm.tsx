@@ -133,7 +133,7 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
       setPendingPairings([]);
       setAuthorizedUsers([]);
     }
-  }, [pluginStatus?.enabled]);
+  }, [pluginStatus?.enabled, loadPendingPairings, loadAuthorizedUsers]);
 
   // Load saved credentials for backfill
   useEffect(() => {
@@ -155,7 +155,7 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
     };
 
     void loadCredentials();
-  }, [pluginStatus, isEnterprise]);
+  }, [pluginStatus, isEnterprise, appId, appSecret]);
 
   useEffect(() => {
     const loadAgentsAndSelection = async () => {

@@ -110,7 +110,7 @@ const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({ pluginStatus, m
       setPendingPairings([]);
       setAuthorizedUsers([]);
     }
-  }, [pluginStatus?.enabled]);
+  }, [pluginStatus?.enabled, loadPendingPairings, loadAuthorizedUsers]);
 
   // Load saved credentials for backfill
   useEffect(() => {
@@ -129,7 +129,7 @@ const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({ pluginStatus, m
     };
 
     void loadCredentials();
-  }, [pluginStatus]);
+  }, [pluginStatus, telegramToken]);
 
   // Load available agents + saved selection
   useEffect(() => {
