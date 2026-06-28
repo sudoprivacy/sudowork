@@ -112,7 +112,23 @@ export interface TurnTokenUsage {
 
 export type IMessageText = IMessage<'text', { content: string; cronMeta?: CronMessageMeta; skills?: string[]; tokenUsage?: TurnTokenUsage }>;
 
-export type IMessageTips = IMessage<'tips', { content: string; type: 'error' | 'success' | 'warning' }>;
+export type IMessageTips = IMessage<
+  'tips',
+  {
+    content: string;
+    type: 'error' | 'success' | 'warning';
+    /**
+     * When set, this tip is a CLASSIFIED runtime error and the renderer
+     * should render a differentiated RuntimeErrorBanner instead of the
+     * plain text tip. Carried alongside (not replacing) `content` so
+     * legacy receivers / channels / WebUI logs keep working. See
+     * src/common/runtime-errors.ts for the class union.
+     */
+    errorClass?: string;
+    /** Bytes of the offending payload, for size-driven error classes. */
+    errorBytes?: number;
+  }
+>;
 
 export type IMessageToolCall = IMessage<
   'tool_call',

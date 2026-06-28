@@ -1,0 +1,39 @@
+{
+  "context_window_exceeded": {
+    "title": "Konuşma geçmişi model bağlamını aştı",
+    "body": "Mevcut konuşmanın birikmiş içeriği modelin işleyebileceği bağlam penceresini aştı. Devam etmek için geçmişi sıkıştırın veya yeni bir konuşma başlatın.",
+    "cta": "Geçmişi sıkıştır (/compact)"
+  },
+  "single_request_too_large": {
+    "title": "Bu giriş çok büyük",
+    "body": "Gönderdiğiniz içerik ({{bytes}}) mevcut modelin tek istek başına boyut sınırını aşıyor. Lütfen görüntüleri sıkıştırın, dosyaları bölün veya girişi azaltıp yeniden deneyin. Önceki konuşma geçmişi korunur.",
+    "cta": "Nasıl sıkıştırılır"
+  },
+  "request_body_too_large": {
+    "title": "İstek gövdesi gönderilemeyecek kadar büyük",
+    "body": "İstek gövdesi ({{bytes}}) taşıma katmanı boyut sınırını aşıyor ve modele gönderilmedi. Lütfen görüntüleri sıkıştırın veya ekleri azaltıp yeniden deneyin.",
+    "cta": "Nasıl sıkıştırılır"
+  },
+  "quota": {
+    "title": "Yetersiz kredi bakiyesi",
+    "body": "Kredi bakiyeniz tükendi. Devam etmek için lütfen yükleyin.",
+    "cta": "Yükle"
+  },
+  "rate_limit": {
+    "title": "Hız sınırlı",
+    "body": "Çok fazla istek; lütfen kısa süre sonra tekrar deneyin."
+  },
+  "auth": {
+    "title": "Kimlik doğrulama başarısız",
+    "body": "API anahtarı yapılandırmanızı kontrol edin.",
+    "cta": "Ayarları aç"
+  },
+  "network": {
+    "title": "Ağ hatası",
+    "body": "Bağlantı başarısız; ağınızı kontrol edip yeniden deneyin."
+  },
+  "timeout": {
+    "title": "İstek zaman aşımına uğradı",
+    "body": "İstek zaman aşımına uğradı; lütfen kısa süre sonra yeniden deneyin."
+  }
+}

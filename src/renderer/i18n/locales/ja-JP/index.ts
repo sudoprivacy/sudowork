@@ -19,6 +19,7 @@ import guid from './guid.json';
 import agent from './agent.json';
 import agentStatus from './agentStatus.json';
 import setup from './setup.json';
+import runtimeError from './runtimeError.json';
 
 export default {
   common,
@@ -41,4 +42,5 @@ export default {
   agent,
   agentStatus,
   setup,
+  runtimeError,
 };
