@@ -230,68 +230,18 @@ async function main() {
 
   console.log(`[cdp-dev-shim-smoke] PASS — outcome=${outcome}, installing=false`);
 
-  // Probe 3: Hub empty-state differentiation. CI runs sudowork in a
-  // clean dev profile — no skillhub token provisioned — so the
-  // skill-store route's fetchSkills naturally returns TOKEN_MISSING.
-  // This pins the observability bug class where pre-PR users saw
-  // silent "未找到技能" without any indication the cause was missing
-  // login / token provisioning. With the fix, HubEmptyState renders
-  // a `data-testid="hub-empty-state-token_missing"` marker — assert
-  // that element exists post-navigation.
-  console.log('[cdp-dev-shim-smoke] navigating to /skill-store to verify HubEmptyState');
-  await navigateAndAssertHubEmptyState(cdpPort);
-  console.log('[cdp-dev-shim-smoke] PASS — hub empty-state differentiation working');
-}
-
-// Drive renderer to skill-store route + wait for HubEmptyState marker.
-// Two-step: hash-nav (sudowork uses HashRouter) then poll for the
-// data-testid that HubEmptyState renders when error.code is TOKEN_MISSING.
-async function navigateAndAssertHubEmptyState(cdpPort) {
-  const navExpr = `(async () => {
-    try {
-      // Click the sidebar 技能商店 button — its React click handler
-      // both navigates AND mounts the SkillModalContent panel. Plain
-      // hash-mutation only does the URL change, not the panel mount.
-      // First wait for the sidebar to render (post-cold-start), then
-      // click.
-      const sidebarStart = Date.now();
-      let skillStoreBtn = null;
-      while (Date.now() - sidebarStart < 30000) {
-        skillStoreBtn = [...document.querySelectorAll('a, button, div')].find((el) => el.innerText && el.innerText.trim() === '技能商店');
-        if (skillStoreBtn) break;
-        await new Promise((r) => setTimeout(r, 500));
-      }
-      if (!skillStoreBtn) {
-        return JSON.stringify({ ok: false, error: '技能商店 sidebar button never appeared (30s)' });
-      }
-      skillStoreBtn.click();
-      // Wait for the empty-state marker (renderer fetches hub →
-      // bridge returns TOKEN_MISSING in CI's clean-profile state →
-      // HubEmptyState mounts with the testid).
-      const start = Date.now();
-      while (Date.now() - start < 25000) {
-        const el = document.querySelector('[data-testid="hub-empty-state-token_missing"]');
-        if (el) return JSON.stringify({ ok: true, code: 'TOKEN_MISSING', text: el.innerText.slice(0, 200) });
-        // Fallback: accept FETCH_FAILED — if CI sudowork-server is
-        // reachable but credentials fetch errors (e.g. tenant
-        // misconfigured), the differentiation goal is still met.
-        const fallback = document.querySelector('[data-testid="hub-empty-state-fetch_failed"]');
-        if (fallback) return JSON.stringify({ ok: true, code: 'FETCH_FAILED', text: fallback.innerText.slice(0, 200) });
-        await new Promise((r) => setTimeout(r, 500));
-      }
-      // Snapshot some diagnostics for the failure message — what
-      // tabs are visible, where in the rendering cycle we got stuck.
-      const tabsVisible = [...document.querySelectorAll('div, button')].filter((e) => ['技能库', '专属技能', '我的技能'].includes(e.innerText?.trim())).map((e) => e.innerText.trim());
-      const allTestids = [...document.querySelectorAll('[data-testid]')].map((e) => e.getAttribute('data-testid')).slice(0, 10);
-      return JSON.stringify({ ok: false, error: 'HubEmptyState data-testid not found within 25s', tabsVisible, allTestids, bodyTextSlice: document.body.innerText.slice(0, 400) });
-    } catch (e) { return JSON.stringify({ ok: false, error: String(e && e.stack || e) }); }
-  })()`;
-  const res = await evaluateInRendererResilient(cdpPort, navExpr);
-  const parsed = JSON.parse(res?.result?.value || '{}');
-  console.log(`[cdp-dev-shim-smoke] HubEmptyState assert: ${JSON.stringify(parsed)}`);
-  if (!parsed.ok) {
-    throw new Error(`HubEmptyState assertion failed: ${parsed.error}`);
-  }
+  // NOTE: a prior revision of this script also navigated to /skill-store
+  // and asserted the HubEmptyState testid (PR #940). It was removed
+  // after one CI run because CI's clean profile shows a setup/login
+  // wizard, not the main sidebar — the assumption that 技能商店 is
+  // clickable doesn't hold. Adding a "skip-auth dev shim" to make it
+  // reachable would be a boundary leak (per
+  // feedback_pr_merge_hygiene + fuseT.integration.test guards).
+  // Wiring coverage for that path now lives in
+  // tests/unit/SkillModalContent.integration.dom.test.tsx — jsdom +
+  // mocked bridge — which tests the same render path without
+  // requiring app navigation. Real-app-with-auth e2e remains a
+  // follow-up gated on CI auth plumbing.
 }
 
 main().catch((err) => {
