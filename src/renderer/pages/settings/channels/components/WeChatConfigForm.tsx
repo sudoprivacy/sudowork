@@ -221,7 +221,7 @@ const WeChatConfigForm: React.FC<WeChatConfigFormProps> = ({ pluginStatus, model
     }
 
     return (
-      <div className='flex flex-col gap-12px'>
+      <div className='flex flex-col gap-12px mt-3'>
         <div className='text-13px text-secondary leading-relaxed'>
           {t('settings.channels.wechat.installDesc', 'Scan the QR code with WeChat to connect your personal WeChat account.')} <span className='text-warning text-12px'>{t('settings.channels.wechat.privacyWarning', 'Note: All messages sent via WeChat will pass through WeChat servers first.')}</span>{' '}
           <a

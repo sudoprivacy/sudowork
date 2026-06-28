@@ -14,13 +14,7 @@ import type { GeminiModelSelection } from '../types';
 import { LARK_DEV_DOCS_URL } from '../utils';
 import GeminiModelSelector from './GeminiModelSelector';
 import PreferenceRow from './PreferenceRow';
-
-const SectionHeader: React.FC<{ title: string; action?: React.ReactNode }> = ({ title, action }) => (
-  <div className='flex items-center justify-between mb-12px'>
-    <h3 className='text-14px font-500 text-foreground m-0'>{title}</h3>
-    {action}
-  </div>
-);
+import SectionHeader from './SectionHeader';
 
 interface LarkConfigFormProps {
   pluginStatus: IChannelPluginStatus | null;
