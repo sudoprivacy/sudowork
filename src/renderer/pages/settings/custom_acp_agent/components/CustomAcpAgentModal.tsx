@@ -109,23 +109,26 @@ const CustomAcpAgentModal: React.FC<CustomAcpAgentModalProps> = ({ visible, agen
   }, []);
 
   // JSON syntax validation
-  const validateJsonSyntax = useCallback((input: string): ValidationResult => {
-    if (!input.trim()) {
-      return { isValid: true };
-    }
-    try {
-      const parsed = JSON.parse(input);
-      if (!parsed.defaultCliPath) {
-        return { isValid: false, errorMessage: 'Missing required field: defaultCliPath' };
+  const validateJsonSyntax = useCallback(
+    (input: string): ValidationResult => {
+      if (!input.trim()) {
+        return { isValid: true };
       }
-      return { isValid: true };
-    } catch (error) {
-      return {
-        isValid: false,
-        errorMessage: error instanceof SyntaxError ? error.message : 'Invalid JSON format',
-      };
-    }
-  }, []);
+      try {
+        const parsed = JSON.parse(input);
+        if (!parsed.defaultCliPath) {
+          return { isValid: false, errorMessage: t('settings.customAcpAgentMissingDefaultCliPath', '缺少必填字段：defaultCliPath') };
+        }
+        return { isValid: true };
+      } catch {
+        return {
+          isValid: false,
+          errorMessage: t('settings.customAcpAgentInvalidJsonFormat', 'JSON 格式无效'),
+        };
+      }
+    },
+    [t]
+  );
 
   // Update validation on input change
   useEffect(() => {
@@ -138,7 +141,7 @@ const CustomAcpAgentModal: React.FC<CustomAcpAgentModalProps> = ({ visible, agen
       if (agent) {
         // 编辑模式：显示高级配置，name 从显示名称输入框获取
         setShowAdvanced(true);
-        setAgentName(agent.name || 'Custom Agent');
+        setAgentName(agent.name || t('settings.customAgentDefaultName', '自定义代理'));
         const config = {
           defaultCliPath: agent.defaultCliPath || '',
           enabled: agent.enabled ?? true,
@@ -155,7 +158,7 @@ const CustomAcpAgentModal: React.FC<CustomAcpAgentModalProps> = ({ visible, agen
         void loadDetectedAgents(); // 显式标记为不需要等待 / Explicitly mark as fire-and-forget
       }
     }
-  }, [visible, agent, loadDetectedAgents]);
+  }, [visible, agent, loadDetectedAgents, t]);
 
   /**
    * 选择 CLI 的处理函数
@@ -199,7 +202,7 @@ const CustomAcpAgentModal: React.FC<CustomAcpAgentModalProps> = ({ visible, agen
       const parsed = JSON.parse(jsonInput);
       const customAgent: AcpBackendConfig = {
         id: agent?.id || parsed.id || uuid(),
-        name: agentName || 'Custom Agent', // name 始终从输入框获取 / name always from input field
+        name: agentName || t('settings.customAgentDefaultName', '自定义代理'), // name 始终从输入框获取 / name always from input field
         defaultCliPath: parsed.defaultCliPath,
         enabled: parsed.enabled ?? true,
         env: parsed.env || {},
@@ -239,7 +242,7 @@ const CustomAcpAgentModal: React.FC<CustomAcpAgentModalProps> = ({ visible, agen
       onOk={handleSubmit}
       okButtonProps={{ disabled: isSubmitDisabled() }}
       header={{
-        title: agent ? t('settings.editCustomAgent') || 'Edit Custom Agent' : t('settings.configureCustomAgent') || 'Add Custom Agent',
+        title: agent ? t('settings.editCustomAgent', '编辑自定义代理') : t('settings.configureCustomAgent', '配置'),
         showClose: true,
       }}
       style={{ width: 520, height: 'auto', maxHeight: '80vh' }}
@@ -254,13 +257,13 @@ const CustomAcpAgentModal: React.FC<CustomAcpAgentModalProps> = ({ visible, agen
         {/* CLI 选择卡片（仅新增模式显示）/ CLI selection cards (only shown in add mode) */}
         {!agent && (
           <div>
-            <div className='mb-2 text-sm font-medium text-foreground'>{t('settings.selectCli') || 'Select CLI'}</div>
+            <div className='mb-2 text-sm font-medium text-foreground'>{t('settings.selectCli', '选择 CLI')}</div>
             {loadingAgents ? (
               <div className='f-center py-4'>
                 <Spin />
               </div>
             ) : detectedAgents.length === 0 ? (
-              <Alert type='warning' content={t('settings.noCliDetected') || 'No CLI tools detected. Please install an ACP-compatible CLI first.'} />
+              <Alert type='warning' content={t('settings.noCliDetected', '未检测到 CLI 工具。请先安装支持 ACP 协议的 CLI。')} />
             ) : (
               <div className='grid grid-cols-2 gap-2'>
                 {detectedAgents.map((detectedAgent) => {
@@ -288,8 +291,8 @@ const CustomAcpAgentModal: React.FC<CustomAcpAgentModalProps> = ({ visible, agen
         {/* 显示名称输入（选中 CLI 或编辑模式时显示）/ Display name input (shown when CLI selected or in edit mode) */}
         {(selectedCli || agent) && (
           <div>
-            <div className='mb-2 text-sm font-medium text-foreground'>{t('settings.agentDisplayName') || 'Display Name'}</div>
-            <Input value={agentName} onChange={(v) => setAgentName(v)} placeholder={t('settings.agentNamePlaceholder') || 'Enter a name for this agent'} />
+            <div className='mb-2 text-sm font-medium text-foreground'>{t('settings.agentDisplayName', '显示名称')}</div>
+            <Input value={agentName} onChange={(v) => setAgentName(v)} placeholder={t('settings.agentNamePlaceholder', '请输入代理名称')} />
           </div>
         )}
 
@@ -303,7 +306,7 @@ const CustomAcpAgentModal: React.FC<CustomAcpAgentModalProps> = ({ visible, agen
             bordered={false}
             style={{ background: 'transparent' }}
           >
-            <Collapse.Item name='advanced' header={<span className='text-sm text-secondary'>{t('settings.advancedMode') || 'Advanced Configuration'}</span>}>
+            <Collapse.Item name='advanced' header={<span className='text-sm text-secondary'>{t('settings.advancedMode', '高级 (JSON)')}</span>}>
               <div className='pt-2'>
                 <CodeMirror
                   value={jsonInput}

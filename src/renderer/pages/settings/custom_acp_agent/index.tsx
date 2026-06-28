@@ -101,12 +101,12 @@ const CustomAcpAgent: React.FC<CustomAcpAgentProps> = ({ message }) => {
         setCustomAgents(updatedAgents);
         setShowModal(false);
         setEditingAgent(null);
-        message.success(t('settings.customAcpAgentSaved') || 'Custom agent saved');
+        message.success(t('settings.customAcpAgentSaved', '自定义代理已保存'));
 
         await refreshAgentDetection();
       } catch (error) {
         console.error('Failed to save custom agent config:', error);
-        message.error(t('settings.customAcpAgentSaveFailed') || 'Failed to save custom agent');
+        message.error(t('settings.customAcpAgentSaveFailed', '保存自定义代理失败'));
       }
     },
     [customAgents, editingAgent, message, t, refreshAgentDetection]
@@ -126,12 +126,12 @@ const CustomAcpAgent: React.FC<CustomAcpAgentProps> = ({ message }) => {
       setCustomAgents(updatedAgents);
       setDeleteConfirmVisible(false);
       setAgentToDelete(null);
-      message.success(t('settings.customAcpAgentDeleted') || 'Custom agent deleted');
+      message.success(t('settings.customAcpAgentDeleted', '自定义代理已删除'));
 
       await refreshAgentDetection();
     } catch (error) {
       console.error('Failed to delete custom agent config:', error);
-      message.error(t('settings.customAcpAgentDeleteFailed') || 'Failed to delete custom agent');
+      message.error(t('settings.customAcpAgentDeleteFailed', '删除自定义代理失败'));
     }
   }, [agentToDelete, customAgents, message, t, refreshAgentDetection]);
 
@@ -156,7 +156,7 @@ const CustomAcpAgent: React.FC<CustomAcpAgentProps> = ({ message }) => {
         className={' [&_div.arco-collapse-item-header-title]:flex-1'}
         header={
           <div className='flex items-center justify-between'>
-            {t('settings.customAcpAgent') || 'Custom ACP Agents'}
+            {t('settings.customAcpAgent', '自定义 ACP 代理')}
             <Button
               type='outline'
               icon={<IconPlus />}
@@ -166,7 +166,7 @@ const CustomAcpAgent: React.FC<CustomAcpAgentProps> = ({ message }) => {
                 handleAddNew();
               }}
             >
-              {t('settings.addCustomAgent') || 'Add'}
+              {t('settings.addCustomAgent', '添加')}
             </Button>
           </div>
         }
@@ -174,13 +174,13 @@ const CustomAcpAgent: React.FC<CustomAcpAgentProps> = ({ message }) => {
       >
         <div className='py-2'>
           {customAgents.length === 0 ? (
-            <div className='text-center py-4 text-secondary'>{t('settings.noCustomAgentConfigured') || 'No custom agents configured'}</div>
+            <div className='text-center py-4 text-secondary'>{t('settings.noCustomAgentConfigured', '暂无配置自定义代理')}</div>
           ) : (
             <div className='space-y-2'>
               {customAgents.map((agent) => (
                 <div key={agent.id} className='p-4 bg-muted rounded-lg'>
                   <div className='flex items-center justify-between mb-2'>
-                    <div className='font-medium'>{agent.name || 'Custom Agent'}</div>
+                    <div className='font-medium'>{agent.name || t('settings.customAgentDefaultName', '自定义代理')}</div>
                     <div className='flex gap-2'>
                       <Button type='text' size='small' icon={<IconEdit />} onClick={() => handleEdit(agent)} />
                       <Button type='text' size='small' status='danger' icon={<IconDelete />} onClick={() => handleConfirmDelete(agent)} />
@@ -188,14 +188,14 @@ const CustomAcpAgent: React.FC<CustomAcpAgentProps> = ({ message }) => {
                   </div>
                   <div className='text-sm text-secondary'>
                     <div>
-                      <span className='font-medium'>{t('settings.command') || 'CLI Path'}:</span> {agent.defaultCliPath}
+                      <span className='font-medium'>{t('settings.command', '命令')}:</span> {agent.defaultCliPath}
                     </div>
                     {agent.env && Object.keys(agent.env).length > 0 && (
                       <div>
-                        <span className='font-medium'>{t('settings.env') || 'Env'}:</span> {Object.keys(agent.env).length} variable(s)
+                        <span className='font-medium'>{t('settings.env', '环境变量')}:</span> {t('settings.envVariableCount', { count: Object.keys(agent.env).length, defaultValue: '{{count}} 个变量' })}
                       </div>
                     )}
-                    {!agent.enabled && <div className='text-warning'>{t('settings.agentDisabled') || 'Disabled'}</div>}
+                    {!agent.enabled && <div className='text-warning'>{t('settings.agentDisabled', '已禁用')}</div>}
                   </div>
                 </div>
               ))}
@@ -206,17 +206,9 @@ const CustomAcpAgent: React.FC<CustomAcpAgentProps> = ({ message }) => {
 
       <CustomAcpAgentModal visible={showModal} agent={editingAgent} onCancel={() => setShowModal(false)} onSubmit={handleSaveAgent} />
 
-      <Modal
-        title={t('settings.deleteCustomAgent') || 'Delete Custom Agent'}
-        visible={deleteConfirmVisible}
-        onCancel={() => setDeleteConfirmVisible(false)}
-        onOk={handleDeleteAgent}
-        okButtonProps={{ status: 'danger' }}
-        okText={t('common.confirm') || 'Confirm'}
-        cancelText={t('common.cancel') || 'Cancel'}
-      >
+      <Modal title={t('settings.deleteCustomAgent', '删除自定义代理')} visible={deleteConfirmVisible} onCancel={() => setDeleteConfirmVisible(false)} onOk={handleDeleteAgent} okButtonProps={{ status: 'danger' }} okText={t('common.confirm', '确认')} cancelText={t('common.cancel', '取消')}>
         <p>
-          {t('settings.deleteCustomAgentConfirm') || 'Are you sure you want to delete this custom agent?'}
+          {t('settings.deleteCustomAgentConfirm', '确定要删除此自定义代理吗？')}
           {agentToDelete && <strong className='block mt-2'>{agentToDelete.name}</strong>}
         </p>
       </Modal>
