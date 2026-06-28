@@ -38,7 +38,7 @@ const withRouteFallback = (Component: React.LazyExoticComponent<React.ComponentT
 );
 
 // Enterprise-allowed settings paths
-const ENTERPRISE_ALLOWED_PATHS = ['/settings/profile', '/settings/enterprise', '/settings/mcp', '/settings/display', '/settings/webui', '/settings/system', '/settings/about'];
+const ENTERPRISE_ALLOWED_PATHS = ['/settings/profile', '/settings/enterprise', '/settings/mcp', '/settings/display', '/settings/channels', '/settings/system', '/settings/about'];
 
 // Mode-aware default settings route
 const SettingsDefaultRoute: React.FC = () => {
@@ -54,7 +54,7 @@ const PROTECTED_ROUTE_CONFIGS = [
   { path: '/settings/model', component: SudocodeModelSettings },
   { path: '/settings/agent', component: AgentSettings },
   { path: '/settings/display', component: DisplaySettings },
-  { path: '/settings/webui', component: ChannelsPage },
+  { path: '/settings/channels', component: ChannelsPage },
   { path: '/settings/copilot', component: CopilotSettings },
   { path: '/settings/runtime', component: RuntimeSettings },
   { path: '/settings/system', component: SystemSettings },

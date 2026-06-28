@@ -24,7 +24,7 @@ const PreferenceRow: React.FC<{
   <div className='flex items-center justify-between gap-24px py-12px'>
     <div className='flex-1'>
       <span className='text-14px text-foreground'>{label}</span>
-      {description && <div className='text-12px text-tertiary mt-2px'>{description}</div>}
+      {description && <div className='text-12px text-secondary mt-2px'>{description}</div>}
     </div>
     <div className='flex items-center'>{children}</div>
   </div>

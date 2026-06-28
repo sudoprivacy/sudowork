@@ -30,7 +30,7 @@ const PreferenceRow: React.FC<{
         </span>
         {extra}
       </div>
-      {description && <div className='text-12px text-tertiary mt-2px'>{description}</div>}
+      {description && <div className='text-12px text-secondary mt-2px'>{description}</div>}
     </div>
     <div className='flex items-center'>{children}</div>
   </div>
@@ -539,7 +539,7 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
       {!isEnterprise && (
         <div className='flex flex-col gap-8px'>
           <SectionHeader title={t('settings.lark.larkCli.title', '扫码登录飞书')} />
-          <div className='text-12px text-tertiary'>{t('settings.lark.larkCli.description', '扫码自动完成飞书应用创建与授权登录，无需手动填写 App ID 与 App Secret。')}</div>
+          <div className='text-12px text-secondary'>{t('settings.lark.larkCli.description', '扫码自动完成飞书应用创建与授权登录，无需手动填写 App ID 与 App Secret。')}</div>
           {larkAuthLoggedInUser ? (
             <div className='flex items-center justify-between bg-fill-1 rd-8px p-12px'>
               <div className='flex items-center gap-8px'>

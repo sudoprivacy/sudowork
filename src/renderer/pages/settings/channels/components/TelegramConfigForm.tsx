@@ -26,7 +26,7 @@ const PreferenceRow: React.FC<{
         <span className='text-14px text-foreground'>{label}</span>
         {extra}
       </div>
-      {description && <div className='text-12px text-tertiary mt-2px'>{description}</div>}
+      {description && <div className='text-12px text-secondary mt-2px'>{description}</div>}
     </div>
     <div className='flex items-center'>{children}</div>
   </div>
