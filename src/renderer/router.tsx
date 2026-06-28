@@ -18,7 +18,7 @@ const CopilotSettings = React.lazy(() => import('./pages/settings/copilot'));
 const RuntimeSettings = React.lazy(() => import('./pages/settings/runtime'));
 const SystemSettings = React.lazy(() => import('./pages/settings/system'));
 const ToolsSettings = React.lazy(() => import('./pages/settings/tools'));
-const WebuiSettings = React.lazy(() => import('./pages/settings/channels'));
+const ChannelsPage = React.lazy(() => import('./pages/settings/channels'));
 const SecurityPage = React.lazy(() => import('./pages/security'));
 const CronPage = React.lazy(() => import('./pages/cron'));
 const CronJobDetailPage = React.lazy(() => import('./pages/cron/detail'));
@@ -54,7 +54,7 @@ const PROTECTED_ROUTE_CONFIGS = [
   { path: '/settings/model', component: SudocodeModelSettings },
   { path: '/settings/agent', component: AgentSettings },
   { path: '/settings/display', component: DisplaySettings },
-  { path: '/settings/webui', component: WebuiSettings },
+  { path: '/settings/webui', component: ChannelsPage },
   { path: '/settings/copilot', component: CopilotSettings },
   { path: '/settings/runtime', component: RuntimeSettings },
   { path: '/settings/system', component: SystemSettings },
@@ -62,6 +62,7 @@ const PROTECTED_ROUTE_CONFIGS = [
   { path: '/settings/tools', component: ToolsSettings },
   { path: '/settings/skill', component: SkillSettings },
   { path: '/app/security', component: SecurityPage },
+  { path: '/app/channels', component: ChannelsPage },
   { path: '/settings/security', component: SecurityPage },
   { path: '/app/cron', component: CronPage },
   { path: '/app/cron/:jobId', component: CronJobDetailPage },
