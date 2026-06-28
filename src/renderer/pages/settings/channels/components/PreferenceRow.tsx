@@ -1,16 +1,16 @@
 import React from 'react';
 
 const PreferenceRow: React.FC<IPreferenceRowProps> = ({ label, description, extra, required, children }) => (
-  <div className='flex items-center justify-between gap-24px py-12px'>
+  <div className='flex items-center justify-between gap-6 py-3'>
     <div className='flex-1'>
-      <div className='flex items-center gap-8px'>
+      <div className='flex items-center gap-2'>
         <span className='text-14px text-foreground'>
           {label}
-          {required && <span className='text-red-500 ml-2px'>*</span>}
+          {required && <span className='text-danger ml-0.5'>*</span>}
         </span>
         {extra}
       </div>
-      {description && <div className='text-12px text-secondary mt-2px'>{description}</div>}
+      {description && <div className='text-12px text-secondary mt-0.5'>{description}</div>}
     </div>
     <div className='flex items-center'>{children}</div>
   </div>

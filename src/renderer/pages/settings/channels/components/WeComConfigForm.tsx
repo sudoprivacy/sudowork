@@ -196,7 +196,7 @@ const WeComConfigForm: React.FC<WeComConfigFormProps> = ({ pluginStatus, modelSe
   const agentOptions: Array<{ backend: AcpBackendAll; name: string; customAgentId?: string; isExtension?: boolean }> = availableAgents.length > 0 ? availableAgents : [{ backend: CHANNEL_DEFAULT_AGENT_BACKEND, name: 'Sudo Code' }];
 
   return (
-    <div className='flex flex-col gap-24px -mt3'>
+    <div className='flex flex-col gap-6 --mt-3'>
       {/* Bot ID */}
       <PreferenceRow
         label={t('settings.wecom.botId', 'Bot ID')}
@@ -311,17 +311,17 @@ const WeComConfigForm: React.FC<WeComConfigFormProps> = ({ pluginStatus, modelSe
 
       {/* Hint: Long connection mode */}
       {!pluginStatus?.connected && (
-        <div className='text-12px leading-relaxed p-10px rd-8px bg-[rgba(var(--primary-6),0.08)] border border-[rgba(var(--primary-6),0.3)] text-secondary'>
-          <div className='font-500 text-foreground mb-4px'>{t('settings.wecom.longConnHint', 'WebSocket Long Connection Mode')}</div>
+        <div className='text-12px leading-relaxed p-2.5 rd-8px bg-fill-1 border border-light text-secondary'>
+          <div className='font-500 text-foreground mb-1'>{t('settings.wecom.longConnHint', 'WebSocket Long Connection Mode')}</div>
           <div>{t('settings.wecom.longConnDesc', 'No public IP required. Enable API mode in WeCom admin console and select "Long Connection".')}</div>
-          <div className='mt-4px'>{t('settings.wecom.singleConnNote', 'Note: Each bot allows only one active connection. A new connection will disconnect the previous one.')}</div>
+          <div className='mt-1'>{t('settings.wecom.singleConnNote', 'Note: Each bot allows only one active connection. A new connection will disconnect the previous one.')}</div>
         </div>
       )}
 
       {/* Test Connection Button - show when not connected and not locked */}
       {!isCredentialsLocked && !pluginStatus?.connected && (
         <div className='flex justify-end'>
-          {pluginStatus?.hasToken && !botId.trim() && !secret.trim() ? <span className='text-12px text-tertiary mr-12px self-center'>{t('settings.wecom.credentialsSaved', 'Credentials already configured. Enter new values to update.')}</span> : null}
+          {pluginStatus?.hasToken && !botId.trim() && !secret.trim() ? <span className='text-12px text-tertiary mr-3 self-center'>{t('settings.wecom.credentialsSaved', 'Credentials already configured. Enter new values to update.')}</span> : null}
           <Button type='primary' loading={testLoading} onClick={handleTestConnection} disabled={pluginStatus?.hasToken && !botId.trim() && !secret.trim()}>
             {t('settings.wecom.testAndConnect', 'Test & Connect')}
           </Button>
@@ -330,7 +330,7 @@ const WeComConfigForm: React.FC<WeComConfigFormProps> = ({ pluginStatus, modelSe
 
       {/* Agent Selection - hidden in enterprise mode (uses Moss remote agent) */}
       {!isEnterprise && (
-        <div className='flex flex-col gap-8px'>
+        <div className='flex flex-col gap-2'>
           <PreferenceRow label={t('settings.wecom.agent', 'Agent')} description={t('settings.wecom.agentDesc', 'Used for WeCom conversations')}>
             <Dropdown
               trigger='click'
@@ -359,7 +359,7 @@ const WeComConfigForm: React.FC<WeComConfigFormProps> = ({ pluginStatus, modelSe
                 </Menu>
               }
             >
-              <Button type='secondary' className='min-w-160px flex items-center justify-between gap-8px'>
+              <Button type='secondary' className='min-w-40 flex items-center justify-between gap-2'>
                 <span className='truncate'>{agentOptions[0]?.name || 'Sudo Code'}</span>
                 <Down theme='outline' size={14} />
               </Button>
@@ -377,20 +377,16 @@ const WeComConfigForm: React.FC<WeComConfigFormProps> = ({ pluginStatus, modelSe
 
       {/* Connection Status - always show when enabled */}
       {pluginStatus?.enabled && (
-        <div
-          className={`rd-12px p-16px border ${pluginStatus?.connected ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' : pluginStatus?.error ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' : 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800'}`}
-        >
-          <div className='flex items-center justify-between mb-12px'>
+        <div className={`rd-12px p-4 border ${pluginStatus?.connected ? 'bg-success-soft border-success-line' : pluginStatus?.error ? 'bg-danger-soft border-danger-line' : 'bg-warning-soft border-warning-line'}`}>
+          <div className='flex items-center justify-between mb-3'>
             <h3 className='text-14px font-500 text-foreground m-0'>{t('settings.wecom.connectionStatus', 'Connection Status')}</h3>
-            <span
-              className={`text-12px px-8px py-2px rd-4px ${pluginStatus?.connected ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' : pluginStatus?.error ? 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300' : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300'}`}
-            >
+            <span className={`text-12px px-2 py-0.5 rd-4px ${pluginStatus?.connected ? 'bg-success-soft text-success' : pluginStatus?.error ? 'bg-danger-soft text-danger' : 'bg-warning-soft text-warning'}`}>
               {pluginStatus?.connected ? t('settings.wecom.statusConnected', 'Connected') : pluginStatus?.error ? t('settings.wecom.statusError', 'Error') : t('settings.wecom.statusConnecting', 'Connecting...')}
             </span>
           </div>
-          {pluginStatus?.error && <div className='text-14px text-red-600 dark:text-red-400 mb-12px'>{pluginStatus.error}</div>}
+          {pluginStatus?.error && <div className='text-14px text-danger mb-3'>{pluginStatus.error}</div>}
           {pluginStatus?.connected && (
-            <div className='text-14px text-secondary space-y-8px'>
+            <div className='text-14px text-secondary space-y-2'>
               <p className='m-0 font-500'>{t('settings.assistant.nextSteps', 'Next Steps')}:</p>
               <p className='m-0'>
                 <strong>1.</strong> {t('settings.wecom.step1', 'Open WeCom and find your AI bot')}

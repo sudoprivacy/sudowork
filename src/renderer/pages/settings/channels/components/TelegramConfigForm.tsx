@@ -290,9 +290,9 @@ const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({ pluginStatus, m
   const agentOptions: Array<{ backend: AcpBackendAll; name: string; customAgentId?: string; isExtension?: boolean }> = availableAgents.length > 0 ? availableAgents : [{ backend: CHANNEL_DEFAULT_AGENT_BACKEND, name: 'Sudo Code' }];
 
   return (
-    <div className='flex flex-col gap-24px -mt-3'>
+    <div className='flex flex-col gap-6 -mt-3'>
       <PreferenceRow label={t('settings.assistant.botToken', 'Bot Token')} description={t('settings.assistant.botTokenDesc', 'Open Telegram, find @BotFather and send /newbot to get your Bot Token.')}>
-        <div className='flex items-center gap-8px'>
+        <div className='flex items-center gap-2'>
           {authorizedUsers.length > 0 ? (
             <Tooltip content={t('settings.assistant.tokenLocked', '请先关闭 Channel 并删除所有已授权用户后，再尝试修改')}>
               <span>
@@ -320,7 +320,7 @@ const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({ pluginStatus, m
 
       {/* Agent Selection - hidden in enterprise mode (uses Moss remote agent) */}
       {!isEnterprise && (
-        <div className='flex flex-col gap-8px'>
+        <div className='flex flex-col gap-2'>
           <PreferenceRow label={t('settings.lark.agent', 'Agent')} description={t('settings.assistant.agentDescTelegram', 'Used for Telegram conversations')}>
             <Dropdown
               trigger='click'
@@ -349,7 +349,7 @@ const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({ pluginStatus, m
                 </Menu>
               }
             >
-              <Button type='secondary' className='min-w-160px flex items-center justify-between gap-8px'>
+              <Button type='secondary' className='min-w-40 flex items-center justify-between gap-2'>
                 <span className='truncate'>{agentOptions[0]?.name || 'Sudo Code'}</span>
                 <Down theme='outline' size={14} />
               </Button>
@@ -367,16 +367,16 @@ const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({ pluginStatus, m
 
       {/* Next Steps Guide - show when bot is enabled and no authorized users yet */}
       {pluginStatus?.enabled && pluginStatus?.connected && authorizedUsers.length === 0 && (
-        <div className='bg-blue-50 dark:bg-blue-900/20 rd-12px p-16px border border-blue-200 dark:border-blue-800'>
-          <div className='flex items-center justify-between mb-12px'>
+        <div className='bg-fill-1 rd-12px p-4 border border-light'>
+          <div className='flex items-center justify-between mb-3'>
             <h3 className='text-14px font-500 text-foreground m-0'>{t('settings.assistant.nextSteps', 'Next Steps')}</h3>
           </div>
-          <div className='text-14px text-secondary space-y-8px'>
+          <div className='text-14px text-secondary space-y-2'>
             <p className='m-0'>
               <strong>1.</strong> {t('settings.assistant.step1', 'Open Telegram and search for your bot')}
               {pluginStatus.botUsername && (
-                <span className='ml-4px'>
-                  <code className='bg-fill-2 px-6px py-2px rd-4px'>@{pluginStatus.botUsername}</code>
+                <span className='ml-1'>
+                  <code className='bg-fill-2 px-1.5 py-0.5 rd-4px'>@{pluginStatus.botUsername}</code>
                 </span>
               )}
             </p>
@@ -395,8 +395,8 @@ const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({ pluginStatus, m
 
       {/* Pending Pairings - show when bot is enabled and no authorized users yet */}
       {pluginStatus?.enabled && authorizedUsers.length === 0 && (
-        <div className='bg-fill-1 rd-12px pt-16px pr-16px pb-16px pl-0'>
-          <div className='flex items-center justify-between mb-12px'>
+        <div className='bg-fill-1 rd-12px pt-4 pr-4 pb-4 pl-0'>
+          <div className='flex items-center justify-between mb-3'>
             <h3 className='text-14px font-500 text-foreground m-0'>{t('settings.assistant.pendingPairings', 'Pending Pairing Requests')}</h3>
             <Button size='mini' type='text' icon={<IconRefresh style={{ fontSize: 14 }} />} loading={pairingLoading} onClick={loadPendingPairings}>
               {t('common.refresh', 'Refresh')}
@@ -404,31 +404,31 @@ const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({ pluginStatus, m
           </div>
 
           {pairingLoading ? (
-            <div className='flex justify-center py-24px'>
+            <div className='flex justify-center py-6'>
               <Spin />
             </div>
           ) : pendingPairings.length === 0 ? (
             <Empty description={t('settings.assistant.noPendingPairings', 'No pending pairing requests')} />
           ) : (
-            <div className='flex flex-col gap-12px'>
+            <div className='flex flex-col gap-3'>
               {pendingPairings.map((pairing) => (
-                <div key={pairing.code} className='flex items-center justify-between bg-fill-2 rd-8px p-12px'>
+                <div key={pairing.code} className='flex items-center justify-between bg-fill-2 rd-8px p-3'>
                   <div className='flex-1'>
-                    <div className='flex items-center gap-8px'>
+                    <div className='flex items-center gap-2'>
                       <span className='text-14px font-500 text-foreground'>{pairing.displayName || 'Unknown User'}</span>
                       <Tooltip content={t('settings.assistant.copyCode', 'Copy pairing code')}>
-                        <button className='p-4px bg-transparent border-none text-tertiary hover:text-foreground cursor-pointer' onClick={() => copyToClipboard(pairing.code)}>
+                        <button className='p-1 bg-transparent border-none text-tertiary hover:text-foreground cursor-pointer' onClick={() => copyToClipboard(pairing.code)}>
                           <Copy size={14} />
                         </button>
                       </Tooltip>
                     </div>
-                    <div className='text-12px text-tertiary mt-4px'>
-                      {t('settings.assistant.pairingCode', 'Code')}: <code className='bg-fill-3 px-4px rd-2px'>{pairing.code}</code>
-                      <span className='mx-8px'>|</span>
+                    <div className='text-12px text-tertiary mt-1'>
+                      {t('settings.assistant.pairingCode', 'Code')}: <code className='bg-fill-3 px-1 rd-2px'>{pairing.code}</code>
+                      <span className='mx-2'>|</span>
                       {t('settings.assistant.expiresIn', 'Expires in')}: {getRemainingTime(pairing.expiresAt)}
                     </div>
                   </div>
-                  <div className='flex items-center gap-8px'>
+                  <div className='flex items-center gap-2'>
                     <Button type='primary' size='small' icon={<IconCheckCircle style={{ fontSize: 14 }} />} onClick={() => handleApprovePairing(pairing.code)}>
                       {t('settings.assistant.approve', 'Approve')}
                     </Button>
@@ -445,8 +445,8 @@ const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({ pluginStatus, m
 
       {/* Authorized Users - show when there are authorized users */}
       {authorizedUsers.length > 0 && (
-        <div className='bg-fill-1 rd-12px pt-16px pr-16px pb-16px pl-0'>
-          <div className='flex items-center justify-between mb-12px'>
+        <div className='bg-fill-1 rd-12px pt-4 pr-4 pb-4 pl-0'>
+          <div className='flex items-center justify-between mb-3'>
             <h3 className='text-14px font-500 text-foreground m-0'>{t('settings.assistant.authorizedUsers', 'Authorized Users')}</h3>
             <Button size='mini' type='text' icon={<IconRefresh style={{ fontSize: 14 }} />} loading={usersLoading} onClick={loadAuthorizedUsers}>
               {t('common.refresh', 'Refresh')}
@@ -454,20 +454,20 @@ const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({ pluginStatus, m
           </div>
 
           {usersLoading ? (
-            <div className='flex justify-center py-24px'>
+            <div className='flex justify-center py-6'>
               <Spin />
             </div>
           ) : authorizedUsers.length === 0 ? (
             <Empty description={t('settings.assistant.noAuthorizedUsers', 'No authorized users yet')} />
           ) : (
-            <div className='flex flex-col gap-12px'>
+            <div className='flex flex-col gap-3'>
               {authorizedUsers.map((user) => (
-                <div key={user.id} className='flex items-center justify-between bg-fill-2 rd-8px p-12px'>
+                <div key={user.id} className='flex items-center justify-between bg-fill-2 rd-8px p-3'>
                   <div className='flex-1'>
                     <div className='text-14px font-500 text-foreground'>{user.displayName || 'Unknown User'}</div>
-                    <div className='text-12px text-tertiary mt-4px'>
+                    <div className='text-12px text-tertiary mt-1'>
                       {t('settings.assistant.platform', 'Platform')}: {user.platformType}
-                      <span className='mx-8px'>|</span>
+                      <span className='mx-2'>|</span>
                       {t('settings.assistant.authorizedAt', 'Authorized')}: {formatTime(user.authorizedAt)}
                     </div>
                   </div>

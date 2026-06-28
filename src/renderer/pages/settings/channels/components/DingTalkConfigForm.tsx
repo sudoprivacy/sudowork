@@ -327,7 +327,7 @@ const DingTalkConfigForm: React.FC<DingTalkConfigFormProps> = ({ pluginStatus, m
   const agentOptions: Array<{ backend: AcpBackendAll; name: string; customAgentId?: string; isExtension?: boolean }> = availableAgents.length > 0 ? availableAgents : [{ backend: CHANNEL_DEFAULT_AGENT_BACKEND, name: 'Sudo Code' }];
 
   return (
-    <div className='flex flex-col gap-24px -mt3'>
+    <div className='flex flex-col gap-6 --mt-3'>
       {/* Client ID */}
       <PreferenceRow
         label={t('settings.dingtalk.clientId', 'Client ID')}
@@ -439,7 +439,7 @@ const DingTalkConfigForm: React.FC<DingTalkConfigFormProps> = ({ pluginStatus, m
       {/* Test Connection Button */}
       {!hasExistingUsers && !pluginStatus?.connected && (
         <div className='flex justify-end'>
-          {pluginStatus?.hasToken && !clientId.trim() && !clientSecret.trim() ? <span className='text-12px text-tertiary mr-12px self-center'>{t('settings.dingtalk.credentialsSaved', 'Credentials already configured. Enter new values to update.')}</span> : null}
+          {pluginStatus?.hasToken && !clientId.trim() && !clientSecret.trim() ? <span className='text-12px text-tertiary mr-3 self-center'>{t('settings.dingtalk.credentialsSaved', 'Credentials already configured. Enter new values to update.')}</span> : null}
           <Button type='primary' loading={testLoading} onClick={handleTestConnection} disabled={(!isEnterprise && pluginStatus?.hasToken && !clientId.trim() && !clientSecret.trim()) || (isEnterprise && !clientId.trim() && !clientSecret.trim())}>
             {t('settings.dingtalk.testAndConnect', 'Test & Connect')}
           </Button>
@@ -448,7 +448,7 @@ const DingTalkConfigForm: React.FC<DingTalkConfigFormProps> = ({ pluginStatus, m
 
       {/* Agent Selection - hidden in enterprise mode (uses Moss remote agent) */}
       {!isEnterprise && (
-        <div className='flex flex-col gap-8px'>
+        <div className='flex flex-col gap-2'>
           <PreferenceRow label={t('settings.dingtalk.agent', 'Agent')} description={t('settings.dingtalk.agentDesc', 'Used for DingTalk conversations')}>
             <Dropdown
               trigger='click'
@@ -477,7 +477,7 @@ const DingTalkConfigForm: React.FC<DingTalkConfigFormProps> = ({ pluginStatus, m
                 </Menu>
               }
             >
-              <Button type='secondary' className='min-w-160px flex items-center justify-between gap-8px'>
+              <Button type='secondary' className='min-w-40 flex items-center justify-between gap-2'>
                 <span className='truncate'>{agentOptions[0]?.name || 'Sudo Code'}</span>
                 <Down theme='outline' size={14} />
               </Button>
@@ -495,20 +495,16 @@ const DingTalkConfigForm: React.FC<DingTalkConfigFormProps> = ({ pluginStatus, m
 
       {/* Connection Status */}
       {pluginStatus?.enabled && authorizedUsers.length === 0 && (
-        <div
-          className={`rd-12px p-16px border ${pluginStatus?.connected ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' : pluginStatus?.error ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' : 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800'}`}
-        >
-          <div className='flex items-center justify-between mb-12px'>
+        <div className={`rd-12px p-4 border ${pluginStatus?.connected ? 'bg-success-soft border-success-line' : pluginStatus?.error ? 'bg-danger-soft border-danger-line' : 'bg-warning-soft border-warning-line'}`}>
+          <div className='flex items-center justify-between mb-3'>
             <h3 className='text-14px font-500 text-foreground m-0'>{t('settings.dingtalk.connectionStatus', 'Connection Status')}</h3>
-            <span
-              className={`text-12px px-8px py-2px rd-4px ${pluginStatus?.connected ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' : pluginStatus?.error ? 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300' : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300'}`}
-            >
+            <span className={`text-12px px-2 py-0.5 rd-4px ${pluginStatus?.connected ? 'bg-success-soft text-success' : pluginStatus?.error ? 'bg-danger-soft text-danger' : 'bg-warning-soft text-warning'}`}>
               {pluginStatus?.connected ? t('settings.dingtalk.statusConnected', 'Connected') : pluginStatus?.error ? t('settings.dingtalk.statusError', 'Error') : t('settings.dingtalk.statusConnecting', 'Connecting...')}
             </span>
           </div>
-          {pluginStatus?.error && <div className='text-14px text-red-600 dark:text-red-400 mb-12px'>{pluginStatus.error}</div>}
+          {pluginStatus?.error && <div className='text-14px text-danger mb-3'>{pluginStatus.error}</div>}
           {pluginStatus?.connected && (
-            <div className='text-14px text-secondary space-y-8px'>
+            <div className='text-14px text-secondary space-y-2'>
               <p className='m-0 font-500'>{t('settings.assistant.nextSteps', 'Next Steps')}:</p>
               <p className='m-0'>
                 <strong>1.</strong> {t('settings.dingtalk.step1', 'Open DingTalk and find your bot application')}
@@ -530,8 +526,8 @@ const DingTalkConfigForm: React.FC<DingTalkConfigFormProps> = ({ pluginStatus, m
 
       {/* Pending Pairings */}
       {pluginStatus?.enabled && authorizedUsers.length === 0 && (
-        <div className='bg-fill-1 rd-12px pt-16px pr-16px pb-16px pl-0'>
-          <div className='flex items-center justify-between mb-12px'>
+        <div className='bg-fill-1 rd-12px pt-4 pr-4 pb-4 pl-0'>
+          <div className='flex items-center justify-between mb-3'>
             <h3 className='text-14px font-500 text-foreground m-0'>{t('settings.assistant.pendingPairings', 'Pending Pairing Requests')}</h3>
             <Button size='mini' type='text' icon={<IconRefresh style={{ fontSize: 14 }} />} loading={pairingLoading} onClick={loadPendingPairings}>
               {t('conversation.workspace.refresh', 'Refresh')}
@@ -539,31 +535,31 @@ const DingTalkConfigForm: React.FC<DingTalkConfigFormProps> = ({ pluginStatus, m
           </div>
 
           {pairingLoading ? (
-            <div className='flex justify-center py-24px'>
+            <div className='flex justify-center py-6'>
               <Spin />
             </div>
           ) : pendingPairings.length === 0 ? (
             <Empty description={t('settings.assistant.noPendingPairings', 'No pending pairing requests')} />
           ) : (
-            <div className='flex flex-col gap-12px'>
+            <div className='flex flex-col gap-3'>
               {pendingPairings.map((pairing) => (
-                <div key={pairing.code} className='flex items-center justify-between bg-fill-2 rd-8px p-12px'>
+                <div key={pairing.code} className='flex items-center justify-between bg-fill-2 rd-8px p-3'>
                   <div className='flex-1'>
-                    <div className='flex items-center gap-8px'>
+                    <div className='flex items-center gap-2'>
                       <span className='text-14px font-500 text-foreground'>{pairing.displayName || 'Unknown User'}</span>
                       <Tooltip content={t('settings.assistant.copyCode', 'Copy pairing code')}>
-                        <button className='p-4px bg-transparent border-none text-tertiary hover:text-foreground cursor-pointer' onClick={() => copyToClipboard(pairing.code)}>
+                        <button className='p-1 bg-transparent border-none text-tertiary hover:text-foreground cursor-pointer' onClick={() => copyToClipboard(pairing.code)}>
                           <Copy size={14} />
                         </button>
                       </Tooltip>
                     </div>
-                    <div className='text-12px text-tertiary mt-4px'>
-                      {t('settings.assistant.pairingCode', 'Code')}: <code className='bg-fill-3 px-4px rd-2px'>{pairing.code}</code>
-                      <span className='mx-8px'>|</span>
+                    <div className='text-12px text-tertiary mt-1'>
+                      {t('settings.assistant.pairingCode', 'Code')}: <code className='bg-fill-3 px-1 rd-2px'>{pairing.code}</code>
+                      <span className='mx-2'>|</span>
                       {t('settings.assistant.expiresIn', 'Expires in')}: {getRemainingTime(pairing.expiresAt)}
                     </div>
                   </div>
-                  <div className='flex items-center gap-8px'>
+                  <div className='flex items-center gap-2'>
                     <Button type='primary' size='small' icon={<IconCheckCircle style={{ fontSize: 14 }} />} onClick={() => handleApprovePairing(pairing.code)}>
                       {t('settings.assistant.approve', 'Approve')}
                     </Button>
@@ -580,8 +576,8 @@ const DingTalkConfigForm: React.FC<DingTalkConfigFormProps> = ({ pluginStatus, m
 
       {/* Authorized Users */}
       {authorizedUsers.length > 0 && (
-        <div className='bg-fill-1 rd-12px pt-16px pr-16px pb-16px pl-0'>
-          <div className='flex items-center justify-between mb-12px'>
+        <div className='bg-fill-1 rd-12px pt-4 pr-4 pb-4 pl-0'>
+          <div className='flex items-center justify-between mb-3'>
             <h3 className='text-14px font-500 text-foreground m-0'>{t('settings.assistant.authorizedUsers', 'Authorized Users')}</h3>
             <Button size='mini' type='text' icon={<IconRefresh style={{ fontSize: 14 }} />} loading={usersLoading} onClick={loadAuthorizedUsers}>
               {t('common.refresh', 'Refresh')}
@@ -589,20 +585,20 @@ const DingTalkConfigForm: React.FC<DingTalkConfigFormProps> = ({ pluginStatus, m
           </div>
 
           {usersLoading ? (
-            <div className='flex justify-center py-24px'>
+            <div className='flex justify-center py-6'>
               <Spin />
             </div>
           ) : authorizedUsers.length === 0 ? (
             <Empty description={t('settings.assistant.noAuthorizedUsers', 'No authorized users yet')} />
           ) : (
-            <div className='flex flex-col gap-12px'>
+            <div className='flex flex-col gap-3'>
               {authorizedUsers.map((user) => (
-                <div key={user.id} className='flex items-center justify-between bg-fill-2 rd-8px p-12px'>
+                <div key={user.id} className='flex items-center justify-between bg-fill-2 rd-8px p-3'>
                   <div className='flex-1'>
                     <div className='text-14px font-500 text-foreground'>{user.displayName || 'Unknown User'}</div>
-                    <div className='text-12px text-tertiary mt-4px'>
+                    <div className='text-12px text-tertiary mt-1'>
                       {t('settings.assistant.platform', 'Platform')}: {user.platformType}
-                      <span className='mx-8px'>|</span>
+                      <span className='mx-2'>|</span>
                       {t('settings.assistant.authorizedAt', 'Authorized')}: {formatTime(user.authorizedAt)}
                     </div>
                   </div>

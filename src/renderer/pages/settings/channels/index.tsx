@@ -20,18 +20,18 @@ const Page: React.FC = () => {
   return (
     <PageWrapper title={t('common.siderMenu.webui')}>
       <div className='flex flex-col h-full w-full mt-4'>
-        <div className='settings-remote-tabs mb-12px'>
+        <div className='settings-remote-tabs mb-3'>
           <Tabs activeTab={activeTab} onChange={onTabChange} type='line'>
             <Tabs.TabPane
               key='channels'
               title={
-                <span data-webui-tab='channels' className={`inline-flex items-center gap-6px leading-none transition-colors ${activeTab === 'channels' ? 'text-foreground font-600' : 'text-secondary'}`}>
+                <span data-webui-tab='channels' className={`inline-flex items-center gap-1.5 leading-none transition-colors ${activeTab === 'channels' ? 'text-foreground font-600' : 'text-secondary'}`}>
                   <Communication theme='outline' size='15' />
                   <span>{t('settings.channels.title', '渠道配置')}</span>
-                  <span className='inline-flex items-center gap-4px ml-2px'>
+                  <span className='inline-flex items-center gap-1 ml-0.5'>
                     {CHANNEL_LOGOS.map((item) => (
-                      <span key={item.alt} className='inline-flex items-center justify-center w-16px h-16px' title={item.alt} aria-label={item.alt}>
-                        <img src={item.src} alt={item.alt} className='w-14px h-14px object-contain' />
+                      <span key={item.alt} className='inline-flex items-center justify-center size-4' title={item.alt} aria-label={item.alt}>
+                        <img src={item.src} alt={item.alt} className='size-3.5 object-contain' />
                       </span>
                     ))}
                   </span>
@@ -41,7 +41,7 @@ const Page: React.FC = () => {
             <Tabs.TabPane
               key='secrets'
               title={
-                <span data-webui-tab='secrets' className={`inline-flex items-center gap-6px leading-none transition-colors ${activeTab === 'secrets' ? 'text-foreground font-600' : 'text-secondary'}`}>
+                <span data-webui-tab='secrets' className={`inline-flex items-center gap-1.5 leading-none transition-colors ${activeTab === 'secrets' ? 'text-foreground font-600' : 'text-secondary'}`}>
                   <span className='text-14px'>{isEnterprise ? t('settings.secrets.enterprise', '我的凭据') : t('settings.secrets', '秘钥管理')}</span>
                 </span>
               }

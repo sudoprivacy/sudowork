@@ -43,7 +43,7 @@ const ConfigItemIcon: React.FC<{ iconUrl?: string; name: string }> = ({ iconUrl,
 
   const src = useDefault ? resolveConfigItemIconUrl(null) : resolveConfigItemIconUrl(iconUrl ?? null, baseUrl);
 
-  return <img src={src} alt={name} className='w-16px h-16px object-contain shrink-0' onError={() => setUseDefault(true)} />;
+  return <img src={src} alt={name} className='size-4 object-contain shrink-0' onError={() => setUseDefault(true)} />;
 };
 
 interface TenantConfigItemGroupProps {
@@ -139,16 +139,16 @@ const TenantConfigItemGroup: React.FC<TenantConfigItemGroupProps> = ({ configIte
       <Collapse activeKey={collapsed ? [] : [`tenant-${configItem.id}`]} onChange={() => setCollapsed((prev) => !prev)} className='[&_div.arco-collapse-item-header-title]:flex-1 border-0 bg-transparent [&_.arco-collapse-item-header]:px-0 [&_.arco-collapse-item-header]:py-0'>
         <Collapse.Item
           header={
-            <div className='flex items-center justify-between group px-12px py-12px md:px-16px min-h-44px'>
-              <div className='flex items-center gap-12px flex-1 min-w-0'>
-                <div className='ml-2.5 flex h-28px w-28px items-center justify-center rd-7px bg-fill-1'>
+            <div className='flex items-center justify-between group px-3 py-3 md:px-4 min-h-11'>
+              <div className='flex items-center gap-3 flex-1 min-w-0'>
+                <div className='ml-2.5 flex size-7 items-center justify-center rd-7px bg-fill-1'>
                   <ConfigItemIcon iconUrl={configItem.icon_url} name={configItem.name} />
                 </div>
                 <span className='truncate text-14px font-600 leading-none text-foreground'>{configItem.name}</span>
               </div>
-              <div className='flex items-center gap-8px' onClick={(e) => e.stopPropagation()}>
+              <div className='flex items-center gap-2' onClick={(e) => e.stopPropagation()}>
                 <span className={enabled ? 'whitespace-nowrap text-13px font-500 leading-none text-success' : 'whitespace-nowrap text-13px leading-none text-secondary'}>
-                  <span className={enabled ? 'mr-6px inline-block h-5px w-5px rd-50% bg-success align-middle' : 'mr-6px inline-block h-5px w-5px rd-50% bg-[var(--color-text-3)] align-middle'} />
+                  <span className={enabled ? 'mr-1.5 inline-block size-[5px] rd-full bg-success align-middle' : 'mr-1.5 inline-block size-[5px] rd-full bg-[var(--color-text-3)] align-middle'} />
                   {statusText}
                 </span>
                 <Switch size='small' checked={enabled} onChange={handleToggle} className='settings-accent-switch' style={enabled ? { backgroundColor: 'var(--ui-accent-orange)' } : undefined} />
@@ -157,8 +157,8 @@ const TenantConfigItemGroup: React.FC<TenantConfigItemGroupProps> = ({ configIte
           }
           name={`tenant-${configItem.id}`}
         >
-          <div className='flex flex-col gap-16px'>
-            <div className='bg-fill-1 rd-12px pt-16px px-4 pb-16px'>
+          <div className='flex flex-col gap-4'>
+            <div className='bg-fill-1 rd-12px pt-4 px-4 pb-4'>
               {configItem.entries.map((entry) => (
                 <PreferenceRow key={entry.id} label={entry.name} description={entry.config_desc || undefined} required={entry.required === 1}>
                   <Input.Password

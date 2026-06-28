@@ -170,13 +170,13 @@ const WeChatConfigForm: React.FC<WeChatConfigFormProps> = ({ pluginStatus, model
     if (phase !== 'qrcode' && phase !== 'scanned') return null;
 
     return (
-      <div className='flex flex-col items-center gap-12px p-16px rd-8px bg-fill-1 border border-fill-3'>
+      <div className='flex flex-col items-center gap-3 p-4 rd-8px bg-fill-1 border border-light'>
         <div className='text-14px font-500 text-foreground'>{phase === 'scanned' ? t('settings.channels.wechat.scanned', 'Scanned! Confirm on your phone...') : t('settings.channels.wechat.scanQR', 'Scan with WeChat')}</div>
-        <div className='bg-white rd-8px p-12px'>
+        <div className='bg-white rd-8px p-3'>
           {qrUrl ? (
             <QRCodeSVG value={qrUrl} size={200} level='H' />
           ) : (
-            <div className='flex flex-col items-center gap-8px'>
+            <div className='flex flex-col items-center gap-2'>
               <Spin size={32} />
               <span className='text-12px text-tertiary'>{t('settings.channels.wechat.loadingQR', 'Loading QR code...')}</span>
             </div>
@@ -190,8 +190,8 @@ const WeChatConfigForm: React.FC<WeChatConfigFormProps> = ({ pluginStatus, model
   const renderConnectionSection = () => {
     if (phase === 'success' || isConnected) {
       return (
-        <div className='flex items-center gap-8px p-12px rd-8px bg-[rgba(var(--green-6),0.08)] border border-[rgba(var(--green-6),0.3)]'>
-          <div className='w-8px h-8px rd-50% bg-green-500' />
+        <div className='flex items-center gap-2 p-3 rd-8px bg-success-soft border border-success-line'>
+          <div className='size-2 rd-full bg-success' />
           <span className='text-13px text-foreground'>{t('settings.channels.wechat.connected', 'WeChat is connected')}</span>
         </div>
       );
@@ -199,7 +199,7 @@ const WeChatConfigForm: React.FC<WeChatConfigFormProps> = ({ pluginStatus, model
 
     if (phase === 'loading') {
       return (
-        <div className='flex flex-col items-center gap-12px p-24px'>
+        <div className='flex flex-col items-center gap-3 p-6'>
           <Spin size={32} />
           <span className='text-14px text-secondary'>{t('settings.channels.wechat.installing', 'Preparing QR code...')}</span>
         </div>
@@ -208,10 +208,10 @@ const WeChatConfigForm: React.FC<WeChatConfigFormProps> = ({ pluginStatus, model
 
     if (phase === 'error') {
       return (
-        <div className='flex flex-col gap-12px p-12px rd-8px bg-[rgba(var(--red-6),0.08)] border border-[rgba(var(--red-6),0.3)]'>
-          <div className='text-13px text-red-500'>{errorMessage}</div>
+        <div className='flex flex-col gap-3 p-3 rd-8px bg-danger-soft border border-danger-line'>
+          <div className='text-13px text-danger'>{errorMessage}</div>
           <Button type='outline' status='warning' onClick={handleStartLogin} className='self-start'>
-            <Refresh size={14} className='mr-4px' />
+            <Refresh size={14} className='mr-1' />
             {t('common.retry', 'Retry')}
           </Button>
         </div>
@@ -219,7 +219,7 @@ const WeChatConfigForm: React.FC<WeChatConfigFormProps> = ({ pluginStatus, model
     }
 
     return (
-      <div className='flex flex-col gap-12px'>
+      <div className='flex flex-col gap-3'>
         <div className='text-13px text-secondary leading-relaxed'>
           {t('settings.channels.wechat.installDesc', 'Scan the QR code with WeChat to connect your personal WeChat account.')} <span className='text-warning text-12px'>{t('settings.channels.wechat.privacyWarning', 'Note: All messages sent via WeChat will pass through WeChat servers first.')}</span>{' '}
           <a
@@ -241,14 +241,14 @@ const WeChatConfigForm: React.FC<WeChatConfigFormProps> = ({ pluginStatus, model
   };
 
   return (
-    <div className='flex flex-col gap-24px'>
+    <div className='flex flex-col gap-6'>
       {/* Connection / QR Login */}
       {renderConnectionSection()}
       {renderQRCodeSection()}
 
       {/* Agent Selection - hidden in enterprise mode (uses Moss remote agent) */}
       {!isEnterprise && (
-        <div className='flex flex-col gap-8px'>
+        <div className='flex flex-col gap-2'>
           <PreferenceRow label={t('settings.channels.wechat.agent', 'Agent')} description={t('settings.channels.wechat.agentDesc', 'Used for WeChat conversations')}>
             <Dropdown
               trigger='click'
@@ -277,7 +277,7 @@ const WeChatConfigForm: React.FC<WeChatConfigFormProps> = ({ pluginStatus, model
                 </Menu>
               }
             >
-              <Button type='secondary' className='min-w-160px flex items-center justify-between gap-8px'>
+              <Button type='secondary' className='min-w-40 flex items-center justify-between gap-2'>
                 <span className='truncate'>{agentOptions[0]?.name || 'Sudo Code'}</span>
                 <Down theme='outline' size={14} />
               </Button>

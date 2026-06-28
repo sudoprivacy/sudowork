@@ -518,19 +518,19 @@ const ChannelPanel: React.FC = () => {
       const publicCallbackUrl = publicBaseUrl ? `${publicBaseUrl}${callbackPath}` : null;
 
       if (fields.length === 0) {
-        return <div className='text-14px text-secondary py-12px'>{status.extensionMeta?.description || t('settings.channels.extension.noConfig', { defaultValue: 'No extra configuration required.' })}</div>;
+        return <div className='text-14px text-secondary py-3'>{status.extensionMeta?.description || t('settings.channels.extension.noConfig', { defaultValue: 'No extra configuration required.' })}</div>;
       }
 
       return (
-        <div className='space-y-10px py-4px'>
+        <div className='space-y-2.5 py-1'>
           {status.extensionMeta?.description && <div className='text-13px text-secondary leading-relaxed'>{status.extensionMeta.description}</div>}
           {pluginType === 'ext-wecom-bot' && (
-            <div className='text-12px leading-relaxed p-10px rd-8px bg-[rgba(var(--orange-6),0.08)] border border-[rgba(var(--orange-6),0.3)] text-secondary'>
-              <div className='font-500 text-foreground mb-6px'>{t('settings.channels.extension.wecomCallbackTitle', '企微回调地址说明')}</div>
+            <div className='text-12px leading-relaxed p-2.5 rd-8px bg-warning-soft border border-warning-line text-secondary'>
+              <div className='font-500 text-foreground mb-1.5'>{t('settings.channels.extension.wecomCallbackTitle', '企微回调地址说明')}</div>
               <div>{t('settings.channels.extension.localCallbackUrl', { url: localCallbackUrl, defaultValue: '本机 Callback URL: {{url}}' })}</div>
               {lanCallbackUrl ? <div>{t('settings.channels.extension.lanCallbackUrl', { url: lanCallbackUrl, defaultValue: '局域网 Callback URL: {{url}}' })}</div> : null}
               {publicCallbackUrl ? <div>{t('settings.channels.extension.publicCallbackUrl', { url: publicCallbackUrl, defaultValue: '公网 Callback URL(配置值): {{url}}' })}</div> : null}
-              <div className='mt-6px'>{t('settings.channels.extension.wecomCallbackRemoteHint', '仅开启 WebUI 远程访问（LAN）通常不能直接通过企微回调。企微服务器需要可访问的公网 HTTPS 地址。')}</div>
+              <div className='mt-1.5'>{t('settings.channels.extension.wecomCallbackRemoteHint', '仅开启 WebUI 远程访问（LAN）通常不能直接通过企微回调。企微服务器需要可访问的公网 HTTPS 地址。')}</div>
               <div>{t('settings.channels.extension.wecomCallbackSuggestion', '建议：使用反向代理 + 证书，或 Cloudflare Tunnel / ngrok 映射到本机。')}</div>
             </div>
           )}
@@ -549,7 +549,7 @@ const ChannelPanel: React.FC = () => {
 
             if (field.type === 'number') {
               return (
-                <div key={`${pluginType}-${field.key}`} className='space-y-6px'>
+                <div key={`${pluginType}-${field.key}`} className='space-y-1.5'>
                   <div className='text-13px text-foreground'>{label}</div>
                   <InputNumber value={typeof rawValue === 'number' ? rawValue : undefined} onChange={(value) => updateExtensionFieldValue(pluginType, field.key, Number(value || 0))} className='w-full' />
                 </div>
@@ -558,7 +558,7 @@ const ChannelPanel: React.FC = () => {
 
             if (field.type === 'select') {
               return (
-                <div key={`${pluginType}-${field.key}`} className='space-y-6px'>
+                <div key={`${pluginType}-${field.key}`} className='space-y-1.5'>
                   <div className='text-13px text-foreground'>{label}</div>
                   <Select
                     value={typeof rawValue === 'string' ? rawValue : undefined}
@@ -572,7 +572,7 @@ const ChannelPanel: React.FC = () => {
             }
 
             return (
-              <div key={`${pluginType}-${field.key}`} className='space-y-6px'>
+              <div key={`${pluginType}-${field.key}`} className='space-y-1.5'>
                 <div className='text-13px text-foreground'>{label}</div>
                 <Input value={typeof rawValue === 'string' ? rawValue : ''} onChange={(value) => updateExtensionFieldValue(pluginType, field.key, value)} placeholder={field.label} type={field.type === 'password' ? 'password' : 'text'} />
               </div>
@@ -741,21 +741,21 @@ const ChannelPanel: React.FC = () => {
 
   return (
     <AionScrollArea className='h-full'>
-      <div className={'w-full pb-18px px-12px sm:px-16px md:px-0'}>
+      <div className={'w-full pb-4.5 px-3 sm:px-4 md:px-0'}>
         <h2 className='text-20px font-600 text-foreground m-0'>{t('settings.channels.title', 'Channels')}</h2>
-        <div className='space-y-8px mt-8px'>
+        <div className='space-y-2 mt-2'>
           <div className='text-13px text-secondary leading-relaxed'>{channelGuideText}</div>
-          <div className='flex flex-wrap gap-x-12px gap-y-6px'>
+          <div className='flex flex-wrap gap-x-3 gap-y-1.5'>
             {channelSetupSteps.map((stepLabel, idx) => (
-              <div key={stepLabel} className='inline-flex items-center gap-6px'>
-                <span className='inline-flex items-center justify-center w-16px h-16px rd-50% text-10px font-600 bg-[rgba(var(--ui-accent-orange-rgb),0.12)] text-[var(--ui-accent-orange)]'>{idx + 1}</span>
+              <div key={stepLabel} className='inline-flex items-center gap-1.5'>
+                <span className='inline-flex items-center justify-center size-4 rd-full text-10px font-600 bg-[rgba(var(--ui-accent-orange-rgb),0.12)] text-[var(--ui-accent-orange)]'>{idx + 1}</span>
                 <span className='text-12px text-secondary'>{stepLabel}</span>
               </div>
             ))}
           </div>
         </div>
 
-        <div className='mt-16px flex flex-col gap-12px'>
+        <div className='mt-4 flex flex-col gap-3'>
           {channels.map((channelConfig) => (
             <ChannelItem key={channelConfig.id} channel={channelConfig} isCollapsed={collapseKeys[channelConfig.id] || false} onToggleCollapse={() => handleToggleCollapse(channelConfig.id)} onToggleEnabled={getToggleHandler(channelConfig.id)} />
           ))}

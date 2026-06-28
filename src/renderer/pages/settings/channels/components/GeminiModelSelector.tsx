@@ -28,10 +28,10 @@ const GeminiModelSelector: React.FC<{
   // 获取当前模型的健康状态 (must be called before any early return to keep hooks count stable)
   const currentModel = selection?.currentModel;
   const currentModelHealth = React.useMemo(() => {
-    if (!currentModel || !modelConfig) return { status: 'unknown', color: 'bg-gray-400' };
+    if (!currentModel || !modelConfig) return { status: 'unknown', color: 'bg-[var(--color-text-3)]' };
     const matchedProvider = modelConfig.find((p) => p.id === currentModel.id);
     const healthStatus = matchedProvider?.modelHealth?.[currentModel.useModel]?.status || 'unknown';
-    const healthColor = healthStatus === 'healthy' ? 'bg-green-500' : healthStatus === 'unhealthy' ? 'bg-red-500' : 'bg-gray-400';
+    const healthColor = healthStatus === 'healthy' ? 'bg-success' : healthStatus === 'unhealthy' ? 'bg-danger' : 'bg-[var(--color-text-3)]';
     return { status: healthStatus, color: healthColor };
   }, [currentModel, modelConfig]);
 
@@ -40,13 +40,13 @@ const GeminiModelSelector: React.FC<{
     const displayLabel = customLabel || t('conversation.welcome.useCliModel');
 
     if (variant === 'settings') {
-      return <div className='text-14px text-secondary min-w-160px'>{displayLabel}</div>;
+      return <div className='text-14px text-secondary min-w-40'>{displayLabel}</div>;
     }
 
     return (
       <Tooltip content={t('conversation.welcome.modelSwitchNotSupported')} position='top'>
         <Button className={classNames('sendbox-model-btn header-model-btn', compact && '!max-w-[120px]')} shape='round' size='small' style={{ cursor: 'default' }}>
-          <span className='flex items-center gap-6px min-w-0'>
+          <span className='flex items-center gap-1.5 min-w-0'>
             <span className={compact ? 'block truncate' : undefined}>{displayLabel}</span>
           </span>
         </Button>
@@ -70,17 +70,17 @@ const GeminiModelSelector: React.FC<{
 
   const triggerButton =
     variant === 'settings' ? (
-      <Button type='secondary' className='min-w-160px flex items-center justify-between gap-8px'>
-        <div className='flex items-center gap-8px min-w-0'>
-          {currentModelHealth.status !== 'unknown' && <div className={`w-6px h-6px rounded-full shrink-0 ${currentModelHealth.color}`} />}
+      <Button type='secondary' className='min-w-40 flex items-center justify-between gap-2'>
+        <div className='flex items-center gap-2 min-w-0'>
+          {currentModelHealth.status !== 'unknown' && <div className={`size-1.5 rd-full shrink-0 ${currentModelHealth.color}`} />}
           <span className='truncate'>{label}</span>
         </div>
         <Down theme='outline' size={14} />
       </Button>
     ) : (
       <Button className={classNames('sendbox-model-btn header-model-btn', compact && '!max-w-[120px]')} shape='round' size='small'>
-        <span className='flex items-center gap-6px min-w-0'>
-          {currentModelHealth.status !== 'unknown' && <div className={`w-6px h-6px rounded-full shrink-0 ${currentModelHealth.color}`} />}
+        <span className='flex items-center gap-1.5 min-w-0'>
+          {currentModelHealth.status !== 'unknown' && <div className={`size-1.5 rd-full shrink-0 ${currentModelHealth.color}`} />}
           <span className={compact ? 'block truncate' : undefined}>{label}</span>
         </span>
       </Button>
@@ -108,7 +108,7 @@ const GeminiModelSelector: React.FC<{
                       <Menu.SubMenu
                         key={`${provider.id}-${modelName}`}
                         title={
-                          <div className='flex items-center justify-between gap-12px w-full'>
+                          <div className='flex items-center justify-between gap-3 w-full'>
                             <span>{option.label}</span>
                           </div>
                         }
@@ -129,12 +129,12 @@ const GeminiModelSelector: React.FC<{
                         // 获取模型健康状态
                         const matchedProvider = modelConfig?.find((p) => p.id === provider.id);
                         const healthStatus = matchedProvider?.modelHealth?.[modelName]?.status || 'unknown';
-                        const healthColor = healthStatus === 'healthy' ? 'bg-green-500' : healthStatus === 'unhealthy' ? 'bg-red-500' : 'bg-gray-400';
+                        const healthColor = healthStatus === 'healthy' ? 'bg-success' : healthStatus === 'unhealthy' ? 'bg-danger' : 'bg-[var(--color-text-3)]';
 
                         if (!option) {
                           return (
-                            <div className='flex items-center gap-8px w-full'>
-                              {healthStatus !== 'unknown' && <div className={`w-6px h-6px rounded-full shrink-0 ${healthColor}`} />}
+                            <div className='flex items-center gap-2 w-full'>
+                              {healthStatus !== 'unknown' && <div className={`size-1.5 rd-full shrink-0 ${healthColor}`} />}
                               <span>{modelName}</span>
                             </div>
                           );
@@ -144,14 +144,14 @@ const GeminiModelSelector: React.FC<{
                             position='right'
                             trigger='hover'
                             content={
-                              <div className='max-w-240px space-y-6px'>
+                              <div className='max-w-60 space-y-1.5'>
                                 <div className='text-12px text-tertiary leading-5'>{option.description}</div>
                                 {option.modelHint && <div className='text-11px text-tertiary'>{option.modelHint}</div>}
                               </div>
                             }
                           >
-                            <div className='flex items-center gap-8px w-full'>
-                              {healthStatus !== 'unknown' && <div className={`w-6px h-6px rounded-full shrink-0 ${healthColor}`} />}
+                            <div className='flex items-center gap-2 w-full'>
+                              {healthStatus !== 'unknown' && <div className={`size-1.5 rd-full shrink-0 ${healthColor}`} />}
                               <span>{option.label}</span>
                             </div>
                           </Tooltip>

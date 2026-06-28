@@ -132,7 +132,7 @@ const ZentaoConfigForm: React.FC<{ pluginStatus?: IChannelPluginStatus | null; o
   const isCredentialsLocked = pluginStatus?.enabled && pluginStatus?.hasToken;
 
   return (
-    <div className='flex flex-col gap-24px -mt-3'>
+    <div className='flex flex-col gap-6 -mt-3'>
       {/* Server URL */}
       <PreferenceRow label={t('settings.zentao.serverUrl', 'Server URL')} description={t('settings.zentao.serverUrlDesc', 'Zentao server access URL')} required>
         <Input
@@ -185,7 +185,7 @@ const ZentaoConfigForm: React.FC<{ pluginStatus?: IChannelPluginStatus | null; o
       {/* Test Connection Button - hide when credentials locked */}
       {!isCredentialsLocked && !pluginStatus?.connected && (
         <div className='flex justify-end'>
-          {pluginStatus?.hasToken && !serverUrl.trim() && !zentaoUsername.trim() && !zentaoPassword.trim() ? <span className='text-12px text-tertiary mr-12px self-center'>{t('settings.zentao.credentialsSaved', 'Credentials already configured. Enter new values to update.')}</span> : null}
+          {pluginStatus?.hasToken && !serverUrl.trim() && !zentaoUsername.trim() && !zentaoPassword.trim() ? <span className='text-12px text-tertiary mr-3 self-center'>{t('settings.zentao.credentialsSaved', 'Credentials already configured. Enter new values to update.')}</span> : null}
           <Button type='primary' loading={testLoading} onClick={handleTestConnection} disabled={pluginStatus?.hasToken && !serverUrl.trim() && !zentaoUsername.trim() && !zentaoPassword.trim()}>
             {t('settings.zentao.testAndConnect', 'Test & Connect')}
           </Button>
@@ -194,20 +194,16 @@ const ZentaoConfigForm: React.FC<{ pluginStatus?: IChannelPluginStatus | null; o
 
       {/* Connection Status */}
       {pluginStatus?.enabled && (
-        <div
-          className={`rd-12px p-16px border ${pluginStatus?.connected ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' : pluginStatus?.error ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' : 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800'}`}
-        >
-          <div className='flex items-center justify-between mb-12px'>
+        <div className={`rd-12px p-4 border ${pluginStatus?.connected ? 'bg-success-soft border-success-line' : pluginStatus?.error ? 'bg-danger-soft border-danger-line' : 'bg-warning-soft border-warning-line'}`}>
+          <div className='flex items-center justify-between mb-3'>
             <h3 className='text-14px font-500 text-foreground m-0'>{t('settings.zentao.connectionStatus', 'Connection Status')}</h3>
-            <span
-              className={`text-12px px-8px py-2px rd-4px ${pluginStatus?.connected ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' : pluginStatus?.error ? 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300' : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300'}`}
-            >
+            <span className={`text-12px px-2 py-0.5 rd-4px ${pluginStatus?.connected ? 'bg-success-soft text-success' : pluginStatus?.error ? 'bg-danger-soft text-danger' : 'bg-warning-soft text-warning'}`}>
               {pluginStatus?.connected ? t('settings.zentao.statusConnected', 'Connected') : pluginStatus?.error ? t('settings.zentao.statusError', 'Error') : t('settings.zentao.statusConnecting', 'Connecting...')}
             </span>
           </div>
-          {pluginStatus?.error && <div className='text-14px text-red-600 dark:text-red-400 mb-12px'>{pluginStatus.error}</div>}
+          {pluginStatus?.error && <div className='text-14px text-danger mb-3'>{pluginStatus.error}</div>}
           {pluginStatus?.connected && (
-            <div className='text-14px text-secondary space-y-8px'>
+            <div className='text-14px text-secondary space-y-2'>
               <p className='m-0 font-500'>{t('settings.assistant.nextSteps', '下一步操作')}:</p>
               <p className='m-0'>{t('settings.zentao.nextStepsText', '可以和 Sudoclaw 对话，直接使用禅道技能进行项目问题的跟踪与处理。')}</p>
             </div>

@@ -504,24 +504,24 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
   const agentOptions: Array<{ backend: AcpBackendAll; name: string; customAgentId?: string; isExtension?: boolean }> = availableAgents.length > 0 ? availableAgents : [{ backend: CHANNEL_DEFAULT_AGENT_BACKEND, name: 'Sudo Code' }];
 
   return (
-    <div className='flex flex-col gap-24px'>
+    <div className='flex flex-col gap-6'>
       {/* Consumer mode: QR Login (replaces manual App ID / App Secret entry) */}
       {!isEnterprise && (
-        <div className='flex flex-col gap-8px'>
-          <div className='flex items-center justify-between mb-12px'>
+        <div className='flex flex-col gap-2'>
+          <div className='flex items-center justify-between mb-3'>
             <h3 className='text-14px font-500 text-foreground m-0'>{t('settings.lark.larkCli.title', '扫码登录飞书')}</h3>
           </div>
           <div className='text-12px text-secondary'>{t('settings.lark.larkCli.description', '扫码自动完成飞书应用创建与授权登录，无需手动填写 App ID 与 App Secret。')}</div>
           {larkAuthLoggedInUser ? (
-            <div className='flex items-center justify-between bg-fill-1 rd-8px p-12px'>
-              <div className='flex items-center gap-8px'>
-                <div className='w-8px h-8px rd-50% bg-green-500' />
+            <div className='flex items-center justify-between bg-fill-1 rd-8px p-3'>
+              <div className='flex items-center gap-2'>
+                <div className='size-2 rd-full bg-success' />
                 <span className='text-13px text-foreground'>
                   {t('settings.lark.larkCli.loggedInAs', '已登录')}: <strong>{larkAuthLoggedInUser}</strong>
                 </span>
                 {larkAuthLoggedInAt && <span className='text-12px text-tertiary'>{new Date(larkAuthLoggedInAt).toLocaleString()}</span>}
               </div>
-              <div className='flex items-center gap-8px'>
+              <div className='flex items-center gap-2'>
                 <Button size='small' onClick={handleLarkAuthWhoAmI}>
                   {t('settings.lark.larkCli.testOAuth', '测试 OAuth')}
                 </Button>
@@ -534,7 +534,7 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
               </div>
             </div>
           ) : (
-            <div className='flex justify-center py-12px'>
+            <div className='flex justify-center py-3'>
               <Button type='primary' size='large' icon={<IconScan style={{ fontSize: 16 }} />} onClick={handleStartLarkAuthLogin}>
                 {t('settings.lark.larkCli.scanLogin', '扫码登录飞书')}
               </Button>
@@ -550,7 +550,7 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
           visible={larkAuthModalOpen}
           onCancel={handleCloseLarkAuthModal}
           footer={
-            <div className='flex justify-end gap-8px'>
+            <div className='flex justify-end gap-2'>
               {(larkAuthPhase === 'error' || larkAuthPhase === 'expired') && (
                 <Button type='primary' onClick={handleStartLarkAuthLogin}>
                   {t('common.retry', '重试')}
@@ -562,9 +562,9 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
           maskClosable={false}
           style={{ width: 480 }}
         >
-          <div className='flex flex-col items-center gap-16px py-12px'>
+          <div className='flex flex-col items-center gap-4 py-3'>
             {larkAuthPhase === 'initializing' && (
-              <div className='flex flex-col items-center gap-8px py-32px'>
+              <div className='flex flex-col items-center gap-2 py-8'>
                 <Spin size={32} />
                 <span className='text-12px text-tertiary'>{t('settings.lark.larkCli.initializing', '正在初始化…')}</span>
               </div>
@@ -572,7 +572,7 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
             {larkAuthPhase === 'app-setup' && larkAuthVerificationUrl && (
               <>
                 <div className='text-13px font-500 text-foreground'>{t('settings.lark.larkCli.appSetupTitle', '第 1 步：配置飞书应用')}</div>
-                <div className='bg-white rd-8px p-12px'>
+                <div className='bg-white rd-8px p-3'>
                   <QRCodeSVG value={larkAuthVerificationUrl} size={200} level='M' />
                 </div>
                 <div className='text-12px text-tertiary text-center'>
@@ -587,11 +587,11 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
             {larkAuthPhase === 'qrcode' && larkAuthVerificationUrl && (
               <>
                 <div className='text-13px font-500 text-foreground'>{t('settings.lark.larkCli.authTitle', '第 2 步：扫码登录飞书账号')}</div>
-                <div className='bg-white rd-8px p-12px'>
+                <div className='bg-white rd-8px p-3'>
                   <QRCodeSVG value={larkAuthVerificationUrl} size={200} level='M' />
                 </div>
                 {larkAuthUserCode && (
-                  <div className='flex flex-col items-center gap-4px'>
+                  <div className='flex flex-col items-center gap-1'>
                     <div className='text-12px text-tertiary'>{t('settings.lark.larkCli.verificationCode', '验证码')}</div>
                     <div className='text-20px font-600 tracking-widest font-mono text-foreground'>{larkAuthUserCode}</div>
                   </div>
@@ -611,7 +611,7 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
               </>
             )}
             {larkAuthPhase === 'success' && (
-              <div className='flex flex-col items-center gap-8px py-32px'>
+              <div className='flex flex-col items-center gap-2 py-8'>
                 <CheckOne size={48} theme='filled' fill='#22c55e' />
                 <span className='text-14px text-foreground'>
                   {t('settings.lark.larkCli.loginSuccess', '扫码登录成功')}
@@ -620,9 +620,9 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
               </div>
             )}
             {(larkAuthPhase === 'error' || larkAuthPhase === 'expired') && (
-              <div className='flex flex-col items-center gap-8px py-24px'>
+              <div className='flex flex-col items-center gap-2 py-6'>
                 <CloseOne size={32} theme='filled' fill='#ef4444' />
-                <span className='text-13px text-red-600 dark:text-red-400 text-center px-12px break-words'>{larkAuthError}</span>
+                <span className='text-13px text-danger text-center px-3 break-words'>{larkAuthError}</span>
               </div>
             )}
           </div>
@@ -741,7 +741,7 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
           </PreferenceRow>
 
           {/* Optional fields toggle */}
-          <div className='flex items-center gap-4px text-12px text-tertiary cursor-pointer select-none' onClick={() => setShowOptional((prev) => !prev)}>
+          <div className='flex items-center gap-1 text-12px text-tertiary cursor-pointer select-none' onClick={() => setShowOptional((prev) => !prev)}>
             <Down theme='outline' size={12} style={{ transform: showOptional ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
             <span>{showOptional ? t('settings.lark.hideOptionalFields', 'Hide optional settings') : t('settings.lark.showOptionalFields', 'Show optional settings')}</span>
           </div>
@@ -819,7 +819,7 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
           {/* Test Connection Button (enterprise mode) */}
           {!hasExistingUsers && !pluginStatus?.connected && (
             <div className='flex justify-end'>
-              {pluginStatus?.hasToken && !appId.trim() && !appSecret.trim() ? <span className='text-12px text-tertiary mr-12px self-center'>{t('settings.lark.credentialsSaved', 'Credentials already configured. Enter new values to update.')}</span> : null}
+              {pluginStatus?.hasToken && !appId.trim() && !appSecret.trim() ? <span className='text-12px text-tertiary mr-3 self-center'>{t('settings.lark.credentialsSaved', 'Credentials already configured. Enter new values to update.')}</span> : null}
               <Button type='primary' loading={testLoading} onClick={handleTestConnection} disabled={!appId.trim() || !appSecret.trim() || credentialsTested}>
                 {t('settings.lark.testAndConnect', 'Test & Connect')}
               </Button>
@@ -830,7 +830,7 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
 
       {/* Agent Selection - hidden in enterprise mode (uses Moss remote agent) */}
       {!isEnterprise && (
-        <div className='flex flex-col gap-8px'>
+        <div className='flex flex-col gap-2'>
           <PreferenceRow label={t('settings.lark.agent', 'Agent')} description={t('settings.lark.agentDesc', 'Used for Lark conversations')}>
             <Dropdown
               trigger='click'
@@ -859,7 +859,7 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
                 </Menu>
               }
             >
-              <Button type='secondary' className='min-w-160px flex items-center justify-between gap-8px'>
+              <Button type='secondary' className='min-w-40 flex items-center justify-between gap-2'>
                 <span className='truncate'>{agentOptions[0]?.name || 'Sudo Code'}</span>
                 <Down theme='outline' size={14} />
               </Button>
@@ -877,20 +877,16 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
 
       {/* Connection Status - show when bot is enabled */}
       {pluginStatus?.enabled && authorizedUsers.length === 0 && (
-        <div
-          className={`rd-12px p-16px border ${pluginStatus?.connected ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' : pluginStatus?.error ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' : 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800'}`}
-        >
-          <div className='flex items-center justify-between mb-12px'>
+        <div className={`rd-12px p-4 border ${pluginStatus?.connected ? 'bg-success-soft border-success-line' : pluginStatus?.error ? 'bg-danger-soft border-danger-line' : 'bg-warning-soft border-warning-line'}`}>
+          <div className='flex items-center justify-between mb-3'>
             <h3 className='text-14px font-500 text-foreground m-0'>{t('settings.lark.connectionStatus', 'Connection Status')}</h3>
-            <span
-              className={`text-12px px-8px py-2px rd-4px ${pluginStatus?.connected ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' : pluginStatus?.error ? 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300' : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300'}`}
-            >
+            <span className={`text-12px px-2 py-0.5 rd-4px ${pluginStatus?.connected ? 'bg-success-soft text-success' : pluginStatus?.error ? 'bg-danger-soft text-danger' : 'bg-warning-soft text-warning'}`}>
               {pluginStatus?.connected ? t('settings.lark.statusConnected', 'Connected') : pluginStatus?.error ? t('settings.lark.statusError', 'Error') : t('settings.lark.statusConnecting', 'Connecting...')}
             </span>
           </div>
-          {pluginStatus?.error && <div className='text-14px text-red-600 dark:text-red-400 mb-12px'>{pluginStatus.error}</div>}
+          {pluginStatus?.error && <div className='text-14px text-danger mb-3'>{pluginStatus.error}</div>}
           {pluginStatus?.connected && (
-            <div className='text-14px text-secondary space-y-8px'>
+            <div className='text-14px text-secondary space-y-2'>
               <p className='m-0 font-500'>{t('settings.assistant.nextSteps', 'Next Steps')}:</p>
               <p className='m-0'>
                 <strong>1.</strong> {t('settings.lark.step1', 'Open Feishu/Lark and find your bot application')}
@@ -912,8 +908,8 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
 
       {/* Pending Pairings */}
       {pluginStatus?.enabled && authorizedUsers.length === 0 && (
-        <div className='bg-fill-1 rd-12px pt-16px pr-16px pb-16px pl-0'>
-          <div className='flex items-center justify-between mb-12px'>
+        <div className='bg-fill-1 rd-12px pt-4 pr-4 pb-4 pl-0'>
+          <div className='flex items-center justify-between mb-3'>
             <h3 className='text-14px font-500 text-foreground m-0'>{t('settings.assistant.pendingPairings', 'Pending Pairing Requests')}</h3>
             <Button size='mini' type='text' icon={<IconRefresh style={{ fontSize: 14 }} />} loading={pairingLoading} onClick={loadPendingPairings}>
               {t('conversation.workspace.refresh', 'Refresh')}
@@ -921,31 +917,31 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
           </div>
 
           {pairingLoading ? (
-            <div className='flex justify-center py-24px'>
+            <div className='flex justify-center py-6'>
               <Spin />
             </div>
           ) : pendingPairings.length === 0 ? (
             <Empty description={t('settings.assistant.noPendingPairings', 'No pending pairing requests')} />
           ) : (
-            <div className='flex flex-col gap-12px'>
+            <div className='flex flex-col gap-3'>
               {pendingPairings.map((pairing) => (
-                <div key={pairing.code} className='flex items-center justify-between bg-fill-2 rd-8px p-12px'>
+                <div key={pairing.code} className='flex items-center justify-between bg-fill-2 rd-8px p-3'>
                   <div className='flex-1'>
-                    <div className='flex items-center gap-8px'>
+                    <div className='flex items-center gap-2'>
                       <span className='text-14px font-500 text-foreground'>{pairing.displayName || 'Unknown User'}</span>
                       <Tooltip content={t('settings.assistant.copyCode', 'Copy pairing code')}>
-                        <button className='p-4px bg-transparent border-none text-tertiary hover:text-foreground cursor-pointer' onClick={() => copyToClipboard(pairing.code)}>
+                        <button className='p-1 bg-transparent border-none text-tertiary hover:text-foreground cursor-pointer' onClick={() => copyToClipboard(pairing.code)}>
                           <Copy size={14} />
                         </button>
                       </Tooltip>
                     </div>
-                    <div className='text-12px text-tertiary mt-4px'>
-                      {t('settings.assistant.pairingCode', 'Code')}: <code className='bg-fill-3 px-4px rd-2px'>{pairing.code}</code>
-                      <span className='mx-8px'>|</span>
+                    <div className='text-12px text-tertiary mt-1'>
+                      {t('settings.assistant.pairingCode', 'Code')}: <code className='bg-fill-3 px-1 rd-2px'>{pairing.code}</code>
+                      <span className='mx-2'>|</span>
                       {t('settings.assistant.expiresIn', 'Expires in')}: {getRemainingTime(pairing.expiresAt)}
                     </div>
                   </div>
-                  <div className='flex items-center gap-8px'>
+                  <div className='flex items-center gap-2'>
                     <Button type='primary' size='small' icon={<IconCheckCircle style={{ fontSize: 14 }} />} onClick={() => handleApprovePairing(pairing.code)}>
                       {t('settings.assistant.approve', 'Approve')}
                     </Button>
@@ -962,8 +958,8 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
 
       {/* Authorized Users */}
       {authorizedUsers.length > 0 && (
-        <div className='bg-fill-1 rd-12px pt-16px pr-16px pb-16px pl-0'>
-          <div className='flex items-center justify-between mb-12px'>
+        <div className='bg-fill-1 rd-12px pt-4 pr-4 pb-4 pl-0'>
+          <div className='flex items-center justify-between mb-3'>
             <h3 className='text-14px font-500 text-foreground m-0'>{t('settings.assistant.authorizedUsers', 'Authorized Users')}</h3>
             <Button size='mini' type='text' icon={<IconRefresh style={{ fontSize: 14 }} />} loading={usersLoading} onClick={loadAuthorizedUsers}>
               {t('common.refresh', 'Refresh')}
@@ -971,20 +967,20 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
           </div>
 
           {usersLoading ? (
-            <div className='flex justify-center py-24px'>
+            <div className='flex justify-center py-6'>
               <Spin />
             </div>
           ) : authorizedUsers.length === 0 ? (
             <Empty description={t('settings.assistant.noAuthorizedUsers', 'No authorized users yet')} />
           ) : (
-            <div className='flex flex-col gap-12px'>
+            <div className='flex flex-col gap-3'>
               {authorizedUsers.map((user) => (
-                <div key={user.id} className='flex items-center justify-between bg-fill-2 rd-8px p-12px'>
+                <div key={user.id} className='flex items-center justify-between bg-fill-2 rd-8px p-3'>
                   <div className='flex-1'>
                     <div className='text-14px font-500 text-foreground'>{user.displayName || 'Unknown User'}</div>
-                    <div className='text-12px text-tertiary mt-4px'>
+                    <div className='text-12px text-tertiary mt-1'>
                       {t('settings.assistant.platform', 'Platform')}: {user.platformType}
-                      <span className='mx-8px'>|</span>
+                      <span className='mx-2'>|</span>
                       {t('settings.assistant.authorizedAt', 'Authorized')}: {formatTime(user.authorizedAt)}
                     </div>
                   </div>

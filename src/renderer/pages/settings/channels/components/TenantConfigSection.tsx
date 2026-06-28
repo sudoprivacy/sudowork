@@ -14,7 +14,7 @@ const TenantConfigSection: React.FC<TenantConfigSectionProps> = ({ refreshTrigge
 
   if (loading) {
     return (
-      <div className='flex items-center justify-center py-24px'>
+      <div className='f-center py-6'>
         <Spin />
       </div>
     );
@@ -22,7 +22,7 @@ const TenantConfigSection: React.FC<TenantConfigSectionProps> = ({ refreshTrigge
 
   if (error) {
     return (
-      <div className='flex flex-col items-center gap-8px py-16px'>
+      <div className='flex flex-col items-center gap-2 py-4'>
         <span className='text-13px text-danger'>{error}</span>
         <Button size='small' type='text' onClick={() => void refresh()}>
           {t('common.retry', '重试')}
@@ -32,11 +32,11 @@ const TenantConfigSection: React.FC<TenantConfigSectionProps> = ({ refreshTrigge
   }
 
   if (configItems.length === 0) {
-    return <div className='text-13px text-tertiary py-16px'>{t('settings.secrets.emptyHint', '暂无凭据配置项')}</div>;
+    return <div className='text-13px text-tertiary py-4'>{t('settings.secrets.emptyHint', '暂无凭据配置项')}</div>;
   }
 
   return (
-    <div className='space-y-12px'>
+    <div className='space-y-3'>
       {configItems.map((item) => (
         <TenantConfigItemGroup
           key={item.id}

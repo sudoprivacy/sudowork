@@ -36,9 +36,9 @@ const ChannelHeader: React.FC<ChannelHeaderProps> = ({ channel, onToggleEnabled 
   const statusText = channel.isConnected ? t('settings.channels.connected', { defaultValue: '已连接' }) : channel.enabled ? t('settings.channels.enabled', { defaultValue: '已启用' }) : t('settings.channels.disabled', { defaultValue: '未启用' });
 
   return (
-    <div className='flex flex-wrap items-center gap-x-12px gap-y-8px px-12px py-12px md:px-16px group min-h-44px' data-channel-header={channel.id}>
-      <div className='ml-4 flex h-28px w-28px items-center justify-center rd-7px'>{logoSrc && <img src={logoSrc} alt={logoAlt} className='h-18px w-18px object-contain shrink-0' />}</div>
-      <div className='flex min-w-120px flex-1 items-center gap-8px'>
+    <div className='flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-3 md:px-4 group min-h-11' data-channel-header={channel.id}>
+      <div className='ml-4 flex size-7 items-center justify-center rd-7px'>{logoSrc && <img src={logoSrc} alt={logoAlt} className='size-4.5 object-contain shrink-0' />}</div>
+      <div className='flex min-w-30 flex-1 items-center gap-2'>
         <span className='truncate text-14px font-600 leading-none text-foreground'>{channel.title}</span>
         {channel.status === 'coming_soon' && (
           <Tag size='small' color='gray'>
@@ -47,7 +47,7 @@ const ChannelHeader: React.FC<ChannelHeaderProps> = ({ channel, onToggleEnabled 
         )}
       </div>
       <span className={channel.isConnected ? 'whitespace-nowrap text-13px font-500 leading-none text-success' : 'whitespace-nowrap text-13px leading-none text-secondary'}>
-        <span className={channel.isConnected ? 'mr-6px inline-block h-5px w-5px rd-50% bg-success align-middle' : 'mr-6px inline-block h-5px w-5px rd-50% bg-warning align-middle'} />
+        <span className={channel.isConnected ? 'mr-1.5 inline-block size-[5px] rd-full bg-success align-middle' : 'mr-1.5 inline-block size-[5px] rd-full bg-warning align-middle'} />
         {statusText}
       </span>
       <div className='ml-auto flex items-center justify-end' onClick={(e) => e.stopPropagation()}>

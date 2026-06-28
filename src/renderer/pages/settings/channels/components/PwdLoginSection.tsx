@@ -56,10 +56,10 @@ const CredentialRow: React.FC<{ entry: IPwdLoginEntryStatus; onSaved: () => void
   }, [entry.title, t]);
 
   return (
-    <div className='py-8px space-y-10px'>
+    <div className='py-2 space-y-2.5'>
       <Input value={username} onChange={setUsername} placeholder={t('pwdLogin.section.username', '登录用户名')} autoComplete='off' />
       <Input.Password value={password} onChange={setPassword} placeholder={t('pwdLogin.section.password', '登录密码（仅本地保存，绝不发送给 AI）')} autoComplete='new-password' />
-      <div className='flex items-center gap-8px'>
+      <div className='flex items-center gap-2'>
         <Button type='primary' size='small' loading={saving} onClick={save}>
           {t('pwdLogin.section.save', '保存凭证')}
         </Button>
@@ -88,10 +88,10 @@ const PwdLoginSection: React.FC = () => {
   if (entries.length === 0) return null;
 
   return (
-    <div className='rd-8px border border-solid border-fill-3 overflow-hidden'>
-      <div className='px-16px py-12px bg-fill-1'>
+    <div className='rd-8px border border-light overflow-hidden'>
+      <div className='px-4 py-3 bg-fill-1'>
         <h3 className='text-14px font-500 text-foreground m-0'>{t('pwdLogin.section.title', '网站自动登录')}</h3>
-        <div className='text-12px text-tertiary mt-2px'>{t('pwdLogin.section.desc', '为网站保存登录凭证，sudowork 自动填表并识别验证码登录。密码仅存于本地 Nexus 密钥库，绝不进入 AI 上下文。')}</div>
+        <div className='text-12px text-tertiary mt-0.5'>{t('pwdLogin.section.desc', '为网站保存登录凭证，sudowork 自动填表并识别验证码登录。密码仅存于本地 Nexus 密钥库，绝不进入 AI 上下文。')}</div>
       </div>
       <Collapse bordered={false}>
         {entries.map((e) => (
@@ -99,7 +99,7 @@ const PwdLoginSection: React.FC = () => {
             key={e.title}
             name={e.title}
             header={
-              <div className='flex items-center gap-8px'>
+              <div className='flex items-center gap-2'>
                 <span className='text-14px text-foreground'>{e.title}</span>
                 {e.source === 'custom' && (
                   <Tag size='small' color='arcoblue'>
@@ -119,7 +119,7 @@ const PwdLoginSection: React.FC = () => {
               </div>
             }
           >
-            <div className='text-12px text-secondary mb-6px break-all'>{e.url}</div>
+            <div className='text-12px text-secondary mb-1.5 break-all'>{e.url}</div>
             <CredentialRow entry={e} onSaved={load} />
           </Collapse.Item>
         ))}
