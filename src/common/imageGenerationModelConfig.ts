@@ -76,3 +76,34 @@ export function pickDefaultImageModelFromPricing(items: SpecificImagePricingItem
   }
   return best ? best.model_id : items[0].model_id;
 }
+
+/**
+ * Resolve the runtime JSON model id and the persisted useModel against the live
+ * pricing list. Switch-off always yields jsonModelId null — resolveImageConfig uses
+ * any non-empty model without checking the switch, so the runtime JSON must be empty
+ * when off; a stale useModel is still repaired in the persistence layer so the
+ * feature works the moment the switch is turned back on.
+ *
+ * Caller invariants: `saved` exists; `items` is non-empty (so defaultModel is valid).
+ */
+export function resolveImageModelWithAvailability(saved: ImageGenerationModelConfig, items: SpecificImagePricingItem[]): { jsonModelId: string | null; persistedUseModel: string; changed: boolean } {
+  const switchOn = saved.switch !== false;
+  const useModel = saved.useModel;
+  const inList = !!(useModel && items.some((it) => it.model_id === useModel));
+  const defaultModel = pickDefaultImageModelFromPricing(items);
+
+  if (!switchOn) {
+    if (useModel && !inList) {
+      return { jsonModelId: null, persistedUseModel: defaultModel, changed: true };
+    }
+    return { jsonModelId: null, persistedUseModel: useModel ?? '', changed: false };
+  }
+
+  if (useModel && inList) {
+    return { jsonModelId: useModel, persistedUseModel: useModel, changed: false };
+  }
+  if (useModel && !inList) {
+    return { jsonModelId: defaultModel || null, persistedUseModel: defaultModel, changed: true };
+  }
+  return { jsonModelId: defaultModel || null, persistedUseModel: '', changed: false };
+}

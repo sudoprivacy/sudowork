@@ -181,24 +181,43 @@ export async function syncScodeModelsFromPricing(): Promise<void> {
 }
 
 /**
+ * Resolve the image generation model id for a main-process sync point (startup /
+ * sudoclaw gateway start). Always returns a definitive modelId (null → runtime
+ * writes ''). A stale useModel is repaired in the persistence layer; a pricing
+ * fetch failure / empty list keeps the existing useModel untouched.
+ */
+export async function resolveImageModelForMainSync(): Promise<{ modelId: string | null }> {
+  const { ProcessConfig } = await import('@process/initStorage');
+  const { fetchSpecificImagePricingItems } = await import('@/common/imagePricingSource');
+  const { pickDefaultImageModelFromPricing, pickImageGenerationModelId, resolveImageModelWithAvailability } = await import('@/common/imageGenerationModelConfig');
+
+  const saved = await ProcessConfig.get('tools.imageGenerationModel');
+  const items = await fetchSpecificImagePricingItems();
+
+  if (!saved) {
+    const def = items ? pickDefaultImageModelFromPricing(items) : '';
+    return { modelId: def || null };
+  }
+
+  if (items === null || items.length === 0) {
+    return { modelId: pickImageGenerationModelId(saved) };
+  }
+
+  const { jsonModelId, persistedUseModel, changed } = resolveImageModelWithAvailability(saved, items);
+  if (changed) {
+    await ProcessConfig.set('tools.imageGenerationModel', { ...saved, useModel: persistedUseModel });
+  }
+  return { modelId: jsonModelId };
+}
+
+/**
  * Sync image generation model from ProcessConfig to sudocode.json on startup.
  * This runs independently of sudoclaw.
  */
 async function syncImageModelOnStartup(): Promise<void> {
   try {
-    const { ProcessConfig } = await import('@process/initStorage');
-    const { resolveDefaultImageModel } = await import('@/common/imagePricingSource');
-    const imageConfig = await ProcessConfig.get('tools.imageGenerationModel');
-    const switchOn = imageConfig ? imageConfig.switch : true;
-    if (switchOn && imageConfig?.useModel) {
-      writeScodeImageModel(imageConfig.useModel);
-    } else if (!switchOn) {
-      writeScodeImageModel('');
-    } else {
-      const def = await resolveDefaultImageModel();
-      if (def === null) return;
-      writeScodeImageModel(def);
-    }
+    const { modelId } = await resolveImageModelForMainSync();
+    writeScodeImageModel(modelId ?? '');
   } catch (err) {
     mainWarn(TAG, `Failed to sync image model on startup: ${err instanceof Error ? err.message : String(err)}`);
   }
