@@ -2715,6 +2715,13 @@ This identity statement takes priority over the default identity in USER.md.
     const classification = classifyLlmError(this.streamedContextErrorBuffer);
     if (!CONTEXT_OVERFLOW_REASONS.has(classification.type)) return;
 
+    // Defer the "should session be torn down?" decision to the classifier's SSOT.
+    // single_request_too_large and request_body_too_large both have
+    // recoverableByNewSession=false because they're per-request size errors —
+    // poisoning the session would silently drop chat history on every
+    // oversized-attach attempt. Only context_window_exceeded sets the flag true.
+    if (!classification.recoverableByNewSession) return;
+
     const reason = classification.type === 'request_body_too_large' ? 'request_body_too_large' : classification.type === 'single_request_too_large' ? 'single_request_too_large' : 'context_window_exceeded';
     void this.markRuntimeContextPoisoned(classification.userMessage, reason, { disconnectNow: false });
   }
