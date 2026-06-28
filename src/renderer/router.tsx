@@ -22,7 +22,7 @@ const WebuiSettings = React.lazy(() => import('./pages/settings/WebuiSettings'))
 const SecurityPage = React.lazy(() => import('./pages/security'));
 const CronPage = React.lazy(() => import('./pages/cron'));
 const CronJobDetailPage = React.lazy(() => import('./pages/cron/detail'));
-const ExtensionSettingsPage = React.lazy(() => import('./pages/settings/ExtensionSettingsPage'));
+const ExtensionSettingsPage = React.lazy(() => import('./pages/settings/extensions'));
 const LoginPage = React.lazy(() => import('./pages/login'));
 const RegisterPage = React.lazy(() => import('./pages/register'));
 const UserProfile = React.lazy(() => import('./pages/settings/profile'));

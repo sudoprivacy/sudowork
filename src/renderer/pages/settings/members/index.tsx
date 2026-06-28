@@ -4,8 +4,8 @@ import { IconDelete } from '@arco-design/web-react/icon';
 import { User, Users } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
+import { useAuth } from '@/renderer/context/AuthContext';
 import PageWrapper from '@renderer/components/base/PageWrapper';
-import { useAuth } from '../../../context/AuthContext';
 
 const MemberManagement: React.FC = () => {
   const { t } = useTranslation();

@@ -1,9 +1,3 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -42,6 +36,7 @@ const ExtensionSettingsPage: React.FC = () => {
     void extensionsIpc.getSettingsTabs
       .invoke()
       .then((tabs) => {
+        console.log('tabs', tabs);
         const found = (tabs ?? []).find((t) => t.id === tabId);
         if (found) {
           setTab(found);
