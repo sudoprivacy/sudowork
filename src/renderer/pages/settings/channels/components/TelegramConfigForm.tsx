@@ -13,9 +13,9 @@ import type { IChannelPairingRequest, IChannelPluginStatus, IChannelUser } from 
 import { acpConversation, channel } from '@/common/ipcBridge';
 import { ConfigStorage } from '@/common/storage';
 import GeminiModelSelector from '@/renderer/pages/settings/channels/components/GeminiModelSelector';
-import type { GeminiModelSelection } from '@/renderer/pages/settings/channels/hooks/useGeminiModelSelection';
 import { CHANNEL_DEFAULT_AGENT_BACKEND, type AcpBackendAll } from '@/types/acpTypes';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
+import type { GeminiModelSelection } from '../hooks/useGeminiModelSelection';
 
 /**
  * Preference row component
