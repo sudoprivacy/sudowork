@@ -3,7 +3,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import CodeMirror from '@uiw/react-codemirror';
 import { json } from '@codemirror/lang-json';
-import { CheckSmall } from '@icon-park/react';
+import { Check } from 'lucide-react';
 import type { AcpBackendConfig, AcpBackend } from '@/types/acpTypes';
 import { ACP_BACKENDS_ALL } from '@/types/acpTypes';
 import { useThemeContext } from '@/renderer/context/ThemeContext';
@@ -279,7 +279,7 @@ const CustomAcpAgentModal: React.FC<CustomAcpAgentModalProps> = ({ visible, agen
                       <div className='min-w-0 flex-1'>
                         <div className='font-medium text-sm text-foreground'>{detectedAgent.name}</div>
                       </div>
-                      {isSelected && <CheckSmall theme='filled' size={16} className='text-primary flex-shrink-0' />}
+                      {isSelected && <Check size={16} className='text-primary flex-shrink-0' />}
                     </div>
                   );
                 })}
