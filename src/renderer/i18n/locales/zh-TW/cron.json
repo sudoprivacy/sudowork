@@ -71,6 +71,7 @@
   "create.workspace": "工作目錄",
   "create.selectFolder": "選擇資料夾",
   "create.listSubtitle": "設定定時任務，讓 Agent 按計畫自動執行",
+  "create.emptyHint": "建立自動執行的 Agent 任務",
   "create.editTitle": "編輯定時任務",
   "create.cancel": "取消",
   "create.awakeBanner": "定時任務僅在電腦喚醒時執行",
@@ -93,6 +94,9 @@
   "create.conversationMode": "執行模式",
   "create.conversationMode.new": "每次新建會話（推薦）",
   "create.conversationMode.reuse": "複用已有會話（適合持續追加）",
+  "create.reuseConversation": "綁定會話",
+  "create.reuseConversationPlaceholder": "首次執行時自動建立",
+  "create.reuseConversationHint": "選擇已有會話，首次執行將直接追加到該會話",
   "goToLastConversation": "查看最近執行會話",
   "sidebar.scheduled": "定時任務"
 }

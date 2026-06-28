@@ -59,7 +59,7 @@ const AssistantSelectionArea: React.FC<AssistantSelectionAreaProps> = ({ customA
 
     return (
       <div className='mt-16px w-full'>
-        <div className='flex flex-wrap gap-8px justify-center'>
+        <div className='f-center flex-wrap gap-2'>
           {cloudAssistants.map((assistant) => {
             const avatarValue = assistant.avatar?.trim();
             const mappedAvatar = avatarValue ? CUSTOM_AVATAR_IMAGE_MAP[avatarValue] : undefined;
@@ -103,7 +103,7 @@ const AssistantSelectionArea: React.FC<AssistantSelectionAreaProps> = ({ customA
   // Agent List View
   return (
     <div className='mt-16px w-full'>
-      <div className='flex flex-wrap gap-8px justify-center'>
+      <div className='f-center flex-wrap gap-2'>
         {filteredAgents
           .filter((a) => a.enabled !== false)
           .sort((a, b) => {

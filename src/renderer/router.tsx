@@ -12,12 +12,12 @@ const About = React.lazy(() => import('./pages/settings/about'));
 const AgentSettings = React.lazy(() => import('./pages/settings/AgentSettings'));
 const DisplaySettings = React.lazy(() => import('./pages/settings/display'));
 const GeminiSettings = React.lazy(() => import('./pages/settings/GeminiSettings'));
-const SudocodeModelSettings = React.lazy(() => import('./pages/settings/SudocodeModelSettings'));
+const SudocodeModelSettings = React.lazy(() => import('./pages/settings/models'));
 const SkillSettings = React.lazy(() => import('./pages/settings/SkillSettings'));
-const CopilotSettings = React.lazy(() => import('./pages/settings/CopilotSettings'));
-const RuntimeSettings = React.lazy(() => import('./pages/settings/RuntimeSettings'));
-const SystemSettings = React.lazy(() => import('./pages/settings/SystemSettings'));
-const ToolsSettings = React.lazy(() => import('./pages/settings/ToolsSettings'));
+const CopilotSettings = React.lazy(() => import('./pages/settings/copilot'));
+const RuntimeSettings = React.lazy(() => import('./pages/settings/runtime'));
+const SystemSettings = React.lazy(() => import('./pages/settings/system'));
+const ToolsSettings = React.lazy(() => import('./pages/settings/tools'));
 const WebuiSettings = React.lazy(() => import('./pages/settings/WebuiSettings'));
 const SecurityPage = React.lazy(() => import('./pages/security'));
 const CronPage = React.lazy(() => import('./pages/cron'));
@@ -25,11 +25,11 @@ const CronJobDetailPage = React.lazy(() => import('./pages/cron/detail'));
 const ExtensionSettingsPage = React.lazy(() => import('./pages/settings/ExtensionSettingsPage'));
 const LoginPage = React.lazy(() => import('./pages/login'));
 const RegisterPage = React.lazy(() => import('./pages/register'));
-const UserProfile = React.lazy(() => import('./pages/settings/UserProfile'));
-const RechargeCenter = React.lazy(() => import('./pages/settings/RechargeCenter'));
+const UserProfile = React.lazy(() => import('./pages/settings/profile'));
+const RechargeCenter = React.lazy(() => import('./pages/settings/recharge'));
 const MemberManagement = React.lazy(() => import('./pages/settings/MemberManagement'));
-const EnterpriseSettings = React.lazy(() => import('./pages/settings/EnterpriseSettings'));
-const EnterpriseMcpSettings = React.lazy(() => import('./pages/settings/EnterpriseMcpSettings'));
+const EnterpriseSettings = React.lazy(() => import('./pages/settings/enterprise'));
+const EnterpriseMcpSettings = React.lazy(() => import('./pages/settings/enterprise_mcps'));
 
 const withRouteFallback = (Component: React.LazyExoticComponent<React.ComponentType>) => (
   <Suspense fallback={<AppLoader />}>
@@ -45,6 +45,35 @@ const SettingsDefaultRoute: React.FC = () => {
   const { isEnterprise } = useAppMode();
   return <Navigate to={isEnterprise ? '/settings/enterprise' : '/settings/profile'} replace />;
 };
+
+const PROTECTED_ROUTE_CONFIGS = [
+  { path: '/guid', component: Guid },
+  { path: '/conversation/:id', component: Conversation },
+  { path: '/moss-session/:sessionId', component: MossSessionPage },
+  { path: '/settings/gemini', component: GeminiSettings },
+  { path: '/settings/model', component: SudocodeModelSettings },
+  { path: '/settings/agent', component: AgentSettings },
+  { path: '/settings/display', component: DisplaySettings },
+  { path: '/settings/webui', component: WebuiSettings },
+  { path: '/settings/copilot', component: CopilotSettings },
+  { path: '/settings/runtime', component: RuntimeSettings },
+  { path: '/settings/system', component: SystemSettings },
+  { path: '/settings/about', component: About },
+  { path: '/settings/tools', component: ToolsSettings },
+  { path: '/settings/skill', component: SkillSettings },
+  { path: '/app/security', component: SecurityPage },
+  { path: '/settings/security', component: SecurityPage },
+  { path: '/app/cron', component: CronPage },
+  { path: '/app/cron/:jobId', component: CronJobDetailPage },
+  { path: '/settings/profile', component: UserProfile },
+  { path: '/settings/recharge', component: RechargeCenter },
+  { path: '/settings/members', component: MemberManagement },
+  { path: '/settings/enterprise', component: EnterpriseSettings },
+  { path: '/settings/mcp', component: EnterpriseMcpSettings },
+  { path: '/settings/ext/:tabId', component: ExtensionSettingsPage },
+] as const;
+
+export const REGISTERED_ROUTE_PATHS = ['/login', '/register', '/', ...PROTECTED_ROUTE_CONFIGS.map((route) => route.path), '/settings'] as const;
 
 const ProtectedLayout: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
   const { status } = useAuth();
@@ -89,30 +118,9 @@ const PanelRoute: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
         <Route path='/register' element={isSignedIn ? <Navigate to='/guid' replace /> : withRouteFallback(RegisterPage)} />
         <Route element={<ProtectedLayout layout={layout} />}>
           <Route index element={<Navigate to='/guid' replace />} />
-          <Route path='/guid' element={withRouteFallback(Guid)} />
-          <Route path='/conversation/:id' element={withRouteFallback(Conversation)} />
-          <Route path='/moss-session/:sessionId' element={withRouteFallback(MossSessionPage)} />
-          <Route path='/settings/gemini' element={withRouteFallback(GeminiSettings)} />
-          <Route path='/settings/model' element={withRouteFallback(SudocodeModelSettings)} />
-          <Route path='/settings/agent' element={withRouteFallback(AgentSettings)} />
-          <Route path='/settings/display' element={withRouteFallback(DisplaySettings)} />
-          <Route path='/settings/webui' element={withRouteFallback(WebuiSettings)} />
-          <Route path='/settings/copilot' element={withRouteFallback(CopilotSettings)} />
-          <Route path='/settings/runtime' element={withRouteFallback(RuntimeSettings)} />
-          <Route path='/settings/system' element={withRouteFallback(SystemSettings)} />
-          <Route path='/settings/about' element={withRouteFallback(About)} />
-          <Route path='/settings/tools' element={withRouteFallback(ToolsSettings)} />
-          <Route path='/settings/skill' element={withRouteFallback(SkillSettings)} />
-          <Route path='/app/security' element={withRouteFallback(SecurityPage)} />
-          <Route path='/settings/security' element={withRouteFallback(SecurityPage)} />
-          <Route path='/app/cron' element={withRouteFallback(CronPage)} />
-          <Route path='/app/cron/:jobId' element={withRouteFallback(CronJobDetailPage)} />
-          <Route path='/settings/profile' element={withRouteFallback(UserProfile)} />
-          <Route path='/settings/recharge' element={withRouteFallback(RechargeCenter)} />
-          <Route path='/settings/members' element={withRouteFallback(MemberManagement)} />
-          <Route path='/settings/enterprise' element={withRouteFallback(EnterpriseSettings)} />
-          <Route path='/settings/mcp' element={withRouteFallback(EnterpriseMcpSettings)} />
-          <Route path='/settings/ext/:tabId' element={withRouteFallback(ExtensionSettingsPage)} />
+          {PROTECTED_ROUTE_CONFIGS.map(({ path, component }) => (
+            <Route key={path} path={path} element={withRouteFallback(component)} />
+          ))}
           <Route path='/settings' element={<SettingsDefaultRoute />} />
         </Route>
         <Route path='*' element={<Navigate to={isSignedIn ? '/guid' : '/login'} replace />} />

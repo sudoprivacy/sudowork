@@ -70,7 +70,7 @@ export default function CronJobDetailPage() {
     try {
       const updated = unwrapCronResult(await ipcBridge.cron.updateJob.invoke({ jobId: id, updates: { enabled } }));
       setJob(updated);
-      Message.success(enabled ? t('cron.resumeSuccess') : t('cron.pauseSuccess'));
+      Message.success(enabled ? t('cron.resumeSuccess', '任务已恢复') : t('cron.pauseSuccess', '任务已暂停'));
     } catch (err) {
       Message.error(String(err));
     }
@@ -79,7 +79,7 @@ export default function CronJobDetailPage() {
   const handleDelete = async (id: string) => {
     try {
       unwrapCronResult(await ipcBridge.cron.removeJob.invoke({ jobId: id }));
-      Message.success(t('cron.deleteSuccess'));
+      Message.success(t('cron.deleteSuccess', '任务已删除'));
       emitter.emit('cron.jobs.refresh');
       void navigate(-1);
     } catch (err) {
@@ -91,7 +91,7 @@ export default function CronJobDetailPage() {
     try {
       unwrapCronResult(await ipcBridge.cron.triggerJob.invoke({ jobId: id }));
       const updatedJob = await ipcBridge.cron.getJob.invoke({ jobId: id });
-      Message.success(t('cron.runNowSuccess'));
+      Message.success(t('cron.runNowSuccess', '任务已触发执行'));
       emitter.emit('chat.history.refresh');
       if (updatedJob) {
         setJob(updatedJob);
@@ -125,16 +125,16 @@ export default function CronJobDetailPage() {
 
   return (
     <PageWrapper
-      back={{ label: t('cron.allScheduledTasks', { defaultValue: '全部定时任务' }), onClick: () => void navigate(-1) }}
+      back={{ label: t('cron.allScheduledTasks', '全部定时任务'), onClick: () => void navigate(-1) }}
       title={job.name}
       subtitle={
         <div className='flex items-center gap-2 mt-1'>
           <Tag color={hasError ? 'red' : isPaused ? 'orangered' : 'green'} size='small'>
-            {hasError ? t('cron.status.error') : isPaused ? t('cron.status.paused') : t('cron.status.active')}
+            {hasError ? t('cron.status.error', '执行出错') : isPaused ? t('cron.status.paused', '已暂停') : t('cron.status.active', '运行中')}
           </Tag>
           {!isPaused && job.state.nextRunAtMs && (
             <span>
-              {t('cron.create.nextRun')} {formatNextRunRelative(t, job.state.nextRunAtMs)}
+              {t('cron.create.nextRun', '下次运行')} {formatNextRunRelative(t, job.state.nextRunAtMs)}
             </span>
           )}
         </div>
@@ -142,11 +142,11 @@ export default function CronJobDetailPage() {
       actions={
         <>
           <Button type='text' size='small' icon={<Edit theme='outline' size={16} />} onClick={() => setDrawerVisible(true)} />
-          <Popconfirm title={t('cron.confirmDelete')} onOk={() => void handleDelete(job.id)}>
+          <Popconfirm title={t('cron.confirmDelete', '确定要删除此定时任务吗？')} onOk={() => void handleDelete(job.id)}>
             <Button type='text' size='small' status='danger' icon={<DeleteOne theme='outline' size={16} />} />
           </Popconfirm>
           <Button type='primary' size='small' shape='round' icon={<PlayOne theme='outline' />} onClick={() => void handleTrigger(job.id)}>
-            {t('cron.actions.runNow', { defaultValue: '立即执行' })}
+            {t('cron.actions.runNow', '立即执行')}
           </Button>
         </>
       }
@@ -155,27 +155,27 @@ export default function CronJobDetailPage() {
         {/* Info sections */}
         <div className='grid grid-cols-1 md:grid-cols-2 gap-6'>
           <div>
-            <div className='text-13px text-secondary mb-1'>{t('cron.create.description', { defaultValue: '描述' })}</div>
+            <div className='text-13px text-secondary mb-1'>{t('cron.create.description', '描述')}</div>
             <div className='text-14px text-foreground'>{job.schedule.description || '-'}</div>
           </div>
           <div>
-            <div className='text-13px text-secondary mb-1'>{t('cron.create.prompt', { defaultValue: '指令' })}</div>
+            <div className='text-13px text-secondary mb-1'>{t('cron.create.prompt', '指令')}</div>
             <div className='bg-2 rd-8px px-3 py-2 text-13px text-foreground break-words whitespace-pre-wrap max-h-30 overflow-y-auto'>{job.target.payload.text}</div>
           </div>
           <div>
-            <div className='text-13px text-secondary mb-1'>{t('cron.create.conversationMode', { defaultValue: '执行模式' })}</div>
-            <div className='text-14px text-foreground'>{(job.metadata.conversationMode ?? 'new') === 'new' ? t('cron.create.conversationMode.new', { defaultValue: '每次新建会话' }) : t('cron.create.conversationMode.reuse', { defaultValue: '复用已有会话' })}</div>
+            <div className='text-13px text-secondary mb-1'>{t('cron.create.conversationMode', '执行模式')}</div>
+            <div className='text-14px text-foreground'>{(job.metadata.conversationMode ?? 'new') === 'new' ? t('cron.create.conversationMode.new', '每次新建会话') : t('cron.create.conversationMode.reuse', '复用已有会话')}</div>
           </div>
           {job.metadata.workspace && (
             <div>
-              <div className='text-13px text-secondary mb-1'>{t('cron.create.workspace', { defaultValue: '工作目录' })}</div>
+              <div className='text-13px text-secondary mb-1'>{t('cron.create.workspace', '工作目录')}</div>
               <div className='text-14px text-foreground truncate' title={job.metadata.workspace}>
                 {job.metadata.workspace.split('/').pop() || job.metadata.workspace}
               </div>
             </div>
           )}
           <div>
-            <div className='text-13px text-secondary mb-1'>{t('cron.create.agent', { defaultValue: '数字助手' })}</div>
+            <div className='text-13px text-secondary mb-1'>{t('cron.create.agent', '智能体')}</div>
             <div className='text-14px text-foreground flex items-center gap-1.5'>
               {(() => {
                 const avatarValue = selectedAssistant?.avatar?.trim();
@@ -193,13 +193,13 @@ export default function CronJobDetailPage() {
         {/* Error info */}
         {hasError && job.state.lastError && (
           <div className='bg-red-1 rd-8px px-3 py-2 text-13px text-red-6'>
-            <span className='font-medium'>{t('cron.lastError')}:</span> {job.state.lastError}
+            <span className='font-medium'>{t('cron.lastError', '错误信息')}:</span> {job.state.lastError}
           </div>
         )}
 
         {/* Repeats */}
         <div>
-          <div className='text-13px text-secondary mb-2'>{t('cron.create.frequency', { defaultValue: '重复' })}</div>
+          <div className='text-13px text-secondary mb-2'>{t('cron.create.frequency', '频率')}</div>
           <div className='flex items-center gap-3'>
             <Switch size='small' checked={job.enabled} onChange={(checked) => void handleToggle(job.id, checked)} />
             <span className='text-14px text-foreground'>{job.schedule.description}</span>
@@ -209,9 +209,9 @@ export default function CronJobDetailPage() {
         {/* Conversation link */}
         {targetConvId && (
           <div>
-            <div className='text-13px text-secondary mb-1'>{t('cron.goToConversation')}</div>
+            <div className='text-13px text-secondary mb-1'>{t('cron.goToConversation', '跳转到所属会话')}</div>
             <span className='text-14px text-primary cursor-pointer hover:underline' onClick={() => void navigate(`/conversation/${targetConvId}`)}>
-              {isNewMode ? t('cron.goToLastConversation', { defaultValue: '查看最近执行会话' }) : job.metadata.conversationTitle || t('cron.goToConversationLink', { defaultValue: '查看会话' })}
+              {isNewMode ? t('cron.goToLastConversation', '查看最近执行会话') : job.metadata.conversationTitle || t('cron.goToConversationLink', '查看会话')}
             </span>
           </div>
         )}

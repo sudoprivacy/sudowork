@@ -1,9 +1,3 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import FontSizeControl from '@/renderer/pages/settings/display/components/FontSizeControl';
@@ -25,17 +19,17 @@ const DisplaySettings: React.FC = () => {
   const { t } = useTranslation();
 
   const displayItems = [
-    { key: 'theme', label: t('settings.theme'), component: <ThemeSwitcher /> },
-    { key: 'fontSize', label: t('settings.fontSize'), component: <FontSizeControl /> },
+    { key: 'theme', label: t('settings.theme', '主题'), component: <ThemeSwitcher /> },
+    { key: 'fontSize', label: t('settings.fontSize', '缩放'), component: <FontSizeControl /> },
   ];
 
   return (
-    <PageWrapper>
+    <PageWrapper title={t('settings.display')}>
       <div className='flex flex-col h-full w-full'>
         {/* 内容区域 / Content Area */}
         <AionScrollArea className='flex-1 min-h-0 pb-4' disableOverflow>
           <div className='space-y-4'>
-            <div className='px-4 md:px-6 lg:px-7 py-3.5 md:py-4 bg-2 rd-16px space-y-2.5 md:space-y-3'>
+            <div className='py-3.5 md:py-4 rd-16px space-y-2.5 md:space-y-3'>
               <div className='w-full flex flex-col divide-y divide-light'>
                 {displayItems.map((item) => (
                   <PreferenceRow key={item.key} label={item.label}>

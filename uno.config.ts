@@ -41,14 +41,19 @@ const semanticColors = {
 // 📝 text-1 到 text-4 通过自定义规则支持，指向 Arco 的 --color-text-*
 // text-1 to text-4 are supported via custom rules, pointing to Arco's --color-text-*
 const backgroundColors = {
-  base: 'var(--bg-base)', // bg-base - 主背景
-  1: 'var(--bg-1)', // bg-1 - 次级背景
-  2: 'var(--bg-2)', // bg-2 - 三级背景
-  3: 'var(--bg-3)', // bg-3
-  4: 'var(--bg-4)', // bg-4
+  base: 'var(--bg-base)', // bg-base - 页面底色
+  subtle: 'var(--bg-subtle)', // bg-subtle - 轻区域/面板背景
+  muted: 'var(--bg-muted)', // bg-muted - 次级块/弱背景
+  control: 'var(--bg-control)', // bg-control - 控件填充/中性浅底
+  emphasis: 'var(--bg-emphasis)', // bg-emphasis - 强调背景/分隔填充
+  strong: 'var(--bg-strong)', // bg-strong - 更强填充/按下或禁用面
+  hover: 'var(--bg-hover)', // bg-hover - 交互悬停态
+  active: 'var(--bg-active)', // bg-active - 交互按下态
+  1: 'var(--bg-1)', // bg-1 - legacy alias of bg-subtle
+  2: 'var(--bg-2)', // bg-2 - legacy alias of bg-muted
+  3: 'var(--bg-3)', // bg-3 - legacy alias of bg-emphasis
+  4: 'var(--bg-4)', // bg-4 - legacy alias of bg-strong
   6: 'var(--bg-6)', // bg-6
-  hover: 'var(--bg-hover)', // bg-hover - 悬停背景
-  active: 'var(--bg-active)', // bg-active - 激活背景
 };
 
 // ==================== 品牌色 / Brand Colors ====================
@@ -102,9 +107,9 @@ export default defineConfig({
     // Arco Design official text colors: text-1, text-2, text-3, text-4
     [/^text-([1-4])$/, ([, d]: RegExpExecArray) => ({ color: `var(--color-text-${d})` })],
 
-    // Arco Design 官方填充色 fill-1 到 fill-4
-    // Arco Design official fill colors: bg-fill-1, bg-fill-2, bg-fill-3, bg-fill-4
-    [/^bg-fill-([1-4])$/, ([, d]: RegExpExecArray) => ({ 'background-color': `var(--color-fill-${d})` })],
+    // Arco Design 官方填充色 fill-1 到 fill-4，fill-0 为项目扩展
+    // Arco Design official fill colors: bg-fill-1..4; bg-fill-0 is project-specific
+    [/^bg-fill-([0-4])$/, ([, d]: RegExpExecArray) => ({ 'background-color': `var(--color-fill-${d})` })],
 
     // Arco Design 官方浅色系 primary-light-1 到 -light-4(link 无引用已移除;success/warning/danger 走语义 token)
     [/^bg-primary-light-([1-4])$/, ([, d]: RegExpExecArray) => ({ 'background-color': `var(--color-primary-light-${d})` })],
@@ -114,10 +119,8 @@ export default defineConfig({
     ['bg-popup', { 'background-color': 'var(--color-bg-popup)' }],
 
     // 项目自定义颜色 / Project custom colors
-    ['bg-dialog-fill-0', { 'background-color': 'var(--dialog-fill-0)' }],
     ['text-0', { color: 'var(--text-0)' }],
     ['text-white', { color: 'var(--text-white)' }],
-    ['bg-fill-0', { 'background-color': 'var(--fill-0)' }],
   ],
   // Preflights - Global base styles 全局基础样式
   preflights: [
@@ -144,7 +147,10 @@ export default defineConfig({
   shortcuts: {
     'f-center': 'flex items-center justify-center',
     'border-light': 'border-[var(--border-light)]', // 浅边框 / lighter border（搭配 border / border-b）
+    'border-default': 'border-[var(--border-default)]', // 默认边框 default border
+    'border-tiny': 'border-[var(--border-tiny)]', // 极浅边框，适用于白色/浅色面板 / very subtle border for white panels
     'divide-light': 'divide-[var(--border-light)]', // 浅分割线 / lighter divider color（搭配 divide-y / divide-x）
+    'divide-tiny': 'divide-[var(--border-tiny)]', // 极浅分割线 / very subtle divider
     'scrollbar-hide': 'scrollbar-width-none [&::-webkit-scrollbar]:hidden',
     'item-card': 'bg-fill-0 rd-12px p-4 cursor-pointer shadow-[0_1px_3px_rgba(0,0,0,0.08)] transition-all duration-200 hover:-translate-y-px hover:shadow-[0_4px_12px_rgba(0,0,0,0.1)]',
     // 分类筛选 chip：结构 + 两种互斥状态（idle / active），避免 hover 与选中态冲突

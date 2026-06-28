@@ -41,6 +41,7 @@
   "confirmDelete": "確認刪除",
   "deleteSuccess": "刪除成功",
   "deleteFailed": "刪除失敗",
+  "notSet": "未設定",
   "default": "預設",
   "defaultModel": "預設模型",
   "modelSwitchSuccess": "已切換為 {{model}}",

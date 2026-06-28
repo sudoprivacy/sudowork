@@ -49,5 +49,18 @@
 
 - [ ] `src/types/` 边界策略：只存放 ① 第三方无类型包的 `.d.ts` shim；② 跨两个及以上进程（main/renderer/worker）共用的类型。模块内部类型保持原地，不强制迁移。
 
-
 - [ ] 当前项目中修改智能体存在多个功能相同的组件，需要统一合并
+
+- [ ] 整理功能模块及步骤
+  1. 整理功能代码：梳理 `{模块路径}` 下各文件的职责，删除冗余逻辑，拆分过长组件
+  2. 扫描 components/hooks/utils/types，内聚到功能目录
+     1. 组件：扫描 `{模块路径}` 下所有 import，找出只被本模块引用的组件，迁移到 `components/`
+     2. Hooks：找出只被本模块引用的 hook，迁移到 `hooks/`
+     3. 工具方法：找出只被本模块引用的工具函数，迁移到 `utils/`
+     4. Interface：找出只被本模块引用的非 props interface，迁移到 `types/`
+     5. 去除 bg-fill-n，bg-n 这种方式的使用
+  3. 扫描缺失国际化 key：使用 `.claude/agents/i18n-checker.md` agent 扫描 `{模块路径}`，补全缺失的 i18n key
+  4. 清理该目录下错误的 `Message.useMessage` 用法：在 `{模块路径}` 下全局搜索 `Message.useMessage`，替换为正确的 `Message.info` 调用方式
+  5. 修正 UnoCSS 的用法：使用 `.claude/agents/unocss-style-fixer.md` agent 检查该模块下不符合项目 UnoCSS 规范的写法并修正
+  6. 使用 .claude/agents/icon-compat-checker.md 扫描该目录
+  7. 看看能否使用 lucide-react的icon替换该目录下的'@icon-park/react'

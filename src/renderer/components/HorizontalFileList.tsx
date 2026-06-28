@@ -130,7 +130,7 @@ const HorizontalFileList: React.FC<HorizontalFileListProps> = ({ children }) => 
         <div
           className='absolute left-0 top-0 h-full flex items-center cursor-pointer'
           style={{
-            background: 'linear-gradient(to left, transparent, var(--dialog-fill-0) 30%)', // 左侧渐变遮罩
+            background: 'linear-gradient(to left, transparent, var(--color-fill-3) 30%)', // 左侧渐变遮罩
             width: '60px',
             pointerEvents: 'none', // 遮罩层不响应点击
           }}
@@ -152,7 +152,7 @@ const HorizontalFileList: React.FC<HorizontalFileListProps> = ({ children }) => 
         <div
           className='absolute right-0 top-0 h-full flex items-center cursor-pointer'
           style={{
-            background: 'linear-gradient(to right, transparent, var(--dialog-fill-0) 30%)', // 右侧渐变遮罩
+            background: 'linear-gradient(to right, transparent, var(--color-fill-3) 30%)', // 右侧渐变遮罩
             width: '60px',
             pointerEvents: 'none', // 遮罩层不响应点击
           }}

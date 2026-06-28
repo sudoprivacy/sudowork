@@ -1,12 +1,8 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, Spin, Message, Input, Progress, Modal, Popconfirm, Switch, Tooltip } from '@arco-design/web-react';
-import { Download, Search, Delete, Close, Shield, Lightning, UploadOne, Install, Share, Plus, Check } from '@icon-park/react';
+import { Search, Delete, Close, Shield, Lightning, UploadOne, Install, Share, Plus, Check } from '@icon-park/react';
+import { IconDownload, IconRefresh } from '@arco-design/web-react/icon';
+import { PackagePlus } from 'lucide-react';
 import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
@@ -441,15 +437,8 @@ const SkillDetailModal: React.FC<{
   const hasUpdate = isInstalled && latestVersionInfo && (!installedVersion || latestVersionInfo.version !== installedVersion);
 
   return (
-    <Modal visible={visible} onCancel={onClose} footer={null} closable={false} maskClosable style={{ width: 480 }} className='skill-detail-modal' wrapClassName='skill-detail-modal-wrap'>
+    <Modal visible={visible} onCancel={onClose} footer={null} maskClosable style={{ width: 480 }}>
       <div className='flex flex-col max-h-80vh'>
-        {/* Close button */}
-        <div className='flex justify-end mb-4px'>
-          <div className='w-28px h-28px f-center rd-full bg-fill-2 hover:bg-fill-3 cursor-pointer transition-colors text-secondary' onClick={onClose}>
-            <Close size='14' />
-          </div>
-        </div>
-
         <AionScrollArea className='flex-1 min-h-0'>
           <div className='px-8px pb-16px'>
             {/* Icon + Name header */}
@@ -494,10 +483,10 @@ const SkillDetailModal: React.FC<{
                     <div className='space-y-6px'>
                       {coreFeatures.map((feature, idx) => (
                         <div key={idx} className='flex items-start gap-6px'>
-                          <span className='text-tertiary text-11px mt-1px flex-shrink-0'>•</span>
+                          <span className='text-secondary text-11px mt-1px flex-shrink-0'>•</span>
                           <div className='text-12px text-secondary leading-relaxed'>
                             {feature.title}
-                            {feature.desc && <span className='text-tertiary'>{feature.title ? `，${feature.desc}` : feature.desc}</span>}
+                            {feature.desc && <span>{feature.title ? `，${feature.desc}` : feature.desc}</span>}
                           </div>
                         </div>
                       ))}
@@ -525,11 +514,8 @@ const SkillDetailModal: React.FC<{
               <>
                 {hasUpdate ? (
                   <Tooltip content={t('settings.skill.updateTo', { version: latestVersionInfo?.version, defaultValue: `更新至 v${latestVersionInfo?.version || ''}` })}>
-                    <Button type='primary' long size='large' className='flex-1' loading={updating} loadingFixedWidth onClick={onUpdate}>
-                      <span className='inline-flex items-center gap-6px justify-center whitespace-nowrap'>
-                        <Install size='15' />
-                        {t('settings.skill.updateTo', { version: latestVersionInfo?.version, defaultValue: `更新至 v${latestVersionInfo?.version || ''}` })}
-                      </span>
+                    <Button type='primary' long size='large' className='flex-1' loading={updating} loadingFixedWidth icon={<IconRefresh style={{ fontSize: 15 }} />} onClick={onUpdate}>
+                      {t('settings.skill.updateTo', { version: latestVersionInfo?.version, defaultValue: `更新至 v${latestVersionInfo?.version || ''}` })}
                     </Button>
                   </Tooltip>
                 ) : (
@@ -558,16 +544,13 @@ const SkillDetailModal: React.FC<{
               </div>
             ) : hasVersion ? (
               <>
-                <Tooltip content={t('settings.skill.install', { defaultValue: '安装技能' })}>
-                  <Button type='primary' long size='large' onClick={onInstall} disabled={downloading}>
-                    <span className='flex items-center gap-6px justify-center'>
-                      <Install size='15' />
-                      {t('settings.skill.install', { defaultValue: '安装技能' })}
-                    </span>
+                <Tooltip content={t('settings.skill.install', { defaultValue: '安装' })}>
+                  <Button type='primary' long size='large' icon={<PackagePlus size={15} />} onClick={onInstall} disabled={downloading}>
+                    {t('settings.skill.install', { defaultValue: '安装' })}
                   </Button>
                 </Tooltip>
                 <Tooltip content={t('common.download', { defaultValue: '下载' })}>
-                  <Button size='large' icon={<Download size='15' />} loading={downloading} loadingFixedWidth onClick={onDownload} disabled={installing}>
+                  <Button size='large' icon={<IconDownload style={{ fontSize: 15 }} />} loading={downloading} loadingFixedWidth onClick={onDownload} disabled={installing}>
                     {t('common.download', { defaultValue: '下载' })}
                   </Button>
                 </Tooltip>
@@ -576,9 +559,9 @@ const SkillDetailModal: React.FC<{
           </div>
 
           {/* Security badge */}
-          <div className='flex items-center gap-5px mt-10px justify-center'>
+          <div className='f-center gap-2 mt-3'>
             <Shield size='12' className='text-success flex-shrink-0' />
-            <span className='text-10px text-tertiary'>已通过安全与合规验证，无恶意代码或数据泄露风险。</span>
+            <span className='text-10px text-secondary'>已通过安全与合规验证，无恶意代码或数据泄露风险。</span>
           </div>
         </div>
       </div>
@@ -1656,7 +1639,7 @@ const SkillModalContent: React.FC = () => {
         {activeTab === 'installed' && isElectronDesktop() && (
           <button
             type='button'
-            className='group h-34px px-4 py-0 border border-solid rd-999px flex items-center gap-8px flex-shrink-0 cursor-pointer transition-all outline-none bg-[color-mix(in_srgb,var(--color-fill-2)_84%,transparent)] border-[color-mix(in_srgb,var(--color-border-2)_70%,transparent)] hover:bg-[color-mix(in_srgb,var(--color-primary-light-1)_58%,transparent)] hover:border-[color-mix(in_srgb,var(--color-primary)_36%,transparent)]'
+            className='group h-34px px-4 py-0 border border-solid rd-full flex items-center gap-8px flex-shrink-0 cursor-pointer transition-all outline-none bg-[color-mix(in_srgb,var(--color-fill-2)_84%,transparent)] border-[color-mix(in_srgb,var(--color-border-2)_70%,transparent)] hover:bg-[color-mix(in_srgb,var(--color-primary-light-1)_58%,transparent)] hover:border-[color-mix(in_srgb,var(--color-primary)_36%,transparent)]'
             onClick={onImportButtonClick}
           >
             <span className='w-22px h-22px rd-full f-center bg-[color-mix(in_srgb,var(--color-primary)_14%,transparent)] text-[var(--color-primary)] transition-transform group-hover:scale-105'>{isEnterprise ? <Plus size='13' /> : <UploadOne size='13' />}</span>

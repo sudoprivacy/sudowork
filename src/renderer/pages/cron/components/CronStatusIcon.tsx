@@ -63,15 +63,15 @@ const CronStatusIcon: React.FC<ICronStatusIconProps> = ({ status, size = 14, cla
   const getTooltip = () => {
     switch (status) {
       case CronJobStatusEnums.Unread:
-        return t('cron.status.unread');
+        return t('cron.status.unread', '有新执行');
       case CronJobStatusEnums.Active:
-        return t('cron.status.active');
+        return t('cron.status.active', '运行中');
       case CronJobStatusEnums.Paused:
-        return t('cron.status.paused');
+        return t('cron.status.paused', '已暂停');
       case CronJobStatusEnums.Error:
-        return t('cron.status.error');
+        return t('cron.status.error', '执行出错');
       case CronJobStatusEnums.Unconfigured:
-        return t('cron.status.unconfigured');
+        return t('cron.status.unconfigured', '未配置定时任务');
       default:
         return '';
     }

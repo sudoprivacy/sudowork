@@ -58,7 +58,35 @@ type GuidInputCardProps = {
 };
 
 // eslint-disable-next-line max-len
-const GuidInputCard: React.FC<GuidInputCardProps> = ({ input, onInputChange, onKeyDown, onPaste, onFocus, onBlur, onSelect, placeholder, isInputActive, isFileDragging, activeBorderColor, inactiveBorderColor, activeShadow, dragHandlers, mentionOpen, mentionSelectorBadge, mentionDropdown, skillSelectorOpen, skillSelectorMenu, selectedSkills, onRemoveSkill, getSkillDisplayName, files, onRemoveFile, dir, onClearDir, actionRow }) => {
+const GuidInputCard: React.FC<GuidInputCardProps> = ({
+  input,
+  onInputChange,
+  onKeyDown,
+  onPaste,
+  onFocus,
+  onBlur,
+  onSelect,
+  placeholder,
+  isInputActive,
+  isFileDragging,
+  activeBorderColor,
+  inactiveBorderColor,
+  activeShadow,
+  dragHandlers,
+  mentionOpen,
+  mentionSelectorBadge,
+  mentionDropdown,
+  skillSelectorOpen,
+  skillSelectorMenu,
+  selectedSkills,
+  onRemoveSkill,
+  getSkillDisplayName,
+  files,
+  onRemoveFile,
+  dir,
+  onClearDir,
+  actionRow,
+}) => {
   const { t } = useTranslation();
   const { compositionHandlers, isComposing } = useCompositionInput();
   const textareaAutoSize = { minRows: 3, maxRows: 20 };
@@ -104,7 +132,7 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({ input, onInputChange, onK
 
   return (
     <div
-      className={`${styles.guidInputCard} relative p-16px ${dir ? 'pb-8px' : ''} b bg-dialog-fill-0 b-solid rd-20px flex flex-col ${mentionOpen || skillSelectorOpen ? 'overflow-visible' : 'overflow-hidden'} transition-all duration-200 ${isFileDragging ? 'border-dashed' : ''}`}
+      className={`${styles.guidInputCard} relative p-16px ${dir ? 'pb-8px' : ''} b bg-fill-1 b-solid rd-20px flex flex-col ${mentionOpen || skillSelectorOpen ? 'overflow-visible' : 'overflow-hidden'} transition-all duration-200 ${isFileDragging ? 'border-dashed' : ''}`}
       style={{
         zIndex: 1,
         transition: 'box-shadow 0.25s ease, border-color 0.25s ease, border-width 0.25s ease',
@@ -154,7 +182,20 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({ input, onInputChange, onK
           </div>
         </div>
       )}
-      <Input.TextArea autoSize={textareaAutoSize} placeholder={placeholder} className={`text-16px focus:b-none rounded-xl !bg-transparent !b-none !resize-none !p-0 ${styles.lightPlaceholder}`} value={input} onChange={onInputChange} onPaste={onPaste} onFocus={onFocus} onBlur={onBlur} onSelect={onSelect} {...compositionHandlers} onKeyDown={handleKeyDown} onContextMenu={handleContextMenu} />
+      <Input.TextArea
+        autoSize={textareaAutoSize}
+        placeholder={placeholder}
+        className={`text-16px focus:b-none rounded-xl !bg-transparent !b-none !resize-none !p-0 ${styles.lightPlaceholder}`}
+        value={input}
+        onChange={onInputChange}
+        onPaste={onPaste}
+        onFocus={onFocus}
+        onBlur={onBlur}
+        onSelect={onSelect}
+        {...compositionHandlers}
+        onKeyDown={handleKeyDown}
+        onContextMenu={handleContextMenu}
+      />
       {mentionOpen && (
         <div className='absolute z-50' style={{ left: 16, top: 44 }}>
           {mentionDropdown}
@@ -184,7 +225,13 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({ input, onInputChange, onK
             </Tooltip>
           </div>
           <Tooltip content={t('conversation.welcome.clearWorkspace')} position='top'>
-            <button type='button' className='mt-1px h-28px w-28px rd-999px f-center flex-shrink-0 text-tertiary hover:text-danger hover:bg-danger-soft active:bg-danger-soft transition-colors' onClick={onClearDir} aria-label={t('conversation.welcome.clearWorkspace')} style={{ border: '1px solid var(--border-default)' }}>
+            <button
+              type='button'
+              className='mt-1px h-28px w-28px rd-full f-center flex-shrink-0 text-tertiary hover:text-danger hover:bg-danger-soft active:bg-danger-soft transition-colors'
+              onClick={onClearDir}
+              aria-label={t('conversation.welcome.clearWorkspace')}
+              style={{ border: '1px solid var(--border-default)' }}
+            >
               <IconClose strokeWidth={3} style={{ fontSize: 15 }} />
             </button>
           </Tooltip>

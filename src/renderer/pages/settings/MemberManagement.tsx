@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Table, Button, Tabs, Tag, Space, Message, Modal, Badge } from '@arco-design/web-react';
-import { User, DeleteFour, Peoples } from '@icon-park/react';
+import { IconDelete } from '@arco-design/web-react/icon';
+import { User, Peoples } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
 import PageWrapper from '@renderer/components/base/PageWrapper';
@@ -174,7 +175,7 @@ const MemberManagement: React.FC = () => {
     {
       title: '管理',
       align: 'right' as const,
-      render: (_: any, record: any) => record.role !== 'ADMIN' && <Button type='text' status='danger' icon={<DeleteFour />} onClick={() => handleDelete(record)} />,
+      render: (_: any, record: any) => record.role !== 'ADMIN' && <Button type='text' status='danger' icon={<IconDelete />} onClick={() => handleDelete(record)} />,
     },
   ];
 
@@ -195,13 +196,13 @@ const MemberManagement: React.FC = () => {
 
         <Tabs activeTab={activeTab} onChange={setActiveTab} type='capsule'>
           <Tabs.TabPane key='pending' title={`待审批 (${pendingUsers.length})`}>
-            <div className='mt-4 bg-2 rd-16px border overflow-hidden min-h-50'>
+            <div className='mt-4 bg-muted rd-16px border overflow-hidden min-h-50'>
               <Table loading={loading} data={pendingUsers} columns={pendingColumns} rowKey='id' pagination={false} className='[&_.arco-table-th]:bg-transparent' />
             </div>
           </Tabs.TabPane>
 
           <Tabs.TabPane key='approved' title='正式成员'>
-            <div className='mt-4 bg-2 rd-16px border overflow-hidden min-h-50'>
+            <div className='mt-4 bg-muted rd-16px border overflow-hidden min-h-50'>
               <Table loading={loading} data={approvedUsers} columns={approvedColumns} rowKey='id' pagination={false} className='[&_.arco-table-th]:bg-transparent' />
             </div>
           </Tabs.TabPane>

@@ -5,7 +5,8 @@
  */
 
 import { Button, Dropdown, Empty, Input, Menu, Message, Spin, Tooltip } from '@arco-design/web-react';
-import { CheckOne, CloseOne, Copy, Delete, Down, Refresh } from '@icon-park/react';
+import { Copy, Down } from '@icon-park/react';
+import { IconCheckCircle, IconCloseCircle, IconDelete, IconRefresh } from '@arco-design/web-react/icon';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { IChannelPairingRequest, IChannelPluginStatus, IChannelUser } from '@/channels/types';
@@ -432,7 +433,7 @@ const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({ pluginStatus, m
           <SectionHeader
             title={t('settings.assistant.pendingPairings', 'Pending Pairing Requests')}
             action={
-              <Button size='mini' type='text' icon={<Refresh size={14} />} loading={pairingLoading} onClick={loadPendingPairings}>
+              <Button size='mini' type='text' icon={<IconRefresh style={{ fontSize: 14 }} />} loading={pairingLoading} onClick={loadPendingPairings}>
                 {t('common.refresh', 'Refresh')}
               </Button>
             }
@@ -464,10 +465,10 @@ const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({ pluginStatus, m
                     </div>
                   </div>
                   <div className='flex items-center gap-8px'>
-                    <Button type='primary' size='small' icon={<CheckOne size={14} />} onClick={() => handleApprovePairing(pairing.code)}>
+                    <Button type='primary' size='small' icon={<IconCheckCircle style={{ fontSize: 14 }} />} onClick={() => handleApprovePairing(pairing.code)}>
                       {t('settings.assistant.approve', 'Approve')}
                     </Button>
-                    <Button type='secondary' size='small' status='danger' icon={<CloseOne size={14} />} onClick={() => handleRejectPairing(pairing.code)}>
+                    <Button type='secondary' size='small' status='danger' icon={<IconCloseCircle style={{ fontSize: 14 }} />} onClick={() => handleRejectPairing(pairing.code)}>
                       {t('settings.assistant.reject', 'Reject')}
                     </Button>
                   </div>
@@ -484,7 +485,7 @@ const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({ pluginStatus, m
           <SectionHeader
             title={t('settings.assistant.authorizedUsers', 'Authorized Users')}
             action={
-              <Button size='mini' type='text' icon={<Refresh size={14} />} loading={usersLoading} onClick={loadAuthorizedUsers}>
+              <Button size='mini' type='text' icon={<IconRefresh style={{ fontSize: 14 }} />} loading={usersLoading} onClick={loadAuthorizedUsers}>
                 {t('common.refresh', 'Refresh')}
               </Button>
             }
@@ -509,7 +510,7 @@ const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({ pluginStatus, m
                     </div>
                   </div>
                   <Tooltip content={t('settings.assistant.revokeAccess', 'Revoke access')}>
-                    <Button type='text' status='danger' size='small' icon={<Delete size={16} />} onClick={() => handleRevokeUser(user.id)} />
+                    <Button type='text' status='danger' size='small' icon={<IconDelete style={{ fontSize: 16 }} />} onClick={() => handleRevokeUser(user.id)} />
                   </Tooltip>
                 </div>
               ))}

@@ -89,8 +89,15 @@
   --retroma-aurora-placeholder: #8f7c7b;
 
   /* ---------- 通用中性结构 ---------- */
-  /* Background */
-  --bg-base: #faf9f6;
+  /* Semantic background tokens */
+  --bg-base: #faf9f6; /* 页面/应用底色；接近 --color-fill-0 */
+  --bg-subtle: #f5f4ef; /* 轻区域/面板背景；接近 --bg-1 / --color-bg-1 */
+  --bg-muted: #eeede5; /* 次级块/弱背景；接近 --bg-2 / --color-bg-2 */
+  --bg-control: #f2f3f5; /* 控件填充/中性浅底；接近 --color-fill-2 */
+  --bg-emphasis: #e2e0d4; /* 强调背景/分隔填充；接近 --bg-3 / --color-bg-3 / --color-fill-3 */
+  --bg-strong: #cbc8b8; /* 更强填充/按下或禁用面；接近 --bg-4 / --color-bg-4 / --color-fill-4 */
+
+  /* FIXME: 兼容期保留的旧背景 token，后续业务代码都要迁移到上方语义化 bg token。 */
   --bg-1: #f5f4ef;
   --bg-2: #eeede5;
   --bg-3: #e2e0d4;
@@ -100,6 +107,7 @@
   --color-bg-2: #eeede5;
   --color-bg-3: #e2e0d4;
   --color-bg-4: #cbc8b8;
+  --color-fill-0: #faf9f6;
 
   /* Interactive State */
   --bg-hover: #ebe9df;
@@ -119,25 +127,20 @@
 
   /* Border - 淡化一档（更贴近背景，柔和分隔） */
   --border-default: #e0dbd0;
-  --border-light: #eae7de;
-
-  /* Fill & Inverse */
-  --fill: #f5f4ef;
-  --color-fill: #f5f4ef;
-  --fill-0: #faf9f6;
-  --dialog-fill-0: #faf9f6;
+  --border-light: #e3ded2;
+  --border-tiny: #f2f0ec;
 
   /* Semantic - 实色(文字/图标/圆点) + soft(浅底) + line(描边) */
-  --success: #35847e;
-  --success-soft: #e3efed;
-  --success-line: #bcd7d2;
-  --warning: #b07a10;
-  --warning-soft: #f6ecd6;
-  --warning-line: #e6cf9c;
-  --danger: #b03030;
-  --danger-soft: #f5e0e0;
-  --danger-line: #e3b8b8;
-  --info: #0f7887;
+  --success: #2e7d32; /* 成功实色：文字、图标、状态点 */
+  --success-soft: #e7f3e8; /* 成功浅底：标签、提示块、弱背景 */
+  --success-line: #b8d8bb; /* 成功描边：边框、分隔线 */
+  --warning: #b07a10; /* 警告实色：文字、图标、状态点 */
+  --warning-soft: #f6ecd6; /* 警告浅底：标签、提示块、弱背景 */
+  --warning-line: #e6cf9c; /* 警告描边：边框、分隔线 */
+  --danger: #b03030; /* 危险/错误实色：文字、图标、状态点 */
+  --danger-soft: #f5e0e0; /* 危险/错误浅底：标签、提示块、弱背景 */
+  --danger-line: #e3b8b8; /* 危险/错误描边：边框、分隔线 */
+  --info: #0f7887; /* 信息实色：文字、图标、状态点 */
 
   /* Message & Component */
   --message-user-bg: #e9e4f0;
@@ -198,8 +201,16 @@
   --retroma-aurora-placeholder: #958a83;
 
   /* ---------- 通用中性结构 ---------- */
-  /* Background */
-  --bg-base: #0f0f0c;
+  /* Semantic background tokens */
+  --bg-base: #0f0f0c; /* 页面/应用底色；接近 --color-fill-0 */
+  --bg-subtle: #202018; /* 轻区域/面板背景；由 --bg-1 / --color-bg-1 提亮 */
+  --bg-muted: #29291f; /* 次级块/弱背景；由 --bg-2 / --color-bg-2 提亮 */
+  --bg-control: rgba(255, 255, 255, 0.08); /* 控件填充/中性浅底；接近 --color-fill-2 */
+  --bg-emphasis: #343428; /* 强调背景/分隔填充；由 --bg-3 / --color-bg-3 提亮 */
+  --bg-strong: #464638; /* 更强填充/按下或禁用面；由 --bg-4 / --color-bg-4 提亮 */
+  --bg-inverse-muted: #686858; /* 深中性色面/低强调反色底；由 --bg-6 提亮 */
+
+  /* FIXME: 兼容期保留的旧背景 token，后续业务代码都要迁移到上方语义化 bg token。 */
   --bg-1: #18180f;
   --bg-2: #222217;
   --bg-3: #2e2e20;
@@ -209,6 +220,7 @@
   --color-bg-2: #222217;
   --color-bg-3: #2e2e20;
   --color-bg-4: #3c3c2c;
+  --color-fill-0: rgba(255, 252, 240, 0.07);
 
   /* Interactive State */
   --bg-hover: #1e1e14;
@@ -229,24 +241,19 @@
   /* Border */
   --border-default: #4a4a38;
   --border-light: #34342a;
-
-  /* Fill & Inverse */
-  --fill: #18180f;
-  --color-fill: #18180f;
-  --fill-0: rgba(255, 252, 240, 0.07);
-  --dialog-fill-0: #2e2e20;
+  --border-tiny: #39392b;
 
   /* Semantic - 实色(文字/图标/圆点) + soft(浅底) + line(描边) */
-  --success: #68a99d;
-  --success-soft: #1c2b29;
-  --success-line: #2f4a45;
-  --warning: #d4963a;
-  --warning-soft: #2e2616;
-  --warning-line: #4a3c20;
-  --danger: #c86060;
-  --danger-soft: #2e1c1c;
-  --danger-line: #4a2f2f;
-  --info: #6e8ddb;
+  --success: #79b87d; /* 成功实色：文字、图标、状态点 */
+  --success-soft: #1d2b1f; /* 成功浅底：标签、提示块、弱背景 */
+  --success-line: #335237; /* 成功描边：边框、分隔线 */
+  --warning: #d4963a; /* 警告实色：文字、图标、状态点 */
+  --warning-soft: #2e2616; /* 警告浅底：标签、提示块、弱背景 */
+  --warning-line: #4a3c20; /* 警告描边：边框、分隔线 */
+  --danger: #c86060; /* 危险/错误实色：文字、图标、状态点 */
+  --danger-soft: #2e1c1c; /* 危险/错误浅底：标签、提示块、弱背景 */
+  --danger-line: #4a2f2f; /* 危险/错误描边：边框、分隔线 */
+  --info: #6e8ddb; /* 信息实色：文字、图标、状态点 */
 
   /* Message & Component */
   --message-user-bg: #3a3444;

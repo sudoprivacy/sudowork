@@ -48,6 +48,7 @@
   "default": "Default",
   "defaultModel": "Default Model",
   "modelSwitchSuccess": "Switched to {{model}}",
+  "notSet": "Not set",
   "modelListRefreshed": "Model list refreshed",
   "modelListRefreshFailed": "Failed to refresh model list",
   "escToCancel": "esc to cancel",

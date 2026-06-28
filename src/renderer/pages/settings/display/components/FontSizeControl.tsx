@@ -1,9 +1,3 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import React, { useMemo, useState } from 'react';
 import { Button, Slider } from '@arco-design/web-react';
 import { IconMinus, IconPlus } from '@arco-design/web-react/icon';
@@ -74,7 +68,7 @@ const FontSizeControl: React.FC = () => {
         <div className='flex items-center gap-2.5 ml-auto'>
           <span className='text-13px text-right'>{formattedValue}</span>
           <Button size='small' type='text' onClick={handleReset} disabled={isResetDisabled}>
-            {t('settings.fontSizeReset')}
+            {t('settings.fontSizeReset', '恢复默认缩放')}
           </Button>
         </div>
       </div>

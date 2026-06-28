@@ -264,7 +264,7 @@ const BdpanDirPicker: React.FC<Props> = ({ visible, localPath, onCancel, onConfi
                   {isLast ? (
                     <span className='text-foreground text-13px font-medium'>{crumb.label}</span>
                   ) : (
-                    <button className='text-[var(--color-primary-6)] text-13px hover:underline bg-transparent border-none cursor-pointer p-0' onClick={() => loadFiles(crumb.path, root)}>
+                    <button className='text-primary text-13px hover:underline bg-transparent border-none cursor-pointer p-0' onClick={() => loadFiles(crumb.path, root)}>
                       {crumb.label}
                     </button>
                   )}
@@ -348,7 +348,7 @@ const BdpanDirPicker: React.FC<Props> = ({ visible, localPath, onCancel, onConfi
           {username && (
             <span className='text-secondary text-13px'>
               {username}{' '}
-              <button className='text-[var(--color-primary-6)] text-13px hover:underline bg-transparent border-none cursor-pointer p-0' onClick={logout}>
+              <button className='text-primary text-13px hover:underline bg-transparent border-none cursor-pointer p-0' onClick={logout}>
                 {t('conversation.bdpan.logout')}
               </button>
             </span>

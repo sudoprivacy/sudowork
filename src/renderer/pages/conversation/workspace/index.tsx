@@ -1090,7 +1090,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                   {t('conversation.workspace.migration.moveToNewFolder')}
                 </div>
                 <div
-                  className='flex items-center justify-between px-12px py-10px rounded-8px cursor-pointer transition-colors hover:bg-[var(--color-fill-2)]'
+                  className='flex items-center justify-between px-12px py-10px rounded-8px cursor-pointer transition-colors hover:bg-fill-2'
                   style={{
                     backgroundColor: 'var(--color-bg-1)',
                     border: '1px solid var(--color-border-2)',
@@ -1496,7 +1496,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                   >
                     {t('conversation.workspace.contextMenu.rename')}
                   </button>
-                  <div className='h-1px bg-3 my-2px'></div>
+                  <div className='h-1px bg-muted my-2px'></div>
                   <button
                     type='button'
                     className={menuButtonBase}
@@ -1574,7 +1574,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                       {t('conversation.workspace.contextMenu.newFolder')}
                     </button>
                   )}
-                  <div className='h-1px bg-3 my-2px'></div>
+                  <div className='h-1px bg-muted my-2px'></div>
                   <button
                     type='button'
                     className={menuButtonBase}
@@ -1598,7 +1598,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                       {shareoneInstalled && isShareoneSupported ? t('conversation.workspace.contextMenu.shareone', { defaultValue: 'ShareOne' }) : t('settings.runtimeSettings.status.disabled', { defaultValue: '未启用' })}
                     </button>
                   )}
-                  <div className='h-1px bg-3 my-2px'></div>
+                  <div className='h-1px bg-muted my-2px'></div>
                   {!isContextMenuNodeDrafts && (
                     <button
                       type='button'

@@ -104,9 +104,9 @@ Please acknowledge receiving this rule/skill and confirm you will apply it.
           <List
             dataSource={files}
             render={(file, index) => (
-              <List.Item key={index} actionLayout='vertical' style={{ cursor: 'pointer', padding: '12px 0' }} onClick={() => handleSelectFile(file)} className='hover:bg-[var(--color-fill-2)] px-2 rounded transition-colors'>
+              <List.Item key={index} actionLayout='vertical' style={{ cursor: 'pointer', padding: '12px 0' }} onClick={() => handleSelectFile(file)} className='hover:bg-fill-2 px-2 rounded transition-colors'>
                 <div className='flex items-center gap-3'>
-                  <div className='bg-[var(--color-primary-light-1)] p-2 rounded'>{file.name.endsWith('.py') ? <Lightning size={18} fill='var(--color-primary-6)' /> : <FolderOpen size={18} fill='var(--color-primary-6)' />}</div>
+                  <div className='bg-primary-light-1 p-2 rounded'>{file.name.endsWith('.py') ? <Lightning size={18} fill='var(--color-primary-6)' /> : <FolderOpen size={18} fill='var(--color-primary-6)' />}</div>
                   <div className='flex-1'>
                     <Typography.Text bold>{file.name}</Typography.Text>
                     <div className='text-[var(--color-text-3)] text-xs truncate'>{file.relativePath || file.name}</div>
@@ -269,7 +269,15 @@ Requirements:
       </Dropdown>
 
       {/* Generate Modal */}
-      <Modal title={t('conversation.skill_generator.title', { defaultValue: 'Generate Skill/Rule' })} visible={generateVisible} onOk={handleGenerate} onCancel={() => setGenerateVisible(false)} okText={t('conversation.skill_generator.generate', { defaultValue: 'Generate' })} confirmLoading={loading} className='w-[90vw] md:w-[500px]'>
+      <Modal
+        title={t('conversation.skill_generator.title', { defaultValue: 'Generate Skill/Rule' })}
+        visible={generateVisible}
+        onOk={handleGenerate}
+        onCancel={() => setGenerateVisible(false)}
+        okText={t('conversation.skill_generator.generate', { defaultValue: 'Generate' })}
+        confirmLoading={loading}
+        className='w-[90vw] md:w-[500px]'
+      >
         <div style={{ marginBottom: 16 }}>
           <div className='mb-4'>
             <Typography.Text>{t('conversation.skill_generator.name_label', { defaultValue: 'Agent Name:' })}</Typography.Text>

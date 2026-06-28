@@ -8,8 +8,8 @@ export function formatNextRunRelative(t: TFunction, nextRunAtMs?: number): strin
   const d = dayjs(nextRunAtMs);
   const now = dayjs();
   const time = d.format('HH:mm');
-  if (d.isSame(now, 'day')) return t('cron.create.nextRunToday', { time });
-  if (d.isSame(now.add(1, 'day'), 'day')) return t('cron.create.nextRunTomorrow', { time });
+  if (d.isSame(now, 'day')) return t('cron.create.nextRunToday', { time, defaultValue: '今天 {{time}}' });
+  if (d.isSame(now.add(1, 'day'), 'day')) return t('cron.create.nextRunTomorrow', { time, defaultValue: '明天 {{time}}' });
   return d.format('MM-DD HH:mm');
 }
 
@@ -64,7 +64,7 @@ export function frequencyToSchedule(preset: FrequencyPreset, options?: IFrequenc
   const minute = options?.minute ?? 0;
   const timeStr = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
 
-  const label = (key: string, fallback: string) => (t ? t(key, { defaultValue: fallback }) : fallback);
+  const label = (key: string, fallback: string) => (t ? t(key, fallback) : fallback);
 
   switch (preset) {
     case 'manual':
@@ -77,7 +77,7 @@ export function frequencyToSchedule(preset: FrequencyPreset, options?: IFrequenc
       return { kind: 'cron', expr: `${minute} ${hour} * * MON-FRI`, description: `${label('cron.create.frequency.weekdays', '工作日')} ${timeStr}` };
     case 'weekly': {
       const day = options?.weekday ?? 'MON';
-      const dayLabel = t ? t(`cron.create.weekday.${day}`, { defaultValue: weekdayLabel(day) }) : weekdayLabel(day);
+      const dayLabel = t ? t(`cron.create.weekday.${day}`, weekdayLabel(day)) : weekdayLabel(day);
       return { kind: 'cron', expr: `${minute} ${hour} * * ${day}`, description: `${label('cron.create.frequency.weekly', '每周')} ${dayLabel} ${timeStr}` };
     }
   }

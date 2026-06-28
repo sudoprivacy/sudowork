@@ -923,23 +923,7 @@
   word-break: break-word;
   overflow-wrap: anywhere;
   display: -webkit-box;
-  -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
-}
-
-/* Mobile tweaks — slightly larger tap targets, same card chrome */
-@media (max-width: 768px) {
-  .chat-workspace.workspace-card {
-    border-radius: 14px;
-  }
-
-  .chat-workspace .workspace-card__tab {
-    font-size: 14px;
-    padding: 12px 12px;
-  }
-
-  .chat-workspace .workspace-skills__grid {
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 120px), 1fr));
-  }
 }

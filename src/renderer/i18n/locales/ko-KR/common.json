@@ -42,6 +42,7 @@
   "confirmDelete": "삭제 확인",
   "deleteSuccess": "삭제 성공",
   "deleteFailed": "삭제 실패",
+  "notSet": "미설정",
   "default": "기본",
   "defaultModel": "기본 모델",
   "modelSwitchSuccess": "{{model}}(으)로 전환되었습니다",

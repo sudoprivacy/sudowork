@@ -42,6 +42,7 @@
   "confirmDelete": "削除の確認",
   "deleteSuccess": "削除に成功しました",
   "deleteFailed": "削除に失敗しました",
+  "notSet": "未設定",
   "default": "デフォルト",
   "defaultModel": "デフォルトモデル",
   "modelSwitchSuccess": "{{model}} に切り替えました",

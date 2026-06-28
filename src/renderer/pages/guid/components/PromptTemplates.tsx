@@ -5,9 +5,10 @@
  */
 
 import React, { useState } from 'react';
+import { Button } from '@arco-design/web-react';
 import { useTranslation } from 'react-i18next';
+import Tabs from '@/renderer/components/ui/Tabs';
 import { DEFAULT_PROMPT_CATEGORIES } from '../constants';
-import styles from '../index.module.css';
 
 type PromptTemplatesProps = {
   /** Whether the component should be visible */
@@ -29,30 +30,31 @@ const PromptTemplates: React.FC<PromptTemplatesProps> = ({ visible, onSelectProm
   const currentCategory = DEFAULT_PROMPT_CATEGORIES.find((c) => c.key === activeCategory);
 
   return (
-    <div className={styles.promptTemplatesContainer}>
+    <div className='w-full mb-4 [animation:fade-in_0.3s_ease-out]'>
       {/* Title */}
       <div className='flex items-center gap-6px mb-10px'>
-        <span className='text-13px' style={{ color: 'var(--color-text-3)' }}>
-          💡 {t('guid.promptTemplates.title', { defaultValue: 'Prompt Templates' })}
-        </span>
+        <span className='text-13px text-secondary'>💡 {t('guid.promptTemplates.title', { defaultValue: '常用提示词' })}</span>
       </div>
 
       {/* Category tags */}
-      <div className='flex flex-wrap gap-8px mb-4px'>
-        {DEFAULT_PROMPT_CATEGORIES.map((category) => (
-          <div key={category.key} className={`${styles.promptCategoryTag} ${activeCategory === category.key ? styles.promptCategoryTagActive : ''}`} onClick={() => setActiveCategory(activeCategory === category.key ? null : category.key)}>
-            {category.icon} {t(category.labelKey)}
-          </div>
-        ))}
-      </div>
+      <Tabs
+        className='mb-1'
+        value={activeCategory ?? ''}
+        items={DEFAULT_PROMPT_CATEGORIES.map((category) => ({
+          value: category.key,
+          label: t(category.labelKey),
+          icon: category.icon,
+        }))}
+        onChange={(value) => setActiveCategory(activeCategory === value ? null : value)}
+      />
 
       {/* Expanded prompt list */}
       {activeCategory && currentCategory && (
-        <div className={styles.promptListContainer}>
+        <div className='flex flex-wrap gap-2 mt-2 [animation:panel-slide-in_0.25s_ease-out]'>
           {currentCategory.prompts.map((prompt) => (
-            <div key={prompt.labelKey} className={styles.promptItem} onClick={() => onSelectPrompt(t(prompt.contentKey))}>
+            <Button key={prompt.labelKey} size='small' shape='square' className='!border !border-[var(--border-default)]' onClick={() => onSelectPrompt(t(prompt.contentKey))}>
               {t(prompt.labelKey)}
-            </div>
+            </Button>
           ))}
         </div>
       )}

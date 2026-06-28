@@ -295,7 +295,7 @@ body,
   bottom: 0;
   left: 260px;
   width: 1px;
-  background: var(--border-default);
+  background: var(--border-light);
   z-index: 20;
   pointer-events: none;
 }
@@ -509,13 +509,21 @@ body,
 }
 
 ::-webkit-scrollbar-thumb {
-  background: transparent;
+  background: rgba(0, 0, 0, 0.08);
   border-radius: 3px;
   transition: background 0.3s;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.2);
+  background: rgba(0, 0, 0, 0.14);
+}
+
+[data-theme='dark'] ::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+[data-theme='dark'] ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
 }
 
 [data-theme='dark'] ::-webkit-scrollbar-thumb:hover {
@@ -525,7 +533,7 @@ body,
 /* .scrollbar-hide 由 uno.config.ts 的同名 shortcut 提供 */
 
 *:hover::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.1);
+  background: rgba(0, 0, 0, 0.12);
 }
 
 [data-theme='dark'] *:hover::-webkit-scrollbar-thumb {
@@ -644,14 +652,6 @@ body,
       background-color: var(--bg-1);
     }
   }
-}
-
-/* Message 居中于对话区（排除左侧栏），用 padding-left 偏移并保持内部消息居中 */
-.arco-message-wrapper {
-  left: 0 !important;
-  width: 100% !important;
-  padding-left: 266px;
-  box-sizing: border-box;
 }
 
 ::placeholder {
@@ -904,7 +904,7 @@ body,
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--brand);
+  background: var(--bg-4);
 }
 
 .message-item.user .message-bubble {
@@ -928,17 +928,17 @@ body,
 /* ===== Aurora Inputs ===== */
 .guidContainer .guidInputCard,
 [class*='guidContainer'] [class*='guidInputCard'],
-.relative.p-16px.border-3.b.bg-dialog-fill-0.b-solid.rd-20px.flex.flex-col:has(.sendbox-tools) {
+.relative.p-16px.border-3.b.bg-fill-3.b-solid.rd-20px.flex.flex-col:has(.sendbox-tools) {
   position: relative;
 }
 
 .guidContainer .guidInputCard:focus-within,
 [class*='guidContainer'] [class*='guidInputCard']:focus-within,
-.relative.p-16px.border-3.b.bg-dialog-fill-0.b-solid.rd-20px.flex.flex-col:has(.sendbox-tools):focus-within {
+.relative.p-16px.border-3.b.bg-fill-3.b-solid.rd-20px.flex.flex-col:has(.sendbox-tools):focus-within {
   overflow: visible !important;
-  border: 2px solid transparent !important;
-  background-color: var(--dialog-fill-0) !important;
-  background-image: linear-gradient(var(--dialog-fill-0), var(--dialog-fill-0)), var(--retroma-aurora-input-gradient) !important;
+  /* border: 2px solid transparent !important;
+  background-color: var(--color-fill-3) !important;
+  background-image: linear-gradient(var(--color-fill-3), var(--color-fill-3)), var(--retroma-aurora-input-gradient) !important;
   background-size:
     100% 100%,
     220% 100% !important;
@@ -956,12 +956,12 @@ body,
     var(--retroma-aurora-input-shadow) !important;
   animation:
     elegantFlow 2.4s linear infinite,
-    softGlow 3s ease-in-out infinite;
+    softGlow 3s ease-in-out infinite; */
 }
 
 .guidContainer .guidInputCard textarea::placeholder,
 [class*='guidContainer'] [class*='guidInputCard'] textarea::placeholder,
-.relative.p-16px.border-3.b.bg-dialog-fill-0.b-solid.rd-20px.flex.flex-col:has(.sendbox-tools) textarea::placeholder {
+.relative.p-16px.border-3.b.bg-fill-3.b-solid.rd-20px.flex.flex-col:has(.sendbox-tools) textarea::placeholder {
   color: var(--retroma-aurora-placeholder) !important;
   opacity: 1 !important;
 }

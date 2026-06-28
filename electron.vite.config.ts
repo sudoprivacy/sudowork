@@ -1,6 +1,7 @@
 import { resolve } from 'path';
 import { execSync } from 'child_process';
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite';
+import react from '@vitejs/plugin-react';
 import UnoCSS from 'unocss/vite';
 import { viteStaticCopy } from 'vite-plugin-static-copy';
 import unoConfig from './uno.config.ts';
@@ -172,7 +173,7 @@ export default defineConfig(({ mode }) => {
         extensions: ['.ts', '.tsx', '.js', '.jsx', '.css'],
         dedupe: ['react', 'react-dom', 'react-router-dom', '@codemirror/state', '@codemirror/view', '@codemirror/language'],
       },
-      plugins: [UnoCSS(unoConfig), iconParkPlugin()],
+      plugins: [react(), UnoCSS(unoConfig), iconParkPlugin()],
       build: {
         target: 'es2022',
         sourcemap: isDevelopment,

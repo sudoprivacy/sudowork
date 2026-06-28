@@ -275,7 +275,7 @@ const CustomAcpAgentModal: React.FC<CustomAcpAgentModalProps> = ({ visible, agen
                   return (
                     <div
                       key={detectedAgent.cliPath}
-                      className={`p-2.5 rounded-lg cursor-pointer transition-all flex items-center gap-2 relative border border-solid ${isSelected ? 'bg-[var(--color-fill-2)] border-primary' : 'bg-2 border-transparent hover:bg-[var(--color-fill-2)] hover:border-[var(--color-border-2)]'}`}
+                      className={`p-2.5 rounded-lg cursor-pointer transition-all flex items-center gap-2 relative border ${isSelected ? 'bg-fill-2 border-primary' : 'bg-muted border-transparent hover:bg-fill-2 hover:border-light'}`}
                       onClick={() => handleSelectCli(detectedAgent.cliPath || '')}
                     >
                       {logo && <img src={logo} alt={`${detectedAgent.name} logo`} className='w-6 h-6 object-contain flex-shrink-0' />}

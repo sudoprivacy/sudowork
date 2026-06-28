@@ -49,7 +49,25 @@ type GuidActionRowProps = {
   onSend: () => void;
 };
 
-const GuidActionRow: React.FC<GuidActionRowProps> = ({ files, onFilesUploaded, onSelectWorkspace, modelSelectorNode, selectedAgent, effectiveModeAgent, selectedMode, onModeSelect, isPresetAgent, selectedAgentInfo, customAgents, localeKey, onClosePresetTag, onTriggerSkillSelector, loading, isButtonDisabled, onSend }) => {
+const GuidActionRow: React.FC<GuidActionRowProps> = ({
+  files,
+  onFilesUploaded,
+  onSelectWorkspace,
+  modelSelectorNode,
+  selectedAgent,
+  effectiveModeAgent,
+  selectedMode,
+  onModeSelect,
+  isPresetAgent,
+  selectedAgentInfo,
+  customAgents,
+  localeKey,
+  onClosePresetTag,
+  onTriggerSkillSelector,
+  loading,
+  isButtonDisabled,
+  onSend,
+}) => {
   const { t } = useTranslation();
   const [bdpanSelectorVisible, setBdpanSelectorVisible] = useState(false);
   const [fileMenuOpen, setFileMenuOpen] = useState(false);
@@ -63,8 +81,8 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({ files, onFilesUploaded, o
 
   return (
     <>
-      <div className={styles.actionRow}>
-        <div className={styles.actionTools}>
+      <div className='flex items-center justify-between w-full gap-2 mt-3'>
+        <div className={`${styles.actionTools} inline-flex items-center gap-2.5 shrink min-w-0`}>
           <Dropdown
             trigger={'click'}
             popupVisible={fileMenuOpen}
@@ -143,13 +161,13 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({ files, onFilesUploaded, o
 
           {modelSelectorNode}
 
-          {supportsModeSwitch(modeBackend) && <AgentModeSelector backend={modeBackend} compact initialMode={selectedMode} onModeSelect={onModeSelect} compactLabelOverride={permissionLabel} compactLeadingIcon={<Shield theme='outline' size='14' fill='currentColor' />} modeLabelFormatter={getModeDisplayLabel} />}
+          {supportsModeSwitch(modeBackend) && (
+            <AgentModeSelector backend={modeBackend} compact initialMode={selectedMode} onModeSelect={onModeSelect} compactLabelOverride={permissionLabel} compactLeadingIcon={<Shield theme='outline' size='14' fill='currentColor' />} modeLabelFormatter={getModeDisplayLabel} />
+          )}
 
           {isPresetAgent && selectedAgentInfo && <PresetAgentTag agentInfo={selectedAgentInfo} customAgents={customAgents} localeKey={localeKey} onClose={onClosePresetTag} />}
         </div>
-        <div className={styles.actionSubmit}>
-          <Button shape='circle' type='primary' loading={loading} disabled={isButtonDisabled} icon={<ArrowUp theme='filled' fill='white' strokeWidth={4} />} onClick={onSend} />
-        </div>
+        <Button shape='circle' type='primary' loading={loading} disabled={isButtonDisabled} icon={<ArrowUp theme='filled' fill='white' strokeWidth={4} />} onClick={onSend} />
       </div>
 
       <BdpanFileSelector

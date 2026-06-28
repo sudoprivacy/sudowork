@@ -63,7 +63,30 @@ const SendBox: React.FC<{
   workspaceFiles?: WorkspaceFileItem[];
   /** Called when a file is selected via @ selector, allowing parent to track the file */
   onAtFileSelected?: (file: WorkspaceFileItem) => void;
-}> = ({ onSend, onStop, prefix, className, loading, tools, disabled, placeholder, value: input = '', onChange: setInput = constVoid, onFilesAdded, supportedExts = allSupportedExts, defaultMultiLine = false, lockMultiLine = false, topAttached = false, sendButtonPrefix, slashCommands = [], onSlashBuiltinCommand, onSkillsChange, initialSelectedSkills = [], workspaceFiles, onAtFileSelected }) => {
+}> = ({
+  onSend,
+  onStop,
+  prefix,
+  className,
+  loading,
+  tools,
+  disabled,
+  placeholder,
+  value: input = '',
+  onChange: setInput = constVoid,
+  onFilesAdded,
+  supportedExts = allSupportedExts,
+  defaultMultiLine = false,
+  lockMultiLine = false,
+  topAttached = false,
+  sendButtonPrefix,
+  slashCommands = [],
+  onSlashBuiltinCommand,
+  onSkillsChange,
+  initialSelectedSkills = [],
+  workspaceFiles,
+  onAtFileSelected,
+}) => {
   const { t } = useTranslation();
   const [isLoading, setIsLoading] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
@@ -500,7 +523,7 @@ const SendBox: React.FC<{
       {contextMenu && <ContextMenu x={contextMenu.x} y={contextMenu.y} items={contextMenu.items} onClose={() => setContextMenu(null)} />}
       <div
         ref={containerRef}
-        className={`relative p-16px b bg-dialog-fill-0 b-solid flex flex-col ${slashController.isOpen || skillSelectorController.isOpen ? 'overflow-visible' : 'overflow-hidden'} ${isFileDragging ? 'b-dashed' : ''}`}
+        className={`relative p-16px b bg-fill-1 b-solid flex flex-col ${slashController.isOpen || skillSelectorController.isOpen ? 'overflow-visible' : 'overflow-hidden'} ${isFileDragging ? 'b-dashed' : ''}`}
         style={{
           transition: 'box-shadow 0.25s ease, border-color 0.25s ease',
           borderRadius: topAttached ? '0 0 20px 20px' : '20px',

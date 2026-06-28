@@ -90,7 +90,7 @@ export default function SecurityPage() {
   // Handle add/edit rule
   const handleSaveRule = useCallback(async () => {
     if (!ruleForm.pattern.trim()) {
-      Message.error('请输入匹配模式');
+      Message.error(t('settings.securitySettings.rule.patternRequired', '请输入匹配模式'));
       return;
     }
 
@@ -98,8 +98,8 @@ export default function SecurityPage() {
     const dangerousPatterns = ['*.*', '*', '/*', '/*.*'];
     if (dangerousPatterns.includes(ruleForm.pattern.trim())) {
       Modal.error({
-        title: '规则不允许',
-        content: '禁止使用过于宽泛的匹配规则（如 *.* 或 *），这会拦截所有请求。请使用更精确的匹配模式。',
+        title: t('settings.securitySettings.rule.patternNotAllowedTitle', '规则不允许'),
+        content: t('settings.securitySettings.rule.patternNotAllowedDesc', '禁止使用过于宽泛的匹配规则（如 *.* 或 *），这会拦截所有请求。请使用更精确的匹配模式。'),
       });
       return;
     }
@@ -132,20 +132,20 @@ export default function SecurityPage() {
           matchType: 'wildcard',
           description: '',
         });
-        Message.success(editingRule ? '规则已更新' : '规则已添加');
+        Message.success(editingRule ? t('settings.securitySettings.rule.updateSuccess', '规则已更新') : t('settings.securitySettings.rule.addSuccess', '规则已添加'));
       } else {
-        Message.error(result.msg || '保存规则失败');
+        Message.error(result.msg || t('settings.securitySettings.rule.saveFailed', '保存规则失败'));
       }
     } catch (err) {
       console.error('[SecurityPage] Failed to save rule:', err);
       const errMsg = err instanceof Error ? err.message : String(err);
       if (errMsg.includes('fetch') || errMsg.includes('ECONNREFUSED') || errMsg.includes('network')) {
-        Message.error(`Nexus连接异常: ${errMsg}`);
+        Message.error(`${t('settings.securitySettings.rule.connectionError', 'Nexus连接异常')}: ${errMsg}`);
       } else {
-        Message.error(`保存规则失败: ${errMsg}`);
+        Message.error(`${t('settings.securitySettings.rule.saveFailed', '保存规则失败')}: ${errMsg}`);
       }
     }
-  }, [ruleForm, editingRule, blacklistConfig]);
+  }, [ruleForm, editingRule, blacklistConfig, t]);
 
   // Handle delete rule
   const handleDeleteRule = useCallback(
@@ -157,21 +157,21 @@ export default function SecurityPage() {
         const result = await ipcBridge.safety.setBlacklist.invoke({ config: newConfig });
         if (result.success) {
           setBlacklistConfig(newConfig);
-          Message.success('规则已删除');
+          Message.success(t('settings.securitySettings.rule.deleteSuccess', '规则已删除'));
         } else {
-          Message.error(result.msg || '删除规则失败');
+          Message.error(result.msg || t('settings.securitySettings.rule.deleteFailed', '删除规则失败'));
         }
       } catch (err) {
         console.error('[SecurityPage] Failed to delete rule:', err);
         const errMsg = err instanceof Error ? err.message : String(err);
         if (errMsg.includes('fetch') || errMsg.includes('ECONNREFUSED') || errMsg.includes('network')) {
-          Message.error(`Nexus连接异常: ${errMsg}`);
+          Message.error(`${t('settings.securitySettings.rule.connectionError', 'Nexus连接异常')}: ${errMsg}`);
         } else {
-          Message.error(`删除规则失败: ${errMsg}`);
+          Message.error(`${t('settings.securitySettings.rule.deleteFailed', '删除规则失败')}: ${errMsg}`);
         }
       }
     },
-    [blacklistConfig]
+    [blacklistConfig, t]
   );
 
   // Handle toggle rule enabled
@@ -185,19 +185,19 @@ export default function SecurityPage() {
         if (result.success) {
           setBlacklistConfig(newConfig);
         } else {
-          Message.error(result.msg || '切换规则失败');
+          Message.error(result.msg || t('settings.securitySettings.rule.toggleFailed', '切换规则失败'));
         }
       } catch (err) {
         console.error('[SecurityPage] Failed to toggle rule:', err);
         const errMsg = err instanceof Error ? err.message : String(err);
         if (errMsg.includes('fetch') || errMsg.includes('ECONNREFUSED') || errMsg.includes('network')) {
-          Message.error(`Nexus连接异常: ${errMsg}`);
+          Message.error(`${t('settings.securitySettings.rule.connectionError', 'Nexus连接异常')}: ${errMsg}`);
         } else {
-          Message.error(`切换规则失败: ${errMsg}`);
+          Message.error(`${t('settings.securitySettings.rule.toggleFailed', '切换规则失败')}: ${errMsg}`);
         }
       }
     },
-    [blacklistConfig]
+    [blacklistConfig, t]
   );
 
   // Open edit modal
@@ -226,7 +226,7 @@ export default function SecurityPage() {
 
   return (
     <PageWrapper title={t('settings.security')} subtitle={t('settings.securitySettings.subtitle')}>
-      <div className='flex flex-col gap-3'>
+      <div className='flex flex-col gap-3 mt-4'>
         <SecurityItem
           icon={<Shield theme='outline' size='22' />}
           title={t('settings.securitySettings.envProtection.title')}
@@ -289,19 +289,19 @@ export default function SecurityPage() {
                 </div>
                 <div className='flex-1 mt--1'>
                   <div className='flex items-center gap-1.5 mb-0.5'>
-                    <h3 className='text-15px font-600 text-foreground'>安全 Hook 防护</h3>
+                    <h3 className='text-15px font-600 text-foreground'>{t('settings.securitySettings.hook.title', '安全 Hook 防护')}</h3>
                     <Tag color='purple' size='small' className='rd-4px'>
                       <CheckOne theme='filled' size='12' className='mr-1' />
-                      实时拦截
+                      {t('settings.securitySettings.hook.realtimeBlock', '实时拦截')}
                     </Tag>
                   </div>
-                  <p className='text-13px text-secondary my-0 leading-relaxed'>监控第三方 AI 工具的文件访问和网络请求，仅对黑名单中的规则进行拦截，匹配时弹出确认框，经您授权后才允许执行。</p>
+                  <p className='text-13px text-secondary my-0 leading-relaxed'>{t('settings.securitySettings.hook.description', '监控第三方 AI 工具的文件访问和网络请求，仅对黑名单中的规则进行拦截，匹配时弹出确认框，经您授权后才允许执行。')}</p>
 
                   {/* 主开关 */}
                   <div className='flex items-center justify-end gap-2.5'>
                     <Tag color={hookEnabled ? 'green' : 'gray'} size='small' className='rd-12px px-2.5'>
                       <span className='w-1.25 h-1.25 rd-50% inline-block mr-1.25' style={{ backgroundColor: hookEnabled ? '#52c41a' : '#999' }}></span>
-                      {hookEnabled ? '保护中' : '已关闭'}
+                      {hookEnabled ? t('settings.securitySettings.protecting', '保护中') : t('settings.securitySettings.hook.disabled', '已关闭')}
                     </Tag>
                     <Switch checked={hookEnabled} onChange={handleToggleHook} size='small' className='settings-accent-switch' />
                   </div>
@@ -309,27 +309,27 @@ export default function SecurityPage() {
                   {/* 黑名单规则 - 关闭时显示提示，开启时显示规则列表 */}
                   <div className='border-t pt-2'>
                     {!hookEnabled ? (
-                      <div className='text-center py-2 text-tertiary text-13px'>安全 Hook 防护已关闭</div>
+                      <div className='text-center py-2 text-tertiary text-13px'>{t('settings.securitySettings.hook.disabledHint', '安全 Hook 防护已关闭')}</div>
                     ) : (
                       <>
                         {/* 规则说明 */}
                         <div className='mb-1.5'>
                           <span className='text-13px text-secondary'>
-                            当前黑名单规则：{blacklistConfig.rules.filter((r) => r.enabled).length} 条生效
-                            {blacklistConfig.rules.length === 0 && '（为空时不拦截任何请求）'}
+                            {t('settings.securitySettings.hook.ruleCount', { count: blacklistConfig.rules.filter((r) => r.enabled).length, defaultValue: '当前黑名单规则：{{count}} 条生效' })}
+                            {blacklistConfig.rules.length === 0 && t('settings.securitySettings.hook.emptyRuleHint', '（为空时不拦截任何请求）')}
                           </span>
                         </div>
 
                         {/* Rules section */}
                         <div className='flex items-center justify-between mb-1.5'>
-                          <h4 className='text-15px font-500 text-foreground my-1'>拦截规则</h4>
+                          <h4 className='text-15px font-500 text-foreground my-1'>{t('settings.securitySettings.hook.ruleListTitle', '拦截规则')}</h4>
                           <Button type='primary' size='small' icon={<Plus theme='outline' size='14' />} onClick={openAddModal}>
-                            添加规则
+                            {t('settings.securitySettings.rule.addTitle', '添加规则')}
                           </Button>
                         </div>
 
                         {blacklistConfig.rules.length === 0 ? (
-                          <div className='text-center py-2.5 text-tertiary bg-fill-1 rd-8px'>暂无拦截规则</div>
+                          <div className='text-center py-2.5 text-tertiary bg-fill-1 rd-8px'>{t('settings.securitySettings.hook.noRules', '暂无拦截规则')}</div>
                         ) : (
                           <Table
                             data={blacklistConfig.rules}
@@ -338,14 +338,14 @@ export default function SecurityPage() {
                             pagination={false}
                             columns={[
                               {
-                                title: '类型',
+                                title: t('settings.securitySettings.rule.typeLabel', '类型'),
                                 dataIndex: 'type',
                                 width: 80,
                                 render: (type) => {
                                   const typeConfig: Record<string, { color: string; label: string }> = {
-                                    network: { color: 'blue', label: '网络' },
-                                    file: { color: 'green', label: '文件' },
-                                    process: { color: 'orange', label: '进程' },
+                                    network: { color: 'blue', label: t('settings.securitySettings.hook.typeNetwork', '网络') },
+                                    file: { color: 'green', label: t('settings.securitySettings.hook.typeFile', '文件') },
+                                    process: { color: 'orange', label: t('settings.securitySettings.hook.typeProcess', '进程') },
                                   };
                                   const config = typeConfig[type] || { color: 'gray', label: type };
                                   return (
@@ -356,19 +356,19 @@ export default function SecurityPage() {
                                 },
                               },
                               {
-                                title: '匹配',
+                                title: t('settings.securitySettings.hook.ruleMatch', '匹配'),
                                 dataIndex: 'matchType',
                                 width: 70,
                                 render: (matchType: IBlacklistMatchType) => {
                                   const labels: Record<IBlacklistMatchType, string> = {
-                                    exact: '精确',
-                                    wildcard: '通配',
+                                    exact: t('settings.securitySettings.hook.matchExact', '精确'),
+                                    wildcard: t('settings.securitySettings.hook.matchWildcard', '通配'),
                                   };
                                   return labels[matchType];
                                 },
                               },
                               {
-                                title: '规则',
+                                title: t('settings.securitySettings.hook.rulePattern', '规则'),
                                 dataIndex: 'pattern',
                                 ellipsis: true,
                                 render: (pattern) => (
@@ -378,18 +378,18 @@ export default function SecurityPage() {
                                 ),
                               },
                               {
-                                title: '启用',
+                                title: t('settings.securitySettings.hook.ruleEnabled', '启用'),
                                 dataIndex: 'enabled',
                                 width: 60,
                                 render: (enabled, record) => <Switch size='small' checked={enabled} onChange={(checked) => handleToggleRule(record.id, checked)} />,
                               },
                               {
-                                title: '操作',
+                                title: t('settings.securitySettings.hook.ruleAction', '操作'),
                                 width: 80,
                                 render: (_, record) => (
                                   <Space size='small'>
                                     <Button type='text' size='mini' icon={<Edit theme='outline' size='14' />} onClick={() => openEditModal(record)} />
-                                    <Popconfirm title='确认删除此规则？' onOk={() => handleDeleteRule(record.id)}>
+                                    <Popconfirm title={t('settings.securitySettings.hook.deleteConfirm', '确认删除此规则？')} onOk={() => handleDeleteRule(record.id)}>
                                       <Button type='text' size='mini' status='danger' icon={<Delete theme='outline' size='14' />} />
                                     </Popconfirm>
                                   </Space>
@@ -410,7 +410,7 @@ export default function SecurityPage() {
         {/* 底部提示 */}
         <div className='f-center gap-2 text-14px text-tertiary mt-4'>
           <Shield theme='outline' size='16' fill='currentColor' />
-          <span>您的每一次操作都在系统严格保护之下</span>
+          <span>{t('settings.securitySettings.bottomTip', '您的每一次操作都在系统严格保护之下')}</span>
         </div>
       </div>
 

@@ -111,9 +111,14 @@ const GeneratedFileCard: React.FC<GeneratedFileCardProps> = ({ entry, fullWidth 
   return (
     <Tooltip content={missing ? t('messages.generatedFile.missingHint') : entry.path} position='top' mini>
       <div
-        className={classNames('group min-w-0 items-center gap-12px overflow-hidden rounded-16px border border-solid border-[var(--color-border-2)] bg-[var(--color-bg-2)] px-12px py-12px text-left transition-all', fullWidth ? 'flex w-full' : 'inline-flex max-w-full', 'hover:bg-[var(--color-bg-3)] hover:border-[var(--color-border-3)] active:scale-[0.98]', {
-          'opacity-50 cursor-not-allowed': missing || loading,
-        })}
+        className={classNames(
+          'group min-w-0 items-center gap-12px overflow-hidden rounded-16px border border-light bg-[var(--color-bg-2)] px-12px py-12px text-left transition-all',
+          fullWidth ? 'flex w-full' : 'inline-flex max-w-full',
+          'hover:bg-[var(--color-bg-3)] hover:border-[var(--color-border-3)] active:scale-[0.98]',
+          {
+            'opacity-50 cursor-not-allowed': missing || loading,
+          }
+        )}
         onClick={handleClick}
         role='button'
         tabIndex={0}
@@ -125,7 +130,7 @@ const GeneratedFileCard: React.FC<GeneratedFileCardProps> = ({ entry, fullWidth 
           }
         }}
       >
-        <div className='flex h-48px w-48px flex-shrink-0 items-center justify-center rounded-16px border border-solid border-[var(--color-border-2)] bg-[var(--color-fill-1)] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]' style={{ color: 'var(--foreground)', lineHeight: 0 }}>
+        <div className='flex h-48px w-48px flex-shrink-0 items-center justify-center rounded-16px border border-light bg-fill-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]' style={{ color: 'var(--foreground)', lineHeight: 0 }}>
           {resolveFileIcon(fileName, { size: 26 })}
         </div>
         <div className='min-w-0 flex flex-col gap-4px leading-tight'>
@@ -138,8 +143,8 @@ const GeneratedFileCard: React.FC<GeneratedFileCardProps> = ({ entry, fullWidth 
             {!directory && sizeLabel && <span>{sizeLabel}</span>}
             {!directory && sizeLabel && ext && <span className='mx-4px opacity-50'>·</span>}
             {!directory && ext && <span className='uppercase opacity-70'>{ext}</span>}
-            {directory && sizeLabel ? <span className='ml-2 rounded-full bg-[var(--color-fill-1)] px-6px py-1px text-[10px] leading-4 text-secondary'>{sizeLabel}</span> : null}
-            {directory && ext ? <span className='ml-6px rounded-full bg-[var(--color-fill-1)] px-6px py-1px text-[10px] leading-4 uppercase tracking-wide text-secondary'>{ext}</span> : null}
+            {directory && sizeLabel ? <span className='ml-2 rounded-full bg-fill-1 px-6px py-1px text-[10px] leading-4 text-secondary'>{sizeLabel}</span> : null}
+            {directory && ext ? <span className='ml-6px rounded-full bg-fill-1 px-6px py-1px text-[10px] leading-4 uppercase tracking-wide text-secondary'>{ext}</span> : null}
           </div>
         </div>
         {!missing && (

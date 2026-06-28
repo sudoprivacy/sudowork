@@ -5,7 +5,6 @@
  */
 
 import { Button, Collapse, Input, Message, Switch } from '@arco-design/web-react';
-import { Right } from '@icon-park/react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
@@ -157,15 +156,12 @@ const TenantConfigItemGroup: React.FC<TenantConfigItemGroupProps> = ({ configIte
 
   return (
     <div className='overflow-hidden rd-12px border'>
-      <Collapse activeKey={collapsed ? [] : [`tenant-${configItem.id}`]} onChange={() => setCollapsed((prev) => !prev)} className='[&_div.arco-collapse-item-header-title]:flex-1 border-0 bg-transparent [&_.arco-collapse-item-icon]:hidden [&_.arco-collapse-item-header-icon]:hidden [&_.arco-collapse-item-header]:px-0 [&_.arco-collapse-item-header]:py-0'>
+      <Collapse activeKey={collapsed ? [] : [`tenant-${configItem.id}`]} onChange={() => setCollapsed((prev) => !prev)} className='[&_div.arco-collapse-item-header-title]:flex-1 border-0 bg-transparent [&_.arco-collapse-item-header]:px-0 [&_.arco-collapse-item-header]:py-0'>
         <Collapse.Item
           header={
             <div className='flex items-center justify-between group px-12px py-12px md:px-16px min-h-44px'>
               <div className='flex items-center gap-12px flex-1 min-w-0'>
-                <span className='inline-flex h-28px w-28px shrink-0 items-center justify-center rd-8px text-tertiary transition-colors group-hover:bg-fill-1 group-hover:text-secondary'>
-                  <Right theme='outline' size='14' className='transition-transform' style={{ transform: collapsed ? 'rotate(0deg)' : 'rotate(90deg)' }} />
-                </span>
-                <div className='flex h-28px w-28px items-center justify-center rd-7px bg-fill-1'>
+                <div className='ml-2.5 flex h-28px w-28px items-center justify-center rd-7px bg-fill-1'>
                   <ConfigItemIcon iconUrl={configItem.icon_url} name={configItem.name} />
                 </div>
                 <span className='truncate text-14px font-600 leading-none text-foreground'>{configItem.name}</span>

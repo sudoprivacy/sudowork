@@ -7,7 +7,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import AppLoader from '@renderer/components/AppLoader';
 import InitLoading from '@renderer/components/InitLoading';
-import ProductImprovementDialog from '@renderer/components/ProductImprovementDialog';
+import OptInDialog from '@/renderer/pages/settings/system/components/OptInDialog';
 import ModeSetup from '@renderer/pages/setup/ModeSetup';
 import { useAuth } from '@renderer/context/AuthContext';
 import { useInit } from '@renderer/context/InitContext';
@@ -40,17 +40,17 @@ const Main = () => {
   const { needsSetup, isEnterprise } = useAppMode();
 
   // Product improvement opt-in dialog state (shown only on first install for new users)
-  const [showOptInDialog, setShowOptInDialog] = useState(false);
-  const [optInChecked, setOptInChecked] = useState(false);
+  const [isOptInDialogOpen, setIsOptInDialogOpen] = useState(false);
+  const [isOptInChecked, setIsOptInChecked] = useState(false);
 
   // Check if opt-in dialog should be shown when init is ready (only for new users)
   useEffect(() => {
     if (isEnterprise) {
-      setShowOptInDialog(false);
+      setIsOptInDialogOpen(false);
       return;
     }
 
-    if (initReady && !optInChecked) {
+    if (initReady && !isOptInChecked) {
       // Fill the renderer system-config cache so the product_improvement switch
       // (server-driven) is accurate before deciding whether to show the opt-in dialog.
       Promise.all([ipcBridge.telemetry.getOptInShown.invoke(), fetchSystemConfigAndSync()])
@@ -58,20 +58,20 @@ const Main = () => {
           // §4.5: hide the opt-in dialog when product_improvement is disabled server-side.
           if (result.success && !result.data && isProductImprovementEnabled()) {
             // Opt-in dialog hasn't been shown yet - this is a new user (first install)
-            setShowOptInDialog(true);
+            setIsOptInDialogOpen(true);
           }
-          setOptInChecked(true);
+          setIsOptInChecked(true);
         })
         .catch((error) => {
           console.error('[Main] Failed to check opt-in status:', error);
-          setOptInChecked(true);
+          setIsOptInChecked(true);
         });
     }
-  }, [initReady, isEnterprise, optInChecked]);
+  }, [initReady, isEnterprise, isOptInChecked]);
 
   // Handle opt-in dialog close
   const handleOptInClose = useCallback(async (confirmed: boolean) => {
-    setShowOptInDialog(false);
+    setIsOptInDialogOpen(false);
 
     // Save user's choice
     try {
@@ -117,7 +117,7 @@ const Main = () => {
       )}
 
       {/* Product Improvement Dialog - shown only on first install for non-enterprise users */}
-      {!isEnterprise && <ProductImprovementDialog visible={showOptInDialog} onClose={handleOptInClose} />}
+      {!isEnterprise && <OptInDialog isOpen={isOptInDialogOpen} onClose={handleOptInClose} />}
     </div>
   );
 };
