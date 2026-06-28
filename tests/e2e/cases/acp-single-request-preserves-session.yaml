@@ -1,0 +1,89 @@
+name: "single_request_too_large preserves chat history (no session poison)"
+description: >
+  Regression test for the bug 进二 hit 2026-06-28: sending an oversized
+  image / very long message tripped single_request_too_large, which
+  PRE-FIX caused AcpAgent.markRuntimeContextPoisoned to delete the ACP
+  session — silently dropping full chat history on every attempt.
+
+  POST-FIX: the classifier returns recoverableByNewSession=false for
+  single_request_too_large (history is fine, only THIS message is too
+  big), both poisoning sites (response-error and streamed-error) gate
+  on that flag, so session is preserved.
+
+  Verifies the systemic SSOT fix lands at the user level: after the
+  error, the previous turns are still visible AND a follow-up message
+  uses the same ACP session.
+
+  NOTE 2026-06-28: this YAML is currently a TEST PLAN, not a runnable
+  case. The e2e framework does not yet have an attach_file / paste_image
+  op (no precedent in tests/e2e/ops/*.py). Promoting this to a
+  runnable case requires adding one of:
+    - attach_file op: programmatic file input population via CDP
+      DOM.setFileInputFiles
+    - inject_oversized_text op: bulk-fill the input field with N MB of
+      text (cheaper than wrangling binary clipboard via CDP)
+  Once the op exists, replace the placeholder steps with real ones.
+
+  For now, this case documents the manual reproduction. See PR diff
+  for the systemic fix landed in tests/unit/llmErrorClassification.test.ts.
+
+tags: [api, smoke, manual]
+
+steps:
+  # ── Phase 0: Wait for app startup ──
+  - op: wait_for_app_ready
+    timeout: 300
+
+  # ── Phase 1: Open / create a conversation with the default agent ──
+  # MANUAL: click "新对话" in sidebar → select an ACP backend (scode /
+  # claude / qwen — any backend that classifies single_request errors).
+  - op: screenshot
+    path: "screenshots/acp-srtl-00-conversation-ready.png"
+
+  # ── Phase 2: Build short history (3 normal turns) so we can verify
+  #             it is preserved after the error fires ──
+  # MANUAL: send "hello, what's 2+2?", wait for response.
+  # MANUAL: send "now what's 5*7?", wait for response.
+  - op: screenshot
+    path: "screenshots/acp-srtl-01-history-built.png"
+  - op: judge
+    expect: "Chat shows 2 user messages and 2 assistant replies"
+
+  # ── Phase 3: Trigger single_request_too_large ──
+  # MANUAL: paste/attach an oversized payload. Two known triggers:
+  #   (a) Attach a 25MB+ PNG (drag-drop into chat input)
+  #   (b) Paste ~200KB of repeated text (most ACP backends classify
+  #       this as single_request_too_large via the over-cap LLM API).
+  # The error should surface as an inline error message in chat.
+  - op: screenshot
+    path: "screenshots/acp-srtl-02-error-fired.png"
+  - op: judge
+    expect: "Error message indicating single_request_too_large /
+      content too large / 请求内容过大. The error MUST mention that
+      previous history is preserved (no '新的运行时上下文' wording —
+      that wording was removed in the fix)."
+
+  # ── Phase 4: CRITICAL — verify history NOT lost ──
+  - op: judge
+    expect: "All 4 prior messages from Phase 2 (2 user + 2 assistant)
+      are still visible in the chat window. Session counter unchanged."
+
+  # ── Phase 5: Send a follow-up referencing prior context ──
+  # MANUAL: send "what was my first question?"
+  # Pre-fix: model would have no memory (new ACP session), would say
+  # something like "I don't have prior context" or fabricate.
+  # Post-fix: model recalls "what's 2+2".
+  - op: screenshot
+    path: "screenshots/acp-srtl-03-history-recalled.png"
+  - op: judge
+    expect: "Assistant reply references '2+2' or 'what's 2 plus 2'
+      from the user's Phase 2 first message. This proves the ACP
+      session is the SAME session — context preserved end-to-end."
+
+  # ── Phase 6 (optional): DB-level verification ──
+  # MANUAL: open sudowork DB at %APPDATA%\sudowork\sudowork.db,
+  # query the conversation row's extra.acpSessionId field. It MUST
+  # be the same value before and after Phase 3.
+  # Pre-fix: extra.acpSessionId would be cleared (set to undefined) by
+  # markRuntimeContextPoisoned. Also extra.acpContextHealth.poisoned
+  # would flip to true. Both must NOT happen post-fix.
