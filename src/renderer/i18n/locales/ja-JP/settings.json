@@ -420,6 +420,8 @@
   "imageGenerationDescription": "画像ツールで使用する既存の画像対応モデルを選択します。",
   "mcp": "MCP統合",
   "imageGenerationModel": "画像モデル",
+  "imageModelLoading": "画像モデルを読み込み中...",
+  "imageModelListLoadFailed": "画像モデルリストの読み込みに失敗しました。",
   "imageGenerationGuide": "画像モデル設定ガイド",
   "noAvailable": "利用可能な画像モデルがありません。先に設定してください。",
   "mcpSettings": "MCPツール設定",

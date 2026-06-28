@@ -16,7 +16,7 @@ import type { SystemConfig } from '@/common/systemConfig';
 import type { McpSource } from '../process/services/mcpServices/McpProtocol';
 import type { AcpBackend, AcpBackendAll, AcpModelInfo, PresetAgentType } from '../types/acpTypes';
 import type { SyncAllResult } from '../process/sync/remoteToLocalSync';
-import type { ScodeCustomModelProvider, SpecificPricingItem } from './scodeConfig';
+import type { ScodeCustomModelProvider, SpecificImagePricingItem, SpecificPricingItem } from './scodeConfig';
 import type { SlashCommandItem } from './slash/types';
 import type { IMcpServer, IProvider, TChatConversation, TProviderWithModel, ICssTheme } from './storage';
 import type { SecretMetadata } from './nexus/nexus-secret-client';
@@ -907,6 +907,8 @@ export const scode = {
   refreshModels: bridge.buildProvider<IBridgeResponse<AcpModelInfo>, void>('scode.refresh-models'),
   /** Read-only fetch of sudorouter specific_pricing items (no write to sudocode.json) */
   fetchSpecificPricing: bridge.buildProvider<IBridgeResponse<SpecificPricingItem[]>, void>('scode.fetch-specific-pricing'),
+  /** Read-only fetch of sudorouter specific_image_pricing items (image models) */
+  fetchSpecificImagePricing: bridge.buildProvider<IBridgeResponse<SpecificImagePricingItem[]>, void>('scode.fetch-specific-image-pricing'),
   /** Sync image generation model to sudocode.json tools.imageGenerationModel */
   setImageModel: bridge.buildProvider<IBridgeResponse<void>, { modelId: string | null }>('scode.set-image-model'),
   /** Get scode installation status */

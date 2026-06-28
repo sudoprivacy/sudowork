@@ -181,19 +181,60 @@ export async function syncScodeModelsFromPricing(): Promise<void> {
 }
 
 /**
+ * Resolve the image generation model id for a main-process sync point (startup /
+ * sudoclaw gateway start). Always returns a definitive modelId (null → runtime
+ * writes ''). A stale useModel is repaired in the persistence layer; a pricing
+ * fetch failure / empty list keeps the existing useModel untouched.
+ */
+export async function resolveImageModelForMainSync(): Promise<{ modelId: string | null }> {
+  const { ProcessConfig } = await import('@process/initStorage');
+  const { fetchSpecificImagePricingItems } = await import('@/common/imagePricingSource');
+  const { pickDefaultImageModelFromPricing, pickImageGenerationModelId, resolveImageModelWithAvailability } = await import(
+    '@/common/imageGenerationModelConfig'
+  );
+  const { getSystemConfigCache } = await import('@/common/systemConfig');
+
+  // 冷启动竞态修复：syncImageModelOnStartup 可能在 ensureMainSystemConfig（填充 systemConfigCache）
+  // 之前触发，此时 getSudorouterBaseUrl() 会 fallback 到 build 硬编码而非服务器 dispatch 的真实
+  // sudorouter，导致用错误的 pricing 列表校验（或 fetch 失败而不修正）。等待 cache 填充后再继续。
+  const cacheDeadline = Date.now() + 35_000;
+  while (!getSystemConfigCache() && Date.now() < cacheDeadline) {
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+
+  const saved = await ProcessConfig.get('tools.imageGenerationModel');
+  const items = await fetchSpecificImagePricingItems();
+
+  if (!saved) {
+    const def = items ? pickDefaultImageModelFromPricing(items) : '';
+    return { modelId: def || null };
+  }
+
+  if (items === null || items.length === 0) {
+    return { modelId: pickImageGenerationModelId(saved) };
+  }
+
+  const { jsonModelId, persistedUseModel, changed } = resolveImageModelWithAvailability(saved, items);
+  if (changed) {
+    await ProcessConfig.set('tools.imageGenerationModel', { ...saved, useModel: persistedUseModel });
+  }
+  return { modelId: jsonModelId };
+}
+
+/**
  * Sync image generation model from ProcessConfig to sudocode.json on startup.
  * This runs independently of sudoclaw.
  */
 async function syncImageModelOnStartup(): Promise<void> {
   try {
-    const { ProcessConfig } = await import('@process/initStorage');
-    const { DEFAULT_IMAGE_GENERATION_MODEL } = await import('@/common/storage');
-    const imageConfig = await ProcessConfig.get('tools.imageGenerationModel');
-    const switchOn = imageConfig ? imageConfig.switch : true;
-    const modelId = switchOn && imageConfig?.useModel ? imageConfig.useModel : DEFAULT_IMAGE_GENERATION_MODEL;
-    if (modelId) {
-      writeScodeImageModel(modelId);
-    }
+    const { modelId } = await resolveImageModelForMainSync();
+    const resolved = modelId ?? '';
+    writeScodeImageModel(resolved);
+    // sudoclaw.json 的 imageGenerationModel 是运行期生图主路径读取的字段(resolveImageConfig 先读它)。
+    // 桌面模式启动时不会自动拉起 sudoclaw 网关,故 syncImageModelToSudoclaw(入口B,网关健康后才触发)
+    // 不会执行——若不同步,失效模型会残留在 sudoclaw.json 导致生图失败。此处复用写 sudoclaw 的 helper
+    // (自带 existsSync 守卫,文件不存在则 no-op,等网关首次写入)。
+    writeSudoclawImageGenerationModel(resolved, SUDOCLAW_CONFIG_PATH);
   } catch (err) {
     mainWarn(TAG, `Failed to sync image model on startup: ${err instanceof Error ? err.message : String(err)}`);
   }
@@ -354,6 +395,12 @@ export function registerScodeBridge(): void {
   });
 
   ipcBridge.scode.fetchSpecificPricing.provider(async () => ({ success: true, data: await fetchSpecificPricingItems() }));
+
+  ipcBridge.scode.fetchSpecificImagePricing.provider(async () => {
+    const { fetchSpecificImagePricingItems } = await import('@/common/imagePricingSource');
+    const data = await fetchSpecificImagePricingItems();
+    return data === null ? { success: false, msg: 'image pricing fetch failed' } : { success: true, data };
+  });
 
   ipcBridge.scode.setImageModel.provider(async ({ modelId }) => {
     try {

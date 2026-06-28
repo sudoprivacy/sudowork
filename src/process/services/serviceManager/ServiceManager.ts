@@ -8,12 +8,12 @@ import * as fs from 'node:fs';
 import * as http from 'node:http';
 import * as path from 'node:path';
 import { mainLog, mainError, mainWarn } from '@process/utils/mainLogger';
+import { getSkillHubBaseUrl } from '@/common/systemConfig';
+import { getSkillhubToken } from '@/process/credentialsCache';
 import { initStatusManager } from '../initStatus';
 import { isSudoclawHealthPayload, SUDOCLAW_HEALTH_TIMEOUT_MS, type SudoclawHealthPayload } from '../sudoclaw/sudoclawHealth';
 import { AdbResultSidechannel } from '../sudoclaw/AdbResultSidechannel';
 import { runtimeInstaller } from './RuntimeInstaller';
-import { getSkillHubBaseUrl } from '@/common/systemConfig';
-import { getSkillhubToken } from '@/process/credentialsCache';
 
 type SudoclawGateway = import('@/agent/sudoclaw/SudoclawGatewayManager').OpenClawGatewayManager;
 
@@ -383,7 +383,21 @@ export class ServiceManager {
     try {
       mainLog('ServiceManager', 'Starting Sudoclaw gateway...');
       const { OpenClawGatewayManager } = await import('@/agent/sudoclaw');
-      const { SUDOCLAW_DIR, SUDOCLAW_DEFAULT_PORT, SUDOCLAW_CONFIG_PATH, ensureDefaultConfig, repairSudoclawConfig, getSudoclawVersionState, ensureSudoclawInstalled, ensureUserMdSafetyRules, ensureUserMdIdentityStatement, ensureUserMdNoGeneratedByStatement, ensureUserMdNoExposeUserMdStatement, ensureUserMdFileSendInstruction, ensureUserMdVersionInfoStatement } = await import('../sudoclaw/SudoclawInstallService');
+      const {
+        SUDOCLAW_DIR,
+        SUDOCLAW_DEFAULT_PORT,
+        SUDOCLAW_CONFIG_PATH,
+        ensureDefaultConfig,
+        repairSudoclawConfig,
+        getSudoclawVersionState,
+        ensureSudoclawInstalled,
+        ensureUserMdSafetyRules,
+        ensureUserMdIdentityStatement,
+        ensureUserMdNoGeneratedByStatement,
+        ensureUserMdNoExposeUserMdStatement,
+        ensureUserMdFileSendInstruction,
+        ensureUserMdVersionInfoStatement,
+      } = await import('../sudoclaw/SudoclawInstallService');
       await this.ensureNodeReadyForSudoclawStart();
 
       const versionState = getSudoclawVersionState();
@@ -585,12 +599,7 @@ export class ServiceManager {
 
   private async syncImageModelToSudoclaw(sudoclawConfigPath: string): Promise<void> {
     try {
-      const { ProcessConfig } = await import('@/process/initStorage');
-      const { DEFAULT_IMAGE_PARSING_MODEL, DEFAULT_IMAGE_GENERATION_MODEL } = await import('@/common/storage');
-      const imageConfig = await ProcessConfig.get('tools.imageGenerationModel');
-      // Generation model: from user config or default
-      const switchOn = imageConfig ? imageConfig.switch : true;
-      const generationModel = switchOn && imageConfig?.useModel ? imageConfig.useModel : DEFAULT_IMAGE_GENERATION_MODEL;
+      const { DEFAULT_IMAGE_PARSING_MODEL } = await import('@/common/storage');
 
       const fs = await import('fs');
       if (!fs.existsSync(sudoclawConfigPath)) return;
@@ -618,18 +627,23 @@ export class ServiceManager {
       // Sync parsing model (看图) → agents.defaults.imageModel (read by gateway)
       config.agents.defaults.imageModel = findProvider(DEFAULT_IMAGE_PARSING_MODEL);
 
-      // Sync generation model (生图) → agents.defaults.imageGenerationModel (read by Electron)
-      config.agents.defaults.imageGenerationModel = switchOn ? generationModel : '';
+      // Sync generation model (生图) → agents.defaults.imageGenerationModel (read by Electron).
+      // Delegate to the shared main-process resolver: it repairs a stale useModel against the
+      // live pricing list and guarantees switch-off → '' (resolveImageConfig uses any non-empty
+      // model without checking the switch, so the runtime JSON must be empty when off).
+      const { resolveImageModelForMainSync } = await import('@process/bridge/scodeBridge');
+      const { modelId } = await resolveImageModelForMainSync();
+      const generationModel = modelId ?? '';
+      config.agents.defaults.imageGenerationModel = generationModel;
 
       fs.writeFileSync(sudoclawConfigPath, JSON.stringify(config, null, 2), 'utf-8');
       mainLog('ServiceManager', `Synced image models to sudoclaw.json — parsing: ${DEFAULT_IMAGE_PARSING_MODEL}, generation: ${generationModel}`);
 
       // Also sync generation model to sudocode.json so the image-generation skill
-      // bash script can read it without depending on sudoclaw.json.
-      if (generationModel) {
-        const { writeScodeImageModel } = await import('@process/bridge/scodeBridge');
-        writeScodeImageModel(generationModel);
-      }
+      // bash script can read it without depending on sudoclaw.json. Written unconditionally
+      // (switchOff→'' and fetch-failure→preserved value included) so both JSONs stay consistent.
+      const { writeScodeImageModel } = await import('@process/bridge/scodeBridge');
+      writeScodeImageModel(generationModel);
     } catch (err) {
       mainError('ServiceManager', 'Failed to sync image model to sudoclaw.json', err);
     }

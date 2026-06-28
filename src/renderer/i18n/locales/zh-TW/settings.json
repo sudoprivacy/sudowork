@@ -420,6 +420,8 @@
   "imageGenerationDescription": "選擇預設用於圖像工具的已配置模型。",
   "mcp": "MCP 集成",
   "imageGenerationModel": "圖像模型",
+  "imageModelLoading": "正在載入圖片模型...",
+  "imageModelListLoadFailed": "圖片模型列表載入失敗。",
   "imageGenerationGuide": "圖像模型配置指南",
   "noAvailable": "暫無可用圖像模型，請先配置。",
   "mcpSettings": "MCP 工具配置",

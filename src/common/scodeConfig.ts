@@ -35,6 +35,12 @@ export type SpecificPricingItem = {
   model_ratio?: number;
 };
 
+export type SpecificImagePricingItem = {
+  model_id: string;
+  model_ratio?: number;
+  extra?: Record<string, unknown>;
+};
+
 export function resolveAutoRouterModelId(modelIds: string[], pricingItems?: SpecificPricingItem[]): string | null {
   if (modelIds.length === 0) return null;
   if (modelIds.length === 1) return modelIds[0];

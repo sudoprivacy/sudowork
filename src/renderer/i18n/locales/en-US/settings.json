@@ -451,6 +451,8 @@
   "imageGenerationDescription": "Choose which configured image-capable model the tool should use by default.",
   "mcp": "MCP Integration",
   "imageGenerationModel": "Image Model",
+  "imageModelLoading": "Loading image models...",
+  "imageModelListLoadFailed": "Failed to load image model list.",
   "imageGenerationGuide": "Image Model Setup Guide",
   "noAvailable": "No available image models, please configure first.",
   "mcpSettings": "MCP Tools Configuration",
