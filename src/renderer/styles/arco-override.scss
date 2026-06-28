@@ -86,8 +86,15 @@ body[arco-theme='dark'] {
   }
 }
 
+.arco-table {
+  // border-radius: 20px;
+  // overflow: hidden;
+  .arco-table-td {
+    background-color: var(--bg-subtle);
+  }
+}
+
 .arco-modal {
-  border-radius: 16px;
   &-header {
     border-bottom-color: var(--border-tiny);
   }
