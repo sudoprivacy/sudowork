@@ -2,7 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import { ipcBridge } from '@/common';
 import { getSudoworkServerBaseUrl } from '@/common/sudoworkServer';
 import { ConfigStorage, type IConfigStorageRefer } from '@/common/storage';
-import { resolveLoginImageModelId } from '@/common/imageGenerationModelConfig';
+import { pickDefaultImageModelFromPricing, resolveLoginImageModelId } from '@/common/imageGenerationModelConfig';
 import { withCsrfToken } from '@/webserver/middleware/csrfClient';
 import { getSudorouterPrimaryModelPath, mergeSudorouterProvidersIntoConfig } from '@/common/sudoclawModelConfig';
 import { buildScodeConfigFromLoginPayload, SCODE_AUTO_MODEL_ALIAS } from '@/common/scodeConfig';
@@ -335,7 +335,16 @@ function resolveConsumerTenantId(user: Partial<AuthUser> & { tenant_id?: string 
 // Apply the image model on login: respect the user's saved selection instead of unconditionally forcing the default.
 async function applyLoginImageModel(): Promise<void> {
   const saved = await ConfigStorage.get('tools.imageGenerationModel').catch((): undefined => undefined);
-  await ipcBridge.scode.setImageModel.invoke({ modelId: resolveLoginImageModelId(saved) }).catch(() => {});
+  // Only hit the pricing endpoint when there is no effective user selection;
+  // when saved is valid (switch off, or a chosen useModel) no request is made.
+  const needsDefault = !saved || (saved.switch !== false && !saved.useModel);
+  let defaultModelId = '';
+  if (needsDefault) {
+    const res = await ipcBridge.scode.fetchSpecificImagePricing.invoke().catch((): null => null);
+    if (!res?.success) return;
+    defaultModelId = pickDefaultImageModelFromPricing(res.data ?? []);
+  }
+  await ipcBridge.scode.setImageModel.invoke({ modelId: resolveLoginImageModelId(saved, defaultModelId) }).catch(() => {});
 }
 
 // 处理登录成功后的通用逻辑

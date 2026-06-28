@@ -586,11 +586,9 @@ export class ServiceManager {
   private async syncImageModelToSudoclaw(sudoclawConfigPath: string): Promise<void> {
     try {
       const { ProcessConfig } = await import('@/process/initStorage');
-      const { DEFAULT_IMAGE_PARSING_MODEL, DEFAULT_IMAGE_GENERATION_MODEL } = await import('@/common/storage');
+      const { DEFAULT_IMAGE_PARSING_MODEL } = await import('@/common/storage');
       const imageConfig = await ProcessConfig.get('tools.imageGenerationModel');
-      // Generation model: from user config or default
       const switchOn = imageConfig ? imageConfig.switch : true;
-      const generationModel = switchOn && imageConfig?.useModel ? imageConfig.useModel : DEFAULT_IMAGE_GENERATION_MODEL;
 
       const fs = await import('fs');
       if (!fs.existsSync(sudoclawConfigPath)) return;
@@ -618,18 +616,31 @@ export class ServiceManager {
       // Sync parsing model (看图) → agents.defaults.imageModel (read by gateway)
       config.agents.defaults.imageModel = findProvider(DEFAULT_IMAGE_PARSING_MODEL);
 
-      // Sync generation model (生图) → agents.defaults.imageGenerationModel (read by Electron)
-      config.agents.defaults.imageGenerationModel = switchOn ? generationModel : '';
+      // Sync generation model (生图) → agents.defaults.imageGenerationModel (read by Electron).
+      // Three-branch logic placed AFTER the parsing-model sync above: on a pricing fetch
+      // failure (def===null) the existing value is preserved instead of early-returning,
+      // so the parsing-model sync + write below still run (an early return would skip them).
+      let generationModel: string;
+      if (switchOn && imageConfig?.useModel) {
+        generationModel = imageConfig.useModel;
+      } else if (!switchOn) {
+        generationModel = '';
+      } else {
+        const { resolveDefaultImageModel } = await import('@/common/imagePricingSource');
+        const def = await resolveDefaultImageModel();
+        const existing = config.agents.defaults.imageGenerationModel;
+        generationModel = def === null ? (typeof existing === 'string' ? existing : '') : def;
+      }
+      config.agents.defaults.imageGenerationModel = generationModel;
 
       fs.writeFileSync(sudoclawConfigPath, JSON.stringify(config, null, 2), 'utf-8');
       mainLog('ServiceManager', `Synced image models to sudoclaw.json — parsing: ${DEFAULT_IMAGE_PARSING_MODEL}, generation: ${generationModel}`);
 
       // Also sync generation model to sudocode.json so the image-generation skill
-      // bash script can read it without depending on sudoclaw.json.
-      if (generationModel) {
-        const { writeScodeImageModel } = await import('@process/bridge/scodeBridge');
-        writeScodeImageModel(generationModel);
-      }
+      // bash script can read it without depending on sudoclaw.json. Written unconditionally
+      // (switchOff→'' and fetch-failure→preserved value included) so both JSONs stay consistent.
+      const { writeScodeImageModel } = await import('@process/bridge/scodeBridge');
+      writeScodeImageModel(generationModel);
     } catch (err) {
       mainError('ServiceManager', 'Failed to sync image model to sudoclaw.json', err);
     }

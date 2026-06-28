@@ -187,12 +187,17 @@ export async function syncScodeModelsFromPricing(): Promise<void> {
 async function syncImageModelOnStartup(): Promise<void> {
   try {
     const { ProcessConfig } = await import('@process/initStorage');
-    const { DEFAULT_IMAGE_GENERATION_MODEL } = await import('@/common/storage');
+    const { resolveDefaultImageModel } = await import('@/common/imagePricingSource');
     const imageConfig = await ProcessConfig.get('tools.imageGenerationModel');
     const switchOn = imageConfig ? imageConfig.switch : true;
-    const modelId = switchOn && imageConfig?.useModel ? imageConfig.useModel : DEFAULT_IMAGE_GENERATION_MODEL;
-    if (modelId) {
-      writeScodeImageModel(modelId);
+    if (switchOn && imageConfig?.useModel) {
+      writeScodeImageModel(imageConfig.useModel);
+    } else if (!switchOn) {
+      writeScodeImageModel('');
+    } else {
+      const def = await resolveDefaultImageModel();
+      if (def === null) return;
+      writeScodeImageModel(def);
     }
   } catch (err) {
     mainWarn(TAG, `Failed to sync image model on startup: ${err instanceof Error ? err.message : String(err)}`);
@@ -354,6 +359,12 @@ export function registerScodeBridge(): void {
   });
 
   ipcBridge.scode.fetchSpecificPricing.provider(async () => ({ success: true, data: await fetchSpecificPricingItems() }));
+
+  ipcBridge.scode.fetchSpecificImagePricing.provider(async () => {
+    const { fetchSpecificImagePricingItems } = await import('@/common/imagePricingSource');
+    const data = await fetchSpecificImagePricingItems();
+    return data === null ? { success: false, msg: 'image pricing fetch failed' } : { success: true, data };
+  });
 
   ipcBridge.scode.setImageModel.provider(async ({ modelId }) => {
     try {

@@ -1,26 +1,19 @@
 import { Form, Select, Switch } from '@arco-design/web-react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { migrateImageGenerationModelConfig, pickImageGenerationModelId } from '@/common/imageGenerationModelConfig';
+import { migrateImageGenerationModelConfig, pickDefaultImageModelFromPricing, pickImageGenerationModelId } from '@/common/imageGenerationModelConfig';
 import { scode } from '@/common/ipcBridge';
-import { ConfigStorage, DEFAULT_IMAGE_GENERATION_MODEL, type IConfigStorageRefer } from '@/common/storage';
+import { ConfigStorage, type IConfigStorageRefer } from '@/common/storage';
 import AionScrollArea from '@renderer/components/base/AionScrollArea';
 import PageWrapper from '@renderer/components/base/PageWrapper';
 import McpManagementSection from './components/McpManagementSection';
-import type { IImageGenerationModelOption } from './types';
-
-const IMAGE_GENERATION_MODEL_OPTIONS: IImageGenerationModelOption[] = [
-  { label: 'gemini-3.1-flash-image', value: 'gemini-3.1-flash-image' },
-  { label: 'gemini-3-pro-image', value: 'gemini-3-pro-image' },
-  { label: 'gemini-2.5-flash-image', value: 'gemini-2.5-flash-image' },
-  { label: 'gpt-image-1.5', value: 'gpt-image-1.5' },
-  { label: 'gpt-image-1', value: 'gpt-image-1' },
-  { label: 'doubao-seedream-4-0-250828', value: 'doubao-seedream-4-0-250828' },
-];
 
 export default function ToolsSettings() {
   const { t } = useTranslation();
   const [imageGenerationModel, setImageGenerationModel] = useState<IConfigStorageRefer['tools.imageGenerationModel'] | undefined>();
+  const [imageOptions, setImageOptions] = useState<{ label: string; value: string }[]>([]);
+  const [isImageListLoading, setIsImageListLoading] = useState(false);
+  const [isImageListError, setIsImageListError] = useState(false);
 
   const syncImageGenerationModel = useCallback((modelConfig: IConfigStorageRefer['tools.imageGenerationModel']) => {
     const modelId = pickImageGenerationModelId(modelConfig);
@@ -30,17 +23,32 @@ export default function ToolsSettings() {
   useEffect(() => {
     const loadConfigs = async () => {
       try {
-        const saved = await ConfigStorage.get('tools.imageGenerationModel');
-        const alreadyMigrated = (await ConfigStorage.get('migration.imageGenerationModelDefaultMigrated').catch((): boolean => false)) === true;
-        const { config, changed } = migrateImageGenerationModelConfig(saved, alreadyMigrated);
+        setIsImageListLoading(true);
+        const result = await scode.fetchSpecificImagePricing.invoke().catch((): null => null);
+        setIsImageListLoading(false);
 
-        setImageGenerationModel(config);
-        if (changed) {
-          await ConfigStorage.set('tools.imageGenerationModel', config).catch(() => {});
-          await syncImageGenerationModel(config);
-        }
-        if (!alreadyMigrated) {
-          await ConfigStorage.set('migration.imageGenerationModelDefaultMigrated', true).catch(() => {});
+        if (result?.success && Array.isArray(result.data)) {
+          setImageOptions(result.data.map((item) => ({ label: item.model_id, value: item.model_id })));
+          setIsImageListError(false);
+
+          const defaultModelId = pickDefaultImageModelFromPricing(result.data);
+          const saved = await ConfigStorage.get('tools.imageGenerationModel');
+          const alreadyMigrated = (await ConfigStorage.get('migration.imageGenerationModelDefaultMigrated').catch((): boolean => false)) === true;
+          const { config, changed } = migrateImageGenerationModelConfig(saved, alreadyMigrated, defaultModelId);
+
+          setImageGenerationModel(config);
+          if (changed) {
+            await ConfigStorage.set('tools.imageGenerationModel', config).catch(() => {});
+            await syncImageGenerationModel(config);
+          }
+          if (!alreadyMigrated) {
+            await ConfigStorage.set('migration.imageGenerationModelDefaultMigrated', true).catch(() => {});
+          }
+        } else {
+          // Fetch failed: empty dropdown + error hint; leave ConfigStorage untouched (keep old value).
+          setImageOptions([]);
+          setIsImageListError(true);
+          setImageGenerationModel(await ConfigStorage.get('tools.imageGenerationModel').catch((): undefined => undefined));
         }
       } catch (error) {
         console.error('Failed to load image generation model config:', error);
@@ -85,14 +93,16 @@ export default function ToolsSettings() {
               <Form layout='horizontal' labelAlign='left' className='space-y-3'>
                 <Form.Item label={t('settings.imageGenerationModel', '图像模型')}>
                   <Select
-                    value={imageGenerationModel?.useModel || DEFAULT_IMAGE_GENERATION_MODEL}
-                    disabled={!imageGenerationModel?.switch}
+                    value={imageGenerationModel?.useModel ?? ''}
+                    disabled={!imageGenerationModel?.switch || isImageListLoading || isImageListError}
                     onChange={(val) => {
                       onImageGenerationModelChange({ useModel: val as string });
                     }}
-                    options={IMAGE_GENERATION_MODEL_OPTIONS}
+                    options={imageOptions}
                     style={{ minWidth: 260 }}
                   />
+                  {isImageListLoading && <div className='text-12px text-secondary mt-8px'>{t('settings.imageModelLoading')}</div>}
+                  {isImageListError && <div className='text-12px text-secondary mt-8px'>{t('settings.imageModelListLoadFailed')}</div>}
                 </Form.Item>
               </Form>
             </div>

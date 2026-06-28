@@ -417,6 +417,8 @@
   "imageGenerationDescription": "Aracın varsayılan olarak hangi yapılandırılmış görüntü yetenekli modeli kullanacağını seçin.",
   "mcp": "MCP Entegrasyonu",
   "imageGenerationModel": "Görüntü Modeli",
+  "imageModelLoading": "Görüntü modelleri yükleniyor...",
+  "imageModelListLoadFailed": "Görüntü modeli listesi yüklenemedi.",
   "imageGenerationGuide": "Görüntü Modeli Kurulum Rehberi",
   "noAvailable": "Mevcut görüntü modeli yok, lütfen önce yapılandırın.",
   "mcpSettings": "MCP Araçları Yapılandırması",
