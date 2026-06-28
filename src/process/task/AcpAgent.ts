@@ -23,7 +23,6 @@ import type { AcpQuestionData, CronMessageMeta, TMessage, TurnTokenUsage } from 
 import type { SlashCommandItem } from '@/common/slash/types';
 import { transformMessage } from '@/common/chatLib';
 import { DRAFTS_DIR_NAME, NEXUS_FILES_MARKER } from '@/common/constants';
-import { validateImageAttachmentSize } from '@/common/image-attachment-guard';
 import { appendNexusFilesMarker } from '@/common/nexusFiles';
 import type { IResponseMessage } from '@/common/ipcBridge';
 import { NavigationInterceptor, type NavigationToolData } from '@/common/navigation';
@@ -996,19 +995,6 @@ This identity statement takes priority over the default identity in USER.md.
             this.emitErrorMessage(tip);
             return { success: false, message: tip };
           }
-        }
-
-        // Client-side image-size guard. Without this, a >50MB base64 image
-        // can wedge the ACP gRPC writer queue and the `session/prompt` request
-        // never reaches the dispatched state — the 300s connection-timeout
-        // doesn't fire, no error response, no `finish` event, renderer's
-        // processing indicator sticks forever (empirical 9m-stuck failure
-        // mode observed 2026-06-28 with 2× 52MB base64 images).
-        // See @common/image-attachment-guard for the cap rationale + SSOT.
-        const imageSizeIssue = validateImageAttachmentSize(finalImages);
-        if (imageSizeIssue) {
-          this.emitErrorMessage(imageSizeIssue);
-          return { success: false, message: imageSizeIssue };
         }
 
         if (this.isFirstMessage) {
