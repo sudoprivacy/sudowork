@@ -1,9 +1,3 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import { Input, InputNumber, Message, Select, Switch } from '@arco-design/web-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -16,13 +10,13 @@ import { ConfigStorage } from '@/common/storage';
 import { channel, webui, type IWebUIStatus } from '@/common/ipcBridge';
 import type { IProvider, TProviderWithModel } from '@/common/storage';
 import type { IChannelPluginStatus } from '@/channels/types';
-import WeComConfigForm from './WeComConfigForm';
-import WeChatConfigForm from './WeChatConfigForm';
-import TelegramConfigForm from './TelegramConfigForm';
-import LarkConfigForm from './LarkConfigForm';
-import DingTalkConfigForm from './DingTalkConfigForm';
-import type { ChannelConfig } from './channels/types';
-import ChannelItem from './channels/ChannelItem';
+import WeComConfigForm from '../../../../components/SettingsModal/contents/WeComConfigForm';
+import WeChatConfigForm from '../../../../components/SettingsModal/contents/WeChatConfigForm';
+import TelegramConfigForm from '../../../../components/SettingsModal/contents/TelegramConfigForm';
+import LarkConfigForm from '../../../../components/SettingsModal/contents/LarkConfigForm';
+import DingTalkConfigForm from '../../../../components/SettingsModal/contents/DingTalkConfigForm';
+import type { ChannelConfig } from '../../../../components/SettingsModal/contents/channels/types';
+import ChannelItem from '../../../../components/SettingsModal/contents/channels/ChannelItem';
 
 type ChannelModelConfigKey = 'assistant.telegram.defaultModel' | 'assistant.lark.defaultModel' | 'assistant.dingtalk.defaultModel' | 'assistant.wechat.defaultModel' | 'assistant.wecom.defaultModel';
 
