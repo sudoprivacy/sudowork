@@ -995,5 +995,8 @@
   "exportLogsDesc": "Package all sudowork and scode logs into a zip file.",
   "exportLogsSuccess": "Logs exported successfully",
   "exportLogsFailed": "Failed to export logs",
-  "exportLogsEmpty": "No logs available to export"
+  "exportLogsEmpty": "No logs available to export",
+  "hubEmpty.tokenMissing": "Skill Hub not configured — check your sudowork-server login",
+  "hubEmpty.fetchFailed": "Fetch failed, please retry",
+  "hubEmpty.retry": "Retry"
 }

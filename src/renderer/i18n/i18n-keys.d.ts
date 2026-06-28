@@ -1324,6 +1324,9 @@ export type I18nKey =
   | 'settings.healthCheck'
   | 'settings.healthStatusCleared'
   | 'settings.helpDocumentation'
+  | 'settings.hubEmpty.fetchFailed'
+  | 'settings.hubEmpty.retry'
+  | 'settings.hubEmpty.tokenMissing'
   | 'settings.hubSkills'
   | 'settings.idleTimeout'
   | 'settings.idleTimeoutDesc'
@@ -2025,4 +2028,23 @@ export type I18nKey =
   | 'update.showInFolder'
   | 'update.upToDateTitle';
 
-export type I18nModule = 'common' | 'agentMode' | 'update' | 'login' | 'fileSelection' | 'preview' | 'conversation' | 'settings' | 'messages' | 'mcp' | 'acp' | 'codex' | 'tools' | 'gemini' | 'cron' | 'starOffice' | 'guid' | 'agent' | 'setup';
+export type I18nModule =
+  | 'common'
+  | 'agentMode'
+  | 'update'
+  | 'login'
+  | 'fileSelection'
+  | 'preview'
+  | 'conversation'
+  | 'settings'
+  | 'messages'
+  | 'mcp'
+  | 'acp'
+  | 'codex'
+  | 'tools'
+  | 'gemini'
+  | 'cron'
+  | 'starOffice'
+  | 'guid'
+  | 'agent'
+  | 'setup';

@@ -780,5 +780,8 @@
   "exportLogsDesc": "すべての sudowork と scode のログを 1 つの zip ファイルにまとめます。",
   "exportLogsSuccess": "ログのエクスポートに成功しました",
   "exportLogsFailed": "ログのエクスポートに失敗しました",
-  "exportLogsEmpty": "エクスポートできるログがありません"
+  "exportLogsEmpty": "エクスポートできるログがありません",
+  "hubEmpty.tokenMissing": "Skill Hub が未構成です — sudowork-server へのログイン状態を確認してください",
+  "hubEmpty.fetchFailed": "取得に失敗しました。再試行してください",
+  "hubEmpty.retry": "再試行"
 }

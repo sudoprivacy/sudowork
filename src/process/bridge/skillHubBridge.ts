@@ -26,6 +26,7 @@ import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
 import { SKILLS_ROOT_DIR, ENTERPRISE_SKILL_SUBDIRS } from '@/process/constants/enterpriseStorage';
 import { getSkillHubBaseUrl } from '@/common/systemConfig';
 import { getSkillhubToken } from '@/process/credentialsCache';
+import { tokenMissingResponse } from '@common/nexus/hubErrors';
 
 const VERSION_FILE_NAME = 'sudowork-version';
 /** Metadata file saved alongside installed hub skills. Prefixed to avoid conflicts with skill content. */
@@ -712,7 +713,7 @@ export function initSkillHubBridge(): void {
       const token = getSkillhubToken();
       if (!token) {
         mainError('SkillHub', 'skillhub token not provisioned, skip fetchSkills');
-        return { success: false, msg: 'skillhub token missing' };
+        return tokenMissingResponse('skillHub');
       }
       const response = await fetch(`${getSkillHubBaseUrl()}/api/skills/cursor?${params}`, {
         headers: { Authorization: token },
@@ -765,7 +766,7 @@ export function initSkillHubBridge(): void {
       const token = getSkillhubToken();
       if (!token) {
         mainError('SkillHub', 'skillhub token not provisioned, skip fetchCategories');
-        return { success: false, msg: 'skillhub token missing' };
+        return tokenMissingResponse('skillHub');
       }
       const response = await fetch(`${getSkillHubBaseUrl()}/api/categories`, {
         headers: { Authorization: token },
@@ -834,7 +835,7 @@ export function initSkillHubBridge(): void {
       const token = getSkillhubToken();
       if (!token) {
         mainError('SkillHub', 'skillhub token not provisioned, skip fetchSkillDetail');
-        return { success: false, msg: 'skillhub token missing' };
+        return tokenMissingResponse('skillHub');
       }
       const response = await fetch(`${getSkillHubBaseUrl()}/api/skills/${skillId}`, {
         headers: { Authorization: token },

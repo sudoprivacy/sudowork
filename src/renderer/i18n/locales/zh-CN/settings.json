@@ -998,5 +998,8 @@
   "exportLogsDesc": "将全部 sudowork 与 scode 日志打包为一个 zip 文件。",
   "exportLogsSuccess": "日志导出成功",
   "exportLogsFailed": "日志导出失败",
-  "exportLogsEmpty": "没有可导出的日志"
+  "exportLogsEmpty": "没有可导出的日志",
+  "hubEmpty.tokenMissing": "未配置 Skill Hub — 请检查 sudowork-server 登录状态",
+  "hubEmpty.fetchFailed": "拉取失败，请重试",
+  "hubEmpty.retry": "重试"
 }
