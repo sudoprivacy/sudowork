@@ -14,7 +14,7 @@ import ChannelWeChatLogo from '@/renderer/assets/channel-logos/wechat.svg';
 import ChannelWeComLogo from '@/renderer/assets/channel-logos/wecom.svg';
 import ChannelZentaoLogo from '@/renderer/assets/channel-logos/zentao.svg';
 import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
-import type { ChannelConfig } from './types';
+import type { ChannelConfig } from '../../../../pages/settings/channels/types';
 
 interface ChannelHeaderProps {
   channel: ChannelConfig;

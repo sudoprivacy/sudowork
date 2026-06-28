@@ -10,8 +10,8 @@ import { useTranslation } from 'react-i18next';
 import configItemDefaultIcon from '@/renderer/assets/config-item-default.svg';
 import { ConfigStorage } from '@/common/storage';
 import { useAuth } from '@/renderer/context/AuthContext';
+import type { TenantConfigItem } from '../../../../pages/settings/channels/types';
 import PreferenceRow from './PreferenceRow';
-import type { TenantConfigItem } from './types';
 
 function resolveIconUrl(iconUrl: string | null, baseUrl?: string): string {
   if (!iconUrl) return configItemDefaultIcon;

@@ -12,7 +12,7 @@ import { getSudoworkServerBaseUrl } from '@/common/sudoworkServer';
 import { ConfigStorage } from '@/common/storage';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
 import { useAuth } from '@/renderer/context/AuthContext';
-import type { TenantConfigEntry, TenantConfigItem, TenantConfigValues } from './types';
+import type { TenantConfigEntry, TenantConfigItem, TenantConfigValues } from '../../../../pages/settings/channels/types';
 
 const TENANT_ENABLED_STORAGE_KEY = 'settings.tenant.enabled';
 
@@ -354,12 +354,16 @@ export function useTenantConfigItems(refreshTrigger?: number): UseTenantConfigIt
               if (!getResult.success) {
                 try {
                   await secret.restore.invoke({ namespace, key: entry.config_key });
-                } catch {}
+                } catch {
+                  // Restore is best-effort before writing the secret.
+                }
               }
             } catch {
               try {
                 await secret.restore.invoke({ namespace, key: entry.config_key });
-              } catch {}
+              } catch {
+                // Restore is best-effort before writing the secret.
+              }
             }
 
             try {

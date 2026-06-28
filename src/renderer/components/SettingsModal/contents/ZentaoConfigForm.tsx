@@ -9,8 +9,8 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { channel } from '@/common/ipcBridge';
 import type { IChannelPluginStatus } from '@/channels/types';
+import type { ChannelConfig } from '@/renderer/pages/settings/channels/types';
 import ChannelItem from './channels/ChannelItem';
-import type { ChannelConfig } from './channels/types';
 
 /**
  * Preference row component
@@ -234,8 +234,19 @@ const ZentaoConfigForm: React.FC<{ pluginStatus?: IChannelPluginStatus | null; o
 
       {/* Connection Status */}
       {pluginStatus?.enabled && (
-        <div className={`rd-12px p-16px border ${pluginStatus?.connected ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' : pluginStatus?.error ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' : 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800'}`}>
-          <SectionHeader title={t('settings.zentao.connectionStatus', 'Connection Status')} action={<span className={`text-12px px-8px py-2px rd-4px ${pluginStatus?.connected ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' : pluginStatus?.error ? 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300' : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300'}`}>{pluginStatus?.connected ? t('settings.zentao.statusConnected', 'Connected') : pluginStatus?.error ? t('settings.zentao.statusError', 'Error') : t('settings.zentao.statusConnecting', 'Connecting...')}</span>} />
+        <div
+          className={`rd-12px p-16px border ${pluginStatus?.connected ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' : pluginStatus?.error ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' : 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800'}`}
+        >
+          <SectionHeader
+            title={t('settings.zentao.connectionStatus', 'Connection Status')}
+            action={
+              <span
+                className={`text-12px px-8px py-2px rd-4px ${pluginStatus?.connected ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' : pluginStatus?.error ? 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300' : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300'}`}
+              >
+                {pluginStatus?.connected ? t('settings.zentao.statusConnected', 'Connected') : pluginStatus?.error ? t('settings.zentao.statusError', 'Error') : t('settings.zentao.statusConnecting', 'Connecting...')}
+              </span>
+            }
+          />
           {pluginStatus?.error && <div className='text-14px text-red-600 dark:text-red-400 mb-12px'>{pluginStatus.error}</div>}
           {pluginStatus?.connected && (
             <div className='text-14px text-secondary space-y-8px'>

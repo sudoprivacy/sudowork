@@ -33,7 +33,7 @@ vi.mock('react-i18next', () => ({
 }));
 
 import TenantConfigItemGroup from '@/renderer/components/SettingsModal/contents/secrets/TenantConfigItemGroup';
-import type { TenantConfigItem } from '@/renderer/components/SettingsModal/contents/secrets/types';
+import type { TenantConfigItem } from '@/renderer/pages/settings/channels/types';
 
 const mockConfigItem: TenantConfigItem = {
   id: 1,

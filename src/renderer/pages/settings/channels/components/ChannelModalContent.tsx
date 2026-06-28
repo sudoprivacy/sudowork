@@ -15,7 +15,7 @@ import WeChatConfigForm from '../../../../components/SettingsModal/contents/WeCh
 import TelegramConfigForm from '../../../../components/SettingsModal/contents/TelegramConfigForm';
 import LarkConfigForm from '../../../../components/SettingsModal/contents/LarkConfigForm';
 import DingTalkConfigForm from '../../../../components/SettingsModal/contents/DingTalkConfigForm';
-import type { ChannelConfig } from '../../../../components/SettingsModal/contents/channels/types';
+import type { ChannelConfig } from '../types';
 import ChannelItem from '../../../../components/SettingsModal/contents/channels/ChannelItem';
 
 type ChannelModelConfigKey = 'assistant.telegram.defaultModel' | 'assistant.lark.defaultModel' | 'assistant.dingtalk.defaultModel' | 'assistant.wechat.defaultModel' | 'assistant.wecom.defaultModel';
