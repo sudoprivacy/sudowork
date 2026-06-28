@@ -1,9 +1,3 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import { Button, Dropdown, Empty, Input, Menu, Message, Spin, Tooltip } from '@arco-design/web-react';
 import { Copy, Down } from '@icon-park/react';
 import { IconCheckCircle, IconCloseCircle, IconDelete, IconRefresh } from '@arco-design/web-react/icon';
