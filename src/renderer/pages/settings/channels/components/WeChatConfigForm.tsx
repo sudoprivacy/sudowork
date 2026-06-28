@@ -58,6 +58,8 @@ const WeChatConfigForm: React.FC<WeChatConfigFormProps> = ({ pluginStatus, model
     } else if (phase === 'success') {
       setPhase('idle');
     }
+    // Keep this tied to connection status only; adding phase can interrupt local QR login state transitions.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isConnected]);
 
   // Load available agents + saved selection
@@ -100,31 +102,6 @@ const WeChatConfigForm: React.FC<WeChatConfigFormProps> = ({ pluginStatus, model
     }
   };
 
-  // Listen for QR login events
-  useEffect(() => {
-    const unsubscribe = channel.wechatQrLogin.on((event) => {
-      console.log('[WeChatConfig] QR login event:', event.phase);
-
-      if (event.phase === 'qrcode') {
-        setPhase('qrcode');
-        if (event.qrUrl) {
-          setQrUrl(event.qrUrl);
-        }
-      } else if (event.phase === 'scanned') {
-        setPhase('scanned');
-      } else if (event.phase === 'confirmed') {
-        void handleConfirmed(event.botToken || '', event.accountId || '');
-      } else if (event.phase === 'error') {
-        setPhase('error');
-        setErrorMessage(event.message || t('settings.channels.wechat.installFailed', 'Login failed'));
-      } else if (event.phase === 'timeout') {
-        setPhase('error');
-        setErrorMessage(event.message || t('settings.channels.wechat.qrExpired', 'QR code expired'));
-      }
-    });
-    return () => unsubscribe();
-  }, [t]);
-
   // Handle QR login confirmed: enable WeChat plugin with credentials
   const handleConfirmed = useCallback(
     async (botToken: string, accountId: string) => {
@@ -153,6 +130,31 @@ const WeChatConfigForm: React.FC<WeChatConfigFormProps> = ({ pluginStatus, model
     },
     [t, onStatusChange]
   );
+
+  // Listen for QR login events
+  useEffect(() => {
+    const unsubscribe = channel.wechatQrLogin.on((event) => {
+      console.log('[WeChatConfig] QR login event:', event.phase);
+
+      if (event.phase === 'qrcode') {
+        setPhase('qrcode');
+        if (event.qrUrl) {
+          setQrUrl(event.qrUrl);
+        }
+      } else if (event.phase === 'scanned') {
+        setPhase('scanned');
+      } else if (event.phase === 'confirmed') {
+        void handleConfirmed(event.botToken || '', event.accountId || '');
+      } else if (event.phase === 'error') {
+        setPhase('error');
+        setErrorMessage(event.message || t('settings.channels.wechat.installFailed', 'Login failed'));
+      } else if (event.phase === 'timeout') {
+        setPhase('error');
+        setErrorMessage(event.message || t('settings.channels.wechat.qrExpired', 'QR code expired'));
+      }
+    });
+    return () => unsubscribe();
+  }, [t, handleConfirmed]);
 
   // Start QR login
   const handleStartLogin = useCallback(async () => {
