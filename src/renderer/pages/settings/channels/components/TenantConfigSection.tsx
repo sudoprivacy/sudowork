@@ -7,7 +7,7 @@
 import { Button, Spin } from '@arco-design/web-react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { useTenantConfigItems } from './useTenantConfigItems';
+import { useTenantConfigItems } from '../../../../components/SettingsModal/contents/secrets/useTenantConfigItems';
 import TenantConfigItemGroup from './TenantConfigItemGroup';
 
 interface TenantConfigSectionProps {
@@ -16,8 +16,7 @@ interface TenantConfigSectionProps {
 
 const TenantConfigSection: React.FC<TenantConfigSectionProps> = ({ refreshTrigger }) => {
   const { t } = useTranslation();
-  const { configItems, valuesMap, enabledMap, loading, savingId, error, refresh, toggleEnabled, saveItem } =
-    useTenantConfigItems(refreshTrigger);
+  const { configItems, valuesMap, enabledMap, loading, savingId, error, refresh, toggleEnabled, saveItem } = useTenantConfigItems(refreshTrigger);
 
   if (loading) {
     return (
@@ -39,9 +38,7 @@ const TenantConfigSection: React.FC<TenantConfigSectionProps> = ({ refreshTrigge
   }
 
   if (configItems.length === 0) {
-    return (
-      <div className='text-13px text-tertiary py-16px'>{t('settings.secrets.emptyHint', '暂无凭据配置项')}</div>
-    );
+    return <div className='text-13px text-tertiary py-16px'>{t('settings.secrets.emptyHint', '暂无凭据配置项')}</div>;
   }
 
   return (

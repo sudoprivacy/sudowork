@@ -5,10 +5,10 @@ import { useTranslation } from 'react-i18next';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import itemRefreshIcon from '@/renderer/assets/item-refresh.svg';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
-import { ZentaoChannelItem } from '../../../../components/SettingsModal/contents/ZentaoConfigForm';
-import { EnterpriseSecretSection } from '../../../../components/SettingsModal/contents/secrets/EnterpriseSecretSection';
-import PwdLoginSection from '../../../../components/SettingsModal/contents/secrets/PwdLoginSection';
-import TenantConfigSection from '../../../../components/SettingsModal/contents/secrets/TenantConfigSection';
+import { ZentaoChannelItem } from './ZentaoConfigForm';
+import { EnterpriseSecretSection } from './EnterpriseSecretSection';
+import PwdLoginSection from './PwdLoginSection';
+import TenantConfigSection from './TenantConfigSection';
 
 /**
  * Secret Management Content Component

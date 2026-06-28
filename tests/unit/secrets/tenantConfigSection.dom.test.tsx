@@ -8,15 +8,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
 
-const {
-  mockEnsureValidToken,
-  mockForceRefreshToken,
-  mockSecretGet,
-  mockSecretPut,
-  mockConfigStorageGet,
-  mockConfigStorageSet,
-  mockFetch,
-} = vi.hoisted(() => ({
+const { mockEnsureValidToken, mockForceRefreshToken, mockSecretGet, mockSecretPut, mockConfigStorageGet, mockConfigStorageSet, mockFetch } = vi.hoisted(() => ({
   mockEnsureValidToken: vi.fn(),
   mockForceRefreshToken: vi.fn(),
   mockSecretGet: vi.fn(),
@@ -57,18 +49,20 @@ vi.mock('@arco-design/web-react', async () => {
   const actual = await vi.importActual<typeof import('@arco-design/web-react')>('@arco-design/web-react');
   return {
     ...actual,
-    Spin: ({ children }: { children?: React.ReactNode }) => <div data-testid='spin'>Loading...</div>,
-    Button: ({ children, ...props }: any) => <button data-testid='button' {...props}>{children}</button>,
+    Spin: () => <div data-testid='spin'>Loading...</div>,
+    Button: ({ children, ...props }: any) => (
+      <button data-testid='button' {...props}>
+        {children}
+      </button>
+    ),
   };
 });
 
-vi.mock('@/renderer/components/SettingsModal/contents/secrets/TenantConfigItemGroup', () => ({
-  default: ({ configItem }: { configItem: { id: number; name: string } }) => (
-    <div data-testid={`config-item-${configItem.id}`}>{configItem.name}</div>
-  ),
+vi.mock('@/renderer/pages/settings/channels/components/TenantConfigItemGroup', () => ({
+  default: ({ configItem }: { configItem: { id: number; name: string } }) => <div data-testid={`config-item-${configItem.id}`}>{configItem.name}</div>,
 }));
 
-import TenantConfigSection from '@/renderer/components/SettingsModal/contents/secrets/TenantConfigSection';
+import TenantConfigSection from '@/renderer/pages/settings/channels/components/TenantConfigSection';
 
 const defaultApiResponse = {
   success: true,

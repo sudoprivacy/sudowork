@@ -6,7 +6,7 @@
 
 import { Collapse } from '@arco-design/web-react';
 import React from 'react';
-import type { ChannelConfig } from '../../../../pages/settings/channels/types';
+import type { ChannelConfig } from '../types';
 import ChannelHeader from './ChannelHeader';
 
 interface ChannelItemProps {

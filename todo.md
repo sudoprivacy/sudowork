@@ -64,3 +64,4 @@
   5. 修正 UnoCSS 的用法：使用 `.claude/agents/unocss-style-fixer.md` agent 检查该模块下不符合项目 UnoCSS 规范的写法并修正
   6. 使用 .claude/agents/icon-compat-checker.md 扫描该目录并修复
   7. 看看能否使用 lucide-react的icon替换该目录下的'@icon-park/react'
+  8. 清除该模块下，每个文件的顶部开源注释

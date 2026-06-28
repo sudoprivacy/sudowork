@@ -11,7 +11,7 @@ import { useAppMode } from '@/renderer/hooks/useAppMode';
 import { ConfigStorage } from '@/common/storage';
 import configItemDefaultIcon from '@/renderer/assets/config-item-default.svg';
 import { BUILD_SUDOWORK_SERVER_BASE_URL, getSudoworkServerBaseUrl } from '@/common/sudoworkServer';
-import type { TenantConfigItem, TenantConfigValues } from '../../../../pages/settings/channels/types';
+import type { TenantConfigItem, TenantConfigValues } from '../types';
 import PreferenceRow from './PreferenceRow';
 
 function resolveIconUrl(iconUrl: string | null, baseUrl?: string): string {
