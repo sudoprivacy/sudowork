@@ -5,7 +5,7 @@ import { User, Peoples } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
 import PageWrapper from '@renderer/components/base/PageWrapper';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../../context/AuthContext';
 
 const MemberManagement: React.FC = () => {
   const { t } = useTranslation();
@@ -180,7 +180,7 @@ const MemberManagement: React.FC = () => {
   ];
 
   return (
-    <PageWrapper contentClassName='max-w-225'>
+    <PageWrapper>
       <div className='flex flex-col gap-6 py-2'>
         <div className='flex items-center justify-between'>
           <div className='flex flex-col gap-1'>
