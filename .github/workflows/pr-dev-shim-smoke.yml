@@ -40,6 +40,12 @@ permissions:
 
 env:
   BUN_INSTALL_REGISTRY: 'https://registry.npmjs.org/'
+  # Pin uv to upstream PyPI — without this, uv may inherit a tsinghua
+  # mirror from runner image config that 403s intermittently on wheels
+  # (observed PR #940 round 2: `mypy-extensions` 403 from
+  # pypi.tuna.tsinghua.edu.cn → hook:build dies → Electron never
+  # starts → CDP probe times out 240s). Matches _build-reusable.yml.
+  UV_DEFAULT_INDEX: 'https://pypi.org/simple/'
 
 jobs:
   dev-shim-smoke:
