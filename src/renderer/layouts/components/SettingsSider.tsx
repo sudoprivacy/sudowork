@@ -11,10 +11,10 @@ import { getSiderTooltipProps } from '@/renderer/utils/siderTooltip';
 import SidebarNavItem from '@/renderer/layouts/components/SidebarNavItem';
 
 /** Builtin settings tab IDs in display order (must match router paths). */
-const BUILTIN_TAB_IDS = ['profile', 'recharge', 'members', 'model', 'agent', 'tools', 'skill', 'security', 'display', 'webui', 'runtime', 'system', 'about'] as const; // 隐藏'copilot'；'cron'已移至左侧边栏
+const BUILTIN_TAB_IDS = ['profile', 'recharge', 'members', 'model', 'agent', 'tools', 'skill', 'security', 'display', 'channels', 'runtime', 'system', 'about'] as const; // 隐藏'copilot'；'cron'已移至左侧边栏
 
 /** Enterprise mode builtin tab IDs (restricted subset). */
-const ENTERPRISE_BUILTIN_TAB_IDS = ['profile', 'enterprise', 'mcp', 'display', 'webui', 'system', 'about'] as const;
+const ENTERPRISE_BUILTIN_TAB_IDS = ['profile', 'enterprise', 'mcp', 'display', 'channels', 'system', 'about'] as const;
 
 type SiderItem = {
   id: string;
@@ -112,7 +112,7 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
       security: { id: 'security', label: t('settings.security'), icon: <ShieldCheck />, path: 'security' },
       display: { id: 'display', label: t('settings.display'), icon: <Monitor />, path: 'display' },
       // copilot: { id: 'copilot', label: t('settings.copilot'), icon: <BotMessageSquare />, path: 'copilot' },
-      webui: { id: 'webui', label: t('settings.webui'), icon: isDesktop ? <Globe /> : <MessageSquare />, path: 'webui' },
+      channels: { id: 'channels', label: t('settings.webui'), icon: isDesktop ? <Globe /> : <MessageSquare />, path: 'channels' },
       runtime: { id: 'runtime', label: t('settings.runtime'), icon: <HardDrive />, path: 'runtime' },
       system: { id: 'system', label: t('settings.system'), icon: <Settings />, path: 'system' },
       about: { id: 'about', label: t('settings.about'), icon: <Info />, path: 'about' },

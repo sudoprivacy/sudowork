@@ -25,6 +25,7 @@ import agentStatus from './agentStatus.json';
 import telemetry from './telemetry.json';
 import setup from './setup.json';
 import runtimeError from './runtimeError.json';
+import pwdLogin from './pwdLogin.json';
 
 export default {
   common,
@@ -49,4 +50,5 @@ export default {
   telemetry,
   setup,
   runtimeError,
+  pwdLogin,
 };
