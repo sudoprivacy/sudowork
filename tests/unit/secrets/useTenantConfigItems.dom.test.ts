@@ -8,7 +8,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
 
 // --- Mock declarations via vi.hoisted (Vitest 4 pattern) ---
-const { mockEnsureValidToken, mockForceRefreshToken, mockSecretGet, mockSecretPut, mockSecretDelete, mockSecretRestore, mockConfigStorageGet, mockConfigStorageSet, mockFetch } = vi.hoisted(() => ({
+const { mockEnsureValidToken, mockForceRefreshToken, mockSecretGet, mockSecretPut, mockSecretDelete, mockSecretRestore, mockConfigStorageGet, mockConfigStorageSet, mockAuthProxyEnabledStateChangedOn, mockAuthProxyRefreshRules, mockFetch } = vi.hoisted(() => ({
   mockEnsureValidToken: vi.fn(),
   mockForceRefreshToken: vi.fn(),
   mockSecretGet: vi.fn(),
@@ -17,6 +17,8 @@ const { mockEnsureValidToken, mockForceRefreshToken, mockSecretGet, mockSecretPu
   mockSecretRestore: vi.fn(),
   mockConfigStorageGet: vi.fn(),
   mockConfigStorageSet: vi.fn(),
+  mockAuthProxyEnabledStateChangedOn: vi.fn(),
+  mockAuthProxyRefreshRules: vi.fn(),
   mockFetch: vi.fn(),
 }));
 
@@ -34,6 +36,10 @@ vi.mock('@/common/ipcBridge', () => ({
     put: { invoke: (...args: unknown[]) => mockSecretPut(...args) },
     delete: { invoke: (...args: unknown[]) => mockSecretDelete(...args) },
     restore: { invoke: (...args: unknown[]) => mockSecretRestore(...args) },
+  },
+  authProxy: {
+    enabledStateChanged: { on: (...args: unknown[]) => mockAuthProxyEnabledStateChangedOn(...args) },
+    refreshRules: { invoke: (...args: unknown[]) => mockAuthProxyRefreshRules(...args) },
   },
 }));
 
@@ -91,6 +97,8 @@ describe('useTenantConfigItems', () => {
     mockSecretRestore.mockResolvedValue({ success: true, data: true });
     mockConfigStorageGet.mockResolvedValue(undefined);
     mockConfigStorageSet.mockResolvedValue(undefined);
+    mockAuthProxyEnabledStateChangedOn.mockReturnValue(vi.fn());
+    mockAuthProxyRefreshRules.mockResolvedValue({ success: true });
 
     mockApiSuccess();
   });
