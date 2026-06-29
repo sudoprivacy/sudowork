@@ -221,6 +221,60 @@ export class MossSessionApi {
   }
 
   /**
+   * Upload a file into a Moss session workspace.
+   * POST /api/v1/sessions/{sessionId}/workspace/file
+   *
+   * The server writes the bytes into the session's server-side workspace
+   * (session.cwd) under the given workspace-relative path and returns the
+   * stored relativePath + size.
+   */
+  async uploadSessionWorkspaceFile(
+    sessionId: string,
+    params: { path: string; contentBase64: string },
+  ): Promise<{ relativePath: string; size: number }> {
+    const response = await this.fetchWithRetry(
+      `${this.serverUrl}/api/v1/sessions/${encodeURIComponent(sessionId)}/workspace/file`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          path: params.path,
+          content_base64: params.contentBase64,
+        }),
+      },
+    );
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Failed to upload session workspace file: ${response.status} ${text}`);
+    }
+
+    return (await response.json()) as { relativePath: string; size: number };
+  }
+
+  /**
+   * Fetch the current workspace upload size limit (bytes) from tenant config.
+   * GET /api/v1/tenant/config -> data.workspace_upload_limit_bytes
+   *
+   * Returns null if unavailable, so callers can fall back to a default. Read
+   * fresh right before an upload so admin changes are picked up immediately
+   * (the server enforces the same limit regardless).
+   */
+  async getWorkspaceUploadLimitBytes(): Promise<number | null> {
+    const response = await this.fetchWithRetry(`${this.serverUrl}/api/v1/tenant/config`, {
+      method: 'GET',
+    });
+    if (!response.ok) {
+      return null;
+    }
+    const body = await response.json();
+    const limit = body?.data?.workspace_upload_limit_bytes;
+    return typeof limit === 'number' && Number.isFinite(limit) && limit > 0 ? limit : null;
+  }
+
+  /**
    * Get session-scoped skills that are actually available to the Moss backend.
    * GET /api/v1/sessions/{sessionId}/skills/available
    */

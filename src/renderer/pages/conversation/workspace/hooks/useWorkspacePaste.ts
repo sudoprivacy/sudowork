@@ -17,6 +17,11 @@ interface UseWorkspacePasteOptions {
   messageApi: MessageApi;
   t: (key: string) => string;
 
+  // Conversation identity + data source. When dataSource === 'moss-session',
+  // uploads target the remote Moss workspace instead of the local filesystem.
+  conversation_id: string;
+  dataSource?: string;
+
   // Dependencies from useWorkspaceTree
   files: IDirOrFile[];
   selected: string[];
@@ -34,11 +39,41 @@ interface UseWorkspacePasteOptions {
  * Handle file paste and add logic
  */
 export function useWorkspacePaste(options: UseWorkspacePasteOptions) {
-  const { workspace, messageApi, t, files, selected, selectedNodeRef, refreshWorkspace, pasteConfirm, setPasteConfirm, closePasteConfirm } = options;
+  const { workspace, messageApi, t, conversation_id, dataSource, files, selected, selectedNodeRef, refreshWorkspace, pasteConfirm, setPasteConfirm, closePasteConfirm } = options;
+
+  const isRemote = dataSource === 'moss-session';
 
   // 跟踪粘贴目标文件夹（用于视觉反馈）
   // Track paste target folder (for visual feedback)
   const [pasteTargetFolder, setPasteTargetFolder] = useState<string | null>(null);
+
+  /**
+   * Copy/upload files into the workspace, transparently choosing between the
+   * local filesystem (fs.copyFilesToWorkspace) and the remote Moss workspace
+   * (conversation.copyFilesToRemoteWorkspace) based on dataSource. Returns the
+   * same { copiedFiles, failedFiles } shape in both cases.
+   *
+   * For remote uploads, the main-process handler fetches the current upload
+   * limit fresh and pre-checks each file's size, returning oversized files as
+   * failures with a specific "exceeds size limit (NMB)" message; the Moss
+   * server enforces the same limit as a backstop.
+   *
+   * @param targetFolderPath absolute path of the destination folder (local mode)
+   * @param targetFolderKey  workspace-relative destination folder (remote mode)
+   */
+  const copyFilesIntoWorkspace = useCallback(
+    async (filePaths: string[], targetFolderPath: string, targetFolderKey?: string) => {
+      if (isRemote) {
+        return ipcBridge.conversation.copyFilesToRemoteWorkspace.invoke({
+          conversation_id,
+          filePaths,
+          targetDir: targetFolderKey || undefined,
+        });
+      }
+      return ipcBridge.fs.copyFilesToWorkspace.invoke({ filePaths, workspace: targetFolderPath });
+    },
+    [isRemote, conversation_id]
+  );
 
   /**
    * 添加文件（从文件系统选择器）
@@ -52,7 +87,7 @@ export function useWorkspacePaste(options: UseWorkspacePasteOptions) {
       })
       .then((res) => {
         if (res?.success && res.data && !res.data.canceled && res.data.filePaths.length > 0) {
-          return ipcBridge.fs.copyFilesToWorkspace.invoke({ filePaths: res.data.filePaths, workspace }).then((result) => {
+          return copyFilesIntoWorkspace(res.data.filePaths, workspace, '').then((result) => {
             const copiedFiles = result.data?.copiedFiles ?? [];
             const failedFiles = result.data?.failedFiles ?? [];
 
@@ -64,7 +99,8 @@ export function useWorkspacePaste(options: UseWorkspacePasteOptions) {
 
             if (!result.success || failedFiles.length > 0) {
               // 部分或全部失败时给出显式提示 / Surface warning when any copy operation fails
-              const fallback = failedFiles.length > 0 ? 'Some files failed to copy' : result.msg;
+              const specific = failedFiles[0]?.error;
+              const fallback = specific || (failedFiles.length > 0 ? 'Some files failed to copy' : result.msg);
               messageApi.warning(fallback || t('common.unknownError') || 'Copy failed');
             }
           });
@@ -73,7 +109,7 @@ export function useWorkspacePaste(options: UseWorkspacePasteOptions) {
       .catch(() => {
         // Silently ignore errors
       });
-  }, [workspace, refreshWorkspace, messageApi, t]);
+  }, [workspace, refreshWorkspace, messageApi, t, copyFilesIntoWorkspace]);
 
   /**
    * 处理文件粘贴（从粘贴服务）
@@ -98,7 +134,7 @@ export function useWorkspacePaste(options: UseWorkspacePasteOptions) {
       if (skipConfirm) {
         try {
           const filePaths = filesMeta.map((f) => f.path);
-          const res = await ipcBridge.fs.copyFilesToWorkspace.invoke({ filePaths, workspace: targetFolderPath });
+          const res = await copyFilesIntoWorkspace(filePaths, targetFolderPath, targetFolderKey);
           const copiedFiles = res.data?.copiedFiles ?? [];
           const failedFiles = res.data?.failedFiles ?? [];
 
@@ -108,8 +144,10 @@ export function useWorkspacePaste(options: UseWorkspacePasteOptions) {
           }
 
           if (!res.success || failedFiles.length > 0) {
-            // 如果有文件粘贴失败则通知用户 / Notify user when any paste fails
-            const fallback = failedFiles.length > 0 ? 'Some files failed to copy' : res.msg;
+            // Prefer the specific per-file error (e.g. size-limit message) so the
+            // user sees a meaningful reason rather than a generic notice.
+            const specific = failedFiles[0]?.error;
+            const fallback = specific || (failedFiles.length > 0 ? 'Some files failed to copy' : res.msg);
             messageApi.warning(fallback || t('common.unknownError') || 'Paste failed');
           }
         } catch {
@@ -131,7 +169,7 @@ export function useWorkspacePaste(options: UseWorkspacePasteOptions) {
         targetFolder: targetFolderKey,
       });
     },
-    [workspace, refreshWorkspace, t, messageApi, files, selected, selectedNodeRef, setPasteConfirm]
+    [workspace, refreshWorkspace, t, messageApi, files, selected, selectedNodeRef, setPasteConfirm, copyFilesIntoWorkspace]
   );
 
   /**
@@ -150,9 +188,10 @@ export function useWorkspacePaste(options: UseWorkspacePasteOptions) {
       // 获取目标文件夹路径 / Get target folder path
       const targetFolder = getTargetFolderPath(selectedNodeRef.current, selected, files, workspace);
       const targetFolderPath = targetFolder.fullPath;
+      const targetFolderKey = targetFolder.relativePath;
 
       const filePaths = pasteConfirm.filesToPaste.map((f) => f.path);
-      const res = await ipcBridge.fs.copyFilesToWorkspace.invoke({ filePaths, workspace: targetFolderPath });
+      const res = await copyFilesIntoWorkspace(filePaths, targetFolderPath, targetFolderKey);
       const copiedFiles = res.data?.copiedFiles ?? [];
       const failedFiles = res.data?.failedFiles ?? [];
 
@@ -162,7 +201,8 @@ export function useWorkspacePaste(options: UseWorkspacePasteOptions) {
       }
 
       if (!res.success || failedFiles.length > 0) {
-        const fallback = failedFiles.length > 0 ? 'Some files failed to copy' : res.msg;
+        const specific = failedFiles[0]?.error;
+        const fallback = specific || (failedFiles.length > 0 ? 'Some files failed to copy' : res.msg);
         messageApi.warning(fallback || t('common.unknownError') || 'Paste failed');
       }
 
@@ -172,7 +212,7 @@ export function useWorkspacePaste(options: UseWorkspacePasteOptions) {
     } finally {
       setPasteTargetFolder(null);
     }
-  }, [pasteConfirm, closePasteConfirm, messageApi, t, files, selected, selectedNodeRef, workspace, refreshWorkspace]);
+  }, [pasteConfirm, closePasteConfirm, messageApi, t, files, selected, selectedNodeRef, workspace, refreshWorkspace, copyFilesIntoWorkspace]);
 
   // 注册粘贴服务以在工作空间组件获得焦点时捕获全局粘贴事件
   // Register paste service to catch global paste events when workspace component is focused

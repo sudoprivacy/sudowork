@@ -725,6 +725,71 @@ export function initConversationBridge(): void {
     }
   });
 
+  // Remote counterpart of fs.copyFilesToWorkspace: reads local source files and
+  // uploads their bytes into the Moss session's server-side workspace. Returns
+  // the same { copiedFiles, failedFiles } shape so the renderer paste/drag/add
+  // flows can branch on dataSource without other changes.
+  ipcBridge.conversation.copyFilesToRemoteWorkspace.provider(async ({ conversation_id, filePaths, targetDir, sourceRoot }) => {
+    try {
+      const { extra, mossSessionId, pending } = getRemoteConversationSession(conversation_id);
+      if (pending || !mossSessionId) {
+        return { success: false, msg: 'Moss session is pending' };
+      }
+      const api = getRemoteConversationMossApi(extra);
+
+      const copiedFiles: string[] = [];
+      const failedFiles: Array<{ path: string; error: string }> = [];
+
+      // Fetch the current upload limit fresh (per upload batch) so an admin
+      // change on the Moss server is picked up immediately; fall back to 20MB
+      // if it can't be read. The server enforces the same limit regardless.
+      let uploadLimitBytes = 20 * 1024 * 1024;
+      try {
+        const fetched = await api.getWorkspaceUploadLimitBytes();
+        if (typeof fetched === 'number' && fetched > 0) {
+          uploadLimitBytes = fetched;
+        }
+      } catch (error) {
+        mainWarn('conversationBridge', 'Failed to fetch upload limit, using default:', error);
+      }
+      const limitMb = Math.round(uploadLimitBytes / (1024 * 1024));
+
+      const normalizeRelative = (p: string) => p.split(path.sep).join('/').replace(/^\/+/, '');
+      const prefix = targetDir ? normalizeRelative(targetDir).replace(/\/+$/, '') : '';
+
+      for (const filePath of filePaths) {
+        try {
+          // Pre-check size against the fresh limit so the user gets a specific
+          // message without a wasted upload.
+          const stat = await fs.stat(filePath);
+          if (stat.size > uploadLimitBytes) {
+            failedFiles.push({ path: filePath, error: `Uploaded file exceeds size limit (${limitMb}MB)` });
+            continue;
+          }
+          const relInsideRoot = sourceRoot ? path.relative(sourceRoot, filePath) : path.basename(filePath);
+          const rel = normalizeRelative(prefix ? path.posix.join(prefix, normalizeRelative(relInsideRoot)) : relInsideRoot);
+          const buffer = await fs.readFile(filePath);
+          const result = await api.uploadSessionWorkspaceFile(mossSessionId, {
+            path: rel,
+            contentBase64: buffer.toString('base64'),
+          });
+          copiedFiles.push(result.relativePath || rel);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          mainError('conversationBridge', `Failed to upload file ${filePath} to remote workspace:`, message);
+          failedFiles.push({ path: filePath, error: message });
+        }
+      }
+
+      const success = failedFiles.length === 0;
+      return { success, data: { copiedFiles, failedFiles }, msg: success ? undefined : 'Some files failed to upload' };
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      mainError('conversationBridge', 'copyFilesToRemoteWorkspace failed:', msg);
+      return { success: false, msg };
+    }
+  });
+
   ipcBridge.conversation.getRemoteAvailableSkills.provider(async ({ conversation_id }) => {
     try {
       const { extra, mossSessionId, pending } = getRemoteConversationSession(conversation_id);
