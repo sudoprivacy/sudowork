@@ -18,6 +18,7 @@
 import { app } from 'electron';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { isProductImprovementEnabled } from '@/common/systemConfig';
 import { ProcessConfig, getSudoworkServerBaseUrlSync } from '../initStorage';
 import { buildVersion } from '../../common/buildInfo';
 import type { NativeCrashEvent, RendererCrashEvent, JsExceptionEvent, Breadcrumb, CrashContext, CrashEventBase, CrashBatchRequest, CrashBatchResponse, StoredCrashEvent, CrashReporterConfig, CrashProcessType, CrashReason } from '../../shared/types/crash';
@@ -28,7 +29,6 @@ import { getProductImprovementApiKey } from '../credentialsCache';
 import { getTelemetryEncryptor, initTelemetryEncryptor } from './TelemetryEncryptor';
 import { getUserContextSync } from './UserContext';
 import { ENCRYPTION_CONFIG } from './keys';
-import { isProductImprovementEnabled } from '@/common/systemConfig';
 
 // ============================================================
 // 常量定义
@@ -157,7 +157,10 @@ export class CrashReporter {
         serverUrl: customServerUrl.replace('/telemetry/batch', '/crash/events/batch'),
       };
     } else {
-      this.config = DEFAULT_CRASH_REPORTER_CONFIG;
+      this.config = {
+        ...DEFAULT_CRASH_REPORTER_CONFIG,
+        serverUrl: `${getSudoworkServerBaseUrlSync()}/api/v1/crash/events/batch`,
+      };
     }
 
     // 加载离线缓存

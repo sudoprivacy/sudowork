@@ -59,6 +59,17 @@ export function resolveTelemetryPublicKey(): string {
   return TELEMETRY_PUBLIC_KEY_PEM;
 }
 
+/**
+ * 是否需要加密上报。跟随 server 下发的 `product_improvement.encryption_required`：
+ * - 显式 `false` → 明文上报（server 不配私钥，仅支持明文）
+ * - `true` 或 cache 缺失 → 加密（fail-open，保守，避免误关生产 server）
+ */
+export function isEncryptionRequired(): boolean {
+  const cache = getSystemConfigCache();
+  if (!cache) return true;
+  return cache.product_improvement?.encryption_required !== false;
+}
+
 // ============================================================
 // 加密配置
 // ============================================================

@@ -80,9 +80,10 @@ export function getSystemConfigCache(): SystemConfig | null {
 }
 
 // ---- fetch (public, no auth; fetch + res.json() work in both processes) ----
-export async function fetchSystemConfig(): Promise<SystemConfig | null> {
+export async function fetchSystemConfig(baseUrl?: string): Promise<SystemConfig | null> {
   try {
-    const res = await fetch(`${await getSudoworkServerBaseUrl()}/api/v1/system-config`);
+    const base = baseUrl ?? await getSudoworkServerBaseUrl();
+    const res = await fetch(`${base}/api/v1/system-config`);
     const json = (await res.json()) as { success?: boolean; data?: SystemConfig };
     if (json?.success && json.data) {
       setSystemConfigCache(json.data);

@@ -18,7 +18,7 @@
 
 import * as crypto from 'crypto';
 import { mainLog, mainWarn, mainError } from '../utils/mainLogger';
-import { ENCRYPTION_CONFIG, resolveTelemetryPublicKey } from './keys';
+import { ENCRYPTION_CONFIG, resolveTelemetryPublicKey, isEncryptionRequired } from './keys';
 
 // ============================================================
 // 类型定义
@@ -79,6 +79,14 @@ export class TelemetryEncryptor {
    */
   public async initialize(): Promise<void> {
     if (this.initialized) {
+      return;
+    }
+
+    // server encryption_required=false 时不加密（server 无私钥，仅支持明文）
+    if (!isEncryptionRequired()) {
+      this.enabled = false;
+      this.initialized = true;
+      mainLog('TelemetryEncryptor', 'Encryption disabled: server encryption_required=false, reporting plaintext');
       return;
     }
 
