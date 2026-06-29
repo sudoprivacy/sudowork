@@ -59,6 +59,12 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
   const { openPreview } = usePreviewContext();
   const navigate = useNavigate();
 
+  // Remote Moss-session workspaces are rendered readonly (no local FS to
+  // edit/rename/delete), but file UPLOAD is supported via the remote upload
+  // endpoint. allowUpload re-enables the upload affordances (drag-drop, paste)
+  // for that mode while leaving the other readonly restrictions intact.
+  const allowUpload = !readonly || dataSource === 'moss-session';
+
   // Message API setup
   const [internalMessageApi, messageContext] = Message.useMessage();
   const messageApi = externalMessageApi ?? internalMessageApi;
@@ -277,6 +283,8 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
     workspace,
     messageApi,
     t,
+    conversation_id,
+    dataSource,
     files: treeHook.files,
     selected: treeHook.selected,
     selectedNodeRef: treeHook.selectedNodeRef,
@@ -848,11 +856,11 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
       <div
         className='chat-workspace workspace-card size-full flex flex-col relative'
         tabIndex={0}
-        onFocus={readonly ? undefined : pasteHook.onFocusPaste}
-        onClick={readonly ? undefined : pasteHook.onFocusPaste}
-        {...(readonly ? {} : dragImportHook.dragHandlers)}
+        onFocus={!allowUpload ? undefined : pasteHook.onFocusPaste}
+        onClick={!allowUpload ? undefined : pasteHook.onFocusPaste}
+        {...(!allowUpload ? {} : dragImportHook.dragHandlers)}
         style={
-          !readonly && dragImportHook.isDragging
+          allowUpload && dragImportHook.isDragging
             ? {
                 border: '1px dashed rgb(var(--primary-6))',
                 borderRadius: '18px',
@@ -862,8 +870,8 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
             : undefined
         }
       >
-        {!readonly && dragImportHook.isDragging && (
-          <div className='absolute inset-0 pointer-events-none z-30 f-center px-32px'>
+        {allowUpload && dragImportHook.isDragging && (
+          <div className='absolute inset-0 pointer-events-none z-30 flex items-center justify-center px-32px'>
             <div
               className='w-full max-w-480px text-center text-white rounded-16px px-32px py-28px'
               style={{
@@ -891,7 +899,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
           </div>
         )}
         {/* Paste Confirm Modal */}
-        {!readonly && (
+        {allowUpload && (
           <Modal
             visible={modalsHook.pasteConfirm.visible}
             title={null}
@@ -1298,7 +1306,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                 renderTitle={(node) => {
                   const relativePath = node.dataRef.relativePath;
                   const isFile = node.dataRef.isFile;
-                  const isPasteTarget = !readonly && !isFile && pasteHook.pasteTargetFolder === relativePath;
+                  const isPasteTarget = allowUpload && !isFile && pasteHook.pasteTargetFolder === relativePath;
                   const nodeData = node.dataRef as IDirOrFile;
                   const directFileCount = !isFile ? (nodeData.children ?? []).filter((child) => child.isFile && !isHiddenWorkspaceEntry(child.name)).length : 0;
                   // Display .drafts with i18n name / 草稿箱目录显示本地化名称

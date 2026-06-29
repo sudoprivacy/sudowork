@@ -221,6 +221,40 @@ export class MossSessionApi {
   }
 
   /**
+   * Upload a file into a Moss session workspace.
+   * POST /api/v1/sessions/{sessionId}/workspace/file
+   *
+   * The server writes the bytes into the session's server-side workspace
+   * (session.cwd) under the given workspace-relative path and returns the
+   * stored relativePath + size.
+   */
+  async uploadSessionWorkspaceFile(
+    sessionId: string,
+    params: { path: string; contentBase64: string },
+  ): Promise<{ relativePath: string; size: number }> {
+    const response = await this.fetchWithRetry(
+      `${this.serverUrl}/api/v1/sessions/${encodeURIComponent(sessionId)}/workspace/file`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          path: params.path,
+          content_base64: params.contentBase64,
+        }),
+      },
+    );
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Failed to upload session workspace file: ${response.status} ${text}`);
+    }
+
+    return (await response.json()) as { relativePath: string; size: number };
+  }
+
+  /**
    * Get session-scoped skills that are actually available to the Moss backend.
    * GET /api/v1/sessions/{sessionId}/skills/available
    */
