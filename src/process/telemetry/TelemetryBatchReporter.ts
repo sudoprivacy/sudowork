@@ -17,16 +17,32 @@
 import { app } from 'electron';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { isProductImprovementEnabled } from '@/common/systemConfig';
 import { ProcessConfig, getSudoworkServerBaseUrlSync } from '../initStorage';
 import { buildVersion } from '../../common/buildInfo';
-import type { TelemetryEvent, TelemetryBatchRequest, TelemetryBatchResponse, TelemetryConfig, StoredTelemetryEvent, PerfTelemetryEvent, ConversationTelemetryEvent, InstallTelemetryEvent, TurnTelemetryEvent, StepTelemetryEvent, PerfData, ConversationData, InstallData, TurnData, StepData } from '../../shared/types/telemetry';
+import type {
+  TelemetryEvent,
+  TelemetryBatchRequest,
+  TelemetryBatchResponse,
+  TelemetryConfig,
+  StoredTelemetryEvent,
+  PerfTelemetryEvent,
+  ConversationTelemetryEvent,
+  InstallTelemetryEvent,
+  TurnTelemetryEvent,
+  StepTelemetryEvent,
+  PerfData,
+  ConversationData,
+  InstallData,
+  TurnData,
+  StepData,
+} from '../../shared/types/telemetry';
 import { mapElectronArch, DEFAULT_TELEMETRY_CONFIG } from '../../shared/types/telemetry';
 import { mainLog, mainWarn, mainError } from '../utils/mainLogger';
 import { getProductImprovementApiKey } from '../credentialsCache';
 import { getTelemetryEncryptor, initTelemetryEncryptor, isEncryptionAvailable } from './TelemetryEncryptor';
 import { ENCRYPTION_CONFIG } from './keys';
 import { getUserContextSync } from './UserContext';
-import { isProductImprovementEnabled } from '@/common/systemConfig';
 
 // ============================================================
 // 类型定义
@@ -146,9 +162,9 @@ export class TelemetryBatchReporter {
       return;
     }
 
-    // 获取自定义服务器地址 (可选)，否则使用默认地址
+    // 获取自定义服务器地址 (可选)，否则用现读的 sudowork-server baseUrl 派生（与 sendBatch 一致）
     const customServerUrl = await ProcessConfig.get('telemetry.serverUrl').catch(() => undefined as unknown as string | undefined);
-    const serverUrl = customServerUrl || DEFAULT_TELEMETRY_CONFIG.serverUrl!;
+    const serverUrl = customServerUrl || `${getSudoworkServerBaseUrlSync()}/api/v1/telemetry/batch`;
 
     this.config = {
       ...DEFAULT_TELEMETRY_CONFIG,

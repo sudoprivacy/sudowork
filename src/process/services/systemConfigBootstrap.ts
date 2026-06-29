@@ -28,11 +28,17 @@
 
 import { mainLog, mainError } from '@process/utils/mainLogger';
 import { fetchSystemConfig } from '@/common/systemConfig';
+import { getSudoworkServerBaseUrlSync } from '@process/initStorage';
 
 export async function ensureMainSystemConfig(): Promise<void> {
   mainLog('systemConfigBootstrap', 'ensureMainSystemConfig start');
   try {
-    const data = await fetchSystemConfig();
+    // main 进程必须用 getSudoworkServerBaseUrlSync（ProcessConfig.getSync）解析 base URL：
+    // common 的 getSudoworkServerBaseUrl 内部走 ConfigStorage.get（@office-ai/platform BroadcastChannel IPC），
+    // 在 main 进程 renderer 未就绪时会永久挂起，阻塞后续 initializeTelemetry()。
+    // 与 src/process/index.ts:79 对 system.appMode 的处理同理。
+    const base = getSudoworkServerBaseUrlSync();
+    const data = await fetchSystemConfig(base);
     mainLog('systemConfigBootstrap', 'ensureMainSystemConfig done', {
       hasData: data !== null,
       loginMethod: data?.login_method ?? null,
