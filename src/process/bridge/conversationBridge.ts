@@ -740,11 +740,32 @@ export function initConversationBridge(): void {
       const copiedFiles: string[] = [];
       const failedFiles: Array<{ path: string; error: string }> = [];
 
+      // Fetch the current upload limit fresh (per upload batch) so an admin
+      // change on the Moss server is picked up immediately; fall back to 20MB
+      // if it can't be read. The server enforces the same limit regardless.
+      let uploadLimitBytes = 20 * 1024 * 1024;
+      try {
+        const fetched = await api.getWorkspaceUploadLimitBytes();
+        if (typeof fetched === 'number' && fetched > 0) {
+          uploadLimitBytes = fetched;
+        }
+      } catch (error) {
+        mainWarn('conversationBridge', 'Failed to fetch upload limit, using default:', error);
+      }
+      const limitMb = Math.round(uploadLimitBytes / (1024 * 1024));
+
       const normalizeRelative = (p: string) => p.split(path.sep).join('/').replace(/^\/+/, '');
       const prefix = targetDir ? normalizeRelative(targetDir).replace(/\/+$/, '') : '';
 
       for (const filePath of filePaths) {
         try {
+          // Pre-check size against the fresh limit so the user gets a specific
+          // message without a wasted upload.
+          const stat = await fs.stat(filePath);
+          if (stat.size > uploadLimitBytes) {
+            failedFiles.push({ path: filePath, error: `Uploaded file exceeds size limit (${limitMb}MB)` });
+            continue;
+          }
           const relInsideRoot = sourceRoot ? path.relative(sourceRoot, filePath) : path.basename(filePath);
           const rel = normalizeRelative(prefix ? path.posix.join(prefix, normalizeRelative(relInsideRoot)) : relInsideRoot);
           const buffer = await fs.readFile(filePath);

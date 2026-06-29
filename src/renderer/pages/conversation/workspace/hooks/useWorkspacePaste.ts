@@ -9,8 +9,6 @@ import { ipcBridge } from '@/common';
 import type { IDirOrFile } from '@/common/ipcBridge';
 import { ConfigStorage } from '@/common/storage';
 import { usePasteService } from '@/renderer/hooks/usePasteService';
-import { useTenantConfig } from '@/renderer/context/TenantConfigContext';
-import { DEFAULT_WORKSPACE_UPLOAD_LIMIT_BYTES } from '@/common/types/tenantConfig';
 import type { MessageApi, PasteConfirmState, SelectedNodeRef } from '../types';
 import { getTargetFolderPath } from '../utils/treeHelpers';
 
@@ -44,8 +42,6 @@ export function useWorkspacePaste(options: UseWorkspacePasteOptions) {
   const { workspace, messageApi, t, conversation_id, dataSource, files, selected, selectedNodeRef, refreshWorkspace, pasteConfirm, setPasteConfirm, closePasteConfirm } = options;
 
   const isRemote = dataSource === 'moss-session';
-  const { config: tenantConfig } = useTenantConfig();
-  const uploadLimitBytes = tenantConfig.workspace_upload_limit_bytes || DEFAULT_WORKSPACE_UPLOAD_LIMIT_BYTES;
 
   // 跟踪粘贴目标文件夹（用于视觉反馈）
   // Track paste target folder (for visual feedback)
@@ -57,9 +53,10 @@ export function useWorkspacePaste(options: UseWorkspacePasteOptions) {
    * (conversation.copyFilesToRemoteWorkspace) based on dataSource. Returns the
    * same { copiedFiles, failedFiles } shape in both cases.
    *
-   * For remote uploads the file size is pre-checked against the Moss-managed
-   * limit so the user gets an immediate "exceeds size limit (NMB)" message
-   * without a wasted upload; the server enforces the same limit as a backstop.
+   * For remote uploads, the main-process handler fetches the current upload
+   * limit fresh and pre-checks each file's size, returning oversized files as
+   * failures with a specific "exceeds size limit (NMB)" message; the Moss
+   * server enforces the same limit as a backstop.
    *
    * @param targetFolderPath absolute path of the destination folder (local mode)
    * @param targetFolderKey  workspace-relative destination folder (remote mode)
@@ -67,49 +64,15 @@ export function useWorkspacePaste(options: UseWorkspacePasteOptions) {
   const copyFilesIntoWorkspace = useCallback(
     async (filePaths: string[], targetFolderPath: string, targetFolderKey?: string) => {
       if (isRemote) {
-        // Pre-check sizes; collect oversized files as failures and only upload
-        // the ones within the limit. Keeps the { copiedFiles, failedFiles } shape.
-        const limitMb = Math.round(uploadLimitBytes / (1024 * 1024));
-        const withinLimit: string[] = [];
-        const failedFiles: Array<{ path: string; error: string }> = [];
-        for (const filePath of filePaths) {
-          let size = 0;
-          try {
-            const meta = await ipcBridge.fs.getFileMetadata.invoke({ path: filePath });
-            size = typeof meta?.size === 'number' ? meta.size : 0;
-          } catch {
-            // If size can't be determined, let the server be the gate.
-          }
-          if (size > uploadLimitBytes) {
-            failedFiles.push({
-              path: filePath,
-              error: `Uploaded file exceeds size limit (${limitMb}MB)`,
-            });
-          } else {
-            withinLimit.push(filePath);
-          }
-        }
-
-        if (withinLimit.length === 0) {
-          return { success: false, data: { copiedFiles: [], failedFiles }, msg: failedFiles[0]?.error };
-        }
-
-        const res = await ipcBridge.conversation.copyFilesToRemoteWorkspace.invoke({
+        return ipcBridge.conversation.copyFilesToRemoteWorkspace.invoke({
           conversation_id,
-          filePaths: withinLimit,
+          filePaths,
           targetDir: targetFolderKey || undefined,
         });
-        // Merge pre-check failures into the bridge result.
-        const mergedFailed = [...failedFiles, ...(res.data?.failedFiles ?? [])];
-        return {
-          success: res.success && mergedFailed.length === 0,
-          data: { copiedFiles: res.data?.copiedFiles ?? [], failedFiles: mergedFailed },
-          msg: mergedFailed.length > 0 ? (res.msg || failedFiles[0]?.error) : res.msg,
-        };
       }
       return ipcBridge.fs.copyFilesToWorkspace.invoke({ filePaths, workspace: targetFolderPath });
     },
-    [isRemote, conversation_id, uploadLimitBytes, t]
+    [isRemote, conversation_id]
   );
 
   /**
