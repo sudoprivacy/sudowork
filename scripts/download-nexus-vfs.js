@@ -448,6 +448,21 @@ async function installVaultPlugin(platform, arch, force) {
 
   extractArchive(archivePath, extractDir);
 
+  // Stage the verified vault archive into resources/ so electron-builder can
+  // bundle it as an extraResource. This mirrors how scode/nexusd-cluster
+  // archives are staged for packaging. The versioned filename follows the
+  // same convention: v${VERSION}-${artifactName}.
+  const RESOURCES_DIR = path.join(__dirname, '..', 'resources');
+  try {
+    fs.mkdirSync(RESOURCES_DIR, { recursive: true });
+    const stagedName = `v${VAULT_VERSION}-${artifact}`;
+    const stagedPath = path.join(RESOURCES_DIR, stagedName);
+    fs.copyFileSync(archivePath, stagedPath);
+    console.log(`Staged vault archive for packaging: ${stagedPath}`);
+  } catch (err) {
+    console.warn(`⚠️  Could not stage vault archive to resources/: ${err.message}`);
+  }
+
   // Find the dylib in the extracted tree.
   const extractedDylib = findBinaryInDir(extractDir, dylibName);
   if (!extractedDylib) {

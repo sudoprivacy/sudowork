@@ -9,10 +9,10 @@ import { spawn, exec } from 'child_process';
 import { promisify } from 'util';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import { processSupervisor } from '@process/ProcessSupervisor';
-import { extractTarGzWithProgress, extractZipWithProgress } from '../archiveProgress';
 import runtimeVersions from '@/shared/runtime-versions.json';
 import runtimeSha256 from '@/shared/runtime-sha256.json';
 import { COS_RUNTIME_BASE, COS_LEGACY_NEXUS_VFS_BASE } from '@/shared/cos';
+import { extractTarGzWithProgress, extractZipWithProgress } from '../archiveProgress';
 import { vaultPluginInstaller } from './VaultPluginInstaller';
 
 const execAsync = promisify(exec);
@@ -151,6 +151,40 @@ class DynamicNexusVfsService {
     return `nexusd-cluster-${osName}-${archName}${ext}`;
   }
 
+  /** Versioned archive filename matching the extraResources filter in electron-builder.yml.
+   *  Pattern: v${VERSION}-nexusd-cluster-${os}-${arch}.${ext} */
+  private getVersionedArchiveName(): string {
+    return `v${this.getBundledVersion()}-${this.getArtifactName()}`;
+  }
+
+  /** Find the locally bundled nexus-vfs archive from the packaged app's
+   *  extraResources or the development resources directory. Returns null if
+   *  not found (caller should fall back to remote download). */
+  private getBundledNexusVfsPath(): string | null {
+    const versionedName = this.getVersionedArchiveName();
+
+    if (app.isPackaged) {
+      const packagedPath = path.join(process.resourcesPath, versionedName);
+      if (fs.existsSync(packagedPath)) {
+        const stats = fs.statSync(packagedPath);
+        if (stats.size >= 1024 * 100) {
+          return packagedPath;
+        }
+      }
+    }
+
+    // Development mode
+    const devPath = path.join(app.getAppPath(), 'resources', versionedName);
+    if (fs.existsSync(devPath)) {
+      const stats = fs.statSync(devPath);
+      if (stats.size >= 1024 * 100) {
+        return devPath;
+      }
+    }
+
+    return null;
+  }
+
   /** Ordered download URLs: runtime bucket first, legacy bucket as fallback. */
   private getDownloadUrls(): { label: string; url: string }[] {
     const tail = `v${this.getBundledVersion()}/${this.getArtifactName()}`;
@@ -277,36 +311,45 @@ class DynamicNexusVfsService {
     fs.mkdirSync(downloadDir, { recursive: true });
     fs.mkdirSync(binDir, { recursive: true });
 
-    const attempts = this.getDownloadUrls();
-    const archivePath = path.join(downloadDir, this.getArtifactName());
+    // Try bundled local resource first, then fall back to remote download.
+    const bundledPath = this.getBundledNexusVfsPath();
+    let archivePath: string;
 
-    let downloaded = false;
-    let lastReason = 'unknown error';
-    let allNotFound = true;
-    for (const attempt of attempts) {
-      this.emit('downloading', `Downloading nexus-vfs from ${attempt.label} (${attempt.url})`, 0);
-      try {
-        await this.downloadFile(attempt.url, archivePath);
-        downloaded = true;
-        break;
-      } catch (err) {
-        const reason = err instanceof Error ? err.message : String(err);
-        lastReason = reason;
-        if (reason !== 'NOT_FOUND') allNotFound = false;
-        mainWarn('NexusVfs', `${attempt.label} download failed: ${reason}`);
-      }
-    }
+    if (bundledPath) {
+      archivePath = bundledPath;
+      mainLog('NexusVfs', `Using bundled nexus-vfs archive from ${bundledPath}`);
+      this.emit('downloading', `Using bundled nexus-vfs from ${bundledPath}`, 0);
+    } else {
+      mainLog('NexusVfs', 'Bundled nexus-vfs not found, attempting remote download...');
+      archivePath = path.join(downloadDir, this.getArtifactName());
 
-    if (!downloaded) {
-      // Every mirror returned 404 → the artifact genuinely does not exist for this
-      // platform/version. Preserve the explicit, non-fallback NOT_FOUND signal.
-      if (allNotFound) {
-        const msg = `nexus-vfs binary not available for ${process.platform}-${process.arch} in v${this.getBundledVersion()} (all COS mirrors → HTTP 404)`;
-        this.emit('error', msg);
-        throw new Error(msg);
+      const attempts = this.getDownloadUrls();
+      let downloaded = false;
+      let lastReason = 'unknown error';
+      let allNotFound = true;
+      for (const attempt of attempts) {
+        this.emit('downloading', `Downloading nexus-vfs from ${attempt.label} (${attempt.url})`, 0);
+        try {
+          await this.downloadFile(attempt.url, archivePath);
+          downloaded = true;
+          break;
+        } catch (err) {
+          const reason = err instanceof Error ? err.message : String(err);
+          lastReason = reason;
+          if (reason !== 'NOT_FOUND') allNotFound = false;
+          mainWarn('NexusVfs', `${attempt.label} download failed: ${reason}`);
+        }
       }
-      this.emit('error', `Failed to download nexus-vfs: ${lastReason}`);
-      throw new Error(lastReason);
+
+      if (!downloaded) {
+        if (allNotFound) {
+          const msg = `nexus-vfs binary not available for ${process.platform}-${process.arch} in v${this.getBundledVersion()} (all COS mirrors → HTTP 404)`;
+          this.emit('error', msg);
+          throw new Error(msg);
+        }
+        this.emit('error', `Failed to download nexus-vfs: ${lastReason}`);
+        throw new Error(lastReason);
+      }
     }
 
     // Integrity check before we trust the archive — reject anything unverified.
@@ -316,9 +359,12 @@ class DynamicNexusVfsService {
     }
     const actualSha = crypto.createHash('sha256').update(fs.readFileSync(archivePath)).digest('hex');
     if (actualSha !== expectedSha) {
-      try {
-        fs.unlinkSync(archivePath);
-      } catch {}
+      // Only delete the downloaded file, not a bundled resource.
+      if (!bundledPath) {
+        try {
+          fs.unlinkSync(archivePath);
+        } catch {}
+      }
       const msg = `nexus-vfs SHA256 mismatch for ${this.getArtifactName()}: expected ${expectedSha}, got ${actualSha}`;
       this.emit('error', msg);
       throw new Error(msg);
@@ -344,7 +390,10 @@ class DynamicNexusVfsService {
 
     try {
       fs.rmSync(extractDir, { recursive: true, force: true });
-      fs.unlinkSync(archivePath);
+      // Only delete the downloaded archive, not a bundled resource.
+      if (!bundledPath) {
+        fs.unlinkSync(archivePath);
+      }
     } catch {}
 
     this.emit('idle', `nexus-vfs installed: ${targetBinary}`, 100);
