@@ -40,6 +40,15 @@ export interface TenantConfig {
    * override locally. null/undefined → shown (default true).
    */
   client_show_tool_calls?: boolean | null;
+  /**
+   * 企业版客户端上传到会话工作区的单个文件大小上限（字节）。由 Moss 管理端控制，
+   * 仅企业模式生效；null/undefined 视为默认 20MB。客户端在上传前用它做大小校验，
+   * 服务端同样强制此上限。
+   * Max size (bytes) for a single file uploaded into a session workspace.
+   * Controlled by the Moss admin; enterprise mode only. null/undefined → 20MB
+   * default. The client pre-checks size against it; the server also enforces it.
+   */
+  workspace_upload_limit_bytes?: number | null;
 }
 
 /**
@@ -51,7 +60,7 @@ export interface TenantConfigResponse {
   msg?: string;
 }
 
-export type TenantConfigInput = Partial<Record<keyof TenantConfig, string | boolean | null | undefined>>;
+export type TenantConfigInput = Partial<TenantConfig>;
 
 export const TENANT_CONFIG_STORAGE_KEY = 'sudowork_tenant_config';
 
@@ -59,6 +68,10 @@ export const TENANT_CONFIG_STORAGE_KEY = 'sudowork_tenant_config';
  * 默认租户配置
  * 当接口未返回或字段为空时使用此默认值
  */
+/** Default single-file workspace upload limit (20MB) when the tenant config
+ *  does not specify one. Mirrors the moss server default. */
+export const DEFAULT_WORKSPACE_UPLOAD_LIMIT_BYTES = 20 * 1024 * 1024;
+
 export const DEFAULT_TENANT_CONFIG: Required<TenantConfig> = {
   logo: undefined,
   app_name: 'SudoWork',
@@ -68,6 +81,7 @@ export const DEFAULT_TENANT_CONFIG: Required<TenantConfig> = {
   app_company_name: '北京数牍科技有限公司',
   client_cron_enabled: true,
   client_show_tool_calls: true,
+  workspace_upload_limit_bytes: DEFAULT_WORKSPACE_UPLOAD_LIMIT_BYTES,
 };
 
 export function resolveTenantConfig(config?: TenantConfigInput | null): Required<TenantConfig> {
@@ -82,5 +96,12 @@ export function resolveTenantConfig(config?: TenantConfigInput | null): Required
     client_cron_enabled: config?.client_cron_enabled === false ? false : true,
     // Only an explicit `false` hides tool calls; null/undefined → default shown.
     client_show_tool_calls: config?.client_show_tool_calls === false ? false : true,
+    // Use the configured limit only when it is a positive number; otherwise default.
+    workspace_upload_limit_bytes:
+      typeof config?.workspace_upload_limit_bytes === 'number' &&
+      Number.isFinite(config.workspace_upload_limit_bytes) &&
+      config.workspace_upload_limit_bytes > 0
+        ? config.workspace_upload_limit_bytes
+        : DEFAULT_WORKSPACE_UPLOAD_LIMIT_BYTES,
   };
 }
