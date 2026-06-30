@@ -36,6 +36,15 @@ export class ServiceManager {
   private gateway: SudoclawGateway | null = null;
   private adbSidechannel: AdbResultSidechannel | null = null;
   private startupInProgress = false;
+  // Set true only after a startup() run completes its readiness verification.
+  // Guards against a *second sequential* startup() (startupInProgress only
+  // guards concurrent re-entry and is cleared in the finally below). Both
+  // consumer and enterprise ModeSetup re-invoke startup() via
+  // startConsumerServices after the initial boot startup, and a redundant run
+  // re-does nexus port-prep (killProcessesOnPort(12022)), killing the already
+  // running nexusd and silently tearing the app down. Reset by shutdown() so a
+  // post-quit relaunch path can start fresh.
+  private startupCompleted = false;
   private shuttingDown = false;
   private sudoclawStartPromise: Promise<void> | null = null;
   private nexusStartPromise: Promise<void> | null = null;
@@ -78,8 +87,29 @@ export class ServiceManager {
   //  startup — fire-and-forget from process/index.ts
   // ────────────────────────────────────────────────────────────────────────────
 
-  async startup(): Promise<void> {
+  /**
+   * @param force Re-run the full startup even if a previous run already
+   *   completed. Only operator-initiated re-provisioning (retryStartup /
+   *   reinstallComponent) should pass this; automatic callers (boot,
+   *   setAppMode/startConsumerServices) must NOT, so a redundant call is a
+   *   no-op instead of re-killing the running nexusd.
+   */
+  async startup(force = false): Promise<void> {
     if (this.startupInProgress) {
+      return;
+    }
+    // Already started successfully — a repeat automatic call (e.g. ModeSetup's
+    // startConsumerServices after the boot startup) must be a no-op, not a
+    // re-spawn. A failed run leaves this false so a retry still works; an
+    // explicit force=true (operator retry/reinstall) bypasses this guard.
+    if (this.startupCompleted && !force) {
+      mainLog('ServiceManager', 'startup() called again after completion — skipping (already started)');
+      // The caller is typically setAppMode/startConsumerServices, which reloads
+      // the renderer — and the freshly-mounted InitLoading waits for a 'ready'
+      // status that this no-op would otherwise never emit, leaving the UI stuck
+      // on "正在启动核心服务...". Services are already up, so re-assert ready.
+      initStatusManager.setStatus('ready', '初始化完成', 100);
+      initStatusManager.clearRetry();
       return;
     }
 
@@ -121,6 +151,9 @@ export class ServiceManager {
       // Start health monitor for auto-healing components
       const { componentHealthMonitor } = await import('./ComponentHealthMonitor');
       void componentHealthMonitor.start();
+
+      // Mark complete only on the success path so a failed run can still retry.
+      this.startupCompleted = true;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       initStatusManager.setStatus('error', '初始化失败', 0, message);
@@ -140,6 +173,8 @@ export class ServiceManager {
 
   async shutdown(): Promise<void> {
     this.shuttingDown = true;
+    // Allow a fresh startup() after a full shutdown (services are torn down below).
+    this.startupCompleted = false;
     // Stop Auth Proxy first — no new requests should be accepted after shutdown begins
     try {
       const { stopAuthProxy } = await import('@process/services/authProxy');

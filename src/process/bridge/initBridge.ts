@@ -18,7 +18,8 @@ export function initInitBridge(): void {
       const { serviceManager } = await import('../services/serviceManager');
       initStatusManager.clearRetry();
       initStatusManager.addLog('↻ 手动触发重新启动检查...');
-      await serviceManager.startup();
+      // Operator-initiated retry: force a full run even if a prior startup completed.
+      await serviceManager.startup(true);
       const finalStatus = initStatusManager.getStatus();
       if (finalStatus.phase === 'ready') {
         return { success: true };
@@ -66,7 +67,9 @@ export function initInitBridge(): void {
         removeScodeInstallation();
       }
 
-      await serviceManager.startup();
+      // Operator-initiated reinstall: force a full run so the reinstalled
+      // component is re-provisioned even if a prior startup completed.
+      await serviceManager.startup(true);
       const finalStatus = initStatusManager.getStatus();
       if (finalStatus.phase === 'ready') {
         return { success: true };

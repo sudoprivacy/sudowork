@@ -941,7 +941,13 @@ export function initConversationBridge(): void {
     }
     filesToProcess = resolvedFiles;
 
-    const workspaceFiles = await copyFilesToDirectory(workspace, filesToProcess, false);
+    // Remote-agent (enterprise/moss) sessions have no usable local workspace —
+    // `workspace` is empty, so copyFilesToDirectory would resolve to the
+    // packaged app's read-only cwd and fail (EROFS), dropping the attachment.
+    // Pass the original local paths straight through; RemoteAgent.sendMessage
+    // uploads them into the moss session's server-side workspace and rewrites
+    // them to workspace-relative `@` refs. Local agents keep the copy-to-cwd path.
+    const workspaceFiles = task.type === 'remote-agent' ? filesToProcess : await copyFilesToDirectory(workspace, filesToProcess, false);
 
     let conversation: TChatConversation | undefined;
     try {
