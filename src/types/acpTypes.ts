@@ -174,6 +174,18 @@ export const POTENTIAL_ACP_CLIS: PotentialAcpCli[] = new Proxy([] as PotentialAc
 });
 
 /**
+ * 后端 ACP bridge 实现的会话恢复机制 / Session-resume mechanism a backend's ACP bridge implements.
+ * - 'session-load': ACP 标准 `session/load`，按 session id 从磁盘恢复完整历史（默认；codex、scode，
+ *   以及任何符合 ACP 标准的 bridge）/ ACP-standard `session/load` by id (default).
+ * - 'meta-resume': `session/new` 携带 `_meta.claudeCode.options.resume`（claude-agent-acp / codebuddy 专用）
+ *   / `session/new` carrying `_meta.claudeCode.options.resume`.
+ *
+ * 恢复失败时统一回退到全新会话，因此默认值对未经验证的 bridge 也是安全的（最坏等同于一次全新会话）。
+ * Resume falls back to a fresh session on failure, so the default is safe for unverified bridges.
+ */
+export type AcpResumeStrategy = 'session-load' | 'meta-resume';
+
+/**
  * ACP 后端 Agent 配置
  * 用于内置后端（claude, gemini, qwen）和用户自定义 Agent
  *
@@ -231,6 +243,13 @@ export interface AcpBackendConfig {
 
   /** 是否支持流式响应 / Whether this backend supports streaming responses */
   supportsStreaming?: boolean;
+
+  /**
+   * 此后端 ACP bridge 实现的会话恢复机制；缺省为 'session-load'（ACP 标准）。
+   * The session-resume mechanism this backend's ACP bridge implements; defaults to 'session-load'.
+   * 仅 claude/codebuddy 需覆盖为 'meta-resume'。详见 {@link AcpResumeStrategy}。
+   */
+  resumeStrategy?: AcpResumeStrategy;
 
   /**
    * 传递给子进程的自定义环境变量
@@ -356,6 +375,7 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
     authRequired: true,
     enabled: true,
     supportsStreaming: false,
+    resumeStrategy: 'meta-resume', // claude-agent-acp resumes via session/new _meta.claudeCode.options.resume
   },
   gemini: {
     id: 'gemini',
@@ -402,6 +422,7 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
     enabled: false, // ✅ Tencent CodeBuddy Code CLI，使用 `codebuddy --acp` 启动
     supportsStreaming: false,
     acpArgs: ['--acp'], // codebuddy 使用 --acp flag
+    resumeStrategy: 'meta-resume', // CodeBuddy ACP 复用 claude-agent-acp 的 _meta resume 机制
   },
   goose: {
     id: 'goose',
@@ -556,6 +577,16 @@ export function getAllAcpBackends(): AcpBackendConfig[] {
 // 检查后端是否启用 / Check if a backend is enabled
 export function isAcpBackendEnabled(backend: AcpBackendAll): boolean {
   return ACP_BACKENDS_ALL[backend]?.enabled ?? false;
+}
+
+/**
+ * 获取后端的会话恢复策略（SSOT）。缺省 'session-load'（ACP 标准）。
+ * Resolve a backend's session-resume strategy (single source of truth).
+ * Defaults to 'session-load' (the ACP-standard `session/load` path).
+ */
+export function getAcpResumeStrategy(backend: AcpBackend | null | undefined): AcpResumeStrategy {
+  if (!backend) return 'session-load';
+  return ACP_BACKENDS_ALL[backend]?.resumeStrategy ?? 'session-load';
 }
 
 // ACP 错误类型系统 - 优雅的错误处理 / ACP Error Type System - Elegant error handling

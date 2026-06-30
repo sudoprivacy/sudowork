@@ -9,7 +9,7 @@ import { promisify } from 'util';
 import { promises as fs } from 'fs';
 import os from 'os';
 import path from 'path';
-import { ACP_METHODS, JSONRPC_VERSION } from '@/types/acpTypes';
+import { ACP_METHODS, getAcpResumeStrategy, JSONRPC_VERSION } from '@/types/acpTypes';
 import type { AcpBackend, AcpIncomingMessage, AcpMessage, AcpNotification, AcpPermissionRequest, AcpPromptResponseUsage, AcpQuestionRequest, AcpQuestionResponseAnswer, AcpRequest, AcpResponse, AcpSessionConfigOption, AcpSessionModels, AcpSessionUpdate } from '@/types/acpTypes';
 import { mainLog } from '@process/utils/mainLogger';
 import { resolveNpxPath } from '@process/utils/shellEnv';
@@ -750,9 +750,12 @@ export class AcpConnection {
     // Sending the absolute path again makes some CLIs treat it as a nested relative path.
     const normalizedCwd = this.normalizeCwdForAgent(cwd);
 
-    // Build _meta for Claude/CodeBuddy ACP resume support
-    // claude-agent-acp and codebuddy use _meta.claudeCode.options.resume for session resume
-    const useMetaResume = (this.backend === 'claude' || this.backend === 'codebuddy') && options?.resumeSessionId;
+    // Resume on session/new is only meaningful for 'meta-resume' backends (claude-agent-acp /
+    // codebuddy), which carry the prior session id in `_meta.claudeCode.options.resume`. Every
+    // other backend resumes through the ACP-standard `session/load` (see getAcpResumeStrategy),
+    // so we never attach a generic `resumeSessionId` here — that param had no consumer and made
+    // scode silently mint a fresh, empty session instead of resuming.
+    const useMetaResume = getAcpResumeStrategy(this.backend) === 'meta-resume' && options?.resumeSessionId;
     const meta = useMetaResume
       ? {
           claudeCode: {
@@ -766,10 +769,8 @@ export class AcpConnection {
     const response = await this.sendRequest<AcpResponse & { sessionId?: string }>('session/new', {
       cwd: normalizedCwd,
       mcpServers: [] as unknown[],
-      // Claude/CodeBuddy ACP uses _meta for resume
+      // meta-resume backends (claude/codebuddy) pass the resume id through _meta
       ...(meta && { _meta: meta }),
-      // Generic resume parameters for other ACP backends
-      ...(this.backend !== 'claude' && this.backend !== 'codebuddy' && options?.resumeSessionId && { resumeSessionId: options.resumeSessionId }),
       ...(options?.forkSession && { forkSession: options.forkSession }),
     });
 
