@@ -8,19 +8,20 @@ import { mkdirSync as _mkdirSync, existsSync, lstatSync, readdirSync, readFileSy
 import fs from 'fs/promises';
 import path from 'path';
 import { app } from 'electron';
-import { application } from '../common/ipcBridge';
-import type { IChatConversationRefer, IConfigStorageRefer, IEnvStorageRefer, IMcpServer } from '../common/storage';
-import { ChatMessageStorage, ChatStorage, ConfigStorage, EnvStorage } from '../common/storage';
-import { copyDirectoryRecursively, ensureDirectory, getConfigPath, getDataPath, getTempPath, verifyDirectoryFiles } from './utils';
-import { getDatabase } from './database/export';
-import { perfLog, mainLog, mainWarn, mainError } from './utils/mainLogger';
-import { SKILL_SUBDIRS, ENTERPRISE_SKILL_SUBDIRS } from './constants/skillStorage';
-import { ASSISTANT_SUBDIRS, ENTERPRISE_ASSISTANT_SUBDIRS } from './constants/assistantStorage';
 import type { AcpBackendConfig } from '@/types/acpTypes';
 import { ASSISTANT_PRESETS } from '@/common/presets/assistantPresets';
 import type { TMessage } from '@/common/chatLib';
 import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
 import { BUILD_SUDOWORK_SERVER_BASE_URL, normalizeSudoworkServerUrl } from '@/common/sudoworkServer';
+import { application } from '../common/ipcBridge';
+import type { IChatConversationRefer, IConfigStorageRefer, IEnvStorageRefer, IMcpServer } from '../common/storage';
+import { ChatMessageStorage, ChatStorage, ConfigStorage, EnvStorage } from '../common/storage';
+import { copyDirectoryRecursively, ensureDirectory, getConfigPath, getDataPath, getTempPath, verifyDirectoryFiles } from './utils';
+import { getDatabase } from './database/export';
+import { notifyDatabaseUnavailable } from './startupNotice';
+import { perfLog, mainLog, mainWarn, mainError } from './utils/mainLogger';
+import { SKILL_SUBDIRS, ENTERPRISE_SKILL_SUBDIRS } from './constants/skillStorage';
+import { ASSISTANT_SUBDIRS, ENTERPRISE_ASSISTANT_SUBDIRS } from './constants/assistantStorage';
 // Platform and architecture types (moved from deleted updateConfig)
 type PlatformType = 'win32' | 'darwin' | 'linux';
 type ArchitectureType = 'x64' | 'arm64' | 'ia32' | 'arm';
@@ -545,7 +546,9 @@ export const getBundledBuiltinSkillDir = (skillName: string): string => {
  * ignore the sibling path entirely.
  */
 const resolveAiDevBrowserPackageDir = (): string | null => {
-  const candidates = app.isPackaged ? [path.join(app.getAppPath().replace('app.asar', 'app.asar.unpacked'), 'vendor/ai-dev-browser/ai_dev_browser'), path.join(process.resourcesPath, 'ai-dev-browser/ai_dev_browser')] : [path.join(app.getAppPath(), 'vendor/ai-dev-browser/ai_dev_browser'), path.join(app.getAppPath(), '..', 'ai-dev-browser', 'ai_dev_browser')];
+  const candidates = app.isPackaged
+    ? [path.join(app.getAppPath().replace('app.asar', 'app.asar.unpacked'), 'vendor/ai-dev-browser/ai_dev_browser'), path.join(process.resourcesPath, 'ai-dev-browser/ai_dev_browser')]
+    : [path.join(app.getAppPath(), 'vendor/ai-dev-browser/ai_dev_browser'), path.join(app.getAppPath(), '..', 'ai-dev-browser', 'ai_dev_browser')];
   return candidates.find((p) => existsSync(p)) ?? null;
 };
 
@@ -1142,6 +1145,10 @@ const initStorage = async () => {
       cleanupOrphanedHealthCheckConversations();
     } catch (error) {
       mainError('InitStorage', 'Database initialization failed, falling back to file-based storage:', error);
+      // The DB layer recovers from file corruption on its own, so reaching here means an
+      // engine/environment failure: data is intact on disk but unreachable this launch.
+      // Tell the user instead of silently presenting an empty store. Non-blocking.
+      void notifyDatabaseUnavailable();
     }
     perfLog('initStorage.database', Date.now() - dbStart);
   })();

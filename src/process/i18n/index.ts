@@ -88,5 +88,7 @@ export async function changeLanguage(language: string): Promise<void> {
   await ensureAndSwitch(i18n, language, getLocaleModules);
 }
 
+/** Resolves once main-process i18n has loaded; await before reading translations at startup. */
+export { initPromise as i18nReady };
 export { normalizeLanguageCode };
 export default i18n;
