@@ -552,11 +552,39 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
         data: { processingStartTime: this.processingStartTime },
       });
 
-      // Handle file references
+      // Handle file references. The incoming `data.files` are LOCAL paths
+      // (staged temp files on this machine) — the remote moss agent can't read
+      // them. Upload each into the moss session's server-side workspace and
+      // reference it by its workspace-relative path so `@name` resolves there.
+      // (The conversation bridge intentionally skips its local copyFilesToDirectory
+      // step for remote-agent tasks; that local copy both fails on the packaged
+      // app's read-only cwd and would be useless to the remote agent.)
       let contentToSend = data.content;
       if (data.files && data.files.length > 0) {
-        const fileRefs = data.files.map((f) => (f.includes(' ') ? `@"${f}"` : `@${f}`)).join(' ');
-        contentToSend = `${fileRefs} ${contentToSend}`;
+        const remoteRefs: string[] = [];
+        if (this.mossSessionId) {
+          const api = initMossApi(this.options.serverUrl);
+          for (const localPath of data.files) {
+            try {
+              const buffer = await fs.promises.readFile(localPath);
+              const relName = nodePath.basename(localPath);
+              const result = await api.uploadSessionWorkspaceFile(this.mossSessionId, {
+                path: relName,
+                contentBase64: buffer.toString('base64'),
+              });
+              const ref = result.relativePath || relName;
+              remoteRefs.push(ref.includes(' ') ? `@"${ref}"` : `@${ref}`);
+              mainLog('RemoteAgent', `Uploaded attachment to remote workspace: ${ref}`);
+            } catch (err) {
+              mainError('RemoteAgent', `Failed to upload attachment ${localPath} to remote workspace:`, err);
+            }
+          }
+        } else {
+          mainError('RemoteAgent', 'No mossSessionId available; cannot upload attachments to remote workspace');
+        }
+        if (remoteRefs.length > 0) {
+          contentToSend = `${remoteRefs.join(' ')} ${contentToSend}`;
+        }
       }
 
       // Tell the remote (moss) agent about scheduled tasks, once per session.
