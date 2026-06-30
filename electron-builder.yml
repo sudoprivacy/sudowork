@@ -211,11 +211,10 @@ extraResources:
     to: .
     filter:
       - v*-scode-macos-*
-  # Vault plugin - versioned, optional
-  - from: resources
-    to: .
-    filter:
-      - v*-nexus-vault-macos-*
+  # Vault plugin is intentionally NOT bundled on macOS: its dylib carries a
+  # detached Nexus signature and must not be Apple-codesigned (afterPack.js
+  # excludes it), but Apple notarization rejects unsigned Mach-O inside the
+  # .app. VaultPluginInstaller downloads it at runtime into ~/.nexus-vfs/plugins.
 
 win:
   legalTrademarks: Copyright © 2026 北京数牍科技有限公司
