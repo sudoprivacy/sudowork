@@ -1,0 +1,84 @@
+name: "scode session retained across model switch (resume regression guard)"
+description: >
+  A design partner's headline trigger: switching the model mid-conversation made
+  Sudo Code forget everything. The happy path keeps the session in the engine's
+  memory; the failure path tears down + reconnects the engine, and pre-fix that
+  reconnect resumed via scode's no-op `session/new` resumeSessionId -> a fresh
+  empty session -> amnesia. With PR #957's session/load routing, the reconnect
+  restores history, so the new model answers with full prior context.
+
+  The switch is driven by a REAL mouse click on the model dropdown -- the way a
+  user switches -- NOT the `/model` slash command (regular users don't type it).
+
+  Verified manually 2026-06-30 via ai-dev-browser against sudowork dev: seeded
+  the passphrase under the `auto` model, switched to `deepseek-v4-pro` via the
+  dropdown, asked for it, and the new model answered correctly -- with no file
+  reads (passphrase lived only in the scode session).
+
+tags: [api]
+
+steps:
+  - op: wait_for_app_ready
+    timeout: 300
+
+  # -- Sudo Code backend --
+  - op: click
+    x: 530
+    y: 27
+  - op: pause
+    duration: 3000
+  - op: mouse_click
+    text: "Sudo Code"
+  - op: pause
+    duration: 3000
+
+  # -- Phase 1: seed a passphrase (conversation context only, never a file) --
+  - op: type_text
+    text: "The passphrase is AMETHYST-HIPPO-7. Remember it for this conversation only. Do NOT write it to any file. Acknowledge in one short sentence."
+  - op: press_key
+    key: "Enter"
+    wait: 3
+  - op: wait_for_response
+    timeout: 60
+  - op: screenshot
+    path: "screenshots/resume-switch-01-seed.png"
+  - op: judge
+    expect: "Assistant acknowledges and echoes the passphrase AMETHYST-HIPPO-7"
+
+  # -- Phase 2: switch model via the dropdown (mouse, like a real user) --
+  # Click the model selector ("auto"), then pick a different model. The target
+  # must exist in the SudoRouter model list; deepseek-v4-pro is a common one --
+  # adjust to any available second model if the relay's catalog differs.
+  - op: mouse_click
+    text: "auto"
+  - op: pause
+    duration: 1500
+  - op: screenshot
+    path: "screenshots/resume-switch-02-dropdown.png"
+  - op: mouse_click
+    text: "deepseek-v4-pro"
+  - op: pause
+    duration: 2500
+  - op: screenshot
+    path: "screenshots/resume-switch-03-switched.png"
+
+  # -- Phase 3: the new model must recall from preserved context --
+  - op: type_text
+    text: "Answer ONLY from this conversation's context, do not read any file: what passphrase did I ask you to remember?"
+  - op: press_key
+    key: "Enter"
+    wait: 3
+  - op: wait_for_response
+    timeout: 60
+  - op: screenshot
+    path: "screenshots/resume-switch-04-recall.png"
+  - op: judge
+    expect: >
+      Assistant reply contains "AMETHYST-HIPPO-7" -- conversation context survived
+      the model switch. A reply that lost context ("we just started", no
+      passphrase, or a different one) means the switch tore down the session.
+
+  # No-cheat guard: recall must come from preserved context, not a file read.
+  - op: db_audit
+    assert_metrics:
+      read_calls: "== 0"

@@ -43,7 +43,7 @@ import type {
   ToolCallUpdate,
   ToolCallUpdateStatus,
 } from '@/types/acpTypes';
-import { ACP_BACKENDS_ALL, AcpErrorType, createAcpError } from '@/types/acpTypes';
+import { ACP_BACKENDS_ALL, AcpErrorType, createAcpError, getAcpResumeStrategy } from '@/types/acpTypes';
 import { ExtensionRegistry } from '@/extensions';
 import { getEnhancedEnv, resolveNpxPath } from '@process/utils/shellEnv';
 import { applyPresetRuntime } from '@process/task/presetRuntime';
@@ -602,17 +602,16 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
 
     if (resumeSessionId) {
       try {
-        let response: { sessionId?: string };
+        // Resume routing is driven by the per-backend strategy (SSOT in acpTypes), not ad-hoc
+        // backend checks. 'session-load' (default: scode, codex, any ACP-compliant bridge) restores
+        // history from disk by id via the ACP-standard `session/load`. 'meta-resume' (claude/codebuddy)
+        // resumes through `session/new` + `_meta.claudeCode.options.resume`.
+        const strategy = getAcpResumeStrategy(this.extra.backend);
+        const response: { sessionId?: string } = strategy === 'meta-resume' ? await this.connection.newSession(this.extra.workspace, { resumeSessionId, forkSession: false }) : await this.connection.loadSession(resumeSessionId, this.extra.workspace);
 
-        if (this.extra.backend === 'codex') {
-          response = await this.connection.loadSession(resumeSessionId, this.extra.workspace);
-        } else {
-          response = await this.connection.newSession(this.extra.workspace, {
-            resumeSessionId,
-            forkSession: false,
-          });
-        }
-
+        // Only adopt a server-minted id when the mechanism legitimately issues a new one (meta-resume
+        // bridges may). `session/load` keeps the id we sent, so it never orphans the stored handle —
+        // which is exactly the bug that made scode resume silently start a fresh, empty session.
         if (response.sessionId && response.sessionId !== resumeSessionId) {
           this.extra.acpSessionId = response.sessionId;
           saveAcpSessionId(this.conversation_id, response.sessionId);

@@ -1,0 +1,93 @@
+name: "scode session restored after app restart (resume regression guard)"
+description: >
+  A design partner reported 2026-06-30: closing/restarting the app (or
+  continuing yesterday's work) made Sudo Code "forget" the whole conversation.
+  Root cause: sudowork resumed scode by passing a generic `resumeSessionId` to
+  `session/new`, which scode ignores -- it always minted a fresh, EMPTY session,
+  so resume silently lost all history. The UI still rendered the old conversation
+  (from sudowork's SQLite), masking the fact that the engine had no context.
+
+  Fix (PR #957): resume routes scode through the ACP-standard `session/load`,
+  which restores the prior session by id from disk.
+
+  This case proves it end-to-end: seed a passphrase, FULLY restart the Electron
+  process (destroying the in-memory scode session), reopen the same conversation
+  (triggers createOrResumeSession -> session/load), and assert the engine still
+  recalls the passphrase -- from restored conversation context, NOT a file. The
+  `read_calls == 0` audit guards against the model cheating by reading AGENTS.md
+  or a memory file (the passphrase is deliberately never written to disk).
+
+  Verified manually 2026-06-30 via ai-dev-browser against sudowork dev: seeded
+  the passphrase, killed all electron + scode processes, relaunched, reopened the
+  conversation, and the freshly-resumed engine answered with it. Passphrase
+  confirmed present ONLY in the scode session JSONL, never in AGENTS.md / config.
+
+tags: [api]
+
+steps:
+  - op: wait_for_app_ready
+    timeout: 300
+
+  # -- Sudo Code backend --
+  - op: click
+    x: 530
+    y: 27
+  - op: pause
+    duration: 3000
+  - op: mouse_click
+    text: "Sudo Code"
+  - op: pause
+    duration: 3000
+
+  # -- Phase 1: seed a passphrase (conversation context only, never a file) --
+  - op: type_text
+    text: "The passphrase is AMETHYST-HIPPO-7. Remember it for this conversation only. Do NOT write it to any file, AGENTS.md, or memory. Acknowledge in one short sentence."
+  - op: press_key
+    key: "Enter"
+    wait: 3
+  - op: wait_for_response
+    timeout: 60
+  - op: screenshot
+    path: "screenshots/resume-restart-01-seed.png"
+  - op: judge
+    expect: "Assistant acknowledges and echoes the passphrase AMETHYST-HIPPO-7"
+
+  # -- Phase 2: FULL app restart -- destroys the in-memory scode session --
+  - op: restart_app
+    timeout: 180
+  - op: wait_for_app_ready
+    timeout: 300
+  - op: screenshot
+    path: "screenshots/resume-restart-02-after-restart.png"
+
+  # Reopen the same conversation from the sidebar -> createOrResumeSession ->
+  # session/load. The conversation title carries the passphrase, so click by text.
+  - op: mouse_click
+    text: "AMETHYST-HIPPO-7"
+  - op: pause
+    duration: 4000
+
+  # -- Phase 3: CRITICAL -- engine must recall from restored context --
+  # Pre-fix this FAILS: scode's session/new ignores resumeSessionId, so reopening
+  # starts a brand-new empty session and the model has no memory of Phase 1.
+  - op: type_text
+    text: "The app just restarted. Answer ONLY from this conversation's context, do not read any file: what passphrase did I ask you to remember?"
+  - op: press_key
+    key: "Enter"
+    wait: 3
+  - op: wait_for_response
+    timeout: 60
+  - op: screenshot
+    path: "screenshots/resume-restart-03-recall.png"
+  - op: judge
+    expect: >
+      Assistant reply contains "AMETHYST-HIPPO-7". This proves scode restored the
+      prior session via session/load across a full process restart. If the reply
+      says it has no prior context, starts fresh ("we just started"), or cannot
+      produce the passphrase, the resume fix is BROKEN.
+
+  # No-cheat guard: recall must come from restored context, not a file read.
+  # Zero "read" tool calls in this case proves it.
+  - op: db_audit
+    assert_metrics:
+      read_calls: "== 0"

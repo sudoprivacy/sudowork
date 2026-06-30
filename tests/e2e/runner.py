@@ -72,6 +72,14 @@ async def run_case(tab, case_path: Path) -> dict:
         # Use shared invoke_op (same code path as run_op.py)
         result = await invoke_op(tab, op_name, OPS, **kwargs)
 
+        # An op can hand back a fresh connection (e.g. restart_app relaunches
+        # Electron, which kills the old tab). Swap it in for the remaining
+        # steps and keep the non-serializable Tab object out of the results log.
+        if isinstance(result, dict):
+            new_tab = result.pop("_new_tab", None)
+            if new_tab is not None:
+                tab = new_tab
+
         # Check result — ops with a "pass" key are assertions (judge, db_audit,
         # check_port_isolation, etc.); everything else is a plain action.
         if "pass" in result:
