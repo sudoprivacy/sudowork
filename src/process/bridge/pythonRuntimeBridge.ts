@@ -14,15 +14,7 @@ export function initPythonRuntimeBridge(): void {
   ipcBridge.pythonRuntime.checkInstalled.provider(async () => {
     try {
       const status = await pythonRuntimeService.checkInstalled();
-      return {
-        success: true,
-        data: {
-          installed: status.installed,
-          version: status.version,
-          path: status.path,
-          source: 'system' as const,
-        },
-      };
+      return { success: true, data: status };
     } catch (err) {
       return { success: false, msg: err instanceof Error ? err.message : String(err) };
     }

@@ -779,7 +779,10 @@ module.exports = async function afterPack(context) {
     const scodeVersion = runtimeVersions.scode;
     const scodeArchive = `v${scodeVersion}-scode-macos-${targetArch}.tar.gz`;
 
-    const archivesToSign = [...fixedArchives, nodeArchive, scodeArchive, ...nexusArchives];
+    // Bundled Python runtime (python-build-standalone, architecture-specific)
+    const pythonArchive = `python-darwin-${targetArch}.tar.gz`;
+
+    const archivesToSign = [...fixedArchives, nodeArchive, scodeArchive, pythonArchive, ...nexusArchives];
     // Node.js binary needs JIT/memory entitlements so V8 can run under Hardened Runtime.
     // Without these, macOS blocks JIT compilation and Node crashes with SIGTRAP (trace trap).
     const entitlementsPath = path.join(__dirname, '..', 'entitlements.plist');

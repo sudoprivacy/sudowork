@@ -98,6 +98,9 @@ export function getRuntimeActionDescriptors(record: ToolRow): RuntimeActionDescr
   const installed = isInstalled(record);
   const source = record.status?.source;
   const canUninstall = record.key !== 'node' && source === 'managed';
+  // Show an "install managed" button when only a system-level runtime was detected,
+  // so the user can install the bundled version without uninstalling their existing one.
+  const canInstallManaged = source === 'system' && !!record.onInstall;
   const supportsStart = !!record.onStart;
   const resolvedStatus = resolveRuntimeStatus(record);
 
@@ -132,6 +135,11 @@ export function getRuntimeActionDescriptors(record: ToolRow): RuntimeActionDescr
         actions.push({ key: 'uninstall', type: 'outline', status: 'warning' });
       } else if (installed && record.onInstall && !record.onUninstall) {
         actions.push({ key: 'reinstall', type: 'outline' });
+      }
+
+      // System runtime detected but managed version not yet installed: offer install.
+      if (canInstallManaged) {
+        actions.push({ key: 'install', type: 'primary' });
       }
 
       actions.push({ key: 'refresh', type: 'outline' });

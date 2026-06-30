@@ -20,6 +20,7 @@ import os from 'os';
 import path from 'path';
 import { mainLog, mainWarn } from '@process/utils/mainLogger';
 import { getNodeBinaryPath, isNodeInstalled } from '@process/services/claudeCli/NodeRuntimeService';
+import { getPythonBinaryPath, getPipBinaryPath } from '@process/services/python/PythonRuntimeService';
 
 /** Enable ACP performance diagnostics via ACP_PERF=1 */
 const PERF_LOG = process.env.ACP_PERF === '1';
@@ -269,6 +270,24 @@ export function getEnhancedEnv(customEnv?: Record<string, string>): Record<strin
     mergedPath = mergePaths(mergedPath, winExtraPaths.join(';'));
   }
 
+  // Always prepend the managed Python bin directory to PATH so it has the highest
+  // priority. If the binary does not exist yet (e.g. not installed), the OS simply
+  // skips the directory and falls through to the next entry — no harm done.
+  // This ensures PATH order is stable regardless of install state, and that as
+  // soon as the managed Python is extracted it is immediately preferred.
+  //
+  // 始终将托管 Python bin 目录前置到 PATH（无论是否已安装）。
+  // 目录不存在时 OS 自动跳过，不影响系统 Python 的回退；
+  // 安装完成后立刻生效，无需重启也能优先命中内置版本。
+  {
+    const pythonBinDir = path.dirname(getPythonBinaryPath()); // ~/.nexus/python/bin on macOS/Linux
+    mergedPath = mergePaths(pythonBinDir, mergedPath);
+    // Windows: also prepend Scripts/ (contains pip.exe / pip3.exe)
+    if (process.platform === 'win32') {
+      mergedPath = mergePaths(path.dirname(getPipBinaryPath()), mergedPath);
+    }
+  }
+
   // Append managed (bundled) Node.js bin directory to PATH as fallback.
   // This ensures agents, skills, and assistant tool calls can find `node`,
   // `npm`, and `npx` even when no system Node.js is installed.
@@ -290,6 +309,18 @@ export function getEnhancedEnv(customEnv?: Record<string, string>): Record<strin
     // When customEnv.PATH exists, merge it with the already merged path (fix: don't override)
     PATH: customEnv?.PATH ? mergePaths(mergedPath, customEnv.PATH) : mergedPath,
   } as Record<string, string>;
+
+  // Clear PYTHONHOME whenever the managed Python directory exists (even partially,
+  // e.g. during installation). python-build-standalone locates its stdlib relative
+  // to its own binary and does not need PYTHONHOME; a system-set PYTHONHOME would
+  // point it at the wrong stdlib and cause crashes or silent version mixing.
+  //
+  // 只要托管 Python 目录存在（含安装中）就清掉 PYTHONHOME。
+  // python-build-standalone 通过自身二进制位置定位标准库，不需要 PYTHONHOME；
+  // 系统遗留的 PYTHONHOME 会指向错误路径，导致崩溃或静默地混入系统版本。
+  if (existsSync(path.dirname(getPythonBinaryPath()))) {
+    delete enhancedEnv['PYTHONHOME'];
+  }
 
   if (!app.isPackaged) {
     enhancedEnv.NPM_CONFIG_REGISTRY = DEV_NPM_REGISTRY;
