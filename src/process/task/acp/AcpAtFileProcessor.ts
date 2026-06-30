@@ -6,7 +6,7 @@
 
 import { extractAtPaths, parseAllAtCommands, reconstructQuery } from '@/common/atCommandParser';
 import { detectImageMimeType, resizeImageForContext, IMAGE_TARGET_RAW_SIZE } from '@/common/imageUtils';
-import { getImageTargetSize } from '@/common/imageUtils';
+import { getImageTargetSize, type IImageCapability } from '@/common/imageUtils';
 import type { AcpImageContentBlock } from '@/types/acpTypes';
 import { promises as fs } from 'fs';
 import * as path from 'path';
@@ -65,7 +65,7 @@ export interface ProcessedAtFileResult {
  * reads their content, and appends it to the message.
  * Image files (detected by magic bytes) are returned as separate content blocks.
  */
-export async function processAtFileReferences(content: string, workspace: string | undefined, uploadedFiles?: string[], modelId?: string): Promise<ProcessedAtFileResult> {
+export async function processAtFileReferences(content: string, workspace: string | undefined, uploadedFiles?: string[], modelId?: string, opts?: { capability?: IImageCapability | null; economyMode?: boolean }): Promise<ProcessedAtFileResult> {
   if (!workspace) {
     return { text: content, images: [] };
   }
@@ -84,7 +84,12 @@ export async function processAtFileReferences(content: string, workspace: string
   const images: ProcessedImageWithSource[] = [];
   const imageReferences: Set<string> = new Set();
 
-  const maxImageBytes = getImageTargetSize(modelId);
+  // Capability-aware cap: prefer the ACP backend's advertised
+  // downsampleTargetBytes (when present), respect user-opt-in economyMode,
+  // fall back to sudowork's 512 KB default. modelId is passed but no longer
+  // drives the cap (the old "gemini|claude → 128 KB" heuristic was wrong
+  // for SOTA vision models — see Decision 3).
+  const maxImageBytes = getImageTargetSize(modelId, opts);
 
   for (const atPath of atPaths) {
     const matchedUploadFile = uploadedFiles?.find((filePath) => {

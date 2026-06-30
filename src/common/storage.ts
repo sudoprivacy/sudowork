@@ -66,6 +66,12 @@ export interface IConfigStorageRefer {
   };
   // 是否在粘贴文件到工作区时询问确认（true = 不再询问）
   'workspace.pasteConfirm'?: boolean;
+  // 图像下采样经济模式 / Image downsample economy mode.
+  // OFF (default, undefined/false): use model-driven cap (`_meta.imageCapability.downsampleTargetBytes`
+  // from the ACP backend, or 512 KB sudowork default if unadvertised). Optimised for quality.
+  // ON (true): force-cap to 128 KB regardless of advertised value, trading image fidelity for
+  // lower input-token cost on metered plans. See `image-handling-non-user-facing.html` Decision 3.
+  'image.economyMode'?: boolean;
   // guid 页面上次选择的 agent 类型 / Last selected agent type on guid page
   'guid.lastSelectedAgent'?: string;
   // guid 页面 session 模式（E端 Local/Remote 切换）/ Guid page session mode (Enterprise Local/Remote toggle)

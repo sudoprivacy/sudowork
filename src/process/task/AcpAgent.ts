@@ -92,6 +92,8 @@ import { hasCronCommands } from './CronCommandDetector';
 import { detectChannelQueryIntent, executeChannelInfoCommand, type ChannelQueryCommand } from './ChannelInfoDetector';
 import { extractTextFromMessage, processCronInMessage } from './MessageMiddleware';
 import { processAtFileReferences } from './acp/AcpAtFileProcessor';
+import { parseImageCapability, type IImageCapability } from '@/common/imageUtils';
+import { ConfigStorage } from '@/common/storage';
 import { StreamTextBuffer, CronTextAccumulator, preprocessContentMessage } from './acp/AcpMessagePipeline';
 import { clearAcpSessionId, saveAcpSessionId, saveSessionMode, saveModelId, saveContextUsage } from './acp/AcpPersistence';
 import { extractLatestScodeAssistantUsageFromJsonl, findScodeSessionFile, normalizePromptUsageForMessage, SCODE_LATE_RECONCILIATION_DEFAULTS } from './acpUsageReconciliation';
@@ -974,7 +976,18 @@ This identity statement takes priority over the default identity in USER.md.
           };
         }
 
-        const processed = await processAtFileReferences(contentToSend, this.workspace, data.files, this.persistedModelId);
+        // ACP capability negotiation (design: image-handling-non-user-facing.html
+        // Decision 1). Read once per turn — the cap is part of the session, not
+        // the model. Backends that don't advertise the extension → `null`, which
+        // makes getImageTargetSize fall back to sudowork defaults (Decision 1's
+        // graceful-degradation hard rule).
+        const imageCapability: IImageCapability | null = parseImageCapability(this.connection.getInitializeResponse());
+        const economyMode = (await ConfigStorage.get('image.economyMode').catch(() => undefined)) === true;
+
+        const processed = await processAtFileReferences(contentToSend, this.workspace, data.files, this.persistedModelId, {
+          capability: imageCapability,
+          economyMode,
+        });
         contentToSend = processed.text;
         if (processed.images.length > 0) {
           mainLog('AcpAgent', `sendMessage: sending ${processed.images.length} image(s) as content blocks, mimeTypes=[${processed.images.map((i) => i.mimeType).join(', ')}]`);
@@ -983,16 +996,26 @@ This identity statement takes priority over the default identity in USER.md.
         const finalImages = processed.images;
 
         if (processed.images.length > 0 && this.options.backend === 'scode') {
-          const currentModel = this.persistedModelId || this.getModelInfo()?.currentModelId;
-          if (!isModelVisionCapable(currentModel)) {
-            const modelLabel = this.getModelInfo()?.currentModelLabel || currentModel || 'unknown';
-            const visionModels = getScodeProxyModelInfoSync()
-              ?.availableModels?.filter((m) => isModelVisionCapable(m.id))
-              ?.map((m) => m.label || m.id)
-              ?.join(', ');
-            const tip = `当前模型 "${modelLabel}" 不支持图片分析，请切换到支持视觉的模型${visionModels ? `（如 ${visionModels}）` : ''}后再发送图片。`;
-            this.emitErrorMessage(tip);
-            return { success: false, message: tip };
+          // Wrong-model handling (design: Decision 2). When the ACP backend
+          // advertises `autoHandlesWrongModel=true` (sudocode does, as of the
+          // matching sudocode PR #258 commit chain), sudowork hands off silently
+          // — sudocode's push_images runs the VLM-route internally and substitutes
+          // a description for the image. Sudowork only emits the legacy "model
+          // doesn't support images" tip when the backend cannot handle it AND
+          // the active model is text-only — preserving the existing UX for
+          // pre-extension scode versions and other backends.
+          if (!imageCapability?.autoHandlesWrongModel) {
+            const currentModel = this.persistedModelId || this.getModelInfo()?.currentModelId;
+            if (!isModelVisionCapable(currentModel)) {
+              const modelLabel = this.getModelInfo()?.currentModelLabel || currentModel || 'unknown';
+              const visionModels = getScodeProxyModelInfoSync()
+                ?.availableModels?.filter((m) => isModelVisionCapable(m.id))
+                ?.map((m) => m.label || m.id)
+                ?.join(', ');
+              const tip = `当前模型 "${modelLabel}" 不支持图片分析，请切换到支持视觉的模型${visionModels ? `（如 ${visionModels}）` : ''}后再发送图片。`;
+              this.emitErrorMessage(tip);
+              return { success: false, message: tip };
+            }
           }
         }
 
