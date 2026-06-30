@@ -87,14 +87,22 @@ export class ServiceManager {
   //  startup — fire-and-forget from process/index.ts
   // ────────────────────────────────────────────────────────────────────────────
 
-  async startup(): Promise<void> {
+  /**
+   * @param force Re-run the full startup even if a previous run already
+   *   completed. Only operator-initiated re-provisioning (retryStartup /
+   *   reinstallComponent) should pass this; automatic callers (boot,
+   *   setAppMode/startConsumerServices) must NOT, so a redundant call is a
+   *   no-op instead of re-killing the running nexusd.
+   */
+  async startup(force = false): Promise<void> {
     if (this.startupInProgress) {
       return;
     }
-    // Already started successfully — a repeat call (e.g. ModeSetup's
+    // Already started successfully — a repeat automatic call (e.g. ModeSetup's
     // startConsumerServices after the boot startup) must be a no-op, not a
-    // re-spawn. A failed run leaves this false so a retry still works.
-    if (this.startupCompleted) {
+    // re-spawn. A failed run leaves this false so a retry still works; an
+    // explicit force=true (operator retry/reinstall) bypasses this guard.
+    if (this.startupCompleted && !force) {
       mainLog('ServiceManager', 'startup() called again after completion — skipping (already started)');
       return;
     }
