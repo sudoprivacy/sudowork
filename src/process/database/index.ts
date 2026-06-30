@@ -6,40 +6,21 @@
 
 import fs from 'fs';
 import path from 'path';
-import { ensureDirectory, getDataPath } from '@process/utils';
 import type Database from 'better-sqlite3';
 import BetterSqlite3 from 'better-sqlite3';
+import { ensureDirectory, getDataPath } from '@process/utils';
 import { mainLog, mainError } from '@process/utils/mainLogger';
 import { resolveSecret, cachePut } from '@common/nexus/secret-cache';
 import { SecretMigrationCoordinator } from '@common/nexus/secret-migration';
-import { runMigrations as executeMigrations } from './migrations';
-import { CURRENT_DB_VERSION, getDatabaseVersion, initSchema, setDatabaseVersion } from './schema';
-import type { IConversationRow, IMessageRow, IPaginatedResult, IQueryResult, IUser, TChatConversation, TMessage } from './types';
-import { conversationToRow, messageToRow, rowToConversation, rowToMessage } from './types';
 import type { IChannelPluginConfig, IChannelUser, IChannelSession, IChannelPairingRequest, IChannelUserRow, IChannelSessionRow, IChannelPairingCodeRow, PluginType, PluginStatus } from '@/channels/types';
 import type { ScodeCustomModelProvider } from '@/common/scodeConfig';
 import type { ConversationSource, TProviderWithModel } from '@/common/storage';
 import { rowToChannelUser, rowToChannelSession, rowToPairingRequest } from '@/channels/types';
-
-/**
- * True ONLY for errors indicating the SQLite *file* itself is corrupt/unreadable as
- * a database — the single case where renaming it aside is safe. Engine/environment
- * failures (missing or ABI-mismatched native binding, permission denied, locked db)
- * must NOT sideline the user's data: doing so turns a recoverable install/runtime
- * problem into apparent data loss. When in doubt, treat as NOT corrupt (fail loud,
- * keep the file).
- */
-function isCorruptDatabaseFileError(error: unknown): boolean {
-  const msg = (error instanceof Error ? error.message : String(error)).toLowerCase();
-  const code = String((error as { code?: unknown })?.code ?? '').toUpperCase();
-  return (
-    code === 'SQLITE_CORRUPT' ||
-    code === 'SQLITE_NOTADB' ||
-    msg.includes('malformed') || // SQLITE_CORRUPT: "database disk image is malformed"
-    msg.includes('file is not a database') || // SQLITE_NOTADB
-    msg.includes('file is encrypted or is not a database')
-  );
-}
+import { runMigrations as executeMigrations } from './migrations';
+import { isCorruptDatabaseFileError } from './corruptionError';
+import { CURRENT_DB_VERSION, getDatabaseVersion, initSchema, setDatabaseVersion } from './schema';
+import type { IConversationRow, IMessageRow, IPaginatedResult, IQueryResult, IUser, TChatConversation, TMessage } from './types';
+import { conversationToRow, messageToRow, rowToConversation, rowToMessage } from './types';
 
 /**
  * Main database class for Sudowork

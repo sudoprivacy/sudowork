@@ -1,4 +1,8 @@
 {
+  "database_open_failed": {
+    "title": "Veritabanı açılamadı",
+    "body": "Verileriniz güvende — diskteki veritabanı dosyaları değiştirilmedi veya silinmedi. Bu açılışta Sudowork yerel veritabanını açamadı, bu nedenle geçmişiniz görünmeyebilir. Lütfen uygulamayı yeniden başlatın; sorun devam ederse Sudowork'ü yeniden yükleyin veya onarın. Verilerin tutarlı kalması için sorun çözülene kadar yeni sohbet oluşturmaktan kaçının."
+  },
   "context_window_exceeded": {
     "title": "Konuşma geçmişi model bağlamını aştı",
     "body": "Mevcut konuşmanın birikmiş içeriği modelin işleyebileceği bağlam penceresini aştı. Devam etmek için geçmişi sıkıştırın veya yeni bir konuşma başlatın.",

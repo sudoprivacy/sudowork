@@ -58,6 +58,8 @@ export default defineConfig({
       // 例如: 'src/process/services/newService.ts'
       include: [
         // Process / bridge
+        'src/process/database/corruptionError.ts',
+        'src/process/startupNotice.ts',
         'src/process/services/autoUpdaterService.ts',
         'src/process/services/conversionService.ts',
         'src/process/services/scode/scodeProxyModels.ts',
