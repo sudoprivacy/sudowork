@@ -1,0 +1,56 @@
+name: "ACP image attachment never surfaces a wrong-model / oversized tip (image-handling-non-user-facing design)"
+description: >
+  Regression guard for the design at
+  https://s.shareone.vip/s/image-handling-non-user-facing (Decisions 1 + 2).
+
+  ## What this test asserts
+
+  When the user attaches an image to a conversation:
+
+    1. If the active model is vision-capable AND the image is within cap → it
+       reaches the model natively, the response references the image.
+    2. If the active model is text-only → sudocode's push_images runs the
+       VLM-route internally (gemini-2.5-flash) and substitutes a description.
+       Sudowork must NOT emit "当前模型 X 不支持图片分析" (the legacy tip is
+       gated by `_meta.sudocode.imageCapability.autoHandlesWrongModel`, which
+       sudocode advertises as true).
+    3. If the image is oversized (>5MB even at JPEG q25, pathological inputs
+       only) → sudocode VLM-route also fires and substitutes a description.
+
+  The CRITICAL invariant across all three: the user never sees a size/wrong-
+  model error message, the conversation continues, and the assistant
+  responds about the image content.
+
+  ## Status — GATED on a new e2e op
+
+  The same blocker the existing `acp-session-preserved-after-error.yaml`
+  "Followup" section already documents:
+
+  > A targeted PR-A test for the ACTUAL single_request_too_large path
+  > (image-paste at 25MB+) requires either:
+  >   - a new e2e op `paste_clipboard_image_file <path>` that puts a file
+  >     on the OS clipboard + dispatches a real ClipboardEvent with the
+  >     image as DataTransfer
+  >   - or a `programmatic_attach_image <path>` op that calls sudowork's
+  >     IPC bridge directly to push an image into the chat
+
+  Until one of those ops exists, this yaml is the SPEC for the e2e; the
+  actual STEP runs once the op lands. Manual verification covers the
+  contract today (see "Verified manually" below).
+
+  ## Verified manually 2026-06-30 (sudowork-win-pc-0)
+
+  Driven via ai-dev-browser against sudowork dev at port 9230 with:
+
+    - Phase A: text-only model + image attached → assistant describes the
+      image (not the "当前模型 X 不支持图片分析" tip)
+    - Phase B: vision-capable model + small image → native pass-through
+    - Phase C: vision-capable model + 8MB photo → preflight downsamples,
+      response references the image content
+
+tags: [api, image, pending-op]
+
+# steps: deliberately empty until `paste_clipboard_image_file` op lands.
+# pytest runner skips yaml files with no steps; this serves as a documented
+# spec for the future test rather than a deferred TODO.
+steps: []
