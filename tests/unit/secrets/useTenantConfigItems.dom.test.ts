@@ -8,18 +8,19 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
 
 // --- Mock declarations via vi.hoisted (Vitest 4 pattern) ---
-const { mockEnsureValidToken, mockForceRefreshToken, mockSecretGet, mockSecretPut, mockSecretDelete, mockSecretRestore, mockConfigStorageGet, mockConfigStorageSet, mockFetch } =
-  vi.hoisted(() => ({
-    mockEnsureValidToken: vi.fn(),
-    mockForceRefreshToken: vi.fn(),
-    mockSecretGet: vi.fn(),
-    mockSecretPut: vi.fn(),
-    mockSecretDelete: vi.fn(),
-    mockSecretRestore: vi.fn(),
-    mockConfigStorageGet: vi.fn(),
-    mockConfigStorageSet: vi.fn(),
-    mockFetch: vi.fn(),
-  }));
+const { mockEnsureValidToken, mockForceRefreshToken, mockSecretGet, mockSecretPut, mockSecretDelete, mockSecretRestore, mockConfigStorageGet, mockConfigStorageSet, mockAuthProxyEnabledStateChangedOn, mockAuthProxyRefreshRules, mockFetch } = vi.hoisted(() => ({
+  mockEnsureValidToken: vi.fn(),
+  mockForceRefreshToken: vi.fn(),
+  mockSecretGet: vi.fn(),
+  mockSecretPut: vi.fn(),
+  mockSecretDelete: vi.fn(),
+  mockSecretRestore: vi.fn(),
+  mockConfigStorageGet: vi.fn(),
+  mockConfigStorageSet: vi.fn(),
+  mockAuthProxyEnabledStateChangedOn: vi.fn(),
+  mockAuthProxyRefreshRules: vi.fn(),
+  mockFetch: vi.fn(),
+}));
 
 // --- Module mocks ---
 vi.mock('@/renderer/context/AuthContext', () => ({
@@ -36,6 +37,10 @@ vi.mock('@/common/ipcBridge', () => ({
     delete: { invoke: (...args: unknown[]) => mockSecretDelete(...args) },
     restore: { invoke: (...args: unknown[]) => mockSecretRestore(...args) },
   },
+  authProxy: {
+    enabledStateChanged: { on: (...args: unknown[]) => mockAuthProxyEnabledStateChangedOn(...args) },
+    refreshRules: { invoke: (...args: unknown[]) => mockAuthProxyRefreshRules(...args) },
+  },
 }));
 
 vi.mock('@/common/storage', () => ({
@@ -49,7 +54,7 @@ vi.mock('@/common/storage', () => ({
 vi.stubGlobal('fetch', mockFetch);
 
 // Import the hook after mocks are set up
-import { useTenantConfigItems } from '@/renderer/components/SettingsModal/contents/secrets/useTenantConfigItems';
+import { useTenantConfigItems } from '@/renderer/pages/settings/channels/hooks/useTenantConfigItems';
 
 const defaultApiResponse = {
   success: true,
@@ -92,6 +97,8 @@ describe('useTenantConfigItems', () => {
     mockSecretRestore.mockResolvedValue({ success: true, data: true });
     mockConfigStorageGet.mockResolvedValue(undefined);
     mockConfigStorageSet.mockResolvedValue(undefined);
+    mockAuthProxyEnabledStateChangedOn.mockReturnValue(vi.fn());
+    mockAuthProxyRefreshRules.mockResolvedValue({ success: true });
 
     mockApiSuccess();
   });
@@ -128,7 +135,7 @@ describe('useTenantConfigItems', () => {
         headers: expect.objectContaining({
           Authorization: 'Bearer test-access-token',
         }),
-      }),
+      })
     );
   });
 
@@ -288,10 +295,16 @@ describe('useTenantConfigItems', () => {
     });
 
     const success = await act(async () => {
-      return result.current.saveItem(1, 'model_config', result.current.configItems[0].entries, {
-        max_tokens: '8192',
-        temperature: '0.5',
-      }, {});
+      return result.current.saveItem(
+        1,
+        'model_config',
+        result.current.configItems[0].entries,
+        {
+          max_tokens: '8192',
+          temperature: '0.5',
+        },
+        {}
+      );
     });
 
     expect(success).toBe(true);
@@ -323,10 +336,16 @@ describe('useTenantConfigItems', () => {
     });
 
     const success = await act(async () => {
-      return result.current.saveItem(1, 'model_config', result.current.configItems[0].entries, {
-        max_tokens: '8192',
-        temperature: '0.5',
-      }, {});
+      return result.current.saveItem(
+        1,
+        'model_config',
+        result.current.configItems[0].entries,
+        {
+          max_tokens: '8192',
+          temperature: '0.5',
+        },
+        {}
+      );
     });
 
     expect(success).toBe(false);
@@ -404,10 +423,16 @@ describe('useTenantConfigItems', () => {
     expect(result.current.savingId).toBeNull();
 
     // Start save
-    const savePromise = result.current.saveItem(1, 'model_config', result.current.configItems[0].entries, {
-      max_tokens: '8192',
-      temperature: '0.5',
-    }, {});
+    const savePromise = result.current.saveItem(
+      1,
+      'model_config',
+      result.current.configItems[0].entries,
+      {
+        max_tokens: '8192',
+        temperature: '0.5',
+      },
+      {}
+    );
 
     // After save completes, savingId should be null
     await savePromise;
@@ -429,10 +454,16 @@ describe('useTenantConfigItems', () => {
       const result = await getHookResult();
 
       const success = await act(async () => {
-        return result.current.saveItem(1, 'model_config', result.current.configItems[0].entries, {
-          max_tokens: '8192',
-          temperature: '',
-        }, {});
+        return result.current.saveItem(
+          1,
+          'model_config',
+          result.current.configItems[0].entries,
+          {
+            max_tokens: '8192',
+            temperature: '',
+          },
+          {}
+        );
       });
 
       expect(success).toBe(true);
@@ -445,10 +476,16 @@ describe('useTenantConfigItems', () => {
       const result = await getHookResult();
 
       const success = await act(async () => {
-        return result.current.saveItem(1, 'model_config', result.current.configItems[0].entries, {
-          max_tokens: '8192',
-          temperature: '',
-        }, { temperature: '0.7' });
+        return result.current.saveItem(
+          1,
+          'model_config',
+          result.current.configItems[0].entries,
+          {
+            max_tokens: '8192',
+            temperature: '',
+          },
+          { temperature: '0.7' }
+        );
       });
 
       expect(success).toBe(true);
@@ -463,10 +500,16 @@ describe('useTenantConfigItems', () => {
       const result = await getHookResult();
 
       const success = await act(async () => {
-        return result.current.saveItem(1, 'model_config', result.current.configItems[0].entries, {
-          max_tokens: '8192',
-          temperature: '',
-        }, { temperature: '0.7' });
+        return result.current.saveItem(
+          1,
+          'model_config',
+          result.current.configItems[0].entries,
+          {
+            max_tokens: '8192',
+            temperature: '',
+          },
+          { temperature: '0.7' }
+        );
       });
 
       expect(success).toBe(true);
@@ -479,10 +522,16 @@ describe('useTenantConfigItems', () => {
       const result = await getHookResult();
 
       const success = await act(async () => {
-        return result.current.saveItem(1, 'model_config', result.current.configItems[0].entries, {
-          max_tokens: '8192',
-          temperature: '',
-        }, { temperature: '0.7' });
+        return result.current.saveItem(
+          1,
+          'model_config',
+          result.current.configItems[0].entries,
+          {
+            max_tokens: '8192',
+            temperature: '',
+          },
+          { temperature: '0.7' }
+        );
       });
 
       expect(success).toBe(true);
@@ -494,9 +543,15 @@ describe('useTenantConfigItems', () => {
       const result = await getHookResult();
 
       const success = await act(async () => {
-        return result.current.saveItem(1, 'model_config', result.current.configItems[0].entries, {
-          max_tokens: '8192',
-        }, {});
+        return result.current.saveItem(
+          1,
+          'model_config',
+          result.current.configItems[0].entries,
+          {
+            max_tokens: '8192',
+          },
+          {}
+        );
       });
 
       expect(success).toBe(true);
@@ -510,9 +565,15 @@ describe('useTenantConfigItems', () => {
       const result = await getHookResult();
 
       const success = await act(async () => {
-        return result.current.saveItem(1, 'model_config', result.current.configItems[0].entries, {
-          max_tokens: '8192',
-        }, {});
+        return result.current.saveItem(
+          1,
+          'model_config',
+          result.current.configItems[0].entries,
+          {
+            max_tokens: '8192',
+          },
+          {}
+        );
       });
 
       expect(success).toBe(true);
@@ -527,9 +588,15 @@ describe('useTenantConfigItems', () => {
       const result = await getHookResult();
 
       const success = await act(async () => {
-        return result.current.saveItem(1, 'model_config', result.current.configItems[0].entries, {
-          max_tokens: '8192',
-        }, {});
+        return result.current.saveItem(
+          1,
+          'model_config',
+          result.current.configItems[0].entries,
+          {
+            max_tokens: '8192',
+          },
+          {}
+        );
       });
 
       expect(success).toBe(true);
@@ -545,9 +612,15 @@ describe('useTenantConfigItems', () => {
       const result = await getHookResult();
 
       const success = await act(async () => {
-        return result.current.saveItem(1, 'model_config', result.current.configItems[0].entries, {
-          max_tokens: '8192',
-        }, {});
+        return result.current.saveItem(
+          1,
+          'model_config',
+          result.current.configItems[0].entries,
+          {
+            max_tokens: '8192',
+          },
+          {}
+        );
       });
 
       expect(success).toBe(false);
@@ -557,10 +630,16 @@ describe('useTenantConfigItems', () => {
       const result = await getHookResult();
 
       const success = await act(async () => {
-        return result.current.saveItem(1, 'model_config', result.current.configItems[0].entries, {
-          max_tokens: '',
-          temperature: '',
-        }, { max_tokens: '4096', temperature: '0.7' });
+        return result.current.saveItem(
+          1,
+          'model_config',
+          result.current.configItems[0].entries,
+          {
+            max_tokens: '',
+            temperature: '',
+          },
+          { max_tokens: '4096', temperature: '0.7' }
+        );
       });
 
       expect(success).toBe(true);
@@ -572,10 +651,16 @@ describe('useTenantConfigItems', () => {
       const result = await getHookResult();
 
       const success = await act(async () => {
-        return result.current.saveItem(1, 'model_config', result.current.configItems[0].entries, {
-          max_tokens: '',
-          temperature: '',
-        }, {});
+        return result.current.saveItem(
+          1,
+          'model_config',
+          result.current.configItems[0].entries,
+          {
+            max_tokens: '',
+            temperature: '',
+          },
+          {}
+        );
       });
 
       expect(success).toBe(true);
@@ -596,10 +681,16 @@ describe('useTenantConfigItems', () => {
       const result = await getHookResult();
 
       const success = await act(async () => {
-        return result.current.saveItem(1, 'model_config', result.current.configItems[0].entries, {
-          max_tokens: '8192',
-          temperature: '',
-        }, { temperature: '0.7' });
+        return result.current.saveItem(
+          1,
+          'model_config',
+          result.current.configItems[0].entries,
+          {
+            max_tokens: '8192',
+            temperature: '',
+          },
+          { temperature: '0.7' }
+        );
       });
 
       expect(success).toBe(true);
@@ -613,10 +704,16 @@ describe('useTenantConfigItems', () => {
       const result = await getHookResult();
 
       const success = await act(async () => {
-        return result.current.saveItem(1, 'model_config', result.current.configItems[0].entries, {
-          max_tokens: '8192',
-          temperature: '   ',
-        }, {});
+        return result.current.saveItem(
+          1,
+          'model_config',
+          result.current.configItems[0].entries,
+          {
+            max_tokens: '8192',
+            temperature: '   ',
+          },
+          {}
+        );
       });
 
       expect(success).toBe(true);
@@ -634,10 +731,16 @@ describe('useTenantConfigItems', () => {
       const result = await getHookResult();
 
       const success = await act(async () => {
-        return result.current.saveItem(1, 'model_config', result.current.configItems[0].entries, {
-          max_tokens: '8192',
-          temperature: '0.5',
-        }, {});
+        return result.current.saveItem(
+          1,
+          'model_config',
+          result.current.configItems[0].entries,
+          {
+            max_tokens: '8192',
+            temperature: '0.5',
+          },
+          {}
+        );
       });
 
       expect(success).toBe(false);

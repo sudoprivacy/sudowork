@@ -69,5 +69,6 @@
     "security": "Güvenlik",
     "webui": "Uzak Erişim",
     "cron": "Zamanlanmış Görevler"
-  }
+  },
+  "enabled": "Etkin"
 }

@@ -26,7 +26,6 @@ import { resolveLocaleKey } from '@/common/utils';
 import { DEFAULT_PRESET_AGENT_TYPE, normalizePresetAgentType } from '@/types/acpTypes';
 import SkillSettings from '../settings/SkillSettings';
 import AgentSettings from '../settings/AgentSettings';
-import WebuiSettings from '../settings/WebuiSettings';
 import AssistantSelectionArea from './components/AssistantSelectionArea';
 import AssistantAgentDropdown from './components/AssistantAgentDropdown';
 import AssistantEditDrawer from './components/AssistantEditDrawer';
@@ -617,7 +616,6 @@ const GuidPage: React.FC = () => {
         <div className={styles.functionMenuContainer}>
           {selectedMenu === 'skill-store' && <SkillSettings />}
           {selectedMenu === 'agent' && <AgentSettings />}
-          {selectedMenu === 'webui' && <WebuiSettings />}
         </div>
       ) : (
         /* Normal/Assistant conversation area */

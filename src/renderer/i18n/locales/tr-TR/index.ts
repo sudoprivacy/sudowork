@@ -20,6 +20,7 @@ import agent from './agent.json';
 import agentStatus from './agentStatus.json';
 import setup from './setup.json';
 import runtimeError from './runtimeError.json';
+import pwdLogin from './pwdLogin.json';
 
 export default {
   common,
@@ -43,4 +44,5 @@ export default {
   agentStatus,
   setup,
   runtimeError,
+  pwdLogin,
 };
