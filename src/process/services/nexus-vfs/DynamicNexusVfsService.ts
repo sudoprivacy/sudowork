@@ -12,6 +12,7 @@ import { processSupervisor } from '@process/ProcessSupervisor';
 import runtimeVersions from '@/shared/runtime-versions.json';
 import runtimeSha256 from '@/shared/runtime-sha256.json';
 import { COS_RUNTIME_BASE, COS_LEGACY_NEXUS_VFS_BASE } from '@/shared/cos';
+import { getNexusSecretClient } from '@common/nexus/nexus-secret-client';
 import { extractTarGzWithProgress, extractZipWithProgress } from '../archiveProgress';
 import { vaultPluginInstaller } from './VaultPluginInstaller';
 
@@ -35,6 +36,7 @@ const NEXUS_VFS_BIND_HOST = '127.0.0.1';
 const NEXUS_VFS_DEFAULT_PORT = 12022;
 const NEXUS_VFS_POLL_INTERVAL_MS = 200;
 const NEXUS_VFS_START_TIMEOUT_MS = 30_000;
+const NEXUS_VAULT_READY_TIMEOUT_MS = 5_000;
 
 /** Marker file recording the installed version inside the bin directory. */
 const NEXUS_VFS_READY_MARKER = '.nexus-vfs-bin-ready';
@@ -268,14 +270,18 @@ class DynamicNexusVfsService {
             file.on('error', (err) => {
               try {
                 fs.unlinkSync(destPath);
-              } catch {}
+              } catch {
+                // Ignore cleanup failures.
+              }
               reject(err);
             });
           })
           .on('error', (err) => {
             try {
               fs.unlinkSync(destPath);
-            } catch {}
+            } catch {
+              // Ignore cleanup failures.
+            }
             reject(err);
           });
       };
@@ -366,7 +372,9 @@ class DynamicNexusVfsService {
       if (actualSha !== expectedSha) {
         try {
           fs.unlinkSync(archivePath);
-        } catch {}
+        } catch {
+          // Ignore cleanup failures.
+        }
         const msg = `nexus-vfs SHA256 mismatch for ${this.getArtifactName()}: expected ${expectedSha}, got ${actualSha}`;
         this.emit('error', msg);
         throw new Error(msg);
@@ -397,7 +405,9 @@ class DynamicNexusVfsService {
       if (!bundledPath) {
         fs.unlinkSync(archivePath);
       }
-    } catch {}
+    } catch {
+      // Ignore cleanup failures.
+    }
 
     this.emit('idle', `nexus-vfs installed: ${targetBinary}`, 100);
 
@@ -490,6 +500,12 @@ class DynamicNexusVfsService {
     mainLog('NexusVfs', `Waiting for nexus-vfs gRPC port ${this._port} to accept connections...`);
     await this.waitForPortReady(this._port, NEXUS_VFS_START_TIMEOUT_MS);
     const elapsed = Date.now() - spawnStart;
+    try {
+      await this.waitForVaultServiceReady(NEXUS_VAULT_READY_TIMEOUT_MS);
+    } catch (err) {
+      await this.stop().catch(() => {});
+      throw err;
+    }
     mainLog('NexusVfs', `nexus-vfs ready — port=${this._port} startup=${elapsed}ms`);
     this._running = true;
     this.emit('ready', `nexus-vfs ready on ${NEXUS_VFS_BIND_HOST}:${this._port}`);
@@ -559,6 +575,30 @@ class DynamicNexusVfsService {
       await new Promise<void>((resolve) => setTimeout(resolve, NEXUS_VFS_POLL_INTERVAL_MS));
     }
     throw new Error(`nexus-vfs did not start listening on port ${port} within ${timeoutMs}ms`);
+  }
+
+  private async waitForVaultServiceReady(timeoutMs: number): Promise<void> {
+    if (!vaultPluginInstaller.isPlatformSupported() || !vaultPluginInstaller.checkInstalledSync()) {
+      return;
+    }
+
+    const deadline = Date.now() + timeoutMs;
+    let lastReason = 'unknown error';
+
+    while (Date.now() < deadline) {
+      try {
+        getNexusSecretClient().listSecrets('__sudowork_startup_probe__', false);
+        return;
+      } catch (err) {
+        lastReason = err instanceof Error ? err.message : String(err);
+      }
+      await new Promise<void>((resolve) => setTimeout(resolve, NEXUS_VFS_POLL_INTERVAL_MS));
+    }
+
+    const msg = `Nexus gRPC port is ready but password-vault service is unavailable; vault plugin may be unsigned or not loaded from ${this.getPluginDir()}: ${lastReason}`;
+    mainError('NexusVfs', msg);
+    this.emit('error', msg);
+    throw new Error(msg);
   }
 
   async checkActualRunning(): Promise<boolean> {

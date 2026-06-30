@@ -29,6 +29,17 @@ const ARCHIVE_CLEANUP_SUBSTRINGS = [
 ];
 
 /**
+ * Nexus plugin archives carry a detached Nexus runtime signature next to the
+ * dylib/dll. Re-signing the binary for macOS notarization changes its bytes
+ * and invalidates that plugin signature, so these archives must stay pristine.
+ */
+const NEXUS_SIGNED_PLUGIN_ARCHIVE_RE = /^v[\d.]+-nexus-(?:vault|local-connector|fuse-plugin)-.*\.(?:tar\.gz|tgz|tar|zip)$/;
+
+function shouldSignArchiveInAfterPack(archiveName) {
+  return !NEXUS_SIGNED_PLUGIN_ARCHIVE_RE.test(archiveName);
+}
+
+/**
  * Remove known-problematic files from a directory tree before repacking.
  * Returns the number of files deleted.
  * @param {string} dir - Root of the extracted archive
@@ -722,7 +733,7 @@ async function signBinariesInArchive(archivePath, identity, isNested = false, en
   }
 }
 
-module.exports = async function afterPack(context) {
+async function afterPack(context) {
   const { arch, electronPlatformName, appOutDir, packager } = context;
   const targetArch = normalizeArch(typeof arch === 'string' ? arch : Arch[arch] || process.arch);
   const buildArch = normalizeArch(os.arch());
@@ -763,7 +774,10 @@ module.exports = async function afterPack(context) {
     const nexusArchives = [];
     try {
       nexusArchives.push(
-        ...fs.readdirSync(resourcesDir).filter(f => /^v[\d.]+-nexus.*-.*\.(?:tar\.gz|tgz|tar)$/.test(f)),
+        ...fs
+          .readdirSync(resourcesDir)
+          .filter(f => /^v[\d.]+-nexus.*-.*\.(?:tar\.gz|tgz|tar)$/.test(f))
+          .filter(shouldSignArchiveInAfterPack),
       );
     } catch {
       // Resources dir not readable — nexus archives will be skipped
@@ -973,4 +987,7 @@ module.exports = async function afterPack(context) {
   }
 
   console.log(`✅ All native modules rebuilt successfully for ${targetArch}\n`);
-};
+}
+
+module.exports = afterPack;
+module.exports.shouldSignArchiveInAfterPack = shouldSignArchiveInAfterPack;
