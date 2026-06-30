@@ -230,23 +230,26 @@ class VaultPluginInstaller {
     }
 
     // ── SHA256 integrity check ───────────────────────────────────────────────
-    const expectedSha = NEXUS_VAULT_SHA256SUMS[artifact];
-    if (!expectedSha) {
-      throw new Error(`No known SHA256 for ${artifact}; refusing to install an unverified artifact.`);
-    }
-    const actualSha = crypto.createHash('sha256').update(fs.readFileSync(archivePath)).digest('hex');
-    if (actualSha !== expectedSha) {
-      // Only delete the downloaded file, not a bundled resource.
-      if (!bundledPath) {
+    // Bundled archives are already SHA-verified and signed during CI build; the
+    // re-sign step in afterPack.js changes the archive SHA, so we skip the check
+    // for bundled resources (trust the build pipeline) and only verify remote
+    // downloads (guard against MITM / corrupted downloads).
+    if (!bundledPath) {
+      const expectedSha = NEXUS_VAULT_SHA256SUMS[artifact];
+      if (!expectedSha) {
+        throw new Error(`No known SHA256 for ${artifact}; refusing to install an unverified artifact.`);
+      }
+      const actualSha = crypto.createHash('sha256').update(fs.readFileSync(archivePath)).digest('hex');
+      if (actualSha !== expectedSha) {
         try {
           fs.unlinkSync(archivePath);
         } catch {}
+        const msg = `nexus-vault SHA256 mismatch for ${artifact}: expected ${expectedSha}, got ${actualSha}`;
+        emit('error', msg);
+        throw new Error(msg);
       }
-      const msg = `nexus-vault SHA256 mismatch for ${artifact}: expected ${expectedSha}, got ${actualSha}`;
-      emit('error', msg);
-      throw new Error(msg);
+      mainLog('NexusVault', `SHA256 verified: ${actualSha}`);
     }
-    mainLog('NexusVault', `SHA256 verified: ${actualSha}`);
 
     // ── Extract ──────────────────────────────────────────────────────────────
     emit('installing', 'Extracting nexus-vault...', 80);

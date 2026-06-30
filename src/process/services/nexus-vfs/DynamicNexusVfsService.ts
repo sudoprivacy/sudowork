@@ -353,23 +353,26 @@ class DynamicNexusVfsService {
     }
 
     // Integrity check before we trust the archive — reject anything unverified.
-    const expectedSha = NEXUS_VFS_SHA256SUMS[this.getArtifactName()];
-    if (!expectedSha) {
-      throw new Error(`No known SHA256 for ${this.getArtifactName()}; refusing to install an unverified artifact.`);
-    }
-    const actualSha = crypto.createHash('sha256').update(fs.readFileSync(archivePath)).digest('hex');
-    if (actualSha !== expectedSha) {
-      // Only delete the downloaded file, not a bundled resource.
-      if (!bundledPath) {
+    // Bundled archives are already SHA-verified and signed during CI build; the
+    // re-sign step in afterPack.js changes the archive SHA, so we skip the check
+    // for bundled resources (trust the build pipeline) and only verify remote
+    // downloads (guard against MITM / corrupted downloads).
+    if (!bundledPath) {
+      const expectedSha = NEXUS_VFS_SHA256SUMS[this.getArtifactName()];
+      if (!expectedSha) {
+        throw new Error(`No known SHA256 for ${this.getArtifactName()}; refusing to install an unverified artifact.`);
+      }
+      const actualSha = crypto.createHash('sha256').update(fs.readFileSync(archivePath)).digest('hex');
+      if (actualSha !== expectedSha) {
         try {
           fs.unlinkSync(archivePath);
         } catch {}
+        const msg = `nexus-vfs SHA256 mismatch for ${this.getArtifactName()}: expected ${expectedSha}, got ${actualSha}`;
+        this.emit('error', msg);
+        throw new Error(msg);
       }
-      const msg = `nexus-vfs SHA256 mismatch for ${this.getArtifactName()}: expected ${expectedSha}, got ${actualSha}`;
-      this.emit('error', msg);
-      throw new Error(msg);
+      mainLog('NexusVfs', `SHA256 verified: ${actualSha}`);
     }
-    mainLog('NexusVfs', `SHA256 verified: ${actualSha}`);
 
     this.emit('installing', 'Extracting nexus-vfs...', 80);
     const extractDir = path.join(downloadDir, `extract-${Date.now()}`);
