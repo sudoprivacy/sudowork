@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 const afterPackModule = await import('../../scripts/afterPack.js');
 const afterPack = afterPackModule.default as {
   shouldSignArchiveInAfterPack: (archiveName: string) => boolean;
+  shouldUseRuntimeEntitlementsInAfterPack: (archiveName: string, nodeArchiveName: string) => boolean;
 };
 
 describe('afterPack archive signing filters', () => {
@@ -17,5 +18,12 @@ describe('afterPack archive signing filters', () => {
     expect(afterPack.shouldSignArchiveInAfterPack('v0.4.0-nexusd-cluster-macos-aarch64.tar.gz')).toBe(true);
     expect(afterPack.shouldSignArchiveInAfterPack('node-darwin-arm64.tar.gz')).toBe(true);
     expect(afterPack.shouldSignArchiveInAfterPack('v0.1.11-scode-macos-arm64.tar.gz')).toBe(true);
+  });
+
+  it('uses runtime entitlements for node and nexusd-cluster archives', () => {
+    expect(afterPack.shouldUseRuntimeEntitlementsInAfterPack('node-darwin-arm64.tar.gz', 'node-darwin-arm64.tar.gz')).toBe(true);
+    expect(afterPack.shouldUseRuntimeEntitlementsInAfterPack('v0.4.0-nexusd-cluster-macos-aarch64.tar.gz', 'node-darwin-arm64.tar.gz')).toBe(true);
+    expect(afterPack.shouldUseRuntimeEntitlementsInAfterPack('v0.1.11-scode-macos-arm64.tar.gz', 'node-darwin-arm64.tar.gz')).toBe(false);
+    expect(afterPack.shouldUseRuntimeEntitlementsInAfterPack('v0.4.0-nexus-vault-macos-arm64.tar.gz', 'node-darwin-arm64.tar.gz')).toBe(false);
   });
 });

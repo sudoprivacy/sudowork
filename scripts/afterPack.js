@@ -34,9 +34,14 @@ const ARCHIVE_CLEANUP_SUBSTRINGS = [
  * and invalidates that plugin signature, so these archives must stay pristine.
  */
 const NEXUS_SIGNED_PLUGIN_ARCHIVE_RE = /^v[\d.]+-nexus-(?:vault|local-connector|fuse-plugin)-.*\.(?:tar\.gz|tgz|tar|zip)$/;
+const NEXUS_CLUSTER_ARCHIVE_RE = /^v[\d.]+-nexusd-cluster-.*\.(?:tar\.gz|tgz|tar)$/;
 
 function shouldSignArchiveInAfterPack(archiveName) {
   return !NEXUS_SIGNED_PLUGIN_ARCHIVE_RE.test(archiveName);
+}
+
+function shouldUseRuntimeEntitlementsInAfterPack(archiveName, nodeArchiveName) {
+  return archiveName === nodeArchiveName || NEXUS_CLUSTER_ARCHIVE_RE.test(archiveName);
 }
 
 /**
@@ -794,14 +799,14 @@ async function afterPack(context) {
     const scodeArchive = `v${scodeVersion}-scode-macos-${targetArch}.tar.gz`;
 
     const archivesToSign = [...fixedArchives, nodeArchive, scodeArchive, ...nexusArchives];
-    // Node.js binary needs JIT/memory entitlements so V8 can run under Hardened Runtime.
-    // Without these, macOS blocks JIT compilation and Node crashes with SIGTRAP (trace trap).
+    // Node.js needs JIT/memory entitlements. nexusd-cluster needs
+    // disable-library-validation so macOS can dlopen signed Nexus plugins whose
+    // own detached Nexus signatures must stay pristine.
     const entitlementsPath = path.join(__dirname, '..', 'entitlements.plist');
 
     for (const archiveFile of archivesToSign) {
       const archivePath = path.join(resourcesDir, archiveFile);
-      // Only the Node runtime archive contains a JIT-capable executable — pass entitlements for it only.
-      const useEntitlements = archiveFile === nodeArchive ? entitlementsPath : null;
+      const useEntitlements = shouldUseRuntimeEntitlementsInAfterPack(archiveFile, nodeArchive) ? entitlementsPath : null;
       try {
         await signBinariesInArchive(archivePath, identity, false, useEntitlements);
       } catch (err) {
@@ -991,3 +996,4 @@ async function afterPack(context) {
 
 module.exports = afterPack;
 module.exports.shouldSignArchiveInAfterPack = shouldSignArchiveInAfterPack;
+module.exports.shouldUseRuntimeEntitlementsInAfterPack = shouldUseRuntimeEntitlementsInAfterPack;
