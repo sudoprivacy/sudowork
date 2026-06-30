@@ -12,7 +12,7 @@ import type { AcpQuestionAnswerItem, TMessage } from '@/common/chatLib';
 import type { AcpQuestionResponseAnswer } from '@/types/acpTypes';
 import type { TChatConversation } from '@/common/storage';
 import { uuid } from '@/common/utils';
-import { mainLog, mainError } from '../utils/mainLogger';
+import { mainLog, mainError, mainWarn } from '../utils/mainLogger';
 import { getDatabase } from '../database/export';
 import { addOrUpdateMessage } from '../message';
 import { detectFileIntent, matchesDraftPattern } from './draftsCleanup';
@@ -561,27 +561,61 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
       // app's read-only cwd and would be useless to the remote agent.)
       let contentToSend = data.content;
       if (data.files && data.files.length > 0) {
-        const remoteRefs: string[] = [];
-        if (this.mossSessionId) {
-          const api = initMossApi(this.options.serverUrl);
-          for (const localPath of data.files) {
-            try {
-              const buffer = await fs.promises.readFile(localPath);
-              const relName = nodePath.basename(localPath);
-              const result = await api.uploadSessionWorkspaceFile(this.mossSessionId, {
-                path: relName,
-                contentBase64: buffer.toString('base64'),
-              });
-              const ref = result.relativePath || relName;
-              remoteRefs.push(ref.includes(' ') ? `@"${ref}"` : `@${ref}`);
-              mainLog('RemoteAgent', `Uploaded attachment to remote workspace: ${ref}`);
-            } catch (err) {
-              mainError('RemoteAgent', `Failed to upload attachment ${localPath} to remote workspace:`, err);
-            }
-          }
-        } else {
+        if (!this.mossSessionId) {
           mainError('RemoteAgent', 'No mossSessionId available; cannot upload attachments to remote workspace');
+          this.emitErrorMessage('无法上传附件：会话尚未就绪，请稍后重试 / Cannot upload attachment: session not ready, please retry');
+          return;
         }
+
+        const api = initMossApi(this.options.serverUrl);
+
+        // Pre-check each file against the server's upload limit so an oversized
+        // attachment fails fast with a clear message instead of base64-encoding
+        // the whole file only for the server to reject it with a 413. Fetch the
+        // limit fresh (admin can change it); fall back to 20MB if unavailable.
+        // The server enforces the same cap as a backstop.
+        let uploadLimitBytes = 20 * 1024 * 1024;
+        try {
+          const fetched = await api.getWorkspaceUploadLimitBytes();
+          if (typeof fetched === 'number' && fetched > 0) uploadLimitBytes = fetched;
+        } catch (err) {
+          mainWarn('RemoteAgent', 'Failed to fetch upload limit, using default:', err);
+        }
+        const limitMb = Math.round(uploadLimitBytes / (1024 * 1024));
+
+        const remoteRefs: string[] = [];
+        const failedFiles: Array<{ name: string; error: string }> = [];
+        for (const localPath of data.files) {
+          const relName = nodePath.basename(localPath);
+          try {
+            const stat = await fs.promises.stat(localPath);
+            if (stat.size > uploadLimitBytes) {
+              failedFiles.push({ name: relName, error: `超出大小上限 ${limitMb}MB / exceeds size limit (${limitMb}MB)` });
+              continue;
+            }
+            const buffer = await fs.promises.readFile(localPath);
+            const result = await api.uploadSessionWorkspaceFile(this.mossSessionId, {
+              path: relName,
+              contentBase64: buffer.toString('base64'),
+            });
+            const ref = result.relativePath || relName;
+            remoteRefs.push(ref.includes(' ') ? `@"${ref}"` : `@${ref}`);
+            mainLog('RemoteAgent', `Uploaded attachment to remote workspace: ${ref}`);
+          } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            mainError('RemoteAgent', `Failed to upload attachment ${localPath} to remote workspace:`, message);
+            failedFiles.push({ name: relName, error: message });
+          }
+        }
+
+        // Surface any upload failure to the chat and abort the send — otherwise
+        // the message would go out without the file and the user sees no error.
+        if (failedFiles.length > 0) {
+          const detail = failedFiles.map((f) => `${f.name}: ${f.error}`).join('; ');
+          this.emitErrorMessage(`附件上传失败 / Attachment upload failed — ${detail}`);
+          return;
+        }
+
         if (remoteRefs.length > 0) {
           contentToSend = `${remoteRefs.join(' ')} ${contentToSend}`;
         }
