@@ -526,23 +526,24 @@ function buildActionCard(text: string, buttons: IUnifiedOutgoingMessage['buttons
 // ==================== ACP Question (dtmd buttons) ====================
 
 /**
- * Build DingTalk markdown with dtmd buttons for an ACP question (single/multi select).
+ * Build DingTalk markdown with dtmd buttons for an ACP question item.
  *
  * dtmd links make the DingTalk client send the option label back as a plain
  * TOPIC_ROBOT message when tapped, so the bot receives the answer without any
  * cardTemplate — end users only configure the bot (clientId/secret), never the
  * DingTalk backend. (Verified in step 0: tapped content arrives verbatim.)
  *
- * 为 ACP 选项题构造带 dtmd 按钮的钉钉 markdown。仅支持单项 single_select /
- * multi_select（boolean 视作 single_select）；text 与多题降级为纯文本提示。
+ * 为 ACP 选项题构造带 dtmd 按钮的钉钉 markdown。支持 single_select /
+ * multi_select（boolean 视作 single_select）；text 降级为纯文本提示。
+ * 多题问答（items.length > 1）由调用方按 itemIndex 逐题分发渲染。
  */
-export function buildDingTalkQuestionMarkdown(content: AcpQuestionData): { markdown: string; isSupported: boolean } {
+export function buildDingTalkQuestionMarkdown(content: AcpQuestionData, itemIndex = 0): { markdown: string; isSupported: boolean } {
   const items = content.items ?? [];
-  const item = items[0];
+  const item = items[itemIndex];
   const kind = item?.kind;
-  const isSupported = items.length === 1 && (kind === 'single_select' || kind === 'multi_select' || kind === 'boolean');
+  const isSupported = !!item && (kind === 'single_select' || kind === 'multi_select' || kind === 'boolean');
 
-  if (!isSupported || !item) {
+  if (!isSupported) {
     const questionText = content.question || item?.prompt || '请回答';
     return {
       markdown: `${questionText}\n\n此题型暂不支持按钮选择，请直接文字说明。`,
@@ -550,7 +551,16 @@ export function buildDingTalkQuestionMarkdown(content: AcpQuestionData): { markd
     };
   }
 
-  const lines: string[] = [content.question || item.prompt || '请选择', ''];
+  const lines: string[] = [];
+  if (items.length > 1) {
+    lines.push(`**第 ${itemIndex + 1} / ${items.length} 题**`);
+    const header = content.intro || content.question;
+    if (header) lines.push(header);
+    lines.push(item.prompt || '请选择');
+  } else {
+    lines.push(content.question || item.prompt || '请选择');
+  }
+  lines.push('');
   for (const option of item.options ?? []) {
     lines.push(`- [${option.label}](dtmd://dingtalkclient/sendMessage?content=${encodeURIComponent(option.label)})`);
   }

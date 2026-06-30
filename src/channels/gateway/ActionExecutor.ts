@@ -719,14 +719,38 @@ export class ActionExecutor {
           await context.sendMessage({ type: 'text', text: '❌ 提交失败，请重试', parseMode: 'Markdown' });
           return;
         }
-        if (answerResult.kind === 'single_done' || answerResult.kind === 'multi_submit') {
+        if (answerResult.kind === 'item_done') {
+          await context.sendMessage({
+            type: 'text',
+            text: `✅ 已选: ${answerResult.displayLabel}（${answerResult.currentIndex}/${answerResult.totalItems}）`,
+            parseMode: 'Markdown',
+          });
+          // Dispatch the next item's card (sendMessage + immediate editMessage finalize
+          // to stop the AI Card spinner; same pattern as the outbound acp_question branch).
+          const next = pendingService.getPendingForNextRender(pendingConvId);
+          if (next) {
+            const { markdown } = buildDingTalkQuestionMarkdown(next.content, next.itemIndex);
+            const cardMsgId = await context.sendMessage({ type: 'text', text: markdown, parseMode: 'Markdown' });
+            await context.editMessage(cardMsgId, { type: 'text', text: markdown, parseMode: 'Markdown', replyMarkup: {} });
+          }
+          return;
+        }
+        if (answerResult.kind === 'all_done') {
           await context.sendMessage({ type: 'text', text: `✅ 已提交：${answerResult.displayLabel}`, parseMode: 'Markdown' });
           return;
         }
-        if (answerResult.kind === 'multi_select') {
+        if (answerResult.kind === 'multi_select_accumulate') {
           await context.sendMessage({
             type: 'text',
             text: `✅ 已选中：${answerResult.displayLabel}，继续选择或点【提交】`,
+            parseMode: 'Markdown',
+          });
+          return;
+        }
+        if (answerResult.kind === 'stale') {
+          await context.sendMessage({
+            type: 'text',
+            text: `⚠️ 第 ${answerResult.staleQuestionIndex + 1} 题已经回答过了，请回答当前的第 ${answerResult.currentIndex + 1} 题`,
             parseMode: 'Markdown',
           });
           return;
@@ -877,17 +901,21 @@ export class ActionExecutor {
         const now = Date.now();
 
         // acp_question → DingTalk dtmd buttons (dingtalk only).
-        // First insert: render dtmd options (register pending when supported).
+        // First insert: render first item's dtmd options (register pending state when
+        // all items are supported). After sendMessage, immediately editMessage with
+        // a non-undefined replyMarkup so DingTalkPlugin.editMessage's `isFinal=!!replyMarkup`
+        // path runs finishAICard — otherwise the AI Card stays in INPUTING (spinning) forever
+        // because acp_question is typically the last message of the agent turn and there's
+        // no follow-up card whose creation would invoke finalizePendingCards.
         // Update (answered/cancelled): clear pending. Never falls through to
         // convertTMessageToOutgoing's default ('⏳ Processing...').
         if ((context.platform as PluginType) === 'dingtalk' && message.type === 'acp_question') {
           const acpContent = message.content as AcpQuestionData;
           if (isInsert && !acpContent.answered && !acpContent.cancelled) {
-            const { markdown, isSupported } = buildDingTalkQuestionMarkdown(acpContent);
-            if (isSupported) {
-              messageService.registerPendingQuestion(conversationId, acpContent);
-            }
-            await context.sendMessage({ type: 'text', text: markdown, parseMode: 'Markdown' });
+            messageService.registerPendingQuestion(conversationId, acpContent);
+            const { markdown } = buildDingTalkQuestionMarkdown(acpContent, 0);
+            const cardMsgId = await context.sendMessage({ type: 'text', text: markdown, parseMode: 'Markdown' });
+            await context.editMessage(cardMsgId, { type: 'text', text: markdown, parseMode: 'Markdown', replyMarkup: {} });
           } else {
             messageService.clearPendingQuestion(conversationId);
           }

@@ -63,27 +63,54 @@ interface IStreamState {
 }
 
 /**
- * A pending ACP question awaiting the user's dtmd button-tap answer.
- * 待答 ACP 选项题状态：用户点击 dtmd 按钮的回答将路由到 answerQuestion。
+ * A pending ACP question item (one of possibly many in a multi-question prompt).
+ * 单道待答题。
  */
-interface IPendingQuestion {
-  toolCallId: string;
-  questionId: string;
+interface IPendingItem {
+  id: string;
   kind: 'single_select' | 'multi_select';
   /** option label -> submission value */
   labelToValue: Map<string, string>;
-  /** accumulated submission values (multi_select) */
+  /** accumulated submission values (multi_select only) */
   selectedValues: string[];
 }
 
 /**
- * submitAnswer 的路由结果。
- * - single_done: single_select 已作答（已调 answerQuestion）
- * - multi_submit: multi_select 已提交累积值（已调 answerQuestion）
- * - multi_select: multi_select 累积了一项（尚未调 answerQuestion）
- * - no_match: 文本不匹配任何选项 / 空选提交 → 调用方按普通用户消息处理
+ * A pending ACP question (1 or more items) awaiting the user's dtmd button-tap answer.
+ * 待答 ACP 选项题状态：用户点击 dtmd 按钮的回答将累积，直到所有题答完再一次性 answerQuestion。
  */
-export type PendingAnswerResult = { kind: 'single_done'; displayLabel: string } | { kind: 'multi_submit'; displayLabel: string } | { kind: 'multi_select'; displayLabel: string } | { kind: 'no_match' };
+interface IPendingQuestion {
+  toolCallId: string;
+  /** Original content kept for re-rendering subsequent items. */
+  originalContent: AcpQuestionData;
+  items: IPendingItem[];
+  /** Index of the item currently awaiting an answer (0-based). */
+  currentIndex: number;
+  /** Answers accumulated from already-answered items, submitted in bulk on the last item. */
+  completedAnswers: AcpQuestionResponseAnswer[];
+  /**
+   * All offered option labels of already-answered items → that item's index.
+   * Used to detect stale-button taps: once an item has advanced, tapping ANY of
+   * its old card's buttons (selected or not) should be reported as stale rather
+   * than fall through to a new agent turn.
+   */
+  staleLabels: Map<string, number>;
+}
+
+/**
+ * submitAnswer 的路由结果。
+ * - item_done: 当前题已作答（multi_select 已提交）但仍有未答的下一题，尚未调 answerQuestion
+ * - multi_select_accumulate: multi_select 当前题累积了一项（尚未提交）
+ * - all_done: 最后一道已作答 → 已一次性调 answerQuestion(completedAnswers)
+ * - stale: 用户回头点了已答题的旧 dtmd 按钮
+ * - no_match: 文本不匹配任何选项 → 调用方按普通用户消息处理
+ */
+export type PendingAnswerResult =
+  | { kind: 'item_done'; displayLabel: string; currentIndex: number; totalItems: number }
+  | { kind: 'multi_select_accumulate'; displayLabel: string }
+  | { kind: 'all_done'; displayLabel: string }
+  | { kind: 'stale'; staleQuestionIndex: number; currentIndex: number }
+  | { kind: 'no_match' };
 
 /** multi_select 提交哨兵（与 dtmd 提交按钮 content 一致）/ submit sentinel */
 const QA_SUBMIT_SENTINEL = '__qa_submit__';
@@ -237,7 +264,7 @@ export class ChannelMessageService {
       // async work before resolving the outer sendMessage Promise.
       const promise = Promise.resolve(stream.callback(msg, isInsert));
       stream.inFlightCallbacks.add(promise);
-      promise.finally(() => stream.inFlightCallbacks.delete(promise));
+      void promise.finally(() => stream.inFlightCallbacks.delete(promise));
     });
     this.messageListMap.set(event.conversation_id, messageList.slice(-20));
   }
@@ -464,26 +491,53 @@ export class ChannelMessageService {
    * button-taps route to answerQuestion instead of sendMessage (which would
    * treat the answer as a new turn — AcpAgent.sendMessage ignores pendingQuestions).
    *
-   * 为会话登记待答 ACP 选项题（出站首次提问时调用）。
+   * Returns true if registered (all items have supported kinds and toolCallId is set);
+   * false otherwise so the caller can render the downgrade text path.
+   *
+   * 为会话登记待答 ACP 选项题（出站首次提问时调用）；返回是否登记成功。
    */
-  registerPendingQuestion(conversationId: string, content: AcpQuestionData): void {
+  registerPendingQuestion(conversationId: string, content: AcpQuestionData): boolean {
     const items = content.items ?? [];
-    const item = items[0];
-    const kind = item?.kind;
-    if (items.length !== 1 || !item || !content.toolCallId) return;
-    if (kind !== 'single_select' && kind !== 'multi_select' && kind !== 'boolean') return;
-
-    const labelToValue = new Map<string, string>();
-    for (const option of item.options ?? []) {
-      labelToValue.set(option.label, option.value);
+    if (items.length === 0 || !content.toolCallId) return false;
+    for (const item of items) {
+      const k = item.kind;
+      if (k !== 'single_select' && k !== 'multi_select' && k !== 'boolean') return false;
     }
+
+    const pendingItems: IPendingItem[] = items.map((item): IPendingItem => {
+      const labelToValue = new Map<string, string>();
+      for (const option of item.options ?? []) {
+        labelToValue.set(option.label, option.value);
+      }
+      // boolean 视作 single_select：行为完全一致（点哪个 label 即提交对应 value）
+      return {
+        id: item.id,
+        kind: item.kind === 'multi_select' ? 'multi_select' : 'single_select',
+        labelToValue,
+        selectedValues: [],
+      };
+    });
+
     this.pendingQuestions.set(conversationId, {
       toolCallId: content.toolCallId,
-      questionId: item.id,
-      kind: kind === 'multi_select' ? 'multi_select' : 'single_select',
-      labelToValue,
-      selectedValues: [],
+      originalContent: content,
+      items: pendingItems,
+      currentIndex: 0,
+      completedAnswers: [],
+      staleLabels: new Map<string, number>(),
     });
+    return true;
+  }
+
+  /**
+   * Returns the data needed to render the NEXT pending item card
+   * (i.e. the item at currentIndex). Used after submitAnswer returns item_done
+   * so the ActionExecutor can dispatch the next question's card.
+   */
+  getPendingForNextRender(conversationId: string): { content: AcpQuestionData; itemIndex: number } | null {
+    const pending = this.pendingQuestions.get(conversationId);
+    if (!pending) return null;
+    return { content: pending.originalContent, itemIndex: pending.currentIndex };
   }
 
   /**
@@ -494,11 +548,19 @@ export class ChannelMessageService {
   }
 
   /**
-   * Submit a user's text answer toward a pending question.
-   * - single 命中 → answerQuestion + single_done
-   * - multi 命中选项 → 累积(去重) + multi_select（不调 answerQuestion）
-   * - multi 提交哨兵 → answerQuestion(累积值, ' / ' 连接) + multi_submit
-   * - 否则 → no_match（调用方按普通用户消息处理）
+   * Submit a user's text answer toward the currently-pending item of a pending question.
+   *
+   * Routing for `current = items[currentIndex]`:
+   * 1. `__qa_submit__` 哨兵 + current.kind === 'multi_select' → 合并累积值为单答案推入
+   *    completedAnswers，advance；进入终态判断（步骤 4）
+   * 2. text 命中 current.labelToValue：
+   *    - single_select：推入单答案，advance → 终态判断
+   *    - multi_select：去重累积到 current.selectedValues，返回 multi_select_accumulate
+   * 3. 陈旧检测：text 命中任何已答题的 label → 返回 stale
+   * 4. 终态判断：
+   *    - currentIndex < items.length → item_done（调用方应渲染下一题卡片）
+   *    - currentIndex === items.length → 一次性 answerQuestion(completedAnswers)，all_done
+   * 5. 都不命中 → no_match（调用方按普通用户消息处理）
    *
    * multi_select 的 ' / ' 连接口径与桌面端 MessageAcpQuestion 一致。
    */
@@ -506,31 +568,57 @@ export class ChannelMessageService {
     const pending = this.pendingQuestions.get(conversationId);
     if (!pending) return { kind: 'no_match' };
 
-    if (text === QA_SUBMIT_SENTINEL && pending.kind === 'multi_select') {
-      if (pending.selectedValues.length === 0) {
+    const current = pending.items[pending.currentIndex];
+    if (!current) return { kind: 'no_match' };
+
+    let displayLabel: string | null = null;
+
+    if (text === QA_SUBMIT_SENTINEL && current.kind === 'multi_select') {
+      if (current.selectedValues.length === 0) {
         return { kind: 'no_match' };
       }
-      const displayLabel = this.labelsForValues(pending, pending.selectedValues).join(' / ');
-      const submissionValue = pending.selectedValues.join(' / ');
-      this.answerQuestion(conversationId, pending.toolCallId, [{ id: pending.questionId, value: submissionValue, label: displayLabel }]);
+      const labels = this.labelsForValues(current, current.selectedValues);
+      const submissionValue = current.selectedValues.join(' / ');
+      const submissionLabel = labels.join(' / ');
+      pending.completedAnswers.push({ id: current.id, value: submissionValue, label: submissionLabel });
+      this.markItemLabelsStale(pending, current);
+      pending.currentIndex++;
+      displayLabel = submissionLabel;
+    } else if (current.labelToValue.has(text)) {
+      const value = current.labelToValue.get(text)!;
+      if (current.kind === 'single_select') {
+        pending.completedAnswers.push({ id: current.id, value, label: text });
+        this.markItemLabelsStale(pending, current);
+        pending.currentIndex++;
+        displayLabel = text;
+      } else {
+        if (!current.selectedValues.includes(value)) {
+          current.selectedValues.push(value);
+        }
+        return { kind: 'multi_select_accumulate', displayLabel: text };
+      }
+    } else if (pending.staleLabels.has(text)) {
+      return {
+        kind: 'stale',
+        staleQuestionIndex: pending.staleLabels.get(text)!,
+        currentIndex: pending.currentIndex,
+      };
+    } else {
+      return { kind: 'no_match' };
+    }
+
+    // 终态判断
+    if (pending.currentIndex >= pending.items.length) {
+      this.answerQuestion(conversationId, pending.toolCallId, pending.completedAnswers);
       this.pendingQuestions.delete(conversationId);
-      return { kind: 'multi_submit', displayLabel };
+      return { kind: 'all_done', displayLabel: displayLabel! };
     }
-
-    if (pending.labelToValue.has(text)) {
-      const value = pending.labelToValue.get(text)!;
-      if (pending.kind === 'single_select') {
-        this.answerQuestion(conversationId, pending.toolCallId, [{ id: pending.questionId, value, label: text }]);
-        this.pendingQuestions.delete(conversationId);
-        return { kind: 'single_done', displayLabel: text };
-      }
-      if (!pending.selectedValues.includes(value)) {
-        pending.selectedValues.push(value);
-      }
-      return { kind: 'multi_select', displayLabel: text };
-    }
-
-    return { kind: 'no_match' };
+    return {
+      kind: 'item_done',
+      displayLabel: displayLabel!,
+      currentIndex: pending.currentIndex,
+      totalItems: pending.items.length,
+    };
   }
 
   /**
@@ -542,11 +630,22 @@ export class ChannelMessageService {
   }
 
   /**
+   * Record every offered label of an item as "stale" before advancing past it.
+   * After advance, tapping any of these labels (selected or not) on the old card
+   * should be reported as a stale tap rather than fall through to a new agent turn.
+   */
+  private markItemLabelsStale(pending: IPendingQuestion, item: IPendingItem): void {
+    for (const lbl of item.labelToValue.keys()) {
+      pending.staleLabels.set(lbl, pending.currentIndex);
+    }
+  }
+
+  /**
    * Map already-selected submission values back to display labels (multi_select).
    */
-  private labelsForValues(pending: IPendingQuestion, values: string[]): string[] {
+  private labelsForValues(item: IPendingItem, values: string[]): string[] {
     const valueToLabel = new Map<string, string>();
-    for (const [label, value] of pending.labelToValue) {
+    for (const [label, value] of item.labelToValue) {
       valueToLabel.set(value, label);
     }
     return values.map((v) => valueToLabel.get(v) ?? v);
