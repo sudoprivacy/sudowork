@@ -55,6 +55,11 @@ interface IStreamState {
   draining: boolean;
   /** Pending messages buffered during draining phase */
   pendingMessages: IResponseMessage[];
+  /**
+   * Promises returned by async callbacks that haven't settled yet. Awaited on
+   * finish so resolve() doesn't fire while a callback is still mid-await.
+   */
+  inFlightCallbacks: Set<Promise<void>>;
 }
 
 /**
@@ -176,7 +181,7 @@ export class ChannelMessageService {
         stream.draining = true;
         // Use microtask to defer stream deletion and resolution
         // This ensures all synchronous message emissions are processed before stream is removed
-        queueMicrotask(() => {
+        queueMicrotask(async () => {
           const drainingStream = this.activeStreams.get(conversationId);
           if (drainingStream && drainingStream.msgId === stream.msgId) {
             // Flush all pending messages that arrived during draining phase
@@ -184,6 +189,12 @@ export class ChannelMessageService {
               this.processMessageEvent(pendingEvent, drainingStream);
             }
             drainingStream.pendingMessages = [];
+            // Drain in-flight async callbacks so the caller's finalize step sees
+            // up-to-date state (e.g. sentMessageIds containing the just-created card).
+            // Loop because a callback may fire more callbacks during await.
+            while (drainingStream.inFlightCallbacks.size > 0) {
+              await Promise.all(Array.from(drainingStream.inFlightCallbacks));
+            }
             // Delete stream and resolve
             this.activeStreams.delete(conversationId);
             drainingStream.resolve(drainingStream.msgId);
@@ -221,7 +232,12 @@ export class ChannelMessageService {
       // insert: true means new message, false means update existing message
 
       const isInsert = type === 'insert';
-      stream.callback(msg, isInsert);
+      // Callback's declared return is void, but async implementations actually return a Promise.
+      // Promise.resolve uniformly wraps both cases so the finish path can await any in-flight
+      // async work before resolving the outer sendMessage Promise.
+      const promise = Promise.resolve(stream.callback(msg, isInsert));
+      stream.inFlightCallbacks.add(promise);
+      promise.finally(() => stream.inFlightCallbacks.delete(promise));
     });
     this.messageListMap.set(event.conversation_id, messageList.slice(-20));
   }
@@ -355,6 +371,7 @@ export class ChannelMessageService {
         timedOut: false,
         draining: false,
         pendingMessages: [],
+        inFlightCallbacks: new Set(),
       });
 
       // Build payload — ACP agents use { content }.
