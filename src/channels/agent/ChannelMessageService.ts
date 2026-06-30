@@ -9,7 +9,8 @@ import WorkerManage from '@/process/WorkerManage';
 import { getDatabase } from '@/process/database';
 import type BaseAgent from '@/process/task/BaseAgent';
 import { queueConversationWorkspaceSkillSync } from '@/process/bridge/conversationBridge';
-import { composeMessage, transformMessage, type TMessage } from '../../common/chatLib';
+import type { AcpQuestionResponseAnswer } from '@/types/acpTypes';
+import { composeMessage, transformMessage, type TMessage, type AcpQuestionData } from '../../common/chatLib';
 import { uuid } from '../../common/utils';
 import type { IResponseMessage } from '../../common/ipcBridge';
 import { channelEventBus, type IAgentMessageEvent } from './ChannelEventBus';
@@ -57,6 +58,32 @@ interface IStreamState {
 }
 
 /**
+ * A pending ACP question awaiting the user's dtmd button-tap answer.
+ * 待答 ACP 选项题状态：用户点击 dtmd 按钮的回答将路由到 answerQuestion。
+ */
+interface IPendingQuestion {
+  toolCallId: string;
+  questionId: string;
+  kind: 'single_select' | 'multi_select';
+  /** option label -> submission value */
+  labelToValue: Map<string, string>;
+  /** accumulated submission values (multi_select) */
+  selectedValues: string[];
+}
+
+/**
+ * submitAnswer 的路由结果。
+ * - single_done: single_select 已作答（已调 answerQuestion）
+ * - multi_submit: multi_select 已提交累积值（已调 answerQuestion）
+ * - multi_select: multi_select 累积了一项（尚未调 answerQuestion）
+ * - no_match: 文本不匹配任何选项 / 空选提交 → 调用方按普通用户消息处理
+ */
+export type PendingAnswerResult = { kind: 'single_done'; displayLabel: string } | { kind: 'multi_submit'; displayLabel: string } | { kind: 'multi_select'; displayLabel: string } | { kind: 'no_match' };
+
+/** multi_select 提交哨兵（与 dtmd 提交按钮 content 一致）/ submit sentinel */
+const QA_SUBMIT_SENTINEL = '__qa_submit__';
+
+/**
  * ChannelMessageService - Manages message sending for Channel
  *
  * Architecture (分离设计):
@@ -72,6 +99,12 @@ export class ChannelMessageService {
    * Active message stream cache: conversationId -> stream state
    */
   private activeStreams: Map<string, IStreamState> = new Map();
+
+  /**
+   * 待答 ACP 选项题缓存：conversationId -> 待答状态
+   * Pending ACP question cache: conversationId -> pending state
+   */
+  private pendingQuestions: Map<string, IPendingQuestion> = new Map();
 
   /**
    * 全局事件监听器清理函数
@@ -406,6 +439,119 @@ export class ChannelMessageService {
       console.error(`[ChannelMessageService] Failed to confirm tool call:`, error);
       throw error;
     }
+  }
+
+  /**
+   * Register a pending ACP question for a conversation.
+   * Called on the first (insert) outbound acp_question so subsequent inbound
+   * button-taps route to answerQuestion instead of sendMessage (which would
+   * treat the answer as a new turn — AcpAgent.sendMessage ignores pendingQuestions).
+   *
+   * 为会话登记待答 ACP 选项题（出站首次提问时调用）。
+   */
+  registerPendingQuestion(conversationId: string, content: AcpQuestionData): void {
+    const items = content.items ?? [];
+    const item = items[0];
+    const kind = item?.kind;
+    if (items.length !== 1 || !item || !content.toolCallId) return;
+    if (kind !== 'single_select' && kind !== 'multi_select' && kind !== 'boolean') return;
+
+    const labelToValue = new Map<string, string>();
+    for (const option of item.options ?? []) {
+      labelToValue.set(option.label, option.value);
+    }
+    this.pendingQuestions.set(conversationId, {
+      toolCallId: content.toolCallId,
+      questionId: item.id,
+      kind: kind === 'multi_select' ? 'multi_select' : 'single_select',
+      labelToValue,
+      selectedValues: [],
+    });
+  }
+
+  /**
+   * Whether the conversation has a pending ACP question awaiting an answer.
+   */
+  hasPendingQuestion(conversationId: string): boolean {
+    return this.pendingQuestions.has(conversationId);
+  }
+
+  /**
+   * Submit a user's text answer toward a pending question.
+   * - single 命中 → answerQuestion + single_done
+   * - multi 命中选项 → 累积(去重) + multi_select（不调 answerQuestion）
+   * - multi 提交哨兵 → answerQuestion(累积值, ' / ' 连接) + multi_submit
+   * - 否则 → no_match（调用方按普通用户消息处理）
+   *
+   * multi_select 的 ' / ' 连接口径与桌面端 MessageAcpQuestion 一致。
+   */
+  submitAnswer(conversationId: string, text: string): PendingAnswerResult {
+    const pending = this.pendingQuestions.get(conversationId);
+    if (!pending) return { kind: 'no_match' };
+
+    if (text === QA_SUBMIT_SENTINEL && pending.kind === 'multi_select') {
+      if (pending.selectedValues.length === 0) {
+        return { kind: 'no_match' };
+      }
+      const displayLabel = this.labelsForValues(pending, pending.selectedValues).join(' / ');
+      const submissionValue = pending.selectedValues.join(' / ');
+      this.answerQuestion(conversationId, pending.toolCallId, [{ id: pending.questionId, value: submissionValue, label: displayLabel }]);
+      this.pendingQuestions.delete(conversationId);
+      return { kind: 'multi_submit', displayLabel };
+    }
+
+    if (pending.labelToValue.has(text)) {
+      const value = pending.labelToValue.get(text)!;
+      if (pending.kind === 'single_select') {
+        this.answerQuestion(conversationId, pending.toolCallId, [{ id: pending.questionId, value, label: text }]);
+        this.pendingQuestions.delete(conversationId);
+        return { kind: 'single_done', displayLabel: text };
+      }
+      if (!pending.selectedValues.includes(value)) {
+        pending.selectedValues.push(value);
+      }
+      return { kind: 'multi_select', displayLabel: text };
+    }
+
+    return { kind: 'no_match' };
+  }
+
+  /**
+   * Clear the pending question for a conversation (idempotent).
+   * Called on answered/cancelled outbound update so no stale state remains.
+   */
+  clearPendingQuestion(conversationId: string): void {
+    this.pendingQuestions.delete(conversationId);
+  }
+
+  /**
+   * Map already-selected submission values back to display labels (multi_select).
+   */
+  private labelsForValues(pending: IPendingQuestion, values: string[]): string[] {
+    const valueToLabel = new Map<string, string>();
+    for (const [label, value] of pending.labelToValue) {
+      valueToLabel.set(value, label);
+    }
+    return values.map((v) => valueToLabel.get(v) ?? v);
+  }
+
+  /**
+   * Send answers back to the agent task via answerQuestion (mirrors confirm()).
+   * answerQuestion is provided by AcpAgent; BaseAgent does not declare it, and
+   * acp_question only originates from AcpAgent, so the task is guaranteed to support it.
+   */
+  private answerQuestion(conversationId: string, toolCallId: string, answers: AcpQuestionResponseAnswer[]): void {
+    const task = WorkerManage.getTaskById(conversationId);
+    if (!task) {
+      throw new Error(`Task not found for conversation ${conversationId}`);
+    }
+    const answerable = task as unknown as {
+      answerQuestion?: (toolCallId: string, answers: AcpQuestionResponseAnswer[]) => Promise<void>;
+    };
+    if (typeof answerable.answerQuestion !== 'function') {
+      throw new Error(`Agent does not support answerQuestion for conversation ${conversationId}`);
+    }
+    void answerable.answerQuestion(toolCallId, answers);
   }
 
   /**

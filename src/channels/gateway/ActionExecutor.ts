@@ -6,7 +6,7 @@
 
 import fs from 'fs';
 import path from 'path';
-import type { TMessage } from '@/common/chatLib';
+import type { TMessage, AcpQuestionData } from '@/common/chatLib';
 import { database as databaseBridge } from '@/common/ipcBridge';
 import { parseNexusFilesMarker } from '@/common/nexusFiles';
 import { getDatabase } from '@/process/database';
@@ -20,7 +20,7 @@ import { buildChatErrorResponse, chatActions } from '../actions/ChatActions';
 import { handlePairingShow, platformActions } from '../actions/PlatformActions';
 import { getChannelDefaultModel, systemActions } from '../actions/SystemActions';
 import type { IActionContext, IRegisteredAction } from '../actions/types';
-import { getChannelMessageService } from '../agent/ChannelMessageService';
+import { getChannelMessageService, type PendingAnswerResult } from '../agent/ChannelMessageService';
 import type { SessionManager } from '../core/SessionManager';
 import type { PairingService } from '../pairing/PairingService';
 import type { PluginMessageHandler } from '../plugins/BasePlugin';
@@ -29,7 +29,7 @@ import { resolveChannelConvType } from '../types';
 import { createMainMenuCard, createErrorRecoveryCard, createToolConfirmationCard } from '../plugins/lark/LarkCards';
 import { convertHtmlToLarkMarkdown } from '../plugins/lark/LarkAdapter';
 import { createMainMenuCard as createDingTalkMainMenuCard, createErrorRecoveryCard as createDingTalkErrorRecoveryCard, createResponseActionsCard as createDingTalkResponseActionsCard, createToolConfirmationCard as createDingTalkToolConfirmationCard } from '../plugins/dingtalk/DingTalkCards';
-import { convertHtmlToDingTalkMarkdown } from '../plugins/dingtalk/DingTalkAdapter';
+import { convertHtmlToDingTalkMarkdown, buildDingTalkQuestionMarkdown } from '../plugins/dingtalk/DingTalkAdapter';
 import { createMainMenuKeyboard, createToolConfirmationKeyboard } from '../plugins/telegram/TelegramKeyboards';
 import { escapeHtml } from '../plugins/telegram/TelegramAdapter';
 import { resolveMediaText } from './voiceTranscription';
@@ -699,6 +699,37 @@ export class ActionExecutor {
       });
     }
 
+    // Pending ACP question routing: if this conversation has a pending question
+    // (scode awaiting a button-tap answer), route the user's text to answerQuestion
+    // instead of sendMessage (which would treat the answer as a new turn). Placed
+    // before thinking/lock so a tap reply never spins up a competing AI turn.
+    const pendingConvId = context.conversationId || context.chatId;
+    if (pendingConvId) {
+      const pendingService = getChannelMessageService();
+      if (pendingService.hasPendingQuestion(pendingConvId)) {
+        let answerResult: PendingAnswerResult;
+        try {
+          answerResult = pendingService.submitAnswer(pendingConvId, text);
+        } catch {
+          await context.sendMessage({ type: 'text', text: '❌ 提交失败，请重试', parseMode: 'Markdown' });
+          return;
+        }
+        if (answerResult.kind === 'single_done' || answerResult.kind === 'multi_submit') {
+          await context.sendMessage({ type: 'text', text: `✅ 已提交：${answerResult.displayLabel}`, parseMode: 'Markdown' });
+          return;
+        }
+        if (answerResult.kind === 'multi_select') {
+          await context.sendMessage({
+            type: 'text',
+            text: `✅ 已选中：${answerResult.displayLabel}，继续选择或点【提交】`,
+            parseMode: 'Markdown',
+          });
+          return;
+        }
+        // answerResult.kind === 'no_match': fall through to normal chat flow below
+      }
+    }
+
     // Send "thinking" indicator IMMEDIATELY (before acquiring lock)
     // This ensures the user always sees acknowledgment, even if the conversation is busy.
     const supportsEdit = context.platform !== 'wechat';
@@ -839,6 +870,24 @@ export class ActionExecutor {
       // Send message
       await messageService.sendMessage(sessionId, conversationId, text, files, async (message: TMessage, isInsert: boolean) => {
         const now = Date.now();
+
+        // acp_question → DingTalk dtmd buttons (dingtalk only).
+        // First insert: render dtmd options (register pending when supported).
+        // Update (answered/cancelled): clear pending. Never falls through to
+        // convertTMessageToOutgoing's default ('⏳ Processing...').
+        if ((context.platform as PluginType) === 'dingtalk' && message.type === 'acp_question') {
+          const acpContent = message.content as AcpQuestionData;
+          if (isInsert && !acpContent.answered && !acpContent.cancelled) {
+            const { markdown, isSupported } = buildDingTalkQuestionMarkdown(acpContent);
+            if (isSupported) {
+              messageService.registerPendingQuestion(conversationId, acpContent);
+            }
+            await context.sendMessage({ type: 'text', text: markdown, parseMode: 'Markdown' });
+          } else {
+            messageService.clearPendingQuestion(conversationId);
+          }
+          return;
+        }
 
         // 转换消息格式（根据平台）
         // Convert message format (based on platform)

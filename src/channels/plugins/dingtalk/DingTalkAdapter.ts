@@ -5,6 +5,7 @@
  */
 
 import type { IMessageAction, IUnifiedIncomingMessage, IUnifiedMessageContent, IUnifiedOutgoingMessage, IUnifiedUser } from '../../types';
+import type { AcpQuestionData } from '../../../common/chatLib';
 
 /**
  * DingTalkAdapter - Converts between DingTalk and Unified message formats
@@ -520,6 +521,44 @@ function buildActionCard(text: string, buttons: IUnifiedOutgoingMessage['buttons
     btnOrientation: '1', // Horizontal layout
     btns: btnList,
   };
+}
+
+// ==================== ACP Question (dtmd buttons) ====================
+
+/**
+ * Build DingTalk markdown with dtmd buttons for an ACP question (single/multi select).
+ *
+ * dtmd links make the DingTalk client send the option label back as a plain
+ * TOPIC_ROBOT message when tapped, so the bot receives the answer without any
+ * cardTemplate — end users only configure the bot (clientId/secret), never the
+ * DingTalk backend. (Verified in step 0: tapped content arrives verbatim.)
+ *
+ * 为 ACP 选项题构造带 dtmd 按钮的钉钉 markdown。仅支持单项 single_select /
+ * multi_select（boolean 视作 single_select）；text 与多题降级为纯文本提示。
+ */
+export function buildDingTalkQuestionMarkdown(content: AcpQuestionData): { markdown: string; isSupported: boolean } {
+  const items = content.items ?? [];
+  const item = items[0];
+  const kind = item?.kind;
+  const isSupported = items.length === 1 && (kind === 'single_select' || kind === 'multi_select' || kind === 'boolean');
+
+  if (!isSupported || !item) {
+    const questionText = content.question || item?.prompt || '请回答';
+    return {
+      markdown: `${questionText}\n\n此题型暂不支持按钮选择，请直接文字说明。`,
+      isSupported: false,
+    };
+  }
+
+  const lines: string[] = [content.question || item.prompt || '请选择', ''];
+  for (const option of item.options ?? []) {
+    lines.push(`- [${option.label}](dtmd://dingtalkclient/sendMessage?content=${encodeURIComponent(option.label)})`);
+  }
+  if (kind === 'multi_select') {
+    lines.push('', `- [✅ 提交](dtmd://dingtalkclient/sendMessage?content=${encodeURIComponent('__qa_submit__')})`);
+  }
+
+  return { markdown: lines.join('\n'), isSupported: true };
 }
 
 // ==================== Text Formatting ====================
