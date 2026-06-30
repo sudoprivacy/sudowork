@@ -9,6 +9,7 @@ import path from 'path';
 import type { TMessage, AcpQuestionData } from '@/common/chatLib';
 import { database as databaseBridge } from '@/common/ipcBridge';
 import { parseNexusFilesMarker } from '@/common/nexusFiles';
+import { stripGeneratedFilesMarker } from '@/common/generatedFiles';
 import { getDatabase } from '@/process/database';
 import { ProcessConfig } from '@/process/initStorage';
 import { getDataPath } from '@/process/utils';
@@ -225,6 +226,10 @@ function getConfirmationPrompt(details: { type: string; title?: string; [key: st
 function convertTMessageToOutgoing(message: TMessage, platform: PluginType, isComplete = false): IUnifiedOutgoingMessage | null {
   switch (message.type) {
     case 'text': {
+      // [[NEXUS_GENERATED_FILES]] is a renderer-only directive for GeneratedFileCard;
+      // meaningless to IM users (file body already delivered via a separate file_send).
+      if (!stripGeneratedFilesMarker(message.content.content || '').trim()) return null;
+
       // 根据平台格式化文本
       // Format text based on platform
       const rawText = formatTextForPlatform(message.content.content || '', platform);
