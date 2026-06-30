@@ -104,6 +104,12 @@ export class ServiceManager {
     // explicit force=true (operator retry/reinstall) bypasses this guard.
     if (this.startupCompleted && !force) {
       mainLog('ServiceManager', 'startup() called again after completion — skipping (already started)');
+      // The caller is typically setAppMode/startConsumerServices, which reloads
+      // the renderer — and the freshly-mounted InitLoading waits for a 'ready'
+      // status that this no-op would otherwise never emit, leaving the UI stuck
+      // on "正在启动核心服务...". Services are already up, so re-assert ready.
+      initStatusManager.setStatus('ready', '初始化完成', 100);
+      initStatusManager.clearRetry();
       return;
     }
 
