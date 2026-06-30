@@ -5,10 +5,10 @@ import * as http from 'http';
 import * as crypto from 'crypto';
 import { app } from 'electron';
 import { mainLog, mainWarn } from '@process/utils/mainLogger';
-import { extractTarGzWithProgress, extractZipWithProgress } from '../archiveProgress';
 import runtimeVersions from '@/shared/runtime-versions.json';
 import runtimeSha256 from '@/shared/runtime-sha256.json';
 import { COS_RUNTIME_BASE, COS_LEGACY_NEXUS_VFS_BASE } from '@/shared/cos';
+import { extractTarGzWithProgress, extractZipWithProgress } from '../archiveProgress';
 import type { NexusVfsStage } from './DynamicNexusVfsService';
 
 /**
@@ -121,6 +121,43 @@ class VaultPluginInstaller {
     }
   }
 
+  /** Versioned archive filename matching the extraResources filter in
+   *  electron-builder.yml. Pattern: v${VERSION}-${artifact} */
+  private getVersionedArchiveName(): string | null {
+    const artifact = getVaultArtifactName(process.platform, process.arch);
+    if (!artifact) return null;
+    return `v${VAULT_VERSION}-${artifact}`;
+  }
+
+  /** Find the locally bundled vault archive from the packaged app's
+   *  extraResources or the development resources directory. Returns null if
+   *  not found (caller should fall back to remote download). */
+  private getBundledVaultPath(): string | null {
+    const versionedName = this.getVersionedArchiveName();
+    if (!versionedName) return null;
+
+    if (app.isPackaged) {
+      const packagedPath = path.join(process.resourcesPath, versionedName);
+      if (fs.existsSync(packagedPath)) {
+        const stats = fs.statSync(packagedPath);
+        if (stats.size >= 1024 * 100) {
+          return packagedPath;
+        }
+      }
+    }
+
+    // Development mode
+    const devPath = path.join(app.getAppPath(), 'resources', versionedName);
+    if (fs.existsSync(devPath)) {
+      const stats = fs.statSync(devPath);
+      if (stats.size >= 1024 * 100) {
+        return devPath;
+      }
+    }
+
+    return null;
+  }
+
   /** Download → SHA-verify → extract → install vault into ~/.nexus-vfs/plugins/.
    *  - Unsupported platform → warn and return (cluster keeps starting without vault).
    *  - All three mirrors 404 → throw with explicit not-available message.
@@ -148,60 +185,75 @@ class VaultPluginInstaller {
     }
 
     const pluginDir = this.getPluginDir();
-    const downloadDir = path.join(app.getPath('home'), '.nexus-vfs', 'downloads');
-    fs.mkdirSync(downloadDir, { recursive: true });
     fs.mkdirSync(pluginDir, { recursive: true });
 
-    const archivePath = path.join(downloadDir, artifact);
+    // Try bundled local resource first, then fall back to remote download.
+    const bundledPath = this.getBundledVaultPath();
+    let archivePath: string;
 
-    // ── Download with three-mirror fallback ──────────────────────────────────
-    const attempts = this.getDownloadUrls(artifact);
-    let downloaded = false;
-    let lastReason = 'unknown error';
-    let allNotFound = true;
-    for (const attempt of attempts) {
-      emit('downloading', `Downloading nexus-vault from ${attempt.label} (${attempt.url})`, 0);
-      try {
-        await this.downloadFile(attempt.url, archivePath, emit);
-        downloaded = true;
-        break;
-      } catch (err) {
-        const reason = err instanceof Error ? err.message : String(err);
-        lastReason = reason;
-        if (reason !== 'NOT_FOUND') allNotFound = false;
-        mainWarn('NexusVault', `${attempt.label} download failed: ${reason}`);
-      }
-    }
+    if (bundledPath) {
+      archivePath = bundledPath;
+      mainLog('NexusVault', `Using bundled vault archive from ${bundledPath}`);
+      emit('downloading', `Using bundled vault from ${bundledPath}`, 0);
+    } else {
+      const downloadDir = path.join(app.getPath('home'), '.nexus-vfs', 'downloads');
+      fs.mkdirSync(downloadDir, { recursive: true });
+      archivePath = path.join(downloadDir, artifact);
 
-    if (!downloaded) {
-      if (allNotFound) {
-        const msg = `nexus-vault not available for ${process.platform}-${process.arch} in v${VAULT_VERSION} (all mirrors → HTTP 404)`;
-        emit('error', msg);
-        throw new Error(msg);
+      const attempts = this.getDownloadUrls(artifact);
+      let downloaded = false;
+      let lastReason = 'unknown error';
+      let allNotFound = true;
+      for (const attempt of attempts) {
+        emit('downloading', `Downloading nexus-vault from ${attempt.label} (${attempt.url})`, 0);
+        try {
+          await this.downloadFile(attempt.url, archivePath, emit);
+          downloaded = true;
+          break;
+        } catch (err) {
+          const reason = err instanceof Error ? err.message : String(err);
+          lastReason = reason;
+          if (reason !== 'NOT_FOUND') allNotFound = false;
+          mainWarn('NexusVault', `${attempt.label} download failed: ${reason}`);
+        }
       }
-      emit('error', `Failed to download nexus-vault: ${lastReason}`);
-      throw new Error(lastReason);
+
+      if (!downloaded) {
+        if (allNotFound) {
+          const msg = `nexus-vault not available for ${process.platform}-${process.arch} in v${VAULT_VERSION} (all mirrors → HTTP 404)`;
+          emit('error', msg);
+          throw new Error(msg);
+        }
+        emit('error', `Failed to download nexus-vault: ${lastReason}`);
+        throw new Error(lastReason);
+      }
     }
 
     // ── SHA256 integrity check ───────────────────────────────────────────────
-    const expectedSha = NEXUS_VAULT_SHA256SUMS[artifact];
-    if (!expectedSha) {
-      throw new Error(`No known SHA256 for ${artifact}; refusing to install an unverified artifact.`);
+    // Bundled archives are already SHA-verified and signed during CI build; the
+    // re-sign step in afterPack.js changes the archive SHA, so we skip the check
+    // for bundled resources (trust the build pipeline) and only verify remote
+    // downloads (guard against MITM / corrupted downloads).
+    if (!bundledPath) {
+      const expectedSha = NEXUS_VAULT_SHA256SUMS[artifact];
+      if (!expectedSha) {
+        throw new Error(`No known SHA256 for ${artifact}; refusing to install an unverified artifact.`);
+      }
+      const actualSha = crypto.createHash('sha256').update(fs.readFileSync(archivePath)).digest('hex');
+      if (actualSha !== expectedSha) {
+        try {
+          fs.unlinkSync(archivePath);
+        } catch {}
+        const msg = `nexus-vault SHA256 mismatch for ${artifact}: expected ${expectedSha}, got ${actualSha}`;
+        emit('error', msg);
+        throw new Error(msg);
+      }
+      mainLog('NexusVault', `SHA256 verified: ${actualSha}`);
     }
-    const actualSha = crypto.createHash('sha256').update(fs.readFileSync(archivePath)).digest('hex');
-    if (actualSha !== expectedSha) {
-      try {
-        fs.unlinkSync(archivePath);
-      } catch {}
-      const msg = `nexus-vault SHA256 mismatch for ${artifact}: expected ${expectedSha}, got ${actualSha}`;
-      emit('error', msg);
-      throw new Error(msg);
-    }
-    mainLog('NexusVault', `SHA256 verified: ${actualSha}`);
 
     // ── Extract ──────────────────────────────────────────────────────────────
     emit('installing', 'Extracting nexus-vault...', 80);
-    const extractDir = path.join(downloadDir, `vault-extract-${process.pid}-${process.hrtime.bigint()}`);
+    const extractDir = path.join(pluginDir, `_vault-extract-${process.pid}-${process.hrtime.bigint()}`);
     fs.mkdirSync(extractDir, { recursive: true });
     await this.extractArchive(archivePath, extractDir);
 
@@ -239,7 +291,10 @@ class VaultPluginInstaller {
 
     try {
       fs.rmSync(extractDir, { recursive: true, force: true });
-      fs.unlinkSync(archivePath);
+      // Only delete the downloaded archive, not a bundled resource.
+      if (!bundledPath) {
+        fs.unlinkSync(archivePath);
+      }
     } catch {}
 
     emit('idle', `nexus-vault installed: ${installedDylib}`, 100);

@@ -211,6 +211,11 @@ extraResources:
     to: .
     filter:
       - v*-scode-macos-*
+  # Vault plugin - versioned, optional
+  - from: resources
+    to: .
+    filter:
+      - v*-nexus-vault-macos-*
 
 win:
   legalTrademarks: Copyright © 2026 北京数牍科技有限公司
@@ -237,6 +242,11 @@ win:
       to: .
       filter:
         - v*-scode-windows-*
+    # Vault plugin for Windows - versioned
+    - from: resources
+      to: .
+      filter:
+        - v*-nexus-vault-windows-*
 
 nsis:
   oneClick: false

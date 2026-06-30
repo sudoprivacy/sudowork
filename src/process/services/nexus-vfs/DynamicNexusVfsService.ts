@@ -9,10 +9,11 @@ import { spawn, exec } from 'child_process';
 import { promisify } from 'util';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import { processSupervisor } from '@process/ProcessSupervisor';
-import { extractTarGzWithProgress, extractZipWithProgress } from '../archiveProgress';
 import runtimeVersions from '@/shared/runtime-versions.json';
 import runtimeSha256 from '@/shared/runtime-sha256.json';
 import { COS_RUNTIME_BASE, COS_LEGACY_NEXUS_VFS_BASE } from '@/shared/cos';
+import { getNexusSecretClient } from '@common/nexus/nexus-secret-client';
+import { extractTarGzWithProgress, extractZipWithProgress } from '../archiveProgress';
 import { vaultPluginInstaller } from './VaultPluginInstaller';
 
 const execAsync = promisify(exec);
@@ -35,6 +36,7 @@ const NEXUS_VFS_BIND_HOST = '127.0.0.1';
 const NEXUS_VFS_DEFAULT_PORT = 12022;
 const NEXUS_VFS_POLL_INTERVAL_MS = 200;
 const NEXUS_VFS_START_TIMEOUT_MS = 30_000;
+const NEXUS_VAULT_READY_TIMEOUT_MS = 5_000;
 
 /** Marker file recording the installed version inside the bin directory. */
 const NEXUS_VFS_READY_MARKER = '.nexus-vfs-bin-ready';
@@ -151,6 +153,40 @@ class DynamicNexusVfsService {
     return `nexusd-cluster-${osName}-${archName}${ext}`;
   }
 
+  /** Versioned archive filename matching the extraResources filter in electron-builder.yml.
+   *  Pattern: v${VERSION}-nexusd-cluster-${os}-${arch}.${ext} */
+  private getVersionedArchiveName(): string {
+    return `v${this.getBundledVersion()}-${this.getArtifactName()}`;
+  }
+
+  /** Find the locally bundled nexus-vfs archive from the packaged app's
+   *  extraResources or the development resources directory. Returns null if
+   *  not found (caller should fall back to remote download). */
+  private getBundledNexusVfsPath(): string | null {
+    const versionedName = this.getVersionedArchiveName();
+
+    if (app.isPackaged) {
+      const packagedPath = path.join(process.resourcesPath, versionedName);
+      if (fs.existsSync(packagedPath)) {
+        const stats = fs.statSync(packagedPath);
+        if (stats.size >= 1024 * 100) {
+          return packagedPath;
+        }
+      }
+    }
+
+    // Development mode
+    const devPath = path.join(app.getAppPath(), 'resources', versionedName);
+    if (fs.existsSync(devPath)) {
+      const stats = fs.statSync(devPath);
+      if (stats.size >= 1024 * 100) {
+        return devPath;
+      }
+    }
+
+    return null;
+  }
+
   /** Ordered download URLs: runtime bucket first, legacy bucket as fallback. */
   private getDownloadUrls(): { label: string; url: string }[] {
     const tail = `v${this.getBundledVersion()}/${this.getArtifactName()}`;
@@ -234,14 +270,18 @@ class DynamicNexusVfsService {
             file.on('error', (err) => {
               try {
                 fs.unlinkSync(destPath);
-              } catch {}
+              } catch {
+                // Ignore cleanup failures.
+              }
               reject(err);
             });
           })
           .on('error', (err) => {
             try {
               fs.unlinkSync(destPath);
-            } catch {}
+            } catch {
+              // Ignore cleanup failures.
+            }
             reject(err);
           });
       };
@@ -277,53 +317,70 @@ class DynamicNexusVfsService {
     fs.mkdirSync(downloadDir, { recursive: true });
     fs.mkdirSync(binDir, { recursive: true });
 
-    const attempts = this.getDownloadUrls();
-    const archivePath = path.join(downloadDir, this.getArtifactName());
+    // Try bundled local resource first, then fall back to remote download.
+    const bundledPath = this.getBundledNexusVfsPath();
+    let archivePath: string;
 
-    let downloaded = false;
-    let lastReason = 'unknown error';
-    let allNotFound = true;
-    for (const attempt of attempts) {
-      this.emit('downloading', `Downloading nexus-vfs from ${attempt.label} (${attempt.url})`, 0);
-      try {
-        await this.downloadFile(attempt.url, archivePath);
-        downloaded = true;
-        break;
-      } catch (err) {
-        const reason = err instanceof Error ? err.message : String(err);
-        lastReason = reason;
-        if (reason !== 'NOT_FOUND') allNotFound = false;
-        mainWarn('NexusVfs', `${attempt.label} download failed: ${reason}`);
-      }
-    }
+    if (bundledPath) {
+      archivePath = bundledPath;
+      mainLog('NexusVfs', `Using bundled nexus-vfs archive from ${bundledPath}`);
+      this.emit('downloading', `Using bundled nexus-vfs from ${bundledPath}`, 0);
+    } else {
+      mainLog('NexusVfs', 'Bundled nexus-vfs not found, attempting remote download...');
+      archivePath = path.join(downloadDir, this.getArtifactName());
 
-    if (!downloaded) {
-      // Every mirror returned 404 → the artifact genuinely does not exist for this
-      // platform/version. Preserve the explicit, non-fallback NOT_FOUND signal.
-      if (allNotFound) {
-        const msg = `nexus-vfs binary not available for ${process.platform}-${process.arch} in v${this.getBundledVersion()} (all COS mirrors → HTTP 404)`;
-        this.emit('error', msg);
-        throw new Error(msg);
+      const attempts = this.getDownloadUrls();
+      let downloaded = false;
+      let lastReason = 'unknown error';
+      let allNotFound = true;
+      for (const attempt of attempts) {
+        this.emit('downloading', `Downloading nexus-vfs from ${attempt.label} (${attempt.url})`, 0);
+        try {
+          await this.downloadFile(attempt.url, archivePath);
+          downloaded = true;
+          break;
+        } catch (err) {
+          const reason = err instanceof Error ? err.message : String(err);
+          lastReason = reason;
+          if (reason !== 'NOT_FOUND') allNotFound = false;
+          mainWarn('NexusVfs', `${attempt.label} download failed: ${reason}`);
+        }
       }
-      this.emit('error', `Failed to download nexus-vfs: ${lastReason}`);
-      throw new Error(lastReason);
+
+      if (!downloaded) {
+        if (allNotFound) {
+          const msg = `nexus-vfs binary not available for ${process.platform}-${process.arch} in v${this.getBundledVersion()} (all COS mirrors → HTTP 404)`;
+          this.emit('error', msg);
+          throw new Error(msg);
+        }
+        this.emit('error', `Failed to download nexus-vfs: ${lastReason}`);
+        throw new Error(lastReason);
+      }
     }
 
     // Integrity check before we trust the archive — reject anything unverified.
-    const expectedSha = NEXUS_VFS_SHA256SUMS[this.getArtifactName()];
-    if (!expectedSha) {
-      throw new Error(`No known SHA256 for ${this.getArtifactName()}; refusing to install an unverified artifact.`);
+    // Bundled archives are already SHA-verified and signed during CI build; the
+    // re-sign step in afterPack.js changes the archive SHA, so we skip the check
+    // for bundled resources (trust the build pipeline) and only verify remote
+    // downloads (guard against MITM / corrupted downloads).
+    if (!bundledPath) {
+      const expectedSha = NEXUS_VFS_SHA256SUMS[this.getArtifactName()];
+      if (!expectedSha) {
+        throw new Error(`No known SHA256 for ${this.getArtifactName()}; refusing to install an unverified artifact.`);
+      }
+      const actualSha = crypto.createHash('sha256').update(fs.readFileSync(archivePath)).digest('hex');
+      if (actualSha !== expectedSha) {
+        try {
+          fs.unlinkSync(archivePath);
+        } catch {
+          // Ignore cleanup failures.
+        }
+        const msg = `nexus-vfs SHA256 mismatch for ${this.getArtifactName()}: expected ${expectedSha}, got ${actualSha}`;
+        this.emit('error', msg);
+        throw new Error(msg);
+      }
+      mainLog('NexusVfs', `SHA256 verified: ${actualSha}`);
     }
-    const actualSha = crypto.createHash('sha256').update(fs.readFileSync(archivePath)).digest('hex');
-    if (actualSha !== expectedSha) {
-      try {
-        fs.unlinkSync(archivePath);
-      } catch {}
-      const msg = `nexus-vfs SHA256 mismatch for ${this.getArtifactName()}: expected ${expectedSha}, got ${actualSha}`;
-      this.emit('error', msg);
-      throw new Error(msg);
-    }
-    mainLog('NexusVfs', `SHA256 verified: ${actualSha}`);
 
     this.emit('installing', 'Extracting nexus-vfs...', 80);
     const extractDir = path.join(downloadDir, `extract-${Date.now()}`);
@@ -344,8 +401,13 @@ class DynamicNexusVfsService {
 
     try {
       fs.rmSync(extractDir, { recursive: true, force: true });
-      fs.unlinkSync(archivePath);
-    } catch {}
+      // Only delete the downloaded archive, not a bundled resource.
+      if (!bundledPath) {
+        fs.unlinkSync(archivePath);
+      }
+    } catch {
+      // Ignore cleanup failures.
+    }
 
     this.emit('idle', `nexus-vfs installed: ${targetBinary}`, 100);
 
@@ -438,6 +500,12 @@ class DynamicNexusVfsService {
     mainLog('NexusVfs', `Waiting for nexus-vfs gRPC port ${this._port} to accept connections...`);
     await this.waitForPortReady(this._port, NEXUS_VFS_START_TIMEOUT_MS);
     const elapsed = Date.now() - spawnStart;
+    try {
+      await this.waitForVaultServiceReady(NEXUS_VAULT_READY_TIMEOUT_MS);
+    } catch (err) {
+      await this.stop().catch(() => {});
+      throw err;
+    }
     mainLog('NexusVfs', `nexus-vfs ready — port=${this._port} startup=${elapsed}ms`);
     this._running = true;
     this.emit('ready', `nexus-vfs ready on ${NEXUS_VFS_BIND_HOST}:${this._port}`);
@@ -507,6 +575,30 @@ class DynamicNexusVfsService {
       await new Promise<void>((resolve) => setTimeout(resolve, NEXUS_VFS_POLL_INTERVAL_MS));
     }
     throw new Error(`nexus-vfs did not start listening on port ${port} within ${timeoutMs}ms`);
+  }
+
+  private async waitForVaultServiceReady(timeoutMs: number): Promise<void> {
+    if (!vaultPluginInstaller.isPlatformSupported() || !vaultPluginInstaller.checkInstalledSync()) {
+      return;
+    }
+
+    const deadline = Date.now() + timeoutMs;
+    let lastReason = 'unknown error';
+
+    while (Date.now() < deadline) {
+      try {
+        getNexusSecretClient().listSecrets('__sudowork_startup_probe__', false);
+        return;
+      } catch (err) {
+        lastReason = err instanceof Error ? err.message : String(err);
+      }
+      await new Promise<void>((resolve) => setTimeout(resolve, NEXUS_VFS_POLL_INTERVAL_MS));
+    }
+
+    const msg = `Nexus gRPC port is ready but password-vault service is unavailable; vault plugin may be unsigned or not loaded from ${this.getPluginDir()}: ${lastReason}`;
+    mainError('NexusVfs', msg);
+    this.emit('error', msg);
+    throw new Error(msg);
   }
 
   async checkActualRunning(): Promise<boolean> {
