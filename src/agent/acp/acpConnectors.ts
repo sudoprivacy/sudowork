@@ -666,6 +666,26 @@ export async function spawnGenericBackend(backend: string, cliPath: string, work
     mainLog('[ACP scode]', 'Injected SUDOCODE_WEB_SEARCH_BASE_URL (DuckDuckGo)');
   }
 
+  // Inject ai-dev-browser image_cap env vars so screenshot tools stay within
+  // the active model's accept-cap without every LLM tool call having to pass
+  // --image-cap-* args. These env vars are read by ai-dev-browser v0.12.1+
+  // in its `apply_image_cap` helper when no per-call arg is provided.
+  // Values source: sudocode advertises the SAME hard limits at initialize
+  // (see rust/crates/runtime/src/image_registry.rs — `capability()`), so
+  // we mirror them here without depending on the ACP handshake completing
+  // first. When sudorouter's per-model refinements land, sudocode picks
+  // them up internally at push_images; the browser-tool cap stays at the
+  // sudocode hard limit which is safe (min-of-both applies in the tool).
+  if (backend === 'scode') {
+    if (!cleanEnv.AI_DEV_BROWSER_IMAGE_CAP_MAX_BYTES) {
+      cleanEnv.AI_DEV_BROWSER_IMAGE_CAP_MAX_BYTES = String(5 * 1024 * 1024);
+    }
+    if (!cleanEnv.AI_DEV_BROWSER_IMAGE_CAP_MAX_DIMENSION) {
+      cleanEnv.AI_DEV_BROWSER_IMAGE_CAP_MAX_DIMENSION = '8000';
+    }
+    mainLog('[ACP scode]', `Injected AI_DEV_BROWSER_IMAGE_CAP_MAX_BYTES=${cleanEnv.AI_DEV_BROWSER_IMAGE_CAP_MAX_BYTES}, MAX_DIMENSION=${cleanEnv.AI_DEV_BROWSER_IMAGE_CAP_MAX_DIMENSION}`);
+  }
+
   // Inject Claude Code OAuth token for scode subscription auth if available
   if (backend === 'scode' && !cleanEnv.CLAUDE_CODE_OAUTH_TOKEN) {
     try {

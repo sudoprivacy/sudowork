@@ -982,7 +982,7 @@ This identity statement takes priority over the default identity in USER.md.
         // makes getImageTargetSize fall back to sudowork defaults (Decision 1's
         // graceful-degradation hard rule).
         const imageCapability: IImageCapability | null = parseImageCapability(this.connection.getInitializeResponse());
-        const economyMode = (await ConfigStorage.get('image.economyMode').catch(() => undefined)) === true;
+        const economyMode = (await ConfigStorage.get('image.economyMode').catch((): boolean | undefined => undefined)) === true;
 
         const processed = await processAtFileReferences(contentToSend, this.workspace, data.files, this.persistedModelId, {
           capability: imageCapability,

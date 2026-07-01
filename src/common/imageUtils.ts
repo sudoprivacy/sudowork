@@ -53,7 +53,7 @@ export interface IImageCapability {
  * Per Decision 1 (hard rule): absent capability MUST fall back silently
  * to sudowork defaults; never throw, never warn.
  */
-export function parseImageCapability(initResponse: { _meta?: unknown } | null | undefined): IImageCapability | null {
+export function parseImageCapability(initResponse: unknown): IImageCapability | null {
   if (!initResponse || typeof initResponse !== 'object') return null;
   const meta = (initResponse as { _meta?: unknown })._meta;
   if (!meta || typeof meta !== 'object') return null;
