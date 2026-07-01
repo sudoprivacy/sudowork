@@ -1064,6 +1064,8 @@
   "secrets.tenantSaveSuccess": "Configuration saved successfully",
   "secrets.tenantSaveFailed": "Failed to save configuration",
   "secrets.tenantFieldRequired": "Please fill in all configuration items",
+  "imageEconomyMode": "Image Economy Mode",
+  "imageEconomyModeDesc": "When on, images sent to the model are downsampled to 128 KB to save input-token cost (image detail is reduced). Off by default — uses the model's documented full-cap capability.",
   "promptTimeout": "LLM Request Timeout",
   "promptTimeoutDesc": "Maximum wait time for Agent-to-LLM communication. Range: 30-3600 seconds",
   "idleTimeout": "Agent Idle Timeout",

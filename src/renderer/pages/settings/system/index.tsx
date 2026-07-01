@@ -219,6 +219,14 @@ const SystemSettings: React.FC = () => {
   const [promptTimeout, setPromptTimeout] = useState(DEFAULT_PROMPT_TIMEOUT);
   const [idleTimeout, setIdleTimeout] = useState(DEFAULT_IDLE_TIMEOUT);
 
+  // 图片经济模式 / Image economy mode
+  // OFF (default): downsample uses model-driven cap advertised by the ACP
+  // backend (~512 KB sudowork default, tuned per model via sudorouter).
+  // ON: force-cap to 128 KB, trading image fidelity for lower input-token
+  // cost on metered plans. See imageUtils.ts::getImageTargetSize.
+  const [imageEconomyMode, setImageEconomyMode] = useState(false);
+  const [imageEconomyModeLoading, setImageEconomyModeLoading] = useState(true);
+
   // 获取超时设置 / Fetch timeout settings
   useEffect(() => {
     ConfigStorage.get('agent.promptTimeout')
@@ -235,6 +243,20 @@ const SystemSettings: React.FC = () => {
         }
       })
       .catch(() => {});
+    ConfigStorage.get('image.economyMode')
+      .then((value) => setImageEconomyMode(value === true))
+      .catch(() => {})
+      .finally(() => setImageEconomyModeLoading(false));
+  }, []);
+
+  // Toggle image economy mode — persist to ConfigStorage; UI reflects the
+  // canonical stored value + rolls back on write failure to match the
+  // pattern used by closeToTray / showTokenUsageBadges.
+  const handleImageEconomyModeChange = useCallback((checked: boolean) => {
+    setImageEconomyMode(checked);
+    ConfigStorage.set('image.economyMode', checked).catch(() => {
+      setImageEconomyMode(!checked);
+    });
   }, []);
 
   // 保存 promptTimeout（失焦时校验范围） / Save promptTimeout on blur with range clamping
@@ -333,6 +355,12 @@ const SystemSettings: React.FC = () => {
             ),
           },
         ]),
+    {
+      key: 'imageEconomyMode',
+      label: t('settings.imageEconomyMode'),
+      hint: t('settings.imageEconomyModeDesc'),
+      component: imageEconomyModeLoading ? <div style={{ width: 44, height: 22 }} /> : <Switch checked={imageEconomyMode} onChange={handleImageEconomyModeChange} className='settings-accent-switch' style={imageEconomyMode ? { backgroundColor: 'var(--ui-accent-orange)' } : undefined} />,
+    },
     {
       key: 'promptTimeout',
       label: t('settings.promptTimeout'),

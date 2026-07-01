@@ -1067,6 +1067,8 @@
   "secrets.tenantSaveSuccess": "配置保存成功",
   "secrets.tenantSaveFailed": "配置保存失败",
   "secrets.tenantFieldRequired": "请填写所有配置项",
+  "imageEconomyMode": "图片经济模式",
+  "imageEconomyModeDesc": "开启后，发送给模型的图片压缩到 128 KB，节省 input token 费用（图像细节会降低）。默认关闭，走模型 documented 的完整能力。",
   "promptTimeout": "LLM 请求超时",
   "promptTimeoutDesc": "Agent 与大模型通信的最大等待时间。范围：30-3600 秒",
   "idleTimeout": "Agent 空闲超时",
