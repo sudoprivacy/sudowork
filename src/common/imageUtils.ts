@@ -29,14 +29,68 @@ export function modelInputForModelId(modelId: string): string[] {
 }
 
 /**
- * Flash/lightweight models have smaller context windows — compress images
- * more aggressively to avoid "content too large" errors.
+ * Image-capability descriptor advertised by an ACP backend via
+ * `initialize` response → `_meta.sudocode.imageCapability`. Sudowork queries
+ * this to right-size the bytes it ships; if a backend doesn't advertise the
+ * extension, sudowork falls back to its default {@link IMAGE_TARGET_RAW_SIZE}.
+ *
+ * Mirror of the Rust struct in `rust/crates/runtime/src/image_registry.rs`
+ * (sudocode side). See `docs/design/image-handling-non-user-facing.html`
+ * Decision 1 for the wire format + spec citation (ACP `_meta` is the
+ * canonical extension point per the RFD: Meta Field Propagation Conventions).
  */
-const LOW_IMAGE_TARGET_PATTERN = /gemini|claude/i;
+export interface IImageCapability {
+  maxBytes?: number;
+  maxDimension?: number;
+  downsampleTargetBytes?: number;
+  autoHandlesOversized?: boolean;
+  autoHandlesWrongModel?: boolean;
+}
 
-export function getImageTargetSize(modelId: string | null | undefined): number {
-  if (!modelId) return IMAGE_TARGET_RAW_SIZE;
-  return LOW_IMAGE_TARGET_PATTERN.test(modelId) ? 128 * 1024 : IMAGE_TARGET_RAW_SIZE;
+/**
+ * Parse an ACP `initialize` response and return the advertised image
+ * capability, or `null` if the backend doesn't speak the extension.
+ * Per Decision 1 (hard rule): absent capability MUST fall back silently
+ * to sudowork defaults; never throw, never warn.
+ */
+export function parseImageCapability(initResponse: unknown): IImageCapability | null {
+  if (!initResponse || typeof initResponse !== 'object') return null;
+  const meta = (initResponse as { _meta?: unknown })._meta;
+  if (!meta || typeof meta !== 'object') return null;
+  const sudocodeNs = (meta as Record<string, unknown>).sudocode;
+  if (!sudocodeNs || typeof sudocodeNs !== 'object') return null;
+  const imageCap = (sudocodeNs as Record<string, unknown>).imageCapability;
+  if (!imageCap || typeof imageCap !== 'object') return null;
+  const r = imageCap as Record<string, unknown>;
+  return {
+    maxBytes: typeof r.maxBytes === 'number' ? r.maxBytes : undefined,
+    maxDimension: typeof r.maxDimension === 'number' ? r.maxDimension : undefined,
+    downsampleTargetBytes: typeof r.downsampleTargetBytes === 'number' ? r.downsampleTargetBytes : undefined,
+    autoHandlesOversized: typeof r.autoHandlesOversized === 'boolean' ? r.autoHandlesOversized : undefined,
+    autoHandlesWrongModel: typeof r.autoHandlesWrongModel === 'boolean' ? r.autoHandlesWrongModel : undefined,
+  };
+}
+
+/** Economy-mode hard cap. When the user opts in, we clamp here regardless of model. */
+const ECONOMY_MODE_TARGET = 128 * 1024;
+
+/**
+ * Resolve the target raw-bytes cap for image downsampling.
+ *
+ * Resolution order:
+ *  1. `opts.economyMode === true` → 128 KB (user-opt-in for cost-sensitive plans)
+ *  2. `opts.capability.downsampleTargetBytes` → backend-advertised value
+ *  3. {@link IMAGE_TARGET_RAW_SIZE} (512 KB sudowork default)
+ *
+ * `modelId` is kept on the signature for callers that still pass it (no longer
+ * referenced — the old `gemini|claude → 128KB` heuristic was an arbitrary
+ * empirical value, replaced by model-driven caps per Decision 3 of the design
+ * doc `docs/design/image-handling-non-user-facing.html`).
+ */
+export function getImageTargetSize(_modelId: string | null | undefined, opts?: { capability?: IImageCapability | null; economyMode?: boolean }): number {
+  if (opts?.economyMode) return ECONOMY_MODE_TARGET;
+  const advertised = opts?.capability?.downsampleTargetBytes;
+  return typeof advertised === 'number' && advertised > 0 ? advertised : IMAGE_TARGET_RAW_SIZE;
 }
 
 /**
