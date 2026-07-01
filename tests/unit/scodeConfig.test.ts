@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { buildScodeConfigFromLoginPayload, extractCustomProvidersFromScodeConfig, mergeCustomProviderIntoScodeConfig, mergeCustomProvidersIntoScodeConfig, normalizeCustomApiKeyModelsInScodeConfig, removeCustomProviderFromScodeConfig, SCODE_AUTO_MODEL_ALIAS, SCODE_AUTO_ROUTER_MODEL_ID } from '@/common/scodeConfig';
+import {
+  buildScodeConfigFromLoginPayload,
+  extractCustomProvidersFromScodeConfig,
+  mergeCustomProviderIntoScodeConfig,
+  mergeCustomProvidersIntoScodeConfig,
+  normalizeCustomApiKeyModelsInScodeConfig,
+  removeCustomProviderFromScodeConfig,
+  SCODE_AUTO_MODEL_ALIAS,
+  SCODE_AUTO_ROUTER_MODEL_ID,
+} from '@/common/scodeConfig';
 
 describe('scodeConfig', () => {
   it('preserves custom api-key providers and models when login refreshes sudorouter models', () => {
@@ -89,6 +98,23 @@ describe('scodeConfig', () => {
     });
     expect(second.models?.['custom-openai/gpt-4o']).toBeUndefined();
     expect(second.models?.['custom-openai/gpt-4.1']?.providers?.['api-key']?.provider).toBe('custom-openai');
+  });
+
+  it('persists multiple custom models under the same provider', () => {
+    const config = mergeCustomProviderIntoScodeConfig(null, {
+      providerId: 'model-sudorouter',
+      baseUrl: 'https://model.sudorouter.ai/v1',
+      apiKey: 'key',
+      models: [{ id: 'gpt-4.1-mini' }, { id: 'gpt-4.1' }, { id: 'claude-opus-4-7', supportsTools: true }],
+    });
+
+    expect(Object.keys(config.models || {})).toEqual(['model-sudorouter/gpt-4.1-mini', 'model-sudorouter/gpt-4.1', 'model-sudorouter/claude-opus-4-7']);
+    expect(config.models?.['model-sudorouter/gpt-4.1-mini']?.providers?.['api-key']).toEqual({
+      provider: 'model-sudorouter',
+      model: 'gpt-4.1-mini',
+      api: 'openai-completions',
+    });
+    expect(config.models?.['model-sudorouter/claude-opus-4-7']?.supports_tools).toBe(true);
   });
 
   it('removes a custom provider without affecting sudorouter models', () => {
