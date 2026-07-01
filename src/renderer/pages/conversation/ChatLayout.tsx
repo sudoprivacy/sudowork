@@ -12,7 +12,6 @@ import FlexFullContainer from '@/renderer/components/FlexFullContainer';
 import { useLayoutContext } from '@/renderer/context/LayoutContext';
 import { useResizableSplit } from '@/renderer/hooks/useResizableSplit';
 import ConversationTabs from '@/renderer/pages/conversation/ConversationTabs';
-import { useConversationTabs } from '@/renderer/pages/conversation/context/ConversationTabsContext';
 import { PreviewPanel, usePreviewContext } from '@/renderer/pages/conversation/preview';
 import ConversationTitleMinimap from '@/renderer/pages/conversation/components/ConversationTitleMinimap';
 import { WORKSPACE_HAS_FILES_EVENT, WORKSPACE_TOGGLE_EVENT, dispatchWorkspaceStateEvent, dispatchWorkspaceToggleEvent, type WorkspaceHasFilesDetail } from '@/renderer/utils/workspaceEvents';
@@ -145,9 +144,6 @@ const ChatLayout: React.FC<{
 
   // Compute display name with fallback chain (use first custom agent as fallback for backward compatibility)
   const displayName = agentName || (backend === 'custom' && customAgents?.[0]?.name) || ACP_BACKENDS_ALL[backend as keyof typeof ACP_BACKENDS_ALL]?.name || backend;
-
-  const { openTabs } = useConversationTabs();
-  const hasTabs = openTabs.length > 0;
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -447,7 +443,7 @@ const ChatLayout: React.FC<{
       <ArcoLayout.Header className='h-9 flex items-center justify-between p-4 gap-4 !bg-1 chat-layout-header overflow-hidden'>
         <div className='shrink-0'>{props.headerLeft}</div>
         <FlexFullContainer className='h-full min-w-0' containerClassName='flex items-center gap-4'>
-          {!hasTabs && <ConversationTitleMinimap title={props.title} conversationId={conversationId} />}
+          <ConversationTitleMinimap title={props.title} conversationId={conversationId} />
         </FlexFullContainer>
         <div className='flex items-center gap-3 shrink-0'>
           {props.headerExtra}
