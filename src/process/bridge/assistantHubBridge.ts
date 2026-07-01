@@ -8,8 +8,8 @@ import fsSync from 'fs';
 import path from 'path';
 import https from 'node:https';
 import http from 'node:http';
-import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import JSZip from 'jszip';
+import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import { ipcBridge } from '@/common';
 import type { IAssistantHubSkill, IAssistantHubListResponse, IAssistantHubDetail, IAssistantInstallResult, ISkillHubSkill, IBridgeResponse, IAssistantHubVersionLike } from '@/common/ipcBridge';
 import { assistantManager } from '@/process/AssistantManager';
@@ -22,6 +22,7 @@ import { ASSISTANTS_ROOT_DIR, ENTERPRISE_ASSISTANT_SUBDIRS } from '@/process/con
 import { getSkillHubBaseUrl } from '@/common/systemConfig';
 import { getSkillhubToken } from '@/process/credentialsCache';
 import { tokenMissingResponse } from '@common/nexus/hubErrors';
+import { reapConversation } from '@/process/services/conversationReaper';
 
 const { existsSync } = fsSync;
 
@@ -294,30 +295,41 @@ export function initAssistantHubBridge(): void {
   });
 
   ipcBridge.assistantHub.uninstallAssistant.provider(async ({ name, category }) => {
-    // Delete associated conversations before uninstalling assistant
+    // Reap associated conversations before uninstalling assistant. This must go
+    // through the reaper SSOT (not a raw DB delete) so live agent processes,
+    // terminals, cron, channel sessions, Moss sessions and workspace dirs are
+    // released — the old raw delete leaked all of them.
     const deletedConversationIds: string[] = [];
     try {
       const db = getDatabase();
-      // The presetAssistantId stored in conversation.extra matches the assistant's name/id
-      // Try both the original name and with 'builtin-' prefix stripped
+      // The presetAssistantId stored in conversation.extra matches the assistant's name/id.
+      // Match both the original name and the 'builtin-' prefix-stripped id.
       const presetAssistantId = name.startsWith('builtin-') ? name.slice('builtin-'.length) : name;
-      const deleteResult = db.deleteConversationsByPresetAssistantId(name);
-      if (!deleteResult.success) {
-        mainWarn('AssistantHub', `Failed to delete associated conversations: ${deleteResult.error}`);
-      } else if (deleteResult.data?.count > 0) {
-        mainLog('AssistantHub', `Deleted ${deleteResult.data.count} conversations associated with assistant ${name}`);
-        deletedConversationIds.push(...deleteResult.data.conversationIds);
-        // Also try deleting with stripped prefix if different
-        if (presetAssistantId !== name) {
-          const altResult = db.deleteConversationsByPresetAssistantId(presetAssistantId);
-          if (altResult.success && altResult.data?.count > 0) {
-            mainLog('AssistantHub', `Deleted additional ${altResult.data.count} conversations with stripped prefix ${presetAssistantId}`);
-            deletedConversationIds.push(...altResult.data.conversationIds);
-          }
+      const idsToReap = new Set<string>();
+      const collect = (key: string) => {
+        const found = db.findConversationIdsByPresetAssistantId(key);
+        if (!found.success) {
+          mainWarn('AssistantHub', `Failed to find associated conversations for ${key}: ${found.error}`);
+          return;
+        }
+        found.data?.conversationIds.forEach((cid) => idsToReap.add(cid));
+      };
+      collect(name);
+      if (presetAssistantId !== name) {
+        collect(presetAssistantId);
+      }
+
+      for (const cid of idsToReap) {
+        const res = await reapConversation(cid, { reason: 'assistant-uninstall' });
+        if (res.dbDeleted) {
+          deletedConversationIds.push(cid);
         }
       }
+      if (deletedConversationIds.length > 0) {
+        mainLog('AssistantHub', `Reaped ${deletedConversationIds.length} conversations associated with assistant ${name}`);
+      }
     } catch (dbError) {
-      mainWarn('AssistantHub', 'Error deleting associated conversations:', dbError);
+      mainWarn('AssistantHub', 'Error reaping associated conversations:', dbError);
     }
 
     const result = await assistantManager.uninstallAssistant(name, category);
