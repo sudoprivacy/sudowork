@@ -61,6 +61,8 @@ export default defineConfig({
         'src/process/database/corruptionError.ts',
         'src/process/startupNotice.ts',
         'src/process/services/autoUpdaterService.ts',
+        'src/process/services/conversationReaper.ts',
+        'src/process/services/orphanWorkspaceSweeper.ts',
         'src/process/services/conversionService.ts',
         'src/process/services/scode/scodeProxyModels.ts',
         'src/process/services/sudoclaw/sudoclawRuntimeSync.ts',
