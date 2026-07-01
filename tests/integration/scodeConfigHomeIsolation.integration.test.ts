@@ -28,6 +28,7 @@
 
 import { execFileSync } from 'child_process';
 import fs from 'fs';
+import { createRequire } from 'module';
 import os from 'os';
 import path from 'path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -60,6 +61,26 @@ function normalize(p: string): string {
 
 const scodeBin = resolveScodeBinary();
 const describeMaybe = scodeBin ? describe : describe.skip;
+
+// node-pty is a native addon; load it defensively so an ABI mismatch on some CI
+// runner degrades to a skip instead of failing the whole suite.
+function loadPty(): typeof import('node-pty') | null {
+  try {
+    const require = createRequire(import.meta.url);
+    return require('node-pty');
+  } catch {
+    return null;
+  }
+}
+const pty = loadPty();
+/* eslint-disable no-control-regex -- stripping terminal control sequences is the point */
+const stripAnsi = (s: string): string =>
+  s
+    .replace(/\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g, '')
+    .replace(/\x1b[[\]][0-9;?=]*[a-zA-Z]/g, '')
+    .replace(/\x1b[=>]/g, '')
+    .replace(/[\x00-\x08\x0b-\x1f\x7f]/g, '');
+/* eslint-enable no-control-regex */
 
 describeMaybe('scode config-home isolation (real binary)', () => {
   let workspace: string; // clean cwd so repo project-config doesn't add noise
@@ -152,5 +173,46 @@ describeMaybe('scode config-home isolation (real binary)', () => {
     expect(userFiles.every((f) => normalize(f.path).startsWith(normalize(expectedHome)))).toBe(true);
 
     fs.rmSync(fakeHome, { recursive: true, force: true });
+  });
+});
+
+// Same contract, driven through a REAL pseudo-terminal (ConPTY on Windows) — the
+// engine sudowork actually spawns runs in a pty, so this exercises the isolation
+// the way a user's terminal would, not just a captured pipe.
+const describePty = scodeBin && pty ? describe : describe.skip;
+
+describePty('scode config-home isolation (real pty / ConPTY)', () => {
+  function runInPty(args: string[], env: NodeJS.ProcessEnv, cwd: string): Promise<string> {
+    return new Promise((resolve) => {
+      let buf = '';
+      const p = pty!.spawn(scodeBin as string, args, {
+        name: 'xterm-color',
+        cols: 120,
+        rows: 40,
+        cwd,
+        env: { ...process.env, ...env } as { [key: string]: string },
+      });
+      p.onData((d) => (buf += d));
+      p.onExit(() => resolve(buf));
+    });
+  }
+
+  it('routes the user config home to SUDO_CODE_CONFIG_HOME when run in a terminal', async () => {
+    const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'scode-pty-ws-'));
+    const isoHome = fs.mkdtempSync(path.join(os.tmpdir(), 'scode-pty-home-'));
+    fs.writeFileSync(path.join(isoHome, 'settings.json'), '{}');
+
+    const raw = await runInPty(['config', '--output-format', 'json'], { SUDO_CODE_CONFIG_HOME: isoHome }, workspace);
+    const clean = stripAnsi(raw);
+    const report = JSON.parse(clean.slice(clean.indexOf('{'), clean.lastIndexOf('}') + 1)) as ConfigReport;
+    const userFiles = report.files.filter((f) => f.source === 'user');
+
+    expect(userFiles.length).toBeGreaterThan(0);
+    expect(userFiles.every((f) => normalize(f.path).startsWith(normalize(isoHome)))).toBe(true);
+    // the settings.json placed in the isolated home is actually loaded through the pty
+    expect(userFiles.some((f) => normalize(f.path).endsWith('/settings.json') && f.loaded)).toBe(true);
+
+    fs.rmSync(workspace, { recursive: true, force: true });
+    fs.rmSync(isoHome, { recursive: true, force: true });
   });
 });
