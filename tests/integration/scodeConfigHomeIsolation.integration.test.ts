@@ -129,10 +129,28 @@ describeMaybe('scode config-home isolation (real binary)', () => {
     fs.rmSync(homeB, { recursive: true, force: true });
   });
 
-  it('without the env var, scode falls back to the standalone ~/.nexus/sudocode home', () => {
-    const userFiles = readConfigReport(undefined).files.filter((f) => f.source === 'user');
-    // default (no isolation) → the legacy shared home. This is the behaviour we
-    // are moving sudowork OFF of, and it must stay the standalone default.
-    expect(userFiles.every((f) => normalize(f.path).startsWith(normalize(LEGACY_SCODE_HOME)))).toBe(true);
+  it('without the env var, scode falls back to HOME/.nexus/sudocode (the standalone default)', () => {
+    // scode's default_config_home() reads $HOME (not os.homedir()); on Windows CI
+    // HOME is often unset, so pin it explicitly to make the fallback deterministic
+    // and cross-platform. This is the shared home we are moving sudowork OFF of —
+    // it must stay the standalone default when SUDO_CODE_CONFIG_HOME is absent.
+    const fakeHome = fs.mkdtempSync(path.join(os.tmpdir(), 'scode-iso-home2-'));
+    const env = { ...process.env };
+    delete env.SUDO_CODE_CONFIG_HOME;
+    env.HOME = fakeHome;
+    env.USERPROFILE = fakeHome; // belt-and-braces on Windows
+
+    const out = execFileSync(scodeBin as string, ['config', '--output-format', 'json'], {
+      cwd: workspace,
+      env,
+      encoding: 'utf-8',
+      timeout: 30_000,
+    });
+    const userFiles = (JSON.parse(out) as ConfigReport).files.filter((f) => f.source === 'user');
+    const expectedHome = path.join(fakeHome, '.nexus', 'sudocode');
+    expect(userFiles.length).toBeGreaterThan(0);
+    expect(userFiles.every((f) => normalize(f.path).startsWith(normalize(expectedHome)))).toBe(true);
+
+    fs.rmSync(fakeHome, { recursive: true, force: true });
   });
 });
