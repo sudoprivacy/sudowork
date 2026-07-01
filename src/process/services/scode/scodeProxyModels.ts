@@ -8,10 +8,9 @@ import { getDefaultAcpModelId } from '@/common/acp/defaultModels';
 import { isVisionModel } from '@/common/imageUtils';
 import type { AcpModelInfo } from '@/types/acpTypes';
 import fs from 'fs';
-import os from 'os';
-import path from 'path';
+import { SCODE_CONFIG_PATH } from './scodePaths';
 
-const SUDOCODE_CONFIG_PATH = path.join(os.homedir(), '.nexus', 'sudocode', 'sudocode.json');
+const SUDOCODE_CONFIG_PATH = SCODE_CONFIG_PATH;
 
 type ScodeConfiguredModel = {
   id: string;

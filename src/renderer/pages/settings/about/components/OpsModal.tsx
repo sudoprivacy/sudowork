@@ -27,7 +27,7 @@ const OpsModal: React.FC<OpsModalProps> = ({ visible, onClose, onConfigSaved }) 
     setConfigLoading(true);
     try {
       const homeDir = await ipcBridge.application.getPath.invoke({ name: 'home' });
-      const configFilePath = `${homeDir}/.nexus/sudocode/sudocode.json`;
+      const configFilePath = `${homeDir}/.nexus/sudowork/sudocode/sudocode.json`;
       setConfigPath(configFilePath);
 
       const res = await ipcBridge.scode.getConfig.invoke();
@@ -92,7 +92,7 @@ const OpsModal: React.FC<OpsModalProps> = ({ visible, onClose, onConfigSaved }) 
           <div className='flex items-center justify-between p-3 border-light rd-8px'>
             <div className='flex-1'>
               <div className='text-14px text-foreground font-500'>{t('settings.ops.configFile', 'Sudo Code 配置文件')}</div>
-              <Tooltip content='~/.nexus/sudocode/sudocode.json'>
+              <Tooltip content='~/.nexus/sudowork/sudocode/sudocode.json'>
                 <div className='text-12px text-secondary mt-0.5'>{t('settings.ops.editConfigFile', '直接编辑配置文件')}</div>
               </Tooltip>
             </div>
