@@ -130,7 +130,11 @@ const FUSE_T_PKG_SHA256SUMS: Record<string, string> = {
  */
 function getDownloadUrls(): string[] {
   const pkgName = `fuse-t-macos-installer-${FUSE_T_VERSION}.pkg`;
-  return [`https://sudowork-runtime-1309794936.cos.ap-beijing.myqcloud.com/fuse-t/release/v${FUSE_T_VERSION}/${pkgName}`, `https://sudoclaw-download-1309794936.cos.ap-beijing.myqcloud.com/fuse-t/release/v${FUSE_T_VERSION}/${pkgName}`, `https://github.com/macos-fuse-t/fuse-t/releases/download/${FUSE_T_VERSION}/${pkgName}`];
+  return [
+    `https://sudowork-runtime-1309794936.cos.ap-beijing.myqcloud.com/fuse-t/release/v${FUSE_T_VERSION}/${pkgName}`,
+    `https://sudoclaw-download-1309794936.cos.ap-beijing.myqcloud.com/fuse-t/release/v${FUSE_T_VERSION}/${pkgName}`,
+    `https://github.com/macos-fuse-t/fuse-t/releases/download/${FUSE_T_VERSION}/${pkgName}`,
+  ];
 }
 
 export type FuseTInstallPhase = 'downloading' | 'installing' | 'cleanup';

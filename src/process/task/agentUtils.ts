@@ -414,7 +414,12 @@ Skill capabilities are subject to organization policy: if the system refuses a s
   // directly that scheduled tasks are unavailable. (Omitted in personal mode and
   // when cron is enabled.)
   if (!cronAllowed) {
-    instructions.push('[Scheduled Tasks — DISABLED]\n' + 'Scheduled task / cron functionality is disabled by your organization. You CANNOT create, list, modify, or delete scheduled tasks. ' + 'If asked to schedule or manage a recurring/timed task, tell the user it is disabled by their organization and an administrator must enable it. ' + 'NEVER claim a scheduled task was created, and NEVER invent a task ID.');
+    instructions.push(
+      '[Scheduled Tasks — DISABLED]\n' +
+        'Scheduled task / cron functionality is disabled by your organization. You CANNOT create, list, modify, or delete scheduled tasks. ' +
+        'If asked to schedule or manage a recurring/timed task, tell the user it is disabled by their organization and an administrator must enable it. ' +
+        'NEVER claim a scheduled task was created, and NEVER invent a task ID.'
+    );
   }
 
   if (instructions.length === 0) {

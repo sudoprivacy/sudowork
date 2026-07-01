@@ -203,7 +203,33 @@ class CronStore {
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `
       )
-      .run(row.id, row.name, row.enabled, row.schedule_kind, row.schedule_value, row.schedule_tz, row.schedule_description, row.payload_message, row.conversation_id, row.conversation_title, row.agent_type, row.created_by, row.created_at, row.updated_at, row.next_run_at, row.last_run_at, row.last_status, row.last_error, row.run_count, row.retry_count, row.max_retries, row.conversation_mode, row.last_conversation_id, row.workspace, row.preset_assistant_id);
+      .run(
+        row.id,
+        row.name,
+        row.enabled,
+        row.schedule_kind,
+        row.schedule_value,
+        row.schedule_tz,
+        row.schedule_description,
+        row.payload_message,
+        row.conversation_id,
+        row.conversation_title,
+        row.agent_type,
+        row.created_by,
+        row.created_at,
+        row.updated_at,
+        row.next_run_at,
+        row.last_run_at,
+        row.last_status,
+        row.last_error,
+        row.run_count,
+        row.retry_count,
+        row.max_retries,
+        row.conversation_mode,
+        row.last_conversation_id,
+        row.workspace,
+        row.preset_assistant_id
+      );
   }
 
   /**
@@ -254,7 +280,29 @@ class CronStore {
       WHERE id = ?
     `
       )
-      .run(row.name, row.enabled, row.schedule_kind, row.schedule_value, row.schedule_tz, row.schedule_description, row.payload_message, row.conversation_title, row.updated_at, row.next_run_at, row.last_run_at, row.last_status, row.last_error, row.run_count, row.retry_count, row.max_retries, row.conversation_mode, row.last_conversation_id, row.workspace, row.preset_assistant_id, jobId);
+      .run(
+        row.name,
+        row.enabled,
+        row.schedule_kind,
+        row.schedule_value,
+        row.schedule_tz,
+        row.schedule_description,
+        row.payload_message,
+        row.conversation_title,
+        row.updated_at,
+        row.next_run_at,
+        row.last_run_at,
+        row.last_status,
+        row.last_error,
+        row.run_count,
+        row.retry_count,
+        row.max_retries,
+        row.conversation_mode,
+        row.last_conversation_id,
+        row.workspace,
+        row.preset_assistant_id,
+        jobId
+      );
   }
 
   /**

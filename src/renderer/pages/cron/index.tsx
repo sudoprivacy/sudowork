@@ -87,9 +87,9 @@ export default function CronPage() {
                 <div className='text-13px text-secondary'>{t('cron.create.listSubtitle', '设定定时任务，让 Agent 按计划自动执行')}</div>
               </div>
               {jobs.length > 0 && (
-                 <Button type='primary' shape='round' icon={<IconPlus />} onClick={() => setDrawerVisible(true)}>
-                   {t('cron.create.button', '新建任务')}
-                 </Button>
+                <Button type='primary' shape='round' icon={<IconPlus />} onClick={() => setDrawerVisible(true)}>
+                  {t('cron.create.button', '新建任务')}
+                </Button>
               )}
             </div>
 

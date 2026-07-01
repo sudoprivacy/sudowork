@@ -74,17 +74,12 @@ export function adaptConfigItem(item: ConfigItem): AuthProxyRule {
  * Convert the full Config Items API response into AuthProxyRule[],
  * filtered by enabledConfigItemIds.
  */
-export function adaptConfigItems(
-  response: ConfigItemsResponse,
-  enabledConfigItemIds: number[],
-): AuthProxyRule[] {
+export function adaptConfigItems(response: ConfigItemsResponse, enabledConfigItemIds: number[]): AuthProxyRule[] {
   if (!response.success) {
     throw new Error(response.msg || 'Failed to fetch config items');
   }
 
   const enabledSet = new Set(enabledConfigItemIds);
 
-  return response.data
-    .filter((item) => enabledSet.has(item.id))
-    .map(adaptConfigItem);
+  return response.data.filter((item) => enabledSet.has(item.id)).map(adaptConfigItem);
 }

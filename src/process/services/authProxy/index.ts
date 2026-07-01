@@ -40,12 +40,8 @@ export async function startAuthProxy(): Promise<number> {
 
   try {
     // Dynamic import minimatch to avoid bundling issues
-    const minimatchModule = await import('minimatch' as string) as unknown as Record<string, unknown>;
-    const minimatchFn = (typeof minimatchModule.minimatch === 'function')
-      ? minimatchModule.minimatch
-      : typeof minimatchModule.default === 'function'
-        ? minimatchModule.default
-        : (minimatchModule as unknown as (str: string, pattern: string) => boolean);
+    const minimatchModule = (await import('minimatch' as string)) as unknown as Record<string, unknown>;
+    const minimatchFn = typeof minimatchModule.minimatch === 'function' ? minimatchModule.minimatch : typeof minimatchModule.default === 'function' ? minimatchModule.default : (minimatchModule as unknown as (str: string, pattern: string) => boolean);
 
     server = new AuthProxyServer(minimatchFn as (str: string, pattern: string) => boolean);
     serverPort = await server.start();
@@ -108,9 +104,6 @@ export function getAuthProxyRules() {
  * Refresh Config Items from sudowork-server.
  * Called from renderer via IPC bridge.
  */
-export async function refreshAuthProxyRules(
-  accessToken: string,
-  enabledConfigItemIds: number[],
-): Promise<void> {
+export async function refreshAuthProxyRules(accessToken: string, enabledConfigItemIds: number[]): Promise<void> {
   await refreshRules(accessToken, enabledConfigItemIds);
 }

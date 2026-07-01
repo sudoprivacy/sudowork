@@ -28,7 +28,15 @@ const MentionDropdown: React.FC<MentionDropdownProps> = ({ menuRef, options, sel
           options.map((option, index) => (
             <Menu.Item key={option.key} data-mention-index={index}>
               <div className='flex items-center gap-8px'>
-                {option.avatarImage ? <img src={resolveExtensionAssetUrl(option.avatarImage)} alt='' width={16} height={16} style={{ objectFit: 'contain' }} /> : option.avatar ? <span style={{ fontSize: 14, lineHeight: '16px' }}>{option.avatar}</span> : option.logo ? <img src={option.logo} alt={option.label} width={16} height={16} style={{ objectFit: 'contain' }} /> : <Robot theme='outline' size={16} />}
+                {option.avatarImage ? (
+                  <img src={resolveExtensionAssetUrl(option.avatarImage)} alt='' width={16} height={16} style={{ objectFit: 'contain' }} />
+                ) : option.avatar ? (
+                  <span style={{ fontSize: 14, lineHeight: '16px' }}>{option.avatar}</span>
+                ) : option.logo ? (
+                  <img src={option.logo} alt={option.label} width={16} height={16} style={{ objectFit: 'contain' }} />
+                ) : (
+                  <Robot theme='outline' size={16} />
+                )}
                 <span>{option.label}</span>
               </div>
             </Menu.Item>

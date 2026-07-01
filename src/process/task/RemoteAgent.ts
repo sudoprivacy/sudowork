@@ -54,7 +54,12 @@ async function buildRemoteCronInstruction(): Promise<string> {
   }
 }
 
-const CRON_DISABLED_INSTRUCTION = '[Scheduled Tasks — DISABLED]\n' + 'Scheduled task / cron functionality is disabled by your organization. ' + 'You CANNOT create, list, modify, or delete scheduled tasks. ' + 'If the user asks you to schedule, create, or manage a recurring/timed task, you MUST tell them that scheduled tasks are disabled by their organization and that an administrator must enable the feature. ' + 'NEVER claim that a scheduled task was created, and NEVER invent a task ID.';
+const CRON_DISABLED_INSTRUCTION =
+  '[Scheduled Tasks — DISABLED]\n' +
+  'Scheduled task / cron functionality is disabled by your organization. ' +
+  'You CANNOT create, list, modify, or delete scheduled tasks. ' +
+  'If the user asks you to schedule, create, or manage a recurring/timed task, you MUST tell them that scheduled tasks are disabled by their organization and that an administrator must enable the feature. ' +
+  'NEVER claim that a scheduled task was created, and NEVER invent a task ID.';
 
 /**
  * Default idle detach timeout for finished remote sessions.

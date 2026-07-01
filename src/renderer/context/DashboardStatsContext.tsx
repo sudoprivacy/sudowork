@@ -61,10 +61,7 @@ export const DashboardStatsProvider: React.FC<React.PropsWithChildren> = ({ chil
         setError(null);
         try {
           const serverConfig = await ipcBridge.sudoworkServer.getConfig.invoke();
-          const [profileRes, dashboardRes] = await Promise.all([
-            fetchWithAuth(`${serverConfig.baseUrl}/api/v1/user/profile`),
-            fetchWithAuth(`${serverConfig.baseUrl}/api/v1/user/dashboard`),
-          ]);
+          const [profileRes, dashboardRes] = await Promise.all([fetchWithAuth(`${serverConfig.baseUrl}/api/v1/user/profile`), fetchWithAuth(`${serverConfig.baseUrl}/api/v1/user/dashboard`)]);
 
           if (profileRes.status === 401 || dashboardRes.status === 401) {
             // Token refresh already attempted inside fetchWithAuth; leave state as-is.

@@ -89,26 +89,15 @@ const SUDOWORK_SERVER_CALL_TIMEOUT_MS = 300000;
  * windows, and the local provider would never see its own invocation, so the
  * Promise hangs forever. Calling this helper directly side-steps that.)
  */
-export async function callGetEnhancement(
-  accessToken: string,
-  assistantId: string,
-): Promise<IBridgeResponse<{ enabled: boolean; mode?: 'agent-chat' | 'workflow' | 'rag-only' }>> {
+export async function callGetEnhancement(accessToken: string, assistantId: string): Promise<IBridgeResponse<{ enabled: boolean; mode?: 'agent-chat' | 'workflow' | 'rag-only' }>> {
   if (!accessToken || !assistantId) {
     return { success: false, msg: 'accessToken and assistantId required' };
   }
-  return sudoworkServerCall<{ enabled: boolean; mode?: 'agent-chat' | 'workflow' | 'rag-only' }>(
-    agentUrl(assistantId, '/enhancement'),
-    { headers: jsonHeaders(accessToken) },
-  );
+  return sudoworkServerCall<{ enabled: boolean; mode?: 'agent-chat' | 'workflow' | 'rag-only' }>(agentUrl(assistantId, '/enhancement'), { headers: jsonHeaders(accessToken) });
 }
 
 /** See `callGetEnhancement` for why direct calls exist alongside the IPC provider. */
-export async function callInvokeEnhancement(args: {
-  accessToken: string;
-  assistantId: string;
-  query: string;
-  conversationId?: string;
-}): Promise<IBridgeResponse<{ text: string; mode: 'agent-chat' | 'workflow' | 'rag-only'; elapsedMs: number; citations?: unknown[] }>> {
+export async function callInvokeEnhancement(args: { accessToken: string; assistantId: string; query: string; conversationId?: string }): Promise<IBridgeResponse<{ text: string; mode: 'agent-chat' | 'workflow' | 'rag-only'; elapsedMs: number; citations?: unknown[] }>> {
   if (!args.accessToken || !args.assistantId || !args.query) {
     return { success: false, msg: 'accessToken, assistantId and query required' };
   }
@@ -196,11 +185,7 @@ export async function callStartEnhancementStream(args: {
         }
         if (event === 'progress' || payload.kind === 'progress') {
           try {
-            args.onProgress?.(
-              String(payload.step ?? ''),
-              payload.nodeId as string | undefined,
-              payload.nodeType as string | undefined,
-            );
+            args.onProgress?.(String(payload.step ?? ''), payload.nodeId as string | undefined, payload.nodeType as string | undefined);
           } catch (err) {
             mainWarn('DifyBridge', 'callStartEnhancementStream onProgress threw:', err);
           }
@@ -235,9 +220,7 @@ async function sudoworkServerCall<T>(url: string, init: RequestInit): Promise<IB
   // Merge any caller-supplied AbortSignal with our timeout. If the caller did
   // not provide one, the timeout signal alone gates the fetch.
   const timeoutSignal = AbortSignal.timeout(SUDOWORK_SERVER_CALL_TIMEOUT_MS);
-  const signal = init.signal
-    ? AbortSignal.any([init.signal, timeoutSignal])
-    : timeoutSignal;
+  const signal = init.signal ? AbortSignal.any([init.signal, timeoutSignal]) : timeoutSignal;
   // Belt-and-suspenders: some Electron Node builds have surprised us with
   // AbortSignal.timeout being silently ignored on `fetch`. Add an explicit
   // setTimeout that calls AbortController.abort() — at worst we get two

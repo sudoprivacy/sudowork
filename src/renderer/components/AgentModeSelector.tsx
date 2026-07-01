@@ -75,7 +75,22 @@ export interface AgentModeSelectorProps {
  * 代理模式选择器 - 用于切换代理模式的下拉组件
  * 显示代理 logo 和名称，通过下拉菜单选择模式
  */
-const AgentModeSelector: React.FC<AgentModeSelectorProps> = ({ backend, agentName, agentLogo, agentLogoIsEmoji, conversationId, compact, showLogoInCompact = false, compactLabelType = 'mode', initialMode, onModeSelect, compactLabelOverride, compactLeadingIcon, modeLabelFormatter, compactLabelPrefix }) => {
+const AgentModeSelector: React.FC<AgentModeSelectorProps> = ({
+  backend,
+  agentName,
+  agentLogo,
+  agentLogoIsEmoji,
+  conversationId,
+  compact,
+  showLogoInCompact = false,
+  compactLabelType = 'mode',
+  initialMode,
+  onModeSelect,
+  compactLabelOverride,
+  compactLeadingIcon,
+  modeLabelFormatter,
+  compactLabelPrefix,
+}) => {
   const { t } = useTranslation();
   const modes = getAgentModes(backend);
   const defaultMode = modes[0]?.value ?? 'default';

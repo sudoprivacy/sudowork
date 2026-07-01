@@ -78,13 +78,25 @@ const AgentPillBar: React.FC<AgentPillBarProps> = ({ availableAgents, selectedAg
               <img src={getAgentLogo('remote-agent')} alt='Remote' width={20} height={20} className='block object-contain' />
             </span>
             {/* Remote tab */}
-            <div data-agent-pill='true' data-session-mode='remote' className={`group relative flex items-center cursor-pointer whitespace-nowrap ${sessionMode === 'remote' ? `opacity-100 px-3 py-2 rd-20px mx-0.5 ${styles.agentItemSelected}` : 'opacity-60 p-1 hover:opacity-100'}`} style={sessionMode === 'remote' ? { transition: 'opacity 0.2s ease, background-color 0.2s ease' } : { transition: 'opacity 0.2s ease' }} onClick={() => onSessionModeChange?.('remote')}>
+            <div
+              data-agent-pill='true'
+              data-session-mode='remote'
+              className={`group relative flex items-center cursor-pointer whitespace-nowrap ${sessionMode === 'remote' ? `opacity-100 px-3 py-2 rd-20px mx-0.5 ${styles.agentItemSelected}` : 'opacity-60 p-1 hover:opacity-100'}`}
+              style={sessionMode === 'remote' ? { transition: 'opacity 0.2s ease, background-color 0.2s ease' } : { transition: 'opacity 0.2s ease' }}
+              onClick={() => onSessionModeChange?.('remote')}
+            >
               <span className='font-semibold text-14px ml-1 text-foreground'>Remote</span>
             </div>
             {/* Divider + Local tab */}
             <>
               <div className='text-16px lh-1 p-0.5 select-none opacity-30'>|</div>
-              <div data-agent-pill='true' data-session-mode='local' className={`group relative flex items-center cursor-pointer whitespace-nowrap ${sessionMode === 'local' ? `opacity-100 px-3 py-2 rd-20px mx-0.5 ${styles.agentItemSelected}` : 'opacity-60 p-1 hover:opacity-100'}`} style={sessionMode === 'local' ? { transition: 'opacity 0.2s ease, background-color 0.2s ease' } : { transition: 'opacity 0.2s ease' }} onClick={() => onSessionModeChange?.('local')}>
+              <div
+                data-agent-pill='true'
+                data-session-mode='local'
+                className={`group relative flex items-center cursor-pointer whitespace-nowrap ${sessionMode === 'local' ? `opacity-100 px-3 py-2 rd-20px mx-0.5 ${styles.agentItemSelected}` : 'opacity-60 p-1 hover:opacity-100'}`}
+                style={sessionMode === 'local' ? { transition: 'opacity 0.2s ease, background-color 0.2s ease' } : { transition: 'opacity 0.2s ease' }}
+                onClick={() => onSessionModeChange?.('local')}
+              >
                 <span className='font-semibold text-14px ml-1 text-foreground'>Local</span>
               </div>
             </>
@@ -114,8 +126,18 @@ const AgentPillBar: React.FC<AgentPillBarProps> = ({ availableAgents, selectedAg
               return (
                 <React.Fragment key={getAgentKey(agent)}>
                   {index > 0 && <div className='text-16px lh-1 p-0.5 select-none opacity-30'>|</div>}
-                  <div data-agent-pill='true' data-agent-key={getAgentKey(agent)} data-agent-backend={agent.backend} data-agent-selected={isSelected ? 'true' : 'false'} className={`group relative flex items-center cursor-pointer whitespace-nowrap overflow-hidden ${isSelected ? `opacity-100 px-3 py-2 rd-20px mx-0.5 ${styles.agentItemSelected}` : 'opacity-60 p-1 hover:opacity-100'}`} style={isSelected ? undefined : { transition: 'opacity 0.2s ease' }} onClick={() => onSelectAgent(getAgentKey(agent))}>
-                    <span className='inline-flex h-5 w-5 shrink-0 items-center justify-center leading-none'>{isEmojiAvatar ? <span className='text-18px leading-none'>{agent.avatar}</span> : logoSrc ? <img src={logoSrc} alt={`${agent.backend} logo`} width={20} height={20} className='block object-contain' /> : <Robot theme='outline' size={20} fill='currentColor' />}</span>
+                  <div
+                    data-agent-pill='true'
+                    data-agent-key={getAgentKey(agent)}
+                    data-agent-backend={agent.backend}
+                    data-agent-selected={isSelected ? 'true' : 'false'}
+                    className={`group relative flex items-center cursor-pointer whitespace-nowrap overflow-hidden ${isSelected ? `opacity-100 px-3 py-2 rd-20px mx-0.5 ${styles.agentItemSelected}` : 'opacity-60 p-1 hover:opacity-100'}`}
+                    style={isSelected ? undefined : { transition: 'opacity 0.2s ease' }}
+                    onClick={() => onSelectAgent(getAgentKey(agent))}
+                  >
+                    <span className='inline-flex h-5 w-5 shrink-0 items-center justify-center leading-none'>
+                      {isEmojiAvatar ? <span className='text-18px leading-none'>{agent.avatar}</span> : logoSrc ? <img src={logoSrc} alt={`${agent.backend} logo`} width={20} height={20} className='block object-contain' /> : <Robot theme='outline' size={20} fill='currentColor' />}
+                    </span>
                     <span
                       className={`font-medium text-14px text-foreground ${isSelected ? 'font-semibold ml-1' : 'max-w-0 opacity-0 overflow-hidden group-hover:max-w-25 group-hover:opacity-100 group-hover:ml-2'}`}
                       style={{

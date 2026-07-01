@@ -21,17 +21,21 @@
 // @generated from file nexus/secrets/v1/secrets.proto (package nexus.secrets.v1, syntax proto3)
 /* eslint-disable */
 
-import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
-import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
-import type { Timestamp } from "@bufbuild/protobuf/wkt";
-import { file_google_protobuf_timestamp } from "@bufbuild/protobuf/wkt";
-import type { Message } from "@bufbuild/protobuf";
+import type { GenFile, GenMessage, GenService } from '@bufbuild/protobuf/codegenv2';
+import { fileDesc, messageDesc, serviceDesc } from '@bufbuild/protobuf/codegenv2';
+import type { Timestamp } from '@bufbuild/protobuf/wkt';
+import { file_google_protobuf_timestamp } from '@bufbuild/protobuf/wkt';
+import type { Message } from '@bufbuild/protobuf';
 
 /**
  * Describes the file nexus/secrets/v1/secrets.proto.
  */
-export const file_nexus_secrets_v1_secrets: GenFile = /*@__PURE__*/
-  fileDesc("Ch5uZXh1cy9zZWNyZXRzL3YxL3NlY3JldHMucHJvdG8SEG5leHVzLnNlY3JldHMudjEi5AEKDlNlY3JldE1ldGFkYXRhEhEKCW5hbWVzcGFjZRgBIAEoCRILCgNrZXkYAiABKAkSGAoLZGVzY3JpcHRpb24YAyABKAlIAIgBARIXCg9jdXJyZW50X3ZlcnNpb24YBCABKAUSDwoHZGVsZXRlZBgFIAEoCBIuCgpjcmVhdGVkX2F0GAYgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIuCgp1cGRhdGVkX2F0GAcgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcEIOCgxfZGVzY3JpcHRpb24iawoQUHV0U2VjcmV0UmVxdWVzdBIRCgluYW1lc3BhY2UYASABKAkSCwoDa2V5GAIgASgJEg0KBXZhbHVlGAMgASgJEhgKC2Rlc2NyaXB0aW9uGAQgASgJSACIAQFCDgoMX2Rlc2NyaXB0aW9uIkcKEVB1dFNlY3JldFJlc3BvbnNlEjIKCG1ldGFkYXRhGAEgASgLMiAubmV4dXMuc2VjcmV0cy52MS5TZWNyZXRNZXRhZGF0YSJUChBHZXRTZWNyZXRSZXF1ZXN0EhEKCW5hbWVzcGFjZRgBIAEoCRILCgNrZXkYAiABKAkSFAoHdmVyc2lvbhgDIAEoBUgAiAEBQgoKCF92ZXJzaW9uIlMKEUdldFNlY3JldFJlc3BvbnNlEhEKCW5hbWVzcGFjZRgBIAEoCRILCgNrZXkYAiABKAkSDQoFdmFsdWUYAyABKAkSDwoHdmVyc2lvbhgEIAEoBSI1ChNEZWxldGVTZWNyZXRSZXF1ZXN0EhEKCW5hbWVzcGFjZRgBIAEoCRILCgNrZXkYAiABKAkiRwoURGVsZXRlU2VjcmV0UmVzcG9uc2USEQoJbmFtZXNwYWNlGAEgASgJEgsKA2tleRgCIAEoCRIPCgdkZWxldGVkGAMgASgIIjYKFFJlc3RvcmVTZWNyZXRSZXF1ZXN0EhEKCW5hbWVzcGFjZRgBIAEoCRILCgNrZXkYAiABKAkiYgoVUmVzdG9yZVNlY3JldFJlc3BvbnNlEhEKCW5hbWVzcGFjZRgBIAEoCRILCgNrZXkYAiABKAkSEAoIcmVzdG9yZWQYAyABKAgSFwoPY3VycmVudF92ZXJzaW9uGAQgASgFIlMKEkxpc3RTZWNyZXRzUmVxdWVzdBIWCgluYW1lc3BhY2UYASABKAlIAIgBARIXCg9pbmNsdWRlX2RlbGV0ZWQYAiABKAhCDAoKX25hbWVzcGFjZSJXChNMaXN0U2VjcmV0c1Jlc3BvbnNlEjEKB3NlY3JldHMYASADKAsyIC5uZXh1cy5zZWNyZXRzLnYxLlNlY3JldE1ldGFkYXRhEg0KBWNvdW50GAIgASgFImQKDVNlY3JldFZlcnNpb24SDwoHdmVyc2lvbhgBIAEoBRIuCgpjcmVhdGVkX2F0GAIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBISCgp0b21ic3RvbmVkGAMgASgIIjsKGUxpc3RTZWNyZXRWZXJzaW9uc1JlcXVlc3QSEQoJbmFtZXNwYWNlGAEgASgJEgsKA2tleRgCIAEoCSJ+ChpMaXN0U2VjcmV0VmVyc2lvbnNSZXNwb25zZRIRCgluYW1lc3BhY2UYASABKAkSCwoDa2V5GAIgASgJEg0KBWNvdW50GAMgASgFEjEKCHZlcnNpb25zGAQgAygLMh8ubmV4dXMuc2VjcmV0cy52MS5TZWNyZXRWZXJzaW9uIk0KFkJhdGNoUHV0U2VjcmV0c1JlcXVlc3QSMwoHc2VjcmV0cxgBIAMoCzIiLm5leHVzLnNlY3JldHMudjEuUHV0U2VjcmV0UmVxdWVzdCJbChdCYXRjaFB1dFNlY3JldHNSZXNwb25zZRIxCgdyZXN1bHRzGAEgAygLMiAubmV4dXMuc2VjcmV0cy52MS5TZWNyZXRNZXRhZGF0YRINCgVjb3VudBgCIAEoBSJNChZCYXRjaEdldFNlY3JldHNSZXF1ZXN0EjMKB3F1ZXJpZXMYASADKAsyIi5uZXh1cy5zZWNyZXRzLnYxLkdldFNlY3JldFJlcXVlc3QioQEKF0JhdGNoR2V0U2VjcmV0c1Jlc3BvbnNlEkcKB3NlY3JldHMYASADKAsyNi5uZXh1cy5zZWNyZXRzLnYxLkJhdGNoR2V0U2VjcmV0c1Jlc3BvbnNlLlNlY3JldHNFbnRyeRINCgVjb3VudBgCIAEoBRouCgxTZWNyZXRzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASJNChpEZWxldGVTZWNyZXRWZXJzaW9uUmVxdWVzdBIRCgluYW1lc3BhY2UYASABKAkSCwoDa2V5GAIgASgJEg8KB3ZlcnNpb24YAyABKAUiXwobRGVsZXRlU2VjcmV0VmVyc2lvblJlc3BvbnNlEhEKCW5hbWVzcGFjZRgBIAEoCRILCgNrZXkYAiABKAkSDwoHdmVyc2lvbhgDIAEoBRIPCgdkZWxldGVkGAQgASgIIlUKHlVwZGF0ZVNlY3JldERlc2NyaXB0aW9uUmVxdWVzdBIRCgluYW1lc3BhY2UYASABKAkSCwoDa2V5GAIgASgJEhMKC2Rlc2NyaXB0aW9uGAMgASgJIlYKH1VwZGF0ZVNlY3JldERlc2NyaXB0aW9uUmVzcG9uc2USEQoJbmFtZXNwYWNlGAEgASgJEgsKA2tleRgCIAEoCRITCgtkZXNjcmlwdGlvbhgDIAEoCTKVCAoVR2VuZXJpY1NlY3JldHNTZXJ2aWNlElQKCVB1dFNlY3JldBIiLm5leHVzLnNlY3JldHMudjEuUHV0U2VjcmV0UmVxdWVzdBojLm5leHVzLnNlY3JldHMudjEuUHV0U2VjcmV0UmVzcG9uc2USVAoJR2V0U2VjcmV0EiIubmV4dXMuc2VjcmV0cy52MS5HZXRTZWNyZXRSZXF1ZXN0GiMubmV4dXMuc2VjcmV0cy52MS5HZXRTZWNyZXRSZXNwb25zZRJdCgxEZWxldGVTZWNyZXQSJS5uZXh1cy5zZWNyZXRzLnYxLkRlbGV0ZVNlY3JldFJlcXVlc3QaJi5uZXh1cy5zZWNyZXRzLnYxLkRlbGV0ZVNlY3JldFJlc3BvbnNlEmAKDVJlc3RvcmVTZWNyZXQSJi5uZXh1cy5zZWNyZXRzLnYxLlJlc3RvcmVTZWNyZXRSZXF1ZXN0GicubmV4dXMuc2VjcmV0cy52MS5SZXN0b3JlU2VjcmV0UmVzcG9uc2USWgoLTGlzdFNlY3JldHMSJC5uZXh1cy5zZWNyZXRzLnYxLkxpc3RTZWNyZXRzUmVxdWVzdBolLm5leHVzLnNlY3JldHMudjEuTGlzdFNlY3JldHNSZXNwb25zZRJvChJMaXN0U2VjcmV0VmVyc2lvbnMSKy5uZXh1cy5zZWNyZXRzLnYxLkxpc3RTZWNyZXRWZXJzaW9uc1JlcXVlc3QaLC5uZXh1cy5zZWNyZXRzLnYxLkxpc3RTZWNyZXRWZXJzaW9uc1Jlc3BvbnNlEmYKD0JhdGNoUHV0U2VjcmV0cxIoLm5leHVzLnNlY3JldHMudjEuQmF0Y2hQdXRTZWNyZXRzUmVxdWVzdBopLm5leHVzLnNlY3JldHMudjEuQmF0Y2hQdXRTZWNyZXRzUmVzcG9uc2USZgoPQmF0Y2hHZXRTZWNyZXRzEigubmV4dXMuc2VjcmV0cy52MS5CYXRjaEdldFNlY3JldHNSZXF1ZXN0GikubmV4dXMuc2VjcmV0cy52MS5CYXRjaEdldFNlY3JldHNSZXNwb25zZRJyChNEZWxldGVTZWNyZXRWZXJzaW9uEiwubmV4dXMuc2VjcmV0cy52MS5EZWxldGVTZWNyZXRWZXJzaW9uUmVxdWVzdBotLm5leHVzLnNlY3JldHMudjEuRGVsZXRlU2VjcmV0VmVyc2lvblJlc3BvbnNlEn4KF1VwZGF0ZVNlY3JldERlc2NyaXB0aW9uEjAubmV4dXMuc2VjcmV0cy52MS5VcGRhdGVTZWNyZXREZXNjcmlwdGlvblJlcXVlc3QaMS5uZXh1cy5zZWNyZXRzLnYxLlVwZGF0ZVNlY3JldERlc2NyaXB0aW9uUmVzcG9uc2ViBnByb3RvMw", [file_google_protobuf_timestamp]);
+export const file_nexus_secrets_v1_secrets: GenFile =
+  /*@__PURE__*/
+  fileDesc(
+    'Ch5uZXh1cy9zZWNyZXRzL3YxL3NlY3JldHMucHJvdG8SEG5leHVzLnNlY3JldHMudjEi5AEKDlNlY3JldE1ldGFkYXRhEhEKCW5hbWVzcGFjZRgBIAEoCRILCgNrZXkYAiABKAkSGAoLZGVzY3JpcHRpb24YAyABKAlIAIgBARIXCg9jdXJyZW50X3ZlcnNpb24YBCABKAUSDwoHZGVsZXRlZBgFIAEoCBIuCgpjcmVhdGVkX2F0GAYgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIuCgp1cGRhdGVkX2F0GAcgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcEIOCgxfZGVzY3JpcHRpb24iawoQUHV0U2VjcmV0UmVxdWVzdBIRCgluYW1lc3BhY2UYASABKAkSCwoDa2V5GAIgASgJEg0KBXZhbHVlGAMgASgJEhgKC2Rlc2NyaXB0aW9uGAQgASgJSACIAQFCDgoMX2Rlc2NyaXB0aW9uIkcKEVB1dFNlY3JldFJlc3BvbnNlEjIKCG1ldGFkYXRhGAEgASgLMiAubmV4dXMuc2VjcmV0cy52MS5TZWNyZXRNZXRhZGF0YSJUChBHZXRTZWNyZXRSZXF1ZXN0EhEKCW5hbWVzcGFjZRgBIAEoCRILCgNrZXkYAiABKAkSFAoHdmVyc2lvbhgDIAEoBUgAiAEBQgoKCF92ZXJzaW9uIlMKEUdldFNlY3JldFJlc3BvbnNlEhEKCW5hbWVzcGFjZRgBIAEoCRILCgNrZXkYAiABKAkSDQoFdmFsdWUYAyABKAkSDwoHdmVyc2lvbhgEIAEoBSI1ChNEZWxldGVTZWNyZXRSZXF1ZXN0EhEKCW5hbWVzcGFjZRgBIAEoCRILCgNrZXkYAiABKAkiRwoURGVsZXRlU2VjcmV0UmVzcG9uc2USEQoJbmFtZXNwYWNlGAEgASgJEgsKA2tleRgCIAEoCRIPCgdkZWxldGVkGAMgASgIIjYKFFJlc3RvcmVTZWNyZXRSZXF1ZXN0EhEKCW5hbWVzcGFjZRgBIAEoCRILCgNrZXkYAiABKAkiYgoVUmVzdG9yZVNlY3JldFJlc3BvbnNlEhEKCW5hbWVzcGFjZRgBIAEoCRILCgNrZXkYAiABKAkSEAoIcmVzdG9yZWQYAyABKAgSFwoPY3VycmVudF92ZXJzaW9uGAQgASgFIlMKEkxpc3RTZWNyZXRzUmVxdWVzdBIWCgluYW1lc3BhY2UYASABKAlIAIgBARIXCg9pbmNsdWRlX2RlbGV0ZWQYAiABKAhCDAoKX25hbWVzcGFjZSJXChNMaXN0U2VjcmV0c1Jlc3BvbnNlEjEKB3NlY3JldHMYASADKAsyIC5uZXh1cy5zZWNyZXRzLnYxLlNlY3JldE1ldGFkYXRhEg0KBWNvdW50GAIgASgFImQKDVNlY3JldFZlcnNpb24SDwoHdmVyc2lvbhgBIAEoBRIuCgpjcmVhdGVkX2F0GAIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBISCgp0b21ic3RvbmVkGAMgASgIIjsKGUxpc3RTZWNyZXRWZXJzaW9uc1JlcXVlc3QSEQoJbmFtZXNwYWNlGAEgASgJEgsKA2tleRgCIAEoCSJ+ChpMaXN0U2VjcmV0VmVyc2lvbnNSZXNwb25zZRIRCgluYW1lc3BhY2UYASABKAkSCwoDa2V5GAIgASgJEg0KBWNvdW50GAMgASgFEjEKCHZlcnNpb25zGAQgAygLMh8ubmV4dXMuc2VjcmV0cy52MS5TZWNyZXRWZXJzaW9uIk0KFkJhdGNoUHV0U2VjcmV0c1JlcXVlc3QSMwoHc2VjcmV0cxgBIAMoCzIiLm5leHVzLnNlY3JldHMudjEuUHV0U2VjcmV0UmVxdWVzdCJbChdCYXRjaFB1dFNlY3JldHNSZXNwb25zZRIxCgdyZXN1bHRzGAEgAygLMiAubmV4dXMuc2VjcmV0cy52MS5TZWNyZXRNZXRhZGF0YRINCgVjb3VudBgCIAEoBSJNChZCYXRjaEdldFNlY3JldHNSZXF1ZXN0EjMKB3F1ZXJpZXMYASADKAsyIi5uZXh1cy5zZWNyZXRzLnYxLkdldFNlY3JldFJlcXVlc3QioQEKF0JhdGNoR2V0U2VjcmV0c1Jlc3BvbnNlEkcKB3NlY3JldHMYASADKAsyNi5uZXh1cy5zZWNyZXRzLnYxLkJhdGNoR2V0U2VjcmV0c1Jlc3BvbnNlLlNlY3JldHNFbnRyeRINCgVjb3VudBgCIAEoBRouCgxTZWNyZXRzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASJNChpEZWxldGVTZWNyZXRWZXJzaW9uUmVxdWVzdBIRCgluYW1lc3BhY2UYASABKAkSCwoDa2V5GAIgASgJEg8KB3ZlcnNpb24YAyABKAUiXwobRGVsZXRlU2VjcmV0VmVyc2lvblJlc3BvbnNlEhEKCW5hbWVzcGFjZRgBIAEoCRILCgNrZXkYAiABKAkSDwoHdmVyc2lvbhgDIAEoBRIPCgdkZWxldGVkGAQgASgIIlUKHlVwZGF0ZVNlY3JldERlc2NyaXB0aW9uUmVxdWVzdBIRCgluYW1lc3BhY2UYASABKAkSCwoDa2V5GAIgASgJEhMKC2Rlc2NyaXB0aW9uGAMgASgJIlYKH1VwZGF0ZVNlY3JldERlc2NyaXB0aW9uUmVzcG9uc2USEQoJbmFtZXNwYWNlGAEgASgJEgsKA2tleRgCIAEoCRITCgtkZXNjcmlwdGlvbhgDIAEoCTKVCAoVR2VuZXJpY1NlY3JldHNTZXJ2aWNlElQKCVB1dFNlY3JldBIiLm5leHVzLnNlY3JldHMudjEuUHV0U2VjcmV0UmVxdWVzdBojLm5leHVzLnNlY3JldHMudjEuUHV0U2VjcmV0UmVzcG9uc2USVAoJR2V0U2VjcmV0EiIubmV4dXMuc2VjcmV0cy52MS5HZXRTZWNyZXRSZXF1ZXN0GiMubmV4dXMuc2VjcmV0cy52MS5HZXRTZWNyZXRSZXNwb25zZRJdCgxEZWxldGVTZWNyZXQSJS5uZXh1cy5zZWNyZXRzLnYxLkRlbGV0ZVNlY3JldFJlcXVlc3QaJi5uZXh1cy5zZWNyZXRzLnYxLkRlbGV0ZVNlY3JldFJlc3BvbnNlEmAKDVJlc3RvcmVTZWNyZXQSJi5uZXh1cy5zZWNyZXRzLnYxLlJlc3RvcmVTZWNyZXRSZXF1ZXN0GicubmV4dXMuc2VjcmV0cy52MS5SZXN0b3JlU2VjcmV0UmVzcG9uc2USWgoLTGlzdFNlY3JldHMSJC5uZXh1cy5zZWNyZXRzLnYxLkxpc3RTZWNyZXRzUmVxdWVzdBolLm5leHVzLnNlY3JldHMudjEuTGlzdFNlY3JldHNSZXNwb25zZRJvChJMaXN0U2VjcmV0VmVyc2lvbnMSKy5uZXh1cy5zZWNyZXRzLnYxLkxpc3RTZWNyZXRWZXJzaW9uc1JlcXVlc3QaLC5uZXh1cy5zZWNyZXRzLnYxLkxpc3RTZWNyZXRWZXJzaW9uc1Jlc3BvbnNlEmYKD0JhdGNoUHV0U2VjcmV0cxIoLm5leHVzLnNlY3JldHMudjEuQmF0Y2hQdXRTZWNyZXRzUmVxdWVzdBopLm5leHVzLnNlY3JldHMudjEuQmF0Y2hQdXRTZWNyZXRzUmVzcG9uc2USZgoPQmF0Y2hHZXRTZWNyZXRzEigubmV4dXMuc2VjcmV0cy52MS5CYXRjaEdldFNlY3JldHNSZXF1ZXN0GikubmV4dXMuc2VjcmV0cy52MS5CYXRjaEdldFNlY3JldHNSZXNwb25zZRJyChNEZWxldGVTZWNyZXRWZXJzaW9uEiwubmV4dXMuc2VjcmV0cy52MS5EZWxldGVTZWNyZXRWZXJzaW9uUmVxdWVzdBotLm5leHVzLnNlY3JldHMudjEuRGVsZXRlU2VjcmV0VmVyc2lvblJlc3BvbnNlEn4KF1VwZGF0ZVNlY3JldERlc2NyaXB0aW9uEjAubmV4dXMuc2VjcmV0cy52MS5VcGRhdGVTZWNyZXREZXNjcmlwdGlvblJlcXVlc3QaMS5uZXh1cy5zZWNyZXRzLnYxLlVwZGF0ZVNlY3JldERlc2NyaXB0aW9uUmVzcG9uc2ViBnByb3RvMw',
+    [file_google_protobuf_timestamp]
+  );
 
 /**
  * SecretMetadata — returned by list/put operations. Values are never
@@ -39,7 +43,7 @@ export const file_nexus_secrets_v1_secrets: GenFile = /*@__PURE__*/
  *
  * @generated from message nexus.secrets.v1.SecretMetadata
  */
-export type SecretMetadata = Message<"nexus.secrets.v1.SecretMetadata"> & {
+export type SecretMetadata = Message<'nexus.secrets.v1.SecretMetadata'> & {
   /**
    * @generated from field: string namespace = 1;
    */
@@ -80,13 +84,12 @@ export type SecretMetadata = Message<"nexus.secrets.v1.SecretMetadata"> & {
  * Describes the message nexus.secrets.v1.SecretMetadata.
  * Use `create(SecretMetadataSchema)` to create a new message.
  */
-export const SecretMetadataSchema: GenMessage<SecretMetadata> = /*@__PURE__*/
-  messageDesc(file_nexus_secrets_v1_secrets, 0);
+export const SecretMetadataSchema: GenMessage<SecretMetadata> = /*@__PURE__*/ messageDesc(file_nexus_secrets_v1_secrets, 0);
 
 /**
  * @generated from message nexus.secrets.v1.PutSecretRequest
  */
-export type PutSecretRequest = Message<"nexus.secrets.v1.PutSecretRequest"> & {
+export type PutSecretRequest = Message<'nexus.secrets.v1.PutSecretRequest'> & {
   /**
    * @generated from field: string namespace = 1;
    */
@@ -112,13 +115,12 @@ export type PutSecretRequest = Message<"nexus.secrets.v1.PutSecretRequest"> & {
  * Describes the message nexus.secrets.v1.PutSecretRequest.
  * Use `create(PutSecretRequestSchema)` to create a new message.
  */
-export const PutSecretRequestSchema: GenMessage<PutSecretRequest> = /*@__PURE__*/
-  messageDesc(file_nexus_secrets_v1_secrets, 1);
+export const PutSecretRequestSchema: GenMessage<PutSecretRequest> = /*@__PURE__*/ messageDesc(file_nexus_secrets_v1_secrets, 1);
 
 /**
  * @generated from message nexus.secrets.v1.PutSecretResponse
  */
-export type PutSecretResponse = Message<"nexus.secrets.v1.PutSecretResponse"> & {
+export type PutSecretResponse = Message<'nexus.secrets.v1.PutSecretResponse'> & {
   /**
    * @generated from field: nexus.secrets.v1.SecretMetadata metadata = 1;
    */
@@ -129,13 +131,12 @@ export type PutSecretResponse = Message<"nexus.secrets.v1.PutSecretResponse"> & 
  * Describes the message nexus.secrets.v1.PutSecretResponse.
  * Use `create(PutSecretResponseSchema)` to create a new message.
  */
-export const PutSecretResponseSchema: GenMessage<PutSecretResponse> = /*@__PURE__*/
-  messageDesc(file_nexus_secrets_v1_secrets, 2);
+export const PutSecretResponseSchema: GenMessage<PutSecretResponse> = /*@__PURE__*/ messageDesc(file_nexus_secrets_v1_secrets, 2);
 
 /**
  * @generated from message nexus.secrets.v1.GetSecretRequest
  */
-export type GetSecretRequest = Message<"nexus.secrets.v1.GetSecretRequest"> & {
+export type GetSecretRequest = Message<'nexus.secrets.v1.GetSecretRequest'> & {
   /**
    * @generated from field: string namespace = 1;
    */
@@ -158,13 +159,12 @@ export type GetSecretRequest = Message<"nexus.secrets.v1.GetSecretRequest"> & {
  * Describes the message nexus.secrets.v1.GetSecretRequest.
  * Use `create(GetSecretRequestSchema)` to create a new message.
  */
-export const GetSecretRequestSchema: GenMessage<GetSecretRequest> = /*@__PURE__*/
-  messageDesc(file_nexus_secrets_v1_secrets, 3);
+export const GetSecretRequestSchema: GenMessage<GetSecretRequest> = /*@__PURE__*/ messageDesc(file_nexus_secrets_v1_secrets, 3);
 
 /**
  * @generated from message nexus.secrets.v1.GetSecretResponse
  */
-export type GetSecretResponse = Message<"nexus.secrets.v1.GetSecretResponse"> & {
+export type GetSecretResponse = Message<'nexus.secrets.v1.GetSecretResponse'> & {
   /**
    * @generated from field: string namespace = 1;
    */
@@ -190,13 +190,12 @@ export type GetSecretResponse = Message<"nexus.secrets.v1.GetSecretResponse"> & 
  * Describes the message nexus.secrets.v1.GetSecretResponse.
  * Use `create(GetSecretResponseSchema)` to create a new message.
  */
-export const GetSecretResponseSchema: GenMessage<GetSecretResponse> = /*@__PURE__*/
-  messageDesc(file_nexus_secrets_v1_secrets, 4);
+export const GetSecretResponseSchema: GenMessage<GetSecretResponse> = /*@__PURE__*/ messageDesc(file_nexus_secrets_v1_secrets, 4);
 
 /**
  * @generated from message nexus.secrets.v1.DeleteSecretRequest
  */
-export type DeleteSecretRequest = Message<"nexus.secrets.v1.DeleteSecretRequest"> & {
+export type DeleteSecretRequest = Message<'nexus.secrets.v1.DeleteSecretRequest'> & {
   /**
    * @generated from field: string namespace = 1;
    */
@@ -212,13 +211,12 @@ export type DeleteSecretRequest = Message<"nexus.secrets.v1.DeleteSecretRequest"
  * Describes the message nexus.secrets.v1.DeleteSecretRequest.
  * Use `create(DeleteSecretRequestSchema)` to create a new message.
  */
-export const DeleteSecretRequestSchema: GenMessage<DeleteSecretRequest> = /*@__PURE__*/
-  messageDesc(file_nexus_secrets_v1_secrets, 5);
+export const DeleteSecretRequestSchema: GenMessage<DeleteSecretRequest> = /*@__PURE__*/ messageDesc(file_nexus_secrets_v1_secrets, 5);
 
 /**
  * @generated from message nexus.secrets.v1.DeleteSecretResponse
  */
-export type DeleteSecretResponse = Message<"nexus.secrets.v1.DeleteSecretResponse"> & {
+export type DeleteSecretResponse = Message<'nexus.secrets.v1.DeleteSecretResponse'> & {
   /**
    * @generated from field: string namespace = 1;
    */
@@ -239,13 +237,12 @@ export type DeleteSecretResponse = Message<"nexus.secrets.v1.DeleteSecretRespons
  * Describes the message nexus.secrets.v1.DeleteSecretResponse.
  * Use `create(DeleteSecretResponseSchema)` to create a new message.
  */
-export const DeleteSecretResponseSchema: GenMessage<DeleteSecretResponse> = /*@__PURE__*/
-  messageDesc(file_nexus_secrets_v1_secrets, 6);
+export const DeleteSecretResponseSchema: GenMessage<DeleteSecretResponse> = /*@__PURE__*/ messageDesc(file_nexus_secrets_v1_secrets, 6);
 
 /**
  * @generated from message nexus.secrets.v1.RestoreSecretRequest
  */
-export type RestoreSecretRequest = Message<"nexus.secrets.v1.RestoreSecretRequest"> & {
+export type RestoreSecretRequest = Message<'nexus.secrets.v1.RestoreSecretRequest'> & {
   /**
    * @generated from field: string namespace = 1;
    */
@@ -261,13 +258,12 @@ export type RestoreSecretRequest = Message<"nexus.secrets.v1.RestoreSecretReques
  * Describes the message nexus.secrets.v1.RestoreSecretRequest.
  * Use `create(RestoreSecretRequestSchema)` to create a new message.
  */
-export const RestoreSecretRequestSchema: GenMessage<RestoreSecretRequest> = /*@__PURE__*/
-  messageDesc(file_nexus_secrets_v1_secrets, 7);
+export const RestoreSecretRequestSchema: GenMessage<RestoreSecretRequest> = /*@__PURE__*/ messageDesc(file_nexus_secrets_v1_secrets, 7);
 
 /**
  * @generated from message nexus.secrets.v1.RestoreSecretResponse
  */
-export type RestoreSecretResponse = Message<"nexus.secrets.v1.RestoreSecretResponse"> & {
+export type RestoreSecretResponse = Message<'nexus.secrets.v1.RestoreSecretResponse'> & {
   /**
    * @generated from field: string namespace = 1;
    */
@@ -293,13 +289,12 @@ export type RestoreSecretResponse = Message<"nexus.secrets.v1.RestoreSecretRespo
  * Describes the message nexus.secrets.v1.RestoreSecretResponse.
  * Use `create(RestoreSecretResponseSchema)` to create a new message.
  */
-export const RestoreSecretResponseSchema: GenMessage<RestoreSecretResponse> = /*@__PURE__*/
-  messageDesc(file_nexus_secrets_v1_secrets, 8);
+export const RestoreSecretResponseSchema: GenMessage<RestoreSecretResponse> = /*@__PURE__*/ messageDesc(file_nexus_secrets_v1_secrets, 8);
 
 /**
  * @generated from message nexus.secrets.v1.ListSecretsRequest
  */
-export type ListSecretsRequest = Message<"nexus.secrets.v1.ListSecretsRequest"> & {
+export type ListSecretsRequest = Message<'nexus.secrets.v1.ListSecretsRequest'> & {
   /**
    * Filter by namespace. Unset = list all namespaces.
    *
@@ -319,13 +314,12 @@ export type ListSecretsRequest = Message<"nexus.secrets.v1.ListSecretsRequest"> 
  * Describes the message nexus.secrets.v1.ListSecretsRequest.
  * Use `create(ListSecretsRequestSchema)` to create a new message.
  */
-export const ListSecretsRequestSchema: GenMessage<ListSecretsRequest> = /*@__PURE__*/
-  messageDesc(file_nexus_secrets_v1_secrets, 9);
+export const ListSecretsRequestSchema: GenMessage<ListSecretsRequest> = /*@__PURE__*/ messageDesc(file_nexus_secrets_v1_secrets, 9);
 
 /**
  * @generated from message nexus.secrets.v1.ListSecretsResponse
  */
-export type ListSecretsResponse = Message<"nexus.secrets.v1.ListSecretsResponse"> & {
+export type ListSecretsResponse = Message<'nexus.secrets.v1.ListSecretsResponse'> & {
   /**
    * @generated from field: repeated nexus.secrets.v1.SecretMetadata secrets = 1;
    */
@@ -341,13 +335,12 @@ export type ListSecretsResponse = Message<"nexus.secrets.v1.ListSecretsResponse"
  * Describes the message nexus.secrets.v1.ListSecretsResponse.
  * Use `create(ListSecretsResponseSchema)` to create a new message.
  */
-export const ListSecretsResponseSchema: GenMessage<ListSecretsResponse> = /*@__PURE__*/
-  messageDesc(file_nexus_secrets_v1_secrets, 10);
+export const ListSecretsResponseSchema: GenMessage<ListSecretsResponse> = /*@__PURE__*/ messageDesc(file_nexus_secrets_v1_secrets, 10);
 
 /**
  * @generated from message nexus.secrets.v1.SecretVersion
  */
-export type SecretVersion = Message<"nexus.secrets.v1.SecretVersion"> & {
+export type SecretVersion = Message<'nexus.secrets.v1.SecretVersion'> & {
   /**
    * @generated from field: int32 version = 1;
    */
@@ -370,13 +363,12 @@ export type SecretVersion = Message<"nexus.secrets.v1.SecretVersion"> & {
  * Describes the message nexus.secrets.v1.SecretVersion.
  * Use `create(SecretVersionSchema)` to create a new message.
  */
-export const SecretVersionSchema: GenMessage<SecretVersion> = /*@__PURE__*/
-  messageDesc(file_nexus_secrets_v1_secrets, 11);
+export const SecretVersionSchema: GenMessage<SecretVersion> = /*@__PURE__*/ messageDesc(file_nexus_secrets_v1_secrets, 11);
 
 /**
  * @generated from message nexus.secrets.v1.ListSecretVersionsRequest
  */
-export type ListSecretVersionsRequest = Message<"nexus.secrets.v1.ListSecretVersionsRequest"> & {
+export type ListSecretVersionsRequest = Message<'nexus.secrets.v1.ListSecretVersionsRequest'> & {
   /**
    * @generated from field: string namespace = 1;
    */
@@ -392,13 +384,12 @@ export type ListSecretVersionsRequest = Message<"nexus.secrets.v1.ListSecretVers
  * Describes the message nexus.secrets.v1.ListSecretVersionsRequest.
  * Use `create(ListSecretVersionsRequestSchema)` to create a new message.
  */
-export const ListSecretVersionsRequestSchema: GenMessage<ListSecretVersionsRequest> = /*@__PURE__*/
-  messageDesc(file_nexus_secrets_v1_secrets, 12);
+export const ListSecretVersionsRequestSchema: GenMessage<ListSecretVersionsRequest> = /*@__PURE__*/ messageDesc(file_nexus_secrets_v1_secrets, 12);
 
 /**
  * @generated from message nexus.secrets.v1.ListSecretVersionsResponse
  */
-export type ListSecretVersionsResponse = Message<"nexus.secrets.v1.ListSecretVersionsResponse"> & {
+export type ListSecretVersionsResponse = Message<'nexus.secrets.v1.ListSecretVersionsResponse'> & {
   /**
    * @generated from field: string namespace = 1;
    */
@@ -424,13 +415,12 @@ export type ListSecretVersionsResponse = Message<"nexus.secrets.v1.ListSecretVer
  * Describes the message nexus.secrets.v1.ListSecretVersionsResponse.
  * Use `create(ListSecretVersionsResponseSchema)` to create a new message.
  */
-export const ListSecretVersionsResponseSchema: GenMessage<ListSecretVersionsResponse> = /*@__PURE__*/
-  messageDesc(file_nexus_secrets_v1_secrets, 13);
+export const ListSecretVersionsResponseSchema: GenMessage<ListSecretVersionsResponse> = /*@__PURE__*/ messageDesc(file_nexus_secrets_v1_secrets, 13);
 
 /**
  * @generated from message nexus.secrets.v1.BatchPutSecretsRequest
  */
-export type BatchPutSecretsRequest = Message<"nexus.secrets.v1.BatchPutSecretsRequest"> & {
+export type BatchPutSecretsRequest = Message<'nexus.secrets.v1.BatchPutSecretsRequest'> & {
   /**
    * @generated from field: repeated nexus.secrets.v1.PutSecretRequest secrets = 1;
    */
@@ -441,13 +431,12 @@ export type BatchPutSecretsRequest = Message<"nexus.secrets.v1.BatchPutSecretsRe
  * Describes the message nexus.secrets.v1.BatchPutSecretsRequest.
  * Use `create(BatchPutSecretsRequestSchema)` to create a new message.
  */
-export const BatchPutSecretsRequestSchema: GenMessage<BatchPutSecretsRequest> = /*@__PURE__*/
-  messageDesc(file_nexus_secrets_v1_secrets, 14);
+export const BatchPutSecretsRequestSchema: GenMessage<BatchPutSecretsRequest> = /*@__PURE__*/ messageDesc(file_nexus_secrets_v1_secrets, 14);
 
 /**
  * @generated from message nexus.secrets.v1.BatchPutSecretsResponse
  */
-export type BatchPutSecretsResponse = Message<"nexus.secrets.v1.BatchPutSecretsResponse"> & {
+export type BatchPutSecretsResponse = Message<'nexus.secrets.v1.BatchPutSecretsResponse'> & {
   /**
    * @generated from field: repeated nexus.secrets.v1.SecretMetadata results = 1;
    */
@@ -463,13 +452,12 @@ export type BatchPutSecretsResponse = Message<"nexus.secrets.v1.BatchPutSecretsR
  * Describes the message nexus.secrets.v1.BatchPutSecretsResponse.
  * Use `create(BatchPutSecretsResponseSchema)` to create a new message.
  */
-export const BatchPutSecretsResponseSchema: GenMessage<BatchPutSecretsResponse> = /*@__PURE__*/
-  messageDesc(file_nexus_secrets_v1_secrets, 15);
+export const BatchPutSecretsResponseSchema: GenMessage<BatchPutSecretsResponse> = /*@__PURE__*/ messageDesc(file_nexus_secrets_v1_secrets, 15);
 
 /**
  * @generated from message nexus.secrets.v1.BatchGetSecretsRequest
  */
-export type BatchGetSecretsRequest = Message<"nexus.secrets.v1.BatchGetSecretsRequest"> & {
+export type BatchGetSecretsRequest = Message<'nexus.secrets.v1.BatchGetSecretsRequest'> & {
   /**
    * @generated from field: repeated nexus.secrets.v1.GetSecretRequest queries = 1;
    */
@@ -480,13 +468,12 @@ export type BatchGetSecretsRequest = Message<"nexus.secrets.v1.BatchGetSecretsRe
  * Describes the message nexus.secrets.v1.BatchGetSecretsRequest.
  * Use `create(BatchGetSecretsRequestSchema)` to create a new message.
  */
-export const BatchGetSecretsRequestSchema: GenMessage<BatchGetSecretsRequest> = /*@__PURE__*/
-  messageDesc(file_nexus_secrets_v1_secrets, 16);
+export const BatchGetSecretsRequestSchema: GenMessage<BatchGetSecretsRequest> = /*@__PURE__*/ messageDesc(file_nexus_secrets_v1_secrets, 16);
 
 /**
  * @generated from message nexus.secrets.v1.BatchGetSecretsResponse
  */
-export type BatchGetSecretsResponse = Message<"nexus.secrets.v1.BatchGetSecretsResponse"> & {
+export type BatchGetSecretsResponse = Message<'nexus.secrets.v1.BatchGetSecretsResponse'> & {
   /**
    * Values keyed by "namespace:key". Missing/deleted secrets are
    * omitted (not an error).
@@ -505,13 +492,12 @@ export type BatchGetSecretsResponse = Message<"nexus.secrets.v1.BatchGetSecretsR
  * Describes the message nexus.secrets.v1.BatchGetSecretsResponse.
  * Use `create(BatchGetSecretsResponseSchema)` to create a new message.
  */
-export const BatchGetSecretsResponseSchema: GenMessage<BatchGetSecretsResponse> = /*@__PURE__*/
-  messageDesc(file_nexus_secrets_v1_secrets, 17);
+export const BatchGetSecretsResponseSchema: GenMessage<BatchGetSecretsResponse> = /*@__PURE__*/ messageDesc(file_nexus_secrets_v1_secrets, 17);
 
 /**
  * @generated from message nexus.secrets.v1.DeleteSecretVersionRequest
  */
-export type DeleteSecretVersionRequest = Message<"nexus.secrets.v1.DeleteSecretVersionRequest"> & {
+export type DeleteSecretVersionRequest = Message<'nexus.secrets.v1.DeleteSecretVersionRequest'> & {
   /**
    * @generated from field: string namespace = 1;
    */
@@ -532,13 +518,12 @@ export type DeleteSecretVersionRequest = Message<"nexus.secrets.v1.DeleteSecretV
  * Describes the message nexus.secrets.v1.DeleteSecretVersionRequest.
  * Use `create(DeleteSecretVersionRequestSchema)` to create a new message.
  */
-export const DeleteSecretVersionRequestSchema: GenMessage<DeleteSecretVersionRequest> = /*@__PURE__*/
-  messageDesc(file_nexus_secrets_v1_secrets, 18);
+export const DeleteSecretVersionRequestSchema: GenMessage<DeleteSecretVersionRequest> = /*@__PURE__*/ messageDesc(file_nexus_secrets_v1_secrets, 18);
 
 /**
  * @generated from message nexus.secrets.v1.DeleteSecretVersionResponse
  */
-export type DeleteSecretVersionResponse = Message<"nexus.secrets.v1.DeleteSecretVersionResponse"> & {
+export type DeleteSecretVersionResponse = Message<'nexus.secrets.v1.DeleteSecretVersionResponse'> & {
   /**
    * @generated from field: string namespace = 1;
    */
@@ -564,13 +549,12 @@ export type DeleteSecretVersionResponse = Message<"nexus.secrets.v1.DeleteSecret
  * Describes the message nexus.secrets.v1.DeleteSecretVersionResponse.
  * Use `create(DeleteSecretVersionResponseSchema)` to create a new message.
  */
-export const DeleteSecretVersionResponseSchema: GenMessage<DeleteSecretVersionResponse> = /*@__PURE__*/
-  messageDesc(file_nexus_secrets_v1_secrets, 19);
+export const DeleteSecretVersionResponseSchema: GenMessage<DeleteSecretVersionResponse> = /*@__PURE__*/ messageDesc(file_nexus_secrets_v1_secrets, 19);
 
 /**
  * @generated from message nexus.secrets.v1.UpdateSecretDescriptionRequest
  */
-export type UpdateSecretDescriptionRequest = Message<"nexus.secrets.v1.UpdateSecretDescriptionRequest"> & {
+export type UpdateSecretDescriptionRequest = Message<'nexus.secrets.v1.UpdateSecretDescriptionRequest'> & {
   /**
    * @generated from field: string namespace = 1;
    */
@@ -591,13 +575,12 @@ export type UpdateSecretDescriptionRequest = Message<"nexus.secrets.v1.UpdateSec
  * Describes the message nexus.secrets.v1.UpdateSecretDescriptionRequest.
  * Use `create(UpdateSecretDescriptionRequestSchema)` to create a new message.
  */
-export const UpdateSecretDescriptionRequestSchema: GenMessage<UpdateSecretDescriptionRequest> = /*@__PURE__*/
-  messageDesc(file_nexus_secrets_v1_secrets, 20);
+export const UpdateSecretDescriptionRequestSchema: GenMessage<UpdateSecretDescriptionRequest> = /*@__PURE__*/ messageDesc(file_nexus_secrets_v1_secrets, 20);
 
 /**
  * @generated from message nexus.secrets.v1.UpdateSecretDescriptionResponse
  */
-export type UpdateSecretDescriptionResponse = Message<"nexus.secrets.v1.UpdateSecretDescriptionResponse"> & {
+export type UpdateSecretDescriptionResponse = Message<'nexus.secrets.v1.UpdateSecretDescriptionResponse'> & {
   /**
    * @generated from field: string namespace = 1;
    */
@@ -618,8 +601,7 @@ export type UpdateSecretDescriptionResponse = Message<"nexus.secrets.v1.UpdateSe
  * Describes the message nexus.secrets.v1.UpdateSecretDescriptionResponse.
  * Use `create(UpdateSecretDescriptionResponseSchema)` to create a new message.
  */
-export const UpdateSecretDescriptionResponseSchema: GenMessage<UpdateSecretDescriptionResponse> = /*@__PURE__*/
-  messageDesc(file_nexus_secrets_v1_secrets, 21);
+export const UpdateSecretDescriptionResponseSchema: GenMessage<UpdateSecretDescriptionResponse> = /*@__PURE__*/ messageDesc(file_nexus_secrets_v1_secrets, 21);
 
 /**
  * @generated from service nexus.secrets.v1.GenericSecretsService
@@ -632,40 +614,40 @@ export const GenericSecretsService: GenService<{
    * @generated from rpc nexus.secrets.v1.GenericSecretsService.PutSecret
    */
   putSecret: {
-    methodKind: "unary";
+    methodKind: 'unary';
     input: typeof PutSecretRequestSchema;
     output: typeof PutSecretResponseSchema;
-  },
+  };
   /**
    * Fetch a secret value, latest version by default.
    *
    * @generated from rpc nexus.secrets.v1.GenericSecretsService.GetSecret
    */
   getSecret: {
-    methodKind: "unary";
+    methodKind: 'unary';
     input: typeof GetSecretRequestSchema;
     output: typeof GetSecretResponseSchema;
-  },
+  };
   /**
    * Soft-delete a secret. Recoverable via RestoreSecret.
    *
    * @generated from rpc nexus.secrets.v1.GenericSecretsService.DeleteSecret
    */
   deleteSecret: {
-    methodKind: "unary";
+    methodKind: 'unary';
     input: typeof DeleteSecretRequestSchema;
     output: typeof DeleteSecretResponseSchema;
-  },
+  };
   /**
    * Restore a soft-deleted secret.
    *
    * @generated from rpc nexus.secrets.v1.GenericSecretsService.RestoreSecret
    */
   restoreSecret: {
-    methodKind: "unary";
+    methodKind: 'unary';
     input: typeof RestoreSecretRequestSchema;
     output: typeof RestoreSecretResponseSchema;
-  },
+  };
   /**
    * List secrets with optional namespace filter. Returns metadata only
    * (no values) for efficiency.
@@ -673,40 +655,40 @@ export const GenericSecretsService: GenService<{
    * @generated from rpc nexus.secrets.v1.GenericSecretsService.ListSecrets
    */
   listSecrets: {
-    methodKind: "unary";
+    methodKind: 'unary';
     input: typeof ListSecretsRequestSchema;
     output: typeof ListSecretsResponseSchema;
-  },
+  };
   /**
    * List all versions of a secret (rotation / audit trail).
    *
    * @generated from rpc nexus.secrets.v1.GenericSecretsService.ListSecretVersions
    */
   listSecretVersions: {
-    methodKind: "unary";
+    methodKind: 'unary';
     input: typeof ListSecretVersionsRequestSchema;
     output: typeof ListSecretVersionsResponseSchema;
-  },
+  };
   /**
    * Batch create/update. Each entry is an independent put.
    *
    * @generated from rpc nexus.secrets.v1.GenericSecretsService.BatchPutSecrets
    */
   batchPutSecrets: {
-    methodKind: "unary";
+    methodKind: 'unary';
     input: typeof BatchPutSecretsRequestSchema;
     output: typeof BatchPutSecretsResponseSchema;
-  },
+  };
   /**
    * Batch fetch. Returns values keyed by "namespace:key".
    *
    * @generated from rpc nexus.secrets.v1.GenericSecretsService.BatchGetSecrets
    */
   batchGetSecrets: {
-    methodKind: "unary";
+    methodKind: 'unary';
     input: typeof BatchGetSecretsRequestSchema;
     output: typeof BatchGetSecretsResponseSchema;
-  },
+  };
   /**
    * Physically delete a specific version. If the deleted version is
    * current, the index rolls back to the previous version. Cannot
@@ -715,10 +697,10 @@ export const GenericSecretsService: GenService<{
    * @generated from rpc nexus.secrets.v1.GenericSecretsService.DeleteSecretVersion
    */
   deleteSecretVersion: {
-    methodKind: "unary";
+    methodKind: 'unary';
     input: typeof DeleteSecretVersionRequestSchema;
     output: typeof DeleteSecretVersionResponseSchema;
-  },
+  };
   /**
    * Update description metadata without creating a new version.
    * Metadata-only operation — does not touch encrypted version files.
@@ -726,10 +708,8 @@ export const GenericSecretsService: GenService<{
    * @generated from rpc nexus.secrets.v1.GenericSecretsService.UpdateSecretDescription
    */
   updateSecretDescription: {
-    methodKind: "unary";
+    methodKind: 'unary';
     input: typeof UpdateSecretDescriptionRequestSchema;
     output: typeof UpdateSecretDescriptionResponseSchema;
-  },
-}> = /*@__PURE__*/
-  serviceDesc(file_nexus_secrets_v1_secrets, 0);
-
+  };
+}> = /*@__PURE__*/ serviceDesc(file_nexus_secrets_v1_secrets, 0);

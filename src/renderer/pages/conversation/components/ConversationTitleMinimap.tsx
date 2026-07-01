@@ -635,7 +635,12 @@ const ConversationTitleMinimap: React.FC<ConversationTitleMinimapProps> = ({ tit
 
   return (
     <>
-      <span ref={triggerRef} className={classNames('conversation-minimap-trigger font-bold text-16px text-foreground inline-block overflow-hidden text-ellipsis whitespace-nowrap max-w-full cursor-pointer', visible && 'text-[rgb(var(--primary-6))]')} onMouseEnter={openPanel} onMouseLeave={scheduleClosePanel}>
+      <span
+        ref={triggerRef}
+        className={classNames('conversation-minimap-trigger font-bold text-16px text-foreground inline-block overflow-hidden text-ellipsis whitespace-nowrap max-w-full cursor-pointer', visible && 'text-[rgb(var(--primary-6))]')}
+        onMouseEnter={openPanel}
+        onMouseLeave={scheduleClosePanel}
+      >
         {title}
       </span>
       {visible &&

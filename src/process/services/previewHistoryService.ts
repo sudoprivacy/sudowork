@@ -37,7 +37,15 @@ class PreviewHistoryService {
 
   // 根据目标生成稳定的标识和摘要，作为索引/存储路径 / Build stable identity & digest for indexing
   private buildIdentity(target: PreviewHistoryTarget): { identity: string; digest: string } {
-    const keyParts = [target.filePath ? `path:${target.filePath}` : '', target.workspace ? `workspace:${target.workspace}` : '', target.fileName ? `file:${target.fileName}` : '', target.title ? `title:${target.title}` : '', target.language ? `lang:${target.language}` : '', target.conversationId ? `conversation:${target.conversationId}` : '', `type:${target.contentType}`].filter(Boolean);
+    const keyParts = [
+      target.filePath ? `path:${target.filePath}` : '',
+      target.workspace ? `workspace:${target.workspace}` : '',
+      target.fileName ? `file:${target.fileName}` : '',
+      target.title ? `title:${target.title}` : '',
+      target.language ? `lang:${target.language}` : '',
+      target.conversationId ? `conversation:${target.conversationId}` : '',
+      `type:${target.contentType}`,
+    ].filter(Boolean);
 
     const identity = keyParts.join('|') || `anonymous|${target.contentType}`;
     const digest = crypto.createHash('sha1').update(identity).digest('hex');
