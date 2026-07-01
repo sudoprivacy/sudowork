@@ -9,13 +9,13 @@ import WorkerManage from '@process/WorkerManage';
 import { initMossApi, type MossSessionApi } from '@process/remote/MossSessionApi';
 import { mainLog, mainError } from '@process/utils/mainLogger';
 import { ProcessConfig } from '@process/initStorage';
-import type { IConversationProvider, IProviderConfig } from './types';
 import type { TChatConversation } from '@/common/storage';
 import type { TMessage } from '@/common/chatLib';
 import type { ICreateConversationParams, IBridgeResponse, ISendMessageParams } from '@/common/ipcBridge';
 import type { AcpModelInfo } from '@/types/acpTypes';
 import { uuid } from '@/common/utils';
 import { isRemoteContainerPath } from '@/common/utils/workspaceSkillSync';
+import type { IConversationProvider, IProviderConfig } from './types';
 
 const HIDDEN_CRON_SESSIONS_KEY = 'remote.hiddenCronSessionIds';
 
@@ -275,6 +275,10 @@ export class RemoteConversationProvider implements IConversationProvider {
         mainError('RemoteProvider', `Failed to delete conversation from local DB: ${result.error}`);
         return false;
       }
+
+      // Drop cached model info so the entry does not leak after deletion
+      // 删除后清理缓存的模型信息，避免泄漏
+      this.cachedModelInfo.delete(id);
 
       mainLog('RemoteProvider', `Deleted conversation ${id} from local DB`);
       return true;

@@ -23,6 +23,14 @@ function getCachedCommands(conversationId: string): SlashCommandItem[] | null {
   return entry.commands;
 }
 
+/**
+ * Drop the cached slash-command entry for a conversation. Called when a
+ * conversation is reaped so the module-level cache does not leak the entry.
+ */
+export function dropSlashCommandCache(conversationId: string): void {
+  slashCommandCache.delete(conversationId);
+}
+
 function setCachedCommands(conversationId: string, commands: SlashCommandItem[]): void {
   // LRU eviction if cache is full
   if (slashCommandCache.size >= MAX_CACHE_SIZE) {

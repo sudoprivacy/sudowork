@@ -14,8 +14,8 @@
  * - Token 消耗
  */
 
-import { getTelemetryReporter } from './TelemetryBatchReporter';
 import type { ConversationStatus, ConversationData, ModelProvider } from '../../shared/types/telemetry';
+import { getTelemetryReporter } from './TelemetryBatchReporter';
 
 // ============================================================
 // 类型定义
@@ -87,12 +87,7 @@ export class ConversationTracker {
    * @param inputTokens - 输入 token
    * @param outputTokens - 输出 token
    */
-  public updateTokens(
-    sessionId: string,
-    tokensUsed?: number,
-    inputTokens?: number,
-    outputTokens?: number,
-  ): void {
+  public updateTokens(sessionId: string, tokensUsed?: number, inputTokens?: number, outputTokens?: number): void {
     const state = this.activeConversations.get(sessionId);
     if (!state) {
       return;
@@ -182,6 +177,23 @@ export class ConversationTracker {
   }
 
   /**
+   * 丢弃对话追踪状态而不上报
+   *
+   * Drop the tracking state without emitting a telemetry record. Used when a
+   * conversation is reaped (deleted) mid-flight — we don't want a spurious
+   * conversation event for a deletion.
+   *
+   * NOTE: the map is keyed by the value passed to startConversationTracking,
+   * which today is the conversation id (see AcpAgent.ts). Callers pass the
+   * conversation id here.
+   *
+   * @param sessionId - 会话 ID（实为 conversation id）
+   */
+  public discardConversation(sessionId: string): void {
+    this.activeConversations.delete(sessionId);
+  }
+
+  /**
    * 获取活跃对话数量
    */
   public getActiveCount(): number {
@@ -206,21 +218,12 @@ export const getConversationTracker = (): ConversationTracker => {
 };
 
 /** 开始对话追踪 */
-export const startConversationTracking = (
-  sessionId: string,
-  modelId: string,
-  modelProvider?: ModelProvider,
-): void => {
+export const startConversationTracking = (sessionId: string, modelId: string, modelProvider?: ModelProvider): void => {
   getConversationTracker().startConversation(sessionId, modelId, modelProvider);
 };
 
 /** 更新 Token 使用量 */
-export const updateConversationTokens = (
-  sessionId: string,
-  tokensUsed?: number,
-  inputTokens?: number,
-  outputTokens?: number,
-): void => {
+export const updateConversationTokens = (sessionId: string, tokensUsed?: number, inputTokens?: number, outputTokens?: number): void => {
   getConversationTracker().updateTokens(sessionId, tokensUsed, inputTokens, outputTokens);
 };
 
@@ -237,4 +240,9 @@ export const endConversationError = (sessionId: string, errorCode?: string): voi
 /** 结束对话 - 用户取消 */
 export const endConversationUserCancel = (sessionId: string): void => {
   getConversationTracker().endConversationUserCancel(sessionId);
+};
+
+/** 停止对话追踪（不上报，用于会话被删除时）/ Stop tracking without reporting (used when conversation is reaped) */
+export const stopConversationTracking = (sessionId: string): void => {
+  getConversationTracker().discardConversation(sessionId);
 };
