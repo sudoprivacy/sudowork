@@ -9,8 +9,12 @@ import * as path from 'path';
 import { spawn } from 'child_process';
 import fs from 'fs/promises';
 import { getDatabase } from '@process/database';
-import { cronService } from '@process/services/cron/CronService';
 import { mainError, mainLog, mainWarn } from '@process/utils/mainLogger';
+import { setupChannelResponseRouting } from '@/channels/agent/ChannelResponseRouter';
+import type { IDirOrFile, MossSessionAvailableSkill, MossWorkspaceNode } from '@/common/ipcBridge';
+import type { TChatConversation } from '@/common/storage';
+import { getSudoworkAcpSlashCommands } from '@/common/slash/sudoworkCommands';
+import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
 import { ipcBridge } from '../../common';
 import { uuid } from '../../common/utils';
 import { shouldSyncWorkspaceSkills } from '../../common/utils/workspaceSkillSync';
@@ -30,14 +34,8 @@ import { ConversationManageWithDB } from '../message';
 import { startConversationTracking, endConversationSuccess, endConversationError } from '../telemetry';
 import { getConversationProvider, isRemoteProvider } from '../providers';
 import { getMossApi, getMossApiServerUrl, initMossApi } from '../remote/MossSessionApi';
-import { closeBrowserTabsByConversation } from './browserPanelBridge';
-import { closeTerminalsByConversation } from './terminalBridge';
+import { reapConversation } from '../services/conversationReaper';
 import { migrateConversationToDatabase } from './migrationUtils';
-import { setupChannelResponseRouting } from '@/channels/agent/ChannelResponseRouter';
-import type { IDirOrFile, MossSessionAvailableSkill, MossWorkspaceNode } from '@/common/ipcBridge';
-import type { TChatConversation } from '@/common/storage';
-import { getSudoworkAcpSlashCommands } from '@/common/slash/sudoworkCommands';
-import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
 
 const workspaceSkillSyncTasks = new Map<string, Promise<void>>();
 
@@ -464,86 +462,10 @@ export function initConversationBridge(): void {
 
   ipcBridge.conversation.remove.provider(async ({ id, deleteWorkspace }) => {
     try {
-      // Get conversation to check source before deletion
-      const db = getDatabase();
-      const convResult = db.getConversation(id);
-      const conversation = convResult.data;
-      const source = conversation?.source;
-      const workspacePath = (conversation?.extra as { workspace?: string } | undefined)?.workspace;
-      const isCronExecutionConversation = !!(conversation?.extra as { cronJobId?: string } | undefined)?.cronJobId;
-
-      // Kill the running task if exists
-      WorkerManage.kill(id);
-
-      // Reap any right-panel terminals tied to this conversation. Call the
-      // function directly — bridge.invoke from main → main does NOT route to
-      // the local provider (main adapter's emit only broadcasts to renderers).
-      try {
-        closeTerminalsByConversation(id);
-      } catch (err) {
-        mainWarn('conversationBridge', 'closeTerminalsByConversation failed', err);
-      }
-
-      // Reap any right-panel BrowserPanel tabs tied to this conversation.
-      // Same direct-call pattern as closeTerminalsByConversation. The
-      // function also broadcasts rightPanelBrowser.convClosed so the
-      // renderer-side BrowserPanel can drop its module-level state for
-      // this conv.
-      try {
-        closeBrowserTabsByConversation(id);
-      } catch (err) {
-        mainWarn('conversationBridge', 'closeBrowserTabsByConversation failed', err);
-      }
-
-      // Delete associated cron jobs
-      try {
-        if (!isCronExecutionConversation) {
-          const jobs = await cronService.listJobsByConversation(id);
-          for (const job of jobs) {
-            await cronService.removeJob(job.id);
-            ipcBridge.cron.onJobRemoved.emit({ jobId: job.id });
-          }
-        }
-      } catch (cronError) {
-        mainWarn('conversationBridge', 'Failed to cleanup cron jobs:', cronError);
-      }
-
-      // If source is not 'sudowork' (e.g., telegram), cleanup channel resources
-      if (source && source !== 'sudowork') {
-        try {
-          const { getChannelManager } = await import('@/channels/core/ChannelManager');
-          const channelManager = getChannelManager();
-          if (channelManager.isInitialized()) {
-            await channelManager.cleanupConversation(id);
-            mainLog('conversationBridge', `Cleaned up channel resources for ${source} conversation ${id}`);
-          }
-        } catch (cleanupError) {
-          mainWarn('conversationBridge', 'Failed to cleanup channel resources:', cleanupError);
-        }
-      }
-
-      // Delete workspace folder if requested
-      // 如果用户选择了同时删除工作区文件夹，则删除
-      if (deleteWorkspace && workspacePath) {
-        try {
-          await fs.rm(workspacePath, { recursive: true, force: true });
-          mainLog('conversationBridge', `Deleted workspace folder: ${workspacePath}`);
-        } catch (workspaceError) {
-          mainWarn('conversationBridge', `Failed to delete workspace folder ${workspacePath}:`, workspaceError);
-        }
-      }
-
-      // Use Provider abstraction layer for deletion (will cascade delete messages due to foreign key)
-      // 使用 Provider 抽象层删除会话（由于外键约束会级联删除消息）
-      const provider = getConversationProvider();
-      const success = await provider.deleteConversation(id);
-
-      if (!success) {
-        mainError('conversationBridge', 'Failed to delete conversation');
-        return false;
-      }
-
-      return true;
+      // Route all cleanup through the reaper SSOT so every resource this
+      // conversation owns is released in one ordered, DRY path.
+      const res = await reapConversation(id, { reason: 'user-delete', deleteWorkspace });
+      return res.dbDeleted;
     } catch (error) {
       mainError('conversationBridge', 'Failed to remove conversation:', error);
       return false;
