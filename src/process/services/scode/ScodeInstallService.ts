@@ -389,17 +389,23 @@ const SCODE_MIGRATION_MARKER = '.sudowork-config-migrated';
  * Copies (never moves) the user's config so upgrading sudowork users don't lose
  * their settings; the legacy copy stays intact for a standalone scode install.
  * Only migrates config that a PRIOR SUDOWORK INSTALL left at the legacy home
- * (detected by sudowork's own ready-marker / binary) — a legacy home holding only
- * a *standalone* scode's config is NOT auto-imported, honouring the
- * "default full isolation" decision. Runs at most once (marker-guarded) and never
- * clobbers a file already present in the isolated home.
+ * (detected by sudowork's own ready-marker — NOT the scode binary, which a
+ * standalone install also has) — a legacy home holding only a *standalone*
+ * scode's config is NOT auto-imported, honouring the "default full isolation"
+ * decision. Runs at most once (marker-guarded) and never clobbers a file already
+ * present in the isolated home.
  */
 export function migrateLegacyScodeHomeOnce(home: string = SCODE_HOME, legacy: string = LEGACY_SCODE_HOME): void {
   if (home === legacy) return; // nothing to isolate
   const marker = path.join(home, SCODE_MIGRATION_MARKER);
   if (fs.existsSync(marker)) return;
   try {
-    const legacyWasSudoworkInstall = fs.existsSync(path.join(legacy, SCODE_READY_MARKER)) || fs.existsSync(path.join(legacy, getScodeExeName()));
+    // ONLY a prior SUDOWORK install writes SCODE_READY_MARKER; a standalone scode
+    // has scode.exe but never writes it. So the marker — not the binary — is the
+    // only safe signal that the legacy config is ours to migrate. Keying off
+    // scode.exe would misclassify a standalone install and import its config,
+    // breaking the "default full isolation / no auto-import" decision.
+    const legacyWasSudoworkInstall = fs.existsSync(path.join(legacy, SCODE_READY_MARKER));
     fs.mkdirSync(home, { recursive: true });
     if (legacyWasSudoworkInstall) {
       for (const name of SCODE_MIGRATED_ENTRY_NAMES) {

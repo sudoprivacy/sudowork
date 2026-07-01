@@ -125,6 +125,22 @@ describe('scode config isolation — first-run migration', () => {
     expect(fs.existsSync(path.join(home, MIGRATION_MARKER))).toBe(true);
   });
 
+  it('does NOT treat a standalone scode (has scode.exe but no sudowork marker) as migratable', async () => {
+    const { migrateLegacyScodeHomeOnce } = await import('../../src/process/services/scode/ScodeInstallService');
+
+    // The exact customer scenario: a standalone scode install — scode binary
+    // present, real config present, but NO sudowork ready-marker. Detection must
+    // key off the sudowork marker, not the (shared) binary, or it would import.
+    const exeName = process.platform === 'win32' ? 'scode.exe' : 'scode';
+    fs.writeFileSync(path.join(legacy, exeName), 'binary');
+    fs.writeFileSync(path.join(legacy, 'sudocode.json'), '{"default_model":"standalone-secret"}');
+
+    migrateLegacyScodeHomeOnce(home, legacy);
+
+    expect(fs.existsSync(path.join(home, 'sudocode.json'))).toBe(false);
+    expect(fs.existsSync(path.join(home, MIGRATION_MARKER))).toBe(true);
+  });
+
   it('never clobbers config already present in the isolated home', async () => {
     const { migrateLegacyScodeHomeOnce } = await import('../../src/process/services/scode/ScodeInstallService');
 
