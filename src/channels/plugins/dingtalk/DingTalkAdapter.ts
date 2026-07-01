@@ -5,6 +5,7 @@
  */
 
 import type { IMessageAction, IUnifiedIncomingMessage, IUnifiedMessageContent, IUnifiedOutgoingMessage, IUnifiedUser } from '../../types';
+import type { AcpQuestionData } from '../../../common/chatLib';
 
 /**
  * DingTalkAdapter - Converts between DingTalk and Unified message formats
@@ -520,6 +521,62 @@ function buildActionCard(text: string, buttons: IUnifiedOutgoingMessage['buttons
     btnOrientation: '1', // Horizontal layout
     btns: btnList,
   };
+}
+
+// ==================== ACP Question (dtmd buttons) ====================
+
+/**
+ * Build DingTalk markdown with dtmd buttons for an ACP question item.
+ *
+ * dtmd links make the DingTalk client send the option label back as a plain
+ * TOPIC_ROBOT message when tapped, so the bot receives the answer without any
+ * cardTemplate — end users only configure the bot (clientId/secret), never the
+ * DingTalk backend. (Verified in step 0: tapped content arrives verbatim.)
+ *
+ * 为 ACP 选项题构造钉钉 markdown：
+ * - single_select / multi_select / boolean：渲染 dtmd 按钮（boolean 视作 single_select）。
+ * - text：渲染题干 + 「请直接输入文字回复」提示，不渲染按钮（用户的文字回复由 submitAnswer 直接接收）。
+ * - 其它（kind=undefined / items 为空 / itemIndex 越界）：保留 downgrade 文案兜底。
+ *
+ * 多题问答（items.length > 1）由调用方按 itemIndex 逐题分发渲染。
+ */
+export function buildDingTalkQuestionMarkdown(content: AcpQuestionData, itemIndex = 0): { markdown: string; isSupported: boolean } {
+  const items = content.items ?? [];
+  const item = items[itemIndex];
+  const kind = item?.kind;
+  const isSupported = !!item && (kind === 'single_select' || kind === 'multi_select' || kind === 'boolean' || kind === 'text');
+
+  if (!isSupported) {
+    const questionText = content.question || item?.prompt || '请回答';
+    return {
+      markdown: `${questionText}\n\n此题型暂不支持按钮选择，请直接文字说明。`,
+      isSupported: false,
+    };
+  }
+
+  const lines: string[] = [];
+  if (items.length > 1) {
+    lines.push(`**第 ${itemIndex + 1} / ${items.length} 题**`);
+    const header = content.intro || content.question;
+    if (header) lines.push(header);
+    lines.push(item.prompt || '请选择');
+  } else {
+    lines.push(content.question || item.prompt || '请选择');
+  }
+  lines.push('');
+
+  if (kind === 'text') {
+    lines.push('请直接输入文字回复');
+  } else {
+    for (const option of item.options ?? []) {
+      lines.push(`- [${option.label}](dtmd://dingtalkclient/sendMessage?content=${encodeURIComponent(option.label)})`);
+    }
+    if (kind === 'multi_select') {
+      lines.push('', `- [✅ 提交](dtmd://dingtalkclient/sendMessage?content=${encodeURIComponent('__qa_submit__')})`);
+    }
+  }
+
+  return { markdown: lines.join('\n'), isSupported: true };
 }
 
 // ==================== Text Formatting ====================

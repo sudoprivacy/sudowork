@@ -6,12 +6,14 @@
 
 import fs from 'fs';
 import path from 'path';
-import type { TMessage } from '@/common/chatLib';
+import type { TMessage, AcpQuestionData } from '@/common/chatLib';
 import { database as databaseBridge } from '@/common/ipcBridge';
 import { parseNexusFilesMarker } from '@/common/nexusFiles';
+import { stripGeneratedFilesMarker } from '@/common/generatedFiles';
 import { getDatabase } from '@/process/database';
 import { ProcessConfig } from '@/process/initStorage';
 import { getDataPath } from '@/process/utils';
+import { mainError } from '@/process/utils/mainLogger';
 import { ConversationService } from '@/process/services/conversationService';
 import { transcriptionService } from '@/process/services/transcription/TranscriptionService';
 import type { AcpBackend } from '@/types/acpTypes';
@@ -20,7 +22,7 @@ import { buildChatErrorResponse, chatActions } from '../actions/ChatActions';
 import { handlePairingShow, platformActions } from '../actions/PlatformActions';
 import { getChannelDefaultModel, systemActions } from '../actions/SystemActions';
 import type { IActionContext, IRegisteredAction } from '../actions/types';
-import { getChannelMessageService } from '../agent/ChannelMessageService';
+import { getChannelMessageService, type PendingAnswerResult } from '../agent/ChannelMessageService';
 import type { SessionManager } from '../core/SessionManager';
 import type { PairingService } from '../pairing/PairingService';
 import type { PluginMessageHandler } from '../plugins/BasePlugin';
@@ -29,7 +31,7 @@ import { resolveChannelConvType } from '../types';
 import { createMainMenuCard, createErrorRecoveryCard, createToolConfirmationCard } from '../plugins/lark/LarkCards';
 import { convertHtmlToLarkMarkdown } from '../plugins/lark/LarkAdapter';
 import { createMainMenuCard as createDingTalkMainMenuCard, createErrorRecoveryCard as createDingTalkErrorRecoveryCard, createResponseActionsCard as createDingTalkResponseActionsCard, createToolConfirmationCard as createDingTalkToolConfirmationCard } from '../plugins/dingtalk/DingTalkCards';
-import { convertHtmlToDingTalkMarkdown } from '../plugins/dingtalk/DingTalkAdapter';
+import { convertHtmlToDingTalkMarkdown, buildDingTalkQuestionMarkdown } from '../plugins/dingtalk/DingTalkAdapter';
 import { createMainMenuKeyboard, createToolConfirmationKeyboard } from '../plugins/telegram/TelegramKeyboards';
 import { escapeHtml } from '../plugins/telegram/TelegramAdapter';
 import { resolveMediaText } from './voiceTranscription';
@@ -225,6 +227,10 @@ function getConfirmationPrompt(details: { type: string; title?: string; [key: st
 function convertTMessageToOutgoing(message: TMessage, platform: PluginType, isComplete = false): IUnifiedOutgoingMessage | null {
   switch (message.type) {
     case 'text': {
+      // [[NEXUS_GENERATED_FILES]] is a renderer-only directive for GeneratedFileCard;
+      // meaningless to IM users (file body already delivered via a separate file_send).
+      if (!stripGeneratedFilesMarker(message.content.content || '').trim()) return null;
+
       // 根据平台格式化文本
       // Format text based on platform
       const rawText = formatTextForPlatform(message.content.content || '', platform);
@@ -699,6 +705,62 @@ export class ActionExecutor {
       });
     }
 
+    // Pending ACP question routing: if this conversation has a pending question
+    // (scode awaiting a button-tap answer), route the user's text to answerQuestion
+    // instead of sendMessage (which would treat the answer as a new turn). Placed
+    // before thinking/lock so a tap reply never spins up a competing AI turn.
+    const pendingConvId = context.conversationId || context.chatId;
+    if (pendingConvId) {
+      const pendingService = getChannelMessageService();
+      if (pendingService.hasPendingQuestion(pendingConvId)) {
+        let answerResult: PendingAnswerResult;
+        try {
+          answerResult = pendingService.submitAnswer(pendingConvId, text);
+        } catch (err) {
+          mainError('ActionExecutor', 'submitAnswer threw', err);
+          await context.sendMessage({ type: 'text', text: '❌ 提交失败，请重试', parseMode: 'Markdown' });
+          return;
+        }
+        if (answerResult.kind === 'item_done') {
+          await context.sendMessage({
+            type: 'text',
+            text: `✅ 已选: ${answerResult.displayLabel}（${answerResult.currentIndex}/${answerResult.totalItems}）`,
+            parseMode: 'Markdown',
+          });
+          // Dispatch the next item's card (sendMessage + immediate editMessage finalize
+          // to stop the AI Card spinner; same pattern as the outbound acp_question branch).
+          const next = pendingService.getPendingForNextRender(pendingConvId);
+          if (next) {
+            const { markdown } = buildDingTalkQuestionMarkdown(next.content, next.itemIndex);
+            const cardMsgId = await context.sendMessage({ type: 'text', text: markdown, parseMode: 'Markdown' });
+            await context.editMessage(cardMsgId, { type: 'text', text: markdown, parseMode: 'Markdown', replyMarkup: {} });
+          }
+          return;
+        }
+        if (answerResult.kind === 'all_done') {
+          await context.sendMessage({ type: 'text', text: `✅ 已提交：${answerResult.displayLabel}`, parseMode: 'Markdown' });
+          return;
+        }
+        if (answerResult.kind === 'multi_select_accumulate') {
+          await context.sendMessage({
+            type: 'text',
+            text: `✅ 已选中：${answerResult.displayLabel}，继续选择或点【提交】`,
+            parseMode: 'Markdown',
+          });
+          return;
+        }
+        if (answerResult.kind === 'stale') {
+          await context.sendMessage({
+            type: 'text',
+            text: `⚠️ 第 ${answerResult.staleQuestionIndex + 1} 题已经回答过了，请回答当前的第 ${answerResult.currentIndex + 1} 题`,
+            parseMode: 'Markdown',
+          });
+          return;
+        }
+        // answerResult.kind === 'no_match': fall through to normal chat flow below
+      }
+    }
+
     // Send "thinking" indicator IMMEDIATELY (before acquiring lock)
     // This ensures the user always sees acknowledgment, even if the conversation is busy.
     const supportsEdit = context.platform !== 'wechat';
@@ -839,6 +901,28 @@ export class ActionExecutor {
       // Send message
       await messageService.sendMessage(sessionId, conversationId, text, files, async (message: TMessage, isInsert: boolean) => {
         const now = Date.now();
+
+        // acp_question → DingTalk dtmd buttons (dingtalk only).
+        // First insert: render first item's dtmd options (register pending state when
+        // all items are supported). After sendMessage, immediately editMessage with
+        // a non-undefined replyMarkup so DingTalkPlugin.editMessage's `isFinal=!!replyMarkup`
+        // path runs finishAICard — otherwise the AI Card stays in INPUTING (spinning) forever
+        // because acp_question is typically the last message of the agent turn and there's
+        // no follow-up card whose creation would invoke finalizePendingCards.
+        // Update (answered/cancelled): clear pending. Never falls through to
+        // convertTMessageToOutgoing's default ('⏳ Processing...').
+        if ((context.platform as PluginType) === 'dingtalk' && message.type === 'acp_question') {
+          const acpContent = message.content as AcpQuestionData;
+          if (isInsert && !acpContent.answered && !acpContent.cancelled) {
+            messageService.registerPendingQuestion(conversationId, acpContent);
+            const { markdown } = buildDingTalkQuestionMarkdown(acpContent, 0);
+            const cardMsgId = await context.sendMessage({ type: 'text', text: markdown, parseMode: 'Markdown' });
+            await context.editMessage(cardMsgId, { type: 'text', text: markdown, parseMode: 'Markdown', replyMarkup: {} });
+          } else {
+            messageService.clearPendingQuestion(conversationId);
+          }
+          return;
+        }
 
         // 转换消息格式（根据平台）
         // Convert message format (based on platform)
