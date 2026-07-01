@@ -17,16 +17,17 @@ import { ExtensionRegistry } from '@/extensions';
 import { getEnhancedEnv } from '@process/utils/shellEnv';
 import { SUDOCLAW_BIN_DIR } from '@/process/services/sudoclaw/SudoclawInstallService';
 import { getScodePath } from '@/process/services/scode/ScodeInstallService';
+import { SCODE_HOME } from '@/process/services/scode/scodePaths';
 
 const execAsync = promisify(exec);
 
 /** Nexus bin directory for Claude/Gemini CLI symlinks */
 const NEXUS_BIN_DIR = path.join(os.homedir(), '.nexus', 'bin');
 
-/** Sudo Code runtime directory for the managed scode CLI */
-const SCODE_BIN_DIR = path.join(os.homedir(), '.nexus', 'sudocode');
+/** sudowork's isolated engine-scode dir (binary lives here). SSOT: scodePaths.ts */
+const SCODE_BIN_DIR = SCODE_HOME;
 
-/** Priority bin directories for CLI detection (scode first to prefer ~/.nexus/sudocode over ~/.nexus/bin) */
+/** Priority bin directories for CLI detection (scode first to prefer the isolated engine-scode dir over ~/.nexus/bin) */
 const PRIORITY_BIN_DIRS = [SCODE_BIN_DIR, NEXUS_BIN_DIR, SUDOCLAW_BIN_DIR];
 
 interface DetectedAgent {

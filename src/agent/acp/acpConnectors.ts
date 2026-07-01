@@ -18,6 +18,7 @@ import os from 'os';
 import path from 'path';
 import { app } from 'electron';
 import { CLAUDE_ACP_NPX_PACKAGE, CODEBUDDY_ACP_NPX_PACKAGE, CODEX_ACP_BRIDGE_VERSION, CODEX_ACP_NPX_PACKAGE } from '@/types/acpTypes';
+import { SCODE_HOME, SCODE_CONFIG_PATH, SCODE_SETTINGS_PATH } from '@process/services/scode/scodePaths';
 import { findSuitableNodeBin, getEnhancedEnv, resolveNpxPath } from '@process/utils/shellEnv';
 import { mainLog, mainWarn } from '@process/utils/mainLogger';
 import { isSafetyHookEnabled } from '@process/services/safety/SafetyPollingService';
@@ -142,7 +143,7 @@ export function resolveScodeAuthModeFromConfig(config: unknown, settings: unknow
 
 function readScodeAuthModeFromDisk(modelOverride?: string | null): ScodeAuthMode | null {
   try {
-    const scodeDir = path.join(os.homedir(), '.nexus', 'sudocode');
+    const scodeDir = SCODE_HOME;
     const configPath = path.join(scodeDir, 'sudocode.json');
     const settingsPath = path.join(scodeDir, 'settings.json');
     const config = JSON.parse(readFileSync(configPath, 'utf-8')) as unknown;
@@ -541,7 +542,7 @@ async function prepareCodebuddy(customEnv?: Record<string, string>): Promise<Npx
  */
 function readProxyCredsFromSudocode(): { apiKey: string; baseUrl: string } | null {
   try {
-    const configPath = path.join(os.homedir(), '.nexus', 'sudocode', 'sudocode.json');
+    const configPath = SCODE_CONFIG_PATH;
     const content = readFileSync(configPath, 'utf-8');
     const config = JSON.parse(content);
     const sudorouter = config?.auth_modes?.proxy?.sudorouter;
@@ -625,10 +626,19 @@ export async function spawnGenericBackend(backend: string, cliPath: string, work
     }
   }
 
-  // Inject SUDOCODE_CONFIG_PATH for scode so skill bash scripts can locate sudocode.json
-  // even when claude-code overrides $HOME to a sandbox directory (.sandbox-home/).
+  // Isolate sudowork's engine-scode config from a standalone scode install:
+  // scode's Rust config loader resolves its config home from SUDO_CODE_CONFIG_HOME,
+  // so point it at the isolated home. This relocates BOTH sudocode.json (models/auth)
+  // and settings.json (settings/MCP) in one place, away from ~/.nexus/sudocode.
+  if (backend === 'scode' && !cleanEnv.SUDO_CODE_CONFIG_HOME) {
+    cleanEnv.SUDO_CODE_CONFIG_HOME = SCODE_HOME;
+    mainLog('[ACP scode]', `Injected SUDO_CODE_CONFIG_HOME: ${cleanEnv.SUDO_CODE_CONFIG_HOME}`);
+  }
+
+  // SUDOCODE_CONFIG_PATH lets skill bash scripts locate sudocode.json even when
+  // claude-code overrides $HOME to a sandbox directory (.sandbox-home/).
   if (backend === 'scode' && !cleanEnv.SUDOCODE_CONFIG_PATH) {
-    cleanEnv.SUDOCODE_CONFIG_PATH = path.join(os.homedir(), '.nexus', 'sudocode', 'sudocode.json');
+    cleanEnv.SUDOCODE_CONFIG_PATH = SCODE_CONFIG_PATH;
     mainLog('[ACP scode]', `Injected SUDOCODE_CONFIG_PATH: ${cleanEnv.SUDOCODE_CONFIG_PATH}`);
   }
 
@@ -685,7 +695,7 @@ export async function spawnGenericBackend(backend: string, cliPath: string, work
   // This prevents a death loop: crash → reconnect → read bad settings.json → crash again.
   if (backend === 'scode') {
     try {
-      const scodeDir = path.join(os.homedir(), '.nexus', 'sudocode');
+      const scodeDir = SCODE_HOME;
       const settingsPath = path.join(scodeDir, 'settings.json');
       let settings: Record<string, unknown> = {};
       try {

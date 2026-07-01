@@ -7,8 +7,10 @@
 /**
  * Scode Install Service
  *
- * Installs the bundled/downloaded scode CLI into its dedicated runtime root at
- * ~/.nexus/sudocode so startup can verify the default ACP runtime.
+ * Installs the bundled/downloaded scode CLI into its dedicated, isolated runtime
+ * root at ~/.nexus/sudowork/sudocode so startup can verify the default ACP runtime.
+ * This is isolated from a standalone scode install (~/.nexus/sudocode) so the two
+ * products don't share config/binary. See scodePaths.ts for the SSOT.
  */
 
 import { app } from 'electron';
@@ -18,6 +20,7 @@ import * as path from 'path';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import runtimeVersions from '@/shared/runtime-versions.json';
 import { extractTarGzWithProgress, extractZipWithProgress, listTarGzEntries, listZipEntries } from '../archiveProgress';
+import { SCODE_HOME, LEGACY_SCODE_HOME, SCODE_MIGRATED_ENTRY_NAMES } from './scodePaths';
 
 const TAG = 'ScodeInstallService';
 
@@ -26,8 +29,13 @@ const SCODE_OS_NAME_MAP: Record<string, string> = { darwin: 'macos', win32: 'win
 /** Architecture mapping: Node.js process.arch → scode archive arch name */
 const SCODE_ARCH_NAME_MAP: Record<string, string> = { arm64: 'arm64', x64: 'x64' };
 
-/** Scode root: ~/.nexus/sudocode */
-export const SCODE_DIR = path.join(os.homedir(), '.nexus', 'sudocode');
+/**
+ * Scode root = sudowork's **isolated** engine-scode home (`~/.nexus/sudowork/sudocode`).
+ * SSOT is {@link SCODE_HOME} in scodePaths.ts; re-exported here as `SCODE_DIR` for
+ * back-compat with existing importers. Isolated from standalone scode
+ * (`~/.nexus/sudocode`) so the two products don't stomp each other.
+ */
+export const SCODE_DIR = SCODE_HOME;
 
 /** Marker filename to record installed version */
 const SCODE_READY_MARKER = '.scode-bin-ready';
@@ -371,8 +379,46 @@ function getGitHubDownloadUrl(): string {
  * Install scode from bundled resources or download from GitHub.
  * Silent installation - no UI, just background install.
  */
+/** Marker recording that the legacy→isolated config migration already ran. */
+const SCODE_MIGRATION_MARKER = '.sudowork-config-migrated';
+
+/**
+ * One-time migration for sudowork's engine-scode home moving from the shared
+ * `~/.nexus/sudocode` to the isolated `~/.nexus/sudowork/sudocode`.
+ *
+ * Copies (never moves) the user's config so upgrading sudowork users don't lose
+ * their settings; the legacy copy stays intact for a standalone scode install.
+ * Only migrates config that a PRIOR SUDOWORK INSTALL left at the legacy home
+ * (detected by sudowork's own ready-marker / binary) — a legacy home holding only
+ * a *standalone* scode's config is NOT auto-imported, honouring the
+ * "default full isolation" decision. Runs at most once (marker-guarded) and never
+ * clobbers a file already present in the isolated home.
+ */
+export function migrateLegacyScodeHomeOnce(home: string = SCODE_HOME, legacy: string = LEGACY_SCODE_HOME): void {
+  if (home === legacy) return; // nothing to isolate
+  const marker = path.join(home, SCODE_MIGRATION_MARKER);
+  if (fs.existsSync(marker)) return;
+  try {
+    const legacyWasSudoworkInstall = fs.existsSync(path.join(legacy, SCODE_READY_MARKER)) || fs.existsSync(path.join(legacy, getScodeExeName()));
+    fs.mkdirSync(home, { recursive: true });
+    if (legacyWasSudoworkInstall) {
+      for (const name of SCODE_MIGRATED_ENTRY_NAMES) {
+        const src = path.join(legacy, name);
+        const dest = path.join(home, name);
+        if (!fs.existsSync(src) || fs.existsSync(dest)) continue; // never clobber
+        fs.cpSync(src, dest, { recursive: true });
+        mainLog(TAG, `Migrated ${name}: legacy sudowork scode home -> isolated home`);
+      }
+    }
+    fs.writeFileSync(marker, new Date().toISOString(), 'utf-8');
+  } catch (e) {
+    mainWarn(TAG, `scode-home migration skipped (non-fatal): ${String(e)}`);
+  }
+}
+
 export async function ensureScodeInstalled(options?: { forceReinstall?: boolean; onProgress?: (percent: number) => void }): Promise<boolean> {
   const forceReinstall = options?.forceReinstall === true;
+  migrateLegacyScodeHomeOnce();
   cleanupLegacyManagedScodeSkills();
 
   if (!forceReinstall && isScodeInstalled()) {
