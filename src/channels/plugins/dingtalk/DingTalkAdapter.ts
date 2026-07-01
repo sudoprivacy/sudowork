@@ -533,15 +533,18 @@ function buildActionCard(text: string, buttons: IUnifiedOutgoingMessage['buttons
  * cardTemplate — end users only configure the bot (clientId/secret), never the
  * DingTalk backend. (Verified in step 0: tapped content arrives verbatim.)
  *
- * 为 ACP 选项题构造带 dtmd 按钮的钉钉 markdown。支持 single_select /
- * multi_select（boolean 视作 single_select）；text 降级为纯文本提示。
+ * 为 ACP 选项题构造钉钉 markdown：
+ * - single_select / multi_select / boolean：渲染 dtmd 按钮（boolean 视作 single_select）。
+ * - text：渲染题干 + 「请直接输入文字回复」提示，不渲染按钮（用户的文字回复由 submitAnswer 直接接收）。
+ * - 其它（kind=undefined / items 为空 / itemIndex 越界）：保留 downgrade 文案兜底。
+ *
  * 多题问答（items.length > 1）由调用方按 itemIndex 逐题分发渲染。
  */
 export function buildDingTalkQuestionMarkdown(content: AcpQuestionData, itemIndex = 0): { markdown: string; isSupported: boolean } {
   const items = content.items ?? [];
   const item = items[itemIndex];
   const kind = item?.kind;
-  const isSupported = !!item && (kind === 'single_select' || kind === 'multi_select' || kind === 'boolean');
+  const isSupported = !!item && (kind === 'single_select' || kind === 'multi_select' || kind === 'boolean' || kind === 'text');
 
   if (!isSupported) {
     const questionText = content.question || item?.prompt || '请回答';
@@ -561,11 +564,16 @@ export function buildDingTalkQuestionMarkdown(content: AcpQuestionData, itemInde
     lines.push(content.question || item.prompt || '请选择');
   }
   lines.push('');
-  for (const option of item.options ?? []) {
-    lines.push(`- [${option.label}](dtmd://dingtalkclient/sendMessage?content=${encodeURIComponent(option.label)})`);
-  }
-  if (kind === 'multi_select') {
-    lines.push('', `- [✅ 提交](dtmd://dingtalkclient/sendMessage?content=${encodeURIComponent('__qa_submit__')})`);
+
+  if (kind === 'text') {
+    lines.push('请直接输入文字回复');
+  } else {
+    for (const option of item.options ?? []) {
+      lines.push(`- [${option.label}](dtmd://dingtalkclient/sendMessage?content=${encodeURIComponent(option.label)})`);
+    }
+    if (kind === 'multi_select') {
+      lines.push('', `- [✅ 提交](dtmd://dingtalkclient/sendMessage?content=${encodeURIComponent('__qa_submit__')})`);
+    }
   }
 
   return { markdown: lines.join('\n'), isSupported: true };

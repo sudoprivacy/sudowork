@@ -13,6 +13,7 @@ import { stripGeneratedFilesMarker } from '@/common/generatedFiles';
 import { getDatabase } from '@/process/database';
 import { ProcessConfig } from '@/process/initStorage';
 import { getDataPath } from '@/process/utils';
+import { mainError } from '@/process/utils/mainLogger';
 import { ConversationService } from '@/process/services/conversationService';
 import { transcriptionService } from '@/process/services/transcription/TranscriptionService';
 import type { AcpBackend } from '@/types/acpTypes';
@@ -715,7 +716,8 @@ export class ActionExecutor {
         let answerResult: PendingAnswerResult;
         try {
           answerResult = pendingService.submitAnswer(pendingConvId, text);
-        } catch {
+        } catch (err) {
+          mainError('ActionExecutor', 'submitAnswer threw', err);
           await context.sendMessage({ type: 'text', text: '❌ 提交失败，请重试', parseMode: 'Markdown' });
           return;
         }

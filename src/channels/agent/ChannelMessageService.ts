@@ -68,8 +68,8 @@ interface IStreamState {
  */
 interface IPendingItem {
   id: string;
-  kind: 'single_select' | 'multi_select';
-  /** option label -> submission value */
+  kind: 'single_select' | 'multi_select' | 'text';
+  /** option label -> submission value (empty Map for text kind) */
   labelToValue: Map<string, string>;
   /** accumulated submission values (multi_select only) */
   selectedValues: string[];
@@ -501,18 +501,25 @@ export class ChannelMessageService {
     if (items.length === 0 || !content.toolCallId) return false;
     for (const item of items) {
       const k = item.kind;
-      if (k !== 'single_select' && k !== 'multi_select' && k !== 'boolean') return false;
+      if (k !== 'single_select' && k !== 'multi_select' && k !== 'boolean' && k !== 'text') return false;
     }
 
     const pendingItems: IPendingItem[] = items.map((item): IPendingItem => {
       const labelToValue = new Map<string, string>();
-      for (const option of item.options ?? []) {
-        labelToValue.set(option.label, option.value);
+      // text item has no dtmd options; its labelToValue stays empty.
+      if (item.kind !== 'text') {
+        for (const option of item.options ?? []) {
+          labelToValue.set(option.label, option.value);
+        }
       }
       // boolean 视作 single_select：行为完全一致（点哪个 label 即提交对应 value）
+      let kind: IPendingItem['kind'];
+      if (item.kind === 'multi_select') kind = 'multi_select';
+      else if (item.kind === 'text') kind = 'text';
+      else kind = 'single_select';
       return {
         id: item.id,
-        kind: item.kind === 'multi_select' ? 'multi_select' : 'single_select',
+        kind,
         labelToValue,
         selectedValues: [],
       };
@@ -603,6 +610,13 @@ export class ChannelMessageService {
         staleQuestionIndex: pending.staleLabels.get(text)!,
         currentIndex: pending.currentIndex,
       };
+    } else if (current.kind === 'text') {
+      // Free-text item: accept any user input as the answer.
+      // markItemLabelsStale is a no-op here (current.labelToValue is empty).
+      pending.completedAnswers.push({ id: current.id, value: text, label: text });
+      this.markItemLabelsStale(pending, current);
+      pending.currentIndex++;
+      displayLabel = text;
     } else {
       return { kind: 'no_match' };
     }
