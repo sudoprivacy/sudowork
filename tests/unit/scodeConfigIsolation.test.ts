@@ -215,3 +215,19 @@ describe('scode config isolation — SSOT guard (no-hardcoded-scode-home)', () =
     expect(offenders, `home-level scode paths must come from scodePaths.ts, found:\n${offenders.join('\n')}`).toEqual([]);
   });
 });
+
+describe('scode config isolation — migration runs before config writers', () => {
+  it('initializeProcess calls migrateLegacyScodeHomeOnce before initStorage()', () => {
+    // Regression guard for a real bug found via full-app e2e: several services
+    // (image model, user-key sync, auth) write to the isolated sudocode.json during
+    // init. If migration runs AFTER any of them, its no-clobber guard skips the real
+    // copy and the user loses their models/auth on upgrade. Migration must therefore
+    // be the FIRST thing initializeProcess does — before storage/bridges/auth.
+    const src = fs.readFileSync(path.resolve(__dirname, '..', '..', 'src', 'process', 'index.ts'), 'utf-8');
+    const migrateIdx = src.indexOf('migrateLegacyScodeHomeOnce(');
+    const storageIdx = src.indexOf('initStorage(');
+    expect(migrateIdx, 'initializeProcess must call migrateLegacyScodeHomeOnce()').toBeGreaterThan(-1);
+    expect(storageIdx, 'initializeProcess must call initStorage()').toBeGreaterThan(-1);
+    expect(migrateIdx).toBeLessThan(storageIdx);
+  });
+});

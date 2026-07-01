@@ -23,10 +23,24 @@ import { initializeSudoworkLogUploader } from './utils/sudoworkLogUploader';
 import { refreshEnterpriseCache } from '@/common/enterpriseDebugConfig';
 // Crash bridge must be initialized early to handle renderer errors before other bridges
 import { initCrashBridge } from './bridge/crashBridge';
+import { migrateLegacyScodeHomeOnce } from './services/scode/ScodeInstallService';
 
 export const initializeProcess = async () => {
   const totalStart = Date.now();
   mainLog('Process', 'Initializing process...');
+
+  // 0. Isolate engine-scode config BEFORE anything reads or writes it. On first
+  // upgrade this copies a prior sudowork install's config from the legacy shared
+  // home (~/.nexus/sudocode) into the isolated home (~/.nexus/sudowork/sudocode).
+  // It MUST run before storage/bridges/auth — several of them write to the isolated
+  // sudocode.json (image model, user keys, …). If a writer creates that file first,
+  // the copy's no-clobber guard skips the real config and the user loses their
+  // models/auth on upgrade. Marker-guarded, so this is a no-op after the first run.
+  try {
+    migrateLegacyScodeHomeOnce();
+  } catch (error) {
+    mainError('Process', 'scode-home migration failed (non-fatal)', error);
+  }
 
   // Keep ~/.sudowork/electron-path fresh so CLI wrappers always find the binary
   syncElectronPath();
