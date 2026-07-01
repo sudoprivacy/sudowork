@@ -305,39 +305,22 @@ const convertToCOSName = (originalName: string): string => {
 };
 
 /**
- * Detect if GitHub is accessible with timeout.
- */
-const detectGitHubAccessible = async (): Promise<boolean> => {
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
-
-    await fetch('https://api.github.com/rate_limit', {
-      signal: controller.signal,
-      method: 'HEAD',
-    });
-
-    clearTimeout(timeoutId);
-    return true;
-  } catch {
-    return false;
-  }
-};
-
-/**
- * Select best download source based on network accessibility.
- * Returns COS mirror URL if GitHub is unreachable.
+ * Select best download source based on build channel.
+ *
+ * Stable releases → force COS mirror (consistent with checkForUpdates path, avoids the
+ * "薛定谔的最新版" scenario where startup notification reads GitHub and the download URL
+ * points to a GitHub asset that Chinese users can't reach).
+ *
+ * Nightly builds → keep the original GitHub asset URL. COS has no nightly index and
+ * asset names may not match convertToCOSName's stable pattern.
  */
 const selectDownloadSource = async (originalUrl: string, originalName: string): Promise<string> => {
-  const canAccessGitHub = await detectGitHubAccessible();
-
-  if (canAccessGitHub) {
-    return originalUrl; // Use original GitHub URL
+  if (isNightlyBuild) {
+    return originalUrl;
   }
 
-  // Use COS mirror
   const cosUrl = `${getCosMirrorBase()}/${convertToCOSName(originalName)}`;
-  mainLog('Update', `GitHub unreachable, using COS mirror: ${cosUrl}`);
+  mainLog('Update', `Stable release, forcing COS download source: ${cosUrl}`);
   return cosUrl;
 };
 
