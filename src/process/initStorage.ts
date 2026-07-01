@@ -1143,6 +1143,14 @@ const initStorage = async () => {
     try {
       getDatabase();
       cleanupOrphanedHealthCheckConversations();
+      // Reconcile leftover `-temp-` workspace dirs with no owning conversation.
+      // Fire-and-forget so boot latency is unaffected. Dynamic import avoids a
+      // load-time cycle (the sweeper reads getSystemDir from this module).
+      void import('./services/orphanWorkspaceSweeper')
+        .then(({ sweepOrphanWorkspaces }) => sweepOrphanWorkspaces())
+        .catch((error) => {
+          mainWarn('Sudowork', 'Orphan workspace sweep failed:', error);
+        });
     } catch (error) {
       mainError('InitStorage', 'Database initialization failed, falling back to file-based storage:', error);
       // The DB layer recovers from file corruption on its own, so reaching here means an
