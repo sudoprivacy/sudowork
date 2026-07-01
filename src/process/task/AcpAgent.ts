@@ -2309,22 +2309,18 @@ This identity statement takes priority over the default identity in USER.md.
       };
     }
 
-    let result: AcpModelInfo | null = null;
-    try {
-      result = await this.setModelByConfigOption(normalizedModelId);
-    } catch (error) {
-      if (this.options.backend !== 'scode') {
-        throw error;
-      }
-      mainWarn('[AcpAgent]', `scode: setModel("${normalizedModelId}") failed, restarting connection to apply model/auth mode: ${error instanceof Error ? error.message : String(error)}`);
-      try {
-        await this.restartAndConnect();
-        result = this.getModelInfo();
-      } catch (restartError) {
-        mainWarn('[AcpAgent]', `scode: restart after model switch failed: ${restartError instanceof Error ? restartError.message : String(restartError)}`);
-        throw error;
-      }
-    }
+    // The live `session/set_model` RPC is the single authoritative model-switch
+    // path: scode's handle_acp_model_switch rebuilds the runtime with the new
+    // model + auth mode in place, keeping the session intact (the "not connected"
+    // guard above already reconnects a dropped socket first). A failure here is a
+    // real switch failure and surfaces to the caller — we no longer respawn the
+    // engine as a fallback. That legacy fallback existed only to make the process
+    // re-read the model from env at startup; the live RPC now applies model + auth
+    // in place, so it was redundant. Recovering a hung/dead connection is a
+    // separate concern with its own path (conversation.restart-and-connect / the
+    // "Restart & Connect" action), and the resume fix (session/load) means a
+    // switch never needs a restart to keep context.
+    const result = await this.setModelByConfigOption(normalizedModelId);
 
     if (result) {
       this.persistedModelId = result.currentModelId || normalizedModelId;
