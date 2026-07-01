@@ -7,9 +7,9 @@
 import type { TMessage } from '@/common/chatLib';
 import { composeMessage } from '@/common/chatLib';
 import type { AcpBackend } from '@/types/acpTypes';
+import { mainWarn, mainError } from '@process/utils/mainLogger';
 import { getDatabase } from './database/export';
 import { ProcessChat } from './initStorage';
-import { mainWarn, mainError } from '@process/utils/mainLogger';
 
 const Cache = new Map<string, ConversationManageWithDB>();
 
@@ -92,7 +92,30 @@ export class ConversationManageWithDB {
     this.save2DataBase();
     return this.savePromise;
   }
+
+  /**
+   * Release timers and drop the pending write stack without flushing.
+   * Called when the conversation is being reaped — any un-saved messages are
+   * irrelevant because the conversation (and its rows) are about to be deleted.
+   */
+  public dispose(): void {
+    clearTimeout(this.timer);
+    this.stack = [];
+  }
 }
+
+/**
+ * Dispose the in-memory ConversationManageWithDB cache entry for a conversation.
+ * Clears its pending-save timer and removes it from the module cache so the
+ * timer + db handle are not leaked after the conversation is deleted.
+ */
+export const disposeConversation = (conversation_id: string): void => {
+  const manage = Cache.get(conversation_id);
+  if (manage) {
+    manage.dispose();
+    Cache.delete(conversation_id);
+  }
+};
 
 /**
  * Add a new message to the database

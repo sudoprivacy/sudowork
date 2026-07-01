@@ -22,7 +22,38 @@ import { getSudoLogTelemetryReporter } from './SudoLogTelemetryReporter';
 // 类型导出
 // ============================================================
 
-export type { TelemetryPlatform, TelemetryArch, TelemetryEventType, PerfMetricType, ConversationStatus, TurnStatus, StepStatus, StepType, InstallStatus, InstallType, ModelProvider, AgentType, LoginMode, TelemetryErrorCode, PerfData, ConversationData, TurnData, StepData, InstallData, TelemetryEventBase, PerfTelemetryEvent, ConversationTelemetryEvent, TurnTelemetryEvent, StepTelemetryEvent, InstallTelemetryEvent, TelemetryEvent, TelemetryBatchRequest, TelemetryBatchResponse, TelemetryConfig, StoredTelemetryEvent } from '../../shared/types/telemetry';
+export type {
+  TelemetryPlatform,
+  TelemetryArch,
+  TelemetryEventType,
+  PerfMetricType,
+  ConversationStatus,
+  TurnStatus,
+  StepStatus,
+  StepType,
+  InstallStatus,
+  InstallType,
+  ModelProvider,
+  AgentType,
+  LoginMode,
+  TelemetryErrorCode,
+  PerfData,
+  ConversationData,
+  TurnData,
+  StepData,
+  InstallData,
+  TelemetryEventBase,
+  PerfTelemetryEvent,
+  ConversationTelemetryEvent,
+  TurnTelemetryEvent,
+  StepTelemetryEvent,
+  InstallTelemetryEvent,
+  TelemetryEvent,
+  TelemetryBatchRequest,
+  TelemetryBatchResponse,
+  TelemetryConfig,
+  StoredTelemetryEvent,
+} from '../../shared/types/telemetry';
 
 export { DEFAULT_TELEMETRY_CONFIG, ERROR_CODE_DESCRIPTION, mapElectronArch } from '../../shared/types/telemetry';
 
@@ -36,7 +67,7 @@ export { SudoLogTelemetryReporter, getSudoLogTelemetryReporter, initSudoLogTelem
 
 export { PerfTracker, getPerfTracker, markAppStart, markFirstWindowShow, markRendererReady, startPerfTiming, endPerfTiming, recordFirstToken, flushPerfCachedMetrics, PERF_METRICS } from './PerfTracker';
 
-export { ConversationTracker, getConversationTracker, startConversationTracking, updateConversationTokens, endConversationSuccess, endConversationError, endConversationUserCancel } from './ConversationTracker';
+export { ConversationTracker, getConversationTracker, startConversationTracking, updateConversationTokens, endConversationSuccess, endConversationError, endConversationUserCancel, stopConversationTracking } from './ConversationTracker';
 
 export { InstallTracker, getInstallTracker, initInstallTracking, markInstallSuccess, markInstallFailed, getInstallId, getInstallType } from './InstallTracker';
 
