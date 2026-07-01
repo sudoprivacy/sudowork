@@ -155,7 +155,13 @@ const DirectorySelectionModal: React.FC<DirectorySelectionModalProps> = ({ visib
               </div>
             )}
             {directoryData.items.map((item, index) => (
-              <div key={index} className='flex items-center justify-between p-10px border-b cursor-pointer hover:bg-hover transition' style={selectedPath === item.path ? { background: 'var(--brand-light)' } : {}} onClick={() => handleItemClick(item)} onDoubleClick={() => handleItemDoubleClick(item)}>
+              <div
+                key={index}
+                className='flex items-center justify-between p-10px border-b cursor-pointer hover:bg-hover transition'
+                style={selectedPath === item.path ? { background: 'var(--brand-light)' } : {}}
+                onClick={() => handleItemClick(item)}
+                onDoubleClick={() => handleItemDoubleClick(item)}
+              >
                 <div className='flex items-center flex-1 min-w-0'>
                   {item.isDirectory ? <IconFolder className='mr-10px text-warning shrink-0' /> : <IconFile className='mr-10px text-primary shrink-0' />}
                   <span className='overflow-hidden text-ellipsis whitespace-nowrap'>{item.name}</span>

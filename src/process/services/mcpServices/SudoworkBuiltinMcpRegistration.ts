@@ -96,4 +96,3 @@ export async function ensureBrowserPanelMcpRegistered(): Promise<void> {
     mainError('BrowserPanelMcp', `registration failed: ${String(err)}`);
   }
 }
-

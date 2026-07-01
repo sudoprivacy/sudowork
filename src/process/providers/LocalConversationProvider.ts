@@ -137,9 +137,7 @@ export class LocalConversationProvider implements IConversationProvider {
       // 过滤掉企业模式会话（remote-agent）
       // Local mode should only show acp types
       // 本地模式只显示 acp 类型
-      const localDbConversations = dbConversations.filter(
-        (c) => c.type !== 'remote-agent' && c.extra?.backend !== 'remote-agent'
-      );
+      const localDbConversations = dbConversations.filter((c) => c.type !== 'remote-agent' && c.extra?.backend !== 'remote-agent');
 
       // Lazy migration from file storage / 从文件存储延迟迁移
       let fileConversations: TChatConversation[] = [];
@@ -150,9 +148,7 @@ export class LocalConversationProvider implements IConversationProvider {
       }
 
       // Filter file conversations too / 同时过滤文件存储的会话
-      const localFileConversations = fileConversations.filter(
-        (c) => c.type !== 'remote-agent' && c.extra?.backend !== 'remote-agent'
-      );
+      const localFileConversations = fileConversations.filter((c) => c.type !== 'remote-agent' && c.extra?.backend !== 'remote-agent');
 
       // Merge: database is primary, add missing from file / 合并：数据库为主，补充文件中缺失的
       const dbIds = new Set(localDbConversations.map((c) => c.id));

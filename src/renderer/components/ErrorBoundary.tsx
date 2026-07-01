@@ -60,13 +60,11 @@ export class ErrorBoundary extends Component<Props, State> {
       }
 
       return (
-        <div className="error-boundary-fallback">
-          <div className="error-boundary-fallback__title">出错了</div>
-          <div className="error-boundary-fallback__message">
-            {this.state.error?.message || '发生了未知错误，请尝试重新加载'}
-          </div>
-          <div className="error-boundary-fallback__action">
-            <Button type="primary" onClick={this.handleRetry}>
+        <div className='error-boundary-fallback'>
+          <div className='error-boundary-fallback__title'>出错了</div>
+          <div className='error-boundary-fallback__message'>{this.state.error?.message || '发生了未知错误，请尝试重新加载'}</div>
+          <div className='error-boundary-fallback__action'>
+            <Button type='primary' onClick={this.handleRetry}>
               重试
             </Button>
           </div>

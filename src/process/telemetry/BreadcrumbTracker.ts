@@ -20,15 +20,7 @@ import { addCrashBreadcrumb } from './CrashReporter';
 // ============================================================
 
 /** 面包屑分类 */
-type BreadcrumbCategory =
-  | 'conversation'
-  | 'api'
-  | 'mcp'
-  | 'file'
-  | 'window'
-  | 'navigation'
-  | 'user'
-  | 'system';
+type BreadcrumbCategory = 'conversation' | 'api' | 'mcp' | 'file' | 'window' | 'navigation' | 'user' | 'system';
 
 // ============================================================
 // 面包屑追踪方法
@@ -74,18 +66,28 @@ export const conversationBreadcrumbs = {
 
   /** 用户取消 */
   userCancel(sessionId: string): void {
-    addCrashBreadcrumb('conversation', 'User cancelled', {
-      session_id: sessionId,
-    }, 'warning');
+    addCrashBreadcrumb(
+      'conversation',
+      'User cancelled',
+      {
+        session_id: sessionId,
+      },
+      'warning'
+    );
   },
 
   /** 错误发生 */
   error(sessionId: string, errorCode: string, errorMessage?: string): void {
-    addCrashBreadcrumb('conversation', 'Conversation error', {
-      session_id: sessionId,
-      error_code: errorCode,
-      error_message: errorMessage,
-    }, 'error');
+    addCrashBreadcrumb(
+      'conversation',
+      'Conversation error',
+      {
+        session_id: sessionId,
+        error_code: errorCode,
+        error_message: errorMessage,
+      },
+      'error'
+    );
   },
 };
 
@@ -113,27 +115,42 @@ export const apiBreadcrumbs = {
 
   /** API 请求失败 */
   responseError(url: string, statusCode: number, errorMessage?: string): void {
-    addCrashBreadcrumb('api', 'API response error', {
-      url: url.slice(-100),
-      status_code: statusCode,
-      error_message: errorMessage,
-    }, 'error');
+    addCrashBreadcrumb(
+      'api',
+      'API response error',
+      {
+        url: url.slice(-100),
+        status_code: statusCode,
+        error_message: errorMessage,
+      },
+      'error'
+    );
   },
 
   /** 网络错误 */
   networkError(url: string, errorMessage: string): void {
-    addCrashBreadcrumb('api', 'Network error', {
-      url: url.slice(-100),
-      error_message: errorMessage,
-    }, 'error');
+    addCrashBreadcrumb(
+      'api',
+      'Network error',
+      {
+        url: url.slice(-100),
+        error_message: errorMessage,
+      },
+      'error'
+    );
   },
 
   /** 流式响应中断 */
   streamInterrupted(url: string, sessionId?: string): void {
-    addCrashBreadcrumb('api', 'Stream interrupted', {
-      url: url.slice(-100),
-      session_id: sessionId,
-    }, 'error');
+    addCrashBreadcrumb(
+      'api',
+      'Stream interrupted',
+      {
+        url: url.slice(-100),
+        session_id: sessionId,
+      },
+      'error'
+    );
   },
 };
 
@@ -143,10 +160,15 @@ export const apiBreadcrumbs = {
 export const mcpBreadcrumbs = {
   /** MCP 服务连接 */
   serverConnect(serverName: string, status: 'success' | 'error'): void {
-    addCrashBreadcrumb('mcp', 'MCP server connect', {
-      server_name: serverName,
-      status,
-    }, status === 'error' ? 'error' : 'info');
+    addCrashBreadcrumb(
+      'mcp',
+      'MCP server connect',
+      {
+        server_name: serverName,
+        status,
+      },
+      status === 'error' ? 'error' : 'info'
+    );
   },
 
   /** MCP 工具调用 */
@@ -160,11 +182,16 @@ export const mcpBreadcrumbs = {
 
   /** MCP 工具调用结果 */
   toolResult(toolName: string, success: boolean, durationMs?: number): void {
-    addCrashBreadcrumb('mcp', 'MCP tool result', {
-      tool_name: toolName,
-      success,
-      duration_ms: durationMs,
-    }, success ? 'info' : 'error');
+    addCrashBreadcrumb(
+      'mcp',
+      'MCP tool result',
+      {
+        tool_name: toolName,
+        success,
+        duration_ms: durationMs,
+      },
+      success ? 'info' : 'error'
+    );
   },
 
   /** MCP 资源访问 */
@@ -216,11 +243,16 @@ export const fileBreadcrumbs = {
 
   /** 文件操作错误 */
   error(operation: string, filePath: string, errorMessage?: string): void {
-    addCrashBreadcrumb('file', 'File operation error', {
-      operation,
-      path: filePath.slice(-50),
-      error_message: errorMessage,
-    }, 'error');
+    addCrashBreadcrumb(
+      'file',
+      'File operation error',
+      {
+        operation,
+        path: filePath.slice(-50),
+        error_message: errorMessage,
+      },
+      'error'
+    );
   },
 };
 
@@ -274,10 +306,15 @@ export const windowBreadcrumbs = {
 
   /** 页面加载错误 */
   loadError(url: string, errorMessage?: string): void {
-    addCrashBreadcrumb('navigation', 'Page load error', {
-      url: url.slice(-100),
-      error_message: errorMessage,
-    }, 'error');
+    addCrashBreadcrumb(
+      'navigation',
+      'Page load error',
+      {
+        url: url.slice(-100),
+        error_message: errorMessage,
+      },
+      'error'
+    );
   },
 };
 
@@ -346,17 +383,27 @@ export const systemBreadcrumbs = {
 
   /** 系统错误 */
   systemError(errorType: string, errorMessage?: string): void {
-    addCrashBreadcrumb('system', 'System error', {
-      error_type: errorType,
-      error_message: errorMessage,
-    }, 'error');
+    addCrashBreadcrumb(
+      'system',
+      'System error',
+      {
+        error_type: errorType,
+        error_message: errorMessage,
+      },
+      'error'
+    );
   },
 
   /** 内存警告 */
   memoryWarning(usedMB?: number): void {
-    addCrashBreadcrumb('system', 'Memory warning', {
-      used_mb: usedMB,
-    }, 'warning');
+    addCrashBreadcrumb(
+      'system',
+      'Memory warning',
+      {
+        used_mb: usedMB,
+      },
+      'warning'
+    );
   },
 
   /** GPU 进程崩溃 */
@@ -366,10 +413,15 @@ export const systemBreadcrumbs = {
 
   /** 扩展加载 */
   extensionLoad(extensionName: string, success: boolean): void {
-    addCrashBreadcrumb('system', 'Extension loaded', {
-      extension_name: extensionName,
-      success,
-    }, success ? 'info' : 'error');
+    addCrashBreadcrumb(
+      'system',
+      'Extension loaded',
+      {
+        extension_name: extensionName,
+        success,
+      },
+      success ? 'info' : 'error'
+    );
   },
 };
 
@@ -396,11 +448,6 @@ export const breadcrumbTracker = {
  * @param data - 额外数据
  * @param level - 日志级别
  */
-export const trackBreadcrumb = (
-  category: BreadcrumbCategory | string,
-  message: string,
-  data?: Record<string, unknown>,
-  level?: 'debug' | 'info' | 'warning' | 'error',
-): void => {
+export const trackBreadcrumb = (category: BreadcrumbCategory | string, message: string, data?: Record<string, unknown>, level?: 'debug' | 'info' | 'warning' | 'error'): void => {
   addCrashBreadcrumb(category, message, data, level);
 };

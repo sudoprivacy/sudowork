@@ -157,27 +157,28 @@ export class TurnTracker {
     const duration = Date.now() - state.startTime;
 
     // 上报 Turn 事件
-    getTelemetryReporter().record('turn', {
-      turn_id: state.turnId,
-      session_id: state.sessionId,
-      model_id: state.modelId,
-      model_provider: state.modelProvider,
-      input_tokens: state.inputTokens,
-      output_tokens: state.outputTokens,
-      total_tokens: state.totalTokens,
-      duration_ms: duration,
-      status: state.status,
-      error_code: state.errorCode,
-    }, state.agentType);
+    getTelemetryReporter().record(
+      'turn',
+      {
+        turn_id: state.turnId,
+        session_id: state.sessionId,
+        model_id: state.modelId,
+        model_provider: state.modelProvider,
+        input_tokens: state.inputTokens,
+        output_tokens: state.outputTokens,
+        total_tokens: state.totalTokens,
+        duration_ms: duration,
+        status: state.status,
+        error_code: state.errorCode,
+      },
+      state.agentType
+    );
 
     // 清理追踪状态
     this.activeTurns.delete(state.sessionId);
     this.currentTurnId.delete(state.sessionId);
 
-    mainLog(
-      TAG,
-      `Turn ended: ${state.turnId} (status: ${state.status}, duration: ${duration}ms, tokens: ${state.totalTokens || 'N/A'})`
-    );
+    mainLog(TAG, `Turn ended: ${state.turnId} (status: ${state.status}, duration: ${duration}ms, tokens: ${state.totalTokens || 'N/A'})`);
   }
 
   /**

@@ -37,20 +37,7 @@ const CHANNEL_KEYWORDS: Array<{ keyword: string; channelType: string }> = [
  * 渠道管理语义关键词（必须与渠道词搭配使用才能触发查询）
  * 这些词明确表示用户在询问渠道的配置/状态等管理信息
  */
-const CHANNEL_MANAGEMENT_KEYWORDS = [
-  '配置',
-  '状态',
-  '连接',
-  '启用',
-  '开通',
-  '设置',
-  '渠道',
-  '机器人',
-  'configured',
-  'status',
-  'enabled',
-  'connected',
-];
+const CHANNEL_MANAGEMENT_KEYWORDS = ['配置', '状态', '连接', '启用', '开通', '设置', '渠道', '机器人', 'configured', 'status', 'enabled', 'connected'];
 
 /**
  * 泛查询词（单独使用不应触发，必须与渠道管理关键词搭配）

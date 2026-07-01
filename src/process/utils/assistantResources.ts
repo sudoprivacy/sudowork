@@ -86,14 +86,9 @@ export async function readAssistantResource(resourceType: ResourceType, assistan
   const fileName = resourceTypeToFile(resourceType);
 
   // 1. Try directory-based paths with priority: custom > hub > system - mode-aware
-  const subdirs = isEnterpriseMode()
-    ? { custom: ENTERPRISE_ASSISTANT_SUBDIRS.custom, hub: ENTERPRISE_ASSISTANT_SUBDIRS.hub, system: ENTERPRISE_ASSISTANT_SUBDIRS.system }
-    : { custom: ASSISTANT_SUBDIRS.custom, hub: ASSISTANT_SUBDIRS.hub, system: ASSISTANT_SUBDIRS.system };
+  const subdirs = isEnterpriseMode() ? { custom: ENTERPRISE_ASSISTANT_SUBDIRS.custom, hub: ENTERPRISE_ASSISTANT_SUBDIRS.hub, system: ENTERPRISE_ASSISTANT_SUBDIRS.system } : { custom: ASSISTANT_SUBDIRS.custom, hub: ASSISTANT_SUBDIRS.hub, system: ASSISTANT_SUBDIRS.system };
 
-  const dirCandidates: string[] = [
-    path.join(getAssistantsDir(), subdirs.custom, assistantId, fileName),
-    path.join(getAssistantsDir(), subdirs.hub, assistantId, fileName),
-  ];
+  const dirCandidates: string[] = [path.join(getAssistantsDir(), subdirs.custom, assistantId, fileName), path.join(getAssistantsDir(), subdirs.hub, assistantId, fileName)];
 
   // For builtin assistants (id starts with "builtin-"), strip prefix for system dir lookup
   const strippedId = assistantId.startsWith('builtin-') ? assistantId.slice('builtin-'.length) : assistantId;

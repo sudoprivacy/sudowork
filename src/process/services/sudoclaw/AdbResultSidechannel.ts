@@ -252,7 +252,17 @@ export class AdbResultSidechannel {
 
   private parseEntry(raw: string): AdbResultEntry | null {
     const parsed = JSON.parse(raw) as Partial<AdbResultEntry> & Record<string, unknown>;
-    if (typeof parsed.callId !== 'string' || typeof parsed.cmd !== 'string' || !Array.isArray(parsed.argv) || typeof parsed.pid !== 'number' || typeof parsed.ppid !== 'number' || typeof parsed.startedAt !== 'number' || typeof parsed.finishedAt !== 'number' || typeof parsed.cmdHash !== 'string' || typeof parsed.stdoutRaw !== 'string') {
+    if (
+      typeof parsed.callId !== 'string' ||
+      typeof parsed.cmd !== 'string' ||
+      !Array.isArray(parsed.argv) ||
+      typeof parsed.pid !== 'number' ||
+      typeof parsed.ppid !== 'number' ||
+      typeof parsed.startedAt !== 'number' ||
+      typeof parsed.finishedAt !== 'number' ||
+      typeof parsed.cmdHash !== 'string' ||
+      typeof parsed.stdoutRaw !== 'string'
+    ) {
       return null;
     }
     const exitCode = parsed.exitCode === null || typeof parsed.exitCode === 'number' ? parsed.exitCode : null;

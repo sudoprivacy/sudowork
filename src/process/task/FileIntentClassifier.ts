@@ -77,22 +77,7 @@ const BASH_DELIVERABLE_EXTENSIONS = new Set(['.pdf', '.docx', '.pptx', '.xlsx', 
 // can still read them. They're hidden from the chat-card / deliverables UI
 // because buildGeneratedFileEntries filters to intent='final'; they're hidden
 // from the workspace-tree UI by an ignore rule in conversationBridge.
-export const INTERMEDIATE_DIR_SEGMENTS = new Set([
-  'ppt_outputs',
-  'pptx_outputs',
-  'docx_outputs',
-  'xlsx_outputs',
-  'pdf_outputs',
-  'slides_output',
-  'slide_images',
-  'intermediate',
-  '_intermediate',
-  '_tmp',
-  '_temp',
-  '_cache',
-  '_artifacts',
-  '_build',
-]);
+export const INTERMEDIATE_DIR_SEGMENTS = new Set(['ppt_outputs', 'pptx_outputs', 'docx_outputs', 'xlsx_outputs', 'pdf_outputs', 'slides_output', 'slide_images', 'intermediate', '_intermediate', '_tmp', '_temp', '_cache', '_artifacts', '_build']);
 
 const TARGET_TYPE_EXTENSIONS: Array<{ pattern: RegExp; extensions: string[] }> = [
   { pattern: /\b(pdf|PDF)\b|文档.*pdf|pdf.*文档/i, extensions: ['.pdf'] },

@@ -169,7 +169,11 @@ export async function cleanupIntermediateFiles(workspace: string, options: Clean
   try {
     const workspaceRoot = path.resolve(workspace);
     const draftsDir = path.join(workspaceRoot, DRAFTS_DIR_NAME);
-    const protectedFinalPaths = new Set(Array.from(options.protectedFinalPaths || []).map((protectedPath) => normalizeProtectedPath(workspaceRoot, protectedPath)).filter((protectedPath): protectedPath is string => protectedPath !== null));
+    const protectedFinalPaths = new Set(
+      Array.from(options.protectedFinalPaths || [])
+        .map((protectedPath) => normalizeProtectedPath(workspaceRoot, protectedPath))
+        .filter((protectedPath): protectedPath is string => protectedPath !== null)
+    );
 
     // Read workspace root entries
     if (!fsSync.existsSync(workspaceRoot)) {
@@ -354,10 +358,7 @@ export async function archiveTurnFiles(workspace: string, trackedFiles: Readonly
     }
 
     const inDrafts = isPathInside(draftsDir, srcPath);
-    const destPath =
-      file.intent === 'draft'
-        ? path.join(draftsDir, path.basename(srcPath))
-        : resolveRootDestination(workspaceRoot, srcPath, file.requestedPath || trackedKey);
+    const destPath = file.intent === 'draft' ? path.join(draftsDir, path.basename(srcPath)) : resolveRootDestination(workspaceRoot, srcPath, file.requestedPath || trackedKey);
 
     const resolvedDestPath = path.resolve(destPath);
     if (srcPath === resolvedDestPath) {

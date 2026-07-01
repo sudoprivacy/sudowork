@@ -87,12 +87,7 @@ export class ConversationTracker {
    * @param inputTokens - 输入 token
    * @param outputTokens - 输出 token
    */
-  public updateTokens(
-    sessionId: string,
-    tokensUsed?: number,
-    inputTokens?: number,
-    outputTokens?: number,
-  ): void {
+  public updateTokens(sessionId: string, tokensUsed?: number, inputTokens?: number, outputTokens?: number): void {
     const state = this.activeConversations.get(sessionId);
     if (!state) {
       return;
@@ -206,21 +201,12 @@ export const getConversationTracker = (): ConversationTracker => {
 };
 
 /** 开始对话追踪 */
-export const startConversationTracking = (
-  sessionId: string,
-  modelId: string,
-  modelProvider?: ModelProvider,
-): void => {
+export const startConversationTracking = (sessionId: string, modelId: string, modelProvider?: ModelProvider): void => {
   getConversationTracker().startConversation(sessionId, modelId, modelProvider);
 };
 
 /** 更新 Token 使用量 */
-export const updateConversationTokens = (
-  sessionId: string,
-  tokensUsed?: number,
-  inputTokens?: number,
-  outputTokens?: number,
-): void => {
+export const updateConversationTokens = (sessionId: string, tokensUsed?: number, inputTokens?: number, outputTokens?: number): void => {
   getConversationTracker().updateTokens(sessionId, tokensUsed, inputTokens, outputTokens);
 };
 

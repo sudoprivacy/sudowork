@@ -42,9 +42,11 @@ export function initApplicationBridge(): void {
       void serviceManager.startup();
 
       // Start ChannelManager
-      getChannelManager().initialize().catch((error) => {
-        mainError('Application', 'Failed to initialize ChannelManager (hot-start):', error);
-      });
+      getChannelManager()
+        .initialize()
+        .catch((error) => {
+          mainError('Application', 'Failed to initialize ChannelManager (hot-start):', error);
+        });
 
       mainLog('Application', 'Consumer services start requested successfully');
       return { success: true };

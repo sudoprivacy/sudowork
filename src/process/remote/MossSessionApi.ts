@@ -228,23 +228,17 @@ export class MossSessionApi {
    * (session.cwd) under the given workspace-relative path and returns the
    * stored relativePath + size.
    */
-  async uploadSessionWorkspaceFile(
-    sessionId: string,
-    params: { path: string; contentBase64: string },
-  ): Promise<{ relativePath: string; size: number }> {
-    const response = await this.fetchWithRetry(
-      `${this.serverUrl}/api/v1/sessions/${encodeURIComponent(sessionId)}/workspace/file`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          path: params.path,
-          content_base64: params.contentBase64,
-        }),
+  async uploadSessionWorkspaceFile(sessionId: string, params: { path: string; contentBase64: string }): Promise<{ relativePath: string; size: number }> {
+    const response = await this.fetchWithRetry(`${this.serverUrl}/api/v1/sessions/${encodeURIComponent(sessionId)}/workspace/file`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
       },
-    );
+      body: JSON.stringify({
+        path: params.path,
+        content_base64: params.contentBase64,
+      }),
+    });
 
     if (!response.ok) {
       const text = await response.text();
@@ -1117,7 +1111,31 @@ export class MossSessionApi {
     }
 
     // Legacy/unknown types
-    if (msg.type && !['assistant', 'user', 'result', 'system', 'tool_progress', 'tool_use_summary', 'streamlined_text', 'streamlined_tool_use_summary', 'stream_event', 'rate_limit_event', 'auth_status', 'prompt_suggestion', 'control_request', 'thinking', 'finish', 'end_turn', 'tool_use', 'tool_result', 'content', 'text'].includes(msg.type)) {
+    if (
+      msg.type &&
+      ![
+        'assistant',
+        'user',
+        'result',
+        'system',
+        'tool_progress',
+        'tool_use_summary',
+        'streamlined_text',
+        'streamlined_tool_use_summary',
+        'stream_event',
+        'rate_limit_event',
+        'auth_status',
+        'prompt_suggestion',
+        'control_request',
+        'thinking',
+        'finish',
+        'end_turn',
+        'tool_use',
+        'tool_result',
+        'content',
+        'text',
+      ].includes(msg.type)
+    ) {
       mainLog('MossSessionApi', `Unknown message type: ${msg.type}, skipping`);
       return;
     }
