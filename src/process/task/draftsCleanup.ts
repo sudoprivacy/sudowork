@@ -13,12 +13,12 @@
  * directly to the workspace root instead of .drafts/.
  */
 
-import { DRAFTS_DIR_ALIASES, DRAFTS_DIR_NAME } from '@/common/constants';
-import { mainLog, mainError } from '@process/utils/mainLogger';
 import fs from 'fs/promises';
 import fsSync from 'fs';
 import type { Dirent } from 'fs';
 import path from 'path';
+import { mainLog, mainError } from '@process/utils/mainLogger';
+import { DRAFTS_DIR_ALIASES, DRAFTS_DIR_NAME } from '@/common/constants';
 import { FileIntentClassifier, detectFileIntent, matchesDraftPattern, matchesFinalPattern, type FileIntent, type FileIntentSource } from './FileIntentClassifier';
 
 /**
@@ -425,7 +425,7 @@ export async function cleanupTrackedDraftsOnCancel(workspace: string, trackedFil
  * Matches any workspace ending with -temp- followed by digits (Unix timestamp)
  * Examples: scode-temp-1234567890, sudoclaw-temp-1234567890, claude-temp-1234567890
  */
-const TEMP_WORKSPACE_REGEX = /-temp-\d+$/;
+export const TEMP_WORKSPACE_REGEX = /-temp-\d+$/;
 
 /**
  * Check if a directory name is a temporary workspace
