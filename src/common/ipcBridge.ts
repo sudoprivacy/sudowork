@@ -78,6 +78,10 @@ export const conversation = {
   get: bridge.buildProvider<TChatConversation | undefined, { id: string }>('get-conversation'), // 获取对话信息
   getAssociateConversation: bridge.buildProvider<TChatConversation[], { conversation_id: string }>('get-associated-conversation'), // 获取关联对话
   remove: bridge.buildProvider<boolean, { id: string; deleteWorkspace?: boolean }>('remove-conversation'), // 删除对话
+  // Broadcast from main after a conversation is reaped (all resources released). SSOT
+  // cleanup signal so renderer-side caches can drop their entries regardless of which
+  // delete path (user-delete / assistant-uninstall) triggered it.
+  reaped: bridge.buildEmitter<{ id: string }>('conversation.reaped'),
   update: bridge.buildProvider<boolean, { id: string; updates: Partial<TChatConversation>; mergeExtra?: boolean }>('update-conversation'), // 更新对话信息
   reset: bridge.buildProvider<void, IResetConversationParams>('reset-conversation'), // 重置对话
   stop: bridge.buildProvider<IBridgeResponse<{}>, { conversation_id: string }>('chat.stop.stream'), // 停止会话
