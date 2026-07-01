@@ -10,10 +10,11 @@ import type { IMcpServer } from '@/common/storage';
 import { mainLog, mainWarn } from '@process/utils/mainLogger';
 import fs from 'fs';
 import path from 'path';
-import os from 'os';
+import { SCODE_SETTINGS_PATH } from '@process/services/scode/scodePaths';
 
 const TAG = 'ScodeMcpAgent';
-export const SCODE_SETTINGS_PATH = path.join(os.homedir(), '.nexus', 'sudocode', 'settings.json');
+// scode's settings.json — single source of truth in scodePaths.ts; re-exported for existing importers.
+export { SCODE_SETTINGS_PATH };
 const SCODE_DISABLED_MCP_SERVERS = new Set<string>();
 
 function isDisabledForScode(serverName: string): boolean {

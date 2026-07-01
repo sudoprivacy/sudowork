@@ -855,7 +855,7 @@ export const sudoclaw = {
   wechatInstallProgress: bridge.buildEmitter<{ phase: 'installing' | 'qrcode' | 'scanning' | 'success' | 'error'; message?: string; qrData?: string; qrUrl?: string }>('sudoclaw.wechat-install-progress'),
 };
 
-// Scode config (~/.nexus/sudocode/sudocode.json)
+// Scode config (~/.nexus/sudowork/sudocode/sudocode.json)
 // Matches sudocode.json schema: auth_modes, models, default_model
 export type ScodeModelProvider = {
   provider?: string;
@@ -894,9 +894,9 @@ export type ScodeConfig = {
 };
 
 export const scode = {
-  /** Read scode config from ~/.nexus/sudocode/sudocode.json */
+  /** Read scode config from ~/.nexus/sudowork/sudocode/sudocode.json */
   getConfig: bridge.buildProvider<IBridgeResponse<ScodeConfig>, void>('scode.get-config'),
-  /** Save full scode config to ~/.nexus/sudocode/sudocode.json (overwrite) */
+  /** Save full scode config to ~/.nexus/sudowork/sudocode/sudocode.json (overwrite) */
   saveConfig: bridge.buildProvider<IBridgeResponse<void>, { config: ScodeConfig }>('scode.save-config'),
   /** Save custom OpenAI-compatible scode model providers for the signed-in user */
   saveCustomModelProviders: bridge.buildProvider<IBridgeResponse<void>, { userId: string; providers: ScodeCustomModelProvider[] }>('scode.save-custom-model-providers'),

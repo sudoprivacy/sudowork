@@ -234,3 +234,52 @@ jobs:
           if [ -n "${CLUSTER_PID:-}" ]; then
             kill "$CLUSTER_PID" 2>/dev/null || true
           fi
+
+  scode-config-isolation:
+    # Real cross-repo contract: sudowork isolates its engine-scode by spawning
+    # the scode binary with SUDO_CODE_CONFIG_HOME → ~/.nexus/sudowork/sudocode.
+    # This job downloads + extracts the ACTUAL scode binary and drives
+    # `scode config --output-format json` to prove the user-scope config home
+    # follows the env var and never leaks to the standalone ~/.nexus/sudocode.
+    # Runs on Windows because scode ships macOS + Windows only (no Linux release),
+    # and Windows is sudowork's primary target. See
+    # tests/integration/scodeConfigHomeIsolation.integration.test.ts.
+    name: Scode Config-Home Isolation
+    runs-on: windows-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --no-frozen-lockfile
+
+      - name: Download scode binary (windows archive)
+        run: bun run scode:download
+
+      - name: Extract scode binary and export SCODE_BIN
+        shell: pwsh
+        run: |
+          $zip = Get-ChildItem resources -Filter '*scode-windows*.zip' | Select-Object -First 1
+          if (-not $zip) { throw 'no scode windows archive downloaded (empty release?)' }
+          if ($zip.Length -eq 0) { throw "scode archive is an empty placeholder ($($zip.Name)) — no binary published for this version" }
+          $dest = Join-Path $env:RUNNER_TEMP 'scode-extracted'
+          Expand-Archive -Path $zip.FullName -DestinationPath $dest -Force
+          $exe = Get-ChildItem $dest -Recurse -Filter 'scode.exe' | Select-Object -First 1
+          if (-not $exe) { throw 'scode.exe not found in archive' }
+          "SCODE_BIN=$($exe.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Write-Host "SCODE_BIN=$($exe.FullName)"
+
+      - name: Run scode config-home isolation integration test
+        run: bunx vitest run tests/integration/scodeConfigHomeIsolation.integration.test.ts
