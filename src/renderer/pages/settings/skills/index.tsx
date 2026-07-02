@@ -26,21 +26,8 @@ import { SkillAuditDetailModal, SkillAuditReportModal } from './components/Skill
 import SkillCard from './components/SkillCard';
 import InstalledSkillCard from './components/InstalledSkillCard';
 import SkillDetailModal from './components/SkillDetailModal';
-import {
-  installedInfoToSkill,
-  resolveSkillTenantId,
-  getLocalSkillImportDialogOptions,
-  getInstalledSkillBadgeCount,
-  fetchSkillsHttp,
-  fetchCategoriesHttp,
-  fetchSkillDetailHttp,
-  VERSION_CACHE_TTL,
-  type IBridgeResponse,
-  type SkillLatestVersion,
-  type SkillDetailResponse,
-  type SkillStoreTab,
-  type LocalSkillImportSource,
-} from './utils';
+import { installedInfoToSkill, resolveSkillTenantId, getLocalSkillImportDialogOptions, getInstalledSkillBadgeCount, fetchSkillsHttp, fetchCategoriesHttp, fetchSkillDetailHttp, VERSION_CACHE_TTL } from './utils';
+import type { IBridgeResponse, SkillLatestVersion, SkillDetailResponse, SkillStoreTab, LocalSkillImportSource } from './types';
 
 // ==================== Main Component ====================
 

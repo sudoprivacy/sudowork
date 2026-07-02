@@ -5,36 +5,11 @@
  */
 
 import { resolveSkillIcon, getInstalledSkillDisplay } from '@/renderer/utils/skillDisplay';
-import type { ISkillHubSkill, ISkillHubDetail, IInstalledSkillInfo, ISkillHubMeta } from '@/common/ipcBridge';
-
-// ==================== Types ====================
-
-export interface IBridgeResponse<D = unknown> {
-  success: boolean;
-  data?: D;
-  msg?: string;
-}
-
-export interface SkillLatestVersion {
-  version: string;
-  sourceUrl: string;
-  checksum: string;
-  /** Timestamp when this version info was fetched (for cache expiration) */
-  fetchedAt: number;
-}
+import type { ISkillHubSkill, IInstalledSkillInfo, ISkillHubMeta } from '@/common/ipcBridge';
+import type { SkillDetailResponse, SkillStoreTab, LocalSkillImportSource, LocalSkillImportDialogOptions } from '../types';
 
 /** Cache expiration time in milliseconds (5 minutes) */
 export const VERSION_CACHE_TTL = 5 * 60 * 1000;
-
-export type SkillDetailResponse = { success: boolean; data?: ISkillHubDetail; msg?: string };
-
-export type SkillStoreTab = 'store' | 'exclusive' | 'installed';
-export type LocalSkillImportSource = 'zip' | 'directory';
-type LocalSkillImportDialogOptions = {
-  defaultPath?: string;
-  properties?: Array<'openFile' | 'openDirectory'>;
-  filters?: Array<{ name: string; extensions: string[] }>;
-};
 
 // ==================== Helpers ====================
 
