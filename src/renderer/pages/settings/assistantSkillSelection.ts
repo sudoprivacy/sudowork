@@ -8,8 +8,39 @@ export function getSelectableAssistantSkills(installedSkills: IInstalledSkillInf
   return installedSkills.filter((skill) => !isAutoInjectedBuiltinSkill(skill) && (skill.isBuiltin || skill.enabled !== false));
 }
 
+export function getAssistantSkillId(skill: IInstalledSkillInfo): string {
+  return skill.meta?.id || skill.name;
+}
+
+export function getAssistantSkillAliases(skill: IInstalledSkillInfo): string[] {
+  return Array.from(new Set([getAssistantSkillId(skill), skill.name].filter(Boolean)));
+}
+
+export function isAssistantSkillSelected(selectedSkills: string[], skill: IInstalledSkillInfo): boolean {
+  return selectedSkills.includes(getAssistantSkillId(skill));
+}
+
+export function toggleAssistantSkillSelection(selectedSkills: string[], skill: IInstalledSkillInfo): string[] {
+  const aliases = getAssistantSkillAliases(skill);
+  if (aliases.some((alias) => selectedSkills.includes(alias))) {
+    return selectedSkills.filter((selected) => !aliases.includes(selected));
+  }
+  return [...selectedSkills, getAssistantSkillId(skill)];
+}
+
 export function sanitizeAssistantEnabledSkills(enabledSkills: string[] | undefined, installedSkills: IInstalledSkillInfo[]): string[] {
-  // Build a set of selectable skill IDs (using meta.id if available, fallback to name)
-  const selectableIds = new Set(getSelectableAssistantSkills(installedSkills).map((skill) => skill.meta?.id || skill.name));
-  return (enabledSkills || []).filter((skillId) => selectableIds.has(skillId));
+  const canonicalByAlias = new Map<string, string | null>();
+  getSelectableAssistantSkills(installedSkills).forEach((skill) => {
+    const skillId = getAssistantSkillId(skill);
+    getAssistantSkillAliases(skill).forEach((alias) => {
+      const existing = canonicalByAlias.get(alias);
+      if (existing && existing !== skillId) {
+        canonicalByAlias.set(alias, null);
+        return;
+      }
+      canonicalByAlias.set(alias, skillId);
+    });
+  });
+  const sanitized = (enabledSkills || []).map((skillId) => canonicalByAlias.get(skillId)).filter((skillId): skillId is string => typeof skillId === 'string');
+  return Array.from(new Set(sanitized));
 }

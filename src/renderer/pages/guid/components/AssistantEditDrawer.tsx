@@ -28,6 +28,7 @@ import EmojiPicker from '@/renderer/components/EmojiPicker';
 import MarkdownView from '@/renderer/components/Markdown';
 import coworkSvg from '@/renderer/assets/cowork.svg';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
+import { isAssistantSkillSelected, sanitizeAssistantEnabledSkills, toggleAssistantSkillSelection } from '@/renderer/pages/settings/assistantSkillSelection';
 
 type AssistantEditDrawerProps = {
   visible: boolean;
@@ -154,7 +155,6 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
         setEditDescription(found.descriptionI18n?.[localeKey] || found.description || '');
         setEditAvatar(found.avatar || '');
         setEditAgent(normalizePresetAgentType(found.presetAgentType) || DEFAULT_PRESET_AGENT_TYPE);
-        setSelectedSkills(found.enabledSkills || []);
 
         // Load rules content
         try {
@@ -172,11 +172,15 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
           try {
             const res = await skillHub.getInstalledSkills.invoke();
             if (!cancelled && res.success && res.data) {
-              setInstalledSkills(res.data.filter((s) => s.isBuiltin || s.enabled !== false));
+              const availableSkills = res.data.filter((s) => s.isBuiltin || s.enabled !== false);
+              setInstalledSkills(availableSkills);
+              setSelectedSkills(sanitizeAssistantEnabledSkills(found.enabledSkills || [], availableSkills));
             }
           } catch {
             if (!cancelled) setInstalledSkills([]);
           }
+        } else {
+          setSelectedSkills(found.enabledSkills || []);
         }
       } catch (error) {
         console.error('Failed to load assistant for editing:', error);
@@ -238,7 +242,7 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
           descriptionI18n: editDescription ? { 'zh-CN': editDescription } : undefined,
           avatar: editAvatar,
           presetAgentType: normalizePresetAgentType(editAgent) || DEFAULT_PRESET_AGENT_TYPE,
-          enabledSkills: selectedSkills,
+          enabledSkills: sanitizeAssistantEnabledSkills(selectedSkills, installedSkills),
         },
       });
 
@@ -273,7 +277,7 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
       console.error('Failed to save assistant:', error);
       Message.error(t('common.failed', { defaultValue: 'Failed' }));
     }
-  }, [assistant, isReadonly, isEnterprise, editName, editDescription, editAvatar, editAgent, editContext, selectedSkills, localeKey, onSaved, onClose, t]);
+  }, [assistant, isReadonly, isEnterprise, editName, editDescription, editAvatar, editAgent, editContext, selectedSkills, installedSkills, localeKey, onSaved, onClose, t]);
 
   const editAvatarImage = resolveAvatarImage(editAvatar);
 
@@ -406,18 +410,13 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
                     .map((skill) => {
                       const { displayName, description, icon, emoji } = getInstalledSkillDisplay(skill);
                       const displayVersion = normalizeSkillVersion(skill.version);
-                      const skillId = skill.meta?.id || skill.name;
                       return (
                         <div key={skill.name} className={`bg-fill-1 rd-12px border p-12px flex items-start gap-12px relative ${isReadonly ? 'opacity-50 cursor-not-allowed' : ''}`}>
                           <Checkbox
-                            checked={selectedSkills.includes(skillId)}
+                            checked={isAssistantSkillSelected(selectedSkills, skill)}
                             onChange={() => {
                               if (isReadonly) return;
-                              if (selectedSkills.includes(skillId)) {
-                                setSelectedSkills(selectedSkills.filter((s) => s !== skillId));
-                              } else {
-                                setSelectedSkills([...selectedSkills, skillId]);
-                              }
+                              setSelectedSkills(toggleAssistantSkillSelection(selectedSkills, skill));
                             }}
                             disabled={isReadonly}
                             className={`mt-2px ${isReadonly ? '' : 'cursor-pointer'}`}
@@ -464,18 +463,13 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
                     .filter((s) => s.isBuiltin)
                     .map((skill) => {
                       const { displayName, description, icon, emoji } = getInstalledSkillDisplay(skill);
-                      const skillId = skill.meta?.id || skill.name;
                       return (
                         <div key={skill.name} className={`bg-fill-1 rd-12px border p-12px flex items-start gap-12px relative ${isReadonly ? 'opacity-50 cursor-not-allowed' : ''}`}>
                           <Checkbox
-                            checked={selectedSkills.includes(skillId)}
+                            checked={isAssistantSkillSelected(selectedSkills, skill)}
                             onChange={() => {
                               if (isReadonly) return;
-                              if (selectedSkills.includes(skillId)) {
-                                setSelectedSkills(selectedSkills.filter((s) => s !== skillId));
-                              } else {
-                                setSelectedSkills([...selectedSkills, skillId]);
-                              }
+                              setSelectedSkills(toggleAssistantSkillSelection(selectedSkills, skill));
                             }}
                             disabled={isReadonly}
                             className={`mt-2px ${isReadonly ? '' : 'cursor-pointer'}`}
