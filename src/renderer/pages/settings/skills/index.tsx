@@ -16,130 +16,31 @@ import { ipcBridge } from '@/common';
 import { parseHubError, type HubError } from '@common/nexus/hubErrors';
 import HubEmptyState from '@renderer/components/HubEmptyState';
 import { eeclaw, skillHub } from '@/common/ipcBridge';
-import { resolveSkillIcon, getInstalledSkillDisplay, normalizeSkillVersion } from '@/renderer/utils/skillDisplay';
+import { normalizeSkillVersion } from '@/renderer/utils/skillDisplay';
 import { isElectronDesktop } from '@/renderer/utils/platform';
 import { addEventListener, emitter } from '@/renderer/utils/emitter';
-import type { ISkillHubSkill, ISkillHubDetail, ISkillHubListResponse, IInstalledSkillInfo, ISkillHubMeta } from '@/common/ipcBridge';
+import type { ISkillHubSkill, ISkillHubListResponse, IInstalledSkillInfo, ISkillHubMeta } from '@/common/ipcBridge';
 import { useAuth } from '@/renderer/context/AuthContext';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
 import { SkillAuditDetailModal, SkillAuditReportModal } from './components/SkillAuditReport';
 import SkillCard from './components/SkillCard';
 import InstalledSkillCard from './components/InstalledSkillCard';
 import SkillDetailModal from './components/SkillDetailModal';
-
-// ==================== Helpers ====================
-
-/** Build a synthetic ISkillHubSkill from locally-stored hub metadata */
-function installedInfoToSkill(skillInfo: IInstalledSkillInfo): ISkillHubSkill {
-  const { displayName, description, icon, emoji } = getInstalledSkillDisplay(skillInfo);
-  const meta = skillInfo.meta as ISkillHubMeta;
-
-  return {
-    id: meta.id,
-    name: meta.name,
-    display_name: displayName,
-    description: description || '',
-    icon: icon || resolveSkillIcon(meta.icon),
-    emoji: emoji || meta.emoji,
-    category: meta.category,
-    categories: meta.categories,
-    applicable_scenarios: meta.applicable_scenarios,
-    core_features: meta.core_features,
-    homepage: meta.homepage,
-    author_id: meta.author_id,
-    star_count: 0,
-    created_at: meta.installed_at,
-    updated_at: meta.installed_at,
-  };
-}
-
-// ==================== Types ====================
-
-interface IBridgeResponse<D = unknown> {
-  success: boolean;
-  data?: D;
-  msg?: string;
-}
-
-export interface SkillLatestVersion {
-  version: string;
-  sourceUrl: string;
-  checksum: string;
-  /** Timestamp when this version info was fetched (for cache expiration) */
-  fetchedAt: number;
-}
-
-/** Cache expiration time in milliseconds (5 minutes) */
-const VERSION_CACHE_TTL = 5 * 60 * 1000;
-
-export type SkillDetailResponse = { success: boolean; data?: ISkillHubDetail; msg?: string };
-
-// ==================== API Functions (web fallback) ====================
-
-export async function fetchSkillDetailHttp(skillId: string): Promise<SkillDetailResponse> {
-  const response = await fetch(`/api/skill-hub/skills/${skillId}`);
-  return response.json();
-}
-
-export type SkillStoreTab = 'store' | 'exclusive' | 'installed';
-export type LocalSkillImportSource = 'zip' | 'directory';
-type LocalSkillImportDialogOptions = {
-  defaultPath?: string;
-  properties?: Array<'openFile' | 'openDirectory'>;
-  filters?: Array<{ name: string; extensions: string[] }>;
-};
-
-export function resolveSkillTenantId(tab: SkillStoreTab, enterpriseCode?: string): string | undefined {
-  const normalized = enterpriseCode?.trim();
-  if (tab !== 'exclusive' || !normalized) {
-    return undefined;
-  }
-  return normalized;
-}
-
-export function getLocalSkillImportDialogOptions(source?: LocalSkillImportSource): LocalSkillImportDialogOptions {
-  const zipFilter = [{ name: 'Zip Archive', extensions: ['zip'] }];
-
-  if (source === 'zip') {
-    return {
-      properties: ['openFile'],
-      filters: zipFilter,
-    };
-  }
-
-  if (source === 'directory') {
-    return {
-      properties: ['openDirectory'],
-    };
-  }
-
-  return {
-    properties: ['openFile', 'openDirectory'],
-    filters: zipFilter,
-  };
-}
-
-async function fetchSkillsHttp(params: { cursor?: string; limit?: number; query?: string; category?: string; tenantId?: string }) {
-  const searchParams = new URLSearchParams();
-  if (params.cursor) searchParams.set('cursor', params.cursor);
-  if (params.limit) searchParams.set('limit', String(params.limit));
-  if (params.query) searchParams.set('query', params.query);
-  if (params.category) searchParams.set('categories', params.category);
-  if (params.tenantId) searchParams.set('tenant_id', params.tenantId);
-  const response = await fetch(`/api/skill-hub/skills/cursor?${searchParams}`);
-  return response.json();
-}
-
-async function fetchCategoriesHttp() {
-  const response = await fetch('/api/categories');
-  return response.json();
-}
-
-export function getInstalledSkillBadgeCount(installedList: IInstalledSkillInfo[]): number {
-  return installedList.length;
-}
-
-// ==================== InstalledSkillCard Component ====================
+import {
+  installedInfoToSkill,
+  resolveSkillTenantId,
+  getLocalSkillImportDialogOptions,
+  getInstalledSkillBadgeCount,
+  fetchSkillsHttp,
+  fetchCategoriesHttp,
+  fetchSkillDetailHttp,
+  VERSION_CACHE_TTL,
+  type IBridgeResponse,
+  type SkillLatestVersion,
+  type SkillDetailResponse,
+  type SkillStoreTab,
+  type LocalSkillImportSource,
+} from './utils';
 
 // ==================== Main Component ====================
 

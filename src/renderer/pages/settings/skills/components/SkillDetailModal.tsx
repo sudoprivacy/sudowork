@@ -17,7 +17,7 @@ import { isElectronDesktop } from '@/renderer/utils/platform';
 import { skillHub } from '@/common/ipcBridge';
 import type { ISkillHubSkill, ISkillHubDetail } from '@/common/ipcBridge';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
-import { fetchSkillDetailHttp, type SkillDetailResponse, type SkillLatestVersion } from '../index';
+import { fetchSkillDetailHttp, type SkillDetailResponse, type SkillLatestVersion } from '../utils';
 import SkillAuditSummary from './SkillAuditSummary';
 
 function parseJsonArray(jsonStr: string | null): string[] {
