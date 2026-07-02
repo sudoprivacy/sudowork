@@ -81,9 +81,10 @@ type PersonalConfigSnapshot = {
   installId?: string;
 };
 
-const SUDO_LOG_TENANT_ID = 'sudo';
-const LOG_PRODUCT = 'sudowork';
-const API_KEY_HEADER = 'X-API-Key';
+export const SUDO_LOG_TENANT_ID = 'sudo';
+export const SUDO_LOG_PRODUCT = 'sudowork';
+export const SUDO_LOG_API_KEY_HEADER = 'X-API-Key';
+export const SUDO_LOG_ENVIRONMENT: SudoworkLogEntry['environment'] = 'production';
 const CACHE_FILE_NAME = 'sudowork-log-error-cache.json';
 const MAX_QUEUE_SIZE = 500;
 const MAX_BATCH_SIZE = 50;
@@ -171,6 +172,10 @@ function getBatchUrl(): string {
   }
 
   return `${getLogReportBaseUrl()}/v1/logs/batch`;
+}
+
+export function getSudoworkLogBatchUrl(): string {
+  return getBatchUrl();
 }
 
 function hashIdentifier(value?: unknown): string | undefined {
@@ -290,9 +295,9 @@ function toLogEntry(entry: LogUploadErrorEntry, config: PersonalConfigSnapshot):
   return {
     timestamp: new Date(entry.timestampMs).toISOString(),
     tenant_id: SUDO_LOG_TENANT_ID,
-    product: LOG_PRODUCT,
+    product: SUDO_LOG_PRODUCT,
     topic: 'error',
-    environment: app.isPackaged ? 'production' : 'development',
+    environment: SUDO_LOG_ENVIRONMENT,
     level: 'error',
     component: limitString(entry.tag || 'main', MAX_ATTRIBUTE_STRING_LENGTH),
     version: buildVersion,
@@ -321,7 +326,7 @@ function normalizeStoredLogEntry(entry: StoredLogEntry, config: PersonalConfigSn
     log: {
       ...entry.log,
       tenant_id: SUDO_LOG_TENANT_ID,
-      product: LOG_PRODUCT,
+      product: SUDO_LOG_PRODUCT,
       user_identifier_hash: userIdentifierHash,
       tags: buildTags(config),
       attributes,
@@ -559,7 +564,7 @@ class SudoworkLogUploader {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          [API_KEY_HEADER]: apiKey,
+          [SUDO_LOG_API_KEY_HEADER]: apiKey,
         },
         body: JSON.stringify(request),
         signal: controller.signal,

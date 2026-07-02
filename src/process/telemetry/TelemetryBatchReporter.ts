@@ -43,6 +43,7 @@ import { getProductImprovementApiKey } from '../credentialsCache';
 import { getTelemetryEncryptor, initTelemetryEncryptor, isEncryptionAvailable } from './TelemetryEncryptor';
 import { ENCRYPTION_CONFIG } from './keys';
 import { getUserContextSync } from './UserContext';
+import { getSudoLogTelemetryReporter } from './SudoLogTelemetryReporter';
 
 // ============================================================
 // 类型定义
@@ -229,6 +230,8 @@ export class TelemetryBatchReporter {
     // 添加到队列
     this.addToQueue(storedEvent);
 
+    getSudoLogTelemetryReporter().enqueueTelemetryEvent(this.toTelemetryEvent(storedEvent));
+
     // 如果队列满了，立即上报
     if (this.eventQueue.length >= this.config.batchSize) {
       void this.flush();
@@ -271,6 +274,7 @@ export class TelemetryBatchReporter {
     }
 
     this.enabled = enabled;
+    await getSudoLogTelemetryReporter().setEnabled(enabled);
 
     if (enabled && !this.flushTimer) {
       this.startFlushTimer();
@@ -313,6 +317,56 @@ export class TelemetryBatchReporter {
   /** 判断事件是否满足上报身份要求 */
   private isReportableEvent(event: StoredTelemetryEvent): boolean {
     return Boolean(event.user_id && event.tenant_id);
+  }
+
+  private toTelemetryEvent(stored: StoredTelemetryEvent): TelemetryEvent {
+    const baseEvent = {
+      timestamp: stored.timestamp,
+      version: stored.version,
+      platform: stored.platform,
+      arch: stored.arch,
+      org_id: stored.org_id,
+      user_id: stored.user_id,
+      tenant_id: stored.tenant_id,
+      login_mode: stored.login_mode,
+      agent_type: stored.agent_type,
+      user_nickname: stored.user_nickname,
+      user_phone: stored.user_phone,
+    };
+
+    if (stored.type === 'perf') {
+      return {
+        type: 'perf',
+        ...baseEvent,
+        data: stored.data as PerfData,
+      } as PerfTelemetryEvent;
+    }
+    if (stored.type === 'conversation') {
+      return {
+        type: 'conversation',
+        ...baseEvent,
+        data: stored.data as ConversationData,
+      } as ConversationTelemetryEvent;
+    }
+    if (stored.type === 'install') {
+      return {
+        type: 'install',
+        ...baseEvent,
+        data: stored.data as InstallData,
+      } as InstallTelemetryEvent;
+    }
+    if (stored.type === 'turn') {
+      return {
+        type: 'turn',
+        ...baseEvent,
+        data: stored.data as TurnData,
+      } as TurnTelemetryEvent;
+    }
+    return {
+      type: 'step',
+      ...baseEvent,
+      data: stored.data as StepData,
+    } as StepTelemetryEvent;
   }
 
   /** 添加事件到队列 */
@@ -375,55 +429,7 @@ export class TelemetryBatchReporter {
       // 取出一批事件
       const batch = this.eventQueue.slice(0, this.config.batchSize);
       // Convert stored events to TelemetryEvent format
-      const events: TelemetryEvent[] = batch.map((stored): TelemetryEvent => {
-        // 基础字段
-        const baseEvent = {
-          timestamp: stored.timestamp,
-          version: stored.version,
-          platform: stored.platform,
-          arch: stored.arch,
-          org_id: stored.org_id,
-          user_id: stored.user_id,
-          tenant_id: stored.tenant_id,
-          login_mode: stored.login_mode,
-          agent_type: stored.agent_type,
-          user_nickname: stored.user_nickname,
-          user_phone: stored.user_phone,
-        };
-
-        // Create specific event type based on stored.type
-        if (stored.type === 'perf') {
-          return {
-            type: 'perf',
-            ...baseEvent,
-            data: stored.data as PerfData,
-          } as PerfTelemetryEvent;
-        } else if (stored.type === 'conversation') {
-          return {
-            type: 'conversation',
-            ...baseEvent,
-            data: stored.data as ConversationData,
-          } as ConversationTelemetryEvent;
-        } else if (stored.type === 'install') {
-          return {
-            type: 'install',
-            ...baseEvent,
-            data: stored.data as InstallData,
-          } as InstallTelemetryEvent;
-        } else if (stored.type === 'turn') {
-          return {
-            type: 'turn',
-            ...baseEvent,
-            data: stored.data as TurnData,
-          } as TurnTelemetryEvent;
-        } else {
-          return {
-            type: 'step',
-            ...baseEvent,
-            data: stored.data as StepData,
-          } as StepTelemetryEvent;
-        }
-      });
+      const events: TelemetryEvent[] = batch.map((stored): TelemetryEvent => this.toTelemetryEvent(stored));
 
       const request: TelemetryBatchRequest = { events };
 
