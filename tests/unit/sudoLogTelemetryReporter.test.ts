@@ -33,7 +33,7 @@ describe('SudoLogTelemetryReporter', () => {
           if (name === 'userData') return userDataDir;
           return userDataDir;
         }),
-        isPackaged: true,
+        isPackaged: false,
       },
     }));
     vi.doMock('@/common/buildInfo', () => ({ buildVersion: '9.9.9-test' }));
@@ -118,6 +118,7 @@ describe('SudoLogTelemetryReporter', () => {
       tenant_id: 'sudo',
       product: 'sudowork',
       topic: 'app',
+      environment: 'production',
       level: 'info',
       component: 'qms.telemetry.turn',
       session_id: 'session_1',

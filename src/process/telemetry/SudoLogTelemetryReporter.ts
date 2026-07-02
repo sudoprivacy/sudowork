@@ -13,7 +13,7 @@ import { getLogReportKey } from '@/process/credentialsCache';
 import type { CrashEvent } from '../../shared/types/crash';
 import type { ConversationData, InstallData, PerfData, StepData, TelemetryEvent, TurnData } from '../../shared/types/telemetry';
 import { mainError, mainLog, mainWarn } from '../utils/mainLogger';
-import { SUDO_LOG_API_KEY_HEADER, SUDO_LOG_PRODUCT, SUDO_LOG_TENANT_ID, getSudoworkLogBatchUrl } from '../utils/sudoworkLogUploader';
+import { SUDO_LOG_API_KEY_HEADER, SUDO_LOG_ENVIRONMENT, SUDO_LOG_PRODUCT, SUDO_LOG_TENANT_ID, getSudoworkLogBatchUrl } from '../utils/sudoworkLogUploader';
 import { getUserContextSync } from './UserContext';
 
 type SudoLogLevel = 'info' | 'warn' | 'error';
@@ -271,7 +271,7 @@ function toTelemetryLog(event: TelemetryEvent): SudoLogEntry | null {
     tenant_id: SUDO_LOG_TENANT_ID,
     product: SUDO_LOG_PRODUCT,
     topic: telemetryTopic(event),
-    environment: app.isPackaged ? 'production' : 'development',
+    environment: SUDO_LOG_ENVIRONMENT,
     level,
     component: `qms.telemetry.${event.type}`,
     version: event.version,
@@ -333,7 +333,7 @@ function toCrashLog(event: CrashEvent): SudoLogEntry | null {
     tenant_id: SUDO_LOG_TENANT_ID,
     product: SUDO_LOG_PRODUCT,
     topic: 'error',
-    environment: app.isPackaged ? 'production' : 'development',
+    environment: SUDO_LOG_ENVIRONMENT,
     level: 'error',
     component: `qms.crash.${event.type}`,
     version: event.version,

@@ -54,7 +54,7 @@ describe('Sudowork Log personal error upload sink', () => {
           if (name === 'home') return homeDir;
           return homeDir;
         }),
-        isPackaged: true,
+        isPackaged: false,
       },
     }));
 

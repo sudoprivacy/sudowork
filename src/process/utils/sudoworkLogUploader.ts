@@ -84,6 +84,7 @@ type PersonalConfigSnapshot = {
 export const SUDO_LOG_TENANT_ID = 'sudo';
 export const SUDO_LOG_PRODUCT = 'sudowork';
 export const SUDO_LOG_API_KEY_HEADER = 'X-API-Key';
+export const SUDO_LOG_ENVIRONMENT: SudoworkLogEntry['environment'] = 'production';
 const CACHE_FILE_NAME = 'sudowork-log-error-cache.json';
 const MAX_QUEUE_SIZE = 500;
 const MAX_BATCH_SIZE = 50;
@@ -296,7 +297,7 @@ function toLogEntry(entry: LogUploadErrorEntry, config: PersonalConfigSnapshot):
     tenant_id: SUDO_LOG_TENANT_ID,
     product: SUDO_LOG_PRODUCT,
     topic: 'error',
-    environment: app.isPackaged ? 'production' : 'development',
+    environment: SUDO_LOG_ENVIRONMENT,
     level: 'error',
     component: limitString(entry.tag || 'main', MAX_ATTRIBUTE_STRING_LENGTH),
     version: buildVersion,
