@@ -22,7 +22,7 @@ import { addEventListener, emitter } from '@/renderer/utils/emitter';
 import type { ISkillHubSkill, ISkillHubDetail, ISkillHubListResponse, IInstalledSkillInfo, ISkillHubMeta } from '@/common/ipcBridge';
 import { useAuth } from '@/renderer/context/AuthContext';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
-import { SkillAuditDetailModal, SkillAuditReportModal } from '@/renderer/components/SettingsModal/contents/SkillAuditReport';
+import { SkillAuditDetailModal, SkillAuditReportModal } from './components/SkillAuditReport';
 import SkillCard from './components/SkillCard';
 import InstalledSkillCard from './components/InstalledSkillCard';
 import SkillDetailModal from './components/SkillDetailModal';
