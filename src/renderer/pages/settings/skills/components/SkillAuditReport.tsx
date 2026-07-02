@@ -8,165 +8,20 @@
  * Skill Security Audit Report Components
  *
  * Displays audit results in two views:
- * 1. SkillAuditSummary — Summary card showing operation categories with ✅/⚠️ indicators
+ * 1. SkillAuditSummary (components/SkillAuditSummary.tsx) — Summary card showing operation categories with ✅/⚠️ indicators
  * 2. SkillAuditDetailModal — Detailed findings modal with code snippets and locations
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { Button, Modal, Spin, Message } from '@arco-design/web-react';
+import { Modal, Spin, Message } from '@arco-design/web-react';
 import { Close, Shield } from '@icon-park/react';
-import { FolderOpen } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
-import { skillHub, shell } from '@/common/ipcBridge';
+import { skillHub } from '@/common/ipcBridge';
 import { isElectronDesktop } from '@/renderer/utils/platform';
-import type { SkillAuditReport, AuditFinding, AuditCategorySummary, AuditCategory } from '@/common/skillAuditTypes';
+import type { SkillAuditReport, AuditFinding, AuditCategory } from '@/common/skillAuditTypes';
 import { AUDIT_CATEGORY_CONFIG } from '@/common/skillAuditTypes';
-
-// ==================== Audit Summary Component ====================
-
-/**
- * Displays a summary of the audit results, similar to the screenshot:
- * - Shield icon + title
- * - List of categories with ✅ (safe) or ⚠️ (found N places) indicators
- * - Link to the full report file
- */
-export const SkillAuditSummary: React.FC<{
-  skillName: string;
-  /** Called when user clicks "View Details" */
-  onViewDetails?: () => void;
-}> = ({ skillName, onViewDetails }) => {
-  const [report, setReport] = useState<SkillAuditReport | null>(null);
-  const [loading, setLoading] = useState(true);
-  const { t } = useTranslation();
-
-  useEffect(() => {
-    if (!isElectronDesktop() || !skillName) {
-      setLoading(false);
-      return;
-    }
-
-    let cancelled = false;
-    const fetchReport = async () => {
-      try {
-        const res = await skillHub.getSkillAuditReport.invoke({ skillName });
-        if (!cancelled && res.success && res.data) {
-          setReport(res.data);
-        }
-      } catch (err) {
-        console.error('Failed to fetch audit report:', err);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-    void fetchReport();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [skillName]);
-
-  if (loading) {
-    return (
-      <div className='bg-fill-1 rd-10px p-14px'>
-        <div className='flex items-center gap-6px mb-8px'>
-          <Shield size='14' className='text-success' />
-          <span className='font-medium text-13px text-foreground'>{t('settings.skill.audit.title', { defaultValue: '安全审查结果' })}</span>
-        </div>
-        <div className='flex justify-center py-12px'>
-          <Spin size={16} />
-        </div>
-      </div>
-    );
-  }
-
-  if (!report) {
-    return (
-      <div className='bg-fill-1 rd-10px p-14px'>
-        <div className='flex items-center gap-6px mb-8px'>
-          <Shield size='14' className='text-success' />
-          <span className='font-medium text-13px text-foreground'>{t('settings.skill.audit.title', { defaultValue: '安全审查结果' })}</span>
-        </div>
-        <div className='text-12px text-tertiary text-center py-12px'>{t('settings.skill.audit.noReport', { defaultValue: '暂无审计报告' })}</div>
-      </div>
-    );
-  }
-
-  return (
-    <div className='bg-fill-1 rd-10px p-14px'>
-      {/* Header */}
-      <div className='flex items-center gap-6px mb-8px'>
-        <Shield size='14' className='text-success' />
-        <span className='font-medium text-13px text-foreground'>{t('settings.skill.audit.title', { defaultValue: '安全审查结果' })}</span>
-      </div>
-
-      {/* Summary description */}
-      <div className='text-12px text-secondary mb-10px'>{report.hasFindings ? t('settings.skill.audit.summaryWithFindings', { defaultValue: '经过安全审查，该技能包存在以下操作：' }) : t('settings.skill.audit.summaryNoFindings', { defaultValue: '经过严格的安全审查，确认该技能包：' })}</div>
-
-      {/* Category list */}
-      <div className='space-y-6px'>
-        {report.categorySummaries.map((summary) => (
-          <CategoryRow key={summary.category} summary={summary} />
-        ))}
-      </div>
-
-      {/* Report path and view details */}
-      <div className='mt-10px pt-8px border-t flex items-center justify-between'>
-        {report.reportPath && (
-          <div className='text-11px truncate flex-1 min-w-0 mr-8px'>
-            {t('settings.skill.audit.reportPath', { defaultValue: '安全审计报告' })}：{report.reportPath}
-          </div>
-        )}
-        <div className='flex items-center flex-shrink-0'>
-          {report.reportPath && isElectronDesktop() && (
-            <Button type='text' size='mini' icon={<FolderOpen size={12} />} className='!text-11px !text-secondary' onClick={() => void shell.showItemInFolder.invoke(report.reportPath!)}>
-              {t('settings.skill.audit.openFilePath', { defaultValue: '打开路径' })}
-            </Button>
-          )}
-          {onViewDetails && (
-            <Button type='text' size='mini' className='!text-11px flex-shrink-0' onClick={onViewDetails}>
-              {t('settings.skill.audit.viewDetails', { defaultValue: '查看详情' })}
-            </Button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-/**
- * Single category row in the audit summary.
- * Shows ✅ for safe categories or ⚠️ N处调用 for found categories.
- */
-const CategoryRow: React.FC<{ summary: AuditCategorySummary }> = ({ summary }) => {
-  const { t } = useTranslation();
-
-  if (!summary.found) {
-    return (
-      <div className='flex items-start gap-6px'>
-        <span className='text-14px flex-shrink-0 leading-18px'>✅</span>
-        <span className='text-12px text-secondary leading-18px'>
-          {t(`settings.skill.audit.no_${summary.category}` as any, { defaultValue: `无${summary.label}` })}
-          <span> – {summary.safeDescription}</span>
-        </span>
-      </div>
-    );
-  }
-
-  return (
-    <div className='flex items-start gap-6px'>
-      <span className='text-14px flex-shrink-0 leading-18px'>⚠️</span>
-      <span className='text-12px text-secondary leading-18px'>
-        {summary.label}
-        <span className='text-warning font-medium'>
-          {' '}
-          ({summary.count} {t('settings.skill.audit.places', { defaultValue: '处调用' })})
-        </span>
-        <span className='text-tertiary'> – {summary.foundDescription}</span>
-      </span>
-    </div>
-  );
-};
+import SkillAuditSummary from './SkillAuditSummary';
 
 // ==================== Audit Detail Modal ====================
 
