@@ -10,6 +10,7 @@ import { Search, Close, Shield, Lightning, UploadOne, Share, Plus, Check } from 
 import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
+import Tabs from '@renderer/components/ui/Tabs';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import PageWrapper from '@renderer/components/base/PageWrapper';
 import { ipcBridge } from '@/common';
@@ -1058,27 +1059,31 @@ const SkillSettings: React.FC = () => {
         {/* Header: tabs + search + create button */}
         <div className='flex items-center gap-12px mb-12px'>
           {/* Tab switcher */}
-          <div className='settings-store-tabs flex-shrink-0'>
-            <button className={classNames('settings-store-tabs__item', activeTab === 'store' && 'settings-store-tabs__item--active')} onClick={() => setActiveTab('store')}>
-              {t('settings.skill.storeTab', { defaultValue: '技能库' })}
-            </button>
-            <button className={classNames('settings-store-tabs__item', activeTab === 'exclusive' && 'settings-store-tabs__item--active')} onClick={() => setActiveTab('exclusive')}>
-              {t('settings.skill.exclusiveTab', { defaultValue: '专属技能' })}
-            </button>
-            <button
-              className={classNames('settings-store-tabs__item', activeTab === 'installed' && 'settings-store-tabs__item--active')}
-              onClick={() => {
-                if (activeTab === 'installed') {
-                  void fetchInstalledList();
-                  return;
-                }
-                setActiveTab('installed');
-              }}
-            >
-              {t('settings.skill.installedTab', { defaultValue: '我的技能' })}
-              {getInstalledSkillBadgeCount(installedList) > 0 && <span className='settings-store-tabs__badge'>{getInstalledSkillBadgeCount(installedList)}</span>}
-            </button>
-          </div>
+          <Tabs
+            variant='line'
+            className='flex-shrink-0'
+            value={activeTab}
+            onChange={(value) => {
+              if (value === 'installed' && activeTab === 'installed') {
+                void fetchInstalledList();
+                return;
+              }
+              setActiveTab(value as SkillStoreTab);
+            }}
+            items={[
+              { value: 'store', label: t('settings.skill.storeTab', { defaultValue: '技能库' }) },
+              { value: 'exclusive', label: t('settings.skill.exclusiveTab', { defaultValue: '专属技能' }) },
+              {
+                value: 'installed',
+                label: (
+                  <span className='f-center'>
+                    {t('settings.skill.installedTab', { defaultValue: '我的技能' })}
+                    {getInstalledSkillBadgeCount(installedList) > 0 && <span className='settings-store-tabs__badge'>{getInstalledSkillBadgeCount(installedList)}</span>}
+                  </span>
+                ),
+              },
+            ]}
+          />
 
           {/* Sync status indicator for enterprise mode - compact inline style */}
           {isEnterprise && activeTab === 'store' && syncStatus.syncing && (
@@ -1270,7 +1275,7 @@ const SkillSettings: React.FC = () => {
                         renderInstalledSkillGrid(customInstalledSkills)
                       )
                     ) : (
-                      <div className='bg-fill-1 border border-dashed rd-12px px-14px py-18px text-12px text-tertiary'>{t('settings.noCustomSkills')}</div>
+                      <div className='bg-fill-1 border border-dashed rd-12px px-14px py-18px text-12px text-secondary'>{t('settings.noCustomSkills')}</div>
                     )}
                   </section>
 
