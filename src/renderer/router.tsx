@@ -13,7 +13,7 @@ const AgentSettings = React.lazy(() => import('./pages/settings/AgentSettings'))
 const DisplaySettings = React.lazy(() => import('./pages/settings/display'));
 const GeminiSettings = React.lazy(() => import('./pages/settings/gemini'));
 const SudocodeModelSettings = React.lazy(() => import('./pages/settings/models'));
-const Skills = React.lazy(() => import('./pages/settings/skills'));
+const Skills = React.lazy(() => import('./pages/skills'));
 const CopilotSettings = React.lazy(() => import('./pages/settings/copilot'));
 const RuntimeSettings = React.lazy(() => import('./pages/settings/runtime'));
 const SystemSettings = React.lazy(() => import('./pages/settings/system'));
