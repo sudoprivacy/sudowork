@@ -17,6 +17,7 @@ import HubEmptyState from '@renderer/components/HubEmptyState';
 import { eeclaw } from '@/common/ipcBridge';
 import type { IInstalledSkillInfo, IAssistantHubSkill, IAssistantHubVersionLike, ISkillHubSkill } from '@/common/ipcBridge';
 import { toBackendConfig, resolveAssistantName } from '@/renderer/shared/agents/assistantAdapter';
+import Tabs from '@renderer/components/ui/Tabs';
 import type { AssistantCategory, IAssistantInfo } from '@/process/AssistantManager';
 import { resolveLocaleKey, uuid } from '@/common/utils';
 import coworkSvg from '@/renderer/assets/cowork.svg';
@@ -2309,18 +2310,25 @@ const AgentModalContent: React.FC = () => {
       {/* Header: tabs + search + create button */}
       <div className='flex items-center gap-12px mb-12px'>
         {/* Tab switcher */}
-        <div className='settings-store-tabs flex-shrink-0'>
-          <button className={classNames('settings-store-tabs__item', activeTab === 'store' && 'settings-store-tabs__item--active')} onClick={() => setActiveTab('store')}>
-            {t('settings.assistant.storeTab', { defaultValue: '智能体库' })}
-          </button>
-          <button className={classNames('settings-store-tabs__item', activeTab === 'exclusive' && 'settings-store-tabs__item--active')} onClick={() => setActiveTab('exclusive')}>
-            {t('settings.assistant.exclusiveTab', { defaultValue: '专属智能体' })}
-          </button>
-          <button className={classNames('settings-store-tabs__item', activeTab === 'installed' && 'settings-store-tabs__item--active')} onClick={() => setActiveTab('installed')}>
-            {t('settings.assistant.installedTab', { defaultValue: '我的智能体' })}
-            {assistants.length > 0 && <span className='settings-store-tabs__badge'>{assistants.length}</span>}
-          </button>
-        </div>
+        <Tabs
+          variant='line'
+          className='flex-shrink-0'
+          value={activeTab}
+          onChange={(value) => setActiveTab(value as AssistantStoreTab)}
+          items={[
+            { value: 'store', label: t('settings.assistant.storeTab', { defaultValue: '智能体库' }) },
+            { value: 'exclusive', label: t('settings.assistant.exclusiveTab', { defaultValue: '专属智能体' }) },
+            {
+              value: 'installed',
+              label: (
+                <>
+                  {t('settings.assistant.installedTab', { defaultValue: '我的智能体' })}
+                  {assistants.length > 0 && <span className='settings-store-tabs__badge'>{assistants.length}</span>}
+                </>
+              ),
+            },
+          ]}
+        />
 
         {/* Sync status indicator for enterprise mode - compact inline style */}
         {isEnterprise && activeTab === 'store' && syncStatus.syncing && (
