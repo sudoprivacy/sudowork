@@ -291,6 +291,8 @@ jobs:
           COS_BUCKET: sudowork-release-1309794936
           COS_REGION: ap-beijing
         run: |
+          set -euo pipefail
+
           echo "📦 Installing coscmd..."
           pip install coscmd
 
@@ -304,46 +306,56 @@ jobs:
           echo "📤 Uploading release assets to COS..."
           echo "Target path: $COS_PATH"
 
-          # Only upload essential files for auto-update: installers + yml metadata
-          # Installers: .exe, .dmg, .zip (rename to latest format)
-          # Metadata: latest.yml, arm64-mac.yml (sed version replacement)
+          # Upload order matters for atomicity: installers/blockmaps first, yml metadata last.
+          # Until the new yml files land, old yml entries keep pointing at files that already exist,
+          # so clients never observe a half-updated feed. Any upload failure fails the job
+          # (coscmd uploads are idempotent overwrites — just re-run the job).
 
-          # Upload installers with latest naming
-          for file in release-assets/*.exe release-assets/*.dmg release-assets/*.zip; do
-            if [ -f "$file" ]; then
-              filename=$(basename "$file")
-              latest_name=$(echo "$filename" | sed 's/[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*/latest/' | sed 's/darwin/mac/' | sed 's/win32/win/')
-              echo "  Uploading: $filename -> $latest_name"
-              coscmd upload "$file" "$COS_PATH/$latest_name" || echo "⚠️ Failed to upload $filename"
+          # Fail fast if any updater package is missing its blockmap — without it,
+          # differential updates silently degrade to full downloads for everyone.
+          # (.exe and mac .zip are the packages electron-updater diffs; dmg needs none.)
+          for installer in release-assets/*.exe release-assets/*-mac-*.zip; do
+            if [ -f "$installer" ] && [ ! -f "$installer.blockmap" ]; then
+              echo "❌ Missing blockmap for $(basename "$installer")"
+              exit 1
             fi
           done
 
-          # Upload latest.yml (Windows x64 updater metadata)
-          if [ -f "release-assets/latest.yml" ]; then
-            echo "  Processing: latest.yml"
-            sed -e 's/Sudowork-[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*/Sudowork-latest/g' \
-                -e 's/-win32-/-win-/g' \
-                "release-assets/latest.yml" > /tmp/updated.yml
-            coscmd upload /tmp/updated.yml "$COS_PATH/latest.yml" || echo "⚠️ Failed to upload latest.yml"
-          fi
+          # 1) Versioned installers + blockmaps, uploaded with their original names.
+          #    electron-updater derives the old blockmap URL by substituting the previous
+          #    version into the new file URL, so versioned filenames are required for
+          #    differential (incremental) updates.
+          for file in release-assets/*.exe release-assets/*.dmg release-assets/*.zip release-assets/*.blockmap; do
+            if [ -f "$file" ]; then
+              filename=$(basename "$file")
+              echo "  Uploading: $filename"
+              coscmd upload "$file" "$COS_PATH/$filename"
+            fi
+          done
 
-          # Upload arm64-mac.yml (macOS arm64 updater metadata)
-          if [ -f "release-assets/arm64-mac.yml" ]; then
-            echo "  Processing: arm64-mac.yml"
-            sed -e 's/Sudowork-[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*/Sudowork-latest/g' \
-                -e 's/-darwin-/-mac-/g' \
-                "release-assets/arm64-mac.yml" > /tmp/updated.yml
-            coscmd upload /tmp/updated.yml "$COS_PATH/arm64-mac.yml" || echo "⚠️ Failed to upload arm64-mac.yml"
-          fi
+          # 2) "latest"-named copies of installers, kept for old clients (their manual
+          #    download path hardcodes Sudowork-latest-*) and website direct links.
+          #    Blockmaps need no latest copies — nothing consumes them.
+          for file in release-assets/*.exe release-assets/*.dmg release-assets/*.zip; do
+            if [ -f "$file" ]; then
+              filename=$(basename "$file")
+              latest_name=$(echo "$filename" | sed 's/[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*/latest/')
+              echo "  Uploading: $filename -> $latest_name"
+              coscmd upload "$file" "$COS_PATH/$latest_name"
+            fi
+          done
 
-          # Upload x64-mac.yml (macOS x64 updater metadata)
-          if [ -f "release-assets/x64-mac.yml" ]; then
-            echo "  Processing: x64-mac.yml"
-            sed -e 's/Sudowork-[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*/Sudowork-latest/g' \
-                -e 's/-darwin-/-mac-/g' \
-                "release-assets/x64-mac.yml" > /tmp/updated.yml
-            coscmd upload /tmp/updated.yml "$COS_PATH/x64-mac.yml" || echo "⚠️ Failed to upload x64-mac.yml"
-          fi
+          # 3) Updater metadata, uploaded as-is (no filename rewriting: the yml must keep
+          #    versioned filenames so electron-updater can locate blockmaps for diffing).
+          #    latest.yml = win x64, latest-mac.yml = mac x64, arm64-mac.yml = mac arm64,
+          #    win-arm64.yml = win arm64 (dev builds only). Missing files are skipped —
+          #    the stable matrix does not build every arch.
+          for yml in latest.yml latest-mac.yml arm64-mac.yml win-arm64.yml; do
+            if [ -f "release-assets/$yml" ]; then
+              echo "  Uploading: $yml"
+              coscmd upload -H '{"Cache-Control":"no-cache"}' "release-assets/$yml" "$COS_PATH/$yml"
+            fi
+          done
 
           echo "✅ Upload to COS completed"
           echo "📂 Files available at: https://$COS_BUCKET.cos.$COS_REGION.myqcloud.com/$COS_PATH/"
