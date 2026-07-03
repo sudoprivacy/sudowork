@@ -27,7 +27,7 @@ export default function Tabs({ items, value, onChange, className, itemClassName,
             }}
           >
             {item.icon && <span className='inline-flex h-3.5 w-3.5 items-center justify-center'>{item.icon}</span>}
-            <span>{item.label}</span>
+            <span className='inline-flex items-center'>{item.label}</span>
             {variant === 'line' && isActive && <span className='absolute bottom-0 left-0 right-0 h-0.5 rd-t-full bg-primary' />}
           </button>
         );

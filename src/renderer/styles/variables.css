@@ -162,13 +162,13 @@
 
   /* ---------- 品牌强调（Retroma 品牌色 · 暗色） ---------- */
   /* Primary: Brand Orange (dark-adjusted) */
-  --color-primary: #fb8c3a;
-  --primary: #fb8c3a;
-  --color-primary-light-1: #fca35e;
-  --color-primary-light-2: #fdba74;
-  --color-primary-light-3: #fed7aa;
-  --color-primary-dark-1: #ea580c;
-  --primary-rgb: 251, 140, 58;
+  --color-primary: #ea580c;
+  --primary: #ea580c;
+  --color-primary-light-1: #f97316;
+  --color-primary-light-2: #fb923c;
+  --color-primary-light-3: #fdba74;
+  --color-primary-dark-1: #c2410c;
+  --primary-rgb: 234, 88, 12;
 
   /* Brand: Retroma Purple (dark) */
   --brand: #be80bf;
