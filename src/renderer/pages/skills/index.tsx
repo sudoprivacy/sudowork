@@ -1273,7 +1273,7 @@ const SkillSettings: React.FC = () => {
                         renderInstalledSkillGrid(customInstalledSkills)
                       )
                     ) : (
-                      <div className='bg-fill-1 border border-dashed rd-12px px-14px py-18px text-12px text-secondary'>{t('settings.noCustomSkills')}</div>
+                      <div className='bg-fill-1 border border-dashed rd-12px px-14px py-18px text-12px text-secondary f-center'>{t('settings.noCustomSkills')}</div>
                     )}
                   </section>
 
