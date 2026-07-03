@@ -48,7 +48,7 @@ export default function InstalledSkillCard({ skill, onUninstall, uninstalling, o
       </div>
 
       {/* Actions - top right */}
-      <div className='absolute top-10px right-10px flex items-center gap-6px' onClick={(e) => e.stopPropagation()}>
+      <div className='absolute top-3.5 right-10px flex items-center gap-6px' onClick={(e) => e.stopPropagation()}>
         {hasUpdate && (
           <Tooltip content={t('settings.skill.updateAvailable', '可更新')}>
             <button
@@ -64,7 +64,7 @@ export default function InstalledSkillCard({ skill, onUninstall, uninstalling, o
           </Tooltip>
         )}
         {enterprisePublishButton}
-        {canToggleEnabled && <Switch size='small' checked={isEnabled} loading={togglingEnabled} onChange={(checked) => onToggleEnabled?.(checked)} className={isEnabled ? '!bg-primary !border-[var(--color-primary)]' : ''} />}
+        {canToggleEnabled && <Switch size='small' checked={isEnabled} loading={togglingEnabled} onChange={(checked) => onToggleEnabled?.(checked)} />}
         {skill.isBuiltin ? (
           <Tooltip content={t('settings.skill.builtinSkill', '内置技能')}>
             <div className='store-action-icon cursor-default'>
