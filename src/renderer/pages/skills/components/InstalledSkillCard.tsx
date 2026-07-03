@@ -5,7 +5,7 @@
  */
 
 import React from 'react';
-import { Spin, Popconfirm, Switch, Tooltip } from '@arco-design/web-react';
+import { Button, Spin, Popconfirm, Switch, Tooltip } from '@arco-design/web-react';
 import { Trash2, Shield, Zap, Download } from 'lucide-react';
 import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
@@ -48,43 +48,28 @@ export default function InstalledSkillCard({ skill, onUninstall, uninstalling, o
       </div>
 
       {/* Actions - top right */}
-      <div className='absolute top-3.5 right-2.5 flex items-center gap-1.5' onClick={(e) => e.stopPropagation()}>
+      <div className='absolute top-1.5 right-2.5 flex items-center gap-3' onClick={(e) => e.stopPropagation()}>
         {hasUpdate && (
           <Tooltip content={t('settings.skill.updateAvailable', '可更新')}>
-            <button
-              type='button'
-              className='store-action-icon'
-              onClick={(e) => {
-                e.stopPropagation();
-                onUpdate?.();
-              }}
-            >
-              {updating ? <Spin size={10} /> : <Download size={13} />}
-            </button>
+            <Button icon={<Download size={13} />} loading={updating} onClick={() => onUpdate?.()} />
           </Tooltip>
         )}
         {enterprisePublishButton}
         {canToggleEnabled && <Switch size='small' checked={isEnabled} loading={togglingEnabled} onChange={(checked) => onToggleEnabled?.(checked)} />}
         {skill.isBuiltin ? (
           <Tooltip content={t('settings.skill.builtinSkill', '内置技能')}>
-            <div className='store-action-icon cursor-default'>
-              <Shield size={15} />
-            </div>
+            <Button icon={<Shield size={15} />} disabled />
           </Tooltip>
         ) : !canUninstall ? (
           <Tooltip content={t('settings.skill.builtinSkillCannotUninstall', '内置技能无法卸载')}>
-            <div className='store-action-icon cursor-default opacity-30'>
-              <Shield size={14} />
-            </div>
+            <Button icon={<Shield size={14} />} disabled />
           </Tooltip>
         ) : uninstalling ? (
           <Spin size={14} />
         ) : (
           <Popconfirm title={t('settings.skill.uninstallConfirm', '确认卸载该技能？')} onOk={onUninstall} okText={t('common.uninstall', '卸载')} cancelText={t('common.cancel', '取消')} okButtonProps={{ status: 'danger' }}>
             <Tooltip content={t('common.delete', '删除')}>
-              <div className='store-action-icon store-action-icon--danger'>
-                <Trash2 size={15} />
-              </div>
+              <Button status='danger' icon={<Trash2 size={15} />} />
             </Tooltip>
           </Popconfirm>
         )}
