@@ -1057,7 +1057,7 @@ const SkillSettings: React.FC = () => {
     <PageWrapper>
       <div ref={containerRef} className='flex flex-col h-full w-full'>
         {/* Header: tabs + search + create button */}
-        <div className='flex items-center gap-12px mb-12px'>
+        <div className='flex items-center gap-24px mb-12px'>
           {/* Tab switcher */}
           <Tabs
             variant='line'
@@ -1100,9 +1100,7 @@ const SkillSettings: React.FC = () => {
           )}
 
           {/* Search - always rendered to preserve layout, hidden on installed tab */}
-          <div className={classNames('flex-1 min-w-0 transition-opacity duration-150', activeTab === 'installed' ? 'opacity-0 pointer-events-none' : '')}>
-            <Input placeholder={t('settings.skill.searchPlaceholder', { defaultValue: '搜索...' })} value={searchQuery} onChange={setSearchQuery} prefix={<Search size='14' className='text-tertiary' />} size='small' />
-          </div>
+          <Input placeholder={t('settings.skill.searchPlaceholder', { defaultValue: '搜索...' })} value={searchQuery} onChange={setSearchQuery} prefix={<Search size='14' className='text-tertiary' />} size='small' className={classNames('flex-1 min-w-0', activeTab === 'installed' && 'invisible')} />
           {activeTab === 'installed' && isElectronDesktop() && (
             <button
               type='button'

@@ -2308,7 +2308,7 @@ const AgentModalContent: React.FC = () => {
       {agentMessageContext}
 
       {/* Header: tabs + search + create button */}
-      <div className='flex items-center gap-12px mb-12px'>
+      <div className='flex items-center gap-24px mb-12px'>
         {/* Tab switcher */}
         <Tabs
           variant='line'
@@ -2345,9 +2345,14 @@ const AgentModalContent: React.FC = () => {
         )}
 
         {/* Search - for store/exclusive tabs */}
-        <div className={classNames('flex-1 min-w-0 transition-opacity duration-150', activeTab === 'installed' ? 'opacity-0 pointer-events-none' : '')}>
-          <Input placeholder={t('settings.assistant.searchPlaceholder', { defaultValue: '搜索...' })} value={hubSearchQuery} onChange={setHubSearchQuery} prefix={<Search size='14' className='text-tertiary' />} size='small' className='assistant-hub-input' />
-        </div>
+        <Input
+          placeholder={t('settings.assistant.searchPlaceholder', { defaultValue: '搜索...' })}
+          value={hubSearchQuery}
+          onChange={setHubSearchQuery}
+          prefix={<Search size='14' className='text-tertiary' />}
+          size='small'
+          className={classNames('flex-1 min-w-0 assistant-hub-input', activeTab === 'installed' && 'invisible')}
+        />
 
         {/* Create button — only on installed tab */}
         {activeTab === 'installed' && (
