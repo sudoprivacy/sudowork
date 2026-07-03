@@ -24,8 +24,8 @@ export default function InstalledSkillCard({ skill, onUninstall, uninstalling, o
   return (
     <div className={classNames('item-card group flex items-start gap-3 relative overflow-hidden', !isEnabled && 'opacity-65', !hasDetail && 'cursor-default')} onClick={hasDetail ? onClick : undefined}>
       {/* Icon */}
-      <div className='w-48px flex-shrink-0'>
-        <div className='w-48px h-48px rd-8px overflow-hidden'>
+      <div className='w-12 flex-shrink-0'>
+        <div className='size-12 rd-8px overflow-hidden'>
           {icon ? (
             <img src={icon} alt={displayName} className='w-full h-full object-cover' onError={handleSkillIconError} />
           ) : emoji ? (
@@ -40,15 +40,15 @@ export default function InstalledSkillCard({ skill, onUninstall, uninstalling, o
 
       {/* Content */}
       <div className='flex-1 min-w-0'>
-        <div className='flex items-center gap-6px pr-58px min-w-0'>
+        <div className='flex items-center gap-1.5 pr-14.5 min-w-0'>
           <span className='flex-1 min-w-0 font-medium text-13px text-foreground truncate'>{displayName}</span>
-          {!skill.isBuiltin && displayVersion && <span className='px-5px py-0px bg-fill-3 text-secondary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px'>v{displayVersion}</span>}
+          {!skill.isBuiltin && displayVersion && <span className='px-[5px] py-0 bg-fill-3 text-secondary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px'>v{displayVersion}</span>}
         </div>
-        <div className='mt-3px min-h-30px'>{description ? <div className='text-11px text-secondary line-clamp-2 leading-15px'>{description}</div> : <div className='text-11px text-tertiary italic line-clamp-2 leading-15px'>{skill.name}</div>}</div>
+        <div className='mt-[3px] min-h-7.5'>{description ? <div className='text-11px text-secondary line-clamp-2 leading-15px'>{description}</div> : <div className='text-11px text-tertiary italic line-clamp-2 leading-15px'>{skill.name}</div>}</div>
       </div>
 
       {/* Actions - top right */}
-      <div className='absolute top-3.5 right-10px flex items-center gap-6px' onClick={(e) => e.stopPropagation()}>
+      <div className='absolute top-3.5 right-2.5 flex items-center gap-1.5' onClick={(e) => e.stopPropagation()}>
         {hasUpdate && (
           <Tooltip content={t('settings.skill.updateAvailable', '可更新')}>
             <button

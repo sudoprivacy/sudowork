@@ -123,15 +123,15 @@ export default function SkillDetailModal({
     <Modal visible={visible} onCancel={onClose} footer={null} maskClosable style={{ width: 480 }}>
       <div className='flex flex-col max-h-80vh'>
         <AionScrollArea className='flex-1 min-h-0'>
-          <div className='px-8px pb-16px'>
+          <div className='px-2 pb-4'>
             {/* Icon + Name header */}
-            <div className='flex flex-col items-center mb-20px'>
-              <div className='w-72px h-72px rd-14px overflow-hidden mb-12px'>{skill.icon ? <img src={skill.icon} alt={skill.display_name} className='w-full h-full object-cover' onError={handleSkillIconError} /> : <div className='w-full h-full f-center text-34px'>{skill.emoji || '📦'}</div>}</div>
+            <div className='flex flex-col items-center mb-5'>
+              <div className='size-18 rd-14px overflow-hidden mb-3'>{skill.icon ? <img src={skill.icon} alt={skill.display_name} className='w-full h-full object-cover' onError={handleSkillIconError} /> : <div className='w-full h-full f-center text-34px'>{skill.emoji || '📦'}</div>}</div>
               <div className='font-semibold text-17px text-foreground text-center'>{skill.display_name}</div>
               {skill.categories && skill.categories.length > 0 && (
-                <div className='flex gap-4px mt-6px flex-wrap justify-center'>
+                <div className='flex gap-1 mt-1.5 flex-wrap justify-center'>
                   {skill.categories.map((cat, idx) => (
-                    <span key={idx} className='px-7px py-1px bg-fill-2 text-secondary text-11px rd-4px'>
+                    <span key={idx} className='px-[7px] py-[1px] bg-control text-secondary text-11px rd-4px'>
                       {cat}
                     </span>
                   ))}
@@ -140,14 +140,14 @@ export default function SkillDetailModal({
             </div>
 
             {loading ? (
-              <div className='flex justify-center py-32px'>
+              <div className='flex justify-center py-8'>
                 <Spin />
               </div>
             ) : (
-              <div className='space-y-16px'>
+              <div className='space-y-4'>
                 {/* 技能介绍 */}
-                <div className='bg-fill-1 rd-10px p-14px'>
-                  <div className='flex items-center gap-6px mb-8px'>
+                <div className='bg-control rd-10px p-3.5'>
+                  <div className='flex items-center gap-1.5 mb-2'>
                     <span className='text-14px'>✦</span>
                     <span className='font-medium text-13px text-foreground'>{t('settings.skill.introduction', '技能介绍')}</span>
                   </div>
@@ -156,15 +156,15 @@ export default function SkillDetailModal({
 
                 {/* 怎么使用 */}
                 {(coreFeatures.length > 0 || applicableScenarios.length > 0) && (
-                  <div className='bg-fill-1 rd-10px p-14px'>
-                    <div className='flex items-center gap-6px mb-10px'>
+                  <div className='bg-control rd-10px p-3.5'>
+                    <div className='flex items-center gap-1.5 mb-2.5'>
                       <span className='text-14px'>📄</span>
                       <span className='font-medium text-13px text-foreground'>{t('settings.skill.howToUse', '怎么使用？')}</span>
                     </div>
-                    <div className='space-y-6px'>
+                    <div className='space-y-1.5'>
                       {coreFeatures.map((feature, idx) => (
-                        <div key={idx} className='flex items-start gap-6px'>
-                          <span className='text-secondary text-11px mt-1px flex-shrink-0'>•</span>
+                        <div key={idx} className='flex items-start gap-1.5'>
+                          <span className='text-secondary text-11px mt-[1px] flex-shrink-0'>•</span>
                           <div className='text-12px text-secondary leading-relaxed'>
                             {feature.title}
                             {feature.desc && <span>{feature.title ? `，${feature.desc}` : feature.desc}</span>}
@@ -172,8 +172,8 @@ export default function SkillDetailModal({
                         </div>
                       ))}
                       {applicableScenarios.map((scenario, idx) => (
-                        <div key={`s-${idx}`} className='flex items-start gap-6px'>
-                          <span className='text-tertiary text-11px mt-1px flex-shrink-0'>•</span>
+                        <div key={`s-${idx}`} className='flex items-start gap-1.5'>
+                          <span className='text-tertiary text-11px mt-[1px] flex-shrink-0'>•</span>
                           <div className='text-12px text-secondary leading-relaxed'>{scenario}</div>
                         </div>
                       ))}
@@ -189,8 +189,8 @@ export default function SkillDetailModal({
         </AionScrollArea>
 
         {/* Action buttons — hidden when opened from installed tab */}
-        <div className={classNames('px-8px pt-12px border-t mt-4px', hideActions && 'hidden')}>
-          <div className='flex gap-8px items-center'>
+        <div className={classNames('px-2 pt-3 border-t mt-1', hideActions && 'hidden')}>
+          <div className='flex gap-2 items-center'>
             {isInstalled ? (
               <>
                 {hasUpdate ? (
@@ -206,16 +206,12 @@ export default function SkillDetailModal({
                 )}
                 {canUninstall &&
                   (uninstalling ? (
-                    <div className='w-36px h-36px flex items-center justify-center'>
+                    <div className='size-9 f-center'>
                       <Spin size={16} />
                     </div>
                   ) : (
                     <Popconfirm title={t('settings.skill.uninstallConfirm', '确认卸载该技能？')} onOk={onUninstall} okText={t('common.uninstall', '卸载')} cancelText={t('common.cancel', '取消')} okButtonProps={{ status: 'danger' }}>
-                      <Tooltip content={t('common.delete', '删除')}>
-                        <div className='w-36px h-36px f-center rd-8px border hover:bg-fill-2 cursor-pointer transition-colors text-secondary'>
-                          <Trash2 size={16} />
-                        </div>
-                      </Tooltip>
+                      <Button size='large' icon={<Trash2 size={16} />} />
                     </Popconfirm>
                   ))}
               </>
@@ -225,16 +221,12 @@ export default function SkillDetailModal({
               </div>
             ) : hasVersion ? (
               <>
-                <Tooltip content={t('settings.skill.install', '安装')}>
-                  <Button type='primary' long size='large' icon={<PackagePlus size={15} />} onClick={onInstall} disabled={downloading}>
-                    {t('settings.skill.install', '安装')}
-                  </Button>
-                </Tooltip>
-                <Tooltip content={t('common.download', '下载')}>
-                  <Button size='large' icon={<IconDownload style={{ fontSize: 15 }} />} loading={downloading} loadingFixedWidth onClick={onDownload} disabled={installing}>
-                    {t('common.download', '下载')}
-                  </Button>
-                </Tooltip>
+                <Button type='primary' long size='large' icon={<PackagePlus size={15} />} onClick={onInstall} disabled={downloading}>
+                  {t('settings.skill.install', '安装')}
+                </Button>
+                <Button size='large' icon={<IconDownload style={{ fontSize: 15 }} />} loading={downloading} loadingFixedWidth onClick={onDownload} disabled={installing}>
+                  {t('common.download', '下载')}
+                </Button>
               </>
             ) : null}
           </div>

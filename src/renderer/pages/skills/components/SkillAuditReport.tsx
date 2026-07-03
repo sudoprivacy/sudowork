@@ -94,34 +94,34 @@ export const SkillAuditDetailModal: React.FC<{
     <Modal visible={visible} onCancel={onClose} footer={null} closable={false} maskClosable style={{ width: 560 }} className='skill-audit-detail-modal' wrapStyle={{ zIndex: 1100 }} maskStyle={{ zIndex: 1100 }}>
       <div className='flex flex-col max-h-80vh'>
         {/* Header */}
-        <div className='flex items-center justify-between mb-12px'>
-          <div className='flex items-center gap-8px'>
+        <div className='flex items-center justify-between mb-3'>
+          <div className='flex items-center gap-2'>
             <Shield size={16} className='text-success' />
             <span className='font-semibold text-15px text-foreground'>{t('settings.skill.audit.detailTitle', '安全审计详情')}</span>
             <span className='text-12px text-tertiary'>— {skillName}</span>
           </div>
-          <div className='flex items-center gap-8px'>
-            <button type='button' className='text-11px px-8px py-3px rd-4px bg-fill-2 hover:bg-fill-3 text-secondary cursor-pointer border-none outline-none transition-colors' onClick={() => void handleRerunAudit()} disabled={loading}>
+          <div className='flex items-center gap-2'>
+            <button type='button' className='text-11px px-2 py-[3px] rd-4px bg-fill-2 hover:bg-fill-3 text-secondary cursor-pointer border-none outline-none transition-colors' onClick={() => void handleRerunAudit()} disabled={loading}>
               {t('settings.skill.audit.rerun', '重新审计')}
             </button>
-            <div className='w-28px h-28px f-center rd-full bg-fill-2 hover:bg-fill-3 cursor-pointer transition-colors text-secondary' onClick={onClose}>
+            <div className='size-7 f-center rd-full bg-fill-2 hover:bg-fill-3 cursor-pointer transition-colors text-secondary' onClick={onClose}>
               <X size={14} />
             </div>
           </div>
         </div>
 
         {loading ? (
-          <div className='flex justify-center py-48px'>
+          <div className='flex justify-center py-12'>
             <Spin size={24} />
           </div>
         ) : !report ? (
-          <div className='flex flex-col items-center justify-center py-48px text-secondary'>
+          <div className='flex flex-col items-center justify-center py-12 text-secondary'>
             <span className='text-13px'>{t('settings.skill.audit.noReport', '暂无审计报告')}</span>
           </div>
         ) : (
           <>
             {/* Info bar */}
-            <div className='flex items-center gap-12px mb-12px text-11px text-tertiary'>
+            <div className='flex items-center gap-3 mb-3 text-11px text-tertiary'>
               <span>
                 {t('settings.skill.audit.scannedFiles', '扫描文件')}：{report.scannedFiles}/{report.totalFiles}
               </span>
@@ -134,7 +134,7 @@ export const SkillAuditDetailModal: React.FC<{
             </div>
 
             {/* Category filter tabs */}
-            <div className='flex gap-4px mb-12px overflow-x-auto pb-2px scrollbar-hide flex-shrink-0'>
+            <div className='flex gap-1 mb-3 overflow-x-auto pb-0.5 scrollbar-hide flex-shrink-0'>
               <CategoryFilterTab label={t('settings.skill.audit.all', '全部')} count={report.findings.length} active={selectedCategory === 'all'} onClick={() => setSelectedCategory('all')} />
               {report.categorySummaries
                 .filter((s) => s.found)
@@ -146,11 +146,11 @@ export const SkillAuditDetailModal: React.FC<{
             {/* Findings list */}
             <AionScrollArea className='flex-1 min-h-0'>
               {filteredFindings.length === 0 ? (
-                <div className='flex flex-col items-center justify-center py-32px text-tertiary'>
+                <div className='flex flex-col items-center justify-center py-8 text-tertiary'>
                   <span className='text-12px'>{t('settings.skill.audit.noFindings', '该类别下无发现')}</span>
                 </div>
               ) : (
-                <div className='space-y-12px pb-16px'>
+                <div className='space-y-3 pb-4'>
                   {Array.from(groupedByFile.entries()).map(([file, findings]) => (
                     <FileFindings key={file} file={file} findings={findings} />
                   ))}
@@ -174,7 +174,7 @@ const CategoryFilterTab: React.FC<{
 }> = ({ label, count, active, onClick }) => (
   <button
     type='button'
-    className={`px-10px py-4px rd-16px text-11px cursor-pointer transition-colors whitespace-nowrap flex-shrink-0 border-none outline-none flex items-center gap-4px ${active ? 'bg-primary text-white' : 'bg-fill-2 text-secondary hover:bg-fill-3 hover:text-foreground'}`}
+    className={`px-2.5 py-1 rd-16px text-11px cursor-pointer transition-colors whitespace-nowrap flex-shrink-0 border-none outline-none flex items-center gap-1 ${active ? 'bg-primary text-white' : 'bg-fill-2 text-secondary hover:bg-fill-3 hover:text-foreground'}`}
     onClick={onClick}
   >
     {label}
@@ -194,7 +194,7 @@ const FileFindings: React.FC<{
   return (
     <div className='bg-fill-1 rd-8px overflow-hidden'>
       {/* File header */}
-      <div className='px-12px py-8px bg-fill-2 border-b'>
+      <div className='px-3 py-2 bg-fill-2 border-b'>
         <span className='text-12px font-medium text-foreground font-mono'>{file}</span>
         <span className='text-11px text-tertiary ml-2'>
           ({findings.length} {t('settings.skill.audit.places', '处调用')})
@@ -219,19 +219,19 @@ const FindingRow: React.FC<{ finding: AuditFinding }> = ({ finding }) => {
   const categoryEmoji = getCategoryEmoji(finding.category);
 
   return (
-    <div className='px-12px py-8px hover:bg-fill-2/50 transition-colors'>
-      <div className='flex items-center gap-6px mb-3px'>
+    <div className='px-3 py-2 hover:bg-fill-2/50 transition-colors'>
+      <div className='flex items-center gap-1.5 mb-[3px]'>
         <span className='text-12px'>{categoryEmoji}</span>
         <span className='text-11px text-secondary'>{config.label}</span>
         <span className='text-11px text-tertiary'>·</span>
         <span className='text-11px text-tertiary font-mono'>L{finding.line}</span>
       </div>
-      <div className='bg-fill-2 rd-4px px-8px py-4px mb-3px'>
+      <div className='bg-fill-2 rd-4px px-2 py-1 mb-[3px]'>
         <code className='text-11px text-foreground font-mono break-all leading-relaxed'>{finding.code}</code>
       </div>
       <div className='text-11px text-tertiary'>
         {finding.description}
-        {finding.detail && <span className='text-primary ml-4px'>→ {finding.detail}</span>}
+        {finding.detail && <span className='text-primary ml-1'>→ {finding.detail}</span>}
       </div>
     </div>
   );

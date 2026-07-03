@@ -52,12 +52,12 @@ export default function SkillAuditSummary({ skillName, onViewDetails }: ISkillAu
 
   if (loading) {
     return (
-      <div className='bg-fill-1 rd-10px p-14px'>
-        <div className='flex items-center gap-6px mb-8px'>
+      <div className='bg-fill-1 rd-10px p-3.5'>
+        <div className='flex items-center gap-1.5 mb-2'>
           <Shield size={14} className='text-success' />
           <span className='font-medium text-13px text-foreground'>{t('settings.skill.audit.title', '安全审查结果')}</span>
         </div>
-        <div className='flex justify-center py-12px'>
+        <div className='flex justify-center py-3'>
           <Spin size={16} />
         </div>
       </div>
@@ -66,38 +66,38 @@ export default function SkillAuditSummary({ skillName, onViewDetails }: ISkillAu
 
   if (!report) {
     return (
-      <div className='bg-fill-1 rd-10px p-14px'>
-        <div className='flex items-center gap-6px mb-8px'>
+      <div className='bg-fill-1 rd-10px p-3.5'>
+        <div className='flex items-center gap-1.5 mb-2'>
           <Shield size={14} className='text-success' />
           <span className='font-medium text-13px text-foreground'>{t('settings.skill.audit.title', '安全审查结果')}</span>
         </div>
-        <div className='text-12px text-tertiary text-center py-12px'>{t('settings.skill.audit.noReport', '暂无审计报告')}</div>
+        <div className='text-12px text-tertiary text-center py-3'>{t('settings.skill.audit.noReport', '暂无审计报告')}</div>
       </div>
     );
   }
 
   return (
-    <div className='bg-fill-1 rd-10px p-14px'>
+    <div className='bg-fill-1 rd-10px p-3.5'>
       {/* Header */}
-      <div className='flex items-center gap-6px mb-8px'>
+      <div className='flex items-center gap-1.5 mb-2'>
         <Shield size='14' className='text-success' />
         <span className='font-medium text-13px text-foreground'>{t('settings.skill.audit.title', '安全审查结果')}</span>
       </div>
 
       {/* Summary description */}
-      <div className='text-12px text-secondary mb-10px'>{report.hasFindings ? t('settings.skill.audit.summaryWithFindings', '经过安全审查，该技能包存在以下操作：') : t('settings.skill.audit.summaryNoFindings', '经过严格的安全审查，确认该技能包：')}</div>
+      <div className='text-12px text-secondary mb-2.5'>{report.hasFindings ? t('settings.skill.audit.summaryWithFindings', '经过安全审查，该技能包存在以下操作：') : t('settings.skill.audit.summaryNoFindings', '经过严格的安全审查，确认该技能包：')}</div>
 
       {/* Category list */}
-      <div className='space-y-6px'>
+      <div className='space-y-1.5'>
         {report.categorySummaries.map((summary) => (
           <CategoryRow key={summary.category} summary={summary} />
         ))}
       </div>
 
       {/* Report path and view details */}
-      <div className='mt-10px pt-8px border-t flex items-center justify-between'>
+      <div className='mt-2.5 pt-2 border-t flex items-center justify-between'>
         {report.reportPath && (
-          <div className='text-11px truncate flex-1 min-w-0 mr-8px'>
+          <div className='text-11px truncate flex-1 min-w-0 mr-2'>
             {t('settings.skill.audit.reportPath', '安全审计报告')}：{report.reportPath}
           </div>
         )}
@@ -127,7 +127,7 @@ function CategoryRow({ summary }: { summary: AuditCategorySummary }) {
 
   if (!summary.found) {
     return (
-      <div className='flex items-start gap-6px'>
+      <div className='flex items-start gap-1.5'>
         <span className='text-14px flex-shrink-0 leading-18px'>✅</span>
         <span className='text-12px text-secondary leading-18px'>
           {t(`settings.skill.audit.no_${summary.category}` as any, {
@@ -141,7 +141,7 @@ function CategoryRow({ summary }: { summary: AuditCategorySummary }) {
   }
 
   return (
-    <div className='flex items-start gap-6px'>
+    <div className='flex items-start gap-1.5'>
       <span className='text-14px flex-shrink-0 leading-18px'>⚠️</span>
       <span className='text-12px text-secondary leading-18px'>
         {summary.label}

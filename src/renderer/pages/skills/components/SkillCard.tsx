@@ -16,24 +16,24 @@ export default function SkillCard({ skill, isInstalled, hasVersion, installing, 
   return (
     <div className='item-card group flex items-start gap-3 relative overflow-hidden' onClick={onClick}>
       {/* Icon */}
-      <div className='w-48px flex-shrink-0 flex flex-col items-center'>
-        <div className='w-48px h-48px rd-8px overflow-hidden'>{skill.icon ? <img src={skill.icon} alt={skill.display_name} className='w-full h-full object-cover' onError={handleSkillIconError} /> : <div className='w-full h-full f-center text-22px'>{skill.emoji || '📦'}</div>}</div>
+      <div className='w-12 flex-shrink-0 flex flex-col items-center'>
+        <div className='size-12 rd-8px overflow-hidden'>{skill.icon ? <img src={skill.icon} alt={skill.display_name} className='w-full h-full object-cover' onError={handleSkillIconError} /> : <div className='w-full h-full f-center text-22px'>{skill.emoji || '📦'}</div>}</div>
       </div>
 
       {/* Content */}
       <div className='flex-1 min-w-0'>
-        <div className='flex items-center gap-6px pr-58px min-w-0'>
+        <div className='flex items-center gap-1.5 pr-14.5 min-w-0'>
           <span className='flex-1 min-w-0 font-medium text-13px text-foreground truncate'>{skill.display_name}</span>
-          {loadingVersion && !latestVersion && <span className='px-5px py-0px bg-fill-3 text-tertiary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px animate-pulse'>...</span>}
-          {latestVersion && <span className='px-5px py-0px bg-fill-3 text-secondary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px'>v{latestVersion}</span>}
+          {loadingVersion && !latestVersion && <span className='px-[5px] py-0 bg-fill-3 text-tertiary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px animate-pulse'>...</span>}
+          {latestVersion && <span className='px-[5px] py-0 bg-fill-3 text-secondary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px'>v{latestVersion}</span>}
         </div>
-        <div className='text-11px text-secondary mt-3px line-clamp-2 leading-relaxed'>{skill.description}</div>
+        <div className='text-11px text-secondary mt-[3px] line-clamp-2 leading-relaxed'>{skill.description}</div>
       </div>
 
       {/* Action - top right */}
-      <div className='absolute top-10px right-10px flex items-center' onClick={(e) => e.stopPropagation()}>
+      <div className='absolute top-2.5 right-2.5 flex items-center' onClick={(e) => e.stopPropagation()}>
         {installing || updating ? (
-          <div className='w-52px'>
+          <div className='w-13'>
             <Progress percent={installProgress} size='mini' />
           </div>
         ) : isInstalled && hasUpdate ? (
