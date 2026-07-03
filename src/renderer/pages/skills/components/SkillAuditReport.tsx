@@ -19,9 +19,7 @@ import { useTranslation } from 'react-i18next';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { skillHub } from '@/common/ipcBridge';
 import { isElectronDesktop } from '@/renderer/utils/platform';
-import type { SkillAuditReport, AuditFinding, AuditCategory } from '@/common/skillAuditTypes';
-import { AUDIT_CATEGORY_CONFIG } from '@/common/skillAuditTypes';
-import SkillAuditSummary from './SkillAuditSummary';
+import { AUDIT_CATEGORY_CONFIG, type SkillAuditReport, type AuditFinding, type AuditCategory } from '@/common/skillAuditTypes';
 
 // ==================== Audit Detail Modal ====================
 
@@ -236,44 +234,6 @@ const FindingRow: React.FC<{ finding: AuditFinding }> = ({ finding }) => {
         {finding.detail && <span className='text-primary ml-4px'>→ {finding.detail}</span>}
       </div>
     </div>
-  );
-};
-
-// ==================== Standalone Audit Report Modal ====================
-
-/**
- * Standalone modal that shows ONLY the audit summary card.
- * Used after importing a custom skill — avoids showing the full skill detail page.
- * Includes a "View Details" button to open the full audit detail modal.
- */
-export const SkillAuditReportModal: React.FC<{
-  skillName: string;
-  visible: boolean;
-  onClose: () => void;
-  /** Called when user clicks "View Audit Details" to open the detailed findings modal */
-  onViewAuditDetails?: (skillName: string) => void;
-}> = ({ skillName, visible, onClose, onViewAuditDetails }) => {
-  const { t } = useTranslation();
-
-  return (
-    <Modal visible={visible} onCancel={onClose} footer={null} closable={false} maskClosable style={{ width: 480 }} className='skill-audit-report-modal' wrapStyle={{ zIndex: 2000 }} maskStyle={{ zIndex: 2000 }} getPopupContainer={() => document.body}>
-      <div className='flex flex-col'>
-        {/* Header */}
-        <div className='flex items-center justify-between mb-12px'>
-          <div className='flex items-center gap-8px'>
-            <Shield size='16' className='text-success' />
-            <span className='font-semibold text-15px text-foreground'>{t('settings.skill.audit.reportTitle', { defaultValue: '安全审计报告' })}</span>
-            <span className='text-12px text-tertiary'>— {skillName}</span>
-          </div>
-          <div className='w-28px h-28px f-center rd-full bg-fill-2 hover:bg-fill-3 cursor-pointer transition-colors text-secondary' onClick={onClose}>
-            <Close size='14' />
-          </div>
-        </div>
-
-        {/* Audit summary card */}
-        <SkillAuditSummary skillName={skillName} onViewDetails={onViewAuditDetails ? () => onViewAuditDetails(skillName) : undefined} />
-      </div>
-    </Modal>
   );
 };
 
