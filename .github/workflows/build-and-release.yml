@@ -23,6 +23,11 @@ on:
         required: false
         type: boolean
         default: false
+      cos_smoke_test:
+        description: 'Smoke-test the COS release upload against sudowork/release/ci-smoke-test (never touches the live feed)'
+        required: false
+        type: boolean
+        default: false
   # 正式发布：推送 v* 标签时自动触发
   push:
     tags:
@@ -283,13 +288,16 @@ jobs:
           token: ${{ secrets.GH_TOKEN }}
 
       - name: Upload to Tencent COS
-        # 【变更】仅正式发布 v* 标签时上传 COS latest，dev 版本和 RC 版本都不上传
-        if: steps.version.outputs.is_dev == 'false' && steps.version.outputs.is_rc == 'false' && env.TENCENT_SECRET_ID != '' && env.TENCENT_SECRET_KEY != ''
+        # 【变更】仅正式发布 v* 标签时上传 COS latest，dev 版本和 RC 版本都不上传。
+        # 例外：手动 dispatch 勾选 cos_smoke_test 时，把真实构建产物上传到
+        # ci-smoke-test 测试前缀，走同一套上传+校验逻辑（绝不写 latest/）。
+        if: (steps.version.outputs.is_dev == 'false' && steps.version.outputs.is_rc == 'false' || inputs.cos_smoke_test == true) && env.TENCENT_SECRET_ID != '' && env.TENCENT_SECRET_KEY != ''
         env:
           TENCENT_SECRET_ID: ${{ secrets.TENCENT_SECRET_ID }}
           TENCENT_SECRET_KEY: ${{ secrets.TENCENT_SECRET_KEY }}
           COS_BUCKET: sudowork-release-1309794936
           COS_REGION: ap-beijing
+          COS_SMOKE_TEST: ${{ inputs.cos_smoke_test == true && steps.version.outputs.is_dev == 'true' }}
         run: |
           set -euo pipefail
 
@@ -301,7 +309,15 @@ jobs:
           # re-enable in the COS console and switch back to cos.accelerate.myqcloud.com to speed up uploads).
           coscmd config -a $TENCENT_SECRET_ID -s $TENCENT_SECRET_KEY -b $COS_BUCKET -e cos.accelerate.myqcloud.com
 
-          COS_PATH="sudowork/release/latest"
+          # Smoke test mode uploads to an isolated prefix so the live update feed is
+          # never touched. The live path is only ever used for non-dev, non-RC tags.
+          if [ "$COS_SMOKE_TEST" = "true" ]; then
+            COS_PATH="sudowork/release/ci-smoke-test"
+            echo "🧪 COS smoke-test mode: uploading to $COS_PATH"
+            coscmd delete -r "$COS_PATH/" -f 2>/dev/null || true
+          else
+            COS_PATH="sudowork/release/latest"
+          fi
 
           echo "📤 Uploading release assets to COS..."
           echo "Target path: $COS_PATH"
@@ -355,6 +371,32 @@ jobs:
               echo "  Uploading: $yml"
               coscmd upload -H '{"Cache-Control":"no-cache"}' "release-assets/$yml" "$COS_PATH/$yml"
             fi
+          done
+
+          # 4) Verify the feed end-to-end from a client's perspective: every yml must be
+          #    publicly fetchable, every file it references must exist, and every updater
+          #    package (.exe / mac .zip) must have its blockmap next to it.
+          BASE_URL="https://$COS_BUCKET.cos.$COS_REGION.myqcloud.com/$COS_PATH"
+          echo "🔍 Verifying feed at $BASE_URL"
+          for yml in latest.yml latest-mac.yml arm64-mac.yml win-arm64.yml; do
+            [ -f "release-assets/$yml" ] || continue
+            echo "--- $yml"
+            curl -fsI "$BASE_URL/$yml" > /dev/null || { echo "❌ $yml not fetchable from COS"; exit 1; }
+            if ! curl -fsSI "$BASE_URL/$yml" | grep -i '^cache-control'; then
+              echo "⚠️ $yml is missing the Cache-Control header (CDN may cache it too long)"
+            fi
+            grep -E '^[[:space:]]*-?[[:space:]]*url:' "release-assets/$yml" | sed -E 's/^[[:space:]]*-?[[:space:]]*url:[[:space:]]*//' | while read -r ref; do
+              curl -fsI "$BASE_URL/$ref" > /dev/null || { echo "❌ referenced file missing on COS: $ref"; exit 1; }
+              case "$ref" in
+                *.exe|*-mac-*.zip)
+                  curl -fsI "$BASE_URL/$ref.blockmap" > /dev/null || { echo "❌ blockmap missing on COS: $ref.blockmap"; exit 1; }
+                  echo "  ✓ $ref (+ blockmap)"
+                  ;;
+                *)
+                  echo "  ✓ $ref"
+                  ;;
+              esac
+            done
           done
 
           echo "✅ Upload to COS completed"
