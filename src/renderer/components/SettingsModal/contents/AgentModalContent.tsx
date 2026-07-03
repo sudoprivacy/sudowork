@@ -5,7 +5,7 @@
  */
 
 import { Avatar, Button, Checkbox, Collapse, Drawer, Input, Message, Modal, Popconfirm, Progress, Select, Spin, Switch, Tooltip, Typography } from '@arco-design/web-react';
-import { Close, Copy, Delete, Edit, Lightning, PreviewOpen, Plus, Robot, Shield, Search, Install, Upload, Share, Check } from '@icon-park/react';
+import { Copy, Delete, Edit, Lightning, PreviewOpen, Plus, Robot, Shield, Search, Install, Upload, Share, Check } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -518,15 +518,8 @@ const AssistantDetailModal: React.FC<{
   const associatedSkillIds = !isEnterprise && assistant.skills?.length > 0 ? assistant.skills : relatedSkillDetails.map((s) => s.id);
 
   return (
-    <Modal visible={visible} onCancel={onClose} footer={null} closable={false} maskClosable style={{ width: 480 }} className='assistant-detail-modal' wrapClassName='assistant-detail-modal-wrap'>
+    <Modal visible={visible} onCancel={onClose} footer={null} style={{ width: 480 }}>
       <div className='flex flex-col max-h-80vh'>
-        {/* Close button */}
-        <div className='flex justify-end mb-4px'>
-          <div className='w-28px h-28px f-center rd-full bg-fill-2 hover:bg-fill-3 cursor-pointer transition-colors text-secondary' onClick={onClose}>
-            <Close size='14' />
-          </div>
-        </div>
-
         <AionScrollArea className='flex-1 min-h-0'>
           <div className='px-8px pb-16px'>
             {/* Icon + Name header */}
