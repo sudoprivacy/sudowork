@@ -193,7 +193,7 @@ const SkillSettings: React.FC = () => {
           Message.success(
             t('settings.skill.uploadSuccess', {
               name: skillName,
-              defaultValue: `技能 "${skillName}" 已上传到服务器`,
+              defaultValue: '技能 "{{name}}" 已上传到服务器',
             })
           );
           // Update local meta to mark as uploaded
@@ -227,7 +227,7 @@ const SkillSettings: React.FC = () => {
           Message.success(
             t('settings.skill.importSuccess', {
               name: importedSkillName,
-              defaultValue: `已导入技能：${importedSkillName}`,
+              defaultValue: '已导入技能：{{name}}',
             })
           );
           await fetchInstalledSkills();
@@ -248,7 +248,7 @@ const SkillSettings: React.FC = () => {
                   Message.error(
                     t('settings.skill.uploadFailed', {
                       msg: uploadRes.msg,
-                      defaultValue: `上传失败: ${uploadRes.msg}`,
+                      defaultValue: '上传失败: {{msg}}',
                     })
                   );
                 }
@@ -259,7 +259,7 @@ const SkillSettings: React.FC = () => {
           Message.error(
             t('settings.skill.importFailed', {
               msg: res.msg || 'Unknown error',
-              defaultValue: `导入失败: ${res.msg || '未知错误'}`,
+              defaultValue: '导入失败: {{msg}}',
             })
           );
         }
@@ -268,7 +268,7 @@ const SkillSettings: React.FC = () => {
         Message.error(
           t('settings.skill.importFailed', {
             msg: String(err),
-            defaultValue: `导入失败: ${String(err)}`,
+            defaultValue: '导入失败: {{msg}}',
           })
         );
       }
@@ -292,7 +292,7 @@ const SkillSettings: React.FC = () => {
           Message.success(
             t('settings.skill.publishSuccess', {
               name: skillName,
-              defaultValue: `技能 "${skillName}" 已提交发布申请，等待管理员审批`,
+              defaultValue: '技能 "{{name}}" 已提交发布申请，等待管理员审批',
             })
           );
           await fetchInstalledList();
@@ -300,7 +300,7 @@ const SkillSettings: React.FC = () => {
           Message.error(
             t('settings.skill.publishFailed', {
               msg: res.msg || 'Unknown error',
-              defaultValue: `发布失败: ${res.msg || '未知错误'}`,
+              defaultValue: '发布失败: {{msg}}',
             })
           );
         }
@@ -309,7 +309,7 @@ const SkillSettings: React.FC = () => {
         Message.error(
           t('settings.skill.publishFailed', {
             msg: String(err),
-            defaultValue: `发布失败: ${String(err)}`,
+            defaultValue: '发布失败: {{msg}}',
           })
         );
       } finally {
@@ -466,7 +466,7 @@ const SkillSettings: React.FC = () => {
       } catch (err) {
         console.error('Failed to fetch skills:', err);
         setHubError({ code: 'FETCH_FAILED', message: err instanceof Error ? err.message : String(err), retriable: true });
-        Message.error(t('settings.skill.fetchFailed', { defaultValue: '获取技能失败' }));
+        Message.error(t('settings.skill.fetchFailed', '获取技能失败'));
       } finally {
         setLoading(false);
         setLoadingMore(false);
@@ -691,7 +691,7 @@ const SkillSettings: React.FC = () => {
   const handleInstall = useCallback(
     async (skillId: string) => {
       if (!isElectronDesktop()) {
-        Message.warning(t('settings.skill.desktopOnly', { defaultValue: '技能安装仅在桌面端可用' }));
+        Message.warning(t('settings.skill.desktopOnly', '技能安装仅在桌面端可用'));
         return;
       }
       const skill = skills.find((s) => s.id === skillId);
@@ -715,7 +715,7 @@ const SkillSettings: React.FC = () => {
             t('settings.skill.installSuccess', {
               name: skill.display_name,
               version: versionInfo.version,
-              defaultValue: `成功安装 ${skill.display_name} ${versionInfo.version}`,
+              defaultValue: '成功安装 {{name}} {{version}}',
             })
           );
           await fetchInstalledSkills();
@@ -725,13 +725,18 @@ const SkillSettings: React.FC = () => {
           Message.error(
             t('settings.skill.installFailed', {
               msg: res.msg || 'Unknown error',
-              defaultValue: `安装失败: ${res.msg || '未知错误'}`,
+              defaultValue: '安装失败: {{msg}}',
             })
           );
         }
       } catch (err) {
         console.error('Failed to install skill:', err);
-        Message.error(`安装失败: ${err}`);
+        Message.error(
+          t('settings.skill.installFailed', {
+            msg: String(err),
+            defaultValue: '安装失败: {{msg}}',
+          })
+        );
       } finally {
         setInstallingSkillId(null);
         setInstallProgress(0);
@@ -763,14 +768,14 @@ const SkillSettings: React.FC = () => {
           Message.success(
             t('settings.skill.downloadSuccess', {
               name: skill.display_name,
-              defaultValue: `已下载 ${skill.display_name} 到本地`,
+              defaultValue: '已下载 {{name}} 到本地',
             })
           );
         } else {
           Message.error(
             t('settings.skill.downloadFailed', {
               msg: res.msg || 'Unknown error',
-              defaultValue: `下载失败: ${res.msg || '未知错误'}`,
+              defaultValue: '下载失败: {{msg}}',
             })
           );
         }
@@ -779,7 +784,7 @@ const SkillSettings: React.FC = () => {
         Message.error(
           t('settings.skill.downloadFailed', {
             msg: String(err),
-            defaultValue: `下载失败: ${String(err)}`,
+            defaultValue: '下载失败: {{msg}}',
           })
         );
       } finally {
@@ -797,7 +802,12 @@ const SkillSettings: React.FC = () => {
       try {
         const res = await skillHub.uninstallSkill.invoke({ skillName, category });
         if (res.success) {
-          Message.success(`已卸载技能：${skillName}`);
+          Message.success(
+            t('settings.skill.uninstallSuccess', {
+              name: skillName,
+              defaultValue: '已卸载技能：{{name}}',
+            })
+          );
           await fetchInstalledSkills();
           await fetchInstalledList();
           emitter.emit('skills.changed');
@@ -806,16 +816,26 @@ const SkillSettings: React.FC = () => {
             setDetailVisible(false);
           }
         } else {
-          Message.error(`卸载失败: ${res.msg || '未知错误'}`);
+          Message.error(
+            t('settings.skill.uninstallFailed', {
+              msg: res.msg || '未知错误',
+              defaultValue: '卸载失败: {{msg}}',
+            })
+          );
         }
       } catch (err) {
         console.error('Failed to uninstall skill:', err);
-        Message.error(`卸载失败: ${err}`);
+        Message.error(
+          t('settings.skill.uninstallFailed', {
+            msg: String(err),
+            defaultValue: '卸载失败: {{msg}}',
+          })
+        );
       } finally {
         setUninstallingSkillName(null);
       }
     },
-    [fetchInstalledSkills, fetchInstalledList, detailSkill]
+    [fetchInstalledSkills, fetchInstalledList, detailSkill, t]
   );
 
   // ---- Update handler (reuses install flow to replace installed skill with newer version) ----
@@ -850,7 +870,7 @@ const SkillSettings: React.FC = () => {
             t('settings.skill.updateSuccess', {
               name: resolvedDisplayName,
               version: versionInfo.version,
-              defaultValue: `已更新 ${resolvedDisplayName} 至 v${versionInfo.version}`,
+              defaultValue: '已更新 {{name}} 至 v{{version}}',
             })
           );
           await fetchInstalledSkills();
@@ -860,7 +880,7 @@ const SkillSettings: React.FC = () => {
           Message.error(
             t('settings.skill.updateFailed', {
               msg: res.msg || 'Unknown error',
-              defaultValue: `更新失败: ${res.msg || '未知错误'}`,
+              defaultValue: '更新失败: {{msg}}',
             })
           );
         }
@@ -869,7 +889,7 @@ const SkillSettings: React.FC = () => {
         Message.error(
           t('settings.skill.updateFailed', {
             msg: String(err),
-            defaultValue: `更新失败: ${String(err)}`,
+            defaultValue: '更新失败: {{msg}}',
           })
         );
       } finally {
@@ -887,14 +907,14 @@ const SkillSettings: React.FC = () => {
       try {
         const res = await skillHub.setSkillEnabled.invoke({ skillName, enabled, category });
         if (res.success) {
-          Message.success(enabled ? t('settings.skill.enableSuccess', { name: skillName, defaultValue: `已启用技能：${skillName}` }) : t('settings.skill.disableSuccess', { name: skillName, defaultValue: `已禁用技能：${skillName}` }));
+          Message.success(enabled ? t('settings.skill.enableSuccess', { name: skillName, defaultValue: '已启用技能：{{name}}' }) : t('settings.skill.disableSuccess', { name: skillName, defaultValue: '已禁用技能：{{name}}' }));
           await fetchInstalledList();
           emitter.emit('skills.changed');
         } else {
           Message.error(
             t('settings.skill.toggleEnabledFailed', {
               msg: res.msg || 'Unknown error',
-              defaultValue: `技能状态更新失败: ${res.msg || '未知错误'}`,
+              defaultValue: '技能状态更新失败: {{msg}}',
             })
           );
         }
@@ -903,7 +923,7 @@ const SkillSettings: React.FC = () => {
         Message.error(
           t('settings.skill.toggleEnabledFailed', {
             msg: String(err),
-            defaultValue: `技能状态更新失败: ${String(err)}`,
+            defaultValue: '技能状态更新失败: {{msg}}',
           })
         );
       } finally {
@@ -1007,7 +1027,7 @@ const SkillSettings: React.FC = () => {
         // Enterprise publish button element - placed below delete button
         const enterprisePublishButton =
           isEnterprise && !publishStatus ? (
-            <Tooltip content={t('settings.skill.publishAsTenant', { defaultValue: '发布为专属技能' })}>
+            <Tooltip content={t('settings.skill.publishAsTenant', '发布为专属技能')}>
               <button
                 className='store-action-icon'
                 onClick={(e) => {
@@ -1020,12 +1040,12 @@ const SkillSettings: React.FC = () => {
               </button>
             </Tooltip>
           ) : isEnterprise && publishStatus === 'pending' ? (
-            <Tooltip content={t('settings.skill.publishPending', { defaultValue: '发布审批中' })}>
-              <span className='store-action-badge'>{t('settings.skill.publishPendingShort', { defaultValue: '审核中' })}</span>
+            <Tooltip content={t('settings.skill.publishPending', '发布审批中')}>
+              <span className='store-action-badge'>{t('settings.skill.publishPendingShort', '审核中')}</span>
             </Tooltip>
           ) : isEnterprise && publishStatus === 'approved' ? (
-            <Tooltip content={t('settings.skill.publishApproved', { defaultValue: '已发布为专属技能' })}>
-              <span className='store-action-badge text-success'>{t('settings.skill.publishedShort', { defaultValue: '已发布' })}</span>
+            <Tooltip content={t('settings.skill.publishApproved', '已发布为专属技能')}>
+              <span className='store-action-badge text-success'>{t('settings.skill.publishedShort', '已发布')}</span>
             </Tooltip>
           ) : undefined;
 
@@ -1071,13 +1091,13 @@ const SkillSettings: React.FC = () => {
               setActiveTab(value as SkillStoreTab);
             }}
             items={[
-              { value: 'store', label: t('settings.skill.storeTab', { defaultValue: '技能库' }) },
-              { value: 'exclusive', label: t('settings.skill.exclusiveTab', { defaultValue: '专属技能' }) },
+              { value: 'store', label: t('settings.skill.storeTab', '技能库') },
+              { value: 'exclusive', label: t('settings.skill.exclusiveTab', '专属技能') },
               {
                 value: 'installed',
                 label: (
                   <span className='f-center'>
-                    {t('settings.skill.installedTab', { defaultValue: '我的技能' })}
+                    {t('settings.skill.installedTab', '我的技能')}
                     {getInstalledSkillBadgeCount(installedList) > 0 && <span className='f-center min-w-4 h-4 ml-5px px-1 rd-full bg-primary text-white text-10px leading-4 font-medium'>{getInstalledSkillBadgeCount(installedList)}</span>}
                   </span>
                 ),
@@ -1089,18 +1109,18 @@ const SkillSettings: React.FC = () => {
           {isEnterprise && activeTab === 'store' && syncStatus.syncing && (
             <div className='flex items-center gap-6px px-10px py-4px bg-primary-light-1 rd-6px flex-shrink-0'>
               <Spin size={12} />
-              <span className='text-11px text-primary'>{t('settings.skill.syncing', { defaultValue: '同步中...' })}</span>
+              <span className='text-11px text-primary'>{t('settings.skill.syncing', '同步中...')}</span>
             </div>
           )}
           {isEnterprise && activeTab === 'store' && !syncStatus.syncing && (syncStatus.skills.installed.length > 0 || syncStatus.skills.failed.length > 0) && (
             <div className='flex items-center gap-6px px-10px py-4px bg-success-light rd-6px flex-shrink-0'>
               <Check size={12} className='text-success' />
-              <span className='text-11px text-success'>{t('settings.skill.syncCompleted', { defaultValue: '已同步' })}</span>
+              <span className='text-11px text-success'>{t('settings.skill.syncCompleted', '已同步')}</span>
             </div>
           )}
 
           {/* Search - always rendered to preserve layout, hidden on installed tab */}
-          <Input placeholder={t('settings.skill.searchPlaceholder', { defaultValue: '搜索...' })} value={searchQuery} onChange={setSearchQuery} prefix={<Search size='14' className='text-tertiary' />} size='small' className={classNames('flex-1 min-w-0', activeTab === 'installed' && 'invisible')} />
+          <Input placeholder={t('settings.skill.searchPlaceholder', '搜索...')} value={searchQuery} onChange={setSearchQuery} prefix={<Search size='14' className='text-tertiary' />} size='small' className={classNames('flex-1 min-w-0', activeTab === 'installed' && 'invisible')} />
           {activeTab === 'installed' && isElectronDesktop() && (
             <button
               type='button'
@@ -1109,8 +1129,8 @@ const SkillSettings: React.FC = () => {
             >
               <span className='w-22px h-22px rd-full f-center bg-[color-mix(in_srgb,var(--color-primary)_14%,transparent)] text-[var(--color-primary)] transition-transform group-hover:scale-105'>{isEnterprise ? <Plus size='13' /> : <UploadOne size='13' />}</span>
               <span className='flex items-baseline gap-5px leading-none'>
-                <span className='text-12px font-medium text-foreground'>{isEnterprise ? t('common.create', { defaultValue: '创建' }) : t('common.upload', { defaultValue: '上传' })}</span>
-                <span className='text-11px text-secondary'>{t('settings.customSkills', { defaultValue: 'Custom Skills' })}</span>
+                <span className='text-12px font-medium text-foreground'>{isEnterprise ? t('common.create', '创建') : t('common.upload', '上传')}</span>
+                <span className='text-11px text-secondary'>{t('settings.customSkills', '自定义技能')}</span>
               </span>
             </button>
           )}
@@ -1121,7 +1141,7 @@ const SkillSettings: React.FC = () => {
           <>
             {/* Category filter */}
             <div className='flex gap-6px mb-14px overflow-x-auto pb-2px flex-shrink-0 scrollbar-hide'>
-              {[{ key: 'all', label: t('settings.skill.allCategories', { defaultValue: '精选' }) }, ...categories.map((c) => ({ key: c, label: c }))].map(({ key, label }) => (
+              {[{ key: 'all', label: t('settings.skill.allCategories', '精选') }, ...categories.map((c) => ({ key: c, label: c }))].map(({ key, label }) => (
                 <span key={key} className={classNames('category-chip', selectedCategory === key ? 'category-chip-active' : 'category-chip-idle')} onClick={() => setSelectedCategory(key)}>
                   {label}
                 </span>
@@ -1135,7 +1155,7 @@ const SkillSettings: React.FC = () => {
                 filteredTenantSkills.length === 0 ? (
                   <div className='flex flex-col items-center justify-center py-48px text-secondary gap-8px'>
                     <Shield size='32' className='text-tertiary' />
-                    <span className='text-13px'>{t('settings.skill.noTenantSkills', { defaultValue: '暂无专属技能' })}</span>
+                    <span className='text-13px'>{t('settings.skill.noTenantSkills', '暂无专属技能')}</span>
                   </div>
                 ) : (
                   <div className='grid gap-16px pb-16px' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
@@ -1167,7 +1187,7 @@ const SkillSettings: React.FC = () => {
               ) : activeTab === 'exclusive' && !enterpriseCode ? (
                 <div className='flex flex-col items-center justify-center py-48px text-secondary gap-8px'>
                   <Shield size='32' className='text-tertiary' />
-                  <span className='text-13px'>{t('settings.skill.noEnterpriseCode', { defaultValue: '当前账号没有企业编码，无法加载专属技能。' })}</span>
+                  <span className='text-13px'>{t('settings.skill.noEnterpriseCode', '当前账号没有企业编码，无法加载专属技能。')}</span>
                 </div>
               ) : loading || !installedSkillsReady ? (
                 <div className='flex justify-center items-center py-48px'>
@@ -1179,7 +1199,7 @@ const SkillSettings: React.FC = () => {
                 ) : (
                   <div className='flex flex-col items-center justify-center py-48px text-secondary gap-8px'>
                     <Lightning size='32' className='text-tertiary' />
-                    <span className='text-13px'>{t('settings.skill.noResults', { defaultValue: '暂无技能' })}</span>
+                    <span className='text-13px'>{t('settings.skill.noResults', '暂无技能')}</span>
                   </div>
                 )
               ) : (
@@ -1253,17 +1273,17 @@ const SkillSettings: React.FC = () => {
               ) : installedList.length === 0 ? (
                 <div className='flex flex-col items-center justify-center py-48px gap-8px'>
                   <Lightning size='32' className='text-tertiary' />
-                  <div className='text-13px text-secondary'>{t('settings.skill.noInstalledSkills', { defaultValue: '暂无已安装的技能' })}</div>
-                  <div className='text-12px text-tertiary'>{t('settings.skill.noInstalledSkillsHint', { defaultValue: '前往技能库安装你需要的技能' })}</div>
+                  <div className='text-13px text-secondary'>{t('settings.skill.noInstalledSkills', '暂无已安装的技能')}</div>
+                  <div className='text-12px text-tertiary'>{t('settings.skill.noInstalledSkillsHint', '前往技能库安装你需要的技能')}</div>
                   <Button size='small' type='outline' className='mt-4px' onClick={() => setActiveTab('store')}>
-                    {t('settings.skill.browseStore', { defaultValue: '浏览技能库' })}
+                    {t('settings.skill.browseStore', '浏览技能库')}
                   </Button>
                 </div>
               ) : (
                 <div className='pb-16px space-y-20px'>
                   <section>
                     <div className='flex items-center justify-between gap-8px mb-10px'>
-                      <div className='text-13px font-medium text-foreground'>{t('settings.customSkills')}</div>
+                      <div className='text-13px font-medium text-foreground'>{t('settings.customSkills', '自定义技能')}</div>
                       <span className='px-6px py-0px bg-fill-2 text-secondary text-11px rd-full leading-18px'>{customInstalledSkills.length}</span>
                     </div>
                     {customInstalledSkills.length > 0 ? (
@@ -1273,7 +1293,7 @@ const SkillSettings: React.FC = () => {
                         renderInstalledSkillGrid(customInstalledSkills)
                       )
                     ) : (
-                      <div className='bg-fill-1 border border-dashed rd-12px px-14px py-18px text-12px text-secondary f-center'>{t('settings.noCustomSkills')}</div>
+                      <div className='bg-fill-1 border border-dashed rd-12px px-14px py-18px text-12px text-secondary f-center'>{t('settings.noCustomSkills', '暂无自定义技能')}</div>
                     )}
                   </section>
 
@@ -1281,27 +1301,27 @@ const SkillSettings: React.FC = () => {
                   {isEnterprise && (
                     <section>
                       <div className='flex items-center justify-between gap-8px mb-10px'>
-                        <div className='text-13px font-medium text-foreground'>{t('settings.tenantSkills', { defaultValue: '专属技能' })}</div>
+                        <div className='text-13px font-medium text-foreground'>{t('settings.tenantSkills', '专属技能')}</div>
                         <span className='px-6px py-0px bg-fill-2 text-secondary text-11px rd-full leading-18px'>{localTenantSkills.length}</span>
                       </div>
-                      {localTenantSkills.length > 0 ? renderInstalledSkillGrid(localTenantSkills, true) : <div className='bg-fill-1 border border-dashed rd-12px px-14px py-18px text-12px text-tertiary'>{t('settings.noTenantSkills', { defaultValue: '暂无专属技能' })}</div>}
+                      {localTenantSkills.length > 0 ? renderInstalledSkillGrid(localTenantSkills, true) : <div className='bg-fill-1 border border-dashed rd-12px px-14px py-18px text-12px text-tertiary'>{t('settings.noTenantSkills', '暂无专属技能')}</div>}
                     </section>
                   )}
 
                   <section>
                     <div className='flex items-center justify-between gap-8px mb-10px'>
-                      <div className='text-13px font-medium text-foreground'>{t('settings.hubSkills', { defaultValue: 'Hub Skills' })}</div>
+                      <div className='text-13px font-medium text-foreground'>{t('settings.hubSkills', '商店技能')}</div>
                       <span className='px-6px py-0px bg-fill-2 text-secondary text-11px rd-full leading-18px'>{hubInstalledSkills.length}</span>
                     </div>
-                    {hubInstalledSkills.length > 0 ? renderInstalledSkillGrid(hubInstalledSkills, isEnterprise) : <div className='bg-fill-1 border border-dashed rd-12px px-14px py-18px text-12px text-tertiary'>{t('settings.noHubSkills', { defaultValue: 'No hub-installed skills' })}</div>}
+                    {hubInstalledSkills.length > 0 ? renderInstalledSkillGrid(hubInstalledSkills, isEnterprise) : <div className='bg-fill-1 border border-dashed rd-12px px-14px py-18px text-12px text-tertiary'>{t('settings.noHubSkills', '暂无商店安装的技能')}</div>}
                   </section>
 
                   <section>
                     <div className='flex items-center justify-between gap-8px mb-10px'>
-                      <div className='text-13px font-medium text-foreground'>{t('settings.builtinSkills')}</div>
+                      <div className='text-13px font-medium text-foreground'>{t('settings.builtinSkills', '内置技能')}</div>
                       <span className='px-6px py-0px bg-fill-2 text-secondary text-11px rd-full leading-18px'>{builtinInstalledSkills.length}</span>
                     </div>
-                    {builtinInstalledSkills.length > 0 ? renderInstalledSkillGrid(builtinInstalledSkills) : <div className='bg-fill-1 border border-dashed rd-12px px-14px py-18px text-12px text-tertiary'>{t('settings.noBuiltinSkills')}</div>}
+                    {builtinInstalledSkills.length > 0 ? renderInstalledSkillGrid(builtinInstalledSkills) : <div className='bg-fill-1 border border-dashed rd-12px px-14px py-18px text-12px text-tertiary'>{t('settings.noBuiltinSkills', '暂无可用的内置技能')}</div>}
                   </section>
                 </div>
               )}
@@ -1410,12 +1430,12 @@ const SkillSettings: React.FC = () => {
         <Modal visible={importSourceVisible} onCancel={() => setImportSourceVisible(false)} footer={null} closable={false} maskClosable style={{ width: 420 }} className='skill-import-source-modal'>
           <div className='flex flex-col gap-16px'>
             <div className='flex items-center justify-between'>
-              <div className='font-semibold text-15px text-foreground'>{t('settings.skill.importSourceTitle', { defaultValue: '导入自定义技能' })}</div>
+              <div className='font-semibold text-15px text-foreground'>{t('settings.skill.importSourceTitle', '导入自定义技能')}</div>
               <button type='button' className='w-28px h-28px f-center rd-full bg-fill-2 hover:bg-fill-3 cursor-pointer transition-colors text-secondary border-none outline-none' onClick={() => setImportSourceVisible(false)}>
                 <Close size='14' />
               </button>
             </div>
-            <div className='text-12px text-secondary leading-relaxed'>{t('settings.skill.importSourceDescription', { defaultValue: '请选择导入方式。' })}</div>
+            <div className='text-12px text-secondary leading-relaxed'>{t('settings.skill.importSourceDescription', '请选择导入方式。')}</div>
             <div className='grid grid-cols-2 gap-10px'>
               <button
                 type='button'
@@ -1425,8 +1445,8 @@ const SkillSettings: React.FC = () => {
                   void handleImportLocalSkill('zip');
                 }}
               >
-                <div className='font-medium text-13px text-foreground'>{t('settings.skill.importZipOption', { defaultValue: '从文件导入' })}</div>
-                <div className='mt-4px text-11px text-secondary'>{t('settings.skill.importZipOptionDescription', { defaultValue: '打开文件选择框，仅显示 zip 文件。' })}</div>
+                <div className='font-medium text-13px text-foreground'>{t('settings.skill.importZipOption', '从文件导入')}</div>
+                <div className='mt-4px text-11px text-secondary'>{t('settings.skill.importZipOptionDescription', '打开文件选择框，仅显示 zip 文件。')}</div>
               </button>
               <button
                 type='button'
@@ -1436,8 +1456,8 @@ const SkillSettings: React.FC = () => {
                   void handleImportLocalSkill('directory');
                 }}
               >
-                <div className='font-medium text-13px text-foreground'>{t('settings.skill.importFolderOption', { defaultValue: '从文件夹导入' })}</div>
-                <div className='mt-4px text-11px text-secondary'>{t('settings.skill.importFolderOptionDescription', { defaultValue: '选择包含 SKILL.md 的技能目录。' })}</div>
+                <div className='font-medium text-13px text-foreground'>{t('settings.skill.importFolderOption', '从文件夹导入')}</div>
+                <div className='mt-4px text-11px text-secondary'>{t('settings.skill.importFolderOptionDescription', '选择包含 SKILL.md 的技能目录。')}</div>
               </button>
             </div>
           </div>

@@ -105,5 +105,6 @@
     "newConversation": "New conversation",
     "openFolder": "Open folder",
     "addSkill": "Add skill"
-  }
+  },
+  "uninstall": "Uninstall"
 }

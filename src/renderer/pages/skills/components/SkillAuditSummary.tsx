@@ -55,7 +55,7 @@ export default function SkillAuditSummary({ skillName, onViewDetails }: ISkillAu
       <div className='bg-fill-1 rd-10px p-14px'>
         <div className='flex items-center gap-6px mb-8px'>
           <Shield size='14' className='text-success' />
-          <span className='font-medium text-13px text-foreground'>{t('settings.skill.audit.title', { defaultValue: '安全审查结果' })}</span>
+          <span className='font-medium text-13px text-foreground'>{t('settings.skill.audit.title', '安全审查结果')}</span>
         </div>
         <div className='flex justify-center py-12px'>
           <Spin size={16} />
@@ -69,9 +69,9 @@ export default function SkillAuditSummary({ skillName, onViewDetails }: ISkillAu
       <div className='bg-fill-1 rd-10px p-14px'>
         <div className='flex items-center gap-6px mb-8px'>
           <Shield size='14' className='text-success' />
-          <span className='font-medium text-13px text-foreground'>{t('settings.skill.audit.title', { defaultValue: '安全审查结果' })}</span>
+          <span className='font-medium text-13px text-foreground'>{t('settings.skill.audit.title', '安全审查结果')}</span>
         </div>
-        <div className='text-12px text-tertiary text-center py-12px'>{t('settings.skill.audit.noReport', { defaultValue: '暂无审计报告' })}</div>
+        <div className='text-12px text-tertiary text-center py-12px'>{t('settings.skill.audit.noReport', '暂无审计报告')}</div>
       </div>
     );
   }
@@ -81,11 +81,11 @@ export default function SkillAuditSummary({ skillName, onViewDetails }: ISkillAu
       {/* Header */}
       <div className='flex items-center gap-6px mb-8px'>
         <Shield size='14' className='text-success' />
-        <span className='font-medium text-13px text-foreground'>{t('settings.skill.audit.title', { defaultValue: '安全审查结果' })}</span>
+        <span className='font-medium text-13px text-foreground'>{t('settings.skill.audit.title', '安全审查结果')}</span>
       </div>
 
       {/* Summary description */}
-      <div className='text-12px text-secondary mb-10px'>{report.hasFindings ? t('settings.skill.audit.summaryWithFindings', { defaultValue: '经过安全审查，该技能包存在以下操作：' }) : t('settings.skill.audit.summaryNoFindings', { defaultValue: '经过严格的安全审查，确认该技能包：' })}</div>
+      <div className='text-12px text-secondary mb-10px'>{report.hasFindings ? t('settings.skill.audit.summaryWithFindings', '经过安全审查，该技能包存在以下操作：') : t('settings.skill.audit.summaryNoFindings', '经过严格的安全审查，确认该技能包：')}</div>
 
       {/* Category list */}
       <div className='space-y-6px'>
@@ -98,18 +98,18 @@ export default function SkillAuditSummary({ skillName, onViewDetails }: ISkillAu
       <div className='mt-10px pt-8px border-t flex items-center justify-between'>
         {report.reportPath && (
           <div className='text-11px truncate flex-1 min-w-0 mr-8px'>
-            {t('settings.skill.audit.reportPath', { defaultValue: '安全审计报告' })}：{report.reportPath}
+            {t('settings.skill.audit.reportPath', '安全审计报告')}：{report.reportPath}
           </div>
         )}
         <div className='flex items-center flex-shrink-0'>
           {report.reportPath && isElectronDesktop() && (
             <Button type='text' size='mini' icon={<FolderOpen size={12} />} className='!text-11px !text-secondary' onClick={() => void shell.showItemInFolder.invoke(report.reportPath!)}>
-              {t('settings.skill.audit.openFilePath', { defaultValue: '打开路径' })}
+              {t('settings.skill.audit.openFilePath', '打开路径')}
             </Button>
           )}
           {onViewDetails && (
             <Button type='text' size='mini' className='!text-11px flex-shrink-0' onClick={onViewDetails}>
-              {t('settings.skill.audit.viewDetails', { defaultValue: '查看详情' })}
+              {t('settings.skill.audit.viewDetails', '查看详情')}
             </Button>
           )}
         </div>
@@ -130,7 +130,10 @@ function CategoryRow({ summary }: { summary: AuditCategorySummary }) {
       <div className='flex items-start gap-6px'>
         <span className='text-14px flex-shrink-0 leading-18px'>✅</span>
         <span className='text-12px text-secondary leading-18px'>
-          {t(`settings.skill.audit.no_${summary.category}` as any, { defaultValue: `无${summary.label}` })}
+          {t(`settings.skill.audit.no_${summary.category}` as any, {
+            label: summary.label,
+            defaultValue: '无{{label}}',
+          })}
           <span> – {summary.safeDescription}</span>
         </span>
       </div>
@@ -144,7 +147,7 @@ function CategoryRow({ summary }: { summary: AuditCategorySummary }) {
         {summary.label}
         <span className='text-warning font-medium'>
           {' '}
-          ({summary.count} {t('settings.skill.audit.places', { defaultValue: '处调用' })})
+          ({summary.count} {t('settings.skill.audit.places', '处调用')})
         </span>
         <span className='text-tertiary'> – {summary.foundDescription}</span>
       </span>

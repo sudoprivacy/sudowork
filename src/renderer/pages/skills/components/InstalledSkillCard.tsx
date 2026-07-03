@@ -50,7 +50,7 @@ export default function InstalledSkillCard({ skill, onUninstall, uninstalling, o
       {/* Actions - top right */}
       <div className='absolute top-10px right-10px flex items-center gap-6px' onClick={(e) => e.stopPropagation()}>
         {hasUpdate && (
-          <Tooltip content={t('settings.skill.updateAvailable', { defaultValue: '可更新' })}>
+          <Tooltip content={t('settings.skill.updateAvailable', '可更新')}>
             <button
               type='button'
               className='store-action-icon'
@@ -66,13 +66,13 @@ export default function InstalledSkillCard({ skill, onUninstall, uninstalling, o
         {enterprisePublishButton}
         {canToggleEnabled && <Switch size='small' checked={isEnabled} loading={togglingEnabled} onChange={(checked) => onToggleEnabled?.(checked)} className={isEnabled ? '!bg-primary !border-[var(--ui-accent-orange)]' : ''} />}
         {skill.isBuiltin ? (
-          <Tooltip content='内置技能'>
+          <Tooltip content={t('settings.skill.builtinSkill', '内置技能')}>
             <div className='store-action-icon cursor-default'>
               <Shield size='15' />
             </div>
           </Tooltip>
         ) : !canUninstall ? (
-          <Tooltip content='内置技能无法卸载'>
+          <Tooltip content={t('settings.skill.builtinSkillCannotUninstall', '内置技能无法卸载')}>
             <div className='store-action-icon cursor-default opacity-30'>
               <Shield size='14' />
             </div>
@@ -80,8 +80,8 @@ export default function InstalledSkillCard({ skill, onUninstall, uninstalling, o
         ) : uninstalling ? (
           <Spin size={14} />
         ) : (
-          <Popconfirm title='确认卸载该技能？' onOk={onUninstall} okText='卸载' cancelText='取消' okButtonProps={{ status: 'danger' }}>
-            <Tooltip content={t('common.delete', { defaultValue: '删除' })}>
+          <Popconfirm title={t('settings.skill.uninstallConfirm', '确认卸载该技能？')} onOk={onUninstall} okText={t('common.uninstall', '卸载')} cancelText={t('common.cancel', '取消')} okButtonProps={{ status: 'danger' }}>
+            <Tooltip content={t('common.delete', '删除')}>
               <div className='store-action-icon store-action-icon--danger'>
                 <Delete size='15' />
               </div>

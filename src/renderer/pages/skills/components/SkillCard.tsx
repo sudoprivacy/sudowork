@@ -37,17 +37,17 @@ export default function SkillCard({ skill, isInstalled, hasVersion, installing, 
             <Progress percent={installProgress} size='mini' />
           </div>
         ) : isInstalled && hasUpdate ? (
-          <Tooltip content={t('settings.skill.update', { defaultValue: '更新' })}>
+          <Tooltip content={t('settings.skill.update', '更新')}>
             <button type='button' className='store-action-icon' onClick={onUpdate}>
               <Install size='13' />
             </button>
           </Tooltip>
         ) : isInstalled ? (
           <span className='store-action-badge' style={{ backgroundColor: 'rgba(var(--ui-accent-orange-rgb), 0.10)', color: 'var(--ui-accent-orange)' }}>
-            {t('settings.skill.installed', { defaultValue: '已安装' })}
+            {t('settings.skill.installed', '已安装')}
           </span>
         ) : !isInstalled && hasVersion ? (
-          <Tooltip content={t('settings.skill.install', { defaultValue: '安装' })}>
+          <Tooltip content={t('settings.skill.install', '安装')}>
             <button type='button' className='store-action-icon' onClick={onInstall}>
               <Install size='13' />
             </button>

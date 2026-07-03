@@ -70,5 +70,6 @@
     "webui": "遠端連線",
     "cron": "排程任務"
   },
-  "enabled": "已啟用"
+  "enabled": "已啟用",
+  "uninstall": "解除安裝"
 }

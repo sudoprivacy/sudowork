@@ -105,5 +105,6 @@
     "newConversation": "新会话",
     "openFolder": "打开文件夹",
     "addSkill": "添加技能"
-  }
+  },
+  "uninstall": "卸载"
 }

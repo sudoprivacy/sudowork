@@ -59,13 +59,13 @@ export const SkillAuditDetailModal: React.FC<{
       const res = await skillHub.runSkillAudit.invoke({ skillName });
       if (res.success && res.data) {
         setReport(res.data);
-        Message.success(t('settings.skill.audit.rerunSuccess', { defaultValue: '重新审计完成' }));
+        Message.success(t('settings.skill.audit.rerunSuccess', '重新审计完成'));
       } else {
-        Message.error(res.msg || t('settings.skill.audit.rerunFailed', { defaultValue: '重新审计失败' }));
+        Message.error(res.msg || t('settings.skill.audit.rerunFailed', '重新审计失败'));
       }
     } catch (err) {
       console.error('Failed to rerun audit:', err);
-      Message.error(t('settings.skill.audit.rerunFailed', { defaultValue: '重新审计失败' }));
+      Message.error(t('settings.skill.audit.rerunFailed', '重新审计失败'));
     } finally {
       setLoading(false);
     }
@@ -97,12 +97,12 @@ export const SkillAuditDetailModal: React.FC<{
         <div className='flex items-center justify-between mb-12px'>
           <div className='flex items-center gap-8px'>
             <Shield size='16' className='text-success' />
-            <span className='font-semibold text-15px text-foreground'>{t('settings.skill.audit.detailTitle', { defaultValue: '安全审计详情' })}</span>
+            <span className='font-semibold text-15px text-foreground'>{t('settings.skill.audit.detailTitle', '安全审计详情')}</span>
             <span className='text-12px text-tertiary'>— {skillName}</span>
           </div>
           <div className='flex items-center gap-8px'>
             <button type='button' className='text-11px px-8px py-3px rd-4px bg-fill-2 hover:bg-fill-3 text-secondary cursor-pointer border-none outline-none transition-colors' onClick={() => void handleRerunAudit()} disabled={loading}>
-              {t('settings.skill.audit.rerun', { defaultValue: '重新审计' })}
+              {t('settings.skill.audit.rerun', '重新审计')}
             </button>
             <div className='w-28px h-28px f-center rd-full bg-fill-2 hover:bg-fill-3 cursor-pointer transition-colors text-secondary' onClick={onClose}>
               <Close size='14' />
@@ -116,26 +116,26 @@ export const SkillAuditDetailModal: React.FC<{
           </div>
         ) : !report ? (
           <div className='flex flex-col items-center justify-center py-48px text-secondary'>
-            <span className='text-13px'>{t('settings.skill.audit.noReport', { defaultValue: '暂无审计报告' })}</span>
+            <span className='text-13px'>{t('settings.skill.audit.noReport', '暂无审计报告')}</span>
           </div>
         ) : (
           <>
             {/* Info bar */}
             <div className='flex items-center gap-12px mb-12px text-11px text-tertiary'>
               <span>
-                {t('settings.skill.audit.scannedFiles', { defaultValue: '扫描文件' })}：{report.scannedFiles}/{report.totalFiles}
+                {t('settings.skill.audit.scannedFiles', '扫描文件')}：{report.scannedFiles}/{report.totalFiles}
               </span>
               <span>
-                {t('settings.skill.audit.totalFindings', { defaultValue: '发现' })}：{report.findings.length} {t('settings.skill.audit.places', { defaultValue: '处调用' })}
+                {t('settings.skill.audit.totalFindings', '发现')}：{report.findings.length} {t('settings.skill.audit.places', '处调用')}
               </span>
               <span>
-                {t('settings.skill.audit.auditTime', { defaultValue: '审计时间' })}：{new Date(report.auditTime).toLocaleString()}
+                {t('settings.skill.audit.auditTime', '审计时间')}：{new Date(report.auditTime).toLocaleString()}
               </span>
             </div>
 
             {/* Category filter tabs */}
             <div className='flex gap-4px mb-12px overflow-x-auto pb-2px scrollbar-hide flex-shrink-0'>
-              <CategoryFilterTab label={t('settings.skill.audit.all', { defaultValue: '全部' })} count={report.findings.length} active={selectedCategory === 'all'} onClick={() => setSelectedCategory('all')} />
+              <CategoryFilterTab label={t('settings.skill.audit.all', '全部')} count={report.findings.length} active={selectedCategory === 'all'} onClick={() => setSelectedCategory('all')} />
               {report.categorySummaries
                 .filter((s) => s.found)
                 .map((s) => (
@@ -147,7 +147,7 @@ export const SkillAuditDetailModal: React.FC<{
             <AionScrollArea className='flex-1 min-h-0'>
               {filteredFindings.length === 0 ? (
                 <div className='flex flex-col items-center justify-center py-32px text-tertiary'>
-                  <span className='text-12px'>{t('settings.skill.audit.noFindings', { defaultValue: '该类别下无发现' })}</span>
+                  <span className='text-12px'>{t('settings.skill.audit.noFindings', '该类别下无发现')}</span>
                 </div>
               ) : (
                 <div className='space-y-12px pb-16px'>
@@ -197,7 +197,7 @@ const FileFindings: React.FC<{
       <div className='px-12px py-8px bg-fill-2 border-b'>
         <span className='text-12px font-medium text-foreground font-mono'>{file}</span>
         <span className='text-11px text-tertiary ml-2'>
-          ({findings.length} {t('settings.skill.audit.places', { defaultValue: '处调用' })})
+          ({findings.length} {t('settings.skill.audit.places', '处调用')})
         </span>
       </div>
 

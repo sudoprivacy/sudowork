@@ -70,5 +70,6 @@
     "webui": "Uzak Erişim",
     "cron": "Zamanlanmış Görevler"
   },
-  "enabled": "Etkin"
+  "enabled": "Etkin",
+  "uninstall": "Kaldır"
 }

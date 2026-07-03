@@ -100,5 +100,6 @@
     "openFolder": "フォルダを開く",
     "addSkill": "スキルを追加"
   },
-  "enabled": "有効"
+  "enabled": "有効",
+  "uninstall": "アンインストール"
 }

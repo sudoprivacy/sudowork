@@ -152,7 +152,7 @@ export default function SkillDetailModal({
                 <div className='bg-fill-1 rd-10px p-14px'>
                   <div className='flex items-center gap-6px mb-8px'>
                     <span className='text-14px'>✦</span>
-                    <span className='font-medium text-13px text-foreground'>{t('settings.skill.introduction', { defaultValue: '技能介绍' })}</span>
+                    <span className='font-medium text-13px text-foreground'>{t('settings.skill.introduction', '技能介绍')}</span>
                   </div>
                   <div className='text-12px text-secondary leading-relaxed'>{skill.description}</div>
                 </div>
@@ -162,7 +162,7 @@ export default function SkillDetailModal({
                   <div className='bg-fill-1 rd-10px p-14px'>
                     <div className='flex items-center gap-6px mb-10px'>
                       <span className='text-14px'>📄</span>
-                      <span className='font-medium text-13px text-foreground'>{t('settings.skill.howToUse', { defaultValue: '怎么使用？' })}</span>
+                      <span className='font-medium text-13px text-foreground'>{t('settings.skill.howToUse', '怎么使用？')}</span>
                     </div>
                     <div className='space-y-6px'>
                       {coreFeatures.map((feature, idx) => (
@@ -197,14 +197,14 @@ export default function SkillDetailModal({
             {isInstalled ? (
               <>
                 {hasUpdate ? (
-                  <Tooltip content={t('settings.skill.updateTo', { version: latestVersionInfo?.version, defaultValue: `更新至 v${latestVersionInfo?.version || ''}` })}>
+                  <Tooltip content={t('settings.skill.updateTo', { version: latestVersionInfo?.version || '', defaultValue: '更新至 v{{version}}' })}>
                     <Button type='primary' long size='large' className='flex-1' loading={updating} loadingFixedWidth icon={<IconRefresh style={{ fontSize: 15 }} />} onClick={onUpdate}>
-                      {t('settings.skill.updateTo', { version: latestVersionInfo?.version, defaultValue: `更新至 v${latestVersionInfo?.version || ''}` })}
+                      {t('settings.skill.updateTo', { version: latestVersionInfo?.version || '', defaultValue: '更新至 v{{version}}' })}
                     </Button>
                   </Tooltip>
                 ) : (
                   <Button type='primary' long size='large' className='flex-1' onClick={onGoUse || onClose}>
-                    {t('settings.skill.goUse', { defaultValue: '去使用' })}
+                    {t('settings.skill.goUse', '去使用')}
                   </Button>
                 )}
                 {canUninstall &&
@@ -213,8 +213,8 @@ export default function SkillDetailModal({
                       <Spin size={16} />
                     </div>
                   ) : (
-                    <Popconfirm title='确认卸载该技能？' onOk={onUninstall} okText='卸载' cancelText='取消' okButtonProps={{ status: 'danger' }}>
-                      <Tooltip content={t('common.delete', { defaultValue: '删除' })}>
+                    <Popconfirm title={t('settings.skill.uninstallConfirm', '确认卸载该技能？')} onOk={onUninstall} okText={t('common.uninstall', '卸载')} cancelText={t('common.cancel', '取消')} okButtonProps={{ status: 'danger' }}>
+                      <Tooltip content={t('common.delete', '删除')}>
                         <div className='w-36px h-36px f-center rd-8px border hover:bg-fill-2 cursor-pointer transition-colors text-secondary'>
                           <Delete size='16' />
                         </div>
@@ -228,14 +228,14 @@ export default function SkillDetailModal({
               </div>
             ) : hasVersion ? (
               <>
-                <Tooltip content={t('settings.skill.install', { defaultValue: '安装' })}>
+                <Tooltip content={t('settings.skill.install', '安装')}>
                   <Button type='primary' long size='large' icon={<PackagePlus size={15} />} onClick={onInstall} disabled={downloading}>
-                    {t('settings.skill.install', { defaultValue: '安装' })}
+                    {t('settings.skill.install', '安装')}
                   </Button>
                 </Tooltip>
-                <Tooltip content={t('common.download', { defaultValue: '下载' })}>
+                <Tooltip content={t('common.download', '下载')}>
                   <Button size='large' icon={<IconDownload style={{ fontSize: 15 }} />} loading={downloading} loadingFixedWidth onClick={onDownload} disabled={installing}>
-                    {t('common.download', { defaultValue: '下载' })}
+                    {t('common.download', '下载')}
                   </Button>
                 </Tooltip>
               </>
@@ -245,7 +245,7 @@ export default function SkillDetailModal({
           {/* Security badge */}
           <div className='f-center gap-2 mt-3'>
             <Shield size='12' className='text-success flex-shrink-0' />
-            <span className='text-10px text-secondary'>已通过安全与合规验证，无恶意代码或数据泄露风险。</span>
+            <span className='text-10px text-secondary'>{t('settings.skill.securityVerified', '已通过安全与合规验证，无恶意代码或数据泄露风险。')}</span>
           </div>
         </div>
       </div>
