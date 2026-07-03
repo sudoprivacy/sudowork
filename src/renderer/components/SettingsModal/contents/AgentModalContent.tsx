@@ -240,7 +240,7 @@ const InstalledAssistantCard: React.FC<InstalledAssistantCardProps> = (props) =>
           </button>
         </Tooltip>
         {enterprisePublishButton}
-        {canToggle && <Switch size='small' checked={isEnabled} onChange={(checked) => onToggleEnabled(checked)} className={isEnabled ? '!bg-[var(--ui-accent-orange)] !border-[var(--ui-accent-orange)]' : ''} />}
+        {canToggle && <Switch size='small' checked={isEnabled} onChange={(checked) => onToggleEnabled(checked)} className={isEnabled ? '!bg-primary !border-[var(--ui-accent-orange)]' : ''} />}
         {/* Delete button - only for custom assistants that are not readonly */}
         {canDelete && (
           <Popconfirm
@@ -2323,7 +2323,7 @@ const AgentModalContent: React.FC = () => {
               label: (
                 <>
                   {t('settings.assistant.installedTab', { defaultValue: '我的智能体' })}
-                  {assistants.length > 0 && <span className='settings-store-tabs__badge'>{assistants.length}</span>}
+                  {assistants.length > 0 && <span className='f-center min-w-4 h-4 ml-5px px-1 rd-full bg-primary text-white text-10px leading-4 font-medium'>{assistants.length}</span>}
                 </>
               ),
             },

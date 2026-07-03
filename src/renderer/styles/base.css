@@ -231,21 +231,6 @@ body,
   background: var(--ui-accent-orange);
 }
 
-.settings-store-tabs__badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 16px;
-  height: 16px;
-  margin-left: 5px;
-  padding: 0 4px;
-  border-radius: 999px;
-  background: var(--ui-accent-orange);
-  color: #fff;
-  font-size: 10px;
-  line-height: 16px;
-}
-
 /* Category chips 移至 uno.config.ts 的 shortcut（category-chip / -idle / -active） */
 
 @keyframes bg-animate {

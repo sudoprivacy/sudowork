@@ -1078,7 +1078,7 @@ const SkillSettings: React.FC = () => {
                 label: (
                   <span className='f-center'>
                     {t('settings.skill.installedTab', { defaultValue: '我的技能' })}
-                    {getInstalledSkillBadgeCount(installedList) > 0 && <span className='settings-store-tabs__badge'>{getInstalledSkillBadgeCount(installedList)}</span>}
+                    {getInstalledSkillBadgeCount(installedList) > 0 && <span className='f-center min-w-4 h-4 ml-5px px-1 rd-full bg-primary text-white text-10px leading-4 font-medium'>{getInstalledSkillBadgeCount(installedList)}</span>}
                   </span>
                 ),
               },

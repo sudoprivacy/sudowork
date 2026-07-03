@@ -64,7 +64,7 @@ export default function InstalledSkillCard({ skill, onUninstall, uninstalling, o
           </Tooltip>
         )}
         {enterprisePublishButton}
-        {canToggleEnabled && <Switch size='small' checked={isEnabled} loading={togglingEnabled} onChange={(checked) => onToggleEnabled?.(checked)} className={isEnabled ? '!bg-[var(--ui-accent-orange)] !border-[var(--ui-accent-orange)]' : ''} />}
+        {canToggleEnabled && <Switch size='small' checked={isEnabled} loading={togglingEnabled} onChange={(checked) => onToggleEnabled?.(checked)} className={isEnabled ? '!bg-primary !border-[var(--ui-accent-orange)]' : ''} />}
         {skill.isBuiltin ? (
           <Tooltip content='内置技能'>
             <div className='store-action-icon cursor-default'>

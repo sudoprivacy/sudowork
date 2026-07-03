@@ -115,7 +115,7 @@ const SudocodeModelSettings: React.FC = () => {
           <Button icon={<IconRefresh />} onClick={loadConfig}>
             {t('common.refresh', '刷新')}
           </Button>
-          <Button type='primary' icon={<IconPlus />} onClick={openAddDialog} className='!bg-[var(--ui-accent-orange)] !border-[var(--ui-accent-orange)] !text-white hover:!bg-[var(--ui-accent-orange-hover)] hover:!border-[var(--ui-accent-orange-hover)] hover:!text-white'>
+          <Button type='primary' icon={<IconPlus />} onClick={openAddDialog} className='!bg-primary !border-[var(--ui-accent-orange)] !text-white hover:!bg-[var(--ui-accent-orange-hover)] hover:!border-[var(--ui-accent-orange-hover)] hover:!text-white'>
             {t('settings.addModel', '添加模型')}
           </Button>
         </Space>
