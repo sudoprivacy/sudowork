@@ -14,47 +14,15 @@
 // 内部导入 (用于 initializeTelemetry/shutdownTelemetry)
 // ============================================================
 
-import { getTelemetryReporter } from './TelemetryBatchReporter';
-import { markAppStart } from './PerfTracker';
+import { getTelemetryReporter, flushTelemetry } from './TelemetryBatchReporter';
 import { initInstallTracking, markInstallSuccess } from './InstallTracker';
-import { flushTelemetry } from './TelemetryBatchReporter';
+import { getSudoLogTelemetryReporter } from './SudoLogTelemetryReporter';
 
 // ============================================================
 // 类型导出
 // ============================================================
 
-export type {
-  TelemetryPlatform,
-  TelemetryArch,
-  TelemetryEventType,
-  PerfMetricType,
-  ConversationStatus,
-  TurnStatus,
-  StepStatus,
-  StepType,
-  InstallStatus,
-  InstallType,
-  ModelProvider,
-  AgentType,
-  LoginMode,
-  TelemetryErrorCode,
-  PerfData,
-  ConversationData,
-  TurnData,
-  StepData,
-  InstallData,
-  TelemetryEventBase,
-  PerfTelemetryEvent,
-  ConversationTelemetryEvent,
-  TurnTelemetryEvent,
-  StepTelemetryEvent,
-  InstallTelemetryEvent,
-  TelemetryEvent,
-  TelemetryBatchRequest,
-  TelemetryBatchResponse,
-  TelemetryConfig,
-  StoredTelemetryEvent,
-} from '../../shared/types/telemetry';
+export type { TelemetryPlatform, TelemetryArch, TelemetryEventType, PerfMetricType, ConversationStatus, TurnStatus, StepStatus, StepType, InstallStatus, InstallType, ModelProvider, AgentType, LoginMode, TelemetryErrorCode, PerfData, ConversationData, TurnData, StepData, InstallData, TelemetryEventBase, PerfTelemetryEvent, ConversationTelemetryEvent, TurnTelemetryEvent, StepTelemetryEvent, InstallTelemetryEvent, TelemetryEvent, TelemetryBatchRequest, TelemetryBatchResponse, TelemetryConfig, StoredTelemetryEvent } from '../../shared/types/telemetry';
 
 export { DEFAULT_TELEMETRY_CONFIG, ERROR_CODE_DESCRIPTION, mapElectronArch } from '../../shared/types/telemetry';
 
@@ -63,6 +31,8 @@ export { DEFAULT_TELEMETRY_CONFIG, ERROR_CODE_DESCRIPTION, mapElectronArch } fro
 // ============================================================
 
 export { TelemetryBatchReporter, getTelemetryReporter, initTelemetry, recordTelemetry, flushTelemetry } from './TelemetryBatchReporter';
+
+export { SudoLogTelemetryReporter, getSudoLogTelemetryReporter, initSudoLogTelemetryReporter, flushSudoLogTelemetryReporter } from './SudoLogTelemetryReporter';
 
 export { PerfTracker, getPerfTracker, markAppStart, markFirstWindowShow, markRendererReady, startPerfTiming, endPerfTiming, recordFirstToken, flushPerfCachedMetrics, PERF_METRICS } from './PerfTracker';
 
@@ -89,6 +59,8 @@ export async function initializeTelemetry(): Promise<void> {
   // 初始化批量上报器
   await getTelemetryReporter().initialize();
 
+  await getSudoLogTelemetryReporter().initialize(getTelemetryReporter().getStatus().enabled);
+
   // 初始化安装追踪器
   await initInstallTracking();
 
@@ -111,6 +83,8 @@ export async function shutdownTelemetry(): Promise<void> {
   // 上报剩余 crash 事件
   const { flushCrashReporter } = await import('./CrashReporter');
   await flushCrashReporter();
+
+  await getSudoLogTelemetryReporter().flushAll();
 }
 
 // ============================================================

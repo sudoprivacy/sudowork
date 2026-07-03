@@ -23,7 +23,7 @@ import coworkSvg from '@/renderer/assets/cowork.svg';
 import EmojiPicker from '@/renderer/components/EmojiPicker';
 import MarkdownView from '@/renderer/components/Markdown';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
-import { getSelectableAssistantSkills, isAutoInjectedBuiltinSkill, sanitizeAssistantEnabledSkills } from '@/renderer/pages/settings/assistantSkillSelection';
+import { getSelectableAssistantSkills, isAssistantSkillSelected, isAutoInjectedBuiltinSkill, sanitizeAssistantEnabledSkills, toggleAssistantSkillSelection } from '@/renderer/pages/settings/assistantSkillSelection';
 import { getInstalledSkillDisplay, normalizeSkillVersion, handleSkillIconError } from '@/renderer/utils/skillDisplay';
 import { COS_HUB_BASE } from '@/shared/cos';
 import { isElectronDesktop, resolveExtensionAssetUrl } from '@/renderer/utils/platform';
@@ -2669,15 +2669,10 @@ const AgentModalContent: React.FC = () => {
                       <SkillCard
                         key={skill.name}
                         skill={skill}
-                        checked={selectedSkills.includes(skill.meta?.id || skill.name)}
+                        checked={isAssistantSkillSelected(selectedSkills, skill)}
                         onToggle={() => {
-                          const skillId = skill.meta?.id || skill.name;
                           if (isReadonlyAssistant) return;
-                          if (selectedSkills.includes(skillId)) {
-                            setSelectedSkills(selectedSkills.filter((s) => s !== skillId));
-                          } else {
-                            setSelectedSkills([...selectedSkills, skillId]);
-                          }
+                          setSelectedSkills(toggleAssistantSkillSelection(selectedSkills, skill));
                         }}
                         disabled={isReadonlyAssistant}
                       />
@@ -2691,15 +2686,10 @@ const AgentModalContent: React.FC = () => {
                       <SkillCard
                         key={skill.name}
                         skill={skill}
-                        checked={selectedSkills.includes(skill.meta?.id || skill.name)}
+                        checked={isAssistantSkillSelected(selectedSkills, skill)}
                         onToggle={() => {
-                          const skillId = skill.meta?.id || skill.name;
                           if (isReadonlyAssistant) return;
-                          if (selectedSkills.includes(skillId)) {
-                            setSelectedSkills(selectedSkills.filter((s) => s !== skillId));
-                          } else {
-                            setSelectedSkills([...selectedSkills, skillId]);
-                          }
+                          setSelectedSkills(toggleAssistantSkillSelection(selectedSkills, skill));
                         }}
                         disabled={isReadonlyAssistant}
                       />

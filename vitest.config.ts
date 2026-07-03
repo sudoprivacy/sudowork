@@ -70,6 +70,7 @@ export default defineConfig({
         'src/process/services/pwdLogin/pwdLoginService.ts',
         'src/process/services/fuset/FuseTSupervisor.ts',
         'src/process/services/nexus-vfs/FusePluginClient.ts',
+        'src/process/telemetry/SudoLogTelemetryReporter.ts',
         'src/process/bridge/updateBridge.ts',
         'src/process/bridge/applicationBridge.ts',
         'src/process/bridge/documentBridge.ts',
