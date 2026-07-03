@@ -6,7 +6,7 @@
 
 import React from 'react';
 import { Spin, Popconfirm, Switch, Tooltip } from '@arco-design/web-react';
-import { Delete, Shield, Lightning, Install } from '@icon-park/react';
+import { Trash2, Shield, Zap, Download } from 'lucide-react';
 import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
 import { getInstalledSkillDisplay, normalizeSkillVersion, handleSkillIconError } from '@/renderer/utils/skillDisplay';
@@ -32,7 +32,7 @@ export default function InstalledSkillCard({ skill, onUninstall, uninstalling, o
             <div className='w-full h-full f-center text-22px'>{emoji}</div>
           ) : (
             <div className='w-full h-full f-center bg-primary-light'>
-              <Lightning size='22' className='text-primary' />
+              <Zap size={22} className='text-primary' />
             </div>
           )}
         </div>
@@ -59,7 +59,7 @@ export default function InstalledSkillCard({ skill, onUninstall, uninstalling, o
                 onUpdate?.();
               }}
             >
-              {updating ? <Spin size={10} /> : <Install size='13' />}
+              {updating ? <Spin size={10} /> : <Download size={13} />}
             </button>
           </Tooltip>
         )}
@@ -68,13 +68,13 @@ export default function InstalledSkillCard({ skill, onUninstall, uninstalling, o
         {skill.isBuiltin ? (
           <Tooltip content={t('settings.skill.builtinSkill', '内置技能')}>
             <div className='store-action-icon cursor-default'>
-              <Shield size='15' />
+              <Shield size={15} />
             </div>
           </Tooltip>
         ) : !canUninstall ? (
           <Tooltip content={t('settings.skill.builtinSkillCannotUninstall', '内置技能无法卸载')}>
             <div className='store-action-icon cursor-default opacity-30'>
-              <Shield size='14' />
+              <Shield size={14} />
             </div>
           </Tooltip>
         ) : uninstalling ? (
@@ -83,7 +83,7 @@ export default function InstalledSkillCard({ skill, onUninstall, uninstalling, o
           <Popconfirm title={t('settings.skill.uninstallConfirm', '确认卸载该技能？')} onOk={onUninstall} okText={t('common.uninstall', '卸载')} cancelText={t('common.cancel', '取消')} okButtonProps={{ status: 'danger' }}>
             <Tooltip content={t('common.delete', '删除')}>
               <div className='store-action-icon store-action-icon--danger'>
-                <Delete size='15' />
+                <Trash2 size={15} />
               </div>
             </Tooltip>
           </Popconfirm>

@@ -14,7 +14,7 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { Modal, Spin, Message } from '@arco-design/web-react';
-import { Close, Shield } from '@icon-park/react';
+import { X, Shield } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { skillHub } from '@/common/ipcBridge';
@@ -96,7 +96,7 @@ export const SkillAuditDetailModal: React.FC<{
         {/* Header */}
         <div className='flex items-center justify-between mb-12px'>
           <div className='flex items-center gap-8px'>
-            <Shield size='16' className='text-success' />
+            <Shield size={16} className='text-success' />
             <span className='font-semibold text-15px text-foreground'>{t('settings.skill.audit.detailTitle', '安全审计详情')}</span>
             <span className='text-12px text-tertiary'>— {skillName}</span>
           </div>
@@ -105,7 +105,7 @@ export const SkillAuditDetailModal: React.FC<{
               {t('settings.skill.audit.rerun', '重新审计')}
             </button>
             <div className='w-28px h-28px f-center rd-full bg-fill-2 hover:bg-fill-3 cursor-pointer transition-colors text-secondary' onClick={onClose}>
-              <Close size='14' />
+              <X size={14} />
             </div>
           </div>
         </div>

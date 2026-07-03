@@ -7,8 +7,7 @@
 import React, { useEffect, useState } from 'react';
 import { Button, Spin, Modal, Popconfirm, Progress, Tooltip } from '@arco-design/web-react';
 import { IconDownload, IconRefresh } from '@arco-design/web-react/icon';
-import { Delete, Shield } from '@icon-park/react';
-import { PackagePlus } from 'lucide-react';
+import { PackagePlus, Trash2, Shield } from 'lucide-react';
 import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
@@ -216,7 +215,7 @@ export default function SkillDetailModal({
                     <Popconfirm title={t('settings.skill.uninstallConfirm', '确认卸载该技能？')} onOk={onUninstall} okText={t('common.uninstall', '卸载')} cancelText={t('common.cancel', '取消')} okButtonProps={{ status: 'danger' }}>
                       <Tooltip content={t('common.delete', '删除')}>
                         <div className='w-36px h-36px f-center rd-8px border hover:bg-fill-2 cursor-pointer transition-colors text-secondary'>
-                          <Delete size='16' />
+                          <Trash2 size={16} />
                         </div>
                       </Tooltip>
                     </Popconfirm>
@@ -244,7 +243,7 @@ export default function SkillDetailModal({
 
           {/* Security badge */}
           <div className='f-center gap-2 mt-3'>
-            <Shield size='12' className='text-success flex-shrink-0' />
+            <Shield size={12} className='text-success flex-shrink-0' />
             <span className='text-10px text-secondary'>{t('settings.skill.securityVerified', '已通过安全与合规验证，无恶意代码或数据泄露风险。')}</span>
           </div>
         </div>

@@ -6,8 +6,8 @@
 
 import React, { useEffect, useState } from 'react';
 import { Button, Spin } from '@arco-design/web-react';
-import { Shield } from '@icon-park/react';
-import { FolderOpen } from 'lucide-react';
+import { IconFolder } from '@arco-design/web-react/icon';
+import { Shield } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { skillHub, shell } from '@/common/ipcBridge';
 import { isElectronDesktop } from '@/renderer/utils/platform';
@@ -54,7 +54,7 @@ export default function SkillAuditSummary({ skillName, onViewDetails }: ISkillAu
     return (
       <div className='bg-fill-1 rd-10px p-14px'>
         <div className='flex items-center gap-6px mb-8px'>
-          <Shield size='14' className='text-success' />
+          <Shield size={14} className='text-success' />
           <span className='font-medium text-13px text-foreground'>{t('settings.skill.audit.title', '安全审查结果')}</span>
         </div>
         <div className='flex justify-center py-12px'>
@@ -68,7 +68,7 @@ export default function SkillAuditSummary({ skillName, onViewDetails }: ISkillAu
     return (
       <div className='bg-fill-1 rd-10px p-14px'>
         <div className='flex items-center gap-6px mb-8px'>
-          <Shield size='14' className='text-success' />
+          <Shield size={14} className='text-success' />
           <span className='font-medium text-13px text-foreground'>{t('settings.skill.audit.title', '安全审查结果')}</span>
         </div>
         <div className='text-12px text-tertiary text-center py-12px'>{t('settings.skill.audit.noReport', '暂无审计报告')}</div>
@@ -103,7 +103,7 @@ export default function SkillAuditSummary({ skillName, onViewDetails }: ISkillAu
         )}
         <div className='flex items-center flex-shrink-0'>
           {report.reportPath && isElectronDesktop() && (
-            <Button type='text' size='mini' icon={<FolderOpen size={12} />} className='!text-11px !text-secondary' onClick={() => void shell.showItemInFolder.invoke(report.reportPath!)}>
+            <Button type='text' size='mini' icon={<IconFolder style={{ fontSize: 12 }} />} className='!text-11px !text-secondary' onClick={() => void shell.showItemInFolder.invoke(report.reportPath!)}>
               {t('settings.skill.audit.openFilePath', '打开路径')}
             </Button>
           )}

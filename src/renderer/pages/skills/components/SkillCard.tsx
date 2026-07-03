@@ -6,7 +6,7 @@
 
 import React from 'react';
 import { Progress, Tooltip } from '@arco-design/web-react';
-import { Install } from '@icon-park/react';
+import { Download } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { handleSkillIconError } from '@/renderer/utils/skillDisplay';
 import type { ISkillHubSkill } from '@/common/ipcBridge';
@@ -39,7 +39,7 @@ export default function SkillCard({ skill, isInstalled, hasVersion, installing, 
         ) : isInstalled && hasUpdate ? (
           <Tooltip content={t('settings.skill.update', '更新')}>
             <button type='button' className='store-action-icon' onClick={onUpdate}>
-              <Install size='13' />
+              <Download size={13} />
             </button>
           </Tooltip>
         ) : isInstalled ? (
@@ -49,7 +49,7 @@ export default function SkillCard({ skill, isInstalled, hasVersion, installing, 
         ) : !isInstalled && hasVersion ? (
           <Tooltip content={t('settings.skill.install', '安装')}>
             <button type='button' className='store-action-icon' onClick={onInstall}>
-              <Install size='13' />
+              <Download size={13} />
             </button>
           </Tooltip>
         ) : null}

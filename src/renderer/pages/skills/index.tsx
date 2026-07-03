@@ -6,7 +6,8 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, Spin, Message, Input, Modal, Tooltip } from '@arco-design/web-react';
-import { Search, Close, Shield, Lightning, UploadOne, Share, Plus, Check } from '@icon-park/react';
+import { IconSearch } from '@arco-design/web-react/icon';
+import { X, Shield, Zap, Upload, Share2, Plus, Check } from 'lucide-react';
 import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
@@ -1036,7 +1037,7 @@ const SkillSettings: React.FC = () => {
                 }}
                 disabled={isPublishing || !skillHubId}
               >
-                {isPublishing ? <Spin size={12} /> : <Share size={12} />}
+                {isPublishing ? <Spin size={12} /> : <Share2 size={12} />}
               </button>
             </Tooltip>
           ) : isEnterprise && publishStatus === 'pending' ? (
@@ -1120,14 +1121,14 @@ const SkillSettings: React.FC = () => {
           )}
 
           {/* Search - always rendered to preserve layout, hidden on installed tab */}
-          <Input placeholder={t('settings.skill.searchPlaceholder', '搜索...')} value={searchQuery} onChange={setSearchQuery} prefix={<Search size='14' className='text-tertiary' />} size='small' className={classNames('flex-1 min-w-0', activeTab === 'installed' && 'invisible')} />
+          <Input placeholder={t('settings.skill.searchPlaceholder', '搜索...')} value={searchQuery} onChange={setSearchQuery} prefix={<IconSearch style={{ fontSize: 14 }} className='text-tertiary' />} size='small' className={classNames('flex-1 min-w-0', activeTab === 'installed' && 'invisible')} />
           {activeTab === 'installed' && isElectronDesktop() && (
             <button
               type='button'
               className='group h-34px px-4 py-0 border border-solid rd-full flex items-center gap-8px flex-shrink-0 cursor-pointer transition-all outline-none bg-[color-mix(in_srgb,var(--color-fill-2)_84%,transparent)] border-[color-mix(in_srgb,var(--color-border-2)_70%,transparent)] hover:bg-[color-mix(in_srgb,var(--color-primary-light-1)_58%,transparent)] hover:border-[color-mix(in_srgb,var(--color-primary)_36%,transparent)]'
               onClick={onImportButtonClick}
             >
-              <span className='w-22px h-22px rd-full f-center bg-[color-mix(in_srgb,var(--color-primary)_14%,transparent)] text-[var(--color-primary)] transition-transform group-hover:scale-105'>{isEnterprise ? <Plus size='13' /> : <UploadOne size='13' />}</span>
+              <span className='w-22px h-22px rd-full f-center bg-[color-mix(in_srgb,var(--color-primary)_14%,transparent)] text-[var(--color-primary)] transition-transform group-hover:scale-105'>{isEnterprise ? <Plus size={13} /> : <Upload size={13} />}</span>
               <span className='flex items-baseline gap-5px leading-none'>
                 <span className='text-12px font-medium text-foreground'>{isEnterprise ? t('common.create', '创建') : t('common.upload', '上传')}</span>
                 <span className='text-11px text-secondary'>{t('settings.customSkills', '自定义技能')}</span>
@@ -1154,7 +1155,7 @@ const SkillSettings: React.FC = () => {
               {activeTab === 'exclusive' && isEnterprise ? (
                 filteredTenantSkills.length === 0 ? (
                   <div className='flex flex-col items-center justify-center py-48px text-secondary gap-8px'>
-                    <Shield size='32' className='text-tertiary' />
+                    <Shield size={32} className='text-tertiary' />
                     <span className='text-13px'>{t('settings.skill.noTenantSkills', '暂无专属技能')}</span>
                   </div>
                 ) : (
@@ -1186,7 +1187,7 @@ const SkillSettings: React.FC = () => {
                 )
               ) : activeTab === 'exclusive' && !enterpriseCode ? (
                 <div className='flex flex-col items-center justify-center py-48px text-secondary gap-8px'>
-                  <Shield size='32' className='text-tertiary' />
+                  <Shield size={32} className='text-tertiary' />
                   <span className='text-13px'>{t('settings.skill.noEnterpriseCode', '当前账号没有企业编码，无法加载专属技能。')}</span>
                 </div>
               ) : loading || !installedSkillsReady ? (
@@ -1198,7 +1199,7 @@ const SkillSettings: React.FC = () => {
                   <HubEmptyState error={hubError} onRetry={() => void fetchSkills()} />
                 ) : (
                   <div className='flex flex-col items-center justify-center py-48px text-secondary gap-8px'>
-                    <Lightning size='32' className='text-tertiary' />
+                    <Zap size={32} className='text-tertiary' />
                     <span className='text-13px'>{t('settings.skill.noResults', '暂无技能')}</span>
                   </div>
                 )
@@ -1272,7 +1273,7 @@ const SkillSettings: React.FC = () => {
                 </div>
               ) : installedList.length === 0 ? (
                 <div className='flex flex-col items-center justify-center py-48px gap-8px'>
-                  <Lightning size='32' className='text-tertiary' />
+                  <Zap size={32} className='text-tertiary' />
                   <div className='text-13px text-secondary'>{t('settings.skill.noInstalledSkills', '暂无已安装的技能')}</div>
                   <div className='text-12px text-tertiary'>{t('settings.skill.noInstalledSkillsHint', '前往技能库安装你需要的技能')}</div>
                   <Button size='small' type='outline' className='mt-4px' onClick={() => setActiveTab('store')}>
@@ -1432,7 +1433,7 @@ const SkillSettings: React.FC = () => {
             <div className='flex items-center justify-between'>
               <div className='font-semibold text-15px text-foreground'>{t('settings.skill.importSourceTitle', '导入自定义技能')}</div>
               <button type='button' className='w-28px h-28px f-center rd-full bg-fill-2 hover:bg-fill-3 cursor-pointer transition-colors text-secondary border-none outline-none' onClick={() => setImportSourceVisible(false)}>
-                <Close size='14' />
+                <X size={14} />
               </button>
             </div>
             <div className='text-12px text-secondary leading-relaxed'>{t('settings.skill.importSourceDescription', '请选择导入方式。')}</div>
