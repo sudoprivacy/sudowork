@@ -44,6 +44,7 @@ echo "debug: win-arm64" > "$ARTIFACTS_DIR/windows-build-arm64/builder-debug.yml"
 # macOS x64
 touch "$ARTIFACTS_DIR/macos-build-x64/Sudowork-1.0.0-mac-x64.dmg"
 touch "$ARTIFACTS_DIR/macos-build-x64/Sudowork-1.0.0-mac-x64.zip"
+touch "$ARTIFACTS_DIR/macos-build-x64/Sudowork-1.0.0-mac-x64.zip.blockmap"
 cat > "$ARTIFACTS_DIR/macos-build-x64/latest-mac.yml" <<'EOF'
 version: 1.0.0
 files:
@@ -56,6 +57,7 @@ echo "debug: mac-x64" > "$ARTIFACTS_DIR/macos-build-x64/builder-debug.yml"
 # macOS arm64
 touch "$ARTIFACTS_DIR/macos-build-arm64/Sudowork-1.0.0-mac-arm64.dmg"
 touch "$ARTIFACTS_DIR/macos-build-arm64/Sudowork-1.0.0-mac-arm64.zip"
+touch "$ARTIFACTS_DIR/macos-build-arm64/Sudowork-1.0.0-mac-arm64.zip.blockmap"
 cat > "$ARTIFACTS_DIR/macos-build-arm64/latest-mac.yml" <<'EOF'
 version: 1.0.0
 files:
