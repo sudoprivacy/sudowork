@@ -126,9 +126,7 @@ export default function SkillDetailModal({
           <div className='px-8px pb-16px'>
             {/* Icon + Name header */}
             <div className='flex flex-col items-center mb-20px'>
-              <div className='w-72px h-72px rd-14px overflow-hidden bg-fill-2 mb-12px'>
-                {skill.icon ? <img src={skill.icon} alt={skill.display_name} className='w-full h-full object-cover' onError={handleSkillIconError} /> : <div className='w-full h-full f-center text-34px'>{skill.emoji || '📦'}</div>}
-              </div>
+              <div className='w-72px h-72px rd-14px overflow-hidden mb-12px'>{skill.icon ? <img src={skill.icon} alt={skill.display_name} className='w-full h-full object-cover' onError={handleSkillIconError} /> : <div className='w-full h-full f-center text-34px'>{skill.emoji || '📦'}</div>}</div>
               <div className='font-semibold text-17px text-foreground text-center'>{skill.display_name}</div>
               {skill.categories && skill.categories.length > 0 && (
                 <div className='flex gap-4px mt-6px flex-wrap justify-center'>

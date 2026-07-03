@@ -25,7 +25,7 @@ export default function InstalledSkillCard({ skill, onUninstall, uninstalling, o
     <div className={classNames('item-card group flex items-start gap-3 relative overflow-hidden', !isEnabled && 'opacity-65', !hasDetail && 'cursor-default')} onClick={hasDetail ? onClick : undefined}>
       {/* Icon */}
       <div className='w-48px flex-shrink-0'>
-        <div className='w-48px h-48px rd-8px overflow-hidden bg-fill-2'>
+        <div className='w-48px h-48px rd-8px overflow-hidden'>
           {icon ? (
             <img src={icon} alt={displayName} className='w-full h-full object-cover' onError={handleSkillIconError} />
           ) : emoji ? (
@@ -64,7 +64,7 @@ export default function InstalledSkillCard({ skill, onUninstall, uninstalling, o
           </Tooltip>
         )}
         {enterprisePublishButton}
-        {canToggleEnabled && <Switch size='small' checked={isEnabled} loading={togglingEnabled} onChange={(checked) => onToggleEnabled?.(checked)} className={isEnabled ? '!bg-primary !border-[var(--ui-accent-orange)]' : ''} />}
+        {canToggleEnabled && <Switch size='small' checked={isEnabled} loading={togglingEnabled} onChange={(checked) => onToggleEnabled?.(checked)} className={isEnabled ? '!bg-primary !border-[var(--color-primary)]' : ''} />}
         {skill.isBuiltin ? (
           <Tooltip content={t('settings.skill.builtinSkill', '内置技能')}>
             <div className='store-action-icon cursor-default'>
