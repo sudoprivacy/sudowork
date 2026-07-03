@@ -7,6 +7,7 @@
   "availableTitle": "Güncelleme Mevcut",
   "noReleaseNotes": "Sürüm notu yok.",
   "downloadingTitle": "Güncelleme indiriliyor...",
+  "differentialDownloadHint": "Artımlı güncelleme: yalnızca değişen kısımlar indiriliyor",
   "downloadButton": "İndir",
   "downloadAndInstall": "İndir ve Yükle",
   "downloadStartFailed": "İndirme başlatılamadı",

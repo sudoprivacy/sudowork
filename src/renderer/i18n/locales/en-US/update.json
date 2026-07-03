@@ -7,6 +7,7 @@
   "availableTitle": "Update available",
   "noReleaseNotes": "No release notes provided.",
   "downloadingTitle": "Downloading update...",
+  "differentialDownloadHint": "Incremental update: only downloading changed parts",
   "downloadButton": "Download",
   "downloadAndInstall": "Download & Install",
   "downloadStartFailed": "Failed to start download",

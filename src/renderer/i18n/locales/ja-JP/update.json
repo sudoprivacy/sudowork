@@ -7,6 +7,7 @@
   "availableTitle": "更新があります",
   "noReleaseNotes": "リリースノートはありません。",
   "downloadingTitle": "更新をダウンロードしています...",
+  "differentialDownloadHint": "差分更新：変更された部分のみをダウンロードしています",
   "downloadButton": "ダウンロード",
   "downloadAndInstall": "ダウンロードしてインストール",
   "downloadStartFailed": "ダウンロードを開始できませんでした",
