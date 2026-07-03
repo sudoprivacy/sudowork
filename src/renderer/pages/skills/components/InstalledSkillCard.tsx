@@ -31,7 +31,7 @@ export default function InstalledSkillCard({ skill, onUninstall, uninstalling, o
           ) : emoji ? (
             <div className='w-full h-full f-center text-22px'>{emoji}</div>
           ) : (
-            <div className='w-full h-full f-center bg-primary-light'>
+            <div className='w-full h-full f-center'>
               <Zap size={22} className='text-primary' />
             </div>
           )}
@@ -42,7 +42,7 @@ export default function InstalledSkillCard({ skill, onUninstall, uninstalling, o
       <div className='flex-1 min-w-0'>
         <div className='flex items-center gap-1.5 pr-14.5 min-w-0'>
           <span className='flex-1 min-w-0 font-medium text-13px text-foreground truncate'>{displayName}</span>
-          {!skill.isBuiltin && displayVersion && <span className='px-[5px] py-0 bg-fill-3 text-secondary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px'>v{displayVersion}</span>}
+          {!skill.isBuiltin && displayVersion && <span className='px-[5px] py-0 bg-control text-secondary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px'>v{displayVersion}</span>}
         </div>
         <div className='mt-[3px] min-h-7.5'>{description ? <div className='text-11px text-secondary line-clamp-2 leading-15px'>{description}</div> : <div className='text-11px text-tertiary italic line-clamp-2 leading-15px'>{skill.name}</div>}</div>
       </div>

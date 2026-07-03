@@ -68,8 +68,6 @@ const SkillSettings: React.FC = () => {
   const [uninstallingSkillName, setUninstallingSkillName] = useState<string | null>(null);
   const [togglingSkillName, setTogglingSkillName] = useState<string | null>(null);
   const [updatingSkillId, setUpdatingSkillId] = useState<string | null>(null);
-  /** Track skill IDs that are currently fetching version info (for loading state in SkillCard) */
-  const [loadingVersionIds, setLoadingVersionIds] = useState<Set<string>>(new Set());
 
   // Installed tab state
   const [installedList, setInstalledList] = useState<IInstalledSkillInfo[]>([]);
@@ -347,59 +345,42 @@ const SkillSettings: React.FC = () => {
         return versionMap;
       }
 
-      // Mark skills as loading
-      const idsToFetch = toFetch.map((s) => s.id);
-      setLoadingVersionIds((prev) => {
-        const next = new Set(prev);
-        idsToFetch.forEach((id) => next.add(id));
-        return next;
-      });
-
-      try {
-        const batchSize = 10;
-        for (let i = 0; i < toFetch.length; i += batchSize) {
-          const batch = toFetch.slice(i, i + batchSize);
-          const results = await Promise.all(
-            batch.map(async (skill) => {
-              try {
-                let res: SkillDetailResponse;
-                if (isElectronDesktop()) {
-                  res = await skillHub.fetchSkillDetail.invoke({ skillId: skill.id });
-                } else {
-                  res = await fetchSkillDetailHttp(skill.id);
-                }
-                if (res.success && res.data?.versions?.[0]) {
-                  const latest = res.data.versions[0];
-                  return {
-                    skillId: skill.id,
-                    versionInfo: {
-                      version: latest.version,
-                      sourceUrl: latest.source_url,
-                      checksum: latest.checksum,
-                      fetchedAt: Date.now(),
-                    } as SkillLatestVersion,
-                  };
-                }
-              } catch {
-                // ignore
+      const batchSize = 10;
+      for (let i = 0; i < toFetch.length; i += batchSize) {
+        const batch = toFetch.slice(i, i + batchSize);
+        const results = await Promise.all(
+          batch.map(async (skill) => {
+            try {
+              let res: SkillDetailResponse;
+              if (isElectronDesktop()) {
+                res = await skillHub.fetchSkillDetail.invoke({ skillId: skill.id });
+              } else {
+                res = await fetchSkillDetailHttp(skill.id);
               }
-              return null;
-            })
-          );
-          for (const r of results) {
-            if (r) versionMap.set(r.skillId, r.versionInfo);
-          }
+              if (res.success && res.data?.versions?.[0]) {
+                const latest = res.data.versions[0];
+                return {
+                  skillId: skill.id,
+                  versionInfo: {
+                    version: latest.version,
+                    sourceUrl: latest.source_url,
+                    checksum: latest.checksum,
+                    fetchedAt: Date.now(),
+                  } as SkillLatestVersion,
+                };
+              }
+            } catch {
+              // ignore
+            }
+            return null;
+          })
+        );
+        for (const r of results) {
+          if (r) versionMap.set(r.skillId, r.versionInfo);
         }
-        setLatestVersions(versionMap);
-        return versionMap;
-      } finally {
-        // Clear loading state for all fetched skills
-        setLoadingVersionIds((prev) => {
-          const next = new Set(prev);
-          idsToFetch.forEach((id) => next.delete(id));
-          return next;
-        });
       }
+      setLatestVersions(versionMap);
+      return versionMap;
     },
     [isEnterprise]
   );
@@ -1209,7 +1190,6 @@ const SkillSettings: React.FC = () => {
                     const isInstalled = installedSkills.has(skill.name) || installedSkills.has(skill.id);
                     const latestVer = latestVersions.get(skill.id);
                     const hasVersion = !!latestVer;
-                    const isLoadingVersion = loadingVersionIds.has(skill.id);
                     const isInstalling = installingSkillId === skill.id;
                     const isUpdating = updatingSkillId === skill.id;
                     const installedVer = normalizeSkillVersion(installedSkills.get(skill.id) || installedSkills.get(skill.name));
@@ -1222,19 +1202,16 @@ const SkillSettings: React.FC = () => {
                         hasVersion={hasVersion}
                         installing={isInstalling}
                         installProgress={installProgress}
-                        onInstall={(e) => {
-                          e.stopPropagation();
+                        onInstall={() => {
                           void handleInstall(skill.id);
                         }}
                         onClick={() => openDetail(skill)}
                         hasUpdate={skillHasUpdate}
-                        onUpdate={(e) => {
-                          e.stopPropagation();
+                        onUpdate={() => {
                           void handleUpdate(skill.id);
                         }}
                         updating={isUpdating}
                         latestVersion={latestVer?.version}
-                        loadingVersion={isLoadingVersion}
                       />
                     );
                   })}

@@ -5,13 +5,13 @@
  */
 
 import React from 'react';
-import { Progress, Tooltip } from '@arco-design/web-react';
+import { Button, Progress, Tooltip } from '@arco-design/web-react';
 import { Download } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { handleSkillIconError } from '@/renderer/utils/skillDisplay';
 import type { ISkillHubSkill } from '@/common/ipcBridge';
 
-export default function SkillCard({ skill, isInstalled, hasVersion, installing, installProgress, onInstall, onClick, hasUpdate, onUpdate, updating, latestVersion, loadingVersion }: ISkillCardProps) {
+export default function SkillCard({ skill, isInstalled, hasVersion, installing, installProgress, onInstall, onClick, hasUpdate, onUpdate, updating, latestVersion }: ISkillCardProps) {
   const { t } = useTranslation();
   return (
     <div className='item-card group flex items-start gap-3 relative overflow-hidden' onClick={onClick}>
@@ -24,23 +24,20 @@ export default function SkillCard({ skill, isInstalled, hasVersion, installing, 
       <div className='flex-1 min-w-0'>
         <div className='flex items-center gap-1.5 pr-14.5 min-w-0'>
           <span className='flex-1 min-w-0 font-medium text-13px text-foreground truncate'>{skill.display_name}</span>
-          {loadingVersion && !latestVersion && <span className='px-[5px] py-0 bg-fill-3 text-tertiary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px animate-pulse'>...</span>}
-          {latestVersion && <span className='px-[5px] py-0 bg-fill-3 text-secondary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px'>v{latestVersion}</span>}
+          {latestVersion && <span className='px-[5px] py-0 bg-control text-secondary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px'>v{latestVersion}</span>}
         </div>
         <div className='text-11px text-secondary mt-[3px] line-clamp-2 leading-relaxed'>{skill.description}</div>
       </div>
 
       {/* Action - top right */}
-      <div className='absolute top-2.5 right-2.5 flex items-center' onClick={(e) => e.stopPropagation()}>
+      <div className='absolute top-3 right-2.5 flex items-center' onClick={(e) => e.stopPropagation()}>
         {installing || updating ? (
           <div className='w-13'>
             <Progress percent={installProgress} size='mini' />
           </div>
         ) : isInstalled && hasUpdate ? (
           <Tooltip content={t('settings.skill.update', '更新')}>
-            <button type='button' className='store-action-icon' onClick={onUpdate}>
-              <Download size={13} />
-            </button>
+            <Button icon={<Download size={13} />} onClick={onUpdate} />
           </Tooltip>
         ) : isInstalled ? (
           <span className='store-action-badge' style={{ backgroundColor: 'rgba(var(--ui-accent-orange-rgb), 0.10)', color: 'var(--ui-accent-orange)' }}>
@@ -48,9 +45,7 @@ export default function SkillCard({ skill, isInstalled, hasVersion, installing, 
           </span>
         ) : !isInstalled && hasVersion ? (
           <Tooltip content={t('settings.skill.install', '安装')}>
-            <button type='button' className='store-action-icon' onClick={onInstall}>
-              <Download size={13} />
-            </button>
+            <Button icon={<Download size={13} />} onClick={onInstall} />
           </Tooltip>
         ) : null}
       </div>
@@ -64,13 +59,11 @@ interface ISkillCardProps {
   hasVersion: boolean;
   installing: boolean;
   installProgress: number;
-  onInstall: (e: React.MouseEvent) => void;
+  onInstall: () => void;
   onClick: () => void;
   hasUpdate?: boolean;
-  onUpdate?: (e: React.MouseEvent) => void;
+  onUpdate?: () => void;
   updating?: boolean;
   /** Latest version info for personal mode skill store display */
   latestVersion?: string;
-  /** Whether version info is still loading (for personal mode) */
-  loadingVersion?: boolean;
 }
