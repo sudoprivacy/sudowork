@@ -22,22 +22,22 @@ export default function SkillCard({ skill, isInstalled, hasVersion, installing, 
 
       {/* Content */}
       <div className='flex-1 min-w-0'>
-        <div className='flex items-center gap-1.5 pr-14.5 min-w-0'>
-          <span className='flex-1 min-w-0 font-medium text-13px text-foreground truncate'>{skill.display_name}</span>
+        <div className='flex items-center gap-2 pr-14.5 min-w-0'>
+          <span className='font-medium text-13px text-foreground truncate'>{skill.display_name}</span>
           {latestVersion && <span className='px-[5px] py-0 bg-control text-secondary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px'>v{latestVersion}</span>}
         </div>
         <div className='text-11px text-secondary mt-[3px] line-clamp-2 leading-relaxed'>{skill.description}</div>
       </div>
 
       {/* Action - top right */}
-      <div className='absolute top-3 right-2.5 flex items-center' onClick={(e) => e.stopPropagation()}>
+      <div className='absolute top-1.5 right-2.5 flex items-center' onClick={(e) => e.stopPropagation()}>
         {installing || updating ? (
           <div className='w-13'>
             <Progress percent={installProgress} size='mini' />
           </div>
         ) : isInstalled && hasUpdate ? (
           <Tooltip content={t('settings.skill.update', '更新')}>
-            <Button icon={<Download size={13} />} onClick={onUpdate} />
+            <Button icon={<Download size={13} />} onClick={onUpdate} className='!size-7' />
           </Tooltip>
         ) : isInstalled ? (
           <span className='store-action-badge' style={{ backgroundColor: 'rgba(var(--ui-accent-orange-rgb), 0.10)', color: 'var(--ui-accent-orange)' }}>
@@ -45,7 +45,7 @@ export default function SkillCard({ skill, isInstalled, hasVersion, installing, 
           </span>
         ) : !isInstalled && hasVersion ? (
           <Tooltip content={t('settings.skill.install', '安装')}>
-            <Button icon={<Download size={13} />} onClick={onInstall} />
+            <Button icon={<Download size={13} />} onClick={onInstall} className='!size-7' />
           </Tooltip>
         ) : null}
       </div>
