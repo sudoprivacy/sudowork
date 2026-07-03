@@ -5,7 +5,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { Button, Spin, Modal, Popconfirm, Progress, Tooltip } from '@arco-design/web-react';
+import { Button, Spin, Modal, Popconfirm, Progress } from '@arco-design/web-react';
 import { IconDownload, IconRefresh } from '@arco-design/web-react/icon';
 import { PackagePlus, Trash2, Shield } from 'lucide-react';
 import classNames from 'classnames';
@@ -194,11 +194,9 @@ export default function SkillDetailModal({
             {isInstalled ? (
               <>
                 {hasUpdate ? (
-                  <Tooltip content={t('settings.skill.updateTo', { version: latestVersionInfo?.version || '', defaultValue: '更新至 v{{version}}' })}>
-                    <Button type='primary' long size='large' className='flex-1' loading={updating} loadingFixedWidth icon={<IconRefresh style={{ fontSize: 15 }} />} onClick={onUpdate}>
-                      {t('settings.skill.updateTo', { version: latestVersionInfo?.version || '', defaultValue: '更新至 v{{version}}' })}
-                    </Button>
-                  </Tooltip>
+                  <Button type='primary' long size='large' className='flex-1' loading={updating} loadingFixedWidth icon={<IconRefresh style={{ fontSize: 15 }} />} onClick={onUpdate}>
+                    {t('settings.skill.updateTo', { version: latestVersionInfo?.version || '', defaultValue: '更新至 v{{version}}' })}
+                  </Button>
                 ) : (
                   <Button type='primary' long size='large' className='flex-1' onClick={onGoUse || onClose}>
                     {t('settings.skill.goUse', '去使用')}
