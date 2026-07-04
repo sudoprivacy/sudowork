@@ -5,7 +5,7 @@
  */
 
 import React from 'react';
-import AgentModalContent from '@/renderer/components/SettingsModal/contents/AgentModalContent';
+import AgentModalContent from '@/renderer/pages/agents/components/AgentModalContent';
 import PageWrapper from '@renderer/components/base/PageWrapper';
 
 const AgentSettings: React.FC = () => {
