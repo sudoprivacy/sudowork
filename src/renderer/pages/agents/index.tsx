@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Avatar, Button, Collapse, Drawer, Input, Message, Modal, Progress, Select, Spin, Tooltip, Typography } from '@arco-design/web-react';
-import { Copy, Lightning, Plus, Robot, Shield, Search, Install, Share, Check } from '@icon-park/react';
+import { Avatar, Button, Collapse, Drawer, Input, Message, Modal, Select, Spin, Tooltip, Typography } from '@arco-design/web-react';
+import { Plus, Robot, Shield, Search, Share, Check } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -15,7 +15,7 @@ import { ipcBridge, skillHub, assistantHub } from '@/common';
 import { parseHubError, type HubError } from '@common/nexus/hubErrors';
 import HubEmptyState from '@renderer/components/HubEmptyState';
 import { eeclaw } from '@/common/ipcBridge';
-import type { IInstalledSkillInfo, IAssistantHubSkill, IAssistantHubVersionLike, ISkillHubSkill } from '@/common/ipcBridge';
+import type { IInstalledSkillInfo, IAssistantHubSkill, IAssistantHubVersionLike } from '@/common/ipcBridge';
 import { toBackendConfig, resolveAssistantName } from '@/renderer/shared/agents/assistantAdapter';
 import Tabs from '@renderer/components/ui/Tabs';
 import type { IAssistantInfo } from '@/process/AssistantManager';
@@ -24,8 +24,6 @@ import coworkSvg from '@/renderer/assets/cowork.svg';
 import EmojiPicker from '@/renderer/components/EmojiPicker';
 import MarkdownView from '@/renderer/components/Markdown';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
-import { handleSkillIconError } from '@/renderer/utils/skillDisplay';
-import { COS_HUB_BASE } from '@/shared/cos';
 import { isElectronDesktop, resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import { DEFAULT_PRESET_AGENT_TYPE, normalizePresetAgentType } from '@/types/acpTypes';
 import { useAuth } from '@/renderer/context/AuthContext';
@@ -33,20 +31,15 @@ import { useAppMode } from '@/renderer/hooks/useAppMode';
 import { emitter } from '@/renderer/utils/emitter';
 import PageWrapper from '@renderer/components/base/PageWrapper';
 import SkillCard from './components/SkillCard';
+import HubAssistantCard from './components/HubAssistantCard';
+import AssistantDetailModal from './components/AssistantDetailModal';
 import InstalledAssistantCard from './components/InstalledAssistantCard';
-import type { AssistantListItem } from './types';
+import type { AssistantListItem, AssistantLatestVersion } from './types';
 import { normalizeAssistantVersion, getSelectableAssistantSkills, isAssistantSkillSelected, isAutoInjectedBuiltinSkill, sanitizeAssistantEnabledSkills, toggleAssistantSkillSelection } from './utils';
 
 // ==================== Types ====================
 
 type AssistantStoreTab = 'store' | 'exclusive' | 'installed';
-
-type AssistantLatestVersion = {
-  version: string;
-  sourceUrl: string;
-  checksum: string;
-  fetchedAt: number;
-};
 
 const VERSION_CACHE_TTL = 5 * 60 * 1000;
 const VERSION_FAILURE_CACHE_TTL = 60 * 1000;
@@ -63,409 +56,6 @@ const resolveAssistantVersionLike = (assistant: IAssistantHubSkill, versionLike?
     checksum: versionLike?.checksum || '',
     fetchedAt: Date.now(),
   };
-};
-
-// ==================== HubAssistantCard (for store tab) ====================
-
-const HubAssistantCard: React.FC<{
-  assistant: IAssistantHubSkill;
-  isInstalled: boolean;
-  installing: boolean;
-  installProgress: number;
-  onInstall: (_e: React.MouseEvent) => void;
-  onUpdate?: (_e: React.MouseEvent) => void;
-  onDuplicate: (_e: React.MouseEvent) => void;
-  onClick: () => void;
-  hasUpdate?: boolean;
-  updating?: boolean;
-  latestVersion?: string;
-  loadingVersion?: boolean;
-}> = ({ assistant, isInstalled, installing, installProgress, onInstall, onUpdate, onDuplicate, onClick, hasUpdate, updating, latestVersion, loadingVersion }) => {
-  const { t } = useTranslation();
-
-  const displayName = assistant.display_name || assistant.name;
-  const resolvedAvatar = assistant.avatar?.trim();
-  const emojiRegex = /^(?:\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(?:\u200D(?:\p{Emoji_Presentation}|\p{Emoji}\uFE0F))*$/u;
-  const hasEmojiAvatar = Boolean(resolvedAvatar && emojiRegex.test(resolvedAvatar));
-
-  // Check if assistant has a valid download URL (null/undefined means no installable package)
-  const hasDownloadUrl = Boolean(assistant._sourceUrl);
-
-  return (
-    <div className='item-card group flex items-start gap-12px relative overflow-hidden' onClick={onClick}>
-      {/* Icon */}
-      <div className='w-48px flex-shrink-0 flex flex-col items-center'>
-        <div className='w-48px h-48px rd-8px overflow-hidden bg-fill-2'>
-          {resolvedAvatar ? (
-            hasEmojiAvatar ? (
-              <div className='w-full h-full f-center text-22px'>{resolvedAvatar}</div>
-            ) : (
-              <img src={resolvedAvatar} alt={displayName} className='w-full h-full object-cover' />
-            )
-          ) : assistant.emoji ? (
-            <div className='w-full h-full f-center text-22px'>{assistant.emoji}</div>
-          ) : (
-            <div className='w-full h-full f-center bg-primary-light'>
-              <Robot theme='filled' size='22' className='text-primary' />
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Content */}
-      <div className='flex-1 min-w-0'>
-        <div className='flex items-center gap-6px pr-100px min-w-0'>
-          <span className='flex-1 min-w-0 font-medium text-13px text-foreground truncate'>{displayName}</span>
-          {loadingVersion && !latestVersion && <span className='px-5px py-0px bg-fill-3 text-t-tertiary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px animate-pulse'>...</span>}
-          {latestVersion && <span className='px-5px py-0px bg-fill-3 text-t-secondary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px'>v{latestVersion}</span>}
-        </div>
-        <div className='text-11px text-secondary mt-3px line-clamp-2 leading-relaxed'>{assistant.description}</div>
-        {assistant.skills && assistant.skills.length > 0 && (
-          <div className='mt-4px flex items-center gap-4px'>
-            <Lightning size='12' className='text-primary flex-shrink-0' />
-            <span className='text-10px text-tertiary'>{t('settings.assistant.relatedSkills', { count: assistant.skills.length, defaultValue: `${assistant.skills.length} 个关联技能` })}</span>
-          </div>
-        )}
-      </div>
-
-      {/* Actions - top right */}
-      <div className='absolute top-10px right-10px flex items-center gap-6px' onClick={(e) => e.stopPropagation()}>
-        {/* Duplicate button - only for installed assistants */}
-        {isInstalled && (
-          <>
-            {!hasUpdate && !updating && (
-              <span className='store-action-badge' style={{ backgroundColor: 'rgba(var(--ui-accent-orange-rgb), 0.10)', color: 'var(--ui-accent-orange)' }}>
-                {t('settings.assistant.installed', { defaultValue: '已安装' })}
-              </span>
-            )}
-            <Tooltip content={t('settings.assistant.duplicate', { defaultValue: '复制' })}>
-              <button type='button' className='store-action-icon' onClick={onDuplicate}>
-                <Copy size='13' />
-              </button>
-            </Tooltip>
-          </>
-        )}
-        {/* Install button or progress - only show if hasDownloadUrl */}
-        {installing || updating ? (
-          <div className='w-52px'>
-            <Progress percent={installProgress} size='mini' />
-          </div>
-        ) : isInstalled && hasUpdate ? (
-          <Tooltip content={t('settings.assistant.update', { defaultValue: '更新' })}>
-            <button type='button' className='store-action-icon' onClick={onUpdate}>
-              <Install size='13' />
-            </button>
-          </Tooltip>
-        ) : !isInstalled && hasDownloadUrl ? (
-          <Tooltip content={t('settings.assistant.install', { defaultValue: '安装' })}>
-            <button type='button' className='store-action-icon' onClick={onInstall}>
-              <Install size='13' />
-            </button>
-          </Tooltip>
-        ) : null}
-      </div>
-    </div>
-  );
-};
-
-// ==================== AssistantDetailModal (for store assistants) ====================
-
-const AssistantDetailModal: React.FC<{
-  assistant: IAssistantHubSkill | null;
-  visible: boolean;
-  onClose: () => void;
-  isInstalled: boolean;
-  installing: boolean;
-  installProgress: number;
-  onInstall: (_selectedSkillIds: string[]) => void;
-  latestVersionInfo?: AssistantLatestVersion;
-  installedVersion?: string;
-  onUpdate?: (_selectedSkillIds: string[]) => void;
-  updating?: boolean;
-  onGoUse?: () => void;
-  installedSkills: IInstalledSkillInfo[];
-}> = ({ assistant, visible, onClose, isInstalled, installing, installProgress, onInstall, latestVersionInfo, installedVersion, onUpdate, updating = false, onGoUse, installedSkills }) => {
-  const { t } = useTranslation();
-  const [loading, setLoading] = useState(false);
-  const [relatedSkillDetails, setRelatedSkillDetails] = useState<ISkillHubSkill[]>([]);
-  const [relatedSkillTags, setRelatedSkillTags] = useState<Map<string, string>>(new Map());
-  const [loadingSkills, setLoadingSkills] = useState(false);
-
-  // Use useAppMode hook for renderer process (enterpriseDebugConfig.isEnterpriseMode only works in main process)
-  const { isEnterprise } = useAppMode();
-
-  // Check if assistant has a valid download URL
-  const hasDownloadUrl = Boolean(latestVersionInfo?.sourceUrl || assistant?._sourceUrl);
-
-  // Build a map of local installed skills by ID for quick lookup (memoized to prevent infinite loops)
-  const localSkillByIdMap = useMemo(() => {
-    const map = new Map<string, IInstalledSkillInfo>();
-    for (const skill of installedSkills) {
-      if (skill.meta?.id) {
-        map.set(skill.meta.id, skill);
-      }
-    }
-    return map;
-  }, [installedSkills]);
-
-  const localSkillByNameSet = useMemo(() => {
-    const set = new Set<string>();
-    for (const skill of installedSkills) {
-      set.add(skill.name);
-    }
-    return set;
-  }, [installedSkills]);
-
-  // Count installed skills for display
-  const installedSkillCount = relatedSkillDetails.filter((s) => localSkillByNameSet.has(s.name)).length;
-
-  // Fetch assistant detail and related skill details
-  useEffect(() => {
-    if (!visible || !assistant) {
-      setRelatedSkillDetails([]);
-      return;
-    }
-
-    setLoading(true);
-    setLoadingSkills(true);
-
-    const fetchData = async () => {
-      try {
-        if (isElectronDesktop()) {
-          // Fetch related skill details by IDs
-          const skillIds = assistant.skills || [];
-          if (skillIds.length > 0) {
-            // First, find skills from local installed skills (including builtin skills)
-            const localFoundSkills: ISkillHubSkill[] = [];
-            const localFoundSkillTags: Map<string, string> = new Map(); // Track skill tags separately
-            const notFoundSkillIds: string[] = [];
-
-            for (const skillId of skillIds) {
-              const localSkill = localSkillByIdMap.get(skillId);
-              if (localSkill && localSkill.meta) {
-                // Convert local skill info to ISkillHubSkill format
-                localFoundSkills.push({
-                  id: localSkill.meta.id || skillId,
-                  name: localSkill.meta.name || localSkill.name,
-                  display_name: localSkill.meta.display_name || localSkill.name,
-                  description: localSkill.meta.description || '',
-                  icon: localSkill.meta.icon || '',
-                  emoji: localSkill.meta.emoji || null,
-                  category: localSkill.meta.category || '',
-                  categories: localSkill.meta.categories || [],
-                  star_count: 0,
-                  homepage: localSkill.meta.homepage || null,
-                  author_id: localSkill.meta.author_id || '',
-                  applicable_scenarios: localSkill.meta.applicable_scenarios || null,
-                  core_features: localSkill.meta.core_features || null,
-                  created_at: localSkill.meta.installed_at || '',
-                  updated_at: localSkill.meta.installed_at || '',
-                });
-                // Track skill source type for builtin detection
-                const skillTag = localSkill.meta.source_type || (localSkill.isBuiltin ? 'builtin' : 'hub');
-                localFoundSkillTags.set(skillId, skillTag);
-              } else {
-                // Not found locally, need to fetch from Hub API
-                notFoundSkillIds.push(skillId);
-              }
-            }
-
-            // Fetch remaining skills from Hub API (personal mode only)
-            let hubSkills: ISkillHubSkill[] = [];
-            if (notFoundSkillIds.length > 0 && !isEnterprise) {
-              const skillsRes = await assistantHub.fetchSkillDetailsByIds.invoke({ skillIds: notFoundSkillIds });
-              if (skillsRes.success && skillsRes.data) {
-                hubSkills = skillsRes.data;
-                // Hub skills are from hub
-                for (const skillId of notFoundSkillIds) {
-                  localFoundSkillTags.set(skillId, 'hub');
-                }
-              }
-            }
-
-            // Combine local and hub skills, preserving original order
-            const allSkills: ISkillHubSkill[] = [];
-            for (const skillId of skillIds) {
-              const localSkill = localFoundSkills.find((s) => s.id === skillId);
-              if (localSkill) {
-                allSkills.push(localSkill);
-              } else {
-                const hubSkill = hubSkills.find((s) => s.id === skillId);
-                if (hubSkill) {
-                  allSkills.push(hubSkill);
-                }
-              }
-            }
-
-            setRelatedSkillDetails(allSkills);
-            setRelatedSkillTags(localFoundSkillTags);
-          }
-        }
-      } catch (err) {
-        console.error('Failed to fetch data:', err);
-      } finally {
-        setLoading(false);
-        setLoadingSkills(false);
-      }
-    };
-    void fetchData();
-  }, [visible, assistant, localSkillByIdMap, isEnterprise]);
-
-  if (!assistant) return null;
-
-  const displayName = assistant.display_name || assistant.name;
-  const resolvedAvatar = assistant.avatar?.trim();
-  const emojiRegex = /^(?:\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(?:\u200D(?:\p{Emoji_Presentation}|\p{Emoji}\uFE0F))*$/u;
-  const hasEmojiAvatar = Boolean(resolvedAvatar && emojiRegex.test(resolvedAvatar));
-  const hasUpdate = isInstalled && latestVersionInfo && (!installedVersion || latestVersionInfo.version !== installedVersion);
-  const associatedSkillIds = !isEnterprise && assistant.skills?.length > 0 ? assistant.skills : relatedSkillDetails.map((s) => s.id);
-
-  return (
-    <Modal visible={visible} onCancel={onClose} footer={null} style={{ width: 480 }}>
-      <div className='flex flex-col max-h-80vh'>
-        <AionScrollArea className='flex-1 min-h-0'>
-          <div className='px-8px pb-16px'>
-            {/* Icon + Name header */}
-            <div className='flex flex-col items-center mb-20px'>
-              <div className='w-72px h-72px rd-14px overflow-hidden bg-fill-2 mb-12px'>
-                {resolvedAvatar ? (
-                  hasEmojiAvatar ? (
-                    <div className='w-full h-full f-center text-34px'>{resolvedAvatar}</div>
-                  ) : (
-                    <img src={resolvedAvatar} alt={displayName} className='w-full h-full object-cover' />
-                  )
-                ) : assistant.emoji ? (
-                  <div className='w-full h-full f-center text-34px'>{assistant.emoji}</div>
-                ) : (
-                  <div className='w-full h-full f-center bg-primary-light'>
-                    <Robot theme='filled' size='34' className='text-primary' />
-                  </div>
-                )}
-              </div>
-              <div className='font-semibold text-17px text-foreground text-center'>{displayName}</div>
-              {assistant.categories && assistant.categories.length > 0 && (
-                <div className='flex gap-4px mt-6px flex-wrap justify-center'>
-                  {assistant.categories.map((cat, idx) => (
-                    <span key={idx} className='px-7px py-1px bg-fill-2 text-secondary text-11px rd-4px'>
-                      {cat}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {loading ? (
-              <div className='flex justify-center py-32px'>
-                <Spin />
-              </div>
-            ) : (
-              <div className='space-y-16px'>
-                {/* Assistant intro */}
-                <div className='bg-fill-1 rd-10px p-14px'>
-                  <div className='flex items-center gap-6px mb-8px'>
-                    <span className='text-14px'>✦</span>
-                    <span className='font-medium text-13px text-foreground'>{t('settings.assistant.introduction', { defaultValue: '助手介绍' })}</span>
-                  </div>
-                  <div className='text-12px text-secondary leading-relaxed'>{assistant.description}</div>
-                </div>
-
-                {/* Associated skills */}
-                {relatedSkillDetails.length > 0 && !isInstalled && (
-                  <div className='bg-fill-1 rd-10px p-14px'>
-                    <div className='flex items-center gap-6px mb-10px'>
-                      <Lightning size='14' className='text-primary' />
-                      <span className='font-medium text-13px text-foreground'>{t('settings.assistant.relatedSkills', { defaultValue: '关联技能' })}</span>
-                      <span className='text-12px text-tertiary'>({relatedSkillDetails.length})</span>
-                      {installedSkillCount > 0 && <span className='text-12px text-tertiary'>· {t('settings.assistant.skillsInstalled', { installed: installedSkillCount, defaultValue: `${installedSkillCount} 已安装` })}</span>}
-                    </div>
-                    {loadingSkills ? (
-                      <div className='text-center text-secondary text-12px py-16px'>{t('common.loading', { defaultValue: '加载中...' })}</div>
-                    ) : (
-                      <div className='space-y-8px'>
-                        {relatedSkillDetails.map((skill) => {
-                          const isSkillInstalled = localSkillByNameSet.has(skill.name);
-                          const skillTag = relatedSkillTags.get(skill.id);
-                          const isBuiltinSkill = skillTag === 'builtin' || skillTag === 'system';
-                          const skillDisplayName = skill.display_name || skill.name;
-                          // Resolve icon URL based on skill source type
-                          // - Builtin skills: icon is aion-asset:// or file:// URL, use resolveExtensionAssetUrl
-                          // - Hub skills: icon may be relative path, need to prepend COS URL
-                          let skillIconUrl: string | undefined;
-                          if (isBuiltinSkill) {
-                            skillIconUrl = resolveExtensionAssetUrl(skill.icon) || skill.icon;
-                          } else {
-                            // Hub skills: if icon is relative path, prepend COS URL
-                            skillIconUrl = skill.icon && !skill.icon.startsWith('http') && !skill.icon.startsWith('data:') && !skill.icon.startsWith('/') && !skill.icon.startsWith('aion-asset://') && !skill.icon.startsWith('file://') ? `${COS_HUB_BASE}/${skill.icon}` : skill.icon;
-                          }
-                          return (
-                            <div key={skill.id} className='flex items-center gap-10px p-8px bg-fill-2 rd-8px'>
-                              <div className='w-32px h-32px flex-shrink-0 rd-6px overflow-hidden bg-fill-3'>
-                                {skillIconUrl ? (
-                                  <img src={skillIconUrl} alt={skillDisplayName} className='w-full h-full object-cover' onError={handleSkillIconError} />
-                                ) : skill.emoji ? (
-                                  <div className='w-full h-full f-center text-16px'>{skill.emoji}</div>
-                                ) : (
-                                  <div className='w-full h-full f-center bg-primary-light'>
-                                    <Lightning size='14' className='text-primary' />
-                                  </div>
-                                )}
-                              </div>
-                              <div className='flex-1 min-w-0'>
-                                <div className='flex items-center gap-4px'>
-                                  <span className='font-medium text-13px text-foreground truncate'>{skillDisplayName}</span>
-                                  {isBuiltinSkill && <Shield size='12' className='text-primary flex-shrink-0' />}
-                                </div>
-                                <div className='text-11px text-tertiary truncate'>{skill.description}</div>
-                              </div>
-                              <span className={`px-4px py-0px text-10px rd-3px whitespace-nowrap ${isSkillInstalled ? 'bg-primary-light text-primary' : 'bg-fill-3 text-secondary'}`}>
-                                {isSkillInstalled ? t('settings.skill.installed', { defaultValue: '已安装' }) : t('settings.skill.notInstalled', { defaultValue: '未安装' })}
-                              </span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                    <div className='mt-12px text-11px text-tertiary'>{t('settings.assistant.skillsInstallHint', { defaultValue: '安装助手时会自动安装关联的技能' })}</div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </AionScrollArea>
-
-        {/* Action buttons */}
-        <div className='px-8px pt-12px border-t mt-4px'>
-          <div className='flex gap-8px items-center'>
-            {isInstalled && hasUpdate ? (
-              <Button type='primary' long size='large' className='flex-1' loading={updating} loadingFixedWidth onClick={() => onUpdate?.(associatedSkillIds)}>
-                <span className='flex items-center gap-6px justify-center'>
-                  <Install size='15' />
-                  {t('settings.assistant.updateTo', { version: latestVersionInfo.version, defaultValue: `更新至 v${latestVersionInfo.version}` })}
-                </span>
-              </Button>
-            ) : isInstalled ? (
-              <Button type='primary' long size='large' className='flex-1' onClick={onGoUse || onClose}>
-                {t('settings.skill.goUse', { defaultValue: '去使用' })}
-              </Button>
-            ) : !hasDownloadUrl ? (
-              <div className='flex-1 text-center text-secondary text-13px py-12px'>{t('settings.assistant.noDownloadUrl', { defaultValue: '该助手暂不支持安装，请联系管理员' })}</div>
-            ) : installing ? (
-              <div className='flex-1'>
-                <Progress percent={installProgress} size='small' />
-              </div>
-            ) : (
-              <Button type='primary' long size='large' onClick={() => onInstall(associatedSkillIds)}>
-                <span className='flex items-center gap-6px justify-center'>
-                  <Install size='15' />
-                  {t('settings.assistant.install', { defaultValue: '安装助手' })}
-                </span>
-              </Button>
-            )}
-          </div>
-        </div>
-      </div>
-    </Modal>
-  );
 };
 
 // ==================== Types ====================

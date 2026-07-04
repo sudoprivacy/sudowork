@@ -18,3 +18,10 @@ export type AssistantListItem = AcpBackendConfig & {
   _installedVersion?: string;
   _hubMeta?: IAssistantHubSkill;
 };
+
+export type AssistantLatestVersion = {
+  version: string;
+  sourceUrl: string;
+  checksum: string;
+  fetchedAt: number;
+};

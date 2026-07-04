@@ -39,7 +39,7 @@ const SkillCard: React.FC<SkillCardProps> = ({ skill, checked, onToggle, disable
       <div className='flex-1 min-w-0'>
         <div className='flex items-center gap-6px'>
           <span className='font-medium text-13px text-foreground truncate'>{displayName}</span>
-          {!skill.isBuiltin && displayVersion && <span className='px-5px py-0px bg-fill-3 text-secondary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px'>v{displayVersion}</span>}
+          {!skill.isBuiltin && displayVersion && <span className='px-5px py-0px bg-control text-secondary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px'>v{displayVersion}</span>}
           {skill.isBuiltin && <Shield size='14' className='text-primary flex-shrink-0' />}
         </div>
         {description && <div className='text-11px text-secondary mt-3px line-clamp-2 leading-relaxed'>{description}</div>}
