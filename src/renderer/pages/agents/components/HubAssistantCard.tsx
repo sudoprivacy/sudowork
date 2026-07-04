@@ -10,7 +10,7 @@ import { Copy, Install, Lightning, Robot } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import type { IAssistantHubSkill } from '@/common/ipcBridge';
 
-const HubAssistantCard: React.FC<HubAssistantCardProps> = ({ assistant, isInstalled, installing, installProgress, onInstall, onUpdate, onDuplicate, onClick, hasUpdate, updating, latestVersion, loadingVersion }) => {
+const HubAssistantCard: React.FC<HubAssistantCardProps> = ({ assistant, isInstalled, installing, installProgress, onInstall, onUpdate, onDuplicate, onClick, hasUpdate, updating, latestVersion }) => {
   const { t } = useTranslation();
 
   const displayName = assistant.display_name || assistant.name;
@@ -45,9 +45,8 @@ const HubAssistantCard: React.FC<HubAssistantCardProps> = ({ assistant, isInstal
       {/* Content */}
       <div className='flex-1 min-w-0'>
         <div className='flex items-center gap-6px pr-100px min-w-0'>
-          <span className='flex-1 min-w-0 font-medium text-13px text-foreground truncate'>{displayName}</span>
-          {loadingVersion && !latestVersion && <span className='px-5px py-0px bg-fill-3 text-t-tertiary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px animate-pulse'>...</span>}
-          {latestVersion && <span className='px-5px py-0px bg-fill-3 text-t-secondary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px'>v{latestVersion}</span>}
+          <span className='min-w-0 font-medium text-13px text-foreground truncate'>{displayName}</span>
+          {latestVersion && <span className='px-5px py-0px bg-control text-t-secondary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px'>v{latestVersion}</span>}
         </div>
         <div className='text-11px text-secondary mt-3px line-clamp-2 leading-relaxed'>{assistant.description}</div>
         {assistant.skills && assistant.skills.length > 0 && (
