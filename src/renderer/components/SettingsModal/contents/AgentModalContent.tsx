@@ -5,7 +5,7 @@
  */
 
 import { Avatar, Button, Checkbox, Collapse, Drawer, Input, Message, Modal, Popconfirm, Progress, Select, Spin, Switch, Tooltip, Typography } from '@arco-design/web-react';
-import { Close, Copy, Delete, Edit, Lightning, PreviewOpen, Plus, Robot, Shield, Search, Install, Upload, Share, Check } from '@icon-park/react';
+import { Copy, Delete, Edit, Lightning, PreviewOpen, Plus, Robot, Shield, Search, Install, Upload, Share, Check } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -17,6 +17,7 @@ import HubEmptyState from '@renderer/components/HubEmptyState';
 import { eeclaw } from '@/common/ipcBridge';
 import type { IInstalledSkillInfo, IAssistantHubSkill, IAssistantHubVersionLike, ISkillHubSkill } from '@/common/ipcBridge';
 import { toBackendConfig, resolveAssistantName } from '@/renderer/shared/agents/assistantAdapter';
+import Tabs from '@renderer/components/ui/Tabs';
 import type { AssistantCategory, IAssistantInfo } from '@/process/AssistantManager';
 import { resolveLocaleKey, uuid } from '@/common/utils';
 import coworkSvg from '@/renderer/assets/cowork.svg';
@@ -239,7 +240,7 @@ const InstalledAssistantCard: React.FC<InstalledAssistantCardProps> = (props) =>
           </button>
         </Tooltip>
         {enterprisePublishButton}
-        {canToggle && <Switch size='small' checked={isEnabled} onChange={(checked) => onToggleEnabled(checked)} className={isEnabled ? '!bg-[var(--ui-accent-orange)] !border-[var(--ui-accent-orange)]' : ''} />}
+        {canToggle && <Switch size='small' checked={isEnabled} onChange={(checked) => onToggleEnabled(checked)} className={isEnabled ? '!bg-primary !border-[var(--ui-accent-orange)]' : ''} />}
         {/* Delete button - only for custom assistants that are not readonly */}
         {canDelete && (
           <Popconfirm
@@ -517,15 +518,8 @@ const AssistantDetailModal: React.FC<{
   const associatedSkillIds = !isEnterprise && assistant.skills?.length > 0 ? assistant.skills : relatedSkillDetails.map((s) => s.id);
 
   return (
-    <Modal visible={visible} onCancel={onClose} footer={null} closable={false} maskClosable style={{ width: 480 }} className='assistant-detail-modal' wrapClassName='assistant-detail-modal-wrap'>
+    <Modal visible={visible} onCancel={onClose} footer={null} style={{ width: 480 }}>
       <div className='flex flex-col max-h-80vh'>
-        {/* Close button */}
-        <div className='flex justify-end mb-4px'>
-          <div className='w-28px h-28px f-center rd-full bg-fill-2 hover:bg-fill-3 cursor-pointer transition-colors text-secondary' onClick={onClose}>
-            <Close size='14' />
-          </div>
-        </div>
-
         <AionScrollArea className='flex-1 min-h-0'>
           <div className='px-8px pb-16px'>
             {/* Icon + Name header */}
@@ -2307,20 +2301,27 @@ const AgentModalContent: React.FC = () => {
       {agentMessageContext}
 
       {/* Header: tabs + search + create button */}
-      <div className='flex items-center gap-12px mb-12px'>
+      <div className='flex items-center gap-24px mb-12px'>
         {/* Tab switcher */}
-        <div className='settings-store-tabs flex-shrink-0'>
-          <button className={classNames('settings-store-tabs__item', activeTab === 'store' && 'settings-store-tabs__item--active')} onClick={() => setActiveTab('store')}>
-            {t('settings.assistant.storeTab', { defaultValue: '智能体库' })}
-          </button>
-          <button className={classNames('settings-store-tabs__item', activeTab === 'exclusive' && 'settings-store-tabs__item--active')} onClick={() => setActiveTab('exclusive')}>
-            {t('settings.assistant.exclusiveTab', { defaultValue: '专属智能体' })}
-          </button>
-          <button className={classNames('settings-store-tabs__item', activeTab === 'installed' && 'settings-store-tabs__item--active')} onClick={() => setActiveTab('installed')}>
-            {t('settings.assistant.installedTab', { defaultValue: '我的智能体' })}
-            {assistants.length > 0 && <span className='settings-store-tabs__badge'>{assistants.length}</span>}
-          </button>
-        </div>
+        <Tabs
+          variant='line'
+          className='flex-shrink-0'
+          value={activeTab}
+          onChange={(value) => setActiveTab(value as AssistantStoreTab)}
+          items={[
+            { value: 'store', label: t('settings.assistant.storeTab', { defaultValue: '智能体库' }) },
+            { value: 'exclusive', label: t('settings.assistant.exclusiveTab', { defaultValue: '专属智能体' }) },
+            {
+              value: 'installed',
+              label: (
+                <>
+                  {t('settings.assistant.installedTab', { defaultValue: '我的智能体' })}
+                  {assistants.length > 0 && <span className='f-center min-w-4 h-4 ml-5px px-1 rd-full bg-primary text-white text-10px leading-4 font-medium'>{assistants.length}</span>}
+                </>
+              ),
+            },
+          ]}
+        />
 
         {/* Sync status indicator for enterprise mode - compact inline style */}
         {isEnterprise && activeTab === 'store' && syncStatus.syncing && (
@@ -2337,9 +2338,14 @@ const AgentModalContent: React.FC = () => {
         )}
 
         {/* Search - for store/exclusive tabs */}
-        <div className={classNames('flex-1 min-w-0 transition-opacity duration-150', activeTab === 'installed' ? 'opacity-0 pointer-events-none' : '')}>
-          <Input placeholder={t('settings.assistant.searchPlaceholder', { defaultValue: '搜索...' })} value={hubSearchQuery} onChange={setHubSearchQuery} prefix={<Search size='14' className='text-tertiary' />} size='small' className='assistant-hub-input' />
-        </div>
+        <Input
+          placeholder={t('settings.assistant.searchPlaceholder', { defaultValue: '搜索...' })}
+          value={hubSearchQuery}
+          onChange={setHubSearchQuery}
+          prefix={<Search size='14' className='text-tertiary' />}
+          size='small'
+          className={classNames('flex-1 min-w-0 assistant-hub-input', activeTab === 'installed' && 'invisible')}
+        />
 
         {/* Create button — only on installed tab */}
         {activeTab === 'installed' && (

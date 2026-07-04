@@ -100,5 +100,6 @@
     "openFolder": "폴더 열기",
     "addSkill": "스킬 추가"
   },
-  "enabled": "활성화됨"
+  "enabled": "활성화됨",
+  "uninstall": "제거"
 }

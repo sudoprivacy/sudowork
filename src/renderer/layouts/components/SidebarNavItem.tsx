@@ -30,7 +30,7 @@ const SidebarNavItem: React.FC<SidebarNavItemProps> = ({ icon, label, selected =
       onClick={onClick}
       {...dataAttributes}
     >
-      <span className={classNames('absolute left-0 top-[9px] h-[22px] w-0.5 rd-r-2px transition-colors', selected ? '!bg-[var(--ui-accent-orange)]' : 'bg-transparent')} />
+      <span className={classNames('absolute left-0 top-[9px] h-[22px] w-0.5 rd-r-2px transition-colors', selected ? '!bg-primary' : 'bg-transparent')} />
       <span className={classNames('translate-y-px inline-flex h-5 w-5 shrink-0 items-center justify-center', selected && 'text-[var(--ui-accent-orange)]')}>{icon}</span>
       {!collapsed && <span className={classNames('min-w-0 flex-1 truncate text-14px leading-22px', selected ? 'font-600 text-[var(--ui-accent-orange)]' : 'font-500')}>{label}</span>}
     </button>

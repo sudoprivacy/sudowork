@@ -24,7 +24,6 @@ import { openExternalUrl, isElectronDesktop, resolveExtensionAssetUrl } from '@/
 import { useInputFocusRing } from '@/renderer/hooks/useInputFocusRing';
 import { resolveLocaleKey } from '@/common/utils';
 import { DEFAULT_PRESET_AGENT_TYPE, normalizePresetAgentType } from '@/types/acpTypes';
-import SkillSettings from '../settings/SkillSettings';
 import AgentSettings from '../settings/AgentSettings';
 import AssistantSelectionArea from './components/AssistantSelectionArea';
 import AssistantAgentDropdown from './components/AssistantAgentDropdown';
@@ -613,10 +612,7 @@ const GuidPage: React.FC = () => {
     <div ref={guidContainerRef} className={styles.guidContainer}>
       {selectedMenu ? (
         /* Menu content area */
-        <div className={styles.functionMenuContainer}>
-          {selectedMenu === 'skill-store' && <SkillSettings />}
-          {selectedMenu === 'agent' && <AgentSettings />}
-        </div>
+        <div className={styles.functionMenuContainer}>{selectedMenu === 'agent' && <AgentSettings />}</div>
       ) : (
         /* Normal/Assistant conversation area */
         <div className={styles.guidLayout}>

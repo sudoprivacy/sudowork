@@ -27,7 +27,7 @@ import Main from '@renderer/main';
 import { AuthProvider } from '@renderer/context/AuthContext';
 import { DashboardStatsProvider } from '@renderer/context/DashboardStatsContext';
 import { TenantConfigProvider } from '@renderer/context/TenantConfigContext';
-import { ThemeProvider } from '@renderer/context/ThemeContext';
+import { ThemeProvider, useThemeContext } from '@renderer/context/ThemeContext';
 import { ConversationTabsProvider } from '@renderer/pages/conversation/context/ConversationTabsContext';
 import { PreviewProvider } from '@renderer/pages/conversation/preview/context/PreviewContext';
 import { InitProvider } from '@renderer/context/InitContext';
@@ -79,9 +79,11 @@ const Config: React.FC<PropsWithChildren> = ({ children }) => {
   const {
     i18n: { language },
   } = useTranslation();
+  const { theme } = useThemeContext();
   const arcoLocale = arcoLocales[language] ?? enUS;
+  const primaryColor = theme === 'dark' ? '#ea580c' : '#f97316';
   // Buttons default to pill/round shape app-wide; pass `shape` per-button to override.
-  return React.createElement(ConfigProvider, { theme: { primaryColor: '#f97316' }, locale: arcoLocale, componentConfig: { Button: { shape: 'round' } } }, children);
+  return React.createElement(ConfigProvider, { theme: { primaryColor }, locale: arcoLocale, componentConfig: { Button: { shape: 'round' } } }, children);
 };
 
 const App = HOC.Wrapper(Config)(Main);
