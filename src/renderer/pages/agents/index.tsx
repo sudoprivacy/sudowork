@@ -111,7 +111,6 @@ const AgentModalContent: React.FC = () => {
   const [installingAssistantId, setInstallingAssistantId] = useState<string | null>(null);
   const [updatingAssistantId, setUpdatingAssistantId] = useState<string | null>(null);
   const [latestAssistantVersions, setLatestAssistantVersions] = useState<Map<string, AssistantLatestVersion>>(new Map());
-  const [loadingAssistantVersionIds, setLoadingAssistantVersionIds] = useState<Set<string>>(new Set());
   const [installProgress, setInstallProgress] = useState(0);
   const [hubInstalledSkillsReady, setHubInstalledSkillsReady] = useState(false);
   // Duplicate assistant state
@@ -341,11 +340,6 @@ const AgentModalContent: React.FC = () => {
 
       const idsToFetch = toFetch.map((assistant) => assistant.id);
       idsToFetch.forEach((id) => fetchingAssistantVersionIdsRef.current.add(id));
-      setLoadingAssistantVersionIds((prev) => {
-        const next = new Set(prev);
-        idsToFetch.forEach((id) => next.add(id));
-        return next;
-      });
 
       try {
         const batchSize = 10;
@@ -395,15 +389,8 @@ const AgentModalContent: React.FC = () => {
           setLatestAssistantVersions(versionMap);
         }
         return versionMap;
-      } finally {
-        setLoadingAssistantVersionIds((prev) => {
-          const next = new Set(prev);
-          idsToFetch.forEach((id) => {
-            fetchingAssistantVersionIdsRef.current.delete(id);
-            next.delete(id);
-          });
-          return next;
-        });
+      } catch {
+        console.log('e');
       }
     },
     [isEnterprise]
@@ -1834,7 +1821,6 @@ const AgentModalContent: React.FC = () => {
                   const latestVersion = !isEnterprise ? latestAssistantVersions.get(assistant.id) : undefined;
                   const installedVersion = !isEnterprise ? getHubAssistantInstalledVersion(assistant) : '';
                   const hasUpdate = !isEnterprise && isInstalled && !!latestVersion && (!installedVersion || latestVersion.version !== installedVersion);
-                  const isLoadingVersion = !isEnterprise && loadingAssistantVersionIds.has(assistant.id);
                   return (
                     <HubAssistantCard
                       key={assistant.id}
@@ -1863,7 +1849,6 @@ const AgentModalContent: React.FC = () => {
                         handleOpenDuplicateModal(assistant);
                       }}
                       latestVersion={!isEnterprise ? latestVersion?.version || normalizeAssistantVersion(assistant.version) : undefined}
-                      loadingVersion={isLoadingVersion}
                       onClick={() => {
                         setHubDetailAssistant(assistant);
                         setHubDetailVisible(true);

@@ -109,7 +109,6 @@ type HubAssistantCardProps = {
   hasUpdate?: boolean;
   updating?: boolean;
   latestVersion?: string;
-  loadingVersion?: boolean;
 };
 
 export default HubAssistantCard;
