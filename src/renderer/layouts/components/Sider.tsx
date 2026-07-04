@@ -133,8 +133,6 @@ const Sider: React.FC = () => {
       const menu = Menus.find((m) => m.id === menuId);
       if (menu?.path.startsWith('/app/')) {
         void navigate(menu.path);
-      } else {
-        void navigate(`/guid?menu=${menuId}`);
       }
     } catch {
       // ignore
