@@ -1,9 +1,3 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import React from 'react';
 import { Button, Spin, Popconfirm, Switch, Tooltip } from '@arco-design/web-react';
 import { Trash2, Shield, Zap, Download } from 'lucide-react';

@@ -9,7 +9,7 @@ const Conversation = React.lazy(() => import('./pages/conversation'));
 const Guid = React.lazy(() => import('./pages/guid'));
 const MossSessionPage = React.lazy(() => import('./pages/moss-session/MossSessionPage'));
 const About = React.lazy(() => import('./pages/settings/about'));
-const AgentSettings = React.lazy(() => import('./pages/settings/AgentSettings'));
+const AgentSettings = React.lazy(() => import('./pages/agents'));
 const DisplaySettings = React.lazy(() => import('./pages/settings/display'));
 const GeminiSettings = React.lazy(() => import('./pages/settings/gemini'));
 const SudocodeModelSettings = React.lazy(() => import('./pages/settings/models'));

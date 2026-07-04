@@ -1,10 +1,4 @@
 /**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
-/**
  * Skill Security Audit Report Components
  *
  * Displays audit results in two views:
