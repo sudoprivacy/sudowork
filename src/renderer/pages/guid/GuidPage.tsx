@@ -24,7 +24,6 @@ import { openExternalUrl, isElectronDesktop, resolveExtensionAssetUrl } from '@/
 import { useInputFocusRing } from '@/renderer/hooks/useInputFocusRing';
 import { resolveLocaleKey } from '@/common/utils';
 import { DEFAULT_PRESET_AGENT_TYPE, normalizePresetAgentType } from '@/types/acpTypes';
-import AgentSettings from '../agents';
 import AssistantSelectionArea from './components/AssistantSelectionArea';
 import AssistantAgentDropdown from './components/AssistantAgentDropdown';
 import AssistantEditDrawer from './components/AssistantEditDrawer';
@@ -59,9 +58,8 @@ const GuidPage: React.FC = () => {
   const { isEnterprise } = useAppMode();
   const { user } = useAuth();
   const draft = getGuidDraft();
-  // Read current menu and skill from URL query params
+  // Read current skill and assistant from URL query params
   const searchParams = new URLSearchParams(location.search);
-  const selectedMenu = searchParams.get('menu');
   const skillParam = searchParams.get('skill');
   const assistantParam = searchParams.get('assistant');
 
@@ -610,196 +608,191 @@ const GuidPage: React.FC = () => {
 
   return (
     <div ref={guidContainerRef} className={styles.guidContainer}>
-      {selectedMenu ? (
-        /* Menu content area */
-        <div className={styles.functionMenuContainer}>{selectedMenu === 'agent' && <AgentSettings />}</div>
-      ) : (
-        /* Normal/Assistant conversation area */
-        <div className={styles.guidLayout}>
-          {isAssistantMode ? (
-            /* ========== Selected Assistant Mode ========== */
-            <>
-              {/* Assistant Header: back + avatar + name + edit + agent dropdown */}
-              <div className={styles.assistantHeader}>
-                <div className='flex items-center gap-12px flex-1 min-w-0'>
-                  {/* Back button */}
-                  <div className='flex items-center justify-center w-32px h-32px rd-full cursor-pointer hover:bg-fill-2 transition-colors flex-shrink-0' onClick={handleBackFromAssistant}>
-                    <Left theme='outline' size={18} style={{ color: 'var(--color-text-2)' }} />
-                  </div>
-
-                  {/* Avatar */}
-                  <div className='flex-shrink-0'>
-                    {selectedAssistantAvatar?.isImageAvatar && selectedAssistantAvatar.avatarImage ? (
-                      <img src={selectedAssistantAvatar.avatarImage} alt='' width={28} height={28} style={{ objectFit: 'contain' }} />
-                    ) : selectedAssistantAvatar?.avatarValue ? (
-                      <span style={{ fontSize: 24, lineHeight: '28px' }}>{selectedAssistantAvatar.avatarValue}</span>
-                    ) : (
-                      <Robot theme='outline' size={24} />
-                    )}
-                  </div>
-
-                  {/* Name */}
-                  <span className='text-xl font-semibold text-foreground truncate'>{selectedAssistantConfig.nameI18n?.[localeKey] || selectedAssistantConfig.name}</span>
-
-                  {/* Edit button */}
-                  <div className='flex items-center justify-center w-28px h-28px rd-full cursor-pointer hover:bg-fill-2 transition-colors flex-shrink-0' onClick={() => setEditDrawerVisible(true)}>
-                    <EditTwo theme='outline' size={16} style={{ color: 'var(--color-text-3)' }} />
-                  </div>
+      {/* Normal/Assistant conversation area */}
+      <div className={styles.guidLayout}>
+        {isAssistantMode ? (
+          /* ========== Selected Assistant Mode ========== */
+          <>
+            {/* Assistant Header: back + avatar + name + edit + agent dropdown */}
+            <div className={styles.assistantHeader}>
+              <div className='flex items-center gap-12px flex-1 min-w-0'>
+                {/* Back button */}
+                <div className='flex items-center justify-center w-32px h-32px rd-full cursor-pointer hover:bg-fill-2 transition-colors flex-shrink-0' onClick={handleBackFromAssistant}>
+                  <Left theme='outline' size={18} style={{ color: 'var(--color-text-2)' }} />
                 </div>
 
-                {/* Agent dropdown - disabled for preset assistants (builtin or hub-installed) */}
-                {agentSelection.availableAgents && agentSelection.availableAgents.length > 0 && (
-                  <AssistantAgentDropdown availableAgents={agentSelection.availableAgents} currentAgentType={currentAssistantAgentType} onSelectAgent={handleChangeAssistantAgent} disabled={selectedAssistantConfig?.isPreset ?? false} />
-                )}
+                {/* Avatar */}
+                <div className='flex-shrink-0'>
+                  {selectedAssistantAvatar?.isImageAvatar && selectedAssistantAvatar.avatarImage ? (
+                    <img src={selectedAssistantAvatar.avatarImage} alt='' width={28} height={28} style={{ objectFit: 'contain' }} />
+                  ) : selectedAssistantAvatar?.avatarValue ? (
+                    <span style={{ fontSize: 24, lineHeight: '28px' }}>{selectedAssistantAvatar.avatarValue}</span>
+                  ) : (
+                    <Robot theme='outline' size={24} />
+                  )}
+                </div>
+
+                {/* Name */}
+                <span className='text-xl font-semibold text-foreground truncate'>{selectedAssistantConfig.nameI18n?.[localeKey] || selectedAssistantConfig.name}</span>
+
+                {/* Edit button */}
+                <div className='flex items-center justify-center w-28px h-28px rd-full cursor-pointer hover:bg-fill-2 transition-colors flex-shrink-0' onClick={() => setEditDrawerVisible(true)}>
+                  <EditTwo theme='outline' size={16} style={{ color: 'var(--color-text-3)' }} />
+                </div>
               </div>
 
-              {/* Agent Fallback Notice */}
-              {agentSelection.currentEffectiveAgentInfo.isFallback && (
-                <div className={styles.agentFallbackNotice}>
-                  <span>
-                    {t('guid.agentFallbackNotice', {
-                      original: agentSelection.currentEffectiveAgentInfo.originalType.charAt(0).toUpperCase() + agentSelection.currentEffectiveAgentInfo.originalType.slice(1),
-                      fallback: agentSelection.currentEffectiveAgentInfo.agentType.charAt(0).toUpperCase() + agentSelection.currentEffectiveAgentInfo.agentType.slice(1),
-                      defaultValue: `${agentSelection.currentEffectiveAgentInfo.originalType} is unavailable, using ${agentSelection.currentEffectiveAgentInfo.agentType} instead.`,
-                    })}
-                  </span>
-                </div>
+              {/* Agent dropdown - disabled for preset assistants (builtin or hub-installed) */}
+              {agentSelection.availableAgents && agentSelection.availableAgents.length > 0 && (
+                <AssistantAgentDropdown availableAgents={agentSelection.availableAgents} currentAgentType={currentAssistantAgentType} onSelectAgent={handleChangeAssistantAgent} disabled={selectedAssistantConfig?.isPreset ?? false} />
               )}
+            </div>
 
-              {/* Description */}
-              <div className={styles.assistantDescription}>{selectedAssistantConfig.descriptionI18n?.[localeKey] || selectedAssistantConfig.description || t('settings.assistantDescriptionPlaceholder', { defaultValue: 'No description' })}</div>
-            </>
-          ) : (
-            /* ========== Normal Mode ========== */
-            <>
-              <p className='text-2xl font-semibold mb-6 text-0 text-center' onClick={handleBackToChat}>
-                {t('conversation.welcome.title')}
-              </p>
+            {/* Agent Fallback Notice */}
+            {agentSelection.currentEffectiveAgentInfo.isFallback && (
+              <div className={styles.agentFallbackNotice}>
+                <span>
+                  {t('guid.agentFallbackNotice', {
+                    original: agentSelection.currentEffectiveAgentInfo.originalType.charAt(0).toUpperCase() + agentSelection.currentEffectiveAgentInfo.originalType.slice(1),
+                    fallback: agentSelection.currentEffectiveAgentInfo.agentType.charAt(0).toUpperCase() + agentSelection.currentEffectiveAgentInfo.agentType.slice(1),
+                    defaultValue: `${agentSelection.currentEffectiveAgentInfo.originalType} is unavailable, using ${agentSelection.currentEffectiveAgentInfo.agentType} instead.`,
+                  })}
+                </span>
+              </div>
+            )}
 
-              {agentSelection.availableAgents === undefined ? (
-                <AgentPillBarSkeleton />
-              ) : agentSelection.availableAgents.length > 0 ? (
-                <AgentPillBar
-                  availableAgents={agentSelection.availableAgents}
-                  selectedAgentKey={agentSelection.selectedAgentKey}
-                  getAgentKey={agentSelection.getAgentKey}
-                  onSelectAgent={handleSelectAgentFromPillBar}
-                  sessionMode={agentSelection.sessionMode}
-                  onSessionModeChange={agentSelection.setSessionMode}
-                  isEnterprise={isEnterprise}
-                  localModeAvailable={user?.localModeAvailable}
-                />
-              ) : null}
+            {/* Description */}
+            <div className={styles.assistantDescription}>{selectedAssistantConfig.descriptionI18n?.[localeKey] || selectedAssistantConfig.description || t('settings.assistantDescriptionPlaceholder', { defaultValue: 'No description' })}</div>
+          </>
+        ) : (
+          /* ========== Normal Mode ========== */
+          <>
+            <p className='text-2xl font-semibold mb-6 text-0 text-center' onClick={handleBackToChat}>
+              {t('conversation.welcome.title')}
+            </p>
 
-              <PromptTemplates
-                visible={!agentSelection.isPresetAgent}
-                onSelectPrompt={(content) => {
-                  guidInput.setInput(content);
-                  guidInput.handleTextareaFocus();
+            {agentSelection.availableAgents === undefined ? (
+              <AgentPillBarSkeleton />
+            ) : agentSelection.availableAgents.length > 0 ? (
+              <AgentPillBar
+                availableAgents={agentSelection.availableAgents}
+                selectedAgentKey={agentSelection.selectedAgentKey}
+                getAgentKey={agentSelection.getAgentKey}
+                onSelectAgent={handleSelectAgentFromPillBar}
+                sessionMode={agentSelection.sessionMode}
+                onSessionModeChange={agentSelection.setSessionMode}
+                isEnterprise={isEnterprise}
+                localModeAvailable={user?.localModeAvailable}
+              />
+            ) : null}
+
+            <PromptTemplates
+              visible={!agentSelection.isPresetAgent}
+              onSelectPrompt={(content) => {
+                guidInput.setInput(content);
+                guidInput.handleTextareaFocus();
+              }}
+            />
+          </>
+        )}
+
+        {/* ========== Input Card (always shown) ========== */}
+        <GuidInputCard
+          input={guidInput.input}
+          onInputChange={handleInputChange}
+          onKeyDown={handleInputKeyDown}
+          onPaste={guidInput.onPaste}
+          onFocus={guidInput.handleTextareaFocus}
+          onBlur={guidInput.handleTextareaBlur}
+          onSelect={(e) => {
+            const target = e.currentTarget as HTMLTextAreaElement;
+            setCursorPosition(target.selectionStart);
+          }}
+          placeholder={`${mention.selectedAgentLabel}, ${typewriterPlaceholder || t('conversation.welcome.placeholder')}`}
+          isInputActive={guidInput.isInputFocused}
+          isFileDragging={guidInput.isFileDragging}
+          activeBorderColor={activeBorderColor}
+          inactiveBorderColor={inactiveBorderColor}
+          activeShadow={activeShadow}
+          dragHandlers={guidInput.dragHandlers}
+          mentionOpen={mention.mentionOpen}
+          mentionSelectorBadge={
+            <MentionSelectorBadge visible={mention.mentionSelectorVisible} open={mention.mentionSelectorOpen} onOpenChange={mention.setMentionSelectorOpen} agentLabel={mention.selectedAgentLabel} mentionMenu={mentionDropdownNode} onResetQuery={() => mention.setMentionQuery(null)} />
+          }
+          mentionDropdown={mentionDropdownNode}
+          skillSelectorOpen={skillSelectorController.isOpen}
+          skillSelectorMenu={
+            skillSelectorController.isOpen ? (
+              <SkillSelectorMenu
+                title={t('guid.skillSelectorTitle')}
+                items={skillMenuItems}
+                selectedKeys={selectedSkills}
+                activeIndex={skillSelectorController.activeIndex}
+                onHoverItem={(index) => skillSelectorController.setActiveIndex(index)}
+                onSelectItem={(_item) => skillSelectorController.onSelectByIndex(skillSelectorController.activeIndex)}
+                emptyText={t('guid.noSkills')}
+                searchQuery={skillSelectorController.searchQuery}
+                onSearchChange={skillSelectorController.setSearchQuery}
+                onDismiss={() => {
+                  skillSelectorController.setDismissed(true);
+                  guidInput.setInput(stripAtQuery(guidInput.input, cursorPosition));
                 }}
               />
-            </>
-          )}
+            ) : null
+          }
+          selectedSkills={selectedSkills}
+          onRemoveSkill={(skillName) => setSelectedSkills(selectedSkills.filter((s) => s !== skillName))}
+          getSkillDisplayName={(skillName) => {
+            const skill = installedSkills.find((s) => s.name === skillName);
+            const { displayName, emoji } = getInstalledSkillDisplay(skill || { name: skillName, version: '' });
+            return { displayName, emoji: emoji || '⚡' };
+          }}
+          files={guidInput.files}
+          onRemoveFile={guidInput.handleRemoveFile}
+          dir={guidInput.dir}
+          onClearDir={() => guidInput.setDir('')}
+          actionRow={actionRowNode}
+        />
 
-          {/* ========== Input Card (always shown) ========== */}
-          <GuidInputCard
-            input={guidInput.input}
-            onInputChange={handleInputChange}
-            onKeyDown={handleInputKeyDown}
-            onPaste={guidInput.onPaste}
-            onFocus={guidInput.handleTextareaFocus}
-            onBlur={guidInput.handleTextareaBlur}
-            onSelect={(e) => {
-              const target = e.currentTarget as HTMLTextAreaElement;
-              setCursorPosition(target.selectionStart);
-            }}
-            placeholder={`${mention.selectedAgentLabel}, ${typewriterPlaceholder || t('conversation.welcome.placeholder')}`}
-            isInputActive={guidInput.isInputFocused}
-            isFileDragging={guidInput.isFileDragging}
-            activeBorderColor={activeBorderColor}
-            inactiveBorderColor={inactiveBorderColor}
-            activeShadow={activeShadow}
-            dragHandlers={guidInput.dragHandlers}
-            mentionOpen={mention.mentionOpen}
-            mentionSelectorBadge={
-              <MentionSelectorBadge visible={mention.mentionSelectorVisible} open={mention.mentionSelectorOpen} onOpenChange={mention.setMentionSelectorOpen} agentLabel={mention.selectedAgentLabel} mentionMenu={mentionDropdownNode} onResetQuery={() => mention.setMentionQuery(null)} />
-            }
-            mentionDropdown={mentionDropdownNode}
-            skillSelectorOpen={skillSelectorController.isOpen}
-            skillSelectorMenu={
-              skillSelectorController.isOpen ? (
-                <SkillSelectorMenu
-                  title={t('guid.skillSelectorTitle')}
-                  items={skillMenuItems}
-                  selectedKeys={selectedSkills}
-                  activeIndex={skillSelectorController.activeIndex}
-                  onHoverItem={(index) => skillSelectorController.setActiveIndex(index)}
-                  onSelectItem={(_item) => skillSelectorController.onSelectByIndex(skillSelectorController.activeIndex)}
-                  emptyText={t('guid.noSkills')}
-                  searchQuery={skillSelectorController.searchQuery}
-                  onSearchChange={skillSelectorController.setSearchQuery}
-                  onDismiss={() => {
-                    skillSelectorController.setDismissed(true);
-                    guidInput.setInput(stripAtQuery(guidInput.input, cursorPosition));
-                  }}
-                />
-              ) : null
-            }
-            selectedSkills={selectedSkills}
-            onRemoveSkill={(skillName) => setSelectedSkills(selectedSkills.filter((s) => s !== skillName))}
-            getSkillDisplayName={(skillName) => {
-              const skill = installedSkills.find((s) => s.name === skillName);
-              const { displayName, emoji } = getInstalledSkillDisplay(skill || { name: skillName, version: '' });
-              return { displayName, emoji: emoji || '⚡' };
-            }}
-            files={guidInput.files}
-            onRemoveFile={guidInput.handleRemoveFile}
-            dir={guidInput.dir}
-            onClearDir={() => guidInput.setDir('')}
-            actionRow={actionRowNode}
-          />
-
-          {/* ========== Bottom Section ========== */}
-          {isAssistantMode ? (
-            /* Suggestion prompts for selected assistant */
-            assistantPrompts.length > 0 && (
-              <div className='mt-16px w-full animate-fade-in'>
-                <div className='text-13px mb-8px' style={{ color: 'var(--color-text-3)' }}>
-                  {t('guid.trySuggestionPrompts', { defaultValue: 'Try these clickable example prompts:' })}
-                </div>
-                <div className='flex flex-wrap gap-8px'>
-                  {assistantPrompts.map((prompt: string, index: number) => (
-                    <div
-                      key={index}
-                      className='px-12px py-6px text-13px rd-16px cursor-pointer transition-colors shadow-sm'
-                      style={{
-                        background: 'var(--bg-2)',
-                        color: 'var(--foreground)',
-                        border: '1px solid var(--bg-3)',
-                      }}
-                      onClick={() => {
-                        guidInput.setInput(prompt);
-                        guidInput.handleTextareaFocus();
-                      }}
-                    >
-                      {prompt}
-                    </div>
-                  ))}
-                </div>
+        {/* ========== Bottom Section ========== */}
+        {isAssistantMode ? (
+          /* Suggestion prompts for selected assistant */
+          assistantPrompts.length > 0 && (
+            <div className='mt-16px w-full animate-fade-in'>
+              <div className='text-13px mb-8px' style={{ color: 'var(--color-text-3)' }}>
+                {t('guid.trySuggestionPrompts', { defaultValue: 'Try these clickable example prompts:' })}
               </div>
-            )
-          ) : (
-            /* Assistant selection grid */
-            <>
-              {agentSelection.availableAgents === undefined ? (
-                <AssistantsSkeleton />
-              ) : (
-                <AssistantSelectionArea customAgents={agentSelection.customAgents} localeKey={localeKey} onSelectAssistant={handleSelectAssistant} availableAgents={agentSelection.availableAgents} sessionMode={agentSelection.sessionMode} isEnterprise={isEnterprise} />
-              )}
-            </>
-          )}
-        </div>
-      )}
+              <div className='flex flex-wrap gap-8px'>
+                {assistantPrompts.map((prompt: string, index: number) => (
+                  <div
+                    key={index}
+                    className='px-12px py-6px text-13px rd-16px cursor-pointer transition-colors shadow-sm'
+                    style={{
+                      background: 'var(--bg-2)',
+                      color: 'var(--foreground)',
+                      border: '1px solid var(--bg-3)',
+                    }}
+                    onClick={() => {
+                      guidInput.setInput(prompt);
+                      guidInput.handleTextareaFocus();
+                    }}
+                  >
+                    {prompt}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )
+        ) : (
+          /* Assistant selection grid */
+          <>
+            {agentSelection.availableAgents === undefined ? (
+              <AssistantsSkeleton />
+            ) : (
+              <AssistantSelectionArea customAgents={agentSelection.customAgents} localeKey={localeKey} onSelectAssistant={handleSelectAssistant} availableAgents={agentSelection.availableAgents} sessionMode={agentSelection.sessionMode} isEnterprise={isEnterprise} />
+            )}
+          </>
+        )}
+      </div>
 
       <QuickActionButtons onOpenLink={openLink} inactiveBorderColor={inactiveBorderColor} activeShadow={activeShadow} />
 

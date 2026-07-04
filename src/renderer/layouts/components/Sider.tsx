@@ -55,7 +55,7 @@ const Sider: React.FC = () => {
 
   // 功能菜单项定义 / Function menu items definition
   const Menus = [
-    { id: 'agent', label: t('common.siderMenu.agent'), icon: Bot, path: '/settings/agent' },
+    { id: 'agent', label: t('common.siderMenu.agent'), icon: Bot, path: '/app/agent' },
     { id: 'skill-store', label: t('common.siderMenu.skillStore'), icon: Sparkles, path: '/app/skills' },
     { id: 'security', label: t('common.siderMenu.security'), icon: ShieldCheck, path: '/app/security' },
     ...(!isEnterprise ? [{ id: 'channels' as const, label: t('common.siderMenu.webui'), icon: Globe, path: '/app/channels' }] : []),

@@ -52,6 +52,7 @@ const PROTECTED_ROUTE_CONFIGS = [
   { path: '/moss-session/:sessionId', component: MossSessionPage },
   { path: '/settings/gemini', component: GeminiSettings },
   { path: '/settings/model', component: SudocodeModelSettings },
+  { path: '/app/agent', component: AgentSettings },
   { path: '/settings/agent', component: AgentSettings },
   { path: '/settings/display', component: DisplaySettings },
   { path: '/settings/channels', component: ChannelsPage },
