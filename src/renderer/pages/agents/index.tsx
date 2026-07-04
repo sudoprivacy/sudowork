@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Avatar, Button, Checkbox, Collapse, Drawer, Input, Message, Modal, Popconfirm, Progress, Select, Spin, Switch, Tooltip, Typography } from '@arco-design/web-react';
-import { Copy, Delete, Edit, Lightning, PreviewOpen, Plus, Robot, Shield, Search, Install, Upload, Share, Check } from '@icon-park/react';
+import { Avatar, Button, Collapse, Drawer, Input, Message, Modal, Progress, Select, Spin, Tooltip, Typography } from '@arco-design/web-react';
+import { Copy, Lightning, Plus, Robot, Shield, Search, Install, Share, Check } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -18,34 +18,27 @@ import { eeclaw } from '@/common/ipcBridge';
 import type { IInstalledSkillInfo, IAssistantHubSkill, IAssistantHubVersionLike, ISkillHubSkill } from '@/common/ipcBridge';
 import { toBackendConfig, resolveAssistantName } from '@/renderer/shared/agents/assistantAdapter';
 import Tabs from '@renderer/components/ui/Tabs';
-import type { AssistantCategory, IAssistantInfo } from '@/process/AssistantManager';
+import type { IAssistantInfo } from '@/process/AssistantManager';
 import { resolveLocaleKey, uuid } from '@/common/utils';
 import coworkSvg from '@/renderer/assets/cowork.svg';
 import EmojiPicker from '@/renderer/components/EmojiPicker';
 import MarkdownView from '@/renderer/components/Markdown';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { getSelectableAssistantSkills, isAssistantSkillSelected, isAutoInjectedBuiltinSkill, sanitizeAssistantEnabledSkills, toggleAssistantSkillSelection } from '@/renderer/pages/settings/assistantSkillSelection';
-import { getInstalledSkillDisplay, normalizeSkillVersion, handleSkillIconError } from '@/renderer/utils/skillDisplay';
+import { handleSkillIconError } from '@/renderer/utils/skillDisplay';
 import { COS_HUB_BASE } from '@/shared/cos';
 import { isElectronDesktop, resolveExtensionAssetUrl } from '@/renderer/utils/platform';
-import { DEFAULT_PRESET_AGENT_TYPE, normalizePresetAgentType, type AcpBackendConfig } from '@/types/acpTypes';
+import { DEFAULT_PRESET_AGENT_TYPE, normalizePresetAgentType } from '@/types/acpTypes';
 import { useAuth } from '@/renderer/context/AuthContext';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
 import { emitter } from '@/renderer/utils/emitter';
 import PageWrapper from '@renderer/components/base/PageWrapper';
+import SkillCard from './components/SkillCard';
+import InstalledAssistantCard from './components/InstalledAssistantCard';
+import type { AssistantListItem } from './types';
+import { normalizeAssistantVersion } from './utils';
 
 // ==================== Types ====================
-
-type AssistantListItem = AcpBackendConfig & {
-  _source?: string;
-  _extensionName?: string;
-  _kind?: string;
-  _category?: AssistantCategory;
-  _isHubInstalled?: boolean;
-  _hubId?: string;
-  _installedVersion?: string;
-  _hubMeta?: IAssistantHubSkill;
-};
 
 type AssistantStoreTab = 'store' | 'exclusive' | 'installed';
 
@@ -60,7 +53,6 @@ const VERSION_CACHE_TTL = 5 * 60 * 1000;
 const VERSION_FAILURE_CACHE_TTL = 60 * 1000;
 
 const normalizeAssistantLookupKey = (value: string | null | undefined) => value?.trim().toLowerCase();
-const normalizeAssistantVersion = (version?: string | null) => normalizeSkillVersion(version).replace(/^v(?=\d)/i, '');
 
 const resolveAssistantVersionLike = (assistant: IAssistantHubSkill, versionLike?: IAssistantHubVersionLike | null): AssistantLatestVersion | null => {
   const sourceUrl = versionLike?.source_url || versionLike?.sourceUrl || assistant._sourceUrl;
@@ -72,195 +64,6 @@ const resolveAssistantVersionLike = (assistant: IAssistantHubSkill, versionLike?
     checksum: versionLike?.checksum || '',
     fetchedAt: Date.now(),
   };
-};
-
-// ==================== SkillCard (for drawer skill selection) ====================
-
-interface SkillCardProps {
-  skill: IInstalledSkillInfo;
-  checked: boolean;
-  onToggle: () => void;
-  disabled?: boolean;
-}
-
-const SkillCard: React.FC<SkillCardProps> = ({ skill, checked, onToggle, disabled }) => {
-  const { displayName, description, icon, emoji } = getInstalledSkillDisplay(skill);
-  const displayVersion = normalizeSkillVersion(skill.version);
-
-  return (
-    <div className={`bg-fill-1 rd-12px border p-12px flex items-start gap-12px relative ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}>
-      <Checkbox checked={checked} onChange={onToggle} disabled={disabled} className={`mt-2px ${disabled ? '' : 'cursor-pointer'}`} />
-      <div className='w-48px h-48px flex-shrink-0 rd-8px overflow-hidden bg-fill-2'>
-        {icon ? (
-          <img src={icon} alt={displayName} className='w-full h-full object-cover' />
-        ) : emoji ? (
-          <div className='w-full h-full f-center text-22px'>{emoji}</div>
-        ) : (
-          <div className='w-full h-full f-center bg-primary-light'>
-            <Lightning size='22' className='text-primary' />
-          </div>
-        )}
-      </div>
-      <div className='flex-1 min-w-0'>
-        <div className='flex items-center gap-6px'>
-          <span className='font-medium text-13px text-foreground truncate'>{displayName}</span>
-          {!skill.isBuiltin && displayVersion && <span className='px-5px py-0px bg-fill-3 text-secondary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px'>v{displayVersion}</span>}
-          {skill.isBuiltin && <Shield size='14' className='text-primary flex-shrink-0' />}
-        </div>
-        {description && <div className='text-11px text-secondary mt-3px line-clamp-2 leading-relaxed'>{description}</div>}
-      </div>
-    </div>
-  );
-};
-
-// ==================== InstalledAssistantCard ====================
-
-type InstalledAssistantCardProps = {
-  assistant: AssistantListItem;
-  isExtension: boolean;
-  localeKey: string;
-  avatarImageMap: Record<string, string>;
-  onToggleEnabled: (_enabled: boolean) => void;
-  onDelete: () => void;
-  onDuplicate: () => void;
-  onUpdate?: () => void;
-  hasUpdate?: boolean;
-  updating?: boolean;
-  onUpload?: () => void;
-  onClick: () => void;
-  /** Enterprise mode: publish button element */
-  enterprisePublishButton?: React.ReactNode;
-  /** Enterprise mode: whether to hide delete button (only custom assistants can be deleted) */
-  hideDelete?: boolean;
-  /** Whether to show enable/disable switch for read-only installed assistants. */
-  allowToggle?: boolean;
-  /** Whether to show delete button for read-only installed assistants. */
-  allowDelete?: boolean;
-  /** Enterprise mode: use directory category to distinguish custom/hub/tenant assistants. */
-  enterpriseMode?: boolean;
-};
-
-const InstalledAssistantCard: React.FC<InstalledAssistantCardProps> = (props) => {
-  const { assistant, isExtension, localeKey, avatarImageMap } = props;
-  const { onToggleEnabled, onDelete, onDuplicate, onUpdate, hasUpdate, updating, onUpload, onClick } = props;
-  const { enterprisePublishButton, hideDelete, allowToggle, allowDelete, enterpriseMode } = props;
-  const { t } = useTranslation();
-  const isCustom = enterpriseMode ? assistant._category === 'custom' || (!assistant._category && !assistant.isBuiltin && !isExtension && !assistant._isHubInstalled) : !assistant.isBuiltin && !isExtension && !assistant._isHubInstalled;
-  const isReadonly = assistant.isBuiltin || isExtension || assistant._isHubInstalled || hideDelete || (enterpriseMode && !isCustom);
-  const canToggle = !isExtension && (isCustom || allowToggle === true);
-  const canDelete = !isExtension && !assistant.isBuiltin && !hideDelete && (!isReadonly || allowDelete === true);
-  const isEnabled = isExtension ? true : assistant.enabled !== false;
-
-  const resolvedAvatar = assistant.avatar?.trim();
-  const emojiRegex = /^(?:\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(?:\u200D(?:\p{Emoji_Presentation}|\p{Emoji}\uFE0F))*$/u;
-  const hasEmojiAvatar = Boolean(resolvedAvatar && emojiRegex.test(resolvedAvatar));
-
-  const resolveAvatarImage = (avatar: string | undefined): string | undefined => {
-    const value = avatar?.trim();
-    if (!value) return undefined;
-    const mapped = avatarImageMap[value];
-    if (mapped) return mapped;
-    const resolved = resolveExtensionAssetUrl(value) || value;
-    const isImage = /\.(svg|png|jpe?g|webp|gif)$/i.test(resolved) || /^(https?:|aion-asset:\/\/|file:\/\/|data:)/i.test(resolved);
-    return isImage ? resolved : undefined;
-  };
-
-  const avatarImage = resolveAvatarImage(resolvedAvatar);
-  const displayName = assistant.nameI18n?.[localeKey] || assistant.name;
-  const description = assistant.descriptionI18n?.[localeKey] || assistant.description || '';
-  const displayVersion = enterpriseMode ? '' : normalizeAssistantVersion(assistant._installedVersion);
-
-  return (
-    <div className={classNames('item-card group flex items-start gap-12px relative overflow-hidden', !isEnabled && 'opacity-65')} onClick={onClick}>
-      {/* Avatar */}
-      <div className='w-48px flex-shrink-0'>
-        <div className='w-48px h-48px rd-8px overflow-hidden bg-fill-2'>
-          {avatarImage ? (
-            <img src={avatarImage} alt={displayName} className='w-full h-full object-cover' />
-          ) : hasEmojiAvatar ? (
-            <div className='w-full h-full f-center text-22px'>{resolvedAvatar}</div>
-          ) : (
-            <div className='w-full h-full f-center bg-primary-light'>
-              <Robot theme='filled' size='22' className='text-primary' />
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Content */}
-      <div className='flex-1 min-w-0'>
-        <div className='h-20px flex items-center'>
-          <span className='font-medium text-13px text-foreground truncate' title={displayName.length > 15 ? displayName : undefined}>
-            {displayName.length > 15 ? `${displayName.slice(0, 15)}...` : displayName}
-          </span>
-          {displayVersion && !assistant.isBuiltin && <span className='ml-6px px-5px py-0px bg-fill-3 text-t-secondary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px'>v{displayVersion}</span>}
-        </div>
-        <div className='mt-3px min-h-30px'>{description ? <div className='text-11px text-secondary line-clamp-2 leading-15px'>{description}</div> : null}</div>
-        {assistant.enabledSkills && assistant.enabledSkills.length > 0 && (
-          <div className='mt-4px flex items-center gap-4px'>
-            <Lightning size='12' className='text-primary flex-shrink-0' />
-            <span className='text-10px text-tertiary'>{t('settings.assistant.relatedSkills', { count: assistant.enabledSkills.length, defaultValue: `${assistant.enabledSkills.length} 个关联技能` })}</span>
-          </div>
-        )}
-      </div>
-
-      {/* Top-right: edit/view + upload (custom only) + duplicate button + shield (builtin) or delete (custom) */}
-      <div className='absolute top-10px right-10px flex items-center gap-6px' onClick={(e) => e.stopPropagation()}>
-        {/* Edit/View button - custom assistants show edit, readonly assistants show view */}
-        {hasUpdate && (
-          <Tooltip content={t('settings.assistant.updateAvailable', { defaultValue: '可更新' })}>
-            <button
-              type='button'
-              className='store-action-icon'
-              onClick={(e) => {
-                e.stopPropagation();
-                onUpdate?.();
-              }}
-            >
-              {updating ? <Spin size={10} /> : <Install size='13' />}
-            </button>
-          </Tooltip>
-        )}
-        <Tooltip content={isReadonly ? t('settings.assistant.view', { defaultValue: '查看' }) : t('settings.assistant.edit', { defaultValue: '编辑' })}>
-          <button type='button' className='store-action-icon' onClick={onClick}>
-            {isReadonly ? <PreviewOpen size='13' /> : <Edit size='13' />}
-          </button>
-        </Tooltip>
-        {/* Upload button - only for custom assistants */}
-        {isCustom && onUpload && (
-          <Tooltip content={t('settings.assistant.upload', { defaultValue: '上传' })}>
-            <button type='button' className='store-action-icon' onClick={onUpload}>
-              <Upload size='13' />
-            </button>
-          </Tooltip>
-        )}
-        {/* Duplicate button - available for all assistant types */}
-        <Tooltip content={t('settings.assistant.duplicate', { defaultValue: '复制' })}>
-          <button type='button' className='store-action-icon' onClick={onDuplicate}>
-            <Copy size='13' />
-          </button>
-        </Tooltip>
-        {enterprisePublishButton}
-        {canToggle && <Switch size='small' checked={isEnabled} onChange={(checked) => onToggleEnabled(checked)} className={isEnabled ? '!bg-primary !border-[var(--ui-accent-orange)]' : ''} />}
-        {/* Delete button - only for custom assistants that are not readonly */}
-        {canDelete && (
-          <Popconfirm
-            title={t('settings.deleteAssistantConfirmTitle', { defaultValue: '删除该助手会一并删除已关联会话。如需保留，请导出会话进行备份。是否确认删除？' })}
-            onOk={onDelete}
-            okText={t('common.delete', { defaultValue: '删除' })}
-            cancelText={t('common.cancel', { defaultValue: '取消' })}
-            okButtonProps={{ status: 'danger' }}
-          >
-            <Tooltip content={t('settings.assistant.delete', { defaultValue: '删除' })}>
-              <button type='button' className='store-action-icon store-action-icon--danger'>
-                <Delete size='13' />
-              </button>
-            </Tooltip>
-          </Popconfirm>
-        )}
-      </div>
-    </div>
-  );
 };
 
 // ==================== HubAssistantCard (for store tab) ====================
