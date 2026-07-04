@@ -24,7 +24,6 @@ import coworkSvg from '@/renderer/assets/cowork.svg';
 import EmojiPicker from '@/renderer/components/EmojiPicker';
 import MarkdownView from '@/renderer/components/Markdown';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
-import { getSelectableAssistantSkills, isAssistantSkillSelected, isAutoInjectedBuiltinSkill, sanitizeAssistantEnabledSkills, toggleAssistantSkillSelection } from '@/renderer/pages/settings/assistantSkillSelection';
 import { handleSkillIconError } from '@/renderer/utils/skillDisplay';
 import { COS_HUB_BASE } from '@/shared/cos';
 import { isElectronDesktop, resolveExtensionAssetUrl } from '@/renderer/utils/platform';
@@ -36,7 +35,7 @@ import PageWrapper from '@renderer/components/base/PageWrapper';
 import SkillCard from './components/SkillCard';
 import InstalledAssistantCard from './components/InstalledAssistantCard';
 import type { AssistantListItem } from './types';
-import { normalizeAssistantVersion } from './utils';
+import { normalizeAssistantVersion, getSelectableAssistantSkills, isAssistantSkillSelected, isAutoInjectedBuiltinSkill, sanitizeAssistantEnabledSkills, toggleAssistantSkillSelection } from './utils';
 
 // ==================== Types ====================
 

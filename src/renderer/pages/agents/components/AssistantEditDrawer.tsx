@@ -28,7 +28,7 @@ import EmojiPicker from '@/renderer/components/EmojiPicker';
 import MarkdownView from '@/renderer/components/Markdown';
 import coworkSvg from '@/renderer/assets/cowork.svg';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
-import { isAssistantSkillSelected, sanitizeAssistantEnabledSkills, toggleAssistantSkillSelection } from '@/renderer/pages/settings/assistantSkillSelection';
+import { isAssistantSkillSelected, sanitizeAssistantEnabledSkills, toggleAssistantSkillSelection } from '../utils';
 
 type AssistantEditDrawerProps = {
   visible: boolean;
