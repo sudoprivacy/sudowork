@@ -60,7 +60,6 @@ const resolveAssistantVersionLike = (assistant: IAssistantHubSkill, versionLike?
 
 const AgentSettings: React.FC = () => {
   const { t, i18n } = useTranslation();
-  const [agentMessage, agentMessageContext] = Message.useMessage({ maxCount: 10 });
   const localeKey = resolveLocaleKey(i18n.language);
 
   // Tab state
@@ -941,7 +940,7 @@ const AgentSettings: React.FC = () => {
     (assistant: AssistantListItem) => {
       // Check tenantId - required for upload
       if (!enterpriseCode) {
-        agentMessage.warning(t('settings.assistant.uploadNoTenantId', { defaultValue: '用户无租户ID，无法上传助手' }));
+        Message.warning(t('settings.assistant.uploadNoTenantId', { defaultValue: '用户无租户ID，无法上传助手' }));
         return;
       }
       setUploadAssistant(assistant);
@@ -954,13 +953,13 @@ const AgentSettings: React.FC = () => {
   const handleUploadConfirm = useCallback(async () => {
     if (!uploadAssistant) return;
     if (!isElectronDesktop()) {
-      agentMessage.warning(t('settings.assistant.desktopOnly', { defaultValue: '助手上传仅在桌面端可用' }));
+      Message.warning(t('settings.assistant.desktopOnly', { defaultValue: '助手上传仅在桌面端可用' }));
       return;
     }
 
     // Check tenantId again before upload
     if (!enterpriseCode) {
-      agentMessage.warning(t('settings.assistant.uploadNoTenantId', { defaultValue: '用户无租户ID，无法上传助手' }));
+      Message.warning(t('settings.assistant.uploadNoTenantId', { defaultValue: '用户无租户ID，无法上传助手' }));
       setUploadConfirmVisible(false);
       setUploadAssistant(null);
       return;
@@ -983,15 +982,15 @@ const AgentSettings: React.FC = () => {
       });
 
       if (result.success) {
-        agentMessage.success(t('settings.assistant.uploadSuccess', { name: displayName, defaultValue: `助手 "${displayName}" 已上传成功` }));
+        Message.success(t('settings.assistant.uploadSuccess', { name: displayName, defaultValue: `助手 "${displayName}" 已上传成功` }));
         setUploadConfirmVisible(false);
         setUploadAssistant(null);
       } else {
-        agentMessage.error(t('settings.assistant.uploadFailed', { msg: result.msg || 'Unknown error', defaultValue: `上传失败: ${result.msg || 'Unknown error'}` }));
+        Message.error(t('settings.assistant.uploadFailed', { msg: result.msg || 'Unknown error', defaultValue: `上传失败: ${result.msg || 'Unknown error'}` }));
       }
     } catch (err) {
       console.error('Failed to upload assistant:', err);
-      agentMessage.error(t('settings.assistant.uploadFailed', { msg: String(err), defaultValue: `上传失败: ${String(err)}` }));
+      Message.error(t('settings.assistant.uploadFailed', { msg: String(err), defaultValue: `上传失败: ${String(err)}` }));
     } finally {
       setUploading(false);
     }
@@ -1023,7 +1022,7 @@ const AgentSettings: React.FC = () => {
         });
         console.log('[handleUploadCustomAssistant] Upload response:', res);
         if (res.success && res.data) {
-          agentMessage.success(
+          Message.success(
             t('settings.assistant.uploadSuccess', {
               name: displayName,
               defaultValue: `助手 "${displayName}" 已上传到服务器`,
@@ -1052,7 +1051,7 @@ const AgentSettings: React.FC = () => {
       try {
         const res = await eeclaw.publishTenantAssistant.invoke({ assistantId });
         if (res.success && res.data) {
-          agentMessage.success(
+          Message.success(
             t('settings.assistant.publishSuccess', {
               name: assistantName,
               defaultValue: `助手 "${assistantName}" 已提交发布申请，等待管理员审批`,
@@ -1060,7 +1059,7 @@ const AgentSettings: React.FC = () => {
           );
           void loadAssistants();
         } else {
-          agentMessage.error(
+          Message.error(
             t('settings.assistant.publishFailed', {
               msg: res.msg || 'Unknown error',
               defaultValue: `发布失败: ${res.msg || '未知错误'}`,
@@ -1069,7 +1068,7 @@ const AgentSettings: React.FC = () => {
         }
       } catch (err) {
         console.error('Failed to publish tenant assistant:', err);
-        agentMessage.error(
+        Message.error(
           t('settings.assistant.publishFailed', {
             msg: String(err),
             defaultValue: `发布失败: ${String(err)}`,
@@ -1086,7 +1085,7 @@ const AgentSettings: React.FC = () => {
   const handleDuplicateConfirm = useCallback(async () => {
     if (!duplicateAssistant && !duplicateInstalledAssistant && !duplicateTenantAssistant) return;
     if (!isElectronDesktop()) {
-      agentMessage.warning(t('settings.assistant.desktopOnly', { defaultValue: '助手复制仅在桌面端可用' }));
+      Message.warning(t('settings.assistant.desktopOnly', { defaultValue: '助手复制仅在桌面端可用' }));
       return;
     }
 
@@ -1145,7 +1144,7 @@ const AgentSettings: React.FC = () => {
           }
         }
 
-        agentMessage.success(t('settings.assistant.duplicateSuccess', { name: customName, defaultValue: `已复制到自定义列表: ${customName}` }));
+        Message.success(t('settings.assistant.duplicateSuccess', { name: customName, defaultValue: `已复制到自定义列表: ${customName}` }));
       }
 
       // Handle installed assistant duplication
@@ -1200,7 +1199,7 @@ const AgentSettings: React.FC = () => {
           }
         }
 
-        agentMessage.success(t('settings.assistant.duplicateSuccess', { name: customName, defaultValue: `已复制到自定义列表: ${customName}` }));
+        Message.success(t('settings.assistant.duplicateSuccess', { name: customName, defaultValue: `已复制到自定义列表: ${customName}` }));
       }
 
       // Handle tenant assistant duplication (enterprise mode)
@@ -1253,7 +1252,7 @@ const AgentSettings: React.FC = () => {
           }
         }
 
-        agentMessage.success(t('settings.assistant.duplicateSuccess', { name: customName, defaultValue: `已复制到自定义列表: ${customName}` }));
+        Message.success(t('settings.assistant.duplicateSuccess', { name: customName, defaultValue: `已复制到自定义列表: ${customName}` }));
       }
 
       await loadAssistants();
@@ -1263,7 +1262,7 @@ const AgentSettings: React.FC = () => {
       setDuplicateTenantAssistant(null);
     } catch (err) {
       console.error('Failed to duplicate assistant:', err);
-      agentMessage.error(t('settings.assistant.duplicateFailed', { defaultValue: '复制失败' }));
+      Message.error(t('settings.assistant.duplicateFailed', { defaultValue: '复制失败' }));
     }
   }, [duplicateAssistant, duplicateInstalledAssistant, duplicateTenantAssistant, hubInstalledAssistants, localeKey, loadAssistants, t, isEnterprise, handleUploadCustomAssistant]);
 
@@ -1426,13 +1425,13 @@ const AgentSettings: React.FC = () => {
     try {
       // Block saving for readonly assistants (hub, builtin, extension)
       if (!isCreating && isReadonlyAssistant) {
-        agentMessage.warning(t('settings.assistantReadonly', { defaultValue: 'Hub 安装的助手和内置助手不可修改，可复制到自定义列表后编辑' }));
+        Message.warning(t('settings.assistantReadonly', { defaultValue: 'Hub 安装的助手和内置助手不可修改，可复制到自定义列表后编辑' }));
         return;
       }
 
       if (isCreating) {
         if (!editName.trim()) {
-          agentMessage.error(t('settings.assistantNameRequired', { defaultValue: 'Assistant name is required' }));
+          Message.error(t('settings.assistantNameRequired', { defaultValue: 'Assistant name is required' }));
           return;
         }
         const newId = uuid(36); // Generate UUID for assistant ID
@@ -1470,18 +1469,18 @@ const AgentSettings: React.FC = () => {
               const uploadRes = await handleUploadCustomAssistant(newAssistant);
               console.log('[AgentModalContent] uploadRes:', uploadRes);
               if (uploadRes.success) {
-                agentMessage.success(t('common.createSuccess', { defaultValue: 'Created successfully' }));
+                Message.success(t('common.createSuccess', { defaultValue: 'Created successfully' }));
               } else {
-                agentMessage.error(t('settings.assistant.uploadFailed', { msg: uploadRes.msg, defaultValue: `上传失败: ${uploadRes.msg}` }));
+                Message.error(t('settings.assistant.uploadFailed', { msg: uploadRes.msg, defaultValue: `上传失败: ${uploadRes.msg}` }));
               }
             } else {
-              agentMessage.success(t('common.createSuccess', { defaultValue: 'Created successfully' }));
+              Message.success(t('common.createSuccess', { defaultValue: 'Created successfully' }));
             }
           } else {
-            agentMessage.success(t('common.createSuccess', { defaultValue: 'Created successfully' }));
+            Message.success(t('common.createSuccess', { defaultValue: 'Created successfully' }));
           }
         } else {
-          agentMessage.success(t('common.createSuccess', { defaultValue: 'Created successfully' }));
+          Message.success(t('common.createSuccess', { defaultValue: 'Created successfully' }));
         }
       } else {
         if (!activeAssistant) return;
@@ -1508,14 +1507,14 @@ const AgentSettings: React.FC = () => {
         }
 
         await loadAssistants();
-        agentMessage.success(t('common.saveSuccess', { defaultValue: 'Saved successfully' }));
+        Message.success(t('common.saveSuccess', { defaultValue: 'Saved successfully' }));
       }
 
       setEditVisible(false);
       await refreshAgentDetection();
     } catch (error) {
       console.error('Failed to save assistant:', error);
-      agentMessage.error(t('common.failed', { defaultValue: 'Failed' }));
+      Message.error(t('common.failed', { defaultValue: 'Failed' }));
     }
   };
 
@@ -1529,11 +1528,11 @@ const AgentSettings: React.FC = () => {
       await loadAssistants();
       setDeleteConfirmVisible(false);
       setEditVisible(false);
-      agentMessage.success(t('common.success', { defaultValue: 'Success' }));
+      Message.success(t('common.success', { defaultValue: 'Success' }));
       await refreshAgentDetection();
     } catch (error) {
       console.error('Failed to delete assistant:', error);
-      agentMessage.error(t('common.failed', { defaultValue: 'Failed' }));
+      Message.error(t('common.failed', { defaultValue: 'Failed' }));
     }
   };
 
@@ -1544,17 +1543,17 @@ const AgentSettings: React.FC = () => {
       const assistantCategory = assistant._category as 'custom' | 'hub' | 'system' | 'tenant' | undefined;
       await ipcBridge.assistantHub.uninstallAssistant.invoke({ name: lookupName, category: assistantCategory });
       await loadAssistants();
-      agentMessage.success(t('common.success', { defaultValue: 'Success' }));
+      Message.success(t('common.success', { defaultValue: 'Success' }));
       await refreshAgentDetection();
     } catch (error) {
       console.error('Failed to delete assistant:', error);
-      agentMessage.error(t('common.failed', { defaultValue: 'Failed' }));
+      Message.error(t('common.failed', { defaultValue: 'Failed' }));
     }
   };
 
   const handleToggleEnabled = async (assistant: AssistantListItem, enabled: boolean) => {
     if (isExtensionAssistant(assistant)) {
-      agentMessage.warning(t('settings.extensionAssistantReadonly', { defaultValue: 'Extension assistants are read-only. You can duplicate it and edit the copy.' }));
+      Message.warning(t('settings.extensionAssistantReadonly', { defaultValue: 'Extension assistants are read-only. You can duplicate it and edit the copy.' }));
       return;
     }
     try {
@@ -1572,7 +1571,7 @@ const AgentSettings: React.FC = () => {
       await refreshAgentDetection();
     } catch (error) {
       console.error('Failed to toggle assistant:', error);
-      agentMessage.error(t('common.failed', { defaultValue: 'Failed' }));
+      Message.error(t('common.failed', { defaultValue: 'Failed' }));
     }
   };
 
@@ -1677,8 +1676,6 @@ const AgentSettings: React.FC = () => {
   return (
     <PageWrapper>
       <div className='flex flex-col h-full w-full'>
-        {agentMessageContext}
-
         {/* Header: tabs + search + create button */}
         <div className='flex items-center gap-24px mb-12px'>
           {/* Tab switcher */}
