@@ -1,15 +1,8 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import React, { useCallback, useEffect, useState } from 'react';
-import { Button, Progress, Switch, Message } from '@arco-design/web-react';
+import { Button, Modal, Progress, Switch, Message } from '@arco-design/web-react';
 import { CheckOne, Download, FolderOpen, Refresh, CloseOne, Install } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
-import AionModal from '@/renderer/components/base/AionModal';
 import MarkdownView from '@/renderer/components/Markdown';
 import type { UpdateDownloadProgressEvent, UpdateReleaseInfo, AutoUpdateStatus } from '@/common/updateTypes';
 import { isNightlyBuild, buildVersion } from '@/common/buildInfo';
@@ -357,12 +350,10 @@ const UpdateModal: React.FC = () => {
 
       case 'upToDate':
         return (
-          <div className='flex flex-col items-center justify-center py-48px'>
-            <div className='w-56px h-56px bg-success-soft rounded-full f-center mb-20px'>
-              <CheckOne theme='filled' size='28' fill='var(--success)' />
-            </div>
+          <div className='flex flex-col items-center justify-center py-8'>
+            <CheckOne theme='filled' size='48' color='#16a34a' className='mb-5' />
             <div className='text-16px text-foreground font-600 mb-8px'>{t('update.upToDateTitle')}</div>
-            <div className='text-13px text-tertiary'>{t('update.currentVersion', { version: buildVersion || currentVersion || '-' })}</div>
+            <div className='text-13px text-secondary'>{t('update.currentVersion', { version: buildVersion || currentVersion || '-' })}</div>
           </div>
         );
 
@@ -512,25 +503,9 @@ const UpdateModal: React.FC = () => {
   };
 
   return (
-    <AionModal
-      visible={visible}
-      onCancel={handleClose}
-      maskClosable={!isDownloading}
-      escToExit={!isDownloading}
-      size={status === 'available' ? 'medium' : 'small'}
-      header={{
-        title: t('update.modalTitle'),
-        showClose: true,
-      }}
-      footer={{ render: () => null }}
-      contentStyle={{
-        height: status === 'available' ? '420px' : 'auto',
-        padding: 0,
-        overflow: 'hidden',
-      }}
-    >
+    <Modal visible={visible} onCancel={handleClose} maskClosable={!isDownloading} escToExit={!isDownloading} title={t('update.modalTitle')} footer={null} style={{ width: status === 'available' ? 600 : 480 }}>
       <div className='flex flex-col h-full w-full'>{renderContent()}</div>
-    </AionModal>
+    </Modal>
   );
 };
 

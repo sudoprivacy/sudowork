@@ -102,6 +102,7 @@ body[arco-theme='dark'] {
 }
 
 .arco-modal {
+  border-radius: 16px;
   &-header {
     border-bottom-color: var(--border-tiny);
   }
