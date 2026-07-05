@@ -1300,5 +1300,7 @@
   "tenantAssistants": "專屬智能體",
   "uploadAssistantConfirm": "確認將該智能體上傳到智能體庫？上傳後，同租戶的其他用戶可以下載並使用。",
   "uploadAssistantTitle": "上傳智能體",
-  "skill.notInstalled": "未安裝"
+  "skill.notInstalled": "未安裝",
+  "enterprise": "企業設定",
+  "mcpService": "MCP 服務"
 }

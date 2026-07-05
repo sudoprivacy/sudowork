@@ -68,7 +68,7 @@ const Sider: React.FC = () => {
   // 从 AuthContext 获取实际用户信息（手机号脱敏展示）
   const userInfo = {
     email: maskPhone(currentUser?.phone || ''),
-    name: currentUser?.nickname || 'Sudowork 用户',
+    name: currentUser?.nickname || t('settings.userProfile.defaultNickname', 'Sudowork 用户'),
     avatar: null as string | null,
   };
 

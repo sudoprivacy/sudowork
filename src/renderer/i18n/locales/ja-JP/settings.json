@@ -1300,5 +1300,7 @@
   "tenantAssistants": "専用エージェント",
   "uploadAssistantConfirm": "このエージェントをエージェントストアにアップロードしますか？アップロード後、同じテナントの他のユーザーがダウンロードして使用できます。",
   "uploadAssistantTitle": "エージェントをアップロード",
-  "skill.notInstalled": "未インストール"
+  "skill.notInstalled": "未インストール",
+  "enterprise": "エンタープライズ設定",
+  "mcpService": "MCP サービス"
 }

@@ -1379,5 +1379,7 @@
   "tenantAssistants": "专属智能体",
   "uploadAssistantConfirm": "确认将该智能体上传到智能体库？上传后，同租户的其他用户可以下载并使用。",
   "uploadAssistantTitle": "上传智能体",
-  "skill.notInstalled": "未安装"
+  "skill.notInstalled": "未安装",
+  "enterprise": "企业设置",
+  "mcpService": "MCP 服务"
 }

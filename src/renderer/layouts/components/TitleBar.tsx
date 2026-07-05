@@ -42,10 +42,10 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
   // WebUI 和 macOS 桌面都需要在标题栏放工作区开关
   const showWorkspaceButton = workspaceAvailable && (!isDesktopRuntime || isMacRuntime);
 
-  const workspaceTooltip = workspaceCollapsed ? t('common.expandMore', { defaultValue: 'Expand workspace' }) : t('common.collapse', { defaultValue: 'Collapse workspace' });
+  const workspaceTooltip = workspaceCollapsed ? t('common.expandMore', { defaultValue: '展开更多' }) : t('common.collapse', { defaultValue: '收起' });
   const iconSize = 18;
   const showSiderToggle = Boolean(layout?.setSiderCollapsed);
-  const siderTooltip = layout?.siderCollapsed ? t('common.expandMore', { defaultValue: 'Expand sidebar' }) : t('common.collapse', { defaultValue: 'Collapse sidebar' });
+  const siderTooltip = layout?.siderCollapsed ? t('common.expandMore', { defaultValue: '展开更多' }) : t('common.collapse', { defaultValue: '收起' });
 
   const handleSiderToggle = () => {
     if (!showSiderToggle || !layout?.setSiderCollapsed) return;

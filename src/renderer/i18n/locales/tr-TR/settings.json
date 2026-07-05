@@ -1298,5 +1298,7 @@
   "tenantAssistants": "Özel Ajanlar",
   "uploadAssistantConfirm": "Bu ajani ajan magazasina yuklemeyi onayliyor musunuz? Yukleme sonrasi ayni kiracidaki kullanicilar indirebilir.",
   "uploadAssistantTitle": "Ajan Yukle",
-  "skill.notInstalled": "Yüklü değil"
+  "skill.notInstalled": "Yüklü değil",
+  "enterprise": "Kurumsal Ayarlar",
+  "mcpService": "MCP Hizmeti"
 }

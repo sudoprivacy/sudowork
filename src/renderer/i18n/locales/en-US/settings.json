@@ -1377,5 +1377,7 @@
   "tenantAssistants": "Exclusive Agents",
   "uploadAssistantConfirm": "Confirm upload this agent to the agent store? Other users in the same tenant will be able to download and use it after upload.",
   "uploadAssistantTitle": "Upload Agent",
-  "skill.notInstalled": "Not installed"
+  "skill.notInstalled": "Not installed",
+  "enterprise": "Enterprise Settings",
+  "mcpService": "MCP Service"
 }
