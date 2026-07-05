@@ -1,9 +1,3 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import { normalizeSkillVersion } from '@/renderer/utils/skillDisplay';
 import type { IInstalledSkillInfo } from '@/common/ipcBridge';
 

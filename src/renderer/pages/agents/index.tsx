@@ -1,9 +1,3 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import { Avatar, Button, Collapse, Drawer, Input, Message, Modal, Select, Spin, Tooltip, Typography } from '@arco-design/web-react';
 import { Bot, Check, Plus, Search, Share2, Shield } from 'lucide-react';
 import classNames from 'classnames';

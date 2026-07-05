@@ -1,9 +1,3 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import type { AssistantCategory } from '@/process/AssistantManager';
 import type { IAssistantHubSkill } from '@/common/ipcBridge';
 import type { AcpBackendConfig } from '@/types/acpTypes';

@@ -1,9 +1,3 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import React, { useEffect, useMemo, useState } from 'react';
 import { Button, Modal, Progress, Spin } from '@arco-design/web-react';
 import { IconDownload } from '@arco-design/web-react/icon';
