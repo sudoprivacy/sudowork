@@ -30,8 +30,8 @@ export default function DuplicateConfirmModal({ visible, duplicateAssistant, dup
   const displayName = duplicateAssistant ? duplicateAssistant.display_name || duplicateAssistant.name : duplicateInstalledAssistant?.nameI18n?.[localeKey] || duplicateInstalledAssistant?.name;
 
   return (
-    <Modal title={t('settings.duplicateAssistantTitle', '复制智能体')} visible={visible} onCancel={onCancel} onOk={onConfirm} okText={t('common.confirm', '确认')} cancelText={t('common.cancel', '取消')} className='w-[90vw] md:w-[400px]' wrapStyle={{ zIndex: 10000 }} maskStyle={{ zIndex: 9999 }}>
-      <p>{t('settings.duplicateAssistantConfirm', 'Confirm duplicate this agent to the custom list? After duplication, you can edit it in "My Agents".')}</p>
+    <Modal title={t('settings.duplicateAssistantTitle', '复制智能体')} visible={visible} onCancel={onCancel} onOk={onConfirm} okText={t('common.confirm', '确认')} cancelText={t('common.cancel', '取消')}>
+      <p className='mt-0'>{t('settings.duplicateAssistantConfirm', 'Confirm duplicate this agent to the custom list? After duplication, you can edit it in "My Agents".')}</p>
 
       {duplicateAssistant && (
         <AvatarPreview name={duplicateAssistant.display_name || duplicateAssistant.name} description={duplicateAssistant.description}>
