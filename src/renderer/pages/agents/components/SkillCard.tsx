@@ -17,8 +17,13 @@ const SkillCard: React.FC<SkillCardProps> = ({ skill, checked, onToggle, disable
   const displayVersion = normalizeSkillVersion(skill.version);
 
   return (
-    <div className={`bg-base rd-12px border p-3 flex items-start gap-3 relative ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}>
-      <Checkbox checked={checked} onChange={onToggle} disabled={disabled} className={`mt-0.5 ${disabled ? '' : 'cursor-pointer'}`} />
+    <div
+      className={`bg-base rd-12px border p-3 flex items-start gap-3 relative transition-colors ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'} ${checked ? 'bg-[color-mix(in_srgb,var(--color-primary)_6%,transparent)]' : ''}`}
+      onClick={disabled ? undefined : onToggle}
+    >
+      <div className='mt-0.5' onClick={(e) => e.stopPropagation()}>
+        <Checkbox checked={checked} onChange={onToggle} disabled={disabled} className={disabled ? '' : 'cursor-pointer'} />
+      </div>
       <div className='size-12 flex-shrink-0 rd-8px overflow-hidden'>
         {icon ? (
           <img src={icon} alt={displayName} className='w-full h-full object-cover' />
