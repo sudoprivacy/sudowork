@@ -66,7 +66,7 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
 
   return (
     <div
-      className={classNames('flex items-center gap-8px app-titlebar', {
+      className={classNames('flex items-center gap-2 app-titlebar', {
         'app-titlebar--desktop': isDesktopRuntime,
         'app-titlebar--mac': isMacRuntime,
       })}
