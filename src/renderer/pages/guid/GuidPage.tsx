@@ -24,7 +24,7 @@ import { openExternalUrl, isElectronDesktop, resolveExtensionAssetUrl } from '@/
 import { useInputFocusRing } from '@/renderer/hooks/useInputFocusRing';
 import { resolveLocaleKey } from '@/common/utils';
 import { DEFAULT_PRESET_AGENT_TYPE, normalizePresetAgentType } from '@/types/acpTypes';
-import AssistantEditDrawer from '../agents/components/AssistantEditDrawer';
+import AssistantEditDrawer from './components/AssistantEditDrawer';
 import AssistantSelectionArea from './components/AssistantSelectionArea';
 import AssistantAgentDropdown from './components/AssistantAgentDropdown';
 import { CUSTOM_AVATAR_IMAGE_MAP } from './constants';
