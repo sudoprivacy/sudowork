@@ -29,28 +29,15 @@ import HubAssistantCard from './components/HubAssistantCard';
 import AssistantDetailModal from './components/AssistantDetailModal';
 import InstalledAssistantCard from './components/InstalledAssistantCard';
 import type { AssistantListItem, AssistantLatestVersion } from './types';
-import { normalizeAssistantVersion, getSelectableAssistantSkills, isAssistantSkillSelected, isAutoInjectedBuiltinSkill, sanitizeAssistantEnabledSkills, toggleAssistantSkillSelection } from './utils';
+import { normalizeAssistantVersion, normalizeAssistantLookupKey, resolveAssistantVersionLike, getSelectableAssistantSkills, isAssistantSkillSelected, isAutoInjectedBuiltinSkill, sanitizeAssistantEnabledSkills, toggleAssistantSkillSelection } from './utils';
 
 // ==================== Types ====================
 
+/** 智能体商店标签页：store = 公共市场，exclusive = 企业专属（租户维度），installed = 本地已安装 */
 type AssistantStoreTab = 'store' | 'exclusive' | 'installed';
 
 const VERSION_CACHE_TTL = 5 * 60 * 1000;
 const VERSION_FAILURE_CACHE_TTL = 60 * 1000;
-
-const normalizeAssistantLookupKey = (value: string | null | undefined) => value?.trim().toLowerCase();
-
-const resolveAssistantVersionLike = (assistant: IAssistantHubSkill, versionLike?: IAssistantHubVersionLike | null): AssistantLatestVersion | null => {
-  const sourceUrl = versionLike?.source_url || versionLike?.sourceUrl || assistant._sourceUrl;
-  const version = normalizeAssistantVersion(versionLike?.version || assistant.version);
-  if (!sourceUrl || !version) return null;
-  return {
-    version,
-    sourceUrl,
-    checksum: versionLike?.checksum || '',
-    fetchedAt: Date.now(),
-  };
-};
 
 const AgentSettings: React.FC = () => {
   const { t, i18n } = useTranslation();
@@ -511,38 +498,6 @@ const AgentSettings: React.FC = () => {
     return () => clearTimeout(timer);
   }, [hubSearchQuery, fetchHubAssistants]);
 
-  // Listen for sync completed event (enterprise mode)
-  useEffect(() => {
-    if (!isEnterprise || !isElectronDesktop()) return;
-
-    const handleSyncCompleted = (data: {
-      skills: { hub: { installed: string[]; skipped: string[]; deleted: string[]; failed: Array<{ id: string; name: string; error: string }> }; tenant: { installed: string[]; skipped: string[]; deleted: string[]; failed: Array<{ id: string; name: string; error: string }> } };
-      assistants: { hub: { installed: string[]; skipped: string[]; deleted: string[]; failed: Array<{ id: string; name: string; error: string }> }; tenant: { installed: string[]; skipped: string[]; deleted: string[]; failed: Array<{ id: string; name: string; error: string }> } };
-    }) => {
-      // Merge hub and tenant results for display
-      const mergedSkills = {
-        installed: [...data.skills.hub.installed, ...data.skills.tenant.installed],
-        skipped: [...data.skills.hub.skipped, ...data.skills.tenant.skipped],
-        deleted: [...data.skills.hub.deleted, ...data.skills.tenant.deleted],
-        failed: [...data.skills.hub.failed, ...data.skills.tenant.failed],
-      };
-      const mergedAssistants = {
-        installed: [...data.assistants.hub.installed, ...data.assistants.tenant.installed],
-        skipped: [...data.assistants.hub.skipped, ...data.assistants.tenant.skipped],
-        deleted: [...data.assistants.hub.deleted, ...data.assistants.tenant.deleted],
-        failed: [...data.assistants.hub.failed, ...data.assistants.tenant.failed],
-      };
-      setSyncStatus({ syncing: false, skills: mergedSkills, assistants: mergedAssistants });
-      // Refresh installed list after sync
-      void fetchInstalledAssistantNames();
-      // Refresh local assistants list (for "我的助手" tab)
-      void loadAssistants();
-    };
-
-    const unsubscribe = eeclaw.syncCompleted.on(handleSyncCompleted);
-    return () => unsubscribe();
-  }, [isEnterprise, fetchInstalledAssistantNames]);
-
   // Trigger sync when switching to store tab in enterprise mode
   // Only trigger once per tab session, not on every syncStatus change
   useEffect(() => {
@@ -736,6 +691,38 @@ const AgentSettings: React.FC = () => {
   useEffect(() => {
     void loadAssistants();
   }, [loadAssistants]);
+
+  // Listen for sync completed event (enterprise mode)
+  useEffect(() => {
+    if (!isEnterprise || !isElectronDesktop()) return;
+
+    const handleSyncCompleted = (data: {
+      skills: { hub: { installed: string[]; skipped: string[]; deleted: string[]; failed: Array<{ id: string; name: string; error: string }> }; tenant: { installed: string[]; skipped: string[]; deleted: string[]; failed: Array<{ id: string; name: string; error: string }> } };
+      assistants: { hub: { installed: string[]; skipped: string[]; deleted: string[]; failed: Array<{ id: string; name: string; error: string }> }; tenant: { installed: string[]; skipped: string[]; deleted: string[]; failed: Array<{ id: string; name: string; error: string }> } };
+    }) => {
+      // Merge hub and tenant results for display
+      const mergedSkills = {
+        installed: [...data.skills.hub.installed, ...data.skills.tenant.installed],
+        skipped: [...data.skills.hub.skipped, ...data.skills.tenant.skipped],
+        deleted: [...data.skills.hub.deleted, ...data.skills.tenant.deleted],
+        failed: [...data.skills.hub.failed, ...data.skills.tenant.failed],
+      };
+      const mergedAssistants = {
+        installed: [...data.assistants.hub.installed, ...data.assistants.tenant.installed],
+        skipped: [...data.assistants.hub.skipped, ...data.assistants.tenant.skipped],
+        deleted: [...data.assistants.hub.deleted, ...data.assistants.tenant.deleted],
+        failed: [...data.assistants.hub.failed, ...data.assistants.tenant.failed],
+      };
+      setSyncStatus({ syncing: false, skills: mergedSkills, assistants: mergedAssistants });
+      // Refresh installed list after sync
+      void fetchInstalledAssistantNames();
+      // Refresh local assistants list (for "我的助手" tab)
+      void loadAssistants();
+    };
+
+    const unsubscribe = eeclaw.syncCompleted.on(handleSyncCompleted);
+    return () => unsubscribe();
+  }, [isEnterprise, fetchInstalledAssistantNames, loadAssistants]);
 
   // Install Hub assistant (defined after loadAssistants since it depends on it)
   const resolveAssistantVersionInfo = useCallback(

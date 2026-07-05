@@ -1,7 +1,22 @@
 import { normalizeSkillVersion } from '@/renderer/utils/skillDisplay';
-import type { IInstalledSkillInfo } from '@/common/ipcBridge';
+import type { IAssistantHubSkill, IAssistantHubVersionLike, IInstalledSkillInfo } from '@/common/ipcBridge';
+import type { AssistantLatestVersion } from '../types';
 
 export const normalizeAssistantVersion = (version?: string | null) => normalizeSkillVersion(version).replace(/^v(?=\d)/i, '');
+
+export const normalizeAssistantLookupKey = (value: string | null | undefined) => value?.trim().toLowerCase();
+
+export const resolveAssistantVersionLike = (assistant: IAssistantHubSkill, versionLike?: IAssistantHubVersionLike | null): AssistantLatestVersion | null => {
+  const sourceUrl = versionLike?.source_url || versionLike?.sourceUrl || assistant._sourceUrl;
+  const version = normalizeAssistantVersion(versionLike?.version || assistant.version);
+  if (!sourceUrl || !version) return null;
+  return {
+    version,
+    sourceUrl,
+    checksum: versionLike?.checksum || '',
+    fetchedAt: Date.now(),
+  };
+};
 
 export function isAutoInjectedBuiltinSkill(skill: IInstalledSkillInfo): boolean {
   return skill.isAutoInjectedBuiltin === true;
