@@ -158,10 +158,10 @@ const AssistantDetailModal: React.FC<AssistantDetailModalProps> = ({ assistant, 
     <Modal visible={visible} onCancel={onClose} footer={null} style={{ width: 480 }}>
       <div className='flex flex-col max-h-80vh'>
         <AionScrollArea className='flex-1 min-h-0'>
-          <div className='px-8px pb-16px'>
+          <div className='px-2 pb-4'>
             {/* Icon + Name header */}
-            <div className='flex flex-col items-center mb-20px'>
-              <div className='w-72px h-72px rd-14px overflow-hidden mb-12px'>
+            <div className='flex flex-col items-center mb-5'>
+              <div className='size-18 rd-14px overflow-hidden mb-3'>
                 {resolvedAvatar ? (
                   hasEmojiAvatar ? (
                     <div className='w-full h-full f-center text-34px'>{resolvedAvatar}</div>
@@ -178,7 +178,7 @@ const AssistantDetailModal: React.FC<AssistantDetailModalProps> = ({ assistant, 
               </div>
               <div className='font-semibold text-17px text-foreground text-center'>{displayName}</div>
               {assistant.categories && assistant.categories.length > 0 && (
-                <div className='flex gap-4px mt-6px flex-wrap justify-center'>
+                <div className='flex gap-1 mt-1.5 flex-wrap justify-center'>
                   {assistant.categories.map((cat, idx) => (
                     <span key={idx} className='px-7px py-1px bg-fill-2 text-secondary text-11px rd-4px'>
                       {cat}
@@ -189,14 +189,14 @@ const AssistantDetailModal: React.FC<AssistantDetailModalProps> = ({ assistant, 
             </div>
 
             {loading ? (
-              <div className='flex justify-center py-32px'>
+              <div className='flex justify-center py-8'>
                 <Spin />
               </div>
             ) : (
-              <div className='space-y-16px'>
+              <div className='space-y-4'>
                 {/* Assistant intro */}
-                <div className='bg-fill-1 rd-10px p-14px'>
-                  <div className='flex items-center gap-6px mb-8px'>
+                <div className='bg-fill-1 rd-10px p-3.5'>
+                  <div className='flex items-center gap-1.5 mb-2'>
                     <span className='text-14px'>✦</span>
                     <span className='font-medium text-13px text-foreground'>{t('settings.assistant.introduction', '助手介绍')}</span>
                   </div>
@@ -205,8 +205,8 @@ const AssistantDetailModal: React.FC<AssistantDetailModalProps> = ({ assistant, 
 
                 {/* Associated skills */}
                 {relatedSkillDetails.length > 0 && !isInstalled && (
-                  <div className='bg-fill-1 rd-10px p-14px'>
-                    <div className='flex items-center gap-6px mb-10px'>
+                  <div className='bg-fill-1 rd-10px p-3.5'>
+                    <div className='flex items-center gap-1.5 mb-2.5'>
                       <Zap size={14} className='text-primary' />
                       <span className='font-medium text-13px text-foreground'>{t('settings.assistant.relatedSkills', '关联技能')}</span>
                       <span className='text-12px text-secondary'>({relatedSkillDetails.length})</span>
@@ -215,7 +215,7 @@ const AssistantDetailModal: React.FC<AssistantDetailModalProps> = ({ assistant, 
                     {loadingSkills ? (
                       <div className='text-center text-secondary text-12px py-16px'>{t('common.loading', '加载中...')}</div>
                     ) : (
-                      <div className='space-y-8px'>
+                      <div className='space-y-2'>
                         {relatedSkillDetails.map((skill) => {
                           const isSkillInstalled = localSkillByNameSet.has(skill.name);
                           const skillTag = relatedSkillTags.get(skill.id);
@@ -232,8 +232,8 @@ const AssistantDetailModal: React.FC<AssistantDetailModalProps> = ({ assistant, 
                             skillIconUrl = skill.icon && !skill.icon.startsWith('http') && !skill.icon.startsWith('data:') && !skill.icon.startsWith('/') && !skill.icon.startsWith('aion-asset://') && !skill.icon.startsWith('file://') ? `${COS_HUB_BASE}/${skill.icon}` : skill.icon;
                           }
                           return (
-                            <div key={skill.id} className='flex items-center gap-10px p-8px bg-base rd-8px'>
-                              <div className='w-32px h-32px flex-shrink-0 rd-6px overflow-hidden'>
+                            <div key={skill.id} className='flex items-center gap-2.5 p-2 bg-base rd-8px'>
+                              <div className='size-8 flex-shrink-0 rd-6px overflow-hidden'>
                                 {skillIconUrl ? (
                                   <img src={skillIconUrl} alt={skillDisplayName} className='w-full h-full object-cover' onError={handleSkillIconError} />
                                 ) : skill.emoji ? (
@@ -251,13 +251,13 @@ const AssistantDetailModal: React.FC<AssistantDetailModalProps> = ({ assistant, 
                                 </div>
                                 <div className='text-11px text-secondary truncate'>{skill.description}</div>
                               </div>
-                              <span className={`px-4px py-0px text-10px rd-1 whitespace-nowrap ${isSkillInstalled ? 'text-primary' : 'bg-muted text-secondary'}`}>{isSkillInstalled ? t('settings.skill.installed', '已安装') : t('settings.skill.notInstalled', '未安装')}</span>
+                              <span className={`px-1 py-0 text-10px rd-1 whitespace-nowrap ${isSkillInstalled ? 'text-primary' : 'bg-muted text-secondary'}`}>{isSkillInstalled ? t('settings.skill.installed', '已安装') : t('settings.skill.notInstalled', '未安装')}</span>
                             </div>
                           );
                         })}
                       </div>
                     )}
-                    <div className='mt-12px text-11px text-secondary'>{t('settings.assistant.skillsInstallHint', '安装助手时会自动安装关联的技能')}</div>
+                    <div className='mt-3 text-11px text-secondary'>{t('settings.assistant.skillsInstallHint', '安装助手时会自动安装关联的技能')}</div>
                   </div>
                 )}
               </div>
@@ -266,8 +266,8 @@ const AssistantDetailModal: React.FC<AssistantDetailModalProps> = ({ assistant, 
         </AionScrollArea>
 
         {/* Action buttons */}
-        <div className='px-8px pt-12px border-t border-light mt-4px'>
-          <div className='flex gap-8px items-center'>
+        <div className='px-2 pt-3 border-t border-light mt-1'>
+          <div className='flex gap-2 items-center'>
             {isInstalled && hasUpdate ? (
               <Button type='primary' long size='large' className='flex-1' loading={updating} loadingFixedWidth icon={<IconDownload />} onClick={() => onUpdate?.(associatedSkillIds)}>
                 {t('settings.assistant.updateTo', { version: latestVersionInfo.version, defaultValue: `更新至 v${latestVersionInfo.version}` })}

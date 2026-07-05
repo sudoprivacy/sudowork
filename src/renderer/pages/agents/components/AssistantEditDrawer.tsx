@@ -305,13 +305,13 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
       }
     >
       <div className='flex flex-col h-full overflow-hidden'>
-        <div className='flex flex-col flex-1 gap-16px bg-fill-2 rounded-16px p-20px overflow-y-auto'>
+        <div className='flex flex-col flex-1 gap-4 bg-fill-2 rounded-16px p-5 overflow-y-auto'>
           {/* Name & Avatar */}
           <div className='flex-shrink-0'>
             <Typography.Text bold>
               <span className='text-red-500'>*</span> {t('settings.assistantNameAvatar', '名称及头像')}
             </Typography.Text>
-            <div className='mt-10px flex items-center gap-12px'>
+            <div className='mt-2.5 flex items-center gap-3'>
               {isBuiltin || isReadonly ? (
                 <Avatar shape='square' size={40} className='rounded-4px'>
                   {editAvatarImage ? <img src={editAvatarImage} alt='' width={24} height={24} style={{ objectFit: 'contain' }} /> : editAvatar && isEmoji(editAvatar) ? <span className='text-24px'>{editAvatar}</span> : <Bot size={20} />}
@@ -332,15 +332,15 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
           {/* Description */}
           <div className='flex-shrink-0'>
             <Typography.Text bold>{t('settings.assistantDescription', '智能体描述')}</Typography.Text>
-            <Input className='mt-10px' value={editDescription} onChange={(value) => setEditDescription(value)} disabled={isBuiltin || isReadonly} placeholder={t('settings.assistantDescriptionPlaceholder', '帮你解决什么问题')} />
+            <Input className='mt-2.5' value={editDescription} onChange={(value) => setEditDescription(value)} disabled={isBuiltin || isReadonly} placeholder={t('settings.assistantDescriptionPlaceholder', '帮你解决什么问题')} />
           </div>
 
           {/* Main Agent - locked to Sudo Code */}
           <div className='flex-shrink-0'>
             <Typography.Text bold>{t('settings.assistantMainAgent', '主智能体')}</Typography.Text>
-            <Select className='mt-10px w-full' value={DEFAULT_PRESET_AGENT_TYPE} disabled>
+            <Select className='mt-2.5 w-full' value={DEFAULT_PRESET_AGENT_TYPE} disabled>
               <Select.Option key='scode' value='scode'>
-                <span className='flex items-center gap-6px'>
+                <span className='flex items-center gap-1.5'>
                   {getAgentLogo('scode') && <img src={getAgentLogo('scode') || undefined} alt='' width={16} height={16} style={{ objectFit: 'contain' }} />}
                   Sudo Code
                 </span>
@@ -353,13 +353,13 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
             <Typography.Text bold className='flex-shrink-0'>
               {t('settings.assistantRules', '规则')}
             </Typography.Text>
-            <div className='mt-10px border overflow-hidden rounded-4px' style={{ height: '300px' }}>
+            <div className='mt-2.5 border overflow-hidden rounded-4px' style={{ height: '300px' }}>
               {!isBuiltin && !isReadonly && (
-                <div className='flex items-center h-36px bg-fill-2 border-b flex-shrink-0'>
-                  <div className={`flex items-center h-full px-16px cursor-pointer transition-all text-13px font-medium ${promptViewMode === 'edit' ? 'text-primary border-b-2px border-solid border-primary' : 'text-secondary hover:text-foreground'}`} onClick={() => setPromptViewMode('edit')}>
+                <div className='flex items-center h-9 bg-fill-2 border-b flex-shrink-0'>
+                  <div className={`flex items-center h-full px-4 cursor-pointer transition-all text-13px font-medium ${promptViewMode === 'edit' ? 'text-primary border-b-2px border-primary' : 'text-secondary hover:text-foreground'}`} onClick={() => setPromptViewMode('edit')}>
                     {t('settings.promptEdit', 'Edit')}
                   </div>
-                  <div className={`flex items-center h-full px-16px cursor-pointer transition-all text-13px font-medium ${promptViewMode === 'preview' ? 'text-primary border-b-2px border-solid border-primary' : 'text-secondary hover:text-foreground'}`} onClick={() => setPromptViewMode('preview')}>
+                  <div className={`flex items-center h-full px-4 cursor-pointer transition-all text-13px font-medium ${promptViewMode === 'preview' ? 'text-primary border-b-2px border-primary' : 'text-secondary hover:text-foreground'}`} onClick={() => setPromptViewMode('preview')}>
                     {t('settings.promptPreview', 'Preview')}
                   </div>
                 </div>
@@ -376,11 +376,11 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
                     <Input.TextArea value={editContext} onChange={(value) => setEditContext(value)} placeholder={t('settings.assistantRulesPlaceholder', '请输入 Markdown 格式的规则...')} autoSize={false} className='border-none rounded-none bg-transparent h-full resize-none' />
                   </div>
                 ) : (
-                  <div className='p-16px'>
+                  <div className='p-4'>
                     {editContext ? (
                       <MarkdownView hiddenCodeCopyButton>{editContext}</MarkdownView>
                     ) : (
-                      <div className='text-secondary text-center py-32px'>
+                      <div className='text-secondary text-center py-8'>
                         {t('settings.promptPreviewEmpty', {
                           defaultValue: 'No content to preview',
                         })}
@@ -393,14 +393,14 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
           </div>
 
           {/* Skills */}
-          <div className='flex-shrink-0 mt-16px'>
-            <div className='flex items-center justify-between mb-12px'>
+          <div className='flex-shrink-0 mt-4'>
+            <div className='flex items-center justify-between mb-3'>
               <Typography.Text bold>{t('settings.assistantSkills', '技能')}</Typography.Text>
             </div>
             <Collapse defaultActiveKey={['custom-skills']}>
-              <Collapse.Item header={<span className='text-13px font-medium'>{t('settings.customSkills', '自定义技能')}</span>} name='custom-skills' className='mb-8px' extra={<span className='text-12px text-secondary'>{installedSkills.filter((s) => !s.isBuiltin).length}</span>}>
+              <Collapse.Item header={<span className='text-13px font-medium'>{t('settings.customSkills', '自定义技能')}</span>} name='custom-skills' className='mb-2' extra={<span className='text-12px text-secondary'>{installedSkills.filter((s) => !s.isBuiltin).length}</span>}>
                 <div
-                  className='grid gap-8px'
+                  className='grid gap-2'
                   style={{
                     gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
                   }}
@@ -411,7 +411,7 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
                       const { displayName, description, icon, emoji } = getInstalledSkillDisplay(skill);
                       const displayVersion = normalizeSkillVersion(skill.version);
                       return (
-                        <div key={skill.name} className={`bg-fill-1 rd-12px border p-12px flex items-start gap-12px relative ${isReadonly ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                        <div key={skill.name} className={`bg-fill-1 rd-12px border p-3 flex items-start gap-3 relative ${isReadonly ? 'opacity-50 cursor-not-allowed' : ''}`}>
                           <Checkbox
                             checked={isAssistantSkillSelected(selectedSkills, skill)}
                             onChange={() => {
@@ -419,9 +419,9 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
                               setSelectedSkills(toggleAssistantSkillSelection(selectedSkills, skill));
                             }}
                             disabled={isReadonly}
-                            className={`mt-2px ${isReadonly ? '' : 'cursor-pointer'}`}
+                            className={`mt-0.5 ${isReadonly ? '' : 'cursor-pointer'}`}
                           />
-                          <div className='w-48px h-48px flex-shrink-0 rd-8px overflow-hidden bg-fill-2'>
+                          <div className='size-12 flex-shrink-0 rd-8px overflow-hidden bg-fill-2'>
                             {icon ? (
                               <img src={icon} alt={displayName} className='w-full h-full object-cover' onError={handleSkillIconError} />
                             ) : emoji ? (
@@ -433,9 +433,9 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
                             )}
                           </div>
                           <div className='flex-1 min-w-0'>
-                            <div className='flex items-center gap-6px'>
+                            <div className='flex items-center gap-1.5'>
                               <span className='font-medium text-13px text-foreground truncate'>{displayName}</span>
-                              {!skill.isBuiltin && displayVersion && <span className='px-5px py-0px bg-fill-3 text-secondary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px'>v{displayVersion}</span>}
+                              {!skill.isBuiltin && displayVersion && <span className='px-5px py-0 bg-fill-3 text-secondary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px'>v{displayVersion}</span>}
                               {skill.isBuiltin && <Shield size={14} className='text-primary flex-shrink-0' />}
                             </div>
                             {description && <div className='text-11px text-secondary mt-3px line-clamp-2 leading-relaxed'>{description}</div>}
@@ -444,7 +444,7 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
                       );
                     })}
                   {installedSkills.filter((s) => !s.isBuiltin).length === 0 && (
-                    <div className='text-center text-secondary text-12px py-16px col-span-full'>
+                    <div className='text-center text-secondary text-12px py-4 col-span-full'>
                       {t('settings.noCustomSkills', {
                         defaultValue: 'No custom skills available',
                       })}
@@ -454,7 +454,7 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
               </Collapse.Item>
               <Collapse.Item header={<span className='text-13px font-medium'>{t('settings.builtinSkills', '内置技能')}</span>} name='builtin-skills' extra={<span className='text-12px text-secondary'>{installedSkills.filter((s) => s.isBuiltin).length}</span>}>
                 <div
-                  className='grid gap-8px'
+                  className='grid gap-2'
                   style={{
                     gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
                   }}
@@ -464,7 +464,7 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
                     .map((skill) => {
                       const { displayName, description, icon, emoji } = getInstalledSkillDisplay(skill);
                       return (
-                        <div key={skill.name} className={`bg-fill-1 rd-12px border p-12px flex items-start gap-12px relative ${isReadonly ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                        <div key={skill.name} className={`bg-fill-1 rd-12px border p-3 flex items-start gap-3 relative ${isReadonly ? 'opacity-50 cursor-not-allowed' : ''}`}>
                           <Checkbox
                             checked={isAssistantSkillSelected(selectedSkills, skill)}
                             onChange={() => {
@@ -472,9 +472,9 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
                               setSelectedSkills(toggleAssistantSkillSelection(selectedSkills, skill));
                             }}
                             disabled={isReadonly}
-                            className={`mt-2px ${isReadonly ? '' : 'cursor-pointer'}`}
+                            className={`mt-0.5 ${isReadonly ? '' : 'cursor-pointer'}`}
                           />
-                          <div className='w-48px h-48px flex-shrink-0 rd-8px overflow-hidden bg-fill-2'>
+                          <div className='size-12 flex-shrink-0 rd-8px overflow-hidden bg-fill-2'>
                             {icon ? (
                               <img src={icon} alt={displayName} className='w-full h-full object-cover' onError={handleSkillIconError} />
                             ) : emoji ? (
@@ -486,7 +486,7 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
                             )}
                           </div>
                           <div className='flex-1 min-w-0'>
-                            <div className='flex items-center gap-6px'>
+                            <div className='flex items-center gap-1.5'>
                               <span className='font-medium text-13px text-foreground truncate'>{displayName}</span>
                               {skill.isBuiltin && <Shield size={14} className='text-primary flex-shrink-0' />}
                             </div>
@@ -496,7 +496,7 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
                       );
                     })}
                   {installedSkills.filter((s) => s.isBuiltin).length === 0 && (
-                    <div className='text-center text-secondary text-12px py-16px col-span-full'>
+                    <div className='text-center text-secondary text-12px py-4 col-span-full'>
                       {t('settings.noBuiltinSkills', {
                         defaultValue: 'No builtin skills available',
                       })}

@@ -22,10 +22,10 @@ const HubAssistantCard: React.FC<HubAssistantCardProps> = ({ assistant, isInstal
   const hasDownloadUrl = Boolean(assistant._sourceUrl);
 
   return (
-    <div className='card group flex items-start gap-12px relative overflow-hidden' onClick={onClick}>
+    <div className='card group flex items-start gap-3 relative overflow-hidden' onClick={onClick}>
       {/* Icon */}
-      <div className='w-48px flex-shrink-0 flex flex-col items-center'>
-        <div className='w-48px h-48px rd-8px overflow-hidden bg-fill-2'>
+      <div className='w-12 flex-shrink-0 flex flex-col items-center'>
+        <div className='size-12 rd-8px overflow-hidden bg-fill-2'>
           {resolvedAvatar ? (
             hasEmojiAvatar ? (
               <div className='w-full h-full f-center text-22px'>{resolvedAvatar}</div>
@@ -44,13 +44,13 @@ const HubAssistantCard: React.FC<HubAssistantCardProps> = ({ assistant, isInstal
 
       {/* Content */}
       <div className='flex-1 min-w-0'>
-        <div className='flex items-center gap-6px pr-100px min-w-0'>
+        <div className='flex items-center gap-1.5 pr-25 min-w-0'>
           <span className='min-w-0 font-medium text-13px text-foreground truncate'>{displayName}</span>
-          {latestVersion && <span className='px-5px py-0px bg-control text-t-secondary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px'>v{latestVersion}</span>}
+          {latestVersion && <span className='px-5px py-0 bg-control text-secondary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px'>v{latestVersion}</span>}
         </div>
         <div className='text-11px text-secondary mt-3px line-clamp-2 leading-relaxed'>{assistant.description}</div>
         {assistant.skills && assistant.skills.length > 0 && (
-          <div className='mt-4px flex items-center gap-4px'>
+          <div className='mt-1 flex items-center gap-1'>
             <Zap size={12} className='text-primary flex-shrink-0' />
             <span className='text-10px text-tertiary'>{t('settings.assistant.relatedSkills', { count: assistant.skills.length, defaultValue: `${assistant.skills.length} 个关联技能` })}</span>
           </div>
@@ -58,7 +58,7 @@ const HubAssistantCard: React.FC<HubAssistantCardProps> = ({ assistant, isInstal
       </div>
 
       {/* Actions - top right */}
-      <div className='absolute top-10px right-10px flex items-center gap-6px' onClick={(e) => e.stopPropagation()}>
+      <div className='absolute top-2.5 right-2.5 flex items-center gap-1.5' onClick={(e) => e.stopPropagation()}>
         {/* Duplicate button - only for installed assistants */}
         {isInstalled && (
           <>
@@ -76,7 +76,7 @@ const HubAssistantCard: React.FC<HubAssistantCardProps> = ({ assistant, isInstal
         )}
         {/* Install button or progress - only show if hasDownloadUrl */}
         {installing || updating ? (
-          <div className='w-52px'>
+          <div className='w-13'>
             <Progress percent={installProgress} size='mini' />
           </div>
         ) : isInstalled && hasUpdate ? (

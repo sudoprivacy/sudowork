@@ -1587,7 +1587,7 @@ const AgentSettings: React.FC = () => {
   };
 
   const renderAssistantGrid = (list: AssistantListItem[], hideDelete = false, allowToggle = false, allowDelete = false) => (
-    <div className='grid gap-16px' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+    <div className='grid gap-4' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
       {list.map((assistant) => {
         const hubId = !isEnterprise ? assistant._hubId : undefined;
         const latestVersion = hubId ? latestAssistantVersions.get(hubId) : undefined;
@@ -1621,7 +1621,7 @@ const AgentSettings: React.FC = () => {
 
   // Render custom assistants with enterprise action buttons (publish only, auto-upload on create)
   const renderCustomAssistantGridWithEnterpriseActions = (list: AssistantListItem[]) => (
-    <div className='grid gap-16px' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+    <div className='grid gap-4' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
       {list.map((assistant) => {
         const assistantId = assistant.id;
         const isPublishing = publishingAssistantName === assistantId;
@@ -1677,7 +1677,7 @@ const AgentSettings: React.FC = () => {
     <PageWrapper>
       <div className='flex flex-col h-full w-full'>
         {/* Header: tabs + search + create button */}
-        <div className='flex items-center gap-24px mb-12px'>
+        <div className='flex items-center gap-6 mb-3'>
           {/* Tab switcher */}
           <Tabs
             variant='line'
@@ -1701,13 +1701,13 @@ const AgentSettings: React.FC = () => {
 
           {/* Sync status indicator for enterprise mode - compact inline style */}
           {isEnterprise && activeTab === 'store' && syncStatus.syncing && (
-            <div className='flex items-center gap-6px px-10px py-4px bg-primary-light-1 rd-6px flex-shrink-0'>
+            <div className='flex items-center gap-1.5 px-2.5 py-1 bg-primary-light-1 rd-6px flex-shrink-0'>
               <Spin size={12} />
               <span className='text-11px text-primary'>{t('settings.assistant.syncing', '同步中...')}</span>
             </div>
           )}
           {isEnterprise && activeTab === 'store' && !syncStatus.syncing && (syncStatus.assistants.installed.length > 0 || syncStatus.assistants.skipped.length > 0 || syncStatus.assistants.failed.length > 0) && (
-            <div className='flex items-center gap-6px px-10px py-4px bg-success-light rd-6px flex-shrink-0'>
+            <div className='flex items-center gap-1.5 px-2.5 py-1 bg-success-soft rd-6px flex-shrink-0'>
               <Check size={12} className='text-success' />
               <span className='text-11px text-success'>{t('settings.assistant.syncCompleted', '已同步')}</span>
             </div>
@@ -1727,10 +1727,10 @@ const AgentSettings: React.FC = () => {
           {activeTab === 'installed' && (
             <button
               type='button'
-              className='group h-34px px-4 py-0 border border-solid rd-full flex items-center gap-8px flex-shrink-0 cursor-pointer transition-all outline-none bg-[color-mix(in_srgb,var(--color-fill-2)_84%,transparent)] border-[color-mix(in_srgb,var(--color-border-2)_70%,transparent)] hover:bg-[color-mix(in_srgb,var(--color-primary-light-1)_58%,transparent)] hover:border-[color-mix(in_srgb,var(--color-primary)_36%,transparent)]'
+              className='group h-8.5 px-4 py-0 border border-solid rd-full flex items-center gap-2 flex-shrink-0 cursor-pointer transition-all outline-none bg-[color-mix(in_srgb,var(--color-fill-2)_84%,transparent)] border-[color-mix(in_srgb,var(--color-border-2)_70%,transparent)] hover:bg-[color-mix(in_srgb,var(--color-primary-light-1)_58%,transparent)] hover:border-[color-mix(in_srgb,var(--color-primary)_36%,transparent)]'
               onClick={() => void handleCreate()}
             >
-              <span className='w-22px h-22px rd-full f-center bg-[color-mix(in_srgb,var(--color-primary)_14%,transparent)] text-[var(--color-primary)] transition-transform group-hover:scale-105'>
+              <span className='size-5.5 rd-full f-center bg-[color-mix(in_srgb,var(--color-primary)_14%,transparent)] text-[var(--color-primary)] transition-transform group-hover:scale-105'>
                 <Plus size={13} />
               </span>
               <span className='flex items-baseline gap-5px leading-none'>
@@ -1745,7 +1745,7 @@ const AgentSettings: React.FC = () => {
         {(activeTab === 'store' || activeTab === 'exclusive') && (
           <>
             {/* Category filter */}
-            <div className='flex gap-6px mb-14px overflow-x-auto pb-2px flex-shrink-0 scrollbar-hide'>
+            <div className='flex gap-1.5 mb-3.5 overflow-x-auto pb-0.5 flex-shrink-0 scrollbar-hide'>
               {[{ key: 'all', label: t('settings.assistant.allCategories', '全部分类') }, ...hubCategories.map((c) => ({ key: c, label: c }))].map(({ key, label }) => (
                 <span key={key} className={classNames('category-chip', selectedHubCategory === key ? 'category-chip-active' : 'category-chip-idle')} onClick={() => setSelectedHubCategory(key)}>
                   {label}
@@ -1758,16 +1758,16 @@ const AgentSettings: React.FC = () => {
               {/* Enterprise mode: show tenant assistants from local tenant/ directory */}
               {activeTab === 'exclusive' && isEnterprise ? (
                 hubLoading ? (
-                  <div className='flex justify-center items-center py-48px'>
+                  <div className='flex justify-center items-center py-12'>
                     <Spin size={28} />
                   </div>
                 ) : hubAssistantList.length === 0 ? (
-                  <div className='flex flex-col items-center justify-center py-48px text-secondary gap-8px'>
+                  <div className='flex flex-col items-center justify-center py-12 text-secondary gap-2'>
                     <Shield size={32} className='text-tertiary' />
                     <span className='text-13px'>{t('settings.assistant.noTenantAssistants', '暂无专属智能体')}</span>
                   </div>
                 ) : (
-                  <div className='grid gap-16px pb-16px' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+                  <div className='grid gap-4 pb-4' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
                     {hubAssistantList.map((assistant) => {
                       return (
                         <HubAssistantCard
@@ -1795,21 +1795,21 @@ const AgentSettings: React.FC = () => {
                   </div>
                 )
               ) : activeTab === 'exclusive' && !enterpriseCode ? (
-                <div className='flex flex-col items-center justify-center py-48px text-secondary gap-8px'>
+                <div className='flex flex-col items-center justify-center py-12 text-secondary gap-2'>
                   <Shield size={32} className='text-tertiary' />
                   <span className='text-13px'>{t('settings.assistant.noEnterpriseCode', '当前账号没有企业编码，无法加载专属智能体。')}</span>
                 </div>
               ) : hubLoading || !hubInstalledSkillsReady ? (
-                <div className='flex justify-center items-center py-48px'>
+                <div className='flex justify-center items-center py-12'>
                   <Spin size={28} />
                 </div>
               ) : hubAssistantList.length === 0 ? (
-                <div className='flex flex-col items-center justify-center py-48px text-secondary gap-8px'>
+                <div className='flex flex-col items-center justify-center py-12 text-secondary gap-2'>
                   <Bot size={32} className='text-tertiary' />
                   <span className='text-13px'>{t('settings.assistant.noResults', '暂无智能体')}</span>
                 </div>
               ) : (
-                <div className='grid gap-16px pb-16px' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+                <div className='grid gap-4 pb-4' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
                   {hubAssistantList.map((assistant) => {
                     const isInstalled = isEnterprise ? hubInstalledAssistants.has(assistant.name) : isHubAssistantInstalled(assistant);
                     const isInstalling = installingAssistantId === assistant.id;
@@ -1857,11 +1857,11 @@ const AgentSettings: React.FC = () => {
 
               {/* Loading skeleton cards */}
               {hubLoadingMore && (
-                <div className='grid gap-16px pb-16px' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+                <div className='grid gap-4 pb-4' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
                   {Array.from({ length: 4 }).map((_, i) => (
-                    <div key={`skel-${i}`} className='bg-fill-1 rd-12px border p-12px flex items-start gap-12px animate-pulse'>
-                      <div className='w-48px h-48px flex-shrink-0 rd-8px bg-fill-3' />
-                      <div className='flex-1 min-w-0 flex flex-col gap-6px pt-2px'>
+                    <div key={`skel-${i}`} className='bg-fill-1 rd-12px border p-3 flex items-start gap-3 animate-pulse'>
+                      <div className='size-12 flex-shrink-0 rd-8px bg-fill-3' />
+                      <div className='flex-1 min-w-0 flex flex-col gap-1.5 pt-0.5'>
                         <div className='h-14px w-3/5 rd-4px bg-fill-3' />
                         <div className='h-10px w-full rd-4px bg-fill-3' />
                         <div className='h-10px w-4/5 rd-4px bg-fill-3' />
@@ -1881,21 +1881,21 @@ const AgentSettings: React.FC = () => {
         {activeTab === 'installed' && (
           <AionScrollArea className='flex-1 min-h-0' disableOverflow>
             {assistants.length === 0 ? (
-              <div className='flex flex-col items-center justify-center py-48px gap-8px'>
+              <div className='flex flex-col items-center justify-center py-12 gap-2'>
                 <Bot size={32} className='text-tertiary' />
                 <div className='text-13px text-secondary'>{t('settings.assistantsEmpty', '暂无智能体')}</div>
                 <div className='text-12px text-tertiary'>{t('settings.assistantsEmptyHint', '点击下方"创建智能体"按钮添加你的智能体')}</div>
-                <Button size='small' type='outline' className='mt-4px' onClick={() => handleCreate()}>
+                <Button size='small' type='outline' className='mt-1' onClick={() => handleCreate()}>
                   {t('settings.createAssistant', '创建智能体')}
                 </Button>
               </div>
             ) : (
-              <div className='pb-16px space-y-20px'>
+              <div className='pb-4 space-y-5'>
                 {/* Custom assistants section */}
                 <section>
-                  <div className='flex items-center justify-between gap-8px mb-10px'>
+                  <div className='flex items-center justify-between gap-2 mb-2.5'>
                     <div className='text-13px font-medium text-foreground'>{t('settings.customAssistants', '自定义智能体')}</div>
-                    <span className='px-6px py-0px bg-fill-2 text-secondary text-11px rd-full leading-18px'>{customAssistants.length}</span>
+                    <span className='px-1.5 py-0 bg-fill-2 text-secondary text-11px rd-full leading-18px'>{customAssistants.length}</span>
                   </div>
                   {customAssistants.length > 0 ? (
                     isEnterprise ? (
@@ -1904,33 +1904,33 @@ const AgentSettings: React.FC = () => {
                       renderAssistantGrid(customAssistants)
                     )
                   ) : (
-                    <div className='bg-fill-1 border border-dashed rd-12px px-14px py-18px text-12px text-tertiary'>{t('settings.noCustomAssistants', '暂无自定义智能体')}</div>
+                    <div className='bg-fill-1 border border-dashed rd-12px px-3.5 py-4.5 text-12px text-tertiary'>{t('settings.noCustomAssistants', '暂无自定义智能体')}</div>
                   )}
                 </section>
 
                 {/* Tenant assistants section - enterprise mode only */}
                 {isEnterprise && (
                   <section>
-                    <div className='flex items-center justify-between gap-8px mb-10px'>
+                    <div className='flex items-center justify-between gap-2 mb-2.5'>
                       <div className='text-13px font-medium text-foreground'>{t('settings.tenantAssistants', '专属智能体')}</div>
-                      <span className='px-6px py-0px bg-fill-2 text-secondary text-11px rd-full leading-18px'>{filteredTenantAssistants.length}</span>
+                      <span className='px-1.5 py-0 bg-fill-2 text-secondary text-11px rd-full leading-18px'>{filteredTenantAssistants.length}</span>
                     </div>
-                    {filteredTenantAssistants.length > 0 ? renderAssistantGrid(filteredTenantAssistants, true, true) : <div className='bg-fill-1 border border-dashed rd-12px px-14px py-18px text-12px text-tertiary'>{t('settings.noTenantAssistants', '暂无专属智能体')}</div>}
+                    {filteredTenantAssistants.length > 0 ? renderAssistantGrid(filteredTenantAssistants, true, true) : <div className='bg-fill-1 border border-dashed rd-12px px-3.5 py-4.5 text-12px text-tertiary'>{t('settings.noTenantAssistants', '暂无专属智能体')}</div>}
                   </section>
                 )}
 
                 {/* Hub/store assistants section */}
                 <section>
-                  <div className='flex items-center justify-between gap-8px mb-10px'>
+                  <div className='flex items-center justify-between gap-2 mb-2.5'>
                     <div className='text-13px font-medium text-foreground'>{t('settings.hubAssistants', '智能体库')}</div>
-                    <span className='px-6px py-0px bg-fill-2 text-secondary text-11px rd-full leading-18px'>{hubAssistants.length}</span>
+                    <span className='px-1.5 py-0 bg-fill-2 text-secondary text-11px rd-full leading-18px'>{hubAssistants.length}</span>
                   </div>
                   {hubAssistants.length > 0 ? (
                     renderAssistantGrid(hubAssistants, isEnterprise, true, !isEnterprise)
                   ) : hubError ? (
                     <HubEmptyState error={hubError} onRetry={() => void fetchHubAssistants()} />
                   ) : (
-                    <div className='bg-fill-1 border border-dashed rd-12px px-14px py-18px text-12px text-tertiary'>{t('settings.noHubAssistants', '暂无智能体库智能体')}</div>
+                    <div className='bg-fill-1 border border-dashed rd-12px px-3.5 py-4.5 text-12px text-tertiary'>{t('settings.noHubAssistants', '暂无智能体库智能体')}</div>
                   )}
                 </section>
               </div>
@@ -1969,13 +1969,13 @@ const AgentSettings: React.FC = () => {
           }
         >
           <div className='flex flex-col h-full overflow-hidden'>
-            <div className='flex flex-col flex-1 gap-16px bg-fill-2 rounded-16px p-20px overflow-y-auto'>
+            <div className='flex flex-col flex-1 gap-4 bg-fill-2 rounded-16px p-5 overflow-y-auto'>
               {/* Name & Avatar */}
               <div className='flex-shrink-0'>
                 <Typography.Text bold>
                   <span className='text-red-500'>*</span> {t('settings.assistantNameAvatar', '名称及头像')}
                 </Typography.Text>
-                <div className='mt-10px flex items-center gap-12px'>
+                <div className='mt-2.5 flex items-center gap-3'>
                   {activeAssistant?.isBuiltin || isReadonlyAssistant ? (
                     <Avatar shape='square' size={40} className='rounded-lg'>
                       {editAvatarImage ? <img src={editAvatarImage} alt='' width={24} height={24} style={{ objectFit: 'contain' }} /> : editAvatar ? <span className='text-24px'>{editAvatar}</span> : <Bot size={20} />}
@@ -1996,13 +1996,13 @@ const AgentSettings: React.FC = () => {
               {/* Description */}
               <div className='flex-shrink-0'>
                 <Typography.Text bold>{t('settings.assistantDescription', '智能体描述')}</Typography.Text>
-                <Input className='mt-10px' value={editDescription} onChange={(value) => setEditDescription(value)} disabled={activeAssistant?.isBuiltin || isReadonlyAssistant} placeholder={t('settings.assistantDescriptionPlaceholder', '帮你解决什么问题')} />
+                <Input className='mt-2.5' value={editDescription} onChange={(value) => setEditDescription(value)} disabled={activeAssistant?.isBuiltin || isReadonlyAssistant} placeholder={t('settings.assistantDescriptionPlaceholder', '帮你解决什么问题')} />
               </div>
 
               {/* Main Agent - locked to Sudo Code */}
               <div className='flex-shrink-0'>
                 <Typography.Text bold>{t('settings.assistantMainAgent', '主智能体')}</Typography.Text>
-                <Select className='mt-10px w-full' value={DEFAULT_PRESET_AGENT_TYPE} disabled>
+                <Select className='mt-2.5 w-full' value={DEFAULT_PRESET_AGENT_TYPE} disabled>
                   <Select.Option key='scode' value='scode'>
                     Sudo Code
                   </Select.Option>
@@ -2014,16 +2014,13 @@ const AgentSettings: React.FC = () => {
                 <Typography.Text bold className='flex-shrink-0'>
                   {t('settings.assistantRules', '规则')}
                 </Typography.Text>
-                <div className='mt-10px border overflow-hidden rounded-8px' style={{ height: '300px' }}>
+                <div className='mt-2.5 border overflow-hidden rounded-8px' style={{ height: '300px' }}>
                   {!activeAssistant?.isBuiltin && !isReadonlyAssistant && (
-                    <div className='flex items-center h-36px bg-fill-2 border-b flex-shrink-0'>
-                      <div className={`flex items-center h-full px-16px cursor-pointer transition-all text-13px font-medium ${promptViewMode === 'edit' ? 'text-primary border-b-2px border-solid border-primary' : 'text-secondary hover:text-foreground'}`} onClick={() => setPromptViewMode('edit')}>
+                    <div className='flex items-center h-9 bg-fill-2 border-b flex-shrink-0'>
+                      <div className={`flex items-center h-full px-4 cursor-pointer transition-all text-13px font-medium ${promptViewMode === 'edit' ? 'text-primary border-b-2px border-primary' : 'text-secondary hover:text-foreground'}`} onClick={() => setPromptViewMode('edit')}>
                         {t('settings.promptEdit', 'Edit')}
                       </div>
-                      <div
-                        className={`flex items-center h-full px-16px cursor-pointer transition-all text-13px font-medium ${promptViewMode === 'preview' ? 'text-primary border-b-2px border-solid border-primary' : 'text-secondary hover:text-foreground'}`}
-                        onClick={() => setPromptViewMode('preview')}
-                      >
+                      <div className={`flex items-center h-full px-4 cursor-pointer transition-all text-13px font-medium ${promptViewMode === 'preview' ? 'text-primary border-b-2px border-primary' : 'text-secondary hover:text-foreground'}`} onClick={() => setPromptViewMode('preview')}>
                         {t('settings.promptPreview', 'Preview')}
                       </div>
                     </div>
@@ -2034,20 +2031,20 @@ const AgentSettings: React.FC = () => {
                         <Input.TextArea value={editContext} onChange={(value) => setEditContext(value)} placeholder={t('settings.assistantRulesPlaceholder', '请输入 Markdown 格式的规则...')} autoSize={false} className='border-none rounded-none bg-transparent h-full resize-none' />
                       </div>
                     ) : (
-                      <div className='p-16px'>{editContext ? <MarkdownView hiddenCodeCopyButton>{editContext}</MarkdownView> : <div className='text-secondary text-center py-32px'>{t('settings.promptPreviewEmpty', 'No content to preview')}</div>}</div>
+                      <div className='p-4'>{editContext ? <MarkdownView hiddenCodeCopyButton>{editContext}</MarkdownView> : <div className='text-secondary text-center py-8'>{t('settings.promptPreviewEmpty', 'No content to preview')}</div>}</div>
                     )}
                   </div>
                 </div>
               </div>
 
               {/* Skills selection */}
-              <div className='flex-shrink-0 mt-16px'>
-                <div className='flex items-center justify-between mb-12px'>
+              <div className='flex-shrink-0 mt-4'>
+                <div className='flex items-center justify-between mb-3'>
                   <Typography.Text bold>{t('settings.assistantSkills', '技能')}</Typography.Text>
                 </div>
                 <Collapse defaultActiveKey={['custom-skills']}>
-                  <Collapse.Item header={<span className='text-13px font-medium'>{t('settings.customSkills', 'Custom Skills')}</span>} name='custom-skills' className='mb-8px' extra={<span className='text-12px text-secondary'>{customSelectableSkills.length}</span>}>
-                    <div className='grid gap-8px' style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
+                  <Collapse.Item header={<span className='text-13px font-medium'>{t('settings.customSkills', 'Custom Skills')}</span>} name='custom-skills' className='mb-2' extra={<span className='text-12px text-secondary'>{customSelectableSkills.length}</span>}>
+                    <div className='grid gap-2' style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
                       {customSelectableSkills.map((skill) => (
                         <SkillCard
                           key={skill.name}
@@ -2060,11 +2057,11 @@ const AgentSettings: React.FC = () => {
                           disabled={isReadonlyAssistant}
                         />
                       ))}
-                      {customSelectableSkills.length === 0 && <div className='text-center text-secondary text-12px py-16px col-span-full'>{t('settings.noCustomSkills', 'No custom skills available')}</div>}
+                      {customSelectableSkills.length === 0 && <div className='text-center text-secondary text-12px py-4 col-span-full'>{t('settings.noCustomSkills', 'No custom skills available')}</div>}
                     </div>
                   </Collapse.Item>
                   <Collapse.Item header={<span className='text-13px font-medium'>{t('settings.builtinSkills', 'Builtin Skills')}</span>} name='builtin-skills' extra={<span className='text-12px text-secondary'>{builtinSelectableSkills.length}</span>}>
-                    <div className='grid gap-8px' style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
+                    <div className='grid gap-2' style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
                       {builtinSelectableSkills.map((skill) => (
                         <SkillCard
                           key={skill.name}
@@ -2077,7 +2074,7 @@ const AgentSettings: React.FC = () => {
                           disabled={isReadonlyAssistant}
                         />
                       ))}
-                      {builtinSelectableSkills.length === 0 && <div className='text-center text-secondary text-12px py-16px col-span-full'>{t('settings.noBuiltinSkills', 'No builtin skills available')}</div>}
+                      {builtinSelectableSkills.length === 0 && <div className='text-center text-secondary text-12px py-4 col-span-full'>{t('settings.noBuiltinSkills', 'No builtin skills available')}</div>}
                     </div>
                   </Collapse.Item>
                 </Collapse>
@@ -2101,7 +2098,7 @@ const AgentSettings: React.FC = () => {
         >
           <p>{t('settings.deleteAssistantConfirm', '删除该智能体会一并删除已关联会话。如需保留，请导出会话进行备份。是否确认删除？')}</p>
           {activeAssistant && (
-            <div className='mt-12px p-12px bg-fill-2 rounded-lg flex items-center gap-12px'>
+            <div className='mt-3 p-3 bg-fill-2 rounded-lg flex items-center gap-3'>
               <Avatar.Group size={32}>
                 <Avatar className='border-none' shape='square' style={{ backgroundColor: 'var(--color-fill-2)', border: 'none' }}>
                   {(() => {
@@ -2141,7 +2138,7 @@ const AgentSettings: React.FC = () => {
           <p>{t('settings.duplicateAssistantConfirm', 'Confirm duplicate this agent to the custom list? After duplication, you can edit it in "My Agents".')}</p>
           {/* Hub agent preview */}
           {duplicateAssistant && (
-            <div className='mt-12px p-12px bg-fill-2 rounded-lg flex items-center gap-12px'>
+            <div className='mt-3 p-3 bg-fill-2 rounded-lg flex items-center gap-3'>
               <Avatar.Group size={32}>
                 <Avatar className='border-none' shape='square' style={{ backgroundColor: 'var(--color-fill-2)', border: 'none' }}>
                   {(() => {
@@ -2162,7 +2159,7 @@ const AgentSettings: React.FC = () => {
           )}
           {/* Installed agent preview */}
           {duplicateInstalledAssistant && (
-            <div className='mt-12px p-12px bg-fill-2 rounded-lg flex items-center gap-12px'>
+            <div className='mt-3 p-3 bg-fill-2 rounded-lg flex items-center gap-3'>
               <Avatar.Group size={32}>
                 <Avatar className='border-none' shape='square' style={{ backgroundColor: 'var(--color-fill-2)', border: 'none' }}>
                   {(() => {
@@ -2183,7 +2180,7 @@ const AgentSettings: React.FC = () => {
           )}
           {/* Name hint */}
           {(duplicateAssistant || duplicateInstalledAssistant) && (
-            <div className='mt-12px p-12px rounded-lg'>
+            <div className='mt-3 p-3 rounded-lg'>
               <div className='text-12px text-primary'>
                 {t('settings.duplicateAssistantNameHint', {
                   name: duplicateAssistant ? duplicateAssistant.display_name || duplicateAssistant.name : duplicateInstalledAssistant?.nameI18n?.[localeKey] || duplicateInstalledAssistant?.name,
@@ -2213,7 +2210,7 @@ const AgentSettings: React.FC = () => {
           <p>{t('settings.uploadAssistantConfirm', 'Confirm upload this agent to the agent store? Other users in the same tenant will be able to download and use it after upload.')}</p>
           {/* Agent preview */}
           {uploadAssistant && (
-            <div className='mt-12px p-12px bg-fill-2 rounded-lg flex items-center gap-12px'>
+            <div className='mt-3 p-3 bg-fill-2 rounded-lg flex items-center gap-3'>
               <Avatar.Group size={32}>
                 <Avatar className='border-none' shape='square' style={{ backgroundColor: 'var(--color-fill-2)', border: 'none' }}>
                   {(() => {

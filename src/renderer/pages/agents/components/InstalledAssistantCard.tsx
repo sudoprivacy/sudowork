@@ -44,10 +44,10 @@ const InstalledAssistantCard: React.FC<InstalledAssistantCardProps> = (props) =>
   const displayVersion = enterpriseMode ? '' : normalizeAssistantVersion(assistant._installedVersion);
 
   return (
-    <div className={classNames('card group flex items-start gap-12px relative overflow-hidden', !isEnabled && 'opacity-65')} onClick={onClick}>
+    <div className={classNames('card group flex items-start gap-3 relative overflow-hidden', !isEnabled && 'opacity-65')} onClick={onClick}>
       {/* Avatar */}
       <div className='w-48px flex-shrink-0'>
-        <div className='w-48px h-48px rd-8px overflow-hidden bg-control'>
+        <div className='size-12 rd-8px overflow-hidden bg-control'>
           {avatarImage ? (
             <img src={avatarImage} alt={displayName} className='w-full h-full object-cover' />
           ) : hasEmojiAvatar ? (
@@ -62,15 +62,15 @@ const InstalledAssistantCard: React.FC<InstalledAssistantCardProps> = (props) =>
 
       {/* Content */}
       <div className='flex-1 min-w-0'>
-        <div className='h-20px flex items-center'>
+        <div className='h-5 flex items-center'>
           <span className='font-medium text-13px text-foreground truncate' title={displayName.length > 15 ? displayName : undefined}>
             {displayName.length > 15 ? `${displayName.slice(0, 15)}...` : displayName}
           </span>
-          {displayVersion && !assistant.isBuiltin && <span className='ml-6px px-5px py-0px bg-fill-3 text-t-secondary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px'>v{displayVersion}</span>}
+          {displayVersion && !assistant.isBuiltin && <span className='ml-1.5 px-5px py-0 bg-fill-3 text-secondary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px'>v{displayVersion}</span>}
         </div>
-        <div className='mt-3px min-h-30px'>{description ? <div className='text-11px text-secondary line-clamp-2 leading-15px'>{description}</div> : null}</div>
+        <div className='mt-3px min-h-7.5'>{description ? <div className='text-11px text-secondary line-clamp-2 leading-15px'>{description}</div> : null}</div>
         {assistant.enabledSkills && assistant.enabledSkills.length > 0 && (
-          <div className='mt-4px flex items-center gap-4px'>
+          <div className='mt-1 flex items-center gap-1'>
             <Zap size={12} className='text-primary flex-shrink-0' />
             <span className='text-10px text-tertiary'>{t('settings.assistant.relatedSkills', { count: assistant.enabledSkills.length, defaultValue: `${assistant.enabledSkills.length} 个关联技能` })}</span>
           </div>
@@ -78,7 +78,7 @@ const InstalledAssistantCard: React.FC<InstalledAssistantCardProps> = (props) =>
       </div>
 
       {/* Top-right: edit/view + upload (custom only) + duplicate button + shield (builtin) or delete (custom) */}
-      <div className='absolute top-10px right-10px flex items-center gap-3' onClick={(e) => e.stopPropagation()}>
+      <div className='absolute top-2.5 right-2.5 flex items-center gap-3' onClick={(e) => e.stopPropagation()}>
         {/* Edit/View button - custom assistants show edit, readonly assistants show view */}
         {hasUpdate && (
           <Tooltip content={t('settings.assistant.updateAvailable', '可更新')}>
