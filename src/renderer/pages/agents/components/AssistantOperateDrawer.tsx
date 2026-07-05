@@ -74,7 +74,7 @@ export default function AssistantOperateDrawer({
       }
     >
       <div className='flex flex-col h-full overflow-hidden'>
-        <div className='flex flex-col flex-1 gap-4 bg-fill-2 rounded-16px p-5 overflow-y-auto'>
+        <div className='flex flex-col flex-1 gap-4 pr-2 overflow-y-auto'>
           {/* Name & Avatar */}
           <div className='flex-shrink-0'>
             <Typography.Text bold>
