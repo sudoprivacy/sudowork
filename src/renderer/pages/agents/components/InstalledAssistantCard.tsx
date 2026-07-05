@@ -51,7 +51,7 @@ const InstalledAssistantCard: React.FC<InstalledAssistantCardProps> = (props) =>
           </span>
           {displayVersion && !assistant.isBuiltin && <span className='ml-1.5 px-5px py-0 bg-control text-secondary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px'>v{displayVersion}</span>}
         </div>
-        <div className='mt-3px min-h-7.5'>{description ? <div className='text-11px text-secondary line-clamp-2 leading-15px'>{description}</div> : null}</div>
+        <div className='mt-1 min-h-7.5'>{description ? <div className='text-11px text-secondary line-clamp-2 leading-15px'>{description}</div> : null}</div>
         {assistant.enabledSkills && assistant.enabledSkills.length > 0 && (
           <div className='mt-1 flex items-center gap-1'>
             <Zap size={12} className='text-primary flex-shrink-0' />

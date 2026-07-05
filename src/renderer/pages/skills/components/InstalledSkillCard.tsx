@@ -38,7 +38,7 @@ export default function InstalledSkillCard({ skill, onUninstall, uninstalling, o
           <span className='min-w-0 font-medium text-13px text-foreground truncate'>{displayName}</span>
           {!skill.isBuiltin && displayVersion && <span className='px-[5px] py-0 bg-control text-secondary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px'>v{displayVersion}</span>}
         </div>
-        <div className='mt-[3px] min-h-7.5'>{description ? <div className='text-11px text-secondary line-clamp-2 leading-15px'>{description}</div> : <div className='text-11px text-tertiary italic line-clamp-2 leading-15px'>{skill.name}</div>}</div>
+        <div className='mt-1 min-h-7.5'>{description ? <div className='text-11px text-secondary line-clamp-2 leading-15px'>{description}</div> : <div className='text-11px text-tertiary italic line-clamp-2 leading-15px'>{skill.name}</div>}</div>
       </div>
 
       {/* Actions - top right */}
