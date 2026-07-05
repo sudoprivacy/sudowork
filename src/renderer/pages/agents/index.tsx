@@ -1,4 +1,4 @@
-import { Avatar, Button, Collapse, Drawer, Input, Message, Modal, Select, Spin, Tooltip, Typography } from '@arco-design/web-react';
+import { Avatar, Button, Input, Message, Modal, Spin, Tooltip } from '@arco-design/web-react';
 import { Bot, Check, Plus, Search, Share2, Shield } from 'lucide-react';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -15,8 +15,6 @@ import Tabs from '@renderer/components/ui/Tabs';
 import type { IAssistantInfo } from '@/process/AssistantManager';
 import { resolveLocaleKey, uuid } from '@/common/utils';
 import coworkSvg from '@/renderer/assets/cowork.svg';
-import EmojiPicker from '@/renderer/components/EmojiPicker';
-import MarkdownView from '@/renderer/components/Markdown';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { isElectronDesktop, resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import { DEFAULT_PRESET_AGENT_TYPE, normalizePresetAgentType } from '@/types/acpTypes';
@@ -24,13 +22,13 @@ import { useAuth } from '@/renderer/context/AuthContext';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
 import { emitter } from '@/renderer/utils/emitter';
 import PageWrapper from '@renderer/components/base/PageWrapper';
-import SkillCard from './components/SkillCard';
 import HubAssistantCard from './components/HubAssistantCard';
 import AssistantDetailModal from './components/AssistantDetailModal';
 import InstalledAssistantCard from './components/InstalledAssistantCard';
 import UploadConfirmModal from './components/UploadConfirmModal';
+import AssistantOperateDrawer from './components/AssistantOperateDrawer';
 import type { AssistantListItem, AssistantLatestVersion } from './types';
-import { normalizeAssistantVersion, normalizeAssistantLookupKey, resolveAssistantVersionLike, getSelectableAssistantSkills, isAssistantSkillSelected, isAutoInjectedBuiltinSkill, sanitizeAssistantEnabledSkills, toggleAssistantSkillSelection } from './utils';
+import { normalizeAssistantVersion, normalizeAssistantLookupKey, resolveAssistantVersionLike, getSelectableAssistantSkills, isAutoInjectedBuiltinSkill, sanitizeAssistantEnabledSkills } from './utils';
 
 // ==================== Types ====================
 
@@ -65,7 +63,6 @@ const AgentSettings: React.FC = () => {
   // Skills state
   const [installedSkills, setInstalledSkills] = useState<IInstalledSkillInfo[]>([]);
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
-  const textareaWrapperRef = useRef<HTMLDivElement>(null);
 
   // Hub state (for store/exclusive tabs)
   const { user } = useAuth();
@@ -174,17 +171,6 @@ const AgentSettings: React.FC = () => {
     if (!assistant) return false;
     return assistant._source === 'extension' || assistant.id.startsWith('ext-');
   }, []);
-
-  // Auto focus textarea when drawer opens
-  useEffect(() => {
-    if (editVisible && promptViewMode === 'edit') {
-      const timer = setTimeout(() => {
-        const textarea = textareaWrapperRef.current?.querySelector('textarea');
-        textarea?.focus();
-      }, 100);
-      return () => clearTimeout(timer);
-    }
-  }, [editVisible, promptViewMode]);
 
   useEffect(() => {
     const updateDrawerWidth = () => {
@@ -1468,7 +1454,7 @@ const AgentSettings: React.FC = () => {
         const lookupName = resolveAssistantName(activeAssistant.id);
 
         // For custom assistants, save all fields (presetAgentType stays locked to Sudo Code)
-        await ipcBridge.assistantHub.updateAssistantMeta.invoke({
+        const updateResult = await ipcBridge.assistantHub.updateAssistantMeta.invoke({
           name: lookupName,
           updates: {
             nameI18n: { 'zh-CN': editName },
@@ -1478,6 +1464,10 @@ const AgentSettings: React.FC = () => {
             enabledSkills: sanitizeAssistantEnabledSkills(selectedSkills, installedSkills),
           },
         });
+        if (!updateResult.success) {
+          Message.error(t('settings.assistant.saveFailed', { msg: updateResult.msg || '', defaultValue: `保存失败: ${updateResult.msg || '未知错误'}` }));
+          return;
+        }
 
         if (editContext.trim()) {
           await ipcBridge.fs.writeAssistantRule.invoke({
@@ -1902,149 +1892,29 @@ const AgentSettings: React.FC = () => {
         )}
 
         {/* ==================== Edit Drawer ==================== */}
-        <Drawer
-          title={isCreating ? t('settings.createAssistant', '创建智能体') : t('settings.editAssistant', '智能体详情')}
-          closable
+        <AssistantOperateDrawer
           visible={editVisible}
-          placement='right'
-          width={drawerWidth}
-          zIndex={1200}
-          autoFocus={false}
-          onCancel={() => {
-            setEditVisible(false);
-          }}
-          headerStyle={{ background: 'var(--color-bg-1)' }}
-          bodyStyle={{ background: 'var(--color-bg-1)' }}
-          footer={
-            <div className='flex justify-end gap-2'>
-              <Button
-                onClick={() => {
-                  setEditVisible(false);
-                }}
-                className='w-[100px] rounded-[100px] bg-fill-2'
-              >
-                {t('common.cancel', 'Cancel')}
-              </Button>
-              <Button type='primary' onClick={handleSave} disabled={!isCreating && isReadonlyAssistant} className='w-[100px] rounded-[100px]'>
-                {isCreating ? t('common.create', 'Create') : t('common.save', 'Save')}
-              </Button>
-            </div>
-          }
-        >
-          <div className='flex flex-col h-full overflow-hidden'>
-            <div className='flex flex-col flex-1 gap-4 bg-fill-2 rounded-16px p-5 overflow-y-auto'>
-              {/* Name & Avatar */}
-              <div className='flex-shrink-0'>
-                <Typography.Text bold>
-                  <span className='text-red-500'>*</span> {t('settings.assistantNameAvatar', '名称及头像')}
-                </Typography.Text>
-                <div className='mt-2.5 flex items-center gap-3'>
-                  {activeAssistant?.isBuiltin || isReadonlyAssistant ? (
-                    <Avatar shape='square' size={40} className='rounded-lg'>
-                      {editAvatarImage ? <img src={editAvatarImage} alt='' width={24} height={24} style={{ objectFit: 'contain' }} /> : editAvatar ? <span className='text-24px'>{editAvatar}</span> : <Bot size={20} />}
-                    </Avatar>
-                  ) : (
-                    <EmojiPicker value={editAvatar} onChange={(emoji) => setEditAvatar(emoji)} placement='br'>
-                      <div className='cursor-pointer'>
-                        <Avatar shape='square' size={40} className='rounded-lg hover:bg-fill-2 transition-colors'>
-                          {editAvatarImage ? <img src={editAvatarImage} alt='' width={24} height={24} style={{ objectFit: 'contain' }} /> : editAvatar ? <span className='text-24px'>{editAvatar}</span> : <Bot size={20} />}
-                        </Avatar>
-                      </div>
-                    </EmojiPicker>
-                  )}
-                  <Input value={editName} onChange={(value) => setEditName(value)} disabled={activeAssistant?.isBuiltin || isReadonlyAssistant} placeholder={t('settings.agentNamePlaceholder', 'Enter a name for this agent')} className='flex-1' />
-                </div>
-              </div>
-
-              {/* Description */}
-              <div className='flex-shrink-0'>
-                <Typography.Text bold>{t('settings.assistantDescription', '智能体描述')}</Typography.Text>
-                <Input className='mt-2.5' value={editDescription} onChange={(value) => setEditDescription(value)} disabled={activeAssistant?.isBuiltin || isReadonlyAssistant} placeholder={t('settings.assistantDescriptionPlaceholder', '帮你解决什么问题')} />
-              </div>
-
-              {/* Main Agent - locked to Sudo Code */}
-              <div className='flex-shrink-0'>
-                <Typography.Text bold>{t('settings.assistantMainAgent', '主智能体')}</Typography.Text>
-                <Select className='mt-2.5 w-full' value={DEFAULT_PRESET_AGENT_TYPE} disabled>
-                  <Select.Option key='scode' value='scode'>
-                    Sudo Code
-                  </Select.Option>
-                </Select>
-              </div>
-
-              {/* Rules */}
-              <div className='flex-shrink-0'>
-                <Typography.Text bold className='flex-shrink-0'>
-                  {t('settings.assistantRules', '规则')}
-                </Typography.Text>
-                <div className='mt-2.5 border overflow-hidden rounded-8px' style={{ height: '300px' }}>
-                  {!activeAssistant?.isBuiltin && !isReadonlyAssistant && (
-                    <div className='flex items-center h-9 bg-fill-2 border-b flex-shrink-0'>
-                      <div className={`flex items-center h-full px-4 cursor-pointer transition-all text-13px font-medium ${promptViewMode === 'edit' ? 'text-primary border-b-2px border-primary' : 'text-secondary hover:text-foreground'}`} onClick={() => setPromptViewMode('edit')}>
-                        {t('settings.promptEdit', 'Edit')}
-                      </div>
-                      <div className={`flex items-center h-full px-4 cursor-pointer transition-all text-13px font-medium ${promptViewMode === 'preview' ? 'text-primary border-b-2px border-primary' : 'text-secondary hover:text-foreground'}`} onClick={() => setPromptViewMode('preview')}>
-                        {t('settings.promptPreview', 'Preview')}
-                      </div>
-                    </div>
-                  )}
-                  <div className='bg-fill-2' style={{ height: activeAssistant?.isBuiltin || isReadonlyAssistant ? '100%' : 'calc(100% - 36px)', overflow: 'auto' }}>
-                    {promptViewMode === 'edit' && !activeAssistant?.isBuiltin && !isReadonlyAssistant ? (
-                      <div ref={textareaWrapperRef} className='h-full'>
-                        <Input.TextArea value={editContext} onChange={(value) => setEditContext(value)} placeholder={t('settings.assistantRulesPlaceholder', '请输入 Markdown 格式的规则...')} autoSize={false} className='border-none rounded-none bg-transparent h-full resize-none' />
-                      </div>
-                    ) : (
-                      <div className='p-4'>{editContext ? <MarkdownView hiddenCodeCopyButton>{editContext}</MarkdownView> : <div className='text-secondary text-center py-8'>{t('settings.promptPreviewEmpty', 'No content to preview')}</div>}</div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Skills selection */}
-              <div className='flex-shrink-0 mt-4'>
-                <div className='flex items-center justify-between mb-3'>
-                  <Typography.Text bold>{t('settings.assistantSkills', '技能')}</Typography.Text>
-                </div>
-                <Collapse defaultActiveKey={['custom-skills']}>
-                  <Collapse.Item header={<span className='text-13px font-medium'>{t('settings.customSkills', 'Custom Skills')}</span>} name='custom-skills' className='mb-2' extra={<span className='text-12px text-secondary'>{customSelectableSkills.length}</span>}>
-                    <div className='grid gap-2' style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
-                      {customSelectableSkills.map((skill) => (
-                        <SkillCard
-                          key={skill.name}
-                          skill={skill}
-                          checked={isAssistantSkillSelected(selectedSkills, skill)}
-                          onToggle={() => {
-                            if (isReadonlyAssistant) return;
-                            setSelectedSkills(toggleAssistantSkillSelection(selectedSkills, skill));
-                          }}
-                          disabled={isReadonlyAssistant}
-                        />
-                      ))}
-                      {customSelectableSkills.length === 0 && <div className='text-center text-secondary text-12px py-4 col-span-full'>{t('settings.noCustomSkills', 'No custom skills available')}</div>}
-                    </div>
-                  </Collapse.Item>
-                  <Collapse.Item header={<span className='text-13px font-medium'>{t('settings.builtinSkills', 'Builtin Skills')}</span>} name='builtin-skills' extra={<span className='text-12px text-secondary'>{builtinSelectableSkills.length}</span>}>
-                    <div className='grid gap-2' style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
-                      {builtinSelectableSkills.map((skill) => (
-                        <SkillCard
-                          key={skill.name}
-                          skill={skill}
-                          checked={isAssistantSkillSelected(selectedSkills, skill)}
-                          onToggle={() => {
-                            if (isReadonlyAssistant) return;
-                            setSelectedSkills(toggleAssistantSkillSelection(selectedSkills, skill));
-                          }}
-                          disabled={isReadonlyAssistant}
-                        />
-                      ))}
-                      {builtinSelectableSkills.length === 0 && <div className='text-center text-secondary text-12px py-4 col-span-full'>{t('settings.noBuiltinSkills', 'No builtin skills available')}</div>}
-                    </div>
-                  </Collapse.Item>
-                </Collapse>
-              </div>
-            </div>
-          </div>
-        </Drawer>
+          isCreating={isCreating}
+          drawerWidth={drawerWidth}
+          isReadonly={!isCreating && isReadonlyAssistant}
+          editAvatar={editAvatar}
+          editAvatarImage={editAvatarImage}
+          editName={editName}
+          editDescription={editDescription}
+          editContext={editContext}
+          promptViewMode={promptViewMode}
+          customSelectableSkills={customSelectableSkills}
+          builtinSelectableSkills={builtinSelectableSkills}
+          selectedSkills={selectedSkills}
+          onClose={() => setEditVisible(false)}
+          onSave={handleSave}
+          onAvatarChange={(emoji) => setEditAvatar(emoji)}
+          onNameChange={(value) => setEditName(value)}
+          onDescriptionChange={(value) => setEditDescription(value)}
+          onContextChange={(value) => setEditContext(value)}
+          onPromptViewModeChange={(mode) => setPromptViewMode(mode)}
+          onSkillsChange={(skills) => setSelectedSkills(skills)}
+        />
 
         {/* Duplicate Confirmation Modal */}
         <Modal
