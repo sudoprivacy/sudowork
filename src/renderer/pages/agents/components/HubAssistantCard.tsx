@@ -22,7 +22,7 @@ const HubAssistantCard: React.FC<HubAssistantCardProps> = ({ assistant, isInstal
   const hasDownloadUrl = Boolean(assistant._sourceUrl);
 
   return (
-    <div className='item-card group flex items-start gap-12px relative overflow-hidden' onClick={onClick}>
+    <div className='card group flex items-start gap-12px relative overflow-hidden' onClick={onClick}>
       {/* Icon */}
       <div className='w-48px flex-shrink-0 flex flex-col items-center'>
         <div className='w-48px h-48px rd-8px overflow-hidden bg-fill-2'>

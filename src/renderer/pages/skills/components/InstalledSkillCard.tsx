@@ -16,7 +16,7 @@ export default function InstalledSkillCard({ skill, onUninstall, uninstalling, o
   const { t } = useTranslation();
 
   return (
-    <div className={classNames('item-card group flex items-start gap-3 relative overflow-hidden', !isEnabled && 'opacity-65', !hasDetail && 'cursor-default')} onClick={hasDetail ? onClick : undefined}>
+    <div className={classNames('card group flex items-start gap-3 relative overflow-hidden', !isEnabled && 'opacity-65', !hasDetail && 'cursor-default')} onClick={hasDetail ? onClick : undefined}>
       {/* Icon */}
       <div className='w-12 flex-shrink-0'>
         <div className='size-12 rd-8px overflow-hidden'>

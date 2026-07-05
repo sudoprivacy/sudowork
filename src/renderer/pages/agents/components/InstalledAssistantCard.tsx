@@ -44,7 +44,7 @@ const InstalledAssistantCard: React.FC<InstalledAssistantCardProps> = (props) =>
   const displayVersion = enterpriseMode ? '' : normalizeAssistantVersion(assistant._installedVersion);
 
   return (
-    <div className={classNames('item-card group flex items-start gap-12px relative overflow-hidden', !isEnabled && 'opacity-65')} onClick={onClick}>
+    <div className={classNames('card group flex items-start gap-12px relative overflow-hidden', !isEnabled && 'opacity-65')} onClick={onClick}>
       {/* Avatar */}
       <div className='w-48px flex-shrink-0'>
         <div className='w-48px h-48px rd-8px overflow-hidden bg-fill-2'>

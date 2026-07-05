@@ -72,7 +72,7 @@ border-b border-[var(--border-default)]  # 底边线，用 arbitrary 值
 | `border-light`         | `border-[var(--border-light)]`                                          | 浅边框色（搭配 border / border-b 等）  |
 | `divide-light`         | `divide-[var(--border-light)]`                                          | 浅分割线色（搭配 divide-y / divide-x） |
 | `scrollbar-hide`       | `scrollbar-width-none [&::-webkit-scrollbar]:hidden`                    | 隐藏滚动条                             |
-| `item-card`            | `bg-fill-0 rd-12px p-4 cursor-pointer shadow-[...] transition-all ...`  | 卡片样式（完整交互态）                 |
+| `card`                 | `bg-fill-0 rd-12px p-4 cursor-pointer shadow-[...] transition-all ...`  | 卡片样式（完整交互态）                 |
 | `category-chip`        | `flex-shrink-0 inline-flex items-center ... h-28px px-12px rd-16px ...` | 筛选 chip 基础结构                     |
 | `category-chip-idle`   | `text-secondary hover:bg-fill-2 hover:text-foreground`                  | chip 默认态                            |
 | `category-chip-active` | `bg-[rgba(...)] text-[var(--ui-accent-orange)] font-medium`             | chip 激活态                            |
