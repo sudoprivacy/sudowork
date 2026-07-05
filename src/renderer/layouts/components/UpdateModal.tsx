@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Button, Modal, Progress, Switch, Message } from '@arco-design/web-react';
-import { CheckOne, Download, FolderOpen, Refresh, CloseOne, Install } from '@icon-park/react';
+import { IconDownload, IconRefresh } from '@arco-design/web-react/icon';
+import { CircleCheck, CircleX, Download, FolderOpen, HardDriveDownload } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
 import MarkdownView from '@/renderer/components/Markdown';
@@ -351,7 +352,7 @@ const UpdateModal: React.FC = () => {
       case 'upToDate':
         return (
           <div className='flex flex-col items-center justify-center py-8'>
-            <CheckOne theme='filled' size='48' color='#16a34a' className='mb-5' />
+            <CircleCheck size={48} color='#16a34a' className='mb-5' />
             <div className='text-16px text-foreground font-600 mb-2'>{t('update.upToDateTitle')}</div>
             <div className='text-13px text-secondary'>{t('update.currentVersion', { version: buildVersion || currentVersion || '-' })}</div>
           </div>
@@ -364,7 +365,7 @@ const UpdateModal: React.FC = () => {
             <div className='flex items-center justify-between px-6 py-4 border-b bg-fill-1'>
               <div className='flex items-center gap-3'>
                 <div className='size-10 bg-[rgb(var(--primary-6))]/12 rounded-10px f-center'>
-                  <Download size='20' fill='rgb(var(--primary-6))' />
+                  <Download size={20} color='rgb(var(--primary-6))' />
                 </div>
                 <div>
                   <div className='text-15px font-600 text-foreground'>{t('update.availableTitle')}</div>
@@ -381,12 +382,12 @@ const UpdateModal: React.FC = () => {
                 ) : (
                   <>
                     {/* Manual download button - always show when asset is available */}
-                    <Button size='small' onClick={startManualDownload} icon={<Download size='14' />} className='!px-3'>
+                    <Button size='small' onClick={startManualDownload} icon={<IconDownload style={{ fontSize: 14 }} />} className='!px-3'>
                       {t('update.downloadButton')}
                     </Button>
                     {/* Auto-update button */}
                     {useAutoUpdate && (
-                      <Button type='primary' size='small' onClick={startAutoDownload} icon={<Install size='14' />} className='!px-3'>
+                      <Button type='primary' size='small' onClick={startAutoDownload} icon={<HardDriveDownload size={14} />} className='!px-3'>
                         {t('update.downloadAndInstall')}
                       </Button>
                     )}
@@ -426,7 +427,7 @@ const UpdateModal: React.FC = () => {
         return (
           <div className='flex flex-col items-center justify-center py-12 px-8'>
             <div className='size-14 bg-[rgb(var(--primary-6))]/12 rounded-full f-center mb-5'>
-              <Download size='24' fill='rgb(var(--primary-6))' className='animate-bounce' />
+              <Download size={24} color='rgb(var(--primary-6))' className='animate-bounce' />
             </div>
             <div className='text-16px text-foreground font-600 mb-5'>{t('update.downloadingTitle')}</div>
             <div className='w-full max-w-80'>
@@ -445,15 +446,15 @@ const UpdateModal: React.FC = () => {
         return (
           <div className='flex flex-col items-center justify-center py-12 px-8'>
             <div className='size-14 bg-success-soft rounded-full f-center mb-5'>
-              <CheckOne theme='filled' size='28' fill='var(--success)' />
+              <CircleCheck size={28} style={{ color: 'var(--success)' }} />
             </div>
             <div className='text-16px text-foreground font-600 mb-2'>{t('update.readyToInstall')}</div>
             <div className='text-13px text-tertiary mb-6 text-center max-w-90'>{t('update.readyToInstallDesc')}</div>
             <div className='flex gap-3'>
-              <Button size='small' onClick={showInFolder} icon={<FolderOpen size='14' />} className='!px-4'>
+              <Button size='small' onClick={showInFolder} icon={<FolderOpen size={14} />} className='!px-4'>
                 {t('update.showInFolder')}
               </Button>
-              <Button type='primary' size='small' onClick={quitAndInstall} icon={<Install size='14' />} className='!px-4'>
+              <Button type='primary' size='small' onClick={quitAndInstall} icon={<HardDriveDownload size={14} />} className='!px-4'>
                 {t('update.installNow')}
               </Button>
             </div>
@@ -464,12 +465,12 @@ const UpdateModal: React.FC = () => {
         return (
           <div className='flex flex-col items-center justify-center py-12 px-8'>
             <div className='size-14 bg-success-soft rounded-full f-center mb-5'>
-              <CheckOne theme='filled' size='28' fill='var(--success)' />
+              <CircleCheck size={28} style={{ color: 'var(--success)' }} />
             </div>
             <div className='text-16px text-foreground font-600 mb-2'>{t('update.downloadCompleteTitle')}</div>
             <div className='text-12px text-tertiary mb-6 text-center max-w-90 break-all line-clamp-2'>{downloadPath}</div>
             <div className='flex gap-3'>
-              <Button size='small' onClick={showInFolder} icon={<FolderOpen size='14' />} className='!px-4'>
+              <Button size='small' onClick={showInFolder} icon={<FolderOpen size={14} />} className='!px-4'>
                 {t('update.showInFolder')}
               </Button>
               <Button type='primary' size='small' onClick={openFile} className='!px-4'>
@@ -483,12 +484,12 @@ const UpdateModal: React.FC = () => {
         return (
           <div className='flex flex-col items-center justify-center py-12 px-8'>
             <div className='size-14 bg-danger-soft rounded-full f-center mb-5'>
-              <CloseOne theme='filled' size='28' fill='var(--danger)' />
+              <CircleX size={28} style={{ color: 'var(--danger)' }} />
             </div>
             <div className='text-16px text-foreground font-600 mb-2'>{t('update.errorTitle')}</div>
             <div className='text-13px text-tertiary mb-6 text-center max-w-90'>{errorMsg}</div>
             <div className='flex gap-3'>
-              <Button size='small' onClick={checkForUpdates} icon={<Refresh size='14' />} className='!px-4'>
+              <Button size='small' onClick={checkForUpdates} icon={<IconRefresh style={{ fontSize: 14 }} />} className='!px-4'>
                 {t('common.retry')}
               </Button>
               {releasePageUrl && (

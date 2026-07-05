@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import classNames from 'classnames';
-import { ExpandLeft, ExpandRight } from '@icon-park/react';
+import { PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { WORKSPACE_STATE_EVENT, dispatchWorkspaceToggleEvent } from '@renderer/utils/workspaceEvents';
@@ -74,14 +74,14 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
       <div className='flex items-center [-webkit-app-region:no-drag]' style={menuStyle}>
         {showSiderToggle && (
           <button type='button' className='app-titlebar__button hover:bg-transparent! active:bg-transparent!' onClick={handleSiderToggle} aria-label={siderTooltip}>
-            {layout?.siderCollapsed ? <ExpandLeft theme='outline' size={iconSize} fill='currentColor' /> : <ExpandRight theme='outline' size={iconSize} fill='currentColor' />}
+            {layout?.siderCollapsed ? <PanelLeftOpen size={iconSize} /> : <PanelLeftClose size={iconSize} />}
           </button>
         )}
       </div>
       <div className='app-titlebar__toolbar'>
         {showWorkspaceButton && (
           <button type='button' className='app-titlebar__button' onClick={handleWorkspaceToggle} aria-label={workspaceTooltip}>
-            {workspaceCollapsed ? <ExpandRight theme='outline' size={iconSize} fill='currentColor' /> : <ExpandLeft theme='outline' size={iconSize} fill='currentColor' />}
+            {workspaceCollapsed ? <PanelRightOpen size={iconSize} /> : <PanelRightClose size={iconSize} />}
           </button>
         )}
         {showWindowControls && <WindowControls />}
