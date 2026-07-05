@@ -287,17 +287,15 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
       onCancel={onClose}
       footer={
         <div className='flex justify-end gap-2'>
-          <Button onClick={onClose} className='w-[100px] rounded-[100px] bg-fill-2'>
-            {t('common.cancel', 'Cancel')}
-          </Button>
-          <Button type='primary' onClick={handleSave} disabled={isReadonly} className='w-[100px] rounded-[100px]'>
+          <Button onClick={onClose}>{t('common.cancel', 'Cancel')}</Button>
+          <Button type='primary' onClick={handleSave} disabled={isReadonly}>
             {t('common.save', 'Save')}
           </Button>
         </div>
       }
     >
       <div className='flex flex-col h-full overflow-hidden'>
-        <div className='flex flex-col flex-1 gap-4 bg-fill-2 rounded-16px p-5 overflow-y-auto'>
+        <div className='flex flex-col flex-1 gap-4 pr-2 overflow-y-auto'>
           {/* Name & Avatar */}
           <div className='flex-shrink-0'>
             <Typography.Text bold>
@@ -390,7 +388,7 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
               <Typography.Text bold>{t('settings.assistantSkills', '技能')}</Typography.Text>
             </div>
             <Collapse defaultActiveKey={['custom-skills']}>
-              <Collapse.Item header={<span className='text-13px font-medium'>{t('settings.customSkills', '自定义技能')}</span>} name='custom-skills' className='mb-2' extra={<span className='text-12px text-secondary'>{installedSkills.filter((s) => !s.isBuiltin).length}</span>}>
+              <Collapse.Item header={<span className='text-13px font-medium'>{t('settings.customSkills', '自定义技能')}</span>} name='custom-skills' extra={<span className='text-12px text-secondary'>{installedSkills.filter((s) => !s.isBuiltin).length}</span>}>
                 <div
                   className='grid gap-2'
                   style={{

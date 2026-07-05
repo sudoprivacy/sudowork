@@ -148,7 +148,7 @@ export default function AssistantOperateDrawer({
               <Typography.Text bold>{t('settings.assistantSkills', '技能')}</Typography.Text>
             </div>
             <Collapse defaultActiveKey={['custom-skills']}>
-              <Collapse.Item header={<span className='text-13px font-medium'>{t('settings.customSkills', 'Custom Skills')}</span>} name='custom-skills' className='mb-2' extra={<span className='text-12px text-secondary'>{customSelectableSkills.length}</span>}>
+              <Collapse.Item header={<span className='text-13px font-medium'>{t('settings.customSkills', 'Custom Skills')}</span>} name='custom-skills' extra={<span className='text-12px text-secondary'>{customSelectableSkills.length}</span>}>
                 <div className='grid gap-2' style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
                   {customSelectableSkills.map((skill) => (
                     <SkillCard
