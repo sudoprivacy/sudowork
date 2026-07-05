@@ -221,7 +221,7 @@ const MessageText: React.FC<{ message: IMessageText; isStreaming?: boolean; foot
                 return (
                   <Tag
                     key={skillName}
-                    className='text-12px bg-primary-light b-1 b-solid b-border-2 rd-4px'
+                    className='text-12px b-1 b-solid b-border-2 rd-4px'
                     style={{
                       backgroundColor: 'var(--color-primary-light-1)',
                       borderColor: 'var(--color-primary-light-2)',

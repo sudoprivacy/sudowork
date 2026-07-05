@@ -251,7 +251,7 @@ const AssistantDetailModal: React.FC<AssistantDetailModalProps> = ({ assistant, 
                                 </div>
                                 <div className='text-11px text-tertiary truncate'>{skill.description}</div>
                               </div>
-                              <span className={`px-4px py-0px text-10px rd-3px whitespace-nowrap ${isSkillInstalled ? 'bg-primary-light text-primary' : 'bg-fill-3 text-secondary'}`}>
+                              <span className={`px-4px py-0px text-10px rd-3px whitespace-nowrap ${isSkillInstalled ? 'text-primary' : 'bg-fill-3 text-secondary'}`}>
                                 {isSkillInstalled ? t('settings.skill.installed', { defaultValue: '已安装' }) : t('settings.skill.notInstalled', { defaultValue: '未安装' })}
                               </span>
                             </div>

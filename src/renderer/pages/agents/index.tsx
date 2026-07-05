@@ -2183,7 +2183,7 @@ const AgentSettings: React.FC = () => {
           )}
           {/* Name hint */}
           {(duplicateAssistant || duplicateInstalledAssistant) && (
-            <div className='mt-12px p-12px bg-primary-light rounded-lg'>
+            <div className='mt-12px p-12px rounded-lg'>
               <div className='text-12px text-primary'>
                 {t('settings.duplicateAssistantNameHint', {
                   name: duplicateAssistant ? duplicateAssistant.display_name || duplicateAssistant.name : duplicateInstalledAssistant?.nameI18n?.[localeKey] || duplicateInstalledAssistant?.name,
