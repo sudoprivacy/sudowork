@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Popover } from '@arco-design/web-react';
+import { Popover, Tabs } from '@arco-design/web-react';
 import React, { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -456,47 +456,38 @@ const EmojiPicker: React.FC<EmojiPickerProps> = ({ value, onChange, children, pl
     [onChange, saveRecentEmoji]
   );
 
-  const currentEmojis = useMemo(() => {
-    if (activeCategory === 'recent') {
-      return recentEmojis;
-    }
-    return EMOJI_CATEGORIES[activeCategory].emojis;
-  }, [activeCategory, recentEmojis]);
-
   const categoryKeys = useMemo(() => {
     const keys = Object.keys(EMOJI_CATEGORIES) as CategoryKey[];
-    // Only show recent if there are recent emojis
     if (recentEmojis.length === 0) {
       return keys.filter((key) => key !== 'recent');
     }
     return keys;
   }, [recentEmojis.length]);
 
-  const pickerContent = (
-    <div className='w-280px'>
-      {/* Category Tabs */}
-      <div className='flex items-center gap-2px px-8px py-6px border-b border-light overflow-x-auto'>
-        {categoryKeys.map((key) => (
-          <button key={key} className={`flex-shrink-0 w-28px h-28px f-center rounded-md text-16px cursor-pointer border-none bg-transparent hover:bg-fill-2 transition-colors ${activeCategory === key ? 'bg-fill-2' : ''}`} onClick={() => setActiveCategory(key)} title={EMOJI_CATEGORIES[key].label}>
-            {EMOJI_CATEGORIES[key].icon}
+  const getEmojis = (key: CategoryKey) => (key === 'recent' ? recentEmojis : EMOJI_CATEGORIES[key].emojis);
+
+  const renderGrid = (emojis: string[]) =>
+    emojis.length > 0 ? (
+      <div className='grid grid-cols-8 gap-2px'>
+        {emojis.map((emoji, index) => (
+          <button key={`${emoji}-${index}`} className='w-32px h-32px f-center text-20px cursor-pointer border-none bg-transparent rounded-md hover:bg-fill-2 transition-colors' onClick={() => handleSelectEmoji(emoji)}>
+            {emoji}
           </button>
         ))}
       </div>
+    ) : (
+      <div className='text-center text-secondary py-16px text-14px'>{t('settings.noRecentEmojis', { defaultValue: 'No recent emojis' })}</div>
+    );
 
-      {/* Emoji Grid */}
-      <div className='p-8px max-h-200px overflow-y-auto'>
-        {currentEmojis.length > 0 ? (
-          <div className='grid grid-cols-8 gap-2px'>
-            {currentEmojis.map((emoji: string, index: number) => (
-              <button key={`${emoji}-${index}`} className='w-32px h-32px f-center text-20px cursor-pointer border-none bg-transparent rounded-md hover:bg-fill-2 transition-colors' onClick={() => handleSelectEmoji(emoji)}>
-                {emoji}
-              </button>
-            ))}
-          </div>
-        ) : (
-          <div className='text-center text-secondary py-16px text-14px'>{t('settings.noRecentEmojis', { defaultValue: 'No recent emojis' })}</div>
-        )}
-      </div>
+  const pickerContent = (
+    <div className='w-280px'>
+      <Tabs activeTab={activeCategory} onChange={(v) => setActiveCategory(v as typeof activeCategory)} className='-mx-1'>
+        {categoryKeys.map((key) => (
+          <Tabs.TabPane key={key} title={<span title={EMOJI_CATEGORIES[key].label}>{EMOJI_CATEGORIES[key].label}</span>}>
+            <div className='max-h-200px overflow-y-auto'>{renderGrid(getEmojis(key))}</div>
+          </Tabs.TabPane>
+        ))}
+      </Tabs>
     </div>
   );
 
