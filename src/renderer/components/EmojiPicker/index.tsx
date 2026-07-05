@@ -1,11 +1,5 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import { Popover, Tabs } from '@arco-design/web-react';
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 // Common emoji categories with popular emojis
@@ -422,15 +416,18 @@ const EmojiPicker: React.FC<EmojiPickerProps> = ({ value, onChange, children, pl
   const [visible, setVisible] = useState(false);
   const [activeCategory, setActiveCategory] = useState<CategoryKey>('smileys');
 
-  // Load recent emojis from localStorage
-  const recentEmojis = useMemo(() => {
+  // Load recent emojis from localStorage when popover opens
+  const [recentEmojis, setRecentEmojis] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!visible) return;
     try {
       const stored = localStorage.getItem(RECENT_EMOJIS_KEY);
-      return stored ? JSON.parse(stored) : [];
+      setRecentEmojis(stored ? JSON.parse(stored) : []);
     } catch {
-      return [];
+      setRecentEmojis([]);
     }
-  }, [visible]); // Refresh when popover opens
+  }, [visible]);
 
   const saveRecentEmoji = useCallback((emoji: string) => {
     try {
