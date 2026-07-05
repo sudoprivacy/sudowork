@@ -7,7 +7,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Button, Modal, Progress, Spin } from '@arco-design/web-react';
 import { IconDownload } from '@arco-design/web-react/icon';
-import { Lightning, Robot, Shield } from '@icon-park/react';
+import { Bot, Shield, Zap } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { assistantHub } from '@/common';
 import type { IInstalledSkillInfo, IAssistantHubSkill, ISkillHubSkill } from '@/common/ipcBridge';
@@ -172,7 +172,7 @@ const AssistantDetailModal: React.FC<AssistantDetailModalProps> = ({ assistant, 
                   <div className='w-full h-full f-center text-34px'>{assistant.emoji}</div>
                 ) : (
                   <div className='w-full h-full f-center bg-primary-light'>
-                    <Robot theme='filled' size='34' className='text-primary' />
+                    <Bot size={34} className='text-primary' />
                   </div>
                 )}
               </div>
@@ -207,7 +207,7 @@ const AssistantDetailModal: React.FC<AssistantDetailModalProps> = ({ assistant, 
                 {relatedSkillDetails.length > 0 && !isInstalled && (
                   <div className='bg-fill-1 rd-10px p-14px'>
                     <div className='flex items-center gap-6px mb-10px'>
-                      <Lightning size='14' className='text-primary' />
+                      <Zap size={14} className='text-primary' />
                       <span className='font-medium text-13px text-foreground'>{t('settings.assistant.relatedSkills', { defaultValue: '关联技能' })}</span>
                       <span className='text-12px text-tertiary'>({relatedSkillDetails.length})</span>
                       {installedSkillCount > 0 && <span className='text-12px text-tertiary'>· {t('settings.assistant.skillsInstalled', { installed: installedSkillCount, defaultValue: `${installedSkillCount} 已安装` })}</span>}
@@ -240,14 +240,14 @@ const AssistantDetailModal: React.FC<AssistantDetailModalProps> = ({ assistant, 
                                   <div className='w-full h-full f-center text-16px'>{skill.emoji}</div>
                                 ) : (
                                   <div className='w-full h-full f-center bg-primary-light'>
-                                    <Lightning size='14' className='text-primary' />
+                                    <Zap size={14} className='text-primary' />
                                   </div>
                                 )}
                               </div>
                               <div className='flex-1 min-w-0'>
                                 <div className='flex items-center gap-4px'>
                                   <span className='font-medium text-13px text-foreground truncate'>{skillDisplayName}</span>
-                                  {isBuiltinSkill && <Shield size='12' className='text-primary flex-shrink-0' />}
+                                  {isBuiltinSkill && <Shield size={12} className='text-primary flex-shrink-0' />}
                                 </div>
                                 <div className='text-11px text-tertiary truncate'>{skill.description}</div>
                               </div>

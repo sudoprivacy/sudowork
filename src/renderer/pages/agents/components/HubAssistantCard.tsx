@@ -6,7 +6,7 @@
 
 import React from 'react';
 import { Progress, Tooltip } from '@arco-design/web-react';
-import { Copy, Install, Lightning, Robot } from '@icon-park/react';
+import { Bot, Copy, Download, Zap } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { IAssistantHubSkill } from '@/common/ipcBridge';
 
@@ -36,7 +36,7 @@ const HubAssistantCard: React.FC<HubAssistantCardProps> = ({ assistant, isInstal
             <div className='w-full h-full f-center text-22px'>{assistant.emoji}</div>
           ) : (
             <div className='w-full h-full f-center bg-primary-light'>
-              <Robot theme='filled' size='22' className='text-primary' />
+              <Bot size={22} className='text-primary' />
             </div>
           )}
         </div>
@@ -51,7 +51,7 @@ const HubAssistantCard: React.FC<HubAssistantCardProps> = ({ assistant, isInstal
         <div className='text-11px text-secondary mt-3px line-clamp-2 leading-relaxed'>{assistant.description}</div>
         {assistant.skills && assistant.skills.length > 0 && (
           <div className='mt-4px flex items-center gap-4px'>
-            <Lightning size='12' className='text-primary flex-shrink-0' />
+            <Zap size={12} className='text-primary flex-shrink-0' />
             <span className='text-10px text-tertiary'>{t('settings.assistant.relatedSkills', { count: assistant.skills.length, defaultValue: `${assistant.skills.length} 个关联技能` })}</span>
           </div>
         )}
@@ -69,7 +69,7 @@ const HubAssistantCard: React.FC<HubAssistantCardProps> = ({ assistant, isInstal
             )}
             <Tooltip content={t('settings.assistant.duplicate', { defaultValue: '复制' })}>
               <button type='button' className='store-action-icon' onClick={onDuplicate}>
-                <Copy size='13' />
+                <Copy size={13} />
               </button>
             </Tooltip>
           </>
@@ -82,13 +82,13 @@ const HubAssistantCard: React.FC<HubAssistantCardProps> = ({ assistant, isInstal
         ) : isInstalled && hasUpdate ? (
           <Tooltip content={t('settings.assistant.update', { defaultValue: '更新' })}>
             <button type='button' className='store-action-icon' onClick={onUpdate}>
-              <Install size='13' />
+              <Download size={13} />
             </button>
           </Tooltip>
         ) : !isInstalled && hasDownloadUrl ? (
           <Tooltip content={t('settings.assistant.install', { defaultValue: '安装' })}>
             <button type='button' className='store-action-icon' onClick={onInstall}>
-              <Install size='13' />
+              <Download size={13} />
             </button>
           </Tooltip>
         ) : null}

@@ -11,7 +11,7 @@
  */
 
 import { Avatar, Button, Checkbox, Collapse, Drawer, Input, Message, Select, Typography } from '@arco-design/web-react';
-import { Lightning, Robot, Shield } from '@icon-park/react';
+import { Bot, Shield, Zap } from 'lucide-react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { mutate } from 'swr';
@@ -314,13 +314,13 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
             <div className='mt-10px flex items-center gap-12px'>
               {isBuiltin || isReadonly ? (
                 <Avatar shape='square' size={40} className='rounded-4px'>
-                  {editAvatarImage ? <img src={editAvatarImage} alt='' width={24} height={24} style={{ objectFit: 'contain' }} /> : editAvatar && isEmoji(editAvatar) ? <span className='text-24px'>{editAvatar}</span> : <Robot theme='outline' size={20} />}
+                  {editAvatarImage ? <img src={editAvatarImage} alt='' width={24} height={24} style={{ objectFit: 'contain' }} /> : editAvatar && isEmoji(editAvatar) ? <span className='text-24px'>{editAvatar}</span> : <Bot size={20} />}
                 </Avatar>
               ) : (
                 <EmojiPicker value={editAvatar} onChange={(emoji) => setEditAvatar(emoji)} placement='br'>
                   <div className='cursor-pointer'>
                     <Avatar shape='square' size={40} className='rounded-4px hover:bg-fill-2 transition-colors'>
-                      {editAvatarImage ? <img src={editAvatarImage} alt='' width={24} height={24} style={{ objectFit: 'contain' }} /> : editAvatar && isEmoji(editAvatar) ? <span className='text-24px'>{editAvatar}</span> : <Robot theme='outline' size={20} />}
+                      {editAvatarImage ? <img src={editAvatarImage} alt='' width={24} height={24} style={{ objectFit: 'contain' }} /> : editAvatar && isEmoji(editAvatar) ? <span className='text-24px'>{editAvatar}</span> : <Bot size={20} />}
                     </Avatar>
                   </div>
                 </EmojiPicker>
@@ -428,7 +428,7 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
                               <div className='w-full h-full f-center text-22px'>{emoji}</div>
                             ) : (
                               <div className='w-full h-full f-center bg-primary-light'>
-                                <Lightning size='22' className='text-primary' />
+                                <Zap size={22} className='text-primary' />
                               </div>
                             )}
                           </div>
@@ -436,7 +436,7 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
                             <div className='flex items-center gap-6px'>
                               <span className='font-medium text-13px text-foreground truncate'>{displayName}</span>
                               {!skill.isBuiltin && displayVersion && <span className='px-5px py-0px bg-fill-3 text-secondary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px'>v{displayVersion}</span>}
-                              {skill.isBuiltin && <Shield size='14' className='text-primary flex-shrink-0' />}
+                              {skill.isBuiltin && <Shield size={14} className='text-primary flex-shrink-0' />}
                             </div>
                             {description && <div className='text-11px text-secondary mt-3px line-clamp-2 leading-relaxed'>{description}</div>}
                           </div>
@@ -481,14 +481,14 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
                               <div className='w-full h-full f-center text-22px'>{emoji}</div>
                             ) : (
                               <div className='w-full h-full f-center bg-primary-light'>
-                                <Lightning size='22' className='text-primary' />
+                                <Zap size={22} className='text-primary' />
                               </div>
                             )}
                           </div>
                           <div className='flex-1 min-w-0'>
                             <div className='flex items-center gap-6px'>
                               <span className='font-medium text-13px text-foreground truncate'>{displayName}</span>
-                              {skill.isBuiltin && <Shield size='14' className='text-primary flex-shrink-0' />}
+                              {skill.isBuiltin && <Shield size={14} className='text-primary flex-shrink-0' />}
                             </div>
                             {description && <div className='text-11px text-secondary mt-3px line-clamp-2 leading-relaxed'>{description}</div>}
                           </div>

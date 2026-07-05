@@ -6,7 +6,7 @@
 
 import React from 'react';
 import { Popconfirm, Spin, Switch, Tooltip } from '@arco-design/web-react';
-import { Copy, Delete, Edit, Install, Lightning, PreviewOpen, Robot, Upload } from '@icon-park/react';
+import { Bot, Copy, Download, Eye, SquarePen, Trash2, Upload, Zap } from 'lucide-react';
 import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
 import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
@@ -54,7 +54,7 @@ const InstalledAssistantCard: React.FC<InstalledAssistantCardProps> = (props) =>
             <div className='w-full h-full f-center text-22px'>{resolvedAvatar}</div>
           ) : (
             <div className='w-full h-full f-center bg-primary-light'>
-              <Robot theme='filled' size='22' className='text-primary' />
+              <Bot size={22} className='text-primary' />
             </div>
           )}
         </div>
@@ -71,7 +71,7 @@ const InstalledAssistantCard: React.FC<InstalledAssistantCardProps> = (props) =>
         <div className='mt-3px min-h-30px'>{description ? <div className='text-11px text-secondary line-clamp-2 leading-15px'>{description}</div> : null}</div>
         {assistant.enabledSkills && assistant.enabledSkills.length > 0 && (
           <div className='mt-4px flex items-center gap-4px'>
-            <Lightning size='12' className='text-primary flex-shrink-0' />
+            <Zap size={12} className='text-primary flex-shrink-0' />
             <span className='text-10px text-tertiary'>{t('settings.assistant.relatedSkills', { count: assistant.enabledSkills.length, defaultValue: `${assistant.enabledSkills.length} 个关联技能` })}</span>
           </div>
         )}
@@ -90,27 +90,27 @@ const InstalledAssistantCard: React.FC<InstalledAssistantCardProps> = (props) =>
                 onUpdate?.();
               }}
             >
-              {updating ? <Spin size={10} /> : <Install size='13' />}
+              {updating ? <Spin size={10} /> : <Download size={13} />}
             </button>
           </Tooltip>
         )}
         <Tooltip content={isReadonly ? t('settings.assistant.view', { defaultValue: '查看' }) : t('settings.assistant.edit', { defaultValue: '编辑' })}>
           <button type='button' className='store-action-icon' onClick={onClick}>
-            {isReadonly ? <PreviewOpen size='13' /> : <Edit size='13' />}
+            {isReadonly ? <Eye size={13} /> : <SquarePen size={13} />}
           </button>
         </Tooltip>
         {/* Upload button - only for custom assistants */}
         {isCustom && onUpload && (
           <Tooltip content={t('settings.assistant.upload', { defaultValue: '上传' })}>
             <button type='button' className='store-action-icon' onClick={onUpload}>
-              <Upload size='13' />
+              <Upload size={13} />
             </button>
           </Tooltip>
         )}
         {/* Duplicate button - available for all assistant types */}
         <Tooltip content={t('settings.assistant.duplicate', { defaultValue: '复制' })}>
           <button type='button' className='store-action-icon' onClick={onDuplicate}>
-            <Copy size='13' />
+            <Copy size={13} />
           </button>
         </Tooltip>
         {enterprisePublishButton}
@@ -126,7 +126,7 @@ const InstalledAssistantCard: React.FC<InstalledAssistantCardProps> = (props) =>
           >
             <Tooltip content={t('settings.assistant.delete', { defaultValue: '删除' })}>
               <button type='button' className='store-action-icon store-action-icon--danger'>
-                <Delete size='13' />
+                <Trash2 size={13} />
               </button>
             </Tooltip>
           </Popconfirm>

@@ -5,7 +5,7 @@
  */
 
 import { Avatar, Button, Collapse, Drawer, Input, Message, Modal, Select, Spin, Tooltip, Typography } from '@arco-design/web-react';
-import { Plus, Robot, Shield, Search, Share, Check } from '@icon-park/react';
+import { Bot, Check, Plus, Search, Share2, Shield } from 'lucide-react';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -1639,7 +1639,7 @@ const AgentSettings: React.FC = () => {
                 }}
                 disabled={isPublishing}
               >
-                {isPublishing ? <Spin size={12} /> : <Share size={12} />}
+                {isPublishing ? <Spin size={12} /> : <Share2 size={12} />}
               </button>
             </Tooltip>
           ) : isEnterprise && publishStatus === 'pending' ? (
@@ -1718,7 +1718,7 @@ const AgentSettings: React.FC = () => {
             placeholder={t('settings.assistant.searchPlaceholder', { defaultValue: '搜索...' })}
             value={hubSearchQuery}
             onChange={setHubSearchQuery}
-            prefix={<Search size='14' className='text-tertiary' />}
+            prefix={<Search size={14} className='text-tertiary' />}
             size='small'
             className={classNames('flex-1 min-w-0 assistant-hub-input', activeTab === 'installed' && 'invisible')}
           />
@@ -1731,7 +1731,7 @@ const AgentSettings: React.FC = () => {
               onClick={() => void handleCreate()}
             >
               <span className='w-22px h-22px rd-full f-center bg-[color-mix(in_srgb,var(--color-primary)_14%,transparent)] text-[var(--color-primary)] transition-transform group-hover:scale-105'>
-                <Plus size='13' />
+                <Plus size={13} />
               </span>
               <span className='flex items-baseline gap-5px leading-none'>
                 <span className='text-12px font-medium text-foreground'>{t('settings.createAssistant', { defaultValue: '创建' })}</span>
@@ -1763,7 +1763,7 @@ const AgentSettings: React.FC = () => {
                   </div>
                 ) : hubAssistantList.length === 0 ? (
                   <div className='flex flex-col items-center justify-center py-48px text-secondary gap-8px'>
-                    <Shield size='32' className='text-tertiary' />
+                    <Shield size={32} className='text-tertiary' />
                     <span className='text-13px'>{t('settings.assistant.noTenantAssistants', { defaultValue: '暂无专属智能体' })}</span>
                   </div>
                 ) : (
@@ -1796,7 +1796,7 @@ const AgentSettings: React.FC = () => {
                 )
               ) : activeTab === 'exclusive' && !enterpriseCode ? (
                 <div className='flex flex-col items-center justify-center py-48px text-secondary gap-8px'>
-                  <Shield size='32' className='text-tertiary' />
+                  <Shield size={32} className='text-tertiary' />
                   <span className='text-13px'>{t('settings.assistant.noEnterpriseCode', { defaultValue: '当前账号没有企业编码，无法加载专属智能体。' })}</span>
                 </div>
               ) : hubLoading || !hubInstalledSkillsReady ? (
@@ -1805,7 +1805,7 @@ const AgentSettings: React.FC = () => {
                 </div>
               ) : hubAssistantList.length === 0 ? (
                 <div className='flex flex-col items-center justify-center py-48px text-secondary gap-8px'>
-                  <Robot theme='outline' size={32} className='text-tertiary' />
+                  <Bot size={32} className='text-tertiary' />
                   <span className='text-13px'>{t('settings.assistant.noResults', { defaultValue: '暂无智能体' })}</span>
                 </div>
               ) : (
@@ -1882,7 +1882,7 @@ const AgentSettings: React.FC = () => {
           <AionScrollArea className='flex-1 min-h-0' disableOverflow>
             {assistants.length === 0 ? (
               <div className='flex flex-col items-center justify-center py-48px gap-8px'>
-                <Robot theme='outline' size={32} className='text-tertiary' />
+                <Bot size={32} className='text-tertiary' />
                 <div className='text-13px text-secondary'>{t('settings.assistantsEmpty', { defaultValue: '暂无智能体' })}</div>
                 <div className='text-12px text-tertiary'>{t('settings.assistantsEmptyHint', { defaultValue: '点击下方"创建智能体"按钮添加你的智能体' })}</div>
                 <Button size='small' type='outline' className='mt-4px' onClick={() => handleCreate()}>
@@ -1978,13 +1978,13 @@ const AgentSettings: React.FC = () => {
                 <div className='mt-10px flex items-center gap-12px'>
                   {activeAssistant?.isBuiltin || isReadonlyAssistant ? (
                     <Avatar shape='square' size={40} className='rounded-lg'>
-                      {editAvatarImage ? <img src={editAvatarImage} alt='' width={24} height={24} style={{ objectFit: 'contain' }} /> : editAvatar ? <span className='text-24px'>{editAvatar}</span> : <Robot theme='outline' size={20} />}
+                      {editAvatarImage ? <img src={editAvatarImage} alt='' width={24} height={24} style={{ objectFit: 'contain' }} /> : editAvatar ? <span className='text-24px'>{editAvatar}</span> : <Bot size={20} />}
                     </Avatar>
                   ) : (
                     <EmojiPicker value={editAvatar} onChange={(emoji) => setEditAvatar(emoji)} placement='br'>
                       <div className='cursor-pointer'>
                         <Avatar shape='square' size={40} className='rounded-lg hover:bg-fill-2 transition-colors'>
-                          {editAvatarImage ? <img src={editAvatarImage} alt='' width={24} height={24} style={{ objectFit: 'contain' }} /> : editAvatar ? <span className='text-24px'>{editAvatar}</span> : <Robot theme='outline' size={20} />}
+                          {editAvatarImage ? <img src={editAvatarImage} alt='' width={24} height={24} style={{ objectFit: 'contain' }} /> : editAvatar ? <span className='text-24px'>{editAvatar}</span> : <Bot size={20} />}
                         </Avatar>
                       </div>
                     </EmojiPicker>
@@ -2110,7 +2110,7 @@ const AgentSettings: React.FC = () => {
                     const hasEmoji = Boolean(resolvedAvatar && isEmoji(resolvedAvatar));
                     if (avatarImg) return <img src={avatarImg} alt='' width={19} height={19} style={{ objectFit: 'contain' }} />;
                     if (hasEmoji) return <span style={{ fontSize: 19 }}>{resolvedAvatar}</span>;
-                    return <Robot theme='outline' size={16} />;
+                    return <Bot size={16} />;
                   })()}
                 </Avatar>
               </Avatar.Group>
@@ -2150,7 +2150,7 @@ const AgentSettings: React.FC = () => {
                     const hasEmojiAvatar = Boolean(resolvedAvatar && emojiRegex.test(resolvedAvatar));
                     if (resolvedAvatar && !hasEmojiAvatar) return <img src={resolvedAvatar} alt='' width={19} height={19} style={{ objectFit: 'contain' }} />;
                     if (hasEmojiAvatar) return <span style={{ fontSize: 19 }}>{resolvedAvatar}</span>;
-                    return <Robot theme='outline' size={16} />;
+                    return <Bot size={16} />;
                   })()}
                 </Avatar>
               </Avatar.Group>
@@ -2171,7 +2171,7 @@ const AgentSettings: React.FC = () => {
                     const hasEmoji = Boolean(resolvedAvatar && isEmoji(resolvedAvatar));
                     if (avatarImg) return <img src={avatarImg} alt='' width={19} height={19} style={{ objectFit: 'contain' }} />;
                     if (hasEmoji) return <span style={{ fontSize: 19 }}>{resolvedAvatar}</span>;
-                    return <Robot theme='outline' size={16} />;
+                    return <Bot size={16} />;
                   })()}
                 </Avatar>
               </Avatar.Group>
@@ -2222,7 +2222,7 @@ const AgentSettings: React.FC = () => {
                     const hasEmoji = Boolean(resolvedAvatar && isEmoji(resolvedAvatar));
                     if (avatarImg) return <img src={avatarImg} alt='' width={19} height={19} style={{ objectFit: 'contain' }} />;
                     if (hasEmoji) return <span style={{ fontSize: 19 }}>{resolvedAvatar}</span>;
-                    return <Robot theme='outline' size={16} />;
+                    return <Bot size={16} />;
                   })()}
                 </Avatar>
               </Avatar.Group>
