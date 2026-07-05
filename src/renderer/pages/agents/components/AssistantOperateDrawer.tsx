@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { IInstalledSkillInfo } from '@/common/ipcBridge';
 import { DEFAULT_PRESET_AGENT_TYPE } from '@/types/acpTypes';
-import EmojiPicker from '@/renderer/components/EmojiPicker';
+import EmojiPicker from '@/renderer/components/base/EmojiPicker';
 import MarkdownView from '@/renderer/components/Markdown';
 import { isAssistantSkillSelected, toggleAssistantSkillSelection } from '../utils';
 import SkillCard from './SkillCard';

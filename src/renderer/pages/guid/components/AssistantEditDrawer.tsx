@@ -18,7 +18,7 @@ import { DEFAULT_PRESET_AGENT_TYPE, normalizePresetAgentType } from '@/types/acp
 import { getAgentLogo } from '@/renderer/utils/agentLogo';
 import { getInstalledSkillDisplay, normalizeSkillVersion, handleSkillIconError } from '@/renderer/utils/skillDisplay';
 import { isElectronDesktop, resolveExtensionAssetUrl } from '@/renderer/utils/platform';
-import EmojiPicker from '@/renderer/components/EmojiPicker';
+import EmojiPicker from '@/renderer/components/base/EmojiPicker';
 import MarkdownView from '@/renderer/components/Markdown';
 import coworkSvg from '@/renderer/assets/cowork.svg';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
