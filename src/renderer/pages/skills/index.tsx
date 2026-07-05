@@ -1096,7 +1096,7 @@ const SkillSettings: React.FC = () => {
           )}
 
           {/* Search - always rendered to preserve layout, hidden on installed tab */}
-          <Input placeholder={t('settings.skill.searchPlaceholder', '搜索...')} value={searchQuery} onChange={setSearchQuery} prefix={<IconSearch style={{ fontSize: 14 }} className='text-tertiary' />} size='small' className={classNames('flex-1 min-w-0', activeTab === 'installed' && 'invisible')} />
+          <Input placeholder={t('settings.skill.searchPlaceholder', '搜索...')} value={searchQuery} onChange={setSearchQuery} prefix={<IconSearch style={{ fontSize: 14 }} className='text-tertiary' />} className={classNames('flex-1 min-w-0', activeTab === 'installed' && 'invisible')} />
           {activeTab === 'installed' && isElectronDesktop() && (
             <button
               type='button'

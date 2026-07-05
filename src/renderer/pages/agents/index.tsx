@@ -1655,30 +1655,15 @@ const AgentSettings: React.FC = () => {
           )}
 
           {/* Search - for store/exclusive tabs */}
-          <Input
-            placeholder={t('settings.assistant.searchPlaceholder', '搜索...')}
-            value={hubSearchQuery}
-            onChange={setHubSearchQuery}
-            prefix={<Search size={14} className='text-tertiary' />}
-            size='small'
-            className={classNames('flex-1 min-w-0 assistant-hub-input', activeTab === 'installed' && 'invisible')}
-          />
+          <Input placeholder={t('settings.assistant.searchPlaceholder', '搜索...')} value={hubSearchQuery} onChange={setHubSearchQuery} prefix={<Search size={14} className='text-tertiary' />} className={classNames('flex-1 min-w-0 assistant-hub-input', activeTab === 'installed' && 'invisible')} />
 
           {/* Create button — only on installed tab */}
           {activeTab === 'installed' && (
-            <button
-              type='button'
-              className='group h-8.5 px-4 py-0 border border-solid rd-full flex items-center gap-2 flex-shrink-0 cursor-pointer transition-all outline-none bg-[color-mix(in_srgb,var(--color-fill-2)_84%,transparent)] border-[color-mix(in_srgb,var(--color-border-2)_70%,transparent)] hover:bg-[color-mix(in_srgb,var(--color-primary-light-1)_58%,transparent)] hover:border-[color-mix(in_srgb,var(--color-primary)_36%,transparent)]'
-              onClick={() => void handleCreate()}
-            >
-              <span className='size-5.5 rd-full f-center bg-[color-mix(in_srgb,var(--color-primary)_14%,transparent)] text-[var(--color-primary)] transition-transform group-hover:scale-105'>
-                <Plus size={13} />
-              </span>
-              <span className='flex items-baseline gap-5px leading-none'>
-                <span className='text-12px font-medium text-foreground'>{t('settings.createAssistant', '创建')}</span>
-                <span className='text-11px text-secondary'>{t('settings.customAssistants', '自定义智能体')}</span>
-              </span>
-            </button>
+            <Tooltip content={t('settings.customAssistants', '自定义智能体')}>
+              <Button icon={<Plus size={13} />} onClick={() => void handleCreate()} className='rd-full flex-shrink-0'>
+                {t('settings.createAssistant', '创建')}
+              </Button>
+            </Tooltip>
           )}
         </div>
 
