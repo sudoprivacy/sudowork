@@ -6,7 +6,8 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { Button, Modal, Progress, Spin } from '@arco-design/web-react';
-import { Install, Lightning, Robot, Shield } from '@icon-park/react';
+import { IconDownload } from '@arco-design/web-react/icon';
+import { Lightning, Robot, Shield } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { assistantHub } from '@/common';
 import type { IInstalledSkillInfo, IAssistantHubSkill, ISkillHubSkill } from '@/common/ipcBridge';
@@ -270,11 +271,8 @@ const AssistantDetailModal: React.FC<AssistantDetailModalProps> = ({ assistant, 
         <div className='px-8px pt-12px border-t mt-4px'>
           <div className='flex gap-8px items-center'>
             {isInstalled && hasUpdate ? (
-              <Button type='primary' long size='large' className='flex-1' loading={updating} loadingFixedWidth onClick={() => onUpdate?.(associatedSkillIds)}>
-                <span className='flex items-center gap-6px justify-center'>
-                  <Install size='15' />
-                  {t('settings.assistant.updateTo', { version: latestVersionInfo.version, defaultValue: `更新至 v${latestVersionInfo.version}` })}
-                </span>
+              <Button type='primary' long size='large' className='flex-1' loading={updating} loadingFixedWidth icon={<IconDownload />} onClick={() => onUpdate?.(associatedSkillIds)}>
+                {t('settings.assistant.updateTo', { version: latestVersionInfo.version, defaultValue: `更新至 v${latestVersionInfo.version}` })}
               </Button>
             ) : isInstalled ? (
               <Button type='primary' long size='large' className='flex-1' onClick={onGoUse || onClose}>
@@ -287,11 +285,8 @@ const AssistantDetailModal: React.FC<AssistantDetailModalProps> = ({ assistant, 
                 <Progress percent={installProgress} size='small' />
               </div>
             ) : (
-              <Button type='primary' long size='large' onClick={() => onInstall(associatedSkillIds)}>
-                <span className='flex items-center gap-6px justify-center'>
-                  <Install size='15' />
-                  {t('settings.assistant.install', { defaultValue: '安装助手' })}
-                </span>
+              <Button type='primary' long size='large' icon={<IconDownload />} onClick={() => onInstall(associatedSkillIds)}>
+                {t('settings.assistant.install', { defaultValue: '安装助手' })}
               </Button>
             )}
           </div>
