@@ -1098,17 +1098,11 @@ const SkillSettings: React.FC = () => {
           {/* Search - always rendered to preserve layout, hidden on installed tab */}
           <Input placeholder={t('settings.skill.searchPlaceholder', '搜索...')} value={searchQuery} onChange={setSearchQuery} prefix={<IconSearch style={{ fontSize: 14 }} className='text-tertiary' />} className={classNames('flex-1 min-w-0', activeTab === 'installed' && 'invisible')} />
           {activeTab === 'installed' && isElectronDesktop() && (
-            <button
-              type='button'
-              className='group h-8.5 px-4 py-0 border rd-full flex items-center gap-2 flex-shrink-0 cursor-pointer transition-all outline-none bg-[color-mix(in_srgb,var(--color-fill-2)_84%,transparent)] border-[color-mix(in_srgb,var(--color-border-2)_70%,transparent)] hover:bg-[color-mix(in_srgb,var(--color-primary-light-1)_58%,transparent)] hover:border-[color-mix(in_srgb,var(--color-primary)_36%,transparent)]'
-              onClick={onImportButtonClick}
-            >
-              <span className='size-5.5 rd-full f-center bg-[color-mix(in_srgb,var(--color-primary)_14%,transparent)] text-[var(--color-primary)] transition-transform group-hover:scale-105'>{isEnterprise ? <Plus size={13} /> : <Upload size={13} />}</span>
-              <span className='flex items-baseline gap-[5px] leading-none'>
-                <span className='text-12px font-medium text-foreground'>{isEnterprise ? t('common.create', '创建') : t('common.upload', '上传')}</span>
-                <span className='text-11px text-secondary'>{t('settings.customSkills', '自定义技能')}</span>
-              </span>
-            </button>
+            <Tooltip content={t('settings.customSkills', '自定义技能')}>
+              <Button icon={isEnterprise ? <Plus size={13} /> : <Upload size={13} />} onClick={onImportButtonClick} className='rd-full flex-shrink-0'>
+                {isEnterprise ? t('common.create', '创建') : t('common.upload', '上传')}
+              </Button>
+            </Tooltip>
           )}
         </div>
 
