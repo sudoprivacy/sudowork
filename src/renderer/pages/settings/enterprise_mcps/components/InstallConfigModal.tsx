@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Input, Button, Message } from '@arco-design/web-react';
-import AionModal from '@/renderer/components/base/AionModal';
+import { Input, Button, Message, Modal } from '@arco-design/web-react';
 import type { EnterpriseMcpTemplateDto } from '../types';
 
 interface InstallConfigModalProps {
@@ -67,10 +66,10 @@ const InstallConfigModal: React.FC<InstallConfigModalProps> = ({ visible, templa
   const hasNoConfig = items.length === 0 && authItems.length === 0;
 
   return (
-    <AionModal
+    <Modal
       visible={visible}
-      size='medium'
-      header={`安装 · ${template.name}`}
+      style={{ width: 600 }}
+      title={`安装 · ${template.name}`}
       onCancel={onCancel}
       footer={
         <div className='flex justify-end gap-2'>
@@ -161,7 +160,7 @@ const InstallConfigModal: React.FC<InstallConfigModalProps> = ({ visible, templa
           </div>
         )}
       </div>
-    </AionModal>
+    </Modal>
   );
 };
 
