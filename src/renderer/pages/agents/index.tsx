@@ -59,7 +59,6 @@ const AgentSettings: React.FC = () => {
   const [editAvatar, setEditAvatar] = useState('');
   const [editAgent, setEditAgent] = useState<string>(DEFAULT_PRESET_AGENT_TYPE);
   const [isCreating, setIsCreating] = useState(false);
-  const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
   const [promptViewMode, setPromptViewMode] = useState<'edit' | 'preview'>('preview');
   const [drawerWidth, setDrawerWidth] = useState(500);
 
@@ -1500,24 +1499,6 @@ const AgentSettings: React.FC = () => {
     }
   };
 
-  const handleDeleteConfirm = async () => {
-    if (!activeAssistant) return;
-    try {
-      const lookupName = resolveAssistantName(activeAssistant.id);
-      // Pass category for precise assistant location
-      const assistantCategory = activeAssistant._category as 'custom' | 'hub' | 'system' | 'tenant' | undefined;
-      await ipcBridge.assistantHub.uninstallAssistant.invoke({ name: lookupName, category: assistantCategory });
-      await loadAssistants();
-      setDeleteConfirmVisible(false);
-      setEditVisible(false);
-      Message.success(t('common.success', 'Success'));
-      await refreshAgentDetection();
-    } catch (error) {
-      console.error('Failed to delete assistant:', error);
-      Message.error(t('common.failed', 'Failed'));
-    }
-  };
-
   const handleDeleteFromCard = async (assistant: AssistantListItem) => {
     try {
       const lookupName = resolveAssistantName(assistant.id);
@@ -2064,42 +2045,6 @@ const AgentSettings: React.FC = () => {
             </div>
           </div>
         </Drawer>
-
-        {/* Delete Confirmation Modal */}
-        <Modal
-          title={t('settings.deleteAssistantTitle', '删除智能体')}
-          visible={deleteConfirmVisible}
-          onCancel={() => setDeleteConfirmVisible(false)}
-          onOk={handleDeleteConfirm}
-          okButtonProps={{ status: 'danger' }}
-          okText={t('common.delete', '删除')}
-          cancelText={t('common.cancel', '取消')}
-          className='w-[90vw] md:w-[400px]'
-          wrapStyle={{ zIndex: 10000 }}
-          maskStyle={{ zIndex: 9999 }}
-        >
-          <p>{t('settings.deleteAssistantConfirm', '删除该智能体会一并删除已关联会话。如需保留，请导出会话进行备份。是否确认删除？')}</p>
-          {activeAssistant && (
-            <div className='mt-3 p-3 bg-fill-2 rounded-lg flex items-center gap-3'>
-              <Avatar.Group size={32}>
-                <Avatar className='border-none' shape='square' style={{ backgroundColor: 'var(--color-fill-2)', border: 'none' }}>
-                  {(() => {
-                    const resolvedAvatar = activeAssistant.avatar?.trim();
-                    const avatarImg = resolveAvatarImageSrc(resolvedAvatar);
-                    const hasEmoji = Boolean(resolvedAvatar && isEmoji(resolvedAvatar));
-                    if (avatarImg) return <img src={avatarImg} alt='' width={19} height={19} style={{ objectFit: 'contain' }} />;
-                    if (hasEmoji) return <span style={{ fontSize: 19 }}>{resolvedAvatar}</span>;
-                    return <Bot size={16} />;
-                  })()}
-                </Avatar>
-              </Avatar.Group>
-              <div>
-                <div className='font-medium'>{activeAssistant.nameI18n?.[localeKey] || activeAssistant.name}</div>
-                <div className='text-12px text-secondary'>{activeAssistant.descriptionI18n?.[localeKey] || activeAssistant.description}</div>
-              </div>
-            </div>
-          )}
-        </Modal>
 
         {/* Duplicate Confirmation Modal */}
         <Modal
