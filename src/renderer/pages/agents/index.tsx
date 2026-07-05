@@ -1,4 +1,4 @@
-import { Avatar, Button, Input, Message, Modal, Spin, Tooltip } from '@arco-design/web-react';
+import { Button, Input, Message, Spin, Tooltip } from '@arco-design/web-react';
 import { Bot, Check, Plus, Search, Share2, Shield } from 'lucide-react';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -25,6 +25,7 @@ import PageWrapper from '@renderer/components/base/PageWrapper';
 import HubAssistantCard from './components/HubAssistantCard';
 import AssistantDetailModal from './components/AssistantDetailModal';
 import InstalledAssistantCard from './components/InstalledAssistantCard';
+import DuplicateConfirmModal from './components/DuplicateConfirmModal';
 import UploadConfirmModal from './components/UploadConfirmModal';
 import AssistantOperateDrawer from './components/AssistantOperateDrawer';
 import type { AssistantListItem, AssistantLatestVersion } from './types';
@@ -1310,13 +1311,6 @@ const AgentSettings: React.FC = () => {
     void fetchLatestAssistantVersions(installedHubVersionTargets, latestAssistantVersionsRef.current);
   }, [fetchLatestAssistantVersions, installedHubVersionTargets, isEnterprise]);
 
-  // Avatar helpers
-  const isEmoji = useCallback((str: string) => {
-    if (!str) return false;
-    const emojiRegex = /^(?:\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(?:\u200D(?:\p{Emoji_Presentation}|\p{Emoji}\uFE0F))*$/u;
-    return emojiRegex.test(str);
-  }, []);
-
   const resolveAvatarImageSrc = useCallback(
     (avatar: string | undefined): string | undefined => {
       const value = avatar?.trim();
@@ -1889,76 +1883,19 @@ const AgentSettings: React.FC = () => {
         />
 
         {/* Duplicate Confirmation Modal */}
-        <Modal
-          title={t('settings.duplicateAssistantTitle', '复制智能体')}
+        <DuplicateConfirmModal
           visible={duplicateConfirmVisible}
+          duplicateAssistant={duplicateAssistant}
+          duplicateInstalledAssistant={duplicateInstalledAssistant}
+          localeKey={localeKey}
+          resolveAvatarImageSrc={resolveAvatarImageSrc}
           onCancel={() => {
             setDuplicateConfirmVisible(false);
             setDuplicateAssistant(null);
             setDuplicateInstalledAssistant(null);
           }}
-          onOk={handleDuplicateConfirm}
-          okText={t('common.confirm', '确认')}
-          cancelText={t('common.cancel', '取消')}
-          className='w-[90vw] md:w-[400px]'
-          wrapStyle={{ zIndex: 10000 }}
-          maskStyle={{ zIndex: 9999 }}
-        >
-          <p>{t('settings.duplicateAssistantConfirm', 'Confirm duplicate this agent to the custom list? After duplication, you can edit it in "My Agents".')}</p>
-          {/* Hub agent preview */}
-          {duplicateAssistant && (
-            <div className='mt-3 p-3 bg-fill-2 rounded-lg flex items-center gap-3'>
-              <Avatar.Group size={32}>
-                <Avatar className='border-none' shape='square' style={{ backgroundColor: 'var(--color-fill-2)', border: 'none' }}>
-                  {(() => {
-                    const resolvedAvatar = duplicateAssistant.avatar?.trim();
-                    const emojiRegex = /^(?:\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(?:\u200D(?:\p{Emoji_Presentation}|\p{Emoji}\uFE0F))*$/u;
-                    const hasEmojiAvatar = Boolean(resolvedAvatar && emojiRegex.test(resolvedAvatar));
-                    if (resolvedAvatar && !hasEmojiAvatar) return <img src={resolvedAvatar} alt='' width={19} height={19} style={{ objectFit: 'contain' }} />;
-                    if (hasEmojiAvatar) return <span style={{ fontSize: 19 }}>{resolvedAvatar}</span>;
-                    return <Bot size={16} />;
-                  })()}
-                </Avatar>
-              </Avatar.Group>
-              <div>
-                <div className='font-medium'>{duplicateAssistant.display_name || duplicateAssistant.name}</div>
-                <div className='text-12px text-secondary line-clamp-2'>{duplicateAssistant.description}</div>
-              </div>
-            </div>
-          )}
-          {/* Installed agent preview */}
-          {duplicateInstalledAssistant && (
-            <div className='mt-3 p-3 bg-fill-2 rounded-lg flex items-center gap-3'>
-              <Avatar.Group size={32}>
-                <Avatar className='border-none' shape='square' style={{ backgroundColor: 'var(--color-fill-2)', border: 'none' }}>
-                  {(() => {
-                    const resolvedAvatar = duplicateInstalledAssistant.avatar?.trim();
-                    const avatarImg = resolveAvatarImageSrc(resolvedAvatar);
-                    const hasEmoji = Boolean(resolvedAvatar && isEmoji(resolvedAvatar));
-                    if (avatarImg) return <img src={avatarImg} alt='' width={19} height={19} style={{ objectFit: 'contain' }} />;
-                    if (hasEmoji) return <span style={{ fontSize: 19 }}>{resolvedAvatar}</span>;
-                    return <Bot size={16} />;
-                  })()}
-                </Avatar>
-              </Avatar.Group>
-              <div>
-                <div className='font-medium'>{duplicateInstalledAssistant.nameI18n?.[localeKey] || duplicateInstalledAssistant.name}</div>
-                <div className='text-12px text-secondary line-clamp-2'>{duplicateInstalledAssistant.descriptionI18n?.[localeKey] || duplicateInstalledAssistant.description}</div>
-              </div>
-            </div>
-          )}
-          {/* Name hint */}
-          {(duplicateAssistant || duplicateInstalledAssistant) && (
-            <div className='mt-3 p-3 rounded-lg'>
-              <div className='text-12px text-primary'>
-                {t('settings.duplicateAssistantNameHint', {
-                  name: duplicateAssistant ? duplicateAssistant.display_name || duplicateAssistant.name : duplicateInstalledAssistant?.nameI18n?.[localeKey] || duplicateInstalledAssistant?.name,
-                  defaultValue: `复制后的智能体名称: 自定义-${duplicateAssistant ? duplicateAssistant.display_name || duplicateAssistant.name : duplicateInstalledAssistant?.nameI18n?.[localeKey] || duplicateInstalledAssistant?.name}`,
-                })}
-              </div>
-            </div>
-          )}
-        </Modal>
+          onConfirm={handleDuplicateConfirm}
+        />
 
         <UploadConfirmModal
           isVisible={uploadConfirmVisible}
