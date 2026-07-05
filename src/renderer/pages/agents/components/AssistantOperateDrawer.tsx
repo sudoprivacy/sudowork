@@ -64,8 +64,6 @@ export default function AssistantOperateDrawer({
       zIndex={1200}
       autoFocus={false}
       onCancel={onClose}
-      headerStyle={{ background: 'var(--color-bg-1)' }}
-      bodyStyle={{ background: 'var(--color-bg-1)' }}
       footer={
         <div className='flex justify-end gap-2'>
           <Button onClick={onClose} className='w-[100px] rounded-[100px] bg-fill-2'>
