@@ -161,7 +161,7 @@ const AssistantDetailModal: React.FC<AssistantDetailModalProps> = ({ assistant, 
           <div className='px-8px pb-16px'>
             {/* Icon + Name header */}
             <div className='flex flex-col items-center mb-20px'>
-              <div className='w-72px h-72px rd-14px overflow-hidden bg-fill-2 mb-12px'>
+              <div className='w-72px h-72px rd-14px overflow-hidden mb-12px'>
                 {resolvedAvatar ? (
                   hasEmojiAvatar ? (
                     <div className='w-full h-full f-center text-34px'>{resolvedAvatar}</div>
@@ -232,8 +232,8 @@ const AssistantDetailModal: React.FC<AssistantDetailModalProps> = ({ assistant, 
                             skillIconUrl = skill.icon && !skill.icon.startsWith('http') && !skill.icon.startsWith('data:') && !skill.icon.startsWith('/') && !skill.icon.startsWith('aion-asset://') && !skill.icon.startsWith('file://') ? `${COS_HUB_BASE}/${skill.icon}` : skill.icon;
                           }
                           return (
-                            <div key={skill.id} className='flex items-center gap-10px p-8px bg-fill-2 rd-8px'>
-                              <div className='w-32px h-32px flex-shrink-0 rd-6px overflow-hidden bg-fill-3'>
+                            <div key={skill.id} className='flex items-center gap-10px p-8px bg-base rd-8px'>
+                              <div className='w-32px h-32px flex-shrink-0 rd-6px overflow-hidden'>
                                 {skillIconUrl ? (
                                   <img src={skillIconUrl} alt={skillDisplayName} className='w-full h-full object-cover' onError={handleSkillIconError} />
                                 ) : skill.emoji ? (
