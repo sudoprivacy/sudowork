@@ -360,9 +360,9 @@ const BdpanFileSelector: React.FC<Props> = ({ visible, onCancel, onConfirm }) =>
       {username && (
         <span className='text-secondary text-13px mr-4'>
           {username}{' '}
-          <button className='text-primary text-13px hover:underline bg-transparent border-none cursor-pointer p-0' onClick={logout}>
+          <Button type='text' size='mini' onClick={logout}>
             {t('conversation.bdpan.logout')}
-          </button>
+          </Button>
         </span>
       )}
     </div>
