@@ -1858,7 +1858,7 @@ const AgentSettings: React.FC = () => {
                 <section>
                   <div className='flex items-center justify-between gap-2 mb-2.5'>
                     <div className='text-13px font-medium text-foreground'>{t('settings.customAssistants', '自定义智能体')}</div>
-                    <span className='px-1.5 py-0 bg-fill-2 text-secondary text-11px rd-full leading-18px'>{customAssistants.length}</span>
+                    <span className='px-1.5 py-0 bg-control text-secondary text-11px rd-full leading-18px'>{customAssistants.length}</span>
                   </div>
                   {customAssistants.length > 0 ? (
                     isEnterprise ? (
@@ -1867,7 +1867,7 @@ const AgentSettings: React.FC = () => {
                       renderAssistantGrid(customAssistants)
                     )
                   ) : (
-                    <div className='bg-fill-1 border border-dashed rd-12px px-3.5 py-4.5 text-12px text-tertiary'>{t('settings.noCustomAssistants', '暂无自定义智能体')}</div>
+                    <div className='bg-base border border-dashed rd-12px px-3.5 py-4.5 text-12px text-secondary text-center'>{t('settings.noCustomAssistants', '暂无自定义智能体')}</div>
                   )}
                 </section>
 
@@ -1876,7 +1876,7 @@ const AgentSettings: React.FC = () => {
                   <section>
                     <div className='flex items-center justify-between gap-2 mb-2.5'>
                       <div className='text-13px font-medium text-foreground'>{t('settings.tenantAssistants', '专属智能体')}</div>
-                      <span className='px-1.5 py-0 bg-fill-2 text-secondary text-11px rd-full leading-18px'>{filteredTenantAssistants.length}</span>
+                      <span className='px-1.5 py-0 bg-control text-secondary text-11px rd-full leading-18px'>{filteredTenantAssistants.length}</span>
                     </div>
                     {filteredTenantAssistants.length > 0 ? renderAssistantGrid(filteredTenantAssistants, true, true) : <div className='bg-fill-1 border border-dashed rd-12px px-3.5 py-4.5 text-12px text-tertiary'>{t('settings.noTenantAssistants', '暂无专属智能体')}</div>}
                   </section>
@@ -1886,14 +1886,14 @@ const AgentSettings: React.FC = () => {
                 <section>
                   <div className='flex items-center justify-between gap-2 mb-2.5'>
                     <div className='text-13px font-medium text-foreground'>{t('settings.hubAssistants', '智能体库')}</div>
-                    <span className='px-1.5 py-0 bg-fill-2 text-secondary text-11px rd-full leading-18px'>{hubAssistants.length}</span>
+                    <span className='px-1.5 py-0 bg-control text-secondary text-11px rd-full leading-18px'>{hubAssistants.length}</span>
                   </div>
                   {hubAssistants.length > 0 ? (
                     renderAssistantGrid(hubAssistants, isEnterprise, true, !isEnterprise)
                   ) : hubError ? (
                     <HubEmptyState error={hubError} onRetry={() => void fetchHubAssistants()} />
                   ) : (
-                    <div className='bg-fill-1 border border-dashed rd-12px px-3.5 py-4.5 text-12px text-tertiary'>{t('settings.noHubAssistants', '暂无智能体库智能体')}</div>
+                    <div className='bg-base border border-dashed rd-12px px-3.5 py-4.5 text-12px text-secondary text-center'>{t('settings.noHubAssistants', '暂无智能体库智能体')}</div>
                   )}
                 </section>
               </div>
