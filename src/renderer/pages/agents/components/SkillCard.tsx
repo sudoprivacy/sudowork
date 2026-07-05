@@ -31,7 +31,7 @@ const SkillCard: React.FC<SkillCardProps> = ({ skill, checked, onToggle, disable
         ) : emoji ? (
           <div className='w-full h-full f-center text-22px'>{emoji}</div>
         ) : (
-          <div className='w-full h-full f-center bg-primary-light'>
+          <div className='w-full h-full f-center'>
             <Zap size={22} className='text-primary' />
           </div>
         )}

@@ -53,7 +53,7 @@ const InstalledAssistantCard: React.FC<InstalledAssistantCardProps> = (props) =>
           ) : hasEmojiAvatar ? (
             <div className='w-full h-full f-center text-22px'>{resolvedAvatar}</div>
           ) : (
-            <div className='w-full h-full f-center bg-primary-light'>
+            <div className='w-full h-full f-center'>
               <Bot size={22} className='text-primary' />
             </div>
           )}

@@ -35,7 +35,7 @@ const HubAssistantCard: React.FC<HubAssistantCardProps> = ({ assistant, isInstal
           ) : assistant.emoji ? (
             <div className='w-full h-full f-center text-22px'>{assistant.emoji}</div>
           ) : (
-            <div className='w-full h-full f-center bg-primary-light'>
+            <div className='w-full h-full f-center'>
               <Bot size={22} className='text-primary' />
             </div>
           )}

@@ -427,7 +427,7 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
                             ) : emoji ? (
                               <div className='w-full h-full f-center text-22px'>{emoji}</div>
                             ) : (
-                              <div className='w-full h-full f-center bg-primary-light'>
+                              <div className='w-full h-full f-center'>
                                 <Zap size={22} className='text-primary' />
                               </div>
                             )}
@@ -480,7 +480,7 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
                             ) : emoji ? (
                               <div className='w-full h-full f-center text-22px'>{emoji}</div>
                             ) : (
-                              <div className='w-full h-full f-center bg-primary-light'>
+                              <div className='w-full h-full f-center'>
                                 <Zap size={22} className='text-primary' />
                               </div>
                             )}
