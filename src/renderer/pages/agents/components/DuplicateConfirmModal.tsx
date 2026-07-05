@@ -4,6 +4,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import type { IAssistantHubSkill } from '@/common/ipcBridge';
 import type { AssistantListItem } from '../types';
+import { resolveAvatarImageSrc } from '../utils';
 
 const EMOJI_RE = /^(?:\p{Emoji_Presentation}|\p{Emoji}️)(?:‍(?:\p{Emoji_Presentation}|\p{Emoji}️))*$/u;
 
@@ -23,7 +24,7 @@ function AvatarPreview({ name, description, children }: { name: string; descript
   );
 }
 
-export default function DuplicateConfirmModal({ visible, duplicateAssistant, duplicateInstalledAssistant, localeKey, resolveAvatarImageSrc, onCancel, onConfirm }: IDuplicateConfirmModalProps) {
+export default function DuplicateConfirmModal({ visible, duplicateAssistant, duplicateInstalledAssistant, localeKey, onCancel, onConfirm }: IDuplicateConfirmModalProps) {
   const { t } = useTranslation();
 
   const displayName = duplicateAssistant ? duplicateAssistant.display_name || duplicateAssistant.name : duplicateInstalledAssistant?.nameI18n?.[localeKey] || duplicateInstalledAssistant?.name;
@@ -76,7 +77,6 @@ interface IDuplicateConfirmModalProps {
   duplicateAssistant: IAssistantHubSkill | null;
   duplicateInstalledAssistant: AssistantListItem | null;
   localeKey: string;
-  resolveAvatarImageSrc: (avatar: string | undefined) => string | undefined;
   onCancel: () => void;
   onConfirm: () => void;
 }

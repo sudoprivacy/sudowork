@@ -14,9 +14,8 @@ import { toBackendConfig, resolveAssistantName } from '@/renderer/shared/agents/
 import Tabs from '@renderer/components/ui/Tabs';
 import type { IAssistantInfo } from '@/process/AssistantManager';
 import { resolveLocaleKey, uuid } from '@/common/utils';
-import coworkSvg from '@/renderer/assets/cowork.svg';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
-import { isElectronDesktop, resolveExtensionAssetUrl } from '@/renderer/utils/platform';
+import { isElectronDesktop } from '@/renderer/utils/platform';
 import { DEFAULT_PRESET_AGENT_TYPE, normalizePresetAgentType } from '@/types/acpTypes';
 import { useAuth } from '@/renderer/context/AuthContext';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
@@ -29,7 +28,7 @@ import DuplicateConfirmModal from './components/DuplicateConfirmModal';
 import UploadConfirmModal from './components/UploadConfirmModal';
 import AssistantOperateDrawer from './components/AssistantOperateDrawer';
 import type { AssistantListItem, AssistantLatestVersion } from './types';
-import { normalizeAssistantVersion, normalizeAssistantLookupKey, resolveAssistantVersionLike, getSelectableAssistantSkills, isAutoInjectedBuiltinSkill, sanitizeAssistantEnabledSkills } from './utils';
+import { normalizeAssistantVersion, normalizeAssistantLookupKey, resolveAssistantVersionLike, getSelectableAssistantSkills, isAutoInjectedBuiltinSkill, sanitizeAssistantEnabledSkills, resolveAvatarImageSrc } from './utils';
 
 // ==================== Types ====================
 
@@ -122,14 +121,6 @@ const AgentSettings: React.FC = () => {
     skills: { installed: string[]; skipped: string[]; deleted: string[]; failed: Array<{ id: string; name: string; error: string }> };
     assistants: { installed: string[]; skipped: string[]; deleted: string[]; failed: Array<{ id: string; name: string; error: string }> };
   }>({ syncing: false, skills: { installed: [], skipped: [], deleted: [], failed: [] }, assistants: { installed: [], skipped: [], deleted: [], failed: [] } });
-
-  const avatarImageMap = React.useMemo<Record<string, string>>(
-    () => ({
-      'cowork.svg': coworkSvg,
-      '🛠️': coworkSvg,
-    }),
-    []
-  );
 
   // Extension data
   useSWR('extensions.acpAdapters', () => ipcBridge.extensions.getAcpAdapters.invoke().catch(() => [] as Record<string, unknown>[]));
@@ -1311,19 +1302,6 @@ const AgentSettings: React.FC = () => {
     void fetchLatestAssistantVersions(installedHubVersionTargets, latestAssistantVersionsRef.current);
   }, [fetchLatestAssistantVersions, installedHubVersionTargets, isEnterprise]);
 
-  const resolveAvatarImageSrc = useCallback(
-    (avatar: string | undefined): string | undefined => {
-      const value = avatar?.trim();
-      if (!value) return undefined;
-      const mapped = avatarImageMap[value];
-      if (mapped) return mapped;
-      const resolved = resolveExtensionAssetUrl(value) || value;
-      const isImage = /\.(svg|png|jpe?g|webp|gif)$/i.test(resolved) || /^(https?:|aion-asset:\/\/|file:\/\/|data:)/i.test(resolved);
-      return isImage ? resolved : undefined;
-    },
-    [avatarImageMap]
-  );
-
   // ==================== CRUD Handlers ====================
 
   const handleEdit = async (assistant: AssistantListItem) => {
@@ -1535,7 +1513,6 @@ const AgentSettings: React.FC = () => {
             assistant={assistant}
             isExtension={isExtensionAssistant(assistant)}
             localeKey={localeKey}
-            avatarImageMap={avatarImageMap}
             onToggleEnabled={(enabled) => void handleToggleEnabled(assistant, enabled)}
             onDelete={() => void handleDeleteFromCard(assistant)}
             onDuplicate={() => handleOpenDuplicateModalFromInstalled(assistant)}
@@ -1593,7 +1570,6 @@ const AgentSettings: React.FC = () => {
             assistant={assistant}
             isExtension={isExtensionAssistant(assistant)}
             localeKey={localeKey}
-            avatarImageMap={avatarImageMap}
             onToggleEnabled={(enabled) => void handleToggleEnabled(assistant, enabled)}
             onDelete={() => void handleDeleteFromCard(assistant)}
             onDuplicate={() => handleOpenDuplicateModalFromInstalled(assistant)}
@@ -1888,7 +1864,6 @@ const AgentSettings: React.FC = () => {
           duplicateAssistant={duplicateAssistant}
           duplicateInstalledAssistant={duplicateInstalledAssistant}
           localeKey={localeKey}
-          resolveAvatarImageSrc={resolveAvatarImageSrc}
           onCancel={() => {
             setDuplicateConfirmVisible(false);
             setDuplicateAssistant(null);
@@ -1907,7 +1882,6 @@ const AgentSettings: React.FC = () => {
             setUploadAssistant(null);
           }}
           onConfirm={handleUploadConfirm}
-          resolveAvatarImageSrc={resolveAvatarImageSrc}
         />
 
         {/* Hub Agent Detail Modal */}

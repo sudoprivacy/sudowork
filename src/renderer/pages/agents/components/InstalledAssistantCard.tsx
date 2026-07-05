@@ -3,12 +3,11 @@ import { Button, Popconfirm, Switch, Tooltip } from '@arco-design/web-react';
 import { Bot, Copy, Download, Eye, SquarePen, Trash2, Upload, Zap } from 'lucide-react';
 import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
-import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import type { AssistantListItem } from '../types';
-import { normalizeAssistantVersion } from '../utils';
+import { normalizeAssistantVersion, resolveAvatarImageSrc } from '../utils';
 
 const InstalledAssistantCard: React.FC<InstalledAssistantCardProps> = (props) => {
-  const { assistant, isExtension, localeKey, avatarImageMap } = props;
+  const { assistant, isExtension, localeKey } = props;
   const { onToggleEnabled, onDelete, onDuplicate, onUpdate, hasUpdate, updating, onUpload, onClick } = props;
   const { enterprisePublishButton, hideDelete, allowToggle, allowDelete, enterpriseMode } = props;
   const { t } = useTranslation();
@@ -22,17 +21,7 @@ const InstalledAssistantCard: React.FC<InstalledAssistantCardProps> = (props) =>
   const emojiRegex = /^(?:\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(?:\u200D(?:\p{Emoji_Presentation}|\p{Emoji}\uFE0F))*$/u;
   const hasEmojiAvatar = Boolean(resolvedAvatar && emojiRegex.test(resolvedAvatar));
 
-  const resolveAvatarImage = (avatar: string | undefined): string | undefined => {
-    const value = avatar?.trim();
-    if (!value) return undefined;
-    const mapped = avatarImageMap[value];
-    if (mapped) return mapped;
-    const resolved = resolveExtensionAssetUrl(value) || value;
-    const isImage = /\.(svg|png|jpe?g|webp|gif)$/i.test(resolved) || /^(https?:|aion-asset:\/\/|file:\/\/|data:)/i.test(resolved);
-    return isImage ? resolved : undefined;
-  };
-
-  const avatarImage = resolveAvatarImage(resolvedAvatar);
+  const avatarImage = resolveAvatarImageSrc(resolvedAvatar);
   const displayName = assistant.nameI18n?.[localeKey] || assistant.name;
   const description = assistant.descriptionI18n?.[localeKey] || assistant.description || '';
   const displayVersion = enterpriseMode ? '' : normalizeAssistantVersion(assistant._installedVersion);
@@ -121,7 +110,6 @@ type InstalledAssistantCardProps = {
   assistant: AssistantListItem;
   isExtension: boolean;
   localeKey: string;
-  avatarImageMap: Record<string, string>;
   onToggleEnabled: (_enabled: boolean) => void;
   onDelete: () => void;
   onDuplicate: () => void;

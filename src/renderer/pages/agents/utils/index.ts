@@ -1,6 +1,23 @@
 import { normalizeSkillVersion } from '@/renderer/utils/skillDisplay';
+import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
+import coworkSvg from '@/renderer/assets/cowork.svg';
 import type { IAssistantHubSkill, IAssistantHubVersionLike, IInstalledSkillInfo } from '@/common/ipcBridge';
 import type { AssistantLatestVersion } from '../types';
+
+const AVATAR_IMAGE_MAP: Record<string, string> = {
+  'cowork.svg': coworkSvg,
+  '🛠️': coworkSvg,
+};
+
+export function resolveAvatarImageSrc(avatar: string | undefined): string | undefined {
+  const value = avatar?.trim();
+  if (!value) return undefined;
+  const mapped = AVATAR_IMAGE_MAP[value];
+  if (mapped) return mapped;
+  const resolved = resolveExtensionAssetUrl(value) || value;
+  const isImage = /\.(svg|png|jpe?g|webp|gif)$/i.test(resolved) || /^(https?:|aion-asset:\/\/|file:\/\/|data:)/i.test(resolved);
+  return isImage ? resolved : undefined;
+}
 
 export function isEmoji(str: string): boolean {
   if (!str) return false;

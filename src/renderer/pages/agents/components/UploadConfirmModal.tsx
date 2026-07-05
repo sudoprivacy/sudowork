@@ -3,9 +3,9 @@ import { Bot } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import React from 'react';
 import type { AssistantListItem } from '../types';
-import { isEmoji } from '../utils';
+import { isEmoji, resolveAvatarImageSrc } from '../utils';
 
-export default function UploadConfirmModal({ isVisible, isUploading, assistant, localeKey, onCancel, onConfirm, resolveAvatarImageSrc }: IUploadConfirmModalProps) {
+export default function UploadConfirmModal({ isVisible, isUploading, assistant, localeKey, onCancel, onConfirm }: IUploadConfirmModalProps) {
   const { t } = useTranslation();
 
   return (
@@ -54,5 +54,4 @@ interface IUploadConfirmModalProps {
   localeKey: string;
   onCancel: () => void;
   onConfirm: () => void;
-  resolveAvatarImageSrc: (avatar: string | undefined) => string | undefined;
 }
