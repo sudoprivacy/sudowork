@@ -16,7 +16,7 @@ import { allSupportedExts } from '@/renderer/services/FileService';
 import { emitter, useAddEventListener } from '@/renderer/utils/emitter';
 import { mergeFileSelectionItems } from '@/renderer/utils/fileSelection';
 import BdpanLogo from '@/renderer/assets/logos/bdpan.png';
-import BdpanImportFilePicker from '@/renderer/components/BdpanImportFilePicker';
+import BdpanImportFilePicker from '@/renderer/components/base/BdpanImportFilePicker';
 import FilePreview from '@/renderer/components/FilePreview';
 import HorizontalFileList from '@/renderer/components/HorizontalFileList';
 import { usePreviewContext } from '@/renderer/pages/conversation/preview';

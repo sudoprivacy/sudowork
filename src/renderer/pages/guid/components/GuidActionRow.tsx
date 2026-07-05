@@ -13,7 +13,7 @@ import AgentModeSelector from '@/renderer/components/AgentModeSelector';
 import { getAgentModes, supportsModeSwitch, type AgentModeOption } from '@/renderer/utils/agentModes';
 import ActionChip from '@/renderer/components/ui/ActionChip';
 import BdpanLogo from '@/renderer/assets/logos/bdpan.png';
-import BdpanImportFilePicker from '@/renderer/components/BdpanImportFilePicker';
+import BdpanImportFilePicker from '@/renderer/components/base/BdpanImportFilePicker';
 import styles from '../index.module.css';
 import type { AcpBackend, AcpBackendConfig, AvailableAgent } from '../types';
 import PresetAgentTag from './PresetAgentTag';

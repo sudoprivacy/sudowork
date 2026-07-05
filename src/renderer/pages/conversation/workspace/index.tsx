@@ -25,7 +25,7 @@ import { isElectronDesktop } from '@/renderer/utils/platform';
 import { getLastDirectoryName, isTemporaryWorkspace as checkIsTemporaryWorkspace, isChannelWorkspace as checkIsChannelWorkspace, getWorkspaceDisplayName as getDisplayName } from '@/renderer/utils/workspace';
 import { resolveFileIcon } from '@/renderer/utils/fileIcon';
 import DirectorySelectionModal from '@/renderer/components/DirectorySelectionModal';
-import BdpanUploadDirPicker from '@/renderer/components/BdpanUploadDirPicker';
+import BdpanUploadDirPicker from '@/renderer/components/base/BdpanUploadDirPicker';
 import { uuid } from '@/common/utils';
 import { extractNodeData, extractNodeKey, findNodeByKey, getTargetFolderPath, sortTreeNodes, updateTreeNodeChildren } from './utils/treeHelpers';
 import type { WorkspaceProps } from './types';
