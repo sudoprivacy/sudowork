@@ -19,7 +19,7 @@ const HubAssistantCard: React.FC<HubAssistantCardProps> = ({ assistant, isInstal
     <div className='card group flex items-start gap-3 relative overflow-hidden' onClick={onClick}>
       {/* Icon */}
       <div className='w-12 flex-shrink-0 flex flex-col items-center'>
-        <div className='size-12 rd-8px overflow-hidden bg-fill-2'>
+        <div className='size-12 rd-8px overflow-hidden bg-control'>
           {resolvedAvatar ? (
             hasEmojiAvatar ? (
               <div className='w-full h-full f-center text-22px'>{resolvedAvatar}</div>

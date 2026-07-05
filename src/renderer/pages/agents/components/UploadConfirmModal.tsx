@@ -21,12 +21,12 @@ export default function UploadConfirmModal({ isVisible, isUploading, assistant, 
       wrapStyle={{ zIndex: 10000 }}
       maskStyle={{ zIndex: 9999 }}
     >
-      <p>{t('settings.uploadAssistantConfirm', 'Confirm upload this agent to the agent store? Other users in the same tenant will be able to download and use it after upload.')}</p>
+      <p className='mt-0'>{t('settings.uploadAssistantConfirm', 'Confirm upload this agent to the agent store? Other users in the same tenant will be able to download and use it after upload.')}</p>
       {/* Agent preview */}
       {assistant && (
-        <div className='mt-3 p-3 bg-fill-2 rounded-lg flex items-center gap-3'>
+        <div className='mt-3 p-3 bg-control rounded-xl flex items-center gap-3'>
           <Avatar.Group size={32}>
-            <Avatar className='border-none' shape='square' style={{ backgroundColor: 'var(--color-fill-2)', border: 'none' }}>
+            <Avatar className='!border-none bg-transparent' shape='square'>
               {(() => {
                 const resolvedAvatar = assistant.avatar?.trim();
                 const avatarImg = resolveAvatarImageSrc(resolvedAvatar);

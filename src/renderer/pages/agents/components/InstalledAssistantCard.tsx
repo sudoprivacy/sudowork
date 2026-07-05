@@ -60,7 +60,7 @@ const InstalledAssistantCard: React.FC<InstalledAssistantCardProps> = (props) =>
           <span className='font-medium text-13px text-foreground truncate' title={displayName.length > 15 ? displayName : undefined}>
             {displayName.length > 15 ? `${displayName.slice(0, 15)}...` : displayName}
           </span>
-          {displayVersion && !assistant.isBuiltin && <span className='ml-1.5 px-5px py-0 bg-fill-3 text-secondary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px'>v{displayVersion}</span>}
+          {displayVersion && !assistant.isBuiltin && <span className='ml-1.5 px-5px py-0 bg-control text-secondary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px'>v{displayVersion}</span>}
         </div>
         <div className='mt-3px min-h-7.5'>{description ? <div className='text-11px text-secondary line-clamp-2 leading-15px'>{description}</div> : null}</div>
         {assistant.enabledSkills && assistant.enabledSkills.length > 0 && (

@@ -119,9 +119,9 @@ export default function AssistantOperateDrawer({
             <Typography.Text bold className='flex-shrink-0'>
               {t('settings.assistantRules', '规则')}
             </Typography.Text>
-            <div className='mt-2.5 border overflow-hidden rounded-8px' style={{ height: '300px' }}>
+            <div className='mt-2.5 overflow-hidden rounded-lg border border-light' style={{ height: '300px' }}>
               {!isReadonly && (
-                <div className='flex items-center h-9 bg-fill-2 border-b flex-shrink-0'>
+                <div className='flex items-center h-9 bg-control border-b border-light flex-shrink-0'>
                   <div className={`flex items-center h-full px-4 cursor-pointer transition-all text-13px font-medium ${promptViewMode === 'edit' ? 'text-primary border-b-2px border-primary' : 'text-secondary hover:text-foreground'}`} onClick={() => onPromptViewModeChange('edit')}>
                     {t('settings.promptEdit', 'Edit')}
                   </div>
@@ -130,7 +130,7 @@ export default function AssistantOperateDrawer({
                   </div>
                 </div>
               )}
-              <div className='bg-fill-2' style={{ height: isReadonly ? '100%' : 'calc(100% - 36px)', overflow: 'auto' }}>
+              <div className='' style={{ height: isReadonly ? '100%' : 'calc(100% - 36px)', overflow: 'auto' }}>
                 {promptViewMode === 'edit' && !isReadonly ? (
                   <div ref={textareaWrapperRef} className='h-full'>
                     <Input.TextArea value={editContext} onChange={onContextChange} placeholder={t('settings.assistantRulesPlaceholder', '请输入 Markdown 格式的规则...')} autoSize={false} className='border-none rounded-none bg-transparent h-full resize-none' />
