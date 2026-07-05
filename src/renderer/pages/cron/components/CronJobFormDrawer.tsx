@@ -215,10 +215,8 @@ export default function CronJobFormDrawer({ visible, editJob, sessionMode, onClo
       onCancel={onClose}
       footer={
         <div className='flex justify-end gap-2'>
-          <Button shape='round' onClick={onClose}>
-            {t('cron.create.cancel', '取消')}
-          </Button>
-          <Button type='primary' shape='round' loading={saving} onClick={handleSave}>
+          <Button onClick={onClose}>{t('cron.create.cancel', '取消')}</Button>
+          <Button type='primary' loading={saving} onClick={handleSave}>
             {t('cron.drawer.save', '保存')}
           </Button>
         </div>

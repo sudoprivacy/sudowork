@@ -66,10 +66,8 @@ export default function AssistantOperateDrawer({
       onCancel={onClose}
       footer={
         <div className='flex justify-end gap-2'>
-          <Button onClick={onClose} className='w-[100px] rounded-[100px] bg-fill-2'>
-            {t('common.cancel', 'Cancel')}
-          </Button>
-          <Button type='primary' onClick={onSave} disabled={!isCreating && isReadonly} className='w-[100px] rounded-[100px]'>
+          <Button onClick={onClose}>{t('common.cancel', 'Cancel')}</Button>
+          <Button type='primary' onClick={onSave} disabled={!isCreating && isReadonly}>
             {isCreating ? t('common.create', 'Create') : t('common.save', 'Save')}
           </Button>
         </div>
