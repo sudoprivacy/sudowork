@@ -2,6 +2,12 @@ import { normalizeSkillVersion } from '@/renderer/utils/skillDisplay';
 import type { IAssistantHubSkill, IAssistantHubVersionLike, IInstalledSkillInfo } from '@/common/ipcBridge';
 import type { AssistantLatestVersion } from '../types';
 
+export function isEmoji(str: string): boolean {
+  if (!str) return false;
+  const emojiRegex = /^(?:\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(?:\u200D(?:\p{Emoji_Presentation}|\p{Emoji}\uFE0F))*$/u;
+  return emojiRegex.test(str);
+}
+
 export const normalizeAssistantVersion = (version?: string | null) => normalizeSkillVersion(version).replace(/^v(?=\d)/i, '');
 
 export const normalizeAssistantLookupKey = (value: string | null | undefined) => value?.trim().toLowerCase();

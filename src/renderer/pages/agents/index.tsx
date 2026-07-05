@@ -28,6 +28,7 @@ import SkillCard from './components/SkillCard';
 import HubAssistantCard from './components/HubAssistantCard';
 import AssistantDetailModal from './components/AssistantDetailModal';
 import InstalledAssistantCard from './components/InstalledAssistantCard';
+import UploadConfirmModal from './components/UploadConfirmModal';
 import type { AssistantListItem, AssistantLatestVersion } from './types';
 import { normalizeAssistantVersion, normalizeAssistantLookupKey, resolveAssistantVersionLike, getSelectableAssistantSkills, isAssistantSkillSelected, isAutoInjectedBuiltinSkill, sanitizeAssistantEnabledSkills, toggleAssistantSkillSelection } from './utils';
 
@@ -2172,45 +2173,18 @@ const AgentSettings: React.FC = () => {
           )}
         </Modal>
 
-        {/* Upload Confirmation Modal */}
-        <Modal
-          title={t('settings.uploadAssistantTitle', '上传智能体')}
-          visible={uploadConfirmVisible}
+        <UploadConfirmModal
+          isVisible={uploadConfirmVisible}
+          isUploading={uploading}
+          assistant={uploadAssistant}
+          localeKey={localeKey}
           onCancel={() => {
             setUploadConfirmVisible(false);
             setUploadAssistant(null);
           }}
-          onOk={handleUploadConfirm}
-          okText={t('common.confirm', '确认')}
-          cancelText={t('common.cancel', '取消')}
-          confirmLoading={uploading}
-          className='w-[90vw] md:w-[400px]'
-          wrapStyle={{ zIndex: 10000 }}
-          maskStyle={{ zIndex: 9999 }}
-        >
-          <p>{t('settings.uploadAssistantConfirm', 'Confirm upload this agent to the agent store? Other users in the same tenant will be able to download and use it after upload.')}</p>
-          {/* Agent preview */}
-          {uploadAssistant && (
-            <div className='mt-3 p-3 bg-fill-2 rounded-lg flex items-center gap-3'>
-              <Avatar.Group size={32}>
-                <Avatar className='border-none' shape='square' style={{ backgroundColor: 'var(--color-fill-2)', border: 'none' }}>
-                  {(() => {
-                    const resolvedAvatar = uploadAssistant.avatar?.trim();
-                    const avatarImg = resolveAvatarImageSrc(resolvedAvatar);
-                    const hasEmoji = Boolean(resolvedAvatar && isEmoji(resolvedAvatar));
-                    if (avatarImg) return <img src={avatarImg} alt='' width={19} height={19} style={{ objectFit: 'contain' }} />;
-                    if (hasEmoji) return <span style={{ fontSize: 19 }}>{resolvedAvatar}</span>;
-                    return <Bot size={16} />;
-                  })()}
-                </Avatar>
-              </Avatar.Group>
-              <div>
-                <div className='font-medium'>{uploadAssistant.nameI18n?.[localeKey] || uploadAssistant.name}</div>
-                <div className='text-12px text-secondary line-clamp-2'>{uploadAssistant.descriptionI18n?.[localeKey] || uploadAssistant.description}</div>
-              </div>
-            </div>
-          )}
-        </Modal>
+          onConfirm={handleUploadConfirm}
+          resolveAvatarImageSrc={resolveAvatarImageSrc}
+        />
 
         {/* Hub Agent Detail Modal */}
         <AssistantDetailModal
