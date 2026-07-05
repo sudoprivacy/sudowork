@@ -58,7 +58,6 @@ const AgentSettings: React.FC = () => {
   const [editAgent, setEditAgent] = useState<string>(DEFAULT_PRESET_AGENT_TYPE);
   const [isCreating, setIsCreating] = useState(false);
   const [promptViewMode, setPromptViewMode] = useState<'edit' | 'preview'>('preview');
-  const [drawerWidth, setDrawerWidth] = useState(500);
 
   // Skills state
   const [installedSkills, setInstalledSkills] = useState<IInstalledSkillInfo[]>([]);
@@ -170,17 +169,6 @@ const AgentSettings: React.FC = () => {
   const isExtensionAssistant = useCallback((assistant: AssistantListItem | null | undefined) => {
     if (!assistant) return false;
     return assistant._source === 'extension' || assistant.id.startsWith('ext-');
-  }, []);
-
-  useEffect(() => {
-    const updateDrawerWidth = () => {
-      if (typeof window === 'undefined') return;
-      const nextWidth = Math.min(500, Math.max(320, Math.floor(window.innerWidth - 32)));
-      setDrawerWidth(nextWidth);
-    };
-    updateDrawerWidth();
-    window.addEventListener('resize', updateDrawerWidth);
-    return () => window.removeEventListener('resize', updateDrawerWidth);
   }, []);
 
   // Load installed skills
@@ -1895,7 +1883,6 @@ const AgentSettings: React.FC = () => {
         <AssistantOperateDrawer
           visible={editVisible}
           isCreating={isCreating}
-          drawerWidth={drawerWidth}
           isReadonly={!isCreating && isReadonlyAssistant}
           editAvatar={editAvatar}
           editAvatarImage={editAvatarImage}

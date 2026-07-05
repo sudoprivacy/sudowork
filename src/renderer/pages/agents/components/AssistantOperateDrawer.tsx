@@ -1,6 +1,6 @@
 import { Avatar, Button, Collapse, Drawer, Input, Select, Typography } from '@arco-design/web-react';
 import { Bot } from 'lucide-react';
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { IInstalledSkillInfo } from '@/common/ipcBridge';
 import { DEFAULT_PRESET_AGENT_TYPE } from '@/types/acpTypes';
@@ -12,7 +12,6 @@ import SkillCard from './SkillCard';
 export default function AssistantOperateDrawer({
   visible,
   isCreating,
-  drawerWidth,
   isReadonly,
   editAvatar,
   editAvatarImage,
@@ -34,6 +33,17 @@ export default function AssistantOperateDrawer({
 }: IAssistantOperateDrawerProps) {
   const { t } = useTranslation();
   const textareaWrapperRef = useRef<HTMLDivElement>(null);
+  const [drawerWidth, setDrawerWidth] = useState(500);
+
+  useEffect(() => {
+    const update = () => {
+      if (typeof window === 'undefined') return;
+      setDrawerWidth(Math.min(500, Math.max(320, Math.floor(window.innerWidth - 32))));
+    };
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, []);
 
   useEffect(() => {
     if (visible && promptViewMode === 'edit') {
@@ -187,7 +197,6 @@ export default function AssistantOperateDrawer({
 interface IAssistantOperateDrawerProps {
   visible: boolean;
   isCreating: boolean;
-  drawerWidth: number;
   isReadonly: boolean;
   editAvatar: string;
   editAvatarImage: string | undefined;
