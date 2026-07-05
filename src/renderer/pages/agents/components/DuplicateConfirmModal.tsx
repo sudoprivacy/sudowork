@@ -59,7 +59,7 @@ export default function DuplicateConfirmModal({ visible, duplicateAssistant, dup
       )}
 
       {displayName && (
-        <div className='mt-3 p-3 rounded-lg'>
+        <div className='py-3 rounded-lg'>
           <div className='text-12px text-primary'>
             {t('settings.duplicateAssistantNameHint', {
               name: displayName,
