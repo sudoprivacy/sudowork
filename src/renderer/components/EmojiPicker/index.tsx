@@ -478,7 +478,7 @@ const EmojiPicker: React.FC<EmojiPickerProps> = ({ value, onChange, children, pl
 
   const pickerContent = (
     <div className='w-280px'>
-      <Tabs activeTab={activeCategory} onChange={(v) => setActiveCategory(v as typeof activeCategory)} className='-mx-1'>
+      <Tabs activeTab={activeCategory} onChange={(v) => setActiveCategory(v as typeof activeCategory)} className='-mt-2' scrollPosition='center'>
         {categoryKeys.map((key) => (
           <Tabs.TabPane key={key} title={<span title={EMOJI_CATEGORIES[key].label}>{EMOJI_CATEGORIES[key].label}</span>}>
             <div className='max-h-200px overflow-y-auto'>{renderGrid(getEmojis(key))}</div>
