@@ -64,10 +64,10 @@ const HubAssistantCard: React.FC<HubAssistantCardProps> = ({ assistant, isInstal
           <>
             {!hasUpdate && !updating && (
               <span className='store-action-badge' style={{ backgroundColor: 'rgba(var(--ui-accent-orange-rgb), 0.10)', color: 'var(--ui-accent-orange)' }}>
-                {t('settings.assistant.installed', { defaultValue: '已安装' })}
+                {t('settings.assistant.installed', '已安装')}
               </span>
             )}
-            <Tooltip content={t('settings.assistant.duplicate', { defaultValue: '复制' })}>
+            <Tooltip content={t('settings.assistant.duplicate', '复制')}>
               <button type='button' className='store-action-icon' onClick={onDuplicate}>
                 <Copy size={13} />
               </button>
@@ -80,13 +80,13 @@ const HubAssistantCard: React.FC<HubAssistantCardProps> = ({ assistant, isInstal
             <Progress percent={installProgress} size='mini' />
           </div>
         ) : isInstalled && hasUpdate ? (
-          <Tooltip content={t('settings.assistant.update', { defaultValue: '更新' })}>
+          <Tooltip content={t('settings.assistant.update', '更新')}>
             <button type='button' className='store-action-icon' onClick={onUpdate}>
               <Download size={13} />
             </button>
           </Tooltip>
         ) : !isInstalled && hasDownloadUrl ? (
-          <Tooltip content={t('settings.assistant.install', { defaultValue: '安装' })}>
+          <Tooltip content={t('settings.assistant.install', '安装')}>
             <button type='button' className='store-action-icon' onClick={onInstall}>
               <Download size={13} />
             </button>

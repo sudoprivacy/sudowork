@@ -81,7 +81,7 @@ const InstalledAssistantCard: React.FC<InstalledAssistantCardProps> = (props) =>
       <div className='absolute top-10px right-10px flex items-center gap-3' onClick={(e) => e.stopPropagation()}>
         {/* Edit/View button - custom assistants show edit, readonly assistants show view */}
         {hasUpdate && (
-          <Tooltip content={t('settings.assistant.updateAvailable', { defaultValue: '可更新' })}>
+          <Tooltip content={t('settings.assistant.updateAvailable', '可更新')}>
             <Button
               type='text'
               shape='circle'
@@ -95,30 +95,24 @@ const InstalledAssistantCard: React.FC<InstalledAssistantCardProps> = (props) =>
             />
           </Tooltip>
         )}
-        <Tooltip content={isReadonly ? t('settings.assistant.view', { defaultValue: '查看' }) : t('settings.assistant.edit', { defaultValue: '编辑' })}>
+        <Tooltip content={isReadonly ? t('settings.assistant.view', '查看') : t('settings.assistant.edit', '编辑')}>
           <Button shape='circle' className='!size-7' icon={isReadonly ? <Eye size={13} /> : <SquarePen size={13} />} onClick={onClick} />
         </Tooltip>
         {/* Upload button - only for custom assistants */}
         {isCustom && onUpload && (
-          <Tooltip content={t('settings.assistant.upload', { defaultValue: '上传' })}>
+          <Tooltip content={t('settings.assistant.upload', '上传')}>
             <Button shape='circle' className='!size-7' icon={<Upload size={13} />} onClick={onUpload} />
           </Tooltip>
         )}
         {/* Duplicate button - available for all assistant types */}
-        <Tooltip content={t('settings.assistant.duplicate', { defaultValue: '复制' })}>
+        <Tooltip content={t('settings.assistant.duplicate', '复制')}>
           <Button shape='circle' className='!size-7' icon={<Copy size={13} />} onClick={onDuplicate} />
         </Tooltip>
         {enterprisePublishButton}
         {/* Delete button - only for custom assistants that are not readonly */}
         {canDelete && (
-          <Popconfirm
-            title={t('settings.deleteAssistantConfirmTitle', { defaultValue: '删除该助手会一并删除已关联会话。如需保留，请导出会话进行备份。是否确认删除？' })}
-            onOk={onDelete}
-            okText={t('common.delete', { defaultValue: '删除' })}
-            cancelText={t('common.cancel', { defaultValue: '取消' })}
-            okButtonProps={{ status: 'danger' }}
-          >
-            <Tooltip content={t('settings.assistant.delete', { defaultValue: '删除' })}>
+          <Popconfirm title={t('settings.deleteAssistantConfirmTitle', '删除该助手会一并删除已关联会话。如需保留，请导出会话进行备份。是否确认删除？')} onOk={onDelete} okText={t('common.delete', '删除')} cancelText={t('common.cancel', '取消')} okButtonProps={{ status: 'danger' }}>
+            <Tooltip content={t('settings.assistant.delete', '删除')}>
               <Button shape='circle' status='danger' className='!size-7' icon={<Trash2 size={13} />} />
             </Tooltip>
           </Popconfirm>

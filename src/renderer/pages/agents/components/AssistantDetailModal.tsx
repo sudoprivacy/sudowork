@@ -198,7 +198,7 @@ const AssistantDetailModal: React.FC<AssistantDetailModalProps> = ({ assistant, 
                 <div className='bg-fill-1 rd-10px p-14px'>
                   <div className='flex items-center gap-6px mb-8px'>
                     <span className='text-14px'>✦</span>
-                    <span className='font-medium text-13px text-foreground'>{t('settings.assistant.introduction', { defaultValue: '助手介绍' })}</span>
+                    <span className='font-medium text-13px text-foreground'>{t('settings.assistant.introduction', '助手介绍')}</span>
                   </div>
                   <div className='text-12px text-secondary leading-relaxed'>{assistant.description}</div>
                 </div>
@@ -208,12 +208,12 @@ const AssistantDetailModal: React.FC<AssistantDetailModalProps> = ({ assistant, 
                   <div className='bg-fill-1 rd-10px p-14px'>
                     <div className='flex items-center gap-6px mb-10px'>
                       <Zap size={14} className='text-primary' />
-                      <span className='font-medium text-13px text-foreground'>{t('settings.assistant.relatedSkills', { defaultValue: '关联技能' })}</span>
+                      <span className='font-medium text-13px text-foreground'>{t('settings.assistant.relatedSkills', '关联技能')}</span>
                       <span className='text-12px text-secondary'>({relatedSkillDetails.length})</span>
                       {installedSkillCount > 0 && <span className='text-12px text-secondary'>· {t('settings.assistant.skillsInstalled', { installed: installedSkillCount, defaultValue: `${installedSkillCount} 已安装` })}</span>}
                     </div>
                     {loadingSkills ? (
-                      <div className='text-center text-secondary text-12px py-16px'>{t('common.loading', { defaultValue: '加载中...' })}</div>
+                      <div className='text-center text-secondary text-12px py-16px'>{t('common.loading', '加载中...')}</div>
                     ) : (
                       <div className='space-y-8px'>
                         {relatedSkillDetails.map((skill) => {
@@ -251,15 +251,13 @@ const AssistantDetailModal: React.FC<AssistantDetailModalProps> = ({ assistant, 
                                 </div>
                                 <div className='text-11px text-secondary truncate'>{skill.description}</div>
                               </div>
-                              <span className={`px-4px py-0px text-10px rd-1 whitespace-nowrap ${isSkillInstalled ? 'text-primary' : 'bg-muted text-secondary'}`}>
-                                {isSkillInstalled ? t('settings.skill.installed', { defaultValue: '已安装' }) : t('settings.skill.notInstalled', { defaultValue: '未安装' })}
-                              </span>
+                              <span className={`px-4px py-0px text-10px rd-1 whitespace-nowrap ${isSkillInstalled ? 'text-primary' : 'bg-muted text-secondary'}`}>{isSkillInstalled ? t('settings.skill.installed', '已安装') : t('settings.skill.notInstalled', '未安装')}</span>
                             </div>
                           );
                         })}
                       </div>
                     )}
-                    <div className='mt-12px text-11px text-secondary'>{t('settings.assistant.skillsInstallHint', { defaultValue: '安装助手时会自动安装关联的技能' })}</div>
+                    <div className='mt-12px text-11px text-secondary'>{t('settings.assistant.skillsInstallHint', '安装助手时会自动安装关联的技能')}</div>
                   </div>
                 )}
               </div>
@@ -276,17 +274,17 @@ const AssistantDetailModal: React.FC<AssistantDetailModalProps> = ({ assistant, 
               </Button>
             ) : isInstalled ? (
               <Button type='primary' long size='large' className='flex-1' onClick={onGoUse || onClose}>
-                {t('settings.skill.goUse', { defaultValue: '去使用' })}
+                {t('settings.skill.goUse', '去使用')}
               </Button>
             ) : !hasDownloadUrl ? (
-              <div className='flex-1 text-center text-secondary text-13px py-12px'>{t('settings.assistant.noDownloadUrl', { defaultValue: '该助手暂不支持安装，请联系管理员' })}</div>
+              <div className='flex-1 text-center text-secondary text-13px py-12px'>{t('settings.assistant.noDownloadUrl', '该助手暂不支持安装，请联系管理员')}</div>
             ) : installing ? (
               <div className='flex-1'>
                 <Progress percent={installProgress} size='small' />
               </div>
             ) : (
               <Button type='primary' long size='large' icon={<IconDownload />} onClick={() => onInstall(associatedSkillIds)}>
-                {t('settings.assistant.install', { defaultValue: '安装助手' })}
+                {t('settings.assistant.install', '安装助手')}
               </Button>
             )}
           </div>

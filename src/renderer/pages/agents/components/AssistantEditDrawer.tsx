@@ -270,12 +270,12 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
         await mutate('acp.agents.available');
       }
 
-      Message.success(t('common.saveSuccess', { defaultValue: 'Saved successfully' }));
+      Message.success(t('common.saveSuccess', 'Saved successfully'));
       onSaved();
       onClose();
     } catch (error) {
       console.error('Failed to save assistant:', error);
-      Message.error(t('common.failed', { defaultValue: 'Failed' }));
+      Message.error(t('common.failed', 'Failed'));
     }
   }, [assistant, isReadonly, isEnterprise, editName, editDescription, editAvatar, editAgent, editContext, selectedSkills, installedSkills, localeKey, onSaved, onClose, t]);
 
@@ -283,7 +283,7 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
 
   return (
     <Drawer
-      title={t('settings.editAssistant', { defaultValue: '智能体详情' })}
+      title={t('settings.editAssistant', '智能体详情')}
       closable
       visible={visible}
       placement='right'
@@ -296,10 +296,10 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
       footer={
         <div className='flex justify-end gap-2'>
           <Button onClick={onClose} className='w-[100px] rounded-[100px] bg-fill-2'>
-            {t('common.cancel', { defaultValue: 'Cancel' })}
+            {t('common.cancel', 'Cancel')}
           </Button>
           <Button type='primary' onClick={handleSave} disabled={isReadonly} className='w-[100px] rounded-[100px]'>
-            {t('common.save', { defaultValue: 'Save' })}
+            {t('common.save', 'Save')}
           </Button>
         </div>
       }
@@ -309,7 +309,7 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
           {/* Name & Avatar */}
           <div className='flex-shrink-0'>
             <Typography.Text bold>
-              <span className='text-red-500'>*</span> {t('settings.assistantNameAvatar', { defaultValue: '名称及头像' })}
+              <span className='text-red-500'>*</span> {t('settings.assistantNameAvatar', '名称及头像')}
             </Typography.Text>
             <div className='mt-10px flex items-center gap-12px'>
               {isBuiltin || isReadonly ? (
@@ -325,19 +325,19 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
                   </div>
                 </EmojiPicker>
               )}
-              <Input value={editName} onChange={(value) => setEditName(value)} disabled={isBuiltin || isReadonly} placeholder={t('settings.agentNamePlaceholder', { defaultValue: '请输入智能体名称' })} className='flex-1' />
+              <Input value={editName} onChange={(value) => setEditName(value)} disabled={isBuiltin || isReadonly} placeholder={t('settings.agentNamePlaceholder', '请输入智能体名称')} className='flex-1' />
             </div>
           </div>
 
           {/* Description */}
           <div className='flex-shrink-0'>
-            <Typography.Text bold>{t('settings.assistantDescription', { defaultValue: '智能体描述' })}</Typography.Text>
-            <Input className='mt-10px' value={editDescription} onChange={(value) => setEditDescription(value)} disabled={isBuiltin || isReadonly} placeholder={t('settings.assistantDescriptionPlaceholder', { defaultValue: '帮你解决什么问题' })} />
+            <Typography.Text bold>{t('settings.assistantDescription', '智能体描述')}</Typography.Text>
+            <Input className='mt-10px' value={editDescription} onChange={(value) => setEditDescription(value)} disabled={isBuiltin || isReadonly} placeholder={t('settings.assistantDescriptionPlaceholder', '帮你解决什么问题')} />
           </div>
 
           {/* Main Agent - locked to Sudo Code */}
           <div className='flex-shrink-0'>
-            <Typography.Text bold>{t('settings.assistantMainAgent', { defaultValue: '主智能体' })}</Typography.Text>
+            <Typography.Text bold>{t('settings.assistantMainAgent', '主智能体')}</Typography.Text>
             <Select className='mt-10px w-full' value={DEFAULT_PRESET_AGENT_TYPE} disabled>
               <Select.Option key='scode' value='scode'>
                 <span className='flex items-center gap-6px'>
@@ -351,16 +351,16 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
           {/* Rules */}
           <div className='flex-shrink-0'>
             <Typography.Text bold className='flex-shrink-0'>
-              {t('settings.assistantRules', { defaultValue: '规则' })}
+              {t('settings.assistantRules', '规则')}
             </Typography.Text>
             <div className='mt-10px border overflow-hidden rounded-4px' style={{ height: '300px' }}>
               {!isBuiltin && !isReadonly && (
                 <div className='flex items-center h-36px bg-fill-2 border-b flex-shrink-0'>
                   <div className={`flex items-center h-full px-16px cursor-pointer transition-all text-13px font-medium ${promptViewMode === 'edit' ? 'text-primary border-b-2px border-solid border-primary' : 'text-secondary hover:text-foreground'}`} onClick={() => setPromptViewMode('edit')}>
-                    {t('settings.promptEdit', { defaultValue: 'Edit' })}
+                    {t('settings.promptEdit', 'Edit')}
                   </div>
                   <div className={`flex items-center h-full px-16px cursor-pointer transition-all text-13px font-medium ${promptViewMode === 'preview' ? 'text-primary border-b-2px border-solid border-primary' : 'text-secondary hover:text-foreground'}`} onClick={() => setPromptViewMode('preview')}>
-                    {t('settings.promptPreview', { defaultValue: 'Preview' })}
+                    {t('settings.promptPreview', 'Preview')}
                   </div>
                 </div>
               )}
@@ -373,7 +373,7 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
               >
                 {promptViewMode === 'edit' && !isBuiltin && !isReadonly ? (
                   <div ref={textareaWrapperRef} className='h-full'>
-                    <Input.TextArea value={editContext} onChange={(value) => setEditContext(value)} placeholder={t('settings.assistantRulesPlaceholder', { defaultValue: '请输入 Markdown 格式的规则...' })} autoSize={false} className='border-none rounded-none bg-transparent h-full resize-none' />
+                    <Input.TextArea value={editContext} onChange={(value) => setEditContext(value)} placeholder={t('settings.assistantRulesPlaceholder', '请输入 Markdown 格式的规则...')} autoSize={false} className='border-none rounded-none bg-transparent h-full resize-none' />
                   </div>
                 ) : (
                   <div className='p-16px'>
@@ -395,10 +395,10 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
           {/* Skills */}
           <div className='flex-shrink-0 mt-16px'>
             <div className='flex items-center justify-between mb-12px'>
-              <Typography.Text bold>{t('settings.assistantSkills', { defaultValue: '技能' })}</Typography.Text>
+              <Typography.Text bold>{t('settings.assistantSkills', '技能')}</Typography.Text>
             </div>
             <Collapse defaultActiveKey={['custom-skills']}>
-              <Collapse.Item header={<span className='text-13px font-medium'>{t('settings.customSkills', { defaultValue: '自定义技能' })}</span>} name='custom-skills' className='mb-8px' extra={<span className='text-12px text-secondary'>{installedSkills.filter((s) => !s.isBuiltin).length}</span>}>
+              <Collapse.Item header={<span className='text-13px font-medium'>{t('settings.customSkills', '自定义技能')}</span>} name='custom-skills' className='mb-8px' extra={<span className='text-12px text-secondary'>{installedSkills.filter((s) => !s.isBuiltin).length}</span>}>
                 <div
                   className='grid gap-8px'
                   style={{
@@ -452,7 +452,7 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
                   )}
                 </div>
               </Collapse.Item>
-              <Collapse.Item header={<span className='text-13px font-medium'>{t('settings.builtinSkills', { defaultValue: '内置技能' })}</span>} name='builtin-skills' extra={<span className='text-12px text-secondary'>{installedSkills.filter((s) => s.isBuiltin).length}</span>}>
+              <Collapse.Item header={<span className='text-13px font-medium'>{t('settings.builtinSkills', '内置技能')}</span>} name='builtin-skills' extra={<span className='text-12px text-secondary'>{installedSkills.filter((s) => s.isBuiltin).length}</span>}>
                 <div
                   className='grid gap-8px'
                   style={{
