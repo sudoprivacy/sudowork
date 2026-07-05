@@ -5,7 +5,7 @@
  */
 
 import React from 'react';
-import { Popconfirm, Spin, Switch, Tooltip } from '@arco-design/web-react';
+import { Button, Popconfirm, Switch, Tooltip } from '@arco-design/web-react';
 import { Bot, Copy, Download, Eye, SquarePen, Trash2, Upload, Zap } from 'lucide-react';
 import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
@@ -47,7 +47,7 @@ const InstalledAssistantCard: React.FC<InstalledAssistantCardProps> = (props) =>
     <div className={classNames('card group flex items-start gap-12px relative overflow-hidden', !isEnabled && 'opacity-65')} onClick={onClick}>
       {/* Avatar */}
       <div className='w-48px flex-shrink-0'>
-        <div className='w-48px h-48px rd-8px overflow-hidden bg-fill-2'>
+        <div className='w-48px h-48px rd-8px overflow-hidden bg-control'>
           {avatarImage ? (
             <img src={avatarImage} alt={displayName} className='w-full h-full object-cover' />
           ) : hasEmojiAvatar ? (
@@ -78,43 +78,37 @@ const InstalledAssistantCard: React.FC<InstalledAssistantCardProps> = (props) =>
       </div>
 
       {/* Top-right: edit/view + upload (custom only) + duplicate button + shield (builtin) or delete (custom) */}
-      <div className='absolute top-10px right-10px flex items-center gap-6px' onClick={(e) => e.stopPropagation()}>
+      <div className='absolute top-10px right-10px flex items-center gap-3' onClick={(e) => e.stopPropagation()}>
         {/* Edit/View button - custom assistants show edit, readonly assistants show view */}
         {hasUpdate && (
           <Tooltip content={t('settings.assistant.updateAvailable', { defaultValue: '可更新' })}>
-            <button
-              type='button'
+            <Button
+              type='text'
+              shape='circle'
               className='store-action-icon'
+              loading={updating}
+              icon={<Download size={13} />}
               onClick={(e) => {
                 e.stopPropagation();
                 onUpdate?.();
               }}
-            >
-              {updating ? <Spin size={10} /> : <Download size={13} />}
-            </button>
+            />
           </Tooltip>
         )}
         <Tooltip content={isReadonly ? t('settings.assistant.view', { defaultValue: '查看' }) : t('settings.assistant.edit', { defaultValue: '编辑' })}>
-          <button type='button' className='store-action-icon' onClick={onClick}>
-            {isReadonly ? <Eye size={13} /> : <SquarePen size={13} />}
-          </button>
+          <Button shape='circle' className='!size-7' icon={isReadonly ? <Eye size={13} /> : <SquarePen size={13} />} onClick={onClick} />
         </Tooltip>
         {/* Upload button - only for custom assistants */}
         {isCustom && onUpload && (
           <Tooltip content={t('settings.assistant.upload', { defaultValue: '上传' })}>
-            <button type='button' className='store-action-icon' onClick={onUpload}>
-              <Upload size={13} />
-            </button>
+            <Button shape='circle' className='!size-7' icon={<Upload size={13} />} onClick={onUpload} />
           </Tooltip>
         )}
         {/* Duplicate button - available for all assistant types */}
         <Tooltip content={t('settings.assistant.duplicate', { defaultValue: '复制' })}>
-          <button type='button' className='store-action-icon' onClick={onDuplicate}>
-            <Copy size={13} />
-          </button>
+          <Button shape='circle' className='!size-7' icon={<Copy size={13} />} onClick={onDuplicate} />
         </Tooltip>
         {enterprisePublishButton}
-        {canToggle && <Switch size='small' checked={isEnabled} onChange={(checked) => onToggleEnabled(checked)} className={isEnabled ? '!bg-primary !border-[var(--ui-accent-orange)]' : ''} />}
         {/* Delete button - only for custom assistants that are not readonly */}
         {canDelete && (
           <Popconfirm
@@ -125,12 +119,11 @@ const InstalledAssistantCard: React.FC<InstalledAssistantCardProps> = (props) =>
             okButtonProps={{ status: 'danger' }}
           >
             <Tooltip content={t('settings.assistant.delete', { defaultValue: '删除' })}>
-              <button type='button' className='store-action-icon store-action-icon--danger'>
-                <Trash2 size={13} />
-              </button>
+              <Button shape='circle' status='danger' className='!size-7' icon={<Trash2 size={13} />} />
             </Tooltip>
           </Popconfirm>
         )}
+        {canToggle && <Switch size='small' checked={isEnabled} onChange={(checked) => onToggleEnabled(checked)} className={isEnabled ? '!bg-primary !border-[var(--ui-accent-orange)]' : ''} />}
       </div>
     </div>
   );
