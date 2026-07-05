@@ -42,11 +42,11 @@ const HubAssistantCard: React.FC<HubAssistantCardProps> = ({ assistant, isInstal
           <span className='min-w-0 font-medium text-13px text-foreground truncate'>{displayName}</span>
           {latestVersion && <span className='px-5px py-0 bg-control text-secondary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px'>v{latestVersion}</span>}
         </div>
-        <div className='text-11px text-secondary mt-3px line-clamp-2 leading-relaxed'>{assistant.description}</div>
+        <div className='text-11px text-secondary my-1 line-clamp-2 leading-relaxed'>{assistant.description}</div>
         {assistant.skills && assistant.skills.length > 0 && (
           <div className='mt-1 flex items-center gap-1'>
             <Zap size={12} className='text-primary flex-shrink-0' />
-            <span className='text-10px text-tertiary'>{t('settings.assistant.relatedSkills', { count: assistant.skills.length, defaultValue: `${assistant.skills.length} 个关联技能` })}</span>
+            <span className='text-10px text-secondary'>{t('settings.assistant.relatedSkills', { count: assistant.skills.length, defaultValue: `${assistant.skills.length} 个关联技能` })}</span>
           </div>
         )}
       </div>
