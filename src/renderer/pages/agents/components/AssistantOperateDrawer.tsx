@@ -88,7 +88,7 @@ export default function AssistantOperateDrawer({
               ) : (
                 <EmojiPicker value={editAvatar} onChange={onAvatarChange} placement='br'>
                   <div className='cursor-pointer'>
-                    <Avatar shape='square' size={40} className='rounded-lg hover:bg-fill-2 transition-colors'>
+                    <Avatar shape='square' size={40} className='rounded-lg hover:bg-control transition-colors'>
                       {editAvatarImage ? <img src={editAvatarImage} alt='' width={24} height={24} style={{ objectFit: 'contain' }} /> : editAvatar ? <span className='text-24px'>{editAvatar}</span> : <Bot size={20} />}
                     </Avatar>
                   </div>

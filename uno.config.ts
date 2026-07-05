@@ -42,6 +42,7 @@ const semanticColors = {
 // text-1 to text-4 are supported via custom rules, pointing to Arco's --color-text-*
 const backgroundColors = {
   base: 'var(--bg-base)', // bg-base - 页面底色
+  faint: 'var(--bg-faint)', // bg-faint - 极浅填充/悬停底；接近 color-fill-1
   subtle: 'var(--bg-subtle)', // bg-subtle - 轻区域/面板背景
   muted: 'var(--bg-muted)', // bg-muted - 次级块/弱背景
   control: 'var(--bg-control)', // bg-control - 控件填充/中性浅底

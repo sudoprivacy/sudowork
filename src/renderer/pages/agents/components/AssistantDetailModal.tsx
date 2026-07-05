@@ -174,7 +174,7 @@ const AssistantDetailModal: React.FC<AssistantDetailModalProps> = ({ assistant, 
               {assistant.categories && assistant.categories.length > 0 && (
                 <div className='flex gap-1 mt-1.5 flex-wrap justify-center'>
                   {assistant.categories.map((cat, idx) => (
-                    <span key={idx} className='px-7px py-1px bg-fill-2 text-secondary text-11px rd-4px'>
+                    <span key={idx} className='px-7px py-1px bg-control text-secondary text-11px rd-1'>
                       {cat}
                     </span>
                   ))}
@@ -189,7 +189,7 @@ const AssistantDetailModal: React.FC<AssistantDetailModalProps> = ({ assistant, 
             ) : (
               <div className='space-y-4'>
                 {/* Assistant intro */}
-                <div className='bg-fill-1 rd-10px p-3.5'>
+                <div className='bg-faint rd-10px p-3.5'>
                   <div className='flex items-center gap-1.5 mb-2'>
                     <span className='text-14px'>✦</span>
                     <span className='font-medium text-13px text-foreground'>{t('settings.assistant.introduction', '助手介绍')}</span>
@@ -199,7 +199,7 @@ const AssistantDetailModal: React.FC<AssistantDetailModalProps> = ({ assistant, 
 
                 {/* Associated skills */}
                 {relatedSkillDetails.length > 0 && !isInstalled && (
-                  <div className='bg-fill-1 rd-10px p-3.5'>
+                  <div className='bg-faint rd-10px p-3.5'>
                     <div className='flex items-center gap-1.5 mb-2.5'>
                       <Zap size={14} className='text-primary' />
                       <span className='font-medium text-13px text-foreground'>{t('settings.assistant.relatedSkills', '关联技能')}</span>
