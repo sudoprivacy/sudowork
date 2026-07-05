@@ -1,4 +1,5 @@
 import { Button, Drawer, Form, Input, Message, Select } from '@arco-design/web-react';
+import { ChevronDown } from 'lucide-react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
@@ -283,7 +284,7 @@ export default function CronJobFormDrawer({ visible, editJob, sessionMode, onClo
         <div>
           <div className='flex items-center gap-1 text-14px text-secondary cursor-pointer hover:text-foreground mb-3' onClick={() => setShowMore(!showMore)}>
             <span>{t('cron.create.moreOptions', '更多选项')}</span>
-            <span className={`transition-transform ${showMore ? 'rotate-180' : ''}`}>▾</span>
+            <ChevronDown size={16} className={`transition-transform ${showMore ? 'rotate-180' : ''}`} />
           </div>
 
           {showMore && (
