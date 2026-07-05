@@ -25,7 +25,7 @@ import { isElectronDesktop } from '@/renderer/utils/platform';
 import { getLastDirectoryName, isTemporaryWorkspace as checkIsTemporaryWorkspace, isChannelWorkspace as checkIsChannelWorkspace, getWorkspaceDisplayName as getDisplayName } from '@/renderer/utils/workspace';
 import { resolveFileIcon } from '@/renderer/utils/fileIcon';
 import DirectorySelectionModal from '@/renderer/components/DirectorySelectionModal';
-import BdpanDirPicker from '@/renderer/components/BdpanDirPicker';
+import BdpanUploadDirPicker from '@/renderer/components/BdpanUploadDirPicker';
 import { uuid } from '@/common/utils';
 import { extractNodeData, extractNodeKey, findNodeByKey, getTargetFolderPath, sortTreeNodes, updateTreeNodeChildren } from './utils/treeHelpers';
 import type { WorkspaceProps } from './types';
@@ -1170,7 +1170,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
         {!readonly && <DirectorySelectionModal visible={showDirectorySelector} onConfirm={handleSelectDirectoryFromModal} onCancel={() => setShowDirectorySelector(false)} />}
 
         {/* Bdpan Upload Dir Picker */}
-        {!readonly && <BdpanDirPicker visible={bdpanUploadPickerVisible} localPath={bdpanUploadLocalPath} onCancel={() => setBdpanUploadPickerVisible(false)} onConfirm={handleBdpanUploadConfirm} />}
+        {!readonly && <BdpanUploadDirPicker visible={bdpanUploadPickerVisible} localPath={bdpanUploadLocalPath} onCancel={() => setBdpanUploadPickerVisible(false)} onConfirm={handleBdpanUploadConfirm} />}
 
         {/* Tabs header — mirrors ui.zip `components/task-panel.tsx` layout:
             two equal tabs sit at the very top of the card (no separate status-

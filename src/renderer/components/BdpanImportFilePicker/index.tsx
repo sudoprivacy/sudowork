@@ -1,6 +1,12 @@
+/**
+ * @license
+ * Copyright 2025 Sudowork (sudowork.ai)
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { Button, Input, Message, Modal, Spin } from '@arco-design/web-react';
-import { FolderOpen, FolderPlus, Refresh } from '@icon-park/react';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { FileDisplayOne, FolderOpen, Refresh } from '@icon-park/react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { BdpanFileEntry } from '@/common/ipcBridge';
 import { ipcBridge } from '@/common';
@@ -9,11 +15,8 @@ type Step = 'checking' | 'getting_auth_url' | 'enter_code' | 'submitting_code' |
 
 interface Props {
   visible: boolean;
-  /** The local absolute path being uploaded */
-  localPath: string;
   onCancel: () => void;
-  /** Called with the selected bdpan absolute directory path */
-  onConfirm: (bdpanDirPath: string) => void;
+  onConfirm: (selectedPaths: string[]) => void;
 }
 
 /** Derive the common parent directory from a list of paths */
@@ -25,12 +28,23 @@ function deriveRoot(files: BdpanFileEntry[]): string {
   };
   const parents = files.map((f) => parentOf(f.path));
   const first = parents[0];
-  return parents.every((p) => p === first) ? first : '/';
+  const common = parents.every((p) => p === first) ? first : '/';
+  return common;
 }
 
+/**
+ * Build breadcrumb segments for a path relative to root.
+ * Returns array of { label, path } — root segment first, always included.
+ * e.g. root=/apps/bdpan, current=/apps/bdpan/1/2 →
+ *   [{ label: 'bdpan', path: '/apps/bdpan' }, { label: '1', path: '/apps/bdpan/1' }, { label: '2', path: '/apps/bdpan/1/2' }]
+ */
 function buildBreadcrumbs(root: string, current: string): { label: string; path: string }[] {
-  const segments: { label: string; path: string }[] = [{ label: root, path: root }];
+  const rootLabel = root;
+  const segments: { label: string; path: string }[] = [{ label: rootLabel, path: root }];
+
   if (current === root) return segments;
+
+  // Strip root prefix and split remaining
   const rel = current.startsWith(root + '/') ? current.slice(root.length + 1) : current.slice(root.length);
   const parts = rel.split('/').filter(Boolean);
   let accumulated = root;
@@ -41,50 +55,60 @@ function buildBreadcrumbs(root: string, current: string): { label: string; path:
   return segments;
 }
 
-const BdpanDirPicker: React.FC<Props> = ({ visible, localPath, onCancel, onConfirm }) => {
+const BdpanImportFilePicker: React.FC<Props> = ({ visible, onCancel, onConfirm }) => {
   const { t } = useTranslation();
   const [step, setStep] = useState<Step>('checking');
   const [errorMsg, setErrorMsg] = useState('');
 
+  // File browser state
   const [username, setUsername] = useState<string | undefined>(undefined);
   const [bdpanRoot, setBdpanRoot] = useState<string | null>(null);
   const [currentPath, setCurrentPath] = useState('/');
-  const [dirs, setDirs] = useState<BdpanFileEntry[]>([]);
+  const [files, setFiles] = useState<BdpanFileEntry[]>([]);
   const [loadingFiles, setLoadingFiles] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(null);
+
   const [authCode, setAuthCode] = useState('');
 
-  // New folder state
-  const [showNewFolder, setShowNewFolder] = useState(false);
-  const [newFolderName, setNewFolderName] = useState('');
-  const [creatingFolder, setCreatingFolder] = useState(false);
-  const newFolderInputRef = useRef<any>(null);
+  // ── Load files ───────────────────────────────────────────────────────────────
+  const loadFiles = useCallback(
+    async (dirPath: string, root?: string) => {
+      setLoadingFiles(true);
+      setStep('file_browser');
+      setCurrentPath(dirPath);
+      setSelected(new Set());
+      setLastSelectedIndex(null);
+      try {
+        const res = await ipcBridge.bdpan.ls.invoke({ path: dirPath });
+        if (res?.success) {
+          // Filter out the directory itself (bdpan ls returns self for empty dirs)
+          const rawFiles = (res.data?.files ?? []).filter((f) => f.path !== dirPath);
+          const sorted = [...rawFiles].sort((a, b) => {
+            if (a.isdir !== b.isdir) return a.isdir ? -1 : 1;
+            return a.filename.localeCompare(b.filename);
+          });
+          setFiles(sorted);
 
-  const [messageApi, messageContextHolder] = Message.useMessage();
-
-  const loadFiles = useCallback(async (dirPath: string, root?: string) => {
-    setLoadingFiles(true);
-    setStep('file_browser');
-    setCurrentPath(dirPath);
-    try {
-      const res = await ipcBridge.bdpan.ls.invoke({ path: dirPath });
-      if (res?.success) {
-        const rawFiles = (res.data?.files ?? []).filter((f) => f.path !== dirPath);
-        const sorted = rawFiles.filter((f) => f.isdir).sort((a, b) => a.filename.localeCompare(b.filename));
-        setDirs(sorted);
-
-        if (root === undefined && dirPath === '/') {
-          const detectedRoot = deriveRoot(res.data?.files ?? []);
-          setBdpanRoot(detectedRoot);
-          setCurrentPath(detectedRoot);
+          // On first load (root discovery), derive bdpanRoot from the returned paths
+          if (root === undefined && dirPath === '/') {
+            const detectedRoot = deriveRoot(res.data?.files ?? []);
+            setBdpanRoot(detectedRoot);
+            setCurrentPath(detectedRoot);
+          }
+        } else {
+          Message.error(res?.data?.error ?? t('conversation.bdpan.lsFailed'));
         }
+      } catch (err) {
+        Message.error(String(err));
+      } finally {
+        setLoadingFiles(false);
       }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoadingFiles(false);
-    }
-  }, []);
+    },
+    [t]
+  );
 
+  // ── Step: check auth ────────────────────────────────────────────────────────
   const checkAuth = useCallback(async () => {
     setStep('checking');
     setErrorMsg('');
@@ -102,8 +126,10 @@ const BdpanDirPicker: React.FC<Props> = ({ visible, localPath, onCancel, onConfi
     }
   }, [loadFiles]);
 
+  // ── Step 1: get auth URL and open browser ────────────────────────────────────
   const startLogin = async () => {
     setStep('getting_auth_url');
+    setAuthCode('');
     setErrorMsg('');
     try {
       const res = await ipcBridge.bdpan.loginGetAuthUrl.invoke();
@@ -112,6 +138,7 @@ const BdpanDirPicker: React.FC<Props> = ({ visible, localPath, onCancel, onConfi
         setErrorMsg(res?.data?.error ?? t('conversation.bdpan.loginFailed'));
         return;
       }
+      // Auto-open the auth URL in system default browser
       ipcBridge.shell.openExternal.invoke(res.data.auth_url).catch(() => {});
       setStep('enter_code');
     } catch (err) {
@@ -120,6 +147,7 @@ const BdpanDirPicker: React.FC<Props> = ({ visible, localPath, onCancel, onConfi
     }
   };
 
+  // ── Step 2: submit the auth code user retrieved from browser ─────────────────
   const submitAuthCode = async () => {
     const trimmed = authCode.trim();
     if (trimmed.length !== 32) return;
@@ -127,6 +155,7 @@ const BdpanDirPicker: React.FC<Props> = ({ visible, localPath, onCancel, onConfi
     try {
       const res = await ipcBridge.bdpan.loginSetCode.invoke({ code: trimmed });
       if (res?.success) {
+        // Fetch username via whoami then go to file browser
         const whoami = await ipcBridge.bdpan.whoami.invoke();
         setUsername(whoami?.data?.username);
         await loadFiles('/');
@@ -140,51 +169,67 @@ const BdpanDirPicker: React.FC<Props> = ({ visible, localPath, onCancel, onConfi
     }
   };
 
-  const handleCreateFolder = async () => {
-    const name = newFolderName.trim();
-    if (!name) return;
-    const newPath = currentPath.endsWith('/') ? `${currentPath}${name}` : `${currentPath}/${name}`;
-    setCreatingFolder(true);
-    try {
-      const res = await ipcBridge.bdpan.mkdir.invoke({ path: newPath });
-      if (res?.success) {
-        setShowNewFolder(false);
-        setNewFolderName('');
-        await loadFiles(currentPath, bdpanRoot ?? undefined);
-      } else {
-        messageApi.error(res?.data?.error ?? t('conversation.bdpan.mkdir.failed'));
-      }
-    } catch (err) {
-      messageApi.error(String(err));
-    } finally {
-      setCreatingFolder(false);
-    }
-  };
-
   const logout = async () => {
     await ipcBridge.bdpan.logout.invoke();
     onCancel();
   };
 
+  const navigateInto = (file: BdpanFileEntry) => {
+    if (!file.isdir) return;
+    void loadFiles(file.path, bdpanRoot ?? undefined);
+  };
+
+  const handleFileClick = (file: BdpanFileEntry, index: number, e: React.MouseEvent) => {
+    if (e.shiftKey && lastSelectedIndex !== null) {
+      // Range select: add all non-dir files between anchor and current indices (dirs are skipped)
+      const lo = Math.min(lastSelectedIndex, index);
+      const hi = Math.max(lastSelectedIndex, index);
+      setSelected((s) => {
+        const next = new Set(s);
+        for (let i = lo; i <= hi; i++) {
+          if (!files[i].isdir) next.add(files[i].path);
+        }
+        return next;
+      });
+      return;
+    }
+
+    if (file.isdir) {
+      // Plain or cmd/ctrl click on dir: navigate in
+      if (!e.metaKey && !e.ctrlKey) {
+        navigateInto(file);
+      }
+      return;
+    }
+
+    if (e.metaKey || e.ctrlKey) {
+      // Toggle individual file
+      setSelected((s) => {
+        const next = new Set(s);
+        if (next.has(file.path)) next.delete(file.path);
+        else next.add(file.path);
+        return next;
+      });
+    } else {
+      // Plain click: select only this file
+      setSelected(new Set([file.path]));
+    }
+    setLastSelectedIndex(index);
+  };
+
+  // ── Lifecycle ────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (visible) {
       setUsername(undefined);
       setBdpanRoot(null);
-      setDirs([]);
+      setFiles([]);
+      setSelected(new Set());
       setAuthCode('');
-      setShowNewFolder(false);
-      setNewFolderName('');
       void checkAuth();
     }
   }, [visible]);
 
-  // Focus input when new folder row appears
-  useEffect(() => {
-    if (showNewFolder) {
-      setTimeout(() => newFolderInputRef.current?.focus?.(), 50);
-    }
-  }, [showNewFolder]);
-
+  // ── Render ───────────────────────────────────────────────────────────────────
   const renderContent = () => {
     if (step === 'checking') {
       return (
@@ -233,19 +278,12 @@ const BdpanDirPicker: React.FC<Props> = ({ visible, localPath, onCancel, onConfi
       );
     }
 
+    // file_browser
     const root = bdpanRoot ?? '/';
     const crumbs = buildBreadcrumbs(root, currentPath);
-    const localName = localPath.split('/').filter(Boolean).pop() ?? localPath;
 
     return (
       <div className='flex flex-col h-400px'>
-        {messageContextHolder}
-
-        {/* Local path hint */}
-        <div className='px-16px py-8px bg-[var(--bg-2)] border-b border-[var(--bg-3)] flex-shrink-0 text-13px text-secondary truncate'>
-          {t('conversation.bdpan.upload.localPath')}: <span className='font-mono text-foreground'>{localName}</span>
-        </div>
-
         {/* Breadcrumb nav bar */}
         <div className='flex items-center gap-4px px-16px py-10px border-b border-[var(--bg-3)] flex-shrink-0 flex-wrap'>
           <div className='flex items-center gap-4px flex-1 flex-wrap'>
@@ -266,66 +304,49 @@ const BdpanDirPicker: React.FC<Props> = ({ visible, localPath, onCancel, onConfi
             })}
           </div>
           <Button type='text' size='small' icon={<Refresh size={15} />} loading={loadingFiles} onClick={() => loadFiles(currentPath, root)} />
-          <Button
-            type='text'
-            size='small'
-            icon={<FolderPlus size={15} />}
-            onClick={() => {
-              setShowNewFolder(true);
-              setNewFolderName('');
-            }}
-          />
         </div>
 
-        {/* Dir list */}
-        <div className='flex-1 overflow-y-auto'>
+        {/* File list */}
+        <div
+          className='flex-1 overflow-y-auto'
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setSelected(new Set());
+              setLastSelectedIndex(null);
+            }
+          }}
+        >
           {loadingFiles ? (
             <div className='flex items-center justify-center h-full'>
               <Spin />
             </div>
+          ) : files.length === 0 ? (
+            <div className='flex items-center justify-center h-full text-secondary text-14px'>{t('conversation.bdpan.emptyDir')}</div>
           ) : (
-            <>
-              {dirs.map((dir) => (
-                <div key={dir.path} className='flex items-center gap-10px px-16px py-10px cursor-pointer transition-colors select-none hover:bg-[var(--bg-2)]' onClick={() => loadFiles(dir.path, root)}>
-                  <FolderOpen size={18} fill='var(--color-text-3)' />
-                  <span className='flex-1 text-foreground text-14px truncate'>{dir.filename}</span>
-                  <span className='text-secondary text-12px'>›</span>
-                </div>
-              ))}
-              {dirs.length === 0 && !showNewFolder && <div className='flex items-center justify-center h-full text-secondary text-14px'>{t('conversation.bdpan.emptyDir')}</div>}
-              {/* Inline new folder row */}
-              {showNewFolder && (
-                <div className='flex items-center gap-8px px-16px py-8px border-b border-[var(--bg-3)]'>
-                  <FolderPlus size={18} fill='var(--color-text-3)' />
-                  <Input ref={newFolderInputRef} style={{ flex: 1 }} placeholder={t('conversation.bdpan.mkdir.placeholder')} value={newFolderName} onChange={setNewFolderName} onPressEnter={handleCreateFolder} disabled={creatingFolder} />
-                  <Button size='small' type='primary' loading={creatingFolder} disabled={!newFolderName.trim()} onClick={handleCreateFolder}>
-                    {t('conversation.bdpan.mkdir.confirm')}
-                  </Button>
-                  <Button
-                    size='small'
-                    disabled={creatingFolder}
-                    onClick={() => {
-                      setShowNewFolder(false);
-                      setNewFolderName('');
-                    }}
-                  >
-                    {t('conversation.bdpan.cancel')}
-                  </Button>
-                </div>
-              )}
-            </>
+            files.map((file, index) => (
+              <div key={file.path} className={`flex items-center gap-10px px-16px py-10px cursor-pointer transition-colors select-none ${selected.has(file.path) ? 'bg-[rgba(var(--primary-6),0.14)]' : 'hover:bg-[var(--bg-2)]'}`} onClick={(e) => handleFileClick(file, index, e)}>
+                {file.isdir ? <FolderOpen size={18} fill='var(--color-text-3)' /> : <FileDisplayOne size={18} fill='var(--color-text-3)' />}
+                <span className='flex-1 text-foreground text-14px truncate'>{file.filename}</span>
+                {file.isdir && <span className='text-secondary text-12px'>›</span>}
+              </div>
+            ))
           )}
         </div>
 
-        {/* Footer: upload to current dir */}
+        {/* Footer */}
         <div className='flex items-center justify-between px-16px py-12px border-t border-[var(--bg-3)] flex-shrink-0'>
-          <span className='text-secondary text-13px truncate flex-1 mr-8px'>
-            {t('conversation.bdpan.upload.uploadTo')}: <span className='font-mono text-foreground'>{currentPath}</span>
-          </span>
-          <div className='flex items-center gap-8px flex-shrink-0'>
+          <span className='text-secondary text-13px'>{selected.size > 0 ? t('conversation.bdpan.selectedCount', { count: selected.size }) : t('conversation.bdpan.selectHint')}</span>
+          <div className='flex items-center gap-8px'>
             <Button onClick={onCancel}>{t('conversation.bdpan.cancel')}</Button>
-            <Button type='primary' onClick={() => onConfirm(currentPath)}>
-              {t('conversation.bdpan.upload.uploadButton')}
+            <Button
+              type='primary'
+              disabled={selected.size === 0}
+              onClick={() => {
+                const root = bdpanRoot ?? '';
+                onConfirm(Array.from(selected).map((p) => `bdpan://${p}?root=${encodeURIComponent(root)}`));
+              }}
+            >
+              {t('conversation.bdpan.confirm')}
             </Button>
           </div>
         </div>
@@ -335,7 +356,7 @@ const BdpanDirPicker: React.FC<Props> = ({ visible, localPath, onCancel, onConfi
 
   const modalTitle = (
     <div className='flex items-center justify-between'>
-      <span>{t('conversation.bdpan.upload.title')}</span>
+      <span>{t('conversation.bdpan.title')}</span>
       {username && (
         <span className='text-secondary text-13px mr-4'>
           {username}{' '}
@@ -354,4 +375,4 @@ const BdpanDirPicker: React.FC<Props> = ({ visible, localPath, onCancel, onConfi
   );
 };
 
-export default BdpanDirPicker;
+export default BdpanImportFilePicker;
