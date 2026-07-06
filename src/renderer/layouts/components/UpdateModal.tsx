@@ -1,15 +1,9 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import React, { useCallback, useEffect, useState } from 'react';
-import { Button, Progress, Switch, Message } from '@arco-design/web-react';
-import { CheckOne, Download, FolderOpen, Refresh, CloseOne, Install } from '@icon-park/react';
+import { Button, Modal, Progress, Switch, Message } from '@arco-design/web-react';
+import { IconDownload, IconRefresh } from '@arco-design/web-react/icon';
+import { CircleCheck, CircleX, Download, FolderOpen, HardDriveDownload } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
-import AionModal from '@/renderer/components/base/AionModal';
 import MarkdownView from '@/renderer/components/Markdown';
 import type { UpdateDownloadProgressEvent, UpdateReleaseInfo, AutoUpdateStatus } from '@/common/updateTypes';
 import { isNightlyBuild, buildVersion } from '@/common/buildInfo';
@@ -346,8 +340,8 @@ const UpdateModal: React.FC = () => {
     switch (status) {
       case 'checking':
         return (
-          <div className='flex flex-col items-center justify-center py-48px'>
-            <div className='w-48px h-48px mb-20px relative'>
+          <div className='flex flex-col items-center justify-center py-12'>
+            <div className='size-12 mb-5 relative'>
               <div className='absolute inset-0 border-[3px] border-fill-3 rounded-full' />
               <div className='absolute inset-0 border-[3px] border-primary border-t-transparent rounded-full animate-spin' />
             </div>
@@ -357,12 +351,10 @@ const UpdateModal: React.FC = () => {
 
       case 'upToDate':
         return (
-          <div className='flex flex-col items-center justify-center py-48px'>
-            <div className='w-56px h-56px bg-success-soft rounded-full f-center mb-20px'>
-              <CheckOne theme='filled' size='28' fill='var(--success)' />
-            </div>
-            <div className='text-16px text-foreground font-600 mb-8px'>{t('update.upToDateTitle')}</div>
-            <div className='text-13px text-tertiary'>{t('update.currentVersion', { version: buildVersion || currentVersion || '-' })}</div>
+          <div className='flex flex-col items-center justify-center py-8'>
+            <CircleCheck size={48} color='#16a34a' className='mb-5' />
+            <div className='text-16px text-foreground font-600 mb-2'>{t('update.upToDateTitle')}</div>
+            <div className='text-13px text-secondary'>{t('update.currentVersion', { version: buildVersion || currentVersion || '-' })}</div>
           </div>
         );
 
@@ -370,32 +362,32 @@ const UpdateModal: React.FC = () => {
         return (
           <div className='flex flex-col h-full'>
             {/* 版本信息头部 / Version info header */}
-            <div className='flex items-center justify-between px-24px py-16px border-b bg-fill-1'>
-              <div className='flex items-center gap-12px'>
-                <div className='w-40px h-40px bg-[rgb(var(--primary-6))]/12 rounded-10px flex items-center justify-center'>
-                  <Download size='20' fill='rgb(var(--primary-6))' />
+            <div className='flex items-center justify-between px-6 py-4 border-b bg-fill-1'>
+              <div className='flex items-center gap-3'>
+                <div className='size-10 bg-[rgb(var(--primary-6))]/12 rounded-10px f-center'>
+                  <Download size={20} color='rgb(var(--primary-6))' />
                 </div>
                 <div>
                   <div className='text-15px font-600 text-foreground'>{t('update.availableTitle')}</div>
-                  <div className='text-12px text-tertiary mt-2px'>
+                  <div className='text-12px text-tertiary mt-0.5'>
                     {buildVersion || currentVersion} → <span className='text-[rgb(var(--primary-6))] font-500'>{updateInfo?.version || autoUpdateInfo?.version}</span>
                   </div>
                 </div>
               </div>
-              <div className='flex items-center gap-8px'>
+              <div className='flex items-center gap-2'>
                 {!hasCompatibleManualAsset && releasePageUrl ? (
-                  <Button type='primary' size='small' onClick={openReleasePage} className='!px-16px'>
+                  <Button type='primary' size='small' onClick={openReleasePage} className='!px-4'>
                     {t('update.goToRelease')}
                   </Button>
                 ) : (
                   <>
                     {/* Manual download button - always show when asset is available */}
-                    <Button size='small' onClick={startManualDownload} icon={<Download size='14' />} className='!px-12px'>
+                    <Button size='small' onClick={startManualDownload} icon={<IconDownload style={{ fontSize: 14 }} />} className='!px-3'>
                       {t('update.downloadButton')}
                     </Button>
                     {/* Auto-update button */}
                     {useAutoUpdate && (
-                      <Button type='primary' size='small' onClick={startAutoDownload} icon={<Install size='14' />} className='!px-12px'>
+                      <Button type='primary' size='small' onClick={startAutoDownload} icon={<HardDriveDownload size={14} />} className='!px-3'>
                         {t('update.downloadAndInstall')}
                       </Button>
                     )}
@@ -406,20 +398,20 @@ const UpdateModal: React.FC = () => {
 
             {/* 自动更新开关 / Auto update toggle (hidden for nightly builds) */}
             {!isNightlyBuild && (
-              <div className='flex items-center justify-between px-24px py-12px bg-fill-1 border-b'>
+              <div className='flex items-center justify-between px-6 py-3 bg-fill-1 border-b'>
                 <div className='text-13px text-secondary'>{t('update.autoUpdateMode')}</div>
                 <Switch checked={useAutoUpdate} onChange={setUseAutoUpdate} size='small' disabled={!hasCompatibleManualAsset} />
               </div>
             )}
 
             {/* Nightly build notice */}
-            {isNightlyBuild && <div className='mx-24px mt-12px px-12px py-10px text-12px rounded-8px bg-orange-1 text-orange-6 dark:bg-orange-9/20'>{t('update.nightlyUpdateNotice', { defaultValue: 'This is a nightly build. Only manual download is supported for nightly updates.' })}</div>}
+            {isNightlyBuild && <div className='mx-6 mt-3 px-3 py-2.5 text-12px rounded-8px bg-orange-1 text-orange-6 dark:bg-orange-9/20'>{t('update.nightlyUpdateNotice', { defaultValue: 'This is a nightly build. Only manual download is supported for nightly updates.' })}</div>}
 
-            {!hasCompatibleManualAsset && <div className='mx-24px mt-12px px-12px py-10px text-12px rounded-8px bg-warning-soft text-warning'>{t('update.noCompatibleAssetManual')}</div>}
+            {!hasCompatibleManualAsset && <div className='mx-6 mt-3 px-3 py-2.5 text-12px rounded-8px bg-warning-soft text-warning'>{t('update.noCompatibleAssetManual')}</div>}
 
             {/* 更新日志内容 / Release notes content */}
-            <div className='flex-1 min-h-0 overflow-y-auto px-24px py-16px custom-scrollbar'>
-              {updateInfo?.name && <div className='text-14px font-500 text-foreground mb-12px'>{updateInfo.name}</div>}
+            <div className='flex-1 min-h-0 overflow-y-auto px-6 py-4 custom-scrollbar'>
+              {updateInfo?.name && <div className='text-14px font-500 text-foreground mb-3'>{updateInfo.name}</div>}
               {updateInfo?.body || autoUpdateInfo?.releaseNotes ? (
                 <div className='text-13px text-secondary leading-relaxed'>
                   <MarkdownView allowHtml>{updateInfo?.body || autoUpdateInfo?.releaseNotes || ''}</MarkdownView>
@@ -433,13 +425,13 @@ const UpdateModal: React.FC = () => {
 
       case 'downloading':
         return (
-          <div className='flex flex-col items-center justify-center py-48px px-32px'>
-            <div className='w-56px h-56px bg-[rgb(var(--primary-6))]/12 rounded-full f-center mb-20px'>
-              <Download size='24' fill='rgb(var(--primary-6))' className='animate-bounce' />
+          <div className='flex flex-col items-center justify-center py-12 px-8'>
+            <div className='size-14 bg-[rgb(var(--primary-6))]/12 rounded-full f-center mb-5'>
+              <Download size={24} color='rgb(var(--primary-6))' className='animate-bounce' />
             </div>
-            <div className='text-16px text-foreground font-600 mb-20px'>{t('update.downloadingTitle')}</div>
-            <div className='w-full max-w-320px'>
-              <Progress percent={progress.percent} status='normal' showText={false} strokeWidth={6} className='!mb-12px' />
+            <div className='text-16px text-foreground font-600 mb-5'>{t('update.downloadingTitle')}</div>
+            <div className='w-full max-w-80'>
+              <Progress percent={progress.percent} status='normal' showText={false} strokeWidth={6} className='!mb-3' />
               <div className='flex justify-between text-12px text-tertiary'>
                 <span>
                   {formatSize(progress.transferred)} / {formatSize(progress.total)}
@@ -452,17 +444,17 @@ const UpdateModal: React.FC = () => {
 
       case 'downloaded':
         return (
-          <div className='flex flex-col items-center justify-center py-48px px-32px'>
-            <div className='w-56px h-56px bg-success-soft rounded-full f-center mb-20px'>
-              <CheckOne theme='filled' size='28' fill='var(--success)' />
+          <div className='flex flex-col items-center justify-center py-12 px-8'>
+            <div className='size-14 bg-success-soft rounded-full f-center mb-5'>
+              <CircleCheck size={28} style={{ color: 'var(--success)' }} />
             </div>
-            <div className='text-16px text-foreground font-600 mb-8px'>{t('update.readyToInstall')}</div>
-            <div className='text-13px text-tertiary mb-24px text-center max-w-360px'>{t('update.readyToInstallDesc')}</div>
-            <div className='flex gap-12px'>
-              <Button size='small' onClick={showInFolder} icon={<FolderOpen size='14' />} className='!px-16px'>
+            <div className='text-16px text-foreground font-600 mb-2'>{t('update.readyToInstall')}</div>
+            <div className='text-13px text-tertiary mb-6 text-center max-w-90'>{t('update.readyToInstallDesc')}</div>
+            <div className='flex gap-3'>
+              <Button size='small' onClick={showInFolder} icon={<FolderOpen size={14} />} className='!px-4'>
                 {t('update.showInFolder')}
               </Button>
-              <Button type='primary' size='small' onClick={quitAndInstall} icon={<Install size='14' />} className='!px-16px'>
+              <Button type='primary' size='small' onClick={quitAndInstall} icon={<HardDriveDownload size={14} />} className='!px-4'>
                 {t('update.installNow')}
               </Button>
             </div>
@@ -471,17 +463,17 @@ const UpdateModal: React.FC = () => {
 
       case 'success':
         return (
-          <div className='flex flex-col items-center justify-center py-48px px-32px'>
-            <div className='w-56px h-56px bg-success-soft rounded-full f-center mb-20px'>
-              <CheckOne theme='filled' size='28' fill='var(--success)' />
+          <div className='flex flex-col items-center justify-center py-12 px-8'>
+            <div className='size-14 bg-success-soft rounded-full f-center mb-5'>
+              <CircleCheck size={28} style={{ color: 'var(--success)' }} />
             </div>
-            <div className='text-16px text-foreground font-600 mb-8px'>{t('update.downloadCompleteTitle')}</div>
-            <div className='text-12px text-tertiary mb-24px text-center max-w-360px break-all line-clamp-2'>{downloadPath}</div>
-            <div className='flex gap-12px'>
-              <Button size='small' onClick={showInFolder} icon={<FolderOpen size='14' />} className='!px-16px'>
+            <div className='text-16px text-foreground font-600 mb-2'>{t('update.downloadCompleteTitle')}</div>
+            <div className='text-12px text-tertiary mb-6 text-center max-w-90 break-all line-clamp-2'>{downloadPath}</div>
+            <div className='flex gap-3'>
+              <Button size='small' onClick={showInFolder} icon={<FolderOpen size={14} />} className='!px-4'>
                 {t('update.showInFolder')}
               </Button>
-              <Button type='primary' size='small' onClick={openFile} className='!px-16px'>
+              <Button type='primary' size='small' onClick={openFile} className='!px-4'>
                 {t('update.openFile')}
               </Button>
             </div>
@@ -490,18 +482,18 @@ const UpdateModal: React.FC = () => {
 
       case 'error':
         return (
-          <div className='flex flex-col items-center justify-center py-48px px-32px'>
-            <div className='w-56px h-56px bg-danger-soft rounded-full f-center mb-20px'>
-              <CloseOne theme='filled' size='28' fill='var(--danger)' />
+          <div className='flex flex-col items-center justify-center py-12 px-8'>
+            <div className='size-14 bg-danger-soft rounded-full f-center mb-5'>
+              <CircleX size={28} style={{ color: 'var(--danger)' }} />
             </div>
-            <div className='text-16px text-foreground font-600 mb-8px'>{t('update.errorTitle')}</div>
-            <div className='text-13px text-tertiary mb-24px text-center max-w-360px'>{errorMsg}</div>
-            <div className='flex gap-12px'>
-              <Button size='small' onClick={checkForUpdates} icon={<Refresh size='14' />} className='!px-16px'>
+            <div className='text-16px text-foreground font-600 mb-2'>{t('update.errorTitle')}</div>
+            <div className='text-13px text-tertiary mb-6 text-center max-w-90'>{errorMsg}</div>
+            <div className='flex gap-3'>
+              <Button size='small' onClick={checkForUpdates} icon={<IconRefresh style={{ fontSize: 14 }} />} className='!px-4'>
                 {t('common.retry')}
               </Button>
               {releasePageUrl && (
-                <Button type='primary' size='small' onClick={openReleasePage} className='!px-16px'>
+                <Button type='primary' size='small' onClick={openReleasePage} className='!px-4'>
                   {t('update.goToRelease')}
                 </Button>
               )}
@@ -512,25 +504,9 @@ const UpdateModal: React.FC = () => {
   };
 
   return (
-    <AionModal
-      visible={visible}
-      onCancel={handleClose}
-      maskClosable={!isDownloading}
-      escToExit={!isDownloading}
-      size={status === 'available' ? 'medium' : 'small'}
-      header={{
-        title: t('update.modalTitle'),
-        showClose: true,
-      }}
-      footer={{ render: () => null }}
-      contentStyle={{
-        height: status === 'available' ? '420px' : 'auto',
-        padding: 0,
-        overflow: 'hidden',
-      }}
-    >
+    <Modal visible={visible} onCancel={handleClose} maskClosable={!isDownloading} escToExit={!isDownloading} title={t('update.modalTitle')} footer={null} style={{ width: status === 'available' ? 600 : 480 }}>
       <div className='flex flex-col h-full w-full'>{renderContent()}</div>
-    </AionModal>
+    </Modal>
   );
 };
 

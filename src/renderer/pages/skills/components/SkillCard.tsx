@@ -1,9 +1,3 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import React from 'react';
 import { Button, Progress, Tooltip } from '@arco-design/web-react';
 import { Download } from 'lucide-react';
@@ -14,7 +8,7 @@ import type { ISkillHubSkill } from '@/common/ipcBridge';
 export default function SkillCard({ skill, isInstalled, hasVersion, installing, installProgress, onInstall, onClick, hasUpdate, onUpdate, updating, latestVersion }: ISkillCardProps) {
   const { t } = useTranslation();
   return (
-    <div className='item-card group flex items-start gap-3 relative overflow-hidden' onClick={onClick}>
+    <div className='card group flex items-start gap-3 relative overflow-hidden' onClick={onClick}>
       {/* Icon */}
       <div className='w-12 flex-shrink-0 flex flex-col items-center'>
         <div className='size-12 rd-8px overflow-hidden'>{skill.icon ? <img src={skill.icon} alt={skill.display_name} className='w-full h-full object-cover' onError={handleSkillIconError} /> : <div className='w-full h-full f-center text-22px'>{skill.emoji || '📦'}</div>}</div>

@@ -25,7 +25,7 @@ function CronJobCardGrid({ jobs, onSelectJob }: ICronJobCardGridProps) {
       {jobs.map((job) => {
         const { isPaused } = getJobStatusFlags(job);
         return (
-          <div key={job.id} className='item-card' onClick={() => onSelectJob(job)}>
+          <div key={job.id} className='card' onClick={() => onSelectJob(job)}>
             <div className='text-15px font-medium text-foreground mb-2'>{job.name}</div>
             {!isPaused && job.schedule.description && <div className='text-13px text-secondary mb-2'>{job.schedule.description}</div>}
             {!isPaused && job.state.nextRunAtMs && (

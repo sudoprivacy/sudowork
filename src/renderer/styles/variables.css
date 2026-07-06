@@ -90,7 +90,8 @@
 
   /* ---------- 通用中性结构 ---------- */
   /* Semantic background tokens */
-  --bg-base: #faf9f6; /* 页面/应用底色；接近 --color-fill-0 */
+  --bg-base: #fffffe; /* 页面/应用底色；接近纯白，带极轻暖调 */
+  --bg-faint: #f7f6f1; /* 极浅填充/悬停底；接近 --color-fill-1 */
   --bg-subtle: #f5f4ef; /* 轻区域/面板背景；接近 --bg-1 / --color-bg-1 */
   --bg-muted: #eeede5; /* 次级块/弱背景；接近 --bg-2 / --color-bg-2 */
   --bg-control: #f2f3f5; /* 控件填充/中性浅底；接近 --color-fill-2 */
@@ -202,7 +203,8 @@
 
   /* ---------- 通用中性结构 ---------- */
   /* Semantic background tokens */
-  --bg-base: #0f0f0c; /* 页面/应用底色；接近 --color-fill-0 */
+  --bg-base: rgba(255, 252, 240, 0.07); /* 页面/应用底色；接近 --color-fill-0 */
+  --bg-faint: rgba(255, 255, 255, 0.04); /* 极浅填充/悬停底；接近 --color-fill-1 */
   --bg-subtle: #202018; /* 轻区域/面板背景；由 --bg-1 / --color-bg-1 提亮 */
   --bg-muted: #29291f; /* 次级块/弱背景；由 --bg-2 / --color-bg-2 提亮 */
   --bg-control: rgba(255, 255, 255, 0.08); /* 控件填充/中性浅底；接近 --color-fill-2 */

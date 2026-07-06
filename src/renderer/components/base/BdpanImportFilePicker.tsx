@@ -4,11 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Button, Input, Message, Spin } from '@arco-design/web-react';
-import { Close, FileDisplayOne, FolderOpen, Refresh } from '@icon-park/react';
+import { Button, Input, Message, Modal, Spin } from '@arco-design/web-react';
+import { FileDisplayOne, FolderOpen, Refresh } from '@icon-park/react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import AionModal from '@/renderer/components/base/AionModal';
 import type { BdpanFileEntry } from '@/common/ipcBridge';
 import { ipcBridge } from '@/common';
 
@@ -56,7 +55,7 @@ function buildBreadcrumbs(root: string, current: string): { label: string; path:
   return segments;
 }
 
-const BdpanFileSelector: React.FC<Props> = ({ visible, onCancel, onConfirm }) => {
+const BdpanImportFilePicker: React.FC<Props> = ({ visible, onCancel, onConfirm }) => {
   const { t } = useTranslation();
   const [step, setStep] = useState<Step>('checking');
   const [errorMsg, setErrorMsg] = useState('');
@@ -355,32 +354,25 @@ const BdpanFileSelector: React.FC<Props> = ({ visible, onCancel, onConfirm }) =>
     );
   };
 
-  const headerConfig = {
-    render: () => (
-      <div className='flex items-center justify-between pb-20px' style={{ borderBottom: '1px solid var(--bg-3)' }}>
-        <h3 className='text-18px font-500 text-foreground m-0'>{t('conversation.bdpan.title')}</h3>
-        <div className='flex items-center gap-12px'>
-          {username && (
-            <span className='text-secondary text-13px'>
-              {username}{' '}
-              <button className='text-primary text-13px hover:underline bg-transparent border-none cursor-pointer p-0' onClick={logout}>
-                {t('conversation.bdpan.logout')}
-              </button>
-            </span>
-          )}
-          <button onClick={onCancel} className='w-32px h-32px f-center rd-8px transition-colors duration-200 cursor-pointer border-0 bg-transparent p-0 hover:bg-2 focus:outline-none' aria-label='Close'>
-            <Close size={20} fill='#86909c' />
-          </button>
-        </div>
-      </div>
-    ),
-  };
+  const modalTitle = (
+    <div className='flex items-center justify-between'>
+      <span>{t('conversation.bdpan.title')}</span>
+      {username && (
+        <span className='text-secondary text-13px mr-4'>
+          {username}{' '}
+          <Button type='text' size='mini' onClick={logout}>
+            {t('conversation.bdpan.logout')}
+          </Button>
+        </span>
+      )}
+    </div>
+  );
 
   return (
-    <AionModal visible={visible} onCancel={onCancel} style={{ width: 520 }} header={headerConfig} footer={null}>
+    <Modal visible={visible} onCancel={onCancel} style={{ width: 520 }} title={modalTitle} footer={null}>
       {renderContent()}
-    </AionModal>
+    </Modal>
   );
 };
 
-export default BdpanFileSelector;
+export default BdpanImportFilePicker;

@@ -16,7 +16,7 @@ import { allSupportedExts } from '@/renderer/services/FileService';
 import { emitter, useAddEventListener } from '@/renderer/utils/emitter';
 import { mergeFileSelectionItems } from '@/renderer/utils/fileSelection';
 import BdpanLogo from '@/renderer/assets/logos/bdpan.png';
-import BdpanFileSelector from '@/renderer/components/BdpanFileSelector';
+import BdpanImportFilePicker from '@/renderer/components/base/BdpanImportFilePicker';
 import FilePreview from '@/renderer/components/FilePreview';
 import HorizontalFileList from '@/renderer/components/HorizontalFileList';
 import { usePreviewContext } from '@/renderer/pages/conversation/preview';
@@ -1011,7 +1011,7 @@ const AcpSendBox: React.FC<{
           emitter.emit('acp.selected.file.append', [item]);
         }}
       ></SendBox>
-      <BdpanFileSelector
+      <BdpanImportFilePicker
         visible={bdpanSelectorVisible}
         onCancel={() => setBdpanSelectorVisible(false)}
         onConfirm={(paths) => {

@@ -42,6 +42,7 @@ const semanticColors = {
 // text-1 to text-4 are supported via custom rules, pointing to Arco's --color-text-*
 const backgroundColors = {
   base: 'var(--bg-base)', // bg-base - 页面底色
+  faint: 'var(--bg-faint)', // bg-faint - 极浅填充/悬停底；接近 color-fill-1
   subtle: 'var(--bg-subtle)', // bg-subtle - 轻区域/面板背景
   muted: 'var(--bg-muted)', // bg-muted - 次级块/弱背景
   control: 'var(--bg-control)', // bg-control - 控件填充/中性浅底
@@ -152,7 +153,7 @@ export default defineConfig({
     'divide-light': 'divide-[var(--border-light)]', // 浅分割线 / lighter divider color（搭配 divide-y / divide-x）
     'divide-tiny': 'divide-[var(--border-tiny)]', // 极浅分割线 / very subtle divider
     'scrollbar-hide': '[scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
-    'item-card': 'bg-fill-0 rd-12px p-4 cursor-pointer shadow-[0_1px_3px_rgba(0,0,0,0.08)] transition-all duration-200 hover:-translate-y-px hover:shadow-[0_4px_12px_rgba(0,0,0,0.1)]',
+    card: 'bg-base rd-3 p-4 cursor-pointer shadow-[0_1px_3px_rgba(0,0,0,0.08)] transition-all duration-200 hover:-translate-y-px hover:shadow-[0_4px_12px_rgba(0,0,0,0.1)]',
     // 分类筛选 chip：结构 + 两种互斥状态（idle / active），避免 hover 与选中态冲突
     'category-chip': 'flex-shrink-0 inline-flex items-center justify-center h-28px px-12px rd-16px border border-transparent text-12px leading-18px whitespace-nowrap cursor-pointer transition-colors',
     'category-chip-idle': 'text-secondary hover:bg-fill-2 hover:text-foreground',

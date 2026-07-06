@@ -1,9 +1,3 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import React from 'react';
 import { Button, Spin, Popconfirm, Switch, Tooltip } from '@arco-design/web-react';
 import { Trash2, Shield, Zap, Download } from 'lucide-react';
@@ -22,7 +16,7 @@ export default function InstalledSkillCard({ skill, onUninstall, uninstalling, o
   const { t } = useTranslation();
 
   return (
-    <div className={classNames('item-card group flex items-start gap-3 relative overflow-hidden', !isEnabled && 'opacity-65', !hasDetail && 'cursor-default')} onClick={hasDetail ? onClick : undefined}>
+    <div className={classNames('card group flex items-start gap-3 relative overflow-hidden', !isEnabled && 'opacity-65', !hasDetail && 'cursor-default')} onClick={hasDetail ? onClick : undefined}>
       {/* Icon */}
       <div className='w-12 flex-shrink-0'>
         <div className='size-12 rd-8px overflow-hidden'>
@@ -44,7 +38,7 @@ export default function InstalledSkillCard({ skill, onUninstall, uninstalling, o
           <span className='min-w-0 font-medium text-13px text-foreground truncate'>{displayName}</span>
           {!skill.isBuiltin && displayVersion && <span className='px-[5px] py-0 bg-control text-secondary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px'>v{displayVersion}</span>}
         </div>
-        <div className='mt-[3px] min-h-7.5'>{description ? <div className='text-11px text-secondary line-clamp-2 leading-15px'>{description}</div> : <div className='text-11px text-tertiary italic line-clamp-2 leading-15px'>{skill.name}</div>}</div>
+        <div className='mt-1 min-h-7.5'>{description ? <div className='text-11px text-secondary line-clamp-2 leading-15px'>{description}</div> : <div className='text-11px text-tertiary italic line-clamp-2 leading-15px'>{skill.name}</div>}</div>
       </div>
 
       {/* Actions - top right */}

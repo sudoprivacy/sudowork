@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Input, Button, Message, Spin } from '@arco-design/web-react';
-import AionModal from '@/renderer/components/base/AionModal';
+import { Input, Message, Modal, Spin } from '@arco-design/web-react';
 import { normalizeInstallError } from '../utils/normalizeError';
 import type { EnterpriseMcpServerDto, EnterpriseMcpUserConfigItem } from '../types';
 
@@ -97,25 +96,7 @@ const EditConfigModal: React.FC<EditConfigModalProps> = ({ visible, server, load
   };
 
   return (
-    <AionModal
-      visible={visible}
-      size='medium'
-      // size='medium' 预设含 height: 400px，但本弹窗内容（少量配置项）高度通常远小于此值，
-      // 会在按钮下方留下空白；用 height: 'auto' 覆盖让其按内容自适应。
-      style={{ height: 'auto' }}
-      header={`修改配置 · ${server.display_name || server.name}`}
-      onCancel={onCancel}
-      footer={
-        <div className='flex justify-end gap-2'>
-          <Button onClick={onCancel} disabled={submitting}>
-            取消
-          </Button>
-          <Button type='primary' onClick={() => void handleSave()} loading={submitting} disabled={loading}>
-            保存
-          </Button>
-        </div>
-      }
-    >
+    <Modal visible={visible} style={{ width: 600 }} title={`修改配置 · ${server.display_name || server.name}`} onCancel={onCancel} onOk={() => void handleSave()} okText='保存' cancelText='取消' okButtonProps={{ loading: submitting, disabled: loading }} cancelButtonProps={{ disabled: submitting }}>
       {loading ? (
         <div className='f-center py-15'>
           <Spin size={28} />
@@ -151,7 +132,7 @@ const EditConfigModal: React.FC<EditConfigModalProps> = ({ visible, server, load
           ))}
         </div>
       )}
-    </AionModal>
+    </Modal>
   );
 };
 

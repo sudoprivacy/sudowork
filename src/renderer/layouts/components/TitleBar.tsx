@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import classNames from 'classnames';
-import { ExpandLeft, ExpandRight } from '@icon-park/react';
+import { PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { WORKSPACE_STATE_EVENT, dispatchWorkspaceToggleEvent } from '@renderer/utils/workspaceEvents';
@@ -42,10 +42,10 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
   // WebUI 和 macOS 桌面都需要在标题栏放工作区开关
   const showWorkspaceButton = workspaceAvailable && (!isDesktopRuntime || isMacRuntime);
 
-  const workspaceTooltip = workspaceCollapsed ? t('common.expandMore', { defaultValue: 'Expand workspace' }) : t('common.collapse', { defaultValue: 'Collapse workspace' });
+  const workspaceTooltip = workspaceCollapsed ? t('common.expandMore', { defaultValue: '展开更多' }) : t('common.collapse', { defaultValue: '收起' });
   const iconSize = 18;
   const showSiderToggle = Boolean(layout?.setSiderCollapsed);
-  const siderTooltip = layout?.siderCollapsed ? t('common.expandMore', { defaultValue: 'Expand sidebar' }) : t('common.collapse', { defaultValue: 'Collapse sidebar' });
+  const siderTooltip = layout?.siderCollapsed ? t('common.expandMore', { defaultValue: '展开更多' }) : t('common.collapse', { defaultValue: '收起' });
 
   const handleSiderToggle = () => {
     if (!showSiderToggle || !layout?.setSiderCollapsed) return;
@@ -66,7 +66,7 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
 
   return (
     <div
-      className={classNames('flex items-center gap-8px app-titlebar', {
+      className={classNames('flex items-center gap-2 app-titlebar', {
         'app-titlebar--desktop': isDesktopRuntime,
         'app-titlebar--mac': isMacRuntime,
       })}
@@ -74,14 +74,14 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
       <div className='flex items-center [-webkit-app-region:no-drag]' style={menuStyle}>
         {showSiderToggle && (
           <button type='button' className='app-titlebar__button hover:bg-transparent! active:bg-transparent!' onClick={handleSiderToggle} aria-label={siderTooltip}>
-            {layout?.siderCollapsed ? <ExpandLeft theme='outline' size={iconSize} fill='currentColor' /> : <ExpandRight theme='outline' size={iconSize} fill='currentColor' />}
+            {layout?.siderCollapsed ? <PanelLeftOpen size={iconSize} /> : <PanelLeftClose size={iconSize} />}
           </button>
         )}
       </div>
       <div className='app-titlebar__toolbar'>
         {showWorkspaceButton && (
           <button type='button' className='app-titlebar__button' onClick={handleWorkspaceToggle} aria-label={workspaceTooltip}>
-            {workspaceCollapsed ? <ExpandRight theme='outline' size={iconSize} fill='currentColor' /> : <ExpandLeft theme='outline' size={iconSize} fill='currentColor' />}
+            {workspaceCollapsed ? <PanelRightOpen size={iconSize} /> : <PanelRightClose size={iconSize} />}
           </button>
         )}
         {showWindowControls && <WindowControls />}

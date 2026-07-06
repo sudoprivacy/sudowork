@@ -148,7 +148,7 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
       return {
         id: tab.id,
         label: resolveExtTabName(tab),
-        icon: resolvedIcon ? <img src={resolvedIcon} alt='' className='w-full h-full object-contain' /> : <Puzzle />,
+        icon: resolvedIcon ? <img src={resolvedIcon} alt='' className='size-full object-contain' /> : <Puzzle />,
         isImageIcon: Boolean(resolvedIcon),
         path: `ext/${tab.id}`,
       };
@@ -207,7 +207,7 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
             <SidebarNavItem
               icon={
                 item.isImageIcon ? (
-                  <span className='f-center h-5 w-5'>{item.icon}</span>
+                  <span className='f-center size-5'>{item.icon}</span>
                 ) : (
                   React.cloneElement(item.icon as React.ReactElement<{ size?: string | number; strokeWidth?: number; className?: string }>, {
                     size: '20',

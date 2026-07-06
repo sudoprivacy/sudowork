@@ -13,7 +13,7 @@ import AgentModeSelector from '@/renderer/components/AgentModeSelector';
 import { getAgentModes, supportsModeSwitch, type AgentModeOption } from '@/renderer/utils/agentModes';
 import ActionChip from '@/renderer/components/ui/ActionChip';
 import BdpanLogo from '@/renderer/assets/logos/bdpan.png';
-import BdpanFileSelector from '@/renderer/components/BdpanFileSelector';
+import BdpanImportFilePicker from '@/renderer/components/base/BdpanImportFilePicker';
 import styles from '../index.module.css';
 import type { AcpBackend, AcpBackendConfig, AvailableAgent } from '../types';
 import PresetAgentTag from './PresetAgentTag';
@@ -170,7 +170,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
         <Button shape='circle' type='primary' loading={loading} disabled={isButtonDisabled} icon={<ArrowUp theme='filled' fill='white' strokeWidth={4} />} onClick={onSend} />
       </div>
 
-      <BdpanFileSelector
+      <BdpanImportFilePicker
         visible={bdpanSelectorVisible}
         onCancel={() => setBdpanSelectorVisible(false)}
         onConfirm={(paths) => {
