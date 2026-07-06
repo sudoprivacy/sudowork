@@ -99,6 +99,39 @@ jobs:
         # their skillhub token wasn't provisioned.
         run: bunx vitest run tests/unit/hubErrors.test.ts tests/unit/HubEmptyState.dom.test.tsx
 
+  # Job 2c: Conversation resource reaper regression tests
+  unit-tests-conversation-reaper:
+    name: Conversation Reaper Unit Tests
+    if: github.event.action != 'edited'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --no-frozen-lockfile
+
+      - name: Run conversation reaper tests
+        # Guards the conversation-lifecycle cleanup SSOT against regression:
+        # reaper step order + workspace-deletion guard (never delete a user
+        # asset), boot orphan sweeper (referenced kept / aged orphan swept /
+        # fresh skipped), preset-uninstall routing through the reaper, and the
+        # leaked-cache disposers (message timer, telemetry discard). All mocked
+        # / tmp-dir based — no native deps or display. Encodes the behaviors
+        # verified end-to-end against the live app.
+        run: bunx vitest run tests/integration/conversationReaper.test.ts tests/integration/orphanWorkspaceSweeper.test.ts tests/integration/assistantHubUninstallReaper.test.ts tests/unit/conversationTrackerDiscard.test.ts tests/unit/messageDispose.test.ts
+
   # Job 3: Build test across all platforms (parallel with code-quality and unit-tests)
   build-test:
     name: Build Test (${{ matrix.platform }})
