@@ -116,7 +116,11 @@ export const useConversationActions = ({ batchMode, onSessionClick, onBatchModeC
 
   const handleDeleteClick = useCallback(
     (conversation: TChatConversation) => {
-      const hasWorkspace = !!(conversation.extra as { workspace?: string } | undefined)?.workspace;
+      // Only offer the "delete workspace folder" checkbox for user-selected
+      // project folders (customWorkspace === true). Auto temp scratch dirs are
+      // reaped silently by the main process (deleteWorkspace stays undefined).
+      const extra = conversation.extra as { workspace?: string; customWorkspace?: boolean } | undefined;
+      const showWorkspaceCheckbox = extra?.customWorkspace === true && !!extra?.workspace;
       const deleteWorkspaceRef = { current: false };
 
       Modal.confirm({
@@ -125,7 +129,7 @@ export const useConversationActions = ({ batchMode, onSessionClick, onBatchModeC
           'div',
           null,
           React.createElement('div', null, t('conversation.history.deleteConfirm')),
-          hasWorkspace &&
+          showWorkspaceCheckbox &&
             React.createElement(
               Checkbox,
               {
@@ -142,7 +146,7 @@ export const useConversationActions = ({ batchMode, onSessionClick, onBatchModeC
         okButtonProps: { status: 'warning' },
         onOk: async () => {
           try {
-            const success = await removeConversation(conversation, deleteWorkspaceRef.current);
+            const success = await removeConversation(conversation, showWorkspaceCheckbox ? deleteWorkspaceRef.current : undefined);
             if (success) {
               emitter.emit('chat.history.refresh');
               Message.success(t('conversation.history.deleteSuccess'));
@@ -171,7 +175,13 @@ export const useConversationActions = ({ batchMode, onSessionClick, onBatchModeC
 
       const selectedIds = Array.from(selectedConversationIds);
       const selectedConvs = conversations.filter((c) => selectedIds.includes(c.id));
-      const hasAnyWorkspace = selectedConvs.some((c) => !!(c.extra as { workspace?: string } | undefined)?.workspace);
+      // Checkbox applies only to user-selected custom folders; temp scratch dirs
+      // are reaped silently regardless.
+      const isCustomWorkspace = (c: TChatConversation) => {
+        const extra = c.extra as { workspace?: string; customWorkspace?: boolean } | undefined;
+        return extra?.customWorkspace === true && !!extra?.workspace;
+      };
+      const hasAnyCustomWorkspace = selectedConvs.some(isCustomWorkspace);
       const deleteWorkspaceRef = { current: false };
 
       Modal.confirm({
@@ -180,7 +190,7 @@ export const useConversationActions = ({ batchMode, onSessionClick, onBatchModeC
           'div',
           null,
           React.createElement('div', null, t('conversation.history.batchDeleteConfirm', { count: selectedConversationIds.size })),
-          hasAnyWorkspace &&
+          hasAnyCustomWorkspace &&
             React.createElement(
               Checkbox,
               {
@@ -197,7 +207,7 @@ export const useConversationActions = ({ batchMode, onSessionClick, onBatchModeC
         okButtonProps: { status: 'warning' },
         onOk: async () => {
           try {
-            const results = await Promise.all(selectedConvs.map((conv) => removeConversation(conv, deleteWorkspaceRef.current)));
+            const results = await Promise.all(selectedConvs.map((conv) => removeConversation(conv, isCustomWorkspace(conv) ? deleteWorkspaceRef.current : undefined)));
             const successCount = results.filter(Boolean).length;
             if (successCount > 0) {
               emitter.emit('chat.history.refresh');

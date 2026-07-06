@@ -193,15 +193,16 @@ const BrowserPanel: React.FC<BrowserPanelProps> = ({ active = false, conversatio
     };
   }, [handleOpenBrowserUrl]);
 
-  // Listen for "conversation deleted" cleanup from main (closeBrowserTabsByConversation
-  // → ipcBridge.rightPanelBrowser.convClosed.emit). Drop the matching entry
-  // from the module-level state so its tabs don't reappear if the user later
-  // creates a new conversation that happens to reuse the same id (unlikely
-  // given uuid ids, but cheap to be defensive).
+  // Listen for the consolidated "conversation reaped" broadcast from main. Drop
+  // the matching entry from the module-level state so its tabs don't reappear if
+  // the user later creates a new conversation that happens to reuse the same id
+  // (unlikely given uuid ids, but cheap to be defensive). Using conversation.reaped
+  // (rather than rightPanelBrowser.convClosed) means the preset-uninstall delete
+  // path — which does not route through the renderer hook — is also covered.
   useEffect(() => {
-    const unsubscribe = ipcBridge.rightPanelBrowser.convClosed.on((payload) => {
-      if (!payload?.conversationId) return;
-      dropConvBrowserState(payload.conversationId);
+    const unsubscribe = ipcBridge.conversation.reaped.on((payload) => {
+      if (!payload?.id) return;
+      dropConvBrowserState(payload.id);
     });
     return () => {
       unsubscribe();
