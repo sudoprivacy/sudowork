@@ -136,7 +136,7 @@ const FilePreview: React.FC<FilePreviewProps> = ({ path, onRemove, readonly = fa
     return (
       <div className='relative inline-block'>
         <div className='rd-8px overflow-hidden border border-solid b-color-border-2'>{imageUrl ? <Image src={imageUrl} alt={fileName} width={60} height={60} className='object-cover cursor-pointer' preview /> : <div className='w-60px h-60px'></div>}</div>
-        {!readonly && <Button shape='circle' size='mini' className='absolute -top-4px -right-4px w-16px! h-16px! min-w-0! z-10' icon={<Close theme='filled' size='10' fill='#666' />} onClick={handleRemove} />}
+        {!readonly && <Button shape='circle' size='mini' className='absolute -top-2 -right-2 z-10 bg-subtle! border! size-6!' icon={<IconClose className='text-13px text-foreground' />} onClick={handleRemove} />}
       </div>
     );
   }
@@ -156,7 +156,7 @@ const FilePreview: React.FC<FilePreviewProps> = ({ path, onRemove, readonly = fa
           </span>
         </div>
       </div>
-      {!readonly && <Button shape='circle' size='mini' className='absolute -top-4px -right-4px w-16px! h-16px! min-w-0! z-10' icon={<Close theme='filled' size='10' fill='#666' />} onClick={handleRemove} />}
+      {!readonly && <Button shape='circle' size='mini' className='absolute -top-2 -right-2 z-10 bg-subtle! border! size-6!' icon={<IconClose className='text-13px text-foreground' />} onClick={handleRemove} />}
     </div>
   );
 };
