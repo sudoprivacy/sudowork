@@ -59,8 +59,6 @@ const BdpanUploadDirPicker: React.FC<Props> = ({ visible, localPath, onCancel, o
   const [creatingFolder, setCreatingFolder] = useState(false);
   const newFolderInputRef = useRef<any>(null);
 
-  const [messageApi, messageContextHolder] = Message.useMessage();
-
   const loadFiles = useCallback(async (dirPath: string, root?: string) => {
     setLoadingFiles(true);
     setStep('file_browser');
@@ -152,10 +150,10 @@ const BdpanUploadDirPicker: React.FC<Props> = ({ visible, localPath, onCancel, o
         setNewFolderName('');
         await loadFiles(currentPath, bdpanRoot ?? undefined);
       } else {
-        messageApi.error(res?.data?.error ?? t('conversation.bdpan.mkdir.failed'));
+        Message.error(res?.data?.error ?? t('conversation.bdpan.mkdir.failed'));
       }
     } catch (err) {
-      messageApi.error(String(err));
+      Message.error(String(err));
     } finally {
       setCreatingFolder(false);
     }
@@ -239,8 +237,6 @@ const BdpanUploadDirPicker: React.FC<Props> = ({ visible, localPath, onCancel, o
 
     return (
       <div className='flex flex-col h-100'>
-        {messageContextHolder}
-
         {/* Local path hint */}
         <div className='px-4 py-2 bg-[var(--bg-2)] border-b border-[var(--bg-3)] flex-shrink-0 text-13px text-secondary truncate'>
           {t('conversation.bdpan.upload.localPath')}: <span className='font-mono text-foreground'>{localName}</span>
