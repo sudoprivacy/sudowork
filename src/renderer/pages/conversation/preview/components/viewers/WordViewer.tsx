@@ -39,7 +39,6 @@ const WordPreview: React.FC<WordPreviewProps> = ({ filePath, hideToolbar = false
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [messageApi, messageContextHolder] = Message.useMessage();
   const toolbarExtrasContext = usePreviewToolbarExtras();
   const usePortalToolbar = Boolean(toolbarExtrasContext) && !hideToolbar;
 
@@ -53,7 +52,6 @@ const WordPreview: React.FC<WordPreviewProps> = ({ filePath, hideToolbar = false
   // Use refs to avoid recreating callbacks on every render
   const filePathRef = useRef(filePath);
   const useLibreOfficeRef = useRef(useLibreOffice);
-  const messageApiRef = useRef(messageApi);
 
   useEffect(() => {
     filePathRef.current = filePath;
@@ -62,10 +60,6 @@ const WordPreview: React.FC<WordPreviewProps> = ({ filePath, hideToolbar = false
   useEffect(() => {
     useLibreOfficeRef.current = useLibreOffice;
   }, [useLibreOffice]);
-
-  useEffect(() => {
-    messageApiRef.current = messageApi;
-  }, [messageApi]);
 
   // Listen for LibreOffice install progress and result
   useEffect(() => {
@@ -93,15 +87,15 @@ const WordPreview: React.FC<WordPreviewProps> = ({ filePath, hideToolbar = false
   const handleOpenInSystem = useCallback(async () => {
     const currentFilePath = filePathRef.current;
     if (!currentFilePath) {
-      messageApiRef.current.error(t('preview.errors.openWithoutPath'));
+      Message.error(t('preview.errors.openWithoutPath'));
       return;
     }
 
     try {
       await ipcBridge.shell.openFile.invoke(currentFilePath);
-      messageApiRef.current.info(t('preview.openInSystemSuccess'));
+      Message.info(t('preview.openInSystemSuccess'));
     } catch {
-      messageApiRef.current.error(t('preview.openInSystemFailed'));
+      Message.error(t('preview.openInSystemFailed'));
     }
   }, [t]);
 
@@ -112,10 +106,10 @@ const WordPreview: React.FC<WordPreviewProps> = ({ filePath, hideToolbar = false
     try {
       const res = await libreOfficeIpc.install.invoke();
       if (!res?.success) {
-        messageApiRef.current?.error?.(res?.msg || t('settings.runtimeSettings.installFailed', { name: 'LibreOffice' }));
+        Message.error(res?.msg || t('settings.runtimeSettings.installFailed', { name: 'LibreOffice' }));
       }
     } catch (e) {
-      messageApiRef.current?.error?.(e instanceof Error ? e.message : t('settings.runtimeSettings.installFailed', { name: 'LibreOffice' }));
+      Message.error(e instanceof Error ? e.message : t('settings.runtimeSettings.installFailed', { name: 'LibreOffice' }));
     }
     // Don't reset installingLibreOffice here — the installResult event will handle it
   }, [t]);
@@ -150,7 +144,7 @@ const WordPreview: React.FC<WordPreviewProps> = ({ filePath, hideToolbar = false
       }
     } catch {
       try {
-        messageApiRef.current.error(t('preview.word.loadFailed'));
+        Message.error(t('preview.word.loadFailed'));
       } catch {
         // Ignore
       }
@@ -258,7 +252,7 @@ const WordPreview: React.FC<WordPreviewProps> = ({ filePath, hideToolbar = false
         const errorMessage = err instanceof Error ? err.message : defaultMessage;
         setError(`${errorMessage}\n${t('preview.pathLabel')}: ${filePath}`);
         try {
-          messageApiRef.current?.error?.(errorMessage);
+          Message.error(errorMessage);
         } catch {
           // Ignore
         }
@@ -330,8 +324,6 @@ const WordPreview: React.FC<WordPreviewProps> = ({ filePath, hideToolbar = false
   if (useLibreOffice && pdfPath) {
     return (
       <div className='h-full w-full flex flex-col'>
-        {messageContextHolder}
-
         {!usePortalToolbar && !hideToolbar && (
           <div className='flex items-center justify-between h-40px px-12px flex-shrink-0'>
             <div className='flex items-center gap-8px'>
@@ -369,7 +361,6 @@ const WordPreview: React.FC<WordPreviewProps> = ({ filePath, hideToolbar = false
     if (!markdown || markdown.trim().length === 0) {
       return (
         <div className='h-full w-full flex flex-col'>
-          {messageContextHolder}
           {!usePortalToolbar && !hideToolbar && (
             <div className='flex items-center justify-between h-40px px-12px flex-shrink-0'>
               <div className='flex items-center gap-8px'>
@@ -403,8 +394,6 @@ const WordPreview: React.FC<WordPreviewProps> = ({ filePath, hideToolbar = false
 
     return (
       <div className='flex-1 min-h-0 w-full flex flex-col'>
-        {messageContextHolder}
-
         {!usePortalToolbar && !hideToolbar && (
           <div className='flex items-center justify-between h-40px px-12px flex-shrink-0'>
             <div className='flex items-center gap-8px'>

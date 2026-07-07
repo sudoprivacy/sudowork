@@ -701,7 +701,7 @@ const AcpSendBox: React.FC<{
     if (loginMatch) {
       const title = loginMatch[1].trim();
       if (!title) {
-        messageApiRef.current.warning(t('pwdLogin.slash.missingTitle', { defaultValue: 'Usage: /login <title>' }));
+        Message.warning(t('pwdLogin.slash.missingTitle', { defaultValue: 'Usage: /login <title>' }));
         return;
       }
       setPwdLoginModal({ visible: true, title });
@@ -793,10 +793,6 @@ const AcpSendBox: React.FC<{
   const [bdpanSelectorVisible, setBdpanSelectorVisible] = useState(false);
   const [fileMenuOpen, setFileMenuOpen] = useState(false);
   const [pwdLoginModal, setPwdLoginModal] = useState<{ visible: boolean; title: string }>({ visible: false, title: '' });
-  const [messageApi, messageContextHolder] = Message.useMessage();
-  const messageApiRef = useRef(messageApi);
-  messageApiRef.current = messageApi;
-
   // /login <title> — user-triggered auto-login via saved credentials.
   // Intercepted in onSendHandler before the text hits the agent, so the
   // title + pwd_login machinery never crosses the LLM boundary.
@@ -812,9 +808,9 @@ const AcpSendBox: React.FC<{
           conversation_id,
         });
         if (result.ok) {
-          messageApiRef.current.success(t('pwdLogin.result.success', { title, defaultValue: 'Logged into {{title}}' }));
+          Message.success(t('pwdLogin.result.success', { title, defaultValue: 'Logged into {{title}}' }));
         } else {
-          messageApiRef.current.error(
+          Message.error(
             t('pwdLogin.result.failure', {
               title,
               error: result.error ?? 'unknown',
@@ -823,7 +819,7 @@ const AcpSendBox: React.FC<{
           );
         }
       } catch (err) {
-        messageApiRef.current.error(t('pwdLogin.result.exception', { defaultValue: 'Auto-login error' }));
+        Message.error(t('pwdLogin.result.exception', { defaultValue: 'Auto-login error' }));
         console.error('[pwdLogin] invoke failed:', err);
       }
     },
@@ -833,9 +829,9 @@ const AcpSendBox: React.FC<{
   useEffect(() => {
     return ipcBridge.bdpan.downloadResult.on((result) => {
       if (result.success) {
-        messageApiRef.current.success(t('conversation.bdpan.download.success'));
+        Message.success(t('conversation.bdpan.download.success'));
       } else {
-        messageApiRef.current.error(result.error ?? t('conversation.bdpan.download.failed'));
+        Message.error(result.error ?? t('conversation.bdpan.download.failed'));
       }
     });
   }, [t]);
@@ -862,7 +858,6 @@ const AcpSendBox: React.FC<{
 
   return (
     <div className='max-w-800px w-full mx-auto flex flex-col mt-auto mb-16px'>
-      {messageContextHolder}
       <ThoughtDisplay thought={thought} running={running || aiProcessing} onStop={handleStop} startTime={processingStartTime} />
 
       <SendBox

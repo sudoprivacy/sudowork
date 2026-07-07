@@ -72,7 +72,7 @@ const Layout: React.FC = () => {
     emitter.emit('guid.reset');
     void navigate('/guid');
   }, [navigate]);
-  const { contextHolder: multiAgentContextHolder } = useMultiAgentDetection();
+  useMultiAgentDetection();
   const { contextHolder: directorySelectionContextHolder } = useDirectorySelection();
   useDeepLink();
   const location = useLocation();
@@ -130,7 +130,6 @@ const Layout: React.FC = () => {
 
           <ArcoLayout.Content className='bg-2 layout-content flex flex-col min-h-0 overflow-y-hidden'>
             <Outlet />
-            {multiAgentContextHolder}
             {directorySelectionContextHolder}
             <UpdateModal />
             <DebugPanel />

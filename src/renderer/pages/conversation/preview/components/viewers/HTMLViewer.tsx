@@ -36,7 +36,6 @@ const HTMLPreview: React.FC<HTMLPreviewProps> = ({ content, filePath, hideToolba
   const [inspectorMode, setInspectorMode] = useState(false);
   const [selectedElement, setSelectedElement] = useState<SelectedElement | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; element: SelectedElement } | null>(null);
-  const [messageApi, messageContextHolder] = Message.useMessage();
   const [currentTheme, setCurrentTheme] = useState<'light' | 'dark'>(() => {
     return (document.documentElement.getAttribute('data-theme') as 'light' | 'dark') || 'light';
   });
@@ -234,7 +233,7 @@ const HTMLPreview: React.FC<HTMLPreviewProps> = ({ content, filePath, hideToolba
       if (event.data.type === 'element-selected') {
         const elementInfo: SelectedElement = event.data.data;
         setSelectedElement(elementInfo);
-        messageApi.info(t('preview.html.elementSelected', { path: elementInfo.path }));
+        Message.info(t('preview.html.elementSelected', { path: elementInfo.path }));
       } else if (event.data.type === 'element-contextmenu') {
         const { element, x, y } = event.data.data;
 
@@ -253,7 +252,7 @@ const HTMLPreview: React.FC<HTMLPreviewProps> = ({ content, filePath, hideToolba
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [messageApi]);
+  }, [t]);
 
   /**
    * 关闭右键菜单
@@ -272,10 +271,10 @@ const HTMLPreview: React.FC<HTMLPreviewProps> = ({ content, filePath, hideToolba
   const handleCopyHTML = useCallback(
     (html: string) => {
       void navigator.clipboard.writeText(html);
-      messageApi.success(t('preview.html.copySuccess'));
+      Message.success(t('preview.html.copySuccess'));
       setContextMenu(null);
     },
-    [messageApi, t]
+    [t]
   );
 
   /**
@@ -310,14 +309,12 @@ const HTMLPreview: React.FC<HTMLPreviewProps> = ({ content, filePath, hideToolba
   const handleToggleInspector = () => {
     setInspectorMode(!inspectorMode);
     if (!inspectorMode) {
-      messageApi.info(t('preview.html.inspectorEnabled'));
+      Message.info(t('preview.html.inspectorEnabled'));
     }
   };
 
   return (
     <div className='h-full w-full flex flex-col'>
-      {messageContextHolder}
-
       {/* 工具栏 */}
       {!hideToolbar && (
         <div className='flex items-center justify-between h-40px px-12px border-b flex-shrink-0'>
@@ -402,7 +399,7 @@ const HTMLPreview: React.FC<HTMLPreviewProps> = ({ content, filePath, hideToolba
             className='px-12px py-6px text-13px text-foreground cursor-pointer transition-colors'
             onClick={() => {
               console.log('[HTMLPreview] Element info:', contextMenu.element);
-              messageApi.info(t('preview.html.printedToConsole'));
+              Message.info(t('preview.html.printedToConsole'));
               setContextMenu(null);
             }}
           >
