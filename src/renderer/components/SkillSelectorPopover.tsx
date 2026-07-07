@@ -1,4 +1,5 @@
-import { Popover } from '@arco-design/web-react';
+import { Input, Popover } from '@arco-design/web-react';
+import { IconSearch } from '@arco-design/web-react/icon';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -122,7 +123,7 @@ export function SkillSelectorMenuContent({
   return (
     <div>
       {/* Header with optional tabs */}
-      <div className='py-2 border-b flex items-center justify-between gap-2'>
+      <div className='pb-2 border-b flex items-center justify-between gap-2'>
         {showTabs ? (
           <div className='flex items-center gap-0.5'>
             <button
@@ -156,36 +157,10 @@ export function SkillSelectorMenuContent({
       </div>
 
       {/* Search box */}
-      {onSearchChange && (
-        <div
-          className='flex items-center gap-1.5 px-2 my-3 rounded-8px'
-          style={{
-            background: 'color-mix(in srgb, var(--color-fill-2) 60%, transparent)',
-          }}
-        >
-          <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round' className='shrink-0 text-tertiary'>
-            <circle cx='11' cy='11' r='8' />
-            <path d='m21 21-4.35-4.35' />
-          </svg>
-          <input
-            type='text'
-            className='flex-1 min-w-0 text-13px bg-transparent border-none outline-none text-foreground placeholder:text-tertiary'
-            style={{ caretColor: 'var(--color-primary)' }}
-            placeholder={activeTab === 'skills' ? resolvedSkillsSearchPlaceholder : resolvedFilesSearchPlaceholder}
-            value={searchQuery}
-            onChange={(e) => onSearchChange(e.target.value)}
-            onKeyDown={handleSearchKeyDown}
-          />
-          {searchQuery && (
-            <button type='button' className='shrink-0 size-4 f-center rounded-full text-tertiary hover:text-secondary cursor-pointer border-none outline-none text-11px bg-transparent' onMouseDown={(e) => e.preventDefault()} onClick={() => onSearchChange('')}>
-              ✕
-            </button>
-          )}
-        </div>
-      )}
+      {onSearchChange && <Input className='my-3' size='small' prefix={<IconSearch />} allowClear placeholder={activeTab === 'skills' ? resolvedSkillsSearchPlaceholder : resolvedFilesSearchPlaceholder} value={searchQuery} onChange={onSearchChange} onKeyDown={handleSearchKeyDown} />}
 
       {/* Content area */}
-      <div role='listbox' aria-busy={loading} className='overflow-y-auto py-1.5' style={{ maxHeight: 'min(34vh, 260px)' }}>
+      <div role='listbox' aria-busy={loading} className='overflow-y-auto py-1.5 h-260px'>
         {/* Skills tab content */}
         {activeTab === 'skills' && (
           <>
