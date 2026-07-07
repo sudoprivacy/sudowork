@@ -1,7 +1,7 @@
 import { Input, Popover } from '@arco-design/web-react';
 import { IconSearch } from '@arco-design/web-react/icon';
 import classNames from 'classnames';
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { AtMentionTab } from '@/renderer/hooks/useSkillSelectorController';
 import type { WorkspaceFileItem } from '@/renderer/hooks/useWorkspaceFiles';
@@ -21,7 +21,7 @@ export function SkillSelectorMenuContent({
   onSelectItem,
   emptyText,
   showTabs = false,
-  activeTab = 'skills',
+  activeTab: activeTabProp,
   onTabChange,
   fileItems = [],
   onSelectFile,
@@ -37,6 +37,19 @@ export function SkillSelectorMenuContent({
 }: ISkillSelectorMenuContentProps) {
   const { t } = useTranslation();
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const [internalActiveTab, setInternalActiveTab] = useState<AtMentionTab>('skills');
+  // Controlled when activeTabProp is provided, otherwise use internal state
+  const activeTab = activeTabProp ?? internalActiveTab;
+
+  const handleTabChange = useCallback(
+    (tab: AtMentionTab) => {
+      if (activeTabProp === undefined) {
+        setInternalActiveTab(tab);
+      }
+      onTabChange?.(tab);
+    },
+    [activeTabProp, onTabChange]
+  );
 
   const resolvedSkillsSearchPlaceholder = skillsSearchPlaceholder || t('messages.skills.searchSkills', '搜索技能...');
   const resolvedFilesSearchPlaceholder = filesSearchPlaceholder || t('messages.skills.searchFiles', '搜索文件...');
@@ -75,12 +88,12 @@ export function SkillSelectorMenuContent({
         } else {
           onDismiss?.();
         }
-      } else if (e.key === 'Tab' && showTabs && onTabChange) {
+      } else if (e.key === 'Tab' && showTabs) {
         e.preventDefault();
-        onTabChange(activeTab === 'skills' ? 'files' : 'skills');
+        handleTabChange(activeTab === 'skills' ? 'files' : 'skills');
       }
     },
-    [activeTab, items, fileItems, activeIndex, onHoverItem, onSelectItem, onSelectFile, onDismiss, onSearchChange, searchQuery, showTabs, onTabChange]
+    [activeTab, items, fileItems, activeIndex, onHoverItem, onSelectItem, onSelectFile, onDismiss, onSearchChange, searchQuery, showTabs, handleTabChange]
   );
 
   return (
@@ -96,7 +109,7 @@ export function SkillSelectorMenuContent({
                 'bg-transparent text-secondary hover:text-foreground hover:bg-fill-2': activeTab !== 'skills',
               })}
               onMouseDown={(e) => e.preventDefault()}
-              onClick={() => onTabChange?.('skills')}
+              onClick={() => handleTabChange('skills')}
             >
               {skillsTabTitle}
             </button>
@@ -107,7 +120,7 @@ export function SkillSelectorMenuContent({
                 'bg-transparent text-secondary hover:text-foreground hover:bg-fill-2': activeTab !== 'files',
               })}
               onMouseDown={(e) => e.preventDefault()}
-              onClick={() => onTabChange?.('files')}
+              onClick={() => handleTabChange('files')}
             >
               {filesTabTitle}
             </button>

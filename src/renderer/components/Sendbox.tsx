@@ -356,6 +356,14 @@ const SendBox: React.FC<{
   // Items for the popover button (all enabled skills, keyed by name)
   const skillPopoverItems = useMemo<SkillSelectorMenuItem[]>(() => skillSelectorItems.map((skill) => ({ ...skill, key: skill.name })), [skillSelectorItems]);
 
+  // Filtered workspace files for the popover button, based on search query
+  const skillPopoverFileItems = useMemo(() => {
+    if (!workspaceFiles) return [];
+    const keyword = skillPopoverSearchQuery.trim().toLowerCase();
+    if (!keyword) return workspaceFiles;
+    return workspaceFiles.filter((f) => f.name.toLowerCase().includes(keyword) || f.relativePath.toLowerCase().includes(keyword));
+  }, [workspaceFiles, skillPopoverSearchQuery]);
+
   const skillSelectorController = useSkillSelectorController({
     input,
     cursorPosition,
@@ -429,6 +437,17 @@ const SendBox: React.FC<{
         setSkillPopoverActiveIndex(0);
       }}
       onDismiss={onSkillPopoverClose}
+      fileItems={skillPopoverFileItems}
+      onSelectFile={(file) => {
+        onAtFileSelected?.(file);
+        onSkillPopoverClose();
+      }}
+      skillsTabTitle={t('messages.skills.tabSkills', { defaultValue: 'Skills' })}
+      filesTabTitle={t('messages.skills.tabFiles', { defaultValue: 'Files' })}
+      filesEmptyText={t('messages.skills.filesEmpty', { defaultValue: 'No files in workspace' })}
+      skillsSearchPlaceholder={t('messages.skills.searchSkills', { defaultValue: '搜索技能...' })}
+      filesSearchPlaceholder={t('messages.skills.searchFiles', { defaultValue: '搜索文件...' })}
+      noSearchResultsText={t('messages.skills.noSearchResults', { defaultValue: '未找到匹配结果' })}
     >
       <Tooltip content={t('conversation.welcome.addSkill', { defaultValue: '添加技能 / 文件' })} position='top'>
         <span className='inline-flex ml-3'>
