@@ -1,4 +1,5 @@
-import { Shield, CheckOne, Lock, Scan, AllApplication, Delete, Edit, Plus } from '@icon-park/react';
+import { Shield, CheckOne, Lock, Scan, AllApplication } from '@icon-park/react';
+import { IconPlus, IconEdit, IconDelete } from '@arco-design/web-react/icon';
 import { Card, Tag, Switch, Button, Modal, Table, Space, Popconfirm, Message, Tooltip } from '@arco-design/web-react';
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -323,7 +324,7 @@ export default function SecurityPage() {
                         {/* Rules section */}
                         <div className='flex items-center justify-between mb-1.5'>
                           <h4 className='text-15px font-500 text-foreground my-1'>{t('settings.securitySettings.hook.ruleListTitle', '拦截规则')}</h4>
-                          <Button type='primary' size='small' icon={<Plus theme='outline' size='14' />} onClick={openAddModal}>
+                          <Button type='primary' size='small' icon={<IconPlus style={{ fontSize: 14 }} />} onClick={openAddModal}>
                             {t('settings.securitySettings.rule.addTitle', '添加规则')}
                           </Button>
                         </div>
@@ -388,9 +389,9 @@ export default function SecurityPage() {
                                 width: 80,
                                 render: (_, record) => (
                                   <Space size='small'>
-                                    <Button type='text' size='mini' icon={<Edit theme='outline' size='14' />} onClick={() => openEditModal(record)} />
+                                    <Button type='text' size='mini' icon={<IconEdit style={{ fontSize: 14 }} />} onClick={() => openEditModal(record)} />
                                     <Popconfirm title={t('settings.securitySettings.hook.deleteConfirm', '确认删除此规则？')} onOk={() => handleDeleteRule(record.id)}>
-                                      <Button type='text' size='mini' status='danger' icon={<Delete theme='outline' size='14' />} />
+                                      <Button type='text' size='mini' status='danger' icon={<IconDelete style={{ fontSize: 14 }} />} />
                                     </Popconfirm>
                                   </Space>
                                 ),
