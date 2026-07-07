@@ -9,43 +9,6 @@ import { handleSkillIconError } from '@/renderer/utils/skillDisplay';
 import { resolveFileIcon } from '@/renderer/utils/fileIcon';
 import SkillSelectorSkeleton from './base/SkillSelectorSkeleton';
 
-export interface SkillSelectorMenuItem {
-  key: string;
-  name: string;
-  displayName: string;
-  description?: string;
-  icon?: string;
-  emoji?: string;
-  enabled?: boolean;
-}
-
-interface ISkillSelectorMenuContentProps {
-  title: string;
-  hint?: string;
-  items: SkillSelectorMenuItem[];
-  selectedKeys: string[];
-  activeIndex: number;
-  loading?: boolean;
-  loadingText?: string;
-  onHoverItem: (index: number) => void;
-  onSelectItem: (item: SkillSelectorMenuItem) => void;
-  emptyText: string;
-  showTabs?: boolean;
-  activeTab?: AtMentionTab;
-  onTabChange?: (tab: AtMentionTab) => void;
-  fileItems?: WorkspaceFileItem[];
-  onSelectFile?: (file: WorkspaceFileItem) => void;
-  filesTabTitle?: string;
-  skillsTabTitle?: string;
-  filesEmptyText?: string;
-  searchQuery?: string;
-  onSearchChange?: (query: string) => void;
-  onDismiss?: () => void;
-  skillsSearchPlaceholder?: string;
-  filesSearchPlaceholder?: string;
-  noSearchResultsText?: string;
-}
-
 export function SkillSelectorMenuContent({
   title,
   hint,
@@ -239,6 +202,14 @@ export function SkillSelectorMenuContent({
   );
 }
 
+export default function SkillSelectorPopover({ popupVisible, onVisibleChange, children, ...contentProps }: ISkillSelectorPopoverProps) {
+  return (
+    <Popover popupVisible={popupVisible} trigger={[]} position='top' onVisibleChange={onVisibleChange} content={<SkillSelectorMenuContent {...contentProps} />} style={{ padding: 0, background: 'transparent', boxShadow: 'none' }}>
+      {children}
+    </Popover>
+  );
+}
+
 interface ISkillSelectorPopoverProps extends ISkillSelectorMenuContentProps {
   /** Controls popover visibility */
   popupVisible: boolean;
@@ -248,10 +219,39 @@ interface ISkillSelectorPopoverProps extends ISkillSelectorMenuContentProps {
   children: React.ReactNode;
 }
 
-export default function SkillSelectorPopover({ popupVisible, onVisibleChange, children, ...contentProps }: ISkillSelectorPopoverProps) {
-  return (
-    <Popover popupVisible={popupVisible} trigger={[]} position='top' onVisibleChange={onVisibleChange} content={<SkillSelectorMenuContent {...contentProps} />} style={{ padding: 0, background: 'transparent', boxShadow: 'none' }}>
-      {children}
-    </Popover>
-  );
+export interface SkillSelectorMenuItem {
+  key: string;
+  name: string;
+  displayName: string;
+  description?: string;
+  icon?: string;
+  emoji?: string;
+  enabled?: boolean;
+}
+
+interface ISkillSelectorMenuContentProps {
+  title: string;
+  hint?: string;
+  items: SkillSelectorMenuItem[];
+  selectedKeys: string[];
+  activeIndex: number;
+  loading?: boolean;
+  loadingText?: string;
+  onHoverItem: (index: number) => void;
+  onSelectItem: (item: SkillSelectorMenuItem) => void;
+  emptyText: string;
+  showTabs?: boolean;
+  activeTab?: AtMentionTab;
+  onTabChange?: (tab: AtMentionTab) => void;
+  fileItems?: WorkspaceFileItem[];
+  onSelectFile?: (file: WorkspaceFileItem) => void;
+  filesTabTitle?: string;
+  skillsTabTitle?: string;
+  filesEmptyText?: string;
+  searchQuery?: string;
+  onSearchChange?: (query: string) => void;
+  onDismiss?: () => void;
+  skillsSearchPlaceholder?: string;
+  filesSearchPlaceholder?: string;
+  noSearchResultsText?: string;
 }
