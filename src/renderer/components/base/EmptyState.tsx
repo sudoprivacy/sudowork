@@ -21,8 +21,6 @@ import { ClipboardList, FolderOpen, Inbox, MessagesSquare, SearchX } from 'lucid
  * ```
  */
 const EmptyState: React.FC<IEmptyStateProps> = ({ icon, title, description, actions, className, simple = false, illustrationType = 'default' }) => {
-  // 默认空状态插图（当未提供 icon 时）
-  // Default empty state illustration (when icon is not provided)
   const getIllustration = () => {
     const props = { size: 48, className: 'opacity-60', strokeWidth: 1.5 };
     switch (illustrationType) {
@@ -46,13 +44,13 @@ const EmptyState: React.FC<IEmptyStateProps> = ({ icon, title, description, acti
         'flex flex-col items-center justify-center py-40px px-20px text-center',
         {
           'bg-transparent': simple,
-          'rounded-lg border border-dashed border-[var(--color-border-2)] bg-[var(--color-fill-1)]': !simple,
+          'rounded-xl border border-dashed border-light': !simple,
         },
         className
       )}
     >
       {/* 图标区域 / Icon area */}
-      <div className='inline-flex items-center justify-center mb-24px text-tertiary'>{icon || defaultIcon}</div>
+      <div className='f-center mb-24px'>{icon || defaultIcon}</div>
 
       {/* 标题 / Title */}
       {title && <div className='text-16px font-500 text-foreground mb-8px text-center leading-[1.5]'>{title}</div>}

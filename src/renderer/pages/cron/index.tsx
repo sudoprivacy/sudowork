@@ -139,13 +139,7 @@ export default function CronPage() {
 
             {/* Job cards or empty state */}
             {!loading && jobs.length === 0 ? (
-              <EmptyState
-                simple
-                icon={<AlarmClock theme='outline' size={56} className='text-[var(--ui-accent-orange)]' />}
-                title={t('cron.noTasks', '暂无定时任务')}
-                description={t('cron.create.emptyHint', '创建自动执行的 Agent 任务')}
-                actions={[{ label: t('cron.create.button', '新建任务'), onClick: () => setDrawerVisible(true) }]}
-              />
+              <EmptyState simple icon={<AlarmClock theme='outline' size={56} />} title={t('cron.noTasks', '暂无定时任务')} description={t('cron.create.emptyHint', '创建自动执行的 Agent 任务')} actions={[{ label: t('cron.create.button', '新建任务'), onClick: () => setDrawerVisible(true) }]} />
             ) : (
               <CronJobCardGrid jobs={jobs} onSelectJob={(job) => void navigate(`/app/cron/${job.id}`)} />
             )}
