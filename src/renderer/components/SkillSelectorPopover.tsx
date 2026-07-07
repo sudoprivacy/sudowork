@@ -159,7 +159,7 @@ export function SkillSelectorMenuContent({ title, skills, selectedKeys, loading 
                       <div className='size-8 flex-shrink-0 rd-6px f-center text-16px'>{skill.icon ? <img src={skill.icon} alt={skill.displayName} className='w-full h-full object-cover' onError={handleSkillIconError} /> : <span>{skill.emoji || '⚡'}</span>}</div>
                       <div className='min-w-0 flex-1 space-y-1'>
                         <div className='flex items-center gap-1.5 min-w-0'>
-                          <span className={classNames('text-14px truncate', index === activeIndex ? 'text-foreground font-semibold' : 'text-foreground font-medium')}>{skill.displayName}</span>
+                          <span className={classNames('text-14px truncate text-foreground font-medium')}>{skill.displayName}</span>
                           {isSelected && <span className='px-1 py-0 bg-primary text-white text-9px rd-3px whitespace-nowrap flex-shrink-0 leading-14px'>{t('messages.skills.added', '已添加')}</span>}
                         </div>
                         {skill.description && <div className='text-11px text-secondary truncate mt-px'>{skill.description}</div>}
@@ -194,7 +194,7 @@ export function SkillSelectorMenuContent({ title, skills, selectedKeys, loading 
                   <div className='size-6 flex-shrink-0 rd-4px bg-fill-2 f-center overflow-hidden'>{resolveFileIcon(file.name, { size: 16, theme: 'filled' })}</div>
                   <div className='min-w-0 flex-1'>
                     <div className='flex items-center gap-1.5 min-w-0'>
-                      <span className={classNames('text-13px truncate', index === activeIndex ? 'text-foreground font-semibold' : 'text-foreground font-medium')}>{file.name}</span>
+                      <span className={classNames('text-13px truncate text-foreground font-medium')}>{file.name}</span>
                       {file.isDraft && (
                         <span className='px-1 py-0 text-9px rd-3px whitespace-nowrap flex-shrink-0 leading-14px' style={{ background: 'var(--warning-soft)', color: 'var(--warning)' }}>
                           {t('conversation.workspace.drafts.badge', { defaultValue: '草稿' })}
