@@ -99,7 +99,7 @@ export function SkillSelectorMenuContent({
   return (
     <div className='w-72'>
       {/* Header with optional tabs */}
-      <div className='flex items-center justify-between gap-2 px-2 py-1'>
+      <div className='flex items-center justify-between gap-2 px-2'>
         {showTabs ? (
           <Tabs
             variant='line'
@@ -203,7 +203,7 @@ export function SkillSelectorMenuContent({
 
 export default function SkillSelectorPopover({ popupVisible, onVisibleChange, children, ...contentProps }: ISkillSelectorPopoverProps) {
   return (
-    <Popover popupVisible={popupVisible} trigger={[]} position='top' onVisibleChange={onVisibleChange} content={<SkillSelectorMenuContent {...contentProps} />} style={{ padding: 0, background: 'transparent', boxShadow: 'none' }}>
+    <Popover popupVisible={popupVisible} trigger={[]} position='top' onVisibleChange={onVisibleChange} content={<SkillSelectorMenuContent {...contentProps} />} className='[&_.arco-popover-content]:!py-1 [&_.arco-popover-content]:!px-3'>
       {children}
     </Popover>
   );
