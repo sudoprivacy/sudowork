@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Input, Button, Tag, Message } from '@arco-design/web-react';
 import { IconCheck, IconDownload } from '@arco-design/web-react/icon';
-import { Search, CheckOne } from '@icon-park/react';
+import { Search } from '@icon-park/react';
 import EmptyState from '@/renderer/components/base/EmptyState';
 import McpIcon from '../components/McpIcon';
 import RiskLevelTag from '../components/RiskLevelTag';
@@ -90,7 +90,7 @@ const McpLibraryTab: React.FC<McpLibraryTabProps> = ({ templates, installedTempl
                     <span className='text-14px font-500 text-foreground truncate'>{tpl.name}</span>
                     <RiskLevelTag level={tpl.risk_level} />
                     {installed && (
-                      <Tag size='small' color='green' icon={<CheckOne theme='outline' size='12' />}>
+                      <Tag size='small' color='green' icon={<IconCheck style={{ fontSize: 12 }} />}>
                         已安装
                       </Tag>
                     )}

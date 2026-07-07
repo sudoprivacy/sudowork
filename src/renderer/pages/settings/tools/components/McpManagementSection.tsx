@@ -1,6 +1,5 @@
 import { Button, Dropdown, Menu, Message, Modal } from '@arco-design/web-react';
 import { IconPlus } from '@arco-design/web-react/icon';
-import { Plus } from '@icon-park/react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { acpConversation } from '@/common/ipcBridge';
@@ -154,8 +153,10 @@ export default function McpManagementSection() {
             </Menu>
           }
         >
-          <Plus fill='var(--primary)' size={18} />
-          {t('settings.mcpAddServer', '手动添加')}
+          <span className='f-center gap-1.5'>
+            <IconPlus />
+            {t('settings.mcpAddServer', '手动添加')}
+          </span>
         </Dropdown.Button>
       );
     }

@@ -175,7 +175,7 @@ const SudocodeModelSettings: React.FC = () => {
                     <Space>
                       <Tag bordered>{maskSecret(provider.apiKey) || t('common.notSet', '未设置')}</Tag>
                       <Popconfirm title={t('settings.sudocodeModel.deleteProviderConfirm', '删除该第三方提供商及其模型？')} onOk={() => void handleRemoveProvider(provider.id)}>
-                        <Button status='danger' icon={<IconDelete className='text-16px' />} loading={saving}>
+                        <Button status='danger' icon={<IconDelete style={{ fontSize: 16 }} />} loading={saving}>
                           {t('common.delete', '删除')}
                         </Button>
                       </Popconfirm>
