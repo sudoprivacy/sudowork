@@ -147,9 +147,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
 
           {onTriggerSkillSelector && (
             <Tooltip content={t('guid.addSkillTooltip', { defaultValue: '添加技能' })} position='top'>
-              <span>
-                <ActionChip icon={<span className='text-14px font-700 leading-none'>@</span>} label={t('conversation.welcome.skill', { defaultValue: '技能' })} onClick={onTriggerSkillSelector} />
-              </span>
+              <ActionChip icon={<span className='text-14px font-700 leading-none'>@</span>} label={t('conversation.welcome.skill', { defaultValue: '技能' })} onClick={onTriggerSkillSelector} />
             </Tooltip>
           )}
 
