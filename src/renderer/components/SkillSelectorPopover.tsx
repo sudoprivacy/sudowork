@@ -158,36 +158,29 @@ export function SkillSelectorMenuContent({
       {/* Search box */}
       {onSearchChange && (
         <div
-          className='py-1.5 border-b'
+          className='flex items-center gap-1.5 px-2 my-3 rounded-8px'
           style={{
-            borderColor: 'color-mix(in srgb, var(--color-border-2) 56%, transparent)',
+            background: 'color-mix(in srgb, var(--color-fill-2) 60%, transparent)',
           }}
         >
-          <div
-            className='flex items-center gap-1.5 px-2 py-1 rounded-8px'
-            style={{
-              background: 'color-mix(in srgb, var(--color-fill-2) 60%, transparent)',
-            }}
-          >
-            <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round' className='shrink-0 text-tertiary'>
-              <circle cx='11' cy='11' r='8' />
-              <path d='m21 21-4.35-4.35' />
-            </svg>
-            <input
-              type='text'
-              className='flex-1 min-w-0 text-13px bg-transparent border-none outline-none text-foreground placeholder:text-tertiary'
-              style={{ caretColor: 'var(--color-primary)' }}
-              placeholder={activeTab === 'skills' ? resolvedSkillsSearchPlaceholder : resolvedFilesSearchPlaceholder}
-              value={searchQuery}
-              onChange={(e) => onSearchChange(e.target.value)}
-              onKeyDown={handleSearchKeyDown}
-            />
-            {searchQuery && (
-              <button type='button' className='shrink-0 size-4 f-center rounded-full text-tertiary hover:text-secondary cursor-pointer border-none outline-none text-11px bg-transparent' onMouseDown={(e) => e.preventDefault()} onClick={() => onSearchChange('')}>
-                ✕
-              </button>
-            )}
-          </div>
+          <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round' className='shrink-0 text-tertiary'>
+            <circle cx='11' cy='11' r='8' />
+            <path d='m21 21-4.35-4.35' />
+          </svg>
+          <input
+            type='text'
+            className='flex-1 min-w-0 text-13px bg-transparent border-none outline-none text-foreground placeholder:text-tertiary'
+            style={{ caretColor: 'var(--color-primary)' }}
+            placeholder={activeTab === 'skills' ? resolvedSkillsSearchPlaceholder : resolvedFilesSearchPlaceholder}
+            value={searchQuery}
+            onChange={(e) => onSearchChange(e.target.value)}
+            onKeyDown={handleSearchKeyDown}
+          />
+          {searchQuery && (
+            <button type='button' className='shrink-0 size-4 f-center rounded-full text-tertiary hover:text-secondary cursor-pointer border-none outline-none text-11px bg-transparent' onMouseDown={(e) => e.preventDefault()} onClick={() => onSearchChange('')}>
+              ✕
+            </button>
+          )}
         </div>
       )}
 
