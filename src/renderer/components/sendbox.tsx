@@ -6,7 +6,7 @@ import { IconPaste } from '@arco-design/web-react/icon';
 import { useInputFocusRing } from '@/renderer/hooks/useInputFocusRing';
 import SlashCommandMenu, { type SlashCommandMenuItem } from '@/renderer/components/SlashCommandMenu';
 import { useSlashCommandController } from '@/renderer/hooks/useSlashCommandController';
-import { SkillSelectorMenuContent, type SkillSelectorMenuItem } from '@/renderer/components/SkillSelectorPopover';
+import SkillSelectorPopover, { SkillSelectorMenuContent, type SkillSelectorMenuItem } from '@/renderer/components/SkillSelectorPopover';
 import { useSkillSelectorController, type SkillSelectorItem, stripAtQuery, replaceAtQuery } from '@/renderer/hooks/useSkillSelectorController';
 import type { WorkspaceFileItem } from '@/renderer/hooks/useWorkspaceFiles';
 import { usePreviewContext } from '@/renderer/pages/conversation/preview';
@@ -248,6 +248,9 @@ const SendBox: React.FC<{
   const [installedSkills, setInstalledSkills] = useState<IInstalledSkillInfo[]>([]);
   const [selectedSkills, setSelectedSkills] = useState<string[]>(() => initialSelectedSkills);
   const [loadingSkills, setLoadingSkills] = useState(false);
+  const [isSkillPopoverOpen, setIsSkillPopoverOpen] = useState(false);
+  const [skillPopoverActiveIndex, setSkillPopoverActiveIndex] = useState(0);
+  const [skillPopoverSearchQuery, setSkillPopoverSearchQuery] = useState('');
 
   // Fetch installed skills on mount and after agent-created skills are installed.
   useEffect(() => {
@@ -350,6 +353,9 @@ const SendBox: React.FC<{
     return Array.from(new Map(items.map((item) => [item.name, item])).values());
   }, [installedSkills]);
 
+  // Items for the popover button (all enabled skills, keyed by name)
+  const skillPopoverItems = useMemo<SkillSelectorMenuItem[]>(() => skillSelectorItems.map((skill) => ({ ...skill, key: skill.name })), [skillSelectorItems]);
+
   const skillSelectorController = useSkillSelectorController({
     input,
     cursorPosition,
@@ -389,28 +395,46 @@ const SendBox: React.FC<{
     [skillSelectorController.filteredSkills]
   );
 
-  // Trigger skill selector via @ button (conversation interface)
-  const handleTriggerSkillSelector = useCallback(() => {
-    const newInput = input.trim() ? `${input} @` : '@';
-    setInput(newInput);
-    // Focus the textarea after setting input
-    setTimeout(() => {
-      const textarea = containerRef.current?.querySelector('textarea');
-      if (textarea) {
-        textarea.focus();
-        const len = newInput.length;
-        textarea.setSelectionRange(len, len);
-      }
-    }, 0);
-  }, [input, setInput]);
+  const onSkillPopoverClose = useCallback(() => {
+    setIsSkillPopoverOpen(false);
+    setSkillPopoverActiveIndex(0);
+    setSkillPopoverSearchQuery('');
+  }, []);
 
   // Skill trigger button - shown when running in Electron desktop
   const skillTriggerButton = isElectronDesktop() ? (
-    <Tooltip content={t('conversation.welcome.addSkill', { defaultValue: '添加技能 / 文件' })} position='top'>
-      <span className='inline-flex ml-3'>
-        <ActionChip icon={<span className='text-14px font-700 leading-none'>@</span>} label={t('messages.skills.triggerLabel', { defaultValue: 'Skills / Files' })} onClick={handleTriggerSkillSelector} />
-      </span>
-    </Tooltip>
+    <SkillSelectorPopover
+      popupVisible={isSkillPopoverOpen}
+      onVisibleChange={(v) => {
+        if (!v) onSkillPopoverClose();
+      }}
+      title={t('messages.skills.title', { defaultValue: 'Skills' })}
+      items={skillPopoverItems}
+      selectedKeys={selectedSkills}
+      activeIndex={skillPopoverActiveIndex}
+      loading={loadingSkills}
+      loadingText={t('messages.skills.loading', { defaultValue: 'Loading skills...' })}
+      onHoverItem={setSkillPopoverActiveIndex}
+      onSelectItem={(item) => {
+        if (!selectedSkills.includes(item.key)) {
+          setSelectedSkills((prev) => [...prev, item.key]);
+        }
+        onSkillPopoverClose();
+      }}
+      emptyText={t('messages.skills.empty', { defaultValue: 'No skills found' })}
+      searchQuery={skillPopoverSearchQuery}
+      onSearchChange={(q) => {
+        setSkillPopoverSearchQuery(q);
+        setSkillPopoverActiveIndex(0);
+      }}
+      onDismiss={onSkillPopoverClose}
+    >
+      <Tooltip content={t('conversation.welcome.addSkill', { defaultValue: '添加技能 / 文件' })} position='top'>
+        <span className='inline-flex ml-3'>
+          <ActionChip icon={<span className='text-14px font-700 leading-none'>@</span>} label={t('messages.skills.triggerLabel', { defaultValue: 'Skills / Files' })} onClick={() => setIsSkillPopoverOpen(true)} />
+        </span>
+      </Tooltip>
+    </SkillSelectorPopover>
   ) : null;
 
   // 使用共享的输入法合成处理
