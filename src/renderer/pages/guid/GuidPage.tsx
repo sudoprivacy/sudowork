@@ -324,7 +324,7 @@ const GuidPage: React.FC = () => {
         textarea.setSelectionRange(len, len);
       }
     }, 0);
-  }, [guidInput.input, guidInput.setInput]);
+  }, [guidInput]);
 
   // --- Coordinated handlers (depend on multiple hooks) ---
   const handleInputChange = useCallback(
