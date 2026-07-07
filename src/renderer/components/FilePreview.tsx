@@ -134,7 +134,7 @@ const FilePreview: React.FC<FilePreviewProps> = ({ path, onRemove, readonly = fa
 
   if (isImage) {
     return (
-      <div className='relative inline-block'>
+      <div className='relative f-center'>
         <div className='rd-xl overflow-hidden border'>{imageUrl ? <Image src={imageUrl} alt={fileName} width={60} height={60} className='object-cover cursor-pointer' preview /> : <div className='size-15'></div>}</div>
         {!readonly && <Button shape='circle' size='mini' className='absolute -top-2 -right-2 z-10 bg-subtle! border! size-6!' icon={<IconClose className='text-13px text-foreground' />} onClick={handleRemove} />}
       </div>

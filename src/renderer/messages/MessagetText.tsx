@@ -15,7 +15,7 @@ import { stripThinkTags, hasThinkTags } from '../utils/thinkTagFilter';
 import MarkdownView from '../components/Markdown';
 import HorizontalFileList from '../components/HorizontalFileList';
 import FilePreview from '../components/FilePreview';
-import CollapsibleContent from '../components/CollapsibleContent';
+import { CollapsibleContent } from '../components/CollapsibleContent';
 import MessageCronBadge from './MessageCronBadge';
 import GeneratedFileCards from './GeneratedFileCard';
 
