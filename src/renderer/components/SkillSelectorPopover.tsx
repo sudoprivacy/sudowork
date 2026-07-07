@@ -120,31 +120,14 @@ export function SkillSelectorMenuContent({
   );
 
   return (
-    <div
-      className='rounded-14px border shadow-[0_8px_24px_rgba(0,0,0,0.12)] overflow-hidden'
-      style={{
-        borderColor: 'var(--color-border-2)',
-        background: 'color-mix(in srgb, var(--color-bg-1) 78%, transparent)',
-        backdropFilter: 'blur(14px) saturate(1.1)',
-        WebkitBackdropFilter: 'blur(14px) saturate(1.1)',
-        maxWidth: 'min(380px, calc(100vw - 64px))',
-        width: 'max-content',
-        minWidth: '240px',
-      }}
-    >
+    <div>
       {/* Header with optional tabs */}
-      <div
-        className='px-3 py-2 border-b flex items-center justify-between gap-2'
-        style={{
-          borderColor: 'color-mix(in srgb, var(--color-border-2) 56%, transparent)',
-          background: 'color-mix(in srgb, var(--color-bg-1) 84%, transparent)',
-        }}
-      >
+      <div className='py-2 border-b flex items-center justify-between gap-2'>
         {showTabs ? (
           <div className='flex items-center gap-0.5'>
             <button
               type='button'
-              className={classNames('px-2.5 py-1 rounded-8px text-13px font-medium cursor-pointer border-none outline-none transition-colors', {
+              className={classNames('py-1 rounded-8px text-13px font-medium cursor-pointer border-none outline-none transition-colors', {
                 'bg-primary text-white': activeTab === 'skills',
                 'bg-transparent text-secondary hover:text-foreground hover:bg-fill-2': activeTab !== 'skills',
               })}
@@ -155,7 +138,7 @@ export function SkillSelectorMenuContent({
             </button>
             <button
               type='button'
-              className={classNames('px-2.5 py-1 rounded-8px text-13px font-medium cursor-pointer border-none outline-none transition-colors', {
+              className={classNames('py-1 rounded-8px text-13px font-medium cursor-pointer border-none outline-none transition-colors', {
                 'bg-primary text-white': activeTab === 'files',
                 'bg-transparent text-secondary hover:text-foreground hover:bg-fill-2': activeTab !== 'files',
               })}
@@ -175,7 +158,7 @@ export function SkillSelectorMenuContent({
       {/* Search box */}
       {onSearchChange && (
         <div
-          className='px-2 py-1.5 border-b'
+          className='py-1.5 border-b'
           style={{
             borderColor: 'color-mix(in srgb, var(--color-border-2) 56%, transparent)',
           }}
@@ -209,7 +192,7 @@ export function SkillSelectorMenuContent({
       )}
 
       {/* Content area */}
-      <div role='listbox' aria-busy={loading} className='overflow-y-auto p-1.5' style={{ maxHeight: 'min(34vh, 260px)' }}>
+      <div role='listbox' aria-busy={loading} className='overflow-y-auto py-1.5' style={{ maxHeight: 'min(34vh, 260px)' }}>
         {/* Skills tab content */}
         {activeTab === 'skills' && (
           <>
