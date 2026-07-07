@@ -1,11 +1,5 @@
 /// <reference types="vite/client" />
 /**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
-/**
  * Renderer-side dev-mode debug triggers, attached at
  * `window.__sudoworkDebug`. Gated by Vite's `import.meta.env.DEV` so the
  * production renderer bundle ships zero of this code — the entire

@@ -1,9 +1,3 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import { Tag, Spin } from '@arco-design/web-react';
 import React, { useMemo, useEffect, useState, useRef } from 'react';
 import { useTranslation } from 'react-i18next';

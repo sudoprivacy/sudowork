@@ -1,9 +1,3 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import type { AcpBackend, AcpBackendAll, AcpBackendConfig, AcpModelInfo, PresetAgentType } from '@/types/acpTypes';
 
 /**

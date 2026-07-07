@@ -1,10 +1,4 @@
 /**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
-/**
  * Renderer Crash Handler - 渲染进程 Crash/异常处理
  *
  * 功能:

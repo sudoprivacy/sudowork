@@ -1,9 +1,3 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import { html } from '@codemirror/lang-html';
 import { history, historyKeymap } from '@codemirror/commands';
 import { keymap } from '@codemirror/view';

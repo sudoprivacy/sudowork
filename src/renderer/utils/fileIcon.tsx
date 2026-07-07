@@ -1,9 +1,3 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import { AudioFile, FileCode, FileExcel, FileGif, FileJpg, FilePdf, FilePpt, FileText, FileTxt, FileWord, FileZip, VideoFile } from '@icon-park/react';
 import type { Theme } from '@icon-park/react/es/runtime';
 import React from 'react';

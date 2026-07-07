@@ -1,9 +1,3 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import { Input, Tag, Tooltip } from '@arco-design/web-react';
 import { IconClose, IconPaste } from '@arco-design/web-react/icon';
 import { CloseSmall, FolderOpen, Lightning } from '@icon-park/react';

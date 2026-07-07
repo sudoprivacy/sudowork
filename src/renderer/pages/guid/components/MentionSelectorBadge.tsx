@@ -1,9 +1,3 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import { Dropdown } from '@arco-design/web-react';
 import { Down } from '@icon-park/react';
 import React from 'react';

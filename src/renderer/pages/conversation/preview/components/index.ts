@@ -1,10 +1,4 @@
 /**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
-/**
  * Preview 组件统一导出
  * Preview components unified exports
  */

@@ -1,9 +1,3 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 const WORKSPACE_UPDATE_TIME_KEY = 'sudowork_workspace_update_time';
 
 /**

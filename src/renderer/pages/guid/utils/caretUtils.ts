@@ -1,10 +1,4 @@
 /**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
-/**
  * Measure the vertical coordinate of a given position in a textarea.
  * @param textarea - Target textarea element
  * @param position - Text position (character index)

@@ -1,10 +1,4 @@
 /**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
-/**
  * 预览面板自定义 Hooks 导出
  * Preview panel custom hooks exports
  */

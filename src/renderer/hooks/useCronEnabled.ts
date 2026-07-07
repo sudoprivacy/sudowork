@@ -1,9 +1,3 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import { useAppMode } from '@/renderer/hooks/useAppMode';
 import { useTenantConfig } from '@/renderer/context/TenantConfigContext';
 
