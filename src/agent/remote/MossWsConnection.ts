@@ -691,17 +691,31 @@ export class MossWsConnection {
     return typeof input === 'object' ? (input as Record<string, unknown>) : { input };
   }
 
-  sendMessage(payload: { content: string; files?: string[]; msg_id?: string }): { success: boolean; msg?: string } {
+  sendMessage(payload: { content: string; files?: string[]; msg_id?: string; images?: Array<{ type: 'image'; data: string; mimeType: string }> }): { success: boolean; msg?: string } {
     if (this.state !== 'connected' || !this.ws) {
       return { success: false, msg: 'Not connected' };
     }
 
     try {
+      // Image content blocks precede the text so the remote agent (scode) sees
+      // them as vision input. moss's acpBridge forwards these to scode's
+      // push_images path. Uses the Anthropic base64 source shape moss expects.
+      const contentBlocks: Array<Record<string, unknown>> = [];
+      if (payload.images && payload.images.length > 0) {
+        for (const img of payload.images) {
+          contentBlocks.push({
+            type: 'image',
+            source: { type: 'base64', media_type: img.mimeType, data: img.data },
+          });
+        }
+      }
+      contentBlocks.push({ type: 'text', text: payload.content });
+
       const mossMessage = {
         type: 'user',
         message: {
           role: 'user',
-          content: [{ type: 'text', text: payload.content }],
+          content: contentBlocks,
         },
         parent_tool_use_id: null as string | null,
         session_id: this.sessionId || '',
