@@ -417,7 +417,7 @@ const AcpModelSelector: React.FC<{
     return (
       <Tooltip content={t('conversation.welcome.modelSwitchNotSupported')} position='top'>
         <Button className={classNames('sendbox-model-btn header-model-btn', compact && '!max-w-[120px]')} shape='round' size='small' style={{ cursor: 'default' }}>
-          <span className='flex items-center gap-6px min-w-0'>
+          <span className='flex items-center gap-1.5 min-w-0'>
             <span className={compact ? 'block truncate' : undefined}>{t('conversation.welcome.useCliModel')}</span>
           </span>
         </Button>
@@ -430,8 +430,8 @@ const AcpModelSelector: React.FC<{
     return (
       <Tooltip content={displayLabel} position='top'>
         <Button className={classNames('sendbox-model-btn header-model-btn', compact && '!max-w-[120px]')} shape='round' size='small' style={{ cursor: 'default' }}>
-          <span className='flex items-center gap-6px min-w-0'>
-            {currentModelHealth.status !== 'unknown' && <div className={`w-6px h-6px rounded-full shrink-0 ${currentModelHealth.color}`} />}
+          <span className='flex items-center gap-1.5 min-w-0'>
+            {currentModelHealth.status !== 'unknown' && <div className={`size-1.5 rounded-full shrink-0 ${currentModelHealth.color}`} />}
             <span className={compact ? 'block truncate' : undefined}>{displayLabel}</span>
           </span>
         </Button>
@@ -446,10 +446,10 @@ const AcpModelSelector: React.FC<{
       popupVisible={dropdownOpen}
       onVisibleChange={setDropdownOpen}
       droplist={
-        <div className='flex flex-col gap-2px p-6px rd-12px border bg-popup max-h-[min(60vh,420px)] overflow-y-auto scrollbar-hide' style={{ minWidth: 200, boxShadow: '0 8px 28px rgba(0, 0, 0, 0.12)' }}>
+        <div className='flex flex-col gap-0.5 p-1.5 rd-12px border bg-popup max-h-[min(60vh,420px)] overflow-y-auto scrollbar-hide' style={{ minWidth: 200, boxShadow: '0 8px 28px rgba(0, 0, 0, 0.12)' }}>
           {providerModelGroups.map((group, groupIndex) => (
-            <div key={group.key} className='flex flex-col gap-2px'>
-              <div className='flex items-center justify-between gap-8px pl-10px pr-2px pt-4px pb-2px min-h-24px'>
+            <div key={group.key} className='flex flex-col gap-0.5'>
+              <div className='flex items-center justify-between gap-2 pl-2.5 pr-0.5 pt-1 pb-0.5 min-h-6'>
                 <span className='text-12px leading-18px text-secondary truncate'>{group.name || t('common.other', { defaultValue: 'Other' })}</span>
                 {backend === 'scode' && groupIndex === 0 && (
                   <span onClick={(e) => e.stopPropagation()}>
@@ -469,13 +469,13 @@ const AcpModelSelector: React.FC<{
                 return (
                   <div
                     key={`${group.key}-${model.id}`}
-                    className={classNames('flex items-center gap-8px px-10px h-38px rd-8px cursor-pointer text-14px text-foreground transition-colors hover:bg-hover active:bg-active', selected && 'bg-2')}
+                    className={classNames('flex items-center gap-2 px-2.5 h-9.5 rd-8px cursor-pointer text-14px text-foreground transition-colors hover:bg-hover active:bg-active', selected && 'bg-2')}
                     onClick={() => {
                       handleSelectModel(model.id);
                       setDropdownOpen(false);
                     }}
                   >
-                    {healthStatus !== 'unknown' && <div className={`w-6px h-6px rounded-full shrink-0 ${healthColor}`} />}
+                    {healthStatus !== 'unknown' && <div className={`size-1.5 rounded-full shrink-0 ${healthColor}`} />}
                     <span className='truncate'>{model.label}</span>
                   </div>
                 );
@@ -486,8 +486,8 @@ const AcpModelSelector: React.FC<{
       }
     >
       <Button className={classNames('sendbox-model-btn header-model-btn', compact && '!max-w-[120px]')} shape='round' size='small'>
-        <span className='flex items-center gap-6px min-w-0'>
-          {currentModelHealth.status !== 'unknown' && <div className={`w-6px h-6px rounded-full shrink-0 ${currentModelHealth.color}`} />}
+        <span className='flex items-center gap-1.5 min-w-0'>
+          {currentModelHealth.status !== 'unknown' && <div className={`size-1.5 rounded-full shrink-0 ${currentModelHealth.color}`} />}
           <span className={compact ? 'block truncate' : undefined}>{displayLabel}</span>
         </span>
       </Button>

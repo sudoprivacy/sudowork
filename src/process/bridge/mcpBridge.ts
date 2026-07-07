@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '../../common';
 import { mcpService } from '@process/services/mcpServices/McpService';
 import { mcpOAuthService } from '@process/services/mcpServices/McpOAuthService';
+import { ipcBridge } from '../../common';
 
 // CrashReporter imports for breadcrumb tracking
 import { mcpBreadcrumbs } from '../telemetry/BreadcrumbTracker';

@@ -21,11 +21,11 @@ interface SkillSelectorSkeletonProps {
  */
 const SkillSelectorSkeleton: React.FC<SkillSelectorSkeletonProps> = ({ count = 4 }) => {
   return (
-    <div className='flex flex-col gap-2px px-6px py-6px'>
+    <div className='flex flex-col gap-0.5 p-1.5'>
       {Array.from({ length: count }).map((_, index) => (
         <div
           key={index}
-          className='flex items-center gap-8px px-10px py-6px rounded-8px'
+          className='flex items-center gap-2 px-2.5 py-1.5 rounded-8px'
           style={{
             minHeight: '42px',
           }}
@@ -41,7 +41,7 @@ const SkillSelectorSkeleton: React.FC<SkillSelectorSkeletonProps> = ({ count = 4
             }}
           />
           {/* Content placeholders */}
-          <div className='min-w-0 flex-1 flex flex-col gap-6px'>
+          <div className='min-w-0 flex-1 flex flex-col gap-1.5'>
             {/* Display name placeholder (wider) */}
             <div
               className={styles.skeletonText}

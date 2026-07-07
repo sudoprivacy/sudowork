@@ -19,7 +19,6 @@ import { ipcBridge } from '../../common';
 import { uuid } from '../../common/utils';
 import { shouldSyncWorkspaceSkills } from '../../common/utils/workspaceSkillSync';
 import { getSkillsDir, ProcessChat } from '../initStorage';
-import { ConversationService } from '../services/conversationService';
 import type AcpAgent from '../task/AcpAgent';
 import type RemoteAgent from '../task/RemoteAgent';
 import { listWorkspaceSkillTargets, resolveConversationEnabledSkillNames } from '../utils/workspaceSkillTargets';
@@ -31,7 +30,6 @@ import { INTERMEDIATE_DIR_SEGMENTS } from '../task/FileIntentClassifier';
 import WorkerManage from '../WorkerManage';
 import { skillManager } from '../SkillManager';
 import { ConversationManageWithDB } from '../message';
-import { startConversationTracking, endConversationSuccess, endConversationError } from '../telemetry';
 import { getConversationProvider, isRemoteProvider } from '../providers';
 import { getMossApi, getMossApiServerUrl, initMossApi } from '../remote/MossSessionApi';
 import { reapConversation } from '../services/conversationReaper';
@@ -834,7 +832,7 @@ export function initConversationBridge(): void {
                 const json = JSON.parse(stdout.trim()) as { code?: number; error?: string };
                 jsonCode = json.code;
                 jsonError = json.error || undefined;
-              } catch (_err) {
+              } catch {
                 // Ignore non-JSON output and fall back to stderr/stdout text.
               }
               if (jsonCode === 0) {
@@ -933,6 +931,7 @@ export function initConversationBridge(): void {
   // Session-level approval memory — now only relevant for ACP agents
   ipcBridge.conversation.approval.check.provider(async ({ conversation_id, action, commandType }) => {
     // Approval checking is handled by ACP agents internally now
+    console.log(conversation_id, action, commandType);
     return false;
   });
 

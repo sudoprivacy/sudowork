@@ -159,6 +159,7 @@ export async function callStartEnhancementStream(args: {
   let result: { text: string; mode: 'agent-chat' | 'workflow' | 'rag-only'; elapsedMs: number; citations?: unknown[] } | null = null;
 
   try {
+    // eslint-disable-next-line no-constant-condition
     while (true) {
       const { value, done } = await reader.read();
       if (done) break;
@@ -274,6 +275,7 @@ async function pumpSse(streamId: string, assistantId: string, reader: ReadableSt
   let buffer = '';
 
   try {
+    // eslint-disable-next-line no-constant-condition
     while (true) {
       const { value, done } = await reader.read();
       if (done) break;
@@ -340,6 +342,7 @@ async function pumpEnhancementSse(streamId: string, reader: ReadableStreamDefaul
   let buffer = '';
 
   try {
+    // eslint-disable-next-line no-constant-condition
     while (true) {
       const { value, done } = await reader.read();
       if (done) break;

@@ -5,6 +5,7 @@
  */
 
 import { mainError } from '@process/utils/mainLogger';
+import { acpDetector } from '@/agent/acp/AcpDetector';
 import { initAcpConversationBridge } from './acpConversationBridge';
 import { initApplicationBridge } from './applicationBridge';
 import { initAuthBridge } from './authBridge';
@@ -62,7 +63,6 @@ import { initDeliverablesBridge } from './deliverablesBridge';
 // to handle renderer errors during startup
 import { initEeclawBridge } from './eeclawBridge';
 import { registerScodeBridge } from './scodeBridge';
-import { acpDetector } from '@/agent/acp/AcpDetector';
 
 /**
  * 初始化所有IPC桥接模块

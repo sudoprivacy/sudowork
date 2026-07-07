@@ -4,17 +4,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { BedrockClient, ListInferenceProfilesCommand } from '@aws-sdk/client-bedrock';
 import type { IProvider } from '@/common/storage';
 import { uuid } from '@/common/utils';
 import { type ProtocolDetectionRequest, type ProtocolDetectionResponse, type ProtocolType, type MultiKeyTestResult, parseApiKeys, maskApiKey, normalizeBaseUrl, removeApiPathSuffix, guessProtocolFromUrl, guessProtocolFromKey, getProtocolDisplayName } from '@/common/utils/protocolDetector';
 import { isGoogleApisHost } from '@/common/utils/urlValidation';
 import { isNewApiPlatform } from '@/common/utils/platformConstants';
-import { ipcBridge } from '../../common';
-import { ProcessConfig } from '../initStorage';
 import { ExtensionRegistry } from '@/extensions';
 import { mainLog, mainWarn } from '@process/utils/mainLogger';
 import { cachePut, resolveSecret } from '@common/nexus/secret-cache';
-import { BedrockClient, ListInferenceProfilesCommand } from '@aws-sdk/client-bedrock';
+import { ProcessConfig } from '../initStorage';
+import { ipcBridge } from '../../common';
 
 /**
  * OpenAI 兼容 API 的常见路径格式
@@ -823,7 +823,7 @@ async function testGeminiProtocol(baseUrl: string, apiKey: string, signal: Abort
           return { success: false, confidence: 80, error: 'Invalid API key format for Gemini' };
         }
       }
-    } catch (e) {
+    } catch {
       // 继续尝试下一个端点
     }
   }
@@ -880,7 +880,7 @@ async function testOpenAIProtocol(baseUrl: string, apiKey: string, signal: Abort
       if (response.status === 401) {
         return { success: false, confidence: 70, error: 'Invalid API key for OpenAI protocol' };
       }
-    } catch (e) {
+    } catch {
       // 继续尝试下一个端点
     }
   }
@@ -1017,7 +1017,7 @@ async function testAnthropicProtocol(baseUrl: string, apiKey: string, signal: Ab
           fixedBaseUrl: endpoint.path ? `${baseUrl}${endpoint.path}` : undefined,
         };
       }
-    } catch (e) {
+    } catch {
       // 继续尝试下一个端点
     }
   }

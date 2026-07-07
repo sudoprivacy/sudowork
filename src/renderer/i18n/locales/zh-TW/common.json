@@ -100,5 +100,7 @@
     "newConversation": "新會話",
     "openFolder": "開啟資料夾",
     "addSkill": "新增技能"
-  }
+  },
+  "errorBoundaryTitle": "發生錯誤了",
+  "errorBoundaryMessage": "發生了未知錯誤，請嘗試重新載入"
 }

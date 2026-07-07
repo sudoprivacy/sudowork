@@ -233,7 +233,7 @@ const BdpanImportFilePicker: React.FC<Props> = ({ visible, onCancel, onConfirm }
   const renderContent = () => {
     if (step === 'checking') {
       return (
-        <div className='flex flex-col items-center justify-center h-300px gap-12px'>
+        <div className='flex flex-col items-center justify-center h-75 gap-3'>
           <Spin size={32} />
           <span className='text-secondary text-14px'>{t('conversation.bdpan.checking')}</span>
         </div>
@@ -242,7 +242,7 @@ const BdpanImportFilePicker: React.FC<Props> = ({ visible, onCancel, onConfirm }
 
     if (step === 'getting_auth_url') {
       return (
-        <div className='flex flex-col items-center justify-center h-300px gap-12px'>
+        <div className='flex flex-col items-center justify-center h-75 gap-3'>
           <Spin size={32} />
           <span className='text-secondary text-14px'>{t('conversation.bdpan.gettingAuthUrl')}</span>
         </div>
@@ -251,8 +251,8 @@ const BdpanImportFilePicker: React.FC<Props> = ({ visible, onCancel, onConfirm }
 
     if (step === 'enter_code' || step === 'submitting_code') {
       return (
-        <div className='flex flex-col items-center justify-center h-300px gap-16px p-24px'>
-          <div className='flex items-center gap-8px'>
+        <div className='flex flex-col items-center justify-center h-75 gap-4 p-6'>
+          <div className='flex items-center gap-2'>
             <span className='text-foreground text-14px whitespace-nowrap'>{t('conversation.bdpan.authCode')}</span>
             <Input style={{ width: 160 }} maxLength={32} placeholder={t('conversation.bdpan.authCodePlaceholder')} value={authCode} onChange={setAuthCode} onPressEnter={submitAuthCode} disabled={step === 'submitting_code'} />
             <Button type='primary' loading={step === 'submitting_code'} disabled={authCode.trim().length !== 32} onClick={submitAuthCode}>
@@ -265,10 +265,10 @@ const BdpanImportFilePicker: React.FC<Props> = ({ visible, onCancel, onConfirm }
 
     if (step === 'error') {
       return (
-        <div className='flex flex-col items-center justify-center h-300px gap-16px p-24px'>
+        <div className='flex flex-col items-center justify-center h-75 gap-4 p-6'>
           <p className='text-foreground text-14px text-center m-0'>{t('conversation.bdpan.loginFailed')}</p>
           {errorMsg && <p className='text-secondary text-12px text-center m-0'>{errorMsg}</p>}
-          <div className='flex gap-8px'>
+          <div className='flex gap-2'>
             <Button onClick={onCancel}>{t('conversation.bdpan.cancel')}</Button>
             <Button type='primary' onClick={startLogin}>
               {t('conversation.bdpan.retry')}
@@ -283,10 +283,10 @@ const BdpanImportFilePicker: React.FC<Props> = ({ visible, onCancel, onConfirm }
     const crumbs = buildBreadcrumbs(root, currentPath);
 
     return (
-      <div className='flex flex-col h-400px'>
+      <div className='flex flex-col h-100'>
         {/* Breadcrumb nav bar */}
-        <div className='flex items-center gap-4px px-16px py-10px border-b border-[var(--bg-3)] flex-shrink-0 flex-wrap'>
-          <div className='flex items-center gap-4px flex-1 flex-wrap'>
+        <div className='flex items-center gap-1 px-4 py-2.5 border-b border-[var(--bg-3)] flex-shrink-0 flex-wrap'>
+          <div className='flex items-center gap-1 flex-1 flex-wrap'>
             {crumbs.map((crumb, i) => {
               const isLast = i === crumbs.length - 1;
               return (
@@ -324,7 +324,7 @@ const BdpanImportFilePicker: React.FC<Props> = ({ visible, onCancel, onConfirm }
             <div className='flex items-center justify-center h-full text-secondary text-14px'>{t('conversation.bdpan.emptyDir')}</div>
           ) : (
             files.map((file, index) => (
-              <div key={file.path} className={`flex items-center gap-10px px-16px py-10px cursor-pointer transition-colors select-none ${selected.has(file.path) ? 'bg-[rgba(var(--primary-6),0.14)]' : 'hover:bg-[var(--bg-2)]'}`} onClick={(e) => handleFileClick(file, index, e)}>
+              <div key={file.path} className={`flex items-center gap-2.5 px-4 py-2.5 cursor-pointer transition-colors select-none ${selected.has(file.path) ? 'bg-[rgba(var(--primary-6),0.14)]' : 'hover:bg-[var(--bg-2)]'}`} onClick={(e) => handleFileClick(file, index, e)}>
                 {file.isdir ? <FolderOpen size={18} fill='var(--color-text-3)' /> : <FileDisplayOne size={18} fill='var(--color-text-3)' />}
                 <span className='flex-1 text-foreground text-14px truncate'>{file.filename}</span>
                 {file.isdir && <span className='text-secondary text-12px'>›</span>}
@@ -334,9 +334,9 @@ const BdpanImportFilePicker: React.FC<Props> = ({ visible, onCancel, onConfirm }
         </div>
 
         {/* Footer */}
-        <div className='flex items-center justify-between px-16px py-12px border-t border-[var(--bg-3)] flex-shrink-0'>
+        <div className='flex items-center justify-between px-4 py-3 border-t border-[var(--bg-3)] flex-shrink-0'>
           <span className='text-secondary text-13px'>{selected.size > 0 ? t('conversation.bdpan.selectedCount', { count: selected.size }) : t('conversation.bdpan.selectHint')}</span>
-          <div className='flex items-center gap-8px'>
+          <div className='flex items-center gap-2'>
             <Button onClick={onCancel}>{t('conversation.bdpan.cancel')}</Button>
             <Button
               type='primary'

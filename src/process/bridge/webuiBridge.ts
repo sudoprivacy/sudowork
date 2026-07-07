@@ -10,11 +10,11 @@ import { webui } from '@/common/ipcBridge';
 import { AuthService } from '@/webserver/auth/service/AuthService';
 import { UserRepository } from '@/webserver/auth/repository/UserRepository';
 import { AUTH_CONFIG, SERVER_CONFIG } from '@/webserver/config/constants';
-import { WebuiService } from './services/WebuiService';
 import { mainWarn, mainError } from '@process/utils/mainLogger';
 // 预加载 webserver 模块避免启动时延迟 / Preload webserver module to avoid startup delay
 import { startWebServerWithInstance } from '@/webserver/index';
 import { cleanupWebAdapter } from '@/webserver/adapter';
+import { WebuiService } from './services/WebuiService';
 
 // WebUI 服务器实例引用 / WebUI server instance reference
 let webServerInstance: {

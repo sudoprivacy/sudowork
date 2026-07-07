@@ -5,16 +5,16 @@
  */
 
 import { useCallback, useState } from 'react';
+import { Message } from '@arco-design/web-react';
 import { ipcBridge } from '@/common';
 import type { IDirOrFile } from '@/common/ipcBridge';
 import { ConfigStorage } from '@/common/storage';
 import { usePasteService } from '@/renderer/hooks/usePasteService';
-import type { MessageApi, PasteConfirmState, SelectedNodeRef } from '../types';
+import type { PasteConfirmState, SelectedNodeRef } from '../types';
 import { getTargetFolderPath } from '../utils/treeHelpers';
 
 interface UseWorkspacePasteOptions {
   workspace: string;
-  messageApi: MessageApi;
   t: (key: string) => string;
 
   // Conversation identity + data source. When dataSource === 'moss-session',
@@ -39,7 +39,7 @@ interface UseWorkspacePasteOptions {
  * Handle file paste and add logic
  */
 export function useWorkspacePaste(options: UseWorkspacePasteOptions) {
-  const { workspace, messageApi, t, conversation_id, dataSource, files, selected, selectedNodeRef, refreshWorkspace, pasteConfirm, setPasteConfirm, closePasteConfirm } = options;
+  const { workspace, t, conversation_id, dataSource, files, selected, selectedNodeRef, refreshWorkspace, pasteConfirm, setPasteConfirm, closePasteConfirm } = options;
 
   const isRemote = dataSource === 'moss-session';
 
@@ -101,7 +101,7 @@ export function useWorkspacePaste(options: UseWorkspacePasteOptions) {
               // 部分或全部失败时给出显式提示 / Surface warning when any copy operation fails
               const specific = failedFiles[0]?.error;
               const fallback = specific || (failedFiles.length > 0 ? 'Some files failed to copy' : result.msg);
-              messageApi.warning(fallback || t('common.unknownError') || 'Copy failed');
+              Message.warning(fallback || t('common.unknownError') || 'Copy failed');
             }
           });
         }
@@ -109,7 +109,7 @@ export function useWorkspacePaste(options: UseWorkspacePasteOptions) {
       .catch(() => {
         // Silently ignore errors
       });
-  }, [workspace, refreshWorkspace, messageApi, t, copyFilesIntoWorkspace]);
+  }, [workspace, refreshWorkspace, t, copyFilesIntoWorkspace]);
 
   /**
    * 处理文件粘贴（从粘贴服务）
@@ -139,7 +139,7 @@ export function useWorkspacePaste(options: UseWorkspacePasteOptions) {
           const failedFiles = res.data?.failedFiles ?? [];
 
           if (copiedFiles.length > 0) {
-            messageApi.success(t('messages.responseSentSuccessfully') || 'Pasted');
+            Message.success(t('messages.responseSentSuccessfully') || 'Pasted');
             setTimeout(() => refreshWorkspace(), 300);
           }
 
@@ -148,10 +148,10 @@ export function useWorkspacePaste(options: UseWorkspacePasteOptions) {
             // user sees a meaningful reason rather than a generic notice.
             const specific = failedFiles[0]?.error;
             const fallback = specific || (failedFiles.length > 0 ? 'Some files failed to copy' : res.msg);
-            messageApi.warning(fallback || t('common.unknownError') || 'Paste failed');
+            Message.warning(fallback || t('common.unknownError') || 'Paste failed');
           }
         } catch {
-          messageApi.error(t('common.unknownError') || 'Paste failed');
+          Message.error(t('common.unknownError') || 'Paste failed');
         } finally {
           // 操作完成后重置粘贴目标文件夹（成功或失败都重置）
           // Reset paste target folder after operation completes (success or failure)
@@ -169,7 +169,7 @@ export function useWorkspacePaste(options: UseWorkspacePasteOptions) {
         targetFolder: targetFolderKey,
       });
     },
-    [workspace, refreshWorkspace, t, messageApi, files, selected, selectedNodeRef, setPasteConfirm, copyFilesIntoWorkspace]
+    [workspace, refreshWorkspace, t, files, selected, selectedNodeRef, setPasteConfirm, copyFilesIntoWorkspace]
   );
 
   /**
@@ -196,23 +196,23 @@ export function useWorkspacePaste(options: UseWorkspacePasteOptions) {
       const failedFiles = res.data?.failedFiles ?? [];
 
       if (copiedFiles.length > 0) {
-        messageApi.success(t('messages.responseSentSuccessfully') || 'Pasted');
+        Message.success(t('messages.responseSentSuccessfully') || 'Pasted');
         setTimeout(() => refreshWorkspace(), 300);
       }
 
       if (!res.success || failedFiles.length > 0) {
         const specific = failedFiles[0]?.error;
         const fallback = specific || (failedFiles.length > 0 ? 'Some files failed to copy' : res.msg);
-        messageApi.warning(fallback || t('common.unknownError') || 'Paste failed');
+        Message.warning(fallback || t('common.unknownError') || 'Paste failed');
       }
 
       closePasteConfirm();
     } catch {
-      messageApi.error(t('common.unknownError') || 'Paste failed');
+      Message.error(t('common.unknownError') || 'Paste failed');
     } finally {
       setPasteTargetFolder(null);
     }
-  }, [pasteConfirm, closePasteConfirm, messageApi, t, files, selected, selectedNodeRef, workspace, refreshWorkspace, copyFilesIntoWorkspace]);
+  }, [pasteConfirm, closePasteConfirm, t, files, selected, selectedNodeRef, workspace, refreshWorkspace, copyFilesIntoWorkspace]);
 
   // 注册粘贴服务以在工作空间组件获得焦点时捕获全局粘贴事件
   // Register paste service to catch global paste events when workspace component is focused

@@ -37,6 +37,15 @@
   "questionSkipped": "已跳過",
   "yes": "是",
   "no": "否",
+  "skills": {
+    "triggerLabel": "技能 / 檔案",
+    "searchSkills": "搜尋技能...",
+    "searchFiles": "搜尋檔案...",
+    "noSearchResults": "未找到匹配結果",
+    "activeSkills": "目前使用技能",
+    "added": "已新增",
+    "tabToSwitch": "Tab 切換"
+  },
   "confirmation": {
     "applyChange": "應用此更改？",
     "allowExecution": "允許執行？",

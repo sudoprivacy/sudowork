@@ -92,18 +92,6 @@ interface UsePreviewHistoryReturn {
    * Select history snapshot
    */
   handleSnapshotSelect: (snapshot: PreviewSnapshotInfo) => Promise<void>;
-
-  /**
-   * Message API 实例（用于显示提示信息）
-   * Message API instance (for displaying notifications)
-   */
-  messageApi: ReturnType<typeof Message.useMessage>[0];
-
-  /**
-   * Message Context Holder（需要渲染在组件中）
-   * Message Context Holder (needs to be rendered in component)
-   */
-  messageContextHolder: ReturnType<typeof Message.useMessage>[1];
 }
 
 /**
@@ -122,7 +110,6 @@ export const usePreviewHistory = ({ activeTab, updateContent }: UsePreviewHistor
   const [historyLoading, setHistoryLoading] = useState(false);
   const [snapshotSaving, setSnapshotSaving] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
-  const [messageApi, messageContextHolder] = Message.useMessage();
   const lastSnapshotTimeRef = useRef<number>(0); // 记录上次快照保存时间 / Track last snapshot save time
 
   // 构建历史目标对象 / Build history target object
@@ -177,7 +164,7 @@ export const usePreviewHistory = ({ activeTab, updateContent }: UsePreviewHistor
     // 防抖检查：如果距离上次保存快照时间小于1秒，则忽略 / Debounce check: Ignore if less than 1 second since last save
     const now = Date.now();
     if (now - lastSnapshotTimeRef.current < SNAPSHOT_DEBOUNCE_TIME) {
-      messageApi.info(t('preview.tooFrequent'));
+      Message.info(t('preview.tooFrequent'));
       return;
     }
 
@@ -185,15 +172,15 @@ export const usePreviewHistory = ({ activeTab, updateContent }: UsePreviewHistor
       setSnapshotSaving(true);
       lastSnapshotTimeRef.current = now; // 更新最后保存时间 / Update last save time
       await ipcBridge.previewHistory.save.invoke({ target: historyTarget, content: activeTab.content });
-      messageApi.success(t('preview.snapshotSaved'));
+      Message.success(t('preview.snapshotSaved'));
       await refreshHistory();
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : t('common.unknownError');
-      messageApi.error(`${t('preview.snapshotSaveFailed')}: ${errorMsg}`);
+      Message.error(`${t('preview.snapshotSaveFailed')}: ${errorMsg}`);
     } finally {
       setSnapshotSaving(false);
     }
-  }, [historyTarget, activeTab, snapshotSaving, messageApi, refreshHistory, t]);
+  }, [historyTarget, activeTab, snapshotSaving, refreshHistory, t]);
 
   // 选择历史快照 / Select history snapshot
   const handleSnapshotSelect = useCallback(
@@ -205,16 +192,16 @@ export const usePreviewHistory = ({ activeTab, updateContent }: UsePreviewHistor
         const result = await ipcBridge.previewHistory.getContent.invoke({ target: historyTarget, snapshotId: snapshot.id });
         if (result?.content) {
           updateContent(result.content);
-          messageApi.success(t('preview.historyLoaded'));
+          Message.success(t('preview.historyLoaded'));
         } else {
           throw new Error(t('preview.errors.emptySnapshot'));
         }
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : t('common.unknownError');
-        messageApi.error(`${t('preview.historyLoadFailed')}: ${errorMsg}`);
+        Message.error(`${t('preview.historyLoadFailed')}: ${errorMsg}`);
       }
     },
-    [historyTarget, messageApi, updateContent, t]
+    [historyTarget, updateContent, t]
   );
 
   return {
@@ -226,7 +213,5 @@ export const usePreviewHistory = ({ activeTab, updateContent }: UsePreviewHistor
     refreshHistory,
     handleSaveSnapshot,
     handleSnapshotSelect,
-    messageApi,
-    messageContextHolder,
   };
 };

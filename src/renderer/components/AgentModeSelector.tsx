@@ -190,16 +190,16 @@ const AgentModeSelector: React.FC<AgentModeSelectorProps> = ({
         if (agentLogoIsEmoji) {
           return <span className='text-14px leading-none'>{agentLogo}</span>;
         }
-        return <img src={agentLogo} alt={`${agentName || 'agent'} logo`} className='block w-16px h-16px object-contain' />;
+        return <img src={agentLogo} alt={`${agentName || 'agent'} logo`} className='block size-4 object-contain' />;
       }
       const logo = getAgentLogo(backend);
       if (logo) {
-        return <img src={logo} alt={`${backend} logo`} className='block w-16px h-16px object-contain' />;
+        return <img src={logo} alt={`${backend} logo`} className='block size-4 object-contain' />;
       }
       return <Robot theme='outline' size={16} fill={'var(--foreground)'} />;
     })();
 
-    return <span className='inline-flex w-16px h-16px items-center justify-center shrink-0 leading-none'>{logoContent}</span>;
+    return <span className='inline-flex size-4 items-center justify-center shrink-0 leading-none'>{logoContent}</span>;
   };
 
   // Get display label for current mode
@@ -210,13 +210,13 @@ const AgentModeSelector: React.FC<AgentModeSelectorProps> = ({
 
   // Dropdown menu (shared between compact and full mode)
   const dropdownMenu = (
-    <div className='flex flex-col gap-2px p-6px rd-12px border bg-popup' style={{ minWidth: 180, boxShadow: '0 8px 28px rgba(0, 0, 0, 0.12)' }}>
-      <div className='px-10px py-2 text-12px leading-18px text-secondary'>{t('agentMode.switchMode', { defaultValue: 'Switch Mode' })}</div>
+    <div className='flex flex-col gap-0.5 p-1.5 rd-12px border bg-popup' style={{ minWidth: 180, boxShadow: '0 8px 28px rgba(0, 0, 0, 0.12)' }}>
+      <div className='px-2.5 py-2 text-12px leading-18px text-secondary'>{t('agentMode.switchMode', { defaultValue: 'Switch Mode' })}</div>
       {modes.map((mode: AgentModeOption) => {
         const active = currentMode === mode.value;
         return (
-          <div key={mode.value} className={classNames('flex items-center gap-8px px-10px h-38px rd-8px cursor-pointer text-14px text-foreground transition-colors hover:bg-hover active:bg-active', active && 'bg-2')} onClick={() => void handleModeChange(mode.value)}>
-            <span className='w-16px shrink-0 inline-flex items-center justify-center text-primary'>{active ? '✓' : ''}</span>
+          <div key={mode.value} className={classNames('flex items-center gap-2 px-2.5 h-9.5 rd-8px cursor-pointer text-14px text-foreground transition-colors hover:bg-hover active:bg-active', active && 'bg-2')} onClick={() => void handleModeChange(mode.value)}>
+            <span className='w-4 shrink-0 inline-flex items-center justify-center text-primary'>{active ? '✓' : ''}</span>
             <span className='truncate'>{getDisplayModeLabel(mode)}</span>
           </div>
         );
@@ -240,7 +240,7 @@ const AgentModeSelector: React.FC<AgentModeSelectorProps> = ({
         className={canInteract ? '' : 'agent-mode-compact-pill--readonly'}
         icon={compactIcon}
         label={
-          <span className='inline-flex min-w-0 items-center gap-6px'>
+          <span className='inline-flex min-w-0 items-center gap-1.5'>
             <span className='block truncate leading-none'>{compactLabel}</span>
             {canInteract && <Down size={12} className='text-tertiary shrink-0' />}
           </span>
@@ -276,7 +276,7 @@ const AgentModeSelector: React.FC<AgentModeSelectorProps> = ({
   // on the real bounding container (`.chat-layout-header`), not this wrapper.
   if (!canSwitchMode) {
     return (
-      <div className='ml-16px'>
+      <div className='ml-4'>
         <Tooltip content={tooltipLabel} position='bottom'>
           {pill}
         </Tooltip>
@@ -286,7 +286,7 @@ const AgentModeSelector: React.FC<AgentModeSelectorProps> = ({
 
   // Render dropdown with mode selection menu + tooltip
   return (
-    <div className='ml-16px'>
+    <div className='ml-4'>
       <Tooltip content={tooltipLabel} position='bottom'>
         <Dropdown trigger='click' popupVisible={dropdownVisible} onVisibleChange={(visible) => !isLoading && setDropdownVisible(visible)} droplist={dropdownMenu}>
           {pill}

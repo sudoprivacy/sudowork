@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '../../common';
 import { mcporterService } from '@process/services/mcporter';
+import { ipcBridge } from '../../common';
 
 export function initMcporterBridge(): void {
   // mcporter 服务相关 IPC 处理程序

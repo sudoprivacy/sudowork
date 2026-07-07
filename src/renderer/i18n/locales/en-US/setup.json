@@ -4,5 +4,33 @@
     "placeholder": "https://your-sudowork-server.com",
     "hint": "Leave empty to use the default server",
     "invalidUrl": "Please enter a valid HTTP/HTTPS address"
+  },
+  "init": {
+    "headerTitle": "Preparing Runtime Environment",
+    "startupTitle": "Starting Core Services",
+    "allReady": "All Components Ready",
+    "failed": "Initialization Failed",
+    "startingCoreServices": "Core services starting, please wait for Sudocode and Nexus to be ready",
+    "validatingComponents": "Validating core service status, please wait",
+    "preparingEnvironment": "Preparing runtime environment...",
+    "retryCountdown": "Auto retry in {{seconds}}s (attempt {{attempt}}/{{maxAttempts}})",
+    "statusDone": "Completed",
+    "statusError": "Error",
+    "statusActive": "In Progress",
+    "statusPending": "Pending",
+    "processing": "Processing...",
+    "autoRetry": "Auto Retry",
+    "waitingForLogs": "Waiting for logs...",
+    "manualReinstall": "Manual Reinstall",
+    "manualReinstallHint": "Auto-reinstall is disabled after startup failure. You can manually reinstall core components or skip to enter the app.",
+    "quit": "Quit",
+    "step": {
+      "scode": { "label": "Sudocode", "description": "Default ACP Agent Runtime" },
+      "nexus": { "label": "Nexus OS Core Engine", "description": "Local Core Service Engine" },
+      "git": { "label": "Git Environment", "description": "Version Control Component" },
+      "node": { "label": "Node.js Runtime", "description": "JavaScript Execution Environment" },
+      "claude": { "label": "Claude Code CLI", "description": "Command-line Agent Tool" },
+      "bdpan": { "label": "bdpan CLI", "description": "File Sync Tool" }
+    }
   }
 }

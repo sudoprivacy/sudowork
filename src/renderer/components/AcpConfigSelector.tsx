@@ -133,9 +133,9 @@ const AcpConfigSelector: React.FC<{
                 <Menu.ItemGroup title={t(`acp.config.${option.id}`, { defaultValue: option.name || 'Options' })}>
                   {option.options?.map((choice) => (
                     <Menu.Item key={choice.value} className={choice.value === currentValue ? 'bg-2!' : ''} onClick={() => handleSelectOption(option.id, choice.value)}>
-                      <div className='flex items-center gap-8px'>
+                      <div className='flex items-center gap-2'>
                         {choice.value === currentValue && <span className='text-primary'>✓</span>}
-                        <span className={choice.value !== currentValue ? 'ml-16px' : ''}>{choice.name || choice.value}</span>
+                        <span className={choice.value !== currentValue ? 'ml-4' : ''}>{choice.name || choice.value}</span>
                       </div>
                     </Menu.Item>
                   ))}
@@ -144,7 +144,7 @@ const AcpConfigSelector: React.FC<{
             }
           >
             <Button className='sendbox-model-btn agent-mode-compact-pill' shape='round' size='small'>
-              <span className='flex items-center gap-6px min-w-0 leading-none'>
+              <span className='flex items-center gap-1.5 min-w-0 leading-none'>
                 <span className='block truncate leading-none'>{currentLabel}</span>
                 <Down size={12} className='text-tertiary shrink-0' />
               </span>

@@ -57,10 +57,10 @@ export default function HubEmptyState({ error, onRetry }: IHubEmptyStateProps) {
   const titleFallback = isTokenMissing ? '未配置 Skill Hub — 请检查 sudowork-server 登录状态' : '拉取失败，请重试';
 
   return (
-    <div className='flex flex-col items-center justify-center py-32px text-center' data-testid={`hub-empty-state-${error.code.toLowerCase()}`}>
-      <Icon className='text-32px text-secondary mb-12px' />
-      <div className='text-13px text-secondary mb-4px'>{t(titleKey, { defaultValue: titleFallback })}</div>
-      {error.message ? <div className='text-11px text-tertiary mb-12px max-w-360px'>{error.message}</div> : null}
+    <div className='flex flex-col items-center justify-center py-8 text-center' data-testid={`hub-empty-state-${error.code.toLowerCase()}`}>
+      <Icon className='text-32px text-secondary mb-3' />
+      <div className='text-13px text-secondary mb-1'>{t(titleKey, { defaultValue: titleFallback })}</div>
+      {error.message ? <div className='text-11px text-tertiary mb-3 max-w-90'>{error.message}</div> : null}
       {error.retriable && onRetry ? (
         <Button size='mini' icon={<IconRefresh />} onClick={onRetry}>
           {t('settings.hubEmpty.retry', { defaultValue: '重试' })}

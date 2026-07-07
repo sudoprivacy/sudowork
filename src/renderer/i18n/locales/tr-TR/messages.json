@@ -37,6 +37,15 @@
   "questionSkipped": "Atlandı",
   "yes": "Evet",
   "no": "Hayır",
+  "skills": {
+    "triggerLabel": "Beceriler / Dosyalar",
+    "searchSkills": "Beceri ara...",
+    "searchFiles": "Dosya ara...",
+    "noSearchResults": "Eşleşen sonuç bulunamadı",
+    "activeSkills": "Aktif Beceriler",
+    "added": "Eklendi",
+    "tabToSwitch": "Tab ile değiştir"
+  },
   "confirmation": {
     "applyChange": "Bu değişikliği uygula?",
     "allowExecution": "Yürütmeye izin ver?",

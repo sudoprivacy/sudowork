@@ -128,7 +128,7 @@ const DirectorySelectionModal: React.FC<DirectorySelectionModalProps> = ({ visib
           <div className='text-secondary text-14px overflow-hidden text-ellipsis whitespace-nowrap max-w-[70vw]' title={selectedPath || currentPath}>
             {selectedPath || currentPath || (isFileMode ? t('fileSelection.pleaseSelectFile') : t('fileSelection.pleaseSelectDirectory'))}
           </div>
-          <div className='flex gap-10px'>
+          <div className='flex gap-2.5'>
             <Button onClick={onCancel}>{t('common.cancel')}</Button>
             <Button type='primary' onClick={handleConfirm} disabled={!selectedPath}>
               {t('common.confirm')}
@@ -141,29 +141,23 @@ const DirectorySelectionModal: React.FC<DirectorySelectionModalProps> = ({ visib
         <div className='w-full border rd-4px overflow-hidden' style={{ height: 'min(400px, 60vh)' }}>
           <div className='h-full overflow-y-auto'>
             {directoryData.canGoUp && (
-              <div className='flex items-center p-10px border-b cursor-pointer hover:bg-hover transition' onClick={handleGoUp}>
-                <IconUp className='mr-10px text-secondary' />
+              <div className='flex items-center p-2.5 border-b cursor-pointer hover:bg-hover transition' onClick={handleGoUp}>
+                <IconUp className='mr-2.5 text-secondary' />
                 <span>..</span>
               </div>
             )}
             {error && (
-              <div className='p-16px text-center text-danger text-13px'>
+              <div className='p-4 text-center text-danger text-13px'>
                 <div>{error}</div>
-                <Button size='mini' className='mt-8px' onClick={() => loadDirectory(currentPath).catch(() => {})}>
+                <Button size='mini' className='mt-2' onClick={() => loadDirectory(currentPath).catch(() => {})}>
                   {t('common.retry', { defaultValue: 'Retry' })}
                 </Button>
               </div>
             )}
             {directoryData.items.map((item, index) => (
-              <div
-                key={index}
-                className='flex items-center justify-between p-10px border-b cursor-pointer hover:bg-hover transition'
-                style={selectedPath === item.path ? { background: 'var(--brand-light)' } : {}}
-                onClick={() => handleItemClick(item)}
-                onDoubleClick={() => handleItemDoubleClick(item)}
-              >
+              <div key={index} className='flex items-center justify-between p-2.5 border-b cursor-pointer hover:bg-hover transition' style={selectedPath === item.path ? { background: 'var(--brand-light)' } : {}} onClick={() => handleItemClick(item)} onDoubleClick={() => handleItemDoubleClick(item)}>
                 <div className='flex items-center flex-1 min-w-0'>
-                  {item.isDirectory ? <IconFolder className='mr-10px text-warning shrink-0' /> : <IconFile className='mr-10px text-primary shrink-0' />}
+                  {item.isDirectory ? <IconFolder className='mr-2.5 text-warning shrink-0' /> : <IconFile className='mr-2.5 text-primary shrink-0' />}
                   <span className='overflow-hidden text-ellipsis whitespace-nowrap'>{item.name}</span>
                 </div>
                 {canSelect(item) && (

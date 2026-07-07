@@ -4,9 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Message } from '@arco-design/web-react';
 import React from 'react';
-import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useAddEventListener } from '@/renderer/utils/emitter';
 import { ipcBridge } from '@/common';
@@ -24,7 +22,6 @@ const ChatSider: React.FC<{
   conversation?: TChatConversation;
 }> = ({ conversation }) => {
   const { t } = useTranslation();
-  const [messageApi, messageContext] = Message.useMessage({ maxCount: 1 });
   const storageKey = React.useMemo(() => (conversation?.id ? `${STORAGE_KEYS.RIGHT_PANEL_ACTIVE_TAB}:${conversation.id}` : null), [conversation?.id]);
   const [activeTab, setActiveTab] = React.useState<RightPanelTab>('workspace');
 
@@ -79,15 +76,12 @@ const ChatSider: React.FC<{
   const workspace = extra?.workspace;
 
   if (conversation?.type === 'acp' && workspace) {
-    workspaceNode = <ChatWorkspace conversation_id={conversation.id} workspace={workspace} workspaceDisplayName={extra.workspaceDisplayName} eventPrefix='acp' backend={extra.backend} messageApi={messageApi} />;
+    workspaceNode = <ChatWorkspace conversation_id={conversation.id} workspace={workspace} workspaceDisplayName={extra.workspaceDisplayName} eventPrefix='acp' backend={extra.backend} />;
   } else if (conversation?.type === 'remote-agent') {
-    workspaceNode = <ChatWorkspace conversation_id={conversation.id} workspace={workspace || conversation.id} workspaceDisplayName={extra?.workspaceDisplayName} eventPrefix='remote-agent' backend='remote-agent' dataSource='moss-session' readonly messageApi={messageApi} />;
+    workspaceNode = <ChatWorkspace conversation_id={conversation.id} workspace={workspace || conversation.id} workspaceDisplayName={extra?.workspaceDisplayName} eventPrefix='remote-agent' backend='remote-agent' dataSource='moss-session' readonly />;
   }
-  const messageContextPortal = typeof document !== 'undefined' ? createPortal(messageContext, document.body) : messageContext;
-
   return (
     <>
-      {messageContextPortal}
       <div className='flex h-full min-h-0 flex-col bg-[var(--color-bg-1)]'>
         <div className='right-panel-tabs'>
           {(['workspace', 'browser', 'terminal', 'deliverables'] as RightPanelTab[]).map((tab) => {

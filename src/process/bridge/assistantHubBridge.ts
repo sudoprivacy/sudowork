@@ -11,9 +11,9 @@ import http from 'node:http';
 import JSZip from 'jszip';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import { ipcBridge } from '@/common';
-import type { IAssistantHubSkill, IAssistantHubListResponse, IAssistantHubDetail, IAssistantInstallResult, ISkillHubSkill, IBridgeResponse, IAssistantHubVersionLike } from '@/common/ipcBridge';
+import type { IAssistantHubSkill, IAssistantHubDetail, ISkillHubSkill, IAssistantHubVersionLike } from '@/common/ipcBridge';
 import { assistantManager } from '@/process/AssistantManager';
-import { getAssistantsDir, getHubAssistantsDir, getSystemAssistantsDir, getCustomAssistantsDir } from '@/process/initStorage';
+import { getHubAssistantsDir, getSystemAssistantsDir, getCustomAssistantsDir } from '@/process/initStorage';
 import { skillManager } from '@/process/SkillManager';
 import { getDatabase } from '@/process/database';
 import { DEFAULT_PRESET_AGENT_TYPE, normalizePresetAgentType } from '@/types/acpTypes';
@@ -676,6 +676,7 @@ export function initAssistantHubBridge(): void {
   // Download and install assistant from Hub, optionally installing selected associated skills
   ipcBridge.assistantHub.downloadAndInstallAssistant.provider(async ({ assistantName, displayName, sourceUrl, version, checksum, assistantMeta, selectedSkillIds }) => {
     try {
+      console.log('displayName', displayName);
       const token = getSkillhubToken();
       if (!token) {
         mainError('AssistantHub', 'skillhub token not provisioned, skip downloadAndInstallAssistant');
@@ -1068,7 +1069,7 @@ export function registerUploadAssistantToHubBridge() {
         };
       }
 
-      const result = await response.json();
+      // const result = await response.json();
 
       return {
         success: true,

@@ -54,7 +54,7 @@ function resolveWorkspaceFileIcon(fileName: string): React.ReactNode | null {
   return resolveFileIcon(fileName, { size: 16, theme: 'outline' });
 }
 
-const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, eventPrefix = 'acp', backend, dataSource = 'local', readonly = false, messageApi: externalMessageApi, workspaceDisplayName: storedDisplayName }) => {
+const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, eventPrefix = 'acp', backend, dataSource = 'local', readonly = false, workspaceDisplayName: storedDisplayName }) => {
   const { t } = useTranslation();
   const { openPreview } = usePreviewContext();
   const navigate = useNavigate();
@@ -64,11 +64,6 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
   // endpoint. allowUpload re-enables the upload affordances (drag-drop, paste)
   // for that mode while leaving the other readonly restrictions intact.
   const allowUpload = !readonly || dataSource === 'moss-session';
-
-  // Message API setup
-  const [internalMessageApi, messageContext] = Message.useMessage();
-  const messageApi = externalMessageApi ?? internalMessageApi;
-  const shouldRenderLocalMessageContext = !externalMessageApi;
 
   // Search state
   const [searchText, setSearchText] = useState('');
@@ -281,7 +276,6 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
   }, [treeHook.loading]);
   const pasteHook = useWorkspacePaste({
     workspace,
-    messageApi,
     t,
     conversation_id,
     dataSource,
@@ -295,7 +289,6 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
   });
 
   const dragImportHook = useWorkspaceDragImport({
-    messageApi,
     t,
     onFilesDropped: pasteHook.handleFilesToAdd,
   });
@@ -380,7 +373,6 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
     conversation_id: eventPrefix === 'remote-agent' ? conversation_id : undefined,
     dataSource,
     readonly,
-    messageApi,
     t,
     setFiles: treeHook.setFiles,
     setSelected: treeHook.setSelected,
@@ -528,28 +520,28 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
         }
       } catch (error) {
         console.error('Failed to open directory dialog:', error);
-        messageApi.error(t('conversation.workspace.migration.selectFolderError'));
+        Message.error(t('conversation.workspace.migration.selectFolderError'));
       }
     } else {
       // WebUI: show directory selection modal
       setShowDirectorySelector(true);
     }
-  }, [messageApi, t]);
+  }, [t]);
 
   const handleMigrationConfirm = useCallback(async () => {
     if (!isTemporaryWorkspace) {
-      messageApi.error(t('conversation.workspace.migration.error'));
+      Message.error(t('conversation.workspace.migration.error'));
       return;
     }
 
     const targetWorkspace = selectedTargetPath.trim();
     if (!targetWorkspace) {
-      messageApi.error(t('conversation.workspace.migration.noTargetPath'));
+      Message.error(t('conversation.workspace.migration.noTargetPath'));
       return;
     }
 
     if (targetWorkspace === workspace) {
-      messageApi.warning(t('conversation.workspace.migration.selectFolderError'));
+      Message.warning(t('conversation.workspace.migration.selectFolderError'));
       return;
     }
 
@@ -629,13 +621,13 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
       // Navigate to new conversation / 跳转到新的会话
       void navigate(`/conversation/${newId}`);
       emitter.emit('chat.history.refresh');
-      messageApi.success(t('conversation.workspace.migration.success'));
+      Message.success(t('conversation.workspace.migration.success'));
     } catch (error) {
       console.error('Failed to migrate workspace:', error);
-      messageApi.error(t('conversation.workspace.migration.error'));
+      Message.error(t('conversation.workspace.migration.error'));
       setMigrationLoading(false);
     }
-  }, [selectedTargetPath, conversation_id, workspace, t, messageApi, navigate]);
+  }, [selectedTargetPath, conversation_id, workspace, t, navigate]);
 
   const handleCloseMigrationModal = useCallback(() => {
     if (!migrationLoading) {
@@ -664,15 +656,15 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
         const remotePath = bdpanDirPath.endsWith('/') ? `${bdpanDirPath}${localName}` : `${bdpanDirPath}/${localName}`;
         const res = await ipcBridge.bdpan.upload.invoke({ localPath, remotePath });
         if (res?.success) {
-          messageApi.success(t('conversation.bdpan.upload.success'));
+          Message.success(t('conversation.bdpan.upload.success'));
         } else {
-          messageApi.error(res?.data?.error ?? t('conversation.bdpan.upload.failed'));
+          Message.error(res?.data?.error ?? t('conversation.bdpan.upload.failed'));
         }
       } catch (err) {
-        messageApi.error(String(err));
+        Message.error(String(err));
       }
     },
-    [bdpanUploadLocalPath, t, messageApi]
+    [bdpanUploadLocalPath, t]
   );
 
   let contextMenuStyle: React.CSSProperties | undefined;
@@ -852,7 +844,6 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
 
   return (
     <>
-      {shouldRenderLocalMessageContext && messageContext}
       <div
         className='chat-workspace workspace-card size-full flex flex-col relative'
         tabIndex={0}

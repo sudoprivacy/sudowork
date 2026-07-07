@@ -250,8 +250,6 @@ const SendBox: React.FC<{
     onFilesAdded,
   });
 
-  const [message, context] = Message.useMessage();
-
   // Skill selector state
   const [installedSkills, setInstalledSkills] = useState<IInstalledSkillInfo[]>([]);
   const [selectedSkills, setSelectedSkills] = useState<string[]>(() => initialSelectedSkills);
@@ -458,7 +456,7 @@ const SendBox: React.FC<{
 
   const sendMessageHandler = () => {
     if (loading || isLoading) {
-      message.warning(t('messages.conversationInProgress'));
+      Message.warning(t('messages.conversationInProgress'));
       return;
     }
     if (!input.trim() && domSnippets.length === 0) {
@@ -609,7 +607,6 @@ const SendBox: React.FC<{
         )}
         <div style={{ width: '100%' }}>
           {prefix}
-          {context}
           {/* DOM 片段标签 / DOM snippet tags */}
           {domSnippets.length > 0 && (
             <div className='flex flex-wrap gap-6px mb-8px'>

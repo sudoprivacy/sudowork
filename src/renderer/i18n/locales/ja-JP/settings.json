@@ -938,6 +938,7 @@
     }
   },
   "copilot": "Copilot",
+  "security": "セキュリティ",
   "rechargeCenter": "チャージセンター",
   "copilotSettings": {
     "subtitle": "Sudo Code を設定",
