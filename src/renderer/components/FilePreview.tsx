@@ -135,21 +135,17 @@ const FilePreview: React.FC<FilePreviewProps> = ({ path, onRemove, readonly = fa
   if (isImage) {
     return (
       <div className='relative inline-block'>
-        <div className='rd-8px overflow-hidden border border-solid b-color-border-2'>{imageUrl ? <Image src={imageUrl} alt={fileName} width={60} height={60} className='object-cover cursor-pointer' preview /> : <div className='w-60px h-60px'></div>}</div>
+        <div className='rd-xl overflow-hidden border'>{imageUrl ? <Image src={imageUrl} alt={fileName} width={60} height={60} className='object-cover cursor-pointer' preview /> : <div className='size-15'></div>}</div>
         {!readonly && <Button shape='circle' size='mini' className='absolute -top-2 -right-2 z-10 bg-subtle! border! size-6!' icon={<IconClose className='text-13px text-foreground' />} onClick={handleRemove} />}
       </div>
     );
   }
 
   return (
-    <div className='relative inline-block mb-10px'>
-      <div
-        className={readonly && !fileError ? 'h-60px flex items-center gap-12px px-12px rd-8px border border-solid cursor-pointer select-none' : 'h-60px flex items-center gap-12px px-12px rd-8px border border-solid'}
-        style={{ borderColor: 'var(--border-default)', boxShadow: 'var(--shadow-sm)' }}
-        onClick={handlePreviewClick}
-      >
-        <div className='w-40px h-40px rd-8px f-center flex-shrink-0'>{resolveFileIcon(fileName, { size: 28, theme: 'filled' })}</div>
-        <div className='flex flex-col gap-2px min-w-0'>
+    <div className='relative inline-block mb-2.5'>
+      <div className={readonly && !fileError ? 'h-15 flex items-center gap-3 px-3 rd-xl border cursor-pointer' : 'h-15 flex items-center gap-3 px-3 rd-xl border'} onClick={handlePreviewClick}>
+        <div className='size-10 rd-xl f-center flex-shrink-0'>{resolveFileIcon(fileName, { size: 28, theme: 'filled' })}</div>
+        <div className='flex flex-col gap-0.5 min-w-0'>
           <span className='text-14px text-foreground max-w-150px truncate'>{fileName}</span>
           <span className='text-12px text-secondary'>
             {fileExt}: {fileSize || '...'}
