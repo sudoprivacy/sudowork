@@ -127,7 +127,7 @@ export function useSkillSelectorController(options: UseSkillSelectorControllerOp
 
   // Determine if tabs should be shown (always show when in conversation with workspace)
   // Per user request: remove workspaceFiles.length > 0 condition
-  const showTabs = workspaceFiles !== undefined && workspaceFiles !== null;
+  const showTabs = workspaceFiles != null;
 
   // Reset state when debounced query changes
   useEffect(() => {
