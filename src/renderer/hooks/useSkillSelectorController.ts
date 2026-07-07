@@ -88,9 +88,8 @@ interface UseSkillSelectorControllerOptions {
 const DEBOUNCE_DELAY = 150;
 
 export function useSkillSelectorController(options: UseSkillSelectorControllerOptions) {
-  const { input, cursorPosition, skills, selectedSkills, onSelectSkill, onRemoveSkill, workspaceFiles = [], onSelectFile, filterDisabled = false } = options;
+  const { input, cursorPosition, skills, selectedSkills, onRemoveSkill, workspaceFiles = [], filterDisabled = false } = options;
   const query = useMemo(() => matchSkillQuery(input, cursorPosition), [input, cursorPosition]);
-  const [activeIndex, setActiveIndex] = useState(0);
   const [dismissed, setDismissed] = useState(false);
   const [activeTab, setActiveTab] = useState<AtMentionTab>('skills');
   const [searchQuery, setSearchQuery] = useState('');
@@ -132,43 +131,32 @@ export function useSkillSelectorController(options: UseSkillSelectorControllerOp
   // Reset state when debounced query changes
   useEffect(() => {
     if (debouncedQuery !== prevQueryRef.current) {
-      setActiveIndex(0);
       setDismissed(false);
       setSearchQuery('');
       prevQueryRef.current = debouncedQuery;
     }
   }, [debouncedQuery]);
 
-  // Reset active index when search query changes
-  useEffect(() => {
-    setActiveIndex(0);
-  }, [searchQuery]);
-
   const filteredSkills = useMemo(() => {
     if (debouncedQuery === null) {
       return [];
     }
-    // Use searchQuery if available, otherwise fall back to @ query
     const rawKeyword = debouncedSearchQuery.trim() || debouncedQuery.trim();
     const keyword = rawKeyword.toLowerCase();
 
-    // Start with all skills, or filter by enabled status if filterDisabled is true
     let result = skills;
     if (filterDisabled) {
       result = skills.filter((skill) => skill.enabled !== false);
     }
 
     if (!keyword) {
-      // Show all (enabled) skills when query is empty
       return result;
     }
 
-    // Filter by display name, internal name, or description
     return result.filter((skill) => {
       const nameMatch = skill.name.toLowerCase().includes(keyword);
       const displayNameMatch = skill.displayName.toLowerCase().includes(keyword);
       const descriptionMatch = skill.description?.toLowerCase().includes(keyword) ?? false;
-      // Also support Chinese character matching
       const chineseMatch = rawKeyword ? skill.displayName.includes(rawKeyword) : false;
       return nameMatch || displayNameMatch || descriptionMatch || chineseMatch;
     });
@@ -178,7 +166,6 @@ export function useSkillSelectorController(options: UseSkillSelectorControllerOp
     if (debouncedQuery === null) {
       return [];
     }
-    // Use searchQuery if available, otherwise fall back to @ query
     const rawKeyword = debouncedSearchQuery.trim() || debouncedQuery.trim();
     const keyword = rawKeyword.toLowerCase();
     if (!keyword) {
@@ -191,77 +178,16 @@ export function useSkillSelectorController(options: UseSkillSelectorControllerOp
     });
   }, [workspaceFiles, debouncedQuery, debouncedSearchQuery]);
 
-  // Get items for current tab
-  const currentTabItems = activeTab === 'skills' ? filteredSkills : filteredFiles;
-
   // Menu is open when query is detected and not dismissed, and either tab has content or tabs are shown
   const hasAnyContent = filteredSkills.length > 0 || filteredFiles.length > 0;
   const isOpen = query !== null && !dismissed && (hasAnyContent || showTabs);
 
-  const executeSkill = useCallback(
-    (index: number) => {
-      if (activeTab === 'skills') {
-        const skill = filteredSkills[index];
-        if (!skill) return false;
-        onSelectSkill(skill.name);
-        setDismissed(true);
-        return true;
-      } else {
-        const file = filteredFiles[index];
-        if (!file) return false;
-        onSelectFile?.(file);
-        setDismissed(true);
-        return true;
-      }
-    },
-    [activeTab, filteredSkills, filteredFiles, onSelectSkill, onSelectFile, input, cursorPosition]
-  );
-
-  const switchTab = useCallback(() => {
-    if (!showTabs) return;
-    setActiveTab((prev) => (prev === 'skills' ? 'files' : 'skills'));
-    setActiveIndex(0);
-    setSearchQuery('');
-  }, [showTabs]);
-
   const onKeyDown = useCallback(
     (event: ReactKeyboardEvent) => {
-      if (!isOpen) {
-        return false;
-      }
+      if (!isOpen) return false;
 
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        setDismissed(true);
-        return true;
-      }
-
-      // Tab key switches between tabs
-      if (event.key === 'Tab' && showTabs) {
-        event.preventDefault();
-        switchTab();
-        return true;
-      }
-
-      if (event.key === 'ArrowDown') {
-        event.preventDefault();
-        setActiveIndex((prev) => Math.min(prev + 1, currentTabItems.length - 1));
-        return true;
-      }
-
-      if (event.key === 'ArrowUp') {
-        event.preventDefault();
-        setActiveIndex((prev) => Math.max(prev - 1, 0));
-        return true;
-      }
-
-      if (event.key === 'Enter' && !event.shiftKey) {
-        event.preventDefault();
-        return executeSkill(activeIndex);
-      }
-
+      // Backspace with empty query removes the last selected skill
       if (event.key === 'Backspace' && debouncedQuery === '') {
-        // Remove last selected skill when pressing backspace with empty query
         if (selectedSkills.length > 0) {
           onRemoveSkill?.(selectedSkills[selectedSkills.length - 1]);
           return true;
@@ -270,26 +196,22 @@ export function useSkillSelectorController(options: UseSkillSelectorControllerOp
 
       return false;
     },
-    [activeIndex, executeSkill, currentTabItems.length, isOpen, debouncedQuery, selectedSkills, onRemoveSkill, showTabs, switchTab]
+    [isOpen, debouncedQuery, selectedSkills, onRemoveSkill]
   );
 
   return {
     isOpen,
-    activeIndex,
     filteredSkills,
     filteredFiles,
     activeTab,
     showTabs,
     setActiveTab: (tab: AtMentionTab) => {
       setActiveTab(tab);
-      setActiveIndex(0);
       setSearchQuery('');
     },
     searchQuery,
     setSearchQuery,
     onKeyDown,
-    onSelectByIndex: executeSkill,
     setDismissed,
-    setActiveIndex,
   };
 }

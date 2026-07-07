@@ -249,7 +249,6 @@ const SendBox: React.FC<{
   const [selectedSkills, setSelectedSkills] = useState<string[]>(() => initialSelectedSkills);
   const [loadingSkills, setLoadingSkills] = useState(false);
   const [isSkillPopoverOpen, setIsSkillPopoverOpen] = useState(false);
-  const [skillPopoverActiveIndex, setSkillPopoverActiveIndex] = useState(0);
   const [skillPopoverSearchQuery, setSkillPopoverSearchQuery] = useState('');
 
   // Fetch installed skills on mount and after agent-created skills are installed.
@@ -405,7 +404,6 @@ const SendBox: React.FC<{
 
   const onSkillPopoverClose = useCallback(() => {
     setIsSkillPopoverOpen(false);
-    setSkillPopoverActiveIndex(0);
     setSkillPopoverSearchQuery('');
   }, []);
 
@@ -420,10 +418,8 @@ const SendBox: React.FC<{
       title={t('messages.skills.title', { defaultValue: 'Skills' })}
       items={skillPopoverItems}
       selectedKeys={selectedSkills}
-      activeIndex={skillPopoverActiveIndex}
       loading={loadingSkills}
       loadingText={t('messages.skills.loading', { defaultValue: 'Loading skills...' })}
-      onHoverItem={setSkillPopoverActiveIndex}
       onSelectItem={(item) => {
         if (!selectedSkills.includes(item.key)) {
           setSelectedSkills((prev) => [...prev, item.key]);
@@ -432,10 +428,7 @@ const SendBox: React.FC<{
       }}
       emptyText={t('messages.skills.empty', { defaultValue: 'No skills found' })}
       searchQuery={skillPopoverSearchQuery}
-      onSearchChange={(q) => {
-        setSkillPopoverSearchQuery(q);
-        setSkillPopoverActiveIndex(0);
-      }}
+      onSearchChange={setSkillPopoverSearchQuery}
       onDismiss={onSkillPopoverClose}
       fileItems={skillPopoverFileItems}
       onSelectFile={(file) => {
@@ -606,15 +599,14 @@ const SendBox: React.FC<{
               title={t('messages.skills.title', { defaultValue: 'Skills' })}
               items={skillMenuItems}
               selectedKeys={selectedSkills}
-              activeIndex={skillSelectorController.activeIndex}
               loading={loadingSkills}
               loadingText={t('messages.skills.loading', { defaultValue: 'Loading skills...' })}
-              onHoverItem={skillSelectorController.setActiveIndex}
               onSelectItem={(item) => {
-                const targetIndex = skillSelectorController.filteredSkills.findIndex((skill) => skill.name === item.name);
-                if (targetIndex >= 0) {
-                  skillSelectorController.onSelectByIndex(targetIndex);
+                if (!selectedSkills.includes(item.key)) {
+                  setSelectedSkills((prev) => [...prev, item.key]);
                 }
+                setInput(stripAtQuery(input, cursorPosition));
+                skillSelectorController.setDismissed(true);
               }}
               emptyText={t('messages.skills.empty', { defaultValue: 'No skills found' })}
               showTabs={skillSelectorController.showTabs}
@@ -622,10 +614,10 @@ const SendBox: React.FC<{
               onTabChange={skillSelectorController.setActiveTab}
               fileItems={skillSelectorController.filteredFiles}
               onSelectFile={(file) => {
-                const fileIndex = skillSelectorController.filteredFiles.findIndex((f) => f.relativePath === file.relativePath);
-                if (fileIndex >= 0) {
-                  skillSelectorController.onSelectByIndex(fileIndex);
-                }
+                const newInput = replaceAtQuery(input, `@${file.relativePath}`, cursorPosition);
+                setInput(newInput);
+                onAtFileSelected?.(file);
+                skillSelectorController.setDismissed(true);
               }}
               skillsTabTitle={t('messages.skills.tabSkills', { defaultValue: 'Skills' })}
               filesTabTitle={t('messages.skills.tabFiles', { defaultValue: 'Files' })}
@@ -639,6 +631,7 @@ const SendBox: React.FC<{
               skillsSearchPlaceholder={t('messages.skills.searchSkills', { defaultValue: '搜索技能...' })}
               filesSearchPlaceholder={t('messages.skills.searchFiles', { defaultValue: '搜索文件...' })}
               noSearchResultsText={t('messages.skills.noSearchResults', { defaultValue: '未找到匹配结果' })}
+              isVisible={skillSelectorController.isOpen}
             />
           </div>
         )}

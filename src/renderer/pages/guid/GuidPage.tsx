@@ -518,7 +518,6 @@ const GuidPage: React.FC = () => {
 
   // Popover-button path: independent state, does NOT touch the input
   const [skillPopoverSearchQuery, setSkillPopoverSearchQuery] = useState('');
-  const [skillPopoverActiveIndex, setSkillPopoverActiveIndex] = useState(0);
 
   const skillPopoverItems = useMemo<SkillSelectorMenuItem[]>(() => {
     const kw = skillPopoverSearchQuery.trim().toLowerCase();
@@ -542,7 +541,6 @@ const GuidPage: React.FC = () => {
   const onSkillPopoverClose = useCallback(() => {
     setIsSkillPopoverOpen(false);
     setSkillPopoverSearchQuery('');
-    setSkillPopoverActiveIndex(0);
   }, []);
 
   // Build the skill trigger node (@button wrapped in SkillSelectorPopover)
@@ -555,8 +553,6 @@ const GuidPage: React.FC = () => {
       title={t('guid.skillSelectorTitle')}
       items={skillPopoverItems}
       selectedKeys={selectedSkills}
-      activeIndex={skillPopoverActiveIndex}
-      onHoverItem={(index) => setSkillPopoverActiveIndex(index)}
       onSelectItem={(item) => {
         if (!selectedSkills.includes(item.key)) {
           setSelectedSkills((prev) => [...prev, item.key]);
@@ -565,10 +561,7 @@ const GuidPage: React.FC = () => {
       }}
       emptyText={t('guid.noSkills')}
       searchQuery={skillPopoverSearchQuery}
-      onSearchChange={(q) => {
-        setSkillPopoverSearchQuery(q);
-        setSkillPopoverActiveIndex(0);
-      }}
+      onSearchChange={setSkillPopoverSearchQuery}
       onDismiss={onSkillPopoverClose}
     >
       <ActionChip icon={<span className='text-14px font-700 leading-none'>@</span>} label={t('conversation.welcome.skill', { defaultValue: '技能' })} onClick={() => setIsSkillPopoverOpen(true)} />
@@ -782,9 +775,13 @@ const GuidPage: React.FC = () => {
                 title={t('guid.skillSelectorTitle')}
                 items={skillMenuItems}
                 selectedKeys={selectedSkills}
-                activeIndex={skillSelectorController.activeIndex}
-                onHoverItem={(index) => skillSelectorController.setActiveIndex(index)}
-                onSelectItem={(_item) => skillSelectorController.onSelectByIndex(skillSelectorController.activeIndex)}
+                onSelectItem={(item) => {
+                  if (!selectedSkills.includes(item.key)) {
+                    setSelectedSkills((prev) => [...prev, item.key]);
+                  }
+                  skillSelectorController.setDismissed(true);
+                  guidInput.setInput(stripAtQuery(guidInput.input, cursorPosition));
+                }}
                 emptyText={t('guid.noSkills')}
                 searchQuery={skillSelectorController.searchQuery}
                 onSearchChange={skillSelectorController.setSearchQuery}
@@ -792,6 +789,7 @@ const GuidPage: React.FC = () => {
                   skillSelectorController.setDismissed(true);
                   guidInput.setInput(stripAtQuery(guidInput.input, cursorPosition));
                 }}
+                isVisible={skillSelectorController.isOpen}
               />
             ) : null
           }

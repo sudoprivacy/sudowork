@@ -14,10 +14,8 @@ export function SkillSelectorMenuContent({
   title,
   items,
   selectedKeys,
-  activeIndex,
   loading = false,
   loadingText,
-  onHoverItem,
   onSelectItem,
   emptyText,
   showTabs = false,
@@ -34,11 +32,12 @@ export function SkillSelectorMenuContent({
   skillsSearchPlaceholder,
   filesSearchPlaceholder,
   noSearchResultsText,
+  isVisible = false,
 }: ISkillSelectorMenuContentProps) {
   const { t } = useTranslation();
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const [activeIndex, setActiveIndex] = useState(0);
   const [internalActiveTab, setInternalActiveTab] = useState<AtMentionTab>('skills');
-  // Controlled when activeTabProp is provided, otherwise use internal state
   const activeTab = activeTabProp ?? internalActiveTab;
 
   const handleTabChange = useCallback(
@@ -56,29 +55,37 @@ export function SkillSelectorMenuContent({
   const resolvedNoSearchResultsText = noSearchResultsText || t('messages.skills.noSearchResults', '未找到匹配结果');
   const resolvedLoadingText = loadingText || t('common.loadingSkills');
 
+  // Reset active index when item list or active tab changes
   useEffect(() => {
-    const current = itemRefs.current[activeIndex];
-    if (current) {
-      current.scrollIntoView({ block: 'nearest' });
-    }
-  }, [activeIndex, items.length, fileItems.length, activeTab]);
+    setActiveIndex(0);
+  }, [items.length, fileItems.length, activeTab]);
 
-  const handleSearchKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLInputElement>) => {
+  // Scroll active item into view
+  useEffect(() => {
+    itemRefs.current[activeIndex]?.scrollIntoView({ block: 'nearest' });
+  }, [activeIndex]);
+
+  // Global capture-phase keydown — intercepts before the textarea when visible
+  useEffect(() => {
+    if (!isVisible) return;
+
+    const handler = (e: KeyboardEvent) => {
       const currentItems = activeTab === 'skills' ? items : fileItems;
-      const itemCount = currentItems?.length ?? 0;
 
       if (e.key === 'ArrowDown') {
         e.preventDefault();
-        onHoverItem(Math.min(activeIndex + 1, itemCount - 1));
+        setActiveIndex((prev) => Math.min(prev + 1, currentItems.length - 1));
       } else if (e.key === 'ArrowUp') {
         e.preventDefault();
-        onHoverItem(Math.max(activeIndex - 1, 0));
+        setActiveIndex((prev) => Math.max(prev - 1, 0));
+      } else if (e.key === 'Tab' && showTabs) {
+        e.preventDefault();
+        handleTabChange(activeTab === 'skills' ? 'files' : 'skills');
       } else if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         if (activeTab === 'skills' && items[activeIndex]) {
           onSelectItem(items[activeIndex]);
-        } else if (activeTab === 'files' && fileItems?.[activeIndex]) {
+        } else if (activeTab === 'files' && fileItems[activeIndex]) {
           onSelectFile?.(fileItems[activeIndex]);
         }
       } else if (e.key === 'Escape') {
@@ -88,12 +95,21 @@ export function SkillSelectorMenuContent({
         } else {
           onDismiss?.();
         }
-      } else if (e.key === 'Tab' && showTabs) {
-        e.preventDefault();
-        handleTabChange(activeTab === 'skills' ? 'files' : 'skills');
+      }
+    };
+
+    document.addEventListener('keydown', handler, true);
+    return () => document.removeEventListener('keydown', handler, true);
+  }, [isVisible, activeTab, items, fileItems, activeIndex, showTabs, handleTabChange, onSelectItem, onSelectFile, onDismiss, onSearchChange, searchQuery]);
+
+  const handleSearchKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      // Navigation is handled by the global listener; only intercept Escape to clear search
+      if (e.key === 'Escape' && searchQuery) {
+        e.stopPropagation();
       }
     },
-    [activeTab, items, fileItems, activeIndex, onHoverItem, onSelectItem, onSelectFile, onDismiss, onSearchChange, searchQuery, showTabs, handleTabChange]
+    [searchQuery]
   );
 
   return (
@@ -142,7 +158,7 @@ export function SkillSelectorMenuContent({
                     }}
                     className={classNames('w-full bg-transparent text-left p-2.5 rounded-xl transition-all cursor-pointer hover:bg-subtle')}
                     onMouseDown={(e) => e.preventDefault()}
-                    onMouseEnter={() => onHoverItem(index)}
+                    onMouseEnter={() => setActiveIndex(index)}
                     onClick={() => onSelectItem(item)}
                   >
                     <div className='flex items-center gap-2'>
@@ -175,7 +191,7 @@ export function SkillSelectorMenuContent({
                 }}
                 className={classNames('w-full bg-transparent text-left p-2.5 rounded-xl transition-all cursor-pointer hover:bg-subtle')}
                 onMouseDown={(e) => e.preventDefault()}
-                onMouseEnter={() => onHoverItem(index)}
+                onMouseEnter={() => setActiveIndex(index)}
                 onClick={() => onSelectFile?.(file)}
               >
                 <div className='flex items-center gap-2'>
@@ -203,7 +219,7 @@ export function SkillSelectorMenuContent({
 
 export default function SkillSelectorPopover({ popupVisible, onVisibleChange, children, ...contentProps }: ISkillSelectorPopoverProps) {
   return (
-    <Popover popupVisible={popupVisible} trigger={[]} position='top' onVisibleChange={onVisibleChange} content={<SkillSelectorMenuContent {...contentProps} />} className='[&_.arco-popover-content]:!py-1 [&_.arco-popover-content]:!px-3'>
+    <Popover popupVisible={popupVisible} trigger={[]} position='top' onVisibleChange={onVisibleChange} content={<SkillSelectorMenuContent {...contentProps} isVisible={popupVisible} />} className='[&_.arco-popover-content]:!py-1 [&_.arco-popover-content]:!px-3'>
       {children}
     </Popover>
   );
@@ -230,12 +246,11 @@ export interface SkillSelectorMenuItem {
 
 interface ISkillSelectorMenuContentProps {
   title: string;
+  hint?: string;
   items: SkillSelectorMenuItem[];
   selectedKeys: string[];
-  activeIndex: number;
   loading?: boolean;
   loadingText?: string;
-  onHoverItem: (index: number) => void;
   onSelectItem: (item: SkillSelectorMenuItem) => void;
   emptyText: string;
   showTabs?: boolean;
@@ -252,4 +267,6 @@ interface ISkillSelectorMenuContentProps {
   skillsSearchPlaceholder?: string;
   filesSearchPlaceholder?: string;
   noSearchResultsText?: string;
+  /** Whether the menu is currently visible — activates keyboard listener */
+  isVisible?: boolean;
 }
