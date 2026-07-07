@@ -1,5 +1,6 @@
 import { Input, Popover } from '@arco-design/web-react';
 import { IconSearch } from '@arco-design/web-react/icon';
+import { useDebounce } from 'ahooks';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -9,8 +10,6 @@ import { handleSkillIconError } from '@/renderer/utils/skillDisplay';
 import { resolveFileIcon } from '@/renderer/utils/fileIcon';
 import SkillSelectorSkeleton from './base/SkillSelectorSkeleton';
 import Tabs from './ui/Tabs';
-
-const DEBOUNCE_DELAY = 150;
 
 export function SkillSelectorMenuContent({
   title,
@@ -38,7 +37,7 @@ export function SkillSelectorMenuContent({
   const [activeIndex, setActiveIndex] = useState(0);
   const [activeTab, setActiveTab] = useState<AtMentionTab>('skills');
   const [searchQuery, setSearchQuery] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const debouncedSearch = useDebounce(searchQuery, { wait: 150 });
 
   const showTabs = workspaceFiles != null;
 
@@ -47,13 +46,7 @@ export function SkillSelectorMenuContent({
   const resolvedNoSearchResultsText = noSearchResultsText || t('messages.skills.noSearchResults', '未找到匹配结果');
   const resolvedLoadingText = loadingText || t('common.loadingSkills');
 
-  // Debounce search input
-  useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(searchQuery), DEBOUNCE_DELAY);
-    return () => clearTimeout(timer);
-  }, [searchQuery]);
-
-  // Reset search and tab when menu opens (query changes from null to non-null)
+  // Reset search and tab when menu opens
   useEffect(() => {
     if (isVisible) {
       setSearchQuery('');
