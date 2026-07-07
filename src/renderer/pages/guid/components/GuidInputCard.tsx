@@ -201,7 +201,7 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
         </div>
       )}
       {files.length > 0 && (
-        <div className='flex flex-wrap items-center gap-2 my-3'>
+        <div className='flex flex-wrap items-center gap-3 my-3'>
           {files.map((path) => (
             <FilePreview key={path} path={path} onRemove={() => onRemoveFile(path)} />
           ))}
