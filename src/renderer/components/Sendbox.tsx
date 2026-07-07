@@ -408,6 +408,7 @@ const SendBox: React.FC<{
       onVisibleChange={(v) => {
         if (!v) onSkillPopoverClose();
       }}
+      showTabs
       title={t('messages.skills.title', { defaultValue: 'Skills' })}
       items={skillPopoverItems}
       selectedKeys={selectedSkills}
