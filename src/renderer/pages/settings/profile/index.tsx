@@ -146,7 +146,7 @@ const UserProfile: React.FC = () => {
 
   return (
     <PageWrapper title={t('settings.profile', '用户中心')}>
-      <div className='flex flex-col gap-6 py-2'>
+      <div className='flex flex-col gap-6 pb-2'>
         {isEnterprise ? (
           <>
             {/* Enterprise: Identity */}

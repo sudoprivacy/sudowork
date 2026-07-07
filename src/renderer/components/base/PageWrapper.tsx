@@ -13,7 +13,7 @@ export default function PageWrapper({ children, className, contentClassName, tit
           </div>
         )}
         {(title || subtitle || actions) && (
-          <div className='flex items-start justify-between gap-4 mb-2'>
+          <div className='flex items-start justify-between gap-4 mb-4'>
             <div className='flex flex-col gap-0.5'>
               {title && <h2 className='text-24px font-600 text-foreground my-0'>{title}</h2>}
               {subtitle && <div className='text-13px text-secondary'>{subtitle}</div>}
