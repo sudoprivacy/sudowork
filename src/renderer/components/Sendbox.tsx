@@ -601,10 +601,9 @@ const SendBox: React.FC<{
         )}
         {/* Skill Selector Menu (with optional file tabs) */}
         {skillSelectorController.isOpen && (
-          <div className='absolute left-12px right-12px bottom-[calc(100%+8px)] z-70'>
+          <div className='absolute left-12px bottom-[calc(100%+8px)] z-70 bg-[var(--color-bg-popup)] px-3 rd-xl shadow-lg'>
             <SkillSelectorMenuContent
               title={t('messages.skills.title', { defaultValue: 'Skills' })}
-              hint={t('messages.skills.hint', { defaultValue: 'Type @ to select skills' })}
               items={skillMenuItems}
               selectedKeys={selectedSkills}
               activeIndex={skillSelectorController.activeIndex}

@@ -12,7 +12,6 @@ import Tabs from './ui/Tabs';
 
 export function SkillSelectorMenuContent({
   title,
-  hint,
   items,
   selectedKeys,
   activeIndex,
@@ -98,14 +97,13 @@ export function SkillSelectorMenuContent({
   );
 
   return (
-    <div>
+    <div className='w-72'>
       {/* Header with optional tabs */}
-      <div className='pb-2 border-b flex items-center justify-between gap-2'>
+      <div className='flex items-center justify-between gap-2 px-2 py-1'>
         {showTabs ? (
           <Tabs
-            variant='pill'
+            variant='line'
             className='gap-0.5'
-            itemClassName='text-13px'
             value={activeTab}
             items={[
               { value: 'skills', label: skillsTabTitle },
@@ -117,7 +115,6 @@ export function SkillSelectorMenuContent({
         ) : (
           <div className='text-13px font-semibold text-foreground'>{title}</div>
         )}
-        {hint && !showTabs && <div className='text-13px text-secondary truncate'>{hint}</div>}
         {showTabs && <div className='text-11px text-secondary truncate'>{t('messages.skills.tabToSwitch', 'Tab 切换')}</div>}
       </div>
 
@@ -233,7 +230,6 @@ export interface SkillSelectorMenuItem {
 
 interface ISkillSelectorMenuContentProps {
   title: string;
-  hint?: string;
   items: SkillSelectorMenuItem[];
   selectedKeys: string[];
   activeIndex: number;
