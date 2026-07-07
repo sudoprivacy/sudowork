@@ -24,6 +24,7 @@ import { filterEnabledSkillNames } from '../utils/enabledSkillFilter';
 import { ProcessConfig, getBundledBuiltinSkillDir } from '../initStorage';
 import { hasCronCommands } from './CronCommandDetector';
 import { isCronSkillAllowed } from '../services/cron/cronPolicy';
+import { processAtFileReferences } from './acp/AcpAtFileProcessor';
 
 /**
  * Cron instruction inlined into a remote session's first message. The moss
@@ -560,7 +561,78 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
       // step for remote-agent tasks; that local copy both fails on the packaged
       // app's read-only cwd and would be useless to the remote agent.)
       let contentToSend = data.content;
+
+      // Inline image attachments as base64 content blocks (fix A). Images are
+      // sent as vision input to the remote agent (scode) via moss's acpBridge —
+      // NOT uploaded-and-@referenced, because scode can't Read an image file
+      // back as vision. processAtFileReferences also strips the image's @-mention
+      // from the text so the agent won't try to Read it (avoids double-send).
+      // Non-image files still go through the upload + @ref path below so the
+      // remote agent can Read them.
+      let inlineImages: Array<{ type: 'image'; data: string; mimeType: string }> = [];
+      const inlinedImagePaths = new Set<string>();
       if (data.files && data.files.length > 0) {
+        try {
+          // Mirror local mode (AcpAgent): prepend an @-ref for every attached
+          // file so processAtFileReferences matches them even when the user
+          // didn't type an @-mention (e.g. paperclip/drag attach). The processor
+          // inlines image files as base64 blocks and strips their @-refs from
+          // the text; non-image @-refs it leaves in place, which we then strip
+          // out below (they point at local paths meaningless to the remote).
+          const fileRefs = data.files
+            .map((filePath) => {
+              const normalized = filePath.replace(/\\/g, '/');
+              return normalized.includes(' ') ? `@"${normalized}"` : '@' + normalized;
+            })
+            .join(' ');
+          const matchContent = `${fileRefs} ${contentToSend}`;
+
+          // processAtFileReferences early-returns (no image processing) when
+          // workspace is falsy, so pass a real directory. We match uploaded
+          // files by basename (not workspace resolution), so the directory of
+          // the first attached file is a safe, always-valid value.
+          const matchWorkspace = nodePath.dirname(data.files[0]);
+          const processed = await processAtFileReferences(
+            matchContent,
+            matchWorkspace,
+            data.files,
+            undefined, // modelId only tunes image resize target; default is fine
+          );
+          if (processed.images.length > 0) {
+            inlineImages = processed.images.map((img) => ({
+              type: 'image' as const,
+              data: img.data,
+              mimeType: img.mimeType,
+            }));
+            for (const img of processed.images) {
+              if (img.filePath) inlinedImagePaths.add(img.filePath);
+            }
+            // Strip any leftover synthetic @-refs (non-image files) from the
+            // text so they don't leak into the remote prompt; the original user
+            // text is preserved. Non-image files still get uploaded + @ref below.
+            let cleanedText = processed.text;
+            for (const filePath of data.files) {
+              if (inlinedImagePaths.has(filePath)) continue;
+              const normalized = filePath.replace(/\\/g, '/');
+              const ref = normalized.includes(' ') ? `@"${normalized}"` : '@' + normalized;
+              cleanedText = cleanedText.split(ref).join('').trim();
+            }
+            contentToSend = cleanedText || data.content;
+            mainLog(
+              'RemoteAgent',
+              `Inlined ${inlineImages.length} image(s) as content blocks, mimeTypes=[${inlineImages
+                .map((i) => i.mimeType)
+                .join(', ')}]`,
+            );
+          }
+        } catch (err) {
+          mainWarn('RemoteAgent', `Image inlining failed, falling back to upload path: ${err}`);
+        }
+      }
+
+      // Non-image files still need remote upload + @ref for the agent to Read.
+      const filesToUpload = (data.files || []).filter((p) => !inlinedImagePaths.has(p));
+      if (filesToUpload.length > 0) {
         if (!this.mossSessionId) {
           mainError('RemoteAgent', 'No mossSessionId available; cannot upload attachments to remote workspace');
           this.emitErrorMessage('无法上传附件：会话尚未就绪，请稍后重试 / Cannot upload attachment: session not ready, please retry');
@@ -585,7 +657,7 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
 
         const remoteRefs: string[] = [];
         const failedFiles: Array<{ name: string; error: string }> = [];
-        for (const localPath of data.files) {
+        for (const localPath of filesToUpload) {
           const relName = nodePath.basename(localPath);
           try {
             const stat = await fs.promises.stat(localPath);
@@ -642,6 +714,7 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
         content: contentToSend,
         files: data.files,
         msg_id: data.msg_id,
+        images: inlineImages.length > 0 ? inlineImages : undefined,
       });
 
       if (!result.success) {
