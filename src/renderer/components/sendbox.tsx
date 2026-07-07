@@ -628,18 +628,7 @@ const SendBox: React.FC<{
                       .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
                       .join(' ');
                   return (
-                    <Tag
-                      key={skillName}
-                      closable
-                      closeIcon={<CloseSmall theme='outline' size='12' />}
-                      onClose={() => setSelectedSkills(selectedSkills.filter((s) => s !== skillName))}
-                      className='text-12px b-1 b-solid rd-4px'
-                      style={{
-                        backgroundColor: 'rgba(var(--ui-accent-orange-rgb), 0.1)',
-                        borderColor: 'rgba(var(--ui-accent-orange-rgb), 0.32)',
-                      }}
-                    >
-                      <Lightning size='12' className='mr-4px text-[var(--ui-accent-orange)]' />
+                    <Tag key={skillName} closable onClose={() => setSelectedSkills(selectedSkills.filter((s) => s !== skillName))} className='text-12px rd-full' icon={<Lightning size='12' className='mr-4px text-[var(--ui-accent-orange)]' />}>
                       {displayName}
                     </Tag>
                   );
