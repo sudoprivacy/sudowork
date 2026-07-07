@@ -390,12 +390,6 @@ const SendBox: React.FC<{
         onAtFileSelected?.(file);
         onSkillPopoverClose();
       }}
-      skillsTabTitle={t('messages.skills.tabSkills', { defaultValue: 'Skills' })}
-      filesTabTitle={t('messages.skills.tabFiles', { defaultValue: 'Files' })}
-      filesEmptyText={t('messages.skills.filesEmpty', { defaultValue: 'No files in workspace' })}
-      skillsSearchPlaceholder={t('messages.skills.searchSkills', { defaultValue: '搜索技能...' })}
-      filesSearchPlaceholder={t('messages.skills.searchFiles', { defaultValue: '搜索文件...' })}
-      noSearchResultsText={t('messages.skills.noSearchResults', { defaultValue: '未找到匹配结果' })}
     >
       <Tooltip content={t('conversation.welcome.addSkill', { defaultValue: '添加技能 / 文件' })} position='top'>
         <span className='inline-flex ml-3'>
@@ -571,16 +565,10 @@ const SendBox: React.FC<{
                 onAtFileSelected?.(file);
                 skillSelectorController.setDismissed(true);
               }}
-              skillsTabTitle={t('messages.skills.tabSkills', { defaultValue: 'Skills' })}
-              filesTabTitle={t('messages.skills.tabFiles', { defaultValue: 'Files' })}
-              filesEmptyText={t('messages.skills.filesEmpty', { defaultValue: 'No files in workspace' })}
               onDismiss={() => {
                 skillSelectorController.setDismissed(true);
                 setInput(stripAtQuery(input, cursorPosition));
               }}
-              skillsSearchPlaceholder={t('messages.skills.searchSkills', { defaultValue: '搜索技能...' })}
-              filesSearchPlaceholder={t('messages.skills.searchFiles', { defaultValue: '搜索文件...' })}
-              noSearchResultsText={t('messages.skills.noSearchResults', { defaultValue: '未找到匹配结果' })}
               isVisible={skillSelectorController.isOpen}
               query={skillSelectorController.query}
             />

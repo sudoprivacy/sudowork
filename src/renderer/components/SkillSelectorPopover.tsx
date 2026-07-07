@@ -11,27 +11,7 @@ import { resolveFileIcon } from '@/renderer/utils/fileIcon';
 import SkillSelectorSkeleton from './base/SkillSelectorSkeleton';
 import Tabs from './ui/Tabs';
 
-export function SkillSelectorMenuContent({
-  title,
-  skills,
-  selectedKeys,
-  loading = false,
-  loadingText,
-  onSelectItem,
-  emptyText,
-  workspaceFiles,
-  onSelectFile,
-  filesTabTitle = 'Files',
-  skillsTabTitle = 'Skills',
-  filesEmptyText = 'No files',
-  onDismiss,
-  skillsSearchPlaceholder,
-  filesSearchPlaceholder,
-  noSearchResultsText,
-  isVisible = false,
-  query = null,
-  filterDisabled = false,
-}: ISkillSelectorMenuContentProps) {
+export function SkillSelectorMenuContent({ title, skills, selectedKeys, loading = false, loadingText, onSelectItem, emptyText, workspaceFiles, onSelectFile, onDismiss, isVisible = false, query = null, filterDisabled = false }: ISkillSelectorMenuContentProps) {
   const { t } = useTranslation();
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -41,9 +21,6 @@ export function SkillSelectorMenuContent({
 
   const showTabs = workspaceFiles != null;
 
-  const resolvedSkillsSearchPlaceholder = skillsSearchPlaceholder || t('messages.skills.searchSkills', '搜索技能...');
-  const resolvedFilesSearchPlaceholder = filesSearchPlaceholder || t('messages.skills.searchFiles', '搜索文件...');
-  const resolvedNoSearchResultsText = noSearchResultsText || t('messages.skills.noSearchResults', '未找到匹配结果');
   const resolvedLoadingText = loadingText || t('common.loadingSkills');
 
   // Reset search and tab when menu opens
@@ -137,8 +114,8 @@ export function SkillSelectorMenuContent({
             className='gap-0.5'
             value={activeTab}
             items={[
-              { value: 'skills', label: skillsTabTitle },
-              { value: 'files', label: filesTabTitle },
+              { value: 'skills', label: t('messages.skills.tabSkills', 'Skills') },
+              { value: 'files', label: t('messages.skills.tabFiles', 'Files') },
             ]}
             onChange={(v) => setActiveTab(v as AtMentionTab)}
             onMouseDown={(e) => e.preventDefault()}
@@ -150,7 +127,7 @@ export function SkillSelectorMenuContent({
       </div>
 
       {/* Search box */}
-      <Input className='my-3' size='small' prefix={<IconSearch />} allowClear placeholder={activeTab === 'skills' ? resolvedSkillsSearchPlaceholder : resolvedFilesSearchPlaceholder} value={searchQuery} onChange={setSearchQuery} onKeyDown={handleSearchKeyDown} />
+      <Input className='my-3' size='small' prefix={<IconSearch />} allowClear placeholder={activeTab === 'skills' ? t('messages.skills.searchSkills', '搜索技能...') : t('messages.skills.searchFiles', '搜索文件...')} value={searchQuery} onChange={setSearchQuery} onKeyDown={handleSearchKeyDown} />
 
       {/* Content area */}
       <div role='listbox' aria-busy={loading} className='overflow-y-auto h-260px'>
@@ -158,7 +135,7 @@ export function SkillSelectorMenuContent({
           <>
             {loading && filteredSkills.length === 0 && <SkillSelectorSkeleton count={4} />}
             {loading && filteredSkills.length > 0 && <div className='px-2.5 py-3 text-13px text-secondary'>{resolvedLoadingText}</div>}
-            {!loading && filteredSkills.length === 0 && <div className='px-2.5 py-3 text-13px text-secondary'>{searchQuery ? resolvedNoSearchResultsText : emptyText}</div>}
+            {!loading && filteredSkills.length === 0 && <div className='px-2.5 py-3 text-13px text-secondary'>{searchQuery ? t('messages.skills.noSearchResults', '未找到匹配结果') : emptyText}</div>}
             {!loading &&
               filteredSkills.map((skill, index) => {
                 const isSelected = selectedKeys.includes(skill.name);
@@ -197,7 +174,7 @@ export function SkillSelectorMenuContent({
         {/* Files tab */}
         {activeTab === 'files' && (
           <>
-            {filteredFiles.length === 0 && <div className='px-2.5 py-3 text-13px text-secondary'>{searchQuery ? resolvedNoSearchResultsText : filesEmptyText}</div>}
+            {filteredFiles.length === 0 && <div className='px-2.5 py-3 text-13px text-secondary'>{searchQuery ? t('messages.skills.noSearchResults', '未找到匹配结果') : t('messages.skills.filesEmpty', 'No files in workspace')}</div>}
             {filteredFiles.map((file, index) => (
               <button
                 key={file.relativePath}
@@ -260,13 +237,7 @@ interface ISkillSelectorMenuContentProps {
   emptyText: string;
   workspaceFiles?: WorkspaceFileItem[];
   onSelectFile?: (file: WorkspaceFileItem) => void;
-  filesTabTitle?: string;
-  skillsTabTitle?: string;
-  filesEmptyText?: string;
   onDismiss?: () => void;
-  skillsSearchPlaceholder?: string;
-  filesSearchPlaceholder?: string;
-  noSearchResultsText?: string;
   /** Whether the menu is currently visible — activates keyboard listener */
   isVisible?: boolean;
   /** The @-mention query string for initial filtering */
