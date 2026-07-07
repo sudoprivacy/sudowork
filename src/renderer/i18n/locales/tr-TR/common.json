@@ -100,5 +100,7 @@
     "newConversation": "Yeni sohbet",
     "openFolder": "Klasörü aç",
     "addSkill": "Beceri ekle"
-  }
+  },
+  "errorBoundaryTitle": "Bir Hata Oluştu",
+  "errorBoundaryMessage": "Beklenmedik bir hata oluştu, lütfen yeniden yüklemeyi deneyin"
 }

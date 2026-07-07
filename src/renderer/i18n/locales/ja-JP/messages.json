@@ -37,6 +37,15 @@
   "questionSkipped": "スキップ",
   "yes": "はい",
   "no": "いいえ",
+  "skills": {
+    "triggerLabel": "スキル / ファイル",
+    "searchSkills": "スキルを検索...",
+    "searchFiles": "ファイルを検索...",
+    "noSearchResults": "一致する結果がありません",
+    "activeSkills": "使用中のスキル",
+    "added": "追加済み",
+    "tabToSwitch": "Tab で切り替え"
+  },
   "confirmation": {
     "applyChange": "この変更を適用しますか？",
     "allowExecution": "実行を許可しますか？",

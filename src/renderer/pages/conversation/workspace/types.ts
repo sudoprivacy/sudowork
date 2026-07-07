@@ -5,10 +5,7 @@
  */
 
 import type { NodeInstance } from '@arco-design/web-react/es/Tree/interface';
-import type { Message } from '@arco-design/web-react';
 import type { IDirOrFile } from '@/common/ipcBridge';
-
-export type MessageApi = ReturnType<typeof Message.useMessage>[0];
 
 /**
  * Workspace 组件的 Props 定义
@@ -21,7 +18,6 @@ export interface WorkspaceProps {
   backend?: string;
   dataSource?: 'local' | 'moss-session';
   readonly?: boolean;
-  messageApi?: MessageApi;
   /** Stored display name override for workspace / 工作空间的自定义显示名 */
   workspaceDisplayName?: string;
 }

@@ -6,6 +6,7 @@
 
 import React, { useRef, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { init } from '@/common/ipcBridge';
 import { isElectronDesktop, isMacOS } from '@/renderer/utils/platform';
 import { useInit } from '../context/InitContext';
@@ -51,12 +52,12 @@ const SECONDARY_STEPS = STEPS.filter((step) => !PRIMARY_STEP_IDS.includes(step.i
 // Braille spinner frames
 const SPINNER = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 
-function getHeaderMessage(message: string | undefined, isReady: boolean, isError: boolean): string {
-  if (isReady) return '所有组件就绪';
-  if (isError) return '初始化失败';
-  if (message === '正在启动核心服务...') return '核心服务启动中，请等待 Sudocode 与 Nexus 完成就绪';
-  if (message === '正在校验组件状态...') return '正在确认核心服务状态，请稍候';
-  if (!message || message === '组件安装中' || message === '正在并行准备运行环境...') return '正在准备运行环境...';
+function getHeaderMessage(message: string | undefined, isReady: boolean, isError: boolean, t: TFunction): string {
+  if (isReady) return t('setup.init.allReady', '所有组件就绪');
+  if (isError) return t('setup.init.failed', '初始化失败');
+  if (message === '正在启动核心服务...') return t('setup.init.startingCoreServices', '核心服务启动中，请等待 Sudocode 与 Nexus 完成就绪');
+  if (message === '正在校验组件状态...') return t('setup.init.validatingComponents', '正在确认核心服务状态，请稍候');
+  if (!message || message === '组件安装中' || message === '正在并行准备运行环境...') return t('setup.init.preparingEnvironment', '正在准备运行环境...');
   return message;
 }
 
@@ -87,17 +88,17 @@ function getStepProgress(_stepId: StepId, stepStatus: StepStatus, currentProgres
   return currentProgress ?? 0;
 }
 
-function formatRetryMessage(retry?: { attempt: number; maxAttempts: number; nextRetryAt: number }, nowMs?: number): string | null {
+function formatRetryMessage(retry: { attempt: number; maxAttempts: number; nextRetryAt: number } | undefined, nowMs: number | undefined, t: TFunction): string | null {
   if (!retry) return null;
   const remainingSeconds = Math.max(0, Math.ceil((retry.nextRetryAt - (nowMs ?? Date.now())) / 1000));
-  return `${remainingSeconds} 秒后自动重试（第 ${retry.attempt}/${retry.maxAttempts} 次）`;
+  return t('setup.init.retryCountdown', { seconds: remainingSeconds, attempt: retry.attempt, maxAttempts: retry.maxAttempts, defaultValue: `${remainingSeconds} 秒后自动重试（第 ${retry.attempt}/${retry.maxAttempts} 次）` });
 }
 
-function getStatusText(status: StepStatus): string {
-  if (status === 'done') return '已完成';
-  if (status === 'error') return '异常';
-  if (status === 'active') return '进行中';
-  return '等待中';
+function getStatusText(status: StepStatus, t: TFunction): string {
+  if (status === 'done') return t('setup.init.statusDone', '已完成');
+  if (status === 'error') return t('setup.init.statusError', '异常');
+  if (status === 'active') return t('setup.init.statusActive', '进行中');
+  return t('setup.init.statusPending', '等待中');
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
@@ -166,10 +167,10 @@ const InitLoading: React.FC<InitLoadingProps> = ({ variant = 'full' }) => {
   const isError = status.phase === 'error';
   const isReady = status.phase === 'ready';
   const logs = status.logs ?? [];
-  const retryMessage = formatRetryMessage(status.retry, nowMs);
+  const retryMessage = formatRetryMessage(status.retry, nowMs, t);
   const isStartupVariant = variant === 'startup';
-  const headerTitle = '正在准备运行环境';
-  const headerMessage = getHeaderMessage(status.message, isReady, isError);
+  const headerTitle = t('setup.init.headerTitle', '正在准备运行环境');
+  const headerMessage = getHeaderMessage(status.message, isReady, isError, t);
   const shouldShowHeaderMessage = normalizeHeaderText(headerMessage) !== normalizeHeaderText(headerTitle);
   const showReinstallActions = isError;
   const actionInProgress = retryingStartup || reinstalling !== null;
@@ -224,7 +225,7 @@ const InitLoading: React.FC<InitLoadingProps> = ({ variant = 'full' }) => {
           flexShrink: 0,
         }}
       >
-        {retryingStartup ? '处理中...' : t('common.retry')}
+        {retryingStartup ? t('setup.init.processing', '处理中...') : t('common.retry')}
       </button>
       <button
         type='button'
@@ -243,7 +244,7 @@ const InitLoading: React.FC<InitLoadingProps> = ({ variant = 'full' }) => {
           flexShrink: 0,
         }}
       >
-        {reinstalling === 'scode' ? '处理中...' : `${t('settings.runtimeSettings.button.reinstall')} Sudocode`}
+        {reinstalling === 'scode' ? t('setup.init.processing', '处理中...') : `${t('settings.runtimeSettings.button.reinstall')} Sudocode`}
       </button>
       <button
         type='button'
@@ -262,7 +263,7 @@ const InitLoading: React.FC<InitLoadingProps> = ({ variant = 'full' }) => {
           flexShrink: 0,
         }}
       >
-        {reinstalling === 'nexus' ? '处理中...' : `${t('settings.runtimeSettings.button.reinstall')} Nexus`}
+        {reinstalling === 'nexus' ? t('setup.init.processing', '处理中...') : `${t('settings.runtimeSettings.button.reinstall')} Nexus`}
       </button>
       <button
         type='button'
@@ -279,7 +280,7 @@ const InitLoading: React.FC<InitLoadingProps> = ({ variant = 'full' }) => {
           flexShrink: 0,
         }}
       >
-        退出
+        {t('setup.init.quit', '退出')}
       </button>
     </div>
   );
@@ -323,8 +324,8 @@ const InitLoading: React.FC<InitLoadingProps> = ({ variant = 'full' }) => {
           }}
         >
           <div style={{ fontSize: '34px', color: '#60a5fa', marginBottom: '10px', lineHeight: 1 }}>{SPINNER[spinnerFrame]}</div>
-          <div style={{ fontSize: '24px', fontWeight: 800, color: '#f8fafc', marginBottom: '10px' }}>正在启动核心服务</div>
-          <div style={{ fontSize: '14px', color: '#cbd5e1', lineHeight: '1.6', marginBottom: '18px' }}>{getHeaderMessage(status.message, isReady, isError)}</div>
+          <div style={{ fontSize: '24px', fontWeight: 800, color: '#f8fafc', marginBottom: '10px' }}>{t('setup.init.startupTitle', '正在启动核心服务')}</div>
+          <div style={{ fontSize: '14px', color: '#cbd5e1', lineHeight: '1.6', marginBottom: '18px' }}>{getHeaderMessage(status.message, isReady, isError, t)}</div>
           <div
             style={
               {
@@ -339,7 +340,7 @@ const InitLoading: React.FC<InitLoadingProps> = ({ variant = 'full' }) => {
             {PRIMARY_STEPS.map((step) => {
               const stepStatus = deriveStepStatusFromMaps(step.id, status.stepStates as Partial<Record<string, StepStatus>> | undefined, status.step, status.phase);
               const progress = getStepProgress(step.id, stepStatus, status.stepProgress?.[step.id]);
-              const detail = status.stepDetails?.[step.id] ?? step.description;
+              const detail = status.stepDetails?.[step.id] ?? t(`setup.init.step.${step.id}.description`, step.description);
 
               return (
                 <div
@@ -355,7 +356,7 @@ const InitLoading: React.FC<InitLoadingProps> = ({ variant = 'full' }) => {
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '6px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
                       <StepIcon status={stepStatus} spinnerFrame={spinnerFrame} />
-                      <span style={{ fontSize: '11px', fontWeight: 700, color: '#f8fafc' }}>{step.label}</span>
+                      <span style={{ fontSize: '11px', fontWeight: 700, color: '#f8fafc' }}>{t(`setup.init.step.${step.id}.label`, step.label)}</span>
                     </div>
                     <span style={{ fontSize: '10px', fontWeight: 700, color: '#60a5fa', fontVariantNumeric: 'tabular-nums' }}>{progress}%</span>
                   </div>
@@ -422,7 +423,7 @@ const InitLoading: React.FC<InitLoadingProps> = ({ variant = 'full' }) => {
   const renderStepCard = (step: Step, variant: 'primary' | 'secondary') => {
     const stepStatus = deriveStepStatusFromMaps(step.id, status.stepStates as Partial<Record<string, StepStatus>> | undefined, status.step, status.phase);
     const progress = getStepProgress(step.id, stepStatus, status.stepProgress?.[step.id]);
-    const detail = status.stepDetails?.[step.id] ?? (status.step === step.id ? status.detail : step.description);
+    const detail = status.stepDetails?.[step.id] ?? (status.step === step.id ? status.detail : t(`setup.init.step.${step.id}.description`, step.description));
     const progressColor = stepStatus === 'error' ? '#f87171' : stepStatus === 'done' ? '#3b82f6' : '#60a5fa';
     const isPrimary = variant === 'primary';
     const surfaceBorder = stepStatus === 'active' ? '1px solid rgba(59, 130, 246, 0.42)' : stepStatus === 'done' ? '1px solid rgba(96, 165, 250, 0.22)' : stepStatus === 'error' ? '1px solid rgba(248, 113, 113, 0.3)' : '1px solid rgba(71, 85, 105, 0.22)';
@@ -458,7 +459,7 @@ const InitLoading: React.FC<InitLoadingProps> = ({ variant = 'full' }) => {
                   color: '#f8fafc',
                 }}
               >
-                {step.label}
+                {t(`setup.init.step.${step.id}.label`, step.label)}
               </span>
             </div>
             <div
@@ -485,7 +486,7 @@ const InitLoading: React.FC<InitLoadingProps> = ({ variant = 'full' }) => {
                 marginBottom: '2px',
               }}
             >
-              {getStatusText(stepStatus)}
+              {getStatusText(stepStatus, t)}
             </div>
             <div
               style={{
@@ -532,7 +533,7 @@ const InitLoading: React.FC<InitLoadingProps> = ({ variant = 'full' }) => {
               textOverflow: 'ellipsis',
             }}
           >
-            {step.description}
+            {t(`setup.init.step.${step.id}.description`, step.description)}
           </div>
         </div>
       </div>
@@ -630,7 +631,7 @@ const InitLoading: React.FC<InitLoadingProps> = ({ variant = 'full' }) => {
                 } as React.CSSProperties
               }
             >
-              <span>自动重试</span>
+              <span>{t('setup.init.autoRetry', '自动重试')}</span>
               <span style={{ color: '#fef3c7', fontVariantNumeric: 'tabular-nums' }}>{retryMessage}</span>
             </div>
           )}
@@ -706,7 +707,7 @@ const InitLoading: React.FC<InitLoadingProps> = ({ variant = 'full' }) => {
                 );
               })
             ) : (
-              <div style={{ color: '#8ca0bb' }}>等待关键日志输出...</div>
+              <div style={{ color: '#8ca0bb' }}>{t('setup.init.waitingForLogs', '等待关键日志输出...')}</div>
             )}
             <div ref={logsEndRef} />
           </div>
@@ -756,8 +757,8 @@ const InitLoading: React.FC<InitLoadingProps> = ({ variant = 'full' }) => {
             <div style={{ minWidth: 0, flex: 1 }}>
               {showReinstallActions ? (
                 <>
-                  <div style={{ fontSize: '13px', fontWeight: 700, color: '#f8fafc', marginBottom: '4px' }}>手动重装</div>
-                  <div style={{ fontSize: '11px', lineHeight: '1.5', color: '#94a3b8' }}>启动失败后不会再自动重装，可按需手动重装核心组件，或先跳过进入应用。</div>
+                  <div style={{ fontSize: '13px', fontWeight: 700, color: '#f8fafc', marginBottom: '4px' }}>{t('setup.init.manualReinstall', '手动重装')}</div>
+                  <div style={{ fontSize: '11px', lineHeight: '1.5', color: '#94a3b8' }}>{t('setup.init.manualReinstallHint', '启动失败后不会再自动重装，可按需手动重装核心组件，或先跳过进入应用。')}</div>
                 </>
               ) : (
                 <div style={{ fontSize: '12px', color: '#8ca0bb', textAlign: 'left' }}>{t('common.setupContinuesInBackground')}</div>

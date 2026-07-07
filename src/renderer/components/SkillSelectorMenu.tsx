@@ -86,13 +86,18 @@ const SkillSelectorMenu: React.FC<SkillSelectorMenuProps> = ({
   searchQuery = '',
   onSearchChange,
   onDismiss,
-  skillsSearchPlaceholder = '搜索技能...',
-  filesSearchPlaceholder = '搜索文件...',
-  noSearchResultsText = '未找到匹配结果',
+  skillsSearchPlaceholder,
+  filesSearchPlaceholder,
+  noSearchResultsText,
 }) => {
   const { t } = useTranslation();
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  // Use i18n for default text values
+  const resolvedSkillsSearchPlaceholder = skillsSearchPlaceholder || t('messages.skills.searchSkills', '搜索技能...');
+  const resolvedFilesSearchPlaceholder = filesSearchPlaceholder || t('messages.skills.searchFiles', '搜索文件...');
+  const resolvedNoSearchResultsText = noSearchResultsText || t('messages.skills.noSearchResults', '未找到匹配结果');
 
   // Close menu when clicking outside
   const onDismissRef = useRef(onDismiss);
@@ -201,7 +206,7 @@ const SkillSelectorMenu: React.FC<SkillSelectorMenuProps> = ({
           <div className='text-13px font-semibold text-foreground'>{title}</div>
         )}
         {hint && !showTabs && <div className='text-13px text-secondary truncate'>{hint}</div>}
-        {showTabs && <div className='text-11px text-secondary truncate'>Tab to switch</div>}
+        {showTabs && <div className='text-11px text-secondary truncate'>{t('messages.skills.tabToSwitch', 'Tab 切换')}</div>}
       </div>
 
       {/* Search box */}
@@ -226,7 +231,7 @@ const SkillSelectorMenu: React.FC<SkillSelectorMenuProps> = ({
               type='text'
               className='flex-1 min-w-0 text-13px bg-transparent border-none outline-none text-foreground placeholder:text-tertiary'
               style={{ caretColor: 'var(--color-primary)' }}
-              placeholder={activeTab === 'skills' ? skillsSearchPlaceholder : filesSearchPlaceholder}
+              placeholder={activeTab === 'skills' ? resolvedSkillsSearchPlaceholder : resolvedFilesSearchPlaceholder}
               value={searchQuery}
               onChange={(e) => onSearchChange(e.target.value)}
               onKeyDown={handleSearchKeyDown}
@@ -247,7 +252,7 @@ const SkillSelectorMenu: React.FC<SkillSelectorMenuProps> = ({
           <>
             {loading && items.length === 0 && <SkillSelectorSkeleton count={4} />}
             {loading && items.length > 0 && <div className='px-2.5 py-3 text-13px text-secondary'>{resolvedLoadingText}</div>}
-            {!loading && items.length === 0 && <div className='px-2.5 py-3 text-13px text-secondary'>{searchQuery ? noSearchResultsText : emptyText}</div>}
+            {!loading && items.length === 0 && <div className='px-2.5 py-3 text-13px text-secondary'>{searchQuery ? resolvedNoSearchResultsText : emptyText}</div>}
             {!loading &&
               items.map((item, index) => {
                 const isSelected = selectedKeys.includes(item.key);
@@ -273,18 +278,18 @@ const SkillSelectorMenu: React.FC<SkillSelectorMenuProps> = ({
                     onMouseEnter={() => onHoverItem(index)}
                     onClick={() => onSelectItem(item)}
                   >
-                     <div className='flex items-center gap-2'>
-                       {/* Icon / Emoji */}
-                       <div className='size-7 flex-shrink-0 rd-6px overflow-hidden bg-fill-2 f-center text-16px'>{item.icon ? <img src={item.icon} alt={item.displayName} className='w-full h-full object-cover' onError={handleSkillIconError} /> : <span>{item.emoji || '⚡'}</span>}</div>
-                       {/* Content */}
-                       <div className='min-w-0 flex-1'>
-                         <div className='flex items-center gap-1.5 min-w-0'>
-                           <span className={classNames('text-14px truncate', index === activeIndex ? 'text-foreground font-semibold' : 'text-foreground font-medium')}>{item.displayName}</span>
-                           {isSelected && <span className='px-1 py-0 bg-primary text-white text-9px rd-3px whitespace-nowrap flex-shrink-0 leading-14px'>已添加</span>}
-                         </div>
-                         {item.description && <div className='text-11px text-secondary truncate mt-px'>{item.description}</div>}
-                       </div>
-                     </div>
+                    <div className='flex items-center gap-2'>
+                      {/* Icon / Emoji */}
+                      <div className='size-7 flex-shrink-0 rd-6px overflow-hidden bg-fill-2 f-center text-16px'>{item.icon ? <img src={item.icon} alt={item.displayName} className='w-full h-full object-cover' onError={handleSkillIconError} /> : <span>{item.emoji || '⚡'}</span>}</div>
+                      {/* Content */}
+                      <div className='min-w-0 flex-1'>
+                        <div className='flex items-center gap-1.5 min-w-0'>
+                          <span className={classNames('text-14px truncate', index === activeIndex ? 'text-foreground font-semibold' : 'text-foreground font-medium')}>{item.displayName}</span>
+                          {isSelected && <span className='px-1 py-0 bg-primary text-white text-9px rd-3px whitespace-nowrap flex-shrink-0 leading-14px'>{t('messages.skills.added', '已添加')}</span>}
+                        </div>
+                        {item.description && <div className='text-11px text-secondary truncate mt-px'>{item.description}</div>}
+                      </div>
+                    </div>
                   </button>
                 );
               })}
@@ -294,7 +299,7 @@ const SkillSelectorMenu: React.FC<SkillSelectorMenuProps> = ({
         {/* Files tab content */}
         {activeTab === 'files' && (
           <>
-            {fileItems.length === 0 && <div className='px-2.5 py-3 text-13px text-secondary'>{searchQuery ? noSearchResultsText : filesEmptyText}</div>}
+            {fileItems.length === 0 && <div className='px-2.5 py-3 text-13px text-secondary'>{searchQuery ? resolvedNoSearchResultsText : filesEmptyText}</div>}
             {fileItems.map((file, index) => (
               <button
                 key={file.relativePath}

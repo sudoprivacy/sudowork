@@ -54,7 +54,13 @@
   "yes": "是",
   "no": "否",
   "skills": {
-    "triggerLabel": "技能 / 文件"
+    "triggerLabel": "技能 / 文件",
+    "searchSkills": "搜索技能...",
+    "searchFiles": "搜索文件...",
+    "noSearchResults": "未找到匹配结果",
+    "activeSkills": "当前使用技能",
+    "added": "已添加",
+    "tabToSwitch": "Tab 切换"
   },
   "confirmation": {
     "applyChange": "应用此更改？",

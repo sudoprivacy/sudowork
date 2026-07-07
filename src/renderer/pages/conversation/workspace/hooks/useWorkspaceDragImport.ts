@@ -6,14 +6,13 @@
 
 import { useCallback, useRef, useState } from 'react';
 import type { DragEvent } from 'react';
+import { Message } from '@arco-design/web-react';
 import type { TFunction } from 'i18next';
 import { ipcBridge } from '@/common';
 import { FileService } from '@/renderer/services/FileService';
-import type { MessageApi } from '../types';
 
 interface UseWorkspaceDragImportOptions {
   onFilesDropped: (files: Array<{ path: string; name: string }>) => Promise<void> | void;
-  messageApi: MessageApi;
   t: TFunction<'translation'>;
 }
 
@@ -38,7 +37,7 @@ const dedupeItems = (items: DroppedItem[]): DroppedItem[] => {
   return Array.from(map.values());
 };
 
-export function useWorkspaceDragImport({ onFilesDropped, messageApi, t }: UseWorkspaceDragImportOptions) {
+export function useWorkspaceDragImport({ onFilesDropped, t }: UseWorkspaceDragImportOptions) {
   const [isDragging, setIsDragging] = useState(false);
   const dragCounterRef = useRef(0);
 
@@ -174,7 +173,7 @@ export function useWorkspaceDragImport({ onFilesDropped, messageApi, t }: UseWor
       const targets = dedupedWithPath.length > 0 ? await resolveDroppedItems(dedupedWithPath) : tempItems;
 
       if (targets.length === 0) {
-        messageApi.warning(
+        Message.warning(
           t('conversation.workspace.dragNoFiles', {
             defaultValue: 'No valid files detected. Please drag from Finder/Explorer.',
           })
@@ -186,14 +185,14 @@ export function useWorkspaceDragImport({ onFilesDropped, messageApi, t }: UseWor
         await onFilesDropped(targets.map(({ path, name }) => ({ path, name })));
       } catch (error) {
         console.error('Failed to import dropped files:', error);
-        messageApi.error(
+        Message.error(
           t('conversation.workspace.dragFailed', {
             defaultValue: 'Failed to import dropped files.',
           })
         );
       }
     },
-    [resolveDroppedItems, createTempItemsFromFiles, messageApi, onFilesDropped, resetDragState, t]
+    [resolveDroppedItems, createTempItemsFromFiles, onFilesDropped, resetDragState, t]
   );
 
   const dragHandlers = {

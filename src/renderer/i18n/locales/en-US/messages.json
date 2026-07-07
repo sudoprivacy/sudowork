@@ -54,7 +54,13 @@
   "yes": "Yes",
   "no": "No",
   "skills": {
-    "triggerLabel": "Skills / Files"
+    "triggerLabel": "Skills / Files",
+    "searchSkills": "Search skills...",
+    "searchFiles": "Search files...",
+    "noSearchResults": "No matching results",
+    "activeSkills": "Active Skills",
+    "added": "Added",
+    "tabToSwitch": "Tab to switch"
   },
   "confirmation": {
     "applyChange": "Apply this change?",
