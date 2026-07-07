@@ -15,10 +15,10 @@
  * renderer process conversion needs to the main process conversion service via IPC
  */
 
-import { ipcBridge } from '@/common';
-import type { DocumentConversionTarget } from '@/common/types/conversion';
 import path from 'path';
 import fs from 'fs';
+import { ipcBridge } from '@/common';
+import type { DocumentConversionTarget } from '@/common/types/conversion';
 import { conversionService } from '../services/conversionService';
 
 // 支持的文件扩展名集合 / Supported file extension sets

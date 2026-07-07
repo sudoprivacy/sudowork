@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import * as os from 'os';
 import { acpDetector } from '@/agent/acp/AcpDetector';
 import { AcpConnection } from '@/agent/acp/AcpConnection';
 import { buildAcpModelInfo, summarizeAcpModelInfo } from '@/agent/acp/modelInfo';
@@ -15,11 +16,10 @@ import AcpAgent from '@/process/task/AcpAgent';
 import RemoteAgent from '@/process/task/RemoteAgent';
 import { mcpService } from '@/process/services/mcpServices/McpService';
 import { mainLog, mainWarn } from '@/process/utils/mainLogger';
-import { ipcBridge } from '../../common';
-import * as os from 'os';
 import { isEnterpriseMode, getCachedSessionMode } from '@/common/enterpriseDebugConfig';
 import { getConversationProvider } from '@/process/providers';
 import type RemoteConversationProvider from '@/process/providers/RemoteConversationProvider';
+import { ipcBridge } from '../../common';
 
 function getScodeConversationModelInfo(conversationId: string) {
   const result = getDatabase().getConversation(conversationId);

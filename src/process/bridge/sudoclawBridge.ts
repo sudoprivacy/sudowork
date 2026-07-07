@@ -9,15 +9,14 @@ import * as os from 'os';
 import * as path from 'path';
 import { spawn } from 'child_process';
 import { cachePut } from '@common/nexus/secret-cache';
-import WorkerManage from '../WorkerManage';
+import { getSudorouterBaseUrl } from '@/common/systemConfig';
+import type { SudoclawConfig } from '@/common/ipcBridge';
+import { ipcBridge } from '@/common';
 import { SUDOCLAW_DIR, getSudoclawInstalledVersion, isSudoclawInstalled, SUDOCLAW_DEFAULT_PORT, installSudoclawManually, removeSudoclawCli } from '../services/sudoclaw/SudoclawInstallService';
 import { syncSudoclawRuntimeState } from '../services/sudoclaw/sudoclawRuntimeSync';
 import { checkSudoclawHealth, SUDOCLAW_HEALTH_TIMEOUT_MS } from '../services/sudoclaw/sudoclawHealth';
 import { getNodeBinaryPath } from '../services/claudeCli/NodeRuntimeService';
 import { mainError, mainLog, mainWarn } from '../utils/mainLogger';
-import { getSudorouterBaseUrl } from '@/common/systemConfig';
-import type { SudoclawConfig } from '@/common/ipcBridge';
-import { ipcBridge } from '@/common';
 
 interface InstallState {
   installing: boolean;
@@ -39,34 +38,6 @@ function readConfig(): SudoclawConfig | null {
   } catch {
     return null;
   }
-}
-
-function mergeConfig(existing: SudoclawConfig | null, patch: SudoclawConfig): SudoclawConfig {
-  const base = existing ? JSON.parse(JSON.stringify(existing)) : {};
-  if ('lastRunMode' in base) delete base.lastRunMode;
-  if (patch.agents?.defaults) {
-    base.agents = base.agents || {};
-    base.agents.defaults = { ...base.agents.defaults, ...patch.agents.defaults };
-    if (patch.agents.defaults.model) {
-      base.agents.defaults.model = { ...base.agents?.defaults?.model, ...patch.agents.defaults.model };
-    }
-  }
-  if (patch.models) {
-    base.models = base.models || {};
-    if (patch.models.mode !== undefined) base.models.mode = patch.models.mode;
-    if (patch.models.providers) {
-      // Ensure each provider has models as array (not undefined)
-      const providersWithModels: typeof patch.models.providers = {};
-      for (const [key, prov] of Object.entries(patch.models.providers)) {
-        providersWithModels[key] = {
-          ...prov,
-          models: prov.models ?? [],
-        };
-      }
-      base.models.providers = providersWithModels;
-    }
-  }
-  return base;
 }
 
 /**

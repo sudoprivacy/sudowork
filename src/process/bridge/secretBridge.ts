@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '../../common';
 import { getNexusSecretClient } from '@common/nexus/nexus-secret-client';
 import { cachePut, cacheDelete } from '@common/nexus/secret-cache';
 import { mainLog, mainError } from '@process/utils/mainLogger';
+import { ipcBridge } from '../../common';
 
 export function initSecretBridge(): void {
   ipcBridge.secret.get.provider(async ({ namespace, key }) => {

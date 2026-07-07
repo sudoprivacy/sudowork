@@ -9,15 +9,15 @@
  * 工作空间管理桥接 - 处理工作空间重命名和草稿箱操作
  */
 
+import fs from 'fs/promises';
+import fsSync from 'fs';
+import path from 'path';
 import { DRAFTS_DIR_NAME, isReservedDraftsDirName } from '@/common/constants';
 import { ipcBridge } from '@/common';
 import { isValidDirectoryName } from '@/common/utils/pathValidation';
 import { getDatabase } from '@process/database';
 import WorkerManage from '@process/WorkerManage';
 import { mainLog, mainError } from '@process/utils/mainLogger';
-import fs from 'fs/promises';
-import fsSync from 'fs';
-import path from 'path';
 
 export function initWorkspaceBridge(): void {
   /**

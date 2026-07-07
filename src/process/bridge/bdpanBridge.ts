@@ -7,8 +7,8 @@
 import * as os from 'os';
 import * as path from 'path';
 import { spawn } from 'child_process';
-import { ipcBridge } from '../../common';
 import { mainLog, mainError } from '@process/utils/mainLogger';
+import { ipcBridge } from '../../common';
 
 /** Resolves bdpan binary path — respects PATH including ~/.local/bin */
 function getBdpanPath(): string {
@@ -51,14 +51,14 @@ function parseLastJson(text: string): unknown {
   for (let i = lines.length - 1; i >= 0; i--) {
     try {
       return JSON.parse(lines[i]);
-    } catch (_err) {
+    } catch {
       // Ignore non-JSON lines and keep scanning upward.
     }
   }
   // Try parsing full text as single JSON blob
   try {
     return JSON.parse(text.trim());
-  } catch (_err) {
+  } catch {
     // Ignore invalid JSON and fall through to null.
   }
   return null;

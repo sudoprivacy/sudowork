@@ -12,12 +12,10 @@ import https from 'node:https';
 import http from 'node:http';
 import { app } from 'electron';
 import JSZip from 'jszip';
-import WorkerManage from '@process/WorkerManage';
 import { serviceManager } from '@process/services/serviceManager';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
-import { clearSkillsCache, getSkillsDir, getHubSkillsDir, getCustomSkillsDir, getBuiltinSkillsDir, SKILL_SUBDIRS, ProcessConfig } from '@/process/initStorage';
-import { skillManager, SkillCategory, SkillStatus, ISkillMeta } from '@/process/SkillManager';
-import { toAssetUrl } from '@/extensions/assetProtocol';
+import { clearSkillsCache, getSkillsDir, getHubSkillsDir, getCustomSkillsDir, getBuiltinSkillsDir, SKILL_SUBDIRS } from '@/process/initStorage';
+import { skillManager } from '@/process/SkillManager';
 import { AcpSkillManager } from '@/process/task/AcpSkillManager';
 import { ipcBridge } from '@/common';
 import { buildSkillDisplayName, canonicalizeSkillMarkdownPath, findRootSkillMarkdownFileName, isSkillMarkdownFileName, parseSkillFrontmatter, resolveSkillIconFromFiles } from '@/process/utils/skillPackage';
@@ -79,18 +77,6 @@ function normalizeInstalledSkillVersion(version: string | undefined | null): str
   }
 
   return normalized;
-}
-
-function getUploadSkillDefaultIconPath(): string {
-  if (app.isPackaged) {
-    return path.join(process.resourcesPath, UPLOAD_SKILL_DEFAULT_ICON_FILE);
-  }
-
-  const appPath = app.getAppPath();
-  const candidates = [path.join(appPath, 'resources', UPLOAD_SKILL_DEFAULT_ICON_FILE), path.join(appPath, '..', 'resources', UPLOAD_SKILL_DEFAULT_ICON_FILE), path.join(appPath, '..', '..', 'resources', UPLOAD_SKILL_DEFAULT_ICON_FILE)];
-
-  const existing = candidates.find((candidate) => fsSync.existsSync(candidate));
-  return existing || candidates[0];
 }
 
 function sanitizeSkillDownloadFileName(fileName: string): string {
@@ -202,11 +188,6 @@ async function removeExistingInstalledSkillDirs(params: { userSkillsDir: string;
       // Directory doesn't exist, which is fine.
     }
   }
-}
-
-/** @deprecated Use resolveInstalledSkillDirAllSubdirs instead */
-async function resolveInstalledSkillDir(userSkillsDir: string, skillName: string): Promise<string | null> {
-  return resolveInstalledSkillDirAllSubdirs(userSkillsDir, skillName);
 }
 
 /**

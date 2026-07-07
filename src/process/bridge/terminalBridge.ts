@@ -4,12 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '../../common';
-import { getSystemDir } from '../initStorage';
-import { mainLog } from '../utils/mainLogger';
 import os from 'node:os';
 import { execSync } from 'node:child_process';
 import * as pty from '@lydell/node-pty';
+import { ipcBridge } from '../../common';
+import { getSystemDir } from '../initStorage';
+import { mainLog } from '../utils/mainLogger';
 
 type TerminalSession = {
   pty: pty.IPty;

@@ -9,12 +9,12 @@ import * as fs from 'fs';
 import * as path from 'path';
 import semver from 'semver';
 import { mainLog, mainError } from '@process/utils/mainLogger';
-import { autoUpdaterService } from '../services/autoUpdaterService';
 import { uuid } from '@/common/utils';
 import type { UpdateCheckResult, UpdateDownloadProgressEvent, UpdateDownloadRequest, UpdateDownloadResult, UpdateReleaseInfo, GitHubReleaseAsset } from '@/common/updateTypes';
 import { ipcBridge } from '@/common';
-import { isNightlyBuild, buildDate, buildCommit, isNightlyTag, parseNightlyDate, parseNightlyCommit, compareNightlyTags } from '@/common/buildInfo';
+import { isNightlyBuild, buildDate, buildCommit, isNightlyTag, parseNightlyDate, parseNightlyCommit } from '@/common/buildInfo';
 import { getCosReleaseBase } from '@/common/systemConfig';
+import { autoUpdaterService } from '../services/autoUpdaterService';
 
 type GitHubReleaseApiAsset = {
   name: string;
@@ -183,14 +183,6 @@ const checkUpdateFromCOS = async (): Promise<UpdateReleaseInfo | null> => {
 const isAllowedAssetName = (name: string) => {
   const ext = path.extname(name);
   return ALLOWED_ASSET_EXTS.includes(ext);
-};
-
-const normalizeTagToSemver = (tag: string): string | null => {
-  const trimmed = tag.trim();
-  const withoutV = trimmed.startsWith('v') ? trimmed.slice(1) : trimmed;
-  // Ensure it looks like a semver prefix at least.
-  if (!/^\d+\.\d+\.\d+/.test(withoutV)) return null;
-  return semver.valid(withoutV);
 };
 
 const mapAsset = (asset: GitHubReleaseApiAsset): GitHubReleaseAsset => ({
@@ -403,29 +395,6 @@ const fetchGitHubReleases = async (repo: string): Promise<GitHubReleaseApi[]> =>
   } finally {
     clearTimeout(timeoutId);
   }
-};
-
-const mapRelease = (rel: GitHubReleaseApi): UpdateReleaseInfo | null => {
-  const version = normalizeTagToSemver(rel.tag_name);
-  if (!version) return null;
-
-  const assets = (rel.assets || [])
-    .filter((asset) => asset && asset.name && asset.browser_download_url)
-    .filter((asset) => isAllowedAssetName(asset.name))
-    .map(mapAsset);
-
-  return {
-    tagName: rel.tag_name,
-    version,
-    name: rel.name,
-    body: rel.body,
-    htmlUrl: rel.html_url,
-    publishedAt: rel.published_at,
-    prerelease: Boolean(rel.prerelease),
-    draft: Boolean(rel.draft),
-    assets,
-    recommendedAsset: pickRecommendedAsset(assets),
-  };
 };
 
 /**
@@ -680,7 +649,6 @@ export function initUpdateBridge(): void {
   ipcBridge.update.check.provider(async (params): Promise<{ success: boolean; data?: UpdateCheckResult; msg?: string }> => {
     try {
       const repo = resolveRepo(params?.repo);
-      const includePrerelease = Boolean(params?.includePrerelease);
       const currentVersion = app.getVersion();
 
       // Nightly builds: use GitHub API for date-based comparison
@@ -829,7 +797,7 @@ export function initUpdateBridge(): void {
     try {
       const filePath = autoUpdaterService.getDownloadedFilePath();
       return { success: true, data: { path: filePath } };
-    } catch (err: unknown) {
+    } catch {
       return { success: true, data: { path: null } };
     }
   });
@@ -838,7 +806,7 @@ export function initUpdateBridge(): void {
     try {
       const status = autoUpdaterService.getMirrorStatus();
       return { success: true, data: status };
-    } catch (err: unknown) {
+    } catch {
       return { success: true, data: { useMirror: false, reason: 'error' } };
     }
   });
