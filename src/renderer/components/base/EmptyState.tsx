@@ -41,7 +41,7 @@ const EmptyState: React.FC<IEmptyStateProps> = ({ icon, title, description, acti
   return (
     <div
       className={classNames(
-        'flex flex-col items-center justify-center py-40px px-20px text-center',
+        'flex flex-col items-center justify-center py-10 px-5 text-center',
         {
           'bg-transparent': simple,
           'rounded-xl border border-dashed border-light': !simple,
@@ -50,19 +50,19 @@ const EmptyState: React.FC<IEmptyStateProps> = ({ icon, title, description, acti
       )}
     >
       {/* 图标区域 / Icon area */}
-      <div className='f-center mb-24px'>{icon || defaultIcon}</div>
+      <div className='f-center mb-6'>{icon || defaultIcon}</div>
 
       {/* 标题 / Title */}
-      {title && <div className='text-16px font-500 text-foreground mb-8px text-center leading-[1.5]'>{title}</div>}
+      {title && <div className='text-16px font-500 text-foreground mb-2 text-center leading-[1.5]'>{title}</div>}
 
       {/* 描述 / Description */}
-      {description && <div className='text-13px text-secondary mb-20px text-center max-w-300px leading-[1.5]'>{description}</div>}
+      {description && <div className='text-13px text-secondary mb-5 text-center max-w-75 leading-[1.5]'>{description}</div>}
 
       {/* 操作按钮 / Action buttons */}
       {actions && actions.length > 0 && (
-        <div className='flex gap-12px flex-wrap justify-center mt-[var(--space-4)]'>
+        <div className='flex gap-3 flex-wrap justify-center mt-[var(--space-4)]'>
           {actions.map((action, index) => (
-            <Button key={index} type={action.type || 'primary'} shape='round' onClick={action.onClick} disabled={action.disabled} className={classNames('px-20px min-w-100px transition-all duration-200 hover:-translate-y-1px active:translate-y-0', action.className)}>
+            <Button key={index} type={action.type || 'primary'} shape='round' onClick={action.onClick} disabled={action.disabled} className={classNames('px-5 min-w-25 transition-all duration-200 hover:-translate-y-1px active:translate-y-0', action.className)}>
               {action.label}
             </Button>
           ))}
