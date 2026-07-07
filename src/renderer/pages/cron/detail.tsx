@@ -1,5 +1,5 @@
 import { Button, Message, Popconfirm, Switch, Tag } from '@arco-design/web-react';
-import { DeleteOne, Edit, PlayOne } from '@icon-park/react';
+import { IconDelete, IconEdit, IconPlayArrow } from '@arco-design/web-react/icon';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -141,11 +141,11 @@ export default function CronJobDetailPage() {
       }
       actions={
         <>
-          <Button type='text' size='small' icon={<Edit theme='outline' size={16} />} onClick={() => setDrawerVisible(true)} />
+          <Button type='text' size='small' icon={<IconEdit />} onClick={() => setDrawerVisible(true)} />
           <Popconfirm title={t('cron.confirmDelete', '确定要删除此定时任务吗？')} onOk={() => void handleDelete(job.id)}>
-            <Button type='text' size='small' status='danger' icon={<DeleteOne theme='outline' size={16} />} />
+            <Button type='text' size='small' status='danger' icon={<IconDelete />} />
           </Popconfirm>
-          <Button type='primary' size='small' shape='round' icon={<PlayOne theme='outline' />} onClick={() => void handleTrigger(job.id)}>
+          <Button type='primary' size='small' shape='round' icon={<IconPlayArrow />} onClick={() => void handleTrigger(job.id)}>
             {t('cron.actions.runNow', '立即执行')}
           </Button>
         </>

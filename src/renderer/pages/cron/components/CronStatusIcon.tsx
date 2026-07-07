@@ -1,5 +1,5 @@
 import { Tooltip } from '@arco-design/web-react';
-import { AlarmClock, Attention, PauseOne } from '@icon-park/react';
+import { AlarmClock, Pause, TriangleAlert } from 'lucide-react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { CronJobStatusEnums } from '@/renderer/utils/enum';
@@ -23,16 +23,13 @@ const CronStatusIcon: React.FC<ICronStatusIconProps> = ({ status, size = 14, cla
 
   const getIcon = () => {
     const iconProps = {
-      theme: 'outline' as const,
       size,
-      strokeWidth: 3,
-      fill: 'var(--text-secondary)',
-      className: 'flex items-center',
+      strokeWidth: 2,
+      color: 'var(--text-secondary)',
     };
 
     switch (status) {
       case CronJobStatusEnums.Unread:
-        // Show alarm clock with red dot overlay for unread executions
         return (
           <span className='relative inline-flex'>
             <AlarmClock {...iconProps} />
@@ -50,9 +47,9 @@ const CronStatusIcon: React.FC<ICronStatusIconProps> = ({ status, size = 14, cla
       case CronJobStatusEnums.Active:
         return <AlarmClock {...iconProps} />;
       case CronJobStatusEnums.Paused:
-        return <PauseOne {...iconProps} />;
+        return <Pause {...iconProps} />;
       case CronJobStatusEnums.Error:
-        return <Attention {...iconProps} />;
+        return <TriangleAlert {...iconProps} />;
       case CronJobStatusEnums.Unconfigured:
         return <AlarmClock {...iconProps} />;
       default:

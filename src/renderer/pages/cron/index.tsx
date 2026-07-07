@@ -1,6 +1,6 @@
 import { Button, Switch } from '@arco-design/web-react';
 import { IconPlus } from '@arco-design/web-react/icon';
-import { AlarmClock, Info, Sun } from '@icon-park/react';
+import { AlarmClock, Info, Sun } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
@@ -97,7 +97,7 @@ export default function CronPage() {
             {isEnterprise && (
               <div className='bg-2 rd-12px px-4 py-3 flex items-center justify-between'>
                 <div className='flex items-center gap-2 text-13px text-secondary'>
-                  <Info theme='outline' size={16} fill={'var(--text-secondary)'} />
+                  <Info size={16} />
                   <span>{t('cron.mode.select', '数据存储位置')}</span>
                 </div>
                 <div className='flex items-center gap-1'>
@@ -117,7 +117,7 @@ export default function CronPage() {
             {error && sessionMode === 'remote' && (
               <div className='bg-red-1 rd-12px px-4 py-3 flex items-center justify-between'>
                 <div className='flex items-center gap-2 text-13px text-red-6'>
-                  <Info theme='outline' size={16} />
+                  <Info size={16} />
                   <span>{t('cron.error.serverUnavailable', '无法连接服务器')}</span>
                 </div>
                 <Button size='small' shape='round' onClick={() => void refetch()}>
@@ -129,7 +129,7 @@ export default function CronPage() {
             {/* Keep-awake banner (local mode only) */}
             {sessionMode === 'local' && (
               <Item
-                icon={<Sun theme='outline' size={20} />}
+                icon={<Sun size={20} />}
                 title={t('cron.create.keepAwake', '保持唤醒')}
                 description={t('cron.create.awakeBanner', '定时任务仅在电脑唤醒时运行')}
                 status={<span className='text-13px text-secondary'>{keepAwake ? t('common.enabled', '已启用') : t('common.disabled', '已关闭')}</span>}
@@ -139,7 +139,7 @@ export default function CronPage() {
 
             {/* Job cards or empty state */}
             {!loading && jobs.length === 0 ? (
-              <EmptyState simple icon={<AlarmClock theme='outline' size={56} />} title={t('cron.noTasks', '暂无定时任务')} description={t('cron.create.emptyHint', '创建自动执行的 Agent 任务')} actions={[{ label: t('cron.create.button', '新建任务'), onClick: () => setDrawerVisible(true) }]} />
+              <EmptyState simple icon={<AlarmClock size={56} />} title={t('cron.noTasks', '暂无定时任务')} description={t('cron.create.emptyHint', '创建自动执行的 Agent 任务')} actions={[{ label: t('cron.create.button', '新建任务'), onClick: () => setDrawerVisible(true) }]} />
             ) : (
               <CronJobCardGrid jobs={jobs} onSelectJob={(job) => void navigate(`/app/cron/${job.id}`)} />
             )}
