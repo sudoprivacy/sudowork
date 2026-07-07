@@ -156,7 +156,9 @@ export function SkillSelectorMenuContent({
                     ref={(node) => {
                       itemRefs.current[index] = node;
                     }}
-                    className={classNames('w-full bg-transparent text-left p-2.5 rounded-xl transition-all cursor-pointer hover:bg-subtle')}
+                    className={classNames('w-full bg-transparent text-left p-2.5 rounded-xl transition-all cursor-pointer', {
+                      'bg-fill-2': index === activeIndex,
+                    })}
                     onMouseDown={(e) => e.preventDefault()}
                     onMouseEnter={() => setActiveIndex(index)}
                     onClick={() => onSelectItem(item)}
@@ -189,7 +191,9 @@ export function SkillSelectorMenuContent({
                 ref={(node) => {
                   itemRefs.current[index] = node;
                 }}
-                className={classNames('w-full bg-transparent text-left p-2.5 rounded-xl transition-all cursor-pointer hover:bg-subtle')}
+                className={classNames('w-full bg-transparent text-left p-2.5 rounded-xl transition-all cursor-pointer', {
+                  'bg-fill-2': index === activeIndex,
+                })}
                 onMouseDown={(e) => e.preventDefault()}
                 onMouseEnter={() => setActiveIndex(index)}
                 onClick={() => onSelectFile?.(file)}
