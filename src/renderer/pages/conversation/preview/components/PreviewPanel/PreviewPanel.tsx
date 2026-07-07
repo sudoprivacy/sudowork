@@ -5,6 +5,7 @@
  */
 
 import React, { useCallback, useMemo, useRef, useState, useEffect } from 'react';
+import { Message } from '@arco-design/web-react';
 import { useTranslation } from 'react-i18next';
 import { useResizableSplit } from '@/renderer/hooks/useResizableSplit';
 import { ipcBridge } from '@/common';
@@ -68,8 +69,7 @@ const PreviewPanel: React.FC = () => {
     previewContainerRef,
   });
 
-  // eslint-disable-next-line max-len
-  const { historyVersions, historyLoading, snapshotSaving, historyError, historyTarget, refreshHistory, handleSaveSnapshot, handleSnapshotSelect, messageApi, messageContextHolder } = usePreviewHistory({
+  const { historyVersions, historyLoading, snapshotSaving, historyError, historyTarget, refreshHistory, handleSaveSnapshot, handleSnapshotSelect } = usePreviewHistory({
     activeTab,
     updateContent,
   });
@@ -152,15 +152,15 @@ const PreviewPanel: React.FC = () => {
     try {
       const success = await saveContent();
       if (!success) {
-        messageApi.error(t('common.saveFailed'));
+        Message.error(t('common.saveFailed'));
       }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : t('common.unknownError');
-      messageApi.error(`${t('common.saveFailed')}: ${errorMsg}`);
+      Message.error(`${t('common.saveFailed')}: ${errorMsg}`);
     } finally {
       setIsSaving(false);
     }
-  }, [isSaving, saveContent, messageApi, t]);
+  }, [isSaving, saveContent, t]);
 
   // 确认退出编辑 / Confirm exit edit
   const handleConfirmExit = useCallback(() => {
@@ -201,9 +201,9 @@ const PreviewPanel: React.FC = () => {
       setCloseTabConfirm({ show: false, tabId: null });
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : t('common.unknownError');
-      messageApi.error(`${t('common.saveFailed')}: ${errorMsg}`);
+      Message.error(`${t('common.saveFailed')}: ${errorMsg}`);
     }
-  }, [closeTabConfirm.tabId, saveContent, closeTab, messageApi, t]);
+  }, [closeTabConfirm.tabId, saveContent, closeTab, t]);
 
   // 不保存直接关闭tab / Close tab without saving
   const handleCloseWithoutSave = useCallback(() => {
@@ -339,7 +339,7 @@ const PreviewPanel: React.FC = () => {
         }
 
         if (!dataUrl) {
-          messageApi.error(t('messages.downloadFailed', { defaultValue: 'Failed to download' }));
+          Message.error(t('messages.downloadFailed', { defaultValue: 'Failed to download' }));
           return;
         }
 
@@ -379,7 +379,7 @@ const PreviewPanel: React.FC = () => {
       }
 
       if (!blob) {
-        messageApi.error(t('messages.downloadFailed', { defaultValue: 'Failed to download' }));
+        Message.error(t('messages.downloadFailed', { defaultValue: 'Failed to download' }));
         return;
       }
 
@@ -401,25 +401,25 @@ const PreviewPanel: React.FC = () => {
       URL.revokeObjectURL(url); // 释放 URL 对象 / Release URL object
     } catch (error) {
       console.error('[PreviewPanel] Failed to download file:', error);
-      messageApi.error(t('messages.downloadFailed', { defaultValue: 'Failed to download' }));
+      Message.error(t('messages.downloadFailed', { defaultValue: 'Failed to download' }));
     }
-  }, [content, contentType, metadata?.downloadBase64, metadata?.downloadMime, metadata?.fileName, metadata?.filePath, metadata?.language, messageApi, t]);
+  }, [content, contentType, metadata?.downloadBase64, metadata?.downloadMime, metadata?.fileName, metadata?.filePath, metadata?.language, t]);
 
   // 在系统默认应用中打开文件 / Open file in system default application
   const handleOpenInSystem = useCallback(async () => {
     if (!metadata?.filePath) {
-      messageApi.error(t('preview.openInSystemFailed'));
+      Message.error(t('preview.openInSystemFailed'));
       return;
     }
 
     try {
       // 使用系统默认应用打开文件 / Open file with system default application
       await ipcBridge.shell.openFile.invoke(metadata.filePath);
-      messageApi.success(t('preview.openInSystemSuccess'));
+      Message.success(t('preview.openInSystemSuccess'));
     } catch {
-      messageApi.error(t('preview.openInSystemFailed'));
+      Message.error(t('preview.openInSystemFailed'));
     }
-  }, [metadata?.filePath, messageApi, t]);
+  }, [metadata?.filePath, t]);
 
   // 渲染历史下拉菜单 / Render history dropdown
   const renderHistoryDropdown = () => {
@@ -591,8 +591,6 @@ const PreviewPanel: React.FC = () => {
   return (
     <PreviewToolbarExtrasProvider value={toolbarExtrasContextValue}>
       <div className='h-full flex flex-col bg-1 rounded-[16px]'>
-        {messageContextHolder}
-
         {/* 确认对话框 / Confirmation modals */}
         {/* eslint-disable-next-line max-len */}
         <PreviewConfirmModals showExitConfirm={showExitConfirm} closeTabConfirm={closeTabConfirm} onConfirmExit={handleConfirmExit} onCancelExit={handleCancelExit} onSaveAndCloseTab={handleSaveAndCloseTab} onCloseWithoutSave={handleCloseWithoutSave} onCancelCloseTab={handleCancelCloseTab} />
