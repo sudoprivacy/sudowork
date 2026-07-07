@@ -160,8 +160,7 @@ export function SkillSelectorMenuContent({
       {onSearchChange && <Input className='my-3' size='small' prefix={<IconSearch />} allowClear placeholder={activeTab === 'skills' ? resolvedSkillsSearchPlaceholder : resolvedFilesSearchPlaceholder} value={searchQuery} onChange={onSearchChange} onKeyDown={handleSearchKeyDown} />}
 
       {/* Content area */}
-      <div role='listbox' aria-busy={loading} className='overflow-y-auto py-1.5 h-260px'>
-        {/* Skills tab content */}
+      <div role='listbox' aria-busy={loading} className='overflow-y-auto h-260px'>
         {activeTab === 'skills' && (
           <>
             {loading && items.length === 0 && <SkillSelectorSkeleton count={4} />}
@@ -179,22 +178,14 @@ export function SkillSelectorMenuContent({
                     ref={(node) => {
                       itemRefs.current[index] = node;
                     }}
-                    className={classNames('w-full text-left px-2.5 py-1.5 rounded-8px transition-all border outline-none cursor-pointer mb-0.5 last:mb-0', {
-                      'border-light': index === activeIndex,
-                      'border-transparent hover:bg-fill-1': index !== activeIndex,
-                    })}
-                    style={{
-                      minHeight: '42px',
-                      background: index === activeIndex ? 'color-mix(in srgb, var(--aou-2) 88%, transparent)' : isSelected ? 'color-mix(in srgb, var(--color-primary-light-1) 50%, transparent)' : 'transparent',
-                      boxShadow: undefined,
-                    }}
+                    className={classNames('w-full bg-transparent text-left p-2.5 rounded-xl transition-all cursor-pointer hover:bg-subtle')}
                     onMouseDown={(e) => e.preventDefault()}
                     onMouseEnter={() => onHoverItem(index)}
                     onClick={() => onSelectItem(item)}
                   >
                     <div className='flex items-center gap-2'>
-                      <div className='size-7 flex-shrink-0 rd-6px overflow-hidden bg-fill-2 f-center text-16px'>{item.icon ? <img src={item.icon} alt={item.displayName} className='w-full h-full object-cover' onError={handleSkillIconError} /> : <span>{item.emoji || '⚡'}</span>}</div>
-                      <div className='min-w-0 flex-1'>
+                      <div className='size-8 flex-shrink-0 rd-6px f-center text-16px'>{item.icon ? <img src={item.icon} alt={item.displayName} className='w-full h-full object-cover' onError={handleSkillIconError} /> : <span>{item.emoji || '⚡'}</span>}</div>
+                      <div className='min-w-0 flex-1 space-y-1'>
                         <div className='flex items-center gap-1.5 min-w-0'>
                           <span className={classNames('text-14px truncate', index === activeIndex ? 'text-foreground font-semibold' : 'text-foreground font-medium')}>{item.displayName}</span>
                           {isSelected && <span className='px-1 py-0 bg-primary text-white text-9px rd-3px whitespace-nowrap flex-shrink-0 leading-14px'>{t('messages.skills.added', '已添加')}</span>}
@@ -220,14 +211,7 @@ export function SkillSelectorMenuContent({
                 ref={(node) => {
                   itemRefs.current[index] = node;
                 }}
-                className={classNames('w-full text-left px-2.5 py-1.5 rounded-8px transition-all border outline-none cursor-pointer mb-0.5 last:mb-0', {
-                  'border-light': index === activeIndex,
-                  'border-transparent hover:bg-fill-1': index !== activeIndex,
-                })}
-                style={{
-                  minHeight: '38px',
-                  background: index === activeIndex ? 'color-mix(in srgb, var(--aou-2) 88%, transparent)' : 'transparent',
-                }}
+                className={classNames('w-full bg-transparent text-left p-2.5 rounded-xl transition-all cursor-pointer hover:bg-subtle')}
                 onMouseDown={(e) => e.preventDefault()}
                 onMouseEnter={() => onHoverItem(index)}
                 onClick={() => onSelectFile?.(file)}
