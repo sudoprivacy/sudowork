@@ -7,37 +7,6 @@
 import React from 'react';
 import { Button } from '@arco-design/web-react';
 import classNames from 'classnames';
-import './EmptyState.css';
-
-export interface EmptyStateAction {
-  /** 按钮文本 */
-  label: string;
-  /** 按钮点击回调 */
-  onClick: () => void;
-  /** 按钮类型，默认为 primary */
-  type?: 'primary' | 'secondary' | 'dashed' | 'text' | 'outline';
-  /** 是否禁用 */
-  disabled?: boolean;
-  /** 额外类名 */
-  className?: string;
-}
-
-export interface EmptyStateProps {
-  /** 自定义图标 */
-  icon?: React.ReactNode;
-  /** 标题文本 */
-  title: string;
-  /** 描述文本 */
-  description?: string;
-  /** 操作按钮列表 */
-  actions?: EmptyStateAction[];
-  /** 额外类名 */
-  className?: string;
-  /** 是否使用简单模式（无边框背景） */
-  simple?: boolean;
-  /** 插图类型，当未提供 icon 时使用预设插图 */
-  illustrationType?: 'default' | 'search' | 'messages' | 'files' | 'tasks';
-}
 
 /**
  * 统一的空状态组件，支持引导操作按钮
@@ -56,7 +25,7 @@ export interface EmptyStateProps {
  * />
  * ```
  */
-const EmptyState: React.FC<EmptyStateProps> = ({ icon, title, description, actions, className, simple = false, illustrationType = 'default' }) => {
+const EmptyState: React.FC<IEmptyStateProps> = ({ icon, title, description, actions, className, simple = false, illustrationType = 'default' }) => {
   // 默认空状态插图（当未提供 icon 时）
   // Default empty state illustration (when icon is not provided)
   const getIllustration = () => {
@@ -116,28 +85,28 @@ const EmptyState: React.FC<EmptyStateProps> = ({ icon, title, description, actio
   return (
     <div
       className={classNames(
-        'empty-state flex flex-col items-center justify-center py-40px px-20px',
+        'flex flex-col items-center justify-center py-40px px-20px text-center',
         {
-          'empty-state--simple': simple,
-          'empty-state--with-border': !simple,
+          'bg-transparent': simple,
+          'rounded-lg border border-dashed border-[var(--color-border-2)] bg-[var(--color-fill-1)]': !simple,
         },
         className
       )}
     >
       {/* 图标区域 / Icon area */}
-      <div className='empty-state__icon mb-24px text-tertiary'>{icon || defaultIcon}</div>
+      <div className='inline-flex items-center justify-center mb-24px text-tertiary'>{icon || defaultIcon}</div>
 
       {/* 标题 / Title */}
-      {title && <div className='empty-state__title text-16px font-500 text-foreground mb-8px text-center'>{title}</div>}
+      {title && <div className='text-16px font-500 text-foreground mb-8px text-center leading-[1.5]'>{title}</div>}
 
       {/* 描述 / Description */}
-      {description && <div className='empty-state__description text-13px text-secondary mb-20px text-center max-w-300px'>{description}</div>}
+      {description && <div className='text-13px text-secondary mb-20px text-center max-w-300px leading-[1.5]'>{description}</div>}
 
       {/* 操作按钮 / Action buttons */}
       {actions && actions.length > 0 && (
-        <div className='empty-state__actions flex gap-12px flex-wrap justify-center'>
+        <div className='flex gap-12px flex-wrap justify-center mt-[var(--space-4)]'>
           {actions.map((action, index) => (
-            <Button key={index} type={action.type || 'primary'} shape='round' onClick={action.onClick} disabled={action.disabled} className={classNames('empty-state__action-btn px-20px min-w-100px', action.className)}>
+            <Button key={index} type={action.type || 'primary'} shape='round' onClick={action.onClick} disabled={action.disabled} className={classNames('px-20px min-w-100px transition-all duration-200 hover:-translate-y-1px active:translate-y-0', action.className)}>
               {action.label}
             </Button>
           ))}
@@ -148,3 +117,33 @@ const EmptyState: React.FC<EmptyStateProps> = ({ icon, title, description, actio
 };
 
 export default EmptyState;
+
+interface EmptyStateAction {
+  /** 按钮文本 */
+  label: string;
+  /** 按钮点击回调 */
+  onClick: () => void;
+  /** 按钮类型，默认为 primary */
+  type?: 'primary' | 'secondary' | 'dashed' | 'text' | 'outline';
+  /** 是否禁用 */
+  disabled?: boolean;
+  /** 额外类名 */
+  className?: string;
+}
+
+interface IEmptyStateProps {
+  /** 自定义图标 */
+  icon?: React.ReactNode;
+  /** 标题文本 */
+  title: string;
+  /** 描述文本 */
+  description?: string;
+  /** 操作按钮列表 */
+  actions?: EmptyStateAction[];
+  /** 额外类名 */
+  className?: string;
+  /** 是否使用简单模式（无边框背景） */
+  simple?: boolean;
+  /** 插图类型，当未提供 icon 时使用预设插图 */
+  illustrationType?: 'default' | 'search' | 'messages' | 'files' | 'tasks';
+}
