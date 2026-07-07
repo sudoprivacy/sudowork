@@ -1,11 +1,10 @@
-import { Button, Dropdown, Tooltip } from '@arco-design/web-react';
+import { Button, Dropdown } from '@arco-design/web-react';
 import { ArrowUp, FolderOpen, Plus, Shield, UploadOne } from '@icon-park/react';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
 import AgentModeSelector from '@/renderer/components/AgentModeSelector';
 import { getAgentModes, supportsModeSwitch, type AgentModeOption } from '@/renderer/utils/agentModes';
-import ActionChip from '@/renderer/components/ui/ActionChip';
 import BdpanLogo from '@/renderer/assets/logos/bdpan.png';
 import BdpanImportFilePicker from '@/renderer/components/base/BdpanImportFilePicker';
 import styles from '../index.module.css';
@@ -34,8 +33,8 @@ type GuidActionRowProps = {
   localeKey: string;
   onClosePresetTag: () => void;
 
-  // Skill selector trigger
-  onTriggerSkillSelector?: () => void;
+  // Skill selector trigger node (Popover-wrapped button built by parent)
+  skillTriggerNode?: React.ReactNode;
 
   // Send button
   loading: boolean;
@@ -57,7 +56,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
   customAgents,
   localeKey,
   onClosePresetTag,
-  onTriggerSkillSelector,
+  skillTriggerNode,
   loading,
   isButtonDisabled,
   onSend,
@@ -145,11 +144,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
             </span>
           </Dropdown>
 
-          {onTriggerSkillSelector && (
-            <Tooltip content={t('guid.addSkillTooltip', { defaultValue: '添加技能' })} position='top'>
-              <ActionChip icon={<span className='text-14px font-700 leading-none'>@</span>} label={t('conversation.welcome.skill', { defaultValue: '技能' })} onClick={onTriggerSkillSelector} />
-            </Tooltip>
-          )}
+          {skillTriggerNode}
 
           {modelSelectorNode}
 

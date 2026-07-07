@@ -6,7 +6,7 @@ import { IconPaste } from '@arco-design/web-react/icon';
 import { useInputFocusRing } from '@/renderer/hooks/useInputFocusRing';
 import SlashCommandMenu, { type SlashCommandMenuItem } from '@/renderer/components/SlashCommandMenu';
 import { useSlashCommandController } from '@/renderer/hooks/useSlashCommandController';
-import SkillSelectorMenu, { type SkillSelectorMenuItem } from '@/renderer/components/SkillSelectorMenu';
+import { SkillSelectorMenuContent, type SkillSelectorMenuItem } from '@/renderer/components/SkillSelectorPopover';
 import { useSkillSelectorController, type SkillSelectorItem, stripAtQuery, replaceAtQuery } from '@/renderer/hooks/useSkillSelectorController';
 import type { WorkspaceFileItem } from '@/renderer/hooks/useWorkspaceFiles';
 import { usePreviewContext } from '@/renderer/pages/conversation/preview';
@@ -558,7 +558,7 @@ const SendBox: React.FC<{
         {/* Skill Selector Menu (with optional file tabs) */}
         {skillSelectorController.isOpen && (
           <div className='absolute left-12px right-12px bottom-[calc(100%+8px)] z-70'>
-            <SkillSelectorMenu
+            <SkillSelectorMenuContent
               title={t('messages.skills.title', { defaultValue: 'Skills' })}
               hint={t('messages.skills.hint', { defaultValue: 'Type @ to select skills' })}
               items={skillMenuItems}

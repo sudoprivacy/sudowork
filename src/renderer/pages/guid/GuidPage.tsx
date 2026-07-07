@@ -10,7 +10,7 @@ import { skillHub } from '@/common/ipcBridge';
 import { useAuth } from '@/renderer/context/AuthContext';
 import { ipcBridge } from '@/common';
 import { resolveAssistantName } from '@/renderer/shared/agents/assistantAdapter';
-import SkillSelectorMenu, { type SkillSelectorMenuItem } from '@/renderer/components/SkillSelectorMenu';
+import SkillSelectorPopover, { SkillSelectorMenuContent, type SkillSelectorMenuItem } from '@/renderer/components/SkillSelectorPopover';
 import { useSkillSelectorController, type SkillSelectorItem, stripAtQuery } from '@/renderer/hooks/useSkillSelectorController';
 import { getInstalledSkillDisplay, resolveSkillIcon } from '@/renderer/utils/skillDisplay';
 import { useConversationTabs } from '@/renderer/pages/conversation/context/ConversationTabsContext';
@@ -18,6 +18,7 @@ import { openExternalUrl, isElectronDesktop, resolveExtensionAssetUrl } from '@/
 import { useInputFocusRing } from '@/renderer/hooks/useInputFocusRing';
 import { resolveLocaleKey } from '@/common/utils';
 import { DEFAULT_PRESET_AGENT_TYPE, normalizePresetAgentType } from '@/types/acpTypes';
+import ActionChip from '@/renderer/components/ui/ActionChip';
 import AssistantEditDrawer from './components/AssistantEditDrawer';
 import AssistantSelectionArea from './components/AssistantSelectionArea';
 import AssistantAgentDropdown from './components/AssistantAgentDropdown';
@@ -61,6 +62,8 @@ const GuidPage: React.FC = () => {
   const [installedSkills, setInstalledSkills] = useState<any[]>([]);
   const [selectedSkills, setSelectedSkills] = useState<string[]>(draft?.selectedSkills ?? []);
   const [cursorPosition, setCursorPosition] = useState(0);
+  // Independent visibility state for the @-button Popover (separate from input @-trigger)
+  const [isSkillPopoverOpen, setIsSkillPopoverOpen] = useState(false);
 
   // Edit drawer state
   const [editDrawerVisible, setEditDrawerVisible] = useState(false);
@@ -513,6 +516,65 @@ const GuidPage: React.FC = () => {
     />
   );
 
+  // Popover-button path: independent state, does NOT touch the input
+  const [skillPopoverSearchQuery, setSkillPopoverSearchQuery] = useState('');
+  const [skillPopoverActiveIndex, setSkillPopoverActiveIndex] = useState(0);
+
+  const skillPopoverItems = useMemo<SkillSelectorMenuItem[]>(() => {
+    const kw = skillPopoverSearchQuery.trim().toLowerCase();
+    return skillSelectorItems
+      .filter((s) => s.enabled !== false)
+      .filter((s) => {
+        if (!kw) return true;
+        return s.name.toLowerCase().includes(kw) || s.displayName.toLowerCase().includes(kw) || (s.description?.toLowerCase().includes(kw) ?? false);
+      })
+      .map((skill) => ({
+        key: skill.name,
+        name: skill.name,
+        displayName: skill.displayName,
+        description: skill.description,
+        icon: skill.icon,
+        emoji: skill.emoji,
+        enabled: skill.enabled,
+      }));
+  }, [skillSelectorItems, skillPopoverSearchQuery]);
+
+  const onSkillPopoverClose = useCallback(() => {
+    setIsSkillPopoverOpen(false);
+    setSkillPopoverSearchQuery('');
+    setSkillPopoverActiveIndex(0);
+  }, []);
+
+  // Build the skill trigger node (@button wrapped in SkillSelectorPopover)
+  const skillTriggerNode = (
+    <SkillSelectorPopover
+      popupVisible={isSkillPopoverOpen}
+      onVisibleChange={(v) => {
+        if (!v) onSkillPopoverClose();
+      }}
+      title={t('guid.skillSelectorTitle')}
+      items={skillPopoverItems}
+      selectedKeys={selectedSkills}
+      activeIndex={skillPopoverActiveIndex}
+      onHoverItem={(index) => setSkillPopoverActiveIndex(index)}
+      onSelectItem={(item) => {
+        if (!selectedSkills.includes(item.key)) {
+          setSelectedSkills((prev) => [...prev, item.key]);
+        }
+        onSkillPopoverClose();
+      }}
+      emptyText={t('guid.noSkills')}
+      searchQuery={skillPopoverSearchQuery}
+      onSearchChange={(q) => {
+        setSkillPopoverSearchQuery(q);
+        setSkillPopoverActiveIndex(0);
+      }}
+      onDismiss={onSkillPopoverClose}
+    >
+      <ActionChip icon={<span className='text-14px font-700 leading-none'>@</span>} label={t('conversation.welcome.skill', { defaultValue: '技能' })} onClick={() => setIsSkillPopoverOpen(true)} />
+    </SkillSelectorPopover>
+  );
+
   // Build the action row
   const actionRowNode = (
     <GuidActionRow
@@ -533,7 +595,7 @@ const GuidPage: React.FC = () => {
         guidInput.setInput('');
         prefilledAssistantRef.current = null;
       }}
-      onTriggerSkillSelector={handleTriggerSkillSelector}
+      skillTriggerNode={skillTriggerNode}
       loading={guidInput.loading}
       isButtonDisabled={send.isButtonDisabled}
       onSend={() => {
@@ -716,7 +778,7 @@ const GuidPage: React.FC = () => {
           skillSelectorOpen={skillSelectorController.isOpen}
           skillSelectorMenu={
             skillSelectorController.isOpen ? (
-              <SkillSelectorMenu
+              <SkillSelectorMenuContent
                 title={t('guid.skillSelectorTitle')}
                 items={skillMenuItems}
                 selectedKeys={selectedSkills}

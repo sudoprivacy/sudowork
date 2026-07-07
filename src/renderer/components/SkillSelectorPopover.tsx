@@ -1,3 +1,4 @@
+import { Popover } from '@arco-design/web-react';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -17,7 +18,7 @@ export interface SkillSelectorMenuItem {
   enabled?: boolean;
 }
 
-interface SkillSelectorMenuProps {
+interface ISkillSelectorMenuContentProps {
   title: string;
   hint?: string;
   items: SkillSelectorMenuItem[];
@@ -28,37 +29,23 @@ interface SkillSelectorMenuProps {
   onHoverItem: (index: number) => void;
   onSelectItem: (item: SkillSelectorMenuItem) => void;
   emptyText: string;
-  /** Whether to show tabs (skills/files) */
   showTabs?: boolean;
-  /** Current active tab */
   activeTab?: AtMentionTab;
-  /** Callback when tab changes */
   onTabChange?: (tab: AtMentionTab) => void;
-  /** File items for the files tab */
   fileItems?: WorkspaceFileItem[];
-  /** Callback when a file item is selected */
   onSelectFile?: (file: WorkspaceFileItem) => void;
-  /** Text for files tab title */
   filesTabTitle?: string;
-  /** Text for skills tab title */
   skillsTabTitle?: string;
-  /** Empty text for files tab */
   filesEmptyText?: string;
-  /** Search query for filtering */
   searchQuery?: string;
-  /** Callback when search query changes */
   onSearchChange?: (query: string) => void;
-  /** Callback to dismiss/close the menu */
   onDismiss?: () => void;
-  /** Placeholder text for skills search */
   skillsSearchPlaceholder?: string;
-  /** Placeholder text for files search */
   filesSearchPlaceholder?: string;
-  /** Text shown when search has no results */
   noSearchResultsText?: string;
 }
 
-const SkillSelectorMenu: React.FC<SkillSelectorMenuProps> = ({
+export function SkillSelectorMenuContent({
   title,
   hint,
   items,
@@ -83,30 +70,13 @@ const SkillSelectorMenu: React.FC<SkillSelectorMenuProps> = ({
   skillsSearchPlaceholder,
   filesSearchPlaceholder,
   noSearchResultsText,
-}) => {
+}: ISkillSelectorMenuContentProps) {
   const { t } = useTranslation();
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
-  const menuRef = useRef<HTMLDivElement>(null);
 
-  // Use i18n for default text values
   const resolvedSkillsSearchPlaceholder = skillsSearchPlaceholder || t('messages.skills.searchSkills', '搜索技能...');
   const resolvedFilesSearchPlaceholder = filesSearchPlaceholder || t('messages.skills.searchFiles', '搜索文件...');
   const resolvedNoSearchResultsText = noSearchResultsText || t('messages.skills.noSearchResults', '未找到匹配结果');
-
-  // Close menu when clicking outside
-  const onDismissRef = useRef(onDismiss);
-  onDismissRef.current = onDismiss;
-  useEffect(() => {
-    const handleMouseDown = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        onDismissRef.current?.();
-      }
-    };
-    document.addEventListener('mousedown', handleMouseDown);
-    return () => document.removeEventListener('mousedown', handleMouseDown);
-  }, []);
-
-  // Use i18n loading text if not provided
   const resolvedLoadingText = loadingText || t('common.loadingSkills');
 
   useEffect(() => {
@@ -151,7 +121,6 @@ const SkillSelectorMenu: React.FC<SkillSelectorMenuProps> = ({
 
   return (
     <div
-      ref={menuRef}
       className='rounded-14px border shadow-[0_8px_24px_rgba(0,0,0,0.12)] overflow-hidden'
       style={{
         borderColor: 'var(--color-border-2)',
@@ -273,9 +242,7 @@ const SkillSelectorMenu: React.FC<SkillSelectorMenuProps> = ({
                     onClick={() => onSelectItem(item)}
                   >
                     <div className='flex items-center gap-2'>
-                      {/* Icon / Emoji */}
                       <div className='size-7 flex-shrink-0 rd-6px overflow-hidden bg-fill-2 f-center text-16px'>{item.icon ? <img src={item.icon} alt={item.displayName} className='w-full h-full object-cover' onError={handleSkillIconError} /> : <span>{item.emoji || '⚡'}</span>}</div>
-                      {/* Content */}
                       <div className='min-w-0 flex-1'>
                         <div className='flex items-center gap-1.5 min-w-0'>
                           <span className={classNames('text-14px truncate', index === activeIndex ? 'text-foreground font-semibold' : 'text-foreground font-medium')}>{item.displayName}</span>
@@ -335,6 +302,21 @@ const SkillSelectorMenu: React.FC<SkillSelectorMenuProps> = ({
       </div>
     </div>
   );
-};
+}
 
-export default SkillSelectorMenu;
+interface ISkillSelectorPopoverProps extends ISkillSelectorMenuContentProps {
+  /** Controls popover visibility */
+  popupVisible: boolean;
+  /** Callback when visibility changes (e.g. click outside) */
+  onVisibleChange?: (visible: boolean) => void;
+  /** Trigger element */
+  children: React.ReactNode;
+}
+
+export default function SkillSelectorPopover({ popupVisible, onVisibleChange, children, ...contentProps }: ISkillSelectorPopoverProps) {
+  return (
+    <Popover popupVisible={popupVisible} trigger={[]} position='top' onVisibleChange={onVisibleChange} content={<SkillSelectorMenuContent {...contentProps} />} style={{ padding: 0, background: 'transparent', boxShadow: 'none' }}>
+      {children}
+    </Popover>
+  );
+}
