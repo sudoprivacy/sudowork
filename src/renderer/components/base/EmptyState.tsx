@@ -1,12 +1,7 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import React from 'react';
 import { Button } from '@arco-design/web-react';
 import classNames from 'classnames';
+import { ClipboardList, FolderOpen, Inbox, MessagesSquare, SearchX } from 'lucide-react';
 
 /**
  * 统一的空状态组件，支持引导操作按钮
@@ -29,55 +24,18 @@ const EmptyState: React.FC<IEmptyStateProps> = ({ icon, title, description, acti
   // 默认空状态插图（当未提供 icon 时）
   // Default empty state illustration (when icon is not provided)
   const getIllustration = () => {
+    const props = { size: 48, className: 'opacity-60', strokeWidth: 1.5 };
     switch (illustrationType) {
       case 'search':
-        // 搜索为空 - 放大镜图标
-        return (
-          <svg width='120' height='120' viewBox='0 0 120 120' fill='none' className='opacity-60'>
-            <circle cx='55' cy='55' r='35' stroke='var(--text-tertiary)' strokeWidth='3' fill='none' />
-            <line x1='78' y1='78' x2='100' y2='100' stroke='var(--text-tertiary)' strokeWidth='3' strokeLinecap='round' />
-            <path d='M95 25 L105 35' stroke='var(--text-tertiary)' strokeWidth='2' strokeLinecap='round' opacity='0.5' />
-            <path d='M95 35 L105 25' stroke='var(--text-tertiary)' strokeWidth='2' strokeLinecap='round' opacity='0.5' />
-          </svg>
-        );
+        return <SearchX {...props} />;
       case 'messages':
-        // 消息为空 - 对话气泡
-        return (
-          <svg width='120' height='120' viewBox='0 0 120 120' fill='none' className='opacity-60'>
-            <rect x='25' y='30' width='70' height='50' rx='10' stroke='var(--text-tertiary)' strokeWidth='3' fill='none' />
-            <path d='M55 80 L45 95 L65 85' stroke='var(--text-tertiary)' strokeWidth='3' strokeLinecap='round' strokeLinejoin='round' fill='none' />
-            <circle cx='45' cy='50' r='4' fill='var(--text-tertiary)' />
-            <circle cx='60' cy='50' r='4' fill='var(--text-tertiary)' />
-            <circle cx='75' cy='50' r='4' fill='var(--text-tertiary)' />
-          </svg>
-        );
+        return <MessagesSquare {...props} />;
       case 'files':
-        // 文件为空 - 文件夹
-        return (
-          <svg width='120' height='120' viewBox='0 0 120 120' fill='none' className='opacity-60'>
-            <path d='M25 35 L50 35 L60 45 L95 45 L95 85 L25 85 Z' stroke='var(--text-tertiary)' strokeWidth='3' fill='none' strokeLinejoin='round' />
-            <path d='M35 55 L50 70 L75 50' stroke='var(--text-tertiary)' strokeWidth='3' strokeLinecap='round' strokeLinejoin='round' />
-          </svg>
-        );
+        return <FolderOpen {...props} />;
       case 'tasks':
-        // 任务为空 - 清单
-        return (
-          <svg width='120' height='120' viewBox='0 0 120 120' fill='none' className='opacity-60'>
-            <rect x='30' y='25' width='60' height='70' rx='8' stroke='var(--text-tertiary)' strokeWidth='3' fill='none' />
-            <line x1='45' y1='40' x2='75' y2='40' stroke='var(--text-tertiary)' strokeWidth='2' strokeLinecap='round' />
-            <line x1='45' y1='55' x2='75' y2='55' stroke='var(--text-tertiary)' strokeWidth='2' strokeLinecap='round' />
-            <line x1='45' y1='70' x2='65' y2='70' stroke='var(--text-tertiary)' strokeWidth='2' strokeLinecap='round' />
-            <path d='M38 38 L42 42 L48 36' stroke='var(--text-tertiary)' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round' />
-          </svg>
-        );
+        return <ClipboardList {...props} />;
       default:
-        // 默认 - 空心圆加勾
-        return (
-          <svg width='120' height='120' viewBox='0 0 120 120' fill='none' className='opacity-60'>
-            <circle cx='60' cy='60' r='40' stroke='var(--text-tertiary)' strokeWidth='2' strokeDasharray='6 6' fill='none' />
-            <path d='M45 55 L60 70 L75 45' stroke='var(--text-tertiary)' strokeWidth='3' strokeLinecap='round' strokeLinejoin='round' />
-          </svg>
-        );
+        return <Inbox {...props} />;
     }
   };
 
