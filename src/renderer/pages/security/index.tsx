@@ -1,4 +1,4 @@
-import { Shield, CheckOne, Lock, Scan, AllApplication } from '@icon-park/react';
+import { Shield, Lock, Scan, CircleCheck, LayoutGrid } from 'lucide-react';
 import { IconPlus, IconEdit, IconDelete } from '@arco-design/web-react/icon';
 import { Card, Tag, Switch, Button, Modal, Table, Space, Popconfirm, Message, Tooltip } from '@arco-design/web-react';
 import React, { useState, useEffect, useCallback } from 'react';
@@ -229,7 +229,7 @@ export default function SecurityPage() {
     <PageWrapper title={t('settings.security')} subtitle={t('settings.securitySettings.subtitle')}>
       <div className='flex flex-col gap-3 mt-4'>
         <SecurityItem
-          icon={<Shield theme='outline' size='22' />}
+          icon={<Shield size={22} />}
           title={t('settings.securitySettings.envProtection.title')}
           tag={
             <Tag className='rd-full' bordered>
@@ -246,7 +246,7 @@ export default function SecurityPage() {
           action={<Switch checked={envProtection} disabled size='small' className='settings-accent-switch' />}
         />
         <SecurityItem
-          icon={<Lock theme='outline' size='22' />}
+          icon={<Lock size={22} />}
           title={t('settings.securitySettings.infoProtection.title')}
           tag={
             <Tag className='rd-full' bordered>
@@ -263,7 +263,7 @@ export default function SecurityPage() {
           action={<Switch checked={infoProtection} disabled size='small' className='settings-accent-switch' />}
         />
         <SecurityItem
-          icon={<Scan theme='outline' size='22' />}
+          icon={<Scan size={22} />}
           title={t('settings.securitySettings.skillScan.title')}
           tag={
             <Tag className='rd-full' bordered>
@@ -286,13 +286,13 @@ export default function SecurityPage() {
             <Card size='small' className='rd-12px hover:shadow-md transition-shadow'>
               <div className='flex items-start gap-2.5'>
                 <div className='w-10.5 h-10.5 rounded-8px bg-[#722ed115] f-center flex-shrink-0 mt-px'>
-                  <AllApplication theme='outline' size='24' fill='#722ed1' />
+                  <LayoutGrid size={24} color='#722ed1' />
                 </div>
                 <div className='flex-1 mt--1'>
                   <div className='flex items-center gap-1.5 mb-0.5'>
                     <h3 className='text-15px font-600 text-foreground'>{t('settings.securitySettings.hook.title', '安全 Hook 防护')}</h3>
                     <Tag color='purple' size='small' className='rd-4px'>
-                      <CheckOne theme='filled' size='12' className='mr-1' />
+                      <CircleCheck size={12} className='mr-1' />
                       {t('settings.securitySettings.hook.realtimeBlock', '实时拦截')}
                     </Tag>
                   </div>
@@ -410,7 +410,7 @@ export default function SecurityPage() {
 
         {/* 底部提示 */}
         <div className='f-center gap-2 text-14px text-tertiary mt-4'>
-          <Shield theme='outline' size='16' fill='currentColor' />
+          <Shield size={16} />
           <span>{t('settings.securitySettings.bottomTip', '您的每一次操作都在系统严格保护之下')}</span>
         </div>
       </div>
