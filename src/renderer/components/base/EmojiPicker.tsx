@@ -465,23 +465,23 @@ const EmojiPicker: React.FC<EmojiPickerProps> = ({ value, onChange, children, pl
 
   const renderGrid = (emojis: string[]) =>
     emojis.length > 0 ? (
-      <div className='grid grid-cols-8 gap-2px'>
+      <div className='grid grid-cols-8 gap-0.5'>
         {emojis.map((emoji, index) => (
-          <button key={`${emoji}-${index}`} className='w-32px h-32px f-center text-20px cursor-pointer border-none bg-transparent rounded-md hover:bg-fill-2 transition-colors' onClick={() => handleSelectEmoji(emoji)}>
+          <button key={`${emoji}-${index}`} className='size-8 f-center text-20px cursor-pointer border-none bg-transparent rounded-md hover:bg-fill-2 transition-colors' onClick={() => handleSelectEmoji(emoji)}>
             {emoji}
           </button>
         ))}
       </div>
     ) : (
-      <div className='text-center text-secondary py-16px text-14px'>{t('settings.noRecentEmojis', { defaultValue: 'No recent emojis' })}</div>
+      <div className='text-center text-secondary py-4 text-14px'>{t('settings.noRecentEmojis', { defaultValue: 'No recent emojis' })}</div>
     );
 
   const pickerContent = (
-    <div className='w-280px'>
+    <div className='w-70'>
       <Tabs activeTab={activeCategory} onChange={(v) => setActiveCategory(v as typeof activeCategory)} className='-mt-2' scrollPosition='center'>
         {categoryKeys.map((key) => (
           <Tabs.TabPane key={key} title={<span title={EMOJI_CATEGORIES[key].label}>{EMOJI_CATEGORIES[key].label}</span>}>
-            <div className='max-h-200px overflow-y-auto'>{renderGrid(getEmojis(key))}</div>
+            <div className='max-h-50 overflow-y-auto'>{renderGrid(getEmojis(key))}</div>
           </Tabs.TabPane>
         ))}
       </Tabs>
@@ -490,7 +490,7 @@ const EmojiPicker: React.FC<EmojiPickerProps> = ({ value, onChange, children, pl
 
   return (
     <Popover trigger='click' position={placement} popupVisible={visible} onVisibleChange={setVisible} content={pickerContent} unmountOnExit>
-      {children || <div className='w-40px h-40px f-center text-24px bg-fill-2 rounded-lg cursor-pointer hover:bg-fill-3 transition-colors'>{value || '😀'}</div>}
+      {children || <div className='size-10 f-center text-24px bg-fill-2 rounded-lg cursor-pointer hover:bg-fill-3 transition-colors'>{value || '😀'}</div>}
     </Popover>
   );
 };

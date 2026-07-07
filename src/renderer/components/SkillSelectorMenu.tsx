@@ -153,7 +153,7 @@ const SkillSelectorMenu: React.FC<SkillSelectorMenuProps> = ({
   return (
     <div
       ref={menuRef}
-      className='rounded-14px border border-solid shadow-[0_8px_24px_rgba(0,0,0,0.12)] overflow-hidden'
+      className='rounded-14px border shadow-[0_8px_24px_rgba(0,0,0,0.12)] overflow-hidden'
       style={{
         borderColor: 'var(--color-border-2)',
         background: 'color-mix(in srgb, var(--color-bg-1) 78%, transparent)',
@@ -166,17 +166,17 @@ const SkillSelectorMenu: React.FC<SkillSelectorMenuProps> = ({
     >
       {/* Header with optional tabs */}
       <div
-        className='px-12px py-8px border-b border-solid flex items-center justify-between gap-8px'
+        className='px-3 py-2 border-b flex items-center justify-between gap-2'
         style={{
           borderColor: 'color-mix(in srgb, var(--color-border-2) 56%, transparent)',
           background: 'color-mix(in srgb, var(--color-bg-1) 84%, transparent)',
         }}
       >
         {showTabs ? (
-          <div className='flex items-center gap-2px'>
+          <div className='flex items-center gap-0.5'>
             <button
               type='button'
-              className={classNames('px-10px py-4px rounded-8px text-13px font-medium cursor-pointer border-none outline-none transition-colors', {
+              className={classNames('px-2.5 py-1 rounded-8px text-13px font-medium cursor-pointer border-none outline-none transition-colors', {
                 'bg-primary text-white': activeTab === 'skills',
                 'bg-transparent text-secondary hover:text-foreground hover:bg-fill-2': activeTab !== 'skills',
               })}
@@ -187,7 +187,7 @@ const SkillSelectorMenu: React.FC<SkillSelectorMenuProps> = ({
             </button>
             <button
               type='button'
-              className={classNames('px-10px py-4px rounded-8px text-13px font-medium cursor-pointer border-none outline-none transition-colors', {
+              className={classNames('px-2.5 py-1 rounded-8px text-13px font-medium cursor-pointer border-none outline-none transition-colors', {
                 'bg-primary text-white': activeTab === 'files',
                 'bg-transparent text-secondary hover:text-foreground hover:bg-fill-2': activeTab !== 'files',
               })}
@@ -207,13 +207,13 @@ const SkillSelectorMenu: React.FC<SkillSelectorMenuProps> = ({
       {/* Search box */}
       {onSearchChange && (
         <div
-          className='px-8px py-6px border-b border-solid'
+          className='px-2 py-1.5 border-b'
           style={{
             borderColor: 'color-mix(in srgb, var(--color-border-2) 56%, transparent)',
           }}
         >
           <div
-            className='flex items-center gap-6px px-8px py-4px rounded-8px'
+            className='flex items-center gap-1.5 px-2 py-1 rounded-8px'
             style={{
               background: 'color-mix(in srgb, var(--color-fill-2) 60%, transparent)',
             }}
@@ -232,7 +232,7 @@ const SkillSelectorMenu: React.FC<SkillSelectorMenuProps> = ({
               onKeyDown={handleSearchKeyDown}
             />
             {searchQuery && (
-              <button type='button' className='shrink-0 w-16px h-16px f-center rounded-full text-tertiary hover:text-secondary cursor-pointer border-none outline-none text-11px bg-transparent' onMouseDown={(e) => e.preventDefault()} onClick={() => onSearchChange('')}>
+              <button type='button' className='shrink-0 size-4 f-center rounded-full text-tertiary hover:text-secondary cursor-pointer border-none outline-none text-11px bg-transparent' onMouseDown={(e) => e.preventDefault()} onClick={() => onSearchChange('')}>
                 ✕
               </button>
             )}
@@ -241,13 +241,13 @@ const SkillSelectorMenu: React.FC<SkillSelectorMenuProps> = ({
       )}
 
       {/* Content area */}
-      <div role='listbox' aria-busy={loading} className='overflow-y-auto p-6px' style={{ maxHeight: 'min(34vh, 260px)' }}>
+      <div role='listbox' aria-busy={loading} className='overflow-y-auto p-1.5' style={{ maxHeight: 'min(34vh, 260px)' }}>
         {/* Skills tab content */}
         {activeTab === 'skills' && (
           <>
             {loading && items.length === 0 && <SkillSelectorSkeleton count={4} />}
-            {loading && items.length > 0 && <div className='px-10px py-12px text-13px text-secondary'>{resolvedLoadingText}</div>}
-            {!loading && items.length === 0 && <div className='px-10px py-12px text-13px text-secondary'>{searchQuery ? noSearchResultsText : emptyText}</div>}
+            {loading && items.length > 0 && <div className='px-2.5 py-3 text-13px text-secondary'>{resolvedLoadingText}</div>}
+            {!loading && items.length === 0 && <div className='px-2.5 py-3 text-13px text-secondary'>{searchQuery ? noSearchResultsText : emptyText}</div>}
             {!loading &&
               items.map((item, index) => {
                 const isSelected = selectedKeys.includes(item.key);
@@ -260,7 +260,7 @@ const SkillSelectorMenu: React.FC<SkillSelectorMenuProps> = ({
                     ref={(node) => {
                       itemRefs.current[index] = node;
                     }}
-                    className={classNames('w-full text-left px-10px py-6px rounded-8px transition-all border border-solid outline-none cursor-pointer mb-2px last:mb-0', {
+                    className={classNames('w-full text-left px-2.5 py-1.5 rounded-8px transition-all border outline-none cursor-pointer mb-0.5 last:mb-0', {
                       'border-light': index === activeIndex,
                       'border-transparent hover:bg-fill-1': index !== activeIndex,
                     })}
@@ -273,18 +273,18 @@ const SkillSelectorMenu: React.FC<SkillSelectorMenuProps> = ({
                     onMouseEnter={() => onHoverItem(index)}
                     onClick={() => onSelectItem(item)}
                   >
-                    <div className='flex items-center gap-8px'>
-                      {/* Icon / Emoji */}
-                      <div className='w-28px h-28px flex-shrink-0 rd-6px overflow-hidden bg-fill-2 f-center text-16px'>{item.icon ? <img src={item.icon} alt={item.displayName} className='w-full h-full object-cover' onError={handleSkillIconError} /> : <span>{item.emoji || '⚡'}</span>}</div>
-                      {/* Content */}
-                      <div className='min-w-0 flex-1'>
-                        <div className='flex items-center gap-6px min-w-0'>
-                          <span className={classNames('text-14px truncate', index === activeIndex ? 'text-foreground font-semibold' : 'text-foreground font-medium')}>{item.displayName}</span>
-                          {isSelected && <span className='px-4px py-0px bg-primary text-white text-9px rd-3px whitespace-nowrap flex-shrink-0 leading-14px'>已添加</span>}
-                        </div>
-                        {item.description && <div className='text-11px text-secondary truncate mt-1px'>{item.description}</div>}
-                      </div>
-                    </div>
+                     <div className='flex items-center gap-2'>
+                       {/* Icon / Emoji */}
+                       <div className='size-7 flex-shrink-0 rd-6px overflow-hidden bg-fill-2 f-center text-16px'>{item.icon ? <img src={item.icon} alt={item.displayName} className='w-full h-full object-cover' onError={handleSkillIconError} /> : <span>{item.emoji || '⚡'}</span>}</div>
+                       {/* Content */}
+                       <div className='min-w-0 flex-1'>
+                         <div className='flex items-center gap-1.5 min-w-0'>
+                           <span className={classNames('text-14px truncate', index === activeIndex ? 'text-foreground font-semibold' : 'text-foreground font-medium')}>{item.displayName}</span>
+                           {isSelected && <span className='px-1 py-0 bg-primary text-white text-9px rd-3px whitespace-nowrap flex-shrink-0 leading-14px'>已添加</span>}
+                         </div>
+                         {item.description && <div className='text-11px text-secondary truncate mt-px'>{item.description}</div>}
+                       </div>
+                     </div>
                   </button>
                 );
               })}
@@ -294,7 +294,7 @@ const SkillSelectorMenu: React.FC<SkillSelectorMenuProps> = ({
         {/* Files tab content */}
         {activeTab === 'files' && (
           <>
-            {fileItems.length === 0 && <div className='px-10px py-12px text-13px text-secondary'>{searchQuery ? noSearchResultsText : filesEmptyText}</div>}
+            {fileItems.length === 0 && <div className='px-2.5 py-3 text-13px text-secondary'>{searchQuery ? noSearchResultsText : filesEmptyText}</div>}
             {fileItems.map((file, index) => (
               <button
                 key={file.relativePath}
@@ -303,7 +303,7 @@ const SkillSelectorMenu: React.FC<SkillSelectorMenuProps> = ({
                 ref={(node) => {
                   itemRefs.current[index] = node;
                 }}
-                className={classNames('w-full text-left px-10px py-6px rounded-8px transition-all border border-solid outline-none cursor-pointer mb-2px last:mb-0', {
+                className={classNames('w-full text-left px-2.5 py-1.5 rounded-8px transition-all border outline-none cursor-pointer mb-0.5 last:mb-0', {
                   'border-light': index === activeIndex,
                   'border-transparent hover:bg-fill-1': index !== activeIndex,
                 })}
@@ -315,18 +315,18 @@ const SkillSelectorMenu: React.FC<SkillSelectorMenuProps> = ({
                 onMouseEnter={() => onHoverItem(index)}
                 onClick={() => onSelectFile?.(file)}
               >
-                <div className='flex items-center gap-8px'>
-                  <div className='w-24px h-24px flex-shrink-0 rd-4px bg-fill-2 f-center overflow-hidden'>{resolveFileIcon(file.name, { size: 16, theme: 'filled' })}</div>
+                <div className='flex items-center gap-2'>
+                  <div className='size-6 flex-shrink-0 rd-4px bg-fill-2 f-center overflow-hidden'>{resolveFileIcon(file.name, { size: 16, theme: 'filled' })}</div>
                   <div className='min-w-0 flex-1'>
-                    <div className='flex items-center gap-6px min-w-0'>
+                    <div className='flex items-center gap-1.5 min-w-0'>
                       <span className={classNames('text-13px truncate', index === activeIndex ? 'text-foreground font-semibold' : 'text-foreground font-medium')}>{file.name}</span>
                       {file.isDraft && (
-                        <span className='px-4px py-0px text-9px rd-3px whitespace-nowrap flex-shrink-0 leading-14px' style={{ background: 'var(--warning-soft)', color: 'var(--warning)' }}>
+                        <span className='px-1 py-0 text-9px rd-3px whitespace-nowrap flex-shrink-0 leading-14px' style={{ background: 'var(--warning-soft)', color: 'var(--warning)' }}>
                           {t('conversation.workspace.drafts.badge', { defaultValue: '草稿' })}
                         </span>
                       )}
                     </div>
-                    <div className='text-11px text-secondary truncate mt-1px'>{file.relativePath}</div>
+                    <div className='text-11px text-secondary truncate mt-px'>{file.relativePath}</div>
                   </div>
                 </div>
               </button>

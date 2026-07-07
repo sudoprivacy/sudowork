@@ -102,7 +102,7 @@ const AgentStatusDot: React.FC<{ conversation_id: string; conversationType?: TCh
       }}
     >
       <Menu.Item key='restart' disabled={restarting}>
-        <span className='inline-flex items-center gap-6px'>
+        <span className='inline-flex items-center gap-1.5'>
           <Refresh theme='outline' size={14} fill='currentColor' className={restarting ? 'animate-spin' : ''} />
           {t('agentStatus.restartAndConnect', { defaultValue: '重启并连接' })}
         </span>
@@ -113,9 +113,9 @@ const AgentStatusDot: React.FC<{ conversation_id: string; conversationType?: TCh
   return (
     <Dropdown droplist={dropdownMenu} trigger='click' position='bl'>
       <Button type='text' size='small' className='!h-auto !w-auto !min-w-0 !px-0 !py-0 cursor-pointer'>
-        <span className='inline-flex items-center gap-2px rounded-full px-8px py-2px bg-2' title={t(labelKey, { defaultValue: status })}>
-          <Connection theme='outline' size={16} fill={'var(--foreground)'} />
-          <span className='ml-4px w-8px h-8px rounded-full' style={{ backgroundColor: dotColor }} />
+          <span className='inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 bg-2' title={t(labelKey, { defaultValue: status })}>
+            <Connection theme='outline' size={16} fill={'var(--foreground)'} />
+            <span className='ml-1 size-2 rounded-full' style={{ backgroundColor: dotColor }} />
         </span>
       </Button>
     </Dropdown>

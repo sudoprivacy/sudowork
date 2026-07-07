@@ -117,7 +117,7 @@ const HorizontalFileList: React.FC<HorizontalFileListProps> = ({ children }) => 
       {/* 横向滚动容器，隐藏滚动条 */}
       <div
         ref={scrollContainerRef}
-        className='flex items-center gap-8px overflow-x-auto overflow-y-hidden scrollbar-hide pt-5px pb-5px'
+        className='flex items-center gap-2 overflow-x-auto overflow-y-hidden scrollbar-hide py-1.25'
         style={{
           scrollbarWidth: 'none', // Firefox
           msOverflowStyle: 'none', // IE/Edge
@@ -137,7 +137,7 @@ const HorizontalFileList: React.FC<HorizontalFileListProps> = ({ children }) => 
         >
           <button
             onClick={handleScrollLeft}
-            className='ml-0px w-28px h-28px rd-50% bg-1 f-center hover:bg-2 transition-colors border border-solid b-color-border-2'
+            className='ml-0 size-7 rd-50% bg-1 f-center hover:bg-2 transition-colors border border-default'
             style={{
               pointerEvents: 'auto', // 按钮响应点击
               boxShadow: 'var(--shadow-md)',
@@ -159,7 +159,7 @@ const HorizontalFileList: React.FC<HorizontalFileListProps> = ({ children }) => 
         >
           <button
             onClick={handleScrollRight}
-            className='ml-auto mr-0px w-28px h-28px rd-50% bg-1 f-center hover:bg-2 transition-colors border border-solid b-color-border-2'
+            className='ml-auto mr-0 size-7 rd-50% bg-1 f-center hover:bg-2 transition-colors border border-default'
             style={{
               pointerEvents: 'auto', // 按钮响应点击
               boxShadow: 'var(--shadow-md)',
