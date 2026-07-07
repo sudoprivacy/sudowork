@@ -216,15 +216,15 @@ const UserProfile: React.FC = () => {
               <div className='grid grid-cols-3 gap-4'>
                 <div className='text-center'>
                   <div className='text-24px font-700 text-foreground min-h-8 f-center'>{stats === null ? <Spin size={20} /> : (stats.usage_today?.tokens?.toLocaleString() ?? '0')}</div>
-                  <div className='text-12px text-tertiary'>{t('settings.userProfile.tokens', 'Tokens')}</div>
+                  <div className='text-12px text-secondary'>{t('settings.userProfile.tokens', 'Tokens')}</div>
                 </div>
                 <div className='text-center'>
                   <div className='text-24px font-700 text-primary min-h-8 f-center'>{stats === null ? <Spin size={20} /> : todayPoints}</div>
-                  <div className='text-12px text-tertiary'>{t('settings.userProfile.consumedPoints', '消耗积分')}</div>
+                  <div className='text-12px text-secondary'>{t('settings.userProfile.consumedPoints', '消耗积分')}</div>
                 </div>
                 <div className='text-center'>
                   <div className='text-24px font-700 text-foreground min-h-8 f-center'>{stats === null ? <Spin size={20} /> : (stats.usage_today?.requests ?? 0)}</div>
-                  <div className='text-12px text-tertiary'>{t('settings.userProfile.requests', '请求数')}</div>
+                  <div className='text-12px text-secondary'>{t('settings.userProfile.requests', '请求数')}</div>
                 </div>
               </div>
             </div>

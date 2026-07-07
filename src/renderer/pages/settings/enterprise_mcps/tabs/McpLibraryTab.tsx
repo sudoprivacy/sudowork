@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Input, Button, Tag, Message } from '@arco-design/web-react';
 import { IconCheck, IconDownload } from '@arco-design/web-react/icon';
-import { Search } from '@icon-park/react';
+import { Search } from 'lucide-react';
 import EmptyState from '@/renderer/components/base/EmptyState';
 import McpIcon from '../components/McpIcon';
 import RiskLevelTag from '../components/RiskLevelTag';
@@ -73,7 +73,7 @@ const McpLibraryTab: React.FC<McpLibraryTabProps> = ({ templates, installedTempl
     <div className='flex flex-col gap-3'>
       {/* Filter bar */}
       <div className='flex items-center gap-2'>
-        <Input allowClear placeholder='搜索模板名称或描述' value={search} onChange={setSearch} prefix={<Search theme='outline' size='14' />} style={{ flex: 1 }} />
+        <Input allowClear placeholder='搜索模板名称或描述' value={search} onChange={setSearch} prefix={<Search size={14} />} style={{ flex: 1 }} />
       </div>
 
       {!loading && filtered.length === 0 ? (

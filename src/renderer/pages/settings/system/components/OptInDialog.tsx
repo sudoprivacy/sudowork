@@ -1,7 +1,7 @@
 import React, { useCallback } from 'react';
 import { Button, Modal } from '@arco-design/web-react';
 import { useTranslation } from 'react-i18next';
-import { Shield } from '@icon-park/react';
+import { ShieldCheck } from 'lucide-react';
 
 /**
  * 产品体验改进计划弹窗组件
@@ -33,8 +33,8 @@ export default function OptInDialog({ isOpen, onClose }: IOptInDialogProps) {
         <div className='text-14px text-secondary leading-relaxed'>{t('settings.productImprovement.description', '帮助我们持续优化产品体验，为您带来更好的服务。')}</div>
 
         {/* 隐私保障 */}
-        <div className='flex items-start gap-2.5 p-3 rd-10px bg-muted'>
-          <Shield size={18} fill='var(--success)' className='flex-shrink-0 mt-px' />
+        <div className='flex items-start gap-2.5 p-3 rd-10px bg-control'>
+          <ShieldCheck size={18} className='flex-shrink-0 mt-px text-success' />
           <div className='text-13px text-secondary leading-relaxed'>{t('settings.productImprovement.privacy', '开启后将匿名收集 SudoWork 性能指标，仅用于产品改进，不会收集您的对话内容或个人信息。您可以随时关闭此功能。')}</div>
         </div>
       </div>

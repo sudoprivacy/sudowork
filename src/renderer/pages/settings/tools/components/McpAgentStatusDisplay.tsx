@@ -1,5 +1,5 @@
 import { Tag, Tooltip } from '@arco-design/web-react';
-import { LoadingOne } from '@icon-park/react';
+import { Loader2 } from 'lucide-react';
 import React from 'react';
 import { getAgentLogo } from '@/renderer/utils/agentLogo';
 
@@ -22,7 +22,7 @@ const McpAgentStatusDisplay: React.FC<McpAgentStatusDisplayProps> = ({ serverNam
     <div className='flex items-center isolate'>
       <div className='flex items-center'>
         {isLoadingAgentStatus ? (
-          <LoadingOne fill={'var(--foreground)'} className='h-4 w-4' />
+          <Loader2 size={16} className='animate-spin text-foreground' />
         ) : (
           agents.map((agent, index) => {
             const logo = getAgentLogo(agent);

@@ -6,7 +6,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { Button, Input, Message, Spin } from '@arco-design/web-react';
-import { BuildingTwo, Success, Close } from '@icon-park/react';
+import { Building2, CheckCircle, XCircle } from 'lucide-react';
 import { ConfigStorage } from '@/common/storage';
 import { ipcBridge } from '@/common';
 import { TENANT_CONFIG_STORAGE_KEY, resolveTenantConfig } from '@/common/types/tenantConfig';
@@ -104,7 +104,7 @@ const EnterpriseSettings: React.FC = () => {
       {/* Card 1: Enterprise Connection Info */}
       <div className='mb-6 rd-16px bg-muted p-6'>
         <div className='flex items-center gap-2 mb-5'>
-          <BuildingTwo theme='outline' size={20} className='text-2' />
+          <Building2 size={20} className='text-secondary' />
           <h3 className='text-16px font-600 text-foreground m-0'>企业连接信息</h3>
         </div>
 
@@ -112,7 +112,7 @@ const EnterpriseSettings: React.FC = () => {
           {/* Tenant Name (read-only) */}
           <div className='flex items-center justify-between py-2'>
             <div className='flex items-center gap-2'>
-              <BuildingTwo theme='outline' size={16} className='text-3' />
+              <Building2 size={16} className='text-secondary' />
               <span className='text-14px text-secondary'>企业名称</span>
             </div>
             <span className='text-14px text-foreground font-500'>{tenantName || '--'}</span>
@@ -121,7 +121,7 @@ const EnterpriseSettings: React.FC = () => {
           {/* Connection Status */}
           <div className='flex items-center justify-between py-2'>
             <div className='flex items-center gap-2'>
-              {connectionStatus === 'connected' ? <Success theme='filled' size={16} fill={['#00b42a']} /> : connectionStatus === 'checking' ? <Spin size={16} /> : <Close theme='filled' size={16} fill={['#f53f3f']} />}
+              {connectionStatus === 'connected' ? <CheckCircle size={16} className='text-success' /> : connectionStatus === 'checking' ? <Spin size={16} /> : <XCircle size={16} className='text-danger' />}
               <span className='text-14px text-secondary'>连接状态</span>
             </div>
             <span className={`text-14px font-500 ${connectionStatus === 'connected' ? 'text-success' : connectionStatus === 'disconnected' ? 'text-danger' : 'text-3'}`}>{connectionStatus === 'connected' ? '已连接' : connectionStatus === 'checking' ? '检查中...' : '未连接'}</span>

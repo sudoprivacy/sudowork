@@ -1,7 +1,7 @@
 import { Button } from '@arco-design/web-react';
 import React from 'react';
 import classNames from 'classnames';
-import { ShareOne } from '@icon-park/react';
+import { Share2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { ToolRow } from '../types';
 import { badgeColors, getRuntimeActions, getStatusInfo, isInstalled } from '../utils';
@@ -23,9 +23,7 @@ export default function RuntimeToolRow({ record }: IRuntimeToolRowProps) {
     <div className='py-3.5 first:pt-0 last:pb-0'>
       <div className='flex flex-col gap-3 md:flex-row md:items-center md:justify-between md:gap-4'>
         <div className='flex items-center gap-3 min-w-0 flex-1'>
-          <div className={classNames('w-7 h-7 rd-8px f-center flex-shrink-0 text-9px md:text-10px font-700 shadow-sm', badgeColors[record.key] || 'bg-blue-1 color-blue-6 border border-blue-3')}>
-            {record.key === 'shareone' ? <ShareOne theme='outline' size={16} className='block' /> : record.badge}
-          </div>
+          <div className={classNames('w-7 h-7 rd-8px f-center flex-shrink-0 text-9px md:text-10px font-700 shadow-sm', badgeColors[record.key] || 'bg-blue-1 color-blue-6 border border-blue-3')}>{record.key === 'shareone' ? <Share2 size={16} /> : record.badge}</div>
 
           <div className='min-w-0 flex-1 space-y-1'>
             <div className='flex flex-col gap-1 lg:flex-row lg:items-center lg:gap-2'>
