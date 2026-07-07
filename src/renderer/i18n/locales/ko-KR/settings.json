@@ -938,6 +938,7 @@
     }
   },
   "copilot": "Copilot",
+  "security": "보안",
   "rechargeCenter": "충전 센터",
   "copilotSettings": {
     "subtitle": "Sudo Code 구성",

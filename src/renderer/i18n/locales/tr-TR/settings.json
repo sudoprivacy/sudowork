@@ -934,6 +934,7 @@
     }
   },
   "copilot": "Copilot",
+  "security": "Güvenlik",
   "rechargeCenter": "Yükleme Merkezi",
   "copilotSettings": {
     "subtitle": "Sudo Code'u yapılandır",

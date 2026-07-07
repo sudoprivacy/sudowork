@@ -938,6 +938,7 @@
     }
   },
   "copilot": "Copilot",
+  "security": "安全防護",
   "rechargeCenter": "充值中心",
   "copilotSettings": {
     "subtitle": "配置 Sudo Code",

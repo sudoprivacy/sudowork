@@ -65,3 +65,7 @@
   5. 使用 .claude/agents/icon-compat-checker.md 扫描该目录并修复
   6. 看看能否使用 lucide-react的icon替换该目录下的'@icon-park/react'
   7. 清除该模块下，每个文件的顶部开源注释
+
+- 国际化，icon，css 扫描过的目录
+  1. security
+  2.
