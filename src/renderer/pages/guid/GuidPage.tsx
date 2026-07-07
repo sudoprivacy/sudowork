@@ -10,7 +10,7 @@ import { skillHub } from '@/common/ipcBridge';
 import { useAuth } from '@/renderer/context/AuthContext';
 import { ipcBridge } from '@/common';
 import { resolveAssistantName } from '@/renderer/shared/agents/assistantAdapter';
-import SkillSelectorPopover, { SkillSelectorMenuContent, type SkillSelectorMenuItem } from '@/renderer/components/SkillSelectorPopover';
+import SkillSelectorPopover, { SkillSelectorMenuContent } from '@/renderer/components/SkillSelectorPopover';
 import { useSkillSelectorController, type SkillSelectorItem, stripAtQuery } from '@/renderer/hooks/useSkillSelectorController';
 import { getInstalledSkillDisplay, resolveSkillIcon } from '@/renderer/utils/skillDisplay';
 import { useConversationTabs } from '@/renderer/pages/conversation/context/ConversationTabsContext';
@@ -210,35 +210,11 @@ const GuidPage: React.FC = () => {
   const skillSelectorController = useSkillSelectorController({
     input: guidInput.input,
     cursorPosition,
-    skills: skillSelectorItems,
     selectedSkills,
-    onSelectSkill: (skillName) => {
-      if (!selectedSkills.includes(skillName)) {
-        setSelectedSkills([...selectedSkills, skillName]);
-      }
-      // Strip the @query from input when selecting a skill, preserving user's other text
-      guidInput.setInput(stripAtQuery(guidInput.input, cursorPosition));
-    },
     onRemoveSkill: (skillName) => {
       setSelectedSkills(selectedSkills.filter((s) => s !== skillName));
     },
-    filterDisabled: true, // Guide page should not show disabled skills
   });
-
-  // Convert to menu items for rendering
-  const skillMenuItems = useMemo<SkillSelectorMenuItem[]>(
-    () =>
-      skillSelectorController.filteredSkills.map((skill) => ({
-        key: skill.name,
-        name: skill.name,
-        displayName: skill.displayName,
-        description: skill.description,
-        icon: skill.icon,
-        emoji: skill.emoji,
-        enabled: skill.enabled,
-      })),
-    [skillSelectorController.filteredSkills]
-  );
 
   const mention = useGuidMention({
     availableAgents: agentSelection.mentionAvailableAgents,
@@ -517,30 +493,9 @@ const GuidPage: React.FC = () => {
   );
 
   // Popover-button path: independent state, does NOT touch the input
-  const [skillPopoverSearchQuery, setSkillPopoverSearchQuery] = useState('');
-
-  const skillPopoverItems = useMemo<SkillSelectorMenuItem[]>(() => {
-    const kw = skillPopoverSearchQuery.trim().toLowerCase();
-    return skillSelectorItems
-      .filter((s) => s.enabled !== false)
-      .filter((s) => {
-        if (!kw) return true;
-        return s.name.toLowerCase().includes(kw) || s.displayName.toLowerCase().includes(kw) || (s.description?.toLowerCase().includes(kw) ?? false);
-      })
-      .map((skill) => ({
-        key: skill.name,
-        name: skill.name,
-        displayName: skill.displayName,
-        description: skill.description,
-        icon: skill.icon,
-        emoji: skill.emoji,
-        enabled: skill.enabled,
-      }));
-  }, [skillSelectorItems, skillPopoverSearchQuery]);
 
   const onSkillPopoverClose = useCallback(() => {
     setIsSkillPopoverOpen(false);
-    setSkillPopoverSearchQuery('');
   }, []);
 
   // Build the skill trigger node (@button wrapped in SkillSelectorPopover)
@@ -551,18 +506,17 @@ const GuidPage: React.FC = () => {
         if (!v) onSkillPopoverClose();
       }}
       title={t('guid.skillSelectorTitle')}
-      items={skillPopoverItems}
+      skills={skillSelectorItems}
       selectedKeys={selectedSkills}
-      onSelectItem={(item) => {
-        if (!selectedSkills.includes(item.key)) {
-          setSelectedSkills((prev) => [...prev, item.key]);
+      onSelectItem={(skill) => {
+        if (!selectedSkills.includes(skill.name)) {
+          setSelectedSkills((prev) => [...prev, skill.name]);
         }
         onSkillPopoverClose();
       }}
       emptyText={t('guid.noSkills')}
-      searchQuery={skillPopoverSearchQuery}
-      onSearchChange={setSkillPopoverSearchQuery}
       onDismiss={onSkillPopoverClose}
+      filterDisabled
     >
       <ActionChip icon={<span className='text-14px font-700 leading-none'>@</span>} label={t('conversation.welcome.skill', { defaultValue: '技能' })} onClick={() => setIsSkillPopoverOpen(true)} />
     </SkillSelectorPopover>
@@ -773,23 +727,23 @@ const GuidPage: React.FC = () => {
             skillSelectorController.isOpen ? (
               <SkillSelectorMenuContent
                 title={t('guid.skillSelectorTitle')}
-                items={skillMenuItems}
+                skills={skillSelectorItems}
                 selectedKeys={selectedSkills}
-                onSelectItem={(item) => {
-                  if (!selectedSkills.includes(item.key)) {
-                    setSelectedSkills((prev) => [...prev, item.key]);
+                onSelectItem={(skill) => {
+                  if (!selectedSkills.includes(skill.name)) {
+                    setSelectedSkills((prev) => [...prev, skill.name]);
                   }
                   skillSelectorController.setDismissed(true);
                   guidInput.setInput(stripAtQuery(guidInput.input, cursorPosition));
                 }}
                 emptyText={t('guid.noSkills')}
-                searchQuery={skillSelectorController.searchQuery}
-                onSearchChange={skillSelectorController.setSearchQuery}
                 onDismiss={() => {
                   skillSelectorController.setDismissed(true);
                   guidInput.setInput(stripAtQuery(guidInput.input, cursorPosition));
                 }}
                 isVisible={skillSelectorController.isOpen}
+                query={skillSelectorController.query}
+                filterDisabled
               />
             ) : null
           }

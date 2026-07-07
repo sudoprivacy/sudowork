@@ -6,7 +6,7 @@ import { IconPaste } from '@arco-design/web-react/icon';
 import { useInputFocusRing } from '@/renderer/hooks/useInputFocusRing';
 import SlashCommandMenu, { type SlashCommandMenuItem } from '@/renderer/components/SlashCommandMenu';
 import { useSlashCommandController } from '@/renderer/hooks/useSlashCommandController';
-import SkillSelectorPopover, { SkillSelectorMenuContent, type SkillSelectorMenuItem } from '@/renderer/components/SkillSelectorPopover';
+import SkillSelectorPopover, { SkillSelectorMenuContent } from '@/renderer/components/SkillSelectorPopover';
 import { useSkillSelectorController, type SkillSelectorItem, stripAtQuery, replaceAtQuery } from '@/renderer/hooks/useSkillSelectorController';
 import type { WorkspaceFileItem } from '@/renderer/hooks/useWorkspaceFiles';
 import { usePreviewContext } from '@/renderer/pages/conversation/preview';
@@ -249,7 +249,6 @@ const SendBox: React.FC<{
   const [selectedSkills, setSelectedSkills] = useState<string[]>(() => initialSelectedSkills);
   const [loadingSkills, setLoadingSkills] = useState(false);
   const [isSkillPopoverOpen, setIsSkillPopoverOpen] = useState(false);
-  const [skillPopoverSearchQuery, setSkillPopoverSearchQuery] = useState('');
 
   // Fetch installed skills on mount and after agent-created skills are installed.
   useEffect(() => {
@@ -352,59 +351,18 @@ const SendBox: React.FC<{
     return Array.from(new Map(items.map((item) => [item.name, item])).values());
   }, [installedSkills]);
 
-  // Items for the popover button (all enabled skills, keyed by name)
-  const skillPopoverItems = useMemo<SkillSelectorMenuItem[]>(() => skillSelectorItems.map((skill) => ({ ...skill, key: skill.name })), [skillSelectorItems]);
-
-  // Filtered workspace files for the popover button, based on search query
-  const skillPopoverFileItems = useMemo(() => {
-    if (!workspaceFiles) return [];
-    const keyword = skillPopoverSearchQuery.trim().toLowerCase();
-    if (!keyword) return workspaceFiles;
-    return workspaceFiles.filter((f) => f.name.toLowerCase().includes(keyword) || f.relativePath.toLowerCase().includes(keyword));
-  }, [workspaceFiles, skillPopoverSearchQuery]);
-
   const skillSelectorController = useSkillSelectorController({
     input,
     cursorPosition,
-    skills: skillSelectorItems,
     selectedSkills,
-    onSelectSkill: (skillName) => {
-      if (!selectedSkills.includes(skillName)) {
-        setSelectedSkills([...selectedSkills, skillName]);
-      }
-      // Strip the @query from input when selecting a skill
-      setInput(stripAtQuery(input, cursorPosition));
-    },
     onRemoveSkill: (skillName) => {
       setSelectedSkills(selectedSkills.filter((s) => s !== skillName));
     },
     workspaceFiles,
-    onSelectFile: (file) => {
-      // Replace @query with @relativePath in input
-      const newInput = replaceAtQuery(input, `@${file.relativePath}`, cursorPosition);
-      setInput(newInput);
-      onAtFileSelected?.(file);
-    },
   });
-
-  // Transform to menu items for rendering
-  const skillMenuItems = useMemo<SkillSelectorMenuItem[]>(
-    () =>
-      skillSelectorController.filteredSkills.map((skill) => ({
-        key: skill.name,
-        name: skill.name,
-        displayName: skill.displayName,
-        description: skill.description,
-        icon: skill.icon,
-        emoji: skill.emoji,
-        enabled: skill.enabled,
-      })),
-    [skillSelectorController.filteredSkills]
-  );
 
   const onSkillPopoverClose = useCallback(() => {
     setIsSkillPopoverOpen(false);
-    setSkillPopoverSearchQuery('');
   }, []);
 
   // Skill trigger button - shown when running in Electron desktop
@@ -414,23 +372,20 @@ const SendBox: React.FC<{
       onVisibleChange={(v) => {
         if (!v) onSkillPopoverClose();
       }}
-      showTabs
       title={t('messages.skills.title', { defaultValue: 'Skills' })}
-      items={skillPopoverItems}
+      skills={skillSelectorItems}
       selectedKeys={selectedSkills}
       loading={loadingSkills}
       loadingText={t('messages.skills.loading', { defaultValue: 'Loading skills...' })}
-      onSelectItem={(item) => {
-        if (!selectedSkills.includes(item.key)) {
-          setSelectedSkills((prev) => [...prev, item.key]);
+      onSelectItem={(skill) => {
+        if (!selectedSkills.includes(skill.name)) {
+          setSelectedSkills((prev) => [...prev, skill.name]);
         }
         onSkillPopoverClose();
       }}
       emptyText={t('messages.skills.empty', { defaultValue: 'No skills found' })}
-      searchQuery={skillPopoverSearchQuery}
-      onSearchChange={setSkillPopoverSearchQuery}
       onDismiss={onSkillPopoverClose}
-      fileItems={skillPopoverFileItems}
+      workspaceFiles={workspaceFiles ?? undefined}
       onSelectFile={(file) => {
         onAtFileSelected?.(file);
         onSkillPopoverClose();
@@ -597,22 +552,19 @@ const SendBox: React.FC<{
           <div className='absolute left-12px bottom-[calc(100%+8px)] z-70 bg-[var(--color-bg-popup)] px-3 rd-xl shadow-lg'>
             <SkillSelectorMenuContent
               title={t('messages.skills.title', { defaultValue: 'Skills' })}
-              items={skillMenuItems}
+              skills={skillSelectorItems}
               selectedKeys={selectedSkills}
               loading={loadingSkills}
               loadingText={t('messages.skills.loading', { defaultValue: 'Loading skills...' })}
-              onSelectItem={(item) => {
-                if (!selectedSkills.includes(item.key)) {
-                  setSelectedSkills((prev) => [...prev, item.key]);
+              onSelectItem={(skill) => {
+                if (!selectedSkills.includes(skill.name)) {
+                  setSelectedSkills((prev) => [...prev, skill.name]);
                 }
                 setInput(stripAtQuery(input, cursorPosition));
                 skillSelectorController.setDismissed(true);
               }}
               emptyText={t('messages.skills.empty', { defaultValue: 'No skills found' })}
-              showTabs={skillSelectorController.showTabs}
-              activeTab={skillSelectorController.activeTab}
-              onTabChange={skillSelectorController.setActiveTab}
-              fileItems={skillSelectorController.filteredFiles}
+              workspaceFiles={workspaceFiles ?? undefined}
               onSelectFile={(file) => {
                 const newInput = replaceAtQuery(input, `@${file.relativePath}`, cursorPosition);
                 setInput(newInput);
@@ -622,8 +574,6 @@ const SendBox: React.FC<{
               skillsTabTitle={t('messages.skills.tabSkills', { defaultValue: 'Skills' })}
               filesTabTitle={t('messages.skills.tabFiles', { defaultValue: 'Files' })}
               filesEmptyText={t('messages.skills.filesEmpty', { defaultValue: 'No files in workspace' })}
-              searchQuery={skillSelectorController.searchQuery}
-              onSearchChange={skillSelectorController.setSearchQuery}
               onDismiss={() => {
                 skillSelectorController.setDismissed(true);
                 setInput(stripAtQuery(input, cursorPosition));
@@ -632,6 +582,7 @@ const SendBox: React.FC<{
               filesSearchPlaceholder={t('messages.skills.searchFiles', { defaultValue: '搜索文件...' })}
               noSearchResultsText={t('messages.skills.noSearchResults', { defaultValue: '未找到匹配结果' })}
               isVisible={skillSelectorController.isOpen}
+              query={skillSelectorController.query}
             />
           </div>
         )}

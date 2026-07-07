@@ -1,77 +1,100 @@
 import { Input, Popover } from '@arco-design/web-react';
 import { IconSearch } from '@arco-design/web-react/icon';
 import classNames from 'classnames';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { AtMentionTab } from '@/renderer/hooks/useSkillSelectorController';
+import type { AtMentionTab, SkillSelectorItem } from '@/renderer/hooks/useSkillSelectorController';
 import type { WorkspaceFileItem } from '@/renderer/hooks/useWorkspaceFiles';
 import { handleSkillIconError } from '@/renderer/utils/skillDisplay';
 import { resolveFileIcon } from '@/renderer/utils/fileIcon';
 import SkillSelectorSkeleton from './base/SkillSelectorSkeleton';
 import Tabs from './ui/Tabs';
 
+const DEBOUNCE_DELAY = 150;
+
 export function SkillSelectorMenuContent({
   title,
-  items,
+  skills,
   selectedKeys,
   loading = false,
   loadingText,
   onSelectItem,
   emptyText,
-  showTabs = false,
-  activeTab: activeTabProp,
-  onTabChange,
-  fileItems = [],
+  workspaceFiles,
   onSelectFile,
   filesTabTitle = 'Files',
   skillsTabTitle = 'Skills',
   filesEmptyText = 'No files',
-  searchQuery = '',
-  onSearchChange,
   onDismiss,
   skillsSearchPlaceholder,
   filesSearchPlaceholder,
   noSearchResultsText,
   isVisible = false,
+  query = null,
+  filterDisabled = false,
 }: ISkillSelectorMenuContentProps) {
   const { t } = useTranslation();
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const [activeIndex, setActiveIndex] = useState(0);
-  const [internalActiveTab, setInternalActiveTab] = useState<AtMentionTab>('skills');
-  const activeTab = activeTabProp ?? internalActiveTab;
+  const [activeTab, setActiveTab] = useState<AtMentionTab>('skills');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
 
-  const handleTabChange = useCallback(
-    (tab: AtMentionTab) => {
-      if (activeTabProp === undefined) {
-        setInternalActiveTab(tab);
-      }
-      onTabChange?.(tab);
-    },
-    [activeTabProp, onTabChange]
-  );
+  const showTabs = workspaceFiles != null;
 
   const resolvedSkillsSearchPlaceholder = skillsSearchPlaceholder || t('messages.skills.searchSkills', '搜索技能...');
   const resolvedFilesSearchPlaceholder = filesSearchPlaceholder || t('messages.skills.searchFiles', '搜索文件...');
   const resolvedNoSearchResultsText = noSearchResultsText || t('messages.skills.noSearchResults', '未找到匹配结果');
   const resolvedLoadingText = loadingText || t('common.loadingSkills');
 
-  // Reset active index when item list or active tab changes
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchQuery), DEBOUNCE_DELAY);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Reset search and tab when menu opens (query changes from null to non-null)
+  useEffect(() => {
+    if (isVisible) {
+      setSearchQuery('');
+      setActiveTab('skills');
+    }
+  }, [isVisible]);
+
+  const filteredSkills = useMemo(() => {
+    const result = filterDisabled ? skills.filter((s) => s.enabled !== false) : skills;
+    const keyword = (debouncedSearch.trim() || (query ?? '').trim()).toLowerCase();
+    if (!keyword) return result;
+    return result.filter((s) => {
+      const raw = debouncedSearch.trim() || (query ?? '').trim();
+      return s.name.toLowerCase().includes(keyword) || s.displayName.toLowerCase().includes(keyword) || (s.description?.toLowerCase().includes(keyword) ?? false) || s.displayName.includes(raw);
+    });
+  }, [skills, debouncedSearch, query, filterDisabled]);
+
+  const filteredFiles = useMemo(() => {
+    if (!workspaceFiles) return [];
+    const keyword = (debouncedSearch.trim() || (query ?? '').trim()).toLowerCase();
+    if (!keyword) return workspaceFiles;
+    return workspaceFiles.filter((f) => f.name.toLowerCase().includes(keyword) || f.relativePath.toLowerCase().includes(keyword));
+  }, [workspaceFiles, debouncedSearch, query]);
+
+  const currentItems = activeTab === 'skills' ? filteredSkills : filteredFiles;
+
+  // Reset active index when list or tab changes
   useEffect(() => {
     setActiveIndex(0);
-  }, [items.length, fileItems.length, activeTab]);
+  }, [filteredSkills.length, filteredFiles.length, activeTab]);
 
   // Scroll active item into view
   useEffect(() => {
     itemRefs.current[activeIndex]?.scrollIntoView({ block: 'nearest' });
   }, [activeIndex]);
 
-  // Global capture-phase keydown — intercepts before the textarea when visible
+  // Global capture-phase keydown
   useEffect(() => {
     if (!isVisible) return;
 
     const handler = (e: KeyboardEvent) => {
-      const currentItems = activeTab === 'skills' ? items : fileItems;
-
       if (e.key === 'ArrowDown') {
         e.preventDefault();
         setActiveIndex((prev) => Math.min(prev + 1, currentItems.length - 1));
@@ -80,18 +103,18 @@ export function SkillSelectorMenuContent({
         setActiveIndex((prev) => Math.max(prev - 1, 0));
       } else if (e.key === 'Tab' && showTabs) {
         e.preventDefault();
-        handleTabChange(activeTab === 'skills' ? 'files' : 'skills');
+        setActiveTab((prev) => (prev === 'skills' ? 'files' : 'skills'));
       } else if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
-        if (activeTab === 'skills' && items[activeIndex]) {
-          onSelectItem(items[activeIndex]);
-        } else if (activeTab === 'files' && fileItems[activeIndex]) {
-          onSelectFile?.(fileItems[activeIndex]);
+        if (activeTab === 'skills' && filteredSkills[activeIndex]) {
+          onSelectItem(filteredSkills[activeIndex]);
+        } else if (activeTab === 'files' && filteredFiles[activeIndex]) {
+          onSelectFile?.(filteredFiles[activeIndex]);
         }
       } else if (e.key === 'Escape') {
         e.preventDefault();
         if (searchQuery) {
-          onSearchChange?.('');
+          setSearchQuery('');
         } else {
           onDismiss?.();
         }
@@ -100,11 +123,10 @@ export function SkillSelectorMenuContent({
 
     document.addEventListener('keydown', handler, true);
     return () => document.removeEventListener('keydown', handler, true);
-  }, [isVisible, activeTab, items, fileItems, activeIndex, showTabs, handleTabChange, onSelectItem, onSelectFile, onDismiss, onSearchChange, searchQuery]);
+  }, [isVisible, activeTab, filteredSkills, filteredFiles, activeIndex, showTabs, onSelectItem, onSelectFile, onDismiss, searchQuery, currentItems.length]);
 
   const handleSearchKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
-      // Navigation is handled by the global listener; only intercept Escape to clear search
       if (e.key === 'Escape' && searchQuery) {
         e.stopPropagation();
       }
@@ -114,7 +136,7 @@ export function SkillSelectorMenuContent({
 
   return (
     <div className='w-72'>
-      {/* Header with optional tabs */}
+      {/* Header */}
       <div className='flex items-center justify-between gap-2 px-2'>
         {showTabs ? (
           <Tabs
@@ -125,7 +147,7 @@ export function SkillSelectorMenuContent({
               { value: 'skills', label: skillsTabTitle },
               { value: 'files', label: filesTabTitle },
             ]}
-            onChange={(v) => handleTabChange(v as AtMentionTab)}
+            onChange={(v) => setActiveTab(v as AtMentionTab)}
             onMouseDown={(e) => e.preventDefault()}
           />
         ) : (
@@ -135,21 +157,21 @@ export function SkillSelectorMenuContent({
       </div>
 
       {/* Search box */}
-      {onSearchChange && <Input className='my-3' size='small' prefix={<IconSearch />} allowClear placeholder={activeTab === 'skills' ? resolvedSkillsSearchPlaceholder : resolvedFilesSearchPlaceholder} value={searchQuery} onChange={onSearchChange} onKeyDown={handleSearchKeyDown} />}
+      <Input className='my-3' size='small' prefix={<IconSearch />} allowClear placeholder={activeTab === 'skills' ? resolvedSkillsSearchPlaceholder : resolvedFilesSearchPlaceholder} value={searchQuery} onChange={setSearchQuery} onKeyDown={handleSearchKeyDown} />
 
       {/* Content area */}
       <div role='listbox' aria-busy={loading} className='overflow-y-auto h-260px'>
         {activeTab === 'skills' && (
           <>
-            {loading && items.length === 0 && <SkillSelectorSkeleton count={4} />}
-            {loading && items.length > 0 && <div className='px-2.5 py-3 text-13px text-secondary'>{resolvedLoadingText}</div>}
-            {!loading && items.length === 0 && <div className='px-2.5 py-3 text-13px text-secondary'>{searchQuery ? resolvedNoSearchResultsText : emptyText}</div>}
+            {loading && filteredSkills.length === 0 && <SkillSelectorSkeleton count={4} />}
+            {loading && filteredSkills.length > 0 && <div className='px-2.5 py-3 text-13px text-secondary'>{resolvedLoadingText}</div>}
+            {!loading && filteredSkills.length === 0 && <div className='px-2.5 py-3 text-13px text-secondary'>{searchQuery ? resolvedNoSearchResultsText : emptyText}</div>}
             {!loading &&
-              items.map((item, index) => {
-                const isSelected = selectedKeys.includes(item.key);
+              filteredSkills.map((skill, index) => {
+                const isSelected = selectedKeys.includes(skill.name);
                 return (
                   <button
-                    key={item.key}
+                    key={skill.name}
                     type='button'
                     role='option'
                     aria-selected={isSelected}
@@ -161,16 +183,16 @@ export function SkillSelectorMenuContent({
                     })}
                     onMouseDown={(e) => e.preventDefault()}
                     onMouseEnter={() => setActiveIndex(index)}
-                    onClick={() => onSelectItem(item)}
+                    onClick={() => onSelectItem(skill)}
                   >
                     <div className='flex items-center gap-2'>
-                      <div className='size-8 flex-shrink-0 rd-6px f-center text-16px'>{item.icon ? <img src={item.icon} alt={item.displayName} className='w-full h-full object-cover' onError={handleSkillIconError} /> : <span>{item.emoji || '⚡'}</span>}</div>
+                      <div className='size-8 flex-shrink-0 rd-6px f-center text-16px'>{skill.icon ? <img src={skill.icon} alt={skill.displayName} className='w-full h-full object-cover' onError={handleSkillIconError} /> : <span>{skill.emoji || '⚡'}</span>}</div>
                       <div className='min-w-0 flex-1 space-y-1'>
                         <div className='flex items-center gap-1.5 min-w-0'>
-                          <span className={classNames('text-14px truncate', index === activeIndex ? 'text-foreground font-semibold' : 'text-foreground font-medium')}>{item.displayName}</span>
+                          <span className={classNames('text-14px truncate', index === activeIndex ? 'text-foreground font-semibold' : 'text-foreground font-medium')}>{skill.displayName}</span>
                           {isSelected && <span className='px-1 py-0 bg-primary text-white text-9px rd-3px whitespace-nowrap flex-shrink-0 leading-14px'>{t('messages.skills.added', '已添加')}</span>}
                         </div>
-                        {item.description && <div className='text-11px text-secondary truncate mt-px'>{item.description}</div>}
+                        {skill.description && <div className='text-11px text-secondary truncate mt-px'>{skill.description}</div>}
                       </div>
                     </div>
                   </button>
@@ -179,11 +201,11 @@ export function SkillSelectorMenuContent({
           </>
         )}
 
-        {/* Files tab content */}
+        {/* Files tab */}
         {activeTab === 'files' && (
           <>
-            {fileItems.length === 0 && <div className='px-2.5 py-3 text-13px text-secondary'>{searchQuery ? resolvedNoSearchResultsText : filesEmptyText}</div>}
-            {fileItems.map((file, index) => (
+            {filteredFiles.length === 0 && <div className='px-2.5 py-3 text-13px text-secondary'>{searchQuery ? resolvedNoSearchResultsText : filesEmptyText}</div>}
+            {filteredFiles.map((file, index) => (
               <button
                 key={file.relativePath}
                 type='button'
@@ -230,47 +252,32 @@ export default function SkillSelectorPopover({ popupVisible, onVisibleChange, ch
 }
 
 interface ISkillSelectorPopoverProps extends ISkillSelectorMenuContentProps {
-  /** Controls popover visibility */
   popupVisible: boolean;
-  /** Callback when visibility changes (e.g. click outside) */
   onVisibleChange?: (visible: boolean) => void;
-  /** Trigger element */
   children: React.ReactNode;
-}
-
-export interface SkillSelectorMenuItem {
-  key: string;
-  name: string;
-  displayName: string;
-  description?: string;
-  icon?: string;
-  emoji?: string;
-  enabled?: boolean;
 }
 
 interface ISkillSelectorMenuContentProps {
   title: string;
-  hint?: string;
-  items: SkillSelectorMenuItem[];
+  skills: SkillSelectorItem[];
   selectedKeys: string[];
   loading?: boolean;
   loadingText?: string;
-  onSelectItem: (item: SkillSelectorMenuItem) => void;
+  onSelectItem: (skill: SkillSelectorItem) => void;
   emptyText: string;
-  showTabs?: boolean;
-  activeTab?: AtMentionTab;
-  onTabChange?: (tab: AtMentionTab) => void;
-  fileItems?: WorkspaceFileItem[];
+  workspaceFiles?: WorkspaceFileItem[];
   onSelectFile?: (file: WorkspaceFileItem) => void;
   filesTabTitle?: string;
   skillsTabTitle?: string;
   filesEmptyText?: string;
-  searchQuery?: string;
-  onSearchChange?: (query: string) => void;
   onDismiss?: () => void;
   skillsSearchPlaceholder?: string;
   filesSearchPlaceholder?: string;
   noSearchResultsText?: string;
   /** Whether the menu is currently visible — activates keyboard listener */
   isVisible?: boolean;
+  /** The @-mention query string for initial filtering */
+  query?: string | null;
+  /** Filter out disabled skills */
+  filterDisabled?: boolean;
 }
