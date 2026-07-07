@@ -8,6 +8,7 @@ import type { WorkspaceFileItem } from '@/renderer/hooks/useWorkspaceFiles';
 import { handleSkillIconError } from '@/renderer/utils/skillDisplay';
 import { resolveFileIcon } from '@/renderer/utils/fileIcon';
 import SkillSelectorSkeleton from './base/SkillSelectorSkeleton';
+import Tabs from './ui/Tabs';
 
 export function SkillSelectorMenuContent({
   title,
@@ -101,30 +102,18 @@ export function SkillSelectorMenuContent({
       {/* Header with optional tabs */}
       <div className='pb-2 border-b flex items-center justify-between gap-2'>
         {showTabs ? (
-          <div className='flex items-center gap-0.5'>
-            <button
-              type='button'
-              className={classNames('py-1 rounded-8px text-13px font-medium cursor-pointer border-none outline-none transition-colors', {
-                'bg-primary text-white': activeTab === 'skills',
-                'bg-transparent text-secondary hover:text-foreground hover:bg-fill-2': activeTab !== 'skills',
-              })}
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => handleTabChange('skills')}
-            >
-              {skillsTabTitle}
-            </button>
-            <button
-              type='button'
-              className={classNames('py-1 rounded-8px text-13px font-medium cursor-pointer border-none outline-none transition-colors', {
-                'bg-primary text-white': activeTab === 'files',
-                'bg-transparent text-secondary hover:text-foreground hover:bg-fill-2': activeTab !== 'files',
-              })}
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => handleTabChange('files')}
-            >
-              {filesTabTitle}
-            </button>
-          </div>
+          <Tabs
+            variant='pill'
+            className='gap-0.5'
+            itemClassName='text-13px'
+            value={activeTab}
+            items={[
+              { value: 'skills', label: skillsTabTitle },
+              { value: 'files', label: filesTabTitle },
+            ]}
+            onChange={(v) => handleTabChange(v as AtMentionTab)}
+            onMouseDown={(e) => e.preventDefault()}
+          />
         ) : (
           <div className='text-13px font-semibold text-foreground'>{title}</div>
         )}
