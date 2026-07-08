@@ -22,7 +22,7 @@ import ActionChip from '@/renderer/components/ui/ActionChip';
 import AssistantEditDrawer from './components/AssistantEditDrawer';
 import AssistantSelectionArea from './components/AssistantSelectionArea';
 import AssistantAgentDropdown from './components/AssistantAgentDropdown';
-import { CUSTOM_AVATAR_IMAGE_MAP } from './constants';
+import { CUSTOM_AVATAR_IMAGE_MAP } from './utils/constants';
 import { AgentPillBarSkeleton, AssistantsSkeleton } from './components/GuidSkeleton';
 import GuidActionRow from './components/GuidActionRow';
 import AgentPillBar from './components/AgentPillBar';

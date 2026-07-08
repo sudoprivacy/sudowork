@@ -1,5 +1,5 @@
 import coworkSvg from '@/renderer/assets/cowork.svg';
-import type { PromptCategory } from './types';
+import type { PromptCategory } from '../types';
 
 /**
  * Map custom avatar identifiers to their resolved image URLs.

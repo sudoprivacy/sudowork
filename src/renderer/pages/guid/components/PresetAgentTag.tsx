@@ -3,7 +3,7 @@ import { Robot } from '@icon-park/react';
 import React from 'react';
 import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import type { AcpBackendConfig, AvailableAgent } from '../types';
-import { CUSTOM_AVATAR_IMAGE_MAP } from '../constants';
+import { CUSTOM_AVATAR_IMAGE_MAP } from '../utils/constants';
 
 type PresetAgentTagProps = {
   agentInfo: AvailableAgent;

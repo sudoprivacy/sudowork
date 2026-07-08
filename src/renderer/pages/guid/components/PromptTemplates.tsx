@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Button } from '@arco-design/web-react';
 import { useTranslation } from 'react-i18next';
 import Tabs from '@/renderer/components/ui/Tabs';
-import { DEFAULT_PROMPT_CATEGORIES } from '../constants';
+import { DEFAULT_PROMPT_CATEGORIES } from '../utils/constants';
 
 type PromptTemplatesProps = {
   /** Whether the component should be visible */

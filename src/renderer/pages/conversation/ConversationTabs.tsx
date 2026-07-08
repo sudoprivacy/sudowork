@@ -7,7 +7,7 @@ import { updateWorkspaceTime } from '@/renderer/utils/workspaceHistory';
 import { cleanupSiderTooltips } from '@/renderer/utils/siderTooltip';
 import { emitter } from '@/renderer/utils/emitter';
 import { getAgentLogo } from '@/renderer/utils/agentLogo';
-import { CUSTOM_AVATAR_IMAGE_MAP } from '@/renderer/pages/guid/constants';
+import { CUSTOM_AVATAR_IMAGE_MAP } from '@/renderer/pages/guid/utils/constants';
 import { ipcBridge } from '@/common';
 import { formatSessionTime } from '@/renderer/utils/messageTime';
 import { buildCliAgentParams, buildPresetAssistantParams } from './utils/createConversationParams';
