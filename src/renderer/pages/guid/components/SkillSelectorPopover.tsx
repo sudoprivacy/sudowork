@@ -56,13 +56,15 @@ function SkillSelectorMenuContent({ skills, selectedKeys, loading = false, onSel
 
   // Reset active index when list or tab changes
   useEffect(() => {
+    itemRefs.current = [];
     setActiveIndex(0);
-  }, [filteredSkills.length, filteredFiles.length, activeTab]);
+  }, [activeTab, debouncedSearch, currentItems.length]);
 
   // Scroll active item into view
   useEffect(() => {
+    if (currentItems.length === 0) return;
     itemRefs.current[activeIndex]?.scrollIntoView({ block: 'nearest' });
-  }, [activeIndex]);
+  }, [activeIndex, currentItems.length]);
 
   // Global capture-phase keydown
   useEffect(() => {
@@ -71,7 +73,7 @@ function SkillSelectorMenuContent({ skills, selectedKeys, loading = false, onSel
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'ArrowDown') {
         e.preventDefault();
-        setActiveIndex((prev) => Math.min(prev + 1, currentItems.length - 1));
+        setActiveIndex((prev) => (currentItems.length === 0 ? 0 : Math.min(prev + 1, currentItems.length - 1)));
       } else if (e.key === 'ArrowUp') {
         e.preventDefault();
         setActiveIndex((prev) => Math.max(prev - 1, 0));
@@ -94,7 +96,6 @@ function SkillSelectorMenuContent({ skills, selectedKeys, loading = false, onSel
         }
       }
     };
-
     document.addEventListener('keydown', handler, true);
     return () => document.removeEventListener('keydown', handler, true);
   }, [popupVisible, activeTab, filteredSkills, filteredFiles, activeIndex, showTabs, onSelectItem, onSelectFile, onDismiss, searchQuery, currentItems.length]);
@@ -166,7 +167,7 @@ function SkillSelectorMenuContent({ skills, selectedKeys, loading = false, onSel
                       'bg-fill-2': index === activeIndex,
                     })}
                     onMouseDown={(e) => e.preventDefault()}
-                    onMouseEnter={() => setActiveIndex(index)}
+                    onMouseMove={() => setActiveIndex(index)}
                     onClick={() => onSelectItem(skill)}
                   >
                     <div className='flex items-center gap-2'>
@@ -174,7 +175,7 @@ function SkillSelectorMenuContent({ skills, selectedKeys, loading = false, onSel
                       <div className='min-w-0 flex-1 space-y-1'>
                         <div className='flex items-center gap-1.5 min-w-0'>
                           <span className={classNames('text-14px truncate text-foreground font-medium')}>{skill.displayName}</span>
-                          {isSelected && <span className='px-1 py-0 bg-primary text-white text-9px rd-3px whitespace-nowrap flex-shrink-0 leading-14px'>{t('messages.skills.added', '已添加')}</span>}
+                          {isSelected && <span className='bg-primary text-white text-10px px-2 font-medium py-1 rd-full'>{t('messages.skills.added', '已添加')}</span>}
                         </div>
                         {skill.description && <div className='text-11px text-secondary truncate mt-px'>{skill.description}</div>}
                       </div>
@@ -201,7 +202,7 @@ function SkillSelectorMenuContent({ skills, selectedKeys, loading = false, onSel
                   'bg-fill-2': index === activeIndex,
                 })}
                 onMouseDown={(e) => e.preventDefault()}
-                onMouseEnter={() => setActiveIndex(index)}
+                onMouseMove={() => setActiveIndex(index)}
                 onClick={() => onSelectFile?.(file)}
               >
                 <div className='flex items-center gap-2'>
