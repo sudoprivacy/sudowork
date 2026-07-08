@@ -690,7 +690,6 @@ const GuidPage: React.FC = () => {
             />
           </>
         )}
-
         {/* ========== Input Card (always shown) ========== */}
         <GuidInputCard
           input={guidInput.input}
@@ -728,7 +727,6 @@ const GuidPage: React.FC = () => {
           onClearDir={() => guidInput.setDir('')}
           actionRow={actionRowNode}
         />
-
         {/* ========== Bottom Section ========== */}
         {isAssistantMode ? (
           /* Suggestion prompts for selected assistant */
@@ -769,9 +767,7 @@ const GuidPage: React.FC = () => {
           </>
         )}
       </div>
-
       <QuickActionButtons onOpenLink={openLink} inactiveBorderColor={inactiveBorderColor} activeShadow={activeShadow} />
-
       {/* Assistant Edit Drawer */}
       <AssistantEditDrawer visible={editDrawerVisible} assistantId={selectedAssistantConfig?.id || null} localeKey={localeKey} onClose={() => setEditDrawerVisible(false)} onSaved={handleEditDrawerSaved} />
     </div>

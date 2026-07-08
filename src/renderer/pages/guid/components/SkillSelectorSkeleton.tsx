@@ -1,5 +1,5 @@
 import React from 'react';
-import styles from '../../pages/guid/index.module.css';
+import styles from '@/renderer/pages/guid/index.module.css';
 
 interface SkillSelectorSkeletonProps {
   /**
