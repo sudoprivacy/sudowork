@@ -3,7 +3,6 @@ import React from 'react';
 import { getAgentLogo } from '@/renderer/utils/agentLogo';
 import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import type { AcpBackendAll } from '@/types/acpTypes';
-import styles from '../styles/index.module.css';
 import type { AvailableAgent } from '../types';
 
 type AgentPillBarProps = {
@@ -75,7 +74,7 @@ const AgentPillBar: React.FC<AgentPillBarProps> = ({ availableAgents, selectedAg
             <div
               data-agent-pill='true'
               data-session-mode='remote'
-              className={`group relative flex items-center cursor-pointer whitespace-nowrap ${sessionMode === 'remote' ? `opacity-100 px-3 py-2 rd-20px mx-0.5 ${styles.agentItemSelected}` : 'opacity-60 p-1 hover:opacity-100'}`}
+              className={`group relative flex items-center cursor-pointer whitespace-nowrap ${sessionMode === 'remote' ? 'opacity-100 px-3 py-2 rd-20px mx-0.5 bg-fill-0 transition-[opacity,background-color] duration-250 ease-out [animation:animationPop_0.4s_ease-out_forwards]' : 'opacity-60 p-1 hover:opacity-100'}`}
               style={sessionMode === 'remote' ? { transition: 'opacity 0.2s ease, background-color 0.2s ease' } : { transition: 'opacity 0.2s ease' }}
               onClick={() => onSessionModeChange?.('remote')}
             >
@@ -87,7 +86,7 @@ const AgentPillBar: React.FC<AgentPillBarProps> = ({ availableAgents, selectedAg
               <div
                 data-agent-pill='true'
                 data-session-mode='local'
-                className={`group relative flex items-center cursor-pointer whitespace-nowrap ${sessionMode === 'local' ? `opacity-100 px-3 py-2 rd-20px mx-0.5 ${styles.agentItemSelected}` : 'opacity-60 p-1 hover:opacity-100'}`}
+                className={`group relative flex items-center cursor-pointer whitespace-nowrap ${sessionMode === 'local' ? 'opacity-100 px-3 py-2 rd-20px mx-0.5 bg-fill-0 transition-[opacity,background-color] duration-250 ease-out [animation:animationPop_0.4s_ease-out_forwards]' : 'opacity-60 p-1 hover:opacity-100'}`}
                 style={sessionMode === 'local' ? { transition: 'opacity 0.2s ease, background-color 0.2s ease' } : { transition: 'opacity 0.2s ease' }}
                 onClick={() => onSessionModeChange?.('local')}
               >
@@ -98,7 +97,7 @@ const AgentPillBar: React.FC<AgentPillBarProps> = ({ availableAgents, selectedAg
         ) : (
           /* Enterprise without Local mode: single pill with consumer style */
           <div className='f-center mb-5 p-1.5 rd-30px bg-[var(--color-guid-agent-bar,var(--aou-2))] w-fit max-w-full text-foreground'>
-            <div className={`group relative flex items-center whitespace-nowrap px-3 py-2 rd-20px mx-0.5 ${styles.agentItemSelected}`} style={{ transition: 'opacity 0.2s ease, background-color 0.2s ease' }}>
+            <div className='group relative flex items-center whitespace-nowrap px-3 py-2 rd-20px mx-0.5 bg-fill-0 transition-[opacity,background-color] duration-250 ease-out [animation:animationPop_0.4s_ease-out_forwards]' style={{ transition: 'opacity 0.2s ease, background-color 0.2s ease' }}>
               <span className='inline-flex h-5 w-5 shrink-0 items-center justify-center leading-none'>
                 <img src={getAgentLogo('remote-agent')} alt='Remote Agent' width={20} height={20} className='block object-contain' />
               </span>
@@ -125,7 +124,7 @@ const AgentPillBar: React.FC<AgentPillBarProps> = ({ availableAgents, selectedAg
                     data-agent-key={getAgentKey(agent)}
                     data-agent-backend={agent.backend}
                     data-agent-selected={isSelected ? 'true' : 'false'}
-                    className={`group relative flex items-center cursor-pointer whitespace-nowrap overflow-hidden ${isSelected ? `opacity-100 px-3 py-2 rd-20px mx-0.5 ${styles.agentItemSelected}` : 'opacity-60 p-1 hover:opacity-100'}`}
+                    className={`group relative flex items-center cursor-pointer whitespace-nowrap overflow-hidden ${isSelected ? 'opacity-100 px-3 py-2 rd-20px mx-0.5 bg-fill-0 transition-[opacity,background-color] duration-250 ease-out [animation:animationPop_0.4s_ease-out_forwards]' : 'opacity-60 p-1 hover:opacity-100'}`}
                     style={isSelected ? undefined : { transition: 'opacity 0.2s ease' }}
                     onClick={() => onSelectAgent(getAgentKey(agent))}
                   >
