@@ -376,7 +376,6 @@ const SendBox: React.FC<{
       skills={skillSelectorItems}
       selectedKeys={selectedSkills}
       loading={loadingSkills}
-      loadingText={t('messages.skills.loading', { defaultValue: 'Loading skills...' })}
       onSelectItem={(skill) => {
         if (!selectedSkills.includes(skill.name)) {
           setSelectedSkills((prev) => [...prev, skill.name]);
@@ -549,7 +548,6 @@ const SendBox: React.FC<{
               skills={skillSelectorItems}
               selectedKeys={selectedSkills}
               loading={loadingSkills}
-              loadingText={t('messages.skills.loading', { defaultValue: 'Loading skills...' })}
               onSelectItem={(skill) => {
                 if (!selectedSkills.includes(skill.name)) {
                   setSelectedSkills((prev) => [...prev, skill.name]);
