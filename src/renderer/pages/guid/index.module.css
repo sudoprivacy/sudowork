@@ -1,8 +1,3 @@
-.guidInputCard {
-  width: 100%;
-  box-sizing: border-box;
-}
-
 /* 首页输入框下方「模型 / 模式」按钮：跟随主题使用更柔和的填充 */
 .actionTools :global(.sendbox-model-btn) {
   background: color-mix(in srgb, var(--horizon-surface) 90%, var(--color-fill-1)) !important;
