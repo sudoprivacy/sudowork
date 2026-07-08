@@ -620,8 +620,8 @@ const SendBox: React.FC<{
               marginLeft: 0,
               marginRight: 0,
               marginBottom: isSingleLine ? 0 : '8px',
-              height: isSingleLine ? '20px' : 'auto',
-              minHeight: isSingleLine ? '20px' : '80px',
+              height: isSingleLine ? '50px' : 'auto',
+              minHeight: isSingleLine ? '50px' : '56px',
               overflowY: isSingleLine ? 'hidden' : 'auto',
               overflowX: 'hidden',
               whiteSpace: isSingleLine ? 'nowrap' : 'pre-wrap',
@@ -641,7 +641,7 @@ const SendBox: React.FC<{
             onFocus={handleInputFocus}
             onBlur={handleInputBlur}
             {...compositionHandlers}
-            autoSize={isSingleLine ? false : { minRows: 1, maxRows: 10 }}
+            autoSize={isSingleLine ? false : { minRows: 2, maxRows: 5 }}
             onKeyDown={createKeyDownHandler(sendMessageHandler, (event) => {
               // Try skill selector first (for @), then slash command (for /)
               if (skillSelectorController.isOpen) {
