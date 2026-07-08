@@ -12,7 +12,7 @@ import { resolveFileIcon } from '@/renderer/utils/fileIcon';
 import SkillSelectorSkeleton from './base/SkillSelectorSkeleton';
 import Tabs from './ui/Tabs';
 
-function SkillSelectorMenuContent({ skills, selectedKeys, loading = false, onSelectItem, workspaceFiles, onSelectFile, onDismiss, isVisible = false }: Omit<ISkillSelectorPopoverProps, 'popupVisible' | 'onVisibleChange' | 'onAfterClose' | 'children'>) {
+function SkillSelectorMenuContent({ skills, selectedKeys, loading = false, onSelectItem, workspaceFiles, onSelectFile, onDismiss, popupVisible = false }: Omit<ISkillSelectorPopoverProps, 'onVisibleChange' | 'onAfterClose' | 'children'>) {
   const { t } = useTranslation();
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const searchInputRef = useRef<RefInputType | null>(null);
@@ -25,12 +25,12 @@ function SkillSelectorMenuContent({ skills, selectedKeys, loading = false, onSel
 
   // Reset search and tab when menu opens, and auto-focus search input
   useEffect(() => {
-    if (isVisible) {
+    if (popupVisible) {
       setSearchQuery('');
       setActiveTab('skills');
       setTimeout(() => searchInputRef.current?.focus(), 50);
     }
-  }, [isVisible]);
+  }, [popupVisible]);
 
   const filteredSkills = useMemo(() => {
     const result = skills.filter((s) => s.enabled !== false);
@@ -63,7 +63,7 @@ function SkillSelectorMenuContent({ skills, selectedKeys, loading = false, onSel
 
   // Global capture-phase keydown
   useEffect(() => {
-    if (!isVisible) return;
+    if (!popupVisible) return;
 
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'ArrowDown') {
@@ -94,7 +94,7 @@ function SkillSelectorMenuContent({ skills, selectedKeys, loading = false, onSel
 
     document.addEventListener('keydown', handler, true);
     return () => document.removeEventListener('keydown', handler, true);
-  }, [isVisible, activeTab, filteredSkills, filteredFiles, activeIndex, showTabs, onSelectItem, onSelectFile, onDismiss, searchQuery, currentItems.length]);
+  }, [popupVisible, activeTab, filteredSkills, filteredFiles, activeIndex, showTabs, onSelectItem, onSelectFile, onDismiss, searchQuery, currentItems.length]);
 
   const handleSearchKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -235,7 +235,7 @@ export default function SkillSelectorPopover({ popupVisible, onVisibleChange, on
   }, [popupVisible, onAfterClose]);
 
   return (
-    <Popover popupVisible={popupVisible} trigger={[]} position='top' onVisibleChange={onVisibleChange} content={<SkillSelectorMenuContent {...contentProps} isVisible={popupVisible} />} className='[&_.arco-popover-content]:!py-1 [&_.arco-popover-content]:!px-3'>
+    <Popover popupVisible={popupVisible} trigger={[]} position='top' onVisibleChange={onVisibleChange} content={<SkillSelectorMenuContent {...contentProps} popupVisible={popupVisible} />} className='[&_.arco-popover-content]:!py-1 [&_.arco-popover-content]:!px-3'>
       {children}
     </Popover>
   );
@@ -249,7 +249,6 @@ interface ISkillSelectorPopoverProps {
   workspaceFiles?: WorkspaceFileItem[];
   onSelectFile?: (file: WorkspaceFileItem) => void;
   onDismiss?: () => void;
-  isVisible?: boolean;
   popupVisible: boolean;
   onVisibleChange?: (visible: boolean) => void;
   /** Called when the popover closes — use to restore focus to the external input */
