@@ -642,7 +642,6 @@ const GuidPage: React.FC = () => {
                 <AssistantAgentDropdown availableAgents={agentSelection.availableAgents} currentAgentType={currentAssistantAgentType} onSelectAgent={handleChangeAssistantAgent} disabled={selectedAssistantConfig?.isPreset ?? false} />
               )}
             </div>
-
             {/* Agent Fallback Notice */}
             {agentSelection.currentEffectiveAgentInfo.isFallback && (
               <div className={styles.agentFallbackNotice}>
@@ -655,9 +654,8 @@ const GuidPage: React.FC = () => {
                 </span>
               </div>
             )}
-
             {/* Description */}
-            <div className={styles.assistantDescription}>{selectedAssistantConfig.descriptionI18n?.[localeKey] || selectedAssistantConfig.description || t('settings.assistantDescriptionPlaceholder', { defaultValue: 'No description' })}</div>
+            <div className='w-full px-4 py-3 mb-4 rd-2xl text-sm border box-border'>{selectedAssistantConfig.descriptionI18n?.[localeKey] || selectedAssistantConfig.description || t('settings.assistantDescriptionPlaceholder', { defaultValue: 'No description' })}</div>
           </>
         ) : (
           /* ========== Normal Mode ========== */

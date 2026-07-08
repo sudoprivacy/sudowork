@@ -16,21 +16,6 @@
   animation: fade-in 0.3s ease-out;
 }
 
-/* Selected assistant description text */
-.assistantDescription {
-  width: 100%;
-  padding: 12px 16px;
-  margin-bottom: 16px;
-  border-radius: 14px;
-  font-size: 14px;
-  line-height: 1.6;
-  color: var(--color-text-2);
-  background: var(--color-fill-1);
-  border: 1px solid var(--ui-border-strong);
-  animation: fade-in 0.3s ease-out;
-  box-sizing: border-box;
-}
-
 /* Agent Fallback Notice */
 .agentFallbackNotice {
   width: 100%;
@@ -150,11 +135,6 @@
     opacity 0.5s cubic-bezier(0.2, 0.8, 0.3, 1),
     background-color 0.25s ease-out;
   animation: agentSelectPop 0.4s ease-out forwards;
-}
-
-/* 底部快捷按钮：基础间距 + 安全区 */
-.guidQuickActions {
-  bottom: calc(32px + env(safe-area-inset-bottom, 0px));
 }
 
 /* 浅色占位符 */
