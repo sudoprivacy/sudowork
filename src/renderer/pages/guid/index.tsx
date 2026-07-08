@@ -644,7 +644,7 @@ const GuidPage: React.FC = () => {
             </div>
             {/* Agent Fallback Notice */}
             {agentSelection.currentEffectiveAgentInfo.isFallback && (
-              <div className={styles.agentFallbackNotice}>
+              <div className='w-full mb-3 px-3 py-2 rd-2 text-xs flex items-center gap-2 bg-warning-soft b border-warning-line text-warning box-border'>
                 <span>
                   {t('guid.agentFallbackNotice', {
                     original: agentSelection.currentEffectiveAgentInfo.originalType.charAt(0).toUpperCase() + agentSelection.currentEffectiveAgentInfo.originalType.slice(1),
