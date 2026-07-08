@@ -1,5 +1,6 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { emitter } from '@/renderer/utils/emitter';
 import type { WorkspaceFileItem } from './useWorkspaceFiles';
 
 // Match @ followed by query text, ending at the current cursor position
@@ -91,6 +92,15 @@ export function useSkillSelectorController(options: UseSkillSelectorControllerOp
 
   const showTabs = workspaceFiles != null;
   const isOpen = query !== null && !dismissed;
+
+  // Emit event when skill selector opens via @ trigger
+  const prevIsOpenRef = useRef(false);
+  useEffect(() => {
+    if (isOpen && !prevIsOpenRef.current) {
+      emitter.emit('guid.skill-selector.open', query);
+    }
+    prevIsOpenRef.current = isOpen;
+  }, [isOpen, query]);
 
   const onKeyDown = useCallback(
     (event: ReactKeyboardEvent) => {

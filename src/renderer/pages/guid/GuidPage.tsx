@@ -10,7 +10,7 @@ import { skillHub } from '@/common/ipcBridge';
 import { useAuth } from '@/renderer/context/AuthContext';
 import { ipcBridge } from '@/common';
 import { resolveAssistantName } from '@/renderer/shared/agents/assistantAdapter';
-import SkillSelectorPopover, { SkillSelectorMenuContent } from '@/renderer/components/SkillSelectorPopover';
+import SkillSelectorPopover from '@/renderer/components/SkillSelectorPopover';
 import { useSkillSelectorController, type SkillSelectorItem, stripAtQuery } from '@/renderer/hooks/useSkillSelectorController';
 import { getInstalledSkillDisplay, resolveSkillIcon } from '@/renderer/utils/skillDisplay';
 import { useConversationTabs } from '@/renderer/pages/conversation/context/ConversationTabsContext';
@@ -481,12 +481,24 @@ const GuidPage: React.FC = () => {
     setIsSkillPopoverOpen(false);
   }, []);
 
+  // Close skill selector: strip @query from input, dismiss controller, close popover
+  const onSkillSelectorClose = useCallback(() => {
+    guidInput.setInput(stripAtQuery(guidInput.input, cursorPosition));
+    skillSelectorController.setDismissed(true);
+    onSkillPopoverClose();
+  }, [guidInput, cursorPosition, skillSelectorController, onSkillPopoverClose]);
+
+  // Open skill popover when @ is typed in the input
+  useAddEventListener('guid.skill-selector.open', () => {
+    setIsSkillPopoverOpen(true);
+  });
+
   // Build the skill trigger node (@button wrapped in SkillSelectorPopover)
   const skillTriggerNode = (
     <SkillSelectorPopover
       popupVisible={isSkillPopoverOpen}
       onVisibleChange={(v) => {
-        if (!v) onSkillPopoverClose();
+        if (!v) onSkillSelectorClose();
       }}
       skills={skillSelectorItems}
       selectedKeys={selectedSkills}
@@ -494,9 +506,10 @@ const GuidPage: React.FC = () => {
         if (!selectedSkills.includes(skill.name)) {
           setSelectedSkills((prev) => [...prev, skill.name]);
         }
-        onSkillPopoverClose();
+        onSkillSelectorClose();
       }}
-      onDismiss={onSkillPopoverClose}
+      onDismiss={onSkillSelectorClose}
+      query={skillSelectorController.query}
       filterDisabled
     >
       <ActionChip icon={<span className='text-14px font-700 leading-none'>@</span>} label={t('conversation.welcome.skill', { defaultValue: '技能' })} onClick={() => setIsSkillPopoverOpen(true)} />
@@ -703,29 +716,6 @@ const GuidPage: React.FC = () => {
             <MentionSelectorBadge visible={mention.mentionSelectorVisible} open={mention.mentionSelectorOpen} onOpenChange={mention.setMentionSelectorOpen} agentLabel={mention.selectedAgentLabel} mentionMenu={mentionDropdownNode} onResetQuery={() => mention.setMentionQuery(null)} />
           }
           mentionDropdown={mentionDropdownNode}
-          skillSelectorOpen={skillSelectorController.isOpen}
-          skillSelectorMenu={
-            skillSelectorController.isOpen ? (
-              <SkillSelectorMenuContent
-                skills={skillSelectorItems}
-                selectedKeys={selectedSkills}
-                onSelectItem={(skill) => {
-                  if (!selectedSkills.includes(skill.name)) {
-                    setSelectedSkills((prev) => [...prev, skill.name]);
-                  }
-                  skillSelectorController.setDismissed(true);
-                  guidInput.setInput(stripAtQuery(guidInput.input, cursorPosition));
-                }}
-                onDismiss={() => {
-                  skillSelectorController.setDismissed(true);
-                  guidInput.setInput(stripAtQuery(guidInput.input, cursorPosition));
-                }}
-                isVisible={skillSelectorController.isOpen}
-                query={skillSelectorController.query}
-                filterDisabled
-              />
-            ) : null
-          }
           selectedSkills={selectedSkills}
           onRemoveSkill={(skillName) => setSelectedSkills(selectedSkills.filter((s) => s !== skillName))}
           getSkillDisplayName={(skillName) => {

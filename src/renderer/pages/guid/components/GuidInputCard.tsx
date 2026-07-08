@@ -33,8 +33,6 @@ type GuidInputCardProps = {
   mentionDropdown: React.ReactNode;
 
   // Skill selector state
-  skillSelectorOpen?: boolean;
-  skillSelectorMenu?: React.ReactNode;
   selectedSkills?: string[];
   onRemoveSkill?: (skillName: string) => void;
   getSkillDisplayName?: (skillName: string) => { displayName: string; emoji: string };
@@ -70,8 +68,6 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
   mentionOpen,
   mentionSelectorBadge,
   mentionDropdown,
-  skillSelectorOpen,
-  skillSelectorMenu,
   selectedSkills,
   onRemoveSkill,
   getSkillDisplayName,
@@ -126,7 +122,7 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
 
   return (
     <div
-      className={`${styles.guidInputCard} relative p-16px ${dir ? 'pb-8px' : ''} b bg-fill-1 b-solid rd-20px flex flex-col ${mentionOpen || skillSelectorOpen ? 'overflow-visible' : 'overflow-hidden'} transition-all duration-200 ${isFileDragging ? 'border-dashed' : ''}`}
+      className={`${styles.guidInputCard} relative p-16px ${dir ? 'pb-8px' : ''} b bg-fill-1 b-solid rd-20px flex flex-col ${mentionOpen ? 'overflow-visible' : 'overflow-hidden'} transition-all duration-200 ${isFileDragging ? 'border-dashed' : ''}`}
       style={{
         zIndex: 1,
         transition: 'box-shadow 0.25s ease, border-color 0.25s ease, border-width 0.25s ease',
@@ -182,11 +178,6 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
       {mentionOpen && (
         <div className='absolute z-50' style={{ left: 16, top: 44 }}>
           {mentionDropdown}
-        </div>
-      )}
-      {skillSelectorOpen && skillSelectorMenu && (
-        <div className='absolute z-50 bg-popup px-3 py-2 rd-xl shadow-lg' style={{ left: 16, top: 44 }}>
-          {skillSelectorMenu}
         </div>
       )}
       {files.length > 0 && (

@@ -6,7 +6,7 @@ import { IconPaste } from '@arco-design/web-react/icon';
 import { useInputFocusRing } from '@/renderer/hooks/useInputFocusRing';
 import SlashCommandMenu, { type SlashCommandMenuItem } from '@/renderer/components/SlashCommandMenu';
 import { useSlashCommandController } from '@/renderer/hooks/useSlashCommandController';
-import SkillSelectorPopover, { SkillSelectorMenuContent } from '@/renderer/components/SkillSelectorPopover';
+import SkillSelectorPopover from '@/renderer/components/SkillSelectorPopover';
 import { useSkillSelectorController, type SkillSelectorItem, stripAtQuery, replaceAtQuery } from '@/renderer/hooks/useSkillSelectorController';
 import type { WorkspaceFileItem } from '@/renderer/hooks/useWorkspaceFiles';
 import { usePreviewContext } from '@/renderer/pages/conversation/preview';
@@ -365,6 +365,13 @@ const SendBox: React.FC<{
     setIsSkillPopoverOpen(false);
   }, []);
 
+  // Sync skill selector open state from @ trigger
+  useEffect(() => {
+    if (skillSelectorController.isOpen) {
+      setIsSkillPopoverOpen(true);
+    }
+  }, [skillSelectorController.isOpen]);
+
   // Skill trigger button - shown when running in Electron desktop
   const skillTriggerButton = isElectronDesktop() ? (
     <SkillSelectorPopover
@@ -379,14 +386,32 @@ const SendBox: React.FC<{
         if (!selectedSkills.includes(skill.name)) {
           setSelectedSkills((prev) => [...prev, skill.name]);
         }
+        // Strip @query from input when opened via @ trigger (safe no-op if no @ in input)
+        setInput(stripAtQuery(input, cursorPosition));
+        if (skillSelectorController.query !== null) {
+          skillSelectorController.setDismissed(true);
+        }
         onSkillPopoverClose();
       }}
-      onDismiss={onSkillPopoverClose}
+      onDismiss={() => {
+        setInput(stripAtQuery(input, cursorPosition));
+        if (skillSelectorController.query !== null) {
+          skillSelectorController.setDismissed(true);
+        }
+        onSkillPopoverClose();
+      }}
       workspaceFiles={workspaceFiles ?? undefined}
       onSelectFile={(file) => {
+        if (skillSelectorController.query !== null) {
+          // Opened via @ trigger: replace @query with @filepath
+          const newInput = replaceAtQuery(input, `@${file.relativePath}`, cursorPosition);
+          setInput(newInput);
+          skillSelectorController.setDismissed(true);
+        }
         onAtFileSelected?.(file);
         onSkillPopoverClose();
       }}
+      query={skillSelectorController.query}
     >
       <Tooltip content={t('conversation.welcome.addSkill', { defaultValue: '添加技能 / 文件' })} position='top'>
         <span className='inline-flex ml-3'>
@@ -498,7 +523,7 @@ const SendBox: React.FC<{
       {contextMenu && <ContextMenu x={contextMenu.x} y={contextMenu.y} items={contextMenu.items} onClose={() => setContextMenu(null)} />}
       <div
         ref={containerRef}
-        className={`relative p-16px b bg-fill-1 b-solid flex flex-col ${slashController.isOpen || skillSelectorController.isOpen ? 'overflow-visible' : 'overflow-hidden'} ${isFileDragging ? 'b-dashed' : ''}`}
+        className={`relative p-16px b bg-fill-1 b-solid flex flex-col ${slashController.isOpen ? 'overflow-visible' : 'overflow-hidden'} ${isFileDragging ? 'b-dashed' : ''}`}
         style={{
           transition: 'box-shadow 0.25s ease, border-color 0.25s ease',
           borderRadius: topAttached ? '0 0 20px 20px' : '20px',
@@ -534,36 +559,6 @@ const SendBox: React.FC<{
                   slashController.onSelectByIndex(targetIndex);
                 }
               }}
-            />
-          </div>
-        )}
-        {/* Skill Selector Menu (with optional file tabs) */}
-        {skillSelectorController.isOpen && (
-          <div className='absolute left-12px bottom-[calc(100%+8px)] z-70 bg-popup px-3 rd-xl shadow-lg'>
-            <SkillSelectorMenuContent
-              skills={skillSelectorItems}
-              selectedKeys={selectedSkills}
-              loading={loadingSkills}
-              onSelectItem={(skill) => {
-                if (!selectedSkills.includes(skill.name)) {
-                  setSelectedSkills((prev) => [...prev, skill.name]);
-                }
-                setInput(stripAtQuery(input, cursorPosition));
-                skillSelectorController.setDismissed(true);
-              }}
-              workspaceFiles={workspaceFiles ?? undefined}
-              onSelectFile={(file) => {
-                const newInput = replaceAtQuery(input, `@${file.relativePath}`, cursorPosition);
-                setInput(newInput);
-                onAtFileSelected?.(file);
-                skillSelectorController.setDismissed(true);
-              }}
-              onDismiss={() => {
-                skillSelectorController.setDismissed(true);
-                setInput(stripAtQuery(input, cursorPosition));
-              }}
-              isVisible={skillSelectorController.isOpen}
-              query={skillSelectorController.query}
             />
           </div>
         )}
