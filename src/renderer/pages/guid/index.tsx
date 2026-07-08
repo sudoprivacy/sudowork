@@ -43,20 +43,7 @@ import type { AcpBackendConfig } from './types';
 import styles from './index.module.css';
 
 const GuidPage: React.FC = () => {
-  const { t, i18n } = useTranslation();
-  const navigate = useNavigate();
-  const location = useLocation();
-  const guidContainerRef = useRef<HTMLDivElement>(null);
-  const { closeAllTabs, openTab } = useConversationTabs();
-  const { activeBorderColor, inactiveBorderColor, activeShadow } = useInputFocusRing();
-  const localeKey = resolveLocaleKey(i18n.language);
-  const { isEnterprise } = useAppMode();
-  const { user } = useAuth();
   const draft = getGuidDraft();
-  // Read current skill and assistant from URL query params
-  const searchParams = new URLSearchParams(location.search);
-  const skillParam = searchParams.get('skill');
-  const assistantParam = searchParams.get('assistant');
 
   // Skill selector state
   const [installedSkills, setInstalledSkills] = useState<any[]>([]);
@@ -64,75 +51,27 @@ const GuidPage: React.FC = () => {
   const [cursorPosition, setCursorPosition] = useState(0);
   // Independent visibility state for the @-button Popover (separate from input @-trigger)
   const [isSkillPopoverOpen, setIsSkillPopoverOpen] = useState(false);
-
   // Edit drawer state
   const [editDrawerVisible, setEditDrawerVisible] = useState(false);
-
-  // Close menu panel, return to normal GuidPage
-  const handleBackToChat = useCallback(() => {
-    void navigate('/guid', { replace: true });
-  }, [navigate]);
-
   // Load installed skills
   const [installedSkillsLoaded, setInstalledSkillsLoaded] = useState(false);
-  useEffect(() => {
-    if (!isElectronDesktop()) return;
-    const fetchInstalledSkills = async () => {
-      try {
-        const res = await skillHub.getInstalledSkills.invoke();
-        if (res.success && res.data) {
-          setInstalledSkills(res.data);
-          setInstalledSkillsLoaded(true);
-        } else {
-          setInstalledSkillsLoaded(true);
-        }
-      } catch (err) {
-        console.error('Failed to fetch installed skills:', err);
-        setInstalledSkillsLoaded(true);
-      }
-    };
-    void fetchInstalledSkills();
-  }, []);
 
-  // Re-fetch installed skills when skills are changed (install, uninstall, update, import, toggle)
-  useAddEventListener('skills.changed', async () => {
-    if (!isElectronDesktop()) return;
-    try {
-      const res = await skillHub.getInstalledSkills.invoke();
-      if (res.success && res.data) {
-        setInstalledSkills(res.data);
-      }
-    } catch (err) {
-      console.error('Failed to re-fetch installed skills after change:', err);
-    }
-  });
+  const guidContainerRef = useRef<HTMLDivElement>(null);
+  const prefilledAssistantRef = useRef<string | null>(null);
 
-  // Handle skill parameter - auto-add skill to selected list
-  useEffect(() => {
-    if (skillParam && installedSkillsLoaded) {
-      const skillExists = installedSkills.some((s) => s.name === skillParam);
-      if (skillExists && !selectedSkills.includes(skillParam)) {
-        setSelectedSkills((prev) => [...prev, skillParam]);
-        Message.success(t('guid.skillAdded', { name: skillParam }));
-      } else if (!skillExists) {
-        Message.warning(t('guid.skillNotInstalled', { name: skillParam }));
-      }
-      void navigate('/guid', { replace: true, state: location.state });
-    }
-  }, [skillParam, installedSkillsLoaded, installedSkills, location.state, navigate, selectedSkills, t]);
+  const { t, i18n } = useTranslation();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { closeAllTabs, openTab } = useConversationTabs();
+  const { activeBorderColor, inactiveBorderColor, activeShadow } = useInputFocusRing();
+  const { isEnterprise } = useAppMode();
+  const { user } = useAuth();
 
-  useEffect(() => {
-    setGuidDraft({ selectedSkills });
-  }, [selectedSkills]);
-
-  // Open external link
-  const openLink = useCallback(async (url: string) => {
-    try {
-      await openExternalUrl(url);
-    } catch (error) {
-      console.error('Failed to open external link:', error);
-    }
-  }, []);
+  const localeKey = resolveLocaleKey(i18n.language);
+  // Read current skill and assistant from URL query params
+  const searchParams = new URLSearchParams(location.search);
+  const skillParam = searchParams.get('skill');
+  const assistantParam = searchParams.get('assistant');
 
   // --- Hooks ---
   const modelSelection = useGuidModelSelection();
@@ -147,64 +86,6 @@ const GuidPage: React.FC = () => {
   const guidInput = useGuidInput({
     locationState: location.state as { workspace?: string } | null,
   });
-
-  // Pre-fill input with defaultInitPrompt when assistant is pre-selected from URL parameter
-  // Use a ref to track whether we've already pre-filled for this assistant
-  const prefilledAssistantRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (!assistantParam || !agentSelection.customAgents || agentSelection.customAgents.length === 0) return;
-    if (!agentSelection.selectedAgentKey.startsWith('custom:')) return;
-
-    const assistantId = agentSelection.selectedAgentKey.slice(7);
-
-    // Skip if we've already pre-filled for this assistant
-    if (prefilledAssistantRef.current === assistantId) return;
-
-    const assistantConfig = agentSelection.customAgents.find((a) => a.id === assistantId);
-
-    // Only pre-fill if input is empty and assistant has defaultInitPrompt
-    if (assistantConfig?.defaultInitPrompt && !guidInput.input.trim()) {
-      guidInput.setInput(assistantConfig.defaultInitPrompt);
-      prefilledAssistantRef.current = assistantId;
-    }
-  }, [assistantParam, agentSelection.customAgents, agentSelection.selectedAgentKey, guidInput]);
-
-  // Reset prefilledAssistantRef when assistantParam changes or becomes empty
-  useEffect(() => {
-    if (!assistantParam) {
-      prefilledAssistantRef.current = null;
-    }
-  }, [assistantParam]);
-
-  // Get enabled skills list for the selected assistant
-  const agentEnabledSkills = useMemo(() => {
-    return agentSelection.resolveEnabledSkills(agentSelection.selectedAgentInfo);
-  }, [agentSelection]);
-
-  // Convert installed skills to selector items (filtered by selected assistant)
-  const skillSelectorItems = useMemo<SkillSelectorItem[]>(() => {
-    const items = installedSkills
-      .filter((skill) => !isEnterprise || skill.enabled !== false)
-      .map((skill) => {
-        const { displayName, description, icon, emoji } = getInstalledSkillDisplay(skill);
-        return {
-          name: skill.name,
-          displayName,
-          description,
-          icon: icon || resolveSkillIcon(skill.meta?.icon),
-          emoji,
-          enabled: skill.enabled,
-        };
-      });
-    if (agentEnabledSkills && agentEnabledSkills.length > 0) {
-      // Use Set for O(1) lookup and deduplicate agentEnabledSkills
-      const enabledSkillSet = new Set(agentEnabledSkills);
-      return items.filter((item) => enabledSkillSet.has(item.name));
-    }
-    // Deduplicate items by name to prevent duplicate keys
-    const uniqueItems = Array.from(new Map(items.map((item) => [item.name, item])).values());
-    return uniqueItems;
-  }, [installedSkills, agentEnabledSkills, isEnterprise]);
 
   // Skill selector controller
   const skillSelectorController = useSkillSelectorController({
@@ -273,6 +154,175 @@ const GuidPage: React.FC = () => {
     t,
   });
 
+  // Typewriter placeholder
+  const typewriterPlaceholder = useTypewriterPlaceholder(t('conversation.welcome.placeholder'));
+
+  // Get enabled skills list for the selected assistant
+  const agentEnabledSkills = useMemo(() => {
+    return agentSelection.resolveEnabledSkills(agentSelection.selectedAgentInfo);
+  }, [agentSelection]);
+
+  // Convert installed skills to selector items (filtered by selected assistant)
+  const skillSelectorItems = useMemo<SkillSelectorItem[]>(() => {
+    const items = installedSkills
+      .filter((skill) => !isEnterprise || skill.enabled !== false)
+      .map((skill) => {
+        const { displayName, description, icon, emoji } = getInstalledSkillDisplay(skill);
+        return {
+          name: skill.name,
+          displayName,
+          description,
+          icon: icon || resolveSkillIcon(skill.meta?.icon),
+          emoji,
+          enabled: skill.enabled,
+        };
+      });
+    if (agentEnabledSkills && agentEnabledSkills.length > 0) {
+      // Use Set for O(1) lookup and deduplicate agentEnabledSkills
+      const enabledSkillSet = new Set(agentEnabledSkills);
+      return items.filter((item) => enabledSkillSet.has(item.name));
+    }
+    // Deduplicate items by name to prevent duplicate keys
+    const uniqueItems = Array.from(new Map(items.map((item) => [item.name, item])).values());
+    return uniqueItems;
+  }, [installedSkills, agentEnabledSkills, isEnterprise]);
+
+  // --- Resolve selected assistant info for header ---
+  const selectedAssistantConfig = useMemo(() => {
+    // Show assistant header for any assistant (preset or user-created custom)
+    if (!agentSelection.selectedAgentInfo) return null;
+    const customAgentId = agentSelection.selectedAgentInfo.customAgentId;
+    if (!customAgentId) return null;
+
+    // Include preset agents (builtin + hub-installed) and user-created custom assistants
+    const presetAgents = agentSelection.customAgents.filter((a) => a.isPreset);
+    const customAgents = agentSelection.customAgents.filter((a) => !a.isPreset);
+
+    // Filter builtin presets to allowed list
+    // const allowedPresetIds = ['builtin-ui-ux-pro-max', 'builtin-planning-with-files', 'builtin-beautiful-mermaid', 'builtin-moltbook', 'builtin-copilot', 'builtin-doctor', 'builtin-jiansheku'];
+    // const allowedBuiltinPresets = presetAgents.filter((a) => allowedPresetIds.includes(a.id));
+    const allowedBuiltinPresets: AcpBackendConfig[] = []; // Hidden: builtin assistants temporarily disabled
+    const hubInstalledPresets = presetAgents.filter((a) => !a.id.startsWith('builtin-'));
+
+    // Combine: allowed builtin presets + hub-installed presets + user-created custom assistants
+    const filteredAgents = [...allowedBuiltinPresets, ...hubInstalledPresets, ...customAgents];
+
+    return filteredAgents.find((a) => a.id === customAgentId) || null;
+  }, [agentSelection.selectedAgentInfo, agentSelection.customAgents]);
+
+  // Resolve avatar for selected assistant header
+  const selectedAssistantAvatar = useMemo(() => {
+    if (!selectedAssistantConfig) return null;
+    const avatarValue = selectedAssistantConfig.avatar?.trim();
+    if (!avatarValue) return null;
+    const mappedAvatar = CUSTOM_AVATAR_IMAGE_MAP[avatarValue];
+    const resolvedAvatar = resolveExtensionAssetUrl(avatarValue);
+    const avatarImage = mappedAvatar || resolvedAvatar;
+    const isImageAvatar = Boolean(avatarImage && (/\.(svg|png|jpe?g|webp|gif)$/i.test(avatarImage) || /^(https?:|aion-asset:\/\/|file:\/\/|data:)/i.test(avatarImage)));
+    return { avatarValue, avatarImage, isImageAvatar };
+  }, [selectedAssistantConfig]);
+
+  // Resolve current assistant agent type for dropdown.
+  // In enterprise mode, the runtime backend is determined by sessionMode (remote-agent / scode),
+  // not by the assistant metadata's presetAgentType. Display the actual backend so the logo
+  // matches the conversation that will be created (app logo for enterprise users).
+  // 企业模式下真正的后端由 sessionMode 决定（remote-agent / scode），与助手元数据中的 presetAgentType 无关，
+  // 这里按实际后端展示，避免本地元数据里残留的 'claude' 导致 logo 误显示。
+  const currentAssistantAgentType = useMemo(() => {
+    if (!selectedAssistantConfig) return DEFAULT_PRESET_AGENT_TYPE;
+    if (isEnterprise) {
+      return agentSelection.sessionMode === 'remote' ? 'remote-agent' : 'scode';
+    }
+    return normalizePresetAgentType(selectedAssistantConfig.presetAgentType) || DEFAULT_PRESET_AGENT_TYPE;
+  }, [selectedAssistantConfig, isEnterprise, agentSelection.sessionMode]);
+
+  // Get the suggestion prompts for the selected assistant
+  const assistantPrompts = useMemo(() => {
+    if (!selectedAssistantConfig) return [];
+    return selectedAssistantConfig.promptsI18n?.[localeKey] || selectedAssistantConfig.promptsI18n?.['en-US'] || selectedAssistantConfig.prompts || [];
+  }, [selectedAssistantConfig, localeKey]);
+
+  // Determine if model selector should be in Gemini mode
+  const isGeminiMode = (agentSelection.selectedAgent === 'gemini' && !agentSelection.isPresetAgent) || (agentSelection.isPresetAgent && agentSelection.currentEffectiveAgentInfo.agentType === 'gemini' && agentSelection.currentEffectiveAgentInfo.isAvailable);
+
+  // Whether we are in selected assistant mode (preset or user-created custom)
+  const isAssistantMode = selectedAssistantConfig !== null;
+
+  useEffect(() => {
+    if (!isElectronDesktop()) return;
+    const fetchInstalledSkills = async () => {
+      try {
+        const res = await skillHub.getInstalledSkills.invoke();
+        if (res.success && res.data) {
+          setInstalledSkills(res.data);
+          setInstalledSkillsLoaded(true);
+        } else {
+          setInstalledSkillsLoaded(true);
+        }
+      } catch (err) {
+        console.error('Failed to fetch installed skills:', err);
+        setInstalledSkillsLoaded(true);
+      }
+    };
+    void fetchInstalledSkills();
+  }, []);
+
+  // Re-fetch installed skills when skills are changed (install, uninstall, update, import, toggle)
+  useAddEventListener('skills.changed', async () => {
+    if (!isElectronDesktop()) return;
+    try {
+      const res = await skillHub.getInstalledSkills.invoke();
+      if (res.success && res.data) {
+        setInstalledSkills(res.data);
+      }
+    } catch (err) {
+      console.error('Failed to re-fetch installed skills after change:', err);
+    }
+  });
+
+  // Handle skill parameter - auto-add skill to selected list
+  useEffect(() => {
+    if (skillParam && installedSkillsLoaded) {
+      const skillExists = installedSkills.some((s) => s.name === skillParam);
+      if (skillExists && !selectedSkills.includes(skillParam)) {
+        setSelectedSkills((prev) => [...prev, skillParam]);
+        Message.success(t('guid.skillAdded', { name: skillParam }));
+      } else if (!skillExists) {
+        Message.warning(t('guid.skillNotInstalled', { name: skillParam }));
+      }
+      void navigate('/guid', { replace: true, state: location.state });
+    }
+  }, [skillParam, installedSkillsLoaded, installedSkills, location.state, navigate, selectedSkills, t]);
+
+  useEffect(() => {
+    setGuidDraft({ selectedSkills });
+  }, [selectedSkills]);
+
+  useEffect(() => {
+    if (!assistantParam || !agentSelection.customAgents || agentSelection.customAgents.length === 0) return;
+    if (!agentSelection.selectedAgentKey.startsWith('custom:')) return;
+
+    const assistantId = agentSelection.selectedAgentKey.slice(7);
+
+    // Skip if we've already pre-filled for this assistant
+    if (prefilledAssistantRef.current === assistantId) return;
+
+    const assistantConfig = agentSelection.customAgents.find((a) => a.id === assistantId);
+
+    // Only pre-fill if input is empty and assistant has defaultInitPrompt
+    if (assistantConfig?.defaultInitPrompt && !guidInput.input.trim()) {
+      guidInput.setInput(assistantConfig.defaultInitPrompt);
+      prefilledAssistantRef.current = assistantId;
+    }
+  }, [assistantParam, agentSelection.customAgents, agentSelection.selectedAgentKey, guidInput]);
+
+  // Reset prefilledAssistantRef when assistantParam changes or becomes empty
+  useEffect(() => {
+    if (!assistantParam) {
+      prefilledAssistantRef.current = null;
+    }
+  }, [assistantParam]);
+
   // Listen for guid.reset event to reset agent/mention state only
   const handleGuidReset = useCallback(() => {
     setGuidDraft({ input: '' });
@@ -289,6 +339,11 @@ const GuidPage: React.FC = () => {
   useAddEventListener('guid.reset', handleGuidReset, [handleGuidReset]);
 
   // --- Coordinated handlers (depend on multiple hooks) ---
+  // Close menu panel, return to normal GuidPage
+  const handleBackToChat = useCallback(() => {
+    void navigate('/guid', { replace: true });
+  }, [navigate]);
+
   const handleInputChange = useCallback(
     (value: string) => {
       guidInput.setInput(value);
@@ -452,11 +507,14 @@ const GuidPage: React.FC = () => {
     await agentSelection.refreshCustomAgents();
   }, [agentSelection]);
 
-  // Typewriter placeholder
-  const typewriterPlaceholder = useTypewriterPlaceholder(t('conversation.welcome.placeholder'));
-
-  // Determine if model selector should be in Gemini mode
-  const isGeminiMode = (agentSelection.selectedAgent === 'gemini' && !agentSelection.isPresetAgent) || (agentSelection.isPresetAgent && agentSelection.currentEffectiveAgentInfo.agentType === 'gemini' && agentSelection.currentEffectiveAgentInfo.isAvailable);
+  // Open external link
+  const openLink = useCallback(async (url: string) => {
+    try {
+      await openExternalUrl(url);
+    } catch (error) {
+      console.error('Failed to open external link:', error);
+    }
+  }, []);
 
   // Build the mention dropdown node
   const mentionDropdownNode = <MentionDropdown menuRef={mention.mentionMenuRef} options={mention.filteredMentionOptions} selectedKey={mention.mentionMenuSelectedKey} onSelect={mention.selectMentionAgent} />;
@@ -543,64 +601,6 @@ const GuidPage: React.FC = () => {
       }}
     />
   );
-
-  // --- Resolve selected assistant info for header ---
-  const selectedAssistantConfig = useMemo(() => {
-    // Show assistant header for any assistant (preset or user-created custom)
-    if (!agentSelection.selectedAgentInfo) return null;
-    const customAgentId = agentSelection.selectedAgentInfo.customAgentId;
-    if (!customAgentId) return null;
-
-    // Include preset agents (builtin + hub-installed) and user-created custom assistants
-    const presetAgents = agentSelection.customAgents.filter((a) => a.isPreset);
-    const customAgents = agentSelection.customAgents.filter((a) => !a.isPreset);
-
-    // Filter builtin presets to allowed list
-    // const allowedPresetIds = ['builtin-ui-ux-pro-max', 'builtin-planning-with-files', 'builtin-beautiful-mermaid', 'builtin-moltbook', 'builtin-copilot', 'builtin-doctor', 'builtin-jiansheku'];
-    // const allowedBuiltinPresets = presetAgents.filter((a) => allowedPresetIds.includes(a.id));
-    const allowedBuiltinPresets: AcpBackendConfig[] = []; // Hidden: builtin assistants temporarily disabled
-    const hubInstalledPresets = presetAgents.filter((a) => !a.id.startsWith('builtin-'));
-
-    // Combine: allowed builtin presets + hub-installed presets + user-created custom assistants
-    const filteredAgents = [...allowedBuiltinPresets, ...hubInstalledPresets, ...customAgents];
-
-    return filteredAgents.find((a) => a.id === customAgentId) || null;
-  }, [agentSelection.selectedAgentInfo, agentSelection.customAgents]);
-
-  // Resolve avatar for selected assistant header
-  const selectedAssistantAvatar = useMemo(() => {
-    if (!selectedAssistantConfig) return null;
-    const avatarValue = selectedAssistantConfig.avatar?.trim();
-    if (!avatarValue) return null;
-    const mappedAvatar = CUSTOM_AVATAR_IMAGE_MAP[avatarValue];
-    const resolvedAvatar = resolveExtensionAssetUrl(avatarValue);
-    const avatarImage = mappedAvatar || resolvedAvatar;
-    const isImageAvatar = Boolean(avatarImage && (/\.(svg|png|jpe?g|webp|gif)$/i.test(avatarImage) || /^(https?:|aion-asset:\/\/|file:\/\/|data:)/i.test(avatarImage)));
-    return { avatarValue, avatarImage, isImageAvatar };
-  }, [selectedAssistantConfig]);
-
-  // Resolve current assistant agent type for dropdown.
-  // In enterprise mode, the runtime backend is determined by sessionMode (remote-agent / scode),
-  // not by the assistant metadata's presetAgentType. Display the actual backend so the logo
-  // matches the conversation that will be created (app logo for enterprise users).
-  // 企业模式下真正的后端由 sessionMode 决定（remote-agent / scode），与助手元数据中的 presetAgentType 无关，
-  // 这里按实际后端展示，避免本地元数据里残留的 'claude' 导致 logo 误显示。
-  const currentAssistantAgentType = useMemo(() => {
-    if (!selectedAssistantConfig) return DEFAULT_PRESET_AGENT_TYPE;
-    if (isEnterprise) {
-      return agentSelection.sessionMode === 'remote' ? 'remote-agent' : 'scode';
-    }
-    return normalizePresetAgentType(selectedAssistantConfig.presetAgentType) || DEFAULT_PRESET_AGENT_TYPE;
-  }, [selectedAssistantConfig, isEnterprise, agentSelection.sessionMode]);
-
-  // Whether we are in selected assistant mode (preset or user-created custom)
-  const isAssistantMode = selectedAssistantConfig !== null;
-
-  // Get the suggestion prompts for the selected assistant
-  const assistantPrompts = useMemo(() => {
-    if (!selectedAssistantConfig) return [];
-    return selectedAssistantConfig.promptsI18n?.[localeKey] || selectedAssistantConfig.promptsI18n?.['en-US'] || selectedAssistantConfig.prompts || [];
-  }, [selectedAssistantConfig, localeKey]);
 
   return (
     <div ref={guidContainerRef} className={styles.guidContainer}>
