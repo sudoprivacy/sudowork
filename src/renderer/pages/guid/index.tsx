@@ -1,4 +1,5 @@
 import { Message } from '@arco-design/web-react';
+import type { RefTextAreaType } from '@arco-design/web-react/es/Input';
 import { EditTwo, Left, Robot } from '@icon-park/react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -56,7 +57,7 @@ const GuidPage: React.FC = () => {
   // Load installed skills
   const [installedSkillsLoaded, setInstalledSkillsLoaded] = useState(false);
 
-  const guidContainerRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<RefTextAreaType>(null);
   const prefilledAssistantRef = useRef<string | null>(null);
 
   const { t, i18n } = useTranslation();
@@ -546,6 +547,10 @@ const GuidPage: React.FC = () => {
     onSkillPopoverClose();
   }, [guidInput, cursorPosition, skillSelectorController, onSkillPopoverClose]);
 
+  const onSkillPopoverAfterClose = useCallback(() => {
+    textareaRef.current?.focus();
+  }, []);
+
   // Open skill popover when @ is typed in the input
   useAddEventListener('skill-selector.open', () => {
     setIsSkillPopoverOpen(true);
@@ -558,7 +563,7 @@ const GuidPage: React.FC = () => {
       onVisibleChange={(v) => {
         if (!v) onSkillSelectorClose();
       }}
-      onAfterClose={() => guidContainerRef.current?.querySelector('textarea')?.focus()}
+      onAfterClose={onSkillPopoverAfterClose}
       skills={skillSelectorItems}
       selectedKeys={selectedSkills}
       onSelectItem={(skill) => {
@@ -692,6 +697,7 @@ const GuidPage: React.FC = () => {
         )}
         {/* ========== Input Card (always shown) ========== */}
         <GuidInputCard
+          textareaRef={textareaRef}
           input={guidInput.input}
           onInputChange={handleInputChange}
           onKeyDown={handleInputKeyDown}

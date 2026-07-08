@@ -1,4 +1,5 @@
 import { Input, Tag, Tooltip } from '@arco-design/web-react';
+import type { RefTextAreaType } from '@arco-design/web-react/es/Input';
 import { IconClose, IconPaste } from '@arco-design/web-react/icon';
 import { FolderOpen, Lightning } from '@icon-park/react';
 import React, { useState } from 'react';
@@ -9,6 +10,7 @@ import FilePreview from '@/renderer/components/FilePreview';
 import styles from '../index.module.css';
 
 type GuidInputCardProps = {
+  textareaRef?: React.Ref<RefTextAreaType>;
   // Input state
   input: string;
   onInputChange: (value: string) => void;
@@ -51,6 +53,7 @@ type GuidInputCardProps = {
 
 // eslint-disable-next-line max-len
 const GuidInputCard: React.FC<GuidInputCardProps> = ({
+  textareaRef,
   input,
   onInputChange,
   onKeyDown,
@@ -162,6 +165,7 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
         </div>
       )}
       <Input.TextArea
+        ref={textareaRef}
         autoSize={textareaAutoSize}
         placeholder={placeholder}
         className={`text-16px focus:b-none rounded-xl !bg-transparent !b-none !resize-none !p-0 ${styles.lightPlaceholder}`}
