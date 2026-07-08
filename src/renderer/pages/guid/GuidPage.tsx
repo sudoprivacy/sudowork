@@ -500,6 +500,7 @@ const GuidPage: React.FC = () => {
       onVisibleChange={(v) => {
         if (!v) onSkillSelectorClose();
       }}
+      onAfterClose={() => guidContainerRef.current?.querySelector('textarea')?.focus()}
       skills={skillSelectorItems}
       selectedKeys={selectedSkills}
       onSelectItem={(skill) => {

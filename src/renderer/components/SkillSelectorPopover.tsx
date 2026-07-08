@@ -12,7 +12,7 @@ import { resolveFileIcon } from '@/renderer/utils/fileIcon';
 import SkillSelectorSkeleton from './base/SkillSelectorSkeleton';
 import Tabs from './ui/Tabs';
 
-function SkillSelectorMenuContent({ skills, selectedKeys, loading = false, onSelectItem, workspaceFiles, onSelectFile, onDismiss, isVisible = false, filterDisabled = false }: ISkillSelectorMenuContentProps) {
+function SkillSelectorMenuContent({ skills, selectedKeys, loading = false, onSelectItem, workspaceFiles, onSelectFile, onDismiss, isVisible = false, filterDisabled = false }: Omit<ISkillSelectorPopoverProps, 'popupVisible' | 'onVisibleChange' | 'onAfterClose' | 'children'>) {
   const { t } = useTranslation();
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const searchInputRef = useRef<RefInputType | null>(null);
@@ -224,7 +224,16 @@ function SkillSelectorMenuContent({ skills, selectedKeys, loading = false, onSel
   );
 }
 
-export default function SkillSelectorPopover({ popupVisible, onVisibleChange, children, ...contentProps }: ISkillSelectorPopoverProps) {
+export default function SkillSelectorPopover({ popupVisible, onVisibleChange, onAfterClose, children, ...contentProps }: ISkillSelectorPopoverProps) {
+  const prevVisibleRef = useRef(false);
+
+  useEffect(() => {
+    if (!popupVisible && prevVisibleRef.current) {
+      onAfterClose?.();
+    }
+    prevVisibleRef.current = popupVisible;
+  }, [popupVisible, onAfterClose]);
+
   return (
     <Popover popupVisible={popupVisible} trigger={[]} position='top' onVisibleChange={onVisibleChange} content={<SkillSelectorMenuContent {...contentProps} isVisible={popupVisible} />} className='[&_.arco-popover-content]:!py-1 [&_.arco-popover-content]:!px-3'>
       {children}
@@ -232,13 +241,7 @@ export default function SkillSelectorPopover({ popupVisible, onVisibleChange, ch
   );
 }
 
-interface ISkillSelectorPopoverProps extends ISkillSelectorMenuContentProps {
-  popupVisible: boolean;
-  onVisibleChange?: (visible: boolean) => void;
-  children: React.ReactNode;
-}
-
-interface ISkillSelectorMenuContentProps {
+interface ISkillSelectorPopoverProps {
   skills: SkillSelectorItem[];
   selectedKeys: string[];
   loading?: boolean;
@@ -246,8 +249,11 @@ interface ISkillSelectorMenuContentProps {
   workspaceFiles?: WorkspaceFileItem[];
   onSelectFile?: (file: WorkspaceFileItem) => void;
   onDismiss?: () => void;
-  /** Whether the menu is currently visible — activates keyboard listener */
   isVisible?: boolean;
-  /** Filter out disabled skills */
   filterDisabled?: boolean;
+  popupVisible: boolean;
+  onVisibleChange?: (visible: boolean) => void;
+  /** Called when the popover closes — use to restore focus to the external input */
+  onAfterClose?: () => void;
+  children: React.ReactNode;
 }

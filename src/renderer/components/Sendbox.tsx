@@ -378,6 +378,7 @@ const SendBox: React.FC<{
       onVisibleChange={(v) => {
         if (!v) onSkillPopoverClose();
       }}
+      onAfterClose={() => containerRef.current?.querySelector('textarea')?.focus()}
       skills={skillSelectorItems}
       selectedKeys={selectedSkills}
       loading={loadingSkills}
