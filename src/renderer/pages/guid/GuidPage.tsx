@@ -488,7 +488,6 @@ const GuidPage: React.FC = () => {
       onVisibleChange={(v) => {
         if (!v) onSkillPopoverClose();
       }}
-      title={t('guid.skillSelectorTitle')}
       skills={skillSelectorItems}
       selectedKeys={selectedSkills}
       onSelectItem={(skill) => {
@@ -708,7 +707,6 @@ const GuidPage: React.FC = () => {
           skillSelectorMenu={
             skillSelectorController.isOpen ? (
               <SkillSelectorMenuContent
-                title={t('guid.skillSelectorTitle')}
                 skills={skillSelectorItems}
                 selectedKeys={selectedSkills}
                 onSelectItem={(skill) => {

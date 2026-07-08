@@ -372,7 +372,6 @@ const SendBox: React.FC<{
       onVisibleChange={(v) => {
         if (!v) onSkillPopoverClose();
       }}
-      title={t('messages.skills.title', { defaultValue: 'Skills' })}
       skills={skillSelectorItems}
       selectedKeys={selectedSkills}
       loading={loadingSkills}
@@ -542,7 +541,6 @@ const SendBox: React.FC<{
         {skillSelectorController.isOpen && (
           <div className='absolute left-12px bottom-[calc(100%+8px)] z-70 bg-popup px-3 rd-xl shadow-lg'>
             <SkillSelectorMenuContent
-              title={t('messages.skills.title', { defaultValue: 'Skills' })}
               skills={skillSelectorItems}
               selectedKeys={selectedSkills}
               loading={loadingSkills}

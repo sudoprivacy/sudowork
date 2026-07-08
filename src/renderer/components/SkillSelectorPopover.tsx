@@ -11,7 +11,7 @@ import { resolveFileIcon } from '@/renderer/utils/fileIcon';
 import SkillSelectorSkeleton from './base/SkillSelectorSkeleton';
 import Tabs from './ui/Tabs';
 
-export function SkillSelectorMenuContent({ title, skills, selectedKeys, loading = false, onSelectItem, workspaceFiles, onSelectFile, onDismiss, isVisible = false, query = null, filterDisabled = false }: ISkillSelectorMenuContentProps) {
+export function SkillSelectorMenuContent({ skills, selectedKeys, loading = false, onSelectItem, workspaceFiles, onSelectFile, onDismiss, isVisible = false, query = null, filterDisabled = false }: ISkillSelectorMenuContentProps) {
   const { t } = useTranslation();
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -119,7 +119,7 @@ export function SkillSelectorMenuContent({ title, skills, selectedKeys, loading 
             onMouseDown={(e) => e.preventDefault()}
           />
         ) : (
-          <div className='text-13px font-semibold text-foreground'>{title}</div>
+          <div className='text-13px font-semibold text-foreground'>{t('messages.skills.title', 'Skills')}</div>
         )}
         {showTabs && <div className='text-11px text-secondary truncate'>{t('messages.skills.tabToSwitch', 'Tab 切换')}</div>}
       </div>
@@ -226,7 +226,6 @@ interface ISkillSelectorPopoverProps extends ISkillSelectorMenuContentProps {
 }
 
 interface ISkillSelectorMenuContentProps {
-  title: string;
   skills: SkillSelectorItem[];
   selectedKeys: string[];
   loading?: boolean;
