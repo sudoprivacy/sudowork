@@ -670,7 +670,6 @@ const GuidPage: React.FC = () => {
             <p className='text-2xl font-semibold mb-6 text-0 text-center' onClick={handleBackToChat}>
               {t('conversation.welcome.title')}
             </p>
-
             {agentSelection.availableAgents === undefined ? (
               <AgentPillBarSkeleton />
             ) : agentSelection.availableAgents.length > 0 ? (
@@ -685,7 +684,6 @@ const GuidPage: React.FC = () => {
                 localModeAvailable={user?.localModeAvailable}
               />
             ) : null}
-
             <PromptTemplates
               visible={!agentSelection.isPresetAgent}
               onSelectPrompt={(content) => {

@@ -1,5 +1,5 @@
 import React from 'react';
-import styles from '../styles/index.module.css';
+import { Skeleton } from '@arco-design/web-react';
 
 interface SkillSelectorSkeletonProps {
   /**
@@ -11,49 +11,18 @@ interface SkillSelectorSkeletonProps {
 
 /**
  * Skeleton placeholder for SkillSelectorMenu while skills are loading.
- * Mimics the skill item layout with icon + displayName + description.
  */
 const SkillSelectorSkeleton: React.FC<SkillSelectorSkeletonProps> = ({ count = 4 }) => {
   return (
     <div className='flex flex-col gap-0.5 p-1.5'>
       {Array.from({ length: count }).map((_, index) => (
-        <div
-          key={index}
-          className='flex items-center gap-2 px-2.5 py-1.5 rounded-8px'
-          style={{
-            minHeight: '42px',
-          }}
-        >
-          {/* Icon placeholder */}
-          <div
-            className={styles.skeleton}
-            style={{
-              width: 28,
-              height: 28,
-              borderRadius: 'var(--radius-sm)',
-              flexShrink: 0,
-            }}
-          />
-          {/* Content placeholders */}
-          <div className='min-w-0 flex-1 flex flex-col gap-1.5'>
-            {/* Display name placeholder (wider) */}
-            <div
-              className={styles.skeletonText}
-              style={{
-                height: 14,
-                width: '60%',
-                borderRadius: 'var(--radius-sm)',
-              }}
-            />
-            {/* Description placeholder (narrower) */}
-            <div
-              className={styles.skeletonText}
-              style={{
-                height: 11,
-                width: '40%',
-                borderRadius: 'var(--radius-sm)',
-              }}
-            />
+        <div key={index} className='w-full p-2.5 px-0 rounded-xl'>
+          <div className='flex items-center gap-2'>
+            <Skeleton animation text={false} image={{ style: { width: 32, height: 32, borderRadius: 6, marginRight: 0 } }} className='shrink-0' />
+            <div className='min-w-0 flex-1 space-y-1'>
+              <Skeleton animation text={{ rows: 1, width: '56%' }} image={false} />
+              <Skeleton animation text={{ rows: 1, width: '78%' }} image={false} />
+            </div>
           </div>
         </div>
       ))}

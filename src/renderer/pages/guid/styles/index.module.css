@@ -22,37 +22,6 @@
   opacity: 1;
 }
 
-/* Skeleton shimmer animation */
-@keyframes guid-shimmer {
-  0% {
-    background-position: -200% 0;
-  }
-  100% {
-    background-position: 200% 0;
-  }
-}
-
-.skeleton {
-  background: linear-gradient(90deg, var(--color-fill-2) 25%, var(--color-fill-3) 50%, var(--color-fill-2) 75%);
-  background-size: 200% 100%;
-  animation: guid-shimmer 1.5s ease-in-out infinite;
-  border-radius: 50%;
-}
-
-.skeletonPill {
-  background: linear-gradient(90deg, var(--color-fill-2) 25%, var(--color-fill-3) 50%, var(--color-fill-2) 75%);
-  background-size: 200% 100%;
-  animation: guid-shimmer 1.5s ease-in-out infinite;
-  border-radius: 100px;
-}
-
-.skeletonText {
-  background: linear-gradient(90deg, var(--color-fill-2) 25%, var(--color-fill-3) 50%, var(--color-fill-2) 75%);
-  background-size: 200% 100%;
-  animation: guid-shimmer 1.5s ease-in-out infinite;
-  border-radius: 4px;
-}
-
 /* Agent 选中时：先放大再回落至略大（pop 动效） */
 @keyframes agentSelectPop {
   0% {
