@@ -5,12 +5,12 @@ import { useDebounce } from 'ahooks';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { AtMentionTab, SkillSelectorItem } from '@/renderer/hooks/useSkillSelectorController';
+import type { AtMentionTab, SkillSelectorItem } from '@/renderer/pages/guid/hooks/useSkillSelectorController';
 import type { WorkspaceFileItem } from '@/renderer/hooks/useWorkspaceFiles';
 import { handleSkillIconError } from '@/renderer/utils/skillDisplay';
 import { resolveFileIcon } from '@/renderer/utils/fileIcon';
-import SkillSelectorSkeleton from './base/SkillSelectorSkeleton';
-import Tabs from './ui/Tabs';
+import Tabs from '@/renderer/components/ui/Tabs';
+import SkillSelectorSkeleton from './SkillSelectorSkeleton';
 
 function SkillSelectorMenuContent({ skills, selectedKeys, loading = false, onSelectItem, workspaceFiles, onSelectFile, onDismiss, popupVisible = false }: Omit<ISkillSelectorPopoverProps, 'onVisibleChange' | 'onAfterClose' | 'children'>) {
   const [activeIndex, setActiveIndex] = useState(0);
