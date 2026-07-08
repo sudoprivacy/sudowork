@@ -301,7 +301,7 @@ const GuidPage: React.FC = () => {
         mention.setMentionOpen(false);
       }
     },
-    [mention.mentionMatchRegex, guidInput.setInput, mention.setMentionQuery, mention.setMentionOpen]
+    [guidInput, mention]
   );
 
   const handleInputKeyDown = useCallback(
@@ -367,7 +367,7 @@ const GuidPage: React.FC = () => {
         send.sendMessageHandler();
       }
     },
-    [mention, guidInput.input, send.sendMessageHandler]
+    [skillSelectorController, mention, guidInput, send]
   );
 
   const handleSelectAgentFromPillBar = useCallback(
@@ -390,7 +390,7 @@ const GuidPage: React.FC = () => {
       mention.setMentionSelectorOpen(false);
       mention.setMentionActiveIndex(0);
     },
-    [agentSelection.selectedAgentKey, agentSelection.availableAgents, agentSelection.setSelectedAgentKey, agentSelection.resetSelection, guidInput.setInput, mention.setMentionOpen, mention.setMentionQuery, mention.setMentionSelectorOpen, mention.setMentionActiveIndex]
+    [agentSelection, guidInput, mention]
   );
 
   const handleSelectAssistant = useCallback(
@@ -409,7 +409,7 @@ const GuidPage: React.FC = () => {
         guidInput.setInput(assistantConfig.defaultInitPrompt);
       }
     },
-    [agentSelection.setSelectedAgentKey, agentSelection.customAgents, mention.setMentionOpen, mention.setMentionQuery, mention.setMentionSelectorOpen, mention.setMentionActiveIndex, guidInput.setInput]
+    [agentSelection, guidInput, mention]
   );
 
   // Handle back button: deselect assistant and return to normal view
@@ -417,7 +417,7 @@ const GuidPage: React.FC = () => {
     agentSelection.resetSelection();
     guidInput.setInput('');
     prefilledAssistantRef.current = null;
-  }, [agentSelection.resetSelection, guidInput.setInput]);
+  }, [agentSelection, guidInput]);
 
   // Handle changing the assistant's main agent type
   const handleChangeAssistantAgent = useCallback(
@@ -444,13 +444,13 @@ const GuidPage: React.FC = () => {
         Message.error(t('common.failed', { defaultValue: 'Failed' }));
       }
     },
-    [agentSelection.selectedAgentInfo, agentSelection.refreshCustomAgents, t]
+    [agentSelection, t]
   );
 
   // Handle edit drawer saved
   const handleEditDrawerSaved = useCallback(async () => {
     await agentSelection.refreshCustomAgents();
-  }, [agentSelection.refreshCustomAgents]);
+  }, [agentSelection]);
 
   // Typewriter placeholder
   const typewriterPlaceholder = useTypewriterPlaceholder(t('conversation.welcome.placeholder'));
