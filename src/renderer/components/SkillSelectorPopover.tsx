@@ -12,7 +12,7 @@ import { resolveFileIcon } from '@/renderer/utils/fileIcon';
 import SkillSelectorSkeleton from './base/SkillSelectorSkeleton';
 import Tabs from './ui/Tabs';
 
-function SkillSelectorMenuContent({ skills, selectedKeys, loading = false, onSelectItem, workspaceFiles, onSelectFile, onDismiss, isVisible = false, filterDisabled = false }: Omit<ISkillSelectorPopoverProps, 'popupVisible' | 'onVisibleChange' | 'onAfterClose' | 'children'>) {
+function SkillSelectorMenuContent({ skills, selectedKeys, loading = false, onSelectItem, workspaceFiles, onSelectFile, onDismiss, isVisible = false }: Omit<ISkillSelectorPopoverProps, 'popupVisible' | 'onVisibleChange' | 'onAfterClose' | 'children'>) {
   const { t } = useTranslation();
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const searchInputRef = useRef<RefInputType | null>(null);
@@ -33,14 +33,14 @@ function SkillSelectorMenuContent({ skills, selectedKeys, loading = false, onSel
   }, [isVisible]);
 
   const filteredSkills = useMemo(() => {
-    const result = filterDisabled ? skills.filter((s) => s.enabled !== false) : skills;
+    const result = skills.filter((s) => s.enabled !== false);
     const keyword = debouncedSearch.trim().toLowerCase();
     if (!keyword) return result;
     return result.filter((s) => {
       const raw = debouncedSearch.trim();
       return s.name.toLowerCase().includes(keyword) || s.displayName.toLowerCase().includes(keyword) || (s.description?.toLowerCase().includes(keyword) ?? false) || s.displayName.includes(raw);
     });
-  }, [skills, debouncedSearch, filterDisabled]);
+  }, [skills, debouncedSearch]);
 
   const filteredFiles = useMemo(() => {
     if (!workspaceFiles) return [];
@@ -250,7 +250,6 @@ interface ISkillSelectorPopoverProps {
   onSelectFile?: (file: WorkspaceFileItem) => void;
   onDismiss?: () => void;
   isVisible?: boolean;
-  filterDisabled?: boolean;
   popupVisible: boolean;
   onVisibleChange?: (visible: boolean) => void;
   /** Called when the popover closes — use to restore focus to the external input */

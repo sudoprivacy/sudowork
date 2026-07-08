@@ -510,7 +510,6 @@ const GuidPage: React.FC = () => {
         onSkillSelectorClose();
       }}
       onDismiss={onSkillSelectorClose}
-      filterDisabled
     >
       <ActionChip icon={<span className='text-14px font-700 leading-none'>@</span>} label={t('conversation.welcome.skill', { defaultValue: '技能' })} onClick={() => setIsSkillPopoverOpen(true)} />
     </SkillSelectorPopover>
