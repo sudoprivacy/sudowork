@@ -112,14 +112,14 @@ const GuidPage: React.FC = () => {
     if (skillParam && installedSkillsLoaded) {
       const skillExists = installedSkills.some((s) => s.name === skillParam);
       if (skillExists && !selectedSkills.includes(skillParam)) {
-        setSelectedSkills([...selectedSkills, skillParam]);
+        setSelectedSkills((prev) => [...prev, skillParam]);
         Message.success(t('guid.skillAdded', { name: skillParam }));
       } else if (!skillExists) {
         Message.warning(t('guid.skillNotInstalled', { name: skillParam }));
       }
       void navigate('/guid', { replace: true, state: location.state });
     }
-  }, [skillParam, installedSkillsLoaded]);
+  }, [skillParam, installedSkillsLoaded, installedSkills, location.state, navigate, selectedSkills, t]);
 
   useEffect(() => {
     setGuidDraft({ selectedSkills });
@@ -167,7 +167,7 @@ const GuidPage: React.FC = () => {
       guidInput.setInput(assistantConfig.defaultInitPrompt);
       prefilledAssistantRef.current = assistantId;
     }
-  }, [assistantParam, agentSelection.customAgents, agentSelection.selectedAgentKey, guidInput.input, guidInput.setInput]);
+  }, [assistantParam, agentSelection.customAgents, agentSelection.selectedAgentKey, guidInput]);
 
   // Reset prefilledAssistantRef when assistantParam changes or becomes empty
   useEffect(() => {
@@ -179,7 +179,7 @@ const GuidPage: React.FC = () => {
   // Get enabled skills list for the selected assistant
   const agentEnabledSkills = useMemo(() => {
     return agentSelection.resolveEnabledSkills(agentSelection.selectedAgentInfo);
-  }, [agentSelection.selectedAgentInfo, agentSelection.resolveEnabledSkills]);
+  }, [agentSelection]);
 
   // Convert installed skills to selector items (filtered by selected assistant)
   const skillSelectorItems = useMemo<SkillSelectorItem[]>(() => {
