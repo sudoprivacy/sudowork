@@ -1,6 +1,7 @@
 import { Message } from '@arco-design/web-react';
 import type { RefTextAreaType } from '@arco-design/web-react/es/Input';
 import { EditTwo, Left, Robot } from '@icon-park/react';
+import { AtSign } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -574,7 +575,7 @@ const GuidPage: React.FC = () => {
       }}
       onDismiss={onSkillSelectorClose}
     >
-      <ActionChip icon={<span className='text-14px font-700 leading-none'>@</span>} label={t('conversation.welcome.skill', { defaultValue: '技能' })} onClick={() => setIsSkillPopoverOpen(true)} />
+      <ActionChip icon={<AtSign size={14} />} label={t('conversation.welcome.skill', { defaultValue: '技能' })} onClick={() => setIsSkillPopoverOpen(true)} />
     </SkillSelectorPopover>
   );
 
