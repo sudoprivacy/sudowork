@@ -610,7 +610,7 @@ const GuidPage: React.FC = () => {
           /* ========== Selected Assistant Mode ========== */
           <>
             {/* Assistant Header: back + avatar + name + edit + agent dropdown */}
-            <div className={styles.assistantHeader}>
+            <div className='flex items-center justify-between w-full mb-3 animate-fade-in animate-duration-400 animate-ease-out'>
               <div className='flex items-center gap-12px flex-1 min-w-0'>
                 {/* Back button */}
                 <div className='flex items-center justify-center w-32px h-32px rd-full cursor-pointer hover:bg-fill-2 transition-colors flex-shrink-0' onClick={handleBackFromAssistant}>
@@ -655,7 +655,9 @@ const GuidPage: React.FC = () => {
               </div>
             )}
             {/* Description */}
-            <div className='w-full px-4 py-3 mb-4 rd-2xl text-sm border box-border'>{selectedAssistantConfig.descriptionI18n?.[localeKey] || selectedAssistantConfig.description || t('settings.assistantDescriptionPlaceholder', { defaultValue: 'No description' })}</div>
+            <div className='w-full px-4 py-3 mb-4 rd-2xl text-sm border box-border animate-fade-in animate-duration-400 animate-ease-out'>
+              {selectedAssistantConfig.descriptionI18n?.[localeKey] || selectedAssistantConfig.description || t('settings.assistantDescriptionPlaceholder', { defaultValue: 'No description' })}
+            </div>
           </>
         ) : (
           /* ========== Normal Mode ========== */
@@ -729,7 +731,7 @@ const GuidPage: React.FC = () => {
         {isAssistantMode ? (
           /* Suggestion prompts for selected assistant */
           assistantPrompts.length > 0 && (
-            <div className='mt-16px w-full animate-fade-in'>
+            <div className='mt-16px w-full animate-fade-in animate-duration-400 animate-ease-out'>
               <div className='text-13px mb-8px' style={{ color: 'var(--color-text-3)' }}>
                 {t('guid.trySuggestionPrompts', { defaultValue: 'Try these clickable example prompts:' })}
               </div>

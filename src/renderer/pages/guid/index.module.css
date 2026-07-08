@@ -6,16 +6,6 @@
   margin: 0 auto;
 }
 
-/* Selected assistant header: back + avatar + name + edit + agent dropdown */
-.assistantHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  margin-bottom: 12px;
-  animation: fade-in 0.3s ease-out;
-}
-
 /* Agent Fallback Notice */
 .agentFallbackNotice {
   width: 100%;
