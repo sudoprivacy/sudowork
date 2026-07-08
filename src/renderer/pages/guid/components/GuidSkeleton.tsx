@@ -1,5 +1,5 @@
 import React from 'react';
-import styles from '../index.module.css';
+import styles from '../styles/index.module.css';
 
 /**
  * Skeleton placeholder for the AgentPillBar while agents are loading.

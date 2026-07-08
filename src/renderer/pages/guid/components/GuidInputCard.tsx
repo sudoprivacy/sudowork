@@ -7,7 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { useCompositionInput } from '@/renderer/hooks/useCompositionInput';
 import ContextMenu, { type ContextMenuItem } from '@/renderer/components/ContextMenu';
 import FilePreview from '@/renderer/components/FilePreview';
-import styles from '../index.module.css';
+import styles from '../styles/index.module.css';
 
 type GuidInputCardProps = {
   textareaRef?: React.Ref<RefTextAreaType>;
