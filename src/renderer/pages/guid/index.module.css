@@ -79,12 +79,3 @@
   color: #a1a2aa !important;
   opacity: 1 !important;
 }
-
-@keyframes fade-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
