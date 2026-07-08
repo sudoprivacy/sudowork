@@ -1,5 +1,5 @@
 import { Button, Dropdown } from '@arco-design/web-react';
-import { ArrowUp, FolderOpen, Plus, Shield, UploadOne } from '@icon-park/react';
+import { ArrowUp, FolderOpen, Plus, Shield, Upload } from 'lucide-react';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
@@ -97,7 +97,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
                       });
                   }}
                 >
-                  <UploadOne theme='outline' size='16' fill={'var(--text-secondary)'} style={{ lineHeight: 0 }} />
+                  <Upload size={16} color='var(--text-secondary)' />
                   <span>{t('conversation.welcome.downloadLocalFile')}</span>
                 </div>
                 <div
@@ -126,20 +126,15 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
                       });
                   }}
                 >
-                  <FolderOpen theme='outline' size='16' fill={'var(--text-secondary)'} style={{ lineHeight: 0 }} />
+                  <FolderOpen size={16} color='var(--text-secondary)' />
                   <span>{t('conversation.welcome.specifyWorkspace')}</span>
                 </div>
               </div>
             }
           >
             <span className='relative'>
-              <Button shape='circle' type='secondary' title={t('conversation.welcome.downloadLocalFile')} icon={<Plus theme='outline' strokeWidth={4} fill={'var(--text-secondary)'} />} />
+              <Button shape='circle' type='secondary' title={t('conversation.welcome.downloadLocalFile')} icon={<Plus size={16} strokeWidth={3} color='var(--text-secondary)' />} />
               {files.length > 0 && <span className='absolute -right-3px -top-3px f-center min-w-14px h-14px rounded-full bg-primary px-3px text-9px text-white font-600 pointer-events-none'>{files.length}</span>}
-              {/* {files.length > 0 && (
-                <Tooltip className={'!max-w-max'} content={<span className='whitespace-break-spaces'>{getCleanFileNames(files).join('\n')}</span>}>
-                  <span className='sr-only'>File({files.length})</span>
-                </Tooltip>
-              )} */}
             </span>
           </Dropdown>
 
@@ -147,13 +142,11 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
 
           {modelSelectorNode}
 
-          {supportsModeSwitch(modeBackend) && (
-            <AgentModeSelector backend={modeBackend} compact initialMode={selectedMode} onModeSelect={onModeSelect} compactLabelOverride={permissionLabel} compactLeadingIcon={<Shield theme='outline' size='14' fill='currentColor' />} modeLabelFormatter={getModeDisplayLabel} />
-          )}
+          {supportsModeSwitch(modeBackend) && <AgentModeSelector backend={modeBackend} compact initialMode={selectedMode} onModeSelect={onModeSelect} compactLabelOverride={permissionLabel} compactLeadingIcon={<Shield size={14} color='currentColor' />} modeLabelFormatter={getModeDisplayLabel} />}
 
           {isPresetAgent && selectedAgentInfo && <PresetAgentTag agentInfo={selectedAgentInfo} customAgents={customAgents} localeKey={localeKey} onClose={onClosePresetTag} />}
         </div>
-        <Button shape='circle' type='primary' loading={loading} disabled={isButtonDisabled} icon={<ArrowUp theme='filled' fill='white' strokeWidth={4} />} onClick={onSend} />
+        <Button shape='circle' type='primary' loading={loading} disabled={isButtonDisabled} icon={<ArrowUp size={16} strokeWidth={3} color='white' />} onClick={onSend} />
       </div>
 
       <BdpanImportFilePicker
