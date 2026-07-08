@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { emitter } from '@/renderer/utils/emitter';
-import type { WorkspaceFileItem } from './useWorkspaceFiles';
 
 // Match @ followed by query text, ending at the current cursor position
 const AT_QUERY_RE = /(?:^|\s)@([^\s@]*)$/;
@@ -74,12 +73,10 @@ interface UseSkillSelectorControllerOptions {
   cursorPosition?: number;
   selectedSkills: string[];
   onRemoveSkill?: (skillName: string) => void;
-  /** Workspace files for @ file references */
-  workspaceFiles?: WorkspaceFileItem[];
 }
 
 export function useSkillSelectorController(options: UseSkillSelectorControllerOptions) {
-  const { input, cursorPosition, selectedSkills, onRemoveSkill, workspaceFiles } = options;
+  const { input, cursorPosition, selectedSkills, onRemoveSkill } = options;
   const query = useMemo(() => matchSkillQuery(input, cursorPosition), [input, cursorPosition]);
   const [dismissed, setDismissed] = useState(false);
   const prevQueryRef = useRef<string | null>(null);
@@ -90,7 +87,6 @@ export function useSkillSelectorController(options: UseSkillSelectorControllerOp
     prevQueryRef.current = query;
   }
 
-  const showTabs = workspaceFiles != null;
   const isOpen = query !== null && !dismissed;
 
   // Emit event when skill selector opens via @ trigger
@@ -120,7 +116,6 @@ export function useSkillSelectorController(options: UseSkillSelectorControllerOp
 
   return {
     isOpen,
-    showTabs,
     setDismissed,
     onKeyDown,
   };

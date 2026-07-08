@@ -358,7 +358,6 @@ const SendBox: React.FC<{
     onRemoveSkill: (skillName) => {
       setSelectedSkills(selectedSkills.filter((s) => s !== skillName));
     },
-    workspaceFiles,
   });
 
   const onSkillPopoverClose = useCallback(() => {
