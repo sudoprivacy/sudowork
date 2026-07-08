@@ -1,10 +1,6 @@
 import React from 'react';
 import { Skeleton } from '@arco-design/web-react';
 
-/**
- * Skeleton placeholder for the AgentPillBar while agents are loading.
- * Mimics the pill bar container with 5 circular shimmer elements.
- */
 export const AgentPillBarSkeleton: React.FC = () => {
   return (
     <div className='w-full flex justify-center'>

@@ -1,22 +1,3 @@
-/* 首页输入框下方「模型 / 模式」按钮：跟随主题使用更柔和的填充 */
-.actionTools :global(.sendbox-model-btn) {
-  background: color-mix(in srgb, var(--horizon-surface) 90%, var(--color-fill-1)) !important;
-  border: 1px solid var(--border-default) !important;
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.28) inset !important;
-  color: var(--color-text-2) !important;
-}
-
-.actionTools :global(.sendbox-model-btn:hover) {
-  background: color-mix(in srgb, var(--horizon-surface) 82%, var(--horizon-selected)) !important;
-  border: 1px solid var(--border-default) !important;
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--horizon-focus-ring) 60%, transparent) !important;
-  color: var(--color-text-1) !important;
-}
-
-:global([data-theme='dark']) .actionTools :global(.sendbox-model-btn) {
-  color: var(--foreground) !important;
-}
-
 /* Agent 选中时：先放大再回落至略大（pop 动效） */
 @keyframes agentSelectPop {
   0% {
