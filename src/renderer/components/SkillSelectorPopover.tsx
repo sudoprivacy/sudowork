@@ -13,24 +13,18 @@ import SkillSelectorSkeleton from './base/SkillSelectorSkeleton';
 import Tabs from './ui/Tabs';
 
 function SkillSelectorMenuContent({ skills, selectedKeys, loading = false, onSelectItem, workspaceFiles, onSelectFile, onDismiss, popupVisible = false }: Omit<ISkillSelectorPopoverProps, 'onVisibleChange' | 'onAfterClose' | 'children'>) {
-  const { t } = useTranslation();
-  const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
-  const searchInputRef = useRef<RefInputType | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const [activeTab, setActiveTab] = useState<AtMentionTab>('skills');
   const [searchQuery, setSearchQuery] = useState('');
+
+  const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const searchInputRef = useRef<RefInputType | null>(null);
+
+  const { t } = useTranslation();
+
   const debouncedSearch = useDebounce(searchQuery, { wait: 150 });
 
   const showTabs = workspaceFiles != null;
-
-  // Reset search and tab when menu opens, and auto-focus search input
-  useEffect(() => {
-    if (popupVisible) {
-      setSearchQuery('');
-      setActiveTab('skills');
-      setTimeout(() => searchInputRef.current?.focus(), 50);
-    }
-  }, [popupVisible]);
 
   const filteredSkills = useMemo(() => {
     const result = skills.filter((s) => s.enabled !== false);
@@ -50,6 +44,15 @@ function SkillSelectorMenuContent({ skills, selectedKeys, loading = false, onSel
   }, [workspaceFiles, debouncedSearch]);
 
   const currentItems = activeTab === 'skills' ? filteredSkills : filteredFiles;
+
+  // Reset search and tab when menu opens, and auto-focus search input
+  useEffect(() => {
+    if (popupVisible) {
+      setSearchQuery('');
+      setActiveTab('skills');
+      setTimeout(() => searchInputRef.current?.focus(), 50);
+    }
+  }, [popupVisible]);
 
   // Reset active index when list or tab changes
   useEffect(() => {
