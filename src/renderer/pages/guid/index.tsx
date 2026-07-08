@@ -1,4 +1,4 @@
-import { Message } from '@arco-design/web-react';
+import { Button, Message } from '@arco-design/web-react';
 import type { RefTextAreaType } from '@arco-design/web-react/es/Input';
 import { ArrowLeft, AtSign, Bot, SquarePen } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -637,9 +637,7 @@ const GuidPage: React.FC = () => {
                 <span className='text-xl font-semibold text-foreground truncate'>{selectedAssistantConfig.nameI18n?.[localeKey] || selectedAssistantConfig.name}</span>
 
                 {/* Edit button */}
-                <div className='flex items-center justify-center w-28px h-28px rd-full cursor-pointer hover:bg-fill-2 transition-colors flex-shrink-0' onClick={() => setEditDrawerVisible(true)}>
-                  <SquarePen size={16} color='var(--color-text-3)' />
-                </div>
+                <Button shape='circle' type='text' iconOnly icon={<SquarePen size={16} className='text-secondary' />} onClick={() => setEditDrawerVisible(true)} />
               </div>
 
               {/* Agent dropdown - disabled for preset assistants (builtin or hub-installed) */}
