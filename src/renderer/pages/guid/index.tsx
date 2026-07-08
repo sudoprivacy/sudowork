@@ -1,7 +1,6 @@
 import { Message } from '@arco-design/web-react';
 import type { RefTextAreaType } from '@arco-design/web-react/es/Input';
-import { EditTwo, Left, Robot } from '@icon-park/react';
-import { AtSign } from 'lucide-react';
+import { ArrowLeft, AtSign, Bot, SquarePen } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -620,7 +619,7 @@ const GuidPage: React.FC = () => {
               <div className='flex items-center gap-12px flex-1 min-w-0'>
                 {/* Back button */}
                 <div className='flex items-center justify-center w-32px h-32px rd-full cursor-pointer hover:bg-fill-2 transition-colors flex-shrink-0' onClick={handleBackFromAssistant}>
-                  <Left theme='outline' size={18} style={{ color: 'var(--color-text-2)' }} />
+                  <ArrowLeft size={18} color='var(--color-text-2)' />
                 </div>
 
                 {/* Avatar */}
@@ -630,7 +629,7 @@ const GuidPage: React.FC = () => {
                   ) : selectedAssistantAvatar?.avatarValue ? (
                     <span style={{ fontSize: 24, lineHeight: '28px' }}>{selectedAssistantAvatar.avatarValue}</span>
                   ) : (
-                    <Robot theme='outline' size={24} />
+                    <Bot size={24} />
                   )}
                 </div>
 
@@ -639,7 +638,7 @@ const GuidPage: React.FC = () => {
 
                 {/* Edit button */}
                 <div className='flex items-center justify-center w-28px h-28px rd-full cursor-pointer hover:bg-fill-2 transition-colors flex-shrink-0' onClick={() => setEditDrawerVisible(true)}>
-                  <EditTwo theme='outline' size={16} style={{ color: 'var(--color-text-3)' }} />
+                  <SquarePen size={16} color='var(--color-text-3)' />
                 </div>
               </div>
 
