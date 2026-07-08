@@ -7,7 +7,6 @@ import { useTranslation } from 'react-i18next';
 import { useCompositionInput } from '@/renderer/hooks/useCompositionInput';
 import ContextMenu, { type ContextMenuItem } from '@/renderer/components/ContextMenu';
 import FilePreview from '@/renderer/components/FilePreview';
-import styles from '../styles/index.module.css';
 
 type GuidInputCardProps = {
   textareaRef?: React.Ref<RefTextAreaType>;
@@ -168,7 +167,7 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
         ref={textareaRef}
         autoSize={textareaAutoSize}
         placeholder={placeholder}
-        className={`text-16px focus:b-none rounded-xl !bg-transparent !b-none !resize-none !p-0 ${styles.lightPlaceholder}`}
+        className={`text-16px focus:b-none rounded-xl !bg-transparent !b-none !resize-none !p-0`}
         value={input}
         onChange={onInputChange}
         onPaste={onPaste}

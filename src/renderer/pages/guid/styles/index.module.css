@@ -17,11 +17,6 @@
   color: var(--foreground) !important;
 }
 
-.lightPlaceholder::placeholder {
-  color: #a1a2aa;
-  opacity: 1;
-}
-
 /* Agent 选中时：先放大再回落至略大（pop 动效） */
 @keyframes agentSelectPop {
   0% {
@@ -41,10 +36,4 @@
     opacity 0.5s cubic-bezier(0.2, 0.8, 0.3, 1),
     background-color 0.25s ease-out;
   animation: agentSelectPop 0.4s ease-out forwards;
-}
-
-/* 浅色占位符 */
-.lightPlaceholder :global(textarea::placeholder) {
-  color: #a1a2aa !important;
-  opacity: 1 !important;
 }
