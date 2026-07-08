@@ -382,7 +382,6 @@ const SendBox: React.FC<{
         }
         onSkillPopoverClose();
       }}
-      emptyText={t('messages.skills.empty', { defaultValue: 'No skills found' })}
       onDismiss={onSkillPopoverClose}
       workspaceFiles={workspaceFiles ?? undefined}
       onSelectFile={(file) => {
@@ -536,7 +535,6 @@ const SendBox: React.FC<{
                   slashController.onSelectByIndex(targetIndex);
                 }
               }}
-              emptyText={t('messages.slash.empty', { defaultValue: 'No commands found' })}
             />
           </div>
         )}

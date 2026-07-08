@@ -497,7 +497,6 @@ const GuidPage: React.FC = () => {
         }
         onSkillPopoverClose();
       }}
-      emptyText={t('guid.noSkills')}
       onDismiss={onSkillPopoverClose}
       filterDisabled
     >
@@ -719,7 +718,6 @@ const GuidPage: React.FC = () => {
                   skillSelectorController.setDismissed(true);
                   guidInput.setInput(stripAtQuery(guidInput.input, cursorPosition));
                 }}
-                emptyText={t('guid.noSkills')}
                 onDismiss={() => {
                   skillSelectorController.setDismissed(true);
                   guidInput.setInput(stripAtQuery(guidInput.input, cursorPosition));

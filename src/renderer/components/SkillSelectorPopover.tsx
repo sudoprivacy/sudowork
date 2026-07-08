@@ -11,7 +11,7 @@ import { resolveFileIcon } from '@/renderer/utils/fileIcon';
 import SkillSelectorSkeleton from './base/SkillSelectorSkeleton';
 import Tabs from './ui/Tabs';
 
-export function SkillSelectorMenuContent({ title, skills, selectedKeys, loading = false, onSelectItem, emptyText, workspaceFiles, onSelectFile, onDismiss, isVisible = false, query = null, filterDisabled = false }: ISkillSelectorMenuContentProps) {
+export function SkillSelectorMenuContent({ title, skills, selectedKeys, loading = false, onSelectItem, workspaceFiles, onSelectFile, onDismiss, isVisible = false, query = null, filterDisabled = false }: ISkillSelectorMenuContentProps) {
   const { t } = useTranslation();
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -133,7 +133,7 @@ export function SkillSelectorMenuContent({ title, skills, selectedKeys, loading 
           <>
             {loading && filteredSkills.length === 0 && <SkillSelectorSkeleton count={4} />}
             {loading && filteredSkills.length > 0 && <div className='px-2.5 py-3 text-13px text-secondary'>{t('common.loadingSkills')}</div>}
-            {!loading && filteredSkills.length === 0 && <div className='px-2.5 py-3 text-13px text-secondary'>{searchQuery ? t('messages.skills.noSearchResults', '未找到匹配结果') : emptyText}</div>}
+            {!loading && filteredSkills.length === 0 && <div className='px-2.5 py-3 text-13px text-secondary'>{searchQuery ? t('messages.skills.noSearchResults', '未找到匹配结果') : t('messages.skills.empty', 'No skills found')}</div>}
             {!loading &&
               filteredSkills.map((skill, index) => {
                 const isSelected = selectedKeys.includes(skill.name);
@@ -231,7 +231,6 @@ interface ISkillSelectorMenuContentProps {
   selectedKeys: string[];
   loading?: boolean;
   onSelectItem: (skill: SkillSelectorItem) => void;
-  emptyText: string;
   workspaceFiles?: WorkspaceFileItem[];
   onSelectFile?: (file: WorkspaceFileItem) => void;
   onDismiss?: () => void;
