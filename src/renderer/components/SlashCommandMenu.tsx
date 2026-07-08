@@ -18,7 +18,7 @@ interface SlashCommandMenuProps {
   loadingText?: string;
   onHoverItem: (index: number) => void;
   onSelectItem: (item: SlashCommandMenuItem) => void;
-  emptyText: string;
+  emptyText?: string;
 }
 
 const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({ title, hint, items, activeIndex, loading = false, loadingText, onHoverItem, onSelectItem, emptyText }) => {
@@ -27,6 +27,7 @@ const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({ title, hint, items,
 
   // Use i18n loading text if not provided
   const resolvedLoadingText = loadingText || t('common.loading');
+  const resolvedEmptyText = emptyText || t('messages.slash.empty', 'No commands found');
 
   useEffect(() => {
     const current = itemRefs.current[activeIndex];
@@ -57,7 +58,7 @@ const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({ title, hint, items,
       </div>
       <div role='listbox' aria-busy={loading} className='overflow-y-auto p-1.5' style={{ maxHeight: 'min(34vh, 260px)' }}>
         {loading && <div className='px-2.5 py-3 text-13px text-secondary'>{resolvedLoadingText}</div>}
-        {!loading && items.length === 0 && <div className='px-2.5 py-3 text-13px text-secondary'>{emptyText}</div>}
+        {!loading && items.length === 0 && <div className='px-2.5 py-3 text-13px text-secondary'>{resolvedEmptyText}</div>}
         {!loading &&
           items.map((item, index) => (
             <button

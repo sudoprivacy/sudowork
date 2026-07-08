@@ -553,7 +553,6 @@ const SendBox: React.FC<{
                 setInput(stripAtQuery(input, cursorPosition));
                 skillSelectorController.setDismissed(true);
               }}
-              emptyText={t('messages.skills.empty', { defaultValue: 'No skills found' })}
               workspaceFiles={workspaceFiles ?? undefined}
               onSelectFile={(file) => {
                 const newInput = replaceAtQuery(input, `@${file.relativePath}`, cursorPosition);
