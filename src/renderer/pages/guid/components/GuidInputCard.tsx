@@ -185,7 +185,7 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
         </div>
       )}
       {skillSelectorOpen && skillSelectorMenu && (
-        <div className='absolute z-50' style={{ left: 16, top: 44 }}>
+        <div className='absolute z-50 bg-[var(--color-bg-popup)] px-3 py-2 rd-xl shadow-lg' style={{ left: 16, top: 44 }}>
           {skillSelectorMenu}
         </div>
       )}
