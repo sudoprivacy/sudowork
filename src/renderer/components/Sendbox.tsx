@@ -388,21 +388,21 @@ const SendBox: React.FC<{
         }
         // Strip @query from input when opened via @ trigger (safe no-op if no @ in input)
         setInput(stripAtQuery(input, cursorPosition));
-        if (skillSelectorController.query !== null) {
+        if (skillSelectorController.isOpen) {
           skillSelectorController.setDismissed(true);
         }
         onSkillPopoverClose();
       }}
       onDismiss={() => {
         setInput(stripAtQuery(input, cursorPosition));
-        if (skillSelectorController.query !== null) {
+        if (skillSelectorController.isOpen) {
           skillSelectorController.setDismissed(true);
         }
         onSkillPopoverClose();
       }}
       workspaceFiles={workspaceFiles ?? undefined}
       onSelectFile={(file) => {
-        if (skillSelectorController.query !== null) {
+        if (skillSelectorController.isOpen) {
           // Opened via @ trigger: replace @query with @filepath
           const newInput = replaceAtQuery(input, `@${file.relativePath}`, cursorPosition);
           setInput(newInput);
@@ -411,7 +411,6 @@ const SendBox: React.FC<{
         onAtFileSelected?.(file);
         onSkillPopoverClose();
       }}
-      query={skillSelectorController.query}
     >
       <Tooltip content={t('conversation.welcome.addSkill', { defaultValue: '添加技能 / 文件' })} position='top'>
         <span className='inline-flex ml-3'>

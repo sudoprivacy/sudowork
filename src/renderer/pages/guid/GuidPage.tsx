@@ -489,7 +489,7 @@ const GuidPage: React.FC = () => {
   }, [guidInput, cursorPosition, skillSelectorController, onSkillPopoverClose]);
 
   // Open skill popover when @ is typed in the input
-  useAddEventListener('guid.skill-selector.open', () => {
+  useAddEventListener('skill-selector.open', () => {
     setIsSkillPopoverOpen(true);
   });
 
@@ -509,7 +509,6 @@ const GuidPage: React.FC = () => {
         onSkillSelectorClose();
       }}
       onDismiss={onSkillSelectorClose}
-      query={skillSelectorController.query}
       filterDisabled
     >
       <ActionChip icon={<span className='text-14px font-700 leading-none'>@</span>} label={t('conversation.welcome.skill', { defaultValue: '技能' })} onClick={() => setIsSkillPopoverOpen(true)} />

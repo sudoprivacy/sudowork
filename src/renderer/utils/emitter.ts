@@ -49,8 +49,8 @@ interface EventTypes {
   'assistants.changed': void;
   // Guide 页面重置事件 / Guide page reset event (triggered by "New Conversation")
   'guid.reset': void;
-  // Skill selector open via @ trigger — payload is the query string after @
-  'guid.skill-selector.open': [string | null];
+  // Skill selector open via @ trigger
+  'skill-selector.open': void;
   // Command palette events
   'commandPalette.open': void;
   'commandPalette.close': void;

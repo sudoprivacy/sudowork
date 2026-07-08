@@ -97,10 +97,10 @@ export function useSkillSelectorController(options: UseSkillSelectorControllerOp
   const prevIsOpenRef = useRef(false);
   useEffect(() => {
     if (isOpen && !prevIsOpenRef.current) {
-      emitter.emit('guid.skill-selector.open', query);
+      emitter.emit('skill-selector.open');
     }
     prevIsOpenRef.current = isOpen;
-  }, [isOpen, query]);
+  }, [isOpen]);
 
   const onKeyDown = useCallback(
     (event: ReactKeyboardEvent) => {
@@ -120,7 +120,6 @@ export function useSkillSelectorController(options: UseSkillSelectorControllerOp
 
   return {
     isOpen,
-    query,
     showTabs,
     setDismissed,
     onKeyDown,

@@ -1,4 +1,5 @@
 import { Input, Popover } from '@arco-design/web-react';
+import type { RefInputType } from '@arco-design/web-react/es/Input/interface';
 import { IconSearch } from '@arco-design/web-react/icon';
 import { useDebounce } from 'ahooks';
 import classNames from 'classnames';
@@ -11,9 +12,10 @@ import { resolveFileIcon } from '@/renderer/utils/fileIcon';
 import SkillSelectorSkeleton from './base/SkillSelectorSkeleton';
 import Tabs from './ui/Tabs';
 
-export function SkillSelectorMenuContent({ skills, selectedKeys, loading = false, onSelectItem, workspaceFiles, onSelectFile, onDismiss, isVisible = false, query = null, filterDisabled = false }: ISkillSelectorMenuContentProps) {
+export function SkillSelectorMenuContent({ skills, selectedKeys, loading = false, onSelectItem, workspaceFiles, onSelectFile, onDismiss, isVisible = false, filterDisabled = false }: ISkillSelectorMenuContentProps) {
   const { t } = useTranslation();
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const searchInputRef = useRef<RefInputType | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const [activeTab, setActiveTab] = useState<AtMentionTab>('skills');
   const [searchQuery, setSearchQuery] = useState('');
@@ -21,30 +23,31 @@ export function SkillSelectorMenuContent({ skills, selectedKeys, loading = false
 
   const showTabs = workspaceFiles != null;
 
-  // Reset search and tab when menu opens
+  // Reset search and tab when menu opens, and auto-focus search input
   useEffect(() => {
     if (isVisible) {
       setSearchQuery('');
       setActiveTab('skills');
+      setTimeout(() => searchInputRef.current?.focus(), 50);
     }
   }, [isVisible]);
 
   const filteredSkills = useMemo(() => {
     const result = filterDisabled ? skills.filter((s) => s.enabled !== false) : skills;
-    const keyword = (debouncedSearch.trim() || (query ?? '').trim()).toLowerCase();
+    const keyword = debouncedSearch.trim().toLowerCase();
     if (!keyword) return result;
     return result.filter((s) => {
-      const raw = debouncedSearch.trim() || (query ?? '').trim();
+      const raw = debouncedSearch.trim();
       return s.name.toLowerCase().includes(keyword) || s.displayName.toLowerCase().includes(keyword) || (s.description?.toLowerCase().includes(keyword) ?? false) || s.displayName.includes(raw);
     });
-  }, [skills, debouncedSearch, query, filterDisabled]);
+  }, [skills, debouncedSearch, filterDisabled]);
 
   const filteredFiles = useMemo(() => {
     if (!workspaceFiles) return [];
-    const keyword = (debouncedSearch.trim() || (query ?? '').trim()).toLowerCase();
+    const keyword = debouncedSearch.trim().toLowerCase();
     if (!keyword) return workspaceFiles;
     return workspaceFiles.filter((f) => f.name.toLowerCase().includes(keyword) || f.relativePath.toLowerCase().includes(keyword));
-  }, [workspaceFiles, debouncedSearch, query]);
+  }, [workspaceFiles, debouncedSearch]);
 
   const currentItems = activeTab === 'skills' ? filteredSkills : filteredFiles;
 
@@ -125,7 +128,17 @@ export function SkillSelectorMenuContent({ skills, selectedKeys, loading = false
       </div>
 
       {/* Search box */}
-      <Input className='my-3' size='small' prefix={<IconSearch />} allowClear placeholder={activeTab === 'skills' ? t('messages.skills.searchSkills', '搜索技能...') : t('messages.skills.searchFiles', '搜索文件...')} value={searchQuery} onChange={setSearchQuery} onKeyDown={handleSearchKeyDown} />
+      <Input
+        ref={searchInputRef}
+        className='my-3'
+        size='small'
+        prefix={<IconSearch />}
+        allowClear
+        placeholder={activeTab === 'skills' ? t('messages.skills.searchSkills', '搜索技能...') : t('messages.skills.searchFiles', '搜索文件...')}
+        value={searchQuery}
+        onChange={setSearchQuery}
+        onKeyDown={handleSearchKeyDown}
+      />
 
       {/* Content area */}
       <div role='listbox' aria-busy={loading} className='overflow-y-auto h-260px'>
@@ -235,8 +248,6 @@ interface ISkillSelectorMenuContentProps {
   onDismiss?: () => void;
   /** Whether the menu is currently visible — activates keyboard listener */
   isVisible?: boolean;
-  /** The @-mention query string for initial filtering */
-  query?: string | null;
   /** Filter out disabled skills */
   filterDisabled?: boolean;
 }
