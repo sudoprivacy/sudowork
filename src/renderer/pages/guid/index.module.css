@@ -82,14 +82,6 @@
   border-radius: 4px;
 }
 
-/* 小屏手机再收窄一点安全边距，提升可操作面积 */
-@media (max-width: 420px) {
-  .guidLayout {
-    width: clamp(var(--app-min-width, 360px), calc(100% - 20px), 100%);
-    padding: 0 10px;
-  }
-}
-
 /* 移动端容器滚动支持 */
 .guidContainer {
   height: 100%;

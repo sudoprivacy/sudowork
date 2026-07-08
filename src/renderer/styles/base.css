@@ -857,7 +857,7 @@ body,
 }
 
 /* ===== Aurora Inputs ===== */
-.guidContainer .guidInputCard,
+/* .guidContainer .guidInputCard,
 [class*='guidContainer'] [class*='guidInputCard'],
 .relative.p-16px.border-3.b.bg-fill-3.b-solid.rd-20px.flex.flex-col:has(.sendbox-tools) {
   position: relative;
@@ -867,27 +867,6 @@ body,
 [class*='guidContainer'] [class*='guidInputCard']:focus-within,
 .relative.p-16px.border-3.b.bg-fill-3.b-solid.rd-20px.flex.flex-col:has(.sendbox-tools):focus-within {
   overflow: visible !important;
-  /* border: 2px solid transparent !important;
-  background-color: var(--color-fill-3) !important;
-  background-image: linear-gradient(var(--color-fill-3), var(--color-fill-3)), var(--retroma-aurora-input-gradient) !important;
-  background-size:
-    100% 100%,
-    220% 100% !important;
-  background-repeat: no-repeat, no-repeat !important;
-  background-position:
-    center center,
-    0% 50% !important;
-  background-origin: border-box !important;
-  background-clip: padding-box, border-box !important;
-  box-shadow:
-    0 0 0 1px var(--retroma-aurora-input-ring),
-    0 0 16px rgba(255, 106, 1, 0.1),
-    0 0 18px rgba(138, 43, 226, 0.1),
-    0 0 20px rgba(0, 191, 255, 0.12),
-    var(--retroma-aurora-input-shadow) !important;
-  animation:
-    elegantFlow 2.4s linear infinite,
-    softGlow 3s ease-in-out infinite; */
 }
 
 .guidContainer .guidInputCard textarea::placeholder,
@@ -895,7 +874,7 @@ body,
 .relative.p-16px.border-3.b.bg-fill-3.b-solid.rd-20px.flex.flex-col:has(.sendbox-tools) textarea::placeholder {
   color: var(--retroma-aurora-placeholder) !important;
   opacity: 1 !important;
-}
+} */
 
 @keyframes elegantFlow {
   0% {
