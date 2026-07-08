@@ -19,6 +19,7 @@ import { useInputFocusRing } from '@/renderer/hooks/useInputFocusRing';
 import { resolveLocaleKey } from '@/common/utils';
 import { DEFAULT_PRESET_AGENT_TYPE, normalizePresetAgentType } from '@/types/acpTypes';
 import ActionChip from '@/renderer/components/ui/ActionChip';
+import PageWrapper from '@/renderer/components/base/PageWrapper';
 import AssistantEditDrawer from './components/AssistantEditDrawer';
 import AssistantSelectionArea from './components/AssistantSelectionArea';
 import AssistantAgentDropdown from './components/AssistantAgentDropdown';
@@ -40,7 +41,6 @@ import { useGuidSend } from './hooks/useGuidSend';
 import { useTypewriterPlaceholder } from './hooks/useTypewriterPlaceholder';
 import { getGuidDraft, setGuidDraft } from './hooks/useGuidDraft';
 import type { AcpBackendConfig } from './types';
-import styles from './index.module.css';
 
 const GuidPage: React.FC = () => {
   const draft = getGuidDraft();
@@ -603,9 +603,9 @@ const GuidPage: React.FC = () => {
   );
 
   return (
-    <div ref={guidContainerRef} className={styles.guidContainer}>
+    <PageWrapper contentClassName='!max-w-[70%] h-full f-center flex-col'>
       {/* Normal/Assistant conversation area */}
-      <div className={styles.guidLayout}>
+      <div className='w-full px-4 box-border mx-auto mt-[-5vh]'>
         {isAssistantMode ? (
           /* ========== Selected Assistant Mode ========== */
           <>
@@ -770,7 +770,7 @@ const GuidPage: React.FC = () => {
       <QuickActionButtons onOpenLink={openLink} inactiveBorderColor={inactiveBorderColor} activeShadow={activeShadow} />
       {/* Assistant Edit Drawer */}
       <AssistantEditDrawer visible={editDrawerVisible} assistantId={selectedAssistantConfig?.id || null} localeKey={localeKey} onClose={() => setEditDrawerVisible(false)} onSaved={handleEditDrawerSaved} />
-    </div>
+    </PageWrapper>
   );
 };
 
