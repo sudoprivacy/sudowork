@@ -94,7 +94,7 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
     const target = e.currentTarget;
     const items: ContextMenuItem[] = [
       {
-        label: t('common.paste', { defaultValue: '粘贴' }),
+        label: t('common.paste', '粘贴'),
         icon: <IconPaste />,
         onClick: async () => {
           try {

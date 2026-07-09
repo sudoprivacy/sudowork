@@ -117,7 +117,7 @@ const AssistantSelectionArea: React.FC<AssistantSelectionAreaProps> = ({ customA
           })}
         <div className='group f-center h-7 min-w-7 px-2 gap-1 rd-100px bg-fill-0 cursor-pointer whitespace-nowrap b-1 border-light b-dashed select-none transition-colors duration-300 hover:bg-fill-2' onClick={() => navigate('/app/agent')}>
           <Plus size={14} className='flex-shrink-0 line-height-0 text-[var(--color-text-3)] group-hover:text-[var(--color-text-2)] transition-colors duration-300' />
-          <span className='text-14px text-2 group-hover:text-1 transition-colors duration-300'>{t('settings.createAssistant', { defaultValue: '创建智能体' })}</span>
+          <span className='text-14px text-2 group-hover:text-1 transition-colors duration-300'>{t('settings.createAssistant', '创建智能体')}</span>
         </div>
       </div>
     </div>

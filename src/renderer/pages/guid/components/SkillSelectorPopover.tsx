@@ -212,7 +212,7 @@ function SkillSelectorMenuContent({ skills, selectedKeys, loading = false, onSel
                       <span className={classNames('text-13px truncate text-foreground font-medium')}>{file.name}</span>
                       {file.isDraft && (
                         <span className='px-1 py-0 text-9px rd-3px whitespace-nowrap flex-shrink-0 leading-14px' style={{ background: 'var(--warning-soft)', color: 'var(--warning)' }}>
-                          {t('conversation.workspace.drafts.badge', { defaultValue: '草稿' })}
+                          {t('conversation.workspace.drafts.badge', '草稿')}
                         </span>
                       )}
                     </div>

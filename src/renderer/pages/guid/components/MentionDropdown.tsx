@@ -37,7 +37,7 @@ const MentionDropdown: React.FC<MentionDropdownProps> = ({ menuRef, options, sel
           ))
         ) : (
           <Menu.Item key='empty' disabled>
-            {t('conversation.welcome.none', { defaultValue: '无' })}
+            {t('conversation.welcome.none', '无')}
           </Menu.Item>
         )}
       </Menu>
