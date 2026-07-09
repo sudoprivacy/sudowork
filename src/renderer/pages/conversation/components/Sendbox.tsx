@@ -18,12 +18,12 @@ import { isElectronDesktop } from '@/renderer/utils/platform';
 import { skillHub } from '@/common/ipcBridge';
 import { resolveSkillIcon, getInstalledSkillDisplay } from '@/renderer/utils/skillDisplay';
 import { addEventListener } from '@/renderer/utils/emitter';
-import { allSupportedExts } from '../services/FileService';
-import type { FileMetadata } from '../services/FileService';
-import { usePasteService } from '../hooks/usePasteService';
-import { useLatestRef } from '../hooks/useLatestRef';
-import { useDragUpload } from '../hooks/useDragUpload';
-import { useCompositionInput } from '../hooks/useCompositionInput';
+import { allSupportedExts } from '../../../services/FileService';
+import type { FileMetadata } from '../../../services/FileService';
+import { usePasteService } from '../../../hooks/usePasteService';
+import { useLatestRef } from '../../../hooks/useLatestRef';
+import { useDragUpload } from '../../../hooks/useDragUpload';
+import { useCompositionInput } from '../../../hooks/useCompositionInput';
 
 const constVoid = (): void => undefined;
 // 临界值：超过该字符数直接切换至多行模式，避免为超长文本做昂贵的宽度测量
