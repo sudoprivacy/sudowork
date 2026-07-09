@@ -1,4 +1,4 @@
-import { Robot } from '@icon-park/react';
+import { Bot } from 'lucide-react';
 import React from 'react';
 import { getAgentLogo } from '@/renderer/utils/agentLogo';
 import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
@@ -129,7 +129,7 @@ const AgentPillBar: React.FC<AgentPillBarProps> = ({ availableAgents, selectedAg
                     onClick={() => onSelectAgent(getAgentKey(agent))}
                   >
                     <span className='inline-flex h-5 w-5 shrink-0 items-center justify-center leading-none'>
-                      {isEmojiAvatar ? <span className='text-18px leading-none'>{agent.avatar}</span> : logoSrc ? <img src={logoSrc} alt={`${agent.backend} logo`} width={20} height={20} className='block object-contain' /> : <Robot theme='outline' size={20} fill='currentColor' />}
+                      {isEmojiAvatar ? <span className='text-18px leading-none'>{agent.avatar}</span> : logoSrc ? <img src={logoSrc} alt={`${agent.backend} logo`} width={20} height={20} className='block object-contain' /> : <Bot size={20} />}
                     </span>
                     <span
                       className={`font-medium text-14px text-foreground ${isSelected ? 'font-semibold ml-1' : 'max-w-0 opacity-0 overflow-hidden group-hover:max-w-25 group-hover:opacity-100 group-hover:ml-2'}`}

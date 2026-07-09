@@ -1,5 +1,5 @@
 import { Dropdown } from '@arco-design/web-react';
-import { Down } from '@icon-park/react';
+import { ChevronDown } from 'lucide-react';
 import React from 'react';
 
 type MentionSelectorBadgeProps = {
@@ -29,7 +29,7 @@ const MentionSelectorBadge: React.FC<MentionSelectorBadgeProps> = ({ visible, op
       >
         <div className='flex items-center gap-1.5 bg-fill-2 px-2.5 py-1 rd-16px cursor-pointer select-none'>
           <span className='text-14px font-medium text-foreground'>@{agentLabel}</span>
-          <Down theme='outline' size={12} />
+          <ChevronDown size={12} />
         </div>
       </Dropdown>
     </div>

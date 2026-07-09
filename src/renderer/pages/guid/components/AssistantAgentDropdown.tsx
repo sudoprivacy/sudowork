@@ -3,8 +3,8 @@
  * Shown on the right side of the assistant header in the GUID page.
  */
 
-import { Check, Down, Robot } from '@icon-park/react';
 import { Popover } from '@arco-design/web-react';
+import { Bot, Check, ChevronDown } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
 import { normalizePresetAgentType, type AcpBackend } from '@/types/acpTypes';
 import { getAgentLogo } from '@/renderer/utils/agentLogo';
@@ -71,7 +71,7 @@ const AssistantAgentDropdown: React.FC<AssistantAgentDropdownProps> = ({ availab
   if (disabled) {
     return (
       <div className='flex items-center gap-1 select-none px-2 py-1 rd-8px' style={{ cursor: 'default', opacity: 0.85 }}>
-        {displayLogo ? <img src={displayLogo} alt='' width={24} height={24} style={{ objectFit: 'contain' }} /> : <Robot theme='outline' size={24} />}
+        {displayLogo ? <img src={displayLogo} alt='' width={24} height={24} style={{ objectFit: 'contain' }} /> : <Bot size={24} />}
       </div>
     );
   }
@@ -100,9 +100,9 @@ const AssistantAgentDropdown: React.FC<AssistantAgentDropdownProps> = ({ availab
                   setVisible(false);
                 }}
               >
-                {itemLogo ? <img src={itemLogo} alt='' width={20} height={20} style={{ objectFit: 'contain', flexShrink: 0 }} /> : <Robot theme='outline' size={20} style={{ flexShrink: 0 }} />}
+                {itemLogo ? <img src={itemLogo} alt='' width={20} height={20} style={{ objectFit: 'contain', flexShrink: 0 }} /> : <Bot size={20} className='shrink-0' />}
                 <span className='flex-1 text-14px text-1'>{opt.label}</span>
-                {isSelected && <Check theme='outline' size={16} style={{ color: 'var(--ui-accent-orange)', flexShrink: 0 }} />}
+                {isSelected && <Check size={16} className='shrink-0 text-[var(--ui-accent-orange)]' />}
               </div>
             );
           })}
@@ -110,8 +110,8 @@ const AssistantAgentDropdown: React.FC<AssistantAgentDropdownProps> = ({ availab
       }
     >
       <div className='flex items-center gap-1 cursor-pointer select-none px-2 py-1 rd-8px hover:bg-fill-2 transition-colors'>
-        {displayLogo ? <img src={displayLogo} alt='' width={24} height={24} style={{ objectFit: 'contain' }} /> : <Robot theme='outline' size={24} />}
-        <Down theme='outline' size={14} style={{ color: 'var(--color-text-2)' }} />
+        {displayLogo ? <img src={displayLogo} alt='' width={24} height={24} style={{ objectFit: 'contain' }} /> : <Bot size={24} />}
+        <ChevronDown size={14} className='text-2' />
       </div>
     </Popover>
   );

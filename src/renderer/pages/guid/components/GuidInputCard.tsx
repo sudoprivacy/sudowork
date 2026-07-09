@@ -1,7 +1,7 @@
 import { Input, Tag, Tooltip } from '@arco-design/web-react';
 import type { RefTextAreaType } from '@arco-design/web-react/es/Input';
 import { IconClose, IconPaste, IconThunderbolt } from '@arco-design/web-react/icon';
-import { FolderOpen } from '@icon-park/react';
+import { FolderOpen } from 'lucide-react';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useCompositionInput } from '@/renderer/hooks/useCompositionInput';
@@ -194,7 +194,7 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
       {dir && (
         <div className='flex items-start justify-between gap-2.5 mt-2 px-2.5 py-1.5 text-13px text-secondary border-t border-default'>
           <div className='flex items-start min-w-0 flex-1 gap-2'>
-            <FolderOpen className='mt-px flex-shrink-0' theme='outline' size='16' fill={'var(--text-secondary)'} style={{ lineHeight: 0 }} />
+            <FolderOpen className='mt-px flex-shrink-0 text-secondary' size={16} style={{ lineHeight: 0 }} />
             <Tooltip content={dir} position='top'>
               <span className='block min-w-0 whitespace-normal break-all leading-18px'>
                 {t('conversation.welcome.currentWorkspace')}: {dir}
