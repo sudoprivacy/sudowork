@@ -1,9 +1,5 @@
 import React, { type PropsWithChildren } from 'react';
 
-export interface SafetyChatConfirmProps {
-  conversation_id?: string;
-}
-
 /**
  * Safety Chat Confirm Component
  *
@@ -18,9 +14,11 @@ export interface SafetyChatConfirmProps {
  * </SafetyChatConfirm>
  * ```
  */
-export const SafetyChatConfirm: React.FC<PropsWithChildren<SafetyChatConfirmProps>> = ({ children }) => {
+export function SafetyChatConfirm({ children }: PropsWithChildren<ISafetyChatConfirmProps>) {
   // Safety hooks are temporarily disabled; keep the wrapper as a restore point.
   return <>{children}</>;
-};
+}
 
-export default SafetyChatConfirm;
+interface ISafetyChatConfirmProps {
+  conversation_id?: string;
+}

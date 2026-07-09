@@ -7,7 +7,7 @@ import { MessageListProvider, useMessageLstCache } from '@renderer/messages/hook
 import HOC from '@renderer/utils/HOC';
 import LocalImageView from '@renderer/components/LocalImageView';
 import ConversationChatConfirm from '../components/ConversationChatConfirm';
-import SafetyChatConfirm from '../SafetyChatConfirm';
+import { SafetyChatConfirm } from '../SafetyChatConfirm';
 import AcpSendBox from './AcpSendBox';
 
 const AcpChat: React.FC<{
