@@ -241,7 +241,7 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
       });
 
       if (!updateResult.success) {
-        Message.error(t('settings.assistant.saveFailed', { msg: updateResult.msg || 'Unknown error', defaultValue: `保存失败: ${updateResult.msg || '未知错误'}` }));
+        Message.error(t('settings.assistant.saveFailed', { msg: updateResult.msg || t('common.unknownError', '未知错误'), defaultValue: '保存失败：{{msg}}' }));
         return;
       }
 
@@ -264,12 +264,12 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
         await mutate('acp.agents.available');
       }
 
-      Message.success(t('common.saveSuccess', 'Saved successfully'));
+      Message.success(t('common.saveSuccess', '保存成功'));
       onSaved();
       onClose();
     } catch (error) {
       console.error('Failed to save assistant:', error);
-      Message.error(t('common.failed', 'Failed'));
+      Message.error(t('common.failed', '失败'));
     }
   }, [assistant, isReadonly, isEnterprise, editName, editDescription, editAvatar, editAgent, editContext, selectedSkills, installedSkills, localeKey, onSaved, onClose, t]);
 
@@ -287,9 +287,9 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
       onCancel={onClose}
       footer={
         <div className='flex justify-end gap-2'>
-          <Button onClick={onClose}>{t('common.cancel', 'Cancel')}</Button>
+          <Button onClick={onClose}>{t('common.cancel', '取消')}</Button>
           <Button type='primary' onClick={handleSave} disabled={isReadonly}>
-            {t('common.save', 'Save')}
+            {t('common.save', '保存')}
           </Button>
         </div>
       }
@@ -347,10 +347,10 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
               {!isBuiltin && !isReadonly && (
                 <div className='flex items-center h-9 bg-fill-2 border-b flex-shrink-0'>
                   <div className={`flex items-center h-full px-4 cursor-pointer transition-all text-13px font-medium ${promptViewMode === 'edit' ? 'text-primary border-b-2px border-primary' : 'text-secondary hover:text-foreground'}`} onClick={() => setPromptViewMode('edit')}>
-                    {t('settings.promptEdit', 'Edit')}
+                    {t('settings.promptEdit', '编辑')}
                   </div>
                   <div className={`flex items-center h-full px-4 cursor-pointer transition-all text-13px font-medium ${promptViewMode === 'preview' ? 'text-primary border-b-2px border-primary' : 'text-secondary hover:text-foreground'}`} onClick={() => setPromptViewMode('preview')}>
-                    {t('settings.promptPreview', 'Preview')}
+                    {t('settings.promptPreview', '预览')}
                   </div>
                 </div>
               )}
@@ -372,7 +372,7 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
                     ) : (
                       <div className='text-secondary text-center py-8'>
                         {t('settings.promptPreviewEmpty', {
-                          defaultValue: 'No content to preview',
+                          defaultValue: '暂无内容可预览',
                         })}
                       </div>
                     )}
@@ -436,7 +436,7 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
                   {installedSkills.filter((s) => !s.isBuiltin).length === 0 && (
                     <div className='text-center text-secondary text-12px py-4 col-span-full'>
                       {t('settings.noCustomSkills', {
-                        defaultValue: 'No custom skills available',
+                        defaultValue: '暂无自定义技能',
                       })}
                     </div>
                   )}
@@ -488,7 +488,7 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
                   {installedSkills.filter((s) => s.isBuiltin).length === 0 && (
                     <div className='text-center text-secondary text-12px py-4 col-span-full'>
                       {t('settings.noBuiltinSkills', {
-                        defaultValue: 'No builtin skills available',
+                        defaultValue: '暂无可用的内置技能',
                       })}
                     </div>
                   )}

@@ -497,7 +497,7 @@ const GuidPage: React.FC = () => {
         await agentSelection.refreshCustomAgents();
       } catch (error) {
         console.error('Failed to change assistant agent type:', error);
-        Message.error(t('common.failed', { defaultValue: 'Failed' }));
+        Message.error(t('common.failed', { defaultValue: '失败' }));
       }
     },
     [agentSelection, t]
@@ -659,7 +659,7 @@ const GuidPage: React.FC = () => {
             )}
             {/* Description */}
             <div className='w-full px-4 py-3 mb-4 rd-2xl text-sm border box-border animate-fade-in animate-duration-400 animate-ease-out'>
-              {selectedAssistantConfig.descriptionI18n?.[localeKey] || selectedAssistantConfig.description || t('settings.assistantDescriptionPlaceholder', { defaultValue: 'No description' })}
+              {selectedAssistantConfig.descriptionI18n?.[localeKey] || selectedAssistantConfig.description || t('settings.assistantDescriptionPlaceholder', { defaultValue: '帮你解决什么问题' })}
             </div>
           </>
         ) : (
@@ -734,7 +734,7 @@ const GuidPage: React.FC = () => {
           /* Suggestion prompts for selected assistant */
           assistantPrompts.length > 0 && (
             <div className='mt-4 w-full animate-fade-in animate-duration-400 animate-ease-out'>
-              <div className='text-13px mb-2 text-tertiary'>{t('guid.trySuggestionPrompts', { defaultValue: 'Try these clickable example prompts:' })}</div>
+              <div className='text-13px mb-2 text-tertiary'>{t('guid.trySuggestionPrompts', { defaultValue: '试试这些可点击的案例提示词：' })}</div>
               <div className='flex flex-wrap gap-2'>
                 {assistantPrompts.map((prompt: string, index: number) => (
                   <div

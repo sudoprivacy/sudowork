@@ -629,6 +629,7 @@
     "selectModel": "Select Model",
     "modelSaved": "モデルを保存しました",
     "modelSaveFailed": "モデルの保存に失敗しました",
+    "saveFailed": "保存に失敗しました：{{msg}}",
     "nextSteps": "Next Steps",
     "step1": "Open Telegram and search for your bot",
     "step2": "Send any message or click /start to initiate pairing",

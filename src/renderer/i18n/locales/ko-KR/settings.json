@@ -629,6 +629,7 @@
     "selectModel": "Select Model",
     "modelSaved": "모델이 저장되었습니다",
     "modelSaveFailed": "모델 저장에 실패했습니다",
+    "saveFailed": "저장 실패: {{msg}}",
     "nextSteps": "Next Steps",
     "step1": "Open Telegram and search for your bot",
     "step2": "Send any message or click /start to initiate pairing",

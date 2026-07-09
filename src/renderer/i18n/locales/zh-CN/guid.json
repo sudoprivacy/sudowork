@@ -64,6 +64,9 @@
   "agentTabAutoSwitch": "模型不兼容 Gemini，已自动切换到 {{fallback}}",
   "autoSwitchToAgent": "Gemini 未配置，正在自动切换到 {{agent}}",
   "autoSwitchedAgent": "{{from}} 不可用，已自动切换到 {{to}}",
+  "agentNotAvailable": "Sudo Code 不可用。请安装或修复运行环境。",
+  "createRemoteConversationFailedSimple": "创建远程智能体对话失败",
+  "createRemoteConversationFailed": "创建远程智能体对话失败：{{error}}",
   "scanning": {
     "initialMessage": "当前Agent不可用, 正在检测其他可用agent...",
     "scanningMessage": "正在扫描本地可用agent...",

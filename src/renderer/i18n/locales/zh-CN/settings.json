@@ -674,6 +674,7 @@
     "selectModel": "选择模型",
     "modelSaved": "模型已保存",
     "modelSaveFailed": "保存模型失败",
+    "saveFailed": "保存失败：{{msg}}",
     "nextSteps": "下一步操作",
     "step1": "打开 Telegram 搜索你的机器人",
     "step2": "发送任意消息或点击 /start 开始配对",

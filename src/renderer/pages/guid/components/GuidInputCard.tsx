@@ -94,7 +94,7 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
     const target = e.currentTarget;
     const items: ContextMenuItem[] = [
       {
-        label: t('common.paste', { defaultValue: 'Paste' }),
+        label: t('common.paste', { defaultValue: '粘贴' }),
         icon: <IconPaste />,
         onClick: async () => {
           try {
@@ -148,7 +148,7 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
         <div className='flex flex-col gap-1.5 mb-2'>
           <div className='flex items-center gap-1 text-11px text-secondary'>
             <Lightning size='12' />
-            <span>当前使用技能</span>
+            <span>{t('messages.skills.activeSkills', '当前使用技能')}</span>
           </div>
           <div className='flex flex-wrap gap-1.5'>
             {selectedSkills.map((skillName) => {

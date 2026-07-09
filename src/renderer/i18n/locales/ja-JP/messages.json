@@ -41,7 +41,12 @@
     "triggerLabel": "スキル / ファイル",
     "searchSkills": "スキルを検索...",
     "searchFiles": "ファイルを検索...",
+    "title": "スキル",
+    "tabSkills": "スキル",
+    "tabFiles": "ファイル",
     "noSearchResults": "一致する結果がありません",
+    "empty": "スキルが見つかりません",
+    "filesEmpty": "ワークスペースにファイルがありません",
     "activeSkills": "使用中のスキル",
     "added": "追加済み",
     "tabToSwitch": "Tab で切り替え"

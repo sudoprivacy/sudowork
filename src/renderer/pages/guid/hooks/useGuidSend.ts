@@ -166,7 +166,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
         });
 
         if (!conversation || !conversation.id) {
-          alert('Failed to create remote agent conversation');
+          alert(t('guid.createRemoteConversationFailedSimple', '创建远程智能体对话失败'));
           return;
         }
 
@@ -201,7 +201,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
         emitter.emit('chat.history.refresh');
       } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : String(error);
-        alert(`Failed to create remote agent conversation: ${errorMessage}`);
+        alert(t('guid.createRemoteConversationFailed', { error: errorMessage, defaultValue: '创建远程智能体对话失败：{{error}}' }));
         throw error;
       }
       return;
@@ -211,7 +211,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
     if ((selectedAgent === 'scode' || finalEffectiveAgentType === 'scode') && !hasScodeCli) {
       Message.error(
         t('guid.agentNotAvailable', {
-          defaultValue: 'Sudo Code is not available. Please install or repair the runtime.',
+          defaultValue: 'Sudo Code 不可用。请安装或修复运行环境。',
         })
       );
       return;

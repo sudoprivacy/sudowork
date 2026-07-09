@@ -237,7 +237,7 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({ isGeminiMode, mod
             <div className={PANEL_CLASS} style={PANEL_STYLE}>
               {acpProviderModelGroups.map((group) => (
                 <div key={group.key} className='flex flex-col gap-0.5'>
-                  <div className={GROUP_TITLE_CLASS}>{group.name || t('common.other', { defaultValue: 'Other' })}</div>
+                  <div className={GROUP_TITLE_CLASS}>{group.name || t('common.other', { defaultValue: '其他' })}</div>
                   {group.models.map((model) => {
                     // 获取模型健康状态
                     const backend = currentAcpCachedModelInfo.source;

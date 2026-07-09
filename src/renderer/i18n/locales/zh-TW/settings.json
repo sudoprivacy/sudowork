@@ -629,6 +629,7 @@
     "selectModel": "Select Model",
     "modelSaved": "模型已儲存",
     "modelSaveFailed": "儲存模型失敗",
+    "saveFailed": "儲存失敗：{{msg}}",
     "nextSteps": "Next Steps",
     "step1": "Open Telegram and search for your bot",
     "step2": "Send any message or click /start to initiate pairing",

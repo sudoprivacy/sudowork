@@ -166,6 +166,7 @@
       "title": "임시 보관함",
       "description": "에이전트 실행 중 생성된 중간 파일",
       "empty": "임시 보관함이 비어 있습니다",
+      "badge": "임시",
       "clearAll": "임시 보관함 비우기",
       "clearConfirm": "임시 보관함의 모든 파일을 삭제하시겠습니까?",
       "fileCount": "{{count}}개의 중간 파일",

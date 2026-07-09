@@ -41,7 +41,12 @@
     "triggerLabel": "스킬 / 파일",
     "searchSkills": "스킬 검색...",
     "searchFiles": "파일 검색...",
+    "title": "스킬",
+    "tabSkills": "스킬",
+    "tabFiles": "파일",
     "noSearchResults": "일치하는 결과가 없습니다",
+    "empty": "스킬을 찾을 수 없습니다",
+    "filesEmpty": "워크스페이스에 파일이 없습니다",
     "activeSkills": "현재 사용 중인 스킬",
     "added": "추가됨",
     "tabToSwitch": "Tab 전환"

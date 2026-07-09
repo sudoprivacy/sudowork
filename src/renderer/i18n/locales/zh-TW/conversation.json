@@ -165,6 +165,7 @@
       "title": "草稿箱",
       "description": "Agent 執行過程中產出的中間檔案",
       "empty": "草稿箱為空",
+      "badge": "草稿",
       "clearAll": "清空草稿箱",
       "clearConfirm": "確定清空草稿箱中的所有檔案嗎？",
       "fileCount": "{{count}} 個中間檔案",

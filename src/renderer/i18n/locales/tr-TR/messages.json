@@ -41,7 +41,12 @@
     "triggerLabel": "Beceriler / Dosyalar",
     "searchSkills": "Beceri ara...",
     "searchFiles": "Dosya ara...",
+    "title": "Beceriler",
+    "tabSkills": "Beceriler",
+    "tabFiles": "Dosyalar",
     "noSearchResults": "Eşleşen sonuç bulunamadı",
+    "empty": "Beceri bulunamadı",
+    "filesEmpty": "Çalışma alanında dosya yok",
     "activeSkills": "Aktif Beceriler",
     "added": "Eklendi",
     "tabToSwitch": "Tab ile değiştir"

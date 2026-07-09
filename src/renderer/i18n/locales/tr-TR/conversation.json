@@ -160,6 +160,7 @@
       "title": "Taslaklar",
       "description": "Ajan yürütme sırasında üretilen ara dosyalar",
       "empty": "Taslaklar boş",
+      "badge": "Taslak",
       "clearAll": "Taslakları Temizle",
       "clearConfirm": "Taslaklardaki tüm dosyaları silmek istediğinizden emin misiniz?",
       "fileCount": "{{count}} ara dosya",

@@ -57,7 +57,12 @@
     "triggerLabel": "技能 / 文件",
     "searchSkills": "搜索技能...",
     "searchFiles": "搜索文件...",
+    "title": "技能",
+    "tabSkills": "技能",
+    "tabFiles": "文件",
     "noSearchResults": "未找到匹配结果",
+    "empty": "未找到技能",
+    "filesEmpty": "工作空间中没有文件",
     "activeSkills": "当前使用技能",
     "added": "已添加",
     "tabToSwitch": "Tab 切换"

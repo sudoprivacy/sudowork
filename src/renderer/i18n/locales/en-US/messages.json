@@ -57,7 +57,12 @@
     "triggerLabel": "Skills / Files",
     "searchSkills": "Search skills...",
     "searchFiles": "Search files...",
+    "title": "Skills",
+    "tabSkills": "Skills",
+    "tabFiles": "Files",
     "noSearchResults": "No matching results",
+    "empty": "No skills found",
+    "filesEmpty": "No files in workspace",
     "activeSkills": "Active Skills",
     "added": "Added",
     "tabToSwitch": "Tab to switch"

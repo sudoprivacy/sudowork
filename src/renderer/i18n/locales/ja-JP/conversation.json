@@ -166,6 +166,7 @@
       "title": "下書き",
       "description": "エージェント実行中に生成された中間ファイル",
       "empty": "下書きは空です",
+      "badge": "下書き",
       "clearAll": "下書きをクリア",
       "clearConfirm": "下書きのすべてのファイルをクリアしますか？",
       "fileCount": "{{count}} 個の中間ファイル",

@@ -119,14 +119,14 @@ function SkillSelectorMenuContent({ skills, selectedKeys, loading = false, onSel
             className='gap-0.5'
             value={activeTab}
             items={[
-              { value: 'skills', label: t('messages.skills.tabSkills', 'Skills') },
-              { value: 'files', label: t('messages.skills.tabFiles', 'Files') },
+              { value: 'skills', label: t('messages.skills.tabSkills', '技能') },
+              { value: 'files', label: t('messages.skills.tabFiles', '文件') },
             ]}
             onChange={(v) => setActiveTab(v as AtMentionTab)}
             onMouseDown={(e) => e.preventDefault()}
           />
         ) : (
-          <div className='text-13px font-semibold text-foreground'>{t('messages.skills.title', 'Skills')}</div>
+          <div className='text-13px font-semibold text-foreground'>{t('messages.skills.title', '技能')}</div>
         )}
         {showTabs && <div className='text-11px text-secondary truncate'>{t('messages.skills.tabToSwitch', 'Tab 切换')}</div>}
       </div>
@@ -150,7 +150,7 @@ function SkillSelectorMenuContent({ skills, selectedKeys, loading = false, onSel
           <>
             {loading && filteredSkills.length === 0 && <SkillSelectorSkeleton count={4} />}
             {loading && filteredSkills.length > 0 && <div className='px-2.5 py-3 text-13px text-secondary'>{t('common.loadingSkills')}</div>}
-            {!loading && filteredSkills.length === 0 && <div className='px-2.5 py-3 text-13px text-secondary'>{searchQuery ? t('messages.skills.noSearchResults', '未找到匹配结果') : t('messages.skills.empty', 'No skills found')}</div>}
+            {!loading && filteredSkills.length === 0 && <div className='px-2.5 py-3 text-13px text-secondary'>{searchQuery ? t('messages.skills.noSearchResults', '未找到匹配结果') : t('messages.skills.empty', '未找到技能')}</div>}
             {!loading &&
               filteredSkills.map((skill, index) => {
                 const isSelected = selectedKeys.includes(skill.name);
@@ -189,7 +189,7 @@ function SkillSelectorMenuContent({ skills, selectedKeys, loading = false, onSel
         {/* Files tab */}
         {activeTab === 'files' && (
           <>
-            {filteredFiles.length === 0 && <div className='px-2.5 py-3 text-13px text-secondary'>{searchQuery ? t('messages.skills.noSearchResults', '未找到匹配结果') : t('messages.skills.filesEmpty', 'No files in workspace')}</div>}
+            {filteredFiles.length === 0 && <div className='px-2.5 py-3 text-13px text-secondary'>{searchQuery ? t('messages.skills.noSearchResults', '未找到匹配结果') : t('messages.skills.filesEmpty', '工作空间中没有文件')}</div>}
             {filteredFiles.map((file, index) => (
               <button
                 key={file.relativePath}
