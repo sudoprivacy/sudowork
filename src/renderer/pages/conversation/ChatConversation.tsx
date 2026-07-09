@@ -1,95 +1,86 @@
-import { Button, Dropdown, Menu, Tooltip, Typography } from '@arco-design/web-react';
-import { History } from '@icon-park/react';
 import React, { useMemo } from 'react';
-import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
-import useSWR from 'swr';
 import AgentStatusDot from '@/renderer/components/AgentStatusBanner';
 import AcpModelSelector from '@/renderer/components/AcpModelSelector';
 import { usePresetAssistantInfo } from '@/renderer/hooks/usePresetAssistantInfo';
-import addChatIcon from '@/renderer/assets/add-chat.svg';
-import { uuid } from '@/common/utils';
 import type { TChatConversation } from '@/common/storage';
-import { ipcBridge } from '@/common';
-import { emitter } from '../../utils/emitter';
 import { TaskPanelHeaderProvider } from './workspace/TaskPanelHeaderContext';
 import ChatSider from './ChatSider';
 import ChatLayout from './ChatLayout';
 import AcpChat from './acp/AcpChat';
 
-const _AssociatedConversation: React.FC<{ conversation_id: string }> = ({ conversation_id }) => {
-  const { data } = useSWR(['getAssociateConversation', conversation_id], () => ipcBridge.conversation.getAssociateConversation.invoke({ conversation_id }));
-  const navigate = useNavigate();
-  const list = useMemo(() => {
-    if (!data?.length) return [];
-    return data.filter((conversation) => conversation.id !== conversation_id);
-  }, [data, conversation_id]);
-  if (!list.length) return null;
-  return (
-    <Dropdown
-      droplist={
-        <Menu
-          onClickMenuItem={(key) => {
-            Promise.resolve(navigate(`/conversation/${key}`)).catch((error) => {
-              console.error('Navigation failed:', error);
-            });
-          }}
-        >
-          {list.map((conversation) => {
-            return (
-              <Menu.Item key={conversation.id}>
-                <Typography.Ellipsis className={'max-w-300px'}>{conversation.name}</Typography.Ellipsis>
-              </Menu.Item>
-            );
-          })}
-        </Menu>
-      }
-      trigger={['click']}
-    >
-      <Button size='mini' icon={<History theme='filled' size='14' fill={'var(--foreground)'} strokeWidth={2} strokeLinejoin='miter' strokeLinecap='square' />}></Button>
-    </Dropdown>
-  );
-};
+// const _AssociatedConversation: React.FC<{ conversation_id: string }> = ({ conversation_id }) => {
+//   const { data } = useSWR(['getAssociateConversation', conversation_id], () => ipcBridge.conversation.getAssociateConversation.invoke({ conversation_id }));
+//   const navigate = useNavigate();
+//   const list = useMemo(() => {
+//     if (!data?.length) return [];
+//     return data.filter((conversation) => conversation.id !== conversation_id);
+//   }, [data, conversation_id]);
+//   if (!list.length) return null;
+//   return (
+//     <Dropdown
+//       droplist={
+//         <Menu
+//           onClickMenuItem={(key) => {
+//             Promise.resolve(navigate(`/conversation/${key}`)).catch((error) => {
+//               console.error('Navigation failed:', error);
+//             });
+//           }}
+//         >
+//           {list.map((conversation) => {
+//             return (
+//               <Menu.Item key={conversation.id}>
+//                 <Typography.Ellipsis className={'max-w-300px'}>{conversation.name}</Typography.Ellipsis>
+//               </Menu.Item>
+//             );
+//           })}
+//         </Menu>
+//       }
+//       trigger={['click']}
+//     >
+//       <Button size='mini' icon={<History theme='filled' size='14' fill={'var(--foreground)'} strokeWidth={2} strokeLinejoin='miter' strokeLinecap='square' />}></Button>
+//     </Dropdown>
+//   );
+// };
 
-const _AddNewConversation: React.FC<{ conversation: TChatConversation }> = ({ conversation }) => {
-  const { t } = useTranslation();
-  const navigate = useNavigate();
-  if (!conversation.extra?.workspace) return null;
-  return (
-    <Tooltip content={t('conversation.workspace.createNewConversation')}>
-      <Button
-        size='mini'
-        icon={<img src={addChatIcon} alt='Add chat' className='w-14px h-14px block m-auto' />}
-        onClick={async () => {
-          const id = uuid();
-          // Fetch latest conversation from DB to ensure sessionMode is current
-          const latest = await ipcBridge.conversation.get.invoke({ id: conversation.id }).catch((): null => null);
-          const source = latest || conversation;
-          ipcBridge.conversation.createWithConversation
-            .invoke({
-              conversation: {
-                ...source,
-                id,
-                createTime: Date.now(),
-                modifyTime: Date.now(),
-                // Clear ACP session fields to prevent new conversation from inheriting old session context
-                extra: source.type === 'acp' ? { ...source.extra, acpSessionId: undefined, acpSessionUpdatedAt: undefined } : source.extra,
-              } as TChatConversation,
-            })
-            .then(() => {
-              Promise.resolve(navigate(`/conversation/${id}`)).catch((error) => {
-                console.error('Navigation failed:', error);
-              });
-              emitter.emit('chat.history.refresh');
-            })
-            .catch((error) => {
-              console.error('Failed to create conversation:', error);
-            });
-        }}
-      />
-    </Tooltip>
-  );
-};
+// const _AddNewConversation: React.FC<{ conversation: TChatConversation }> = ({ conversation }) => {
+//   const { t } = useTranslation();
+//   const navigate = useNavigate();
+//   if (!conversation.extra?.workspace) return null;
+//   return (
+//     <Tooltip content={t('conversation.workspace.createNewConversation')}>
+//       <Button
+//         size='mini'
+//         icon={<img src={addChatIcon} alt='Add chat' className='w-14px h-14px block m-auto' />}
+//         onClick={async () => {
+//           const id = uuid();
+//           // Fetch latest conversation from DB to ensure sessionMode is current
+//           const latest = await ipcBridge.conversation.get.invoke({ id: conversation.id }).catch((): null => null);
+//           const source = latest || conversation;
+//           ipcBridge.conversation.createWithConversation
+//             .invoke({
+//               conversation: {
+//                 ...source,
+//                 id,
+//                 createTime: Date.now(),
+//                 modifyTime: Date.now(),
+//                 // Clear ACP session fields to prevent new conversation from inheriting old session context
+//                 extra: source.type === 'acp' ? { ...source.extra, acpSessionId: undefined, acpSessionUpdatedAt: undefined } : source.extra,
+//               } as TChatConversation,
+//             })
+//             .then(() => {
+//               Promise.resolve(navigate(`/conversation/${id}`)).catch((error) => {
+//                 console.error('Navigation failed:', error);
+//               });
+//               emitter.emit('chat.history.refresh');
+//             })
+//             .catch((error) => {
+//               console.error('Failed to create conversation:', error);
+//             });
+//         }}
+//       />
+//     </Tooltip>
+//   );
+// };
 
 const ChatConversation: React.FC<{
   conversation?: TChatConversation;
