@@ -1,10 +1,4 @@
 /**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
-/**
  * Renderer-side helpers for wiring a chat session into the Dify enhancement
  * orchestrator running in the main process.
  *

@@ -1,9 +1,3 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import { FolderOpen, ShareOne } from '@icon-park/react';
 import { Message, Tooltip } from '@arco-design/web-react';
 import classNames from 'classnames';

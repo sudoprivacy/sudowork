@@ -1,9 +1,3 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 export const isDefaultModel = (value?: string | null, label?: string | null): boolean => {
   const text = `${value || ''} ${label || ''}`.toLowerCase();
   return text.includes('default') || text.includes('recommended') || text.includes('默认');

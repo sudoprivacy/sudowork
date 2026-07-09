@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Connection } from '@icon-park/react';
+import { Cable } from 'lucide-react';
 import { ConfigStorage } from '@/common/storage';
 
 interface McpIconProps {
@@ -44,7 +44,7 @@ const McpIcon: React.FC<McpIconProps> = ({ icon, size = 36, className = '' }) =>
 
   return (
     <div className={`rounded-8px bg-fill-2 f-center flex-shrink-0 overflow-hidden ${className}`} style={{ width: size, height: size }}>
-      {showImage ? <img src={url} alt='' className='w-full h-full object-contain' onError={() => setErrored(true)} /> : <Connection theme='outline' size={Math.floor(size * 0.5)} className='text-tertiary' />}
+      {showImage ? <img src={url} alt='' className='w-full h-full object-contain' onError={() => setErrored(true)} /> : <Cable size={Math.floor(size * 0.5)} className='text-tertiary' />}
     </div>
   );
 };

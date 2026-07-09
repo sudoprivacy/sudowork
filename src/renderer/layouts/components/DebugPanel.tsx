@@ -1,10 +1,4 @@
 /// <reference types="vite/client" />
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import { Button, Descriptions, Popover, Select } from '@arco-design/web-react';
 import { IconMoon, IconSun } from '@arco-design/web-react/icon';
 import { DndContext, PointerSensor, useDraggable, useSensor, useSensors } from '@dnd-kit/core';

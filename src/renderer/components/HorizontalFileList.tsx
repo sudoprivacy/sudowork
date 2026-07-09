@@ -1,9 +1,3 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import { IconLeft, IconRight } from '@arco-design/web-react/icon';
 import React, { useRef, useState, useEffect } from 'react';
 
@@ -117,7 +111,7 @@ const HorizontalFileList: React.FC<HorizontalFileListProps> = ({ children }) => 
       {/* 横向滚动容器，隐藏滚动条 */}
       <div
         ref={scrollContainerRef}
-        className='flex items-center gap-2 overflow-x-auto overflow-y-hidden scrollbar-hide py-1.25'
+        className='flex items-center gap-3 overflow-x-auto overflow-y-hidden scrollbar-hide py-1.25'
         style={{
           scrollbarWidth: 'none', // Firefox
           msOverflowStyle: 'none', // IE/Edge

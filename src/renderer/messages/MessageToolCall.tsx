@@ -1,9 +1,3 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import { Alert } from '@arco-design/web-react';
 import { MessageSearch } from '@icon-park/react';
 import { createTwoFilesPatch } from 'diff';

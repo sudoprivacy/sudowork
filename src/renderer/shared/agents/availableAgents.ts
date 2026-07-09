@@ -1,9 +1,3 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import type { AvailableAgent } from './types';
 
 export const AVAILABLE_AGENTS_SWR_KEY = 'acp.agents.available';

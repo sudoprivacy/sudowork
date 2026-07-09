@@ -1,11 +1,5 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import coworkSvg from '@/renderer/assets/cowork.svg';
-import type { PromptCategory } from './types';
+import type { PromptCategory } from '../types';
 
 /**
  * Map custom avatar identifiers to their resolved image URLs.

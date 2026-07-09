@@ -1,16 +1,10 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
-import { Plus, Robot } from '@icon-park/react';
+import { Bot, Plus } from 'lucide-react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import type { AcpBackendConfig, AvailableAgent } from '../types';
-import { CUSTOM_AVATAR_IMAGE_MAP } from '../constants';
+import { CUSTOM_AVATAR_IMAGE_MAP } from '../utils/constants';
 
 type AssistantSelectionAreaProps = {
   customAgents: AcpBackendConfig[];
@@ -74,7 +68,7 @@ const AssistantSelectionArea: React.FC<AssistantSelectionAreaProps> = ({ customA
                 onClick={() => onSelectAssistant(`custom:${assistant.id}`)}
               >
                 <span className='inline-flex h-16px w-16px shrink-0 items-center justify-center leading-none'>
-                  {isImageAvatar ? <img src={avatarImage} alt='' width={16} height={16} style={{ objectFit: 'contain', display: 'block' }} /> : avatarValue ? <span style={{ fontSize: 16, lineHeight: 1 }}>{avatarValue}</span> : <Robot theme='outline' size={16} />}
+                  {isImageAvatar ? <img src={avatarImage} alt='' width={16} height={16} style={{ objectFit: 'contain', display: 'block' }} /> : avatarValue ? <span style={{ fontSize: 16, lineHeight: 1 }}>{avatarValue}</span> : <Bot size={16} />}
                 </span>
                 <span className='text-14px text-2 hover:text-1'>{assistant.nameI18n?.[localeKey] || assistant.name}</span>
               </div>
@@ -125,14 +119,14 @@ const AssistantSelectionArea: React.FC<AssistantSelectionAreaProps> = ({ customA
                 onClick={() => onSelectAssistant(`custom:${assistant.id}`)}
               >
                 <span className='inline-flex h-16px w-16px shrink-0 items-center justify-center leading-none'>
-                  {isImageAvatar ? <img src={avatarImage} alt='' width={16} height={16} style={{ objectFit: 'contain', display: 'block' }} /> : avatarValue ? <span style={{ fontSize: 16, lineHeight: 1 }}>{avatarValue}</span> : <Robot theme='outline' size={16} />}
+                  {isImageAvatar ? <img src={avatarImage} alt='' width={16} height={16} style={{ objectFit: 'contain', display: 'block' }} /> : avatarValue ? <span style={{ fontSize: 16, lineHeight: 1 }}>{avatarValue}</span> : <Bot size={16} />}
                 </span>
                 <span className='text-14px text-2 hover:text-1'>{assistant.nameI18n?.[localeKey] || assistant.name}</span>
               </div>
             );
           })}
-        <div className='group f-center h-28px min-w-28px px-8px gap-4px rd-100px bg-fill-0 cursor-pointer whitespace-nowrap b-1 b-dashed select-none transition-colors duration-300 hover:bg-fill-2' style={{ borderWidth: '1px', borderColor: 'var(--bg-3)' }} onClick={() => navigate('/settings/agent')}>
-          <Plus theme='outline' size={14} className='flex-shrink-0 line-height-0 text-[var(--color-text-3)] group-hover:text-[var(--color-text-2)] transition-colors duration-300' />
+        <div className='group f-center h-28px min-w-28px px-8px gap-4px rd-100px bg-fill-0 cursor-pointer whitespace-nowrap b-1 b-dashed select-none transition-colors duration-300 hover:bg-fill-2' style={{ borderWidth: '1px', borderColor: 'var(--bg-3)' }} onClick={() => navigate('/app/agent')}>
+          <Plus size={14} className='flex-shrink-0 line-height-0 text-[var(--color-text-3)] group-hover:text-[var(--color-text-2)] transition-colors duration-300' />
           <span className='text-14px text-2 group-hover:text-1 transition-colors duration-300'>{t('settings.createAssistant', { defaultValue: '创建智能体' })}</span>
         </div>
       </div>

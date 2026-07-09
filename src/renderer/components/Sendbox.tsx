@@ -1,9 +1,3 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import { Button, Input, Message, Tag, Tooltip } from '@arco-design/web-react';
 import { ArrowUp, CloseSmall, Lightning } from '@icon-park/react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -12,8 +6,8 @@ import { IconPaste } from '@arco-design/web-react/icon';
 import { useInputFocusRing } from '@/renderer/hooks/useInputFocusRing';
 import SlashCommandMenu, { type SlashCommandMenuItem } from '@/renderer/components/SlashCommandMenu';
 import { useSlashCommandController } from '@/renderer/hooks/useSlashCommandController';
-import SkillSelectorMenu, { type SkillSelectorMenuItem } from '@/renderer/components/SkillSelectorMenu';
-import { useSkillSelectorController, type SkillSelectorItem, stripAtQuery, replaceAtQuery } from '@/renderer/hooks/useSkillSelectorController';
+import SkillSelectorPopover from '@/renderer/pages/guid/components/SkillSelectorPopover';
+import { useSkillSelectorController, type SkillSelectorItem, stripAtQuery, replaceAtQuery } from '@/renderer/pages/guid/hooks/useSkillSelectorController';
 import type { WorkspaceFileItem } from '@/renderer/hooks/useWorkspaceFiles';
 import { usePreviewContext } from '@/renderer/pages/conversation/preview';
 import type { SlashCommandItem } from '@/common/slash/types';
@@ -254,6 +248,7 @@ const SendBox: React.FC<{
   const [installedSkills, setInstalledSkills] = useState<IInstalledSkillInfo[]>([]);
   const [selectedSkills, setSelectedSkills] = useState<string[]>(() => initialSelectedSkills);
   const [loadingSkills, setLoadingSkills] = useState(false);
+  const [isSkillPopoverOpen, setIsSkillPopoverOpen] = useState(false);
 
   // Fetch installed skills on mount and after agent-created skills are installed.
   useEffect(() => {
@@ -359,64 +354,70 @@ const SendBox: React.FC<{
   const skillSelectorController = useSkillSelectorController({
     input,
     cursorPosition,
-    skills: skillSelectorItems,
     selectedSkills,
-    onSelectSkill: (skillName) => {
-      if (!selectedSkills.includes(skillName)) {
-        setSelectedSkills([...selectedSkills, skillName]);
-      }
-      // Strip the @query from input when selecting a skill
-      setInput(stripAtQuery(input, cursorPosition));
-    },
     onRemoveSkill: (skillName) => {
       setSelectedSkills(selectedSkills.filter((s) => s !== skillName));
     },
-    workspaceFiles,
-    onSelectFile: (file) => {
-      // Replace @query with @relativePath in input
-      const newInput = replaceAtQuery(input, `@${file.relativePath}`, cursorPosition);
-      setInput(newInput);
-      onAtFileSelected?.(file);
-    },
   });
 
-  // Transform to menu items for rendering
-  const skillMenuItems = useMemo<SkillSelectorMenuItem[]>(
-    () =>
-      skillSelectorController.filteredSkills.map((skill) => ({
-        key: skill.name,
-        name: skill.name,
-        displayName: skill.displayName,
-        description: skill.description,
-        icon: skill.icon,
-        emoji: skill.emoji,
-        enabled: skill.enabled,
-      })),
-    [skillSelectorController.filteredSkills]
-  );
+  const onSkillPopoverClose = useCallback(() => {
+    setIsSkillPopoverOpen(false);
+  }, []);
 
-  // Trigger skill selector via @ button (conversation interface)
-  const handleTriggerSkillSelector = useCallback(() => {
-    const newInput = input.trim() ? `${input} @` : '@';
-    setInput(newInput);
-    // Focus the textarea after setting input
-    setTimeout(() => {
-      const textarea = containerRef.current?.querySelector('textarea');
-      if (textarea) {
-        textarea.focus();
-        const len = newInput.length;
-        textarea.setSelectionRange(len, len);
-      }
-    }, 0);
-  }, [input, setInput]);
+  // Sync skill selector open state from @ trigger
+  useEffect(() => {
+    if (skillSelectorController.isOpen) {
+      setIsSkillPopoverOpen(true);
+    }
+  }, [skillSelectorController.isOpen]);
 
   // Skill trigger button - shown when running in Electron desktop
   const skillTriggerButton = isElectronDesktop() ? (
-    <Tooltip content={t('conversation.welcome.addSkill', { defaultValue: '添加技能 / 文件' })} position='top'>
-      <span className='inline-flex ml-3'>
-        <ActionChip icon={<span className='text-14px font-700 leading-none'>@</span>} label={t('messages.skills.triggerLabel', { defaultValue: 'Skills / Files' })} onClick={handleTriggerSkillSelector} />
-      </span>
-    </Tooltip>
+    <SkillSelectorPopover
+      popupVisible={isSkillPopoverOpen}
+      onVisibleChange={(v) => {
+        if (!v) onSkillPopoverClose();
+      }}
+      onAfterClose={() => containerRef.current?.querySelector('textarea')?.focus()}
+      skills={skillSelectorItems}
+      selectedKeys={selectedSkills}
+      loading={loadingSkills}
+      onSelectItem={(skill) => {
+        if (!selectedSkills.includes(skill.name)) {
+          setSelectedSkills((prev) => [...prev, skill.name]);
+        }
+        // Strip @query from input when opened via @ trigger (safe no-op if no @ in input)
+        setInput(stripAtQuery(input, cursorPosition));
+        if (skillSelectorController.isOpen) {
+          skillSelectorController.setDismissed(true);
+        }
+        onSkillPopoverClose();
+      }}
+      onDismiss={() => {
+        setInput(stripAtQuery(input, cursorPosition));
+        if (skillSelectorController.isOpen) {
+          skillSelectorController.setDismissed(true);
+        }
+        onSkillPopoverClose();
+      }}
+      workspaceFiles={workspaceFiles ?? undefined}
+      onSelectFile={(file) => {
+        if (skillSelectorController.isOpen) {
+          // Opened via @ trigger: replace @query with @filepath
+          const newInput = replaceAtQuery(input, `@${file.relativePath}`, cursorPosition);
+          setInput(newInput);
+          skillSelectorController.setDismissed(true);
+        }
+        onAtFileSelected?.(file);
+        onSkillPopoverClose();
+      }}
+    >
+      <Tooltip content={t('conversation.welcome.addSkill', { defaultValue: '添加技能 / 文件' })} position='top'>
+        <span className='inline-flex ml-3'>
+          <ActionChip icon={<span className='text-14px font-700 leading-none'>@</span>} label={t('messages.skills.triggerLabel', { defaultValue: 'Skills / Files' })} onClick={() => setIsSkillPopoverOpen(true)} />
+        </span>
+      </Tooltip>
+    </SkillSelectorPopover>
   ) : null;
 
   // 使用共享的输入法合成处理
@@ -521,7 +522,7 @@ const SendBox: React.FC<{
       {contextMenu && <ContextMenu x={contextMenu.x} y={contextMenu.y} items={contextMenu.items} onClose={() => setContextMenu(null)} />}
       <div
         ref={containerRef}
-        className={`relative p-16px b bg-fill-1 b-solid flex flex-col ${slashController.isOpen || skillSelectorController.isOpen ? 'overflow-visible' : 'overflow-hidden'} ${isFileDragging ? 'b-dashed' : ''}`}
+        className={`relative p-16px b bg-fill-1 b-solid flex flex-col ${slashController.isOpen ? 'overflow-visible' : 'overflow-hidden'} ${isFileDragging ? 'b-dashed' : ''}`}
         style={{
           transition: 'box-shadow 0.25s ease, border-color 0.25s ease',
           borderRadius: topAttached ? '0 0 20px 20px' : '20px',
@@ -557,51 +558,6 @@ const SendBox: React.FC<{
                   slashController.onSelectByIndex(targetIndex);
                 }
               }}
-              emptyText={t('messages.slash.empty', { defaultValue: 'No commands found' })}
-            />
-          </div>
-        )}
-        {/* Skill Selector Menu (with optional file tabs) */}
-        {skillSelectorController.isOpen && (
-          <div className='absolute left-12px right-12px bottom-[calc(100%+8px)] z-70'>
-            <SkillSelectorMenu
-              title={t('messages.skills.title', { defaultValue: 'Skills' })}
-              hint={t('messages.skills.hint', { defaultValue: 'Type @ to select skills' })}
-              items={skillMenuItems}
-              selectedKeys={selectedSkills}
-              activeIndex={skillSelectorController.activeIndex}
-              loading={loadingSkills}
-              loadingText={t('messages.skills.loading', { defaultValue: 'Loading skills...' })}
-              onHoverItem={skillSelectorController.setActiveIndex}
-              onSelectItem={(item) => {
-                const targetIndex = skillSelectorController.filteredSkills.findIndex((skill) => skill.name === item.name);
-                if (targetIndex >= 0) {
-                  skillSelectorController.onSelectByIndex(targetIndex);
-                }
-              }}
-              emptyText={t('messages.skills.empty', { defaultValue: 'No skills found' })}
-              showTabs={skillSelectorController.showTabs}
-              activeTab={skillSelectorController.activeTab}
-              onTabChange={skillSelectorController.setActiveTab}
-              fileItems={skillSelectorController.filteredFiles}
-              onSelectFile={(file) => {
-                const fileIndex = skillSelectorController.filteredFiles.findIndex((f) => f.relativePath === file.relativePath);
-                if (fileIndex >= 0) {
-                  skillSelectorController.onSelectByIndex(fileIndex);
-                }
-              }}
-              skillsTabTitle={t('messages.skills.tabSkills', { defaultValue: 'Skills' })}
-              filesTabTitle={t('messages.skills.tabFiles', { defaultValue: 'Files' })}
-              filesEmptyText={t('messages.skills.filesEmpty', { defaultValue: 'No files in workspace' })}
-              searchQuery={skillSelectorController.searchQuery}
-              onSearchChange={skillSelectorController.setSearchQuery}
-              onDismiss={() => {
-                skillSelectorController.setDismissed(true);
-                setInput(stripAtQuery(input, cursorPosition));
-              }}
-              skillsSearchPlaceholder={t('messages.skills.searchSkills', { defaultValue: '搜索技能...' })}
-              filesSearchPlaceholder={t('messages.skills.searchFiles', { defaultValue: '搜索文件...' })}
-              noSearchResultsText={t('messages.skills.noSearchResults', { defaultValue: '未找到匹配结果' })}
             />
           </div>
         )}
@@ -634,18 +590,7 @@ const SendBox: React.FC<{
                       .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
                       .join(' ');
                   return (
-                    <Tag
-                      key={skillName}
-                      closable
-                      closeIcon={<CloseSmall theme='outline' size='12' />}
-                      onClose={() => setSelectedSkills(selectedSkills.filter((s) => s !== skillName))}
-                      className='text-12px b-1 b-solid rd-4px'
-                      style={{
-                        backgroundColor: 'rgba(var(--ui-accent-orange-rgb), 0.1)',
-                        borderColor: 'rgba(var(--ui-accent-orange-rgb), 0.32)',
-                      }}
-                    >
-                      <Lightning size='12' className='mr-4px text-[var(--ui-accent-orange)]' />
+                    <Tag key={skillName} closable onClose={() => setSelectedSkills(selectedSkills.filter((s) => s !== skillName))} className='text-12px rd-full' icon={<Lightning size='12' className='mr-4px text-[var(--ui-accent-orange)]' />}>
                       {displayName}
                     </Tag>
                   );
@@ -675,8 +620,8 @@ const SendBox: React.FC<{
               marginLeft: 0,
               marginRight: 0,
               marginBottom: isSingleLine ? 0 : '8px',
-              height: isSingleLine ? '20px' : 'auto',
-              minHeight: isSingleLine ? '20px' : '80px',
+              height: isSingleLine ? '50px' : 'auto',
+              minHeight: isSingleLine ? '50px' : '56px',
               overflowY: isSingleLine ? 'hidden' : 'auto',
               overflowX: 'hidden',
               whiteSpace: isSingleLine ? 'nowrap' : 'pre-wrap',
@@ -696,7 +641,7 @@ const SendBox: React.FC<{
             onFocus={handleInputFocus}
             onBlur={handleInputBlur}
             {...compositionHandlers}
-            autoSize={isSingleLine ? false : { minRows: 1, maxRows: 10 }}
+            autoSize={isSingleLine ? false : { minRows: 2, maxRows: 5 }}
             onKeyDown={createKeyDownHandler(sendMessageHandler, (event) => {
               // Try skill selector first (for @), then slash command (for /)
               if (skillSelectorController.isOpen) {

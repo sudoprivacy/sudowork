@@ -1,9 +1,3 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import { Dropdown, Tooltip } from '@arco-design/web-react';
 import { Brain, Plus, Right } from '@icon-park/react';
 import classNames from 'classnames';

@@ -1,12 +1,6 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
-import { Close } from '@icon-park/react';
 import React, { useCallback, useEffect, useState } from 'react';
-import { Image } from '@arco-design/web-react';
+import { IconClose } from '@arco-design/web-react/icon';
+import { Button, Image } from '@arco-design/web-react';
 import type { PreviewContentType } from '@/common/types/preview';
 import { getFileExtension } from '@/renderer/services/FileService';
 import { ipcBridge } from '@/common';
@@ -65,17 +59,11 @@ interface FilePreviewProps {
 }
 
 const FilePreview: React.FC<FilePreviewProps> = ({ path, onRemove, readonly = false }) => {
-  // Defensive check: ensure path is a string
-  if (typeof path !== 'string') {
-    console.error('[FilePreview] Invalid path type:', typeof path, path);
-    return null;
-  }
-
-  const isImage = isImageFile(path);
+  const isImage = typeof path === 'string' && isImageFile(path);
   // 直接从路径中提取文件名，不清理时间戳后缀
   // Extract filename directly from path without cleaning timestamp suffix
-  const fileName = path.split(/[\\/]/).pop() || '';
-  const fileExt = getFileExtension(path).toUpperCase().replace('.', '');
+  const fileName = typeof path === 'string' ? path.split(/[\\/]/).pop() || '' : '';
+  const fileExt = typeof path === 'string' ? getFileExtension(path).toUpperCase().replace('.', '') : '';
   const [imageUrl, setImageUrl] = useState<string>('');
   const [fileSize, setFileSize] = useState<string>('');
   // Track whether the file was not found (ENOENT) so we don't retry on
@@ -139,7 +127,7 @@ const FilePreview: React.FC<FilePreviewProps> = ({ path, onRemove, readonly = fa
     };
   }, [path, isImage]);
 
-  const handleRemove = (e: React.MouseEvent) => {
+  const handleRemove = (e: Event) => {
     e.stopPropagation();
     onRemove();
   };
@@ -147,36 +135,24 @@ const FilePreview: React.FC<FilePreviewProps> = ({ path, onRemove, readonly = fa
   if (isImage) {
     return (
       <div className='relative inline-block'>
-        <div className='rd-8px overflow-hidden border border-solid b-color-border-2'>{imageUrl ? <Image src={imageUrl} alt={fileName} width={60} height={60} className='object-cover cursor-pointer' preview /> : <div className='w-60px h-60px'></div>}</div>
-        {!readonly && (
-          <div className='absolute -top-4px -right-4px w-16px h-16px rd-50% bg-white dark:bg-gray-700 cursor-pointer f-center shadow-md hover:shadow-lg transition-all z-10 border border-solid border-gray-200 dark:border-gray-600' onClick={handleRemove}>
-            <Close theme='filled' size='10' fill='#666' />
-          </div>
-        )}
+        <div className='size-15 rd-xl overflow-hidden border f-center'>{imageUrl ? <Image src={imageUrl} alt={fileName} width={60} height={60} className='object-cover cursor-pointer' preview /> : null}</div>
+        {!readonly && <Button shape='circle' size='mini' className='absolute -top-2 -right-2 z-10 bg-subtle! border! size-6!' icon={<IconClose className='text-13px text-foreground' />} onClick={handleRemove} />}
       </div>
     );
   }
 
   return (
-    <div className='relative inline-block mb-10px'>
-      <div
-        className={readonly && !fileError ? 'h-60px flex items-center gap-12px px-12px rd-8px border border-solid cursor-pointer select-none' : 'h-60px flex items-center gap-12px px-12px rd-8px border border-solid'}
-        style={{ borderColor: 'var(--border-default)', boxShadow: 'var(--shadow-sm)' }}
-        onClick={handlePreviewClick}
-      >
-        <div className='w-40px h-40px rd-8px f-center flex-shrink-0'>{resolveFileIcon(fileName, { size: 28, theme: 'filled' })}</div>
-        <div className='flex flex-col gap-2px min-w-0'>
+    <div className='relative inline-block'>
+      <div className={readonly && !fileError ? 'h-15 flex items-center gap-3 px-3 rd-xl border cursor-pointer' : 'h-15 flex items-center gap-3 px-3 rd-xl border'} onClick={handlePreviewClick}>
+        <div className='size-10 rd-xl f-center flex-shrink-0'>{resolveFileIcon(fileName, { size: 28, theme: 'filled' })}</div>
+        <div className='flex flex-col gap-0.5 min-w-0'>
           <span className='text-14px text-foreground max-w-150px truncate'>{fileName}</span>
           <span className='text-12px text-secondary'>
             {fileExt}: {fileSize || '...'}
           </span>
         </div>
       </div>
-      {!readonly && (
-        <div className='absolute -top-4px -right-4px w-16px h-16px rd-50% bg-white dark:bg-gray-700 cursor-pointer f-center shadow-md hover:shadow-lg transition-all z-10 border border-solid border-gray-200 dark:border-gray-600' onClick={handleRemove}>
-          <Close theme='filled' size='10' fill='#666' />
-        </div>
-      )}
+      {!readonly && <Button shape='circle' size='mini' className='absolute -top-2 -right-2 z-10 bg-subtle! border! size-6!' icon={<IconClose className='text-13px text-foreground' />} onClick={handleRemove} />}
     </div>
   );
 };

@@ -1,9 +1,3 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { init, type InitStatus } from '@/common/ipcBridge';
 

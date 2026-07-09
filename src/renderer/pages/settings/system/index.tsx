@@ -450,7 +450,7 @@ const SystemSettings: React.FC = () => {
         <AionScrollArea className='flex-1 min-h-0 pb-4' disableOverflow>
           <div className='space-y-4'>
             {/* 偏好设置与高级设置合并展示 / Combined preferences and advanced settings */}
-            <div className='py-4 rd-16px space-y-3'>
+            <div className='pb-4 rd-16px space-y-3'>
               <div className='w-full flex flex-col divide-y divide-light'>
                 {preferenceItems.map((item) => (
                   <PreferenceRow key={item.key} label={item.label} hint={item.hint}>

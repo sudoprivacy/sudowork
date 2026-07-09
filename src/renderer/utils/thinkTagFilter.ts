@@ -1,10 +1,4 @@
 /**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
-/**
  * Frontend think tag filter
  * Filters think tags from message content before rendering
  * This handles historical messages that were saved before the filter was implemented

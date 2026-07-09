@@ -1,10 +1,4 @@
 /**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
-/**
  * useAutoScroll - Auto-scroll hook with user scroll detection and a dynamic
  * bottom spacer that pins the latest user prompt to the top of the viewport.
  *

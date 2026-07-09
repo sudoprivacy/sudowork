@@ -1,9 +1,3 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import { useCallback, useState } from 'react';
 import type { ContextMenuState, RenameModalState, DeleteModalState, PasteConfirmState } from '../types';
 

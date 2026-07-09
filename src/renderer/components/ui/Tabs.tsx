@@ -1,7 +1,7 @@
 import classNames from 'classnames';
 import React from 'react';
 
-export default function Tabs({ items, value, onChange, className, itemClassName, ariaLabel, variant = 'pill' }: ITabsProps) {
+export default function Tabs({ items, value, onChange, onMouseDown, className, itemClassName, ariaLabel, variant = 'pill' }: ITabsProps) {
   return (
     <div role='tablist' aria-label={ariaLabel} className={classNames('flex flex-wrap', variant === 'pill' && 'gap-2', variant === 'line' && 'items-end gap-5 border-b border-fill-3', className)}>
       {items.map((item) => {
@@ -22,6 +22,7 @@ export default function Tabs({ items, value, onChange, className, itemClassName,
               item.isDisabled ? 'cursor-not-allowed' : 'cursor-pointer',
               itemClassName
             )}
+            onMouseDown={onMouseDown}
             onClick={() => {
               if (!item.isDisabled) onChange(item.value);
             }}
@@ -48,6 +49,7 @@ interface ITabsProps {
   items: ITabItem[];
   value: string;
   onChange: (value: string) => void;
+  onMouseDown?: React.MouseEventHandler<HTMLButtonElement>;
   variant?: 'pill' | 'line';
   className?: string;
   itemClassName?: string;

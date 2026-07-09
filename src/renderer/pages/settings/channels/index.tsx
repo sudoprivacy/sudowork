@@ -19,7 +19,7 @@ const Page: React.FC = () => {
 
   return (
     <PageWrapper title={t('common.siderMenu.webui')}>
-      <div className='flex flex-col h-full w-full mt-4'>
+      <div className='flex flex-col h-full w-full'>
         <div className='settings-remote-tabs mb-3'>
           <Tabs activeTab={activeTab} onChange={onTabChange} type='line'>
             <Tabs.TabPane

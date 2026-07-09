@@ -227,7 +227,7 @@ export default function SecurityPage() {
 
   return (
     <PageWrapper title={t('settings.security')} subtitle={t('settings.securitySettings.subtitle')}>
-      <div className='flex flex-col gap-3 mt-4'>
+      <div className='flex flex-col gap-3'>
         <SecurityItem
           icon={<Shield size={22} />}
           title={t('settings.securitySettings.envProtection.title')}

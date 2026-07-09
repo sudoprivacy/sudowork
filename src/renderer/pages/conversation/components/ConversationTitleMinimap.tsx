@@ -1,9 +1,3 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import { Empty, Input, Spin } from '@arco-design/web-react';
 import { IconSearch } from '@arco-design/web-react/icon';
 import type { RefInputType } from '@arco-design/web-react/es/Input/interface';

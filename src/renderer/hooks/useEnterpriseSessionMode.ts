@@ -1,9 +1,3 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import { useState, useCallback, useEffect } from 'react';
 import { ConfigStorage } from '@/common/storage';
 import { ipcBridge } from '@/common';

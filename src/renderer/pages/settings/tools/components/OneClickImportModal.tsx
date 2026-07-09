@@ -1,7 +1,7 @@
 import { Button, Modal, Select, Spin, Steps } from '@arco-design/web-react';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Check } from '@icon-park/react';
+import { Check } from 'lucide-react';
 import { acpConversation, mcpService } from '@/common/ipcBridge';
 import type { IMcpServer, IMcpTool } from '@/common/storage';
 import type { IDetectedAgent } from '../types';
@@ -166,7 +166,7 @@ const OneClickImportModal: React.FC<OneClickImportModalProps> = ({ visible, onCa
       ) : importableServers.length > 0 ? (
         <div>
           <div className='mb-3 flex items-center gap-2'>
-            <Check theme='filled' size={20} fill={'var(--success)'} />
+            <Check className='text-success size-5' />
             <span className='text-foreground'>{t('settings.mcpToolsLoaded', { count: importableServers.length, defaultValue: '读取到{{count}}个工具' })}</span>
           </div>
           <div className='bg-control rounded-lg max-h-50 overflow-y-auto divide-y divide-light'>
@@ -190,7 +190,7 @@ const OneClickImportModal: React.FC<OneClickImportModalProps> = ({ visible, onCa
       {importableServers.length > 0 ? (
         <div>
           <div className='mb-3 flex items-center gap-2'>
-            <Check theme='filled' size={20} fill={'var(--success)'} />
+            <Check className='text-success size-5' />
             <span className='text-foreground'>{t('settings.mcpImportedSuccess', { count: importableServers.length, defaultValue: '已导入{{count}}个工具' })}</span>
           </div>
           <div className='bg-control rounded-lg max-h-50 overflow-y-auto divide-y divide-light'>
@@ -245,8 +245,8 @@ const OneClickImportModal: React.FC<OneClickImportModalProps> = ({ visible, onCa
 
         <div className='mb-6'>
           <Steps current={currentStep} size='small'>
-            <Steps.Step title={t('settings.mcpStepSelectAgent', '选择Agent')} icon={currentStep > 1 ? <Check theme='filled' size={16} /> : undefined} />
-            <Steps.Step title={t('settings.mcpStepFetchTools', '获取mcp')} icon={currentStep > 2 ? <Check theme='filled' size={16} /> : undefined} />
+            <Steps.Step title={t('settings.mcpStepSelectAgent', '选择Agent')} />
+            <Steps.Step title={t('settings.mcpStepFetchTools', '获取mcp')} />
             <Steps.Step title={t('settings.mcpStepImportSuccess', '导入成功')} />
           </Steps>
         </div>

@@ -1,9 +1,3 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import { Alert, Message, Tag, Tooltip } from '@arco-design/web-react';
 import { Copy, Lightning } from '@icon-park/react';
 import classNames from 'classnames';
@@ -21,7 +15,7 @@ import { stripThinkTags, hasThinkTags } from '../utils/thinkTagFilter';
 import MarkdownView from '../components/Markdown';
 import HorizontalFileList from '../components/HorizontalFileList';
 import FilePreview from '../components/FilePreview';
-import CollapsibleContent from '../components/CollapsibleContent';
+import { CollapsibleContent } from '../components/CollapsibleContent';
 import MessageCronBadge from './MessageCronBadge';
 import GeneratedFileCards from './GeneratedFileCard';
 

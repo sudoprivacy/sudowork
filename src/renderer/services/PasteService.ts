@@ -1,9 +1,3 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import { ipcBridge } from '@/common';
 import type { FileMetadata } from './FileService';
 import { getFileExtension } from './FileService';
