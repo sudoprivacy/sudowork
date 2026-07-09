@@ -311,6 +311,8 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
     selectedAcpModel,
     currentModel,
     sessionMode,
+    isEnterprise,
+    selectedSkills,
     findAgentByKey,
     getEffectiveAgentType,
     resolvePresetRulesAndSkills,
