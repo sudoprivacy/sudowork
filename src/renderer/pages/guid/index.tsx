@@ -616,9 +616,9 @@ const GuidPage: React.FC = () => {
           <>
             {/* Assistant Header: back + avatar + name + edit + agent dropdown */}
             <div className='flex items-center justify-between w-full mb-3 animate-fade-in animate-duration-400 animate-ease-out'>
-              <div className='flex items-center gap-12px flex-1 min-w-0'>
+              <div className='flex items-center gap-3 flex-1 min-w-0'>
                 {/* Back button */}
-                <div className='flex items-center justify-center w-32px h-32px rd-full cursor-pointer hover:bg-fill-2 transition-colors flex-shrink-0' onClick={handleBackFromAssistant}>
+                <div className='f-center size-8 rd-full cursor-pointer hover:bg-fill-2 transition-colors flex-shrink-0' onClick={handleBackFromAssistant}>
                   <ArrowLeft size={18} color='var(--color-text-2)' />
                 </div>
 
@@ -733,20 +733,13 @@ const GuidPage: React.FC = () => {
         {isAssistantMode ? (
           /* Suggestion prompts for selected assistant */
           assistantPrompts.length > 0 && (
-            <div className='mt-16px w-full animate-fade-in animate-duration-400 animate-ease-out'>
-              <div className='text-13px mb-8px' style={{ color: 'var(--color-text-3)' }}>
-                {t('guid.trySuggestionPrompts', { defaultValue: 'Try these clickable example prompts:' })}
-              </div>
-              <div className='flex flex-wrap gap-8px'>
+            <div className='mt-4 w-full animate-fade-in animate-duration-400 animate-ease-out'>
+              <div className='text-13px mb-2 text-tertiary'>{t('guid.trySuggestionPrompts', { defaultValue: 'Try these clickable example prompts:' })}</div>
+              <div className='flex flex-wrap gap-2'>
                 {assistantPrompts.map((prompt: string, index: number) => (
                   <div
                     key={index}
-                    className='px-12px py-6px text-13px rd-16px cursor-pointer transition-colors shadow-sm'
-                    style={{
-                      background: 'var(--bg-2)',
-                      color: 'var(--foreground)',
-                      border: '1px solid var(--bg-3)',
-                    }}
+                    className='px-3 py-1.5 text-13px rd-16px cursor-pointer transition-colors shadow-sm bg-2 text-foreground border border-light'
                     onClick={() => {
                       guidInput.setInput(prompt);
                       guidInput.handleTextareaFocus();

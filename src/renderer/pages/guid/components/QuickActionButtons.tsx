@@ -11,7 +11,7 @@ const QuickActionButtons: React.FC<QuickActionButtonsProps> = () => {
   return (
     <div className='absolute left-50% bottom-[calc(32px+env(safe-area-inset-bottom,0px))] -translate-x-1/2 flex flex-col justify-center items-center'>
       {/* Placeholder div to maintain spacing if needed */}
-      <div className='h-36px'></div>
+      <div className='h-9'></div>
     </div>
   );
 };

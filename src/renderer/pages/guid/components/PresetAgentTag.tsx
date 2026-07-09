@@ -24,7 +24,7 @@ const PresetAgentTag: React.FC<PresetAgentTagProps> = ({ agentInfo, customAgents
   return (
     <div className='flex items-center gap-1.5 bg-fill-2 py-1 pr-1.5 pl-2.5 rd-4 cursor-pointer select-none transition-colors max-w-full min-w-0 hover:bg-fill-3' onClick={() => {}}>
       {isImageAvatar ? <img src={avatarImage} alt='' width={16} height={16} style={{ objectFit: 'contain', flexShrink: 0 }} /> : avatarValue ? <span style={{ fontSize: 14, lineHeight: '16px', flexShrink: 0 }}>{avatarValue}</span> : <Robot theme='outline' size={16} style={{ flexShrink: 0 }} />}
-      <span className='max-w-200px text-14px text-1 whitespace-nowrap overflow-hidden text-ellipsis'>{name}</span>
+      <span className='max-w-50 text-14px text-1 whitespace-nowrap overflow-hidden text-ellipsis'>{name}</span>
       <div
         className='f-center size-4 rd-full ml-0.5 transition-colors shrink-0 hover:bg-fill-4'
         onClick={(e) => {

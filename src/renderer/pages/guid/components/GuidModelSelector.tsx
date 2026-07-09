@@ -34,15 +34,15 @@ type GuidModelSelectorProps = {
   setSelectedAcpModel: React.Dispatch<React.SetStateAction<string | null>>;
 };
 
-const PANEL_CLASS = 'flex flex-col gap-2px p-6px rd-12px border bg-popup max-h-[min(60vh,420px)] overflow-y-auto scrollbar-hide';
+const PANEL_CLASS = 'flex flex-col gap-0.5 p-1.5 rd-12px border bg-popup max-h-[min(60vh,420px)] overflow-y-auto scrollbar-hide';
 const PANEL_STYLE: React.CSSProperties = { minWidth: 200, boxShadow: '0 8px 28px rgba(0, 0, 0, 0.12)' };
-const GROUP_TITLE_CLASS = 'px-10px pt-4px pb-2px text-12px leading-18px text-secondary';
-const ROW_CLASS = 'flex items-center gap-8px px-10px h-38px rd-8px cursor-pointer text-14px text-foreground transition-colors hover:bg-hover active:bg-active';
+const GROUP_TITLE_CLASS = 'px-2.5 pt-1 pb-0.5 text-12px leading-18px text-secondary';
+const ROW_CLASS = 'flex items-center gap-2 px-2.5 h-9.5 rd-8px cursor-pointer text-14px text-foreground transition-colors hover:bg-hover active:bg-active';
 
 const HealthDot: React.FC<{ status: string }> = ({ status }) => {
   if (status === 'unknown') return null;
   const color = status === 'healthy' ? 'bg-green-500' : status === 'unhealthy' ? 'bg-red-500' : 'bg-gray-400';
-  return <div className={`w-6px h-6px rounded-full shrink-0 ${color}`} />;
+  return <div className={`size-1.5 rounded-full shrink-0 ${color}`} />;
 };
 
 const GeminiSubMenu: React.FC<{
@@ -143,8 +143,8 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({ isGeminiMode, mod
           <div className={PANEL_CLASS} style={PANEL_STYLE}>
             {!enabledModelList || enabledModelList.length === 0 ? (
               <>
-                <div className='px-10px py-12px text-secondary text-14px text-center'>{t('settings.noAvailableModels')}</div>
-                <div className={classNames(ROW_CLASS, '!h-32px text-12px text-secondary')} onClick={() => navigate('/settings/model')}>
+                <div className='px-2.5 py-3 text-secondary text-14px text-center'>{t('settings.noAvailableModels')}</div>
+                <div className={classNames(ROW_CLASS, '!h-8 text-12px text-secondary')} onClick={() => navigate('/settings/model')}>
                   <Plus theme='outline' size='12' />
                   <span>{t('settings.addModel')}</span>
                 </div>
@@ -155,7 +155,7 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({ isGeminiMode, mod
                   const availableModels = getAvailableModels(provider);
                   if (availableModels.length === 0) return null;
                   return (
-                    <div key={provider.id} className='flex flex-col gap-2px'>
+                    <div key={provider.id} className='flex flex-col gap-0.5'>
                       <div className={GROUP_TITLE_CLASS}>{provider.name}</div>
                       {availableModels.map((modelName) => {
                         const isGoogleProvider = provider.platform?.toLowerCase().includes('gemini-with-google-auth');
@@ -182,7 +182,7 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({ isGeminiMode, mod
                         // Normal mode: show single item
                         const selected = currentModel?.id + (currentModel?.useModel ?? '') === provider.id + modelName;
                         const rowContent = (
-                          <div className='flex items-center gap-8px w-full min-w-0'>
+                          <div className='flex items-center gap-2 w-full min-w-0'>
                             <HealthDot status={healthStatus} />
                             <span className='truncate'>{option ? option.label : modelName}</span>
                           </div>
@@ -194,7 +194,7 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({ isGeminiMode, mod
                                 position='right'
                                 trigger='hover'
                                 content={
-                                  <div className='max-w-240px space-y-6px'>
+                                  <div className='max-w-60 space-y-1.5'>
                                     <div className='text-12px text-secondary leading-5'>{option.description}</div>
                                     {option.modelHint && <div className='text-11px text-tertiary'>{option.modelHint}</div>}
                                   </div>
@@ -211,7 +211,7 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({ isGeminiMode, mod
                     </div>
                   );
                 })}
-                <div className={classNames(ROW_CLASS, '!h-32px text-12px text-secondary')} onClick={() => navigate('/settings/model')}>
+                <div className={classNames(ROW_CLASS, '!h-8 text-12px text-secondary')} onClick={() => navigate('/settings/model')}>
                   <Plus theme='outline' size='12' />
                   <span>{t('settings.addModel')}</span>
                 </div>
@@ -236,7 +236,7 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({ isGeminiMode, mod
           droplist={
             <div className={PANEL_CLASS} style={PANEL_STYLE}>
               {acpProviderModelGroups.map((group) => (
-                <div key={group.key} className='flex flex-col gap-2px'>
+                <div key={group.key} className='flex flex-col gap-0.5'>
                   <div className={GROUP_TITLE_CLASS}>{group.name || t('common.other', { defaultValue: 'Other' })}</div>
                   {group.models.map((model) => {
                     // 获取模型健康状态

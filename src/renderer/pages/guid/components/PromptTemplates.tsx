@@ -26,7 +26,7 @@ const PromptTemplates: React.FC<PromptTemplatesProps> = ({ visible, onSelectProm
   return (
     <div className='w-full mb-4 animate-fade-in animate-duration-400 animate-ease-out'>
       {/* Title */}
-      <div className='flex items-center gap-6px mb-10px'>
+      <div className='flex items-center gap-1.5 mb-2.5'>
         <span className='text-13px text-secondary'>💡 {t('guid.promptTemplates.title', { defaultValue: '常用提示词' })}</span>
       </div>
 

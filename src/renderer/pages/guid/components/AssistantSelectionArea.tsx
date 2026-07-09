@@ -52,7 +52,7 @@ const AssistantSelectionArea: React.FC<AssistantSelectionAreaProps> = ({ customA
     if (cloudAssistants.length === 0) return null;
 
     return (
-      <div className='mt-16px w-full'>
+      <div className='mt-4 w-full'>
         <div className='f-center flex-wrap gap-2'>
           {cloudAssistants.map((assistant) => {
             const avatarValue = assistant.avatar?.trim();
@@ -61,13 +61,8 @@ const AssistantSelectionArea: React.FC<AssistantSelectionAreaProps> = ({ customA
             const avatarImage = mappedAvatar || resolvedAvatar;
             const isImageAvatar = Boolean(avatarImage && (/\.(svg|png|jpe?g|webp|gif)$/i.test(avatarImage) || /^(https?:|aion-asset:\/\/|file:\/\/|data:)/i.test(avatarImage)));
             return (
-              <div
-                key={assistant.id}
-                className='h-28px group flex items-center gap-8px px-16px rd-100px cursor-pointer transition-all b-1 b-solid bg-fill-0 hover:bg-fill-1 select-none'
-                style={{ borderWidth: '1px', borderColor: 'var(--bg-3)' }}
-                onClick={() => onSelectAssistant(`custom:${assistant.id}`)}
-              >
-                <span className='inline-flex h-16px w-16px shrink-0 items-center justify-center leading-none'>
+              <div key={assistant.id} className='h-7 group flex items-center gap-2 px-4 rd-100px cursor-pointer transition-all b-1 border-light bg-fill-0 hover:bg-fill-1 select-none' onClick={() => onSelectAssistant(`custom:${assistant.id}`)}>
+                <span className='inline-flex size-4 shrink-0 items-center justify-center leading-none'>
                   {isImageAvatar ? <img src={avatarImage} alt='' width={16} height={16} style={{ objectFit: 'contain', display: 'block' }} /> : avatarValue ? <span style={{ fontSize: 16, lineHeight: 1 }}>{avatarValue}</span> : <Bot size={16} />}
                 </span>
                 <span className='text-14px text-2 hover:text-1'>{assistant.nameI18n?.[localeKey] || assistant.name}</span>
@@ -96,7 +91,7 @@ const AssistantSelectionArea: React.FC<AssistantSelectionAreaProps> = ({ customA
 
   // Agent List View
   return (
-    <div className='mt-16px w-full'>
+    <div className='mt-4 w-full'>
       <div className='f-center flex-wrap gap-2'>
         {filteredAgents
           .filter((a) => a.enabled !== false)
@@ -112,20 +107,15 @@ const AssistantSelectionArea: React.FC<AssistantSelectionAreaProps> = ({ customA
             const avatarImage = mappedAvatar || resolvedAvatar;
             const isImageAvatar = Boolean(avatarImage && (/\.(svg|png|jpe?g|webp|gif)$/i.test(avatarImage) || /^(https?:|aion-asset:\/\/|file:\/\/|data:)/i.test(avatarImage)));
             return (
-              <div
-                key={assistant.id}
-                className='h-28px group flex items-center gap-8px px-16px rd-100px cursor-pointer transition-all b-1 b-solid bg-fill-0 hover:bg-fill-1 select-none'
-                style={{ borderWidth: '1px', borderColor: 'var(--bg-3)' }}
-                onClick={() => onSelectAssistant(`custom:${assistant.id}`)}
-              >
-                <span className='inline-flex h-16px w-16px shrink-0 items-center justify-center leading-none'>
+              <div key={assistant.id} className='h-7 group flex items-center gap-2 px-4 rd-100px cursor-pointer transition-all b-1 border-light bg-fill-0 hover:bg-fill-1 select-none' onClick={() => onSelectAssistant(`custom:${assistant.id}`)}>
+                <span className='inline-flex size-4 shrink-0 items-center justify-center leading-none'>
                   {isImageAvatar ? <img src={avatarImage} alt='' width={16} height={16} style={{ objectFit: 'contain', display: 'block' }} /> : avatarValue ? <span style={{ fontSize: 16, lineHeight: 1 }}>{avatarValue}</span> : <Bot size={16} />}
                 </span>
                 <span className='text-14px text-2 hover:text-1'>{assistant.nameI18n?.[localeKey] || assistant.name}</span>
               </div>
             );
           })}
-        <div className='group f-center h-28px min-w-28px px-8px gap-4px rd-100px bg-fill-0 cursor-pointer whitespace-nowrap b-1 b-dashed select-none transition-colors duration-300 hover:bg-fill-2' style={{ borderWidth: '1px', borderColor: 'var(--bg-3)' }} onClick={() => navigate('/app/agent')}>
+        <div className='group f-center h-7 min-w-7 px-2 gap-1 rd-100px bg-fill-0 cursor-pointer whitespace-nowrap b-1 border-light b-dashed select-none transition-colors duration-300 hover:bg-fill-2' onClick={() => navigate('/app/agent')}>
           <Plus size={14} className='flex-shrink-0 line-height-0 text-[var(--color-text-3)] group-hover:text-[var(--color-text-2)] transition-colors duration-300' />
           <span className='text-14px text-2 group-hover:text-1 transition-colors duration-300'>{t('settings.createAssistant', { defaultValue: '创建智能体' })}</span>
         </div>

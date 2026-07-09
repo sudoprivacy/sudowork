@@ -17,11 +17,11 @@ const MentionDropdown: React.FC<MentionDropdownProps> = ({ menuRef, options, sel
 
   return (
     <div ref={menuRef} className='border border-[var(--ui-border-strong)] rd-12px shadow-lg overflow-hidden' style={{ boxShadow: '0 0 0 1px var(--ui-border-strong), 0 12px 24px rgba(0, 0, 0, 0.12)' }}>
-      <Menu selectedKeys={[selectedKey]} onClickMenuItem={(key) => onSelect(String(key))} className='min-w-180px max-h-200px overflow-auto'>
+      <Menu selectedKeys={[selectedKey]} onClickMenuItem={(key) => onSelect(String(key))} className='min-w-45 max-h-50 overflow-auto'>
         {options.length > 0 ? (
           options.map((option, index) => (
             <Menu.Item key={option.key} data-mention-index={index}>
-              <div className='flex items-center gap-8px'>
+              <div className='flex items-center gap-2'>
                 {option.avatarImage ? (
                   <img src={resolveExtensionAssetUrl(option.avatarImage)} alt='' width={16} height={16} style={{ objectFit: 'contain' }} />
                 ) : option.avatar ? (

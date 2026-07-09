@@ -124,7 +124,7 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
 
   return (
     <div
-      className={`w-full box-border relative p-16px ${dir ? 'pb-8px' : ''} b bg-fill-1 b-solid rd-20px flex flex-col ${mentionOpen ? 'overflow-visible' : 'overflow-hidden'} transition-all duration-200 ${isFileDragging ? 'border-dashed' : ''}`}
+      className={`w-full box-border relative p-4 ${dir ? 'pb-2' : ''} b bg-fill-1 rd-20px flex flex-col ${mentionOpen ? 'overflow-visible' : 'overflow-hidden'} transition-all duration-200 ${isFileDragging ? 'border-dashed' : ''}`}
       style={{
         zIndex: 1,
         transition: 'box-shadow 0.25s ease, border-color 0.25s ease, border-width 0.25s ease',
@@ -145,17 +145,17 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
       {mentionSelectorBadge}
       {/* 已选技能标签 */}
       {selectedSkills && selectedSkills.length > 0 && (
-        <div className='flex flex-col gap-6px mb-8px'>
-          <div className='flex items-center gap-4px text-11px text-secondary'>
+        <div className='flex flex-col gap-1.5 mb-2'>
+          <div className='flex items-center gap-1 text-11px text-secondary'>
             <Lightning size='12' />
             <span>当前使用技能</span>
           </div>
-          <div className='flex flex-wrap gap-6px'>
+          <div className='flex flex-wrap gap-1.5'>
             {selectedSkills.map((skillName) => {
               const skillInfo = getSkillDisplayName?.(skillName);
               const displayName = skillInfo?.displayName || skillName;
               return (
-                <Tag key={skillName} closable onClose={() => onRemoveSkill?.(skillName)} className='text-12px rd-full' icon={<Lightning size='12' className='mr-4px text-[var(--ui-accent-orange)]' />}>
+                <Tag key={skillName} closable onClose={() => onRemoveSkill?.(skillName)} className='text-12px rd-full' icon={<Lightning size='12' className='mr-1 text-[var(--ui-accent-orange)]' />}>
                   {displayName}
                 </Tag>
               );
@@ -192,9 +192,9 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
       )}
       {actionRow}
       {dir && (
-        <div className='flex items-start justify-between gap-10px mt-8px px-10px py-6px text-13px text-secondary' style={{ borderTop: '1px solid var(--border-default)' }}>
-          <div className='flex items-start min-w-0 flex-1 gap-8px'>
-            <FolderOpen className='mt-1px flex-shrink-0' theme='outline' size='16' fill={'var(--text-secondary)'} style={{ lineHeight: 0 }} />
+        <div className='flex items-start justify-between gap-2.5 mt-2 px-2.5 py-1.5 text-13px text-secondary border-t border-default'>
+          <div className='flex items-start min-w-0 flex-1 gap-2'>
+            <FolderOpen className='mt-px flex-shrink-0' theme='outline' size='16' fill={'var(--text-secondary)'} style={{ lineHeight: 0 }} />
             <Tooltip content={dir} position='top'>
               <span className='block min-w-0 whitespace-normal break-all leading-18px'>
                 {t('conversation.welcome.currentWorkspace')}: {dir}
@@ -202,13 +202,7 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
             </Tooltip>
           </div>
           <Tooltip content={t('conversation.welcome.clearWorkspace')} position='top'>
-            <button
-              type='button'
-              className='mt-1px h-28px w-28px rd-full f-center flex-shrink-0 text-tertiary hover:text-danger hover:bg-danger-soft active:bg-danger-soft transition-colors'
-              onClick={onClearDir}
-              aria-label={t('conversation.welcome.clearWorkspace')}
-              style={{ border: '1px solid var(--border-default)' }}
-            >
+            <button type='button' className='mt-px size-7 rd-full f-center flex-shrink-0 text-tertiary hover:text-danger hover:bg-danger-soft active:bg-danger-soft transition-colors border border-default' onClick={onClearDir} aria-label={t('conversation.welcome.clearWorkspace')}>
               <IconClose strokeWidth={3} style={{ fontSize: 15 }} />
             </button>
           </Tooltip>

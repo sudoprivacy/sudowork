@@ -145,7 +145,7 @@ function SkillSelectorMenuContent({ skills, selectedKeys, loading = false, onSel
       />
 
       {/* Content area */}
-      <div role='listbox' aria-busy={loading} className='overflow-y-auto h-260px'>
+      <div role='listbox' aria-busy={loading} className='overflow-y-auto h-65'>
         {activeTab === 'skills' && (
           <>
             {loading && filteredSkills.length === 0 && <SkillSelectorSkeleton count={4} />}

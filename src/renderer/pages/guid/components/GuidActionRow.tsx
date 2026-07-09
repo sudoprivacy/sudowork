@@ -80,9 +80,9 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
             popupVisible={fileMenuOpen}
             onVisibleChange={setFileMenuOpen}
             droplist={
-              <div className='flex flex-col gap-2px p-6px rd-12px border bg-popup' style={{ minWidth: 200, boxShadow: '0 8px 28px rgba(0, 0, 0, 0.12)' }}>
+              <div className='flex flex-col gap-0.5 p-1.5 rd-12px border bg-popup' style={{ minWidth: 200, boxShadow: '0 8px 28px rgba(0, 0, 0, 0.12)' }}>
                 <div
-                  className='flex items-center gap-10px px-10px h-38px rd-8px cursor-pointer text-14px text-foreground transition-colors hover:bg-hover active:bg-active'
+                  className='flex items-center gap-2.5 px-2.5 h-9.5 rd-8px cursor-pointer text-14px text-foreground transition-colors hover:bg-hover active:bg-active'
                   onClick={() => {
                     setFileMenuOpen(false);
                     ipcBridge.dialog.showOpen
@@ -101,7 +101,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
                   <span>{t('conversation.welcome.downloadLocalFile')}</span>
                 </div>
                 <div
-                  className='flex items-center gap-10px px-10px h-38px rd-8px cursor-pointer text-14px text-foreground transition-colors hover:bg-hover active:bg-active'
+                  className='flex items-center gap-2.5 px-2.5 h-9.5 rd-8px cursor-pointer text-14px text-foreground transition-colors hover:bg-hover active:bg-active'
                   onClick={() => {
                     setFileMenuOpen(false);
                     setBdpanSelectorVisible(true);
@@ -111,7 +111,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
                   <span>{t('conversation.welcome.downloadBdpanFile')}</span>
                 </div>
                 <div
-                  className='flex items-center gap-10px px-10px h-38px rd-8px cursor-pointer text-14px text-foreground transition-colors hover:bg-hover active:bg-active'
+                  className='flex items-center gap-2.5 px-2.5 h-9.5 rd-8px cursor-pointer text-14px text-foreground transition-colors hover:bg-hover active:bg-active'
                   onClick={() => {
                     setFileMenuOpen(false);
                     ipcBridge.dialog.showOpen
@@ -134,7 +134,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
           >
             <span className='relative'>
               <Button shape='circle' type='secondary' title={t('conversation.welcome.downloadLocalFile')} icon={<Plus size={16} color='var(--text-secondary)' />} />
-              {files.length > 0 && <span className='absolute -right-3px -top-3px f-center min-w-14px h-14px rounded-full bg-primary px-3px text-9px text-white font-600 pointer-events-none'>{files.length}</span>}
+              {files.length > 0 && <span className='absolute -right-3px -top-3px f-center min-w-3.5 h-3.5 rounded-full bg-primary px-3px text-9px text-white font-600 pointer-events-none'>{files.length}</span>}
             </span>
           </Dropdown>
 

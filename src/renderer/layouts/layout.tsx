@@ -49,6 +49,7 @@ const useDebug = () => {
 };
 
 const DEFAULT_SIDER_WIDTH = 260;
+const isSiderBrandHidden = import.meta.env.DEV && import.meta.env.VITE_HIDE_SIDER_BRAND === 'true';
 
 const Layout: React.FC = () => {
   const { t } = useTranslation();
@@ -102,21 +103,23 @@ const Layout: React.FC = () => {
 
         <ArcoLayout className={'size-full layout flex-1 min-h-0'}>
           <ArcoLayout.Sider collapsedWidth={0} collapsed={collapsed} width={DEFAULT_SIDER_WIDTH} className='layout-sider'>
-            <ArcoLayout.Header className='flex items-center justify-start py-2 px-4 pl-4.5 gap-2.5 layout-sider-header'>
-              <div
-                className='shrink-0 size-8.5 relative rd-0.5rem f-center cursor-pointer'
-                onClick={() => {
-                  onClick();
-                  goToNewConversation();
-                }}
-                aria-label={t('common.ariaLabel.newConversation', '新会话')}
-              >
-                <img src={config.logo || SudoworkIcon} alt={config.app_name} className='absolute inset-0 m-auto w-5 h-5 p-0.5 scale-130' style={{ objectFit: 'contain' }} />
-              </div>
-              <div className='flex-1 text-20px text-1 font-800 cursor-pointer' onClick={goToNewConversation}>
-                {config.app_name}
-              </div>
-            </ArcoLayout.Header>
+            {!isSiderBrandHidden && (
+              <ArcoLayout.Header className='flex items-center justify-start py-2 px-4 pl-4.5 gap-2.5 layout-sider-header'>
+                <div
+                  className='shrink-0 size-8.5 relative rd-0.5rem f-center cursor-pointer'
+                  onClick={() => {
+                    onClick();
+                    goToNewConversation();
+                  }}
+                  aria-label={t('common.ariaLabel.newConversation', '新会话')}
+                >
+                  <img src={config.logo || SudoworkIcon} alt={config.app_name} className='absolute inset-0 m-auto w-5 h-5 p-0.5 scale-130' style={{ objectFit: 'contain' }} />
+                </div>
+                <div className='flex-1 text-20px text-1 font-800 cursor-pointer' onClick={goToNewConversation}>
+                  {config.app_name}
+                </div>
+              </ArcoLayout.Header>
+            )}
             <ArcoLayout.Content className='p-2.5 layout-sider-content'>
               <Sider />
             </ArcoLayout.Content>

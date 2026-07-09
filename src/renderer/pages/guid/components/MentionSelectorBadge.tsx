@@ -15,7 +15,7 @@ const MentionSelectorBadge: React.FC<MentionSelectorBadgeProps> = ({ visible, op
   if (!visible) return null;
 
   return (
-    <div className='flex items-center gap-8px mb-8px'>
+    <div className='flex items-center gap-2 mb-2'>
       <Dropdown
         trigger='click'
         popupVisible={open}
@@ -27,7 +27,7 @@ const MentionSelectorBadge: React.FC<MentionSelectorBadgeProps> = ({ visible, op
         }}
         droplist={mentionMenu}
       >
-        <div className='flex items-center gap-6px bg-fill-2 px-10px py-4px rd-16px cursor-pointer select-none'>
+        <div className='flex items-center gap-1.5 bg-fill-2 px-2.5 py-1 rd-16px cursor-pointer select-none'>
           <span className='text-14px font-medium text-foreground'>@{agentLabel}</span>
           <Down theme='outline' size={12} />
         </div>
