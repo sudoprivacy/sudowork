@@ -57,6 +57,9 @@ const MossSessionPage: React.FC = () => {
         console.error('Failed to parse initial message:', e);
       }
     }
+    // FIXME: sendMessageInternal depends on wsUrl from state, but this effect needs
+    // to send the initial message with the freshly read storedWsUrl before state updates.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
 
   // Listen to Moss response stream
