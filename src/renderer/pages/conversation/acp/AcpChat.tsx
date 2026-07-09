@@ -7,7 +7,6 @@ import { MessageListProvider, useMessageLstCache } from '@renderer/messages/hook
 import HOC from '@renderer/utils/HOC';
 import LocalImageView from '@renderer/components/LocalImageView';
 import ConversationChatConfirm from '../components/ConversationChatConfirm';
-import { SafetyChatConfirm } from '../SafetyChatConfirm';
 import AcpSendBox from './AcpSendBox';
 
 const AcpChat: React.FC<{
@@ -34,11 +33,9 @@ const AcpChat: React.FC<{
             <MessageList className='flex-1' aiProcessing={aiProcessing}></MessageList>
           </FlexFullContainer>
         </LocalImageView.Provider>
-        <SafetyChatConfirm conversation_id={conversation_id}>
-          <ConversationChatConfirm conversation_id={conversation_id}>
-            <AcpSendBox conversation_id={conversation_id} backend={backend} sessionMode={sessionMode} agentName={agentName} onAiProcessingChange={setAiProcessing}></AcpSendBox>
-          </ConversationChatConfirm>
-        </SafetyChatConfirm>
+        <ConversationChatConfirm conversation_id={conversation_id}>
+          <AcpSendBox conversation_id={conversation_id} backend={backend} sessionMode={sessionMode} agentName={agentName} onAiProcessingChange={setAiProcessing}></AcpSendBox>
+        </ConversationChatConfirm>
       </div>
     </ConversationProvider>
   );
