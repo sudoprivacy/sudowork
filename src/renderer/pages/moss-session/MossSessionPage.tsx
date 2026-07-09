@@ -52,7 +52,7 @@ const MossSessionPage: React.FC = () => {
     if (storedMessage) {
       try {
         const { input: initialInput, files, skills } = JSON.parse(storedMessage);
-        sendMessageInternal(initialInput, files, skills);
+        void sendMessageInternal(initialInput, files, skills);
       } catch (e) {
         console.error('Failed to parse initial message:', e);
       }
