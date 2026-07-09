@@ -373,29 +373,32 @@ export const useGuidAgentSelection = ({ localeKey, assistantFromUrl }: UseGuidAg
    * Supports both "custom:uuid" format and plain backend type.
    * For enterprise mode, also checks customAgents for local assistants.
    */
-  const findAgentByKey = (key: string): AvailableAgent | undefined => {
-    if (key.startsWith('custom:')) {
-      const customAgentId = key.slice(7);
+  const findAgentByKey = useCallback(
+    (key: string): AvailableAgent | undefined => {
+      if (key.startsWith('custom:')) {
+        const customAgentId = key.slice(7);
 
-      // First check availableAgents (for non-enterprise custom agents)
-      const foundInAvailable = availableAgents?.find((a) => a.customAgentId === customAgentId);
-      if (foundInAvailable) return foundInAvailable;
+        // First check availableAgents (for non-enterprise custom agents)
+        const foundInAvailable = availableAgents?.find((a) => a.customAgentId === customAgentId);
+        if (foundInAvailable) return foundInAvailable;
 
-      // Check customAgents (local assistants from hub/tenant/custom/system directories)
-      const assistant = customAgents.find((a) => a.id === customAgentId);
-      if (assistant) {
-        return {
-          backend: 'custom' as AcpBackend,
-          name: assistant.name,
-          customAgentId: assistant.id,
-          isPreset: assistant.isPreset,
-          context: assistant.description || '',
-          avatar: assistant.avatar,
-        };
+        // Check customAgents (local assistants from hub/tenant/custom/system directories)
+        const assistant = customAgents.find((a) => a.id === customAgentId);
+        if (assistant) {
+          return {
+            backend: 'custom' as AcpBackend,
+            name: assistant.name,
+            customAgentId: assistant.id,
+            isPreset: assistant.isPreset,
+            context: assistant.description || '',
+            avatar: assistant.avatar,
+          };
+        }
       }
-    }
-    return availableAgents?.find((a) => a.backend === key);
-  };
+      return availableAgents?.find((a) => a.backend === key);
+    },
+    [availableAgents, customAgents]
+  );
 
   // Derived state
   const selectedAgent = selectedAgentKey.startsWith('custom:') ? ('custom' as const) : (selectedAgentKey as AcpBackend);
@@ -524,7 +527,7 @@ export const useGuidAgentSelection = ({ localeKey, assistantFromUrl }: UseGuidAg
     return () => {
       cancelled = true;
     };
-  }, [availableAgents, assistantFromUrl]); // Intentionally NOT including selectedAgentKey/state - use ref instead
+  }, [availableAgents, assistantFromUrl, isEnterprise, sessionMode, _setSelectedAgentKeyWithRef]); // Intentionally NOT including selectedAgentKey/state - use ref instead
 
   // Load custom agents + extension-contributed assistants
   // 所有模式（E 端 Remote/Local 和 C 端）都从本地 hub/tenant/custom/system 加载助手；
