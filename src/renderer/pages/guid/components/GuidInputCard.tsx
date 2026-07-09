@@ -1,7 +1,7 @@
 import { Input, Tag, Tooltip } from '@arco-design/web-react';
 import type { RefTextAreaType } from '@arco-design/web-react/es/Input';
-import { IconClose, IconPaste } from '@arco-design/web-react/icon';
-import { FolderOpen, Lightning } from '@icon-park/react';
+import { IconClose, IconPaste, IconThunderbolt } from '@arco-design/web-react/icon';
+import { FolderOpen } from '@icon-park/react';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useCompositionInput } from '@/renderer/hooks/useCompositionInput';
@@ -147,7 +147,7 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
       {selectedSkills && selectedSkills.length > 0 && (
         <div className='flex flex-col gap-1.5 mb-2'>
           <div className='flex items-center gap-1 text-11px text-secondary'>
-            <Lightning size='12' />
+            <IconThunderbolt style={{ fontSize: 12 }} />
             <span>{t('messages.skills.activeSkills', '当前使用技能')}</span>
           </div>
           <div className='flex flex-wrap gap-1.5'>
@@ -155,7 +155,7 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
               const skillInfo = getSkillDisplayName?.(skillName);
               const displayName = skillInfo?.displayName || skillName;
               return (
-                <Tag key={skillName} closable onClose={() => onRemoveSkill?.(skillName)} className='text-12px rd-full' icon={<Lightning size='12' className='mr-1 text-[var(--ui-accent-orange)]' />}>
+                <Tag key={skillName} closable onClose={() => onRemoveSkill?.(skillName)} className='text-12px rd-full' icon={<IconThunderbolt style={{ fontSize: 12 }} className='text-primary' />}>
                   {displayName}
                 </Tag>
               );

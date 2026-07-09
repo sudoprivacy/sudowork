@@ -133,7 +133,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
             }
           >
             <span className='relative'>
-              <Button shape='circle' type='secondary' title={t('conversation.welcome.downloadLocalFile')} icon={<Plus size={16} color='var(--text-secondary)' />} />
+              <Button shape='circle' type='secondary' title={t('conversation.welcome.downloadLocalFile')} icon={<Plus size={16} />} />
               {files.length > 0 && <span className='absolute -right-3px -top-3px f-center min-w-3.5 h-3.5 rounded-full bg-primary px-3px text-9px text-white font-600 pointer-events-none'>{files.length}</span>}
             </span>
           </Dropdown>
@@ -146,7 +146,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
 
           {isPresetAgent && selectedAgentInfo && <PresetAgentTag agentInfo={selectedAgentInfo} customAgents={customAgents} localeKey={localeKey} onClose={onClosePresetTag} />}
         </div>
-        <Button shape='circle' type='primary' loading={loading} disabled={isButtonDisabled} icon={<ArrowUp size={16} color='white' />} onClick={onSend} />
+        <Button shape='circle' type='primary' loading={loading} disabled={isButtonDisabled} icon={<ArrowUp size={16} />} onClick={onSend} />
       </div>
 
       <BdpanImportFilePicker
