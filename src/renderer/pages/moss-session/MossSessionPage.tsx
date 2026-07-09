@@ -107,7 +107,7 @@ const MossSessionPage: React.FC = () => {
           runningRef.current = false;
           break;
 
-        case 'error':
+        case 'error': {
           setRunning(false);
           runningRef.current = false;
           const errorMsg: TMessage = {
@@ -121,6 +121,7 @@ const MossSessionPage: React.FC = () => {
           };
           updateMessageList((list) => [...list, errorMsg]);
           break;
+        }
       }
     },
     [sessionId, updateMessageList]
@@ -160,11 +161,11 @@ const MossSessionPage: React.FC = () => {
     }
   };
 
-  const handleSend = useCallback(async () => {
+  const handleSend = async () => {
     if (!input.trim()) return;
     await sendMessageInternal(input.trim());
     setInput('');
-  }, [input, sessionId, wsUrl, running]);
+  };
 
   const handleStop = useCallback(async () => {
     if (!sessionId) return;
