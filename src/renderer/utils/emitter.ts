@@ -1,6 +1,6 @@
 import EventEmitter from 'eventemitter3';
 import type { DependencyList } from 'react';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import type { FileOrFolderItem } from '@/renderer/types/files';
 import type { PreviewContentType } from '@/common/types/preview';
 
@@ -72,8 +72,12 @@ export const addEventListener = <T extends EventEmitter.EventNames<EventTypes>>(
   };
 };
 
-export const useAddEventListener = <T extends EventEmitter.EventNames<EventTypes>>(event: T, fn: EventEmitter.EventListener<EventTypes, T>, deps?: DependencyList) => {
+export const useAddEventListener = <T extends EventEmitter.EventNames<EventTypes>>(event: T, fn: EventEmitter.EventListener<EventTypes, T>, _deps?: DependencyList) => {
+  const fnRef = useRef(fn);
+  fnRef.current = fn;
+
   useEffect(() => {
-    return addEventListener(event, fn);
-  }, deps || []);
+    const listener = ((...args: Parameters<EventEmitter.EventListener<EventTypes, T>>) => fnRef.current(...args)) as EventEmitter.EventListener<EventTypes, T>;
+    return addEventListener(event, listener);
+  }, [event]);
 };
