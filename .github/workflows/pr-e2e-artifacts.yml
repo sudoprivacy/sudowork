@@ -66,23 +66,46 @@ jobs:
       - name: Build Electron artifacts (main+preload+renderer)
         run: bun run package
 
-      - name: Launch Electron with mock enterprise auth (background) + run e2e runner
-        # Two commands in one xvfb-run so the Electron subprocess shares the same X server.
-        # restart_electron.py kills any stale Electron, seeds ConfigStorage with mock auth,
-        # launches launch-dev.js with NEXUS_CDP_PORT=9232, and polls the CDP endpoint until
-        # ready. Then runner.py connects and iterates cases/*.yaml (filtered).
+      - name: Start Xvfb virtual display
+        # Manually launch Xvfb so both the Electron subprocess (spawned by
+        # restart_electron.py detached) and the runner (spawned in a later step)
+        # can attach to the same $DISPLAY. Wrapping via `xvfb-run bash -c '…'` broke
+        # earlier because xvfb-run cleaned up the display before the runner attached.
         run: |
-          xvfb-run --auto-servernum bash -c '
-            set -euo pipefail
-            cd tests/e2e
-            python restart_electron.py --enterprise --auth --port 9232
-            python runner.py --port 9232 --case "$CASE_FILTER"
-          '
+          Xvfb :99 -screen 0 1920x1080x24 &
+          echo "DISPLAY=:99" >> "$GITHUB_ENV"
+          sleep 2
+          echo "xvfb-run pid=$!"
+
+      - name: Launch Electron with mock enterprise auth (background)
+        # restart_electron.py kills any stale Electron, seeds ConfigStorage with
+        # mock auth, launches launch-dev.js with NEXUS_CDP_PORT=9232, and polls
+        # the CDP endpoint until ready. Runs in its OWN step so its stdout/stderr
+        # show up in the CI log if it fails.
+        run: |
+          set -euo pipefail
+          echo "=== env sanity ==="
+          which python && python --version
+          which node && node --version
+          echo "DISPLAY=$DISPLAY"
+          ls tests/e2e/restart_electron.py
+          echo "=== restarting electron ==="
+          python tests/e2e/restart_electron.py --enterprise --auth --port 9232
+        env:
+          CI: true
+          E2E_DEV: '1'
+          NEXUS_EXTENSIONS_PATH: ${{ github.workspace }}/examples
+          NEXUS_CDP_PORT: '9232'
+
+      - name: Run e2e runner against CDP
+        run: |
+          set -euo pipefail
+          cd tests/e2e
+          python runner.py --port 9232 --case "$CASE_FILTER"
         env:
           CI: true
           E2E_DEV: '1'
           E2E_SCREENSHOTS: '1'
-          NEXUS_EXTENSIONS_PATH: ${{ github.workspace }}/examples
           NEXUS_CDP_PORT: '9232'
           CASE_FILTER: ${{ inputs.case_filter || 'interrupt-queue-batched-flush' }}
 
