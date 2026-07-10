@@ -1,4 +1,9 @@
 {
+  "interruptConfirm": {
+    "title": "打斷目前回覆？",
+    "body": "在 Agent 回覆過程中傳送新訊息，會中斷目前回覆並立即處理新訊息。",
+    "ok": "打斷"
+  },
   "welcome": {
     "title": "Hi，今天有什麼安排？",
     "placeholder": "發送訊息、上傳檔案、開啟資料夾或建立定時任務...",

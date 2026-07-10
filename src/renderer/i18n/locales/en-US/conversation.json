@@ -1,4 +1,9 @@
 {
+  "interruptConfirm": {
+    "title": "Interrupt the current reply?",
+    "body": "Sending a message while the agent is replying will interrupt the current reply and process your new message immediately.",
+    "ok": "Interrupt"
+  },
   "welcome": {
     "title": "Hi, what's your plan for today?",
     "placeholder": "Send a message, upload files, or open a folder...",

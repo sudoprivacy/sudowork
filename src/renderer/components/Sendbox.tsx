@@ -24,6 +24,7 @@ import { usePasteService } from '../hooks/usePasteService';
 import { useLatestRef } from '../hooks/useLatestRef';
 import { useDragUpload } from '../hooks/useDragUpload';
 import { useCompositionInput } from '../hooks/useCompositionInput';
+import { resolveSendboxKey, shouldBlockSubmit } from './sendboxKeyGuards';
 
 const constVoid = (): void => undefined;
 // 临界值：超过该字符数直接切换至多行模式，避免为超长文本做昂贵的宽度测量
@@ -57,6 +58,12 @@ const SendBox: React.FC<{
   workspaceFiles?: WorkspaceFileItem[];
   /** Called when a file is selected via @ selector, allowing parent to track the file */
   onAtFileSelected?: (file: WorkspaceFileItem) => void;
+  /** Allow submitting while a turn is running (interrupt/queue enabled). Decision is the coordinator's. */
+  allowSubmitWhileRunning?: boolean;
+  /** Pending inputs held by the coordinator, reflected here for the queue chips. */
+  queuedInputs?: Array<{ id: string; preview: string }>;
+  /** Pull the last queued input back into the editor (Up-arrow). */
+  onDequeueLast?: () => void | Promise<void>;
 }> = ({
   onSend,
   onStop,
@@ -80,6 +87,9 @@ const SendBox: React.FC<{
   initialSelectedSkills = [],
   workspaceFiles,
   onAtFileSelected,
+  allowSubmitWhileRunning = false,
+  queuedInputs,
+  onDequeueLast,
 }) => {
   const { t } = useTranslation();
   const [isLoading, setIsLoading] = useState(false);
@@ -456,10 +466,11 @@ const SendBox: React.FC<{
   }, []);
 
   const sendMessageHandler = () => {
-    if (loading || isLoading) {
+    const block = shouldBlockSubmit({ loading: Boolean(loading), localSendInFlight: isLoading, allowSubmitWhileRunning });
+    if (block === 'in-progress') {
       Message.warning(t('messages.conversationInProgress'));
-      return;
     }
+    if (block) return;
     if (!input.trim() && domSnippets.length === 0) {
       return;
     }
@@ -606,6 +617,15 @@ const SendBox: React.FC<{
               {skillTriggerButton}
             </div>
           )}
+          {(queuedInputs ?? []).length > 0 && (
+            <div className='flex flex-wrap gap-6px mb-6px'>
+              {(queuedInputs ?? []).map((q) => (
+                <span key={q.id} data-testid='queued-input-chip' title={q.preview} className='inline-flex items-center max-w-220px px-8px py-2px rd-10px bg-2 text-12px text-t-secondary truncate'>
+                  {q.preview}
+                </span>
+              ))}
+            </div>
+          )}
           <Input.TextArea
             autoFocus={true}
             disabled={disabled}
@@ -649,6 +669,24 @@ const SendBox: React.FC<{
               }
               if (slashController.isOpen) {
                 return slashController.onKeyDown(event);
+              }
+              // Esc → interrupt, Up → dequeue — gated (see sendboxKeyGuards). Popups handled above.
+              const guardAction = resolveSendboxKey(event.key, {
+                running: Boolean(loading) || isLoading,
+                inputEmpty: !input.trim(),
+                queueLength: queuedInputs?.length ?? 0,
+                canStop: Boolean(onStop) && !isStopping,
+                canDequeue: Boolean(onDequeueLast),
+              });
+              if (guardAction === 'interrupt') {
+                event.preventDefault();
+                void stopHandler();
+                return true;
+              }
+              if (guardAction === 'dequeue') {
+                event.preventDefault();
+                void onDequeueLast?.();
+                return true;
               }
               return false;
             })}

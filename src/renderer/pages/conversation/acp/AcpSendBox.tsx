@@ -1,4 +1,4 @@
-import { Button, Dropdown, Message, Tag } from '@arco-design/web-react';
+import { Button, Dropdown, Message, Modal, Tag } from '@arco-design/web-react';
 import { Plus, Shield, UploadOne } from '@icon-park/react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -24,6 +24,7 @@ import { useLatestRef } from '@/renderer/hooks/useLatestRef';
 import { useOpenFileSelector } from '@/renderer/hooks/useOpenFileSelector';
 import PwdLoginApprovalModal, { type PwdLoginApprovalDecision } from '@/renderer/components/PwdLoginApprovalModal';
 import type { TokenUsageData } from '@/common/storage';
+import { ConfigStorage } from '@/common/storage';
 import ContextUsageIndicator from '@/renderer/components/ContextUsageIndicator';
 import { useAutoTitle } from '@/renderer/hooks/useAutoTitle';
 import AgentModeSelector from '@/renderer/components/AgentModeSelector';
@@ -708,6 +709,15 @@ const AcpSendBox: React.FC<{
       return;
     }
 
+    // First-interrupt confirm: only when auto-interrupt is on and a turn is running (queue
+    // mode doesn't interrupt, so no confirm). Answering "打断" persists so it asks only once.
+    if ((running || aiProcessing) && autoInterruptEnabled && !autoInterruptConfirmed) {
+      const ok = await confirmFirstInterrupt();
+      if (!ok) return;
+      setAutoInterruptConfirmed(true);
+      void ConfigStorage.set('agent.autoInterruptConfirmed', true).catch(() => {});
+    }
+
     // Fallback to local state if skills not provided by event (rare, but safer)
     const activeSkills = skills || selectedSkills;
 
@@ -856,6 +866,51 @@ const AcpSendBox: React.FC<{
 
   const selectedFileCount = filterUserVisibleFiles(uploadFile).length + filterUserVisibleAtPath(atPath).filter((item) => (typeof item === 'string' ? true : item.isFile)).length;
 
+  // 对话打断 / 消息队列：允许回复中提交（任一开关开启即可）+ 反射当前输入队列（用于 chips）。
+  // 决策矩阵在进程侧 turnInputCoordinator（SSOT）；这里只读设置 + 展示。
+  const [allowSubmitWhileRunning, setAllowSubmitWhileRunning] = useState(false);
+  const [autoInterruptEnabled, setAutoInterruptEnabled] = useState(false);
+  const [autoInterruptConfirmed, setAutoInterruptConfirmed] = useState(false);
+  const [queuedInputs, setQueuedInputs] = useState<Array<{ id: string; preview: string }>>([]);
+  useEffect(() => {
+    let alive = true;
+    void Promise.all([ConfigStorage.get('agent.autoInterrupt').catch(() => false), ConfigStorage.get('agent.messageQueue').catch(() => true), ConfigStorage.get('agent.autoInterruptConfirmed').catch(() => false)]).then(([ai, mq, confirmed]) => {
+      if (!alive) return;
+      setAllowSubmitWhileRunning(ai === true || mq !== false);
+      setAutoInterruptEnabled(ai === true);
+      setAutoInterruptConfirmed(confirmed === true);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+  // First time an auto-interrupt would fire, confirm once — the first interrupt of a live
+  // reply can surprise even after opting in. Answering "打断" persists so it never asks again.
+  const confirmFirstInterrupt = useCallback(
+    () =>
+      new Promise<boolean>((resolve) => {
+        Modal.confirm({
+          title: t('conversation.interruptConfirm.title'),
+          content: t('conversation.interruptConfirm.body'),
+          okText: t('conversation.interruptConfirm.ok'),
+          cancelText: t('common.cancel'),
+          onOk: () => resolve(true),
+          onCancel: () => resolve(false),
+        });
+      }),
+    [t]
+  );
+  useEffect(() => {
+    return ipcBridge.conversation.inputQueueUpdate.on((data) => {
+      if (data.conversation_id === conversation_id) setQueuedInputs(data.queue);
+    });
+  }, [conversation_id]);
+  const handleDequeueLast = useCallback(async () => {
+    const res = await ipcBridge.conversation.dequeueInput.invoke({ conversation_id });
+    const dequeued = res?.success ? res.data?.content : undefined;
+    if (dequeued) setContent(dequeued);
+  }, [conversation_id, setContent]);
+
   return (
     <div className='max-w-800px w-full mx-auto flex flex-col mt-auto mb-16px'>
       <ThoughtDisplay thought={thought} running={running || aiProcessing} onStop={handleStop} startTime={processingStartTime} />
@@ -869,6 +924,9 @@ const AcpSendBox: React.FC<{
         topAttached={Boolean(thought?.subject) || running || aiProcessing}
         placeholder={t('acp.sendbox.placeholder', { backend: agentName || backend, defaultValue: `Send message to {{backend}}...` })}
         onStop={handleStop}
+        allowSubmitWhileRunning={allowSubmitWhileRunning}
+        queuedInputs={queuedInputs}
+        onDequeueLast={handleDequeueLast}
         className='z-10'
         onFilesAdded={handleFilesAdded}
         supportedExts={allSupportedExts}
