@@ -53,8 +53,9 @@
   </div>
 
   <div class="callout green">
-    <h3>✅ 实现状态：已合并到 <code>dev</code>（PR #981，merge commit <code>c6807226</code>，2026-07-10）</h3>
-    <p>设置开关 · 进程侧协调器（SSOT）· 桌面 sendMessage 路由 · 队列 IPC · 渲染层（回复中可提交 / Esc 打断 / ↑ dequeue / 队列 chips）· 首次打断一次性确认 · 微信/渠道 queue+interrupt（不再丢弃）全部落地。<b>16 个单测通过</b>（协调器矩阵 7 + 键盘 guard 7 + 渠道集成 2），tsc/lint 干净。真机已启动验证：DB 初始化正常、渲染层正常绘制、进程侧零崩溃。桌面交互式点按 e2e 受手机短信登录门限制（本机无凭证），待登录态 CI/实例跑通。首次打断确认最终简化为一次性「打断 / 取消」弹窗（答“打断”即持久化，不再询问）——opt-in 开关已是同意，无需三态。</p>
+    <h3>✅ 实现状态：已合并到 <code>dev</code>（PR #981，merge commit <code>c6807226</code>，2026-07-10）— <b>但队列 flush 语义为 follow-up 修正</b></h3>
+    <p>设置开关 · 进程侧协调器（SSOT）· 桌面 sendMessage 路由 · 队列 IPC · 渲染层（回复中可提交 / Esc 打断 / ↑ dequeue / 队列 chips）· 首次打断一次性确认 · 微信/渠道 queue+interrupt（不再丢弃）全部落地。<b>16 个单测通过</b>（协调器矩阵 7 + 键盘 guard 7 + 渠道集成 2），tsc/lint 干净。真机已启动验证：DB 初始化正常、渲染层正常绘制、进程侧零崩溃。首次打断确认最终简化为一次性「打断 / 取消」弹窗（答“打断”即持久化，不再询问）——opt-in 开关已是同意，无需三态。</p>
+    <p><b>Follow-up（未合并）：</b>初版 <code>turnInputCoordinator.drain</code> 里的 <code>while shift; await run()</code> 是"一条一条独立起 turn 串行 replay"，语义有误——期望是"轮结束时把队列 N 条合并为 1 条 user message、只发 1 次 <code>session/prompt</code>"（tokens 更省、贴合"我攒一起说完"心理模型）。修正在 PR TBA，同时补 batched-flush 单测。桌面交互式点按 e2e 受手机短信登录门限制（本机无凭证），待登录态 CI/实例跑通；e2e 落地后同步更新 <a href="https://shareone.app/s/sudo-code-roadmap" style="color:var(--primary)">sudo-code-roadmap</a>。sudocode CLI 侧的独立 PR（REPL pending-line 缓冲 + 回车入队 + 上键 dequeue，见 §四）目前 0 行——待起。</p>
   </div>
 
   <h2>一、对提案的三点核对（请 owner 关注）</h2>
@@ -102,15 +103,15 @@ flowchart TD
   M["回复进行中：来了新消息 / 回车"] --> Q1{"autoInterrupt?"}
   Q1 -->|"ON"| I["session/cancel 当前轮<br/>→ 立即发送新消息"]
   Q1 -->|"OFF"| Q2{"messageQueue?"}
-  Q2 -->|"ON"| E["入队；finish 后按提交顺序回放"]
+  Q2 -->|"ON"| E["入队；轮结束（自然/stop）时全部合并为 1 条 user message 发出（1 次 API call）"]
   Q2 -->|"OFF"| B["维持现状：回复中不可提交"]
   </pre>
   <table>
     <tr><th></th><th>队列 OFF</th><th>队列 ON</th></tr>
-    <tr><th>auto-interrupt OFF</th><td>回复中不可提交（当前行为）</td><td>全部暂存，结束后按序回放</td></tr>
-    <tr><th>auto-interrupt ON</th><td>发送即打断</td><td>第一条打断，其余入队</td></tr>
+    <tr><th>auto-interrupt OFF</th><td>回复中不可提交（当前行为）</td><td>全部暂存，<b>轮结束（自然完成 / 用户 stop）时合并为 1 条 user message 一次发出</b></td></tr>
+    <tr><th>auto-interrupt ON</th><td>发送即打断</td><td>第一条立即打断并单独作为新轮启动；启动后再来的走队列 ON 语义（同左格：结束时合并 1 次发出）</td></tr>
   </table>
-  <p class="muted">上键（输入框空、队列非空）→ dequeue 最后一条回编辑框。打断 = 真正的轮中止，留下事务完整的 <code>[interrupted]</code> 轮（由 sudocode 保证，见 §二）。</p>
+  <p class="muted">上键（输入框空、队列非空）→ dequeue 最后一条回编辑框。打断 = 真正的轮中止，留下事务完整的 <code>[interrupted]</code> 轮（由 sudocode 保证，见 §二）。<br/><b>合并语义</b>：flush 时把 N 条排队消息按提交顺序拼成 1 个 user message（每条前加 "> " 前缀分隔或简单换行拼接由实现选定），下游 <code>session/prompt</code> 只发 1 次——tokens 更省，也贴合"我攒着一起说完"的用户心理模型；不是 N 次独立 turn 的串行回放。</p>
   <h3>3.3 sudowork：单一进程侧协调器（SSOT + DRY）</h3>
   <p>把「用户输入 vs 轮边界」的决策收敛到<b>一个进程侧模块</b>，桌面 IPC 与微信渠道都走它。理由：轮状态 SSOT 本就在进程侧任务（<code>AcpAgent</code>）；纯前端队列无法服务微信（无 renderer），会变成两套实现两个 SSOT。今天该决策散在两处（renderer 禁提交；<code>ChannelMessageService.ts:243</code> 直接丢弃第二条微信消息并提示“请稍候”）——统一到协调器是系统性修复，而非逐处打补丁。</p>
   <pre class="mermaid">
@@ -153,7 +154,7 @@ flowchart TD
     <tr><th>文件</th><th>改动</th></tr>
     <tr><td><code>src/common/storage.ts</code></td><td>新增 <code>agent.autoInterrupt</code> / <code>messageQueue</code> / <code>autoInterruptConfirmed</code></td></tr>
     <tr><td><code>…/SettingsModal/…/SystemModalContent.tsx</code></td><td>两个 toggle 行（仿 <code>showToolCalls</code>）</td></tr>
-    <tr><td><b>新</b> <code>src/process/task/turnInputCoordinator.ts</code></td><td>队列 + 矩阵决策（send / 打断后 send / 入队；finish 时刷新）— SSOT/DRY 枢纽</td></tr>
+    <tr><td><b>新</b> <code>src/process/task/turnInputCoordinator.ts</code></td><td>队列 + 矩阵决策（send / 打断后 send / 入队；<b>轮结束时把队列合并为 1 条 user message 一次刷出</b>）— SSOT/DRY 枢纽</td></tr>
     <tr><td><code>src/process/bridge/conversationBridge.ts</code></td><td>sendMessage 走协调器；新增 dequeue/clear IPC；stream 队列状态</td></tr>
     <tr><td><code>AcpSendBox.tsx</code> / <code>sendbox.tsx</code></td><td>回复中允许提交；ESC→打断；上键→dequeue；渲染队列</td></tr>
     <tr><td>首次打断确认</td><td>三态弹窗 + 持久化，复用 <code>MessageAcpPermission.tsx</code> 模式</td></tr>
@@ -168,9 +169,9 @@ flowchart TD
 
   <h2>五、测试计划（提升 e2e 深度）</h2>
   <ul>
-    <li><b>单元</b>（协调器纯逻辑）：idle→send；running+autoInterrupt→cancel-then-send；running+queue→入队；finish→按序刷新；both-on→先打断后入队；<b>cancel-after-finish 幂等 no-op</b>；重复打断；dequeue 取对项。</li>
-    <li><b>集成</b>（mock ACP）：send-while-running 产生 <code>cancel</code> 再 <code>sendPrompt</code>（有序）；队列刷新串行不并发。</li>
-    <li><b>渠道</b>：微信第二条消息按设置打断/入队（不再丢弃）。</li>
+    <li><b>单元</b>（协调器纯逻辑）：idle→send；running+autoInterrupt→cancel-then-send；running+queue→入队；<b>finish→N 条队列合并 1 次 flush（不是 N 次 replay）</b>；<b>用户 stop→同样合并 1 次 flush（复用 finish 分支）</b>；both-on→先打断后入队，其后合并；<b>cancel-after-finish 幂等 no-op</b>；重复打断；dequeue 取对项。</li>
+    <li><b>集成</b>（mock ACP）：send-while-running 产生 <code>cancel</code> 再 <code>sendPrompt</code>（有序）；<b>队列 flush 只产生 1 次 sendPrompt，其 body 含全部排队内容按序拼接</b>。</li>
+    <li><b>渠道</b>：微信第二条消息按设置打断/入队（不再丢弃）；连续多条排队最终合并为 1 次 sendPrompt。</li>
     <li>sudocode 事务完整性已有自测（<code>conversation.rs:2487</code>），我们依赖它、不重测。</li>
   </ul>
 
