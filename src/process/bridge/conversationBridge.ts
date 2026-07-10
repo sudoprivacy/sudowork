@@ -18,7 +18,7 @@ import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
 import { ipcBridge } from '../../common';
 import { uuid } from '../../common/utils';
 import { shouldSyncWorkspaceSkills } from '../../common/utils/workspaceSkillSync';
-import { getSkillsDir, ProcessChat } from '../initStorage';
+import { getSkillsDir, ProcessChat, ProcessConfig } from '../initStorage';
 import type AcpAgent from '../task/AcpAgent';
 import type RemoteAgent from '../task/RemoteAgent';
 import { listWorkspaceSkillTargets, resolveConversationEnabledSkillNames } from '../utils/workspaceSkillTargets';
@@ -32,10 +32,22 @@ import { skillManager } from '../SkillManager';
 import { ConversationManageWithDB } from '../message';
 import { getConversationProvider, isRemoteProvider } from '../providers';
 import { getMossApi, getMossApiServerUrl, initMossApi } from '../remote/MossSessionApi';
+import { turnInputCoordinator } from '../task/turnInputCoordinator';
+import { closeBrowserTabsByConversation } from './browserPanelBridge';
+import { closeTerminalsByConversation } from './terminalBridge';
 import { reapConversation } from '../services/conversationReaper';
 import { migrateConversationToDatabase } from './migrationUtils';
 
 const workspaceSkillSyncTasks = new Map<string, Promise<void>>();
+
+// Emit the current input-queue snapshot to the renderer. The process (turnInputCoordinator)
+// is the SSOT; the renderer only reflects this for the queue chips.
+const emitInputQueue = (conversation_id: string) => (queue: Array<{ id: string; content: string }>) => {
+  ipcBridge.conversation.inputQueueUpdate.emit({
+    conversation_id,
+    queue: queue.map((q) => ({ id: q.id, preview: (q.content || '').slice(0, 120) })),
+  });
+};
 
 type RemoteConversationExtra = NonNullable<TChatConversation['extra']> & {
   mossSessionId?: string;
@@ -901,6 +913,19 @@ export function initConversationBridge(): void {
         setupChannelResponseRouting(conversation);
       }
 
+      // Local (ACP) interactive path routes through the turn-input coordinator so a new
+      // message can interrupt or queue against an in-flight turn (settings-gated). The
+      // coordinator returns at accept/queue time (not turn end) — safe because the
+      // renderer drives turn lifecycle + errors via the response stream, not this result.
+      // See docs/plans/2026-07-01-conversation-interrupt-and-queue.html.
+      if (task.type === 'acp') {
+        const autoInterrupt = (await ProcessConfig.get('agent.autoInterrupt').catch(() => false)) === true;
+        const messageQueue = (await ProcessConfig.get('agent.messageQueue').catch(() => true)) !== false;
+        const status = turnInputCoordinator.submit(conversation_id, { id: payload.msg_id, content: payload.content, run: () => task.sendMessage(payload) }, () => task.stop(), { autoInterrupt, messageQueue }, emitInputQueue(conversation_id));
+        mainLog('conversationBridge', `sendMessage: coordinator status=${status} for ${conversation_id}`);
+        return status === 'busy' ? { success: false, msg: 'busy' } : { success: true };
+      }
+
       try {
         await task.sendMessage(payload);
         mainLog('conversationBridge', `sendMessage: task.sendMessage completed for ${conversation_id}`);
@@ -913,6 +938,14 @@ export function initConversationBridge(): void {
       mainError('conversationBridge', `sendMessage failed for ${conversation_id}: ${errorMessage}`, err);
       return { success: false, msg: errorMessage };
     }
+  });
+
+  // Pull the last (or a specific) queued input back out — Up-arrow in the sendbox.
+  // Removes it from the coordinator (SSOT) and returns its content for the editor.
+  ipcBridge.conversation.dequeueInput.provider(async ({ conversation_id, id }) => {
+    const removed = turnInputCoordinator.dequeue(conversation_id, id, emitInputQueue(conversation_id));
+    if (!removed) return { success: true, data: null };
+    return { success: true, data: { content: removed.content } };
   });
 
   // 通用 confirmMessage 实现

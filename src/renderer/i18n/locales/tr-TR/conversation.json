@@ -1,4 +1,9 @@
 {
+  "interruptConfirm": {
+    "title": "Geçerli yanıt kesilsin mi?",
+    "body": "Ajan yanıt verirken bir mesaj göndermek geçerli yanıtı keser ve yeni mesajınızı hemen işler.",
+    "ok": "Kes"
+  },
   "welcome": {
     "title": "Merhaba, bugünkü planın nedir?",
     "placeholder": "Mesaj gönder, dosya yükle veya klasör aç...",

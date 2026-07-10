@@ -227,6 +227,11 @@ const SystemSettings: React.FC = () => {
   const [imageEconomyMode, setImageEconomyMode] = useState(false);
   const [imageEconomyModeLoading, setImageEconomyModeLoading] = useState(true);
 
+  // 对话打断 / 消息队列 / Conversation interrupt + message queue.
+  // autoInterrupt default OFF (sudowork gray-release); messageQueue default ON.
+  const [autoInterrupt, setAutoInterrupt] = useState(false);
+  const [messageQueue, setMessageQueue] = useState(true);
+
   // 获取超时设置 / Fetch timeout settings
   useEffect(() => {
     ConfigStorage.get('agent.promptTimeout')
@@ -247,6 +252,12 @@ const SystemSettings: React.FC = () => {
       .then((value) => setImageEconomyMode(value === true))
       .catch(() => {})
       .finally(() => setImageEconomyModeLoading(false));
+    ConfigStorage.get('agent.autoInterrupt')
+      .then((value) => setAutoInterrupt(value === true))
+      .catch(() => {});
+    ConfigStorage.get('agent.messageQueue')
+      .then((value) => setMessageQueue(value !== false))
+      .catch(() => {});
   }, []);
 
   // Toggle image economy mode — persist to ConfigStorage; UI reflects the
@@ -257,6 +268,16 @@ const SystemSettings: React.FC = () => {
     ConfigStorage.set('image.economyMode', checked).catch(() => {
       setImageEconomyMode(!checked);
     });
+  }, []);
+
+  const handleAutoInterruptChange = useCallback((checked: boolean) => {
+    setAutoInterrupt(checked);
+    ConfigStorage.set('agent.autoInterrupt', checked).catch(() => setAutoInterrupt(!checked));
+  }, []);
+
+  const handleMessageQueueChange = useCallback((checked: boolean) => {
+    setMessageQueue(checked);
+    ConfigStorage.set('agent.messageQueue', checked).catch(() => setMessageQueue(!checked));
   }, []);
 
   // 保存 promptTimeout（失焦时校验范围） / Save promptTimeout on blur with range clamping
@@ -334,6 +355,18 @@ const SystemSettings: React.FC = () => {
       label: t('settings.showToolCalls'),
       hint: t('settings.showToolCallsDesc'),
       component: <Switch checked={showToolCallsChecked} onChange={handleShowToolCallsChange} className='settings-accent-switch' style={showToolCallsChecked ? { backgroundColor: 'var(--ui-accent-orange)' } : undefined} />,
+    },
+    {
+      key: 'autoInterrupt',
+      label: t('settings.autoInterrupt'),
+      hint: t('settings.autoInterruptDesc'),
+      component: <Switch checked={autoInterrupt} onChange={handleAutoInterruptChange} className='settings-accent-switch' style={autoInterrupt ? { backgroundColor: 'var(--ui-accent-orange)' } : undefined} />,
+    },
+    {
+      key: 'messageQueue',
+      label: t('settings.messageQueue'),
+      hint: t('settings.messageQueueDesc'),
+      component: <Switch checked={messageQueue} onChange={handleMessageQueueChange} className='settings-accent-switch' style={messageQueue ? { backgroundColor: 'var(--ui-accent-orange)' } : undefined} />,
     },
     {
       key: 'avatarEnabled',
