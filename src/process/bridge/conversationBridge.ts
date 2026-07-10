@@ -33,9 +33,9 @@ import { ConversationManageWithDB } from '../message';
 import { getConversationProvider, isRemoteProvider } from '../providers';
 import { getMossApi, getMossApiServerUrl, initMossApi } from '../remote/MossSessionApi';
 import { turnInputCoordinator } from '../task/turnInputCoordinator';
+import { reapConversation } from '../services/conversationReaper';
 import { closeBrowserTabsByConversation } from './browserPanelBridge';
 import { closeTerminalsByConversation } from './terminalBridge';
-import { reapConversation } from '../services/conversationReaper';
 import { migrateConversationToDatabase } from './migrationUtils';
 
 const workspaceSkillSyncTasks = new Map<string, Promise<void>>();
@@ -921,7 +921,26 @@ export function initConversationBridge(): void {
       if (task.type === 'acp') {
         const autoInterrupt = (await ProcessConfig.get('agent.autoInterrupt').catch(() => false)) === true;
         const messageQueue = (await ProcessConfig.get('agent.messageQueue').catch(() => true)) !== false;
-        const status = turnInputCoordinator.submit(conversation_id, { id: payload.msg_id, content: payload.content, run: () => task.sendMessage(payload) }, () => task.stop(), { autoInterrupt, messageQueue }, emitInputQueue(conversation_id));
+        const status = turnInputCoordinator.submit(
+          conversation_id,
+          {
+            id: payload.msg_id,
+            content: payload.content,
+            // Batched flush (§3.2): when the coordinator flushes N queued items at turn-end,
+            // it hands the tail (N-1 items) to this head. We merge their text into the head's
+            // user message so exactly ONE session/prompt goes out for the whole batch. Only
+            // text is merged — tail items are text-only in practice (queued sends without
+            // attachments); their `files`/`skills` slots are not exposed to the coordinator.
+            run: (tail) => {
+              if (!tail || tail.length === 0) return task.sendMessage(payload);
+              const combined = [payload.content, ...tail.map((t) => t.content)].join('\n\n');
+              return task.sendMessage({ ...payload, content: combined });
+            },
+          },
+          () => task.stop(),
+          { autoInterrupt, messageQueue },
+          emitInputQueue(conversation_id)
+        );
         mainLog('conversationBridge', `sendMessage: coordinator status=${status} for ${conversation_id}`);
         return status === 'busy' ? { success: false, msg: 'busy' } : { success: true };
       }

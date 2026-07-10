@@ -10,18 +10,45 @@
  * desktop IPC path and the channel (WeChat) path.
  *
  * It sequences opaque **run-closures** (each runs one turn to completion) rather than a
- * concrete task, so the desktop (`() => task.sendMessage(payload)`) and the channel (whose
- * turn also sets up its own streaming state) can both be driven the same way. A run-closure
- * must resolve when its turn finishes; a simple per-conversation serial drain loop then
- * gives correct ordering with no event hooks. `interrupt` cancels the in-flight turn.
+ * concrete task, so the desktop (`(tail) => task.sendMessage(payload+tail)`) and the
+ * channel (whose turn also sets up its own streaming state) can both be driven the same
+ * way. A run-closure must resolve when its turn finishes; a simple per-conversation serial
+ * drain loop then gives correct ordering with no event hooks. `interrupt` cancels the
+ * in-flight turn.
+ *
+ * Flush semantics (per docs/plans/2026-07-01-conversation-interrupt-and-queue.html §3.2):
+ * when the current turn ends (naturally or via user stop) and N items are queued, the
+ * coordinator runs the head turn ONCE with the remaining (N-1) items passed as its `tail`
+ * — the caller merges their text into one user message and issues ONE `session/prompt`.
+ * This matches "我攒一起说完" and saves tokens vs. one-turn-per-queued-item replay.
+ * An auto-interrupted turn is marked `solo`: it starts a fresh batch and does NOT combine
+ * with items behind it (§3.2 row 2: "第一条立即打断并单独作为新轮启动").
  */
 
 export interface QueuedTurn {
   id: string;
   /** User-facing text of the queued input — for the queue chips + dequeue-refill. */
   content: string;
-  /** Execute this turn to completion. MUST resolve at turn end (or when cancelled). */
-  run: () => Promise<unknown>;
+  /**
+   * Execute this turn to completion. If `tail` is provided, this turn is a batched flush:
+   * the caller merges the tail items' `content` into its own user message and issues a
+   * single downstream request. MUST resolve at turn end (or when cancelled). Tail items'
+   * non-text attributes (files/skills) are the caller's responsibility to merge or drop.
+   */
+  run: (tail?: QueuedTurn[]) => Promise<unknown>;
+  /**
+   * When true, this turn MUST run alone — the drain loop will not batch it with successors
+   * in the same iteration. Set by the auto-interrupt path so the interrupting input is a
+   * fresh solo turn per §3.2.
+   */
+  solo?: boolean;
+  /**
+   * Called when this turn is consumed as tail of another turn's batched flush (its own
+   * `run` will therefore NOT fire). Use it to resolve any outer promise / notify the caller
+   * that this item's content has been merged into the head — otherwise the channel path's
+   * queued-message outer promise would hang forever.
+   */
+  onBatched?: () => void;
 }
 
 export interface InterruptQueueSettings {
@@ -31,8 +58,8 @@ export interface InterruptQueueSettings {
 
 export type SubmitStatus =
   | 'sent' // no turn active → started immediately
-  | 'queued' // held; will run in order after the current turn
-  | 'interrupting' // cancelling the current turn, this input runs next
+  | 'queued' // held; will run in the next batched flush
+  | 'interrupting' // cancelling the current turn, this input runs next as a solo turn
   | 'busy'; // a turn is active and both auto-interrupt and queue are off
 
 interface ConversationState {
@@ -83,7 +110,10 @@ export class TurnInputCoordinator {
     if (settings.autoInterrupt) {
       // First input interrupts; when queue is off, it also drops any pending items.
       if (!settings.messageQueue) s.queue = [];
-      s.queue.unshift(turn);
+      // Mark solo so the drain loop runs this alone and does not batch it with items
+      // that were queued before/after the interrupt — the interrupting input is a fresh
+      // solo turn per §3.2.
+      s.queue.unshift({ ...turn, solo: true });
       notify();
       // Cancel the in-flight turn; the drain loop's awaited run() resolves and then picks
       // up the turn we just unshifted to the front. Fire-and-forget: ordering is guaranteed
@@ -125,19 +155,39 @@ export class TurnInputCoordinator {
     onQueueChange?.(this.getQueue(conversationId));
   }
 
-  /** Serial per-conversation runner: one turn at a time, in submission order. */
+  /**
+   * Serial per-conversation runner: at each iteration, take the head as the batch anchor.
+   * If it is not `solo`, greedily gather adjacent non-solo successors into its `tail` — the
+   * anchor's run-closure merges their text into one user message (§3.2 batched flush).
+   * Solo turns (auto-interrupt path) never batch.
+   */
   private async drain(conversationId: string, onQueueChange?: (queue: QueuedTurn[]) => void): Promise<void> {
     const s = this.stateOf(conversationId);
     if (s.draining) return;
     s.draining = true;
     try {
       while (s.queue.length > 0) {
-        const turn = s.queue.shift() as QueuedTurn;
+        const head = s.queue.shift() as QueuedTurn;
+        const tail: QueuedTurn[] = [];
+        if (!head.solo) {
+          while (s.queue.length > 0 && !s.queue[0].solo) {
+            const t = s.queue.shift() as QueuedTurn;
+            tail.push(t);
+            try {
+              t.onBatched?.();
+            } catch {
+              // Caller's notify must not stall the drain.
+            }
+          }
+        }
         onQueueChange?.(this.getQueue(conversationId));
         try {
-          await turn.run();
+          await head.run(tail.length > 0 ? tail : undefined);
         } catch {
-          // A failed/cancelled turn must not stall the queue — continue draining.
+          // A failed/cancelled turn must not stall subsequent iterations — continue draining.
+          // Tail items batched into this turn are considered consumed (their content was
+          // handed to the caller); if the caller's send failed, they are not retried, matching
+          // the "the batch is one atomic user message" mental model.
         }
       }
     } finally {

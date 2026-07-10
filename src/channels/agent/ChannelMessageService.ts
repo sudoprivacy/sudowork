@@ -6,7 +6,7 @@
 
 import { mainWarn } from '@process/utils/mainLogger';
 import WorkerManage from '@/process/WorkerManage';
-import { turnInputCoordinator } from '@/process/task/turnInputCoordinator';
+import { turnInputCoordinator, type QueuedTurn } from '@/process/task/turnInputCoordinator';
 import { ProcessConfig } from '@/process/initStorage';
 import { getDatabase } from '@/process/database';
 import type BaseAgent from '@/process/task/BaseAgent';
@@ -336,10 +336,14 @@ export class ChannelMessageService {
     const messageQueue = (await ProcessConfig.get('agent.messageQueue').catch(() => true)) !== false;
 
     return new Promise<string>((resolve, reject) => {
+      // The coordinator hands tail items to the head's run when batching. We capture it here
+      // so the run-closure below can inline them into task.sendMessage's user content.
+      let flushedTail: QueuedTurn[] | undefined;
       // One channel turn: register its stream state + send, resolving when the turn ends.
       // The coordinator runs these serially (now, or after the current turn / a cancel).
-      const run = () =>
+      const run = (tail?: QueuedTurn[]) =>
         new Promise<void>((turnDone) => {
+          flushedTail = tail;
           // Soft timeout: progress notice, keep the stream alive for late-arriving messages.
           const timeoutTimer = setTimeout(() => {
             const staleStream = this.activeStreams.get(conversationId);
@@ -383,7 +387,12 @@ export class ChannelMessageService {
             inFlightCallbacks: new Set(),
           });
 
-          const payload: { content: string; msg_id: string; files?: string[] } = { content: message, msg_id: msgId };
+          // If the coordinator flushed queued items as our tail, merge their text into this
+          // message so the downstream turn sees a single combined user message (§3.2 batched
+          // flush). Only text is merged — tail items' `files` slots are not exposed and are
+          // dropped (queued channel messages are text in practice; attachments are rare).
+          const contentWithTail = flushedTail && flushedTail.length > 0 ? [message, ...flushedTail.map((t) => t.content)].join('\n\n') : message;
+          const payload: { content: string; msg_id: string; files?: string[] } = { content: contentWithTail, msg_id: msgId };
           if (files && files.length > 0) {
             payload.files = files;
           }
@@ -401,7 +410,23 @@ export class ChannelMessageService {
           });
         });
 
-      const status = turnInputCoordinator.submit(conversationId, { id: msgId, content: message, run }, () => Promise.resolve((task as { stop?: () => unknown }).stop?.()), { autoInterrupt, messageQueue });
+      const status = turnInputCoordinator.submit(
+        conversationId,
+        {
+          id: msgId,
+          content: message,
+          run,
+          // If this message is batched into another head's tail, our outer Promise here would
+          // hang (our `run` never fires). Resolve it with our own msgId so the caller sees a
+          // clean completion; also send a channel tip so the user knows it was merged.
+          onBatched: () => {
+            onStream({ type: 'tips', id: uuid(), conversation_id: conversationId, content: { type: 'success', content: '📎 已合并到当前回复 / Merged into the current reply.' } }, true);
+            resolve(msgId);
+          },
+        },
+        () => Promise.resolve((task as { stop?: () => unknown }).stop?.()),
+        { autoInterrupt, messageQueue }
+      );
 
       if (status === 'busy') {
         // Both interrupt + queue off → keep today's behaviour: don't clobber, ask to wait.

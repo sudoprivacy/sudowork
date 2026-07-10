@@ -65,4 +65,32 @@ describe('ChannelMessageService → turnInputCoordinator', () => {
     await flush();
     expect(task.stop).toHaveBeenCalled(); // interrupted, not dropped
   });
+
+  it('batched flush: N=3 messages queued during a running turn flush as ONE combined sendMessage', async () => {
+    // Guards the tokens-saving promise (doc §3.2): 4 messages during a slow turn must produce
+    // exactly 2 downstream sends — one for the running turn, one combining the 3 queued items.
+    configGet.mockImplementation((k: string) => Promise.resolve(k === 'agent.messageQueue')); // queue ON, interrupt OFF
+    const onStream = vi.fn();
+    void svc.sendMessage('s', 'convB', 'first', undefined, onStream);
+    await flush();
+    void svc.sendMessage('s', 'convB', 'second', undefined, onStream);
+    void svc.sendMessage('s', 'convB', 'third', undefined, onStream);
+    void svc.sendMessage('s', 'convB', 'fourth', undefined, onStream);
+    await flush();
+    expect(task.sendMessage).toHaveBeenCalledTimes(1); // only the first is out; the rest wait
+
+    // Finish the first turn → the 3 queued items flush as ONE combined sendMessage.
+    const stream = (svc as unknown as { activeStreams: Map<string, { resolve: (m: string) => void; msgId: string }> }).activeStreams.get('convB');
+    stream?.resolve(stream.msgId);
+    await flush();
+
+    expect(task.sendMessage).toHaveBeenCalledTimes(2);
+    const combinedCall = task.sendMessage.mock.calls[1][0] as { content: string };
+    // All three queued texts appear in the single combined payload, in submission order.
+    expect(combinedCall.content).toContain('second');
+    expect(combinedCall.content).toContain('third');
+    expect(combinedCall.content).toContain('fourth');
+    expect(combinedCall.content.indexOf('second')).toBeLessThan(combinedCall.content.indexOf('third'));
+    expect(combinedCall.content.indexOf('third')).toBeLessThan(combinedCall.content.indexOf('fourth'));
+  });
 });
