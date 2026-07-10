@@ -27,14 +27,23 @@ from ops._enterprise_config import (
 
 
 def kill_electron():
-    """Kill any running Electron processes."""
+    """Kill any running Electron processes.
+
+    Uses `pkill -x` (exact process-name match) on POSIX rather than `-f` (full
+    argv regex). `-f electron` would match ANY process whose command line
+    contains "electron" — including THIS SCRIPT itself when launched as
+    `python .../restart_electron.py`, causing self-SIGTERM in CI where the
+    launcher's own argv contains the substring. `-x electron` binds to the
+    process's own name (basename of the executable), which the real Electron
+    binary satisfies while python subprocesses do not.
+    """
     print("Killing Electron processes...")
     if sys.platform == 'win32':
         # Use shell=True to avoid Git Bash path-munging of /F, /IM flags
         subprocess.run('taskkill /F /IM electron.exe',
                        shell=True, capture_output=True, timeout=10)
     else:
-        subprocess.run(['pkill', '-f', 'electron'], capture_output=True, timeout=10)
+        subprocess.run(['pkill', '-x', 'electron'], capture_output=True, timeout=10)
     time.sleep(3)
 
 
