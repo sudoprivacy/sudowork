@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SudoWork 对话打断 + 消息队列 · 工作设计（代码审计版）</title>
+<style>
+  :root{--primary:#FF8C38;--bg:#0D0D0D;--card:#1A1A1A;--card2:#141414;--text:#E5E5E5;--muted:#9CA3AF;--border:#2D2D2D;--green:#34D399;--green-bg:#0D2818;--red:#F87171;--red-bg:#2D1010;--blue:#60A5FA;--blue-bg:#0D1B2A;--yellow:#FBBF24;--yellow-bg:#2A2008;}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);line-height:1.75}
+  .wrap{max-width:940px;margin:0 auto;padding:0 20px 90px}
+  .banner{background:linear-gradient(135deg,#E86C00 0%,#FF8C38 55%,#FFB347 100%);color:#fff;padding:44px 40px 36px;border-radius:0 0 4px 4px}
+  .banner .tag{display:inline-block;background:rgba(0,0,0,.18);padding:4px 12px;border-radius:20px;font-size:12px;letter-spacing:.05em;margin-bottom:14px}
+  .banner h1{font-size:26px;line-height:1.35;margin-bottom:10px}
+  .banner p{font-size:15px;opacity:.95}
+  .meta{display:flex;flex-wrap:wrap;gap:10px 26px;margin:22px 0 6px;color:var(--muted);font-size:13px}
+  .meta b{color:var(--text);font-weight:600}
+  h2{font-size:20px;margin:40px 0 14px;padding-bottom:8px;border-bottom:1px solid var(--border);color:var(--primary)}
+  h3{font-size:15px;margin:22px 0 8px;color:var(--text)}
+  p,li{font-size:14.5px;color:var(--text)}
+  .muted{color:var(--muted)}
+  ul{margin:8px 0 8px 22px}li{margin:5px 0}
+  code{background:#000;border:1px solid var(--border);border-radius:4px;padding:1px 6px;font-family:"SFMono-Regular",Consolas,monospace;font-size:12.5px;color:#FFD9B3}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px 18px;margin:12px 0}
+  .callout{border-left:3px solid var(--border);border-radius:8px;padding:12px 16px;margin:12px 0;background:var(--card2)}
+  .callout.red{border-color:var(--red);background:var(--red-bg)}
+  .callout.green{border-color:var(--green);background:var(--green-bg)}
+  .callout.blue{border-color:var(--blue);background:var(--blue-bg)}
+  .callout.yellow{border-color:var(--yellow);background:var(--yellow-bg)}
+  .callout h3{margin-top:0}
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:13.5px}
+  th,td{border:1px solid var(--border);padding:8px 12px;text-align:left;vertical-align:top}
+  th{background:#000;color:var(--primary);font-weight:600}
+  .pill{display:inline-block;padding:2px 10px;border-radius:12px;font-size:12px;font-weight:600}
+  .pill.g{background:var(--green-bg);color:var(--green)}.pill.r{background:var(--red-bg);color:var(--red)}
+  pre.mermaid{background:var(--card2);border:1px solid var(--border);border-radius:10px;padding:16px;margin:14px 0;text-align:center}
+  footer{margin-top:46px;padding-top:16px;border-top:1px solid var(--border);color:var(--muted);font-size:12.5px}
+</style>
+</head>
+<body>
+<div class="banner">
+  <span class="tag">WORKING DESIGN · 代码审计版</span>
+  <h1>SudoWork 对话打断 + 消息队列 · 工作设计文档</h1>
+  <p>对 v3.2 提案的技术核对 + 落地设计。结论均以 sudocode / sudowork 实际代码为准（非提案措辞）。</p>
+</div>
+<div class="wrap">
+  <div class="meta">
+    <span>👤 <b>sudowork-win-pc-0</b></span>
+    <span>📅 <b>2026-07-01</b></span>
+    <span>🔎 审计：sudocode @<b>aa99ebc7</b> · sudowork @<b>dev</b></span>
+    <span>🗳 投票：<b>方案 1.5</b></span>
+  </div>
+
+  <div class="callout green">
+    <h3>✅ 实现状态：全部完成（分支 <code>feat/conversation-interrupt-queue</code>，待 review/merge）</h3>
+    <p>设置开关 · 进程侧协调器（SSOT）· 桌面 sendMessage 路由 · 队列 IPC · 渲染层（回复中可提交 / Esc 打断 / ↑ dequeue / 队列 chips）· 首次打断一次性确认 · 微信/渠道 queue+interrupt（不再丢弃）全部落地。<b>16 个单测通过</b>（协调器矩阵 7 + 键盘 guard 7 + 渠道集成 2），tsc/lint 干净。真机已启动验证：DB 初始化正常、渲染层正常绘制、进程侧零崩溃。桌面交互式点按 e2e 受手机短信登录门限制（本机无凭证），待登录态 CI/实例跑通。首次打断确认最终简化为一次性「打断 / 取消」弹窗（答“打断”即持久化，不再询问）——opt-in 开关已是同意，无需三态。</p>
+  </div>
+
+  <h2>一、对提案的三点核对（请 owner 关注）</h2>
+  <div class="callout red">
+    <h3>① §6.3「回车 queue / 上键 dequeue 已在 sudocode CLI 验证」— 与代码不符 <span class="pill r">更正</span></h3>
+    <p>sudocode 交互式 REPL 是同步 <code>readline</code> + Ctrl-C（<code>main.rs:1441-1517</code>、<code>input.rs</code>），<b>没有消息队列、没有 Up-dequeue 绑定</b>。message queue 属纯新建功能，不能按“对齐 sudocode 现有行为”来估工。</p>
+  </div>
+  <div class="callout yellow">
+    <h3>② §8.1#6「等当前工具执行完毕后中断」— 过于悲观 <span class="pill r">更正</span></h3>
+    <p>sudocode 用 <code>kill_on_drop</code> 协作式<b>杀掉正在执行的前台命令</b>（<code>bash.rs:214-248</code>，单测 <code>abort_signal_interrupts_foreground_command</code>），不是等它跑完。§8.2 的「≤500ms」因此更可达。建议 #6 改为“中断会终止正在执行的命令”。</p>
+  </div>
+  <div class="callout green">
+    <h3>③「不需要回滚 / LLM 自行处理一半的工作」— 应升级为“已验证的硬保证” <span class="pill g">利好</span></h3>
+    <p>sudocode 在<b>全部 4 条中断路径</b>上，为每个悬空 <code>tool_use</code> 合成 error <code>tool_result</code> 并追加 <code>[interrupted]</code>（<code>conversation.rs:478-566</code>，测试 <code>:2487</code>）。因此下一次请求<b>不会</b>因未配对 <code>tool_use</code> 被 Anthropic 拒绝。这是硬保证，不是靠 LLM 自觉——本功能最大的正确性风险已消除。</p>
+  </div>
+
+  <h2>二、已验证的基础（决定了工作量）</h2>
+  <div class="card">
+    <p><b>我们不是在“造”打断——它已存在且正确。</b>sudowork 的 ■ 停止键当前就已发真正的 ACP <code>session/cancel</code>；sudocode 端一路 abort（丢弃在途 LLM stream + 取消运行中的工具/bash）；streaming 是默认且唯一的调用方式。</p>
+  </div>
+  <pre class="mermaid">
+flowchart LR
+  U["👤 用户 / 微信"] -->|"消息 / ESC"| R["sudowork 前端<br/>输入框 · 队列视图"]
+  R -->|"sendMessage / dequeue"| C["turnInputCoordinator<br/>进程 · SSOT"]
+  CH["📱 微信渠道"] -->|"消息"| C
+  C -->|"session/prompt"| AC["AcpConnection"]
+  C -.->|"session/cancel"| AC
+  AC --> SC["sudocode<br/>ACP server"]
+  SC -->|"stream · abort"| LLM["LLM Provider"]
+  </pre>
+  <p class="muted">结论：interrupt 侧 sudocode 改动 = <b>0 行</b>；整个功能是 sudowork app 层的工作。</p>
+
+  <h2>三、架构</h2>
+  <h3>3.1 运行时隔离 — 两个队列不会同时存在于同一实例</h3>
+  <p class="muted">sudocode 进程要么是「交互 REPL」（人在用 CLI，用它自己的队列），要么是「ACP server」（被 sudowork 驱动，用 sudowork 的队列）——互斥的运行模式，无运行时竞争。需要一致的是<b>行为语义</b>，让用户在两个产品间切换体验一致。</p>
+  <pre class="mermaid">
+flowchart LR
+  H["👤 人在 CLI"] --> REPL["sudocode：交互 REPL 模式<br/>(它自己的队列)"]
+  SW["sudowork"] --> ACPM["sudocode：ACP server 模式<br/>(sudowork 的队列)"]
+  REPL -. 互斥 · 不同时 .- ACPM
+  </pre>
+  <h3>3.2 共享行为规范（两个产品都实现同一套）</h3>
+  <pre class="mermaid">
+flowchart TD
+  M["回复进行中：来了新消息 / 回车"] --> Q1{"autoInterrupt?"}
+  Q1 -->|"ON"| I["session/cancel 当前轮<br/>→ 立即发送新消息"]
+  Q1 -->|"OFF"| Q2{"messageQueue?"}
+  Q2 -->|"ON"| E["入队；finish 后按提交顺序回放"]
+  Q2 -->|"OFF"| B["维持现状：回复中不可提交"]
+  </pre>
+  <table>
+    <tr><th></th><th>队列 OFF</th><th>队列 ON</th></tr>
+    <tr><th>auto-interrupt OFF</th><td>回复中不可提交（当前行为）</td><td>全部暂存，结束后按序回放</td></tr>
+    <tr><th>auto-interrupt ON</th><td>发送即打断</td><td>第一条打断，其余入队</td></tr>
+  </table>
+  <p class="muted">上键（输入框空、队列非空）→ dequeue 最后一条回编辑框。打断 = 真正的轮中止，留下事务完整的 <code>[interrupted]</code> 轮（由 sudocode 保证，见 §二）。</p>
+  <h3>3.3 sudowork：单一进程侧协调器（SSOT + DRY）</h3>
+  <p>把「用户输入 vs 轮边界」的决策收敛到<b>一个进程侧模块</b>，桌面 IPC 与微信渠道都走它。理由：轮状态 SSOT 本就在进程侧任务（<code>AcpAgent</code>）；纯前端队列无法服务微信（无 renderer），会变成两套实现两个 SSOT。今天该决策散在两处（renderer 禁提交；<code>ChannelMessageService.ts:243</code> 直接丢弃第二条微信消息并提示“请稍候”）——统一到协调器是系统性修复，而非逐处打补丁。</p>
+  <pre class="mermaid">
+sequenceDiagram
+  participant U as 👤 用户
+  participant F as sudowork 前端
+  participant C as Coordinator（进程）
+  participant S as sudocode
+  S-->>F: SSE tokens（回复中…）
+  U->>F: 发送新消息（running 中）
+  F->>C: sendMessage
+  C->>S: session/cancel
+  S-->>C: stopReason: cancelled（已合成配对 tool_result + [interrupted]）
+  C->>S: session/prompt（新消息）
+  S-->>F: SSE tokens（新回复）
+  </pre>
+
+  <h3>3.4 键盘/输入处理（为什么要 guard）</h3>
+  <p>新增的按键行为要和 sendbox <b>现有</b>的键盘逻辑共存——技能选择弹窗、斜杠命令弹窗、以及多行文本的光标移动都用同一套 <code>onKeyDown</code>。所以每个新键都带<b>触发条件（guard）</b>，只在无歧义时生效，绝不抢占既有按键：</p>
+  <pre class="mermaid">
+flowchart TD
+  K["按键 · sendbox onKeyDown"] --> W{"技能/斜杠 弹窗打开?"}
+  W -->|"是"| POP["交给弹窗<br/>上下选择 / 回车确认"]
+  W -->|"否"| KEY{"哪个键"}
+  KEY -->|"Enter"| R1{"回复进行中 且<br/>两个开关都关?"}
+  R1 -->|"是"| WARN["提示‘回复进行中’<br/>维持现状 · 不提交"]
+  R1 -->|"否"| SUBMIT["提交 → 协调器<br/>发送 / 入队 / 打断"]
+  KEY -->|"Esc"| E1{"回复进行中?"}
+  E1 -->|"是"| INT["打断当前轮 · stop"]
+  E1 -->|"否"| DEF1["默认 · 无操作"]
+  KEY -->|"↑ Up"| U1{"输入框为空 且 队列非空?"}
+  U1 -->|"是"| DEQ["dequeue 最后一条 → 回填输入框"]
+  U1 -->|"否"| DEF2["默认 · 光标/历史移动"]
+  </pre>
+  <p class="muted">Guard 的意义：① 弹窗打开时按键归弹窗；② 两开关都关时 Enter 维持“回复中不可提交”（避免产生 no-op 丢消息）；③ Esc 仅在回复进行中才打断；④ ↑ 仅在输入框为空且队列非空时才 dequeue，否则照常移动光标——避免误伤多行编辑。</p>
+
+  <h2>四、分仓实现（一仓一 PR）</h2>
+  <h3>sudowork PR（<code>feat/conversation-interrupt-queue</code>）</h3>
+  <table>
+    <tr><th>文件</th><th>改动</th></tr>
+    <tr><td><code>src/common/storage.ts</code></td><td>新增 <code>agent.autoInterrupt</code> / <code>messageQueue</code> / <code>autoInterruptConfirmed</code></td></tr>
+    <tr><td><code>…/SettingsModal/…/SystemModalContent.tsx</code></td><td>两个 toggle 行（仿 <code>showToolCalls</code>）</td></tr>
+    <tr><td><b>新</b> <code>src/process/task/turnInputCoordinator.ts</code></td><td>队列 + 矩阵决策（send / 打断后 send / 入队；finish 时刷新）— SSOT/DRY 枢纽</td></tr>
+    <tr><td><code>src/process/bridge/conversationBridge.ts</code></td><td>sendMessage 走协调器；新增 dequeue/clear IPC；stream 队列状态</td></tr>
+    <tr><td><code>AcpSendBox.tsx</code> / <code>sendbox.tsx</code></td><td>回复中允许提交；ESC→打断；上键→dequeue；渲染队列</td></tr>
+    <tr><td>首次打断确认</td><td>三态弹窗 + 持久化，复用 <code>MessageAcpPermission.tsx</code> 模式</td></tr>
+    <tr><td><code>src/channels/agent/ChannelMessageService.ts</code></td><td>把“丢弃+提示”换成协调器（打断或入队回放）</td></tr>
+  </table>
+  <h3>sudocode PR（独立）</h3>
+  <ul>
+    <li>让 REPL 在<b>一轮进行中</b>也接受输入（pending-line 缓冲），而非整循环阻塞在 <code>run_turn</code>。</li>
+    <li>键位同 §3.2：回车入队（<code>VecDeque</code>）、上键 dequeue；结束后 pop-front 起下一轮。</li>
+    <li>打断不变（Ctrl-C 已走 <code>HookAbortSignal</code>）；遵守 sudocode「禁单测 / 禁全屏 TUI」规约，走 PTY/集成门验证。</li>
+  </ul>
+
+  <h2>五、测试计划（提升 e2e 深度）</h2>
+  <ul>
+    <li><b>单元</b>（协调器纯逻辑）：idle→send；running+autoInterrupt→cancel-then-send；running+queue→入队；finish→按序刷新；both-on→先打断后入队；<b>cancel-after-finish 幂等 no-op</b>；重复打断；dequeue 取对项。</li>
+    <li><b>集成</b>（mock ACP）：send-while-running 产生 <code>cancel</code> 再 <code>sendPrompt</code>（有序）；队列刷新串行不并发。</li>
+    <li><b>渠道</b>：微信第二条消息按设置打断/入队（不再丢弃）。</li>
+    <li>sudocode 事务完整性已有自测（<code>conversation.rs:2487</code>），我们依赖它、不重测。</li>
+  </ul>
+
+  <h2>六、结论</h2>
+  <div class="callout green">
+    <p><b>投票：方案 1.5</b>（sudocode 直接 ON；sudowork 灰度后切 ON）。interrupt 侧 0 行 sudocode 改动；message queue 两端各做各的、共用一套行为规范、各自一个 PR。基础能力（真 interrupt / streaming / 事务完整性）均已在 sudocode 验证，无需额外底层开发。</p>
+  </div>
+
+  <footer>
+    本文档为 sudowork-win-pc-0 基于代码审计撰写；仓内单一源文件为 <code>sudowork/docs/plans/2026-07-01-conversation-interrupt-and-queue.html</code>，ShareOne 页由同一文件发布（改动后用 <code>--share-id</code> 覆盖同一 share，保证单源不漂移）。欢迎在此划词评论，我会拉取并处理。
+  </footer>
+</div>
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+  mermaid.initialize({ startOnLoad: true, theme: 'dark' });
+</script>
+</body>
+</html>
