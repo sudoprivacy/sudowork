@@ -58,10 +58,17 @@ jobs:
       - name: Run postinstall
         run: npm run postinstall || true
 
-      - name: Install Linux display dependencies
+      - name: Install Linux display + Electron runtime dependencies
+        # Electron on Linux needs a bunch of system libs (nss, atk, cairo, cups, etc.);
+        # missing any of them makes the main process die on startup with no CDP.
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgbm-dev xvfb
+          sudo apt-get install -y \
+            libgbm-dev xvfb \
+            libnss3 libatk1.0-0t64 libatk-bridge2.0-0t64 libcups2t64 \
+            libxcomposite1 libxdamage1 libxrandr2 libxkbcommon0 \
+            libpangocairo-1.0-0 libpango-1.0-0 libcairo2 \
+            libasound2t64
 
       - name: Build Electron artifacts (main+preload+renderer)
         run: bun run package
@@ -109,6 +116,16 @@ jobs:
           NEXUS_CDP_PORT: '9232'
           CASE_FILTER: ${{ inputs.case_filter || 'interrupt-queue-batched-flush' }}
 
+      - name: Dump launch log on failure
+        # If Electron never came up on CDP, restart_electron.py writes its full
+        # launcher stdout/stderr to $RUNNER_TEMP/e2e-launch.log. Surfacing it in
+        # the job log is the difference between a silent "did not start in time"
+        # and a debuggable stack trace.
+        if: failure()
+        run: |
+          echo "=== e2e-launch.log ==="
+          cat "${RUNNER_TEMP:-/tmp}/e2e-launch.log" 2>&1 | tail -200 || echo "(no launch log)"
+
       - name: Upload E2E report (self-contained with screenshots & traces)
         if: always()
         uses: actions/upload-artifact@v7
@@ -118,5 +135,6 @@ jobs:
             tests/e2e/report/
             tests/e2e/results/
             tests/e2e/screenshots/
+            ${{ runner.temp }}/e2e-launch.log
           retention-days: 14
           if-no-files-found: ignore

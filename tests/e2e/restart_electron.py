@@ -48,13 +48,23 @@ def kill_electron():
 
 
 def launch_electron():
-    """Launch Electron app in dev mode."""
+    """Launch Electron app in dev mode.
+
+    Redirects stdout/stderr into a per-launch log file under /tmp so a
+    failing CDP handshake is diagnosable — DEVNULL made prior CI failures
+    show up as bare "did not start in time" with zero signal.
+    """
     project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     launch_script = os.path.join(project_root, 'scripts', 'launch-dev.js')
 
-    print(f"Launching Electron from {project_root}...")
+    log_path = os.environ.get(
+        'E2E_LAUNCH_LOG',
+        os.path.join(os.environ.get('RUNNER_TEMP', '/tmp'), 'e2e-launch.log'),
+    )
+    log_fh = open(log_path, 'wb')
+    print(f"Launching Electron from {project_root} (log: {log_path})...")
     env = os.environ.copy()
-    env['NEXUS_CDP_PORT'] = '9232'
+    env['NEXUS_CDP_PORT'] = env.get('NEXUS_CDP_PORT', '9232')
 
     if sys.platform == 'win32':
         proc = subprocess.Popen(
@@ -62,8 +72,8 @@ def launch_electron():
             creationflags=subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS,
             env=env,
             cwd=project_root,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stdout=log_fh,
+            stderr=subprocess.STDOUT,
         )
     else:
         proc = subprocess.Popen(
@@ -71,13 +81,13 @@ def launch_electron():
             start_new_session=True,
             env=env,
             cwd=project_root,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stdout=log_fh,
+            stderr=subprocess.STDOUT,
         )
     return proc
 
 
-def wait_for_cdp(port=9232, timeout=60):
+def wait_for_cdp(port=9232, timeout=180):
     """Wait for CDP port to be ready."""
     print(f"Waiting for CDP on port {port}...")
     for i in range(timeout // 2):
