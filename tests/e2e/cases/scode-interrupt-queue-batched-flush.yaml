@@ -1,0 +1,91 @@
+name: "scode interrupt+queue batched flush"
+description: >
+  End-to-end proof of the doc §3.2 batched-flush semantics: with messageQueue ON
+  and autoInterrupt OFF, submitting N additional user inputs while a turn is
+  running must produce exactly ONE combined user message on flush — not N
+  separate turns. Guards against a regression back to sequential replay.
+
+steps:
+  # ── Phase 0: Pre-config: turn ON the message queue toggle BEFORE the app reads
+  #    its config on boot. This case is checked into CI so the setting file must
+  #    exist prior to the first wait_for_app_ready.
+  - op: set_config
+    key: "agent.messageQueue"
+    value: true
+  - op: set_config
+    key: "agent.autoInterrupt"
+    value: false
+
+  - op: wait_for_app_ready
+    timeout: 300
+
+  # ── Phase 1: New Sudo Code conversation ──
+  - op: click
+    x: 530
+    y: 27
+  - op: pause
+    duration: 3000
+  - op: mouse_click
+    text: "Sudo Code"
+  - op: pause
+    duration: 3000
+  - op: screenshot
+    path: "screenshots/scode-batched-flush-00-selected.png"
+
+  # ── Phase 2: Start a long-running turn (message A) that stays busy long enough
+  #    to queue three follow-ups behind it. A short sleep inside a bash tool call
+  #    keeps the turn active without exhausting the CI budget.
+  - op: type_text
+    text: "Please run this ONE bash command and then respond briefly: sleep 12 && echo done_A_QUEUE_MARKER_ALPHA"
+  - op: press_key
+    key: "Enter"
+    wait: 3
+  - op: pause
+    duration: 4000
+  - op: screenshot
+    path: "screenshots/scode-batched-flush-01-A-running.png"
+
+  # ── Phase 3: While A is still running, queue B, C, D. Each carries a distinctive
+  #    marker token so the DB assertion downstream can verify that ONE combined
+  #    user message contains all three (proving the batched flush).
+  - op: type_text
+    text: "B_QUEUE_MARKER_BRAVO: please tally up how many marker tokens you saw in this batched user turn."
+  - op: press_key
+    key: "Enter"
+    wait: 1
+  - op: type_text
+    text: "C_QUEUE_MARKER_CHARLIE: and reply to each one distinctly if you can."
+  - op: press_key
+    key: "Enter"
+    wait: 1
+  - op: type_text
+    text: "D_QUEUE_MARKER_DELTA: this is the last queued message before A's response."
+  - op: press_key
+    key: "Enter"
+    wait: 1
+  - op: screenshot
+    path: "screenshots/scode-batched-flush-02-queued.png"
+
+  # ── Phase 4: Wait for A to complete naturally + the batched flush to run ──
+  - op: wait_for_response
+    timeout: 120
+  - op: pause
+    duration: 4000
+  - op: wait_for_response
+    timeout: 120
+  - op: screenshot
+    path: "screenshots/scode-batched-flush-03-flushed.png"
+
+  # ── Phase 5: DB audit — assert exactly 2 user text messages (A alone, then a
+  #    single combined B+C+D). Batched turn's content length is much larger than
+  #    the single-item A message, so max_len also asserts the merge happened.
+  - op: db_audit
+    assert_metrics:
+      user_text_messages: "== 2"
+      user_text_max_len: ">= 150"
+
+  # ── Phase 6: Optional judge check on the rendered conversation. The combined
+  #    turn's assistant reply should acknowledge all three marker tokens (proof
+  #    the LLM saw them as ONE user message, not three).
+  - op: judge
+    expect: "ALPHA"
