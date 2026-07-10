@@ -1,8 +1,18 @@
 name: '✓PR E2E Artifacts'
 
+# Runs the real Python + YAML e2e infra (tests/e2e/runner.py + tests/e2e/cases/*.yaml)
+# against a headless Electron launched with mock enterprise auth pre-seeded. Kept as
+# workflow_dispatch (opt-in) so the smoke matrix on every PR isn't slowed by full e2e —
+# trigger from Actions UI or `gh workflow run pr-e2e-artifacts.yml --ref <branch>` when
+# a change touches the interrupt+queue / ACP / renderer paths.
+
 on:
   workflow_dispatch:
-
+    inputs:
+      case_filter:
+        description: 'Name substring (matches runner.py --case)'
+        required: false
+        default: 'interrupt-queue-batched-flush'
 
 concurrency:
   group: pr-e2e-artifacts-${{ github.run_id }}
@@ -18,7 +28,7 @@ jobs:
   e2e-artifacts:
     name: E2E Artifacts (Linux)
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
 
     steps:
       - name: Checkout code
@@ -34,27 +44,47 @@ jobs:
         with:
           bun-version: latest
 
-      - name: Setup just
-        uses: extractions/setup-just@v2
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
 
-      - name: Install dependencies
+      - name: Install Python e2e deps
+        run: python -m pip install --upgrade pip pyyaml ai-dev-browser
+
+      - name: Install node dependencies
         run: bun install --no-frozen-lockfile
 
       - name: Run postinstall
         run: npm run postinstall || true
 
-      - name: Install Linux display dependencies (E2E)
+      - name: Install Linux display dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y libgbm-dev xvfb
 
-      - name: Run E2E tests (with screenshots)
-        run: xvfb-run --auto-servernum just e2e-test
+      - name: Build Electron artifacts (main+preload+renderer)
+        run: bun run package
+
+      - name: Launch Electron with mock enterprise auth (background) + run e2e runner
+        # Two commands in one xvfb-run so the Electron subprocess shares the same X server.
+        # restart_electron.py kills any stale Electron, seeds ConfigStorage with mock auth,
+        # launches launch-dev.js with NEXUS_CDP_PORT=9232, and polls the CDP endpoint until
+        # ready. Then runner.py connects and iterates cases/*.yaml (filtered).
+        run: |
+          xvfb-run --auto-servernum bash -c '
+            set -euo pipefail
+            cd tests/e2e
+            python restart_electron.py --enterprise --auth --port 9232
+            python runner.py --port 9232 --case "$CASE_FILTER"
+          '
         env:
           CI: true
           E2E_DEV: '1'
           E2E_SCREENSHOTS: '1'
           NEXUS_EXTENSIONS_PATH: ${{ github.workspace }}/examples
+          NEXUS_CDP_PORT: '9232'
+          CASE_FILTER: ${{ inputs.case_filter || 'interrupt-queue-batched-flush' }}
 
       - name: Upload E2E report (self-contained with screenshots & traces)
         if: always()
