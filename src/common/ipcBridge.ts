@@ -89,6 +89,11 @@ export const conversation = {
   getSlashCommands: bridge.buildProvider<IBridgeResponse<{ commands: SlashCommandItem[] }>, { conversation_id: string }>('conversation.get-slash-commands'),
   confirmMessage: bridge.buildProvider<IBridgeResponse, IConfirmMessageParams>('conversation.confirm.message'), // 通用确认消息
   responseStream: bridge.buildEmitter<IResponseMessage>('chat.response.stream'), // 接收消息（统一接口）
+  // Input queue (interrupt / message-queue): pending user inputs held while a turn runs.
+  // Process is the SSOT (turnInputCoordinator); the renderer only reflects this for the queue chips.
+  inputQueueUpdate: bridge.buildEmitter<{ conversation_id: string; queue: Array<{ id: string; preview: string }> }>('conversation.input-queue-update'),
+  // Pull a queued input back out (Up-arrow): removes it from the process queue and returns its content.
+  dequeueInput: bridge.buildProvider<IBridgeResponse<{ content: string } | null>, { conversation_id: string; id?: string }>('conversation.dequeue-input'),
   getWorkspace: bridge.buildProvider<IDirOrFile[], { conversation_id: string; workspace: string; path: string; search?: string }>('conversation.get-workspace'),
   getRemoteWorkspace: bridge.buildProvider<IRemoteWorkspaceResponse, { conversation_id: string; path?: string; search?: string }>('conversation.get-remote-workspace'),
   previewRemoteWorkspaceFile: bridge.buildProvider<IBridgeResponse<MossWorkspaceFilePreview>, { conversation_id: string; path: string }>('conversation.preview-remote-workspace-file'),

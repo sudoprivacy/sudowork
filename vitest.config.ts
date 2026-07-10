@@ -85,6 +85,7 @@ export default defineConfig({
         'src/agent/acp/modelInfo.ts',
         'src/process/task/acpWorkspaceTracking.ts',
         'src/process/task/CronCommandDetector.ts',
+        'src/process/task/turnInputCoordinator.ts',
         // Common
         'src/common/chatLib.ts',
         'src/common/nexus/hubErrors.ts',
@@ -98,6 +99,7 @@ export default defineConfig({
         'src/common/types/conversion.ts',
         // Renderer utils
         'src/renderer/components/HubEmptyState.tsx',
+        'src/renderer/components/sendboxKeyGuards.ts',
         'src/renderer/messages/RuntimeErrorBanner.tsx',
         'src/renderer/messages/useAutoScroll.ts',
         'src/renderer/utils/emitter.ts',
