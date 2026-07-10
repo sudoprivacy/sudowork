@@ -6,6 +6,8 @@
 
 import { mainWarn } from '@process/utils/mainLogger';
 import WorkerManage from '@/process/WorkerManage';
+import { turnInputCoordinator } from '@/process/task/turnInputCoordinator';
+import { ProcessConfig } from '@/process/initStorage';
 import { getDatabase } from '@/process/database';
 import type BaseAgent from '@/process/task/BaseAgent';
 import { queueConversationWorkspaceSkillSync } from '@/process/bridge/conversationBridge';
@@ -326,98 +328,90 @@ export class ChannelMessageService {
       throw error;
     }
 
-    return new Promise((resolve, reject) => {
-      // One in-flight turn per conversation. If a turn is already running, do
-      // NOT clobber it: tearing down the live stream clears the agent's ACP
-      // session mid-turn, so the running work is lost and the new turn fails
-      // instantly ("Conversation not found" / ~0ms errors) — exactly the cascade
-      // that a "Response timed out, please try again" prompt used to trigger
-      // (user sees the warning → resends → second message kills the first).
-      // Keep the in-flight turn running and tell the user to wait for its reply.
-      // The old "clean up to avoid hung promises" reason no longer applies — the
-      // existing stream resolves itself on finish (drain) or hard-timeout.
-      const existingStream = this.activeStreams.get(conversationId);
-      if (existingStream) {
-        console.warn(`[ChannelMessageService] Conversation ${conversationId} busy (in-flight msgId=${existingStream.msgId}); deferring concurrent message ${msgId} instead of clobbering`);
-        onStream(
-          {
-            type: 'tips',
-            id: uuid(),
-            conversation_id: conversationId,
-            content: { type: 'warning', content: '⏳ 还在处理上一条消息，请等它回复后再发 / Still working on your previous message — please wait for the reply before sending another.' },
-          },
-          true
-        );
-        // Resolve (don't reject) so the channel's post-send cleanup runs as usual;
-        // we simply did not start a competing turn.
+    // Interrupt / message-queue: route through the shared coordinator (SSOT) so a new
+    // channel message interrupts or queues against an in-flight turn instead of being
+    // dropped. Same matrix as desktop; channels have no queue UI, so outcomes are surfaced
+    // as short text notices (proposal §4.2).
+    const autoInterrupt = (await ProcessConfig.get('agent.autoInterrupt').catch(() => false)) === true;
+    const messageQueue = (await ProcessConfig.get('agent.messageQueue').catch(() => true)) !== false;
+
+    return new Promise<string>((resolve, reject) => {
+      // One channel turn: register its stream state + send, resolving when the turn ends.
+      // The coordinator runs these serially (now, or after the current turn / a cancel).
+      const run = () =>
+        new Promise<void>((turnDone) => {
+          // Soft timeout: progress notice, keep the stream alive for late-arriving messages.
+          const timeoutTimer = setTimeout(() => {
+            const staleStream = this.activeStreams.get(conversationId);
+            if (staleStream && staleStream.msgId === msgId && !staleStream.draining && !staleStream.timedOut) {
+              staleStream.timedOut = true;
+              staleStream.callback({ type: 'tips', id: uuid(), conversation_id: conversationId, content: { type: 'warning', content: '⏳ 任务较长，仍在处理中，请耐心等待，不要重复发送 / This is taking a while — still working on it. Please wait, no need to resend.' } }, true);
+            }
+          }, STREAM_TIMEOUT_MS);
+
+          // Hard timeout: force cleanup if the agent never finishes.
+          const hardTimeoutTimer = setTimeout(() => {
+            const staleStream = this.activeStreams.get(conversationId);
+            if (staleStream && staleStream.msgId === msgId && !staleStream.draining) {
+              this.activeStreams.delete(conversationId);
+              this.messageListMap.delete(conversationId);
+              staleStream.resolve(staleStream.msgId);
+            }
+          }, STREAM_HARD_TIMEOUT_MS);
+
+          // Register stream state. resolve/reject also end the coordinator turn (turnDone)
+          // so the drain loop advances to the next queued input.
+          this.activeStreams.set(conversationId, {
+            msgId,
+            callback: onStream,
+            buffer: '',
+            resolve: (mid: string) => {
+              resolve(mid);
+              turnDone();
+            },
+            reject: (err: Error) => {
+              reject(err);
+              turnDone();
+            },
+            turnCount: 0,
+            finishCount: 0,
+            timeoutTimer,
+            hardTimeoutTimer,
+            timedOut: false,
+            draining: false,
+            pendingMessages: [],
+            inFlightCallbacks: new Set(),
+          });
+
+          const payload: { content: string; msg_id: string; files?: string[] } = { content: message, msg_id: msgId };
+          if (files && files.length > 0) {
+            payload.files = files;
+          }
+
+          task.sendMessage(payload).catch((error: Error) => {
+            const errorMessage = `Error: ${error.message || 'Failed to send message'}`;
+            console.error(`[ChannelMessageService] Send error:`, error);
+            onStream({ type: 'tips', id: uuid(), conversation_id: conversationId, content: { type: 'error', content: errorMessage } }, true);
+            clearTimeout(timeoutTimer);
+            clearTimeout(hardTimeoutTimer);
+            this.activeStreams.delete(conversationId);
+            this.messageListMap.delete(conversationId);
+            reject(error);
+            turnDone();
+          });
+        });
+
+      const status = turnInputCoordinator.submit(conversationId, { id: msgId, content: message, run }, () => Promise.resolve((task as { stop?: () => unknown }).stop?.()), { autoInterrupt, messageQueue });
+
+      if (status === 'busy') {
+        // Both interrupt + queue off → keep today's behaviour: don't clobber, ask to wait.
+        onStream({ type: 'tips', id: uuid(), conversation_id: conversationId, content: { type: 'warning', content: '⏳ 还在处理上一条消息，请等它回复后再发 / Still working on your previous message — please wait for the reply before sending another.' } }, true);
         resolve(msgId);
-        return;
+      } else if (status === 'queued') {
+        onStream({ type: 'tips', id: uuid(), conversation_id: conversationId, content: { type: 'warning', content: '📥 已排队，将在当前回复结束后依次处理 / Queued — will be handled after the current reply.' } }, true);
+      } else if (status === 'interrupting') {
+        onStream({ type: 'tips', id: uuid(), conversation_id: conversationId, content: { type: 'warning', content: '⚡ 已中断，正在处理新指令 / Interrupted — handling your new instruction.' } }, true);
       }
-
-      // Send timeout warning but keep stream alive for late-arriving messages.
-      // Agent might still be running and will send finish event later.
-      const timeoutTimer = setTimeout(() => {
-        const staleStream = this.activeStreams.get(conversationId);
-        // Stream ownership check: only warn if this timer's stream is still the active one.
-        if (staleStream && staleStream.msgId === msgId && !staleStream.draining && !staleStream.timedOut) {
-          console.warn(`[ChannelMessageService] Stream still running after ${STREAM_TIMEOUT_MS / 1000}s for conversation ${conversationId}; sending "still working" notice (stream kept alive)`);
-          staleStream.timedOut = true;
-          // The stream is intentionally kept alive below and the agent's reply
-          // will still arrive when the turn finishes. So this is a progress
-          // notice, NOT a failure — and it must NOT tell the user to retry:
-          // a resend lands as a concurrent message that would otherwise kill the
-          // in-flight turn. Use 'warning' (not 'error') and ask the user to wait.
-          staleStream.callback({ type: 'tips', id: uuid(), conversation_id: conversationId, content: { type: 'warning', content: '⏳ 任务较长，仍在处理中，请耐心等待，不要重复发送 / This is taking a while — still working on it. Please wait, no need to resend.' } }, true);
-          console.log(`[ChannelMessageService] Keeping stream alive for late-arriving messages, conversationId=${conversationId}`);
-        }
-      }, STREAM_TIMEOUT_MS);
-
-      // Hard timeout: force cleanup if agent never finishes
-      const hardTimeoutTimer = setTimeout(() => {
-        const staleStream = this.activeStreams.get(conversationId);
-        if (staleStream && staleStream.msgId === msgId && !staleStream.draining) {
-          console.warn(`[ChannelMessageService] Stream hard timeout after ${STREAM_HARD_TIMEOUT_MS / 1000}s for conversation ${conversationId}`);
-          this.activeStreams.delete(conversationId);
-          this.messageListMap.delete(conversationId);
-          staleStream.resolve(staleStream.msgId);
-        }
-      }, STREAM_HARD_TIMEOUT_MS);
-
-      // 注册流状态
-      // Register stream state
-      this.activeStreams.set(conversationId, {
-        msgId,
-        callback: onStream,
-        buffer: '',
-        resolve,
-        reject,
-        turnCount: 0,
-        finishCount: 0,
-        timeoutTimer,
-        hardTimeoutTimer,
-        timedOut: false,
-        draining: false,
-        pendingMessages: [],
-        inFlightCallbacks: new Set(),
-      });
-
-      // Build payload — ACP agents use { content }.
-      // Include files (local paths) when media attachments are present.
-      const payload: { content: string; msg_id: string; files?: string[] } = { content: message, msg_id: msgId };
-      if (files && files.length > 0) {
-        payload.files = files;
-      }
-
-      task.sendMessage(payload).catch((error: Error) => {
-        const errorMessage = `Error: ${error.message || 'Failed to send message'}`;
-        console.error(`[ChannelMessageService] Send error:`, error);
-        onStream({ type: 'tips', id: uuid(), conversation_id: conversationId, content: { type: 'error', content: errorMessage } }, true);
-        clearTimeout(timeoutTimer);
-        clearTimeout(hardTimeoutTimer);
-        this.activeStreams.delete(conversationId);
-        this.messageListMap.delete(conversationId);
-        reject(error);
-      });
     });
   }
 
