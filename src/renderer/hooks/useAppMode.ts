@@ -43,7 +43,7 @@ export function useAppMode(): { mode: 'c' | 'e'; isEnterprise: boolean; needsSet
   });
 
   useEffect(() => {
-    initialModePromise?.then((resolvedMode) => {
+    void initialModePromise?.then((resolvedMode) => {
       setMode(resolvedMode);
     });
   }, []);

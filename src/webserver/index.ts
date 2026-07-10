@@ -33,7 +33,8 @@ type QRCodeTerminal = {
 
 function loadQRCodeTerminal(): QRCodeTerminal | null {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    // Optional dependency, lazily required so a missing install degrades gracefully.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const module = require('qrcode-terminal') as QRCodeTerminal;
     return module;
   } catch {
@@ -256,11 +257,15 @@ export async function startWebServerWithInstance(port: number, allowRemote = fal
   server.on('upgrade', (req, socket, head) => {
     // In dev mode, proxy Vite HMR WebSocket to Vite dev server.
     // Vite HMR uses 'vite-hmr' subprotocol; Sudowork IPC does not.
+    // Lazy require: only touched on the dev-only HMR-upgrade path, so electron/net
+    // are not pulled in on the normal request path.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const electronApp = require('electron').app;
     const isViteHmr = !electronApp.isPackaged && req.headers['sec-websocket-protocol'] === 'vite-hmr';
 
     if (isViteHmr) {
       // Proxy to Vite dev server
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const net = require('net') as typeof import('net');
       const viteSocket = net.connect(5173, 'localhost', () => {
         const reqLine = `${req.method} ${req.url} HTTP/${req.httpVersion}\r\n`;

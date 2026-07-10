@@ -52,7 +52,7 @@ const MossSessionPage: React.FC = () => {
     if (storedMessage) {
       try {
         const { input: initialInput, files, skills } = JSON.parse(storedMessage);
-        sendMessageInternal(initialInput, files, skills);
+        void sendMessageInternal(initialInput, files, skills);
       } catch (e) {
         console.error('Failed to parse initial message:', e);
       }
@@ -107,7 +107,7 @@ const MossSessionPage: React.FC = () => {
           runningRef.current = false;
           break;
 
-        case 'error':
+        case 'error': {
           setRunning(false);
           runningRef.current = false;
           const errorMsg: TMessage = {
@@ -121,6 +121,7 @@ const MossSessionPage: React.FC = () => {
           };
           updateMessageList((list) => [...list, errorMsg]);
           break;
+        }
       }
     },
     [sessionId, updateMessageList]
