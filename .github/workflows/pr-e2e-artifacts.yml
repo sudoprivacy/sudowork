@@ -73,6 +73,23 @@ jobs:
       - name: Build Electron artifacts (main+preload+renderer)
         run: bun run package
 
+      - name: Fix Electron chrome-sandbox permissions
+        # Chromium's SUID sandbox on Linux requires chrome-sandbox to be
+        # root-owned with mode 4755. bun install as a non-root user leaves
+        # it user-owned, and Electron aborts with a FATAL abort at startup
+        # if the binary is present but mis-permissioned (which is exactly
+        # what we hit: FATAL:sandbox/linux/suid/client/setuid_sandbox_host.cc:166).
+        # Chown to root instead of --no-sandbox to keep the security model intact.
+        run: |
+          SB=node_modules/electron/dist/chrome-sandbox
+          if [ -f "$SB" ]; then
+            sudo chown root:root "$SB"
+            sudo chmod 4755 "$SB"
+            ls -l "$SB"
+          else
+            echo "chrome-sandbox not found — nothing to fix" >&2
+          fi
+
       - name: Start Xvfb virtual display
         # Manually launch Xvfb so both the Electron subprocess (spawned by
         # restart_electron.py detached) and the runner (spawned in a later step)
