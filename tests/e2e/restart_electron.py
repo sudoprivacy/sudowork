@@ -27,25 +27,44 @@ from ops._enterprise_config import (
 
 
 def kill_electron():
-    """Kill any running Electron processes."""
+    """Kill any running Electron processes.
+
+    Uses `pkill -x` (exact process-name match) on POSIX rather than `-f` (full
+    argv regex). `-f electron` would match ANY process whose command line
+    contains "electron" — including THIS SCRIPT itself when launched as
+    `python .../restart_electron.py`, causing self-SIGTERM in CI where the
+    launcher's own argv contains the substring. `-x electron` binds to the
+    process's own name (basename of the executable), which the real Electron
+    binary satisfies while python subprocesses do not.
+    """
     print("Killing Electron processes...")
     if sys.platform == 'win32':
         # Use shell=True to avoid Git Bash path-munging of /F, /IM flags
         subprocess.run('taskkill /F /IM electron.exe',
                        shell=True, capture_output=True, timeout=10)
     else:
-        subprocess.run(['pkill', '-f', 'electron'], capture_output=True, timeout=10)
+        subprocess.run(['pkill', '-x', 'electron'], capture_output=True, timeout=10)
     time.sleep(3)
 
 
 def launch_electron():
-    """Launch Electron app in dev mode."""
+    """Launch Electron app in dev mode.
+
+    Redirects stdout/stderr into a per-launch log file under /tmp so a
+    failing CDP handshake is diagnosable — DEVNULL made prior CI failures
+    show up as bare "did not start in time" with zero signal.
+    """
     project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     launch_script = os.path.join(project_root, 'scripts', 'launch-dev.js')
 
-    print(f"Launching Electron from {project_root}...")
+    log_path = os.environ.get(
+        'E2E_LAUNCH_LOG',
+        os.path.join(os.environ.get('RUNNER_TEMP', '/tmp'), 'e2e-launch.log'),
+    )
+    log_fh = open(log_path, 'wb')
+    print(f"Launching Electron from {project_root} (log: {log_path})...")
     env = os.environ.copy()
-    env['NEXUS_CDP_PORT'] = '9232'
+    env['NEXUS_CDP_PORT'] = env.get('NEXUS_CDP_PORT', '9232')
 
     if sys.platform == 'win32':
         proc = subprocess.Popen(
@@ -53,8 +72,8 @@ def launch_electron():
             creationflags=subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS,
             env=env,
             cwd=project_root,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stdout=log_fh,
+            stderr=subprocess.STDOUT,
         )
     else:
         proc = subprocess.Popen(
@@ -62,13 +81,13 @@ def launch_electron():
             start_new_session=True,
             env=env,
             cwd=project_root,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stdout=log_fh,
+            stderr=subprocess.STDOUT,
         )
     return proc
 
 
-def wait_for_cdp(port=9232, timeout=60):
+def wait_for_cdp(port=9232, timeout=180):
     """Wait for CDP port to be ready."""
     print(f"Waiting for CDP on port {port}...")
     for i in range(timeout // 2):

@@ -1,8 +1,18 @@
 name: '✓PR E2E Artifacts'
 
+# Runs the real Python + YAML e2e infra (tests/e2e/runner.py + tests/e2e/cases/*.yaml)
+# against a headless Electron launched with mock enterprise auth pre-seeded. Kept as
+# workflow_dispatch (opt-in) so the smoke matrix on every PR isn't slowed by full e2e —
+# trigger from Actions UI or `gh workflow run pr-e2e-artifacts.yml --ref <branch>` when
+# a change touches the interrupt+queue / ACP / renderer paths.
+
 on:
   workflow_dispatch:
-
+    inputs:
+      case_filter:
+        description: 'Name substring (matches runner.py --case)'
+        required: false
+        default: 'interrupt-queue-batched-flush'
 
 concurrency:
   group: pr-e2e-artifacts-${{ github.run_id }}
@@ -18,7 +28,7 @@ jobs:
   e2e-artifacts:
     name: E2E Artifacts (Linux)
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
 
     steps:
       - name: Checkout code
@@ -34,27 +44,111 @@ jobs:
         with:
           bun-version: latest
 
-      - name: Setup just
-        uses: extractions/setup-just@v2
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
 
-      - name: Install dependencies
+      - name: Install Python e2e deps
+        run: python -m pip install --upgrade pip pyyaml ai-dev-browser
+
+      - name: Install node dependencies
         run: bun install --no-frozen-lockfile
 
       - name: Run postinstall
         run: npm run postinstall || true
 
-      - name: Install Linux display dependencies (E2E)
+      - name: Install Linux display + Electron runtime dependencies
+        # Electron on Linux needs a bunch of system libs (nss, atk, cairo, cups, etc.);
+        # missing any of them makes the main process die on startup with no CDP.
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgbm-dev xvfb
+          sudo apt-get install -y \
+            libgbm-dev xvfb \
+            libnss3 libatk1.0-0t64 libatk-bridge2.0-0t64 libcups2t64 \
+            libxcomposite1 libxdamage1 libxrandr2 libxkbcommon0 \
+            libpangocairo-1.0-0 libpango-1.0-0 libcairo2 \
+            libasound2t64
 
-      - name: Run E2E tests (with screenshots)
-        run: xvfb-run --auto-servernum just e2e-test
+      - name: Build Electron artifacts (main+preload+renderer)
+        run: bun run package
+
+      - name: Fix Electron chrome-sandbox permissions
+        # Chromium's SUID sandbox on Linux requires chrome-sandbox to be
+        # root-owned with mode 4755. bun install as a non-root user leaves
+        # it user-owned, and Electron aborts with a FATAL abort at startup
+        # if the binary is present but mis-permissioned (which is exactly
+        # what we hit: FATAL:sandbox/linux/suid/client/setuid_sandbox_host.cc:166).
+        # Chown to root instead of --no-sandbox to keep the security model intact.
+        run: |
+          SB=node_modules/electron/dist/chrome-sandbox
+          if [ -f "$SB" ]; then
+            sudo chown root:root "$SB"
+            sudo chmod 4755 "$SB"
+            ls -l "$SB"
+          else
+            echo "chrome-sandbox not found — nothing to fix" >&2
+          fi
+
+      - name: Start Xvfb virtual display
+        # Manually launch Xvfb so both the Electron subprocess (spawned by
+        # restart_electron.py detached) and the runner (spawned in a later step)
+        # can attach to the same $DISPLAY. Wrapping via `xvfb-run bash -c '…'` broke
+        # earlier because xvfb-run cleaned up the display before the runner attached.
+        run: |
+          Xvfb :99 -screen 0 1920x1080x24 &
+          echo "DISPLAY=:99" >> "$GITHUB_ENV"
+          sleep 2
+          echo "xvfb-run pid=$!"
+
+      - name: Launch Electron with mock enterprise auth (background)
+        # restart_electron.py kills any stale Electron, seeds ConfigStorage with
+        # mock auth, launches launch-dev.js with NEXUS_CDP_PORT=9232, and polls
+        # the CDP endpoint until ready. Runs in its OWN step so its stdout/stderr
+        # show up in the CI log if it fails.
+        #
+        # SUDOWORK_SKIP_PREREQ_CHECK=1 bypasses launch-dev.js's `validatePrereqs`
+        # which insists on native/nexus-napi/nexus-napi.node existing. Building the
+        # NAPI binding needs the napi-rs CLI + Rust toolchain — that is scope for
+        # a heavier smoke tier; the interrupt+queue case doesn't touch VFS so it
+        # runs fine without the native binding. Documented bypass, not a hack.
+        run: |
+          set -euo pipefail
+          echo "=== env sanity ==="
+          which python && python --version
+          which node && node --version
+          echo "DISPLAY=$DISPLAY"
+          ls tests/e2e/restart_electron.py
+          echo "=== restarting electron ==="
+          python tests/e2e/restart_electron.py --enterprise --auth --port 9232
+        env:
+          CI: true
+          E2E_DEV: '1'
+          NEXUS_EXTENSIONS_PATH: ${{ github.workspace }}/examples
+          NEXUS_CDP_PORT: '9232'
+          SUDOWORK_SKIP_PREREQ_CHECK: '1'
+
+      - name: Run e2e runner against CDP
+        run: |
+          set -euo pipefail
+          cd tests/e2e
+          python runner.py --port 9232 --case "$CASE_FILTER"
         env:
           CI: true
           E2E_DEV: '1'
           E2E_SCREENSHOTS: '1'
-          NEXUS_EXTENSIONS_PATH: ${{ github.workspace }}/examples
+          NEXUS_CDP_PORT: '9232'
+          CASE_FILTER: ${{ inputs.case_filter || 'interrupt-queue-batched-flush' }}
+
+      - name: Dump launch log on failure
+        # If Electron never came up on CDP, restart_electron.py writes its full
+        # launcher stdout/stderr to $RUNNER_TEMP/e2e-launch.log. Surfacing it in
+        # the job log is the difference between a silent "did not start in time"
+        # and a debuggable stack trace.
+        if: failure()
+        run: |
+          echo "=== e2e-launch.log ==="
+          cat "${RUNNER_TEMP:-/tmp}/e2e-launch.log" 2>&1 | tail -200 || echo "(no launch log)"
 
       - name: Upload E2E report (self-contained with screenshots & traces)
         if: always()
@@ -65,5 +159,6 @@ jobs:
             tests/e2e/report/
             tests/e2e/results/
             tests/e2e/screenshots/
+            ${{ runner.temp }}/e2e-launch.log
           retention-days: 14
           if-no-files-found: ignore
