@@ -55,7 +55,7 @@ const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ code, theme }) => {
     };
 
     setState({ status: 'loading' });
-    renderDiagram();
+    void renderDiagram();
 
     return () => {
       cancelled = true;

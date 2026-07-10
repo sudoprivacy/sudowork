@@ -64,7 +64,7 @@ const AcpModelSelector: React.FC<{
 
     // For remote-agent (Moss Server), fetch models from Moss API
     if (backend === 'remote-agent') {
-      fetchMossModelInfo(cancelled);
+      void fetchMossModelInfo(cancelled);
       return () => {
         cancelled = true;
       };

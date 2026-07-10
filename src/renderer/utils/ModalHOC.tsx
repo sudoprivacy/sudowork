@@ -1,14 +1,14 @@
 import type { ModalProps } from '@arco-design/web-react';
 import React, { useMemo, useState } from 'react';
 
-type TUseModalReturn<Props extends Record<string, any> = {}> = [
+type TUseModalReturn<Props extends Record<string, any> = Record<string, never>> = [
   {
     open(params?: Partial<Props>): void;
     close(): void;
   },
   React.ReactNode,
 ];
-const ModalHOC = <Props extends Record<string, any> = {}>(
+const ModalHOC = <Props extends Record<string, any> = Record<string, never>>(
   ModalBodyComponent: React.FC<
     Props & {
       modalCtrl: {
@@ -71,7 +71,7 @@ const ModalHOC = <Props extends Record<string, any> = {}>(
   return ModalComponent;
 };
 
-ModalHOC.Extra = <Props extends Record<string, any> = {}>(defaultModalProps?: ModalProps) => {
+ModalHOC.Extra = <Props extends Record<string, any> = Record<string, never>>(defaultModalProps?: ModalProps) => {
   return (
     ModalBodyComponent: React.FC<
       Props & {
