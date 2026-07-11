@@ -63,8 +63,8 @@ flowchart LR
     R -->|"上游 channel stacking"| S["SaaS sudorouter<br/>云端 · 各家商用 API"]
     G --- H["GB10 Blackwell<br/>128GB 统一内存"]
     S --- C1["Anthropic / OpenAI / …"]
-    classDef local fill:#e8f0ff,stroke:#3b6fd4,color:#1a1d24;
-    classDef cloud fill:#fff2e0,stroke:#d98a3b,color:#1a1d24;
+    classDef local stroke:#3b6fd4,stroke-width:2px;
+    classDef cloud stroke:#d98a3b,stroke-width:2px;
     class G,H local;
     class S,C1 cloud;
   </div>
