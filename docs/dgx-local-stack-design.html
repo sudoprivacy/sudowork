@@ -59,8 +59,8 @@
   <div class="mermaid">
 flowchart LR
     A["sudocode / sudowork<br/>(客户端)"] --> R{"本地 nova-gateway<br/>(router / sudorouter)"}
-    R -->|本地 channel| G["gpustack @ GB10<br/>vLLM / SGLang 本地推理"]
-    R -->|上游 channel<br/>(stacking)| S["SaaS sudorouter<br/>(云端, 各家商用 API)"]
+    R -->|"本地 channel"| G["gpustack @ GB10<br/>vLLM / SGLang 本地推理"]
+    R -->|"上游 channel stacking"| S["SaaS sudorouter<br/>云端 · 各家商用 API"]
     G --- H["GB10 Blackwell<br/>128GB 统一内存"]
     S --- C1["Anthropic / OpenAI / …"]
     classDef local fill:#e8f0ff,stroke:#3b6fd4,color:#1a1d24;
