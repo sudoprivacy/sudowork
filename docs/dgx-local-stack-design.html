@@ -80,6 +80,14 @@ flowchart LR
   </table>
   <blockquote>对<strong>只用 sudocode</strong> 的最小场景，也可以先不上本地路由——sudocode 原生支持 per-model 端点（本地模型指 gpustack、云模型指 SaaS）。本地 nova-gateway 是当引入 sudowork GUI、多客户端、统一策略时的<strong>长期正确</strong>形态。</blockquote>
 
+  <h3>本地模型如何进入统一列表？——SSOT + 引用式聚合</h3>
+  <p><strong>gpustack 是本地模型的 SSOT</strong>：部署一个本地模型，它会自动出现在 gpustack 的 <code>/v1-openai/models</code>（自动建 model-route）。本地 nova-gateway 应当<strong>引用</strong>这个来源，而不是各存一份会漂移的副本：</p>
+  <ul>
+    <li><strong>调用</strong>：本地 channel 按模型名<strong>透传</strong>给 gpustack——无需为每个本地模型单独配置。</li>
+    <li><strong>发现</strong>（统一 <code>/v1/models</code> 列表，供 GUI 下拉等）：优先<strong>请求时实时合并</strong> gpustack 的 <code>/v1/models</code>（保持 SSOT、零漂移）；若网关不支持实时合并，才退到<strong>低频小同步</strong>把列表并入本地 channel（接受小延迟）。</li>
+  </ul>
+  <blockquote>「小同步」是<strong>兜底，不是首选</strong>：能实时引用就别缓存副本——否则本地新模型不出现、已删模型残留，都是漂移。设计原则：<strong>本地模型的真相只有一个（gpustack），路由层引用它、不复制它。</strong></blockquote>
+
   <h2>3. 各层组件与职责</h2>
   <div class="mermaid">
 flowchart TB
