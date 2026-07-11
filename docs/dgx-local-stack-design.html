@@ -54,13 +54,13 @@
   </ul>
 
   <h2>2. 架构：一层薄路由聚合本地与云</h2>
-  <p>长期正确的形态是：客户端只面对<strong>一个</strong>端点——本地的 <strong>nova-gateway</strong>（即 sudorouter）。它下面挂两类 channel：本地 gpustack、以及"stack"上去的云端 SaaS sudorouter。</p>
+  <p>长期正确的形态是：客户端只面对<strong>一个</strong>端点——<strong>本地 sudorouter（nova-gateway）</strong>。它挂两类 channel：本地 gpustack，以及把<strong>远程 sudorouter（sudorouter.ai · SaaS）</strong>「stack」上去的一条上游 channel。</p>
 
   <div class="mermaid">
 flowchart LR
-    A["sudocode / sudowork<br/>(客户端)"] --> R{"本地 nova-gateway<br/>(router / sudorouter)"}
+    A["sudocode / sudowork<br/>(客户端)"] --> R{"本地 sudorouter<br/>(nova-gateway)"}
     R -->|"本地 channel"| G["gpustack @ GB10<br/>vLLM / SGLang 本地推理"]
-    R -->|"上游 channel stacking"| S["SaaS sudorouter<br/>云端 · 各家商用 API"]
+    R -->|"上游 channel · stack"| S["远程 sudorouter<br/>(sudorouter.ai · SaaS)"]
     G --- H["GB10 Blackwell<br/>128GB 统一内存"]
     S --- C1["Anthropic / OpenAI / …"]
     classDef local stroke:#3b6fd4,stroke-width:2px;
@@ -135,12 +135,12 @@ flowchart TB
   <blockquote>⚠️ <strong>统一内存的坑</strong>：推理引擎默认 <code>gpu-memory-utilization ≈ 0.9</code> 在统一内存上会抓走约九成系统内存、把操作系统饿死。部署大模型前务必设保守值。</blockquote>
 
   <h2>5. 本地 vs 云：把 SaaS 路由 "stack" 成一条上游</h2>
-  <p>nova-gateway 支持<strong>自定义 OpenAI 兼容 channel</strong>，所以把云端 SaaS sudorouter 当作一条上游 channel 加进来即可——一条通道带出所有云模型，本地无需重配每家 key。</p>
+  <p>本地 sudorouter（nova-gateway）支持<strong>自定义 OpenAI 兼容 channel</strong>，所以把<strong>远程 sudorouter（sudorouter.ai）</strong>当作一条上游 channel 加进来即可——一条通道带出所有云模型，本地无需重配每家 key。</p>
   <div class="mermaid">
 flowchart LR
-    U["请求 (按模型名)"] --> R{"本地 nova-gateway"}
+    U["请求 (按模型名)"] --> R{"本地 sudorouter"}
     R -->|"model = 本地名"| L["gpustack @ GB10"]
-    R -->|"model = 云名"| X["Custom channel<br/>→ SaaS sudorouter"]
+    R -->|"model = 云名"| X["Custom channel<br/>→ sudorouter.ai"]
     X --> Y["云端 fan-out<br/>到各家商用 API"]
   </div>
 
