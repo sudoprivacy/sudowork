@@ -42,10 +42,12 @@ function createFallbackPlaceholder(platform) {
 
 const BASE_URL = `https://github.com/sudoprivacy/sudocode/releases/download/v${SCODE_VERSION}`;
 
-// Platform mappings: archive downloads (.tar.gz for macOS, .zip for Windows)
+// Platform mappings: archive downloads (.tar.gz for macOS/Linux, .zip for Windows)
 const PLATFORMS = {
   'darwin-arm64': { name: 'scode-macos-arm64.tar.gz' },
   'darwin-x64': { name: 'scode-macos-x64.tar.gz' },
+  'linux-arm64': { name: 'scode-linux-arm64.tar.gz' },
+  'linux-x64': { name: 'scode-linux-x64.tar.gz' },
   'win32-arm64': { name: 'scode-windows-arm64.zip' },
   'win32-x64': { name: 'scode-windows-x64.zip' },
 };
