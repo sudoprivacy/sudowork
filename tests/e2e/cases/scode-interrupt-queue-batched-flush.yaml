@@ -12,9 +12,11 @@ description: >
   tests/e2e/live_smokes/batched_flush_live_smoke.py — re-run any time to
   reproduce the exact journey against a booted dev instance on CDP :9230.
   .
-  Blocked in CI on task #35 (seed CI e2e state: assistants, sudorouter creds,
-  mock LLM proxy). Assertions below use the same DB-row shape the live drive
-  confirmed, so the case is ship-ready the moment the CI env is seeded.
+  CI upstream is the mock-anthropic-service from sudocode (built + spawned
+  by tests/e2e/ci_setup/spawn_mock_llm.py; scode config seeded by
+  tests/e2e/ci_setup/seed_scode_env.py — see .github/workflows/pr-e2e-artifacts.yml).
+  No live LLM creds are used in CI; the case regression-guards batched-flush
+  semantics at the sudowork ↔ scode boundary.
 
 steps:
   # ── Phase 0: Pre-config: turn ON the message queue toggle BEFORE the app reads
@@ -44,10 +46,14 @@ steps:
     path: "screenshots/scode-batched-flush-00-selected.png"
 
   # ── Phase 2: Start a long-running turn (message A) that stays busy long enough
-  #    to queue three follow-ups behind it. A short sleep inside a bash tool call
-  #    keeps the turn active without exhausting the CI budget.
+  #    to queue three follow-ups behind it. The PARITY_SCENARIO token routes the
+  #    CI mock-anthropic-service (from sudocode) to its `bash_interrupt_long_running`
+  #    branch, which returns a bash tool_use with `sleep 30` — scode actually runs
+  #    that locally on the CI Linux box, keeping the turn active without needing
+  #    live LLM creds. On a live dev box (no PARITY_SCENARIO required) the token is
+  #    just literal text — the assistant treats it as part of the prompt.
   - op: type_text
-    text: "Please run this ONE bash command and then respond briefly: sleep 12 && echo done_A_QUEUE_MARKER_ALPHA"
+    text: "PARITY_SCENARIO:bash_interrupt_long_running Please run the recommended bash command and echo done_A_QUEUE_MARKER_ALPHA when finished."
   - op: press_key
     key: "Enter"
     wait: 3
@@ -134,7 +140,10 @@ steps:
         return {err: 'sendbox fiber not found'};
       })()
 
-  # ── Phase 4: Wait for A to complete naturally + the batched flush to run ──
+  # ── Phase 4: Wait for A (sleep 30 in the bash tool_use) to complete naturally
+  #    + the batched flush to run. Timeouts sized for the CI mock path: 30s bash
+  #    sleep + a few seconds of scode overhead + a similar window for the flushed
+  #    B+C+D turn's mock response.
   - op: wait_for_response
     timeout: 120
   - op: pause
@@ -152,8 +161,8 @@ steps:
       user_text_messages: "== 2"
       user_text_max_len: ">= 150"
 
-  # ── Phase 6: Optional judge check on the rendered conversation. The combined
-  #    turn's assistant reply should acknowledge all three marker tokens (proof
-  #    the LLM saw them as ONE user message, not three).
-  - op: judge
-    expect: "ALPHA"
+  # ── Phase 6: judge intentionally omitted for the CI mock path — the mock
+  #    returns a fixed "bash interrupt unexpectedly continued" text for both
+  #    turns and cannot reason about the marker tokens. The DB audit above
+  #    already proves batched-flush semantics; judge belongs on the live-smoke
+  #    path (tests/e2e/live_smokes/batched_flush_live_smoke.py) instead.
