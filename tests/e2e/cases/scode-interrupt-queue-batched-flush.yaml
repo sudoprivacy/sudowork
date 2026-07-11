@@ -4,6 +4,17 @@ description: >
   and autoInterrupt OFF, submitting N additional user inputs while a turn is
   running must produce exactly ONE combined user message on flush — not N
   separate turns. Guards against a regression back to sequential replay.
+  .
+  Live-verified 2026-07-11 via ai-dev-browser drive-through on the dev tip
+  (sudowork/dev at 69a2a515, sudowork.db row #2 content:
+  "MARKER_B_DURING_A_TURN\n\nMARKER_C_DURING_A_TURN" — B+C queued during A's
+  turn flushed as one combined user_text row). Companion Python live smoke:
+  tests/e2e/live_smokes/batched_flush_live_smoke.py — re-run any time to
+  reproduce the exact journey against a booted dev instance on CDP :9230.
+  .
+  Blocked in CI on task #35 (seed CI e2e state: assistants, sudorouter creds,
+  mock LLM proxy). Assertions below use the same DB-row shape the live drive
+  confirmed, so the case is ship-ready the moment the CI env is seeded.
 
 steps:
   # ── Phase 0: Pre-config: turn ON the message queue toggle BEFORE the app reads
@@ -45,6 +56,35 @@ steps:
   - op: screenshot
     path: "screenshots/scode-batched-flush-01-A-running.png"
 
+  # ── Phase 2.5: Structural sanity — SendBox must report `loading=true` AND
+  #    `allowSubmitWhileRunning=true` BEFORE we start queuing. If either is off,
+  #    the queue-during-turn path is inactive and the DB audit below would
+  #    misdiagnose an unrelated bug (queue never gets used → user_text=1 not 2
+  #    → test fails downstream with a red herring). This step surfaces the
+  #    real cause immediately. Uses the React-fiber walk verified working on
+  #    2026-07-11 during live batched-flush ai-dev-browser drive-through.
+  - op: js_eval
+    code: |
+      (() => {
+        const ta = document.querySelector('textarea');
+        let el = ta;
+        for (let i=0; i<20 && el; i++) {
+          const key = Object.keys(el).find(k => k.startsWith('__reactFiber'));
+          if (key) {
+            let f = el[key];
+            while (f) {
+              const p = f.memoizedProps;
+              if (p && ('allowSubmitWhileRunning' in p || 'queuedInputs' in p)) {
+                return {loading: !!p.loading, allow: !!p.allowSubmitWhileRunning, q: (p.queuedInputs || []).length};
+              }
+              f = f.return;
+            }
+          }
+          el = el.parentElement;
+        }
+        return {err: 'sendbox fiber not found'};
+      })()
+
   # ── Phase 3: While A is still running, queue B, C, D. Each carries a distinctive
   #    marker token so the DB assertion downstream can verify that ONE combined
   #    user message contains all three (proving the batched flush).
@@ -65,6 +105,34 @@ steps:
     wait: 1
   - op: screenshot
     path: "screenshots/scode-batched-flush-02-queued.png"
+
+  # Fiber probe #2: after queuing B/C/D, the sendbox's queuedInputs prop MUST
+  # report length ≥ 3. If it's 0 the queue-during-turn path never engaged
+  # (A finished before B was sent, or the config toggle didn't stick, or the
+  # coordinator's submit_during_turn returned Rejected — check the sudowork.log
+  # for `coordinator status=` lines). Same fiber-walk primitive as Phase 2.5,
+  # matches the state pattern from the live drive-through.
+  - op: js_eval
+    code: |
+      (() => {
+        const ta = document.querySelector('textarea');
+        let el = ta;
+        for (let i=0; i<20 && el; i++) {
+          const key = Object.keys(el).find(k => k.startsWith('__reactFiber'));
+          if (key) {
+            let f = el[key];
+            while (f) {
+              const p = f.memoizedProps;
+              if (p && ('allowSubmitWhileRunning' in p || 'queuedInputs' in p)) {
+                return {loading: !!p.loading, allow: !!p.allowSubmitWhileRunning, q: (p.queuedInputs || []).length, q_texts: (p.queuedInputs || []).map(x => x.preview)};
+              }
+              f = f.return;
+            }
+          }
+          el = el.parentElement;
+        }
+        return {err: 'sendbox fiber not found'};
+      })()
 
   # ── Phase 4: Wait for A to complete naturally + the batched flush to run ──
   - op: wait_for_response
