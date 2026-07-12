@@ -164,6 +164,12 @@ def _extract_archive(archive: Path, target: Path) -> None:
 
 
 FALLBACK_SUDOCODE_JSON: dict = {
+    # `default_model` is REQUIRED — sudowork's resolveScodeAuthModeFromConfig
+    # (src/agent/acp/acpConnectors.ts:115-142) reads it to pick which `--auth`
+    # flag to pass when spawning scode. Without it, resolveScodeAuthMode
+    # returns null, sudowork omits `--auth`, scode falls back to `subscription`
+    # (needs Anthropic OAuth token), and every turn hangs on the auth wall.
+    "default_model": "claude-sonnet",
     "auth_modes": {
         "api-key": {
             "anthropic": {
@@ -178,6 +184,9 @@ FALLBACK_SUDOCODE_JSON: dict = {
             "name": "Claude Sonnet 4.6",
             "input": ["text"],
             "providers": {
+                # Only expose the api-key provider so the auth-mode priority
+                # walker (subscription > proxy > api-key) can't misfire onto
+                # a mode our CI env can't service.
                 "api-key": {"provider": "anthropic", "model": "claude-sonnet-4-6"},
             },
         },
