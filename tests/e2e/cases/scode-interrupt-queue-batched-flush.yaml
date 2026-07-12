@@ -49,8 +49,13 @@ steps:
         if (skip) { skip.click(); return 'clicked-skip'; }
         return 'no-init-dialog';
       })()
-  - op: pause
-    duration: 1500
+
+  # Skip transitions the app from InitLoading to the main UI, which then
+  # spins up scode detection + assistant load — during which the send-box
+  # textarea is unmounted. A second wait_for_app_ready gates on the textarea
+  # being visible so downstream type_text ops never race the loading state.
+  - op: wait_for_app_ready
+    timeout: 120
   - op: screenshot
     path: "screenshots/scode-batched-flush-00-selected.png"
 
