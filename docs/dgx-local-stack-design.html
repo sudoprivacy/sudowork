@@ -162,6 +162,7 @@ flowchart LR
     <li><strong>容器化推理</strong>：gpustack 经容器运行时把 GPU 透传给引擎容器（vLLM/SGLang）；引擎镜像需与本机 CUDA/架构匹配的变体。</li>
     <li><strong>受限网络</strong>：在网络受限地区，工具链与镜像走区域镜像源，或"在有出口的机器上取好、经局域网推送"。凭证与站点信息不入库、不入交付文档。</li>
     <li><strong>凭证边界</strong>：边缘机器上只保留一个上游凭证（SaaS router key）；其余云 key 留在云端路由。</li>
+    <li><strong>服务地址与物理网卡解耦</strong>：边缘机器的网卡一定会变（拔网线、切 WiFi、DHCP 漂移）。路由层的多网卡 failover 是标准能力，但<strong>救不了你</strong>——真正的坑是<strong>组件把自己注册在某张网卡的 IP 上</strong>：网卡一消失，该地址随之消失，整个栈停摆，而网络其实一直是通的。推理节点与引擎应<strong>宣告与物理网卡无关的地址</strong>（容器运行时的宿主机桥接地址，或一张常驻虚拟网卡）。</li>
   </ul>
 
   <hr />
