@@ -1,0 +1,11 @@
+{
+  "$schema": "SSOT for scode's platform x arch matrix (download filenames + install-time arch names). Consumed by scripts/download-scode.js (build-time archive fetch), src/process/services/scode/ScodeInstallService.ts (runtime install/lookup), and tests/e2e/ci_setup/seed_scode_env.py (e2e seeder). Update ONLY this file; re-embedding the map anywhere else violates DRY + creates the drift bugs we hit in PR #991.",
+  "platforms": {
+    "darwin-arm64": { "os": "macos",   "arch": "arm64", "ext": ".tar.gz" },
+    "darwin-x64":   { "os": "macos",   "arch": "x64",   "ext": ".tar.gz" },
+    "linux-arm64":  { "os": "linux",   "arch": "arm64", "ext": ".tar.gz" },
+    "linux-x64":    { "os": "linux",   "arch": "x64",   "ext": ".tar.gz" },
+    "win32-arm64":  { "os": "windows", "arch": "arm64", "ext": ".zip"    },
+    "win32-x64":    { "os": "windows", "arch": "x64",   "ext": ".zip"    }
+  }
+}

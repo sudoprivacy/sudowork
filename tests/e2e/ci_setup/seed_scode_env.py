@@ -43,34 +43,45 @@ from typing import Iterable, Optional
 REPO_ROOT = Path(__file__).resolve().parents[3]
 RESOURCES_DIR = REPO_ROOT / "resources"
 RUNTIME_VERSIONS = REPO_ROOT / "src" / "shared" / "runtime-versions.json"
+SCODE_PLATFORMS_JSON = REPO_ROOT / "src" / "shared" / "scode-platforms.json"
 
 SCODE_HOME = Path.home() / ".nexus" / "sudowork" / "sudocode"
 SCODE_READY_MARKER = SCODE_HOME / ".scode-bin-ready"
 SCODE_CONFIG_PATH = SCODE_HOME / "sudocode.json"
 
 
-PLATFORM_ARCH_MAP = {
-    ("win32", "AMD64"): ("windows", "x64", ".zip"),
-    ("win32", "ARM64"): ("windows", "arm64", ".zip"),
-    ("linux", "x86_64"): ("linux", "x64", ".tar.gz"),
-    ("linux", "aarch64"): ("linux", "arm64", ".tar.gz"),
-    ("darwin", "x86_64"): ("macos", "x64", ".tar.gz"),
-    ("darwin", "arm64"): ("macos", "arm64", ".tar.gz"),
+# Python normalises machine names to the Node.js `process.arch` keys used in
+# the SSOT platforms map. Adjust here if a new arch is added — the SSOT itself
+# stays authoritative.
+_MACHINE_TO_NODE_ARCH = {
+    "AMD64": "x64",
+    "x86_64": "x64",
+    "x64": "x64",
+    "ARM64": "arm64",
+    "arm64": "arm64",
+    "aarch64": "arm64",
 }
 
 
+def _detect_node_platform_key() -> str:
+    """Return the `<sys.platform>-<node-arch>` key used by scode-platforms.json."""
+    if hasattr(os, "uname"):
+        machine = os.uname().machine
+    else:
+        machine = os.environ.get("PROCESSOR_ARCHITECTURE", "AMD64")
+    node_arch = _MACHINE_TO_NODE_ARCH.get(machine, machine)
+    return f"{sys.platform}-{node_arch}"
+
+
 def _detect_platform_triple() -> tuple[str, str, str]:
-    plat = sys.platform
-    machine = os.uname().machine if hasattr(os, "uname") else os.environ.get("PROCESSOR_ARCHITECTURE", "AMD64")
-    key = (plat, machine)
-    if key not in PLATFORM_ARCH_MAP:
-        # Common macOS uname reports 'arm64' but some Linux CI reports 'aarch64';
-        # normalise before failing.
-        norm = {"aarch64": "aarch64", "arm64": "arm64", "x86_64": "x86_64", "AMD64": "AMD64", "ARM64": "ARM64"}.get(machine, machine)
-        key = (plat, norm)
-    if key not in PLATFORM_ARCH_MAP:
-        raise SystemExit(f"unsupported platform for seed_scode_env: {plat}-{machine}")
-    return PLATFORM_ARCH_MAP[key]
+    """Look up the current platform's (os, arch, ext) triple in the SSOT map."""
+    key = _detect_node_platform_key()
+    with SCODE_PLATFORMS_JSON.open() as fh:
+        platforms = json.load(fh)["platforms"]
+    spec = platforms.get(key)
+    if not spec:
+        raise SystemExit(f"unsupported platform for seed_scode_env: {key} (not in scode-platforms.json)")
+    return spec["os"], spec["arch"], spec["ext"]
 
 
 def _scode_version() -> str:
@@ -217,17 +228,12 @@ def seed(mock_url: str, api_key: str = "test-pty-key", force: bool = False) -> N
                 f"scode archive missing or empty: {archive}\n"
                 "Run `bun run scode:download` first (or `--force` from cache)."
             )
-        # Wipe any prior partial extract to avoid mixed-version state.
-        if SCODE_HOME.exists():
-            for entry in SCODE_HOME.iterdir():
-                if entry.name == "sudocode.json":
-                    # Preserve any pre-existing manual config the user wrote;
-                    # we'll rewrite it below anyway, but keep it out of the wipe.
-                    continue
-                if entry.is_dir():
-                    shutil.rmtree(entry)
-                else:
-                    entry.unlink()
+        # Extract straight over the top of SCODE_HOME. We DO NOT wipe first —
+        # the SSOT of "which entries are preserved across install" lives in
+        # ScodeInstallService's SCODE_MIGRATED_ENTRY_NAMES + SCODE_PRESERVED_ENTRY_NAMES;
+        # duplicating that policy here is a boundary leak that already bit us
+        # once (an earlier seeder revision would nuke a real user's settings.json).
+        # For the CI use case SCODE_HOME is fresh, so overwrite-in-place is fine.
         _extract_archive(archive, SCODE_HOME)
         _write_ready_marker(version)
         print(f"[seed_scode_env] extracted {archive.name} -> {SCODE_HOME} (marker={version})")

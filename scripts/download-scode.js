@@ -16,6 +16,7 @@ const fs = require('fs');
 const path = require('path');
 const https = require('https');
 const runtimeVersions = require('../src/shared/runtime-versions.json');
+const scodePlatforms = require('../src/shared/scode-platforms.json');
 
 const RESOURCES_DIR = path.join(__dirname, '..', 'resources');
 
@@ -42,15 +43,11 @@ function createFallbackPlaceholder(platform) {
 
 const BASE_URL = `https://github.com/sudoprivacy/sudocode/releases/download/v${SCODE_VERSION}`;
 
-// Platform mappings: archive downloads (.tar.gz for macOS/Linux, .zip for Windows)
-const PLATFORMS = {
-  'darwin-arm64': { name: 'scode-macos-arm64.tar.gz' },
-  'darwin-x64': { name: 'scode-macos-x64.tar.gz' },
-  'linux-arm64': { name: 'scode-linux-arm64.tar.gz' },
-  'linux-x64': { name: 'scode-linux-x64.tar.gz' },
-  'win32-arm64': { name: 'scode-windows-arm64.zip' },
-  'win32-x64': { name: 'scode-windows-x64.zip' },
-};
+// Derive the { platform → archive filename } map from the SSOT platforms file.
+// Keep the shape backward-compatible with the rest of the script ({ name }).
+const PLATFORMS = Object.fromEntries(
+  Object.entries(scodePlatforms.platforms).map(([key, spec]) => [key, { name: `scode-${spec.os}-${spec.arch}${spec.ext}` }]),
+);
 
 /**
  * Get the versioned output filename for the given platform.
