@@ -83,16 +83,35 @@ steps:
     duration: 1500
 
   # ── Phase 1: switch active assistant to Sudo Code.
-  #    The app defaults to "Remote Agent" on a fresh profile. We click that
-  #    badge (top of the send-box) to open the assistant picker, then select
-  #    Sudo Code. Text-based mouse_click is used instead of absolute coords
-  #    because layout differs between the Windows dev box and CI's Xvfb.
-  - op: mouse_click
-    text: "Remote Agent"
+  #    The app defaults to "Remote Agent" on a fresh profile. We open the
+  #    assistant picker via the badge above the send-box and pick Sudo Code.
+  #    mouse_click text="…" requires an *exact* match on an element's direct
+  #    text node (see ops/mouse_click.py:38-46), which fails on the badge
+  #    (React nests the label under Icon+span). js_eval + textContent-includes
+  #    is robust to that nesting.
+  - op: js_eval
+    code: |
+      (() => {
+        const nodes = Array.from(document.querySelectorAll('button, [role="button"], [role="combobox"]'));
+        const target = nodes.find(el => (el.textContent || '').trim().includes('Remote Agent'));
+        if (!target) return 'picker-badge-not-found';
+        target.click();
+        return 'picker-badge-clicked';
+      })()
   - op: pause
-    duration: 2000
-  - op: mouse_click
-    text: "Sudo Code"
+    duration: 2500
+  - op: js_eval
+    code: |
+      (() => {
+        const nodes = Array.from(document.querySelectorAll('[role="menuitem"], [role="option"], li, button, div'));
+        const target = nodes.find(el => {
+          const t = (el.textContent || '').trim();
+          return t === 'Sudo Code' || t.startsWith('Sudo Code');
+        });
+        if (!target) return 'sudo-code-item-not-found';
+        target.click();
+        return 'sudo-code-selected';
+      })()
   - op: pause
     duration: 3000
   - op: screenshot
