@@ -28,6 +28,12 @@ steps:
   - op: set_config
     key: "agent.autoInterrupt"
     value: false
+  # Enterprise mode defaults to 'remote' → Remote Agent (Moss backend). We need
+  # Sudo Code, which is what `guid.sessionMode = 'local'` selects (see
+  # useGuidAgentSelection.ts:298 — mode==='local' → setSelectedAgentKey('scode')).
+  - op: set_config
+    key: "guid.sessionMode"
+    value: "local"
 
   - op: wait_for_app_ready
     timeout: 300
@@ -51,7 +57,7 @@ steps:
           access_token: 'mock-access-token',
           refresh_token: 'mock-refresh-token',
           expires_at: 9999999999000,
-          user: { id: 'user-001', nickname: 'admin', role: 'USER', status: 1 },
+          user: { id: 'user-001', nickname: 'admin', role: 'USER', status: 1, localModeAvailable: true },
           device_id: 'e2e-test-device',
         };
         localStorage.setItem('eeclaw_auth_v1', JSON.stringify(authStorage));
