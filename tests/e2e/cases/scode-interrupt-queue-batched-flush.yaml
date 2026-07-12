@@ -82,12 +82,15 @@ steps:
   - op: pause
     duration: 1500
 
-  # ── Phase 1: New Sudo Code conversation ──
-  - op: click
-    x: 530
-    y: 27
+  # ── Phase 1: switch active assistant to Sudo Code.
+  #    The app defaults to "Remote Agent" on a fresh profile. We click that
+  #    badge (top of the send-box) to open the assistant picker, then select
+  #    Sudo Code. Text-based mouse_click is used instead of absolute coords
+  #    because layout differs between the Windows dev box and CI's Xvfb.
+  - op: mouse_click
+    text: "Remote Agent"
   - op: pause
-    duration: 3000
+    duration: 2000
   - op: mouse_click
     text: "Sudo Code"
   - op: pause
