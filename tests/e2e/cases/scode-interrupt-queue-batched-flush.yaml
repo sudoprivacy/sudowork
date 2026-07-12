@@ -32,6 +32,25 @@ steps:
   - op: wait_for_app_ready
     timeout: 300
 
+  # ── Phase 0.5: dismiss the Starting-Core-Services init dialog if it's up.
+  #    The CI runner has no native nexus-napi build, so the Nexus install step
+  #    fails and the app pauses on an "Initialization Failed" dialog until the
+  #    Skip button is clicked. Sudocode itself is 100% (we pre-seeded it), and
+  #    the interrupt+queue path doesn't touch Nexus, so dismissing lets us
+  #    proceed. On a healthy dev box (all runtimes green) the dialog never
+  #    appears — js_eval is used instead of mouse_click so a missing dialog
+  #    is a silent no-op instead of a failure.
+  - op: js_eval
+    code: |
+      (() => {
+        const buttons = Array.from(document.querySelectorAll('button'));
+        const skip = buttons.find(b => (b.textContent || '').trim() === 'Skip' || (b.textContent || '').trim() === '跳过');
+        if (skip) { skip.click(); return 'clicked-skip'; }
+        return 'no-init-dialog';
+      })()
+  - op: pause
+    duration: 1500
+
   # ── Phase 1: New Sudo Code conversation ──
   - op: click
     x: 530
