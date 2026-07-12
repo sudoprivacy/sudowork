@@ -32,6 +32,37 @@ steps:
   - op: wait_for_app_ready
     timeout: 300
 
+  # ── Phase 0.25: seed enterprise-auth in renderer localStorage.
+  #    restart_electron.py --auth writes ConfigStorage (`eeclaw.authStorage`,
+  #    read by the main process for token refresh) but the renderer's
+  #    AuthContext gates the login screen on `localStorage["eeclaw_auth_v1"]`
+  #    (see src/renderer/context/AuthContext.tsx:199 + :758). A fresh CI
+  #    profile has no localStorage history, so post-Skip the app lands on the
+  #    SudoWork login page and the Sudo Code assistant is never reachable.
+  #    Seeding a valid EeclawAuthStorage + reload makes `refresh()` take the
+  #    fastpath (setUser + setStatus('authenticated') + setReady(true)) even
+  #    without a live moss backend. The deferred reload lets js_eval return
+  #    to the runner before the page navigates away.
+  - op: js_eval
+    code: |
+      (() => {
+        if (localStorage.getItem('eeclaw_auth_v1')) return 'auth-already-seeded';
+        const authStorage = {
+          access_token: 'mock-access-token',
+          refresh_token: 'mock-refresh-token',
+          expires_at: 9999999999000,
+          user: { id: 'user-001', nickname: 'admin', role: 'USER', status: 1 },
+          device_id: 'e2e-test-device',
+        };
+        localStorage.setItem('eeclaw_auth_v1', JSON.stringify(authStorage));
+        setTimeout(() => window.location.reload(), 100);
+        return 'auth-seeded-reloading';
+      })()
+  - op: pause
+    duration: 6000
+  - op: wait_for_app_ready
+    timeout: 60
+
   # ── Phase 0.5: dismiss the Starting-Core-Services init dialog if it's up.
   #    The CI runner has no native nexus-napi build, so the Nexus install step
   #    fails and the app pauses on an "Initialization Failed" dialog until the
