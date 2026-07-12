@@ -25,7 +25,7 @@ import { SCODE_HOME, LEGACY_SCODE_HOME, SCODE_MIGRATED_ENTRY_NAMES } from './sco
 const TAG = 'ScodeInstallService';
 
 /** OS name mapping: Node.js process.platform → scode archive OS name */
-const SCODE_OS_NAME_MAP: Record<string, string> = { darwin: 'macos', win32: 'windows' };
+const SCODE_OS_NAME_MAP: Record<string, string> = { darwin: 'macos', linux: 'linux', win32: 'windows' };
 /** Architecture mapping: Node.js process.arch → scode archive arch name */
 const SCODE_ARCH_NAME_MAP: Record<string, string> = { arm64: 'arm64', x64: 'x64' };
 

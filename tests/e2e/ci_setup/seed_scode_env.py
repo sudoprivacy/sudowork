@@ -45,7 +45,7 @@ RESOURCES_DIR = REPO_ROOT / "resources"
 RUNTIME_VERSIONS = REPO_ROOT / "src" / "shared" / "runtime-versions.json"
 
 SCODE_HOME = Path.home() / ".nexus" / "sudowork" / "sudocode"
-SCODE_READY_MARKER = SCODE_HOME / ".ready"
+SCODE_READY_MARKER = SCODE_HOME / ".scode-bin-ready"
 SCODE_CONFIG_PATH = SCODE_HOME / "sudocode.json"
 
 
