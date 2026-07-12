@@ -216,6 +216,25 @@ describe('scode config isolation — SSOT guard (no-hardcoded-scode-home)', () =
   });
 });
 
+describe('scode engine env contract', () => {
+  it('injects the isolated config home AND gates the agent cron tools', async () => {
+    const { scodeEngineEnvOverrides } = await import('../../src/process/services/scode/scodeEngineEnv');
+    const { SCODE_HOME, SCODE_CONFIG_PATH } = await import('../../src/process/services/scode/scodePaths');
+
+    const env = scodeEngineEnvOverrides();
+
+    // Config isolation (engine-scode never shares a standalone scode's home).
+    expect(env.SUDO_CODE_CONFIG_HOME).toBe(SCODE_HOME);
+    expect(env.SUDOCODE_CONFIG_PATH).toBe(SCODE_CONFIG_PATH);
+
+    // sudowork owns scheduling: it runs its own CronService and never ticks
+    // scode's crons.json. Without this the agent could create a cron via scode's
+    // CronCreate tool that persists but is NEVER fired — an orphan. scode reads
+    // exactly this variable to hide its agent-facing cron tools.
+    expect(env.SUDOCODE_DISABLE_CRON_TOOLS).toBe('1');
+  });
+});
+
 describe('scode config isolation — migration runs before config writers', () => {
   it('initializeProcess calls migrateLegacyScodeHomeOnce before initStorage()', () => {
     // Regression guard for a real bug found via full-app e2e: several services

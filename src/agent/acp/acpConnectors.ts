@@ -19,6 +19,7 @@ import path from 'path';
 import { app } from 'electron';
 import { CLAUDE_ACP_NPX_PACKAGE, CODEBUDDY_ACP_NPX_PACKAGE, CODEX_ACP_BRIDGE_VERSION, CODEX_ACP_NPX_PACKAGE } from '@/types/acpTypes';
 import { SCODE_HOME, SCODE_CONFIG_PATH, SCODE_SETTINGS_PATH } from '@process/services/scode/scodePaths';
+import { scodeEngineEnvOverrides } from '@process/services/scode/scodeEngineEnv';
 import { findSuitableNodeBin, getEnhancedEnv, resolveNpxPath } from '@process/utils/shellEnv';
 import { mainLog, mainWarn } from '@process/utils/mainLogger';
 import { isSafetyHookEnabled } from '@process/services/safety/SafetyPollingService';
@@ -626,20 +627,15 @@ export async function spawnGenericBackend(backend: string, cliPath: string, work
     }
   }
 
-  // Isolate sudowork's engine-scode config from a standalone scode install:
-  // scode's Rust config loader resolves its config home from SUDO_CODE_CONFIG_HOME,
-  // so point it at the isolated home. This relocates BOTH sudocode.json (models/auth)
-  // and settings.json (settings/MCP) in one place, away from ~/.nexus/sudocode.
-  if (backend === 'scode' && !cleanEnv.SUDO_CODE_CONFIG_HOME) {
-    cleanEnv.SUDO_CODE_CONFIG_HOME = SCODE_HOME;
-    mainLog('[ACP scode]', `Injected SUDO_CODE_CONFIG_HOME: ${cleanEnv.SUDO_CODE_CONFIG_HOME}`);
-  }
-
-  // SUDOCODE_CONFIG_PATH lets skill bash scripts locate sudocode.json even when
-  // claude-code overrides $HOME to a sandbox directory (.sandbox-home/).
-  if (backend === 'scode' && !cleanEnv.SUDOCODE_CONFIG_PATH) {
-    cleanEnv.SUDOCODE_CONFIG_PATH = SCODE_CONFIG_PATH;
-    mainLog('[ACP scode]', `Injected SUDOCODE_CONFIG_PATH: ${cleanEnv.SUDOCODE_CONFIG_PATH}`);
+  // Env contract for sudowork's embedded scode engine (SSOT: scodeEngineEnvOverrides).
+  // Applied only when the caller hasn't already set the variable.
+  if (backend === 'scode') {
+    for (const [key, value] of Object.entries(scodeEngineEnvOverrides())) {
+      if (!cleanEnv[key]) {
+        cleanEnv[key] = value;
+        mainLog('[ACP scode]', `Injected ${key}: ${value}`);
+      }
+    }
   }
 
   // Inject image generation config as env vars for skill bash scripts.
