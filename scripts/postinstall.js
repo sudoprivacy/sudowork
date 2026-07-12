@@ -11,16 +11,22 @@ const { rebuildWithElectronRebuild } = require('./rebuildNativeModules');
 function runPostInstall() {
   try {
     const isCI = process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true';
+    // e2e / dev-mode workflows use `bun run package` (electron-vite) rather
+    // than electron-forge, so nothing else rebuilds the ABI-sensitive native
+    // modules for them. Setting SUDOWORK_FORCE_REBUILD=1 opts those flows in
+    // to the same rebuild path a local dev gets, without teaching every
+    // caller how to invoke electron-rebuild directly.
+    const forceRebuild = process.env.SUDOWORK_FORCE_REBUILD === '1';
     const electronVersion = require('../package.json').devDependencies.electron.replace(/^[~^]/, '');
 
-    console.log(`Environment: CI=${isCI}, Electron=${electronVersion}`);
+    console.log(`Environment: CI=${isCI}, forceRebuild=${forceRebuild}, Electron=${electronVersion}`);
 
-    if (isCI) {
+    if (isCI && !forceRebuild) {
       console.log('CI environment detected, skipping rebuild to use prebuilt binaries');
       console.log('Native modules will be handled by electron-forge during packaging');
     } else {
       // Rebuild only the modules supported by the local platform.
-      console.log('Local environment, rebuilding supported native modules');
+      console.log('Rebuilding supported native modules');
       rebuildWithElectronRebuild({
         platform: process.platform,
         arch: process.arch,

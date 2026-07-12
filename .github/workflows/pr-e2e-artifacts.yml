@@ -77,17 +77,13 @@ jobs:
         run: npm run postinstall || true
 
       - name: Rebuild native modules for Electron ABI
-        # postinstall skips the rebuild under CI=true (expecting electron-forge
-        # to handle it during packaging). This job uses `bun run package` which
-        # doesn't invoke electron-forge, so better-sqlite3 is left at Node.js's
-        # ABI and Electron's main process fails to load it ("Module did not
-        # self-register"). Explicitly rebuild the DB module against the
-        # electron version we're about to boot.
-        run: |
-          set -euo pipefail
-          ELECTRON_VER=$(node -p "require('./package.json').devDependencies.electron.replace(/^[~^]/, '')")
-          echo "Rebuilding for electron=$ELECTRON_VER"
-          bunx electron-rebuild --only better-sqlite3 --force --electron-version "$ELECTRON_VER"
+        # This job uses `bun run package` (electron-vite) rather than
+        # electron-forge, so postinstall's default CI-skip path leaves
+        # better-sqlite3 at Node.js's ABI and Electron fails to load it.
+        # SUDOWORK_FORCE_REBUILD=1 opts back into the local-dev rebuild
+        # path — the actual electron-rebuild invocation still lives in
+        # scripts/rebuildNativeModules.js (SSOT).
+        run: SUDOWORK_FORCE_REBUILD=1 node scripts/postinstall.js
 
       - name: Install Linux display + Electron runtime dependencies
         # Electron on Linux needs a bunch of system libs (nss, atk, cairo, cups, etc.);
