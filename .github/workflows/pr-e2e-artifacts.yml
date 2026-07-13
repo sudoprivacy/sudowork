@@ -58,22 +58,40 @@ jobs:
         run: python -m pip install --upgrade pip pyyaml 'ai-dev-browser>=0.13.0'
 
       - name: Install Rust toolchain (for mock-anthropic-service)
-        # The mock LLM upstream (sudocode's mock-anthropic-service) is built
-        # from source here — a released binary would be faster but adds a
-        # cross-repo release contract we don't want yet. Cargo cache keeps
-        # the wall-clock down after the first run.
+        # The mock LLM upstream (sudocode's mock-anthropic-service) is a test
+        # crate, not a release artifact — so we build it from source at a
+        # pinned tag rather than inventing a cross-repo release contract for it.
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Resolve pinned sudocode ref
+        # spawn_mock_llm derives the sudocode tag from the scode engine version
+        # in src/shared/runtime-versions.json (SSOT) — e.g. scode 0.1.13 → v0.1.13,
+        # so the mock and the scode binary under test come from ONE commit.
+        # Asking the script for it (rather than re-deriving in YAML) keeps that
+        # rule in one place, and gives the cache a key that invalidates exactly
+        # when the pinned revision moves and on nothing else.
+        run: echo "SUDOCODE_REF=$(python -m tests.e2e.ci_setup.spawn_mock_llm --print-ref)" >> "$GITHUB_ENV"
+
       - name: Cache cargo build (sudocode mock-anthropic-service)
+        # CARGO_TARGET_DIR deliberately lives OUTSIDE the sudocode checkout.
+        # spawn_mock_llm wipes a non-git checkout dir before cloning, so a
+        # target/ nested inside it would be deleted immediately after the cache
+        # restored it — which is exactly what happened: the cache reported a hit
+        # and every run still paid a ~3min cold rebuild.
         uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            ${{ runner.temp }}/sudocode-src/rust/target
-          key: mock-anthropic-service-${{ runner.os }}-${{ hashFiles('.github/workflows/pr-e2e-artifacts.yml') }}
+            ${{ runner.temp }}/cargo-target
+          # `v2` is a cache-format epoch, and it is load-bearing: actions/cache
+          # does NOT save when the primary key hits exactly. The v1 entries were
+          # archived from the old in-checkout target/ path, so without a new key
+          # they would be restored (as a "hit") into paths cargo never reads,
+          # forever, and the corrected path would never be populated.
+          key: mock-anthropic-service-v2-${{ runner.os }}-${{ env.SUDOCODE_REF }}
           restore-keys: |
-            mock-anthropic-service-${{ runner.os }}-
+            mock-anthropic-service-v2-${{ runner.os }}-
 
       - name: Install node dependencies
         run: bun install --no-frozen-lockfile
@@ -129,10 +147,15 @@ jobs:
         run: bun run scode:download
 
       - name: Spawn mock-anthropic-service (background)
-        # Builds sudocode's mock-anthropic-service from source (cached), spawns
-        # it on 127.0.0.1:0, and writes MOCK_ANTHROPIC_BASE_URL to $GITHUB_ENV
-        # + a URL file for the next step. --detach so this step returns as soon
-        # as the URL is captured; the child stays alive until the job ends.
+        # Builds sudocode's mock-anthropic-service at the pinned tag (cached),
+        # spawns it on 127.0.0.1:0, and writes MOCK_ANTHROPIC_BASE_URL to
+        # $GITHUB_ENV + a URL file for the next step. --detach so this step
+        # returns as soon as the URL is captured; the child stays alive until
+        # the job ends.
+        env:
+          # Must match the cached path above, and must sit outside the sudocode
+          # checkout that spawn_mock_llm wipes before cloning.
+          CARGO_TARGET_DIR: ${{ runner.temp }}/cargo-target
         run: |
           set -euo pipefail
           mkdir -p "${RUNNER_TEMP}"

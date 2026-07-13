@@ -1,82 +1,48 @@
-"""Click at coordinates or on an element using CDP mouse events.
+"""Click an element by its visible text.
 
-This is a true human-like click — dispatches mousePressed + mouseReleased
-through CDP, which triggers React synthetic events correctly.
+Thin delegation to ai-dev-browser's `click_by_text`. We used to hand-roll the
+matcher here, and it was the wrong kind of clever: it required an element's
+*direct* child text node to equal the target, with a `children.length < 3`
+fallback on `textContent`. React nests labels — `<button><Icon/><span>Sudo
+Code</span></button>` has no direct text node — so the primary match skipped
+every icon+label button in the app, and the fallback's arbitrary child-count
+cap dropped more. Cases hit `Element not found` on buttons that were plainly
+on screen.
+
+Upstream (>= 0.13.0) locates by *accessible name*, which is what a human
+reads off the button. Split labels, icon+span, nested spans, `<div onclick>`
+and same-origin iframes all resolve, and `find_by_text` / `click_by_text`
+are guaranteed to return the same element. Ambiguous text is scored, so
+"Search" prefers the button over a "Search products..." input. A DOM search
+is kept upstream as a tier-2 fallback, so attribute-located elements that
+the old matcher happened to catch are not lost.
+
+Coordinates are deliberately NOT handled here: the `click` op owns
+coordinate clicks (WebDriver §12.5.1). Two ops taking x/y at the same layer
+would be the duplicate-API-at-one-level problem, so this op does one thing.
 """
 
-import asyncio
-import json
-
-from ai_dev_browser.cdp import input_ as cdp_input
-from ai_dev_browser.core.page import js_evaluate
+from ai_dev_browser.core.elements import click_by_text
 
 
-async def mouse_click(tab, x: int = None, y: int = None,
-                      text: str = None, selector: str = None,
-                      wait: float = 1) -> dict:
-    """Click using CDP mouse events at coordinates or element center.
+async def mouse_click(tab, text: str = "", wait: float = 1) -> dict:
+    """Click the element whose accessible name matches `text`.
 
     Args:
-        tab: Browser tab
-        x, y: Explicit coordinates (CSS pixels)
-        text: Find element by visible text, click its center
-        selector: Find element by CSS selector, click its center
-        wait: Seconds to wait after click
+        tab: Browser tab.
+        text: Visible text / accessible name of the target element.
+        wait: Seconds to settle after the click (kept for case compatibility;
+              upstream already waits for the click to commit).
 
     Returns:
-        {"clicked": True, "x": int, "y": int} or {"error": str}
+        {"clicked": True, "ref": ..., "navigated": ...} on success,
+        {"error": "Element not found: <text>"} when nothing matches.
     """
-    # Resolve coordinates from text or selector
-    if x is None or y is None:
-        if text:
-            r = await js_evaluate(tab, """JSON.stringify((() => {
-                const all = document.querySelectorAll('*');
-                for (const el of all) {
-                    const own = Array.from(el.childNodes)
-                        .filter(n => n.nodeType === 3)
-                        .map(n => n.textContent.trim()).join('');
-                    if (own === %s) {
-                        const rect = el.getBoundingClientRect();
-                        return {x: Math.round(rect.left + rect.width/2),
-                                y: Math.round(rect.top + rect.height/2)};
-                    }
-                }
-                // Fallback: match textContent
-                for (const el of all) {
-                    if (el.textContent?.trim() === %s && el.children.length < 3 && el.offsetHeight > 0) {
-                        const rect = el.getBoundingClientRect();
-                        return {x: Math.round(rect.left + rect.width/2),
-                                y: Math.round(rect.top + rect.height/2)};
-                    }
-                }
-                return null;
-            })())""" % (repr(text), repr(text)))
-        elif selector:
-            r = await js_evaluate(tab, """JSON.stringify((() => {
-                const el = document.querySelector(%s);
-                if (el) {
-                    const rect = el.getBoundingClientRect();
-                    return {x: Math.round(rect.left + rect.width/2),
-                            y: Math.round(rect.top + rect.height/2)};
-                }
-                return null;
-            })())""" % repr(selector))
-        else:
-            return {"error": "Must provide x/y, text, or selector"}
+    if not text:
+        return {"error": "mouse_click requires `text` (use the `click` op for coordinates)"}
 
-        coords = json.loads(r.get("result", "null"))
-        if not coords:
-            return {"error": f"Element not found: {text or selector}"}
-        x, y = coords["x"], coords["y"]
+    result = await click_by_text(tab, text, timeout=max(wait, 1))
 
-    # CDP mouse click
-    btn = cdp_input.MouseButton("left")
-    await tab.send(cdp_input.dispatch_mouse_event(
-        "mousePressed", x=x, y=y, button=btn, click_count=1,
-    ))
-    await tab.send(cdp_input.dispatch_mouse_event(
-        "mouseReleased", x=x, y=y, button=btn, click_count=1,
-    ))
-
-    await asyncio.sleep(wait)
-    return {"clicked": True, "x": x, "y": y}
+    if not result.get("clicked"):
+        return {"error": f"Element not found: {text}"}
+    return result
