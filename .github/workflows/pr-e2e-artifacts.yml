@@ -58,11 +58,19 @@ jobs:
         run: python -m pip install --upgrade pip pyyaml 'ai-dev-browser>=0.13.0'
 
       - name: Install Rust toolchain (for mock-anthropic-service)
-        # The mock LLM upstream (sudocode's mock-anthropic-service) is built
-        # from source here — a released binary would be faster but adds a
-        # cross-repo release contract we don't want yet. Cargo cache keeps
-        # the wall-clock down after the first run.
+        # The mock LLM upstream (sudocode's mock-anthropic-service) is a test
+        # crate, not a release artifact — so we build it from source at a
+        # pinned tag rather than inventing a cross-repo release contract for it.
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Resolve pinned sudocode ref
+        # spawn_mock_llm derives the sudocode tag from the scode engine version
+        # in src/shared/runtime-versions.json (SSOT) — e.g. scode 0.1.13 → v0.1.13,
+        # so the mock and the scode binary under test come from ONE commit.
+        # Asking the script for it (rather than re-deriving in YAML) keeps that
+        # rule in one place, and gives the cache a key that invalidates exactly
+        # when the pinned revision moves and on nothing else.
+        run: echo "SUDOCODE_REF=$(python -m tests.e2e.ci_setup.spawn_mock_llm --print-ref)" >> "$GITHUB_ENV"
 
       - name: Cache cargo build (sudocode mock-anthropic-service)
         uses: actions/cache@v4
@@ -71,7 +79,7 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             ${{ runner.temp }}/sudocode-src/rust/target
-          key: mock-anthropic-service-${{ runner.os }}-${{ hashFiles('.github/workflows/pr-e2e-artifacts.yml') }}
+          key: mock-anthropic-service-${{ runner.os }}-${{ env.SUDOCODE_REF }}
           restore-keys: |
             mock-anthropic-service-${{ runner.os }}-
 
