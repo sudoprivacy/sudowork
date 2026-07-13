@@ -132,7 +132,7 @@ flowchart TB
     <tr><td>压容量</td><td>~235B MoE 4-bit</td><td>⚠️ 顶满内存、慢、上下文紧；官方跑这级用双机互联</td></tr>
     <tr><td>稳妥</td><td>≤32B dense</td><td>✅ 轻松，但 dense 生成偏慢</td></tr>
   </table>
-  <blockquote>⚠️ <strong>统一内存的坑</strong>：推理引擎默认 <code>gpu-memory-utilization ≈ 0.9</code> 在统一内存上会抓走约九成系统内存、把操作系统饿死。部署大模型前务必设保守值。</blockquote>
+  <blockquote>⚠️ <strong>统一内存的坑</strong>：<code>gpu-memory-utilization</code> 只是 KV-cache 的大小<em>提示</em>，<strong>不是安全阀</strong>——模型加载 / MoE 预处理的<strong>瞬时分配</strong>会绕过它，抓走近乎全部内存把操作系统饿死（甚至整机 livelock、只能断电）。统一内存下 GPU 分配与系统内存是同一块物理内存，真正的护栏见 §7：为 OS/SSH 留<strong>硬内存保留</strong> + <strong>内存看门狗</strong> + 按<strong>峰值</strong>选型。</blockquote>
 
   <h2>5. 本地 vs 云：把 SaaS 路由 "stack" 成一条上游</h2>
   <p>本地 sudorouter（nova-gateway）支持<strong>自定义 OpenAI 兼容 channel</strong>，所以把<strong>远程 sudorouter（sudorouter.ai）</strong>当作一条上游 channel 加进来即可——一条通道带出所有云模型，本地无需重配每家 key。</p>
@@ -163,6 +163,7 @@ flowchart LR
     <li><strong>受限网络</strong>：在网络受限地区，工具链与镜像走区域镜像源，或"在有出口的机器上取好、经局域网推送"。凭证与站点信息不入库、不入交付文档。</li>
     <li><strong>凭证边界</strong>：边缘机器上只保留一个上游凭证（SaaS router key）；其余云 key 留在云端路由。</li>
     <li><strong>服务地址与物理网卡解耦</strong>：边缘机器的网卡一定会变（拔网线、切 WiFi、DHCP 漂移）。路由层的多网卡 failover 是标准能力，但<strong>救不了你</strong>——真正的坑是<strong>组件把自己注册在某张网卡的 IP 上</strong>：网卡一消失，该地址随之消失，整个栈停摆，而网络其实一直是通的。推理节点与引擎应<strong>宣告与物理网卡无关的地址</strong>（容器运行时的宿主机桥接地址，或一张常驻虚拟网卡）。</li>
+    <li><strong>健壮性（统一内存机型必做）</strong>：① 给 OS/SSH 设 cgroup <strong>硬内存保留</strong>（<code>MemoryMin</code>）——失控时机器仍可远程恢复、无需断电；② 常驻一个<strong>内存看门狗</strong>：监控系统可用内存，濒临耗尽才回收失控引擎（读系统级 available，能覆盖绕过 cgroup 记账的 GPU 分配）；③ 引擎容器加 cgroup 内存上限做纵深防御。看门狗设计上<strong>宽容、不过早失败</strong>——真正的护栏是让失败变廉价（干净 kill）而非频繁触发。<strong>一次只常驻一个模型</strong>，其余留盘；按<strong>峰值</strong>（含预处理）而非稳态选型。（本地↔云 fallback 见 §2 / §5。）</li>
   </ul>
 
   <hr />
