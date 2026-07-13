@@ -44,6 +44,23 @@ vi.mock('@process/utils/mainLogger', () => ({
 const READY_MARKER = '.scode-bin-ready';
 const MIGRATION_MARKER = '.sudowork-config-migrated';
 
+/** First scode release whose engine reads `SUDOCODE_DISABLE_CRON_TOOLS`. */
+const SCODE_MIN_VERSION_WITH_CRON_GATE = '0.1.13';
+
+function isAtLeast(version: string, minimum: string): boolean {
+  const parts = (v: string) =>
+    v
+      .replace(/^v/, '')
+      .split('.')
+      .map((n) => parseInt(n, 10) || 0);
+  const [actual, floor] = [parts(version), parts(minimum)];
+  for (let i = 0; i < Math.max(actual.length, floor.length); i++) {
+    const delta = (actual[i] ?? 0) - (floor[i] ?? 0);
+    if (delta !== 0) return delta > 0;
+  }
+  return true;
+}
+
 describe('scode config isolation — path SSOT', () => {
   it('isolates the engine-scode home under ~/.nexus/sudowork/sudocode', async () => {
     const { SCODE_HOME, LEGACY_SCODE_HOME, SCODE_CONFIG_PATH, SCODE_SETTINGS_PATH } = await import('../../src/process/services/scode/scodePaths');
@@ -232,6 +249,17 @@ describe('scode engine env contract', () => {
     // CronCreate tool that persists but is NEVER fired — an orphan. scode reads
     // exactly this variable to hide its agent-facing cron tools.
     expect(env.SUDOCODE_DISABLE_CRON_TOOLS).toBe('1');
+  });
+
+  it('pins an engine version that actually honors the gate', () => {
+    // The gate is a contract with the ENGINE BINARY, not just with our own code, so
+    // asserting that we inject the variable proves nothing on its own. Released scode
+    // 0.1.12 shipped the cron tools while ignoring SUDOCODE_DISABLE_CRON_TOOLS — with
+    // that engine pinned, the injection is a silent no-op, the orphan-cron gap stays
+    // open, and every other test here still passes. Pin backwards and this fails.
+    const versions = JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', '..', 'src', 'shared', 'runtime-versions.json'), 'utf-8'));
+
+    expect(isAtLeast(versions.scode, SCODE_MIN_VERSION_WITH_CRON_GATE), `runtime-versions.json pins scode ${versions.scode}, but the cron-tool gate needs >= ${SCODE_MIN_VERSION_WITH_CRON_GATE}`).toBe(true);
   });
 });
 
