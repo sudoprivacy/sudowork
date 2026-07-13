@@ -103,19 +103,26 @@ async def _seed_renderer_localstorage_async(port: int) -> str:
 
     Auth values come from _enterprise_config's MOCK_* constants (SSOT); this
     function is a thin renderer-side mirror of that state.
+
+    Writing the value and reloading are kept as two separate steps on purpose.
+    The first version of this smuggled `setTimeout(() => location.reload(), 100)`
+    into the evaluated expression, which raced the tool's own post-eval page-state
+    snapshot: the reload tore down the execution context mid-snapshot and
+    `Runtime.evaluate` hung until the 30s CDP timeout. Intermittent, and it
+    presented as an auth failure 120s downstream. An eval evaluates; navigation
+    is `page_reload`'s job, and it knows to wait for the new document.
     """
     from ai_dev_browser.core.connection import connect_browser, get_active_tab
+    from ai_dev_browser.core.navigation import page_reload, page_wait_ready
     from ai_dev_browser.core.page import js_evaluate
 
     blob = build_enterprise_localstorage_blob()
-    payload = json.dumps(blob)
-    # Escape closing script/template chars so an inner value can never break
-    # out of the surrounding template literal — belt-and-braces even though
-    # our blob is JSON-shaped and can't naturally contain backticks.
-    payload_js = payload.replace("`", "\\`")
+    # json.dumps twice: the inner call builds the blob the app will parse, the
+    # outer one embeds it as a JS string literal — so no hand-rolled escaping.
+    payload_js = json.dumps(json.dumps(blob))
     expression = f"""
         (() => {{
-            const blob = `{payload_js}`;
+            const blob = {payload_js};
             const parsed = JSON.parse(blob);
             const existing = localStorage.getItem('eeclaw_auth_v1');
             if (existing) {{
@@ -123,36 +130,52 @@ async def _seed_renderer_localstorage_async(port: int) -> str:
                     const cur = JSON.parse(existing);
                     if (cur.user && cur.access_token === parsed.access_token) return 'already-seeded';
                 }} catch (e) {{
-                    // fallthrough — overwrite garbage
+                    // fall through — overwrite garbage
                 }}
             }}
             localStorage.setItem('eeclaw_auth_v1', blob);
-            setTimeout(() => window.location.reload(), 100);
-            return 'seeded-reloading';
+            return 'seeded';
         }})()
     """
 
     browser = await connect_browser(host="127.0.0.1", port=port)
     tab = await get_active_tab(browser)
+
     result = await js_evaluate(tab, expression)
-    return result.get("result") if isinstance(result, dict) else str(result)
+    outcome = result.get("result") if isinstance(result, dict) else str(result)
+
+    # Reload so AuthContext.refresh() re-reads localStorage on a fresh document
+    # and takes the authenticated fastpath.
+    await page_reload(tab)
+    await page_wait_ready(tab)
+
+    # Prove the value survived the reload. Without this the seed can report
+    # success while the app boots to the login screen anyway.
+    verify = await js_evaluate(tab, "!!localStorage.getItem('eeclaw_auth_v1')")
+    if not (verify.get("result") if isinstance(verify, dict) else verify):
+        raise RuntimeError("eeclaw_auth_v1 missing from localStorage after reload — auth seed did not stick")
+
+    return outcome
 
 
-def seed_renderer_localstorage(port: int) -> None:
-    """Sync wrapper around the CDP eval + a settle pause post-reload."""
+def seed_renderer_localstorage(port: int) -> bool:
+    """Sync wrapper around the CDP seed. Returns False if the seed did not take.
+
+    A failure here is FATAL, not a warning. This used to print "(non-fatal)"
+    and continue: the app would then boot to the login screen and the case
+    died 120s later inside `wait_for_app_ready`, pointing at the send-box
+    rather than at the missing auth that actually caused it. A prerequisite
+    that did not hold has to fail where it broke.
+    """
     print(f"Seeding renderer localStorage on port {port}...")
     try:
         outcome = asyncio.run(_seed_renderer_localstorage_async(port))
-        print(f"  localStorage seed: {outcome}")
     except Exception as e:
-        # The renderer may not be ready to accept CDP evaluate in the same
-        # instant CDP itself came up; log + move on. Downstream ops will
-        # fail explicitly if the seed didn't take.
-        print(f"  localStorage seed FAILED (non-fatal): {e}")
-        return
+        print(f"ERROR: localStorage auth seed failed: {e}")
+        return False
 
-    # After reload, give the app time to boot again + re-run the auth fastpath.
-    time.sleep(5)
+    print(f"  localStorage seed: {outcome}")
+    return True
 
 
 def wait_for_cdp(port=9232, timeout=180):
@@ -213,7 +236,11 @@ def main():
     # the ConfigStorage entry we wrote above; do this here (once, in one
     # place) rather than per-case so every future e2e case inherits it.
     if args.enterprise and args.auth:
-        seed_renderer_localstorage(args.port)
+        if not seed_renderer_localstorage(args.port):
+            print("ERROR: enterprise auth was requested but could not be seeded — "
+                  "the app would boot to the login screen and every case would "
+                  "fail downstream for the wrong reason")
+            return 1
 
     print("Electron restarted successfully!")
     return 0
