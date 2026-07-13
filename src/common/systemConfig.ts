@@ -46,11 +46,29 @@ export const BUILD_COS_RELEASE_BASE: string = (typeof __COS_RELEASE_BASE__ !== '
 // ---- typed system-config shape (interface doc 1.4) ----
 export interface SystemConfig {
   login_method?: number;
+  third_party_auth?: ThirdPartyAuthConfig;
   log_report?: { enabled: number; baseurl?: string };
   version_update?: { enabled: number; cos_domain?: string };
   product_improvement?: { enabled: number; encryption_required?: boolean };
   sudorouter_baseurl?: string;
   skillhub_baseurl?: string;
+}
+
+export interface ThirdPartyAuthProvider {
+  id: string;
+  name: string;
+  type: 'cas';
+  cas_url: string;
+  login_path?: string;
+  validate_path?: string;
+  logout_path?: string;
+  service_param?: string;
+}
+
+export interface ThirdPartyAuthConfig {
+  enabled?: boolean;
+  default_provider?: string;
+  providers?: ThirdPartyAuthProvider[];
 }
 
 /** Decrypted credentials plaintext (interface doc 2.4.3 — fields are conditional). */
@@ -82,7 +100,7 @@ export function getSystemConfigCache(): SystemConfig | null {
 // ---- fetch (public, no auth; fetch + res.json() work in both processes) ----
 export async function fetchSystemConfig(baseUrl?: string): Promise<SystemConfig | null> {
   try {
-    const base = baseUrl ?? await getSudoworkServerBaseUrl();
+    const base = baseUrl ?? (await getSudoworkServerBaseUrl());
     const res = await fetch(`${base}/api/v1/system-config`);
     const json = (await res.json()) as { success?: boolean; data?: SystemConfig };
     if (json?.success && json.data) {

@@ -52,5 +52,17 @@
   "pwdErrorNoLower": "パスワードに小文字を含めてください",
   "pwdErrorNoDigit": "パスワードに数字を含めてください",
   "pwdLoginFailed": "ログインに失敗しました",
-  "pwdRegisterFailed": "登録に失敗しました"
+  "pwdRegisterFailed": "登録に失敗しました",
+  "thirdPartySubtitle": "企業の統一認証でログイン",
+  "thirdPartyProviderLabel": "認証プロバイダー",
+  "thirdPartyProviderFallback": "外部認証",
+  "thirdPartyLoginBtn": "{{provider}} でログイン",
+  "thirdPartyWaiting": "ブラウザー認証を待っています...",
+  "thirdPartyBrowserHint": "認証ページをブラウザーで開き、完了後に Sudowork に戻ります。",
+  "thirdPartyUnavailable": "外部認証ログインが設定されていません",
+  "thirdPartyOpenFailed": "ブラウザーを開けません",
+  "thirdPartyStateInvalid": "認証コールバックの検証に失敗しました。再試行してください",
+  "thirdPartyMissingTicket": "認証コールバックに ticket がありません",
+  "thirdPartyFailed": "外部認証ログインに失敗しました",
+  "backToModeSelect": "← モード選択に戻る"
 }

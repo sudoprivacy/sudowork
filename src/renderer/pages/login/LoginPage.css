@@ -256,6 +256,28 @@ body.login-page-active {
   border-bottom-color: var(--primary);
 }
 
+.login-third-party__icon {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 16px;
+  color: var(--primary);
+  background: rgba(22, 93, 255, 0.1);
+  border: 1px solid rgba(22, 93, 255, 0.16);
+}
+
+.login-third-party__select {
+  width: 100%;
+}
+
+.login-third-party__select .arco-select-view {
+  border-radius: 12px;
+  height: 48px;
+}
+
 .login-page__header {
   text-align: center;
   margin-bottom: 0;

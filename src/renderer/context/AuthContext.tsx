@@ -106,6 +106,12 @@ interface PasswordAuthResult {
   message?: string;
 }
 
+interface ThirdPartyAuthLoginParams {
+  provider: string;
+  ticket: string;
+  service: string;
+}
+
 async function syncScodeGuidModelPreference(modelId: string): Promise<void> {
   try {
     const config = ((await ConfigStorage.get('acp.config').catch((): undefined => undefined)) || {}) as IConfigStorageRefer['acp.config'];
@@ -189,6 +195,7 @@ interface AuthContextValue {
   enterpriseLoginWithOAuth2: (params: Record<string, string>) => Promise<LoginResult>;
   loginByPassword: (params: PasswordLoginParams) => Promise<PasswordAuthResult>;
   registerByPassword: (params: PasswordRegisterParams) => Promise<PasswordAuthResult>;
+  loginWithThirdPartyAuth: (params: ThirdPartyAuthLoginParams) => Promise<PasswordAuthResult>;
   changePassword: (params: ChangePasswordParams) => Promise<PasswordAuthResult>;
 }
 
@@ -1143,6 +1150,29 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     }
   }, []);
 
+  const loginWithThirdPartyAuth = useCallback(async ({ provider, ticket, service }: ThirdPartyAuthLoginParams): Promise<PasswordAuthResult> => {
+    const deviceId = getDeviceId();
+    try {
+      const response = await fetch(`${await getSudoworkServerBaseUrl()}/api/v1/auth/third-party/cas/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Device-Id': deviceId,
+        },
+        body: JSON.stringify({ provider, ticket, service }),
+      });
+      const data = (await response.json()) as AuthApiResponse;
+      if (!response.ok || !data.success || !data.data) {
+        return { success: false, message: data?.msg || data?.message || '三方认证登录失败' };
+      }
+      await handleLoginSuccess({ data: data.data }, setUser, setStatus, setReady, setSyncMessage);
+      return { success: true };
+    } catch (error) {
+      console.error('Third-party auth login failed:', error);
+      return { success: false, message: error instanceof Error ? error.message : '连接到中控服务器失败' };
+    }
+  }, []);
+
   // 修改密码（login_method=1 的用户改自己的密码）；token 过期时由调用方提示重登
   const changePassword = useCallback(
     async ({ oldPassword, newPassword }: ChangePasswordParams): Promise<PasswordAuthResult> => {
@@ -1485,9 +1515,10 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       enterpriseLoginWithOAuth2,
       loginByPassword,
       registerByPassword,
+      loginWithThirdPartyAuth,
       changePassword,
     }),
-    [login, register, logout, ready, refresh, status, syncMessage, user, ensureValidToken, forceRefreshToken, enterpriseLogin, enterpriseLoginWithOAuth2, loginByPassword, registerByPassword, changePassword]
+    [login, register, logout, ready, refresh, status, syncMessage, user, ensureValidToken, forceRefreshToken, enterpriseLogin, enterpriseLoginWithOAuth2, loginByPassword, registerByPassword, loginWithThirdPartyAuth, changePassword]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

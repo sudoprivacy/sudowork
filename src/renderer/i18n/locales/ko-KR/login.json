@@ -52,5 +52,17 @@
   "pwdErrorNoLower": "비밀번호에 소문자를 포함해야 합니다",
   "pwdErrorNoDigit": "비밀번호에 숫자를 포함해야 합니다",
   "pwdLoginFailed": "로그인 실패",
-  "pwdRegisterFailed": "회원가입 실패"
+  "pwdRegisterFailed": "회원가입 실패",
+  "thirdPartySubtitle": "기업 통합 인증으로 로그인",
+  "thirdPartyProviderLabel": "인증 제공자",
+  "thirdPartyProviderFallback": "타사 인증",
+  "thirdPartyLoginBtn": "{{provider}}로 로그인",
+  "thirdPartyWaiting": "브라우저 인증 대기 중...",
+  "thirdPartyBrowserHint": "브라우저에서 인증 페이지가 열리고 로그인 후 Sudowork로 돌아옵니다.",
+  "thirdPartyUnavailable": "타사 인증 로그인이 구성되지 않았습니다",
+  "thirdPartyOpenFailed": "브라우저를 열 수 없습니다",
+  "thirdPartyStateInvalid": "인증 콜백 검증에 실패했습니다. 다시 시도하세요",
+  "thirdPartyMissingTicket": "인증 콜백에 ticket이 없습니다",
+  "thirdPartyFailed": "타사 인증 로그인 실패",
+  "backToModeSelect": "← 모드 선택으로 돌아가기"
 }
