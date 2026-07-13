@@ -12,7 +12,7 @@ import './LoginPage.css';
 export default function ThirdPartyAuthPanel({ appName, logo, defaultLogo, systemConfig, onBackToModeSelect }: IThirdPartyAuthPanelProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { loginWithThirdPartyAuth } = useAuth();
+  const { exchangeThirdPartyAuthCode, loginWithThirdPartyAuth } = useAuth();
   const resolvedConfig = useMemo(() => resolveThirdPartyAuthConfig(systemConfig), [systemConfig]);
   const [selectedProviderId, setSelectedProviderId] = useState(() => resolvedConfig?.defaultProvider || '');
   const [isWaiting, setIsWaiting] = useState(false);
@@ -34,12 +34,45 @@ export default function ThirdPartyAuthPanel({ appName, logo, defaultLogo, system
       if (!parsed) return;
 
       const pending = pendingRef.current;
+      const code = payload.params.code;
       const ticket = payload.params.ticket;
-      if (!pending || parsed.providerId !== pending.providerId) {
+      if (parsed.action === 'logout') {
+        pendingRef.current = null;
+        setIsWaiting(false);
+        Message.success(t('login.logoutSuccess'));
+        return;
+      }
+
+      if (pending && parsed.providerId !== pending.providerId) {
         setIsWaiting(false);
         Message.error(t('login.thirdPartyStateInvalid'));
         return;
       }
+
+      if (code) {
+        setIsWaiting(true);
+        void (async () => {
+          const result = await exchangeThirdPartyAuthCode({
+            provider: parsed.providerId,
+            code,
+          });
+          pendingRef.current = null;
+          setIsWaiting(false);
+          if (result.success) {
+            setTimeout(() => navigate('/guid', { replace: true }), 300);
+          } else {
+            Message.error(result.message || t('login.thirdPartyFailed'));
+          }
+        })();
+        return;
+      }
+
+      if (!pending) {
+        setIsWaiting(false);
+        Message.error(t('login.thirdPartyStateInvalid'));
+        return;
+      }
+
       if (!ticket) {
         setIsWaiting(false);
         Message.error(t('login.thirdPartyMissingTicket'));
@@ -61,7 +94,7 @@ export default function ThirdPartyAuthPanel({ appName, logo, defaultLogo, system
         }
       })();
     });
-  }, [loginWithThirdPartyAuth, navigate, t]);
+  }, [exchangeThirdPartyAuthCode, loginWithThirdPartyAuth, navigate, t]);
 
   const onLogin = async () => {
     if (!selectedProvider) {
@@ -69,7 +102,7 @@ export default function ThirdPartyAuthPanel({ appName, logo, defaultLogo, system
       return;
     }
 
-    const service = buildCasServiceUrl(selectedProvider.id);
+    const service = buildCasServiceUrl(selectedProvider);
     let loginUrl = '';
     try {
       loginUrl = buildCasLoginUrl(selectedProvider, service);

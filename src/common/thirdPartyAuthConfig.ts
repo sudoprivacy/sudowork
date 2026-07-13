@@ -4,6 +4,7 @@ export const THIRD_PARTY_LOGIN_METHOD = 2;
 
 export const COMAC_CAS_PROVIDER_ID = 'comac_cas';
 export const CAS_CALLBACK_PATH = 'callback';
+export const CAS_LOGOUT_CALLBACK_PATH = 'logout';
 
 export const DEFAULT_COMAC_CAS_PROVIDER: ThirdPartyAuthProvider = {
   id: COMAC_CAS_PROVIDER_ID,
@@ -13,7 +14,12 @@ export const DEFAULT_COMAC_CAS_PROVIDER: ThirdPartyAuthProvider = {
   login_path: '/cas/login/',
   validate_path: '/cas/p3/serviceValidate',
   logout_path: '/cas/logout',
+  logout_service_url: '',
   service_param: 'service',
+  service_encode_mode: 'component',
+  callback_mode: 'server_callback',
+  server_callback_url: '',
+  app_callback_url: 'sudowork://cas-callback/comac_cas/callback',
 };
 
 export interface ResolvedThirdPartyAuthConfig {
@@ -53,7 +59,12 @@ export function normalizeThirdPartyProvider(provider: Partial<ThirdPartyAuthProv
     login_path: normalizePath(provider.login_path, defaults?.login_path || '/cas/login/'),
     validate_path: normalizePath(provider.validate_path, defaults?.validate_path || '/cas/p3/serviceValidate'),
     logout_path: normalizePath(provider.logout_path, defaults?.logout_path || '/cas/logout'),
+    logout_service_url: typeof provider.logout_service_url === 'string' ? provider.logout_service_url.trim() : defaults?.logout_service_url || '',
     service_param: typeof provider.service_param === 'string' && provider.service_param.trim() ? provider.service_param.trim() : defaults?.service_param || 'service',
+    service_encode_mode: provider.service_encode_mode === 'raw' ? 'raw' : defaults?.service_encode_mode || 'component',
+    callback_mode: provider.callback_mode === 'direct_app' ? 'direct_app' : defaults?.callback_mode || 'server_callback',
+    server_callback_url: typeof provider.server_callback_url === 'string' ? provider.server_callback_url.trim() : defaults?.server_callback_url || '',
+    app_callback_url: typeof provider.app_callback_url === 'string' && provider.app_callback_url.trim() ? provider.app_callback_url.trim() : defaults?.app_callback_url || `sudowork://cas-callback/${encodeURIComponent(id)}/${CAS_CALLBACK_PATH}`,
   };
 }
 
@@ -82,17 +93,87 @@ export function resolveThirdPartyAuthConfig(config: SystemConfig | null | undefi
 
 export function buildCasLoginUrl(provider: ThirdPartyAuthProvider, serviceUrl: string): string {
   const base = new URL(provider.login_path, provider.cas_url);
+  return appendCasServiceParam(base, provider, serviceUrl);
+}
+
+export function buildCasLogoutUrl(provider: ThirdPartyAuthProvider, serviceUrl: string): string {
+  const base = new URL(provider.logout_path || DEFAULT_COMAC_CAS_PROVIDER.logout_path || '/cas/logout', provider.cas_url);
+  return appendCasServiceParam(base, provider, serviceUrl);
+}
+
+function appendCasServiceParam(base: URL, provider: ThirdPartyAuthProvider, serviceUrl: string): string {
+  if (provider.service_encode_mode === 'raw') {
+    const separator = base.toString().includes('?') ? '&' : '?';
+    return `${base.toString()}${separator}${provider.service_param || 'service'}=${serviceUrl}`;
+  }
   base.searchParams.set(provider.service_param || 'service', serviceUrl);
   return base.toString();
 }
 
-export function buildCasServiceUrl(providerId: string): string {
-  return `sudowork://cas-callback/${encodeURIComponent(providerId)}/${CAS_CALLBACK_PATH}`;
+export function buildCasServiceUrl(provider: Pick<ThirdPartyAuthProvider, 'id' | 'callback_mode' | 'server_callback_url' | 'app_callback_url'>): string {
+  if (provider.callback_mode === 'server_callback') {
+    const callbackUrl = provider.server_callback_url?.trim();
+    if (!callbackUrl) {
+      throw new Error('Missing server callback URL');
+    }
+    return callbackUrl;
+  }
+
+  return provider.app_callback_url?.trim() || `sudowork://cas-callback/${encodeURIComponent(provider.id)}/${CAS_CALLBACK_PATH}`;
 }
 
-export function parseCasCallbackAction(action: string): { providerId: string } | null {
+export function buildCasLogoutServiceUrl(provider: Pick<ThirdPartyAuthProvider, 'id' | 'callback_mode' | 'server_callback_url' | 'app_callback_url' | 'logout_service_url'>, serverBaseUrl: string): string {
+  const configured = provider.logout_service_url?.trim();
+  if (configured) {
+    return configured;
+  }
+
+  if (provider.callback_mode === 'server_callback') {
+    const derived = deriveServerLogoutCallbackUrl(provider.server_callback_url, provider.id);
+    if (derived) {
+      return derived;
+    }
+    return new URL(`/api/v1/auth/third-party/cas/logout/callback/${encodeURIComponent(provider.id)}`, serverBaseUrl).toString();
+  }
+
+  return deriveAppLogoutCallbackUrl(provider.app_callback_url, provider.id);
+}
+
+function deriveServerLogoutCallbackUrl(serverCallbackUrl: string | undefined, providerId: string): string | null {
+  const trimmed = serverCallbackUrl?.trim();
+  if (!trimmed) return null;
+
+  try {
+    const url = new URL(trimmed);
+    if (/\/callback\/[^/]+\/?$/.test(url.pathname)) {
+      url.pathname = url.pathname.replace(/\/callback\/[^/]+\/?$/, `/logout/callback/${encodeURIComponent(providerId)}`);
+      url.search = '';
+      return url.toString();
+    }
+    return new URL(`/api/v1/auth/third-party/cas/logout/callback/${encodeURIComponent(providerId)}`, url.origin).toString();
+  } catch {
+    return null;
+  }
+}
+
+function deriveAppLogoutCallbackUrl(appCallbackUrl: string | undefined, providerId: string): string {
+  const fallback = `sudowork://cas-callback/${encodeURIComponent(providerId)}/${CAS_LOGOUT_CALLBACK_PATH}`;
+  const trimmed = appCallbackUrl?.trim();
+  if (!trimmed) return fallback;
+
+  try {
+    const url = new URL(trimmed);
+    url.pathname = url.pathname.replace(/\/callback\/?$/, `/${CAS_LOGOUT_CALLBACK_PATH}`);
+    url.search = '';
+    return url.toString();
+  } catch {
+    return fallback;
+  }
+}
+
+export function parseCasCallbackAction(action: string): { providerId: string; action: 'callback' | 'logout' } | null {
   const parts = action.split('/');
-  if (parts.length !== 3 || parts[0] !== 'cas-callback' || parts[2] !== CAS_CALLBACK_PATH) {
+  if (parts.length !== 3 || parts[0] !== 'cas-callback' || (parts[2] !== CAS_CALLBACK_PATH && parts[2] !== CAS_LOGOUT_CALLBACK_PATH)) {
     return null;
   }
 
@@ -101,5 +182,8 @@ export function parseCasCallbackAction(action: string): { providerId: string } |
     return null;
   }
 
-  return { providerId };
+  return {
+    providerId,
+    action: parts[2] === CAS_LOGOUT_CALLBACK_PATH ? 'logout' : 'callback',
+  };
 }

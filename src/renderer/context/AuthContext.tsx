@@ -7,6 +7,8 @@ import { withCsrfToken } from '@/webserver/middleware/csrfClient';
 import { getSudorouterPrimaryModelPath, mergeSudorouterProvidersIntoConfig } from '@/common/sudoclawModelConfig';
 import { buildScodeConfigFromLoginPayload, SCODE_AUTO_MODEL_ALIAS } from '@/common/scodeConfig';
 import { extractLoginSudoclawPayload, mergeLoginUserData } from '@/common/sudoworkAuthLogin';
+import { fetchSystemConfig } from '@/common/systemConfig';
+import { buildCasLogoutServiceUrl, buildCasLogoutUrl, resolveThirdPartyAuthConfig } from '@/common/thirdPartyAuthConfig';
 import type { AcpModelInfo } from '@/types/acpTypes';
 
 type AuthStatus = 'checking' | 'syncing' | 'authenticated' | 'unauthenticated';
@@ -39,6 +41,12 @@ interface AuthStorage {
   expires_at: number; // 过期时间戳（毫秒）
   user: AuthUser;
   device_id: string;
+  session?: AuthSession;
+}
+
+interface AuthSession {
+  type: 'cas';
+  provider: string;
 }
 
 // Enterprise auth storage (localStorage, separate from C-side)
@@ -110,6 +118,11 @@ interface ThirdPartyAuthLoginParams {
   provider: string;
   ticket: string;
   service: string;
+}
+
+interface ThirdPartyAuthExchangeParams {
+  provider: string;
+  code: string;
 }
 
 async function syncScodeGuidModelPreference(modelId: string): Promise<void> {
@@ -196,6 +209,7 @@ interface AuthContextValue {
   loginByPassword: (params: PasswordLoginParams) => Promise<PasswordAuthResult>;
   registerByPassword: (params: PasswordRegisterParams) => Promise<PasswordAuthResult>;
   loginWithThirdPartyAuth: (params: ThirdPartyAuthLoginParams) => Promise<PasswordAuthResult>;
+  exchangeThirdPartyAuthCode: (params: ThirdPartyAuthExchangeParams) => Promise<PasswordAuthResult>;
   changePassword: (params: ChangePasswordParams) => Promise<PasswordAuthResult>;
 }
 
@@ -387,7 +401,31 @@ async function fetchAndCacheCredentials(): Promise<void> {
   }
 }
 
-async function handleLoginSuccess(data: LoginSuccessResponse, setUser: SetAuthUser, setStatus: SetAuthStatus, setReady: SetAuthReady, setSyncMessage: SetSyncMessage, tenantIdFallback?: string) {
+async function openThirdPartyLogoutIfNeeded(session: AuthSession | undefined): Promise<void> {
+  if (session?.type !== 'cas') return;
+
+  try {
+    const serverBaseUrl = await getSudoworkServerBaseUrl();
+    const systemConfig = await fetchSystemConfig(serverBaseUrl);
+    const authConfig = resolveThirdPartyAuthConfig(systemConfig);
+    const provider = authConfig?.providers.find((item) => item.id === session.provider);
+    if (!provider) {
+      return;
+    }
+
+    const serviceUrl = buildCasLogoutServiceUrl(provider, serverBaseUrl);
+    const logoutUrl = buildCasLogoutUrl(provider, serviceUrl);
+    if (isDesktopRuntime) {
+      await ipcBridge.shell.openExternal.invoke(logoutUrl);
+      return;
+    }
+    window.open(logoutUrl, '_blank', 'noopener,noreferrer');
+  } catch (error) {
+    console.error('[Auth] Third-party CAS logout failed:', error);
+  }
+}
+
+async function handleLoginSuccess(data: LoginSuccessResponse, setUser: SetAuthUser, setStatus: SetAuthStatus, setReady: SetAuthReady, setSyncMessage: SetSyncMessage, tenantIdFallback?: string, session?: AuthSession) {
   const deviceId = getDeviceId();
   const mergedUser = mergeLoginUserData(data) as unknown as AuthUser;
   const resolvedTenantId = resolveConsumerTenantId(mergedUser, tenantIdFallback);
@@ -408,6 +446,7 @@ async function handleLoginSuccess(data: LoginSuccessResponse, setUser: SetAuthUs
     expires_at: Date.now() + data.data.expires_in * 1000,
     user: mergedUser,
     device_id: deviceId,
+    session,
   };
 
   const authData = { ...mergedUser, token: data.data.access_token };
@@ -633,6 +672,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
               expires_at: Date.now() + data.expires_in * 1000,
               user: authStorage.user,
               device_id: device_id || getDeviceId(),
+              session: authStorage.session,
             };
 
             localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(newStorage));
@@ -1165,10 +1205,33 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       if (!response.ok || !data.success || !data.data) {
         return { success: false, message: data?.msg || data?.message || '三方认证登录失败' };
       }
-      await handleLoginSuccess({ data: data.data }, setUser, setStatus, setReady, setSyncMessage);
+      await handleLoginSuccess({ data: data.data }, setUser, setStatus, setReady, setSyncMessage, undefined, { type: 'cas', provider });
       return { success: true };
     } catch (error) {
       console.error('Third-party auth login failed:', error);
+      return { success: false, message: error instanceof Error ? error.message : '连接到中控服务器失败' };
+    }
+  }, []);
+
+  const exchangeThirdPartyAuthCode = useCallback(async ({ provider, code }: ThirdPartyAuthExchangeParams): Promise<PasswordAuthResult> => {
+    const deviceId = getDeviceId();
+    try {
+      const response = await fetch(`${await getSudoworkServerBaseUrl()}/api/v1/auth/third-party/cas/exchange`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Device-Id': deviceId,
+        },
+        body: JSON.stringify({ provider, code }),
+      });
+      const data = (await response.json()) as AuthApiResponse;
+      if (!response.ok || !data.success || !data.data) {
+        return { success: false, message: data?.msg || data?.message || '三方认证登录失败' };
+      }
+      await handleLoginSuccess({ data: data.data }, setUser, setStatus, setReady, setSyncMessage, undefined, { type: 'cas', provider });
+      return { success: true };
+    } catch (error) {
+      console.error('Third-party auth code exchange failed:', error);
       return { success: false, message: error instanceof Error ? error.message : '连接到中控服务器失败' };
     }
   }, []);
@@ -1441,11 +1504,13 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
 
     // C-side logout (original logic)
     const stored = localStorage.getItem(AUTH_STORAGE_KEY);
+    let session: AuthSession | undefined;
 
     if (stored) {
       try {
         const authStorage: AuthStorage = JSON.parse(stored);
         const { refresh_token, device_id } = authStorage;
+        session = authStorage.session;
 
         await fetch(`${await getSudoworkServerBaseUrl()}/api/v1/auth/logout`, {
           method: 'POST',
@@ -1470,6 +1535,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         await ConfigStorage.set('guid.sessionMode', 'remote').catch(() => {});
         // 清除 ConfigStorage 中的用户信息
         await ConfigStorage.set('consumer.userInfo', undefined);
+        await openThirdPartyLogoutIfNeeded(session);
       } catch (error) {
         console.error('[Auth] Failed to clear user data:', error);
       }
@@ -1482,6 +1548,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     }
 
     try {
+      await openThirdPartyLogoutIfNeeded(session);
       await fetch('/logout', {
         method: 'POST',
         headers: {
@@ -1516,9 +1583,10 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       loginByPassword,
       registerByPassword,
       loginWithThirdPartyAuth,
+      exchangeThirdPartyAuthCode,
       changePassword,
     }),
-    [login, register, logout, ready, refresh, status, syncMessage, user, ensureValidToken, forceRefreshToken, enterpriseLogin, enterpriseLoginWithOAuth2, loginByPassword, registerByPassword, loginWithThirdPartyAuth, changePassword]
+    [login, register, logout, ready, refresh, status, syncMessage, user, ensureValidToken, forceRefreshToken, enterpriseLogin, enterpriseLoginWithOAuth2, loginByPassword, registerByPassword, loginWithThirdPartyAuth, exchangeThirdPartyAuthCode, changePassword]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

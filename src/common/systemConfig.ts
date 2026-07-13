@@ -62,7 +62,12 @@ export interface ThirdPartyAuthProvider {
   login_path?: string;
   validate_path?: string;
   logout_path?: string;
+  logout_service_url?: string;
   service_param?: string;
+  service_encode_mode?: 'component' | 'raw';
+  callback_mode?: 'direct_app' | 'server_callback';
+  server_callback_url?: string;
+  app_callback_url?: string;
 }
 
 export interface ThirdPartyAuthConfig {
