@@ -164,6 +164,15 @@ type SetAuthStatus = (status: AuthStatus) => void;
 type SetAuthReady = (ready: boolean) => void;
 type SetSyncMessage = (message: string | null) => void;
 
+function reconnectWebBridgeIfNeeded(): void {
+  if (typeof window === 'undefined' || isDesktopRuntime) {
+    return;
+  }
+
+  const reconnect = (window as Window & { __websocketReconnect?: () => void }).__websocketReconnect;
+  reconnect?.();
+}
+
 // Enterprise login params
 interface EnterpriseLoginParams {
   username: string;
@@ -276,7 +285,7 @@ function getDeviceId(): string {
 
 async function fetchCurrentUser(signal?: AbortSignal): Promise<AuthUser | null> {
   try {
-    const response = await fetch(AUTH_USER_ENDPOINT, {
+    const response = await fetch(`${await getSudoworkServerBaseUrl()}${AUTH_USER_ENDPOINT}`, {
       method: 'GET',
       credentials: 'include',
       signal,
@@ -519,6 +528,7 @@ async function handleLoginSuccess(data: LoginSuccessResponse, setUser: SetAuthUs
   setUser(authData);
   setStatus('authenticated');
   setReady(true);
+  reconnectWebBridgeIfNeeded();
 
   if (isDesktopRuntime) {
     // §6.4 active-login path: cache server-driven credentials BEFORE restarting the gateway
@@ -1270,6 +1280,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     setUser(mappedUser);
     setStatus('authenticated');
     setReady(true);
+    reconnectWebBridgeIfNeeded();
 
     return { success: true };
   }, []);

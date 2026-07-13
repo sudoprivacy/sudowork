@@ -4,20 +4,20 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { Express, Request, Response } from 'express';
-import express from 'express';
 import http from 'http';
 import path from 'path';
 import fs from 'fs';
 import { app } from 'electron';
+import express from 'express';
+import type { Express, Request, Response } from 'express';
 import { TokenMiddleware } from '@/webserver/auth/middleware/TokenMiddleware';
 import { AUTH_CONFIG } from '../config/constants';
 import { createRateLimiter } from '../middleware/security';
 
-/**
- * Vite dev server port (electron-vite default)
- */
-const VITE_DEV_PORT = 5173;
+function getViteDevPort(): number {
+  const port = Number.parseInt(process.env.VITE_DEV_SERVER_PORT || '5173', 10);
+  return Number.isFinite(port) ? port : 5173;
+}
 
 /**
  * Try to resolve built renderer assets path, return null if not found
@@ -46,6 +46,8 @@ const resolveRendererPath = (): { staticRoot: string; indexHtml: string } | null
  */
 function createViteDevProxy(): (req: Request, res: Response) => void {
   return (req: Request, res: Response) => {
+    const viteDevPort = getViteDevPort();
+
     // Remove ALL restrictive security headers set by Express middleware -
     // Vite dev server content doesn't need them and they block HMR/inline scripts
     res.removeHeader('Content-Security-Policy');
@@ -55,12 +57,12 @@ function createViteDevProxy(): (req: Request, res: Response) => void {
 
     const options: http.RequestOptions = {
       hostname: 'localhost',
-      port: VITE_DEV_PORT,
+      port: viteDevPort,
       path: req.url,
       method: req.method,
       headers: {
         ...req.headers,
-        host: `localhost:${VITE_DEV_PORT}`,
+        host: `localhost:${viteDevPort}`,
       },
     };
 
@@ -82,7 +84,7 @@ function createViteDevProxy(): (req: Request, res: Response) => void {
     proxyReq.on('error', (err) => {
       console.error(`[ViteProxy] Error proxying ${req.method} ${req.url}: ${err.message}`);
       if (!res.headersSent) {
-        res.status(502).send(`[WebUI] Vite dev server (localhost:${VITE_DEV_PORT}) unavailable: ${err.message}`);
+        res.status(502).send(`[WebUI] Vite dev server (localhost:${viteDevPort}) unavailable: ${err.message}`);
       }
     });
 
@@ -151,6 +153,7 @@ function registerProductionStaticRoutes(expressApp: Express, staticRoot: string,
  */
 export function registerStaticRoutes(expressApp: Express): void {
   const resolved = resolveRendererPath();
+  const viteDevPort = getViteDevPort();
 
   if (resolved) {
     console.log(`[WebUI] Serving renderer from: ${resolved.staticRoot}`);
@@ -159,7 +162,7 @@ export function registerStaticRoutes(expressApp: Express): void {
   }
 
   // No built assets - proxy to Vite dev server in development mode
-  console.log(`[WebUI] No renderer build found, proxying to Vite dev server at http://localhost:${VITE_DEV_PORT}`);
+  console.log(`[WebUI] No renderer build found, proxying to Vite dev server at http://localhost:${viteDevPort}`);
   const proxy = createViteDevProxy();
   expressApp.use(proxy);
 }

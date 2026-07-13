@@ -32,6 +32,15 @@ export const FALLBACK_SUDOWORK_SERVER_BASE_URL = 'https://sudowork-server.sudopr
  */
 export const BUILD_SUDOWORK_SERVER_BASE_URL: string = (typeof __SUDOWORK_SERVER_BASE_URL__ !== 'undefined' && __SUDOWORK_SERVER_BASE_URL__) || FALLBACK_SUDOWORK_SERVER_BASE_URL;
 
+export function resolveAgentServerBaseUrl(args: { isEnterpriseMode: boolean; mossServerUrl?: string | null; sudoworkServerUrl?: string | null }): string {
+  const sudoworkServerUrl = normalizeSudoworkServerUrl(args.sudoworkServerUrl) ?? BUILD_SUDOWORK_SERVER_BASE_URL;
+  if (!args.isEnterpriseMode) {
+    return sudoworkServerUrl;
+  }
+
+  return normalizeSudoworkServerUrl(args.mossServerUrl) ?? sudoworkServerUrl;
+}
+
 /**
  * Normalize a raw URL string: trim whitespace and strip trailing slashes.
  * Returns null for empty / null / undefined / non-string inputs so callers can
@@ -48,6 +57,10 @@ export function normalizeSudoworkServerUrl(raw: string | null | undefined): stri
  * Reads the user setting on every call — no caching.
  */
 export async function getSudoworkServerBaseUrl(): Promise<string> {
+  if (typeof window !== 'undefined' && !window.electronAPI) {
+    return window.location.origin;
+  }
+
   const raw = await ConfigStorage.get('system.sudoworkServerUrl').catch(() => undefined as unknown as string | undefined);
   return normalizeSudoworkServerUrl(raw) ?? BUILD_SUDOWORK_SERVER_BASE_URL;
 }

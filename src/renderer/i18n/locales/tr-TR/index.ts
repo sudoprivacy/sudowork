@@ -21,6 +21,7 @@ import agentStatus from './agentStatus.json';
 import setup from './setup.json';
 import runtimeError from './runtimeError.json';
 import pwdLogin from './pwdLogin.json';
+import bidProjects from './bidProjects.json';
 
 export default {
   common,
@@ -45,4 +46,5 @@ export default {
   setup,
   runtimeError,
   pwdLogin,
+  bidProjects,
 };

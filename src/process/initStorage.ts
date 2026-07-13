@@ -12,7 +12,7 @@ import type { AcpBackendConfig } from '@/types/acpTypes';
 import { ASSISTANT_PRESETS } from '@/common/presets/assistantPresets';
 import type { TMessage } from '@/common/chatLib';
 import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
-import { BUILD_SUDOWORK_SERVER_BASE_URL, normalizeSudoworkServerUrl } from '@/common/sudoworkServer';
+import { BUILD_SUDOWORK_SERVER_BASE_URL, normalizeSudoworkServerUrl, resolveAgentServerBaseUrl } from '@/common/sudoworkServer';
 import { application } from '../common/ipcBridge';
 import type { IChatConversationRefer, IConfigStorageRefer, IEnvStorageRefer, IMcpServer } from '../common/storage';
 import { ChatMessageStorage, ChatStorage, ConfigStorage, EnvStorage } from '../common/storage';
@@ -1201,6 +1201,21 @@ export const ProcessChat = chatFile;
 export const ProcessChatMessage = chatMessageFile;
 
 export const ProcessEnv = envFile;
+
+/**
+ * Main-process sync resolver for the agent/enhancement API base URL.
+ *
+ * Consumer mode uses the sudowork-server URL. Enterprise mode prefers the
+ * configured Moss server so agent visibility / enhancement requests hit the
+ * tenant server instead of the public admin shell.
+ */
+export function getAgentServerBaseUrlSync(): string {
+  return resolveAgentServerBaseUrl({
+    isEnterpriseMode: configFile.getSync('system.appMode') === 'e',
+    mossServerUrl: configFile.getSync('eeclaw.serverUrl'),
+    sudoworkServerUrl: configFile.getSync('system.sudoworkServerUrl'),
+  });
+}
 
 /**
  * Main-process sync resolver for the sudowork-server base URL.

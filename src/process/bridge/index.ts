@@ -58,6 +58,7 @@ import { initMossBridge } from './mossBridge';
 import { initShareoneCliBridge } from './shareoneCliBridge';
 import { initTerminalBridge } from './terminalBridge';
 import { initBrowserPanelBridge } from './browserPanelBridge';
+import { initBidProjectBridge } from './bidProjectBridge';
 import { initDeliverablesBridge } from './deliverablesBridge';
 // Crash bridge is initialized early in src/process/index.ts before storage
 // to handle renderer errors during startup
@@ -122,6 +123,7 @@ export function initAllBridges(): void {
   initShareoneCliBridge();
   initTerminalBridge();
   initBrowserPanelBridge();
+  initBidProjectBridge();
   initDeliverablesBridge();
   // Note: initCrashBridge() is called early in src/process/index.ts before storage
   initEeclawBridge();
@@ -147,6 +149,7 @@ export {
   initAssistantHubBridge,
   initAuthBridge,
   initBedrockBridge,
+  initBidProjectBridge,
   initChannelBridge,
   initConversationBridge,
   initCronBridge,

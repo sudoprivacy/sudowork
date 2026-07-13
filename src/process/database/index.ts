@@ -126,12 +126,16 @@ export class SudoworkDatabase {
 
   private initialize(): void {
     try {
+      const currentVersion = getDatabaseVersion(this.db);
+
+      if (currentVersion > 0 && currentVersion < CURRENT_DB_VERSION) {
+        this.runMigrations(currentVersion, CURRENT_DB_VERSION);
+        setDatabaseVersion(this.db, CURRENT_DB_VERSION);
+      }
+
       initSchema(this.db);
 
-      // Check and run migrations if needed
-      const currentVersion = getDatabaseVersion(this.db);
-      if (currentVersion < CURRENT_DB_VERSION) {
-        this.runMigrations(currentVersion, CURRENT_DB_VERSION);
+      if (currentVersion === 0) {
         setDatabaseVersion(this.db, CURRENT_DB_VERSION);
       }
 

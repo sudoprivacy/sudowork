@@ -1,5 +1,5 @@
 import classNames from 'classnames';
-import { AlarmClock, ArrowLeft, Bot, ChevronDown, Globe, ListChecks, LogOut, Plus, Settings, ShieldCheck, Sparkles } from 'lucide-react';
+import { AlarmClock, ArrowLeft, Bot, ChevronDown, FileText, Globe, ListChecks, LogOut, Plus, Settings, ShieldCheck, Sparkles } from 'lucide-react';
 import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -56,6 +56,7 @@ const Sider: React.FC = () => {
   // 功能菜单项定义 / Function menu items definition
   const Menus = [
     { id: 'agent', label: t('common.siderMenu.agent'), icon: Bot, path: '/app/agent' },
+    { id: 'bid-projects', label: t('common.siderMenu.bidProjects'), icon: FileText, path: '/app/bid-projects' },
     { id: 'skill-store', label: t('common.siderMenu.skillStore'), icon: Sparkles, path: '/app/skills' },
     { id: 'security', label: t('common.siderMenu.security'), icon: ShieldCheck, path: '/app/security' },
     ...(!isEnterprise ? [{ id: 'channels' as const, label: t('common.siderMenu.webui'), icon: Globe, path: '/app/channels' }] : []),
@@ -194,7 +195,7 @@ const Sider: React.FC = () => {
             {/* 功能菜单区域 / Function menu area */}
             <div className='mb-4 flex flex-col gap-0.5'>
               {Menus.map((menu) => {
-                const isSelected = pathname === menu.path || (pathname.startsWith('/guid') && new URLSearchParams(search).get('menu') === menu.id);
+                const isSelected = pathname === menu.path || pathname.startsWith(`${menu.path}/`) || (pathname.startsWith('/guid') && new URLSearchParams(search).get('menu') === menu.id);
                 const MenuIcon = menu.icon;
                 return (
                   <SidebarNavItem

@@ -20,6 +20,12 @@ let cachedAt = 0;
 let inflight: Promise<LoginMethod> | null = null;
 
 async function fetchLoginMethod(): Promise<LoginMethod> {
+  if (typeof window !== 'undefined' && !window.electronAPI) {
+    cachedLoginMethod = 0;
+    cachedAt = Date.now();
+    return 0;
+  }
+
   if (cachedLoginMethod !== null && Date.now() - cachedAt < CACHE_TTL_MS) {
     return cachedLoginMethod;
   }

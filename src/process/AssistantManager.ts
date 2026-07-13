@@ -9,13 +9,12 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { existsSync, mkdirSync } from 'fs';
-import { getAssistantsDir, getHubAssistantsDir, getSystemAssistantsDir, getCustomAssistantsDir } from './initStorage';
+import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
+import { getAssistantsDir, getHubAssistantsDir, getSystemAssistantsDir, getCustomAssistantsDir, getAgentServerBaseUrlSync } from './initStorage';
 import { ASSISTANT_META_FILE, MOSS_ASSISTANT_META_FILE } from './constants/assistantStorage';
 import { mainLog, mainWarn, mainError } from './utils/mainLogger';
 import type { IAssistantMeta } from './constants/assistantStorage';
 import { getEnterpriseTenantAssistantsDir } from './constants/enterpriseStorage';
-import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
-import { getSudoworkServerBaseUrlSync } from './initStorage';
 
 export type AssistantCategory = 'custom' | 'hub' | 'system' | 'tenant';
 
@@ -235,7 +234,7 @@ export class AssistantManager {
 
     let visibleMap: Map<string, IAssistantEnhancement> | null = null;
     try {
-      const resp = await fetch(`${getSudoworkServerBaseUrlSync()}/api/v1/agents/visible`, {
+      const resp = await fetch(`${getAgentServerBaseUrlSync()}/api/v1/agents/visible`, {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);

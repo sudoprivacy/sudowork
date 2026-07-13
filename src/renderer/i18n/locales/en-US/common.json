@@ -72,6 +72,7 @@
   "tray.quit": "Quit",
   "siderMenu": {
     "agent": "Agent",
+    "bidProjects": "Bid Drafting",
     "skillStore": "Skill Store",
     "security": "Security",
     "webui": "Remote Access",

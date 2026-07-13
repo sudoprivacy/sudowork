@@ -24,6 +24,7 @@ import type { FusePluginStatus } from './nexus/fuse-plugin-status';
 import type { PreviewHistoryTarget, PreviewSnapshotInfo } from './types/preview';
 import type { UpdateCheckRequest, UpdateCheckResult, UpdateDownloadProgressEvent, UpdateDownloadRequest, UpdateDownloadResult, AutoUpdateStatus } from './updateTypes';
 import type { ProtocolDetectionRequest, ProtocolDetectionResponse } from './utils/protocolDetector';
+import type { IBidProjectAiGenerateInput, IBidProjectAiGenerateResult, IBidProjectCreateInput, IBidProjectDetail, IBidProjectEntity, IBidProjectFactRecord, IBidProjectUpdateInput } from './bid-projects/types';
 
 export const shell = {
   openFile: bridge.buildProvider<void, string>('open-file'), // 使用系统默认程序打开文件
@@ -1161,6 +1162,17 @@ export const cron = {
   onJobUpdated: bridge.buildEmitter<ICronJob>('cron.job-updated'),
   onJobRemoved: bridge.buildEmitter<{ jobId: string }>('cron.job-removed'),
   onJobExecuted: bridge.buildEmitter<{ jobId: string; status: 'ok' | 'error' | 'skipped' | 'missed'; error?: string }>('cron.job-executed'),
+};
+
+export const bidProject = {
+  listProjects: bridge.buildProvider<IBridgeResponse<IBidProjectEntity[]>, void>('bid-project.list-projects'),
+  getProject: bridge.buildProvider<IBridgeResponse<IBidProjectDetail>, { projectId: string }>('bid-project.get-project'),
+  createProject: bridge.buildProvider<IBridgeResponse<IBidProjectDetail>, IBidProjectCreateInput>('bid-project.create-project'),
+  updateProject: bridge.buildProvider<IBridgeResponse<IBidProjectDetail>, { projectId: string; updates: IBidProjectUpdateInput }>('bid-project.update-project'),
+  confirmFact: bridge.buildProvider<IBridgeResponse<IBidProjectFactRecord>, { factId: string }>('bid-project.confirm-fact'),
+  rejectFact: bridge.buildProvider<IBridgeResponse<IBidProjectFactRecord>, { factId: string }>('bid-project.reject-fact'),
+  parseAllSources: bridge.buildProvider<IBridgeResponse<IBidProjectDetail>, { projectId: string }>('bid-project.parse-all-sources'),
+  generateAiSections: bridge.buildProvider<IBridgeResponse<IBidProjectAiGenerateResult>, IBidProjectAiGenerateInput>('bid-project.generate-ai-sections'),
 };
 
 // Cron job types for IPC

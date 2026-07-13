@@ -71,6 +71,7 @@
   "tray.quit": "退出",
   "siderMenu": {
     "agent": "智能体",
+    "bidProjects": "招标编制",
     "skillStore": "技能商店",
     "security": "安全防护",
     "webui": "远程连接",

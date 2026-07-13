@@ -31,10 +31,10 @@ import { mainError, mainLog, mainWarn } from '@process/utils/mainLogger';
 import { bindSession as orchestratorBind, unbindSession as orchestratorUnbind } from '@process/services/dify/enhancementOrchestrator';
 import { dify } from '@/common/ipcBridge';
 import type { IBridgeResponse, IDifyAgent, IDifyChatChunk, IDifyChatStreamStart, IDifyConversation, IDifyConversationList, IDifyFileUploadResult, IDifyMessageList, IDifyMeta, IDifyParameters } from '@/common/ipcBridge';
-import { getSudoworkServerBaseUrlSync } from '@process/initStorage';
+import { getAgentServerBaseUrlSync } from '@process/initStorage';
 
 function apiBase(): string {
-  return `${getSudoworkServerBaseUrlSync()}/api/v1/agents`;
+  return `${getAgentServerBaseUrlSync()}/api/v1/agents`;
 }
 
 function agentUrl(assistantId: string, suffix = ''): string {

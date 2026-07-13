@@ -1,7 +1,6 @@
 import { Input, Popover } from '@arco-design/web-react';
 import type { RefInputType } from '@arco-design/web-react/es/Input/interface';
 import { IconSearch } from '@arco-design/web-react/icon';
-import { useDebounce } from 'ahooks';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -16,13 +15,17 @@ function SkillSelectorMenuContent({ skills, selectedKeys, loading = false, onSel
   const [activeIndex, setActiveIndex] = useState(0);
   const [activeTab, setActiveTab] = useState<AtMentionTab>('skills');
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
 
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const searchInputRef = useRef<RefInputType | null>(null);
 
   const { t } = useTranslation();
 
-  const debouncedSearch = useDebounce(searchQuery, { wait: 150 });
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedSearch(searchQuery), 150);
+    return () => window.clearTimeout(timer);
+  }, [searchQuery]);
 
   const showTabs = workspaceFiles != null;
 

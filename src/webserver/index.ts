@@ -4,25 +4,29 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import express from 'express';
+import { app as electronApp } from 'electron';
 import { createServer } from 'http';
-import { WebSocketServer } from 'ws';
+import * as net from 'node:net';
+import { createRequire } from 'node:module';
 import { execSync } from 'child_process';
 import { networkInterfaces } from 'os';
+import express from 'express';
+import { WebSocketServer } from 'ws';
 import { AuthService } from '@/webserver/auth/service/AuthService';
 import { UserRepository } from '@/webserver/auth/repository/UserRepository';
+import { generateQRLoginUrlDirect } from '@/process/bridge/webuiBridge';
 import { AUTH_CONFIG, SERVER_CONFIG } from './config/constants';
 import { initWebAdapter } from './adapter';
 import { setupBasicMiddleware, setupCors, setupErrorHandler } from './setup';
 import { registerAuthRoutes } from './routes/authRoutes';
 import { registerApiRoutes } from './routes/apiRoutes';
 import { registerStaticRoutes } from './routes/staticRoutes';
-import { generateQRLoginUrlDirect } from '@/process/bridge/webuiBridge';
 
 // Express Request 类型扩展定义在 src/webserver/types/express.d.ts
 // Express Request type extension is defined in src/webserver/types/express.d.ts
 
 const DEFAULT_ADMIN_USERNAME = AUTH_CONFIG.DEFAULT_USER.USERNAME;
+const nodeRequire = createRequire(import.meta.url);
 
 // 存储初始密码（内存中，用于首次显示）/ Store initial password (in memory, for first-time display)
 let initialAdminPassword: string | null = null;
@@ -33,8 +37,7 @@ type QRCodeTerminal = {
 
 function loadQRCodeTerminal(): QRCodeTerminal | null {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const module = require('qrcode-terminal') as QRCodeTerminal;
+    const module = nodeRequire('qrcode-terminal') as QRCodeTerminal;
     return module;
   } catch {
     return null;
@@ -234,6 +237,11 @@ export interface WebServerInstance {
   allowRemote: boolean;
 }
 
+function getViteDevPort(): number {
+  const port = Number.parseInt(process.env.VITE_DEV_SERVER_PORT || '5173', 10);
+  return Number.isFinite(port) ? port : 5173;
+}
+
 /**
  * 启动 Web 服务器并返回实例（供 IPC 调用）
  * Start web server and return instance (for IPC calls)
@@ -254,15 +262,15 @@ export async function startWebServerWithInstance(port: number, allowRemote = fal
   const wss = new WebSocketServer({ noServer: true });
 
   server.on('upgrade', (req, socket, head) => {
+    const viteDevPort = getViteDevPort();
+
     // In dev mode, proxy Vite HMR WebSocket to Vite dev server.
     // Vite HMR uses 'vite-hmr' subprotocol; Sudowork IPC does not.
-    const electronApp = require('electron').app;
     const isViteHmr = !electronApp.isPackaged && req.headers['sec-websocket-protocol'] === 'vite-hmr';
 
     if (isViteHmr) {
       // Proxy to Vite dev server
-      const net = require('net') as typeof import('net');
-      const viteSocket = net.connect(5173, 'localhost', () => {
+      const viteSocket = net.connect(viteDevPort, 'localhost', () => {
         const reqLine = `${req.method} ${req.url} HTTP/${req.httpVersion}\r\n`;
         const headers = Object.entries(req.headers)
           .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`)

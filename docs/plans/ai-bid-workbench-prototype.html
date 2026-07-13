@@ -1,0 +1,1183 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI 招标文件编制工作台 - 交互原型</title>
+    <style>
+      :root {
+        --bg: #0b1220;
+        --bg-soft: #111a2d;
+        --card: #ffffff;
+        --line: #d8e3f2;
+        --line-soft: #e8eef7;
+        --text: #1b2430;
+        --text-soft: #5b6472;
+        --text-inverse: #eef4ff;
+        --text-inverse-soft: #9caecc;
+        --primary: #165dff;
+        --primary-2: #4080ff;
+        --primary-soft: #e8f3ff;
+        --success: #00b42a;
+        --success-soft: #e8ffea;
+        --warning: #ff7d00;
+        --warning-soft: #fff3e8;
+        --danger: #f53f3f;
+        --danger-soft: #ffeded;
+        --purple: #722ed1;
+        --purple-soft: #f5edff;
+        --cyan: #00b2ff;
+        --cyan-soft: #e8f8ff;
+        --shadow-lg: 0 18px 40px rgba(11, 18, 32, 0.14);
+        --shadow-sm: 0 8px 20px rgba(11, 18, 32, 0.08);
+        --radius-xl: 24px;
+        --radius-lg: 18px;
+        --radius-md: 14px;
+      }
+
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        background:
+          radial-gradient(circle at top left, rgba(64, 128, 255, 0.18), transparent 320px),
+          linear-gradient(180deg, #edf4ff 0%, #f4f8fd 220px, #eff4fb 100%);
+        color: var(--text);
+      }
+      button, input, textarea { font: inherit; }
+      .hidden { display: none !important; }
+      .app-shell { display: grid; grid-template-columns: 268px 1fr; min-height: 100vh; }
+      .sidebar {
+        position: sticky; top: 0; height: 100vh; overflow: auto;
+        background: linear-gradient(180deg, #0b1220 0%, #111a2d 100%);
+        color: var(--text-inverse); padding: 22px 18px 24px;
+      }
+      .brand {
+        border-radius: var(--radius-lg); padding: 16px;
+        background: linear-gradient(135deg, rgba(22, 93, 255, 0.22), rgba(114, 46, 209, 0.16));
+        border: 1px solid rgba(255, 255, 255, 0.08); margin-bottom: 18px;
+      }
+      .brand h1 { margin: 0 0 8px; font-size: 20px; }
+      .brand p { margin: 0; font-size: 13px; line-height: 1.6; color: var(--text-inverse-soft); }
+      .nav-block { margin-top: 18px; }
+      .nav-title {
+        font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;
+        color: #8da1c7; margin: 0 0 10px; padding: 0 10px;
+      }
+      .nav-list { display: flex; flex-direction: column; gap: 8px; }
+      .nav-item, .scenario-button {
+        width: 100%; border: 1px solid rgba(255,255,255,0.08); border-radius: 14px;
+        background: rgba(255,255,255,0.04); color: var(--text-inverse);
+        text-align: left; padding: 12px; cursor: pointer; transition: 160ms ease;
+      }
+      .nav-item:hover, .scenario-button:hover {
+        border-color: rgba(119,166,255,0.38); background: rgba(22,93,255,0.18);
+      }
+      .nav-item.active {
+        border-color: rgba(119,166,255,0.5);
+        background: linear-gradient(135deg, rgba(22,93,255,0.32), rgba(64,128,255,0.16));
+      }
+      .nav-item strong, .scenario-button strong { display:block; font-size:14px; margin-bottom:4px; }
+      .nav-item span, .scenario-button span { display:block; font-size:12px; color:var(--text-inverse-soft); line-height:1.5; }
+      .scenario-button.active { border-color: rgba(0,180,42,0.42); background: rgba(0,180,42,0.14); }
+      .sidebar-note {
+        margin-top: 18px; padding: 14px; border-radius: 14px;
+        background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06);
+        font-size: 12px; line-height: 1.6; color: var(--text-inverse-soft);
+      }
+      .main { padding: 20px; }
+      .topbar {
+        display:flex; align-items:center; justify-content:space-between; gap:16px;
+        margin-bottom:18px; background: rgba(255,255,255,0.82); backdrop-filter: blur(14px);
+        border:1px solid rgba(255,255,255,0.75); border-radius:20px; padding:14px 18px;
+        box-shadow: var(--shadow-sm);
+      }
+      .breadcrumb { font-size:12px; color:var(--text-soft); margin-bottom:4px; }
+      .page-title { font-size:24px; font-weight:700; margin:0; }
+      .page-subtitle { margin-top:6px; color:var(--text-soft); font-size:13px; }
+      .toolbar, .row, .inline-actions, .step-actions, .panel-actions, .meta-row, .filter-row, .segmented,
+      .assistant-composer, .assistant-shortcuts, .assistant-message-actions, .checkbox-row, .message-meta,
+      .message-apply-row, .issue-context-row, .origin-row, .source-connector-row, .system-badge-row {
+        display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+      }
+      .button {
+        display:inline-flex; align-items:center; justify-content:center; min-height:40px; padding:0 14px;
+        border:1px solid var(--line); background:white; color:#344054; border-radius:12px; font-weight:600;
+        cursor:pointer; transition:160ms ease;
+      }
+      .button:hover { transform: translateY(-1px); box-shadow: 0 10px 20px rgba(22,93,255,0.08); }
+      .button:disabled { opacity:0.48; cursor:not-allowed; transform:none; box-shadow:none; }
+      .button.primary { background: linear-gradient(135deg, var(--primary) 0%, var(--primary-2) 100%); border-color: var(--primary); color:white; }
+      .button.secondary { background:#f7faff; color:var(--primary); border-color:#bfd3ff; }
+      .button.ghost { background:#f9fbff; }
+      .button.warn { background:var(--warning-soft); color:#ad4e00; border-color:#ffcf9b; }
+      .button.danger { background:var(--danger-soft); color:var(--danger); border-color:#ffcaca; }
+      .button.small { min-height:34px; padding:0 12px; font-size:13px; }
+      .button.outline-primary { border-color:#a9c5ff; color:var(--primary); background:#fff; }
+      .button.outline-success { border-color:#acecbc; color:var(--success); background:#fff; }
+      .chip, .badge, .status-pill {
+        display:inline-flex; align-items:center; gap:6px; border-radius:999px; padding:6px 10px; font-size:12px; font-weight:600;
+      }
+      .badge.info, .status-pill.info, .chip.info { background:var(--primary-soft); color:var(--primary); }
+      .badge.success, .status-pill.success, .chip.success { background:var(--success-soft); color:var(--success); }
+      .badge.warn, .status-pill.warn, .chip.warn { background:var(--warning-soft); color:var(--warning); }
+      .badge.danger, .status-pill.danger, .chip.danger { background:var(--danger-soft); color:var(--danger); }
+      .badge.purple, .status-pill.purple, .chip.purple { background:var(--purple-soft); color:var(--purple); }
+      .badge.cyan, .status-pill.cyan, .chip.cyan { background:var(--cyan-soft); color:var(--cyan); }
+      .screen { display:none; }
+      .screen.active { display:block; }
+      .hero {
+        background: linear-gradient(135deg, #0f62fe 0%, #2f7cff 42%, #5a8cff 100%);
+        color:white; border-radius:28px; padding:26px; box-shadow: var(--shadow-lg); margin-bottom:18px;
+      }
+      .hero h2 { margin:0 0 10px; font-size:30px; }
+      .hero p { margin:0; max-width:980px; line-height:1.7; color:rgba(255,255,255,0.92); }
+      .section-card, .app-card, .mini-panel, .modal-card, .empty-card, .review-surface, .assistant-message,
+      .ask-ai-box, .message-result-card, .platform-box, .origin-box, .system-source-box {
+        background: rgba(255,255,255,0.92); border:1px solid rgba(255,255,255,0.78); border-radius:var(--radius-xl); box-shadow:var(--shadow-sm);
+      }
+      .section-card, .app-card, .mini-panel, .empty-card, .platform-box, .origin-box, .system-source-box { padding:20px; }
+      .section-card { margin-bottom:18px; }
+      .section-head { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:18px; }
+      .section-head h3, .section-head h4 { margin:0 0 8px; }
+      .section-head p { margin:0; color:var(--text-soft); line-height:1.65; }
+      .grid-2, .grid-3, .grid-4, .layout-main, .workspace, .analysis-layout, .progress-layout, .footer-grid, .review-layout, .assistant-layout, .platform-grid, .origin-grid {
+        display:grid; gap:16px;
+      }
+      .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+      .stats-grid { display:grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap:12px; margin-bottom:16px; }
+      .stats-card { background:linear-gradient(180deg,#ffffff 0%,#f7fbff 100%); border-radius:18px; border:1px solid var(--line); padding:16px; }
+      .stats-card b { display:block; font-size:28px; margin-bottom:6px; }
+      .stats-card span { color:var(--text-soft); font-size:13px; }
+      .layout-main { grid-template-columns: 1.15fr 0.85fr; }
+      .analysis-layout { grid-template-columns: 1.02fr 0.98fr; }
+      .progress-layout { grid-template-columns: 0.95fr 1.05fr; }
+      .workspace { grid-template-columns: 250px minmax(0,1fr) 400px; }
+      .assistant-layout { grid-template-rows: auto minmax(0,1fr) auto; min-height:760px; }
+      .platform-grid { grid-template-columns: repeat(4, minmax(0,1fr)); }
+      .origin-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
+      .surface-list, .candidate-card, .template-card, .log-card, .timeline-item, .section-item, .doc-frame,
+      .assistant-tab-pane, .assistant-context-card, .assistant-message, .assistant-context-box, .ask-ai-box,
+      .ask-ai-answer, .message-result-card, .platform-item, .origin-item, .system-source-item {
+        border:1px solid var(--line); background:white; border-radius:var(--radius-lg);
+      }
+      .surface-list { overflow:hidden; }
+      .list-row, .table-row, .issue-row {
+        display:flex; justify-content:space-between; gap:16px; padding:14px 16px; border-bottom:1px solid var(--line-soft);
+      }
+      .list-row:last-child, .table-row:last-child, .issue-row:last-child { border-bottom:none; }
+      .title-group { display:flex; flex-direction:column; gap:6px; }
+      .title-group strong { font-size:15px; }
+      .muted { color:var(--text-soft); font-size:13px; line-height:1.55; }
+      .search-box, .select-box, .field-box, .textarea-box, .assistant-input {
+        width:100%; border-radius:14px; border:1px solid var(--line); background:white; color:#344054;
+      }
+      .search-box, .select-box, .field-box, .assistant-input { min-height:42px; padding:10px 12px; }
+      .textarea-box { min-height:120px; padding:12px 14px; line-height:1.7; }
+      .field-grid { display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap:14px; }
+      .field label { display:block; font-size:13px; color:var(--text-soft); margin-bottom:8px; }
+      .upload-dropzone {
+        min-height:168px; display:grid; place-items:center; text-align:center; padding:20px;
+        border:1px dashed #bfd3f6; border-radius:18px; background:linear-gradient(180deg,#f9fbff 0%,#ffffff 100%);
+      }
+      .stepper { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px; }
+      .step-pill {
+        display:inline-flex; align-items:center; gap:8px; border-radius:999px; padding:8px 12px;
+        font-size:13px; font-weight:600; background:#eef4ff; color:#4b5a76; border:1px solid #dbe7fb;
+      }
+      .step-pill.active { background:var(--primary-soft); border-color:#a9c5ff; color:var(--primary); }
+      .step-pill.done { background:var(--success-soft); border-color:#a9efb8; color:var(--success); }
+      .step-stage { display:none; }
+      .step-stage.active { display:block; }
+      .candidate-card, .template-card, .log-card, .ask-ai-answer, .message-result-card, .platform-item, .origin-item, .system-source-item { padding:14px; }
+      .candidate-card.active { border-color:#9bc1ff; box-shadow: inset 0 0 0 1px #dcebff; background:#f6fbff; }
+      .progress-bar { width:100%; height:14px; background:#e8eef8; border-radius:999px; overflow:hidden; }
+      .progress-fill { height:100%; background:linear-gradient(90deg,var(--primary),#69a1ff); border-radius:999px; transition: width 220ms ease; }
+      .timeline { display:flex; flex-direction:column; gap:10px; }
+      .timeline-item { padding:12px 14px; display:flex; align-items:center; justify-content:space-between; gap:14px; }
+      .timeline-item.active { border-color:#9bc1ff; background:#f6fbff; }
+      .section-item { padding:12px; margin-bottom:8px; cursor:pointer; transition:140ms ease; }
+      .section-item:hover { background:#f8fbff; }
+      .section-item.active { border-color:#9bc1ff; background:#eef6ff; }
+      .doc-frame { min-height:760px; overflow:hidden; }
+      .doc-header {
+        display:flex; justify-content:space-between; align-items:center; gap:16px; padding:16px 18px;
+        border-bottom:1px solid var(--line-soft); background:linear-gradient(180deg,#fbfdff 0%,#f6f9fd 100%);
+      }
+      .doc-content { padding:20px 22px 24px; line-height:1.82; }
+      .doc-content h4 { margin:0 0 12px; font-size:22px; }
+      .doc-content p { margin:0 0 12px; }
+      .doc-highlight { background:#fff7e6; border-radius:10px; padding:8px 10px; border:1px solid #ffe3b3; }
+      .assistant-tabs { display:flex; gap:8px; margin-top:12px; flex-wrap:wrap; }
+      .assistant-tab-button {
+        border:1px solid var(--line); background:#f8fbff; color:#415166; border-radius:999px;
+        min-height:36px; padding:0 14px; font-weight:600; cursor:pointer;
+      }
+      .assistant-tab-button.active { background:var(--primary-soft); border-color:#b8d0ff; color:var(--primary); }
+      .drawer { display:none; margin:0 20px 20px; padding:16px; border:1px solid var(--line); background:white; border-radius:16px; }
+      .drawer.active { display:block; }
+      .review-layout { grid-template-columns: 280px 1fr; }
+      .issue-list { display:flex; flex-direction:column; gap:8px; }
+      .issue-card { padding:12px; border:1px solid var(--line); border-radius:16px; background:white; cursor:pointer; }
+      .issue-card.active { border-color:#9bc1ff; background:#eef6ff; }
+      .issue-card.applied { border-color:#b8edc2; background:#f2fff4; }
+      .issue-card.ignored { opacity:0.65; }
+      .review-surface { padding:16px; }
+      .assistant-header { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }
+      .assistant-mode-line { margin-top:10px; }
+      .assistant-tab-pane { display:none; padding:14px; }
+      .assistant-tab-pane.active { display:block; }
+      .assistant-messages { display:flex; flex-direction:column; gap:12px; max-height:430px; overflow:auto; padding-right:4px; }
+      .assistant-message { padding:14px; position:relative; }
+      .assistant-message.user { background:#f5f9ff; border-color:#cfe0ff; margin-left:28px; }
+      .assistant-message.ai { background:#ffffff; margin-right:18px; }
+      .assistant-message-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+      .message-role { display:inline-flex; align-items:center; gap:8px; font-weight:700; color:#22324f; }
+      .message-avatar {
+        width:24px; height:24px; border-radius:999px; display:inline-flex; align-items:center; justify-content:center;
+        font-size:12px; font-weight:800;
+      }
+      .message-avatar.user { background:#dcebff; color:var(--primary); }
+      .message-avatar.ai { background:#ede4ff; color:var(--purple); }
+      .message-bubble { font-size:14px; line-height:1.7; color:#344054; }
+      .message-citation-box, .message-result-box, .platform-strip {
+        margin-top:10px; padding:10px 12px; border-radius:12px; border:1px solid var(--line); background:#f8fbff;
+      }
+      .message-apply-row { margin-top:12px; justify-content:flex-start; }
+      .message-result-card { margin-top:12px; background:linear-gradient(180deg,#ffffff 0%,#f9fcff 100%); }
+      .assistant-context-grid, .assistant-shortcuts, .assistant-action-list { display:grid; gap:10px; }
+      .assistant-context-grid { grid-template-columns:1fr; }
+      .assistant-context-card { padding:12px; border:1px solid var(--line); border-radius:14px; background:white; }
+      .assistant-composer { margin-top:12px; align-items:stretch; }
+      .assistant-input { flex:1; }
+      .assistant-shortcuts { grid-template-columns: repeat(2, minmax(0,1fr)); margin-top:12px; }
+      .assistant-shortcut {
+        border:1px dashed #c8d7ee; border-radius:12px; background:#f9fbff; color:#38507a; padding:10px 12px; text-align:left; cursor:pointer;
+      }
+      .assistant-action-card { border:1px solid var(--line); border-radius:14px; background:white; padding:12px; }
+      .ask-ai-box { margin-top:14px; padding:16px; }
+      .ask-ai-answer { margin-top:12px; padding:14px; }
+      .platform-box h4, .origin-box h4, .system-source-box h4 { margin:0 0 8px; }
+      .platform-item, .origin-item, .system-source-item { background:linear-gradient(180deg,#ffffff 0%,#f8fbff 100%); }
+      .modal {
+        position:fixed; inset:0; background: rgba(11,18,32,0.42); backdrop-filter: blur(8px);
+        display:none; align-items:center; justify-content:center; padding:24px; z-index:20;
+      }
+      .modal.active { display:flex; }
+      .modal-card { width:min(760px, 100%); padding:22px; }
+      .modal-head { display:flex; justify-content:space-between; gap:16px; margin-bottom:16px; }
+      .modal-head h3 { margin:0 0 6px; }
+      .review-warning {
+        margin-top:10px; padding:12px 14px; border-radius:14px; background:var(--warning-soft);
+        color:#ad4e00; border:1px solid #ffd6ad; font-size:13px;
+      }
+      .toast-stack { position:fixed; right:20px; bottom:20px; display:flex; flex-direction:column; gap:10px; z-index:30; }
+      .toast { min-width:280px; max-width:420px; border-radius:14px; padding:14px 16px; color:white; box-shadow:var(--shadow-lg); }
+      .toast.success { background:linear-gradient(135deg,#00b42a,#0fc853); }
+      .toast.info { background:linear-gradient(135deg,#165dff,#4f8dff); }
+      .toast.warn { background:linear-gradient(135deg,#ff7d00,#ff9f43); }
+      .empty-card { text-align:center; }
+      .breakdown-list { display:grid; gap:12px; }
+      .breakdown-item { padding:14px 16px; background:white; border-radius:16px; border:1px solid var(--line); }
+      .breakdown-item strong { display:block; margin-bottom:6px; font-size:15px; }
+      .footer-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
+      @media (max-width: 1360px) {
+        .workspace, .analysis-layout, .progress-layout, .layout-main, .footer-grid, .stats-grid,
+        .grid-4, .grid-3, .grid-2, .field-grid, .review-layout, .app-shell, .assistant-shortcuts,
+        .platform-grid, .origin-grid {
+          grid-template-columns:1fr;
+        }
+        .sidebar { position:relative; height:auto; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <h1>AI 招标编制原型</h1>
+          <p>高保真 + 假交互评审稿。先确认产品交互链路，再进入 React / Electron 开发。</p>
+        </div>
+
+        <div class="nav-block">
+          <div class="nav-title">页面导航</div>
+          <div class="nav-list" id="navList"></div>
+        </div>
+
+        <div class="nav-block">
+          <div class="nav-title">预置场景</div>
+          <div class="nav-list" id="scenarioList"></div>
+        </div>
+
+        <div class="sidebar-note">这版补了更强的平台感表达：结构化资产来源、来源系统输入，以及“先做编制、后扩全流程”的扩展路径。</div>
+      </aside>
+
+      <main class="main">
+        <div class="topbar">
+          <div class="topbar-left">
+            <div class="breadcrumb" id="breadcrumb">产品原型 / AI 招标文件编制</div>
+            <h2 class="page-title" id="pageTitle">AI 招标文件编制工作台</h2>
+            <div class="page-subtitle" id="pageSubtitle">用于评审完整编制闭环、关键状态与交互优先级。</div>
+          </div>
+          <div class="toolbar">
+            <button class="button ghost small" id="backButton">上一步</button>
+            <button class="button secondary small" id="nextButton">下一步</button>
+            <button class="button primary small" id="openExportTopButton">导出预览</button>
+          </div>
+        </div>
+
+        <section class="screen active" data-view="overview">
+          <div class="hero">
+            <h2>AI 招标文件编制工作台</h2>
+            <p>这套原型围绕“项目创建 → 材料解析 → 候选事实确认 → 模板推荐 → 整稿生成 → 正文修订 → 合规审查 → DOCX 导出”的黄金路径展开，同时开始前台表达：我们不只是帮客户写一份文档，也在协助客户建设招采知识资产与可扩展平台能力。</p>
+            <div class="meta-row" style="margin-top: 16px">
+              <span class="chip info">高保真浏览器原型</span>
+              <span class="chip success">已接入假交互</span>
+              <span class="chip purple">包含开发拆解</span>
+              <span class="chip cyan">补平台感表达</span>
+            </div>
+          </div>
+
+          <div class="section-card">
+            <div class="section-head">
+              <div>
+                <h3>本轮新增：平台感表达</h3>
+                <p>在不把产品做成“大而全平台”的前提下，前端明确展示三件事：知识资产来源、来源系统输入、以及后续扩展路径。</p>
+              </div>
+              <div class="meta-row">
+                <span class="badge cyan">结构化资产</span>
+                <span class="badge cyan">来源系统</span>
+                <span class="badge cyan">扩展路径</span>
+              </div>
+            </div>
+            <div class="platform-grid">
+              <div class="platform-item"><strong>历史模板库</strong><div class="muted" style="margin-top:6px">不只是一份模板，而是按采购类型、行业、客户侧风格沉淀的结构化模板资产。</div></div>
+              <div class="platform-item"><strong>条款库</strong><div class="muted" style="margin-top:6px">将资格条款、商务条款、合同条款沉淀为可解释、可复用的结构化条款资产。</div></div>
+              <div class="platform-item"><strong>行业知识库</strong><div class="muted" style="margin-top:6px">把项目常识、技术参数、行业标准和法规要求整合进 AI 可调用知识层。</div></div>
+              <div class="platform-item"><strong>评审规则库</strong><div class="muted" style="margin-top:6px">前台不仅显示风险，还明确风险来自哪套审查规则与依据体系。</div></div>
+            </div>
+          </div>
+
+          <div class="footer-grid">
+            <div class="section-card">
+              <div class="section-head">
+                <div>
+                  <h3>来源系统表达</h3>
+                  <p>从“只会上传文件”升级为“支持多种来源系统接入”的平台化表达，但当前仍先聚焦编制主流程。</p>
+                </div>
+              </div>
+              <div class="origin-grid">
+                <div class="origin-item"><strong>上传文件</strong><div class="muted" style="margin-top:6px">当前主入口，支持 doc / docx / pdf / txt / md。</div></div>
+                <div class="origin-item"><strong>主数据导入</strong><div class="muted" style="margin-top:6px">客户单位信息、项目分类、采购类型、常用字段后续可由主数据带入。</div></div>
+                <div class="origin-item"><strong>采购计划导入</strong><div class="muted" style="margin-top:6px">后续可从采购计划或需求书系统带入预算、标的、周期等核心字段。</div></div>
+                <div class="origin-item"><strong>历史项目复用</strong><div class="muted" style="margin-top:6px">从既有项目复制结构、引用范本与规则适配逻辑，减少从零起稿。</div></div>
+              </div>
+            </div>
+
+            <div class="section-card">
+              <div class="section-head">
+                <div>
+                  <h3>后续扩展路径</h3>
+                  <p>当前先做编制工作台，但前端要把后续可扩路径讲清楚，避免客户把它理解成单点工具。</p>
+                </div>
+              </div>
+              <div class="breakdown-list">
+                <div class="breakdown-item"><strong>Phase 1：先做编制</strong><span class="muted">项目创建、材料解析、字段确认、模板推荐、整稿生成、审查与导出。</span></div>
+                <div class="breakdown-item"><strong>Phase 2：投标解析</strong><span class="muted">后续扩到投标文件解析、应标点识别、资质材料理解。</span></div>
+                <div class="breakdown-item"><strong>Phase 3：评标辅助</strong><span class="muted">在后续阶段承接评审规则、评分要点、辅助评标与报告输出。</span></div>
+                <div class="breakdown-item"><strong>Phase 4：风险识别</strong><span class="muted">进一步扩到围串标检测、异常条款识别与全流程风险监控。</span></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="screen" data-view="project-list">
+          <div class="section-card">
+            <div class="section-head">
+              <div>
+                <h3>项目列表页</h3>
+                <p>用户进入后第一眼就要知道：哪些项目可继续、哪些待确认、哪些有风险、下一步该点哪里。</p>
+              </div>
+              <div class="meta-row">
+                <span class="badge info">入口页</span>
+                <span class="badge warn">强调状态</span>
+              </div>
+            </div>
+
+            <div class="toolbar" style="justify-content: space-between; margin-bottom: 16px">
+              <div class="filter-row">
+                <button class="button primary" id="createProjectButton">+ 新建项目</button>
+                <div class="search-box">搜索项目 / 采购单位 / 项目名称</div>
+                <div class="select-box">状态筛选 ▾</div>
+              </div>
+              <div class="segmented" id="listFilter"></div>
+            </div>
+
+            <div class="stats-grid" id="statsGrid"></div>
+            <div class="surface-list" id="projectListPanel"></div>
+
+            <div class="platform-box" style="margin-top:16px">
+              <div class="section-head" style="margin-bottom: 10px">
+                <div>
+                  <h4>平台能力入口（前台表达）</h4>
+                  <p class="muted">当前先做编制，但首页就可以轻量表达平台化扩展方向。</p>
+                </div>
+              </div>
+              <div class="platform-grid">
+                <div class="platform-item"><strong>模板资产中心</strong><div class="muted" style="margin-top:6px">查看行业模板、客户模板与历史模板来源。</div></div>
+                <div class="platform-item"><strong>知识库共建中心</strong><div class="muted" style="margin-top:6px">后续承接客户知识库建设进度与覆盖范围展示。</div></div>
+                <div class="platform-item"><strong>来源系统管理</strong><div class="muted" style="margin-top:6px">后续用于主数据 / 采购计划 / 历史项目来源接入。</div></div>
+                <div class="platform-item"><strong>能力扩展路线</strong><div class="muted" style="margin-top:6px">后续扩到投标解析、评标辅助、风险识别。</div></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="screen" data-view="new-project">
+          <div class="section-card">
+            <div class="section-head">
+              <div>
+                <h3>新建项目页</h3>
+                <p>先建项目，再建材料池，再确认是否进入解析。这一步决定后面的生成是否可信。</p>
+              </div>
+              <div class="meta-row" id="stepSummary"></div>
+            </div>
+
+            <div class="stepper" id="stepper"></div>
+
+            <div class="step-stage active" data-step="0">
+              <div class="layout-main">
+                <div class="app-card">
+                  <h4>基础信息</h4>
+                  <div class="field-grid" id="basicInfoGrid"></div>
+                </div>
+                <div class="app-card">
+                  <h4>项目描述 / 采购标的</h4>
+                  <div class="textarea-box" id="remarkBox"></div>
+                  <div class="meta-row" style="margin-top: 12px">
+                    <span class="chip info">用于模板推荐</span>
+                    <span class="chip info">用于章节规划</span>
+                    <span class="chip info">用于知识增强</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="step-stage" data-step="1">
+              <div class="layout-main">
+                <div class="app-card">
+                  <h4>材料来源</h4>
+                  <div class="upload-dropzone">
+                    <div>
+                      <button class="button primary" id="mockUploadButton">模拟上传文件</button>
+                      <p class="muted" style="margin: 12px 0 0">当前主入口：上传文件。后续可扩到主数据导入、采购计划导入、历史项目复用。</p>
+                    </div>
+                  </div>
+                  <div class="system-source-box" style="margin-top: 14px">
+                    <h4>来源系统输入（平台感表达）</h4>
+                    <div class="system-badge-row" style="margin-top: 10px">
+                      <span class="chip success">上传文件（当前）</span>
+                      <span class="chip cyan">主数据导入（后续）</span>
+                      <span class="chip cyan">采购计划导入（后续）</span>
+                      <span class="chip cyan">历史项目复用（后续）</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="app-card">
+                  <h4>已上传材料</h4>
+                  <div class="surface-list" id="uploadList"></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="step-stage" data-step="2">
+              <div class="grid-2">
+                <div class="app-card">
+                  <h4>提交前确认</h4>
+                  <div class="breakdown-list">
+                    <div class="breakdown-item"><strong>项目名称</strong><span class="muted" id="reviewProjectName"></span></div>
+                    <div class="breakdown-item"><strong>采购方式</strong><span class="muted" id="reviewMethod"></span></div>
+                    <div class="breakdown-item"><strong>已上传材料数</strong><span class="muted" id="reviewFileCount"></span></div>
+                  </div>
+                </div>
+                <div class="app-card">
+                  <h4>本阶段将触发</h4>
+                  <div class="breakdown-list">
+                    <div class="breakdown-item"><strong>材料解析</strong><span class="muted">抽取摘要、候选字段、可引用片段</span></div>
+                    <div class="breakdown-item"><strong>项目画像生成</strong><span class="muted">形成项目类型、行业、采购方式等检测结果</span></div>
+                    <div class="breakdown-item"><strong>模板推荐</strong><span class="muted">基于项目画像与历史材料给出推荐模板</span></div>
+                    <div class="breakdown-item"><strong>知识资产命中</strong><span class="muted">命中历史模板库、条款库、行业知识库、评审规则库</span></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="step-actions" style="justify-content: space-between; margin-top: 18px">
+              <div class="meta-row muted">这一步只做假交互评审，不会触发真实文件上传。</div>
+              <div class="panel-actions">
+                <button class="button ghost" id="stepBackButton">上一步</button>
+                <button class="button secondary" id="saveDraftButton">保存草稿</button>
+                <button class="button primary" id="stepNextButton">下一步</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="screen" data-view="analysis">
+          <div class="section-card">
+            <div class="section-head">
+              <div>
+                <h3>材料分析 / 字段确认页</h3>
+                <p>先看材料解析与候选值，再看冲突与推荐模板，避免直接黑盒生成。</p>
+              </div>
+              <div class="meta-row">
+                <span class="badge warn" id="analysisStatusBadge">待确认 2</span>
+                <button class="button ghost small" id="reparseButton">重新解析</button>
+              </div>
+            </div>
+
+            <div id="analysisErrorBox" class="review-warning hidden"></div>
+
+            <div class="analysis-layout">
+              <div class="app-card">
+                <h4>材料解析结果</h4>
+                <div class="surface-list" id="sourceList"></div>
+                <div class="origin-box" style="margin-top: 14px">
+                  <h4>来源系统输入视角</h4>
+                  <div class="origin-row" style="margin-top: 10px">
+                    <span class="chip success">上传文件：已接入</span>
+                    <span class="chip cyan">主数据导入：预留</span>
+                    <span class="chip cyan">采购计划导入：预留</span>
+                    <span class="chip cyan">历史项目复用：预留</span>
+                  </div>
+                </div>
+                <div class="mini-panel" style="margin-top: 14px; padding: 14px">
+                  <h4 style="margin: 0 0 10px">材料摘要</h4>
+                  <p class="muted" id="analysisSummary"></p>
+                </div>
+                <div class="mini-panel" style="margin-top: 14px; padding: 14px">
+                  <h4 style="margin: 0 0 10px">可引用片段</h4>
+                  <p class="muted" id="snippetText"></p>
+                  <div class="row">
+                    <span class="badge info" id="snippetSource"></span>
+                    <button class="button ghost small" id="snippetUseButton">设为依据</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="app-card">
+                <h4>项目画像 / 候选字段确认</h4>
+                <div class="meta-row" id="detectedFieldChips" style="margin-bottom: 14px"></div>
+                <div id="factCandidates"></div>
+                <div class="mini-panel" style="margin-top: 14px; padding: 14px">
+                  <div class="section-head" style="margin-bottom: 10px">
+                    <div>
+                      <h4 style="margin: 0 0 6px">模板推荐</h4>
+                      <p class="muted">推荐会随着候选值确认而变化。</p>
+                    </div>
+                  </div>
+                  <div id="templateList"></div>
+                </div>
+                <div class="platform-box" style="margin-top: 14px">
+                  <h4>本次生成将依赖的结构化资产</h4>
+                  <div class="platform-grid" style="margin-top: 10px">
+                    <div class="platform-item"><strong>历史模板库</strong><div class="muted" style="margin-top:6px">用于章节结构与范式参考</div></div>
+                    <div class="platform-item"><strong>条款库</strong><div class="muted" style="margin-top:6px">用于资格 / 商务 / 合同条款复用</div></div>
+                    <div class="platform-item"><strong>行业知识库</strong><div class="muted" style="margin-top:6px">用于行业术语、技术指标、业务背景补充</div></div>
+                    <div class="platform-item"><strong>评审规则库</strong><div class="muted" style="margin-top:6px">用于合规审查与后续评分规则解释</div></div>
+                  </div>
+                </div>
+                <div class="ask-ai-box">
+                  <div class="section-head" style="margin-bottom: 10px">
+                    <div>
+                      <h4 style="margin: 0 0 6px">问 AI</h4>
+                      <p class="muted">这里是解释型 AI 入口，用于解释冲突、推荐理由和字段来源，不直接做长文创作。</p>
+                    </div>
+                    <span class="badge purple">轻量入口</span>
+                  </div>
+                  <div class="assistant-shortcuts" id="analysisAskButtons"></div>
+                  <div class="ask-ai-answer hidden" id="analysisAskAnswer"></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="step-actions" style="justify-content: space-between; margin-top: 18px">
+              <div class="meta-row muted" id="analysisHint">先确认关键候选值，再进入章节规划与生成。</div>
+              <div class="panel-actions">
+                <button class="button ghost" id="analysisBackButton">返回修改材料</button>
+                <button class="button primary" id="analysisConfirmButton">确认并生成章节规划</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="screen" data-view="progress">
+          <div class="section-card">
+            <div class="section-head">
+              <div>
+                <h3>生成进度页</h3>
+                <p>通过阶段进度、章节规划和日志摘要，让演示时能解释系统正在做什么，而不是只显示一个转圈。</p>
+              </div>
+              <div class="meta-row">
+                <span class="badge info" id="progressLabel">总进度 0%</span>
+                <button class="button ghost small" id="progressAdvanceButton">推进到下一阶段</button>
+                <button class="button primary small" id="progressCompleteButton">模拟完成生成</button>
+              </div>
+            </div>
+
+            <div class="app-card" style="margin-bottom: 16px">
+              <div class="toolbar" style="justify-content: space-between; margin-bottom: 12px">
+                <strong>总体进度</strong>
+                <span class="muted" id="progressCurrentStep">正在等待生成…</span>
+              </div>
+              <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+            </div>
+
+            <div class="progress-layout">
+              <div class="app-card">
+                <h4>当前阶段</h4>
+                <div class="timeline" id="timelineList"></div>
+              </div>
+              <div class="app-card">
+                <h4>章节规划预览</h4>
+                <div class="surface-list" id="chapterPlan"></div>
+                <div class="platform-strip" style="margin-top: 14px">
+                  <strong>知识资产命中说明</strong>
+                  <div class="muted" style="margin-top:6px">生成阶段会依次命中：材料池 → 历史模板库 → 条款库 → 行业知识库 → 评审规则库。</div>
+                </div>
+                <div class="log-card" style="margin-top: 14px">
+                  <h4 style="margin: 0 0 10px">日志摘要</h4>
+                  <div id="progressLogs"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="screen" data-view="editor">
+          <div class="section-card">
+            <div class="section-head">
+              <div>
+                <h3>编辑主工作台</h3>
+                <p>这页必须同时体现整稿、章节树、AI 助手工作区、依据抽屉、联动修订和合规审查闭环。</p>
+              </div>
+              <div class="meta-row" id="editorHeaderPills"></div>
+            </div>
+
+            <div class="toolbar" style="justify-content: space-between; margin-bottom: 18px">
+              <div class="meta-row muted" id="editorProjectLine"></div>
+              <div class="panel-actions">
+                <button class="button ghost" id="saveVersionButton">保存版本</button>
+                <button class="button secondary" id="rerunReviewButton">重新审查</button>
+                <button class="button primary" id="openExportButton">导出 DOCX</button>
+              </div>
+            </div>
+
+            <div class="workspace">
+              <div class="app-card">
+                <div class="section-head" style="margin-bottom: 12px">
+                  <div>
+                    <h4 style="margin: 0 0 6px">章节树</h4>
+                    <p class="muted">支持切换章节与锁定状态查看。</p>
+                  </div>
+                </div>
+                <div id="sectionTree"></div>
+                <div class="mini-panel" style="margin-top: 12px; padding: 14px">
+                  <h4 style="margin: 0 0 8px">章节状态说明</h4>
+                  <div class="meta-row">
+                    <span class="chip success">已生成</span>
+                    <span class="chip warn">待复核</span>
+                    <span class="chip danger">有风险</span>
+                    <span class="chip purple">已锁定</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="doc-frame">
+                <div class="doc-header">
+                  <div>
+                    <strong id="docSectionTitle">3. 采购需求与技术规范</strong>
+                    <div class="muted" id="docSectionMeta">当前章节支持重生成、章节锁定和依据查看。</div>
+                  </div>
+                  <div class="panel-actions">
+                    <button class="button ghost small" id="toggleLockButton">锁定章节</button>
+                    <button class="button secondary small" id="toggleCitationButton">查看引用依据</button>
+                  </div>
+                </div>
+                <div class="doc-content" id="docContent"></div>
+                <div class="drawer" id="citationDrawer"></div>
+              </div>
+
+              <div class="app-card assistant-layout">
+                <div>
+                  <div class="assistant-header">
+                    <div>
+                      <h4 style="margin: 0 0 6px">AI 助手工作区</h4>
+                      <p class="muted">结构化任务用按钮，模糊任务用对话，对话结果要能一键落回文档。</p>
+                    </div>
+                    <span class="badge purple">协同编制</span>
+                  </div>
+                  <div class="assistant-mode-line meta-row" id="assistantModeLine"></div>
+                  <div class="assistant-tabs" id="assistantTabs"></div>
+                </div>
+
+                <div>
+                  <div class="assistant-tab-pane active" data-assistant-tab="chat"></div>
+                  <div class="assistant-tab-pane" data-assistant-tab="actions"></div>
+                  <div class="assistant-tab-pane" data-assistant-tab="context"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="section-card">
+            <div class="section-head">
+              <div>
+                <h3>合规审查面板</h3>
+                <p>问题列表、问题详情、应用修复、忽略和再次审查形成一个完整的评审闭环。</p>
+              </div>
+              <div class="meta-row">
+                <span class="badge danger" id="openIssueCount">未处理 2</span>
+              </div>
+            </div>
+
+            <div class="review-layout">
+              <div class="issue-list" id="issueList"></div>
+              <div class="review-surface" id="issueDetail"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="screen" data-view="implementation">
+          <div class="section-card">
+            <div class="section-head">
+              <div>
+                <h3>前端实现拆解</h3>
+                <p>这部分在你确认交互后，可以直接作为真实开发的任务分解输入。</p>
+              </div>
+              <div class="meta-row">
+                <span class="badge purple">开发前置</span>
+                <span class="badge info">基于原型确认后执行</span>
+              </div>
+            </div>
+
+            <div class="grid-2">
+              <div class="app-card">
+                <h4>真实页面改造</h4>
+                <div class="breakdown-list">
+                  <div class="breakdown-item"><strong>1. 列表页</strong><span class="muted">增强状态卡片、项目卡密度、筛选与空态，参考 `src/renderer/pages/bid-projects/index.tsx`。</span></div>
+                  <div class="breakdown-item"><strong>2. 新建页</strong><span class="muted">把当前简单表单升级为分步式流程与材料池入口，参考 `src/renderer/pages/bid-projects/new.tsx`。</span></div>
+                  <div class="breakdown-item"><strong>3. 分析页</strong><span class="muted">拆为“材料解析 + 候选事实 + 项目画像 + 模板推荐 + 轻量问 AI + 资产来源展示”六块，参考 `src/renderer/pages/bid-projects/analysis.tsx`。</span></div>
+                  <div class="breakdown-item"><strong>4. 编辑页</strong><span class="muted">对齐三栏布局，把右侧升级为“AI 助手工作区（对话 / 动作 / 依据）”，同时增强知识资产命中和平台扩展表达。</span></div>
+                </div>
+              </div>
+
+              <div class="app-card">
+                <h4>共享组件与状态</h4>
+                <div class="breakdown-list">
+                  <div class="breakdown-item"><strong>项目状态标签组件</strong><span class="muted">映射草稿、待确认、生成中、已生成、审查中、已导出。</span></div>
+                  <div class="breakdown-item"><strong>进度时间线组件</strong><span class="muted">承载生成阶段、日志摘要和失败重试入口。</span></div>
+                  <div class="breakdown-item"><strong>来源系统表达组件</strong><span class="muted">前台表达上传文件、主数据导入、采购计划导入、历史项目复用等来源入口。</span></div>
+                  <div class="breakdown-item"><strong>知识资产命中组件</strong><span class="muted">前台表达历史模板库、条款库、行业知识库、评审规则库在当前生成中的作用。</span></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="platform-box" style="margin-top:16px">
+              <div class="section-head">
+                <div>
+                  <h4>后续扩展路径（方案表达）</h4>
+                  <p>建议在 PRD / 汇报 / 原型中明确告诉客户：当前先做编制，但不是止步于编制。</p>
+                </div>
+              </div>
+              <div class="breakdown-list">
+                <div class="breakdown-item"><strong>一期：招标文件编制</strong><span class="muted">项目创建、材料解析、字段确认、模板推荐、整稿生成、审查导出。</span></div>
+                <div class="breakdown-item"><strong>二期：投标文件解析</strong><span class="muted">接应标点识别、资质/业绩材料理解与投标文件结构化。</span></div>
+                <div class="breakdown-item"><strong>三期：评标辅助</strong><span class="muted">接评审规则、评分要点、辅助评标和报告输出。</span></div>
+                <div class="breakdown-item"><strong>四期：风险识别</strong><span class="muted">扩展到围串标检测、异常条款识别与全流程风险监测。</span></div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div class="modal" id="syncModal">
+      <div class="modal-card">
+        <div class="modal-head">
+          <div>
+            <h3>受影响章节识别</h3>
+            <div class="muted">当预算、工期、模板等关键字段变化时，系统建议更新这些章节。</div>
+          </div>
+          <button class="button ghost small" data-close-modal="syncModal">关闭</button>
+        </div>
+        <div class="breakdown-list" id="syncImpactList"></div>
+        <div class="step-actions" style="justify-content: flex-end; margin-top: 16px">
+          <button class="button ghost" data-close-modal="syncModal">取消</button>
+          <button class="button primary" id="applySyncButton">应用联动更新</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal" id="exportModal">
+      <div class="modal-card">
+        <div class="modal-head">
+          <div>
+            <h3>导出 DOCX</h3>
+            <div class="muted">导出前明确版本、选项与剩余风险，避免直接带着问题提交。</div>
+          </div>
+          <button class="button ghost small" data-close-modal="exportModal">关闭</button>
+        </div>
+
+        <div class="grid-2">
+          <div class="app-card">
+            <h4>导出范围</h4>
+            <div class="breakdown-list">
+              <button class="button ghost" data-version="latest">当前最新版本 V1.2</button>
+              <button class="button ghost" data-version="v1">指定版本 V1.0</button>
+            </div>
+          </div>
+          <div class="app-card">
+            <h4>导出选项</h4>
+            <div class="breakdown-list" id="exportOptions"></div>
+          </div>
+        </div>
+
+        <div class="review-warning hidden" id="exportRiskWarning"></div>
+
+        <div class="step-actions" style="justify-content: flex-end; margin-top: 18px">
+          <button class="button ghost" data-close-modal="exportModal">取消</button>
+          <button class="button primary" id="confirmExportButton">确认导出</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="toast-stack" id="toastStack"></div>
+
+    <script>
+      const prototypeState = {
+        currentView: 'overview',
+        history: ['overview'],
+        currentScenario: 'happy',
+        listFilter: 'all',
+        newProjectStep: 0,
+        uploadedFiles: [],
+        progressStage: 0,
+        currentSectionKey: 'technical',
+        assistantTab: 'chat',
+        citationOpen: false,
+        exportVersion: 'latest',
+        selectedIssueId: '',
+        analysisAskAnswer: '',
+        exportOptions: {
+          toc: true,
+          titles: true,
+          tables: true,
+          reviewAppendix: false,
+        },
+      };
+
+      const NAV_ITEMS = [
+        { key: 'overview', title: '00 概览', subtitle: '评审目标、状态预置、整体路径' },
+        { key: 'project-list', title: '01 项目列表', subtitle: '项目状态、筛选与下一步动作' },
+        { key: 'new-project', title: '02 新建项目', subtitle: '分步式创建、来源系统与材料池' },
+        { key: 'analysis', title: '03 材料分析', subtitle: '候选事实确认、模板推荐、资产来源、问 AI' },
+        { key: 'progress', title: '04 生成进度', subtitle: '阶段推进、章节规划、知识资产命中、日志摘要' },
+        { key: 'editor', title: '05 编辑工作台', subtitle: '正文、AI 助手工作区、依据、审查' },
+        { key: 'implementation', title: '06 前端拆解', subtitle: '交互确认后的真实开发顺序' },
+      ];
+
+      const assistantPrompts = {
+        explain: '解释这段',
+        formal: '改写更正式',
+        versions: '生成两个版本',
+        risk: '解释这个风险问题',
+        fix: '给我一个修复版本',
+        evidence: '这段依据够吗',
+      };
+
+      const sourceSystemBadges = ['上传文件（当前）', '主数据导入（后续）', '采购计划导入（后续）', '历史项目复用（后续）'];
+      const knowledgeAssetBadges = ['历史模板库', '条款库', '行业知识库', '评审规则库'];
+
+      const SCENARIOS = {
+        happy: {
+          name: '黄金路径',
+          description: '完整走通上传 → 确认 → 生成 → 编辑 → 导出。',
+          statusCards: [12, 3, 2, 8],
+          analysisError: '',
+          pendingConfirmCount: 2,
+          projectCards: [
+            { id: 'p1', name: '联通直接采购项目A', company: 'XX 联通', type: '货物类', updatedAt: '今天 14:32', status: '待确认字段', risk: '风险 2', template: '联通直接采购模板', view: 'analysis' },
+            { id: 'p2', name: '医疗设备采购项目B', company: 'XX 医院', type: '设备类', updatedAt: '昨天 18:20', status: '已生成初稿', risk: '风险 5', template: '设备采购通用模板', view: 'editor' },
+            { id: 'p3', name: '服务外包招标项目C', company: 'XX 集团', type: '服务类', updatedAt: '昨天 09:15', status: '草稿中', risk: '待上传材料', template: '未选择模板', view: 'new-project' },
+          ],
+          detectedFields: ['项目类型：货物类', '采购方式：直接采购', '行业：通信运营商', '缺失字段：1'],
+          analysisSummary: '系统已识别本项目为通信类货物采购，采购内容包含基础设备与实施服务，技术要求涉及交付周期、质保周期、安装调试与验收要求。',
+          analysisAskAnswers: {
+            whyTemplate: '系统优先推荐“联通直接采购模板”，因为采购方式已确认是直接采购，且行业画像命中通信运营商，历史模板中也存在高度相似的章节结构。',
+            whyConflict: '预算和工期来自不同材料，且历史模板中的旧值与新采购需求不一致，所以系统把它们标记为冲突字段，要求人工确认。',
+            whereFrom: '当前项目画像主要来自采购需求说明.docx 第 1-2 页与技术规范.pdf 第 3 页，其中项目类型、采购方式和行业特征由关键词和历史结构共同推断。',
+            missingField: '系统认为还缺少一个稳定字段，是因为工期候选值来自两个不同来源且置信度接近，尚未被人工确认。',
+          },
+          snippet: { text: '“本次采购内容为通信基础设备及配套实施服务，应满足指定区域网络能力升级需要。”', source: '来源：采购需求说明.docx 第 2 页' },
+          facts: {
+            budget: { selected: 'a', options: [{ id: 'a', label: '候选 A：300 万', source: '来源：采购需求说明.docx 第 2 页', confidence: '置信度 92%' }, { id: 'b', label: '候选 B：280 万', source: '来源：历史模板A.docx 第 1 页', confidence: '置信度 65%' }] },
+            duration: { selected: 'a', options: [{ id: 'a', label: '候选 A：30 天', source: '来源：技术规范.pdf 第 3 页', confidence: '置信度 88%' }, { id: 'b', label: '候选 B：45 天', source: '来源：历史模板A.docx 第 5 页', confidence: '置信度 44%' }] },
+          },
+          templates: [{ id: 'tpl-direct', title: '联通直接采购模板', reason: '采购方式 = 直接采购；行业 = 通信；历史模板匹配度高', recommended: true }, { id: 'tpl-device', title: '通信设备采购模板', reason: '技术规范结构相近，适合偏设备参数型项目', recommended: false }],
+          progress: {
+            stages: [{ label: '材料解析', percent: 12 }, { label: '关键事实抽取', percent: 24 }, { label: '模板匹配', percent: 35 }, { label: '章节规划', percent: 48 }, { label: '知识增强召回', percent: 60 }, { label: '第 1 章生成', percent: 68 }, { label: '第 2 章生成', percent: 84 }, { label: '合并整稿', percent: 100 }],
+            logs: [['等待开始解析材料。'], ['已读取 3 份材料，开始抽取候选字段。'], ['已从材料中提取 24 个关键事实。'], ['已根据项目画像生成 6 个章节。'], ['已命中企业知识库 8 条适用条款。'], ['当前正在生成：1. 招标公告'], ['当前正在生成：3. 采购需求与技术规范'], ['整稿已合并完成，可进入编辑。']],
+          },
+          sections: [
+            { key: 'notice', title: '1. 招标公告', status: 'success', locked: false, contentPrimary: ['本项目拟就通信基础设备及配套实施服务进行采购，现邀请符合条件的供应商参与响应。', '采购范围包括设备供货、安装、调试、验收与质保服务。'], contentAlt: ['现就指定区域网络能力升级项目进行采购，采购内容覆盖通信基础设备及配套服务。', '供应商应具备相应供货与实施能力，并按要求完成交付验收。'], citations: ['采购需求说明.docx 第 1 页', '企业条款库 NOTICE-03'] },
+            { key: 'qualification', title: '2. 投标人资格要求', status: 'warn', locked: false, contentPrimary: ['供应商应具有独立法人资格，并具备履行合同所必需的设备和专业技术能力。', '供应商需提供相关资质证明、业绩证明和法定代表人授权文件。'], contentAlt: ['响应单位应为依法登记设立的法人或其他组织，并具备本项目实施能力。', '需提供主体资格、授权、同类项目业绩及必要资质证明。'], citations: ['企业条款库 A12', '历史模板B 第 2 页'] },
+            { key: 'technical', title: '3. 采购需求与技术规范', status: 'current', locked: false, contentPrimary: ['本项目采购内容为通信基础设备及配套实施服务，需满足指定区域网络能力升级需要。', '投标人应根据采购清单、交付要求及实施计划完成供货、安装、调试、验收和质保服务。', '关键技术要求包括设备兼容性说明、扩容能力、质保承诺及交付时限。'], contentAlt: ['本项目需采购通信基础设备及相关实施能力，以支撑指定区域网络能力升级。', '技术响应中应明确设备参数、兼容性、实施方案、交付周期和售后保障内容。', '中标后应在约定周期内完成供货、安装调试与验收配合。'], citations: ['技术规范.pdf 第 3 页', '企业条款库 LT-023'] },
+            { key: 'business', title: '4. 商务条款', status: 'success', locked: false, contentPrimary: ['供应商应按约定付款节点、交付节点和质保要求履行合同。', '付款与验收口径应与采购计划及项目预算保持一致。'], contentAlt: ['商务响应中应明确供货周期、付款安排、违约责任和售后服务承诺。', '合同条款应与采购预算和项目实施计划保持一致。'], citations: ['商务模板 V3', '历史模板A 第 7 页'] },
+            { key: 'review', title: '5. 评审办法', status: 'danger', locked: false, contentPrimary: ['本项目采用综合评审法，从资格、商务、技术、价格等方面进行评审。', '评分规则和权重应依据采购类型与企业制度设定。'], contentAlt: ['评审应综合考虑资格满足度、技术响应度、商务承诺与报价合理性。', '各评分项需有明确权重和评分标准。'], citations: ['评审办法条款库 RULE-08'] },
+          ],
+          assistantContext: {
+            currentChapter: '3. 采购需求与技术规范',
+            mode: '基于当前章节',
+            context: ['已确认预算：300 万', '已确认工期：30 天', '当前模板：联通直接采购模板', '已选依据：技术规范.pdf 第 3 页'],
+          },
+          assistantMessages: [
+            { id: 'm1', role: 'user', text: '把这一章改得更正式一些，保留技术要求但弱化销售化表达。', timestamp: '14:42' },
+            { id: 'm2', role: 'ai', text: '可以。我会保持采购范围、交付职责和关键技术要求不变，把表达改成更偏规范性、招采文风的版本。', timestamp: '14:42', citations: ['技术规范.pdf 第 3 页', '企业条款库 LT-023'], resultTitle: 'AI 已生成一版可应用结果', resultText: '建议将当前章节改写为更偏规范性、少营销感的招采口径，同时保留关键技术要求、交付职责和时限。', applyActions: [{ key: 'replace', label: '替换当前章节', style: 'primary' }, { key: 'insert', label: '插入到光标后', style: 'outline-primary' }, { key: 'candidate', label: '设为备选方案', style: 'ghost' }] },
+          ],
+          issues: [
+            { id: 'i1', level: 'danger', title: '资格要求表述缺失关键限制条件', location: '2. 投标人资格要求', basis: '企业条款库 A12 / 历史模板B', fix: '补充主体资格、授权、同类项目业绩要求，并统一限制条件表述。', status: 'open', appliedText: '【已修复】补充了主体资格、授权与同类项目业绩要求，并统一资格限制条件。', sectionKey: 'qualification' },
+            { id: 'i2', level: 'warn', title: '商务条款中的付款口径与项目画像不一致', location: '4. 商务条款', basis: '历史模板A / 已确认字段', fix: '将付款节点与确认后的预算金额、验收节点保持一致。', status: 'open', appliedText: '【已修复】已将付款节点与预算金额、验收节点重新对齐。', sectionKey: 'business' },
+          ],
+          exportWarning: '当前仍有 1 条中风险问题未处理，建议先完成审查再正式导出。',
+        },
+        conflict: { name: '冲突较多', description: '用于评审字段冲突、模板犹豫和人工确认成本。', statusCards: [12, 6, 1, 10], analysisError: '', pendingConfirmCount: 4, projectCards: [{ id: 'p1', name: '联通直接采购项目A', company: 'XX 联通', type: '货物类', updatedAt: '今天 14:32', status: '待确认字段', risk: '风险 4', template: '模板待确认', view: 'analysis' }], detectedFields: ['项目类型：货物类', '采购方式：直接采购', '行业：通信运营商', '缺失字段：3'], analysisSummary: '系统从多个材料中提取到了互相冲突的预算金额、工期和资格要求描述，需要人工确认后才能稳定推荐模板。', analysisAskAnswers: { whyTemplate: '当前推荐仍偏向联通直接采购模板，但因为预算和工期都未稳定，系统只给出了一个低置信度推荐。', whyConflict: '冲突主要来自历史模板沿用了旧项目参数，而新采购需求里又给出了不同数值，所以必须人工拍板。', whereFrom: '工期来自技术规范与历史模板两个来源，预算来自采购需求说明与历史模板，系统无法仅靠置信度自动决策。', missingField: '缺失字段并不是真的空，而是“无法确认哪个值应该作为最终项目画像”。' }, snippet: { text: '“项目工期为 30 天” 与 “整体实施周期约 45 天” 同时出现在不同材料中。', source: '来源：技术规范.pdf / 历史模板A.docx' }, facts: { budget: { selected: null, options: [{ id: 'a', label: '候选 A：300 万', source: '来源：采购需求说明.docx', confidence: '置信度 54%' }, { id: 'b', label: '候选 B：280 万', source: '来源：历史模板A.docx', confidence: '置信度 52%' }] }, duration: { selected: null, options: [{ id: 'a', label: '候选 A：30 天', source: '来源：技术规范.pdf', confidence: '置信度 48%' }, { id: 'b', label: '候选 B：45 天', source: '来源：历史模板A.docx', confidence: '置信度 49%' }] } }, templates: [{ id: 'tpl-direct', title: '联通直接采购模板', reason: '采购方式命中，但工期和预算字段仍存在冲突', recommended: true }, { id: 'tpl-general', title: '通用货物采购模板', reason: '在字段尚未稳定时更安全，但行业贴合度较低', recommended: false }], progress: null, sections: null, assistantContext: { currentChapter: '3. 采购需求与技术规范', mode: '基于当前章节', context: ['预算未确认', '工期未确认', '当前模板推荐置信度较低', '建议优先走解释型 AI'] }, assistantMessages: [{ id: 'm1', role: 'user', text: '为什么你还推荐联通直接采购模板？', timestamp: '15:08' }, { id: 'm2', role: 'ai', text: '因为采购方式和行业画像仍然强命中该模板，但预算和工期冲突使得推荐置信度下降，所以建议先做字段确认。', timestamp: '15:08', citations: ['采购方式字段', '历史模板对比结果'], resultTitle: 'AI 给出的解释性结论', resultText: '当前不建议直接套模板起稿，先确认预算与工期会更稳妥。', applyActions: [{ key: 'candidate', label: '设为评审备注', style: 'ghost' }] }], issues: null, exportWarning: '当前字段冲突较多，建议至少完成预算与工期确认后再导出。' },
+        parseFail: { name: '解析失败', description: '用于评审异常提示、重解析与跳过策略。', statusCards: [12, 1, 0, 3], analysisError: '技术规范.pdf 解析失败：文件内容缺失或无法提取文本。你可以重试、替换文件，或先跳过该材料继续。', pendingConfirmCount: 1, projectCards: [{ id: 'p1', name: '联通直接采购项目A', company: 'XX 联通', type: '货物类', updatedAt: '今天 14:32', status: '解析异常', risk: '风险 1', template: '待推荐', view: 'analysis' }], detectedFields: ['项目类型：货物类', '采购方式：直接采购', '行业：通信运营商', '缺失字段：2'], analysisSummary: '部分材料解析失败，当前项目画像只基于成功材料生成，建议用户先替换异常文件或继续补充信息。', analysisAskAnswers: { whyTemplate: '当前模板推荐基于不完整输入，推荐可信度偏低，仅适合作为占位起点。', whyConflict: '这不是字段冲突，而是关键材料解析失败，导致系统无法拿到完整技术参数。', whereFrom: '当前画像主要来自采购需求说明，缺少技术规范的支撑。', missingField: '技术参数、部分工期和验收要求当前处于缺失状态。' }, snippet: { text: '系统仅从采购需求说明中提取到采购范围和部分资格条件。', source: '来源：采购需求说明.docx 第 1 页' }, facts: { budget: { selected: 'a', options: [{ id: 'a', label: '候选 A：300 万', source: '来源：采购需求说明.docx', confidence: '置信度 84%' }] }, duration: { selected: null, options: [{ id: 'a', label: '候选 A：待人工填写', source: '技术规范缺失', confidence: '置信度 --' }] } }, templates: [{ id: 'tpl-direct', title: '联通直接采购模板', reason: '当前依据仍不足，推荐结果为低置信度', recommended: true }], progress: null, sections: null, assistantContext: { currentChapter: '3. 采购需求与技术规范', mode: '解释型分析', context: ['技术规范文件解析失败', '画像仅基于采购需求说明', '建议优先补传材料'] }, assistantMessages: [{ id: 'm1', role: 'user', text: '现在可以直接生成吗？', timestamp: '15:22' }, { id: 'm2', role: 'ai', text: '可以生成基础稿，但技术参数章节将明显不完整，更建议先补传可解析版本。', timestamp: '15:22', citations: ['材料解析状态', '项目画像缺失字段'], resultTitle: 'AI 给出的决策建议', resultText: '更适合先补传文件，再继续生成。', applyActions: [{ key: 'candidate', label: '设为项目备注', style: 'ghost' }] }], issues: [{ id: 'i1', level: 'warn', title: '材料解析不完整，技术参数章节可能缺失', location: '3. 采购需求与技术规范', basis: '材料解析状态', fix: '补传可解析版本或人工填写关键技术参数。', status: 'open', appliedText: '【已补充】已补充关键技术参数占位说明。', sectionKey: 'technical' }], exportWarning: '当前有材料解析失败，导出的初稿可能缺失部分技术条款。' },
+        exportRisk: { name: '导出前高风险', description: '用于评审导出前风险提醒是否足够强。', statusCards: [12, 1, 0, 6], analysisError: '', pendingConfirmCount: 0, projectCards: [{ id: 'p1', name: '联通直接采购项目A', company: 'XX 联通', type: '货物类', updatedAt: '今天 16:05', status: '待导出', risk: '高风险 1', template: '联通直接采购模板', view: 'editor' }], detectedFields: ['项目类型：货物类', '采购方式：直接采购', '行业：通信运营商', '缺失字段：0'], analysisSummary: '项目画像与模板已经稳定，但审查仍命中高风险问题，导出时必须做明确提醒。', analysisAskAnswers: { whyTemplate: '模板已经稳定，不是模板问题，而是正文条款仍与企业规范存在冲突。', whyConflict: '当前没有字段冲突，问题主要在审查层。', whereFrom: '高风险来自资格要求章节与条款库校验结果。', missingField: '当前不是缺字段，而是缺修复。' }, snippet: { text: '系统已检测到资格要求章节与集团规范口径不一致。', source: '来源：审查规则引擎' }, facts: null, templates: null, progress: null, sections: null, assistantContext: { currentChapter: '2. 投标人资格要求', mode: '基于审查问题', context: ['存在 1 条高风险问题', '导出前需要强提醒', '建议先修复再提交'] }, assistantMessages: [{ id: 'm1', role: 'user', text: '如果我现在就导出，会有什么风险？', timestamp: '16:06' }, { id: 'm2', role: 'ai', text: '可以导出用于内部流转，但不建议直接提交，因为资格要求仍可能缺失关键限制条件，存在合规风险。', timestamp: '16:06', citations: ['企业条款库 A12', '当前审查高风险问题'], resultTitle: 'AI 风险判断', resultText: '适合内部流转，不建议直接提交。', applyActions: [{ key: 'fix', label: '先修复再导出', style: 'outline-success' }, { key: 'candidate', label: '保留为导出提醒', style: 'ghost' }] }], issues: [{ id: 'i1', level: 'danger', title: '资格要求可能缺失必要限制条件', location: '2. 投标人资格要求', basis: '企业条款库 A12', fix: '补充并统一限制条件表述。', status: 'open', appliedText: '【已修复】已补充资格限制条件并统一措辞。', sectionKey: 'qualification' }, { id: 'i2', level: 'warn', title: '付款节点表述与预算口径不一致', location: '4. 商务条款', basis: '预算字段 / 商务模板', fix: '调整付款节点与预算口径。', status: 'open', appliedText: '【已修复】已调整付款节点和预算口径。', sectionKey: 'business' }], exportWarning: '当前仍有 1 条高风险问题未处理。若继续导出，应明确提示“仅供内部流转，不建议直接提交”。' },
+      };
+
+      const happyProgress = SCENARIOS.happy.progress;
+      const happySections = SCENARIOS.happy.sections;
+      const happyIssues = SCENARIOS.happy.issues;
+      for (const key of ['conflict', 'parseFail', 'exportRisk']) {
+        if (!SCENARIOS[key].progress) SCENARIOS[key].progress = JSON.parse(JSON.stringify(happyProgress));
+        if (!SCENARIOS[key].sections) SCENARIOS[key].sections = JSON.parse(JSON.stringify(happySections));
+        if (!SCENARIOS[key].issues) SCENARIOS[key].issues = JSON.parse(JSON.stringify(happyIssues));
+      }
+
+      const NEW_PROJECT_FIELDS = [['项目名称 *', '联通直接采购项目A'], ['采购单位 *', 'XX 联通'], ['项目类型 *', '货物类'], ['所属行业', '通信运营商'], ['采购方式', '直接采购'], ['预算金额', '300 万'], ['地区 / 适用规范', '江苏省 / 集团规范'], ['工期 / 交付周期', '30 天']];
+      const MOCK_FILES = [{ id: 'f1', name: '采购需求说明.docx', size: '2.1 MB' }, { id: 'f2', name: '技术规范.pdf', size: '5.7 MB' }, { id: 'f3', name: '历史模板A.docx', size: '1.3 MB' }];
+
+      function getScenario() { return SCENARIOS[prototypeState.currentScenario]; }
+      function pushHistory(view) { const last = prototypeState.history[prototypeState.history.length - 1]; if (last !== view) prototypeState.history.push(view); }
+      function setView(view, useHistory = true) { prototypeState.currentView = view; if (useHistory) pushHistory(view); render(); }
+      function goBack() { if (prototypeState.history.length <= 1) return; prototypeState.history.pop(); prototypeState.currentView = prototypeState.history[prototypeState.history.length - 1]; render(); }
+      function nextFlowView() { const order = ['overview', 'project-list', 'new-project', 'analysis', 'progress', 'editor', 'implementation']; const index = order.indexOf(prototypeState.currentView); setView(order[Math.min(order.length - 1, index + 1)]); }
+      function toast(message, type = 'info') { const stack = document.getElementById('toastStack'); const item = document.createElement('div'); item.className = `toast ${type}`; item.textContent = message; stack.appendChild(item); setTimeout(() => { item.style.opacity = '0'; item.style.transform = 'translateY(10px)'; }, 2200); setTimeout(() => item.remove(), 2800); }
+      function openModal(id) { document.getElementById(id).classList.add('active'); }
+      function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+      function visibleIssues() { return getScenario().issues.filter((item) => item.status === 'open'); }
+      function selectedSection() { return getScenario().sections.find((item) => item.key === prototypeState.currentSectionKey) || getScenario().sections[0]; }
+      function addAssistantExchange(userText, aiText, citations = [], resultTitle = '', resultText = '', applyActions = []) { const scenario = getScenario(); const time = new Date(); const stamp = `${String(time.getHours()).padStart(2, '0')}:${String(time.getMinutes()).padStart(2, '0')}`; scenario.assistantMessages.push({ id: `m${Date.now()}`, role: 'user', text: userText, timestamp: stamp }); scenario.assistantMessages.push({ id: `m${Date.now() + 1}`, role: 'ai', text: aiText, timestamp: stamp, citations, resultTitle, resultText, applyActions }); }
+      function applyResultToDocument(actionKey) { const section = selectedSection(); if (!section) return; if (actionKey === 'replace') { section.variant = 'alt'; toast('AI 结果已替换当前章节。', 'success'); } else if (actionKey === 'insert') { section.contentPrimary.push('【插入结果】已将 AI 生成版本插入到当前章节后。'); section.contentAlt.push('【插入结果】已将 AI 生成版本插入到当前章节后。'); toast('AI 结果已插入到当前章节后。', 'success'); } else if (actionKey === 'candidate') { toast('AI 结果已保存为备选方案。', 'info'); } else if (actionKey === 'fix') { toast('已切换为“先修复再导出”的推荐路径。', 'success'); } renderEditor(); }
+
+      function renderNav() {
+        document.getElementById('navList').innerHTML = NAV_ITEMS.map((item) => `<button class="nav-item ${prototypeState.currentView === item.key ? 'active' : ''}" data-view-target="${item.key}"><strong>${item.title}</strong><span>${item.subtitle}</span></button>`).join('');
+        document.getElementById('scenarioList').innerHTML = Object.entries(SCENARIOS).map(([key, value]) => `<button class="scenario-button ${prototypeState.currentScenario === key ? 'active' : ''}" data-scenario="${key}"><strong>${value.name}</strong><span>${value.description}</span></button>`).join('');
+      }
+
+      function renderTopbar() {
+        const currentNav = NAV_ITEMS.find((item) => item.key === prototypeState.currentView) || NAV_ITEMS[0];
+        document.getElementById('breadcrumb').textContent = `产品原型 / AI 招标文件编制 / ${currentNav.title}`;
+        document.getElementById('pageTitle').textContent = currentNav.title.replace(/^\d+\s*/, '');
+        document.getElementById('pageSubtitle').textContent = currentNav.subtitle;
+        document.getElementById('backButton').disabled = prototypeState.history.length <= 1;
+      }
+
+      function renderScreens() { document.querySelectorAll('.screen').forEach((screen) => screen.classList.toggle('active', screen.dataset.view === prototypeState.currentView)); }
+
+      function renderProjectList() {
+        const scenario = getScenario();
+        const [allCount, pendingCount, generatingCount, riskCount] = scenario.statusCards;
+        document.getElementById('statsGrid').innerHTML = [['全部项目', allCount], ['待确认字段', pendingCount], ['生成中', generatingCount], ['未处理风险项', riskCount]].map(([label, value]) => `<div class="stats-card"><b>${value}</b><span>${label}</span></div>`).join('');
+        document.getElementById('listFilter').innerHTML = [['all', '全部'], ['pending', '待确认'], ['generated', '已生成'], ['risk', '有风险']].map(([key, label]) => `<button class="button ${prototypeState.listFilter === key ? 'secondary' : 'ghost'} small" data-filter="${key}">${label}</button>`).join('');
+        const list = scenario.projectCards.filter((item) => {
+          if (prototypeState.listFilter === 'pending') return item.status.includes('待确认') || item.status.includes('解析异常');
+          if (prototypeState.listFilter === 'generated') return item.status.includes('已生成') || item.status.includes('待导出');
+          if (prototypeState.listFilter === 'risk') return item.risk.includes('风险');
+          return true;
+        });
+        document.getElementById('projectListPanel').innerHTML = list.length ? list.map((project) => `<div class="list-row"><div class="title-group"><strong>${project.name}</strong><span class="muted">采购单位：${project.company} ｜ 项目类型：${project.type} ｜ 更新时间：${project.updatedAt}</span><div class="meta-row"><span class="badge ${project.status.includes('已生成') || project.status.includes('待导出') ? 'success' : project.status.includes('草稿') ? 'info' : 'warn'}">${project.status}</span><span class="badge ${project.risk.includes('高风险') || project.risk.includes('风险 4') || project.risk.includes('风险 5') ? 'danger' : project.risk.includes('风险') ? 'warn' : 'info'}">${project.risk}</span><span class="badge info">模板：${project.template}</span></div></div><div class="inline-actions"><button class="button primary small" data-open-project="${project.view}">${project.view === 'new-project' ? '继续填写' : project.view === 'analysis' ? '继续编制' : '进入编辑'}</button><button class="button ghost small" data-open-project="${project.view}">查看详情</button></div></div>`).join('') : `<div class="empty-card"><h4>没有符合筛选条件的项目</h4><p class="muted">切换筛选条件或创建新项目继续。</p></div>`;
+      }
+
+      function renderNewProject() {
+        document.getElementById('stepSummary').innerHTML = [0, 1, 2].map((index) => `<span class="badge ${prototypeState.newProjectStep === index ? 'info' : index < prototypeState.newProjectStep ? 'success' : 'warn'}">Step ${index + 1}</span>`).join('');
+        document.getElementById('stepper').innerHTML = ['基础信息', '上传材料', '确认解析'].map((title, index) => `<div class="step-pill ${prototypeState.newProjectStep === index ? 'active' : index < prototypeState.newProjectStep ? 'done' : ''}">${index + 1}. ${title}</div>`).join('');
+        document.querySelectorAll('.step-stage').forEach((stage) => stage.classList.toggle('active', Number(stage.dataset.step) === prototypeState.newProjectStep));
+        document.getElementById('basicInfoGrid').innerHTML = NEW_PROJECT_FIELDS.map(([label, value]) => `<div class="field"><label>${label}</label><div class="field-box">${value}</div></div>`).join('');
+        document.getElementById('remarkBox').textContent = '本项目拟采购通信基础设备及配套实施服务，用于完成指定区域网络能力升级。需覆盖采购背景、采购范围、关键技术要求、商务要求、质保要求与交付验收条件。';
+        document.getElementById('uploadList').innerHTML = prototypeState.uploadedFiles.length ? prototypeState.uploadedFiles.map((file) => `<div class="list-row"><div class="title-group"><strong>${file.name}</strong><span class="muted">${file.size} ｜ 上传来源：本地文件</span></div><div class="inline-actions"><span class="badge success">已上传</span><button class="button ghost small" data-remove-file="${file.id}">删除</button></div></div>`).join('') : `<div class="empty-card"><h4>还没有上传材料</h4><p class="muted">点击“模拟上传文件”，会按顺序加入预设材料。</p></div>`;
+        document.getElementById('reviewProjectName').textContent = '联通直接采购项目A';
+        document.getElementById('reviewMethod').textContent = '直接采购';
+        document.getElementById('reviewFileCount').textContent = `${prototypeState.uploadedFiles.length} 份材料`;
+        document.getElementById('stepBackButton').disabled = prototypeState.newProjectStep === 0;
+        const nextButton = document.getElementById('stepNextButton');
+        const hasFiles = prototypeState.uploadedFiles.length > 0;
+        if (prototypeState.newProjectStep === 0) { nextButton.textContent = '进入上传材料'; nextButton.disabled = false; }
+        else if (prototypeState.newProjectStep === 1) { nextButton.textContent = '进入提交确认'; nextButton.disabled = !hasFiles; }
+        else { nextButton.textContent = '开始解析材料'; nextButton.disabled = !hasFiles; }
+      }
+
+      function candidateTemplateReason(selectedBudget) {
+        if (prototypeState.currentScenario === 'conflict' && !selectedBudget) return [{ id: 'tpl-direct', title: '联通直接采购模板', reason: '采购方式命中，但预算和工期仍存在冲突，推荐可信度一般', recommended: true }, { id: 'tpl-general', title: '通用货物采购模板', reason: '在字段尚未稳定时更保守，但行业贴合度较低', recommended: false }];
+        if (selectedBudget === 'b') return [{ id: 'tpl-device', title: '通信设备采购模板', reason: '预算较低且参数型特征更明显，推荐切到设备型结构', recommended: true }, { id: 'tpl-direct', title: '联通直接采购模板', reason: '仍可使用，但商务条款需做更多人工修订', recommended: false }];
+        return getScenario().templates;
+      }
+
+      function renderAnalysis() {
+        const scenario = getScenario();
+        document.getElementById('analysisStatusBadge').textContent = `待确认 ${scenario.pendingConfirmCount}`;
+        const errorBox = document.getElementById('analysisErrorBox');
+        errorBox.textContent = scenario.analysisError; errorBox.classList.toggle('hidden', !scenario.analysisError);
+        document.getElementById('sourceList').innerHTML = prototypeState.uploadedFiles.length ? prototypeState.uploadedFiles.map((file, index) => `<div class="list-row"><div class="title-group"><strong>${file.name}</strong><span class="muted">${index === 1 && prototypeState.currentScenario === 'parseFail' ? '解析失败 ｜ 请重试或替换文件' : index === 2 ? '解析成功 ｜ 命中可复用章节 4 个' : '解析成功 ｜ 摘要 + 候选事实 + 引用片段'}</span></div><span class="badge ${index === 1 && prototypeState.currentScenario === 'parseFail' ? 'danger' : 'success'}">${index === 1 && prototypeState.currentScenario === 'parseFail' ? '失败' : '成功'}</span></div>`).join('') : `<div class="empty-card"><h4>尚未上传材料</h4><p class="muted">可以先返回上一步补充材料。</p></div>`;
+        document.getElementById('analysisSummary').textContent = scenario.analysisSummary;
+        document.getElementById('snippetText').textContent = scenario.snippet.text;
+        document.getElementById('snippetSource').textContent = scenario.snippet.source;
+        document.getElementById('detectedFieldChips').innerHTML = scenario.detectedFields.map((item) => `<span class="chip info">${item}</span>`).join('');
+        document.getElementById('factCandidates').innerHTML = Object.entries(scenario.facts).map(([fieldKey, group]) => `<div class="mini-panel" style="padding:14px; margin-bottom:12px"><h4 style="margin:0 0 10px">${fieldKey === 'budget' ? '冲突字段：预算金额' : '候选字段：工期'}</h4><div class="breakdown-list">${group.options.map((option) => `<div class="candidate-card ${group.selected === option.id ? 'active' : ''}"><strong>${option.label}</strong><div class="muted">${option.source}</div><div class="muted">${option.confidence}</div><div class="panel-actions" style="margin-top:10px"><button class="button ${group.selected === option.id ? 'primary' : 'ghost'} small" data-select-fact="${fieldKey}:${option.id}">${group.selected === option.id ? '已采用' : '采用'}</button>${fieldKey === 'budget' ? `<button class="button ghost small" data-manual-fill="${fieldKey}">手动填写</button>` : ''}</div></div>`).join('')}</div></div>`).join('');
+        document.getElementById('templateList').innerHTML = candidateTemplateReason(scenario.facts.budget.selected).map((tpl) => `<div class="template-card" style="margin-bottom:10px"><div class="section-head" style="margin-bottom:8px"><div><h4 style="margin:0 0 4px">${tpl.title}</h4><p class="muted">${tpl.reason}</p></div><span class="badge ${tpl.recommended ? 'success' : 'info'}">${tpl.recommended ? '推荐' : '候选'}</span></div><div class="panel-actions"><button class="button ${tpl.recommended ? 'secondary' : 'ghost'} small">${tpl.recommended ? '当前推荐' : '切换模板'}</button></div></div>`).join('');
+        document.getElementById('analysisAskButtons').innerHTML = [['whyTemplate', '为什么推荐这个模板？'], ['whyConflict', '为什么这两个值冲突？'], ['whereFrom', '这个字段是从哪来的？'], ['missingField', '为什么系统说还缺字段？']].map(([key, label]) => `<button class="assistant-shortcut" data-analysis-ask="${key}">${label}</button>`).join('');
+        const answerBox = document.getElementById('analysisAskAnswer'); answerBox.classList.toggle('hidden', !prototypeState.analysisAskAnswer); answerBox.innerHTML = prototypeState.analysisAskAnswer ? `<strong>AI 解释</strong><p class="muted" style="margin-top:8px">${prototypeState.analysisAskAnswer}</p>` : '';
+        document.getElementById('analysisHint').textContent = scenario.analysisError ? '当前存在解析异常，可先重试或跳过异常材料后继续。' : '先确认关键候选值，再进入章节规划与生成。';
+      }
+
+      function renderProgress() {
+        const progress = getScenario().progress; const current = progress.stages[prototypeState.progressStage];
+        document.getElementById('progressLabel').textContent = `总进度 ${current.percent}%`;
+        document.getElementById('progressCurrentStep').textContent = current.label;
+        document.getElementById('progressFill').style.width = `${current.percent}%`;
+        document.getElementById('timelineList').innerHTML = progress.stages.map((stage, index) => `<div class="timeline-item ${index === prototypeState.progressStage ? 'active' : ''}"><strong>${stage.label}</strong><span class="badge ${index < prototypeState.progressStage || (prototypeState.progressStage === progress.stages.length - 1 && index === prototypeState.progressStage) ? 'success' : index === prototypeState.progressStage ? 'warn' : 'info'}">${index < prototypeState.progressStage || (prototypeState.progressStage === progress.stages.length - 1 && index === prototypeState.progressStage) ? '已完成' : index === prototypeState.progressStage ? '进行中' : '等待中'}</span></div>`).join('');
+        document.getElementById('chapterPlan').innerHTML = getScenario().sections.map((section, index) => `<div class="list-row"><div class="title-group"><strong>${section.title}</strong><span class="muted">${index === prototypeState.progressStage % getScenario().sections.length ? '当前高亮章节' : '待生成或已规划'}</span></div><span class="badge ${index === prototypeState.progressStage % getScenario().sections.length ? 'warn' : 'info'}">${index === prototypeState.progressStage % getScenario().sections.length ? '当前' : '规划中'}</span></div>`).join('');
+        document.getElementById('progressLogs').innerHTML = progress.logs[prototypeState.progressStage].map((log) => `<div class="log-card" style="margin-bottom:8px">${log}</div>`).join('');
+      }
+
+      function renderAssistantChatPane(scenario) {
+        return `
+          <div class="assistant-context-card" style="margin-bottom:12px"><strong>当前上下文</strong><div class="muted" style="margin-top:6px">AI 当前基于“${scenario.assistantContext.currentChapter}”回答，并会优先使用已确认字段与已选依据。</div></div>
+          <div class="assistant-messages">${scenario.assistantMessages.map((message) => `<div class="assistant-message ${message.role}"><div class="assistant-message-header"><div class="message-role"><span class="message-avatar ${message.role}">${message.role === 'user' ? '你' : 'AI'}</span>${message.role === 'user' ? '你' : 'AI 助手'}</div><div class="message-meta muted">${message.timestamp || '--:--'} · ${message.role === 'user' ? '基于当前章节提问' : '已读取当前上下文'}</div></div><div class="message-bubble">${message.text}</div>${message.citations?.length ? `<div class="message-citation-box"><strong>参考依据</strong><div class="muted" style="margin-top:6px">${message.citations.join('；')}</div></div>` : ''}${message.resultTitle ? `<div class="message-result-card"><strong>${message.resultTitle}</strong><div class="muted" style="margin-top:6px">${message.resultText}</div><div class="message-apply-row">${message.applyActions.map((action) => `<button class="button ${action.style || 'ghost'} small" data-apply-result="${action.key}">${action.label}</button>`).join('')}</div></div>` : ''}</div>`).join('')}</div>
+          <div class="assistant-shortcuts">${Object.values(assistantPrompts).map((item) => `<button class="assistant-shortcut" data-assistant-shortcut="${item}">${item}</button>`).join('')}</div>
+          <div class="assistant-composer"><div class="assistant-input">试试输入：把这一章改成更偏联通直接采购风格，并保留现有技术要求。</div><button class="button primary" id="assistantSendButton">发送</button></div>
+        `;
+      }
+
+      function renderAssistantActionsPane() {
+        return `
+          <div class="assistant-action-list">
+            <div class="assistant-action-card"><strong>当前章节</strong><div class="panel-actions" style="margin-top:10px"><button class="button primary small" id="rewriteSectionButton">重生成当前章节</button><button class="button ghost small" id="insertVariantButton">插入备选条款</button></div></div>
+            <div class="assistant-action-card"><strong>全文联动</strong><div class="panel-actions" style="margin-top:10px"><button class="button secondary small" id="identifyImpactButton">识别受影响章节</button></div></div>
+            <div class="assistant-action-card"><strong>审查辅助</strong><div class="panel-actions" style="margin-top:10px"><button class="button ghost small" data-assistant-shortcut="${assistantPrompts.risk}">解释当前风险</button><button class="button ghost small" data-assistant-shortcut="${assistantPrompts.fix}">给我一个修复版本</button></div></div>
+            <div class="assistant-action-card"><strong>依据辅助</strong><div class="panel-actions" style="margin-top:10px"><button class="button ghost small" id="toggleCitationButtonInline">查看当前引用依据</button><button class="button ghost small" data-assistant-shortcut="${assistantPrompts.evidence}">检查当前段落依据</button></div></div>
+          </div>
+        `;
+      }
+
+      function renderAssistantContextPane(scenario, section) {
+        return `<div class="assistant-context-grid">${scenario.assistantContext.context.map((item) => `<div class="assistant-context-card"><strong>${item}</strong><div class="muted" style="margin-top:6px">这是 AI 当前用于回答和生成的重要上下文之一。</div></div>`).join('')}<div class="assistant-context-card"><strong>已选引用依据</strong><div class="muted" style="margin-top:6px">${section.citations.join('；')}</div></div><div class="assistant-context-card"><strong>结构化资产来源</strong><div class="muted" style="margin-top:6px">${knowledgeAssetBadges.join('、')}</div></div><div class="assistant-context-card"><strong>来源系统输入</strong><div class="muted" style="margin-top:6px">${sourceSystemBadges.join('、')}</div></div></div>`;
+      }
+
+      function renderEditor() {
+        const scenario = getScenario(); const section = selectedSection();
+        document.getElementById('editorHeaderPills').innerHTML = `<span class="badge success">已生成初稿</span><span class="badge ${visibleIssues().some((item) => item.level === 'danger') ? 'danger' : 'warn'}">未处理风险 ${visibleIssues().length}</span><span class="badge info">版本 V1.0</span><span class="badge cyan">平台化表达已开启</span>`;
+        document.getElementById('editorProjectLine').innerHTML = `项目：联通直接采购项目A <span class="chip info">当前模板：${candidateTemplateReason(scenario.facts.budget.selected)[0].title}</span>`;
+        document.getElementById('sectionTree').innerHTML = scenario.sections.map((item) => `<div class="section-item ${item.key === prototypeState.currentSectionKey ? 'active' : ''}" data-section="${item.key}"><div class="section-head" style="margin-bottom:0"><div><h4 style="margin:0 0 4px; font-size:15px">${item.title}</h4><p class="muted">${item.key === 'technical' ? '核心生成章节' : '支持局部修订和状态查看'}</p></div><span class="badge ${item.locked ? 'purple' : item.key === prototypeState.currentSectionKey ? 'info' : item.status === 'danger' ? 'danger' : item.status === 'warn' ? 'warn' : 'success'}">${item.locked ? '已锁定' : item.key === prototypeState.currentSectionKey ? '当前' : item.status === 'danger' ? '风险' : item.status === 'warn' ? '待复核' : '已生成'}</span></div></div>`).join('');
+        document.getElementById('docSectionTitle').textContent = section.title;
+        document.getElementById('docSectionMeta').textContent = section.locked ? '当前章节已锁定，重生成不会覆盖它。' : '当前章节支持重生成、章节锁定和依据查看。';
+        document.getElementById('toggleLockButton').textContent = section.locked ? '解除锁定' : '锁定章节';
+        const paragraphs = section.variant === 'alt' ? section.contentAlt : section.contentPrimary;
+        document.getElementById('docContent').innerHTML = paragraphs.map((line, index) => `<p class="${index === paragraphs.length - 1 && section.key === 'technical' ? 'doc-highlight' : ''}">${line}</p>`).join('');
+        const drawer = document.getElementById('citationDrawer'); drawer.classList.toggle('active', prototypeState.citationOpen);
+        drawer.innerHTML = `<div class="section-head" style="margin-bottom:10px"><div><h4 style="margin:0 0 6px">引用依据抽屉</h4><p class="muted">展示来源材料、知识库条款与后续 citations 预留位。</p></div></div><div class="surface-list">${section.citations.map((item) => `<div class="list-row"><div class="title-group"><strong>${item}</strong><span class="muted">可用于正文旁注、依据抽屉或后续 citations 展示。</span></div><button class="button ghost small">查看原文</button></div>`).join('')}</div><div class="platform-strip"><strong>知识资产来源</strong><div class="muted" style="margin-top:6px">当前章节可能同时使用：${knowledgeAssetBadges.join('、')}。</div></div>`;
+        document.getElementById('assistantModeLine').innerHTML = `<span class="chip info">当前章节：${scenario.assistantContext.currentChapter}</span><span class="chip purple">当前模式：${scenario.assistantContext.mode}</span><span class="chip cyan">资产命中：${knowledgeAssetBadges.length} 类</span>`;
+        document.getElementById('assistantTabs').innerHTML = [['chat', '对话'], ['actions', '动作'], ['context', '依据 / 上下文']].map(([key, label]) => `<button class="assistant-tab-button ${prototypeState.assistantTab === key ? 'active' : ''}" data-assistant-tab-target="${key}">${label}</button>`).join('');
+        document.querySelectorAll('.assistant-tab-pane').forEach((pane) => pane.classList.toggle('active', pane.dataset.assistantTab === prototypeState.assistantTab));
+        document.querySelector('.assistant-tab-pane[data-assistant-tab="chat"]').innerHTML = renderAssistantChatPane(scenario);
+        document.querySelector('.assistant-tab-pane[data-assistant-tab="actions"]').innerHTML = renderAssistantActionsPane();
+        document.querySelector('.assistant-tab-pane[data-assistant-tab="context"]').innerHTML = renderAssistantContextPane(scenario, section);
+        document.getElementById('openIssueCount').textContent = `未处理 ${visibleIssues().length}`;
+        document.getElementById('issueList').innerHTML = scenario.issues.map((issue) => `<div class="issue-card ${prototypeState.selectedIssueId === issue.id ? 'active' : ''} ${issue.status}" data-issue="${issue.id}"><div class="muted" style="text-transform:uppercase; margin-bottom:6px">${issue.level}</div><strong>${issue.title}</strong><div class="muted" style="margin-top:6px">${issue.location}</div></div>`).join('');
+        const currentIssue = scenario.issues.find((item) => item.id === prototypeState.selectedIssueId) || scenario.issues[0]; prototypeState.selectedIssueId = currentIssue?.id || '';
+        document.getElementById('issueDetail').innerHTML = currentIssue ? `<div class="section-head"><div><h4 style="margin:0 0 6px">${currentIssue.title}</h4><p class="muted">定位：${currentIssue.location}</p></div><span class="badge ${currentIssue.level === 'danger' ? 'danger' : 'warn'}">${currentIssue.level === 'danger' ? '高风险' : '中风险'}</span></div><div class="breakdown-list"><div class="breakdown-item"><strong>依据来源</strong><span class="muted">${currentIssue.basis}</span></div><div class="breakdown-item"><strong>修复建议</strong><span class="muted">${currentIssue.fix}</span></div><div class="breakdown-item"><strong>平台层来源</strong><span class="muted">这个问题不仅来自正文扫描，也来自评审规则库与条款库共同校验。</span></div></div><div class="issue-context-row" style="margin-top:16px"><button class="button warn" id="applyIssueFixButton">一键修复</button><button class="button ghost" id="ignoreIssueButton">忽略问题</button><button class="button secondary" id="chatAboutIssueButton">带着问题去问 AI</button></div>` : '<div class="empty-card"><h4>没有审查问题</h4><p class="muted">当前版本无待处理问题。</p></div>';
+      }
+
+      function renderImplementation() {}
+
+      function renderExportModal() {
+        document.getElementById('exportOptions').innerHTML = [['toc', '包含目录'], ['titles', '保留章节标题'], ['tables', '保留表格'], ['reviewAppendix', '附带审查问题清单']].map(([key, label]) => `<div class="breakdown-item"><label class="checkbox-row" style="justify-content:space-between; cursor:pointer"><strong style="margin:0">${label}</strong><input type="checkbox" data-export-option="${key}" ${prototypeState.exportOptions[key] ? 'checked' : ''} /></label></div>`).join('');
+        document.querySelectorAll('[data-version]').forEach((button) => button.classList.toggle('secondary', button.dataset.version === prototypeState.exportVersion));
+        const warning = document.getElementById('exportRiskWarning'); warning.textContent = visibleIssues().some((item) => item.level === 'danger') ? getScenario().exportWarning : '当前没有高风险问题，适合继续导出。'; warning.classList.toggle('hidden', false);
+      }
+
+      function render() { renderNav(); renderTopbar(); renderScreens(); renderProjectList(); renderNewProject(); renderAnalysis(); renderProgress(); renderEditor(); renderImplementation(); renderExportModal(); }
+
+      function bindEvents() {
+        document.body.addEventListener('click', (event) => {
+          const target = event.target; if (!(target instanceof HTMLElement)) return;
+          const viewTarget = target.closest('[data-view-target]'); if (viewTarget) return setView(viewTarget.dataset.viewTarget);
+          const scenarioTarget = target.closest('[data-scenario]');
+          if (scenarioTarget) { prototypeState.currentScenario = scenarioTarget.dataset.scenario; prototypeState.progressStage = 0; prototypeState.currentSectionKey = 'technical'; prototypeState.assistantTab = 'chat'; prototypeState.citationOpen = false; prototypeState.selectedIssueId = ''; prototypeState.analysisAskAnswer = ''; render(); return toast(`已切换到“${getScenario().name}”预置场景`, 'info'); }
+          if (target.id === 'backButton') return goBack();
+          if (target.id === 'nextButton') return nextFlowView();
+          if (target.id === 'openExportTopButton' || target.id === 'openExportButton') return openModal('exportModal');
+          if (target.id === 'createProjectButton') return setView('new-project');
+          const filterButton = target.closest('[data-filter]'); if (filterButton) { prototypeState.listFilter = filterButton.dataset.filter; return renderProjectList(); }
+          const projectButton = target.closest('[data-open-project]'); if (projectButton) return setView(projectButton.dataset.openProject);
+          if (target.id === 'mockUploadButton') { const next = MOCK_FILES.find((file) => !prototypeState.uploadedFiles.some((item) => item.id === file.id)); if (next) { prototypeState.uploadedFiles.push({ ...next }); renderNewProject(); return toast(`已加入材料：${next.name}`, 'success'); } return toast('预设材料已全部加入。', 'info'); }
+          const removeFileButton = target.closest('[data-remove-file]'); if (removeFileButton) { prototypeState.uploadedFiles = prototypeState.uploadedFiles.filter((file) => file.id !== removeFileButton.dataset.removeFile); renderNewProject(); return toast('已移除材料。', 'warn'); }
+          if (target.id === 'stepBackButton') { prototypeState.newProjectStep = Math.max(0, prototypeState.newProjectStep - 1); return renderNewProject(); }
+          if (target.id === 'stepNextButton') { if (prototypeState.newProjectStep < 2) { prototypeState.newProjectStep += 1; return renderNewProject(); } setView('analysis'); return toast('已进入材料分析。', 'success'); }
+          if (target.id === 'saveDraftButton') return toast('草稿已保存。', 'success');
+          if (target.id === 'analysisBackButton') return setView('new-project');
+          if (target.id === 'reparseButton') return toast('已重新触发解析（模拟）。', 'info');
+          const factSelect = target.closest('[data-select-fact]'); if (factSelect) { const [fieldKey, optionId] = factSelect.dataset.selectFact.split(':'); getScenario().facts[fieldKey].selected = optionId; renderAnalysis(); return toast(`已采用 ${fieldKey === 'budget' ? '预算金额' : '工期'} 候选值。`, 'success'); }
+          const manualFill = target.closest('[data-manual-fill]'); if (manualFill) { getScenario().facts[manualFill.dataset.manualFill].selected = 'manual'; renderAnalysis(); return toast('已切换到手动填写模式（原型态）。', 'warn'); }
+          if (target.id === 'snippetUseButton') return toast('该片段已标记为正文依据。', 'success');
+          const analysisAsk = target.closest('[data-analysis-ask]'); if (analysisAsk) { prototypeState.analysisAskAnswer = getScenario().analysisAskAnswers[analysisAsk.dataset.analysisAsk]; renderAnalysis(); return toast('AI 已给出解释。', 'info'); }
+          if (target.id === 'analysisConfirmButton') { prototypeState.progressStage = Math.max(prototypeState.progressStage, 2); setView('progress'); return toast('已进入章节规划与生成阶段。', 'success'); }
+          if (target.id === 'progressAdvanceButton') { const stages = getScenario().progress.stages; prototypeState.progressStage = Math.min(stages.length - 1, prototypeState.progressStage + 1); renderProgress(); return toast(`进度推进到：${stages[prototypeState.progressStage].label}`, 'info'); }
+          if (target.id === 'progressCompleteButton') { prototypeState.progressStage = getScenario().progress.stages.length - 1; renderProgress(); setTimeout(() => { setView('editor'); toast('整稿生成完成，已进入编辑页。', 'success'); }, 200); return; }
+          const sectionButton = target.closest('[data-section]'); if (sectionButton) { prototypeState.currentSectionKey = sectionButton.dataset.section; return renderEditor(); }
+          if (target.id === 'toggleCitationButton' || target.id === 'toggleCitationButtonInline') { prototypeState.citationOpen = !prototypeState.citationOpen; return renderEditor(); }
+          if (target.id === 'toggleLockButton') { const section = selectedSection(); section.locked = !section.locked; renderEditor(); return toast(section.locked ? '当前章节已锁定。' : '当前章节已解除锁定。', section.locked ? 'warn' : 'success'); }
+          const assistantTabTarget = target.closest('[data-assistant-tab-target]'); if (assistantTabTarget) { prototypeState.assistantTab = assistantTabTarget.dataset.assistantTabTarget; return renderEditor(); }
+          const assistantShortcut = target.closest('[data-assistant-shortcut]'); if (assistantShortcut) { const prompt = assistantShortcut.dataset.assistantShortcut; addAssistantExchange(prompt, `已根据当前章节、项目画像、来源系统输入与结构化资产处理你的请求：“${prompt}”。`, ['当前章节上下文', '已确认字段', '当前引用依据', '历史模板库 / 条款库'], 'AI 已生成一个可落回文档的结果', '你可以直接替换当前章节、插入到光标后，或者先保存为备选方案。', [{ key: 'replace', label: '替换当前章节', style: 'primary' }, { key: 'insert', label: '插入到光标后', style: 'outline-primary' }, { key: 'candidate', label: '设为备选方案', style: 'ghost' }]); prototypeState.assistantTab = 'chat'; renderEditor(); return toast('已把问题发给 AI 助手。', 'info'); }
+          const applyResult = target.closest('[data-apply-result]'); if (applyResult) return applyResultToDocument(applyResult.dataset.applyResult);
+          if (target.id === 'assistantSendButton') { addAssistantExchange('把这一章改成更偏联通直接采购风格，并保留现有技术要求。', '可以，我会保留采购范围和技术要求结构，同时把文风收敛到更规范、偏招采口径的表达。', ['技术规范.pdf 第 3 页', '企业条款库 LT-023', '历史模板库'], 'AI 已生成一版联通直接采购风格改写', '新版本会保留技术要求和交付逻辑，但整体语言更偏规范性招采文风。', [{ key: 'replace', label: '替换当前章节', style: 'primary' }, { key: 'insert', label: '插入到光标后', style: 'outline-primary' }, { key: 'candidate', label: '设为备选方案', style: 'ghost' }]); renderEditor(); return; }
+          if (target.id === 'rewriteSectionButton') { const section = selectedSection(); if (section.locked) return toast('当前章节已锁定，不会被覆盖。', 'warn'); section.variant = section.variant === 'alt' ? 'primary' : 'alt'; renderEditor(); return toast(`已重生成章节：${section.title}`, 'success'); }
+          if (target.id === 'insertVariantButton') return toast('已插入备选条款（原型态展示）。', 'info');
+          if (target.id === 'identifyImpactButton') { document.getElementById('syncImpactList').innerHTML = ['2. 投标人资格要求', '4. 商务条款', '5. 评审办法'].map((item) => `<div class="breakdown-item"><strong>${item}</strong><span class="muted">当前字段变化可能影响该章节中的预算、资格或评分口径。</span></div>`).join(''); return openModal('syncModal'); }
+          if (target.id === 'applySyncButton') { closeModal('syncModal'); addAssistantExchange('识别并应用受影响章节更新。', '我已经识别出会被预算、工期和模板变化影响的章节，并生成了一个联动更新结果。', ['项目画像字段', '章节树依赖关系', '历史模板库'], 'AI 已生成联动修订建议', '建议同步更新资格要求、商务条款和评审办法，避免全文口径不一致。', [{ key: 'replace', label: '批量更新这些章节', style: 'primary' }, { key: 'candidate', label: '先保存为联动方案', style: 'ghost' }]); renderEditor(); return toast('已应用联动更新（原型态）。', 'success'); }
+          const issueCard = target.closest('[data-issue]'); if (issueCard) { prototypeState.selectedIssueId = issueCard.dataset.issue; return renderEditor(); }
+          if (target.id === 'applyIssueFixButton') { const issue = getScenario().issues.find((item) => item.id === prototypeState.selectedIssueId); if (!issue || issue.status !== 'open') return; issue.status = 'applied'; const section = getScenario().sections.find((item) => item.key === issue.sectionKey); if (section) { section.contentPrimary.push(issue.appliedText); section.contentAlt.push(issue.appliedText); } addAssistantExchange('请把这个审查问题直接修复到文档里。', `我已根据问题“${issue.title}”生成可直接落回文档的修复结果。`, [issue.basis, '评审规则库', '条款库'], 'AI 已生成修复结果', issue.fix, [{ key: 'replace', label: '应用修复结果', style: 'outline-success' }, { key: 'candidate', label: '设为备选修复方案', style: 'ghost' }]); prototypeState.assistantTab = 'chat'; renderEditor(); return toast('修复建议已应用到正文。', 'success'); }
+          if (target.id === 'ignoreIssueButton') { const issue = getScenario().issues.find((item) => item.id === prototypeState.selectedIssueId); if (!issue || issue.status !== 'open') return; issue.status = 'ignored'; renderEditor(); return toast('该问题已被忽略。', 'warn'); }
+          if (target.id === 'rerunReviewButton') { getScenario().issues.forEach((issue) => { if (issue.level === 'warn') issue.status = 'open'; }); renderEditor(); return toast('已重新审查（模拟），中风险问题重新打开。', 'info'); }
+          if (target.id === 'saveVersionButton') return toast('已保存新版本 V1.2。', 'success');
+          if (target.id === 'chatAboutIssueButton') { const issue = getScenario().issues.find((item) => item.id === prototypeState.selectedIssueId); prototypeState.assistantTab = 'chat'; addAssistantExchange(`解释问题：${issue.title}，并给我一个更稳妥的修复版本。`, '这个问题的核心是当前条款与企业规范口径不一致。建议先补充限制条件，再统一资格表述，我也可以直接给你一个可替换版本。', [issue.basis, issue.location, '评审规则库', '条款库'], 'AI 已生成问题解释与修复建议', '你可以选择直接应用修复结果，或者把它保存为备选修复方案。', [{ key: 'replace', label: '应用修复结果', style: 'outline-success' }, { key: 'candidate', label: '设为备选修复方案', style: 'ghost' }]); renderEditor(); return toast('已带着当前问题进入右侧 AI 助手。', 'info'); }
+          const closeModalButton = target.closest('[data-close-modal]'); if (closeModalButton) return closeModal(closeModalButton.dataset.closeModal);
+          const versionButton = target.closest('[data-version]'); if (versionButton) { prototypeState.exportVersion = versionButton.dataset.version; return renderExportModal(); }
+          if (target.id === 'confirmExportButton') { closeModal('exportModal'); return toast('DOCX 导出成功（原型态）。', 'success'); }
+        });
+
+        document.body.addEventListener('change', (event) => {
+          const target = event.target; if (!(target instanceof HTMLInputElement)) return;
+          if (target.dataset.exportOption) prototypeState.exportOptions[target.dataset.exportOption] = target.checked;
+        });
+      }
+
+      prototypeState.uploadedFiles = [MOCK_FILES[0], MOCK_FILES[1], MOCK_FILES[2]];
+      bindEvents();
+      render();
+    </script>
+  </body>
+</html>

@@ -97,6 +97,154 @@ export function initSchema(db: Database.Database): void {
       ON scode_custom_model_providers(user_id);
   `);
 
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS bid_projects (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      company TEXT NOT NULL,
+      budget TEXT NOT NULL,
+      project_type TEXT NOT NULL,
+      target TEXT NOT NULL,
+      duration TEXT NOT NULL,
+      procurement_method TEXT NOT NULL,
+      remark TEXT NOT NULL,
+      status TEXT NOT NULL,
+      selected_template TEXT NOT NULL,
+      current_draft_id TEXT,
+      current_version TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_bid_projects_updated_at ON bid_projects(updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_bid_projects_status ON bid_projects(status);
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS bid_project_sources (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      file_name TEXT NOT NULL,
+      file_path TEXT NOT NULL,
+      mime_type TEXT NOT NULL,
+      size INTEGER NOT NULL,
+      parse_status TEXT NOT NULL,
+      parse_error TEXT,
+      extracted_text TEXT,
+      summary TEXT,
+      origin TEXT NOT NULL DEFAULT 'upload',
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (project_id) REFERENCES bid_projects(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_bid_project_sources_project_id ON bid_project_sources(project_id);
+    CREATE INDEX IF NOT EXISTS idx_bid_project_sources_parse_status ON bid_project_sources(parse_status);
+    CREATE INDEX IF NOT EXISTS idx_bid_project_sources_origin ON bid_project_sources(origin);
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS bid_project_facts (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      field_name TEXT NOT NULL,
+      candidate_value TEXT NOT NULL,
+      confidence REAL NOT NULL,
+      source_file_id TEXT,
+      source_snippet TEXT,
+      status TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (project_id) REFERENCES bid_projects(id) ON DELETE CASCADE,
+      FOREIGN KEY (source_file_id) REFERENCES bid_project_sources(id) ON DELETE SET NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_bid_project_facts_project_id ON bid_project_facts(project_id);
+    CREATE INDEX IF NOT EXISTS idx_bid_project_facts_status ON bid_project_facts(status);
+    CREATE INDEX IF NOT EXISTS idx_bid_project_facts_field_name ON bid_project_facts(field_name);
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS bid_project_drafts (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      version TEXT NOT NULL,
+      markdown TEXT NOT NULL,
+      status TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (project_id) REFERENCES bid_projects(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_bid_project_drafts_project_id ON bid_project_drafts(project_id);
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS bid_project_sections (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      draft_id TEXT NOT NULL,
+      section_key TEXT NOT NULL,
+      section_title TEXT NOT NULL,
+      sort_order INTEGER NOT NULL,
+      content_markdown TEXT NOT NULL,
+      status TEXT NOT NULL,
+      is_locked INTEGER NOT NULL DEFAULT 0,
+      citations_json TEXT NOT NULL DEFAULT '[]',
+      asset_hits_json TEXT NOT NULL DEFAULT '[]',
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (project_id) REFERENCES bid_projects(id) ON DELETE CASCADE,
+      FOREIGN KEY (draft_id) REFERENCES bid_project_drafts(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_bid_project_sections_project_id ON bid_project_sections(project_id);
+    CREATE INDEX IF NOT EXISTS idx_bid_project_sections_draft_id ON bid_project_sections(draft_id);
+    CREATE INDEX IF NOT EXISTS idx_bid_project_sections_section_key ON bid_project_sections(section_key);
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS bid_project_review_issues (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      draft_id TEXT NOT NULL,
+      section_key TEXT,
+      severity TEXT NOT NULL,
+      title TEXT NOT NULL,
+      detail TEXT NOT NULL,
+      basis TEXT NOT NULL,
+      fix_suggestion TEXT NOT NULL,
+      status TEXT NOT NULL,
+      citations_json TEXT NOT NULL DEFAULT '[]',
+      asset_hits_json TEXT NOT NULL DEFAULT '[]',
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (project_id) REFERENCES bid_projects(id) ON DELETE CASCADE,
+      FOREIGN KEY (draft_id) REFERENCES bid_project_drafts(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_bid_project_review_issues_project_id ON bid_project_review_issues(project_id);
+    CREATE INDEX IF NOT EXISTS idx_bid_project_review_issues_draft_id ON bid_project_review_issues(draft_id);
+    CREATE INDEX IF NOT EXISTS idx_bid_project_review_issues_status ON bid_project_review_issues(status);
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS bid_project_versions (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      draft_id TEXT NOT NULL,
+      version TEXT NOT NULL,
+      source TEXT NOT NULL,
+      summary TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (project_id) REFERENCES bid_projects(id) ON DELETE CASCADE,
+      FOREIGN KEY (draft_id) REFERENCES bid_project_drafts(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_bid_project_versions_project_id ON bid_project_versions(project_id);
+    CREATE INDEX IF NOT EXISTS idx_bid_project_versions_draft_id ON bid_project_versions(draft_id);
+  `);
+
   mainLog('Database', 'Schema initialized successfully');
 }
 
@@ -125,4 +273,4 @@ export function setDatabaseVersion(db: Database.Database, version: number): void
  * Current database schema version
  * Update this when adding new migrations in migrations.ts
  */
-export const CURRENT_DB_VERSION = 23;
+export const CURRENT_DB_VERSION = 25;

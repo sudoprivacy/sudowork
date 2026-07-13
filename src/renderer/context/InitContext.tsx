@@ -13,10 +13,8 @@ interface InitContextValue {
 const InitContext = createContext<InitContextValue | undefined>(undefined);
 
 export const InitProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
-  // Check if running in Electron environment
-  // In Electron, navigator.userAgent typically contains "Electron"
-  const hasElectronApi = typeof window !== 'undefined' && 'electronAPI' in window;
-  const isElectron = typeof window !== 'undefined' && (hasElectronApi || /Electron/i.test(navigator.userAgent));
+  const hasElectronApi = typeof window !== 'undefined' && Boolean(window.electronAPI);
+  const isElectron = hasElectronApi;
 
   const [status, setStatus] = useState<InitStatus>(isElectron ? { phase: 'pending', message: '准备初始化...', progress: 0 } : { phase: 'ready', message: '初始化完成', progress: 100 });
   const [hasResolvedInitialStatus, setHasResolvedInitialStatus] = useState(!isElectron);

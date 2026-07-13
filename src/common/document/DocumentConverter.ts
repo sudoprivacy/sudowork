@@ -315,9 +315,8 @@ export class DocumentConverter {
       ],
     });
 
-    const buffer = await Packer.toBuffer(doc);
-    // 将 Buffer 转换为 ArrayBuffer
-    return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength) as ArrayBuffer;
+    const arrayBuffer = await Packer.toArrayBuffer(doc);
+    return arrayBuffer;
   }
 
   /**

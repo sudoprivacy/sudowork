@@ -91,6 +91,24 @@ Express 5 + WebSocket，用于无界面 / 远程访问。`auth/` 中实现 JWT �
 - `src/common/` —— 跨进程共享代码（MCP、ACP、审批流程、模型/API-key 管理、storage key、斜杠命令）。MCP 配置会同步到所有 agent。
 - `src/shared/` —— 跨切面配置/类型（`i18n-config.json`、`runtime-versions.json`）。
 
+## 常用 PM Skills
+
+如果用户在当前项目里提出产品发现、需求分析、PRD、路线图、优先级、用户故事等工作，并且本机已安装 `pm-skills` marketplace，优先参考本地 skill 定义：`~/.claude/plugins/marketplaces/pm-skills/skills/<skill-name>/SKILL.md`。
+
+推荐优先使用这 9 个高频 skill：
+
+- `problem-statement` —— 先把问题定义清楚，再讨论方案。
+- `jobs-to-be-done` —— 分析客户 jobs / pains / gains，适合需求发现与价值判断。
+- `proto-persona` —— 用户分群和原型画像还不清晰时使用。
+- `opportunity-solution-tree` —— 从 outcome → opportunity → solution → test 做结构化拆解。
+- `prioritization-advisor` —— 需要在 RICE / ICE / Kano 等框架里选合适方法时使用。
+- `prd-development` —— 输出结构化 PRD，串起问题、用户、方案、指标与边界。
+- `roadmap-planning` —— 做阶段目标、优先级、依赖、排序与沟通时使用。
+- `user-story` —— 写 user story 与 acceptance criteria 时使用。
+- `product-strategy-session` —— 用户让你做更完整的产品策略梳理时使用。
+
+这些 skill 目前不会自动出现在 Claude Code 的可调用 skill 列表里；当需求匹配时，直接按对应 `SKILL.md` 框架执行即可。
+
 ## 参考文档
 
 - [docs/tech/architecture.md](docs/tech/architecture.md) —— IPC / WebUI / Cron 细节

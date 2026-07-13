@@ -22,6 +22,11 @@ const ChannelsPage = React.lazy(() => import('./pages/settings/channels'));
 const SecurityPage = React.lazy(() => import('./pages/security'));
 const CronPage = React.lazy(() => import('./pages/cron'));
 const CronJobDetailPage = React.lazy(() => import('./pages/cron/detail'));
+const BidProjectsPage = React.lazy(() => import('./pages/bid-projects'));
+const BidProjectNewPage = React.lazy(() => import('./pages/bid-projects/new'));
+const BidProjectAnalysisPage = React.lazy(() => import('./pages/bid-projects/analysis'));
+const BidProjectProgressPage = React.lazy(() => import('./pages/bid-projects/progress'));
+const BidProjectEditorPage = React.lazy(() => import('./pages/bid-projects/editor'));
 const ExtensionSettingsPage = React.lazy(() => import('./pages/settings/extensions'));
 const LoginPage = React.lazy(() => import('./pages/login'));
 const RegisterPage = React.lazy(() => import('./pages/register'));
@@ -66,6 +71,11 @@ const PROTECTED_ROUTE_CONFIGS = [
   { path: '/app/security', component: SecurityPage },
   { path: '/app/channels', component: ChannelsPage },
   { path: '/settings/security', component: SecurityPage },
+  { path: '/app/bid-projects', component: BidProjectsPage },
+  { path: '/app/bid-projects/new', component: BidProjectNewPage },
+  { path: '/app/bid-projects/:projectId/analysis', component: BidProjectAnalysisPage },
+  { path: '/app/bid-projects/:projectId/progress', component: BidProjectProgressPage },
+  { path: '/app/bid-projects/:projectId/editor', component: BidProjectEditorPage },
   { path: '/app/cron', component: CronPage },
   { path: '/app/cron/:jobId', component: CronJobDetailPage },
   { path: '/settings/profile', component: UserProfile },
