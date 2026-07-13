@@ -10,6 +10,8 @@ Usage:
 """
 
 import argparse
+import asyncio
+import json
 import subprocess
 import sys
 import time
@@ -19,6 +21,7 @@ import urllib.request
 # Add parent dir to path for imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from ops._enterprise_config import (
+    build_enterprise_localstorage_blob,
     clear_enterprise_config,
     set_enterprise_config,
     set_consumer_mode_config,
@@ -87,6 +90,71 @@ def launch_electron():
     return proc
 
 
+async def _seed_renderer_localstorage_async(port: int) -> str:
+    """Attach to the renderer via CDP and seed enterprise localStorage.
+
+    ConfigStorage (main-process persistence, seeded synchronously by
+    `set_enterprise_auth_config`) is read for token refresh in the main
+    process, but `AuthContext` in the renderer gates the login screen on
+    `localStorage['eeclaw_auth_v1']` (see src/renderer/context/AuthContext.tsx:199
+    + :758). A fresh CI Chrome profile has no localStorage history, so the
+    app lands on the login page even with valid ConfigStorage. Seeding the
+    same blob via CDP + reloading takes the app straight to the main UI.
+
+    Auth values come from _enterprise_config's MOCK_* constants (SSOT); this
+    function is a thin renderer-side mirror of that state.
+    """
+    from ai_dev_browser.core.connection import connect_browser, get_active_tab
+    from ai_dev_browser.core.page import js_evaluate
+
+    blob = build_enterprise_localstorage_blob()
+    payload = json.dumps(blob)
+    # Escape closing script/template chars so an inner value can never break
+    # out of the surrounding template literal — belt-and-braces even though
+    # our blob is JSON-shaped and can't naturally contain backticks.
+    payload_js = payload.replace("`", "\\`")
+    expression = f"""
+        (() => {{
+            const blob = `{payload_js}`;
+            const parsed = JSON.parse(blob);
+            const existing = localStorage.getItem('eeclaw_auth_v1');
+            if (existing) {{
+                try {{
+                    const cur = JSON.parse(existing);
+                    if (cur.user && cur.access_token === parsed.access_token) return 'already-seeded';
+                }} catch (e) {{
+                    // fallthrough — overwrite garbage
+                }}
+            }}
+            localStorage.setItem('eeclaw_auth_v1', blob);
+            setTimeout(() => window.location.reload(), 100);
+            return 'seeded-reloading';
+        }})()
+    """
+
+    browser = await connect_browser(host="127.0.0.1", port=port)
+    tab = await get_active_tab(browser)
+    result = await js_evaluate(tab, expression)
+    return result.get("result") if isinstance(result, dict) else str(result)
+
+
+def seed_renderer_localstorage(port: int) -> None:
+    """Sync wrapper around the CDP eval + a settle pause post-reload."""
+    print(f"Seeding renderer localStorage on port {port}...")
+    try:
+        outcome = asyncio.run(_seed_renderer_localstorage_async(port))
+        print(f"  localStorage seed: {outcome}")
+    except Exception as e:
+        # The renderer may not be ready to accept CDP evaluate in the same
+        # instant CDP itself came up; log + move on. Downstream ops will
+        # fail explicitly if the seed didn't take.
+        print(f"  localStorage seed FAILED (non-fatal): {e}")
+        return
+
+    # After reload, give the app time to boot again + re-run the auth fastpath.
+    time.sleep(5)
+
+
 def wait_for_cdp(port=9232, timeout=180):
     """Wait for CDP port to be ready."""
     print(f"Waiting for CDP on port {port}...")
@@ -137,12 +205,18 @@ def main():
     proc = launch_electron()
 
     # Wait for CDP
-    if wait_for_cdp(args.port):
-        print("Electron restarted successfully!")
-        return 0
-    else:
+    if not wait_for_cdp(args.port):
         print("ERROR: Electron did not start in time")
         return 1
+
+    # Post-CDP seeding: enterprise auth requires renderer localStorage AND
+    # the ConfigStorage entry we wrote above; do this here (once, in one
+    # place) rather than per-case so every future e2e case inherits it.
+    if args.enterprise and args.auth:
+        seed_renderer_localstorage(args.port)
+
+    print("Electron restarted successfully!")
+    return 0
 
 
 if __name__ == '__main__':

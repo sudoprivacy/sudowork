@@ -7,12 +7,37 @@ Handles ConfigStorage file operations since ConfigStorage uses bridge IPC
 Encoding format (matches Electron's JsonFileBuilder):
   Write: base64(url_encode(json_string))
   Read:  url_decode(base64_decode(file_content))
+
+The `MOCK_*` constants below are the SSOT for e2e enterprise-auth values —
+consumed by ConfigStorage seeding here AND by the renderer localStorage
+seeding in restart_electron.py's CDP eval. Both stores have to agree or
+the app's refresh() token-sync path (AuthContext.tsx:774) will fight itself.
 """
 
 import base64
 import json
 import urllib.parse
 from pathlib import Path
+
+
+# Mock values used across every enterprise-auth e2e path (ConfigStorage +
+# localStorage seed). No real moss backend validates them — the goal is only
+# to walk the app past its auth gate so the case can drive the actual UI.
+MOCK_ACCESS_TOKEN = "mock-access-token"
+MOCK_REFRESH_TOKEN = "mock-refresh-token"
+MOCK_EXPIRES_AT_MS = 9999999999000
+MOCK_DEVICE_ID = "e2e-test-device"
+MOCK_USER = {
+    "id": "user-001",
+    "username": "admin",
+    "nickname": "admin",
+    "role": "USER",
+    "status": 1,
+    # `localModeAvailable=True` lets useGuidAgentSelection.ts:286 keep
+    # `guid.sessionMode='local'` → default assistant = Sudo Code (not the
+    # Moss Remote Agent that would otherwise be selected in enterprise mode).
+    "localModeAvailable": True,
+}
 
 
 def _get_config_file_path() -> Path:
@@ -106,11 +131,16 @@ def set_consumer_mode_config() -> None:
     _write_config(config)
 
 
-def set_enterprise_auth_config(access_token: str = "mock-access-token",
-                                refresh_token: str = "mock-refresh-token",
-                                expires_at: int = 9999999999,
-                                device_id: str = "e2e-test-device") -> None:
-    """Set enterprise auth in ConfigStorage file."""
+def set_enterprise_auth_config(access_token: str = MOCK_ACCESS_TOKEN,
+                                refresh_token: str = MOCK_REFRESH_TOKEN,
+                                expires_at: int = MOCK_EXPIRES_AT_MS,
+                                device_id: str = MOCK_DEVICE_ID) -> None:
+    """Set enterprise auth in ConfigStorage file.
+
+    Also sets `guid.sessionMode='local'` so the app boots with Sudo Code as
+    the default assistant instead of Moss's Remote Agent
+    (see useGuidAgentSelection.ts:298).
+    """
     config = _read_config()
     config["eeclaw.authStorage"] = {
         "access_token": access_token,
@@ -118,15 +148,24 @@ def set_enterprise_auth_config(access_token: str = "mock-access-token",
         "expires_at": expires_at,
         "device_id": device_id,
     }
-    config["eeclaw.userInfo"] = {
-        "id": "user-001",
-        "username": "admin",
-        "nickname": "admin",
-        "role": "USER",
-        "status": 1,
-        "token": access_token,
-    }
+    config["eeclaw.userInfo"] = {**MOCK_USER, "token": access_token}
+    config["guid.sessionMode"] = "local"
     _write_config(config)
+
+
+def build_enterprise_localstorage_blob() -> dict:
+    """Build the EeclawAuthStorage blob the renderer's AuthContext expects.
+
+    Structure matches src/renderer/context/AuthContext.tsx:44-53 exactly.
+    Consumed by restart_electron.py's post-launch CDP seed.
+    """
+    return {
+        "access_token": MOCK_ACCESS_TOKEN,
+        "refresh_token": MOCK_REFRESH_TOKEN,
+        "expires_at": MOCK_EXPIRES_AT_MS,
+        "user": MOCK_USER,
+        "device_id": MOCK_DEVICE_ID,
+    }
 
 
 def clear_enterprise_auth_config() -> None:
