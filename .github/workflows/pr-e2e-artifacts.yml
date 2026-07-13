@@ -73,12 +73,17 @@ jobs:
         run: echo "SUDOCODE_REF=$(python -m tests.e2e.ci_setup.spawn_mock_llm --print-ref)" >> "$GITHUB_ENV"
 
       - name: Cache cargo build (sudocode mock-anthropic-service)
+        # CARGO_TARGET_DIR deliberately lives OUTSIDE the sudocode checkout.
+        # spawn_mock_llm wipes a non-git checkout dir before cloning, so a
+        # target/ nested inside it would be deleted immediately after the cache
+        # restored it — which is exactly what happened: the cache reported a hit
+        # and every run still paid a ~3min cold rebuild.
         uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            ${{ runner.temp }}/sudocode-src/rust/target
+            ${{ runner.temp }}/cargo-target
           key: mock-anthropic-service-${{ runner.os }}-${{ env.SUDOCODE_REF }}
           restore-keys: |
             mock-anthropic-service-${{ runner.os }}-
@@ -137,10 +142,15 @@ jobs:
         run: bun run scode:download
 
       - name: Spawn mock-anthropic-service (background)
-        # Builds sudocode's mock-anthropic-service from source (cached), spawns
-        # it on 127.0.0.1:0, and writes MOCK_ANTHROPIC_BASE_URL to $GITHUB_ENV
-        # + a URL file for the next step. --detach so this step returns as soon
-        # as the URL is captured; the child stays alive until the job ends.
+        # Builds sudocode's mock-anthropic-service at the pinned tag (cached),
+        # spawns it on 127.0.0.1:0, and writes MOCK_ANTHROPIC_BASE_URL to
+        # $GITHUB_ENV + a URL file for the next step. --detach so this step
+        # returns as soon as the URL is captured; the child stays alive until
+        # the job ends.
+        env:
+          # Must match the cached path above, and must sit outside the sudocode
+          # checkout that spawn_mock_llm wipes before cloning.
+          CARGO_TARGET_DIR: ${{ runner.temp }}/cargo-target
         run: |
           set -euo pipefail
           mkdir -p "${RUNNER_TEMP}"

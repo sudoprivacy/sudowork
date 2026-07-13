@@ -84,13 +84,21 @@ def _clone_or_update(src: Path, ref: str) -> None:
 
 
 def _cargo_build(src: Path) -> Path:
+    """Build the mock crate. Honours CARGO_TARGET_DIR.
+
+    Callers that cache build artifacts MUST set CARGO_TARGET_DIR to a path
+    outside `src`: _clone_or_update wipes a non-git checkout dir, which would
+    otherwise delete the very artifacts the cache just restored (it did — the
+    cache silently never hit, and every run paid a ~3min cold rebuild).
+    """
     rust_root = src / "rust"
     subprocess.check_call(
         ["cargo", "build", "--release", "-p", "mock-anthropic-service"],
         cwd=rust_root,
     )
     exe_name = "mock-anthropic-service.exe" if sys.platform == "win32" else "mock-anthropic-service"
-    built = rust_root / "target" / "release" / exe_name
+    target_dir = Path(os.environ["CARGO_TARGET_DIR"]) if os.environ.get("CARGO_TARGET_DIR") else rust_root / "target"
+    built = target_dir / "release" / exe_name
     if not built.exists():
         raise SystemExit(f"cargo produced no binary at {built}")
     return built
