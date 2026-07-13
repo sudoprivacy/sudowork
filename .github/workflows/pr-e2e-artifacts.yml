@@ -50,7 +50,12 @@ jobs:
           python-version: '3.12'
 
       - name: Install Python e2e deps
-        run: python -m pip install --upgrade pip pyyaml ai-dev-browser
+        # ai-dev-browser >= 0.13.0 is a HARD floor, not a preference: from that
+        # version a `throw` inside an evaluated JS body raises JsEvaluationError
+        # instead of being handed back through the value channel. Our fiber-probe
+        # assertions are written as `throw new Error(...)`, so on an older version
+        # every one of them would score PASS regardless of what it found.
+        run: python -m pip install --upgrade pip pyyaml 'ai-dev-browser>=0.13.0'
 
       - name: Install Rust toolchain (for mock-anthropic-service)
         # The mock LLM upstream (sudocode's mock-anthropic-service) is built
