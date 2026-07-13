@@ -84,9 +84,14 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             ${{ runner.temp }}/cargo-target
-          key: mock-anthropic-service-${{ runner.os }}-${{ env.SUDOCODE_REF }}
+          # `v2` is a cache-format epoch, and it is load-bearing: actions/cache
+          # does NOT save when the primary key hits exactly. The v1 entries were
+          # archived from the old in-checkout target/ path, so without a new key
+          # they would be restored (as a "hit") into paths cargo never reads,
+          # forever, and the corrected path would never be populated.
+          key: mock-anthropic-service-v2-${{ runner.os }}-${{ env.SUDOCODE_REF }}
           restore-keys: |
-            mock-anthropic-service-${{ runner.os }}-
+            mock-anthropic-service-v2-${{ runner.os }}-
 
       - name: Install node dependencies
         run: bun install --no-frozen-lockfile
