@@ -174,6 +174,8 @@ export interface AcpAgentData {
   sessionMode?: string;
   currentModelId?: string;
   presetAssistantId?: string;
+  /** Per-member team MCP server config (K2 wire, injected via session/new.mcp_servers, see A1); undefined for non-team conversations */
+  teamMcpConfig?: { name: string; command: string; args?: string[]; env?: Array<{ name: string; value: string }> };
 }
 
 class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
@@ -600,6 +602,8 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
 
   private async createOrResumeSession(): Promise<void> {
     const resumeSessionId = this.extra.acpSessionId;
+    // A1: inject per-member team MCP server (K2 wire) when this is a team member conversation.
+    const memberMcpServers = this.options.teamMcpConfig ? [this.options.teamMcpConfig] : undefined;
 
     if (resumeSessionId) {
       try {
@@ -608,7 +612,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
         // history from disk by id via the ACP-standard `session/load`. 'meta-resume' (claude/codebuddy)
         // resumes through `session/new` + `_meta.claudeCode.options.resume`.
         const strategy = getAcpResumeStrategy(this.extra.backend);
-        const response: { sessionId?: string } = strategy === 'meta-resume' ? await this.connection.newSession(this.extra.workspace, { resumeSessionId, forkSession: false }) : await this.connection.loadSession(resumeSessionId, this.extra.workspace);
+        const response: { sessionId?: string } = strategy === 'meta-resume' ? await this.connection.newSession(this.extra.workspace, { resumeSessionId, forkSession: false }, memberMcpServers) : await this.connection.loadSession(resumeSessionId, this.extra.workspace, memberMcpServers);
 
         // Only adopt a server-minted id when the mechanism legitimately issues a new one (meta-resume
         // bridges may). `session/load` keeps the id we sent, so it never orphans the stored handle —
@@ -623,7 +627,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
       }
     }
 
-    const response = await this.connection.newSession(this.extra.workspace);
+    const response = await this.connection.newSession(this.extra.workspace, undefined, memberMcpServers);
     if (response.sessionId) {
       this.extra.acpSessionId = response.sessionId;
       saveAcpSessionId(this.conversation_id, response.sessionId);

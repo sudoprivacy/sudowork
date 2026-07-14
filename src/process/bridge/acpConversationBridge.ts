@@ -442,6 +442,13 @@ export function initAcpConversationBridge(): void {
       return { success: false, msg: 'answers must be a non-empty array' };
     }
 
+    // A7 guard: team member conversations must go through the team API, not the single-chat API.
+    const aqGuardConv = getDatabase().getConversation(conversationId);
+    const aqGuardData = aqGuardConv.success ? aqGuardConv.data : undefined;
+    if (aqGuardData && aqGuardData.type === 'acp' && aqGuardData.extra?.isTeamMember) {
+      return { success: false, msg: 'Team member conversations must use the team API' };
+    }
+
     const sanitized: Array<{ id: string; value: string; label?: string }> = [];
     for (const entry of answers) {
       if (!entry || typeof entry !== 'object') {

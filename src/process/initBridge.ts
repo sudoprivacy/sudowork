@@ -5,10 +5,11 @@
  */
 
 import { logger } from '@office-ai/platform';
-import { initAllBridges } from './bridge';
 import { cronService } from '@process/services/cron/CronService';
+import { teamService } from '@process/services/team/TeamService';
 import { mainWarn, mainLog } from '@process/utils/mainLogger';
 import { refreshEnterpriseCache } from '@/common/enterpriseDebugConfig';
+import { initAllBridges } from './bridge';
 
 logger.config({ print: true });
 
@@ -27,5 +28,8 @@ void (async () => {
 void (async () => {
   void cronService.init().catch((error) => {
     mainWarn('initBridge', 'CronService initialization failed:', error.message);
+  });
+  void teamService.init().catch((error) => {
+    mainWarn('initBridge', 'TeamService initialization failed:', error.message);
   });
 })();

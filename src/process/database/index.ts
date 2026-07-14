@@ -597,7 +597,7 @@ export class SudoworkDatabase {
     try {
       const finalUserId = userId || this.defaultUserId;
 
-      const countResult = this.db.prepare('SELECT COUNT(*) as count FROM conversations WHERE user_id = ?').get(finalUserId) as {
+      const countResult = this.db.prepare("SELECT COUNT(*) as count FROM conversations WHERE user_id = ? AND json_extract(extra, '$.isTeamMember') IS NULL").get(finalUserId) as {
         count: number;
       };
 
@@ -606,7 +606,7 @@ export class SudoworkDatabase {
           `
             SELECT *
             FROM conversations
-            WHERE user_id = ?
+            WHERE user_id = ? AND json_extract(extra, '$.isTeamMember') IS NULL
             ORDER BY updated_at DESC LIMIT ?
             OFFSET ?
           `

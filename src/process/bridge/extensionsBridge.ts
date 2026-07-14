@@ -71,7 +71,7 @@ const toEventText = (message: TMessage): { kind: 'status' | 'tool' | 'message'; 
 
 const buildActivitySnapshot = (): IExtensionAgentActivitySnapshot => {
   const db = getDatabase();
-  const conversations = db.getUserConversations(undefined, 0, 10000).data.filter((conv) => !conv.extra?.isHealthCheck);
+  const conversations = db.getUserConversations(undefined, 0, 10000).data.filter((conv) => !conv.extra?.isHealthCheck && !(conv.extra as Record<string, unknown> | undefined)?.isTeamMember);
 
   const rankedState: Record<AgentActivityState, number> = {
     error: 5,

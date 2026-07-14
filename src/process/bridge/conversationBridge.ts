@@ -783,6 +783,13 @@ export function initConversationBridge(): void {
   ipcBridge.conversation.sendMessage.provider(async ({ conversation_id, files, ...other }) => {
     mainLog('conversationBridge', `sendMessage called: conversation_id=${conversation_id}, msg_id=${other.msg_id}`);
 
+    // A7 guard: team member conversations must go through the team API, not the single-chat API.
+    const teamGuardConv = getDatabase().getConversation(conversation_id);
+    const teamGuardData = teamGuardConv.success ? teamGuardConv.data : undefined;
+    if (teamGuardData && teamGuardData.type === 'acp' && teamGuardData.extra?.isTeamMember) {
+      return { success: false, msg: 'Team member conversations must use the team API' };
+    }
+
     let task: AcpAgent | import('../task/RemoteAgent').default | undefined;
     try {
       task = (await WorkerManage.getTaskByIdRollbackBuild(conversation_id)) as AcpAgent | import('../task/RemoteAgent').default | undefined;
@@ -969,6 +976,12 @@ export function initConversationBridge(): void {
 
   // 通用 confirmMessage 实现
   ipcBridge.conversation.confirmation.confirm.provider(async ({ conversation_id, msg_id, data, callId }) => {
+    // A7 guard: team member conversations must go through the team API, not the single-chat API.
+    const confirmGuardConv = getDatabase().getConversation(conversation_id);
+    const confirmGuardData = confirmGuardConv.success ? confirmGuardConv.data : undefined;
+    if (confirmGuardData && confirmGuardData.type === 'acp' && confirmGuardData.extra?.isTeamMember) {
+      return { success: false, msg: 'Team member conversations must use the team API' };
+    }
     const task = WorkerManage.getTaskById(conversation_id);
     if (!task) return { success: false, msg: 'conversation not found' };
     task.confirm(msg_id, callId, data);

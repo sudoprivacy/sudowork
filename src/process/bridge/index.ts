@@ -13,6 +13,7 @@ import { initBedrockBridge } from './bedrockBridge';
 import { initChannelBridge } from './channelBridge';
 import { initConversationBridge } from './conversationBridge';
 import { initCronBridge } from './cronBridge';
+import { initTeamBridge } from './teamBridge';
 import { initDatabaseBridge } from './databaseBridge';
 import { initDialogBridge } from './dialogBridge';
 import { initDocumentBridge } from './documentBridge';
@@ -92,6 +93,7 @@ export function initAllBridges(): void {
   initWebuiBridge();
   initChannelBridge();
   initCronBridge();
+  initTeamBridge();
   initSystemSettingsBridge();
   initLogsBridge();
   initExtensionsBridge();
@@ -150,6 +152,7 @@ export {
   initChannelBridge,
   initConversationBridge,
   initCronBridge,
+  initTeamBridge,
   initDatabaseBridge,
   initDialogBridge,
   initDocumentBridge,

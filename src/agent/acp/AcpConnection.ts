@@ -744,7 +744,7 @@ export class AcpConnection {
    *                              When false (default), reuses the original session ID.
    *                              为 true 时创建新 session ID 但保留对话上下文；为 false（默认）时复用原 session ID。
    */
-  async newSession(cwd: string = process.cwd(), options?: { resumeSessionId?: string; forkSession?: boolean }): Promise<AcpResponse & { sessionId?: string }> {
+  async newSession(cwd: string = process.cwd(), options?: { resumeSessionId?: string; forkSession?: boolean }, mcpServers?: unknown[]): Promise<AcpResponse & { sessionId?: string }> {
     // Normalize workspace-relative paths:
     // Agents such as qwen already run with `workingDir` as their process cwd.
     // Sending the absolute path again makes some CLIs treat it as a nested relative path.
@@ -768,7 +768,7 @@ export class AcpConnection {
 
     const response = await this.sendRequest<AcpResponse & { sessionId?: string }>('session/new', {
       cwd: normalizedCwd,
-      mcpServers: [] as unknown[],
+      mcpServers: mcpServers ?? ([] as unknown[]),
       // meta-resume backends (claude/codebuddy) pass the resume id through _meta
       ...(meta && { _meta: meta }),
       ...(options?.forkSession && { forkSession: options.forkSession }),
@@ -794,13 +794,13 @@ export class AcpConnection {
    * @param sessionId - The session ID to load/resume
    * @param cwd - Working directory for the session
    */
-  async loadSession(sessionId: string, cwd: string = process.cwd()): Promise<AcpResponse & { sessionId?: string }> {
+  async loadSession(sessionId: string, cwd: string = process.cwd(), mcpServers?: unknown[]): Promise<AcpResponse & { sessionId?: string }> {
     const normalizedCwd = this.normalizeCwdForAgent(cwd);
 
     const response = await this.sendRequest<AcpResponse & { sessionId?: string }>('session/load', {
       sessionId,
       cwd: normalizedCwd,
-      mcpServers: [] as unknown[],
+      mcpServers: mcpServers ?? ([] as unknown[]),
     });
 
     // session/load returns modes/models/configOptions but not sessionId — keep the one we sent
