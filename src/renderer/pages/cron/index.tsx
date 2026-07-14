@@ -5,7 +5,7 @@ import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useAppMode } from '@renderer/hooks/useAppMode';
-import { useEnterpriseSessionMode } from '@renderer/hooks/useEnterpriseSessionMode';
+import { useCronAccess } from '@renderer/hooks/useCronAccess';
 import { useAddEventListener } from '@renderer/utils/emitter';
 import { ipcBridge } from '@/common';
 import type { ICronJob } from '@/common/ipcBridge';
@@ -14,7 +14,6 @@ import CronJobFormDrawer from '@/renderer/pages/cron/components/CronJobFormDrawe
 import Item from '@/renderer/pages/cron/components/Item';
 import { useAllCronJobs } from '@/renderer/pages/cron/hooks/useCronJobs';
 import { getJobStatusFlags } from '@/renderer/pages/cron/utils';
-import { useAuth } from '@/renderer/context/AuthContext';
 import PageWrapper from '@renderer/components/base/PageWrapper';
 
 function CronJobCardGrid({ jobs, onSelectJob }: ICronJobCardGridProps) {
@@ -44,12 +43,12 @@ export default function CronPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { isEnterprise } = useAppMode();
-  const { user } = useAuth();
-  const canUseLocalCronMode = !isEnterprise || user?.localModeAvailable === true;
-  const { sessionMode, setSessionMode } = useEnterpriseSessionMode({
-    localModeAvailable: canUseLocalCronMode,
-    remoteModeAvailable: isEnterprise,
-  });
+  // Creation is gated by the org flag (admins bypass); owners/co-owners keep
+  // view/edit/run/delete on their existing jobs even while creation is disabled.
+  const { isCronCreateEnabled } = useCronAccess();
+  // Enterprise scheduled tasks are always moss-hosted (the legacy enterprise
+  // "local" cron mode is deprecated); consumer mode is always local.
+  const sessionMode: 'remote' | 'local' = isEnterprise ? 'remote' : 'local';
   const { jobs, loading, error, refetch } = useAllCronJobs();
 
   const [keepAwake, setKeepAwake] = useState(false);
@@ -79,7 +78,8 @@ export default function CronPage() {
       title={t('cron.scheduledTasks', '定时任务')}
       subtitle={t('cron.create.listSubtitle', '设定定时任务，让 Agent 按计划自动执行')}
       actions={
-        jobs.length > 0 && (
+        jobs.length > 0 &&
+        isCronCreateEnabled && (
           <Button type='primary' shape='round' icon={<IconPlus />} onClick={() => setDrawerVisible(true)}>
             {t('cron.create.button', '新建任务')}
           </Button>
@@ -87,26 +87,6 @@ export default function CronPage() {
       }
     >
       <div className='space-y-4'>
-        {/* Enterprise mode: Remote/Local switcher */}
-        {isEnterprise && (
-          <div className='bg-2 rd-12px px-4 py-3 flex items-center justify-between'>
-            <div className='flex items-center gap-2 text-13px text-secondary'>
-              <Info size={16} />
-              <span>{t('cron.mode.select', '数据存储位置')}</span>
-            </div>
-            <div className='flex items-center gap-1'>
-              {canUseLocalCronMode && (
-                <Button size='small' shape='round' type={sessionMode === 'local' ? 'primary' : 'text'} onClick={() => setSessionMode('local')}>
-                  {t('cron.mode.local', '本地')}
-                </Button>
-              )}
-              <Button size='small' shape='round' type={sessionMode === 'remote' ? 'primary' : 'text'} onClick={() => setSessionMode('remote')}>
-                {t('cron.mode.remote', '云端')}
-              </Button>
-            </div>
-          </div>
-        )}
-
         {/* Error state (remote mode) */}
         {error && sessionMode === 'remote' && (
           <div className='bg-red-1 rd-12px px-4 py-3 flex items-center justify-between'>
@@ -133,7 +113,13 @@ export default function CronPage() {
 
         {/* Job cards or empty state */}
         {!loading && jobs.length === 0 ? (
-          <EmptyState simple icon={<AlarmClock size={56} className='text-secondary' />} title={t('cron.noTasks', '暂无定时任务')} description={t('cron.create.emptyHint', '创建自动执行的 Agent 任务')} actions={[{ label: t('cron.create.button', '新建任务'), onClick: () => setDrawerVisible(true) }]} />
+          <EmptyState
+            simple
+            icon={<AlarmClock size={56} className='text-secondary' />}
+            title={t('cron.noTasks', '暂无定时任务')}
+            description={t('cron.create.emptyHint', '创建自动执行的 Agent 任务')}
+            actions={isCronCreateEnabled ? [{ label: t('cron.create.button', '新建任务'), onClick: () => setDrawerVisible(true) }] : undefined}
+          />
         ) : (
           <CronJobCardGrid jobs={jobs} onSelectJob={(job) => void navigate(`/app/cron/${job.id}`)} />
         )}

@@ -4,7 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import BaseAgent from './BaseAgent';
+import * as nodePath from 'node:path';
+import * as fs from 'node:fs';
 import { MossWsConnection, type MossWsConnectionConfig, type MossWsCallbacks } from '@/agent/remote/MossWsConnection';
 import { ipcBridge } from '@/common';
 import type { IResponseMessage } from '@/common/ipcBridge';
@@ -12,18 +13,17 @@ import type { AcpQuestionAnswerItem, TMessage } from '@/common/chatLib';
 import type { AcpQuestionResponseAnswer } from '@/types/acpTypes';
 import type { TChatConversation } from '@/common/storage';
 import { uuid } from '@/common/utils';
+import { isRemoteContainerPath } from '@/common/utils/workspaceSkillSync';
 import { mainLog, mainError, mainWarn } from '../utils/mainLogger';
 import { getDatabase } from '../database/export';
 import { addOrUpdateMessage } from '../message';
-import { detectFileIntent, matchesDraftPattern } from './draftsCleanup';
-import * as nodePath from 'node:path';
-import * as fs from 'node:fs';
 import { initMossApi } from '../remote/MossSessionApi';
-import { isRemoteContainerPath } from '@/common/utils/workspaceSkillSync';
 import { filterEnabledSkillNames } from '../utils/enabledSkillFilter';
 import { ProcessConfig, getBundledBuiltinSkillDir } from '../initStorage';
+import { CRON_RESTRICTED_INSTRUCTION, isCronSkillAllowed } from '../services/cron/cronPolicy';
 import { hasCronCommands } from './CronCommandDetector';
-import { isCronSkillAllowed } from '../services/cron/cronPolicy';
+import { detectFileIntent, matchesDraftPattern } from './draftsCleanup';
+import BaseAgent from './BaseAgent';
 
 /**
  * Cron instruction inlined into a remote session's first message. The moss
@@ -31,13 +31,15 @@ import { isCronSkillAllowed } from '../services/cron/cronPolicy';
  * - When cron is ALLOWED: the full skill (single source of truth for the
  *   [CRON_CREATE]/[CRON_LIST]/[CRON_DELETE] contract the local AcpAgent points
  *   at by path).
- * - When cron is DISABLED: an explicit ban, so the agent does NOT silently
- *   hallucinate "task created". Banning must be active, not just omission.
+ * - When cron is DISABLED: an explicit creation ban that keeps the
+ *   list/delete contract — owners/co-owners may still manage their existing
+ *   jobs (moss enforces per-job ownership). Banning creation must be active,
+ *   not just omission, or the agent hallucinates "task created".
  */
 async function buildRemoteCronInstruction(): Promise<string> {
   if (!(await isCronSkillAllowed())) {
-    mainLog('RemoteAgent', 'cron disabled by org — injecting explicit ban instruction');
-    return CRON_DISABLED_INSTRUCTION;
+    mainLog('RemoteAgent', 'cron disabled by org — injecting restricted (list/delete-only) instruction');
+    return CRON_RESTRICTED_INSTRUCTION;
   }
   try {
     // Read from the bundled SOURCE, not getBuiltinSkillsDir() — the latter
@@ -50,16 +52,9 @@ async function buildRemoteCronInstruction(): Promise<string> {
     return `[Scheduled Task Skill — you MUST follow this to manage scheduled tasks; output the [CRON_*] commands directly in your reply]\n${skillContent}`;
   } catch (err) {
     mainError('RemoteAgent', `Failed to read cron SKILL.md: ${err}`);
-    return CRON_DISABLED_INSTRUCTION;
+    return CRON_RESTRICTED_INSTRUCTION;
   }
 }
-
-const CRON_DISABLED_INSTRUCTION =
-  '[Scheduled Tasks — DISABLED]\n' +
-  'Scheduled task / cron functionality is disabled by your organization. ' +
-  'You CANNOT create, list, modify, or delete scheduled tasks. ' +
-  'If the user asks you to schedule, create, or manage a recurring/timed task, you MUST tell them that scheduled tasks are disabled by their organization and that an administrator must enable the feature. ' +
-  'NEVER claim that a scheduled task was created, and NEVER invent a task ID.';
 
 /**
  * Default idle detach timeout for finished remote sessions.

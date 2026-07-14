@@ -4,7 +4,6 @@ import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAppMode } from '@renderer/hooks/useAppMode';
-import { useEnterpriseSessionMode } from '@renderer/hooks/useEnterpriseSessionMode';
 import { emitter } from '@renderer/utils/emitter';
 import { ipcBridge } from '@/common';
 import type { ICronJob } from '@/common/ipcBridge';
@@ -13,7 +12,6 @@ import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import CronJobFormDrawer from '@/renderer/pages/cron/components/CronJobFormDrawer';
 import { useAssistantsForCron } from '@/renderer/pages/cron/hooks/useAssistantsForCron';
 import { formatNextRunRelative, getJobStatusFlags, unwrapCronResult } from '@/renderer/pages/cron/utils';
-import { useAuth } from '@/renderer/context/AuthContext';
 import { useConversationTabs } from '@/renderer/pages/conversation/context/ConversationTabsContext';
 import PageWrapper from '@renderer/components/base/PageWrapper';
 
@@ -28,10 +26,9 @@ export default function CronJobDetailPage() {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const { isEnterprise } = useAppMode();
-  const { user } = useAuth();
   const { openTab } = useConversationTabs();
-  const canUseLocalCronMode = !isEnterprise || user?.localModeAvailable === true;
-  const { sessionMode } = useEnterpriseSessionMode({ localModeAvailable: canUseLocalCronMode, remoteModeAvailable: isEnterprise });
+  // Enterprise scheduled tasks are always moss-hosted; consumer mode is local.
+  const sessionMode: 'remote' | 'local' = isEnterprise ? 'remote' : 'local';
   const [job, setJob] = useState<ICronJob | null>(null);
   const [drawerVisible, setDrawerVisible] = useState(false);
   const assistants = useAssistantsForCron();
