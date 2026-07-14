@@ -3,7 +3,7 @@ import { HashRouter, Navigate, Route, Routes, useLocation } from 'react-router-d
 import AppLoader from './components/AppLoader';
 import { useAuth } from './context/AuthContext';
 import { useAppMode, isModeResolved } from './hooks/useAppMode';
-import { useCronEnabled } from './hooks/useCronEnabled';
+import { useCronAccess } from './hooks/useCronAccess';
 
 const Conversation = React.lazy(() => import('./pages/conversation'));
 const Guid = React.lazy(() => import('./pages/guid'));
@@ -81,7 +81,7 @@ export const REGISTERED_ROUTE_PATHS = ['/login', '/register', '/', ...PROTECTED_
 const ProtectedLayout: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
   const { status } = useAuth();
   const { isEnterprise } = useAppMode();
-  const cronEnabled = useCronEnabled();
+  const { isCronVisible } = useCronAccess();
   const location = useLocation();
 
   if (status === 'checking') {
@@ -102,8 +102,9 @@ const ProtectedLayout: React.FC<{ layout: React.ReactElement }> = ({ layout }) =
     return <Navigate to='/settings/enterprise' replace />;
   }
 
-  // Client cron disabled: the cron settings page is not reachable.
-  if (!cronEnabled && location.pathname.startsWith('/app/cron')) {
+  // Cron UI hidden (org disabled it and the user is neither an admin nor an
+  // owner/co-owner of any job): the cron pages are not reachable.
+  if (!isCronVisible && location.pathname.startsWith('/app/cron')) {
     return <Navigate to='/settings/agent' replace />;
   }
 

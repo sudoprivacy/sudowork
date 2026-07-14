@@ -14,7 +14,16 @@ import { ProcessConfig } from '@process/initStorage';
 export interface MossCronJob {
   id: string;
   orgId: string;
+  /** Owner (creator) of the job. The list endpoint only returns jobs the caller owns or co-owns. */
   userId: string;
+  /** Owner display name, resolved server-side */
+  userName?: string;
+  /** Co-owners have flat management parity with the owner (view/edit/delete/trigger) */
+  coOwnerIds?: string[];
+  coOwnerNames?: string[];
+  /** Identity scheduled runs execute as; defaults to the owner */
+  executorUserId?: string | null;
+  executorName?: string;
   name: string;
   enabled: boolean;
   schedule: {

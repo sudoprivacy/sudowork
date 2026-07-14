@@ -26,9 +26,13 @@ vi.mock('electron', () => ({
 }));
 
 const isCronSkillAllowed = vi.fn(async () => true);
-vi.mock('@process/services/cron/cronPolicy', () => ({
-  isCronSkillAllowed: () => isCronSkillAllowed(),
-}));
+vi.mock('@process/services/cron/cronPolicy', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@process/services/cron/cronPolicy')>();
+  return {
+    ...actual,
+    isCronSkillAllowed: () => isCronSkillAllowed(),
+  };
+});
 
 describe('prepareFirstMessageWithSkillsIndex', () => {
   beforeEach(() => {
@@ -88,9 +92,11 @@ describe('prepareFirstMessageWithSkillsIndex', () => {
     // The cron skill index entry / file path is omitted...
     expect(result).not.toContain('cron/SKILL.md');
     expect(result).not.toContain('- cron:');
-    // ...but an explicit ban is injected so the agent can't hallucinate success.
-    expect(result).toContain('[Scheduled Tasks — DISABLED]');
+    // ...but an explicit creation ban is injected so the agent can't
+    // hallucinate success; listing/deleting existing tasks stays allowed.
+    expect(result).toContain('[Scheduled Tasks — CREATION DISABLED BY ORGANIZATION]');
     expect(result).toContain('NEVER claim a scheduled task was created');
+    expect(result).toContain('[CRON_LIST]');
     expect(result).toContain('browser');
   });
 
@@ -110,7 +116,7 @@ describe('prepareFirstMessageWithSkillsIndex', () => {
 
     expect(result).toContain('cron/SKILL.md');
     expect(result).toContain('browser');
-    expect(result).not.toContain('[Scheduled Tasks — DISABLED]');
+    expect(result).not.toContain('[Scheduled Tasks — CREATION DISABLED BY ORGANIZATION]');
   });
 
   it('injects workspace skills directory hint before user request', async () => {

@@ -32,6 +32,23 @@ export class CronDisabledError extends Error {
   }
 }
 
+/**
+ * Agent instruction injected instead of the cron skill when the org has
+ * client cron disabled. Creation is banned, but existing jobs remain
+ * manageable by their owner/co-owners (moss enforces per-job ownership), so
+ * the agent keeps the list/delete command syntax. The ban must be explicit —
+ * merely omitting the skill lets the agent hallucinate "task created" from
+ * prior transcript knowledge.
+ */
+export const CRON_RESTRICTED_INSTRUCTION =
+  '[Scheduled Tasks — CREATION DISABLED BY ORGANIZATION]\n' +
+  'Creating scheduled tasks is disabled by this organization. [CRON_CREATE] is unavailable: NEVER output it, NEVER claim a scheduled task was created, and NEVER invent a task ID. ' +
+  'If the user asks to create or schedule a recurring/timed task, tell them an administrator must enable the feature.\n' +
+  "The user's EXISTING scheduled tasks can still be managed:\n" +
+  "- Output [CRON_LIST] alone to list the user's scheduled tasks (only tasks the user owns or co-owns are returned).\n" +
+  "- Output [CRON_DELETE: task-id] to delete one of the user's own tasks. Tasks owned by other users cannot be deleted.\n" +
+  'These commands are asynchronous system commands: output ONE command by itself (not in a code block), then WAIT for the system response before continuing. Never combine commands in a single message.';
+
 /** Test hook: drop the in-memory cache. */
 export function resetCronPolicyCache(): void {
   cache = null;
@@ -94,15 +111,35 @@ export async function getClientCronEnabled(forceFresh = false): Promise<boolean>
 }
 
 /**
- * Whether the cron skill may be advertised to an agent. Same decision as the
- * execution gate, used at skill-injection time so the skill is never offered
- * when the org has cron disabled (the agent then never attempts it).
+ * Whether the logged-in enterprise user is admin-capable for cron. Mirrors
+ * moss's isCronAdminCapable (roles are the lowercase moss values): admins keep
+ * full cron (including creation) while client_cron_enabled=false, matching the
+ * server's cron_disabled_by_org bypass. Fail closed when the role is unknown.
+ */
+export function isCronAdminUser(): boolean {
+  try {
+    const userInfo = ProcessConfig.getSync('eeclaw.userInfo') as { role?: string } | undefined;
+    const role = userInfo?.role?.toLowerCase();
+    return role === 'admin' || role === 'super_admin';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Whether the full cron skill may be advertised to an agent. Enabled orgs and
+ * admin-capable users get the full skill; a disabled org's non-admin users get
+ * the restricted instruction instead (list/delete own tasks, no creation), so
+ * the agent's advertised capability matches what the moss server will accept.
  */
 export async function isCronSkillAllowed(): Promise<boolean> {
   // Force-fresh: skill injection happens at the start of a session, and an admin
   // may have flipped the flag since app launch. Read the current value so the
   // agent's cron capability matches policy without an app restart.
-  return getClientCronEnabled(true);
+  if (await getClientCronEnabled(true)) {
+    return true;
+  }
+  return isEnterpriseMode() && isCronAdminUser();
 }
 
 /**

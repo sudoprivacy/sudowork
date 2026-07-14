@@ -10,7 +10,7 @@ import { useAuth } from '@renderer/context/AuthContext';
 import { addEventListener, emitter } from '@renderer/utils/emitter';
 import { ConfigStorage } from '@common/storage';
 import { useAppMode } from '@renderer/hooks/useAppMode';
-import { useCronEnabled } from '@renderer/hooks/useCronEnabled';
+import { useCronAccess } from '@renderer/hooks/useCronAccess';
 
 import WorkspaceGroupedHistory from '@renderer/pages/conversation/WorkspaceGroupedHistory';
 import { maskPhone } from '@renderer/utils';
@@ -32,7 +32,7 @@ const Sider: React.FC = () => {
   const navigate = useNavigate();
   const { logout, user: currentUser } = useAuth();
   const { isEnterprise } = useAppMode();
-  const cronEnabled = useCronEnabled();
+  const { isCronVisible } = useCronAccess();
   const [isBatchMode, setIsBatchMode] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   // 账户菜单触发区，用于让弹层宽度与之对齐
@@ -59,7 +59,7 @@ const Sider: React.FC = () => {
     { id: 'skill-store', label: t('common.siderMenu.skillStore'), icon: Sparkles, path: '/app/skills' },
     { id: 'security', label: t('common.siderMenu.security'), icon: ShieldCheck, path: '/app/security' },
     ...(!isEnterprise ? [{ id: 'channels' as const, label: t('common.siderMenu.webui'), icon: Globe, path: '/app/channels' }] : []),
-    ...(cronEnabled ? [{ id: 'cron' as const, label: t('common.siderMenu.cron'), icon: AlarmClock, path: '/app/cron' }] : []),
+    ...(isCronVisible ? [{ id: 'cron' as const, label: t('common.siderMenu.cron'), icon: AlarmClock, path: '/app/cron' }] : []),
   ];
 
   const isSettings = pathname.startsWith('/settings');
@@ -72,9 +72,9 @@ const Sider: React.FC = () => {
     avatar: null as string | null,
   };
 
-  // With client cron disabled the scheduled tab is hidden, so fall back to the
-  // timeline even if 'scheduled' was previously persisted.
-  const effectiveTab: 'timeline' | 'scheduled' = cronEnabled ? activeTab : 'timeline';
+  // With the cron UI hidden the scheduled tab is hidden too, so fall back to
+  // the timeline even if 'scheduled' was previously persisted.
+  const effectiveTab: 'timeline' | 'scheduled' = isCronVisible ? activeTab : 'timeline';
 
   // Batch management only applies to conversations (timeline tab); leaving the
   // timeline tab exits batch mode so the popover can't be opened under 定时任务.
@@ -214,7 +214,7 @@ const Sider: React.FC = () => {
 
             {/* Session history tabs + batch mode button */}
             <div className={classNames('mb-2 px-2 flex items-center justify-between')}>
-              {cronEnabled && (
+              {isCronVisible && (
                 <Tabs
                   className='sidebar-tabs flex-1 shrink-0'
                   type='line'
