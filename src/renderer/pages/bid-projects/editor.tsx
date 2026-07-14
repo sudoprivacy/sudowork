@@ -335,23 +335,23 @@ export default function BidProjectEditorPage() {
       }
     >
       <div className='space-y-4'>
-        <div className='grid grid-cols-[210px_minmax(0,1.45fr)_320px] gap-4 h-[calc(100vh-250px)] min-h-140'>
-          <div className='card p-3 overflow-y-auto'>
-            <div className='text-15px font-medium text-foreground mb-2'>{t('bidProjects.sectionNav')}</div>
-            <div className='space-y-2'>
-              {(project.sections.length > 0 ? project.sections : [{ id: 'default', sectionTitle: t('bidProjects.sections.notice'), status: 'generated' } as any]).map((section) => (
-                <div key={section.id} className={`rd-2 px-3 py-2 text-13px cursor-pointer ${selectedSectionId === section.id ? 'bg-primary-1 border border-primary' : 'bg-fill-1'}`} onClick={() => setSelectedSectionId(section.id)}>
-                  <div className='flex items-start justify-between gap-2'>
-                    <span className='text-foreground'>{section.sectionTitle}</span>
-                    <Tag size='small'>{section.status}</Tag>
-                  </div>
+        <div className='card p-3'>
+          <div className='text-15px font-medium text-foreground mb-3'>{t('bidProjects.sectionNav')}</div>
+          <div className='flex flex-wrap gap-2'>
+            {(project.sections.length > 0 ? project.sections : [{ id: 'default', sectionTitle: t('bidProjects.sections.notice'), status: 'generated' } as any]).map((section) => (
+              <div key={section.id} className={`rd-2 px-3 py-2 text-13px cursor-pointer ${selectedSectionId === section.id ? 'bg-primary-1 border border-primary' : 'bg-fill-1'}`} onClick={() => setSelectedSectionId(section.id)}>
+                <div className='flex items-center gap-2'>
+                  <span className='text-foreground'>{section.sectionTitle}</span>
+                  <Tag size='small'>{section.status}</Tag>
                 </div>
-              ))}
-            </div>
+              </div>
+            ))}
           </div>
+        </div>
 
+        <div className='grid grid-cols-[minmax(0,1.9fr)_300px] gap-4 h-[calc(100vh-315px)] min-h-140'>
           <div className='card min-h-0 overflow-hidden flex flex-col'>
-            <div className='px-4 py-2.5 border-b border-[var(--color-border-2)] flex items-start justify-between gap-3'>
+            <div className='px-4 py-2 border-b border-[var(--color-border-2)] flex items-start justify-between gap-3'>
               <div>
                 <div className='text-15px font-medium text-foreground'>{t('bidProjects.documentEditor')}</div>
                 <div className='text-12px text-secondary'>{selectedSection?.sectionTitle || t('bidProjects.sections.notice')}</div>
