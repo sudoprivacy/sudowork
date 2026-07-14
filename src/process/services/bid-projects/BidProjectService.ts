@@ -9,11 +9,17 @@ import { readSudorouterCredentials } from '@process/bridge/imageGenerationBridge
 import { conversionService } from '@process/services/conversionService';
 import { SCODE_CONFIG_PATH, SCODE_SETTINGS_PATH } from '@process/services/scode/scodePaths';
 import { mainError } from '@process/utils/mainLogger';
+import { ProcessConfig } from '@process/initStorage';
+import { resolveSecret } from '@common/nexus/secret-cache';
+import { safeExecFile } from '@process/utils/safeExec';
+import type { TProviderWithModel } from '@common/storage';
 import type {
   IBidProjectAiGenerateInput,
   IBidProjectAiGenerateResult,
   IBidProjectAiSectionResult,
   IBidProjectAssetHit,
+  IBidProjectAssistantChatInput,
+  IBidProjectAssistantChatResult,
   IBidProjectAssistantContext,
   IBidProjectCitationItem,
   IBidProjectCreateInput,
@@ -29,6 +35,7 @@ import type {
   IBidProjectVersionRecord,
   TBidProjectAiSectionKey,
   TBidProjectAssetKind,
+  TBidProjectAssistantIntent,
   TBidProjectFactFieldName,
   TBidProjectFactStatus,
 } from '@common/bid-projects/types';
@@ -36,7 +43,7 @@ import type {
 const DEFAULT_TEMPLATE = '联通直接采购模板';
 const DEFAULT_VERSION = 'V1.0';
 const DEFAULT_MARKDOWN = '# 正在生成招标文件初稿\n\n请先完成材料解析与字段确认。\n';
-const BID_PROJECT_AI_TIMEOUT_MS = 15000;
+const BID_PROJECT_AI_TIMEOUT_MS = 60000;
 const BID_PROJECT_AI_MODEL_FALLBACK = 'claude-sonnet-4-6';
 const BID_RAG_CONFIG_PATH = path.join(homedir(), '.nexus', '江招-rag', 'kb-ids.json');
 
@@ -120,9 +127,72 @@ export class BidProjectService {
     });
 
     tx();
+    console.log('[bid-projects] createProject inserted', { projectId, draftId, versionId, name: input.name, company: input.company, fileCount: input.files.length });
     void this.runInitialAnalysisInBackground(projectId);
 
-    return this.getProject(projectId)!;
+    return {
+      project: {
+        id: projectId,
+        name: input.name,
+        company: input.company,
+        budget: input.budget,
+        projectType: input.projectType,
+        target: input.target,
+        duration: input.duration,
+        procurementMethod: input.procurementMethod,
+        remark: input.remark,
+        status: 'analyzing',
+        selectedTemplate: DEFAULT_TEMPLATE,
+        currentDraftId: draftId,
+        currentVersion: DEFAULT_VERSION,
+        createdAt: now,
+        updatedAt: now,
+      },
+      sources: input.files.map((file) => ({
+        id: file.id,
+        projectId,
+        fileName: file.name,
+        filePath: file.path || '',
+        mimeType: file.type,
+        size: file.size,
+        parseStatus: file.path ? 'pending' : 'skipped',
+        parseError: null,
+        extractedText: null,
+        summary: null,
+        origin: file.origin || 'upload',
+        createdAt: now,
+        updatedAt: now,
+      })),
+      facts: [],
+      currentDraft: {
+        id: draftId,
+        projectId,
+        version: DEFAULT_VERSION,
+        markdown: DEFAULT_MARKDOWN,
+        status: 'draft',
+        createdAt: now,
+        updatedAt: now,
+      },
+      sections: [],
+      reviewIssues: [],
+      versions: [
+        {
+          id: versionId,
+          projectId,
+          draftId,
+          version: DEFAULT_VERSION,
+          source: 'system',
+          summary: '创建项目并初始化草稿',
+          createdAt: now,
+        },
+      ],
+      assistantContext: {
+        mode: 'project',
+        contextLabels: [],
+        sourceOrigins: input.files.map((file) => file.origin || 'upload'),
+        assetKinds: [],
+      },
+    };
   }
 
   private async runInitialAnalysisInBackground(projectId: string): Promise<void> {
@@ -305,7 +375,8 @@ export class BidProjectService {
     }
 
     const currentMarkdown = ensureBidProjectMarkdown(detail);
-    let nextMarkdown = currentMarkdown;
+    const baseMarkdown = isPlaceholderDraftMarkdown(currentMarkdown) ? buildUnicomDirectProcurementMarkdown(detail) : currentMarkdown;
+    let nextMarkdown = baseMarkdown;
     const generatedSections: IBidProjectAiSectionResult[] = [];
 
     for (const sectionKey of sectionKeys) {
@@ -399,6 +470,12 @@ export class BidProjectService {
 
     const updated = db.prepare(`SELECT * FROM bid_project_facts WHERE id = ?`).get(factId);
     return updated ? mapFactRow(updated) : null;
+  }
+
+  async chatWithAssistant(input: IBidProjectAssistantChatInput): Promise<IBidProjectAssistantChatResult | null> {
+    const detail = this.getProject(input.projectId);
+    if (!detail) return null;
+    return chatBidProjectAssistant({ detail, input });
   }
 }
 
@@ -689,46 +766,90 @@ function summarizeText(text: string): string {
 
 function extractFactsFromText(projectId: string, sourceFileId: string, text: string): Array<{ fieldName: TBidProjectFactFieldName; value: string; confidence: number; sourceFileId: string; snippet: string }> {
   const normalized = text.replace(/\r/g, '');
-  const lines = normalized
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean);
+  const normalizedForMatch = normalized
+    .replace(/\*\*/g, '')
+    .replace(/`/g, '')
+    .replace(/^[#@\s]+/gm, '')
+    .trim();
+  const compactText = normalizedForMatch.replace(/\n+/g, ' ');
   const facts: Array<{ fieldName: TBidProjectFactFieldName; value: string; confidence: number; sourceFileId: string; snippet: string }> = [];
+  const nextFieldPattern = '(?:项目名称|采购项目名称|项目名|采购人|采购单位|建设单位|业主|预算(?:金额)?|最高限价|项目预算|采购预算|项目类型|采购标的|采购内容|项目内容|初步描述|工期|服务期限|实施周期|交付周期|时间要求|采购方式|招标方式|采购组织形式)';
 
   const patterns: Array<{ fieldName: TBidProjectFactFieldName; regexes: RegExp[] }> = [
-    { fieldName: 'name', regexes: [/项目名称[:：]\s*(.+)/i, /采购项目名称[:：]\s*(.+)/i] },
-    { fieldName: 'company', regexes: [/采购人[:：]\s*(.+)/i, /采购单位[:：]\s*(.+)/i] },
-    { fieldName: 'budget', regexes: [/预算(?:金额)?[:：]\s*(.+)/i, /最高限价[:：]\s*(.+)/i] },
-    { fieldName: 'projectType', regexes: [/项目类型[:：]\s*(.+)/i] },
-    { fieldName: 'target', regexes: [/采购标的[:：]\s*(.+)/i, /采购内容[:：]\s*(.+)/i] },
-    { fieldName: 'duration', regexes: [/工期[:：]\s*(.+)/i, /服务期限[:：]\s*(.+)/i] },
-    { fieldName: 'procurementMethod', regexes: [/采购方式[:：]\s*(.+)/i, /招标方式[:：]\s*(.+)/i] },
+    { fieldName: 'name', regexes: [new RegExp(`项目名称[:：]\\s*(.+?)(?=\\s*${nextFieldPattern}[:：]|$)`, 'i'), new RegExp(`采购项目名称[:：]\\s*(.+?)(?=\\s*${nextFieldPattern}[:：]|$)`, 'i'), new RegExp(`项目名[:：]\\s*(.+?)(?=\\s*${nextFieldPattern}[:：]|$)`, 'i')] },
+    {
+      fieldName: 'company',
+      regexes: [
+        new RegExp(`采购人[:：]\\s*(.+?)(?=\\s*${nextFieldPattern}[:：]|$)`, 'i'),
+        new RegExp(`采购单位[:：]\\s*(.+?)(?=\\s*${nextFieldPattern}[:：]|$)`, 'i'),
+        new RegExp(`建设单位[:：]\\s*(.+?)(?=\\s*${nextFieldPattern}[:：]|$)`, 'i'),
+        new RegExp(`业主[:：]\\s*(.+?)(?=\\s*${nextFieldPattern}[:：]|$)`, 'i'),
+      ],
+    },
+    {
+      fieldName: 'budget',
+      regexes: [
+        new RegExp(`预算(?:金额)?[:：]\\s*(.+?)(?=\\s*${nextFieldPattern}[:：]|$)`, 'i'),
+        new RegExp(`最高限价[:：]\\s*(.+?)(?=\\s*${nextFieldPattern}[:：]|$)`, 'i'),
+        new RegExp(`项目预算[:：]\\s*(.+?)(?=\\s*${nextFieldPattern}[:：]|$)`, 'i'),
+        new RegExp(`采购预算[:：]\\s*(.+?)(?=\\s*${nextFieldPattern}[:：]|$)`, 'i'),
+      ],
+    },
+    { fieldName: 'projectType', regexes: [new RegExp(`项目类型[:：]\\s*(.+?)(?=\\s*${nextFieldPattern}[:：]|$)`, 'i')] },
+    {
+      fieldName: 'target',
+      regexes: [
+        new RegExp(`采购标的[:：]\\s*(.+?)(?=\\s*${nextFieldPattern}[:：]|$)`, 'i'),
+        new RegExp(`采购内容[:：]\\s*(.+?)(?=\\s*${nextFieldPattern}[:：]|$)`, 'i'),
+        new RegExp(`项目内容[:：]\\s*(.+?)(?=\\s*${nextFieldPattern}[:：]|$)`, 'i'),
+        new RegExp(`初步描述[:：]\\s*(.+?)(?=\\s*${nextFieldPattern}[:：]|$)`, 'i'),
+      ],
+    },
+    {
+      fieldName: 'duration',
+      regexes: [
+        new RegExp(`工期[:：]\\s*(.+?)(?=\\s*${nextFieldPattern}[:：]|$)`, 'i'),
+        new RegExp(`服务期限[:：]\\s*(.+?)(?=\\s*${nextFieldPattern}[:：]|$)`, 'i'),
+        new RegExp(`实施周期[:：]\\s*(.+?)(?=\\s*${nextFieldPattern}[:：]|$)`, 'i'),
+        new RegExp(`交付周期[:：]\\s*(.+?)(?=\\s*${nextFieldPattern}[:：]|$)`, 'i'),
+        new RegExp(`时间要求[:：]\\s*(.+?)(?=\\s*${nextFieldPattern}[:：]|$)`, 'i'),
+      ],
+    },
+    { fieldName: 'procurementMethod', regexes: [new RegExp(`采购方式[:：]\\s*(.+?)(?=\\s*${nextFieldPattern}[:：]|$)`, 'i'), new RegExp(`招标方式[:：]\\s*(.+?)(?=\\s*${nextFieldPattern}[:：]|$)`, 'i'), new RegExp(`采购组织形式[:：]\\s*(.+?)(?=\\s*${nextFieldPattern}[:：]|$)`, 'i')] },
   ];
 
-  for (const line of lines) {
-    for (const pattern of patterns) {
-      for (const regex of pattern.regexes) {
-        const match = line.match(regex);
-        if (match?.[1]) {
-          facts.push({
-            fieldName: pattern.fieldName,
-            value: match[1].trim(),
-            confidence: 0.92,
-            sourceFileId,
-            snippet: line.slice(0, 240),
-          });
-          break;
-        }
+  for (const pattern of patterns) {
+    for (const regex of pattern.regexes) {
+      const match = compactText.match(regex);
+      if (match?.[1]) {
+        const cleanedValue = cleanExtractedFactValue(match[1]);
+        if (!cleanedValue) continue;
+        facts.push({
+          fieldName: pattern.fieldName,
+          value: cleanedValue,
+          confidence: 0.92,
+          sourceFileId,
+          snippet: compactText.slice(0, 240),
+        });
+        break;
       }
     }
   }
 
-  if (facts.length === 0 && normalized.trim()) {
-    const snippet = normalized.replace(/\s+/g, ' ').trim().slice(0, 240);
+  if (facts.length === 0 && normalizedForMatch.trim()) {
+    const snippet = normalizedForMatch.replace(/\s+/g, ' ').trim().slice(0, 240);
     facts.push({ fieldName: 'target', value: snippet.slice(0, 80), confidence: 0.35, sourceFileId, snippet });
   }
 
   return facts;
+}
+
+function cleanExtractedFactValue(value: string): string {
+  return value
+    .replace(/\s+/g, ' ')
+    .replace(/^(\-|：|:)+/, '')
+    .replace(/[。；;，,]+$/g, '')
+    .trim();
 }
 
 function dedupeFacts(facts: Array<{ fieldName: TBidProjectFactFieldName; value: string; confidence: number; sourceFileId: string; snippet: string }>) {
@@ -793,12 +914,12 @@ export function buildUnicomDirectProcurementMarkdown(detail: IBidProjectDetail):
   return [
     `# ${projectName}`,
     '',
-    '# 直接采购文件',
+    '# 中国联通直接采购文件',
     '',
     `**项目编号：${projectCode}**`,
     '',
-    `采购人：${company}`,
-    '采购代理机构：待补充',
+    `采购人：中国联合网络通信有限公司${company.replace(/^中国联通/, '').replace(/^中国联合网络通信有限公司/, '') || '相关单位'}`,
+    '采购代理机构：待补充（如适用）',
     `日期：${createdDate}`,
     '',
     '## 目录',
@@ -869,28 +990,42 @@ function buildUnicomDirectProcurementSections(detail: IBidProjectDetail): Record
     notice: [
       `${projectName} 已具备采购条件，采购人为 ${company}，现邀请符合条件的供应商参加本项目 ${procurementMethod}。`,
       '',
+      '### 采购背景与采购依据',
+      `为满足 ${company} 在 ${target} 方面的建设与实施需求，保障项目按期推进，现依据中国联通相关采购管理要求组织本项目 ${procurementMethod}。`,
+      `本项目采购目标是在 ${duration} 内完成项目约定范围的交付，确保质量、进度、安全与合规要求同步满足，并为后续稳定运行打下基础。`,
+      '',
       '### 项目概况',
       scheduleTable,
       '',
       `本项目采购内容为：${target}。`,
-      `项目实施周期为：${duration}。`,
-      `采购人拟通过 ${procurementMethod} 方式完成本项目采购，并以满足项目需求、服务质量和综合履约能力为主要评审导向。`,
+      `项目预算/限价参考为：${budget}。`,
+      `采购人拟通过 ${procurementMethod} 方式完成本项目采购，并以满足项目需求、服务质量、履约组织和综合成本控制为主要评审导向。`,
+      '',
+      '### 供应商参与要求',
+      '- 供应商应认真阅读采购文件全部内容，并结合自身资质、技术能力、交付团队与履约经验审慎参与。',
+      '- 供应商参加本项目应答，即视为已充分理解采购需求、合同条件、技术规范、评审规则及相关澄清文件要求。',
+      '- 供应商应对所提交应答文件的真实性、完整性和一致性负责，不得以虚假承诺、低于成本报价或其他不正当方式参与应答。',
       '',
       '### 获取采购文件',
-      '- 采购文件获取方式：由采购人或采购代理机构通知，供应商应按通知要求领取或确认接收采购文件。',
-      '- 供应商收到采购文件后，应及时核对文件完整性；如发现缺页、错页或内容不清，应在应答截止前向采购人提出。',
-      '- 采购文件的澄清、补充或修改内容均为采购文件的组成部分，与采购文件具有同等法律效力。',
+      '- 采购文件获取方式：由采购人或采购代理机构统一通知，供应商应按通知要求领取、确认接收或在线下载采购文件。',
+      '- 供应商收到采购文件后，应及时核对文件完整性；如发现缺页、错页、内容不清或前后矛盾，应在应答截止前书面提出。',
+      '- 采购文件的澄清、补充、修改及正式答复均为采购文件组成部分，与采购文件正文具有同等法律效力。',
+      '',
+      '### 答疑与澄清',
+      '- 供应商对采购文件内容存在疑问的，应在采购人要求的时限内提出，逾期提出的，采购人有权不再统一答复。',
+      '- 采购人可视项目实际情况组织答疑、澄清或补充说明，供应商应及时关注相关通知并据此调整应答文件。',
+      '- 因供应商未及时获取或未正确理解澄清、补充文件导致的应答偏差，由供应商自行承担责任。',
       '',
       '### 应答文件递交',
       `- 应答文件递交地点：${location}。`,
       `- 联系人：${contactName}，联系电话：${contactPhone}，电子邮箱：${contactEmail}。`,
-      '- 应答文件应在规定时限内密封递交，逾期送达、未按要求密封或未按要求签署的文件可被拒收。',
+      '- 应答文件应在规定时限内按要求密封、签署并递交，逾期送达、未按要求密封或未按要求签署的文件可被拒收。',
       '- 采购人有权根据项目推进情况对递交安排作合理调整，并以书面通知为准。',
       '',
-      '### 应答说明',
-      '- 供应商应充分理解采购需求、技术规范及合同条款，并对所提交的应答内容承担全部责任。',
-      '- 供应商应保证报价真实、完整，不得以明显低于成本的方式参与应答。',
+      '### 其他说明',
+      '- 供应商应自行承担参与本项目过程中发生的全部准备、编制、递交及澄清等费用。',
       '- 供应商在应答过程中应遵守国家法律法规及中国联通相关采购管理要求。',
+      `- 供应商应结合项目实际情况，对以下已知信息进行重点响应：${remark}。`,
     ].join('\n'),
     instructions: [
       '### 应答人须知前附表',
@@ -899,23 +1034,38 @@ function buildUnicomDirectProcurementSections(detail: IBidProjectDetail): Record
       '### 应答人资格要求',
       qualificationItems,
       '',
+      '### 采购文件组成与解释顺序',
+      '- 采购文件由邀请函、应答人须知、合同条款、技术规范书、应答文件格式及其澄清、补充、修改文件组成。',
+      '- 采购文件各组成部分如有不一致，以采购人最终书面澄清、补充或修改文件为准。',
+      '- 供应商对采购文件理解存在疑义时，应在规定时限内提出，不得在成交后以理解偏差为由拒绝履约。',
+      '',
       '### 应答文件编制要求',
-      '- 应答文件应按照采购文件的章节顺序编制，内容完整、编排清晰，并对每一项要求作出明确响应。',
+      '- 应答文件应按照采购文件章节顺序编制，内容完整、编排清晰，并对每一项要求作出明确响应。',
       '- 应答文件中的商务、技术、报价等内容应保持一致；如出现前后不一致，以对采购人有利的解释为准。',
       '- 应答文件应加盖单位公章；如由授权代表签署，应附法定代表人授权委托书。',
-      '- 应答文件中的关键承诺、交付期限、服务标准和偏离情况应单独列示，便于评审。',
+      '- 应答文件中的关键承诺、交付期限、服务标准、偏离情况及需采购人确认事项应单独列示，便于评审。',
       '',
       '### 报价要求',
       '- 应答报价应以人民币为计价货币，并结合项目范围、服务周期、实施投入和交付要求进行完整报价。',
       `- 报价应覆盖完成 ${target} 所需的全部费用，包括但不限于人工、管理、差旅、培训、税费、售后和风险成本。`,
       `- 供应商报价不得高于预算/限价 ${budget}；如存在分项报价，应保证分项与总价的勾稽关系准确。`,
-      '- 报价一经确认，在应答有效期内原则上不得擅自调整。',
+      '- 报价一经确认，在应答有效期内原则上不得擅自调整；如采购人要求二次报价或澄清报价，供应商应按通知执行。',
+      '',
+      '### 应答有效期与承诺要求',
+      '- 应答文件有效期应满足采购文件要求；在有效期内，供应商不得无故撤回应答或拒绝澄清。',
+      '- 供应商应保证所提供证照、业绩、人员、授权及其他证明材料真实、合法、有效。',
+      '- 供应商提交的技术方案、实施计划、资源投入和服务承诺应具备可执行性和可核验性。',
       '',
       '### 评审与响应原则',
       '- 采购人将重点审查供应商资格条件、技术方案、交付组织、服务保障和报价合理性。',
       '- 供应商应对采购需求逐项响应，对“满足/不满足/偏离说明”进行明确表述。',
       '- 对于采购文件要求提供的证明材料，供应商应在应答文件中提供清晰、有效的复印件或扫描件。',
       '- 如需澄清应答文件内容，供应商应在采购人规定时限内作出书面回复。',
+      '',
+      '### 成交通知与合同签署',
+      '- 采购人确定成交供应商后，将按内部流程发出成交通知。',
+      '- 成交供应商应按采购人要求及时确认成交结果，并在规定时限内完成合同谈判、合同签署及项目启动准备。',
+      '- 成交供应商在成交后无正当理由拒绝签约或拒绝履约的，采购人有权取消其成交资格并追究相应责任。',
       '',
       '### 无效应答情形',
       '- 未按采购文件要求签署、盖章或密封的。',
@@ -929,6 +1079,12 @@ function buildUnicomDirectProcurementSections(detail: IBidProjectDetail): Record
       `甲方：${company}`,
       '乙方：待定成交供应商',
       '',
+      '### 合同文件组成',
+      '- 本合同及附件。',
+      '- 采购文件、澄清补充文件。',
+      '- 成交供应商应答文件、报价文件及承诺函。',
+      '- 双方在项目实施过程中形成并确认的会议纪要、实施方案、验收单据及其他书面文件。',
+      '',
       '### 合同范围',
       `乙方应按照采购文件、应答文件及双方确认的实施方案，为甲方提供 ${target} 相关服务，并对项目整体交付结果负责。`,
       '',
@@ -939,16 +1095,20 @@ function buildUnicomDirectProcurementSections(detail: IBidProjectDetail): Record
       `- 服务地点：${location}`,
       '- 乙方应按照实施计划完成项目启动、需求梳理、方案设计、实施交付、培训支持和验收配合等工作。',
       '- 乙方交付的成果应满足采购需求、技术规范书、双方确认方案及行业通行质量标准。',
+      '- 项目实施过程中，乙方还应遵循甲方项目管理、信息安全、现场管理及中国联通相关采购履约要求。',
+      '- 如项目实施过程中存在采购人组织、第三方协同、现场接入或系统配合要求，乙方应积极响应并做好配套工作。',
       '',
       '### 进度管理与人员保障',
       '- 乙方应在合同生效后及时提交项目实施计划、阶段里程碑和人员安排。',
       '- 项目实施期间，乙方应保持核心团队稳定；如需更换关键人员，应事先征得甲方书面同意。',
       '- 因乙方原因导致项目进度滞后时，乙方应无条件采取补救措施，并承担由此产生的责任。',
+      '- 对于需要甲方确认的阶段性事项，乙方应提前提出并配合甲方完成评审、确认和决策流程。',
       '',
       '### 验收安排',
       '- 项目验收分为阶段验收和最终验收，具体安排由甲方根据项目推进情况确定。',
       '- 乙方应按要求提交交付成果、测试说明、培训记录、问题清单及其他验收所需材料。',
       '- 验收未通过的，乙方应在甲方要求期限内完成整改并重新提交验收。',
+      '- 因乙方交付质量问题导致重复整改、延期验收或返工的，相关责任与成本由乙方承担。',
       '',
       '### 付款与发票',
       `- 合同金额：以最终成交结果为准，预算参考 ${budget}。`,
@@ -961,15 +1121,20 @@ function buildUnicomDirectProcurementSections(detail: IBidProjectDetail): Record
       '- 乙方应保证交付成果不侵犯任何第三方合法权益；如发生侵权纠纷，由乙方承担全部责任。',
       '- 因乙方违约造成甲方损失的，乙方应承担相应赔偿责任；情节严重的，甲方有权解除合同。',
       '- 因合同履行发生争议的，双方应先协商解决；协商不成的，提交有管辖权的人民法院处理。',
+      '',
+      '### 附加约定',
+      `- 当前项目备注：${remark}`,
+      `- 乙方在履约过程中应重点关注以下待补充/待确认事项：${pendingSupplements.replace(/\n/g, '；')}`,
     ].join('\n'),
     technical: [
       '### 建设目标',
       `围绕 ${target} 的建设与实施需求，形成覆盖方案设计、项目实施、交付验收和服务保障的完整服务体系，确保项目目标、质量目标和进度目标同步达成。`,
       '',
-      '### 服务范围',
+      '### 项目范围与服务边界',
       `- 供应商应对 ${target} 相关工作进行整体统筹，覆盖项目启动、需求确认、实施交付、培训支撑和验收配合。`,
       '- 供应商应结合采购人实际场景，形成可执行的实施方案、资源计划、质量控制和风险应对措施。',
       '- 供应商应建立项目沟通与汇报机制，确保关键节点、问题与风险及时反馈。',
+      '- 供应商应按中国联通项目管理要求提交阶段汇报、问题闭环和交付文档，确保过程可追踪、结果可核验。',
       '',
       '### 交付成果清单',
       '- 项目实施方案及进度计划。',
@@ -983,6 +1148,11 @@ function buildUnicomDirectProcurementSections(detail: IBidProjectDetail): Record
       '- 供应商应建立质量控制机制，覆盖需求确认、方案评审、交付检查、问题整改和验收准备等环节。',
       '- 供应商应针对重点风险制定预案，包括进度风险、资源风险、质量风险和沟通协同风险。',
       '',
+      '### 人员与组织要求',
+      '- 供应商应配置满足项目需要的项目经理、实施骨干、技术支持及质量保障人员。',
+      '- 项目经理应负责整体统筹、进度管理、问题升级和资源协调。',
+      '- 关键岗位人员应具备与项目场景相匹配的实施经验和沟通能力。',
+      '',
       '### 服务保障要求',
       '- 供应商应提供项目实施、培训、验收和售后服务支持。',
       '- 供应商应明确服务响应机制、问题升级路径和关键岗位联系人。',
@@ -994,7 +1164,7 @@ function buildUnicomDirectProcurementSections(detail: IBidProjectDetail): Record
       '- 培训、文档、测试或验证记录满足采购人项目管理要求。',
       '- 发现问题已形成闭环整改并通过采购人确认。',
       '',
-      '### 材料摘要',
+      '### 采购人现有资料摘要',
       sourceSummaries || '- 暂无可引用的材料摘要。',
       '',
       '### 已确认字段',
@@ -1025,6 +1195,12 @@ function buildUnicomDirectProcurementSections(detail: IBidProjectDetail): Record
       `致：${company}`,
       `我方已充分理解 ${projectName} 采购文件内容，愿按照文件要求参与本项目应答，并承诺对所提交文件的真实性、完整性和有效性负责。如我方成交，将严格按照采购文件、应答文件及合同约定完成项目实施与交付。`,
       '',
+      '### 法定代表人身份证明（示例）',
+      '兹证明______为我单位法定代表人，代表我单位办理与本项目有关的一切事务。',
+      '',
+      '### 授权委托书（示例）',
+      '本单位现授权______作为我方合法委托代理人，参加本项目应答、澄清、谈判、报价确认及签约相关工作。',
+      '',
       '### 报价一览表（示例）',
       '| 项目 | 报价说明 |',
       '| --- | --- |',
@@ -1049,6 +1225,11 @@ function buildUnicomDirectProcurementSections(detail: IBidProjectDetail): Record
       '- 法定代表人身份证明及授权委托书。',
       '- 类似项目业绩证明材料。',
       '- 项目团队、服务能力和承诺函等支撑材料。',
+      '',
+      '### 服务承诺（示例）',
+      '- 按采购文件要求组织实施并按期交付。',
+      '- 关键岗位人员稳定，重大问题及时升级响应。',
+      '- 配合采购人完成培训、验收、整改与售后支持。',
     ].join('\n'),
   };
 }
@@ -1059,6 +1240,11 @@ function isSupportedAiSectionKey(value: string): value is TBidProjectAiSectionKe
 
 function ensureBidProjectMarkdown(detail: IBidProjectDetail): string {
   return detail.currentDraft?.markdown?.trim() ? detail.currentDraft.markdown : buildUnicomDirectProcurementMarkdown(detail);
+}
+
+function isPlaceholderDraftMarkdown(markdown: string): boolean {
+  const trimmed = markdown.trim();
+  return trimmed === DEFAULT_MARKDOWN.trim() || trimmed.includes('正在生成招标文件初稿');
 }
 
 function getRuleSectionMarkdown(detail: IBidProjectDetail, sectionKey: TBidProjectAiSectionKey): string {
@@ -1144,6 +1330,188 @@ async function generateBidProjectAiSection(args: { accessToken?: string; assista
     citations: knowledge.citations,
     assetHits: knowledge.assetHits,
   };
+}
+
+async function chatBidProjectAssistant(args: { detail: IBidProjectDetail; input: IBidProjectAssistantChatInput }): Promise<IBidProjectAssistantChatResult> {
+  const startedAt = Date.now();
+  const question = args.input.prompt;
+  const knowledge = args.input.sectionKey ? await retrieveBidProjectKnowledge({ sectionKey: args.input.sectionKey, question }) : { context: '', citations: [], assetHits: [] };
+  const query = buildBidProjectChatQuery({ detail: args.detail, input: args.input, retrievalContext: knowledge.context });
+
+  if (args.input.accessToken && args.input.assistantId) {
+    try {
+      const enhancement = await withBidProjectAiTimeout(callGetEnhancement(args.input.accessToken, args.input.assistantId));
+      if (enhancement.success && enhancement.data?.enabled && enhancement.data.mode) {
+        const response = await withBidProjectAiTimeout(
+          enhancement.data.mode === 'workflow' ? callStartEnhancementStream({ accessToken: args.input.accessToken, assistantId: args.input.assistantId, query }) : callInvokeEnhancement({ accessToken: args.input.accessToken, assistantId: args.input.assistantId, query })
+        );
+        const text = normalizeAiMarkdown(response.data?.text || '');
+        if (response.success && text) {
+          return {
+            content: text,
+            citations: [...knowledge.citations, ...((response.data?.citations || []) as IBidProjectCitationItem[])],
+            assetHits: knowledge.assetHits,
+            elapsedMs: Date.now() - startedAt,
+            fallbackUsed: false,
+          };
+        }
+      }
+    } catch (error) {
+      console.error('[bid-projects] chat assistant enhancement failed', error);
+      // Fall through to direct model.
+    }
+  }
+
+  const direct = await callBidProjectAssistantDirect(query);
+  if (direct) {
+    return {
+      content: direct,
+      citations: knowledge.citations,
+      assetHits: knowledge.assetHits,
+      elapsedMs: Date.now() - startedAt,
+      fallbackUsed: false,
+    };
+  }
+
+  return {
+    content: buildAssistantFallbackContent(args.input),
+    citations: knowledge.citations,
+    assetHits: knowledge.assetHits,
+    elapsedMs: Date.now() - startedAt,
+    fallbackUsed: true,
+  };
+}
+
+async function callBidProjectAssistantDirect(query: string): Promise<string | null> {
+  try {
+    const runtime = await resolveBidProjectChatRuntime();
+    if (!runtime) {
+      console.warn('[bid-projects] chat assistant runtime missing');
+      return null;
+    }
+    const endpoint = `${runtime.baseUrl.replace(/\/+$/, '')}/chat/completions`;
+    console.log('[bid-projects] chat assistant runtime', { baseUrl: runtime.baseUrl, model: runtime.model });
+    const requestBody = JSON.stringify({
+      model: runtime.model,
+      messages: [
+        {
+          role: 'system',
+          content: '你是资深通信行业采购文件编制专家，回答需要准确、简洁、可直接落文。只能基于已提供的资料写作；不得编造未给出的事实。中文输出。',
+        },
+        { role: 'user', content: query },
+      ],
+    });
+    const { stdout, stderr } = await safeExecFile('curl', ['-sS', '-X', 'POST', endpoint, '-H', `Authorization: Bearer ${runtime.apiKey}`, '-H', 'Content-Type: application/json', '-d', requestBody], { timeout: BID_PROJECT_AI_TIMEOUT_MS });
+    if (stderr.trim()) {
+      console.log('[bid-projects] chat assistant curl stderr', stderr.trim());
+    }
+    const payload = JSON.parse(stdout) as { error?: { message?: string }; choices?: Array<{ message?: { content?: string | Array<{ type?: string; text?: string }> } }> };
+    if (payload.error?.message) {
+      console.error('[bid-projects] chat assistant api error', payload.error.message);
+      return null;
+    }
+    const raw = payload.choices?.[0]?.message?.content;
+    const text = Array.isArray(raw)
+      ? raw
+          .filter((item) => item?.type === 'text' && typeof item.text === 'string')
+          .map((item) => item.text)
+          .join('\n')
+      : typeof raw === 'string'
+        ? raw
+        : '';
+    const normalized = normalizeAiMarkdown(text);
+    return normalized || null;
+  } catch (error) {
+    console.error('[bid-projects] chat assistant direct call failed', error);
+    return null;
+  }
+}
+
+async function resolveBidProjectChatRuntime(): Promise<{ baseUrl: string; apiKey: string; model: string } | null> {
+  const scodeRuntime = readBidProjectScodeRuntime();
+  if (scodeRuntime) return scodeRuntime;
+
+  try {
+    const providers = ((await ProcessConfig.get('model.config').catch((): TProviderWithModel[] | null => null)) || []) as TProviderWithModel[];
+    const hydratedProviders = providers.map((item) => {
+      const namespace = `provider:${item.id}`;
+      const apiKey = item.apiKey?.trim() || resolveSecret(namespace, 'api_key', '');
+      return {
+        ...item,
+        apiKey,
+      };
+    });
+    const provider = hydratedProviders.find((item) => item?.enabled !== false && typeof item.baseUrl === 'string' && item.baseUrl.trim() && typeof item.apiKey === 'string' && item.apiKey.trim() && typeof item.useModel === 'string' && item.useModel.trim());
+    if (provider) {
+      return {
+        baseUrl: provider.baseUrl.trim().replace(/\/+$/, ''),
+        apiKey: provider.apiKey.trim(),
+        model: provider.useModel.trim(),
+      };
+    }
+  } catch {
+    // Fall through to sudorouter credentials.
+  }
+
+  const credentials = readSudorouterCredentials();
+  if (!credentials) return null;
+  return {
+    baseUrl: credentials.baseUrl,
+    apiKey: credentials.apiKey,
+    model: readBidProjectAiModel(),
+  };
+}
+
+function readBidProjectScodeRuntime(): { baseUrl: string; apiKey: string; model: string } | null {
+  try {
+    const config = JSON.parse(fsSync.readFileSync(SCODE_CONFIG_PATH, 'utf-8')) as {
+      default_model?: string;
+      auth_modes?: { proxy?: Record<string, { baseUrl?: string; apiKey?: string }> };
+      models?: Record<string, { providers?: { proxy?: { provider?: string; model?: string } } }>;
+    };
+    const defaultModel = typeof config.default_model === 'string' && config.default_model.trim() ? config.default_model.trim() : '';
+    const authProxy = config.auth_modes?.proxy?.sudorouter;
+    const mappedModel = defaultModel ? config.models?.[defaultModel]?.providers?.proxy?.model : '';
+    if (authProxy?.apiKey && mappedModel) {
+      return {
+        baseUrl: (authProxy.baseUrl || 'https://hk.sudorouter.ai/v1').replace(/\/+$/, ''),
+        apiKey: authProxy.apiKey,
+        model: mappedModel,
+      };
+    }
+  } catch {
+    // Ignore and continue.
+  }
+  return null;
+}
+
+function buildBidProjectChatQuery(args: { detail: IBidProjectDetail; input: IBidProjectAssistantChatInput; retrievalContext: string }): string {
+  const { detail, input, retrievalContext } = args;
+  const confirmedFacts = detail.facts
+    .filter((fact) => fact.status === 'confirmed')
+    .slice(0, 8)
+    .map((fact) => `- ${fact.fieldName}: ${fact.candidateValue}`);
+  const intentInstruction = intentToInstruction(input.intent);
+  const sectionBlock = input.sectionMarkdown ? `【当前章节 (${input.sectionKey || 'unknown'})】\n${input.sectionMarkdown.slice(0, 4000)}` : '';
+  const issueBlock = input.issueTitle ? `【合规问题】\n标题：${input.issueTitle}\n${input.issueDetail ? `详情：${input.issueDetail}\n` : ''}${input.issueBasis ? `依据：${input.issueBasis}\n` : ''}` : '';
+  const factsBlock = confirmedFacts.length ? `【已确认事实】\n${confirmedFacts.join('\n')}` : '';
+  const ragBlock = retrievalContext ? `【平台知识资产检索结果】\n${retrievalContext}` : '';
+  const projectBlock = `【项目基本信息】\n名称：${detail.project.name}\n采购方式：${detail.project.procurementMethod || '待补充'}\n标的：${detail.project.target || '待补充'}\n预算：${detail.project.budget || '待补充'}`;
+
+  return [intentInstruction, projectBlock, factsBlock, sectionBlock, issueBlock, ragBlock, `【用户请求】\n${input.prompt}`, '请用中文回答；如果需要输出可直接替换章节的正文，请只输出正文 markdown，不要加解释性开头。'].filter(Boolean).join('\n\n');
+}
+
+function intentToInstruction(intent?: TBidProjectAssistantIntent): string {
+  if (intent === 'rewriteSection') return '你的任务：改写当前章节，保持事实不变，语气更正式，结构清晰。直接输出章节 markdown。';
+  if (intent === 'twoAlternatives') return '你的任务：为当前章节生成两个备选写法，用「方案 A / 方案 B」区分，每个都是完整可用的 markdown 段落。';
+  if (intent === 'explainSection') return '你的任务：用一段自然语言，向文件编制人员解释当前章节包含哪些内容、依据是什么，帮助他判断是否需要修改。';
+  if (intent === 'explainIssue') return '你的任务：解释这条合规审查问题为什么会被判定为风险，引用具体依据。';
+  if (intent === 'fixIssue') return '你的任务：针对这条合规审查问题，生成一段可直接替换的修复文本，附上依据说明。请输出：\n\n### 修复文本\n<可落文正文>\n\n### 依据说明\n<引用条款/规则>';
+  return '你的任务：作为招标文件编制助手，认真回答用户的问题，必要时给出可以落到文档里的段落。';
+}
+
+function buildAssistantFallbackContent(input: IBidProjectAssistantChatInput): string {
+  return ['当前没有可用的 AI 模型响应，以下为兜底提示：', `请求：${input.prompt}`, '建议：', '- 检查是否已配置 Sudorouter 凭据或平台 assistant', '- 若在离线场景演示，可先手动改写章节，稍后再让 AI 复核。'].join('\n');
 }
 
 function withBidProjectAiTimeout<T>(promise: Promise<T>): Promise<T> {
@@ -1240,44 +1608,32 @@ function normalizeAiMarkdown(markdown: string): string {
 
 async function generateBidProjectDirectAiSection(args: { detail: IBidProjectDetail; query: string; sectionKey: TBidProjectAiSectionKey }): Promise<IBidProjectAiSectionResult | null> {
   try {
-    const credentials = readSudorouterCredentials();
-    if (!credentials) return null;
-
-    const model = readBidProjectAiModel();
-    const endpoint = `${credentials.baseUrl.replace(/\/+$/, '')}/chat/completions`;
+    const runtime = await resolveBidProjectChatRuntime();
+    if (!runtime) return null;
     const startedAt = Date.now();
-    const response = await withBidProjectAiTimeout(
-      fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${credentials.apiKey}`,
+    const requestBody = JSON.stringify({
+      model: runtime.model,
+      messages: [
+        {
+          role: 'system',
+          content: '你是资深通信行业采购文件编制专家，擅长输出正式、完整、可直接落文的中文招标/采购章节。只能基于已提供信息写作；不得编造未给出的事实。',
         },
-        body: JSON.stringify({
-          model,
-          temperature: 0.3,
-          messages: [
-            {
-              role: 'system',
-              content: '你是资深通信行业采购文件编制专家，擅长输出正式、完整、可直接落文的中文招标/采购章节。只能基于已提供信息写作；不得编造未给出的事实。',
-            },
-            {
-              role: 'user',
-              content: args.query,
-            },
-          ],
-        }),
-      })
-    );
-
-    if (!response.ok) return null;
-    const payload = (await response.json()) as {
+        {
+          role: 'user',
+          content: args.query,
+        },
+      ],
+    });
+    const { stdout } = await safeExecFile('curl', ['-sS', '-X', 'POST', `${runtime.baseUrl.replace(/\/+$/, '')}/chat/completions`, '-H', `Authorization: Bearer ${runtime.apiKey}`, '-H', 'Content-Type: application/json', '-d', requestBody], { timeout: BID_PROJECT_AI_TIMEOUT_MS });
+    const payload = JSON.parse(stdout) as {
+      error?: { message?: string };
       choices?: Array<{
         message?: {
           content?: string | Array<{ type?: string; text?: string }>;
         };
       }>;
     };
+    if (payload.error?.message) return null;
     const raw = payload.choices?.[0]?.message?.content;
     const text = Array.isArray(raw)
       ? raw

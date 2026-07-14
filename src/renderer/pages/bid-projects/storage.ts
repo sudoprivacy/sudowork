@@ -1,5 +1,5 @@
 import { ipcBridge } from '@/common';
-import type { IBidProjectAiGenerateInput, IBidProjectAssetHit } from '@common/bid-projects/types';
+import type { IBidProjectAiGenerateInput, IBidProjectAssetHit, IBidProjectAssistantChatInput, IBidProjectAssistantChatResult } from '@common/bid-projects/types';
 import i18n from '@renderer/i18n';
 import type { IBidProjectAiGenerateViewResult, IBidProjectCreateInput, IBidProjectDetail, IBidProjectDetailView, IBidProjectDetectedFieldItem, IBidProjectDraft, IBidProjectEntity, IBidProjectFactItem, IBidProjectSectionItem, IBidProjectSourceItem, TBidProjectFactStatus } from './types';
 
@@ -37,13 +37,28 @@ function createAnalysis(project: { budget: string; projectType: string; target: 
   };
 }
 
-function buildDetectedFields(project: { budget: string; target: string; duration: string; company: string; name: string }): IBidProjectDetectedFieldItem[] {
+function pickFactValue(facts: IBidProjectFactItem[], fieldName: string): string {
+  const candidates = facts.filter((fact) => fact.fieldName === fieldName && fact.status !== 'rejected');
+  if (candidates.length === 0) return '';
+  const preferred = candidates.find((fact) => fact.status === 'confirmed');
+  if (preferred?.candidateValue) return preferred.candidateValue;
+  const sorted = [...candidates].sort((a, b) => b.confidence - a.confidence);
+  return sorted[0]?.candidateValue || '';
+}
+
+function buildDetectedFields(project: { budget: string; target: string; duration: string; company: string; name: string; facts?: IBidProjectFactItem[] }): IBidProjectDetectedFieldItem[] {
+  const facts = project.facts || [];
+  const factName = pickFactValue(facts, 'name');
+  const factCompany = pickFactValue(facts, 'company');
+  const factBudget = pickFactValue(facts, 'budget');
+  const factTarget = pickFactValue(facts, 'target');
+  const factDuration = pickFactValue(facts, 'duration');
   return [
-    { label: i18n.t('bidProjects.detectedFieldLabels.projectName'), value: project.name || i18n.t('bidProjects.defaults.unnamedProject') },
-    { label: i18n.t('bidProjects.detectedFieldLabels.company'), value: project.company || i18n.t('bidProjects.defaults.pending') },
-    { label: i18n.t('bidProjects.detectedFieldLabels.budget'), value: project.budget || i18n.t('bidProjects.defaults.pending') },
-    { label: i18n.t('bidProjects.detectedFieldLabels.target'), value: project.target || i18n.t('bidProjects.defaults.pending') },
-    { label: i18n.t('bidProjects.detectedFieldLabels.duration'), value: project.duration || i18n.t('bidProjects.defaults.pending') },
+    { label: i18n.t('bidProjects.detectedFieldLabels.projectName'), value: factName || project.name || i18n.t('bidProjects.defaults.unnamedProject') },
+    { label: i18n.t('bidProjects.detectedFieldLabels.company'), value: factCompany || project.company || i18n.t('bidProjects.defaults.pending') },
+    { label: i18n.t('bidProjects.detectedFieldLabels.budget'), value: factBudget || project.budget || i18n.t('bidProjects.defaults.pending') },
+    { label: i18n.t('bidProjects.detectedFieldLabels.target'), value: factTarget || project.target || i18n.t('bidProjects.defaults.pending') },
+    { label: i18n.t('bidProjects.detectedFieldLabels.duration'), value: factDuration || project.duration || i18n.t('bidProjects.defaults.pending') },
   ];
 }
 
@@ -131,11 +146,12 @@ function mapProjectDetail(detail: IBidProjectDetail): IBidProjectDetailView {
     duration: project.duration,
     company: project.company,
     name: project.name,
+    facts,
   });
   const sections = rawSections.length > 0 ? rawSections : parseSections(markdown);
   const sourceSummaries = sources.filter((source) => source.summary).map((source) => `${source.fileName}：${source.summary}`);
   const pendingItems = buildPendingItems(project, sources);
-  const assetHits = rawSections.flatMap((section) => section.assetHits || []);
+  const assetHits = Array.from(new Map(rawSections.flatMap((section) => (section.assetHits || []).map((assetHit) => [`${assetHit.assetKind}::${assetHit.label}::${assetHit.refId || ''}`, assetHit]))).values());
   const citations = rawSections.flatMap((section) => section.citations || []);
   const sourceOrigins = Array.from(new Set(sources.map((source) => source.origin)));
 
@@ -226,6 +242,7 @@ export async function listBidProjects(): Promise<IBidProjectDraft[]> {
         duration: project.duration,
         company: project.company,
         name: project.name,
+        facts: [],
       }),
       templateOptions: [i18n.t('bidProjects.defaults.templateUnicomDirect'), i18n.t('bidProjects.defaults.templateNegotiation'), i18n.t('bidProjects.defaults.templateRecruitment')],
       selectedTemplate: project.selectedTemplate || i18n.t('bidProjects.defaults.defaultTemplate'),
@@ -313,4 +330,10 @@ export async function confirmBidProjectFact(factId: string) {
 
 export async function rejectBidProjectFact(factId: string) {
   return await ipcBridge.bidProject.rejectFact.invoke({ factId });
+}
+
+export async function chatBidProjectAssistant(input: IBidProjectAssistantChatInput): Promise<IBidProjectAssistantChatResult | null> {
+  const result = await ipcBridge.bidProject.chatAssistant.invoke(input);
+  if (!result.success || !result.data) return null;
+  return result.data;
 }

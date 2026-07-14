@@ -41,6 +41,29 @@ export interface IBidProjectAiGenerateResult {
   generatedSections: IBidProjectAiSectionResult[];
 }
 
+export type TBidProjectAssistantIntent = 'chat' | 'rewriteSection' | 'twoAlternatives' | 'explainSection' | 'explainIssue' | 'fixIssue';
+
+export interface IBidProjectAssistantChatInput {
+  projectId: string;
+  prompt: string;
+  intent?: TBidProjectAssistantIntent;
+  sectionKey?: TBidProjectAiSectionKey;
+  sectionMarkdown?: string;
+  issueTitle?: string;
+  issueDetail?: string;
+  issueBasis?: string;
+  accessToken?: string;
+  assistantId?: string;
+}
+
+export interface IBidProjectAssistantChatResult {
+  content: string;
+  citations: IBidProjectCitationItem[];
+  assetHits: IBidProjectAssetHit[];
+  elapsedMs: number;
+  fallbackUsed: boolean;
+}
+
 export interface IBidProjectSourceFileInput {
   id: string;
   name: string;

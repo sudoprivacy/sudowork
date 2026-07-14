@@ -97,11 +97,6 @@
   "syncItemDuration": "Check duration wording across project overview, bidder instructions, and contract terms.",
   "syncItemScope": "Verify implementation scope wording between requirements and evaluation rules.",
   "syncItemClauses": "Fill in qualification, technical, commercial, and pricing evaluation clauses.",
-  "analysis": {
-    "projectType": "Project Type",
-    "industry": "Industry",
-    "recommendedMethod": "Recommended Procurement Method"
-  },
   "fields": {
     "name": "Project Name",
     "company": "Purchasing Entity",
@@ -321,5 +316,15 @@
   "stats.awaitingConfirmation": "確認待ち",
   "stats.generating": "進行中",
   "stats.openIssues": "コンプライアンス問題",
-  "list.searchPlaceholder": "名称・会社・調達対象で検索"
+  "list.searchPlaceholder": "名称・会社・調達対象で検索",
+  "editor.chatFailed": "アシスタントが応答に失敗しました。あとで再試行してください。",
+  "editor.emptyReply": "アシスタントの応答が空でした。別のプロンプトをお試しください。",
+  "editor.applyNoContent": "先にアシスタントに質問し、内容を取得してから適用してください。",
+  "editor.savedAlternativesTitle": "保存済み代替案",
+  "editor.chatInputPlaceholder": "何でも質問できます。Enter で送信、Shift+Enter で改行。",
+  "editor.chatSend": "送信",
+  "editor.chatQuickPrompts": "クイックプロンプト",
+  "analysis.projectType": "Project Type",
+  "analysis.industry": "Industry",
+  "analysis.recommendedMethod": "Recommended Procurement Method"
 }

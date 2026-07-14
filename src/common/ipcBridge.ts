@@ -24,7 +24,7 @@ import type { FusePluginStatus } from './nexus/fuse-plugin-status';
 import type { PreviewHistoryTarget, PreviewSnapshotInfo } from './types/preview';
 import type { UpdateCheckRequest, UpdateCheckResult, UpdateDownloadProgressEvent, UpdateDownloadRequest, UpdateDownloadResult, AutoUpdateStatus } from './updateTypes';
 import type { ProtocolDetectionRequest, ProtocolDetectionResponse } from './utils/protocolDetector';
-import type { IBidProjectAiGenerateInput, IBidProjectAiGenerateResult, IBidProjectCreateInput, IBidProjectDetail, IBidProjectEntity, IBidProjectFactRecord, IBidProjectUpdateInput } from './bid-projects/types';
+import type { IBidProjectAiGenerateInput, IBidProjectAiGenerateResult, IBidProjectAssistantChatInput, IBidProjectAssistantChatResult, IBidProjectCreateInput, IBidProjectDetail, IBidProjectEntity, IBidProjectFactRecord, IBidProjectUpdateInput } from './bid-projects/types';
 
 export const shell = {
   openFile: bridge.buildProvider<void, string>('open-file'), // 使用系统默认程序打开文件
@@ -1173,6 +1173,7 @@ export const bidProject = {
   rejectFact: bridge.buildProvider<IBridgeResponse<IBidProjectFactRecord>, { factId: string }>('bid-project.reject-fact'),
   parseAllSources: bridge.buildProvider<IBridgeResponse<IBidProjectDetail>, { projectId: string }>('bid-project.parse-all-sources'),
   generateAiSections: bridge.buildProvider<IBridgeResponse<IBidProjectAiGenerateResult>, IBidProjectAiGenerateInput>('bid-project.generate-ai-sections'),
+  chatAssistant: bridge.buildProvider<IBridgeResponse<IBidProjectAssistantChatResult>, IBidProjectAssistantChatInput>('bid-project.chat-assistant'),
 };
 
 // Cron job types for IPC

@@ -97,11 +97,6 @@
   "syncItemDuration": "Check duration wording across project overview, bidder instructions, and contract terms.",
   "syncItemScope": "Verify implementation scope wording between requirements and evaluation rules.",
   "syncItemClauses": "Fill in qualification, technical, commercial, and pricing evaluation clauses.",
-  "analysis": {
-    "projectType": "Project Type",
-    "industry": "Industry",
-    "recommendedMethod": "Recommended Procurement Method"
-  },
   "fields": {
     "name": "Project Name",
     "company": "Purchasing Entity",
@@ -334,5 +329,15 @@
   "stats.awaitingConfirmation": "Awaiting Confirmation",
   "stats.generating": "In Progress",
   "stats.openIssues": "Compliance Issues",
-  "list.searchPlaceholder": "Search by name, company, or target"
+  "list.searchPlaceholder": "Search by name, company, or target",
+  "editor.chatFailed": "Assistant failed to respond. Please try again.",
+  "editor.emptyReply": "Assistant returned no content. Try a different prompt.",
+  "editor.applyNoContent": "Ask the assistant first, then apply the returned content.",
+  "editor.savedAlternativesTitle": "Saved alternatives",
+  "editor.chatInputPlaceholder": "Ask anything. Enter to send, Shift+Enter for a new line.",
+  "editor.chatSend": "Send",
+  "editor.chatQuickPrompts": "Quick prompts",
+  "analysis.projectType": "Project Type",
+  "analysis.industry": "Industry",
+  "analysis.recommendedMethod": "Recommended Procurement Method"
 }

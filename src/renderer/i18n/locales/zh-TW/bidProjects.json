@@ -97,11 +97,6 @@
   "syncItemDuration": "Check duration wording across project overview, bidder instructions, and contract terms.",
   "syncItemScope": "Verify implementation scope wording between requirements and evaluation rules.",
   "syncItemClauses": "Fill in qualification, technical, commercial, and pricing evaluation clauses.",
-  "analysis": {
-    "projectType": "Project Type",
-    "industry": "Industry",
-    "recommendedMethod": "Recommended Procurement Method"
-  },
   "fields": {
     "name": "Project Name",
     "company": "Purchasing Entity",
@@ -321,5 +316,15 @@
   "stats.awaitingConfirmation": "待確認",
   "stats.generating": "進行中",
   "stats.openIssues": "合規問題",
-  "list.searchPlaceholder": "搜尋項目名稱 / 單位 / 標的"
+  "list.searchPlaceholder": "搜尋項目名稱 / 單位 / 標的",
+  "editor.chatFailed": "AI 助手回覆失敗，請稍後再試",
+  "editor.emptyReply": "AI 助手暫無內容返回，請換一個問題再試。",
+  "editor.applyNoContent": "請先向助手提問，拿到內容後再應用。",
+  "editor.savedAlternativesTitle": "已儲存的備選方案",
+  "editor.chatInputPlaceholder": "輸入任何問題，Enter 送出，Shift+Enter 換行",
+  "editor.chatSend": "送出",
+  "editor.chatQuickPrompts": "快捷提問",
+  "analysis.projectType": "Project Type",
+  "analysis.industry": "Industry",
+  "analysis.recommendedMethod": "Recommended Procurement Method"
 }

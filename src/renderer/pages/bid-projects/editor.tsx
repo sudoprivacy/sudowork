@@ -1,5 +1,5 @@
-import { Button, Message, Spin, Tabs, Tag } from '@arco-design/web-react';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Button, Input, Message, Spin, Tabs, Tag } from '@arco-design/web-react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import PageWrapper from '@renderer/components/base/PageWrapper';
@@ -8,9 +8,9 @@ import { useAuth } from '@renderer/context/AuthContext';
 import { fetchVisibleAssistantsAsConfigs } from '@renderer/shared/agents/assistantAdapter';
 import { resolveSudohubAssistantId } from '@renderer/shared/dify/sessionBinding';
 import { DocumentConverter } from '@common/document/DocumentConverter';
-import type { TBidProjectAiSectionKey } from '@common/bid-projects/types';
-import { generateBidProjectAiSections, getBidProject, updateBidProject } from './storage';
-import type { IBidProjectDetailView } from './types';
+import type { TBidProjectAiSectionKey, TBidProjectAssistantIntent } from '@common/bid-projects/types';
+import { chatBidProjectAssistant, generateBidProjectAiSections, getBidProject, updateBidProject } from './storage';
+import type { IBidProjectDetailView, IBidProjectSectionItem } from './types';
 
 const ASSISTANT_PROMPTS = ['bidProjects.editor.prompt.explainSection', 'bidProjects.editor.prompt.formalTone', 'bidProjects.editor.prompt.twoAlternatives', 'bidProjects.editor.prompt.explainReviewIssue'];
 
@@ -29,6 +29,11 @@ export default function BidProjectEditorPage() {
   const [selectedSectionId, setSelectedSectionId] = useState('');
   const [assistantTab, setAssistantTab] = useState<'chat' | 'actions' | 'context'>('chat');
   const [assistantMessages, setAssistantMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string; actions?: string[] }>>([]);
+  const [isChatting, setIsChatting] = useState(false);
+  const [alternatives, setAlternatives] = useState<Array<{ id: string; sectionTitle: string; content: string }>>([]);
+  const [lastAssistantContent, setLastAssistantContent] = useState('');
+  const [chatInput, setChatInput] = useState('');
+  const assistantMessagesRef = useRef<HTMLDivElement | null>(null);
 
   const onLoadProject = useCallback(async () => {
     setIsLoading(true);
@@ -73,6 +78,11 @@ export default function BidProjectEditorPage() {
       },
     ]);
   }, [project, t]);
+
+  useEffect(() => {
+    if (!assistantMessagesRef.current) return;
+    assistantMessagesRef.current.scrollTop = assistantMessagesRef.current.scrollHeight;
+  }, [assistantMessages]);
 
   async function onSave() {
     if (!project) return;
@@ -168,39 +178,126 @@ export default function BidProjectEditorPage() {
     }
   }
 
-  function onAskAssistant(prompt: string) {
+  function detectIntentFromPrompt(prompt: string): TBidProjectAssistantIntent {
+    if (prompt === t('bidProjects.editor.prompt.explainSection')) return 'explainSection';
+    if (prompt === t('bidProjects.editor.prompt.formalTone')) return 'rewriteSection';
+    if (prompt === t('bidProjects.editor.prompt.twoAlternatives')) return 'twoAlternatives';
+    if (prompt === t('bidProjects.editor.prompt.explainReviewIssue')) return 'explainIssue';
+    return 'chat';
+  }
+
+  function resolveActionButtons(intent: TBidProjectAssistantIntent): string[] {
+    if (intent === 'twoAlternatives' || intent === 'rewriteSection') {
+      return [t('bidProjects.editor.action.applyCurrentSection'), t('bidProjects.editor.action.saveAlternative'), t('bidProjects.editor.action.explainBasis')];
+    }
+    if (intent === 'explainIssue' || intent === 'fixIssue') {
+      return [t('bidProjects.editor.action.applyCurrentSection'), t('bidProjects.editor.action.explainBasis')];
+    }
+    return [t('bidProjects.editor.action.explainBasis')];
+  }
+
+  async function onAskAssistant(prompt: string) {
+    if (!project || isChatting) return;
     setAssistantTab('chat');
-    setAssistantMessages((current) => [
-      ...current,
-      { role: 'user', content: prompt },
-      {
-        role: 'assistant',
-        content: t('bidProjects.editor.assistantReplyTemplate', { prompt }),
-        actions: [t('bidProjects.editor.action.applyCurrentSection'), t('bidProjects.editor.action.saveAlternative'), t('bidProjects.editor.action.explainBasis')],
-      },
-    ]);
+    const intent = detectIntentFromPrompt(prompt);
+    setAssistantMessages((current) => [...current, { role: 'user', content: prompt }]);
+    setIsChatting(true);
+    try {
+      const accessToken = await ensureValidToken();
+      const assistantConfigs = await fetchVisibleAssistantsAsConfigs(accessToken);
+      const assistantId = await resolveSudohubAssistantId(assistantConfigs[0]?.id);
+      const result = await chatBidProjectAssistant({
+        projectId: project.id,
+        prompt,
+        intent,
+        sectionKey: (selectedSection?.sectionKey as TBidProjectAiSectionKey) || undefined,
+        sectionMarkdown: selectedSection ? extractSectionMarkdown(markdown, selectedSection) : undefined,
+        issueTitle: intent === 'explainIssue' ? selectedIssue?.title : undefined,
+        issueDetail: intent === 'explainIssue' ? selectedIssue?.detail : undefined,
+        issueBasis: intent === 'explainIssue' ? selectedIssue?.basis : undefined,
+        accessToken: accessToken || undefined,
+        assistantId: assistantId || undefined,
+      });
+      const content = result?.content?.trim() || t('bidProjects.editor.emptyReply');
+      setLastAssistantContent(content);
+      setAssistantMessages((current) => [
+        ...current,
+        {
+          role: 'assistant',
+          content,
+          actions: resolveActionButtons(intent),
+        },
+      ]);
+    } catch (error) {
+      console.error('[bid-projects] assistant chat failed', error);
+      Message.error(t('bidProjects.editor.chatFailed'));
+    } finally {
+      setIsChatting(false);
+    }
   }
 
   function onApplyAssistantAction(action: string) {
     if (!selectedSection) return;
     if (action === t('bidProjects.editor.action.applyCurrentSection')) {
-      const applied = `${markdown}\n\n> ${t('bidProjects.editor.assistantTitle')}: ${t('bidProjects.editor.assistantSubtitle')}`;
-      setMarkdown(applied);
+      if (!lastAssistantContent) {
+        Message.warning(t('bidProjects.editor.applyNoContent'));
+        return;
+      }
+      const nextMarkdown = replaceSectionMarkdown(markdown, selectedSection, lastAssistantContent);
+      setMarkdown(nextMarkdown);
       Message.success(action);
       return;
     }
     if (action === t('bidProjects.editor.action.saveAlternative')) {
-      setAssistantMessages((current) => [
-        ...current,
-        {
-          role: 'assistant',
-          content: `${selectedSection.sectionTitle} alternative saved for later comparison.`,
-        },
-      ]);
+      if (!lastAssistantContent) {
+        Message.warning(t('bidProjects.editor.applyNoContent'));
+        return;
+      }
+      const id = `alt-${Date.now()}`;
+      setAlternatives((current) => [{ id, sectionTitle: selectedSection.sectionTitle, content: lastAssistantContent }, ...current]);
       Message.success(action);
       return;
     }
     Message.success(action);
+  }
+
+  async function onGenerateFixAlternative() {
+    if (!project || !selectedIssue || isChatting) return;
+    setAssistantTab('chat');
+    setAssistantMessages((current) => [...current, { role: 'user', content: t('bidProjects.editor.action.generateFixAlternative') }]);
+    setIsChatting(true);
+    try {
+      const accessToken = await ensureValidToken();
+      const assistantConfigs = await fetchVisibleAssistantsAsConfigs(accessToken);
+      const assistantId = await resolveSudohubAssistantId(assistantConfigs[0]?.id);
+      const result = await chatBidProjectAssistant({
+        projectId: project.id,
+        prompt: t('bidProjects.editor.action.generateFixAlternative'),
+        intent: 'fixIssue',
+        sectionKey: (selectedSection?.sectionKey as TBidProjectAiSectionKey) || undefined,
+        sectionMarkdown: selectedSection ? extractSectionMarkdown(markdown, selectedSection) : undefined,
+        issueTitle: selectedIssue.title,
+        issueDetail: selectedIssue.detail,
+        issueBasis: selectedIssue.basis,
+        accessToken: accessToken || undefined,
+        assistantId: assistantId || undefined,
+      });
+      const content = result?.content?.trim() || t('bidProjects.editor.emptyReply');
+      setLastAssistantContent(content);
+      setAssistantMessages((current) => [
+        ...current,
+        {
+          role: 'assistant',
+          content,
+          actions: resolveActionButtons('fixIssue'),
+        },
+      ]);
+    } catch (error) {
+      console.error('[bid-projects] fix alternative failed', error);
+      Message.error(t('bidProjects.editor.chatFailed'));
+    } finally {
+      setIsChatting(false);
+    }
   }
 
   if (isLoading) {
@@ -238,13 +335,13 @@ export default function BidProjectEditorPage() {
       }
     >
       <div className='space-y-4'>
-        <div className='grid grid-cols-[240px_minmax(0,1fr)_360px] gap-4 h-[calc(100vh-260px)] min-h-140'>
-          <div className='card p-4 overflow-y-auto'>
-            <div className='text-15px font-medium text-foreground mb-3'>{t('bidProjects.sectionNav')}</div>
+        <div className='grid grid-cols-[210px_minmax(0,1.45fr)_320px] gap-4 h-[calc(100vh-250px)] min-h-140'>
+          <div className='card p-3 overflow-y-auto'>
+            <div className='text-15px font-medium text-foreground mb-2'>{t('bidProjects.sectionNav')}</div>
             <div className='space-y-2'>
               {(project.sections.length > 0 ? project.sections : [{ id: 'default', sectionTitle: t('bidProjects.sections.notice'), status: 'generated' } as any]).map((section) => (
                 <div key={section.id} className={`rd-2 px-3 py-2 text-13px cursor-pointer ${selectedSectionId === section.id ? 'bg-primary-1 border border-primary' : 'bg-fill-1'}`} onClick={() => setSelectedSectionId(section.id)}>
-                  <div className='flex items-center justify-between gap-2'>
+                  <div className='flex items-start justify-between gap-2'>
                     <span className='text-foreground'>{section.sectionTitle}</span>
                     <Tag size='small'>{section.status}</Tag>
                   </div>
@@ -254,13 +351,13 @@ export default function BidProjectEditorPage() {
           </div>
 
           <div className='card min-h-0 overflow-hidden flex flex-col'>
-            <div className='px-4 py-3 border-b border-[var(--color-border-2)] flex items-center justify-between gap-4'>
+            <div className='px-4 py-2.5 border-b border-[var(--color-border-2)] flex items-start justify-between gap-3'>
               <div>
                 <div className='text-15px font-medium text-foreground'>{t('bidProjects.documentEditor')}</div>
                 <div className='text-12px text-secondary'>{selectedSection?.sectionTitle || t('bidProjects.sections.notice')}</div>
               </div>
-              <div className='flex flex-wrap gap-2'>
-                {project.assetHits.slice(0, 4).map((assetHit, index) => (
+              <div className='flex flex-wrap gap-1.5 max-w-180px justify-end'>
+                {project.assetHits.slice(0, 3).map((assetHit, index) => (
                   <Tag key={`${assetHit.assetKind}-${assetHit.label}-${index}`}>{assetHit.label}</Tag>
                 ))}
               </div>
@@ -277,29 +374,91 @@ export default function BidProjectEditorPage() {
             </div>
             <Tabs activeTab={assistantTab} onChange={(value) => setAssistantTab(value as any)} className='flex-1 min-h-0 px-3'>
               <Tabs.TabPane key='chat' title={t('bidProjects.editor.chatTab')}>
-                <div className='space-y-3 overflow-y-auto max-h-[calc(100vh-420px)] pr-1'>
-                  {assistantMessages.map((message, index) => (
-                    <div key={`${message.role}-${index}`} className={`rd-2 p-3 ${message.role === 'assistant' ? 'bg-fill-1' : 'bg-primary-1'}`}>
-                      <div className='text-12px font-medium text-secondary mb-1'>{message.role === 'assistant' ? t('bidProjects.editor.assistantTitle') : t('bidProjects.editor.userLabel')}</div>
-                      <div className='text-13px text-foreground whitespace-pre-wrap'>{message.content}</div>
-                      {message.actions?.length ? (
-                        <div className='flex flex-wrap gap-2 mt-3'>
-                          {message.actions.map((action) => (
-                            <Button key={action} size='mini' type={action === t('bidProjects.editor.action.applyCurrentSection') ? 'primary' : 'secondary'} onClick={() => onApplyAssistantAction(action)}>
-                              {action}
-                            </Button>
-                          ))}
-                        </div>
-                      ) : null}
+                <div className='flex min-h-0 h-[calc(100vh-420px)] flex-col'>
+                  <div ref={assistantMessagesRef} className='flex-1 space-y-3 overflow-y-auto pr-1'>
+                    {assistantMessages.map((message, index) => (
+                      <div key={`${message.role}-${index}`} className={`rd-2 p-3 ${message.role === 'assistant' ? 'bg-fill-1' : 'bg-primary-1'}`}>
+                        <div className='text-12px font-medium text-secondary mb-1'>{message.role === 'assistant' ? t('bidProjects.editor.assistantTitle') : t('bidProjects.editor.userLabel')}</div>
+                        <div className='text-13px text-foreground whitespace-pre-wrap'>{message.content}</div>
+                        {message.actions?.length ? (
+                          <div className='flex flex-wrap gap-2 mt-3'>
+                            {message.actions.map((action) => (
+                              <Button key={action} size='mini' type={action === t('bidProjects.editor.action.applyCurrentSection') ? 'primary' : 'secondary'} onClick={() => onApplyAssistantAction(action)}>
+                                {action}
+                              </Button>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                  <div className='mt-3 border-t border-[var(--color-border-2)] bg-[var(--color-bg-1)] pt-3'>
+                    <div className='grid grid-cols-1 gap-2'>
+                      <div className='flex items-end gap-2'>
+                        <Input.TextArea
+                          value={chatInput}
+                          onChange={setChatInput}
+                          placeholder={t('bidProjects.editor.chatInputPlaceholder')}
+                          autoSize={{ minRows: 2, maxRows: 6 }}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+                              event.preventDefault();
+                              const value = chatInput.trim();
+                              if (!value || isChatting) return;
+                              setChatInput('');
+                              void onAskAssistant(value);
+                            }
+                          }}
+                        />
+                        <Button
+                          type='primary'
+                          loading={isChatting}
+                          disabled={!chatInput.trim()}
+                          onClick={() => {
+                            const value = chatInput.trim();
+                            if (!value) return;
+                            setChatInput('');
+                            void onAskAssistant(value);
+                          }}
+                        >
+                          {t('bidProjects.editor.chatSend')}
+                        </Button>
+                      </div>
+                      <div className='text-12px text-secondary'>{t('bidProjects.editor.chatQuickPrompts')}</div>
+                      {ASSISTANT_PROMPTS.map((promptKey) => (
+                        <Button key={promptKey} type='secondary' long loading={isChatting} onClick={() => void onAskAssistant(t(promptKey))}>
+                          {t(promptKey)}
+                        </Button>
+                      ))}
                     </div>
-                  ))}
-                </div>
-                <div className='grid grid-cols-1 gap-2 mt-4'>
-                  {ASSISTANT_PROMPTS.map((promptKey) => (
-                    <Button key={promptKey} type='secondary' long onClick={() => onAskAssistant(t(promptKey))}>
-                      {t(promptKey)}
-                    </Button>
-                  ))}
+                    {alternatives.length > 0 ? (
+                      <div className='mt-4 space-y-2'>
+                        <div className='text-13px text-secondary'>{t('bidProjects.editor.savedAlternativesTitle')}</div>
+                        {alternatives.map((alt) => (
+                          <div key={alt.id} className='rd-2 bg-fill-1 px-3 py-2'>
+                            <div className='text-12px text-secondary mb-1'>{alt.sectionTitle}</div>
+                            <div className='text-13px text-foreground whitespace-pre-wrap break-words'>{alt.content}</div>
+                            <div className='mt-2 flex gap-2'>
+                              <Button
+                                size='mini'
+                                type='primary'
+                                onClick={() => {
+                                  if (!selectedSection) return;
+                                  setMarkdown(replaceSectionMarkdown(markdown, selectedSection, alt.content));
+                                  Message.success(t('bidProjects.editor.action.applyCurrentSection'));
+                                }}
+                              >
+                                {t('bidProjects.editor.action.applyCurrentSection')}
+                              </Button>
+                              <Button size='mini' type='text' onClick={() => setAlternatives((current) => current.filter((item) => item.id !== alt.id))}>
+                                {t('common.remove')}
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
               </Tabs.TabPane>
               <Tabs.TabPane key='actions' title={t('bidProjects.editor.actionsTab')}>
@@ -321,10 +480,10 @@ export default function BidProjectEditorPage() {
                     </Button>
                   </ActionSection>
                   <ActionSection title={t('bidProjects.editor.action.reviewSupport')}>
-                    <Button type='secondary' long onClick={() => selectedIssue && onAskAssistant(`${t('bidProjects.editor.action.explainSelectedIssue')}: ${selectedIssue.title}`)}>
+                    <Button type='secondary' long loading={isChatting} onClick={() => selectedIssue && onAskAssistant(t('bidProjects.editor.prompt.explainReviewIssue'))}>
                       {t('bidProjects.editor.action.explainSelectedIssue')}
                     </Button>
-                    <Button type='secondary' long onClick={() => selectedIssue && onAskAssistant(`${t('bidProjects.editor.action.generateFixAlternative')}: ${selectedIssue.title}`)}>
+                    <Button type='secondary' long loading={isChatting} onClick={() => void onGenerateFixAlternative()}>
                       {t('bidProjects.editor.action.generateFixAlternative')}
                     </Button>
                   </ActionSection>
@@ -351,7 +510,7 @@ export default function BidProjectEditorPage() {
             </div>
             {selectedIssue ? (
               <div className='flex gap-2'>
-                <Button type='secondary' onClick={() => selectedIssue && onAskAssistant(`${t('bidProjects.editor.action.explainSelectedIssue')}: ${selectedIssue.title}`)}>
+                <Button type='secondary' loading={isChatting} onClick={() => selectedIssue && void onAskAssistant(t('bidProjects.editor.prompt.explainReviewIssue'))}>
                   {t('bidProjects.editor.askAiAboutIssue')}
                 </Button>
                 <Button type='primary' onClick={() => void onApplyFix()}>
@@ -439,4 +598,27 @@ interface IActionSectionProps {
 interface IContextCardProps {
   items: string[];
   title: string;
+}
+
+function extractSectionMarkdown(markdown: string, section: IBidProjectSectionItem): string {
+  const heading = `## ${section.sectionTitle}`;
+  const start = markdown.indexOf(heading);
+  if (start === -1) return '';
+  const startContent = start + heading.length;
+  const nextHeading = markdown.indexOf('\n## ', startContent);
+  const end = nextHeading === -1 ? markdown.length : nextHeading;
+  return markdown.slice(startContent, end).trim();
+}
+
+function replaceSectionMarkdown(markdown: string, section: IBidProjectSectionItem, nextContent: string): string {
+  const heading = `## ${section.sectionTitle}`;
+  const start = markdown.indexOf(heading);
+  const trimmed = nextContent.trim();
+  if (start === -1) {
+    return `${markdown.trimEnd()}\n\n${heading}\n\n${trimmed}\n`;
+  }
+  const startContent = start + heading.length;
+  const nextHeading = markdown.indexOf('\n## ', startContent);
+  const end = nextHeading === -1 ? markdown.length : nextHeading;
+  return `${markdown.slice(0, startContent)}\n\n${trimmed}\n${markdown.slice(end)}`;
 }

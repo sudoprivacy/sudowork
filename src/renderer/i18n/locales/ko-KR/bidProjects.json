@@ -97,11 +97,6 @@
   "syncItemDuration": "Check duration wording across project overview, bidder instructions, and contract terms.",
   "syncItemScope": "Verify implementation scope wording between requirements and evaluation rules.",
   "syncItemClauses": "Fill in qualification, technical, commercial, and pricing evaluation clauses.",
-  "analysis": {
-    "projectType": "Project Type",
-    "industry": "Industry",
-    "recommendedMethod": "Recommended Procurement Method"
-  },
   "fields": {
     "name": "Project Name",
     "company": "Purchasing Entity",
@@ -321,5 +316,15 @@
   "stats.awaitingConfirmation": "확인 대기",
   "stats.generating": "진행 중",
   "stats.openIssues": "규정 문제",
-  "list.searchPlaceholder": "이름·회사·대상 검색"
+  "list.searchPlaceholder": "이름·회사·대상 검색",
+  "editor.chatFailed": "어시스턴트 응답에 실패했습니다. 잠시 후 다시 시도하세요.",
+  "editor.emptyReply": "어시스턴트가 반환한 내용이 없습니다. 다른 프롬프트로 시도하세요.",
+  "editor.applyNoContent": "어시스턴트에게 먼저 질문한 뒤 응답을 적용하세요.",
+  "editor.savedAlternativesTitle": "저장된 대안",
+  "editor.chatInputPlaceholder": "무엇이든 물어보세요. Enter로 전송, Shift+Enter로 줄바꿈.",
+  "editor.chatSend": "전송",
+  "editor.chatQuickPrompts": "빠른 프롬프트",
+  "analysis.projectType": "Project Type",
+  "analysis.industry": "Industry",
+  "analysis.recommendedMethod": "Recommended Procurement Method"
 }

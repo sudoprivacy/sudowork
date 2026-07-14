@@ -3,7 +3,7 @@ import React, { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import PageWrapper from '@renderer/components/base/PageWrapper';
-import { createBidProject } from './storage';
+import { createBidProject, listBidProjects } from './storage';
 import type { IBidProjectFileItem } from './types';
 
 export default function BidProjectNewPage() {
@@ -13,10 +13,13 @@ export default function BidProjectNewPage() {
   const [files, setFiles] = useState<IBidProjectFileItem[]>([]);
   const [step, setStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [createdProjectId, setCreatedProjectId] = useState('');
+  const [draftValues, setDraftValues] = useState<Record<string, string>>({});
   const [form] = Form.useForm();
 
   const onSubmit = async () => {
-    const values = await form.validate();
+    const values = { ...draftValues, ...(form.getFieldsValue() as Record<string, string>) };
+    console.log('[bid-projects] submit new project', { values, fileCount: files.length });
     setIsSubmitting(true);
     try {
       Message.info(t('bidProjects.new.startingAnalysisDesc'));
@@ -31,6 +34,7 @@ export default function BidProjectNewPage() {
         remark: values.remark || '',
         files,
       });
+      setCreatedProjectId(project.id);
       Message.success(t('bidProjects.projectCreated'));
       void navigate(`/app/bid-projects/${project.id}/analysis`);
     } finally {
@@ -51,6 +55,32 @@ export default function BidProjectNewPage() {
     setFiles((current) => [...current, ...list]);
   };
 
+  const onGoToSources = async () => {
+    const values = (await form.validate()) as Record<string, string>;
+    setDraftValues(values);
+    setStep(1);
+  };
+
+  React.useEffect(() => {
+    if (!isSubmitting) return;
+    const timer = window.setTimeout(async () => {
+      if (createdProjectId) {
+        void navigate(`/app/bid-projects/${createdProjectId}/analysis`);
+        return;
+      }
+      try {
+        const projects = await listBidProjects();
+        const latest = projects[0];
+        if (latest?.id) {
+          void navigate(`/app/bid-projects/${latest.id}/analysis`);
+        }
+      } catch (error) {
+        console.error('[bid-projects] fallback navigate after create failed', error);
+      }
+    }, 1500);
+    return () => window.clearTimeout(timer);
+  }, [createdProjectId, isSubmitting, navigate]);
+
   return (
     <PageWrapper title={t('bidProjects.newProjectTitle')} subtitle={t('bidProjects.newProjectSubtitle')} back={{ label: t('common.back'), onClick: () => void navigate('/app/bid-projects') }}>
       <div className='space-y-4'>
@@ -65,7 +95,7 @@ export default function BidProjectNewPage() {
         {step === 0 ? (
           <div className='card p-4'>
             <div className='text-15px font-medium text-foreground mb-4'>{t('bidProjects.basicInfo')}</div>
-            <Form form={form} layout='vertical'>
+            <Form form={form} layout='vertical' initialValues={draftValues}>
               <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
                 <Form.Item label={t('bidProjects.fields.name')} field='name' rules={[{ required: true }]}>
                   <Input allowClear />
@@ -103,7 +133,7 @@ export default function BidProjectNewPage() {
               </Form.Item>
             </Form>
             <div className='flex justify-end'>
-              <Button type='primary' onClick={() => setStep(1)}>
+              <Button type='primary' onClick={() => void onGoToSources()}>
                 {t('bidProjects.new.nextUpload')}
               </Button>
             </div>

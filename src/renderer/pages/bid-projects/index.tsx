@@ -15,12 +15,22 @@ export default function BidProjectsPage() {
   const [keyword, setKeyword] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | string>('all');
 
-  useEffect(() => {
-    void (async () => {
-      const nextProjects = await listBidProjects();
-      setProjects(nextProjects);
-    })();
+  const onLoadProjects = React.useCallback(async () => {
+    const nextProjects = await listBidProjects();
+    setProjects(nextProjects);
   }, []);
+
+  useEffect(() => {
+    void onLoadProjects();
+  }, [onLoadProjects]);
+
+  useEffect(() => {
+    const onFocus = () => {
+      void onLoadProjects();
+    };
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [onLoadProjects]);
 
   const filteredProjects = useMemo(() => {
     return projects.filter((project) => {

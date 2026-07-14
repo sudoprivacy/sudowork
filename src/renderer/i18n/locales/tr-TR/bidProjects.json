@@ -97,11 +97,6 @@
   "syncItemDuration": "Check duration wording across project overview, bidder instructions, and contract terms.",
   "syncItemScope": "Verify implementation scope wording between requirements and evaluation rules.",
   "syncItemClauses": "Fill in qualification, technical, commercial, and pricing evaluation clauses.",
-  "analysis": {
-    "projectType": "Project Type",
-    "industry": "Industry",
-    "recommendedMethod": "Recommended Procurement Method"
-  },
   "fields": {
     "name": "Project Name",
     "company": "Purchasing Entity",
@@ -321,5 +316,15 @@
   "stats.awaitingConfirmation": "Onay Bekleyen",
   "stats.generating": "Devam Ediyor",
   "stats.openIssues": "Uygunluk Sorunları",
-  "list.searchPlaceholder": "Ad / firma / hedefe göre ara"
+  "list.searchPlaceholder": "Ad / firma / hedefe göre ara",
+  "editor.chatFailed": "Asistan yanıt veremedi. Lütfen tekrar deneyin.",
+  "editor.emptyReply": "Asistan içerik döndürmedi. Farklı bir istek deneyin.",
+  "editor.applyNoContent": "Önce asistana sorun, dönen yanıtı sonra uygulayın.",
+  "editor.savedAlternativesTitle": "Kaydedilen alternatifler",
+  "editor.chatInputPlaceholder": "İstediğinizi sorun. Enter göndermek, Shift+Enter satır sonu için.",
+  "editor.chatSend": "Gönder",
+  "editor.chatQuickPrompts": "Hızlı sorular",
+  "analysis.projectType": "Project Type",
+  "analysis.industry": "Industry",
+  "analysis.recommendedMethod": "Recommended Procurement Method"
 }

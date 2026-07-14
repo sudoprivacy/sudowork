@@ -15,7 +15,9 @@ export function initBidProjectBridge(): void {
   });
 
   ipcBridge.bidProject.createProject.provider(async (input) => {
+    console.log('[bid-projects] bridge createProject called', { name: input.name, company: input.company, fileCount: input.files.length });
     const detail = await bidProjectService.createProject(input);
+    console.log('[bid-projects] bridge createProject success', { id: detail.project.id, status: detail.project.status });
     return { success: true, data: detail };
   });
 
@@ -57,5 +59,13 @@ export function initBidProjectBridge(): void {
       return { success: false, msg: 'Fact not found' };
     }
     return { success: true, data: fact };
+  });
+
+  ipcBridge.bidProject.chatAssistant.provider(async (input) => {
+    const result = await bidProjectService.chatWithAssistant(input);
+    if (!result) {
+      return { success: false, msg: 'Project not found' };
+    }
+    return { success: true, data: result };
   });
 }

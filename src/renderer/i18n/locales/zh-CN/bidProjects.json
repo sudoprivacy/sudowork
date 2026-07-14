@@ -97,11 +97,6 @@
   "syncItemDuration": "同步检查项目概况、投标人须知与合同条款中的工期描述。",
   "syncItemScope": "同步核对采购需求与评分办法中的实施范围口径。",
   "syncItemClauses": "同步补齐资格、技术、商务和价格评分条款。",
-  "analysis": {
-    "projectType": "项目类型",
-    "industry": "所属行业",
-    "recommendedMethod": "建议采购方式"
-  },
   "fields": {
     "name": "项目名称",
     "company": "采购单位",
@@ -334,5 +329,15 @@
   "stats.awaitingConfirmation": "待确认",
   "stats.generating": "进行中",
   "stats.openIssues": "合规问题",
-  "list.searchPlaceholder": "搜索项目名称 / 单位 / 标的"
+  "list.searchPlaceholder": "搜索项目名称 / 单位 / 标的",
+  "editor.chatFailed": "AI 助手回复失败，请稍后再试",
+  "editor.emptyReply": "AI 助手暂无内容返回，请换一个问题再试。",
+  "editor.applyNoContent": "请先向助手提问，拿到内容后再应用。",
+  "editor.savedAlternativesTitle": "已保存的备选方案",
+  "editor.chatInputPlaceholder": "输入任何问题，Enter 发送，Shift+Enter 换行",
+  "editor.chatSend": "发送",
+  "editor.chatQuickPrompts": "快捷问题",
+  "analysis.projectType": "项目类型",
+  "analysis.industry": "所属行业",
+  "analysis.recommendedMethod": "建议采购方式"
 }
