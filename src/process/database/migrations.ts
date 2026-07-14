@@ -1368,6 +1368,103 @@ const migration_v23: IMigration = {
 };
 
 /**
+ * Migration v23 -> v24: Add team collaboration tables
+ * teams / team_members / team_mailbox / team_tasks for multi-agent team collaboration.
+ */
+const migration_v24: IMigration = {
+  version: 24,
+  name: 'Add team collaboration tables',
+  up: (db) => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS teams (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        workspace TEXT,
+        leader_member_id TEXT,
+        session_mode TEXT,
+        deleted INTEGER DEFAULT 0,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_teams_user_id ON teams(user_id);
+      CREATE INDEX IF NOT EXISTS idx_teams_updated_at ON teams(updated_at);
+
+      CREATE TABLE IF NOT EXISTS team_members (
+        id TEXT PRIMARY KEY,
+        team_id TEXT NOT NULL,
+        role TEXT NOT NULL CHECK(role IN ('lead', 'teammate')),
+        name TEXT NOT NULL,
+        assistant_id TEXT,
+        backend TEXT NOT NULL,
+        preset_agent_type TEXT,
+        skills TEXT,
+        preset_context TEXT,
+        model TEXT,
+        avatar TEXT,
+        conversation_id TEXT,
+        status TEXT NOT NULL,
+        deleted INTEGER DEFAULT 0,
+        created_at INTEGER NOT NULL,
+        FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_team_members_team_id ON team_members(team_id);
+
+      CREATE TABLE IF NOT EXISTS team_mailbox (
+        id TEXT PRIMARY KEY,
+        team_id TEXT NOT NULL,
+        to_member_id TEXT NOT NULL,
+        from_member_id TEXT NOT NULL,
+        type TEXT NOT NULL CHECK(type IN ('message', 'idle_notification', 'shutdown_request')),
+        content TEXT NOT NULL,
+        summary TEXT,
+        files TEXT,
+        read INTEGER DEFAULT 0,
+        created_at INTEGER NOT NULL,
+        FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_team_mailbox_team_to_read ON team_mailbox(team_id, to_member_id, read);
+
+      CREATE TABLE IF NOT EXISTS team_tasks (
+        id TEXT PRIMARY KEY,
+        team_id TEXT NOT NULL,
+        subject TEXT NOT NULL,
+        description TEXT,
+        status TEXT NOT NULL CHECK(status IN ('pending', 'in_progress', 'completed', 'failed', 'cancelled', 'deleted')),
+        owner TEXT,
+        blocked_by TEXT,
+        blocks TEXT,
+        metadata TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_team_tasks_team_id ON team_tasks(team_id);
+    `);
+    mainLog('Migration v24', 'Added team collaboration tables');
+  },
+  down: (db) => {
+    db.exec(`
+      DROP INDEX IF EXISTS idx_team_tasks_team_id;
+      DROP TABLE IF EXISTS team_tasks;
+      DROP INDEX IF EXISTS idx_team_mailbox_team_to_read;
+      DROP TABLE IF EXISTS team_mailbox;
+      DROP INDEX IF EXISTS idx_team_members_team_id;
+      DROP TABLE IF EXISTS team_members;
+      DROP INDEX IF EXISTS idx_teams_updated_at;
+      DROP INDEX IF EXISTS idx_teams_user_id;
+      DROP TABLE IF EXISTS teams;
+    `);
+    mainLog('Migration v24', 'Rolled back: Removed team collaboration tables');
+  },
+};
+
+/**
  * All migrations in order
  */
 // prettier-ignore
@@ -1375,7 +1472,7 @@ export const ALL_MIGRATIONS: IMigration[] = [
   migration_v1, migration_v2, migration_v3, migration_v4, migration_v5, migration_v6,
   migration_v7, migration_v8, migration_v9, migration_v10, migration_v11, migration_v12,
   migration_v13, migration_v14, migration_v15, migration_v16, migration_v17, migration_v18,
-  migration_v19, migration_v20, migration_v21, migration_v22, migration_v23,
+  migration_v19, migration_v20, migration_v21, migration_v22, migration_v23, migration_v24,
 ];
 
 /**

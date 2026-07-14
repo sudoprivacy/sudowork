@@ -1163,6 +1163,53 @@ export const cron = {
   onJobExecuted: bridge.buildEmitter<{ jobId: string; status: 'ok' | 'error' | 'skipped' | 'missed'; error?: string }>('cron.job-executed'),
 };
 
+// Team collaboration API / 多 Agent 团队协作接口
+export const team = {
+  // Team CRUD
+  listTeams: bridge.buildProvider<ITeam[], { userId: string }>('team.list-teams'),
+  getTeam: bridge.buildProvider<ITeam | null, { teamId: string }>('team.get-team'),
+  createTeam: bridge.buildProvider<ITeam, ICreateTeamParams>('team.create-team'),
+  updateTeam: bridge.buildProvider<ITeam, { teamId: string; updates: Partial<ITeam> }>('team.update-team'),
+  removeTeam: bridge.buildProvider<void, { teamId: string }>('team.remove-team'),
+  renameTeam: bridge.buildProvider<ITeam, { teamId: string; name: string }>('team.rename-team'),
+  // Member management
+  addMember: bridge.buildProvider<ITeamMember, IAddTeamMemberParams>('team.add-member'),
+  removeMember: bridge.buildProvider<void, { teamId: string; memberId: string }>('team.remove-member'),
+  renameMember: bridge.buildProvider<ITeamMember, { memberId: string; name: string }>('team.rename-member'),
+  reorderMembers: bridge.buildProvider<ITeamMember[], { teamId: string; memberIds: string[] }>('team.reorder-members'),
+  // Messaging
+  sendMessage: bridge.buildProvider<ITeamRunAck, { teamId: string; input: string; files?: string[]; msgId?: string }>('team.send-message'),
+  sendMessageToMember: bridge.buildProvider<ITeamRunAck, { teamId: string; memberId: string; input: string; files?: string[]; msgId?: string }>('team.send-message-to-member'),
+  // Run lifecycle
+  cancelRun: bridge.buildProvider<void, { teamId: string; reason?: string }>('team.cancel-run'),
+  cancelChildTurn: bridge.buildProvider<void, { teamId: string; slotId: string; turnId?: string }>('team.cancel-child-turn'),
+  pauseMember: bridge.buildProvider<void, { teamId: string; slotId: string }>('team.pause-member'),
+  ensureSession: bridge.buildProvider<void, { teamId: string }>('team.ensure-session'),
+  stopSession: bridge.buildProvider<void, { teamId: string }>('team.stop-session'),
+  getRunState: bridge.buildProvider<ITeamRunState, { teamId: string }>('team.get-run-state'),
+  renewActiveLease: bridge.buildProvider<void, { teamId: string; leaseId: string }>('team.renew-active-lease'),
+  setSessionMode: bridge.buildProvider<void, { teamId: string; sessionMode: string }>('team.set-session-mode'),
+  // Events
+  onAgentStatusChanged: bridge.buildEmitter<ITeamAgentStatusEvent>('team.agent-status-changed'),
+  onMemberSpawned: bridge.buildEmitter<ITeamAgentSpawnedEvent>('team.member-spawned'),
+  onMemberRemoved: bridge.buildEmitter<ITeamAgentRemovedEvent>('team.member-removed'),
+  onMemberRenamed: bridge.buildEmitter<ITeamAgentRenamedEvent>('team.member-renamed'),
+  onTeammateMessage: bridge.buildEmitter<ITeamTeammateMessageEvent>('team.teammate-message'),
+  onMcpStatus: bridge.buildEmitter<ITeamMcpStatusEvent>('team.mcp-status'),
+  onTaskChanged: bridge.buildEmitter<{ teamId: string; task: ITeamTask }>('team.task-changed'),
+  onListChanged: bridge.buildEmitter<ITeamListChangedEvent>('team.list-changed'),
+  onSessionChanged: bridge.buildEmitter<{ teamId: string }>('team.session-changed'),
+  onRunAccepted: bridge.buildEmitter<ITeamRunEvent>('team.run-accepted'),
+  onRunStarted: bridge.buildEmitter<ITeamRunEvent>('team.run-started'),
+  onRunUpdated: bridge.buildEmitter<ITeamRunEvent>('team.run-updated'),
+  onRunCompleted: bridge.buildEmitter<ITeamRunEvent>('team.run-completed'),
+  onRunCancelled: bridge.buildEmitter<ITeamRunEvent>('team.run-cancelled'),
+  onRunFailed: bridge.buildEmitter<ITeamRunEvent>('team.run-failed'),
+  onChildTurnStarted: bridge.buildEmitter<ITeamChildTurnEvent>('team.child-turn-started'),
+  onChildTurnCompleted: bridge.buildEmitter<ITeamChildTurnEvent>('team.child-turn-completed'),
+  onChildTurnCancelled: bridge.buildEmitter<ITeamChildTurnEvent>('team.child-turn-cancelled'),
+};
+
 // Cron job types for IPC
 export type ICronSchedule = { kind: 'at'; atMs: number; description: string } | { kind: 'every'; everyMs: number; description: string } | { kind: 'cron'; expr: string; tz?: string; description: string };
 
@@ -1211,6 +1258,174 @@ export interface ICreateCronJobParams {
   conversationMode?: 'new' | 'reuse';
   workspace?: string;
   presetAssistantId?: string | null;
+}
+
+// Team collaboration types for IPC
+export interface ITeam {
+  id: string;
+  user_id: string;
+  name: string;
+  workspace?: string | null;
+  leader_member_id?: string | null;
+  session_mode?: string | null;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface ITeamMember {
+  id: string;
+  team_id: string;
+  role: 'lead' | 'teammate';
+  name: string;
+  assistant_id?: string | null;
+  backend: AcpBackendAll;
+  preset_agent_type?: PresetAgentType | null;
+  skills: string[];
+  preset_context?: string | null;
+  model?: string | null;
+  avatar?: string | null;
+  conversation_id?: string | null;
+  status: string;
+  created_at: number;
+}
+
+export interface ITeamMail {
+  id: string;
+  team_id: string;
+  to_member_id: string;
+  from_member_id: string;
+  type: 'message' | 'idle_notification' | 'shutdown_request';
+  content: string;
+  summary?: string | null;
+  files: string[] | null;
+  read: boolean;
+  created_at: number;
+}
+
+export interface ITeamTask {
+  id: string;
+  team_id: string;
+  subject: string;
+  description?: string | null;
+  status: 'pending' | 'in_progress' | 'completed' | 'failed' | 'cancelled' | 'deleted';
+  owner?: string | null;
+  blocked_by: string[];
+  blocks: string[];
+  metadata: Record<string, unknown> | null;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface ICreateTeamParams {
+  user_id: string;
+  name: string;
+  workspace?: string;
+  leader_assistant_id: string;
+  leader_name?: string;
+  leader_model?: string;
+}
+
+export interface IAddTeamMemberParams {
+  team_id: string;
+  assistant_id: string;
+  name: string;
+  model?: string;
+  role?: 'lead' | 'teammate';
+}
+
+export interface ITeamRunAck {
+  team_run_id: string;
+  team_id: string;
+  target_slot_id: string;
+  target_role: 'lead' | 'teammate';
+  accepted_slot_id: string;
+  accepted_role: 'lead' | 'teammate';
+  status: 'accepted' | 'rejected';
+  message_id?: string;
+}
+
+export interface ITeamSlotWork {
+  slot_id: string;
+  role: 'lead' | 'teammate';
+  pending_wake_count: number;
+  starting_child_count: number;
+  paused?: boolean;
+  suppressed_wake_count?: number;
+  active_turn_id?: string;
+  active_turn_started_at_ms?: number;
+  active_turn_elapsed_ms?: number;
+  active_turn_slow?: boolean;
+  runtime_health?: 'Disconnected' | 'Unhealthy' | null;
+}
+
+export interface ITeamRunEvent {
+  team_id: string;
+  team_run_id: string;
+  target_slot_id: string;
+  target_role: 'lead' | 'teammate';
+  status: 'accepted' | 'running' | 'cancelling' | 'completed' | 'cancelled' | 'failed';
+  active_child_count: number;
+  pending_wake_count: number;
+  starting_child_count: number;
+  slot_work?: ITeamSlotWork[];
+}
+
+export interface ITeamRunState {
+  active_run: ITeamRunEvent | null;
+}
+
+export interface ITeamChildTurnEvent {
+  team_id: string;
+  team_run_id: string;
+  slot_id: string;
+  role: 'lead' | 'teammate';
+  conversation_id: string;
+  turn_id: string;
+  status: 'started' | 'completed' | 'cancelled' | 'failed';
+}
+
+export interface ITeamAgentStatusEvent {
+  team_id: string;
+  slot_id: string;
+  status: string;
+  last_message?: string;
+}
+
+export interface ITeamAgentSpawnedEvent {
+  team_id: string;
+  member: ITeamMember;
+}
+
+export interface ITeamAgentRemovedEvent {
+  team_id: string;
+  slot_id: string;
+}
+
+export interface ITeamAgentRenamedEvent {
+  team_id: string;
+  slot_id: string;
+  name: string;
+}
+
+export interface ITeamListChangedEvent {
+  team_id: string;
+  action: 'created' | 'removed' | 'renamed' | 'agent_added' | 'agent_removed';
+}
+
+export interface ITeamTeammateMessageEvent {
+  conversation_id: string;
+  content: string;
+  from_slot_id: string;
+  from_name?: string;
+}
+
+export interface ITeamMcpStatusEvent {
+  team_id: string;
+  slot_id?: string;
+  phase: string;
+  server_count?: number;
+  port?: number;
+  error?: string;
 }
 
 export interface ISendMessageParams {

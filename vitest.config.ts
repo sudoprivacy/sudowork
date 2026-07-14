@@ -78,6 +78,8 @@ export default defineConfig({
         'src/process/bridge/documentBridge.ts',
         'src/process/bridge/pwdLoginBridge.ts',
         'src/process/utils/enabledSkillFilter.ts',
+        // Team collaboration
+        'src/process/services/team/TeamStore.ts',
         'src/utils/configureChromium.ts',
         // ACP
         'src/agent/acp/AcpAdapter.ts',
