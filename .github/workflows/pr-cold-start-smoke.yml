@@ -50,7 +50,12 @@ jobs:
   cold-start-smoke:
     name: Cold Start Smoke (${{ matrix.platform }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 10
+    # Per-platform: Linux/macOS finish in ~1min, but a cold Windows runner
+    # spends several minutes just provisioning bun + node before the smoke
+    # starts, and the old flat 10min budget got cancelled mid-provision. The
+    # bun-install cache above cuts the dependency fetch; this gives Windows
+    # headroom for the runtime/toolchain setup the cache does not cover.
+    timeout-minutes: ${{ matrix.timeout || 10 }}
     strategy:
       fail-fast: false
       matrix:
@@ -67,6 +72,9 @@ jobs:
             os: windows-2022
             node_platform: win32
             node_arch: x64
+            # Cold Windows runners provision the toolchain slowly; 10min was
+            # cancelling mid-setup before the smoke ran.
+            timeout: 20
           # macos-14: arm64 runner. Full 3-plugin set. THE platform where
           # the FUSE-T lazy contract could break (eager osascript install).
           # Re-enabled after nexi-lab/nexus#4425 closed via fuse-v0.4.2:
@@ -98,6 +106,21 @@ jobs:
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
+
+      # Cache the bun global module store so `bun install` is a restore, not a
+      # full network fetch. Without this the job re-downloads every dependency
+      # on a cold runner; on Windows that alone was consuming most of the 10min
+      # budget and getting cancelled mid-install before the smoke ever ran. The
+      # cache pattern mirrors _build-reusable.yml's Electron cache.
+      - name: Cache bun install
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.bun/install/cache
+            ${{ env.LOCALAPPDATA }}\.bun\install\cache
+          key: bun-install-${{ matrix.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            bun-install-${{ matrix.os }}-
 
       - name: Install dependencies
         run: bun install --no-frozen-lockfile
@@ -205,7 +228,7 @@ jobs:
               --bind-addr 0.0.0.0:${CLUSTER_PORT} \
               --data-dir /tmp/cluster-data \
               --no-tls \
-              --bootstrap-mode static \
+              --insecure-no-auth \
               --plugin-dir "$PLUGIN_DIR" \
               > "$CLUSTER_LOG" 2>&1 &
           CLUSTER_PID=$!
@@ -281,7 +304,7 @@ jobs:
               --bind-addr 0.0.0.0:${CLUSTER_PORT} \
               --data-dir /tmp/cluster-data \
               --no-tls \
-              --bootstrap-mode static \
+              --insecure-no-auth \
               --plugin-dir "$PLUGIN_DIR" \
               > "$CLUSTER_LOG" 2>&1 &
           CLUSTER_PID=$!
@@ -363,7 +386,7 @@ jobs:
               '--bind-addr', "0.0.0.0:$env:CLUSTER_PORT",
               '--data-dir', $dataDir,
               '--no-tls',
-              '--bootstrap-mode', 'static',
+              '--insecure-no-auth',
               '--plugin-dir', $pluginDir
             ) `
             -RedirectStandardOutput $clusterLog `

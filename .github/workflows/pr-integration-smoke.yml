@@ -203,7 +203,7 @@ jobs:
               --bind-addr 0.0.0.0:2028 \
               --data-dir /tmp/cluster-data \
               --no-tls \
-              --bootstrap-mode static \
+              --insecure-no-auth \
               --plugin-dir "$HOME/.nexus-vfs/plugins" \
               > /tmp/cluster.log 2>&1 &
           echo "CLUSTER_PID=$!" >> "$GITHUB_ENV"

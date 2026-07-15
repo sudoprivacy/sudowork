@@ -169,13 +169,18 @@ describe('signed-plugin download + cluster startup', () => {
     clusterProc = spawn(
       clusterBin,
       [
+        // Bind loopback explicitly. --bootstrap-mode was removed in nexus-vfs
+        // v0.5.0 (boot action is inferred from disk), and the default bind is
+        // 0.0.0.0 — which the v0.5.0 boot invariant refuses without auth. This
+        // test only exercises local plugin-signature verification, so loopback
+        // is both the correct scope and legal without a credential.
+        '--bind-addr',
+        '127.0.0.1:2126',
         '--no-tls',
         '--data-dir',
         dataDir,
         '--plugin-dir',
         PLUGIN_DIR,
-        '--bootstrap-mode',
-        'static',
       ],
       {
         stdio: ['ignore', logFd, logFd],
