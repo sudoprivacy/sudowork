@@ -1,12 +1,12 @@
 {
   "_doc": "Canonical SHA256 sums for every downloadable nexus-vfs runtime artifact. Single source of truth — scripts/download-nexus-vfs.js (build/install-time), DynamicNexusVfsService.ts (runtime cluster re-installer), and VaultPluginInstaller.ts (runtime vault re-installer) all read from this file. Bump versions in runtime-versions.json AND update the matching entry here in one commit; do NOT inline a SHA back into any source file. Verified against the per-release SHA256SUMS.txt in the COS bucket.",
 
-  "nexusd-cluster-linux-aarch64.tar.gz": "6629a229eaa3f274e937a528f029f1fba06437e4d8068534204b38e9c9d7a4f2",
-  "nexusd-cluster-linux-x86_64.tar.gz": "ab97e36c75c76bcea35ce5ffac5116bce741e87682558b0e24e0853c604ab3c4",
-  "nexusd-cluster-macos-aarch64.tar.gz": "588b93ea07a9a9d51f95ba43da9fb2c6484fff0cf4f6351ada53b32268b29836",
-  "nexusd-cluster-macos-x86_64.tar.gz": "1c1e885969e649353264d859ad1a12aab6fa91b47cd079e3010c878f457dcb90",
-  "nexusd-cluster-windows-aarch64.zip": "c87f665e12a202ce3da85fa3f928e9713a4240ca9bb8bdd8df562728eae8e8a5",
-  "nexusd-cluster-windows-x86_64.zip": "79de886dcb2b2430b482a7ad6a9bcfbaa53137c1174f2050e2f0c03f7f6c696f",
+  "nexusd-cluster-linux-aarch64.tar.gz": "0547aaa5de46c3f10f98fa317ee1abd79665b13a1a68055496ff78e539ba8192",
+  "nexusd-cluster-linux-x86_64.tar.gz": "9abf300c2420292266e4df4b40cc5d46efd1af7b21cd2f6d0edde9f001bc1585",
+  "nexusd-cluster-macos-aarch64.tar.gz": "5239c1f375a256f37847b376fa2e91f81fcee3d6eb4262237824e2ca83d3ef09",
+  "nexusd-cluster-macos-x86_64.tar.gz": "d178da1a6ac8a67619c20b9209cb15cec794927b532443573ddecfc77a61b726",
+  "nexusd-cluster-windows-aarch64.zip": "519c4eb3a41ae2edbb8042f9bd8ec01867b6ad9b0ca672b04d7b8c0f496cd42a",
+  "nexusd-cluster-windows-x86_64.zip": "4d08cde8a068a2528336e9eb337e93aae6d452e93c3661bcc318a1907aea71de",
 
   "nexus-vault-linux-x86_64.tar.gz": "19b4baabc30e3d0901acc991ddefe807d22f410d98205f79c474b47c18e1eae7",
   "nexus-vault-macos-arm64.tar.gz": "d237646c214c99d6779b2cb709e974b0911f99ffd3d7384c8951254873a22217",
