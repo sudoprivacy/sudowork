@@ -165,6 +165,18 @@ describe('TeamRun pushPendingWake ordering', () => {
   });
 });
 
+describe('TeamRun cancelChildTurn (附录 I.1 — cancelled child does not fail the run)', () => {
+  it('recordChildCompleted(cancelled) → maybeComplete → completed (not failed)', () => {
+    const m = newManager();
+    const { lease } = m.acquireWake('s1', 'lead', 'user_message');
+    m.commitLease(lease.lease_id, { slot_id: 's1', role: 'lead', source: 'user_message', message_id: null });
+    const reservation = m.claimWakeForTurn('s1', 'user_message')!;
+    m.recordChildStarted(reservation, 'turn-1', 'conv-1');
+    m.recordChildCompleted('s1', { turn_id: 'turn-1', status: 'cancelled' });
+    expect(m.getRecord()!.status).toBe('completed'); // cancelled ≠ failed; run completes when all empty
+  });
+});
+
 describe('TeamRun cancel (附录 I.1 begin_cancel)', () => {
   it('active → cancelling; clears pending + gate; maybeComplete → cancelled when empty', () => {
     const m = newManager();
